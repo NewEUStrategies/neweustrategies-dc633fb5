@@ -52,9 +52,15 @@ beforeEach(() => {
 });
 
 describe("ThemeDesignStyle - wstrzykiwanie tokenów", () => {
-  it("emituje tokeny dopiero po wczytaniu ustawień", async () => {
+  it("emituje DOMYŚLNE tokeny JUŻ W PIERWSZYM renderze, zanim zapytanie wróci", () => {
+    // Do 20.09.2026 komponent zwracał tutaj `null`, więc dokument dostawał
+    // tokeny motywu dopiero po hydratacji - i cała typografia (nagłówki bloków,
+    // „czytaj dalej", meta) zmieniała rozmiar pod czytelnikiem (audyt CWV,
+    // F29a). Brak `await`/`waitFor` JEST treścią asercji: blok musi stać w
+    // dokumencie synchronicznie, bo tylko wtedy HTML z SSR i pierwszy render
+    // klienta są tym samym HTML-em.
     render(<ThemeDesignStyle />, { wrapper });
-    await waitFor(() => expect(styleText("data-theme-design")).toContain("--td-bh-size"));
+    expect(styleText("data-theme-design")).toContain("--td-bh-size");
   });
 
   it("znakuje styl JĘZYKIEM i TRYBEM - to jedyny ślad, którą wersję widać", async () => {
@@ -111,7 +117,11 @@ describe("ThemeDesignStyle - bramka przed wyjściem z bloku style", () => {
     };
     render(<ThemeDesignStyle />, { wrapper });
 
-    await waitFor(() => expect(styleText("data-theme-design")).toContain("--td-bh-color"));
+    // Czekamy na WARTOŚĆ Z USTAWIEŃ, nie na sam token: od czasu, gdy komponent
+    // emituje domyślne tokeny od pierwszego renderu, `--td-bh-color` jest w
+    // bloku natychmiast - warunek na samą nazwę tokenu spełniłby się na
+    // domyślnych i test nie obejrzałby wstrzykniętej wartości.
+    await waitFor(() => expect(styleText("data-theme-design")).toContain("--td-bh-color:red"));
     const css = styleText("data-theme-design");
     expect(css).not.toContain("</style>");
     // Wstrzyknięty tekst zostaje, ale rozbrojony - bez ukośnika zamykającego.
@@ -122,7 +132,8 @@ describe("ThemeDesignStyle - bramka przed wyjściem z bloku style", () => {
     h.settings = { theme_design: { blockHeading: { color: "red<!--" } } };
     render(<ThemeDesignStyle />, { wrapper });
 
-    await waitFor(() => expect(styleText("data-theme-design")).toContain("--td-bh-color"));
+    // Jak wyżej: warunek musi być ROZSTRZYGAJĄCY wobec domyślnych tokenów.
+    await waitFor(() => expect(styleText("data-theme-design")).toContain("--td-bh-color:red"));
     expect(styleText("data-theme-design")).not.toContain("<!--");
   });
 

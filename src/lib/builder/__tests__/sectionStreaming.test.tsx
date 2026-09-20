@@ -13,6 +13,10 @@ import {
   shouldStreamSection,
 } from "@/lib/builder/sectionStreaming";
 import { sectionQueryOptionsList } from "@/lib/builder/prefetch";
+import {
+  SECTION_STREAM_MIN_HEIGHT,
+  estimateSectionHeight,
+} from "@/lib/builder/sectionHeightEstimate";
 
 function makeWidget(type: WidgetNode["type"], extra: Partial<WidgetNode> = {}): WidgetNode {
   return {
@@ -53,6 +57,14 @@ describe("SectionStreamSkeleton", () => {
     const { container } = render(<SectionStreamSkeleton minHeight={500} />);
     const root = container.querySelector<HTMLElement>("[data-section-stream-skeleton]");
     expect(root?.style.minHeight).toBe("500px");
+  });
+
+  it("bez sekcji spada na DNO widełek, a nie na zero", () => {
+    // Wołający bez sekcji (np. ręczny fallback) nadal musi coś zarezerwować -
+    // szkielet o zerowej wysokości nie różni się od braku szkieletu.
+    const { container } = render(<SectionStreamSkeleton />);
+    const root = container.querySelector<HTMLElement>("[data-section-stream-skeleton]");
+    expect(root?.style.minHeight).toBe(`${SECTION_STREAM_MIN_HEIGHT}px`);
   });
 });
 
@@ -211,6 +223,31 @@ describe("StreamingSection", () => {
       </StreamingSection>,
     );
     expect(screen.getByText("CONTENT")).toBeTruthy();
+  });
+
+  it("szkielet rezerwuje wysokość POLICZONĄ Z SEKCJI, nie stałą", () => {
+    // Dotąd fallback trzymał stałe 280 px wobec sekcji 400-900 px, więc każde
+    // dostrumieniowanie spychało treść pod sekcją (audyt CWV, F29b). To jedyne
+    // miejsce, w którym widać SPIĘCIE szacunku z granicą Suspense - sam
+    // szacunek pilnuje `sectionHeightEstimate.test.ts`.
+    //
+    // Dziecko zawieszone na wieczność jest tu NARZĘDZIEM: w środowisku
+    // testowym `import.meta.env.SSR` jest fałszywe, więc bramka serwerowa się
+    // nie montuje i fallbacku nie zobaczylibyśmy w ogóle.
+    const section = withWidgets([makeWidget("post-list"), makeWidget("slider")]);
+    function NigdyNieGotowe(): never {
+      throw new Promise<void>(() => {});
+    }
+    const { container } = render(
+      <StreamingSection section={section} lang="pl" index={9} aboveFoldCount={3} enabled>
+        <NigdyNieGotowe />
+      </StreamingSection>,
+    );
+    const root = container.querySelector<HTMLElement>("[data-section-stream-skeleton]");
+    const oczekiwane = estimateSectionHeight(section);
+    expect(root?.style.minHeight).toBe(`${oczekiwane}px`);
+    // Kontrakt kierunku: szacunek tej sekcji jest WYŻSZY niż dawna stała.
+    expect(oczekiwane).toBeGreaterThan(SECTION_STREAM_MIN_HEIGHT);
   });
 });
 

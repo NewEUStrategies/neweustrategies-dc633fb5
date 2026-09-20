@@ -8,6 +8,14 @@
 // `{metrics:[...]}`; a page cached before that change posts a single
 // `{name,value,...}` object and may keep doing so for as long as it stays open.
 // `incomingMetrics` normalizes both to a list, so neither is ever dropped.
+//
+// KONTEKST NAWIGACJI (od 2026-09-20). Każda próbka może nieść pięć pól
+// opisowych - `sinceNav`, `navigationType`, `deviceMemory`, `effectiveType`,
+// `coldStart` - i to NIE jest zmiana obowiązkowa: strona zbuforowana przed nią
+// nadal wysyła próbkę bez nich, a wtedy kolumny zostają `NULL`. Walidacja jest
+// per pole i „miękka": pole poza zakresem albo poza listą dozwolonych staje
+// się `null`, a próbka mimo to zostaje zapisana - kontekst jest dodatkiem do
+// pomiaru, więc jego odrzucenie nie może kosztować samej metryki.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
@@ -76,6 +84,50 @@ interface IncomingVital {
   deviceMemory?: unknown;
   effectiveType?: unknown;
   coldStart?: unknown;
+}
+
+/**
+ * Wiersz `web_vitals` z kolumnami kontekstu nawigacji.
+ *
+ * DLACZEGO PRZECIĘCIE, A NIE RĘCZNIE PRZEPISANY KSZTAŁT. `TablesInsert` jest
+ * i pozostaje ŹRÓDŁEM PRAWDY dla kolumn, które w wygenerowanych typach są -
+ * dokładamy wyłącznie pięć nowych, jawnie nazwanych. Nie ma tu ani rzutowania,
+ * ani drugiej kopii wiersza, więc zmiana typu `value` czy `path` w bazie nadal
+ * przechodzi przez generator i nadal wywraca kompilację tam, gdzie powinna.
+ *
+ * DLACZEGO TE PIĘĆ NIE JEST W `types.ts`. Ten plik jest GENEROWANY
+ * (`supabase gen types typescript --linked`), a generator potrzebuje dostępu do
+ * projektu Supabase - nie da się go uruchomić z tej gałęzi. Bramka
+ * `check:types-freshness` porównuje `ADD COLUMN` z migracji z zawartością
+ * `types.ts`, więc po migracji `20260920120000_web_vitals_navigation_context`
+ * zgłosi pięć nowych kolumn poza typami. Domknięcie należy do człowieka:
+ * regeneracja `types.ts` ALBO dopisanie tych pięciu kluczy do `BASELINE`
+ * w `scripts/check-generated-types-freshness.ts`. Dokładne linie do wklejenia
+ * są w `docs/performance/README.md`.
+ */
+type WebVitalsInsert = TablesInsert<"web_vitals"> & {
+  since_nav_ms?: number | null;
+  navigation_type?: string | null;
+  device_memory?: number | null;
+  effective_type?: string | null;
+  cold_start?: boolean | null;
+};
+
+/**
+ * Ten sam wiersz BEZ kolumn kontekstu - ładunek awaryjnego ponowienia, gdy
+ * migracja jeszcze nie dojechała. Składany jawnie, polem po polu, z tego
+ * samego powodu co wiersz główny: `delete` na kopii albo `rest` ze spreadu
+ * przepuściłyby każdą kolumnę, która w międzyczasie do niego trafi.
+ */
+function withoutNavigationContext(row: WebVitalsInsert): TablesInsert<"web_vitals"> {
+  const base: TablesInsert<"web_vitals"> = {
+    metric: row.metric,
+    value: row.value,
+    rating: row.rating,
+    path: row.path,
+  };
+  if (row.tenant_id !== undefined) base.tenant_id = row.tenant_id;
+  return base;
 }
 
 /**
@@ -194,7 +246,7 @@ export const Route = createFileRoute("/api/public/vitals")({
           // `check:stale-never-casts` i `check:db-row-casts` - i który tutaj
           // wyłączał kontrolę kształtu wiersza na ścieżce zapisu dostępnej
           // publicznie bez sesji.
-          const rows: TablesInsert<"web_vitals">[] = [];
+          const rows: WebVitalsInsert[] = [];
           for (const sample of incoming) {
             const metric = String(sample?.name ?? "");
             const value = metricValue(sample?.value);
@@ -202,12 +254,23 @@ export const Route = createFileRoute("/api/public/vitals")({
             // the four good ones sharing its beacon. Validating per row is what
             // keeps batching from turning a partial payload into total loss.
             if (!VALID_METRICS.has(metric) || value === null) continue;
+            // NIEZNANE POLA ODPADAJĄ Z KONSTRUKCJI. Wiersz jest SKŁADANY pole po
+            // polu z jawnej listy - nie ma tu `...sample` ani pętli po kluczach,
+            // więc cokolwiek dorzuci nadawca (`evil`, `tenant_id`, `id`,
+            // `created_at`) nie ma jak dojechać do `insert`. To świadomie
+            // wybrana biała lista: czarna musiałaby nadążać za każdą nową
+            // kolumną tabeli, a ta ścieżka zapisu jest publiczna i niepodpisana.
             rows.push({
               metric,
               value,
               rating: typeof sample.rating === "string" ? sample.rating.slice(0, 32) : null,
               // Strip query strings (may carry tokens/emails) before persisting.
               path: redactUrl(typeof sample.url === "string" ? sample.url.slice(0, 512) : null),
+              since_nav_ms: sinceNavMs(sample.sinceNav),
+              navigation_type: enumValue(sample.navigationType, NAVIGATION_TYPES),
+              device_memory: deviceMemoryBucket(sample.deviceMemory),
+              effective_type: enumValue(sample.effectiveType, EFFECTIVE_TYPES),
+              cold_start: coldStartFlag(sample.coldStart),
             });
           }
           // Validate BEFORE resolving the tenant: an all-junk batch must not
@@ -227,12 +290,41 @@ export const Route = createFileRoute("/api/public/vitals")({
             // keep it null -> column default applies
           }
           const tenantId = resolved;
-          const payload = tenantId ? rows.map((row) => ({ ...row, tenant_id: tenantId })) : rows;
+          // Adnotacja, a nie inferencja: bez niej typem jest UNIA dwóch tablic
+          // (z `tenant_id` i bez), a `.map()` po unii tablic nie jest w TS
+          // wywoływalne - awaryjne ponowienie niżej przestałoby się kompilować.
+          const payload: WebVitalsInsert[] = tenantId
+            ? rows.map((row) => ({ ...row, tenant_id: tenantId }))
+            : rows;
 
           // ONE multi-row insert for the whole batch (symmetric to
           // /api/public/track), replacing one round-trip per metric.
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-          await supabaseAdmin.from("web_vitals").insert(payload);
+          // PODSTAWIENIE DO SZERSZEGO TYPU, NIE RZUTOWANIE - i nie jest to
+          // ozdobnik. `insert()` w supabase-js jest typowane przez
+          // `RejectExcessProperties`: KAŻDY klucz spoza `Row["Insert"]` jest
+          // mapowany na `never`, więc wiersz z pięcioma kolumnami, których nie
+          // ma jeszcze w WYGENEROWANYCH typach, nie przechodzi kompilacji -
+          // niezależnie od tego, że w bazie te kolumny są (migracja
+          // 20260920120000). `WebVitalsInsert` ZAWIERA `TablesInsert`, więc to
+          // zwykłe przypisanie do nadtypu: TS przestaje widzieć pięć pól,
+          // a runtime wysyła je bez zmian. Linia znika razem z regeneracją
+          // `types.ts` - patrz §3.3 w docs/performance/README.md.
+          const wire: TablesInsert<"web_vitals">[] = payload;
+          const { error } = await supabaseAdmin.from("web_vitals").insert(wire);
+          // AWARYJNY ZAPIS BEZ KONTEKSTU - okno między wdrożeniem kodu
+          // a migracją. `check:migration-ledger` jest bramką POWDROŻENIOWĄ,
+          // więc kolejność „kod przed migracją" jest w tym repo realna, a
+          // ingest połyka błędy (patrz `catch` niżej). Bez tej gałęzi jedna
+          // brakująca kolumna kasowałaby CAŁY RUM w ciszy: każdy beacon
+          // dostawałby 204, a w bazie nie lądowałby ani jeden wiersz - awaria
+          // bez jednego nieudanego żądania, po której nikt nie pozna, że
+          // panel wydajności zamarł. Ponawiamy WYŁĄCZNIE na „nie ma takiej
+          // kolumny" (PostgREST `PGRST204`, Postgres `42703`), żeby zwykły
+          // błąd sieci nie kosztował drugiego round-tripu.
+          if (error && (error.code === "PGRST204" || error.code === "42703")) {
+            await supabaseAdmin.from("web_vitals").insert(payload.map(withoutNavigationContext));
+          }
         } catch {
           // Ingest is best-effort - never error the beacon.
         }

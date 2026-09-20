@@ -34,5 +34,12 @@ export function ThemeDesignStyle() {
   // Komponent wisi przy korzeniu aplikacji - bez memo budował i utwardzał
   // kilkadziesiąt zmiennych CSS przy każdym renderze drzewa.
   const css = useMemo(() => hardenStyleCss(themeDesignToCss(effective)), [effective]);
-  return <style data-theme-design data-lang={lang} data-mode={mode} dangerouslySetInnerHTML={{ __html: css }} />;
+  return (
+    <style
+      data-theme-design
+      data-lang={lang}
+      data-mode={mode}
+      dangerouslySetInnerHTML={{ __html: css }}
+    />
+  );
 }

@@ -81,12 +81,6 @@ function announceFirstUse(): void {
   }
 }
 
-/** Wyłącznie dla testów - zeruje pamięć „pierwszego użycia". */
-export function resetFirstToastForTests(): void {
-  firstUseSeen = false;
-  firstUseSubscribers.clear();
-}
-
 function withToast(run: (t: { success: ToastFn; error: ToastFn }) => void): void {
   if (typeof window === "undefined") return; // SSR: no-op
   announceFirstUse();

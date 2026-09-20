@@ -69,8 +69,13 @@ const h = vi.hoisted(() => ({
   mutateCalls: [] as { userId: string; role: string }[],
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
+  /** Karta klubu, którą loader UKŁADU `/club/$clubSlug` zostawił w cache'u. */
   loaded: null as unknown,
-  loaderFails: false,
+  /** Układ ZDEGRADOWAŁ (budżet 800 ms albo awaria RPC): po `removeQueries`
+   *  cache jest pusty i liść nie ma z czego policzyć nagłówka. */
+  ukladZdegradowal: false,
+  /** Ile razy cokolwiek poszło do `club_view` - po F09 ma być ZERO. */
+  fetchCalls: 0,
   /** Propsy każdego wyrenderowanego `ClubErrorNotice`. */
   notices: [] as { onRetry?: () => void }[],
 }));
@@ -81,9 +86,13 @@ vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError
 vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({ user: h.user, isAdmin: h.isAdmin, loading: false }),
 }));
+// KONTROLA NEGATYWNA, nie źródło danych: po F09 trasa liściowa nie ma prawa
+// tknąć tej funkcji - kartę klubu czyta RAZ loader UKŁADU `/club/$clubSlug`.
 vi.mock("@/lib/clubs/publicClub", () => ({
-  fetchClubBySlug: () =>
-    h.loaderFails ? Promise.reject(new Error("club_view padło")) : Promise.resolve(h.loaded),
+  fetchClubBySlug: () => {
+    h.fetchCalls += 1;
+    return Promise.resolve(h.loaded);
+  },
 }));
 vi.mock("@/lib/clubs/useClubs", () => ({
   useClubBySlug: () => ({
@@ -151,6 +160,7 @@ vi.mock("@/components/clubs/molecules/ClubEnumSelect", () => ({
   ),
 }));
 
+import { QueryClient } from "@tanstack/react-query";
 import { renderRoute, type RouteMetaEntry } from "@/test/routeHarness";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
 import { clubKeys } from "@/lib/clubs/queryKeys";
@@ -163,13 +173,36 @@ const SLUG = "klub-energetyczny";
 const PATH = "/club/$clubSlug/members";
 const ENTRY = `/club/${SLUG}/members`;
 
+/**
+ * Klient zapytań W STANIE, W JAKIM ZOSTAWIA GO LOADER UKŁADU `/club/$clubSlug`
+ * (F09). Trasa składu jest tu montowana W IZOLACJI, więc układ nie biegnie -
+ * jedynym jego skutkiem, który liść widzi, jest TEN wpis w cache'u, pod
+ * kluczem widza ANONIMOWEGO (dokument SSR jest z konstrukcji anonimowy).
+ */
+function klientUkladu(slug: string = SLUG): QueryClient {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  if (!h.ukladZdegradowal) queryClient.setQueryData(clubKeys.bySlugViewer(slug, null), h.loaded);
+  return queryClient;
+}
+
 async function mount() {
-  return renderRoute({ route: MembersRoute, path: PATH, initialEntry: ENTRY });
+  return renderRoute({
+    route: MembersRoute,
+    path: PATH,
+    initialEntry: ENTRY,
+    queryClient: klientUkladu(),
+  });
 }
 
 function robotsOf(meta: readonly RouteMetaEntry[]): string | null {
   const entry = meta.find((item) => item.name === "robots");
   return typeof entry?.content === "string" ? entry.content : null;
+}
+
+/** Tytuł strony z listy `meta` - dowód, że nagłówek dostał KARTĘ, a nie pustkę. */
+function titleOf(meta: readonly RouteMetaEntry[]): string | null {
+  const entry = meta.find((item) => typeof item.title === "string");
+  return typeof entry?.title === "string" ? entry.title : null;
 }
 
 /** Strona składu o zadanej długości, z pełnym licznikiem w KAŻDYM wierszu. */
@@ -213,16 +246,37 @@ beforeEach(() => {
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
   h.loaded = clubViewRow();
-  h.loaderFails = false;
+  h.ukladZdegradowal = false;
+  h.fetchCalls = 0;
   h.notices = [];
 });
 
 // --- nagłówek i loader ------------------------------------------------------
 
 describe("skład klubu - nagłówek nie wypuszcza nazwisk do wyszukiwarki", () => {
-  it("loader dogrzewa cache pod `clubKeys.bySlug`", async () => {
-    const { queryClient } = await mount();
-    expect(queryClient.getQueryData(clubKeys.bySlug(SLUG))).not.toBeUndefined();
+  it("loader NIE wykonuje żadnego fetchu i czyta kartę z cache'u układu", async () => {
+    // Cała oszczędność F09: trasa robiła tu własne `ensureQueryData` na
+    // `club_view` przed pierwszym bajtem, a jego wynik zasilał wyłącznie
+    // `head()`. Dowód ma dwie połowy - zero wywołań ORAZ nagłówek policzony
+    // z karty; sama pierwsza przeszłaby też dla loadera, który nie czyta nic.
+    h.loaded = clubViewRow({ name_pl: "Klub korytarzowy", name_en: "Corridor club" });
+    const rendered = await mount();
+    expect(h.fetchCalls).toBe(0);
+    expect(titleOf(rendered.meta())).toContain("Klub korytarzowy");
+  });
+
+  it("loader czyta slug Z PARAMETRU, a nie ze stałej", async () => {
+    // Kartę w cache'u ma WYŁĄCZNIE `inny-klub`; stały literał zszedłby na
+    // tytuł zastępczy albo wyciągnąłby kartę CUDZEGO klubu.
+    h.loaded = clubViewRow({ name_pl: "Klub korytarzowy", name_en: "Corridor club" });
+    const rendered = await renderRoute({
+      route: MembersRoute,
+      path: PATH,
+      initialEntry: "/club/inny-klub/members",
+      queryClient: klientUkladu("inny-klub"),
+    });
+    expect(titleOf(rendered.meta())).toContain("Klub korytarzowy");
+    expect(h.fetchCalls).toBe(0);
   });
 
   it("nagłówek zgadza się z `buildClubHead` na danych z loadera", async () => {
@@ -246,8 +300,10 @@ describe("skład klubu - nagłówek nie wypuszcza nazwisk do wyszukiwarki", () =
     },
   );
 
-  it("awaria loadera schodzi na nagłówek zapasowy i NIE wywala trasy", async () => {
-    h.loaderFails = true;
+  it("PUSTY cache (układ zdegradował) schodzi na nagłówek zapasowy i NIE wywala trasy", async () => {
+    // Bezpieczny domysł: brak karty nie może dać indeksu ani nazwy klubu
+    // w tytule - a `forceNoindex` składu i tak zostaje.
+    h.ukladZdegradowal = true;
     const rendered = await mount();
     const expected = buildClubHead({ fallbackPath: ENTRY, club: null, forceNoindex: true });
     expect(rendered.meta()).toEqual(expected.meta);

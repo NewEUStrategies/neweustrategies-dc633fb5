@@ -1094,3 +1094,315 @@ describe("zgodność definicji z tym, co mierzy bramka Lighthouse", () => {
     expect(inp[0]?.metric.rating).toBe("needs-improvement");
   });
 });
+
+// ---------------------------------------------------------------------------
+// KONTEKST NAWIGACJI (audyt CWV 2026-09-20, F40 / wiersz 0.3 „Fali 0").
+//
+// PO CO TE TESTY ISTNIEJĄ. Pięć nowych pól jest OPISOWYCH, więc żaden z nich
+// nie ma jak wywrócić strony - i właśnie dlatego ich defekty byłyby CICHE.
+// Źle policzony `coldStart` nie rzuca wyjątku, tylko wpisuje zimne wejście
+// tam, gdzie go nie było, a panel pokazuje wtedy liczbę, która wygląda na
+// pomiar. Ładunek czytamy z BEACONU (`DEV=false`), bo w DEV `report()` kończy
+// na `console.debug` i kontekstu do niego nie dokłada.
+describe("kontekst nawigacji w ładunku", () => {
+  let originalSendBeacon: typeof navigator.sendBeacon;
+
+  /** Pola `navigator`, które test podmienia i musi po sobie posprzątać. */
+  const patchedNavigatorKeys: string[] = [];
+
+  function patchNavigator(key: string, value: unknown): void {
+    patchedNavigatorKeys.push(key);
+    Object.defineProperty(navigator, key, { configurable: true, writable: true, value });
+  }
+
+  beforeEach(() => {
+    originalSendBeacon = navigator.sendBeacon;
+    vi.stubEnv("DEV", false);
+    vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "");
+    sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    Object.defineProperty(navigator, "sendBeacon", {
+      configurable: true,
+      writable: true,
+      value: originalSendBeacon,
+    });
+    for (const key of patchedNavigatorKeys.splice(0)) {
+      Reflect.deleteProperty(navigator, key);
+    }
+    sessionStorage.clear();
+  });
+
+  function captureBeacons(): Array<{ url: string; body: BodyInit | null | undefined }> {
+    const sent: Array<{ url: string; body: BodyInit | null | undefined }> = [];
+    Object.defineProperty(navigator, "sendBeacon", {
+      configurable: true,
+      writable: true,
+      value: (url: string | URL, body?: BodyInit | null) => {
+        sent.push({ url: String(url), body });
+        return true;
+      },
+    });
+    return sent;
+  }
+
+  async function beaconMetrics(
+    body: BodyInit | null | undefined,
+  ): Promise<Array<Record<string, unknown>>> {
+    const text = body instanceof Blob ? await body.text() : String(body);
+    return (JSON.parse(text) as { metrics: Array<Record<string, unknown>> }).metrics;
+  }
+
+  /**
+   * Wpis Navigation Timing z typem nawigacji. `responseStart` jest tu
+   * OBOWIĄZKOWY, choć testujemy `type`: ten sam wpis czyta blok TTFB przy
+   * inicjalizacji, więc bez niego każdy test dostawałby w batchu dodatkową
+   * próbkę TTFB o wartości `undefined`.
+   */
+  function navigationTypeEntry(type: string): PerformanceEntry {
+    return {
+      name: "",
+      entryType: "navigation",
+      startTime: 0,
+      duration: 0,
+      responseStart: 210,
+      type,
+      toJSON: () => ({ entryType: "navigation", type, responseStart: 210 }),
+    } as unknown as PerformanceEntry;
+  }
+
+  /** Próbka o danej nazwie z batcha - batch bywa wielometryczny. */
+  function metricNamed(
+    metrics: Array<Record<string, unknown>>,
+    name: string,
+  ): Record<string, unknown> | undefined {
+    return metrics.find((metric) => metric.name === name);
+  }
+
+  /**
+   * Jedna odsłona: inicjalizacja, jedno LCP, miękka nawigacja (granica batcha)
+   * - i próbki, które faktycznie wyszły beaconem.
+   */
+  async function reportOnce(): Promise<Array<Record<string, unknown>>> {
+    const sent = captureBeacons();
+    const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
+    initWebVitals();
+    FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(2100)]);
+    markWebVitalsPage("/blog");
+    expect(sent.length).toBeGreaterThanOrEqual(1);
+    return beaconMetrics(sent[0]?.body);
+  }
+
+  it("komplet pól jedzie razem z metryką", async () => {
+    vi.spyOn(performance, "getEntriesByType").mockReturnValue([
+      navigationTypeEntry("back_forward"),
+    ] as unknown as PerformanceEntryList);
+    vi.spyOn(performance, "now").mockReturnValue(2456.4);
+    patchNavigator("deviceMemory", 4);
+    patchNavigator("connection", { effectiveType: "3g" });
+
+    const metrics = await reportOnce();
+
+    expect(metricNamed(metrics, "LCP")).toMatchObject({
+      name: "LCP",
+      value: 2100,
+      url: "/en",
+      sinceNav: 2456,
+      navigationType: "back_forward",
+      deviceMemory: 4,
+      effectiveType: "3g",
+      coldStart: true,
+    });
+  });
+
+  it("nic z tego nie jest identyfikatorem - ładunek nie zyskuje nowego klucza tożsamości", async () => {
+    // Bramka intencji, nie implementacji: gdyby ktoś dołożył tu `sessionId`,
+    // `visitorId` czy cokolwiek stabilnego, podstawa prawna tej telemetrii
+    // przestałaby obowiązywać, a test przestałby przechodzić.
+    patchNavigator("deviceMemory", 8);
+    const metrics = await reportOnce();
+
+    expect(Object.keys(metrics[0] ?? {}).sort()).toEqual([
+      "coldStart",
+      "deviceMemory",
+      "effectiveType",
+      "id",
+      "name",
+      "navigationType",
+      "rating",
+      "sinceNav",
+      "ts",
+      "url",
+      "value",
+    ]);
+  });
+
+  it("kontekst jest w KAŻDEJ próbce batcha, nie tylko w pierwszej", async () => {
+    // Agregacja liczy p75 po SUROWYCH wierszach, więc próbka bez kontekstu
+    // wypadłaby z podziału populacji, a nie „odziedziczyła" go po sąsiedniej.
+    vi.spyOn(performance, "getEntriesByType").mockReturnValue([
+      navigationTypeEntry("navigate"),
+    ] as unknown as PerformanceEntryList);
+    const sent = captureBeacons();
+    const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
+    initWebVitals();
+    FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(2100)]);
+    FakeObserver.forType("layout-shift").emit([shift(0.2, 100)]);
+    FakeObserver.forType("event").emit([interaction(320, 7)]);
+    markWebVitalsPage("/blog");
+
+    const metrics = await beaconMetrics(sent[0]?.body);
+    expect(metrics.map((m) => m.name).sort()).toEqual(["CLS", "INP", "LCP", "TTFB"]);
+    for (const metric of metrics) {
+      expect(metric).toMatchObject({ navigationType: "navigate", coldStart: true });
+      expect(metric.sinceNav).toBeTypeOf("number");
+    }
+  });
+
+  describe("coldStart", () => {
+    it("pierwsze wejście w karcie: true, i zostaje znacznik dla kolejnych", async () => {
+      const metrics = await reportOnce();
+
+      expect(metrics[0]?.coldStart).toBe(true);
+      expect(sessionStorage.getItem("nes:vitals:nav-seen")).toBe("1");
+    });
+
+    it("kolejne wczytanie w tej samej karcie: false", async () => {
+      // Drugi dokument w tej samej karcie = świeża instancja modułu, ale TEN
+      // SAM `sessionStorage`. To jedyne, co odróżnia zimne wejście od ciepłego.
+      sessionStorage.setItem("nes:vitals:nav-seen", "1");
+
+      const metrics = await reportOnce();
+
+      expect(metrics[0]?.coldStart).toBe(false);
+    });
+
+    it("zablokowany magazyn (tryb prywatny) daje false, a nie wywrotkę", async () => {
+      // `sessionStorage` w trybie prywatnym Safari RZUCA przy dostępie.
+      // Fałszywe `true` przy każdej odsłonie takiego czytelnika ZAWYŻAŁOBY
+      // populację zimnych wejść - czyli dokładnie tę, którą mierzymy.
+      // PODMIENIAMY CAŁY GLOBALNY MAGAZYN, A NIE JEGO METODY - i to nie jest
+      // kwestia gustu. `sessionStorage` w happy-dom jest PROXY (`storage.foo =
+      // 1` zapisuje pozycję), więc `vi.spyOn(sessionStorage, "getItem")`
+      // przechodzi, ale `vi.restoreAllMocks()` NIE zdejmuje takiej atrapy -
+      // rzucający `getItem` przeciekał do kolejnego testu i wywracał go
+      // komunikatem z TEGO testu. `vi.unstubAllGlobals()` (afterEach wyżej)
+      // cofa podmianę globalną niezawodnie. `clear` musi działać, bo woła je
+      // sprzątanie tego bloku.
+      vi.stubGlobal("sessionStorage", {
+        getItem: () => {
+          throw new Error("magazyn zablokowany");
+        },
+        setItem: () => {
+          throw new Error("magazyn zablokowany");
+        },
+        clear: () => {},
+      });
+
+      const metrics = await reportOnce();
+
+      expect(metrics[0]?.coldStart).toBe(false);
+    });
+
+    it("ponowna zgoda w TEJ SAMEJ odsłonie nie ogłasza drugiego zimnego startu", async () => {
+      // Teardown (cofnięcie zgody) i ponowna inicjalizacja to nadal ta sama
+      // nawigacja. Przeliczenie kontekstu dałoby `coldStart: false`, bo
+      // znacznik już stoi - czyli jedna odsłona raportowałaby się raz jako
+      // zimna, raz jako ciepła.
+      const sent = captureBeacons();
+      const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
+      const teardown = initWebVitals();
+      teardown();
+
+      initWebVitals();
+      FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(900)]);
+      markWebVitalsPage("/blog");
+
+      const metrics = await beaconMetrics(sent[sent.length - 1]?.body);
+      expect(metricNamed(metrics, "LCP")?.coldStart).toBe(true);
+    });
+  });
+
+  describe("pola środowiska przeglądarki", () => {
+    it("brak Navigation Timing, brak deviceMemory i brak connection -> same null", async () => {
+      // Safari i Firefox nie mają Network Information API; `deviceMemory` jest
+      // wyłącznie w silnikach Blink. Null jest tu UCZCIWĄ odpowiedzią.
+      const metrics = await reportOnce();
+
+      expect(metrics[0]).toMatchObject({
+        navigationType: null,
+        deviceMemory: null,
+        effectiveType: null,
+      });
+    });
+
+    it("typ nawigacji spoza czterech ze specyfikacji schodzi na null", async () => {
+      vi.spyOn(performance, "getEntriesByType").mockReturnValue([
+        navigationTypeEntry("teleport"),
+      ] as unknown as PerformanceEntryList);
+
+      const metrics = await reportOnce();
+
+      expect(metrics[0]?.navigationType).toBeNull();
+    });
+
+    it("klasa łącza spoza specyfikacji schodzi na null", async () => {
+      patchNavigator("connection", { effectiveType: "5g" });
+
+      const metrics = await reportOnce();
+
+      expect(metrics[0]?.effectiveType).toBeNull();
+    });
+
+    describe("deviceMemory kubełkuje W DÓŁ", () => {
+      const cases: Array<[number, number | null]> = [
+        [8, 8],
+        [16, 8],
+        [6, 4],
+        [4, 4],
+        [3, 2],
+        [2, 2],
+        [1, 1],
+        [0.5, 1],
+        [0.25, 1],
+        [0, null],
+        [-1, null],
+        [Number.NaN, null],
+      ];
+
+      for (const [raw, expected] of cases) {
+        it(`${String(raw)} -> ${String(expected)}`, async () => {
+          patchNavigator("deviceMemory", raw);
+
+          const metrics = await reportOnce();
+
+          expect(metrics[0]?.deviceMemory).toBe(expected);
+        });
+      }
+    });
+  });
+
+  it("sinceNav to czas ZGŁOSZENIA, nie czas metryki - rośnie między granicami batcha", async () => {
+    // To jest cała wartość tego pola: LCP 2 100 ms zgłoszone przy sinceNav
+    // 2 300 pochodzi z pierwszego malowania, a to samo LCP przy sinceNav
+    // 180 000 - z miękkiej nawigacji w trzeciej minucie czytania.
+    const now = vi.spyOn(performance, "now");
+    const sent = captureBeacons();
+    const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
+    initWebVitals();
+
+    now.mockReturnValue(2300);
+    FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(2100)]);
+    markWebVitalsPage("/blog");
+
+    now.mockReturnValue(180_000);
+    FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(2100)]);
+    markWebVitalsPage("/glossary");
+
+    const first = await beaconMetrics(sent[0]?.body);
+    const second = await beaconMetrics(sent[sent.length - 1]?.body);
+    expect(first[0]).toMatchObject({ value: 2100, sinceNav: 2300 });
+    expect(second[0]).toMatchObject({ value: 2100, sinceNav: 180_000 });
+  });
+});

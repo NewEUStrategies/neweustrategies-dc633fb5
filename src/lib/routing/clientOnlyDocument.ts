@@ -9,10 +9,12 @@
 //     serwerowy HTML treści - czyli czy PIERWSZA fala (ustawienia, tokeny
 //     designu, kolory globalne) ma cokolwiek do pomalowania przed hydratacją.
 //
-// Panel `/admin` odpowiada NIE na oba pytania: `routes/admin.tsx` deklaruje
-// `ssr: false` (sesja Supabase żyje w `localStorage`, więc SSR szkicu jest
-// gwarantowanym mismatchem hydratacji), a `showsSiteChrome` wyklucza go z
-// chrome'u serwisu. Mimo to loader korzenia awaitował na tej ścieżce pełną
+// Panel `/admin` odpowiada NIE na oba pytania: od 2026-09-20 `routes/admin.tsx`
+// renderuje na serwerze WYŁĄCZNIE statyczny szkielet powłoki (bez ustawień,
+// bez sesji - ta żyje w `localStorage`), a `showsSiteChrome` wyklucza go z
+// chrome'u serwisu. Szkielet nie czyta ustawień najemcy, więc krótki termin
+// fali 1 zostaje w mocy; tokeny designu malują już jego kolory, więc wyczerpanie
+// terminu kosztuje repaint motywu po hydratacji, a nie „nic” - to świadoma cena. Mimo to loader korzenia awaitował na tej ścieżce pełną
 // falę 1 z budżetem `ROOT_WARM_BUDGET_MS` (2 500 ms) - czyli pierwszy bajt
 // dokumentu, który po stronie serwera renderuje PUSTE ciało, czekał na
 // round-trip do bazy, z którego nie powstawał ani jeden widoczny piksel.

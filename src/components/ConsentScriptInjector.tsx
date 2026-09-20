@@ -16,6 +16,7 @@ import {
   type MarketingConfig,
 } from "@/lib/analytics/config";
 import { useEffectiveConsent } from "@/lib/ads/consent";
+import { whenIdle } from "@/lib/ads/idle";
 import {
   bootstrapGa4,
   ga4ConsentUpdate,
@@ -26,6 +27,19 @@ import {
 type CleanupFn = () => void;
 
 const MARK_ATTR = "data-consent-owner";
+
+/**
+ * Ile najdłużej czekamy z DOCIĄGNIĘCIEM gtag.js po rozstrzygnięciu zgody.
+ *
+ * Nie dotyczy poleceń (zgoda domyślna, `config`, odsłony) - te idą do
+ * `window.dataLayer` natychmiast i czekają tam na skrypt. Odroczony jest
+ * wyłącznie transfer + parse ~90 KB z obcego originu, który do 2026-09-20
+ * biegł w oknie hydratacji, czyli wprost przeciwko LCP i pierwszej interakcji
+ * (audyt CWV, F20). 2 000 ms to ta sama skala, co inne odroczenia bootu w
+ * `__root.tsx` (cache-busting i heartbeat: 3 000 ms), ale krótsza - pomiar ma
+ * ruszyć, gdy tylko główny wątek zwolni, a nie „kiedyś".
+ */
+const GTAG_IDLE_TIMEOUT_MS = 2_000;
 
 function removeMarked(owner: string) {
   if (typeof document === "undefined") return;
@@ -189,12 +203,24 @@ export function ConsentScriptInjector() {
           connectorId: import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY,
         });
 
-  // GA4 w trybie domyślnej odmowy: tag startuje od razu z wszystkimi
+  // GA4 w trybie domyślnej odmowy: strumień konfiguruje się od razu z wszystkimi
   // kategoriami `denied`, a decyzja odwiedzającego jedynie je aktualizuje.
   // Dlatego tu NIE ma bramki `categories.analytics` - jest nią sam Consent Mode.
+  //
+  // ROZDZIELENIE POLECEŃ OD SKRYPTU. `bootstrapGa4` wypycha polecenia do
+  // `window.dataLayer` SYNCHRONICZNIE (albo rozpoznaje, że zrobił to już snippet
+  // SSR), a sam plik gtag.js dociąga dopiero przy bezczynności. Semantyka zgody
+  // nie zmienia się ani o krok: `consent default`/`update` siedzą w warstwie
+  // danych, którą skrypt przetwarza od początku, gdy dojedzie.
   useEffect(() => {
     if (!mounted || !ga4Id) return;
-    bootstrapGa4(ga4Id, GOOGLE_ADS_ID);
+    let cancelIdle: (() => void) | null = null;
+    bootstrapGa4(ga4Id, GOOGLE_ADS_ID, {
+      scheduleScript: (load) => {
+        cancelIdle = whenIdle(load, GTAG_IDLE_TIMEOUT_MS);
+      },
+    });
+    return () => cancelIdle?.();
   }, [mounted, ga4Id]);
 
   useEffect(() => {

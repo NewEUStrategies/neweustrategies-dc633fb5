@@ -7,7 +7,11 @@
 // STAFF-ONLY. Anonymous readers must not each hold a Realtime websocket (three
 // more listeners per visitor would exhaust the connection quota and every
 // settings write would trigger a site-wide refetch storm); they get freshness
-// from staleTime + the cross-tab local event below.
+// from staleTime + the local event below.
+//
+// MONTAŻ JEST LENIWY I PO SESJI (`__root.tsx`, `AuthenticatedLiveSync`) - ta
+// sama decyzja i to samo uzasadnienie, co w `widgetCacheInvalidation.tsx`:
+// nadawcą lokalnej podpowiedzi jest zapis panelu w tym samym dokumencie.
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";

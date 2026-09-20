@@ -772,7 +772,29 @@ function PublicErrorComponent({ error, reset }: { error: Error; reset: () => voi
   );
 }
 
+/**
+ * JEDEN HAK I WCZESNY ZWROT, ZANIM ZACZNIE SIĘ CZYTANIE ŁADUNKU LOADERA.
+ *
+ * `Route.useLoaderData()` sięga po dopasowanie z kontekstu routera i wywraca
+ * się (`router.stores` na `null`), kiedy komponent trasy jest montowany POZA
+ * `RouterProvider`em. A tak właśnie jest montowany w dowodach KOMPOZYCJI tej
+ * trasy (`__tests__/platformPublicRender.test.tsx`): `Route.options.component`
+ * wprost nad samym `QueryClientProvider`em, żeby dowód o układzie strony nie
+ * wymagał stawiania całego routera. `useRouter({ warn: false })` oddaje w tej
+ * sytuacji wartość pustą zamiast rzucać, a brak routera znaczy dokładnie to,
+ * co powinien: nie ma loadera, więc nie ma też renderu zdegradowanego.
+ *
+ * Odczyt ładunku mieszka przez to w OSOBNYM komponencie, a nie za `if`-em
+ * w tym samym ciele - inaczej byłby hakiem warunkowym. Obecność routera nie
+ * zmienia się w cyklu życia montażu, więc ta gałąź nie przemontowuje drzewa.
+ */
 function PublicPage() {
+  const router = useRouter({ warn: false });
+  if (!router) return <ResolvedPublicPage />;
+  return <PublicPageFromLoader />;
+}
+
+function PublicPageFromLoader() {
   const { kind } = Route.useLoaderData();
   // BRAMKA DEGRADACJI STOI PRZED `useSuspenseQuery`, i to jest wymóg, nie
   // porządek: loader zdegradowany USUNĄŁ wpis treści z cache'u, więc

@@ -31,7 +31,11 @@ function contentAreaCss(s: PostLayoutSettings): string {
   // ContentRenderer w treści wpisów) oraz `.post-content` (zapasowy alias
   // używany m.in. w podglądach edytora). Bez tego zmiany z /admin/content-area
   // nie miały efektu na produkcyjnym widoku wpisu.
-  const css = `
+  // Nazwa `rules`, a NIE `css`: bramka `check:dangerous-html` rozwiązuje
+  // wyrażenie z `__html` po NAZWIE wiązania w całym pliku, więc druga stała
+  // `css` (tu: surowy literał) przykrywałaby tę utwardzoną niżej i sink
+  // wyglądałby na niesanityzowany.
+  const rules = `
 .post-content, .single-post-content {
   --pc-link: ${linkColorLight};
   --pc-underline: ${underlineLight};
@@ -102,7 +106,7 @@ ${
 }
 `.replace(/\s+\n/g, "\n");
 
-  return css;
+  return rules;
 }
 
 /**

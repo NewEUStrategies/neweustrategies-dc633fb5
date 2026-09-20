@@ -267,7 +267,13 @@ export const Route = createFileRoute("/slow")({
       },
     ]);
     expect(ssrBudgetsFailed(report)).toBe(true);
-    expect(renderSsrBudgetReport(report)).toContain("loaderChainMs = 14000 > 13000");
+    // Sufit WPROST ZE STAŁEJ, a nie przepisany literał: ta liczba jest
+    // zapadką w dół (13 000 -> 5 500 po wspólnym terminie żądania na trasie
+    // `/$`), a test przepisujący ją ręcznie zamieniałby każde kolejne
+    // obniżenie w fałszywą czerwień zamiast pilnować komunikatu bramki.
+    expect(renderSsrBudgetReport(report)).toContain(
+      `loaderChainMs = 14000 > ${FROZEN_SSR_BUDGETS.loaderChainMs}`,
+    );
   });
 
   it("rozwiązuje budżet IMPORTOWANY z innego modułu (mapa międzyplikowa)", () => {

@@ -253,15 +253,32 @@ describe("trasa /plans/$planId - plan, którego nie ma", () => {
     expect(view.currentPath()).toBe(`/plans/${PLAN_ID}`);
   });
 
-  it("awaria odczytu katalogu też kończy się 404, a nie białą stroną", async () => {
-    // `ensureQueryData(...).catch(() => null)` degraduje odczyt do pustego
-    // katalogu; loader ma z tego zrobić 404. Wyjątek przepuszczony wyżej
-    // wywróciłby całą trasę razem z nagłówkiem.
+  it("AWARIA ODCZYTU katalogu NIE JEST 404 - mówi „nie wiemy”, nie „nie ma”", async () => {
+    // TO JEST NAPRAWA W8 (audyt CWV 2026-09-20). Wcześniej `.catch(() => null)`
+    // degradowało odczyt do PUSTEGO katalogu, a `if (!plan) throw notFound()`
+    // robiło z tego twarde 404 na żywym planie - czyli minutowy blip bazy
+    // wypisywał adres oferty z indeksu na tygodnie. Dziś 404 leci WYŁĄCZNIE
+    // z odczytu CZYSTEGO (`notFoundIfClean`), a degradacja renderuje wspólny
+    // komunikat pod HTTP 200 `private, no-store`.
     h.broken = new Set(["access_plans", "membership_tiers"]);
     await mount();
 
-    expect(screen.queryByRole("heading", { level: 1, name: "Członek" })).not.toBeInTheDocument();
+    expect(await screen.findByText("Ta sekcja chwilowo nie ma danych")).toBeInTheDocument();
+    // I ANI SŁOWA o wycofaniu planu: to zdanie o KATALOGU, więc wolno je
+    // powiedzieć dopiero po odczycie czystym.
+    expect(
+      screen.queryByText("Nie znaleziono takiego planu - mógł zostać wycofany ze sprzedaży."),
+    ).toBeNull();
     expect(screen.queryByRole("link", { name: /Wybieram|Wybierz/ })).not.toBeInTheDocument();
+  });
+
+  it("KONTROLA DODATNIA: czysty render NIE pokazuje komunikatu degradacji", async () => {
+    // Bez tej pary test wyżej przechodziłby także wtedy, gdyby komunikat
+    // degradacji wisiał na stronie planu ZAWSZE.
+    await mount();
+
+    expect(screen.queryByText("Ta sekcja chwilowo nie ma danych")).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: "Członek" })).toBeInTheDocument();
   });
 
   it("plan wycofany przy otwartej stronie zamienia się w komunikat z drogą powrotu", async () => {
@@ -543,6 +560,16 @@ describe("trasa /plans/$planId - nagłówek dokumentu", () => {
       name: "description",
       content: "Benefits, limits and pricing of the Member plan.",
     });
+  });
+
+  it("ZDEGRADOWANY ładunek loadera (plan === null) też wychodzi z indeksu", async () => {
+    // Fail-open dołożył trzeci kształt ładunku: `{ plan: null, degraded: true }`.
+    // `head()` czytające `loaderData.plan` bez strażnika rozbiłoby się na nim
+    // albo - gorzej - zostawiło w indeksie tytuł zbudowany z `null`.
+    const head = routeHead(PlanRoute, { loaderData: { plan: null, degraded: true } });
+
+    expect(head.meta).toContainEqual({ title: "Plan niedostępny" });
+    expect(head.meta).toContainEqual({ name: "robots", content: "noindex" });
   });
 
   it("bez danych loadera nagłówek wychodzi z indeksu zamiast zostawiać pusty tytuł", async () => {

@@ -10,10 +10,11 @@ import {
   Outlet,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { Suspense, lazy, useEffect, useMemo, type ReactNode } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState, type ReactNode } from "react";
 import { I18nextProvider } from "react-i18next";
 
 import appCss from "../styles.css?url";
@@ -60,7 +61,7 @@ import { currentLang } from "../lib/i18n/localeRuntime";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { FriendlyErrorPage } from "../components/error/FriendlyErrorPage";
 import { ThemeProvider } from "../components/ThemeProvider";
-import { AuthProvider } from "../hooks/useAuth";
+import { AuthProvider, useAuth } from "../hooks/useAuth";
 import { IconPackSync } from "../components/IconPackSync";
 import { DesignTokensStyle } from "../components/DesignTokensStyle";
 import { ContentAreaStyle } from "../components/ContentAreaStyle";
@@ -72,11 +73,11 @@ import { ThemeFontSizesStyle } from "../components/theme/ThemeFontSizesStyle";
 import { ConsentScriptInjector } from "../components/ConsentScriptInjector";
 import { useEffectiveConsent } from "../lib/ads/consent";
 import { whenIdle } from "../lib/ads/idle";
+import { adPageTypeForLocation } from "../lib/ads/pageType";
+import { adPlacementsQueryOptions } from "../lib/ads/queries";
 
 import { ErrorBoundary } from "../components/ErrorBoundary";
-import { WidgetLiveSync } from "../lib/builder/widgetCacheInvalidation";
-import { SiteSettingsLiveSync } from "../lib/builder/siteSettingsLiveSync";
-import { CohesionLiveSync } from "../lib/realtime/cohesionLiveSync";
+import { onFirstToast } from "../lib/notify";
 import { resolveSetting, siteSettingsQueryOptions } from "../lib/useSiteSetting";
 import { parseSeoSettings, SEO_SETTINGS_KEY } from "../lib/seo/settings";
 import { rememberSocialDefaults } from "../lib/seo/socialDefaults";
@@ -152,6 +153,156 @@ const ConsentPreviewPanel = lazy(() =>
 // przepada (sonner nie odtwarza historii subskrybentom) - realny nadawca
 // (mutacje operatora) nie kończy się przed hydratacją.
 const Toaster = lazy(() => import("../components/ui/sonner").then((m) => ({ default: m.Toaster })));
+
+// ── ŻYWA SYNCHRONIZACJA (realtime) - WYŁĄCZNIE DLA ZALOGOWANYCH ───────────
+//
+// Wszystkie trzy mostki są z definicji redakcyjne/członkowskie i KAŻDY z nich
+// sam w sobie no-opuje dla anonima:
+//   * `WidgetLiveSync`, `SiteSettingsLiveSync` - kanały `postgres_changes` stoją
+//     za `isStaff`, a lokalna podpowiedź to `window.dispatchEvent` wewnątrz
+//     TEGO SAMEGO dokumentu, czyli nadawcą jest zawsze mutacja panelu w tej
+//     karcie (anonim nie ma jej skąd wysłać);
+//   * `CohesionLiveSync` - oba haki (`useDomainEventInvalidation`,
+//     `usePendingCountersRealtime`) wychodzą na `if (!uid) return`.
+// Statyczny import ciągnął mimo to do chunku wejściowego całą ich zależność:
+// klienta Realtime (`vendor-supabase`) i mapę inwalidacji `eventInvalidationMap`
+// (~14,9 kB źródeł) - kod, którego anonimowy czytelnik NIGDY nie wykona
+// (audyt CWV 2026-09-20, F23). `React.lazy` + montaż dopiero po rozstrzygnięciu
+// sesji przenosi to poza domknięcie bootu strony publicznej.
+const WidgetLiveSync = lazy(() =>
+  import("../lib/builder/widgetCacheInvalidation").then((m) => ({ default: m.WidgetLiveSync })),
+);
+const SiteSettingsLiveSync = lazy(() =>
+  import("../lib/builder/siteSettingsLiveSync").then((m) => ({ default: m.SiteSettingsLiveSync })),
+);
+const CohesionLiveSync = lazy(() =>
+  import("../lib/realtime/cohesionLiveSync").then((m) => ({ default: m.CohesionLiveSync })),
+);
+
+/**
+ * Mostki realtime montowane dopiero, gdy sesja jest ROZSTRZYGNIĘTA i niepusta.
+ *
+ * `loading` z `useAuth` jest tu równie ważne jak `user`: bez niego pierwszy
+ * render (sesja jeszcze w `localStorage`) wyglądałby jak „anonim" i mostki
+ * zamontowałyby się dopiero po przeskoku stanu - czyli ten sam pop-in, tylko
+ * przesunięty. Odmontowanie przy wylogowaniu zamyka kanały (efekty wewnątrz
+ * mostków mają własne `removeChannel`).
+ */
+function AuthenticatedLiveSync() {
+  const { user, loading } = useAuth();
+  if (loading || !user) return null;
+  return (
+    <Suspense fallback={null}>
+      <WidgetLiveSync />
+      <SiteSettingsLiveSync />
+      <CohesionLiveSync />
+    </Suspense>
+  );
+}
+
+/**
+ * Ile czekamy z montażem nakładek „na później" (newsletter, popupy buildera,
+ * Toaster). Te same 3 000 ms, co cache-busting i heartbeat niżej: nic z tego
+ * nie ma prawa konkurować z LCP ani z pierwszą interakcją.
+ */
+const OVERLAY_IDLE_TIMEOUT_MS = 3_000;
+
+/**
+ * Baner zgód czeka KRÓCEJ (i dodatkowo na jedną klatkę, patrz `useOverlayGates`).
+ * To jedyna z pięciu nakładek, którą odwiedzający ma zobaczyć z własnej woli
+ * ustawodawcy, a nie z własnej - a przy okazji (audyt CWV, F30) to jej akapit
+ * bywał elementem LCP w laboratorium, bo wskakiwał jako duży blok tekstu
+ * w nakładce `position: fixed`.
+ */
+const CONSENT_IDLE_TIMEOUT_MS = 1_000;
+
+/**
+ * Kiedy montować leniwe nakładki korzenia (audyt CWV 2026-09-20, F19).
+ *
+ * PROBLEM. Pięć nakładek (`ConsentBanner`, `ConsentPreviewPanel`,
+ * `NewsletterPopup`, `PopupHost`, `Toaster`) było renderowanych BEZWARUNKOWO,
+ * a `React.lazy` startuje `import()` przy PIERWSZYM renderze - czyli pięć
+ * żądań chunków lądowało w commicie hydratacji, w oknie LCP i pierwszej
+ * interakcji KAŻDEJ strony. „Leniwy" znaczyło tu tylko „w osobnym pliku",
+ * nigdy „później".
+ *
+ * KONTRAKT, KTÓREGO NIE WOLNO ZŁAMAĆ. Baner zgód wolno WYŁĄCZNIE OPÓŹNIĆ,
+ * nigdy uzależnić od czegokolwiek, co zależy od decyzji odwiedzającego: jego
+ * efekty są jedynym pisarzem `setMarketingConsent`/`setConsentOverlayVisible`
+ * w `overlayCoordinator`, więc bramka „tylko dopóki nie zdecydowano"
+ * odblokowałaby popupy marketingowe u osób, które marketing ODRZUCIŁY.
+ * Dlatego `consentReady` nie ma ANI JEDNEGO warunku poza upływem czasu.
+ *
+ * `requestAnimationFrame` PRZED `whenIdle`: pierwsza klatka po hydratacji ma
+ * należeć do treści. `whenIdle` sam w sobie potrafi wystrzelić jeszcze w tym
+ * samym zadaniu (fallback `setTimeout` 32 ms), więc bez rAF baner wracałby do
+ * okna, z którego go wyjmujemy.
+ */
+function useOverlayGates(): { consentReady: boolean; overlaysReady: boolean } {
+  const [consentReady, setConsentReady] = useState(false);
+  const [overlaysReady, setOverlaysReady] = useState(false);
+
+  useEffect(() => {
+    let cancelIdle: (() => void) | null = null;
+    const frame = requestAnimationFrame(() => {
+      cancelIdle = whenIdle(() => setConsentReady(true), CONSENT_IDLE_TIMEOUT_MS);
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      cancelIdle?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    const cancel = whenIdle(() => setOverlaysReady(true), OVERLAY_IDLE_TIMEOUT_MS);
+    return cancel;
+  }, []);
+
+  return { consentReady, overlaysReady };
+}
+
+/**
+ * Czy `<Toaster/>` (chunk sonnera) ma być już zamontowany.
+ *
+ * DWA NIEZALEŻNE WYZWALACZE, oba potrzebne:
+ *   1. `onFirstToast` z `lib/notify.ts` - NATYCHMIAST, gdy toast pada wcześniej
+ *      niż bezczynność. Bez tego toast ze ścieżki bootowania przepadłby
+ *      (sonner nie odtwarza historii nowym subskrybentom);
+ *   2. `whenIdle(…, 3000)` - bezwarunkowo, bo most `lib/notify.ts` widzi
+ *      WYŁĄCZNIE swoich wołających, a `import { toast } from "sonner"` wprost
+ *      robi w tym repozytorium kilkaset modułów (m.in. akcje przy wpisie).
+ *      Gdyby montaż zależał tylko od mostu, ich toasty ginęłyby bez śladu.
+ * Pierwszy wyzwalacz skraca czas do montażu; drugi jest gwarancją poprawności.
+ * Efekt netto dla F19: chunk sonnera wychodzi z commitu hydratacji.
+ */
+function useToasterWanted(): boolean {
+  const [wanted, setWanted] = useState(false);
+
+  useEffect(() => {
+    if (wanted) return;
+    const stopListening = onFirstToast(() => setWanted(true));
+    const cancelIdle = whenIdle(() => setWanted(true), OVERLAY_IDLE_TIMEOUT_MS);
+    return () => {
+      stopListening();
+      cancelIdle();
+    };
+  }, [wanted]);
+
+  return wanted;
+}
+
+/** Czy adres prosi o panel podglądu zgód (`?consent-preview=1`). */
+function useConsentPreviewRequested(): boolean {
+  return useRouterState({
+    select: (s) => {
+      const value = (s.location.search as Record<string, unknown>)["consent-preview"];
+      // Router parsuje wartości wyszukiwania (`1` bywa liczbą, nie napisem),
+      // więc porównujemy po normalizacji - inaczej panel nie otworzyłby się
+      // nigdy, a defekt byłby niemy.
+      return value === 1 || value === "1";
+    },
+  });
+}
 
 // Pasek audio montuje się (i dociąga swój chunk) dopiero, gdy odtwarzacz ma
 // track albo zgłosił błąd (toast o nieudanym TTS mieszka w GlobalAudioBar).
@@ -290,21 +441,23 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       // konsumowany (szczegóły w speculationRules.ts). Beacony i tak są
       // osłonięte przed prerenderem w src/lib/prerender.ts.
       scripts: [
-        // Tag Google (gtag.js) w SSR - wykrywalny przez weryfikator Google już w
-        // pierwszym bajcie HTML. Tryb domyślnej odmowy jest wysyłany przed
-        // konfiguracją strumienia, więc bez zgody nie powstają cookies; decyzję
-        // odwiedzającego aplikuje `ga4ConsentUpdate` (ConsentScriptInjector).
-        // gtag.js ładuje się identyfikatorem strumienia GA4 - po nim weryfikator
-        // Google rozpoznaje instalację; Google Ads to drugie miejsce docelowe
-        // tego samego tagu, nie osobny skrypt. Hosty Google są w CSP (`start.ts`).
+        // Tag Google w SSR - SAM SNIPPET, BEZ `<script src>`. Warstwa danych,
+        // tryb domyślnej odmowy i konfiguracja obu miejsc docelowych (GA4 +
+        // Google Ads) jadą w pierwszym bajcie HTML, inline, za ~1,3 kB i zero
+        // żądań: bez zgody nie powstają cookies, a decyzję odwiedzającego
+        // aplikuje `ga4ConsentUpdate` (ConsentScriptInjector).
+        //
+        // SAM gtag.js ZSZEDŁ STĄD ZA BEZCZYNNOŚĆ (audyt CWV 2026-09-20, F20 /
+        // plan 3.3). Był to jedyny obcy origin w `<head>`, bez `preconnect`,
+        // ~90 KB parse+execute - a `src/router.tsx` czeka `setTimeout(0)` przed
+        // hydratacją, więc makrozadanie hydratacji stawało ZA nim. Dociąga go
+        // `ConsentScriptInjector` przez `whenIdle(…, 2000)` po `markAppReady()`;
+        // polecenia z tego okna czekają w `window.dataLayer` (natywna kolejka
+        // gtag.js), więc ani zgoda, ani pierwsza odsłona nie giną.
+        // Hosty Google zostają w CSP (`start.ts`) - skrypt nadal się wczytuje,
+        // tylko później.
         ...(googleTag.enabled
-          ? [
-              { children: ga4SsrSnippet(googleTag.measurementId, GOOGLE_ADS_ID) },
-              {
-                src: `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(googleTag.measurementId || GOOGLE_ADS_ID)}`,
-                async: true,
-              },
-            ]
+          ? [{ children: ga4SsrSnippet(googleTag.measurementId, GOOGLE_ADS_ID) }]
           : []),
         { type: "speculationrules", children: speculationRulesJson() },
       ],
@@ -554,6 +707,32 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           ["menu-with-items", "main"],
           ["menu-with-items", "footer"],
         ];
+        // BANER `header_banner` - jedyny slot reklamowy renderowany przez samo
+        // CHROME (`components/Header.tsx` -> `<AdZone position="header_banner">`;
+        // pozostałe pozycje - `sidebar`, `top_of_post`, `mid_post`, `in_feed`,
+        // `footer_slideup` - należą do treści trasy, nie do powłoki).
+        //
+        // `AdZone` zwraca `null` bez danych, a `AdContainer` rezerwuje wtedy
+        // ZERO pikseli, więc 90 px banera NAD treścią dojeżdżało po hydratacji:
+        // ~0,11 CLS, najdroższa pojedyncza pozycja audytu CWV 2026-09-20 (F26).
+        // Rozgrzany klucz maluje baner już w SSR, a `HeaderSkeleton` czyta
+        // dokładnie ten sam wpis (`useHeaderSkeletonProps`), więc szkielet i
+        // realny nagłówek rezerwują tę samą wysokość.
+        //
+        // TYP STRONY TYLKO Z URL-a. `SiteChrome` liczy go przez
+        // `adPageTypeForLocation(pathname, contentKind)`, a `contentKind`
+        // pochodzi z `loaderData` trasy dopasowanej - korzeń go nie zna.
+        // Grzejemy więc WYŁĄCZNIE wtedy, gdy sam adres rozstrzyga typ
+        // (home/archive/category/tag/search/event); dla reszty wynikiem jest
+        // "all", a pod tym adresem może stać zarówno trasa statyczna (gdzie
+        // "all" byłoby trafne), jak i catch-all `$` z typem "post"/"page"
+        // (gdzie rozgrzalibyśmy klucz, którego nikt nie czyta - round-trip za
+        // nic na NAJCZĘŚCIEJ odwiedzanej powierzchni serwisu). Klucze wpisu
+        // grzeje loader `$.tsx`: `adPlacementsQueryOptions("header_banner",
+        // kind)` plus pozycje treści z `pageId`.
+        const adPageType = adPageTypeForLocation(path, null);
+        const headerAds =
+          adPageType === "all" ? null : adPlacementsQueryOptions("header_banner", adPageType);
         if (headerVisible && trending.enabled !== false) {
           chromeQueryKeys.push(headerTickerQueryOptions(trending).queryKey);
         }
@@ -588,27 +767,37 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         // po hydratacji czekałby w nieskończoność na strumień, który nie wróci
         // (poniżej strażnik, który taki stan resetuje).
         const chromeWarm: Array<() => Promise<unknown>> = [tickerWarm, warmMenus];
-        if (headerVisible && header.builder_data) {
-          const headerDoc = header.builder_data;
-          chromeQueryKeys.push(
-            ...header.builder_data.sections.flatMap((section) =>
-              sectionQueryOptionsList(section, lang).map((options) => options.queryKey),
-            ),
-          );
-          if (chromeBudget > 0)
-            chromeWarm.push(() =>
-              prefetchCachedRouteQueries(context.queryClient, headerDoc, lang, chromeBudget),
-            );
+        // Reklama jest DEKORACJĄ i dlatego jej klucz NIE trafia do
+        // `chromeQueryKeys`. Tamta lista rozstrzyga, czy dokument wolno utrwalić
+        // na brzegu: nierozgrzany slot znaczyłby „dokument niekompletny" i
+        // zbijał każdy taki render do `s-maxage=30` (albo `no-store`) - czyli
+        // brak sprzedanej emisji kosztowałby cache CAŁEGO serwisu. Brak banera
+        // degraduje wyłącznie rezerwację jego własnych 90 px, a tę i tak trzyma
+        // `HeaderSkeleton` na podstawie tego samego (pustego) wpisu.
+        if (headerAds) {
+          chromeWarm.push(() => context.queryClient.ensureQueryData(headerAds));
         }
-        if (footerDoc?.sections?.length) {
+        // NAGŁÓWEK I STOPKA JEDNĄ PĘTLĄ, nie dwoma kopiami tego samego bloku.
+        // Oba są pełnoprawnymi dokumentami buildera i dostają DOKŁADNIE tę samą
+        // obsługę (klucze sekcji do listy świeżości + jedna rozgrzewka w budżecie
+        // fali chrome), a kolejność - najpierw nagłówek - zostaje bez zmian.
+        //
+        // Scalenie ma też drugi, mierzalny skutek: `check:ssr-budgets` liczy
+        // WYSTĄPIENIA zapisów do cache'u zapytań w loaderze
+        // (`dehydrationWritesPerLoader`, sufit 11 = cena stanu dzisiejszego,
+        // ZERO zapasu). Dwa identyczne wywołania `prefetchCachedRouteQueries`
+        // zajmowały tam dwie pozycje za jedną robotę; jedno wywołanie zwalnia
+        // miejsce dokładnie na rozgrzewkę banera wyżej - bez podnoszenia sufitu.
+        for (const doc of [headerVisible ? header.builder_data : null, footerDoc]) {
+          if (!doc?.sections?.length) continue;
           chromeQueryKeys.push(
-            ...footerDoc.sections.flatMap((section) =>
+            ...doc.sections.flatMap((section) =>
               sectionQueryOptionsList(section, lang).map((options) => options.queryKey),
             ),
           );
           if (chromeBudget > 0)
             chromeWarm.push(() =>
-              prefetchCachedRouteQueries(context.queryClient, footerDoc, lang, chromeBudget),
+              prefetchCachedRouteQueries(context.queryClient, doc, lang, chromeBudget),
             );
         }
         const initialChromeWarmup = registerChromeWarmup(context.queryClient, {
@@ -821,19 +1010,30 @@ function RootComponent() {
     // sandboxem (uśpienie, przebudowa po merge, restart dev servera) i zostaje
     // biały aż do ręcznego „Reload preview". Ten moduł wykrywa milczenie pulsu
     // > 30 s, sam prosi powłokę o wznowienie, a w ostateczności przeładowuje
-    // dokument z odtworzeniem trasy i pozycji scrolla. Poza kontekstem podglądu
-    // (produkcyjna domena, nie w iframie) nie startuje w ogóle.
-    const cancelHeartbeatIdle = whenIdle(() => {
-      void background.run(import("../lib/preview/sessionHeartbeat"), (m) => {
-        return m.startPreviewHeartbeat(router);
-      });
-    }, 3000);
+    // dokument z odtworzeniem trasy i pozycji scrolla.
+    //
+    // BRAMKA PRZED IMPORTEM, nie w środku modułu - ta sama poprawka, co przy
+    // `previewWatchdog` wyżej i z tego samego powodu (audyt CWV 2026-09-20,
+    // F23). `startPreviewHeartbeat` zaczyna od `isPreviewContext(location,
+    // window.parent !== window)`, a TA FUNKCJA WYCHODZI NA `false` DLA
+    // WSZYSTKIEGO, CO NIE JEST IFRAME'EM - czyli produkcyjny czytelnik pobierał
+    // i parsował 294 linie po to, żeby zrobić no-op. Powtarzamy tu wyłącznie
+    // pierwszy warunek tamtej funkcji (iframe), więc bramka nie może być
+    // OSTRZEJSZA od modułu: każdy kontekst, w którym heartbeat ma sens,
+    // jest iframe'em, a resztę decyzji (host) nadal podejmuje moduł.
+    const cancelHeartbeatIdle = inPreviewIframe
+      ? whenIdle(() => {
+          void background.run(import("../lib/preview/sessionHeartbeat"), (m) => {
+            return m.startPreviewHeartbeat(router);
+          });
+        }, 3000)
+      : null;
 
     return () => {
       background.dispose();
       unsub();
       cancelCacheBustingIdle();
-      cancelHeartbeatIdle();
+      cancelHeartbeatIdle?.();
     };
   }, [router]);
 
@@ -842,15 +1042,21 @@ function RootComponent() {
   // once per request on the server, so a mount-stable memo is correct.
   const renderI18n = useMemo(() => getRenderI18n(), []);
 
+  // Bramki nakładek (F19) - patrz `useOverlayGates` / `useToasterWanted`.
+  // Wszystkie startują na `false`, czyli SSR i pierwszy render klienta emitują
+  // dokładnie to samo (null), a `React.lazy` nie startuje `import()` w commicie
+  // hydratacji.
+  const { consentReady, overlaysReady } = useOverlayGates();
+  const toasterWanted = useToasterWanted();
+  const consentPreviewRequested = useConsentPreviewRequested();
+
   return (
     <I18nextProvider i18n={renderI18n}>
       <ClientObservability />
       <ThemeProvider>
         <AuthProvider>
           <IconPackSync />
-          <WidgetLiveSync />
-          <SiteSettingsLiveSync />
-          <CohesionLiveSync />
+          <AuthenticatedLiveSync />
           <DesignTokensStyle />
           <ContentAreaStyle />
           <ThemeOptionsStyle />
@@ -868,19 +1074,23 @@ function RootComponent() {
           </ErrorBoundary>
           <ConsentScriptInjector />
           <Suspense fallback={null}>
-            <ConsentBanner />
-            <ConsentPreviewPanel />
-            <NewsletterPopup />
-            <PopupHost />
+            {/* Baner zgód: OPÓŹNIONY (rAF + bezczynność), nigdy WARUNKOWY -
+                patrz kontrakt w `useOverlayGates`. */}
+            {consentReady ? <ConsentBanner /> : null}
+            {/* Panel podglądu zgód dociągał swój chunk na KAŻDEJ stronie, choć
+                renderuje cokolwiek wyłącznie przy `?consent-preview=1`
+                (`isConsentPreviewRequested`). Ten sam warunek, tylko
+                PRZED montażem - dla zwykłego czytelnika chunk nie powstaje. */}
+            {consentPreviewRequested ? <ConsentPreviewPanel /> : null}
+            {overlaysReady ? <NewsletterPopup /> : null}
+            {overlaysReady ? <PopupHost /> : null}
           </Suspense>
           <LoginPopupHost />
           <CommandPaletteHost />
           <UnsavedChangesGuardHost />
           <AppDialogHost />
           <ExpertRequestDialogHost />
-          <Suspense fallback={null}>
-            <Toaster />
-          </Suspense>
+          <Suspense fallback={null}>{toasterWanted ? <Toaster /> : null}</Suspense>
         </AuthProvider>
       </ThemeProvider>
     </I18nextProvider>

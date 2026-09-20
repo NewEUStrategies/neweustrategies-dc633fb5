@@ -1,13 +1,21 @@
 // SZKIELET POWŁOKI PANELU - stan "czekamy na rozstrzygnięcie sesji".
 //
-// PO CO ISTNIEJE. `/admin` jest trasą `ssr: false`, więc dokument przychodzi z
-// pustym ciałem, a pierwszy render klienta trafia na `useAuth().loading`.
+// PO CO ISTNIEJE. Panel rozstrzyga sesję (token Supabase w `localStorage`)
+// dopiero po hydratacji, więc pierwszy render trafia na `useAuth().loading`.
 // Do tej pory malowała się wtedy JEDNA wyśrodkowana kropka w kontenerze
 // `min-h-screen flex items-center justify-center`, a po rozstrzygnięciu sesji
 // React podmieniał ją na PEŁNĄ powłokę: pasek boczny 14 rem, pasek języka,
 // nagłówek sekcji, siatka treści. To nie jest "dokończenie" układu, tylko jego
 // całkowita wymiana - i to ona, obok późnego dociągania paneli pulpitu,
 // generowała CLS 0,532 na `/admin` (próg "Poor" = 0,250).
+//
+// OD AUDYTU CWV 2026-09-20 (F32 / plan 3.13) TEN KOMPONENT WYCHODZI Z SERWERA.
+// `routes/admin.tsx` nie deklaruje już `ssr: false`: serwer renderuje WYŁĄCZNIE
+// ten szkielet, w wariancie policzonym ze ścieżki, a wszystko zależne od sesji
+// montuje się za bramką `useHydrated()`. Konsekwencja dla tego pliku jest
+// twarda: NIE WOLNO MU ODCZYTAĆ `window`, `localStorage` ani zegara - każda
+// taka wartość jest czymś, czego serwer nie zna, czyli rozjazdem hydratacji
+// (dowód: `src/routes/__tests__/adminRouteSsr.test.tsx`).
 //
 // KONTRAKT: ten szkielet ma mieć GEOMETRIĘ `AdminShell`, nie jego treść.
 // Każda liczba niżej jest przepisana z `AdminShell.tsx` i musi się z nią

@@ -116,7 +116,9 @@ export function headerSkeletonPropsFromSettings(
  * pokazuje się dokładnie w zimnym starcie, więc nie wolno mu dokładać
  * round-tripu (placementy i tak pobiera `<AdZone>` w gałęzi z danymi).
  */
-export function useHeaderSkeletonProps(adPageType: AdPageType = "all"): Required<HeaderSkeletonProps> {
+export function useHeaderSkeletonProps(
+  adPageType: AdPageType = "all",
+): Required<HeaderSkeletonProps> {
   const queryClient = useQueryClient();
   const settings = queryClient.getQueryData<SettingsMap>(siteSettingsQueryOptions.queryKey);
   const placements = queryClient.getQueryData<unknown[]>(headerBannerQueryKey(adPageType));

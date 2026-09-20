@@ -9,6 +9,14 @@
 // content save would fan out into a refetch storm across all open tabs.
 // Readers get freshness from staleTime + SSR; live invalidation is an
 // editorial (staff) concern.
+//
+// MONTAŻ JEST LENIWY I PO SESJI (`__root.tsx`, `AuthenticatedLiveSync`).
+// Anonim nie montuje tego komponentu w ogóle, więc jego chunk nie wchodzi do
+// domknięcia bootu strony publicznej (audyt CWV 2026-09-20, F23). Podpowiedź
+// `widget-cache:invalidate` niżej NIE JEST przez to tracona: to
+// `window.dispatchEvent` w TYM SAMYM dokumencie (zdarzenia okna nie przechodzą
+// między kartami), a jej jedynym nadawcą są mutacje panelu - czyli sesja,
+// w której ten komponent i tak jest zamontowany.
 
 import { useEffect } from "react";
 import { useQueryClient, type QueryKey } from "@tanstack/react-query";

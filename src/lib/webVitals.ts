@@ -216,8 +216,7 @@ let navContext: VitalsNavigationContext | null = null;
 function readNavigationType(): VitalNavigationType | null {
   try {
     const nav = performance.getEntriesByType("navigation")[0] as
-      | PerformanceNavigationTiming
-      | undefined;
+      PerformanceNavigationTiming | undefined;
     const type = nav?.type;
     return NAVIGATION_TYPES.find((known) => known === type) ?? null;
   } catch {
@@ -227,6 +226,13 @@ function readNavigationType(): VitalNavigationType | null {
 
 /** Próg pamięci urządzenia (kubełek W DÓŁ) albo `null`, gdy przeglądarka nie podaje. */
 function readDeviceMemory(): VitalDeviceMemory | null {
+  // STRAŻNIK `navigator`, nie ozdobnik. Ten moduł jest osiągalny z grafu
+  // serwera (`observability/index.ts`), a `initWebVitals` woła ten kod ZANIM
+  // dojdzie do jakiegokolwiek `report()` - czyli przed strażnikiem, który
+  // chroni bufor. Bez tej linii pierwsze dotknięcie modułu po stronie serwera
+  // rzucałoby `TypeError`, i to w kodzie, którego jedynym zadaniem jest
+  // opisanie próbki.
+  if (typeof navigator === "undefined") return null;
   const raw = (navigator as NavigatorWithHints).deviceMemory;
   if (typeof raw !== "number" || !Number.isFinite(raw)) return null;
   // Lista jest malejąca, więc pierwszy próg <= wartości to kubełek w dół.
@@ -238,6 +244,7 @@ function readDeviceMemory(): VitalDeviceMemory | null {
 
 /** Klasa łącza z Network Information API; brak API albo nieznana klasa -> `null`. */
 function readEffectiveType(): VitalEffectiveType | null {
+  if (typeof navigator === "undefined") return null; // patrz `readDeviceMemory`
   const raw = (navigator as NavigatorWithHints).connection?.effectiveType;
   return EFFECTIVE_TYPES.find((known) => known === raw) ?? null;
 }
@@ -264,6 +271,7 @@ function readEffectiveType(): VitalEffectiveType | null {
  */
 function readColdStart(): boolean {
   try {
+    if (typeof sessionStorage === "undefined") return false; // patrz `readDeviceMemory`
     if (sessionStorage.getItem(COLD_START_KEY) !== null) return false;
     sessionStorage.setItem(COLD_START_KEY, "1");
     return true;

@@ -79,5 +79,59 @@ test("first-use overlays stay out of startup and respond to the first request", 
   await page.evaluate(() => window.dispatchEvent(new Event("neus:open-mobile-search")));
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.getByRole("dialog").getByRole("combobox")).toBeVisible();
+
+  // ── PIĘĆ NAKŁADEK KORZENIA POZA COMMITEM HYDRATACJI (F19) ───────────────
+  //
+  // `ConsentBanner`, `ConsentPreviewPanel`, `NewsletterPopup`, `PopupHost`
+  // i `Toaster` były renderowane BEZWARUNKOWO, a `React.lazy` startuje
+  // `import()` przy PIERWSZYM renderze - czyli pięć żądań chunków lądowało
+  // w commicie hydratacji, w oknie LCP i pierwszej interakcji KAŻDEJ strony.
+  // „Leniwy" znaczyło tu tylko „w osobnym pliku", nigdy „później".
+  //
+  // GRANICĄ JEST `__nesAppReadyAt`, NIE ZEGAR TESTU, i to jest cała
+  // odporność tej asercji. Flaga jest stemplowana `performance.now()`
+  // SYNCHRONICZNIE w efekcie montowania korzenia (`lib/watchdog/appReady.ts`),
+  // czyli dokładnie w tym commicie; `PerformanceResourceTiming.startTime`
+  // jest z tego samego zegara. Porównujemy więc dwa znaczniki z osi
+  // przeglądarki, a nie „czy zdążyliśmy zajrzeć przed czymś" - bramka nie
+  // zależy od szybkości maszyny ani od momentu, w którym Playwright odpytał
+  // stronę. Chunk odroczony do bezczynności ma `startTime` PO tym stemplu,
+  // bo `requestIdleCallback`/`setTimeout` nie potrafią wykonać się w środku
+  // commitu Reacta.
+  const overlayTimings = await page.evaluate(() => {
+    const readyAt = window.__nesAppReadyAt ?? Number.POSITIVE_INFINITY;
+    const wzorzec =
+      /\/(?:ConsentBanner-|ConsentPreviewPanel-|NewsletterPopup-|PopupHost-|sonner-|vendor-sonner-)/;
+    return {
+      readyAt,
+      nakladki: performance
+        .getEntriesByType("resource")
+        .map((entry) => ({ path: new URL(entry.name).pathname, startTime: entry.startTime }))
+        .filter((entry) => wzorzec.test(entry.path)),
+    };
+  });
+  expect(overlayTimings.readyAt).toBeLessThan(Number.POSITIVE_INFINITY);
+  expect(
+    overlayTimings.nakladki
+      .filter((entry) => entry.startTime < overlayTimings.readyAt)
+      .map((entry) => entry.path),
+  ).toEqual([]);
+
+  // KONTROLA POZYTYWNA dla banera zgód: „poza commitem hydratacji" ma znaczyć
+  // PÓŹNIEJ, nie NIGDY. Baner MUSI się montować bezwarunkowo - jego efekty są
+  // jedynym pisarzem stanu zgody w `overlayCoordinator`, więc bramka
+  // „tylko dopóki nie zdecydowano" odblokowałaby popupy marketingowe u osób,
+  // które marketing odrzuciły. Klik w „Tylko niezbędne" wyżej dowodzi, że
+  // baner się pojawił; tu domykamy to dowodem na pobrany chunk.
+  expect(
+    overlayTimings.nakladki.filter((entry) => /\/ConsentBanner-/.test(entry.path)).length,
+  ).toBeGreaterThan(0);
+  // Panel podglądu zgód jest jedyną z piątki bramkowaną ADRESEM, nie czasem:
+  // bez `?consent-preview=1` renderuje `null` przez całe życie strony, więc
+  // jego chunk nie ma prawa dojechać NIGDY.
+  expect(
+    overlayTimings.nakladki.filter((entry) => /\/ConsentPreviewPanel-/.test(entry.path)),
+  ).toEqual([]);
+
   expect(errors).toEqual([]);
 });

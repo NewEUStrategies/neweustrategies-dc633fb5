@@ -57,8 +57,13 @@ const h = vi.hoisted(() => ({
   accessResult: "member" as string,
   /** Propsy zapisane przez atrapy organizmów. */
   organism: {} as Record<string, Record<string, unknown>>,
+  /** Karta klubu, którą loader UKŁADU `/club/$clubSlug` zostawił w cache'u. */
   loaded: null as unknown,
-  loaderFails: false,
+  /** Układ ZDEGRADOWAŁ (budżet 800 ms albo awaria RPC): po `removeQueries`
+   *  cache jest pusty i liść nie ma z czego policzyć nagłówka. */
+  ukladZdegradowal: false,
+  /** Ile razy cokolwiek poszło do `club_view` - po F09 ma być ZERO. */
+  fetchCalls: 0,
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
@@ -74,9 +79,11 @@ vi.mock("@/hooks/useAuth", () => ({
 vi.mock("@/lib/billing/tiers", () => ({
   useCurrentTier: () => ({ data: h.tierRank === null ? null : { rank: h.tierRank } }),
 }));
+// KONTROLA NEGATYWNA, nie źródło danych: po F09 hub i minisite nie mają prawa
+// tknąć tej funkcji - kartę klubu czyta RAZ loader UKŁADU `/club/$clubSlug`.
 vi.mock("@/lib/clubs/publicClub", () => ({
   fetchClubBySlug: () => {
-    if (h.loaderFails) return Promise.reject(new Error("club_view padło"));
+    h.fetchCalls += 1;
     return Promise.resolve(h.loaded);
   },
 }));
@@ -127,6 +134,7 @@ vi.mock("@/components/clubs/atoms/ClubSkeletons", () => ({
   ClubDetailSkeleton: () => <div data-testid="ClubDetailSkeleton" />,
 }));
 
+import { QueryClient } from "@tanstack/react-query";
 import { renderRoute, routeSearchValidator, type RouteMetaEntry } from "@/test/routeHarness";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
 import { clubKeys } from "@/lib/clubs/queryKeys";
@@ -143,8 +151,32 @@ function robotsOf(meta: readonly RouteMetaEntry[]): string | null {
   return typeof entry?.content === "string" ? entry.content : null;
 }
 
+/** Tytuł strony z listy `meta` - dowód, że nagłówek dostał KARTĘ, a nie pustkę. */
+function titleOf(meta: readonly RouteMetaEntry[]): string | null {
+  const entry = meta.find((item) => typeof item.title === "string");
+  return typeof entry?.title === "string" ? entry.title : null;
+}
+
+/**
+ * Klient zapytań W STANIE, W JAKIM ZOSTAWIA GO LOADER UKŁADU `/club/$clubSlug`
+ * (F09). Hub i minisite są tu montowane W IZOLACJI, więc układ nie biegnie -
+ * jedynym jego skutkiem, który liść widzi, jest TEN wpis w cache'u, pod
+ * kluczem widza ANONIMOWEGO (dokument SSR jest z konstrukcji anonimowy, więc
+ * to ten sam klucz, z którego czyta komponent).
+ */
+function klientUkladu(slug: string = SLUG): QueryClient {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  if (!h.ukladZdegradowal) queryClient.setQueryData(clubKeys.bySlugViewer(slug, null), h.loaded);
+  return queryClient;
+}
+
 async function mountHub(entry: string = `/club/${SLUG}`) {
-  return renderRoute({ route: HubRoute, path: HUB_PATH, initialEntry: entry });
+  return renderRoute({
+    route: HubRoute,
+    path: HUB_PATH,
+    initialEntry: entry,
+    queryClient: klientUkladu(),
+  });
 }
 
 async function mountMinisite() {
@@ -152,6 +184,7 @@ async function mountMinisite() {
     route: MinisiteRoute,
     path: MINISITE_PATH,
     initialEntry: `/club/${SLUG}/minisite`,
+    queryClient: klientUkladu(),
   });
 }
 
@@ -178,7 +211,8 @@ beforeEach(() => {
   h.accessResult = "member";
   h.organism = {};
   h.loaded = clubViewRow();
-  h.loaderFails = false;
+  h.ukladZdegradowal = false;
+  h.fetchCalls = 0;
 });
 
 // --- hub: kontrakt adresu --------------------------------------------------
@@ -229,9 +263,29 @@ describe("hub klubu - `?tag=` jako kontrakt linkowalnego widoku", () => {
 // --- hub: loader i nagłówek ------------------------------------------------
 
 describe("hub klubu - loader i indeksowalność", () => {
-  it("loader dogrzewa cache pod `clubKeys.bySlug`", async () => {
-    const { queryClient } = await mountHub();
-    expect(queryClient.getQueryData(clubKeys.bySlug(SLUG))).not.toBeUndefined();
+  it("loader NIE wykonuje żadnego fetchu i czyta kartę z cache'u układu", async () => {
+    // Cała oszczędność F09: hub robił tu własne `ensureQueryData` na
+    // `club_view` przed pierwszym bajtem, a to samo RPC leciało DRUGI raz po
+    // hydratacji (komponent czyta klucz z widzem). Dowód ma dwie połowy -
+    // zero wywołań ORAZ nagłówek policzony z karty.
+    h.loaded = clubViewRow({ name_pl: "Klub korytarzowy", name_en: "Corridor club" });
+    const rendered = await mountHub();
+    expect(h.fetchCalls).toBe(0);
+    expect(titleOf(rendered.meta())).toContain("Klub korytarzowy");
+  });
+
+  it("loader czyta slug Z PARAMETRU, a nie ze stałej", async () => {
+    // Kartę w cache'u ma WYŁĄCZNIE `inny-klub`; stały literał zszedłby na
+    // tytuł zastępczy albo wyciągnąłby kartę CUDZEGO klubu.
+    h.loaded = clubViewRow({ name_pl: "Klub korytarzowy", name_en: "Corridor club" });
+    const rendered = await renderRoute({
+      route: HubRoute,
+      path: HUB_PATH,
+      initialEntry: "/club/inny-klub",
+      queryClient: klientUkladu("inny-klub"),
+    });
+    expect(titleOf(rendered.meta())).toContain("Klub korytarzowy");
+    expect(h.fetchCalls).toBe(0);
   });
 
   it("nagłówek zgadza się z `buildClubHead` na danych z loadera", async () => {
@@ -260,8 +314,10 @@ describe("hub klubu - loader i indeksowalność", () => {
     },
   );
 
-  it("awaria loadera schodzi na `noindex` i NIE wywala trasy", async () => {
-    h.loaderFails = true;
+  it("PUSTY cache (układ zdegradował) schodzi na `noindex` i NIE wywala trasy", async () => {
+    // Bezpieczny domysł: brak karty nie może dać indeksu. Błąd w tę stronę
+    // kosztuje ruch, w drugą - wyciek nazwy klubu zamkniętego do indeksu.
+    h.ukladZdegradowal = true;
     const rendered = await mountHub();
     expect(robotsOf(rendered.meta())).toBe("noindex, nofollow");
     expect(rendered.currentPath()).toBe(`/club/${SLUG}`);
@@ -472,14 +528,14 @@ describe("minisite - poziom dostępu liczony z czterech źródeł", () => {
     expect(h.accessInput?.hasInvitation).toBe(false);
   });
 
-  it("awaria loadera minisite NIE wywala trasy i daje nagłówek bez nazwy klubu", async () => {
-    h.loaderFails = true;
+  it("PUSTY cache minisite'u NIE wywala trasy i daje nagłówek bez nazwy klubu", async () => {
+    h.ukladZdegradowal = true;
     const rendered = await mountMinisite();
     expect(rendered.currentPath()).toBe(`/club/${SLUG}/minisite`);
     expect(robotsOf(rendered.meta())).toBe("noindex, nofollow");
   });
 
-  it("brak wiersza `club_view` w loaderze daje nagłówek zastępczy", async () => {
+  it("brak wiersza `club_view` w cache'u układu daje nagłówek zastępczy", async () => {
     h.loaded = null;
     const rendered = await mountMinisite();
     const expected = buildClubHead({

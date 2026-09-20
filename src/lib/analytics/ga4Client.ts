@@ -1,12 +1,20 @@
 // GA4 w przeglądarce - jedno miejsce, w którym dotykamy `gtag`.
 //
-// TRYB DOMYŚLNEJ ODMOWY GOOGLE (Consent Mode v2). Skrypt tagu ładuje się od
-// razu, ale WSZYSTKIE kategorie startują jako `denied`: bez zgody GA4 nie
-// zapisuje cookies i nie wysyła identyfikatorów, a zdarzenia trafiają do
-// modelowania Google (cookieless pings). Po decyzji odwiedzającego wysyłamy
-// `consent update`, więc pełny pomiar zaczyna się dokładnie w chwili zgody.
-// Dzięki `wait_for_update` tag wstrzymuje wysyłkę na moment, żeby nie wyprzedzić
-// decyzji zapisanej w localStorage.
+// TRYB DOMYŚLNEJ ODMOWY GOOGLE (Consent Mode v2). Strumień jest konfigurowany
+// od razu (w SSR, inline), ale WSZYSTKIE kategorie startują jako `denied`: bez
+// zgody GA4 nie zapisuje cookies i nie wysyła identyfikatorów, a zdarzenia
+// trafiają do modelowania Google (cookieless pings). Po decyzji odwiedzającego
+// wysyłamy `consent update`, więc pełny pomiar zaczyna się dokładnie w chwili
+// zgody. Dzięki `wait_for_update` tag wstrzymuje wysyłkę na moment, żeby nie
+// wyprzedzić decyzji zapisanej w localStorage.
+//
+// SAM SKRYPT gtag.js JEST ODROCZONY ZA BEZCZYNNOŚĆ (audyt CWV 2026-09-20, F20).
+// `<head>` niesie wyłącznie inline'owy snippet (~1,3 kB): warstwa danych, zgoda
+// domyślna i `config`. Plik z googletagmanager.com dociąga `ConsentScriptInjector`
+// przez `whenIdle(…, 2000)` PO `markAppReady()`, bo ~90 KB parse+execute z obcego
+// originu w oknie hydratacji konkurowało z LCP i pierwszą interakcją. Polecenia
+// z tego okna czekają w `window.dataLayer` - to natywna kolejka gtag.js, nie nasz
+// bufor: skrypt po załadowaniu przetwarza warstwę od początku, więc nic nie ginie.
 //
 // JEDEN TAG, DWA MIEJSCA DOCELOWE. gtag.js ładuje się RAZ, identyfikatorem
 // strumienia GA4 (`?id=G-…`): po nim weryfikator Google rozpoznaje instalację
@@ -16,9 +24,10 @@
 //
 // SNIPPET SSR I BOOTSTRAP KLIENCKI. `ga4SsrSnippet` (w `<head>` przez
 // `__root.tsx`) wykonuje te same polecenia, zanim wystartuje React. Bootstrap
-// kliencki ROZPOZNAJE ten stan (`window.gtag` + `<script src=…gtag/js?id=…>`
-// bez znacznika klienckiego) i przejmuje go, nie powtarzając poleceń - drugi
-// `config` to drugi ping Google Ads przy wejściu.
+// kliencki ROZPOZNAJE ten stan (pieczątka `SSR_TAG_GLOBAL`, a w dokumentach
+// sprzed odroczenia tagu - także `<script src=…gtag/js?id=…>` bez znacznika
+// klienckiego) i przejmuje go, nie powtarzając poleceń - drugi `config` to
+// drugi ping Google Ads przy wejściu.
 //
 // POLECENIA JAKO `arguments`, NIE TABLICE. gtag.js rozpoznaje polecenie po
 // obiekcie `arguments` wypchniętym do `dataLayer` - tak robi oficjalny snippet
@@ -54,6 +63,22 @@ export type Ga4ItemList = Ga4Item[];
 
 type GtagFn = (...args: unknown[]) => void;
 
+/**
+ * Globalna „pieczątka" snippetu SSR: identyfikator strumienia, dla którego
+ * `<head>` wykonał już zgodę domyślną, `js` i oba `config`.
+ *
+ * PO CO W OGÓLE ISTNIEJE. Do 2026-09-20 tę rolę pełnił SAM `<script src=
+ * …gtag/js?id=…>` w `<head>`: obecność węzła mówiła klientowi „SSR już tu
+ * był". Ten węzeł zszedł z `<head>` (audyt CWV, F20 / plan 3.3 - obcy origin
+ * i ~90 KB w oknie hydratacji, przed `markAppReady()`), a bez niego klient
+ * nie miał ŻADNEGO sygnału i wypchnąłby drugi komplet poleceń: drugi
+ * `config` to drugi ping Google Ads przy wejściu, a drugi `consent default`
+ * cofałby okno `wait_for_update`. Pieczątka niesie dokładnie tę wiedzę, którą
+ * niósł węzeł - i nic więcej. Kolejka `dataLayer` działa bez skryptu, więc
+ * odsłony i zdarzenia z tego okna czekają w niej i schodzą, gdy tag dojedzie.
+ */
+const SSR_TAG_GLOBAL = "__nesGa4SsrTag";
+
 interface GtagWindow extends Window {
   dataLayer?: unknown[];
   // Tag Google jest zewnętrzny; `unknown`, bo na `window.gtag` potrafi
@@ -70,22 +95,6 @@ let bootstrappedGa4: string | null = null;
 /** Znacznik skryptu wstawionego przez bootstrap KLIENCKI (SSR go nie ma). */
 const SCRIPT_ATTR = "data-ga4-tag";
 const GTAG_SRC_PREFIX = "https://www.googletagmanager.com/gtag/js";
-
-/**
- * Globalna „pieczątka" snippetu SSR: identyfikator strumienia, dla którego
- * `<head>` wykonał już zgodę domyślną, `js` i oba `config`.
- *
- * PO CO W OGÓLE ISTNIEJE. Do 2026-09-20 tę rolę pełnił SAM `<script src=
- * …gtag/js?id=…>` w `<head>`: obecność węzła mówiła klientowi „SSR już tu
- * był". Ten węzeł zszedł z `<head>` (audyt CWV, F20 / plan 3.3 - obcy origin
- * i ~90 KB w oknie hydratacji, przed `markAppReady()`), a bez niego klient
- * nie miał ŻADNEGO sygnału i wypchnąłby drugi komplet poleceń: drugi
- * `config` to drugi ping Google Ads przy wejściu, a drugi `consent default`
- * cofałby okno `wait_for_update`. Pieczątka niesie dokładnie tę wiedzę, którą
- * niósł węzeł - i nic więcej. Kolejka `dataLayer` działa bez skryptu, więc
- * odsłony i zdarzenia z tego okna czekają w niej i schodzą, gdy tag dojedzie.
- */
-const SSR_TAG_GLOBAL = "__nesGa4SsrTag";
 
 function win(): GtagWindow | null {
   return typeof window === "undefined" ? null : (window as GtagWindow);
@@ -278,70 +287,107 @@ function injectGtagScript(primary: string): void {
   document.head.appendChild(script);
 }
 
-/** Kiedy wolno dociągnąć gtag.js. Domyślnie natychmiast; `__root` odkłada to za bezczynność. */
+/**
+ * Kiedy wolno dociągnąć gtag.js. Domyślnie natychmiast (wołający spoza ścieżki
+ * bootowania nie musi o tym wiedzieć); `ConsentScriptInjector` podaje tu
+ * `whenIdle`, żeby transfer obcego originu wypadł poza okno hydratacji.
+ */
 export interface Ga4BootstrapOptions {
   scheduleScript?: (load: () => void) => void;
 }
 
+function scheduleGtagScript(options: Ga4BootstrapOptions, primary: string): void {
+  const schedule = options.scheduleScript ?? ((load: () => void) => load());
+  schedule(() => injectGtagScript(primary));
+}
+
 /**
- * Wstawia tag Google i konfiguruje strumień. Idempotentne dla pary
- * (główny ID, GA4 ID), ale reaguje też na zmianę samego GA4 - wtedy tylko
+ * Konfiguruje strumień i ZAMAWIA dociągnięcie tagu Google. Idempotentne dla
+ * pary (główny ID, GA4 ID), ale reaguje też na zmianę samego GA4 - wtedy tylko
  * wypycha nową konfigurację, bez ponownego ładowania skryptu.
- * Gdy snippet SSR wczytał już ten sam tag, bootstrap jedynie przejmuje stan.
+ * Gdy snippet SSR skonfigurował już ten sam strumień, bootstrap przejmuje stan
+ * i zamawia WYŁĄCZNIE skrypt (poleceń nie powtarza).
  * `send_page_view: false` - odsłony wysyła router (patrz `ga4PageView`), inaczej
  * pierwsza odsłona byłaby zdublowana przy nawigacji SPA.
+ *
+ * KIEDY dojedzie skrypt, decyduje wołający przez `options.scheduleScript` -
+ * patrz `Ga4BootstrapOptions`. Polecenia idą do `dataLayer` niezależnie od tej
+ * decyzji, więc odroczenie skryptu nie gubi ani zgody, ani odsłon.
  */
-export function bootstrapGa4(measurementId: string, adsId: string = ""): void {
+export function bootstrapGa4(
+  measurementId: string,
+  adsId: string = "",
+  options: Ga4BootstrapOptions = {},
+): void {
   const w = win();
   const ga4 = measurementId.trim();
   const ads = adsId.trim();
   const primary = ga4 || ads;
   if (!w || !primary) return;
-  if (bootstrappedPrimary === primary && bootstrappedGa4 === ga4) return;
+  if (bootstrappedPrimary === primary && bootstrappedGa4 === ga4) {
+    // Ponowny montaż tą samą parą identyfikatorów: polecenia są już w warstwie
+    // danych, ale ZAPLANOWANE dociągnięcie skryptu mogło zostać anulowane razem
+    // z poprzednim efektem (odmontowanie, podwójny efekt StrictMode w dev).
+    // Bez tej gałęzi tag nigdy by nie dojechał, a dociąganie jest idempotentne.
+    if (!gtagScript()) scheduleGtagScript(options, primary);
+    return;
+  }
 
   const primaryChanged = bootstrappedPrimary !== primary;
   bootstrappedPrimary = primary;
   bootstrappedGa4 = ga4;
 
-  if (primaryChanged) {
-    // Snippet SSR wykonał już zgodę domyślną, `js` i oba `config` dla tego tagu.
-    if (typeof w.gtag === "function" && ssrGtagId() === primary) return;
+  // Snippet SSR wykonał już zgodę domyślną, `js` i oba `config` dla tego tagu -
+  // powtórzenie ich to drugi ping Google Ads przy wejściu i cofnięte okno
+  // `wait_for_update`. Rozpoznajemy to po pieczątce `SSR_TAG_GLOBAL`, bo sam
+  // `<script src>` zszedł z `<head>` za bezczynność (F20).
+  const ssrConfigured = typeof w.gtag === "function" && ssrGtagId() === primary;
 
+  if (primaryChanged && !ssrConfigured) {
     ensureWindowGtag(w);
     ga4ConsentDefault();
     gtag("js", new Date());
     if (ads) gtag("config", ads);
   }
 
-  if (ga4) gtag("config", ga4, { send_page_view: false });
+  // Zmiana SAMEGO strumienia GA4 przy niezmienionym tagu głównym nadal
+  // przechodzi - pomijamy wyłącznie konfigurację, którą zrobił już SSR.
+  if (ga4 && !(primaryChanged && ssrConfigured)) gtag("config", ga4, { send_page_view: false });
 
   if (!primaryChanged) return;
 
-  // Skrypt już jest (SSR albo wcześniejszy bootstrap innym ID) - nie duplikujemy.
+  // Skrypt już jest (dokument sprzed zmiany albo wcześniejszy bootstrap innym
+  // ID) - nie duplikujemy.
   if (gtagScript()) return;
-  const script = document.createElement("script");
-  script.async = true;
-  script.src = `${GTAG_SRC_PREFIX}?id=${encodeURIComponent(primary)}`;
-  script.setAttribute(SCRIPT_ATTR, primary);
-  document.head.appendChild(script);
+  scheduleGtagScript(options, primary);
 }
 
-/** Wyłącznie dla testów - zeruje pamięć bootstrapu i zdjętą przez nas globalną `gtag`. */
+/** Wyłącznie dla testów - zeruje pamięć bootstrapu, globalną `gtag` i pieczątkę SSR. */
 export function resetGa4BootstrapForTests(): void {
   bootstrappedPrimary = null;
   bootstrappedGa4 = null;
   const w = win();
-  if (w) delete w.gtag;
+  if (w) {
+    delete w.gtag;
+    delete w[SSR_TAG_GLOBAL];
+  }
 }
 
 /**
  * Czy strumień jest już skonfigurowany: przez bootstrap kliencki albo przez
- * snippet SSR (wtedy w dokumencie jest już `<script src=…gtag/js?id=…>`, a
- * konfiguracja poprzedza go w `dataLayer`). Bez tego pierwsza odsłona - wołana
- * przez router ZANIM zamontuje się `ConsentScriptInjector` - ginęła.
+ * snippet SSR (pieczątka `SSR_TAG_GLOBAL`, a w dokumentach sprzed przeniesienia
+ * tagu za bezczynność - także węzeł `<script src=…gtag/js?id=…>`). Bez tego
+ * pierwsza odsłona - wołana przez router ZANIM zamontuje się
+ * `ConsentScriptInjector` - ginęła.
+ *
+ * SKONFIGUROWANY NIE ZNACZY WCZYTANY i to jest tu świadome: od 2026-09-20
+ * gtag.js dociąga się po bezczynności, więc zdarzenia z okna hydratacji trafią
+ * do `window.dataLayer` i poczekają w niej na skrypt. Bramkowanie ich na
+ * obecności skryptu kasowałoby dokładnie te odsłony, dla których ta kolejka
+ * istnieje.
  */
 export function isGa4Ready(): boolean {
-  return bootstrappedPrimary !== null || gtagScript() !== null;
+  return bootstrappedPrimary !== null || ssrGtagId() !== "" || gtagScript() !== null;
 }
 
 export function ga4Event(name: string, params: Ga4Params = {}): void {

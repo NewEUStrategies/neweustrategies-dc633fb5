@@ -40,7 +40,9 @@ function renderedHeight(container: HTMLElement): number {
       // Pasy reklam/alertu/tickera niosą wysokość inline, rząd nawigacji -
       // klasą `h-16` (ta sama, co mobilny pasek nagłówka).
       const inline = Number.parseFloat(band.style.height || "0");
-      return total + (Number.isFinite(inline) && inline > 0 ? inline : HEADER_SKELETON_BANDS.navRow);
+      return (
+        total + (Number.isFinite(inline) && inline > 0 ? inline : HEADER_SKELETON_BANDS.navRow)
+      );
     },
     0,
   );
@@ -100,9 +102,7 @@ describe("HeaderSkeleton - geometria z propsów", () => {
 
 describe("HeaderSkeleton - dostępność placeholdera", () => {
   it("jest ukryty przed czytnikiem ekranu, bez tekstu i bez fokusu", () => {
-    const { container } = render(
-      <HeaderSkeleton alertBar ticker adBanner navRows={2} />,
-    );
+    const { container } = render(<HeaderSkeleton alertBar ticker adBanner navRows={2} />);
     const root = container.firstElementChild!;
     expect(root).toHaveAttribute("aria-hidden", "true");
     expect(root).toHaveAttribute("data-skeleton", "header");

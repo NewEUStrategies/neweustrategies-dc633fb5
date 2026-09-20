@@ -95,20 +95,25 @@ export const FROZEN_SSR_BUDGETS = {
   /**
    * Najgorszy SZEREGOWANY łańcuch budżetów w JEDNYM loaderze trasy.
    *
-   * ZMIERZONE: `src/routes/$.tsx` = 13 000 ms (`PRIMARY_CONTENT_BUDGET_MS`
-   * 5 000 + `SECONDARY_PREFETCH_BUDGET_MS` 3 000 + `PRIMARY_CONTENT_BUDGET_MS`
-   * 5 000, trzy `await withBudget` na tym samym poziomie ciała loadera).
-   * Drugi: `blog.index.tsx` = 8 000. Trzeci: `tracker.index.tsx` = 5 500.
+   * ZMIERZONE 2026-09-20: src/routes/tracker.index.tsx = 5500 ms
+   * (`TRACKER_LOADER_BUDGET_MS` 4 000 + `TRACKER_FOLLOWERS_BUDGET_MS` 1 500).
+   * Drugi i trzeci: `src/routes/$.tsx` = 4 500 i `blog.index.tsx` = 4 500.
    *
-   * SPROSTOWANIE, KTÓRE TA LICZBA NIESIE. Zapis wydania 9 mówił, że
-   * „maksymalny sekwencyjny budżet przed pierwszym bajtem to dziś 3 000 ms".
-   * To prawda o łańcuchu KORZENIA i nieprawda o dokumencie: loader trasy
-   * catch-all ma 13 000 ms własnego szeregowanego budżetu i jedzie RÓWNOLEGLE
-   * do korzenia, więc sufitem dokumentu jest max(3 000, 13 000) = 13 000 ms.
-   * Ta podłoga jest wpisana jako CENA TEGO STANU, żeby nie rosła dalej po
-   * cichu - a nie jako zgoda na 13 sekund.
+   * RATCHET W DÓŁ z 13 000 ms. Poprzednią wartość dyktowała trasa łapiąca
+   * wszystko: trzy SZEREGOWE fazy z WŁASNYMI budżetami (5 000 + 3 000
+   * + 5 000), a jej loader jedzie RÓWNOLEGLE do korzenia, więc sufitem
+   * DOKUMENTU było max(3 000, 13 000) = 13 000 ms. Fazy dostały wspólny
+   * termin żądania (`lib/ssr/routeSsrDeadline.ts`), więc ich sufity nie
+   * sumują się już w czasie rzeczywistym - a same stałe zeszły do 1 500 ms,
+   * żeby ta liczba mówiła prawdę, a nie mierzyła martwy zapas.
+   *
+   * SPROSTOWANIE, KTÓRE TA LICZBA NADAL NIESIE: bramka sumuje SUFITY FAZ ze
+   * źródeł, bo tylko je widzi. Tam, gdzie fazy dzielą termin absolutny
+   * (`$.tsx`), realny sufit jest RÓWNY jednemu budżetowi (1 500 ms), a nie
+   * ich sumie. Ta podłoga jest więc górnym oszacowaniem ceny stanu
+   * dzisiejszego, wpisanym po to, żeby nie rosła po cichu.
    */
-  loaderChainMs: 13_000,
+  loaderChainMs: 5_500,
   /**
    * Równoległe podżądania w JEDNEJ tablicy `Promise.all`/`allSettled` loadera.
    *

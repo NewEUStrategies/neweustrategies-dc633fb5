@@ -6,6 +6,9 @@ import { useMemo, useState } from "react";
 // jakichkolwiek importów rejestru lucide-react, które materializowałyby
 // pełny zestaw ikon w bundlu entry (patrz lib/icons/DynamicIconFull).
 import { LUCIDE_ICON_NODES } from "@/lib/icons/lucideIconNodes.generated";
+// Same NAZWY zestawu kuratorowanego - czyste dane, bez `lucide-react`, więc
+// import nie dokłada do grafu ani jednej ikony (patrz curatedIconNames.ts).
+import { isCuratedIconName } from "@/lib/icons/curatedIconNames";
 import { Search, X, HelpCircle } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
@@ -784,6 +787,18 @@ export function LucideIconPicker({
                 <div className="grid grid-cols-10 gap-1 p-2">
                   {displayed.map((name) => {
                     const active = name === current;
+                    // ZNACZNIK IKONY ŁADOWANEJ LENIWIE. Ten picker oferuje cały
+                    // katalog (~1500 nazw) i tak ma zostać - w TREŚCI egzotyczna
+                    // ikona jest poprawnym wyborem. Ale ten sam picker ustawia
+                    // ikony POZYCJI MENU (MenuManager), a tam nazwa spoza
+                    // zestawu kuratorowanego każe przeglądarce KAŻDEGO anonima
+                    // pobrać pełny rejestr ikon (473 KB źródeł, 109 KB gzip),
+                    // żeby narysować jedną ikonkę w nagłówku. Kropka mówi więc
+                    // o koszcie PRZED kliknięciem - taniej niż obcięcie oferty,
+                    // które zabrałoby redakcji ikony w treści. Znacznik jest
+                    // czysto wizualny (bez napisu), bo nowy klucz i18n musiałby
+                    // wejść do obu słowników, a te należą do innego obszaru.
+                    const leniwa = !isCuratedIconName(name);
                     return (
                       <button
                         key={name}
@@ -793,19 +808,26 @@ export function LucideIconPicker({
                           setOpen(false);
                         }}
                         className={
-                          "flex items-center justify-center h-8 w-8 rounded-md border transition-colors " +
+                          "relative flex items-center justify-center h-8 w-8 rounded-md border transition-colors " +
                           (active
                             ? "border-primary bg-primary/10 text-primary"
                             : "border-transparent hover:bg-accent text-foreground")
                         }
                         title={name}
                         aria-label={name}
+                        data-lazy-icon={leniwa ? "true" : undefined}
                         style={{
                           contentVisibility: "auto",
                           containIntrinsicSize: "32px 32px",
                         }}
                       >
                         <DynamicIcon name={name} width={16} height={16} />
+                        {leniwa ? (
+                          <span
+                            aria-hidden="true"
+                            className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-amber-500/70"
+                          />
+                        ) : null}
                       </button>
                     );
                   })}

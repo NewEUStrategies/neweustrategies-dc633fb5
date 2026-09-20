@@ -24,6 +24,11 @@ import { adminUsersQueryOptions, type AdminRole } from "@/lib/admin/users-query"
 import { BadgeCheck, ExternalLink, Search, Users } from "lucide-react";
 import { ensureI18n as ensureExpertsI18n } from "@/lib/i18n-experts";
 export const Route = createFileRoute("/admin/authors")({
+  // Rodzic `/admin` renderuje na serwerze szkielet powłoki (2026-09-20), więc
+  // dzieci dziedziczą SSR. Ten loader czeka na pełny katalog ekspertów - w SSR
+  // dokładałby round-trip do TTFB każdego twardego wejścia, a widok i tak
+  // montuje się dopiero po rozstrzygnięciu sesji w przeglądarce.
+  ssr: false,
   loader: async ({ context }) => {
     await context.queryClient.ensureQueryData(expertsDirectoryQueryOptions());
     return null;

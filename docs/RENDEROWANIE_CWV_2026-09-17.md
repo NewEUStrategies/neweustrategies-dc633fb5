@@ -129,6 +129,56 @@ następna decyzja. Nowa faza `edge-routing` czyni ją mierzalną w RUM, który t
 wdrożenie i tak zbiera. Zlecenie mówi „zprofiluj, wyszukaj zapytania > 500 ms" -
 to jest instrument, który na to pytanie odpowiada.
 
+### 2.4 ANEKS 2026-09-20: szkielet panelu wychodzi teraz z serwera
+
+Ten rozdział **unieważnia jedno założenie §2.1 i §2.2**: `routes/admin.tsx` nie
+deklaruje już `ssr: false`. Reszta opisu (geometria szkieletu, pamięć wariantu
+paska, rezerwy `pendingMinHeight`) obowiązuje bez zmian.
+
+**Dlaczego wracamy do SSR.** Audyt `docs/AUDYT_CWV_ZIMNE_OTWARCIE_2026-09-20.md`
+(F32, plan 3.13) pokazał, że `ssr: false` kosztowało nie tylko puste ciało.
+Router ładuje chunk trasy na serwerze **wyłącznie dla dopasowań `ssr === true`**
+(`router-core/load-server.js`, `loadNormalChunks`), więc `head()` trasy `/admin`
+w ogóle nie biegł po stronie serwera - i `admin-styles.css` (12,6 KB,
+render-blocking) odkrywała przeglądarka dopiero **po** zhydratowaniu ~570 KB
+gzip bootu, szeregowo zamiast równolegle.
+
+**Jak omijamy rozjazd hydratacji, który był powodem `ssr: false`.** Powód był
+prawdziwy - sesja Supabase żyje w `localStorage` - więc nie znosimy go, tylko
+odsuwamy od serwera:
+
+- serwer renderuje **wyłącznie** `AdminShellSkeleton`, a jego jedynym wejściem
+  jest ścieżka z URL-a (`isCompactSidebarRoute`, `isEventStudioPath`);
+- wariant zapamiętany w `localStorage` **nie wchodzi** do renderu serwerowego -
+  serwer go nie zna, więc byłby gwarantowanym rozjazdem. Doczytuje go pierwszy
+  render po hydratacji;
+- `useAuth`, przekierowanie na `/login`, `AdminShell` i `<Outlet/>` mieszkają
+  w osobnym komponencie za bramką `useHydrated()` (ten sam
+  `useSyncExternalStore`, na którym stoi `<ClientOnly>` routera), czyli SSR-owy
+  HTML i pierwszy render klienta są identyczne z konstrukcji;
+- `ensureAdminExtrasI18n()` przeniesione z ciała komponentu do `beforeLoad` -
+  pierwsze malowanie nie czeka już na ewaluację 18,6 KB nakładki słownika;
+- `beforeLoad` nadaje dokumentowi `private, no-store`. Deny-lista NES Edge Cache
+  mówiła „nie zapisuj" tylko naszemu brzegowi (`planDefaultCacheControl` zwraca
+  dla tych ścieżek `null`), a od tej zmiany dokument niesie HTML.
+
+**Czego ten aneks NIE zmienia i co zostaje do sprawdzenia.**
+
+- Wariant paska dla najemcy ze `style-4`: serwer maluje 224 px, a pierwszy
+  render po hydratacji zwęża pasek do 48 px. To jedno przesunięcie zostaje -
+  zdjęłoby je dopiero liczenie szerokości z **odwodnionego** `site_settings`
+  (`theme_options.sidebars.style`), czyli z tych samych danych, z których liczy
+  ją `AdminShell`. Wymaga to jednak, żeby fala 1 korzenia zdążyła w terminie
+  `CLIENT_ONLY_WARM_BUDGET_MS`.
+- `lib/routing/clientOnlyDocument.ts` nadal klasyfikuje `/admin` jako dokument
+  bez serwerowego renderu treści. Predykat pozostaje użyteczny (skrócony termin
+  fali 1), ale jego uzasadnienie w komentarzu odwołuje się do nieistniejącego
+  już `ssr: false` i należy je odświeżyć.
+- Trasy potomne `/admin/**` odziedziczyły SSR, więc ich `beforeLoad`/`loader`
+  biegną teraz na serwerze. W praktyce są to same przekierowania, z dwoma
+  wyjątkami: `/admin/authors` (awaituje `expertsDirectoryQueryOptions()` -
+  dokłada round-trip do TTFB) i `/admin/` (rozgrzewka chunku pulpitu, `void`).
+
 ## 3. Czego ten commit NIE rozwiązuje, powiedziane wprost
 
 **TTFB na powierzchniach publicznych (`/` = 3,19 s, `/blog/<wpis>` = 2,81 s)
@@ -179,6 +229,7 @@ bun run check:ssr-budgets
 npx vitest run src/routes/__tests__/rootRoute.test.tsx \
   src/lib/routing/__tests__/clientOnlyDocument.test.ts \
   src/lib/admin/__tests__/sidebarStylePreference.test.ts \
+  src/routes/__tests__/adminRouteSsr.test.tsx \
   src/components/admin/__tests__/AdminShellSkeleton.test.tsx \
   src/components/admin/__tests__/AdminShell.test.tsx \
   src/components/admin/dashboard/__tests__/dashboardSection.test.tsx \
