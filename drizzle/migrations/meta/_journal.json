@@ -211,6 +211,13 @@
       "when": 1789908794265,
       "tag": "0029_club_set_cover_position_tenant_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1789910030787,
+      "tag": "0030_club_set_cover_position_tenant_scope",
+      "breakpoints": true
     }
   ]
 }
