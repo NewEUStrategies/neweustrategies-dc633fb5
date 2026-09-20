@@ -26,8 +26,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useTranslation } from "react-i18next";
 import { Upload, FileText, FileSpreadsheet } from "lucide-react";
 import { UploadArea } from "@/components/ui/upload-area";
+import "@/lib/i18n-upload-area";
+
 import { importNewsletterSubscribers } from "@/lib/newsletter-admin.functions";
 import { parseCsv } from "@/lib/csv/parseCsv";
 import {
@@ -39,6 +42,15 @@ import {
   FIELD_KEYS,
   type FieldKey,
 } from "./importCsvMapping";
+
+/**
+ * Liczba wierszy podawana w podpowiedzi obszaru wgrywania.
+ *
+ * To jest DEKLARACJA, nie egzekwowany limit: ani parser, ani server fn nie
+ * odcinają nadmiaru, a ta sama liczba stoi w importerze leadów CRM. Zostaje
+ * nazwana, żeby zmiana kopii w jednym miejscu nie rozjechała się z drugim.
+ */
+const MAX_ROWS = 5000;
 
 const FIELD_LABELS: Record<FieldKey, string> = {
   email: "E-mail (wymagane)",
@@ -59,6 +71,7 @@ export function ImportCsvDialog({
   open: boolean;
   onOpenChange: (o: boolean) => void;
 }) {
+  const { t } = useTranslation();
   const [file, setFile] = useState<File | null>(null);
   const [csvText, setCsvText] = useState("");
   const [mapping, setMapping] = useState<FieldKey[]>([]);
@@ -129,11 +142,11 @@ export function ImportCsvDialog({
         {!parsed ? (
           <UploadArea
             className="mx-auto"
-            title="Wgraj plik CSV z subskrybentami"
-            description={
-              "Przeciagnij plik .csv tutaj albo wybierz go z dysku.\nDo 5000 wierszy w jednym pliku."
-            }
-            ctaLabel="Wybierz plik CSV"
+            title={t("uploadArea.csv.title")}
+            description={`${t("uploadArea.csv.description")}\n${t("uploadArea.csv.rowLimit", {
+              max: MAX_ROWS,
+            })}`}
+            ctaLabel={t("uploadArea.csv.cta")}
             icons={[FileSpreadsheet, Upload, FileText]}
             accept=".csv,text/csv"
             onFiles={(files) => void onFile(files[0])}

@@ -29,6 +29,8 @@ const pl = {
     csv: {
       title: "Wgraj plik CSV",
       description: "Przeciągnij plik .csv tutaj albo wybierz go z dysku.",
+      cta: "Wybierz plik CSV",
+      rowLimit: "Do {{max}} wierszy w jednym pliku.",
     },
     wxr: {
       title: "Plik WXR (.xml)",
@@ -81,6 +83,8 @@ const en = {
     csv: {
       title: "Upload a CSV file",
       description: "Drag a .csv file here, or pick one from your disk.",
+      cta: "Choose a CSV file",
+      rowLimit: "Up to {{max}} rows per file.",
     },
     wxr: {
       title: "WXR file (.xml)",
