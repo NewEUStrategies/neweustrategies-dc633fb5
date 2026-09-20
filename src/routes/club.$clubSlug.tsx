@@ -43,7 +43,7 @@ import { imagePreloadLink, imagePreloadLinkHeaderValue } from "@/lib/seo/meta";
 const CLUB_CARD_BUDGET_MS = 800;
 
 export const Route = createFileRoute("/club/$clubSlug")({
-  loader: async ({ context, params }) => {
+  loader: async ({ context, location, params }) => {
     const card = await loadResilient<ClubViewRow | null>(
       context.queryClient,
       {
@@ -74,12 +74,11 @@ export const Route = createFileRoute("/club/$clubSlug")({
     // że istnieje); odczyt zdegradowany oddaje `null` i renderuje się dalej.
     const club = notFoundIfClean(card);
 
-    // HINT LCP wyłącznie wtedy, gdy okładka NAPRAWDĘ się rysuje: `ClubCover`
-    // w wariancie `banner` stoi na BRAMCE DOSTĘPU (ClubAccessGate i karta
-    // zamknięta w ClubWorkspaceLayout), a hub klubu otwartego nie ma obrazu
-    // nad zgięciem. Bezwarunkowy preload byłby na klubie publicznym pobraniem
-    // pliku, którego nikt nie maluje.
-    const preload = clubCoverPreload(club);
+    // HINT LCP wyłącznie tam, gdzie okładka NAPRAWDĘ jest elementem LCP -
+    // regułę i jej dowód trzyma `clubCoverPreload` (hub klubu za bramką
+    // dostępu). Bezwarunkowy preload byłby na klubie otwartym pobraniem pliku,
+    // którego nikt nie maluje.
+    const preload = clubCoverPreload(club, location.pathname);
     if (preload) appendLinkHeader(imagePreloadLinkHeaderValue(preload));
 
     return { club: toClubHeadSource(club), coverPreload: preload };

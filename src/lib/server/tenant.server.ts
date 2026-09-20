@@ -192,8 +192,16 @@ export async function getTenantDirectory(): Promise<TenantDirectory> {
   // sprzed TTL). Odświeżenie startuje TERAZ, za odpowiedzią, a nie dopiero
   // przy następnym żądaniu - izolat, który obsłuży tylko jednego czytelnika,
   // inaczej nigdy nie odnowiłby migawki i kolonia zjeżdżałaby do doby.
-  if (cache && Date.now() - cache.at >= CACHE_TTL_MS) startDirectoryRefresh();
+  // Odczyt przez funkcję, nie przez zmienną: `if (cache) return` wyżej zawęża
+  // `cache` do `null` do końca funkcji, a TypeScript nie cofa zawężenia po
+  // `await`, choć `startDirectoryRefresh` właśnie ją nadpisał.
+  const settled = currentDirectoryCache();
+  if (settled && Date.now() - settled.at >= CACHE_TTL_MS) startDirectoryRefresh();
   return directory;
+}
+
+function currentDirectoryCache(): DirectoryCache | null {
+  return cache;
 }
 
 /** Single-flight: jedno odświeżenie katalogu naraz, dokończone pod waitUntil. */

@@ -1,0 +1,50 @@
+{
+  "include": [
+    "src/components/atoms/AppLink.tsx",
+    "src/components/atoms/__tests__/AppLink.test.tsx",
+    "src/router.tsx",
+    "src/__tests__/router.test.tsx",
+    "src/components/comments/CommentsSection.tsx",
+    "src/components/comments/__tests__/CommentsSection.test.tsx",
+    "src/hooks/useEventSeatsRealtime.ts",
+    "src/hooks/useInterests.ts",
+    "src/hooks/__tests__/useInterests.test.tsx",
+    "src/components/blocks/PollBlockView.tsx",
+    "src/components/blocks/LiveBlogBlock.tsx",
+    "src/components/blocks/__tests__/liveBlogBlock.test.tsx",
+    "src/components/blocks/__tests__/pollBlockRealtime.test.tsx",
+    "vitest.setup.ts"
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "vite/client",
+      "vitest/globals",
+      "@testing-library/jest-dom"
+    ],
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": false,
+    "noEmit": true,
+    "incremental": false,
+    "assumeChangesOnlyAffectDirectDependencies": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    }
+  }
+}

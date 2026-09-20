@@ -90,11 +90,12 @@ interface ShellLoaderData {
 type LoaderCtx = {
   context: { queryClient: QueryClient };
   params: { slug: string };
+  location: { pathname: string };
 };
 type Loader = (ctx: LoaderCtx) => Promise<ShellLoaderData>;
 
-function runLoader(slug = "szczyt"): Promise<ShellLoaderData> {
-  return runLoaderWithClient(slug).then(({ data }) => data);
+function runLoader(slug = "szczyt", pathname?: string): Promise<ShellLoaderData> {
+  return runLoaderWithClient(slug, pathname).then(({ data }) => data);
 }
 
 /**
@@ -104,12 +105,19 @@ function runLoader(slug = "szczyt"): Promise<ShellLoaderData> {
  */
 async function runLoaderWithClient(
   slug = "szczyt",
+  // Domyślnie PRZEGLĄD wydarzenia - to jedyna zakładka, która maluje okładkę,
+  // więc tylko na niej loader dokłada deskryptor preloadu LCP.
+  pathname = `/events/${slug}`,
 ): Promise<{ data: ShellLoaderData; queryClient: QueryClient }> {
   const loader = (EventShellRoute as unknown as { options: { loader: Loader } }).options.loader;
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
-  const data = await loader({ context: { queryClient }, params: { slug } });
+  const data = await loader({
+    context: { queryClient },
+    params: { slug },
+    location: { pathname },
+  });
   return { data, queryClient };
 }
 
@@ -231,7 +239,7 @@ describe("loader powłoki /events/$slug", () => {
     h.headerThrows = true;
     h.eventThrows = true;
     const data = await runLoader();
-    expect(data).toEqual({ headEvent: null, degraded: false });
+    expect(data).toEqual({ headEvent: null, degraded: false, coverPreload: null });
     expect(h.cacheControl).toEqual([]);
   });
 

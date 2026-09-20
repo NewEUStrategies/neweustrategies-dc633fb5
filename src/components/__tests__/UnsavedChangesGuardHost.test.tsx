@@ -15,7 +15,9 @@
 //
 //   2. OKNO ISTNIEJE TYLKO NA ŻĄDANIE. Host wisi w korzeniu na KAŻDEJ
 //      stronie; gdyby renderował treść bez oczekującego pytania, blokowałby
-//      całą aplikację modalem.
+//      całą aplikację modalem. Od 2026-09-20 ciało okna jedzie dodatkowo
+//      przez `React.lazy` (Radix poza bundlem startowym), więc każdy przypadek
+//      po zgłoszeniu czeka na rozwiązanie importu - `flushLazyDialog`.
 //
 //   3. OBIETNICA ROZSTRZYGA SIĘ RAZ I ZNIKA. Po odpowiedzi okno musi się
 //      zamknąć, inaczej kolejna nawigacja trafia na wiszący modal.
@@ -52,6 +54,22 @@ function askToLeave(): Promise<boolean> {
   return answer;
 }
 
+/**
+ * Ciało okna jest ładowane dynamicznie (`React.lazy`), więc między zgłoszeniem
+ * a modalem w DOM jest rozwiązanie importu - w tym środowisku raz na kilka
+ * zadań, a raz dłużej (pierwsze wczytanie modułu transformuje plik). Pętla z
+ * twardym limitem jest tu uczciwsza od jednego `setTimeout`: czeka dokładnie
+ * tyle, ile trzeba, i nie zamienia braku okna w zawieszony test.
+ */
+async function flushLazyDialog(): Promise<void> {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    });
+    if (screen.queryByRole("alertdialog")) return;
+  }
+}
+
 function clickButton(name: string): void {
   act(() => {
     fireEvent.click(screen.getByRole("button", { name }));
@@ -78,6 +96,7 @@ describe("okno pyta o zgodę na utratę pracy", () => {
   it("zgłoszenie blokady otwiera okno z tytułem i ostrzeżeniem ze słownika", async () => {
     render(<UnsavedChangesGuardHost />);
     const answer = askToLeave();
+    await flushLazyDialog();
 
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
     expect(screen.getByText(realT("pl")("admin.unsavedChangesTitle"))).toBeInTheDocument();
@@ -90,6 +109,7 @@ describe("okno pyta o zgodę na utratę pracy", () => {
   it("wyjście bez zapisania oddaje `true`", async () => {
     render(<UnsavedChangesGuardHost />);
     const answer = askToLeave();
+    await flushLazyDialog();
 
     clickButton(LEAVE());
 
@@ -99,6 +119,7 @@ describe("okno pyta o zgodę na utratę pracy", () => {
   it("pozostanie w edytorze oddaje `false`", async () => {
     render(<UnsavedChangesGuardHost />);
     const answer = askToLeave();
+    await flushLazyDialog();
 
     clickButton(STAY());
 
@@ -108,6 +129,7 @@ describe("okno pyta o zgodę na utratę pracy", () => {
   it("Escape znaczy ZOSTAŃ - zamknięcie okna nie może kasować pracy", async () => {
     render(<UnsavedChangesGuardHost />);
     const answer = askToLeave();
+    await flushLazyDialog();
 
     act(() => {
       fireEvent.keyDown(document, { key: "Escape", code: "Escape" });
@@ -119,6 +141,7 @@ describe("okno pyta o zgodę na utratę pracy", () => {
   it("po odpowiedzi okno znika, więc kolejna nawigacja nie trafia na modal", async () => {
     render(<UnsavedChangesGuardHost />);
     const answer = askToLeave();
+    await flushLazyDialog();
 
     clickButton(LEAVE());
     await answer;
@@ -126,9 +149,10 @@ describe("okno pyta o zgodę na utratę pracy", () => {
     expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 
-  it("przycisk wyjścia jest wyróżniony jako operacja niszcząca", () => {
+  it("przycisk wyjścia jest wyróżniony jako operacja niszcząca", async () => {
     render(<UnsavedChangesGuardHost />);
     askToLeave();
+    await flushLazyDialog();
 
     expect(screen.getByRole("button", { name: LEAVE() }).className).toContain("bg-destructive");
     clickButton(STAY());
@@ -140,6 +164,7 @@ describe("okno pyta o zgodę na utratę pracy", () => {
     render(<UnsavedChangesGuardHost />);
     const first = askToLeave();
     const second = askToLeave();
+    await flushLazyDialog();
 
     await expect(first).resolves.toBe(false);
     clickButton(LEAVE());
@@ -152,6 +177,7 @@ describe("wariant angielski", () => {
     h.lang = "en";
     render(<UnsavedChangesGuardHost />);
     const answer = askToLeave();
+    await flushLazyDialog();
 
     expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
     expect(screen.getByText("You have unsaved changes - leave the editor anyway?")).toBeVisible();

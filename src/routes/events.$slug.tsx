@@ -48,7 +48,7 @@ import {
   type PublicEvent,
 } from "@/lib/community/publicQueries";
 import { COMMUNITY_MODULES_DEFAULTS, COMMUNITY_MODULES_KEY } from "@/lib/community/modulesSettings";
-import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+import { resolveSetting, siteSettingsQueryOptions, type SettingsMap } from "@/lib/useSiteSetting";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
@@ -56,9 +56,17 @@ import { EventPortalShell } from "@/components/events/public/organisms/EventPort
 import { EventTabsNav } from "@/components/events/public/organisms/EventTabsNav";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
-import { buildContentHead, SITE_NAME } from "@/lib/seo/meta";
+import {
+  buildContentHead,
+  imagePreloadLink,
+  imagePreloadLinkHeaderValue,
+  SITE_NAME,
+  type ImagePreloadInput,
+} from "@/lib/seo/meta";
+import { asEventVideoPlatform, videoEmbedUrl } from "@/lib/events/eventVideoHeader";
 import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
-import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { withBudget } from "@/lib/asyncBudget";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
@@ -81,11 +89,28 @@ interface EventShellLoaderData {
   readonly headEvent: EventHeadData | null;
   /** Wydarzenie nie dojechało w budżecie SSR - body pokazuje uczciwy komunikat. */
   readonly degraded: boolean;
+  /** Deskryptor preloadu okładki (LCP przeglądu) albo `null`. */
+  readonly coverPreload: ImagePreloadInput | null;
 }
 
 /** Fallbacki zdegradowanego renderu (patrz lib/ssr/resilientLoad). */
 const NO_EVENT: PublicEvent | null = null;
 const NO_HEADER: EventPageHeader | null = null;
+
+/**
+ * Wspólny termin ŻĄDANIA powłoki. Powłoka stoi pod SIEDMIOMA podstronami, więc
+ * każdy jej niezabudżetowany odczyt mnoży się przez siedem wejść.
+ */
+const EVENT_SHELL_SSR_BUDGET_MS = 1_400;
+
+/**
+ * Krótki termin BRAMKI MODUŁU. `site_settings` grzeje równolegle loader
+ * korzenia, więc 300 ms wystarcza na dołączenie się do jego fetcha; po tym
+ * czasie wchodzą `COMMUNITY_MODULES_DEFAULTS` z kodu. Konfiguracja NIE MOŻE
+ * blokować treści - wcześniej stało tu gołe `await ensureQueryData`, więc zwis
+ * tabeli ustawień wstrzymywał cały moduł wydarzeń aż do watchdoga SSR.
+ */
+const EVENT_SETTINGS_BUDGET_MS = 300;
 
 export const Route = createFileRoute("/events/$slug")({
   // LOADER, KTÓREGO TA TRASA NIE MIAŁA - i to nie było przyspieszenie, tylko
@@ -113,14 +138,20 @@ export const Route = createFileRoute("/events/$slug")({
   //
   // Transport fail-soft: rzut z loadera dawał HTTP 500, więc blip backendu
   // wypadał z cache'a i wyglądał dla crawlera na awarię serwera.
-  loader: async ({ context, params }): Promise<EventShellLoaderData> => {
-    const settings = await context.queryClient
-      .ensureQueryData(siteSettingsQueryOptions)
-      .catch(() => undefined);
+  loader: async ({ context, params, location }): Promise<EventShellLoaderData> => {
+    const deadlineAt = Date.now() + EVENT_SHELL_SSR_BUDGET_MS;
+    await withBudget(
+      context.queryClient.ensureQueryData(siteSettingsQueryOptions).catch(() => undefined),
+      EVENT_SETTINGS_BUDGET_MS,
+      deadlineAt,
+    );
+    const settings = context.queryClient.getQueryData<SettingsMap>(
+      siteSettingsQueryOptions.queryKey,
+    );
     const modules = resolveSetting(settings, COMMUNITY_MODULES_KEY, COMMUNITY_MODULES_DEFAULTS);
     // Moduł wyłączony: `<Outlet />` się nie renderuje, więc nie ma po co grzać
     // ani wydarzenia, ani nagłówka.
-    if (!modules.events_enabled) return { headEvent: null, degraded: false };
+    if (!modules.events_enabled) return { headEvent: null, degraded: false, coverPreload: null };
 
     // RÓWNOLEGLE, nie sekwencyjnie: budżety biegną współbieżnie, więc dwa wolne
     // zapytania kosztują tyle co jedno (patrz komentarz przy `anyDegraded`).
@@ -134,8 +165,12 @@ export const Route = createFileRoute("/events/$slug")({
         // hydratacji jest tu z założenia - nagłówek jest personalizowany.
         eventPageHeaderQueryOptions(params.slug, "anon"),
         NO_HEADER,
+        { deadlineAt, label: `event-header:${params.slug}` },
       ),
-      loadResilient(context.queryClient, publicEventBySlugQueryOptions(params.slug), NO_EVENT),
+      loadResilient(context.queryClient, publicEventBySlugQueryOptions(params.slug), NO_EVENT, {
+        deadlineAt,
+        label: `event:${params.slug}`,
+      }),
     ]);
     const degraded = anyDegraded(header, event);
     setCacheControlHeader(resilientCacheControl(degraded));
@@ -195,8 +230,24 @@ export const Route = createFileRoute("/events/$slug")({
       });
     }
     const h = header.data;
+    // PRELOAD LCP OKŁADKI WYDARZENIA - tylko wtedy, gdy okładka NAPRAWDĘ
+    // zostanie namalowana. Trzy warunki, każdy odcina zmarnowane pobranie:
+    //   * tylko PRZEGLĄD (`/events/<slug>`), bo baner rysuje wyłącznie
+    //     `events.$slug.index.tsx`; sześć pozostałych zakładek dzieli tę
+    //     powłokę i tam ten obraz nie istnieje;
+    //   * tylko przy BRAKU nagłówka wideo - `EventVideoHeader` zastępuje wtedy
+    //     okładkę iframe'em (ta sama funkcja `videoEmbedUrl`, więc decyzja jest
+    //     jedna, nie dwie rozjeżdżające się);
+    //   * tylko gdy anonimowy odczyt oddał wiersz - dla wydarzenia za bramką
+    //     warstwy body renderuje zaproszenie, a nie baner.
+    // PARYTET: komponent maluje zwykłe `<img src>` BEZ `srcSet`, więc deskryptor
+    // niesie sam `href`; para srcset/sizes wskazywałaby inny kandydat niż
+    // malowany i podwoiłaby pobranie.
+    const coverPreload = overviewCoverPreload(location.pathname, params.slug, event.data);
+    if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     return {
       degraded,
+      coverPreload,
       headEvent:
         h === null
           ? null
@@ -237,7 +288,7 @@ export const Route = createFileRoute("/events/$slug")({
       : lang === "en"
         ? "Community event details, RSVP and live link."
         : "Szczegóły wydarzenia, zapis i link do transmisji.";
-    return buildContentHead({
+    const head = buildContentHead({
       url,
       lang,
       type: "article",
@@ -248,8 +299,43 @@ export const Route = createFileRoute("/events/$slug")({
       ...(ev?.cover ? { image: ev.cover } : {}),
       ...(ev?.publishedAt ? { publishedAt: ev.publishedAt } : {}),
     });
+    const preload = loaderData?.coverPreload ?? null;
+    if (!preload) return head;
+    // Ten sam deskryptor, co nagłówek HTTP `Link` z loadera: nagłówek startuje
+    // fetch przed parsowaniem HTML, a `<link>` w dokumencie działa też wtedy,
+    // gdy odpowiedź jedzie z cache'u dokumentów bez nagłówków.
+    return { ...head, links: [...head.links, imagePreloadLink(preload)] };
   },
 });
+
+/**
+ * Deskryptor preloadu okładki przeglądu wydarzenia albo `null`. Wydzielone
+ * z loadera, bo to CZYSTA decyzja (trzy warunki, zero I/O) - i dzięki temu
+ * testowalna bez montowania trasy.
+ */
+function overviewCoverPreload(
+  pathname: string,
+  slug: string,
+  event: PublicEvent | null,
+): ImagePreloadInput | null {
+  if (event === null) return null;
+  const cover = event.cover_url;
+  if (!cover || cover.trim() === "") return null;
+  // Ostatni segment zamiast prefiksu: adres bywa poprzedzony językiem
+  // (`/en/events/<slug>`), a zakładki dokładają własny segment.
+  const segments = pathname.replace(/\/+$/, "").split("/");
+  const last = segments[segments.length - 1] ?? "";
+  let decoded = last;
+  try {
+    decoded = decodeURIComponent(last);
+  } catch {
+    /* nie-URI w adresie - porownujemy surowy segment */
+  }
+  if (decoded !== slug) return null;
+  if (videoEmbedUrl(asEventVideoPlatform(event.video_header_platform), event.video_header_id ?? ""))
+    return null;
+  return { href: cover };
+}
 
 function EventShell() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
