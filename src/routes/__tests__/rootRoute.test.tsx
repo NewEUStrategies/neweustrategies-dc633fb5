@@ -308,16 +308,17 @@ describe("__root loader", () => {
 
   // ── ZASIEW UKŁADU TREŚCI - bez rozgrzewki sieciowej, ale MUSI BYĆ ─────────
   //
-  // Defekt zgłoszony w recenzji PR #314 (P2). Wyrzucając `postLayoutSettings`
-  // z fali 1 wyrzuciłem razem z nim ZASIEW DOMYŚLNYCH, którego `main` miał
-  // w tym samym pliku, i tego nie zauważyłem. Zmierzone sondą na PRAWDZIWYM
-  // `ContentAreaStyle` przez `renderToStaticMarkup`: z pustym cache'em
-  // komponent emituje DOSŁOWNIE ZERO BAJTÓW, z wpisem - blok z
-  // `margin-bottom: 1.5rem`. Zastępstwa w CSS-ie nie ma:
-  // `@tailwindcss/typography` NIE jest zainstalowany (czyli `prose prose-lg`
-  // jest martwe), a `preflight.css` trzyma `* { margin: 0 }`. Skutek na trasach
-  // renderujących treść redakcyjną poza `/$`: akapity bez odstępów w SSR
-  // i przesunięcie układu po hydratacji.
+  // Defekt zgłoszony w recenzji PR #314 (P2): wyrzucając `postLayoutSettings`
+  // z fali 1 wyleciał razem z nim ZASIEW DOMYŚLNYCH. Wtedy kosztowało to
+  // pierwsze malowanie - `ContentAreaStyle` miał gałąź `return null` i bez wpisu
+  // emitował w SSR zero bajtów.
+  //
+  // UZASADNIENIE PRZEPISANE 2026-09-20: tamta gałąź już nie istnieje (naprawa
+  // F29a - bez wiersza komponent emituje blok z `defaultPostLayoutSettings()`,
+  // wzorzec `ThemeFontSizesStyle`), więc zasiew nie ratuje już odstępów
+  // akapitów. Zostaje jako PARYTET SSR/KLIENT na jednej i tej samej stałej:
+  // serwer i pierwszy render klienta czytają ten sam wpis zamiast rozchodzić
+  // się na `data === undefined`.
   //
   // Ten przypadek pilnuje OBU połów naprawy: że zasiew jest, i że rodzi się
   // przeterminowany - inaczej domyślne przypięłyby się na 5-10 minut i wartości
@@ -325,7 +326,7 @@ describe("__root loader", () => {
   it("zasiewa domyślny układ treści, i to PRZETERMINOWANY", async () => {
     await runLoader(qc);
     const state = qc.getQueryState(["post-layout-settings"]);
-    expect(state, "bez zasiewu ContentAreaStyle emituje w SSR zero bajtów").toBeTruthy();
+    expect(state, "bez zasiewu SSR i klient rozchodzą się na tym kluczu").toBeTruthy();
     expect(state?.dataUpdatedAt).toBe(0);
   });
 

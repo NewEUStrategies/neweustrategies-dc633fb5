@@ -542,22 +542,26 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // (`routes/$.tsx`), a tu zostaje wyłącznie ZASIEW DOMYŚLNYCH (niżej) -
     // za zero round-tripów.
     //
-    // SPROSTOWANIE WŁASNEGO KOMENTARZA (Codex, PR #314, P2). Stało tu, że render
-    // „traci wyłącznie typografię prozy, i to na trasach, które i tak jej nie
-    // mają". OBA CZŁONY BYŁY NIEPRAWDZIWE i zasiew wypadł razem z rozgrzewką,
-    // czego nie zauważyłem. Zmierzone sondą na PRAWDZIWYM `ContentAreaStyle`
-    // przez `renderToStaticMarkup`: z pustym cache'em komponent emituje
-    // DOSŁOWNIE ZERO BAJTÓW (`components/ContentAreaStyle.tsx:12-13`), a z wpisem
-    // - blok z `margin-bottom: 1.5rem` dla akapitu. Zastępstwa w CSS-ie NIE MA:
-    // parser `styles.css` znajduje dokładnie dwie reguły marginesu akapitu i obie
-    // celują w kanwę edytora, `@tailwindcss/typography` NIE JEST w tym projekcie
-    // zainstalowany (czyli `prose prose-lg` w `ContentRenderer` jest MARTWE),
-    // a `preflight.css` trzyma `* { margin: 0 }`. Skutek na trasach, które
-    // renderują treść redakcyjną, a nie są `/$` (m.in. `/support`, podglądy,
-    // `/checkout/success`): akapity schodzą z serwera BEZ ODSTĘPÓW i dostają je
-    // po hydratacji - czyli realne przesunięcie układu, nie kosmetyka.
+    // PO CO MIMO TO ZASIEW (niżej) - uzasadnienie przepisane 2026-09-20, bo
+    // poprzednie przestało być prawdziwe. Stało tu, że bez wpisu w cache'u
+    // `ContentAreaStyle` emituje w SSR DOSŁOWNIE ZERO BAJTÓW; tak było, dopóki
+    // komponent miał gałąź `return null`. Naprawa F29a ją usunęła: bez wiersza
+    // komponent emituje dziś pełny blok z `defaultPostLayoutSettings()`
+    // (`components/ContentAreaStyle.tsx`, wzorzec `ThemeFontSizesStyle`), więc
+    // odstępy akapitów i typografia linków są w pierwszym malowaniu NIEZALEŻNIE
+    // od tego zasiewu.
     //
-    // Zasiew niżej zamyka to za zero round-tripów i jest PRZYWRÓCENIEM stanu
+    // Zasiew zostaje z dwóch powodów, i żaden z nich nie jest kosmetyczny.
+    // (1) PARYTET SSR/KLIENT. Komponent i zasiew biorą TĘ SAMĄ stałą
+    // `defaultPostLayoutSettings()`, więc wpis w cache'u nie może rozjechać
+    // serwerowego i klienckiego renderu - a zasiew przesądza, że pierwszy render
+    // klienta czyta dokładnie to, co wypisał serwer, zamiast przechodzić przez
+    // `data === undefined`. (2) WARTOŚCI NAJEMCY. Zasiew jest
+    // PRZETERMINOWANY (`updatedAt: 0`), więc klient dociąga wiersz z bazy
+    // natychmiast po hydratacji; bez wpisu zapytanie i tak by wystartowało, ale
+    // cache korzenia nie niósłby żadnej informacji o tym kluczu do dehydracji.
+    //
+    // Zasiew niżej kosztuje ZERO round-tripów i jest PRZYWRÓCENIEM stanu
     // z `main` (tam ten sam `defaultPostLayoutSettings()` był zasiewany
     // w `__root.tsx`), więc nie może być regresją wobec bazy - tylko że tutaj
     // rodzi się `{ updatedAt: 0 }`, czego wersja z maina nie miała.
@@ -648,8 +652,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // ZASIEW BEZ ROZGRZEWKI - jedyny taki tutaj i dlatego z osobnym zdaniem.
     // Trzy zasiewy wyżej domykają zapytania, które fala 1 PRÓBOWAŁA pobrać; ten
     // domyka klucz, którego fala 1 świadomie NIE dotyka (uzasadnienie wyżej).
-    // Bez niego `ContentAreaStyle` emituje w SSR zero bajtów, a odstępy akapitów
-    // dochodzą po hydratacji. `{ updatedAt: 0 }` znaczy, że klient i tak
+    // `ContentAreaStyle` radzi sobie dziś bez niego (emituje blok z tej samej
+    // stałej), więc zasiew nie ratuje już pierwszego malowania - trzyma PARYTET
+    // SSR/KLIENT na jednej wartości. `{ updatedAt: 0 }` znaczy, że klient i tak
     // dociągnie wartości najemcy natychmiast po hydratacji - domyślne są tu
     // pierwszym malowaniem, nie ostatnim słowem.
     const postLayoutKey = postLayoutSettingsQueryOptions().queryKey;
