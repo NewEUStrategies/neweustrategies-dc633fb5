@@ -114,12 +114,21 @@ const legacyLangQueryMiddleware = createMiddleware().server(async ({ request, ne
  * Accept-Language i wynik jest utrwalany. Decyzja równa językowi domyślnemu to
  * no-op, więc "/" pozostaje jednym, współdzielonym wpisem cache. Sam redirect
  * jest `no-store` + `Vary`, żeby nigdy nie trafił do cache brzegowego.
+ *
+ * Stoi PRZED `redirectMiddleware` (audyt F14): decyzja jest czysta (cookie /
+ * Accept-Language), więc odwiedzający EN dostaje 302 na /en bez płacenia dwóch
+ * odczytów planu service-role (katalog tenantów + reguły), które i tak nie
+ * miałyby czego dopasować - właściwe żądanie /en przejdzie przez nie za chwilę.
  */
 const homepageLangMiddleware = createMiddleware().server(async ({ request, next }) => {
   if (request.method !== "GET" && request.method !== "HEAD") return next();
   const url = new URL(request.url);
   if (url.pathname !== "/") return next();
   if (!(request.headers.get("accept") ?? "").includes("text/html")) return next();
+  // Jawne `?lang=` to legacy deep-link i należy do `legacyLangQueryMiddleware`
+  // (niżej w łańcuchu). Bez tej bramki negocjacja nagłówkiem utrwaliłaby
+  // cookie `pl` odwiedzającemu, który właśnie prosił o `/?lang=en`.
+  if (normalizeLang(url.searchParams.get("lang"))) return next();
 
   const decision = resolveHomepageLang(
     url.pathname,
@@ -485,23 +494,28 @@ export const startInstance = createStart(() => ({
   //      response after the redirect matcher had its chance (matched requests
   //      never reach the router, so a redirected path is not double-counted
   //      as a 404).
-  //   3. redirectMiddleware short-circuits WP-legacy paths.
-  //   4. legacyLangQueryMiddleware canonicalises `?lang=` before route dispatch.
-  //   5. documentCacheMiddleware (NES Edge Cache) sits right above the router
+  //   3. homepageLangMiddleware stoi PRZED redirectMiddleware (audyt F14):
+  //      negocjacja języka gołej strony głównej jest czysta (cookie /
+  //      Accept-Language) i nie dotyka bazy, więc odwiedzający EN dostaje 302
+  //      na /en zanim ktokolwiek zapłaci dwa odczyty planu service-role.
+  //      Jawne `?lang=` middleware pomija - to domena punktu 5.
+  //   4. redirectMiddleware short-circuits WP-legacy paths.
+  //   5. legacyLangQueryMiddleware canonicalises `?lang=` before route dispatch.
+  //   6. documentCacheMiddleware (NES Edge Cache) sits right above the router
   //      (behind it only the default-cache-control decorator), so redirects and
   //      language canonicalisation always run first, and a memory HIT replays
   //      only the router's own render while the outer middleware (security
   //      headers, 404 log) re-decorates every response, cached or not.
-  //   6. gpcMiddleware siedzi POWYŻEJ documentCacheMiddleware: odbija
+  //   7. gpcMiddleware siedzi POWYŻEJ documentCacheMiddleware: odbija
   //      `Sec-GPC` w cookie transportowym i dokłada `Vary: Sec-GPC` PO
   //      odtworzeniu wpisu z cache'a, więc `Set-Cookie` nigdy nie wchodzi do
   //      zapisanego dokumentu (patrz lib/consent/gpc.server.ts).
-  //   7. tenantAssertionMiddleware - ta sama doktryna i z tego samego powodu:
+  //   8. tenantAssertionMiddleware - ta sama doktryna i z tego samego powodu:
   //      podaje przeglądarce poświadczenie hosta w cookie transportowym PO
   //      odtworzeniu wpisu z cache'a, więc poświadczenie jednego hosta nie ma
   //      jak wejść do dokumentu zapisanego dla innego
   //      (patrz lib/http/tenantAssertionCookie.server.ts).
-  //   8. defaultCacheControlMiddleware is INNERMOST: dokłada domyślny
+  //   9. defaultCacheControlMiddleware is INNERMOST: dokłada domyślny
   //      Cache-Control publicznym dokumentom ZANIM odpowiedź wróci do
   //      documentCacheMiddleware - dzięki temu polityka zapisu NES Edge Cache
   //      (public + s-maxage) obejmuje także trasy bez własnego nagłówka.
@@ -522,9 +536,9 @@ export const startInstance = createStart(() => ({
     // muszą przyjmować requesty spoza origin.
     csrfMiddleware,
     seo404Middleware,
+    homepageLangMiddleware,
     redirectMiddleware,
     legacyLangQueryMiddleware,
-    homepageLangMiddleware,
     gpcMiddleware,
     tenantAssertionMiddleware,
     documentCacheMiddleware,

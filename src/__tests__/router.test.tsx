@@ -89,7 +89,9 @@ describe("getRouter - kontrakt opcji", () => {
   it("opcje routera są tymi, które opisuje plik", () => {
     const r = getRouter();
     expect(r.options.defaultPreload).toBe("intent");
-    expect(r.options.defaultPreloadStaleTime).toBe(0);
+    // Praca routera (matching, beforeLoad, import chunku) ma własne, krótkie
+    // okno świeżości - świeżością DANYCH włada react-query, nie ten próg.
+    expect(r.options.defaultPreloadStaleTime).toBe(30_000);
     expect(r.options.defaultPreloadDelay).toBe(50);
     const Pending = r.options.defaultPendingComponent!;
     expect(renderToStaticMarkup(<Pending />)).toContain('aria-busy="true"');

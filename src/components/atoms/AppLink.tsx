@@ -1,16 +1,59 @@
 import { useRouter } from "@tanstack/react-router";
 import {
   forwardRef,
+  useCallback,
+  useEffect,
+  useRef,
   type AnchorHTMLAttributes,
   type FocusEvent,
   type MouseEvent,
-  type TouchEvent,
 } from "react";
 
 type AppLinkProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href"> & {
   href?: string;
   preload?: "intent" | "none";
 };
+
+/**
+ * Opóźnienie intencji. `router.preloadRoute` to matching + `beforeLoad` +
+ * `loader` + (pierwszy raz) import chunku trasy - czyli prawdziwa praca, nie
+ * podpowiedź dla przeglądarki. Kursor przelatujący nad listą kart nie jest
+ * intencją, więc czekamy, aż wskaźnik się zatrzyma. Wewnętrzny `<Link>`
+ * routera ma na to `defaultPreloadDelay`, ale `AppLink` woła `preloadRoute`
+ * bezpośrednio i ten próg go nie obejmuje - stąd własny timer.
+ */
+const PRELOAD_DELAY_MS = 60;
+
+/**
+ * Jak długo pamiętamy, że trasa była już preloadowana. Bez tej pamięci
+ * przejechanie kursorem po dwudziestu kartach odpala dwadzieścia loaderów,
+ * a każdy powrót na ten sam odnośnik powtarza je od zera: router ma
+ * `defaultPreloadStaleTime` 30 s, ale sam wykonuje matching i `beforeLoad`
+ * przy każdym wywołaniu.
+ */
+const PRELOAD_MEMORY_TTL_MS = 20_000;
+
+/** href -> moment preloadu (ms). Modułowa, bo dotyczy routera, nie instancji. */
+const preloadMemory = new Map<string, number>();
+
+/**
+ * Zwraca `true`, gdy ten href wolno preloadować teraz (i zapisuje go w
+ * pamięci). Przy okazji usuwa wpisy starsze niż TTL, żeby mapa nie rosła
+ * przez całą sesję czytania.
+ */
+function claimPreload(href: string, now: number): boolean {
+  for (const [key, at] of preloadMemory) {
+    if (now - at > PRELOAD_MEMORY_TTL_MS) preloadMemory.delete(key);
+  }
+  if (preloadMemory.has(href)) return false;
+  preloadMemory.set(href, now);
+  return true;
+}
+
+/** Czyści pamięć preloadu - do testów i diagnostyki. */
+export function resetPreloadMemory(): void {
+  preloadMemory.clear();
+}
 
 function isModifiedEvent(event: MouseEvent<HTMLAnchorElement>): boolean {
   return event.metaKey || event.altKey || event.ctrlKey || event.shiftKey;
@@ -47,8 +90,9 @@ export const AppLink = forwardRef<HTMLAnchorElement, AppLinkProps>(function AppL
     target,
     onClick,
     onMouseEnter,
+    onMouseLeave,
     onFocus,
-    onTouchStart,
+    onBlur,
     preload = "intent",
     ...props
   },
@@ -56,11 +100,29 @@ export const AppLink = forwardRef<HTMLAnchorElement, AppLinkProps>(function AppL
 ) {
   const router = useRouter({ warn: false });
   const clientHref = toClientHref(href);
+  // Jeden timer na instancję - kolejne zdarzenia intencji go przesuwają,
+  // a nie mnożą.
+  const preloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const preloadRoute = () => {
+  const cancelPreload = useCallback(() => {
+    if (preloadTimer.current === null) return;
+    clearTimeout(preloadTimer.current);
+    preloadTimer.current = null;
+  }, []);
+
+  const schedulePreload = () => {
     if (!router || !clientHref || preload === "none") return;
-    void router.preloadRoute({ href: clientHref } as never).catch(() => undefined);
+    if (preloadTimer.current !== null) return;
+    preloadTimer.current = setTimeout(() => {
+      preloadTimer.current = null;
+      if (!claimPreload(clientHref, Date.now())) return;
+      void router.preloadRoute({ href: clientHref } as never).catch(() => undefined);
+    }, PRELOAD_DELAY_MS);
   };
+
+  // Odmontowanie w trakcie odliczania (np. zamknięcie overlaya wyszukiwarki)
+  // nie może zostawić timera, który obudzi router po zniknięciu odnośnika.
+  useEffect(() => cancelPreload, [cancelPreload]);
 
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
     onClick?.(event);
@@ -85,19 +147,30 @@ export const AppLink = forwardRef<HTMLAnchorElement, AppLinkProps>(function AppL
 
   const handleMouseEnter = (event: MouseEvent<HTMLAnchorElement>) => {
     onMouseEnter?.(event);
-    preloadRoute();
+    schedulePreload();
+  };
+
+  const handleMouseLeave = (event: MouseEvent<HTMLAnchorElement>) => {
+    onMouseLeave?.(event);
+    cancelPreload();
   };
 
   const handleFocus = (event: FocusEvent<HTMLAnchorElement>) => {
     onFocus?.(event);
-    preloadRoute();
+    schedulePreload();
   };
 
-  const handleTouchStart = (event: TouchEvent<HTMLAnchorElement>) => {
-    onTouchStart?.(event);
-    preloadRoute();
+  const handleBlur = (event: FocusEvent<HTMLAnchorElement>) => {
+    onBlur?.(event);
+    cancelPreload();
   };
 
+  // DOTYK BEZ PRELOADU (świadomie). Między `touchstart` a `click` mija
+  // kilkadziesiąt ms tego samego gestu - loader trasy wystartowany na
+  // `touchstart` ląduje dokładnie w oknie mierzonym jako INP tego dotknięcia.
+  // Zysk (kilkadziesiąt ms wcześniejszy start) jest mniejszy niż koszt janku,
+  // a właściwa nawigacja i tak czeka na ten sam loader. Ewentualny
+  // `onTouchStart` konsumenta przechodzi nietknięty przez `...props`.
   return (
     <a
       {...props}
@@ -106,8 +179,9 @@ export const AppLink = forwardRef<HTMLAnchorElement, AppLinkProps>(function AppL
       target={target}
       onClick={handleClick}
       onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       onFocus={handleFocus}
-      onTouchStart={handleTouchStart}
+      onBlur={handleBlur}
     />
   );
 });

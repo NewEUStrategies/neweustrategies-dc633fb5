@@ -3,12 +3,13 @@
 // (enforced by the DB trigger `comments_before_insert`); with
 // require_login_to_comment=false guests may post with a signature (server fn
 // with IP rate limit + honeypot; the DB trigger stays the source of truth).
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/hooks/useAuth";
+import { useInView } from "@/hooks/use-in-view";
 import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { buildAvatarSrc } from "@/lib/cropSizes";
@@ -73,25 +74,46 @@ export function CommentsSection({ postId, lang }: Props) {
 
   const moderationToast = () => toast.success(t("comments.submittedPending"));
 
+  // Bramka widoczności dla Realtime: kontener sekcji obserwowany raz
+  // (once), z zapasem 200 px, żeby kanał wstawał tuż PRZED wjazdem komentarzy
+  // w kadr, a nie na każdą otwartą kartę z wpisem.
+  const { ref: sectionRef, inView } = useInView<HTMLElement>({
+    rootMargin: "200px 0px",
+    threshold: 0,
+  });
+
   // Base key (no limit) so mutations can invalidate every fetched window at once.
   const listKey = ["post-comments", postId] as const;
   const { data, isLoading, isFetching } = useQuery({
     queryKey: [...listKey, limit] as const,
     queryFn: () => fetchPostComments(postId, limit),
     staleTime: 30_000,
+    // Wyjątek od globalnego `refetchOnWindowFocus: false`: to jedyne źródło
+    // świeżości dla anonima, który nie dostaje już kanału Realtime. Powrót na
+    // kartę odświeża listę, a 30 s staleTime pilnuje, żeby nie robił tego przy
+    // każdym przełączeniu okna.
+    refetchOnWindowFocus: true,
   });
 
   // Realtime: any insert/update to this post's comments refreshes the list, so
   // a peer's new (approved) comment or an edit shows up without a manual reload.
   // RLS still gates what non-owners can read (only `approved` streams to them).
+  //
+  // BRAMKA (F34). Websocket kosztuje TLS + WS + auth + join tuż po hydratacji,
+  // a płaciła za niego KAŻDA anonimowa odsłona wpisu. Kanał otwieramy więc
+  // tylko wtedy, gdy ma komu służyć: czytelnik jest zalogowany (może pisać
+  // i widzieć własne `pending`), dyskusja jest otwarta (przy zamkniętej nic
+  // nowego nie przyjdzie) i sekcja weszła w kadr. Anonim ma świeżość ze
+  // staleTime 30 s i refetch przy powrocie na kartę.
   useEffect(() => {
+    if (!userId || !commentsOpen || !inView) return;
     return subscribeToTable(
       { table: "comments", filter: `post_id=eq.${postId}` },
       () => void qc.invalidateQueries({ queryKey: listKey }),
     );
     // listKey is derived from postId; qc is stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [postId, qc]);
+  }, [postId, qc, userId, commentsOpen, inView]);
 
   const create = useMutation({
     mutationFn: (input: { body: string; parentId?: string | null }) =>
@@ -169,6 +191,35 @@ export function CommentsSection({ postId, lang }: Props) {
     },
   });
 
+  // Referencje stabilne przez `mutateAsync`/`mutate` (react-query trzyma je
+  // związane z obserwatorem), więc `memo` na CommentNode naprawdę ucina
+  // przerysowanie całego drzewa przy każdej zmianie stanu rodzica.
+  const handleReply = useCallback(
+    async (body: string, parentId: string) => {
+      await create.mutateAsync({ body, parentId });
+    },
+    [create.mutateAsync],
+  );
+  const handleGuestReply = useCallback(
+    async (input: GuestCommentInput) => {
+      await guestCreate.mutateAsync(input);
+    },
+    [guestCreate.mutateAsync],
+  );
+  const handleDelete = useCallback((id: string) => remove.mutate(id), [remove.mutate]);
+  const handleEdit = useCallback(
+    async (id: string, body: string) => {
+      await edit.mutateAsync({ id, body });
+    },
+    [edit.mutateAsync],
+  );
+  // Rozsunięcie okna paginacji to praca NIEPILNA: przerysowanie 50 kolejnych
+  // wątków nie może blokować klatki, w której kliknięto przycisk.
+  const loadMore = useCallback(
+    () => startTransition(() => setLimit((n) => n + COMMENTS_PAGE_SIZE)),
+    [],
+  );
+
   const tree = useMemo(() => buildCommentTree(data?.comments ?? []), [data]);
   // Honest server-side count (was: count of fetched rows, lying beyond the window).
   const totalApproved = data?.approvedCount ?? 0;
@@ -182,6 +233,7 @@ export function CommentsSection({ postId, lang }: Props) {
   return (
     <section
       id="comments"
+      ref={sectionRef}
       aria-labelledby="comments-heading"
       className="mt-10 border-t border-border pt-8"
     >
@@ -236,17 +288,10 @@ export function CommentsSection({ postId, lang }: Props) {
               lang={lang}
               allowReplies={commentsOpen}
               guestAllowed={guestsAllowed}
-              onReply={async (body, parentId) => {
-                await create.mutateAsync({ body, parentId });
-              }}
-              onGuestReply={async (input) => {
-                await guestCreate.mutateAsync(input);
-              }}
-              onDelete={(id) => remove.mutate(id)}
-              onEdit={async (id, body) => {
-                await edit.mutateAsync({ id, body });
-              }}
-              submittingReply={create.isPending || guestCreate.isPending}
+              onReply={handleReply}
+              onGuestReply={handleGuestReply}
+              onDelete={handleDelete}
+              onEdit={handleEdit}
             />
           ))
         )}
@@ -257,7 +302,7 @@ export function CommentsSection({ postId, lang }: Props) {
               variant="outline"
               size="sm"
               disabled={isFetching}
-              onClick={() => setLimit((n) => n + COMMENTS_PAGE_SIZE)}
+              onClick={loadMore}
             >
               {isFetching ? t("comments.loading") : t("comments.loadMore")}
             </Button>

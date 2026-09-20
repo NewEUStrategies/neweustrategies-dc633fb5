@@ -62,6 +62,28 @@ export async function deleteCropSize(id: string): Promise<void> {
  */
 export const IMAGE_QUALITY = 88;
 
+/**
+ * Jakosc malych wariantow `srcSet` (<= 640 px). Przy tej szerokosci pikseli jest
+ * tak gesto, ze artefakty q78 sa niewidoczne, a plik chudnie o kilkanascie
+ * procent - to dokladnie te kandydaty, ktore telefon pobiera jako obraz LCP.
+ * Duze warianty zostaja na 88, bo tam kompresja jest juz widoczna.
+ */
+export const IMAGE_QUALITY_SMALL = 78;
+
+/** Gorna granica (wlacznie) szerokosci uznawanej za "maly wariant". */
+export const SMALL_VARIANT_MAX_WIDTH = 640;
+
+/**
+ * Jakosc zalezna od szerokosci wariantu - JEDNO zrodlo prawdy dla `srcSet`.
+ * Preload (`<link rel=preload imagesrcset>` / naglowek `Link`) i renderowany
+ * `<img>` buduja URL-e tymi samymi funkcjami, wiec regula trzymana w jednym
+ * miejscu utrzymuje parytet bajtowy obu list. Zdublowanie jej gdziekolwiek
+ * indziej oznaczaloby preload innego kandydata niz malowany - podwojny transfer.
+ */
+export function qualityForWidth(width: number): number {
+  return width <= SMALL_VARIANT_MAX_WIDTH ? IMAGE_QUALITY_SMALL : IMAGE_QUALITY;
+}
+
 export function buildTransformedImageUrl(
   src: string,
   size: { width: number; height: number; resize?: "cover" | "contain" | "fill" },
@@ -117,7 +139,11 @@ export function isSupabaseStorageUrl(src: string): boolean {
  * Width-only scaled variant (preserves aspect ratio, unlike the cropping
  * buildTransformedImageUrl). Used to build responsive srcSets.
  */
-export function buildScaledImageUrl(src: string, width: number, quality = IMAGE_QUALITY): string {
+export function buildScaledImageUrl(
+  src: string,
+  width: number,
+  quality = qualityForWidth(width),
+): string {
   if (!src) return src;
   try {
     const url = src.startsWith("/") ? new URL(src, PUBLIC_MEDIA_ORIGIN) : new URL(src);
@@ -166,10 +192,14 @@ export const RESPONSIVE_WIDTHS = [320, 480, 640, 768, 1024, 1280, 1536, 1920, 24
 export function buildImageSrcSet(
   src: string,
   widths: readonly number[] = RESPONSIVE_WIDTHS,
-  quality = IMAGE_QUALITY,
+  quality?: number,
 ): string {
   if (!isSupabaseStorageUrl(src)) return "";
-  return widths.map((w) => `${buildScaledImageUrl(src, w, quality)} ${w}w`).join(", ");
+  // Bez jawnej jakosci kazdy kandydat dostaje swoja (male warianty taniej) -
+  // jawna wartosc obowiazuje caly zestaw, bo wolajacy wie lepiej.
+  return widths
+    .map((w) => `${buildScaledImageUrl(src, w, quality ?? qualityForWidth(w))} ${w}w`)
+    .join(", ");
 }
 
 /**
@@ -186,7 +216,14 @@ export function buildAvatarSrc(src: string, sizePx: number, dpr = 2): string {
   return buildTransformedImageUrl(src, { width: side, height: side, resize: "cover" });
 }
 
-/** `srcSet` 1x/2x/3x dla awatara o zadanym boku CSS. */
+/**
+ * `srcSet` 1x/2x/3x dla awatara o zadanym boku CSS.
+ *
+ * Celowo NIE korzysta z `qualityForWidth`: to kadr twarzy zmniejszony do
+ * kilkudziesieciu pikseli, czyli dokladnie ten przypadek, w ktorym obnizona
+ * jakosc dawala "papkowate" twarze (powod podniesienia stalej z 75 na 88).
+ * Awatary nie leza tez na sciezce LCP, wiec nie ma czego tu oszczedzac.
+ */
 export function buildAvatarSrcSet(src: string, sizePx: number): string {
   if (!src || !isSupabaseStorageUrl(src)) return "";
   return [1, 2, 3].map((d) => `${buildAvatarSrc(src, sizePx, d)} ${d}x`).join(", ");

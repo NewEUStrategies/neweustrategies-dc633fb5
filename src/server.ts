@@ -29,6 +29,7 @@ import {
   setDocumentRevalidator,
 } from "./lib/http/documentCache.server";
 import { LANG_COOKIE } from "./lib/i18n/langCookie";
+import { buildDocumentLogLine } from "./lib/http/ssrTiming";
 import type { Register } from "@tanstack/react-router";
 import type { RequestHandler } from "@tanstack/react-start/server";
 
@@ -173,9 +174,13 @@ async function revalidateDocument(request: Request): Promise<boolean> {
     headers: revalidationHeaders(request),
     redirect: "manual",
   });
+  const startedAt = Date.now();
   const handler = await getServerEntry();
   const rendered = await fetchWithFrameworkPreloads(handler.fetch, synthetic);
   const normalized = await normalizeCatastrophicSsrResponse(synthetic, rendered);
+  // Render w tle też idzie do logu - z flagą, bo to koszt CPU izolatu, a nie
+  // czas czytelnika; bez niej zaniżałby rozkład TTFB i zawyżał udział MISS.
+  logDocument(synthetic, normalized, 0, Date.now() - startedAt);
 
   let storeWork: Promise<boolean> | null = null;
   const finalized = applyDeferredDocumentStore(normalized, (work) => {
@@ -196,6 +201,39 @@ async function revalidateDocument(request: Request): Promise<boolean> {
 }
 
 setDocumentRevalidator(revalidateDocument);
+
+/**
+ * Jedna linia JSON per dokument HTML do Workers Logs (audyt 0.1 / F40).
+ * Hosting zdejmuje `Server-Timing` i `x-nes-cache` z odpowiedzi, więc to
+ * JEDYNE miejsce, w którym rozkład TTFB na fazy i status cache przeżywają.
+ * Bez PII: sama ścieżka (bez query), status, liczby. Nigdy nie rzuca.
+ */
+function logDocument(
+  request: Request,
+  response: Response,
+  serverInitMs: number,
+  appMs: number,
+): void {
+  if (!response.headers.get("content-type")?.includes("text/html")) return;
+  try {
+    const [markerName, markerValue] = revalidationHeader();
+    console.log(
+      JSON.stringify(
+        buildDocumentLogLine({
+          path: new URL(request.url).pathname,
+          status: response.status,
+          cacheStatus: response.headers.get("x-nes-cache"),
+          serverTiming: response.headers.get("server-timing"),
+          serverInitMs,
+          appMs,
+          revalidation: request.headers.get(markerName) === markerValue,
+        }),
+      ),
+    );
+  } catch {
+    /* telemetria nie może zerwać potoku dokumentu */
+  }
+}
 
 export default {
   async fetch(request: Request): Promise<Response> {
@@ -218,11 +256,11 @@ export default {
       // Measured outside the router's SSR budget and outside the cache write:
       // includes current middleware and cache lookup work on both MISS/HIT.
       // Body streaming and network transport happen later, so this is not TTFB.
+      const serverInitMs = initializedAt - startedAt;
+      const appMs = Date.now() - startedAt;
+      logDocument(request, guarded, serverInitMs, appMs);
       const headers = new Headers(guarded.headers);
-      headers.append(
-        "server-timing",
-        `server-init;dur=${initializedAt - startedAt}, app;dur=${Date.now() - startedAt}`,
-      );
+      headers.append("server-timing", `server-init;dur=${serverInitMs}, app;dur=${appMs}`);
       return new Response(guarded.body, {
         status: guarded.status,
         statusText: guarded.statusText,

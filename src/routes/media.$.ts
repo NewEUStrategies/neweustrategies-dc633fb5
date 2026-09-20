@@ -4,6 +4,34 @@ import { createFileRoute } from "@tanstack/react-router";
 import { mediaStoragePath } from "@/lib/media/publicUrl";
 
 const PASSTHROUGH_HEADERS = ["content-type", "content-length", "etag", "last-modified"] as const;
+// Odpowiedź 304 nie niesie ciała, więc `Content-Type`/`Content-Length` opisywałyby
+// treść, której nie wysyłamy - zostają same walidatory cache.
+const NOT_MODIFIED_HEADERS = ["etag", "last-modified"] as const;
+
+// Nagłówki żądania, które muszą dojść do magazynu:
+// - `Accept` - transformacja Supabase wybiera WebP WYŁĄCZNIE na jego podstawie
+//   (parametr `format` zna tylko wartość `origin`). Bez przekazania markowa
+//   ścieżka /media/* zawsze oddawałaby format oryginału.
+// - `If-None-Match` / `If-Modified-Since` - pozwalają magazynowi odpowiedzieć
+//   304 zamiast całego ciała po wygaśnięciu `max-age` w cache przeglądarki.
+// - `Range` - przewijanie wideo.
+// Wartości idą bez interpretacji (również `Accept: */*`) - negocjację prowadzi
+// upstream, a każda nasza "poprawka" tylko rozjechałaby ją z tym, co wybierze.
+const FORWARDED_REQUEST_HEADERS = [
+  ["accept", "Accept"],
+  ["if-none-match", "If-None-Match"],
+  ["if-modified-since", "If-Modified-Since"],
+  ["range", "Range"],
+] as const;
+
+function upstreamHeaders(request: Request): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (const [incoming, outgoing] of FORWARDED_REQUEST_HEADERS) {
+    const value = request.headers.get(incoming);
+    if (value) headers[outgoing] = value;
+  }
+  return headers;
+}
 
 /**
  * Warianty rozmiarowe muszą działać pod markową domeną - inaczej miniatury
@@ -51,9 +79,12 @@ async function serveMedia(request: Request, splat: string): Promise<Response> {
   );
   const response = await fetch(upstream, {
     method: request.method === "HEAD" ? "HEAD" : "GET",
-    headers: request.headers.get("range") ? { Range: request.headers.get("range") ?? "" } : {},
+    headers: upstreamHeaders(request),
   });
-  if (!response.ok && response.status !== 206) {
+  // 304 to poprawna odpowiedź na żądanie warunkowe, nie brak pliku. Bez tego
+  // wyjątku warunek poniżej zamieniłby odświeżenie cache w twarde 404.
+  const notModified = response.status === 304;
+  if (!notModified && !response.ok && response.status !== 206) {
     // Magazyn zgłasza brak obiektu również statusem 400 (`NoSuchKey`), dlatego
     // każdą odpowiedź 4xx traktujemy jako brak pliku - nie jako awarię serwera.
     const missing = response.status >= 400 && response.status < 500;
@@ -63,8 +94,11 @@ async function serveMedia(request: Request, splat: string): Promise<Response> {
   const headers = new Headers({
     "Cache-Control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
     "X-Content-Type-Options": "nosniff",
+    // Treść zależy od `Accept` (WebP kontra format oryginału). Bez `Vary` cache
+    // brzegowy podałby WebP przeglądarce, która go nie obsługuje.
+    Vary: "Accept",
   });
-  for (const name of PASSTHROUGH_HEADERS) {
+  for (const name of notModified ? NOT_MODIFIED_HEADERS : PASSTHROUGH_HEADERS) {
     const value = response.headers.get(name);
     if (value) headers.set(name, value);
   }
@@ -72,7 +106,7 @@ async function serveMedia(request: Request, splat: string): Promise<Response> {
   if (contentRange) headers.set("Content-Range", contentRange);
   if (response.headers.get("accept-ranges")) headers.set("Accept-Ranges", "bytes");
 
-  return new Response(request.method === "HEAD" ? null : response.body, {
+  return new Response(request.method === "HEAD" || notModified ? null : response.body, {
     status: response.status,
     headers,
   });
