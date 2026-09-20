@@ -1,25 +1,38 @@
 import * as React from "react";
-import { render } from "@react-email/render";
 import { createFileRoute } from "@tanstack/react-router";
-import { SignupEmail } from "@/lib/email-templates/signup";
-import { InviteEmail } from "@/lib/email-templates/invite";
-import { MagicLinkEmail } from "@/lib/email-templates/magic-link";
-import { RecoveryEmail } from "@/lib/email-templates/recovery";
-import { EmailChangeEmail } from "@/lib/email-templates/email-change";
-import { ReauthenticationEmail } from "@/lib/email-templates/reauthentication";
 import { authSubject, type AuthEmailType } from "@/lib/email-templates/copy";
 
-// Każdy szablon ma własny kształt propsów; mapa trzyma je pod wspólnym kluczem
-// i renderuje z payloadu webhooka, więc wspólny typ propsów tu nie istnieje.
+// F04 (2026-09-20): renderer i szablony schodzą ze statycznego importu do
+// `await import(...)` w handlerze. Moduł trasy jest ewaluowany przy budowie
+// drzewa tras, czyli PRZY STARCIE IZOLATU Workera - a `@react-email/render`
+// plus sześć szablonów ciągnących `@react-email/components` to kod, którego
+// 99,99% żądań (strony publiczne) nigdy nie wykonuje. Handler jest jedynym
+// konsumentem, więc krawędź ma żyć w handlerze.
+//
+// Każdy szablon ma własny kształt propsów; renderujemy je z payloadu webhooka,
+// więc wspólny typ propsów tu nie istnieje.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
-  signup: SignupEmail,
-  invite: InviteEmail,
-  magiclink: MagicLinkEmail,
-  recovery: RecoveryEmail,
-  email_change: EmailChangeEmail,
-  reauthentication: ReauthenticationEmail,
-};
+type AnyEmailTemplate = React.ComponentType<any>;
+
+/** Jeden szablon na żądanie - `switch` zostawia Rollupowi jawne krawędzie. */
+async function loadEmailTemplate(type: string): Promise<AnyEmailTemplate | null> {
+  switch (type) {
+    case "signup":
+      return (await import("@/lib/email-templates/signup")).SignupEmail;
+    case "invite":
+      return (await import("@/lib/email-templates/invite")).InviteEmail;
+    case "magiclink":
+      return (await import("@/lib/email-templates/magic-link")).MagicLinkEmail;
+    case "recovery":
+      return (await import("@/lib/email-templates/recovery")).RecoveryEmail;
+    case "email_change":
+      return (await import("@/lib/email-templates/email-change")).EmailChangeEmail;
+    case "reauthentication":
+      return (await import("@/lib/email-templates/reauthentication")).ReauthenticationEmail;
+    default:
+      return null;
+  }
+}
 
 // Configuration
 const SITE_NAME = "New European Strategies";
@@ -111,7 +124,7 @@ export const Route = createFileRoute("/platform/email/auth/preview")({
           return Response.json({ error: "Invalid JSON in request body" }, { status: 400 });
         }
 
-        const EmailTemplate = EMAIL_TEMPLATES[type];
+        const EmailTemplate = await loadEmailTemplate(type);
 
         if (!EmailTemplate) {
           return Response.json({ error: `Unknown email type: ${type}` }, { status: 400 });
@@ -123,6 +136,7 @@ export const Route = createFileRoute("/platform/email/auth/preview")({
           ...(SAMPLE_DATA[type] || {}),
           lang,
         };
+        const { render } = await import("@react-email/render");
         const html = await render(React.createElement(EmailTemplate, sampleData));
         const subject = authSubject(type as AuthEmailType, lang);
 

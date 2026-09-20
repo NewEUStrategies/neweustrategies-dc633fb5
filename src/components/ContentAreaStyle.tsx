@@ -1,17 +1,23 @@
 // Wstrzykuje styl typografii Content Area (z `post_layout_settings`) jako
 // klasy `.post-content` na publicznym widoku. Komponent montowany raz w
 // `__root.tsx`, podobnie jak <DesignTokensStyle/>.
+import { useMemo } from "react";
 import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
+import { defaultPostLayoutSettings, type PostLayoutSettings } from "@/lib/postLayouts";
 import { hardenStyleCss } from "@/lib/sanitizePure";
+
+/** Jedna instancja defaultów - `defaultPostLayoutSettings()` tworzy nowy obiekt. */
+const DEFAULT_SETTINGS: PostLayoutSettings = defaultPostLayoutSettings();
 
 function num(px: number | null | undefined, fallback: string) {
   return typeof px === "number" && px > 0 ? `${px}px` : fallback;
 }
 
-export function ContentAreaStyle() {
-  const { data: s } = usePostLayoutSettings();
-  if (!s) return null;
-
+/**
+ * Budowa CSS wydzielona z ciała komponentu: `useMemo` przelicza ją tylko przy
+ * zmianie wiersza ustawień, a nie przy każdym renderze korzenia aplikacji.
+ */
+function contentAreaCss(s: PostLayoutSettings): string {
   const linkColorLight = s.hyperlink_color || "var(--brand)";
   const linkColorDark = s.hyperlink_color_dark || linkColorLight;
   const underlineLight = s.underline_color || "currentColor";
@@ -96,5 +102,20 @@ ${
 }
 `.replace(/\s+\n/g, "\n");
 
-  return <style data-content-area dangerouslySetInnerHTML={{ __html: hardenStyleCss(css) }} />;
+  return css;
+}
+
+/**
+ * Bez wiersza w bazie emitujemy blok z DOMYŚLNYMI ustawieniami (wzorzec
+ * `ThemeFontSizesStyle`) zamiast `null`. Dawne `return null` znaczyło "SSR bez
+ * typografii treści, klient z typografią": odstępy akapitów, kolor i
+ * podkreślenie linków oraz limit wysokości obrazków dochodziły dopiero po
+ * hydratacji i przesuwały całą treść wpisu (audyt CWV, F29a).
+ */
+export function ContentAreaStyle() {
+  const { data } = usePostLayoutSettings();
+  // Utwardzanie CSS zależy WYŁĄCZNIE od wiersza ustawień, a komponent wisi przy
+  // korzeniu aplikacji - bez memo przeliczał się przy każdym renderze drzewa.
+  const css = useMemo(() => hardenStyleCss(contentAreaCss(data ?? DEFAULT_SETTINGS)), [data]);
+  return <style data-content-area dangerouslySetInnerHTML={{ __html: css }} />;
 }

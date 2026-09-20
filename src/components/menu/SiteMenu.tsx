@@ -195,6 +195,9 @@ function SubmenuItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
   );
 }
 
+/** Zwłoka intencji najechania przed montażem panelu (ms). */
+const HOVER_INTENT_MS = 80;
+
 function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
   const withPanel = hasPanel(node);
   const [open, setOpen] = useState(false);
@@ -202,6 +205,7 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
   const [visible, setVisible] = useState(false);
   const [anchor, setAnchor] = useState<{ top: number; left: number; width: number } | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapRef = useRef<HTMLLIElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const panelId = useId();
@@ -217,6 +221,16 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
 
   useEffect(() => setMounted(true), []);
 
+  // Oba timery (intencja najechania i zwłoka zamknięcia) muszą zginąć razem z
+  // pozycją - inaczej odmontowane menu jeszcze przez chwilę ustawia stan.
+  useEffect(
+    () => () => {
+      if (openTimer.current) clearTimeout(openTimer.current);
+      if (closeTimer.current) clearTimeout(closeTimer.current);
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
@@ -228,15 +242,28 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
-    const onScrollOrResize = () => updateAnchor();
+    // Kotwica przelicza się RAZ NA KLATKĘ, nie raz na zdarzenie przewijania:
+    // `getBoundingClientRect()` w każdym callbacku scrolla to wymuszony reflow
+    // na najgorętszej ścieżce, jaką ma przeglądarka (wzorzec z Header.tsx).
+    // `passive: true` dokłada obietnicę, że nasłuch nie zawoła
+    // `preventDefault`, więc kompozytor nie musi na nas czekać.
+    let frame = 0;
+    const onScrollOrResize = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        updateAnchor();
+      });
+    };
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
-    window.addEventListener("scroll", onScrollOrResize, true);
-    window.addEventListener("resize", onScrollOrResize);
+    window.addEventListener("scroll", onScrollOrResize, { capture: true, passive: true });
+    window.addEventListener("resize", onScrollOrResize, { passive: true });
     return () => {
+      if (frame) window.cancelAnimationFrame(frame);
       document.removeEventListener("mousedown", onDoc);
       document.removeEventListener("keydown", onKey);
-      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("scroll", onScrollOrResize, { capture: true });
       window.removeEventListener("resize", onScrollOrResize);
     };
   }, [open]);
@@ -268,6 +295,24 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
       closeTimer.current = null;
     }
   };
+  const cancelOpen = () => {
+    if (openTimer.current) {
+      clearTimeout(openTimer.current);
+      openTimer.current = null;
+    }
+  };
+  // Najechanie kursorem OTWIERA PANEL DOPIERO PO CHWILI: przejazd myszą przez
+  // pasek nawigacji po drodze do treści mijał dotąd kilka triggerów, a każdy z
+  // nich montował panel (mega ciągnie zapytanie o wpis wyróżniony i całą
+  // siatkę kolumn) tylko po to, żeby go zaraz odmontować. Zwłoka odróżnia
+  // INTENCJĘ od przejazdu; klik otwiera dalej natychmiast.
+  const scheduleOpen = () => {
+    if (open || openTimer.current) return;
+    openTimer.current = setTimeout(() => {
+      openTimer.current = null;
+      setOpen(true);
+    }, HOVER_INTENT_MS);
+  };
 
   const label = pickLabel(node, lang);
   if (!label) return null;
@@ -297,9 +342,12 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
       className={`relative ${node.css_class ?? ""}`}
       onMouseEnter={() => {
         cancelClose();
-        setOpen(true);
+        scheduleOpen();
       }}
-      onMouseLeave={scheduleClose}
+      onMouseLeave={() => {
+        cancelOpen();
+        scheduleClose();
+      }}
     >
       <button
         type="button"
@@ -307,7 +355,12 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={panelId}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          // Klik jest deklaracją intencji - zwłoka najechania nie ma tu nic do
+          // roboty (inaczej panel otwierałby się jeszcze raz po zamknięciu).
+          cancelOpen();
+          setOpen((v) => !v);
+        }}
         className="inline-flex min-h-11 items-center gap-1.5 rounded px-4 py-2.5 text-sm font-medium text-foreground/90 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {node.icon ? (

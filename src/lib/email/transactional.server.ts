@@ -1,10 +1,18 @@
 import * as React from "react";
 
-import { render } from "@react-email/render";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 
-import { TxEmail, type TxDetail } from "@/lib/email-templates/transactional";
+// F04 (2026-09-20): `@react-email/render` i szablon `TxEmail` (przez
+// `nes-layout` ciągnie `@react-email/components`) były importowane STATYCZNIE.
+// Ten moduł ma ~15 importerów w grafie serwera (webhooki płatności, funkcje
+// serwerowe klubów i wydarzeń, dren kolejki), więc Rollup hoistował React Email
+// do ich wspólnego przodka i KAŻDY izolat Workera ewaluował go przy starcie -
+// również obsługując żądanie, które żadnego maila nie wysyła. Renderowanie
+// dzieje się w JEDNYM miejscu (`sendTxEmail`) i tam obie krawędzie są teraz
+// dynamiczne. `enqueueRawEmail` dostaje gotowy HTML, więc React Email nie jest
+// mu potrzebny w ogóle.
+import type { TxDetail } from "@/lib/email-templates/transactional";
 import { txCopy, txSubject, type TxEmailType } from "@/lib/email-templates/tx-copy";
 import type { EmailLang } from "@/lib/email-templates/nes-layout";
 // `uiLocale` to jedyne miejsce, w ktorym jezyk zamienia sie na znacznik BCP-47.
@@ -282,6 +290,12 @@ export async function sendTxEmail(input: TxSendInput): Promise<TxSendResult> {
     };
     const ov = (key: Parameters<typeof resolvedField>[1]) => resolvedField(override, key, tokens);
 
+    // Dopiero tutaj - po bramie wykluczeń i kontroli duplikatu, czyli na
+    // ścieżce, która NAPRAWDĘ wysyła maila.
+    const [{ render }, { TxEmail }] = await Promise.all([
+      import("@react-email/render"),
+      import("@/lib/email-templates/transactional"),
+    ]);
     const element = React.createElement(TxEmail, {
       type: input.type,
       lang,

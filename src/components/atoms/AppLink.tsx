@@ -95,8 +95,8 @@ export const AppLink = forwardRef<HTMLAnchorElement, AppLinkProps>(function AppL
 ) {
   const router = useRouter({ warn: false });
   const clientHref = toClientHref(href);
-  // Jeden timer na instancję - kolejne zdarzenia intencji go przesuwają,
-  // a nie mnożą.
+  // Jeden timer na instancję: druga intencja w trakcie odliczania (mouseenter
+  // tuż po focusie) dołącza do trwającego, zamiast zakładać własny.
   const preloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const cancelPreload = useCallback(() => {

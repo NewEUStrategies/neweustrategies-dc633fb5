@@ -1,10 +1,14 @@
 import * as React from "react";
-import { render } from "@react-email/render";
 import { createFileRoute } from "@tanstack/react-router";
-import { TEMPLATES } from "@/lib/email-templates/registry";
 
 // Renders all registered templates with their previewData.
 // Gated by LOVABLE_API_KEY — only the Go API calls this.
+//
+// F04 (2026-09-20): `@react-email/render` i rejestr szablonów (ciągnie
+// `app-transactional-templates` -> `@react-email/components`) ładowane są
+// dopiero w handlerze, PO autoryzacji kluczem. Statyczny import kazał każdemu
+// izolatowi Workera ewaluować React Email przy starcie, choć ten podgląd woła
+// wyłącznie API operatora - kilka razy na wdrożenie.
 
 export const Route = createFileRoute("/platform/email/transactional/preview")({
   server: {
@@ -24,6 +28,10 @@ export const Route = createFileRoute("/platform/email/transactional/preview")({
           return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
 
+        const [{ render }, { TEMPLATES }] = await Promise.all([
+          import("@react-email/render"),
+          import("@/lib/email-templates/registry"),
+        ]);
         const templateNames = Object.keys(TEMPLATES);
         const results: Array<{
           templateName: string;

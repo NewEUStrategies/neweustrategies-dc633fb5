@@ -19,10 +19,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { transformSync } from "esbuild";
 import { describe, expect, it } from "vitest";
 
-import {
-  WIDGET_CHUNK_TARGETS,
-  widgetChunkPlugin,
-} from "../../../../scripts/lib/widgetChunkPlugin";
+import { WIDGET_CHUNK_TARGETS, widgetChunkPlugin } from "../../../../scripts/lib/widgetChunkPlugin";
 
 /** Minimalny kształt chunku, od którego zależy decyzja wtyczki. */
 function chunk(fileName: string, modules: string[], isEntry = false) {

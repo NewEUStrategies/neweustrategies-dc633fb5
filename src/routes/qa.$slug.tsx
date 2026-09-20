@@ -3,7 +3,7 @@
 // 5/h, sanitizowany author_display - nigdy pełny e-mail, powiadomienie
 // hosta). Lista przez list_qa_questions: porządek priorytet Pro (flaga
 // qa_priority) > głosy > starszeństwo, licznik głosów w jednej podróży.
-import { createFileRoute, Link, notFound, useParams } from "@tanstack/react-router";
+import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -22,8 +22,12 @@ import {
   fetchQaSummaryPost,
   publicQaQuestionsQueryOptions,
   publicQaSessionQueryOptions,
+  type PublicQaQuestion,
   type PublicQaSession,
 } from "@/lib/community/publicQueries";
+import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { notFoundIfClean } from "@/lib/ssr/notFoundIfClean";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -70,6 +74,20 @@ interface QaSessionHeadData {
   answered: QaSessionHeadQuestion[];
 }
 
+/** Wspólny termin ŻĄDANIA - tożsamość sesji i pytania dzielą jedno okno. */
+const QA_SESSION_SSR_BUDGET_MS = 1_400;
+
+/**
+ * Pytania są treścią POD ZGIĘCIEM i czyta je `useQuery` (nie suspense), więc
+ * dociągną się po hydratacji. Krótszy termin: nie wolno im zjeść budżetu
+ * tożsamości sesji, która decyduje o `head()` i o 404.
+ */
+const QA_QUESTIONS_BUDGET_MS = 700;
+
+/** Fallback TOŻSAMOŚCIOWY - o 404 decyduje `degraded`, nie ten literał. */
+const NO_SESSION: PublicQaSession | null = null;
+const NO_QUESTIONS: PublicQaQuestion[] = [];
+
 export const Route = createFileRoute("/qa/$slug")({
   component: QaDetail,
   // ── DWIE RÓŻNE PRAWDY, DWIE RÓŻNE ODPOWIEDZI ─────────────────────────────
@@ -91,36 +109,44 @@ export const Route = createFileRoute("/qa/$slug")({
   // `queryOptions` niosą też `staleTime`, bez którego zasiew jest
   // przeterminowany w chwili hydratacji i refetch wraca po cichu.
   loader: async ({ context, params }): Promise<QaSessionHeadData | null> => {
-    let session: PublicQaSession | null;
-    try {
-      session = await context.queryClient.ensureQueryData(publicQaSessionQueryOptions(params.slug));
-    } catch {
+    const deadlineAt = Date.now() + QA_SESSION_SSR_BUDGET_MS;
+    // Gołe `ensureQueryData` w `try` broniło przed BŁĘDEM, ale nie przed
+    // POWOLNOŚCIĄ: zwis backendu czekał aż do watchdoga SSR. `loadResilient`
+    // oddaje sterowanie sam, zasiewa fallback i nigdy nie rzuca.
+    const identity = await loadResilient(
+      context.queryClient,
+      publicQaSessionQueryOptions(params.slug),
+      NO_SESSION,
+      { deadlineAt, label: `qa-session:${params.slug}` },
+    );
+    // 404 WYŁĄCZNIE z czystego odczytu (to samo rozróżnienie, co opisuje
+    // komentarz wyżej - teraz egzekwowane jednym prymitywem).
+    const found = notFoundIfClean(identity);
+    if (found === null) {
+      setCacheControlHeader(resilientCacheControl(true));
       return null;
     }
-    if (!session) throw notFound();
-    // Stała, żeby domknięcie `queryFn` nie potrzebowało `!` - zawężenie
-    // z `if` nie przechodzi przez granicę funkcji przy zmiennej `let`.
-    const found = session;
-    let answered: QaSessionHeadQuestion[] = [];
-    try {
-      const questions = await context.queryClient.ensureQueryData(
-        publicQaQuestionsQueryOptions(found.id),
-      );
-      answered = questions
-        .filter((q) => (q.answer_body ?? "").trim().length > 0)
-        .slice(0, 20)
-        .map((q) => ({
-          id: q.id,
-          body: q.body,
-          answer: q.answer_body,
-          authorName: q.is_anonymous ? null : q.author_display,
-          createdAt: q.created_at,
-          answeredAt: q.answered_at,
-          upvotes: q.votes,
-        }));
-    } catch {
-      /* markup Q&A jest opcjonalny - brak pytań nie może psuć trasy */
-    }
+    const questions = await loadResilient(
+      context.queryClient,
+      publicQaQuestionsQueryOptions(found.id),
+      NO_QUESTIONS,
+      { budgetMs: QA_QUESTIONS_BUDGET_MS, deadlineAt, label: `qa-questions:${found.id}` },
+    );
+    // BRAMKA NAGŁÓWKA, której ta trasa nie miała: render bez pytań (albo bez
+    // sesji) nie ma prawa utrwalić się na brzegu na dobę okna stale.
+    setCacheControlHeader(resilientCacheControl(anyDegraded(identity, questions)));
+    const answered: QaSessionHeadQuestion[] = questions.data
+      .filter((q) => (q.answer_body ?? "").trim().length > 0)
+      .slice(0, 20)
+      .map((q) => ({
+        id: q.id,
+        body: q.body,
+        answer: q.answer_body,
+        authorName: q.is_anonymous ? null : q.author_display,
+        createdAt: q.created_at,
+        answeredAt: q.answered_at,
+        upvotes: q.votes,
+      }));
     return {
       titlePl: found.title_pl,
       titleEn: found.title_en,

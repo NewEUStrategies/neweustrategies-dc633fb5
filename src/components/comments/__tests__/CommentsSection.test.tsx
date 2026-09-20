@@ -133,6 +133,37 @@ function section() {
   return render(<CommentsSection postId={POST_ID} lang="pl" />, { wrapper });
 }
 
+/**
+ * Atrapa IntersectionObservera. jsdom MA klasę `IntersectionObserver`, ale
+ * nigdy nie woła jej callbacku - bez atrapy sekcja komentarzy nie „wjeżdża
+ * w kadr" w ŻADNYM teście, więc bramka widoczności byłaby spełniona przez
+ * przypadek (kanał nigdy nie powstaje) i nie dowodziłaby niczego o `userId`.
+ * Zwraca funkcję wjazdu w kadr; zakładać PRZED renderem.
+ */
+function stubViewport() {
+  const callbacks: IntersectionObserverCallback[] = [];
+  vi.stubGlobal(
+    "IntersectionObserver",
+    class {
+      constructor(callback: IntersectionObserverCallback) {
+        callbacks.push(callback);
+      }
+      observe() {}
+      disconnect() {}
+    },
+  );
+  return async () => {
+    await act(async () => {
+      for (const callback of callbacks) {
+        callback(
+          [{ isIntersecting: true } as IntersectionObserverEntry],
+          {} as IntersectionObserver,
+        );
+      }
+    });
+  };
+}
+
 function hasKey(key: string): boolean {
   return screen.queryAllByText((text) => text.includes(key)).length > 0;
 }
@@ -253,7 +284,9 @@ describe("licznik i realtime", () => {
 
   it("ZALOGOWANY subskrybuje zmiany TEGO wpisu i sprząta przy odmontowaniu", async () => {
     h.user = { id: USER_ID.author };
+    const enterViewport = stubViewport();
     const { unmount } = section();
+    await enterViewport();
 
     await waitFor(() => expect(h.subscribe).toHaveBeenCalled());
     expect(h.subscribe.mock.calls[0]?.[0]).toEqual({
@@ -269,10 +302,13 @@ describe("licznik i realtime", () => {
 
   it("ANONIM nie otwiera kanału Realtime w ogóle", async () => {
     h.page = { comments: [withAuthorRow()], topLevelCount: 1, approvedCount: 1 };
+    const enterViewport = stubViewport();
 
     section();
 
     await waitFor(() => expect(hasKey("Treść komentarza")).toBe(true));
+    // Nawet gdy sekcja JEST w kadrze - bramka to `userId`, nie tylko widoczność.
+    await enterViewport();
     // Websocket (TLS + WS + auth + join) na każdą anonimową odsłonę wpisu to
     // koszt bez adresata: gość i tak nie zobaczy cudzych `pending`, a świeżość
     // niesie staleTime 30 s i refetch przy powrocie na kartę.
@@ -283,27 +319,19 @@ describe("licznik i realtime", () => {
     h.user = { id: USER_ID.author };
     h.discussion = { ...h.discussion, allow_comments: false };
     h.page = { comments: [withAuthorRow()], topLevelCount: 1, approvedCount: 1 };
+    const enterViewport = stubViewport();
 
     section();
 
     await waitFor(() => expect(hasKey("comments.closed")).toBe(true));
+    await enterViewport();
     // Do zamkniętego archiwum nic nowego nie przyjdzie - nie ma czego słuchać.
     expect(h.subscribe).not.toHaveBeenCalled();
   });
 
   it("kanał czeka, aż sekcja komentarzy WJEDZIE W KADR", async () => {
-    let notifyVisible!: IntersectionObserverCallback;
-    vi.stubGlobal(
-      "IntersectionObserver",
-      class {
-        constructor(callback: IntersectionObserverCallback) {
-          notifyVisible = callback;
-        }
-        observe() {}
-        disconnect() {}
-      },
-    );
     h.user = { id: USER_ID.author };
+    const enterViewport = stubViewport();
 
     section();
 
@@ -311,12 +339,7 @@ describe("licznik i realtime", () => {
     await waitFor(() => expect(document.querySelector("#comments")).toBeTruthy());
     expect(h.subscribe).not.toHaveBeenCalled();
 
-    await act(async () => {
-      notifyVisible(
-        [{ isIntersecting: true } as IntersectionObserverEntry],
-        {} as IntersectionObserver,
-      );
-    });
+    await enterViewport();
 
     await waitFor(() => expect(h.subscribe).toHaveBeenCalledTimes(1));
   });
@@ -1002,10 +1025,12 @@ describe("okno paginacji i stany ładowania", () => {
   });
 
   it("odświeżenie w tle blokuje przycisk i zamienia go w 'ładowanie'", async () => {
-    // Zalogowany, bo to jedyny czytelnik z kanałem Realtime (bramka F34).
+    // Zalogowany i w kadrze, bo to jedyny czytelnik z kanałem (bramka F34).
     h.user = { id: USER_ID.author };
     h.page = { comments: [withAuthorRow()], topLevelCount: 120, approvedCount: 120 };
+    const enterViewport = stubViewport();
     section();
+    await enterViewport();
     await waitFor(() => expect(hasKey("comments.loadMore")).toBe(true));
 
     const deferred: { resolve: () => void } = { resolve: () => {} };

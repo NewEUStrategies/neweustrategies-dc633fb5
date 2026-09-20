@@ -515,8 +515,13 @@ function CommentComposer({
  * węzłów, a każdy stan rodzica (otwarty edytor, trwająca mutacja) przerysowywał
  * dotąd wszystkie. Wszystkie propsy-funkcje przychodzą z `useCallback`, więc
  * porównanie płytkie faktycznie wypada na „bez zmian".
+ *
+ * Nazwa wewnętrzna JEST INNA NIŻ ZEWNĘTRZNA CELOWO: w ciele nazwanego wyrażenia
+ * funkcyjnego jego własna nazwa PRZESŁANIA stałą z modułu, więc rekurencyjne
+ * `<CommentNode>` renderowałoby funkcję bez `memo` - czyli całe poddrzewo
+ * odpowiedzi omijałoby optymalizację, dla której ten `memo` tu stoi.
  */
-const CommentNode = memo(function CommentNode({
+const CommentNode = memo(function CommentNodeImpl({
   node,
   depth,
   currentUserId,

@@ -147,6 +147,14 @@ function QaListPage() {
     enabled: modules.qa_enabled,
   });
 
+  // STEMPEL FALLBACKU, nie nowy stan. `loadResilient` zasiewa pustą listę
+  // z `updatedAt: 0`, więc `dataUpdatedAt === 0` znaczy „dane są, ale nie są
+  // prawdą backendu". Bez tego rozróżnienia zdegradowany render wyglądałby
+  // dokładnie jak „nie ma jeszcze sesji" - a to jest kłamstwo w treści
+  // (patrz komentarz w components/molecules/DegradedDataNotice). Po hydratacji
+  // refetch nadpisuje wpis prawdziwym stemplem i komunikat znika sam.
+  const degraded = query.data !== undefined && query.dataUpdatedAt === 0;
+
   if (!modules.qa_enabled) return <CommunityDisabled />;
 
   return (
@@ -157,9 +165,11 @@ function QaListPage() {
       </header>
 
       {query.isLoading && <p className="text-muted-foreground">{t("community.common.loading")}</p>}
-      {query.isError && <p className="text-destructive">{t("community.common.loadError")}</p>}
+      {(query.isError || degraded) && (
+        <p className="text-destructive">{t("community.common.loadError")}</p>
+      )}
 
-      {query.data && query.data.length === 0 && (
+      {!degraded && query.data && query.data.length === 0 && (
         <p className="text-muted-foreground">{t("community.qa.empty")}</p>
       )}
 

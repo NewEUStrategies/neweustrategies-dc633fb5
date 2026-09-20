@@ -396,56 +396,63 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       }
     : undefined;
 
+  // Styl PRZED treścią: przy strumieniowanym HTML parser maluje widget od razu
+  // po wczytaniu, a <style> na końcu ramki docierał dopiero po nim - pierwsza
+  // klatka szła bez typografii widgetu i przeskakiwała. Blok stoi OBOK ramki,
+  // a nie w środku, bo `[data-w-id] > :first-child` w styles.css zeruje
+  // margines pierwszego dziecka - <style> w środku przejąłby tę regułę.
   const wrap = (children: React.ReactNode) => (
-    <div
-      id={htmlId}
-      data-w-id={node.id}
-      data-typography-gap-active={typeof activeGapPx === "number" ? "1" : undefined}
-      ref={motion ? motionRef : undefined}
-      className={`text-foreground ${cls}`.trim()}
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: styleAlignItems ?? "center",
-        justifyContent: isCompactWidget ? "center" : "flex-start",
-        width: "100%",
-        minWidth: 0,
-        // Media normally keeps its intrinsic height, but a fixed widget height
-        // must propagate through this shell so the canvas changes immediately.
-        height: isMedia && !fillsExplicitFrameHeight ? "auto" : "100%",
-        maxWidth: isImage ? "none" : "100%",
-        boxSizing: "border-box",
-        overflow: isImage || isMedia || allowsFloatingChrome ? "visible" : "hidden",
-        position: allowsFloatingChrome ? "relative" : undefined,
-        zIndex: allowsFloatingChrome ? 30 : undefined,
-        ...(typeof activeGapPx === "number"
-          ? ({ "--cms-title-description-gap": `${activeGapPx}px` } as CSSProperties)
-          : {}),
-        ...baseStyle,
-        marginTop: 0,
-        marginBottom: 0,
-        ...motionStyle,
-      }}
-    >
-      {innerShellStyle ? (
-        <div
-          style={
-            // When "Wyrównanie treści" (contentAlign) isn't set, let the top-level
-            // "Wyrównanie" dropdown drive the inner shell alignment too.
-            innerAlignItems || !styleAlignItems
-              ? innerShellStyle
-              : { ...innerShellStyle, alignItems: styleAlignItems }
-          }
-        >
-          {children}
-        </div>
-      ) : alignShrinkWrapStyle ? (
-        <div style={alignShrinkWrapStyle}>{children}</div>
-      ) : (
-        children
-      )}
+    <>
       {widgetCss && <style dangerouslySetInnerHTML={{ __html: hardenStyleCss(widgetCss) }} />}
-    </div>
+      <div
+        id={htmlId}
+        data-w-id={node.id}
+        data-typography-gap-active={typeof activeGapPx === "number" ? "1" : undefined}
+        ref={motion ? motionRef : undefined}
+        className={`text-foreground ${cls}`.trim()}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: styleAlignItems ?? "center",
+          justifyContent: isCompactWidget ? "center" : "flex-start",
+          width: "100%",
+          minWidth: 0,
+          // Media normally keeps its intrinsic height, but a fixed widget height
+          // must propagate through this shell so the canvas changes immediately.
+          height: isMedia && !fillsExplicitFrameHeight ? "auto" : "100%",
+          maxWidth: isImage ? "none" : "100%",
+          boxSizing: "border-box",
+          overflow: isImage || isMedia || allowsFloatingChrome ? "visible" : "hidden",
+          position: allowsFloatingChrome ? "relative" : undefined,
+          zIndex: allowsFloatingChrome ? 30 : undefined,
+          ...(typeof activeGapPx === "number"
+            ? ({ "--cms-title-description-gap": `${activeGapPx}px` } as CSSProperties)
+            : {}),
+          ...baseStyle,
+          marginTop: 0,
+          marginBottom: 0,
+          ...motionStyle,
+        }}
+      >
+        {innerShellStyle ? (
+          <div
+            style={
+              // When "Wyrównanie treści" (contentAlign) isn't set, let the top-level
+              // "Wyrównanie" dropdown drive the inner shell alignment too.
+              innerAlignItems || !styleAlignItems
+                ? innerShellStyle
+                : { ...innerShellStyle, alignItems: styleAlignItems }
+            }
+          >
+            {children}
+          </div>
+        ) : alignShrinkWrapStyle ? (
+          <div style={alignShrinkWrapStyle}>{children}</div>
+        ) : (
+          children
+        )}
+      </div>
+    </>
   );
 
   const c = node.content;

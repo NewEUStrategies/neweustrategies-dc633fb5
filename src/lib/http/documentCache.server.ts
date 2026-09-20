@@ -49,6 +49,7 @@ import {
   NES_CACHE_HEADER,
   NES_EDGE_CACHE_NAME,
   NES_REVALIDATE_HEADER,
+  documentPathVariants,
   documentStorePolicy,
   planDocumentCache,
   type NesCacheStatus,
@@ -58,6 +59,7 @@ import { currentTenantHost, trustedPublicHost } from "@/lib/http/requestHost";
 import { getMiddlewareResponse, withMiddlewareResponse } from "@/lib/http/middlewareResult";
 import {
   bumpL2Version,
+  l2Delete,
   l2Match,
   l2Put,
   l2Stats,
@@ -128,6 +130,13 @@ export interface DocumentCacheL2Snapshot {
   stale: number;
   stores: number;
   bumps: number;
+  /**
+   * Wpisy usunięte purge'em selektywnym (`purgeDocumentPaths`). Opcjonalne
+   * W TYPIE wyłącznie po to, by atrapy migawki w testach spoza tego modułu
+   * (`edgeCacheFunctions.test.ts`) nie musiały go znać; `l2Stats()` wypełnia
+   * je zawsze.
+   */
+  deletes?: number;
 }
 
 export interface DocumentCacheSnapshot {
@@ -154,6 +163,14 @@ export interface DocumentCacheSnapshot {
   revalidations: number;
   /** Z tego takie, które nie odłożyły świeżego dokumentu (wpis został STALE). */
   revalidationFailures: number;
+  /**
+   * Z `revalidations`: odświeżenia zaplanowane po ZDEGRADOWANYM MISS-ie
+   * (render `no-store`, który nie zasiał L1/L2) - patrz
+   * `scheduleDegradedRevalidation`. Opcjonalne W TYPIE wyłącznie po to, by
+   * atrapy migawki w testach spoza tego modułu nie musiały go znać;
+   * `getDocumentCacheSnapshot()` wypełnia je zawsze.
+   */
+  degradedRevalidations?: number;
   startedAt: string;
   /** Warstwa per-colo (Cache API); `enabled: false` poza Workers. */
   l2: DocumentCacheL2Snapshot;
@@ -180,6 +197,12 @@ export interface DocumentCacheDecision {
   renderMs?: number;
   /** Cache-Control wyliczony przez aplikację (przed ewentualną zmianą na brzegu). */
   cacheControl?: string;
+  /**
+   * MISS zdegradowany (polityka odmówiła zapisu): czy zaplanowano odświeżenie
+   * w tle, czy klucz wyczerpał limit prób w oknie (`throttled`). Brak pola =
+   * MISS czysty albo rewalidacja.
+   */
+  degradedRevalidation?: "scheduled" | "throttled";
 }
 
 const store = new Map<string, DocumentCacheEntry>();
@@ -198,6 +221,8 @@ const stats = {
   oversize: 0,
   revalidations: 0,
   revalidationFailures: 0,
+  /** Z `revalidations`: zaplanowane po zdegradowanym MISS-ie. */
+  degradedRevalidations: 0,
   startedAt: new Date().toISOString(),
 };
 
@@ -265,9 +290,9 @@ export function revalidationHeader(): [string, string] {
  * żądanie po prostu spróbuje ponownie, a gdy wypadnie z okna SWR - zapłaci
  * zwykły MISS. Nic tu nie może zerwać ścieżki czytelnika.
  */
-function scheduleRevalidation(request: Request, key: string): void {
+function scheduleRevalidation(request: Request, key: string): boolean {
   const revalidator = documentRevalidator;
-  if (!revalidator || revalidating.has(key)) return;
+  if (!revalidator || revalidating.has(key)) return false;
   revalidating.add(key);
   stats.revalidations += 1;
   runAfterResponse(
@@ -293,6 +318,71 @@ function scheduleRevalidation(request: Request, key: string): void {
         revalidating.delete(key);
       }),
   );
+  return true;
+}
+
+/**
+ * Limit prób odświeżenia po ZDEGRADOWANYM MISS-ie, per klucz, w oknie czasu.
+ *
+ * Zdegradowany render (`private, no-store` z loadera, który nie zmieścił się
+ * w budżecie) nigdy nie zasiewa L1/L2, a `scheduleRevalidation` biegło dotąd
+ * wyłącznie z gałęzi STALE - więc na zimnym izolacie KAŻDY czytelnik płacił
+ * pełny render i nikt tego wpisu nie odnawiał (audyt CWV 2026-09-20, F02).
+ * Odświeżenie w tle biegnie już z ciepłym `edgeTtlCache`, więc ma realną
+ * szansę oddać czysty dokument. Limit chroni przed pętlą przy trwale chorej
+ * bazie: każda próba to pełny render CPU, a przy stałej degradacji kolejne
+ * próby niczego nie zmienią - lepiej poczekać, aż okno minie. Wpis znika, gdy
+ * zapis wpisu się powiedzie (`applyDeferredDocumentStore`).
+ */
+const DEGRADED_REVALIDATION_MAX_ATTEMPTS = 2;
+const DEGRADED_REVALIDATION_WINDOW_MS = 10 * 60_000;
+/** Sufit rozmiaru mapy prób - approx-LRU jak reszta magazynu (Map = kolejność wstawień). */
+const DEGRADED_REVALIDATION_MAX_KEYS = 1_000;
+
+interface DegradedAttempts {
+  count: number;
+  windowStartedAt: number;
+}
+
+const degradedAttempts = new Map<string, DegradedAttempts>();
+
+/**
+ * Zaplanuj odświeżenie w tle po zdegradowanym MISS-ie, jeśli klucz nie
+ * wyczerpał limitu prób. Żądanie REWALIDACYJNE nigdy nie planuje kolejnej
+ * (rekurencja wykluczona - driver liczy porażkę sam). Bez drivera
+ * (suita jednostkowa, izolat przed rejestracją) nic się nie dzieje i próba
+ * NIE jest liczona.
+ */
+function scheduleDegradedRevalidation(
+  request: Request,
+  key: string,
+  now: number,
+): DocumentCacheDecision["degradedRevalidation"] {
+  if (!documentRevalidator || isRevalidationRequest(request)) return undefined;
+  const previous = degradedAttempts.get(key);
+  // Okno, które minęło, nie liczy się - klucz zaczyna od zera.
+  const active =
+    previous && now - previous.windowStartedAt < DEGRADED_REVALIDATION_WINDOW_MS
+      ? previous
+      : undefined;
+  if (active && active.count >= DEGRADED_REVALIDATION_MAX_ATTEMPTS) return "throttled";
+  // Odświeżenie tego klucza już leci (single-flight) - nie liczymy próby,
+  // bo żadnej nowej nie uruchomiliśmy.
+  if (!scheduleRevalidation(request, key)) return undefined;
+  stats.degradedRevalidations += 1;
+  degradedAttempts.delete(key);
+  degradedAttempts.set(
+    key,
+    active
+      ? { count: active.count + 1, windowStartedAt: active.windowStartedAt }
+      : { count: 1, windowStartedAt: now },
+  );
+  while (degradedAttempts.size > DEGRADED_REVALIDATION_MAX_KEYS) {
+    const oldest = degradedAttempts.keys().next().value;
+    if (oldest === undefined) break;
+    degradedAttempts.delete(oldest);
+  }
+  return "scheduled";
 }
 
 const RECENT_DECISIONS_LIMIT = 50;
@@ -503,18 +593,23 @@ function decorateMissAndDeferStore(
   now: number,
   timing?: RenderTiming,
 ): Response {
+  const contentType = response.headers.get("content-type");
+  const policy = documentStorePolicy(response.status, contentType, response.headers.get("cache-control"));
+  // Pełny (200) dokument HTML, którego polityka NIE wpuszcza do magazynu, to
+  // zdegradowany render (`no-store` z loadera): czytelnik dostał go już
+  // z pełnym kosztem, a bez odświeżenia w tle następny zapłaci to samo.
+  const degradedRevalidation =
+    !policy.store && response.status === 200 && contentType?.includes("text/html")
+      ? scheduleDegradedRevalidation(request, key, now)
+      : undefined;
   recordDecision({
     at: new Date(now).toISOString(),
     path,
     status: "MISS",
     ...(timing?.renderMs === undefined ? {} : { renderMs: timing.renderMs }),
     cacheControl: response.headers.get("cache-control") ?? undefined,
+    ...(degradedRevalidation ? { degradedRevalidation } : {}),
   });
-  const policy = documentStorePolicy(
-    response.status,
-    response.headers.get("content-type"),
-    response.headers.get("cache-control"),
-  );
   if (policy.store && response.body) {
     deferredStores.set(response.body, {
       request,
@@ -571,6 +666,10 @@ export function applyDeferredDocumentStore(
     );
   };
   if (!canStillStore()) {
+    // Degradacja, która dotarła do odpowiedzi dopiero na granicy handlera:
+    // ten MISS też nie zasieje magazynu, więc dostaje to samo odświeżenie w tle
+    // co gałąź w `decorateMissAndDeferStore` (ten sam limit prób per klucz).
+    scheduleDegradedRevalidation(record.request, record.key, Date.now());
     const headers = new Headers(response.headers);
     headers.set("cache-control", "private, no-store");
     return new Response(response.body, {
@@ -604,7 +703,14 @@ export function applyDeferredDocumentStore(
       );
       return false;
     }
-    if (!body || !canStillStore()) return false;
+    if (!body) return false;
+    if (!canStillStore()) {
+      // Degradacja odkryta W TRAKCIE strumieniowania (np. chrome, którego
+      // `warm()` padło po flushu shella) - dokument poszedł do czytelnika, ale
+      // nie wchodzi do cache'a. Tło ma szansę oddać czysty; limit prób jak wyżej.
+      scheduleDegradedRevalidation(record.request, record.key, Date.now());
+      return false;
+    }
     const entry: DocumentCacheEntry = {
       body,
       bytes: body.byteLength,
@@ -617,6 +723,9 @@ export function applyDeferredDocumentStore(
       swrMs: record.swrMs,
     };
     setEntry(record.key, entry);
+    // Czysty dokument wylądował - licznik prób po degradacji tego klucza jest
+    // bez znaczenia (następna degradacja zaczyna świeże okno).
+    degradedAttempts.delete(record.key);
     await l2Put(record.host, record.key, entry);
     return true;
   });
@@ -856,6 +965,59 @@ export function purgeDocumentCache(host?: string | null): number {
 }
 
 /**
+ * Purge SELEKTYWNY: wyłącznie dokumenty pod podanymi ścieżkami (oba warianty
+ * językowe, `documentPathVariants`), w L1 razem z wariantami z query
+ * (`?page=N`), w L2 przez `cache.delete` pod bieżącą wersją - BEZ bumpu
+ * wersji hosta. Publikacja wpisu nie chłodzi już całej kolonii: wszystko poza
+ * zmienionymi ścieżkami zostaje HIT-em (audyt CWV 2026-09-20, F12 / plan 1.5).
+ *
+ * Granice spójności (świadome, "poprawność ważniejsza niż hit-rate" -
+ * wołający, który ich nie akceptuje, zostaje przy `purgeDocumentCache`):
+ *   - L2 nie listuje kluczy, więc warianty `?page=N` w Cache API dogania okno
+ *     świeżości (<= 3 min), dokładnie jak inne kolonie po bumpie;
+ *   - dokumenty zależne pośrednio (archiwa taksonomii, autor, "powiązane"
+ *     w innych wpisach, ticker w chrome) nie są tu znane - wołający podaje
+ *     te, które zna (`postDocumentPaths`), resztę dogania okno świeżości.
+ * Zwraca liczbę usuniętych wpisów L1.
+ */
+export function purgeDocumentPaths(host: string | null, paths: readonly string[]): number {
+  const variants = documentPathVariants(paths);
+  if (variants.length === 0) return 0;
+  const scope = host ?? "no-host";
+  let removed = 0;
+  for (const variant of variants) {
+    const exact = `${scope}::${variant}`;
+    const withQuery = `${exact}?`;
+    for (const [key, entry] of store) {
+      if (key === exact || key.startsWith(withQuery)) {
+        store.delete(key);
+        totalBytes -= entry.bytes;
+        removed += 1;
+      }
+    }
+    runAfterResponse(l2Delete(host, exact));
+  }
+  if (removed > 0) stats.purges += 1;
+  return removed;
+}
+
+/**
+ * Purge selektywny dla tenanta BIEŻĄCEGO żądania. Bez hosta (praca w tle poza
+ * żądaniem) nie ma jak zaadresować kluczy tenanta, więc degraduje do purge'a
+ * CAŁEGO magazynu - ta sama doktryna co `purgeDocumentCacheForCurrentHost`:
+ * wolimy wychłodzić cache niż serwować nieświeżą publikację. Nigdy nie rzuca.
+ */
+export async function purgeDocumentPathsForCurrentHost(paths: readonly string[]): Promise<number> {
+  try {
+    const host = await currentTenantHost();
+    if (!host) return purgeDocumentCache(null);
+    return purgeDocumentPaths(host, paths);
+  } catch {
+    return 0;
+  }
+}
+
+/**
  * Purge dokumentów tenanta BIEŻĄCEGO żądania (host z kontekstu request-scope).
  * Fire-and-forget z perspektywy mutacji treści: nigdy nie rzuca, a brak hosta
  * (praca w tle poza żądaniem) degraduje do purge'a całego magazynu - wolimy
@@ -896,6 +1058,7 @@ export function getDocumentCacheSnapshot(): DocumentCacheSnapshot {
     oversize: stats.oversize,
     revalidations: stats.revalidations,
     revalidationFailures: stats.revalidationFailures,
+    degradedRevalidations: stats.degradedRevalidations,
     startedAt: stats.startedAt,
     l2: l2Stats(),
     recent: [...recentDecisions],
@@ -980,7 +1143,9 @@ export function resetDocumentCacheForTests(): void {
   stats.oversize = 0;
   stats.revalidations = 0;
   stats.revalidationFailures = 0;
+  stats.degradedRevalidations = 0;
   stats.startedAt = new Date().toISOString();
   recentDecisions.length = 0;
+  degradedAttempts.clear();
   documentRevalidator = null;
 }

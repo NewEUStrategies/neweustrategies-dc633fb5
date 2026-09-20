@@ -1,16 +1,9 @@
 import * as React from "react";
-import { render } from "@react-email/render";
 import { parseEmailWebhookPayload } from "@lovable.dev/email-js";
 import { WebhookError, verifyWebhookRequest } from "@lovable.dev/webhooks-js";
 import { createClient } from "@supabase/supabase-js";
 import { createFileRoute } from "@tanstack/react-router";
 import { authSubject, type AuthEmailType } from "@/lib/email-templates/copy";
-import { SignupEmail } from "@/lib/email-templates/signup";
-import { InviteEmail } from "@/lib/email-templates/invite";
-import { MagicLinkEmail } from "@/lib/email-templates/magic-link";
-import { RecoveryEmail } from "@/lib/email-templates/recovery";
-import { EmailChangeEmail } from "@/lib/email-templates/email-change";
-import { ReauthenticationEmail } from "@/lib/email-templates/reauthentication";
 import { resolveRecipientName } from "@/lib/email/recipient-name.server";
 import { resolveAuthEmailLang } from "@/lib/email/auth-lang";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -24,17 +17,37 @@ const EMAIL_SUBJECTS: Record<string, string> = {
   reauthentication: "Your verification code",
 };
 
-// Template mapping. Każdy szablon ma własny kształt propsów, renderowany
-// z payloadu webhooka - wspólnego typu propsów tu nie ma.
+// F04 (2026-09-20): renderer i szablony schodzą ze statycznego importu do
+// `await import(...)` w handlerze. Moduł trasy jest ewaluowany przy budowie
+// drzewa tras, czyli PRZY STARCIE IZOLATU Workera; `@react-email/render`
+// i sześć szablonów ciągnących `@react-email/components` to kod, który wykonuje
+// się wyłącznie przy webhooku poczty autoryzacyjnej - kilka razy na godzinę,
+// nie przy każdym żądaniu strony.
+//
+// Każdy szablon ma własny kształt propsów, renderowany z payloadu webhooka -
+// wspólnego typu propsów tu nie ma.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
-  signup: SignupEmail,
-  invite: InviteEmail,
-  magiclink: MagicLinkEmail,
-  recovery: RecoveryEmail,
-  email_change: EmailChangeEmail,
-  reauthentication: ReauthenticationEmail,
-};
+type AnyEmailTemplate = React.ComponentType<any>;
+
+/** Jeden szablon na żądanie - `switch` zostawia Rollupowi jawne krawędzie. */
+async function loadEmailTemplate(type: string): Promise<AnyEmailTemplate | null> {
+  switch (type) {
+    case "signup":
+      return (await import("@/lib/email-templates/signup")).SignupEmail;
+    case "invite":
+      return (await import("@/lib/email-templates/invite")).InviteEmail;
+    case "magiclink":
+      return (await import("@/lib/email-templates/magic-link")).MagicLinkEmail;
+    case "recovery":
+      return (await import("@/lib/email-templates/recovery")).RecoveryEmail;
+    case "email_change":
+      return (await import("@/lib/email-templates/email-change")).EmailChangeEmail;
+    case "reauthentication":
+      return (await import("@/lib/email-templates/reauthentication")).ReauthenticationEmail;
+    default:
+      return null;
+  }
+}
 
 // Configuration
 const SITE_NAME = "New European Strategies";
@@ -180,7 +193,7 @@ export const Route = createFileRoute("/platform/email/auth/webhook")({
           run_id,
         });
 
-        const EmailTemplate = EMAIL_TEMPLATES[emailType];
+        const EmailTemplate = await loadEmailTemplate(emailType);
         if (!EmailTemplate) {
           console.error("Unknown email type", { emailType, run_id });
           return Response.json({ error: `Unknown email type: ${emailType}` }, { status: 400 });
@@ -302,6 +315,7 @@ export const Route = createFileRoute("/platform/email/auth/webhook")({
         };
 
         // Render React Email to HTML and plain text
+        const { render } = await import("@react-email/render");
         const element = React.createElement(EmailTemplate, templateProps);
         const html = await render(element);
         const text = await render(element, { plainText: true });

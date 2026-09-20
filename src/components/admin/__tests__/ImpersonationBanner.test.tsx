@@ -4,9 +4,12 @@
  * więc dowód dotyczy trzech rzeczy:
  *   1. MILCZY, dopóki trybu nie ma - żaden pusty pasek nie ma prawa zjeść
  *      górnej krawędzi strony zwykłemu czytelnikowi;
- *   2. WCHODZI SAM, gdy tryb zacznie się w innej karcie/po przekierowaniu -
- *      komponent odpytuje stan co 1,5 s, bo start impersonacji dzieje się poza
- *      Reactem (zapis w sessionStorage);
+ *   2. WCHODZI SAM, gdy stan zmieni się poza Reactem (zapis w sessionStorage).
+ *      Od 2026-09-20 ścieżką główną jest ODCZYT PRZY MONTAŻU plus zdarzenia
+ *      (`storage`, `visibilitychange`), a odpytywanie co 1,5 s zostało już
+ *      TYLKO dla personelu: baner jedzie na każdej stronie publicznej, więc
+ *      czytelnik-anonim nie ma prawa płacić za timer, którego nigdy nie
+ *      zobaczy (audyt CWV, F38). Dowód na to jest tu osobnym przypadkiem;
  *   3. WYJŚCIE Z TRYBU najpierw ZAMYKA sesję po stronie serwera, a dopiero
  *      potem przeładowuje stronę - odwrotna kolejność zostawiałaby przeglądarkę
  *      z cudzą sesją po odświeżeniu.
@@ -32,6 +35,8 @@ const h = vi.hoisted(() => ({
   state: null as unknown,
   stopCalls: 0,
   stopResolve: null as null | (() => void),
+  /** Rola widza - bramka odpytywania cyklicznego. */
+  isStaff: false,
 }));
 
 vi.mock("react-i18next", () => ({
@@ -44,6 +49,12 @@ vi.mock("react-i18next", () => ({
     },
   }),
   initReactI18next: { type: "3rdParty" as const, init: () => {} },
+}));
+
+// Baner czyta z kontekstu autoryzacji WYŁĄCZNIE `isStaff` (bramka timera);
+// prawdziwy provider ciągnąłby Supabase i sesję, czyli całą warstwę danych.
+vi.mock("@/hooks/useAuth", () => ({
+  useAuth: () => ({ isStaff: h.isStaff }),
 }));
 
 vi.mock("@/lib/admin/impersonation", () => ({
@@ -72,6 +83,7 @@ beforeEach(() => {
   h.state = null;
   h.stopCalls = 0;
   h.stopResolve = null;
+  h.isStaff = false;
   reload = vi.fn<() => void>();
   vi.spyOn(window.location, "reload").mockImplementation(reload);
 });
@@ -113,7 +125,10 @@ describe("ImpersonationBanner", () => {
     expect(screen.getByRole("button", { name: exit })).toBeInTheDocument();
   });
 
-  it("odpytuje stan cyklicznie, więc tryb włączony w innej karcie zapala baner", async () => {
+  it("PERSONELOWI odpytuje stan cyklicznie - zapis w tej karcie idzie poza Reactem", async () => {
+    // `sessionStorage` nie emituje zdarzenia do własnego dokumentu, więc dla
+    // kogoś, kto może podszywanie WŁĄCZYĆ, interwał zostaje siatką bezpieczeństwa.
+    h.isStaff = true;
     vi.useFakeTimers();
     render(<ImpersonationBanner />);
     await act(async () => {
@@ -124,6 +139,55 @@ describe("ImpersonationBanner", () => {
     h.state = STATE;
     act(() => {
       vi.advanceTimersByTime(1500);
+    });
+
+    expect(screen.getByRole("status")).toBeInTheDocument();
+  });
+
+  it("CZYTELNIKOWI nie zakłada ŻADNEGO timera (baner jest na każdej stronie)", async () => {
+    // To jest cała stawka poprawki F38: interwał co 1,5 s na każdej publicznej
+    // stronie płacił każdy czytelnik, choć baner dotyczy wyłącznie personelu.
+    vi.useFakeTimers();
+    render(<ImpersonationBanner />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // Liczba timerów, nie atrapa na `setInterval`: podmiana globalnej funkcji
+    // pod zainstalowanymi zegarami rozjeżdża przywracanie w `afterEach`.
+    expect(vi.getTimerCount()).toBe(0);
+
+    h.state = STATE;
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("zdarzenie `storage` przeczytuje stan bez żadnego odpytywania", async () => {
+    render(<ImpersonationBanner />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+    h.state = STATE;
+    act(() => {
+      window.dispatchEvent(new Event("storage"));
+    });
+
+    expect(screen.getByRole("status")).toBeInTheDocument();
+  });
+
+  it("powrót do karty (`visibilitychange`) też przeczytuje stan", async () => {
+    render(<ImpersonationBanner />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    h.state = STATE;
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
     });
 
     expect(screen.getByRole("status")).toBeInTheDocument();

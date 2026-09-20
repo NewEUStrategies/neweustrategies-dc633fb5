@@ -31,6 +31,10 @@ import {
   prefetchBuilderSectionQuery,
   sectionQueryOptionsList,
 } from "@/lib/builder/prefetch";
+import {
+  estimateSectionHeight,
+  SECTION_STREAM_MIN_HEIGHT,
+} from "@/lib/builder/sectionHeightEstimate";
 import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
 
 /**
@@ -165,8 +169,17 @@ export function ServerSectionGate({
  * On a cache HIT it is never seen (the CDN serves the resolved body); on a cold
  * render it appears only for the brief window between shell flush and the
  * section's data settling. `minHeight` reserves space to blunt layout shift.
+ *
+ * Domyślne `SECTION_STREAM_MIN_HEIGHT` zostaje wyłącznie jako dno dla wołających
+ * bez sekcji - `StreamingSection` liczy wysokość z jej konfiguracji
+ * (`estimateSectionHeight`), bo stałe 280 px wobec sekcji 400-900 px zamieniało
+ * każde dostrumieniowanie w przesunięcie układu.
  */
-export function SectionStreamSkeleton({ minHeight = 280 }: { minHeight?: number }): ReactElement {
+export function SectionStreamSkeleton({
+  minHeight = SECTION_STREAM_MIN_HEIGHT,
+}: {
+  minHeight?: number;
+}): ReactElement {
   const { t } = useTranslation();
   return (
     <div
@@ -263,7 +276,7 @@ export function StreamingSection({
 
   return (
     <RenderErrorBoundary label={`stream-section:${section.id}`} fallback={null}>
-      <Suspense fallback={<SectionStreamSkeleton />}>
+      <Suspense fallback={<SectionStreamSkeleton minHeight={estimateSectionHeight(section)} />}>
         {IS_SSR ? (
           <ServerSectionGate section={section} lang={lang}>
             {children}

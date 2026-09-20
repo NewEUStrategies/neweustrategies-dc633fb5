@@ -6,6 +6,7 @@ import { ShieldAlert, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getImpersonationState, stopImpersonation } from "@/lib/admin/impersonation";
 import { useHasMounted } from "@/hooks/useHasMounted";
+import { useAuth } from "@/hooks/useAuth";
 
 const COPY = {
   pl: { viewingAs: "Tryb superadmina - przegląd jako", exit: "Zakończ" },
@@ -14,16 +15,41 @@ const COPY = {
 
 export function ImpersonationBanner() {
   const mounted = useHasMounted();
+  // Baner jedzie w SiteChrome, czyli na KAŻDEJ stronie publicznej - także dla
+  // anonima, który trybu podszywania nie zobaczy nigdy. Odpytywanie zostaje
+  // więc tylko dla personelu (F38: zero timerów dla czytelnika).
+  const { isStaff } = useAuth();
   const { i18n } = useTranslation();
   const lang = (i18n.language ?? "pl").startsWith("pl") ? "pl" : "en";
   const t = COPY[lang];
   const [state, setState] = useState(() => getImpersonationState());
 
   useEffect(() => {
-    const tick = () => setState(getImpersonationState());
-    const id = window.setInterval(tick, 1500);
-    return () => window.clearInterval(id);
+    const read = () => setState(getImpersonationState());
+    // ŚCIEŻKA GŁÓWNA to odczyt przy montażu: i start (`impersonateUser` ->
+    // `location.assign("/profile")`), i wyjście (`stopImpersonation` ->
+    // `location.reload()`) przeładowują dokument, więc baner i tak montuje się
+    // od nowa. `storage` łapie zmianę z innego dokumentu tego samego magazynu,
+    // `visibilitychange` - powrót do karty. Oba są zdarzeniami, nie timerem.
+    read();
+    window.addEventListener("storage", read);
+    document.addEventListener("visibilitychange", read);
+    return () => {
+      window.removeEventListener("storage", read);
+      document.removeEventListener("visibilitychange", read);
+    };
   }, []);
+
+  useEffect(() => {
+    // Odpytywanie cykliczne zostaje WYŁĄCZNIE dla personelu: stan siedzi w
+    // `sessionStorage` (per karta), więc zapis spoza Reacta w TEJ karcie nie
+    // emituje żadnego zdarzenia. Moduł zapisu (`lib/admin/impersonation`) nie
+    // wysyła własnego CustomEventu; dopóki go nie wyśle, interwał jest jedyną
+    // siatką bezpieczeństwa - i płaci za nią tylko ten, kto może podszywać.
+    if (!isStaff) return;
+    const id = window.setInterval(() => setState(getImpersonationState()), 1500);
+    return () => window.clearInterval(id);
+  }, [isStaff]);
 
   if (!mounted || !state) return null;
 

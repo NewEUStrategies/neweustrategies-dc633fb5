@@ -567,6 +567,29 @@ const RenderSection = memo(function RenderSection({
       className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(section.advanced?.cssClass) ?? ""}`.trim()}
       style={wrapStyle}
     >
+      {/* Style sekcji PRZED jej dziećmi: przy strumieniowanym HTML parser
+          maluje kolumny od razu po wczytaniu, a bloki na końcu sekcji docierały
+          dopiero po nich - pierwsza klatka szła bez typografii sekcji i bez
+          mobilnej kolejności kolumn, czyli z przesunięciem układu. */}
+      {typoCss && <style dangerouslySetInnerHTML={{ __html: hardenStyleCss(typoCss) }} />}
+      {(() => {
+        const mobileOrderCss = visibleCols
+          .filter(
+            (c): c is ColumnNode => c.kind === "column" && typeof c.order?.mobile === "number",
+          )
+          .map(
+            (c) =>
+              `[data-sec-id="${section.id}"] [data-col-id="${c.id}"]{order:${c.order!.mobile};}`,
+          )
+          .join("");
+        return mobileOrderCss ? (
+          <style
+            dangerouslySetInnerHTML={{
+              __html: hardenStyleCss(`@media (max-width: 767px){${mobileOrderCss}}`),
+            }}
+          />
+        ) : null;
+      })()}
       {section.background?.type === "video" && videoUrl && (
         <SectionBackgroundVideo src={videoUrl} />
       )}
@@ -667,25 +690,6 @@ const RenderSection = memo(function RenderSection({
           </div>
         </div>
       </div>
-      {(() => {
-        const mobileOrderCss = visibleCols
-          .filter(
-            (c): c is ColumnNode => c.kind === "column" && typeof c.order?.mobile === "number",
-          )
-          .map(
-            (c) =>
-              `[data-sec-id="${section.id}"] [data-col-id="${c.id}"]{order:${c.order!.mobile};}`,
-          )
-          .join("");
-        return mobileOrderCss ? (
-          <style
-            dangerouslySetInnerHTML={{
-              __html: hardenStyleCss(`@media (max-width: 767px){${mobileOrderCss}}`),
-            }}
-          />
-        ) : null;
-      })()}
-      {typoCss && <style dangerouslySetInnerHTML={{ __html: hardenStyleCss(typoCss) }} />}
     </Tag>
   );
 });
