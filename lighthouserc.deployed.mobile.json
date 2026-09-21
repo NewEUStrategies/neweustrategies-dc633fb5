@@ -1,0 +1,39 @@
+{
+  "ci": {
+    "_comment": [
+      "TRYB A, PROFIL MOBILE - DRUGI PRZEBIEG NA TYM SAMYM WDROŻONYM URL-u. Ten plik jest SIOSTRĄ lighthouserc.deployed.json (desktop), nie jego zamiennikiem: oba jadą w tym samym kroku trybu A, na tej samej liście URL-i, i oba są archiwizowane jako artefakt.",
+      "",
+      "PO CO W OGÓLE PROFIL MOBILE. Audyt „Zimne otwarcie\" (docs/AUDYT_CWV_ZIMNE_OTWARCIE_2026-09-20.md) nazywa to wadą F40 i wierszem 0.2 „Fali 0\": KAŻDY instrument pomiarowy w tym repo mierzy dziś desktop bez throttlingu. lighthouserc.deployed.json ma `preset: desktop`, lighthouserc.json (tryb C) mierzy artefakt na 127.0.0.1, a `check:bundle` liczy bajty bez modelu procesora. Tymczasem dominująca klasa czytelnika wchodzi z telefonu, gdzie 4-krotne spowolnienie CPU i łącze ~1,6 Mb/s zmieniają NIE wartości metryk, tylko ICH KOLEJNOŚĆ: TBT i LCP rosną nieproporcjonalnie do FCP, bo koszt parsowania i wykonania JS przestaje być pomijalny. Bramka, która tego nie widzi, nie zobaczy najdroższej regresji tej aplikacji.",
+      "",
+      "SKĄD BIERZE SIĘ „MOBILE\" W TYM PLIKU. W Lighthouse NIE MA presetu `mobile`: `--preset` przyjmuje `perf`, `experimental` i `desktop`, a konfiguracja DOMYŚLNA to właśnie mobile (emulacja Moto G Power, 4x spowolnienie CPU, throttling sieci). Dlatego tu nie ma klucza `preset` - jest jawne `formFactor: mobile`, zgodne z domyślnym `screenEmulation.mobile: true`, żeby plik MÓWIŁ, co mierzy, zamiast polegać na milczącej domyślności. To nie jest równoważne `preset: desktop` z odwróconym znakiem: throttling sieci i CPU przychodzi z domyślnych stałych Lighthouse'a, a nie z tego pliku.",
+      "",
+      "DLACZEGO METRYKI SĄ NA `warn`, A KATEGORIE NA `error`. Asercje kategorii są IDENTYCZNE z desktopowymi - to ten sam kontrakt jakości, nie osobna, luźniejsza umowa. Asercje metryczne są na `warn`, bo ŻADNA Z TYCH LICZB NIE ZOSTAŁA ZMIERZONA NA MOBILE. Liczby niżej są przepisane z lighthouserc.deployed.json, gdzie wyprowadzono je z krzywych DESKTOPOWYCH Lighthouse'a (patrz `_comment` tamtego pliku, akapit „SKĄD BIORĄ SIĘ LICZBY\"). Krzywe mobilne są INNE (m.in. LCP p10 = 2500 ms zamiast 1200, TBT 200 zamiast 150), więc te progi są tu WYŁĄCZNIE ETYKIETAMI DIAGNOSTYCZNYMI - mówią „o tyle jesteśmy od desktopu\", a nie „tyle wolno\". Postawienie ich na `error` przed pierwszym pomiarem byłoby zgadywaniem zabramkowanym na czerwono.",
+      "",
+      "RATCHET - PIERWSZY PRZEBIEG USTALA PODŁOGĘ. Reguła jest ta sama co w lighthouserc.deployed.json i w FROZEN_BUDGET_KB w scripts/check-bundle-size.ts. Pierwszy przebieg trybu A z ustawionym vars.LHCI_URL jest JEDYNYM momentem, w którym te liczby wolno skonfrontować z rzeczywistością: wtedy wpisz tu zmierzoną medianę (wartość, URL, data, numer przebiegu), PODNIEŚ asercje metryczne z `warn` na `error` i od tego momentu wyłącznie ZACIEŚNIAJ. Rozluźnianie jest zabronione; jeśli pomiar nie mieści się w zestawie, to jest zadanie dla punktów naprawczych, a nie dla tego pliku.",
+      "",
+      "CZEGO SIĘ SPODZIEWAĆ PRZY PIERWSZYM PRZEBIEGU - POWIEDZIANE WPROST, ŻEBY NIKT NIE USUNĄŁ BRAMKI ZE ZŁOŚCI. `categories:performance >= 0,8` na mobile jest dla aplikacji SSR z tym rozmiarem grafu progiem WYSOKIM i pierwszy przebieg może go nie spełnić. To jest przewidziany, świadomie przyjęty koszt: zestaw desktopowy przeszedł tę samą drogę (patrz akapit o spójności w lighthouserc.deployed.json). Jeśli pierwszy pomiar wyjdzie poniżej, decyzja NALEŻY DO CZŁOWIEKA i ma dwa uczciwe wyjścia - (1) zejść z tym plikiem na `warn` na czas napraw, z datą i numerem przebiegu w tym komentarzu, albo (2) zostawić `error` i traktować mobile jako blokadę wydania. Czego robić NIE WOLNO: obniżyć progu kategorii i zostawić to bez śladu.",
+      "",
+      "DLACZEGO OSOBNY PLIK, A NIE DRUGI BLOK W lighthouserc.deployed.json. LHCI czyta JEDEN config na przebieg (`loadAndParseRcFile` w @lhci/utils/src/lighthouserc.js zwraca `aggregationMethod`, `assertions`, `numberOfRuns`, `settings` i `target` - bez żadnego pojęcia wariantów). Dwa profile = dwa przebiegi = dwa pliki. Ten sam powód, dla którego komentarz siedzi w kluczu `_comment`, a nie w `//`: `.json` parsuje `JSON.parse`, który rzuca na obu rodzajach komentarzy."
+    ],
+    "collect": {
+      "numberOfRuns": 3,
+      "settings": { "formFactor": "mobile" }
+    },
+    "assert": {
+      "aggregationMethod": "median",
+      "assertions": {
+        "categories:performance": ["error", { "minScore": 0.8 }],
+        "categories:accessibility": ["error", { "minScore": 0.9 }],
+        "categories:seo": ["error", { "minScore": 0.9 }],
+        "categories:best-practices": ["error", { "minScore": 0.9 }],
+        "largest-contentful-paint": ["warn", { "maxNumericValue": 1500 }],
+        "cumulative-layout-shift": ["warn", { "maxNumericValue": 0.1 }],
+        "total-blocking-time": ["warn", { "maxNumericValue": 200 }],
+        "speed-index": ["warn", { "maxNumericValue": 1600 }],
+        "first-contentful-paint": ["warn", { "maxNumericValue": 1100 }],
+        "server-response-time": ["warn", { "maxNumericValue": 600 }]
+      }
+    },
+    "upload": { "target": "temporary-public-storage" }
+  }
+}

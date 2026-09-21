@@ -69,8 +69,8 @@ import { isIndexableProfile, profileRobots } from "@/lib/experts/publicVisibilit
 import { ensureI18n as ensureExpertsI18n } from "@/lib/i18n-experts";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
-import { resilientCacheControl } from "@/lib/ssr/resilientLoad";
-import { loadResilient } from "@/lib/ssr/resilientLoad";
+import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { withBudget } from "@/lib/asyncBudget";
 import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import type { ExpertHubData } from "@/lib/experts/types";
 
@@ -82,6 +82,34 @@ const NO_STORE = contentCacheControl({ preview: true });
  * ten fallback (rozróżnia je flaga `degraded`). Patrz komentarz w loaderze.
  */
 const HUB_UNKNOWN: ExpertHubData | null = null;
+
+/**
+ * Wspólny termin ŻĄDANIA na wszystkie trzy fazy loadera. Fazy są szeregowe
+ * z konieczności (klucz `expert_layout_settings` niesie `tenant_id` EKSPERTA,
+ * znany dopiero z huba - nie tenanta hosta, więc równoległy start pod kluczem
+ * hosta rozjechałby się z kluczem, który liczy komponent), a bez terminu
+ * ABSOLUTNEGO ich budżety by się SUMOWAŁY.
+ */
+const AUTHOR_HUB_SSR_BUDGET_MS = 1_500;
+
+/**
+ * Krótki termin KONFIGURACJI layoutu. To dekoracja profilu, a nie jego treść -
+ * po tym czasie wchodzą domyślki z kodu. Wcześniej stało tu gołe
+ * `ensureQueryData(...).catch(() => undefined)`: `catch` bronił przed BŁĘDEM,
+ * ale nie przed POWOLNOŚCIĄ (zwis czekał do watchdoga SSR), a na błędzie
+ * zostawiał zapytanie w stanie `error` - `useSuspenseQuery` w komponencie
+ * rzucał wtedy w fazie renderu, czyli awaria dekoracji wywracała cały profil.
+ */
+const AUTHOR_LAYOUT_BUDGET_MS = 300;
+
+/**
+ * Layout przyjechał w tym samym round-tripie co hub (RPC `get_expert_hub`) -
+ * nie ma czego czytać, więc ta faza jest CZYSTA z definicji.
+ */
+const LAYOUT_SEEDED = { degraded: false } as const;
+
+/** Domknięcie obietnicy rozgrzewki - wynik czytamy z cache'u, nie z `then`. */
+function noop(): void {}
 
 // Inline-edytor ładowany leniwie - chunk pobierają wyłącznie właściciel
 // profilu i admini tenanta (publiczny gość nigdy nie widzi przycisku).
@@ -100,20 +128,23 @@ export const Route = createFileRoute("/author/$slug")({
     paginated: isPaginatedAuthorHubView(search),
   }),
   loader: async ({ params, context, deps }) => {
+    const deadlineAt = Date.now() + AUTHOR_HUB_SSR_BUDGET_MS;
+    const materialsOptions = expertMaterialsQueryOptions(params.slug, {
+      page: deps.page,
+      filters: {
+        kind: deps.kind,
+        topic: deps.topic,
+        region: deps.region,
+        program: deps.program,
+        year: deps.year,
+      },
+    });
     // Strona materiałów nie zależy od huba (RPC sam rezolwuje slug), więc
     // jedzie równolegle zamiast doklejać kolejną falę na ścieżce TTFB.
-    const materialsPromise = context.queryClient.ensureQueryData(
-      expertMaterialsQueryOptions(params.slug, {
-        page: deps.page,
-        filters: {
-          kind: deps.kind,
-          topic: deps.topic,
-          region: deps.region,
-          program: deps.program,
-          year: deps.year,
-        },
-      }),
-    );
+    // `.then(noop, noop)` JUŻ TUTAJ: obietnica bywa porzucana w gałęziach
+    // wcześniejszego wyjścia (degradacja, 404), a nieobsłużone odrzucenie
+    // wywróciłoby proces renderu.
+    const materialsPromise = context.queryClient.ensureQueryData(materialsOptions).then(noop, noop);
     // Hub - potrzebujemy `expert.tenant_id`, żeby dobrać właściwe
     // `expert_layout_settings` (per tenant, nie tylko dla tenanta hosta).
     //
@@ -127,11 +158,9 @@ export const Route = createFileRoute("/author/$slug")({
       context.queryClient,
       expertHubQueryOptions(params.slug),
       HUB_UNKNOWN,
+      { deadlineAt, label: `expert-hub:${params.slug}` },
     );
     if (identity.degraded) {
-      // Domknij równoległą gałąź, żeby degradacja nie zostawiała
-      // nieobsłużonego odrzucenia.
-      materialsPromise.catch(() => undefined);
       setCacheControlHeader(NO_STORE);
       return {
         hub: null,
@@ -141,12 +170,11 @@ export const Route = createFileRoute("/author/$slug")({
     }
     const data = identity.data;
     if (!data) {
-      // Domknij równoległą gałąź, żeby 404 nie zostawiał unhandled rejection.
-      materialsPromise.catch(() => undefined);
       setCacheControlHeader(NO_STORE);
       throw notFound();
     }
     const layoutOptions = expertLayoutSettingsQueryOptions(data.expert.tenant_id);
+    let layout: { readonly degraded: boolean };
     if (data.layoutSettings !== undefined) {
       // RPC get_expert_hub przyniosło layout w TYM SAMYM round-tripie - zasiej
       // cache zamiast doklejać sekwencyjne zapytanie na krytycznej ścieżce
@@ -157,22 +185,36 @@ export const Route = createFileRoute("/author/$slug")({
           ? (data.layoutSettings as unknown as ExpertLayoutSettings)
           : defaultExpertLayoutSettings(data.expert.tenant_id ?? ""),
       );
+      layout = LAYOUT_SEEDED;
     } else {
-      // Layout to dekoracja - jego awaria nie może wywrócić całego profilu.
-      await context.queryClient.ensureQueryData(layoutOptions).catch(() => undefined);
+      // Layout to dekoracja - jego awaria nie może wywrócić całego profilu,
+      // a jego powolność nie może zjeść budżetu TREŚCI. `loadResilient`
+      // zasiewa domyślki tenanta pod TYM SAMYM kluczem, który liczy komponent,
+      // więc `useSuspenseQuery` widzi stan `success` i nic nie rzuca.
+      layout = await loadResilient(
+        context.queryClient,
+        layoutOptions,
+        defaultExpertLayoutSettings(data.expert.tenant_id ?? ""),
+        {
+          budgetMs: AUTHOR_LAYOUT_BUDGET_MS,
+          deadlineAt,
+          label: `expert-layout:${data.expert.tenant_id ?? "current"}`,
+        },
+      );
     }
     // Materiały są wtórne wobec tożsamości profilu: gdy nie dojadą, hub i tak
-    // ma się wyrenderować (lista dociągnie się po hydratacji).
-    const materials = await materialsPromise.then(
-      () => false,
-      () => true,
-    );
+    // ma się wyrenderować (lista dociągnie się po hydratacji). Czekamy na nie
+    // POD TERMINEM - gołe `await` na tej obietnicy trzymało TTFB aż do
+    // watchdoga SSR, bo `try/catch` broni przed błędem, nie przed zwisem.
+    await withBudget(materialsPromise, AUTHOR_HUB_SSR_BUDGET_MS, deadlineAt);
+    const materials =
+      context.queryClient.getQueryState(materialsOptions.queryKey)?.status !== "success";
     // Non-indexable profile robots still share the same cacheable shell.
     // `resilientCacheControl` zamiast ręcznego warunku (2026-09-13): wartość
     // jest bajt w bajt ta sama, ale bramka `check:ssr-budgets` weryfikuje
     // STRUKTURALNIE, że to sygnał degradacji wybiera `no-store` - ręczny
     // ternar przepuszczał też wersję ODWRÓCONĄ (patrz recenzja PR #357, P2).
-    setCacheControlHeader(resilientCacheControl(materials));
+    setCacheControlHeader(resilientCacheControl(materials || layout.degraded));
     return {
       hub: data,
       degraded: false,

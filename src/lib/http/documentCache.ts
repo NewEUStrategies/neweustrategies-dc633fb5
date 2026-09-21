@@ -228,3 +228,63 @@ export function documentStorePolicy(
       : Math.min((cc.staleWhileRevalidate ?? 0) * 1000, DOCUMENT_CACHE_MAX_SWR_MS),
   };
 }
+
+/**
+ * Normalizacja ścieżki dokumentu do postaci, w jakiej `planDocumentCache`
+ * kluczuje wpisy: wiodący `/`, bez końcowego `/` (poza korzeniem), bez query
+ * i fragmentu, bez prefiksu języka. Null dla wejścia, które nie jest ścieżką
+ * względną tego serwisu (pełny URL, pusty napis) - purge nie zgaduje.
+ */
+export function normalizeDocumentPath(path: string): string | null {
+  const trimmed = path.trim();
+  if (!trimmed || !trimmed.startsWith("/") || trimmed.startsWith("//")) return null;
+  const withoutQuery = trimmed.split(/[?#]/, 1)[0] ?? "";
+  const collapsed = withoutQuery.replace(/\/+$/, "") || "/";
+  return stripLangPrefix(collapsed);
+}
+
+/**
+ * Oba warianty językowe jednego dokumentu: PL na gołej ścieżce i EN pod `/en`.
+ * Publikacja zmienia oba, więc purge per ścieżka ZAWSZE unieważnia parę -
+ * czytelnik EN nie może dostawać starej wersji tylko dlatego, że redaktor
+ * pracował po polsku. Duplikaty (np. `/x` i `/en/x` na wejściu) są scalane.
+ */
+export function documentPathVariants(paths: readonly string[]): string[] {
+  const out = new Set<string>();
+  for (const raw of paths) {
+    const bare = normalizeDocumentPath(raw);
+    if (!bare) continue;
+    out.add(bare);
+    out.add(bare === "/" ? "/en" : `/en${bare}`);
+  }
+  return [...out];
+}
+
+/**
+ * Publiczne dokumenty zależne od WPISU - wejście dla purge'a selektywnego
+ * przy publikacji/aktualizacji wpisu (`purgeDocumentPaths`):
+ *   - adres kanoniczny (`<ścieżka-rodzica>/<slug>`), jeśli wołający go zna;
+ *     przy zmianie sluga/rodzica trzeba podać STARY i NOWY wpis - stary
+ *     dokument w cache'u serwowałby inaczej nieaktualną treść pod adresem,
+ *     który już przekierowuje;
+ *   - adres legacy `/post/<slug>` - własne listingi wciąż go generują
+ *     (audyt CWV F13), a jego 301 też siedzi w potoku dokumentów;
+ *   - strona główna i listing bloga, które pokazują najnowsze wpisy.
+ * Archiwa kategorii/tagów/autora wołający dokłada sam, gdy zna ich slugi -
+ * tu nie są deterministycznie znane. Bez prefiksu języka: warianty `/en`
+ * dokłada `documentPathVariants` w purge'u.
+ */
+export function postDocumentPaths(
+  posts: ReadonlyArray<{ slug: string; canonicalPath?: string | null }>,
+): string[] {
+  const out = new Set<string>(["/", "/blog"]);
+  for (const post of posts) {
+    const slug = post.slug.trim().replace(/^\/+|\/+$/g, "");
+    if (slug) out.add(`/post/${slug}`);
+    if (post.canonicalPath) {
+      const canonical = post.canonicalPath.trim();
+      out.add(canonical.startsWith("/") ? canonical : `/${canonical}`);
+    }
+  }
+  return [...out];
+}

@@ -1,4 +1,16 @@
-import type { QueryClient, QueryKey } from "@tanstack/react-query";
+// Budżet SSR STRONY GŁÓWNEJ - cienki wrapper nad `routeSsrDeadline.ts`.
+//
+// Mechanika (WeakMap per `QueryClient`, reszta budżetu, predykat rozgrzania)
+// mieszka od 2026-09-20 w `routeSsrDeadline.ts`, bo ten sam zegar potrzebuje
+// trasa treści (`routes/$.tsx`) - a wcześniej istniał tylko dla `/`. Ten plik
+// zachowuje dotychczasowe nazwy eksportów, więc wołający (`__root.tsx`,
+// `index.tsx`, `lib/builder/prefetch.ts`, `lib/queries/blocks.ts`) nie zmieniają
+// ani linii. Stałe zostają LITERAŁAMI w tym pliku: bramka `check:ssr-budgets`
+// rozwiązuje je po nazwie ze źródeł `src/lib`.
+import type { QueryClient } from "@tanstack/react-query";
+import { remainingBudget, routeSsrDeadline } from "./routeSsrDeadline";
+
+export { hasSsrQueryData } from "./routeSsrDeadline";
 
 /** Bounds data waiting in root + homepage, not middleware/network/React CPU. */
 export const HOME_SSR_BUDGET_MS = 600;
@@ -7,23 +19,10 @@ export const HOME_ABOVE_FOLD_BUDGET_MS = 500;
 
 // SSR creates one QueryClient per request. Callers must not use this clock for
 // SPA navigation, where a QueryClient lives for the whole browser session.
-const deadlines = new WeakMap<QueryClient, number>();
-
 export function homeSsrDeadline(queryClient: QueryClient): number {
-  let deadline = deadlines.get(queryClient);
-  if (deadline === undefined) {
-    deadline = Date.now() + HOME_SSR_BUDGET_MS;
-    deadlines.set(queryClient, deadline);
-  }
-  return deadline;
+  return routeSsrDeadline(queryClient, HOME_SSR_BUDGET_MS);
 }
 
 export function remainingHomeBudget(deadlineAt: number, phaseLimitMs: number): number {
-  return Math.max(0, Math.min(phaseLimitMs, deadlineAt - Date.now()));
-}
-
-/** Empty successful results are valid; absent/error/seeded data is not. */
-export function hasSsrQueryData(queryClient: QueryClient, queryKey: QueryKey): boolean {
-  const state = queryClient.getQueryState(queryKey);
-  return state?.status === "success" && state.data !== undefined && state.dataUpdatedAt > 0;
+  return remainingBudget(deadlineAt, phaseLimitMs);
 }

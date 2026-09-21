@@ -17,7 +17,7 @@ import {
 } from "@/lib/queries/public";
 import { parsePageSearch } from "@/lib/routing/pageSearch";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
-import { withBudget } from "@/lib/asyncBudget";
+import { withSsrBudget } from "@/lib/asyncBudget";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import {
@@ -49,7 +49,11 @@ export const Route = createFileRoute("/blog/")({
   // więc to odczyt z cache, nie dodatkowy fetch.
   loader: async ({ context, deps }) => {
     const deadlineAt = Date.now() + BLOG_LOADER_BUDGET_MS;
-    await withBudget(
+    // Oba terminy liczą się WYŁĄCZNIE w renderze serwerowym (patrz docblock
+    // `withSsrBudget`): przy nawigacji SPA loader czeka na zapytanie, bo jego
+    // wynik jest niezmienny i degradacja z zegara zamarzłaby jako fałszywa
+    // awaria.
+    await withSsrBudget(
       context.queryClient.ensureQueryData(siteSettingsQueryOptions).catch(() => undefined),
       500,
       deadlineAt,
@@ -67,15 +71,18 @@ export const Route = createFileRoute("/blog/")({
     }
     const pageSize = resolvePostsPerPage(settings);
     const listOptions = blogArchiveQueryOptions({ page: deps.page, pageSize });
-    await withBudget(
+    await withSsrBudget(
       context.queryClient.ensureQueryData(listOptions).catch(() => undefined),
       BLOG_LOADER_BUDGET_MS,
       deadlineAt,
     );
     const data = context.queryClient.getQueryData<BlogArchiveResult>(listOptions.queryKey);
     if (!data) {
-      // Render zdegradowany (blip backendu / budżet): pusta powłoka, która
-      // samoleczy się na kliencie i NIGDY nie trafia do wspólnego cache.
+      // Render zdegradowany: pusta powłoka, która samoleczy się na kliencie
+      // i NIGDY nie trafia do wspólnego cache. Na SERWERZE wchodzi tu blip
+      // backendu ALBO przekroczony budżet; w PRZEGLĄDARCE - wyłącznie
+      // odrzucone zapytanie, bo bez budżetu `getQueryData` nie ma prawa być
+      // puste po samym czekaniu.
       context.queryClient.setQueryData(
         listOptions.queryKey,
         { posts: [], total: 0, page: deps.page, pageSize } satisfies BlogArchiveResult,

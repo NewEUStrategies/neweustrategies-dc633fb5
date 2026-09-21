@@ -526,11 +526,28 @@ describe("mirrorWpMedia - zapis: kubelek osobno, wiersz osobno", () => {
     expect(options).toEqual({ contentType: "image/png", upsert: false });
 
     const row = insertedRow(db);
+    // ADRES PUBLICZNY JEST KANONIZOWANY NA DOMENE MARKI, a nie przepisywany
+    // z `storage.getPublicUrl()`. Atrapa magazynu oddaje techniczny host
+    // (`https://cdn.test/storage/v1/object/public/media/...`), a `mirrorWpMedia`
+    // przepuszcza go przez `brandedMediaUrl` (`src/lib/media/publicUrl.ts`),
+    // zanim zapisze `media.public_url`.
+    //
+    // TO JEST DECYZJA, NIE REGRESJA. Ta sama zamiana pojechala jednym commitem
+    // po WSZYSTKICH pisarzach adresow mediow (biblioteka ikon, profile, kropy
+    // okladek, import WP) i po ISTNIEJACYCH danych - migracja
+    // `supabase/migrations/20260915091000_brand_media_urls_on_canonical_domain.sql`
+    // przepisuje `media.public_url` oraz tresci i ustawienia funkcja
+    // `public.brand_media_url_text`. Techniczny host magazynu jest szczegolem
+    // transportowym; pliki spod domeny marki serwuje trasa `/media/$`.
+    //
+    // Literal zamiast wywolania `brandedMediaUrl(...)` jest tu celowy: gdyby
+    // asercja wolala te sama funkcje co implementacja, przestalaby cokolwiek
+    // dowodzic o KSZTALCIE adresu zapisanego do bazy.
     expect(row).toEqual({
       tenant_id: TENANT,
       uploader_id: USER,
       storage_path: path,
-      public_url: `https://cdn.test/storage/v1/object/public/media/${path}`,
+      public_url: `https://neweuropeanstrategies.com/media/${path}`,
       filename: "wykres.png",
       mime_type: "image/png",
       size_bytes: PNG.byteLength,
@@ -559,6 +576,12 @@ describe("mirrorWpMedia - zapis: kubelek osobno, wiersz osobno", () => {
   });
 
   it("reuzycie: istniejacy plik nie jest ani pobierany do kubelka, ani wpisywany drugi raz", async () => {
+    // SCIEZKA REUZYCIA NIE KANONIZUJE ADRESU po raz drugi: oddaje
+    // `media.public_url` DOSLOWNIE tak, jak lezy w wierszu. Tak ma byc - o
+    // ksztalt zapisanych adresow dba zapis (`brandedMediaUrl` wyzej) oraz
+    // jednorazowa migracja `20260915091000_brand_media_urls_on_canonical_domain`,
+    // a nie kazdy odczyt. Dlatego fixture celowo trzyma tu techniczny host:
+    // dowodem jest "co w wierszu, to w mapie", nie ponowna zamiana domeny.
     planMedia({
       existing: ok({
         id: "media-stare",

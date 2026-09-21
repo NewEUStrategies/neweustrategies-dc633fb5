@@ -34,9 +34,7 @@ import {
   ClubAnchorPicker,
   type ClubAnchorValue,
 } from "@/components/clubs/molecules/ClubAnchorPicker";
-import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
-import { fetchClubBySlug } from "@/lib/clubs/publicClub";
-import { clubKeys } from "@/lib/clubs/queryKeys";
+import { buildClubHead, clubHeadLoader } from "@/lib/clubs/clubHead";
 import { newIdempotencyKey } from "@/lib/http/idempotency";
 import { useThreadDraft } from "@/lib/clubs/useThreadDraft";
 import { formatDateTime, uiLang } from "@/lib/i18n/format";
@@ -97,15 +95,10 @@ export const Route = createFileRoute("/club/$clubSlug/new")({
     if (typeof rawGroup === "string" && rawGroup !== "") out.groupId = rawGroup;
     return out;
   },
-  loader: async ({ context, params }) => {
-    const club = await context.queryClient
-      .ensureQueryData({
-        queryKey: clubKeys.bySlug(params.clubSlug),
-        queryFn: () => fetchClubBySlug(params.clubSlug),
-      })
-      .catch(() => null);
-    return { club: toClubHeadSource(club) };
-  },
+  // Kartę klubu czyta RAZ loader UKŁADU `/club/$clubSlug`; tutaj zostaje sam
+  // odczyt z cache'u na potrzeby nagłówka - zero round-tripów (F09).
+  loader: ({ context, params, parentMatchPromise }) =>
+    clubHeadLoader(context.queryClient, params.clubSlug, parentMatchPromise),
   // `forceNoindex`: kompozytor jest powierzchnią CZYNNOŚCIOWĄ. Nawet w klubie
   // publicznym pusty formularz w indeksie wyszukiwarki jest szumem, a nie
   // lejkiem - do indeksu należy wątek, nie narzędzie do jego napisania.

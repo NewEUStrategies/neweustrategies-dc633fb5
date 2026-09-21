@@ -6,7 +6,10 @@ import { HelpCircle, Clock } from "lucide-react";
 import { publicQaSessionsQueryOptions, type PublicQaSession } from "@/lib/community/publicQueries";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { COMMUNITY_MODULES_DEFAULTS, COMMUNITY_MODULES_KEY } from "@/lib/community/modulesSettings";
-import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+import { resolveSetting, siteSettingsQueryOptions, type SettingsMap } from "@/lib/useSiteSetting";
+import { withSsrBudget } from "@/lib/asyncBudget";
+import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
@@ -17,6 +20,20 @@ import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
 interface QaListHeadData {
   sessions: Array<{ slug: string; titlePl: string; titleEn: string }>;
 }
+
+/** Wspólny termin ŻĄDANIA - obie fazy dzielą jedno okno, nie dwa. */
+const QA_LIST_SSR_BUDGET_MS = 1_400;
+
+/**
+ * Krótki termin BRAMKI MODUŁU. `site_settings` grzeje RÓWNOLEGLE loader
+ * korzenia, więc 300 ms z zapasem wystarcza na dołączenie się do jego fetcha;
+ * po tym czasie wchodzą `COMMUNITY_MODULES_DEFAULTS` z kodu, a lista dostaje
+ * resztę budżetu. Konfiguracja NIGDY nie blokuje treści.
+ */
+const QA_SETTINGS_BUDGET_MS = 300;
+
+/** Fallback listy sesji - pusta, zasiewana z `updatedAt: 0` (samoleczenie). */
+const NO_QA_SESSIONS: PublicQaSession[] = [];
 
 export const Route = createFileRoute("/qa")({
   component: QaListPage,
@@ -34,23 +51,47 @@ export const Route = createFileRoute("/qa")({
   // przez root loader, więc `ensureQueryData` deduplikuje z jego fetchem,
   // a wyłączony moduł nie kosztuje ANI JEDNEGO zapytania o sesje.
   loader: async ({ context }): Promise<QaListHeadData> => {
-    const settings = await context.queryClient
-      .ensureQueryData(siteSettingsQueryOptions)
-      .catch(() => undefined);
+    const deadlineAt = Date.now() + QA_LIST_SSR_BUDGET_MS;
+    // Bramka modułu POD TERMINEM. Wcześniej było tu gołe `await
+    // ensureQueryData` - odczyt KONFIGURACJI mógł więc zjeść cały budżet SSR,
+    // zanim padło pierwsze zapytanie o TREŚĆ. Termin liczy się TYLKO na
+    // serwerze (patrz docblock `withSsrBudget`), więc w przeglądarce
+    // `settings === undefined` znaczy wyłącznie ODRZUCONY odczyt, a nie
+    // „ustawienia nie zdążyły" - domyślki nie zamrażają już powierzchni.
+    await withSsrBudget(
+      context.queryClient.ensureQueryData(siteSettingsQueryOptions).catch(() => undefined),
+      QA_SETTINGS_BUDGET_MS,
+      deadlineAt,
+    );
+    const settings = context.queryClient.getQueryData<SettingsMap>(
+      siteSettingsQueryOptions.queryKey,
+    );
     const modules = resolveSetting(settings, COMMUNITY_MODULES_KEY, COMMUNITY_MODULES_DEFAULTS);
-    if (!modules.qa_enabled) return { sessions: [] };
-    try {
-      const sessions = await context.queryClient.ensureQueryData(publicQaSessionsQueryOptions());
-      return {
-        sessions: sessions.slice(0, 50).map((s) => ({
-          slug: s.slug,
-          titlePl: s.title_pl,
-          titleEn: s.title_en,
-        })),
-      };
-    } catch {
+    // Render na DOMYŚLKACH modułu nie jest prawdą tenanta, więc nie wolno go
+    // rozdać kolejnym czytelnikom z brzegu - to ten sam kontrakt, co przy
+    // fallbacku danych.
+    const settingsDegraded = settings === undefined;
+    if (!modules.qa_enabled) {
+      setCacheControlHeader(resilientCacheControl(settingsDegraded));
       return { sessions: [] };
     }
+    // Lista sesji jest treścią POD zgięciem i czyta ją `useQuery` (nie
+    // suspense), więc blip degraduje do pustej listy i dociąga się po
+    // hydratacji - zero rzutu, zero HTTP 500.
+    const sessions = await loadResilient(
+      context.queryClient,
+      publicQaSessionsQueryOptions(),
+      NO_QA_SESSIONS,
+      { deadlineAt, label: "qa-sessions" },
+    );
+    setCacheControlHeader(resilientCacheControl(settingsDegraded || sessions.degraded));
+    return {
+      sessions: sessions.data.slice(0, 50).map((s) => ({
+        slug: s.slug,
+        titlePl: s.title_pl,
+        titleEn: s.title_en,
+      })),
+    };
   },
   head: ({ loaderData }) => {
     const url = getRequestUrl() || "/qa";
@@ -109,6 +150,14 @@ function QaListPage() {
     enabled: modules.qa_enabled,
   });
 
+  // STEMPEL FALLBACKU, nie nowy stan. `loadResilient` zasiewa pustą listę
+  // z `updatedAt: 0`, więc `dataUpdatedAt === 0` znaczy „dane są, ale nie są
+  // prawdą backendu". Bez tego rozróżnienia zdegradowany render wyglądałby
+  // dokładnie jak „nie ma jeszcze sesji" - a to jest kłamstwo w treści
+  // (patrz komentarz w components/molecules/DegradedDataNotice). Po hydratacji
+  // refetch nadpisuje wpis prawdziwym stemplem i komunikat znika sam.
+  const degraded = query.data !== undefined && query.dataUpdatedAt === 0;
+
   if (!modules.qa_enabled) return <CommunityDisabled />;
 
   return (
@@ -119,9 +168,11 @@ function QaListPage() {
       </header>
 
       {query.isLoading && <p className="text-muted-foreground">{t("community.common.loading")}</p>}
-      {query.isError && <p className="text-destructive">{t("community.common.loadError")}</p>}
+      {(query.isError || degraded) && (
+        <p className="text-destructive">{t("community.common.loadError")}</p>
+      )}
 
-      {query.data && query.data.length === 0 && (
+      {!degraded && query.data && query.data.length === 0 && (
         <p className="text-muted-foreground">{t("community.qa.empty")}</p>
       )}
 

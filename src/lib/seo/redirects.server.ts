@@ -105,6 +105,12 @@ function isRedirectRules(value: unknown): value is RedirectRule[] {
 
 async function loadIndexForTenant(tenantId: string): Promise<CachedIndex> {
   try {
+    // Migawka NIEŚWIEŻA (po TTL, przed dobą) też wraca - z ORYGINALNYM `at`,
+    // więc `getIndexForTenant` serwuje ją jak własny wpis po TTL i odświeża
+    // w tle. Zimny izolat po ciszy dłuższej niż 30 s przestaje płacić
+    // blokujący odczyt planu service-role przed cache dokumentów (audyt F01);
+    // nieświeże 301-ki są lepsze niż pusty indeks, na który spadała
+    // degradacja po terminie.
     if (sharedSnapshotsAllowed && !cache.has(tenantId)) {
       const snapshot = await readBootstrapSnapshot(
         `redirects:${tenantId}`,
@@ -142,6 +148,7 @@ async function loadIndexForTenant(tenantId: string): Promise<CachedIndex> {
     }));
     const at = Date.now();
     const index = buildRedirectIndex(rules);
+    // Świeżość = REDIRECT_CACHE_TTL_MS, przetrwanie = domyślna doba migawki.
     runAfterResponse(
       writeBootstrapSnapshot(`redirects:${tenantId}`, { at, value: rules }, REDIRECT_CACHE_TTL_MS),
     );
@@ -182,12 +189,28 @@ function degradedIndex(tenantId: string, reason: "error" | "timeout"): CachedInd
  * odświeżanie dokładało pełny round-trip do TTFB pierwszego żądania każdych
  * 30 s na każdym izolacie - zanim NES Edge Cache mógł w ogóle odpowiedzieć.
  * Nowa reguła przekierowania może obowiązywać o sekundy później; zimny
- * izolat (brak wpisu) nadal blokuje jednorazowo - 301-ki pozostają poprawne.
+ * izolat bez ŻADNEJ migawki w kolonii nadal blokuje jednorazowo - 301-ki
+ * pozostają poprawne; zimny izolat z migawką nieświeżą serwuje ją od ręki
+ * i odświeża w tle jeszcze w tym samym żądaniu (patrz `loadIndexForTenant`).
  */
 async function getIndexForTenant(tenantId: string): Promise<RedirectIndex> {
   const now = Date.now();
   const cached = cache.get(tenantId);
   if (cached && now - cached.at < REDIRECT_CACHE_TTL_MS) return cached.index;
+  const pending = startIndexRefresh(tenantId);
+  // Nieświeży wpis: serwuj od ręki - odświeżenie już biegnie w tle.
+  if (cached) return cached.index;
+  const index = await pending;
+  // Zimny izolat wstał z NIEŚWIEŻEJ migawki współdzielonej (oryginalne `at`
+  // sprzed TTL): odświeżenie startuje TERAZ, za odpowiedzią - izolat, który
+  // obsłuży jednego czytelnika, inaczej nigdy nie odnowiłby migawki.
+  const loaded = cache.get(tenantId);
+  if (loaded && Date.now() - loaded.at >= REDIRECT_CACHE_TTL_MS) startIndexRefresh(tenantId);
+  return index;
+}
+
+/** Single-flight per tenant: jedno odświeżenie indeksu naraz, dokończone pod waitUntil. */
+function startIndexRefresh(tenantId: string): Promise<RedirectIndex> {
   let pending = inflight.get(tenantId);
   if (!pending) {
     pending = loadIndexForTenant(tenantId).then((loaded) => {
@@ -200,8 +223,6 @@ async function getIndexForTenant(tenantId: string): Promise<RedirectIndex> {
     // z domknięciem żądania. loadIndexForTenant nigdy nie rzuca.
     runAfterResponse(pending.then(() => undefined));
   }
-  // Nieświeży wpis: serwuj od ręki - odświeżenie już biegnie w tle.
-  if (cached) return cached.index;
   return pending;
 }
 

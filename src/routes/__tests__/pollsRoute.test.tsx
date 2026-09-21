@@ -33,6 +33,10 @@
 //   trasa wysyła i co robi z odpowiedzią.
 // - BLOKU ANKIETY W TREŚCI WPISU (`PollBlockView`) - to osobna powierzchnia
 //   z własnym kanałem `poll-votes-block-<id>`.
+// - PARYTETU PL/EN KOMUNIKATU DEGRADACJI: copy `DegradedDataNotice` idzie
+//   przez `errorCopy()` (`currentLang()`, nie singleton i18next) i ma własny
+//   dowód w `src/components/error/__tests__/FriendlyErrorPage.test.tsx`.
+//   Tutaj przedmiotem dowodu jest WYBÓR gałęzi, nie brzmienie zdania.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 
@@ -410,11 +414,24 @@ describe("trasa /polls - stan pusty i błąd listy", () => {
   });
 
   it("awaria odczytu ankiet mówi „nie udało się”, a NIE „nie ma ankiet”", async () => {
+    // Od fail-open (`loadResilient`) loader NIE oddaje już pustki jako błędu
+    // klienckiego: zasiewa pustą listę z `updatedAt: 0` i podnosi `degraded`.
+    // Komunikat musi więc iść ze WSPÓLNEJ warstwy degradacji
+    // (`DegradedDataNotice`), a nie z `pollsQ.isError` - inaczej zdegradowany
+    // render byłby nieodróżnialny od „nie ma jeszcze ankiet".
     h.broken.add("polls");
     await mount();
 
-    expect(await screen.findByText("Nie udało się pobrać danych.")).toBeInTheDocument();
+    expect(await screen.findByText("Ta sekcja chwilowo nie ma danych")).toBeInTheDocument();
     expect(screen.queryByText("Brak aktywnych ankiet.")).toBeNull();
+  });
+
+  it("KONTROLA DODATNIA: czysty render NIE pokazuje komunikatu degradacji", async () => {
+    // Bez tej pary poprzednie dwa testy przechodziłyby także wtedy, gdyby
+    // komunikat degradacji wisiał na stronie ZAWSZE.
+    await mount();
+
+    expect(screen.queryByText("Ta sekcja chwilowo nie ma danych")).toBeNull();
   });
 });
 

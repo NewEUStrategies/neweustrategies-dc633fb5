@@ -3,23 +3,41 @@
 // transfer link equity to the canonical address instead of caching a 307.
 // The missing-post fallbacks stay temporary (302): the post may reappear
 // (trash restore, republish), so /blog must not be cached as its permanent
-// destination.
+// destination. The 301 itself is share-cacheable (see PERMANENT_REDIRECT).
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
-import { contentCacheControl } from "@/lib/http/cachePolicy";
+import { cacheControlHeader, contentCacheControl } from "@/lib/http/cachePolicy";
 import { resolveLegacyPostPath } from "@/lib/routing/legacyPostPath";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { errorCopy } from "@/lib/errorCopy";
 
-// Redirect responses must never be CDN-cached as if they were content.
+// Tymczasowe 302 (wpis może wrócić z kosza) nigdy nie trafia do cache.
 const NO_STORE = contentCacheControl({ preview: true });
+/**
+ * Trwałe 301 na adres kanoniczny JEST cache'owalne (audyt CWV 2026-09-20, F13):
+ * `/post/<slug>` to główny adres generowany przez własne listingi i karty, więc
+ * każde wejście z listy płaciło dwa dokumenty - przekierowanie renderowane
+ * `no-store` i dopiero potem treść. Krótka świeżość w przeglądarce (5 min)
+ * i godzina na brzegu: zmiana rodzica wpisu jest zdarzeniem redakcyjnym, a
+ * stare 301 prowadzi na adres, który sam przekierowuje dalej (poprawnie, tylko
+ * o jeden skok dłużej) - nigdy na 404.
+ */
+const PERMANENT_REDIRECT = cacheControlHeader({
+  cacheable: true,
+  browserMaxAge: 300,
+  sharedMaxAge: 3_600,
+  staleWhileRevalidate: 86_400,
+});
 
 export const Route = createFileRoute("/post/$slug")({
   loader: async ({ params }) => {
     const splat = await resolveLegacyPostPath(params.slug);
-    setCacheControlHeader(NO_STORE);
-    if (!splat) throw redirect({ to: "/blog", statusCode: 302 });
+    if (!splat) {
+      setCacheControlHeader(NO_STORE);
+      throw redirect({ to: "/blog", statusCode: 302 });
+    }
+    setCacheControlHeader(PERMANENT_REDIRECT);
     throw redirect({
       to: "/$",
       params: { _splat: splat },

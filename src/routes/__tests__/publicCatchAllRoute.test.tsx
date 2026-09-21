@@ -56,6 +56,22 @@ const h = vi.hoisted(() => ({
   consoleErrors: [] as unknown[],
   /** Gdy ustawione, KAŻDE wywołanie RPC oddaje ten błąd (awaria bazy). */
   rpcError: null as { message: string } | null,
+  /** Gdy `true`, KAŻDE wywołanie RPC WISI - baza przyjęła zapytanie i milczy. */
+  rpcHang: false,
+  /**
+   * Czy loader biegnie na SERWERZE. Wstrzykiwane, a nie dziedziczone po
+   * środowisku testowym: od tej jednej wartości zależy, czy trasa zakłada
+   * wspólny termin żądania, czy czeka na dane bez ograniczenia (nawigacja SPA).
+   */
+  isServer: true,
+  /**
+   * KOLEJNOŚĆ STARTÓW round-tripów - tabela albo `rpc:<nazwa>`. To jest jedyny
+   * sposób, żeby zobaczyć, że rozgrzewki niezależne od treści RUSZAJĄ PRZED
+   * fazą główną, a nie po niej (stan cache'u mówi tylko, że kiedyś ruszyły).
+   */
+  zapytania: [] as string[],
+  /** Wywołania `widgetPreloadHeaders(doc, n)` z loadera - liczba sekcji i limit. */
+  widgetPreloads: [] as Array<{ sekcje: number; ile: number }>,
   /** Jak ma się zachować rozgrzewka bloków. */
   blocksPrefetch: "ok" as "ok" | "reject" | "hang" | "degraded",
   /** Języki, z jakimi loader zawołał rozgrzewkę sekcji nad zgięciem. */
@@ -92,16 +108,52 @@ vi.mock("@tanstack/react-router", async (o) => ({
   }),
 }));
 
+// ŚRODOWISKO WYKONANIA LOADERA JAKO WSTRZYKIWANE WEJŚCIE. Trasa zakłada
+// wspólny termin żądania WYŁĄCZNIE pod `isServer` (w przeglądarce jeden
+// `QueryClient` żyje całą sesję, więc termin z pierwszej nawigacji unieważniłby
+// wszystkie kolejne). Bez tej atrapy wynik zależałby od warunków rozwiązywania
+// modułów w vitest, a nie od przedmiotu dowodu - ten sam wzór stoi
+// w `rootRoute.test.tsx` i `homeRoute.test.tsx`.
+vi.mock("@tanstack/router-core/isServer", () => ({
+  get isServer() {
+    return h.isServer;
+  },
+}));
+
+// Hinty modułów widgetów. Prawdziwa mapa `WIDGET_CHUNK_URLS` jest PUSTA poza
+// buildem serwerowym (podmieniana, gdy znane są nazwy chunków przeglądarki),
+// więc prawdziwa funkcja oddałaby tu zawsze `[]` i dowód byłby pusty.
+// Przedmiotem dowodu jest kontrakt TRASY: że woła hinty dla dokumentu treści
+// i przepuszcza KAŻDY z nich przez nagłówek `Link`.
+const HINT_WIDGETU = '</assets/widget-hero-abc.js>; rel="modulepreload"; crossorigin';
+
+vi.mock("@/lib/seo/widgetPreloads", async (o) => ({
+  ...(await o<typeof import("@/lib/seo/widgetPreloads")>()),
+  widgetPreloadHeaders: (doc: { sections?: unknown[] }, ile: number) => {
+    h.widgetPreloads.push({ sekcje: doc.sections?.length ?? 0, ile });
+    return [HINT_WIDGETU];
+  },
+}));
+
 const stub = supabaseFromStub();
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    from: (table: string) => stub.from(table),
+    from: (table: string) => {
+      h.zapytania.push(table);
+      return stub.from(table);
+    },
     // `resolve_path` i `get_entity_content` - w tym pliku treść wchodzi do
     // cache'u zapytań WPROST (patrz `runLoader`), więc RPC domyślnie odpowiada
-    // pusto. Awaria bazy ma własny przypadek i włącza się przez `h.rpcError`.
-    rpc: () =>
-      Promise.resolve(h.rpcError ? { data: null, error: h.rpcError } : { data: null, error: null }),
+    // pusto. Awaria bazy ma własny przypadek i włącza się przez `h.rpcError`,
+    // a ZAWIESZENIE (najczęstszy kształt awarii) przez `h.rpcHang`.
+    rpc: (name: string) => {
+      h.zapytania.push(`rpc:${name}`);
+      if (h.rpcHang) return new Promise(() => {});
+      return Promise.resolve(
+        h.rpcError ? { data: null, error: h.rpcError } : { data: null, error: null },
+      );
+    },
   },
 }));
 
@@ -180,7 +232,17 @@ import {
 } from "@/lib/queries/public";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { splatToSegments } from "@/lib/routing/publicSegments";
+import { routeSsrDeadline } from "@/lib/ssr/routeSsrDeadline";
 import { Route } from "@/routes/$";
+
+/**
+ * Wspólny termin żądania tej trasy (`CONTENT_SSR_BUDGET_MS` w `$.tsx`).
+ * Kopia LICZBY, nie import: stała nie jest eksportowana, a bramka
+ * `check:ssr-budgets` wymaga, żeby budżety były literałami w pliku trasy.
+ * Rozjazd łapie przypadek „ZAWIESZONA baza..." - przy podniesionym budżecie
+ * loader nie zdąży zdegradować w tym oknie i test zapali się na czerwono.
+ */
+const TERMIN_ZADANIA_MS = 1_500;
 
 // --- dane syntetyczne -------------------------------------------------------
 
@@ -337,6 +399,7 @@ function loader(): Loader {
 /** Wynik loadera w części, której dotyczą asercje tego pliku. */
 interface WynikLoadera {
   kind?: unknown;
+  degraded?: unknown;
   coverPreload?: { href?: unknown; imageSrcSet?: unknown; imageSizes?: unknown } | null;
 }
 
@@ -356,9 +419,18 @@ interface WynikLoadera {
 async function runLoader(
   splat: string,
   tresc?: ResolvedContent,
-  { ustawieniaSerwisu = true }: { ustawieniaSerwisu?: boolean } = {},
+  {
+    ustawieniaSerwisu = true,
+    zuzytyTermin,
+  }: { ustawieniaSerwisu?: boolean; zuzytyTermin?: number } = {},
 ): Promise<{ wynik: unknown; queryClient: QueryClient }> {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // TERMIN ZAŁOŻONY PRZED LOADEREM = „część budżetu żądania już poszła".
+  // To nie jest sztuczka testowa, tylko PRODUKCYJNY kształt tej trasy: zegar
+  // mieszka pod `QueryClient`em żądania i zakłada go PIERWSZY wołający -
+  // czasem loader korzenia, czasem ten loader (`lib/ssr/routeSsrDeadline.ts`).
+  // Podanie tu 300 ms odtwarza stan „na fazę wtórną zostało 300 ms".
+  if (zuzytyTermin !== undefined) routeSsrDeadline(queryClient, zuzytyTermin);
   if (tresc) {
     const opcje = resolvedContentQueryOptions(splatToSegments(splat));
     queryClient.setQueryData(opcje.queryKey, tresc);
@@ -399,6 +471,10 @@ beforeEach(() => {
   h.requestUrl = "";
   h.blocksPrefetchCtx = [];
   h.rpcError = null;
+  h.rpcHang = false;
+  h.isServer = true;
+  h.zapytania = [];
+  h.widgetPreloads = [];
   h.blocksPrefetch = "ok";
   h.aboveFoldLangs = [];
   h.aboveFoldDegraded = false;
@@ -1018,8 +1094,10 @@ describe("loader trasy `/$` - degradacja zapytań pobocznych", () => {
           }),
         }),
       );
-      // SECONDARY_PREFETCH_BUDGET_MS = 3 000 (`src/routes/$.tsx:169`).
-      await vi.advanceTimersByTimeAsync(3_001);
+      // `SECONDARY_PREFETCH_BUDGET_MS` = 1 500, a wspólny termin żądania
+      // (`CONTENT_SSR_BUDGET_MS`) też 1 500 - faza wtórna nie może wisieć
+      // dłużej niż KRÓTSZA z tych dwóch liczb.
+      await vi.advanceTimersByTimeAsync(TERMIN_ZADANIA_MS + 1);
       await bieg;
     } finally {
       vi.useRealTimers();
@@ -1038,28 +1116,213 @@ describe("loader trasy `/$` - degradacja zapytań pobocznych", () => {
     expect(h.cacheControl.at(-1)).toBe("private, no-store");
   });
 
-  it("RZUT z zapytania o TREŚĆ daje 404, a nie surowy 500", async () => {
-    // Awaria bazy przy rezolucji ścieżki (`resolve_path` oddaje błąd, a fetcher
-    // go RZUCA - `queries/public.ts:675`) jest tu pochłaniana i sprowadzana do
-    // „treści nie ma": czytelnik dostaje ekran 404 z powłoką i ze skrótami,
-    // robot dostaje status 404, i nikt nie dostaje strony błędu z diagnostyką.
-    // To ta jedna gałąź odróżnia „adresu nie ma" od „nie udało się sprawdzić".
-    h.rpcError = { message: "resolve_path: connection reset" };
+  it("brak treści pod adresem daje 404 bez żadnego rzutu z bazy", async () => {
+    // ODCZYT CZYSTY: `resolve_path` odpowiedział i nie znalazł nic. To JEDYNA
+    // gałąź, której wolno wypisać adres z indeksu - kontrolą negatywną są dwa
+    // przypadki w bloku „degradacja to nie 404" niżej.
     const { wynik } = await runLoader("analizy/atom");
     expect(isNotFound(wynik)).toBe(true);
-    // Odpowiedź 404 z AWARII nie może wejść do cache'u brzegowego: adres
-    // zaczyna działać, gdy baza wróci, a nie po wygaśnięciu TTL.
-    expect(h.cacheControl).not.toEqual([]);
     expect(h.cacheControl.every((v) => v.includes("no-store"))).toBe(true);
   });
+});
 
-  it("brak treści pod adresem daje 404 bez żadnego rzutu z bazy", async () => {
-    // Kontrola dla przypadku wyżej: ta sama odpowiedź (404 + `no-store`) dla
-    // adresu, którego po prostu nie ma. Bez tej pary asercja wyżej nie
-    // pokazywałaby, że badana jest gałąź AWARII, a nie zwykłego pudła.
-    const { wynik } = await runLoader("analizy/atom");
-    expect(isNotFound(wynik)).toBe(true);
+// ===========================================================================
+// DEGRADACJA TO NIE JEST 404 (audyt CWV F07 / W8).
+// ===========================================================================
+//
+// Do 2026-09-20 loader tej trasy rozstrzygał po OBECNOŚCI danych
+// (`getQueryData`), więc KAŻDY brak treści - miniony budżet, anulowanie przez
+// watchdoga SSR, błąd PostgREST - wchodził do gałęzi „treści nie ma"
+// i kończył się `notFound()`. Efekt: chora baza wypisywała ŻYWE wpisy
+// z indeksu Google, a jedno żądanie kosztowało tygodnie odbudowy pozycji.
+//
+// Dzisiaj decyduje STAN ZAPYTANIA: 404 należy się wyłącznie odczytowi
+// CZYSTEMU (`success` + `null`), a „nie wiemy" ma własną odpowiedź - HTTP 200
+// z komunikatem, `private, no-store` i `noindex`.
+describe("loader trasy `/$` - degradacja zamiast fałszywego 404", () => {
+  const KLUCZ_TRESCI = () => resolvedContentQueryOptions(splatToSegments("analizy/atom")).queryKey;
+
+  it("ZAWIESZONA baza po terminie daje render ZDEGRADOWANY, a nie `notFound()`", async () => {
+    // Najczęstszy realny kształt awarii: połączenie stoi, nic nie rzuca.
+    // Przed zmianą loader czekał tu sztywne 5 000 ms i kończył 404.
+    vi.useFakeTimers();
+    let wynik: unknown;
+    let queryClient: QueryClient | undefined;
+    try {
+      h.rpcHang = true;
+      const bieg = runLoader("analizy/atom");
+      await vi.advanceTimersByTimeAsync(TERMIN_ZADANIA_MS + 1);
+      ({ wynik, queryClient } = await bieg);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(isNotFound(wynik)).toBe(false);
+    expect(jakoWynik(wynik).degraded).toBe(true);
+    expect(jakoWynik(wynik).kind).toBe("degraded");
+    expect(h.cacheControl.at(-1)).toBe("private, no-store");
+    // Wpis MUSI zniknąć z cache'u: zapytanie w locie bez danych pojechałoby
+    // w dehydratowanym ładunku jako wiszące, a klient ma dociągnąć treść świeżo.
+    expect(queryClient?.getQueryState(KLUCZ_TRESCI())).toBeUndefined();
+  });
+
+  it("BŁĄD bazy przy rezolucji ścieżki też degraduje, zamiast wypisywać wpis z indeksu", async () => {
+    // `resolve_path` oddaje błąd, a fetcher go RZUCA (`queries/public.ts`).
+    // Rzut nie jest wiedzą o tym, że adresu nie ma - jest jej brakiem.
+    h.rpcError = { message: "resolve_path: connection reset" };
+    const { wynik, queryClient } = await runLoader("analizy/atom");
+
+    expect(isNotFound(wynik)).toBe(false);
+    expect(jakoWynik(wynik).degraded).toBe(true);
+    expect(h.cacheControl).not.toEqual([]);
     expect(h.cacheControl.every((v) => v.includes("no-store"))).toBe(true);
+    expect(queryClient.getQueryState(KLUCZ_TRESCI())).toBeUndefined();
+  });
+
+  it("`head()` renderu zdegradowanego niesie `noindex` - komunikat nie ma prawa wejść do indeksu", () => {
+    // Status jest 200 (inaczej CDN nie zapisze odpowiedzi, a monitory zgłoszą
+    // serwis jako offline), więc `noindex` jest JEDYNĄ obroną indeksu przed
+    // utrwaleniem „nie udało się załadować" pod adresem prawdziwego artykułu.
+    const head = routeHead(Route, {
+      loaderData: { kind: "degraded", degraded: true, seoSettings: null, coverPreload: null },
+      params: { _splat: "analizy/atom" },
+    });
+    const robots = head.meta?.find((m) => m.name === "robots");
+    expect(robots?.content).toContain("noindex");
+    // Żadnego canonicala ani og:* - opis niekompletnego renderu byłby kłamstwem.
+    expect(head.links ?? []).toEqual([]);
+  });
+
+  it("ROZGRZEWKI NIEZALEŻNE OD TREŚCI ruszają PRZED fazą główną", async () => {
+    // Ustawienia układu i konfiguracja powiązanych nie potrzebują
+    // rozstrzygniętego adresu. Dowód jest mocny właśnie dlatego, że treść
+    // NIGDY się nie rozstrzyga: przed zmianą obie startowały dopiero po niej,
+    // więc przy zawieszonej bazie nie ruszyłyby ANI RAZU.
+    vi.useFakeTimers();
+    try {
+      h.rpcHang = true;
+      const bieg = runLoader("analizy/atom");
+      await vi.advanceTimersByTimeAsync(TERMIN_ZADANIA_MS + 1);
+      await bieg;
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(h.zapytania).toContain("post_layout_settings");
+    expect(h.zapytania).toContain("rpc:get_related_posts_config");
+    // I to PRZED pierwszym round-tripem rezolucji ścieżki, a nie tylko „kiedyś".
+    expect(h.zapytania.indexOf("post_layout_settings")).toBeLessThan(
+      h.zapytania.indexOf("rpc:resolve_path"),
+    );
+  });
+
+  it("faza wtórna dostaje RESZTĘ wspólnego terminu, a nie własne pełne 1 500 ms", async () => {
+    // Zegar żądania założony PRZED loaderem z 300 ms - czyli stan „treść
+    // zjadła 1 200 z 1 500 ms". Przed zmianą faza wtórna startowała tu z
+    // własnymi 3 000 ms i łańcuch sumował się do 13 000 ms przed pierwszym
+    // bajtem. Dziś sufit fazy przycina wspólny termin.
+    vi.useFakeTimers();
+    try {
+      h.blocksPrefetch = "hang";
+      let gotowe = false;
+      const bieg = runLoader(
+        "analizy/atom",
+        resolvedPost({
+          item: postItem({
+            blocks_data: {
+              pl: { version: 1, blocks: [{ id: "b1", type: "related-posts", data: {} }] },
+              en: { version: 1, blocks: [] },
+            },
+          }),
+        }),
+        { zuzytyTermin: 300 },
+      );
+      void bieg.then(() => {
+        gotowe = true;
+      });
+
+      await vi.advanceTimersByTimeAsync(299);
+      expect(gotowe).toBe(false);
+      await vi.advanceTimersByTimeAsync(2);
+      await bieg;
+      expect(gotowe).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(h.cacheControl.at(-1)).toBe("private, no-store");
+  });
+
+  it("SERWER zakłada wspólny termin żądania pod `QueryClient`em", async () => {
+    // Kontrola pozytywna do przypadku klienta niżej: zegar istnieje i jest
+    // WSPÓLNY, więc kolejny wołający (loader korzenia) dostaje TEN SAM
+    // znacznik zamiast nastawiać własny.
+    const { queryClient } = await runLoader("analizy/atom", resolvedPost());
+    expect(routeSsrDeadline(queryClient, 60_000) - Date.now()).toBeLessThanOrEqual(
+      TERMIN_ZADANIA_MS,
+    );
+  });
+
+  it("KLIENT nie zakłada terminu - nawigacja SPA nie ma TTFB do obrony", async () => {
+    h.isServer = false;
+    const { wynik, queryClient } = await runLoader("analizy/atom", resolvedPost());
+
+    expect(jakoWynik(wynik).kind).toBe("post");
+    // Gdyby loader kliencki założył zegar, ten wołający dostałby JEGO znacznik.
+    // Sesja przeglądarki trzyma jeden `QueryClient`, więc taki zegar byłby
+    // miniony dla KAŻDEJ kolejnej nawigacji i każda kończyłaby się degradacją.
+    expect(routeSsrDeadline(queryClient, 60_000) - Date.now()).toBeGreaterThan(30_000);
+  });
+
+  it("KLIENT czeka na bazę zamiast degradować po budżecie", async () => {
+    // Druga połowa tego samego kontraktu, tym razem po ZACHOWANIU: na kliencie
+    // czytelnik patrzy na `pendingComponent` (ContentSkeleton), a nie na pusty
+    // dokument - przerwanie oczekiwania dałoby mu komunikat o awarii tam, gdzie
+    // wystarczyło poczekać.
+    vi.useFakeTimers();
+    try {
+      h.isServer = false;
+      h.rpcHang = true;
+      let gotowe = false;
+      void runLoader("analizy/atom").then(() => {
+        gotowe = true;
+      });
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(gotowe).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("loader trasy `/$` - hinty modułów widgetów treści", () => {
+  it("strona z dokumentem buildera emituje hinty `modulepreload` w nagłówku `Link`", async () => {
+    // Ta sama droga, którą korzeń emituje hinty widgetów NAGŁÓWKA: chunki
+    // widgetów startują z NAGŁÓWKÓW odpowiedzi, zanim przeglądarka sparsuje
+    // HTML (a NES Edge Cache odtwarza je na HIT/STALE).
+    await runLoader(
+      "o-nas",
+      stronaZDokumentem({ version: 1, sections: [{ id: "s0", children: [] }] }),
+    );
+
+    expect(h.widgetPreloads).toEqual([{ sekcje: 1, ile: 3 }]);
+    expect(h.linkHeaders).toContain(HINT_WIDGETU);
+  });
+
+  it("dokument BEZ sekcji nie emituje hintów - pusty hint to zmarnowany nagłówek", async () => {
+    await runLoader("o-nas", stronaZDokumentem(null));
+
+    expect(h.widgetPreloads).toEqual([]);
+    expect(h.linkHeaders).not.toContain(HINT_WIDGETU);
+  });
+
+  it("na KLIENCIE hintów nie ma - nagłówki odpowiedzi nie istnieją po hydratacji", async () => {
+    h.isServer = false;
+    await runLoader(
+      "o-nas",
+      stronaZDokumentem({ version: 1, sections: [{ id: "s0", children: [] }] }),
+    );
+
+    expect(h.widgetPreloads).toEqual([]);
   });
 });
 

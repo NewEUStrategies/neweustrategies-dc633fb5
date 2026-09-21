@@ -61,6 +61,9 @@ function writeAnon(v: AnonStored) {
 
 export function useInterestCatalog(lang: "pl" | "en" = "pl") {
   const qc = useQueryClient();
+  // Tożsamość z jedynego AuthProvider - patrz `useCurrentUserId` niżej.
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const query = useQuery<InterestCatalog>({
     queryKey: ["interests-catalog", lang],
     staleTime: 60_000,
@@ -127,7 +130,15 @@ export function useInterestCatalog(lang: "pl" | "en" = "pl") {
   // Uniquely-named channel per hook instance so multiple mounted widgets don't
   // reuse a subscribed channel (which throws
   // "cannot add postgres_changes callbacks ... after subscribe()").
+  //
+  // BRAMKA SESJI (F34). Adresatem tego kanału jest REDAKCJA: świeżość liczy się
+  // tam, gdzie katalog jest edytowany i od razu używany (panel reklam, ekran
+  // zainteresowań). Gość widzi ten sam katalog w widgecie „Dołącz do nas" na
+  // publicznej stronie - i płacił za websocket (TLS + WS + auth + join) za
+  // listę, która zmienia się raz na tygodnie. Dla niego wystarcza staleTime
+  // 60 s: nowa kategoria dojeżdża przy następnym wejściu, nie w tej sekundzie.
   useEffect(() => {
+    if (!userId) return;
     const channel = supabase.channel(
       `interests-catalog-rt-${Math.random().toString(36).slice(2, 10)}`,
     );
@@ -142,7 +153,7 @@ export function useInterestCatalog(lang: "pl" | "en" = "pl") {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [qc]);
+  }, [qc, userId]);
 
   return query;
 }

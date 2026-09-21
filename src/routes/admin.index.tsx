@@ -23,8 +23,9 @@ export const Route = createFileRoute("/admin/")({
   // kosztowała 434 kB na publicznej stronie głównej, więc jest tu opisana
   // razem z dowodem.
   //
-  // ŁAŃCUCH, KTÓRY TO ROZCINA. `/admin` to trasa `ssr: false`, a `AdminLayout`
-  // (routes/admin.tsx) przy `useAuth().loading` NIE renderuje `<Outlet/>`.
+  // ŁAŃCUCH, KTÓRY TO ROZCINA. `/admin` renderuje na serwerze wyłącznie szkielet
+  // powłoki, a `AdminSession` (routes/admin.tsx) przy `useAuth().loading` NIE
+  // renderuje `<Outlet/>`.
   // Komponent tej trasy montuje się więc dopiero PO rozstrzygnięciu sesji,
   // a `React.lazy` odpala import przy pierwszym renderze. Szeregowo wychodziło:
   //   1. `supabase.auth.getSession()` - localStorage, przy wygasłym tokenie
@@ -57,6 +58,11 @@ export const Route = createFileRoute("/admin/")({
   // jedyna synchroniczna wymagałaby czytania wewnętrznego klucza sesji Supabase
   // z `localStorage`, a `/admin` jest noindex i na deny-liście cache'u.
   loader: () => {
+    // Od 2026-09-20 `/admin` renderuje na serwerze szkielet powłoki (routes/admin.tsx),
+    // więc ten loader biegnie także w SSR - tam import chunku pulpitu nie ma
+    // pożytku (pulpit montuje się dopiero po sesji w przeglądarce), a kosztuje
+    // ewaluację silnika wykresów w izolacie. Rozgrzewka wyłącznie po stronie klienta.
+    if (typeof document === "undefined") return;
     void loadAdminDashboard().catch(() => undefined);
   },
   component: Dashboard,

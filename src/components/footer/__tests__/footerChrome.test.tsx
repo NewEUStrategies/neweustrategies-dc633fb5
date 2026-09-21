@@ -236,10 +236,14 @@ describe("BackToTop", () => {
 
 describe("HeaderSkeleton", () => {
   it("trzyma wysokość paska nawigacji przed hydracją", () => {
-    // 64 px (h-16) to ta sama wysokość, co prawdziwy nagłówek - bez tego
-    // treść strony podskakuje w momencie dojechania ustawień.
+    // Bez rezerwy treść strony podskakuje w momencie dojechania ustawień.
+    // Wysokość rzędu nie jest już stałym `h-16`: liczy ją `HeaderSkeleton`
+    // z dokumentu nagłówka (`navRows`), a bez dokumentu schodzi do awaryjnych
+    // 64 px - stąd asercja na zarezerwowane piksele, nie na klasę.
     const { container } = render(<HeaderSkeleton />);
-    expect(container.querySelector(".h-16")).not.toBeNull();
+    const nav = container.querySelector<HTMLElement>('[data-skeleton-band="nav"]');
+    expect(nav).not.toBeNull();
+    expect(Number.parseFloat(nav!.style.height)).toBeGreaterThan(0);
   });
 
   it("jest ukryty przed czytnikiem ekranu i oznaczony jako szkielet", () => {

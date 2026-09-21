@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { memo, Suspense, useEffect, useRef } from "react";
+import { memo, Suspense, useEffect, useMemo, useRef } from "react";
 import { ChromeDataGate } from "@/lib/ssr/chromeWarmup";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
@@ -30,7 +30,13 @@ function FooterInner({ compact }: FooterProps) {
   const lang = useLang();
 
   const { data: settingsMap, isLoading } = useQuery(siteSettingsQueryOptions);
-  const cfg = resolveSetting<FooterSettings>(settingsMap, "footer", {});
+  // `resolveSetting` robi głęboki merge, więc bez `useMemo` oddawałoby NOWY
+  // obiekt przy każdym renderze stopki - a od jego tożsamości zależy zarówno
+  // walidacja chrome'u niżej, jak i dokument podawany `BuilderRenderer`owi.
+  const cfg = useMemo(
+    () => resolveSetting<FooterSettings>(settingsMap, "footer", {}),
+    [settingsMap],
+  );
 
   // While settings are loading (should be rare - __root prefetches them via
   // ensureQueryData), render the built-in default footer instead of a blank
@@ -43,8 +49,16 @@ function FooterInner({ compact }: FooterProps) {
         ? defaultDocFor("footer")
         : defaultDocFor("footer");
 
-  const chrome = FooterChromeSchema.safeParse({ ...defaultFooterChrome(), ...(cfg.chrome ?? {}) });
-  const chromeCfg = chrome.success ? chrome.data : defaultFooterChrome();
+  // Stopka jedzie na KAŻDEJ stronie, a ta walidacja Zodem biegła w każdym jej
+  // renderze - także wtedy, gdy ustawienia się nie zmieniły. Parsowanie zależy
+  // wyłącznie od `cfg.chrome`, więc jego wynik trzymamy do zmiany ustawień.
+  const chromeCfg = useMemo(() => {
+    const parsed = FooterChromeSchema.safeParse({
+      ...defaultFooterChrome(),
+      ...(cfg.chrome ?? {}),
+    });
+    return parsed.success ? parsed.data : defaultFooterChrome();
+  }, [cfg.chrome]);
 
   const footerRef = useRef<HTMLElement | null>(null);
 

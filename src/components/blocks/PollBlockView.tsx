@@ -9,7 +9,10 @@
 //     słupków, głosowania i copy w obu miejscach).
 // Realtime: subskrypcja poll_votes tego jednego poll_id inwaliduje wyniki
 // (prefiks klucza wspólny z /polls, więc głos oddany w bloku odświeża też
-// stronę ankiet i odwrotnie).
+// stronę ankiet i odwrotnie) - ale DOPIERO gdy ankieta wjedzie w kadr (F34).
+// Ankieta bywa w połowie długiego wpisu; websocket (TLS + WS + auth + join)
+// zakładany zaraz po hydratacji płacił za siebie na każdej odsłonie, także
+// takiej, w której czytelnik nigdy do ankiety nie dojechał.
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,6 +20,7 @@ import { pollBlockQueryOptions } from "@/lib/queries/blocks";
 import { pollResultsQueryOptions } from "@/lib/community/publicQueries";
 import { PollCard } from "@/components/community/PollCard";
 import { useAuth } from "@/hooks/useAuth";
+import { useInView } from "@/hooks/use-in-view";
 
 export function PollBlockView({ pollId, lang }: { pollId: string; lang: "pl" | "en" }) {
   const { user } = useAuth();
@@ -29,8 +33,17 @@ export function PollBlockView({ pollId, lang }: { pollId: string; lang: "pl" | "
     enabled: !!pollQ.data,
   });
 
+  // `enabled` czeka na dane, bo dopiero wtedy w DOM stoi kontener do obserwacji
+  // (przedtem jest szkielet, a obserwator przypięty do niego zostałby na
+  // odmontowanym węźle i nigdy nie zgłosiłby wjazdu w kadr).
+  const { ref: cardRef, inView } = useInView<HTMLDivElement>({
+    enabled: !!pollQ.data,
+    rootMargin: "200px 0px",
+    threshold: 0,
+  });
+
   useEffect(() => {
-    if (!pollQ.data) return;
+    if (!pollQ.data || !inView) return;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const scheduleRefetch = () => {
       if (timer) return;
@@ -51,7 +64,7 @@ export function PollBlockView({ pollId, lang }: { pollId: string; lang: "pl" | "
       if (timer) clearTimeout(timer);
       void supabase.removeChannel(channel);
     };
-  }, [pollId, qc, pollQ.data]);
+  }, [pollId, qc, pollQ.data, inView]);
 
   if (pollQ.isLoading) {
     return (
@@ -65,12 +78,17 @@ export function PollBlockView({ pollId, lang }: { pollId: string; lang: "pl" | "
   // (redaktor widzi ostrzeżenie w edytorze, czytelnik nie widzi dziury).
   if (!pollQ.data) return null;
 
+  // Opakowanie istnieje TYLKO po to, żeby mieć co obserwować - `PollCard` nie
+  // przyjmuje refa, a div bez klas nie zmienia układu (`article` karty i tak
+  // jest blokowy i pełnej szerokości).
   return (
-    <PollCard
-      poll={pollQ.data}
-      results={resultsQ.data?.get(pollId)}
-      lang={lang}
-      userId={user?.id ?? null}
-    />
+    <div ref={cardRef}>
+      <PollCard
+        poll={pollQ.data}
+        results={resultsQ.data?.get(pollId)}
+        lang={lang}
+        userId={user?.id ?? null}
+      />
+    </div>
   );
 }

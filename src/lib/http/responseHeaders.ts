@@ -5,6 +5,8 @@
 import { createIsomorphicFn } from "@tanstack/react-start";
 import { getRequest, setResponseHeader } from "@tanstack/react-start/server";
 
+import { narrowestCacheControl } from "./cachePolicy";
+
 /**
  * Intencja cache'owa TRASY per ŻĄDANIE - drugi, równoległy kanał obok nagłówka
  * zdarzenia h3. Bez niego decyzja loadera („ten render jest zdegradowany, nie
@@ -51,12 +53,12 @@ export const setCacheControlHeader = createIsomorphicFn()
   .server((value: string) => {
     try {
       const request = getRequest();
-      const previous = routeCacheDirectives.get(request);
-      // Root and child loaders run in parallel. Once either opts out, a later
-      // clean loader must not make a partial document cacheable again.
-      if (previous && /(?:^|,)\s*(?:private|no-store)\s*(?:,|$|=)/i.test(previous)) {
-        value = previous;
-      }
+      // Loadery korzenia, trasy i bramka chrome biegną równolegle - wygrywa
+      // zawsze OSTRZEJSZA intencja: raz ustawiony opt-out (`private`/`no-store`)
+      // nie da się cofnąć, a krótkiej świeżości (chrome zdegradowany, 30 s)
+      // późniejszy czysty loader nie podniesie do 900 s. Reguła i jej dowód:
+      // `narrowestCacheControl` (cachePolicy.ts).
+      value = narrowestCacheControl(routeCacheDirectives.get(request), value);
       routeCacheDirectives.set(request, value);
     } catch {
       /* not inside a request scope - ignore */

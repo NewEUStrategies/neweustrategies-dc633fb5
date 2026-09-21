@@ -16,8 +16,7 @@ import { AlertBar } from "@/components/AlertBar";
 import { AdZone } from "@/components/AdSlot";
 import type { AdPageType } from "@/lib/ads/types";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
-import { HeaderSkeleton } from "@/components/header/HeaderSkeleton";
-import { HeaderSeoHeading } from "@/components/header/atoms/HeaderSeoHeading";
+import { HeaderSkeleton, useHeaderSkeletonProps } from "@/components/header/HeaderSkeleton";
 // Closed overlays stay outside the boot waterfall. Keep search state after
 // its first use, and load the mobile drawer only when its shell is opened.
 const MobileDrawerBody = lazy(() =>
@@ -83,6 +82,9 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
   const cfg = resolveSetting<HeaderSettings>(settingsMap, "header", {});
   const general = resolveSetting<GeneralSettings>(settingsMap, "general", {});
   const theme = resolveSetting<ThemeLogoCfg>(settingsMap, "theme_options", {});
+  // Geometria szkieletu z tych samych ustawień, które karmią chrome - czytana
+  // z cache'a bez subskrypcji, więc gałąź bez nagłówka nie dokłada fetcha.
+  const skeletonProps = useHeaderSkeletonProps(adPageType);
   const draft = useTickerDraft();
   const trending = draft ?? resolveActiveTickerConfig(cfg.trending);
   const siteName = (general.site_name && general.site_name.trim()) || "Menu";
@@ -143,8 +145,13 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
     };
   }, []);
 
-  if (isHome && dataUpdatedAt === 0) return <HeaderSkeleton />;
-  if (!cfg.builder_data || !cfg.builder_data.sections?.length) return null;
+  // Obie gałęzie bez chrome'u rezerwują TERAZ realną geometrię nagłówka.
+  // `return null` (0 px) było najgorszym przypadkiem z całego audytu CLS: na
+  // trasach poza home po zasiewie pustych domyślnych cały nagłówek doskakiwał
+  // po hydratacji i spychał treść w dół.
+  if (isHome && dataUpdatedAt === 0) return <HeaderSkeleton {...skeletonProps} />;
+  if (!cfg.builder_data || !cfg.builder_data.sections?.length)
+    return <HeaderSkeleton {...skeletonProps} />;
 
   const openA11y = t("common.openMenu");
   const closeA11y = t("common.closeMenu");
@@ -157,9 +164,13 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
           klatce animacji i przy okazji skalowało też fullscreenowy
           SearchOverlay, który jest renderowany poniżej - poza tym kontenerem. */}
       <div className="site-header-chrome">
-        {/* H1 strony głównej: istnieje w kodzie i w indeksie, niewidoczny w
-            layoucie - treść z panelu SEO, przyczepiona do logo w headerze. */}
-        {isHome && <HeaderSeoHeading />}
+        {/* H1 strony głównej NIE należy już do powłoki. Nagłówek wisiał tu pod
+            warunkiem `isHome`, ale obie bramki wyżej (`dataUpdatedAt === 0`
+            oraz brak `builder_data`) zwracają `HeaderSkeleton`, który nie ma
+            żadnego `h*` - przy martwym backendzie dokument zostawał BEZ H1.
+            Nagłówek wrócił do trasy (`routes/index.tsx` -> `HomeSrHeading`),
+            gdzie renderuje się niezależnie od stanu bazy; trzymanie go w dwóch
+            miejscach wymagałoby lustrzanej kopii tych bramek. */}
         <AlertBar />
         {trending.enabled !== false && (
           <TrendingTicker
@@ -317,6 +328,9 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
 export const Header = memo(function Header({ adPageType, contentKind = null }: HeaderProps) {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const isHome = pathname === "/" || pathname === "/en" || pathname === "/en/";
+  // Fallback Suspense też musi trzymać realną geometrię - to jego HTML widzi
+  // przeglądarka, gdy `ChromeDataGate` zawiesi granicę na serwerze.
+  const fallbackSkeletonProps = useHeaderSkeletonProps(adPageType);
   // Wpisy mają własny ReadingHeader po scrollu - tam nie robimy sticky/shrink,
   // żeby nie duplikować chrome'u (dwa przyklejone paski = pasek czytania i jego
   // akcje znikają pod mobilnym paskiem headera). Wszystkie pozostałe strony
@@ -564,7 +578,7 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
       }
       style={{ viewTransitionName: "site-header" }}
     >
-      <Suspense fallback={<HeaderSkeleton />}>
+      <Suspense fallback={<HeaderSkeleton {...fallbackSkeletonProps} />}>
         <ChromeDataGate>
           <HeaderInner adPageType={adPageType} isHome={isHome} />
         </ChromeDataGate>

@@ -140,6 +140,23 @@ const HEAVY_DICTIONARIES: readonly HeavyDictionary[] = [
     markers: ["Zapisano ustawienia popupu"],
     remedy: "jak wyżej - ensureI18n() w komponencie, nigdy side-effect w pliku trasy",
   },
+  // 2026-09-21: WARIANT, KTÓREGO POWYŻSZE WPISY NIE ŁAPAŁY - kotwica nie
+  // w imporcie side-effectowym ani w komponencie, tylko w `beforeLoad`.
+  // `beforeLoad` (tak samo jak `loader`, `head`, `params`) należy do
+  // NIEDZIELONEJ części pliku trasy, bo splitter TanStacka wynosi do osobnego
+  // chunku wyłącznie `component`. Kotwica tam jest więc krawędzią z chunku
+  // WEJŚCIOWEGO i słownik panelu ląduje w bundlu każdej strony publicznej.
+  // Zmierzone: chunk wejściowy 284,3 -> 295,4 KB gzip (próg 286), domknięcie
+  // bootu 569,3 -> 575,0; po przeniesieniu kotwicy do `AdminSession`
+  // (montowanego za `useHydrated()`) odpowiednio 275,4 i 555,0 KB.
+  {
+    label: "i18n-admin-extras (nakładka kluczy panelu/CRM, 67,8 kB źródeł / 18,4 KB gzip)",
+    markers: ["Raport Google Analytics osadzony z Looker Studio"],
+    remedy:
+      "`ensureI18n()` wołaj z części trasy montowanej PO hydratacji " +
+      "(`AdminSession` w routes/admin.tsx) - nigdy z `beforeLoad`/`loader`/`head`, " +
+      "bo te jadą w chunku wejściowym",
+  },
 ];
 
 /**

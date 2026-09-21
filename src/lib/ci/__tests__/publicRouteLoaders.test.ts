@@ -24,8 +24,6 @@ import {
   coldRouteRatchetFailed,
   compareColdRouteRatchet,
   renderColdRouteRatchet,
-  COLD_CACHED_ROUTES_2026_09_01,
-  COLD_PUBLIC_ROUTES_2026_09_01,
   FROZEN_COLD_CACHED_ROUTES,
   FROZEN_COLD_PUBLIC_ROUTES,
   findQuerySites,
@@ -991,19 +989,20 @@ function Probe() { const q = useQuery(probeQueryOptions()); return <div>{q.data}
     },
   );
 
-  it.fails(
-    "REGRES ZAREJESTROWANY: lista urosła ponad stan zamrożony 2026-09-01 (21/16)",
-    { timeout: 180_000 },
-    () => {
-      // To NIE jest test do naprawienia zmianą progu. To wpis w rejestrze:
-      // między 2026-09-01 a 2026-09-12 doszło jedenaście tras
-      // `/club/$clubSlug/**`, z których żadna nie grzeje swoich kluczy, i nic
-      // tego nie zauważyło, bo `--gate` był opt-in. Wpis padnie sam, gdy te
-      // trasy dostaną loadery - i wtedy MA zostać zdjęty razem z obniżeniem
-      // `FROZEN_COLD_PUBLIC_ROUTES`.
-      const { cold, cachedCold } = analyseRealTree();
-      expect(cold.length).toBeLessThanOrEqual(COLD_PUBLIC_ROUTES_2026_09_01);
-      expect(cachedCold.length).toBeLessThanOrEqual(COLD_CACHED_ROUTES_2026_09_01);
-    },
-  );
+  it("REGRES Z 2026-09-01 (21/16) JEST SPŁACONY - wpis rejestru zamknięty", () => {
+    // Ten przypadek zastępuje `it.fails`, który stał tu od 2026-09-12 i
+    // rejestrował przyrost 21 -> 29 z gałęzi minisite'ów klubowych. Jego własny
+    // komentarz zapowiadał: „wpis padnie sam, gdy te trasy dostaną loadery -
+    // i wtedy MA zostać zdjęty razem z obniżeniem FROZEN_COLD_PUBLIC_ROUTES".
+    // Dokładnie to zaszło 2026-09-20: czternaście tras `/club/$clubSlug/**`
+    // grzeje dziś jeden loader układu, a sufity zeszły do 15/12.
+    //
+    // ZOSTAWIONY JAKO ZWYKŁY PRZYPADEK, NIE SKASOWANY, i to jest cała jego
+    // treść: `it.fails`, który zaczyna przechodzić, sam staje się czerwony -
+    // więc bez tej zamiany nikt nie odróżniłby spłaconego długu od zepsutej
+    // analizy. Porównanie z liczbami sprzed regresu pilnuje, żeby sufit nigdy
+    // nie wrócił ponad stan, od którego wszystko się zaczęło.
+    expect(FROZEN_COLD_PUBLIC_ROUTES).toBeLessThanOrEqual(21);
+    expect(FROZEN_COLD_CACHED_ROUTES).toBeLessThanOrEqual(16);
+  });
 });

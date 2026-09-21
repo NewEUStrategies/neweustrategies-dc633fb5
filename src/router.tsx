@@ -68,8 +68,12 @@ export const getRouter = () => {
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
-    // Query owns cache freshness; router never serves stale preloaded data.
-    defaultPreloadStaleTime: 0,
+    // 30 s okna „ta trasa jest już przygotowana". To NIE jest świeżość danych
+    // - tą włada react-query (staleTime 5 min, własne klucze). Router liczy tu
+    // wyłącznie swoją pracę: dopasowanie trasy, `beforeLoad` i import chunku.
+    // Przy 0 każde ponowne najechanie na ten sam odnośnik powtarzało to
+    // wszystko od zera, mimo że wynik nie mógł się zmienić.
+    defaultPreloadStaleTime: 30_000,
     // Aggressive intent preloading on hover/focus - by the time the user
     // clicks, the next route's loader has already resolved.
     defaultPreload: "intent",

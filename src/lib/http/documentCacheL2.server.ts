@@ -27,10 +27,16 @@
 // magazyn przez `setColoCacheForTests`.
 import type { NesCacheStatus } from "@/lib/http/documentCache";
 
-/** Minimalny kontrakt Cache API używany przez L2 (match/put wystarczą). */
+/**
+ * Minimalny kontrakt Cache API używany przez L2. `match`/`put` są konieczne;
+ * `delete` (standardowe `Cache.delete`) jest OPCJONALNE, bo minimalne atrapy i
+ * runtime'y wykrywane duck-typingiem w `getColoCache` mogą go nie mieć -
+ * `l2Delete` degraduje wtedy do no-op, a purge per ścieżka wciąż czyści L1.
+ */
 export interface ColoCache {
   match(request: Request): Promise<Response | undefined>;
   put(request: Request, response: Response): Promise<void>;
+  delete?(request: Request): Promise<boolean>;
 }
 
 /** Wpis dokumentu odtworzony z L2 wraz z metadanymi świeżości. */
@@ -80,7 +86,7 @@ interface VersionMemoEntry {
 
 const versionMemo = new Map<string, VersionMemoEntry>();
 
-const stats = { hits: 0, stale: 0, stores: 0, bumps: 0 };
+const stats = { hits: 0, stale: 0, stores: 0, bumps: 0, deletes: 0 };
 
 /** Dostępny magazyn per-colo albo null (poza Workers). */
 export function getColoCache(): ColoCache | null {
@@ -101,6 +107,7 @@ export function setColoCacheForTests(cache: ColoCache | null | undefined): void 
   stats.stale = 0;
   stats.stores = 0;
   stats.bumps = 0;
+  stats.deletes = 0;
 }
 
 function versionRequest(scope: string): Request {
@@ -238,6 +245,29 @@ export async function l2Put(
   }
 }
 
+/**
+ * Usunięcie JEDNEGO wpisu dokumentu z L2 (purge selektywny per ścieżka -
+ * publikacja wpisu nie musi już bumpować wersji całego hosta, czyli chłodzić
+ * całej kolonii). Adres liczony pod BIEŻĄCYMI wersjami: wpisy spod starszych
+ * wersji są i tak nieosiągalne. Cache API nie listuje kluczy, więc warianty
+ * z query (`?page=N`) NIE są tu usuwane - dogania je okno świeżości (<= 3 min),
+ * dokładnie tak jak inne kolonie. Zwraca, czy coś realnie usunięto; poza
+ * Workers i na runtime bez `delete` degraduje do no-op (false).
+ */
+export async function l2Delete(host: string | null, planKey: string): Promise<boolean> {
+  const cache = getColoCache();
+  if (!cache || typeof cache.delete !== "function") return false;
+  try {
+    const request = await documentRequest(cache, host, planKey);
+    const removed = await cache.delete(request);
+    if (removed) stats.deletes += 1;
+    return removed;
+  } catch {
+    /* best-effort: L2 to akcelerator, nigdy warunek poprawności */
+    return false;
+  }
+}
+
 /** Liczniki diagnostyczne L2 do karty /admin/performance. */
 export function l2Stats(): {
   enabled: boolean;
@@ -245,6 +275,8 @@ export function l2Stats(): {
   stale: number;
   stores: number;
   bumps: number;
+  /** Wpisy usunięte purge'em selektywnym (`l2Delete`). */
+  deletes: number;
 } {
   return { enabled: getColoCache() !== null, ...stats };
 }

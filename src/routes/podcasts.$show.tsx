@@ -2,7 +2,7 @@
 // episodes into seasons, surfaces the recurring hosts, and carries its own
 // subscribe links + a per-program RSS feed - the RUSI/think-tank "catalogue of
 // distinct series" model rather than one undifferentiated feed.
-import { createFileRoute, notFound, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -18,6 +18,7 @@ import {
   episodesPeopleQueryOptions,
 } from "@/lib/queries/podcasts";
 import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { notFoundIfClean } from "@/lib/ssr/notFoundIfClean";
 import { buildAvatarSrc } from "@/lib/cropSizes";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { ensureI18n as ensurePodcastsI18n } from "@/lib/i18n-podcasts";
@@ -56,6 +57,19 @@ const NO_PEOPLE: PodcastPerson[] = [];
 /** Program bez odcinkow - nie ma o kogo pytac, wiec render jest CZYSTY. */
 const PEOPLE_NOT_APPLICABLE = { data: NO_PEOPLE, degraded: false } as const;
 
+/**
+ * JEDEN termin ŻĄDANIA na cały łańcuch, zamiast trzech pełnych budżetów.
+ *
+ * Trzy fazy tego loadera są SZEREGOWE Z KONIECZNOŚCI: klucz odcinków niesie
+ * `show.id` (znany dopiero z pierwszej fazy), a klucz obsady - identyfikatory
+ * odcinków (znane dopiero z drugiej). Zrównoleglić się ich nie da, więc jedyną
+ * obroną przed sumowaniem budżetów jest TERMIN ABSOLUTNY: każda kolejna faza
+ * dostaje RESZTĘ okna, a nie własne pełne. Przed tą zmianą trzy domyślne
+ * budżety `loadResilient` (3 x 4 000 ms) dawały do 12 s przed pierwszym bajtem
+ * na stronie programu podcastowego.
+ */
+const SHOW_SSR_BUDGET_MS = 1_500;
+
 export const Route = createFileRoute("/podcasts/$show")({
   // Zapytanie TOŻSAMOŚCIOWE (czy ten program istnieje?) NIE MOŻE degradować się
   // do `null` - to sfabrykowałoby 404 na realnie istniejącej stronie, a 404
@@ -67,22 +81,26 @@ export const Route = createFileRoute("/podcasts/$show")({
   //     z indeksu, a monitor nie widzi awarii.
   // Lista odcinków jest wtórna - degraduje się do pustej (lib/ssr/resilientLoad).
   loader: async ({ context, params }) => {
+    const deadlineAt = Date.now() + SHOW_SSR_BUDGET_MS;
     const identity = await loadResilient(
       context.queryClient,
       showBySlugQueryOptions(params.show),
       SHOW_UNKNOWN,
+      { deadlineAt, label: `podcast-show:${params.show}` },
     );
-    if (identity.degraded) {
+    // `notFound()` WYŁĄCZNIE z czystego odczytu - `notFoundIfClean` jest tym
+    // samym rozróżnieniem, które opisuje komentarz wyżej.
+    const show = notFoundIfClean(identity);
+    if (show === null) {
       setCacheControlHeader(resilientCacheControl(true));
       return { show: null, degraded: true, coverPreload: null };
     }
-    const show = identity.data;
-    if (!show) throw notFound();
 
     const episodes = await loadResilient(
       context.queryClient,
       showEpisodesQueryOptions(show.id),
       NO_EPISODES,
+      { deadlineAt, label: `podcast-show-episodes:${show.id}` },
     );
     // N5 - STALA OBSADA PROGRAMU JEDZIE Z LOADEREM, NIE PO HYDRATACJI.
     // Lista prowadzacych serii to jedyne zapytanie tej trasy, ktore czytal
@@ -101,6 +119,7 @@ export const Route = createFileRoute("/podcasts/$show")({
             context.queryClient,
             episodesPeopleQueryOptions(episodes.data.map((e) => e.id)),
             NO_PEOPLE,
+            { deadlineAt, label: "podcast-show-people" },
           )
         : PEOPLE_NOT_APPLICABLE;
     setCacheControlHeader(resilientCacheControl(anyDegraded(episodes, people)));

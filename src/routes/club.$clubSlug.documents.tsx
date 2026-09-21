@@ -9,21 +9,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ClubWorkspaceLayout } from "@/components/clubs/organisms/ClubWorkspaceLayout";
 import { ClubDocumentLibrary } from "@/components/clubs/organisms/ClubDocumentLibrary";
-import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
-import { fetchClubBySlug } from "@/lib/clubs/publicClub";
-import { clubKeys } from "@/lib/clubs/queryKeys";
+import { buildClubHead, clubHeadLoader } from "@/lib/clubs/clubHead";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
 export const Route = createFileRoute("/club/$clubSlug/documents")({
-  loader: async ({ context, params }) => {
-    const club = await context.queryClient
-      .ensureQueryData({
-        queryKey: clubKeys.bySlug(params.clubSlug),
-        queryFn: () => fetchClubBySlug(params.clubSlug),
-      })
-      .catch(() => null);
-    return { club: toClubHeadSource(club) };
-  },
+  // Kartę klubu czyta RAZ loader UKŁADU `/club/$clubSlug`; tutaj zostaje sam
+  // odczyt z cache'u na potrzeby nagłówka - zero round-tripów (F09).
+  loader: ({ context, params, parentMatchPromise }) =>
+    clubHeadLoader(context.queryClient, params.clubSlug, parentMatchPromise),
   head: ({ loaderData, params }) =>
     buildClubHead({
       fallbackPath: `/club/${params.clubSlug}/documents`,

@@ -8,6 +8,7 @@
 // the CDN serves a cached render for `s-maxage`, then serves it stale (up to
 // `stale-while-revalidate`) while revalidating in the background, so visitors
 // almost never wait on a cold render.
+import { parseCacheControl } from "./parseCacheControl";
 
 export interface CacheControlInput {
   /** When false, the response must never be stored by a shared/browser cache. */
@@ -71,4 +72,94 @@ export function contentCacheControl(policy: ContentCachePolicy = {}): string {
     sharedMaxAge: PUBLIC_CONTENT_S_MAXAGE,
     staleWhileRevalidate: PUBLIC_CONTENT_SWR,
   });
+}
+
+/**
+ * Degradacja WYŁĄCZNIE chrome'u (nagłówek/stopka/ticker), a nie TREŚCI.
+ *
+ * Do 2026-09-20 bramka `ChromeDataGate` (src/lib/ssr/chromeWarmup.tsx)
+ * oznaczała dokument `private, no-store` ZAWSZE, gdy dane powłoki nie były
+ * gotowe przy flushu shella - także wtedy, gdy `warm()` kończyło się
+ * sukcesem i nagłówek dostrumieniowywał się poprawnie przez Suspense. Taki
+ * dokument jest KOMPLETNY: kopia do L1/L2 zbiera się do końca strumienia
+ * (`applyDeferredDocumentStore`), więc niesie już nagłówek - od czystego
+ * renderu różni go tylko to, że nagłówek przyjechał w drugiej paczce. Wolno go
+ * współdzielić, ale krótko: świeżość w sekundach, żeby czysty render (albo
+ * rewalidacja w tle) szybko go zastąpił, i krótkie okno stale, żeby nikt nie
+ * oglądał tej wersji kwadrans po publikacji. Skutek bez tej polityki: na
+ * zimnym izolacie KAŻDY czytelnik płacił pełny render, a L1/L2 kolonii nie
+ * rosło (audyt CWV 2026-09-20, F02).
+ */
+export const CHROME_DEGRADED_S_MAXAGE = 30; // s, CDN/edge
+export const CHROME_DEGRADED_SWR = 300; // s, serve-stale window
+
+/** Cache-Control dokumentu, którego chrome dostrumieniował się po flushu shella. */
+export function chromeDegradedCacheControl(): string {
+  return cacheControlHeader({
+    cacheable: true,
+    browserMaxAge: 0,
+    sharedMaxAge: CHROME_DEGRADED_S_MAXAGE,
+    staleWhileRevalidate: CHROME_DEGRADED_SWR,
+  });
+}
+
+/**
+ * Degradacja WARSTWY OPCJONALNEJ nad treścią, która w całości żyje w KODZIE.
+ *
+ * Dotyczy stron prawnych i statycznych (`LEGAL_SSR_BUDGET_MS`, `/support`):
+ * tekst dokumentu stoi w słowniku/rejestrze w repozytorium, a z bazy dokłada
+ * się wyłącznie DEKORACJA - nadpisania SEO z `/admin/pages` i opublikowana
+ * wersja z `legal_documents`. Gdy baza nie odpowie, czytelnik dostaje
+ * dokument KOMPLETNY, tylko niekanoniczny dla brzegu - dokładnie ta sama klasa
+ * co degradacja chrome'u, więc i ta sama odpowiedź: KRÓTKA świeżość wspólna
+ * z rewalidacją w tle (`chromeDegradedCacheControl`), a nie `no-store`.
+ *
+ * RÓŻNICA WOBEC `resilientCacheControl` (src/lib/ssr/resilientLoad.ts) jest
+ * różnicą w tym, CZYM JEST FALLBACK, a nie w stopniu ostrożności:
+ *   * tam fallback to KOMUNIKAT DEGRADACJI albo pusta powłoka (archiwa, trasy
+ *     tożsamościowe, karta klubu) - dokument NIE NIESIE swojej treści, więc
+ *     utrwalenie go na brzegu rozdaje awarię kolejnym czytelnikom i jedyną
+ *     poprawną odpowiedzią jest `no-store`;
+ *   * tutaj fallback to PEŁNA TREŚĆ z kodu - `no-store` nie chroniłby przed
+ *     niczym, a kosztowałby pełny render każdego czytelnika przez cały czas
+ *     trwania blipu bazy. Zmierzony skutek: w teście rozruchowym na artefakcie
+ *     (poświadczenia zastępcze = każde zapytanie do bazy pada) drugie żądanie
+ *     `/cookies` było MISS-em zamiast HIT-a, bo `no-store` z trasy zawężał
+ *     (`narrowestCacheControl`) politykę całego dokumentu i
+ *     `documentStorePolicy` nie zapisywała go wcale.
+ */
+export function staticFallbackCacheControl(
+  degraded: boolean,
+  cleanPolicy: string = contentCacheControl(),
+): string {
+  return degraded ? chromeDegradedCacheControl() : cleanPolicy;
+}
+
+/**
+ * Scalenie dwóch intencji cache'owych JEDNEGO żądania - loadery (korzeń, trasa,
+ * bramka chrome) biegną równolegle i każdy ustawia własną politykę, a wygrać
+ * musi zawsze ta OSTRZEJSZA:
+ *   1. `private` / `no-store` / `no-cache` wygrywa z każdą inną i nie da się
+ *      go cofnąć (raz zdegradowany render nie staje się znów cache'owalny);
+ *   2. między dwiema politykami `public` wygrywa MNIEJSZE `s-maxage` (brak
+ *      `s-maxage` liczy się jak 0), a przy równym - mniejsze okno stale.
+ *      Krótka świeżość ustawiona przez bramkę chrome nie może zostać
+ *      PODNIESIONA przez późniejszy czysty loader trasy do 900 s;
+ *   3. przy pełnym remisie zostaje wartość późniejsza.
+ * Czysta funkcja: kolejność wywołań nie zmienia wyniku (poza remisem, gdzie
+ * obie wartości są równoważne dla magazynu).
+ */
+export function narrowestCacheControl(previous: string | null | undefined, next: string): string {
+  if (!previous) return next;
+  const before = parseCacheControl(previous);
+  if (before.private || before.noStore || before.noCache) return previous;
+  const after = parseCacheControl(next);
+  if (after.private || after.noStore || after.noCache) return next;
+  const beforeFresh = before.sMaxAge ?? 0;
+  const afterFresh = after.sMaxAge ?? 0;
+  if (afterFresh !== beforeFresh) return afterFresh < beforeFresh ? next : previous;
+  const beforeSwr = before.staleWhileRevalidate ?? 0;
+  const afterSwr = after.staleWhileRevalidate ?? 0;
+  if (afterSwr !== beforeSwr) return afterSwr < beforeSwr ? next : previous;
+  return next;
 }

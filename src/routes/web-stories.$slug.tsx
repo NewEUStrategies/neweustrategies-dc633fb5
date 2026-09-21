@@ -1,4 +1,4 @@
-import { createFileRoute, notFound, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -6,7 +6,9 @@ import { webStoryBySlugQueryOptions, latestWebStoriesQueryOptions } from "@/lib/
 import { StoryViewer } from "@/components/web-stories/StoryViewer";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import { storyTitle, storyDescription } from "@/lib/web-stories/types";
+import type { WebStory } from "@/lib/web-stories/types";
 import { safeJsonLd } from "@/lib/seo/jsonld";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
@@ -18,17 +20,46 @@ import {
   type ImagePreloadInput,
 } from "@/lib/seo/meta";
 import { buildImageSrcSet } from "@/lib/cropSizes";
-import { appendLinkHeader } from "@/lib/http/responseHeaders";
+import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { notFoundIfClean } from "@/lib/ssr/notFoundIfClean";
 
 // `sizes` okładki - JEDNA stała dla renderowanego <img> i preloadu LCP, żeby
 // przeglądarka preładowała dokładnie ten wariant responsywny, który maluje
 // (rozjazd = podwójne pobranie).
 const COVER_IMAGE_SIZES = "(max-width: 896px) 100vw, 896px";
 
+/**
+ * Termin ŻĄDANIA odczytu TOŻSAMOŚCIOWEGO. Gołe `ensureQueryData` zamieniało
+ * KAŻDY blip bazy historii w twarde HTTP 500 na zaindeksowanym adresie
+ * (watchdog SSR anulował zapytanie, obietnica odrzucała, loader rzucał).
+ */
+const STORY_SSR_BUDGET_MS = 1_500;
+
+/**
+ * Fallback TOŻSAMOŚCIOWY. `null` jest tu WYŁĄCZNIE wartością zasiewu - o tym,
+ * czy historia istnieje, decyduje flaga `degraded` (lib/ssr/notFoundIfClean.ts).
+ */
+const NO_STORY: WebStory | null = null;
+
 export const Route = createFileRoute("/web-stories/$slug")({
   loader: async ({ context, params }) => {
-    const data = await context.queryClient.ensureQueryData(webStoryBySlugQueryOptions(params.slug));
-    if (!data) throw notFound();
+    const deadlineAt = Date.now() + STORY_SSR_BUDGET_MS;
+    const identity = await loadResilient(
+      context.queryClient,
+      webStoryBySlugQueryOptions(params.slug),
+      NO_STORY,
+      { deadlineAt, label: `web-story:${params.slug}` },
+    );
+    // `no-store` należy się DWÓM sytuacjom i obie są przejściowe: renderowi
+    // zdegradowanemu („nie wiemy") i 404 (historia bywa publikowana minutę po
+    // tym, jak crawler odwiedził jej adres). Ta trasa nie miała ŻADNEJ
+    // polityki, więc zdegradowany render brał domyślną politykę treści.
+    setCacheControlHeader(resilientCacheControl(identity.degraded || identity.data === null));
+    // 404 WYŁĄCZNIE z czystego odczytu - niewiedza nie ma prawa wypisać
+    // historii z indeksu.
+    const data = notFoundIfClean(identity);
+    if (data === null) return { story: null, coverPreload: null, degraded: true };
     // Preload LCP okładki - te same kandydaty (buildImageSrcSet) i sizes co
     // renderowany OptimizedImage `responsive`. Wartość idzie też jako nagłówek
     // HTTP `Link`, więc fetch startuje przed parsowaniem HTML.
@@ -40,7 +71,7 @@ export const Route = createFileRoute("/web-stories/$slug")({
         }
       : null;
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
-    return { story: data, coverPreload };
+    return { story: data, coverPreload, degraded: false };
   },
   // ── NAGŁÓWEK PRZEZ WSPÓLNY BUDOWNIK, NIE RĘCZNIE ──────────────────────────
   // Ta trasa była JEDYNĄ powierzchnią treściową modułu, która składała `meta`
@@ -131,6 +162,7 @@ export const Route = createFileRoute("/web-stories/$slug")({
 
 function WebStorySinglePage() {
   const { slug } = Route.useParams();
+  const { degraded } = Route.useLoaderData();
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = (i18n.language ?? "pl").startsWith("pl") ? "pl" : "en";
   const [open, setOpen] = useState(true);
@@ -138,6 +170,16 @@ function WebStorySinglePage() {
   const { data: story } = useQuery(webStoryBySlugQueryOptions(slug));
   const { data: more } = useQuery(latestWebStoriesQueryOptions(8));
 
+  // DEGRADACJA TOŻSAMOŚCI MÓWI PRAWDĘ. `story` jest wtedy zasianym `null`,
+  // a samo `return null` dawało PUSTY DOKUMENT na HTTP 200 - dla czytelnika
+  // nieodróżnialny od awarii przeglądarki, dla crawlera strona bez treści.
+  if (degraded) {
+    return (
+      <div className="container mx-auto max-w-3xl px-4 py-12">
+        <DegradedDataNotice variant="page" />
+      </div>
+    );
+  }
   if (!story) return null;
   const title = storyTitle(story, lang);
   const desc = storyDescription(story, lang);

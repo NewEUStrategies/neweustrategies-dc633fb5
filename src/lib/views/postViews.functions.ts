@@ -142,23 +142,36 @@ async function resolveAuthors(
   return out;
 }
 
-// Posts in one list overwhelmingly share a handful of parent pages, and
-// page_full_path is one DB round-trip per call - resolving it per POST (the
-// previous sequential loop) made the ticker cost 1+N round-trips and show up
-// seconds after the rest of the header. Dedupe to unique parent ids and
-// resolve them in parallel: worst case one extra round-trip of latency total.
+// Ścieżki rodziców JEDNYM round-tripem: RPC `page_full_paths(uuid[])`
+// (migracja 20260724150000, ten sam wzorzec co `lib/queries/archives.ts`).
+//
+// DLACZEGO: deduplikacja po rodzicu zbijała N wywołań do liczby unikalnych
+// stron, ale to nadal był N+1 - każdy unikalny rodzic to osobne połączenie,
+// a Worker ma tylko sześć równoległych gniazd wychodzących. Pasek renderuje
+// się w t0 fali 1 razem z menu i ustawieniami, więc każde z tych połączeń
+// wypychało z kolejki odczyt, od którego zależy pierwszy bajt.
+//
+// KSZTAŁT WYNIKU BEZ ZMIAN: mapa niesie WPIS DLA KAŻDEGO unikalnego rodzica,
+// domyślnie pusty - `postHref` odróżnia „ścieżki nie ma" od „ścieżka jest"
+// po falsy, więc brakujący klucz i pusty łańcuch znaczą dla niego to samo.
+// Zasiew trzymamy jawnie, żeby awaria RPC dawała dokładnie to, co dawała
+// wcześniej (adres zapasowy `/post/<slug>`), a nie mapę o innym rozmiarze.
 async function resolveParentPaths(
   sb: ReturnType<typeof client>,
   parentPageIds: Array<string | null | undefined>,
 ): Promise<Map<string, string>> {
   const unique = Array.from(new Set(parentPageIds.filter((id): id is string => !!id)));
-  const entries = await Promise.all(
-    unique.map(async (id) => {
-      const { data } = await sb.rpc("page_full_path", { _page_id: id });
-      return [id, typeof data === "string" ? data : ""] as const;
-    }),
-  );
-  return new Map(entries);
+  const paths = new Map<string, string>(unique.map((id) => [id, ""]));
+  if (unique.length === 0) return paths;
+  const { data, error } = await sb.rpc("page_full_paths", { _page_ids: unique });
+  if (error || !Array.isArray(data)) {
+    if (error) console.warn("page_full_paths failed:", error.message);
+    return paths;
+  }
+  for (const row of data) {
+    if (typeof row.full_path === "string") paths.set(row.page_id, row.full_path);
+  }
+  return paths;
 }
 
 function postHref(

@@ -31,6 +31,7 @@
 // własny, atrapowy korzeń i wiesza trasę pliku jako jego dziecko, więc prawdziwy
 // `__root` nigdy nie zostaje korzeniem.
 import { readChromeWarmup } from "@/lib/ssr/chromeWarmup";
+import { chromeDegradedCacheControl } from "@/lib/http/cachePolicy";
 import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GA4_MEASUREMENT_ID } from "@/lib/analytics/ga4Client";
@@ -54,6 +55,8 @@ const h = vi.hoisted(() => ({
   cancelMenus: false,
   social: [] as unknown[],
   brand: [] as unknown[],
+  ads: [] as string[],
+  adsHang: false,
 }));
 
 vi.mock("@/lib/i18n/localeRuntime", async (o) => ({
@@ -106,6 +109,19 @@ vi.mock("@/lib/menus/queries", () => ({
   menuWithItemsQueryOptions: (key: string) => ({
     queryKey: ["menu-with-items", key],
     queryFn: () => (h.menusHang ? new Promise(() => {}) : Promise.resolve((h.menus.push(key), []))),
+  }),
+}));
+// Placementy reklamowe: atrapa oddaje TEN SAM klucz, co produkcja (fabryka
+// `adPlacementsQueryOptions`), więc test dowodzi też, że korzeń grzeje klucz,
+// który naprawdę czyta `<AdZone>` w nagłówku.
+vi.mock("@/lib/ads/queries", async (o) => ({
+  ...(await o<typeof import("@/lib/ads/queries")>()),
+  adPlacementsQueryOptions: (position: string, pageType: string, pageId?: string | null) => ({
+    queryKey: ["ad_placements", position, pageType, pageId ?? null],
+    queryFn: () =>
+      h.adsHang
+        ? new Promise(() => {})
+        : Promise.resolve((h.ads.push(`${position}:${pageType}`), [])),
   }),
 }));
 vi.mock("@/lib/views/headerTickerQuery", async (o) => ({
@@ -164,6 +180,8 @@ beforeEach(() => {
   h.prefetch = [];
   h.ticker = [];
   h.menus = [];
+  h.ads = [];
+  h.adsHang = false;
   h.social = [];
   h.brand = [];
   h.canonicalCalls = 0;
@@ -290,16 +308,17 @@ describe("__root loader", () => {
 
   // ── ZASIEW UKŁADU TREŚCI - bez rozgrzewki sieciowej, ale MUSI BYĆ ─────────
   //
-  // Defekt zgłoszony w recenzji PR #314 (P2). Wyrzucając `postLayoutSettings`
-  // z fali 1 wyrzuciłem razem z nim ZASIEW DOMYŚLNYCH, którego `main` miał
-  // w tym samym pliku, i tego nie zauważyłem. Zmierzone sondą na PRAWDZIWYM
-  // `ContentAreaStyle` przez `renderToStaticMarkup`: z pustym cache'em
-  // komponent emituje DOSŁOWNIE ZERO BAJTÓW, z wpisem - blok z
-  // `margin-bottom: 1.5rem`. Zastępstwa w CSS-ie nie ma:
-  // `@tailwindcss/typography` NIE jest zainstalowany (czyli `prose prose-lg`
-  // jest martwe), a `preflight.css` trzyma `* { margin: 0 }`. Skutek na trasach
-  // renderujących treść redakcyjną poza `/$`: akapity bez odstępów w SSR
-  // i przesunięcie układu po hydratacji.
+  // Defekt zgłoszony w recenzji PR #314 (P2): wyrzucając `postLayoutSettings`
+  // z fali 1 wyleciał razem z nim ZASIEW DOMYŚLNYCH. Wtedy kosztowało to
+  // pierwsze malowanie - `ContentAreaStyle` miał gałąź `return null` i bez wpisu
+  // emitował w SSR zero bajtów.
+  //
+  // UZASADNIENIE PRZEPISANE 2026-09-20: tamta gałąź już nie istnieje (naprawa
+  // F29a - bez wiersza komponent emituje blok z `defaultPostLayoutSettings()`,
+  // wzorzec `ThemeFontSizesStyle`), więc zasiew nie ratuje już odstępów
+  // akapitów. Zostaje jako PARYTET SSR/KLIENT na jednej i tej samej stałej:
+  // serwer i pierwszy render klienta czytają ten sam wpis zamiast rozchodzić
+  // się na `data === undefined`.
   //
   // Ten przypadek pilnuje OBU połów naprawy: że zasiew jest, i że rodzi się
   // przeterminowany - inaczej domyślne przypięłyby się na 5-10 minut i wartości
@@ -307,7 +326,7 @@ describe("__root loader", () => {
   it("zasiewa domyślny układ treści, i to PRZETERMINOWANY", async () => {
     await runLoader(qc);
     const state = qc.getQueryState(["post-layout-settings"]);
-    expect(state, "bez zasiewu ContentAreaStyle emituje w SSR zero bajtów").toBeTruthy();
+    expect(state, "bez zasiewu SSR i klient rozchodzą się na tym kluczu").toBeTruthy();
     expect(state?.dataUpdatedAt).toBe(0);
   });
 
@@ -364,6 +383,50 @@ describe("__root loader", () => {
     expect(CHROME_WARM_BUDGET_MS).toBeLessThan(ROOT_WARM_BUDGET_MS);
   });
 
+  // ── BANER `header_banner` W FALI CHROME (audyt CWV, F26) ────────────────
+  //
+  // `AdZone` zwraca `null` bez danych, a `AdContainer` rezerwuje wtedy ZERO
+  // pikseli - 90 px banera nad treścią dojeżdżało po hydratacji i spychało
+  // stronę w dół (~0,11 CLS). Rozgrzewka w korzeniu maluje go już w SSR.
+  it("grzeje baner nagłówka dla typu strony, który rozstrzyga sam adres", async () => {
+    // Serwerowo, bo tylko tam korzeń AWAITUJE falę chrome - a dowodem jest
+    // wpis w cache'u, który pojedzie do klienta dehydratacją.
+    h.server = true;
+    await runLoader(qc, "/blog");
+    expect(h.ads).toEqual(["header_banner:archive"]);
+    // KLUCZ MUSI BYĆ TEN SAM, który czyta `<AdZone>` i `useHeaderSkeletonProps`.
+    expect(qc.getQueryData(["ad_placements", "header_banner", "archive", null])).toEqual([]);
+  });
+
+  it.each([
+    ["/", "home"],
+    ["/category/geopolityka", "category"],
+    ["/events/szczyt", "event"],
+  ])("typ strony %s -> %s", async (path, pageType) => {
+    await runLoader(qc, path);
+    expect(h.ads).toEqual([`header_banner:${pageType}`]);
+  });
+
+  it("NIE grzeje banera, gdy typ strony rozstrzyga dopiero loader trasy", async () => {
+    // Pod tym adresem stoi catch-all `$` (wpis albo strona), a jego typ wynika
+    // z `loaderData` - korzeń widziałby tu wyłącznie "all" i rozgrzałby klucz,
+    // którego NIKT nie czyta: round-trip za nic na najczęściej odwiedzanej
+    // powierzchni serwisu. Ten klucz grzeje `$.tsx`.
+    await runLoader(qc, "/analiza-o-czyms");
+    expect(h.ads).toEqual([]);
+  });
+
+  it("nierozgrzany baner NIE degraduje dokumentu - reklama jest dekoracją", async () => {
+    // Gdyby klucz banera trafił do `chromeQueryKeys`, brak sprzedanej emisji
+    // (albo jedna czkawka bazy) zbijałby na brzegu KAŻDY taki render.
+    h.server = true;
+    h.adsHang = true;
+    await runLoader(qc, "/blog");
+    expect(() => readChromeWarmup(qc)).not.toThrow();
+    expect(h.cacheControl).not.toContain("private, no-store");
+    await qc.cancelQueries();
+  });
+
   it("zapamiętuje domyślne karty społecznościowej i marki dla synchronicznego head()", async () => {
     h.settings = { seo: { default_og_image_url: "https://x/y.png" } };
     await runLoader(qc);
@@ -414,18 +477,20 @@ describe("__root head()", () => {
     });
     expect(r.meta.length).toBeGreaterThan(1);
     expect(r.links.some((l) => l.rel === "stylesheet")).toBe(true);
-    // Tag Google w SSR: zgoda domyślna PRZED konfiguracją strumienia, potem
-    // gtag.js ładowany identyfikatorem GA4; reguły spekulacji zamykają listę.
+    // Tag Google w SSR: zgoda domyślna PRZED konfiguracją strumienia; reguły
+    // spekulacji zamykają listę.
     const snippet = r.scripts[0]?.children ?? "";
     expect(snippet).toContain("gtag('consent','default'");
     expect(snippet).toContain(`gtag('config',"${GA4_MEASUREMENT_ID}",{send_page_view:false})`);
     expect(snippet.indexOf("gtag('consent','default'")).toBeLessThan(
       snippet.indexOf("gtag('config'"),
     );
-    expect(r.scripts[1]).toMatchObject({
-      src: `https://www.googletagmanager.com/gtag/js?id=${GA4_MEASUREMENT_ID}`,
-      async: true,
-    });
+    // ŻADNEGO `<script src>` DO OBCEGO ORIGINU W `<head>` (audyt CWV, F20).
+    // gtag.js był jedynym takim zasobem, bez `preconnect`, ~90 KB parse+execute
+    // w oknie hydratacji - dociąga go teraz `ConsentScriptInjector` po
+    // bezczynności. Asercja jest na CAŁEJ liście, nie na jednym indeksie:
+    // przywrócenie tagu gdziekolwiek w `scripts` ma zapalić ten test.
+    expect(r.scripts.some((script) => typeof script.src === "string")).toBe(false);
     expect(r.scripts.at(-1)?.type).toBe("speculationrules");
   });
 });
@@ -444,7 +509,12 @@ describe("__root wiring", () => {
 });
 
 describe("root chrome gate uses real query freshness", () => {
-  it("marks pending chrome no-store before its Suspense fallback flushes", async () => {
+  it("pending chrome before the shell flushes = KRÓTKA świeżość wspólna, nie no-store (F02)", async () => {
+    // Do 2026-09-20 stało tu `private, no-store`: każdy dokument, którego menu
+    // dostrumieniowało się po flushu shella, był niecache'owalny, więc zimny
+    // izolat nigdy nie zasiewał L1/L2. Rozgrzewka biegnie, dokument będzie
+    // kompletny - wolno go współdzielić przez `CHROME_DEGRADED_S_MAXAGE`.
+    // `no-store` zostaje dla `failed` (test niżej: wyczerpany termin).
     h.menusHang = true;
     try {
       await runLoader(qc, "/cookies");
@@ -455,7 +525,7 @@ describe("root chrome gate uses real query freshness", () => {
         suspended = value;
       }
       expect(suspended).toBeInstanceOf(Promise);
-      expect(h.cacheControl.at(-1)).toBe("private, no-store");
+      expect(h.cacheControl.at(-1)).toBe(chromeDegradedCacheControl());
       await suspended;
       expect(() => readChromeWarmup(qc)).not.toThrow();
     } finally {
@@ -513,7 +583,7 @@ describe("__root loader -> tag Google w SSR", () => {
   };
   const headWithData = () => Route.options.head as unknown as HeadWithData;
 
-  it("strumień GA4 z panelu analityki trafia do loaderData, a head() emituje go w snippecie i w src gtag.js", async () => {
+  it("strumień GA4 z panelu analityki trafia do loaderData, a head() emituje go w snippecie", async () => {
     h.settings = { analytics: { ga4_measurement_id: "G-PANEL00001" } };
 
     const data = await runLoader(qc);
@@ -523,7 +593,11 @@ describe("__root loader -> tag Google w SSR", () => {
     expect(r.scripts[0]?.children).toContain(
       `gtag('config',"G-PANEL00001",{send_page_view:false})`,
     );
-    expect(r.scripts[1]?.src).toBe("https://www.googletagmanager.com/gtag/js?id=G-PANEL00001");
+    // Pieczątka dla bootstrapu klienckiego zastępuje nieobecny `<script src>`:
+    // to po niej `ssrGtagId()` wie, że strumień jest już skonfigurowany, i nie
+    // wypycha drugiego kompletu poleceń.
+    expect(r.scripts[0]?.children).toContain(`window.__nesGa4SsrTag="G-PANEL00001"`);
+    expect(r.scripts.some((script) => script.src?.includes("googletagmanager"))).toBe(false);
   });
 
   it("wpis o złym kształcie (np. klucz API) nie trafia do HTML - zostaje stała wdrożenia", async () => {

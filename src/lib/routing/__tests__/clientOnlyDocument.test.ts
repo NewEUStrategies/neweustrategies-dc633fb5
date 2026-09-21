@@ -14,7 +14,12 @@
 // prefiks języka (`/en/admin` JEST panelem).
 import { describe, expect, it } from "vitest";
 
-import { CLIENT_ONLY_WARM_BUDGET_MS, isClientOnlyDocument } from "../clientOnlyDocument";
+import {
+  CHROME_ONLY_WARM_BUDGET_MS,
+  CLIENT_ONLY_WARM_BUDGET_MS,
+  isChromeOnlyDocument,
+  isClientOnlyDocument,
+} from "../clientOnlyDocument";
 
 describe("isClientOnlyDocument", () => {
   it.each([
@@ -55,5 +60,38 @@ describe("isClientOnlyDocument", () => {
     // porównywalnej z falą 1 cofnęłoby naprawę TTFB panelu po cichu.
     expect(CLIENT_ONLY_WARM_BUDGET_MS).toBeGreaterThanOrEqual(100);
     expect(CLIENT_ONLY_WARM_BUDGET_MS).toBeLessThanOrEqual(500);
+  });
+});
+
+describe("isChromeOnlyDocument", () => {
+  it.each([
+    // ── chrome serwisu, treść w całości po hydratacji ────────────────────
+    { path: "/profile", chromeOnly: true },
+    { path: "/profile/", chromeOnly: true },
+    { path: "/profile/billing", chromeOnly: true },
+    { path: "/network", chromeOnly: true },
+    { path: "/network/mutual/u1", chromeOnly: true },
+    { path: "/people", chromeOnly: true },
+    { path: "/reading-list", chromeOnly: true },
+    { path: "/messages", chromeOnly: true },
+    { path: "/checkout/plan-1", chromeOnly: true },
+    { path: "/en/profile", chromeOnly: true },
+    // ── treść serwerowa: pełna fala 1 zostaje ────────────────────────────
+    { path: "/", chromeOnly: false },
+    { path: "/blog", chromeOnly: false },
+    { path: "/events/forum", chromeOnly: false },
+    { path: "/admin", chromeOnly: false },
+    // ── pułapki prefiksu ─────────────────────────────────────────────────
+    { path: "/profiles", chromeOnly: false },
+    { path: "/networking", chromeOnly: false },
+    { path: "/blog/profile", chromeOnly: false },
+    { path: "", chromeOnly: false },
+  ])("$path -> chrome-only: $chromeOnly", ({ path, chromeOnly }) => {
+    expect(isChromeOnlyDocument(path)).toBe(chromeOnly);
+  });
+
+  it("termin chrome-only leży między terminem client-only a pełną falą 1", () => {
+    expect(CHROME_ONLY_WARM_BUDGET_MS).toBeGreaterThan(CLIENT_ONLY_WARM_BUDGET_MS);
+    expect(CHROME_ONLY_WARM_BUDGET_MS).toBeLessThanOrEqual(1_000);
   });
 });

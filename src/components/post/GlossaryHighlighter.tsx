@@ -14,6 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { glossaryTermsQueryOptions } from "@/lib/queries/glossary";
 import { glossaryLabels, markFirstOccurrences, unmarkAll } from "@/lib/post/glossaryHighlight";
+import { whenIdle } from "@/lib/ads/idle";
 
 export function GlossaryHighlighter({
   containerRef,
@@ -34,12 +35,16 @@ export function GlossaryHighlighter({
   useEffect(() => {
     const root = containerRef.current;
     if (!root || labels.length === 0) return;
-    // Poczekaj aż strumieniowane sekcje się ustabilizują (jeden rAF wystarcza
-    // dla SSR-hydratacji; treść lazy dostreamowana zostanie pominięta - trade
-    // świadomy: skan raz, bez MutationObservera na gorącej ścieżce czytania).
-    const raf = window.requestAnimationFrame(() => markFirstOccurrences(root, labels));
+    // Skan chodzi po WSZYSTKICH węzłach tekstowych artykułu, więc nie ma prawa
+    // biec w oknie pierwszej interakcji (F38). `requestAnimationFrame` stał
+    // dokładnie PRZED malowaniem klatki po hydratacji; `whenIdle` czeka na
+    // bezczynny wątek główny, a najpóźniej 2 s - dla czytelnika podkreślenia
+    // pojawiają się tak samo "od razu", dla INP to inne zadanie.
+    // Treść dostrumieniowana później jest nadal pomijana - trade świadomy:
+    // skan raz, bez MutationObservera na gorącej ścieżce czytania.
+    const cancel = whenIdle(() => markFirstOccurrences(root, labels), 2000);
     return () => {
-      window.cancelAnimationFrame(raf);
+      cancel();
       unmarkAll(root);
     };
   }, [containerRef, labels, scanKey]);

@@ -11,10 +11,14 @@
 //      Walidator ma przepuścić trzy postacie prawdy (`1`, `"true"`, `true`)
 //      i ODRZUCIĆ wszystko inne, w tym `"0"`, bo adres z fałszem nie może
 //      przestawiać kursora w polu tekstowym.
-//   2. LOADER dogrzewa cache pod DOKŁADNIE tym kluczem, z którego czyta komponent
-//      (`clubKeys.bySlug`), i NIE WYWALA trasy przy awarii RPC - `head()` liczy
-//      indeksowalność z widoczności klubu, więc wątek w klubie zamkniętym nie
-//      ma prawa wejść do indeksu (wyciek usuwa się z indeksu tygodniami).
+//   2. LOADER NIE PYTA BAZY W OGÓLE (audyt CWV 2026-09-20, F09): kartę klubu
+//      czyta RAZ loader UKŁADU `/club/$clubSlug` pod kluczem widza anonimowego
+//      (`clubKeys.bySlugViewer(slug, null)`), a tutaj zostaje sam odczyt
+//      z cache'u po `await parentMatchPromise`. Pusty cache (układ
+//      zdegradował) NIE WYWALA trasy - `head()` liczy indeksowalność
+//      z widoczności klubu, więc wątek w klubie zamkniętym nie ma prawa wejść
+//      do indeksu (wyciek usuwa się z indeksu tygodniami), a brak karty
+//      znaczy `noindex`, nie zgadywanie.
 //   3. CZTERY ETAPY WCZYTYWANIA są rozłączne, a kolejność warunków jest regułą:
 //      wejście na nieistniejący slug wątku kończy się 404, NIE wiecznym
 //      szkieletem (zapytanie o wątek jest wyłączone bez id klubu, a wyłączone
@@ -111,8 +115,12 @@ const h = vi.hoisted(() => ({
   user: null as { id: string } | null,
 
   // --- loader ---
+  /** Karta klubu, którą loader UKŁADU `/club/$clubSlug` zostawił w cache'u. */
   loaded: null as unknown,
-  loaderFails: false,
+  /** Układ ZDEGRADOWAŁ (budżet 800 ms albo awaria RPC): po `removeQueries`
+   *  cache jest pusty i liść nie ma z czego policzyć nagłówka. */
+  ukladZdegradowal: false,
+  /** Ile razy cokolwiek poszło do `club_view` - po F09 ma być ZERO. */
   fetchCalls: 0,
 
   // --- karta klubu ---
@@ -210,10 +218,11 @@ vi.mock("@/hooks/useAuth", () => ({
     isStaff: false,
   }),
 }));
+// KONTROLA NEGATYWNA, nie źródło danych: po F09 trasa wątku nie ma prawa
+// tknąć tej funkcji - kartę klubu czyta RAZ loader UKŁADU `/club/$clubSlug`.
 vi.mock("@/lib/clubs/publicClub", () => ({
   fetchClubBySlug: () => {
     h.fetchCalls += 1;
-    if (h.loaderFails) return Promise.reject(new Error("club_view padło"));
     return Promise.resolve(h.loaded);
   },
 }));
@@ -629,6 +638,7 @@ vi.mock("@/components/ui/alert-dialog", async () => {
   };
 });
 
+import { QueryClient } from "@tanstack/react-query";
 import { renderRoute, routeSearchValidator, type RouteMetaEntry } from "@/test/routeHarness";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
 import { EMPTY_WORKSPACE_SUMMARY } from "@/lib/clubs/workspaceTypes";
@@ -730,13 +740,37 @@ function actor(overrides: Partial<ClubReactionActor> = {}): ClubReactionActor {
   };
 }
 
+/**
+ * Klient zapytań W STANIE, W JAKIM ZOSTAWIA GO LOADER UKŁADU `/club/$clubSlug`
+ * (F09). Trasa wątku jest tu montowana W IZOLACJI, więc układ nie biegnie -
+ * jedynym jego skutkiem, który liść widzi, jest TEN wpis w cache'u, pod
+ * kluczem widza ANONIMOWEGO (dokument SSR jest z konstrukcji anonimowy, więc
+ * to ten sam klucz, z którego czyta komponent).
+ */
+function klientUkladu(slug: string = SLUG): QueryClient {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  if (!h.ukladZdegradowal) queryClient.setQueryData(clubKeys.bySlugViewer(slug, null), h.loaded);
+  return queryClient;
+}
+
 async function mount(entry: string = ENTRY) {
-  return renderRoute({ route: ThreadRoute, path: PATH, initialEntry: entry });
+  return renderRoute({
+    route: ThreadRoute,
+    path: PATH,
+    initialEntry: entry,
+    queryClient: klientUkladu(),
+  });
 }
 
 function robotsOf(meta: readonly RouteMetaEntry[]): string | null {
   const entry = meta.find((item) => item.name === "robots");
   return typeof entry?.content === "string" ? entry.content : null;
+}
+
+/** Tytuł strony z listy `meta` - dowód, że nagłówek dostał KARTĘ, a nie pustkę. */
+function titleOf(meta: readonly RouteMetaEntry[]): string | null {
+  const entry = meta.find((item) => typeof item.title === "string");
+  return typeof entry?.title === "string" ? entry.title : null;
 }
 
 /** Pasek reakcji wybranego wariantu - `full` to post otwierający, `compact` odpowiedzi. */
@@ -775,7 +809,7 @@ beforeEach(() => {
   h.lang = "pl";
   h.user = { id: CLUB_IDS.me };
   h.loaded = clubViewRow();
-  h.loaderFails = false;
+  h.ukladZdegradowal = false;
   h.fetchCalls = 0;
   h.club = clubViewRow();
   h.clubPending = false;
@@ -902,10 +936,29 @@ describe("strona wątku - `?reply=1` jako kontrakt linku z maila", () => {
 // ===========================================================================
 
 describe("strona wątku - loader i indeksowalność", () => {
-  it("loader dogrzewa cache pod `clubKeys.bySlug` - tym samym kluczem, z którego czyta widok", async () => {
-    const { queryClient } = await mount();
-    expect(queryClient.getQueryData(clubKeys.bySlug(SLUG))).not.toBeUndefined();
-    expect(h.fetchCalls).toBe(1);
+  it("loader NIE wykonuje żadnego fetchu i czyta kartę z cache'u układu", async () => {
+    // Cała oszczędność F09: trasa wątku robiła tu własne `ensureQueryData` na
+    // `club_view` przed pierwszym bajtem, a to samo RPC leciało DRUGI raz po
+    // hydratacji (komponent czyta klucz z widzem). Dowód ma dwie połowy -
+    // zero wywołań ORAZ nagłówek policzony z karty.
+    h.loaded = clubViewRow({ name_pl: "Klub korytarzowy", name_en: "Corridor club" });
+    const rendered = await mount();
+    expect(h.fetchCalls).toBe(0);
+    expect(titleOf(rendered.meta())).toContain("Klub korytarzowy");
+  });
+
+  it("loader czyta slug Z PARAMETRU, a nie ze stałej", async () => {
+    // Kartę w cache'u ma WYŁĄCZNIE `inny-klub`; stały literał zszedłby na
+    // tytuł zastępczy albo wyciągnąłby z cache'u kartę CUDZEGO klubu.
+    h.loaded = clubViewRow({ name_pl: "Klub korytarzowy", name_en: "Corridor club" });
+    const rendered = await renderRoute({
+      route: ThreadRoute,
+      path: PATH,
+      initialEntry: `/club/inny-klub/t/${THREAD}`,
+      queryClient: klientUkladu("inny-klub"),
+    });
+    expect(titleOf(rendered.meta())).toContain("Klub korytarzowy");
+    expect(h.fetchCalls).toBe(0);
   });
 
   it("nagłówek zgadza się z `buildClubHead` na danych z loadera", async () => {
@@ -935,8 +988,10 @@ describe("strona wątku - loader i indeksowalność", () => {
     },
   );
 
-  it("awaria loadera schodzi na `noindex` i NIE wywala trasy", async () => {
-    h.loaderFails = true;
+  it("PUSTY cache (układ zdegradował) schodzi na `noindex` i NIE wywala trasy", async () => {
+    // Bezpieczny domysł: brak karty nie może dać indeksu. Błąd w tę stronę
+    // kosztuje ruch, w drugą - wyciek tytułu wątku z klubu zamkniętego.
+    h.ukladZdegradowal = true;
     const rendered = await mount();
     expect(robotsOf(rendered.meta())).toBe("noindex, nofollow");
     expect(rendered.currentPath()).toBe(ENTRY);

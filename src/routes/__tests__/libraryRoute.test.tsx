@@ -30,6 +30,10 @@
 //   WYŁĄCZNIE to, co trasa jej podaje i co robi z każdą odpowiedzią.
 // - PARYTETU SŁOWNIKA PL/EN: `src/lib/i18n-library.ts` ma go wspólnie
 //   z bramkami `check:i18n-parity`.
+// - PARYTETU PL/EN KOMUNIKATU DEGRADACJI: copy `DegradedDataNotice` idzie
+//   przez `errorCopy()` (`currentLang()`, nie singleton i18next) i ma własny
+//   dowód w `src/components/error/__tests__/FriendlyErrorPage.test.tsx`.
+//   Tutaj przedmiotem dowodu jest WYBÓR gałęzi, nie brzmienie zdania.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 
@@ -311,28 +315,30 @@ describe("trasa /library - trzy różne prawdy: pustka, błąd, treść", () => 
   });
 
   it("awaria odczytu mówi „nie udało się”, a NIE „nie ma materiałów”", async () => {
-    // Loader łapie błąd (`.catch(() => undefined)`), więc trasa wychodzi
-    // z HTTP 200 - ale komponent MUSI odróżnić awarię od pustki, bo inaczej
+    // Od fail-open (`loadResilient`) loader zasiewa PUSTĄ listę z `updatedAt:
+    // 0` i podnosi `degraded`, więc `resourcesQ.isError` już nie zapala się
+    // jako pierwszy. Komunikat idzie ze WSPÓLNEJ warstwy degradacji - inaczej
     // czytelnik odchodzi w przekonaniu, że biblioteka jest pusta.
     h.broken = true;
     await mount();
 
-    expect(await screen.findByText("Nie udało się wczytać biblioteki.")).toBeInTheDocument();
+    expect(await screen.findByText("Ta sekcja chwilowo nie ma danych")).toBeInTheDocument();
     expect(screen.queryByText("Nie ma jeszcze żadnych materiałów.")).toBeNull();
   });
 
-  it("po angielsku komunikat awarii też jest angielski", async () => {
-    await i18n.changeLanguage("en");
-    h.broken = true;
+  it("KONTROLA DODATNIA: czysty render NIE pokazuje komunikatu degradacji", async () => {
+    // Bez tej pary dwa testy wyżej przechodziłyby także wtedy, gdyby komunikat
+    // degradacji wisiał na stronie ZAWSZE.
     await mount();
 
-    expect(await screen.findByText("Could not load the library.")).toBeInTheDocument();
+    expect(screen.queryByText("Ta sekcja chwilowo nie ma danych")).toBeNull();
   });
 
   it("awaria odczytu NIE wywraca trasy - nagłówek strony zostaje", async () => {
-    // To sedno `.catch(() => undefined)` w loaderze: gołe `ensureQueryData`
-    // zamieniłoby blip bazy w HTTP 500, a wtedy crawler traktuje stronę jak
-    // awarię serwera i wypada ona z indeksu.
+    // To sedno fail-open w loaderze: gołe `ensureQueryData` zamieniłoby blip
+    // bazy w HTTP 500, a wtedy crawler traktuje stronę jak awarię serwera
+    // i wypada ona z indeksu. Degraduje LISTA, nie cała strona - nagłówek
+    // (h1 + podtytuł) jest treścią stałą i zostaje na ekranie.
     h.broken = true;
     await mount();
 

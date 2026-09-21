@@ -1,8 +1,12 @@
 import * as React from "react";
-import { render } from "@react-email/render";
 import { createClient } from "@supabase/supabase-js";
 import { createFileRoute } from "@tanstack/react-router";
-import { TEMPLATES } from "@/lib/email-templates/registry";
+
+// F04 (2026-09-20): `@react-email/render` i rejestr szablonów (ciągnie
+// `app-transactional-templates` -> `@react-email/components`) schodzą ze
+// statycznego importu do `await import(...)` w handlerze. Moduł trasy jest
+// ewaluowany przy budowie drzewa tras, czyli PRZY STARCIE IZOLATU Workera,
+// a ten kod wykonuje się wyłącznie przy realnej wysyłce maila.
 
 // Configuration baked in at scaffold time
 const SITE_NAME = "New European Strategies";
@@ -99,6 +103,7 @@ export const Route = createFileRoute("/platform/email/transactional/send")({
         }
 
         // 1. Look up template from registry (early — needed to resolve recipient)
+        const { TEMPLATES } = await import("@/lib/email-templates/registry");
         const template = TEMPLATES[templateName];
 
         if (!template) {
@@ -346,6 +351,7 @@ export const Route = createFileRoute("/platform/email/transactional/send")({
         }
 
         // 4. Render React Email template to HTML and plain text
+        const { render } = await import("@react-email/render");
         const element = React.createElement(template.component, templateData);
         const html = await render(element);
         const plainText = await render(element, { plainText: true });

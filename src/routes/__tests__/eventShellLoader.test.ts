@@ -21,7 +21,7 @@
 // Testujemy loader jako funkcję, bez montowania drzewa - ten sam kod, który
 // wykona framework, tylko bez kosztu całego drzewa (ta sama doktryna co
 // `archiveRoutes.test.ts`).
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   /** Wynik RPC `event_page_header` - `null` = wydarzenia nie ma. */
@@ -32,8 +32,12 @@ const h = vi.hoisted(() => ({
   headerThrows: false,
   eventThrows: false,
   eventsEnabled: true,
+  /** Opóźnienie odczytu `site_settings` w ms - POWOLNOŚĆ, nie awaria. */
+  settingsDelayMs: 0,
   /** Nagłówek `Cache-Control`, jaki loader ustawił na odpowiedzi. */
   cacheControl: [] as string[],
+  /** Wartości nagłówka HTTP `Link` - dowód, że preload LCP wyszedł na drut. */
+  linkHeaders: [] as string[],
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
@@ -58,14 +62,22 @@ vi.mock("@/lib/community/publicQueries", () => ({
 vi.mock("@/lib/useSiteSetting", () => ({
   siteSettingsQueryOptions: {
     queryKey: ["site_settings_public", "all"],
-    queryFn: async () => ({}),
+    queryFn: () =>
+      h.settingsDelayMs > 0
+        ? new Promise((resolve) => setTimeout(() => resolve({}), h.settingsDelayMs))
+        : Promise.resolve({}),
   },
-  resolveSetting: () => ({ events_enabled: h.eventsEnabled }),
+  // Atrapa WIERNA w jedynym punkcie, który tu rozstrzyga: BRAK mapy ustawień
+  // znaczy „wchodzą `COMMUNITY_MODULES_DEFAULTS` z kodu" (`events_enabled`
+  // jest tam WŁĄCZONE), a nie „konfiguracja tenanta". Bez tego rozróżnienia
+  // przekroczony budżet bramki modułu byłby w tym pliku niewidoczny.
+  resolveSetting: (settings: unknown) =>
+    settings === undefined ? { events_enabled: true } : { events_enabled: h.eventsEnabled },
 }));
 
 vi.mock("@/lib/http/responseHeaders", () => ({
   setCacheControlHeader: (value: string) => void h.cacheControl.push(value),
-  appendLinkHeader: () => {},
+  appendLinkHeader: (value: string) => void h.linkHeaders.push(value),
   readRouteCacheDirective: () => null,
 }));
 
@@ -85,16 +97,18 @@ interface ShellLoaderData {
     readonly publishedAt: string | null;
   } | null;
   readonly degraded: boolean;
+  readonly coverPreload: { readonly href: string } | null;
 }
 
 type LoaderCtx = {
   context: { queryClient: QueryClient };
   params: { slug: string };
+  location: { pathname: string };
 };
 type Loader = (ctx: LoaderCtx) => Promise<ShellLoaderData>;
 
-function runLoader(slug = "szczyt"): Promise<ShellLoaderData> {
-  return runLoaderWithClient(slug).then(({ data }) => data);
+function runLoader(slug = "szczyt", pathname?: string): Promise<ShellLoaderData> {
+  return runLoaderWithClient(slug, pathname).then(({ data }) => data);
 }
 
 /**
@@ -104,12 +118,19 @@ function runLoader(slug = "szczyt"): Promise<ShellLoaderData> {
  */
 async function runLoaderWithClient(
   slug = "szczyt",
+  // Domyślnie PRZEGLĄD wydarzenia - to jedyna zakładka, która maluje okładkę,
+  // więc tylko na niej loader dokłada deskryptor preloadu LCP.
+  pathname = `/events/${slug}`,
 ): Promise<{ data: ShellLoaderData; queryClient: QueryClient }> {
   const loader = (EventShellRoute as unknown as { options: { loader: Loader } }).options.loader;
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
-  const data = await loader({ context: { queryClient }, params: { slug } });
+  const data = await loader({
+    context: { queryClient },
+    params: { slug },
+    location: { pathname },
+  });
   return { data, queryClient };
 }
 
@@ -136,8 +157,28 @@ beforeEach(() => {
   h.headerThrows = false;
   h.eventThrows = false;
   h.eventsEnabled = true;
+  h.settingsDelayMs = 0;
   h.cacheControl = [];
+  h.linkHeaders = [];
 });
+
+afterEach(() => {
+  // Stub środowiska z `renderOnServer()` nie może przeciekać na kolejny test.
+  vi.unstubAllGlobals();
+});
+
+/**
+ * Przestaw JEDEN przebieg loadera na RENDER SERWEROWY.
+ *
+ * Budżet bramki modułu (`EVENT_SETTINGS_BUDGET_MS`, 300 ms) liczy się wyłącznie
+ * na serwerze (recenzja PR #382, P1 - patrz docblock `withSsrBudget`
+ * w `src/lib/asyncBudget.ts`). Suita biegnie w happy-dom, gdzie `document`
+ * istnieje zawsze, więc DOMYŚLNIE jesteśmy w przeglądarce; predykat środowiska
+ * liczy `typeof document` przy każdym wywołaniu, więc podmiana globalu wystarcza.
+ */
+function renderOnServer(): void {
+  vi.stubGlobal("document", undefined);
+}
 
 describe("loader powłoki /events/$slug", () => {
   it("rzuca notFound(), gdy CZYSTY odczyt nagłówka definerowego jest pusty", async () => {
@@ -231,8 +272,38 @@ describe("loader powłoki /events/$slug", () => {
     h.headerThrows = true;
     h.eventThrows = true;
     const data = await runLoader();
-    expect(data).toEqual({ headEvent: null, degraded: false });
+    expect(data).toEqual({ headEvent: null, degraded: false, coverPreload: null });
     expect(h.cacheControl).toEqual([]);
+  });
+
+  it("NAWIGACJA SPA: POWOLNE ustawienia NIE zamrażają domyślek bramki modułu", async () => {
+    // SEDNO NAPRAWY (recenzja PR #382, P1 - patrz docblock `withSsrBudget`
+    // w `src/lib/asyncBudget.ts`). Bramka modułu ma 300 ms, a po tym czasie
+    // wchodzi `COMMUNITY_MODULES_DEFAULTS` z kodu, gdzie `events_enabled` jest
+    // WŁĄCZONE. Wynik loadera jest niezmienny przez całe życie dopasowania, a
+    // ta powłoka stoi pod SIEDMIOMA podstronami - przy nawigacji po stronie
+    // klienta powolny, ale POPRAWNY odczyt `site_settings` przestawiałby więc
+    // cały moduł na domyślkę zamiast na prawdę tenanta.
+    //
+    // Moduł jest tu WYŁĄCZONY W USTAWIENIACH, bo to jedyny układ, w którym
+    // domyślka i konfiguracja dają RÓŻNY wynik - widać, którą z nich loader
+    // naprawdę przeczytał. BEZ `renderOnServer()` z premedytacją: happy-dom
+    // JEST przeglądarką.
+    h.header = HEADER_ROW;
+    h.event = { id: "e1", slug: "szczyt" };
+    h.eventsEnabled = false;
+    h.settingsDelayMs = 600;
+    const spa = await runLoader();
+
+    expect(spa.headEvent, "budżet zadziałał w przeglądarce - to jest naprawiany defekt").toBeNull();
+    expect(h.cacheControl).toEqual([]);
+
+    // KONTROLA POZYTYWNA: to samo opóźnienie NA SERWERZE przepuszcza domyślkę,
+    // bo tam budżet MA obowiązywać - konfiguracja nie blokuje treści.
+    renderOnServer();
+    const ssr = await runLoader();
+
+    expect(ssr.headEvent?.slug).toBe("szczyt");
   });
 
   it("projekcja nagłówka niesie oba języki, okładkę i datę publikacji", async () => {
@@ -280,7 +351,7 @@ describe("head() powłoki /events/$slug", () => {
   } as const;
 
   it("bierze tytuł, opis i obraz Z WYDARZENIA, nie ze stałej", async () => {
-    const out = head({ headEvent, degraded: false });
+    const out = head({ headEvent, degraded: false, coverPreload: null });
     // Do 2026-09-01 tu stało "Wydarzenie - New European Strategies" dla KAŻDEGO
     // wydarzenia w serwisie - jeden tytuł, jeden opis, jeden obraz karty.
     expect(titleOf(out)).toContain("Szczyt strategiczny");
@@ -290,8 +361,84 @@ describe("head() powłoki /events/$slug", () => {
   });
 
   it("bez danych loadera wraca do dwujęzycznej wartości domyślnej, nie do pustki", async () => {
-    const out = head({ headEvent: null, degraded: true });
+    const out = head({ headEvent: null, degraded: true, coverPreload: null });
     expect(titleOf(out)).toContain("Wydarzenie");
     expect(metaByProperty(out, "og:description")).not.toBe("");
+  });
+});
+
+// ── PRELOAD LCP OKŁADKI WYDARZENIA ───────────────────────────────────────────
+//
+// Baner wydarzenia jest największym obrazem nad zgięciem przeglądu, więc jego
+// fetch ma ruszyć z nagłówków odpowiedzi, a nie dopiero z `<img>` w body.
+// Każdy z trzech warunków odcina POBRANIE, którego nikt nie namaluje - preload
+// obrazu, który nie wchodzi do układu, to czysty koszt pasma konkurujący
+// z zasobami krytycznymi.
+describe("preload okładki przeglądu wydarzenia", () => {
+  const PUBLIC_EVENT = {
+    id: "e1",
+    slug: "szczyt",
+    cover_url: "https://cdn.nes.eu/szczyt.jpg",
+    video_header_platform: null,
+    video_header_id: null,
+  };
+
+  it("PRZEGLĄD bez nagłówka wideo: deskryptor i nagłówek HTTP `Link`", async () => {
+    h.header = HEADER_ROW;
+    h.event = PUBLIC_EVENT;
+    const data = await runLoader();
+    // PARYTET: komponent maluje `<img src>` BEZ `srcSet`, więc deskryptor
+    // niesie sam `href` - inaczej przeglądarka pobrałaby dwa różne warianty.
+    expect(data.coverPreload).toEqual({ href: "https://cdn.nes.eu/szczyt.jpg" });
+    expect(h.linkHeaders).toHaveLength(1);
+    expect(h.linkHeaders[0]).toContain("<https://cdn.nes.eu/szczyt.jpg>");
+    expect(h.linkHeaders[0]).toContain("fetchpriority=high");
+    expect(h.linkHeaders[0]).not.toContain("imagesrcset");
+  });
+
+  it("ZAKŁADKA (np. /agenda) nie preloaduje - okładki tam nie ma", async () => {
+    h.header = HEADER_ROW;
+    h.event = PUBLIC_EVENT;
+    const data = await runLoader("szczyt", "/events/szczyt/agenda");
+    expect(data.coverPreload).toBeNull();
+    expect(h.linkHeaders).toEqual([]);
+  });
+
+  it("prefiks języka NIE psuje rozpoznania przeglądu", async () => {
+    h.header = HEADER_ROW;
+    h.event = PUBLIC_EVENT;
+    const data = await runLoader("szczyt", "/en/events/szczyt");
+    expect(data.coverPreload).toEqual({ href: "https://cdn.nes.eu/szczyt.jpg" });
+  });
+
+  it("NAGŁÓWEK WIDEO zastępuje okładkę, więc preloadu nie ma", async () => {
+    h.header = HEADER_ROW;
+    h.event = { ...PUBLIC_EVENT, video_header_platform: "youtube", video_header_id: "abc123" };
+    const data = await runLoader();
+    expect(data.coverPreload).toBeNull();
+  });
+
+  it("BŁĘDNY identyfikator wideo wraca do okładki - i do preloadu", async () => {
+    // `videoEmbedUrl` odrzuca identyfikator spoza alfabetu, a komponent maluje
+    // wtedy okładkę. Decyzja jest JEDNA i wspólna, więc preload jedzie za nią.
+    h.header = HEADER_ROW;
+    h.event = { ...PUBLIC_EVENT, video_header_platform: "youtube", video_header_id: "a b/c" };
+    const data = await runLoader();
+    expect(data.coverPreload).toEqual({ href: "https://cdn.nes.eu/szczyt.jpg" });
+  });
+
+  it("WYDARZENIE ZA BRAMKĄ WARSTWY: body rysuje zaproszenie, nie baner", async () => {
+    h.header = HEADER_ROW;
+    h.event = null;
+    const data = await runLoader();
+    expect(data.coverPreload).toBeNull();
+    expect(h.linkHeaders).toEqual([]);
+  });
+
+  it("wydarzenie bez okładki nie generuje pustego preloadu", async () => {
+    h.header = HEADER_ROW;
+    h.event = { ...PUBLIC_EVENT, cover_url: "   " };
+    const data = await runLoader();
+    expect(data.coverPreload).toBeNull();
   });
 });

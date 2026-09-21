@@ -633,54 +633,59 @@ describe("trasa /programs/$slug - brak programu i izolacja obszarów", () => {
   });
 });
 
-// ── DEFEKT PRZYPIĘTY: fabrykowany 404 przy awarii backendu ──────────────────
+// ── DEFEKT ZAMKNIĘTY: fabrykowany 404 przy awarii backendu (audyt CWV, W8) ──
 //
-// KONTRAKT, KTÓREGO CHCEMY. Blip backendu na trasie adresowanej slugiem musi
-// dać HTTP 200 z uczciwym komunikatem - dokładnie tak, jak rozstrzyga to
-// siostrzana `/podcasts/$show` (trzy rozdzielone stany: wiersz / `null` /
-// „nie wiemy"). Doktryna jest w repozytorium zapisana i przetestowana, tylko
-// nie na tej trasie.
+// KONTRAKT. Blip backendu na trasie adresowanej slugiem daje HTTP 200
+// z uczciwym komunikatem - dokładnie tak, jak rozstrzyga to siostrzana
+// `/podcasts/$show` (trzy rozdzielone stany: wiersz / `null` / „nie wiemy").
 //
-// STAN DZISIEJSZY. `programs.$slug` robi `ensureQueryData(...).catch(() => null)`
+// CO BYŁO. `programs.$slug` robiło `ensureQueryData(...).catch(() => null)`
 // i zaraz potem `if (!landing) throw notFound()`, więc „nie wiem" i „nie ma"
-// wpadają do jednej gałęzi. Minutowa niedostępność bazy zamienia ŻYWĄ stronę
-// programu w twarde 404, a 404 wyrzuca adres z indeksu wyszukiwarki na tygodnie.
+// wpadały do jednej gałęzi. Minutowa niedostępność bazy zamieniała ŻYWĄ stronę
+// programu w twarde 404, a 404 wyrzuca adres z indeksu na tygodnie. Odpowiedź
+// nie miała przy tym ŻADNEJ polityki `Cache-Control`, więc sfabrykowane 404
+// mogło jeszcze zamarznąć na brzegu dla kolejnych czytelników.
 //
-// DLACZEGO NIE NAPRAWIAM TEGO TUTAJ. Naprawa nie jest lokalna: wymaga
-// trójstanowego loadera (`loadResilient`), nowej gałęzi renderu (uczciwy
-// komunikat zamiast `PublicNotFound`) ORAZ nagłówka `no-store`, żeby
-// zdegradowany render nie zamarzł na brzegu CDN. Ta sama zmiana należy się
-// `tracker.$slug` i `/experts`, które mają bliźniaczy defekt w drugą stronę
-// (gubią flagę `degraded`), więc jest to jedna spójna jednostka pracy nad
-// doktryną fail-open dla tras slugowych - a nie doklejka do pliku testowego.
-// Zapadka poniżej pilnuje, żeby defekt nie zniknął z widoku ani nie został
-// „naprawiony" przypadkiem bez zmiany tego opisu.
+// CO JEST. `loadResilient` + `notFoundIfClean`: 404 wychodzi WYŁĄCZNIE
+// z odczytu CZYSTEGO, degradacja renderuje `DegradedDataNotice` pod
+// `private, no-store`.
 describe("trasa /programs/$slug - awaria backendu kontra 404", () => {
-  it.fails("awaria odczytu NIE POWINNA dawać 404 na żywym programie", async () => {
-    // TEN TEST MA PADAĆ. Gdy zacznie przechodzić, defekt jest naprawiony -
-    // wtedy zdejmij `.fails` i usuń kontrolę dodatnią poniżej.
-    //
+  it("awaria odczytu NIE daje 404 na żywym programie, tylko uczciwy komunikat", async () => {
     // Asercja jest SYNCHRONICZNA celowo: `renderRoute` czeka na loader, więc
-    // `notFound()` jest już rozstrzygnięte w pierwszym renderze. `waitFor`
-    // zamieniłby ten przypadek w zapadkę, która nigdy nie zmieni koloru -
-    // po naprawie czekanie na nieistniejący nagłówek 404 i tak rzucałoby
-    // timeoutem, czyli `it.fails` zostawałby zielony na zawsze.
+    // gdyby `notFound()` wróciło, byłoby rozstrzygnięte w pierwszym renderze.
     h.broken.add("research_programs");
     await mountDetail();
 
     expect(screen.queryByRole("heading", { name: "Nie znaleziono strony" })).toBeNull();
+    expect(screen.getByText("Ta sekcja chwilowo nie ma danych")).toBeInTheDocument();
   });
 
-  it("KONTROLA DODATNIA: dziś awaria odczytu daje dokładnie stronę 404", async () => {
-    // Bez tej pary `it.fails` wyżej byłby zielony także wtedy, gdyby trasa
-    // przestała się renderować z jakiegokolwiek innego powodu.
+  it("zdegradowany render deklaruje `no-store` - 404 nie zamarza na brzegu", async () => {
     h.broken.add("research_programs");
     await mountDetail();
 
-    expect(screen.getByRole("heading", { name: "Nie znaleziono strony" })).toBeInTheDocument();
-    // I nie ma tu ŻADNEGO nagłówka `no-store` - zdegradowana odpowiedź może
-    // trafić na brzeg CDN i utrwalić 404 dla kolejnych czytelników.
-    expect(h.cacheControl).toEqual([]);
+    expect(h.cacheControl.at(-1)).toBe("private, no-store");
+  });
+
+  it("KONTROLA DODATNIA: czysty render landingu deklaruje politykę TREŚCI", async () => {
+    // Bez tej pary dwa testy wyżej byłyby zielone także wtedy, gdyby trasa
+    // ogłaszała `no-store` ZAWSZE - czyli gdyby przestała się cache'ować.
+    await mountDetail();
+
+    expect(h.cacheControl.at(-1)).toContain("s-maxage");
+    expect(h.cacheControl.at(-1)).not.toContain("no-store");
+  });
+
+  it("czysty odczyt bez programu NADAL kończy się 404 pod `no-store`", async () => {
+    // Druga połowa kontraktu: fail-open nie ma prawa zamienić prawdziwego
+    // braku w miękkie 200, bo wtedy każdy literówkowy adres zostawałby
+    // w indeksie jako strona istniejąca.
+    await mountDetail("nie-ma-takiego-programu");
+
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Nie znaleziono strony" })).toBeInTheDocument(),
+    );
+    expect(h.cacheControl.at(-1)).toBe("private, no-store");
   });
 });
 

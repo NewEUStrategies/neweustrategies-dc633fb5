@@ -23,6 +23,11 @@
 //      (`common.confirm`, `common.cancel`, `common.save`), a etykieta podana
 //      przez wołającego ma je przesłonić.
 //
+//   5. OKNO ISTNIEJE DOPIERO NA ZGŁOSZENIE. Od 2026-09-20 ciało okna jedzie
+//      przez `React.lazy` (Radix poza bundlem startowym każdej strony), więc
+//      każdy przypadek po zgłoszeniu czeka na rozwiązanie importu -
+//      `flushLazyDialog`.
+//
 // Magazyn zgłoszeń (`@/lib/appDialogs`) jest PRAWDZIWY - to kilkadziesiąt
 // linii bez sieci i bez DOM, więc atrapa zamieniłaby test w sprawdzanie samej
 // siebie. Atrapowany jest wyłącznie `react-i18next`, i to PRAWDZIWYM
@@ -72,6 +77,22 @@ function openPrompt(opts: Omit<PromptDialogRequest, "kind">): Promise<string | n
   return answer;
 }
 
+/**
+ * Ciało okna jest ładowane dynamicznie (`React.lazy`), więc między zgłoszeniem
+ * a modalem w DOM jest rozwiązanie importu - w tym środowisku raz na kilka
+ * zadań, a raz dłużej (pierwsze wczytanie modułu transformuje plik). Pętla z
+ * twardym limitem jest tu uczciwsza od jednego `setTimeout`: czeka dokładnie
+ * tyle, ile trzeba, i nie zamienia braku okna w zawieszony test.
+ */
+async function flushLazyDialog(): Promise<void> {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    });
+    if (screen.queryByRole("alertdialog") ?? screen.queryByRole("dialog")) return;
+  }
+}
+
 /** Klik, po którym host rozstrzyga obietnicę i przerysowuje drzewo. */
 function clickButton(name: string): void {
   act(() => {
@@ -108,6 +129,7 @@ describe("potwierdzenie - kazde wyjscie inne niz zgoda znaczy odmowe", () => {
       title: "Usunąć wpis?",
       description: "Tej operacji nie da się cofnąć.",
     });
+    await flushLazyDialog();
 
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
     expect(screen.getByText("Usunąć wpis?")).toBeInTheDocument();
@@ -120,6 +142,7 @@ describe("potwierdzenie - kazde wyjscie inne niz zgoda znaczy odmowe", () => {
   it("klik w potwierdzenie oddaje `true`", async () => {
     render(<AppDialogHost />);
     const answer = openConfirm({ title: "Opublikować?" });
+    await flushLazyDialog();
 
     clickButton(CONFIRM());
 
@@ -129,6 +152,7 @@ describe("potwierdzenie - kazde wyjscie inne niz zgoda znaczy odmowe", () => {
   it("klik w anulowanie oddaje `false`", async () => {
     render(<AppDialogHost />);
     const answer = openConfirm({ title: "Opublikować?" });
+    await flushLazyDialog();
 
     clickButton(CANCEL());
 
@@ -140,6 +164,7 @@ describe("potwierdzenie - kazde wyjscie inne niz zgoda znaczy odmowe", () => {
     // domyślne „tak" i skasować wpis, którego nikt nie kazał kasować.
     render(<AppDialogHost />);
     const answer = openConfirm({ title: "Usunąć wpis?" });
+    await flushLazyDialog();
 
     act(() => {
       fireEvent.keyDown(document, { key: "Escape", code: "Escape" });
@@ -151,6 +176,7 @@ describe("potwierdzenie - kazde wyjscie inne niz zgoda znaczy odmowe", () => {
   it("po rozstrzygnięciu okno znika z DOM", async () => {
     render(<AppDialogHost />);
     const answer = openConfirm({ title: "Opublikować?" });
+    await flushLazyDialog();
 
     clickButton(CONFIRM());
     await answer;
@@ -161,6 +187,7 @@ describe("potwierdzenie - kazde wyjscie inne niz zgoda znaczy odmowe", () => {
   it("domyślne etykiety przycisków pochodzą ze słownika rdzenia", async () => {
     render(<AppDialogHost />);
     const answer = openConfirm({ title: "Opublikować?" });
+    await flushLazyDialog();
 
     expect(screen.getByRole("button", { name: "Potwierdź" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Anuluj" })).toBeInTheDocument();
@@ -173,6 +200,7 @@ describe("potwierdzenie - kazde wyjscie inne niz zgoda znaczy odmowe", () => {
     h.lang = "en";
     render(<AppDialogHost />);
     const answer = openConfirm({ title: "Publish?" });
+    await flushLazyDialog();
 
     expect(screen.getByRole("button", { name: "Confirm" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Potwierdź" })).toBeNull();
@@ -188,6 +216,7 @@ describe("potwierdzenie - kazde wyjscie inne niz zgoda znaczy odmowe", () => {
       confirmLabel: "Usuń konto",
       cancelLabel: "Zostaw",
     });
+    await flushLazyDialog();
 
     expect(screen.queryByRole("button", { name: CONFIRM() })).toBeNull();
     clickButton("Usuń konto");
@@ -199,6 +228,7 @@ describe("potwierdzenie - kazde wyjscie inne niz zgoda znaczy odmowe", () => {
     // Kolor jest tu jedynym ostrzeżeniem przed operacją nieodwracalną.
     render(<AppDialogHost />);
     const answer = openConfirm({ title: "Usunąć trwale?", destructive: true });
+    await flushLazyDialog();
 
     expect(screen.getByRole("button", { name: CONFIRM() }).className).toContain("bg-destructive");
 
@@ -209,6 +239,7 @@ describe("potwierdzenie - kazde wyjscie inne niz zgoda znaczy odmowe", () => {
   it("zgłoszenie bez opisu nie renderuje pustego akapitu", async () => {
     render(<AppDialogHost />);
     const answer = openConfirm({ title: "Opublikować?" });
+    await flushLazyDialog();
 
     const dialog = screen.getByRole("alertdialog");
     expect(dialog.textContent).toBe(`Opublikować?${CANCEL()}${CONFIRM()}`);
@@ -226,6 +257,7 @@ describe("pytanie o wartość - `null` to nie pusty napis", () => {
       label: "Nazwa",
       defaultValue: "Kopia robocza",
     });
+    await flushLazyDialog();
 
     const input = screen.getByLabelText("Nazwa");
     expect(input).toHaveValue("Kopia robocza");
@@ -240,6 +272,7 @@ describe("pytanie o wartość - `null` to nie pusty napis", () => {
     // tych dwóch przypadków kasuje wartość przy każdym anulowaniu.
     render(<AppDialogHost />);
     const answer = openPrompt({ title: "Nazwa kopii", defaultValue: "Kopia robocza" });
+    await flushLazyDialog();
 
     clickButton(CANCEL());
 
@@ -249,6 +282,7 @@ describe("pytanie o wartość - `null` to nie pusty napis", () => {
   it("wyczyszczone pole zatwierdzone świadomie oddaje PUSTY NAPIS", async () => {
     render(<AppDialogHost />);
     const answer = openPrompt({ title: "Nazwa kopii", label: "Nazwa", defaultValue: "Kopia" });
+    await flushLazyDialog();
 
     fireEvent.change(screen.getByLabelText("Nazwa"), { target: { value: "" } });
     clickButton(SAVE());
@@ -259,6 +293,7 @@ describe("pytanie o wartość - `null` to nie pusty napis", () => {
   it("Escape zamyka pytanie jako anulowane", async () => {
     render(<AppDialogHost />);
     const answer = openPrompt({ title: "Nazwa kopii" });
+    await flushLazyDialog();
 
     act(() => {
       fireEvent.keyDown(document, { key: "Escape", code: "Escape" });
@@ -275,6 +310,7 @@ describe("pytanie o wartość - `null` to nie pusty napis", () => {
       label: "Adres",
       placeholder: "np. analiza-rynku",
     });
+    await flushLazyDialog();
 
     expect(screen.getByText("Adres musi być unikalny w obrębie serwisu.")).toBeInTheDocument();
     expect(screen.getByLabelText("Adres")).toHaveAttribute("placeholder", "np. analiza-rynku");
@@ -286,6 +322,7 @@ describe("pytanie o wartość - `null` to nie pusty napis", () => {
   it("zgłoszenie bez wartości domyślnej daje puste pole", async () => {
     render(<AppDialogHost />);
     const answer = openPrompt({ title: "Nowy adres", label: "Adres" });
+    await flushLazyDialog();
 
     expect(screen.getByLabelText("Adres")).toHaveValue("");
 
@@ -296,6 +333,7 @@ describe("pytanie o wartość - `null` to nie pusty napis", () => {
   it("wlasna etykieta zatwierdzenia przeslania domyslny napis ze slownika", async () => {
     render(<AppDialogHost />);
     const answer = openPrompt({ title: "Nowy adres", confirmLabel: "Utwórz" });
+    await flushLazyDialog();
 
     expect(screen.queryByRole("button", { name: SAVE() })).toBeNull();
     clickButton("Utwórz");

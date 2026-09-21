@@ -2,11 +2,17 @@ import { invitationCopy } from "@/lib/locale/invitation";
 // Renderowanie szablonów maili transakcyjnych (subskrypcje, wydarzenia,
 // newsletter) do HTML na potrzeby podglądu w panelu admina.
 // Plik server-only: React Email `render` nie może trafić do bundla klienta.
+//
+// F04 (2026-09-20): `@react-email/render` i szablon `TxEmail` (ciągnie
+// `@react-email/components`) schodzą ze STATYCZNEGO importu do `await import()`
+// wewnątrz `renderTxEmailPreview`. Powód ten sam, co w `auth-preview.server.ts`:
+// statyczna krawędź kazała KAŻDEMU izolatowi Workera ewaluować React Email przy
+// starcie, także dla żądań bez podglądu poczty. Funkcja i tak była `async`,
+// więc publiczny kontrakt modułu się nie zmienia.
 import * as React from "react";
-import { render } from "@react-email/render";
 
 import type { EmailLang } from "@/lib/email-templates/nes-layout";
-import { TxEmail, type TxDetail } from "@/lib/email-templates/transactional";
+import type { TxDetail } from "@/lib/email-templates/transactional";
 import { txCopy, txSubject, type TxEmailType } from "@/lib/email-templates/tx-copy";
 import type { PolishGender } from "@/lib/i18n/polishVocative";
 import { txBody } from "@/lib/email-templates/tx-body";
@@ -404,6 +410,10 @@ export async function renderTxEmailPreview(
   };
   const ov = (key: Parameters<typeof resolvedField>[1]) => resolvedField(override, key, tokens);
 
+  const [{ render }, { TxEmail }] = await Promise.all([
+    import("@react-email/render"),
+    import("@/lib/email-templates/transactional"),
+  ]);
   const element = React.createElement(TxEmail, {
     type,
     lang,

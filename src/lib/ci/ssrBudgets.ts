@@ -53,7 +53,8 @@
  *       TAK, da się statycznie i bez żadnego przybliżenia: „może zdegradować"
  *       to obecność `withBudget` / `settleWithinBudget` / `loadResilient` /
  *       `Promise.allSettled` w ciele loadera, a „bramkuje" to przejście
- *       wartości nagłówka przez `resilientCacheControl(...)`. Doktryna jest
+ *       wartości nagłówka przez funkcję, której SYGNATURA ustala kierunek:
+ *       `resilientCacheControl(...)` albo `staticFallbackCacheControl(...)`. Doktryna jest
  *       w repozytorium napisana wzorowo (`src/lib/ssr/resilientLoad.ts:123-138`)
  *       i mechanizm istnieje od dawna - brakowało wyłącznie zapadki. Dwie
  *       trasy jej nie stosowały (`src/routes/$.tsx`, `src/routes/sitemap.tsx`)
@@ -95,20 +96,25 @@ export const FROZEN_SSR_BUDGETS = {
   /**
    * Najgorszy SZEREGOWANY łańcuch budżetów w JEDNYM loaderze trasy.
    *
-   * ZMIERZONE: `src/routes/$.tsx` = 13 000 ms (`PRIMARY_CONTENT_BUDGET_MS`
-   * 5 000 + `SECONDARY_PREFETCH_BUDGET_MS` 3 000 + `PRIMARY_CONTENT_BUDGET_MS`
-   * 5 000, trzy `await withBudget` na tym samym poziomie ciała loadera).
-   * Drugi: `blog.index.tsx` = 8 000. Trzeci: `tracker.index.tsx` = 5 500.
+   * ZMIERZONE 2026-09-20: src/routes/tracker.index.tsx = 5500 ms
+   * (`TRACKER_LOADER_BUDGET_MS` 4 000 + `TRACKER_FOLLOWERS_BUDGET_MS` 1 500).
+   * Drugi i trzeci: `src/routes/$.tsx` = 4 500 i `blog.index.tsx` = 4 500.
    *
-   * SPROSTOWANIE, KTÓRE TA LICZBA NIESIE. Zapis wydania 9 mówił, że
-   * „maksymalny sekwencyjny budżet przed pierwszym bajtem to dziś 3 000 ms".
-   * To prawda o łańcuchu KORZENIA i nieprawda o dokumencie: loader trasy
-   * catch-all ma 13 000 ms własnego szeregowanego budżetu i jedzie RÓWNOLEGLE
-   * do korzenia, więc sufitem dokumentu jest max(3 000, 13 000) = 13 000 ms.
-   * Ta podłoga jest wpisana jako CENA TEGO STANU, żeby nie rosła dalej po
-   * cichu - a nie jako zgoda na 13 sekund.
+   * RATCHET W DÓŁ z 13 000 ms. Poprzednią wartość dyktowała trasa łapiąca
+   * wszystko: trzy SZEREGOWE fazy z WŁASNYMI budżetami (5 000 + 3 000
+   * + 5 000), a jej loader jedzie RÓWNOLEGLE do korzenia, więc sufitem
+   * DOKUMENTU było max(3 000, 13 000) = 13 000 ms. Fazy dostały wspólny
+   * termin żądania (`lib/ssr/routeSsrDeadline.ts`), więc ich sufity nie
+   * sumują się już w czasie rzeczywistym - a same stałe zeszły do 1 500 ms,
+   * żeby ta liczba mówiła prawdę, a nie mierzyła martwy zapas.
+   *
+   * SPROSTOWANIE, KTÓRE TA LICZBA NADAL NIESIE: bramka sumuje SUFITY FAZ ze
+   * źródeł, bo tylko je widzi. Tam, gdzie fazy dzielą termin absolutny
+   * (`$.tsx`), realny sufit jest RÓWNY jednemu budżetowi (1 500 ms), a nie
+   * ich sumie. Ta podłoga jest więc górnym oszacowaniem ceny stanu
+   * dzisiejszego, wpisanym po to, żeby nie rosła po cichu.
    */
-  loaderChainMs: 13_000,
+  loaderChainMs: 5_500,
   /**
    * Równoległe podżądania w JEDNEJ tablicy `Promise.all`/`allSettled` loadera.
    *
@@ -398,16 +404,34 @@ const CACHE_WRITE_RE =
 // BEZ flagi `g`: `RegExp.test` z `g` jest STANOWY (`lastIndex` przenosi się
 // między wywołaniami), więc ta sama bramka dawałaby różne wyniki w zależności
 // od kolejności plików - dokładnie ta klasa błędu, której bramka ma pilnować.
+// `with(?:Ssr)?Budget` JEDNYM wzorcem: `withSsrBudget` (`src/lib/asyncBudget.ts`)
+// to ten sam termin, tylko honorowany wyłącznie w renderze serwerowym. Dla tej
+// bramki różnica jest żadna - mierzy ona SUFIT ZE ŹRÓDEŁ, a ten sufit dotyczy
+// dokładnie renderu serwerowego. Bez tej alternatywy budżet dałoby się schować
+// przed sufitem (1b) samą zamianą prymitywu: zmierzone na
+// `src/routes/tracker.index.tsx`, gdzie dwie zamiany zbiły raportowany łańcuch
+// z 5 500 na 0 ms bez skrócenia ani jednego budżetu.
 const DEGRADABLE_WORK_RE =
-  /\b(?:withBudget|settleWithinBudget|loadResilient)\s*\(|Promise\s*\.\s*allSettled\s*\(/;
+  /\b(?:with(?:Ssr)?Budget|settleWithinBudget|loadResilient)\s*\(|Promise\s*\.\s*allSettled\s*\(/;
 
 /**
  * Polityki, które POZWALAJĄ WSPÓLNEMU cache'owi zapisać dokument. Wołane BEZ
  * argumentu, bo `contentCacheControl({ preview: true })` /
  * `({ personalized: true })` zwracają `private, no-store` - czyli są
  * przeciwieństwem tego, czego ta reguła pilnuje.
+ *
+ * `staticFallbackCacheControl` jest tu MIMO argumentu i to nie jest wyjątek od
+ * powyższej zasady, tylko jej konsekwencja: ten helper oddaje politykę
+ * ZAPISYWALNĄ NA OBU gałęziach (`chromeDegradedCacheControl()` przy degradacji,
+ * `contentCacheControl()` przy czystym renderze - `lib/http/cachePolicy.ts`),
+ * więc każde jego wywołanie ustawia cache WSPÓLNY. Zastrzeżenie „bez
+ * argumentu" broni przed wariantami, które zwracają `private, no-store`, a tu
+ * taki wariant po prostu nie istnieje. Bez tej alternatywy trasy prawne
+ * i statyczne (`support`, `contribute`, `rodo`, regulaminy) wypadałyby spod
+ * reguły (4) CAŁKOWICIE - bramka nie widziałaby, że w ogóle ustawiają nagłówek.
  */
-const SHARED_CACHE_POLICY_RE = /\b(contentCacheControl|liveCacheControl)\s*\(\s*\)/;
+const SHARED_CACHE_POLICY_RE =
+  /\b(contentCacheControl|liveCacheControl)\s*\(\s*\)|\bstaticFallbackCacheControl\s*\(/;
 
 /**
  * JEDYNA droga do nagłówka renderu, który MOŻE być zdegradowany.
@@ -431,8 +455,17 @@ const SHARED_CACHE_POLICY_RE = /\b(contentCacheControl|liveCacheControl)\s*\(\s*
  * trasy bramkujące dotąd ręcznym warunkiem (`author.$slug.tsx`,
  * `blog.index.tsx`, `tracker.index.tsx`) zostały na nią przełożone tym samym
  * commitem - wartości nagłówka nie zmieniła ani jedna.
+ *
+ * DRUGA taka funkcja: `staticFallbackCacheControl(degraded)`
+ * (`lib/http/cachePolicy.ts`). Ma DOKŁADNIE tę własność, na której ta reguła
+ * stoi - kierunek ustala sygnatura, a nie warunek w wywołaniu: prawda oddaje
+ * politykę WĘŻSZĄ, fałsz szerszą. Różni się WYŁĄCZNIE tym, CZYM JEST fallback:
+ * tam pusta powłoka albo komunikat awarii (jedyna poprawna odpowiedź to
+ * `no-store`), tu PEŁNA TREŚĆ z kodu, dla której `no-store` nie chroniłby przed
+ * niczym, a kosztowałby pełny render każdego czytelnika przez cały blip bazy.
+ * Dla bramki liczy się kierunek, nie stopień - więc obie są bramką na równi.
  */
-const GATED_POLICY_RE = /\bresilientCacheControl\s*\(/;
+const GATED_POLICY_RE = /\b(?:resilientCacheControl|staticFallbackCacheControl)\s*\(/;
 
 /**
  * Nazwy stałych MODUŁU związanych z polityką wspólnego cache'u
@@ -452,8 +485,9 @@ export function sharedCachePolicyAliases(cleanSource: string): {
     const name = m[1];
     const value = m[2] ?? "";
     if (name === undefined) continue;
-    // Kolejność ma znaczenie: stała złożona z `resilientCacheControl(...)`
-    // pasuje do OBU wzorców patrząc naiwnie, a jest bramkowana.
+    // Kolejność ma znaczenie: stała złożona z funkcji bramkującej
+    // (`resilientCacheControl(...)`, `staticFallbackCacheControl(...)`) pasuje
+    // do OBU wzorców patrząc naiwnie, a jest bramkowana.
     if (GATED_POLICY_RE.test(value)) gated.add(name);
     else if (SHARED_CACHE_POLICY_RE.test(value)) shared.add(name);
   }
@@ -462,7 +496,8 @@ export function sharedCachePolicyAliases(cleanSource: string): {
 
 /**
  * Linie `setCacheControlHeader(...)` w ciele loadera, których argument ustawia
- * politykę WSPÓLNEGO cache'u, a NIE przechodzi przez `resilientCacheControl`.
+ * politykę WSPÓLNEGO cache'u, a NIE przechodzi przez jedną z funkcji
+ * bramkujących (`resilientCacheControl` / `staticFallbackCacheControl`).
  *
  * Wołanie z aliasem polityki `no-store` (`setCacheControlHeader(NO_STORE)`)
  * nie jest tu liczone: opt-out jest właśnie tym, czego ta reguła chce.
@@ -481,8 +516,9 @@ export function ungatedCacheControlSites(
     const arg = balancedArgs(loaderBody, open).trim();
     const setsSharedCache = SHARED_CACHE_POLICY_RE.test(arg) || mentions(arg, aliases.shared);
     if (!setsSharedCache) continue;
-    // Wartość MUSI przejść przez `resilientCacheControl` - patrz uzasadnienie
-    // przy `GATED_POLICY_RE`. Wywołanie z aliasem polityki `no-store`
+    // Wartość MUSI przejść przez funkcję bramkującą (`resilientCacheControl`
+    // albo `staticFallbackCacheControl`) - patrz uzasadnienie przy
+    // `GATED_POLICY_RE`. Wywołanie z aliasem polityki `no-store`
     // (`setCacheControlHeader(NO_STORE)`) nie dochodzi tu w ogóle: nie ustawia
     // polityki wspólnej, więc odsiewa je warunek wyżej.
     if (GATED_POLICY_RE.test(arg) || mentions(arg, aliases.gated)) continue;
@@ -533,7 +569,9 @@ export function loaderBudgetFacts(
   // zmianę prymitywu: zmierzone na `src/routes/$.tsx`, gdzie zamiana jednego
   // wywołania zbiła raportowany łańcuch z 13 000 na 10 000 ms bez skrócenia
   // ani jednego budżetu.
-  const budgetRe = /await\s+(?:withBudget|settleWithinBudget)\s*\(/g;
+  // `withSsrBudget` liczy się TAK SAMO jak `withBudget` - patrz komentarz przy
+  // `DEGRADABLE_WORK_RE`.
+  const budgetRe = /await\s+(?:with(?:Ssr)?Budget|settleWithinBudget)\s*\(/g;
   for (const m of loader.matchAll(budgetRe)) {
     const open = loader.indexOf("(", m.index + m[0].length - 1);
     const args = balancedArgs(loader, open);
@@ -676,7 +714,7 @@ export function analyzeSsrBudgets(input: SsrBudgetInput): SsrBudgetReport {
         file: loader.file,
         measured: loader.chainMs,
         ceiling: FROZEN_SSR_BUDGETS.loaderChainMs,
-        detail: `${loader.budgetSites.length} x await withBudget: ${loader.budgetSites
+        detail: `${loader.budgetSites.length} x await with(Ssr)Budget: ${loader.budgetSites
           .map((s) => `${s.constName}=${s.ms ?? "?"}`)
           .join(" + ")}`,
       });

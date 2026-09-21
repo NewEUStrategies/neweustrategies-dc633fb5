@@ -5,6 +5,13 @@
 // cache przez setQueryData na identycznym kluczu), channel posprzątany na
 // unmount. To jedyny blok, który utrzymuje websocket dla czytelników - relacja
 // na żywo tego wymaga.
+//
+// BRAMKA WIDOCZNOŚCI (F34). „Wymaga" znaczy: gdy ktoś tę relację CZYTA. Blok
+// bywa jednym z wielu na stronie; websocket zakładany zaraz po hydratacji
+// płacił za siebie także wtedy, gdy czytelnik nigdy do relacji nie dojechał.
+// Kanał wstaje więc przy wjeździe sekcji w kadr (z zapasem 200 px) i - skoro
+// czytelnik już tu był - zostaje do odmontowania: zrywanie go przy przewinięciu
+// w dół oznaczałoby lukę w relacji NA ŻYWO przy powrocie.
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { sanitizeHtml } from "@/lib/sanitize";
@@ -12,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { liveBlogEntriesBlockQueryOptions, type LiveBlogEntryRow } from "@/lib/queries/blocks";
 import { formatDate } from "@/lib/i18n/format";
 import { useNowMs } from "@/lib/time/useNowMs";
+import { useInView } from "@/hooks/use-in-view";
 
 const LABELS = {
   pl: {
@@ -110,11 +118,15 @@ export function LiveBlogBlock({
   );
   const { data } = useQuery(queryOpts);
   const entries = useMemo(() => data ?? [], [data]);
+  const { ref: sectionRef, inView } = useInView<HTMLElement>({
+    rootMargin: "200px 0px",
+    threshold: 0,
+  });
 
   // realtime subscription - merges live changes into the SAME cache entry
   // (queryOpts.queryKey), so refetches never clobber pushes and vice versa.
   useEffect(() => {
-    if (!autoRefresh) return;
+    if (!autoRefresh || !inView) return;
     const channel = supabase
       .channel(`liveblog:${postId}:${blockId}`)
       .on(
@@ -151,7 +163,7 @@ export function LiveBlogBlock({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [postId, blockId, lang, reverseChronological, autoRefresh, qc, queryOpts]);
+  }, [postId, blockId, lang, reverseChronological, autoRefresh, inView, qc, queryOpts]);
 
   const sorted = useMemo(() => {
     const pinned = entries.filter((e) => e.pinned);
@@ -161,6 +173,7 @@ export function LiveBlogBlock({
 
   return (
     <section
+      ref={sectionRef}
       className="not-prose my-6 rounded-xl border border-border bg-card/50 overflow-hidden"
       aria-live="polite"
       data-block="liveblog"

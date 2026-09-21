@@ -4,7 +4,12 @@ import { Suspense } from "react";
 import { renderToPipeableStream, renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { registerChromeWarmup, readChromeWarmup, ChromeDataGate } from "../chromeWarmup";
+import {
+  registerChromeWarmup,
+  readChromeWarmup,
+  ChromeDataGate,
+  type ChromeDegradation,
+} from "../chromeWarmup";
 import { sweepQueryCacheForSerialization } from "../postRenderSweep";
 
 afterEach(() => {
@@ -225,6 +230,65 @@ describe("non-blocking chrome warmup", () => {
       ),
     ).toBe("<nav>menu</nav>");
     expect(warm).toHaveBeenCalledOnce();
+    qc.clear();
+  });
+});
+
+describe("rodzaj degradacji zgłaszany bramce (F02)", () => {
+  function recorder() {
+    const kinds: ChromeDegradation[] = [];
+    return { kinds, markDegraded: (kind?: ChromeDegradation) => void kinds.push(kind ?? "chrome") };
+  }
+
+  it("pierwszy odczyt bez gotowych danych, gdy rozgrzewka biegnie, zgłasza `chrome` (nie `failed`)", async () => {
+    const qc = client();
+    const work = pending();
+    const rec = recorder();
+    registerChromeWarmup(qc, {
+      ready: () => false,
+      expired: () => false,
+      warm: () => work.promise,
+      markDegraded: rec.markDegraded,
+    });
+    const gate = readPromise(qc);
+    expect(rec.kinds).toEqual(["chrome"]);
+    work.resolve();
+    await gate;
+    expect(rec.kinds).toEqual(["chrome"]);
+    qc.clear();
+  });
+
+  it("wyczerpany budżet dokumentu zgłasza `failed`", () => {
+    const qc = client();
+    const rec = recorder();
+    registerChromeWarmup(qc, {
+      ready: () => false,
+      expired: () => true,
+      warm: async () => {},
+      markDegraded: rec.markDegraded,
+    });
+    expect(() => readChromeWarmup(qc)).not.toThrow();
+    expect(rec.kinds).toEqual(["failed"]);
+    qc.clear();
+  });
+
+  it("awaria `warm()` zgłasza `failed` - z rozgrzewki startowej i z ponowienia przy renderze", async () => {
+    const qc = client();
+    const rec = recorder();
+    const initial = registerChromeWarmup(qc, {
+      ready: () => false,
+      expired: () => false,
+      warm: async () => {
+        throw new Error("offline");
+      },
+      markDegraded: rec.markDegraded,
+    });
+    await initial;
+    expect(rec.kinds).toEqual(["failed"]);
+    await readPromise(qc);
+    // Odczyt: najpierw ostrożne `chrome` (rozgrzewka wystartowała), potem
+    // `failed`, gdy ponowienie padło - `no-store` wygrywa w scaleniu nagłówka.
+    expect(rec.kinds).toEqual(["failed", "chrome", "failed"]);
     qc.clear();
   });
 });

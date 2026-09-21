@@ -23,9 +23,108 @@ import {
 } from "@/lib/search/facetModel";
 import type { AutosuggestItem } from "@/lib/queries/archives";
 import type { Lang } from "./frame";
+import { WidgetStyleSheet } from "./widgetStyleSheets";
 import i18n from "@/lib/i18n";
 import "@/lib/i18n-search";
 import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
+
+// Arkusz STAŁY widgetu wyszukiwarki - nic w nim nie zależy od instancji,
+// a widget siedzi w nagłówku KAŻDEJ strony (i drugi raz w szufladzie
+// mobilnej). Jako zasób React 19 wypisuje się raz na dokument zamiast raz
+// na instancję i trafia do <head>, więc obowiązuje już przy pierwszej klatce.
+const SEARCH_WIDGET_CSS = `
+/* Wymuszamy overflow: visible i wysoki z-index na całym łańcuchu
+   przodków widgetu, żeby chip floating-labela nie był przycinany
+   przez kolumny/sekcje headera z overflow: hidden. */
+:where(*):has(> .builder-search-widget),
+:where(*):has(.builder-search-widget) {
+  overflow: visible !important;
+}
+.builder-search-widget {
+  position: relative;
+  z-index: 40;
+}
+.builder-search-widget .input-group {
+  overflow: visible !important;
+}
+.builder-search-widget input::-webkit-search-decoration,
+.builder-search-widget input::-webkit-search-cancel-button,
+.builder-search-widget input::-webkit-search-results-button,
+.builder-search-widget input::-webkit-search-results-decoration {
+  display: none;
+  -webkit-appearance: none;
+}
+.builder-search-widget input::-ms-clear,
+.builder-search-widget input::-ms-reveal {
+  display: none;
+  width: 0;
+  height: 0;
+}
+/* Placeholder text w kolorze jasnoszarym, spójnym z ikonami.
+   Transition dodany na transform, żeby unoszenie było animowane. */
+.builder-search-widget .input-group > .user-label {
+  color: color-mix(in oklab, var(--muted-foreground) 65%, transparent);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  z-index: 50;
+  transition: transform 180ms cubic-bezier(0.4, 0, 0.2, 1),
+              color 180ms cubic-bezier(0.4, 0, 0.2, 1),
+              background-color 180ms cubic-bezier(0.4, 0, 0.2, 1),
+              padding 180ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* Ikony jasnoszare, hover -> foreground. */
+.builder-search-widget button svg,
+.builder-search-widget .absolute svg {
+  color: color-mix(in oklab, var(--muted-foreground) 60%, transparent);
+}
+.builder-search-widget button:hover svg {
+  color: var(--foreground);
+}
+/* Builder/CMS typography has stronger inherited rules. These
+   selectors intentionally lock compact metadata and operators. */
+.builder-search-widget .search-kind-label {
+  font-family: "Red Hat Display", system-ui, sans-serif !important;
+  font-size: 9px !important;
+  line-height: 9px !important;
+  letter-spacing: 0 !important;
+}
+.builder-search-widget .search-operators-heading {
+  font-family: "Red Hat Display", system-ui, sans-serif !important;
+  font-size: 9px !important;
+  line-height: 9px !important;
+  letter-spacing: 0.04em !important;
+}
+.builder-search-widget .search-operator-button {
+  font-family: "Red Hat Display", system-ui, sans-serif !important;
+  font-size: 9px !important;
+  line-height: 9px !important;
+  letter-spacing: 0 !important;
+  min-height: 12px !important;
+}
+/* Klasyczny floating label: unosi się na górną krawędź inputa. */
+.builder-search-widget .input-group > .input:focus ~ .user-label,
+.builder-search-widget .input-group > .input:not(:placeholder-shown) ~ .user-label {
+  top: 0;
+  transform: translateY(-50%) scale(0.78);
+  background-color: var(--background);
+  padding: 0 0.35em;
+  color: var(--ring);
+  opacity: 1;
+}
+/* Cieńsze obramowanie w spoczynku, brak drop shadowa na focus. */
+.builder-search-widget .input-group > .input {
+  border-width: 1px;
+  border-color: color-mix(in oklab, var(--border) 80%, transparent);
+}
+.builder-search-widget .input-group > .input:focus {
+  box-shadow: none;
+  border-color: var(--ring);
+}
+`;
+
+function SearchWidgetSheet() {
+  return <WidgetStyleSheet name="nes-search-widget" css={SEARCH_WIDGET_CSS} />;
+}
 
 interface BucketedItem {
   item: AutosuggestItem;
@@ -849,99 +948,7 @@ export function SearchButtonWidget({
         </div>
       )}
 
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-            /* Wymuszamy overflow: visible i wysoki z-index na całym łańcuchu
-               przodków widgetu, żeby chip floating-labela nie był przycinany
-               przez kolumny/sekcje headera z overflow: hidden. */
-            :where(*):has(> .builder-search-widget),
-            :where(*):has(.builder-search-widget) {
-              overflow: visible !important;
-            }
-            .builder-search-widget {
-              position: relative;
-              z-index: 40;
-            }
-            .builder-search-widget .input-group {
-              overflow: visible !important;
-            }
-            .builder-search-widget input::-webkit-search-decoration,
-            .builder-search-widget input::-webkit-search-cancel-button,
-            .builder-search-widget input::-webkit-search-results-button,
-            .builder-search-widget input::-webkit-search-results-decoration {
-              display: none;
-              -webkit-appearance: none;
-            }
-            .builder-search-widget input::-ms-clear,
-            .builder-search-widget input::-ms-reveal {
-              display: none;
-              width: 0;
-              height: 0;
-            }
-            /* Placeholder text w kolorze jasnoszarym, spójnym z ikonami.
-               Transition dodany na transform, żeby unoszenie było animowane. */
-            .builder-search-widget .input-group > .user-label {
-              color: color-mix(in oklab, var(--muted-foreground) 65%, transparent);
-              font-size: 0.8125rem;
-              font-weight: 400;
-              z-index: 50;
-              transition: transform 180ms cubic-bezier(0.4, 0, 0.2, 1),
-                          color 180ms cubic-bezier(0.4, 0, 0.2, 1),
-                          background-color 180ms cubic-bezier(0.4, 0, 0.2, 1),
-                          padding 180ms cubic-bezier(0.4, 0, 0.2, 1);
-            }
-            /* Ikony jasnoszare, hover -> foreground. */
-            .builder-search-widget button svg,
-            .builder-search-widget .absolute svg {
-              color: color-mix(in oklab, var(--muted-foreground) 60%, transparent);
-            }
-            .builder-search-widget button:hover svg {
-              color: var(--foreground);
-            }
-            /* Builder/CMS typography has stronger inherited rules. These
-               selectors intentionally lock compact metadata and operators. */
-            .builder-search-widget .search-kind-label {
-              font-family: "Red Hat Display", system-ui, sans-serif !important;
-              font-size: 9px !important;
-              line-height: 9px !important;
-              letter-spacing: 0 !important;
-            }
-            .builder-search-widget .search-operators-heading {
-              font-family: "Red Hat Display", system-ui, sans-serif !important;
-              font-size: 9px !important;
-              line-height: 9px !important;
-              letter-spacing: 0.04em !important;
-            }
-            .builder-search-widget .search-operator-button {
-              font-family: "Red Hat Display", system-ui, sans-serif !important;
-              font-size: 9px !important;
-              line-height: 9px !important;
-              letter-spacing: 0 !important;
-              min-height: 12px !important;
-            }
-            /* Klasyczny floating label: unosi się na górną krawędź inputa. */
-            .builder-search-widget .input-group > .input:focus ~ .user-label,
-            .builder-search-widget .input-group > .input:not(:placeholder-shown) ~ .user-label {
-              top: 0;
-              transform: translateY(-50%) scale(0.78);
-              background-color: var(--background);
-              padding: 0 0.35em;
-              color: var(--ring);
-              opacity: 1;
-            }
-            /* Cieńsze obramowanie w spoczynku, brak drop shadowa na focus. */
-            .builder-search-widget .input-group > .input {
-              border-width: 1px;
-              border-color: color-mix(in oklab, var(--border) 80%, transparent);
-            }
-            .builder-search-widget .input-group > .input:focus {
-              box-shadow: none;
-              border-color: var(--ring);
-            }
-          `,
-        }}
-      />
+      <SearchWidgetSheet />
     </div>
   );
 }

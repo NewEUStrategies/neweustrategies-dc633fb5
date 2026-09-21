@@ -114,3 +114,95 @@ it("wariant szerokościowy nie wymaga wysokości, a śmieciowe parametry są pom
     "https://storage.example.test/storage/v1/object/public/media/cover.jpg",
   );
 });
+
+it("przekazuje do magazynu Accept i walidatory warunkowe obok Range", async () => {
+  // `Accept` przesądza o WebP - transformacja Supabase negocjuje format
+  // WYŁĄCZNIE tym nagłówkiem (parametr `format` zna tylko `origin`). Bez
+  // przekazania markowa ścieżka /media/* zawsze oddawałaby format oryginału.
+  // Walidatory pozwalają magazynowi odpowiedzieć 304 zamiast całego ciała.
+  h.fetch.mockResolvedValue(new Response("img", { headers: { "content-type": "image/webp" } }));
+  await serve(
+    "GET",
+    "cover.jpg",
+    {
+      accept: "image/avif,image/webp,image/*;q=0.8",
+      "if-none-match": '"image-1"',
+      "if-modified-since": "Sat, 12 Sep 2026 10:00:00 GMT",
+      range: "bytes=0-99",
+    },
+    "?width=320",
+  );
+  expect(h.fetch.mock.calls[0][1]).toEqual({
+    method: "GET",
+    headers: {
+      Accept: "image/avif,image/webp,image/*;q=0.8",
+      "If-None-Match": '"image-1"',
+      "If-Modified-Since": "Sat, 12 Sep 2026 10:00:00 GMT",
+      Range: "bytes=0-99",
+    },
+  });
+});
+
+it("Accept z gwiazdką idzie dalej dosłownie, bez naszej interpretacji", async () => {
+  // Negocjację prowadzi upstream. Każde "poprawianie" listy typów po drodze
+  // rozjechałoby nasz wybór z tym, co realnie odda magazyn.
+  h.fetch.mockResolvedValue(new Response("img", { headers: { "content-type": "image/jpeg" } }));
+  await serve("GET", "cover.jpg", { accept: "*/*" });
+  expect(h.fetch.mock.calls[0][1]).toEqual({ method: "GET", headers: { Accept: "*/*" } });
+});
+
+it.each(["GET", "HEAD"] as const)("%s oznacza odpowiedź Vary: Accept", async (method) => {
+  // Treść zależy od `Accept` (WebP kontra format oryginału). Bez `Vary` cache
+  // brzegowy podałby WebP przeglądarce, która go nie obsługuje.
+  h.fetch.mockResolvedValue(new Response("img", { headers: { "content-type": "image/webp" } }));
+  const response = await serve(method, "cover.jpg", { accept: "image/webp" });
+  expect(response.headers.get("vary")).toBe("Accept");
+});
+
+it("304 z magazynu wraca jako 304, nie jako brak pliku", async () => {
+  // Pułapka: warunek `!response.ok && status !== 206` uznałby 304 za 4xx i
+  // zwrócił 404. Przeglądarka pobrałaby wtedy pełne ciało (albo zobaczyła błąd)
+  // zamiast odświeżyć wpis w cache jednym pustym obrotem.
+  h.fetch.mockResolvedValue(
+    new Response(null, {
+      status: 304,
+      headers: { etag: '"image-1"', "last-modified": "Sat, 12 Sep 2026 10:00:00 GMT" },
+    }),
+  );
+  const response = await serve("GET", "cover.jpg", { "if-none-match": '"image-1"' });
+  expect(response.status).toBe(304);
+  expect(await response.text()).toBe("");
+  expect(response.headers.get("etag")).toBe('"image-1"');
+  expect(response.headers.get("last-modified")).toBe("Sat, 12 Sep 2026 10:00:00 GMT");
+  expect(response.headers.get("cache-control")).toContain("s-maxage=86400");
+  expect(response.headers.get("vary")).toBe("Accept");
+});
+
+it("304 nie opisuje ciała, którego nie wysyła", async () => {
+  // `Content-Type`/`Content-Length` przepisane z upstreamu kłamałyby o pustej
+  // odpowiedzi - część pośredników liczy na zgodność tych pól z treścią.
+  h.fetch.mockResolvedValue(
+    new Response(null, {
+      status: 304,
+      headers: { etag: '"image-1"', "content-type": "image/webp", "content-length": "1234" },
+    }),
+  );
+  const response = await serve("GET", "cover.jpg", { "if-none-match": '"image-1"' });
+  expect(response.headers.get("content-type")).toBeNull();
+  expect(response.headers.get("content-length")).toBeNull();
+});
+
+it("wyjątek dla 304 nie rozszczelnił mapowania błędów magazynu", async () => {
+  // Strażnik: 404/400 nadal są brakiem pliku, a 5xx awarią bramy - przepuszczenie
+  // 304 miało dotknąć wyłącznie żądań warunkowych.
+  for (const [upstream, expected] of [
+    [404, 404],
+    [400, 404],
+    [500, 502],
+  ] as const) {
+    h.fetch.mockResolvedValue(new Response("storage detail", { status: upstream }));
+    const response = await serve("GET", "cover.jpg", { "if-none-match": '"image-1"' });
+    expect(response.status).toBe(expected);
+    expect(await response.text()).toBe("Not found");
+  }
+});

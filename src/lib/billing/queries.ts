@@ -13,6 +13,10 @@ import type {
   UserSubscriptionRow,
 } from "./types";
 
+// Typ planu re-eksportowany dla tras (pricing, membership-join, plans), które
+// typują fallbacki `loadResilient` po kształcie wyniku `fetchActivePlans`.
+export type { AccessPlan } from "./types";
+
 const PLAN_COLUMNS =
   "id, tenant_id, name_pl, name_en, description_pl, description_en, price_cents, currency, interval, active, sort_order, features_pl, features_en, badge_pl, badge_en, highlighted, trial_days, tier_key";
 

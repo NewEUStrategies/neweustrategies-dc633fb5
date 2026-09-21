@@ -10,9 +10,12 @@
 //   * AWARIA NIE MOŻE WYGLĄDAĆ JAK PUSTKA. Ten plik ma DZIEWIĘĆ miejsc, w
 //     których odmowa bazy nie zostawia śladu, bo destrukturyzacja pomija
 //     `error`: reguła dostępu (linia 77), ustawienia czytania w przeglądarce
-//     (405), strona główna po id (480) i po slugu (490), tagi/kategorie/
-//     współautorzy wpisu (713-715), profile autorów i nakładka (749-756) oraz
-//     nagłówek dziedziczony po przodkach strony (792). Każde z nich dostaje tu
+//     (405), strona główna po id (480) i po slugu (490), współautorzy wpisu,
+//     profile autorów i nakładka oraz nagłówek dziedziczony po przodkach
+//     strony. TAGI I KATEGORIE WYPADŁY Z TEJ LISTY 2026-09-20 (audyt CWV, F06):
+//     nie jadą już osobnymi zapytaniami, tylko OSADZENIEM w wierszu `posts`
+//     (`POST_RESOLVE_SELECT`), więc ich odmowa kładzie CAŁE zapytanie wiersza
+//     i wpada w `if (error) throw` - odmowa nie ma już gdzie zniknąć. Każde z nich dostaje tu
 //     przypadek PRZYPINAJĄCY stan faktyczny, a pięć najgroźniejszych dodatkowo
 //     `it.fails` z konsekwencją dla człowieka. Klasa defektu „awaria wygląda
 //     jak brak danych" wystąpiła w tym repo trzykrotnie;
@@ -139,6 +142,7 @@ vi.mock("@/lib/ssrCache", () => ({
 import {
   BLOG_PAGE_SIZE,
   ENTITY_SELECT_COLS,
+  POST_RESOLVE_SELECT,
   blogArchiveQueryOptions,
   blogListQueryOptions,
   fetchGatedBody,
@@ -252,6 +256,21 @@ function wierszWpisuListy(id: string, over: Record<string, unknown> = {}): Recor
   };
 }
 
+/**
+ * Wiersz `posts` tak, jak oddaje go PostgREST dla `POST_RESOLVE_SELECT`:
+ * kolumny encji PLUS dwie tablice wierszy pivotu z osadzonym obiektem
+ * (`{ tags: ... }` / `{ categories: ... }`). Ukryty przez RLS rekord daje
+ * w osadzeniu `null` w miejscu obiektu - dokładnie tak samo, jak dawał przy
+ * osobnym zapytaniu do tabeli pivot.
+ */
+function wierszWpisuZTaksonomiami(
+  id: string,
+  osadzenia: { post_tags?: unknown; post_categories?: unknown },
+  over: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return wierszWpisuListy(id, { ...osadzenia, ...over });
+}
+
 function wierszProfilu(id: string): Record<string, unknown> {
   return {
     id,
@@ -311,13 +330,19 @@ function odpowiedzStron(plan: PlanStron): TableResponder {
 
 /** Plan pełnej rezolucji treści. Każda granica ma tu domyślną, UDANĄ
  *  odpowiedź, bo atrapa traktuje niezaplanowaną tabelę jako błąd testu - a
- *  `Promise.all` w rezolucji dotyka siedmiu granic naraz. */
+ *  `Promise.all` w rezolucji dotyka PIĘCIU granic naraz.
+ *
+ *  Nie ma tu już odnóg `tagi`/`kategorie`: od 2026-09-20 taksonomie jadą
+ *  OSADZENIEM w wierszu `posts` (`POST_RESOLVE_SELECT`), więc planuje się je
+ *  na wierszu wpisu (`wierszWpisuZTaksonomiami`), a nie na osobnej tabeli.
+ *  Brak planu dla `post_tags`/`post_categories` jest tu KONTROLĄ NEGATYWNĄ:
+ *  gdyby produkcja wróciła do osobnych round-tripów, atrapa oddałaby błąd
+ *  „brak zaplanowanej odpowiedzi", a asercje `chainsFor(...)` w teście
+ *  „pięć granic naraz" złapałyby to wprost. */
 interface PlanRezolucji {
   resolve?: SupabaseResult;
   wpis?: SupabaseResult;
   cialo?: SupabaseResult;
-  tagi?: SupabaseResult;
-  kategorie?: SupabaseResult;
   wspolautorzy?: SupabaseResult;
   okruszki?: SupabaseResult;
   dostep?: SupabaseResult;
@@ -334,8 +359,6 @@ function planuj(plan: PlanRezolucji = {}): void {
   funkcje().setResponse("get_entity_content", plan.cialo ?? ok(cialo()));
   funkcje().setResponse("page_breadcrumbs", plan.okruszki ?? ok([okruszek(ID_STRONY, 0)]));
   baza().setResponse("posts", plan.wpis ?? ok(wierszWpisuListy(ID_WPISU)));
-  baza().setResponse("post_tags", plan.tagi ?? ok([]));
-  baza().setResponse("post_categories", plan.kategorie ?? ok([]));
   baza().setResponse("post_authors", plan.wspolautorzy ?? ok([]));
   baza().setResponse("content_access_public", plan.dostep ?? ok(null));
   baza().setResponse("profiles_public", plan.profile ?? ok([]));
@@ -773,25 +796,42 @@ describe("rezolucja adresu: pięć wyjść, gdy funkcja SQL już odpowiedziała"
 describe("rezolucja adresu: gałąź WPISU", () => {
   const TRAFIENIE_WPISU = ok([{ page_id: ID_STRONY, post_id: ID_WPISU }]);
 
-  it("siedem granic naraz: kształt każdego zapytania i nazwy argumentów funkcji SQL", async () => {
+  it("pięć granic naraz: kształt każdego zapytania i nazwy argumentów funkcji SQL", async () => {
     planuj({
       resolve: TRAFIENIE_WPISU,
       wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: null })),
     });
     await klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"]));
 
+    // FALA GŁÓWNA MA PIĘĆ ODNÓG, NIE SIEDEM (audyt CWV 2026-09-20, F06): trzy
+    // łańcuchy tabelowe i dwie funkcje SQL. Siódma odnoga czekała w kolejce na
+    // zwolnienie slotu przy limicie 6 równoległych połączeń runtime Workers,
+    // więc liczba odnóg jest tu KONTRAKTEM WYDAJNOŚCI, nie ozdobą asercji.
+    expect(baza().chains.map((c) => c.table)).toEqual([
+      "posts",
+      "post_authors",
+      "content_access_public",
+    ]);
+    expect(funkcje().names()).toEqual(["resolve_path", "get_entity_content", "page_breadcrumbs"]);
+
     // Wiersz wpisu: kolumny prezentacyjne, ZERO kolumn ciała.
     const cWpis = lancuch("posts");
-    expect(cWpis.argsOf("select")?.[0]).toBe(ENTITY_SELECT_COLS.post);
+    expect(cWpis.argsOf("select")?.[0]).toBe(POST_RESOLVE_SELECT);
     expect(filtrEq(cWpis, "id")).toEqual(["id", ID_WPISU]);
     expect(cWpis.has("maybeSingle")).toBe(true);
 
-    // Taksonomie: zagnieżdżony select przez tabelę pivot.
-    expect(lancuch("post_tags").argsOf("select")?.[0]).toBe("tags(slug, name)");
-    expect(filtrEq(lancuch("post_tags"), "post_id")).toEqual(["post_id", ID_WPISU]);
-    expect(lancuch("post_categories").argsOf("select")?.[0]).toBe(
-      "categories(slug, name_pl, name_en, color)",
+    // Taksonomie: zagnieżdżony select przez tabelę pivot - ale OSADZONY
+    // w wierszu wpisu, a nie w osobnym round-tripie. Gwarancja „pytamy
+    // o dokładnie te kolumny taksonomii" nie znika, tylko zmienia nośnik:
+    // z dwóch łańcuchów na dwa fragmenty jednego selectu.
+    expect(POST_RESOLVE_SELECT).toContain(ENTITY_SELECT_COLS.post);
+    expect(POST_RESOLVE_SELECT).toContain("post_tags(tags(slug, name))");
+    expect(POST_RESOLVE_SELECT).toContain(
+      "post_categories(categories(slug, name_pl, name_en, color))",
     );
+    // ZERO osobnych round-tripów po taksonomie - to jest cała oszczędność F06.
+    expect(baza().chainsFor("post_tags")).toHaveLength(0);
+    expect(baza().chainsFor("post_categories")).toHaveLength(0);
 
     // Współautorzy: kolejność jest KONTRAKTEM - bez tego ogniwa autorzy w
     // cytowaniu zamieniają się miejscami między żądaniami.
@@ -831,19 +871,39 @@ describe("rezolucja adresu: gałąź WPISU", () => {
   });
 
   it("pivot bez powiązanego wiersza (RLS ukrył tag) nie tworzy widma w liście", async () => {
+    // RLS działa w osadzeniu TAK SAMO, jak w osobnym zapytaniu: PostgREST
+    // stosuje politykę każdej tabeli po drodze, więc ukryty tag wraca jako
+    // `{ tags: null }` w wierszu pivotu. Filtracja widm musi przeżyć zmianę
+    // nośnika - inaczej do listy tagów wpisu wchodzi `null`.
     planuj({
       resolve: TRAFIENIE_WPISU,
-      tagi: ok([{ tags: { slug: "nato", name: "NATO" } }, { tags: null }]),
-      kategorie: ok([
-        { categories: null },
-        { categories: { slug: "analizy", name_pl: "Analizy", name_en: "Analyses", color: "#111" } },
-      ]),
+      wpis: ok(
+        wierszWpisuZTaksonomiami(ID_WPISU, {
+          post_tags: [{ tags: { slug: "nato", name: "NATO" } }, { tags: null }],
+          post_categories: [
+            { categories: null },
+            {
+              categories: {
+                slug: "analizy",
+                name_pl: "Analizy",
+                name_en: "Analyses",
+                color: "#111",
+              },
+            },
+          ],
+        }),
+      ),
     });
     const wpis = jakoWpis(
       await klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
     );
     expect(wpis.tags).toEqual([{ slug: "nato", name: "NATO" }]);
     expect(wpis.categories.map((c) => c.slug)).toEqual(["analizy"]);
+    // KSZTAŁT `item` JEST KONTRAKTEM konsumentów i dehydratowanego payloadu:
+    // surowe wiersze pivotu mają zejść z wiersza PRZED złożeniem wpisu, bo
+    // inaczej każdy dokument SSR wiezie te same dane dwa razy.
+    expect(wpis.item).not.toHaveProperty("post_tags");
+    expect(wpis.item).not.toHaveProperty("post_categories");
   });
 
   it("profile WSZYSTKICH autorów lecą JEDNYM zapytaniem, w kanonicznej kolejności", async () => {
@@ -917,21 +977,42 @@ describe("rezolucja adresu: gałąź WPISU", () => {
     ).rejects.toMatchObject({ message: "odmowa post_authors" });
   });
 
-  it("błąd odczytu jest zgłaszany: odmowa post_tags", async () => {
+  it("błąd odczytu jest zgłaszany: odmowa post_tags kładzie CAŁE zapytanie wiersza", async () => {
+    // W OSADZENIU nie ma osobnej odpowiedzi tabeli pivotu, którą dałoby się
+    // po cichu zgubić: brak uprawnień do `post_tags` to `42501` na zapytaniu
+    // `posts` (PostgREST przerywa całą projekcję). Gwarancja „odmowa
+    // taksonomii nie wygląda jak wpis bez tagów" zostaje - zmienia tylko
+    // miejsce, w którym błąd jest podnoszony.
     planuj({
       resolve: TRAFIENIE_WPISU,
-      tagi: fail("odmowa post_tags", "42501"),
-      kategorie: fail("odmowa post_categories", "42501"),
+      wpis: fail("permission denied for table post_tags", "42501"),
     });
     await expect(
       klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
-    ).rejects.toMatchObject({ message: "odmowa post_tags" });
+    ).rejects.toMatchObject({ message: "permission denied for table post_tags", code: "42501" });
   });
 
   it("AWARIA taksonomii POWINNA być odróżnialna od wpisu, którego nikt nie skategoryzował", async () => {
+    // ROZRÓŻNIENIE ŻYJE TERAZ NA POZIOMIE ODPOWIEDZI PostgREST, nie na
+    // poziomie dwóch osobnych round-tripów: pusta TABLICA osadzenia znaczy
+    // „nikt tego wpisu nie skategoryzował", a `error` na zapytaniu `posts`
+    // znaczy „taksonomia padła". Oba przypadki stoją tu obok siebie, bo
+    // dowodem jest RÓŻNICA między nimi, a nie żaden z nich z osobna.
     planuj({
       resolve: TRAFIENIE_WPISU,
-      kategorie: fail("odmowa post_categories", "42501"),
+      wpis: ok(wierszWpisuZTaksonomiami(ID_WPISU, { post_tags: [], post_categories: [] })),
+    });
+    const bezKategorii = jakoWpis(
+      await klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
+    );
+    expect(bezKategorii.tags).toEqual([]);
+    expect(bezKategorii.categories).toEqual([]);
+
+    baza().reset();
+    funkcje().reset();
+    planuj({
+      resolve: TRAFIENIE_WPISU,
+      wpis: fail("permission denied for table post_categories", "42501"),
     });
     await expect(
       klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
@@ -1144,9 +1225,16 @@ describe("independent public query failures", () => {
 it("successful empty metadata responses preserve the resolved article", async () => {
   planuj({
     resolve: ok([{ page_id: ID_STRONY, post_id: ID_WPISU }]),
-    wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: ID_AUTORA })),
-    tagi: ok(null),
-    kategorie: ok(null),
+    // `null` w osadzeniu (zamiast tablicy) to odpowiedź, którą PostgREST
+    // oddaje dla relacji bez wierszy - musi znaczyć „brak taksonomii",
+    // a nie wysypać mapowania.
+    wpis: ok(
+      wierszWpisuZTaksonomiami(
+        ID_WPISU,
+        { post_tags: null, post_categories: null },
+        { author_id: ID_AUTORA },
+      ),
+    ),
     wspolautorzy: ok(null),
     profile: ok(null),
     nakladka: ok(null),

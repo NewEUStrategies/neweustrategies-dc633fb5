@@ -425,22 +425,20 @@ describe("trasa /podcast/$slug - stan pusty i brak odcinka", () => {
     expect(screen.queryByTestId("podcast-player")).not.toBeInTheDocument();
   });
 
-  it("awaria odczytu odcinka daje komunikat ze słownika, nie białą stronę", async () => {
-    // Oba wejścia (`errorComponent`, `notFoundComponent`) renderują się jak
-    // każdy komponent, więc mówią językiem strony - wcześniej były to jedyne
-    // miejsca tej trasy, które mówiły po polsku do WSZYSTKICH.
+  it("awaria odczytu odcinka daje render ZDEGRADOWANY (200), a nie 500 i nie 404", async () => {
+    // TRZY RÓŻNE PRAWDY, TRZY RÓŻNE ODPOWIEDZI. Nieistniejący slug -> 404
+    // (test wyżej). Blip ODCZYTU -> „nie wiemy", czyli HTTP 200 `no-store`
+    // z uczciwym komunikatem i ponowieniem. Do 2026-09-20 wychodziło stąd
+    // HTTP 500 (gołe `ensureQueryData` w loaderze), więc blip bazy wyglądał
+    // dla crawlera i dla monitora na awarię serwisu.
     h.broken.add("podcasts");
     await mount();
 
-    // `waitFor` + `getByText`, a NIE `expect(await findByText(...))`: rzut
-    // z loadera wywołuje jeszcze jedno przejście routera, które PODMIENIA węzeł
-    // komunikatu. Referencja zwrócona przez `findByText` bywa wtedy już
-    // odczepiona od dokumentu i asercja pada na w pełni poprawnym renderze.
-    await waitFor(() =>
-      expect(
-        screen.getByText("Nie udało się wczytać odcinka. Spróbuj ponownie później."),
-      ).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText(/chwilowo nie ma danych/i)).toBeInTheDocument());
+    // KONTROLA NEGATYWNA: to NIE jest 404 - odcinek może istnieć.
+    expect(screen.queryByText("Nie znaleziono odcinka.")).not.toBeInTheDocument();
+    // Render zdegradowany nie ma prawa utrwalić się na brzegu.
+    expect(h.cacheControl.at(-1)).toContain("no-store");
   });
 
   it("po angielsku komunikat 404 też jest angielski", async () => {

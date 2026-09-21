@@ -418,7 +418,14 @@ describe("monolingualUserText - self-test na realnym src/", () => {
   it("zamrożony dług nie rośnie ponad stan wdrożeniowy", () => {
     // 713 wystąpień w 163 plikach - stan ZMIERZONY, nie przepisany. Suma może
     // tylko maleć; wpisy per plik pilnuje test wyżej.
+    //
+    // 2026-09-20 (F17): 163 -> 164 PLIKI przy NIEZMIENIONEJ sumie. Dyspozytor
+    // chrome (`ChromeWidgetView`) został wydzielony z `WidgetView`, więc pięć
+    // z sześciu istniejących wystąpień przeprowadziło się do nowego pliku.
+    // To nie jest nowy dług: liczbę wystąpień trzyma asercja wyżej (suma), a
+    // rozkład per plik - ratchet w `monolingualUserText.ts`, gdzie ruch jest
+    // udokumentowany. Sufit sumy ZOSTAJE na 713 i nadal może tylko maleć.
     expect(report.total).toBeLessThanOrEqual(713);
-    expect(baseline.size).toBe(163);
+    expect(baseline.size).toBe(164);
   });
 });

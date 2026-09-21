@@ -267,7 +267,39 @@ export const Route = createFileRoute("/slow")({
       },
     ]);
     expect(ssrBudgetsFailed(report)).toBe(true);
-    expect(renderSsrBudgetReport(report)).toContain("loaderChainMs = 14000 > 13000");
+    // Sufit WPROST ZE STAŁEJ, a nie przepisany literał: ta liczba jest
+    // zapadką w dół (13 000 -> 5 500 po wspólnym terminie żądania na trasie
+    // `/$`), a test przepisujący ją ręcznie zamieniałby każde kolejne
+    // obniżenie w fałszywą czerwień zamiast pilnować komunikatu bramki.
+    expect(renderSsrBudgetReport(report)).toContain(
+      `loaderChainMs = 14000 > ${FROZEN_SSR_BUDGETS.loaderChainMs}`,
+    );
+  });
+
+  it("`withSsrBudget` liczy się DOKŁADNIE jak `withBudget` - inaczej zamiana prymitywu chowałaby sufit", () => {
+    // `withSsrBudget` (`src/lib/asyncBudget.ts`) honoruje termin wyłącznie
+    // w renderze serwerowym - czyli dokładnie na ścieżce, której ta bramka
+    // pilnuje. Gdyby wzorzec go nie widział, dwie zamiany w
+    // `tracker.index.tsx` zbiłyby raportowany łańcuch z 5 500 na 0 ms bez
+    // skrócenia ani jednego budżetu, a bramka powiedziałaby „zielono".
+    const source = `
+const A_MS = 7_000;
+const B_MS = 7_000;
+export const Route = createFileRoute("/slow")({
+  loader: async () => {
+    await withSsrBudget(one, A_MS);
+    await withSsrBudget(two, B_MS, deadlineAt);
+  },
+});
+`;
+    const facts = loaderBudgetFacts("src/routes/slow.tsx", source);
+    expect(facts?.chainMs).toBe(14000);
+    expect(facts?.budgetSites.map((site) => site.constName)).toEqual(["A_MS", "B_MS"]);
+    // Ta sama alternatywa musi trzymać flagę „loader może zdegradować po
+    // cichu": bez niej reguła (4) przestałaby wymagać bramki `Cache-Control`
+    // od loaderów, które właśnie na nią przeszły.
+    expect(facts?.canDegrade).toBe(true);
+    expect(ssrBudgetsFailed(analyze([{ file: "src/routes/slow.tsx", source }]))).toBe(true);
   });
 
   it("rozwiązuje budżet IMPORTOWANY z innego modułu (mapa międzyplikowa)", () => {
@@ -504,6 +536,71 @@ export const Route = createFileRoute("/alias-gated")({
   loader: async ({ context }) => {
     const r = await Promise.allSettled([context.queryClient.prefetchQuery(a)]);
     const policy = resilientCacheControl(r.some((x) => x.status === "rejected"));
+    setCacheControlHeader(policy);
+  },
+});
+`,
+      },
+    ]);
+    expect(ssrBudgetsFailed(report)).toBe(false);
+  });
+
+  it("`staticFallbackCacheControl` jest bramką NA RÓWNI z `resilientCacheControl`", () => {
+    // Trasy prawne i statyczne (`support`, `contribute`, `rodo`, regulaminy)
+    // ogłaszają politykę tą funkcją: ich fallback to PEŁNA TREŚĆ z kodu, więc
+    // dokument jest kompletny i dostaje krótką świeżość z rewalidacją zamiast
+    // `no-store`. Dla tej reguły liczy się KIERUNEK, który ustala sygnatura
+    // (prawda -> polityka węższa), a nie stopień ostrożności - patrz docblock
+    // `GATED_POLICY_RE`.
+    //
+    // Bez tej alternatywy cała ta rodzina tras wypadłaby spod reguły (4):
+    // `staticFallbackCacheControl(...)` nie jest gołym `contentCacheControl()`,
+    // więc bramka nie widziałaby nawet tego, że trasa ustawia nagłówek.
+    const source = `
+export const Route = createFileRoute("/prawne")({
+  loader: async ({ context }) => {
+    const r = await Promise.allSettled([context.queryClient.prefetchQuery(a)]);
+    setCacheControlHeader(staticFallbackCacheControl(r.some((x) => x.status === "rejected")));
+  },
+});
+`;
+    const report = analyze([{ file: "src/routes/prawne.tsx", source }]);
+    const facts = report.loaders.find((l) => l.file === "src/routes/prawne.tsx");
+
+    expect(facts?.canDegrade).toBe(true);
+    // WYMÓG POZYTYWNY: bramka MUSI widzieć wywołanie jako politykę wspólną
+    // (inaczej „zielono" znaczyłoby tylko tyle, że reguła go nie zauważyła)
+    // i jednocześnie jako BRAMKOWANE, czyli bez ani jednej linii do zgłoszenia.
+    expect(facts?.ungatedCacheControlLines).toEqual([]);
+    expect(ssrBudgetsFailed(report)).toBe(false);
+
+    // KONTROLA NEGATYWNA: ta sama trasa z bezwarunkową polityką wspólną OBLEWA,
+    // więc zieleń wyżej pochodzi z bramki, a nie ze ślepoty wzorca.
+    const bezBramki = analyze([
+      {
+        file: "src/routes/prawne.tsx",
+        source: source.replace(
+          'staticFallbackCacheControl(r.some((x) => x.status === "rejected"))',
+          "contentCacheControl()",
+        ),
+      },
+    ]);
+    expect(ssrBudgetsFailed(bezBramki)).toBe(true);
+    expect(renderSsrBudgetReport(bezBramki)).toContain("degradedCacheControl = 1 > 0");
+  });
+
+  it("stała złożona z `staticFallbackCacheControl` jest bramką także przez alias", () => {
+    // Ten sam wymóg co dla `resilientCacheControl`: bramka na samym wywołaniu
+    // omijałoby się jedną stałą, a tu stawka jest odwrotna - alias jest
+    // POPRAWNY i nie wolno go zgłosić jako naruszenia.
+    const report = analyze([
+      {
+        file: "src/routes/aliasStatic.tsx",
+        source: `
+export const Route = createFileRoute("/alias-static")({
+  loader: async ({ context }) => {
+    const r = await Promise.allSettled([context.queryClient.prefetchQuery(a)]);
+    const policy = staticFallbackCacheControl(r.some((x) => x.status === "rejected"));
     setCacheControlHeader(policy);
   },
 });

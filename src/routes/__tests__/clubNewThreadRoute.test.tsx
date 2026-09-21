@@ -70,8 +70,13 @@ import type { ClubAnchorValue } from "@/components/clubs/molecules/ClubAnchorPic
 const h = vi.hoisted(() => ({
   /** Karta klubu oddawana i loaderowi, i zapytaniu (`null` = RPC bez wiersza). */
   club: null as unknown,
-  /** Loader pada - cache zostaje pusty, więc zapytanie idzie po dane samo. */
-  loaderFails: false,
+  /** Układ `/club/$clubSlug` ZDEGRADOWAŁ (budżet 800 ms albo awaria RPC): po
+   *  `removeQueries` cache jest pusty, więc liść liczy nagłówek bez karty,
+   *  a zapytanie komponentu idzie po dane samo. */
+  ukladZdegradowal: false,
+  /** Ile razy cokolwiek poszło do `club_view` z modułu loadera - po F09
+   *  trasa liściowa ma tu ZERO. */
+  fetchCalls: 0,
   /** Zapytanie o klub nigdy się nie kończy - stan `isPending`. */
   clubHangs: false,
   groups: [] as unknown[],
@@ -108,11 +113,14 @@ vi.mock("@/lib/http/idempotency", () => ({
     return `${command}:test-${h.idempotencyCalls}`;
   },
 }));
-// Loader czyta klub osobnym modułem (chunk publicznej trasy), więc atrapa jest
-// osobna - i pozwala oddzielić „loader padł” od „zapytanie w locie”.
+// KONTROLA NEGATYWNA, nie źródło danych: po F09 (audyt CWV 2026-09-20) kartę
+// klubu czyta RAZ loader UKŁADU `/club/$clubSlug`, a kompozytor robi już tylko
+// odczyt z cache'u. Atrapa LICZY wywołania, zamiast ich obsługiwać.
 vi.mock("@/lib/clubs/publicClub", () => ({
-  fetchClubBySlug: () =>
-    h.loaderFails ? Promise.reject(new Error("club_view padło")) : Promise.resolve(h.club),
+  fetchClubBySlug: () => {
+    h.fetchCalls += 1;
+    return Promise.resolve(h.club);
+  },
 }));
 // Warstwa dostępu podmieniona na poziomie MODUŁU, nie klienta Supabase: hooki
 // (a z nimi unieważnianie kluczy po mutacji) zostają PRAWDZIWE, a przedmiotem
@@ -282,9 +290,11 @@ vi.mock("@/components/clubs/molecules/ClubAnchorPicker", () => ({
   ),
 }));
 
+import { QueryClient } from "@tanstack/react-query";
 import { renderRoute, routeSearchValidator, type RouteMetaEntry } from "@/test/routeHarness";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
 import { clubCardKeys } from "@/lib/clubs/clubInvalidations";
+import { clubKeys } from "@/lib/clubs/queryKeys";
 import { formatDateTime } from "@/lib/i18n/format";
 import { CLUB_IDS, clubGroupRow, clubIsoOffset, clubViewRow } from "@/test/clubs/fixtures";
 import { Route as NewThreadRoute } from "@/routes/club.$clubSlug.new";
@@ -300,8 +310,25 @@ const DRAFT_STAMP = Date.parse(clubIsoOffset(-30));
 
 /** Montaż BEZ czekania na dane - dla dowodów, w których zapytanie ma ZOSTAĆ
  *  w locie (szkielet, działy w locie) albo skończyć się odmową. */
+/**
+ * Klient zapytań W STANIE, W JAKIM ZOSTAWIA GO LOADER UKŁADU `/club/$clubSlug`
+ * (F09): karta klubu pod kluczem widza ANONIMOWEGO. Kompozytor jest tu
+ * montowany W IZOLACJI, więc układ nie biegnie - to jedyny jego skutek, który
+ * liść widzi. `h.ukladZdegradowal` odtwarza `removeQueries` po degradacji.
+ */
+function klientUkladu(slug: string = SLUG): QueryClient {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  if (!h.ukladZdegradowal) queryClient.setQueryData(clubKeys.bySlugViewer(slug, null), h.club);
+  return queryClient;
+}
+
 async function mountRaw(entry: string = ENTRY) {
-  return renderRoute({ route: NewThreadRoute, path: PATH, initialEntry: entry });
+  return renderRoute({
+    route: NewThreadRoute,
+    path: PATH,
+    initialEntry: entry,
+    queryClient: klientUkladu(),
+  });
 }
 
 /**
@@ -365,7 +392,8 @@ function robotsOf(meta: readonly RouteMetaEntry[]): string | null {
 beforeEach(() => {
   cleanup();
   h.club = clubViewRow({ can_post_thread: true, can_moderate: false });
-  h.loaderFails = false;
+  h.ukladZdegradowal = false;
+  h.fetchCalls = 0;
   h.clubHangs = false;
   h.groups = [clubGroupRow()];
   h.groupsHang = false;
@@ -440,6 +468,8 @@ describe("validateSearch - kontrakt linku z huba i z maila", () => {
 describe("head - kompozytor jest powierzchnią CZYNNOŚCIOWĄ", () => {
   it("nagłówek zgadza się z `buildClubHead` z `forceNoindex`", async () => {
     const rendered = await mount();
+    // ZERO round-tripów: kartę do nagłówka dał cache układu, nie własne RPC.
+    expect(h.fetchCalls).toBe(0);
     const expected = buildClubHead({
       fallbackPath: `/club/${SLUG}/new`,
       club: toClubHeadSource(clubViewRow({ can_post_thread: true, can_moderate: false })),
@@ -454,8 +484,8 @@ describe("head - kompozytor jest powierzchnią CZYNNOŚCIOWĄ", () => {
     expect(robotsOf(rendered.meta())).toBe("noindex, nofollow");
   });
 
-  it("awaria loadera nie gubi nagłówka - tytuł istnieje bez danych klubu", async () => {
-    h.loaderFails = true;
+  it("PUSTY cache (układ zdegradował) nie gubi nagłówka - tytuł istnieje bez karty", async () => {
+    h.ukladZdegradowal = true;
     const rendered = await mount();
     const title = rendered.meta().find((item) => typeof item.title === "string");
     expect(title).toBeDefined();
@@ -467,7 +497,7 @@ describe("head - kompozytor jest powierzchnią CZYNNOŚCIOWĄ", () => {
 
 describe("bramka - kto widzi kompozytor", () => {
   it("wczytywanie klubu pokazuje szkielet, a nie pusty formularz", async () => {
-    h.loaderFails = true;
+    h.ukladZdegradowal = true;
     h.clubHangs = true;
     await mountRaw();
     expect(document.querySelector("[aria-busy='true']")).not.toBeNull();

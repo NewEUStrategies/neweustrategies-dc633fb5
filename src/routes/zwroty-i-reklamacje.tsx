@@ -5,7 +5,15 @@ import { LegalPage } from "@/components/legal/LegalPage";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead } from "@/lib/seo/meta";
-import { staticPageSeoQueryOptions, pickStaticSeo } from "@/lib/queries/staticPageSeo";
+import {
+  staticPageSeoQueryOptions,
+  pickStaticSeo,
+  LEGAL_SSR_BUDGET_MS,
+  NO_STATIC_SEO,
+} from "@/lib/queries/staticPageSeo";
+import { loadResilient } from "@/lib/ssr/resilientLoad";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { staticFallbackCacheControl } from "@/lib/http/cachePolicy";
 import { LEGAL_ENTITY } from "@/lib/legal/entity";
 import { REFUNDS_CONTENT } from "@/lib/legal/content/refunds";
 import { REFUNDS_META } from "@/lib/legal/meta";
@@ -16,10 +24,19 @@ const COPY = REFUNDS_CONTENT;
 export const Route = createFileRoute("/zwroty-i-reklamacje")({
   component: RefundPolicyPage,
   loader: async ({ context }) => {
-    const seo = await context.queryClient
-      .ensureQueryData(staticPageSeoQueryOptions("zwroty-i-reklamacje"))
-      .catch(() => null);
-    return { seo };
+    // Krótki termin (F10): to wyłącznie nadpisania SEO z /admin/pages - treść
+    // strony żyje w kodzie, więc brak wiersza nie jest warunkiem renderu.
+    const seo = await loadResilient(
+      context.queryClient,
+      staticPageSeoQueryOptions("zwroty-i-reklamacje"),
+      NO_STATIC_SEO,
+      { deadlineAt: Date.now() + LEGAL_SSR_BUDGET_MS, label: "legal-seo:zwroty-i-reklamacje" },
+    );
+    // Brak nadpisań SEO daje dokument KOMPLETNY dla czytelnika, tylko
+    // niekanoniczny dla brzegu - stąd krótka świeżość z rewalidacją zamiast
+    // `no-store` (różnica wobec `resilientCacheControl`: docblock helpera).
+    setCacheControlHeader(staticFallbackCacheControl(seo.degraded));
+    return { seo: seo.data };
   },
   head: ({ loaderData }) => {
     const url = getRequestUrl() || "/zwroty-i-reklamacje";

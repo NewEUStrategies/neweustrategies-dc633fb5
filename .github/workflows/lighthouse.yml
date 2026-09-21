@@ -23,6 +23,13 @@ concurrency:
 #     To jedyny tryb, który mierzy to, co dostają czytelnicy.
 #     Włączenie: zmienna repo LHCI_URL = URL preview/prod
 #     (Settings -> Secrets and variables -> Actions -> Variables).
+#     DWA PROFILE, JEDNA LISTA URL-i (wiersz 0.2 „Fali 0" audytu CWV
+#     docs/AUDYT_CWV_ZIMNE_OTWARCIE_2026-09-20.md): desktop
+#     (lighthouserc.deployed.json) i mobile (lighthouserc.deployed.mobile.json),
+#     oba na URL-ach zbudowanych w kroku „Build the mode A URL list" z
+#     `vars.LHCI_URL` + ścieżek relatywnych. Opcjonalna zmienna repo
+#     LHCI_EXTRA_PATHS podmienia listę domyślną - tam wpisuje się PRAWDZIWE
+#     slugi wpisu, kategorii, wydarzenia i klubu.
 #
 #   TRYB C - blokujący, na ARTEFAKCIE PRODUKCYJNYM (LHCI_URL PUSTE, domyślnie)
 #     Buduje artefakt `vite.smoke.config.ts` (nitro preset `node-server`, czyli
@@ -74,7 +81,16 @@ jobs:
     # (2 URL-e x numberOfRuns 3) po stronie z TTFB ~5 s. 20 minut było policzone
     # pod smoke bez builda; przy limicie GitHub raportuje job jako `cancelled`,
     # nie `failure`, więc wyczerpanie limitu nie wygląda nawet na awarię bramki.
-    timeout-minutes: 30
+    #
+    # 30 -> 45 min, bo TRYB A ma teraz DWA profile. Arytmetyka najgorszego
+    # przypadku: 4 URL-e (strona główna + trzy domyślne ścieżki; z ustawionym
+    # LHCI_EXTRA_PATHS bywa ich 7) x numberOfRuns 3 x 2 profile = 24 przebiegi,
+    # a przebieg mobilny jest wolniejszy od desktopowego przez 4-krotne
+    # spowolnienie CPU i throttling sieci. Limit podniesiony WYŁĄCZNIE jako
+    # górna granica - dla trybu C nic się nie zmienia, bo ten kończył się
+    # dotąd znacznie poniżej 30 minut. Gdyby lista URL-i urosła powyżej
+    # siedmiu, ten limit trzeba przeliczyć razem z nią.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -96,24 +112,110 @@ jobs:
           node -e 'require("node:fs").rmSync(".lighthouseci", { recursive: true, force: true })'
 
       # ---- TRYB A: prawdziwy wdrożony URL -> bramka blokująca ----
-      # LHCI_URL audytuje stronę główną. Opcjonalna zmienna repo LHCI_EXTRA_PATHS
-      # (ścieżki po przecinku, np. "/blog,/category/gospodarka") rozszerza audyt
-      # blokujący poza stronę główną - artykuł i archiwum mają inne profile
-      # (LCP okładki, strefy reklamowe, siatki list), a bramka, która widzi tylko
-      # "/", nie zobaczy regresji na powierzchniach, na których czytelnicy
-      # spędzają czas. Każdy URL przechodzi te same budżety na poziomie `error`.
-      - name: Lighthouse against deployed URL (blocking)
+      # LISTA URL-i POWSTAJE RAZ, W OSOBNYM KROKU. Powód jest zmierzalny: tryb A
+      # ma teraz DWA przebiegi (desktop + mobile, wiersz 0.2 „Fali 0" audytu
+      # CWV), a lista sklejana osobno w każdym z nich rozjechałaby się przy
+      # pierwszej edycji - i to po cichu, bo oba przebiegi nadal by przechodziły,
+      # tylko mierzyłyby INNE strony. Plik `lhci-urls.txt` jest jednym źródłem
+      # dla obu kroków.
+      #
+      # DLACZEGO PĘTLA WYGLĄDA INACZEJ NIŻ WCZEŚNIEJ - NAPRAWA, NIE KOSMETYKA.
+      # Poprzednia wersja kończyła iterację na `[ -n "$p" ] && flags+=(...)`.
+      # GitHub uruchamia `run` przez `bash -e`, a lista AND-OR, której PIERWSZY
+      # człon zawodzi, zwraca 1 - więc dla PUSTEGO `LHCI_EXTRA_PATHS` (czyli
+      # w każdym repozytorium, które nie ustawiło tej opcjonalnej zmiennej)
+      # `IFS=',' read -ra` dawał tablicę z jednym pustym elementem, `[ -n "" ]`
+      # zawodziło i KROK PADAŁ, zanim Lighthouse w ogóle ruszył. Tryb A nie
+      # uruchomił się dotąd ani razu, więc nikt tego nie zobaczył; pierwsze
+      # ustawienie vars.LHCI_URL trafiłoby na czerwony job bez jednego pomiaru.
+      # Dlatego tu są jawne `if`, a nie skróty AND-OR.
+      - name: Build the mode A URL list
         if: ${{ vars.LHCI_URL != '' }}
+        env:
+          # ŚCIEŻKI DOMYŚLNE - wyłącznie takie, które NIE MOGĄ dać 404.
+          # Audyt (wiersz 0.2) wymaga pięciu powierzchni: strony głównej, wpisu,
+          # wydarzenia, klubu i kategorii. Strona główna to samo `vars.LHCI_URL`.
+          # Trzy powierzchnie SZCZEGÓŁOWE (wpis, kategoria, konkretne wydarzenie
+          # i klub) wymagają PRAWDZIWYCH slugów z produkcji i celowo nie są tu
+          # zgadywane: wymyślony slug dałby stronę błędu, a bramka mierzyłaby
+          # 404 zamiast wpisu - czyli przechodziłaby, nie mierząc niczego.
+          # Slugi wpisuje człowiek w zmiennej repozytorium LHCI_EXTRA_PATHS,
+          # która ZASTĘPUJE tę listę w całości (przykład w `_comment`
+          # w lighthouserc.deployed.json).
+          LHCI_DEFAULT_PATHS: "/blog,/events,/club"
         run: |
-          flags=(--config=lighthouserc.deployed.json --collect.url="${{ vars.LHCI_URL }}")
           base="${{ vars.LHCI_URL }}"
           base="${base%/}"
-          IFS=',' read -ra extra_paths <<< "${{ vars.LHCI_EXTRA_PATHS }}"
-          for p in "${extra_paths[@]}"; do
+          paths="${{ vars.LHCI_EXTRA_PATHS }}"
+          if [ -z "$(echo "$paths" | tr -d '[:space:]')" ]; then
+            paths="$LHCI_DEFAULT_PATHS"
+            echo "LHCI_EXTRA_PATHS puste - biore liste domyslna: $paths"
+          fi
+          : > lhci-urls.txt
+          echo "$base" >> lhci-urls.txt
+          IFS=',' read -ra items <<< "$paths"
+          for p in "${items[@]}"; do
             p="$(echo "$p" | tr -d '[:space:]')"
-            [ -n "$p" ] && flags+=(--collect.url="${base}${p}")
+            if [ -n "$p" ]; then
+              case "$p" in
+                /*) ;;
+                *) p="/$p" ;;
+              esac
+              echo "${base}${p}" >> lhci-urls.txt
+            fi
           done
+          echo "URL-e trybu A (kazdy przechodzi te same budzety):"
+          cat lhci-urls.txt
+
+      - name: Lighthouse against deployed URL - desktop (blocking)
+        if: ${{ vars.LHCI_URL != '' }}
+        run: |
+          flags=(--config=lighthouserc.deployed.json)
+          while IFS= read -r url; do
+            [ -n "$url" ] || continue
+            flags+=(--collect.url="$url")
+          done < lhci-urls.txt
           bunx @lhci/cli@0.15.x autorun "${flags[@]}"
+
+      # ---- TRYB A, DRUGI PRZEBIEG: profil mobile ----
+      # WYŁĄCZNIE W TRYBIE A - tryb C zostaje nietknięty. Powód: profil mobilny
+      # ma sens tylko na PRAWDZIWYM wdrożeniu. Na artefakcie z zaślepkami
+      # Supabase (tryb C) throttling 4x CPU nałożyłby się na `[ssr-query-timeout]`
+      # po nieosiągalnym `placeholder.supabase.co` i mierzyłby przede wszystkim
+      # ten timeout.
+      #
+      # ASERCJE KATEGORII SĄ NA `error`, METRYCZNE NA `warn` - uzasadnienie
+      # i reguła ratchetu w `_comment` w lighthouserc.deployed.mobile.json.
+      # TO JEST MIEJSCE DO PRZECZYTANIA, ZANIM KTOŚ RUSZY TAM JAKĄKOLWIEK LICZBĘ.
+      #
+      # PRZEKŁADANIE .lighthouseci JEST KONIECZNE. `lhci collect` CZYŚCI ten
+      # katalog na starcie, więc drugi przebieg skasowałby raporty desktopowe -
+      # a to one są podstawą ratchetu (krok wysyłki artefaktu niżej). `set +e`
+      # wokół samego `autorun` sprawia, że raporty desktopowe wracają na miejsce
+      # TAKŻE wtedy, gdy asercje mobilne oblewają; kod wyjścia jest odtwarzany na
+      # końcu, więc bramka nadal blokuje.
+      - name: Lighthouse against deployed URL - mobile profile (blocking)
+        if: ${{ vars.LHCI_URL != '' }}
+        run: |
+          flags=(--config=lighthouserc.deployed.mobile.json)
+          while IFS= read -r url; do
+            [ -n "$url" ] || continue
+            flags+=(--collect.url="$url")
+          done < lhci-urls.txt
+          if [ -d .lighthouseci ]; then
+            mv .lighthouseci .lighthouseci-desktop
+          fi
+          set +e
+          bunx @lhci/cli@0.15.x autorun "${flags[@]}"
+          status=$?
+          set -e
+          if [ -d .lighthouseci ]; then
+            mv .lighthouseci .lighthouseci-mobile
+          fi
+          if [ -d .lighthouseci-desktop ]; then
+            mv .lighthouseci-desktop .lighthouseci
+          fi
+          exit $status
 
       # ---- TRYB C: brak wdrożonego URL-a -> pomiar na artefakcie produkcyjnym ----
       # Ten sam repoint co w ci.yml: `bun.lock` przypina tarbally do prywatnego
@@ -261,6 +363,7 @@ jobs:
           name: lighthouse-${{ vars.LHCI_URL != '' && 'deployed' || 'production-artifact' }}
           path: |
             .lighthouseci/
+            .lighthouseci-mobile/
             artifact-server.log
           # upload-artifact v4 excludes hidden directories by default. Without
           # this option run 34034344591 uploaded only artifact-server.log.

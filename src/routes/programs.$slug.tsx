@@ -1,5 +1,5 @@
 import { FollowButton } from "@/components/FollowButton";
-import { createFileRoute, Link, notFound, type ErrorComponentProps } from "@tanstack/react-router";
+import { createFileRoute, Link, type ErrorComponentProps } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import { PostListCard } from "@/components/molecules/PostListCard";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -38,15 +39,43 @@ import {
   type ImagePreloadInput,
 } from "@/lib/seo/meta";
 import { buildImageSrcSet } from "@/lib/cropSizes";
-import { appendLinkHeader } from "@/lib/http/responseHeaders";
+import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { notFoundIfClean } from "@/lib/ssr/notFoundIfClean";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { ensureI18n as ensureProgramsI18n } from "@/lib/i18n-programs";
+
+/**
+ * Termin ŻĄDANIA odczytu TOŻSAMOŚCIOWEGO. `catch(() => null)` bronił przed
+ * BŁĘDEM, ale nie przed POWOLNOŚCIĄ - zwis trzymał landing aż do watchdoga
+ * SSR (5 s), a potem i tak kończył się 404.
+ */
+const PROGRAM_SSR_BUDGET_MS = 1_500;
+
+/**
+ * Fallback TOŻSAMOŚCIOWY. `null` jest tu WYŁĄCZNIE wartością zasiewu - o tym,
+ * czy program istnieje, decyduje flaga `degraded` (lib/ssr/notFoundIfClean.ts).
+ */
+const NO_LANDING: ProgramLanding | null = null;
+
 export const Route = createFileRoute("/programs/$slug")({
   loader: async ({ context, params }) => {
-    const landing = await context.queryClient
-      .ensureQueryData(programBySlugQueryOptions(params.slug))
-      .catch(() => null); // crawler surfaces degrade, never 500
-    if (!landing) throw notFound();
+    const deadlineAt = Date.now() + PROGRAM_SSR_BUDGET_MS;
+    // DEFEKT W8 ZAMKNIĘTY. `catch(() => null)` -> `notFound()` wrzucało „nie
+    // wiem" i „nie ma" do jednej gałęzi: minutowa niedostępność bazy zamieniała
+    // ŻYWY landing w twarde 404, a 404 wypisuje adres z indeksu na tygodnie.
+    const identity = await loadResilient(
+      context.queryClient,
+      programBySlugQueryOptions(params.slug),
+      NO_LANDING,
+      { deadlineAt, label: `program-landing:${params.slug}` },
+    );
+    // `no-store` należy się DWÓM sytuacjom i obie są przejściowe: renderowi
+    // zdegradowanemu i 404. Ta trasa nie miała ŻADNEJ polityki, więc 404
+    // z degradacji mógł jeszcze zamarznąć na brzegu dla kolejnych czytelników.
+    setCacheControlHeader(resilientCacheControl(identity.degraded || identity.data === null));
+    const landing = notFoundIfClean(identity);
+    if (landing === null) return { landing: null, heroPreload: null, degraded: true };
     // Preload LCP hero programu - deskryptor odzwierciedla 1:1 render
     // OptimizedImage `responsive` (buildImageSrcSet + domyślne sizes "100vw"),
     // więc przeglądarka nigdy nie pobiera drugiego wariantu. Ta sama wartość
@@ -56,13 +85,18 @@ export const Route = createFileRoute("/programs/$slug")({
       ? { href: hero, imageSrcSet: buildImageSrcSet(hero), imageSizes: "100vw" }
       : null;
     if (heroPreload) appendLinkHeader(imagePreloadLinkHeaderValue(heroPreload));
-    return { landing, heroPreload };
+    return { landing, heroPreload, degraded: false };
   },
   head: ({ loaderData, params }) => {
     const url = getRequestUrl() || `/programs/${params.slug}`;
     const lang = activeLang(url);
     const data = loaderData as
-      { landing: ProgramLanding; heroPreload: ImagePreloadInput | null } | undefined;
+      | {
+          landing: ProgramLanding | null;
+          heroPreload: ImagePreloadInput | null;
+          degraded: boolean;
+        }
+      | undefined;
     const landing = data?.landing ?? null;
     const heroPreload = data?.heroPreload ?? null;
     const program = landing?.program ?? null;
@@ -293,10 +327,21 @@ function ProgramDetail() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureProgramsI18n();
   const { slug } = Route.useParams();
+  const { degraded } = Route.useLoaderData();
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const { data: landing, isLoading } = useQuery(programBySlugQueryOptions(slug));
 
+  // DEGRADACJA MÓWI PRAWDĘ, nie udaje 404. `landing` jest wtedy zasianym
+  // `null`, więc `PublicNotFound` byłby MIĘKKIM 404 na żywej stronie programu -
+  // tym samym kłamstwem, które loader właśnie przestał wysyłać w statusie.
+  if (degraded) {
+    return (
+      <div className="container mx-auto max-w-3xl px-4 py-12">
+        <DegradedDataNotice variant="page" />
+      </div>
+    );
+  }
   if (isLoading && !landing) {
     return <div className="container mx-auto max-w-4xl px-4 py-12" aria-hidden="true" />;
   }

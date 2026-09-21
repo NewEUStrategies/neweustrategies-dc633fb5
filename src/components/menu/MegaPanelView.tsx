@@ -4,7 +4,9 @@
 import { ArrowRight } from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
 import { safeUrl } from "@/lib/sanitizePure";
-import { DynamicIcon } from "@/lib/icons/DynamicIcon";
+// `MenuIcon` = tryb strict: nieznana nazwa z konfiguracji rysuje ikonę zastępczą
+// z zestawu kuratorowanego zamiast dociągać pełny rejestr (109 KB gzip) do chrome.
+import { MenuIcon as DynamicIcon } from "@/lib/icons/DynamicIcon";
 import type { MegaColumn } from "@/lib/menus/types";
 import type { MegaFeaturedPost } from "@/lib/menus/megaFeatured";
 

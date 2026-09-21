@@ -1,13 +1,22 @@
-// Dostępność miejsc na wydarzeniu w czasie rzeczywistym.
+// Dostępność miejsc na wydarzeniu.
 //
 // Liczbę zajętych miejsc bierzemy z backendu (SECURITY DEFINER RPC), a nie z
-// cudzych wierszy RSVP. Realtime na `event_rsvps` służy tylko jako sygnał
-// „przelicz ponownie" - dane zawsze pochodzą z serwera.
-import { useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+// cudzych wierszy RSVP.
+//
+// REALTIME USUNIĘTY (F34), bo go NIGDY NIE BYŁO. Kanał na `event_rsvps`
+// subskrybował tabelę, której NIE MA w publikacji `supabase_realtime` (grep
+// `alter publication supabase_realtime add table` w supabase/migrations nie zna
+// tej tabeli), więc nie dostarczył ani jednego zdarzenia - płacił tylko za
+// zestawienie websocketu (TLS + WS + auth + join) na każdą odsłonę strony
+// wydarzenia, także anonimową. Świeżość niesie teraz odpytywanie:
+// `refetchInterval` 30 s + refetch przy powrocie na kartę, a react-query
+// wstrzymuje interwał, gdy karta nie jest widoczna
+// (`refetchIntervalInBackground` domyślnie false) - niewidoczna karta nie
+// generuje ruchu. Gdyby kiedyś realtime był tu naprawdę potrzebny, warunkiem
+// wstępnym jest migracja dodająca `public.event_rsvps` do publikacji.
+import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
-import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
 import { getEventSeatState } from "@/lib/events/ticket.functions";
 import type { EventSeatState } from "@/lib/events/ticketTypes";
 
@@ -17,27 +26,17 @@ export interface UseEventSeatsResult {
 }
 
 export function useEventSeatsRealtime(eventId: string | undefined): UseEventSeatsResult {
-  const qc = useQueryClient();
   const loadSeats = useServerFn(getEventSeatState);
-  const queryKey = ["event-seat-state", eventId] as const;
 
   const seatsQ = useQuery({
-    queryKey,
+    queryKey: ["event-seat-state", eventId] as const,
     queryFn: () => loadSeats({ data: { eventId: eventId! } }),
     enabled: !!eventId,
     // Miejsca to dane szybko wygasające - odświeżamy też przy powrocie na kartę.
     staleTime: 10_000,
     refetchOnWindowFocus: true,
+    refetchInterval: 30_000,
   });
-
-  useEffect(() => {
-    if (!eventId) return;
-    return subscribeToTable({ table: "event_rsvps", filter: `event_id=eq.${eventId}` }, () => {
-      void qc.invalidateQueries({ queryKey });
-      void qc.invalidateQueries({ queryKey: ["event-rsvp-counts", eventId] });
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId, qc]);
 
   return { seats: seatsQ.data ?? null, isLoading: seatsQ.isLoading };
 }

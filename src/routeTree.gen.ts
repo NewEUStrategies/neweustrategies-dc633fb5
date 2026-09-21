@@ -209,6 +209,7 @@ import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } fr
 import { Route as Char91DotwellKnownChar93GpcChar91DotChar93jsonRouteImport } from './routes/[.well-known]/gpc[.]json'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as EventsSlugIndexRouteImport } from './routes/events.$slug.index'
+import { Route as ClubClubSlugRouteImport } from './routes/club.$clubSlug'
 import { Route as ClubClubSlugIndexRouteImport } from './routes/club.$clubSlug.index'
 import { Route as AdminUsersIndexRouteImport } from './routes/admin.users.index'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
@@ -1411,9 +1412,9 @@ const EventsSlugIndexRoute = EventsSlugIndexRouteImport.update({
   getParentRoute: () => EventsSlugRoute,
 } as any)
 const ClubClubSlugIndexRoute = ClubClubSlugIndexRouteImport.update({
-  id: '/$clubSlug/',
-  path: '/$clubSlug/',
-  getParentRoute: () => ClubRoute,
+  id: '/',
+  path: '/',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const AdminUsersIndexRoute = AdminUsersIndexRouteImport.update({
   id: '/',
@@ -1561,60 +1562,65 @@ const ClubJoinTokenRoute = ClubJoinTokenRouteImport.update({
   path: '/join/$token',
   getParentRoute: () => ClubRoute,
 } as any)
-const ClubClubSlugSpotlightRoute = ClubClubSlugSpotlightRouteImport.update({
-  id: '/$clubSlug/spotlight',
-  path: '/$clubSlug/spotlight',
+const ClubClubSlugRoute = ClubClubSlugRouteImport.update({
+  id: '/$clubSlug',
+  path: '/$clubSlug',
   getParentRoute: () => ClubRoute,
+} as any)
+const ClubClubSlugSpotlightRoute = ClubClubSlugSpotlightRouteImport.update({
+  id: '/spotlight',
+  path: '/spotlight',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ClubClubSlugScheduleRoute = ClubClubSlugScheduleRouteImport.update({
-  id: '/$clubSlug/schedule',
-  path: '/$clubSlug/schedule',
-  getParentRoute: () => ClubRoute,
+  id: '/schedule',
+  path: '/schedule',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ClubClubSlugNewRoute = ClubClubSlugNewRouteImport.update({
-  id: '/$clubSlug/new',
-  path: '/$clubSlug/new',
-  getParentRoute: () => ClubRoute,
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ClubClubSlugMinisiteRoute = ClubClubSlugMinisiteRouteImport.update({
-  id: '/$clubSlug/minisite',
-  path: '/$clubSlug/minisite',
-  getParentRoute: () => ClubRoute,
+  id: '/minisite',
+  path: '/minisite',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ClubClubSlugMembersRoute = ClubClubSlugMembersRouteImport.update({
-  id: '/$clubSlug/members',
-  path: '/$clubSlug/members',
-  getParentRoute: () => ClubRoute,
+  id: '/members',
+  path: '/members',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ClubClubSlugInsightsRoute = ClubClubSlugInsightsRouteImport.update({
-  id: '/$clubSlug/insights',
-  path: '/$clubSlug/insights',
-  getParentRoute: () => ClubRoute,
+  id: '/insights',
+  path: '/insights',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ClubClubSlugExpertsRoute = ClubClubSlugExpertsRouteImport.update({
-  id: '/$clubSlug/experts',
-  path: '/$clubSlug/experts',
-  getParentRoute: () => ClubRoute,
+  id: '/experts',
+  path: '/experts',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ClubClubSlugDocumentsRoute = ClubClubSlugDocumentsRouteImport.update({
-  id: '/$clubSlug/documents',
-  path: '/$clubSlug/documents',
-  getParentRoute: () => ClubRoute,
+  id: '/documents',
+  path: '/documents',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ClubClubSlugCalendarRoute = ClubClubSlugCalendarRouteImport.update({
-  id: '/$clubSlug/calendar',
-  path: '/$clubSlug/calendar',
-  getParentRoute: () => ClubRoute,
+  id: '/calendar',
+  path: '/calendar',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ClubClubSlugBoardRoute = ClubClubSlugBoardRouteImport.update({
-  id: '/$clubSlug/board',
-  path: '/$clubSlug/board',
-  getParentRoute: () => ClubRoute,
+  id: '/board',
+  path: '/board',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ClubClubSlugAboutRoute = ClubClubSlugAboutRouteImport.update({
-  id: '/$clubSlug/about',
-  path: '/$clubSlug/about',
-  getParentRoute: () => ClubRoute,
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const CategorySlugRssDotxmlRoute = CategorySlugRssDotxmlRouteImport.update({
   id: '/rss.xml',
@@ -2153,14 +2159,14 @@ const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClubClubSlugTThreadSlugRoute = ClubClubSlugTThreadSlugRouteImport.update({
-  id: '/$clubSlug/t/$threadSlug',
-  path: '/$clubSlug/t/$threadSlug',
-  getParentRoute: () => ClubRoute,
+  id: '/t/$threadSlug',
+  path: '/t/$threadSlug',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ClubClubSlugEEventSlugRoute = ClubClubSlugEEventSlugRouteImport.update({
-  id: '/$clubSlug/e/$eventSlug',
-  path: '/$clubSlug/e/$eventSlug',
-  getParentRoute: () => ClubRoute,
+  id: '/e/$eventSlug',
+  path: '/e/$eventSlug',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ApiPublicWebhooksResendRoute = ApiPublicWebhooksResendRouteImport.update({
   id: '/api/public/webhooks/resend',
@@ -2591,6 +2597,7 @@ export interface FileRoutesByFullPath {
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
+  '/club/$clubSlug': typeof ClubClubSlugRouteWithChildren
   '/club/apply': typeof ClubApplyRoute
   '/club/elements': typeof ClubElementsRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
@@ -3363,6 +3370,7 @@ export interface FileRoutesById {
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
+  '/club/$clubSlug': typeof ClubClubSlugRouteWithChildren
   '/club/apply': typeof ClubApplyRoute
   '/club/elements': typeof ClubElementsRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
@@ -3759,6 +3767,7 @@ export interface FileRouteTypes {
     | '/checkout/$planId'
     | '/checkout/cancel'
     | '/checkout/success'
+    | '/club/$clubSlug'
     | '/club/apply'
     | '/club/elements'
     | '/email/unsubscribe'
@@ -4530,6 +4539,7 @@ export interface FileRouteTypes {
     | '/checkout/$planId'
     | '/checkout/cancel'
     | '/checkout/success'
+    | '/club/$clubSlug'
     | '/club/apply'
     | '/club/elements'
     | '/email/unsubscribe'
@@ -5699,6 +5709,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmailUnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/club/$clubSlug': {
+      id: '/club/$clubSlug'
+      path: '/$clubSlug'
+      fullPath: '/club/$clubSlug'
+      preLoaderRoute: typeof ClubClubSlugRouteImport
+      parentRoute: typeof ClubRoute
+    }
     '/club/elements': {
       id: '/club/elements'
       path: '/elements'
@@ -6317,10 +6334,10 @@ declare module '@tanstack/react-router' {
     }
     '/club/$clubSlug/': {
       id: '/club/$clubSlug/'
-      path: '/$clubSlug'
+      path: '/'
       fullPath: '/club/$clubSlug/'
       preLoaderRoute: typeof ClubClubSlugIndexRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/admin/users/': {
       id: '/admin/users/'
@@ -6527,80 +6544,80 @@ declare module '@tanstack/react-router' {
     }
     '/club/$clubSlug/spotlight': {
       id: '/club/$clubSlug/spotlight'
-      path: '/$clubSlug/spotlight'
+      path: '/spotlight'
       fullPath: '/club/$clubSlug/spotlight'
       preLoaderRoute: typeof ClubClubSlugSpotlightRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/club/$clubSlug/schedule': {
       id: '/club/$clubSlug/schedule'
-      path: '/$clubSlug/schedule'
+      path: '/schedule'
       fullPath: '/club/$clubSlug/schedule'
       preLoaderRoute: typeof ClubClubSlugScheduleRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/club/$clubSlug/new': {
       id: '/club/$clubSlug/new'
-      path: '/$clubSlug/new'
+      path: '/new'
       fullPath: '/club/$clubSlug/new'
       preLoaderRoute: typeof ClubClubSlugNewRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/club/$clubSlug/minisite': {
       id: '/club/$clubSlug/minisite'
-      path: '/$clubSlug/minisite'
+      path: '/minisite'
       fullPath: '/club/$clubSlug/minisite'
       preLoaderRoute: typeof ClubClubSlugMinisiteRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/club/$clubSlug/members': {
       id: '/club/$clubSlug/members'
-      path: '/$clubSlug/members'
+      path: '/members'
       fullPath: '/club/$clubSlug/members'
       preLoaderRoute: typeof ClubClubSlugMembersRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/club/$clubSlug/insights': {
       id: '/club/$clubSlug/insights'
-      path: '/$clubSlug/insights'
+      path: '/insights'
       fullPath: '/club/$clubSlug/insights'
       preLoaderRoute: typeof ClubClubSlugInsightsRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/club/$clubSlug/experts': {
       id: '/club/$clubSlug/experts'
-      path: '/$clubSlug/experts'
+      path: '/experts'
       fullPath: '/club/$clubSlug/experts'
       preLoaderRoute: typeof ClubClubSlugExpertsRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/club/$clubSlug/documents': {
       id: '/club/$clubSlug/documents'
-      path: '/$clubSlug/documents'
+      path: '/documents'
       fullPath: '/club/$clubSlug/documents'
       preLoaderRoute: typeof ClubClubSlugDocumentsRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/club/$clubSlug/calendar': {
       id: '/club/$clubSlug/calendar'
-      path: '/$clubSlug/calendar'
+      path: '/calendar'
       fullPath: '/club/$clubSlug/calendar'
       preLoaderRoute: typeof ClubClubSlugCalendarRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/club/$clubSlug/board': {
       id: '/club/$clubSlug/board'
-      path: '/$clubSlug/board'
+      path: '/board'
       fullPath: '/club/$clubSlug/board'
       preLoaderRoute: typeof ClubClubSlugBoardRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/club/$clubSlug/about': {
       id: '/club/$clubSlug/about'
-      path: '/$clubSlug/about'
+      path: '/about'
       fullPath: '/club/$clubSlug/about'
       preLoaderRoute: typeof ClubClubSlugAboutRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/category/$slug/rss.xml': {
       id: '/category/$slug/rss.xml'
@@ -7311,17 +7328,17 @@ declare module '@tanstack/react-router' {
     }
     '/club/$clubSlug/t/$threadSlug': {
       id: '/club/$clubSlug/t/$threadSlug'
-      path: '/$clubSlug/t/$threadSlug'
+      path: '/t/$threadSlug'
       fullPath: '/club/$clubSlug/t/$threadSlug'
       preLoaderRoute: typeof ClubClubSlugTThreadSlugRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/club/$clubSlug/e/$eventSlug': {
       id: '/club/$clubSlug/e/$eventSlug'
-      path: '/$clubSlug/e/$eventSlug'
+      path: '/e/$eventSlug'
       fullPath: '/club/$clubSlug/e/$eventSlug'
       preLoaderRoute: typeof ClubClubSlugEEventSlugRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/api/public/webhooks/resend': {
       id: '/api/public/webhooks/resend'
@@ -8257,10 +8274,7 @@ const AdminRouteChildren: AdminRouteChildren = {
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
-interface ClubRouteChildren {
-  ClubApplyRoute: typeof ClubApplyRoute
-  ClubElementsRoute: typeof ClubElementsRoute
-  ClubIndexRoute: typeof ClubIndexRoute
+interface ClubClubSlugRouteChildren {
   ClubClubSlugAboutRoute: typeof ClubClubSlugAboutRoute
   ClubClubSlugBoardRoute: typeof ClubClubSlugBoardRoute
   ClubClubSlugCalendarRoute: typeof ClubClubSlugCalendarRoute
@@ -8272,17 +8286,12 @@ interface ClubRouteChildren {
   ClubClubSlugNewRoute: typeof ClubClubSlugNewRoute
   ClubClubSlugScheduleRoute: typeof ClubClubSlugScheduleRoute
   ClubClubSlugSpotlightRoute: typeof ClubClubSlugSpotlightRoute
-  ClubJoinTokenRoute: typeof ClubJoinTokenRoute
-  ClubSpecializationSlugRoute: typeof ClubSpecializationSlugRoute
   ClubClubSlugIndexRoute: typeof ClubClubSlugIndexRoute
   ClubClubSlugEEventSlugRoute: typeof ClubClubSlugEEventSlugRoute
   ClubClubSlugTThreadSlugRoute: typeof ClubClubSlugTThreadSlugRoute
 }
 
-const ClubRouteChildren: ClubRouteChildren = {
-  ClubApplyRoute: ClubApplyRoute,
-  ClubElementsRoute: ClubElementsRoute,
-  ClubIndexRoute: ClubIndexRoute,
+const ClubClubSlugRouteChildren: ClubClubSlugRouteChildren = {
   ClubClubSlugAboutRoute: ClubClubSlugAboutRoute,
   ClubClubSlugBoardRoute: ClubClubSlugBoardRoute,
   ClubClubSlugCalendarRoute: ClubClubSlugCalendarRoute,
@@ -8294,11 +8303,31 @@ const ClubRouteChildren: ClubRouteChildren = {
   ClubClubSlugNewRoute: ClubClubSlugNewRoute,
   ClubClubSlugScheduleRoute: ClubClubSlugScheduleRoute,
   ClubClubSlugSpotlightRoute: ClubClubSlugSpotlightRoute,
-  ClubJoinTokenRoute: ClubJoinTokenRoute,
-  ClubSpecializationSlugRoute: ClubSpecializationSlugRoute,
   ClubClubSlugIndexRoute: ClubClubSlugIndexRoute,
   ClubClubSlugEEventSlugRoute: ClubClubSlugEEventSlugRoute,
   ClubClubSlugTThreadSlugRoute: ClubClubSlugTThreadSlugRoute,
+}
+
+const ClubClubSlugRouteWithChildren = ClubClubSlugRoute._addFileChildren(
+  ClubClubSlugRouteChildren,
+)
+
+interface ClubRouteChildren {
+  ClubClubSlugRoute: typeof ClubClubSlugRouteWithChildren
+  ClubApplyRoute: typeof ClubApplyRoute
+  ClubElementsRoute: typeof ClubElementsRoute
+  ClubIndexRoute: typeof ClubIndexRoute
+  ClubJoinTokenRoute: typeof ClubJoinTokenRoute
+  ClubSpecializationSlugRoute: typeof ClubSpecializationSlugRoute
+}
+
+const ClubRouteChildren: ClubRouteChildren = {
+  ClubClubSlugRoute: ClubClubSlugRouteWithChildren,
+  ClubApplyRoute: ClubApplyRoute,
+  ClubElementsRoute: ClubElementsRoute,
+  ClubIndexRoute: ClubIndexRoute,
+  ClubJoinTokenRoute: ClubJoinTokenRoute,
+  ClubSpecializationSlugRoute: ClubSpecializationSlugRoute,
 }
 
 const ClubRouteWithChildren = ClubRoute._addFileChildren(ClubRouteChildren)

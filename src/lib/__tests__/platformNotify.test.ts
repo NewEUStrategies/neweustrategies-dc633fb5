@@ -50,6 +50,62 @@ describe("lazy notifications", () => {
     expect(h.error).toHaveBeenCalledOnce();
     expect(h.error).toHaveBeenCalledWith("retry");
   });
+  // SYGNAŁ „PIERWSZE UŻYCIE" - `__root.tsx` montuje na nim `<Toaster/>`
+  // (chunk sonnera poza commitem hydratacji, audyt CWV F19). Musi paść ZANIM
+  // chunk dojedzie: inaczej pierwszy toast trafiałby w niezamontowany Toaster,
+  // a sonner nie odtwarza historii nowym subskrybentom.
+  it("zgłasza pierwsze użycie SYNCHRONICZNIE, zanim chunk sonnera dojedzie", async () => {
+    vi.doMock("sonner", () => ({ toast: h }));
+    const { notifySuccess, onFirstToast } = await import("../notify");
+    const montuj = vi.fn();
+    onFirstToast(montuj);
+
+    expect(montuj).not.toHaveBeenCalled();
+    notifySuccess("pierwszy");
+    expect(montuj).toHaveBeenCalledTimes(1);
+
+    notifySuccess("drugi");
+    expect(montuj).toHaveBeenCalledTimes(1);
+    await vi.dynamicImportSettled();
+  });
+
+  it("subskrypcja po pierwszym toaście odpala się natychmiast (nie ma na co czekać)", async () => {
+    vi.doMock("sonner", () => ({ toast: h }));
+    const { notifyError, onFirstToast } = await import("../notify");
+    notifyError("byl");
+
+    const montuj = vi.fn();
+    onFirstToast(montuj);
+    expect(montuj).toHaveBeenCalledTimes(1);
+    await vi.dynamicImportSettled();
+  });
+
+  it("odsubskrybowanie działa, a rzut subskrybenta nie wywraca nadawcy toasta", async () => {
+    vi.doMock("sonner", () => ({ toast: h }));
+    const { notifySuccess, onFirstToast } = await import("../notify");
+    const zerwany = vi.fn();
+    const stop = onFirstToast(zerwany);
+    stop();
+    onFirstToast(() => {
+      throw new Error("montaż Toastera padł");
+    });
+
+    expect(() => notifySuccess("saved")).not.toThrow();
+    expect(zerwany).not.toHaveBeenCalled();
+    await vi.dynamicImportSettled();
+    expect(h.success).toHaveBeenCalledWith("saved");
+  });
+
+  it("SSR nie zgłasza pierwszego użycia - nie ma czego montować", async () => {
+    vi.stubGlobal("window", undefined);
+    vi.doMock("sonner", () => ({ toast: h }));
+    const { notifySuccess, onFirstToast } = await import("../notify");
+    const montuj = vi.fn();
+    onFirstToast(montuj);
+    notifySuccess("x");
+    expect(montuj).not.toHaveBeenCalled();
+  });
+
   it("is a no-op during SSR", async () => {
     vi.stubGlobal("window", undefined);
     vi.doMock("sonner", () => ({ toast: h }));

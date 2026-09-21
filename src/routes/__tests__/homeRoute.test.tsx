@@ -30,7 +30,7 @@
 //  * CZYSTYCH DECYZJI ATOMÓW - `homeContent`/`homeBuilderSource`/
 //    `homeTotalPages`/`homePageSearch` mają tabele przypadków w
 //    `src/components/home/atoms/__tests__/homeAtoms.test.ts`, a `HomeSrHeading`
-//    (w tym `it.fails` o literale i18n w nagłówku) w
+//    (tabela przesłanek zapasowego `h1` i źródło jego treści) w
 //    `src/components/home/atoms/__tests__/HomeSrHeading.test.tsx`. Tutaj
 //    sprawdzamy, że trasa je WOŁA i respektuje wynik.
 //  * SIATKI ARCHIWUM I PAGINACJI LINKOWEJ - `PaginatedPostGrid` ma dowód na
@@ -333,7 +333,42 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     h.homePage = homePageData();
   });
 
-  it("czytelnik widzi treść kanwy bez dodatkowego nagłówka h1", async () => {
+  it("kanwa BEZ własnego nagłówka dostaje DOKŁADNIE JEDEN `h1` z nazwą serwisu", async () => {
+    // REGRESJA ODZIEDZICZONA Z `main`. Do 2026-09-14 zapasowy `h1` renderowała
+    // trasa; potem przeniósł się do chrome nagłówka (`HeaderSeoHeading`), które
+    // przy braku `site_settings` w ogóle się nie renderuje - bramka
+    // `e2e/ssr-completeness.spec.ts` liczyła wtedy ZERO nagłówków poziomu 1
+    // na `/` i `/en`. Zapas wrócił do właściciela: strony głównej.
+    const view = await mountHome();
+    expect(screen.getByTestId("kanwa")).toBeTruthy();
+    const h1s = view.container.querySelectorAll("h1");
+    expect(h1s).toHaveLength(1);
+    // `sr-only`, nie widoczny pasek: kanwa ma własny hero (wymóg redakcyjny
+    // spisany w `HeaderSeoHeading`), ale nagłówek MUSI zostać w drzewie
+    // dostępności i w HTML-u serwera.
+    expect(h1s[0].className).toBe("sr-only");
+    expect(h1s[0].textContent).toContain("New European Strategies");
+  });
+
+  it("kanwa z WŁASNYM nagłówkiem poziomu 1 nie dostaje drugiego", async () => {
+    // Renderer kanwy jest tu atrapą, więc `h1` z dokumentu do DOM-u nie trafia
+    // - przedmiotem dowodu jest to, że trasa NIE dokłada swojego. Dwa `h1` to
+    // ten sam defekt, który audyt 2026-08-06 (korekta 2) zgłosił dla stron
+    // buildera, i dlatego zapas jest warunkowy.
+    h.homePage = homePageData({ builder_data: builderDoc("<h1>Europa i bezpieczeństwo</h1>") });
+    const view = await mountHome();
+    expect(screen.getByTestId("kanwa")).toBeTruthy();
+    expect(view.container.querySelectorAll("h1")).toHaveLength(0);
+  });
+
+  it("gdy `h1` wypisuje POWŁOKA witryny, trasa nie dokłada drugiego", async () => {
+    // `components/Header.tsx` renderuje `HeaderSeoHeading` na stronie głównej,
+    // gdy ustawienia niosą kanwę nagłówka. Powłoki nie ma w tym harnessie, więc
+    // liczymy to, co trasa dokłada OD SIEBIE - i ma nie dokładać nic.
+    h.settings = {
+      ...h.settings,
+      header: { builder_data: { version: 1, sections: [{ id: "hs", kind: "section" }] } },
+    };
     const view = await mountHome();
     expect(screen.getByTestId("kanwa")).toBeTruthy();
     expect(view.container.querySelectorAll("h1")).toHaveLength(0);
@@ -643,6 +678,14 @@ describe("/ - degradacja: awaria danych NIE jest tym samym co pustka", () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
     try {
       h.server = true;
+      // Atrapa `isServer` wyżej nie wystarcza: `loadResilient` świadomie NIE
+      // ufa stałej rozstrzyganej w czasie budowania (w wariancie `development`
+      // i pod `NODE_ENV=test` jest ona `undefined`) i pyta o `document` przy
+      // każdym wywołaniu - patrz `lib/ssr/isSsrRequest.ts`. Bez tego stubu
+      // budżet byłby wyłączony, bo happy-dom daje `document` zawsze, a zwis
+      // czekałby tu w nieskończoność - dokładnie tak, jak MA czekać przy
+      // nawigacji SPA (recenzja PR #382, P1).
+      vi.stubGlobal("document", undefined);
       h.homePageHangs = true;
       const deadline = homeSsrDeadline(qc);
       // Root has already used 400 ms. The home loader may not start a fresh
@@ -669,6 +712,7 @@ describe("/ - degradacja: awaria danych NIE jest tym samym co pustka", () => {
       expect(h.cacheControl.at(-1)).toBe("private, no-store");
     } finally {
       qc.clear();
+      vi.unstubAllGlobals();
       vi.useRealTimers();
     }
   });
@@ -693,6 +737,30 @@ describe("/ - degradacja: awaria danych NIE jest tym samym co pustka", () => {
     expect(view.queryClient.getQueryData(["public", "home-mode"])).toBe("");
     expect(screen.getByRole("status")).toHaveTextContent("Wczytujemy stronę główną");
     expect(screen.queryByText(/zajrzyj wkrótce/i)).toBeNull();
+    expect(h.cacheControl.at(-1)).toContain("no-store");
+  });
+
+  it.each([
+    { lang: "pl" as const, url: "https://neweuropeanstrategies.com/" },
+    { lang: "en" as const, url: "https://neweuropeanstrategies.com/en" },
+  ])("render ZDEGRADOWANY ($lang) ma dokładnie jeden h1 z nazwą serwisu", async ({ lang, url }) => {
+    // DOKŁADNIE stan bramki `e2e` (job `e2e` w `.github/workflows/e2e.yml`):
+    // placeholderowe poświadczenia Supabase, więc KAŻDE zapytanie pada -
+    // strona statyczna, tryb strony głównej i ustawienia serwisu naraz.
+    // Bramka `ssr-completeness` wymaga wtedy jednego, niepustego `<h1>`
+    // pasującego do /new european strategies/i - i dla `/`, i dla `/en`.
+    h.lang = lang;
+    h.requestUrl = url;
+    h.homePageFails = true;
+    h.homeModeFails = true;
+    h.settingsFails = true;
+    const view = await mountHome();
+    expect(screen.getByRole("status")).toBeVisible();
+    const h1s = view.container.querySelectorAll("h1");
+    expect(h1s).toHaveLength(1);
+    expect(h1s[0].textContent).toContain("New European Strategies");
+    // Zdegradowany render nadal NIE wchodzi do cache'u współdzielonego -
+    // zapasowy nagłówek niczego w tej decyzji nie zmienia.
     expect(h.cacheControl.at(-1)).toContain("no-store");
   });
 

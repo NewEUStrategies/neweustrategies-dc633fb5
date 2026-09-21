@@ -37,7 +37,7 @@ import {
 } from "../documentCache.server";
 import { liveCacheControl, planDefaultCacheControl } from "../defaultCacheControl";
 import { readRouteCacheDirective, setCacheControlHeader } from "../responseHeaders";
-import { contentCacheControl } from "../cachePolicy";
+import { chromeDegradedCacheControl, contentCacheControl } from "../cachePolicy";
 import { resilientCacheControl } from "@/lib/ssr/resilientLoad";
 
 const HTML = "content-type";
@@ -257,5 +257,39 @@ describe("render zdegradowany a ZAPIS do NES Edge Cache (kolejność potoku)", (
     expect(planDefaultCacheControl(request, response, "private, no-store")).toBe(
       "private, no-store",
     );
+  });
+});
+
+describe("degradacja WYŁĄCZNIE chrome'u: krótka świeżość wspólna zamiast no-store (F02)", () => {
+  it("dokument z `chromeDegradedCacheControl()` WCHODZI do magazynu - z krótką świeżością", async () => {
+    const response = await documentRequest("/analiza", () => {
+      setCacheControlHeader(chromeDegradedCacheControl());
+    });
+    await response.text();
+    await settle();
+    expect(response.headers.get("cache-control")).toBe(chromeDegradedCacheControl());
+    expect(storedEntries()).toBe(1);
+  });
+
+  it("późniejszy CZYSTY loader trasy nie podnosi krótkiej świeżości bramki chrome do 900 s", async () => {
+    const response = await documentRequest("/analiza", () => {
+      setCacheControlHeader(chromeDegradedCacheControl());
+      setCacheControlHeader(resilientCacheControl(false));
+    });
+    await response.text();
+    await settle();
+    expect(response.headers.get("cache-control")).toBe(chromeDegradedCacheControl());
+    expect(storedEntries()).toBe(1);
+  });
+
+  it("awaria rozgrzewki (`failed`) po krótkiej polityce zaostrza do no-store i blokuje zapis", async () => {
+    const response = await documentRequest("/analiza", () => {
+      setCacheControlHeader(chromeDegradedCacheControl());
+      setCacheControlHeader(resilientCacheControl(true));
+    });
+    await response.text();
+    await settle();
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(storedEntries()).toBe(0);
   });
 });

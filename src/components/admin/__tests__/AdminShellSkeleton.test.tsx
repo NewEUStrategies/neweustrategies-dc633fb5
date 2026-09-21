@@ -4,9 +4,11 @@
 // wyrenderuje się także wtedy, gdy przestanie robić to jedno, po co powstał.
 // Przedmiotem dowodu jest PARYTET GEOMETRII z `AdminShell`.
 //
-// MECHANIZM DEFEKTU, który ten komponent zamyka. `/admin` to trasa `ssr: false`
-// (sesja Supabase żyje w `localStorage`), więc dokument przychodzi z pustym
-// ciałem, a pierwszy render klienta trafia na `useAuth().loading`. Malowała się
+// MECHANIZM DEFEKTU, który ten komponent zamyka. Sesja Supabase żyje
+// w `localStorage`, więc rozstrzyga się dopiero po hydratacji (a do audytu CWV
+// 2026-09-20 `/admin` było dodatkowo trasą `ssr: false`, czyli dokument
+// przychodził z pustym ciałem). Pierwszy render trafia na
+// `useAuth().loading`. Malowała się
 // wtedy JEDNA wyśrodkowana kropka w `min-h-screen flex items-center
 // justify-center`, po czym React podmieniał ją na pełną powłokę: pasek boczny
 // 14 rem, pole wyszukiwania, lista nawigacji, siatka treści. To nie jest
@@ -27,6 +29,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 
 import { AdminShellSkeleton } from "../AdminShellSkeleton";
+import { isCompactSidebarRoute } from "@/lib/admin/adminNav";
+import { hasSsrDisabled } from "@/lib/ci/publicRouteLoaders";
 
 const SHELL_SOURCE = readFileSync("src/components/admin/AdminShell.tsx", "utf8");
 const ROUTE_SOURCE = readFileSync("src/routes/admin.tsx", "utf8");
@@ -137,5 +141,85 @@ describe("trasa panelu faktycznie steruje szerokością szkieletu", () => {
     // panelu poza edytorami - czyli w większości wejść.
     expect(ROUTE_SOURCE).toContain("readRememberedSidebarStyle");
     expect(ROUTE_SOURCE).toContain("style-4");
+  });
+});
+
+// WYSOKOŚĆ JEST DRUGĄ POŁOWĄ PARYTETU, i do tej pory nie była mierzona wcale.
+//
+// Szerokość paska pilnują asercje wyżej, ale CLS liczy przesunięcia w OBU
+// osiach. Podmiana szkieletu na powłokę dzieje się w tym samym kontenerze, więc
+// pytanie brzmi: czy kontener ma w obu stanach tę samą REZERWĘ pionową. Gdyby
+// szkielet kończył się na wysokości swojej zawartości, dokument skurczyłby się
+// w chwili rozstrzygnięcia sesji i odrósł, gdy dojadą dane ekranu - dwa
+// przesunięcia zamiast zera, i to na każdej trasie panelu naraz.
+describe("parytet wysokości - kontener nie kurczy się przy podmianie", () => {
+  it.each([
+    { hideSidebar: false, label: "z paskiem" },
+    { hideSidebar: true, label: "bez paska (studio wydarzenia)" },
+  ])("korzeń rezerwuje pełny ekran $label", ({ hideSidebar }) => {
+    const { container } = render(<AdminShellSkeleton hideSidebar={hideSidebar} />);
+    const className = container.firstElementChild?.getAttribute("class") ?? "";
+    expect(className).toContain("min-h-screen");
+    // Powłoka deklaruje TĘ SAMĄ rezerwę na TYM SAMYM korzeniu - inaczej
+    // parytet byłby przypadkiem, a nie kontraktem.
+    expect(SHELL_SOURCE).toContain("min-h-screen");
+  });
+
+  it("pasek boczny zajmuje dokładnie jeden ekran, tak jak w powłoce", () => {
+    const { container } = render(<AdminShellSkeleton />);
+    const className = container.querySelector("aside")?.getAttribute("class") ?? "";
+    for (const token of ["h-screen", "max-h-screen", "self-start"]) {
+      expect(className).toContain(token);
+      expect(SHELL_SOURCE).toContain(token);
+    }
+  });
+
+  it("kolumna treści rośnie tak samo jak w powłoce", () => {
+    const { container } = render(<AdminShellSkeleton />);
+    expect(container.querySelector("main")?.getAttribute("class")).toContain("flex-1");
+    expect(SHELL_SOURCE).toContain("flex-1");
+  });
+
+  it("treść ma rezerwę pionową, a nie wysokość własnej zawartości", () => {
+    // `h-[70vh]` nie jest zgadywaniem układu konkretnego ekranu (patrz komentarz
+    // w komponencie) - jest REZERWĄ, dzięki której dokument ma pełną wysokość,
+    // zanim cokolwiek się dowiezie.
+    const { container } = render(<AdminShellSkeleton />);
+    const reserve = container.querySelector("main .h-\\[70vh\\]");
+    expect(reserve).not.toBeNull();
+  });
+});
+
+// SSR SZKIELETU (audyt CWV 2026-09-20, F32 / plan 3.13): ten komponent nie jest
+// już tylko pierwszym renderem KLIENTA - wychodzi z serwera. Zachowanie trasy
+// dowodzi `src/routes/__tests__/adminRouteSsr.test.tsx`; tutaj pilnujemy tylko
+// tego, żeby decyzja o SSR nie wróciła po cichu do `ssr: false`.
+describe("szkielet stoi w dokumencie serwerowym", () => {
+  it("trasa panelu nie wyłącza renderu serwerowego", () => {
+    // Predykat produkcyjnej bramki (`lib/ci/publicRouteLoaders`), a nie własny
+    // regexp: czyta BLOK OPCJI trasy, więc nie myli deklaracji z komentarzem
+    // (a ten plik trasy `ssr: false` cytuje - opisuje, dlaczego go już nie ma).
+    expect(hasSsrDisabled(ROUTE_SOURCE)).toBe(false);
+  });
+
+  it("część zależna od sesji jest za bramką hydratacji", () => {
+    // Bez tej bramki `useAuth` (czyli `localStorage`) trafiłby do renderu
+    // serwerowego - to jest dokładnie ten rozjazd, przez który trasa miała
+    // `ssr: false`.
+    expect(ROUTE_SOURCE).toContain("useHydrated");
+  });
+
+  it("wariant kompaktowy z URL-a zgadza się z predykatem powłoki", () => {
+    // Serwer zna z formuły powłoki DOKŁADNIE JEDEN człon - trasę. Ten test
+    // wiąże predykat z narysowaną szerokością, żeby zmiana jednego bez
+    // drugiego była czerwona.
+    for (const path of ["/admin", "/admin/posts/abc", "/admin/appearance/header"]) {
+      const compact = isCompactSidebarRoute(path);
+      const { container } = render(<AdminShellSkeleton compact={compact} />);
+      expect(container.querySelector("aside")?.getAttribute("class")).toContain(
+        compact ? "w-12" : "w-56",
+      );
+      cleanup();
+    }
   });
 });

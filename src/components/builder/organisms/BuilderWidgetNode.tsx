@@ -5,7 +5,14 @@
 // column with N widgets doesn't re-render all N whenever one changes.
 import { memo, useCallback, useMemo, type CSSProperties } from "react";
 import type { Device, WidgetNode } from "@/lib/builder/types";
-import { WidgetView, getWidgetFrameStyle } from "@/components/builder/organisms/WidgetView";
+// `ChromeWidgetView` renderuje natywnie widgety chrome'u (nagłówek/stopka),
+// a pełny dyspozytor `WidgetView` (widgety treści, formularze, kompozytor)
+// dociąga leniwie - ~98 KB źródeł mniej w domknięciu startowym (audyt CWV
+// 2026-09-20, F17). Kontrakt props i re-eksporty identyczne.
+import {
+  ChromeWidgetView as WidgetView,
+  getWidgetFrameStyle,
+} from "@/components/builder/organisms/ChromeWidgetView";
 import {
   AUTO_SIZE_WIDGETS,
   COMPACT_WIDGET_TYPES,

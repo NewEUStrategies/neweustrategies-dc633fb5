@@ -9,10 +9,12 @@
 //     serwerowy HTML treści - czyli czy PIERWSZA fala (ustawienia, tokeny
 //     designu, kolory globalne) ma cokolwiek do pomalowania przed hydratacją.
 //
-// Panel `/admin` odpowiada NIE na oba pytania: `routes/admin.tsx` deklaruje
-// `ssr: false` (sesja Supabase żyje w `localStorage`, więc SSR szkicu jest
-// gwarantowanym mismatchem hydratacji), a `showsSiteChrome` wyklucza go z
-// chrome'u serwisu. Mimo to loader korzenia awaitował na tej ścieżce pełną
+// Panel `/admin` odpowiada NIE na oba pytania: od 2026-09-20 `routes/admin.tsx`
+// renderuje na serwerze WYŁĄCZNIE statyczny szkielet powłoki (bez ustawień,
+// bez sesji - ta żyje w `localStorage`), a `showsSiteChrome` wyklucza go z
+// chrome'u serwisu. Szkielet nie czyta ustawień najemcy, więc krótki termin
+// fali 1 zostaje w mocy; tokeny designu malują już jego kolory, więc wyczerpanie
+// terminu kosztuje repaint motywu po hydratacji, a nie „nic” - to świadoma cena. Mimo to loader korzenia awaitował na tej ścieżce pełną
 // falę 1 z budżetem `ROOT_WARM_BUDGET_MS` (2 500 ms) - czyli pierwszy bajt
 // dokumentu, który po stronie serwera renderuje PUSTE ciało, czekał na
 // round-trip do bazy, z którego nie powstawał ani jeden widoczny piksel.
@@ -60,4 +62,39 @@ const CLIENT_ONLY_PREFIXES = ["/admin"] as const;
 export function isClientOnlyDocument(pathname: string): boolean {
   const { pathname: bare } = stripLangPrefix(pathname);
   return CLIENT_ONLY_PREFIXES.some((prefix) => bare === prefix || bare.startsWith(`${prefix}/`));
+}
+
+/**
+ * Powierzchnie Z CHROME'EM SERWISU, ale BEZ serwerowego renderu treści: widok
+ * rozstrzyga sesja z `localStorage` po hydratacji (profil, sieć kontaktów,
+ * lista do przeczytania, wiadomości, checkout). Fala 1 maluje tu wyłącznie
+ * nagłówek i stopkę, więc czekanie 2 500 ms na dane, z których nie powstanie
+ * ani jeden piksel treści, było czystą stratą TTFB: audyt CWV 2026-09-20
+ * zmierzył na `/profile/*` 0,7–1,25 s przy każdym twardym wejściu (F05, plan
+ * 1.4). Prefiksy zawężone do tras, których treść jest w całości kliencka -
+ * `/checkout/success` ma własny loader, ale i tak nie renderuje treści
+ * publicznej przed sesją.
+ */
+const CHROME_ONLY_PREFIXES = [
+  "/profile",
+  "/network",
+  "/people",
+  "/reading-list",
+  "/messages",
+  "/checkout",
+] as const;
+
+/**
+ * Termin fali 1 na powierzchni chrome-only. Dłuższy niż `CLIENT_ONLY_WARM_BUDGET_MS`
+ * (tu ustawienia MALUJĄ nagłówek, więc warto na nie chwilę poczekać), ale
+ * trzykrotnie krótszy niż `ROOT_WARM_BUDGET_MS`: po terminie nagłówek idzie na
+ * domyślnych z zasiewem `updatedAt: 0`, a dokument dostaje `no-store`, żeby
+ * ten wariant nie zamarzł na brzegu.
+ */
+export const CHROME_ONLY_WARM_BUDGET_MS = 800;
+
+/** Czy dokument tej ścieżki niesie chrome serwisu, ale nie treść z serwera. */
+export function isChromeOnlyDocument(pathname: string): boolean {
+  const { pathname: bare } = stripLangPrefix(pathname);
+  return CHROME_ONLY_PREFIXES.some((prefix) => bare === prefix || bare.startsWith(`${prefix}/`));
 }

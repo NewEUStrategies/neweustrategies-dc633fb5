@@ -21,7 +21,7 @@
 // z testowanych gałęzi (`activeRequest`).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildServerTimingValue } from "../ssrTiming";
+import { buildDocumentLogLine, buildServerTimingValue, parseServerTiming } from "../ssrTiming";
 import {
   readDbTiming,
   readRequestPhases,
@@ -345,5 +345,160 @@ describe("fazy w nagłówku Server-Timing", () => {
         { name: "inna-faza", durationMs: -1 },
       ]),
     ).toBe('nes-edge;desc="MISS"');
+  });
+});
+
+// LOG DOKUMENTU DO WORKERS LOGS (audyt 0.1 / F40) - trzecia oś tej telemetrii.
+//
+// Hosting zdejmuje `Server-Timing` i `x-nes-cache` z odpowiedzi, więc jedyne
+// miejsce, w którym rozkład TTFB na fazy przeżywa, to linia `console.log`
+// w `src/server.ts`. Jej KSZTAŁT jest tu przypięty jako czysta funkcja: klucze
+// stałe, brak metryki = brak klucza (nie zero), bez PII i bez query string.
+describe("parseServerTiming", () => {
+  it("rozbija nagłówek, który sami wystawiamy, na metryki z dur/desc", () => {
+    expect(
+      parseServerTiming(
+        'nes-edge;desc="MISS", ssr;dur=674.0, db;dur=2697.0;desc="n=19", nes-age;dur=1200, edge-routing;dur=284.2, server-init;dur=0, app;dur=37',
+      ),
+    ).toEqual([
+      { name: "nes-edge", description: "MISS" },
+      { name: "ssr", durationMs: 674 },
+      { name: "db", durationMs: 2697, description: "n=19" },
+      { name: "nes-age", durationMs: 1200 },
+      { name: "edge-routing", durationMs: 284.2 },
+      { name: "server-init", durationMs: 0 },
+      { name: "app", durationMs: 37 },
+    ]);
+  });
+
+  it("przecinek W cudzysłowie nie rozcina metryki", () => {
+    expect(parseServerTiming('x;desc="a, b", y;dur=1')).toEqual([
+      { name: "x", description: "a, b" },
+      { name: "y", durationMs: 1 },
+    ]);
+  });
+
+  it.each([null, undefined, "", "   ", ",,,", ";dur=1", "bad name;dur=1"])(
+    "nie rzuca i pomija nieczytelne wpisy: %j",
+    (header) => {
+      expect(parseServerTiming(header)).toEqual([]);
+    },
+  );
+
+  it("odrzuca `dur`, który nie jest nieujemną liczbą, zachowując nazwę metryki", () => {
+    expect(parseServerTiming("ssr;dur=abc, db;dur=-1, ok;dur=2.5")).toEqual([
+      { name: "ssr" },
+      { name: "db" },
+      { name: "ok", durationMs: 2.5 },
+    ]);
+  });
+});
+
+describe("buildDocumentLogLine", () => {
+  it("odtwarza pełną linię dla MISS-a z zimnego izolatu (wszystkie fazy)", () => {
+    expect(
+      buildDocumentLogLine({
+        path: "/en/blog",
+        status: 200,
+        cacheStatus: "MISS",
+        serverTiming: buildServerTimingValue("MISS", 674, { count: 19, totalMs: 2697 }, undefined, [
+          { name: "edge-routing", durationMs: 284.2 },
+        ]),
+        serverInitMs: 412,
+        appMs: 3105,
+      }),
+    ).toEqual({
+      kind: "doc",
+      path: "/en/blog",
+      status: 200,
+      cache: "MISS",
+      revalidation: false,
+      serverInitMs: 412,
+      appMs: 3105,
+      edgeRoutingMs: 284.2,
+      ssrMs: 674,
+      dbMs: 2697,
+      dbCount: 19,
+    });
+  });
+
+  it("na HIT-cie nie wymyśla zer: brak renderu i bazy = brak kluczy", () => {
+    const line = buildDocumentLogLine({
+      path: "/",
+      status: 200,
+      cacheStatus: "HIT",
+      serverTiming: buildServerTimingValue("HIT", undefined, null, 1200, [
+        { name: "edge-routing", durationMs: 3 },
+      ]),
+      serverInitMs: 0,
+      appMs: 5,
+    });
+    expect(line).toEqual({
+      kind: "doc",
+      path: "/",
+      status: 200,
+      cache: "HIT",
+      revalidation: false,
+      serverInitMs: 0,
+      appMs: 5,
+      edgeRoutingMs: 3,
+    });
+    expect("ssrMs" in line).toBe(false);
+    expect("dbMs" in line).toBe(false);
+  });
+
+  it("flaguje odświeżenie w tle i toleruje brak nagłówków", () => {
+    expect(
+      buildDocumentLogLine({
+        path: "/blog",
+        status: 200,
+        cacheStatus: null,
+        serverTiming: null,
+        serverInitMs: 0,
+        appMs: 812,
+        revalidation: true,
+      }),
+    ).toEqual({
+      kind: "doc",
+      path: "/blog",
+      status: 200,
+      cache: null,
+      revalidation: true,
+      serverInitMs: 0,
+      appMs: 812,
+    });
+  });
+
+  it("nie przepuszcza niepoprawnych czasów ani nienumerycznego `n=`", () => {
+    const line = buildDocumentLogLine({
+      path: "/x",
+      status: 500,
+      cacheStatus: "",
+      serverTiming: 'db;dur=10;desc="n=abc", ssr;dur=NaN',
+      serverInitMs: Number.NaN,
+      appMs: -5,
+    });
+    expect(line).toEqual({
+      kind: "doc",
+      path: "/x",
+      status: 500,
+      cache: null,
+      revalidation: false,
+      serverInitMs: 0,
+      appMs: 0,
+      dbMs: 10,
+    });
+  });
+
+  it("przycina ścieżkę do 2048 znaków - URL od klienta może mieć kilobajty", () => {
+    const line = buildDocumentLogLine({
+      path: `/${"a".repeat(5000)}`,
+      status: 404,
+      cacheStatus: "BYPASS",
+      serverTiming: null,
+      serverInitMs: 1,
+      appMs: 2,
+    });
+    expect(line.path).toHaveLength(2048);
   });
 });

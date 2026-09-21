@@ -19,6 +19,10 @@ import type { ReactElement } from "react";
 import "@/lib/i18n";
 import { realT } from "@/test/i18nReal";
 import { DEFAULT_TICKER_COLORS } from "@/lib/views/tickerVariants";
+import {
+  HEADER_TICKER_BAND_CLASS,
+  HEADER_TICKER_BORDER_CLASS,
+} from "@/components/header/headerGeometry";
 
 interface TickerPost {
   id: string;
@@ -141,11 +145,23 @@ describe("czyste reguły paska", () => {
 });
 
 describe("pasek milczy, gdy nie ma czego pokazać", () => {
-  it("w trakcie pobierania NIE renderuje nic", () => {
-    // Pas z samą ikoną i pustym miejscem po wpisach wygląda jak awaria.
+  it("w trakcie pobierania TRZYMA swoje pudełko, ale bez treści", () => {
+    // Pas z samą ikoną i pustym miejscem po wpisach wygląda jak awaria, więc
+    // rezerwa jest PUSTA. Ale `null` też nie wchodzi w grę: pasek stoi nad
+    // całą stroną, a montuje się dopiero z danymi - jego ~40 px doskakiwało po
+    // hydratacji i spychało `<main>` w dół (0,03 CLS na artefakcie
+    // produkcyjnym). Rezerwa ma DOKŁADNIE tę samą klasę wysokości i tę samą
+    // krawędź, co gotowy pasek, więc podmiana nic nie przesuwa.
     feed.loading = true;
     const { container } = render(renderTicker());
-    expect(container).toBeEmptyDOMElement();
+    const rezerwa = screen.getByTestId("trending-ticker-reserve");
+    expect(rezerwa).toHaveAttribute("aria-hidden", "true");
+    expect(rezerwa.textContent).toBe("");
+    expect(container.querySelector(`.${HEADER_TICKER_BAND_CLASS}`)).not.toBeNull();
+    for (const cls of HEADER_TICKER_BORDER_CLASS.split(" "))
+      expect(rezerwa.className).toContain(cls);
+    // Gotowy pasek nosi to samo pudełko - stąd zerowe przesunięcie na podmianie.
+    expect(rezerwa.className).toContain("cms-trending");
   });
 
   it("zero wpisów też nie zostawia pustego pasa", async () => {

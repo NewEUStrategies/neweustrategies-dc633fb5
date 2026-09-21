@@ -37,7 +37,7 @@
 // ewaluacją wyłączoną, dzięki czemu snippety GTM/Meta/TikTok nie dokładają
 // własnych węzłów i liczenie węzłów jest deterministyczne.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 
 // Stan sterujący atrapami. `vi.hoisted`, bo fabryki `vi.mock` są wynoszone nad
 // importy i nie mogą domykać się na zwykłych zmiennych modułu.
@@ -242,6 +242,25 @@ function renderInjector() {
   return render(<ConsentScriptInjector />);
 }
 
+/**
+ * Przepuszcza okno bezczynności, w którym dociąga się gtag.js.
+ *
+ * DLACZEGO TO JEST POTRZEBNE (i dlaczego nie jest to test „z opóźnieniem").
+ * Od 2026-09-20 `ConsentScriptInjector` rozdziela dwie rzeczy, które wcześniej
+ * robił naraz: POLECENIA (`consent default/update`, `config`) idą do
+ * `window.dataLayer` synchronicznie w efekcie, a SAM PLIK z googletagmanager.com
+ * dociąga `whenIdle(…, 2000)` - ~90 KB obcego originu nie ma prawa konkurować
+ * z LCP i pierwszą interakcją (audyt CWV, F20). Asercje na `dataLayer` zostają
+ * więc synchroniczne; asercje na WĘZLE `<script data-ga4-tag>` muszą przejść
+ * przez to okno. `whenIdle` bez `requestIdleCallback` (happy-dom) degraduje do
+ * `setTimeout(…, 32)` - 80 ms to zapas na obie ścieżki.
+ */
+async function poBezczynnosci(): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 80));
+  });
+}
+
 /** Atrapa sieci: każde wyjście na zewnątrz kończy się porażką testu. */
 const fetchSpy = vi.fn(() => {
   throw new Error("test wyszedł do sieci");
@@ -330,7 +349,7 @@ describe("ConsentScriptInjector - kontrakt 1: bez zgody nie ma skryptu", () => {
     expect(documentMentions(META_ID)).toBe(false);
   });
 
-  it("przy odmowie obu kategorii nie wstrzykuje nic mimo skonfigurowanych identyfikatorów", () => {
+  it("przy odmowie obu kategorii nie wstrzykuje nic mimo skonfigurowanych identyfikatorów", async () => {
     configureEverything();
     grant({ analytics: false, marketing: false });
 
@@ -342,11 +361,14 @@ describe("ConsentScriptInjector - kontrakt 1: bez zgody nie ma skryptu", () => {
     }
     // GA4 jest wyjątkiem z rozmysłem: pracuje w trybie domyślnej odmowy Google,
     // więc jego tag wolno wczytać bez zgody - z KAŻDĄ kategorią `denied`.
-    expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(1);
+    // Zgoda domyślna jest w warstwie OD RAZU, tag dociąga się po bezczynności.
     expect(consentDefault()).toMatchObject({
       analytics_storage: "denied",
       ad_storage: "denied",
     });
+    expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(0);
+    await poBezczynnosci();
+    expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(1);
   });
 
   it("zgoda tylko na analitykę nie wstrzykuje marketingu", () => {
@@ -403,7 +425,7 @@ describe("ConsentScriptInjector - loadery analityki", () => {
     grant({ analytics: true });
   });
 
-  it("GA4 stoi poza bramką zgody: tag ładuje się z domyślną odmową wszystkich kategorii", () => {
+  it("GA4 stoi poza bramką zgody: tag ładuje się z domyślną odmową wszystkich kategorii", async () => {
     setAnalytics({ ga4_measurement_id: GA4_ID });
 
     renderInjector();
@@ -414,20 +436,43 @@ describe("ConsentScriptInjector - loadery analityki", () => {
     expect(externalScripts(ANALYTICS_OWNER)).toHaveLength(0);
     expect(inlineScripts(ANALYTICS_OWNER)).toHaveLength(0);
 
+    // Konfiguracja strumienia i zgoda domyślna - NATYCHMIAST (to tylko wpisy
+    // w `dataLayer`, zero sieci).
+    expect(configEntry(GA4_ID)).toBeDefined();
+    expect(consentDefault()).toMatchObject({ analytics_storage: "denied" });
+
+    await poBezczynnosci();
     const tag = document.head.querySelectorAll<HTMLScriptElement>("script[data-ga4-tag]");
     expect(tag).toHaveLength(1);
     expect(tag[0].getAttribute("src")).toBe(`${GTAG_PREFIX}${encodeURIComponent(GA4_ID)}`);
     expect(tag[0].async).toBe(true);
-    expect(configEntry(GA4_ID)).toBeDefined();
-    expect(consentDefault()).toMatchObject({ analytics_storage: "denied" });
   });
 
-  it("zgoda odwiedzającego aktualizuje Consent Mode zamiast wstrzykiwać drugi tag", () => {
+  it("tag Google NIE jest dociągany w oknie hydratacji - dopiero po bezczynności (F20)", async () => {
+    setAnalytics({ ga4_measurement_id: GA4_ID });
+    grant({ analytics: true });
+
+    renderInjector();
+
+    // Okno LCP: obcego originu nie ma w dokumencie ANI JEDNEGO...
+    expect(document.head.querySelectorAll(`script[src^="${GTAG_PREFIX}"]`)).toHaveLength(0);
+    // ...a mimo to pomiar jest już „gotowy": polecenia czekają w warstwie
+    // danych, którą gtag.js przetworzy od początku, gdy dojedzie. Bez tego
+    // pierwsza odsłona (router woła ją przy `onResolved`) przepadałaby.
+    expect(configEntry(GA4_ID)).toBeDefined();
+    expect(consentUpdate()).toMatchObject({ analytics_storage: "granted" });
+
+    await poBezczynnosci();
+    expect(document.head.querySelectorAll(`script[src^="${GTAG_PREFIX}"]`)).toHaveLength(1);
+  });
+
+  it("zgoda odwiedzającego aktualizuje Consent Mode zamiast wstrzykiwać drugi tag", async () => {
     setAnalytics({ ga4_measurement_id: GA4_ID });
 
     const view = renderInjector();
     grant({ analytics: true });
     view.rerender(<ConsentScriptInjector />);
+    await poBezczynnosci();
 
     expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(1);
     expect(consentUpdate()).toMatchObject({
@@ -437,12 +482,13 @@ describe("ConsentScriptInjector - loadery analityki", () => {
     });
   });
 
-  it("nieprawidłowy wpis site_settings degraduje do domyślnych zamiast wywracać stronę", () => {
+  it("nieprawidłowy wpis site_settings degraduje do domyślnych zamiast wywracać stronę", async () => {
     // Identyfikator dłuższy niż dopuszcza schemat (max 64) - dawniej `.parse`
     // rzucał w renderze i każda publiczna strona lądowała na ekranie błędu.
     setAnalytics({ ga4_measurement_id: "G-" + "X".repeat(70) });
 
     expect(() => renderInjector()).not.toThrow();
+    await poBezczynnosci();
 
     // Domyślne = brak wpisu z panelu, więc bootstrap idzie ze stałą wdrożenia.
     expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(1);
@@ -796,7 +842,7 @@ describe("ConsentScriptInjector - kontrakt 4: zmiana konfiguracji przeładowuje 
     expect(owned(ANALYTICS_OWNER)).toHaveLength(1);
   });
 
-  it("zmiana ga4_measurement_id przeładowuje konfigurację strumienia poza bramką zgody", () => {
+  it("zmiana ga4_measurement_id przeładowuje konfigurację strumienia poza bramką zgody", async () => {
     setAnalytics({ ga4_measurement_id: GA4_ID });
     grant({ analytics: true });
 
@@ -806,14 +852,25 @@ describe("ConsentScriptInjector - kontrakt 4: zmiana konfiguracji przeładowuje 
 
     setAnalytics({ ga4_measurement_id: "G-TEST111111" });
     view.rerender(<ConsentScriptInjector />);
+    await poBezczynnosci();
 
-    // Skrypt gtag.js pozostaje jeden (ładowany pierwszym identyfikatorem);
-    // zmiana strumienia to nowa konfiguracja w dataLayer, nie nowy skrypt.
+    // Skrypt gtag.js jest DOKŁADNIE JEDEN - zmiana strumienia to nowa
+    // konfiguracja w `dataLayer`, nigdy drugi tag (drugi tag = drugi ping
+    // Google Ads przy wejściu).
     const srcs = [...document.head.querySelectorAll("script[data-ga4-tag]")].map((s) =>
       s.getAttribute("src"),
     );
-    expect(srcs).toEqual([`${GTAG_PREFIX}${encodeURIComponent(GA4_ID)}`]);
+    expect(srcs).toHaveLength(1);
+    expect(configEntry(GA4_ID)).toBeDefined();
     expect(configEntry("G-TEST111111")).toBeDefined();
+    // ŁADUJE SIĘ IDENTYFIKATOREM AKTUALNYM W CHWILI POBRANIA, nie pierwszym
+    // widzianym. Do 2026-09-20 tag szedł do sieci synchronicznie w pierwszym
+    // efekcie, więc zawsze wygrywał identyfikator sprzed rozstrzygnięcia
+    // `site_settings`; odroczenie do bezczynności (F20) przesuwa pobranie za
+    // ten moment, a wtedy ładowanie PRZETERMINOWANEGO strumienia byłoby już
+    // tylko pomyłką. W produkcji ta ścieżka i tak jest rzadka: `resolveBrowserGa4Id`
+    // zaczyna od strumienia ze snippetu SSR, który się nie zmienia.
+    expect(srcs[0]).toBe(`${GTAG_PREFIX}${encodeURIComponent("G-TEST111111")}`);
   });
 
   it("zmiana meta_pixel_id podmienia inline marketingu zamiast dokładać drugi", () => {

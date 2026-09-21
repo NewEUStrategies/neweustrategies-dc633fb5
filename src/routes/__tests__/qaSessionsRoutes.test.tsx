@@ -55,6 +55,8 @@ const h = vi.hoisted(() => ({
   posts: [] as Record<string, unknown>[],
   /** Wiersze `site_settings` (klucz -> wartość) widoczne publicznie. */
   settings: {} as Record<string, unknown>,
+  /** Opóźnienie odczytu `site_settings` w ms - POWOLNOŚĆ, nie awaria. */
+  settingsDelayMs: 0,
   /** Tenant PRZEGLĄDANEJ domeny - atrapa polityki `public_tenant_id()`. */
   tenantId: "tenant-a",
   /** Tabele i RPC, których wywołanie ma paść (blip backendu). */
@@ -96,7 +98,11 @@ vi.mock("@/integrations/supabase/client", async () => {
   stub.setResponse("site_settings", () => {
     h.reads.push("site_settings");
     if (h.broken.has("site_settings")) return fail("test: tabela site_settings niedostepna");
-    return ok(Object.entries(h.settings).map(([key, value]) => ({ key, value })));
+    const result = ok(Object.entries(h.settings).map(([key, value]) => ({ key, value })));
+    if (h.settingsDelayMs > 0) {
+      return new Promise((resolve) => setTimeout(() => resolve(result), h.settingsDelayMs));
+    }
+    return result;
   });
 
   stub.setResponse("qa_sessions", (chain) => {
@@ -330,6 +336,7 @@ beforeEach(async () => {
   h.questions = [question()];
   h.posts = [];
   h.settings = modules();
+  h.settingsDelayMs = 0;
   h.tenantId = "tenant-a";
   h.broken = new Set<string>();
   h.userId = null;
@@ -347,7 +354,22 @@ afterEach(async () => {
   cleanup();
   await i18n.changeLanguage("pl");
   vi.restoreAllMocks();
+  // Stub środowiska z `renderOnServer()` nie może przeciekać na kolejny test.
+  vi.unstubAllGlobals();
 });
+
+/**
+ * Przestaw JEDEN przebieg loadera na RENDER SERWEROWY.
+ *
+ * Budżet bramki modułu (`QA_SETTINGS_BUDGET_MS`, 300 ms) liczy się wyłącznie na
+ * serwerze (recenzja PR #382, P1 - patrz docblock `withSsrBudget`
+ * w `src/lib/asyncBudget.ts`). Suita biegnie w happy-dom, gdzie `document`
+ * istnieje zawsze, więc DOMYŚLNIE jesteśmy w przeglądarce; predykat środowiska
+ * liczy `typeof document` przy każdym wywołaniu, więc podmiana globalu wystarcza.
+ */
+function renderOnServer(): void {
+  vi.stubGlobal("document", undefined);
+}
 
 describe("trasa /qa - lista sesji", () => {
   it("pokazuje tytuł sesji, plakietkę statusu i link do szczegółów", async () => {
@@ -510,6 +532,31 @@ describe("trasa /qa - nagłówek i dane strukturalne listy", () => {
 
     expect(headTitle(head)).toBe("Sesje Q&A - New European Strategies");
     expect(jsonLdNodes(head).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("NAWIGACJA SPA: POWOLNE ustawienia NIE zamrażają domyślek - loader czeka na bramkę", async () => {
+    // SEDNO NAPRAWY (recenzja PR #382, P1 - patrz docblock `withSsrBudget`
+    // w `src/lib/asyncBudget.ts`). Bramka modułu ma 300 ms, a po tym czasie
+    // wchodzi `COMMUNITY_MODULES_DEFAULTS` z kodu - gdzie `qa_enabled` jest
+    // WŁĄCZONE. Wynik loadera jest niezmienny przez całe życie dopasowania
+    // trasy, więc przy nawigacji po stronie klienta powolny - a nie błędny -
+    // odczyt `site_settings` zamrażałby domyślkę zamiast prawdy tenanta.
+    //
+    // Dlatego moduł jest tu WYŁĄCZONY W USTAWIENIACH: to jedyny układ, w którym
+    // domyślka i konfiguracja dają RÓŻNY wynik, więc widać, którą z nich loader
+    // naprawdę przeczytał.
+    h.settings = modules({ qa_enabled: false });
+    h.settingsDelayMs = 600;
+    const spa = await listLoader()({ context: { queryClient: freshClient() } });
+
+    expect(spa.sessions, "budżet zadziałał w przeglądarce - to jest naprawiany defekt").toEqual([]);
+
+    // KONTROLA POZYTYWNA: to samo opóźnienie NA SERWERZE przepuszcza domyślkę,
+    // bo tam budżet MA obowiązywać - render nie może czekać na konfigurację.
+    renderOnServer();
+    const ssr = await listLoader()({ context: { queryClient: freshClient() } });
+
+    expect(ssr.sessions).toHaveLength(1);
   });
 
   it("loader NIE wywraca trasy, gdy odczyt sesji padnie", async () => {

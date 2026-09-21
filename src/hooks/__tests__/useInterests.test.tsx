@@ -242,6 +242,7 @@ describe("useInterestCatalog", () => {
     async (table) => {
       // Bez tego administrator dodaje kategorię w panelu, a widget zapisu
       // pokazuje starą listę do wygaśnięcia `staleTime` (minuta).
+      h.userId = "u-1";
       const { queryClient, wrapper } = harness();
       renderHook(() => useInterestCatalog("pl"), { wrapper });
       await waitFor(() => expect(h.listeners.length).toBeGreaterThanOrEqual(2));
@@ -256,6 +257,7 @@ describe("useInterestCatalog", () => {
   it("nasłuchy obejmują OBIE tabele katalogu - kanarek zasięgu", async () => {
     // Katalog składa się z kategorii I tagów; nasłuch na jednej tabeli zostawia
     // drugą połowę listy nieodświeżaną.
+    h.userId = "u-1";
     const { wrapper } = harness();
     renderHook(() => useInterestCatalog("pl"), { wrapper });
     await waitFor(() => expect(h.listeners.length).toBeGreaterThanOrEqual(2));
@@ -265,6 +267,7 @@ describe("useInterestCatalog", () => {
   it("każda instancja hooka bierze WŁASNY kanał realtime i sprząta go", async () => {
     // Współdzielony kanał wywala się na „cannot add postgres_changes callbacks
     // after subscribe()", gdy na stronie stoją dwa widgety zainteresowań.
+    h.userId = "u-1";
     const { wrapper } = harness();
     const first = renderHook(() => useInterestCatalog("pl"), { wrapper });
     const second = renderHook(() => useInterestCatalog("pl"), { wrapper });
@@ -273,6 +276,40 @@ describe("useInterestCatalog", () => {
     first.unmount();
     second.unmount();
     await waitFor(() => expect(h.removed).toBeGreaterThanOrEqual(2));
+  });
+
+  it("GOŚĆ nie dostaje kanału realtime - katalog żyje na staleTime", async () => {
+    // Adresatem tego kanału jest redakcja (panel reklam, ekran zainteresowań).
+    // Widget „Dołącz do nas" na publicznej stronie pokazuje ten sam katalog
+    // anonimom - i płacił websocketem za listę zmienianą raz na tygodnie.
+    h.categories = [
+      { id: "c1", slug: "afryka", name_pl: "Afryka", name_en: "Africa", parent_id: null },
+    ];
+    const { wrapper } = harness();
+    const { result } = renderHook(() => useInterestCatalog("pl"), { wrapper });
+
+    // Katalog DZIAŁA bez kanału - to warunek, bez którego oszczędność byłaby
+    // po prostu usunięciem funkcji.
+    await waitFor(() => expect(result.current.data?.categories).toHaveLength(1));
+    expect(h.channels).toEqual([]);
+    expect(h.listeners).toEqual([]);
+  });
+
+  it("zalogowanie PO montażu otwiera kanał, wylogowanie go zamyka", async () => {
+    // Bramka nie może być jednorazowa: sesja wstaje asynchronicznie
+    // (AuthProvider czyta ją po hydratacji), więc hook montuje się jako gość
+    // także u zalogowanego czytelnika.
+    const { wrapper } = harness();
+    const { rerender } = renderHook(() => useInterestCatalog("pl"), { wrapper });
+    await waitFor(() => expect(h.channels).toEqual([]));
+
+    h.userId = "u-1";
+    rerender();
+    await waitFor(() => expect(h.channels.length).toBe(1));
+
+    h.userId = null;
+    rerender();
+    await waitFor(() => expect(h.removed).toBe(1));
   });
 });
 

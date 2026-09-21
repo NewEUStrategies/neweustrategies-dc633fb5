@@ -6,10 +6,15 @@
 // powiadomień. Trzy z tych czynności są nieodwracalne albo trudno odwracalne,
 // więc wartość testu leży w sklejeniu, którego czysta funkcja nie dosięga:
 //
-//   1. LOADER dogrzewa cache pod DOKŁADNIE tym kluczem, z którego czyta
-//      komponent (`clubKeys.bySlug`), i NIE WYWALA trasy przy awarii RPC
-//      (`.catch(() => null)`): poprawny link ma pokazać stronę, a nie ekran
-//      błędu routera.
+//   1. LOADER NIE PYTA BAZY W OGÓLE (audyt CWV 2026-09-20, F09). Kartę klubu
+//      czyta RAZ loader UKŁADU `/club/$clubSlug` pod kluczem widza
+//      anonimowego (`clubKeys.bySlugViewer(slug, null)`); tutaj zostaje sam
+//      odczyt z cache'u po `await parentMatchPromise`. Dowodem jest ZERO
+//      wywołań `fetchClubBySlug` przy nagłówku policzonym z karty - rozjazd
+//      w którąkolwiek stronę wraca do dwóch round-tripów na dokument albo
+//      do `noindex` na żywym klubie publicznym. Pusty cache (układ
+//      zdegradował) NIE WYWALA trasy: poprawny link ma pokazać stronę,
+//      a nie ekran błędu routera.
 //   2. `head()` liczy indeksowalność Z WIDOCZNOŚCI KLUBU. Strona „o klubie"
 //      jest wejściem z wyszukiwarki dla klubu publicznego i nie ma prawa
 //      istnieć w indeksie dla klubu zamkniętego - wyciek nazwy usuwa się
@@ -62,9 +67,12 @@ const h = vi.hoisted(() => ({
   refetch: vi.fn(),
   /** Slug, z jakim komponent zawołał zapytanie karty klubu. */
   clubQuerySlug: null as string | undefined | null,
-  /** Odpowiedź `club_view` dla loadera. */
+  /** Karta klubu, którą loader UKŁADU zostawił w cache'u dla tej trasy. */
   loaded: null as unknown,
-  loaderFails: false,
+  /** Układ ZDEGRADOWAŁ (budżet 800 ms albo awaria RPC): po `removeQueries`
+   *  cache jest pusty i liść nie ma z czego policzyć nagłówka. */
+  ukladZdegradowal: false,
+  /** Ile razy cokolwiek poszło do `club_view` - po F09 ma być ZERO. */
   fetchCalls: 0,
   /** Wiersze `club_my_memberships`; `undefined` = zapytanie w locie. */
   memberships: undefined as { club_id: string; notify_level: string }[] | undefined,
@@ -103,10 +111,12 @@ vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError
 vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({ session: h.session, user: h.session?.user ?? null, isStaff: false }),
 }));
+// KONTROLA NEGATYWNA, nie źródło danych: po F09 trasa liściowa nie ma prawa
+// tknąć tej funkcji, więc atrapa je LICZY. Odpowiedź jest tu tylko po to, żeby
+// ewentualne wywołanie nie wywróciło testu przed asercją o liczniku.
 vi.mock("@/lib/clubs/publicClub", () => ({
   fetchClubBySlug: () => {
     h.fetchCalls += 1;
-    if (h.loaderFails) return Promise.reject(new Error("club_view padło"));
     return Promise.resolve(h.loaded);
   },
 }));
@@ -211,6 +221,7 @@ vi.mock("@/components/clubs/molecules/ClubErrorNotice", () => ({
   },
 }));
 
+import { QueryClient } from "@tanstack/react-query";
 import { renderRoute, type RouteMetaEntry } from "@/test/routeHarness";
 import { Route as AboutRoute } from "@/routes/club.$clubSlug.about";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
@@ -223,14 +234,43 @@ import type { ClubViewRow } from "@/lib/clubs/types";
 const PATH = "/club/$clubSlug/about";
 const SLUG = "klub-energetyczny";
 
+/**
+ * Klient zapytań W STANIE, W JAKIM ZOSTAWIA GO LOADER UKŁADU `/club/$clubSlug`.
+ *
+ * Trasa liściowa jest tu montowana W IZOLACJI (harness podstawia zastępczy
+ * korzeń), więc układ nie biegnie - jedynym jego skutkiem, który liść widzi,
+ * jest TEN wpis w cache'u, pod kluczem widza ANONIMOWEGO. Dokument SSR jest
+ * z konstrukcji anonimowy, więc to ten sam klucz, z którego czyta komponent.
+ *
+ * `h.ukladZdegradowal` odtwarza degradację: układ wywołał `removeQueries`
+ * i cache jest PUSTY - jedyne wejście, z którego `head()` ma prawo zejść na
+ * `noindex`.
+ */
+function klientUkladu(slug: string): QueryClient {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  if (!h.ukladZdegradowal) queryClient.setQueryData(clubKeys.bySlugViewer(slug, null), h.loaded);
+  return queryClient;
+}
+
 async function mount(slug: string = SLUG) {
-  return renderRoute({ route: AboutRoute, path: PATH, initialEntry: `/club/${slug}/about` });
+  return renderRoute({
+    route: AboutRoute,
+    path: PATH,
+    initialEntry: `/club/${slug}/about`,
+    queryClient: klientUkladu(slug),
+  });
 }
 
 /** Wartość nagłówka `robots` z listy `meta`. */
 function robotsOf(meta: readonly RouteMetaEntry[]): string | null {
   const entry = meta.find((item) => item.name === "robots");
   return typeof entry?.content === "string" ? entry.content : null;
+}
+
+/** Tytuł strony z listy `meta` - dowód, że nagłówek dostał KARTĘ, a nie pustkę. */
+function titleOf(meta: readonly RouteMetaEntry[]): string | null {
+  const entry = meta.find((item) => typeof item.title === "string");
+  return typeof entry?.title === "string" ? entry.title : null;
 }
 
 /**
@@ -267,7 +307,7 @@ beforeEach(() => {
   h.refetch.mockClear();
   h.clubQuerySlug = null;
   h.loaded = clubViewRow();
-  h.loaderFails = false;
+  h.ukladZdegradowal = false;
   h.fetchCalls = 0;
   h.memberships = [];
   h.membershipsEnabled = null;
@@ -297,29 +337,36 @@ beforeEach(() => {
 
 // --- loader ----------------------------------------------------------------
 
-describe("loader - jedno żądanie, ten sam klucz co komponent", () => {
-  it("dogrzewa cache pod `clubKeys.bySlug`", async () => {
-    // Rozjazd klucza jest niewidoczny na ekranie: strona się rysuje, tylko
-    // płaci drugim round-tripem do RPC przy każdym wejściu.
-    const { queryClient } = await mount();
-    expect(h.fetchCalls).toBe(1);
-    expect(queryClient.getQueryData(clubKeys.bySlug(SLUG))).not.toBeUndefined();
+describe("loader - zero round-tripów, karta z cache'u układu", () => {
+  it("NIE wykonuje ŻADNEGO fetchu - kartę czyta z cache'u układu", async () => {
+    // To jest cała oszczędność F09: czternaście tras liściowych robiło tu
+    // `ensureQueryData` na `club_view` PRZED PIERWSZYM BAJTEM, a jego wynik
+    // zasilał wyłącznie `head()`. Dowód musi mieć dwie połowy naraz - zero
+    // wywołań ORAZ nagłówek policzony z karty; sama pierwsza przeszłaby też
+    // dla loadera, który nie czyta niczego.
+    h.loaded = clubViewRow({ name_pl: "Klub korytarzowy", name_en: "Corridor club" });
+    const rendered = await mount();
+    expect(h.fetchCalls).toBe(0);
+    expect(titleOf(rendered.meta())).toContain("Klub korytarzowy");
   });
 
   it("czyta slug Z PARAMETRU, nie ze stałej", async () => {
-    const { queryClient } = await mount("inny-klub");
-    expect(queryClient.getQueryData(clubKeys.bySlug("inny-klub"))).not.toBeUndefined();
-    expect(queryClient.getQueryData(clubKeys.bySlug(SLUG))).toBeUndefined();
+    // Kartę w cache'u ma WYŁĄCZNIE `inny-klub`. Przeklejony literał slugu
+    // trafiłby w pustkę i zszedł na tytuł zastępczy - a na innym slugu
+    // wyciągnąłby z cache'u kartę CUDZEGO klubu.
+    h.loaded = clubViewRow({ name_pl: "Klub korytarzowy", name_en: "Corridor club" });
+    const rendered = await mount("inny-klub");
+    expect(titleOf(rendered.meta())).toContain("Klub korytarzowy");
   });
 
-  it("awaria RPC NIE wywala trasy", async () => {
-    h.loaderFails = true;
+  it("ZDEGRADOWANY układ (pusty cache) NIE wywala trasy", async () => {
+    h.ukladZdegradowal = true;
     const rendered = await mount();
     expect(rendered.currentPath()).toBe(`/club/${SLUG}/about`);
     expect(screen.getByRole("heading", { level: 1 })).toBeTruthy();
   });
 
-  it("brak wiersza `club_view` też nie wywala trasy", async () => {
+  it("brak wiersza `club_view` w cache'u też nie wywala trasy", async () => {
     h.loaded = null;
     const rendered = await mount();
     expect(rendered.currentPath()).toBe(`/club/${SLUG}/about`);
@@ -371,8 +418,11 @@ describe("head() - indeksowalność z WIDOCZNOŚCI klubu", () => {
     },
   );
 
-  it("awaria loadera schodzi na `noindex` - bezpieczny domysł", async () => {
-    h.loaderFails = true;
+  it("PUSTY cache (układ zdegradował) schodzi na `noindex` - bezpieczny domysł", async () => {
+    // Kontrola negatywna nowej architektury: gdy układ nie dowiezie karty,
+    // liść NIE MA prawa zgadywać indeksowalności. Błąd w tę stronę kosztuje
+    // ruch, w drugą - wyciek nazwy klubu zamkniętego do indeksu.
+    h.ukladZdegradowal = true;
     const rendered = await mount();
     expect(robotsOf(rendered.meta())).toBe("noindex, nofollow");
   });

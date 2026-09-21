@@ -389,15 +389,20 @@ describe("/category/$slug i /tag/$slug", () => {
     expect(imagePreload(view.links())).toMatchObject({ imageSizes: CARD_IMAGE_SIZES });
   });
 
-  it("awaria bazy pokazuje stronę błędu, a nie białą stronę", async () => {
-    // Różnica wobec braku taksonomii: tam 404 (zasób nie istnieje), tutaj błąd
-    // (zasób może istnieć, ale nie umiemy go teraz przeczytać).
+  it("awaria bazy daje render ZDEGRADOWANY (200), a nie wyjątek ani 404", async () => {
+    // Trzy różne prawdy, trzy różne odpowiedzi: brak taksonomii -> 404,
+    // awaria kodu trasy -> strona błędu, blip ODCZYTU -> render zdegradowany.
+    // Do 2026-09-20 ostatni przypadek wychodził stąd jako HTTP 500 (gołe
+    // `ensureQueryData` bez budżetu), więc blip bazy wyglądał dla crawlera
+    // i dla monitora na awarię serwisu.
     data.taxonomyError = true;
     await mount(CategoryRoute, "/category/$slug", "/category/gospodarka");
     expect(screen.queryByRole("heading", { name: "Gospodarka" })).toBeNull();
-    expect(screen.getAllByText(/Nie udało się załadować strony/i).length).toBeGreaterThan(0);
+    // Komunikat degradacji, a NIE „404 / nie znaleziono" - kategoria istnieje.
+    expect(screen.getAllByText(/chwilowo nie ma danych/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/404|nie znaleziono/i)).toBeNull();
     // Ślepy zaułek to najgorsza wersja błędu - musi być droga powrotna.
-    expect(screen.getByRole("button", { name: /Wróć/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Spróbuj ponownie/i })).toBeTruthy();
   });
 
   it("brak taksonomii TAGU też kończy się stroną 404", async () => {
@@ -406,10 +411,11 @@ describe("/category/$slug i /tag/$slug", () => {
     expect(screen.getAllByText(/404|nie znaleziono|not found/i).length).toBeGreaterThan(0);
   });
 
-  it("awaria bazy na trasie tagu również pokazuje stronę błędu", async () => {
+  it("awaria bazy na trasie tagu również degraduje do 200, nie do 404", async () => {
     data.taxonomyError = true;
     await mount(TagRoute, "/tag/$slug", "/tag/nato");
-    expect(screen.getAllByText(/Nie udało się załadować strony/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/chwilowo nie ma danych/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/404|nie znaleziono/i)).toBeNull();
   });
 });
 

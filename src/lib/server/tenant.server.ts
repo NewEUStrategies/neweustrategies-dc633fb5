@@ -112,6 +112,14 @@ async function loadDirectory(): Promise<DirectoryCache> {
   try {
     // Consult L2 only when this isolate has no directory. Refreshes always
     // reach the database, and preserve the original snapshot timestamp.
+    //
+    // Migawka NIEŚWIEŻA (starsza niż TTL, młodsza niż doba) też wraca - z
+    // ORYGINALNYM `at`. Dzięki temu `getTenantDirectory` traktuje ją jak
+    // własny wpis po TTL: serwuje od ręki i odświeża w tle. Zimny izolat po
+    // ciszy dłuższej niż minuta przestaje płacić blokujący odczyt planu
+    // service-role przed cache dokumentów (audyt F01) - a nieświeży katalog
+    // jest nieporównanie lepszy od EMPTY_DIRECTORY, na który spadała
+    // degradacja, gdy baza nie odpowiedziała w terminie.
     if (sharedSnapshotAllowed && !cache) {
       const snapshot = await readBootstrapSnapshot("tenants", CACHE_TTL_MS, isDirectoryRows);
       if (snapshot) return { at: snapshot.at, directory: buildDirectory(snapshot.value) };
@@ -131,6 +139,8 @@ async function loadDirectory(): Promise<DirectoryCache> {
       isDefault: t.is_default,
     }));
     const at = Date.now();
+    // Świeżość = CACHE_TTL_MS, przetrwanie = domyślna doba migawki: wpis ma
+    // przeżyć ciszę między czytelnikami kolonii, nie tylko rotację izolatu.
     runAfterResponse(writeBootstrapSnapshot("tenants", { at, value: rows }, CACHE_TTL_MS));
     return { at, directory: buildDirectory(rows) };
   } catch (e) {
@@ -166,12 +176,36 @@ function degradedDirectory(reason: "error" | "timeout"): DirectoryCache {
  * tenanta) ZANIM cache dokumentów może odpowiedzieć - blokujące odświeżanie
  * dokładało pełny round-trip do TTFB pierwszego żądania każdej minuty na
  * każdym izolacie. Zmiana domeny tenanta to zdarzenie administracyjne;
- * widoczność opóźniona o sekundy jest bez znaczenia. Zimny izolat (brak
- * wpisu) nadal blokuje jednorazowo - poprawność ponad szybkość.
+ * widoczność opóźniona o sekundy jest bez znaczenia. Zimny izolat bez
+ * ŻADNEJ migawki w kolonii nadal blokuje jednorazowo - poprawność ponad
+ * szybkość; zimny izolat z migawką nieświeżą serwuje ją od ręki i odświeża
+ * w tle jeszcze w tym samym żądaniu (patrz `loadDirectory`).
  */
 export async function getTenantDirectory(): Promise<TenantDirectory> {
   const now = Date.now();
   if (cache && now - cache.at < CACHE_TTL_MS) return cache.directory;
+  const pending = startDirectoryRefresh();
+  // Nieświeży wpis: serwuj od ręki - odświeżenie już biegnie w tle.
+  if (cache) return cache.directory;
+  const directory = await pending;
+  // Zimny izolat wstał z NIEŚWIEŻEJ migawki współdzielonej (oryginalne `at`
+  // sprzed TTL). Odświeżenie startuje TERAZ, za odpowiedzią, a nie dopiero
+  // przy następnym żądaniu - izolat, który obsłuży tylko jednego czytelnika,
+  // inaczej nigdy nie odnowiłby migawki i kolonia zjeżdżałaby do doby.
+  // Odczyt przez funkcję, nie przez zmienną: `if (cache) return` wyżej zawęża
+  // `cache` do `null` do końca funkcji, a TypeScript nie cofa zawężenia po
+  // `await`, choć `startDirectoryRefresh` właśnie ją nadpisał.
+  const settled = currentDirectoryCache();
+  if (settled && Date.now() - settled.at >= CACHE_TTL_MS) startDirectoryRefresh();
+  return directory;
+}
+
+function currentDirectoryCache(): DirectoryCache | null {
+  return cache;
+}
+
+/** Single-flight: jedno odświeżenie katalogu naraz, dokończone pod waitUntil. */
+function startDirectoryRefresh(): Promise<TenantDirectory> {
   if (!inflight) {
     inflight = loadDirectory().then((loaded) => {
       cache = loaded;
@@ -183,8 +217,6 @@ export async function getTenantDirectory(): Promise<TenantDirectory> {
     // następnej (znów ucinanej) próby. loadDirectory nigdy nie rzuca.
     runAfterResponse(inflight.then(() => undefined));
   }
-  // Nieświeży wpis: serwuj od ręki - odświeżenie już biegnie w tle.
-  if (cache) return cache.directory;
   return inflight;
 }
 

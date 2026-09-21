@@ -51,7 +51,11 @@ export const HARDCODED_LANGUAGE_BASELINE: readonly (readonly [string, number])[]
   ["src/components/builder/organisms/widget-view/TabsBlock.tsx", 1],
   ["src/components/builder/organisms/widget-view/TailoredMustReadsView.tsx", 2],
   ["src/components/builder/organisms/widget-view/TeamMemberWidget.tsx", 3],
-  ["src/components/builder/organisms/WidgetView.tsx", 4],
+  // 2026-09-20, F17: dyspozytor chrome wydzielony z `WidgetView`. Dług NIE
+  // ROŚNIE - zmienia plik: 4 = 3 (gałęzie chrome w `ChromeWidgetView`)
+  // + 1 (widgety treściowe, które zostały w `WidgetView`).
+  ["src/components/builder/organisms/ChromeWidgetView.tsx", 3],
+  ["src/components/builder/organisms/WidgetView.tsx", 1],
   ["src/components/admin/coupons/DatePickerField.tsx", 2],
   ["src/components/admin/CustomMetaValuesEditor.tsx", 2],
   ["src/components/admin/i18n/WidgetI18nAuditPane.tsx", 8],

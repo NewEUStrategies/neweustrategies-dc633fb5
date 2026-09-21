@@ -246,10 +246,49 @@ export const CLOCK_FREEZE_BASELINE: readonly (readonly [string, number])[] = [
   ["src/routes/__tests__/pricingRoute.test.tsx", 2],
   ["src/routes/__tests__/profileDashboardRoute.test.tsx", 1],
   ["src/routes/__tests__/profileMembershipRoute.test.tsx", 13],
-  ["src/routes/__tests__/publicCatchAllRoute.test.tsx", 4],
   ["src/routes/__tests__/trackerChangesRoute.test.tsx", 4],
   ["src/routes/-api.public.newsletter.confirm.test.ts", 5],
   ["src/routes/api/public/-webhooks.resend.test.ts", 3],
   ["src/routes/api/public/payments/-webhook.test.ts", 25],
   ["src/routes/platform/email/transactional/-send.test.ts", 1],
+  // 2026-09-20/21 - PLAN NAPRAWCZY CWV (docs/AUDYT_CWV_ZIMNE_OTWARCIE_2026-09-20.md).
+  // Loadery tras publicznych dostały wspólny termin żądania (`Date.now() + BUDŻET`,
+  // `loadResilient`/`routeSsrDeadline`), więc testy tych tras z literałem daty
+  // stały się dla detektora „bombami" - choć zegar w produkcji liczy BUDŻET
+  // CZASU odpowiedzi, nie okno daty, a literały są etykietami wierszy fixture
+  // (`created_at`, `published_at`), których kierunek okna nie dotyczy. To jest
+  // przypadek „wejście konwersji albo etykieta" z instrukcji bramki; triage
+  // przeczytany na produkcji. `ga4Ecommerce.test.ts` był czerwony już na bazie
+  // (fca7aca) z tego samego powodu i też tu stał; 2026-09-21 został ROZBROJONY
+  // (`freezeClock()` + `relativeIso` w samym teście), więc jego wpis zszedł
+  // z listy - zapadka maleje razem ze stanem faktycznym, a nie z opóźnieniem.
+  // Liczby przy plikach mogą już tylko maleć.
+  ["src/components/admin/events/__tests__/eventPreviewPublicParity.gate.test.tsx", 1],
+  ["src/routes/__tests__/authorHubRoute.test.tsx", 2],
+  ["src/routes/__tests__/eventShellLoader.test.ts", 3],
+  ["src/routes/__tests__/legalComplianceRoutes.test.tsx", 1],
+  ["src/routes/__tests__/libraryRoute.test.tsx", 1],
+  ["src/routes/__tests__/podcastEpisodeRoute.test.tsx", 6],
+  ["src/routes/__tests__/podcastShowRoute.test.tsx", 5],
+  ["src/routes/__tests__/programsPublicRoutes.test.tsx", 3],
+  ["src/routes/__tests__/qaSessionsRoutes.test.tsx", 7],
+  ["src/routes/__tests__/webStoriesRoutes.test.tsx", 4],
+  // 2026-09-21 - CIĄG DALSZY PLANU CWV: dwa NOWE testy tras publicznych, ten sam
+  // wzorzec co blok wyżej. Loader liczy z `Date.now()` TERMIN ODPOWIEDZI
+  // (`withSsrBudget`/`loadResilient`), a nie okno daty, więc kierunek okna nie
+  // dotyczy żadnego z tych literałów - triage przeczytany na produkcji:
+  //   * `sitemapRoute` - `published_at` siedzi w ładunku ATRAPY zapytania i jest
+  //     porównywany przez `toEqual` jako wartość nieprzezroczysta; test wywołuje
+  //     sam loader, więc nikt tej daty nie czyta jako daty,
+  //   * `trackerIndexRoute` - `next_milestone_at` jest wyłącznie wejściem
+  //     `toLocaleDateString` w `formatDate`, a `created_at`/`updated_at` to klucze
+  //     sortowania w (zamockowanym) zapytaniu; żadne okno ich nie obejmuje.
+  // ZAMROŻENIE ZEGARA BYŁOBY TU SZKODLIWE, a nie tylko zbędne: oba pliki MIERZĄ
+  // CZAS TRWANIA (`Date.now() - started < budżet`) i to jest ich dowód na to, że
+  // budżet ścina ZWIS backendu. Na zamrożonym `Date` ta różnica jest zawsze zerem,
+  // więc asercja przechodziłaby także wtedy, gdyby budżet przestał działać - por.
+  // przestrogę o testach mierzących czas trwania w nagłówku `freezeClock`
+  // (`src/test/time.ts`). Liczby przy plikach mogą już tylko maleć.
+  ["src/routes/__tests__/sitemapRoute.test.tsx", 1],
+  ["src/routes/__tests__/trackerIndexRoute.test.tsx", 3],
 ];

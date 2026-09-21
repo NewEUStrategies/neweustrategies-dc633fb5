@@ -117,9 +117,7 @@ import { ClubThreadWorkspace } from "@/components/clubs/organisms/ClubThreadWork
 import { ClubPageFrame } from "@/components/clubs/organisms/ClubPageFrame";
 import { useClubThreadWorkspace } from "@/lib/clubs/useClubWorkspace";
 import { EMPTY_WORKSPACE_SUMMARY } from "@/lib/clubs/workspaceTypes";
-import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
-import { fetchClubBySlug } from "@/lib/clubs/publicClub";
-import { clubKeys } from "@/lib/clubs/queryKeys";
+import { buildClubHead, clubHeadLoader } from "@/lib/clubs/clubHead";
 import { formatDateTime } from "@/lib/i18n/format";
 import {
   buildClubReplyTree,
@@ -197,15 +195,10 @@ export const Route = createFileRoute("/club/$clubSlug/t/$threadSlug")({
   // ją zaraz przeczyta, więc to nie jest dodatkowy round-trip) i zwraca z niej
   // MINIMUM. Awaria backendu kończy się `null`, czyli `noindex` - trasa nadal
   // się renderuje (doktryna odporności publicznych tras).
-  loader: async ({ context, params }) => {
-    const club = await context.queryClient
-      .ensureQueryData({
-        queryKey: clubKeys.bySlug(params.clubSlug),
-        queryFn: () => fetchClubBySlug(params.clubSlug),
-      })
-      .catch(() => null);
-    return { club: toClubHeadSource(club) };
-  },
+  // Kartę klubu czyta RAZ loader UKŁADU `/club/$clubSlug`; tutaj zostaje sam
+  // odczyt z cache'u na potrzeby nagłówka - zero round-tripów (F09).
+  loader: ({ context, params, parentMatchPromise }) =>
+    clubHeadLoader(context.queryClient, params.clubSlug, parentMatchPromise),
   head: ({ loaderData, params }) =>
     buildClubHead({
       fallbackPath: `/club/${params.clubSlug}/t/${params.threadSlug}`,

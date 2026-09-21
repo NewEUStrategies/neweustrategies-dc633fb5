@@ -29,6 +29,9 @@ import {
   upsertCropSize,
   deleteCropSize,
   IMAGE_QUALITY,
+  IMAGE_QUALITY_SMALL,
+  SMALL_VARIANT_MAX_WIDTH,
+  qualityForWidth,
   RESPONSIVE_WIDTHS,
   type CropSize,
 } from "@/lib/cropSizes";
@@ -119,10 +122,24 @@ describe("buildScaledImageUrl", () => {
     expect(new URL(buildScaledImageUrl(OBJ, 320)).searchParams.get("resize")).toBe("contain");
   });
 
-  it("domyślna jakość to wspólna stała, nie liczba wpisana z palca", () => {
+  it("domyślna jakość idzie ze wspólnej reguły, nie z liczby wpisanej z palca", () => {
+    // ZMIANA OCZEKIWANIA (F27): wcześniej każdy wariant dostawał IMAGE_QUALITY
+    // (88). Teraz kandydaci ≤ 640 px jadą na 78 - to one są obrazem LCP na
+    // telefonie, a artefakty przy takiej gęstości pikseli są niewidoczne.
+    // Asercja celowo odwołuje się do `qualityForWidth`, a nie do literału:
+    // pilnuje spójności URL-a z regułą, a nie konkretnej wartości.
     expect(new URL(buildScaledImageUrl(OBJ, 320)).searchParams.get("quality")).toBe(
-      String(IMAGE_QUALITY),
+      String(qualityForWidth(320)),
     );
+    expect(new URL(buildScaledImageUrl(OBJ, 1280)).searchParams.get("quality")).toBe(
+      String(qualityForWidth(1280)),
+    );
+  });
+
+  it("jawna jakość wygrywa z regułą szerokościową", () => {
+    // GalleryBlock prosi o 82 dla 1920 px - wywołujący wie lepiej i reguła nie
+    // może mu tego nadpisać.
+    expect(new URL(buildScaledImageUrl(OBJ, 320, 95)).searchParams.get("quality")).toBe("95");
   });
 
   it("pusty adres zwraca bez zmian", () => {
@@ -142,6 +159,29 @@ describe("buildImageSrcSet", () => {
     expect(parts[0]).toMatch(/width=320.* 320w$/);
     expect(parts[1]).toMatch(/width=640.* 640w$/);
   });
+  it("mały kandydat dostaje 78, duży 88 - jakość jest funkcją szerokości", () => {
+    // Sedno F27: 9 kandydatów jechało na q88, także 320w. Najtańsze warianty
+    // obsługują telefon, gdzie każde kilkadziesiąt kB przekłada się na LCP.
+    const parts = buildImageSrcSet(OBJ, [320, 1280]).split(", ");
+    expect(new URL(parts[0].split(" ")[0]).searchParams.get("quality")).toBe("78");
+    expect(new URL(parts[1].split(" ")[0]).searchParams.get("quality")).toBe("88");
+  });
+
+  it("jawna jakość obowiązuje cały zestaw, bez różnicowania", () => {
+    const parts = buildImageSrcSet(OBJ, [320, 1280], 91).split(", ");
+    for (const part of parts) {
+      expect(new URL(part.split(" ")[0]).searchParams.get("quality")).toBe("91");
+    }
+  });
+
+  it("PARYTET: dwa wywołania z tymi samymi argumentami dają bajtowo ten sam łańcuch", () => {
+    // Preload (`imagesrcset`) i renderowany `<img>` idą przez tę samą funkcję.
+    // Gdyby jakość zależała od czegoś spoza argumentów (np. losowania albo
+    // stanu modułu), preload pobierałby inny plik niż malowany - podwójny
+    // transfer zamiast przyspieszenia.
+    expect(buildImageSrcSet(OBJ)).toBe(buildImageSrcSet(OBJ, RESPONSIVE_WIDTHS));
+  });
+
   it("returns empty for non-transformable urls so callers omit srcSet", () => {
     expect(buildImageSrcSet(EXT)).toBe("");
     expect(buildImageSrcSet("")).toBe("");
@@ -213,6 +253,32 @@ describe("IMAGE_QUALITY", () => {
     // 75 dawało widoczne zmiękczenie: rozmyte twarze na awatarach i tekst na
     // okładkach. Stała jest decyzją jakościową, nie parametrem do zgadywania.
     expect(IMAGE_QUALITY).toBe(88);
+  });
+});
+
+describe("qualityForWidth", () => {
+  it("≤ 640 px schodzi na 78, powyżej trzyma 88", () => {
+    expect(qualityForWidth(320)).toBe(IMAGE_QUALITY_SMALL);
+    expect(qualityForWidth(SMALL_VARIANT_MAX_WIDTH)).toBe(IMAGE_QUALITY_SMALL);
+    expect(qualityForWidth(SMALL_VARIANT_MAX_WIDTH + 1)).toBe(IMAGE_QUALITY);
+    expect(qualityForWidth(2400)).toBe(IMAGE_QUALITY);
+  });
+
+  it("próg jest domknięty od góry - 640 to jeszcze mały wariant", () => {
+    // Granica leży na realnym breakpoincie z RESPONSIVE_WIDTHS, więc pomyłka
+    // o jeden przesunęłaby cały wariant 640w na drugą stronę reguły.
+    expect(SMALL_VARIANT_MAX_WIDTH).toBe(640);
+    expect(RESPONSIVE_WIDTHS).toContain(SMALL_VARIANT_MAX_WIDTH);
+  });
+
+  it("jakość nigdy nie rośnie wraz ze zmniejszaniem wariantu", () => {
+    // Monotoniczność: mniejszy kandydat nie może być droższy w bajtach na
+    // piksel niż większy - inaczej srcSet przestaje mieć sens ekonomiczny.
+    for (let i = 1; i < RESPONSIVE_WIDTHS.length; i += 1) {
+      expect(qualityForWidth(RESPONSIVE_WIDTHS[i])).toBeGreaterThanOrEqual(
+        qualityForWidth(RESPONSIVE_WIDTHS[i - 1]),
+      );
+    }
   });
 });
 

@@ -61,13 +61,18 @@ import { fail, ok, supabaseFromStub, type SupabaseResult } from "@/test/supabase
 
 const h = vi.hoisted(() => ({
   purge: vi.fn<() => Promise<number>>(),
+  purgePaths: vi.fn<(paths: readonly string[]) => Promise<number>>(),
 }));
 
 vi.mock("@/lib/http/documentCache.server", () => ({
   purgeDocumentCacheForCurrentHost: h.purge,
+  purgeDocumentPathsForCurrentHost: h.purgePaths,
 }));
 
-import { purgeDocumentCacheForCurrentHost } from "@/lib/http/documentCache.server";
+import {
+  purgeDocumentCacheForCurrentHost,
+  purgeDocumentPathsForCurrentHost,
+} from "@/lib/http/documentCache.server";
 import { recordAudit, type AuditAction } from "@/lib/server/audit.server";
 
 // --- dane syntetyczne (RODO: żadnych prawdziwych identyfikatorów ani nazwisk)
@@ -612,5 +617,71 @@ describe("unieważnianie NES Edge Cache: obie strony `DOCUMENT_PURGE_ACTIONS`", 
     });
     expect(h.purge).toHaveBeenCalledTimes(1);
     expect(warnings(warnSpy)).toContain("[audit] insert failed");
+  });
+});
+
+describe("zakres purge'a NES Edge Cache wybiera wołający (`documentPaths`, plan 1.5)", () => {
+  beforeEach(() => {
+    h.purgePaths.mockReset();
+    h.purgePaths.mockResolvedValue(0);
+  });
+
+  it("atrapa purge'a selektywnego naprawdę podmieniła import modułu", () => {
+    expect(purgeDocumentPathsForCurrentHost).toBe(h.purgePaths);
+  });
+
+  it("z `documentPaths` woła purge SELEKTYWNY tych ścieżek, a nie bump wersji hosta", async () => {
+    const hn = harness();
+    await recordAudit(hn.supabase, {
+      tenantId: TENANT,
+      action: "post.publish",
+      entityType: "post",
+      entityId: ENTITY,
+      documentPaths: ["/analizy/tekst", "/post/tekst"],
+    });
+    await flushMicrotasks();
+    expect(h.purgePaths).toHaveBeenCalledExactlyOnceWith(["/analizy/tekst", "/post/tekst"]);
+    expect(h.purge).not.toHaveBeenCalled();
+  });
+
+  it("bez `documentPaths` zostaje pełny purge - brak wiedzy o zależnościach = pełny bump", async () => {
+    const hn = harness();
+    await recordAudit(hn.supabase, {
+      tenantId: TENANT,
+      action: "post.publish",
+      entityType: "post",
+      entityId: ENTITY,
+    });
+    await flushMicrotasks();
+    expect(h.purge).toHaveBeenCalledOnce();
+    expect(h.purgePaths).not.toHaveBeenCalled();
+  });
+
+  it("akcja spoza DOCUMENT_PURGE_ACTIONS nie woła żadnego purge'a, także z `documentPaths`", async () => {
+    const hn = harness();
+    await recordAudit(hn.supabase, {
+      tenantId: TENANT,
+      action: "media.upload",
+      entityType: "media",
+      entityId: ENTITY,
+      documentPaths: ["/blog"],
+    });
+    await flushMicrotasks();
+    expect(h.purge).not.toHaveBeenCalled();
+    expect(h.purgePaths).not.toHaveBeenCalled();
+  });
+
+  it("odrzucony purge selektywny nie psuje wpisu audytu", async () => {
+    h.purgePaths.mockRejectedValue(new Error("colo offline"));
+    const hn = harness();
+    await recordAudit(hn.supabase, {
+      tenantId: TENANT,
+      action: "post.update",
+      entityType: "post",
+      entityId: ENTITY,
+      documentPaths: ["/blog"],
+    });
+    await flushMicrotasks();
+    expect(auditRow(hn.stub).action).toBe("post.update");
   });
 });

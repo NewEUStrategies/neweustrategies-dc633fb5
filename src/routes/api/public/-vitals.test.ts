@@ -394,3 +394,192 @@ describe("odporność", () => {
     expect(h.insert).toHaveBeenCalledTimes(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// KONTEKST NAWIGACJI (audyt CWV 2026-09-20, F40 / wiersz 0.3 „Fali 0").
+//
+// Pięć pól opisowych, dzięki którym p75 da się policzyć OSOBNO dla zimnego
+// pierwszego wejścia i osobno dla miękkich nawigacji tej samej odsłony. Cała
+// klasa ryzyka jest tu jedna i ta sama co przy `metricValue`: to publiczna,
+// NIEPODPISANA ścieżka zapisu, więc każde pole musi mieć własną odpowiedź na
+// pytanie „co, jeśli nadawca wpisze tu cokolwiek".
+describe("kontekst nawigacji", () => {
+  /** Wiersze z n-tego wywołania `insert` (awaryjne ponowienie to wywołanie nr 2). */
+  function rowsAt(call: number): Record<string, unknown>[] {
+    const arg = h.insert.mock.calls[call]?.[0];
+    return (Array.isArray(arg) ? arg : arg ? [arg] : []) as Record<string, unknown>[];
+  }
+
+  const context = {
+    sinceNav: 2456,
+    navigationType: "back_forward",
+    deviceMemory: 4,
+    effectiveType: "3g",
+    coldStart: true,
+  };
+
+  it("pełny kontekst ląduje w kolumnach wiersza", async () => {
+    await post({ metrics: [sample(context)] });
+
+    expect(rows()[0]).toMatchObject({
+      metric: "LCP",
+      since_nav_ms: 2456,
+      navigation_type: "back_forward",
+      device_memory: 4,
+      effective_type: "3g",
+      cold_start: true,
+    });
+  });
+
+  it("próbka BEZ kontekstu zapisuje się z pięcioma NULL-ami", async () => {
+    // Zgodność wsteczna nie jest opcją: strona zbuforowana przed tym
+    // wdrożeniem beaconuje stary kształt tygodniami. Brak kontekstu ma
+    // kosztować kontekst, a nie pomiar.
+    await post({ metrics: [sample()] });
+
+    expect(rows()[0]).toMatchObject({
+      metric: "LCP",
+      value: 2100,
+      since_nav_ms: null,
+      navigation_type: null,
+      device_memory: null,
+      effective_type: null,
+      cold_start: null,
+    });
+  });
+
+  it("`coldStart: false` to POMIAR, a nie brak pomiaru - nie może zejść na NULL", async () => {
+    // Odwrotność defektu z `metricValue`: gdyby walidator szedł przez
+    // `Boolean(raw)` albo `raw || null`, „ciepłe wejście" zniknęłoby z bazy
+    // i populacja zimnych wejść byłaby JEDYNĄ, jaką widać.
+    await post({ metrics: [sample({ coldStart: false })] });
+
+    expect(rows()[0]?.cold_start).toBe(false);
+  });
+
+  it("`sinceNav: 0` jest legalne (metryka zgłoszona w chwili startu nawigacji)", async () => {
+    await post({ metrics: [sample({ sinceNav: 0 })] });
+
+    expect(rows()[0]?.since_nav_ms).toBe(0);
+  });
+
+  describe("wartości spoza kontraktu schodzą na NULL, nie kasują próbki", () => {
+    const cases: Array<[string, Record<string, unknown>, string]> = [
+      [
+        "typ nawigacji spoza czterech ze specyfikacji",
+        { navigationType: "teleport" },
+        "navigation_type",
+      ],
+      ["typ nawigacji jako liczba", { navigationType: 3 }, "navigation_type"],
+      ["klasa łącza spoza specyfikacji", { effectiveType: "5g" }, "effective_type"],
+      ["pamięć urządzenia poza progami 1/2/4/8", { deviceMemory: 3 }, "device_memory"],
+      ["pamięć urządzenia jako napis", { deviceMemory: "4" }, "device_memory"],
+      ["pamięć urządzenia poza zakresem specyfikacji", { deviceMemory: 256 }, "device_memory"],
+      ["`sinceNav` ujemne", { sinceNav: -1 }, "since_nav_ms"],
+      ["`sinceNav` ponad dobę", { sinceNav: 86_400_001 }, "since_nav_ms"],
+      [
+        "`sinceNav` jako null (klasyczna śmieciówka `Number(null) === 0`)",
+        { sinceNav: null },
+        "since_nav_ms",
+      ],
+      ["`sinceNav` jako pusty napis", { sinceNav: "" }, "since_nav_ms"],
+      ["`sinceNav` jako NaN po konwersji", { sinceNav: "brak" }, "since_nav_ms"],
+      [
+        '`coldStart` jako napis `"true"` (Boolean("false") === true)',
+        { coldStart: "true" },
+        "cold_start",
+      ],
+      ["`coldStart` jako liczba", { coldStart: 1 }, "cold_start"],
+    ];
+
+    for (const [label, patch, column] of cases) {
+      it(label, async () => {
+        await post({ metrics: [sample({ ...context, ...patch })] });
+
+        const row = rows()[0];
+        // Próbka ZOSTAJE - odrzucenie kontekstu nie może kosztować metryki.
+        expect(row).toMatchObject({ metric: "LCP", value: 2100 });
+        expect(row?.[column]).toBeNull();
+      });
+    }
+  });
+
+  it("`sinceNav` z zewnętrznego kolektora (liczba w cudzysłowie) jest przyjmowane i zaokrąglane", async () => {
+    // Ta sama furtka co w `metricValue`: `VITE_OBSERVABILITY_ENDPOINT`
+    // wskazujący tunel bywa źródłem liczb jako napisów.
+    await post({ metrics: [sample({ sinceNav: "1500.6" })] });
+
+    expect(rows()[0]?.since_nav_ms).toBe(1501);
+  });
+
+  it("NIEZNANE POLA nie mają jak dojechać do wiersza", async () => {
+    // Wiersz jest składany z jawnej białej listy, więc nadawca nie podłoży ani
+    // własnej kolumny, ani `tenant_id` (izolacja najemcy), ani `created_at`.
+    await post({
+      metrics: [
+        sample({
+          ...context,
+          evil: "wstrzyknięte",
+          tenant_id: "tenant-2",
+          created_at: "1999-01-01T00:00:00Z",
+          id: "podstawione-id",
+        }),
+      ],
+    });
+
+    const row = rows()[0]!;
+    expect(Object.keys(row).sort()).toEqual(
+      [
+        "cold_start",
+        "device_memory",
+        "effective_type",
+        "metric",
+        "navigation_type",
+        "path",
+        "rating",
+        "since_nav_ms",
+        "tenant_id",
+        "value",
+      ].sort(),
+    );
+    // `tenant_id` pochodzi z rozwiązania hosta, nie z ciała żądania.
+    expect(row.tenant_id).toBe("tenant-1");
+    expect(JSON.stringify(row)).not.toContain("wstrzyknięte");
+  });
+
+  describe("okno między wdrożeniem kodu a migracją", () => {
+    it("brak kolumny (PGRST204) ponawia zapis BEZ kontekstu, zamiast gubić cały RUM", async () => {
+      h.insert.mockResolvedValueOnce({ error: { code: "PGRST204" } });
+      h.insert.mockResolvedValueOnce({ error: null });
+
+      const res = await post({ metrics: [sample(context)] });
+
+      expect(res.status).toBe(204);
+      expect(h.insert).toHaveBeenCalledTimes(2);
+      const retried = rowsAt(1)[0]!;
+      expect(retried).toMatchObject({ metric: "LCP", value: 2100, tenant_id: "tenant-1" });
+      expect(Object.keys(retried)).not.toContain("since_nav_ms");
+      expect(Object.keys(retried)).not.toContain("cold_start");
+    });
+
+    it("`42703` (undefined_column) z Postgresa ponawia tak samo", async () => {
+      h.insert.mockResolvedValueOnce({ error: { code: "42703" } });
+      h.insert.mockResolvedValueOnce({ error: null });
+
+      await post({ metrics: [sample(context)] });
+
+      expect(h.insert).toHaveBeenCalledTimes(2);
+    });
+
+    it("KAŻDY INNY błąd nie kosztuje drugiego round-tripu", async () => {
+      // Ponowienie jest wąską furtką na jedną, nazwaną przyczynę. Awaria
+      // sieci albo RLS-u ma zostać awarią, a nie podwojonym ruchem do bazy.
+      h.insert.mockResolvedValue({ error: { code: "53300", message: "too many connections" } });
+
+      const res = await post({ metrics: [sample(context)] });
+
+      expect(res.status).toBe(204);
+      expect(h.insert).toHaveBeenCalledTimes(1);
+    });
+  });
+});

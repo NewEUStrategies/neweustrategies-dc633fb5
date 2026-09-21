@@ -19,7 +19,7 @@
 //
 //   4. MAPOWANIE BŁĘDÓW NA COPY. Limit tempa, wygasłe okno edycji i wymagane
 //      logowanie mają własne komunikaty; reszta - ogólny.
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -133,6 +133,37 @@ function section() {
   return render(<CommentsSection postId={POST_ID} lang="pl" />, { wrapper });
 }
 
+/**
+ * Atrapa IntersectionObservera. jsdom MA klasę `IntersectionObserver`, ale
+ * nigdy nie woła jej callbacku - bez atrapy sekcja komentarzy nie „wjeżdża
+ * w kadr" w ŻADNYM teście, więc bramka widoczności byłaby spełniona przez
+ * przypadek (kanał nigdy nie powstaje) i nie dowodziłaby niczego o `userId`.
+ * Zwraca funkcję wjazdu w kadr; zakładać PRZED renderem.
+ */
+function stubViewport() {
+  const callbacks: IntersectionObserverCallback[] = [];
+  vi.stubGlobal(
+    "IntersectionObserver",
+    class {
+      constructor(callback: IntersectionObserverCallback) {
+        callbacks.push(callback);
+      }
+      observe() {}
+      disconnect() {}
+    },
+  );
+  return async () => {
+    await act(async () => {
+      for (const callback of callbacks) {
+        callback(
+          [{ isIntersecting: true } as IntersectionObserverEntry],
+          {} as IntersectionObserver,
+        );
+      }
+    });
+  };
+}
+
 function hasKey(key: string): boolean {
   return screen.queryAllByText((text) => text.includes(key)).length > 0;
 }
@@ -163,6 +194,13 @@ beforeEach(() => {
   h.confirm.mockReset().mockResolvedValue(true);
   h.subscribe.mockReset();
   h.unsubscribe.mockReset();
+});
+
+afterEach(() => {
+  // Atrapa IntersectionObservera zakładana tylko w teście bramki widoczności -
+  // reszta pliku ma widzieć jsdom, w którym obserwatora NIE MA (wtedy useInView
+  // uznaje sekcję za widoczną od razu).
+  vi.unstubAllGlobals();
 });
 
 describe("kiedy sekcja w ogóle się pojawia", () => {
@@ -244,8 +282,11 @@ describe("licznik i realtime", () => {
     await waitFor(() => expect(hasKey('comments.title|{"count":137}')).toBe(true));
   });
 
-  it("subskrybuje zmiany TEGO wpisu i sprząta przy odmontowaniu", async () => {
+  it("ZALOGOWANY subskrybuje zmiany TEGO wpisu i sprząta przy odmontowaniu", async () => {
+    h.user = { id: USER_ID.author };
+    const enterViewport = stubViewport();
     const { unmount } = section();
+    await enterViewport();
 
     await waitFor(() => expect(h.subscribe).toHaveBeenCalled());
     expect(h.subscribe.mock.calls[0]?.[0]).toEqual({
@@ -257,6 +298,50 @@ describe("licznik i realtime", () => {
     // Zgubiony `unsubscribe` kończy się wyczerpaniem limitu kanałów po kilku
     // przejściach między wpisami.
     expect(h.unsubscribe).toHaveBeenCalled();
+  });
+
+  it("ANONIM nie otwiera kanału Realtime w ogóle", async () => {
+    h.page = { comments: [withAuthorRow()], topLevelCount: 1, approvedCount: 1 };
+    const enterViewport = stubViewport();
+
+    section();
+
+    await waitFor(() => expect(hasKey("Treść komentarza")).toBe(true));
+    // Nawet gdy sekcja JEST w kadrze - bramka to `userId`, nie tylko widoczność.
+    await enterViewport();
+    // Websocket (TLS + WS + auth + join) na każdą anonimową odsłonę wpisu to
+    // koszt bez adresata: gość i tak nie zobaczy cudzych `pending`, a świeżość
+    // niesie staleTime 30 s i refetch przy powrocie na kartę.
+    expect(h.subscribe).not.toHaveBeenCalled();
+  });
+
+  it("ZAMKNIĘTA dyskusja nie trzyma kanału nawet zalogowanemu", async () => {
+    h.user = { id: USER_ID.author };
+    h.discussion = { ...h.discussion, allow_comments: false };
+    h.page = { comments: [withAuthorRow()], topLevelCount: 1, approvedCount: 1 };
+    const enterViewport = stubViewport();
+
+    section();
+
+    await waitFor(() => expect(hasKey("comments.closed")).toBe(true));
+    await enterViewport();
+    // Do zamkniętego archiwum nic nowego nie przyjdzie - nie ma czego słuchać.
+    expect(h.subscribe).not.toHaveBeenCalled();
+  });
+
+  it("kanał czeka, aż sekcja komentarzy WJEDZIE W KADR", async () => {
+    h.user = { id: USER_ID.author };
+    const enterViewport = stubViewport();
+
+    section();
+
+    // Czytelnik jest na górze wpisu: sekcja istnieje w DOM, ale kanału nie ma.
+    await waitFor(() => expect(document.querySelector("#comments")).toBeTruthy());
+    expect(h.subscribe).not.toHaveBeenCalled();
+
+    await enterViewport();
+
+    await waitFor(() => expect(h.subscribe).toHaveBeenCalledTimes(1));
   });
 
   it("'pokaż więcej' pojawia się dopiero, gdy WĄTKÓW jest więcej niż okno", async () => {
@@ -940,8 +1025,12 @@ describe("okno paginacji i stany ładowania", () => {
   });
 
   it("odświeżenie w tle blokuje przycisk i zamienia go w 'ładowanie'", async () => {
+    // Zalogowany i w kadrze, bo to jedyny czytelnik z kanałem (bramka F34).
+    h.user = { id: USER_ID.author };
     h.page = { comments: [withAuthorRow()], topLevelCount: 120, approvedCount: 120 };
+    const enterViewport = stubViewport();
     section();
+    await enterViewport();
     await waitFor(() => expect(hasKey("comments.loadMore")).toBe(true));
 
     const deferred: { resolve: () => void } = { resolve: () => {} };

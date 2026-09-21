@@ -3,8 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   DOCUMENT_CACHE_MAX_FRESH_MS,
   DOCUMENT_CACHE_MAX_SWR_MS,
+  documentPathVariants,
   documentStorePolicy,
+  normalizeDocumentPath,
   planDocumentCache,
+  postDocumentPaths,
   stripLangPrefix,
   type DocumentCacheRequest,
 } from "../documentCache";
@@ -206,5 +209,68 @@ describe("documentStorePolicy", () => {
       "public, s-maxage=30, stale-while-revalidate=600",
     );
     expect(policy).toEqual({ store: true, freshMs: 30_000, swrMs: 600_000 });
+  });
+});
+
+describe("normalizeDocumentPath", () => {
+  it("sprowadza ścieżkę do postaci klucza: bez query, fragmentu, końcowego `/` i prefiksu języka", () => {
+    expect(normalizeDocumentPath("/analizy/tekst/")).toBe("/analizy/tekst");
+    expect(normalizeDocumentPath("/analizy/tekst?page=2#top")).toBe("/analizy/tekst");
+    expect(normalizeDocumentPath("/en/analizy/tekst")).toBe("/analizy/tekst");
+    expect(normalizeDocumentPath("  /blog  ")).toBe("/blog");
+    expect(normalizeDocumentPath("/")).toBe("/");
+    expect(normalizeDocumentPath("/en")).toBe("/");
+  });
+
+  it("odrzuca wejście, które nie jest ścieżką względną serwisu - purge nie zgaduje", () => {
+    expect(normalizeDocumentPath("")).toBeNull();
+    expect(normalizeDocumentPath("https://example.org/x")).toBeNull();
+    expect(normalizeDocumentPath("//evil.example/x")).toBeNull();
+    expect(normalizeDocumentPath("blog")).toBeNull();
+  });
+});
+
+describe("documentPathVariants", () => {
+  it("dokłada wariant /en do każdej ścieżki i scala duplikaty", () => {
+    expect(documentPathVariants(["/analizy/tekst", "/en/analizy/tekst"])).toEqual([
+      "/analizy/tekst",
+      "/en/analizy/tekst",
+    ]);
+    expect(documentPathVariants(["/"])).toEqual(["/", "/en"]);
+  });
+
+  it("pomija wejścia niepoprawne, nie przerywając reszty", () => {
+    expect(documentPathVariants(["", "https://x.example/a", "/blog"])).toEqual([
+      "/blog",
+      "/en/blog",
+    ]);
+  });
+});
+
+describe("postDocumentPaths", () => {
+  it("zawsze obejmuje stronę główną i listing bloga (pokazują najnowsze wpisy)", () => {
+    expect(postDocumentPaths([])).toEqual(["/", "/blog"]);
+  });
+
+  it("dokłada adres legacy /post/<slug> i adres kanoniczny (z wiodącym `/` lub bez)", () => {
+    expect(postDocumentPaths([{ slug: "tekst", canonicalPath: "analizy/tekst" }])).toEqual([
+      "/",
+      "/blog",
+      "/post/tekst",
+      "/analizy/tekst",
+    ]);
+    expect(postDocumentPaths([{ slug: "/tekst/", canonicalPath: "/analizy/tekst" }])).toContain(
+      "/post/tekst",
+    );
+  });
+
+  it("pusty slug nie produkuje adresu /post/, a brak kanonicznego nie psuje listy", () => {
+    expect(postDocumentPaths([{ slug: "  " }])).toEqual(["/", "/blog"]);
+    expect(postDocumentPaths([{ slug: "a" }, { slug: "b", canonicalPath: null }])).toEqual([
+      "/",
+      "/blog",
+      "/post/a",
+      "/post/b",
+    ]);
   });
 });

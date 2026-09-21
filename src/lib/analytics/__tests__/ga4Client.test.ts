@@ -43,11 +43,22 @@ const GTAG_SRC = "https://www.googletagmanager.com/gtag/js";
 
 /**
  * Snippet SSR z `__root.tsx` wykonany tak, jak robi to przeglądarka (tekst
- * `<script>` w `<head>`), plus jego `<script async src>` - BEZ znacznika
- * `data-ga4-tag`, bo ten daje wyłącznie bootstrap kliencki.
+ * `<script>` w `<head>`). Od 2026-09-20 to CAŁY udział SSR: sam `<script src>`
+ * dociąga bootstrap kliencki po bezczynności (F20), a snippet zostawia po
+ * sobie wyłącznie warstwę danych, polecenia i pieczątkę.
  */
 function uruchomSnippetSsr(ga4 = "G-TEST123", ads = "AW-123456789"): void {
   new Function(ga4SsrSnippet(ga4, ads))();
+}
+
+/**
+ * Dokument SPRZED przeniesienia tagu za bezczynność: snippet PLUS
+ * `<script async src>` bez znacznika `data-ga4-tag` (ten daje wyłącznie
+ * bootstrap kliencki). Takie dokumenty żyją w cache'u brzegowym jeszcze przez
+ * całe okno `s-maxage`, więc klient MUSI je rozpoznawać tak samo.
+ */
+function uruchomStarySnippetSsr(ga4 = "G-TEST123", ads = "AW-123456789"): void {
+  uruchomSnippetSsr(ga4, ads);
   const tag = document.createElement("script");
   tag.async = true;
   tag.src = `${GTAG_SRC}?id=${encodeURIComponent(ga4 || ads)}`;
@@ -171,8 +182,75 @@ describe("GA4 w przeglądarce", () => {
     expect(policz("js")).toBe(1);
     expect(policz("config", "AW-123456789")).toBe(1);
     expect(policz("config", "G-TEST123")).toBe(1);
-    expect(document.head.querySelectorAll("script[src*=googletagmanager]")).toHaveLength(1);
+    // Snippet nie ładuje już tagu, więc DOCIĄGNIĘCIE należy do klienta - ale
+    // dokładnie jedno i tym samym identyfikatorem, którym SSR skonfigurował
+    // strumień (drugi tag = drugi ping Google Ads przy wejściu).
+    const tagi = document.head.querySelectorAll<HTMLScriptElement>("script[src*=googletagmanager]");
+    expect(tagi).toHaveLength(1);
+    expect(tagi[0].getAttribute("src")).toContain("id=G-TEST123");
     expect(isGa4Ready()).toBe(true);
+  });
+
+  it("dokument SPRZED odroczenia tagu (z `<script src>` w head) nadal nie dostaje drugiego tagu", () => {
+    uruchomStarySnippetSsr("G-TEST123", "AW-123456789");
+
+    bootstrapGa4("G-TEST123", "AW-123456789");
+
+    expect(policz("consent", "default")).toBe(1);
+    expect(policz("config", "G-TEST123")).toBe(1);
+    expect(document.head.querySelectorAll("script[src*=googletagmanager]")).toHaveLength(1);
+    expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(0);
+  });
+
+  // ODROCZENIE TAGU (F20). Polecenia i skrypt to DWIE RÓŻNE rzeczy: pierwsze
+  // idą do `dataLayer` natychmiast (inaczej zgoda i pierwsza odsłona jechałyby
+  // z opóźnieniem albo ginęły), drugi czeka na decyzję wołającego.
+  it("polecenia idą do warstwy NATYCHMIAST, a skrypt dopiero gdy wołający na to pozwoli", () => {
+    let dociagnij: (() => void) | null = null;
+
+    bootstrapGa4("G-TEST123", "AW-123456789", {
+      scheduleScript: (load) => {
+        dociagnij = load;
+      },
+    });
+
+    expect(znajdz("consent", "default")).toBeDefined();
+    expect(policz("config", "G-TEST123")).toBe(1);
+    expect(document.head.querySelectorAll("script[src*=googletagmanager]")).toHaveLength(0);
+    // Zdarzenie z okna PRZED dociągnięciem tagu nie ginie - czeka w kolejce
+    // `dataLayer`, którą gtag.js przetwarza od początku po załadowaniu.
+    expect(isGa4Ready()).toBe(true);
+    ga4Event("test_event", { a: 1 });
+    expect(znajdz("event", "test_event")).toBeDefined();
+
+    expect(dociagnij).toBeTypeOf("function");
+    (dociagnij as unknown as () => void)();
+    expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(1);
+  });
+
+  it("anulowane dociągnięcie jest ponawiane przy ponownym montażu (inaczej tag nigdy by nie dojechał)", () => {
+    // Pierwszy montaż: plan dociągnięcia zostaje ANULOWANY razem z efektem
+    // (odmontowanie, podwójny efekt StrictMode w dev) - nikt go nie woła.
+    bootstrapGa4("G-TEST123", "", { scheduleScript: () => {} });
+    expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(0);
+
+    // Drugi montaż z tą samą parą identyfikatorów: poleceń nie powtarzamy,
+    // ale skrypt zamawiamy ponownie.
+    bootstrapGa4("G-TEST123");
+
+    expect(policz("consent", "default")).toBe(1);
+    expect(policz("config", "G-TEST123")).toBe(1);
+    expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(1);
+  });
+
+  it("pieczątka snippetu SSR zastępuje nieobecny `<script src>` w rozpoznaniu strumienia", () => {
+    expect(ssrGtagId()).toBe("");
+    uruchomSnippetSsr("G-SSR0000001", "");
+    // Żadnego węzła w dokumencie - a strumień JEST rozpoznany.
+    expect(document.head.querySelectorAll("script[src*=googletagmanager]")).toHaveLength(0);
+    expect(ssrGtagId()).toBe("G-SSR0000001");
+    expect(isGa4Ready()).toBe(true);
+    expect(resolveBrowserGa4Id({ settingsId: "G-PANEL1234" })).toBe("G-SSR0000001");
   });
 
   it("pierwsza odsłona nie ginie, gdy snippet SSR skonfigurował strumień, a bootstrap klienta jeszcze nie ruszył", () => {

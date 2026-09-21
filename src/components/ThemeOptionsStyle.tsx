@@ -1,5 +1,6 @@
 // Injects CSS variables driven by site_settings.theme_options
 // (Buttons + Text Fields tabs) so changes apply across the whole site.
+import { useMemo } from "react";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { hardenStyleCss } from "@/lib/sanitizePure";
 
@@ -37,8 +38,12 @@ type Cfg = { buttons?: ButtonsCfg; text_fields?: InputsCfg; toggles?: TogglesCfg
 
 const DEFAULTS: Cfg = {};
 
-export function ThemeOptionsStyle() {
-  const cfg = useSiteSetting<Cfg>("theme_options", DEFAULTS);
+/**
+ * Budowa CSS wydzielona z ciała komponentu, żeby dało się ją zapamiętać
+ * (`useMemo` niżej) - wszystkie wartości pochodzą z jednego wiersza ustawień,
+ * więc bez zmiany ustawień wynik jest zawsze ten sam.
+ */
+function themeOptionsCss(cfg: Cfg): string {
   const b = cfg.buttons ?? {};
   const i = cfg.text_fields ?? {};
   const tg = cfg.toggles ?? {};
@@ -139,6 +144,13 @@ export function ThemeOptionsStyle() {
     }
   `;
 
-  const css = (buttonsCss + inputsCss + togglesCss).replace(/\s+/g, " ").trim();
-  return <style data-theme-options dangerouslySetInnerHTML={{ __html: hardenStyleCss(css) }} />;
+  return (buttonsCss + inputsCss + togglesCss).replace(/\s+/g, " ").trim();
+}
+
+export function ThemeOptionsStyle() {
+  const cfg = useSiteSetting<Cfg>("theme_options", DEFAULTS);
+  // Komponent wisi przy korzeniu aplikacji - bez memo budował i utwardzał
+  // kilkaset znaków CSS przy każdym renderze drzewa.
+  const css = useMemo(() => hardenStyleCss(themeOptionsCss(cfg)), [cfg]);
+  return <style data-theme-options dangerouslySetInnerHTML={{ __html: css }} />;
 }

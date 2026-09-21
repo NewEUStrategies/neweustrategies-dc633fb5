@@ -10,26 +10,58 @@ import { LegalPage } from "@/components/legal/LegalPage";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead } from "@/lib/seo/meta";
-import { staticPageSeoQueryOptions, pickStaticSeo } from "@/lib/queries/staticPageSeo";
+import {
+  staticPageSeoQueryOptions,
+  pickStaticSeo,
+  LEGAL_SSR_BUDGET_MS,
+  NO_STATIC_SEO,
+} from "@/lib/queries/staticPageSeo";
+import { anyDegraded, loadResilient } from "@/lib/ssr/resilientLoad";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { staticFallbackCacheControl } from "@/lib/http/cachePolicy";
 import { LEGAL_ENTITY } from "@/lib/legal/entity";
 import { DATA_PROCESSING_CONTENT } from "@/lib/legal/content/dataProcessing";
 import { DATA_PROCESSING_META } from "@/lib/legal/meta";
-import { legalDocumentQueryOptions, useLegalDocumentCopy } from "@/lib/legal/useLegalDocument";
+import {
+  legalDocumentQueryOptions,
+  useLegalDocumentCopy,
+  NO_LEGAL_DOCUMENT,
+} from "@/lib/legal/useLegalDocument";
 
 const COPY = DATA_PROCESSING_CONTENT;
 
 export const Route = createFileRoute("/polityka-przetwarzania-danych")({
   component: DataProcessingPage,
   loader: async ({ context }) => {
-    const [seo] = await Promise.all([
-      context.queryClient
-        .ensureQueryData(staticPageSeoQueryOptions("polityka-przetwarzania-danych"))
-        .catch(() => null),
-      context.queryClient
-        .ensureQueryData(legalDocumentQueryOptions("data_processing"))
-        .catch(() => null),
+    // Oba odczyty pod JEDNYM krótkim terminem (F10): to nadpisania SEO i wersja
+    // dokumentu, nie warunek renderu - treść bazowa żyje w kodzie.
+    const deadlineAt = Date.now() + LEGAL_SSR_BUDGET_MS;
+    const [seo, document] = await Promise.all([
+      loadResilient(
+        context.queryClient,
+        staticPageSeoQueryOptions("polityka-przetwarzania-danych"),
+        NO_STATIC_SEO,
+        {
+          deadlineAt,
+          label: "legal-seo:polityka-przetwarzania-danych",
+        },
+      ),
+      loadResilient(
+        context.queryClient,
+        legalDocumentQueryOptions("data_processing"),
+        NO_LEGAL_DOCUMENT,
+        {
+          deadlineAt,
+          label: "legal-doc:data_processing",
+        },
+      ),
     ]);
-    return { seo };
+    // Treść bazowa zamiast opublikowanej wersji to dokument KOMPLETNY dla
+    // czytelnika, tylko niekanoniczny dla brzegu - stąd krótka świeżość
+    // z rewalidacją zamiast `no-store` (różnica wobec `resilientCacheControl`:
+    // docblock helpera).
+    setCacheControlHeader(staticFallbackCacheControl(anyDegraded(seo, document)));
+    return { seo: seo.data };
   },
   head: ({ loaderData }) => {
     const url = getRequestUrl() || "/polityka-przetwarzania-danych";

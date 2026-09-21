@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import {
@@ -34,6 +34,17 @@ function withWidgets(widgets: WidgetNode[], id = "s1"): SectionNode {
   } as unknown as SectionNode;
 }
 
+/**
+ * Prefetch jedzie przez `whenIdle`, a happy-dom nie zna `requestIdleCallback`,
+ * więc moduł degraduje do `setTimeout(32)`. Czekamy na MAKROZADANIE - zanim
+ * je puścimy, prefetchu po prostu jeszcze nie ma.
+ */
+async function flushIdle(): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 40));
+  });
+}
+
 function makeWrapper(qc: QueryClient) {
   return ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={qc}>{children}</QueryClientProvider>
@@ -49,45 +60,66 @@ describe("useSectionPreload", () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
-  it("prefetches immediately when IntersectionObserver is unavailable", () => {
-    renderHook(() => useSectionPreload(sectionEmpty, "pl"), { wrapper: makeWrapper(qc) });
+  /** Zamontuj, przepuść bezczynność, odmontuj - jedna "wizyta" na stronie. */
+  async function visit(section: SectionNode, lang: "pl" | "en" = "pl"): Promise<void> {
+    const view = renderHook(() => useSectionPreload(section, lang), {
+      wrapper: makeWrapper(qc),
+    });
+    await flushIdle();
+    view.unmount();
+  }
+
+  /** Sekcja z widgetem danych, której nikt jeszcze nie zasiał w cache'u. */
+  function coldSection(id = "s-cold"): SectionNode {
+    return withWidgets([makeWidget("post-list")], id);
+  }
+
+  it("prefetches when IntersectionObserver is unavailable and data is cold", async () => {
+    await visit(coldSection());
     expect(prefetchMod.prefetchSectionQueries).toHaveBeenCalledTimes(1);
   });
 
-  it("does not prefetch when disabled", () => {
-    renderHook(() => useSectionPreload(sectionEmpty, "pl", { enabled: false }), {
+  it("does not prefetch when disabled", async () => {
+    renderHook(() => useSectionPreload(coldSection(), "pl", { enabled: false }), {
       wrapper: makeWrapper(qc),
     });
+    await flushIdle();
     expect(prefetchMod.prefetchSectionQueries).not.toHaveBeenCalled();
   });
 
-  it("dedupes repeated mounts of the same section + lang when data is fresh", () => {
+  it("nie prefetchuje sekcji bez widgetów danych - nie ma czego grzać", async () => {
+    await visit(sectionEmpty);
+    expect(prefetchMod.prefetchSectionQueries).not.toHaveBeenCalled();
+  });
+
+  it("NIE prefetchuje PRZY PIERWSZEJ wizycie, gdy dane są świeże (SSR)", async () => {
+    // To jest cała stawka poprawki F39. Poprzednia bramka brzmiała
+    // `registry.has(key) && isSectionFresh(...)`, więc przy pierwszej wizycie
+    // ucinała się na pustym rejestrze, a świeżość nigdy nie dochodziła do
+    // głosu: sekcja wyrenderowana serwerowo i tak płaciła za prefetch. Stary
+    // komentarz w tym teście przyznawał to wprost („First mount may still
+    // prefetch") - dziś to NIE jest już prawda.
     const section = withWidgets([makeWidget("post-list")]);
-    // Seed cache so the SWR gate considers the section fresh.
     const targets = prefetchMod.sectionCacheTargets(
       prefetchMod.collectSectionWidgets(section),
       "pl",
     );
     targets.forEach(({ key }) => qc.setQueryData(key, []));
 
-    const wrapper = makeWrapper(qc);
-    const a = renderHook(() => useSectionPreload(section, "pl"), { wrapper });
-    a.unmount();
-    const b = renderHook(() => useSectionPreload(section, "pl"), { wrapper });
-    b.unmount();
+    await visit(section);
+    expect(prefetchMod.prefetchSectionQueries).not.toHaveBeenCalled();
 
-    // First mount may still prefetch (registry was empty). Second mount must skip
-    // because the registry is populated AND every query target is fresh.
-    expect(prefetchMod.prefetchSectionQueries).toHaveBeenCalledTimes(1);
+    await visit(section);
+    expect(prefetchMod.prefetchSectionQueries).not.toHaveBeenCalled();
   });
 
-  it("re-prefetches when cached data has expired its staleTime", () => {
+  it("prefetchuje dane nieświeże RAZ, a powtórną nawigację ucina rejestr", async () => {
     const section = withWidgets([makeWidget("post-list")]);
     const targets = prefetchMod.sectionCacheTargets(
       prefetchMod.collectSectionWidgets(section),
       "pl",
     );
-    // Seed cache with data, then manually expire it by rewriting dataUpdatedAt.
+    // Dane w cache'u, ale postarzone ręcznie - bramka świeżości ich nie puści.
     targets.forEach(({ key }) => {
       qc.setQueryData(key, []);
       const state = qc.getQueryState(key);
@@ -95,12 +127,25 @@ describe("useSectionPreload", () => {
       if (q && state) q.setState({ ...state, dataUpdatedAt: 1 });
     });
 
-    const wrapper = makeWrapper(qc);
-    renderHook(() => useSectionPreload(section, "pl"), { wrapper }).unmount();
-    renderHook(() => useSectionPreload(section, "pl"), { wrapper }).unmount();
+    await visit(section);
+    await visit(section);
 
-    // Both mounts must prefetch since cache is stale on the second.
-    expect(prefetchMod.prefetchSectionQueries).toHaveBeenCalledTimes(2);
+    // Rejestr pilnuje POWTÓRNYCH NAWIGACJI: prefetch tej pary w tym kliencie
+    // już poszedł. Gdyby dane nadal były nieświeże w chwili montażu sekcji,
+    // odświeży je `useQuery` samej sekcji (`refetchOnMount`), a nie obserwator.
+    expect(prefetchMod.prefetchSectionQueries).toHaveBeenCalledTimes(1);
+  });
+
+  it("odmontowanie przed bezczynnością ANULUJE zaplanowany prefetch", async () => {
+    // Sekcja, która mignęła w kadrze i zniknęła (nawigacja w trakcie
+    // przewijania), nie ma prawa dociągnąć swoich zapytań po fakcie.
+    const view = renderHook(() => useSectionPreload(coldSection("s-flash"), "pl"), {
+      wrapper: makeWrapper(qc),
+    });
+    view.unmount();
+    await flushIdle();
+
+    expect(prefetchMod.prefetchSectionQueries).not.toHaveBeenCalled();
   });
 });
 
