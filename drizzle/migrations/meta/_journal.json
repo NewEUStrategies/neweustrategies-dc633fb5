@@ -232,6 +232,13 @@
       "when": 1790018264900,
       "tag": "0032_mention_targets_people_crm_companies",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1790018928921,
+      "tag": "0033_stable_organization_mention_slugs",
+      "breakpoints": true
     }
   ]
 }
