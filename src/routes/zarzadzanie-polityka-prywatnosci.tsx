@@ -16,8 +16,9 @@ import {
   LEGAL_SSR_BUDGET_MS,
   NO_STATIC_SEO,
 } from "@/lib/queries/staticPageSeo";
-import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { anyDegraded, loadResilient } from "@/lib/ssr/resilientLoad";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { staticFallbackCacheControl } from "@/lib/http/cachePolicy";
 import { LEGAL_ENTITY } from "@/lib/legal/entity";
 import { PRIVACY_GOVERNANCE_CONTENT } from "@/lib/legal/content/privacyGovernance";
 import { PRIVACY_GOVERNANCE_META } from "@/lib/legal/meta";
@@ -55,9 +56,11 @@ export const Route = createFileRoute("/zarzadzanie-polityka-prywatnosci")({
         },
       ),
     ]);
-    // Render zdegradowany (treść bazowa zamiast opublikowanej wersji) nie może
-    // zamarznąć na brzegu jako wariant wszystkich czytelników.
-    setCacheControlHeader(resilientCacheControl(anyDegraded(seo, document)));
+    // Treść bazowa zamiast opublikowanej wersji to dokument KOMPLETNY dla
+    // czytelnika, tylko niekanoniczny dla brzegu - stąd krótka świeżość
+    // z rewalidacją zamiast `no-store` (różnica wobec `resilientCacheControl`:
+    // docblock helpera).
+    setCacheControlHeader(staticFallbackCacheControl(anyDegraded(seo, document)));
     return { seo: seo.data };
   },
   head: ({ loaderData }) => {

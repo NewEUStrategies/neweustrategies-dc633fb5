@@ -104,6 +104,38 @@ export function chromeDegradedCacheControl(): string {
 }
 
 /**
+ * Degradacja WARSTWY OPCJONALNEJ nad treścią, która w całości żyje w KODZIE.
+ *
+ * Dotyczy stron prawnych i statycznych (`LEGAL_SSR_BUDGET_MS`, `/support`):
+ * tekst dokumentu stoi w słowniku/rejestrze w repozytorium, a z bazy dokłada
+ * się wyłącznie DEKORACJA - nadpisania SEO z `/admin/pages` i opublikowana
+ * wersja z `legal_documents`. Gdy baza nie odpowie, czytelnik dostaje
+ * dokument KOMPLETNY, tylko niekanoniczny dla brzegu - dokładnie ta sama klasa
+ * co degradacja chrome'u, więc i ta sama odpowiedź: KRÓTKA świeżość wspólna
+ * z rewalidacją w tle (`chromeDegradedCacheControl`), a nie `no-store`.
+ *
+ * RÓŻNICA WOBEC `resilientCacheControl` (src/lib/ssr/resilientLoad.ts) jest
+ * różnicą w tym, CZYM JEST FALLBACK, a nie w stopniu ostrożności:
+ *   * tam fallback to KOMUNIKAT DEGRADACJI albo pusta powłoka (archiwa, trasy
+ *     tożsamościowe, karta klubu) - dokument NIE NIESIE swojej treści, więc
+ *     utrwalenie go na brzegu rozdaje awarię kolejnym czytelnikom i jedyną
+ *     poprawną odpowiedzią jest `no-store`;
+ *   * tutaj fallback to PEŁNA TREŚĆ z kodu - `no-store` nie chroniłby przed
+ *     niczym, a kosztowałby pełny render każdego czytelnika przez cały czas
+ *     trwania blipu bazy. Zmierzony skutek: w teście rozruchowym na artefakcie
+ *     (poświadczenia zastępcze = każde zapytanie do bazy pada) drugie żądanie
+ *     `/cookies` było MISS-em zamiast HIT-a, bo `no-store` z trasy zawężał
+ *     (`narrowestCacheControl`) politykę całego dokumentu i
+ *     `documentStorePolicy` nie zapisywała go wcale.
+ */
+export function staticFallbackCacheControl(
+  degraded: boolean,
+  cleanPolicy: string = contentCacheControl(),
+): string {
+  return degraded ? chromeDegradedCacheControl() : cleanPolicy;
+}
+
+/**
  * Scalenie dwóch intencji cache'owych JEDNEGO żądania - loadery (korzeń, trasa,
  * bramka chrome) biegną równolegle i każdy ustawia własną politykę, a wygrać
  * musi zawsze ta OSTRZEJSZA:

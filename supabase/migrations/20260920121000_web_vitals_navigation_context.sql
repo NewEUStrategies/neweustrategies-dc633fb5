@@ -132,4 +132,4 @@ COMMENT ON COLUMN public.web_vitals.effective_type IS
   'Klasa lacza z Network Information API: slow-2g | 2g | 3g | 4g. NULL = brak API (m.in. Safari i Firefox) albo klasa spoza specyfikacji.';
 
 COMMENT ON COLUMN public.web_vitals.cold_start IS
-  'TRUE = pierwsza nawigacja w tej karcie (brak znacznika sessionStorage). Populacja zimnego pierwszego wejscia z audytu F40. Znacznik stawiany dopiero po zgodzie analitycznej, wiec czytelnik zgadzajacy sie na trzeciej podstronie bywa liczony jako zimny - obciazenie znane i opisane w src/lib/webVitals.ts.';
+  'TRUE = probka PIERWSZEJ trasy dokumentu otwartego na zimno (brak znacznika sessionStorage w chwili startu). Klient gasi flage przy pierwszej miekkiej nawigacji, wiec druga i kazda kolejna trasa SPA tego samego dokumentu ma FALSE - WHERE cold_start izoluje zimne pierwsze otwarcia, a nie cale odslony. Populacja z audytu F40. Znacznik stawiany dopiero po zgodzie analitycznej, wiec czytelnik zgadzajacy sie na trzeciej podstronie bywa liczony jako zimny - obciazenie znane i opisane w src/lib/webVitals.ts.';

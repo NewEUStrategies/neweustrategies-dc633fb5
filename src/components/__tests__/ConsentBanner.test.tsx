@@ -204,6 +204,32 @@ describe("ConsentBanner - panel preferencji", () => {
 });
 
 describe("ConsentBanner: integration with the real overlay queue", () => {
+  it("zgłasza stan nawet wtedy, gdy nic nie rysuje - i to ono zwalnia kolejkę", async () => {
+    vi.useFakeTimers();
+    // Powracający czytelnik: decyzja zapadła wcześniej, więc karta zgód nie
+    // renderuje NICZEGO. Mimo to jej efekt musi zgłosić stan koordynatorowi -
+    // koordynator wstrzymuje nakładki marketingowe do PIERWSZEGO zgłoszenia
+    // baneru, więc bez tego popup czekałby w kolejce do końca sesji.
+    h.state = {
+      version: 2,
+      ts: Date.now(),
+      categories: { necessary: true, functional: true, analytics: true, marketing: true },
+    };
+    const opened = vi.fn();
+    void requestOverlaySlot("waiting-popup", { marketing: true }).then(opened);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(opened).not.toHaveBeenCalled();
+
+    const { container } = render(<ConsentBanner />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(container).toBeEmptyDOMElement();
+    expect(opened).toHaveBeenCalledTimes(1);
+  });
+
   it.each([false, true])(
     "applies marketing=%s before releasing a waiting popup",
     async (granted) => {

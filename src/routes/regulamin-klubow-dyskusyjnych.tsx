@@ -16,8 +16,9 @@ import {
   LEGAL_SSR_BUDGET_MS,
   NO_STATIC_SEO,
 } from "@/lib/queries/staticPageSeo";
-import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { anyDegraded, loadResilient } from "@/lib/ssr/resilientLoad";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { staticFallbackCacheControl } from "@/lib/http/cachePolicy";
 import { LEGAL_ENTITY } from "@/lib/legal/entity";
 import { CLUBS_CONTENT } from "@/lib/legal/content/clubs";
 import { CLUBS_META } from "@/lib/legal/meta";
@@ -50,9 +51,11 @@ export const Route = createFileRoute("/regulamin-klubow-dyskusyjnych")({
         label: "legal-doc:clubs",
       }),
     ]);
-    // Render zdegradowany (treść bazowa zamiast opublikowanej wersji) nie może
-    // zamarznąć na brzegu jako wariant wszystkich czytelników.
-    setCacheControlHeader(resilientCacheControl(anyDegraded(seo, document)));
+    // Treść bazowa zamiast opublikowanej wersji to dokument KOMPLETNY dla
+    // czytelnika, tylko niekanoniczny dla brzegu - stąd krótka świeżość
+    // z rewalidacją zamiast `no-store` (różnica wobec `resilientCacheControl`:
+    // docblock helpera).
+    setCacheControlHeader(staticFallbackCacheControl(anyDegraded(seo, document)));
     return { seo: seo.data };
   },
   head: ({ loaderData }) => {

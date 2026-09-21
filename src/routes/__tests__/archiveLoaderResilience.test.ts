@@ -1,5 +1,16 @@
+// @vitest-environment node
+//
 // KONTRAKT ODPORNOŚCI LOADERÓW ARCHIWUM TAKSONOMII (`/category/$slug`,
 // `/tag/$slug`).
+//
+// PO CO TU ŚRODOWISKO `node`. Budżet czasowy `loadResilient` obowiązuje
+// WYŁĄCZNIE w renderze serwerowym (`lib/ssr/isSsrRequest.ts`: brak `document`);
+// w przeglądarce loader czeka na zapytanie do skutku, bo wynik loadera jest
+// niezmienny i degradacja „z zegara" zamarzłaby jako fałszywy komunikat awarii.
+// Pod globalnym happy-dom te loadery biegłyby więc ścieżką przeglądarki, a
+// przypadek ZWISU KONFIGURACJI wisiałby do limitu testu zamiast dowodzić
+// czegokolwiek. Ten plik nie dotyka DOM (loader jako funkcja + atrapy zapytań),
+// więc modeluje serwer wprost.
 //
 // CO NAPRAWIAMY. Do 2026-09-20 oba loadery robiły DWA gołe `ensureQueryData`
 // SZEREGOWO i BEZ budżetu (`category.$slug.tsx:50,:53`, `tag.$slug.tsx:43-44`):
@@ -10,6 +21,14 @@
 //   * `/tag/$slug` nie ustawiał `Cache-Control` W OGÓLE, więc render niepełny
 //     brał domyślną politykę treści i mógł zamarznąć na brzegu na 15 minut
 //     świeżości plus dobę okna `stale-while-revalidate`.
+//
+// CO PILNUJEMY DODATKOWO (uwaga P1 z przeglądu PR #382). Trasa ma DWIE
+// niezależne degradacje i tylko jedna z nich zabiera czytelnikowi treść:
+// `degraded` w ładunku loadera niesie WYŁĄCZNIE odczyt archiwum, bo to na nim
+// komponent podmienia całą stronę na `DegradedDataNotice`; degradację samego
+// layoutu widać w `layoutDegraded` i w nagłówku. Zlepienie obu flag zamieniałoby
+// zimny odczyt `archive_layout_settings` w komunikat „dane niedostępne" na
+// archiwum z kompletną listą wpisów.
 //
 // Testujemy loader jako FUNKCJĘ, bez montowania drzewa (ta sama doktryna co
 // `eventShellLoader.test.ts`) - render tych tras ma własny plik
@@ -74,17 +93,31 @@ vi.mock("@/lib/seo/request", () => ({ getRequestUrl: () => "https://nes.eu/categ
 import { QueryClient } from "@tanstack/react-query";
 import { isNotFound } from "@tanstack/react-router";
 import { DEFAULT_ARCHIVE_LAYOUT } from "@/lib/archive-layout-settings";
-import { contentCacheControl } from "@/lib/http/cachePolicy";
+import { chromeDegradedCacheControl, contentCacheControl } from "@/lib/http/cachePolicy";
+import { documentStorePolicy } from "@/lib/http/documentCache";
 import { Route as CategoryRoute } from "@/routes/category.$slug";
 import { Route as TagRoute } from "@/routes/tag.$slug";
 
 const NO_STORE = "private, no-store";
 
+/**
+ * Czy NES Edge Cache (`lib/http/documentCache.ts`) zapisze dokument z takim
+ * nagłówkiem. Asercja na samym napisie dowodziłaby tylko, że ktoś przepisał
+ * stałą; tu pytamy o SKUTEK, czyli o to, po co ta polityka istnieje.
+ */
+function storedByEdge(header: string | undefined): boolean {
+  return documentStorePolicy(200, "text/html", header ?? null).store;
+}
+
 interface ArchiveLoaderData {
   readonly taxonomy: { readonly name_pl: string } | null;
+  readonly posts: readonly { readonly slug: string }[];
   readonly total: number;
   readonly pageSize: number;
+  /** Degradacja TREŚCI - to ona podmienia stronę na komunikat. */
   readonly degraded: boolean;
+  /** Degradacja PREZENTACJI - layout z domyślek, treść nietknięta. */
+  readonly layoutDegraded: boolean;
 }
 
 type Loader = (ctx: {
@@ -108,8 +141,15 @@ function runLoader(route: unknown, slug = "gospodarka"): Promise<ArchiveLoaderDa
 
 const TAXONOMY = {
   taxonomy: { id: "tax-1", slug: "gospodarka", name_pl: "Gospodarka", name_en: "Economy" },
-  posts: [],
-  total: 0,
+  // Wpisy są tu PO COŚ: kontrakt „zwis konfiguracji nie kasuje treści" da się
+  // udowodnić tylko na niepustej liście. `cover_image_url: null` trzyma
+  // `archiveFirstCardPreload` przy `null`, więc fixture nie dokłada nagłówka
+  // `Link` do asercji pozostałych przypadków.
+  posts: [
+    { id: "p1", slug: "pkb-2026", cover_image_url: null },
+    { id: "p2", slug: "inflacja-2026", cover_image_url: null },
+  ],
+  total: 2,
   page: 1,
   pageSize: 7,
   sort: "newest",
@@ -127,6 +167,13 @@ beforeEach(() => {
 });
 
 describe("/category/$slug - odporność loadera", () => {
+  it("kanarek środowiska: ten plik modeluje SERWER (brak `document`)", () => {
+    // Bez tej asercji przypadki zwisu mogłyby po cichu przejechać ścieżką
+    // przeglądarki, gdzie budżet jest wyłączony z definicji - i „zielony"
+    // przebieg nie mówiłby nic o kontrakcie SSR.
+    expect(typeof document).toBe("undefined");
+  });
+
   it("czysty odczyt zostaje przy polityce treści i nie jest zdegradowany", async () => {
     const data = await runLoader(CategoryRoute);
     expect(data.taxonomy?.name_pl).toBe("Gospodarka");
@@ -140,6 +187,8 @@ describe("/category/$slug - odporność loadera", () => {
     expect(data.degraded).toBe(true);
     expect(data.taxonomy).toBeNull();
     expect(h.cacheControl).toEqual([NO_STORE]);
+    // Powłoka bez treści nie ma prawa obsłużyć ANI JEDNEGO kolejnego czytelnika.
+    expect(storedByEdge(h.cacheControl[0])).toBe(false);
   });
 
   it("404 leci WYŁĄCZNIE z czystego odczytu i nie utrwala się na brzegu", async () => {
@@ -158,13 +207,28 @@ describe("/category/$slug - odporność loadera", () => {
     h.layoutHangs = true;
     const data = await runLoader(CategoryRoute);
     expect(h.pageSizes).toEqual([DEFAULT_ARCHIVE_LAYOUT.posts_per_page]);
-    // TREŚĆ jest kompletna, więc strona renderuje się normalnie - degradacja
-    // dotyczy wyłącznie layoutu i widać ją TYLKO w nagłówku: render na
-    // domyślkach nie ma prawa zamarznąć na brzegu jako wariant wszystkich
-    // czytelników.
+    // SEDNO (uwaga P1 z przeglądu PR #382): flaga `degraded` w ładunku loadera
+    // podmienia w komponencie CAŁĄ stronę na `DegradedDataNotice`, więc nie
+    // wolno jej zlepiać z degradacją layoutu - zimny odczyt
+    // `archive_layout_settings` kasowałby wtedy żywe archiwum z kompletną
+    // listą wpisów. Degradacja dotyczy PREZENTACJI i widać ją w `layoutDegraded`
+    // oraz w nagłówku.
     expect(data.degraded).toBe(false);
+    expect(data.layoutDegraded).toBe(true);
     expect(data.taxonomy?.name_pl).toBe("Gospodarka");
+    // TREŚĆ dojeżdża w całości - po to powstał `CATEGORY_LAYOUT_FALLBACK`.
+    expect(data.posts.map((post) => post.slug)).toEqual(["pkb-2026", "inflacja-2026"]);
+    // Render na domyślkach nie ma prawa zamarznąć na brzegu jako wariant
+    // wszystkich czytelników: treść prawdziwa, prezentacja domyślna.
     expect(h.cacheControl).toEqual([NO_STORE]);
+  });
+
+  it("czysty odczyt nie melduje degradacji layoutu", async () => {
+    // Kontrola negatywna dla przypadku wyżej: gdyby `layoutDegraded` było
+    // stale `true`, tamten test przechodziłby bez żadnego zwisu.
+    const data = await runLoader(CategoryRoute);
+    expect(data.layoutDegraded).toBe(false);
+    expect(h.pageSizes).toEqual([7]);
   });
 });
 
@@ -183,6 +247,19 @@ describe("/tag/$slug - odporność loadera", () => {
     h.archiveThrows = true;
     const data = await runLoader(TagRoute, "nato");
     expect(data.degraded).toBe(true);
+    expect(h.cacheControl).toEqual([NO_STORE]);
+  });
+
+  it("zwis KONFIGURACJI zostawia wpisy tagu na ekranie", async () => {
+    // Ten sam kontrakt co w kategorii - trasa tagu dzieli z nią `TaxonomyPage`,
+    // więc zlepienie flag kosztowałoby tu dokładnie tyle samo: żywe archiwum
+    // zamienione w komunikat o niedostępności.
+    h.layoutHangs = true;
+    const data = await runLoader(TagRoute, "nato");
+    expect(h.pageSizes).toEqual([DEFAULT_ARCHIVE_LAYOUT.posts_per_page]);
+    expect(data.degraded).toBe(false);
+    expect(data.layoutDegraded).toBe(true);
+    expect(data.posts.map((post) => post.slug)).toEqual(["pkb-2026", "inflacja-2026"]);
     expect(h.cacheControl).toEqual([NO_STORE]);
   });
 

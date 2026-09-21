@@ -30,8 +30,9 @@ import {
   pickStaticSeo,
   staticPageSeoQueryOptions,
 } from "@/lib/queries/staticPageSeo";
-import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { loadResilient } from "@/lib/ssr/resilientLoad";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { staticFallbackCacheControl } from "@/lib/http/cachePolicy";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
 export const Route = createFileRoute("/contribute")({
   component: ContributePage,
@@ -45,7 +46,10 @@ export const Route = createFileRoute("/contribute")({
       NO_STATIC_SEO,
       { deadlineAt: Date.now() + LEGAL_SSR_BUDGET_MS, label: "static-seo:contribute" },
     );
-    setCacheControlHeader(resilientCacheControl(seo.degraded));
+    // Brak nadpisań SEO daje dokument KOMPLETNY dla czytelnika, tylko
+    // niekanoniczny dla brzegu - stąd krótka świeżość z rewalidacją zamiast
+    // `no-store` (różnica wobec `resilientCacheControl`: docblock helpera).
+    setCacheControlHeader(staticFallbackCacheControl(seo.degraded));
     return { seo: seo.data };
   },
   head: ({ loaderData }) => {

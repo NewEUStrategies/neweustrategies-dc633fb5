@@ -1322,6 +1322,79 @@ describe("kontekst nawigacji w ładunku", () => {
       const metrics = await beaconMetrics(sent[sent.length - 1]?.body);
       expect(metricNamed(metrics, "LCP")?.coldStart).toBe(true);
     });
+
+    it("zimna jest PIERWSZA trasa: zrzut przy miękkiej nawigacji niesie true i ścieżkę POPRZEDNIĄ", async () => {
+      // Granica batcha wypada W ŚRODKU miękkiej nawigacji: `flushCurrent`
+      // raportuje metryki trasy, z KTÓREJ schodzimy - i to one, a nie próbki
+      // nowej trasy, są tymi jedynymi zimnymi w całym dokumencie. Gdyby flaga
+      // gasła przed zrzutem, zimne pierwsze wejście nie zostawiłoby w bazie
+      // ANI JEDNEGO wiersza z `cold_start`.
+      const sent = captureBeacons();
+      const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
+      initWebVitals();
+      FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(2100)]);
+      FakeObserver.forType("layout-shift").emit([shift(0.2, 100)]);
+      markWebVitalsPage("/blog");
+
+      expect(sent).toHaveLength(1);
+      const metrics = await beaconMetrics(sent[0]?.body);
+      expect(metrics.map((metric) => metric.name).sort()).toEqual(["CLS", "LCP"]);
+      for (const metric of metrics) {
+        expect(metric).toMatchObject({ url: "/en", coldStart: true });
+      }
+    });
+
+    it("po miękkiej nawigacji próbki są już ciepłe, a reszta kontekstu opisuje TEN SAM dokument", async () => {
+      // Sedno uwagi: gdyby `coldStart` trzymał się całego dokumentu,
+      // `WHERE cold_start` łapałoby drugą, trzecią i każdą kolejną trasę SPA
+      // tej samej karty, więc kolumna nie izolowałaby niczego. Trzy pozostałe
+      // pola opisują DOKUMENT i miękka nawigacja nie ma prawa ich ruszyć.
+      vi.spyOn(performance, "getEntriesByType").mockReturnValue([
+        navigationTypeEntry("navigate"),
+      ] as unknown as PerformanceEntryList);
+      patchNavigator("deviceMemory", 4);
+      patchNavigator("connection", { effectiveType: "3g" });
+
+      const sent = captureBeacons();
+      const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
+      initWebVitals();
+      FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(2100)]);
+      markWebVitalsPage("/blog"); // zrzut PIERWSZEJ trasy - tej zimnej
+      FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(900)]);
+      markWebVitalsPage("/glossary"); // zrzut drugiej trasy - już ciepłej
+
+      expect(sent.length).toBeGreaterThanOrEqual(2);
+      const first = await beaconMetrics(sent[0]?.body);
+      const second = await beaconMetrics(sent[sent.length - 1]?.body);
+      expect(metricNamed(first, "LCP")).toMatchObject({ url: "/en", coldStart: true });
+      expect(metricNamed(second, "LCP")).toMatchObject({
+        url: "/blog",
+        coldStart: false,
+        navigationType: "navigate",
+        deviceMemory: 4,
+        effectiveType: "3g",
+      });
+    });
+
+    it("po miękkiej nawigacji ponowna zgoda NIE wraca do zimnego startu", async () => {
+      // Druga strona kontraktu `??=`: teardown zgody nie przelicza kontekstu,
+      // więc raz zgaszona flaga zostaje zgaszona. Bez tego jedna odsłona
+      // zgłaszałaby zimne wejście dwa razy - raz na pierwszej trasie, raz po
+      // cofnięciu i ponownym wyrażeniu zgody na trasie czwartej.
+      const sent = captureBeacons();
+      const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
+      const teardown = initWebVitals();
+      markWebVitalsPage("/blog"); // pierwsza miękka nawigacja gasi flagę
+      teardown();
+
+      initWebVitals();
+      FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(900)]);
+      markWebVitalsPage("/glossary");
+
+      expect(sent.length).toBeGreaterThanOrEqual(1);
+      const metrics = await beaconMetrics(sent[sent.length - 1]?.body);
+      expect(metricNamed(metrics, "LCP")?.coldStart).toBe(false);
+    });
   });
 
   describe("pola środowiska przeglądarki", () => {

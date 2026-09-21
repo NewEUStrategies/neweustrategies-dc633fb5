@@ -54,6 +54,7 @@ import {
   __resetOverlayCoordinator,
   isOverlayActive,
   requestOverlaySlot,
+  setMarketingConsent,
 } from "@/lib/overlayCoordinator";
 import type { AdPlacementWithSlot, AdSlot } from "@/lib/ads/types";
 
@@ -182,6 +183,10 @@ beforeEach(() => {
   globalThis.IntersectionObserver = ImmediateIntersectionObserver;
   from().reset();
   __resetOverlayCoordinator();
+  // Pasek jest nakładką MARKETINGOWĄ, a koordynator wstrzymuje takie wpisy,
+  // dopóki baner zgód nie zgłosi swojego stanu. W tym pliku baneru nie ma
+  // w drzewie, więc odtwarzamy stan po banerze: zgoda zgłoszona i udzielona.
+  setMarketingConsent(true);
   window.sessionStorage.clear();
   window.localStorage.clear();
   beacons.calls = [];

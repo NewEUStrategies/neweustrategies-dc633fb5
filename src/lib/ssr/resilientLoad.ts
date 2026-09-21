@@ -30,12 +30,29 @@
 //      trafił na brzeg i nie był serwowany kolejnym czytelnikom.
 //
 // Prymityw jest izomorficzny (żadnych importów server-only), więc te same trasy
-// używają go też przy nawigacji po stronie klienta - tam budżet po prostu
-// rzadko dochodzi do głosu.
+// używają go też przy nawigacji po stronie klienta - ale BUDŻET CZASOWY
+// obowiązuje WYŁĄCZNIE na serwerze.
+//
+// DLACZEGO BUDŻET NIE MA PRAWA DZIAŁAĆ W PRZEGLĄDARCE (recenzja PR #382, P1).
+// Punkty 1-4 opisują wymianę opłacalną w SSR: render i tak musi skończyć się
+// przed watchdogiem, a zasiew sam się leczy refetchem po hydratacji. Przy
+// nawigacji SPA ta sama wymiana jest czystą stratą, bo znikają OBA warunki:
+// nie ma TTFB do obrony (czytelnik patrzy na `pendingComponent` routera),
+// a WYNIK LOADERA JEST NIEZMIENNY przez całe życie dopasowania trasy. Zwykły
+// fetch, który przekroczył budżet - 1,5 s na łączu mobilnym wystarczy -
+// zostawiał więc komponentowi `degraded: true` NA STAŁE: strona pokazywała
+// komunikat awarii, choć to samo zapytanie dociągało prawdziwe dane sekundę
+// później, a czytelnik wychodził z fałszywej awarii dopiero kolejną nawigacją
+// albo przeładowaniem.
+//
+// W przeglądarce loader po prostu CZEKA na zapytanie, a degradacja zostaje
+// zarezerwowana dla BŁĘDU - fallback i `degraded: true` po odrzuceniu działają
+// tam bez zmian, bo komunikat awarii po realnej awarii jest prawdą.
 import type { EnsureQueryDataOptions, QueryClient, QueryKey } from "@tanstack/react-query";
 
 import { withBudget } from "@/lib/asyncBudget";
 import { cacheControlHeader, contentCacheControl } from "@/lib/http/cachePolicy";
+import { isSsrRequest } from "@/lib/ssr/isSsrRequest";
 
 /**
  * Domyślny budżet loadera. Świadomie NIŻSZY niż `SSR_QUERY_TIMEOUT_MS` (5 s):
@@ -54,9 +71,13 @@ export interface ResilientLoad<TData> {
 }
 
 export interface ResilientLoadOptions {
-  /** Budżet oczekiwania w ms. Domyślnie `RESILIENT_LOAD_BUDGET_MS`. */
+  /** Budżet oczekiwania w ms (TYLKO SSR). Domyślnie `RESILIENT_LOAD_BUDGET_MS`. */
   readonly budgetMs?: number;
-  /** Absolute request deadline. Consecutive phases share the remaining time. */
+  /**
+   * Absolute request deadline. Consecutive phases share the remaining time.
+   * Jak `budgetMs` liczy się WYŁĄCZNIE na serwerze - w przeglądarce jest
+   * ignorowany, więc wołający nie musi już bramkować go pod `isServer`.
+   */
   readonly deadlineAt?: number;
   /** Etykieta do logu diagnostycznego (domyślnie serializowany klucz zapytania). */
   readonly label?: string;
@@ -71,9 +92,14 @@ function keyLabel(queryKey: QueryKey): string {
 }
 
 /**
- * Rozgrzewa zapytanie pod budżetem i NIGDY nie rzuca. Gdy dane nie dojechały
- * na czas (albo backend zwrócił błąd), anuluje spóźniony fetch i zasiewa
- * `fallback`, żeby `useSuspenseQuery` w komponencie zobaczył stan `success`.
+ * Rozgrzewa zapytanie i NIGDY nie rzuca. Gdy backend zwrócił błąd - a na
+ * SERWERZE także wtedy, gdy dane nie dojechały w budżecie - anuluje spóźniony
+ * fetch i zasiewa `fallback`, żeby `useSuspenseQuery` w komponencie zobaczył
+ * stan `success`.
+ *
+ * W przeglądarce budżetu NIE MA (patrz nagłówek pliku): loader czeka na
+ * zapytanie, bo jego wynik jest niezmienny i „spóźniony" fetch zamarzłby jako
+ * fałszywa awaria.
  *
  * Zwraca dane i informację, czy render jest zdegradowany.
  */
@@ -90,15 +116,23 @@ export async function loadResilient<
 ): Promise<ResilientLoad<TData>> {
   const queryKey = options.queryKey;
 
-  // `.catch()` PRZED budżetem: `withBudget` z założenia dostaje obietnicę,
-  // która już nie odrzuca - inaczej odrzucenie po wygaśnięciu budżetu byłoby
-  // nieobsłużone i wywróciłoby proces renderu.
-  const remaining =
-    deadlineAt === undefined ? budgetMs : Math.min(budgetMs, deadlineAt - Date.now());
-  // withBudget(0) means UNBOUNDED, not expired. Do not even start a new
-  // upstream request when the caller's absolute deadline has already elapsed.
-  if (deadlineAt === undefined || remaining > 0) {
-    await withBudget(queryClient.ensureQueryData(options).then(noop, noop), remaining);
+  // `.then(noop, noop)` PRZED budżetem: `withBudget` z założenia dostaje
+  // obietnicę, która już nie odrzuca - inaczej odrzucenie po wygaśnięciu
+  // budżetu byłoby nieobsłużone i wywróciłoby proces renderu. Na obu ścieżkach
+  // pochłonięty błąd wraca potem przez STAN zapytania, nie przez rzut.
+  if (!isSsrRequest()) {
+    // PRZEGLĄDARKA: żadnego wyścigu z zegarem (patrz nagłówek pliku). Powolny
+    // fetch ma po prostu dojechać - wynik loadera jest niezmienny, więc
+    // degradacja z powodu czasu zamarzłaby jako fałszywy komunikat awarii.
+    await queryClient.ensureQueryData(options).then(noop, noop);
+  } else {
+    const remaining =
+      deadlineAt === undefined ? budgetMs : Math.min(budgetMs, deadlineAt - Date.now());
+    // withBudget(0) means UNBOUNDED, not expired. Do not even start a new
+    // upstream request when the caller's absolute deadline has already elapsed.
+    if (deadlineAt === undefined || remaining > 0) {
+      await withBudget(queryClient.ensureQueryData(options).then(noop, noop), remaining);
+    }
   }
 
   const state = queryClient.getQueryState<TData, TError>(queryKey);

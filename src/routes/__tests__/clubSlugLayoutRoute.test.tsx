@@ -329,6 +329,13 @@ describe("układ klubu - degradacja nie wypisuje klubu z indeksu ani z brzegu", 
     // a jej brak nie blokuje renderu (komponent dociągnie ją po hydratacji).
     // Lepiej oddać dokument w 800 ms z pustą kartą niż trzymać czytelnika
     // 4 s na domyślnym budżecie loadera.
+    // Kontrakt jest SERWEROWY: budżet czasowy `loadResilient` obowiązuje
+    // wyłącznie w renderze SSR, bo przy nawigacji SPA wynik loadera jest
+    // niezmienny i degradacja z powodu CZASU zamarzałaby jako fałszywy
+    // komunikat awarii (recenzja PR #382, P1). Suita biegnie w happy-dom,
+    // gdzie `document` istnieje zawsze, więc serwer trzeba tu odwzorować
+    // wprost - predykat `lib/ssr/isSsrRequest.ts` czyta go przy wywołaniu.
+    vi.stubGlobal("document", undefined);
     vi.useFakeTimers();
     try {
       h.fetchHangs = true;
@@ -343,6 +350,7 @@ describe("układ klubu - degradacja nie wypisuje klubu z indeksu ani z brzegu", 
       expect(h.cacheControl).toEqual([NO_STORE]);
       expect(wCache(queryClient)).toBeUndefined();
     } finally {
+      vi.unstubAllGlobals();
       vi.useRealTimers();
     }
   });

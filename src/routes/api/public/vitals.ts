@@ -210,6 +210,12 @@ function deviceMemoryBucket(raw: unknown): number | null {
 /**
  * `coldStart` jako boolean albo `null`.
  *
+ * ZNACZENIE PO STRONIE KLIENTA: `true` niosą próbki PIERWSZEJ trasy dokumentu
+ * otwartego na zimno. Klient gasi flagę przy pierwszej miękkiej nawigacji
+ * (`markWebVitalsPage` w `src/lib/webVitals.ts`), więc druga i każda kolejna
+ * trasa SPA tego samego dokumentu przychodzi z `false` - `WHERE cold_start`
+ * odcina zimne pierwsze otwarcia, a nie całe odsłony.
+ *
  * ŚCIŚLE `typeof === "boolean"`, bez `Boolean(raw)`: `Boolean("false")` to
  * `true`, a `Boolean(0)` to `false`, więc konwersja zamieniłaby każde śmieci
  * na jedną z dwóch prawdziwie wyglądających odpowiedzi. „Nie wiem" (null)

@@ -121,7 +121,11 @@ type VitalEffectiveType = (typeof EFFECTIVE_TYPES)[number];
  */
 const COLD_START_KEY = "nes:vitals:nav-seen";
 
-/** Opisowy kontekst odsłony - liczony RAZ na dokument, patrz `readNavigationContext`. */
+/**
+ * Opisowy kontekst odsłony - liczony RAZ na dokument (`readNavigationContext`).
+ * Jedyne pole, które potem się zmienia, to `coldStart`: gasi je pierwsza
+ * miękka nawigacja (patrz `navContext`).
+ */
 interface VitalsNavigationContext {
   navigationType: VitalNavigationType | null;
   deviceMemory: VitalDeviceMemory | null;
@@ -202,13 +206,31 @@ const queue: QueuedVital[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
- * Kontekst nawigacji tego DOKUMENTU. Liczony raz, przy pierwszej udanej
- * inicjalizacji, i celowo NIE zerowany przy miękkiej nawigacji: opisuje
- * nawigację, która zbudowała dokument, a nie ścieżkę, na której akurat
- * jesteśmy (tę niesie `url`). Nie zeruje go też teardown zgody - ponowne
- * wyrażenie zgody w tej samej odsłonie nie może ogłosić drugiego „zimnego
- * startu", bo znacznik `COLD_START_KEY` byłby już postawiony i `coldStart`
- * przeskoczyłby z `true` na `false` w połowie tej samej odsłony.
+ * Kontekst nawigacji tego DOKUMENTU - plus jedna flaga, która gaśnie wcześniej
+ * niż dokument. Liczony raz, przy pierwszej udanej inicjalizacji.
+ *
+ * TRZY POLA OPISUJĄ DOKUMENT I MIĘKKA NAWIGACJA ICH NIE RUSZA.
+ * `navigationType`, `deviceMemory` i `effectiveType` mówią o nawigacji, która
+ * ZBUDOWAŁA dokument, a nie o ścieżce, na której akurat jesteśmy (tę niesie
+ * `url`): przejście między trasami SPA nie zmienia ani typu tamtej nawigacji,
+ * ani pamięci urządzenia, ani klasy łącza.
+ *
+ * `coldStart` JEST CZWARTY I GAŚNIE Z PIERWSZĄ MIĘKKĄ NAWIGACJĄ. Na zimno
+ * otwiera się DOKUMENT, ale zimna jest w nim tylko PIERWSZA trasa - druga
+ * i każda następna dostaje ciepły cache, wczytany JS i gotowy izolat. Gdyby
+ * flaga trzymała się całego dokumentu, `WHERE cold_start` zlepiałoby zimne
+ * pierwsze wejście z drugą, trzecią i czwartą nawigacją SPA tego samego
+ * czytelnika, czyli z dokładnie tą populacją, od której ta kolumna ma je
+ * ODCIĄĆ (audyt CWV, F40). `sinceNav` tego nie naprawia u odbiorcy, który
+ * grupuje po samym booleanie. Zgaszenie siedzi w `markWebVitalsPage`, PO
+ * zrzucie metryk poprzedniej trasy.
+ *
+ * TEARDOWN ZGODY KONTEKSTU NIE ZERUJE (stąd `??=` w `initWebVitals`) - i to
+ * działa w obie strony. Ponowna zgoda w tej samej odsłonie nie może ogłosić
+ * drugiego „zimnego startu": przeliczenie dałoby `false`, bo znacznik
+ * `COLD_START_KEY` byłby już postawiony, więc jedna odsłona raportowałaby się
+ * raz jako zimna, raz jako ciepła. Nie może też cofnąć zgaszenia - po miękkiej
+ * nawigacji flaga jest `false` i ponowna inicjalizacja NIE wraca do `true`.
  */
 let navContext: VitalsNavigationContext | null = null;
 
@@ -251,6 +273,9 @@ function readEffectiveType(): VitalEffectiveType | null {
 
 /**
  * Czy to PIERWSZE wejście w tej karcie.
+ *
+ * Odpowiedź dotyczy DOKUMENTU. Zawężenie flagi do pierwszej TRASY tego
+ * dokumentu robi `markWebVitalsPage`, gasząc `coldStart` w `navContext`.
  *
  * Mechanizm: brak znacznika w `sessionStorage` = nikt w tej karcie jeszcze nie
  * nawigował, więc dokument otwarto na zimno. Znacznik stawiamy od razu, więc
@@ -519,6 +544,9 @@ function resetAccumulators(): void {
  * Notify the reporter that the user navigated (soft nav). Flushes the metrics
  * accumulated for the previous path, then resets counters for the new path.
  * Safe to call with the same path twice.
+ *
+ * Ta funkcja jest też JEDYNYM miejscem, w którym gaśnie `coldStart`: zimna
+ * jest pierwsza trasa dokumentu, nie cały dokument (patrz `navContext`).
  */
 export function markWebVitalsPage(pathname: string): void {
   if (typeof window === "undefined") return;
@@ -527,6 +555,17 @@ export function markWebVitalsPage(pathname: string): void {
   // Drain HERE rather than on the timer: a route change is a real batch
   // boundary and the three samples were just enqueued in one sync block.
   drain();
+  // ZIMNY START GAŚNIE DOKŁADNIE TUTAJ: PO zrzucie poprzedniej trasy, PRZED
+  // pierwszą próbką nowej. `report()` KOPIUJE kontekst do próbki w chwili
+  // zgłoszenia, więc wszystko, co `flushCurrent` wyżej zakolejkowało, ma już
+  // wpisane `coldStart` poprzedniej trasy (dla pierwszej: `true`) i ta linia
+  // tego nie przepisuje; zgaszenie flagi WYŻEJ kazałoby jedynej naprawdę
+  // zimnej trasie zaraportować się jako ciepła. Podmieniamy wyłącznie
+  // `coldStart` - pozostałe trzy pola opisują DOKUMENT i miękka nawigacja ich
+  // nie zmienia.
+  if (navContext !== null && navContext.coldStart) {
+    navContext = { ...navContext, coldStart: false };
+  }
   currentPath = pathname;
   resetAccumulators();
 }

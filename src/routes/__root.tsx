@@ -237,6 +237,19 @@ const CONSENT_IDLE_TIMEOUT_MS = 1_000;
  * należeć do treści. `whenIdle` sam w sobie potrafi wystrzelić jeszcze w tym
  * samym zadaniu (fallback `setTimeout` 32 ms), więc bez rAF baner wracałby do
  * okna, z którego go wyjmujemy.
+ *
+ * DLACZEGO `overlaysReady` NIE CZEKA NA BANER (recenzja Codex, PR #382).
+ * Nakładki planują się niezależnie od baneru, więc przez chwilę - zanim jego
+ * leniwy chunk dojedzie - popup buildera z wyzwalaczem „immediate" mógł
+ * poprosić o slot, gdy koordynator nie wiedział jeszcze NIC o zgodzie.
+ * Bramę trzyma dziś `overlayCoordinator` (flaga `consentReported`): żaden wpis
+ * `marketing: true` nie dostanie slotu przed pierwszym zgłoszeniem baneru.
+ * Drugiej warstwy tutaj świadomie NIE dokładamy: montaż `NewsletterPopup`
+ * i `PopupHost` to samo pobranie chunku i uzbrojenie wyzwalaczy (nic nie
+ * widać), więc wiązanie go ze zgodami przesunęłoby tę pracę z okna
+ * bezczynności w gorszy moment, a nakładka spoza tego drzewa (pasek reklamowy
+ * w stopce) i tak omijałaby bramkę z `__root`. Kontrakt `consentReady` zostaje
+ * nietknięty - to nadal wyłącznie upływ czasu.
  */
 function useOverlayGates(): { consentReady: boolean; overlaysReady: boolean } {
   const [consentReady, setConsentReady] = useState(false);

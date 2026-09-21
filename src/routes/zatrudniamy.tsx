@@ -11,8 +11,9 @@ import {
   LEGAL_SSR_BUDGET_MS,
   NO_STATIC_SEO,
 } from "@/lib/queries/staticPageSeo";
-import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { loadResilient } from "@/lib/ssr/resilientLoad";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { staticFallbackCacheControl } from "@/lib/http/cachePolicy";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { ensureI18n as ensureCareersI18n } from "@/lib/i18n-careers";
@@ -38,7 +39,10 @@ export const Route = createFileRoute("/zatrudniamy")({
       NO_STATIC_SEO,
       { deadlineAt: Date.now() + LEGAL_SSR_BUDGET_MS, label: "legal-seo:zatrudniamy" },
     );
-    setCacheControlHeader(resilientCacheControl(seo.degraded));
+    // Brak nadpisań SEO daje dokument KOMPLETNY dla czytelnika, tylko
+    // niekanoniczny dla brzegu - stąd krótka świeżość z rewalidacją zamiast
+    // `no-store` (różnica wobec `resilientCacheControl`: docblock helpera).
+    setCacheControlHeader(staticFallbackCacheControl(seo.degraded));
     return { seo: seo.data };
   },
   head: ({ loaderData }) => {

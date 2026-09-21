@@ -27,7 +27,8 @@ import {
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { archiveFirstCardPreload } from "@/lib/seo/archivePreload";
 import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
-import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { chromeDegradedCacheControl } from "@/lib/http/cachePolicy";
+import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import { notFoundIfClean } from "@/lib/ssr/notFoundIfClean";
 import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import { TaxonomyPage } from "@/components/archive/TaxonomyPage";
@@ -38,6 +39,7 @@ const TAG_ARCHIVE_SSR_BUDGET_MS = 1_400;
 /**
  * Krótki termin KONFIGURACJI: `posts_per_page` wchodzi do klucza listy, więc
  * layout musi rozstrzygnąć się PRZED treścią - ale nie kosztem jej budżetu.
+ * Jak w `category.$slug`: budżet obowiązuje wyłącznie w SSR.
  */
 const TAG_ARCHIVE_LAYOUT_BUDGET_MS = 300;
 
@@ -89,11 +91,26 @@ export const Route = createFileRoute("/tag/$slug")({
       NO_ARCHIVE,
       { deadlineAt, label: `archive:tag:${params.slug}` },
     );
-    const degraded = anyDegraded(settings, archive);
+    // Rozdział degradacji IDENTYCZNY co w `category.$slug` (tam pełny opis):
+    // do ładunku loadera idzie tylko degradacja TREŚCI, bo na niej komponent
+    // podmienia całą stronę na komunikat - zwis konfiguracji ma dać listę
+    // wpisów na domyślkach, a nie zgasić żywe archiwum tagu.
+    //
     // BRAMKA NAGŁÓWKA, której ta trasa NIE MIAŁA W OGÓLE: bez niej render
     // niepełny (albo 404) brał domyślną politykę treści z middleware i mógł
     // utrwalić się na brzegu na 15 minut świeżości plus dobę okna stale.
-    setCacheControlHeader(resilientCacheControl(degraded || archive.data === null));
+    // Trzy stany dokumentu, trzy polityki - pełne uzasadnienie w
+    // `category.$slug.tsx`: brak treści/404 -> `no-store`; treść prawdziwa na
+    // domyślnym layoucie -> krótka świeżość z rewalidacją (dokument kompletny,
+    // więc dzielimy go 30 s zamiast renderować od zera każdemu czytelnikowi
+    // zimnej konfiguracji); render czysty -> polityka treści.
+    setCacheControlHeader(
+      archive.degraded || archive.data === null
+        ? resilientCacheControl(true)
+        : settings.degraded
+          ? chromeDegradedCacheControl()
+          : resilientCacheControl(false),
+    );
     const data = notFoundIfClean(archive);
     if (data === null) {
       return {
@@ -104,14 +121,19 @@ export const Route = createFileRoute("/tag/$slug")({
         pageSize: settings.data.posts_per_page,
         sort: deps.sort,
         coverPreload: null,
+        // „Nie wiemy, czy ten tag istnieje" - `notFoundIfClean` oddaje `null`
+        // wyłącznie przy zdegradowanym odczycie treści.
         degraded: true,
+        layoutDegraded: settings.degraded,
       };
     }
     // Preload LCP pierwszej okładki (jak w category.$slug): deskryptor dla
     // head() + nagłówek HTTP `Link` utrwalany przez NES Edge Cache.
     const coverPreload = archiveFirstCardPreload(data.posts, settings.data.show_featured_top);
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
-    return { ...data, coverPreload, degraded: false };
+    // Treść prawdziwa = strona renderuje się normalnie, także na domyślkach
+    // layoutu (`layoutDegraded`).
+    return { ...data, coverPreload, degraded: false, layoutDegraded: settings.degraded };
   },
   head: ({ loaderData, params }) => {
     const tax = loaderData?.taxonomy;
@@ -202,6 +224,8 @@ function TagArchivePage() {
   const { page = 1, sort = "newest" } = Route.useSearch();
   const { degraded } = Route.useLoaderData();
   // Zdegradowany render mówi prawdę zamiast udawać 404 (patrz category.$slug).
+  // Flaga niesie WYŁĄCZNIE brak treści - tag z wpisami i zdegradowanym samym
+  // layoutem idzie do `TaxonomyPage` na domyślkach z kodu.
   if (degraded) {
     return (
       <div className="container mx-auto max-w-3xl px-4 py-12">

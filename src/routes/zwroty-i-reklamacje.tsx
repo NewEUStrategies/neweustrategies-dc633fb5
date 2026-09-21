@@ -11,8 +11,9 @@ import {
   LEGAL_SSR_BUDGET_MS,
   NO_STATIC_SEO,
 } from "@/lib/queries/staticPageSeo";
-import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { loadResilient } from "@/lib/ssr/resilientLoad";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { staticFallbackCacheControl } from "@/lib/http/cachePolicy";
 import { LEGAL_ENTITY } from "@/lib/legal/entity";
 import { REFUNDS_CONTENT } from "@/lib/legal/content/refunds";
 import { REFUNDS_META } from "@/lib/legal/meta";
@@ -31,7 +32,10 @@ export const Route = createFileRoute("/zwroty-i-reklamacje")({
       NO_STATIC_SEO,
       { deadlineAt: Date.now() + LEGAL_SSR_BUDGET_MS, label: "legal-seo:zwroty-i-reklamacje" },
     );
-    setCacheControlHeader(resilientCacheControl(seo.degraded));
+    // Brak nadpisań SEO daje dokument KOMPLETNY dla czytelnika, tylko
+    // niekanoniczny dla brzegu - stąd krótka świeżość z rewalidacją zamiast
+    // `no-store` (różnica wobec `resilientCacheControl`: docblock helpera).
+    setCacheControlHeader(staticFallbackCacheControl(seo.degraded));
     return { seo: seo.data };
   },
   head: ({ loaderData }) => {

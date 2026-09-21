@@ -643,6 +643,14 @@ describe("/ - degradacja: awaria danych NIE jest tym samym co pustka", () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
     try {
       h.server = true;
+      // Atrapa `isServer` wyżej nie wystarcza: `loadResilient` świadomie NIE
+      // ufa stałej rozstrzyganej w czasie budowania (w wariancie `development`
+      // i pod `NODE_ENV=test` jest ona `undefined`) i pyta o `document` przy
+      // każdym wywołaniu - patrz `lib/ssr/isSsrRequest.ts`. Bez tego stubu
+      // budżet byłby wyłączony, bo happy-dom daje `document` zawsze, a zwis
+      // czekałby tu w nieskończoność - dokładnie tak, jak MA czekać przy
+      // nawigacji SPA (recenzja PR #382, P1).
+      vi.stubGlobal("document", undefined);
       h.homePageHangs = true;
       const deadline = homeSsrDeadline(qc);
       // Root has already used 400 ms. The home loader may not start a fresh
@@ -669,6 +677,7 @@ describe("/ - degradacja: awaria danych NIE jest tym samym co pustka", () => {
       expect(h.cacheControl.at(-1)).toBe("private, no-store");
     } finally {
       qc.clear();
+      vi.unstubAllGlobals();
       vi.useRealTimers();
     }
   });

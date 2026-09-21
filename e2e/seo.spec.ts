@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { CANONICAL_SITE_ORIGIN } from "../src/lib/http/host";
 
 // SEO surface smoke: pilnuje, ze publiczne powierzchnie GEO/SEO nadal odpowiadaja
 // i ze /admin/seo jest zamontowany za guardem auth. Backend-agnostyczne - CI
@@ -272,10 +273,27 @@ test.describe("sitemapa - adresy, które publikujemy", () => {
     // zgubiło `.eq("tenant_id", ...)`, adresy drugiego serwisu pojawiłyby się
     // TUTAJ - na powierzchni, którą czyta Google i cache'uje na długo po
     // naprawie.
-    // HOSTNAME, nie `host`: mapa publikuje origin kanoniczny
-    // (`crawlerPublishOrigin`) bez portu, a `baseURL` suity ma port lokalny.
-    // Port jest artefaktem środowiska; przedmiotem kontraktu jest DOMENA.
-    const own = new URL(baseURL ?? "http://127.0.0.1:4173").hostname;
+    // ZBIÓR HOSTÓW WŁASNYCH, A NIE JEDEN HOST - i to jest naprawa, nie styl.
+    // Mapa publikuje adresy przez `crawlerPublishOrigin` (src/lib/http/host.ts),
+    // a ta funkcja od poprawki 2026-09-14 KANONIZUJE `localhost`/`127.0.0.1`
+    // na `CANONICAL_SITE_ORIGIN`: adres w dokumencie maszynowym jest CYTOWANY
+    // (Search Console, asystenci AI, udostępnienia), więc nie wolno w nim
+    // publikować adresu, którego nikt z zewnątrz nie otworzy. Na runnerze
+    // `baseURL` to 127.0.0.1, a w mapie stoi domena marki - liczenie „swojego"
+    // hosta z samego `baseURL` uznawało więc WŁASNĄ domenę za obcego najemcę
+    // i oblewało ten test także na `main`.
+    //
+    // CO TEST NADAL ŁAPIE: adres domeny INNEGO najemcy. Taka domena nie jest
+    // ani hostem runnera, ani domeną marki, więc zgubiony `.eq("tenant_id", …)`
+    // wciąż wywala tę asercję - a to jest jej jedyny przedmiot.
+    //
+    // HOSTNAME, nie `host`: origin kanoniczny nie ma portu, a `baseURL` suity
+    // ma port lokalny. Port jest artefaktem środowiska; przedmiotem kontraktu
+    // jest DOMENA.
+    const wlasne = new Set([
+      new URL(baseURL ?? "http://127.0.0.1:4173").hostname,
+      new URL(CANONICAL_SITE_ORIGIN).hostname,
+    ]);
     const index = await request.get("/sitemap.xml");
     expect(index.status()).toBe(200);
 
@@ -290,7 +308,7 @@ test.describe("sitemapa - adresy, które publikujemy", () => {
         // Adresy MUSZĄ być absolutne (wymóg protokołu sitemap) i na naszym
         // origin - inaczej publikujemy cudzą domenę pod własną mapą.
         expect(loc, `${path}: adres musi być absolutny`).toMatch(/^https?:\/\//);
-        if (new URL(loc).hostname !== own) obce.push(`${path} -> ${loc}`);
+        if (!wlasne.has(new URL(loc).hostname)) obce.push(`${path} -> ${loc}`);
       }
     }
     expect(obce, "adresy z obcego hosta w sitemapie").toEqual([]);

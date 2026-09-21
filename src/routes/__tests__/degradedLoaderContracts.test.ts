@@ -20,7 +20,7 @@
 // `archiveLoaderResilience.test.ts` i `eventShellLoader.test.ts`. Render tych
 // tras ma własne pliki (`planDetailsRoute`, `pollsRoute`, `libraryRoute`,
 // `webStoriesRoutes`, `programsPublicRoutes`).
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   /** Katalog planów; `throws` = blip odczytu, `hangs` = zwis bez rozstrzygnięcia. */
@@ -175,6 +175,23 @@ async function thrownBy(work: Promise<unknown>): Promise<unknown> {
 
 const PLAN_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 
+/**
+ * Przestaw JEDEN test na RENDER SERWEROWY.
+ *
+ * Budżety czasowe loaderów obowiązują wyłącznie na serwerze (recenzja PR #382,
+ * P1 - patrz nagłówek `lib/ssr/resilientLoad.ts`): przy nawigacji SPA wynik
+ * loadera jest niezmienny, więc degradacja z powodu CZASU zamarzałaby jako
+ * fałszywy komunikat awarii. Suita biegnie w happy-dom, gdzie `document`
+ * istnieje zawsze, więc bez tego stubu „zwis backendu" czekałby tu w
+ * nieskończoność - dokładnie tak, jak MA czekać w przeglądarce.
+ *
+ * Predykat środowiska liczy `typeof document` przy każdym wywołaniu, więc
+ * podmiana globalu wystarcza i nie wymaga osobnego pliku ze środowiskiem node.
+ */
+function renderOnServer(): void {
+  vi.stubGlobal("document", undefined);
+}
+
 beforeEach(() => {
   h.plans = [{ id: PLAN_ID, tier_key: "member", price_cents: 4900 }];
   h.plansThrow = false;
@@ -194,6 +211,11 @@ beforeEach(() => {
   h.cacheControl = [];
   h.linkHeaders = [];
   vi.spyOn(console, "warn").mockImplementation(() => {});
+});
+
+afterEach(() => {
+  // Stub środowiska z `renderOnServer()` nie może przeciekać na kolejny test.
+  vi.unstubAllGlobals();
 });
 
 describe("/plans/$planId - katalog planów", () => {
@@ -260,6 +282,7 @@ describe("/polls - bramka modułu i lista ankiet", () => {
     // Bramka modułu ma WŁASNY, krótki termin (300 ms). Po nim render idzie na
     // `COMMUNITY_MODULES_DEFAULTS` z kodu - a render na domyślkach nie jest
     // prawdą tenanta, więc nie wolno go rozdać z brzegu kolejnym czytelnikom.
+    renderOnServer();
     h.settingsHangs = true;
     const started = Date.now();
     const data = await runLoader(PollsRoute);
@@ -363,9 +386,12 @@ describe("/programs/$slug - tożsamość programu (defekt W8)", () => {
     expect(h.cacheControl).toEqual([NO_STORE]);
   });
 
-  it("ZWIS ODCZYTU też degraduje - i mieści się w budżecie, nie w watchdogu", async () => {
+  it("ZWIS ODCZYTU też degraduje NA SERWERZE - w budżecie, nie w watchdogu", async () => {
     // `catch` bronił przed BŁĘDEM, nie przed POWOLNOŚCIĄ: zwis trzymał landing
     // do `SSR_QUERY_TIMEOUT_MS` (5 000 ms), a potem i tak kończył się 404.
+    // Kontrakt jest SERWEROWY - w przeglądarce ten sam loader czeka na dane
+    // (`lib/ssr/__tests__/resilientLoad.test.ts`, blok nawigacji SPA).
+    renderOnServer();
     h.landingHangs = true;
     const started = Date.now();
     const data = await runLoader(ProgramRoute);

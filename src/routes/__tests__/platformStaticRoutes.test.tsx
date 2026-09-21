@@ -13,6 +13,16 @@ const h = vi.hoisted(() => ({
   buildHead: vi.fn(),
   legal: vi.fn(),
   friendly: vi.fn(),
+  /** Nagłówki `Cache-Control`, jakie loader ustawił na odpowiedzi. */
+  cacheControl: [] as string[],
+}));
+// Atrapa efektu serwerowego: w teście jednostkowym `setCacheControlHeader`
+// jest no-opem (gałąź kliencka `createIsomorphicFn`), więc bez niej decyzja
+// loadera o polityce brzegu jest NIEOBSERWOWALNA.
+vi.mock("@/lib/http/responseHeaders", () => ({
+  setCacheControlHeader: (value: string) => void h.cacheControl.push(value),
+  appendLinkHeader: () => undefined,
+  readRouteCacheDirective: () => null,
 }));
 vi.mock("@/lib/seo/request", () => ({ getRequestUrl: () => h.url }));
 vi.mock("@/lib/i18n/localeRuntime", () => ({ currentLang: () => h.lang }));
@@ -53,6 +63,8 @@ import { Route as Privacy } from "@/routes/polityka-prywatnosci";
 import { Route as Terms } from "@/routes/regulamin";
 import { Route as Refunds } from "@/routes/zwroty-i-reklamacje";
 import { Route as ErrorRoute } from "@/routes/error";
+import { chromeDegradedCacheControl, contentCacheControl } from "@/lib/http/cachePolicy";
+import { documentStorePolicy } from "@/lib/http/documentCache";
 type RouteOptions = { component?: React.ComponentType; loader?: unknown; head?: unknown };
 const routes: [string, RouteOptions][] = [
   ["cookies", Cookies.options],
@@ -65,6 +77,7 @@ beforeEach(() => {
   h.lang = "pl";
   h.url = "";
   h.state = null;
+  h.cacheControl = [];
   h.buildHead.mockImplementation((value: unknown) => value);
 });
 afterEach(() => {
@@ -121,6 +134,13 @@ describe.each(routes)("static route %s", (slug, options) => {
       expect(state?.status).toBe("success");
       if (failure) expect(state?.dataUpdatedAt).toBe(0);
       else expect(state?.dataUpdatedAt).toBeGreaterThan(0);
+      // NAGŁÓWEK. Degraduje tu WARSTWA OPCJONALNA (nadpisania SEO z panelu),
+      // a nie treść: tekst strony żyje w kodzie, więc dokument jest kompletny
+      // dla czytelnika i tylko niekanoniczny dla brzegu - krótka świeżość
+      // z rewalidacją, nie `no-store` (docblock `staticFallbackCacheControl`).
+      expect(h.cacheControl).toEqual([
+        failure ? chromeDegradedCacheControl() : contentCacheControl(),
+      ]);
       warn.mockRestore();
     },
   );
@@ -162,6 +182,29 @@ describe.each(routes)("static route %s", (slug, options) => {
       );
     },
   );
+});
+
+describe("zdegradowana strona statyczna kontra NES Edge Cache", () => {
+  // DOWÓD NEGATYWNY do regresji z testu rozruchowego: gdy loader oddawał
+  // `private, no-store`, `documentStorePolicy` nie zapisywała dokumentu, więc
+  // DRUGIE żądanie `/cookies` przy padającej bazie znowu było MISS-em - pełny
+  // render na każdą odsłonę przez cały czas trwania blipu.
+  it.each(routes)("%s zdegradowane NIE jest `no-store` i JEST zapisywalne", async (slug, options) => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.spyOn(queryClient, "ensureQueryData").mockRejectedValue(new Error("offline"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    await (options.loader as (args: unknown) => Promise<unknown>)({ context: { queryClient } });
+
+    const header = h.cacheControl.at(-1)!;
+    expect(header).not.toContain("no-store");
+    expect(header).toBe(chromeDegradedCacheControl());
+    const policy = documentStorePolicy(200, "text/html", header);
+    expect(policy.store).toBe(true);
+    expect(policy.freshMs).toBeGreaterThan(0);
+    expect(slug).toBeTruthy();
+    warn.mockRestore();
+  });
 });
 
 describe("cookie preferences", () => {

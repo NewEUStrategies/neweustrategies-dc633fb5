@@ -24,7 +24,7 @@ import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
 import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
 import { withBudget } from "@/lib/asyncBudget";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
-import { resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { staticFallbackCacheControl } from "@/lib/http/cachePolicy";
 import { hasSsrQueryData } from "@/lib/ssr/routeSsrDeadline";
 import { SUPPORT_DOC_BUDGET_MS, SUPPORT_SEGMENTS } from "@/lib/supportRouteConfig";
 
@@ -39,11 +39,13 @@ export const Route = createFileRoute("/support")({
       context.queryClient.ensureQueryData(options).catch(() => null),
       SUPPORT_DOC_BUDGET_MS,
     );
-    // Dokument redakcyjny nie dojechał w budżecie (albo baza odrzuciła) ->
-    // render bez treści NIE MOŻE utrwalić się na brzegu z domyślną polityką
-    // (900 s + doba stale). Czysty render zostaje przy polityce treści.
+    // Dokument redakcyjny jest OPCJONALNY (patrz wyżej): bez niego trasa
+    // renderuje wbudowaną sekcję mecenatu z kodu, więc render jest KOMPLETNY,
+    // tylko niekanoniczny dla brzegu - stąd krótka świeżość z rewalidacją
+    // zamiast `no-store` (różnica wobec `resilientCacheControl`: docblock
+    // helpera). Czysty render zostaje przy polityce treści.
     setCacheControlHeader(
-      resilientCacheControl(!hasSsrQueryData(context.queryClient, options.queryKey)),
+      staticFallbackCacheControl(!hasSsrQueryData(context.queryClient, options.queryKey)),
     );
   },
   head: () => {

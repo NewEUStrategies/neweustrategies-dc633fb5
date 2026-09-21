@@ -30,7 +30,8 @@ import {
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { archiveFirstCardPreload } from "@/lib/seo/archivePreload";
 import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
-import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { chromeDegradedCacheControl } from "@/lib/http/cachePolicy";
+import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import { notFoundIfClean } from "@/lib/ssr/notFoundIfClean";
 import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 
@@ -49,7 +50,9 @@ const ARCHIVE_SSR_BUDGET_MS = 1_400;
  * równolegle z layoutem - ale layout nie ma prawa zjeść budżetu TREŚCI.
  * Po tych 300 ms wchodzą domyślki z kodu (`DEFAULT_ARCHIVE_LAYOUT`), a
  * `loadResilient` zasiewa je pod kluczem komponentu, więc `useSuspenseQuery`
- * w `TaxonomyPage` liczy TEN SAM klucz listy, co loader.
+ * w `TaxonomyPage` liczy TEN SAM klucz listy, co loader. Budżet liczy się
+ * WYŁĄCZNIE w SSR (`lib/ssr/resilientLoad.ts`) - przy nawigacji po stronie
+ * klienta loader czeka na konfigurację, bo nie ma tam TTFB do obrony.
  */
 const ARCHIVE_LAYOUT_BUDGET_MS = 300;
 
@@ -106,12 +109,46 @@ export const Route = createFileRoute("/category/$slug")({
       NO_ARCHIVE,
       { deadlineAt, label: `archive:category:${params.slug}` },
     );
-    const degraded = anyDegraded(settings, archive);
-    // `no-store` należy się DWÓM różnym sytuacjom i obie są przejściowe:
-    // renderowi zdegradowanemu („nie wiemy") i 404 (slug bywa publikowany
-    // minutę po tym, jak crawler go odwiedził). Render CZYSTY z wpisami
-    // zostaje przy dotychczasowej polityce treści - bajt w bajt.
-    setCacheControlHeader(resilientCacheControl(degraded || archive.data === null));
+    // DWIE RÓŻNE DEGRADACJE, DWIE RÓŻNE DECYZJE - i tylko JEDNA z nich zabiera
+    // czytelnikowi treść.
+    //
+    // ŁADUNEK LOADERA: flaga `degraded` podmienia w komponencie CAŁĄ stronę na
+    // `DegradedDataNotice`, więc wolno jej nieść WYŁĄCZNIE degradację TREŚCI
+    // (`archive`). Gdyby brała też konfigurację, 300 ms zwisu
+    // `archive_layout_settings` kasowałoby żywe archiwum z kompletną listą
+    // wpisów - a `CATEGORY_LAYOUT_FALLBACK` powstał dokładnie po to, żeby tę
+    // listę narysować na domyślkach z kodu. Degradację samej PREZENTACJI niesie
+    // osobne `layoutDegraded`: jest diagnozą renderu, nie wyrokiem na treść.
+    //
+    // NAGŁÓWEK: TRZY stany dokumentu, trzy różne polityki - bo „zdegradowany"
+    // nie znaczy tu jednego.
+    //
+    //   1. TREŚCI NIE ZNAMY (blip odczytu) albo taksonomii NIE MA (404):
+    //      `no-store`. Obie sytuacje są przejściowe - slug bywa publikowany
+    //      minutę po tym, jak crawler go odwiedził - a pusta powłoka nie ma
+    //      prawa obsłużyć ani jednego kolejnego czytelnika.
+    //   2. TREŚĆ PRAWDZIWA, PREZENTACJA Z DOMYŚLEK: dokument jest KOMPLETNY -
+    //      te same wpisy, ten sam `head()`, tylko wariant layoutu z kodu
+    //      zamiast z `archive_layout_settings`. Dla czytelnika jest poprawny,
+    //      więc wolno go dzielić, ale KRÓTKO I Z REWALIDACJĄ
+    //      (`chromeDegradedCacheControl()`: s-maxage 30 s, stale 300 s) - ta
+    //      sama klasa co dostrumieniowany chrome w `__root.tsx` /
+    //      `lib/ssr/chromeWarmup.tsx`. `no-store` kazałby KAŻDEMU czytelnikowi
+    //      zimnej konfiguracji zapłacić pełny render (audyt CWV F02), a
+    //      polityka treści zamroziłaby domyślny layout na 15 minut świeżości
+    //      plus dobę okna stale.
+    //   3. RENDER CZYSTY: dotychczasowa polityka treści - bajt w bajt.
+    //
+    // Polityka 2. nie przebije ostrzejszej decyzji innego loadera tego samego
+    // żądania: `narrowestCacheControl` (lib/http/cachePolicy.ts) wybiera
+    // MNIEJSZE `s-maxage`, a `private`/`no-store` wygrywa bezwarunkowo.
+    setCacheControlHeader(
+      archive.degraded || archive.data === null
+        ? resilientCacheControl(true)
+        : settings.degraded
+          ? chromeDegradedCacheControl()
+          : resilientCacheControl(false),
+    );
     // 404 WYŁĄCZNIE z czystego odczytu - blip nie ma prawa wypisać archiwum
     // z indeksu.
     const data = notFoundIfClean(archive);
@@ -124,7 +161,11 @@ export const Route = createFileRoute("/category/$slug")({
         pageSize: settings.data.posts_per_page,
         sort: deps.sort,
         coverPreload: null,
+        // Tu `null` znaczy „nie wiemy, czy ta kategoria istnieje" - odczyt
+        // treści był zdegradowany (`notFoundIfClean` oddaje `null` wyłącznie
+        // wtedy), więc strona ma powiedzieć to wprost zamiast udawać 404.
         degraded: true,
+        layoutDegraded: settings.degraded,
       };
     }
     // Preload LCP pierwszej okładki (karta wyróżniona albo pierwsza karta
@@ -132,7 +173,10 @@ export const Route = createFileRoute("/category/$slug")({
     // NES Edge Cache na HIT/STALE; droga do 103 Early Hints).
     const coverPreload = archiveFirstCardPreload(data.posts, settings.data.show_featured_top);
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
-    return { ...data, coverPreload, degraded: false };
+    // TREŚĆ jest prawdziwa, więc strona renderuje się normalnie - nawet gdy
+    // layout przyjechał z fallbacku (`layoutDegraded`), bo domyślki z kodu są
+    // pełnoprawną prezentacją, a nie brakiem danych.
+    return { ...data, coverPreload, degraded: false, layoutDegraded: settings.degraded };
   },
   head: ({ loaderData, params }) => {
     const tax = loaderData?.taxonomy;
@@ -241,6 +285,10 @@ function CategoryArchivePage() {
   // zasianym `null` pokazałby `PublicNotFound`, czyli miękkie 404 na żywej
   // kategorii - a nagłówek jest już `no-store`, więc ten HTML nie zamarza
   // na brzegu (wzór: events.$slug.tsx, podcasts.$show.tsx).
+  //
+  // Ta gałąź należy się WYŁĄCZNIE brakowi TREŚCI. Archiwum z wpisami, któremu
+  // zdegradował się tylko layout, idzie normalną ścieżką niżej: wpisy są
+  // prawdziwe, a rysuje je domyślny wariant z `DEFAULT_ARCHIVE_LAYOUT`.
   if (degraded) {
     return (
       <div className="container mx-auto max-w-3xl px-4 py-12">

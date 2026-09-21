@@ -9,7 +9,9 @@ import {
   PUBLIC_CONTENT_MAX_AGE,
   PUBLIC_CONTENT_S_MAXAGE,
   PUBLIC_CONTENT_SWR,
+  staticFallbackCacheControl,
 } from "./cachePolicy";
+import { documentStorePolicy } from "./documentCache";
 
 describe("cacheControlHeader", () => {
   it("returns private/no-store for non-cacheable responses", () => {
@@ -71,6 +73,54 @@ describe("chromeDegradedCacheControl", () => {
     // byłoby zaprzeczeniem jej racji bytu.
     expect(CHROME_DEGRADED_S_MAXAGE).toBeLessThan(PUBLIC_CONTENT_S_MAXAGE);
     expect(CHROME_DEGRADED_SWR).toBeLessThan(PUBLIC_CONTENT_SWR);
+  });
+});
+
+describe("staticFallbackCacheControl", () => {
+  it("czysty render zostaje przy polityce treści", () => {
+    expect(staticFallbackCacheControl(false)).toBe(contentCacheControl());
+  });
+
+  it("pozwala trasie podać WŁASNĄ politykę czystego renderu", () => {
+    const own = "public, max-age=0, s-maxage=30";
+    expect(staticFallbackCacheControl(false, own)).toBe(own);
+    // Polityka czystego renderu nie dotyczy gałęzi zdegradowanej.
+    expect(staticFallbackCacheControl(true, own)).toBe(chromeDegradedCacheControl());
+  });
+
+  it("degradacja warstwy opcjonalnej to KRÓTKA świeżość, a NIE `no-store`", () => {
+    // Fallback tej klasy tras to pełna treść z kodu, więc dokument jest
+    // poprawny dla czytelnika - różnica wobec `resilientCacheControl`, gdzie
+    // fallbackiem jest komunikat degradacji albo pusta powłoka.
+    expect(staticFallbackCacheControl(true)).toBe(chromeDegradedCacheControl());
+    expect(staticFallbackCacheControl(true)).not.toContain("no-store");
+  });
+
+  it("zdegradowany dokument JEST zapisywalny przez NES Edge Cache", () => {
+    // To jest cały sens tej polityki: `documentStorePolicy` odrzuca `no-store`,
+    // więc poprzednia wersja zamieniała każde żądanie strony prawnej przy
+    // padającej bazie w pełny render (regresja testu rozruchowego /cookies).
+    const policy = documentStorePolicy(200, "text/html", staticFallbackCacheControl(true));
+    expect(policy.store).toBe(true);
+    expect(policy.freshMs).toBeGreaterThan(0);
+    expect(policy.swrMs).toBeGreaterThan(0);
+    expect(documentStorePolicy(200, "text/html", cacheControlHeader({ cacheable: false })).store).toBe(
+      false,
+    );
+  });
+
+  it("scalone z polityką korzenia nie zawęża dokumentu do `no-store`", () => {
+    // Trasa i bramka chrome ustawiają politykę tego samego żądania; wynik
+    // scalenia musi zostać zapisywalny, niezależnie od kolejności loaderów.
+    const merged = narrowestCacheControl(chromeDegradedCacheControl(), staticFallbackCacheControl(true));
+    expect(documentStorePolicy(200, "text/html", merged).store).toBe(true);
+    expect(
+      documentStorePolicy(
+        200,
+        "text/html",
+        narrowestCacheControl(staticFallbackCacheControl(true), contentCacheControl()),
+      ).store,
+    ).toBe(true);
   });
 });
 

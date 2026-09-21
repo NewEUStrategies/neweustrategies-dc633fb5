@@ -10,8 +10,19 @@
 // SSR tworzy jeden `QueryClient` na żądanie, więc to on jest kluczem zegara.
 // W przeglądarce `QueryClient` żyje całą sesję: deadline z pierwszej nawigacji
 // byłby „miniony" dla wszystkich kolejnych i każdy loader oddawałby sterowanie
-// natychmiast. Dlatego WOŁAJĄCY tworzą deadline WYŁĄCZNIE pod `isServer`
-// (wzorzec `__root.tsx` / `index.tsx`), a ten moduł nie zgaduje środowiska.
+// natychmiast. Zegar ma więc sens WYŁĄCZNIE na serwerze - ale od 2026-09-21
+// nie wisi to już na dyscyplinie wołających (recenzja PR #382, P1): zegar
+// pilnuje się sam TAM, GDZIE JEST CZYTANY. `loadResilient`
+// (lib/ssr/resilientLoad.ts) honoruje `deadlineAt` i `budgetMs` tylko pod
+// `isSsrRequest()` (lib/ssr/isSsrRequest.ts), a w przeglądarce czeka na
+// zapytanie do skutku i po prostu ignoruje znacznik z tego modułu. Trasy mogą
+// więc liczyć deadline bezwarunkowo.
+//
+// GWARANCJA NIE ROZCIĄGA SIĘ na wołających, którzy mierzą czas SAMI - gołe
+// `withBudget(..., deadlineAt)` w `__root.tsx`, `$.tsx` czy bramkach modułów
+// nie przechodzi przez `loadResilient`. Tam deadline nadal powstaje wyłącznie
+// pod `isServer` (wzorzec `$.tsx`: `isServer ? routeSsrDeadline(...) :
+// undefined`), a ten moduł sam środowiska nie zgaduje.
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 
 const deadlines = new WeakMap<QueryClient, number>();
