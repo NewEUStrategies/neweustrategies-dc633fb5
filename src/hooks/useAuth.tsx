@@ -161,11 +161,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Preserve the server-rendered reading surface while lazy widgets
         // hydrate. Initial auth settlement can wait; later identity changes
         // and logout remain urgent.
-        {
+        startTransition(() => {
           setSession(data.session);
           ensureContext(data.session?.user?.id ?? null);
           setSessionLoading(false);
-        }
+        });
       });
     } catch (error) {
       console.error("[auth] Supabase client unavailable - continuing signed-out", error);

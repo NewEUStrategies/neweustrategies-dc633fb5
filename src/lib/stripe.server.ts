@@ -75,10 +75,7 @@ export async function getStripeClient(env: StripeEnv): Promise<Stripe> {
   return client;
 }
 
-async function buildStripeClient(
-  connectionApiKey: string,
-  lovableApiKey: string,
-): Promise<Stripe> {
+async function buildStripeClient(connectionApiKey: string, lovableApiKey: string): Promise<Stripe> {
   const { default: Stripe } = await loadStripeSdk();
 
   return new Stripe(connectionApiKey, {

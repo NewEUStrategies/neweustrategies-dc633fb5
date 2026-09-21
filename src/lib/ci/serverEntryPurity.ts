@@ -67,7 +67,8 @@ export interface FrozenStaticImporters {
  * Krawędź statyczna w module ESM. `import(` NIE tworzy krawędzi
  * inicjalizacyjnej - ten sam filtr, co w `scripts/check-entry-purity.ts`.
  */
-const CHUNK_EDGE_RE = /(import\s*\(?\s*|from\s*|export\s*\*\s*from\s*)["'](\.{1,2}\/[^"']+\.mjs)["']/g;
+const CHUNK_EDGE_RE =
+  /(import\s*\(?\s*|from\s*|export\s*\*\s*from\s*)["'](\.{1,2}\/[^"']+\.mjs)["']/g;
 
 /** Ostatni segment ścieżki - chunki vendorowe rozpoznajemy po nazwie pliku. */
 function basename(path: string): string {
@@ -107,10 +108,7 @@ export function hasChunk(chunks: readonly ServerChunk[], chunkName: string): boo
  * krawędzi w bundlu i nie liczy się do długu - i o to właśnie chodzi w naprawie
  * (`import type Stripe from "stripe"` zostaje, `import Stripe` znika).
  */
-export function valueImportersOfPackage(
-  files: readonly SourceFile[],
-  pkg: string,
-): string[] {
+export function valueImportersOfPackage(files: readonly SourceFile[], pkg: string): string[] {
   const specifier = pkg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = new RegExp(
     `(^|[\\n;])\\s*(?:import|export)(\\s+type\\b)?([^;\\n]*?)from\\s*["']${specifier}["']`,
@@ -265,9 +263,9 @@ export const LAZY_ONLY_PACKAGES: readonly LazyOnlyPackage[] = [
     label: "stripe (SDK operatora płatności, 198 kB chunku serwera)",
     chunk: "stripe.mjs",
     remedy:
-      "SDK ładuj przez `await import(\"stripe\")` w `lib/stripe.server.ts` " +
+      'SDK ładuj przez `await import("stripe")` w `lib/stripe.server.ts` ' +
       "(`getStripeClient`, leniwy singleton per środowisko); w modułach płatności " +
-      "trzymaj wyłącznie `import type Stripe from \"stripe\"`",
+      'trzymaj wyłącznie `import type Stripe from "stripe"`',
   },
 ];
 
@@ -291,7 +289,7 @@ export const FROZEN_STATIC_IMPORTERS: readonly FrozenStaticImporters[] = [
       "oba moduły wystawiają API SYNCHRONICZNE wołane w trakcie renderu, " +
       "więc `await import()` wymagałby zmiany ich kontraktu i konsumentów",
     remedy:
-      "nowy konsument parsera HTML ma go ładować przez `await import(\"node-html-parser\")` " +
+      'nowy konsument parsera HTML ma go ładować przez `await import("node-html-parser")` ' +
       "wewnątrz funkcji, która go używa - nigdy importem statycznym na poziomie modułu",
   },
 ];

@@ -18,10 +18,11 @@ const STRIPE_RULE = LAZY_ONLY_PACKAGES[0];
 
 /** Artefakt, w którym SDK jedzie wyłącznie przez `import()`. */
 const CZYSTE: ServerChunk[] = [
-  { path: "_libs/stripe.mjs", source: 'const s=1;export{s};' },
+  { path: "_libs/stripe.mjs", source: "const s=1;export{s};" },
   {
     path: "_ssr/stripe.server-AAA.mjs",
-    source: 'async function c(){const{default:S}=await import("../_libs/stripe.mjs");return S}export{c};',
+    source:
+      'async function c(){const{default:S}=await import("../_libs/stripe.mjs");return S}export{c};',
   },
   { path: "_ssr/router-BBB.mjs", source: 'import{c}from"./stripe.server-AAA.mjs";export{c};' },
 ];
