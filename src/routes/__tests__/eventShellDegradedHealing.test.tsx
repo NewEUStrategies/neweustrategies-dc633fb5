@@ -64,7 +64,10 @@ vi.mock("@/lib/community/publicQueries", () => ({
 }));
 
 vi.mock("@/lib/useSiteSetting", () => ({
-  siteSettingsQueryOptions: { queryKey: ["site_settings_public", "all"], queryFn: async () => ({}) },
+  siteSettingsQueryOptions: {
+    queryKey: ["site_settings_public", "all"],
+    queryFn: async () => ({}),
+  },
   resolveSetting: () => ({ events_enabled: true }),
 }));
 

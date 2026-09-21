@@ -95,7 +95,13 @@ function WidokZRozjazdemKlucza({ initialDegraded }: { initialDegraded: boolean }
   const { data } = useQuery(listOptions());
   const { degraded } = useDegradedUntilHealed(OTHER_KEY, initialDegraded);
   if (degraded) return <span>{RETRY}</span>;
-  return <ul>{(data ?? []).map((row) => <li key={row}>{row}</li>)}</ul>;
+  return (
+    <ul>
+      {(data ?? []).map((row) => (
+        <li key={row}>{row}</li>
+      ))}
+    </ul>
+  );
 }
 
 /**
@@ -269,7 +275,9 @@ describe("useDegradedUntilHealed - (c) hydratacja bez rozjazdu", () => {
     // Bez tej pary poprzedni test przechodziłby także dla implementacji, która
     // bramki nie ma - czyli nie dowodziłby niczego o mechanizmie.
     const queryClient = seededClient();
-    const html = renderToString(withClient(queryClient, <WidokBezBramkiHydratacji initialDegraded />));
+    const html = renderToString(
+      withClient(queryClient, <WidokBezBramkiHydratacji initialDegraded />),
+    );
     expect(html).toContain(RETRY);
 
     queryClient.setQueryData<string[]>(KEY, [ROW]);
