@@ -221,6 +221,10 @@ export function CommentsSection({ postId, lang }: Props) {
   const handleGuestReply = useCallback(
     async (input: GuestCommentInput) => {
       await guestCreateAsync(input);
+      // Ta sama zasada, co przy odpowiedzi zalogowanego: gdy klub przyjmuje
+      // wpisy gości od ręki, a gość zwinął gałąź przed wysłaniem, jego własna
+      // odpowiedź wpadłaby pod zamknięty akordeon.
+      setCollapsedBranches((prev) => revealBranch(prev, input.parentId ?? null));
     },
     [guestCreateAsync],
   );

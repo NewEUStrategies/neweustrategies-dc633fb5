@@ -76,36 +76,39 @@ export const Route = createFileRoute("/organization/$slug")({
     const lang = currentLang();
     // Lista publikacji nie zależy od tożsamości (pivot rezolwuje się po slugu),
     // więc jedzie RÓWNOLEGLE, a nie kolejną falą na ścieżce TTFB.
-    const postsPromise = context.queryClient.ensureQueryData(
-      taxonomyArchiveQueryOptions("category", params.slug, {
-        page: deps.page,
-        pageSize: ORGANIZATION_PAGE_SIZE,
-        sort: deps.sort,
-      }),
-    );
+    // Obsługa odrzucenia wisi na promisie OD RAZU, a nie dopiero po
+    // rozstrzygnięciu tożsamości. Gdyby archiwum padło, zanim `loadResilient`
+    // skończy, między jednym a drugim byłby moment bez handlera - a nieobsłużone
+    // odrzucenie w SSR ubija workera i zamienia żądanie w 500, choć intencją
+    // jest degradacja do pustej listy.
+    const postsPromise = context.queryClient
+      .ensureQueryData(
+        taxonomyArchiveQueryOptions("category", params.slug, {
+          page: deps.page,
+          pageSize: ORGANIZATION_PAGE_SIZE,
+          sort: deps.sort,
+        }),
+      )
+      .then(
+        (data) => data,
+        () => null,
+      );
     const identity = await loadResilient(
       context.queryClient,
       organizationQueryOptions(params.slug, lang),
       ORGANIZATION_UNKNOWN,
     );
     if (identity.degraded) {
-      // Domknij równoległą gałąź, żeby degradacja nie zostawiała
-      // nieobsłużonego odrzucenia.
-      postsPromise.catch(() => undefined);
       setCacheControlHeader(NO_STORE);
       return { org: null, degraded: true, total: 0, page: deps.page, lang };
     }
     if (!identity.data) {
-      postsPromise.catch(() => undefined);
       setCacheControlHeader(NO_STORE);
       throw notFound();
     }
     // Publikacje są WTÓRNE wobec tożsamości: gdy nie dojadą, profil i tak ma się
     // wyrenderować, a lista dociągnie się po hydratacji.
-    const archive = await postsPromise.then(
-      (data) => data,
-      () => null,
-    );
+    const archive = await postsPromise;
     setCacheControlHeader(archive === null ? NO_STORE : contentCacheControl());
     return {
       org: identity.data,
@@ -156,9 +159,13 @@ export const Route = createFileRoute("/organization/$slug")({
       robots: page > 1 ? "noindex, follow" : null,
     });
 
-    const { origin } = splitUrl(url);
+    // `url` bywa ABSOLUTNY (w SSR `getRequestUrl()` zwraca pełny adres), więc
+    // sklejanie go z originem dawało `https://host/https://host/...` w danych
+    // strukturalnych. Bierzemy sam pathname - `splitUrl` zwraca go w obu
+    // postaciach wejścia.
+    const { origin, path } = splitUrl(url);
     const originAbs = origin || SITE_CANONICAL_ORIGIN;
-    const absUrl = `${originAbs}${url.startsWith("/") ? url : `/${url}`}`;
+    const absUrl = `${originAbs}${path}`;
     const crumbsLabel = isEn ? "Organizations" : "Organizacje";
     const breadcrumbs = breadcrumbListJsonLd(
       [{ label: crumbsLabel, href: "/search" }, { label: name }],
@@ -186,7 +193,7 @@ export const Route = createFileRoute("/organization/$slug")({
       scripts: [
         {
           type: "application/ld+json",
-          children: safeJsonLd({ ...breadcrumbs, "@id": `${originAbs}${url}#breadcrumbs` }),
+          children: safeJsonLd({ ...breadcrumbs, "@id": `${absUrl}#breadcrumbs` }),
         },
         { type: "application/ld+json", children: safeJsonLd(organizationLd) },
       ],

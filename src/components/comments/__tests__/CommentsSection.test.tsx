@@ -1168,4 +1168,33 @@ describe("zwijanie gałęzi", () => {
     await waitFor(() => expect(expander().getAttribute("data-state")).toBe("open"));
     expect(h.createComment).toHaveBeenCalled();
   });
+
+  it("odpowiedź GOŚCIA w zwiniętą gałąź też ją rozwija", async () => {
+    // Gość nie ma konta, ale ma dokładnie ten sam problem co zalogowany: wysyła
+    // w zamknięty akordeon i nie widzi własnej wypowiedzi. Ścieżka gościa
+    // przechodzi przez osobny handler, więc bez własnego przypadku ta poprawka
+    // cofnęłaby się przy pierwszym refaktorze.
+    h.user = null;
+    h.discussion = { ...h.discussion, require_login_to_comment: false };
+    h.page = twoThreads();
+    section();
+    await waitFor(() => expect(screen.getByText("Odpowiedź w gałęzi")).toBeTruthy());
+    fireEvent.click(expander());
+    expect(expander().getAttribute("data-state")).toBe("closed");
+
+    fireEvent.click(screen.getAllByText("comments.reply")[0]);
+    const forms = Array.from(document.querySelectorAll("form"));
+    const replyForm = forms[forms.length - 1]!;
+    fireEvent.change(replyForm.querySelector("textarea")!, {
+      target: { value: "Gość odpowiada" },
+    });
+    const nameInput = Array.from(replyForm.querySelectorAll("input")).find(
+      (input) => input.getAttribute("name") !== "website",
+    )!;
+    fireEvent.change(nameInput, { target: { value: "Kasia Zmyślona" } });
+    fireEvent.submit(replyForm);
+
+    await waitFor(() => expect(h.guestCreate).toHaveBeenCalled());
+    await waitFor(() => expect(expander().getAttribute("data-state")).toBe("open"));
+  });
 });

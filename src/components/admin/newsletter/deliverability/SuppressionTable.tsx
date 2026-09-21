@@ -46,7 +46,7 @@ import {
   suppressionCsvFileName,
   suppressionsToCsv,
   SUPPRESSION_LIST_LIMIT,
-} from "./suppressionTable";
+} from "./suppressionRules";
 import "@/lib/i18n-newsletter-deliverability";
 
 const REASONS: readonly SuppressionReason[] = [

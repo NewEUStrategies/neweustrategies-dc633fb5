@@ -17,7 +17,14 @@
 // Renderu profilu (to `src/components/organizations/__tests__`), warstwy
 // zapytań (`lib/queries/organization.ts` ma własny plik) ani paginacji archiwum
 // - `PaginatedPortGrid` i `ArchivePagination` mają swoje testy.
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+/** Adres żądania „widziany" przez trasę. W SSR `getRequestUrl()` oddaje adres
+ *  ABSOLUTNY, w kliencie - pusty napis; oba warianty muszą dać ten sam wynik. */
+const state = vi.hoisted(() => ({ requestUrl: "" }));
+vi.mock("@/lib/seo/request", () => ({ getRequestUrl: () => state.requestUrl }));
+
+import { SITE_CANONICAL_ORIGIN } from "@/lib/seo/meta";
 import { Route as OrganizationRoute } from "@/routes/organization.$slug";
 import { Route as CategoryRoute } from "@/routes/category.$slug";
 
@@ -27,6 +34,10 @@ type HeadFn = (ctx: Record<string, unknown>) => {
   links?: Record<string, unknown>[];
   scripts?: { children?: string }[];
 };
+
+beforeEach(() => {
+  state.requestUrl = "";
+});
 
 function validate(route: unknown, input: Record<string, unknown>): Record<string, unknown> {
   const fn = (route as { options: { validateSearch: SearchValidator } }).options.validateSearch;
@@ -252,5 +263,84 @@ describe("kanonikalizacja starej trasy /category/<slug>", () => {
     // canonical przenosi sygnał rankingowy, ale dokument zostaje.
     expect(typeof CategoryRoute.options.component).toBe("function");
     expect(title(categoryHead()).length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Dane strukturalne przy renderze serwerowym
+// ---------------------------------------------------------------------------
+
+describe("trasa /organization/$slug - adresy w danych strukturalnych", () => {
+  const ORIGIN = "https://neweuropeanstrategies.eu";
+
+  function ldFor(requestUrl: string): Record<string, unknown>[] {
+    state.requestUrl = requestUrl;
+    return jsonLd(
+      head(OrganizationRoute, {
+        params: { slug: "nato" },
+        loaderData: {
+          org: {
+            term: {
+              id: "t1",
+              slug: "nato",
+              name_pl: "NATO",
+              name_en: "NATO",
+              description_pl: null,
+              description_en: null,
+              logo_url: null,
+              color: null,
+            },
+            brand: null,
+          },
+          degraded: false,
+          total: 3,
+          page: 1,
+          lang: "pl",
+        },
+      }),
+    );
+  }
+
+  function orgNode(nodes: Record<string, unknown>[]): Record<string, unknown> {
+    const found = nodes.find((n) => n["@type"] === "Organization");
+    if (!found) throw new Error("test: brak węzła Organization");
+    return found;
+  }
+
+  it("ABSOLUTNY adres żądania nie zostaje sklejony z originem po raz drugi", () => {
+    // W SSR `getRequestUrl()` oddaje pełny adres. Doklejenie do niego originu
+    // dawało `https://host/https://host/...` - adres, którego robot nie pobierze.
+    const nodes = ldFor(`${ORIGIN}/organization/nato`);
+
+    expect(orgNode(nodes).url).toBe(`${ORIGIN}/organization/nato`);
+    expect(String(orgNode(nodes).url)).not.toContain(`${ORIGIN}${ORIGIN}`);
+  });
+
+  it("`subjectOf` niesie ten sam, poprawny adres co węzeł organizacji", () => {
+    const nodes = ldFor(`${ORIGIN}/organization/nato`);
+    const subject = orgNode(nodes).subjectOf as Record<string, unknown>;
+
+    expect(subject.url).toBe(`${ORIGIN}/organization/nato`);
+  });
+
+  it("identyfikator okruszków też jest pojedynczym adresem", () => {
+    const nodes = ldFor(`${ORIGIN}/organization/nato`);
+    const crumbs = nodes.find((n) => n["@type"] === "BreadcrumbList");
+
+    expect(crumbs?.["@id"]).toBe(`${ORIGIN}/organization/nato#breadcrumbs`);
+  });
+
+  it("adres WZGLĘDNY (render kliencki) schodzi na origin kanoniczny", () => {
+    // Bez originu w żądaniu nie zgadujemy hosta - bierzemy ten, pod którym
+    // serwis jest indeksowany.
+    const nodes = ldFor("/organization/nato");
+
+    expect(orgNode(nodes).url).toBe(`${SITE_CANONICAL_ORIGIN}/organization/nato`);
+  });
+
+  it("parametry listy nie wchodzą do danych strukturalnych", () => {
+    const nodes = ldFor(`${ORIGIN}/organization/nato?page=3&sort=oldest`);
+
+    expect(orgNode(nodes).url).toBe(`${ORIGIN}/organization/nato`);
   });
 });

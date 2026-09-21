@@ -18,7 +18,7 @@ import {
   suppressionsToCsv,
   SUPPRESSION_CSV_COLUMNS,
   SUPPRESSION_LIST_LIMIT,
-} from "@/components/admin/newsletter/deliverability/suppressionTable";
+} from "@/components/admin/newsletter/deliverability/suppressionRules";
 import type { SuppressionRow } from "@/lib/newsletter-deliverability.functions";
 
 function suppression(overrides: Partial<SuppressionRow> = {}): SuppressionRow {
