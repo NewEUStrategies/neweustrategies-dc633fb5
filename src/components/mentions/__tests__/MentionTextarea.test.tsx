@@ -101,9 +101,7 @@ describe("MentionTextarea", () => {
     type(box, "cc @acme");
     await waitFor(() => screen.getByRole("listbox"));
     fireEvent.mouseDown(screen.getByText("ACME Europe"));
-    await waitFor(() =>
-      expect(box.value).toBe("cc @org-123e4567-e89b-12d3-a456-426614174000 "),
-    );
+    await waitFor(() => expect(box.value).toBe("cc @org-123e4567-e89b-12d3-a456-426614174000 "));
   });
 
   it("navigates with ArrowDown and selects with Enter", async () => {

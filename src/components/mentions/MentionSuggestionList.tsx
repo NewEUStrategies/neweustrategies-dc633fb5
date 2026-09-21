@@ -28,11 +28,12 @@ function SuggestionPreview({ slug, lang }: { slug: string; lang: "pl" | "en" }) 
   if (isPending) return <p className="text-xs text-muted-foreground">...</p>;
   if (!data) return <p className="text-xs text-muted-foreground">@{slug}</p>;
   const imageUrl = data.kind === "organization" ? data.logoUrl : data.avatarUrl;
-  const fallbackIcon = data.kind === "organization" ? (
-    <Building2 className="h-4 w-4" aria-hidden="true" />
-  ) : (
-    data.name.slice(0, 2).toLocaleUpperCase()
-  );
+  const fallbackIcon =
+    data.kind === "organization" ? (
+      <Building2 className="h-4 w-4" aria-hidden="true" />
+    ) : (
+      data.name.slice(0, 2).toLocaleUpperCase()
+    );
   return (
     <div className="space-y-2">
       <div className="flex items-start gap-3">
@@ -112,18 +113,24 @@ export function MentionSuggestionList({
                     className="flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-[10px] font-medium text-muted-foreground"
                   >
                     {s.avatarUrl || s.logoUrl ? (
-                      <img src={s.avatarUrl ?? s.logoUrl ?? ""} alt="" className="h-full w-full object-cover" />
+                      <img
+                        src={s.avatarUrl ?? s.logoUrl ?? ""}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
                     ) : s.kind === "organization" ? (
                       <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
                     ) : (
                       <UserRound className="h-3.5 w-3.5" aria-hidden="true" />
                     )}
                     <span className="sr-only">
-                      {s.kind === "organization" ? t("mentions.organization") : t("mentions.person")}
+                      {s.kind === "organization"
+                        ? t("mentions.organization")
+                        : t("mentions.person")}
                     </span>
-                    {s.avatarUrl || s.logoUrl || s.kind === "organization" ? null : (
-                      s.name.slice(0, 2).toUpperCase()
-                    )}
+                    {s.avatarUrl || s.logoUrl || s.kind === "organization"
+                      ? null
+                      : s.name.slice(0, 2).toUpperCase()}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{s.name}</span>

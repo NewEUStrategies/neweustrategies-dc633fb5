@@ -11,7 +11,9 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export function organizationMentionSlug(idOrSlug: string): string | null {
   const token = idOrSlug.trim().toLowerCase();
-  const id = token.startsWith(ORGANIZATION_PREFIX) ? token.slice(ORGANIZATION_PREFIX.length) : token;
+  const id = token.startsWith(ORGANIZATION_PREFIX)
+    ? token.slice(ORGANIZATION_PREFIX.length)
+    : token;
   return UUID_RE.test(id) ? `${ORGANIZATION_PREFIX}${id}` : null;
 }
 

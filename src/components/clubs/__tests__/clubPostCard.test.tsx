@@ -305,8 +305,7 @@ describe("ClubPostCard - treść", () => {
     renderWithQueryClient(
       <ClubPostCard
         post={clubPostRow({
-          body:
-            "Raport od @anna-nowak jest tu https://komisja.example/raport.pdf w #energia.",
+          body: "Raport od @anna-nowak jest tu https://komisja.example/raport.pdf w #energia.",
         })}
         clubSlug={CLUB_SLUG}
         mediaUrls={{}}

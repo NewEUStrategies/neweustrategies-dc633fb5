@@ -114,7 +114,10 @@ export function MentionSegment({
         {isOrganizationSlug ? (
           <span
             data-mention={slug}
-            className={cn("inline-flex cursor-default items-baseline font-medium text-primary", className)}
+            className={cn(
+              "inline-flex cursor-default items-baseline font-medium text-primary",
+              className,
+            )}
           >
             {mentionText}
           </span>
