@@ -35,6 +35,25 @@ test.describe("brak poziomego przesuwania strony", () => {
   for (const route of ROUTES) {
     test(`${route} mieści się w szerokości ekranu (mobile)`, async ({ page }) => {
       await page.goto(route);
+      // TYMCZASOWY BLOK KONTROLNY (K23) - usuwany przed oddaniem pracy.
+      if (process.env.K23_CONTROL) {
+        await page.evaluate((mode) => {
+          const card = document.querySelector<HTMLElement>("div.overflow-hidden");
+          const flow = document.querySelector<HTMLElement>("main") ?? document.body;
+          const probe = document.createElement("div");
+          probe.style.cssText =
+            mode === "fixed"
+              ? "position:fixed;left:300px;top:100px;width:200px;height:20px;background:red"
+              : "position:absolute;left:300px;top:100px;width:200px;height:20px;background:red";
+          const host = mode === "visible" ? flow : card;
+          if (host) host.appendChild(probe);
+          (window as unknown as { __k23host?: string }).__k23host = host
+            ? `${host.tagName}.${String(host.className).slice(0, 40)}`
+            : "BRAK";
+        }, process.env.K23_CONTROL);
+        // eslint-disable-next-line no-console
+        console.log("K23 host:", await page.evaluate(() => (window as unknown as { __k23host?: string }).__k23host));
+      }
       // Zwijanie headera i paski pojawiające się po scrollu włączają się dopiero
       // w trakcie przewijania - mierzymy PO scrollu, bo to tam był problem.
       await page.evaluate(() => window.scrollTo({ top: 900 }));

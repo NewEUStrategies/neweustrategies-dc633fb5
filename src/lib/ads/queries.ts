@@ -48,6 +48,15 @@ type DbAdPageType = Database["public"]["Enums"]["ad_page_type"];
  */
 const DB_AD_PAGE_TYPES: readonly DbAdPageType[] = Constants.public.Enums.ad_page_type;
 
+/**
+ * Okno świeżości listy placementów - JEDNA liczba na trzy miejsca, w których
+ * ta sama obietnica jest powtarzana: `staleTime` zapytania (przeglądarka), TTL
+ * `edgeTtlCache` (izolat) i próg, poniżej którego rozgrzewka SSR uznaje wpis za
+ * gotowy i nie pyta bazy ponownie. Rozjazd tych liczb znaczyłby, że jedna
+ * warstwa odświeża to, co druga właśnie uznała za świeże.
+ */
+const PLACEMENTS_TTL_MS = 60_000;
+
 function dbPageTypes(pageType: AdPageType): DbAdPageType[] {
   const known = DB_AD_PAGE_TYPES.find((value) => value === pageType);
   return known === undefined ? ["all"] : ["all", known];
@@ -78,7 +87,7 @@ async function fetchPlacementRows(
   const { data, error } = await supabase
     .from("ad_placements")
     .select("*, slot:ad_slots!inner(*)")
-    .in("position", positions as AdPosition[])
+    .in("position", [...positions])
     // Filtr wysyła wyłącznie wartości, które baza zna (patrz `DB_AD_PAGE_TYPES`):
     // typ strony dodany po stronie klienta, a jeszcze nie w enumie, wywróciłby
     // całe zapytanie w PostgREST i strona zostałaby bez reklam.
@@ -144,10 +153,10 @@ export function adPlacementsQueryOptions(
     // targetingu działa per obserwator w `select` (react-query v5).
     queryKey: ["ad_placements", position, pageType, id],
     queryFn: () =>
-      edgeTtlCache(`ad_placements:${position}:${pageType}:${id ?? "-"}`, 60_000, () =>
+      edgeTtlCache(`ad_placements:${position}:${pageType}:${id ?? "-"}`, PLACEMENTS_TTL_MS, () =>
         fetchPlacements({ position, pageType, pageId: id }),
       ),
-    staleTime: 60_000,
+    staleTime: PLACEMENTS_TTL_MS,
     refetchOnWindowFocus: false,
   });
 }
