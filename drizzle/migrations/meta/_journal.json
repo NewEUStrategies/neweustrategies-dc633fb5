@@ -239,6 +239,13 @@
       "when": 1790018928921,
       "tag": "0033_stable_organization_mention_slugs",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1790033510557,
+      "tag": "0034_mention_targets_rpc",
+      "breakpoints": true
     }
   ]
 }
