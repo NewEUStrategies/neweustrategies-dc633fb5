@@ -30,6 +30,15 @@
 // zimny odczyt `archive_layout_settings` w komunikat „dane niedostępne" na
 // archiwum z kompletną listą wpisów.
 //
+// Z tego samego rozdziału wynikają TRZY polityki nagłówka, a testy pilnują
+// każdej po SKUTKU (czy NES Edge Cache zapisze dokument), nie po napisie:
+//   * brak treści / 404          -> `private, no-store`, dokument NIEzapisywalny;
+//   * treść + domyślny layout    -> `chromeDegradedCacheControl()` (s-maxage 30 s,
+//     stale 300 s), dokument ZAPISYWALNY - jest kompletny, tylko prezentacja
+//     pochodzi z kodu, a `no-store` kazałby każdemu czytelnikowi zimnej
+//     konfiguracji zapłacić pełny render;
+//   * render czysty              -> `contentCacheControl()`, bez zmian.
+//
 // Testujemy loader jako FUNKCJĘ, bez montowania drzewa (ta sama doktryna co
 // `eventShellLoader.test.ts`) - render tych tras ma własny plik
 // (`archiveRoutesRender.test.tsx`).
@@ -179,6 +188,7 @@ describe("/category/$slug - odporność loadera", () => {
     expect(data.taxonomy?.name_pl).toBe("Gospodarka");
     expect(data.degraded).toBe(false);
     expect(h.cacheControl).toEqual([contentCacheControl()]);
+    expect(storedByEdge(h.cacheControl[0])).toBe(true);
   });
 
   it("BLIP ODCZYTU degraduje do 200 `no-store` zamiast rzucać (było HTTP 500)", async () => {
@@ -218,9 +228,15 @@ describe("/category/$slug - odporność loadera", () => {
     expect(data.taxonomy?.name_pl).toBe("Gospodarka");
     // TREŚĆ dojeżdża w całości - po to powstał `CATEGORY_LAYOUT_FALLBACK`.
     expect(data.posts.map((post) => post.slug)).toEqual(["pkb-2026", "inflacja-2026"]);
-    // Render na domyślkach nie ma prawa zamarznąć na brzegu jako wariant
-    // wszystkich czytelników: treść prawdziwa, prezentacja domyślna.
-    expect(h.cacheControl).toEqual([NO_STORE]);
+    // NAGŁÓWEK: dokument jest KOMPLETNY (te same wpisy, ten sam `head()`, tylko
+    // wariant layoutu z kodu), więc nie `no-store` - wolno go dzielić KRÓTKO
+    // i z rewalidacją, dokładnie jak render z dostrumieniowanym chrome'em.
+    expect(h.cacheControl).toEqual([chromeDegradedCacheControl()]);
+    // Wymóg POZYTYWNY, nie kosmetyczny: brzeg ma ten dokument ZAPISAĆ. Pod
+    // `no-store` każdy czytelnik zimnej konfiguracji płacił pełny render
+    // (audyt CWV, F02), a przy polityce treści domyślny layout zamarzłby na
+    // 15 minut świeżości plus dobę okna stale.
+    expect(storedByEdge(h.cacheControl[0])).toBe(true);
   });
 
   it("czysty odczyt nie melduje degradacji layoutu", async () => {
@@ -248,6 +264,7 @@ describe("/tag/$slug - odporność loadera", () => {
     const data = await runLoader(TagRoute, "nato");
     expect(data.degraded).toBe(true);
     expect(h.cacheControl).toEqual([NO_STORE]);
+    expect(storedByEdge(h.cacheControl[0])).toBe(false);
   });
 
   it("zwis KONFIGURACJI zostawia wpisy tagu na ekranie", async () => {
@@ -260,7 +277,8 @@ describe("/tag/$slug - odporność loadera", () => {
     expect(data.degraded).toBe(false);
     expect(data.layoutDegraded).toBe(true);
     expect(data.posts.map((post) => post.slug)).toEqual(["pkb-2026", "inflacja-2026"]);
-    expect(h.cacheControl).toEqual([NO_STORE]);
+    expect(h.cacheControl).toEqual([chromeDegradedCacheControl()]);
+    expect(storedByEdge(h.cacheControl[0])).toBe(true);
   });
 
   it("brak taksonomii tagu nadal kończy się 404", async () => {

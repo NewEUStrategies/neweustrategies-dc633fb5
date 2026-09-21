@@ -71,6 +71,17 @@ const h = vi.hoisted(() => ({
   requestUrl: null as string | null,
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
+  /** Nagłówki `Cache-Control` ustawione przez loader trasy. */
+  cacheControl: [] as string[],
+}));
+
+// EFEKT SERWEROWY NA ODPOWIEDZI. `setCacheControlHeader` rozstrzyga się w teście
+// do gałęzi klienckiej (no-op), więc bez atrapy decyzja loadera o polityce
+// brzegu jest NIEOBSERWOWALNA.
+vi.mock("@/lib/http/responseHeaders", () => ({
+  setCacheControlHeader: (value: string) => void h.cacheControl.push(value),
+  appendLinkHeader: () => undefined,
+  readRouteCacheDirective: () => null,
 }));
 
 vi.mock("react-i18next", async () =>
@@ -171,6 +182,8 @@ vi.mock("@/components/ui/select", () => ({
 import { renderRoute, routeMeta } from "@/test/routeHarness";
 import { Route as ContributeRoute } from "@/routes/contribute";
 import { Route as SupportRoute } from "@/routes/support";
+import { chromeDegradedCacheControl, contentCacheControl } from "@/lib/http/cachePolicy";
+import { documentStorePolicy } from "@/lib/http/documentCache";
 
 /** Wartość wpisu `meta` po nazwie (`title` albo `name`). */
 function metaValue(meta: Record<string, unknown>[], key: string): unknown {
@@ -192,6 +205,7 @@ beforeEach(() => {
   h.supportDocFails = false;
   h.language = "pl";
   h.requestUrl = null;
+  h.cacheControl = [];
 });
 
 afterEach(() => cleanup());
@@ -680,5 +694,59 @@ describe("/support - dokument z panelu kontra sekcja wbudowana", () => {
     });
     expect(String(metaValue(view.meta(), "title"))).toContain("Support us");
     expect(String(metaValue(view.meta(), "description"))).toContain("patronage");
+  });
+});
+
+describe("polityka brzegu obu tras - degraduje WARSTWA OPCJONALNA, nie treść", () => {
+  // DOWÓD NEGATYWNY. Obie trasy mają KOMPLETNĄ treść w kodzie: `/contribute`
+  // pobiera z bazy wyłącznie nadpisania SEO, a `/support` - opcjonalny dokument
+  // redakcyjny, bez którego renderuje wbudowaną sekcję mecenatu. Dokument
+  // zdegradowany jest więc poprawny dla czytelnika i tylko niekanoniczny dla
+  // brzegu, a `private, no-store` odbierał `documentStorePolicy` prawo zapisu -
+  // przez co DRUGIE żądanie przy padającej bazie znowu było pełnym renderem.
+  async function degradedHeader(mount: () => Promise<unknown>): Promise<string> {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await mount();
+    warn.mockRestore();
+    return h.cacheControl.at(-1)!;
+  }
+
+  it("/contribute: awaria odczytu SEO daje krótką świeżość, nie `no-store`", async () => {
+    h.staticSeo = "fail";
+    const header = await degradedHeader(() =>
+      renderRoute({ route: ContributeRoute, path: "/contribute", initialEntry: "/contribute" }),
+    );
+
+    expect(header).not.toContain("no-store");
+    expect(header).toBe(chromeDegradedCacheControl());
+    const policy = documentStorePolicy(200, "text/html", header);
+    expect(policy.store).toBe(true);
+    expect(policy.freshMs).toBeGreaterThan(0);
+  });
+
+  it("/support: brak dokumentu redakcyjnego też zostaje zapisywalny", async () => {
+    h.supportDocFails = true;
+    const header = await degradedHeader(() =>
+      renderRoute({ route: SupportRoute, path: "/support", initialEntry: "/support" }),
+    );
+
+    expect(header).not.toContain("no-store");
+    expect(header).toBe(chromeDegradedCacheControl());
+    expect(documentStorePolicy(200, "text/html", header).store).toBe(true);
+  });
+
+  it("czysty odczyt obu tras zostaje przy pełnej polityce treści", async () => {
+    h.staticSeo = { slug: "contribute" };
+    await renderRoute({
+      route: ContributeRoute,
+      path: "/contribute",
+      initialEntry: "/contribute",
+    });
+    expect(h.cacheControl.at(-1)).toBe(contentCacheControl());
+
+    h.cacheControl = [];
+    h.supportDoc = { kind: "page", item: { content_pl: "<p>x</p>", editor: "html" } };
+    await renderRoute({ route: SupportRoute, path: "/support", initialEntry: "/support" });
+    expect(h.cacheControl.at(-1)).toBe(contentCacheControl());
   });
 });

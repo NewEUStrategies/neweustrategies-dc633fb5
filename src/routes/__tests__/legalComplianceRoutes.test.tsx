@@ -62,6 +62,18 @@ const h = vi.hoisted(() => ({
   requestUrl: "https://example.com/rodo",
   /** Gdy ustawione, `supabase.from` RZUCA - do dowodu o `.catch()` loadera. */
   fromThrows: null as string | null,
+  /** Nagłówki `Cache-Control` ustawione przez loader trasy. */
+  cacheControl: [] as string[],
+}));
+
+// EFEKT SERWEROWY NA ODPOWIEDZI. W teście jednostkowym `setCacheControlHeader`
+// rozstrzyga się do gałęzi klienckiej (no-op), więc decyzja loadera o polityce
+// brzegu byłaby NIEOBSERWOWALNA - a to ona przesądza, czy zdegradowana strona
+// prawna w ogóle trafia do NES Edge Cache.
+vi.mock("@/lib/http/responseHeaders", () => ({
+  setCacheControlHeader: (value: string) => void h.cacheControl.push(value),
+  appendLinkHeader: () => undefined,
+  readRouteCacheDirective: () => null,
 }));
 
 // AKCESOR ADRESU ŻĄDANIA. `getRequestUrl` w teście jednostkowym rozstrzyga się
@@ -90,6 +102,8 @@ vi.mock("@/integrations/supabase/client", async () => {
 import { ok } from "@/test/supabaseChain";
 import { renderRoute, routeHead } from "@/test/routeHarness";
 import { legalVersionQueryKey } from "@/lib/legal/useLegalDocument";
+import { chromeDegradedCacheControl, contentCacheControl } from "@/lib/http/cachePolicy";
+import { documentStorePolicy } from "@/lib/http/documentCache";
 import type { LegalDocContent, LegalDocKey } from "@/lib/legal/types";
 
 import { Route as RodoRoute } from "@/routes/rodo";
@@ -213,6 +227,7 @@ function titleOf(meta: ReturnType<typeof routeHead>["meta"]): string {
 beforeEach(() => {
   h.db?.reset();
   h.fromThrows = null;
+  h.cacheControl = [];
   h.requestUrl = "https://example.com/rodo";
   planPusto();
 });
@@ -308,6 +323,46 @@ describe.each(DOKUMENTY)("trasa prawna $path", (doc) => {
     });
 
     expect(screen.getByRole("heading", { level: 1, name: doc.meta.pl.title })).toBeInTheDocument();
+  });
+
+  it("awaria odczytu daje KRÓTKĄ świeżość, a nie `no-store` - dokument zostaje zapisywalny", async () => {
+    // DOWÓD NEGATYWNY. Degraduje tu WARSTWA OPCJONALNA (nadpisania SEO,
+    // opublikowana wersja), a nie treść: tekst dokumentu żyje w rejestrze
+    // w kodzie, więc czytelnik dostaje stronę KOMPLETNĄ - niekanoniczną tylko
+    // dla brzegu. Gdy loader oddawał `private, no-store`, `documentStorePolicy`
+    // odrzucała taki dokument i DRUGIE żądanie przy padającej bazie znowu było
+    // MISS-em (regresja testu rozruchowego `/cookies`).
+    h.requestUrl = `https://example.com${doc.path}`;
+    h.fromThrows = "PostgREST nieosiągalny";
+
+    await renderRoute({
+      route: doc.route,
+      path: doc.path,
+      initialEntry: doc.path,
+      queryClient: testClient(),
+    });
+
+    const header = h.cacheControl.at(-1)!;
+    expect(header).not.toContain("no-store");
+    expect(header).toBe(chromeDegradedCacheControl());
+    const policy = documentStorePolicy(200, "text/html", header);
+    expect(policy.store).toBe(true);
+    expect(policy.freshMs).toBeGreaterThan(0);
+    expect(policy.swrMs).toBeGreaterThan(0);
+  });
+
+  it("czysty odczyt zostaje przy pełnej polityce treści", async () => {
+    h.requestUrl = `https://example.com${doc.path}`;
+    h.db?.setResponse("legal_document_versions", ok({ content: publishedContent("Czysto") }));
+
+    await renderRoute({
+      route: doc.route,
+      path: doc.path,
+      initialEntry: doc.path,
+      queryClient: testClient(),
+    });
+
+    expect(h.cacheControl.at(-1)).toBe(contentCacheControl());
   });
 });
 

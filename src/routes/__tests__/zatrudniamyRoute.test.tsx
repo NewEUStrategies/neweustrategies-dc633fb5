@@ -136,6 +136,17 @@ const h = vi.hoisted(() => ({
   requestUrl: "https://example.com/zatrudniamy",
   /** Gdy ustawione, `supabase.from` RZUCA - do dowodu o `.catch()` loadera. */
   fromThrows: null as string | null,
+  /** Nagłówki `Cache-Control` ustawione przez loader trasy. */
+  cacheControl: [] as string[],
+}));
+
+// EFEKT SERWEROWY NA ODPOWIEDZI. `setCacheControlHeader` jest izomorficzny i w
+// teście rozstrzyga się do gałęzi klienckiej (no-op), więc bez atrapy decyzja
+// loadera o polityce brzegu jest NIEOBSERWOWALNA.
+vi.mock("@/lib/http/responseHeaders", () => ({
+  setCacheControlHeader: (value: string) => void h.cacheControl.push(value),
+  appendLinkHeader: () => undefined,
+  readRouteCacheDirective: () => null,
 }));
 
 // AKCESOR ADRESU ŻĄDANIA. `getRequestUrl` jest funkcją izomorficzną i w teście
@@ -239,6 +250,8 @@ import { renderRoute, routeHead } from "@/test/routeHarness";
 import { ok } from "@/test/supabaseChain";
 import type { StaticPageSeo } from "@/lib/queries/staticPageSeo";
 import { Route as CareersRoute } from "@/routes/zatrudniamy";
+import { chromeDegradedCacheControl, contentCacheControl } from "@/lib/http/cachePolicy";
+import { documentStorePolicy } from "@/lib/http/documentCache";
 
 const PATH = "/zatrudniamy";
 const ROLES_ID = "careers-open-roles";
@@ -334,6 +347,7 @@ beforeEach(() => {
   h.onApply = null;
   h.onDepartmentChange = null;
   h.onRoleChange = null;
+  h.cacheControl.length = 0;
   planPages(ok(null));
   h.requestUrl = "https://example.com/zatrudniamy";
   h.fromThrows = null;
@@ -404,6 +418,35 @@ describe("loader: metadane SEO strony kariery", () => {
     await mount();
 
     expect(await screen.findByTestId("hero")).toBeInTheDocument();
+  });
+});
+
+describe("polityka brzegu: degraduje WARSTWA OPCJONALNA, nie treść oferty", () => {
+  it("WYJĄTEK odczytu SEO daje KRÓTKĄ świeżość, a nie `no-store` - dokument zostaje zapisywalny", async () => {
+    // DOWÓD NEGATYWNY. Z bazy przychodzą tu wyłącznie nadpisania SEO z panelu:
+    // oferta, formularz i teksty żyją w kodzie, więc render bez wiersza jest
+    // KOMPLETNY dla kandydata i tylko niekanoniczny dla brzegu. Przy
+    // `private, no-store` `documentStorePolicy` odmawiała zapisu, czyli każde
+    // żądanie w czasie blipu bazy było pełnym renderem (MISS).
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    h.fromThrows = "test: klient danych nie wystartował";
+    await mount();
+    warn.mockRestore();
+
+    const header = h.cacheControl.at(-1)!;
+    expect(header).not.toContain("no-store");
+    expect(header).toBe(chromeDegradedCacheControl());
+    const policy = documentStorePolicy(200, "text/html", header);
+    expect(policy.store).toBe(true);
+    expect(policy.freshMs).toBeGreaterThan(0);
+    expect(policy.swrMs).toBeGreaterThan(0);
+  });
+
+  it("czysty odczyt zostaje przy pełnej polityce treści", async () => {
+    planPages(ok(seoRow()));
+    await mount();
+
+    expect(h.cacheControl.at(-1)).toBe(contentCacheControl());
   });
 });
 
