@@ -102,7 +102,13 @@ import "@/test/i18nReal";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import i18n from "@/lib/i18n";
 import { renderRoute } from "@/test/routeHarness";
+import { freezeClock } from "@/test/time";
 import { Route as EventShellRoute } from "@/routes/events.$slug";
+
+// ZEGAR ZAMROŻONY, bo fixture niesie literał daty publikacji. Bez zamrożenia
+// taki test nie jest deterministyczny, tylko OPÓŹNIONY: przechodzi dziś,
+// a padnie w dniu, w którym literał wypadnie z okna liczonego z `Date.now()`.
+freezeClock();
 
 const SLUG = "szczyt";
 const PATH = "/events/$slug";
