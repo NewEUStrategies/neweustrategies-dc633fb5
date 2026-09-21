@@ -41,7 +41,7 @@ import { activeLang } from "@/lib/seo/head";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { buildContentHead, SITE_CANONICAL_ORIGIN, splitUrl } from "@/lib/seo/meta";
 import { getRequestUrl } from "@/lib/seo/request";
-import { loadResilient } from "@/lib/ssr/resilientLoad";
+import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
 
 const NO_STORE = contentCacheControl({ preview: true });
 
@@ -99,7 +99,7 @@ export const Route = createFileRoute("/organization/$slug")({
       ORGANIZATION_UNKNOWN,
     );
     if (identity.degraded) {
-      setCacheControlHeader(NO_STORE);
+      setCacheControlHeader(resilientCacheControl(true));
       return { org: null, degraded: true, total: 0, page: deps.page, lang };
     }
     if (!identity.data) {
@@ -108,8 +108,14 @@ export const Route = createFileRoute("/organization/$slug")({
     }
     // Publikacje są WTÓRNE wobec tożsamości: gdy nie dojadą, profil i tak ma się
     // wyrenderować, a lista dociągnie się po hydratacji.
+    //
+    // POLITYKA CACHE IDZIE PRZEZ `resilientCacheControl`, a nie przez własny
+    // warunek. Różnica nie jest stylistyczna: brak listy publikacji to render
+    // NIEPEŁNY, a wspólny nagłówek utrwaliłby go na brzegu na czas świeżości
+    // PLUS okno `stale-while-revalidate` - czyli czytelnik dostawałby profil
+    // bez dorobku długo po tym, jak archiwum wróciło do zdrowia.
     const archive = await postsPromise;
-    setCacheControlHeader(archive === null ? NO_STORE : contentCacheControl());
+    setCacheControlHeader(resilientCacheControl(archive === null));
     return {
       org: identity.data,
       degraded: false,

@@ -68,7 +68,7 @@ export function useMentionDirectory(
                 .in("slug", personSlugs)
                 .then(({ data, error }) => {
                   if (error) throw error;
-                  return (data ?? []) as unknown as Record<string, unknown>[];
+                  return data ?? [];
                 }),
           orgSlugs.length === 0
             ? Promise.resolve([] as Record<string, unknown>[])
@@ -81,7 +81,7 @@ export function useMentionDirectory(
                     const row = (data ?? [])[0];
                     return row === undefined
                       ? null
-                      : ({ ...row, slug } as unknown as Record<string, unknown>);
+                      : { ...row, slug };
                   }),
                 ),
               ).then((rows) => rows.filter((row): row is Record<string, unknown> => row !== null)),

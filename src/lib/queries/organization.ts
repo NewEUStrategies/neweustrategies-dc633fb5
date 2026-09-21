@@ -240,7 +240,7 @@ export const organizationPeopleQueryOptions = (names: readonly string[]) => {
         .in("current_company", wanted)
         .limit(ORGANIZATION_PEOPLE_LIMIT);
       if (error) throw error;
-      const rows = (data ?? []) as unknown as Record<string, unknown>[];
+      const rows = data ?? [];
       return rows
         .map(personFromProfileRow)
         .filter((person): person is OrganizationPerson => person !== null);
