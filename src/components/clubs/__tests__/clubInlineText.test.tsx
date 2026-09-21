@@ -135,11 +135,14 @@ function preview(overrides: Partial<ClubLinkPreview> = {}): ClubLinkPreview {
 function person(overrides: Partial<MentionProfilePreview> = {}): MentionProfilePreview {
   return {
     kind: "person",
+    id: "person-1",
     slug: "anna-nowak",
     name: "Anna Nowak",
     avatarUrl: null,
+    logoUrl: null,
     jobTitle: null,
     company: null,
+    website: null,
     bio: null,
     verified: false,
     ...overrides,
@@ -165,11 +168,12 @@ function personEntity(overrides: Partial<MentionPerson> = {}): MentionPerson {
 function orgEntity(overrides: Partial<MentionOrg> = {}): MentionOrg {
   return {
     kind: "org",
-    slug: "acme",
-    id: "org-1",
+    slug: "org-00000000-0000-4000-8000-000000000001",
+    id: "00000000-0000-4000-8000-000000000001",
     name: "ACME Polska",
     logoUrl: null,
     description: null,
+    website: null,
     ...overrides,
   };
 }
@@ -538,7 +542,7 @@ describe("MentionSegment - wzmianka rozwiązana przez katalog", () => {
     const { container } = render(<MentionSegment slug="acme" />);
     const link = linkNamed("ACME Polska");
 
-    expect(link).toHaveAttribute("data-mention-org", "acme");
+    expect(link).toHaveAttribute("data-mention-org", "org-00000000-0000-4000-8000-000000000001");
     expect(container.querySelector("[data-mention]")).toBeNull();
     // Ikona budynku zamiast awatara - organizacja nie ma twarzy.
     expect(link.querySelector("[data-mention-avatar]")?.tagName).toBe("svg");

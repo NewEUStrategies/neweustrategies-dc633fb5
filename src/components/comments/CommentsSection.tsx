@@ -3,12 +3,13 @@
 // (enforced by the DB trigger `comments_before_insert`); with
 // require_login_to_comment=false guests may post with a signature (server fn
 // with IP rate limit + honeypot; the DB trigger stays the source of truth).
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/hooks/useAuth";
+import { useInView } from "@/hooks/use-in-view";
 import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { buildAvatarSrc } from "@/lib/cropSizes";
@@ -82,25 +83,46 @@ export function CommentsSection({ postId, lang }: Props) {
 
   const moderationToast = () => toast.success(t("comments.submittedPending"));
 
+  // Bramka widoczności dla Realtime: kontener sekcji obserwowany raz
+  // (once), z zapasem 200 px, żeby kanał wstawał tuż PRZED wjazdem komentarzy
+  // w kadr, a nie na każdą otwartą kartę z wpisem.
+  const { ref: sectionRef, inView } = useInView<HTMLElement>({
+    rootMargin: "200px 0px",
+    threshold: 0,
+  });
+
   // Base key (no limit) so mutations can invalidate every fetched window at once.
   const listKey = ["post-comments", postId] as const;
   const { data, isLoading, isFetching } = useQuery({
     queryKey: [...listKey, limit] as const,
     queryFn: () => fetchPostComments(postId, limit),
     staleTime: 30_000,
+    // Wyjątek od globalnego `refetchOnWindowFocus: false`: to jedyne źródło
+    // świeżości dla anonima, który nie dostaje już kanału Realtime. Powrót na
+    // kartę odświeża listę, a 30 s staleTime pilnuje, żeby nie robił tego przy
+    // każdym przełączeniu okna.
+    refetchOnWindowFocus: true,
   });
 
   // Realtime: any insert/update to this post's comments refreshes the list, so
   // a peer's new (approved) comment or an edit shows up without a manual reload.
   // RLS still gates what non-owners can read (only `approved` streams to them).
+  //
+  // BRAMKA (F34). Websocket kosztuje TLS + WS + auth + join tuż po hydratacji,
+  // a płaciła za niego KAŻDA anonimowa odsłona wpisu. Kanał otwieramy więc
+  // tylko wtedy, gdy ma komu służyć: czytelnik jest zalogowany (może pisać
+  // i widzieć własne `pending`), dyskusja jest otwarta (przy zamkniętej nic
+  // nowego nie przyjdzie) i sekcja weszła w kadr. Anonim ma świeżość ze
+  // staleTime 30 s i refetch przy powrocie na kartę.
   useEffect(() => {
+    if (!userId || !commentsOpen || !inView) return;
     return subscribeToTable(
       { table: "comments", filter: `post_id=eq.${postId}` },
       () => void qc.invalidateQueries({ queryKey: listKey }),
     );
     // listKey is derived from postId; qc is stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [postId, qc]);
+  }, [postId, qc, userId, commentsOpen, inView]);
 
   const create = useMutation({
     mutationFn: (input: { body: string; parentId?: string | null }) =>
@@ -178,14 +200,55 @@ export function CommentsSection({ postId, lang }: Props) {
     },
   });
 
+  // `mutateAsync`/`mutate` mają STAŁĄ identyczność (react-query wiąże je raz
+  // z obserwatorem mutacji, obiekt wyniku jest nowy przy każdym renderze).
+  // Rozpakowanie ich do zmiennych daje `useCallback` uczciwą zależność - i to
+  // dopiero sprawia, że `memo` na CommentNode naprawdę ucina przerysowanie
+  // całego drzewa przy każdej zmianie stanu rodzica.
+  const createAsync = create.mutateAsync;
+  const guestCreateAsync = guestCreate.mutateAsync;
+  const removeMutate = remove.mutate;
+  const editAsync = edit.mutateAsync;
+  const handleReply = useCallback(
+    async (body: string, parentId: string) => {
+      await createAsync({ body, parentId });
+      // Odpowiedź wysłana w zwiniętą gałąź musi ją rozwinąć - inaczej autor
+      // nie widzi własnej wypowiedzi.
+      setCollapsedBranches((prev) => revealBranch(prev, parentId));
+    },
+    [createAsync],
+  );
+  const handleGuestReply = useCallback(
+    async (input: GuestCommentInput) => {
+      await guestCreateAsync(input);
+    },
+    [guestCreateAsync],
+  );
+  const handleDelete = useCallback((id: string) => removeMutate(id), [removeMutate]);
+  const handleEdit = useCallback(
+    async (id: string, body: string) => {
+      await editAsync({ id, body });
+    },
+    [editAsync],
+  );
+  // Rozsunięcie okna paginacji to praca NIEPILNA: przerysowanie 50 kolejnych
+  // wątków nie może blokować klatki, w której kliknięto przycisk.
+  const loadMore = useCallback(
+    () => startTransition(() => setLimit((n) => n + COMMENTS_PAGE_SIZE)),
+    [],
+  );
+
   const tree = useMemo(() => buildCommentTree(data?.comments ?? []), [data]);
   // Zbiór ZWINIĘTYCH gałęzi - pusty znaczy „wszystko rozwinięte", więc nowy
   // komentarz jest widoczny bez dopisywania go gdziekolwiek.
   const [collapsedBranches, setCollapsedBranches] = useState<ReadonlySet<string>>(
     () => new Set<string>(),
   );
-  const onBranchToggle = (commentId: string, open: boolean) =>
-    setCollapsedBranches((prev) => toggleBranch(prev, commentId, open));
+  const onBranchToggle = useCallback(
+    (commentId: string, open: boolean) =>
+      setCollapsedBranches((prev) => toggleBranch(prev, commentId, open)),
+    [],
+  );
   // Wzmianki w komentarzach rozwiązujemy JEDNYM zapytaniem na sekcję: etykietą
   // wzmianki jest imię i nazwisko, więc profil musi być znany przy renderze.
   const mentionSlugs = useMemo(
@@ -205,6 +268,7 @@ export function CommentsSection({ postId, lang }: Props) {
     <MentionDirectoryProvider slugs={mentionSlugs} lang={lang}>
       <section
         id="comments"
+        ref={sectionRef}
         aria-labelledby="comments-heading"
         className="mt-10 border-t border-border pt-8"
       >
@@ -268,20 +332,10 @@ export function CommentsSection({ postId, lang }: Props) {
                   lang={lang}
                   allowReplies={commentsOpen}
                   guestAllowed={guestsAllowed}
-                  onReply={async (body, parentId) => {
-                    await create.mutateAsync({ body, parentId });
-                    // Odpowiedź wysłana w zwiniętą gałąź musi ją rozwinąć, inaczej
-                    // wygląda jak zgubiona.
-                    setCollapsedBranches((prev) => revealBranch(prev, parentId));
-                  }}
-                  onGuestReply={async (input) => {
-                    await guestCreate.mutateAsync(input);
-                  }}
-                  onDelete={(id) => remove.mutate(id)}
-                  onEdit={async (id, body) => {
-                    await edit.mutateAsync({ id, body });
-                  }}
-                  submittingReply={create.isPending || guestCreate.isPending}
+                  onReply={handleReply}
+                  onGuestReply={handleGuestReply}
+                  onDelete={handleDelete}
+                  onEdit={handleEdit}
                 />
               ))}
             </Discussion>
@@ -293,7 +347,7 @@ export function CommentsSection({ postId, lang }: Props) {
                 variant="outline"
                 size="sm"
                 disabled={isFetching}
-                onClick={() => setLimit((n) => n + COMMENTS_PAGE_SIZE)}
+                onClick={loadMore}
               >
                 {isFetching ? t("comments.loading") : t("comments.loadMore")}
               </Button>
@@ -496,7 +550,18 @@ function CommentComposer({
   );
 }
 
-function CommentNode({
+/**
+ * Jeden węzeł drzewa. `memo`, bo wątek z odpowiedziami potrafi mieć kilkaset
+ * węzłów, a każdy stan rodzica (otwarty edytor, trwająca mutacja) przerysowywał
+ * dotąd wszystkie. Wszystkie propsy-funkcje przychodzą z `useCallback`, więc
+ * porównanie płytkie faktycznie wypada na „bez zmian".
+ *
+ * Nazwa wewnętrzna JEST INNA NIŻ ZEWNĘTRZNA CELOWO: w ciele nazwanego wyrażenia
+ * funkcyjnego jego własna nazwa PRZESŁANIA stałą z modułu, więc rekurencyjne
+ * `<CommentNode>` renderowałoby funkcję bez `memo` - czyli całe poddrzewo
+ * odpowiedzi omijałoby optymalizację, dla której ten `memo` tu stoi.
+ */
+const CommentNode = memo(function CommentNodeImpl({
   node,
   depth,
   collapsed,
@@ -509,7 +574,6 @@ function CommentNode({
   onGuestReply,
   onDelete,
   onEdit,
-  submittingReply,
 }: {
   node: Node;
   /** 0 = wątek główny; odpowiedzi wchodzą do MAX_COMMENT_DEPTH (rekurencja). */
@@ -527,10 +591,24 @@ function CommentNode({
   onGuestReply: (input: GuestCommentInput) => void | Promise<void>;
   onDelete: (id: string) => void;
   onEdit: (id: string, body: string) => void | Promise<void>;
-  submittingReply: boolean;
 }) {
   const { t } = useTranslation();
   const [replying, setReplying] = useState(false);
+  // Stan wysyłki JEST LOKALNY. Globalne `create.isPending` z rodzica blokowało
+  // przyciski we WSZYSTKICH otwartych odpowiedziach naraz i przerysowywało całe
+  // drzewo - odpowiada ten węzeł, więc i „wysyłam" należy do tego węzła.
+  const [submitting, setSubmitting] = useState(false);
+  const submitReply = async (run: () => Promise<void>) => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      // Okno odpowiedzi zamykamy DOPIERO po sukcesie; błąd zostawia treść.
+      await run();
+      setReplying(false);
+    } finally {
+      setSubmitting(false);
+    }
+  };
   const canReply =
     canReplyToComment(depth, allowReplies) && (currentUserId !== null || guestAllowed);
   return (
@@ -550,23 +628,18 @@ function CommentNode({
           {currentUserId ? (
             <CommentComposer
               lang={lang}
-              submitting={submittingReply}
-              onSubmit={async (body) => {
-                // Zamykamy odpowiedź DOPIERO po sukcesie; błąd zostawia okno i treść.
-                await onReply(body, node.comment.id);
-                setReplying(false);
-              }}
+              submitting={submitting}
+              onSubmit={(body) =>
+                submitReply(() => Promise.resolve(onReply(body, node.comment.id)))
+              }
               onCancel={() => setReplying(false)}
             />
           ) : (
             <GuestCommentComposer
               lang={lang}
-              submitting={submittingReply}
+              submitting={submitting}
               parentId={node.comment.id}
-              onSubmit={async (input) => {
-                await onGuestReply(input);
-                setReplying(false);
-              }}
+              onSubmit={(input) => submitReply(() => Promise.resolve(onGuestReply(input)))}
               onCancel={() => setReplying(false)}
             />
           )}
@@ -603,7 +676,6 @@ function CommentNode({
                   onGuestReply={onGuestReply}
                   onDelete={onDelete}
                   onEdit={onEdit}
-                  submittingReply={submittingReply}
                 />
               ))}
             </Discussion>
@@ -612,7 +684,9 @@ function CommentNode({
       )}
     </DiscussionItem>
   );
-}
+});
+
+CommentNode.displayName = "CommentNode";
 
 function CommentItem({
   c,

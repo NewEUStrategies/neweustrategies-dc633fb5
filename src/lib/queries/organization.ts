@@ -10,13 +10,24 @@
 // Listę wpisów ta trasa bierze z `archives.ts` bez zmian - `post_categories` to
 // ten sam pivot, a wyszukanie termu filtruje wyłącznie po slugu.
 //
-// ORGANIZACJA TO WIERSZ `categories` Z `kind = 'organization'`. Filtr po `kind`
-// jest tu ISTOTNY, a nie kosmetyczny: bez niego `/organization/gospodarka`
-// otwierałoby profil zwykłej kategorii treści i dublowało archiwum pod drugim
-// adresem.
+// DWA BYTY POD JEDNYM ADRESEM - ŚWIADOMIE. Trasa obsługuje dwa różne źródła,
+// bo w serwisie istnieją dwa różne pojęcia „organizacji":
+//   * TERM TAKSONOMII (`categories` z `kind = 'organization'`): NATO, UE, ONZ -
+//     to nimi tagowane są publikacje, więc profil ma sekcję treści;
+//   * FIRMA Z KARTOTEKI (`crm_companies`, slug `org-<uuid>`): pracodawca
+//     wpisany w profilu osoby i cel @wzmianki firmy - ma logo, branżę i stronę,
+//     ale nie ma powiązanych publikacji.
+// Rozstrzyga sam slug: prefiks `org-` znaczy kartotekę, wszystko inne - term.
+// Rozdzielanie tego na dwie trasy dałoby dwa adresy dla jednego pojęcia
+// „strona organizacji" i zmusiłoby wzmiankę do zgadywania, dokąd prowadzi.
+//
+// Filtr po `kind` przy termie jest ISTOTNY, a nie kosmetyczny: bez niego
+// `/organization/gospodarka` otwierałoby profil zwykłej kategorii treści
+// i dublowało archiwum pod drugim adresem.
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { CompanyBrand } from "@/lib/mentions/useCompanyBrand";
+import { decodeOrganizationMentionSlug } from "@/lib/mentions/mentionTargets";
 
 /** Rozmiar strony listy publikacji na profilu organizacji. Mniejszy niż pełne
  *  archiwum - profil to wizytówka, a nie katalog całego dorobku. */
@@ -149,6 +160,36 @@ export const organizationQueryOptions = (slug: string, lang: "pl" | "en") =>
     queryKey: ["public", "organization", slug, lang] as const,
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<OrganizationData | null> => {
+      // FIRMA Z KARTOTEKI. Slug niesie stabilny identyfikator rekordu, więc
+      // pytamy publiczny RPC wzmianek - ten sam, którym rozwiązuje się dymek.
+      if (decodeOrganizationMentionSlug(slug) !== null) {
+        const { data, error } = await supabase.rpc("get_mention_target", { _slug: slug });
+        if (error) throw error;
+        const row = (data ?? [])[0];
+        if (row === undefined || row.kind !== "organization") return null;
+        const name = clean(row.label) ?? slug;
+        return {
+          term: {
+            id: row.id as string,
+            slug,
+            name_pl: name,
+            name_en: name,
+            description_pl: null,
+            description_en: null,
+            logo_url: clean(row.logo_url),
+            color: null,
+          },
+          // Kartoteka oddała już markę w tym samym wierszu - drugie zapytanie
+          // o to samo byłoby marnotrawstwem.
+          brand: {
+            name,
+            logoUrl: clean(row.logo_url),
+            website: clean(row.website),
+            branch: clean(row.subtitle),
+          },
+        };
+      }
+
       const { data, error } = await supabase
         .from("categories")
         .select(TERM_COLS)

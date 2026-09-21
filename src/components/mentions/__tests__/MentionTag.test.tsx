@@ -87,11 +87,12 @@ function person(over: Partial<MentionPerson> = {}): MentionPerson {
 function org(over: Partial<MentionOrg> = {}): MentionOrg {
   return {
     kind: "org",
-    slug: "acme",
-    id: "org-1",
+    slug: "org-00000000-0000-4000-8000-000000000001",
+    id: "00000000-0000-4000-8000-000000000001",
     name: "ACME Polska",
     logoUrl: null,
     description: null,
+    website: null,
     ...over,
   };
 }
@@ -286,9 +287,16 @@ describe("MentionTag - firma", () => {
   });
 
   it("organizacja nie dostaje firmy - to ona JEST firmą", () => {
-    render(<MentionTag slug="acme" entity={org()} lang="pl" labels={LABELS} />);
+    render(
+      <MentionTag
+        slug="org-00000000-0000-4000-8000-000000000001"
+        entity={org()}
+        lang="pl"
+        labels={LABELS}
+      />,
+    );
 
-    expect(orgTagFor("acme").textContent).toBe("ACME Polska");
+    expect(orgTagFor("org-00000000-0000-4000-8000-000000000001").textContent).toBe("ACME Polska");
   });
 });
 
@@ -312,12 +320,19 @@ describe("MentionTag - osoba kontra organizacja", () => {
   });
 
   it("organizacja niesie `data-mention-org` i prowadzi na stronę organizacji", () => {
-    // Organizacja NIE jest autorem - `/author/acme` byłoby 404 przy wzmiance,
+    // Organizacja NIE jest autorem - `/author/<slug>` byłoby 404 przy wzmiance,
     // która w treści wygląda dokładnie tak samo jak wzmianka człowieka.
-    render(<MentionTag slug="acme" entity={org()} lang="pl" labels={LABELS} />);
-    const link = orgTagFor("acme");
+    render(
+      <MentionTag
+        slug="org-00000000-0000-4000-8000-000000000001"
+        entity={org()}
+        lang="pl"
+        labels={LABELS}
+      />,
+    );
+    const link = orgTagFor("org-00000000-0000-4000-8000-000000000001");
 
-    expect(link).toHaveAttribute("href", "/organization/acme");
+    expect(link).toHaveAttribute("href", "/organization/org-00000000-0000-4000-8000-000000000001");
     expect(link).not.toHaveAttribute("data-mention");
     expect(link.querySelector("[data-mention-avatar]")).not.toBeNull();
   });
@@ -325,19 +340,19 @@ describe("MentionTag - osoba kontra organizacja", () => {
   it("dymek organizacji pokazuje KARTĘ ORGANIZACJI, nie kartę osoby", async () => {
     render(
       <MentionTag
-        slug="acme"
+        slug="org-00000000-0000-4000-8000-000000000001"
         entity={org({ description: "Operator sieci." })}
         lang="pl"
         labels={LABELS}
       />,
     );
-    const card = await openCard(orgTagFor("acme"));
+    const card = await openCard(orgTagFor("org-00000000-0000-4000-8000-000000000001"));
 
     expect(within(card).getByText("ACME Polska")).toBeInTheDocument();
     expect(within(card).getByText("Operator sieci.")).toBeInTheDocument();
     expect(within(card).getByRole("link", { name: LABELS.viewOrg })).toHaveAttribute(
       "href",
-      "/organization/acme",
+      "/organization/org-00000000-0000-4000-8000-000000000001",
     );
     expect(within(card).queryByText(LABELS.viewProfile)).toBeNull();
     // Katalog ma już wszystko - dymek organizacji NIE dociąga profilu osoby.

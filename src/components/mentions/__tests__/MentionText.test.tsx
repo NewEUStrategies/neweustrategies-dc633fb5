@@ -30,12 +30,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import type { MentionProfilePreview } from "@/lib/mentions/useMentionProfile";
+import type { MentionEntity } from "@/lib/mentions/directory";
 
 /** Stan atrap: język UI i to, co „zwraca" leniwy dymek. */
 const state = vi.hoisted(() => ({
   lang: "pl",
   profile: { data: null as MentionProfilePreview | null, isPending: false },
   profileCalls: [] as Array<{ slug: string | null; lang: string; enabled: boolean }>,
+  /** Co „zna" katalog powierzchni - `null` znaczy brak dostawcy. */
+  entity: null as MentionEntity | null,
 }));
 
 vi.mock("react-i18next", async () =>
@@ -48,6 +51,9 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
   Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
 }));
 vi.mock("@/lib/i18n-mentions", () => ({ ensureI18n: () => undefined }));
+vi.mock("@/components/mentions/MentionDirectory", () => ({
+  useMentionEntity: () => state.entity,
+}));
 vi.mock("@/lib/mentions/useMentionProfile", () => ({
   useMentionProfile: (slug: string | null, lang: string, enabled: boolean) => {
     state.profileCalls.push({ slug, lang, enabled });
@@ -61,6 +67,7 @@ beforeEach(() => {
   state.lang = "pl";
   state.profile = { data: null, isPending: false };
   state.profileCalls = [];
+  state.entity = null;
 });
 
 /** Wyzwalacz wzmianki o danym slugu - jedyny stabilny uchwyt w drzewie. */
@@ -187,11 +194,14 @@ describe("MentionText - dymek powierzchni komentarzy", () => {
     state.profile = {
       data: {
         kind: "person",
+        id: "person-1",
         slug: "alice",
         name: "Alice Kowalska",
         avatarUrl: null,
+        logoUrl: null,
         jobTitle: null,
         company: null,
+        website: null,
         bio: null,
         verified: false,
       },
@@ -222,5 +232,51 @@ describe("MentionText - dymek powierzchni komentarzy", () => {
     const enabled = state.profileCalls.filter((call) => call.enabled);
     expect(enabled.length).toBeGreaterThan(0);
     expect(enabled.every((call) => call.lang === expected)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Wzmianka firmy: ten sam zapis w treści, inny cel
+// ---------------------------------------------------------------------------
+
+describe("MentionText - wzmianka firmy", () => {
+  const ACME: MentionEntity = {
+    kind: "org",
+    slug: "org-123e4567-e89b-12d3-a456-426614174000",
+    id: "123e4567-e89b-12d3-a456-426614174000",
+    name: "ACME Polska",
+    logoUrl: null,
+    description: "Energetyka",
+    website: null,
+  };
+
+  it("firma NIE jest autorem - prowadzi na profil organizacji, nie do /author", () => {
+    state.entity = ACME;
+
+    const { container } = render(
+      <MentionText body="cc @org-123e4567-e89b-12d3-a456-426614174000" />,
+    );
+
+    // Cel osoby byłby tu 404: slug firmy nie istnieje w przestrzeni profili.
+    expect(
+      container.querySelector('a[data-mention="org-123e4567-e89b-12d3-a456-426614174000"]'),
+    ).toBeNull();
+    const link = container.querySelector<HTMLElement>("a[data-mention-org]");
+    expect(link?.getAttribute("data-mention-org")).toBe("org-123e4567-e89b-12d3-a456-426614174000");
+    expect(link?.getAttribute("href")).toBe(
+      "/organization/org-123e4567-e89b-12d3-a456-426614174000",
+    );
+  });
+
+  it("etykietą jest NAZWA firmy, nigdy identyfikator ze sluga", () => {
+    state.entity = ACME;
+
+    const { container } = render(
+      <MentionText body="cc @org-123e4567-e89b-12d3-a456-426614174000" />,
+    );
+
+    expect(container.textContent).toContain("ACME Polska");
+    expect(container.textContent).not.toContain("org-123e4567");
+    expect(container.textContent).not.toContain("@");
   });
 });

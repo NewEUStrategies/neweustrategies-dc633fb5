@@ -52,11 +52,12 @@ const ANNA: MentionEntity = {
 
 const ACME: MentionEntity = {
   kind: "org",
-  slug: "acme",
-  id: "org-1",
+  slug: "org-00000000-0000-4000-8000-000000000001",
+  id: "00000000-0000-4000-8000-000000000001",
   name: "ACME Polska",
   logoUrl: null,
   description: null,
+  website: null,
 };
 
 /** Dostawca z podstawioną mapą - powierzchnia „już rozwiązała" te slugi. */

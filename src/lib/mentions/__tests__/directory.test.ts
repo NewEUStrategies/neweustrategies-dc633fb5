@@ -135,61 +135,72 @@ describe("personFromRow", () => {
 });
 
 describe("orgFromRow", () => {
+  // Wiersz w kształcie, jaki oddaje publiczny RPC wzmianek: kartoteka firm nie
+  // ma wariantów językowych nazwy, więc nie ma tu czego wybierać po języku.
   const row = {
-    id: "org-1",
-    slug: "nato",
-    name_pl: "NATO",
-    name_en: "NATO",
-    description_pl: "Sojusz",
-    description_en: "Alliance",
+    kind: "organization",
+    id: "00000000-0000-4000-8000-000000000001",
+    slug: "org-00000000-0000-4000-8000-000000000001",
+    label: "ACME Polska",
+    subtitle: "Energetyka",
     logo_url: "https://x/l.png",
+    website: "https://acme.example",
   };
 
-  it("mapuje organizację z wariantem językowym", () => {
-    expect(orgFromRow(row, "en")).toEqual({
+  it("mapuje firmę z kartoteki", () => {
+    expect(orgFromRow(row)).toEqual({
       kind: "org",
-      slug: "nato",
-      id: "org-1",
-      name: "NATO",
+      slug: "org-00000000-0000-4000-8000-000000000001",
+      id: "00000000-0000-4000-8000-000000000001",
+      name: "ACME Polska",
       logoUrl: "https://x/l.png",
-      description: "Alliance",
+      description: "Energetyka",
+      website: "https://acme.example",
     });
   });
 
-  it("brak nazwy w języku UI schodzi na drugi język", () => {
-    expect(orgFromRow({ id: "1", slug: "x", name_pl: "Nazwa" }, "en")?.name).toBe("Nazwa");
+  it("branża jest OPCJONALNA - bez niej opis jest pusty, a nie pustym napisem", () => {
+    expect(orgFromRow({ ...row, subtitle: "   " })?.description).toBeNull();
   });
 
-  it("bez żadnej nazwy schodzi na uczytelniony slug", () => {
-    expect(orgFromRow({ id: "1", slug: "rada-unii" }, "pl")?.name).toBe("Rada Unii");
+  it("bez nazwy schodzi na uczytelniony slug, nigdy na surowy identyfikator", () => {
+    const org = orgFromRow({ id: "abc", slug: "rada-unii" });
+    expect(org?.name).toBe("Rada Unii");
   });
 
   it("wiersz bez id odpada - nie ma dokąd prowadzić", () => {
-    expect(orgFromRow({ slug: "x" }, "pl")).toBeNull();
+    expect(orgFromRow({ slug: "org-1" })).toBeNull();
   });
 
-  it("wiersz bez sluga odpada", () => {
-    expect(orgFromRow({ id: "1" }, "pl")).toBeNull();
+  it("wiersz bez sluga odpada - nie ma czym kluczować katalogu", () => {
+    expect(orgFromRow({ id: "abc" })).toBeNull();
   });
 });
 
 describe("buildDirectory", () => {
-  it("OSOBA MA PIERWSZEŃSTWO przed organizacją o tym samym slugu", () => {
+  it("skleja osoby i firmy w jedną mapę po slugu", () => {
+    const dir = buildDirectory(
+      [{ slug: "anna-nowak", display_name: "Anna Nowak" }],
+      [{ id: "abc", slug: "org-abc", label: "ACME" }],
+      "pl",
+    );
+    expect(dir.get("anna-nowak")?.kind).toBe("person");
+    expect(dir.get("org-abc")?.kind).toBe("org");
+  });
+
+  it("PREFIKS ZNOSI RYZYKO KOLIZJI - slug firmy nie zderzy się ze slugiem osoby", () => {
     const dir = buildDirectory(
       [{ slug: "acme", display_name: "Acme Człowiek" }],
-      [{ id: "1", slug: "acme", name_pl: "ACME sp. z o.o." }],
+      [{ id: "abc", slug: "org-abc", label: "ACME sp. z o.o." }],
       "pl",
     );
     expect(dir.get("acme")?.kind).toBe("person");
-  });
-
-  it("organizacja wchodzi, gdy osoby o tym slugu nie ma", () => {
-    const dir = buildDirectory([], [{ id: "1", slug: "nato", name_pl: "NATO" }], "pl");
-    expect(dir.get("nato")?.kind).toBe("org");
+    expect(dir.get("org-abc")?.kind).toBe("org");
+    expect(dir.size).toBe(2);
   });
 
   it("wiersze bez sluga nie trafiają do katalogu", () => {
-    const dir = buildDirectory([{ display_name: "X" }], [{ id: "1" }], "pl");
+    const dir = buildDirectory([{ display_name: "X" }], [{ id: "abc" }], "pl");
     expect(dir.size).toBe(0);
   });
 });

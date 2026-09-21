@@ -125,11 +125,10 @@ import { ClubProse } from "@/components/clubs/atoms/ClubProse";
 
 import { ClubThreadListSkeleton, Shimmer } from "@/components/clubs/atoms/ClubSkeletons";
 import { ClubThreadWorkspace } from "@/components/clubs/organisms/ClubThreadWorkspace";
+import { ClubPageFrame } from "@/components/clubs/organisms/ClubPageFrame";
 import { useClubThreadWorkspace } from "@/lib/clubs/useClubWorkspace";
 import { EMPTY_WORKSPACE_SUMMARY } from "@/lib/clubs/workspaceTypes";
-import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
-import { fetchClubBySlug } from "@/lib/clubs/publicClub";
-import { clubKeys } from "@/lib/clubs/queryKeys";
+import { buildClubHead, clubHeadLoader } from "@/lib/clubs/clubHead";
 import { formatDateTime } from "@/lib/i18n/format";
 import {
   buildClubReplyTree,
@@ -207,15 +206,10 @@ export const Route = createFileRoute("/club/$clubSlug/t/$threadSlug")({
   // ją zaraz przeczyta, więc to nie jest dodatkowy round-trip) i zwraca z niej
   // MINIMUM. Awaria backendu kończy się `null`, czyli `noindex` - trasa nadal
   // się renderuje (doktryna odporności publicznych tras).
-  loader: async ({ context, params }) => {
-    const club = await context.queryClient
-      .ensureQueryData({
-        queryKey: clubKeys.bySlug(params.clubSlug),
-        queryFn: () => fetchClubBySlug(params.clubSlug),
-      })
-      .catch(() => null);
-    return { club: toClubHeadSource(club) };
-  },
+  // Kartę klubu czyta RAZ loader UKŁADU `/club/$clubSlug`; tutaj zostaje sam
+  // odczyt z cache'u na potrzeby nagłówka - zero round-tripów (F09).
+  loader: ({ context, params, parentMatchPromise }) =>
+    clubHeadLoader(context.queryClient, params.clubSlug, parentMatchPromise),
   head: ({ loaderData, params }) =>
     buildClubHead({
       fallbackPath: `/club/${params.clubSlug}/t/${params.threadSlug}`,
@@ -441,9 +435,7 @@ function ClubThreadView() {
           deferred.accept([outcome.id]);
           // Autor wysłał odpowiedź w gałąź, którą sam wcześniej zwinął -
           // zostawienie jej zwiniętej wyglądałoby jak zgubiona wypowiedź.
-          if (replyTo !== null) {
-            setCollapsedBranches((prev) => revealBranch(prev, replyTo));
-          }
+          setCollapsedBranches((prev) => revealBranch(prev, replyTo));
           if (outcome.queued) {
             // Wpis jest widoczny dla autora, ale dla nikogo więcej - dopóki
             // prowadzenie go nie zatwierdzi. Obiecywanie publikacji byłoby więc
@@ -476,23 +468,26 @@ function ClubThreadView() {
     else setReplyTo(null);
   };
 
+  // Wątek NIE jest osobną, pełnoekranową stroną: otwiera się w środkowej
+  // kolumnie klubu, dokładnie tam, gdzie stała lista tematów - szyny klubu
+  // (nawigacja po lewej, kontekst po prawej) zostają na ekranie.
   return (
-    <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-8">
-      <Button asChild variant="ghost" size="sm" className="-ml-2 mb-3 h-8 px-2">
-        <Link to="/club/$clubSlug" params={{ clubSlug }}>
-          <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
-          {pickLocalized(club, "name", lang)}
-        </Link>
-      </Button>
+    // Katalog wzmianek dla CAŁEJ strony wątku: jedno zapytanie rozwiązuje
+    // wszystkie @wzmianki w treści i wszystkich autorów w bylinach. Bez niego
+    // każda wzmianka pytałaby osobno.
+    <MentionDirectoryProvider slugs={mentionSlugs} lang={lang}>
+      <ClubPageFrame club={club} trailingCrumb={thread.title}>
+        <Button asChild variant="ghost" size="sm" className="-ml-2 mb-3 h-8 px-2">
+          <Link to="/club/$clubSlug" params={{ clubSlug }}>
+            <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
+            {pickLocalized(club, "name", lang)}
+          </Link>
+        </Button>
 
-      {/* --- przestrzeń robocza ---
+        {/* --- przestrzeń robocza ---
           Belka zakładek + panele A28. Dyskusja jedzie jako `children`, więc
           renderuje się natychmiast, niezależnie od tego, czy liczniki paneli
           zdążyły dojść. */}
-      {/* Katalog wzmianek dla CAŁEJ strony wątku: jedno zapytanie rozwiązuje
-          wszystkie @wzmianki w treści i wszystkich autorów w bylinach. Bez
-          niego każda wzmianka pytałaby osobno. */}
-      <MentionDirectoryProvider slugs={mentionSlugs} lang={lang}>
         <ClubThreadWorkspace
           threadId={thread.id}
           lang={lang}
@@ -533,25 +528,20 @@ function ClubThreadView() {
                     {t("club.attribution.chatham")}
                   </Badge>
                 ) : null}
-                {/* Obszar tematyczny wątku - ten sam chip co na hubie i w klubie. */}
-                <ClubTopicChip topic={thread.topic} lang={lang} catalog={topicCatalog} size="sm" />
+                {/* Obszar tematyczny wątku - wyraźniejszy chip-label na stronie wątku. */}
+                <ClubTopicChip
+                  topic={thread.topic}
+                  lang={lang}
+                  catalog={topicCatalog}
+                  size="sm"
+                  tone="outline"
+                />
                 {thread.anchor_type !== null ? (
                   <Badge variant="secondary" className="gap-1 text-[10px]">
                     <Link2 className="h-3 w-3" aria-hidden="true" />
                     {t(`club.anchorType.${thread.anchor_type}`)}
                   </Badge>
                 ) : null}
-                <span aria-hidden="true">·</span>
-                <ClubAuthorAvatar
-                  name={author.name}
-                  avatarUrl={author.avatarUrl}
-                  size="sm"
-                  muted={author.kind !== "named"}
-                />
-                <ClubAuthorIdentity author={author} />
-                <span aria-hidden="true">·</span>
-                <time dateTime={thread.created_at}>{formatDateTime(thread.created_at, lang)}</time>
-                {thread.edited_at !== null ? <span>{t("club.edited")}</span> : null}
                 {thread.pinned_at !== null ? (
                   <span className="inline-flex items-center gap-1 text-primary">
                     <Pin className="h-3 w-3" aria-hidden="true" />
@@ -560,7 +550,28 @@ function ClubThreadView() {
                 ) : null}
               </>
             }
-            title={<h1 className="[overflow-wrap:anywhere]">{thread.title}</h1>}
+            title={
+              <h1 className="text-2xl font-bold leading-tight sm:text-3xl [overflow-wrap:anywhere]">
+                {thread.title}
+              </h1>
+            }
+            byline={
+              <>
+                <ClubAuthorAvatar
+                  name={author.name}
+                  avatarUrl={author.avatarUrl}
+                  size="sm"
+                  muted={author.kind !== "named"}
+                />
+                <ClubAuthorIdentity
+                  author={author}
+                  nameClassName="truncate font-semibold text-foreground"
+                />
+                <span aria-hidden="true">·</span>
+                <time dateTime={thread.created_at}>{formatDateTime(thread.created_at, lang)}</time>
+                {thread.edited_at !== null ? <span>{t("club.edited")}</span> : null}
+              </>
+            }
             footer={
               <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border/60 pt-2.5">
                 <ClubReactionBar
@@ -922,8 +933,8 @@ function ClubThreadView() {
             </p>
           )}
         </ClubThreadWorkspace>
-      </MentionDirectoryProvider>
-    </div>
+      </ClubPageFrame>
+    </MentionDirectoryProvider>
   );
 }
 
@@ -1071,7 +1082,7 @@ function ReplyBranch(props: ReplyBranchProps) {
             />
           </div>
         ) : (
-          <ClubProse className="mt-2" size="sm" body={reply.body} clubSlug={clubSlug} />
+          <ClubProse className="mt-2 max-w-none" size="sm" body={reply.body} clubSlug={clubSlug} />
         )}
 
         {/* Pasek zwinięty: przy trzydziestu odpowiedziach sześć pustych
@@ -1165,11 +1176,19 @@ function ReplyBranch(props: ReplyBranchProps) {
 
       {children.length > 0 ? (
         <>
+          {/* Zwijanie gałęzi przez akordeon, a nie przez lokalny stan i zwykły
+              przycisk: stan jest kluczowany po ID odpowiedzi (nowa partia z
+              `useDeferredReplies` nie przestawia go na inną gałąź), Radix sam
+              pilnuje `aria-expanded` i powiązania wyzwalacza z treścią, a
+              licznik mówi o CAŁEJ gałęzi, nie o samych dzieciach bezpośrednich.
+              Domyślnie gałąź jest ROZWINIĘTA - czytelnik wchodzący z
+              powiadomienia ma zobaczyć odpowiedź, a nie przycisk. */}
           <div className="mt-1.5">
             <DiscussionExpand
-              label={t(collapsed.has(reply.id) ? "club.showReplies" : "club.hideReplies", {
-                count: countDescendants(node),
-              })}
+              label={t(
+                collapsed.has(reply.id) ? "club.showNestedReplies" : "club.hideNestedReplies",
+                { count: countDescendants(node) },
+              )}
             />
           </div>
           <DiscussionReplies>

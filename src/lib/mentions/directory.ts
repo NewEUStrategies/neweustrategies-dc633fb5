@@ -28,14 +28,17 @@ export interface MentionPerson {
   verified: boolean;
 }
 
-/** Organizacja (term taksonomii `categories.kind = 'organization'`). */
+/** Firma - bezpieczny wycinek kartoteki CRM, bez notatek i danych kontaktowych. */
 export interface MentionOrg {
   kind: "org";
+  /** Pełny slug wzmianki, czyli `org-<uuid>` - tym linkujemy i tym kluczujemy. */
   slug: string;
   id: string;
   name: string;
   logoUrl: string | null;
+  /** Branża - jedyny opis, jaki kartoteka wystawia publicznie. */
   description: string | null;
+  website: string | null;
 }
 
 export type MentionEntity = MentionPerson | MentionOrg;
@@ -135,30 +138,25 @@ export function personFromRow(
   };
 }
 
-/** Wiersz `categories` (kind = 'organization') -> organizacja. */
-export function orgFromRow(row: Record<string, unknown>, lang: "pl" | "en"): MentionOrg | null {
-  const slug = trimText(row.slug, 64);
+/** Wiersz `get_mention_target` / `search_mention_targets` -> firma. */
+export function orgFromRow(row: Record<string, unknown>): MentionOrg | null {
+  const slug = trimText(row.slug, 128);
   const id = trimText(row.id, 64);
   if (slug === null || id === null) return null;
-  const primary = lang === "en" ? row.name_en : row.name_pl;
-  const secondary = lang === "en" ? row.name_pl : row.name_en;
-  const name = trimText(primary, 120) ?? trimText(secondary, 120) ?? slugToDisplayName(slug);
-  const descPrimary = lang === "en" ? row.description_en : row.description_pl;
-  const descSecondary = lang === "en" ? row.description_pl : row.description_en;
   return {
     kind: "org",
     slug: slug.toLowerCase(),
     id,
-    name,
+    name: trimText(row.label, 120) ?? slugToDisplayName(slug),
     logoUrl: trimText(row.logo_url, 2048),
-    description: trimText(descPrimary, 240) ?? trimText(descSecondary, 240),
+    description: trimText(row.subtitle, 240),
+    website: trimText(row.website, 2048),
   };
 }
 
 /**
- * Buduje katalog z obu zapytań. Osoba ma PIERWSZEŃSTWO: gdy ten sam slug
- * istnieje w `profiles` i w taksonomii, wzmianka dotyczy człowieka - tak samo
- * rozstrzyga `process_mentions`, więc powiadomienie i widok mówią to samo.
+ * Buduje katalog z obu źródeł. Kolizji nie ma z definicji: slug firmy nosi
+ * prefiks `org-`, więc nigdy nie zderzy się ze slugiem profilu.
  */
 export function buildDirectory(
   personRows: readonly Record<string, unknown>[],
@@ -167,7 +165,7 @@ export function buildDirectory(
 ): MentionDirectory {
   const out = new Map<string, MentionEntity>();
   for (const row of orgRows) {
-    const org = orgFromRow(row, lang);
+    const org = orgFromRow(row);
     if (org !== null) out.set(org.slug, org);
   }
   for (const row of personRows) {

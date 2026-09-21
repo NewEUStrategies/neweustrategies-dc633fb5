@@ -336,7 +336,10 @@ describe("ClubPostCard - treść", () => {
       />,
     );
 
-    expect(container.querySelector("p")).toBeNull();
+    // Celujemy w AKAPIT TREŚCI po jego klasach, a nie w „jakikolwiek <p>":
+    // bylina niesie teraz wizytówkę autora, której dymek też jest akapitem, a
+    // pod atrapą Radiksa stoi w DOM-ie bez otwierania.
+    expect(container.querySelector("p.whitespace-pre-wrap")).toBeNull();
     expect(screen.getByTestId("club-post-images")).toBeTruthy();
   });
 });
