@@ -54,6 +54,15 @@ const TYPES_FILE = "src/integrations/supabase/types.ts";
  * migracją: nie ma czego dodać ani przemianować, żeby zniknął. Kolumna po
  * przeniesieniu (`programs.created_by`) jest w typach, więc dług nie wędruje
  * pod nową tabelę.
+ *
+ * 2026-09-21: 31 -> 26 wpisów. Pięć kolumn `web_vitals` z migracji
+ * 20260920121000 (since_nav_ms, navigation_type, device_memory, effective_type,
+ * cold_start) wpisano tu, bo regeneracja `types.ts` wymaga dostępu do bazy.
+ * `types.ts` zostało jednak przegenerowane w tym samym wydaniu i WSZYSTKIE PIĘĆ
+ * kolumn w nim JEST, więc wpisy zrobiły się martwe - dokładnie ta sama droga, co
+ * przy `auth_email_events.tenant_id` tydzień wcześniej. Usunięte zgodnie z własną
+ * instrukcją bramki; razem z nimi znika obejście typów w
+ * `src/routes/api/public/vitals.ts` (przecięcie `TablesInsert<…> & { … }`).
  */
 const BASELINE: readonly string[] = [
   // 2026-09-13: 28 -> 26 wpisów. `auth_email_events.tenant_id` i `email_send_log.tenant_id`
@@ -87,15 +96,6 @@ const BASELINE: readonly string[] = [
   "research_program_members.tenant_id",
   "research_program_partners.tenant_id",
   "research_program_projects.tenant_id",
-  // 2026-09-20: migracja 20260920121000_web_vitals_navigation_context (RUM: kontekst
-  // nawigacji, plan naprawczy CWV wiersz 0.3). Regeneracja types.ts wymaga dostępu do
-  // bazy (`supabase gen types --linked`), którego w tym środowisku nie ma - wpisy do
-  // usunięcia razem z regeneracją (bramka sama zgłosi martwe wpisy).
-  "web_vitals.cold_start",
-  "web_vitals.device_memory",
-  "web_vitals.effective_type",
-  "web_vitals.navigation_type",
-  "web_vitals.since_nav_ms",
 ];
 
 function migrations(): ScannedMigration[] {
