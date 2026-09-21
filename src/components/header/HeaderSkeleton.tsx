@@ -9,13 +9,36 @@
  * `return null` w `Header.tsx` rezerwowała 0 px. Szkielet dostaje więc geometrię
  * z ustawień i składa dokładnie te pasy, które nagłówek naprawdę pokaże.
  *
- * PARYTET SSR/KLIENT. Wysokości to stałe z tego modułu wstawiane inline, a
- * propsy wyprowadzamy z cache'a zapytań, który klient dziedziczy po serwerze
- * (dehydratacja) - pierwszy render po obu stronach daje identyczny HTML.
+ * DLACZEGO RZĘDY LICZYMY Z DOKUMENTU, A NIE STAŁĄ. Do 2026-09-21 mapowanie
+ * ustawień zwracało zawsze `navRows: 1`, czyli JEDEN pas `h-16`. Na artefakcie
+ * produkcyjnym (fixture `first-visit`, 1280 px) szkielet trzymał 101 px wobec
+ * 186 px realnego nagłówka - 85 px niedoboru, które po podmianie szkieletu na
+ * nagłówek spychało całe `<main>` w dół (CLS 0,13 w „first visit pl, cold"
+ * przy progu 0,1). Nagłówek jest dokumentem buildera i siedzi w tych samych
+ * `site_settings`, które szkielet już czyta, więc rezerwę liczymy wprost
+ * z niego (`estimateChromeRowHeights`).
+ *
+ * DLACZEGO OSOBNO MOBILE I DESKTOP. `Header.tsx` renderuje pasek mobilny pod
+ * `lg:hidden`, a header builderowy pod `hidden lg:block`. Jedna wspólna
+ * rezerwa musiałaby być błędna po jednej ze stron progu, więc szkielet
+ * powtarza dokładnie te same bramki.
+ *
+ * PARYTET SSR/KLIENT. Wysokości to stałe z tego modułu (albo liczba z
+ * dokumentu) wstawiane inline, a propsy wyprowadzamy z cache'a zapytań, który
+ * klient dziedziczy po serwerze (dehydratacja) - pierwszy render po obu
+ * stronach daje identyczny HTML.
  */
 import { useQueryClient } from "@tanstack/react-query";
 import { resolveSetting, siteSettingsQueryOptions, type SettingsMap } from "@/lib/useSiteSetting";
 import { resolveActiveTickerConfig } from "@/lib/views/tickerVariants";
+import { estimateChromeRowHeights } from "@/lib/builder/sectionHeightEstimate";
+import {
+  HEADER_MOBILE_BAR_BOX_CLASS,
+  HEADER_MOBILE_BAR_CONTENT_CLASS,
+  HEADER_TICKER_BAND_CLASS,
+  HEADER_TICKER_BORDER_CLASS,
+} from "@/components/header/headerGeometry";
+import type { BuilderDocument } from "@/lib/builder/types";
 import type { AdPageType } from "@/lib/ads/types";
 
 export interface HeaderSkeletonProps {
@@ -25,8 +48,12 @@ export interface HeaderSkeletonProps {
   ticker?: boolean;
   /** Strefa `header_banner` ma aktywny placement reklamowy. */
   adBanner?: boolean;
-  /** Ile rzędów paska nawigacji zajmuje nagłówek (1-3). */
-  navRows?: number;
+  /**
+   * Wysokości (px) kolejnych rzędów headera builderowego - jedna liczba na
+   * sekcję dokumentu, w kolejności renderu. Widoczne dopiero od `lg`, tak samo
+   * jak sam header builderowy.
+   */
+  navRows?: readonly number[];
 }
 
 /**
@@ -34,13 +61,19 @@ export interface HeaderSkeletonProps {
  * prawdy dla szkieletu i dla testów geometrii:
  *  - `alertBar` : `py-2` (16) + najwyższe dziecko (przycisk `p-1` + ikona 14 px
  *                 = 22) = 38, zaokrąglone w górę do 40;
- *  - `ticker`   : wewnętrzny pas `h-10` (40) + `border-b` (1) = 41;
+ *  - `ticker`   : wewnętrzny pas `h-10` (2,5 rem = 40 px przy 16 px root)
+ *                 + `border-b` (1) = 41. Szkielet renderuje TĘ SAMĄ klasę
+ *                 (`HEADER_TICKER_BAND_CLASS`), co `TrendingTicker`, więc
+ *                 parytet trzyma się także przy płynnym `root font-size`
+ *                 (repo skaluje go między 1280 a 1920 px, gdzie 1 rem = 15 px);
+ *                 liczba jest tu wartością NOMINALNĄ dla testów;
  *  - `adBanner` : `DEFAULT_RESERVE_HEIGHT.header_banner` (90) - `py-2` mieści
  *                 się w `border-box`, więc nic nie dodajemy;
- *  - `navRow`   : `h-16` (64) - tyle ma mobilny pasek (`py-3` + `h-10`) i tyle
- *                 rezerwował dotychczasowy szkielet.
- * Przeszacowanie jest dopuszczalne (pusty pas nic nie przesuwa), niedoszacowanie
- * wraca jako CLS.
+ *  - `navRow`   : awaryjny rząd nagłówka, gdy dokument buildera jest nieznany
+ *                 (`h-16` = 64) - realne rzędy liczy `estimateChromeRowHeights`.
+ * Niedoszacowanie wraca jako CLS, ale przeszacowanie TAK SAMO: szkielet jest
+ * malowany, a potem podmieniany na nagłówek, więc każdy piksel różnicy
+ * przesuwa stronę - w którąkolwiek stronę.
  */
 export const HEADER_SKELETON_BANDS = {
   alertBar: 40,
@@ -48,6 +81,16 @@ export const HEADER_SKELETON_BANDS = {
   adBanner: 90,
   navRow: 64,
 } as const;
+
+/** Najniższy/najwyższy sensowny rząd nagłówka (px) - strażnik śmieci z bazy. */
+export const HEADER_SKELETON_ROW_MIN_PX = 24;
+export const HEADER_SKELETON_ROW_MAX_PX = 240;
+/**
+ * Sufit całej rezerwy rzędów. Nagłówek dłuższy niż ~2 ekrany telefonu to albo
+ * błąd w danych, albo dokument, którego i tak nie da się sensownie zgadnąć -
+ * pusty ekran kosztuje wtedy więcej niż przesunięcie.
+ */
+export const HEADER_SKELETON_NAV_MAX_PX = 400;
 
 /**
  * Wariant używany, gdy o ustawieniach nie wiadomo NIC (pusty cache, zawieszona
@@ -57,7 +100,7 @@ export const HEADER_SKELETON_DEFAULT_PROPS: Required<HeaderSkeletonProps> = {
   alertBar: false,
   ticker: true,
   adBanner: false,
-  navRows: 1,
+  navRows: [HEADER_SKELETON_BANDS.navRow],
 };
 
 /** Klucz zapytania o placementy strefy nagłówka - ten sam, co czyta `<AdZone>`. */
@@ -73,20 +116,42 @@ type AlertBarSettings = {
 
 const hasText = (value: string | undefined): boolean => (value ?? "").trim().length > 0;
 
-/** Ile pikseli rezerwuje szkielet o danej geometrii (kontrakt dla testów). */
+/** Ile pikseli rezerwuje szkielet o danej geometrii NA DESKTOPIE (kontrakt dla testów). */
 export function headerSkeletonHeight(props: HeaderSkeletonProps = {}): number {
   const { alertBar, ticker, adBanner, navRows } = { ...HEADER_SKELETON_DEFAULT_PROPS, ...props };
   return (
     (alertBar ? HEADER_SKELETON_BANDS.alertBar : 0) +
     (ticker ? HEADER_SKELETON_BANDS.ticker : 0) +
     (adBanner ? HEADER_SKELETON_BANDS.adBanner : 0) +
-    clampNavRows(navRows) * HEADER_SKELETON_BANDS.navRow
+    clampNavRows(navRows).reduce((total, row) => total + row, 0)
   );
 }
 
-function clampNavRows(navRows: number): number {
-  return Math.max(1, Math.min(3, Math.round(navRows) || 1));
+/**
+ * Rzędy nagłówka przycięte do sensownych widełek. Pusta lista (brak dokumentu,
+ * same ukryte sekcje) schodzi do jednego awaryjnego rzędu - zero rezerwy to
+ * najgorszy możliwy wynik, bo wtedy cały nagłówek doskakuje po hydratacji.
+ */
+export function clampNavRows(navRows: readonly number[] | undefined): number[] {
+  const rows: number[] = [];
+  let total = 0;
+  for (const raw of Array.isArray(navRows) ? navRows : []) {
+    if (!Number.isFinite(raw) || raw <= 0) continue;
+    const row = Math.min(
+      HEADER_SKELETON_ROW_MAX_PX,
+      Math.max(HEADER_SKELETON_ROW_MIN_PX, Math.round(raw)),
+    );
+    if (total + row > HEADER_SKELETON_NAV_MAX_PX) break;
+    rows.push(row);
+    total += row;
+  }
+  return rows.length > 0 ? rows : [HEADER_SKELETON_BANDS.navRow];
 }
+
+type HeaderChromeSettings = {
+  trending?: unknown;
+  builder_data?: BuilderDocument | null;
+};
 
 /**
  * Czysta funkcja: mapa ustawień -> geometria szkieletu. Bez mapy zwraca wariant
@@ -97,7 +162,7 @@ export function headerSkeletonPropsFromSettings(
   adBanner = false,
 ): Required<HeaderSkeletonProps> {
   if (!settings) return { ...HEADER_SKELETON_DEFAULT_PROPS, adBanner };
-  const header = resolveSetting<{ trending?: unknown }>(settings, "header", {});
+  const header = resolveSetting<HeaderChromeSettings>(settings, "header", {});
   const theme = resolveSetting<AlertBarSettings>(settings, "theme_options", {});
   const bar = theme.header?.alert_bar;
   return {
@@ -105,7 +170,9 @@ export function headerSkeletonPropsFromSettings(
     alertBar: Boolean(bar?.enabled) && (hasText(bar?.message_pl) || hasText(bar?.message_en)),
     ticker: resolveActiveTickerConfig(header.trending).enabled !== false,
     adBanner,
-    navRows: 1,
+    // Ten sam dokument, który `HeaderInner` podaje `BuilderRenderer`owi - więc
+    // rezerwa i realny nagłówek mają JEDNO źródło geometrii.
+    navRows: clampNavRows(estimateChromeRowHeights(header.builder_data)),
   };
 }
 
@@ -145,10 +212,12 @@ export function HeaderSkeleton({
         />
       )}
       {ticker && (
+        // Bez wysokości inline: ten sam `h-10` + `border-b`, co pudełko paska
+        // „na czasie", więc oba boksy skalują się identycznie z `root
+        // font-size`.
         <div
           data-skeleton-band="ticker"
-          className="w-full border-b border-border bg-muted/40"
-          style={{ height: HEADER_SKELETON_BANDS.ticker }}
+          className={`w-full border-border bg-muted/40 ${HEADER_TICKER_BORDER_CLASS} ${HEADER_TICKER_BAND_CLASS}`}
         />
       )}
       {adBanner && (
@@ -158,11 +227,20 @@ export function HeaderSkeleton({
           style={{ height: HEADER_SKELETON_BANDS.adBanner }}
         />
       )}
-      {Array.from({ length: rows }, (_, row) => (
+      {/* Pasek mobilny - te same klasy pudełka, co `Header.tsx` pod `lg:hidden`. */}
+      <div data-skeleton-band="nav-mobile" className={`lg:hidden ${HEADER_MOBILE_BAR_BOX_CLASS}`}>
+        <div className={`${HEADER_MOBILE_BAR_CONTENT_CLASS} flex items-center justify-between`}>
+          <div className="h-7 w-32 rounded-md bg-muted animate-pulse" />
+          <div className="h-8 w-8 rounded-md bg-muted animate-pulse" />
+        </div>
+      </div>
+      {/* Header builderowy - widoczny od `lg`, dokładnie jak w `Header.tsx`. */}
+      {rows.map((height, row) => (
         <div
           key={row}
           data-skeleton-band="nav"
-          className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4"
+          className="hidden lg:flex mx-auto max-w-7xl items-center justify-between px-4"
+          style={{ height }}
         >
           <div className="h-7 w-32 rounded-md bg-muted animate-pulse" />
           <nav className="hidden items-center gap-6 md:flex">
