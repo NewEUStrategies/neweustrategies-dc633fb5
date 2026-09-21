@@ -129,6 +129,7 @@ import { Route as CheckoutCancelRouteImport } from './routes/checkout.cancel'
 import { Route as CheckoutPlanIdRouteImport } from './routes/checkout.$planId'
 import { Route as CategorySlugRouteImport } from './routes/category.$slug'
 import { Route as AuthorSlugRouteImport } from './routes/author.$slug'
+import { Route as OrganizationSlugRouteImport } from './routes/organization.$slug'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as AuthActivateRouteImport } from './routes/auth.activate'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
@@ -1006,6 +1007,11 @@ const CategorySlugRoute = CategorySlugRouteImport.update({
 const AuthorSlugRoute = AuthorSlugRouteImport.update({
   id: '/author/$slug',
   path: '/author/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrganizationSlugRoute = OrganizationSlugRouteImport.update({
+  id: '/organization/$slug',
+  path: '/organization/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthCallbackRoute = AuthCallbackRouteImport.update({
@@ -2593,6 +2599,7 @@ export interface FileRoutesByFullPath {
   '/auth/activate': typeof AuthActivateRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/author/$slug': typeof AuthorSlugRoute
+  '/organization/$slug': typeof OrganizationSlugRoute
   '/category/$slug': typeof CategorySlugRouteWithChildren
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
@@ -2974,6 +2981,7 @@ export interface FileRoutesByTo {
   '/auth/activate': typeof AuthActivateRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/author/$slug': typeof AuthorSlugRoute
+  '/organization/$slug': typeof OrganizationSlugRoute
   '/category/$slug': typeof CategorySlugRouteWithChildren
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
@@ -3366,6 +3374,7 @@ export interface FileRoutesById {
   '/auth/activate': typeof AuthActivateRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/author/$slug': typeof AuthorSlugRoute
+  '/organization/$slug': typeof OrganizationSlugRoute
   '/category/$slug': typeof CategorySlugRouteWithChildren
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
@@ -3763,6 +3772,7 @@ export interface FileRouteTypes {
     | '/auth/activate'
     | '/auth/callback'
     | '/author/$slug'
+    | '/organization/$slug'
     | '/category/$slug'
     | '/checkout/$planId'
     | '/checkout/cancel'
@@ -4144,6 +4154,7 @@ export interface FileRouteTypes {
     | '/auth/activate'
     | '/auth/callback'
     | '/author/$slug'
+    | '/organization/$slug'
     | '/category/$slug'
     | '/checkout/$planId'
     | '/checkout/cancel'
@@ -4535,6 +4546,7 @@ export interface FileRouteTypes {
     | '/auth/activate'
     | '/auth/callback'
     | '/author/$slug'
+    | '/organization/$slug'
     | '/category/$slug'
     | '/checkout/$planId'
     | '/checkout/cancel'
@@ -4858,6 +4870,7 @@ export interface RootRouteChildren {
   AuthActivateRoute: typeof AuthActivateRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   AuthorSlugRoute: typeof AuthorSlugRoute
+  OrganizationSlugRoute: typeof OrganizationSlugRoute
   CategorySlugRoute: typeof CategorySlugRouteWithChildren
   CheckoutPlanIdRoute: typeof CheckoutPlanIdRoute
   CheckoutCancelRoute: typeof CheckoutCancelRoute
@@ -5763,6 +5776,13 @@ declare module '@tanstack/react-router' {
       path: '/author/$slug'
       fullPath: '/author/$slug'
       preLoaderRoute: typeof AuthorSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/organization/$slug': {
+      id: '/organization/$slug'
+      path: '/organization/$slug'
+      fullPath: '/organization/$slug'
+      preLoaderRoute: typeof OrganizationSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/callback': {
@@ -8580,6 +8600,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthActivateRoute: AuthActivateRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   AuthorSlugRoute: AuthorSlugRoute,
+  OrganizationSlugRoute: OrganizationSlugRoute,
   CategorySlugRoute: CategorySlugRouteWithChildren,
   CheckoutPlanIdRoute: CheckoutPlanIdRoute,
   CheckoutCancelRoute: CheckoutCancelRoute,

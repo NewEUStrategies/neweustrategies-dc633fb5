@@ -150,6 +150,17 @@ export type ArchiveSort = "newest" | "oldest" | "popular";
 export interface TaxonomyMeta {
   id: string;
   slug: string;
+  /**
+   * Rodzaj termu (`categories.kind`; dla tagów zawsze `"tag"`).
+   *
+   * PO CO TU JEST. Część termów to ORGANIZACJE, które mają własną, kanoniczną
+   * stronę (`/organization/<slug>`). Archiwum pod `/category/<slug>` renderuje
+   * się dla nich dalej - zastane linki nie mogą paść - ale musi wskazywać ten
+   * kanoniczny adres, inaczej wyszukiwarka indeksuje dwie strony tego samego
+   * bytu. `head()` trasy kategorii nie ma skąd wziąć tej informacji poza tym
+   * polem, bo dostaje wyłącznie dane loadera.
+   */
+  kind: string;
   name_pl: string;
   name_en: string;
   description_pl: string | null;
@@ -239,6 +250,7 @@ async function fetchTaxonomyArchive(
   let taxRow: {
     id: string;
     slug: string;
+    kind: string;
     name_pl: string;
     name_en: string;
     description_pl: string | null;
@@ -249,7 +261,9 @@ async function fetchTaxonomyArchive(
   if (kind === "category") {
     const { data: tax, error: taxError } = await supabase
       .from("categories")
-      .select("id, slug, name_pl, name_en, description_pl, description_en, featured_template_id")
+      .select(
+        "id, slug, kind, name_pl, name_en, description_pl, description_en, featured_template_id",
+      )
       .eq("slug", slug)
       .maybeSingle();
     if (taxError) throw taxError;
@@ -257,6 +271,7 @@ async function fetchTaxonomyArchive(
     taxRow = {
       id: tax.id as string,
       slug: tax.slug as string,
+      kind: (tax.kind as string | null) ?? "category",
       name_pl: tax.name_pl as string,
       name_en: tax.name_en as string,
       description_pl: (tax.description_pl as string | null) ?? null,
@@ -275,6 +290,7 @@ async function fetchTaxonomyArchive(
     taxRow = {
       id: tax.id as string,
       slug: tax.slug as string,
+      kind: "tag",
       name_pl: name,
       name_en: name,
       description_pl: null,
@@ -301,6 +317,7 @@ async function fetchTaxonomyArchive(
     taxonomy: {
       id: taxRow.id,
       slug: taxRow.slug,
+      kind: taxRow.kind,
       name_pl: taxRow.name_pl,
       name_en: taxRow.name_en,
       description_pl: taxRow.description_pl ?? null,

@@ -439,9 +439,16 @@ describe("nagłówek dokumentu - to, co widzi robot", () => {
     expect(scripts).toHaveLength(2);
     expect(scripts.every((script) => script.type === "application/ld+json")).toBe(true);
     // Sam FAKT istnienia węzła nic nie daje - okruszki działają wtedy, gdy są
-    // DRABINĄ: pozycje po kolei od strony głównej, a ostatni szczebel (strona
-    // bieżąca) BEZ `item`, bo odnośnik do samego siebie w wyniku wyszukiwania
-    // Google odrzuca razem z całym węzłem.
+    // DRABINĄ: pozycje po kolei od strony głównej, KAŻDA z własnym `item`.
+    //
+    // ODWRÓCENIE KONTRAKTU. Ten przypadek żądał wcześniej ostatniego szczebla
+    // BEZ `item` (rzekomo Google odrzuca odnośnik do samego siebie razem z
+    // całym węzłem). `breadcrumbListJsonLd` (`src/lib/seo/jsonld.ts`, „NAPRAWA
+    // 2026-09-21") odwrócił tę decyzję na podstawie ZGŁOSZENIA Search Console
+    // („Brakujące pole item w itemListElement") na dwunastu archiwach - i to
+    // ono jest źródłem prawdy, bo pochodzi z pomiaru, a nie z pamięci.
+    // Asercja jest tu MOCNIEJSZA niż poprzednia: nie „brak pola", tylko
+    // DOKŁADNY adres, którym ostatni szczebel ma się przedstawiać.
     const okruszki = jsonLd(scripts, "BreadcrumbList").itemListElement;
     expect(okruszki).toEqual([
       {
@@ -450,7 +457,7 @@ describe("nagłówek dokumentu - to, co widzi robot", () => {
         name: "Start",
         item: "https://nes.eu/",
       },
-      { "@type": "ListItem", position: 2, name: "Wydarzenia" },
+      { "@type": "ListItem", position: 2, name: "Wydarzenia", item: "https://nes.eu/events" },
     ]);
   });
 
@@ -503,7 +510,7 @@ describe("nagłówek dokumentu - to, co widzi robot", () => {
     expect(scripts).toHaveLength(1);
     expect(jsonLd(scripts, "BreadcrumbList").itemListElement).toEqual([
       { "@type": "ListItem", position: 1, name: "Start", item: "https://nes.eu/" },
-      { "@type": "ListItem", position: 2, name: "Wydarzenia" },
+      { "@type": "ListItem", position: 2, name: "Wydarzenia", item: "https://nes.eu/events" },
     ]);
   });
 

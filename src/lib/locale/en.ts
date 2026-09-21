@@ -2246,6 +2246,10 @@ export const en = {
     guestBadge: "guest",
     guestName: "Your name or nickname",
     loadMore: "Load more comments",
+    showReplies_one: "Show {{count}} reply",
+    showReplies_other: "Show {{count}} replies",
+    hideReplies_one: "Hide {{count}} reply",
+    hideReplies_other: "Hide {{count}} replies",
     toolbar: {
       bold: "Bold",
       italic: "Italic",

@@ -774,10 +774,13 @@ describe("trasa /tracker/$slug - nagłówek dokumentu i dane strukturalne", () =
       "BreadcrumbList",
     );
 
-    // OSTATNI okruszek NIE ma adresu - to strona bieżąca, a link do samej
-    // siebie w grafie jest szumem. Dowód idzie więc po kształcie listy, nie po
-    // wyszukaniu sluga w stringu (tamta asercja przechodziłaby na `url` węzła
-    // Legislation, czyli na czymś zupełnie innym).
+    // KAŻDY okruszek ma adres, także OSTATNI (strona bieżąca). Ten przypadek
+    // wymagał wcześniej odwrotnie - „link do samej siebie jest szumem" - ale
+    // `breadcrumbListJsonLd` (`src/lib/seo/jsonld.ts`, „NAPRAWA 2026-09-21")
+    // odwrócił decyzję po ZGŁOSZENIU Search Console o brakującym polu `item`.
+    // Dowód idzie po kształcie listy i po DOKŁADNYM adresie ostatniego
+    // szczebla, a nie po wyszukaniu sluga w stringu (tamta asercja
+    // przechodziłaby na `url` węzła Legislation, czyli na czymś innym).
     const elements = breadcrumbs.itemListElement;
     expect(Array.isArray(elements)).toBe(true);
     const list = elements as Record<string, unknown>[];
@@ -787,7 +790,7 @@ describe("trasa /tracker/$slug - nagłówek dokumentu i dane strukturalne", () =
       "Akt o rynkach danych",
     ]);
     expect(list[1].item).toBe("https://nes.example.org/tracker");
-    expect(list[2]).not.toHaveProperty("item");
+    expect(list[2].item).toBe(`https://nes.example.org/tracker/${SLUG}`);
   });
 });
 

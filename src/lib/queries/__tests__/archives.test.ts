@@ -399,7 +399,7 @@ describe("archiwum kategorii: kształt zapytań", () => {
     const wynik = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
     const kat = lancuch("categories");
     expect(kat.argsOf("select")?.[0]).toBe(
-      "id, slug, name_pl, name_en, description_pl, description_en, featured_template_id",
+      "id, slug, kind, name_pl, name_en, description_pl, description_en, featured_template_id",
     );
     expect(kat.argsOf("eq")).toEqual(["slug", "analizy"]);
     expect(kat.has("maybeSingle")).toBe(true);

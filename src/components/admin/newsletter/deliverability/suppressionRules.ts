@@ -1,3 +1,11 @@
+// Reguły listy wykluczeń: filtrowanie, limit, eksport CSV i walidacja adresu.
+//
+// DLACZEGO `suppressionRules`, A NIE `suppressionTable`. Obok stoi komponent
+// `SuppressionTable.tsx`. Dwie nazwy różniące się WYŁĄCZNIE wielkością liter
+// rozjeżdżają się między systemami plików: na macOS `./SuppressionTable`
+// rozwiązywało się do TEGO pliku, który komponentu nie eksportuje, i build
+// padał na `"SuppressionTable" is not exported`. Rozdzielenie nazw usuwa
+// dwuznaczność u źródła, zamiast liczyć na to, że rozwiązywanie trafi dobrze.
 // Reguły listy wykluczeń - warstwa CZYSTA.
 //
 // Lista wykluczeń jest hamulcem bezpieczeństwa wysyłki: adres, który tu trafia,

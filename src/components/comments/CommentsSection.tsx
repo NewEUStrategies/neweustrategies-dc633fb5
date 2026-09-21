@@ -33,6 +33,15 @@ import {
 } from "@/lib/comments/api";
 import { createGuestComment } from "@/lib/comments/guest.functions";
 import { buildCommentTree, canReplyToComment, type CommentTreeNode } from "@/lib/comments/tree";
+import {
+  Discussion,
+  DiscussionExpand,
+  DiscussionItem,
+  DiscussionReplies,
+} from "@/components/ui/discussion";
+import { MentionDirectoryProvider } from "@/components/mentions/MentionDirectory";
+import { collectMentionSlugs } from "@/lib/mentions/directory";
+import { countDescendants, revealBranch, toggleBranch } from "@/lib/discussion/branches";
 import { uiLocale } from "@/lib/i18n/format";
 
 interface Props {
@@ -203,12 +212,19 @@ export function CommentsSection({ postId, lang }: Props) {
   const handleReply = useCallback(
     async (body: string, parentId: string) => {
       await createAsync({ body, parentId });
+      // Odpowiedź wysłana w zwiniętą gałąź musi ją rozwinąć - inaczej autor
+      // nie widzi własnej wypowiedzi.
+      setCollapsedBranches((prev) => revealBranch(prev, parentId));
     },
     [createAsync],
   );
   const handleGuestReply = useCallback(
     async (input: GuestCommentInput) => {
       await guestCreateAsync(input);
+      // Ta sama zasada, co przy odpowiedzi zalogowanego: gdy klub przyjmuje
+      // wpisy gości od ręki, a gość zwinął gałąź przed wysłaniem, jego własna
+      // odpowiedź wpadłaby pod zamknięty akordeon.
+      setCollapsedBranches((prev) => revealBranch(prev, input.parentId ?? null));
     },
     [guestCreateAsync],
   );
@@ -227,6 +243,22 @@ export function CommentsSection({ postId, lang }: Props) {
   );
 
   const tree = useMemo(() => buildCommentTree(data?.comments ?? []), [data]);
+  // Zbiór ZWINIĘTYCH gałęzi - pusty znaczy „wszystko rozwinięte", więc nowy
+  // komentarz jest widoczny bez dopisywania go gdziekolwiek.
+  const [collapsedBranches, setCollapsedBranches] = useState<ReadonlySet<string>>(
+    () => new Set<string>(),
+  );
+  const onBranchToggle = useCallback(
+    (commentId: string, open: boolean) =>
+      setCollapsedBranches((prev) => toggleBranch(prev, commentId, open)),
+    [],
+  );
+  // Wzmianki w komentarzach rozwiązujemy JEDNYM zapytaniem na sekcję: etykietą
+  // wzmianki jest imię i nazwisko, więc profil musi być znany przy renderze.
+  const mentionSlugs = useMemo(
+    () => collectMentionSlugs((data?.comments ?? []).map((c) => c.body)),
+    [data],
+  );
   // Honest server-side count (was: count of fetched rows, lying beyond the window).
   const totalApproved = data?.approvedCount ?? 0;
   // More top-level threads exist beyond the current window.
@@ -237,85 +269,97 @@ export function CommentsSection({ postId, lang }: Props) {
   if (!commentsOpen && totalApproved === 0) return null;
 
   return (
-    <section
-      id="comments"
-      ref={sectionRef}
-      aria-labelledby="comments-heading"
-      className="mt-10 border-t border-border pt-8"
-    >
-      <header className="flex items-center gap-2 mb-6">
-        <MessageCircle className="w-5 h-5 text-muted-foreground" aria-hidden />
-        <h2 id="comments-heading" className="text-xl font-semibold">
-          {t("comments.title", { count: totalApproved })}
-        </h2>
-      </header>
+    <MentionDirectoryProvider slugs={mentionSlugs} lang={lang}>
+      <section
+        id="comments"
+        ref={sectionRef}
+        aria-labelledby="comments-heading"
+        className="mt-10 border-t border-border pt-8"
+      >
+        <header className="flex items-center gap-2 mb-6">
+          <MessageCircle className="w-5 h-5 text-muted-foreground" aria-hidden />
+          <h2 id="comments-heading" className="text-xl font-semibold">
+            {t("comments.title", { count: totalApproved })}
+          </h2>
+        </header>
 
-      {!commentsOpen ? (
-        <p role="note" className="rounded-md bg-muted/50 p-4 text-sm text-muted-foreground">
-          {t("comments.closed")}
-        </p>
-      ) : userId ? (
-        <CommentComposer
-          onSubmit={async (body) => {
-            await create.mutateAsync({ body });
-          }}
-          submitting={create.isPending}
-          lang={lang}
-        />
-      ) : guestsAllowed ? (
-        <GuestCommentComposer
-          onSubmit={async (input) => {
-            await guestCreate.mutateAsync(input);
-          }}
-          submitting={guestCreate.isPending}
-          lang={lang}
-        />
-      ) : (
-        <div className="rounded-md bg-muted/50 p-4 text-sm text-muted-foreground">
-          {t("comments.signInPrompt")}{" "}
-          <Link to="/login" className="underline hover:text-foreground">
-            {t("comments.signInLink")}
-          </Link>
-        </div>
-      )}
-
-      <div className="mt-8 space-y-6">
-        {isLoading ? (
-          <p className="text-sm text-muted-foreground">{t("comments.loading")}</p>
-        ) : tree.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("comments.empty")}</p>
+        {!commentsOpen ? (
+          <p role="note" className="rounded-md bg-muted/50 p-4 text-sm text-muted-foreground">
+            {t("comments.closed")}
+          </p>
+        ) : userId ? (
+          <CommentComposer
+            onSubmit={async (body) => {
+              await create.mutateAsync({ body });
+            }}
+            submitting={create.isPending}
+            lang={lang}
+          />
+        ) : guestsAllowed ? (
+          <GuestCommentComposer
+            onSubmit={async (input) => {
+              await guestCreate.mutateAsync(input);
+            }}
+            submitting={guestCreate.isPending}
+            lang={lang}
+          />
         ) : (
-          tree.map((node) => (
-            <CommentNode
-              key={node.comment.id}
-              node={node}
-              depth={0}
-              currentUserId={userId}
-              lang={lang}
-              allowReplies={commentsOpen}
-              guestAllowed={guestsAllowed}
-              onReply={handleReply}
-              onGuestReply={handleGuestReply}
-              onDelete={handleDelete}
-              onEdit={handleEdit}
-            />
-          ))
-        )}
-        {!isLoading && canLoadMore && (
-          <div className="flex justify-center">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={isFetching}
-              onClick={loadMore}
-            >
-              {isFetching ? t("comments.loading") : t("comments.loadMore")}
-            </Button>
+          <div className="rounded-md bg-muted/50 p-4 text-sm text-muted-foreground">
+            {t("comments.signInPrompt")}{" "}
+            <Link to="/login" className="underline hover:text-foreground">
+              {t("comments.signInLink")}
+            </Link>
           </div>
         )}
-      </div>
-    </section>
+
+        <div className="mt-8 space-y-6">
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">{t("comments.loading")}</p>
+          ) : tree.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t("comments.empty")}</p>
+          ) : (
+            <Discussion
+              element="div"
+              className="space-y-6"
+              siblingIds={tree.map((node) => node.comment.id)}
+              collapsed={collapsedBranches}
+              onToggle={onBranchToggle}
+            >
+              {tree.map((node) => (
+                <CommentNode
+                  key={node.comment.id}
+                  node={node}
+                  depth={0}
+                  collapsed={collapsedBranches}
+                  onBranchToggle={onBranchToggle}
+                  currentUserId={userId}
+                  lang={lang}
+                  allowReplies={commentsOpen}
+                  guestAllowed={guestsAllowed}
+                  onReply={handleReply}
+                  onGuestReply={handleGuestReply}
+                  onDelete={handleDelete}
+                  onEdit={handleEdit}
+                />
+              ))}
+            </Discussion>
+          )}
+          {!isLoading && canLoadMore && (
+            <div className="flex justify-center">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isFetching}
+                onClick={loadMore}
+              >
+                {isFetching ? t("comments.loading") : t("comments.loadMore")}
+              </Button>
+            </div>
+          )}
+        </div>
+      </section>
+    </MentionDirectoryProvider>
   );
 }
 
@@ -524,6 +568,8 @@ function CommentComposer({
 const CommentNode = memo(function CommentNodeImpl({
   node,
   depth,
+  collapsed,
+  onBranchToggle,
   currentUserId,
   lang,
   allowReplies,
@@ -536,6 +582,9 @@ const CommentNode = memo(function CommentNodeImpl({
   node: Node;
   /** 0 = wątek główny; odpowiedzi wchodzą do MAX_COMMENT_DEPTH (rekurencja). */
   depth: number;
+  /** Zbiór ZWINIĘTYCH gałęzi, kluczowany po id komentarza. */
+  collapsed: ReadonlySet<string>;
+  onBranchToggle: (commentId: string, open: boolean) => void;
   currentUserId: string | null;
   lang: "pl" | "en";
   /** False when comments are globally closed - hides the reply affordance. */
@@ -547,6 +596,7 @@ const CommentNode = memo(function CommentNodeImpl({
   onDelete: (id: string) => void;
   onEdit: (id: string, body: string) => void | Promise<void>;
 }) {
+  const { t } = useTranslation();
   const [replying, setReplying] = useState(false);
   // Stan wysyłki JEST LOKALNY. Globalne `create.isPending` z rodzica blokowało
   // przyciski we WSZYSTKICH otwartych odpowiedziach naraz i przerysowywało całe
@@ -566,7 +616,7 @@ const CommentNode = memo(function CommentNodeImpl({
   const canReply =
     canReplyToComment(depth, allowReplies) && (currentUserId !== null || guestAllowed);
   return (
-    <article className="space-y-3">
+    <DiscussionItem element="article" value={node.comment.id} className="space-y-3">
       <CommentItem
         c={node.comment}
         currentUserId={currentUserId}
@@ -600,25 +650,43 @@ const CommentNode = memo(function CommentNodeImpl({
         </div>
       )}
       {node.children.length > 0 && (
-        <div className="ml-6 pl-4 border-l border-border space-y-4">
-          {node.children.map((child) => (
-            <CommentNode
-              key={child.comment.id}
-              node={child}
-              depth={depth + 1}
-              currentUserId={currentUserId}
-              lang={lang}
-              allowReplies={allowReplies}
-              guestAllowed={guestAllowed}
-              onReply={onReply}
-              onGuestReply={onGuestReply}
-              onDelete={onDelete}
-              onEdit={onEdit}
-            />
-          ))}
-        </div>
+        <>
+          <DiscussionExpand
+            label={t(
+              collapsed.has(node.comment.id) ? "comments.showReplies" : "comments.hideReplies",
+              { count: countDescendants(node) },
+            )}
+          />
+          <DiscussionReplies className="ml-4">
+            <Discussion
+              element="div"
+              className="space-y-4"
+              siblingIds={node.children.map((child) => child.comment.id)}
+              collapsed={collapsed}
+              onToggle={onBranchToggle}
+            >
+              {node.children.map((child) => (
+                <CommentNode
+                  key={child.comment.id}
+                  node={child}
+                  depth={depth + 1}
+                  collapsed={collapsed}
+                  onBranchToggle={onBranchToggle}
+                  currentUserId={currentUserId}
+                  lang={lang}
+                  allowReplies={allowReplies}
+                  guestAllowed={guestAllowed}
+                  onReply={onReply}
+                  onGuestReply={onGuestReply}
+                  onDelete={onDelete}
+                  onEdit={onEdit}
+                />
+              ))}
+            </Discussion>
+          </DiscussionReplies>
+        </>
       )}
-    </article>
+    </DiscussionItem>
   );
 });
 

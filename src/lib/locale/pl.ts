@@ -2284,6 +2284,15 @@ export const pl = {
     guestBadge: "gość",
     guestName: "Twoje imię lub pseudonim",
     loadMore: "Załaduj więcej komentarzy",
+    // Przełącznik zwiniętej gałęzi odpowiedzi. Liczba mówi, ILE treści chowa.
+    showReplies_one: "Pokaż {{count}} odpowiedź",
+    showReplies_few: "Pokaż {{count}} odpowiedzi",
+    showReplies_many: "Pokaż {{count}} odpowiedzi",
+    showReplies_other: "Pokaż {{count}} odpowiedzi",
+    hideReplies_one: "Ukryj {{count}} odpowiedź",
+    hideReplies_few: "Ukryj {{count}} odpowiedzi",
+    hideReplies_many: "Ukryj {{count}} odpowiedzi",
+    hideReplies_other: "Ukryj {{count}} odpowiedzi",
     toolbar: {
       bold: "Pogrubienie",
       italic: "Kursywa",

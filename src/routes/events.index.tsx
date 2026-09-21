@@ -186,9 +186,20 @@ function EventsPage() {
 function EventsPageBody({ initialDegraded }: { initialDegraded: boolean }) {
   const { t, i18n } = useTranslation();
   const lang = (i18n.language.startsWith("en") ? "en" : "pl") as "pl" | "en";
-  const options = publicEventsQueryOptions();
-  const { data } = useSuspenseQuery(options);
-  const { degraded, retry } = useDegradedUntilHealed(options.queryKey, initialDegraded);
+  // FABRYKA W MIEJSCU WYWOŁANIA, nie przez alias. Bramka `check:route-loaders`
+  // (`src/lib/ci/publicRouteLoaders.ts`) kojarzy rozgrzanie z odczytem po NAZWIE
+  // fabryki klucza, a po stronie ODCZYTU czyta wyłącznie ARGUMENTY haka
+  // (`findQuerySites`). Alias `const options = publicEventsQueryOptions()`
+  // podstawiał tam gołe `options`, więc zapytanie wychodziło bez żadnej fabryki
+  // i trasa wpadała do kubełka „zimne zapytania" - mimo że loader wyżej grzeje
+  // DOKŁADNIE ten klucz przez `loadResilient`. Powtórne wywołanie fabryki nic
+  // nie kosztuje: oddaje nowy obiekt opcji przy każdym renderze tak czy owak,
+  // a `useDegradedUntilHealed` bierze z klucza HASH, nie tożsamość tablicy.
+  const { data } = useSuspenseQuery(publicEventsQueryOptions());
+  const { degraded, retry } = useDegradedUntilHealed(
+    publicEventsQueryOptions().queryKey,
+    initialDegraded,
+  );
   const { upcoming, past } = useMemo(() => {
     const now = Date.now();
     const u: PublicEvent[] = [];

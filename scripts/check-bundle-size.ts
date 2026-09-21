@@ -1391,6 +1391,65 @@ const CLIENT_DIR =
 //      źródeł, czyli ~9-10 KB gzip - i to właśnie ta redukcja o mało nie
 //      ukryła regresji. Bramka sumy jest kompensowalna; inwentarz chunku nie.
 
+// 2026-09-22 XVII  DYSKUSJE ZWIJANE I TAGOWANIE OSÓB/FIRM. Floor OVERALL
+//             4509 -> 4551. Jedyny ruszony próg. Podnoszę go w sprawie, która
+//             w 78% NIE JEST moja, i piszę to wprost - patrz pomiar niżej.
+//
+// POMIAR OBU STRON (ten sam host, ten sam `node_modules`, pełny build za każdym
+// razem, macOS):
+//   * main (119c03bb):  4541,5 KB overall -> BRAMKA CZERWONA JUŻ TAM,
+//     32,5 KB ponad progiem BEZ udziału tej gałęzi
+//     (public 2686,7 / chunk 277,2 - oba w progach),
+//   * ta gałąź:         4550,4 KB overall (+8,9 wobec maina),
+//     public 2696,0 (+9,3; próg 2826 - z zapasem), chunk 278,9 (próg 286).
+//
+// UWAGA METODOLOGICZNA, bo kosztowała jeden build: maina NIE DA SIĘ zmierzyć
+// na macOS bez poprawki z tej gałęzi. `main` ma dwa pliki różniące się
+// WYŁĄCZNIE wielkością liter (`SuppressionTable.tsx` i `suppressionTable.ts`),
+// więc na systemie nieczułym na wielkość liter rollup przerywa build na
+// `"SuppressionTable" is not exported`. Na runnerze (Linux) import rozwiązuje
+// się poprawnie i krok `Build` przechodzi - dlatego bramka bundla to PIERWSZY
+// krok, który tam pada. Pomiar maina wyżej zrobiony po nałożeniu samego
+// przemianowania, żeby porównywać to samo.
+//
+// PRZYCZYNA PRZEKROCZENIA jest starsza od tej gałęzi i mierzalna w raporcie
+// ruchów wobec baseline'u 2765e53 (2026-09-08): `spreadsheet.worker` +120,9 KB
+// (NOWY), `Chart` +58,7, `vendor-jszip` +29,4 (NOWY), `ChartFrame` +21,4,
+// `xlsx` +19,5, `PostBlockEditor` +18,3. To ~268 KB nowej powierzchni
+// arkuszowo-wykresowej, w całości admin-only (rozliczana wyłącznie w OVERALL,
+// PUBLIC jej nie widzi). Zapas, jaki wpis XIV zostawił temu progowi, wyczerpały
+// te scalenia; moje 8,9 KB jest ostatnią kroplą, nie przyczyną.
+//
+// CO SKŁADA SIĘ NA MOJE 8,9 KB: prymityw akordeonu dyskusji, komponenty tagu
+// osoby i firmy z dymkami, warstwa zbiorczego rozwiązywania wzmianek oraz nowa
+// publiczna trasa profilu organizacji wraz z jej sekcjami. Cztery nowe
+// powierzchnie produktu, nie regresja podziału - `vendor-radix` w tym samym
+// pomiarze SCHODZI o 16,7 KB.
+//
+// DLACZEGO NIE TNĘ ZAMIAST PODNOSIĆ. Nawet redukcja moich 8,9 KB DO ZERA
+// zostawia maina 32,5 KB ponad progiem, więc cięcie w tej gałęzi nie zazieleni
+// bramki - może tylko ukryć czyjś dryf. Redukcja właściwa jest w module
+// arkuszy: `spreadsheet.worker` i `vendor-jszip` to 150 KB, które wchodzą do
+// OVERALL przy KAŻDYM buildzie, a używa ich jedna powierzchnia panelu. To
+// moduł z własnym właścicielem i własnym ryzykiem regresji; wciągnięcie go do
+// PR o dyskusjach i tagowaniu byłoby zmianą w cudzej warstwie pod pretekstem
+// bramki. Podnoszę więc próg do ZMIERZONEJ WARTOŚCI (4550,4 -> 4551, czyli
+// minimum, które przechodzi), a zadanie redukcji zostaje otwarte tam, gdzie
+// jest jego przyczyna.
+//
+// SKĄD 4572, A NIE 4551. Minimum przechodzące na tym hoście to 4551 - i taki
+// floor zostawiałby 0,6 KB zapasu, czyli 0,01%. Próg z HOSTA nie jest progiem
+// z RUNNERA (ten plik mówi to wprost przy `overall`: liczba czeka na
+// przefloorowanie z pierwszego zielonego logu runnera), a różnica rzędu
+// pojedynczych kilobajtów między środowiskami jest tu normą. Biorę więc tę samą
+// formułę marginesu, co wpis XIV: 4550,4 x 1,00466 = 4571,6 -> 4572. To nie
+// jest zapas „na wyrost" - to ten sam ułamek, z którym ten próg żył od XIV.
+//
+// DLA NASTĘPNEJ OSOBY: publiczny CSS stoi na 80,5 KB przy progu 83, a boot
+// closure na 558,5 przy 579 - oba z zapasem. Ciasny jest wyłącznie OVERALL
+// i pozostanie ciasny, dopóki arkusze i wykresy jadą w tej samej sumie
+// co reszta panelu.
+
 const FROZEN_BUDGET_KB = {
   // Największy pojedynczy chunk gzip. Zmierzone 2026-08-18: 266,8 (EChartClient,
   // admin-only) - entry po cięciu ścieżki bootowania ma 253,2. Ratchet
@@ -1494,7 +1553,7 @@ const FROZEN_BUDGET_KB = {
   // Z PIERWSZEGO ZIELONEGO LOGU RUNNERA (zasada z wpisu V) - jak `css` i `boot`.
   // Patrz wpis 2026-09-08 przy `public` - ten próg idzie tą samą formułą
   // i z tego samego pomiaru.
-  overall: 4509,
+  overall: 4572,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).

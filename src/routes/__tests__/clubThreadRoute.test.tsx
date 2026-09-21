@@ -1551,7 +1551,10 @@ describe("odpowiedzi - lista, porządek i ucięcie strony", () => {
     expect(screen.queryByText(/repliesTruncated/)).toBeNull();
   });
 
-  it("drzewo odpowiedzi zagnieżdża dziecko POD rodzicem po rozwinięciu", async () => {
+  it("drzewo odpowiedzi zagnieżdża dziecko POD rodzicem, widoczne OD RAZU", async () => {
+    // Gałąź jest domyślnie ROZWINIĘTA: czytelnik wchodzi tu z powiadomienia o
+    // konkretnej odpowiedzi i ma zobaczyć ją, a nie przycisk. Zwinięcie jest
+    // czynnością - patrz „odpowiedzi - zwijanie gałęzi”.
     h.replies = page([
       replyRow({ id: "root", body: "Wpis nadrzędny." }),
       replyRow({ id: "child", parent_id: "root", depth: 1, body: "Wpis podrzędny." }),
@@ -1559,14 +1562,103 @@ describe("odpowiedzi - lista, porządek i ucięcie strony", () => {
     await mount();
     const bodies = screen.getAllByTestId("prose").map((node) => node.getAttribute("data-body"));
     expect(bodies).toContain("Wpis nadrzędny.");
-    expect(bodies).not.toContain("Wpis podrzędny.");
-    fireEvent.click(screen.getByRole("button", { name: "club.showNestedReplies(count=1)" }));
-    const expandedBodies = screen
-      .getAllByTestId("prose")
-      .map((node) => node.getAttribute("data-body"));
-    expect(expandedBodies).toContain("Wpis podrzędny.");
+    expect(bodies).toContain("Wpis podrzędny.");
     const nested = document.querySelectorAll("li li");
     expect(nested.length).toBe(1);
+  });
+});
+
+// Akordeon gałęzi. Reguły zbioru zwiniętych mają własny zakres
+// (`src/lib/discussion/__tests__/branches.test.ts`); tutaj przedmiotem dowodu
+// jest WPIĘCIE prymitywu w drzewo odpowiedzi: że wyzwalacz pojawia się tylko
+// tam, gdzie jest co zwinąć, że obiecuje uczciwą liczbę, że nic nie chowa przed
+// pierwszym kliknięciem i że nie przepisał semantyki listy na `<div>`-y.
+describe("odpowiedzi - zwijanie gałęzi", () => {
+  /** Trzy poziomy: `root` -> `mid` -> `leaf`. Root ma DWÓCH potomków. */
+  function threeLevelTree() {
+    return page([
+      replyRow({ id: "root", body: "Wpis nadrzędny." }),
+      replyRow({ id: "mid", parent_id: "root", depth: 1, body: "Wpis podrzędny." }),
+      replyRow({ id: "leaf", parent_id: "mid", depth: 2, body: "Wpis najgłębszy." }),
+    ]);
+  }
+
+  function replyBodies(): (string | null)[] {
+    return screen.getAllByTestId("prose").map((node) => node.getAttribute("data-body"));
+  }
+
+  it("gałąź Z DZIEĆMI dostaje wyzwalacz liczący CAŁĄ gałąź", async () => {
+    h.replies = page([
+      replyRow({ id: "root" }),
+      replyRow({ id: "child-a", parent_id: "root", depth: 1 }),
+      replyRow({ id: "child-b", parent_id: "root", depth: 1 }),
+    ]);
+    await mount();
+
+    const triggers = screen.getAllByTestId("discussion-expand");
+    expect(triggers.length).toBe(1);
+    // Rozwinięta gałąź proponuje ZWINIĘCIE - klucz `hide`, nie `show`.
+    expect(triggers[0].textContent).toContain("club.hideNestedReplies(count=2)");
+  });
+
+  it("gałąź BEZ dzieci nie dostaje wyzwalacza", async () => {
+    // Dwa korzenie obok siebie: nie ma czego chować, więc przycisk byłby
+    // obietnicą bez pokrycia.
+    h.replies = page([replyRow({ id: "root" }), replyRow({ id: "obok" })]);
+    await mount();
+
+    expect(screen.queryByTestId("discussion-expand")).toBeNull();
+  });
+
+  it("po zamontowaniu wszystko jest ROZWINIĘTE - akordeon niczego nie ukrył", async () => {
+    h.replies = threeLevelTree();
+    await mount();
+
+    // Czytelnik wchodzi tu z powiadomienia o KONKRETNEJ odpowiedzi; gdyby
+    // akordeon startował zwinięty, trafiłby na pusty wątek.
+    expect(replyBodies()).toContain("Wpis podrzędny.");
+    expect(replyBodies()).toContain("Wpis najgłębszy.");
+    for (const trigger of screen.getAllByTestId("discussion-expand")) {
+      expect(trigger.getAttribute("data-state")).toBe("open");
+    }
+  });
+
+  it("kliknięcie wyzwalacza ZWIJA gałąź i przestawia etykietę na „pokaż”", async () => {
+    h.replies = page([
+      replyRow({ id: "root", body: "Wpis nadrzędny." }),
+      replyRow({ id: "child", parent_id: "root", depth: 1, body: "Wpis podrzędny." }),
+    ]);
+    await mount();
+
+    fireEvent.click(screen.getByTestId("discussion-expand"));
+
+    const trigger = screen.getByTestId("discussion-expand");
+    expect(trigger.getAttribute("data-state")).toBe("closed");
+    expect(trigger.textContent).toContain("club.showNestedReplies(count=1)");
+    // Zwinięta gałąź ma zniknąć z widoku - inaczej przycisk nic nie robi.
+    expect(replyBodies()).not.toContain("Wpis podrzędny.");
+    expect(replyBodies()).toContain("Wpis nadrzędny.");
+  });
+
+  it("licznik w etykiecie liczy WNUKI, nie tylko dzieci bezpośrednie", async () => {
+    h.replies = threeLevelTree();
+    await mount();
+
+    const labels = screen.getAllByTestId("discussion-expand").map((node) => node.textContent);
+    // `root` chowa `mid` I `leaf` - `children.length` dałoby tu kłamliwą jedynkę.
+    expect(labels).toContain("club.hideNestedReplies(count=2)");
+    expect(labels).toContain("club.hideNestedReplies(count=1)");
+  });
+
+  it("semantyka listy PRZETRWAŁA akordeon - `li` dalej siedzi w `li`", async () => {
+    h.replies = threeLevelTree();
+    await mount();
+
+    // Radix renderuje `<div>`; gdyby `asChild` gdzieś wypadło, nawigacja
+    // czytnikiem ekranu po odpowiedziach przestałaby istnieć.
+    expect(document.querySelectorAll("li li").length).toBe(2);
+    expect(document.querySelectorAll("li li li").length).toBe(1);
+    expect(screen.getAllByTestId("discussion-expand").length).toBe(2);
   });
 });
 
@@ -1662,11 +1754,12 @@ describe("odpowiedzi - wpis pojedynczy", () => {
       replyRow({ id: "leaf", parent_id: "mid", depth: 2 }),
     ]);
     await mount();
+    // Drzewo jest rozwinięte od razu, więc „Odpowiedz” widać na poziomie 0 i 1;
+    // na poziomie 2 gaśnie, bo baza przycina zagnieżdżenie (CLUB_REPLY_MAX_DEPTH).
+    expect(screen.getAllByText("club.reply").length).toBe(2);
+    // Zwinięcie gałęzi korzenia chowa ją razem z przyciskiem odpowiedzi dziecka.
+    fireEvent.click(screen.getByRole("button", { name: "club.hideNestedReplies(count=2)" }));
     expect(screen.getAllByText("club.reply").length).toBe(1);
-    fireEvent.click(screen.getByRole("button", { name: "club.showNestedReplies(count=1)" }));
-    expect(screen.getAllByText("club.reply").length).toBe(2);
-    fireEvent.click(screen.getByRole("button", { name: "club.showNestedReplies(count=1)" }));
-    expect(screen.getAllByText("club.reply").length).toBe(2);
   });
 
   it("kliknięcie „Odpowiedz” przestawia kompozytor na tryb gałęzi", async () => {

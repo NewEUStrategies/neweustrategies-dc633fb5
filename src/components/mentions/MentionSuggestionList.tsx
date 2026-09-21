@@ -26,7 +26,9 @@ function SuggestionPreview({ slug, lang }: { slug: string; lang: "pl" | "en" }) 
   const { t } = useTranslation();
   const { data, isPending } = useMentionProfile(slug, lang, true);
   if (isPending) return <p className="text-xs text-muted-foreground">...</p>;
-  if (!data) return <p className="text-xs text-muted-foreground">@{slug}</p>;
+  // Nierozwiązany cel mówi to wprost. Wcześniej wchodził tu `@slug` - czyli
+  // identyfikator techniczny; przy firmach byłoby to dosłowne `@org-<uuid>`.
+  if (!data) return <p className="text-xs text-muted-foreground">{t("mentions.noProfile")}</p>;
   const imageUrl = data.kind === "organization" ? data.logoUrl : data.avatarUrl;
   const fallbackIcon =
     data.kind === "organization" ? (
@@ -48,7 +50,7 @@ function SuggestionPreview({ slug, lang }: { slug: string; lang: "pl" | "en" }) 
           <p className="truncate text-sm font-semibold text-foreground">{data.name}</p>
           <p className="truncate text-xs text-muted-foreground">
             {[data.jobTitle, data.company].filter(Boolean).join(" - ") ||
-              (data.kind === "organization" ? t("mentions.organization") : `@${slug}`)}
+              (data.kind === "organization" ? t("mentions.organization") : t("mentions.person"))}
           </p>
         </div>
       </div>
@@ -134,10 +136,15 @@ export function MentionSuggestionList({
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{s.name}</span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      @{s.slug}
-                      {s.subtitle ? ` - ${s.subtitle}` : ""}
-                    </span>
+                    {/* BEZ NICKU. Wcześniej stał tu `@slug` - przy firmach
+                        dosłownie `@org-<uuid>`, czyli napis, który nikomu nic
+                        nie mówi. Zostaje sam podpis, a gdy go nie ma, wiersz
+                        domyka się na samej nazwie. */}
+                    {s.subtitle ? (
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {s.subtitle}
+                      </span>
+                    ) : null}
                   </span>
                 </span>
               </HoverCardTrigger>
