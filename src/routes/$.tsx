@@ -803,6 +803,8 @@ export const Route = createFileRoute("/$")({
       ),
       origin,
       lang,
+      // Ostatni okruszek MUSI mieć `item` (Search Console: brakujące pole item).
+      splitUrl(url).path,
     );
     // Preload the LCP image (post cover / builder-page hero) so its fetch
     // starts from <head>, before the <img> is parsed in the body. The

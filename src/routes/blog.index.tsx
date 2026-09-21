@@ -144,7 +144,8 @@ export const Route = createFileRoute("/blog/")({
     });
     const { origin } = splitUrl(url);
     const originAbs = origin || SITE_CANONICAL_ORIGIN;
-    const breadcrumbs = breadcrumbListJsonLd([{ label: "Blog" }], originAbs, lang);
+    // Ostatni okruszek MUSI mieć `item` (Search Console: brakujące pole item).
+    const breadcrumbs = breadcrumbListJsonLd([{ label: "Blog" }], originAbs, lang, "/blog");
     // CollectionPage - semantyka archiwum spójna z archiwami taksonomii.
     const collection = {
       "@context": "https://schema.org",

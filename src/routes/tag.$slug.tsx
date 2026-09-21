@@ -177,6 +177,8 @@ export const Route = createFileRoute("/tag/$slug")({
       [{ label: crumbsLabel, href: "/blog" }, { label: `#${name}` }],
       originAbs,
       lang,
+      // Ostatni okruszek MUSI mieć `item` (Search Console: brakujące pole item).
+      splitUrl(url).path,
     );
     const collection = {
       "@context": "https://schema.org",

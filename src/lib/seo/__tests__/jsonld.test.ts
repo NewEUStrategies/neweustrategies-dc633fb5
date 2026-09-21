@@ -79,7 +79,7 @@ describe("webSiteJsonLd", () => {
 
 describe("breadcrumbListJsonLd", () => {
   const items: BreadcrumbItem[] = [{ label: "Blog", href: "/blog" }, { label: "Tytuł wpisu" }];
-  it("prepends Home, localizes hrefs and drops the item on the last crumb", () => {
+  it("prepends Home and localizes hrefs", () => {
     const ld = breadcrumbListJsonLd(items, ORIGIN, "en") as {
       itemListElement: Array<{ position: number; name: string; item?: string }>;
     };
@@ -91,7 +91,6 @@ describe("breadcrumbListJsonLd", () => {
       item: `${ORIGIN}/en`,
     });
     expect(ld.itemListElement[1]?.item).toBe(`${ORIGIN}/en/blog`);
-    expect(ld.itemListElement[2]?.item).toBeUndefined();
   });
   it("uses bare paths for the default language", () => {
     const ld = breadcrumbListJsonLd(items, ORIGIN, "pl") as {
@@ -99,6 +98,20 @@ describe("breadcrumbListJsonLd", () => {
     };
     expect(ld.itemListElement[0]?.name).toBe("Start");
     expect(ld.itemListElement[1]?.item).toBe(`${ORIGIN}/blog`);
+  });
+  // Search Console zgłaszał „Brakujące pole item (w itemListElement)" na
+  // archiwach: ostatni ListItem nie nosił adresu. `selfPath` domyka kontrakt.
+  it("gives the last crumb an item from selfPath", () => {
+    const ld = breadcrumbListJsonLd(items, ORIGIN, "pl", "/analizy/atom") as {
+      itemListElement: Array<{ item?: string }>;
+    };
+    expect(ld.itemListElement[2]?.item).toBe(`${ORIGIN}/analizy/atom`);
+  });
+  it("does not double the language prefix when selfPath is already localized", () => {
+    const ld = breadcrumbListJsonLd(items, ORIGIN, "en", "/en/analizy/atom") as {
+      itemListElement: Array<{ item?: string }>;
+    };
+    expect(ld.itemListElement[2]?.item).toBe(`${ORIGIN}/en/analizy/atom`);
   });
 });
 
