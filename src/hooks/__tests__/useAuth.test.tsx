@@ -513,7 +513,7 @@ it("keeps the signed-in context when invitation acceptance returns an error", as
 // Te przypadki pilnują obu stron kontraktu: gość dostaje odpowiedź w
 // ograniczonym czasie, a zalogowany NIE zostaje wylogowany przez awarię sieci.
 describe("hasStoredAuthSession()", () => {
-  it("pusty magazyn to pewne „gość"; zapisany token Supabase to „trzeba poczekać"", () => {
+  it("pusty magazyn to pewne gość; zapisany token Supabase to trzeba poczekać", () => {
     expect(hasStoredAuthSession()).toBe(false);
     window.localStorage.setItem(STORED_SESSION_KEY, JSON.stringify({ access_token: "t" }));
     try {
@@ -591,7 +591,7 @@ describe("AuthProvider - rozstrzygnięcie gościa przy martwym backendzie", () =
     }
   });
 
-  it("spóźniona sesja po terminie nadal loguje - termin znaczy „nie wiemy"", async () => {
+  it("spóźniona sesja po terminie nadal loguje - termin znaczy nie wiemy", async () => {
     vi.useFakeTimers();
     vi.spyOn(console, "warn").mockImplementation(() => {});
     window.localStorage.setItem(STORED_SESSION_KEY, JSON.stringify({ access_token: "stary" }));

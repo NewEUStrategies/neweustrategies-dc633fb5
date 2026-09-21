@@ -103,7 +103,7 @@ import {
   type SeoFieldsRow,
 } from "@/lib/seo/fields";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
-import { effectiveTitleSuffix, parseSeoSettings } from "@/lib/seo/settings";
+import { effectiveTitleSuffix, parseSeoSettings, type SeoSettings } from "@/lib/seo/settings";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { activeLang } from "@/lib/seo/head";
@@ -222,6 +222,50 @@ interface CoverPreload {
 }
 
 /**
+ * WYNIK LOADERA TEJ TRASY JAKO JAWNA UNIA Z DYSKRYMINATOREM `kind` - i to jest
+ * naprawa realnego defektu typów, a nie porządkowanie dla ozdoby.
+ *
+ * CO BYŁO ZŁE. Kształt wyniku istniał WYŁĄCZNIE jako inferencja z dwóch
+ * `return`ów loadera, a `head()` czytał go przez `ResolveLoaderData<TLoaderFn>`
+ * routera. Ta inferencja jest WERSJOZALEŻNA: `FileRoute.createRoute` wstawia
+ * `TLoaderFn` do opcji `head`/`headers`/`scripts` BEZ `NoInfer` (inaczej niż
+ * `RouteOptions` dla `createRoute`), więc `head` jest jednocześnie miejscem
+ * WNIOSKOWANIA o `TLoaderFn` i jego KONSUMENTEM. Przy `@tanstack/react-router`
+ * 1.170.38 `TLoaderFn` spada wtedy do swojej domyślnej wartości `undefined`,
+ * `ResolveLoaderData<undefined>` daje `undefined`, a każdy odczyt pola w `head()`
+ * kończy się `Property '...' does not exist on type 'never'` (zmierzone: 12
+ * błędów `tsc` w tym pliku; wersja z locka CI, 1.170.18, wnioskowała inaczej
+ * i była zielona).
+ *
+ * CO TO NAPRAWIA. Typ jest teraz NAZWANY i wypisany: loader deklaruje go
+ * zwrotem (`Promise<ContentDocument>`), a `head()` deklaruje go przy odczycie
+ * `ctx.loaderData`. Obie deklaracje są SPRAWDZANE przez kompilator (żadnego
+ * `as`), więc rozjazd między tym, co loader oddaje, a tym, co `head()` czyta,
+ * nadal oblewa `tsc` - tylko przestaje zależeć od tego, którą wersję routera
+ * rozwiąże menedżer pakietów.
+ */
+interface DegradedDocument {
+  kind: "degraded";
+  degraded: true;
+  seoSettings: null;
+  coverPreload: null;
+}
+
+/**
+ * Rozstrzygnięta treść (wpis albo strona) wzbogacona o to, czego potrzebuje
+ * `head()`: ustawienia SEO serwisu i deskryptor preloadu obrazu LCP.
+ * `degraded?: undefined` jest DRUGIM dyskryminatorem obok `kind` - dokładnie
+ * tym samym, który TypeScript dopisywał tu sam przy inferencji z literału.
+ */
+type ResolvedDocument = ResolvedContent & {
+  seoSettings: SeoSettings;
+  coverPreload: CoverPreload | null;
+  degraded?: undefined;
+};
+
+type ContentDocument = DegradedDocument | ResolvedDocument;
+
+/**
  * LCP cover-image preload descriptor for a post, mirroring exactly what
  * `PostLayoutRenderer` paints - same responsive candidates (`buildImageSrcSet`)
  * and the same `sizes` (`coverImageSizes`) - so the preloaded candidate is the
@@ -265,7 +309,10 @@ function taxonomyRedirect(decision: TaxonomyRedirect): never {
 export const Route = createFileRoute("/$")({
   // Chrome (Header/Footer) is centralized in SiteChrome at the root - never
   // opt out here, or navigations remount the whole header/menu.
-  loader: async ({ params, context }) => {
+  // ZWROT LOADERA DEKLAROWANY, NIE WNIOSKOWANY - patrz wykład przy
+  // `ContentDocument`. Gałęzie rzucające (`notFound()`, `redirect()`) są typu
+  // `never`, więc anotacja nie zabiera im niczego.
+  loader: async ({ params, context }): Promise<ContentDocument> => {
     // Gramatyka adresów (404 / archiwum taksonomii / 301 kanoniczny / treść)
     // mieszka w `lib/routing/resolvePublicPath` jako czyste funkcje - tu zostaje
     // I/O, nagłówki cache i rzucanie. Tabela przypadków tej gramatyki:
@@ -580,7 +627,19 @@ export const Route = createFileRoute("/$")({
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     return { ...data, seoSettings, coverPreload };
   },
-  head: ({ loaderData, params }) => {
+  head: (ctx) => {
+    // ŁADUNEK CZYTANY PRZEZ DEKLARACJĘ, NIE PRZEZ INFERENCJĘ ROUTERA - jedyne
+    // miejsce, w którym `head()` dotyka `ResolveLoaderData<TLoaderFn>`, i cały
+    // powód, dla którego `ContentDocument` jest nazwany (wykład przy tym typie).
+    // To PRZYPISANIE, a nie `as`: kompilator nadal sprawdza, czy zwrot loadera
+    // pasuje do tego, co ten `head()` czyta - tylko przestaje to zależeć od
+    // wersji routera rozwiązanej w `node_modules`.
+    //
+    // Parametry zostają nietknięte (`ctx.params`, nie anotacja całego `ctx`):
+    // anotacja parametru wywołania zwrotnego jest dla routera KANDYDATEM
+    // WNIOSKOWANIA w pozycji kontrawariantnej i zbiłaby `TParams` trasy do
+    // `unknown` (zmierzone). Deklaracja zmiennej takiego kandydata nie tworzy.
+    const loaderData: ContentDocument | undefined = ctx.loaderData;
     // Render ZDEGRADOWANY niesie komunikat „nie udało się załadować", a nie
     // treść - i jedzie z HTTP 200, bo status 500 wyrzuciłby żywy wpis z indeksu
     // i zablokował CDN. `noindex` jest więc jedyną rzeczą, która broni indeksu
@@ -592,7 +651,7 @@ export const Route = createFileRoute("/$")({
     }
     const it = loaderData?.item;
     if (!it) return { meta: [] };
-    const splat = (params as { _splat?: string })._splat ?? "";
+    const splat = (ctx.params as { _splat?: string })._splat ?? "";
     // Adresy w <head> (canonical, og:url, JSON-LD, citation_*) zawsze na
     // kanonicznej domenie marki - host podglądu/hostingu nigdy nie wycieka.
     const rawUrl = getRequestUrl() || `/${splat}`;
