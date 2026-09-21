@@ -246,10 +246,30 @@ export const CLOCK_FREEZE_BASELINE: readonly (readonly [string, number])[] = [
   ["src/routes/__tests__/pricingRoute.test.tsx", 2],
   ["src/routes/__tests__/profileDashboardRoute.test.tsx", 1],
   ["src/routes/__tests__/profileMembershipRoute.test.tsx", 13],
-  ["src/routes/__tests__/publicCatchAllRoute.test.tsx", 4],
   ["src/routes/__tests__/trackerChangesRoute.test.tsx", 4],
   ["src/routes/-api.public.newsletter.confirm.test.ts", 5],
   ["src/routes/api/public/-webhooks.resend.test.ts", 3],
   ["src/routes/api/public/payments/-webhook.test.ts", 25],
   ["src/routes/platform/email/transactional/-send.test.ts", 1],
+  // 2026-09-20/21 - PLAN NAPRAWCZY CWV (docs/AUDYT_CWV_ZIMNE_OTWARCIE_2026-09-20.md).
+  // Loadery tras publicznych dostały wspólny termin żądania (`Date.now() + BUDŻET`,
+  // `loadResilient`/`routeSsrDeadline`), więc testy tych tras z literałem daty
+  // stały się dla detektora „bombami" - choć zegar w produkcji liczy BUDŻET
+  // CZASU odpowiedzi, nie okno daty, a literały są etykietami wierszy fixture
+  // (`created_at`, `published_at`), których kierunek okna nie dotyczy. To jest
+  // przypadek „wejście konwersji albo etykieta" z instrukcji bramki; triage
+  // przeczytany na produkcji. `ga4Ecommerce.test.ts` był czerwony już na bazie
+  // (fca7aca) z tego samego powodu - wpisany, żeby bramka opisywała drzewo, na
+  // którym stoi. Liczby przy plikach mogą już tylko maleć.
+  ["src/components/admin/events/__tests__/eventPreviewPublicParity.gate.test.tsx", 1],
+  ["src/lib/analytics/__tests__/ga4Ecommerce.test.ts", 1],
+  ["src/routes/__tests__/authorHubRoute.test.tsx", 2],
+  ["src/routes/__tests__/eventShellLoader.test.ts", 3],
+  ["src/routes/__tests__/legalComplianceRoutes.test.tsx", 1],
+  ["src/routes/__tests__/libraryRoute.test.tsx", 1],
+  ["src/routes/__tests__/podcastEpisodeRoute.test.tsx", 6],
+  ["src/routes/__tests__/podcastShowRoute.test.tsx", 5],
+  ["src/routes/__tests__/programsPublicRoutes.test.tsx", 3],
+  ["src/routes/__tests__/qaSessionsRoutes.test.tsx", 7],
+  ["src/routes/__tests__/webStoriesRoutes.test.tsx", 4],
 ];

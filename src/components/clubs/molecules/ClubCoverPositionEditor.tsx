@@ -8,6 +8,10 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+// Nakładka słownika klubów rejestruje klucze efektem ubocznym importu - bez
+// tej linii tłumaczenia edytora zależałyby od tego, czy inny moduł w chunku
+// przypadkiem ją wciągnął (bramka check:i18n-overlay-imports).
+import "@/lib/i18n-club";
 import { useServerFn } from "@tanstack/react-start";
 import { Loader2, MoveVertical } from "lucide-react";
 import { toast } from "sonner";
