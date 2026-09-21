@@ -18030,29 +18030,44 @@ export type Database = {
       }
       web_vitals: {
         Row: {
+          cold_start: boolean | null
           created_at: string
+          device_memory: number | null
+          effective_type: string | null
           id: string
           metric: string
+          navigation_type: string | null
           path: string | null
           rating: string | null
+          since_nav_ms: number | null
           tenant_id: string
           value: number
         }
         Insert: {
+          cold_start?: boolean | null
           created_at?: string
+          device_memory?: number | null
+          effective_type?: string | null
           id?: string
           metric: string
+          navigation_type?: string | null
           path?: string | null
           rating?: string | null
+          since_nav_ms?: number | null
           tenant_id?: string
           value: number
         }
         Update: {
+          cold_start?: boolean | null
           created_at?: string
+          device_memory?: number | null
+          effective_type?: string | null
           id?: string
           metric?: string
+          navigation_type?: string | null
           path?: string | null
           rating?: string | null
+          since_nav_ms?: number | null
           tenant_id?: string
           value?: number
         }
