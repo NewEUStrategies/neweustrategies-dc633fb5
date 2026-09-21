@@ -234,6 +234,8 @@ export const Route = createFileRoute("/category/$slug")({
       [{ label: crumbsLabel, href: "/blog" }, { label: name }],
       originAbs,
       lang,
+      // Ostatni okruszek MUSI mieć `item` (Search Console: brakujące pole item).
+      splitUrl(url).path,
     );
     // CollectionPage node for archive semantics.
     const collection = {
