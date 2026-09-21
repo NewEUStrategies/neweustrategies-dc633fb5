@@ -104,11 +104,15 @@ function preview(overrides: Partial<ClubLinkPreview> = {}): ClubLinkPreview {
 /** Osoba z podglądu wzmianki - domyślnie minimum pól (sam slug i imię). */
 function person(overrides: Partial<MentionProfilePreview> = {}): MentionProfilePreview {
   return {
+    kind: "person",
+    id: "user-anna",
     slug: "anna-nowak",
     name: "Anna Nowak",
     avatarUrl: null,
+    logoUrl: null,
     jobTitle: null,
     company: null,
+    website: null,
     bio: null,
     verified: false,
     ...overrides,

@@ -153,6 +153,7 @@ import {
   CLUB_REPLY_BODY_MAX,
 } from "@/lib/clubs/threadComposer";
 import { ensureClubI18n } from "@/lib/i18n-club";
+import { cn } from "@/lib/utils";
 
 /**
  * Sondaż i dialog zgłoszenia są ŁADOWANE LENIWIE - ta sama konwencja, co
