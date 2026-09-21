@@ -174,7 +174,12 @@ describe("bramka: stale MODULU 3 vs CHECK-i bazy", () => {
 // (patrz src/components/admin/blocks/__tests__/blockEditorRegistryParity.test.ts).
 // Tutaj sprawdzam, czy widgety nie maja tej samej dziury.
 const WIDGET_VIEW = "src/components/builder/organisms/WidgetView.tsx";
+// Od 2026-09-20 dyspozytor jest TRZYSTOPNIOWY: `renderSimpleWidget` ->
+// `renderChromeWidget` (ChromeWidgetView: widgety chrome'u nagłówka/stopki,
+// F17 audytu CWV) -> pełny switch `WidgetView` dociągany leniwie.
+const CHROME_WIDGET_VIEW = "src/components/builder/organisms/ChromeWidgetView.tsx";
 const SIMPLE_WIDGETS = "src/components/builder/organisms/widget-view/SimpleWidgets.tsx";
+const DISPATCHERS = [WIDGET_VIEW, CHROME_WIDGET_VIEW, SIMPLE_WIDGETS] as const;
 
 function switchCases(path: string): Set<string> {
   const src = readFileSync(path, "utf8");
@@ -182,11 +187,12 @@ function switchCases(path: string): Set<string> {
 }
 
 describe("parytet rejestru widgetow z dyspozytorem renderera", () => {
-  it("kazdy typ z palety jest obslugiwany przez jeden z dwoch switchy", () => {
-    // Dyspozytor jest DWUSTOPNIOWY: renderSimpleWidget (SimpleWidgets) probuje
-    // pierwszy i zwraca `undefined` jako sentinel, a wtedy WidgetView wchodzi
-    // z wlasnym switchem. Typ obsluzony w KTORYMKOLWIEK z nich jest renderowany.
-    const handled = new Set([...switchCases(WIDGET_VIEW), ...switchCases(SIMPLE_WIDGETS)]);
+  it("kazdy typ z palety jest obslugiwany przez jeden z trzech switchy", () => {
+    // Dyspozytor jest TRZYSTOPNIOWY: renderSimpleWidget (SimpleWidgets) probuje
+    // pierwszy i zwraca `undefined` jako sentinel, potem renderChromeWidget
+    // (ChromeWidgetView), a na koncu WidgetView z wlasnym switchem. Typ
+    // obsluzony w KTORYMKOLWIEK z nich jest renderowany.
+    const handled = new Set(DISPATCHERS.flatMap((path) => [...switchCases(path)]));
     const missing = WIDGETS.map((w) => w.type).filter((type) => !handled.has(type));
     expect(missing).toEqual([]);
   });
@@ -195,7 +201,7 @@ describe("parytet rejestru widgetow z dyspozytorem renderera", () => {
     const offered = new Set<string>(WIDGETS.map((w) => w.type));
     // `item` to klucz ZAGNIEZDZONY (element listy), nie pozycja palety -
     // jedyny udokumentowany wyjatek.
-    const handled = [...switchCases(WIDGET_VIEW), ...switchCases(SIMPLE_WIDGETS)];
+    const handled = DISPATCHERS.flatMap((path) => [...switchCases(path)]);
     const extra = handled.filter((type) => !offered.has(type) && type !== "item").sort();
     expect(extra).toEqual([]);
   });

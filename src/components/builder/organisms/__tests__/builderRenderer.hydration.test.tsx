@@ -9,9 +9,13 @@ import { BuilderRenderer } from "../BuilderRenderer";
 import { doc, simpleSection, setWindowWidth, stubObservers } from "./builderRendererFixtures";
 
 const leaf = vi.hoisted(() => ({ current: null as ComponentType<{ device: string }> | null }));
-vi.mock("../WidgetView", async () => ({
+// `BuilderWidgetNode` renderuje widgety przez `ChromeWidgetView` (dyspozytor
+// chrome'u; pełny `WidgetView` dociąga leniwie), więc atrapa musi podmienić
+// TEN moduł - inaczej SSR oddałby fallback granicy Suspense zamiast formularza,
+// a test straciłby przedmiot dowodu (zachowanie węzła SSR przy zmianie szerokości).
+vi.mock("../ChromeWidgetView", async () => ({
   ...(await import("../widget-view/frame")),
-  WidgetView: ({ device }: { device: string }) => {
+  ChromeWidgetView: ({ device }: { device: string }) => {
     const Form = leaf.current!;
     return (
       <Suspense fallback={null}>
