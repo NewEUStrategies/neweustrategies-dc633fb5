@@ -18,7 +18,16 @@ import { test, expect } from "@playwright/test";
 // wypada po 4,5-11 s przy zimnym starcie i przy równoległych workerach.
 // Domyślne 30 s na przypadek wystarczało dopóty, dopóki trasa nie była
 // „chrome-only"; dziś trafia w nie regularnie na pierwszym przebiegu.
-test.describe.configure({ timeout: 120_000 });
+//
+// `mode: "serial"` NIE JEST OSTROŻNOŚCIĄ NA ZAPAS. Cztery przypadki tego pliku
+// wchodzą na CZTERY RÓŻNE trasy (`/pricing`, `/checkout/$planId`,
+// `/checkout/success`, `/checkout/cancel`), więc pod `fullyParallel` zimny
+// serwer dev dostaje cztery niezależne kompilacje domknięcia naraz. ZMIERZONE
+// na tym HEAD (`--repeat-each 10`, równolegle): pada CAŁA pierwsza powtórka -
+// wszystkie cztery przypadki, `page.goto` nie oddaje dokumentu w 120 s - po
+// czym 36 kolejnych przebiegów przechodzi na rozgrzanym serwerze. Szeregowo
+// pierwsza kompilacja jest jedna naraz i mieści się w budżecie.
+test.describe.configure({ mode: "serial", timeout: 120_000 });
 
 function collectErrors(page: import("@playwright/test").Page): string[] {
   const errors: string[] = [];
