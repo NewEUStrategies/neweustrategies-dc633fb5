@@ -14,7 +14,7 @@ import {
   siteName,
   type Lang,
 } from "@/lib/seo/meta";
-import { localizedPath } from "@/lib/i18n/localePath";
+import { localizedPath, stripLangPrefix } from "@/lib/i18n/localePath";
 import type { BreadcrumbItem } from "@/lib/breadcrumbs";
 import { homeLabel } from "@/lib/i18n/commonLabels";
 import { eventAddressLine, type EventAddressParts } from "@/lib/events/eventAddress";
