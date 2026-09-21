@@ -113,6 +113,7 @@ import { Route as PodcastsShowRouteImport } from './routes/podcasts.$show'
 import { Route as PodcastRssDotxmlRouteImport } from './routes/podcast.rss[.]xml'
 import { Route as PodcastSlugRouteImport } from './routes/podcast.$slug'
 import { Route as PlansPlanIdRouteImport } from './routes/plans.$planId'
+import { Route as OrganizationSlugRouteImport } from './routes/organization.$slug'
 import { Route as NewsletterUnsubscribeRouteImport } from './routes/newsletter.unsubscribe'
 import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
 import { Route as MeetingsEventSlugRouteImport } from './routes/meetings.$eventSlug'
@@ -129,7 +130,6 @@ import { Route as CheckoutCancelRouteImport } from './routes/checkout.cancel'
 import { Route as CheckoutPlanIdRouteImport } from './routes/checkout.$planId'
 import { Route as CategorySlugRouteImport } from './routes/category.$slug'
 import { Route as AuthorSlugRouteImport } from './routes/author.$slug'
-import { Route as OrganizationSlugRouteImport } from './routes/organization.$slug'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as AuthActivateRouteImport } from './routes/auth.activate'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
@@ -929,6 +929,11 @@ const PlansPlanIdRoute = PlansPlanIdRouteImport.update({
   path: '/plans/$planId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OrganizationSlugRoute = OrganizationSlugRouteImport.update({
+  id: '/organization/$slug',
+  path: '/organization/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const NewsletterUnsubscribeRoute = NewsletterUnsubscribeRouteImport.update({
   id: '/newsletter/unsubscribe',
   path: '/newsletter/unsubscribe',
@@ -1007,11 +1012,6 @@ const CategorySlugRoute = CategorySlugRouteImport.update({
 const AuthorSlugRoute = AuthorSlugRouteImport.update({
   id: '/author/$slug',
   path: '/author/$slug',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OrganizationSlugRoute = OrganizationSlugRouteImport.update({
-  id: '/organization/$slug',
-  path: '/organization/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthCallbackRoute = AuthCallbackRouteImport.update({
@@ -2599,7 +2599,6 @@ export interface FileRoutesByFullPath {
   '/auth/activate': typeof AuthActivateRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/author/$slug': typeof AuthorSlugRoute
-  '/organization/$slug': typeof OrganizationSlugRoute
   '/category/$slug': typeof CategorySlugRouteWithChildren
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
@@ -2615,6 +2614,7 @@ export interface FileRoutesByFullPath {
   '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
+  '/organization/$slug': typeof OrganizationSlugRoute
   '/plans/$planId': typeof PlansPlanIdRoute
   '/podcast/$slug': typeof PodcastSlugRoute
   '/podcast/rss.xml': typeof PodcastRssDotxmlRoute
@@ -2981,7 +2981,6 @@ export interface FileRoutesByTo {
   '/auth/activate': typeof AuthActivateRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/author/$slug': typeof AuthorSlugRoute
-  '/organization/$slug': typeof OrganizationSlugRoute
   '/category/$slug': typeof CategorySlugRouteWithChildren
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
@@ -2995,6 +2994,7 @@ export interface FileRoutesByTo {
   '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
+  '/organization/$slug': typeof OrganizationSlugRoute
   '/plans/$planId': typeof PlansPlanIdRoute
   '/podcast/$slug': typeof PodcastSlugRoute
   '/podcast/rss.xml': typeof PodcastRssDotxmlRoute
@@ -3374,7 +3374,6 @@ export interface FileRoutesById {
   '/auth/activate': typeof AuthActivateRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/author/$slug': typeof AuthorSlugRoute
-  '/organization/$slug': typeof OrganizationSlugRoute
   '/category/$slug': typeof CategorySlugRouteWithChildren
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
@@ -3390,6 +3389,7 @@ export interface FileRoutesById {
   '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
+  '/organization/$slug': typeof OrganizationSlugRoute
   '/plans/$planId': typeof PlansPlanIdRoute
   '/podcast/$slug': typeof PodcastSlugRoute
   '/podcast/rss.xml': typeof PodcastRssDotxmlRoute
@@ -3772,7 +3772,6 @@ export interface FileRouteTypes {
     | '/auth/activate'
     | '/auth/callback'
     | '/author/$slug'
-    | '/organization/$slug'
     | '/category/$slug'
     | '/checkout/$planId'
     | '/checkout/cancel'
@@ -3788,6 +3787,7 @@ export interface FileRouteTypes {
     | '/meetings/$eventSlug'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
+    | '/organization/$slug'
     | '/plans/$planId'
     | '/podcast/$slug'
     | '/podcast/rss.xml'
@@ -4154,7 +4154,6 @@ export interface FileRouteTypes {
     | '/auth/activate'
     | '/auth/callback'
     | '/author/$slug'
-    | '/organization/$slug'
     | '/category/$slug'
     | '/checkout/$planId'
     | '/checkout/cancel'
@@ -4168,6 +4167,7 @@ export interface FileRouteTypes {
     | '/meetings/$eventSlug'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
+    | '/organization/$slug'
     | '/plans/$planId'
     | '/podcast/$slug'
     | '/podcast/rss.xml'
@@ -4546,7 +4546,6 @@ export interface FileRouteTypes {
     | '/auth/activate'
     | '/auth/callback'
     | '/author/$slug'
-    | '/organization/$slug'
     | '/category/$slug'
     | '/checkout/$planId'
     | '/checkout/cancel'
@@ -4562,6 +4561,7 @@ export interface FileRouteTypes {
     | '/meetings/$eventSlug'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
+    | '/organization/$slug'
     | '/plans/$planId'
     | '/podcast/$slug'
     | '/podcast/rss.xml'
@@ -4870,7 +4870,6 @@ export interface RootRouteChildren {
   AuthActivateRoute: typeof AuthActivateRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   AuthorSlugRoute: typeof AuthorSlugRoute
-  OrganizationSlugRoute: typeof OrganizationSlugRoute
   CategorySlugRoute: typeof CategorySlugRouteWithChildren
   CheckoutPlanIdRoute: typeof CheckoutPlanIdRoute
   CheckoutCancelRoute: typeof CheckoutCancelRoute
@@ -4881,6 +4880,7 @@ export interface RootRouteChildren {
   MeetingsEventSlugRoute: typeof MeetingsEventSlugRoute
   NewsletterConfirmRoute: typeof NewsletterConfirmRoute
   NewsletterUnsubscribeRoute: typeof NewsletterUnsubscribeRoute
+  OrganizationSlugRoute: typeof OrganizationSlugRoute
   PlansPlanIdRoute: typeof PlansPlanIdRoute
   PodcastSlugRoute: typeof PodcastSlugRoute
   PodcastRssDotxmlRoute: typeof PodcastRssDotxmlRoute
@@ -5666,6 +5666,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlansPlanIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/organization/$slug': {
+      id: '/organization/$slug'
+      path: '/organization/$slug'
+      fullPath: '/organization/$slug'
+      preLoaderRoute: typeof OrganizationSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/newsletter/unsubscribe': {
       id: '/newsletter/unsubscribe'
       path: '/newsletter/unsubscribe'
@@ -5776,13 +5783,6 @@ declare module '@tanstack/react-router' {
       path: '/author/$slug'
       fullPath: '/author/$slug'
       preLoaderRoute: typeof AuthorSlugRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/organization/$slug': {
-      id: '/organization/$slug'
-      path: '/organization/$slug'
-      fullPath: '/organization/$slug'
-      preLoaderRoute: typeof OrganizationSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/callback': {
@@ -8600,7 +8600,6 @@ const rootRouteChildren: RootRouteChildren = {
   AuthActivateRoute: AuthActivateRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   AuthorSlugRoute: AuthorSlugRoute,
-  OrganizationSlugRoute: OrganizationSlugRoute,
   CategorySlugRoute: CategorySlugRouteWithChildren,
   CheckoutPlanIdRoute: CheckoutPlanIdRoute,
   CheckoutCancelRoute: CheckoutCancelRoute,
@@ -8611,6 +8610,7 @@ const rootRouteChildren: RootRouteChildren = {
   MeetingsEventSlugRoute: MeetingsEventSlugRoute,
   NewsletterConfirmRoute: NewsletterConfirmRoute,
   NewsletterUnsubscribeRoute: NewsletterUnsubscribeRoute,
+  OrganizationSlugRoute: OrganizationSlugRoute,
   PlansPlanIdRoute: PlansPlanIdRoute,
   PodcastSlugRoute: PodcastSlugRoute,
   PodcastRssDotxmlRoute: PodcastRssDotxmlRoute,
