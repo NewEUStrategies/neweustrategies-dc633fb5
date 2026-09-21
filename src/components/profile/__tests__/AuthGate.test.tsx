@@ -94,7 +94,9 @@ const STORED_SESSION_KEY = "sb-placeholder-auth-token";
 
 function renderGate() {
   return render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
       <AuthProvider>
         <AuthGate>
           <p>treść dla zalogowanych</p>
