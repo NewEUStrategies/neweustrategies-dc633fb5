@@ -42,7 +42,13 @@ vi.mock("@/integrations/supabase/client", async () => {
   return { supabase: { from: from.from } };
 });
 
-import { useAdPlacements } from "@/lib/ads/queries";
+import { QueryClient } from "@tanstack/react-query";
+
+import {
+  adPlacementsQueryOptions,
+  prefetchAdPlacementQueries,
+  useAdPlacements,
+} from "@/lib/ads/queries";
 import { renderHookWithQueryClient } from "@/test/renderWithQueryClient";
 import { fail, ok, type RecordedChain, type SupabaseFromStub } from "@/test/supabaseChain";
 import type {
@@ -119,6 +125,17 @@ function eqArg(column: string): unknown {
   return call?.args[1];
 }
 
+/**
+ * Argument pojedynczego ogniwa `.in(kolumna, wartości)` - PO KOLUMNIE, a nie
+ * „pierwsze `in` w łańcuchu". Od rozgrzewki wielopozycyjnej (2026-09-21) filtr
+ * pozycji też jedzie `in`, więc `argsOf("in")` oddawałoby raz `position`, raz
+ * `page_type` - zależnie od kolejności ogniw, a nie od przedmiotu dowodu.
+ */
+function inArg(column: string): unknown {
+  const call = chain().calls.find((c) => c.method === "in" && c.args[0] === column);
+  return call?.args[1];
+}
+
 /** Wszystkie argumenty ogniw `.or(...)` w kolejności wywołania. */
 function orArgs(): string[] {
   return chain()
@@ -151,7 +168,7 @@ describe("dobór placementów: pozycja, typ strony, identyfikator strony", () =>
 
     await loadPlacements("footer_slideup", "post", null);
 
-    expect(eqArg("position")).toBe("footer_slideup");
+    expect(inArg("position")).toEqual(["footer_slideup"]);
   });
 
   it("dopuszcza placementy 'all' OBOK placementów danego typu strony", async () => {
@@ -161,7 +178,7 @@ describe("dobór placementów: pozycja, typ strony, identyfikator strony", () =>
 
     // Bez "all" w liście każda kampania ogólnositeowa zniknęłaby ze stron
     // kategorii; bez "category" znikałyby kampanie zawężone do kategorii.
-    expect(chain().argsOf("in")).toEqual(["page_type", ["all", "category"]]);
+    expect(inArg("page_type")).toEqual(["all", "category"]);
   });
 
   it.each<AdPageType>(["home", "post", "page", "category", "tag", "archive", "search"])(
@@ -171,7 +188,7 @@ describe("dobór placementów: pozycja, typ strony, identyfikator strony", () =>
 
       await loadPlacements("header_banner", pageType, null);
 
-      expect(chain().argsOf("in")).toEqual(["page_type", ["all", pageType]]);
+      expect(inArg("page_type")).toEqual(["all", pageType]);
     },
   );
 
@@ -180,7 +197,7 @@ describe("dobór placementów: pozycja, typ strony, identyfikator strony", () =>
 
     await loadPlacements("header_banner", "all", null);
 
-    expect(chain().argsOf("in")).toEqual(["page_type", ["all", "all"]]);
+    expect(inArg("page_type")).toEqual(["all", "all"]);
   });
 
   it("placement przypięty do INNEJ strony nie wchodzi do wyniku", async () => {
@@ -566,6 +583,171 @@ describe("bramka: typy stron znane bazie a filtr wysyłany przez klienta", () =>
 
     await loadPlacements("header_banner", "event", null);
 
-    expect(chain().argsOf("in")).toEqual(["page_type", ["all", "event"]]);
+    expect(inArg("page_type")).toEqual(["all", "event"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ROZGRZEWKA SSR KILKU POZYCJI ZA JEDEN ROUND-TRIP.
+//
+// PO CO OSOBNY BLOK. Trasa łapiąca wszystko (`src/routes/$.tsx`) grzeje dwie
+// pozycje naraz - baner nagłówka i slot nad treścią - a jej fala wtórna ma
+// sufit 6 równoległych odnóg (`check:ssr-budgets`; twardy limit 6 podżądań
+// runtime Cloudflare Workers). Dowód musi więc obejmować OBIE własności naraz:
+// że round-trip jest JEDEN i że rozgrzane klucze to DOKŁADNIE te, które czyta
+// `useAdPlacements` - rozgrzewka pod innym kluczem kosztuje zapytanie i nie
+// zdejmuje ani jednego skoku układu.
+// ---------------------------------------------------------------------------
+describe("prefetchAdPlacementQueries - rozgrzewka SSR", () => {
+  it("pyta bazę RAZ o wszystkie pozycje, a nie raz na pozycję", async () => {
+    respondWith([]);
+    const qc = new QueryClient();
+
+    await prefetchAdPlacementQueries(
+      qc,
+      [{ position: "top_of_post", pageId: "post-1" }, { position: "header_banner" }],
+      "post",
+    );
+
+    expect(from().chainsFor("ad_placements")).toHaveLength(1);
+    expect(inArg("position")).toEqual(["header_banner", "top_of_post"]);
+    expect(inArg("page_type")).toEqual(["all", "post"]);
+  });
+
+  it("zasiewa DOKŁADNIE te klucze, spod których czyta widok", async () => {
+    const banner = placement({ position: "header_banner", page_id: null });
+    const above = placement({ position: "top_of_post", page_id: "post-1" });
+    respondWith([banner, above]);
+    const qc = new QueryClient();
+
+    await prefetchAdPlacementQueries(
+      qc,
+      [{ position: "top_of_post", pageId: "post-1" }, { position: "header_banner" }],
+      "post",
+    );
+
+    // Klucze biorą się z tej samej fabryki, co w `useAdPlacements` - gdyby
+    // rozgrzewka budowała literał u siebie, każdy jej wpis byłby osobnym
+    // wpisem cache'u i komponent i tak poszedłby po dane po hydratacji.
+    expect(
+      qc.getQueryData(adPlacementsQueryOptions("top_of_post", "post", "post-1").queryKey),
+    ).toEqual([above]);
+    expect(qc.getQueryData(adPlacementsQueryOptions("header_banner", "post").queryKey)).toEqual([
+      banner,
+    ]);
+  });
+
+  it("każda pozycja dostaje WŁASNĄ projekcję page_id z tej samej odpowiedzi", async () => {
+    // Na tym stoi współdzielenie jednego round-tripu: klucz banera nie zna
+    // identyfikatora strony, klucz slotu nad treścią - zna. Placement przypięty
+    // do tej strony należy więc WYŁĄCZNIE do tego drugiego.
+    const pinned = placement({ position: "header_banner", page_id: "post-1" });
+    const general = placement({ position: "header_banner", page_id: null });
+    respondWith([pinned, general]);
+    const qc = new QueryClient();
+
+    await prefetchAdPlacementQueries(
+      qc,
+      [{ position: "header_banner" }, { position: "header_banner", pageId: "post-1" }],
+      "post",
+    );
+
+    expect(qc.getQueryData(adPlacementsQueryOptions("header_banner", "post").queryKey)).toEqual([
+      general,
+    ]);
+    expect(
+      qc.getQueryData(adPlacementsQueryOptions("header_banner", "post", "post-1").queryKey),
+    ).toEqual([pinned, general]);
+  });
+
+  it("wiersz CUDZEJ pozycji nie wchodzi do klucza sąsiada", async () => {
+    // Jedno zapytanie oddaje wiersze OBU pozycji - rozdziela je kod, nie baza.
+    // Bez filtra po `position` baner nagłówka dostałby kreację slotu nad
+    // treścią (i odwrotnie), czyli emisję sprzedaną na inne miejsce.
+    const above = placement({ position: "top_of_post", page_id: null });
+    respondWith([above]);
+    const qc = new QueryClient();
+
+    await prefetchAdPlacementQueries(qc, [{ position: "header_banner" }], "post");
+
+    expect(qc.getQueryData(adPlacementsQueryOptions("header_banner", "post").queryKey)).toEqual([]);
+  });
+
+  it("awaria bazy NIE rzuca - slot wraca do fetchu po hydratacji", async () => {
+    from().setResponse("ad_placements", fail("permission denied for table ad_placements", "42501"));
+    const qc = new QueryClient();
+
+    await expect(
+      prefetchAdPlacementQueries(qc, [{ position: "header_banner" }], "post"),
+    ).resolves.toBeUndefined();
+
+    // Rozgrzewka reklamy NIE ma prawa zdjąć wspólnego cache'u dokumentu, więc
+    // nie zgłasza degradacji ani nie odrzuca - a brak wpisu znaczy tyle, że
+    // przeglądarka pobierze listę sama, jak przed tą rozgrzewką.
+    expect(
+      qc.getQueryData(adPlacementsQueryOptions("header_banner", "post").queryKey),
+    ).toBeUndefined();
+  });
+
+  it("pusta lista pozycji nie kosztuje round-tripu", async () => {
+    respondWith([]);
+    const qc = new QueryClient();
+
+    await prefetchAdPlacementQueries(qc, [], "post");
+
+    expect(from().chainsFor("ad_placements")).toHaveLength(0);
+  });
+});
+
+describe("prefetchAdPlacementQueries - bramka świeżości", () => {
+  it("NIE pyta bazy o klucz, który ma świeże dane - inaczej rozgrzewka odbierałaby `staleTime`", async () => {
+    // `edgeTtlCache` jest w przeglądarce przezroczysty, więc bez tej bramki
+    // każda nawigacja SPA płaciłaby round-trip po listę, którą react-query
+    // trzyma jeszcze przez minutę.
+    respondWith([]);
+    const qc = new QueryClient();
+    qc.setQueryData(adPlacementsQueryOptions("header_banner", "post").queryKey, []);
+
+    await prefetchAdPlacementQueries(qc, [{ position: "header_banner" }], "post");
+
+    expect(from().chainsFor("ad_placements")).toHaveLength(0);
+  });
+
+  it("cel ŚWIEŻY nie traci danych przez zapytanie wysłane po cel ZIMNY", async () => {
+    // Jedno zapytanie idzie wtedy wyłącznie po zimne pozycje, więc odpowiedź
+    // nie zawiera wierszy celu świeżego - nadpisanie go dałoby pustą listę.
+    const banner = placement({ position: "header_banner", page_id: null });
+    const above = placement({ position: "top_of_post", page_id: null });
+    respondWith([above]);
+    const qc = new QueryClient();
+    qc.setQueryData(adPlacementsQueryOptions("header_banner", "post").queryKey, [banner]);
+
+    await prefetchAdPlacementQueries(
+      qc,
+      [{ position: "header_banner" }, { position: "top_of_post" }],
+      "post",
+    );
+
+    expect(inArg("position")).toEqual(["top_of_post"]);
+    expect(qc.getQueryData(adPlacementsQueryOptions("header_banner", "post").queryKey)).toEqual([
+      banner,
+    ]);
+    expect(qc.getQueryData(adPlacementsQueryOptions("top_of_post", "post").queryKey)).toEqual([
+      above,
+    ]);
+  });
+
+  it("wpis PRZETERMINOWANY (`updatedAt: 0`) liczy się jak zimny", async () => {
+    // Zasiew fallbackowy rodzi się przeterminowany właśnie po to, żeby prawdziwe
+    // dane go zastąpiły - rozgrzewka nie może go czytać jako „gotowe".
+    respondWith([]);
+    const qc = new QueryClient();
+    qc.setQueryData(adPlacementsQueryOptions("header_banner", "post").queryKey, [], {
+      updatedAt: 0,
+    });
+
+    await prefetchAdPlacementQueries(qc, [{ position: "header_banner" }], "post");
+
+    expect(from().chainsFor("ad_placements")).toHaveLength(1);
   });
 });

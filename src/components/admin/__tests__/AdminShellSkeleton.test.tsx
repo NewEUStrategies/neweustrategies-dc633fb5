@@ -15,25 +15,44 @@
 // dokończenie układu, tylko jego całkowita wymiana - najgrubszy pojedynczy
 // wkład do CLS 0,532 zmierzonego na tej ścieżce (próg „Poor" = 0,250).
 //
-// DLATEGO KLASY UKŁADU SĄ PORÓWNYWANE ZE ŹRÓDŁEM `AdminShell.tsx`, a nie
-// przepisane tutaj z pamięci: test przepisany z pamięci przechodzi dokładnie po
-// tej zmianie, która psuje rzecz pilnowaną (ktoś zmienia pasek na `w-64`
-// w powłoce i szkielet cicho przestaje pasować).
+// OD 2026-09-21 PARYTET JEST MECHANIZMEM, NIE OBIETNICĄ. Klasy nie są już
+// przepisane po obu stronach z pamięci - obie biorą je z jednego modułu
+// (`adminShellGeometry.ts`), a ten plik pilnuje, żeby żadna ze stron nie
+// zaczęła znowu pisać ich u siebie. Asercje po ŹRÓDLE powłoki zostają: test
+// przepisany z pamięci przechodzi dokładnie po tej zmianie, która psuje rzecz
+// pilnowaną (ktoś zmienia pasek na `w-64` w powłoce i szkielet cicho przestaje
+// pasować).
 //
 // GRANICA DOWODU. Nie mierzymy pikseli - happy-dom nie liczy układu, więc
-// „zero przesunięcia" jest tu niemierzalne z definicji. Mierzymy JEDYNĄ rzecz,
-// którą źródła ustalają: że obie powłoki deklarują te same klasy szerokości
-// i ten sam korzeń. Pomiar CLS należy do RUM-u i do testów przeglądarkowych.
+// „zero przesunięcia" jest tu niemierzalne z definicji. Mierzymy DWIE rzeczy,
+// które źródła ustalają: (1) że obie powłoki deklarują te same klasy i ten sam
+// korzeń, (2) że ARKUSZ WIDZI SZKIELET TAK SAMO jak powłokę - bo o szerokości
+// paska w wariancie `style-4` decyduje `styles.css` (`width: 3.5rem !important`),
+// a nie klasa Tailwinda. Pomiar CLS należy do RUM-u i do testów przeglądarkowych.
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 
 import { AdminShellSkeleton } from "../AdminShellSkeleton";
+import {
+  ADMIN_SHELL_ROOT_CLASS,
+  ADMIN_SIDEBAR_FRAME_CLASS,
+  ADMIN_SIDEBAR_WIDTH_CLASS,
+  adminContentPaddingClass,
+  adminSidebarWidthClass,
+  isAdminSidebarCompact,
+} from "../adminShellGeometry";
 import { isCompactSidebarRoute } from "@/lib/admin/adminNav";
+import { SIDEBAR_STYLES, type SidebarStyle } from "@/lib/builder/sidebarStyles";
 import { hasSsrDisabled } from "@/lib/ci/publicRouteLoaders";
 
 const SHELL_SOURCE = readFileSync("src/components/admin/AdminShell.tsx", "utf8");
+const SKELETON_SOURCE = readFileSync("src/components/admin/AdminShellSkeleton.tsx", "utf8");
 const ROUTE_SOURCE = readFileSync("src/routes/admin.tsx", "utf8");
+const SITE_CSS = readFileSync("src/styles.css", "utf8");
+
+/** Wszystkie warianty paska z panelu wyglądu - źródło listy, nie kopia. */
+const ALL_STYLES: SidebarStyle[] = SIDEBAR_STYLES.map((entry) => entry.id);
 
 afterEach(cleanup);
 
@@ -43,32 +62,36 @@ describe("parytet geometrii z AdminShell", () => {
     const root = container.firstElementChild;
     expect(root).not.toBeNull();
     const className = root?.getAttribute("class") ?? "";
-    for (const token of ["admin-compact", "min-h-screen", "bg-muted/30", "flex"]) {
+    for (const token of [...ADMIN_SHELL_ROOT_CLASS.split(" "), "flex"]) {
       expect(className).toContain(token);
-      // Ta sama klasa MUSI stać w źródle powłoki - inaczej parytet jest pozorny.
-      expect(SHELL_SOURCE).toContain(token);
     }
+    // Ta sama klasa MUSI stać w źródle powłoki - inaczej parytet jest pozorny.
+    // Powłoka bierze ją dziś z tej samej funkcji, co szkielet.
+    expect(SHELL_SOURCE).toContain("adminShellRootClass");
   });
 
   it.each([
-    { compact: false, width: "w-56" },
-    { compact: true, width: "w-12" },
+    { compact: false, width: ADMIN_SIDEBAR_WIDTH_CLASS.expanded },
+    { compact: true, width: ADMIN_SIDEBAR_WIDTH_CLASS.compact },
   ])("pasek boczny ma szerokość $width (compact: $compact)", ({ compact, width }) => {
-    const { container } = render(<AdminShellSkeleton compact={compact} />);
+    const { container } = render(
+      <AdminShellSkeleton path={compact ? "/admin/posts/abc" : "/admin"} />,
+    );
     const aside = container.querySelector("aside");
     expect(aside).not.toBeNull();
     expect(aside?.getAttribute("class")).toContain(width);
-    // Dowód, że to nie jest liczba wymyślona w teście: powłoka używa jej też.
-    expect(SHELL_SOURCE).toContain(width);
+    // Dowód, że to nie jest liczba wymyślona w teście: powłoka liczy ją tą
+    // samą funkcją z tego samego modułu.
+    expect(SHELL_SOURCE).toContain("adminSidebarWidthClass");
   });
 
   it("pasek jest przyklejony na pełną wysokość, dokładnie jak w powłoce", () => {
     const { container } = render(<AdminShellSkeleton />);
     const className = container.querySelector("aside")?.getAttribute("class") ?? "";
-    for (const token of ["sticky", "top-0", "h-screen", "border-r"]) {
+    for (const token of ADMIN_SIDEBAR_FRAME_CLASS.split(" ")) {
       expect(className).toContain(token);
-      expect(SHELL_SOURCE).toContain(token);
     }
+    expect(SHELL_SOURCE).toContain("ADMIN_SIDEBAR_FRAME_CLASS");
   });
 
   it("`hideSidebar` zdejmuje pasek I zdejmuje `flex` z korzenia", () => {
@@ -78,6 +101,92 @@ describe("parytet geometrii z AdminShell", () => {
     const { container } = render(<AdminShellSkeleton hideSidebar />);
     expect(container.querySelector("aside")).toBeNull();
     expect(container.firstElementChild?.getAttribute("class")).not.toContain("flex ");
+  });
+
+  // GEOMETRIA ŻYJE W JEDNYM MODULE - i to jest asercja o ŹRÓDLE, bo dokładnie
+  // tak ten defekt powstał: dwie listy klas, każda poprawna osobno.
+  it("żadna ze stron nie przepisuje klas geometrii u siebie", () => {
+    for (const source of [SHELL_SOURCE, SKELETON_SOURCE]) {
+      expect(source).toContain('from "@/components/admin/adminShellGeometry"');
+      // Literał szerokości w pliku komponentu znaczy, że ktoś obszedł moduł.
+      expect(source).not.toMatch(/"w-56"|"w-12"/);
+    }
+  });
+});
+
+// WARIANT PASKA NAJEMCY - sedno defektu 176 px zmierzonego przez audyt.
+//
+// `AdminShell` zwija pasek, gdy najemca ma `style-4`. Szkielet, który tego nie
+// wie, rezerwuje 224 px i sam produkuje przesunięcie do 48 px. Wariant jest
+// jednak ZNANY NA SERWERZE (mapa `site_settings` rozgrzana przez loader
+// korzenia), więc to nie jest wiedza wyłącznie przeglądarki - i dlatego
+// szkielet przyjmuje go propem, a nie zgaduje.
+describe("wariant paska najemcy steruje geometrią szkieletu", () => {
+  it.each(ALL_STYLES)("`%s` daje tę samą szerokość, co formuła powłoki", (style) => {
+    const { container } = render(<AdminShellSkeleton path="/admin" sidebarStyle={style} />);
+    const expected = adminSidebarWidthClass(isAdminSidebarCompact({ isEditRoute: false, style }));
+    expect(container.querySelector("aside")?.getAttribute("class")).toContain(expected);
+  });
+
+  it("brak wiedzy o wariancie zostaje brakiem - żadnego atrybutu na wyrost", () => {
+    // `null` znaczy „fala 1 nie dowiozła ustawień". Postawienie tu `style-1`
+    // byłoby zarezerwowaniem CUDZEJ geometrii: najemca ze `style-3` dostałby
+    // pasek bez marginesu 0,75 rem, czyli przesunięcie 24 px przy podmianie.
+    const { container } = render(<AdminShellSkeleton path="/admin" />);
+    expect(container.querySelector("aside")?.hasAttribute("data-sidebar-style")).toBe(false);
+  });
+
+  it("wariant zwijający jest JEDEN i zna go także powłoka", () => {
+    expect(isAdminSidebarCompact({ isEditRoute: false, style: "style-4" })).toBe(true);
+    for (const style of ALL_STYLES.filter((s) => s !== "style-4")) {
+      expect(isAdminSidebarCompact({ isEditRoute: false, style })).toBe(false);
+    }
+    expect(SHELL_SOURCE).toContain("isAdminSidebarCompact");
+  });
+});
+
+// ARKUSZ MUSI WIDZIEĆ SZKIELET TAK SAMO JAK POWŁOKĘ.
+//
+// To jest druga połowa defektu i była niewidoczna w klasach Tailwinda.
+// `styles.css` nadaje paskowi wymiary przez `aside[data-sidebar="sidebar"]
+// [data-sidebar-style="..."]`: `style-4` dostaje `width: 3.5rem !important`
+// (56 px - ani `w-56`, ani `w-12`), a `style-3` margines `0.75rem` i niższy
+// ekran. Szkielet bez tej pary atrybutów maluje inny prostokąt niż powłoka,
+// nawet gdy obie deklarują tę samą klasę szerokości - czyli „naprawa" CLS
+// zostawiała po sobie resztkowe przesunięcie na dwóch z sześciu wariantów.
+describe("selektory arkusza trafiają w szkielet", () => {
+  /** Blok reguł dokładnie tego selektora wariantu (bez potomków). */
+  function styleBlock(style: SidebarStyle): string {
+    const selector = `aside[data-sidebar="sidebar"][data-sidebar-style="${style}"] {`;
+    const at = SITE_CSS.indexOf(selector);
+    if (at === -1) return "";
+    const end = SITE_CSS.indexOf("}", at);
+    return SITE_CSS.slice(at + selector.length, end);
+  }
+
+  it.each(ALL_STYLES)("`%s`: szkielet pasuje do selektora wariantu", (style) => {
+    const { container } = render(<AdminShellSkeleton path="/admin" sidebarStyle={style} />);
+    const aside = container.querySelector("aside");
+    expect(aside).not.toBeNull();
+    expect(aside?.matches(`aside[data-sidebar="sidebar"][data-sidebar-style="${style}"]`)).toBe(
+      true,
+    );
+  });
+
+  it.each(["style-3", "style-4"] as const)(
+    "`%s` niesie w arkuszu WYMIAR, więc atrybut jest geometrią, nie ozdobą",
+    (style) => {
+      // Kontrola dodatnia dla testu wyżej: gdyby te reguły zniknęły z arkusza,
+      // asercja „selektor trafia" pilnowałaby czegoś, co nic nie znaczy.
+      expect(styleBlock(style)).toMatch(/width|margin|height/);
+    },
+  );
+
+  it("powłoka stawia tę samą parę atrybutów", () => {
+    expect(SHELL_SOURCE).toContain('data-sidebar="sidebar"');
+    expect(SHELL_SOURCE).toContain("data-sidebar-style=");
+    expect(SKELETON_SOURCE).toContain('data-sidebar="sidebar"');
+    expect(SKELETON_SOURCE).toContain("data-sidebar-style=");
   });
 });
 
@@ -115,32 +224,37 @@ describe("niezależność", () => {
 // PROP, KTÓREGO PRODUKCJA NIE USTAWIA, JEST PROPEM MARTWYM - a tu był gorszy
 // niż martwy. `AdminShell` zwija pasek do 48 px, gdy najemca ma `style-4`
 // (albo gdy trasa jest edytorem). Szkielet, który tego nie wie, maluje 224 px
-// i sam produkuje przesunięcie o 176 px - czyli dokładnie to, które
-// `lib/admin/sidebarStylePreference.ts` ma zdejmować. Defekt był NIEWIDOCZNY
-// dla testów renderujących sam szkielet, bo szkielet obsługiwał `compact`
-// poprawnie; brakowało WOŁAJĄCEGO. Dlatego asercja idzie po ŹRÓDLE trasy.
-describe("trasa panelu faktycznie steruje szerokością szkieletu", () => {
-  it("routes/admin.tsx przekazuje `compact` do szkieletu", () => {
-    const usage = /<AdminShellSkeleton[^/]*\/>/s.exec(ROUTE_SOURCE)?.[0] ?? "";
-    expect(usage).not.toBe("");
-    expect(usage).toContain("compact=");
+// i sam produkuje przesunięcie o 176 px. Defekt był NIEWIDOCZNY dla testów
+// renderujących sam szkielet, bo szkielet obsługiwał wariant poprawnie;
+// brakowało WOŁAJĄCEGO. Dlatego asercja idzie po ŹRÓDLE trasy.
+describe("trasa panelu faktycznie steruje geometrią szkieletu", () => {
+  it("routes/admin.tsx przekazuje ścieżkę I wariant paska", () => {
+    const usages = ROUTE_SOURCE.match(/<AdminShellSkeleton[\s\S]*?\/>/g) ?? [];
+    expect(usages.length).toBeGreaterThan(0);
+    for (const usage of usages) {
+      expect(usage).toContain("path=");
+      expect(usage).toContain("sidebarStyle=");
+    }
   });
 
   it("decyzja o zwinięciu ma JEDNO źródło - `isCompactSidebarRoute`", () => {
-    // Powłoka i trasa muszą pytać tę samą funkcję. Dopóki predykat był
-    // literałem regexpowym wewnątrz powłoki, trasa nie miała jak go poznać.
+    // Powłoka i szkielet muszą pytać tę samą funkcję. Dopóki predykat był
+    // literałem regexpowym wewnątrz powłoki, szkielet nie miał jak go poznać.
     expect(SHELL_SOURCE).toContain("isCompactSidebarRoute");
-    expect(ROUTE_SOURCE).toContain("isCompactSidebarRoute");
+    expect(SKELETON_SOURCE).toContain("isCompactSidebarRoute");
     // I nikt nie przepisuje go z pamięci obok.
     expect(SHELL_SOURCE).not.toMatch(/\/\^\\\/admin\\\/\(posts\|pages\)/);
-    expect(ROUTE_SOURCE).not.toMatch(/\/\^\\\/admin\\\/\(posts\|pages\)/);
+    expect(SKELETON_SOURCE).not.toMatch(/\/\^\\\/admin\\\/\(posts\|pages\)/);
   });
 
-  it("szkielet bierze pod uwagę ZAPAMIĘTANY wariant paska, nie tylko trasę", () => {
-    // Bez tego członu najemca ze `style-4` dostaje 224 px na każdym ekranie
-    // panelu poza edytorami - czyli w większości wejść.
+  it("trasa czyta wariant z USTAWIEŃ, nie tylko z pamięci przeglądarki", () => {
+    // Bez tego członu najemca ze `style-4` dostaje 224 px przy pierwszym
+    // w życiu wejściu na daną przeglądarkę - a z serwerowym HTML-em to jest
+    // przesunięcie widoczne w polu, nie hipotetyczne.
+    expect(ROUTE_SOURCE).toContain("sidebarStyleFromSettings");
+    expect(ROUTE_SOURCE).toContain("siteSettingsQueryOptions");
+    // Pamięć przeglądarki zostaje jako źródło ZAPASOWE, nie główne.
     expect(ROUTE_SOURCE).toContain("readRememberedSidebarStyle");
-    expect(ROUTE_SOURCE).toContain("style-4");
   });
 });
 
@@ -162,7 +276,7 @@ describe("parytet wysokości - kontener nie kurczy się przy podmianie", () => {
     expect(className).toContain("min-h-screen");
     // Powłoka deklaruje TĘ SAMĄ rezerwę na TYM SAMYM korzeniu - inaczej
     // parytet byłby przypadkiem, a nie kontraktem.
-    expect(SHELL_SOURCE).toContain("min-h-screen");
+    expect(ADMIN_SHELL_ROOT_CLASS).toContain("min-h-screen");
   });
 
   it("pasek boczny zajmuje dokładnie jeden ekran, tak jak w powłoce", () => {
@@ -170,14 +284,14 @@ describe("parytet wysokości - kontener nie kurczy się przy podmianie", () => {
     const className = container.querySelector("aside")?.getAttribute("class") ?? "";
     for (const token of ["h-screen", "max-h-screen", "self-start"]) {
       expect(className).toContain(token);
-      expect(SHELL_SOURCE).toContain(token);
+      expect(ADMIN_SIDEBAR_FRAME_CLASS).toContain(token);
     }
   });
 
   it("kolumna treści rośnie tak samo jak w powłoce", () => {
     const { container } = render(<AdminShellSkeleton />);
     expect(container.querySelector("main")?.getAttribute("class")).toContain("flex-1");
-    expect(SHELL_SOURCE).toContain("flex-1");
+    expect(SHELL_SOURCE).toContain("adminContentColumnClass");
   });
 
   it("treść ma rezerwę pionową, a nie wysokość własnej zawartości", () => {
@@ -187,6 +301,25 @@ describe("parytet wysokości - kontener nie kurczy się przy podmianie", () => {
     const { container } = render(<AdminShellSkeleton />);
     const reserve = container.querySelector("main .h-\\[70vh\\]");
     expect(reserve).not.toBeNull();
+  });
+
+  // PADDING KOLUMNY TREŚCI to najcichszy człon parytetu: szkielet rysował
+  // `p-4 md:p-6`, a powłoka na tych samych trasach `px-3 py-4 lg:px-5 lg:py-6`
+  // albo `p-2` w edytorze. Przy podmianie cała treść przesuwała się więc
+  // o 4-16 px w poziomie na KAŻDEJ trasie panelu, niezależnie od paska.
+  it.each([
+    { path: "/admin", label: "pulpit" },
+    { path: "/admin/posts/abc123", label: "edytor wpisu" },
+    { path: "/admin/theme-options", label: "opcje motywu" },
+  ])("padding treści zgadza się z powłoką ($label)", ({ path }) => {
+    const { container } = render(<AdminShellSkeleton path={path} />);
+    const expected = adminContentPaddingClass({
+      isEditRoute: isCompactSidebarRoute(path),
+      isThemeOptions: path.startsWith("/admin/theme-options"),
+    });
+    const inner = container.querySelector("main > div")?.getAttribute("class") ?? "";
+    for (const token of expected.split(" ")) expect(inner).toContain(token);
+    expect(SHELL_SOURCE).toContain("adminContentPaddingClass");
   });
 });
 
@@ -210,14 +343,14 @@ describe("szkielet stoi w dokumencie serwerowym", () => {
   });
 
   it("wariant kompaktowy z URL-a zgadza się z predykatem powłoki", () => {
-    // Serwer zna z formuły powłoki DOKŁADNIE JEDEN człon - trasę. Ten test
-    // wiąże predykat z narysowaną szerokością, żeby zmiana jednego bez
-    // drugiego była czerwona.
+    // Serwer zna z formuły powłoki DWA człony - trasę i ustawienia najemcy.
+    // Ten test wiąże predykat trasy z narysowaną szerokością, żeby zmiana
+    // jednego bez drugiego była czerwona.
     for (const path of ["/admin", "/admin/posts/abc", "/admin/appearance/header"]) {
       const compact = isCompactSidebarRoute(path);
-      const { container } = render(<AdminShellSkeleton compact={compact} />);
+      const { container } = render(<AdminShellSkeleton path={path} />);
       expect(container.querySelector("aside")?.getAttribute("class")).toContain(
-        compact ? "w-12" : "w-56",
+        adminSidebarWidthClass(compact),
       );
       cleanup();
     }

@@ -14,7 +14,7 @@
 // po nieudanej sesji MUSI dostać `failed`, inaczej zostaje `pending` bez sesji
 // i panel admina raportuje je jako wiszące.
 //
-// CO ATRAPUJEMY. Wyłącznie klienta operatora (`createStripeClient`) - reszta
+// CO ATRAPUJEMY. Wyłącznie klienta operatora (`getStripeClient`) - reszta
 // `@/lib/stripe.server` (rozstrzyganie środowiska, mapowanie komunikatu błędu)
 // zostaje PRAWDZIWA, tak samo jak cały `@/lib/billing/adhocCheckout.server`,
 // `checkoutSettings.server` i `markOrderSession.server`. Testujemy handler
@@ -97,8 +97,8 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
   const { stripeStub: base } = await import("@/test/billing/fixtures");
   return {
     ...actual,
-    createStripeClient: (env: string) => {
-      h.calls.push({ method: "createStripeClient", args: [env] });
+    getStripeClient: (env: string) => {
+      h.calls.push({ method: "getStripeClient", args: [env] });
       const stub = base();
       return {
         ...stub,
@@ -822,7 +822,7 @@ describe("createCheckoutOrder - stempel środowiska", () => {
     // z piaskownicy realizuje zamówienie produkcyjne (izolacja sandbox/live).
     await call(planPayload({ environment: "live" }));
 
-    expect(stripeCall("createStripeClient")?.args[0]).toBe("live");
+    expect(stripeCall("getStripeClient")?.args[0]).toBe("live");
   });
 
   it("tryb mock nie jest już możliwy, gdy bramka jest skonfigurowana", async () => {

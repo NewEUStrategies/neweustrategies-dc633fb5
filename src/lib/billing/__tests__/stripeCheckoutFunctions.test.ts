@@ -79,8 +79,8 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
   const { stripeStub } = await import("@/test/billing/fixtures");
   return {
     ...actual,
-    createStripeClient: (env: string) => {
-      h.calls.push({ method: "createStripeClient", args: [env] });
+    getStripeClient: (env: string) => {
+      h.calls.push({ method: "getStripeClient", args: [env] });
       const base = stripeStub();
       return {
         ...base,
@@ -541,7 +541,7 @@ describe("createPlanCheckoutSession - sesja u operatora i sprzątanie po odmowie
     await planCall({ environment: "live" });
 
     expect(insertedOrder()?.environment).toBe("live");
-    expect(stripeCall("createStripeClient")?.args[0]).toBe("live");
+    expect(stripeCall("getStripeClient")?.args[0]).toBe("live");
   });
 
   it("konto bez adresu w tokenie nie wywraca kasy - paragon zostaje pusty", async () => {
@@ -821,7 +821,7 @@ describe("createAdhocCheckoutSession - cienki wrapper nad zamówieniem ad-hoc", 
   it("środowisko z żądania wybiera klienta operatora", async () => {
     await adhocCall({ environment: "live" });
 
-    expect(stripeCall("createStripeClient")?.args[0]).toBe("live");
+    expect(stripeCall("getStripeClient")?.args[0]).toBe("live");
   });
 
   it("odmowa operatora oznacza zamówienie jako `failed`", async () => {

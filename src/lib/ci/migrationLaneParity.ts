@@ -191,6 +191,16 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0029_club_set_cover_position_tenant_scope",
     twin: "20260920120000_club_set_cover_position_tenant_scope.sql",
   },
+  // Kontekst nawigacji dla RUM: pięć kolumn `web_vitals` plus cztery CHECK-i.
+  // SQL WYKONYWALNY obu plików jest identyczny; różnią się wyłącznie NAGŁÓWEK
+  // (pas supabase niesie uzasadnienie migracji, pas drizzle zaczyna od pierwszej
+  // instrukcji) i DŁUGOŚĆ PROZY w literałach `COMMENT ON` - a tego ta bramka
+  // świadomie nie pilnuje, bo dokumentacja w bazie nie zmienia ani schematu,
+  // ani zachowania.
+  {
+    tag: "0030_web_vitals_navigation_context",
+    twin: "20260920121000_web_vitals_navigation_context.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";

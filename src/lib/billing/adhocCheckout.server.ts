@@ -12,7 +12,7 @@
 // Moduł jest server-only (klucze bramki) - importuj wyłącznie z handlerów
 // `createServerFn`.
 import type Stripe from "stripe";
-import { createStripeClient, resolveEnvironment, type StripeEnv } from "@/lib/stripe.server";
+import { getStripeClient, resolveEnvironment, type StripeEnv } from "@/lib/stripe.server";
 import { normalizeCheckoutLocale, type CheckoutLocale } from "@/lib/billing/checkoutLocale";
 import {
   checkoutSessionParams,
@@ -163,7 +163,7 @@ export async function createPlanCheckoutSession(
   input: PlanCheckoutSessionInput,
 ): Promise<CheckoutSessionResult> {
   try {
-    const stripe = createStripeClient(input.environment);
+    const stripe = await getStripeClient(input.environment);
     const prices = await resolvePricesByLookupKeys(stripe, [input.priceLookupKey]);
     const price = prices.get(input.priceLookupKey);
     if (!price) return { ok: false, error: "price_missing" };
@@ -282,7 +282,7 @@ export async function createAdhocCheckoutSession(
     return { ok: false, error: "amount_too_low" };
   }
   try {
-    const stripe = createStripeClient(input.environment);
+    const stripe = await getStripeClient(input.environment);
     const quantity = Math.min(Math.max(Math.trunc(input.quantity ?? 1), 1), 100);
 
     let customerId: string | undefined;
@@ -357,7 +357,7 @@ export async function reuseOpenSession(
   sessionId: string,
 ): Promise<CheckoutSessionResult | null> {
   try {
-    const stripe = createStripeClient(environment);
+    const stripe = await getStripeClient(environment);
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     if (session.status !== "open" || !session.client_secret) return null;
     return { ok: true, clientSecret: session.client_secret, sessionId: session.id };

@@ -49,6 +49,12 @@ const h = vi.hoisted(() => ({
   tenantId: "tenant-a",
   /** `true` = odczyt `web_stories` pada (blip backendu). */
   broken: false,
+  /**
+   * `true` = odczyt `web_stories` pada TYLKO RAZ - blip, który mija. Loader
+   * zasiewa wtedy fallback ze stemplem `updatedAt: 0`, a refetch po
+   * zamontowaniu dostaje już prawdziwy wiersz.
+   */
+  failOnce: false,
   /** Etykiety odczytów W KOLEJNOŚCI - PODSTAWA POMIARU zapytań (blok N5). */
   reads: [] as string[],
   /** Adres żądania widziany przez `head()`. */
@@ -66,6 +72,10 @@ vi.mock("@/integrations/supabase/client", async () => {
   const stub = supabaseFromStub();
 
   stub.setResponse("web_stories", (chain) => {
+    if (h.failOnce) {
+      h.failOnce = false;
+      return fail("test: tabela web_stories chwilowo niedostepna");
+    }
     if (h.broken) return fail("test: tabela web_stories niedostepna");
     const eqSlug = chain.calls.find((call) => call.method === "eq" && call.args[0] === "slug")
       ?.args[1];
@@ -247,6 +257,7 @@ beforeEach(async () => {
   h.stories = [story()];
   h.tenantId = "tenant-a";
   h.broken = false;
+  h.failOnce = false;
   h.reads = [];
   h.requestUrl = "https://nes.example.org/web-stories";
   h.cacheControl = [];
@@ -464,6 +475,53 @@ describe("trasa /web-stories/$slug - nieistniejący slug to 404", () => {
     // Asercja na LOADERZE, nie na renderze: status HTTP jest tym, co widzi
     // crawler, a render 404 przy HTTP 200 zostawia adres w indeksie.
     await expect(storyLoaderData("nie-ma-takiej-historii")).rejects.toBeTruthy();
+  });
+});
+
+// DEGRADACJA MÓWI PRAWDĘ, ALE LECZY SIĘ SAMA (`lib/ssr/useDegradedUntilHealed`).
+// Ładunek loadera jest NIEZMIENNY przez życie dopasowania trasy, a zasiew ma
+// stempel `updatedAt: 0`, więc `useQuery` dociąga historię zaraz po
+// zamontowaniu. Pełny dowód mechanizmu (parytet hydratacji, kontrola negatywna)
+// stoi w `src/lib/ssr/__tests__/useDegradedUntilHealed.test.tsx`.
+describe("trasa /web-stories/$slug - degradacja leczy się sama", () => {
+  const NOTICE = "Ta sekcja chwilowo nie ma danych";
+  const RETRY = "Spróbuj ponownie";
+
+  it("awaria odczytu NIE daje 404 na żywej historii, tylko komunikat z ponowieniem", async () => {
+    h.broken = true;
+    await mountStory();
+
+    expect(await screen.findByText(NOTICE)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: RETRY })).toBeInTheDocument();
+    expect(screen.queryByText("Nie znaleziono historii.")).toBeNull();
+  });
+
+  it("SSR zdegradowany + UDANY refetch: komunikat znika, historia się renderuje", async () => {
+    h.failOnce = true;
+    const view = await mountStory();
+
+    // PARYTET Z SSR: pierwszy render niesie jeszcze komunikat - ten sam, który
+    // wyszedł z serwera. Przełączenie jest PÓŹNIEJSZE, nie w tym renderze.
+    expect(view.getByText(NOTICE)).toBeInTheDocument();
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Zima bez gazu" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(NOTICE)).toBeNull();
+  });
+
+  it("ponowienie pyta backend JESZCZE RAZ i leczy stronę bez nawigacji", async () => {
+    h.broken = true;
+    await mountStory();
+    const button = await screen.findByRole("button", { name: RETRY });
+
+    h.broken = false;
+    fireEvent.click(button);
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Zima bez gazu" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(NOTICE)).toBeNull();
   });
 });
 

@@ -894,6 +894,57 @@ describe("SearchButtonWidget", () => {
     expect(rpc.calls).toHaveLength(1);
   });
 
+  // ── REGRESJA CLS: rezerwa miejsca na mikrofon ──────────────────────────────
+  // `useVoiceSearch` rozstrzyga `supported` DOPIERO w efekcie po hydratacji
+  // (serwer i pierwsza klatka klienta zawsze widzą `false`). Pasek ikon jest
+  // kotwiczony do PRAWEJ krawędzi pola (`right: pad`), więc doklejenie
+  // separatora i mikrofonu poszerzało go W LEWO i przesuwało lupę oraz
+  // „wyczyść" o 27 px - to jest resztkowe 0,00005 CLS z raportu K7. Test
+  // pilnuje, że oba renderowania mają TĘ SAMĄ sekwencję pudełek w pasku
+  // i TĘ SAMĄ rezerwę pola, a różnią się wyłącznie widocznością.
+  const dropSpeechRecognition = (): void => {
+    const w = window as unknown as Record<string, unknown>;
+    delete w.webkitSpeechRecognition;
+    delete w.SpeechRecognition;
+  };
+
+  /** Klasy kolejnych dzieci paska ikon - podpis geometrii, nie wyglądu. */
+  const toolbarBoxes = (container: HTMLElement): string[] =>
+    Array.from(
+      container.querySelector<HTMLElement>("div.absolute.top-0")!.children,
+      (el) => el.className,
+    );
+
+  const trailingReserve = (container: HTMLElement): string =>
+    (container.querySelector("input") as HTMLInputElement).style.paddingRight;
+
+  it("REGRESJA CLS: pasek ikon ma TĘ SAMĄ geometrię bez i z obsługą dyktowania", async () => {
+    dropSpeechRecognition();
+    const bez = renderWidget();
+    const bezBoxes = toolbarBoxes(bez.container);
+    const bezReserve = trailingReserve(bez.container);
+    const bezMic = bez.container.querySelector<HTMLButtonElement>("button[data-voice-unsupported]");
+    // Mikrofon JEST w układzie, tylko niewidoczny i wyjęty z interakcji.
+    expect(bezMic, "brak zarezerwowanego pudełka mikrofonu").toBeTruthy();
+    expect(bezMic!.style.visibility).toBe("hidden");
+    expect(bezMic!.hasAttribute("inert")).toBe(true);
+    expect(screen.queryByRole("button", { name: "Wyszukiwanie głosowe" })).toBeNull();
+    cleanup();
+
+    installSpeechRecognition();
+    const zBoxem = renderWidget();
+    await screen.findByRole("button", { name: "Wyszukiwanie głosowe" });
+    const zBoxes = toolbarBoxes(zBoxem.container);
+    const mic = zBoxem.container.querySelector<HTMLButtonElement>("button[data-voice-unsupported]");
+
+    // Ta sama liczba i te same klasy pudełek => ta sama szerokość paska.
+    expect(zBoxes).toEqual(bezBoxes);
+    // Ta sama rezerwa pod ikonami => `padding-right` pola się nie rusza.
+    expect(trailingReserve(zBoxem.container)).toBe(bezReserve);
+    expect(mic, "mikrofon nie powinien być już oznaczony jako niedostępny").toBeNull();
+    dropSpeechRecognition();
+  });
+
   it("klik POZA widgetem zamyka megabox (handler dokumentu)", async () => {
     rpc.rows = [
       row({

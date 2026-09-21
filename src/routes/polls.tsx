@@ -21,6 +21,7 @@ import { COMMUNITY_MODULES_DEFAULTS, COMMUNITY_MODULES_KEY } from "@/lib/communi
 import { resolveSetting, siteSettingsQueryOptions, type SettingsMap } from "@/lib/useSiteSetting";
 import { withSsrBudget } from "@/lib/asyncBudget";
 import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import { useAuth } from "@/hooks/useAuth";
@@ -117,12 +118,17 @@ function PollsPage() {
     enabled: modules.polls_enabled,
   });
 
-  // STEMPEL FALLBACKU, nie nowy stan. `loadResilient` zasiewa pustą listę
-  // z `updatedAt: 0`, więc `dataUpdatedAt === 0` znaczy „dane są, ale nie są
-  // prawdą backendu". Koniunkcja z flagą loadera odsiewa degradację SAMYCH
-  // USTAWIEŃ (lista bywa wtedy kompletna), a po refetchu po hydratacji
-  // stempel się zmienia i komunikat znika sam.
-  const degraded = ssrDegraded && pollsQ.dataUpdatedAt === 0;
+  // STEMPEL FALLBACKU, nie nowy stan - wspólny hak zamiast odczytu z palca.
+  // `loadResilient` zasiewa pustą listę z `updatedAt: 0`, więc „stempel zerowy"
+  // znaczy „dane są, ale nie są prawdą backendu". Koniunkcja z flagą loadera
+  // odsiewa degradację SAMYCH USTAWIEŃ (lista bywa wtedy kompletna), a po
+  // refetchu po hydratacji stempel się zmienia i komunikat znika sam. Odczyt
+  // z `pollsQ.dataUpdatedAt` dawał to samo, ale BEZ bramki hydratacji i bez
+  // ponowienia - patrz `lib/ssr/useDegradedUntilHealed.ts`.
+  const { degraded, retry } = useDegradedUntilHealed(
+    publicPollsQueryOptions().queryKey,
+    ssrDegraded,
+  );
 
   const ids = useMemo(() => (pollsQ.data ?? []).map((p) => p.id), [pollsQ.data]);
   const idsKey = ids.join(",");
@@ -176,7 +182,7 @@ function PollsPage() {
           ten HTML nie zamarza na brzegu. Nagłówek strony ZOSTAJE: degraduje
           lista, nie cała strona (stąd wariant panelu, nie pełnoekranowy). */}
       {degraded ? (
-        <DegradedDataNotice />
+        <DegradedDataNotice onRetry={retry} />
       ) : (
         <>
           {pollsQ.isError && <p className="text-destructive">{t("community.common.loadError")}</p>}

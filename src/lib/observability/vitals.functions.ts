@@ -13,7 +13,6 @@ import { resolveUserTenantId } from "@/lib/server/userTenant.server";
 import {
   aggregateVitals,
   trendsFromDailyP75,
-  type DailyP75Row,
   type VitalSample,
   type VitalsReport,
 } from "./aggregate";
@@ -80,9 +79,6 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
       // never sees another workspace's RUM data / URL paths.
       const tenantId = await resolveUserTenantId(supabaseAdmin, context.userId);
 
-      // `web_vitals` is created by a migration not yet reflected in the generated
-      // Supabase types, so the table name/row shape are cast here (mirrors the
-      // ingest route in src/routes/api/public/vitals.ts).
       // Accurate window size via a cheap COUNT(*) - the TRUE total even when the
       // aggregated sample set below is capped, so the dashboard never understates.
       const { count: windowCount, error: countErr } = await supabaseAdmin
@@ -103,7 +99,13 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
         .limit(SAMPLE_CAP);
       if (error) throw new Error(error.message);
 
-      const samples = (rows ?? []) as unknown as VitalSample[];
+      // BEZ `as unknown as`. Stało tu rzutowanie z komentarzem „tabela z migracji,
+      // której nie ma jeszcze w wygenerowanych typach" - i to przestało być
+      // prawdą: `web_vitals` JEST w `src/integrations/supabase/types.ts` razem
+      // z kolumnami kontekstu nawigacji (20260920121000). Wybrane kolumny
+      // pokrywają `VitalSample` co do jednej, więc zmiana typu `value` czy
+      // `path` w bazie ma tu wywrócić kompilację, a nie przejść przez rzutowanie.
+      const samples: VitalSample[] = rows ?? [];
       const report = aggregateVitals(samples, { windowDays });
       const windowTotal = windowCount ?? samples.length;
 
@@ -121,7 +123,7 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
             { p_since: since, p_tenant: tenantId },
           );
           if (!trendErr && Array.isArray(trendRows)) {
-            trends = trendsFromDailyP75(trendRows as unknown as DailyP75Row[]);
+            trends = trendsFromDailyP75(trendRows);
           }
         } catch {
           // Keep the in-memory trend.

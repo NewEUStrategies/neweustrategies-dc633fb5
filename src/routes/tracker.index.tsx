@@ -36,6 +36,7 @@ import { localizedPath } from "@/lib/i18n/localePath";
 import { withSsrBudget } from "@/lib/asyncBudget";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 import {
   POLICY_STAGES,
   POLICY_AREAS,
@@ -329,16 +330,23 @@ function TrackerIndex() {
     setLimit(TRACKER_PAGE_SIZE);
   };
 
-  const { data: items, isLoading } = usePublishedItems(
-    {
-      area: area === "all" ? undefined : area,
-      stage: stage === "all" ? undefined : stage,
-    },
-    limit,
-  );
+  const filters = {
+    area: area === "all" ? undefined : area,
+    stage: stage === "all" ? undefined : stage,
+  };
+  const { data: items, isLoading } = usePublishedItems(filters, limit);
   const { data: followerCounts } = useFollowerCounts((items ?? []).map((item) => item.id));
-  // Sygnał z loadera: czy pusta lista pochodzi z bazy, czy z fallbacku.
-  const { degraded } = Route.useLoaderData();
+  // Sygnał z loadera: czy pusta lista pochodzi z bazy, czy z fallbacku - ale
+  // TYLKO jako stan początkowy. `loaderData` jest niezmienne przez całe życie
+  // dopasowania trasy, więc po hydratacji (i po każdej zmianie filtrów) o
+  // widoku decyduje stempel ZAPYTANIA, które ta siatka faktycznie czyta:
+  // dociągnięte dossier kasują komunikat, kolejna awaria go zostawia razem
+  // z ponowieniem (patrz `lib/ssr/useDegradedUntilHealed.ts`).
+  const { degraded: ssrDegraded } = Route.useLoaderData();
+  const { degraded, retry } = useDegradedUntilHealed(
+    publishedItemsQueryOptions(filters, limit).queryKey,
+    ssrDegraded,
+  );
   // Pełne okno = prawdopodobnie jest dalszy ciąg (dokładny count nie jest
   // wart drugiej podróży; ostatnie kliknięcie zwróci niepełną stronę).
   const canLoadMore = (items ?? []).length >= limit;
@@ -404,7 +412,7 @@ function TrackerIndex() {
         // (fallback siany z `updatedAt: 0` refetchuje się po hydratacji), więc
         // warunek stoi WEWNĄTRZ gałęzi pustej listy, a nie przed nią.
         degraded ? (
-          <DegradedDataNotice />
+          <DegradedDataNotice onRetry={retry} />
         ) : (
           <p className="text-sm text-muted-foreground py-16 text-center">{t("tracker.empty")}</p>
         )

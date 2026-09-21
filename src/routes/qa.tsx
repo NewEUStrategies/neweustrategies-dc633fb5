@@ -9,8 +9,10 @@ import { COMMUNITY_MODULES_DEFAULTS, COMMUNITY_MODULES_KEY } from "@/lib/communi
 import { resolveSetting, siteSettingsQueryOptions, type SettingsMap } from "@/lib/useSiteSetting";
 import { withSsrBudget } from "@/lib/asyncBudget";
 import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead, splitUrl, SITE_NAME } from "@/lib/seo/meta";
@@ -19,6 +21,13 @@ import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
 
 interface QaListHeadData {
   sessions: Array<{ slug: string; titlePl: string; titleEn: string }>;
+  /**
+   * Czy render POWSTAŁ na fallbacku. Ta sama wartość, którą loader podaje do
+   * `resilientCacheControl` - dotąd zostawała w loaderze, a komponent
+   * odtwarzał ją z palca ze stempla zapytania. Jedno źródło, bo to STAN
+   * POCZĄTKOWY dla `useDegradedUntilHealed` (patrz komentarz w komponencie).
+   */
+  degraded: boolean;
 }
 
 /** Wspólny termin ŻĄDANIA - obie fazy dzielą jedno okno, nie dwa. */
@@ -73,7 +82,7 @@ export const Route = createFileRoute("/qa")({
     const settingsDegraded = settings === undefined;
     if (!modules.qa_enabled) {
       setCacheControlHeader(resilientCacheControl(settingsDegraded));
-      return { sessions: [] };
+      return { sessions: [], degraded: settingsDegraded };
     }
     // Lista sesji jest treścią POD zgięciem i czyta ją `useQuery` (nie
     // suspense), więc blip degraduje do pustej listy i dociąga się po
@@ -86,6 +95,7 @@ export const Route = createFileRoute("/qa")({
     );
     setCacheControlHeader(resilientCacheControl(settingsDegraded || sessions.degraded));
     return {
+      degraded: settingsDegraded || sessions.degraded,
       sessions: sessions.data.slice(0, 50).map((s) => ({
         slug: s.slug,
         titlePl: s.title_pl,
@@ -151,12 +161,18 @@ function QaListPage() {
   });
 
   // STEMPEL FALLBACKU, nie nowy stan. `loadResilient` zasiewa pustą listę
-  // z `updatedAt: 0`, więc `dataUpdatedAt === 0` znaczy „dane są, ale nie są
-  // prawdą backendu". Bez tego rozróżnienia zdegradowany render wyglądałby
-  // dokładnie jak „nie ma jeszcze sesji" - a to jest kłamstwo w treści
-  // (patrz komentarz w components/molecules/DegradedDataNotice). Po hydratacji
-  // refetch nadpisuje wpis prawdziwym stemplem i komunikat znika sam.
-  const degraded = query.data !== undefined && query.dataUpdatedAt === 0;
+  // z `updatedAt: 0`, więc stempel zerowy znaczy „dane są, ale nie są prawdą
+  // backendu". Bez tego rozróżnienia zdegradowany render wyglądałby dokładnie
+  // jak „nie ma jeszcze sesji" - a to jest kłamstwo w treści (patrz komentarz
+  // w components/molecules/DegradedDataNotice). Odczyt szedł dotąd z palca po
+  // `query.dataUpdatedAt`: dawał to samo, ale BEZ bramki hydratacji i bez
+  // ponowienia. Flaga z loadera jest tu stanem POCZĄTKOWYM, stempel zapytania -
+  // prawdą po hydratacji (patrz `lib/ssr/useDegradedUntilHealed.ts`).
+  const { degraded: ssrDegraded } = Route.useLoaderData();
+  const { degraded, retry } = useDegradedUntilHealed(
+    publicQaSessionsQueryOptions().queryKey,
+    ssrDegraded,
+  );
 
   if (!modules.qa_enabled) return <CommunityDisabled />;
 
@@ -168,7 +184,12 @@ function QaListPage() {
       </header>
 
       {query.isLoading && <p className="text-muted-foreground">{t("community.common.loading")}</p>}
-      {(query.isError || degraded) && (
+      {/* Wspólna warstwa degradacji zamiast gołego akapitu: to ona niesie
+          przycisk ponowienia, więc czytelnik ma co zrobić z komunikatem.
+          `query.isError` zostaje osobno - błąd przy CZYSTYM starcie (bez
+          zasiewu) nie jest degradacją renderu i haka nie dotyczy. */}
+      {degraded && <DegradedDataNotice onRetry={retry} />}
+      {!degraded && query.isError && (
         <p className="text-destructive">{t("community.common.loadError")}</p>
       )}
 

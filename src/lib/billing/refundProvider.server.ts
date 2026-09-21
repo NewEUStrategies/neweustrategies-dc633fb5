@@ -13,7 +13,7 @@
 //
 // Moduł jest server-only (klucze bramki) - importuj wyłącznie z handlerów.
 import type Stripe from "stripe";
-import { createStripeClient, getStripeErrorMessage, type StripeEnv } from "@/lib/stripe.server";
+import { getStripeClient, getStripeErrorMessage, type StripeEnv } from "@/lib/stripe.server";
 
 export type RefundResult = { ok: true; adjustmentId: string | null } | { ok: false; error: string };
 
@@ -85,7 +85,7 @@ export async function refundTransactionFully(
   idempotencySeed?: string | null,
 ): Promise<RefundResult> {
   try {
-    const stripe = createStripeClient(env);
+    const stripe = await getStripeClient(env);
     const paymentIntentId = await resolvePaymentIntentId(stripe, transactionId);
     if (!paymentIntentId) return { ok: false, error: "payment_intent_not_found" };
 
@@ -126,7 +126,7 @@ export async function refundTransactionPartially(
     return { ok: false, error: "invalid_amount" };
   }
   try {
-    const stripe = createStripeClient(env);
+    const stripe = await getStripeClient(env);
     const paymentIntentId = await resolvePaymentIntentId(stripe, transactionId);
     if (!paymentIntentId) return { ok: false, error: "payment_intent_not_found" };
 

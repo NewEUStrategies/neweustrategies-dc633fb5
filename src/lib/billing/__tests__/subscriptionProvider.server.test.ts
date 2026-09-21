@@ -19,7 +19,7 @@ const h = vi.hoisted(() => ({
 // w niezmienionej treści (z detalami: type/code/param).
 vi.mock("@/lib/stripe.server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/stripe.server")>()),
-  createStripeClient: (env: string) => {
+  getStripeClient: (env: string) => {
     h.envs.push(env);
     return {
       subscriptions: h.subscriptions,

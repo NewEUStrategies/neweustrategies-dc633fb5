@@ -51,6 +51,12 @@ const h = vi.hoisted(() => ({
   tenantId: "tenant-a",
   /** Tabele, których odczyt ma paść (blip backendu). */
   broken: new Set<string>(),
+  /**
+   * Tabele, których odczyt pada TYLKO RAZ - blip, który mija. Modeluje układ
+   * z produkcji: loader dostaje błąd i zasiewa fallback, a refetch po
+   * hydratacji dostaje już prawdziwe wiersze.
+   */
+  failOnce: new Set<string>(),
   /** Zalogowany użytkownik albo `null` (gość nie może głosować). */
   userId: null as string | null,
   /**
@@ -80,6 +86,7 @@ vi.mock("@/integrations/supabase/client", async () => {
   });
   stub.setResponse("polls", () => {
     h.reads.push("polls");
+    if (h.failOnce.delete("polls")) return fail("test: tabela polls chwilowo niedostepna");
     if (h.broken.has("polls")) return fail("test: tabela polls niedostepna");
     // Polityka publiczna: tylko wiersze tenanta przeglądanej domeny.
     return ok(h.polls.filter((row) => row.tenant_id === h.tenantId));
@@ -226,6 +233,7 @@ beforeEach(async () => {
   h.results = [];
   h.tenantId = "tenant-a";
   h.broken = new Set<string>();
+  h.failOnce = new Set<string>();
   h.userId = null;
   h.reads = [];
   h.votes = [];
@@ -432,6 +440,53 @@ describe("trasa /polls - stan pusty i błąd listy", () => {
     await mount();
 
     expect(screen.queryByText("Ta sekcja chwilowo nie ma danych")).toBeNull();
+  });
+});
+
+// DEGRADACJA MÓWI PRAWDĘ, ALE LECZY SIĘ SAMA (`lib/ssr/useDegradedUntilHealed`).
+// Wynik loadera jest NIEZMIENNY przez życie dopasowania trasy, więc dopóki
+// widok czytał samą flagę, czytelnik oglądał komunikat awarii NAD listą, którą
+// przeglądarka dociągnęła sekundę później (zasiew ma stempel `updatedAt: 0`,
+// czyli jest natychmiast przeterminowany). Pełny dowód mechanizmu - z parytetem
+// hydratacji i kontrolą negatywną - stoi w
+// `src/lib/ssr/__tests__/useDegradedUntilHealed.test.tsx`; tutaj dowodzimy, że
+// TA trasa jest do niego podłączona.
+describe("trasa /polls - degradacja leczy się sama", () => {
+  const NOTICE = "Ta sekcja chwilowo nie ma danych";
+  const RETRY = "Spróbuj ponownie";
+  const QUESTION = "Czy Europa powinna przyspieszyć rozbudowę sieci przesyłowych?";
+
+  it("SSR zdegradowany + UDANY refetch: komunikat znika, ankiety się renderują", async () => {
+    // Blip, który mija: loader pada, refetch po zamontowaniu już nie.
+    h.failOnce.add("polls");
+    const view = await mount();
+
+    // PARYTET Z SSR: pierwszy render po zamontowaniu niesie jeszcze komunikat -
+    // dokładnie ten, który wyszedł z serwera. Przełączenie jest PÓŹNIEJSZE.
+    expect(view.getByText(NOTICE)).toBeInTheDocument();
+
+    expect(await screen.findByRole("heading", { level: 2, name: QUESTION })).toBeInTheDocument();
+    expect(screen.queryByText(NOTICE)).toBeNull();
+  });
+
+  it("refetch PADA znowu: komunikat zostaje razem z ponowieniem", async () => {
+    h.broken.add("polls");
+    await mount();
+
+    expect(await screen.findByText(NOTICE)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: RETRY })).toBeInTheDocument();
+  });
+
+  it("ponowienie pyta backend JESZCZE RAZ i leczy widok bez nawigacji", async () => {
+    h.broken.add("polls");
+    await mount();
+    const button = await screen.findByRole("button", { name: RETRY });
+
+    h.broken.delete("polls");
+    fireEvent.click(button);
+
+    expect(await screen.findByRole("heading", { level: 2, name: QUESTION })).toBeInTheDocument();
+    expect(screen.queryByText(NOTICE)).toBeNull();
   });
 });
 

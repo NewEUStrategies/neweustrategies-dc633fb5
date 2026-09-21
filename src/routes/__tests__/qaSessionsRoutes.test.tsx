@@ -61,6 +61,12 @@ const h = vi.hoisted(() => ({
   tenantId: "tenant-a",
   /** Tabele i RPC, których wywołanie ma paść (blip backendu). */
   broken: new Set<string>(),
+  /**
+   * Tabele, których odczyt pada TYLKO RAZ - blip, który mija. Modeluje układ
+   * z produkcji: loader dostaje błąd i zasiewa fallback, a refetch po
+   * hydratacji dostaje już prawdziwe wiersze.
+   */
+  failOnce: new Set<string>(),
   /** Zalogowany użytkownik albo `null`. */
   userId: null as string | null,
   /** Etykiety odczytów W KOLEJNOŚCI - PODSTAWA POMIARU zapytań (blok N5). */
@@ -106,6 +112,7 @@ vi.mock("@/integrations/supabase/client", async () => {
   });
 
   stub.setResponse("qa_sessions", (chain) => {
+    if (h.failOnce.delete("qa_sessions")) return fail("test: qa_sessions chwilowo niedostepna");
     if (h.broken.has("qa_sessions")) return fail("test: tabela qa_sessions niedostepna");
     // Polityka publiczna: tylko wiersze tenanta przeglądanej domeny.
     const visible = h.sessions.filter((row) => row.tenant_id === h.tenantId);
@@ -339,6 +346,7 @@ beforeEach(async () => {
   h.settingsDelayMs = 0;
   h.tenantId = "tenant-a";
   h.broken = new Set<string>();
+  h.failOnce = new Set<string>();
   h.userId = null;
   h.reads = [];
   h.asked = [];
@@ -431,12 +439,50 @@ describe("trasa /qa - lista sesji", () => {
     expect(screen.getByText("Brak zaplanowanych sesji Q&A.")).toBeInTheDocument();
   });
 
-  it("awaria odczytu mówi „nie udało się”, a NIE „brak sesji”", async () => {
+  it("awaria odczytu mówi „nie udało się”, a NIE „brak sesji” - z ponowieniem", async () => {
+    // Komunikat idzie ze WSPÓLNEJ warstwy degradacji (`DegradedDataNotice`),
+    // a nie z gołego akapitu: zdegradowany render musi dać czytelnikowi coś do
+    // zrobienia, bo zasiew z `updatedAt: 0` leczy się właśnie ponowieniem.
     h.broken.add("qa_sessions");
     await mountList();
 
-    expect(await screen.findByText("Nie udało się pobrać danych.")).toBeInTheDocument();
+    expect(await screen.findByText("Ta sekcja chwilowo nie ma danych")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Spróbuj ponownie" })).toBeInTheDocument();
     expect(screen.queryByText("Brak zaplanowanych sesji Q&A.")).toBeNull();
+  });
+
+  // DEGRADACJA MÓWI PRAWDĘ, ALE LECZY SIĘ SAMA (`lib/ssr/useDegradedUntilHealed`).
+  // Zasiew fallbacku nosi stempel `updatedAt: 0`, więc `useQuery` dociąga sesje
+  // zaraz po hydratacji - a flaga z loadera jest niezmienna przez życie
+  // dopasowania trasy. Pełny dowód mechanizmu (parytet hydratacji, kontrola
+  // negatywna) stoi w `src/lib/ssr/__tests__/useDegradedUntilHealed.test.tsx`;
+  // tutaj dowodzimy, że TA trasa jest do niego podłączona.
+  it("SSR zdegradowany + UDANY refetch: komunikat znika, sesje się renderują", async () => {
+    h.failOnce.add("qa_sessions");
+    const view = await mountList();
+
+    // PARYTET Z SSR: pierwszy render niesie jeszcze komunikat - ten sam, który
+    // wyszedł z serwera. Przełączenie jest PÓŹNIEJSZE, nie w tym renderze.
+    expect(view.getByText("Ta sekcja chwilowo nie ma danych")).toBeInTheDocument();
+
+    expect(
+      await screen.findByRole("link", { name: "Pytania o energetykę 2026" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Ta sekcja chwilowo nie ma danych")).toBeNull();
+  });
+
+  it("ponowienie pyta backend JESZCZE RAZ i leczy widok bez nawigacji", async () => {
+    h.broken.add("qa_sessions");
+    await mountList();
+    const button = await screen.findByRole("button", { name: "Spróbuj ponownie" });
+
+    h.broken.delete("qa_sessions");
+    fireEvent.click(button);
+
+    expect(
+      await screen.findByRole("link", { name: "Pytania o energetykę 2026" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Ta sekcja chwilowo nie ma danych")).toBeNull();
   });
 
   it("wyłączony moduł Q&A pokazuje ekran „moduł wyłączony”", async () => {

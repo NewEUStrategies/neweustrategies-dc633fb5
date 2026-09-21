@@ -57,6 +57,7 @@ import { SectionTabsBar } from "@/components/builder/molecules/SectionTabsBar";
 import { evaluateAccess, useAccessContext } from "@/lib/builder/accessControl";
 import { useInlineWidgetEdit } from "@/components/builder/inlineEditContext";
 
+import { estimateChromeColumnHeight } from "@/lib/builder/sectionHeightEstimate";
 import { useSectionPreload } from "@/lib/builder/useSectionPreload";
 import { warmCommonWidgetChunks } from "./widget-view/warmWidgetChunks";
 import { AboveFoldProvider } from "@/lib/builder/aboveFold";
@@ -119,6 +120,12 @@ interface Props {
    * instead of bucketing the viewer, and never record experiment events.
    */
   editorPreview?: boolean;
+  /**
+   * Dokument POWŁOKI (nagłówek/stopka), nie treści. Każda kolumna dostaje wtedy
+   * `min-height` z tego samego szacunku, którym `HeaderSkeleton` rezerwuje
+   * miejsce (`estimateChromeColumnHeight`) - patrz `ChromeReserveContext`.
+   */
+  chrome?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -182,6 +189,26 @@ export function BuilderEmptyPickerProvider({
   );
 }
 
+/**
+ * Czy renderujemy dokument POWŁOKI (nagłówek/stopka).
+ *
+ * DLACZEGO TO ISTNIEJE. Ciężkie widgety jadą przez `React.lazy`, a publiczny
+ * fallback granicy Suspense to `null` (`lazySuspense.tsx`). Pilna aktualizacja
+ * przed dojściem chunku POTRAFI porzucić strumieniowany HTML granicy - wtedy
+ * `search-button` albo `account-link` znikają na chwilę z nagłówka, kolumna
+ * zapada się do samego paddingu, a `<main>` podskakuje o kilkadziesiąt
+ * pikseli. W pomiarach `first-visit` wychodziło z tego przesunięcie o 89 px
+ * (nagłówek 185 -> 128 px) i CLS 0,13 przy progu 0,1 - rzadkie, bo zależne od
+ * wyścigu chunku z hydratacją, ale w pełni deterministyczne co do geometrii.
+ *
+ * Rezerwa idzie z DOKŁADNIE tego samego szacunku, którym `HeaderSkeleton`
+ * trzyma miejsce przed przyjściem powłoki, więc pusta granica, szkielet
+ * i zamontowany nagłówek mają tę samą wysokość. Treść strony tego nie dostaje:
+ * tam szacunek jest zgrubny, a kolumna ma prawo być dokładnie tak wysoka, jak
+ * jej zawartość.
+ */
+const ChromeReserveContext = createContext(false);
+
 const MOBILE_BREAKPOINT = 768;
 const TABLET_BREAKPOINT = 1024;
 
@@ -212,6 +239,7 @@ export function BuilderRenderer({
   stream = false,
   aboveFoldCount = ABOVE_FOLD_SECTION_COUNT,
   editorPreview = false,
+  chrome = false,
 }: Props) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   // Pierwszy render MUSI byc deterministyczny (desktop-first), inaczej SSR
@@ -266,22 +294,24 @@ export function BuilderRenderer({
 
   return (
     <UsedPostIdsProvider>
-      <div
-        ref={rootRef}
-        data-theme-typography
-        data-builder-renderer
-        data-debug={debug ? "1" : "0"}
-        data-device={effectiveDevice}
-      >
-        <SectionsList
-          sections={safeDoc.sections}
-          lang={lang}
-          device={effectiveDevice}
-          stream={stream}
-          aboveFoldCount={aboveFoldCount}
-          editorPreview={editorPreview}
-        />
-      </div>
+      <ChromeReserveContext.Provider value={chrome}>
+        <div
+          ref={rootRef}
+          data-theme-typography
+          data-builder-renderer
+          data-debug={debug ? "1" : "0"}
+          data-device={effectiveDevice}
+        >
+          <SectionsList
+            sections={safeDoc.sections}
+            lang={lang}
+            device={effectiveDevice}
+            stream={stream}
+            aboveFoldCount={aboveFoldCount}
+            editorPreview={editorPreview}
+          />
+        </div>
+      </ChromeReserveContext.Provider>
       {isPrimary && <BuilderDebugOverlay debug={debug} doc={safeDoc} />}
     </UsedPostIdsProvider>
   );
@@ -778,6 +808,7 @@ const RenderColumn = memo(function RenderColumn({
   const va = column.verticalAlign ?? "start";
   const accessCtx = useAccessContext();
   const inlineEdit = useInlineWidgetEdit();
+  const chromeReserve = useContext(ChromeReserveContext);
 
   const visibleChildren = useMemo(
     () =>
@@ -857,7 +888,11 @@ const RenderColumn = memo(function RenderColumn({
       style={{
         padding: `${COLUMN_SAFE_AREA_PX}px`,
         boxSizing: "border-box",
-        minHeight: column.style?.minHeight,
+        // Powłoka: kolumna nigdy nie jest niższa niż rezerwa szkieletu, więc
+        // pusta granica Suspense leniwego widgetu nie zapada nagłówka.
+        minHeight:
+          column.style?.minHeight ??
+          (chromeReserve ? estimateChromeColumnHeight(column, device) : undefined),
         background: column.style?.bgColor,
         color: column.style?.textColor,
         borderRadius: column.style?.borderRadius,
@@ -868,7 +903,36 @@ const RenderColumn = memo(function RenderColumn({
           return (
             <div
               key={gi}
-              className={`flex flex-row flex-wrap items-center gap-2 min-w-0 max-w-full ${axisClass}`}
+              // PASEK NARZĘDZI POWŁOKI TO JEDEN RZĄD - I MA NIM ZOSTAĆ.
+              //
+              // `isToolbar` scala CAŁĄ kolumnę kompaktowych widgetów w jeden
+              // wiersz, a rezerwa szkieletu nagłówka liczy go dokładnie tak
+              // samo (`estimateChromeColumnHeight`: wysokość = najwyższy
+              // widget, nie suma). Przy `flex-wrap` ta obietnica zależała od
+              // SZEROKOŚCI TEKSTU: ten sam nagłówek mieścił się w jednej linii
+              // lokalnie (fallback `local("Arial")` + `size-adjust`), a na
+              // runnerze CI - gdzie ten fallback nie ma czym się rozwiązać i
+              // tekst mierzy szerszym krojem - przeskakiwał do dwóch linii.
+              // Wiersz rósł wtedy z 30 na 66 px, nagłówek za nim, a całe
+              // `<main>` zjeżdżało w dół (CLS 0,1348 w „first visit pl, cold").
+              // Nie zawijamy więc paska powłoki: przy ciasnej kolumnie widgety
+              // ścieśniają się (`min-w-0` z ramki widgetu), a nadmiar przycina
+              // kontener sekcji - wysokość zostaje STAŁA przy każdym kroju.
+              //
+              // DLACZEGO WARUNEK `chromeReserve`, A NIE SAM `isToolbar`.
+              // Brak zawijania kupujemy PRZYCIĘCIEM nadmiaru (`data-column-slot`
+              // / kontener sekcji), więc płacimy nim tylko tam, gdzie coś za to
+              // dostajemy: powłoka ma zarezerwowaną wysokość wiersza i pasek
+              // jest w niej jednym rzędem Z DEFINICJI. Treść redakcyjna rezerwy
+              // NIE MA - jej kolumna ma prawo urosnąć, a przycięcie odbierałoby
+              // czytelnikowi etykiety i kontrolki. Na wąskiej stronie CMS
+              // kolumna kilku kompaktowych widgetów (np. paru przycisków) była
+              // wciskana w jeden rząd i wychodziła poza krawędź - recenzja
+              // PR #383. Poza powłoką zawijamy więc tak jak przed rezerwą CLS.
+              //
+              // Grupy inline ZADEKLAROWANE przez autora (`advanced.layout`)
+              // zachowują zawijanie zawsze - tam wiersz jest treścią, nie paskiem.
+              className={`flex flex-row ${isToolbar && chromeReserve ? "flex-nowrap" : "flex-wrap"} items-center gap-2 min-w-0 max-w-full ${axisClass}`}
             >
               {g.items.map((w) => (
                 <BuilderWidgetNode

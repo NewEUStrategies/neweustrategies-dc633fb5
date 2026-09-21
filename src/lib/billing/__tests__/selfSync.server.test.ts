@@ -7,7 +7,7 @@ const search = vi.fn();
 const dispatch = vi.fn();
 
 vi.mock("@/lib/stripe.server", () => ({
-  createStripeClient: () => ({ subscriptions: { retrieve, search } }),
+  getStripeClient: () => ({ subscriptions: { retrieve, search } }),
 }));
 vi.mock("@/lib/billing/webhookDispatch.server", () => ({
   dispatchWebhookEvent: (input: unknown) => {

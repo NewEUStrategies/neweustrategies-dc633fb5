@@ -13,7 +13,7 @@
 //
 // Moduł server-only (klucze bramki + service_role).
 import type Stripe from "stripe";
-import { createStripeClient, type StripeEnv } from "@/lib/stripe.server";
+import { getStripeClient, type StripeEnv } from "@/lib/stripe.server";
 
 export interface AdminDonationRow {
   id: string;
@@ -138,7 +138,7 @@ export async function syncDonationsFromStripe(
   }
 
   const supabase = await admin();
-  const stripe = createStripeClient(environment);
+  const stripe = await getStripeClient(environment);
 
   // --- 1. Lokalne wiersze: domknięcie / zwroty ---------------------------
   const { data: localRows, error: localError } = await supabase

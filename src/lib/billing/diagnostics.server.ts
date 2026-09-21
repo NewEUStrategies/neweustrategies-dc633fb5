@@ -121,9 +121,9 @@ export async function assertAdminWithTenant(
 }
 
 async function readDestinations(env: StripeEnv) {
-  const { createStripeClient } = await import("@/lib/stripe.server");
+  const { getStripeClient } = await import("@/lib/stripe.server");
   try {
-    const stripe = createStripeClient(env);
+    const stripe = await getStripeClient(env);
     const result = await stripe.webhookEndpoints.list({ limit: 100 });
     return result.data.map((d) => ({
       id: d.id,
@@ -138,11 +138,11 @@ async function readDestinations(env: StripeEnv) {
 }
 
 async function readCatalog(env: StripeEnv): Promise<CatalogPriceStatus[]> {
-  const { createStripeClient } = await import("@/lib/stripe.server");
+  const { getStripeClient } = await import("@/lib/stripe.server");
   const { resolvePricesByLookupKeys } = await import("@/lib/billing/adhocCheckout.server");
   const results: CatalogPriceStatus[] = [];
   try {
-    const stripe = createStripeClient(env);
+    const stripe = await getStripeClient(env);
     const priceByLookupKey = await resolvePricesByLookupKeys(
       stripe,
       BILLING_CATALOG.map((entry) => entry.priceId),
@@ -172,8 +172,8 @@ async function readCatalog(env: StripeEnv): Promise<CatalogPriceStatus[]> {
 }
 
 async function findPromotionCodeByCode(env: StripeEnv, code: string): Promise<string | null> {
-  const { createStripeClient } = await import("@/lib/stripe.server");
-  const stripe = createStripeClient(env);
+  const { getStripeClient } = await import("@/lib/stripe.server");
+  const stripe = await getStripeClient(env);
   const result = await stripe.promotionCodes.list({ code, limit: 1 });
   return result.data[0]?.id ?? null;
 }
@@ -322,8 +322,8 @@ export async function syncCouponDiscounts(
     .eq("active", true)
     .limit(200);
 
-  const { createStripeClient } = await import("@/lib/stripe.server");
-  const stripe = createStripeClient(env);
+  const { getStripeClient } = await import("@/lib/stripe.server");
+  const stripe = await getStripeClient(env);
 
   let created = 0;
   let existing = 0;

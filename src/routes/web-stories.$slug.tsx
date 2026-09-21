@@ -22,6 +22,7 @@ import {
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 import { notFoundIfClean } from "@/lib/ssr/notFoundIfClean";
 
 // `sizes` okładki - JEDNA stała dla renderowanego <img> i preloadu LCP, żeby
@@ -162,13 +163,21 @@ export const Route = createFileRoute("/web-stories/$slug")({
 
 function WebStorySinglePage() {
   const { slug } = Route.useParams();
-  const { degraded } = Route.useLoaderData();
+  const { degraded: ssrDegraded } = Route.useLoaderData();
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = (i18n.language ?? "pl").startsWith("pl") ? "pl" : "en";
   const [open, setOpen] = useState(true);
 
   const { data: story } = useQuery(webStoryBySlugQueryOptions(slug));
   const { data: more } = useQuery(latestWebStoriesQueryOptions(8));
+  // ...ALE LECZY SIĘ SAMA. Ładunek loadera jest niezmienny, a zasiew nosi
+  // stempel `updatedAt: 0`, więc `useQuery` wyżej dociąga historię zaraz po
+  // hydratacji. Gałąź stoi POD odczytem zapytania z premedytacją: to ten
+  // obserwator odpala refetch (`lib/ssr/useDegradedUntilHealed.ts`).
+  const { degraded, retry } = useDegradedUntilHealed(
+    webStoryBySlugQueryOptions(slug).queryKey,
+    ssrDegraded,
+  );
 
   // DEGRADACJA TOŻSAMOŚCI MÓWI PRAWDĘ. `story` jest wtedy zasianym `null`,
   // a samo `return null` dawało PUSTY DOKUMENT na HTTP 200 - dla czytelnika
@@ -176,7 +185,7 @@ function WebStorySinglePage() {
   if (degraded) {
     return (
       <div className="container mx-auto max-w-3xl px-4 py-12">
-        <DegradedDataNotice variant="page" />
+        <DegradedDataNotice variant="page" onRetry={retry} />
       </div>
     );
   }

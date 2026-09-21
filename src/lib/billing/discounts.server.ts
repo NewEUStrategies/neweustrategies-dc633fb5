@@ -10,7 +10,7 @@
 //
 // Moduł server-only - importuj wyłącznie z handlera serwerowego.
 import type Stripe from "stripe";
-import { createStripeClient, getStripeErrorMessage, type StripeEnv } from "@/lib/stripe.server";
+import { getStripeClient, getStripeErrorMessage, type StripeEnv } from "@/lib/stripe.server";
 
 export interface StripeDiscountResolution {
   readonly ok: boolean;
@@ -40,7 +40,7 @@ const fail = (error: string): StripeDiscountResolution => ({
 
 export async function findDiscountByCode(env: StripeEnv, code: string): Promise<string | null> {
   try {
-    const stripe = createStripeClient(env);
+    const stripe = await getStripeClient(env);
     const found = await stripe.promotionCodes.list({ code, active: true, limit: 1 });
     return found.data[0]?.id ?? null;
   } catch (e) {
@@ -56,7 +56,7 @@ export async function createDiscount(
   def: CouponDefinition,
 ): Promise<string | null> {
   try {
-    const stripe = createStripeClient(env);
+    const stripe = await getStripeClient(env);
     const isPercent = def.discount_kind === "percent";
     const coupon = await stripe.coupons.create({
       duration: "once",

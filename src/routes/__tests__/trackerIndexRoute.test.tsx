@@ -57,6 +57,12 @@ const h = vi.hoisted(() => ({
   /** Powierzchnie, których odczyt ma paść (blip backendu). */
   broken: new Set<string>(),
   /**
+   * Powierzchnie, których odczyt pada TYLKO RAZ - blip, który mija. Modeluje
+   * układ z produkcji: loader dostaje błąd i zasiewa pustą siatkę, a refetch po
+   * hydratacji dostaje już prawdziwe dossier.
+   */
+  failOnce: new Set<string>(),
+  /**
    * Opóźnienie odczytu dossier w ms - POWOLNOŚĆ, nie awaria. Osobno od
    * `broken`, bo to dwie różne przyczyny pustej siatki i tylko jedna z nich
    * jest prawdziwą niedostępnością danych.
@@ -80,6 +86,9 @@ vi.mock("@/integrations/supabase/client", async () => {
 
   stub.setResponse("eu_policy_items", (chain) => {
     h.reads.push("eu_policy_items");
+    if (h.failOnce.delete("eu_policy_items")) {
+      return fail("test: tabela eu_policy_items chwilowo niedostepna");
+    }
     if (h.broken.has("eu_policy_items")) return fail("test: tabela eu_policy_items niedostepna");
     const eq: Record<string, unknown> = {};
     for (const call of chain.calls) {
@@ -255,6 +264,7 @@ beforeEach(async () => {
   h.followerCounts = [{ item_id: ITEM_ID, followers: 12 }];
   h.tenantId = TENANT_A;
   h.broken = new Set<string>();
+  h.failOnce = new Set<string>();
   h.itemsDelayMs = 0;
   h.reads = [];
   h.itemFilters = [];
@@ -422,6 +432,37 @@ describe("trasa /tracker - stan pusty kontra stan zdegradowany", () => {
     expect(await screen.findByText("Ta sekcja chwilowo nie ma danych")).toBeInTheDocument();
     expect(screen.queryByText("Brak dossier dla wybranych filtrów.")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Spróbuj ponownie" })).toBeInTheDocument();
+  });
+
+  // DEGRADACJA MÓWI PRAWDĘ, ALE LECZY SIĘ SAMA (`lib/ssr/useDegradedUntilHealed`).
+  // Ładunek loadera jest NIEZMIENNY przez życie dopasowania trasy, a zasiana
+  // pustka nosi stempel `updatedAt: 0`, więc `usePublishedItems` dociąga dossier
+  // zaraz po zamontowaniu. Dopóki widok czytał samą flagę, czytelnik oglądał
+  // komunikat awarii NAD siatką, która już dojechała. Pełny dowód mechanizmu
+  // (parytet hydratacji, kontrola negatywna) stoi w
+  // `src/lib/ssr/__tests__/useDegradedUntilHealed.test.tsx`.
+  it("SSR zdegradowany + UDANY refetch: komunikat znika, dossier się renderują", async () => {
+    h.failOnce.add("eu_policy_items");
+    const view = await mount();
+
+    // PARYTET Z SSR: pierwszy render niesie jeszcze komunikat - ten sam, który
+    // wyszedł z serwera. Przełączenie jest PÓŹNIEJSZE, nie w tym renderze.
+    expect(view.getByText("Ta sekcja chwilowo nie ma danych")).toBeInTheDocument();
+
+    expect(await screen.findByRole("link", { name: /Akt o rynkach danych/ })).toBeInTheDocument();
+    expect(screen.queryByText("Ta sekcja chwilowo nie ma danych")).toBeNull();
+  });
+
+  it("ponowienie pyta backend JESZCZE RAZ i leczy siatkę bez nawigacji", async () => {
+    h.broken.add("eu_policy_items");
+    await mount();
+    const button = await screen.findByRole("button", { name: "Spróbuj ponownie" });
+
+    h.broken.delete("eu_policy_items");
+    fireEvent.click(button);
+
+    expect(await screen.findByRole("link", { name: /Akt o rynkach danych/ })).toBeInTheDocument();
+    expect(screen.queryByText("Ta sekcja chwilowo nie ma danych")).toBeNull();
   });
 
   it("awaria liczników NIE psuje siatki - to dekoracja karty", async () => {

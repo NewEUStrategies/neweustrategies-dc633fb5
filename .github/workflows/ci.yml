@@ -1047,9 +1047,29 @@ jobs:
       # KOLEJNOŚĆ KROKÓW POZOSTAJE KONTRAKTEM: `if:` nie zmienia porządku
       # wykonania, a `build:smoke` nadal NADPISUJE `.output/` po bramkach
       # mierzących artefakt cloudflare'owy.
+      # WYJŚCIE TEJ BRAMKI IDZIE RÓWNIEŻ DO PLIKU, nie tylko na stdout kroku.
+      # POWÓD: log joba czytany zdalnie (API `actions/jobs/{id}/logs`) oddaje
+      # wyłącznie KOŃCÓWKĘ (~1 MB / 5000 linii), a tę zajmują w całości kroki
+      # późniejsze - `build:smoke` (drugi pełny build) i boot-test Playwrighta.
+      # Werdykt bramki - KTÓRY budżet padł i o ile - wypada wtedy poza okno
+      # i zdalnie jest NIEODCZYTYWALNY: widać czerwony krok bez liczby, na
+      # której stanął. Kopia w pliku pozwala wypisać ten werdykt jeszcze raz na
+      # SAMYM KOŃCU joba (krok „Bundle size budget - werdykt" na dole).
+      #
+      # `tee` + `${PIPESTATUS[0]}`: kod wyjścia kroku MUSI pozostać kodem
+      # `check:bundle`, a nie `tee` - inaczej bramka przestałaby blokować.
+      # `shell: bash` jest tu warunkiem poprawności (PIPESTATUS to bashizm),
+      # a nie ozdobą, mimo że bash jest domyślną powłoką runnera.
+      # `mkdir -p` chroni sam pomiar: `reports/` istnieje w checkoucie tylko
+      # dzięki dwóm śledzonym plikom, a bramka rozmiaru nie może paść z powodu
+      # brakującego katalogu na log.
       - name: Bundle size budget
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: bun run check:bundle
+        shell: bash
+        run: |
+          mkdir -p reports
+          bun run check:bundle 2>&1 | tee reports/bundle-budget.log
+          exit ${PIPESTATUS[0]}
 
       # Blocking boot-safety gate: fails on any import cycle between built
       # client chunks. A cyclic chunk graph broke module init order in prod
@@ -1071,13 +1091,28 @@ jobs:
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: bun run check:entry-purity
 
+      # Ta sama zasada po stronie SERWERA, inny mechanizm pomiaru. `routeTree.gen.ts`
+      # importuje statycznie wszystkie pliki tras, więc jeden `import Stripe from
+      # "stripe"` w `lib/stripe.server.ts` (potrzebny webhookowi tylko po
+      # `verifyWebhook`, czyli po czystym WebCrypto) wciągał 198 kB SDK do chunku,
+      # od którego zaczyna się KAŻDY render SSR - ewaluowane przy każdym zimnym
+      # starcie izolatu Workera (audyt CWV F04, §8.1). Reguła jest mocniejsza niż
+      # „poza chunkiem startowym": paczka nie może mieć w artefakcie ANI JEDNEJ
+      # krawędzi statycznej, bo nazwy chunków serwera zależą od presetu Nitro.
+      # Bramka pilnuje też zamrożonej listy statycznych importerów
+      # `node-html-parser` (dwa synchroniczne API renderu, których dziś nie da się
+      # przepiąć na `import()`), żeby ten dług się nie rozlewał.
+      - name: Server request graph free of eager server-only SDKs
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: bun run check:server-entry-purity
+
       # ── BOOT-TEST PRZEGLĄDARKOWY NA ARTEFAKCIE PRODUKCYJNYM ─────────────────
       #
       # KOLEJNOŚĆ JEST KONTRAKTEM, NIE PREFERENCJĄ: `build:smoke` NADPISUJE
-      # `.output/`, więc MUSI biec PO `check:bundle`, `check:chunks`
-      # i `check:entry-purity`. Te trzy mierzą artefakt cloudflare'owy; gdyby
-      # smoke build je wyprzedził, mierzyłyby artefakt node-server i ich floory
-      # przestałyby cokolwiek znaczyć.
+      # `.output/`, więc MUSI biec PO `check:bundle`, `check:chunks`,
+      # `check:entry-purity` i `check:server-entry-purity`. Te cztery mierzą
+      # artefakt cloudflare'owy; gdyby smoke build je wyprzedził, mierzyłyby
+      # artefakt node-server i ich floory przestałyby cokolwiek znaczyć.
       #
       # PO CO TO ISTNIEJE. `vite.config.ts` przy `manualChunks` obiecuje, że
       # klasę awarii z 2026-07-20 (cykl chunków -> wywrócona kolejność
@@ -1144,6 +1179,37 @@ jobs:
           name: playwright-report-artifact-boot
           path: playwright-report/
           retention-days: 7
+
+      # WERDYKT BRAMKI ROZMIARU W OSTATNICH LINIACH LOGU JOBA - i to jest cały
+      # sens tego kroku, nie ozdobne powtórzenie. Zdalny odczyt logu oddaje
+      # tylko jego końcówkę (patrz komentarz przy „Bundle size budget"), a tę
+      # zajmują `build:smoke` i boot-test. Pomiar bramki stoi tysiące linii
+      # wcześniej i po prostu nie dociera: na PR #383 krok był czerwony przez
+      # trzy przebiegi, a KTÓRY z budżetów (largest chunk / CSS / public CSS /
+      # boot) go zapalił, nie dało się ustalić inaczej niż ściągnięciem całego
+      # archiwum logów - przy lokalnym pomiarze mieszczącym się w budżecie
+      # z zapasem 0,3 KB na CSS.
+      #
+      # `cat`, NIGDY `bun run check:bundle`: powtórne wywołanie byłoby DRUGIM
+      # pomiarem, w dodatku na innym artefakcie (`build:smoke` nadpisał
+      # `.output/` presetem node-server), a do tego zapaliłoby
+      # `check:gate-coverage`, który wymaga dokładnie JEDNEGO wywołania każdej
+      # bramki `check:*` na job.
+      #
+      # `always()` zamiast `!cancelled()` z reszty joba: koszt to ułamek
+      # sekundy, a werdykt jest najbardziej potrzebny właśnie wtedy, gdy job
+      # ginie na `timeout-minutes` - GitHub raportuje taki job jako `cancelled`,
+      # więc `!cancelled()` skasowałoby jedyną czytelną kopię pomiaru.
+      - name: Bundle size budget - werdykt (echo na końcu logu)
+        if: always()
+        shell: bash
+        run: |
+          echo "=== Bundle size budget: pełne wyjście kroku, powtórzone na końcu logu joba ==="
+          if [ -f reports/bundle-budget.log ]; then
+            cat reports/bundle-budget.log
+          else
+            echo "(brak reports/bundle-budget.log - krok 'Bundle size budget' nie wykonał się w tym przebiegu)"
+          fi
 
   # pgTAP: RLS tenant isolation, role management and full-text search run
   # against a real local Postgres (supabase db start applies migrations +

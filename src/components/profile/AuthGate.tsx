@@ -17,6 +17,14 @@ interface AuthGateProps {
 export function AuthGate({ children, fallbackTitle, fallbackBody }: AuthGateProps) {
   const { session, loading } = useAuth();
 
+  // SPINNER JEST TU WART TYLE, ILE TERMIN POD NIM. `loading` znaczy „NIE WIEMY,
+  // czy to gość" - a na powierzchni bez serwerowego renderu treści
+  // (`lib/routing/clientOnlyDocument.ts`) to jedyne, co widzi odwiedzający,
+  // dopóki sesja się nie rozstrzygnie. Górną granicę tego czekania trzyma
+  // `hooks/useAuth.tsx` (`SESSION_SETTLE_TIMEOUT_MS`, `ROLE_SETTLE_TIMEOUT_MS`):
+  // przy pustym magazynie sesji odpowiedź jest natychmiastowa i bezsieciowa,
+  // a wisząca odpowiedź backendu kończy się CTA logowania, nie wiecznym
+  // kręcącym się kółkiem. Dowód: `components/profile/__tests__/AuthGate.test.tsx`.
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">

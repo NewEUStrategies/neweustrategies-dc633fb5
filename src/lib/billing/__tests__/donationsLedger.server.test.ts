@@ -151,7 +151,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({
 
 const sessionsCreate = vi.fn();
 vi.mock("@/lib/stripe.server", () => ({
-  createStripeClient: () => ({ checkout: { sessions: { create: sessionsCreate } } }),
+  getStripeClient: () => ({ checkout: { sessions: { create: sessionsCreate } } }),
   getStripeErrorMessage: () => "provider_error",
 }));
 vi.mock("@/lib/server/tenant.server", () => ({ resolveTenantIdForHost: async () => "tenant-1" }));

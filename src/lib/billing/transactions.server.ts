@@ -3,7 +3,7 @@
 // Stripe. Tworzenie transakcji (dawny kod Paddle) przeniosło się do
 // `adhocCheckout.server.ts` (Stripe Embedded Checkout).
 import type Stripe from "stripe";
-import { createStripeClient, resolveEnvironment, type StripeEnv } from "@/lib/stripe.server";
+import { getStripeClient, resolveEnvironment, type StripeEnv } from "@/lib/stripe.server";
 
 export { resolveEnvironment };
 export type { StripeEnv };
@@ -31,7 +31,7 @@ export async function retrieveTransactionOwners(
   env: StripeEnv,
   transactionId: string,
 ): Promise<TransactionOwners | null> {
-  const stripe = createStripeClient(env);
+  const stripe = await getStripeClient(env);
   try {
     if (transactionId.startsWith("in_")) {
       const invoice = await stripe.invoices.retrieve(transactionId);

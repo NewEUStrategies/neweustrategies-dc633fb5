@@ -2,6 +2,7 @@
 // URL search state: ?page=N (SSR-paginated jak archiwa taksonomii).
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -32,6 +33,7 @@ import { archiveFirstCardPreload } from "@/lib/seo/archivePreload";
 import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
 import { resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 
 const BLOG_LOADER_BUDGET_MS = 4_000;
 const NO_STORE = contentCacheControl({ preview: true });
@@ -89,7 +91,12 @@ export const Route = createFileRoute("/blog/")({
         { updatedAt: 0 },
       );
       setCacheControlHeader(NO_STORE);
-      return { page: deps.page, total: 0, coverPreload: null };
+      // `degraded` JEDZIE DO KOMPONENTU (wzorzec `/tracker`). Bez tej flagi
+      // zasiana pustka renderowała się dokładnie jak archiwum bez wpisów
+      // („Brak wpisów") - nagłówek `no-store` rozróżniał oba stany od początku,
+      // warstwa treści nie. Flaga dotyczy WYŁĄCZNIE listy: blip samych ustawień
+      // zdejmuje nagłówek wspólny niżej, ale wpisy są wtedy prawdziwe.
+      return { page: deps.page, total: 0, coverPreload: null, degraded: true };
     }
     // Jw. - jedna droga do nagłówka renderu zdegradowanego, weryfikowalna
     // strukturalnie przez bramkę. Wartość bez zmian.
@@ -99,7 +106,7 @@ export const Route = createFileRoute("/blog/")({
     // przez NES Edge Cache na HIT/STALE.
     const coverPreload = archiveFirstCardPreload(data.posts, false);
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
-    return { page: data.page, total: data.total, coverPreload };
+    return { page: data.page, total: data.total, coverPreload, degraded: false };
   },
 
   head: ({ loaderData }) => {
@@ -180,9 +187,24 @@ function BlogIndex() {
   const { data: settingsMap } = useSuspenseQuery(siteSettingsQueryOptions);
   const pageSize = resolvePostsPerPage(settingsMap);
   const { page = 1 } = Route.useSearch();
+  // FABRYKA KLUCZA WOŁANA W MIEJSCU WYWOŁANIA, nie przez zmienną pomocniczą:
+  // raport `scripts/report-public-route-loaders.ts` (i zapadka per trasa
+  // w `lib/ci/publicRouteLoaders.ts`) dopasowuje NAZWY fabryk użyte w loaderze
+  // i w `useSuspenseQuery` tego samego pliku. Zmienna między nimi zrywa to
+  // dopasowanie i trasa wypada z rozgrzanych na „loader tych kluczy nie grzeje".
   const {
     data: { posts, total },
   } = useSuspenseQuery(blogArchiveQueryOptions({ page, pageSize }));
+  // DEGRADACJA MÓWI PRAWDĘ, ALE LECZY SIĘ SAMA. `degraded` z loadera jest tylko
+  // stanem POCZĄTKOWYM: ładunek loadera jest niezmienny, a zasiew pustki ma
+  // stempel `updatedAt: 0`, więc `useSuspenseQuery` wyżej dociąga prawdziwe
+  // wpisy zaraz po hydratacji. Od tej chwili o widoku decyduje stempel
+  // zapytania (patrz `lib/ssr/useDegradedUntilHealed.ts`).
+  const { degraded: ssrDegraded } = Route.useLoaderData();
+  const { degraded, retry } = useDegradedUntilHealed(
+    blogArchiveQueryOptions({ page, pageSize }).queryKey,
+    ssrDegraded,
+  );
   const navigate = useNavigate();
   const router = useRouter();
   // Zmiana strony biegnie w transition - obecna siatka zostaje na ekranie
@@ -210,17 +232,26 @@ function BlogIndex() {
       <div className="flex-1 max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">
         <Breadcrumbs items={[{ label: "Blog" }]} />
         <h1 className="font-display text-4xl lg:text-5xl mb-8">Blog</h1>
-        <PaginatedPostGrid
-          posts={posts}
-          page={page}
-          totalPages={totalPages}
-          lang={lang}
-          emptyText={t("blog.empty")}
-          isPending={isPending}
-          onPageChange={onPageChange}
-          hrefFor={hrefFor}
-          renderAfterCard={inFeed}
-        />
+        {/* PUSTO Z FALLBACKU NIE JEST PUSTO Z BAZY. `emptyText` („Brak wpisów")
+            przy padniętym backendzie jest nieprawdą, a czytelnik nie ma z niego
+            jak wywnioskować, że powinien ponowić. Warunek stoi WEWNĄTRZ gałęzi
+            pustej siatki, bo dociągnięte wpisy leczą widok same. Nagłówek
+            i okruszki zostają - degraduje lista, nie cała strona. */}
+        {degraded && posts.length === 0 ? (
+          <DegradedDataNotice onRetry={retry} />
+        ) : (
+          <PaginatedPostGrid
+            posts={posts}
+            page={page}
+            totalPages={totalPages}
+            lang={lang}
+            emptyText={t("blog.empty")}
+            isPending={isPending}
+            onPageChange={onPageChange}
+            hrefFor={hrefFor}
+            renderAfterCard={inFeed}
+          />
+        )}
       </div>
       <FooterSlideup pageType="archive" />
     </div>

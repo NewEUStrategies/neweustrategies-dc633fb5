@@ -10,7 +10,7 @@
 //
 // Moduł server-only (klucze bramki płatności).
 import type Stripe from "stripe";
-import { createStripeClient, type StripeEnv, type VerifiedWebhookEvent } from "@/lib/stripe.server";
+import { getStripeClient, type StripeEnv, type VerifiedWebhookEvent } from "@/lib/stripe.server";
 
 export interface SelfSyncResult {
   /** Liczba subskrypcji pobranych od operatora. */
@@ -76,7 +76,7 @@ export async function syncUserSubscriptionsFromProvider(
   userId: string,
   localSubscriptionIds: string[],
 ): Promise<SelfSyncResult> {
-  const stripe = createStripeClient(environment);
+  const stripe = await getStripeClient(environment);
   const ids = await collectSubscriptionIds(stripe, userId, localSubscriptionIds);
   if (ids.length === 0) return { scanned: 0, applied: 0, statuses: [] };
 

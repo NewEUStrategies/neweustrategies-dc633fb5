@@ -372,3 +372,48 @@ describe("markFirstOccurrences - na PRAWDZIWYM wyjściu sanitizera", () => {
     expect(root.innerHTML).toBe(before);
   });
 });
+
+// ── DWIE GAŁĘZIE OBRONNE REGUŁY, obie o ten sam skutek: TREŚĆ ─────────────
+//
+// Reguła podmienia węzły tekstowe OPUBLIKOWANEGO artykułu, więc jej wywrotka
+// nie kończy się czerwonym panelem, tylko zepsutym akapitem u czytelnika.
+// Poniżej dwa wejścia, których żaden „normalny" przypadek nie produkuje,
+// a które reguła OBSŁUGUJE - i dopóki je obsługuje, muszą mieć dowód.
+describe("markFirstOccurrences - wejścia, na których reguła się broni", () => {
+  it("wpis BEZ sluga jest pomijany, a nie oznaczany jako `undefined`", () => {
+    // Deskryptory jadą tu z bazy przez warstwę typów, ale reguła czyta slug
+    // przez `Map.get` i sama sprawdza wynik. Bez tej gałęzi wiersz z pustym
+    // slugiem wstawiłby do treści `data-glossary-term="undefined"` - link
+    // donikąd w artykule, którego nikt nie zgłosi jako błędu panelu.
+    const root = article("<p>Rola UE rośnie.</p>");
+    const before = root.innerHTML;
+
+    const marked = markFirstOccurrences(root, [
+      { slug: undefined, label: "UE" } as unknown as GlossaryLabel,
+    ]);
+
+    expect(marked).toEqual([]);
+    expect(marks(root)).toHaveLength(0);
+    expect(root.innerHTML).toBe(before);
+  });
+
+  it("węzeł, w którym `toLowerCase()` ZMIENIA DŁUGOŚĆ, nie rozjeżdża treści", () => {
+    // `İ` (U+0130) po `toLowerCase()` to DWIE jednostki ("i" + U+0307), więc
+    // `lower` przestaje mapować się 1:1 na `text`. Reguła szuka w `lower`,
+    // a granice słowa czyta z `text`, więc po pierwszym oznaczeniu NIE tnie
+    // `lower`, tylko liczy je od nowa z ogona. Kontraktem jest tu TEKST:
+    // oznaczenie trafia dokładnie na termin, a akapit zostaje bajt w bajt ten
+    // sam. Termin stojący ZA takim znakiem reguła świadomie odpuszcza
+    // (granica słowa liczona z przesuniętego indeksu nie przechodzi) - to
+    // degradacja, nie uszkodzenie treści.
+    const root = article("<p>Akt prawny İstanbul i traktat unijny.</p>");
+    const textBefore = root.textContent;
+
+    const marked = markFirstOccurrences(root, labels(["akt", "akt"], ["traktat", "traktat"]));
+
+    expect(marked).toEqual(["akt"]);
+    expect(marks(root)).toHaveLength(1);
+    expect(marks(root)[0].textContent).toBe("Akt");
+    expect(root.textContent).toBe(textBefore);
+  });
+});

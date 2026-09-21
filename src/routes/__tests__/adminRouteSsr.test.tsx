@@ -89,7 +89,9 @@ import { act } from "react";
 import { renderToString } from "react-dom/server";
 import { hydrateRoot } from "react-dom/client";
 import { cleanup, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { rememberSidebarStyle } from "@/lib/admin/sidebarStylePreference";
+import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { routeHead } from "@/test/routeHarness";
 import { Route as AdminRoute } from "@/routes/admin";
 
@@ -98,6 +100,35 @@ function adminLayout(): () => ReactElement {
   const component: unknown = AdminRoute.options.component;
   if (typeof component !== "function") throw new Error("test: trasa nie ma komponentu");
   return component as () => ReactElement;
+}
+
+// CACHE ZAPYTAŃ JEST TU CZĘŚCIĄ ŚRODOWISKA SERWEROWEGO, nie wygodą testu.
+//
+// Loader korzenia rozgrzewa mapę `site_settings` także na `/admin` i to z niej
+// trasa czyta wariant paska bocznego PRZED hydratacją. Bez dostawcy klienta
+// zapytań ten render nie miałby skąd wziąć wartości, którą produkcja ma na
+// serwerze - czyli test mierzyłby inny stan niż ten, o który chodzi.
+//
+// `retry: false` i brak `queryFn` w tym pliku: cokolwiek poleciałoby do sieci,
+// nie ma prawa się tu rozstrzygnąć, a atrapa Supabase i tak nie istnieje.
+let queryClient: QueryClient;
+
+function newQueryClient(): QueryClient {
+  return new QueryClient({ defaultOptions: { queries: { retry: false } } });
+}
+
+/** Zasiew ustawień najemcy - `updatedAt` jak po ROZSTRZYGNIĘTEJ fali 1. */
+function seedSettings(themeOptions: unknown): void {
+  queryClient.setQueryData(siteSettingsQueryOptions.queryKey, { theme_options: themeOptions });
+}
+
+/** Zasiew PRZETERMINOWANY (`updatedAt: 0`) - fala 1 nic nie dowiozła. */
+function seedStaleFallback(): void {
+  queryClient.setQueryData(siteSettingsQueryOptions.queryKey, {}, { updatedAt: 0 });
+}
+
+function withQuery(node: ReactElement): ReactElement {
+  return <QueryClientProvider client={queryClient}>{node}</QueryClientProvider>;
 }
 
 /** `beforeLoad` trasy wołany wprost - niesie efekty serwerowe, nie dane. */
@@ -110,10 +141,11 @@ function adminBeforeLoad(): () => void {
 function ssrHtml(pathname: string): string {
   h.pathname = pathname;
   const Layout = adminLayout();
-  return renderToString(<Layout />);
+  return renderToString(withQuery(<Layout />));
 }
 
 beforeEach(() => {
+  queryClient = newQueryClient();
   h.pathname = "/admin";
   h.authCalls = 0;
   h.auth = { loading: false, session: { user: { id: "u1" } }, isStaff: true };
@@ -193,11 +225,60 @@ describe("render serwerowy: szkielet i NIC POZA nim", () => {
     { path: "/admin/posts/abc123", width: "w-12", label: "edytor wpisu" },
     { path: "/admin/appearance/header", width: "w-12", label: "wygląd" },
   ])("szerokość paska liczy się ze ŚCIEŻKI ($label)", ({ path, width }) => {
-    // Jedyne wejście, które serwer ZNA. Wariant zapamiętany w `localStorage`
-    // jest wiedzą wyłącznie przeglądarki - wejście go tutaj byłoby rozjazdem
-    // (atrapa magazynu wyżej rzuca, więc każda próba jest tu widoczna).
+    // Pierwsze z dwóch wejść, które serwer ZNA. Wariant zapamiętany
+    // w `localStorage` jest wiedzą wyłącznie przeglądarki - wejście go tutaj
+    // byłoby rozjazdem (atrapa magazynu wyżej rzuca, więc każda próba jest
+    // tu widoczna).
     expect(ssrHtml(path)).toContain(width);
     expect(h.storageReads).toEqual([]);
+  });
+
+  // DRUGIE WEJŚCIE SERWERA: USTAWIENIA NAJEMCY - i to jest naprawa 176 px.
+  //
+  // Do 2026-09-21 serwer rezerwował dla KAŻDEGO najemcy pasek 224 px, bo
+  // pytał wyłącznie o trasę. Najemca ze `style-4` oglądał więc ten pasek do
+  // końca bootu, żeby po hydratacji zobaczyć zwinięty - jedno przesunięcie
+  // o 176 px, wysycające próg „Poor" w pojedynkę. Mapa `site_settings` jest
+  // na tej ścieżce rozgrzana przez loader korzenia, więc ta wiedza była na
+  // serwerze dostępna; brakowało wyłącznie jej odczytu.
+  it("wariant paska najemcy z USTAWIEŃ trafia do HTML-a serwerowego", () => {
+    seedSettings({ sidebars: { style: "style-4" } });
+    const html = ssrHtml("/admin");
+    expect(html).toContain('data-sidebar-style="style-4"');
+    expect(html).toContain("w-12");
+    expect(html).not.toContain("w-56");
+    // Bez ani jednego sięgnięcia do magazynu przeglądarki.
+    expect(h.storageReads).toEqual([]);
+  });
+
+  it("wariant NIEZWIJAJĄCY też jedzie atrybutem - arkusz liczy jego margines", () => {
+    // `style-3` nie zmienia klasy szerokości, ale dokłada w arkuszu margines
+    // 0,75 rem i niższy ekran. Szkielet bez atrybutu malowałby pasek przy
+    // krawędzi, a powłoka po hydratacji odsunęłaby go o 12 px.
+    seedSettings({ sidebars: { style: "style-3" } });
+    const html = ssrHtml("/admin");
+    expect(html).toContain('data-sidebar-style="style-3"');
+    expect(html).toContain("w-56");
+  });
+
+  it("PRZETERMINOWANY zasiew ustawień NIE JEST rozstrzygnięciem", () => {
+    // Loader korzenia zasiewa pustą mapę z `updatedAt: 0`, gdy fala 1 nic nie
+    // dowiozła. Potraktowanie jej jako wiedzy kazałoby szkieletowi postawić
+    // atrybut wyprowadzony z wbudowanych domyślnych - czyli zarezerwować cudzą
+    // geometrię i przekonać `AdminShell`, że nie ma czego poprawiać.
+    seedStaleFallback();
+    const html = ssrHtml("/admin");
+    expect(html).not.toContain("data-sidebar-style");
+    expect(html).toContain("w-56");
+  });
+
+  it("nieznany wariant w bazie schodzi do geometrii domyślnej", () => {
+    // Ręczna edycja wiersza albo wariant z nowszego wydania: lepiej nie
+    // postawić atrybutu niż postawić taki, którego arkusz nie zna.
+    seedSettings({ sidebars: { style: "style-42" } });
+    const html = ssrHtml("/admin");
+    expect(html).not.toContain("data-sidebar-style");
+    expect(html).toContain("w-56");
   });
 
   it("dwa rendery tej samej ścieżki dają bit w bit ten sam HTML", () => {
@@ -208,10 +289,14 @@ describe("render serwerowy: szkielet i NIC POZA nim", () => {
 });
 
 describe("hydratacja: klient nie porzuca serwerowego poddrzewa", () => {
-  it("pierwszy render klienta jest identyczny z serwerowym", async () => {
+  it.each([
+    { style: null, label: "ustawienia nierozstrzygnięte" },
+    { style: "style-4", label: "najemca ze `style-4`" },
+  ])("pierwszy render klienta jest identyczny z serwerowym ($label)", async ({ style }) => {
     // React 19 raportuje rozjazd hydratacji przez `console.error`. Test, który
     // tylko sprawdza, że „coś się wyrenderowało", przepuszcza porzucenie
     // całego poddrzewa - czyli utratę dokładnie tego HTML-a, po który jest SSR.
+    if (style) seedSettings({ sidebars: { style } });
     const html = ssrHtml("/admin");
     const container = document.createElement("div");
     container.innerHTML = html;
@@ -223,7 +308,7 @@ describe("hydratacja: klient nie porzuca serwerowego poddrzewa", () => {
     });
     const Layout = adminLayout();
     await act(async () => {
-      hydrateRoot(container, <Layout />);
+      hydrateRoot(container, withQuery(<Layout />));
     });
     spy.mockRestore();
 
@@ -238,7 +323,7 @@ describe("hydratacja: klient nie porzuca serwerowego poddrzewa", () => {
 describe("po hydratacji: panel montuje się normalnie", () => {
   it("z sesją personelu renderuje powłokę z treścią trasy", () => {
     const Layout = adminLayout();
-    render(<Layout />);
+    render(withQuery(<Layout />));
     expect(screen.getByTestId("admin-shell")).toBeInTheDocument();
     expect(screen.getByTestId("admin-outlet")).toBeInTheDocument();
     expect(h.authCalls).toBeGreaterThan(0);
@@ -250,7 +335,7 @@ describe("po hydratacji: panel montuje się normalnie", () => {
     // więc słownik ląduje w chunku tras /admin (nie w wejściowym), a panel
     // dostaje swoje klucze dokładnie wtedy, gdy zaczyna renderować napisy.
     const Layout = adminLayout();
-    render(<Layout />);
+    render(withQuery(<Layout />));
     expect(h.i18nCalls).toBe(1);
   });
 
@@ -260,14 +345,28 @@ describe("po hydratacji: panel montuje się normalnie", () => {
     rememberSidebarStyle("style-4");
     h.auth = { loading: true, session: null, isStaff: false };
     const Layout = adminLayout();
-    const { container } = render(<Layout />);
+    const { container } = render(withQuery(<Layout />));
     expect(container.querySelector("aside")?.getAttribute("class")).toContain("w-12");
+  });
+
+  it("ustawienia rozstrzygnięte na serwerze BIJĄ pamięć przeglądarki", () => {
+    // Pamięć jest domysłem z POPRZEDNIEGO wejścia i bywa nieaktualna (najemca
+    // przestawił styl na innym urządzeniu). Ustawienia to to samo źródło,
+    // z którego `AdminShell` policzy za chwilę swój pasek, więc wygrywają -
+    // inaczej szkielet i powłoka rozjechałyby się o pełne 176 px.
+    rememberSidebarStyle("style-4");
+    seedSettings({ sidebars: { style: "style-1" } });
+    h.auth = { loading: true, session: null, isStaff: false };
+    const Layout = adminLayout();
+    const { container } = render(withQuery(<Layout />));
+    expect(container.querySelector("aside")?.getAttribute("class")).toContain("w-56");
+    expect(container.querySelector("aside")).toHaveAttribute("data-sidebar-style", "style-1");
   });
 
   it("bez uprawnień nie renderuje NICZEGO", () => {
     h.auth = { loading: false, session: null, isStaff: false };
     const Layout = adminLayout();
-    const { container } = render(<Layout />);
+    const { container } = render(withQuery(<Layout />));
     expect(container.innerHTML).toBe("");
   });
 });

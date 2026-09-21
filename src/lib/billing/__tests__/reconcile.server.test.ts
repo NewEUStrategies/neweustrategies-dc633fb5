@@ -136,7 +136,7 @@ const hook = vi.hoisted(() => ({
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: db.supabaseAdmin }));
 
 vi.mock("@/lib/stripe.server", () => ({
-  createStripeClient: (env: string) => {
+  getStripeClient: (env: string) => {
     stripe.envs.push(env);
     return {
       events: { list: stripe.eventsList, retrieve: stripe.eventsRetrieve },

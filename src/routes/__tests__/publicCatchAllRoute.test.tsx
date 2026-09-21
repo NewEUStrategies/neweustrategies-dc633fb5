@@ -230,6 +230,7 @@ import {
   type PostData,
   type ResolvedContent,
 } from "@/lib/queries/public";
+import { adPlacementsQueryOptions } from "@/lib/ads/queries";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { splatToSegments } from "@/lib/routing/publicSegments";
 import { routeSsrDeadline } from "@/lib/ssr/routeSsrDeadline";
@@ -1510,6 +1511,74 @@ describe("loader trasy `/$` - rozgrzewka sekcji nad zgięciem", () => {
     expect(h.aboveFoldLangs).toEqual(["pl"]);
     expect(h.cacheControl).not.toEqual([]);
     expect(h.cacheControl.at(-1)).toBe("private, no-store");
+  });
+});
+
+describe("loader trasy `/$` - rozgrzewka slotów reklamowych", () => {
+  const BANER = { id: "ad-1", position: "header_banner", page_id: null };
+  const NAD_TRESCIA = { id: "ad-2", position: "top_of_post", page_id: null };
+
+  it("grzeje baner nagłówka I slot nad treścią JEDNYM zapytaniem", async () => {
+    // Dwa round-tripy nie zmieściłyby się w fali wtórnej: ma 6 odnóg przy
+    // sufcie 6 (`check:ssr-budgets`, twardy limit 6 podżądań runtime Workers).
+    stub.setResponse("ad_placements", ok([BANER, NAD_TRESCIA]));
+
+    const { queryClient } = await runLoader("analizy/atom", resolvedPost());
+
+    expect(h.zapytania.filter((t) => t === "ad_placements")).toHaveLength(1);
+    // Klucze DOKŁADNIE te, spod których czytają widoki: `Header` renderuje
+    // `<AdZone position="header_banner">` BEZ `pageId`, a slot nad treścią
+    // dostaje `pageId` wpisu. Rozjazd któregokolwiek z nich to round-trip
+    // w SSR i drugi po hydratacji - czyli skok układu mimo rozgrzewki.
+    expect(
+      queryClient.getQueryData(adPlacementsQueryOptions("header_banner", "post").queryKey),
+    ).toEqual([BANER]);
+    expect(
+      queryClient.getQueryData(adPlacementsQueryOptions("top_of_post", "post", "post-1").queryKey),
+    ).toEqual([NAD_TRESCIA]);
+  });
+
+  it("STRONA grzeje te same pozycje pod swoim typem strony", async () => {
+    stub.setResponse("ad_placements", ok([NAD_TRESCIA]));
+
+    const { queryClient } = await runLoader("o-nas", stronaZDokumentem(null));
+
+    expect(
+      queryClient.getQueryData(adPlacementsQueryOptions("top_of_post", "page", "post-1").queryKey),
+    ).toEqual([NAD_TRESCIA]);
+  });
+
+  it("NIE grzeje banera tam, gdzie powłoka liczy inny typ strony niż treść", async () => {
+    // `SiteChrome` liczy typ strony banera z ADRESU
+    // (`adPageTypeForLocation`), a nie z `kind` treści: pod `/publications/*`
+    // to jest "archive", nie "page". Rozgrzewka pod kluczem "page" byłaby
+    // wtedy round-tripem za nic, a wyrównanie drugim zapytaniem - siódmym
+    // podżądaniem w szczycie.
+    stub.setResponse("ad_placements", ok([NAD_TRESCIA]));
+    h.requestUrl = "https://nes.example.com/publications/raport";
+
+    const { queryClient } = await runLoader("publications/raport", stronaZDokumentem(null));
+
+    expect(h.zapytania.filter((t) => t === "ad_placements")).toHaveLength(1);
+    expect(
+      queryClient.getQueryData(adPlacementsQueryOptions("top_of_post", "page", "post-1").queryKey),
+    ).toEqual([NAD_TRESCIA]);
+    expect(
+      queryClient.getQueryData(adPlacementsQueryOptions("header_banner", "page").queryKey),
+    ).toBeUndefined();
+  });
+
+  it("padnięta rozgrzewka reklam NIE zdejmuje cache'u wspólnego - reklama to dekoracja", async () => {
+    // Brak banera degraduje wyłącznie rezerwację jego własnych pikseli. Gdyby
+    // liczył się jak treść, jedna niesprzedana emisja kosztowałaby cache
+    // WSPÓLNY całego dokumentu - ta sama doktryna, co przy `chromeQueryKeys`
+    // w korzeniu.
+    stub.setResponse("ad_placements", fail("permission denied", "42501"));
+
+    const { wynik } = await runLoader("analizy/atom", resolvedPost());
+
+    expect(jakoWynik(wynik).kind).toBe("post");
+    expect(h.cacheControl.every((v) => v.includes("no-store"))).toBe(false);
   });
 });
 

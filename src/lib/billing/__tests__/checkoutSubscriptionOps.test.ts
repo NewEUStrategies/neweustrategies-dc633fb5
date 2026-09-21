@@ -79,8 +79,8 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/stripe.server")>();
   return {
     ...actual,
-    createStripeClient: (env: string) => {
-      h.calls.push({ method: "createStripeClient", args: [env] });
+    getStripeClient: (env: string) => {
+      h.calls.push({ method: "getStripeClient", args: [env] });
       return stripe;
     },
   };

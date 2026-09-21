@@ -76,7 +76,7 @@ const h = vi.hoisted(() => {
 // Atrapy na GRANICY SDK, nie na naszych wrapperach: `portalLink.server` wciąga
 // oba klienty dynamicznie (`await import`), a podmiana wrappera nie dochodzi do
 // takiego importu. Przy okazji test przechodzi przez PRAWDZIWY
-// `createStripeClient`, więc pilnuje też wymagania kluczy środowiskowych.
+// `getStripeClient`, więc pilnuje też wymagania kluczy środowiskowych.
 vi.mock("@supabase/supabase-js", () => ({ createClient: () => h.supabaseAdmin }));
 vi.mock("stripe", () => {
   class StripeStub {
@@ -110,7 +110,7 @@ beforeEach(() => {
   vi.stubEnv("STRIPE_LIVE_API_KEY", "sk_live_syntetyczny");
   vi.stubEnv("PUBLIC_SITE_URL", "https://serwis.example.test");
   // Transport klienta operatora idzie przez bramkę konektorów platformy -
-  // `createStripeClient` wymaga tego klucza, więc test przechodzi przez
+  // `getStripeClient` wymaga tego klucza, więc test przechodzi przez
   // PRAWDZIWY wrapper razem z tą kontrolą.
   vi.stubEnv("LOVABLE_API_KEY", "platforma-syntetyczna");
   h.subscription.current = { provider_customer_id: "cus_test", provider_subscription_id: "sub_1" };

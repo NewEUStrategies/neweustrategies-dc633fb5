@@ -54,8 +54,8 @@ export async function createPortalLinkForUser(
     const sub = await latestSubscription(supabase, userId, environment);
     if (!sub) return { ok: false, error: "no_customer" };
 
-    const { createStripeClient } = await import("@/lib/stripe.server");
-    const stripe = createStripeClient(environment);
+    const { getStripeClient } = await import("@/lib/stripe.server");
+    const stripe = await getStripeClient(environment);
     const returnUrl = process.env.PUBLIC_SITE_URL
       ? `${process.env.PUBLIC_SITE_URL}/profil`
       : "https://example.com/profil";

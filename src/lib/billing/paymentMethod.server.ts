@@ -6,7 +6,7 @@
 // rozpoznania karty, a każdy dodatkowy atrybut to niepotrzebna powierzchnia.
 import type Stripe from "stripe";
 
-import { createStripeClient, type StripeEnv } from "@/lib/stripe.server";
+import { getStripeClient, type StripeEnv } from "@/lib/stripe.server";
 
 export interface PaymentMethodPreview {
   brand: string | null;
@@ -39,7 +39,7 @@ export async function fetchPaymentMethodPreview(input: {
   subscriptionId: string | null;
   environment: StripeEnv;
 }): Promise<PaymentMethodPreview | null> {
-  const stripe = createStripeClient(input.environment);
+  const stripe = await getStripeClient(input.environment);
 
   const customer = await stripe.customers.retrieve(input.customerId, {
     expand: ["invoice_settings.default_payment_method"],

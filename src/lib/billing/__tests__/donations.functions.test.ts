@@ -81,7 +81,7 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
     ...actual,
     // BEZ RZUTOWANIA na `Stripe` - atrapa niesie wyłącznie realnie używaną
     // metodę otwarcia sesji; `as unknown as` jest w repo pod ratchetem.
-    createStripeClient: (env: string) => {
+    getStripeClient: (env: string) => {
       stripe.envs.push(env);
       return {
         checkout: {

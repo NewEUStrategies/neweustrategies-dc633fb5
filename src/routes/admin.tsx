@@ -5,12 +5,15 @@ import {
   useNavigate,
   useRouterState,
 } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminShell } from "@/components/admin/AdminShell";
-import { isCompactSidebarRoute } from "@/lib/admin/adminNav";
 import { AdminShellSkeleton } from "@/components/admin/AdminShellSkeleton";
+import { sidebarStyleFromSettings } from "@/components/admin/adminShellGeometry";
 import { readRememberedSidebarStyle } from "@/lib/admin/sidebarStylePreference";
+import type { SidebarStyle } from "@/lib/builder/sidebarStyles";
+import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { isEventStudioPath } from "@/lib/events/eventStudioNav";
 import { ensureI18n as ensureAdminExtrasI18n } from "@/lib/i18n-admin-extras";
 import { cacheControlHeader } from "@/lib/http/cachePolicy";
@@ -101,18 +104,57 @@ function AdminLayout() {
   // temu drzewo porównywane przez React przy hydratacji jest bit w bit tym,
   // które wyszło z serwera, i React nie porzuca serwerowego poddrzewa.
   //
-  // SZEROKOŚĆ PASKA LICZY SIĘ TU WYŁĄCZNIE ZE ŚCIEŻKI. `AdminShell` bierze ją
-  // ze wzoru `(trasa edycji || wymuszenie) && brak extrasów || styl "style-4"`;
-  // z tych członów serwer zna DOKŁADNIE JEDEN - trasę. Wariant zapamiętany
-  // w `localStorage` (`lib/admin/sidebarStylePreference.ts`) jest wiedzą
-  // wyłącznie przeglądarki, więc wejście go tutaj byłoby rozjazdem hydratacji,
-  // czyli lekarstwem gorszym od choroby: React porzuciłby całe poddrzewo i
-  // odmalował je od zera. Doczytuje go pierwszy render PO hydratacji
-  // (`AdminSession`), gdzie jest już bezpieczny.
-  if (!hydrated)
-    return <AdminShellSkeleton hideSidebar={isEventStudio} compact={isCompactSidebarRoute(path)} />;
+  // SZEROKOŚĆ PASKA MA DWA WEJŚCIA, KTÓRE SERWER ZNA: ścieżkę i USTAWIENIA.
+  //
+  // `AdminShell` bierze ją ze wzoru `(trasa edycji || wymuszenie) && brak
+  // extrasów || styl "style-4"`. Do 2026-09-21 serwer znał z tych członów
+  // DOKŁADNIE JEDEN - trasę - i to właśnie kosztowało najemcę ze `style-4`
+  // przesunięcie 176 px: szkielet rezerwował 224 px, a powłoka stawiała po
+  // hydratacji pasek zwinięty. Drugi człon nie jest jednak wiedzą wyłącznie
+  // przeglądarki: `theme_options` siedzi w mapie `site_settings`, którą loader
+  // korzenia rozgrzewa TAKŻE na `/admin` (`lib/routing/clientOnlyDocument.ts`
+  // trzyma dla tej ścieżki własny, krótki termin) i która jedzie do klienta
+  // zdehydratowana razem z dokumentem. Odczyt z cache'u daje więc na serwerze
+  // i w pierwszym renderze klienta TĘ SAMĄ wartość - nie ma z czego zrobić
+  // rozjazdu hydratacji.
+  //
+  // Wariantem zapamiętanym w `localStorage` (`lib/admin/sidebarStylePreference.ts`)
+  // ten render nadal NIE ZARZĄDZA - to jest wiedza wyłącznie przeglądarki,
+  // której serwer nie ma jak powtórzyć. Doczytuje go dopiero `AdminSession`,
+  // i tylko wtedy, gdy ustawienia nie zdążyły dojechać do SSR.
+  const ssrSidebarStyle = useSsrSidebarStyle();
 
-  return <AdminSession path={path} isEventStudio={isEventStudio} />;
+  if (!hydrated)
+    return (
+      <AdminShellSkeleton path={path} hideSidebar={isEventStudio} sidebarStyle={ssrSidebarStyle} />
+    );
+
+  return (
+    <AdminSession path={path} isEventStudio={isEventStudio} ssrSidebarStyle={ssrSidebarStyle} />
+  );
+}
+
+/**
+ * Wariant paska ROZSTRZYGNIĘTY PRZED HYDRATACJĄ - z cache'u zapytań, bez sieci.
+ *
+ * DLACZEGO `getQueryState`, A NIE `useQuery`. Ten odczyt ma być STABILNY przez
+ * całe okno przedhydratacyjne: subskrypcja przerysowałaby szkielet w chwili,
+ * gdy odpowiedź ustawień dojedzie, czyli sama wyprodukowałaby przesunięcie,
+ * które ten kod zdejmuje. Bez subskrypcji render jest funkcją stanu cache'u
+ * z momentu montażu - a ten jest po obu stronach hydratacji identyczny.
+ *
+ * DLACZEGO `dataUpdatedAt > 0`. Loader korzenia ZASIEWA pustą mapę ustawień
+ * z `updatedAt: 0`, gdy fala 1 nic nie dowiozła. Taki zasiew jest
+ * PRZETERMINOWANY z premedytacją; potraktowanie go jako rozstrzygnięcia
+ * kazałoby szkieletowi rezerwować geometrię wyprowadzoną z wbudowanych
+ * domyślnych zamiast przyznać się do niewiedzy. Ta sama doktryna, co
+ * `hasSsrQueryData` w warstwie SSR i `settingsResolved` w `AdminShell`.
+ */
+function useSsrSidebarStyle(): SidebarStyle | null {
+  const queryClient = useQueryClient();
+  const state = queryClient.getQueryState(siteSettingsQueryOptions.queryKey);
+  if (state?.status !== "success" || state.dataUpdatedAt === 0) return null;
+  return sidebarStyleFromSettings(state.data);
 }
 
 /**
@@ -122,7 +164,16 @@ function AdminLayout() {
  * warunkowe wywołanie jest niemożliwe, a bezwarunkowe przeciągnęłoby całą
  * ścieżkę sesji (i `localStorage`) z powrotem do renderu serwerowego.
  */
-function AdminSession({ path, isEventStudio }: { path: string; isEventStudio: boolean }) {
+function AdminSession({
+  path,
+  isEventStudio,
+  ssrSidebarStyle,
+}: {
+  path: string;
+  isEventStudio: boolean;
+  /** Wariant znany już serwerowi; `null` = ustawienia nie zdążyły dojechać. */
+  ssrSidebarStyle: SidebarStyle | null;
+}) {
   // KOTWICA SŁOWNIKA ADMINA - W CZĘŚCI PO HYDRATACJI, NIGDY W `beforeLoad`.
   //
   // MECHANIZM. Rejestracja kluczy jest efektem ubocznym IMPORTU modułu
@@ -150,18 +201,21 @@ function AdminSession({ path, isEventStudio }: { path: string; isEventStudio: bo
   const { loading, session, isStaff } = useAuth();
   const navigate = useNavigate();
 
-  // SZEROKOŚĆ PASKA W SZKIELECIE MUSI BYĆ TĄ SAMĄ DECYZJĄ, co w powłoce.
+  // WARIANT PASKA W SZKIELECIE MUSI BYĆ TĄ SAMĄ DECYZJĄ, co w powłoce.
   //
-  // Tu, w przeciwieństwie do renderu przedhydratacyjnego wyżej, wolno dołożyć
-  // drugi znany człon wzoru: wariant zapamiętany z poprzedniego wejścia.
-  // Bez niego najemca ze `style-4` czekałby na sesję przy pasku 224 px, po
-  // czym powłoka postawiłaby 48 px - czyli naprawa CLS produkowałaby dokładnie
-  // to przesunięcie o 176 px, które `lib/admin/sidebarStylePreference.ts` miało
-  // zdjąć. Inicjalizator `useState`, nie odczyt w renderze: wartość ma być
-  // stabilna przez cały czas oczekiwania na sesję, a nie przestawiać układ pod
-  // wpływem zapisu z innej karty.
+  // KOLEJNOŚĆ ŹRÓDEŁ JEST TU CAŁĄ TREŚCIĄ. Ustawienia rozstrzygnięte w SSR są
+  // tym samym źródłem, z którego `AdminShell` policzy za chwilę swój pasek,
+  // więc mają pierwszeństwo; pamięć przeglądarki jest tylko domysłem
+  // z POPRZEDNIEGO wejścia i bywa nieaktualna (najemca zmienił styl na innym
+  // urządzeniu). Sięgamy po nią WYŁĄCZNIE wtedy, gdy fala 1 loadera korzenia
+  // nie dowiozła ustawień - bo wtedy jedynym wyborem jest 224 px z fallbacku
+  // albo zapamiętane 48 px, a to drugie trafia częściej.
+  //
+  // Inicjalizator `useState`, nie odczyt w renderze: wartość ma być stabilna
+  // przez cały czas oczekiwania na sesję, a nie przestawiać układ pod wpływem
+  // zapisu z innej karty.
   const [rememberedStyle] = useState(() => readRememberedSidebarStyle());
-  const skeletonCompact = isCompactSidebarRoute(path) || rememberedStyle === "style-4";
+  const skeletonStyle = ssrSidebarStyle ?? rememberedStyle;
 
   useEffect(() => {
     if (!loading && (!session || !isStaff)) navigate({ to: "/login" });
@@ -173,7 +227,10 @@ function AdminSession({ path, isEventStudio }: { path: string; isEventStudio: bo
   // wyśrodkowana kropka, którą React zamieniał następnie na całą powłokę:
   // pasek 14 rem, nagłówek, siatka. Wymiana całego układu po ~pół sekundy to
   // najgrubszy pojedynczy wkład do CLS 0,532 zmierzonego na `/admin`.
-  if (loading) return <AdminShellSkeleton hideSidebar={isEventStudio} compact={skeletonCompact} />;
+  if (loading)
+    return (
+      <AdminShellSkeleton path={path} hideSidebar={isEventStudio} sidebarStyle={skeletonStyle} />
+    );
   // Brak uprawnień: świadomie NIC - efekt wyżej nawiguje na /login, a
   // szkielet panelu pokazywany osobie spoza redakcji byłby obietnicą ekranu,
   // którego nigdy nie zobaczy.

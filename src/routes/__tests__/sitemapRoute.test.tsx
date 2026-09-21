@@ -40,6 +40,12 @@ const h = vi.hoisted(() => ({
   cacheControl: [] as string[],
   /** Które z trzech zapytań mają ODRZUCIĆ (nazwa -> odrzuca). */
   failing: new Set<string>(),
+  /**
+   * Które z trzech zapytań mają odrzucić TYLKO RAZ - blip, który mija. Loader
+   * zasiewa wtedy fallback ze stemplem `updatedAt: 0`, a refetch po hydratacji
+   * dostaje już prawdziwą odpowiedź.
+   */
+  failingOnce: new Set<string>(),
   /** Które z trzech zapytań mają ZAWISNĄĆ bez rozstrzygnięcia. */
   hanging: new Set<string>(),
   // Ładunki atrap - rozpoznawalne, żeby odróżnić PRAWDZIWY odczyt od fallbacku.
@@ -87,12 +93,22 @@ function stubOptions(name: string, payload: unknown) {
       queryKey: keyOf(name),
       queryFn: (): Promise<unknown> => {
         if (h.hanging.has(name)) return new Promise<unknown>(() => {});
+        if (h.failingOnce.delete(name)) {
+          return Promise.reject(new Error(`${name} temporarily unreachable`));
+        }
         if (h.failing.has(name)) return Promise.reject(new Error(`${name} unreachable`));
         return Promise.resolve(payload);
       },
       retry: false,
     });
 }
+
+// `head()` biegnie w `router.load()` harnessu - adres ma być deterministyczny,
+// a nie zależny od `window.location` środowiska testowego.
+vi.mock("@/lib/seo/request", () => ({
+  getRequestUrl: () => "https://nes.example.org/sitemap",
+  getOrigin: () => "https://nes.example.org",
+}));
 
 vi.mock("@/lib/queries/public", async (o) => ({
   ...(await o<typeof import("@/lib/queries/public")>()),
@@ -101,7 +117,17 @@ vi.mock("@/lib/queries/public", async (o) => ({
   blogListQueryOptions: stubOptions("blog-list", h.blogResult),
 }));
 
-import { Route } from "@/routes/sitemap";
+import "@/test/i18nReal";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { renderRoute } from "@/test/routeHarness";
+import { COPY, Route } from "@/routes/sitemap";
+
+const PATH = "/sitemap";
+
+/** Zamontowanie trasy w routerze pamięciowym - loader biegnie tak jak w produkcji. */
+async function mount() {
+  return renderRoute({ route: Route, path: PATH, initialEntry: PATH });
+}
 
 type Loader = (args: {
   context: { queryClient: QueryClient };
@@ -142,12 +168,14 @@ function renderOnServer(): void {
 beforeEach(() => {
   h.cacheControl = [];
   h.failing = new Set<string>();
+  h.failingOnce = new Set<string>();
   h.hanging = new Set<string>();
   // `loadResilient` loguje każdą degradację - w teście to szum, nie sygnał.
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 
 afterEach(() => {
+  cleanup();
   // Stub środowiska z `renderOnServer()` nie może przeciekać na kolejny test.
   vi.unstubAllGlobals();
 });
@@ -239,5 +267,106 @@ describe("loader `/sitemap` - `Cache-Control` bramkowany czystością renderu", 
     // na wolny runner. Trzy zapytania dzielą JEDEN termin, więc zwis wszystkich
     // trzech kosztuje tyle co zwis jednego.
     expect(Date.now() - started).toBeLessThan(4_000);
+  });
+});
+
+describe("render `/sitemap` - degradacja MUSI być widoczna, a nie wyglądać jak pustka", () => {
+  // PO CO TEN BLOK (recenzja Codeksa, P2). Loader zasiewa puste fallbacki, więc
+  // awaria backendu renderowała się jako POPRAWNA mapa: sekcja wpisów pusta,
+  // kategorie z myślnikiem „brak". Transport był naprawiony, a warstwa treści
+  // kłamała - i to jest gorsze niż błąd, bo nie do odróżnienia od prawdy.
+  const NOTICE = COPY.pl.degraded;
+
+  it("awaria WSZYSTKICH trzech odczytów: komunikat degradacji zamiast pustych sekcji", async () => {
+    h.failing.add("pages-tree");
+    h.failing.add("categories");
+    h.failing.add("blog-list");
+    await mount();
+
+    expect(screen.getByText(NOTICE)).toBeInTheDocument();
+    // Żadna pusta lista nie udaje danych: nagłówki sekcji kategorii i wpisów
+    // znikają razem z myślnikiem „brak kategorii".
+    expect(screen.queryByText(COPY.pl.categories)).toBeNull();
+    expect(screen.queryByText(COPY.pl.posts)).toBeNull();
+    expect(screen.queryByText("-")).toBeNull();
+    // A to, co jest prawdą niezależnie od backendu, ZOSTAJE - w tym `<h1>`,
+    // na którym stoi test e2e „HTML sitemap /sitemap renders navigable page".
+    expect(screen.getByRole("heading", { level: 1, name: COPY.pl.title })).toBeInTheDocument();
+    expect(screen.getByText(COPY.pl.community)).toBeInTheDocument();
+    expect(screen.getByText("Wydarzenia")).toBeInTheDocument();
+  });
+
+  it("KONTROLA DODATNIA: czysty render NIE pokazuje komunikatu degradacji", async () => {
+    // Bez tej pary poprzedni test przechodziłby też wtedy, gdyby trasa pokazywała
+    // komunikat awarii ZAWSZE - a to gorsze niż brak komunikatu.
+    await mount();
+
+    expect(screen.queryByText(NOTICE)).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: COPY.pl.title })).toBeInTheDocument();
+    expect(screen.getByText("Analizy")).toBeInTheDocument();
+    expect(screen.getByText("Wpis")).toBeInTheDocument();
+    expect(screen.getByText("O nas")).toBeInTheDocument();
+  });
+
+  it("awaria JEDNEJ sekcji chowa TYLKO ją - reszta mapy zostaje pełna", async () => {
+    // Flagi są per sekcję właśnie po to: blip kategorii nie ma prawa wykasować
+    // wpisów ani stron, które backend oddał w komplecie.
+    h.failing.add("categories");
+    await mount();
+
+    expect(screen.getByText(NOTICE)).toBeInTheDocument();
+    expect(screen.queryByText(COPY.pl.categories)).toBeNull();
+    expect(screen.queryByText("-")).toBeNull();
+    expect(screen.getByText("Wpis")).toBeInTheDocument();
+    expect(screen.getByText("O nas")).toBeInTheDocument();
+  });
+});
+
+// DEGRADACJA MÓWI PRAWDĘ, ALE LECZY SIĘ SAMA (recenzja Codeksa na PR #383, P2).
+// `degradedSections` z `loaderData` jest NIEZMIENNE przez życie dopasowania
+// trasy, a trzy zasiewy noszą stempel `updatedAt: 0`, więc `useSuspenseQuery`
+// dociąga każdy z nich zaraz po hydratacji. Dopóki bramki sekcji liczyły się
+// z ładunku loadera, odzyskane kategorie i wpisy ZOSTAWAŁY UKRYTE, a komunikat
+// wisiał aż do `router.invalidate()` albo przeładowania. Pełny dowód mechanizmu
+// (parytet hydratacji, kontrola negatywna) stoi w
+// `src/lib/ssr/__tests__/useDegradedUntilHealed.test.tsx`.
+describe("render `/sitemap` - degradacja leczy się sama", () => {
+  const NOTICE = COPY.pl.degraded;
+  const RETRY = "Spróbuj ponownie";
+
+  it("SSR zdegradowany + UDANY refetch: sekcja wraca, komunikat znika", async () => {
+    h.failingOnce.add("categories");
+    const view = await mount();
+
+    // PARYTET Z SSR: pierwszy render niesie jeszcze komunikat i ukrytą sekcję -
+    // dokładnie to, co wyszło z serwera. Przełączenie jest PÓŹNIEJSZE.
+    expect(view.getByText(NOTICE)).toBeInTheDocument();
+    expect(view.queryByText(COPY.pl.categories)).toBeNull();
+
+    expect(await screen.findByText(COPY.pl.categories)).toBeInTheDocument();
+    expect(screen.getByText("Analizy")).toBeInTheDocument();
+    expect(screen.queryByText(NOTICE)).toBeNull();
+  });
+
+  it("refetch PADA znowu: komunikat zostaje razem z ponowieniem", async () => {
+    h.failing.add("categories");
+    await mount();
+
+    expect(screen.getByText(NOTICE)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: RETRY })).toBeInTheDocument();
+    expect(screen.queryByText(COPY.pl.categories)).toBeNull();
+  });
+
+  it("ponowienie pyta backend JESZCZE RAZ i odsłania sekcję bez nawigacji", async () => {
+    h.failing.add("categories");
+    await mount();
+    const button = screen.getByRole("button", { name: RETRY });
+
+    h.failing.delete("categories");
+    fireEvent.click(button);
+
+    expect(await screen.findByText(COPY.pl.categories)).toBeInTheDocument();
+    expect(screen.getByText("Analizy")).toBeInTheDocument();
+    expect(screen.queryByText(NOTICE)).toBeNull();
   });
 });

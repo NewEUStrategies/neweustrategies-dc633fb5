@@ -283,8 +283,11 @@ export function estimateChromeWidgetHeight(node: WidgetNode, device: Device = "d
  * wstawia jako `padding`).
  *
  * Kolumna samych widgetów „compact"/„auto-size" jest w `RenderColumn` JEDNYM
- * RZĘDEM (`isToolbar` -> `flex-row`), więc decyduje najwyższy widget, a nie
- * suma - inaczej trójka przycisków rezerwowałaby trzy piętra nagłówka.
+ * RZĘDEM (`isToolbar` -> `flex-row` + `flex-nowrap`), więc decyduje najwyższy
+ * widget, a nie suma - inaczej trójka przycisków rezerwowałaby trzy piętra
+ * nagłówka. `flex-nowrap` po stronie renderera nie jest kosmetyką, tylko
+ * WARUNKIEM prawdziwości tego szacunku: przy zawijaniu wysokość rzędu zależy
+ * od szerokości tekstu, czyli od kroju dostępnego w danym środowisku.
  */
 export function estimateChromeColumnHeight(column: ColumnNode, device: Device = "desktop"): number {
   if (hiddenOnDevice(column.advanced, device)) return 0;

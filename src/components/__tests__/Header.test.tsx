@@ -451,7 +451,15 @@ function stubScroll(scrollY: number, scrollHeight: number): void {
 }
 
 function setHeight(el: Element, value: number): void {
-  Object.defineProperty(el, "offsetHeight", { configurable: true, value });
+  Object.defineProperty(el, "offsetHeight", { configurable: true, value: Math.round(value) });
+  // `measure()` czyta wysokość UŁAMKOWĄ (`getBoundingClientRect`), bo
+  // zaokrąglenie do pełnych pikseli wracało jako drgnięcie `<main>` w chwili
+  // zapalenia `data-metrics` - patrz komentarz w `Header.tsx`. Stub musi więc
+  // podawać obie wartości, a happy-dom sam żadnej nie liczy.
+  Object.defineProperty(el, "getBoundingClientRect", {
+    configurable: true,
+    value: () => rect(value),
+  });
 }
 
 function rect(height: number): DOMRect {
@@ -1240,6 +1248,36 @@ describe("Header - histereza scrolla i pomiar wymiarów", () => {
       vi.advanceTimersByTime(400);
     });
     expect(header.dataset.metrics).toBe("ready");
+  });
+
+  it("REGRESJA CLS: wymiary idą z pomiaru UŁAMKOWEGO, bez zaokrąglenia", async () => {
+    // Pas „na czasie" to `h-10` = 2,5 rem, a repo skaluje `root font-size`
+    // płynnie (1 rem = 15 px przy 1280 px), więc chrome ma wysokość ułamkową.
+    // Po zaokrągleniu narzucona `height` headera różniła się od naturalnej
+    // o ułamek piksela - `<main>` drgało i WCHODZIŁO do „impact region"
+    // przesunięcia liczonego w tej samej klatce, mnożąc jego wartość ~8x.
+    vi.useFakeTimers();
+    renderHeader({ header: { builder_data: doc(1), trending: { source: "trending" } } });
+    await settleLazyOverlay();
+
+    const header = headerEl();
+    const chrome = header.querySelector(".site-header-chrome");
+    const ticker = header.querySelector(".cms-trending");
+    if (!chrome || !ticker) throw new Error("brak chrome/tickera w nagłówku");
+
+    setHeight(chrome, 184.5);
+    setHeight(ticker, 38.5);
+    setHeight(header, 185.5);
+
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+      vi.advanceTimersByTime(400);
+    });
+
+    expect(header.dataset.metrics).toBe("ready");
+    expect(header.style.getPropertyValue("--hdr-nat")).toBe("184.5px");
+    expect(header.style.getPropertyValue("--hdr-tt")).toBe("38.5px");
+    expect(header.style.getPropertyValue("--hdr-extra")).toBe("1px");
   });
 
   it("bez chrome'u (pusty dokument) nie ma znacznika data-metrics", async () => {

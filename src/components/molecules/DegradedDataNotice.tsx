@@ -20,14 +20,28 @@ export interface DegradedDataNoticeProps {
   readonly variant?: "page" | "inline";
   /** Nadpisanie nagłówka, np. „Nie udało się załadować wydarzeń". */
   readonly title?: string;
+  /**
+   * PONOWIENIE BEZ NAWIGACJI. Bez tej opcji przycisk „Spróbuj ponownie" robi
+   * `router.invalidate()`, czyli ponowny bieg CAŁEGO loadera trasy - jedyne
+   * wyjście, dopóki degradacja mieszkała wyłącznie w niezmiennym `loaderData`.
+   * Odkąd widokiem włada stan zapytania (`lib/ssr/useDegradedUntilHealed.ts`),
+   * ponowienie ma dotyczyć DOKŁADNIE tego zapytania, które padło: reszta strony
+   * jest prawdziwa i nie ma powodu przemontowywać jej razem z nim.
+   */
+  readonly onRetry?: () => void;
 }
 
-export function DegradedDataNotice({ variant = "inline", title }: DegradedDataNoticeProps) {
+export function DegradedDataNotice({
+  variant = "inline",
+  title,
+  onRetry,
+}: DegradedDataNoticeProps) {
   return (
     <FriendlyErrorPage
       error={DEGRADED_ERROR}
       variant={variant === "page" ? "page" : "compact"}
       title={title}
+      onRetry={onRetry}
     />
   );
 }

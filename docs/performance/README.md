@@ -18,7 +18,7 @@ Diagnoza źródłowa: [`docs/AUDYT_CWV_ZIMNE_OTWARCIE_2026-09-20.md`](../AUDYT_C
 | Zbieranie | `src/lib/webVitals.ts` (PerformanceObserver, bez zewnętrznych zależności)                  |
 | Transport | `src/lib/observability/report.ts` (`navigator.sendBeacon`, jeden beacon na granicę zrzutu) |
 | Ingest    | `src/routes/api/public/vitals.ts` (publiczny, niepodpisany; zawsze 204)                    |
-| Tabela    | `public.web_vitals` (migracje `20260626210000`, `20260708150000`, `20260920120000`)        |
+| Tabela    | `public.web_vitals` (migracje `20260626210000`, `20260708150000`, `20260920121000`)        |
 | Agregacja | `public.web_vitals_daily_p75(timestamptz, uuid)`, `src/lib/observability/aggregate.ts`     |
 
 Mierzone metryki: **LCP, CLS, INP, FCP, TTFB**. CLS to maksimum z okien sesyjnych,
@@ -176,31 +176,28 @@ identyfikatorów i bez cookies **wymaga potwierdzenia podstawy prawnej przez DPO
 i dopóki go nie ma, kod tego nie robi i nie powinien. Decyzja dotyczy też
 znacznika `coldStart` w `sessionStorage` (§1.1).
 
-### 3.3. Domknąć `check:types-freshness` po migracji `20260920120000`
+### 3.3. ~~Domknąć `check:types-freshness` po migracji `20260920121000`~~ ZROBIONE 2026-09-21
 
 `src/integrations/supabase/types.ts` jest **generowany**
 (`supabase gen types typescript --linked`), a generator wymaga dostępu do projektu
 Supabase - nie da się go uruchomić z gałęzi funkcjonalnej. Bramka
 `check:types-freshness` porównuje `ADD COLUMN` z migracji z zawartością tego pliku,
-więc po tej migracji zgłosi **pięć** kolumn poza typami. Dwa uczciwe wyjścia:
+więc po tej migracji zgłosiła **pięć** kolumn poza typami, a tymczasowym
+domknięciem był wpis do `BASELINE` w `scripts/check-generated-types-freshness.ts`.
 
-1. **Regeneracja `types.ts`** (preferowana) - osobna zmiana, bo przepisuje ~20 tys.
-   linii; zdejmuje przy okazji część zamrożonego długu z `BASELINE`.
-2. **Wpis do `BASELINE`** w `scripts/check-generated-types-freshness.ts` - lista ma
-   tylko maleć, więc to rozwiązanie tymczasowe, dokładnie jak wpisy
-   `auth_email_events.tenant_id` / `email_send_log.tenant_id` z 2026-09-13:
+Typy zostały **przegenerowane** i wszystkie pięć kolumn (`since_nav_ms`,
+`navigation_type`, `device_memory`, `effective_type`, `cold_start`) jest
+w `types.ts`. Wraz z regeneracją zniknęły:
 
-   ```ts
-   "web_vitals.cold_start",
-   "web_vitals.device_memory",
-   "web_vitals.effective_type",
-   "web_vitals.navigation_type",
-   "web_vitals.since_nav_ms",
-   ```
+- pięć wpisów `web_vitals.*` z `BASELINE` (31 -> 26 pozycji zamrożonego długu),
+- przecięcie `TablesInsert<"web_vitals"> & { … }` w `src/routes/api/public/vitals.ts`
+  i podstawienie ładunku pod szerszy typ tuż przed `insert()`,
+- dwa rzutowania `as unknown as` w `src/lib/observability/vitals.functions.ts`
+  (kształt wiersza i wynik RPC `web_vitals_daily_p75`).
 
-Dopóki żadne z nich nie nastąpi, `src/routes/api/public/vitals.ts` używa
-przecięcia `TablesInsert<"web_vitals"> & { … }` - bez rzutowania, bez drugiej kopii
-kształtu wiersza.
+Wiersz ingestu jest dziś typowany wprost `TablesInsert<"web_vitals">`, więc
+`RejectExcessProperties` w supabase-js znów pilnuje kształtu na publicznej,
+niepodpisanej ścieżce zapisu.
 
 ### 3.4. Przy pierwszym przebiegu trybu A
 

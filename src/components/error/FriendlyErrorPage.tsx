@@ -37,6 +37,14 @@ interface FriendlyErrorPageProps {
   title?: string;
   /** Optional extra context shown below the steps. */
   footer?: string;
+  /**
+   * Ponowienie WĘŻSZE niż `router.invalidate()`. Domyślnie przycisk ponawia
+   * całe dopasowanie trasy - poprawnie dla błędu loadera, ale nie dla renderu
+   * ZDEGRADOWANEGO, gdzie padło jedno zapytanie, a reszta strony jest prawdą
+   * (patrz `lib/ssr/useDegradedUntilHealed.ts`). Podany tutaj handler zastępuje
+   * akcję przycisku; `reset` z granicy błędu leci dalej jak zawsze.
+   */
+  onRetry?: () => void;
 }
 
 const ICONS: Record<ErrorKind, React.ComponentType<{ className?: string; size?: number }>> = {
@@ -66,6 +74,7 @@ export function FriendlyErrorPage({
   variant = "page",
   title,
   footer,
+  onRetry,
 }: FriendlyErrorPageProps) {
   const router = useRouter();
   const copy = errorCopy();
@@ -88,7 +97,11 @@ export function FriendlyErrorPage({
   }, [error, kind]);
 
   const handleRetry = () => {
-    void router.invalidate();
+    // Wołający, który podał `onRetry`, wie DOKŁADNIE, co padło - i ponawia
+    // tylko to. Bez niego zostaje jedyne, co da się zrobić z zewnątrz błędu:
+    // ponowny bieg loaderów dopasowania.
+    if (onRetry) onRetry();
+    else void router.invalidate();
     reset?.();
   };
 

@@ -3,7 +3,7 @@
 //
 // PO CO TEN PLIK ISTNIEJE. Implementacja (`diagnostics.server.ts`) ma własne
 // testy. Nieprzetestowane było opakowanie, a w nim jedno pole, które decyduje
-// o wszystkim: `environment`. Ta wartość idzie prosto do `createStripeClient`,
+// o wszystkim: `environment`. Ta wartość idzie prosto do `getStripeClient`,
 // czyli do WYBORU KLUCZA API. Przy `getPaymentsDiagnostics` pomyłka daje tylko
 // zły ekran, ale `syncCouponsToProvider` PISZE do konta operatora - zakłada
 // i aktualizuje kupony rabatowe. Wysłanie kuponów testowych na konto

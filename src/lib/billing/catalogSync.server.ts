@@ -8,7 +8,7 @@
 // korygowane do wartości z `access_plans` (źródło prawdy aplikacji).
 import type Stripe from "stripe";
 
-import { createStripeClient, type StripeEnv } from "@/lib/stripe.server";
+import { getStripeClient, type StripeEnv } from "@/lib/stripe.server";
 
 import { BILLING_CATALOG, type CatalogPriceEntry } from "./catalog";
 import type { ReapedEntry } from "./catalogReap.server";
@@ -172,7 +172,7 @@ async function findPriceByLookupKey(
 
 /** Okres próbny zapisany w metadanych ceny - odczyt dla checkoutu. */
 export async function trialDaysForPrice(env: StripeEnv, priceId: string): Promise<number | null> {
-  const stripe = createStripeClient(env);
+  const stripe = await getStripeClient(env);
   const price = await findPriceByLookupKey(stripe, priceId);
   const raw = price?.metadata?.["trial_days"];
   const days = raw ? Number(raw) : NaN;
@@ -289,7 +289,7 @@ async function syncOne(
  * Idempotentna: powtórne wywołanie na spójnym katalogu nic nie zmienia.
  */
 export async function syncBillingCatalog(env: StripeEnv = "sandbox"): Promise<CatalogSyncReport> {
-  const stripe = createStripeClient(env);
+  const stripe = await getStripeClient(env);
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data } = await supabaseAdmin
     .from("access_plans")

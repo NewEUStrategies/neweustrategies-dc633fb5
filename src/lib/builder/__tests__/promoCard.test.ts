@@ -153,6 +153,32 @@ describe("parytet wartości domyślnych", () => {
     expect(field?.recommendedSize?.({ ratio: "1:1", maxWidth: 512 })?.height).toBe(1000);
   });
 
+  it("rekomendacja spada na DOMYŚLNE modelu, gdy kadr jeszcze nie ma liczb", () => {
+    // Świeżo wstawiony widget ma `content` prawie pusty, a kontrolki liczbowe
+    // panelu potrafią oddać NAPIS ("512"). Predykat sprawdza więc `typeof`
+    // i spada na `PROMO_CARD_DEFAULTS` - bez tego do podpowiedzi przy polu
+    // obrazu dojechałoby `NaN`, czyli redakcja dostałaby „zalecane NaN x NaN"
+    // dokładnie w chwili, w której pierwszy raz wybiera plik.
+    const field = (WIDGET_SCHEMAS["promo-card"] ?? []).find((f) => f.key === "image");
+    const zDomyslnych = promoCardImageSize(
+      PROMO_CARD_DEFAULTS.ratio,
+      PROMO_CARD_DEFAULTS.maxWidth,
+      PROMO_CARD_DEFAULTS.heightPx,
+    );
+    expect(field?.recommendedSize?.({})).toEqual(zDomyslnych);
+    expect(field?.recommendedSize?.({ maxWidth: "512", heightPx: "300" })).toEqual(zDomyslnych);
+  });
+
+  it("kadr `auto` liczy rekomendację z WYBRANEJ wysokości karty", () => {
+    // Jedyny kadr, w którym wysokość nie wynika z proporcji: gdyby predykat
+    // gubił `heightPx`, karta o wysokości 300 px dostawałaby zalecenie
+    // policzone z domyślnych 288 px i podpowiedź kłamałaby przy każdej zmianie.
+    const field = (WIDGET_SCHEMAS["promo-card"] ?? []).find((f) => f.key === "image");
+    expect(field?.recommendedSize?.({ ratio: "auto", maxWidth: 512, heightPx: 300 })).toEqual(
+      promoCardImageSize("auto", 512, 300),
+    );
+  });
+
   it("żaden wariant reakcji na kursor nie obiecuje przesunięcia karty", () => {
     const hover = (WIDGET_SCHEMAS["promo-card"] ?? []).find((f) => f.key === "hover");
     const values = (hover?.options ?? []).map((o) => o.value);

@@ -103,7 +103,7 @@ import {
   type SeoFieldsRow,
 } from "@/lib/seo/fields";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
-import { effectiveTitleSuffix, parseSeoSettings } from "@/lib/seo/settings";
+import { effectiveTitleSuffix, parseSeoSettings, type SeoSettings } from "@/lib/seo/settings";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { activeLang } from "@/lib/seo/head";
@@ -170,6 +170,12 @@ import { AdZone } from "@/components/AdSlot";
 import { MidPostAds } from "@/components/ads/MidPostAds";
 import { FooterSlideup } from "@/components/ads/FooterSlideup";
 import type { AdPageType } from "@/lib/ads/types";
+// Rozgrzewka slotów reklamowych w SSR - JEDNO zapytanie o wszystkie pozycje
+// tej trasy (uzasadnienie przy jej wywołaniu w fali wtórnej).
+import { prefetchAdPlacementQueries, type AdWarmTarget } from "@/lib/ads/queries";
+// Typ strony reklamowej liczony TAK SAMO jak w powłoce (`SiteChrome`) -
+// inaczej rozgrzany klucz banera nagłówka minąłby się z tym, co czyta widok.
+import { adPageTypeForLocation } from "@/lib/ads/pageType";
 import { prefetchAboveFoldQueries } from "@/lib/builder/prefetch";
 import { prefetchBlockQueries } from "@/lib/queries/blocks";
 import { postLayoutSettingsQueryOptions } from "@/hooks/usePostLayoutSettings";
@@ -222,6 +228,50 @@ interface CoverPreload {
 }
 
 /**
+ * WYNIK LOADERA TEJ TRASY JAKO JAWNA UNIA Z DYSKRYMINATOREM `kind` - i to jest
+ * naprawa realnego defektu typów, a nie porządkowanie dla ozdoby.
+ *
+ * CO BYŁO ZŁE. Kształt wyniku istniał WYŁĄCZNIE jako inferencja z dwóch
+ * `return`ów loadera, a `head()` czytał go przez `ResolveLoaderData<TLoaderFn>`
+ * routera. Ta inferencja jest WERSJOZALEŻNA: `FileRoute.createRoute` wstawia
+ * `TLoaderFn` do opcji `head`/`headers`/`scripts` BEZ `NoInfer` (inaczej niż
+ * `RouteOptions` dla `createRoute`), więc `head` jest jednocześnie miejscem
+ * WNIOSKOWANIA o `TLoaderFn` i jego KONSUMENTEM. Przy `@tanstack/react-router`
+ * 1.170.38 `TLoaderFn` spada wtedy do swojej domyślnej wartości `undefined`,
+ * `ResolveLoaderData<undefined>` daje `undefined`, a każdy odczyt pola w `head()`
+ * kończy się `Property '...' does not exist on type 'never'` (zmierzone: 12
+ * błędów `tsc` w tym pliku; wersja z locka CI, 1.170.18, wnioskowała inaczej
+ * i była zielona).
+ *
+ * CO TO NAPRAWIA. Typ jest teraz NAZWANY i wypisany: loader deklaruje go
+ * zwrotem (`Promise<ContentDocument>`), a `head()` deklaruje go przy odczycie
+ * `ctx.loaderData`. Obie deklaracje są SPRAWDZANE przez kompilator (żadnego
+ * `as`), więc rozjazd między tym, co loader oddaje, a tym, co `head()` czyta,
+ * nadal oblewa `tsc` - tylko przestaje zależeć od tego, którą wersję routera
+ * rozwiąże menedżer pakietów.
+ */
+interface DegradedDocument {
+  kind: "degraded";
+  degraded: true;
+  seoSettings: null;
+  coverPreload: null;
+}
+
+/**
+ * Rozstrzygnięta treść (wpis albo strona) wzbogacona o to, czego potrzebuje
+ * `head()`: ustawienia SEO serwisu i deskryptor preloadu obrazu LCP.
+ * `degraded?: undefined` jest DRUGIM dyskryminatorem obok `kind` - dokładnie
+ * tym samym, który TypeScript dopisywał tu sam przy inferencji z literału.
+ */
+type ResolvedDocument = ResolvedContent & {
+  seoSettings: SeoSettings;
+  coverPreload: CoverPreload | null;
+  degraded?: undefined;
+};
+
+type ContentDocument = DegradedDocument | ResolvedDocument;
+
+/**
  * LCP cover-image preload descriptor for a post, mirroring exactly what
  * `PostLayoutRenderer` paints - same responsive candidates (`buildImageSrcSet`)
  * and the same `sizes` (`coverImageSizes`) - so the preloaded candidate is the
@@ -265,7 +315,10 @@ function taxonomyRedirect(decision: TaxonomyRedirect): never {
 export const Route = createFileRoute("/$")({
   // Chrome (Header/Footer) is centralized in SiteChrome at the root - never
   // opt out here, or navigations remount the whole header/menu.
-  loader: async ({ params, context }) => {
+  // ZWROT LOADERA DEKLAROWANY, NIE WNIOSKOWANY - patrz wykład przy
+  // `ContentDocument`. Gałęzie rzucające (`notFound()`, `redirect()`) są typu
+  // `never`, więc anotacja nie zabiera im niczego.
+  loader: async ({ params, context }): Promise<ContentDocument> => {
     // Gramatyka adresów (404 / archiwum taksonomii / 301 kanoniczny / treść)
     // mieszka w `lib/routing/resolvePublicPath` jako czyste funkcje - tu zostaje
     // I/O, nagłówki cache i rzucanie. Tabela przypadków tej gramatyki:
@@ -427,6 +480,37 @@ export const Route = createFileRoute("/$")({
     // rozstrzygnąć. Uchwyt jest OBIEKTEM, nie `let`-em: zapis w domknięciu nie
     // istnieje dla analizy przepływu TypeScriptu, więc zwykła zmienna zostałaby
     // zawężona do `null` w miejscu odczytu.
+    // SLOTY REKLAMOWE TEJ TRASY, ROZGRZANE W SSR (audyt CWV 2026-09-20, F26 -
+    // pozycja z §8.1 „rozgrzewka `ad_placements` w trasie catch-all").
+    //
+    // CO NAPRAWIA. `AdZone` bez danych zwraca `null`, a `AdContainer` rezerwuje
+    // wtedy ZERO pikseli: baner nagłówka (90 px NAD treścią) i slot nad
+    // artykułem dojeżdżały dopiero po hydratacji i spychały stronę w dół.
+    // Korzeń grzeje `header_banner` WYŁĄCZNIE tam, gdzie typ strony rozstrzyga
+    // sam adres; tu typ zna dopiero ten loader, więc korzeń zostawia to miejsce
+    // tej trasie (komentarz przy `adPageTypeForLocation` w `__root.tsx`).
+    //
+    // DLACZEGO TYLKO TE DWIE POZYCJE. Tyle i dokładnie tyle renderuje SSR:
+    // `useReadingAdBudget` startuje z budżetem PŁACĄCEGO (`tierQ.isPending`),
+    // czyli jedna strefa - `top_of_post` (priorytet 0). `mid_post`, `sidebar`,
+    // `bottom_of_post` i `footer_slideup` wchodzą dopiero po rozstrzygnięciu
+    // planu w przeglądarce i stoją pod zgięciem - ich rozgrzewka byłaby
+    // dehydratowanym ładunkiem za nic.
+    //
+    // JEDNA ODNOGA, JEDEN ROUND-TRIP. `prefetchAdPlacementQueries` pyta o obie
+    // pozycje jednym `position=in.(...)` i rozdziela wynik na klucze widoków,
+    // więc fala wtórna ma 6 odnóg przy sufcie 6 (`check:ssr-budgets`, twardy
+    // limit 6 równoległych podżądań runtime Workers), a nie 7.
+    const adPageType: AdPageType = data.kind;
+    // Baner nagłówka renderuje POWŁOKA, a ona liczy typ strony z ADRESU
+    // (`SiteChrome` -> `adPageTypeForLocation`). Na ścieżkach, gdzie adres każe
+    // jej co innego niż `kind` treści, rozgrzalibyśmy klucz, którego nikt nie
+    // czyta - a wyrównanie tego drugim zapytaniem kosztowałoby siódme
+    // podżądanie. Wtedy baner zostaje przy fetchu po hydratacji, jak dotąd.
+    const adWarmTargets: AdWarmTarget[] = [{ position: "top_of_post", pageId: data.item.id }];
+    if (adPageTypeForLocation(splitUrl(url).path, data.kind) === adPageType) {
+      adWarmTargets.push({ position: "header_banner" });
+    }
     const secondary: { results: PromiseSettledResult<unknown>[] | null } = { results: null };
     await withBudget(
       Promise.allSettled([
@@ -482,6 +566,11 @@ export const Route = createFileRoute("/$")({
         data.kind === "page" && data.item.template_type === "archive_listing"
           ? context.queryClient.prefetchQuery(archiveListingQueryOptions(data.item.id))
           : Promise.resolve(),
+        // SZÓSTA ODNOGA - sloty reklamowe (uzasadnienie i lista pozycji wyżej).
+        // NIE wchodzi do `directArmCold` ani do sygnału degradacji: reklama to
+        // dekoracja, więc jej brak nie ma prawa zdjąć wspólnego cache'u CAŁEGO
+        // dokumentu (ta sama doktryna, co przy `chromeQueryKeys` w korzeniu).
+        prefetchAdPlacementQueries(context.queryClient, adWarmTargets, adPageType),
       ]).then((results) => {
         secondary.results = results;
       }),
@@ -580,7 +669,19 @@ export const Route = createFileRoute("/$")({
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     return { ...data, seoSettings, coverPreload };
   },
-  head: ({ loaderData, params }) => {
+  head: (ctx) => {
+    // ŁADUNEK CZYTANY PRZEZ DEKLARACJĘ, NIE PRZEZ INFERENCJĘ ROUTERA - jedyne
+    // miejsce, w którym `head()` dotyka `ResolveLoaderData<TLoaderFn>`, i cały
+    // powód, dla którego `ContentDocument` jest nazwany (wykład przy tym typie).
+    // To PRZYPISANIE, a nie `as`: kompilator nadal sprawdza, czy zwrot loadera
+    // pasuje do tego, co ten `head()` czyta - tylko przestaje to zależeć od
+    // wersji routera rozwiązanej w `node_modules`.
+    //
+    // Parametry zostają nietknięte (`ctx.params`, nie anotacja całego `ctx`):
+    // anotacja parametru wywołania zwrotnego jest dla routera KANDYDATEM
+    // WNIOSKOWANIA w pozycji kontrawariantnej i zbiłaby `TParams` trasy do
+    // `unknown` (zmierzone). Deklaracja zmiennej takiego kandydata nie tworzy.
+    const loaderData: ContentDocument | undefined = ctx.loaderData;
     // Render ZDEGRADOWANY niesie komunikat „nie udało się załadować", a nie
     // treść - i jedzie z HTTP 200, bo status 500 wyrzuciłby żywy wpis z indeksu
     // i zablokował CDN. `noindex` jest więc jedyną rzeczą, która broni indeksu
@@ -592,7 +693,7 @@ export const Route = createFileRoute("/$")({
     }
     const it = loaderData?.item;
     if (!it) return { meta: [] };
-    const splat = (params as { _splat?: string })._splat ?? "";
+    const splat = (ctx.params as { _splat?: string })._splat ?? "";
     // Adresy w <head> (canonical, og:url, JSON-LD, citation_*) zawsze na
     // kanonicznej domenie marki - host podglądu/hostingu nigdy nie wycieka.
     const rawUrl = getRequestUrl() || `/${splat}`;
@@ -748,7 +849,13 @@ export const Route = createFileRoute("/$")({
 // Named (uppercase) component - hooks inside an inline lowercase
 // `errorComponent` arrow violate rules-of-hooks (ESLint cannot treat it as a
 // component, and neither can React DevTools).
-function PublicErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+// `error: unknown`, a nie `Error`, i to też jest odporność na wersję routera,
+// nie ostrożność: `ErrorComponentProps` niesie dziś `error: unknown`
+// (@tanstack/react-router 1.170.38), a rzucić w JavaScripcie można DOWOLNĄ
+// wartością. Parametr szerszy niż deklarowany przez framework jest zgodny
+// z KAŻDĄ wersją (kontrawariancja), a ten komponent i tak wyłącznie loguje
+// wartość - surowy komunikat nigdy nie trafia do czytelnika.
+function PublicErrorComponent({ error, reset }: { error: unknown; reset: () => void }) {
   const router = useRouter();
   const copy = errorCopy();
   // Raw error.message is logged for diagnostics, never rendered to visitors.

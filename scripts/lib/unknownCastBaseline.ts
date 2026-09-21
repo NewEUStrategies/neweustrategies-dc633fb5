@@ -30,6 +30,13 @@
 //     kłamstwa naraz; zastąpiła je funkcja zawężająca na granicy RPC
 //     (nieznany tryb degraduje się do `anonymous`, czyli do interpretacji
 //     najostrożniejszej).
+//
+// 2026-09-21, RUM (`web_vitals`): 189 -> 187. Wpis
+// `src/lib/observability/vitals.functions.ts` zszedł z 2 do zera i ZNIKA z listy.
+// Oba rzutowania stały tam pod komentarzem „tabela z migracji, której nie ma
+// jeszcze w wygenerowanych typach" - i to przestało być prawdą: `web_vitals`
+// jest w `types.ts` razem z kolumnami kontekstu nawigacji (20260920121000),
+// a wybrane kolumny pokrywają `VitalSample` i `DailyP75Row` co do jednej.
 export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/components/admin/archiveLayout/ArchiveLayoutAdmin.tsx", 1],
   ["src/components/admin/blocks/edit/Buttons.tsx", 2],
@@ -131,7 +138,6 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/lib/notifications/useNotifications.ts", 1],
   ["src/lib/observability/redact.ts", 3],
   ["src/lib/observability/report.ts", 1],
-  ["src/lib/observability/vitals.functions.ts", 2],
   ["src/lib/patterns/i18n.ts", 1],
   ["src/lib/platform-error-reporting.ts", 1],
   // Przeniesione 1:1 z `src/routes/admin.podcasts.tsx` przy wyciągnięciu warstwy

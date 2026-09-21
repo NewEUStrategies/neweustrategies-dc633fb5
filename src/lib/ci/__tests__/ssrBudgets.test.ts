@@ -824,14 +824,51 @@ router.options.dehydrate = async () => {
     expect(sweep?.present).toBe(false);
   });
 
-  it("ZAMROŻONE dziury z loadera korzenia PRZECHODZĄ - bramka nie jest czerwona na wejściu", () => {
-    // Dwie tablice ze zmiennej w loaderze korzenia istniały przy powstaniu
-    // bramki. Są opisane w `FROZEN_UNMEASURABLE_PARALLEL` i MUSZĄ przechodzić -
-    // bramka czerwona na wejściu nie pilnuje niczego, uczy tylko obchodzenia.
-    expect(FROZEN_UNMEASURABLE_PARALLEL["src/routes/__root.tsx"]).toBe(2);
+  it("ZAMROŻONA dziura z loadera korzenia PRZECHODZI - bramka nie jest czerwona na wejściu", () => {
+    // Tablica ze zmiennej w loaderze korzenia (`Promise.allSettled(chromeWarm)`)
+    // istnieje od powstania bramki. Jest opisana w
+    // `FROZEN_UNMEASURABLE_PARALLEL` i MUSI przechodzić - bramka czerwona na
+    // wejściu nie pilnuje niczego, uczy tylko obchodzenia.
+    //
+    // RATCHET 2 -> 1 (2026-09-21): druga dziura (rozgrzewka menu) jest dziś
+    // literałem `["main", "footer"].map(...)`, czyli mierzalna, więc sufit 2
+    // przepuszczałby jedną NOWĄ dziurę za darmo. Uzasadnienie przy stałej.
+    expect(FROZEN_UNMEASURABLE_PARALLEL["src/routes/__root.tsx"]).toBe(1);
     const report = analyze();
     expect(report.unmeasurable.length).toBeGreaterThan(0);
     expect(ssrBudgetsFailed(report)).toBe(false);
+  });
+
+  it("KONTROLA NEGATYWNA: druga dziura w korzeniu OBLEWA bramkę po ratchecie", () => {
+    // Dowód, że obniżenie sufitu naprawdę coś znaczy. Przed ratchetem ten sam
+    // loader - z DWIEMA tablicami ze zmiennej - przechodził na zielono.
+    const twoHoles = ROOT_OK.replace(
+      "await withBudget(Promise.allSettled(chromeWarm), CHROME_WARM_BUDGET_MS);",
+      "await withBudget(Promise.allSettled(chromeWarm), CHROME_WARM_BUDGET_MS);\n    await Promise.all(menuWarm);",
+    );
+    const report = analyzeSsrBudgets({
+      sources: [
+        { file: "src/routes/__root.tsx", source: twoHoles },
+        { file: "src/router.tsx", source: ROUTER_OK },
+      ],
+    });
+    expect(report.unmeasurable).toHaveLength(2);
+    expect(ssrBudgetsFailed(report)).toBe(true);
+    expect(report.violations.some((v) => v.budget === "unmeasurableParallel")).toBe(true);
+  });
+
+  it("MIERZALNA rozgrzewka menu NIE zajmuje miejsca w zamrożonym rekordzie", () => {
+    // Druga połowa tego samego dowodu: tablica literałowa z `.map(...)` - czyli
+    // dzisiejszy kształt rozgrzewki menu w `__root.tsx` - jest LICZONA (dwie
+    // odnogi), a nie raportowana jako dziura. To ona zwolniła miejsce, które
+    // ratchet odebrał.
+    const withMenus = ROOT_OK.replace(
+      "await withBudget(Promise.allSettled(chromeWarm), CHROME_WARM_BUDGET_MS);",
+      'await Promise.allSettled(["main", "footer"].map((key) => ensure(key)));\n    await withBudget(Promise.allSettled(chromeWarm), CHROME_WARM_BUDGET_MS);',
+    );
+    const facts = loaderBudgetFacts("src/routes/__root.tsx", withMenus);
+    expect(facts?.parallelSites.filter((s) => s.arms === null)).toHaveLength(1);
+    expect(facts?.parallelSites.some((s) => s.arms === 2)).toBe(true);
   });
 });
 
