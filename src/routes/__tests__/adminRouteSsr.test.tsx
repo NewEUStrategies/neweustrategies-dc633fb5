@@ -244,6 +244,16 @@ describe("po hydratacji: panel montuje się normalnie", () => {
     expect(h.authCalls).toBeGreaterThan(0);
   });
 
+  it("dopiero TU rejestruje się nakładka słownika admina", () => {
+    // Druga połowa kontraktu z sekcji wyżej: kotwica ma być POZA `beforeLoad`,
+    // ale nadal MA BYĆ. `AdminSession` montuje się za bramką `useHydrated()`,
+    // więc słownik ląduje w chunku tras /admin (nie w wejściowym), a panel
+    // dostaje swoje klucze dokładnie wtedy, gdy zaczyna renderować napisy.
+    const Layout = adminLayout();
+    render(<Layout />);
+    expect(h.i18nCalls).toBe(1);
+  });
+
   it("czekając na sesję dokłada do szkieletu wariant ZAPAMIĘTANY", () => {
     // Tego członu serwer nie zna, ale klient owszem - i bez niego najemca ze
     // `style-4` czekałby na sesję przy pasku 224 px, żeby zobaczyć 48 px.
@@ -277,9 +287,16 @@ describe("kontrakt dokumentu panelu", () => {
     expect(h.cacheControl).toContain("private, no-store");
   });
 
-  it("`beforeLoad` rejestruje nakładkę słownika admina", () => {
+  it("`beforeLoad` NIE rejestruje nakładki słownika - to krawędź do chunku entry", () => {
+    // MECHANIZM, którego pilnuje ta asercja: `beforeLoad` należy do
+    // NIEDZIELONEJ części pliku trasy (splitter wynosi osobno tylko
+    // `component`), więc jedzie w chunku WEJŚCIOWYM. Kotwica postawiona tutaj
+    // wciąga `lib/i18n-admin-extras` - 67,8 kB źródeł, 18,4 KB gzip - do bundla
+    // KAŻDEJ strony publicznej. Zmierzone 2026-09-21: chunk wejściowy
+    // 284,3 -> 295,4 KB gzip przy zamrożonym progu 286, czyli bramka
+    // `check:bundle` na czerwono. Kotwica mieszka w `AdminSession` (niżej).
     adminBeforeLoad()();
-    expect(h.i18nCalls).toBe(1);
+    expect(h.i18nCalls).toBe(0);
   });
 
   it("`head()` niesie arkusz panelu - dlatego SSR startuje jego pobranie", () => {

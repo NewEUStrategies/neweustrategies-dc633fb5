@@ -56,14 +56,9 @@ export const Route = createFileRoute("/admin")({
     // zmiany dokument NIESIE HTML szkieletu, więc zakaz musi stać na drucie
     // niezależnie od tego, która warstwa go wypowie pierwsza.
     setCacheControlHeader(NO_STORE);
-    // Rejestruje słownik brakujących kluczy admina/CRM w chunku tras /admin
-    // (patrz lib/i18n-admin-extras) - jeden punkt wejścia dla całego panelu.
-    // W `beforeLoad`, nie w ciele komponentu: rejestracja jest efektem
-    // ubocznym IMPORTU modułu, a to wywołanie jest tylko kotwicą, która trzyma
-    // ten import przy trasie. Kotwica w ciele renderu kazała pierwszemu
-    // malowaniu panelu czekać na ewaluację 18,6 KB słownika, od którego
-    // szkielet (świadomie bez ani jednego napisu) nie zależy.
-    ensureAdminExtrasI18n();
+    // KOTWICY SŁOWNIKA ADMINA TU NIE MA - I NIE WOLNO JEJ TU WRÓCIĆ.
+    // Powód i miejsce docelowe: `AdminSession` niżej. Bramka:
+    // `i18n-admin-extras` w `HEAVY_DICTIONARIES` (scripts/check-entry-purity.ts).
   },
   head: () => ({
     meta: [{ name: "robots", content: "noindex, nofollow" }, { title: "Admin" }],
@@ -128,6 +123,30 @@ function AdminLayout() {
  * ścieżkę sesji (i `localStorage`) z powrotem do renderu serwerowego.
  */
 function AdminSession({ path, isEventStudio }: { path: string; isEventStudio: boolean }) {
+  // KOTWICA SŁOWNIKA ADMINA - W CZĘŚCI PO HYDRATACJI, NIGDY W `beforeLoad`.
+  //
+  // MECHANIZM. Rejestracja kluczy jest efektem ubocznym IMPORTU modułu
+  // `lib/i18n-admin-extras`, a to wywołanie jest wyłącznie kotwicą, która ten
+  // import przy czymś trzyma. O tym, DO KTÓREGO CHUNKU słownik trafi, decyduje
+  // więc chunk wołającego - i tu jest cała różnica: `beforeLoad` (razem
+  // z `loader`, `head`, `params`) należy do NIEDZIELONEJ części pliku trasy,
+  // bo splitter TanStacka wynosi do osobnego chunku tylko `component`.
+  // Niedzielona część jedzie w chunku WEJŚCIOWYM, czyli kotwica w `beforeLoad`
+  // dokładała 67,8 kB źródeł (18,4 KB gzip) słownika PANELU do bundla KAŻDEJ
+  // strony publicznej - kodu, którego anonimowy czytelnik nigdy nie wykona.
+  //
+  // POWÓD, DLA KTÓREGO TO NIE JEST COFNIĘCIE F32. Tamta zmiana nie chciała
+  // „kotwicy w beforeLoad" - chciała, żeby PRZEDHYDRATACYJNY szkielet panelu
+  // (świadomie bez ani jednego napisu) nie czekał na ewaluację słownika.
+  // `AdminLayout` montuje `AdminSession` dopiero za bramką `useHydrated()`,
+  // więc ten warunek jest spełniony tak samo jak dotąd: szkielet, który wychodzi
+  // z serwera i z pierwszego renderu klienta, tej linii nie wykonuje
+  // (przypina to test „nie woła rejestracji słownika w renderze").
+  //
+  // POMIAR (2026-09-21, pełny build obu stron na jednym hoście): chunk
+  // wejściowy main 284,3 KB gzip -> gałąź 295,4 KB (próg 286, bramka czerwona)
+  // -> po tej zmianie 275,4 KB; domknięcie bootu 575,0 -> 555,0 KB.
+  ensureAdminExtrasI18n();
   const { loading, session, isStaff } = useAuth();
   const navigate = useNavigate();
 

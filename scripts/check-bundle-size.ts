@@ -1351,6 +1351,46 @@ const CLIENT_DIR =
 // zapali tę bramkę, a tam redukcja JEST w zasięgu (arkusz korzenia jest
 // render-blocking na każdym URL-u).
 
+// 2026-09-21 XVI  KOTWICA SŁOWNIKA PANELU W `beforeLoad`. ŻADEN PRÓG NIE RUSZONY
+//             - i o to właśnie chodzi w tym wpisie. Jest tu po to, żeby kronika
+//             miała wreszcie przypadek, w którym bramka zapaliła się słusznie,
+//             przyczyna została znaleziona, a floor został tam, gdzie stał.
+//
+// POMIAR OBU STRON (ten sam host, ten sam `node_modules`, pełny build za każdym
+// razem, `BUNDLE_INVENTORY=1`):
+//   * main (0224cac):            chunk 284,3 KB / boot 569,3 KB  - zielono,
+//   * gałąź (e693d01, PR #382):  chunk 295,4 KB / boot 575,0 KB  - CZERWONO
+//                                (+11,1 KB przy progu 286),
+//   * gałąź po naprawie niżej:   chunk 275,4 KB / boot 555,0 KB  - zielono,
+//                                i to PONIŻEJ maina o 8,9 KB.
+//
+// PRZYCZYNA - JEDEN MODUŁ, JEDNA LINIA. `report:chunk-inventory index` na obu
+// stronach: do chunku wejściowego weszło `src/lib/i18n-admin-extras.ts`,
+// 67,8 kB źródeł (18,4 KB gzip zmierzone na osobnym chunku maina
+// `i18n-admin-extras-*.js`). Na mainie ten słownik ma WŁASNY chunk, osiągalny
+// wyłącznie z chunków `/admin` i `CompanyPickerDialog`; na gałęzi siedzi
+// w `index-*.js` (stąd 9 zamiast 10 chunków w domknięciu bootu).
+//
+// Krawędź: `routes/admin.tsx` przeniósł kotwicę `ensureAdminExtrasI18n()`
+// z ciała komponentu do `beforeLoad`. `beforeLoad` - jak `loader`, `head`
+// i `params` - należy do NIEDZIELONEJ części pliku trasy, bo splitter
+// TanStacka wynosi do osobnego chunku wyłącznie `component`. Kotwica tam jest
+// więc krawędzią z entry i wciąga słownik PANELU do bundla każdej strony
+// publicznej. Naprawa: kotwica w `AdminSession`, montowanym za `useHydrated()`
+// (intencja tamtej zmiany - przedhydratacyjny szkielet bez ewaluacji słownika -
+// zostaje nietknięta). Nawrót łapie od teraz `i18n-admin-extras`
+// w `HEAVY_DICTIONARIES` (scripts/check-entry-purity.ts), czyli bramka
+// PRZYCZYNY, nie skutku.
+//
+// DLA NASTĘPNEJ OSOBY - dwie obserwacje z tego pomiaru, obie kosztowały build:
+//   1. Gzip NIE SKALUJE SIĘ z surowymi kilobajtami. Wyprowadzenie z entry
+//      `menu/MegaPanelView.tsx` (13,7 kB źródeł JSX + klasy Tailwinda) dało
+//      1,2 KB gzip; 67,8 kB unikalnych napisów słownika to 18,8 KB gzip.
+//      Szukając brakujących kilobajtów, szukaj TEKSTU, nie kodu.
+//   2. Równoległe prace na tej gałęzi (F17/F19/F23) zdjęły z entry ~110 kB
+//      źródeł, czyli ~9-10 KB gzip - i to właśnie ta redukcja o mało nie
+//      ukryła regresji. Bramka sumy jest kompensowalna; inwentarz chunku nie.
+
 const FROZEN_BUDGET_KB = {
   // Największy pojedynczy chunk gzip. Zmierzone 2026-08-18: 266,8 (EChartClient,
   // admin-only) - entry po cięciu ścieżki bootowania ma 253,2. Ratchet
