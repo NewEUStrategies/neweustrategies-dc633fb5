@@ -79,9 +79,7 @@ export function useMentionDirectory(
                     // etykiet całego wątku - reszta wzmianek ma się rozwiązać.
                     if (error) return null;
                     const row = (data ?? [])[0];
-                    return row === undefined
-                      ? null
-                      : { ...row, slug };
+                    return row === undefined ? null : { ...row, slug };
                   }),
                 ),
               ).then((rows) => rows.filter((row): row is Record<string, unknown> => row !== null)),
