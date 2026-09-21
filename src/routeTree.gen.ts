@@ -123,6 +123,7 @@ import { Route as EventsSlugRouteImport } from './routes/events.$slug'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as ClubElementsRouteImport } from './routes/club.elements'
 import { Route as ClubApplyRouteImport } from './routes/club.apply'
+import { Route as ClubClubSlugRouteImport } from './routes/club.$clubSlug'
 import { Route as CheckoutSuccessRouteImport } from './routes/checkout.success'
 import { Route as CheckoutCancelRouteImport } from './routes/checkout.cancel'
 import { Route as CheckoutPlanIdRouteImport } from './routes/checkout.$planId'
@@ -209,7 +210,6 @@ import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } fr
 import { Route as Char91DotwellKnownChar93GpcChar91DotChar93jsonRouteImport } from './routes/[.well-known]/gpc[.]json'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as EventsSlugIndexRouteImport } from './routes/events.$slug.index'
-import { Route as ClubClubSlugRouteImport } from './routes/club.$clubSlug'
 import { Route as ClubClubSlugIndexRouteImport } from './routes/club.$clubSlug.index'
 import { Route as AdminUsersIndexRouteImport } from './routes/admin.users.index'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
@@ -978,6 +978,11 @@ const ClubApplyRoute = ClubApplyRouteImport.update({
   path: '/apply',
   getParentRoute: () => ClubRoute,
 } as any)
+const ClubClubSlugRoute = ClubClubSlugRouteImport.update({
+  id: '/$clubSlug',
+  path: '/$clubSlug',
+  getParentRoute: () => ClubRoute,
+} as any)
 const CheckoutSuccessRoute = CheckoutSuccessRouteImport.update({
   id: '/checkout/success',
   path: '/checkout/success',
@@ -1560,11 +1565,6 @@ const ClubSpecializationSlugRoute = ClubSpecializationSlugRouteImport.update({
 const ClubJoinTokenRoute = ClubJoinTokenRouteImport.update({
   id: '/join/$token',
   path: '/join/$token',
-  getParentRoute: () => ClubRoute,
-} as any)
-const ClubClubSlugRoute = ClubClubSlugRouteImport.update({
-  id: '/$clubSlug',
-  path: '/$clubSlug',
   getParentRoute: () => ClubRoute,
 } as any)
 const ClubClubSlugSpotlightRoute = ClubClubSlugSpotlightRouteImport.update({
@@ -5709,13 +5709,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmailUnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/club/$clubSlug': {
-      id: '/club/$clubSlug'
-      path: '/$clubSlug'
-      fullPath: '/club/$clubSlug'
-      preLoaderRoute: typeof ClubClubSlugRouteImport
-      parentRoute: typeof ClubRoute
-    }
     '/club/elements': {
       id: '/club/elements'
       path: '/elements'
@@ -5728,6 +5721,13 @@ declare module '@tanstack/react-router' {
       path: '/apply'
       fullPath: '/club/apply'
       preLoaderRoute: typeof ClubApplyRouteImport
+      parentRoute: typeof ClubRoute
+    }
+    '/club/$clubSlug': {
+      id: '/club/$clubSlug'
+      path: '/$clubSlug'
+      fullPath: '/club/$clubSlug'
+      preLoaderRoute: typeof ClubClubSlugRouteImport
       parentRoute: typeof ClubRoute
     }
     '/checkout/success': {
