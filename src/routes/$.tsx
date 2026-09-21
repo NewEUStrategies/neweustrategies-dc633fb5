@@ -221,10 +221,14 @@ const PRIMARY_CONTENT_BUDGET_MS = 1_500;
 // Non-2xx / redirect responses must never be CDN-cached as the content itself.
 const NO_STORE = contentCacheControl({ preview: true });
 
+// Kształt preloadu okładki JEST kontraktem `ImagePreloadInput` z warstwy SEO -
+// nazwa zostaje (czyta ją deklaracja `ContentDocument`), ale pola opcjonalne
+// muszą być opcjonalne również tutaj, bo `builderHeroPreload`/`archivePreload`
+// zwracają dokładnie ten typ (hero bez `srcSet` emituje sam `href`).
 interface CoverPreload {
   href: string;
-  imageSrcSet: string;
-  imageSizes: string;
+  imageSrcSet?: string;
+  imageSizes?: string;
 }
 
 /**
