@@ -290,14 +290,8 @@ export const Route = createFileRoute("/api/public/vitals")({
           // ONE multi-row insert for the whole batch (symmetric to
           // /api/public/track), replacing one round-trip per metric.
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-          // Wiersz idzie do `insert()` BEZ pośredniej zmiennej podstawiającej go
-          // pod szerszy typ. Ta linia istniała, dopóki pięciu kolumn kontekstu
-          // nie było w `types.ts`: `insert()` w supabase-js jest typowane przez
-          // `RejectExcessProperties`, więc każdy klucz spoza `Row["Insert"]`
-          // mapuje się na `never` i wywraca kompilację. Po regeneracji typów
-          // pięć kolumn JEST w kontrakcie, więc podstawienie nie chroniło już
-          // przed niczym - wyłączało tylko kontrolę kształtu na publicznej,
-          // niepodpisanej ścieżce zapisu.
+          // Ładunek idzie do `insert()` WPROST - bez pośredniej zmiennej
+          // podstawiającej go pod szerszy typ (uzasadnienie w nagłówku pliku).
           const { error } = await supabaseAdmin.from("web_vitals").insert(payload);
           // AWARYJNY ZAPIS BEZ KONTEKSTU - okno między wdrożeniem kodu
           // a migracją. `check:migration-ledger` jest bramką POWDROŻENIOWĄ,

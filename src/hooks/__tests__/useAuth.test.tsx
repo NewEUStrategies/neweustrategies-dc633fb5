@@ -10,6 +10,8 @@ const h = vi.hoisted(() => ({
   authCb: null as null | ((event: string, session: unknown) => void),
   unsub: vi.fn(),
   getSessionResult: { data: { session: null as unknown } },
+  /** Podstawiona obietnica `getSession()` - dla scenariuszy „wisi" i „odrzuca". */
+  getSessionPromise: null as Promise<{ data: { session: unknown } }> | null,
   signOutMock: vi.fn().mockResolvedValue({ error: null }),
   rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
   rolesRows: [] as { role: string }[],
@@ -33,7 +35,7 @@ vi.mock("@/integrations/supabase/client", () => ({
         h.authCb = cb;
         return { data: { subscription: { unsubscribe: h.unsub } } };
       },
-      getSession: () => Promise.resolve(h.getSessionResult),
+      getSession: () => h.getSessionPromise ?? Promise.resolve(h.getSessionResult),
       signOut: h.signOutMock,
     },
     from: (table: string) => {
@@ -78,7 +80,17 @@ vi.mock("@/lib/useSiteSetting", () => ({
   }),
 }));
 
-import { AuthProvider, useAuth, useRequiredTenant } from "@/hooks/useAuth";
+import {
+  AuthProvider,
+  hasStoredAuthSession,
+  ROLE_SETTLE_TIMEOUT_MS,
+  SESSION_SETTLE_TIMEOUT_MS,
+  useAuth,
+  useRequiredTenant,
+} from "@/hooks/useAuth";
+
+/** Klucz, pod którym klient Supabase trzyma sesję dla `placeholder.supabase.co`. */
+const STORED_SESSION_KEY = "sb-placeholder-auth-token";
 
 function makeSession(uid: string, accessToken = "tok") {
   return { user: { id: uid }, access_token: accessToken };
@@ -147,6 +159,7 @@ beforeEach(() => {
   h.authCb = null;
   h.unsub.mockReset();
   h.getSessionResult = { data: { session: null } };
+  h.getSessionPromise = null;
   h.signOutMock.mockReset().mockResolvedValue({ error: null });
   h.rpc.mockReset().mockResolvedValue({ data: null, error: null });
   h.rolesRows = [];
