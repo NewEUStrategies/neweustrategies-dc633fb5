@@ -33,7 +33,12 @@ export function getConnectionApiKey(env: StripeEnv): string {
 let stripeSdk: Promise<typeof import("stripe")> | null = null;
 
 function loadStripeSdk(): Promise<typeof import("stripe")> {
-  stripeSdk ??= import("stripe");
+  // Odrzuconej obietnicy NIE zostawiamy w pamięci: jednorazowy błąd ładowania
+  // zatrułby izolat na stałe, a izolaty Workera żyją minutami.
+  stripeSdk ??= import("stripe").catch((error: unknown) => {
+    stripeSdk = null;
+    throw error;
+  });
   return stripeSdk;
 }
 
@@ -72,7 +77,14 @@ export async function getStripeClient(env: StripeEnv): Promise<Stripe> {
 
   const client = buildStripeClient(connectionApiKey, lovableApiKey);
   clients.set(env, { connectionApiKey, lovableApiKey, client });
-  return client;
+  try {
+    return await client;
+  } catch (error) {
+    // Ten sam powód, co przy `loadStripeSdk`: wpis z odrzuconą obietnicą
+    // zamieniłby błąd chwilowy w trwałą awarię płatności w tym izolacie.
+    if (clients.get(env)?.client === client) clients.delete(env);
+    throw error;
+  }
 }
 
 async function buildStripeClient(connectionApiKey: string, lovableApiKey: string): Promise<Stripe> {

@@ -433,9 +433,13 @@ export function SearchButtonWidget({
   const pad = Math.max(8, Math.round(h * 0.28));
 
   // Trailing icon cluster width (X + Search + divider + Mic). Reserved as
-  // right padding so text never slides under the icons. Without Web Speech
-  // support the mic (and its divider) is hidden, so the cluster is narrower.
-  const trailingPad = (q ? 108 : 84) - (voice.supported ? 0 : 27);
+  // right padding so text never slides under the icons.
+  // REGRESJA CLS: rezerwa jest STAŁA i liczona z KOMPLETEM ikon. Wcześniej
+  // odejmowała 27 px, gdy `voice.supported` było fałszem - a ta flaga jest
+  // fałszem przy renderze serwerowym i w PIERWSZEJ klatce klienta, bo
+  // `useVoiceSearch` rozstrzyga możliwości przeglądarki dopiero w efekcie po
+  // hydratacji. Rezerwa zmieniała się więc pod już namalowanym polem.
+  const trailingPad = q ? 108 : 84;
 
   return (
     <div
@@ -548,27 +552,42 @@ export function SearchButtonWidget({
           >
             <LucideIcons.Search className="w-[18px] h-[18px]" aria-hidden />
           </button>
-          {voice.supported && (
-            <>
-              <span aria-hidden className="h-6 w-px shrink-0 bg-border" />
-              <button
-                type="button"
-                onClick={voice.toggle}
-                aria-pressed={voice.listening}
-                aria-label={voice.listening ? t("voice_stop") : t("voice")}
-                title={voice.listening ? t("voice_stop") : t("voice")}
-                className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none"
-              >
-                <LucideIcons.Mic
-                  className={`w-[18px] h-[18px] ${voice.listening ? "animate-pulse" : ""}`}
-                  // Inline style wygrywa z regułą .builder-search-widget button svg
-                  // - mikrofon świeci na czerwono przez cały czas nagrywania.
-                  style={voice.listening ? { color: "var(--destructive)" } : undefined}
-                  aria-hidden
-                />
-              </button>
-            </>
-          )}
+          {/* REGRESJA CLS: separator i mikrofon SĄ W UKŁADZIE ZAWSZE, nawet
+              zanim wiadomo, czy przeglądarka udźwignie dyktowanie. MECHANIZM:
+              `voice.supported` (MediaRecorder / Web Speech) rozstrzyga się
+              w efekcie PO hydratacji, a ten pasek ikon jest kotwiczony do
+              PRAWEJ krawędzi pola (`right: pad`), więc doklejenie dwóch
+              elementów poszerzało go W LEWO i przesuwało lupę (oraz „wyczyść")
+              o 27 px - przesunięcie 0,00005 CLS widoczne w KAŻDYM przebiegu
+              `test:e2e:performance`. Warunkowe jest więc tylko POKAZANIE:
+              `visibility: hidden` zachowuje pudełko (w odróżnieniu od
+              `display: none`) i zdejmuje element z drzewa dostępności, a
+              `inert` domyka fokus i zdarzenia także tam, gdzie silnik trzyma
+              ukryte przyciski w kolejności tabulacji. */}
+          <span
+            aria-hidden
+            className="h-6 w-px shrink-0 bg-border"
+            style={voice.supported ? undefined : { visibility: "hidden" }}
+          />
+          <button
+            type="button"
+            onClick={voice.toggle}
+            aria-pressed={voice.listening}
+            aria-label={voice.listening ? t("voice_stop") : t("voice")}
+            title={voice.listening ? t("voice_stop") : t("voice")}
+            data-voice-unsupported={voice.supported ? undefined : ""}
+            inert={!voice.supported}
+            style={voice.supported ? undefined : { visibility: "hidden" }}
+            className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none"
+          >
+            <LucideIcons.Mic
+              className={`w-[18px] h-[18px] ${voice.listening ? "animate-pulse" : ""}`}
+              // Inline style wygrywa z regułą .builder-search-widget button svg
+              // - mikrofon świeci na czerwono przez cały czas nagrywania.
+              style={voice.listening ? { color: "var(--destructive)" } : undefined}
+              aria-hidden
+            />
+          </button>
         </div>
       </div>
 

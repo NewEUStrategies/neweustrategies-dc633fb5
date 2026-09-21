@@ -119,6 +119,17 @@ function eqArg(column: string): unknown {
   return call?.args[1];
 }
 
+/**
+ * Argument pojedynczego ogniwa `.in(kolumna, wartości)` - PO KOLUMNIE, a nie
+ * „pierwsze `in` w łańcuchu". Od rozgrzewki wielopozycyjnej (2026-09-21) filtr
+ * pozycji też jedzie `in`, więc `argsOf("in")` oddawałoby raz `position`, raz
+ * `page_type` - zależnie od kolejności ogniw, a nie od przedmiotu dowodu.
+ */
+function inArg(column: string): unknown {
+  const call = chain().calls.find((c) => c.method === "in" && c.args[0] === column);
+  return call?.args[1];
+}
+
 /** Wszystkie argumenty ogniw `.or(...)` w kolejności wywołania. */
 function orArgs(): string[] {
   return chain()
@@ -151,7 +162,7 @@ describe("dobór placementów: pozycja, typ strony, identyfikator strony", () =>
 
     await loadPlacements("footer_slideup", "post", null);
 
-    expect(eqArg("position")).toBe("footer_slideup");
+    expect(inArg("position")).toEqual(["footer_slideup"]);
   });
 
   it("dopuszcza placementy 'all' OBOK placementów danego typu strony", async () => {
@@ -161,7 +172,7 @@ describe("dobór placementów: pozycja, typ strony, identyfikator strony", () =>
 
     // Bez "all" w liście każda kampania ogólnositeowa zniknęłaby ze stron
     // kategorii; bez "category" znikałyby kampanie zawężone do kategorii.
-    expect(chain().argsOf("in")).toEqual(["page_type", ["all", "category"]]);
+    expect(inArg("page_type")).toEqual(["all", "category"]);
   });
 
   it.each<AdPageType>(["home", "post", "page", "category", "tag", "archive", "search"])(
@@ -171,7 +182,7 @@ describe("dobór placementów: pozycja, typ strony, identyfikator strony", () =>
 
       await loadPlacements("header_banner", pageType, null);
 
-      expect(chain().argsOf("in")).toEqual(["page_type", ["all", pageType]]);
+      expect(inArg("page_type")).toEqual(["all", pageType]);
     },
   );
 
@@ -180,7 +191,7 @@ describe("dobór placementów: pozycja, typ strony, identyfikator strony", () =>
 
     await loadPlacements("header_banner", "all", null);
 
-    expect(chain().argsOf("in")).toEqual(["page_type", ["all", "all"]]);
+    expect(inArg("page_type")).toEqual(["all", "all"]);
   });
 
   it("placement przypięty do INNEJ strony nie wchodzi do wyniku", async () => {
@@ -566,6 +577,6 @@ describe("bramka: typy stron znane bazie a filtr wysyłany przez klienta", () =>
 
     await loadPlacements("header_banner", "event", null);
 
-    expect(chain().argsOf("in")).toEqual(["page_type", ["all", "event"]]);
+    expect(inArg("page_type")).toEqual(["all", "event"]);
   });
 });

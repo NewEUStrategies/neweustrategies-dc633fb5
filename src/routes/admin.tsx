@@ -126,11 +126,7 @@ function AdminLayout() {
 
   if (!hydrated)
     return (
-      <AdminShellSkeleton
-        path={path}
-        hideSidebar={isEventStudio}
-        sidebarStyle={ssrSidebarStyle}
-      />
+      <AdminShellSkeleton path={path} hideSidebar={isEventStudio} sidebarStyle={ssrSidebarStyle} />
     );
 
   return (

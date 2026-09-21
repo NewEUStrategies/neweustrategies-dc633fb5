@@ -430,10 +430,7 @@ function AdminShellInner({
   };
 
   return (
-    <div
-      data-admin-shell=""
-      className={adminShellRootClass(Boolean(hideSidebar))}
-    >
+    <div data-admin-shell="" className={adminShellRootClass(Boolean(hideSidebar))}>
       {hideSidebar && <AdminLangBar />}
       {!hideSidebar && (
         <aside
@@ -670,9 +667,7 @@ function AdminShellInner({
         className={adminContentColumnClass({ hideSidebar: Boolean(hideSidebar), isEditRoute })}
         style={{ viewTransitionName: "admin-main" }}
       >
-        <div className={adminContentPaddingClass({ isEditRoute, isThemeOptions })}>
-          {children}
-        </div>
+        <div className={adminContentPaddingClass({ isEditRoute, isThemeOptions })}>{children}</div>
       </main>
     </div>
   );

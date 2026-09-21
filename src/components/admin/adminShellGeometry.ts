@@ -120,7 +120,10 @@ export const ADMIN_SIDEBAR_BRAND_BOX_CLASS = "p-3 border-b border-border";
  * malowaniu: dopóki `theme_options` nie przyjechało, renderuje się napis, a po
  * odpowiedzi bazy - logo najemcy. Bez przypięcia cała nawigacja zjeżdża w dół.
  */
-export const ADMIN_SIDEBAR_BRAND_ROW_CLASS = { expanded: "h-9 flex-1", compact: "h-8 w-8" } as const;
+export const ADMIN_SIDEBAR_BRAND_ROW_CLASS = {
+  expanded: "h-9 flex-1",
+  compact: "h-8 w-8",
+} as const;
 
 /** Klasa wiersza marki dla danej decyzji o zwinięciu. */
 export function adminSidebarBrandRowClass(compact: boolean): string {

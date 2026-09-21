@@ -183,6 +183,28 @@ vi.mock("@tanstack/react-router", async (o) => {
 // w `__root.tsx` nadal się wykonuje (to ona jest przedmiotem dowodu - „chunk
 // powstaje dopiero, gdy bramka puści"), a po drugiej stronie stoi marker
 // zamiast kilkuset linii interfejsu, które mają własne zakresy.
+//
+// WSZYSTKIE CZTERY NAKŁADKI TEJ JEDNEJ GRANICY `Suspense` - i to nie jest
+// nadgorliwość, tylko naprawa FLAKA Z CI (shard 2, run 35579184831).
+// `ConsentBanner`, `ConsentPreviewPanel`, `NewsletterPopup` i `PopupHost`
+// siedzą w `__root.tsx` w JEDNEJ granicy z fallbackiem `null`. Gdy KTÓRAKOLWIEK
+// z nich jeszcze się dociąga, React pokazuje fallback CAŁEJ granicy - czyli
+// panel podglądu zgód, już zamontowany, znika z DOM-u na czas ładowania
+// SĄSIADA. Bramki czasowe (`consentReady` ~32 ms, `overlaysReady` ~32 ms po
+// degradacji `whenIdle` w happy-dom) dosypują sąsiadów PO pierwszym
+// rozstrzygnięciu, więc na wolniejszym runnerze asercja trafiała w okno,
+// w którym granica była z powrotem na fallbacku. Marker po drugiej stronie
+// KAŻDEGO leniwego importu zamyka to okno bez dotykania bramek, które są tu
+// przedmiotem dowodu (fabryki `lazy()` nadal się wykonują).
+vi.mock("@/components/ConsentBanner", () => ({
+  ConsentBanner: () => <div data-testid="consent-banner" />,
+}));
+vi.mock("@/components/NewsletterPopup", () => ({
+  NewsletterPopup: () => <div data-testid="newsletter-popup" />,
+}));
+vi.mock("@/components/popups/PopupHost", () => ({
+  PopupHost: () => <div data-testid="popup-host" />,
+}));
 vi.mock("@/components/ConsentPreviewPanel", () => ({
   ConsentPreviewPanel: () => <div data-testid="consent-preview-panel" />,
 }));
@@ -536,6 +558,19 @@ describe("bramki leniwych nakładek i usług tła korzenia", () => {
     await flush();
   }
 
+  /**
+   * ZAPORA DLA ASERCJI NEGATYWNYCH. „Czegoś nie ma" jest prawdą trywialną,
+   * dopóki granica `Suspense` nakładek stoi na fallbacku - a stoi tak długo,
+   * aż rozstrzygnie się OSTATNIA z nich. `NewsletterPopup` montuje się na
+   * `overlaysReady`, czyli jako ostatni w tej granicy, więc jego obecność jest
+   * dowodem, że granica pokazuje już TREŚĆ, a nie `null`. Dopiero po nim
+   * pytanie „czy panelu nie ma" cokolwiek znaczy.
+   */
+  async function overlayBoundarySettled(): Promise<void> {
+    const { screen } = await import("@testing-library/react");
+    await screen.findByTestId("newsletter-popup");
+  }
+
   /** Udaje iframe podglądu: `window.self !== window.top`. */
   function pretendIframe(mode: "iframe" | "cross-origin"): void {
     Object.defineProperty(window, "top", {
@@ -575,6 +610,9 @@ describe("bramki leniwych nakładek i usług tła korzenia", () => {
     const heartbeat = await import("@/lib/preview/sessionHeartbeat");
 
     await mountRoot();
+    // Zapora: dopiero gdy nakładki są już zamontowane, wiadomo, że okno
+    // bezczynności minęło - inaczej „nie zawołano" znaczyłoby „jeszcze nie".
+    await overlayBoundarySettled();
 
     expect(watchdog.startPreviewWatchdog).not.toHaveBeenCalled();
     expect(heartbeat.startPreviewHeartbeat).not.toHaveBeenCalled();
@@ -587,10 +625,14 @@ describe("bramki leniwych nakładek i usług tła korzenia", () => {
     const watchdog = await import("@/lib/watchdog/previewWatchdog");
     const heartbeat = await import("@/lib/preview/sessionHeartbeat");
 
+    const { waitFor } = await import("@testing-library/react");
+
     await mountRoot();
 
-    expect(watchdog.startPreviewWatchdog).toHaveBeenCalled();
-    expect(heartbeat.startPreviewHeartbeat).toHaveBeenCalled();
+    // Obie usługi startują zza `whenIdle`, więc asercja czeka na SKUTEK,
+    // a nie na upływ czasu zgadnięty przez test.
+    await waitFor(() => expect(watchdog.startPreviewWatchdog).toHaveBeenCalled());
+    await waitFor(() => expect(heartbeat.startPreviewHeartbeat).toHaveBeenCalled());
   });
 
   it("iframe o OBCYM originie (rzut przy odczycie `window.top`) liczy się jak iframe", async () => {
@@ -600,15 +642,20 @@ describe("bramki leniwych nakładek i usług tła korzenia", () => {
     // wariancie osadzenia, w którym najczęściej stoi.
     pretendIframe("cross-origin");
     const watchdog = await import("@/lib/watchdog/previewWatchdog");
+    const { waitFor } = await import("@testing-library/react");
 
     await mountRoot();
 
-    expect(watchdog.startPreviewWatchdog).toHaveBeenCalled();
+    await waitFor(() => expect(watchdog.startPreviewWatchdog).toHaveBeenCalled());
   });
 
   it("panel podglądu zgód powstaje WYŁĄCZNIE przy `?consent-preview=1`", async () => {
+    const { screen } = await import("@testing-library/react");
+
     await mountRoot();
-    expect(document.querySelector("[data-testid='consent-preview-panel']")).toBeNull();
+    await overlayBoundarySettled();
+
+    expect(screen.queryByTestId("consent-preview-panel")).toBeNull();
   });
 
   it.each([1, "1"])(
@@ -619,34 +666,41 @@ describe("bramki leniwych nakładek i usług tła korzenia", () => {
       // otworzy się nigdy, a defekt byłby niemy - nikt nie zgłasza narzędzia
       // diagnostycznego, o którym nie wie.
       h.search = { "consent-preview": value };
+      const { screen } = await import("@testing-library/react");
 
       await mountRoot();
 
-      expect(document.querySelector("[data-testid='consent-preview-panel']")).not.toBeNull();
+      // `findBy*` zamiast odczytu synchronicznego: panel jest leniwym chunkiem
+      // w granicy `Suspense`, więc jego montaż jest ZDARZENIEM, nie stanem
+      // dostępnym w tej samej klatce, co render korzenia.
+      expect(await screen.findByTestId("consent-preview-panel")).toBeTruthy();
     },
   );
 
   it("pasek audio dociąga chunk dopiero, gdy odtwarzacz MA utwór", async () => {
-    await mountRoot();
-    expect(document.querySelector("[data-testid='global-audio-bar']")).toBeNull();
+    const { cleanup, screen } = await import("@testing-library/react");
 
-    const { cleanup } = await import("@testing-library/react");
+    await mountRoot();
+    await overlayBoundarySettled();
+    expect(screen.queryByTestId("global-audio-bar")).toBeNull();
+
     cleanup();
     h.player = { track: { id: "post-1" }, status: "playing" };
 
     await mountRoot();
 
-    expect(document.querySelector("[data-testid='global-audio-bar']")).not.toBeNull();
+    expect(await screen.findByTestId("global-audio-bar")).toBeTruthy();
   });
 
   it("pasek audio montuje się także na BŁĘDZIE - toast o nieudanym TTS mieszka w nim", async () => {
     // Bramka nie może pytać wyłącznie o utwór: gdy synteza padnie, utworu nie
     // ma, a komunikat o porażce nie miałby się gdzie pokazać.
     h.player = { track: null, status: "error" };
+    const { screen } = await import("@testing-library/react");
 
     await mountRoot();
 
-    expect(document.querySelector("[data-testid='global-audio-bar']")).not.toBeNull();
+    expect(await screen.findByTestId("global-audio-bar")).toBeTruthy();
   });
 
   it("Toaster montuje się NATYCHMIAST po pierwszym toaście, nie dopiero po bezczynności", async () => {
@@ -654,24 +708,23 @@ describe("bramki leniwych nakładek i usług tła korzenia", () => {
     // drugim, bezwarunkowym wyzwalaczem - ale toast ze ścieżki bootowania
     // przepadłby bez tego pierwszego (sonner nie odtwarza historii nowym
     // subskrybentom).
-    const { act } = await import("@testing-library/react");
+    const { act, screen } = await import("@testing-library/react");
     const { notifySuccess } = await import("@/lib/notify");
 
     await mountRoot();
 
     await act(async () => {
       notifySuccess("zapisano");
-      await new Promise((r) => setTimeout(r, 5));
     });
 
-    expect(document.querySelector("[data-testid='toaster']")).not.toBeNull();
+    expect(await screen.findByTestId("toaster")).toBeTruthy();
   });
 
   it("miękka nawigacja przypisuje Web Vitals do NOWEJ ścieżki", async () => {
     // Bez tego LCP/CLS/INP podstrony lądowały pod adresem, z którego czytelnik
     // już zszedł - czyli panel pokazywał pomiar strony, której nikt nie oglądał.
     const webVitals = await import("@/lib/webVitals");
-    const { act } = await import("@testing-library/react");
+    const { act, waitFor } = await import("@testing-library/react");
 
     await mountRoot();
     try {
@@ -682,7 +735,11 @@ describe("bramki leniwych nakładek i usług tła korzenia", () => {
         await new Promise((r) => setTimeout(r, 5));
       });
 
-      expect(webVitals.markWebVitalsPage).toHaveBeenCalledWith("/analiza/energia");
+      // Zgłoszenie idzie przez `background.run(import(...))`, czyli przez
+      // dynamiczny import - to zdarzenie, nie efekt tej samej klatki.
+      await waitFor(() =>
+        expect(webVitals.markWebVitalsPage).toHaveBeenCalledWith("/analiza/energia"),
+      );
 
       // DRUGIE rozwiązanie tej samej ścieżki to NIE jest nawigacja - ponowne
       // zgłoszenie zerowałoby akumulatory w środku odsłony.

@@ -34,7 +34,7 @@
 // - KANAŁU RSS PROGRAMU: `programs.$slug.rss[.]xml.ts` ma kontrakt
 //   w `feedRoutesDegradation.test.ts`.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 
 const { TENANT_A, TENANT_B, PROGRAM_ID, SLUG } = vi.hoisted(() => ({
   TENANT_A: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -62,6 +62,12 @@ const h = vi.hoisted(() => ({
   events: [] as Record<string, unknown>[],
   /** Tabele i RPC, których odczyt ma paść (blip backendu). */
   broken: new Set<string>(),
+  /**
+   * Tabele, których odczyt pada TYLKO RAZ - blip, który mija. Loader zasiewa
+   * wtedy fallback ze stemplem `updatedAt: 0`, a refetch po zamontowaniu
+   * dostaje już prawdziwy wiersz.
+   */
+  failOnce: new Set<string>(),
   /** Etykiety odczytów w kolejności - podstawa pomiaru zapytań. */
   reads: [] as string[],
   /** Adres żądania widziany przez `head()`. */
@@ -95,6 +101,9 @@ vi.mock("@/integrations/supabase/client", async () => {
     const eq = filters(chain.calls);
     const bySlug = eq.has("slug");
     h.reads.push(bySlug ? "research_programs:slug" : "research_programs:list");
+    if (h.failOnce.delete("research_programs")) {
+      return fail("test: research_programs chwilowo niedostepna");
+    }
     if (h.broken.has("research_programs")) return fail("test: research_programs niedostepna");
     const rows = visible(h.programs);
     return bySlug ? ok(rows.find((p) => p.slug === eq.get("slug")) ?? null) : ok(rows);
@@ -249,6 +258,7 @@ beforeEach(async () => {
   h.podcasts = [];
   h.events = [];
   h.broken = new Set<string>();
+  h.failOnce = new Set<string>();
   h.reads = [];
   h.requestUrl = "https://nes.example.org/programs";
   h.cacheControl = [];
@@ -665,6 +675,39 @@ describe("trasa /programs/$slug - awaria backendu kontra 404", () => {
     await mountDetail();
 
     expect(h.cacheControl.at(-1)).toBe("private, no-store");
+  });
+
+  // DEGRADACJA MÓWI PRAWDĘ, ALE LECZY SIĘ SAMA (`lib/ssr/useDegradedUntilHealed`).
+  // Ładunek loadera jest NIEZMIENNY przez życie dopasowania trasy, a zasiew ma
+  // stempel `updatedAt: 0`, więc `useQuery` dociąga landing zaraz po
+  // zamontowaniu. Pełny dowód mechanizmu (parytet hydratacji, kontrola
+  // negatywna) stoi w `src/lib/ssr/__tests__/useDegradedUntilHealed.test.tsx`.
+  it("SSR zdegradowany + UDANY refetch: komunikat znika, landing się renderuje", async () => {
+    h.failOnce.add("research_programs");
+    const view = await mountDetail();
+
+    // PARYTET Z SSR: pierwszy render niesie jeszcze komunikat - ten sam, który
+    // wyszedł z serwera. Przełączenie jest PÓŹNIEJSZE, nie w tym renderze.
+    expect(view.getByText("Ta sekcja chwilowo nie ma danych")).toBeInTheDocument();
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Bezpieczeństwo Europy" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Ta sekcja chwilowo nie ma danych")).toBeNull();
+  });
+
+  it("ponowienie pyta backend JESZCZE RAZ i leczy stronę bez nawigacji", async () => {
+    h.broken.add("research_programs");
+    await mountDetail();
+    const button = screen.getByRole("button", { name: "Spróbuj ponownie" });
+
+    h.broken.delete("research_programs");
+    fireEvent.click(button);
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Bezpieczeństwo Europy" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Ta sekcja chwilowo nie ma danych")).toBeNull();
   });
 
   it("KONTROLA DODATNIA: czysty render landingu deklaruje politykę TREŚCI", async () => {

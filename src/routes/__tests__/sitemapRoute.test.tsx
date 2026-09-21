@@ -40,6 +40,12 @@ const h = vi.hoisted(() => ({
   cacheControl: [] as string[],
   /** Które z trzech zapytań mają ODRZUCIĆ (nazwa -> odrzuca). */
   failing: new Set<string>(),
+  /**
+   * Które z trzech zapytań mają odrzucić TYLKO RAZ - blip, który mija. Loader
+   * zasiewa wtedy fallback ze stemplem `updatedAt: 0`, a refetch po hydratacji
+   * dostaje już prawdziwą odpowiedź.
+   */
+  failingOnce: new Set<string>(),
   /** Które z trzech zapytań mają ZAWISNĄĆ bez rozstrzygnięcia. */
   hanging: new Set<string>(),
   // Ładunki atrap - rozpoznawalne, żeby odróżnić PRAWDZIWY odczyt od fallbacku.
@@ -87,6 +93,9 @@ function stubOptions(name: string, payload: unknown) {
       queryKey: keyOf(name),
       queryFn: (): Promise<unknown> => {
         if (h.hanging.has(name)) return new Promise<unknown>(() => {});
+        if (h.failingOnce.delete(name)) {
+          return Promise.reject(new Error(`${name} temporarily unreachable`));
+        }
         if (h.failing.has(name)) return Promise.reject(new Error(`${name} unreachable`));
         return Promise.resolve(payload);
       },
@@ -109,7 +118,7 @@ vi.mock("@/lib/queries/public", async (o) => ({
 }));
 
 import "@/test/i18nReal";
-import { cleanup, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { renderRoute } from "@/test/routeHarness";
 import { COPY, Route } from "@/routes/sitemap";
 
@@ -159,6 +168,7 @@ function renderOnServer(): void {
 beforeEach(() => {
   h.cacheControl = [];
   h.failing = new Set<string>();
+  h.failingOnce = new Set<string>();
   h.hanging = new Set<string>();
   // `loadResilient` loguje każdą degradację - w teście to szum, nie sygnał.
   vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -309,5 +319,54 @@ describe("render `/sitemap` - degradacja MUSI być widoczna, a nie wyglądać ja
     expect(screen.queryByText("-")).toBeNull();
     expect(screen.getByText("Wpis")).toBeInTheDocument();
     expect(screen.getByText("O nas")).toBeInTheDocument();
+  });
+});
+
+// DEGRADACJA MÓWI PRAWDĘ, ALE LECZY SIĘ SAMA (recenzja Codeksa na PR #383, P2).
+// `degradedSections` z `loaderData` jest NIEZMIENNE przez życie dopasowania
+// trasy, a trzy zasiewy noszą stempel `updatedAt: 0`, więc `useSuspenseQuery`
+// dociąga każdy z nich zaraz po hydratacji. Dopóki bramki sekcji liczyły się
+// z ładunku loadera, odzyskane kategorie i wpisy ZOSTAWAŁY UKRYTE, a komunikat
+// wisiał aż do `router.invalidate()` albo przeładowania. Pełny dowód mechanizmu
+// (parytet hydratacji, kontrola negatywna) stoi w
+// `src/lib/ssr/__tests__/useDegradedUntilHealed.test.tsx`.
+describe("render `/sitemap` - degradacja leczy się sama", () => {
+  const NOTICE = COPY.pl.degraded;
+  const RETRY = "Spróbuj ponownie";
+
+  it("SSR zdegradowany + UDANY refetch: sekcja wraca, komunikat znika", async () => {
+    h.failingOnce.add("categories");
+    const view = await mount();
+
+    // PARYTET Z SSR: pierwszy render niesie jeszcze komunikat i ukrytą sekcję -
+    // dokładnie to, co wyszło z serwera. Przełączenie jest PÓŹNIEJSZE.
+    expect(view.getByText(NOTICE)).toBeInTheDocument();
+    expect(view.queryByText(COPY.pl.categories)).toBeNull();
+
+    expect(await screen.findByText(COPY.pl.categories)).toBeInTheDocument();
+    expect(screen.getByText("Analizy")).toBeInTheDocument();
+    expect(screen.queryByText(NOTICE)).toBeNull();
+  });
+
+  it("refetch PADA znowu: komunikat zostaje razem z ponowieniem", async () => {
+    h.failing.add("categories");
+    await mount();
+
+    expect(screen.getByText(NOTICE)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: RETRY })).toBeInTheDocument();
+    expect(screen.queryByText(COPY.pl.categories)).toBeNull();
+  });
+
+  it("ponowienie pyta backend JESZCZE RAZ i odsłania sekcję bez nawigacji", async () => {
+    h.failing.add("categories");
+    await mount();
+    const button = screen.getByRole("button", { name: RETRY });
+
+    h.failing.delete("categories");
+    fireEvent.click(button);
+
+    expect(await screen.findByText(COPY.pl.categories)).toBeInTheDocument();
+    expect(screen.getByText("Analizy")).toBeInTheDocument();
+    expect(screen.queryByText(NOTICE)).toBeNull();
   });
 });
