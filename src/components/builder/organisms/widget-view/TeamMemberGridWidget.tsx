@@ -36,6 +36,7 @@
 import { useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import type { WidgetNode, WidgetContent } from "@/lib/builder/types";
+import { sanitizeHtml } from "@/lib/sanitize";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { XIcon } from "@/components/atoms/XIcon";
@@ -385,7 +386,11 @@ function TeamMemberDialogBody({
               {member.fullBio ? (
                 <div
                   className="cms-post-content prose prose-sm max-w-none text-foreground/90"
-                  dangerouslySetInnerHTML={{ __html: member.fullBio }}
+                  // Sanityzacja stoi TUTAJ, przy samym sinku, a nie w modelu:
+                  // `check:dangerous-html` wymaga dowodu w miejscu wstawienia,
+                  // bo odkażanie „gdzieś po drodze" nie daje się sprawdzić
+                  // statycznie i psuje się cicho przy drugim źródle pola.
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(member.fullBio) }}
                 />
               ) : (
                 // Skrót z kafelka jest WĘZŁEM TEKSTOWYM, nie HTML-em: pole

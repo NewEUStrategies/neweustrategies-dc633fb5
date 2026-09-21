@@ -11,7 +11,7 @@
 // od `Date.now()`, `Math.random()`, `window` ani strefy maszyny, więc obie
 // strony dostają ten sam wynik z tego samego wejścia.
 import type { WidgetContent } from "./types";
-import { safeImageUrl, safeUrl, sanitizeHtml } from "@/lib/sanitize";
+import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 
 /** Język treści widgetu (ten sam alias co w `widget-view/frame`). */
 export type TeamGridLang = "pl" | "en";
@@ -106,7 +106,15 @@ export interface TeamGridMember {
   role: string;
   department: string;
   bio: string;
-  /** Sanityzowany HTML; pusty = okno pokazuje `bio` jako tekst. */
+  /**
+   * SUROWY HTML z dokumentu - odkażany DOPIERO w miejscu renderu.
+   *
+   * Sanityzacja stoi przy `dangerouslySetInnerHTML`, a nie tutaj, bo taki jest
+   * niezmiennik `check:dangerous-html`: każdy sink musi mieć dowód sanityzacji
+   * W MIEJSCU WSTAWIENIA. Odkażanie „gdzieś po drodze" jest nie do sprawdzenia
+   * statycznie i psuje się cicho, gdy ktoś doda drugie źródło tego pola.
+   * Pusty = okno pokazuje `bio` jako tekst.
+   */
   fullBio: string;
   affiliation: string;
   projects: string[];
@@ -149,7 +157,7 @@ export function teamGridMembers(content: WidgetContent, lang: TeamGridLang): Tea
       role: loc(bag, "role", lang),
       department: loc(bag, "department", lang),
       bio: loc(bag, "bio", lang),
-      fullBio: sanitizeHtml(loc(bag, "fullBio", lang)),
+      fullBio: loc(bag, "fullBio", lang),
       affiliation: loc(bag, "affiliation", lang),
       projects: teamGridProjects(loc(bag, "projects", lang)),
       email: str(bag, "email"),
@@ -166,10 +174,11 @@ export function teamGridHeader(
   content: WidgetContent,
   lang: TeamGridLang,
 ): { badge: string; heading: string; intro: string } {
-  const bag = content as unknown as Bag;
+  // Bez rzutowania: `WidgetContent` ma sygnaturę indeksu `Json`, a ta jest
+  // przypisywalna do `Record<string, unknown>` (`check:unknown-casts`).
   return {
-    badge: loc(bag, "badge", lang),
-    heading: loc(bag, "heading", lang),
-    intro: loc(bag, "intro", lang),
+    badge: loc(content, "badge", lang),
+    heading: loc(content, "heading", lang),
+    intro: loc(content, "intro", lang),
   };
 }
