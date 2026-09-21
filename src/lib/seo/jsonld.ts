@@ -185,7 +185,7 @@ export function breadcrumbListJsonLd(
       const url = href
         ? /^https?:\/\//i.test(href)
           ? href
-          : absoluteUrl(origin, localizedPath(stripLangPrefix(href).path, lang))
+          : absoluteUrl(origin, localizedPath(stripLangPrefix(href).pathname, lang))
         : null;
       return {
         "@type": "ListItem",
