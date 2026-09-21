@@ -99,7 +99,20 @@ export function TeamMemberGridWidget({
   const t = (key: string): string => translate(key, { lng: lang });
 
   const [openIndex, setOpenIndex] = useState<number | null>(null);
-  const triggersRef = useRef<Array<HTMLButtonElement | null>>([]);
+  // KAFELEK, KTÓRY OTWORZYŁ OKNO - zapamiętany jako ELEMENT, przy kliknięciu
+  // (regresja z recenzji Codex, P2).
+  //
+  // Dwie rzeczy psuły tu powrót fokusu i obie trzeba było naprawić:
+  //  1. indeks trzymany w stanie (`openIndex`) jest zerowany przez
+  //     `onOpenChange(false)`, które biegnie PRZED `onCloseAutoFocus` - handler
+  //     widział więc `null`;
+  //  2. tablica refów wypełniana inline'owym callbackiem (`ref={(el) => …}`)
+  //     jest przez Reacta ODPINANA (wywołanie z `null`) przy każdym renderze,
+  //     bo funkcja ma za każdym razem inną tożsamość. W chwili
+  //     `onCloseAutoFocus` wpis był już `null` - zmierzone, nie zgadnięte.
+  // Element zapamiętany w `onClick` omija oba problemy: nie zależy ani od
+  // stanu, ani od cyklu przypinania refów.
+  const lastTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   // Ustawienia czytamy PRZED wyjściem na pustej liście osób - dzięki temu
   // bramka wierności widzi je w każdej próbce i żadne nie wygląda na martwe
@@ -140,10 +153,11 @@ export function TeamMemberGridWidget({
     );
   }
 
-  const openMember = (index: number) => {
+  const openMember = (index: number, trigger: HTMLButtonElement) => {
     // W kanwie okno się nie otwiera - właściwości ustawia panel boczny (ten sam
     // guard co w `team-member`; bez niego klik w kafelek zasłaniał edytor).
     if (editable || !openPopup) return;
+    lastTriggerRef.current = trigger;
     setOpenIndex(index);
   };
 
@@ -175,10 +189,7 @@ export function TeamMemberGridWidget({
             grayscale={grayscale}
             interactive={openPopup}
             hint={t("teamGrid.cardHint")}
-            onOpen={() => openMember(index)}
-            registerTrigger={(el) => {
-              triggersRef.current[index] = el;
-            }}
+            onOpen={(trigger) => openMember(index, trigger)}
           />
         ))}
       </div>
@@ -197,8 +208,16 @@ export function TeamMemberGridWidget({
               // Fokus wraca na kafelek, z którego okno zostało otwarte -
               // inaczej po zamknięciu ląduje na <body> i nawigacja klawiaturą
               // zaczyna od początku dokumentu.
+              //
+              // `preventDefault()` WYŁĄCZNIE wtedy, gdy naprawdę mamy co
+              // ogniskować. Bezwarunkowe wywołanie gasiło też WŁASNY powrót
+              // fokusu Radixa, więc przy zgubionym kafelku nie działało ani
+              // jedno, ani drugie - a to okno nie ma `DialogTrigger`, z którego
+              // Radix mógłby odtworzyć cel.
+              const trigger = lastTriggerRef.current;
+              if (!trigger?.isConnected) return;
               event.preventDefault();
-              if (openIndex !== null) triggersRef.current[openIndex]?.focus();
+              trigger.focus();
             }}
           >
             {active && <TeamMemberDialogBody member={active} t={t} />}
@@ -220,14 +239,12 @@ function TeamGridCard({
   interactive,
   hint,
   onOpen,
-  registerTrigger,
 }: {
   member: TeamGridMember;
   grayscale: boolean;
   interactive: boolean;
   hint: string;
-  onOpen: () => void;
-  registerTrigger: (el: HTMLButtonElement | null) => void;
+  onOpen: (trigger: HTMLButtonElement) => void;
 }) {
   const body = (
     <>
@@ -278,9 +295,8 @@ function TeamGridCard({
 
   return (
     <button
-      ref={registerTrigger}
       type="button"
-      onClick={onOpen}
+      onClick={(event) => onOpen(event.currentTarget)}
       aria-label={member.name}
       aria-haspopup="dialog"
       title={hint}

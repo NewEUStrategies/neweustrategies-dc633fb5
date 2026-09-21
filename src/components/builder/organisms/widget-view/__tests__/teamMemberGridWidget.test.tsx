@@ -14,7 +14,7 @@
 //    w konsoli (atrybuty) - z sondą, która dowodzi, że drugi kanał działa.
 import { describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, act } from "@testing-library/react";
+import { fireEvent, render, screen, act, waitFor } from "@testing-library/react";
 import { renderToString, renderToStaticMarkup } from "react-dom/server";
 import { hydrateRoot } from "react-dom/client";
 import "@/test/i18nReal";
@@ -217,10 +217,86 @@ describe("TeamMemberGridWidget - okno pełnej kartoteki", () => {
   });
 
   it("treść wpisana tylko po angielsku pokazuje się także w widoku PL", () => {
-    // MAREK ma wyłącznie `role_en` - łańcuch fallbacków (lang -> pl -> en)
-    // ma go pokazać, zamiast zostawić pustą linię.
+    // MAREK ma wyłącznie `role_en` - łańcuch fallbacków ma go pokazać,
+    // zamiast zostawić pustą linię.
     paint(FULL);
     expect(screen.getByText("Senior fellow")).toBeInTheDocument();
+  });
+
+  it("PUSTY bliźniak językowy nie zatrzymuje fallbacku - kształt, który zapisuje PANEL", () => {
+    // REGRESJA (Codex, P2). Panel zakłada świeżą osobę z KOMPLETEM pustych
+    // bliźniaków (`blankMember()`: role_pl: "", role_en: "" …), więc łańcuch
+    // `??` zatrzymywał się na `role_pl === ""` i wersja EN nigdy nie dojeżdżała.
+    // Poprzedni test tego NIE łapał, bo jego fixtura POMIJAŁA klucz `role_pl`,
+    // czyli sprawdzała kształt, którego panel nigdy nie produkuje.
+    paint({
+      ...FULL,
+      // Nagłówek sekcji ma ten sam defekt i tę samą naprawę.
+      heading_pl: "",
+      heading_en: "People of New European Strategies",
+      members: [
+        {
+          id: "m-panel",
+          name: "Ewa Panel",
+          role_pl: "",
+          role_en: "Policy analyst",
+          department_pl: "",
+          department_en: "Research",
+          bio_pl: "",
+          bio_en: "Writes on enlargement.",
+          affiliation_pl: "",
+          affiliation_en: "College of Europe",
+          projects_pl: "",
+          projects_en: "Enlargement",
+        },
+      ],
+    });
+
+    expect(screen.getByText("Policy analyst")).toBeInTheDocument();
+    expect(screen.getByText("Research")).toBeInTheDocument();
+    expect(screen.getByText("Writes on enlargement.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "People of New European Strategies" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Ewa Panel" }));
+    expect(screen.getByText("College of Europe")).toBeInTheDocument();
+    expect(screen.getByText("Enlargement")).toBeInTheDocument();
+  });
+
+  it("wersja w języku widoku WYGRYWA nad drugim językiem, gdy obie są wypełnione", () => {
+    // Kontrola dodatnia do testu wyżej: „pierwsza niepusta" nie może zamienić
+    // się w „którakolwiek niepusta".
+    paint(FULL, "pl");
+    expect(screen.getAllByText("Dyrektorka programu").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Programme director")).toBeNull();
+  });
+
+  it("po zamknięciu Escape'em fokus wraca na kafelek, z którego okno wyszło", async () => {
+    // REGRESJA (Codex, P2), dwie przyczyny naraz:
+    //  1. `onOpenChange` zeruje `openIndex` ZANIM zadziała `onCloseAutoFocus`,
+    //     więc handler czytający stan widział `null`;
+    //  2. tablica refów z inline'owym `ref={(el) => …}` jest odpinana (wpis
+    //     `null`) przy każdym renderze, bo callback ma inną tożsamość - w chwili
+    //     `onCloseAutoFocus` wpis był pusty. Zmierzone, nie zgadnięte.
+    // Oba omija zapamiętanie ELEMENTU w `onClick`. `preventDefault()` pada
+    // dziś tylko wtedy, gdy jest co ogniskować, więc przy zgubionym kafelku
+    // Radix robi swoje, zamiast nie robić nic.
+    //
+    // ASERCJA JEST ASYNCHRONICZNA CELOWO: Radix przywraca fokus w późniejszym
+    // takcie, więc synchroniczne `expect` widziałoby jeszcze <body> i test
+    // oblewałby POPRAWNY kod. To nie jest obejście - to zgodność z tym, kiedy
+    // zachowanie naprawdę zachodzi.
+    paint(FULL);
+    const card = screen.getByRole("button", { name: "Anna Kowalska" });
+    card.focus();
+    fireEvent.click(card);
+    const dialog = screen.getByRole("dialog");
+
+    fireEvent.keyDown(dialog, { key: "Escape", code: "Escape" });
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(card));
   });
 
   it("tryb editable (kanwa) NIE otwiera okna - właściwości ustawia panel boczny", () => {

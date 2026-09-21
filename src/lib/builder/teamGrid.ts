@@ -49,23 +49,49 @@ export const TEAM_GRID_SOCIAL_LABEL: Record<TeamGridSocialKey, string> = {
 type Bag = Record<string, unknown>;
 
 /**
+ * Kolejność szukania: najpierw język widoku, potem drugi.
+ *
+ * TABELA, NIE TERNARY (`lang === "pl" ? "en" : "pl"`). Dwa powody, oba
+ * praktyczne. Po pierwsze `check:i18n-hardcoded` liczy taki ternary jako
+ * dwujęzyczny tekst w kodzie - zwolniony jest tylko kształt `? "pl" : "en"`,
+ * nie odwrotny, a spieranie się z bramką o wyjątek jest droższe niż tabela.
+ * Po drugie `Record<TeamGridLang, …>` sprawia, że trzeci język NIE SKOMPILUJE
+ * SIĘ bez własnego wiersza - ternary cicho wrzuciłby go do gałęzi "en".
+ */
+const LOOKUP_ORDER: Record<TeamGridLang, readonly TeamGridLang[]> = {
+  pl: ["pl", "en"],
+  en: ["en", "pl"],
+};
+
+/**
  * Wartość pola w żądanym języku z PEŁNYM łańcuchem fallbacków
  * (język -> PL -> EN -> klucz bez sufiksu). Ostatnie ogniwo jest tu z tego
  * samego powodu co w `pickI18n`: treść wpisana wyłącznie po angielsku ma się
  * pokazać także w widoku PL, zamiast zniknąć.
  *
- * UWAGA NA KOLEJNOŚĆ I `??`: gałęzie są leniwe, więc przy wypełnionym
- * `foo_pl` klucz bazowy `foo` NIE jest odczytywany. To nie jest przypadek -
- * bramka wierności ustawień liczy odczyty treści i klucz bazowy, którego panel
- * nie oferuje, zgłosiłaby jako "ustawienie ukryte".
+ * PIERWSZA NIEPUSTA WARTOŚĆ, NIE PIERWSZA NIE-NULLISH (regresja z recenzji
+ * Codex, P2). Wcześniej stał tu łańcuch `??`, który przepuszcza PUSTY NAPIS -
+ * a panel zapisuje świeżą osobę z KOMPLETEM pustych bliźniaków (`role_pl: ""`,
+ * `role_en: ""`, patrz `blankMember()` w edytorze). Redaktor, który wypełnił
+ * wyłącznie `role_en`, dostawał więc w widoku PL puste pole: odczyt zatrzymywał
+ * się na `role_pl === ""`, bo pusty napis nie jest `null` ani `undefined`.
+ * Deklarowany fallback istniał tylko na papierze, a częściowo przetłumaczona
+ * treść znikała. (Mój pierwszy test tego nie złapał, bo fixtura POMIJAŁA klucz
+ * `role_pl`, zamiast ustawiać go na `""` - czyli sprawdzała przypadek, którego
+ * panel nigdy nie produkuje. Dowód stoi teraz na obu kształtach.)
+ *
+ * BEZ KLUCZA BAZOWEGO (`foo` bez sufiksu). Ten typ widgetu jest NOWY, więc nie
+ * ma dokumentów sprzed rozdzielenia języków - nie ma czego ratować. Gdyby
+ * klucz bazowy został, przy pustych bliźniakach byłby realnie odczytywany,
+ * a bramka wierności ustawień zgłosiłaby go jako "ustawienie ukryte" (panel
+ * go nie oferuje). Jedno źródło prawdy: wyłącznie warianty `_pl` / `_en`.
  */
 function loc(bag: Bag, base: string, lang: TeamGridLang): string {
-  const v =
-    (bag[`${base}_${lang}`] as unknown) ??
-    (bag[`${base}_pl`] as unknown) ??
-    (bag[`${base}_en`] as unknown) ??
-    bag[base];
-  return typeof v === "string" ? v.trim() : "";
+  for (const code of LOOKUP_ORDER[lang]) {
+    const v = bag[`${base}_${code}`];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return "";
 }
 
 function str(bag: Bag, key: string): string {
