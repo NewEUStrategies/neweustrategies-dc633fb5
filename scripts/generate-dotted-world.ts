@@ -7,7 +7,7 @@
 // obowiązuje odwrotna doktryna, ta sama co dla choroplety: GEOMETRIA NIE
 // PODRÓŻUJE W BUNDLU JS. Zamiast dokładać zależność runtime, siatka kropek jest
 // wyliczana RAZ, przy budowie, z zasobu, który już leży w repo
-// (public/geo/world-110m.v1.json - Natural Earth przez world-atlas), i zapisana
+// (public/geo/world-110m.v2.json - Natural Earth przez world-atlas), i zapisana
 // jako statyczny, wersjonowany plik CDN-owalny.
 //
 // CO POWSTAJE
@@ -26,7 +26,7 @@
 // Użycie:
 //   bun run scripts/generate-dotted-world.ts
 //
-// Wejście (public/geo/world-110m.v1.json) niesie ścieżki SVG już rzutowane
+// Wejście (public/geo/world-110m.v2.json) niesie ścieżki SVG już rzutowane
 // projekcją Natural Earth I plus metadane `proj`, więc test „ląd czy woda"
 // robimy w płaszczyźnie rzutowanej: projekcja jest ciągła i różnowartościowa na
 // (-180..180, -90..90), więc punkt jest w kraju wtedy i tylko wtedy, gdy jego
@@ -34,7 +34,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-const GEO_ASSET = join("public", "geo", "world-110m.v1.json");
+const GEO_ASSET = join("public", "geo", "world-110m.v2.json");
 const OUT_SVG = join("public", "geo", "world-dots.v1.svg");
 const OUT_CENTROIDS = join("src", "lib", "maps", "countryCentroids.ts");
 
@@ -341,7 +341,7 @@ function main(): void {
     `// WYGENEROWANE PRZEZ scripts/generate-dotted-world.ts - nie edytować ręcznie.\n` +
     `//\n` +
     `// Centroidy krajów (ISO 3166-1 alpha-2 -> lat/lng) policzone z największego\n` +
-    `// pierścienia geometrii w public/geo/world-110m.v1.json. Służą WYŁĄCZNIE\n` +
+    `// pierścienia geometrii w public/geo/world-110m.v2.json. Służą WYŁĄCZNIE\n` +
     `// panelowi widgetu „Mapa świata": autor wybiera kraj, panel wpisuje\n` +
     `// współrzędne punktu. Renderer publiczny czyta już tylko lat/lng z treści,\n` +
     `// więc ta tabela nigdy nie trafia do bundla strony.\n` +

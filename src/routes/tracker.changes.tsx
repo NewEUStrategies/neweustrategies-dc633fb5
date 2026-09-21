@@ -2,20 +2,64 @@
 // opublikowanych dossier, grupowane po dniach, z plakietką zmiany etapu.
 // URL: /tracker/changes. Publiczny odczyt (RLS: tylko opublikowane dossier).
 import { useMemo, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, type ErrorComponentProps } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, ExternalLink, Landmark } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
-import { useRecentUpdates, type RecentUpdate } from "@/lib/tracker/queries";
+import {
+  recentUpdatesQueryOptions,
+  useRecentUpdates,
+  type RecentUpdate,
+} from "@/lib/tracker/queries";
 import { areaLabel, stageLabel } from "@/lib/tracker/stages";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 import { ensureI18n as ensureTrackerI18n } from "@/lib/i18n-tracker";
 import { uiLocale } from "@/lib/i18n/format";
+import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+
+/** Rozmiar okna feedu; "pokaż więcej" rośnie o tę wartość. Stała stoi PRZED
+ *  deklaracją trasy, bo ten sam literał musi wziąć loader (klucz cache) i stan
+ *  początkowy komponentu - rozjazd tych dwóch daje SSR pod jednym kluczem
+ *  i odczyt kliencki pod innym, czyli powrót defektu. */
+const PAGE = 40;
+
+/** Fallback zdegradowanego renderu (patrz lib/ssr/resilientLoad). */
+const NO_UPDATES: RecentUpdate[] = [];
+
 export const Route = createFileRoute("/tracker/changes")({
+  // LOADER, KTÓREGO TA TRASA NIE MIAŁA (naprawa N4, 2026-09-02).
+  //
+  // `useQuery` nie startuje fetcha na serwerze, więc całe ciało tej strony -
+  // grupy wpisów osi czasu, plakietki zmiany etapu i linki do dossier -
+  // schodziło do crawlera jako `t("tracker.loading")`. Powłoka bez treści
+  // wchodziła potem do NES Edge Cache na do 24 h.
+  //
+  // Ta trasa MUSI renderować się serwerowo, bo DOKŁADNIE te same wpisy
+  // publikujemy już crawlerom kanałem `/tracker/rss.xml` (lib/tracker/feed.ts):
+  // wersja HTML oddająca pustą powłokę tam, gdzie RSS oddaje pełne pozycje,
+  // to nie decyzja produktowa, tylko przeoczenie. Feed jest JEDNYM zapytaniem
+  // (bez kaskady explorera), więc SSR kosztuje jeden round-trip.
+  //
+  // Brak `notFound()` jest tu świadomy: pusty feed to legalny stan (nowy
+  // tenant, dossier bez ani jednego wpisu osi czasu) i ma własny, dwujęzyczny
+  // komunikat `tracker.changes.empty`.
+  loader: async ({ context }) => {
+    const { degraded } = await loadResilient(
+      context.queryClient,
+      recentUpdatesQueryOptions(PAGE),
+      NO_UPDATES,
+    );
+    // Zdegradowany render (pusty feed z fallbacku) nie może trafić do cache'a
+    // wspólnego - brzeg serwowałby pustkę kolejnym czytelnikom długo po tym,
+    // jak baza wróciła do zdrowia.
+    setCacheControlHeader(resilientCacheControl(degraded));
+    return { degraded };
+  },
   head: () => {
     const url = getRequestUrl() || "/tracker/changes";
     const lang = activeLang(url);
@@ -34,8 +78,21 @@ export const Route = createFileRoute("/tracker/changes")({
     });
   },
   component: TrackerChangesPage,
-  errorComponent: (props) => <RouteErrorFallback {...props} title="Tracker" />,
+  errorComponent: (props) => <TrackerErrorFallback {...props} />,
 });
+
+/**
+ * Ekran awarii trasy mówiący JĘZYKIEM STRONY. Wcześniej `errorComponent` podawał
+ * tytuł zahardkodowanym literałem, więc czytelnik wersji angielskiej dostawał
+ * jedyny polski napis na całej stronie. `errorComponent` renderuje się jak każdy
+ * komponent, więc wolno mu wziąć zdanie ze słownika - klucz `tracker.loadError`
+ * istnieje w PL i EN, więc nie dopisujemy nowego.
+ */
+function TrackerErrorFallback(props: ErrorComponentProps) {
+  ensureTrackerI18n();
+  const { t } = useTranslation();
+  return <RouteErrorFallback {...props} title={t("tracker.loadError")} />;
+}
 
 type Lang = "pl" | "en";
 
@@ -66,8 +123,6 @@ function dayLabel(iso: string, lang: Lang, t: (k: string) => string): string {
     year: "numeric",
   });
 }
-
-const PAGE = 40;
 
 function TrackerChangesPage() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.

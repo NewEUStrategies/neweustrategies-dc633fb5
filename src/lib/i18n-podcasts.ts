@@ -29,6 +29,7 @@ export const podcastsPl = {
     loadFailedIndex: "Nie udało się załadować listy",
     loadFailedPodcasts: "Nie udało się załadować podcastów",
     loadFailedShow: "Nie udało się załadować programu",
+    loadFailedEpisodes: "Nie udało się załadować listy odcinków",
 
     // Liczebnik odcinków: polski ma trzy formy istotne dla liczb (1 / 2-4 / 5+),
     // a karta katalogu pokazywała skrót „odc." dla każdej liczby.
@@ -70,6 +71,7 @@ export const podcastsEn = {
     loadFailedIndex: "Couldn't load the list",
     loadFailedPodcasts: "Couldn't load podcasts",
     loadFailedShow: "Couldn't load this programme",
+    loadFailedEpisodes: "Couldn't load the episode list",
 
     episodeCount_one: "{{count}} episode",
     episodeCount_other: "{{count}} episodes",
@@ -92,14 +94,13 @@ export const podcastsEn = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", podcastsPl, true, true);
-i18n.addResourceBundle("en", "translation", podcastsEn, true, true);
-
-/**
- * No-op wołany w komponencie trasy zamiast side-effectowego importu modułu.
- * Nazwane wiązanie pozwala splitterowi TanStacka przenieść cały bundle
- * tłumaczeń do chunka trasy - side-effectowy import w pliku trasy lądował
- * w eager-owym grafie wejściowym każdej strony. Rejestracja dzieje się przy
- * ewaluacji modułu (przed renderem komponentu), dokładnie jak wcześniej.
- */
-export function ensureI18n(): void {}
+// Explicit registration must survive both Vite and Nitro tree shaking.
+// Keep the legacy side-effect import contract, and avoid repeated deep merges.
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", podcastsPl, true, true);
+  i18n.addResourceBundle("en", "translation", podcastsEn, true, true);
+}
+ensureI18n();

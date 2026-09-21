@@ -10,6 +10,7 @@ import { documentCacheMiddleware } from "@/lib/http/documentCache.server";
 import { isPreviewHost } from "@/lib/http/host";
 import { tenantAssertionMiddleware } from "@/lib/http/tenantAssertionCookie.server";
 import { planDefaultCacheControl } from "@/lib/http/defaultCacheControl";
+import { readRouteCacheDirective } from "@/lib/http/responseHeaders";
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
 import { renderErrorPage } from "@/lib/error-page";
 import { getMiddlewareResponse, withMiddlewareResponse } from "@/lib/http/middlewareResult";
@@ -48,8 +49,8 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
     if (
       error &&
       typeof error === "object" &&
-      ("statusCode" in error || "status" in error) &&
-      typeof (error as { statusCode?: number; status?: number }).statusCode !== "undefined"
+      (typeof (error as { statusCode?: unknown }).statusCode === "number" ||
+        typeof (error as { status?: unknown }).status === "number")
     ) {
       throw error;
     }
@@ -113,12 +114,21 @@ const legacyLangQueryMiddleware = createMiddleware().server(async ({ request, ne
  * Accept-Language i wynik jest utrwalany. Decyzja równa językowi domyślnemu to
  * no-op, więc "/" pozostaje jednym, współdzielonym wpisem cache. Sam redirect
  * jest `no-store` + `Vary`, żeby nigdy nie trafił do cache brzegowego.
+ *
+ * Stoi PRZED `redirectMiddleware` (audyt F14): decyzja jest czysta (cookie /
+ * Accept-Language), więc odwiedzający EN dostaje 302 na /en bez płacenia dwóch
+ * odczytów planu service-role (katalog tenantów + reguły), które i tak nie
+ * miałyby czego dopasować - właściwe żądanie /en przejdzie przez nie za chwilę.
  */
 const homepageLangMiddleware = createMiddleware().server(async ({ request, next }) => {
   if (request.method !== "GET" && request.method !== "HEAD") return next();
   const url = new URL(request.url);
   if (url.pathname !== "/") return next();
   if (!(request.headers.get("accept") ?? "").includes("text/html")) return next();
+  // Jawne `?lang=` to legacy deep-link i należy do `legacyLangQueryMiddleware`
+  // (niżej w łańcuchu). Bez tej bramki negocjacja nagłówkiem utrwaliłaby
+  // cookie `pl` odwiedzającemu, który właśnie prosił o `/?lang=en`.
+  if (normalizeLang(url.searchParams.get("lang"))) return next();
 
   const decision = resolveHomepageLang(
     url.pathname,
@@ -164,8 +174,9 @@ const homepageLangMiddleware = createMiddleware().server(async ({ request, next 
  * Baseline security headers: HSTS for every https response plus the document
  * set (CSP / X-Frame-Options / nosniff / referrer / permissions) for HTML. The
  * CSP is the defense-in-depth layer behind output escaping (see safeJsonLd):
- * even if an escape is missed somewhere, no third-party script can load,
- * nothing can frame the site, <base> cannot be hijacked and plugins are dead.
+ * even if an escape is missed somewhere, no third-party script beyond the
+ * allow-listed vendors (Stripe.js, Google tag) can load, nothing can frame
+ * the site, <base> cannot be hijacked and plugins are dead.
  *
  * Zakres 'unsafe-inline':
  * - script-src trzyma 'unsafe-inline' wyłącznie dla framework'owych snippetów
@@ -178,10 +189,10 @@ const homepageLangMiddleware = createMiddleware().server(async ({ request, next 
  *   'unsafe-inline' w script-src (React podpina zdarzenia addEventListenerem,
  *   więc 'none' niczego nie psuje).
  * - connect-src jest zawężony do 'self' + origin Supabase (https + realtime
- *   websocket) - beacons (vitals, client-errors) i Stripe (redirect, nie XHR)
- *   idą przez 'self'. Gdy origin Supabase jest nieznany w runtime (brak env
- *   na edge'u), wraca szeroki wariant - lepsza słabsza polityka niż zerwanie
- *   połączenia z bazą.
+ *   websocket) + NBP/Stripe + kolektory tagu Google (GOOGLE_TAG_CONNECT_SRC) -
+ *   własne beacons (vitals, client-errors) idą przez 'self'. Gdy origin
+ *   Supabase jest nieznany w runtime (brak env na edge'u), wraca szeroki
+ *   wariant - lepsza słabsza polityka niż zerwanie połączenia z bazą.
  * - Google Fonts jest na allowliście stylów/fontów dla podglądu czcionek
  *   w adminie (FontPicker wstrzykuje <link> do fonts.googleapis.com).
  */
@@ -205,6 +216,32 @@ function isPreviewRequest(request: Request): boolean {
   }
 }
 
+/**
+ * Tag Google (gtag.js -> GA4 + Google Ads): hosty wg przewodnika Google „Use
+ * Google tag with a Content Security Policy". Bez tych wpisów CSP blokowało
+ * gtag.js i beacony `/g/collect` na produkcji od wejścia polityki
+ * (2026-09-13): GA4 nie odebrał ani jednego trafienia („Zbieranie danych nie
+ * jest włączone w Twojej witrynie"), choć weryfikator Google widział snippet
+ * w HTML - detektor czyta HTML serwerowo i nagłówek CSP go nie dotyczy.
+ * `img-src https:` i `frame-src https:` obejmują już piksele i ramki Google,
+ * więc rozszerzamy wyłącznie `script-src` i `connect-src`. Test regresji:
+ * `__tests__/startPipeline.test.ts`.
+ */
+const GOOGLE_TAG_SCRIPT_SRC =
+  "https://*.googletagmanager.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://www.google.com";
+const GOOGLE_TAG_CONNECT_SRC = [
+  "https://*.googletagmanager.com",
+  "https://*.google-analytics.com",
+  "https://*.analytics.google.com",
+  "https://analytics.google.com",
+  "https://stats.g.doubleclick.net",
+  "https://www.google.com",
+  "https://googleads.g.doubleclick.net",
+  "https://www.googleadservices.com",
+  "https://pagead2.googlesyndication.com",
+  "https://td.doubleclick.net",
+].join(" ");
+
 function contentSecurityPolicy(request?: Request): string {
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
   let supabaseOrigins = "";
@@ -217,15 +254,19 @@ function contentSecurityPolicy(request?: Request): string {
     /* malformed env - omit */
   }
   const preview = request ? isPreviewRequest(request) : false;
+  // Kurs EUR/PLN w koszyku pobieramy bezpośrednio z NBP (Tabela A), a Stripe.js
+  // odpytuje własne API - bez tych origin-ów CSP blokuje checkout w przeglądarce.
+  const extraOrigins = `https://api.nbp.pl https://api.stripe.com ${GOOGLE_TAG_CONNECT_SRC}`;
   const connectSrc = supabaseOrigins
-    ? `connect-src 'self' ${supabaseOrigins}${preview ? " https: wss:" : ""}`
+    ? `connect-src 'self' ${supabaseOrigins} ${extraOrigins}${preview ? " https: wss:" : ""}`
     : "connect-src 'self' https: wss:";
+
   return [
     "default-src 'self'",
     // Stripe.js MUSI pochodzić z js.stripe.com (wymóg PCI - Stripe nie
     // wspiera self-hostingu tego skryptu). Bez tego wpisu CSP blokuje
     // ładowanie SDK i checkout nie startuje.
-    `script-src 'self' 'unsafe-inline' https://js.stripe.com${preview ? " 'unsafe-eval'" : ""}`,
+    `script-src 'self' 'unsafe-inline' https://js.stripe.com ${GOOGLE_TAG_SCRIPT_SRC}${preview ? " 'unsafe-eval'" : ""}`,
     "script-src-attr 'none'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https:",
@@ -249,6 +290,30 @@ const securityHeadersMiddleware = createMiddleware().server(async ({ request, ne
 });
 
 /**
+ * NAZWA METRYKI odcinka routingu krawędziowego w nagłówku `Server-Timing`.
+ * Jedno miejsce, bo czytają ją RUM i testy, a literał powtórzony w dwóch
+ * plikach rozjeżdża się po cichu.
+ */
+export const EDGE_ROUTING_PHASE = "edge-routing";
+
+/**
+ * Telemetria fazy - server-only i best-effort. Import DYNAMICZNY za bramką
+ * `import.meta.env.SSR`, dokładnie jak w `documentCache.server.ts`: ten plik
+ * jest osiągalny w grafie klienta, a `ssrTiming.server.ts` dotyka statycznie
+ * `@tanstack/react-start/server`, którego import-protection Vite nie
+ * przepuszcza do bundla przeglądarki.
+ */
+async function recordEdgeRoutingPhase(request: Request, durationMs: number): Promise<void> {
+  if (!import.meta.env.SSR) return;
+  try {
+    const timing = await import("@/lib/http/ssrTiming.server");
+    timing.recordRequestPhase(request, EDGE_ROUTING_PHASE, durationMs);
+  } catch {
+    /* pomiar nigdy nie może zerwać potoku dokumentu */
+  }
+}
+
+/**
  * Redirect manager (front-half): match GET/HEAD requests against per-tenant
  * rules from `public.redirects` BEFORE the router runs. A hit short-circuits
  * with the configured 301/302/307/308/410 - preserving link equity through
@@ -259,7 +324,22 @@ const securityHeadersMiddleware = createMiddleware().server(async ({ request, ne
 const redirectMiddleware = createMiddleware().server(async ({ request, next }) => {
   if (isInternalPlatformPath(new URL(request.url).pathname)) return next();
   try {
+    // ZEGAR NA CAŁYM ODCINKU ROUTINGU KRAWĘDZIOWEGO (`edge-routing`).
+    //
+    // `resolveRedirectForRequest` robi DWA SZEREGOWE odczyty planu
+    // service-role: host -> tenant (katalog tenantów) i dopiero potem reguły
+    // przekierowań. Oba mają własne terminy po 1 500 ms, oba stoją PRZED
+    // `documentCacheMiddleware` - czyli przed jakimkolwiek trafieniem w cache
+    // dokumentów - i ŻADEN z nich nie wchodzi do `db;dur`, bo ta metryka
+    // mierzy wyłącznie plan anon. Do tej pory ten odcinek był w telemetrii
+    // niewidzialny: mieścił się w różnicy `app;dur - ssr;dur` razem z siecią,
+    // middleware bezpieczeństwa i samym cache'em, więc pytanie „czy TTFB
+    // 3 s to zimny odczyt routingu" nie miało odpowiedzi opartej na pomiarze.
+    //
+    // Pomiar jest czysto obserwacyjny: nie zmienia ani jednej decyzji potoku.
+    const routingStartedAt = Date.now();
     const hit = await resolveRedirectForRequest(request);
+    void recordEdgeRoutingPhase(request, Date.now() - routingStartedAt);
     if (hit) {
       if (hit.status === 410) {
         return new Response("Gone", { status: 410 });
@@ -298,12 +378,22 @@ const seo404Middleware = createMiddleware().server(async ({ request, next }) => 
  * documentCacheMiddleware - żeby NES Edge Cache widział już wzbogaconą
  * odpowiedź i mógł ją zapisać. Trasa, która ustawiła własny nagłówek
  * (degradacja home -> no-store, preview, personalized), zawsze wygrywa.
+ *
+ * Intencja trasy dociera tu DRUGIM kanałem (`readRouteCacheDirective`), nie
+ * nagłówkiem odpowiedzi: `setResponseHeader` z loadera pisze na nagłówkach
+ * ZDARZENIA h3, a te scalają się z odpowiedzią dopiero w `toResponse()` na
+ * granicy requestHandlera - czyli ZA tym middleware I ZA
+ * `documentCacheMiddleware`. Do 2026-09-01 skutkiem był pełny rozjazd:
+ * czytelnik dostawał `private, no-store`, a do L1/L2 wchodziło domyślne
+ * `s-maxage=900, stale-while-revalidate=86400` - pusta powłoka zamarzała na
+ * brzegu na 24 h. Dowód mechanizmu i pełny opis: `responseHeaders.ts`
+ * (`routeCacheDirectives`).
  */
 const defaultCacheControlMiddleware = createMiddleware().server(async ({ request, next }) => {
   const result = await next();
   const response = getMiddlewareResponse(result);
   if (!response) return result;
-  const defaultPolicy = planDefaultCacheControl(request, response);
+  const defaultPolicy = planDefaultCacheControl(request, response, readRouteCacheDirective());
   if (!defaultPolicy) return result;
   // Nowa Response: nagłówki odpowiedzi routera mogą być immutable (patrz
   // applySecurityHeaders) - przebudowa daje własną, mutowalną listę nagłówków
@@ -404,23 +494,28 @@ export const startInstance = createStart(() => ({
   //      response after the redirect matcher had its chance (matched requests
   //      never reach the router, so a redirected path is not double-counted
   //      as a 404).
-  //   3. redirectMiddleware short-circuits WP-legacy paths.
-  //   4. legacyLangQueryMiddleware canonicalises `?lang=` before route dispatch.
-  //   5. documentCacheMiddleware (NES Edge Cache) sits right above the router
+  //   3. homepageLangMiddleware stoi PRZED redirectMiddleware (audyt F14):
+  //      negocjacja języka gołej strony głównej jest czysta (cookie /
+  //      Accept-Language) i nie dotyka bazy, więc odwiedzający EN dostaje 302
+  //      na /en zanim ktokolwiek zapłaci dwa odczyty planu service-role.
+  //      Jawne `?lang=` middleware pomija - to domena punktu 5.
+  //   4. redirectMiddleware short-circuits WP-legacy paths.
+  //   5. legacyLangQueryMiddleware canonicalises `?lang=` before route dispatch.
+  //   6. documentCacheMiddleware (NES Edge Cache) sits right above the router
   //      (behind it only the default-cache-control decorator), so redirects and
   //      language canonicalisation always run first, and a memory HIT replays
   //      only the router's own render while the outer middleware (security
   //      headers, 404 log) re-decorates every response, cached or not.
-  //   6. gpcMiddleware siedzi POWYŻEJ documentCacheMiddleware: odbija
+  //   7. gpcMiddleware siedzi POWYŻEJ documentCacheMiddleware: odbija
   //      `Sec-GPC` w cookie transportowym i dokłada `Vary: Sec-GPC` PO
   //      odtworzeniu wpisu z cache'a, więc `Set-Cookie` nigdy nie wchodzi do
   //      zapisanego dokumentu (patrz lib/consent/gpc.server.ts).
-  //   7. tenantAssertionMiddleware - ta sama doktryna i z tego samego powodu:
+  //   8. tenantAssertionMiddleware - ta sama doktryna i z tego samego powodu:
   //      podaje przeglądarce poświadczenie hosta w cookie transportowym PO
   //      odtworzeniu wpisu z cache'a, więc poświadczenie jednego hosta nie ma
   //      jak wejść do dokumentu zapisanego dla innego
   //      (patrz lib/http/tenantAssertionCookie.server.ts).
-  //   8. defaultCacheControlMiddleware is INNERMOST: dokłada domyślny
+  //   9. defaultCacheControlMiddleware is INNERMOST: dokłada domyślny
   //      Cache-Control publicznym dokumentom ZANIM odpowiedź wróci do
   //      documentCacheMiddleware - dzięki temu polityka zapisu NES Edge Cache
   //      (public + s-maxage) obejmuje także trasy bez własnego nagłówka.
@@ -441,9 +536,9 @@ export const startInstance = createStart(() => ({
     // muszą przyjmować requesty spoza origin.
     csrfMiddleware,
     seo404Middleware,
+    homepageLangMiddleware,
     redirectMiddleware,
     legacyLangQueryMiddleware,
-    homepageLangMiddleware,
     gpcMiddleware,
     tenantAssertionMiddleware,
     documentCacheMiddleware,

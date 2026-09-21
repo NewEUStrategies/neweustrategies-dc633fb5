@@ -34,6 +34,16 @@ export const clubKeys = {
    *  wykonanej akcji. Sluzy do tego `clubKeys.bySlugAll()`. */
   bySlug: (slug: string) => [...clubKeys.all, "bySlug", slug] as const,
 
+  /** Karta klubu W KONTEKSCIE WIDZA. Loader ukladu `/club/$clubSlug` dziala na
+   *  SSR, czyli BEZ sesji - `club_view` zwraca wtedy odpowiedz dla anonima:
+   *  karte klubu `public` + `active`, a dla klubow `members`/`private`/`secret`
+   *  ZERO wierszy (migracja A19, predykat pozytywny) - dlatego uklad nie ma
+   *  prawa czytac braku wiersza jako 404. Gdyby zalogowany czytal ten sam wpis
+   *  cache, czlonek klubu zamknietego zobaczylby bramke "Popros o dostep" mimo
+   *  aktywnego czlonkostwa. Tozsamosc widza jest wiec czescia klucza. */
+  bySlugViewer: (slug: string, viewerId: string | null) =>
+    [...clubKeys.bySlug(slug), "viewer", viewerId ?? "anon"] as const,
+
   /** Prefiks WSZYSTKICH kart po slugu. Mutacja nie zna slugu (pracuje na id),
    *  a prefiks trafia w kazda z nich - w tym w te otwarta na ekranie. */
   bySlugAll: () => [...clubKeys.all, "bySlug"] as const,
@@ -54,6 +64,10 @@ export const clubKeys = {
   /** Zaproszenia skierowane do wolajacego - poza galezia konkretnego klubu,
    *  bo zasilaja licznik w nawigacji niezaleznie od otwartego klubu. */
   myInvitations: () => [...clubKeys.all, "myInvitations"] as const,
+
+  /** Kluby ZGLOSZONE przeze mnie wraz ze statusem rozpatrzenia. Poza galezia
+   *  konkretnego klubu, bo szkic nie ma jeszcze zadnego widoku klubu. */
+  myProposals: () => [...clubKeys.all, "myProposals"] as const,
 
   /**
    * Lista watkow. KAZDY filtr jest czescia klucza - inaczej dwa rozne zestawy
@@ -204,6 +218,7 @@ export const clubKeys = {
     /** Zakres rodzajow (A29): produkty vs materialy. Musi byc CZESCIA klucza -
      *  bez tego "Dorobek" i "Materialy" czytalyby ten sam wpis cache. */
     scope: string = "all",
+    limit: number = 50,
   ) =>
     [
       ...clubKeys.club(clubId),
@@ -213,6 +228,7 @@ export const clubKeys = {
       search,
       offset,
       scope,
+      limit,
     ] as const,
   /** Prefiks wszystkich wariantow biblioteki - mutacja nie zna filtrow,
    *  ktore czytelnik ma otwarte. */
@@ -231,8 +247,14 @@ export const clubKeys = {
 
   /** Kalendarz. Zakres jest czescia klucza, bo przejscie na kolejny miesiac
    *  to INNE zapytanie, a nie odswiezenie tego samego. */
-  events: (clubId: string, from: string | null, to: string | null, kind: string | null) =>
-    [...clubKeys.club(clubId), "events", from ?? "any", to ?? "any", kind ?? "all"] as const,
+  events: (
+    clubId: string,
+    from: string | null,
+    to: string | null,
+    kind: string | null,
+    limit: number = 200,
+  ) =>
+    [...clubKeys.club(clubId), "events", from ?? "any", to ?? "any", kind ?? "all", limit] as const,
   eventsAll: (clubId: string) => [...clubKeys.club(clubId), "events"] as const,
 
   clubMilestones: (clubId: string) => [...clubKeys.club(clubId), "milestones"] as const,

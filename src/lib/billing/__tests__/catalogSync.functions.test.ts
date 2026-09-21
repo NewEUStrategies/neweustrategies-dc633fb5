@@ -106,7 +106,7 @@ describe("walidator - środowisko", () => {
   });
 
   it("wartość spoza enuma jest ODRZUCANA - także literówka i inna wielkość liter", () => {
-    // Bez tej bramki wartość poszłaby do `createStripeClient(env)`, czyli do
+    // Bez tej bramki wartość poszłaby do `getStripeClient(env)`, czyli do
     // wyboru KLUCZA API. Nietrafiona nazwa środowiska albo wywala się dopiero
     // przy pierwszym wywołaniu operatora (i to komunikatem o niczym), albo -
     // gorzej - wpada w gałąź „skoro nie live, to sandbox" gdzieś niżej.

@@ -265,6 +265,17 @@ function renderTabs(options: {
 }
 
 describe("ClubWorkspaceTabs - dane pełne", () => {
+  it("ogranicza pasek i jego przewijanie do szerokości środkowej kolumny", () => {
+    const { list } = renderTabs({ panels: CLUB_WORKSPACE_PANELS, active: "discussion" });
+
+    expect(list.className).toContain("w-full");
+    expect(list.className).toContain("min-w-0");
+    expect(list.className).toContain("max-w-full");
+    expect(list.className).toContain("overflow-x-auto");
+    expect(list.className).toContain("[contain:inline-size]");
+    expect(list.className).not.toContain("-mx-");
+  });
+
   it("wiąże każdą zakładkę z jej panelem i wystawia klucz i18n jako etykietę", () => {
     renderTabs({ panels: CLUB_WORKSPACE_PANELS, active: "discussion" });
 

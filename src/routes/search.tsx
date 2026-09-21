@@ -15,7 +15,7 @@ import {
   SEARCH_SORTS,
   type SearchInput,
 } from "@/lib/search/searchParams";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Search as SearchIcon,
@@ -52,7 +52,6 @@ import {
   searchEnabled,
   SEARCH_LIMIT_MAX,
   SEARCH_PAGE_SIZE,
-  TAXONOMY_DIMS,
   type FacetDim,
   type SearchFilters,
   type SearchResultItem,
@@ -66,7 +65,8 @@ import {
   orderSuggestions,
   AUTOSUGGEST_LISTBOX_ID,
   autosuggestOptionId,
-  DIM_PARAM,
+  searchHref,
+  suggestionHref,
   type SearchTab,
   type SearchUrl,
 } from "@/lib/search/facetModel";
@@ -253,6 +253,42 @@ function SearchPage() {
     setSugIndex(-1);
   }, [suggestQ]);
 
+  // Popover zamyka KLIK POZA formularzem, a NIE utrata fokusu przez input.
+  //
+  // Zamykanie na `onBlur` wiązało życie listy z fokusem, a domyślną akcją
+  // `mousedown` jest przeniesienie fokusu na kotwicę pod kursorem - więc każdy
+  // gest, którego nie da się (albo nie wolno) zdusić przez `preventDefault`,
+  // odmontowywał wiersz MIĘDZY `mousedown` a `mouseup`. Zmierzone w Chromium:
+  // środkowym przyciskiem nie otwierała się nowa karta (nie dochodził
+  // `auxclick`), a prawy przycisk pokazywał menu STRONY zamiast menu linku.
+  // Ten sam wzorzec (klik poza obudową) działa w widgecie nagłówka -
+  // `SearchButtonWidget`.
+  const formRef = useRef<HTMLFormElement | null>(null);
+  useEffect(() => {
+    if (!sugOpen) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      if (formRef.current && !formRef.current.contains(e.target as Node)) setSugOpen(false);
+    };
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, [sugOpen]);
+
+  // Klawiatura: Tab poza formularz też musi zamknąć listę - `mousedown` wtedy
+  // nie pada, a otwarty popover zasłaniałby treść i zostawiał `aria-expanded`
+  // na `true`, mimo że fokus jest już gdzie indziej.
+  //
+  // Zamykamy WYŁĄCZNIE przy przejściu fokusu na konkretny element poza
+  // formularzem. Gdy `relatedTarget` jest pusty (klik w tło, utrata fokusu
+  // okna, a także klik w padding popovera albo pasek przewijania), listę
+  // zostawiamy: te przypadki obsługuje `mousedown` powyżej i to on decyduje,
+  // czy klik padł poza formularzem. Wiersz i przyciski kubełków są WEWNĄTRZ
+  // formularza, więc fokus przeniesiony na nie przez środkowy lub prawy
+  // przycisk myszy nie zamyka listy.
+  const onFormFocusOut = (e: React.FocusEvent<HTMLFormElement>) => {
+    const next = e.relatedTarget as Node | null;
+    if (next && !e.currentTarget.contains(next)) setSugOpen(false);
+  };
+
   // ---- Ostatnie wyszukiwania (localStorage, jak w overlayu/widgecie) ------
   // Stan ładowany w efekcie: SSR nie widzi localStorage, a hydratacja musi
   // zgadzać się z HTML-em serwera.
@@ -286,68 +322,28 @@ function SearchPage() {
     onFinal: (text) => submitPhrase(text),
   });
 
-  const pickSuggestion = async (item: AutosuggestItem) => {
+  // JEDEN cel podpowiedzi dla myszy i klawiatury. Scalony z bieżącym adresem,
+  // więc wybór nie kasuje zakładki, sortowania ani pozostałych faset, a
+  // etykieta termu wraca do pola frazy (`phrase`) - żeby to, co widać
+  // w inpucie, odpowiadało temu, co filtruje wyniki (bez tego input czyścił
+  // się do pustego stringa, a lista pokazywała wszystkich).
+  const suggestHref = useCallback(
+    (item: AutosuggestItem) => suggestionHref(item, { lang, base: url, phrase: true }),
+    [lang, url],
+  );
+
+  // Wybór podpowiedzi to WYŁĄCZNIE księgowość stanu. Nawiguje `href` wiersza
+  // (AppLink) albo - pod Enterem - `navigate` poniżej; oba czytają ten sam
+  // `suggestHref`, więc nie mogą się rozjechać ani zadziałać dwa razy.
+  const pickSuggestion = (item: AutosuggestItem) => {
     setSugOpen(false);
     rememberSearch(draft);
-    if (item.kind === "post") {
-      // Deep-link do publikacji: ścieżkę rodzica rozwiązujemy jednym RPC na
-      // klik (nie per-keystroke). Fallback: potraktuj tytuł jak frazę.
-      try {
-        if (item.parentPageId && item.slug) {
-          const { data: path } = await supabase.rpc("page_full_path", {
-            _page_id: item.parentPageId,
-          });
-          if (typeof path === "string") {
-            // href-owa nawigacja (jak AppLink): dowolna ścieżka splat bez
-            // typowanych params trasy.
-            navigate({ href: `/${path}/${item.slug}` } as never);
-            return;
-          }
-        }
-      } catch {
-        /* padnij na frazę poniżej */
-      }
-      submitPhrase(lang === "en" ? item.label_en || item.label_pl : item.label_pl || item.label_en);
-      return;
-    }
-    // Etykieta wybranej sugestii wraca do pola frazy - żeby to, co widać
-    // w headerze/inpucie, odpowiadało temu, co filtruje wyniki (bez tego
-    // input czyścił się do pustego stringa, a lista pokazywała wszystkich).
-    const pickedLabel =
-      (lang === "en" ? item.label_en || item.label_pl : item.label_pl || item.label_en) || "";
-    if (item.kind === "author") {
-      if (item.slug) {
-        navigate({ href: `/author/${item.slug}` } as never);
-        return;
-      }
-      if (item.id) {
-        setDraft(pickedLabel);
-        applyPatch({ q: pickedLabel, author: item.id });
-        return;
-      }
-    }
-    if (item.kind === "category" && item.slug) {
-      navigate({ href: `/category/${item.slug}` } as never);
-      return;
-    }
-    if (item.kind === "topic" && item.slug) {
-      navigate({ href: `/tag/${item.slug}` } as never);
-      return;
-    }
-    if (item.kind === "series" && item.slug) {
-      navigate({ href: `/series/${item.slug}` } as never);
-      return;
-    }
-    if (item.kind === "project" && item.slug) {
-      navigate({ href: `/programs/${item.slug}` } as never);
-      return;
-    }
-    // Term taksonomii: kind == FacetDim; mapujemy na parametr URL.
-    const dim = item.kind as (typeof TAXONOMY_DIMS)[number];
-    if (TAXONOMY_DIMS.includes(dim) && item.id) {
-      setDraft(pickedLabel);
-      applyPatch({ q: pickedLabel, [DIM_PARAM[dim]]: item.id });
-    }
+    const [path, qs = ""] = suggestHref(item).split("?");
+    if (path !== "/search") return;
+    // Zostajemy na /search: przepisz pole frazy od razu, bez mignięcia starym
+    // tekstem do czasu, aż `useEffect` zsynchronizuje je z adresem.
+    const q = new URLSearchParams(qs).get("q");
+    if (q) setDraft(q);
   };
 
   const onInputKeyDown = (e: React.KeyboardEvent) => {
@@ -360,7 +356,11 @@ function SearchPage() {
       setSugIndex((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
     } else if (e.key === "Enter" && sugIndex >= 0) {
       e.preventDefault();
-      void pickSuggestion(suggestions[sugIndex]);
+      const item = suggestions[sugIndex];
+      pickSuggestion(item);
+      // href-owa nawigacja (jak AppLink): dowolna ścieżka splat bez
+      // typowanych params trasy.
+      navigate({ href: suggestHref(item) } as never);
     } else if (e.key === "Escape") {
       setSugOpen(false);
     }
@@ -640,9 +640,16 @@ function SearchPage() {
           <p className="text-sm text-muted-foreground max-w-2xl">{t("search.hero_sub")}</p>
         </header>
 
-        <form onSubmit={submit} className="search-page-form relative z-40 mb-2" role="search">
+        <form
+          ref={formRef}
+          onBlur={onFormFocusOut}
+          onSubmit={submit}
+          className="search-page-form relative z-40 mb-2"
+          role="search"
+        >
           <div className="input-group" style={{ height: "40px" }}>
             <input
+              type="search"
               ref={searchInputRef}
               value={draft}
               onChange={(e) => {
@@ -650,7 +657,6 @@ function SearchPage() {
                 setSugOpen(true);
               }}
               onFocus={() => setSugOpen(true)}
-              onBlur={() => setSugOpen(false)}
               onKeyDown={onInputKeyDown}
               placeholder=" "
               aria-label={t("search.placeholder")}
@@ -659,8 +665,20 @@ function SearchPage() {
                 height: "40px",
                 paddingLeft: "0.9rem",
                 paddingRight: "84px",
-                fontSize: "0.8125rem",
+                fontSize: "1rem",
               }}
+              name="site_search_query"
+              autoComplete="one-time-code"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              inputMode="search"
+              enterKeyHint="search"
+              data-mobile-search-input=""
+              data-1p-ignore="true"
+              data-lpignore="true"
+              data-bwignore="true"
+              data-form-type="other"
               autoFocus
               role="combobox"
               aria-expanded={showSuggest}
@@ -708,7 +726,8 @@ function SearchPage() {
               items={suggestions}
               activeIndex={sugIndex}
               lang={lang}
-              onPick={(it) => void pickSuggestion(it)}
+              onPick={pickSuggestion}
+              hrefFor={suggestHref}
               query={draft}
               inputRef={searchInputRef}
               onSetQuery={(next) => setDraft(next)}
@@ -778,9 +797,12 @@ function SearchPage() {
                 items={recent}
                 lang={lang}
                 onPick={(term) => {
+                  // Nawigację robi `href` wiersza - tu tylko księgowość.
+                  setSugOpen(false);
                   setDraft(term);
-                  submitPhrase(term);
+                  rememberSearch(term);
                 }}
+                hrefFor={(term) => searchHref({ ...url, q: term })}
                 onClear={() => {
                   clearRecentSearches();
                   setRecent([]);

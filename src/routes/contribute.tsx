@@ -24,15 +24,33 @@ import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead } from "@/lib/seo/meta";
-import { staticPageSeoQueryOptions, pickStaticSeo } from "@/lib/queries/staticPageSeo";
+import {
+  LEGAL_SSR_BUDGET_MS,
+  NO_STATIC_SEO,
+  pickStaticSeo,
+  staticPageSeoQueryOptions,
+} from "@/lib/queries/staticPageSeo";
+import { loadResilient } from "@/lib/ssr/resilientLoad";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { staticFallbackCacheControl } from "@/lib/http/cachePolicy";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
 export const Route = createFileRoute("/contribute")({
   component: ContributePage,
   loader: async ({ context }) => {
-    const seo = await context.queryClient
-      .ensureQueryData(staticPageSeoQueryOptions("contribute"))
-      .catch(() => null);
-    return { seo };
+    // Krótki termin: to wyłącznie nadpisania SEO z /admin/pages - treść strony
+    // żyje w kodzie. `.catch` chronił przed rzutem, nie przed czekaniem, a brak
+    // nagłówka wpuszczał render zdegradowany do wspólnego cache'u.
+    const seo = await loadResilient(
+      context.queryClient,
+      staticPageSeoQueryOptions("contribute"),
+      NO_STATIC_SEO,
+      { deadlineAt: Date.now() + LEGAL_SSR_BUDGET_MS, label: "static-seo:contribute" },
+    );
+    // Brak nadpisań SEO daje dokument KOMPLETNY dla czytelnika, tylko
+    // niekanoniczny dla brzegu - stąd krótka świeżość z rewalidacją zamiast
+    // `no-store` (różnica wobec `resilientCacheControl`: docblock helpera).
+    setCacheControlHeader(staticFallbackCacheControl(seo.degraded));
+    return { seo: seo.data };
   },
   head: ({ loaderData }) => {
     const url = getRequestUrl() || "/contribute";

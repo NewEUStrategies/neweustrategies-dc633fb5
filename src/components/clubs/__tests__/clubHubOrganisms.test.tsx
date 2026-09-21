@@ -999,6 +999,17 @@ describe("ClubHub - wyszukiwanie zastępuje strumień", () => {
     expect(screen.queryByRole("button", { name: "club.searchClear" })).toBeNull();
   });
 
+  it("pole wyszukiwania i sortowanie mają tę samą jawną wysokość", () => {
+    fullData();
+    mount();
+
+    expect(screen.getByLabelText("club.searchPlaceholder")).toHaveClass("h-12", "min-h-12");
+    expect(h.sortTrigger?.className).toContain("h-12");
+    expect(h.sortTrigger?.className).toContain("min-h-12");
+    expect(h.sortTrigger?.className).toContain("items-center");
+    expect(h.sortTrigger?.className).toContain("[&>svg]:self-center");
+  });
+
   it("porządek bez sesji nie oferuje tych, które wymagają sesji", () => {
     fullData();
     h.session = null;

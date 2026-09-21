@@ -1,3 +1,4 @@
+import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
 // Header widget "Konto / Logowanie" - rich popover menu.
 // Konfigurowane przez WidgetProperties (AccountLinkEditor):
 //   - items: lista pozycji menu (section: guest/auth/staff, kind: page/preset/custom/separator/logout)
@@ -7,6 +8,7 @@
 // Atomic design: AccountMenu = molecule (Popover + lista). i18n: PL/EN.
 import { lazy, Suspense, useMemo, useState, type CSSProperties } from "react";
 import { useGreeting } from "@/lib/greetings/useGreeting";
+import { useHasMounted } from "@/hooks/useHasMounted";
 import { useHeaderProfile } from "@/lib/profile/useHeaderProfile";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -22,9 +24,6 @@ import { NotificationsBell } from "@/components/notifications/NotificationsBell"
 
 // Lazy: the chat bundle (incl. its i18n resources) loads only for signed-in
 // users, keeping the guest header untouched and the widget graph decoupled.
-const ChatBell = lazy(() =>
-  import("@/components/chat/ChatBell").then((m) => ({ default: m.ChatBell })),
-);
 
 // Sekcja „moje wydarzenia" - leniwie, bo dotyczy tylko zalogowanych i tylko po
 // otwarciu panelu; nagłówek nie ciągnie jej w swoim chunku.
@@ -317,12 +316,13 @@ function IconByName({ name, className }: { name: string | undefined; className?:
 }
 
 export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig; lang: Lang }) {
-  // Bez bramki `useHasMounted`: SSR i pierwszy client render renderują ten
-  // sam guest-trigger (sesja przychodzi asynchronicznie z useAuth), więc
+  // SAMA SESJA bez bramki hydratacji: SSR i pierwszy client render renderują
+  // ten sam guest-trigger (sesja przychodzi asynchronicznie z useAuth), więc
   // header nie miga pustką i nie czeka jednego dodatkowego renderu, zanim
-  // ChatBell/NotificationsBell zamontują swoje zapytania. Gdy sesja
+  // NotificationsBell zamontuje swoje zapytania. Gdy sesja
   // zhydratyzuje się z localStorage, trigger płynnie zamienia się na wariant
-  // zalogowany, a dzwonki startują queries od razu.
+  // zalogowany, a dzwonki startują queries od razu. Bramkowany jest wyłącznie
+  // TEKST POWITANIA (niżej) - to on zależy od pory dnia, a nie od sesji.
   const { session, user, signOut, isStaff, isAdmin, isSuperAdmin } = useAuth();
   const [open, setOpen] = useState(false);
   const { t } = useTranslation();
@@ -364,7 +364,18 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   };
 
   // Trigger - greeting based on time of day + gender + vocative (PL).
-  const greeting = useGreeting();
+  //
+  // POWITANIE DOPIERO PO HYDRATACJI. `pickGreeting` losuje wariant z okna
+  // 30-minutowego i wybiera pulę po PORZE DNIA, więc serwer i przeglądarka
+  // potrafią wyprodukować RÓŻNY tekst dla tego samego użytkownika - React
+  // zgłaszał to jako „Minified React error #418" (niezgodność tekstu przy
+  // hydratacji) i regenerował poddrzewo. Serwer i PIERWSZY render klienta
+  // pokazują więc ten sam, deterministyczny podpis; powitanie wchodzi
+  // dopiero potem, w pudełku o STAŁEJ szerokości (niżej), żeby nie ruszyć
+  // szerokości paska narzędzi nagłówka.
+  const hydrated = useHasMounted();
+  const liveGreeting = useGreeting();
+  const greeting = hydrated ? liveGreeting : null;
 
   const sectionItems = (sec: AccountMenuSection) =>
     items.filter((i) => i.section === sec).map((i) => ({ raw: i, ...resolveItem(i, pages, lang) }));
@@ -378,22 +389,34 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   const trigger = session ? (
     <button
       type="button"
-      className="inline-flex h-8 items-center gap-2 rounded-full pl-1 pr-3 text-xs font-medium hover:bg-muted/60 transition-colors cursor-pointer"
+      className="inline-flex h-8 shrink-0 items-center gap-2 rounded-full pl-1 pr-3 text-xs font-medium hover:bg-muted/60 transition-colors cursor-pointer"
       aria-label={displayName || "Account"}
       title={triggerLabel}
     >
       <Avatar className="h-6 w-6 rounded-[5px]">
-        {avatarUrl ? <AvatarImage src={avatarUrl} alt="" className="rounded-[5px]" /> : null}
+        {avatarUrl ? (
+          <AvatarImage
+            src={buildAvatarSrc(avatarUrl, 24)}
+            srcSet={buildAvatarSrcSet(avatarUrl, 24)}
+            alt=""
+            className="rounded-[5px]"
+          />
+        ) : null}
         <AvatarFallback className="text-[10px] rounded-[5px]">
           {(firstName || displayName || user?.email || "?").slice(0, 1).toUpperCase()}
         </AvatarFallback>
       </Avatar>
-      <span className="hidden sm:inline max-w-[200px] truncate">{triggerLabel}</span>
+      {/* STAŁA szerokość, nie `max-w`: podpis dojeżdża etapami (sesja ->
+          profil -> powitanie), a każda zmiana szerokości przesuwałaby
+          sąsiadów w pasku narzędzi. Nadmiar ucinamy wielokropkiem. */}
+      <span className="hidden sm:inline-block w-[9rem] shrink-0 truncate text-left align-middle">
+        {triggerLabel}
+      </span>
     </button>
   ) : (
     <button
       type="button"
-      className="inline-flex h-7 items-center gap-2 text-[11px] font-medium leading-none whitespace-nowrap hover:opacity-80 cursor-pointer"
+      className="inline-flex h-7 shrink-0 items-center gap-2 text-[11px] font-medium leading-none whitespace-nowrap hover:opacity-80 cursor-pointer"
       aria-label={`${signInLabel} / ${signUpLabel}`}
     >
       <LogIn className="w-3.5 h-3.5" />
@@ -583,7 +606,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
             section: "auth" as const,
             kind: "preset" as const,
             presetKey: "messages",
-            icon: "MessageCircle",
+            icon: "MessagesSquare",
           },
           href: "/messages",
           label: DEFAULT_ITEM_LABELS.messages[lang],
@@ -620,19 +643,9 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
 
   // Spójne odstępy dla rzędu ikon konta (mobile-first, unifikacja z headerem).
   // gap-x-2 na <480 px, gap-x-3 od sm; pr-1.5 rezerwuje miejsce na overflow badge
-  // powiadomień (badge = -right-2.5), żeby nie nachodził na powitanie/avatar.
+  // powiadomień (badge = -right-2.5), żeby nie nachodził na sąsiedni widget.
   return (
     <div className="relative inline-flex items-center gap-x-2 sm:gap-x-3 overflow-visible">
-      {session ? (
-        <Suspense fallback={null}>
-          <ChatBell />
-        </Suspense>
-      ) : null}
-      {session ? (
-        <span className="relative inline-flex overflow-visible pr-1.5 sm:pr-2">
-          <NotificationsBell />
-        </span>
-      ) : null}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>{trigger}</PopoverTrigger>
         <PopoverContent
@@ -675,7 +688,12 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
                 >
                   <Avatar className="h-9 w-9 rounded-[6px]">
                     {avatarUrl ? (
-                      <AvatarImage src={avatarUrl} alt="" className="rounded-[6px] object-cover" />
+                      <AvatarImage
+                        src={buildAvatarSrc(avatarUrl, 36)}
+                        srcSet={buildAvatarSrcSet(avatarUrl, 36)}
+                        alt=""
+                        className="rounded-[6px] object-cover"
+                      />
                     ) : null}
                     <AvatarFallback className="rounded-[6px] text-xs">
                       {(firstName || displayName || user.email).slice(0, 1).toUpperCase()}
@@ -766,6 +784,11 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
           <span className="sr-only">{t("nav.account")}</span>
         </PopoverContent>
       </Popover>
+      {session ? (
+        <span className="relative inline-flex overflow-visible pr-1.5 sm:pr-2">
+          <NotificationsBell />
+        </span>
+      ) : null}
     </div>
   );
 }

@@ -35,6 +35,7 @@ import { HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
 import { ClubAuthorIdentity } from "@/components/clubs/atoms/ClubAuthorIdentity";
 import { ClubInlineTitle } from "@/components/clubs/atoms/ClubInlineTitle";
+import { ClubProse } from "@/components/clubs/atoms/ClubProse";
 import { ClubSourceChip } from "@/components/clubs/atoms/ClubSourceChip";
 import { clubSourceOf, type ClubSourceMark } from "@/lib/clubs/threadSources";
 import { fileLabel, isPreviewable } from "@/lib/files/fileKinds";
@@ -64,31 +65,6 @@ function formatBytes(size: number): string {
     unit += 1;
   }
   return `${value < 10 && unit > 0 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
-}
-
-/** Treść wpisu z klikalnymi adresami. Bez HTML-a: wpis jest tekstem, a
- *  wstrzykiwanie znaczników z pola użytkownika to gotowy XSS. */
-function PostBody({ body }: { body: string }) {
-  const parts = body.split(/(\bhttps?:\/\/[^\s<>"')]+)/g);
-  return (
-    <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
-      {parts.map((part, index) =>
-        /^https?:\/\//i.test(part) ? (
-          <a
-            key={`${part}-${index}`}
-            href={part}
-            target="_blank"
-            rel="noopener noreferrer nofollow"
-            className="text-primary underline decoration-primary/40 underline-offset-4 hover:decoration-primary"
-          >
-            {part.replace(/^https?:\/\//, "")}
-          </a>
-        ) : (
-          <span key={`t-${index}`}>{part}</span>
-        ),
-      )}
-    </p>
-  );
 }
 
 /** Karta podglądu linku + popup po najechaniu (Radix HoverCard). */
@@ -438,7 +414,9 @@ export function ClubPostCard({
         ) : null}
       </div>
 
-      {post.body.trim() !== "" ? <PostBody body={post.body} /> : null}
+      {post.body.trim() !== "" ? (
+        <ClubProse body={post.body} clubSlug={clubSlug} size="sm" className="mt-2 max-w-none" />
+      ) : null}
 
       <MediaGrid media={media} mediaUrls={mediaUrls} onPreview={openFile} />
       {viewer}

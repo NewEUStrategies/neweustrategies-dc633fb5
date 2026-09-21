@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 # Stawia lokalny PostgreSQL, tworzy atrape platformy (harness.sql), aplikuje
-# PRAWDZIWA migracje izolacji tenantow z supabase/migrations i wykonuje asercje
-# runtime RLS dla media_mentions / saved_searches / user_follows.
+# PRAWDZIWE migracje izolacji tenantow z supabase/migrations i wykonuje asercje
+# runtime RLS dla plaszczyzny wlasciciela (media_mentions / saved_searches /
+# user_follows i dalsze) oraz - od 2026-09-01 - dla plaszczyzny czatu.
+#
+# Migracje wchodza DWOMA etapami, bo dowodza dwoch roznych rzeczy:
+#   1. CALE PLIKI, dobierane po tresci (nazwy polityk / nazwa ograniczenia).
+#      Tam przedmiotem dowodu jest takze schemat i cialo funkcji.
+#   2. SAME INSTRUKCJE POLITYK czatu, wycinane z migracji doslownie przez
+#      `extract_chat_policies.awk`. Uzasadnienie stoi przy samym etapie.
 #
 # Patrz scripts/tenant-isolation-harness/README.md.
 set -euo pipefail
@@ -90,14 +97,108 @@ echo "Migracje dotykajace plaszczyzny wlasciciela: $count"
 
 for f in $MIGRATIONS; do
   name="$(basename "$f")"
-  # Aplikujemy WYLACZNIE instrukcje polityk/defaultow - pliki zalozycielskie
-  # niosa tez CREATE TABLE calych modulow, ktorych atrapa nie ma.
+  # Caly plik, w jednej transakcji. Pliki zalozycielskie niosa tez CREATE TABLE
+  # calych modulow, ktorych atrapa nie ma - taki plik wywraca sie w calosci
+  # i laduje jako SKIP. To jest bezpieczne DOPOKI polityka, ktora ma udowodnic
+  # asercja, powstaje w pliku, ktory przechodzi; dla plaszczyzny czatu tak nie
+  # bylo i dlatego ma ona osobny etap nizej.
   if out="$(psql -q -d nes -v ON_ERROR_STOP=1 --single-transaction -f "$f" 2>&1)"; then
     printf '  OK   %s\n' "$name"
   else
     printf '  SKIP %s (poza zakresem atrapy)\n' "$name"
   fi
 done
+
+# ---------------------------------------------------------------------------
+# ETAP 2 (2026-09-01): PLASZCZYZNA CZATU - POLITYKI Z MIGRACJI, BEZ RESZTY PLIKU
+#
+# DLACZEGO INNY TRYB NIZ WYZEJ. Etap 1 aplikuje CALE pliki i tak ma zostac:
+# tam migracja niesie takze schemat i cialo funkcji, ktore SA przedmiotem
+# dowodu. Migracje polityk czatu sa natomiast ZLEPKAMI - jeden plik niesie
+# polityke czatu obok `storage.buckets`, `notifications`, `content_access`,
+# `author_profiles`, tabel sieci kontaktow i kilkunastu funkcji obcych
+# modulow. Zeby taki plik przeszedl w calosci, atrapa musialaby postawic
+# kilkanascie tabel spoza modulu 09, a kazda taka atrapa to kolejne
+# NIEZWERYFIKOWANE zdanie o ksztalcie cudzej tabeli (ten sam argument stoi
+# w `scripts/careers-harness/run.sh` przy jawnych pominieciach).
+#
+# DLACZEGO TO NADAL SA PRAWDZIWE MIGRACJE. `extract_chat_policies.awk`
+# kopiuje instrukcje `CREATE POLICY` / `DROP POLICY` BAJT W BAJT, bez
+# przepisywania i bez sklejania. Pliki ida chronologicznie, instrukcje w
+# kolejnosci wystapienia, wiec idiom repo „DROP POLICY IF EXISTS x;
+# CREATE POLICY x …" daje ten sam STAN KONCOWY, co pelny przebieg - dokladnie
+# tak, jak liczy go `src/lib/ci/rlsPolicies.ts`.
+#
+# DLACZEGO BEZ `--single-transaction` I BEZ SKIP-a. Kazda instrukcja idzie we
+# wlasnej transakcji, a `ON_ERROR_STOP` przerywa na pierwszym bledzie i konczy
+# bramke czerwono. Cicha porazka calego wsadu (jak SKIP w etapie 1) dalaby
+# zielona bramke bez ani jednej polityki czatu, czyli asercje ponizej
+# mierzylyby stol.
+# ---------------------------------------------------------------------------
+echo
+CHAT_SQL="$PGDIR/chat_policies.sql"
+: > "$CHAT_SQL"
+for f in "$REPO"/supabase/migrations/*.sql; do
+  awk -f "$HERE/extract_chat_policies.awk" "$f" >> "$CHAT_SQL"
+done
+chat_stmts="$(grep -c ';$' "$CHAT_SQL" || true)"
+echo "Instrukcje polityk czatu wyciete z migracji: $chat_stmts"
+[ "$chat_stmts" -gt 0 ] || { echo "Zero instrukcji - ekstraktor polityk czatu nie trafil."; exit 1; }
+if ! out="$(psql -q -d nes -v ON_ERROR_STOP=1 -f "$CHAT_SQL" 2>&1)"; then
+  echo "Polityki czatu NIE daly sie zalozyc na atrapie:"
+  echo "$out" | tail -12 | sed 's/^/  /'
+  exit 1
+fi
+echo "  OK   polityki czatu zalozone z tresci migracji"
+
+# STRAZNIK STANU KONCOWEGO. Ekstraktor moglby przepuscic komplet instrukcji
+# i mimo to zostawic inny zestaw polityk niz produkcja (np. gdyby ktos dodal
+# migracje kasujaca polityke bez odtworzenia). Lista jest ta sama, ktora
+# przypina statyczna bramka `src/lib/ci/__tests__/chatPolicyContract.test.ts` -
+# rozjazd miedzy bramka statyczna a wykonawcza ma byc GLOSNY.
+missing="$(psql -tAq -d nes <<'SQL'
+WITH oczekiwane(tablename, policyname) AS (VALUES
+  ('conversations', 'conversations_member_select'),
+  ('conversations', 'conversations_staff_read'),
+  ('conversations', 'conversations_staff_delete'),
+  ('conversation_participants', 'conversation_participants_member_select'),
+  ('conversation_nicknames', 'conversation_nicknames_member_select'),
+  ('messages', 'messages_member_select'),
+  ('messages', 'messages_member_insert'),
+  ('messages', 'messages_sender_update'),
+  ('messages', 'messages_staff_read'),
+  ('messages', 'messages_staff_update'),
+  ('message_reactions', 'message_reactions_member_select'),
+  ('message_reactions', 'message_reactions_own_insert'),
+  ('message_reactions', 'message_reactions_own_update'),
+  ('message_reactions', 'message_reactions_own_delete'),
+  ('message_stars', 'message_stars_own_select'),
+  ('message_stars', 'message_stars_own_insert'),
+  ('message_stars', 'message_stars_own_delete'),
+  ('user_blocks', 'user_blocks_owner_select'),
+  ('user_blocks', 'user_blocks_owner_insert'),
+  ('user_blocks', 'user_blocks_owner_delete'),
+  ('expert_inmails', 'expert_inmails: participants and admin may read'),
+  ('expert_inmails', 'expert_inmails: no direct insert'),
+  ('expert_inmails', 'expert_inmails: sender may cancel own request'),
+  ('expert_inmails', 'expert_inmails: recipient may respond'),
+  ('expert_inmails', 'expert_inmails: admin may update')
+)
+SELECT string_agg(o.tablename || '::' || o.policyname, ', ')
+  FROM oczekiwane o
+ WHERE NOT EXISTS (
+   SELECT 1 FROM pg_policies p
+    WHERE p.schemaname = 'public'
+      AND p.tablename = o.tablename
+      AND p.policyname = o.policyname
+ );
+SQL
+)"
+if [ -n "$missing" ]; then
+  echo "Brakuje polityk czatu w stanie koncowym: $missing"
+  exit 1
+fi
+echo "  OK   stan koncowy polityk czatu zgodny z kontraktem statycznym"
 
 echo
 set +e

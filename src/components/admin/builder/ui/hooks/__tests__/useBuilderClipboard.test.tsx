@@ -185,6 +185,36 @@ describe("useBuilderClipboard - wklejanie widgetu", () => {
     expect(allIds(state.doc)).toEqual(allIds(baseDoc()));
   });
 
+  it("wkleja widget, gdy ognisko niesie identyfikator SEKCJI WEWNĘTRZNEJ", () => {
+    // Kliknięcie w wyściółkę sekcji wewnętrznej daje zaznaczenie rodzaju
+    // „column" z identyfikatorem tej SEKCJI - `data-col-id` stoi bowiem na
+    // slocie dziecka sekcji, a dzieckiem bywa sekcja wewnętrzna. Wklejenie
+    // kończyło się wtedy ciszą; teraz celuje w pierwszą kolumnę tej sekcji,
+    // dokładnie tam, gdzie ląduje widget UPUSZCZONY na ten sam piksel.
+    //
+    // Ognisko podajemy TU jeszcze nierozwiązane, choć `useBuilderOperations`
+    // rozwiązuje je już u siebie: ta ścieżka ma stać o własnych siłach, a nie
+    // milczeć, gdy identyfikator z kanwy dotrze do niej surowy.
+    copyToClipboard({ kind: "widget", node: w("src-w") });
+    const ogniskoZKanwy: ColumnNode = { id: "i1", kind: "column", span: {}, children: [] };
+    const { result, state } = setup({ kind: "column", id: "i1" }, ogniskoZKanwy);
+    result.current.pasteFromClipboard();
+    const target = (state.doc.sections[0].children[1] as InnerSectionNode).columns[0];
+    expect(target.children).toHaveLength(2);
+    expect(target.children[1].id).not.toBe("src-w");
+  });
+
+  it("sekcja wewnętrzna BEZ kolumn nie ma gdzie przyjąć widgetu", () => {
+    // Resolwer jest czysty - nie zakłada kolumny, więc wklejenie po prostu nic
+    // nie robi, zamiast dopisywać kontener, którego nikt nie zamawiał.
+    copyToClipboard({ kind: "widget", node: w("src-w") });
+    const pusta: BuilderDocument = { version: 1, sections: [sec("s1", [inner("i1", [])])] };
+    const ogniskoZKanwy: ColumnNode = { id: "i1", kind: "column", span: {}, children: [] };
+    const { result, state } = setup({ kind: "column", id: "i1" }, ogniskoZKanwy, pusta);
+    result.current.pasteFromClipboard();
+    expect((state.doc.sections[0].children[0] as InnerSectionNode).columns).toEqual([]);
+  });
+
   it("wkleja widget do kolumny z uszkodzoną listą dzieci", () => {
     copyToClipboard({ kind: "widget", node: w("src-w") });
     const broken: BuilderDocument = {

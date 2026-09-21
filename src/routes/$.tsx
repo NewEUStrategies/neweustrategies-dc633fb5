@@ -4,9 +4,10 @@
 //   /<page-path>/<post-slug>
 // Static routes (/, /blog, /login, /post/$slug, /admin/*, /api/*) match first.
 import { createFileRoute, notFound, redirect, useRouter } from "@tanstack/react-router";
+import { isServer } from "@tanstack/router-core/isServer";
 import { supabase } from "@/integrations/supabase/client";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 // Header/Footer are owned by SiteChrome (mounted in __root.tsx) so they
 // persist across navigations - never re-import them here.
@@ -32,10 +33,13 @@ import { SponsoredDisclosure } from "@/components/post/SponsoredDisclosure";
 import { SponsoredBadge } from "@/components/post/SponsoredBadge";
 import { PostOrganizationCard } from "@/components/post/PostOrganizationCard";
 import { articleJsonLdType, resolveDisclosure } from "@/lib/content/sponsored";
-import { RelatedPosts } from "@/components/post/RelatedPosts";
-import { RelatedPostsAfterParagraph } from "@/components/post/RelatedPostsAfterParagraph";
-import { relatedPostsConfigQueryOptions } from "@/lib/queries/relatedPosts";
-import { mergeRelatedConfig, type RelatedPostsOverride } from "@/lib/relatedPosts";
+import { PostCategoryArchive } from "@/components/post/PostCategoryArchive";
+import { relatedPostsConfigQueryOptions } from "@/lib/queries/relatedPostsConfig";
+import { archiveListingQueryOptions } from "@/lib/queries/archiveListing";
+// Z LEKKIEGO modułu konfiguracji, nie z `lib/relatedPosts`: trasa potrzebuje
+// tylko scalonej konfiguracji, a tamten moduł dociąga silnik scoringu do
+// chunku wejściowego (patrz nagłówek `relatedPosts/config.ts`).
+import { mergeRelatedConfig, type RelatedPostsOverride } from "@/lib/relatedPosts/config";
 import { useRecordPostView } from "@/hooks/useRecordPostView";
 import { ContactForm } from "@/components/pages/ContactForm";
 import { ArchiveListing } from "@/components/pages/ArchiveListing";
@@ -69,6 +73,7 @@ import { GiftBanner } from "@/components/gifting/GiftBanner";
 import { GooglePreferredSourceBadge } from "@/components/seo/GooglePreferredSourceBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { getRequestUrl } from "@/lib/seo/request";
+import { publicFacingOrigin } from "@/lib/http/host";
 import {
   buildContentHead,
   buildArticleJsonLd,
@@ -98,7 +103,7 @@ import {
   type SeoFieldsRow,
 } from "@/lib/seo/fields";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
-import { effectiveTitleSuffix, parseSeoSettings } from "@/lib/seo/settings";
+import { effectiveTitleSuffix, parseSeoSettings, type SeoSettings } from "@/lib/seo/settings";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { activeLang } from "@/lib/seo/head";
@@ -109,10 +114,35 @@ import { CommentsSection } from "@/components/comments/CommentsSection";
 import { PostContentStyle } from "@/components/PostContentStyle";
 import { QuickViewInfoBar } from "@/components/post/QuickViewInfoBar";
 import { SidebarListenCard } from "@/components/audio/SidebarListenCard";
-import { NewsletterForm } from "@/components/NewsletterForm";
+// The bottom newsletter is optional; keep its code outside the static page graph.
+const NewsletterForm = lazy(() =>
+  import("@/components/NewsletterForm").then((m) => ({ default: m.NewsletterForm })),
+);
 import { KeyTakeaways } from "@/components/molecules/KeyTakeaways";
 import { resolveTakeaways } from "@/lib/keyTakeaways/resolve";
 // PostListenBar zastąpiony przez SidebarListenCard + GlobalAudioBar.
+// Rekomendacje stoją POD treścią i renderują się warunkowo, więc nie są
+// potrzebne do pierwszego malowania. Statyczny import trzymał cały ich podgraf
+// - komponent, warstwę zapytań i silnik scoringu - w CHUNKU WEJŚCIOWYM, a
+// bramka `check:bundle` mierzy największy POJEDYNCZY plik i `index-*.js` stoi
+// tuż pod progiem 280 KB.
+//
+// To działa TYLKO w parze z rozdziałem `relatedPosts/config.ts`: leniwy import
+// wyprowadza `RelatedPosts` i warstwę zapytań, a rozdział sprawia, że
+// `mergeRelatedConfig` (którego trasa potrzebuje statycznie) nie wciąga silnika
+// z powrotem. Zmierzone osobno, każda z tych zmian daje ZERO - dopiero razem
+// zdejmują algorytm z chunku wejściowego.
+//
+// OBA wejścia muszą być leniwe: `RelatedPostsAfterParagraph` importuje
+// `RelatedPosts` statycznie, więc jeden statyczny import trzyma cały podgraf.
+const RelatedPosts = lazy(() =>
+  import("@/components/post/RelatedPosts").then((m) => ({ default: m.RelatedPosts })),
+);
+const RelatedPostsAfterParagraph = lazy(() =>
+  import("@/components/post/RelatedPostsAfterParagraph").then((m) => ({
+    default: m.RelatedPostsAfterParagraph,
+  })),
+);
 import { InlineToc } from "@/components/post/InlineToc";
 import { ContentSkeleton } from "@/components/content/ContentSkeleton";
 import { mergeTocSettings, useTocDefaults, type TocOverride } from "@/lib/toc/settings";
@@ -140,6 +170,12 @@ import { AdZone } from "@/components/AdSlot";
 import { MidPostAds } from "@/components/ads/MidPostAds";
 import { FooterSlideup } from "@/components/ads/FooterSlideup";
 import type { AdPageType } from "@/lib/ads/types";
+// Rozgrzewka slotów reklamowych w SSR - JEDNO zapytanie o wszystkie pozycje
+// tej trasy (uzasadnienie przy jej wywołaniu w fali wtórnej).
+import { prefetchAdPlacementQueries, type AdWarmTarget } from "@/lib/ads/queries";
+// Typ strony reklamowej liczony TAK SAMO jak w powłoce (`SiteChrome`) -
+// inaczej rozgrzany klucz banera nagłówka minąłby się z tym, co czyta widok.
+import { adPageTypeForLocation } from "@/lib/ads/pageType";
 import { prefetchAboveFoldQueries } from "@/lib/builder/prefetch";
 import { prefetchBlockQueries } from "@/lib/queries/blocks";
 import { postLayoutSettingsQueryOptions } from "@/hooks/usePostLayoutSettings";
@@ -157,20 +193,87 @@ import {
 } from "@/lib/routing/resolvePublicPath";
 
 import { withBudget } from "@/lib/asyncBudget";
+import { resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { hasSsrQueryData } from "@/lib/ssr/homeSsrBudget";
+import { routeSsrDeadline } from "@/lib/ssr/routeSsrDeadline";
+import { widgetPreloadHeaders } from "@/lib/seo/widgetPreloads";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
+
+/**
+ * JEDEN ZEGAR NA CAŁE ŻĄDANIE SSR tej trasy (audyt CWV 2026-09-20, §8 wiersz
+ * 2.2). Trzy fazy loadera są SZEREGOWE, więc dopóki każda miała własny budżet,
+ * ich sufity SUMOWAŁY SIĘ przed pierwszym bajtem: 5 000 + 3 000 + 5 000
+ * = 13 000 ms na chorej bazie. Wspólny termin absolutny sprawia, że faza druga
+ * i trzecia dostają wyłącznie RESZTĘ tego jednego budżetu.
+ */
+const CONTENT_SSR_BUDGET_MS = 1_500;
 
 // Wall-clock cap on secondary prefetches (blocks data, related config). The
 // primary content query is already awaited; these warmers are best-effort and
 // must never hang the SSR response - views fall back to their client fetch.
-const SECONDARY_PREFETCH_BUDGET_MS = 3000;
-const PRIMARY_CONTENT_BUDGET_MS = 5_000;
+//
+// Obie stałe są SUFITAMI FAZY, a nie sumą: termin `CONTENT_SSR_BUDGET_MS`
+// i tak przycina każdą z nich do reszty czasu. Zostają w tej wysokości, żeby
+// bramka `check:ssr-budgets` (która sumuje sufity faz, bo tylko je widzi ze
+// źródeł) raportowała liczbę BLISKĄ prawdzie - 4 500 ms zamiast 13 000.
+const SECONDARY_PREFETCH_BUDGET_MS = 1_500;
+const PRIMARY_CONTENT_BUDGET_MS = 1_500;
 // Non-2xx / redirect responses must never be CDN-cached as the content itself.
 const NO_STORE = contentCacheControl({ preview: true });
 
+// Kształt preloadu okładki JEST kontraktem `ImagePreloadInput` z warstwy SEO -
+// nazwa zostaje (czyta ją deklaracja `ContentDocument`), ale pola opcjonalne
+// muszą być opcjonalne również tutaj, bo `builderHeroPreload`/`archivePreload`
+// zwracają dokładnie ten typ (hero bez `srcSet` emituje sam `href`).
 interface CoverPreload {
   href: string;
-  imageSrcSet: string;
-  imageSizes: string;
+  imageSrcSet?: string;
+  imageSizes?: string;
 }
+
+/**
+ * WYNIK LOADERA TEJ TRASY JAKO JAWNA UNIA Z DYSKRYMINATOREM `kind` - i to jest
+ * naprawa realnego defektu typów, a nie porządkowanie dla ozdoby.
+ *
+ * CO BYŁO ZŁE. Kształt wyniku istniał WYŁĄCZNIE jako inferencja z dwóch
+ * `return`ów loadera, a `head()` czytał go przez `ResolveLoaderData<TLoaderFn>`
+ * routera. Ta inferencja jest WERSJOZALEŻNA: `FileRoute.createRoute` wstawia
+ * `TLoaderFn` do opcji `head`/`headers`/`scripts` BEZ `NoInfer` (inaczej niż
+ * `RouteOptions` dla `createRoute`), więc `head` jest jednocześnie miejscem
+ * WNIOSKOWANIA o `TLoaderFn` i jego KONSUMENTEM. Przy `@tanstack/react-router`
+ * 1.170.38 `TLoaderFn` spada wtedy do swojej domyślnej wartości `undefined`,
+ * `ResolveLoaderData<undefined>` daje `undefined`, a każdy odczyt pola w `head()`
+ * kończy się `Property '...' does not exist on type 'never'` (zmierzone: 12
+ * błędów `tsc` w tym pliku; wersja z locka CI, 1.170.18, wnioskowała inaczej
+ * i była zielona).
+ *
+ * CO TO NAPRAWIA. Typ jest teraz NAZWANY i wypisany: loader deklaruje go
+ * zwrotem (`Promise<ContentDocument>`), a `head()` deklaruje go przy odczycie
+ * `ctx.loaderData`. Obie deklaracje są SPRAWDZANE przez kompilator (żadnego
+ * `as`), więc rozjazd między tym, co loader oddaje, a tym, co `head()` czyta,
+ * nadal oblewa `tsc` - tylko przestaje zależeć od tego, którą wersję routera
+ * rozwiąże menedżer pakietów.
+ */
+interface DegradedDocument {
+  kind: "degraded";
+  degraded: true;
+  seoSettings: null;
+  coverPreload: null;
+}
+
+/**
+ * Rozstrzygnięta treść (wpis albo strona) wzbogacona o to, czego potrzebuje
+ * `head()`: ustawienia SEO serwisu i deskryptor preloadu obrazu LCP.
+ * `degraded?: undefined` jest DRUGIM dyskryminatorem obok `kind` - dokładnie
+ * tym samym, który TypeScript dopisywał tu sam przy inferencji z literału.
+ */
+type ResolvedDocument = ResolvedContent & {
+  seoSettings: SeoSettings;
+  coverPreload: CoverPreload | null;
+  degraded?: undefined;
+};
+
+type ContentDocument = DegradedDocument | ResolvedDocument;
 
 /**
  * LCP cover-image preload descriptor for a post, mirroring exactly what
@@ -216,7 +319,10 @@ function taxonomyRedirect(decision: TaxonomyRedirect): never {
 export const Route = createFileRoute("/$")({
   // Chrome (Header/Footer) is centralized in SiteChrome at the root - never
   // opt out here, or navigations remount the whole header/menu.
-  loader: async ({ params, context }) => {
+  // ZWROT LOADERA DEKLAROWANY, NIE WNIOSKOWANY - patrz wykład przy
+  // `ContentDocument`. Gałęzie rzucające (`notFound()`, `redirect()`) są typu
+  // `never`, więc anotacja nie zabiera im niczego.
+  loader: async ({ params, context }): Promise<ContentDocument> => {
     // Gramatyka adresów (404 / archiwum taksonomii / 301 kanoniczny / treść)
     // mieszka w `lib/routing/resolvePublicPath` jako czyste funkcje - tu zostaje
     // I/O, nagłówki cache i rzucanie. Tabela przypadków tej gramatyki:
@@ -233,10 +339,49 @@ export const Route = createFileRoute("/$")({
     }
     const segments = [...plan.segments];
     const contentOptions = resolvedContentQueryOptions(segments);
-    await withBudget(
-      context.queryClient.ensureQueryData(contentOptions).catch(() => undefined),
-      PRIMARY_CONTENT_BUDGET_MS,
-    );
+    // TERMIN ŻĄDANIA TWORZONY WYŁĄCZNIE NA SERWERZE. W przeglądarce jeden
+    // `QueryClient` żyje całą sesję, więc termin z pierwszej nawigacji byłby
+    // miniony dla wszystkich kolejnych i każdy loader oddawałby sterowanie
+    // natychmiast (patrz nagłówek `lib/ssr/routeSsrDeadline.ts`). Poza tym
+    // nawigacja SPA nie ma TTFB do obrony: czytelnik patrzy na
+    // `pendingComponent` (ContentSkeleton), a loader ma po prostu POCZEKAĆ na
+    // dane. Sztywne 5 s, które klient dostawał do 2026-09-20, nie służyło tam
+    // niczemu - było tylko terminem, po którym trasa udawała 404.
+    const deadlineAt = isServer
+      ? routeSsrDeadline(context.queryClient, CONTENT_SSR_BUDGET_MS)
+      : undefined;
+    // PREFETCHE NIEZALEŻNE OD TREŚCI STARTUJĄ PRZED FAZĄ GŁÓWNĄ. Ustawienia
+    // układu wpisu i konfiguracja powiązanych nie potrzebują rozstrzygniętego
+    // adresu, więc szeregowanie ich ZA treścią dokładało ich round-trip do
+    // łańcucha zamiast schować go w cieniu zapytania o treść. Bez `await`:
+    // ich stan zbieramy dopiero w fazie wtórnej, tymi samymi obietnicami
+    // (dzięki czemu tablica `Promise.allSettled` nadal ma 5 odnóg, a nie 7 -
+    // sufit równoległych podżądań runtime Workers to 6).
+    const layoutWarm = context.queryClient.prefetchQuery(postLayoutSettingsQueryOptions());
+    const relatedConfigWarm = context.queryClient.prefetchQuery(relatedPostsConfigQueryOptions());
+    const contentWarm = context.queryClient.ensureQueryData(contentOptions).catch(() => undefined);
+    if (deadlineAt === undefined) await contentWarm;
+    else await withBudget(contentWarm, PRIMARY_CONTENT_BUDGET_MS, deadlineAt);
+    // DEGRADACJA TO NIE JEST 404 (audyt CWV F07 / W8). Do 2026-09-20 ta gałąź
+    // czytała samo `getQueryData`, więc BRAK DANYCH z dowolnego powodu -
+    // miniętego budżetu, anulowania przez watchdoga SSR, błędu PostgREST -
+    // wchodził do gałęzi „treści nie ma" i kończył się `notFound()`. Chora
+    // baza WYPISYWAŁA w ten sposób żywe wpisy z indeksu Google, a to jest
+    // szkoda liczona w tygodniach, nie w jednym żądaniu.
+    //
+    // Rozstrzyga więc STAN ZAPYTANIA, nie obecność wartości: 404 należy się
+    // WYŁĄCZNIE odczytowi CZYSTEMU (`success` + `null`), czyli tej samej
+    // regule, co na trasach archiwów (`lib/ssr/notFoundIfClean.ts`).
+    const contentState = context.queryClient.getQueryState(contentOptions.queryKey);
+    if (contentState?.status !== "success") {
+      // `removeQueries`, a nie zasiew: klient ma dociągnąć treść ŚWIEŻO po
+      // hydratacji, a wpis w stanie `error`/`pending` nie ma prawa pojechać
+      // w dehydratowanym ładunku (zamiatanie cache'u przed serializacją
+      // zostawiłoby go jako wiszące zapytanie bez danych).
+      context.queryClient.removeQueries({ queryKey: contentOptions.queryKey, exact: true });
+      setCacheControlHeader(resilientCacheControl(true));
+      return { kind: "degraded" as const, degraded: true, seoSettings: null, coverPreload: null };
+    }
     const data = context.queryClient.getQueryData(contentOptions.queryKey) ?? null;
     if (!data) {
       context.queryClient.removeQueries({ queryKey: contentOptions.queryKey, exact: true });
@@ -284,10 +429,36 @@ export const Route = createFileRoute("/$")({
     // serve stale-while-revalidate from the CDN. The language lives in the URL
     // path (PL at the bare path, EN under "/en"), so each language is its own
     // cache entry - no cookie-driven personalization, no language poisoning.
-    setCacheControlHeader(contentCacheControl());
+    //
+    // NAGŁÓWEK NIE WYCHODZI TUTAJ, I TO JEST NAPRAWA, NIE STYL. Do 2026-09-12
+    // ta linia ustawiała `contentCacheControl()` PRZED prefetchem wtórnym -
+    // czyli przed jedyną pracą tego loadera, która może zdegradować po cichu.
+    // Awaria GŁÓWNEJ treści była obsłużona poprawnie (NO_STORE na każdej
+    // z czterech gałęzi wyżej); cicho degradował dopiero prefetch pod budżetem
+    // 3 000 ms - a jego produkt to CAŁA treść stron sekcyjnych, bloków
+    // i sekcji nad zgięciem. To się na tej trasie już raz zdarzyło: patrz
+    // komentarz przy `archiveListingQueryOptions` niżej (HTML stron sekcyjnych
+    // wchodził do NES Edge Cache na dobę). Naprawa dodała wtedy prefetch,
+    // a NIE zabramkowała nagłówka. Decyzja wychodzi teraz DOPIERO po pracy,
+    // przez `resilientCacheControl` - tę samą drogę, którą idzie szesnaście
+    // pozostałych tras ustawiających `Cache-Control` (doktryna:
+    // `src/lib/ssr/resilientLoad.ts:123-138`).
     const url = getRequestUrl() || `/${splat}`;
     const lang: "pl" | "en" = activeLang(url) === "en" ? "en" : "pl";
     const doc = parseBuilderDoc(data.item.builder_data);
+    // HINTY MODUŁÓW WIDGETÓW TREŚCI (audyt CWV F21 / §8 wiersz 3.8). Dokładnie
+    // ta sama droga, którą korzeń emituje hinty widgetów NAGŁÓWKA
+    // (`__root.tsx`): chunki widgetów sekcji nad zgięciem zaczynają się
+    // pobierać z NAGŁÓWKÓW odpowiedzi, zanim przeglądarka sparsuje HTML,
+    // a NES Edge Cache odtwarza je na HIT/STALE. Bez tego moduł widgetu
+    // wchodzi do kolejki dopiero po pobraniu i wykonaniu chunku trasy.
+    //
+    // Duplikatów z nagłówkiem nie trzeba filtrować: `appendLinkHeader` trzyma
+    // wartości w zbiorze per żądanie, a `widgetPreloadHeaders` produkuje dla
+    // tego samego chunku identyczny napis.
+    if (isServer && doc.sections.length > 0) {
+      for (const hint of widgetPreloadHeaders(doc, 3)) appendLinkHeader(hint);
+    }
     // Blocks engine: warm every data query its views will render (latest
     // posts, taxonomies, related, calendar, ...) so the SSR HTML carries the
     // real lists - without this a crawler sees only skeletons/empty markup.
@@ -299,11 +470,66 @@ export const Route = createFileRoute("/$")({
     // Secondary prefetches are best-effort and wall-clock-bounded. A slow
     // upstream (blocks_data / related config) must never abort the SSR stream
     // - views fall back to their own client fetch.
+    //
+    // WYNIK ODNÓG PRZEZ ZMIENNĄ, A NIE PRZEZ `settleWithinBudget`, i to jest
+    // wymuszone przez bramkę, nie stylistyka. Termin wspólny musi przyciąć
+    // sufit tej fazy do RESZTY czasu, a `settleWithinBudget` nie przyjmuje
+    // terminu absolutnego; policzenie reszty w miejscu argumentu
+    // (`remainingBudget(...)`) zamieniłoby budżet w WYRAŻENIE, którego
+    // `check:ssr-budgets` nie umie rozwiązać - a budżet nierozwiązany oblewa
+    // bramkę, bo liczyłaby go jako zero i przepuściła dowolną wartość.
+    // `withBudget` bierze termin trzecim argumentem, więc sufit zostaje
+    // STAŁĄ widoczną dla bramki, a `secondary.results === null` znaczy
+    // dokładnie to, co znaczyło `BUDGET_LAPSED`: faza nie zdążyła się
+    // rozstrzygnąć. Uchwyt jest OBIEKTEM, nie `let`-em: zapis w domknięciu nie
+    // istnieje dla analizy przepływu TypeScriptu, więc zwykła zmienna zostałaby
+    // zawężona do `null` w miejscu odczytu.
+    // SLOTY REKLAMOWE TEJ TRASY, ROZGRZANE W SSR (audyt CWV 2026-09-20, F26 -
+    // pozycja z §8.1 „rozgrzewka `ad_placements` w trasie catch-all").
+    //
+    // CO NAPRAWIA. `AdZone` bez danych zwraca `null`, a `AdContainer` rezerwuje
+    // wtedy ZERO pikseli: baner nagłówka (90 px NAD treścią) i slot nad
+    // artykułem dojeżdżały dopiero po hydratacji i spychały stronę w dół.
+    // Korzeń grzeje `header_banner` WYŁĄCZNIE tam, gdzie typ strony rozstrzyga
+    // sam adres; tu typ zna dopiero ten loader, więc korzeń zostawia to miejsce
+    // tej trasie (komentarz przy `adPageTypeForLocation` w `__root.tsx`).
+    //
+    // DLACZEGO TYLKO TE DWIE POZYCJE. Tyle i dokładnie tyle renderuje SSR:
+    // `useReadingAdBudget` startuje z budżetem PŁACĄCEGO (`tierQ.isPending`),
+    // czyli jedna strefa - `top_of_post` (priorytet 0). `mid_post`, `sidebar`,
+    // `bottom_of_post` i `footer_slideup` wchodzą dopiero po rozstrzygnięciu
+    // planu w przeglądarce i stoją pod zgięciem - ich rozgrzewka byłaby
+    // dehydratowanym ładunkiem za nic.
+    //
+    // JEDNA ODNOGA, JEDEN ROUND-TRIP. `prefetchAdPlacementQueries` pyta o obie
+    // pozycje jednym `position=in.(...)` i rozdziela wynik na klucze widoków,
+    // więc fala wtórna ma 6 odnóg przy sufcie 6 (`check:ssr-budgets`, twardy
+    // limit 6 równoległych podżądań runtime Workers), a nie 7.
+    const adPageType: AdPageType = data.kind;
+    // Baner nagłówka renderuje POWŁOKA, a ona liczy typ strony z ADRESU
+    // (`SiteChrome` -> `adPageTypeForLocation`). Na ścieżkach, gdzie adres każe
+    // jej co innego niż `kind` treści, rozgrzalibyśmy klucz, którego nikt nie
+    // czyta - a wyrównanie tego drugim zapytaniem kosztowałoby siódme
+    // podżądanie. Wtedy baner zostaje przy fetchu po hydratacji, jak dotąd.
+    const adWarmTargets: AdWarmTarget[] = [{ position: "top_of_post", pageId: data.item.id }];
+    if (adPageTypeForLocation(splitUrl(url).path, data.kind) === adPageType) {
+      adWarmTargets.push({ position: "header_banner" });
+    }
+    const secondary: { results: PromiseSettledResult<unknown>[] | null } = { results: null };
     await withBudget(
       Promise.allSettled([
-        data.kind === "post"
-          ? context.queryClient.prefetchQuery(postLayoutSettingsQueryOptions())
-          : Promise.resolve(),
+        // Także dla STRON, nie tylko wpisów: `ContentAreaStyle` renderuje
+        // typografię prozy (`.post-content`, odstępy akapitów, style linków)
+        // dla obu rodzajów treści, a od 2026-09-01 korzeń nie grzeje już tego
+        // klucza w fali 1 (osobny round-trip na KAŻDEJ trasie publicznej -
+        // patrz komentarz przy fali 1 w routes/__root.tsx). Tutaj płaci za to
+        // tylko powierzchnia, która tę typografię realnie pokazuje.
+        //
+        // TA OBIETNICA JUŻ BIEGNIE od czasu przed fazą główną - tu zbieramy
+        // wyłącznie jej stan. `ResolvedContent` ma dwa warianty (`post`,
+        // `page`) i oba tę typografię pokazują, więc warunek, który stał tu
+        // wcześniej, był zawsze prawdziwy.
+        layoutWarm,
         doc.sections.length > 0
           ? // Public pages/posts are edge-cached. Block the SSR response only on the
             // above-the-fold sections; below-the-fold sections Suspense-stream as
@@ -332,25 +558,99 @@ export const Route = createFileRoute("/$")({
               tagSlugs: data.kind === "post" ? (data.tags ?? []).map((t) => t.slug) : [],
             })
           : Promise.resolve(),
-        context.queryClient.prefetchQuery(relatedPostsConfigQueryOptions()),
-      ]),
+        // Druga obietnica ODPALONA PRZED FAZĄ GŁÓWNĄ (konfiguracja powiązanych
+        // nie zależy od treści) - tu tylko czekamy na jej stan.
+        relatedConfigWarm,
+        // STRONY SEKCYJNE (`template_type === 'archive_listing'`): lista do 60
+        // dzieci jest CAŁĄ treścią takiej strony, a jechała zwykłym `useQuery`
+        // w `ArchiveListing`, który na serwerze nie startuje fetcha. SSR emitował
+        // więc gałąź przejściową i ten HTML wchodził do NES Edge Cache na do
+        // 24 h - a trasy sekcyjne są typowo najsilniejsze linkowo w całym
+        // serwisie. Ta sama fabryka, ten sam klucz, co w komponencie.
+        data.kind === "page" && data.item.template_type === "archive_listing"
+          ? context.queryClient.prefetchQuery(archiveListingQueryOptions(data.item.id))
+          : Promise.resolve(),
+        // SZÓSTA ODNOGA - sloty reklamowe (uzasadnienie i lista pozycji wyżej).
+        // NIE wchodzi do `directArmCold` ani do sygnału degradacji: reklama to
+        // dekoracja, więc jej brak nie ma prawa zdjąć wspólnego cache'u CAŁEGO
+        // dokumentu (ta sama doktryna, co przy `chromeQueryKeys` w korzeniu).
+        prefetchAdPlacementQueries(context.queryClient, adWarmTargets, adPageType),
+      ]).then((results) => {
+        secondary.results = results;
+      }),
       SECONDARY_PREFETCH_BUDGET_MS,
+      deadlineAt,
     );
+    // CZTERY POWODY, DLA KTÓRYCH TEN RENDER JEST NIEPEŁNY - i tylko dwa
+    // pierwsze widać po kształcie obietnicy.
+    //
+    // SPROSTOWANIE DO PIERWSZEJ WERSJI TEJ ZMIANY (recenzja PR #357, P1).
+    // Czytanie degradacji z ODRZUCENIA odnogi łapało prawie nic: żadna z pięciu
+    // odnóg nie odrzuca. `prefetchQuery` pochłania błąd z definicji,
+    // `prefetchBlockQueries` pochłania go świadomie w `Promise.allSettled`,
+    // a `prefetchAboveFoldQueries` ma WŁASNY budżet 2 500 ms i po jego
+    // przekroczeniu rozstrzyga się NORMALNIE, zostawiając zapytania w locie.
+    // Zewnętrzny budżet nie zdążył więc nigdy minąć w najczęstszym
+    // realnym kształcie awarii - wewnętrzny mijał pierwszy, wynik wychodził
+    // `fulfilled`, a render bez treści nad zgięciem szedł na brzeg z pełnym
+    // oknem świeżości. Bramka była wtedy napisem, nie zabezpieczeniem.
+    //
+    // Dzisiaj pytamy o STAN ZAPYTAŃ, a nie o kształt obietnicy: dwa pomocniki
+    // zwracają własny sygnał (liczony `hasSsrQueryData` po SWOICH kluczach),
+    // a trzy odnogi wołające `prefetchQuery` wprost sprawdzamy tutaj - po tych
+    // samych warunkach, pod którymi zostały odpalone.
+    const armDegraded = (result: PromiseSettledResult<unknown>): boolean => {
+      if (result.status === "rejected") return true;
+      return (result.value as { degraded?: boolean } | undefined)?.degraded === true;
+    };
+    const directArmCold = [
+      postLayoutSettingsQueryOptions().queryKey,
+      relatedPostsConfigQueryOptions().queryKey,
+      data.kind === "page" && data.item.template_type === "archive_listing"
+        ? archiveListingQueryOptions(data.item.id).queryKey
+        : null,
+    ].some((queryKey) => queryKey !== null && !hasSsrQueryData(context.queryClient, queryKey));
+    const secondaryDegraded =
+      secondary.results === null || secondary.results.some(armDegraded) || directArmCold;
     // Site-wide SEO settings for head() (title suffix, twitter:site, publisher
     // logo). The root loader warms the same bulk query, so this resolves from
     // cache; head() is synchronous and cannot fetch on its own.
-    await withBudget(
-      context.queryClient.ensureQueryData(siteSettingsQueryOptions).catch(() => undefined),
-      PRIMARY_CONTENT_BUDGET_MS,
-    );
+    const settingsWarm = context.queryClient
+      .ensureQueryData(siteSettingsQueryOptions)
+      .catch(() => undefined);
+    if (deadlineAt === undefined) await settingsWarm;
+    else await withBudget(settingsWarm, PRIMARY_CONTENT_BUDGET_MS, deadlineAt);
     const emptySettings: Record<string, unknown> = Object.freeze({});
     const settingsMap =
       context.queryClient.getQueryData<Record<string, unknown>>(
         siteSettingsQueryOptions.queryKey,
       ) ?? emptySettings;
+    // Brak ustawień serwisu to też degradacja, a nie kosmetyka: `head()` traci
+    // wtedy sufiks tytułu, `twitter:site` i logo wydawcy, a ten `<head>`
+    // wszedłby do wspólnego cache'u na 15 minut świeżości plus dobę okna stale.
+    // `hasSsrQueryData`, a nie `getQueryData`: zasiew fallbackowy ma
+    // `dataUpdatedAt === 0` i jest degradacją, mimo że wartość „jest".
+    // Korzeń stosuje ten sam predykat, ale TYLKO na ścieżce strony głównej
+    // (`__root.tsx:357-367`) - na trasie łapiącej wszystko ta dziura została.
+    const settingsDegraded = !hasSsrQueryData(
+      context.queryClient,
+      siteSettingsQueryOptions.queryKey,
+    );
     if (!context.queryClient.getQueryData(siteSettingsQueryOptions.queryKey)) {
-      context.queryClient.setQueryData(siteSettingsQueryOptions.queryKey, settingsMap);
+      // `updatedAt: 0` - ZASIEW MUSI RODZIĆ SIĘ PRZETERMINOWANY. Bez tego
+      // argumentu `setQueryData` stempluje wpis `Date.now()`, a `staleTime`
+      // tego zapytania liczy się w minutach: jedna czkawka bazy przypinałaby
+      // PUSTE ustawienia w cache'u klienta na cały ten czas i przeglądarka
+      // nigdy nie dociągnęłaby prawdziwych. Ta sama reguła stoi w korzeniu
+      // (`__root.tsx`, komentarz przy zasiewie fali 1) i w `blog.index.tsx:64`;
+      // tutaj jej brakowało.
+      context.queryClient.setQueryData(siteSettingsQueryOptions.queryKey, settingsMap, {
+        updatedAt: 0,
+      });
     }
+    // JEDYNE miejsce, w którym ta trasa ogłasza politykę cache'u czystego
+    // renderu - po CAŁEJ pracy, która może zdegradować.
+    setCacheControlHeader(resilientCacheControl(secondaryDegraded || settingsDegraded));
     const seoSettings = parseSeoSettings(settingsMap["seo"]);
     // Posts: attach the LCP cover preload so head() can emit it. The layout
     // settings were just warmed above, so this reads from cache (no extra
@@ -373,12 +673,37 @@ export const Route = createFileRoute("/$")({
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     return { ...data, seoSettings, coverPreload };
   },
-  head: ({ loaderData, params }) => {
+  head: (ctx) => {
+    // ŁADUNEK CZYTANY PRZEZ DEKLARACJĘ, NIE PRZEZ INFERENCJĘ ROUTERA - jedyne
+    // miejsce, w którym `head()` dotyka `ResolveLoaderData<TLoaderFn>`, i cały
+    // powód, dla którego `ContentDocument` jest nazwany (wykład przy tym typie).
+    // To PRZYPISANIE, a nie `as`: kompilator nadal sprawdza, czy zwrot loadera
+    // pasuje do tego, co ten `head()` czyta - tylko przestaje to zależeć od
+    // wersji routera rozwiązanej w `node_modules`.
+    //
+    // Parametry zostają nietknięte (`ctx.params`, nie anotacja całego `ctx`):
+    // anotacja parametru wywołania zwrotnego jest dla routera KANDYDATEM
+    // WNIOSKOWANIA w pozycji kontrawariantnej i zbiłaby `TParams` trasy do
+    // `unknown` (zmierzone). Deklaracja zmiennej takiego kandydata nie tworzy.
+    const loaderData: ContentDocument | undefined = ctx.loaderData;
+    // Render ZDEGRADOWANY niesie komunikat „nie udało się załadować", a nie
+    // treść - i jedzie z HTTP 200, bo status 500 wyrzuciłby żywy wpis z indeksu
+    // i zablokował CDN. `noindex` jest więc jedyną rzeczą, która broni indeksu
+    // przed utrwaleniem tego komunikatu pod adresem prawdziwego artykułu.
+    // Brak `loaderData` (404 / przekierowanie) zostaje bez zmian: tam robotę
+    // robi status odpowiedzi.
+    if (loaderData?.kind === "degraded") {
+      return { meta: [{ name: "robots", content: "noindex, nofollow" }] };
+    }
     const it = loaderData?.item;
     if (!it) return { meta: [] };
-    const splat = (params as { _splat?: string })._splat ?? "";
-    const url = getRequestUrl() || `/${splat}`;
-    const lang = activeLang(url);
+    const splat = (ctx.params as { _splat?: string })._splat ?? "";
+    // Adresy w <head> (canonical, og:url, JSON-LD, citation_*) zawsze na
+    // kanonicznej domenie marki - host podglądu/hostingu nigdy nie wycieka.
+    const rawUrl = getRequestUrl() || `/${splat}`;
+    const { origin: rawOrigin, path: rawPath } = splitUrl(rawUrl);
+    const url = rawOrigin ? absoluteUrl(publicFacingOrigin(rawOrigin), rawPath) : rawUrl;
+    const lang = activeLang(rawUrl);
     const isPost = loaderData.kind === "post";
     const seoSettings = loaderData.seoSettings ?? parseSeoSettings(null);
     const seoRow = it as SeoFieldsRow;
@@ -429,8 +754,8 @@ export const Route = createFileRoute("/$")({
     // Emit the JSON-LD graph in <head> (not the body) so crawlers parse the
     // structured data early, before the full document streams. The article
     // node carries the AEO layer (section, keywords, abstract, speakable);
-    // BreadcrumbList is SSR-emitted here because the body breadcrumbs only
-    // exist after hydration.
+    // BreadcrumbList and the visible breadcrumb trail both derive from the
+    // loader data, so crawlers and the first paint receive the same hierarchy.
     // Jeden seam dla wpisów i STRON (lib/keyTakeaways/resolve.ts) - to samo
     // rozstrzygnięcie zasila JSON-LD tutaj i sekcję w body niżej.
     const takeaways = resolveTakeaways(it, lang);
@@ -478,6 +803,8 @@ export const Route = createFileRoute("/$")({
       ),
       origin,
       lang,
+      // Ostatni okruszek MUSI mieć `item` (Search Console: brakujące pole item).
+      splitUrl(url).path,
     );
     // Preload the LCP image (post cover / builder-page hero) so its fetch
     // starts from <head>, before the <img> is parsed in the body. The
@@ -528,7 +855,13 @@ export const Route = createFileRoute("/$")({
 // Named (uppercase) component - hooks inside an inline lowercase
 // `errorComponent` arrow violate rules-of-hooks (ESLint cannot treat it as a
 // component, and neither can React DevTools).
-function PublicErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+// `error: unknown`, a nie `Error`, i to też jest odporność na wersję routera,
+// nie ostrożność: `ErrorComponentProps` niesie dziś `error: unknown`
+// (@tanstack/react-router 1.170.38), a rzucić w JavaScripcie można DOWOLNĄ
+// wartością. Parametr szerszy niż deklarowany przez framework jest zgodny
+// z KAŻDĄ wersją (kontrawariancja), a ten komponent i tak wyłącznie loguje
+// wartość - surowy komunikat nigdy nie trafia do czytelnika.
+function PublicErrorComponent({ error, reset }: { error: unknown; reset: () => void }) {
   const router = useRouter();
   const copy = errorCopy();
   // Raw error.message is logged for diagnostics, never rendered to visitors.
@@ -552,7 +885,64 @@ function PublicErrorComponent({ error, reset }: { error: Error; reset: () => voi
   );
 }
 
+/**
+ * JEDEN HAK I WCZESNY ZWROT, ZANIM ZACZNIE SIĘ CZYTANIE ŁADUNKU LOADERA.
+ *
+ * `Route.useLoaderData()` sięga po dopasowanie z kontekstu routera i wywraca
+ * się (`router.stores` na `null`), kiedy komponent trasy jest montowany POZA
+ * `RouterProvider`em. A tak właśnie jest montowany w dowodach KOMPOZYCJI tej
+ * trasy (`__tests__/platformPublicRender.test.tsx`): `Route.options.component`
+ * wprost nad samym `QueryClientProvider`em, żeby dowód o układzie strony nie
+ * wymagał stawiania całego routera. `useRouter({ warn: false })` oddaje w tej
+ * sytuacji wartość pustą zamiast rzucać, a brak routera znaczy dokładnie to,
+ * co powinien: nie ma loadera, więc nie ma też renderu zdegradowanego.
+ *
+ * Odczyt ładunku mieszka przez to w OSOBNYM komponencie, a nie za `if`-em
+ * w tym samym ciele - inaczej byłby hakiem warunkowym. Obecność routera nie
+ * zmienia się w cyklu życia montażu, więc ta gałąź nie przemontowuje drzewa.
+ */
 function PublicPage() {
+  const router = useRouter({ warn: false });
+  if (!router) return <ResolvedPublicPage />;
+  return <PublicPageFromLoader />;
+}
+
+function PublicPageFromLoader() {
+  const { kind } = Route.useLoaderData();
+  // BRAMKA DEGRADACJI STOI PRZED `useSuspenseQuery`, i to jest wymóg, nie
+  // porządek: loader zdegradowany USUNĄŁ wpis treści z cache'u, więc
+  // `useSuspenseQuery` zawiesiłby się tu na nowym pobraniu - na serwerze
+  // bez końca, bo to ta sama baza, która właśnie nie odpowiedziała.
+  if (kind === "degraded") return <DegradedPublicPage />;
+  return <ResolvedPublicPage />;
+}
+
+/**
+ * Render ZDEGRADOWANY: uczciwy komunikat zamiast miękkiego 404 na żywym
+ * wpisie. Nagłówek ustawił już loader (`private, no-store`), więc ten HTML nie
+ * zamarza na brzegu - wzór wspólny z `category.$slug.tsx`, `events.$slug.tsx`
+ * i `podcast.$slug.tsx`.
+ *
+ * SAMOLECZENIE PO HYDRATACJI jest tu DODATKIEM ponad tamte trasy i ma powód:
+ * tam degraduje się ozdoba albo lista, a tutaj znika CAŁA treść artykułu.
+ * Loader kliencki biegnie bez budżetu (patrz `deadlineAt` wyżej), więc jedno
+ * unieważnienie po zamontowaniu dociąga wpis, gdy baza wróciła, i czytelnik
+ * nie musi klikać „spróbuj ponownie". JEDNORAZOWO: przy dalszej degradacji
+ * ten sam komponent zostaje zamontowany, więc efekt się nie powtarza.
+ */
+function DegradedPublicPage() {
+  const router = useRouter();
+  useEffect(() => {
+    void router.invalidate();
+  }, [router]);
+  return (
+    <div className="container mx-auto max-w-3xl px-4 py-12">
+      <DegradedDataNotice variant="page" />
+    </div>
+  );
+}
+
+function ResolvedPublicPage() {
   const params = Route.useParams() as { _splat?: string };
   const segments = splatToSegments(params._splat ?? "");
   const { data } = useSuspenseQuery(resolvedContentQueryOptions(segments));
@@ -576,10 +966,14 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const postTags = isPost
     ? (data as { tags?: Array<{ slug: string; name: string }> }).tags
     : undefined;
-  const postCategories = isPost
-    ? ((data as { categories?: Array<{ slug: string; name_pl: string; name_en: string }> })
-        .categories ?? [])
-    : [];
+  const postCategories = useMemo(
+    () =>
+      isPost
+        ? ((data as { categories?: Array<{ slug: string; name_pl: string; name_en: string }> })
+            .categories ?? [])
+        : [],
+    [data, isPost],
+  );
   // Kontekst targetingu reklam: slugi kategorii/tagów bieżącego posta.
   const adContent = isPost
     ? {
@@ -635,8 +1029,10 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const citationUrl = useMemo(() => {
     const override = seoCanonicalOverride(it as SeoFieldsRow);
     if (override) return override;
+    // Adres pokazywany czytelnikowi (cytowanie) zawsze na domenie kanonicznej,
+    // nigdy na hoście podglądu/hostingu.
     const { origin, path } = splitUrl(getRequestUrl());
-    return absoluteUrl(origin, path);
+    return absoluteUrl(publicFacingOrigin(origin), path);
   }, [it]);
 
   // Access rule (mode/teaser/plans/price) is non-sensitive and arrives from the
@@ -710,7 +1106,10 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   );
   const body = pickBody(bodyBeforeGift, gifted.body);
 
-  const rawDoc = parseBuilderDoc(body.builder_data);
+  // Keep renderer memoization effective when membership, metadata or theme
+  // queries update without changing the document. Content unlocks replace
+  // these inputs and therefore still invalidate the preparation immediately.
+  const rawDoc = useMemo(() => parseBuilderDoc(body.builder_data), [body.builder_data]);
   const rawHtml =
     lang === "en" ? body.content_en || body.content_pl : body.content_pl || body.content_en;
 
@@ -723,13 +1122,17 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   // Jedno wejście: builder + html rozwijane pod wspólnym licznikiem, manualny
   // <!--TOC--> generowany po drodze. Ta sama funkcja zasila /preview i homepage,
   // więc redaktor widzi to samo w każdym miejscu.
-  const prepared = prepareContentForRender({
-    editor: it.editor,
-    builderDoc: rawDoc,
-    blocksDoc,
-    rawHtml: rawHtml ?? "",
-    lang,
-  });
+  const prepared = useMemo(
+    () =>
+      prepareContentForRender({
+        editor: it.editor,
+        builderDoc: rawDoc,
+        blocksDoc,
+        rawHtml: rawHtml ?? "",
+        lang,
+      }),
+    [it.editor, rawDoc, blocksDoc, rawHtml, lang],
+  );
   const doc = prepared.builderDoc;
   const processedHtml = prepared.html;
   const notes = prepared.footnotes;
@@ -808,10 +1211,13 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const prevPost = toNeighbor(adjacentPosts?.prev);
   const nextPost = toNeighbor(adjacentPosts?.next);
 
-  const [crumbs, setCrumbs] = useState<BreadcrumbItem[]>([]);
-  useEffect(() => {
-    setCrumbs(buildBreadcrumbs(data.crumbs, lang, isPost ? title : undefined));
-  }, [data, lang, title, isPost]);
+  // Breadcrumbs are derived from loader data and must occupy their final
+  // space in SSR. An effect inserted them after hydration (43 px in the CMS
+  // visit trace) and also invalidated pending form Suspense boundaries.
+  const crumbs = useMemo<BreadcrumbItem[]>(
+    () => buildBreadcrumbs(data.crumbs, lang, isPost ? title : undefined),
+    [data.crumbs, lang, title, isPost],
+  );
 
   // JSON-LD is emitted in <head> via the route head() above, not in the body.
 
@@ -827,51 +1233,57 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
 
   const takeaways: readonly string[] = resolveTakeaways(it, lang);
 
-  const currentPostCtx: CurrentPostCtx = {
-    kind: isPost ? "post" : "page",
-    id: it.id,
-    slug: it.slug ?? undefined,
-    title_pl: it.title_pl ?? undefined,
-    title_en: it.title_en ?? undefined,
-    excerpt_pl: post?.excerpt_pl ?? undefined,
-    excerpt_en: post?.excerpt_en ?? undefined,
-    coverUrl: it.cover_image_url ?? undefined,
-    publishedAt: it.published_at ?? undefined,
-    readingTimeMin: readMinutes ?? undefined,
-    author: postAuthor
-      ? {
-          id: postAuthor.id,
-          name:
-            postAuthor.display_name ||
-            [postAuthor.first_name, postAuthor.last_name].filter(Boolean).join(" ") ||
-            undefined,
-          slug: postAuthor.slug ?? undefined,
-          avatarUrl: postAuthor.author_profile?.avatar_url ?? postAuthor.avatar_url ?? undefined,
-          jobTitle: postAuthor.author_profile?.job_title ?? undefined,
-          company: postAuthor.author_profile?.company ?? undefined,
-          bio_pl:
-            preferCanonicalBio(postAuthor.bio_pl, postAuthor.author_profile?.bio_pl) ?? undefined,
-          bio_en:
-            preferCanonicalBio(postAuthor.bio_en, postAuthor.author_profile?.bio_en) ?? undefined,
-          // contactEmail celowo pominięty: publiczna nakładka autora nie niesie
-          // już PII kontaktowego (widok author_profiles_public bez contact_email);
-          // wartość może nadal pochodzić z jawnego nadpisania w bloku admina.
-          websiteUrl: postAuthor.author_profile?.website_url ?? undefined,
-          xUrl: postAuthor.author_profile?.x_url ?? undefined,
-          linkedinUrl: postAuthor.author_profile?.linkedin_url ?? undefined,
-          facebookUrl: postAuthor.author_profile?.facebook_url ?? undefined,
-          instagramUrl: postAuthor.author_profile?.instagram_url ?? undefined,
-          spotifyUrl: postAuthor.author_profile?.spotify_url ?? undefined,
-          customSocials: postAuthor.author_profile?.custom_socials ?? undefined,
-        }
-      : null,
-    tags: postTags ?? [],
-    categories: postCategories.map((c) => ({
-      slug: c.slug,
-      name: lang === "en" ? c.name_en || c.name_pl : c.name_pl || c.name_en,
-    })),
-    breadcrumbs: crumbs.map((b) => ({ label: b.label, href: b.href ?? undefined })),
-  };
+  // Metadata and membership queries settle while widget chunks hydrate.
+  // Reuse the context unless its content changes, so those unrelated updates
+  // cannot invalidate a pending SSR form or dynamic-tag boundary.
+  const currentPostCtx = useMemo<CurrentPostCtx>(
+    () => ({
+      kind: isPost ? "post" : "page",
+      id: it.id,
+      slug: it.slug ?? undefined,
+      title_pl: it.title_pl ?? undefined,
+      title_en: it.title_en ?? undefined,
+      excerpt_pl: post?.excerpt_pl ?? undefined,
+      excerpt_en: post?.excerpt_en ?? undefined,
+      coverUrl: it.cover_image_url ?? undefined,
+      publishedAt: it.published_at ?? undefined,
+      readingTimeMin: readMinutes ?? undefined,
+      author: postAuthor
+        ? {
+            id: postAuthor.id,
+            name:
+              postAuthor.display_name ||
+              [postAuthor.first_name, postAuthor.last_name].filter(Boolean).join(" ") ||
+              undefined,
+            slug: postAuthor.slug ?? undefined,
+            avatarUrl: postAuthor.author_profile?.avatar_url ?? postAuthor.avatar_url ?? undefined,
+            jobTitle: postAuthor.author_profile?.job_title ?? undefined,
+            company: postAuthor.author_profile?.company ?? undefined,
+            bio_pl:
+              preferCanonicalBio(postAuthor.bio_pl, postAuthor.author_profile?.bio_pl) ?? undefined,
+            bio_en:
+              preferCanonicalBio(postAuthor.bio_en, postAuthor.author_profile?.bio_en) ?? undefined,
+            // contactEmail celowo pominięty: publiczna nakładka autora nie niesie
+            // już PII kontaktowego (widok author_profiles_public bez contact_email);
+            // wartość może nadal pochodzić z jawnego nadpisania w bloku admina.
+            websiteUrl: postAuthor.author_profile?.website_url ?? undefined,
+            xUrl: postAuthor.author_profile?.x_url ?? undefined,
+            linkedinUrl: postAuthor.author_profile?.linkedin_url ?? undefined,
+            facebookUrl: postAuthor.author_profile?.facebook_url ?? undefined,
+            instagramUrl: postAuthor.author_profile?.instagram_url ?? undefined,
+            spotifyUrl: postAuthor.author_profile?.spotify_url ?? undefined,
+            customSocials: postAuthor.author_profile?.custom_socials ?? undefined,
+          }
+        : null,
+      tags: postTags ?? [],
+      categories: postCategories.map((c) => ({
+        slug: c.slug,
+        name: lang === "en" ? c.name_en || c.name_pl : c.name_pl || c.name_en,
+      })),
+      breadcrumbs: crumbs.map((b) => ({ label: b.label, href: b.href ?? undefined })),
+    }),
+    [isPost, it, post, readMinutes, postAuthor, postTags, postCategories, crumbs, lang],
+  );
 
   // Baner odbiorcy - wylacznie gdy kod byl potrzebny (bez niego trafialby tu
   // paywall) i rozstrzygniety. Wariant bierzemy z POWODU zwroconego przez
@@ -1144,14 +1556,16 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                 <SponsoredDisclosure post={post} lang={lang} />
                 {contentBlock}
                 {relatedCfg.enabled && relatedCfg.position === "after_paragraph" && (
-                  <RelatedPostsAfterParagraph
-                    containerRef={articleRef}
-                    afterParagraph={relatedCfg.after_paragraph}
-                    scanKey={`${it.id}-${lang}`}
-                    postId={post.id}
-                    lang={lang}
-                    override={relatedOverride}
-                  />
+                  <Suspense fallback={null}>
+                    <RelatedPostsAfterParagraph
+                      containerRef={articleRef}
+                      afterParagraph={relatedCfg.after_paragraph}
+                      scanKey={`${it.id}-${lang}`}
+                      postId={post.id}
+                      lang={lang}
+                      override={relatedOverride}
+                    />
+                  </Suspense>
                 )}
                 {allowAd("mid_post") && (
                   <MidPostAds
@@ -1173,6 +1587,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                     lang={lang}
                     tags={postTags}
                     adContent={adContent}
+                    relatedOverride={relatedOverride}
                     suppressToc={bodyTocActive}
                     suppressAds={!allowAd("sidebar")}
                     layoutId={
@@ -1286,7 +1701,18 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                 )}
                 {relatedCfg.enabled && relatedCfg.position === "end" && (
                   <div className="no-print">
-                    <RelatedPosts postId={post.id} lang={lang} override={relatedOverride} />
+                    <Suspense fallback={null}>
+                      <RelatedPosts postId={post.id} lang={lang} override={relatedOverride} />
+                    </Suspense>
+                  </div>
+                )}
+                {postCategories[0] && (
+                  <div className="no-print my-8">
+                    <PostCategoryArchive
+                      category={postCategories[0]}
+                      currentPostId={post.id}
+                      lang={lang}
+                    />
                   </div>
                 )}
                 {allowAd("bottom_of_post") && (
@@ -1300,7 +1726,9 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                 )}
                 {merged.show_bottom_newsletter && (
                   <div className="no-print">
-                    <NewsletterForm lang={lang} source={`post:${post.slug}`} />
+                    <Suspense fallback={null}>
+                      <NewsletterForm lang={lang} source={`post:${post.slug}`} />
+                    </Suspense>
                   </div>
                 )}
                 <div className="no-print">

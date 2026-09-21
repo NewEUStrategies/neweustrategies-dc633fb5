@@ -88,6 +88,8 @@ export const WIDGET_TYPES = [
   "team-member",
   "author-profile-card",
   "travel-route-card",
+  "cover-overlay-card",
+  "promo-card",
   "speakers",
   "pricing",
   "interactive-circle",
@@ -125,6 +127,7 @@ export const WIDGET_TYPES = [
   // Kluby dyskusyjne (spec §5.5)
   "club-card",
   "club-threads",
+  "club-hub",
   // Web Stories
   "web-stories-carousel",
   // Auth forms

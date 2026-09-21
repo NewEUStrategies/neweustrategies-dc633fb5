@@ -10,7 +10,10 @@ const h = vi.hoisted(() => ({
   authCb: null as null | ((event: string, session: unknown) => void),
   unsub: vi.fn(),
   getSessionResult: { data: { session: null as unknown } },
+  /** Podstawiona obietnica `getSession()` - dla scenariuszy „wisi" i „odrzuca". */
+  getSessionPromise: null as Promise<{ data: { session: unknown } }> | null,
   signOutMock: vi.fn().mockResolvedValue({ error: null }),
+  rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
   rolesRows: [] as { role: string }[],
   profileRow: null as { tenant_id: string } | null,
   rolesPromise: null as Promise<{ data: { role: string }[] }> | null,
@@ -25,13 +28,14 @@ const h = vi.hoisted(() => ({
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
+    rpc: h.rpc,
     auth: {
       onAuthStateChange: (cb: (event: string, session: unknown) => void) => {
         if (h.throwOnSubscribe) throw new Error("subscribe unavailable");
         h.authCb = cb;
         return { data: { subscription: { unsubscribe: h.unsub } } };
       },
-      getSession: () => Promise.resolve(h.getSessionResult),
+      getSession: () => h.getSessionPromise ?? Promise.resolve(h.getSessionResult),
       signOut: h.signOutMock,
     },
     from: (table: string) => {
@@ -76,7 +80,16 @@ vi.mock("@/lib/useSiteSetting", () => ({
   }),
 }));
 
-import { AuthProvider, useAuth, useRequiredTenant } from "@/hooks/useAuth";
+import {
+  AuthProvider,
+  ROLE_SETTLE_TIMEOUT_MS,
+  SESSION_SETTLE_TIMEOUT_MS,
+  useAuth,
+  useRequiredTenant,
+} from "@/hooks/useAuth";
+
+/** Klucz, pod którym klient Supabase trzyma sesję dla `placeholder.supabase.co`. */
+const STORED_SESSION_KEY = "sb-placeholder-auth-token";
 
 function makeSession(uid: string, accessToken = "tok") {
   return { user: { id: uid }, access_token: accessToken };
@@ -145,7 +158,9 @@ beforeEach(() => {
   h.authCb = null;
   h.unsub.mockReset();
   h.getSessionResult = { data: { session: null } };
+  h.getSessionPromise = null;
   h.signOutMock.mockReset().mockResolvedValue({ error: null });
+  h.rpc.mockReset().mockResolvedValue({ data: null, error: null });
   h.rolesRows = [];
   h.profileRow = null;
   h.rolesPromise = null;
@@ -181,6 +196,7 @@ describe("AuthProvider - montaż i sesja startowa", () => {
     expect(screen.getByTestId("uid")).toHaveTextContent("anon");
     expect(screen.getByTestId("roles")).toHaveTextContent("");
     expect(h.fromCalls).toEqual([]);
+    expect(h.rpc).not.toHaveBeenCalled();
   });
 
   it("INITIAL_SESSION + zgodne getSession(): jedno wczytanie kontekstu (dedupe)", async () => {
@@ -188,9 +204,12 @@ describe("AuthProvider - montaż i sesja startowa", () => {
     h.getSessionResult = { data: { session } };
     h.rolesRows = [{ role: "editor" }];
     h.profileRow = { tenant_id: "tenant-1" };
+    const invitation = createDeferred<{ data: null; error: null }>();
+    h.rpc.mockReturnValue(invitation.promise);
 
     renderProbe();
     act(() => {
+      h.authCb!("INITIAL_SESSION", session);
       h.authCb!("INITIAL_SESSION", session);
     });
 
@@ -198,6 +217,10 @@ describe("AuthProvider - montaż i sesja startowa", () => {
     expect(screen.getByTestId("roles")).toHaveTextContent("editor");
     expect(h.fromCalls.filter((t) => t === "user_roles")).toHaveLength(1);
     expect(h.fromCalls.filter((t) => t === "profiles")).toHaveLength(1);
+    // Invitation bookkeeping must not delay the usable auth context, and a
+    // repeated initial session must not make a second request.
+    expect(h.rpc).toHaveBeenCalledExactlyOnceWith("accept_my_user_invitation");
+    invitation.resolve({ data: null, error: null });
   });
 });
 
@@ -457,5 +480,186 @@ describe("useRequiredTenant()", () => {
     });
 
     await waitFor(() => expect(screen.getByTestId("tenant")).toHaveTextContent("tenant-42"));
+  });
+});
+
+it("keeps the signed-in context when invitation acceptance returns an error", async () => {
+  const session = makeSession("u1");
+  h.getSessionResult = { data: { session } };
+  h.rpc.mockResolvedValue({ data: null, error: { message: "temporarily unavailable" } });
+  const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  try {
+    renderProbe();
+    act(() => h.authCb!("INITIAL_SESSION", session));
+    await waitFor(() =>
+      expect(warning).toHaveBeenCalledWith(
+        "[auth] invitation acceptance sync failed",
+        "temporarily unavailable",
+      ),
+    );
+    expect(screen.getByTestId("uid")).toHaveTextContent("u1");
+    expect(screen.getByTestId("loading")).toHaveTextContent("false");
+  } finally {
+    warning.mockRestore();
+  }
+});
+
+// BRAMKA „BRAK SESJI" vs „NIE WIEMY".
+//
+// Powierzchnie chrome-only (checkout, profil, wiadomości, sieć kontaktów)
+// renderują CTA logowania dopiero, gdy `loading` zejdzie - więc każda droga,
+// na której `loading` może nie zejść NIGDY, jest tam wiecznym spinnerem.
+// Te przypadki pilnują obu stron kontraktu: gość dostaje odpowiedź w
+// ograniczonym czasie, a zalogowany NIE zostaje wylogowany przez awarię sieci.
+describe("AuthProvider - rozstrzygnięcie gościa przy martwym backendzie", () => {
+  it("pusty magazyn + wiszący getSession(): loading schodzi bez czekania na sieć", async () => {
+    // Tak wygląda backend, który nie odpowiada: obietnica nie rozstrzyga się
+    // nigdy. Pusty magazyn jest jednak odpowiedzią samą w sobie.
+    h.getSessionPromise = new Promise(() => {});
+    renderProbe();
+    await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"));
+    expect(screen.getByTestId("uid")).toHaveTextContent("anon");
+    expect(h.signOutMock).not.toHaveBeenCalled();
+  });
+
+  it("obcy klucz w magazynie nie udaje sesji Supabase", async () => {
+    // Sonda magazynu rozpoznaje WYŁĄCZNIE klucze klienta Supabase
+    // (`sb-<projekt>-auth-token`) - inaczej pierwszy lepszy zapis w
+    // `localStorage` kazałby czekać gościowi na termin.
+    window.localStorage.setItem("theme", "dark");
+    h.getSessionPromise = new Promise(() => {});
+    try {
+      renderProbe();
+      await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"));
+      expect(screen.getByTestId("uid")).toHaveTextContent("anon");
+    } finally {
+      window.localStorage.removeItem("theme");
+    }
+  });
+
+  it("odrzucone getSession(): loading schodzi, magazyn i sesja nietknięte", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    window.localStorage.setItem(STORED_SESSION_KEY, JSON.stringify({ access_token: "stary" }));
+    const rejection = Promise.reject(new Error("net down"));
+    rejection.catch(() => {});
+    h.getSessionPromise = rejection as Promise<{ data: { session: unknown } }>;
+    try {
+      renderProbe();
+      await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"));
+      expect(screen.getByTestId("uid")).toHaveTextContent("anon");
+      // ODMOWA ODCZYTU TO NIE WYLOGOWANIE.
+      expect(window.localStorage.getItem(STORED_SESSION_KEY)).not.toBeNull();
+      expect(h.signOutMock).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(
+        "[auth] nie udało się odczytać sesji - traktujemy jak gościa",
+        expect.any(Error),
+      );
+    } finally {
+      window.localStorage.removeItem(STORED_SESSION_KEY);
+    }
+  });
+
+  it("sesja w magazynie + wiszący getSession(): po terminie gość, bez wylogowania", async () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    window.localStorage.setItem(STORED_SESSION_KEY, JSON.stringify({ access_token: "stary" }));
+    h.getSessionPromise = new Promise(() => {});
+    try {
+      renderProbe();
+      // Zanim termin upłynie, czekanie jest poprawne - token MOŻE być ważny.
+      expect(screen.getByTestId("loading")).toHaveTextContent("true");
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SESSION_SETTLE_TIMEOUT_MS);
+      });
+
+      expect(screen.getByTestId("loading")).toHaveTextContent("false");
+      expect(screen.getByTestId("uid")).toHaveTextContent("anon");
+      expect(window.localStorage.getItem(STORED_SESSION_KEY)).not.toBeNull();
+      expect(h.signOutMock).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalled();
+    } finally {
+      window.localStorage.removeItem(STORED_SESSION_KEY);
+      vi.useRealTimers();
+    }
+  });
+
+  it("spóźniona sesja po terminie nadal loguje - termin znaczy nie wiemy", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    window.localStorage.setItem(STORED_SESSION_KEY, JSON.stringify({ access_token: "stary" }));
+    const late = createDeferred<{ data: { session: unknown } }>();
+    h.getSessionPromise = late.promise;
+    try {
+      renderProbe();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SESSION_SETTLE_TIMEOUT_MS);
+      });
+      expect(screen.getByTestId("uid")).toHaveTextContent("anon");
+
+      await act(async () => {
+        late.resolve({ data: { session: makeSession("u-spozniony") } });
+        await vi.advanceTimersByTimeAsync(1);
+      });
+
+      expect(screen.getByTestId("uid")).toHaveTextContent("u-spozniony");
+    } finally {
+      window.localStorage.removeItem(STORED_SESSION_KEY);
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("AuthProvider - termin na role i tenanta", () => {
+  it("wiszące user_roles/profiles: po terminie loading schodzi, sesja zostaje", async () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    h.rolesPromise = new Promise(() => {});
+    h.profilePromise = new Promise(() => {});
+    try {
+      renderProbe();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      act(() => {
+        h.authCb!("SIGNED_IN", makeSession("u-role-hang"));
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(screen.getByTestId("loading")).toHaveTextContent("true");
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(ROLE_SETTLE_TIMEOUT_MS);
+      });
+
+      expect(screen.getByTestId("loading")).toHaveTextContent("false");
+      expect(screen.getByTestId("roles")).toHaveTextContent("");
+      // Sesja zostaje - wiszące role to nie jest utrata tożsamości.
+      expect(screen.getByTestId("uid")).toHaveTextContent("u-role-hang");
+      expect(warn).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("odrzucone user_roles/profiles są przechwycone, a nie puszczone w unhandledrejection", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const rolesRejection = Promise.reject(new Error("net down"));
+    rolesRejection.catch(() => {});
+    h.rolesPromise = rolesRejection as Promise<{ data: { role: string }[] }>;
+
+    renderProbe();
+    await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"));
+    await act(async () => {
+      h.authCb!("SIGNED_IN", makeSession("u-role-err"));
+    });
+
+    await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"));
+    expect(warn).toHaveBeenCalledWith(
+      "[auth] nie udało się wczytać ról i tenanta",
+      expect.any(Error),
+    );
+    expect(screen.getByTestId("uid")).toHaveTextContent("u-role-err");
   });
 });

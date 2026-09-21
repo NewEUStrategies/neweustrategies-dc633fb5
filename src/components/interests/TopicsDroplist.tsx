@@ -251,6 +251,7 @@ export function TopicsDroplist({
 
           <div ref={dropRef} className="relative">
             <button
+              data-droplist
               ref={triggerRef}
               type="button"
               onClick={() => setDropOpen((v) => !v)}
@@ -284,6 +285,7 @@ export function TopicsDroplist({
                 // który zawiera SAME grupy opcji.
                 <div
                   ref={popupRef}
+                  data-droplist
                   data-testid="topics-popup"
                   style={popupStyle}
                   className="flex flex-col rounded-lg border border-border bg-popover shadow-2xl overflow-hidden"

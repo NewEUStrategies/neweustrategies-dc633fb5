@@ -3,6 +3,7 @@ import { createFileRoute, Link, Outlet, redirect, useRouterState } from "@tansta
 import { useTranslation } from "react-i18next";
 import { DesignSubNav } from "@/components/admin/DesignSubNav";
 import { ensureI18n as ensureArchiveLayoutI18n } from "@/lib/i18n-archive-layout";
+import { ensureI18n as ensureFontSizesI18n } from "@/lib/i18n-admin-font-sizes";
 export const Route = createFileRoute("/admin/appearance")({
   component: AppearanceLayout,
   beforeLoad: ({ location }) => {
@@ -15,6 +16,7 @@ export const Route = createFileRoute("/admin/appearance")({
 function AppearanceLayout() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureArchiveLayoutI18n();
+  ensureFontSizesI18n();
   const { t } = useTranslation();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const tabs = [
@@ -25,6 +27,7 @@ function AppearanceLayout() {
     { to: "/admin/appearance/category-archive", label: t("archiveLayout.categoryTab") },
     { to: "/admin/appearance/tag-archive", label: t("archiveLayout.tagTab") },
     { to: "/admin/appearance/global-colors", label: t("admin.appearance.globalColors") },
+    { to: "/admin/appearance/font-sizes", label: t("fontScale.title") },
   ];
   return (
     <div className="space-y-4">

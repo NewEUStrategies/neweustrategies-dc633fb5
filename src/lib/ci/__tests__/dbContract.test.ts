@@ -1,12 +1,25 @@
 import { describe, expect, it } from "vitest";
-import {
-  classifyProbe,
-  contractFailed,
-  extractExpectedContract,
-  renderContractReport,
-} from "../dbContract";
+import { contractFailed, extractExpectedContract, renderContractReport } from "../dbContract";
 
 describe("extractExpectedContract", () => {
+  it("recreates an object dropped earlier in the same migration", () => {
+    const result = extractExpectedContract([
+      {
+        file: "001.sql",
+        sql: "CREATE TABLE public.items(id int); DROP TABLE public.items; CREATE TABLE public.items(id bigint);",
+      },
+    ]);
+    expect(result.tables).toEqual([{ name: "items", kind: "table", file: "001.sql" }]);
+  });
+  it("ignores managed-schema drops and renames, including quoted empty names", () => {
+    const result = extractExpectedContract([
+      {
+        file: "001.sql",
+        sql: 'CREATE TABLE public.visible(id int); CREATE TABLE public.""(id int); DROP TABLE auth.visible; ALTER TABLE auth.users RENAME TO people; ALTER TABLE public.visible RENAME TO "";',
+      },
+    ]);
+    expect(result.tables).toEqual([]);
+  });
   it("zbiera tabele, widoki i funkcje ze schematu public", () => {
     const contract = extractExpectedContract([
       {
@@ -54,42 +67,21 @@ describe("extractExpectedContract", () => {
   });
 });
 
-describe("classifyProbe", () => {
-  it("PGRST205 oznacza brak tabeli/widoku", () => {
-    expect(classifyProbe(404, "PGRST205")).toBe("missing");
-  });
-
-  it("PGRST202 z podpowiedzią innej funkcji = brak RPC", () => {
-    expect(
-      classifyProbe(
-        404,
-        "PGRST202",
-        "Perhaps you meant to call the function public.delete_my_meeting_slot",
-      ),
-    ).toBe("missing");
-  });
-
-  it("PGRST202 bez podpowiedzi = funkcja istnieje, tylko inna sygnatura", () => {
-    // Sondujemy bez argumentów (żeby nic nie wywołać), więc funkcje z parametrami
-    // zawsze zwracają PGRST202 - z pustym hintem, bo nazwa pasuje.
-    expect(classifyProbe(404, "PGRST202", null)).toBe("present");
-    expect(classifyProbe(404, "PGRST202", "")).toBe("present");
-  });
-
-  it("brak uprawnień oznacza, że obiekt istnieje", () => {
-    expect(classifyProbe(401, "42501")).toBe("present");
-    expect(classifyProbe(403, null)).toBe("present");
-    expect(classifyProbe(400, "PGRST203")).toBe("present");
-  });
-
-  it("2xx to obecność, gołe 404 nie rozstrzyga", () => {
-    expect(classifyProbe(200, null)).toBe("present");
-    expect(classifyProbe(404, null)).toBe("inconclusive");
-  });
-});
-
 describe("raport kontraktu", () => {
-  it("czerwony tylko przy brakujących obiektach", () => {
+  it("distinguishes an inconclusive probe from a proven missing object", () => {
+    const report = {
+      checked: 1,
+      missing: [],
+      inconclusive: [{ kind: "view" as const, name: "public_feed", file: "001.sql" }],
+    };
+    expect(contractFailed(report)).toBe(true);
+    expect(renderContractReport(report)).toContain("view public_feed");
+    expect(renderContractReport(report)).toContain("Nierozstrzygnięte");
+    expect(renderContractReport({ checked: 0, missing: [], inconclusive: [] })).not.toContain(
+      "Brakujące obiekty",
+    );
+  });
+  it("blocks missing objects and an empty contract", () => {
     expect(contractFailed({ checked: 3, missing: [], inconclusive: [] })).toBe(false);
     const failing = {
       checked: 3,
@@ -97,6 +89,7 @@ describe("raport kontraktu", () => {
       inconclusive: [],
     };
     expect(contractFailed(failing)).toBe(true);
+    expect(contractFailed({ checked: 0, missing: [], inconclusive: [] })).toBe(true);
     expect(renderContractReport(failing)).toContain("table posts");
   });
 });

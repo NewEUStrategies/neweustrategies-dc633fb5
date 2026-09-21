@@ -29,6 +29,9 @@ type WidgetMediaFrameStyle = CSSProperties & { "--widget-media-fit"?: CSSPropert
 /** Styl obrazka + zmienna z ustawioną wysokością (czyta ją zwijanie headera). */
 type WidgetImageStyle = CSSProperties & { "--img-h"?: string };
 
+/** Zachowawczy limit szerokości logo, gdy panel nie ustawił żadnego rozmiaru. */
+const LOGO_FALLBACK_MAX_PX = 200;
+
 function useSiteLogo(variant: SiteLogoVariant = "main"): { light: string; dark: string } {
   const { data } = useQuery(siteSettingsQueryOptions);
   const cfg = resolveSetting<SiteLogoCfg>(data, "theme_options", {});
@@ -68,9 +71,20 @@ export function ImageWidget({
   const variant = getStr(c, "variant") || "default";
   const fit = (getStr(c, "objectFit") || "cover") as CSSProperties["objectFit"];
   const ratio = getStr(c, "ratio");
-  const widthPx = typeof c.widthPx === "number" ? c.widthPx : Number(c.widthPx) || 0;
-  const maxWidthPx = typeof c.maxWidthPx === "number" ? c.maxWidthPx : Number(c.maxWidthPx) || 0;
-  const heightPx = typeof c.heightPx === "number" ? c.heightPx : Number(c.heightPx) || 0;
+  // Rozmiary bywają zapisane dwiema drogami: liczbowo (uchwyt zmiany rozmiaru
+  // na kanwie: `widthPx`/`maxWidthPx`/`heightPx`) albo jako długość CSS w
+  // treści (`width`/`maxWidth`/`height`, tak siały domyślne chrome: logo
+  // stopki "180px"). Druga droga była wcześniej IGNOROWANA, więc logo dostawało
+  // `width: 100%` i rozlewało się na całą kolumnę stopki - wbrew ustawieniu.
+  const pxLen = (value: unknown): number => {
+    if (typeof value === "number") return Number.isFinite(value) && value > 0 ? value : 0;
+    if (typeof value !== "string") return 0;
+    const m = /^\s*(\d+(?:\.\d+)?)\s*px\s*$/i.exec(value) ?? /^\s*(\d+(?:\.\d+)?)\s*$/.exec(value);
+    return m ? Number(m[1]) : 0;
+  };
+  const widthPx = pxLen(c.widthPx) || pxLen(c.width);
+  const maxWidthPx = pxLen(c.maxWidthPx) || pxLen(c.maxWidth);
+  const heightPx = pxLen(c.heightPx) || pxLen(c.height);
   const align = (getStr(c, "align") || "center") as "left" | "center" | "right";
 
   // Fallback: use site logo from theme_options when no src is configured AND
@@ -109,22 +123,29 @@ export function ImageWidget({
   const caps: number[] = [];
   if (widthPx > 0) caps.push(widthPx);
   if (maxWidthPx > 0) caps.push(maxWidthPx);
+  // Logo bez ŻADNEGO limitu rozmiaru nie ma rozlewać się na całą kolumnę
+  // (stopka: kolumna 6/12 to ponad 500 px). Domyślny limit jest zachowawczy i
+  // ustępuje każdej wartości ustawionej w panelu.
+  if (caps.length === 0 && isLogo && heightPx <= 0) caps.push(LOGO_FALLBACK_MAX_PX);
   const effectiveMaxPx = caps.length ? Math.min(...caps) : 0;
   const ratioCss = ratio && ratio !== "auto" ? ratio.replace("/", " / ") : undefined;
+  // Logo bez jawnego dopasowania rysujemy w całości (`contain`) - domyślne
+  // `cover` przycinało znak firmowy do ramki.
+  const mediaFit: CSSProperties["objectFit"] = isLogo && !getStr(c, "objectFit") ? "contain" : fit;
   const wrapperStyle: WidgetMediaFrameStyle = {
     width: effectiveMaxPx > 0 ? `min(100%, ${effectiveMaxPx}px)` : "100%",
     maxWidth: "100%",
     ...(ratioCss ? { aspectRatio: ratioCss } : null),
-    ...(ratioCss ? { "--widget-media-fit": fit } : null),
+    ...(ratioCss ? { "--widget-media-fit": mediaFit } : null),
   };
   // Bez ramki (ratio=auto) obrazek rysuje się bezpośrednio - wcześniej dostawał
   // twarde `width: 100%`, więc "Szerokość (px)"/"Maks. szerokość (px)" nie miały
   // ŻADNEGO wpływu (logo w headerze rozlewało się na całą kolumnę). Teraz oba
   // limity oraz nowa "Wysokość (px)" trafiają na element realnie.
   const imgStyle: WidgetImageStyle = ratioCss
-    ? { objectFit: fit, width: "100%", height: "100%" }
+    ? { objectFit: mediaFit, width: "100%", height: "100%" }
     : {
-        objectFit: fit,
+        objectFit: mediaFit,
         width: heightPx > 0 && widthPx <= 0 ? "auto" : widthPx > 0 ? `${widthPx}px` : "100%",
         maxWidth: effectiveMaxPx > 0 ? `min(100%, ${effectiveMaxPx}px)` : "100%",
         height: heightPx > 0 ? `${heightPx}px` : "auto",

@@ -31,6 +31,7 @@
 // kontekst najemcy, `fetch`. i18n PRAWDZIWE. Żadnej atrapy TipTapa,
 // `InlineHtmlEditable` ani `@/lib/blocks/*` - to warstwy pod testem.
 import { describe, expect, it, vi } from "vitest";
+import { useState } from "react";
 import { fireEvent } from "@testing-library/react";
 
 import { renderEditor } from "./blockEditMatrix.shared";
@@ -223,6 +224,39 @@ describe("akapit - menu ukośnika", () => {
     return { ...view, onTransform, pole: el };
   }
 
+  /**
+   * Wariant z PRZEŁĄCZNIKIEM aktywności. `isActive` zmienia się w panelu przy
+   * kliknięciu w inny blok, a tu nie ma kanwy, która by to zrobiła - własny
+   * stan wokół edytora odtwarza dokładnie tę zmianę propsu.
+   */
+  function zamontujAkapitPrzelaczalny(html: string) {
+    const onTransform = vi.fn();
+    function Opakowanie({ block }: { block: Block }) {
+      const [aktywny, setAktywny] = useState(true);
+      return (
+        <>
+          <button type="button" data-rola="dezaktywuj" onClick={() => setAktywny(false)}>
+            poza blokiem
+          </button>
+          <ParagraphBlock
+            block={block}
+            isActive={aktywny}
+            onChange={() => {}}
+            onTransform={onTransform}
+          />
+        </>
+      );
+    }
+    const view = renderEditor((props) => <Opakowanie block={props.block} />, {
+      id: "p1",
+      type: "paragraph",
+      data: { html },
+    });
+    const el = view.container.querySelector('[contenteditable="true"]');
+    if (!(el instanceof HTMLElement)) throw new Error("brak pola edycji akapitu");
+    return { ...view, onTransform, pole: el };
+  }
+
   it("ukośnik na PUSTYM akapicie otwiera menu z listą typów bloków", () => {
     const { pole, container } = zamontujAkapit("");
     fireEvent.keyDown(pole, { key: "/" });
@@ -281,6 +315,101 @@ describe("akapit - menu ukośnika", () => {
     fireEvent.keyDown(pole, { key: "/" });
     fireEvent.keyDown(pole, { key: "Enter" });
     expect(onTransform).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ZAPYTANIE po ukośniku wpisuje się DO TREŚCI akapitu, a menu czyta je
+   * z `onUpdate` edytora. `fireEvent.keyDown` nie wpisuje znaków (happy-dom nie
+   * ma `beforeinput` ProseMirrora), więc tekst wprowadzamy jedyną drogą, która
+   * realnie przechodzi przez `onUpdate` - wklejeniem. To ta sama ścieżka danych,
+   * którą idzie pisanie: `insertContent` -> `onUpdate` -> `parseSlashQuery`.
+   */
+  function wpiszZapytanie(pole: HTMLElement, tekst: string): void {
+    const clipboardData = {
+      getData: (typ: string) => (typ === "text/html" ? `<p>${tekst}</p>` : tekst),
+      files: [],
+      types: ["text/html", "text/plain"],
+      items: [],
+    };
+    fireEvent.paste(pole, { clipboardData });
+  }
+
+  function pozycjeMenu(container: HTMLElement): HTMLElement[] {
+    return Array.from(container.querySelectorAll<HTMLElement>("[role='option']"));
+  }
+
+  it("dalszy tekst po ukośniku FILTRUJE listę do pasujących typów", () => {
+    // Sedno menu ukośnika: „/nag" ma zawężać listę po ETYKIECIE ze słownika,
+    // a nie po samej nazwie technicznej typu. Bez tego redaktor pisze po
+    // polsku, a lista milczy.
+    const { pole, container } = zamontujAkapit("");
+    fireEvent.keyDown(pole, { key: "/" });
+    const wszystkie = pozycjeMenu(container).length;
+    expect(wszystkie).toBeGreaterThan(1);
+    wpiszZapytanie(pole, "/nag");
+    const zawezone = pozycjeMenu(container);
+    expect(zawezone.length).toBeGreaterThan(0);
+    expect(zawezone.length).toBeLessThan(wszystkie);
+    expect(zawezone.map((b) => b.textContent ?? "").join(" ")).toMatch(/nag/i);
+  });
+
+  it("ZAPYTANIE BEZ DOPASOWAŃ: Enter NIE przekształca bloku w nic", () => {
+    // Gałąź odmowy menu. Gdy lista jest pusta, Enter nie ma czego wybrać -
+    // wzięcie „pierwszej pozycji" byłoby zamianą bloku na typ, którego
+    // redaktor nie zobaczył.
+    const { pole, container, onTransform } = zamontujAkapit("");
+    fireEvent.keyDown(pole, { key: "/" });
+    wpiszZapytanie(pole, "/qxzvnieistnieje");
+    expect(pozycjeMenu(container)).toHaveLength(0);
+    fireEvent.keyDown(pole, { key: "Enter" });
+    expect(onTransform).not.toHaveBeenCalled();
+  });
+
+  it("SPACJA w zapytaniu zamyka menu - redaktor pisze zwykłą treść", () => {
+    // „/nag beta" to już zdanie, nie polecenie. Menu musi zniknąć, inaczej
+    // przechwytuje Enter i redaktor nie może zrobić nowego akapitu.
+    const { pole, container, onTransform } = zamontujAkapit("");
+    fireEvent.keyDown(pole, { key: "/" });
+    wpiszZapytanie(pole, "/nag beta");
+    expect(container.querySelector("[role='listbox']")).toBeNull();
+    fireEvent.keyDown(pole, { key: "Enter" });
+    expect(onTransform).not.toHaveBeenCalled();
+  });
+
+  it("KLIKNIĘCIE pozycji menu przekształca blok i zamyka menu", () => {
+    // Wybór myszą to osobna droga niż Enter - i to ona jest domyślna dla
+    // redaktora, który dopiero poznaje paletę.
+    const { pole, container, onTransform } = zamontujAkapit("");
+    fireEvent.keyDown(pole, { key: "/" });
+    const pozycje = pozycjeMenu(container);
+    expect(pozycje.length).toBeGreaterThan(1);
+    fireEvent.click(pozycje[1]);
+    expect(onTransform).toHaveBeenCalledTimes(1);
+    const bloki = onTransform.mock.calls[0][0] as Block[];
+    expect(bloki).toHaveLength(1);
+    expect(bloki[0].id).toBeTruthy();
+    expect(container.querySelector("[role='listbox']")).toBeNull();
+  });
+
+  it("NAJECHANIE na pozycję przestawia wybór, a Enter bierze WSKAZANĄ", () => {
+    const { pole, container, onTransform } = zamontujAkapit("");
+    fireEvent.keyDown(pole, { key: "/" });
+    const pozycje = pozycjeMenu(container);
+    fireEvent.mouseEnter(pozycje[2]);
+    expect(pozycje[2].getAttribute("aria-selected")).toBe("true");
+    fireEvent.keyDown(pole, { key: "Enter" });
+    expect(onTransform).toHaveBeenCalledTimes(1);
+  });
+
+  it("DEZAKTYWACJA bloku (klik gdzie indziej) zamyka menu ukośnika", () => {
+    // Menu żyje w stanie akapitu, więc bez tego sprzątania zostawałoby
+    // otwarte nad blokiem, którego redaktor już nie edytuje - i dalej
+    // przechwytywałoby klawisze.
+    const { pole, container } = zamontujAkapitPrzelaczalny("");
+    fireEvent.keyDown(pole, { key: "/" });
+    expect(container.querySelector("[role='listbox']")).not.toBeNull();
+    fireEvent.click(container.querySelector("[data-rola='dezaktywuj']") as HTMLElement);
+    expect(container.querySelector("[role='listbox']")).toBeNull();
   });
 });
 

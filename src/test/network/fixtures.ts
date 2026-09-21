@@ -44,12 +44,18 @@ export const PEER_NAME = "Anna Nowak";
  * zaprosić, poza zasięgiem sieci). `degree`/`bridge` mają domyślne wartości
  * „nic nie twierdzimy", żeby test, który ich nie dotyczy, nie musiał ich
  * wypisywać - a test stopnia oddalenia ustawiał je jawnie.
+ *
+ * `mutualCount` i `mutualVisibleCount` są OSOBNYMI polami i domyślnie oba są
+ * zerem. Test, który dotyczy podpowiedzi „N wspólnych kontaktów" albo CTA
+ * wprowadzenia, MUSI ustawić `mutualVisibleCount` - `mutualCount` jest faktem
+ * grafu i interfejs go nie pokazuje (migracja 20260913172000).
  */
 export function connectionState(overrides: Partial<ConnectionState> = {}): ConnectionState {
   return {
     status: "none",
     connectionId: null,
     mutualCount: 0,
+    mutualVisibleCount: 0,
     canInvite: true,
     degree: 0,
     bridge: null,

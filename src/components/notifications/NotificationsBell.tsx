@@ -3,10 +3,9 @@
 // - Realtime updates (channel scoped per user_id)
 // - Multi-tenant safe: reads go through RLS (auth.uid() + current_tenant_id)
 // - i18n PL/EN, respects prefers-reduced-motion, uses semantic tokens only
-import { useMemo, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
+import { useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useRouter } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 // Nazwane importy + DynamicIcon zamiast `import * as lucide-react`: dzwonek
 // renderuje się w chrome każdej strony, a namespace-import z dynamicznym
 // lookupem wciągał CAŁĄ bibliotekę ikon (~640 KB raw) do bundla wejściowego.
@@ -40,13 +39,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { UnreadBadge } from "@/components/atoms/UnreadBadge";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import {
   useNotificationsInfinite,
   useNotificationsRealtime,
   useNotificationPreferences,
   useNotificationPreferencesRealtime,
-  useUnreadCount,
+  useUnreadCountExcluding,
   useMarkAllNotificationsRead,
   useMarkNotificationsRead,
   useMarkNotificationUnread,
@@ -54,32 +52,14 @@ import {
   type NotificationRow,
 } from "@/lib/notifications/useNotifications";
 import { groupNotifications } from "@/lib/notifications/grouping";
-import { formatDateShort } from "@/lib/i18n/format";
-
-type Lang = "pl" | "en";
-
-function pickTitle(row: NotificationRow, lang: Lang): string {
-  if (lang === "en" && row.title_en) return row.title_en;
-  return row.title_pl;
-}
-function pickBody(row: NotificationRow, lang: Lang): string | null {
-  if (lang === "en") return row.body_en ?? row.body_pl ?? null;
-  return row.body_pl ?? row.body_en ?? null;
-}
-
-function relTime(iso: string, lang: Lang): string {
-  const rtf = new Intl.RelativeTimeFormat(lang === "en" ? "en-GB" : "pl-PL", {
-    numeric: "auto",
-  });
-  const then = new Date(iso).getTime();
-  const diff = (then - Date.now()) / 1000;
-  const abs = Math.abs(diff);
-  if (abs < 60) return rtf.format(Math.round(diff), "second");
-  if (abs < 3600) return rtf.format(Math.round(diff / 60), "minute");
-  if (abs < 86400) return rtf.format(Math.round(diff / 3600), "hour");
-  if (abs < 604800) return rtf.format(Math.round(diff / 86400), "day");
-  return formatDateShort(iso, lang);
-}
+import {
+  isInternalHref,
+  isPlainLeftClick,
+  notificationActorId,
+} from "@/lib/notifications/notificationLink";
+import { pickBody, pickTitle, relTime } from "@/lib/notifications/notificationText";
+import { useNotificationActorProfiles } from "@/lib/notifications/useActorProfiles";
+import type { AppLang } from "@/lib/i18n/localePath";
 
 // Ikona zapasowa per rodzaj (spójna z /profile/notifications), gdy producent
 // nie zapisał własnej. Ikony po nazwie z DB (kebab-case) renderuje DynamicIcon
@@ -113,39 +93,17 @@ const KIND_ICONS: Record<NotificationKind, React.ComponentType<{ className?: str
 const KIND_ICON_BY_NAME: Readonly<Record<string, React.ComponentType<{ className?: string }>>> =
   KIND_ICONS;
 
-// Internal hrefs render a real <a href> for semantics, but plain left-clicks
-// are hijacked and routed through router.navigate({ href }). Unlike
-// <Link to={href}> - which treats `to` as a pathname verbatim and never splits
-// out `?search`, 404-ing "/messages?c=<uuid>" - navigate({ href }) parses the
-// query string correctly, so search params survive SPA navigation. External
-// hrefs stay plain anchors with a full navigation (same rule as the center).
-function isInternalHref(href: string): boolean {
-  return href.startsWith("/") && !href.startsWith("//");
-}
+// Odnośnik wewnętrzny renderuje prawdziwe <a href> dla semantyki, ale
+// niemodyfikowany klik lewym przyciskiem przechwytujemy na
+// `router.navigate({ href })`. `<Link to={href}>` traktuje `to` jako czystą
+// ścieżkę i NIGDY nie odcina `?search`, przez co "/messages?c=<uuid>" kończyło
+// się 404; `navigate({ href })` parsuje query poprawnie. Predykaty
+// (`isInternalHref`, `isPlainLeftClick`, `notificationActorId`) mieszkają
+// w `@/lib/notifications/notificationLink` - jedna kopia dla dzwonka, skrzynki
+// i warstwy profili aktorów.
 
-// Unmodified left-click - the only case we hijack for SPA navigation.
-// Modified clicks (ctrl/cmd/shift/alt, middle button) keep native anchor
-// behaviour like open-in-new-tab; the real href makes that work.
-function isPlainLeftClick(e: ReactMouseEvent<HTMLAnchorElement>): boolean {
-  return (
-    !e.defaultPrevented && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey
-  );
-}
-
-function notificationActorId(href: string | null): string | null {
-  if (!href || !isInternalHref(href)) return null;
-  try {
-    return new URL(href, "https://local.invalid").searchParams.get("c");
-  } catch {
-    return null;
-  }
-}
-
-interface NotificationActorProfile {
-  connection_id: string;
-  avatar_url: string | null;
-  display_name: string;
-}
+/** Rodzaje obsługiwane przez ikonę czatu - dzwonek ich nie pokazuje. */
+const CHAT_KINDS: readonly NotificationKind[] = ["message"];
 
 export interface NotificationsBellProps {
   panelWidth?: number;
@@ -154,7 +112,7 @@ export interface NotificationsBellProps {
 export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) {
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
-  const lang: Lang = i18n.language === "en" ? "en" : "pl";
+  const lang: AppLang = i18n.language === "en" ? "en" : "pl";
   const [open, setOpen] = useState(false);
   const router = useRouter();
 
@@ -163,51 +121,23 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
   useNotificationPreferencesRealtime();
   // Współdzielony cache z NotificationsCenter (identyczny queryKey przy pustym
   // filtrze) - jedno zapytanie zasila dzwonek i skrzynkę po zalogowaniu.
-  const listQ = useNotificationsInfinite({});
-  const countQ = useUnreadCount();
+  // Powiadomienia o wiadomościach czatu NIE należą do dzwonka - ich miejscem
+  // jest ikona czatu (licznik + podgląd treści), więc odcinamy rodzaj
+  // `message` zarówno z listy, jak i z badge'a.
+  const listQ = useNotificationsInfinite({ excludeKinds: CHAT_KINDS });
+  const countQ = useUnreadCountExcluding(CHAT_KINDS);
+
   const prefsQ = useNotificationPreferences();
   const markAll = useMarkAllNotificationsRead();
   const markMany = useMarkNotificationsRead();
   const unreadOne = useMarkNotificationUnread();
 
   const items: NotificationRow[] = listQ.data?.pages[0] ?? [];
-  const actorIds = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          items
-            .map((item) => notificationActorId(item.href))
-            .filter((id): id is string => id !== null),
-        ),
-      ).sort(),
-    [items],
-  );
-  const actorProfilesQ = useQuery({
-    queryKey: ["notifications", "actor-profiles", actorIds],
-    enabled: !!user && actorIds.length > 0,
-    queryFn: async (): Promise<NotificationActorProfile[]> => {
-      const [connections, received, sent] = await Promise.all([
-        supabase.rpc("my_connections", { p_limit: 100, p_offset: 0, p_query: "" }),
-        supabase.rpc("my_connection_requests", { p_direction: "in", p_limit: 100, p_offset: 0 }),
-        supabase.rpc("my_connection_requests", { p_direction: "out", p_limit: 100, p_offset: 0 }),
-      ]);
-      const error = connections.error ?? received.error ?? sent.error;
-      if (error) throw error;
-      const relevantIds = new Set(actorIds);
-      return [...(connections.data ?? []), ...(received.data ?? []), ...(sent.data ?? [])]
-        .filter((profile) => relevantIds.has(profile.connection_id))
-        .map((profile) => ({
-          connection_id: profile.connection_id,
-          avatar_url: profile.avatar_url || null,
-          display_name: profile.display_name,
-        }));
-    },
-    staleTime: 5 * 60_000,
-  });
-  const actorProfiles = useMemo(
-    () => new Map((actorProfilesQ.data ?? []).map((profile) => [profile.connection_id, profile])),
-    [actorProfilesQ.data],
-  );
+  // Profile aktorów przez WSPÓLNY hook (`useActorProfiles`) - dzwonek i skrzynka
+  // budują ten sam klucz cache `["notifications","actor-profiles",<ids>]`, więc
+  // otwarcie obu powierzchni to jedno zapytanie, nie dwa. Wcześniej dzwonek miał
+  // własną, znakowo identyczną kopię tego zapytania.
+  const actorProfiles = useNotificationActorProfiles(items, !!user);
 
   if (!user) return null;
 

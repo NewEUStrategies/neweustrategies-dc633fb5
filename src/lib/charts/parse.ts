@@ -3,16 +3,23 @@
 // koercja, twarde klamry, zero any.
 
 import type { Json } from "@/lib/blocks/types";
+import { BAR_STYLES, type BarStyle } from "./palette";
+import { SMOOTHING_DEFAULT } from "./smooth";
 import {
   CHART_KINDS,
+  isChartKind,
+  isMapRegion,
+  MAX_COLOR_SLOT,
   MAX_SERIES,
   type ChartConfig,
+  type ChartMetric,
   type ChartKind,
   type ChartSeries,
   type DataMapConfig,
   type MapDatum,
   type MapRegion,
 } from "./types";
+import { slotForSeries } from "@/lib/charts/palette";
 
 export const CHART_HEIGHT_MIN = 160;
 export const CHART_HEIGHT_MAX = 640;
@@ -52,9 +59,9 @@ export function parseChartSeries(raw: Json | undefined, categoriesCount: number)
       name: String(o.name ?? ""),
       values,
       colorSlot:
-        slotRaw !== null && slotRaw >= 1 && slotRaw <= MAX_SERIES
+        slotRaw !== null && slotRaw >= 1 && slotRaw <= MAX_COLOR_SLOT
           ? Math.round(slotRaw)
-          : out.length + 1,
+          : slotForSeries(out.length),
     });
   }
   return out;
@@ -66,9 +73,19 @@ export function parseChartConfig(data: Record<string, Json>): ChartConfig {
     .map((c) => String(c ?? ""));
   const heightRaw = num(data.height);
   // `variant` (toolbar szybkiego przełączania w edytorze bloków) ma
-  // pierwszeństwo nad `kind`; edytor utrzymuje oba klucze spójnie.
-  const kindSource =
-    typeof data.variant === "string" && data.variant !== "" ? data.variant : data.kind;
+  // pierwszeństwo nad `kind`, ale WYŁĄCZNIE gdy jest znanym rodzajem wykresu.
+  //
+  // Wcześniej wygrywał każdy niepusty napis, a to jest defekt, bo `variant`
+  // NIE JEST kluczem tego bloku: to generyczne pole wariantu STYLU, którego
+  // inne rodzaje bloków używają na wartości w rodzaju "minimal". Blok wykresu
+  // z `kind: "donut"` i odziedziczonym `variant: "minimal"` szedł więc przez
+  // `parseChartKind("minimal")`, które degraduje nieznany zapis do słupków -
+  // i pierścień cicho zamieniał się w kolumny, choć autor wybrał go wprost.
+  //
+  // Warunek "znany rodzaj" naprawia to bez odbierania toolbarowi funkcji:
+  // gdy toolbar zapisze prawdziwy rodzaj, nadal wygrywa; gdy w polu siedzi
+  // cokolwiek innego, decyduje `kind`, czyli jawny wybór autora.
+  const kindSource = isChartKind(data.variant) ? data.variant : data.kind;
   return {
     kind: parseChartKind(kindSource),
     title: String(data.title ?? ""),
@@ -86,7 +103,119 @@ export function parseChartConfig(data: Record<string, Json>): ChartConfig {
     showValues: data.showValues === true,
     animate: data.animate !== false,
     source: String(data.source ?? ""),
+    // Wygładzanie: brak klucza znaczy DOMYŚLNE 0,55, a nie zero. Wszystkie
+    // wykresy zapisane przed wprowadzeniem tego pola dostają więc kształt
+    // z nowej specyfikacji bez migracji danych - a autor, który świadomie
+    // chce łamaną, zapisuje 0 i to zero jest respektowane.
+    smoothing: clamp01(num(data.smoothing) ?? SMOOTHING_DEFAULT),
+    barStyle: parseBarStyle(data.barStyle),
+    forecastFrom: parseForecastFrom(data.forecastFrom, categories.length),
+    forecastFromDeclared: parseDeclaredForecastFrom(data.forecastFrom),
+    valuesBeyondCategories: countValuesBeyondCategories(data.series, categories.length),
+    forecastBandPct: Math.max(0, Math.min(100, num(data.forecastBandPct) ?? 0)),
+    // n: zero jest wartością nieprawdziwą dla liczby obserwacji, więc
+    // traktujemy je jak brak - inaczej podpis twierdziłby "n = 0" o wykresie,
+    // który coś rysuje.
+    sampleSize: positiveIntOrNull(num(data.sampleSize)),
+    sourceDate: String(data.sourceDate ?? ""),
+    notesShows: String(data.notesShows ?? ""),
+    notesSurprising: String(data.notesSurprising ?? ""),
+    notesHidden: String(data.notesHidden ?? ""),
+    metric: parseChartMetric(data.metric),
   };
+}
+
+/**
+ * Wyjaśnienie wskaźnika. Zwraca null, gdy autor nie podał NAZWY - bez nazwy
+ * nie ma czego zaczepić ikony, a tooltip z pustym nagłówkiem i pięcioma
+ * pustymi polami jest gorszy niż jego brak. Pozostałe pola mogą zostać puste
+ * i wtedy po prostu nie są rysowane: lepiej trzy wypełnione pola w stałych
+ * miejscach niż zmyślone pięć.
+ */
+export function parseChartMetric(raw: Json | undefined): ChartMetric | null {
+  const o = asRecord(raw);
+  const name = String(o.name ?? "").trim();
+  if (!name) return null;
+  return {
+    name,
+    expansion: String(o.expansion ?? "").trim(),
+    formula: String(o.formula ?? "").trim(),
+    measures: String(o.measures ?? "").trim(),
+    reading: String(o.reading ?? "").trim(),
+    levers: String(o.levers ?? "").trim(),
+    caution: String(o.caution ?? "").trim(),
+  };
+}
+
+/**
+ * Pełny config o wartościach domyślnych - punkt wyjścia dla paneli, które
+ * budują wykres W KODZIE, a nie z Json (dashboardy newslettera, audytorium,
+ * podgląd arkusza w edytorze). Bez tego każdy taki panel musiałby wypisać
+ * wszystkie pola i przy dopisaniu kolejnego przestawałby się kompilować -
+ * albo, co gorsza, ktoś rozluźniłby typ i panel zacząłby renderować wykres
+ * z niezdefiniowanymi ustawieniami uczciwości.
+ *
+ * FUNKCJA, NIE STAŁA: config trzyma tablice (`categories`, `series`), więc
+ * współdzielona stała rozniosłaby jedną tablicę po wszystkich panelach.
+ */
+export function defaultChartConfig(): ChartConfig {
+  return parseChartConfig({});
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function positiveIntOrNull(value: number | null): number | null {
+  if (value === null) return null;
+  const rounded = Math.round(value);
+  return rounded > 0 ? rounded : null;
+}
+
+/**
+ * Deklaracja granicy BEZ sprawdzania zakresu - do orzeczeń uczciwości.
+ *
+ * `parseForecastFrom` zwraca `null` i dla braku deklaracji, i dla deklaracji
+ * nieużywalnej; model, który ma powiedzieć „granicę odrzucono", nie ma z czego
+ * tych dwóch stanów odróżnić. Zaokrąglamy tak samo, żeby porównanie z wartością
+ * użyteczną było porównaniem tej samej liczby.
+ */
+function parseDeclaredForecastFrom(raw: Json | undefined): number | null {
+  const value = num(raw);
+  return value === null ? null : Math.round(value);
+}
+
+/**
+ * Ile liczb w seriach nie ma swojej kategorii.
+ *
+ * Liczone PRZED przycięciem, bo po przycięciu nadmiaru już nie ma - a to
+ * właśnie o nim mają powiedzieć orzeczenia modeli. Granica `MAX_SERIES` jest
+ * ta sama, co w `parseChartSeries`: seria, która i tak nie wejdzie do wykresu,
+ * nie dokłada się do licznika liczb bez kategorii, bo jej brak ma własny
+ * powód i własne zdanie.
+ */
+function countValuesBeyondCategories(raw: Json | undefined, categoriesCount: number): number {
+  if (!Array.isArray(raw)) return 0;
+  let out = 0;
+  for (const item of raw.slice(0, MAX_SERIES)) {
+    const values = asRecord(item).values;
+    if (Array.isArray(values)) out += Math.max(0, values.length - categoriesCount);
+  }
+  return out;
+}
+
+/**
+ * Indeks pierwszej kategorii prognozowanej. Zero jest ODRZUCANE świadomie:
+ * wykres, którego cały szereg jest prognozą, nie ma historii, od której
+ * prognozę odróżnia - separator stałby na lewej krawędzi i nie mówiłby nic.
+ * Taki wykres autor opisuje jako prognozę w tytule, nie strefą.
+ */
+function parseForecastFrom(raw: Json | undefined, categoriesCount: number): number | null {
+  const value = num(raw);
+  if (value === null) return null;
+  const index = Math.round(value);
+  if (index < 1 || index > categoriesCount - 1) return null;
+  return index;
 }
 
 const ISO2_RE = /^[A-Z]{2}$/;
@@ -106,11 +235,26 @@ export function parseMapValues(raw: Json | undefined): MapDatum[] {
   return out;
 }
 
+/**
+ * Region mapy z zapisu w treści. Nieznany zapis wraca do Europy, a NIE rzuca -
+ * tak samo, jak nieznany wariant słupka niżej: konfiguracja bloku pochodzi
+ * z bazy i bywa z przyszłej albo cofniętej wersji edytora, a mapa jest blokiem
+ * treści redakcyjnej, więc jej rzut wywraca cały wpis.
+ *
+ * Wcześniej stało tu `regionRaw === "world" ? "world" : "europe"`. To NIE JEST
+ * ta sama funkcja: porównanie z dwoma literałami degraduje do Europy każdy
+ * region, którego akurat nie wymieniono - więc po dopisaniu Azji do typu,
+ * edytora i słownika mapa i tak rysowałaby Europę, bez jednego błędu
+ * kompilacji po drodze.
+ */
+export function parseMapRegion(raw: Json | undefined): MapRegion {
+  const value = String(raw ?? "");
+  return isMapRegion(value) ? value : "europe";
+}
+
 export function parseDataMapConfig(data: Record<string, Json>): DataMapConfig {
-  const regionRaw = String(data.region ?? "");
-  const region: MapRegion = regionRaw === "world" ? "world" : "europe";
   return {
-    region,
+    region: parseMapRegion(data.region),
     title: String(data.title ?? ""),
     description: String(data.description ?? ""),
     unit: String(data.unit ?? ""),
@@ -119,4 +263,14 @@ export function parseDataMapConfig(data: Record<string, Json>): DataMapConfig {
     animate: data.animate !== false,
     source: String(data.source ?? ""),
   };
+}
+
+/**
+ * Wariant wypełnienia słupka. Nieznany zapis wraca do wariantu bladego, a nie
+ * rzuca: konfiguracja bloku pochodzi z treści, więc musi znieść zapis
+ * z przyszłej albo cofniętej wersji edytora bez wywracania strony.
+ */
+export function parseBarStyle(raw: Json | undefined): BarStyle {
+  const value = typeof raw === "string" ? raw : "";
+  return (BAR_STYLES as readonly string[]).includes(value) ? (value as BarStyle) : "pale";
 }

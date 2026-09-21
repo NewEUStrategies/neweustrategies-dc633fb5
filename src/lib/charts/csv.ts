@@ -9,6 +9,7 @@
 
 import { MAX_SERIES, type ChartSeries, type MapDatum } from "./types";
 import { MAX_CATEGORIES } from "./parse";
+import { slotForSeries } from "@/lib/charts/palette";
 
 export interface ParsedChartData {
   categories: string[];
@@ -41,7 +42,7 @@ export function parseChartData(text: string): ParsedChartData {
   const series: ChartSeries[] = seriesNames.map((name, si) => ({
     name,
     values: rows.map((r) => parseNumber(r[si + 1] ?? "")),
-    colorSlot: si + 1,
+    colorSlot: slotForSeries(si),
   }));
   return { categories, series };
 }

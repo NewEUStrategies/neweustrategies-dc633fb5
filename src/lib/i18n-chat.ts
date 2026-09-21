@@ -364,9 +364,9 @@ export const chatPl = {
       },
       wallpapers: {
         dots: "Kropki",
-        soft: "Poświata",
+        soft: "Gładka",
         lines: "Linie",
-        none: "Gładka",
+        none: "Jednolita",
       },
       nicknamesSection: "Pseudonimy",
       nicknamesHint:
@@ -845,9 +845,9 @@ export const chatEn = {
       },
       wallpapers: {
         dots: "Dots",
-        soft: "Glow",
+        soft: "Smooth",
         lines: "Lines",
-        none: "Plain",
+        none: "Solid",
       },
       nicknamesSection: "Nicknames",
       nicknamesHint:
@@ -987,14 +987,13 @@ export const chatEn = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", chatPl, true, true);
-i18n.addResourceBundle("en", "translation", chatEn, true, true);
-
-/**
- * No-op wołany w komponencie trasy zamiast side-effectowego importu modułu.
- * Nazwane wiązanie pozwala splitterowi TanStacka przenieść cały bundle
- * tłumaczeń do chunka trasy - side-effectowy import w pliku trasy lądował
- * w eager-owym grafie wejściowym każdej strony. Rejestracja dzieje się przy
- * ewaluacji modułu (przed renderem komponentu), dokładnie jak wcześniej.
- */
-export function ensureI18n(): void {}
+// Explicit registration must survive both Vite and Nitro tree shaking.
+// Keep the legacy side-effect import contract, and avoid repeated deep merges.
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", chatPl, true, true);
+  i18n.addResourceBundle("en", "translation", chatEn, true, true);
+}
+ensureI18n();

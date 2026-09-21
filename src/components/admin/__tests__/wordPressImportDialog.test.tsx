@@ -56,6 +56,12 @@ vi.mock("react-i18next", async () => {
   return reactI18nextStub(() => h.language);
 });
 
+// This test verifies import and preview content. Idle chunk warming has its
+// own tests and must not launch unrelated imports after this dialog closes.
+vi.mock("@/components/builder/organisms/widget-view/warmWidgetChunks", () => ({
+  warmCommonWidgetChunks: vi.fn(),
+}));
+
 vi.mock("sonner", () => ({
   toast: {
     success: (m: string) => h.toastSuccess.push(m),

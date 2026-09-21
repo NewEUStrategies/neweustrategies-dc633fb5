@@ -98,9 +98,13 @@ export async function saveMeetingTable(input: MeetingTableInput): Promise<string
 }
 
 export async function deleteMeetingTable(id: string): Promise<boolean> {
-  const { error } = await supabase.rpc("admin_event_meeting_table_delete", { _id: id });
+  // Funkcja bazy jest `RETURNS boolean`, wiec jej odpowiedz - a nie zyczenie
+  // wolajacego - mowi, czy stolik faktycznie zniknal (`sessionsApi.ts:317`,
+  // `sponsorsApi.ts:253`). Nadpisanie jej `true` zdejmowaloby z listy wiersz,
+  // ktory zostal w bazie.
+  const { data, error } = await supabase.rpc("admin_event_meeting_table_delete", { _id: id });
   if (error) throw error;
-  return true;
+  return data === true;
 }
 
 // ---------------------------------------------------------------------------
@@ -513,9 +517,14 @@ export async function saveAdminAvailability(input: {
 }
 
 export async function deleteAdminAvailability(id: string): Promise<boolean> {
-  const { error } = await supabase.rpc("admin_event_meeting_availability_delete", { _id: id });
+  // To samo, co przy stoliku: odpowiedz `RETURNS boolean` jest jedynym kanalem
+  // „usunieto / nie usunieto". „Usunieto" bez usuniecia znaczy tu, ze gielda
+  // dalej proponuje termin, ktorego uczestnik juz nie ma.
+  const { data, error } = await supabase.rpc("admin_event_meeting_availability_delete", {
+    _id: id,
+  });
   if (error) throw error;
-  return true;
+  return data === true;
 }
 
 // ---------------------------------------------------------------------------

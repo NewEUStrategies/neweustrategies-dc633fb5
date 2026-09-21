@@ -59,20 +59,27 @@ export function buildPresetRange(id: Exclude<TimeRangePresetId, "custom">): Time
 }
 
 function buildCustomRange(from: Date, to: Date): TimeRangeValue {
+  // GRANICE IDĄ W KOLEJNOŚCI ROSNĄCEJ, niezależnie od tego, co podał wołający.
+  // Kalendarz sam okna na wspak nie wyprodukuje (`addToRange` porządkuje
+  // granice), ale `value` przychodzi też z adresu URL, z zapisanego filtra
+  // i wprost z pulpitu - a okno z `sinceIso` późniejszym niż `untilIso` zwraca
+  // pustkę w każdym zapytaniu i kłamie o swojej długości w etykiecie. Zamiana
+  // miejscami jest tu jedyną barierą, jaka może stanąć.
+  const [wczesniej, pozniej] = from.getTime() <= to.getTime() ? [from, to] : [to, from];
   // Normalize to start-of-day / end-of-day so a full day is included.
   const sinceMs = new Date(
-    from.getFullYear(),
-    from.getMonth(),
-    from.getDate(),
+    wczesniej.getFullYear(),
+    wczesniej.getMonth(),
+    wczesniej.getDate(),
     0,
     0,
     0,
     0,
   ).getTime();
   const untilMs = new Date(
-    to.getFullYear(),
-    to.getMonth(),
-    to.getDate(),
+    pozniej.getFullYear(),
+    pozniej.getMonth(),
+    pozniej.getDate(),
     23,
     59,
     59,
@@ -144,7 +151,15 @@ export function TimeRangeFilter({ value, onChange, className }: TimeRangeFilterP
             {value.presetId === "custom" ? label : t("adminAnalytics.timeRange.range")}
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="end" className="w-auto p-0 pointer-events-auto">
+        {/* Radiksowy `PopoverContent` renderuje `role="dialog"`. Rola okna
+            dialogowego bez nazwy jest ogłaszana jako samo „dialog", więc osoba
+            niewidząca nie wie, że wylądowała w wyborze zakresu dat, a nie
+            w menu. */}
+        <PopoverContent
+          align="end"
+          className="w-auto p-0 pointer-events-auto"
+          aria-label={t("adminAnalytics.timeRange.calendarDialog")}
+        >
           <Calendar
             mode="range"
             numberOfMonths={2}

@@ -27,6 +27,7 @@ import {
 } from "@/lib/postLayouts";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { ReadingHeader } from "@/components/share/ReadingHeader";
+import { NoteContextBinder } from "@/components/dock/NoteContextBinder";
 import { cleanExcerpt } from "@/lib/text/cleanExcerpt";
 
 interface Props {
@@ -346,6 +347,7 @@ export function PostLayoutRenderer({
       data-layout-cover={showCover ? preset.cover : "none"}
       data-layout-sidebar={hasSidebar ? "true" : "false"}
     >
+      <NoteContextBinder entityType={entityType} entityId={entityId} title={title} />
       <ReadingHeader title={title} entityId={entityId} entityType={entityType} />
       {hasSidebar ? (
         <div className="grid min-w-0 max-w-full lg:grid-cols-[minmax(0,1fr)_320px] gap-10">

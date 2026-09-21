@@ -79,8 +79,8 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
   const { stripeStub } = await import("@/test/billing/fixtures");
   return {
     ...actual,
-    createStripeClient: (env: string) => {
-      h.calls.push({ method: "createStripeClient", args: [env] });
+    getStripeClient: (env: string) => {
+      h.calls.push({ method: "getStripeClient", args: [env] });
       const base = stripeStub();
       return {
         ...base,
@@ -253,6 +253,12 @@ beforeEach(() => {
   rpcCalls = [];
   rpcResponses = new Map<string, SupabaseResult>();
 
+  // Host wdrożenia testowego MUSI być zadeklarowany, odkąd `resolveReturnUrl`
+  // przechodzi przez bramkę dozwolonych hostów (`lib/billing/returnUrl.server`).
+  // Bez tej linii przypadki o adresie powrotu dowodziłyby tylko tego, że
+  // `kasa.example.org` NIE jest naszą domeną - a mają dowodzić, że klient nie
+  // wybiera domeny powrotu.
+  vi.stubEnv("BILLING_RETURN_HOSTS", "kasa.example.org");
   vi.stubEnv("LOVABLE_API_KEY", "klucz-testowy-bramki");
   vi.stubEnv("STRIPE_SANDBOX_API_KEY", "klucz-testowy-piaskownicy");
 
@@ -512,6 +518,14 @@ describe("createPlanCheckoutSession - sesja u operatora i sprzątanie po odmowie
     expect(lastSession()?.return_url).toBe("https://kasa.example.org/przejmij");
   });
 
+  it("KONTRPRZYKŁAD: host żądania SPOZA listy nie zostaje originem powrotu", async () => {
+    vi.stubEnv("BILLING_RETURN_HOSTS", "");
+
+    await planCall({ returnUrl: "https://zlodziej.example.com/przejmij" });
+
+    expect(lastSession()?.return_url).toBe("https://neweuropeanstrategies.com/przejmij");
+  });
+
   it("ustawienia checkoutu są czytane dla TENANTU ZAMÓWIENIA", async () => {
     chain.setResponse("payment_orders", ok({ id: "order-1", tenant_id: "tenant-beta" }));
 
@@ -527,7 +541,7 @@ describe("createPlanCheckoutSession - sesja u operatora i sprzątanie po odmowie
     await planCall({ environment: "live" });
 
     expect(insertedOrder()?.environment).toBe("live");
-    expect(stripeCall("createStripeClient")?.args[0]).toBe("live");
+    expect(stripeCall("getStripeClient")?.args[0]).toBe("live");
   });
 
   it("konto bez adresu w tokenie nie wywraca kasy - paragon zostaje pusty", async () => {
@@ -807,7 +821,7 @@ describe("createAdhocCheckoutSession - cienki wrapper nad zamówieniem ad-hoc", 
   it("środowisko z żądania wybiera klienta operatora", async () => {
     await adhocCall({ environment: "live" });
 
-    expect(stripeCall("createStripeClient")?.args[0]).toBe("live");
+    expect(stripeCall("getStripeClient")?.args[0]).toBe("live");
   });
 
   it("odmowa operatora oznacza zamówienie jako `failed`", async () => {

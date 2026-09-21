@@ -38,13 +38,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Settings2, Upload, Image as ImageIcon, X as XIcon, RefreshCw } from "lucide-react";
-import { useRef, useState } from "react";
+import { Settings2, Upload, Image as ImageIcon, X as XIcon } from "lucide-react";
+import { UploadArea } from "@/components/ui/upload-area";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { useServerFn } from "@tanstack/react-start";
 import { registerMediaUpload } from "@/lib/media.functions";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 
 /**
  * Pole URL obrazu z:
@@ -66,7 +68,6 @@ function ImageUrlField({
   folder?: string;
   lang: NlLang;
 }) {
-  const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -101,6 +102,7 @@ function ImageUrlField({
       });
       if (upErr) throw upErr;
       const { data } = supabase.storage.from("media").getPublicUrl(path);
+      const publicUrl = brandedMediaUrl(data.publicUrl);
       // Register in the `media` table so it shows up on /admin/media.
       try {
         await registerUpload({
@@ -109,7 +111,7 @@ function ImageUrlField({
             filename: file.name,
             mimeType: file.type,
             sizeBytes: file.size,
-            publicUrl: data.publicUrl,
+            publicUrl,
           },
         });
       } catch (regErr) {
@@ -118,7 +120,7 @@ function ImageUrlField({
         console.warn("[ImageUrlField] media registration failed:", regErr);
       }
       setPreviewOk(true);
-      onChange(data.publicUrl);
+      onChange(publicUrl);
     } catch (e) {
       setError(e instanceof Error ? e.message : "upload error");
     } finally {
@@ -155,16 +157,6 @@ function ImageUrlField({
           <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
               type="button"
-              disabled={uploading}
-              onClick={() => fileRef.current?.click()}
-              className="w-7 h-7 rounded-md bg-background/90 backdrop-blur border border-border hover:border-brand hover:text-brand flex items-center justify-center disabled:opacity-50"
-              title={T("Szybka podmiana pliku", "Quick replace")}
-              aria-label={T("Szybka podmiana", "Quick replace")}
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${uploading ? "animate-spin" : ""}`} />
-            </button>
-            <button
-              type="button"
               onClick={clear}
               className="w-7 h-7 rounded-md bg-background/90 backdrop-blur border border-border hover:border-destructive hover:text-destructive flex items-center justify-center"
               title={T("Usuń obraz", "Remove image")}
@@ -176,50 +168,46 @@ function ImageUrlField({
         </div>
       )}
 
-      {/* URL + actions */}
-      <div className="flex gap-1.5">
-        <Input
-          value={value}
-          onChange={(e) => {
-            setPreviewOk(true);
-            onChange(e.target.value);
-          }}
-          placeholder={placeholder}
-          className="flex-1"
-        />
-        <button
-          type="button"
-          disabled={uploading}
-          onClick={() => fileRef.current?.click()}
-          className="inline-flex items-center gap-1 px-2.5 rounded-md border border-border hover:border-brand hover:bg-muted/30 text-xs disabled:opacity-50 whitespace-nowrap"
-          title={T("Wgraj z dysku", "Upload from device")}
-        >
-          <Upload className="w-3.5 h-3.5" />
-          {uploading ? T("Wgrywam…", "Uploading…") : T("Wgraj", "Upload")}
-        </button>
-        <button
-          type="button"
-          onClick={() => setPickerOpen(true)}
-          className="inline-flex items-center gap-1 px-2.5 rounded-md border border-border hover:border-brand hover:bg-muted/30 text-xs whitespace-nowrap"
-          title={T("Wybierz z biblioteki mediów", "Pick from Media Library")}
-        >
-          <ImageIcon className="w-3.5 h-3.5" />
-          {T("Media", "Media")}
-        </button>
-      </div>
-
-      <input
-        ref={fileRef}
-        type="file"
+      {/* Obszar wgrywania w standardzie platformy: adres, wgranie z dysku
+          i biblioteka mediów stoją w jednej ramce. */}
+      <UploadArea
+        size="sm"
+        title={T("Obraz", "Image")}
+        description={T(
+          "Przeciągnij obraz tutaj albo wybierz go z dysku.",
+          "Drag an image here, or pick one from your disk.",
+        )}
+        ctaLabel={T("Wgraj", "Upload")}
+        busyLabel={T("Wgrywam…", "Uploading…")}
+        busy={uploading}
+        error={error}
+        icons={[ImageIcon, Upload]}
         accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) handleFile(f);
-          e.target.value = "";
-        }}
+        inputLabel={T("Wgraj z dysku", "Upload from device")}
+        onFiles={(files) => handleFile(files[0])}
+        actions={
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-border hover:border-brand hover:bg-muted/30 text-xs whitespace-nowrap"
+            title={T("Wybierz z biblioteki mediów", "Pick from Media Library")}
+          >
+            <ImageIcon className="w-3.5 h-3.5" />
+            {T("Media", "Media")}
+          </button>
+        }
+        footer={
+          <Input
+            value={value}
+            onChange={(e) => {
+              setPreviewOk(true);
+              onChange(e.target.value);
+            }}
+            placeholder={placeholder}
+            className="flex-1"
+          />
+        }
       />
-      {error && <div className="text-[10px] text-destructive">{error}</div>}
 
       <MediaPickerDialog
         open={pickerOpen}

@@ -723,10 +723,14 @@ describe("pole obrazu - wgrywanie i biblioteka", () => {
 
     pickFile(container, fakeFile("foto.png", "image/png", 2048));
 
-    expect(await screen.findByText("Wgrywam…")).toBeTruthy();
-    expect(screen.getByTitle("Wgraj z dysku")).toHaveProperty("disabled", true);
+    // CTA wspólnego obszaru wgrywania NIESIE stan zajętości: napis zmienia się
+    // na „Wgrywam…", a sam przycisk jest zablokowany - to jeden i ten sam
+    // element, więc mierzymy go po roli i nazwie, a nie po atrybucie `title`
+    // osobnego przycisku, którego pole już nie ma.
+    const cta = await screen.findByRole("button", { name: "Wgrywam…" });
+    expect(cta).toBeDisabled();
     uwolnij();
-    await waitFor(() => expect(screen.getByText("Wgraj")).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Wgraj" })).toBeEnabled());
   });
 
   it("brak sesji nie blokuje wgrania - ścieżka schodzi na anonimową", async () => {
@@ -815,26 +819,36 @@ describe("pole obrazu - wgrywanie i biblioteka", () => {
     expect(onPatch).toHaveBeenCalledTimes(1);
   });
 
-  it("szybka podmiana otwiera wybór pliku", () => {
+  it("podmiana obrazu: klik w obszar wgrywania otwiera wybór pliku także przy WYPEŁNIONYM polu", () => {
+    // Osobny przycisk „Szybka podmiana" nad miniaturą zniknął wraz z
+    // ujednoliceniem - jego rolę przejął cały obszar wgrywania, który stoi pod
+    // podglądem i jest klikalny w każdym miejscu. To jest ta sama afordancja,
+    // tylko niezależna od najechania myszą (dawny przycisk był ukryty do
+    // `group-hover`, więc na dotyku nie istniał).
     const { container } = mountImage(IMAGE_WITH_URL);
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
     const click = vi.spyOn(input, "click").mockImplementation(() => {});
+    const obszar = container.querySelector('[data-slot="upload-area"]');
+    expect(obszar, "pole obrazu bez wspólnego obszaru wgrywania").toBeTruthy();
 
-    fireEvent.click(screen.getByLabelText("Szybka podmiana"));
+    fireEvent.click(obszar as Element);
 
     expect(click).toHaveBeenCalledTimes(1);
-    expect(screen.getByLabelText("Szybka podmiana")).toHaveProperty("disabled", false);
+    expect(container.querySelector("img")?.getAttribute("src")).toBe("https://example.test/a.png");
   });
 
-  it("przycisk Wgraj też otwiera wybór pliku", () => {
+  it("przycisk Wgraj też otwiera wybór pliku - i robi to DOKŁADNIE raz", () => {
+    // Klik w CTA bąbelkuje do obszaru, który sam otwiera picker. Bez wyjątku na
+    // elementy interaktywne w powłoce okno wyboru otwierałoby się DWA razy.
     const { container } = mountImage();
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
     const click = vi.spyOn(input, "click").mockImplementation(() => {});
 
-    fireEvent.click(screen.getByTitle("Wgraj z dysku"));
+    fireEvent.click(screen.getByRole("button", { name: "Wgraj" }));
 
     expect(click).toHaveBeenCalledTimes(1);
-    expect(screen.getByText("Wgraj")).toBeTruthy();
+    // Ukryte pole pliku jest opisane dla czytnika ekranu własną etykietą.
+    expect(screen.getByLabelText("Wgraj z dysku")).toBe(input);
   });
 
   it("wybór z biblioteki mediów patchuje adres", () => {
@@ -861,8 +875,10 @@ describe("pole obrazu - wgrywanie i biblioteka", () => {
   it("etykiety pola obrazu w sekcji są tłumaczone", () => {
     mount({ selectedSection: makeSection([]), lang: "en" });
 
-    expect(screen.getByTitle("Upload from device")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Upload" })).toBeTruthy();
+    expect(screen.getByLabelText("Upload from device")).toBeTruthy();
     expect(screen.getByTitle("Pick from Media Library")).toBeTruthy();
+    expect(screen.getByText("Drag an image here, or pick one from your disk.")).toBeTruthy();
   });
 });
 

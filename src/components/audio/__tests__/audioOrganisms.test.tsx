@@ -786,7 +786,7 @@ describe("GlobalAudioBar", () => {
   }
 
   const shareButton = () => screen.getByRole("button", { name: "Udostępnij link do artykułu" });
-  const linkDoWpisu = () => new URL(track.postHref, window.location.origin).toString();
+  const linkDoWpisu = () => new URL(track.postHref, "https://neweuropeanstrategies.com").toString();
 
   it("autor BEZ własnej strony jest tekstem, nie linkiem prowadzącym w pustkę", async () => {
     h.player = playerStub({

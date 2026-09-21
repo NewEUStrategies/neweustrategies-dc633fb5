@@ -264,8 +264,10 @@ export function NewsletterForm({
       if (phone.trim()) meta.phone = phone.trim().slice(0, 500);
 
       const pickedItemIds = Array.from(picked);
+      let interestLabels: string[] = [];
       if (pickedItemIds.length > 0) {
         const pickedItems = allItems.filter((it) => pickedItemIds.includes(it.id));
+        interestLabels = pickedItems.map((it) => it.label);
         const areas = pickedItems.filter((it) => it.type === "category").map((it) => it.label);
         const topics = pickedItems.filter((it) => it.type === "tag").map((it) => it.label);
         custom.interests = pickedItems
@@ -288,6 +290,8 @@ export function NewsletterForm({
           consents: [{ key: "newsletter", text: consentText, given: true, lang }],
           meta: Object.keys(meta).length ? meta : undefined,
           custom: Object.keys(custom).length ? custom : undefined,
+          // Tematy zapisujemy kanonicznie: profil użytkownika + CRM.
+          topics: interestLabels.length ? interestLabels : undefined,
         },
       });
 

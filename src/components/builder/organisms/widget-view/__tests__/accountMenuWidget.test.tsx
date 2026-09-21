@@ -20,7 +20,8 @@ const auth = vi.hoisted(() => ({
 vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => auth,
 }));
-vi.mock("@/hooks/useHasMounted", () => ({ useHasMounted: () => true }));
+const hydration = vi.hoisted(() => ({ mounted: true }));
+vi.mock("@/hooks/useHasMounted", () => ({ useHasMounted: () => hydration.mounted }));
 vi.mock("@/lib/profile/useHeaderProfile", () => ({
   useHeaderProfile: () => ({
     data: auth.user
@@ -89,6 +90,7 @@ describe("AccountMenuWidget", () => {
     auth.isAdmin = false;
     auth.isSuperAdmin = false;
     auth.signOut.mockClear();
+    hydration.mounted = true;
   });
 
   it("gość widzi Zaloguj | Załóż konto, a panel zawiera pozycje sekcji guest", async () => {
@@ -125,6 +127,34 @@ describe("AccountMenuWidget", () => {
 
     fireEvent.click(screen.getByText("Wyloguj się"));
     await waitFor(() => expect(auth.signOut).toHaveBeenCalledTimes(1));
+  });
+
+  it("REGRESJA #418: przed hydratacją NIE ma powitania zależnego od pory dnia", () => {
+    // `pickGreeting` wybiera pulę po porze dnia i losuje wariant z okna
+    // 30-minutowego, więc serwer i przeglądarka potrafiły wypisać RÓŻNY tekst
+    // dla tego samego użytkownika. React zgłaszał to jako „Minified React
+    // error #418" i regenerował poddrzewo, a szerokość przycisku zmieniała się
+    // po hydratacji. Pierwszy render (serwer i klient) musi więc pokazać
+    // deterministyczny podpis z profilu.
+    hydration.mounted = false;
+    auth.session = { user: { id: "u1" } };
+    auth.user = { id: "u1", email: "anna@example.org" };
+    renderWidget();
+    const trigger = screen.getByRole("button", { name: "Anna Kowalska" });
+    expect(trigger).not.toHaveTextContent("Dzień dobry, Anno");
+    expect(trigger).toHaveTextContent("Anna");
+  });
+
+  it("REGRESJA CLS: podpis stoi w pudełku o STAŁEJ szerokości", () => {
+    // Podpis dojeżdża etapami (sesja -> profil -> powitanie). Bez stałej
+    // szerokości każdy etap zmieniałby szerokość przycisku, a za nim całego
+    // paska narzędzi nagłówka.
+    auth.session = { user: { id: "u1" } };
+    auth.user = { id: "u1", email: "anna@example.org" };
+    const { container } = renderWidget();
+    const label = container.querySelector<HTMLElement>("span.truncate");
+    expect(label?.className).toContain("w-[9rem]");
+    expect(label?.className).not.toContain("max-w-[200px]");
   });
 
   it("staff dostaje dodatkowo sekcję staff (Panel admina)", async () => {

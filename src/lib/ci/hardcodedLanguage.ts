@@ -107,11 +107,11 @@ export function scanHardcodedLanguage(sources: readonly ScannedSource[]): Hardco
     const claimed = new Set<number>();
     for (const { kind, rx } of PATTERNS) {
       for (const match of source.matchAll(rx)) {
-        const index = match.index ?? 0;
+        const index = match.index;
         if (claimed.has(index)) continue;
         claimed.add(index);
         const line = source.slice(0, index).split("\n").length;
-        out.push({ file, line, kind, snippet: (lines[line - 1] ?? "").trim().slice(0, 120) });
+        out.push({ file, line, kind, snippet: lines[line - 1].trim().slice(0, 120) });
       }
     }
   }

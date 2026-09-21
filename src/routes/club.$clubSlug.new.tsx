@@ -34,9 +34,7 @@ import {
   ClubAnchorPicker,
   type ClubAnchorValue,
 } from "@/components/clubs/molecules/ClubAnchorPicker";
-import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
-import { fetchClubBySlug } from "@/lib/clubs/publicClub";
-import { clubKeys } from "@/lib/clubs/queryKeys";
+import { buildClubHead, clubHeadLoader } from "@/lib/clubs/clubHead";
 import { newIdempotencyKey } from "@/lib/http/idempotency";
 import { useThreadDraft } from "@/lib/clubs/useThreadDraft";
 import { formatDateTime, uiLang } from "@/lib/i18n/format";
@@ -97,15 +95,10 @@ export const Route = createFileRoute("/club/$clubSlug/new")({
     if (typeof rawGroup === "string" && rawGroup !== "") out.groupId = rawGroup;
     return out;
   },
-  loader: async ({ context, params }) => {
-    const club = await context.queryClient
-      .ensureQueryData({
-        queryKey: clubKeys.bySlug(params.clubSlug),
-        queryFn: () => fetchClubBySlug(params.clubSlug),
-      })
-      .catch(() => null);
-    return { club: toClubHeadSource(club) };
-  },
+  // Kartę klubu czyta RAZ loader UKŁADU `/club/$clubSlug`; tutaj zostaje sam
+  // odczyt z cache'u na potrzeby nagłówka - zero round-tripów (F09).
+  loader: ({ context, params, parentMatchPromise }) =>
+    clubHeadLoader(context.queryClient, params.clubSlug, parentMatchPromise),
   // `forceNoindex`: kompozytor jest powierzchnią CZYNNOŚCIOWĄ. Nawet w klubie
   // publicznym pusty formularz w indeksie wyszukiwarki jest szumem, a nie
   // lejkiem - do indeksu należy wątek, nie narzędzie do jego napisania.
@@ -218,9 +211,16 @@ function ClubNewThread() {
 
   const kinds = useMemo(() => threadKindChoices(canModerate), [canModerate]);
   useEffect(() => {
+    // Autorytet moderacyjny przychodzi z `club_view`, więc DOPÓKI karta klubu
+    // jest w locie, `canModerate` jest fałszem z BRAKU DANYCH, a nie z braku
+    // prawa. Degradacja w tym momencie kasowałaby rodzaj wzięty z adresu
+    // (skrót "Napisz ogłoszenie" z huba) zanim RPC zdąży potwierdzić
+    // uprawnienie - i bez śladu, bo po pierwszym renderze droplista należy już
+    // do autora i nic jej z powrotem nie ustawi.
+    if (clubQ.isPending) return;
     const allowed = resolveThreadKind(kind, canModerate);
     if (allowed !== kind) setKind(allowed);
-  }, [canModerate, kind]);
+  }, [canModerate, clubQ.isPending, kind]);
 
   // Obszar klubu jest tylko DOMYSLNA podpowiedzia: raz dotknieta droplista
   // przestaje sie nadpisywac, zeby refetch klubu nie cofal wyboru autora.

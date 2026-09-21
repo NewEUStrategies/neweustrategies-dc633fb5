@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { memo, useEffect, useRef } from "react";
+import { memo, Suspense, useEffect, useMemo, useRef } from "react";
+import { ChromeDataGate } from "@/lib/ssr/chromeWarmup";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
 import { defaultDocFor } from "@/lib/builder/chromeDefaults";
@@ -10,7 +11,6 @@ import {
   type FooterChrome,
 } from "@/lib/theme/footerSettings";
 import { BackToTop } from "@/components/footer/BackToTop";
-import { CopyrightBar } from "@/components/footer/CopyrightBar";
 import { trackFooterLink, trackFooterNewsletterSubmit } from "@/lib/analytics/footerTracking";
 import { FOOTER_LINKS, type FooterLinkGroup } from "@/lib/seo/footerNavigation";
 import { useLang } from "@/lib/i18n/useLang";
@@ -24,13 +24,19 @@ interface FooterProps {
   compact?: boolean;
 }
 
-export const Footer = memo(function Footer({ compact }: FooterProps) {
+function FooterInner({ compact }: FooterProps) {
   // URL-seeded language: SSR-safe first render + synchronous re-render on
   // language switch, without the i18n.language hydration-flicker window.
   const lang = useLang();
 
   const { data: settingsMap, isLoading } = useQuery(siteSettingsQueryOptions);
-  const cfg = resolveSetting<FooterSettings>(settingsMap, "footer", {});
+  // `resolveSetting` robi głęboki merge, więc bez `useMemo` oddawałoby NOWY
+  // obiekt przy każdym renderze stopki - a od jego tożsamości zależy zarówno
+  // walidacja chrome'u niżej, jak i dokument podawany `BuilderRenderer`owi.
+  const cfg = useMemo(
+    () => resolveSetting<FooterSettings>(settingsMap, "footer", {}),
+    [settingsMap],
+  );
 
   // While settings are loading (should be rare - __root prefetches them via
   // ensureQueryData), render the built-in default footer instead of a blank
@@ -43,8 +49,16 @@ export const Footer = memo(function Footer({ compact }: FooterProps) {
         ? defaultDocFor("footer")
         : defaultDocFor("footer");
 
-  const chrome = FooterChromeSchema.safeParse({ ...defaultFooterChrome(), ...(cfg.chrome ?? {}) });
-  const chromeCfg = chrome.success ? chrome.data : defaultFooterChrome();
+  // Stopka jedzie na KAŻDEJ stronie, a ta walidacja Zodem biegła w każdym jej
+  // renderze - także wtedy, gdy ustawienia się nie zmieniły. Parsowanie zależy
+  // wyłącznie od `cfg.chrome`, więc jego wynik trzymamy do zmiany ustawień.
+  const chromeCfg = useMemo(() => {
+    const parsed = FooterChromeSchema.safeParse({
+      ...defaultFooterChrome(),
+      ...(cfg.chrome ?? {}),
+    });
+    return parsed.success ? parsed.data : defaultFooterChrome();
+  }, [cfg.chrome]);
 
   const footerRef = useRef<HTMLElement | null>(null);
 
@@ -82,11 +96,7 @@ export const Footer = memo(function Footer({ compact }: FooterProps) {
   }, []);
 
   if (compact) {
-    return (
-      <footer className="shrink-0 border-t border-border bg-card">
-        <CopyrightBar chrome={chromeCfg} lang={lang} />
-      </footer>
-    );
+    return null;
   }
 
   if (!doc?.sections?.length) {
@@ -108,12 +118,21 @@ export const Footer = memo(function Footer({ compact }: FooterProps) {
         style={{ viewTransitionName: "site-footer" }}
       >
         <BuilderRenderer doc={doc} lang={lang} />
-        <CopyrightBar chrome={chromeCfg} lang={lang} />
       </footer>
       {chromeCfg.back_to_top ? (
         <BackToTop thresholdPx={chromeCfg.back_to_top_threshold_px} />
       ) : null}
     </>
+  );
+}
+
+export const Footer = memo(function Footer(props: FooterProps) {
+  return (
+    <Suspense fallback={<footer data-site-footer aria-busy="true" className="cv-auto min-h-40" />}>
+      <ChromeDataGate>
+        <FooterInner {...props} />
+      </ChromeDataGate>
+    </Suspense>
   );
 });
 

@@ -122,7 +122,7 @@ describe("/admin/theme-options regression", () => {
     // socialIcons, signinButtons, mobileHeader) that a shallow-merge bug used
     // to drop when the stored row only contained { logo, header: { layout } }.
     const buttons = container.querySelectorAll('[data-sidebar="menu-button"]');
-    expect(buttons.length).toBe(17);
+    expect(buttons.length).toBe(18);
 
     // Error boundary must NOT have fired.
     expect(screen.queryByTestId("boundary")).toBeNull();

@@ -6,6 +6,7 @@
     "countryCompare",
     "adminBlocks",
     "adminThemeDesign",
+    "adminDashboard",
     "adminPermissions",
     "network",
     "directMessage",
@@ -32,6 +33,12 @@
   "missingEn": [],
   "missingPl": [],
   "untranslated": [
+    "adminDashboard.audience.role.admin",
+    "adminDashboard.audience.role.super_admin",
+    "adminDashboard.crm.source.import",
+    "adminDashboard.crm.source.newsletter",
+    "adminDashboard.crm.source.webinar",
+    "adminDashboard.marketing.title",
     "adminEventAgenda.tracks.workspace.minutes",
     "adminEventRegistration.audienceGrantHistory.summary",
     "adminEvents.general.videoPlatforms.vimeo",
@@ -90,6 +97,7 @@
     "blocks.editors.common.logo",
     "blocks.editors.common.plan",
     "blocks.editors.cta.gradient",
+    "blocks.editors.dataMap.oceania",
     "blocks.editors.embed.urlPh",
     "blocks.editors.group.padding",
     "blocks.editors.hero.title",
@@ -205,6 +213,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 517
+    "untranslated": 551
   }
 }

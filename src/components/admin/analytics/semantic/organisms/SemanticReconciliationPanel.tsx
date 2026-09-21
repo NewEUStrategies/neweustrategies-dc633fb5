@@ -35,6 +35,7 @@ import {
   type MetricId,
   type WindowPresetId,
 } from "@/lib/analytics/semantic";
+import { useCurrentTenantId } from "@/lib/tenant";
 import { chartLangOf, formatMetricValue } from "@/lib/analytics/semantic/format";
 import { getSemanticSnapshot } from "@/lib/analytics/semantic/snapshot.functions";
 import { InsightSection } from "@/components/admin/analytics/InsightSection";
@@ -61,11 +62,20 @@ export function SemanticReconciliationPanel() {
   const [presetId, setPresetId] = useState<PanelPresetId>("28d");
   const [dictionaryOpen, setDictionaryOpen] = useState(false);
   const fetchSnapshot = useServerFn(getSemanticSnapshot);
+  const tenantId = useCurrentTenantId();
 
   const query = useQuery({
-    queryKey: ["semantic-snapshot", presetId],
+    // Warsztat W KLUCZU, nie tylko w RLS: `QueryClient` stoi w korzeniu
+    // aplikacji i PRZEŻYWA zmianę warsztatu, a przy stałym
+    // `["semantic-snapshot", presetId]` panel warsztatu B dostawał migawkę
+    // warsztatu A z cache (`staleTime: 60_000`) i nie wysyłał ani jednego
+    // zapytania. Taki wyciek jest cichy: nie widać go w ruchu sieciowym, tylko
+    // na ekranie. Warsztat NIE JEDZIE do funkcji serwerowej - ta bierze go z
+    // profilu wywołującego; tutaj rozdziela wyłącznie wpisy cache.
+    queryKey: ["semantic-snapshot", tenantId ?? "", presetId],
     queryFn: () => fetchSnapshot({ data: { presetId } }),
     staleTime: 60_000,
+    enabled: Boolean(tenantId),
   });
 
   // Okno lokalne dla `WindowProvenance` w stanie wczytywania: ten sam resolwer,
@@ -73,6 +83,10 @@ export function SemanticReconciliationPanel() {
   const optimisticWindow = useMemo(() => resolveWindow({ presetId }), [presetId]);
 
   const snapshot = query.data;
+  // Nierozwiązany warsztat to nadal ODCZYT W TOKU, nie „brak migawki”:
+  // zapytanie jest wtedy wstrzymane, więc bez tego składnika panel ogłaszałby
+  // pustkę, zanim w ogóle zdążył o cokolwiek zapytać.
+  const loading = query.isLoading || !tenantId;
 
   const insights = useMemo(
     () => (snapshot ? buildSemanticInsights({ snapshot, t, language: i18n.language }) : []),
@@ -106,7 +120,14 @@ export function SemanticReconciliationPanel() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Select value={presetId} onValueChange={(v) => setPresetId(v as PanelPresetId)}>
-              <SelectTrigger className="h-8 w-28 text-xs">
+              {/* Rola `combobox` NIE wylicza nazwy z zawartości, więc widoczne
+                  „28 dni” samo nie staje się nazwą dostępną. To jedyny element
+                  panelu, który zmienia okno WSZYSTKICH liczb - bez nazwy czytnik
+                  ogłaszałby puste pole listy. */}
+              <SelectTrigger
+                aria-label={t("adminAnalytics.semantic.window.title")}
+                className="h-8 w-28 text-xs"
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -140,7 +161,7 @@ export function SemanticReconciliationPanel() {
         previous={snapshot?.previous}
       />
 
-      {query.isLoading ? (
+      {loading ? (
         <Card className="flex items-center gap-2 p-6 text-xs text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" /> {t("adminAnalytics.common.loadingData")}
         </Card>

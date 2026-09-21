@@ -14,6 +14,7 @@ import type { WidgetContent } from "@/lib/builder/types";
 import { asBool, asNumInRange, asOneOf, pickI18n } from "@/lib/content-model/contentValue";
 import { AuthorByline } from "@/components/molecules/AuthorByline";
 import { resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
+import { WidgetStyleSheet } from "./widgetStyleSheets";
 
 type Lang = "pl" | "en";
 
@@ -49,7 +50,9 @@ const DEFAULT_LABEL_EN = "Your tailored must-reads, {name}";
 const FALLBACK_LABEL_PL = "Dla ciebie";
 const FALLBACK_LABEL_EN = "For you";
 
-/** Per-line animated underline for the title, matching Editorial Hero. */
+/** Per-line animated underline for the title, matching Editorial Hero.
+ *  Treść jest STAŁA, więc jedzie jako zasób React 19 (`href` + `precedence`):
+ *  kilka instancji widgetu na stronie wypisuje ten arkusz raz. */
 const TMR_TITLE_CSS = `
 [data-widget="tailored-must-reads"] .tmr-title-clamp {
   display: block;
@@ -179,7 +182,7 @@ export function TailoredMustReadsView({ c, lang }: { c: WidgetContent; lang: Lan
 
   return (
     <section className="w-full" data-widget="tailored-must-reads">
-      <style dangerouslySetInnerHTML={{ __html: TMR_TITLE_CSS }} />
+      <WidgetStyleSheet name="nes-tailored-must-reads" css={TMR_TITLE_CSS} />
       <header className="mb-4 flex items-baseline justify-between gap-3">
         <div className="min-w-0">
           {showKicker && (

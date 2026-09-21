@@ -42,6 +42,10 @@ export const WIDGET_QUERY_ROOTS = {
   // Kluby dyskusyjne (spec §5.5): karta klubu i strumień wątków ponad klubami.
   clubCard: "builder-club-card",
   clubThreads: "builder-club-threads",
+  // Widget „Klub: strona" - trzy sekcje jednego klubu (artykuły/komentarze/zapisy).
+  clubHubArticles: "builder-club-hub-articles",
+  clubHubComments: "builder-club-hub-comments",
+  clubHubMembers: "builder-club-hub-members",
   sliderPosts: "builder-slider-posts",
   sliderFallbackImages: "builder-slider-fallback-images",
   recommendedPosts: "recommended-posts",
@@ -56,6 +60,10 @@ export const WIDGET_QUERY_ROOTS = {
   // --- ekosystem wydarzeń ---
   eventList: "builder-event-list",
   eventById: "builder-event-by-id",
+  // Ten sam wiersz, ale czytany BEZ filtra publikacji - wyłącznie w kanwie
+  // buildera (osobny korzeń, żeby szkic nigdy nie trafił do cache'u strony
+  // publicznej ani do danych zdehydratowanych z SSR).
+  eventByIdCanvas: "builder-event-by-id-canvas",
   eventRsvpCounts: "builder-event-rsvp-counts",
   speakers: "builder-speakers",
   speakersByIds: "builder-speakers-by-ids",

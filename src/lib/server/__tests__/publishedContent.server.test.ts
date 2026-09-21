@@ -207,10 +207,8 @@ function wierszOdcinka(nadpisania: Record<string, unknown> = {}) {
 
 /** Odpowiedzi wspólne dla wszystkich powierzchni: strony + ich ścieżki. */
 function zaplanujStrony(sciezka: string | null = SCIEZKA_STRONY): void {
-  db.setResponse("pages", ok([{ id: STRONA }]));
-  rpc.setResponse("page_full_path", (call) =>
-    call.arg("_page_id") === STRONA ? ok(sciezka) : ok(null),
-  );
+  db.setResponse("pages", { ...ok([{ id: STRONA }]), count: 1 });
+  rpc.setResponse("page_full_paths", () => ok([{ page_id: STRONA, full_path: sciezka }]));
 }
 
 /** Licznik atrap klienta - patrz komentarz przy `adminSitemapy`. */
@@ -236,17 +234,26 @@ function adminSitemapy(
     auth: { persistSession: false, autoRefreshToken: false, storageKey: `atrapa-${licznikAtrap}` },
     global: {
       fetch: (input: RequestInfo | URL) => {
-        const { pathname } = new URL(String(input));
-        const cialo: unknown = pathname.endsWith("/rpc/page_full_path")
-          ? sciezka
+        const { pathname, searchParams } = new URL(String(input));
+        const cialo = pathname.endsWith("/rpc/page_full_paths")
+          ? [{ page_id: STRONA, full_path: sciezka }]
           : pathname.endsWith("/pages")
             ? [{ id: STRONA, seo_noindex: false }]
             : wiersze;
         return Promise.resolve(
-          new Response(JSON.stringify(cialo), {
-            status: 200,
-            headers: { "content-type": "application/json" },
-          }),
+          new Response(
+            JSON.stringify(
+              cialo.slice(
+                Number(searchParams.get("offset") ?? 0),
+                Number(searchParams.get("offset") ?? 0) +
+                  Number(searchParams.get("limit") ?? cialo.length),
+              ),
+            ),
+            {
+              status: 200,
+              headers: { "content-type": "application/json", "content-range": `*/${cialo.length}` },
+            },
+          ),
         );
       },
     },
@@ -396,7 +403,7 @@ describe("feed główny - co i w jakiej kolejności wyjeżdża do RSS-a", () => 
     expect(String(zapytanie.argsOf("select")?.[0])).toContain("parent_page_id");
   });
 
-  it("mapa ścieżek czyta tylko strony opublikowane i nieusunięte, po jednym RPC na stronę", async () => {
+  it("mapa ścieżek czyta tylko strony opublikowane i nieusunięte, we wspólnym odczycie wsadowym", async () => {
     zaplanujStrony();
     db.setResponse("posts", ok([]));
     await fetchPublishedPosts(TENANT);
@@ -406,7 +413,7 @@ describe("feed główny - co i w jakiej kolejności wyjeżdża do RSS-a", () => 
       ["status", "published"],
     ]);
     expect(ogniwa(zapytanie, "is")).toEqual([["deleted_at", null]]);
-    expect(rpc.callsFor("page_full_path").map((c) => c.arg("_page_id"))).toEqual([STRONA]);
+    expect(rpc.callsFor("page_full_paths").map((c) => c.arg("_page_ids"))).toEqual([[STRONA]]);
   });
 
   it("brak opublikowanych wpisów to pusty feed BEZ ostrzeżenia w logu", async () => {
@@ -434,25 +441,7 @@ describe("feed główny - co i w jakiej kolejności wyjeżdża do RSS-a", () => 
     expect(ostrzezenia).toHaveBeenCalledWith("[seo] page-paths read failed:", expect.any(Error));
   });
 
-  it.fails("odmowa bazy jest nieodróżnialna od pustego feedu i nie zostawia śladu", async () => {
-    // DEFEKT (do decyzji człowieka). Każdy odczyt w tym pliku czyta wyłącznie
-    // `data` i porzuca `error` - `publishedContent.server.ts:63, 125, 165, 216,
-    // 241, 263, 298, 330, 371, 392, 440, 458, 474, 519, 564, 636, 644, 650, 657,
-    // 663, 670, 760, 772`.
-    // MECHANIZM: klient Supabase NIE rzuca na odmowie - zwraca
-    // `{ data: null, error }`. Skoro nic nie leci wyjątkiem, `resilient`
-    // (25-32) nigdy nie łapie, `console.warn` nie zostaje wywołany, a `data ??
-    // []` zamienia odmowę w pustą listę. Fallback `resilient` i wynik odmowy są
-    // BIT W BIT te same, więc żadna warstwa wyżej nie umie ich rozróżnić.
-    // KONSEKWENCJA: `permission denied` po zmianie polityki, timeout puli albo
-    // błąd migracji daje kanał RSS i sitemapę, które mówią crawlerowi „ten
-    // serwis nie ma już treści". Google wypisuje adresy z indeksu, a w logach
-    // nie ma ANI JEDNEJ linii. To dokładnie ta klasa („awaria wygląda jak brak
-    // danych"), która w tym repo wystąpiła już trzy razy.
-    // DLACZEGO NIE NAPRAWIAM: poprawka to decyzja o kontrakcie powierzchni
-    // crawlerowej - czy odmowa ma podnieść wyjątek (wtedy `resilient` loguje
-    // i degraduje, ale trzeba przejrzeć wszystkie 23 miejsca), czy ma zostać
-    // pustym wynikiem z jawnym logiem i metryką. Wybór należy do człowieka.
+  it("odmowa bazy jest nieodróżnialna od pustego feedu i nie zostawia śladu", async () => {
     zaplanujStrony();
     db.setResponse("posts", fail("permission denied for table posts", "42501"));
     expect(await fetchPublishedPosts(TENANT)).toEqual([]);
@@ -1008,22 +997,7 @@ describe("cache brzegowy czytnika - z czego zbudowany jest klucz", () => {
     expect(db.chainsFor("categories")).toHaveLength(2);
   });
 
-  it.fails("dwie różne listy plików o wspólnym początku dzielą jeden wpis cache", async () => {
-    // DEFEKT (do decyzji człowieka). `publishedContent.server.ts:325` buduje
-    // klucz z listy adresów: `unique.slice().sort().join("|").slice(0, 512)`.
-    // MECHANIZM: obcięcie do 512 znaków. Publiczny adres pliku z magazynu
-    // Supabase ma ~110 znaków, więc już SZÓSTY plik w kanale wypada za granicę
-    // klucza - dwie różne listy plików, które zgadzają się na pierwszych pięciu
-    // adresach, dostają IDENTYCZNY klucz i przez 60 s współdzielą jeden wynik.
-    // KONSEKWENCJA: `fetchMediaMetaByUrls` zwraca mapę zbudowaną dla innego
-    // zestawu odcinków, więc RSS podcastu emituje `<enclosure length="0">` dla
-    // odcinków, których metadanych w tej mapie nie ma (komentarz przy funkcji
-    // dopuszcza length=0 tylko dla plików ZEWNĘTRZNYCH, nie dla wgranych).
-    // Apple Podcasts i Spotify traktują brak długości jako błąd elementu -
-    // odcinek nie pobiera się w kliencie, a redakcja widzi „opublikowany".
-    // DLACZEGO NIE NAPRAWIAM: poprawka to zamiana obcięcia na SKRÓT listy
-    // (klucz stałej długości), a wybór funkcji skrótu i jej długości jest
-    // decyzją o kolizyjności i o kosztach CPU na krawędzi - do człowieka.
+  it("dwie różne listy plików o wspólnym początku dzielą jeden wpis cache", async () => {
     const dlugiAdres = (numer: string) =>
       `https://przyklad-projektu.supabase.co/storage/v1/object/public/media/podcasty/2026/08/odcinek-${numer}-mix-finalny.mp3`;
     const wspolne = ["01", "02", "03", "04", "05"].map(dlugiAdres);
@@ -1191,21 +1165,96 @@ const PRZYPADKI_AWARII: readonly PrzypadekAwarii[] = [
     oczekiwane: { items: [], updates: [] },
     wywolaj: () => fetchTrackerFeedSources(TENANT),
   },
+  {
+    czytnik: "tag header",
+    tabela: "tags",
+    etykieta: "feed-taxonomy",
+    oczekiwane: null,
+    wywolaj: () => fetchTaxonomyForFeed(TENANT, "tag", "ai-act"),
+  },
+  {
+    czytnik: "program header",
+    tabela: "research_programs",
+    etykieta: "feed-taxonomy",
+    oczekiwane: null,
+    wywolaj: () => fetchTaxonomyForFeed(TENANT, "program", "ai-act"),
+  },
+  {
+    czytnik: "live posts",
+    tabela: "posts",
+    etykieta: "live-entries",
+    oczekiwane: [],
+    wywolaj: () => fetchLiveCoverageEntries(TENANT),
+  },
+  {
+    czytnik: "tracker updates",
+    tabela: "eu_policy_updates",
+    etykieta: "tracker-feed",
+    oczekiwane: { items: [], updates: [] },
+    wywolaj: () => fetchTrackerFeedSources(TENANT),
+  },
+  {
+    czytnik: "program feed research_programs",
+    tabela: "research_programs",
+    etykieta: "feed-taxonomy-posts",
+    oczekiwane: [],
+    wywolaj: () => fetchPublishedPostsByTaxonomy(TENANT, "program", "slug"),
+  },
+  {
+    czytnik: "program feed post_categories",
+    tabela: "post_categories",
+    etykieta: "feed-taxonomy-posts",
+    oczekiwane: [],
+    wywolaj: () => fetchPublishedPostsByTaxonomy(TENANT, "program", "slug"),
+  },
+  {
+    czytnik: "category feed categories",
+    tabela: "categories",
+    etykieta: "feed-taxonomy-posts",
+    oczekiwane: [],
+    wywolaj: () => fetchPublishedPostsByTaxonomy(TENANT, "category", "slug"),
+  },
+  {
+    czytnik: "category feed post_categories",
+    tabela: "post_categories",
+    etykieta: "feed-taxonomy-posts",
+    oczekiwane: [],
+    wywolaj: () => fetchPublishedPostsByTaxonomy(TENANT, "category", "slug"),
+  },
+  {
+    czytnik: "tag feed post_tags",
+    tabela: "post_tags",
+    etykieta: "feed-taxonomy-posts",
+    oczekiwane: [],
+    wywolaj: () => fetchPublishedPostsByTaxonomy(TENANT, "tag", "slug"),
+  },
+  {
+    czytnik: "tag feed posts",
+    tabela: "posts",
+    etykieta: "feed-taxonomy-posts",
+    oczekiwane: [],
+    wywolaj: () => fetchPublishedPostsByTaxonomy(TENANT, "tag", "slug"),
+  },
 ];
 
 describe("degradacja odczytu - awaria zamiast 500 na powierzchni crawlera", () => {
   for (const przypadek of PRZYPADKI_AWARII) {
-    it(`${przypadek.czytnik}: zerwany odczyt daje bezpieczną wartość i ślad "${przypadek.etykieta}"`, async () => {
-      odpowiedziTowarzyszace();
-      db.setResponse(przypadek.tabela, () => {
-        throw new Error("połączenie zerwane");
-      });
-      await expect(przypadek.wywolaj()).resolves.toEqual(przypadek.oczekiwane);
-      expect(ostrzezenia).toHaveBeenCalledWith(
-        `[seo] ${przypadek.etykieta} read failed:`,
-        expect.any(Error),
-      );
-    });
+    it.each(["transport", "database"])(
+      `${przypadek.czytnik}: %s daje bezpieczną wartość i ślad "${przypadek.etykieta}"`,
+      async (kind) => {
+        odpowiedziTowarzyszace();
+        const error = new Error("połączenie zerwane");
+        db.setResponse(przypadek.tabela, () => {
+          if (kind === "transport") throw error;
+          return fail("połączenie zerwane", "42501");
+        });
+        await expect(przypadek.wywolaj()).resolves.toEqual(przypadek.oczekiwane);
+        expect(ostrzezenia).toHaveBeenCalledWith(
+          `[seo] ${przypadek.etykieta} read failed:`,
+          expect.objectContaining({ message: "połączenie zerwane" }),
+        );
+      },
+    );
   }
 });
 

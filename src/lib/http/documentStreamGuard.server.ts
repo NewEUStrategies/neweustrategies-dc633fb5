@@ -93,7 +93,8 @@ export const DOC_GUARD_IDLE_MS = 12_000;
 /** Twardy sufit życia strumienia odpowiedzi, liczony od utworzenia strażnika. */
 export const DOC_GUARD_MAX_MS = 20_000;
 
-export type DocumentGuardCloseReason = "source" | "sentinel" | "idle" | "timeout" | "cancel";
+export type DocumentGuardCloseReason =
+  "source" | "error" | "sentinel" | "idle" | "timeout" | "cancel";
 
 export interface DocumentStreamGuardOptions {
   /** Łaska po sentinelu `</html>` na naturalne zamknięcie źródła. */
@@ -120,6 +121,7 @@ export interface DocumentGuardSnapshot {
   enabled: boolean;
   guarded: number;
   closedBySource: number;
+  closedByError: number;
   closedBySentinel: number;
   closedByIdle: number;
   closedByTimeout: number;
@@ -130,6 +132,7 @@ export interface DocumentGuardSnapshot {
 const stats = {
   guarded: 0,
   closedBySource: 0,
+  closedByError: 0,
   closedBySentinel: 0,
   closedByIdle: 0,
   closedByTimeout: 0,
@@ -246,6 +249,7 @@ export function guardDocumentStream(
       // Konsument (runtime/klient) zerwał połączenie - nic do raportowania.
       stats.closedBySource += 1;
     } else {
+      if (reason === "error") stats.closedByError += 1;
       if (reason === "sentinel") stats.closedBySentinel += 1;
       if (reason === "idle") stats.closedByIdle += 1;
       if (reason === "timeout") stats.closedByTimeout += 1;
@@ -320,18 +324,21 @@ export function guardDocumentStream(
                 if (graceTimer === undefined) {
                   graceTimer = setTimeout(() => close("sentinel"), sentinelGraceMs);
                 }
-              } else if (!scanner.seen) {
+              } else {
                 armIdle();
               }
             }
             pump();
           })
-          .catch(() => close("source"));
+          .catch(() => close("error"));
       };
       pump();
     },
-    cancel() {
+    cancel(reason) {
       close("cancel");
+      // Reader cancellation must reach React/upstream as well: otherwise a
+      // disconnected client leaves the source alive with all timers cleared.
+      return reader?.cancel(reason).catch(() => undefined);
     },
   });
 }
@@ -396,6 +403,7 @@ export function getDocumentGuardSnapshot(): DocumentGuardSnapshot {
     enabled: guardEnabled(),
     guarded: stats.guarded,
     closedBySource: stats.closedBySource,
+    closedByError: stats.closedByError,
     closedBySentinel: stats.closedBySentinel,
     closedByIdle: stats.closedByIdle,
     closedByTimeout: stats.closedByTimeout,
@@ -407,6 +415,7 @@ export function getDocumentGuardSnapshot(): DocumentGuardSnapshot {
 export function resetDocumentGuardForTests(): void {
   stats.guarded = 0;
   stats.closedBySource = 0;
+  stats.closedByError = 0;
   stats.closedBySentinel = 0;
   stats.closedByIdle = 0;
   stats.closedByTimeout = 0;

@@ -290,7 +290,7 @@ describe("preAuthGuard - RODO: co ląduje w rate_limits", () => {
   });
 });
 
-describe("preAuthGuard - żądanie bez rozpoznawalnego adresu", () => {
+describe("preAuthGuard - skąd bierze się podmiot kubełka IP", () => {
   it("czyta adres z `x-real-ip`, gdy nie ma `x-forwarded-for`", async () => {
     h.headers = new Headers({ "x-real-ip": IP_B });
 
@@ -299,63 +299,122 @@ describe("preAuthGuard - żądanie bez rozpoznawalnego adresu", () => {
     expect(bucketFor("auth_login_ip")).toBeDefined();
   });
 
-  it("bierze PIERWSZY adres z łańcucha `x-forwarded-for`", async () => {
+  it("bierze OSTATNI adres z łańcucha `x-forwarded-for`", async () => {
+    // Lista rośnie od klienta w stronę serwera: KLIENT dopisuje własny prefiks,
+    // a proxy dokleja adres połączenia na KOŃCU. Pierwszy wpis jest więc
+    // deklaracją klienta, nie adresem - kubełek po nim kluczowany rotowałby się
+    // jednym nagłówkiem.
     h.headers = new Headers({ "x-forwarded-for": `${IP_A}, ${IP_B}` });
     await callServerFn(preAuthGuard, { kind: "login", email: EMAIL }, { supabase: null });
     const chained = bucketFor("auth_login_ip")!._subject;
 
     h.rpc.mockClear();
-    withIp(IP_A);
+    withIp(IP_B);
     await callServerFn(preAuthGuard, { kind: "login", email: EMAIL }, { supabase: null });
 
     expect(bucketFor("auth_login_ip")!._subject).toBe(chained);
   });
 
-  it("STAN FAKTYCZNY: brak nagłówka IP znosi kubełek per adres", async () => {
-    // UWAGA - to jest utrwalenie DEFEKTU, nie potwierdzenie poprawności.
-    // Gdy nagłówków nie ma, `currentIpHash()` zwraca null, a handler pomija
-    // kubełek IP i zostaje sam limit per e-mail. Żądanie „nie wiadomo od kogo"
-    // powinno trafiać do wspólnego kubełka `ip:unknown`, a nie wymykać się
-    // limitowi. Naprawa idzie osobnym commitem, żeby ta zmiana zachowania była
-    // widoczna w historii.
+  it("ten sam `cf-connecting-ip` + RÓŻNE `x-forwarded-for` => ten sam `_subject`", async () => {
+    // To jest cały sens poprawki: nagłówek, którego klient nie podrobi, wygrywa,
+    // więc rotacja XFF nie rozsypuje prób po osobnych kubełkach.
+    h.headers = new Headers({ "cf-connecting-ip": IP_A, "x-forwarded-for": "1.2.3.4, 9.9.9.9" });
+    await callServerFn(preAuthGuard, { kind: "login", email: EMAIL }, { supabase: null });
+    const pierwszy = bucketFor("auth_login_ip")!._subject;
+
+    h.rpc.mockClear();
+    h.headers = new Headers({ "cf-connecting-ip": IP_A, "x-forwarded-for": "8.8.8.8" });
+    await callServerFn(preAuthGuard, { kind: "login", email: EMAIL }, { supabase: null });
+
+    expect(bucketFor("auth_login_ip")!._subject).toBe(pierwszy);
+  });
+
+  it('`x-forwarded-for` równy " " NIE znosi kubełka - wpada do `ip:unknown`', async () => {
+    // Najprostszy exploit sprzed poprawki: jeden nagłówek dawał pusty string,
+    // ten schodził na „unknown", a handler pomijał kubełek IP w całości.
+    h.headers = new Headers({ "x-forwarded-for": " " });
+    await callServerFn(preAuthGuard, { kind: "login", email: EMAIL }, { supabase: null });
+    const puste = bucketFor("auth_login_ip");
+    expect(puste).toBeDefined();
+
+    h.rpc.mockClear();
+    h.headers = new Headers();
+    await callServerFn(preAuthGuard, { kind: "login", email: EMAIL }, { supabase: null });
+
+    // Ten sam WSPÓLNY kubełek co żądanie zupełnie bez nagłówków.
+    expect(bucketFor("auth_login_ip")!._subject).toBe(puste!._subject);
+  });
+
+  it("brak nagłówka IP daje WSPÓLNY kubełek, a nie brak kubełka", async () => {
     h.headers = new Headers();
 
     await callServerFn(preAuthGuard, { kind: "login", email: EMAIL }, { supabase: null });
 
-    expect(bucketFor("auth_login_ip")).toBeUndefined();
-    expect(buckets().map((b) => b._scope)).toEqual(["auth_login_email"]);
+    expect(buckets().map((b) => b._scope)).toEqual(["auth_login_ip", "auth_login_email"]);
+    expect(bucketFor("auth_login_ip")!._subject).toMatch(/^ip:[0-9a-f]{32}$/);
   });
 
-  it("STAN FAKTYCZNY: żądanie BEZ nagłówków w ogóle znosi kubełek per adres", async () => {
+  it("żądanie BEZ pola `headers` też trafia do wspólnego kubełka", async () => {
     // Wariant inny niż pusty zestaw nagłówków: obiekt żądania bez pola
     // `headers` (tak wygląda wywołanie spoza kontekstu HTTP).
     h.headers = null;
 
     await callServerFn(preAuthGuard, { kind: "login", email: EMAIL }, { supabase: null });
 
-    expect(bucketFor("auth_login_ip")).toBeUndefined();
-    expect(buckets()).toHaveLength(1);
+    expect(buckets()).toHaveLength(2);
+    expect(bucketFor("auth_login_ip")).toBeDefined();
   });
 
-  it("STAN FAKTYCZNY: brak kontekstu żądania też znosi kubełek per adres", async () => {
+  it("brak kontekstu żądania NIE wywraca logowania i nie znosi kubełka", async () => {
+    // `preAuthGuard` jest fail-CLOSED, więc wyjątek z odczytu nagłówków
+    // zablokowałby logowanie WSZYSTKIM. `catch` oddaje skrót „unknown".
     h.requestThrows = true;
 
     await callServerFn(preAuthGuard, { kind: "login", email: EMAIL }, { supabase: null });
 
-    expect(bucketFor("auth_login_ip")).toBeUndefined();
-    expect(buckets()).toHaveLength(1);
+    expect(buckets()).toHaveLength(2);
+    expect(bucketFor("auth_login_ip")).toBeDefined();
   });
 
-  it("limit per e-mail działa dalej, gdy adresu nie da się ustalić", async () => {
-    // Zapora jest osłabiona, ale nie zniknięta - to jedyny powód, dla którego
-    // defekt wyżej nie jest krytyczny.
+  it("wszystkie żądania bez adresu dzielą DOKŁADNIE jeden kubełek", async () => {
+    // Gdyby „brak nagłówków", „puste XFF" i „brak kontekstu" dawały trzy różne
+    // skróty, limit 15/5 min rozsypałby się na trzy niezależne okna.
+    const podmioty: string[] = [];
+    for (const przygotuj of [
+      () => {
+        h.headers = new Headers();
+      },
+      () => {
+        h.headers = new Headers({ "x-forwarded-for": " , " });
+      },
+      () => {
+        h.headers = null;
+      },
+      () => {
+        h.requestThrows = true;
+      },
+    ]) {
+      h.rpc.mockReset();
+      h.rpc.mockResolvedValue({ data: [{ allowed: true, hits: 1 }], error: null });
+      h.requestThrows = false;
+      przygotuj();
+      await callServerFn(preAuthGuard, { kind: "login", email: EMAIL }, { supabase: null });
+      podmioty.push(bucketFor("auth_login_ip")!._subject);
+    }
+
+    expect(new Set(podmioty).size).toBe(1);
+  });
+
+  it("limit per e-mail działa dalej obok kubełka `ip:unknown`", async () => {
     h.headers = new Headers();
     h.rpc.mockResolvedValue({ data: [{ allowed: false, hits: 9 }], error: null });
 
     await expect(
       callServerFn(preAuthGuard, { kind: "login", email: EMAIL }, { supabase: null }),
     ).rejects.toThrow("auth: rate_limited");
-    expect(bucketFor("auth_login_email")).toBeDefined();
+    // Kubełek IP jest teraz PIERWSZY i to on zatrzymuje próbę - kubełek e-maila
+    // nie zdąży powstać, dokładnie jak przy rozpoznanym adresie.
+    expect(bucketFor("auth_login_ip")).toBeDefined();
   });
 });
 
@@ -442,17 +501,31 @@ describe("unlockContentPassword - paywall", () => {
     );
   });
 
-  it("bez rozpoznanego adresu przekazuje `undefined`, a nie pusty skrót", async () => {
-    // `null` w tym miejscu wywaliłby RPC na typie; baza ma dostać brak
-    // wartości i policzyć wyłącznie limit per encja.
+  it("bez rozpoznanego adresu przekazuje WSPÓLNY skrót, a nie `undefined`", async () => {
+    // `undefined` oznaczało dla RPC (20260720071845:87) pominięcie kubełka
+    // per IP w całości, więc odblokowania zza brakującego nagłówka nie miały
+    // ŻADNEGO limitu poza per-encja. Teraz dzielą jeden kubełek 20/5 min.
     h.headers = new Headers();
     h.rpc.mockResolvedValue({ data: [{ ok: true }], error: null });
 
     await callServerFn(unlockContentPassword, UNLOCK, { supabase: null });
 
     const args = h.rpc.mock.calls[0]![1] as { _ip_hash?: string };
-    expect(args._ip_hash).toBeUndefined();
+    expect(args._ip_hash).toMatch(/^ip:[0-9a-f]{32}$/);
     expect(h.rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("rotacja `x-forwarded-for` przy stałym `cf-connecting-ip` nie zmienia `_ip_hash`", async () => {
+    h.rpc.mockResolvedValue({ data: [{ ok: true }], error: null });
+    h.headers = new Headers({ "cf-connecting-ip": IP_A, "x-forwarded-for": "1.2.3.4" });
+    await callServerFn(unlockContentPassword, UNLOCK, { supabase: null });
+    const pierwszy = (h.rpc.mock.calls[0]![1] as { _ip_hash?: string })._ip_hash;
+
+    h.rpc.mockClear();
+    h.headers = new Headers({ "cf-connecting-ip": IP_A, "x-forwarded-for": "8.8.8.8, 9.9.9.9" });
+    await callServerFn(unlockContentPassword, UNLOCK, { supabase: null });
+
+    expect((h.rpc.mock.calls[0]![1] as { _ip_hash?: string })._ip_hash).toBe(pierwszy);
   });
 
   it("odpowiedź RPC, która nie jest tablicą, nie przecieka treścią", async () => {

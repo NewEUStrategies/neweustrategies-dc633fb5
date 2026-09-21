@@ -35,11 +35,20 @@
 //   natywne odpowiedniki, bo przedmiotem dowodu jest ŁADUNEK, nie biblioteka.
 //
 // GAŁĄŹ NIEOSIĄGALNA. W `InviteUserDialog` `submit()` otwiera się warunkiem
-// `if (!email || !name) return;`, a jedyne wejście do `submit()` to przycisk
-// z `disabled={busy || !email || !name}` - czyli ten sam warunek. Obrona
-// zostaje (handler jest publiczny w obrębie komponentu), tylko nie da się jej
-// wywołać z testu bez rozmontowania blokady przycisku, którą osobno dowodzi
-// test „przycisk wysłania jest ZABLOKOWANY…”.
+// `if (!email || !first || !last || !linkedinOk) return;`, a jedyne wejście do
+// `submit()` to przycisk z `disabled={busy || uploading || !email ||
+// !firstName.trim() || !lastName.trim() || !linkedinOk}` - czyli ten sam
+// warunek plus dwa dodatkowe składniki. Obrona zostaje (handler jest publiczny
+// w obrębie komponentu), tylko nie da się jej wywołać z testu bez rozmontowania
+// blokady przycisku, którą osobno dowodzą testy „przycisk wysłania jest
+// ZABLOKOWANY…” i „LinkedIn: błędny adres BLOKUJE wysyłkę…”. Druga taka gałąź
+// (`items.length === 0` w `TeamImportDialog.run()`) jest opisana przy testach
+// importu.
+//
+// ZAREJESTROWANY DEFEKT (`it.fails`). `reset()` w `InviteUserDialog` czyści
+// pola osoby i przywraca autoakceptację, ale NIE przywraca `role` ani `mode` -
+// więc rola z poprzedniego zaproszenia zostaje na następne. Opis skutku
+// i przyczyny stoi przy samym teście.
 //
 // RODO: żadnych realnych danych osobowych - adresy wyłącznie w `example.org`.
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -48,6 +57,8 @@ import type { ReactNode } from "react";
 import type { TeamImportCandidate } from "@/lib/admin/invitations.functions";
 
 const h = vi.hoisted(() => ({
+  companySearch: vi.fn(),
+  companyCreate: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   toastInfo: vi.fn(),
@@ -78,6 +89,14 @@ const h = vi.hoisted(() => ({
    * odpowiedzi nie-JSON rzuca surową treścią odpowiedzi.
    */
   throwRaw: false,
+  uploadCalls: [] as string[],
+  uploadResult: { error: null } as { error: { message: string } | null },
+  /**
+   * Gdy ustawione, magazyn RZUCA tą wartością zamiast oddać `{ error }`.
+   * Odpowiednik `throwRaw` dla warstwy serwerowej: klient magazynu przy
+   * zerwanym połączeniu rzuca wartością, która NIE jest `Error`.
+   */
+  uploadThrows: null as string | null,
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
@@ -86,6 +105,23 @@ vi.mock("sonner", () => ({
   toast: { success: h.toastSuccess, error: h.toastError, info: h.toastInfo },
 }));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
+vi.mock("@/hooks/useAuth", () => ({ useRequiredTenant: () => "tenant-1" }));
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    storage: {
+      from: () => ({
+        upload: async (path: string) => {
+          h.uploadCalls.push(path);
+          if (h.uploadThrows !== null) throw h.uploadThrows;
+          return h.uploadResult;
+        },
+        getPublicUrl: (path: string) => ({
+          data: { publicUrl: `https://cdn.example.org/${path}` },
+        }),
+      }),
+    },
+  },
+}));
 
 function boom(step: string): never {
   if (h.throwRaw) throw `${step}_raw`;
@@ -93,6 +129,8 @@ function boom(step: string): never {
 }
 
 vi.mock("@/lib/admin/invitations.functions", () => ({
+  searchCrmCompanies: h.companySearch,
+  createCrmCompany: h.companyCreate,
   previewTeamImport: async ({ data }: { data: { pageSlug: string } }) => {
     h.previewCalls.push(data.pageSlug);
     if (h.throwOn === "preview") boom("preview");
@@ -235,12 +273,13 @@ function buttonWith(fragment: string): HTMLButtonElement {
   return button;
 }
 
-function inputs(): HTMLInputElement[] {
-  return Array.from(document.querySelectorAll<HTMLInputElement>("input:not([type=checkbox])"));
-}
-
 beforeEach(() => {
   cleanup();
+  h.companySearch.mockReset().mockResolvedValue({ companies: [{ id: "c1", name: "Acme" }] });
+  h.companyCreate.mockReset().mockImplementation(async ({ data }: { data: { name: string } }) => ({
+    id: "c2",
+    name: data.name,
+  }));
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
   h.toastInfo.mockReset();
@@ -255,6 +294,9 @@ beforeEach(() => {
   h.bulkSendResult = { results: [{ ok: true }] };
   h.linkResult = { updated: 2 };
   h.previewResult = { candidates: [] };
+  h.uploadCalls = [];
+  h.uploadResult = { error: null };
+  h.uploadThrows = null;
   h.provisionResult = { created: 1, skipped: 0, linked: 1, errors: [] };
   h.throwOn = null;
   h.throwRaw = false;
@@ -274,10 +316,20 @@ describe("InviteUserDialog", () => {
     return { ...utils, onOpenChange, onDone };
   }
 
-  function fill(email = "nowa@example.org", name = "Nowa Osoba"): void {
-    const [emailInput, nameInput] = inputs();
-    fireEvent.change(emailInput, { target: { value: email } });
-    fireEvent.change(nameInput, { target: { value: name } });
+  function field(id: string): HTMLInputElement {
+    const el = document.getElementById(id);
+    if (!(el instanceof HTMLInputElement)) throw new Error(`test: brak pola #${id}`);
+    return el;
+  }
+
+  function fill(
+    email = "nowa@example.org",
+    firstName = "Łucja",
+    lastName = "Ostrowska-Nowak",
+  ): void {
+    fireEvent.change(field("invite-email"), { target: { value: email } });
+    fireEvent.change(field("invite-first-name"), { target: { value: firstName } });
+    fireEvent.change(field("invite-last-name"), { target: { value: lastName } });
   }
 
   it("zamknięta modalka nie renderuje niczego", () => {
@@ -302,21 +354,23 @@ describe("InviteUserDialog", () => {
     expect(values).toEqual(["admin", "editor", "author", "user"]);
   });
 
-  it("przycisk wysłania jest ZABLOKOWANY, dopóki brakuje adresu albo nazwy", () => {
+  it("przycisk wysłania jest ZABLOKOWANY, dopóki brakuje adresu, imienia albo nazwiska", () => {
     mount();
     expect(buttonWith("adminTeamMedia.inviteUser.send").disabled).toBe(true);
 
-    const [emailInput, nameInput] = inputs();
-    fireEvent.change(emailInput, { target: { value: "nowa@example.org" } });
+    fireEvent.change(field("invite-email"), { target: { value: "nowa@example.org" } });
     expect(buttonWith("adminTeamMedia.inviteUser.send").disabled).toBe(true);
 
-    fireEvent.change(nameInput, { target: { value: "Nowa Osoba" } });
+    fireEvent.change(field("invite-first-name"), { target: { value: "Łucja" } });
+    expect(buttonWith("adminTeamMedia.inviteUser.send").disabled).toBe(true);
+
+    fireEvent.change(field("invite-last-name"), { target: { value: "Ostrowska-Nowak" } });
     expect(buttonWith("adminTeamMedia.inviteUser.send").disabled).toBe(false);
   });
 
   it("pole adresu ma typ `email` - walidacja przeglądarki jest pierwszą bramką", () => {
     mount();
-    expect(inputs()[0].type).toBe("email");
+    expect(field("invite-email").type).toBe("email");
   });
 
   it("pełny formularz wysyła ładunek z ROLĄ, TRYBEM i źródłem `manual`", async () => {
@@ -330,11 +384,14 @@ describe("InviteUserDialog", () => {
     expect(h.createCalls[0].items).toEqual([
       {
         email: "nowa@example.org",
-        display_name: "Nowa Osoba",
+        display_name: "Łucja Ostrowska-Nowak",
         role: "editor",
         mode: "temp_password",
         // Źródło rozdziela zaproszenia ręczne od importu zespołu w audycie.
         source: "manual",
+        // Autoakceptacja jest domyślna - administrator tworzy konto gotowe
+        // do użycia, więc zaproszenie nie zostaje w stanie „wysłane".
+        metadata: { lang: "pl", auto_accept: true },
       },
     ]);
     await waitFor(() => expect(h.sendCalls).toEqual(["inv-1"]));
@@ -351,8 +408,9 @@ describe("InviteUserDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
     // Pola muszą zniknąć: modalka otwarta ponownie z poprzednim adresem
     // kończy się drugim zaproszeniem dla tej samej osoby.
-    await waitFor(() => expect(inputs()[0].value).toBe(""));
-    expect(inputs()[1].value).toBe("");
+    await waitFor(() => expect(field("invite-email").value).toBe(""));
+    expect(field("invite-first-name").value).toBe("");
+    expect(field("invite-last-name").value).toBe("");
   });
 
   it("hasło tymczasowe idzie OSOBNYM komunikatem, obok komunikatu o sukcesie", async () => {
@@ -372,6 +430,156 @@ describe("InviteUserDialog", () => {
     fireEvent.click(buttonWith("adminTeamMedia.inviteUser.send"));
     await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
     expect(h.toastInfo).not.toHaveBeenCalled();
+  });
+
+  it("inicjały wyliczają się z osobnych pól imienia i nazwiska, dopóki nie ma zdjęcia", () => {
+    mount();
+    expect(screen.getByTestId("invite-avatar").textContent).toBe("?");
+    fireEvent.change(field("invite-first-name"), { target: { value: "Łucja" } });
+    fireEvent.change(field("invite-last-name"), { target: { value: "Ostrowska-Nowak" } });
+    expect(screen.getByTestId("invite-avatar").textContent).toBe("ŁO");
+  });
+
+  it("wgrane zdjęcie zastępuje inicjały i trafia do ładunku zaproszenia", async () => {
+    mount();
+    fill();
+    const file = new File(["x"], "foto.png", { type: "image/png" });
+    fireEvent.change(screen.getByTestId("invite-photo-input"), { target: { files: [file] } });
+    await waitFor(() => expect(h.uploadCalls).toHaveLength(1));
+    await waitFor(() =>
+      expect(screen.getByTestId("invite-avatar").querySelector("img")).toBeTruthy(),
+    );
+
+    fireEvent.click(buttonWith("adminTeamMedia.inviteUser.send"));
+    await waitFor(() => expect(h.createCalls).toHaveLength(1));
+    const meta = h.createCalls[0].items[0].metadata as Record<string, unknown>;
+    expect(String(meta.photo)).toContain("tenant-1/invites/");
+  });
+
+  it("zbyt duże zdjęcie i plik nie-graficzny są ODRZUCANE bez wysyłki do magazynu", async () => {
+    mount();
+    const text = new File(["x"], "cv.txt", { type: "text/plain" });
+    fireEvent.change(screen.getByTestId("invite-photo-input"), { target: { files: [text] } });
+    await waitFor(() => expect(h.toastError).toHaveBeenCalled());
+
+    const big = new File([new Uint8Array(6 * 1024 * 1024)], "big.png", { type: "image/png" });
+    fireEvent.change(screen.getByTestId("invite-photo-input"), { target: { files: [big] } });
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledTimes(2));
+    expect(h.uploadCalls).toEqual([]);
+  });
+
+  it("ANULOWANE okno wyboru pliku nie rusza magazynu i nie krzyczy błędem", async () => {
+    // Przeglądarka potrafi zgłosić `change` z PUSTĄ listą plików, gdy
+    // administrator otworzy okno wyboru i je zamknie. Bez straży `if (!file)`
+    // dalsza część czyta `file.type` na `undefined` - modalka wywala się
+    // wyjątkiem w trakcie zwykłego rozmyślenia się użytkownika.
+    mount();
+    fireEvent.change(screen.getByTestId("invite-photo-input"), { target: { files: [] } });
+    await waitFor(() => expect(h.uploadCalls).toEqual([]));
+    expect(h.toastError).not.toHaveBeenCalled();
+    // Kafel awataru zostaje w stanie sprzed otwarcia okna.
+    expect(screen.getByTestId("invite-avatar").textContent).toBe("?");
+  });
+
+  it("przycisk zdjęcia PRZEKAZUJE kliknięcie do ukrytego pola pliku", () => {
+    // Natywne pole `type=file` jest ukryte (`className=\"hidden\"`), więc ten
+    // przycisk to JEDYNE wejście do wyboru zdjęcia. Zerwane `ref` znaczy
+    // martwy przycisk: nic się nie dzieje i nic o tym nie mówi.
+    mount();
+    const input = screen.getByTestId("invite-photo-input");
+    const forwarded: string[] = [];
+    input.addEventListener("click", () => forwarded.push("click"));
+    fireEvent.click(buttonWith("adminTeamMedia.inviteUser.photo"));
+    expect(forwarded).toEqual(["click"]);
+  });
+
+  it("usunięcie zdjęcia wraca do inicjałów i WYRZUCA zdjęcie z ładunku", async () => {
+    // Bez tego kroku administrator, który wgrał niewłaściwą fotografię, nie ma
+    // jak jej cofnąć - a `photo` w metadanych przepisuje się do
+    // `profiles.avatar_url` przy zakładaniu konta.
+    mount();
+    fill();
+    const file = new File(["x"], "foto.png", { type: "image/png" });
+    fireEvent.change(screen.getByTestId("invite-photo-input"), { target: { files: [file] } });
+    await waitFor(() =>
+      expect(screen.getByTestId("invite-avatar").querySelector("img")).toBeTruthy(),
+    );
+
+    fireEvent.click(screen.getByLabelText("adminTeamMedia.inviteUser.photoRemove"));
+    await waitFor(() =>
+      expect(screen.getByTestId("invite-avatar").querySelector("img")).toBeNull(),
+    );
+    expect(screen.getByTestId("invite-avatar").textContent).toBe("ŁO");
+    // Przycisk usuwania znika razem ze zdjęciem - nie ma czego usuwać.
+    expect(screen.queryByLabelText("adminTeamMedia.inviteUser.photoRemove")).toBeNull();
+
+    fireEvent.click(buttonWith("adminTeamMedia.inviteUser.send"));
+    await waitFor(() => expect(h.createCalls).toHaveLength(1));
+    expect(h.createCalls[0].items[0].metadata).toEqual({ lang: "pl", auto_accept: true });
+  });
+
+  it("plik BEZ rozszerzenia ląduje w magazynie pod nazwą z `.png`", async () => {
+    // Nazwa z samą kropką na końcu (tak potrafi wyglądać plik z udziału
+    // sieciowego albo z wklejenia ze schowka) daje PUSTE rozszerzenie. Ścieżka
+    // bez kropki i sufiksu potrafi trafić do magazynu jako plik bez typu, więc
+    // przeglądarka pokazuje ją jako pobranie zamiast obrazka.
+    mount();
+    const file = new File(["x"], "skan.", { type: "image/png" });
+    fireEvent.change(screen.getByTestId("invite-photo-input"), { target: { files: [file] } });
+    await waitFor(() => expect(h.uploadCalls).toHaveLength(1));
+    expect(h.uploadCalls[0].endsWith(".png")).toBe(true);
+    expect(h.uploadCalls[0].startsWith("tenant-1/invites/")).toBe(true);
+  });
+
+  it("odmowa magazynu pokazuje POWÓD, nie ustawia zdjęcia i odblokowuje modalkę", async () => {
+    // `StorageError` z klienta Supabase JEST `Error`, więc administrator ma
+    // zobaczyć treść odmowy (np. przekroczony limit), a nie „[object Object]".
+    h.uploadResult = { error: new Error("storage_quota_exceeded") };
+    mount();
+    fill();
+    const file = new File(["x"], "foto.png", { type: "image/png" });
+    fireEvent.change(screen.getByTestId("invite-photo-input"), { target: { files: [file] } });
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("storage_quota_exceeded"));
+    // Nieudane wgranie nie może zostawić kafla z pustym `img` ani wpisać
+    // adresu, którego w magazynie nie ma.
+    expect(screen.getByTestId("invite-avatar").querySelector("img")).toBeNull();
+    // `uploading` blokuje przycisk wysłania - gdyby zostało włączone, modalka
+    // byłaby martwa aż do zamknięcia.
+    await waitFor(() => expect(buttonWith("adminTeamMedia.inviteUser.send").disabled).toBe(false));
+  });
+
+  it("błąd magazynu NIE-`Error` degraduje do tekstowej postaci wartości", async () => {
+    // Zerwane połączenie z magazynem potrafi wyjść z klienta jako łańcuch.
+    h.uploadThrows = "storage_offline";
+    mount();
+    const file = new File(["x"], "foto.png", { type: "image/png" });
+    fireEvent.change(screen.getByTestId("invite-photo-input"), { target: { files: [file] } });
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("storage_offline"));
+    expect(screen.getByTestId("invite-avatar").textContent).toBe("?");
+  });
+
+  it("LinkedIn: błędny adres BLOKUJE wysyłkę, poprawny jedzie znormalizowany", async () => {
+    mount();
+    fill();
+    fireEvent.change(field("invite-linkedin"), { target: { value: "https://example.org/jan" } });
+    expect(buttonWith("adminTeamMedia.inviteUser.send").disabled).toBe(true);
+
+    fireEvent.change(field("invite-linkedin"), { target: { value: "linkedin.com/in/jan" } });
+    fireEvent.click(buttonWith("adminTeamMedia.inviteUser.send"));
+    await waitFor(() => expect(h.createCalls).toHaveLength(1));
+    const meta = h.createCalls[0].items[0].metadata as Record<string, unknown>;
+    expect(meta.linkedin).toBe("https://linkedin.com/in/jan");
+  });
+
+  it("wyłączona autoakceptacja jedzie w metadanych jako `false`", async () => {
+    mount();
+    fill();
+    const box = document.querySelector<HTMLInputElement>("input[type=checkbox]");
+    if (!box) throw new Error("test: brak pola autoakceptacji");
+    fireEvent.click(box);
+    fireEvent.click(buttonWith("adminTeamMedia.inviteUser.send"));
+    await waitFor(() => expect(h.createCalls).toHaveLength(1));
+    expect(h.createCalls[0].items[0].metadata).toEqual({ lang: "pl", auto_accept: false });
   });
 
   it("odmowa wysyłki pokazuje powód serwera i NIE mówi o sukcesie", async () => {
@@ -460,6 +668,32 @@ describe("InviteUserDialog", () => {
     fireEvent.click(buttonWith("adminTeamMedia.inviteUser.send"));
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });
+
+  it.fails(
+    "DEFEKT: po wysłanym zaproszeniu ROLA zostaje podniesiona na następne zaproszenie",
+    async () => {
+      // `reset()` czyści adres, imię, nazwisko, LinkedIn i zdjęcie ORAZ
+      // przywraca autoakceptację do `true` - ale NIE dotyka `role` ani `mode`.
+      // Modalka nie jest odmontowywana (steruje nią wyłącznie `open`), więc
+      // wybór z poprzedniego zaproszenia zostaje w stanie.
+      //
+      // SKUTEK W PRODUKCIE: administrator zaprasza jedną osobę jako `admin`,
+      // zamyka modalkę, otwiera ją dla kolejnej osoby - i selektor nadal stoi
+      // na `admin`. Formularz wygląda na wyczyszczony (wszystkie pola puste),
+      // więc nie ma sygnału, że uprawnienie jest niedomyślne. Kolejne konto
+      // dostaje pełne uprawnienia panelu przez przeoczenie.
+      //
+      // PRZYCZYNA: `reset()` w `InviteUserDialog.tsx` pomija `setRole("author")`
+      // i `setMode("magic_link")`. Niespójność jest widoczna wprost - sąsiednia
+      // `autoAccept` JEST przywracana do wartości domyślnej.
+      mount();
+      fill();
+      fireEvent.change(selects()[0], { target: { value: "admin" } });
+      fireEvent.click(buttonWith("adminTeamMedia.inviteUser.send"));
+      await waitFor(() => expect(field("invite-email").value).toBe(""));
+      expect(selects()[0].getAttribute("data-value")).toBe("author");
+    },
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -658,14 +892,18 @@ describe("TeamImportDialog", () => {
 
   // GAŁĄŹ NIEOSIĄGALNA Z INTERFEJSU: `items.length === 0` w `run()`
   // (komunikat `toastNoNew`). Żeby ją wywołać, w `selected` musiałby siedzieć
-  // adres, którego JEDYNY kandydat ma już konto - a takiego adresu nie da się
-  // tam włożyć: domyślne zaznaczenie bierze wyłącznie osoby bez konta i bez
-  // zaproszenia, pole osoby z kontem jest `disabled` (więc `onCheckedChange`
-  // nie leci), a każde nowe wczytanie podglądu PRZESTAWIA zaznaczenie razem
-  // z listą kandydatów. Obrona zostaje w kodzie na wypadek rozluźnienia
-  // warunku `disabled` - tylko nie da się jej wywołać z testu bez rozmontowania
-  // tej gwarancji. Drugą, realnie działającą obronę (filtr `!existingUserId`
-  // w `run()`) pokrywa test „osoby Z KONTEM są odfiltrowane z ładunku".
+  // WYŁĄCZNIE adres kandydata, który ma już konto - a takiego adresu nie da się
+  // tam włożyć. Trzy niezależne powody:
+  //   1. domyślne zaznaczenie bierze tylko osoby bez konta i bez zaproszenia,
+  //   2. pole osoby z kontem jest `disabled`, a Reakt NIE dowozi zdarzenia do
+  //      zablokowanej kontrolki formularza - sprawdzone: `fireEvent.change`
+  //      z `checked: true` na tym polu nie rusza licznika zaznaczeń,
+  //   3. każde nowe wczytanie podglądu przestawia `selected` RAZEM z listą
+  //      kandydatów (jedno `.then`), więc oba stany nie mogą się rozjechać.
+  // Obrona zostaje w kodzie na wypadek rozluźnienia warunku `disabled` - tylko
+  // nie da się jej wywołać z testu bez rozmontowania tej gwarancji. Drugą,
+  // realnie działającą obronę (filtr `!existingUserId` w `run()`) pokrywa test
+  // „osoby Z KONTEM są odfiltrowane z ładunku".
 
   it("dowiązanie widgetów jest DOMYŚLNIE włączone i biegnie po utworzeniu", async () => {
     // Bez dowiązania widget zespołu nadal nie wskazuje na konto - import
@@ -892,5 +1130,70 @@ describe("TeamImportDialog", () => {
     mount({ pageSlug: "zespol" });
     await waitFor(() => expect(h.previewCalls).toHaveLength(1));
     expect(document.querySelector("h2")?.textContent).toContain("slug=zespol");
+  });
+});
+
+describe("invitation company selection", () => {
+  it("selects an existing company without creating a duplicate", async () => {
+    render(<InviteUserDialog open onOpenChange={vi.fn()} />);
+    await waitFor(() => expect(document.querySelector('option[value="Acme"]')).not.toBeNull());
+    fireEvent.change(screen.getByLabelText("adminTeamMedia.inviteUser.company"), {
+      target: { value: "Acme" },
+    });
+    fireEvent.change(screen.getByLabelText("adminTeamMedia.inviteUser.jobTitle"), {
+      target: { value: "Analyst" },
+    });
+    expect(screen.queryByRole("button", { name: /companyCreate/ })).toBeNull();
+    expect(h.companyCreate).not.toHaveBeenCalled();
+  });
+  it.each(["success", "error", "raw"])("handles company creation outcome: %s", async (outcome) => {
+    if (outcome === "error") h.companyCreate.mockRejectedValue(new Error("write failed"));
+    if (outcome === "raw") h.companyCreate.mockRejectedValue("offline");
+    render(<InviteUserDialog open onOpenChange={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("adminTeamMedia.inviteUser.company"), {
+      target: { value: " New Company " },
+    });
+    fireEvent.click(buttonWith("companyCreate"));
+    await waitFor(() =>
+      expect(h.companyCreate).toHaveBeenCalledWith({ data: { name: "New Company" } }),
+    );
+    await waitFor(() =>
+      expect(outcome === "success" ? h.toastSuccess : h.toastError).toHaveBeenCalled(),
+    );
+    if (outcome === "success")
+      expect(
+        screen.getByLabelText<HTMLInputElement>("adminTeamMedia.inviteUser.company").value,
+      ).toBe("New Company");
+  });
+  it("clears company suggestions when lookup fails", async () => {
+    h.companySearch.mockRejectedValue(new Error("offline"));
+    render(<InviteUserDialog open onOpenChange={vi.fn()} />);
+    await waitFor(() => expect(h.companySearch).toHaveBeenCalled());
+    expect(document.querySelectorAll("#invite-company-options option")).toHaveLength(0);
+  });
+});
+
+it.each(["en", "pl"])("submits the selected company, job and email language (%s)", async (lang) => {
+  render(<InviteUserDialog open onOpenChange={vi.fn()} />);
+  await waitFor(() => expect(document.querySelector('option[value="Acme"]')).not.toBeNull());
+  for (const [id, value] of [
+    ["invite-email", "member@example.org"],
+    ["invite-first-name", "Test"],
+    ["invite-last-name", "Member"],
+    ["invite-company", "Acme"],
+    ["invite-job-title", "Analyst"],
+  ]) {
+    const field = document.getElementById(id);
+    if (!field) throw new Error(`missing ${id}`);
+    fireEvent.change(field, { target: { value } });
+  }
+  fireEvent.change(selects()[2], { target: { value: lang } });
+  fireEvent.click(buttonWith("inviteUser.send"));
+  await waitFor(() => expect(h.createCalls).toHaveLength(1));
+  expect(h.createCalls[0].items[0].metadata).toMatchObject({
+    company_name: "Acme",
+    company_id: "c1",
+    job_title: "Analyst",
+    lang,
   });
 });

@@ -10,6 +10,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { postDocumentPaths } from "@/lib/http/documentCache";
 import { requireStaff } from "@/integrations/supabase/require-staff";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { recordAudit, type AuditAction } from "./server/audit.server";
@@ -108,8 +109,32 @@ async function audit(
   entityType: string,
   entityId: string | null,
   metadata: Record<string, unknown> = {},
+  documentPaths?: readonly string[],
 ) {
-  await recordAudit(supabase, { tenantId, action, entityType, entityId, metadata });
+  await recordAudit(supabase, { tenantId, action, entityType, entityId, metadata, documentPaths });
+}
+
+/**
+ * Kanoniczny adres wpisu (`<pełna-ścieżka-rodzica>/<slug>`) dla purge'a
+ * SELEKTYWNEGO NES Edge Cache. Świeży odczyt RPC, nie `resolveLegacyPostPath`:
+ * tamta funkcja jest cache'owana 5 min per izolat, a tu liczy się adres
+ * obowiązujący W CHWILI zapisu (zmiana rodzica musi unieważnić stary i nowy).
+ * `null` = wpis bez rodzica albo RPC bez odpowiedzi - purge dostaje wtedy
+ * tylko adresy pewne (`/`, `/blog`, `/post/<slug>`), a resztę dogania okno
+ * świeżości; to nadal lepsze niż chłodzenie całej kolonii.
+ */
+async function postCanonicalPath(
+  supabase: SupabaseClient,
+  parentPageId: string | null | undefined,
+  slug: string,
+): Promise<string | null> {
+  if (!parentPageId) return null;
+  try {
+    const { data } = await supabase.rpc("page_full_path", { _page_id: parentPageId });
+    return typeof data === "string" && data ? `${data}/${slug}` : null;
+  } catch {
+    return null;
+  }
 }
 
 type PostUpdateRow = Database["public"]["Tables"]["posts"]["Update"];
@@ -468,7 +493,19 @@ export const createPost = createServerFn({ method: "POST" })
         .single();
       if (error) throw new Error(error.message);
 
-      await audit(supabase, tenantId, "post.create", "post", row.id, { slug });
+      // Nowy szkic zmienia co najwyżej listingi i własne adresy - purge
+      // selektywny zamiast bumpu wersji całego hosta (audyt CWV F12).
+      await audit(
+        supabase,
+        tenantId,
+        "post.create",
+        "post",
+        row.id,
+        { slug },
+        postDocumentPaths([
+          { slug, canonicalPath: await postCanonicalPath(supabase, parentPageId, slug) },
+        ]),
+      );
       return { id: row.id as string, slug: row.slug as string };
     });
   });
@@ -827,11 +864,42 @@ export const updatePost = createServerFn({ method: "POST" })
             : nextStatus === "pending_review"
               ? "post.review.submit"
               : "post.update";
-      await audit(supabase, tenantId, action, "post", data.id, {
-        fields: Object.keys(updates),
-        ...(statusChanges ? { from: existing.status, to: nextStatus } : {}),
-        ...(nextStatus === "scheduled" && nextPublishAt ? { publish_at: nextPublishAt } : {}),
-      });
+      // PURGE SELEKTYWNY (plan 1.5): publikacja/aktualizacja wpisu unieważnia
+      // znany, skończony zbiór dokumentów zamiast chłodzić całą kolonię bumpem
+      // wersji hosta. Przy zmianie sluga lub rodzica na liście są OBA adresy -
+      // stary dokument w cache'u serwowałby inaczej nieaktualną treść pod
+      // adresem, który już przekierowuje.
+      const nextSlug = typeof updates.slug === "string" ? updates.slug : existing.slug;
+      const nextParent =
+        updates.parent_page_id !== undefined ? updates.parent_page_id : existing.parent_page_id;
+      const addressChanged = nextSlug !== existing.slug || nextParent !== existing.parent_page_id;
+      const purgeTargets = [
+        {
+          slug: existing.slug,
+          canonicalPath: await postCanonicalPath(supabase, existing.parent_page_id, existing.slug),
+        },
+        ...(addressChanged
+          ? [
+              {
+                slug: nextSlug,
+                canonicalPath: await postCanonicalPath(supabase, nextParent, nextSlug),
+              },
+            ]
+          : []),
+      ];
+      await audit(
+        supabase,
+        tenantId,
+        action,
+        "post",
+        data.id,
+        {
+          fields: Object.keys(updates),
+          ...(statusChanges ? { from: existing.status, to: nextStatus } : {}),
+          ...(nextStatus === "scheduled" && nextPublishAt ? { publish_at: nextPublishAt } : {}),
+        },
+        postDocumentPaths(purgeTargets),
+      );
       // Kanoniczny slug wraca do klienta: uniqueSlug mógł dopisać sufiks
       // (kolizja), a edytor musi nawigować na slug faktycznie zapisany,
       // nie na ten wpisany w formularzu - inaczej ładuje CUDZY wpis o tym

@@ -5,20 +5,46 @@
 //   - zwykły dropdown (płaska lista dzieci),
 //   - mega-panel (item.mega_enabled + mega_config.columns),
 //   - wariant mobilny (accordion na <details>).
-import { memo, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { lazy, memo, Suspense, useEffect, useId, useRef, useState } from "react";
+import { useIsomorphicLayoutEffect } from "@/lib/react/useIsomorphicLayoutEffect";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight } from "@/lib/lucide-shim";
-import { DynamicIcon } from "@/lib/icons/DynamicIcon";
+// `MenuIcon` = `DynamicIcon` z `allowFull={false}`: nieznana nazwa ikony rysuje
+// `Circle` z zestawu kuratorowanego, zamiast dociągać pełny rejestr lucide
+// (109 KB gzip) w bocie menu, które jedzie na każdej stronie.
+import { MenuIcon as DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { AppLink } from "@/components/atoms/AppLink";
+import { useAuth } from "@/hooks/useAuth";
 import { menuWithItemsQueryOptions } from "@/lib/menus/queries";
 import { megaFeaturedPostQueryOptions } from "@/lib/menus/megaFeatured";
-import { MegaPanelView } from "@/components/menu/MegaPanelView";
+// PANEL REDAKCYJNY (mega) JEST WYŁĄCZNIE POHYDRATACYJNY - i dlatego jego kod
+// nie ma prawa siedzieć w chunku wejściowym KAŻDEJ strony.
+//
+// `DropdownPanel` (jedyny konsument) renderuje się TYLKO w portalu, pod
+// warunkiem `mounted && open && anchor`: `mounted` ustawia efekt, więc ani
+// render serwerowy, ani PIERWSZY render klienta tego modułu nie dotykają.
+// Statyczny import trzymał mimo to ~14 kB źródeł w domknięciu bootu - kod,
+// którego czytelnik nie wykona, dopóki sam nie sięgnie do menu.
+//
+// KOSZT OTWARCIA SIĘ NIE ZMIENIA, bo pobranie startuje razem z INTENCJĄ
+// najechania (`warmMegaPanel` w `scheduleOpen`), czyli ~80 ms przed montażem
+// panelu - a `Suspense` z `fallback={null}` zachowuje dotychczasowy stan
+// pośredni (portal z `opacity: 0`), więc nie ma nowego przebłysku układu.
+const MegaPanelView = lazy(() =>
+  import("@/components/menu/MegaPanelView").then((m) => ({ default: m.MegaPanelView })),
+);
+
+/** Start pobrania chunku panelu - wołany przy intencji najechania. */
+function warmMegaPanel(): void {
+  void import("@/components/menu/MegaPanelView");
+}
 // Reguły menu (drzewo, etykiety, wariant panelu, źródło kolumn, geometria
 // panelu) mieszkają w `lib/menus/siteMenu.ts` i mają tam własne asercje -
 // ten plik jest kompozycją nagłówka, nie miejscem na logikę.
 import {
   buildPublicMenuTree,
+  filterMenuItemsForViewer,
   hasPanel,
   megaColumnsFor,
   megaPanelHasContent,
@@ -63,7 +89,7 @@ function DropdownPanel({
   return (
     <div
       role="menu"
-      className="menu-card overflow-hidden rounded-md border border-border/50 bg-popover text-popover-foreground shadow-2xl ring-1 ring-black/5"
+      className="menu-card overflow-hidden rounded-md border border-border/50 bg-popover text-popover-foreground ring-1 ring-black/5"
       style={{ width: "min(320px, calc(100vw - 32px))" }}
       onMouseLeave={onRequestClose}
     >
@@ -142,15 +168,17 @@ function MegaPanel({
   if (!megaPanelHasContent(node)) return null;
 
   return (
-    <MegaPanelView
-      cols={cols}
-      lang={lang}
-      parentLabel={pickLabel(node, lang)}
-      parentHref={itemHref(node)}
-      featured={featured}
-      variant="live"
-      onMouseLeave={onRequestClose}
-    />
+    <Suspense fallback={null}>
+      <MegaPanelView
+        cols={cols}
+        lang={lang}
+        parentLabel={pickLabel(node, lang)}
+        parentHref={itemHref(node)}
+        featured={featured}
+        variant="live"
+        onMouseLeave={onRequestClose}
+      />
+    </Suspense>
   );
 }
 
@@ -192,6 +220,9 @@ function SubmenuItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
   );
 }
 
+/** Zwłoka intencji najechania przed montażem panelu (ms). */
+const HOVER_INTENT_MS = 80;
+
 function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
   const withPanel = hasPanel(node);
   const [open, setOpen] = useState(false);
@@ -199,6 +230,7 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
   const [visible, setVisible] = useState(false);
   const [anchor, setAnchor] = useState<{ top: number; left: number; width: number } | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapRef = useRef<HTMLLIElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const panelId = useId();
@@ -214,6 +246,16 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
 
   useEffect(() => setMounted(true), []);
 
+  // Oba timery (intencja najechania i zwłoka zamknięcia) muszą zginąć razem z
+  // pozycją - inaczej odmontowane menu jeszcze przez chwilę ustawia stan.
+  useEffect(
+    () => () => {
+      if (openTimer.current) clearTimeout(openTimer.current);
+      if (closeTimer.current) clearTimeout(closeTimer.current);
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
@@ -225,15 +267,28 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
-    const onScrollOrResize = () => updateAnchor();
+    // Kotwica przelicza się RAZ NA KLATKĘ, nie raz na zdarzenie przewijania:
+    // `getBoundingClientRect()` w każdym callbacku scrolla to wymuszony reflow
+    // na najgorętszej ścieżce, jaką ma przeglądarka (wzorzec z Header.tsx).
+    // `passive: true` dokłada obietnicę, że nasłuch nie zawoła
+    // `preventDefault`, więc kompozytor nie musi na nas czekać.
+    let frame = 0;
+    const onScrollOrResize = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        updateAnchor();
+      });
+    };
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
-    window.addEventListener("scroll", onScrollOrResize, true);
-    window.addEventListener("resize", onScrollOrResize);
+    window.addEventListener("scroll", onScrollOrResize, { capture: true, passive: true });
+    window.addEventListener("resize", onScrollOrResize, { passive: true });
     return () => {
+      if (frame) window.cancelAnimationFrame(frame);
       document.removeEventListener("mousedown", onDoc);
       document.removeEventListener("keydown", onKey);
-      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("scroll", onScrollOrResize, { capture: true });
       window.removeEventListener("resize", onScrollOrResize);
     };
   }, [open]);
@@ -245,7 +300,13 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
     setAnchor({ top: r.bottom, left: r.left, width: r.width });
   };
 
-  useLayoutEffect(() => {
+  // Pomiar kotwicy zostaje w gałęzi LAYOUTOWEJ na kliencie (panel dostaje
+  // współrzędne przed malowaniem, więc nie mruga w lewym górnym rogu), a w
+  // renderze serwerowym schodzi do `useEffect`. Menu jedzie w SSR na każdej
+  // stronie; `open` jest tam `false`, więc ciało i tak byłoby puste - ale
+  // `getBoundingClientRect()` w efekcie layoutowym nie ma prawa zależeć od tego,
+  // że React nie odpala efektów na serwerze. Wybór gałęzi jest tu NAPISANY.
+  useIsomorphicLayoutEffect(() => {
     if (open) updateAnchor();
   }, [open]);
 
@@ -259,6 +320,27 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
       closeTimer.current = null;
     }
   };
+  const cancelOpen = () => {
+    if (openTimer.current) {
+      clearTimeout(openTimer.current);
+      openTimer.current = null;
+    }
+  };
+  // Najechanie kursorem OTWIERA PANEL DOPIERO PO CHWILI: przejazd myszą przez
+  // pasek nawigacji po drodze do treści mijał dotąd kilka triggerów, a każdy z
+  // nich montował panel (mega ciągnie zapytanie o wpis wyróżniony i całą
+  // siatkę kolumn) tylko po to, żeby go zaraz odmontować. Zwłoka odróżnia
+  // INTENCJĘ od przejazdu; klik otwiera dalej natychmiast.
+  const scheduleOpen = () => {
+    if (open || openTimer.current) return;
+    // Pobranie chunku panelu biegnie RÓWNOLEGLE ze zwłoką intencji, więc
+    // leniwy import nie dokłada opóźnienia do otwarcia (patrz `warmMegaPanel`).
+    if (panelKindFor(node) === "mega") warmMegaPanel();
+    openTimer.current = setTimeout(() => {
+      openTimer.current = null;
+      setOpen(true);
+    }, HOVER_INTENT_MS);
+  };
 
   const label = pickLabel(node, lang);
   if (!label) return null;
@@ -270,6 +352,7 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
           href={itemHref(node)}
           target={itemTarget(node)}
           rel={menuItemRel(node)}
+          data-site-menu-top-level
           className="inline-flex min-h-11 items-center gap-1.5 rounded px-4 py-2.5 text-sm font-medium text-foreground/90 hover:text-foreground"
         >
           {node.icon ? (
@@ -287,16 +370,28 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
       className={`relative ${node.css_class ?? ""}`}
       onMouseEnter={() => {
         cancelClose();
-        setOpen(true);
+        scheduleOpen();
       }}
-      onMouseLeave={scheduleClose}
+      onMouseLeave={() => {
+        cancelOpen();
+        scheduleClose();
+      }}
     >
       <button
         type="button"
+        data-site-menu-top-level
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={panelId}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          // Klik jest deklaracją intencji - zwłoka najechania nie ma tu nic do
+          // roboty (inaczej panel otwierałby się jeszcze raz po zamknięciu).
+          cancelOpen();
+          // Ścieżka dotykowa/klawiaturowa nie przechodzi przez `scheduleOpen`,
+          // więc pobranie chunku panelu trzeba zacząć również tutaj.
+          if (panelKindFor(node) === "mega") warmMegaPanel();
+          setOpen((v) => !v);
+        }}
         className="inline-flex min-h-11 items-center gap-1.5 rounded px-4 py-2.5 text-sm font-medium text-foreground/90 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {node.icon ? (
@@ -442,7 +537,12 @@ function MobileItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
 
 function SiteMenuImpl({ menuKey, lang, mobile }: Props) {
   const { data, isPending } = useQuery(menuWithItemsQueryOptions(menuKey || "main"));
-  const items = data?.items ?? [];
+  // Widoczność per stan zalogowania (np. „Zarejestruj się" tylko dla gości).
+  // Sesja na SSR i w PIERWSZYM renderze klienta jest `null`, więc znacznik
+  // serwera zgadza się z hydratacją, a pozycje tylko-dla-zalogowanych
+  // pojawiają się po rozwiązaniu sesji.
+  const { session } = useAuth();
+  const items = filterMenuItemsForViewer(data?.items ?? [], Boolean(session));
   const tree = buildPublicMenuTree(items);
 
   if (tree.length === 0) {

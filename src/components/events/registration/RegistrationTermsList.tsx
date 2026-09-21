@@ -33,7 +33,17 @@ export function RegistrationTermsList({
     <div className="space-y-3">
       {terms.map((term) => {
         const label = (lang === "en" ? term.labelEn : term.labelPl) || term.key;
-        const body = lang === "en" ? term.bodyEn : term.bodyPl;
+        // TRESC NIE ZNIKA RAZEM Z TLUMACZENIEM. Brak `body_en` znaczyl do tej
+        // pory „bez akapitu", wiec uczestnik ogladajacy strone po angielsku
+        // widzial pole wyboru z gwiazdka i numer wersji - ani jednego zdania
+        // regulaminu (`external_url` tez bywa pusty) - a `event_term_acceptances`
+        // zapisywalo to jako pelnoprawna akceptacje. Spadamy wiec do drugiego
+        // jezyka, tak samo jak etykieta spada do klucza. `lang` na akapicie
+        // mowi czytnikowi ekranu, ze zdanie jest w innym jezyku niz strona.
+        const ownBody = lang === "en" ? term.bodyEn : term.bodyPl;
+        const otherBody = lang === "en" ? term.bodyPl : term.bodyEn;
+        const body = ownBody || otherBody;
+        const bodyLang = ownBody === "" ? (lang === "en" ? "pl" : "en") : lang;
         return (
           <div key={term.id} className="space-y-1">
             <label className="flex items-start gap-2 text-sm">
@@ -61,7 +71,9 @@ export function RegistrationTermsList({
               )}
             </p>
             {body !== "" && (
-              <p className="ml-6 whitespace-pre-line text-xs text-muted-foreground">{body}</p>
+              <p lang={bodyLang} className="ml-6 whitespace-pre-line text-xs text-muted-foreground">
+                {body}
+              </p>
             )}
           </div>
         );

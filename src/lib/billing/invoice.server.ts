@@ -9,7 +9,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
 
-import { createStripeClient, type StripeEnv } from "@/lib/stripe.server";
+import { getStripeClient, type StripeEnv } from "@/lib/stripe.server";
 import { isTransactionId } from "@/lib/billing/transactionId";
 import { retrieveTransactionOwners } from "@/lib/billing/transactions.server";
 
@@ -131,7 +131,7 @@ export async function invoiceUrlForTransaction(input: InvoiceLookupInput): Promi
       if (!allowed) return { ok: false, error: "forbidden" };
     }
 
-    const stripe = createStripeClient(input.environment);
+    const stripe = await getStripeClient(input.environment);
     const url = await resolveInvoiceUrl(stripe, transactionId);
     if (!url) return { ok: false, error: "invoice_unavailable" };
     return { ok: true, url, transactionId };

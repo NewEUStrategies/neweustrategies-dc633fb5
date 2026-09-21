@@ -175,7 +175,31 @@ describe("socialHostKey - normalizacja klucza hosta", () => {
   it("wartości są PRZYCINANE przy zapisie", () => {
     clearSocialDefaults();
     rememberSocialDefaults("nes.example", { imageUrl: "  /a.png  ", imageAlt: "  A  " });
-    expect(socialDefaultsFor("nes.example")).toEqual({ imageUrl: "/a.png", imageAlt: "A" });
+    expect(socialDefaultsFor("nes.example")).toEqual({
+      imageUrl: "/a.png",
+      imageAlt: "A",
+      twitterCard: "summary_large_image",
+    });
+  });
+
+  it("POMINIĘTY typ karty spada na wariant domyślny, a nie na `undefined`", () => {
+    // `twitterCard` doszło do tego modułu później niż on sam. Wołający, który
+    // go nie poda, ma dostać wariant domyślny - `undefined` wstawione wprost
+    // w `twitter:card` byłoby cichym atrybutem "undefined" w <head>, widocznym
+    // dopiero w cudzym debuggerze kart.
+    clearSocialDefaults();
+    rememberSocialDefaults("nes.example", { imageUrl: "/a.png", imageAlt: "A" });
+    expect(socialDefaultsFor("nes.example").twitterCard).toBe("summary_large_image");
+  });
+
+  it("podany typ karty jest zapamiętywany bez zmian", () => {
+    clearSocialDefaults();
+    rememberSocialDefaults("nes.example", {
+      imageUrl: "/a.png",
+      imageAlt: "A",
+      twitterCard: "summary",
+    });
+    expect(socialDefaultsFor("nes.example").twitterCard).toBe("summary");
   });
 
   it("host bez wpisu oddaje pusty obiekt, nie undefined", () => {

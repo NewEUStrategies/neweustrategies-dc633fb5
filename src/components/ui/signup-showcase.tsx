@@ -133,10 +133,18 @@ export function SignupShowcase({
       <div
         key="brand"
         className={
-          "flex shrink-0 items-center gap-2.5 text-[15px] font-medium tracking-tight " +
+          // `sticky top-0 z-20`: logo zostaje PRZED mozaiką i dekoracjami
+          // (kafle mają z-10) i nie jest przycinane, gdy popup przewija się
+          // na telefonie. Strefa bezpieczeństwa: padding wokół + dodatkowy
+          // margines z prawej pod absolutny przycisk zamykania (right-3 top-3,
+          // h-9 w-9), żeby „X” nigdy nie najechał na znak.
+          "sticky top-0 z-20 flex shrink-0 items-center gap-2.5 rounded-md px-2 py-1.5 pr-12 text-[15px] font-medium tracking-tight backdrop-blur-sm " +
           (alignLeft ? "self-start" : "self-center")
         }
-        style={{ color: ink }}
+        style={{
+          color: ink,
+          backgroundColor: galleryDark ? "rgba(10,10,14,0.55)" : "rgba(255,255,255,0.6)",
+        }}
       >
         {/* Logo można wyłączyć niezależnie od nazwy marki; bez wgranego pliku
             pokazujemy wbudowany znak, żeby nagłówek galerii nie był pusty. */}

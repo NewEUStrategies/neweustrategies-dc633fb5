@@ -111,8 +111,8 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Działa w obu układach: w liście maluje cały wiersz, w rzędzie - kafelek ikony.":
     "Works in both layouts: it paints the whole row in the list, and the icon tile in the row layout.",
   "Własny kolor podświetlenia": "Custom highlight colour",
-  "Z koloru budowany jest gradient; kolor tekstu dobiera się automatycznie do jego jasności.":
-    "The gradient is built from that colour; the text colour follows its lightness automatically.",
+  "Z koloru budowany jest gradient; kolor tekstu dobiera się automatycznie do jego jasności. Dla zapisów, których jasności nie da się policzyć (var(--...), oklch, transparent), tekst bierze kolor motywu.":
+    "The gradient is built from that colour; the text colour follows its lightness automatically. For notations whose lightness cannot be computed (var(--...), oklch, transparent) the text falls back to the theme colour.",
   "Ikony po najechaniu": "Icons on hover",
   "automatycznie (jasne na ciemnym tle)": "automatic (light on a dark background)",
   // „jasne (białe)" jest już przetłumaczone niżej (opcje „Kolory ikon").
@@ -197,7 +197,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Podtytuł / opis": "Subtitle / description",
   Opis: "Description",
   "Opis (podtytuł)": "Description (subtitle)",
-  Zajawka: "Excerpt",
   "Zajawka (opcjonalna)": "Excerpt (optional)",
   Etykieta: "Label",
   "Etykieta (PL)": "Label (PL)",
@@ -304,6 +303,13 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   Pętla: "Loop",
   Świat: "World",
   Europa: "Europe",
+  // Regiony map. Oceanii tu nie ma, bo w obu językach brzmi tak samo, a wpis
+  // identyczny z oryginałem to dla `builderLabel` żadna zmiana - fallback i tak
+  // oddaje napis źródłowy.
+  Afryka: "Africa",
+  Azja: "Asia",
+  "Ameryka Północna": "North America",
+  "Ameryka Południowa": "South America",
 
   // --------------------------------------------------------------- structure
   "Tag (SEO)": "Tag (SEO)",
@@ -334,6 +340,7 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Grubość podtytułu": "Subtitle weight",
   "Grubość / wysokość (px)": "Thickness / height (px)",
   "Szerokość (%)": "Width (%)",
+  "Maksymalna szerokość (px)": "Maximum width (px)",
   "Wysokość (px)": "Height (px)",
   "Wysokość - desktop (px)": "Height - desktop (px)",
   "Wysokość - tablet (px, 0 = dziedziczy)": "Height - tablet (px, 0 = inherit)",
@@ -513,6 +520,10 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Markery (węzły)": "Markers (nodes)",
   "Paski w komórkach": "In-cell bars",
   "Skumulowany (stacked)": "Stacked",
+  "Wypełnienie słupków": "Bar fill",
+  "blade wnętrze z obwódką": "pale interior with border",
+  "gradient z obwódką": "gradient with border",
+  "pełne wypełnienie": "solid fill",
   "Wyniki na żywo": "Live results",
   "Liczba wpisów": "Number of posts",
   "Liczba odcinków": "Number of episodes",
@@ -741,6 +752,17 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   karuzela: "carousel",
   kołowy: "pie",
   "pierścień (donut)": "ring (donut)",
+  "wodospadowy (mostek)": "waterfall (bridge)",
+  "histogram (rozkład)": "histogram (distribution)",
+  "boxplot (rozkład)": "boxplot (distribution)",
+  "rój punktów (rozkład)": "point swarm (distribution)",
+  "punktowy (zależność)": "scatter (relationship)",
+  "mapa ciepła (wrażliwość)": "heatmap (sensitivity)",
+  "tornado (wrażliwość)": "tornado (sensitivity)",
+  "wachlarz (scenariusze)": "fan chart (scenarios)",
+  "indeks, baza = 100 (różne skale)": "index, base = 100 (different scales)",
+  "stos 100% (struktura)": "100% stacked bar (structure)",
+  "małe panele (wiele podmiotów)": "small multiples (many entities)",
   "słupki poziome": "horizontal bars",
   "pole (area)": "area",
   "termometr pionowy": "vertical thermometer",
@@ -902,8 +924,11 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Turbo v2.5 (szybszy)": "Turbo v2.5 (faster)",
   "Daniel (męski, EN)": "Daniel (male, EN)",
   "George (męski, EN)": "George (male, EN)",
-  "Liam (męski, EN)": "Liam (male, EN)",
-  "Jessica (kobiecy, EN)": "Jessica (female, EN)",
+  // Liam i Jessica usunięte razem ze swoimi pozycjami w `schemas.ts` - były to
+  // głosy spoza allowlisty kanonicznej `TTS_VOICES`, które po domknięciu
+  // walidacji `/api/tts` dostają 400. Wpisy muszą znikać PARAMI: test
+  // „no dictionary entry is dead weight" w `__tests__/labelsEn.test.ts`
+  // odrzuca każdy klucz słownika, którego nie używa żaden moduł danych.
   "Laura (kobiecy, EN)": "Laura (female, EN)",
   "Lily (kobiecy, EN)": "Lily (female, EN)",
   "Matilda (kobiecy, EN)": "Matilda (female, EN)",
@@ -1122,6 +1147,20 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Lista wydarzeń": "Event list",
   // Kluby dyskusyjne (spec §5.5)
   "Klub: karta": "Club: card",
+  "Klub: strona": "Club: page",
+  "Pokaż nagłówek klubu": "Show club header",
+  "Pokaż okładkę": "Show cover",
+  "Sekcja: artykuły": "Section: articles",
+  "Sekcja: komentarze": "Section: comments",
+  "Sekcja: zapisy": "Section: sign-ups",
+  "Tytuł sekcji artykułów": "Articles section title",
+  "Tytuł sekcji komentarzy": "Comments section title",
+  "Tytuł sekcji zapisów": "Sign-ups section title",
+  "Liczba artykułów": "Number of articles",
+  "Liczba komentarzy": "Number of comments",
+  "Liczba zapisów": "Number of sign-ups",
+  "Etykieta przycisku zapisu": "Sign-up button label",
+  Sekcje: "Sections",
   "Kluby: dyskusje": "Clubs: discussions",
   "Adres klubu": "Club address",
   "Fragment adresu po /club/. Pusty = widget nic nie pokazuje (i nie pyta bazy).":
@@ -1238,6 +1277,85 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Wyłączane automatycznie przy systemowym „ogranicz ruch” (prefers-reduced-motion).":
     "Switched off automatically under the system “reduce motion” setting (prefers-reduced-motion).",
   "Droplista tematów (zainteresowania)?": "Topics droplist (interests)?",
+  // --------------------------------------------- widget „Karta z okładką"
+  "Karta z okładką": "Cover card",
+  "Okładka (tło karty)": "Cover (card background)",
+  "Kadr pionowy lub kwadratowy. Puste = sama płaszczyzna w kolorze nakładki.":
+    "Portrait or square crop. Empty = just a plane in the overlay colour.",
+  "Tekst alternatywny okładki": "Cover alt text",
+  "Puste = okładka jest dekoracją i znika z drzewa dostępności. Wypełnij, jeśli obraz niesie własną informację.":
+    "Empty = the cover is decorative and leaves the accessibility tree. Fill it in when the image carries information of its own.",
+  "Tytuł karty": "Card title",
+  Zajawka: "Excerpt",
+  "Data (RRRR-MM-DD)": "Date (YYYY-MM-DD)",
+  "np. 2022-10-10": "e.g. 2022-10-10",
+  "Jedna data dla obu języków - napis dla czytelnika powstaje w języku widoku.":
+    "One date for both languages - the human-readable label is produced in the view language.",
+  "Adres tytułu": "Title link",
+  "Puste = tytuł nie jest odnośnikiem.": "Empty = the title is not a link.",
+  "Wiersze zajawki": "Excerpt lines",
+  "Puste = grafit wzorca. Nakładka daje kontrast dla białego tekstu nad zdjęciem.":
+    "Empty = the graphite of the reference. The overlay gives contrast to white text over the photo.",
+  "Krycie nakładki u góry (0-1)": "Overlay opacity at the top (0-1)",
+  "Krycie nakładki u dołu (0-1)": "Overlay opacity at the bottom (0-1)",
+  "Wysokość kadru nad treścią (px)": "Media height above the content (px)",
+  "Podświetl cień na hoverze": "Deepen the shadow on hover",
+  // ------------------------------------------- widget „Karta promocyjna"
+  "Karta promocyjna": "Promo card",
+  "Puste = sama płaszczyzna w kolorze nakładki. W trybie wydarzenia puste pole bierze okładkę wydarzenia.":
+    "Empty = just a plane in the overlay colour. In event mode an empty field takes the event cover.",
+  "Puste w trybie wydarzenia = tytuł wydarzenia.": "Empty in event mode = the event title.",
+  "Źródło przycisku": "Button source",
+  "ręczny adres": "manual link",
+  "wydarzenie z kreatora": "event from the event builder",
+  Wydarzenie: "Event",
+  "Przycisk prowadzi na stronę wydarzenia, a puste pola karty biorą z niego tytuł, okładkę i termin.":
+    "The button points at the event page, and empty card fields take its title, cover and date.",
+  "Pokaż termin i miejsce wydarzenia": "Show the event date and venue",
+  "Adres przycisku": "Button link",
+  "W trybie wydarzenia puste = strona wydarzenia. Wpisany adres ma pierwszeństwo.":
+    "Empty in event mode = the event page. A link typed here wins.",
+  "Puste = etykieta domyślna dla wybranego źródła.": "Empty = the default label for the source.",
+  "Otwórz w nowej karcie": "Open in a new tab",
+  "Kadr zdjęcia": "Image frame",
+  "Proporcje kadru": "Frame aspect ratio",
+  "16:9 (wideo)": "16:9 (video)",
+  "3:2 (foto)": "3:2 (photo)",
+  "1:1 (kwadrat)": "1:1 (square)",
+  "4:5 (pion)": "4:5 (portrait)",
+  "3:4 (pion)": "3:4 (portrait)",
+  "stała wysokość (px)": "fixed height (px)",
+  "Wysokość kadru (px)": "Frame height (px)",
+  "0 = pełna szerokość kolumny. Ta liczba steruje też rekomendacją rozmiaru okładki.":
+    "0 = the full column width. This number also drives the recommended cover size.",
+  "Dopasowanie zdjęcia": "Image fit",
+  "wypełnij kadr (przytnij)": "fill the frame (crop)",
+  "zmieść w całości": "fit the whole image",
+  "Punkt kadrowania": "Crop anchor",
+  góra: "top",
+  dół: "bottom",
+  prawo: "right",
+  "Nakładka daje kontrast dla jasnego tekstu nad zdjęciem.":
+    "The overlay gives contrast to light text over the photo.",
+  "Wyrównanie treści": "Content alignment",
+  "do środka": "centred",
+  "Puste = biel nad nakładką.": "Empty = white over the overlay.",
+  "Tło przycisku": "Button background",
+  "Puste = kolor marki.": "Empty = the brand colour.",
+  "Kolor tekstu przycisku": "Button text colour",
+  "Reakcja na kursor": "Pointer reaction",
+  "zbliżenie okładki": "cover zooms in",
+  "oddalenie okładki": "cover zooms out",
+  "rozjaśnienie nakładki": "overlay lightens",
+  cień: "shadow",
+  "bez reakcji": "no reaction",
+  "Żaden wariant nie przesuwa karty ani jej treści - zmienia się wyłącznie okładka w kadrze, nakładka albo cień.":
+    "No variant moves the card or its content - only the cover inside the frame, the overlay or the shadow changes.",
+  przenikanie: "fade",
+  "przenikanie + zbliżenie": "fade + zoom",
+  "bez animacji": "no animation",
+  "Efekt jest wyłączany przez systemowe ograniczenie animacji (prefers-reduced-motion).":
+    "The effect is switched off by the system reduced-motion setting (prefers-reduced-motion).",
   // ------------------------------------------------- widget „Karta trasy"
   "Karta trasy": "Route card",
   "Mapa / zdjęcie w tle": "Background map / photo",

@@ -4,7 +4,10 @@
 // not break the primary action.
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { purgeDocumentCacheForCurrentHost } from "../http/documentCache.server";
+import {
+  purgeDocumentCacheForCurrentHost,
+  purgeDocumentPathsForCurrentHost,
+} from "../http/documentCache.server";
 
 export type AuditAction =
   | "media.upload"
@@ -45,6 +48,13 @@ export type AuditAction =
 // routing), więc audyt jest też JEDYNYM punktem unieważnienia NES Edge Cache:
 // każdy handler treści woła recordAudit, a przyszłe mutacje dziedziczą purge
 // automatycznie zamiast pamiętać o osobnym wywołaniu.
+//
+// ZAKRES purge'a wybiera wołający przez `documentPaths` (patrz `recordAudit`):
+// bez niego purge jest PEŁNY (bump wersji L2 całego hosta - każda kolonia
+// traci wszystkie dokumenty, audyt CWV 2026-09-20 F12), z nim - SELEKTYWNY,
+// tylko podane ścieżki. Strony, ustawienia, menu i motyw zmieniają chrome
+// każdego dokumentu, więc zostają przy pełnym bumpie; wpis zmienia znany,
+// skończony zbiór dokumentów (`postDocumentPaths` w lib/http/documentCache.ts).
 const DOCUMENT_PURGE_ACTIONS = /^(post|page|category|tag|redirect|revision)\./;
 
 export async function recordAudit(
@@ -57,11 +67,23 @@ export async function recordAudit(
     metadata?: Record<string, unknown>;
     ip?: string | null;
     actorId?: string | null;
+    /**
+     * Publiczne ścieżki dokumentów, które ta mutacja zmienia (bez prefiksu
+     * języka - warianty `/en` dokłada purge). PODANE => purge selektywny
+     * wyłącznie tych ścieżek zamiast bumpu wersji całego hosta; wołający
+     * ręczy, że lista jest kompletna (przy zmianie sluga/rodzica: stary
+     * I nowy adres). Niepodane => pełny purge jak dotąd - poprawność ważniejsza
+     * niż hit-rate, więc brak wiedzy o zależnościach = pełny bump.
+     */
+    documentPaths?: readonly string[];
   },
 ): Promise<void> {
   if (DOCUMENT_PURGE_ACTIONS.test(params.action)) {
     // Best-effort, bez await: purge nie może opóźnić ani zepsuć mutacji.
-    void purgeDocumentCacheForCurrentHost().catch(() => undefined);
+    const purge = params.documentPaths
+      ? purgeDocumentPathsForCurrentHost(params.documentPaths)
+      : purgeDocumentCacheForCurrentHost();
+    void purge.catch(() => undefined);
   }
   try {
     // RLS "audit_log staff insert tenant" wymaga actor_id = auth.uid().

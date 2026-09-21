@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   seoContentStatus,
+  seoGrade,
   summarizeSeoStatuses,
   type SeoStatusInput,
 } from "@/lib/seo/contentStatus";
@@ -93,5 +94,29 @@ describe("summarizeSeoStatuses", () => {
       noindexed: 1,
       withOverrides: 1,
     });
+  });
+});
+
+describe("seoGrade - jedno miejsce, w którym żyją pasma oceny", () => {
+  // Kokpit SEO rysuje plakietkę wyniku MARKI tą samą skalą, co tabela treści
+  // wynik POJEDYNCZEJ treści. Dopóki obie strony miały własną kopię tego
+  // wyrażenia, ta sama liczba mogła zapalić dwa różne kolory w dwóch miejscach
+  // panelu - i nic by tego nie złapało.
+  it.each([
+    [100, "good"],
+    [80, "good"],
+    [79, "warn"],
+    [50, "warn"],
+    [49, "poor"],
+    [0, "poor"],
+  ])("wynik %i to ocena %s", (score, expected) => {
+    expect(seoGrade(score as number)).toBe(expected);
+  });
+
+  it("ocena wiersza treści idzie przez TĘ SAMĄ funkcję", () => {
+    // Gdyby `seoContentStatus` liczyło pasma po swojemu, ten test przeszedłby
+    // przypadkiem; dlatego porównujemy z `seoGrade` wprost, a nie z literałem.
+    const status = seoContentStatus({ ...base, seo_noindex: true });
+    expect(status.grade).toBe(seoGrade(status.score));
   });
 });

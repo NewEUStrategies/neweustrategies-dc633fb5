@@ -10,10 +10,12 @@
 //
 // CZTERY REGUŁY, KTÓRYCH PILNUJE TEN PLIK:
 //   1. BRAMKA ROLI. Wejście ma `requireSupabaseAuth`, ale to za mało -
-//      uwierzytelniony NIE ZNACZY admin. `assertAdmin` przepuszcza wyłącznie
-//      `has_role() === true`; `null` z RPC (brak wiersza, brak grantu) MUSI
-//      być odmową, bo inaczej dowolny zalogowany odtwarzałby zdarzenia
-//      płatnicze.
+//      uwierzytelniony NIE ZNACZY uprawniony. Poprzeczką jest `super_admin`,
+//      bo tyle wymaga polityka RLS tej tabeli (`tenant_id =
+//      current_tenant_id() AND is_super_admin()`), a ścieżka serwerowa biegnie
+//      spod `service_role`, czyli z pominięciem RLS - to ona musi odtworzyć
+//      oba człony polityki. `null` z RPC (brak wiersza, brak grantu) MUSI być
+//      odmową, bo inaczej dowolny zalogowany odtwarzałby zdarzenia płatnicze.
 //   2. ŁADUNEK POCHODZI Z DZIENNIKA, NIE OD KLIENTA. Dlatego ta ścieżka nie
 //      weryfikuje podpisu - i dlatego funkcja przyjmuje WYŁĄCZNIE identyfikator
 //      wiersza. Gdyby dało się podstawić ładunek z przeglądarki, brak
@@ -24,6 +26,13 @@
 //   4. PORAŻKA MA BYĆ WIDOCZNA. Wyjątek z obsługi nie może wywrócić server fn
 //      (admin zostałby bez odpowiedzi), ale MUSI wylądować w dzienniku jako
 //      `failed` z komunikatem.
+//   5. ZAKRES NAJEMCY (drugi człon polityki). Dziennik jest czytany
+//      i zapisywany spod `service_role`, czyli Z POMINIĘCIEM RLS - jedynym
+//      zakresem jest filtr w zapytaniu. Najemca pochodzi z PROFILU wołającego
+//      (`assertCallerTenantMatchesHost`), czyli z tego samego pola, po którym
+//      autoryzuje `has_role()`; host żądania jest wyłącznie kontrolą
+//      spójności. OBA zapytania (odczyt i zapis) muszą po tym najemcy
+//      filtrować.
 //
 // Middleware NIE jest tu wykonywane (patrz `src/test/serverFnHarness.ts`):
 // zestawu `requireSupabaseAuth` pilnuje bramka `check:authz-snapshot`. Ten
@@ -50,6 +59,27 @@ let db: SupabaseFromStub;
 let adminRpc: SupabaseRpcStub;
 /** Klient UŻYTKOWNIKA z kontekstu server fn - na nim sprawdzana jest rola. */
 let userRpc: SupabaseRpcStub;
+/** Ten sam klient po stronie tabel: stąd czytany jest profil wołającego. */
+let userDb: SupabaseFromStub;
+
+/** Kontekst `supabase` wstrzykiwany przez middleware: RPC + tabele. */
+const userClient = () => ({ rpc: userRpc.rpc, from: (table: string) => userDb.from(table) });
+
+/**
+ * Wiązanie hosta żądania. `null` = brak wskazówki (dev, podgląd, pusty katalog
+ * domen) i wtedy zakres pochodzi z samego profilu - bez tej gałęzi środowiska
+ * podglądowe dostawałyby odmowę.
+ */
+const host = vi.hoisted(() => ({ binding: null as { id: string } | null }));
+vi.mock("@/lib/http/requestHost", () => ({
+  currentTenantHost: async () => "panel.example.test",
+}));
+vi.mock("@/lib/server/tenant.server", () => ({
+  resolveDomainBinding: async () => ({
+    tenant: host.binding,
+    directoryPopulated: host.binding !== null,
+  }),
+}));
 
 vi.mock("@tanstack/react-start", async () => {
   const { serverFnStubModule } = await import("@/test/serverFnHarness");
@@ -66,7 +96,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({
 vi.mock("@/lib/stripe.server", () => ({
   getConnectionApiKey: () => "test_klucz_atrapy",
   getWebhookSecret: () => "test_sekret_atrapy",
-  createStripeClient: () => {
+  getStripeClient: () => {
     throw new Error("test: ponowienie nie ma prawa wołać operatora");
   },
   getStripeErrorMessage: (error: unknown) => String(error),
@@ -80,6 +110,8 @@ const { retryWebhookEvent, readWebhookEventPayload } =
   await import("@/lib/billing/webhookRetry.functions");
 
 const ADMIN_ID = "11111111-1111-4111-8111-111111111111";
+/** Najemca wołającego - taki, jaki stoi w jego `profiles.tenant_id`. */
+const TENANT_ID = "33333333-3333-4333-8333-333333333333";
 const EVENT_ROW_ID = "22222222-2222-4222-8222-222222222222";
 const OCCURRED_AT = "2026-08-30T10:00:00.000Z";
 
@@ -116,7 +148,7 @@ function callRetry(data: unknown, userId: string = ADMIN_ID) {
     durationMs: number;
     retryCount: number;
     error: string | null;
-  }>(retryWebhookEvent, data, { supabase: { rpc: userRpc.rpc }, userId });
+  }>(retryWebhookEvent, data, { supabase: userClient(), userId });
 }
 
 /** Ładunek zapisu wyniku ponowienia (UPDATE na dzienniku). */
@@ -131,13 +163,16 @@ beforeEach(() => {
   adminRpc = supabaseRpcStub();
   userRpc = supabaseRpcStub();
   userRpc.setData("has_role", true);
+  userDb = supabaseFromStub();
+  userDb.setResponse("profiles", ok({ tenant_id: TENANT_ID }));
+  host.binding = null;
   db.setResponse("payment_webhook_events", logResponder(logRow()));
   db.setResponse("subscriptions", ok(null));
   db.setResponse("billing_profiles", ok(null));
 });
 
 describe("retryWebhookEvent - bramka dostępu", () => {
-  it("zalogowany BEZ roli admina nie dotyka dziennika w ogóle", async () => {
+  it("zalogowany BEZ roli `super_admin` nie dotyka dziennika w ogóle", async () => {
     // Kolejność ma tu znaczenie pieniężne: sprawdzenie roli idzie PRZED
     // odczytem wiersza. Inaczej zwykły użytkownik mógłby po komunikacie błędu
     // wnioskować o istnieniu zdarzeń płatniczych (i o ich identyfikatorach).
@@ -147,8 +182,35 @@ describe("retryWebhookEvent - bramka dostępu", () => {
     expect(db.chains).toHaveLength(0);
     expect(userRpc.lastCall("has_role")?.args).toEqual({
       _user_id: ADMIN_ID,
-      _role: "admin",
+      _role: "super_admin",
     });
+  });
+
+  it("pytanie o rolę dotyczy `super_admin`, a nie `admin`", async () => {
+    // POPRZECZKA JEST ODTWORZENIEM POLITYKI RLS, nie własnym pomysłem:
+    // `payment_webhook_events admin read` wymaga `is_super_admin()` OBOK
+    // zgodności najemcy. Dopóki bramka pytała o `admin`, ścieżka serwerowa
+    // dawała dostęp o szczebel szerszy niż baza - a robiła to spod
+    // `service_role`, więc RLS nie miało jak tego wyłapać.
+    await callRetry({ id: EVENT_ROW_ID });
+
+    expect(userRpc.lastCall("has_role")?.arg("_role")).toBe("super_admin");
+  });
+
+  it("admin obszaru BEZ `super_admin` dostaje odmowę i nie czyta dziennika", async () => {
+    // Atrapa odpowiada tak, jak odpowie baza na pytanie o `super_admin`
+    // zadane zwykłemu administratorowi obszaru: `false`.
+    userRpc.setData("has_role", false);
+
+    await expect(callRetry({ id: EVENT_ROW_ID })).rejects.toThrow("forbidden");
+    await expect(
+      callServerFn(
+        readWebhookEventPayload,
+        { id: EVENT_ROW_ID },
+        { supabase: userClient(), userId: ADMIN_ID },
+      ),
+    ).rejects.toThrow("forbidden");
+    expect(db.chains).toHaveLength(0);
   });
 
   it("`null` z kontroli roli to ODMOWA, nie „pewnie admin”", async () => {
@@ -479,7 +541,7 @@ describe("retryWebhookEvent - przebieg ponowienia", () => {
 });
 
 describe("readWebhookEventPayload - podgląd ładunku", () => {
-  it("podgląd też jest tylko dla admina", async () => {
+  it("podgląd też jest tylko dla `super_admin`", async () => {
     // Ładunek zdarzenia zawiera dane rozliczeniowe klienta (adres, e-mail,
     // kwoty). Ta funkcja nie zmienia niczego, ale CZYTA najbardziej wrażliwy
     // fragment dziennika - bramka roli jest tu równie obowiązkowa.
@@ -490,7 +552,7 @@ describe("readWebhookEventPayload - podgląd ładunku", () => {
         readWebhookEventPayload,
         { id: EVENT_ROW_ID },
         {
-          supabase: { rpc: userRpc.rpc },
+          supabase: userClient(),
           userId: ADMIN_ID,
         },
       ),
@@ -506,7 +568,7 @@ describe("readWebhookEventPayload - podgląd ładunku", () => {
         readWebhookEventPayload,
         { id: EVENT_ROW_ID },
         {
-          supabase: { rpc: userRpc.rpc },
+          supabase: userClient(),
           userId: ADMIN_ID,
         },
       ),
@@ -524,7 +586,7 @@ describe("readWebhookEventPayload - podgląd ładunku", () => {
       readWebhookEventPayload,
       { id: EVENT_ROW_ID },
       {
-        supabase: { rpc: userRpc.rpc },
+        supabase: userClient(),
         userId: ADMIN_ID,
       },
     );
@@ -542,11 +604,160 @@ describe("readWebhookEventPayload - podgląd ładunku", () => {
         readWebhookEventPayload,
         { id: "nie-uuid" },
         {
-          supabase: { rpc: userRpc.rpc },
+          supabase: userClient(),
           userId: ADMIN_ID,
         },
       ),
     ).rejects.toThrow();
+    expect(db.chains).toHaveLength(0);
+  });
+});
+
+describe("izolacja najemcy w dzienniku webhooków", () => {
+  // DEFEKT NAPRAWIONY (kod produkcyjny).
+  //
+  // CO BYŁO ZŁE. Obie funkcje brały od klienta sam `id` wiersza i pytały
+  // o niego klientem `service_role`: `.eq("id", data.id)` i nic więcej.
+  // Klucz serwisowy OMIJA RLS, więc polityka „payment_webhook_events admin
+  // read" (tenant + super_admin) na tej ścieżce w ogóle nie działała, a
+  // bramka `assertAdmin` sprawdzała samą ROLĘ - rola w obszarze A przepuszczała
+  // do wiersza obszaru B.
+  //
+  // JAKIE TO BYŁO RYZYKO. Odczyt oddawał surowy ładunek Stripe'a cudzego
+  // najemcy (e-mail i adres z `customer_details`, kwoty), a ponowienie
+  // PRZETWARZAŁO to zdarzenie jeszcze raz: powtórzone maile i dokumenty tam,
+  // gdzie idempotencja jest niepełna, ponowna windykacja i cudzy `retried_by`
+  // w audycie. Identyfikatory do wpisania były przy tym gotowe - oddawało je
+  // RPC zdrowia webhooków w panelu.
+  //
+  // JAK NAPRAWIONE. Najemca pochodzi z TOŻSAMOŚCI wołającego
+  // (`assertCallerTenantMatchesHost` -> `profiles.tenant_id`, czyli ta sama
+  // płaszczyzna, po której autoryzuje `has_role()`), a filtr `tenant_id`
+  // wchodzi do ODCZYTU i do ZAPISU osobno. Host żądania jest wyłącznie
+  // kontrolą spójności - nigdy źródłem zakresu.
+  //
+  // ASERCJA jest kontraktem ZAPYTANIA, nie kształtu wyniku: moduł nie wybiera
+  // kolumny `tenant_id`, więc po samych danych nie da się odróżnić najemców.
+  const tenantFilterOf = (chain: RecordedChain | undefined): unknown =>
+    (chain?.calls ?? []).find((c) => c.method === "eq" && c.args[0] === "tenant_id")?.args[1];
+
+  it("ODCZYT wiersza jest zawężony do najemcy wołającego, nie do samego `id`", async () => {
+    await callRetry({ id: EVENT_ROW_ID });
+
+    const read = db.chainsFor("payment_webhook_events").find((c) => c.has("maybeSingle"));
+    expect(tenantFilterOf(read)).toBe(TENANT_ID);
+    // Najemca pochodzi z PROFILU wołającego, a nie z ładunku - i dopiero PO
+    // kontroli roli (jedno RPC, potem odczyt `profiles`).
+    expect(userRpc.names()).toEqual(["has_role"]);
+    expect(userDb.lastChain("profiles")?.argsOf("eq")).toEqual(["id", ADMIN_ID]);
+  });
+
+  it("ZAPIS wyniku ponowienia też filtruje po najemcy", async () => {
+    // Osobny wymóg, nie powtórzenie: gdyby filtr stał wyłącznie na odczycie,
+    // rozdzielenie obu zapytań (albo ponowienie po `row.id` z innego źródła)
+    // przestemplowałoby `retried_by` w cudzym wierszu.
+    await callRetry({ id: EVENT_ROW_ID });
+
+    const write = db.chainsFor("payment_webhook_events").find((c) => c.has("update"));
+    expect(tenantFilterOf(write)).toBe(TENANT_ID);
+    expect(write?.argsOf("eq")).toEqual(["id", EVENT_ROW_ID]);
+  });
+
+  it("PODGLĄD ładunku jest zawężony tym samym filtrem", async () => {
+    await callServerFn(
+      readWebhookEventPayload,
+      { id: EVENT_ROW_ID },
+      { supabase: userClient(), userId: ADMIN_ID },
+    );
+
+    expect(tenantFilterOf(db.lastChain("payment_webhook_events"))).toBe(TENANT_ID);
+  });
+
+  it("wiersz CUDZEGO najemcy jest nieodróżnialny od nieistniejącego", async () => {
+    // Zapytanie z filtrem najemcy nie odda wiersza obszaru B - a komunikat ma
+    // być DOKŁADNIE ten sam, co przy literówce w identyfikatorze. Osobny tekst
+    // („brak uprawnień") potwierdzałby istnienie zdarzenia o podanym UUID.
+    db.setResponse("payment_webhook_events", logResponder(null));
+
+    await expect(callRetry({ id: EVENT_ROW_ID })).rejects.toThrow("Zdarzenie nie istnieje.");
+    await expect(
+      callServerFn(
+        readWebhookEventPayload,
+        { id: EVENT_ROW_ID },
+        { supabase: userClient(), userId: ADMIN_ID },
+      ),
+    ).rejects.toThrow("Zdarzenie nie istnieje.");
+  });
+
+  it("NIEROZWIĄZANY najemca to odmowa i ZERO zapytań do dziennika", async () => {
+    // Fail-closed: „nie wiem, czyje to dane" nie może znaczyć „oddaj
+    // wszystko". Wołający bez najemcy w profilu nie dotyka dziennika w ogóle.
+    userDb.setResponse("profiles", ok({ tenant_id: null }));
+
+    await expect(callRetry({ id: EVENT_ROW_ID })).rejects.toThrow("No tenant for current user");
+    await expect(
+      callServerFn(
+        readWebhookEventPayload,
+        { id: EVENT_ROW_ID },
+        { supabase: userClient(), userId: ADMIN_ID },
+      ),
+    ).rejects.toThrow("No tenant for current user");
+    expect(db.chains).toHaveLength(0);
+  });
+
+  it("BŁĄD odczytu profilu też zamyka ścieżkę", async () => {
+    // Odmowa bazy (polityka, awaria) ma się skończyć odmową, a nie zapytaniem
+    // bez zakresu.
+    userDb.setResponse("profiles", fail("permission denied for table profiles"));
+
+    await expect(callRetry({ id: EVENT_ROW_ID })).rejects.toThrow("No tenant for current user");
+    expect(db.chains).toHaveLength(0);
+  });
+
+  it("HOST wiążący się z INNYM najemcą zamyka ścieżkę PRZED odczytem", async () => {
+    // Sedno poprawki. Rola przechodzi (wołający ma `super_admin` w swoim
+    // obszarze), ale żądanie przyszło na domenę obszaru B. Zakres NIE idzie za
+    // hostem - a sama niespójność kończy się odmową, jednakową dla wszystkich
+    // funkcji i milczącą o tym, czyj to host.
+    host.binding = { id: "99999999-9999-4999-8999-999999999999" };
+
+    await expect(callRetry({ id: EVENT_ROW_ID })).rejects.toThrow("TENANT/HOST_MISMATCH");
+    expect(db.chains).toHaveLength(0);
+  });
+
+  it("HOST podglądowy (brak wiązania) NIE blokuje pracy w swoim obszarze", async () => {
+    // ANTYREGRESJA dla dev i podglądu: brak wiązania domeny to „nie wiem",
+    // a nie „obcy host" - zakres pochodzi wtedy z samego profilu.
+    host.binding = null;
+
+    const result = await callRetry({ id: EVENT_ROW_ID });
+
+    expect(result.status).toBe("processed");
+    const read = db.chainsFor("payment_webhook_events").find((c) => c.has("maybeSingle"));
+    expect(tenantFilterOf(read)).toBe(TENANT_ID);
+  });
+
+  it("ponowienie cudzego wiersza NIE woła obsługi i NIE stempluje `retried_by`", async () => {
+    // Filtr najemcy sprawia, że odczyt nic nie odda - a skoro tak, to
+    // `dispatchWebhookEvent` nie ma czego odtworzyć i żaden UPDATE nie zapisze
+    // wołającego jako autora ponowienia w cudzym dzienniku. Dowodem jest brak
+    // zapisu: gałąź obsługi jest za odczytem.
+    db.setResponse("payment_webhook_events", logResponder(null));
+
+    await expect(callRetry({ id: EVENT_ROW_ID })).rejects.toThrow("Zdarzenie nie istnieje.");
+    expect(db.chainsFor("payment_webhook_events").some((c) => c.has("update"))).toBe(false);
+    expect(retryPatch()).toBeUndefined();
+    expect(db.chains.map((c) => c.table)).toEqual(["payment_webhook_events"]);
+  });
+
+  it("brak roli NIE pyta nawet o najemcę", async () => {
+    // Kolejność bramek: rola najpierw. Odwrotna kolejność oznaczałaby odczyt
+    // profilu wykonany dla kogoś, kto i tak dostanie odmowę.
+    userRpc.setData("has_role", false);
+
+    await expect(callRetry({ id: EVENT_ROW_ID })).rejects.toThrow("forbidden");
+    expect(userRpc.names()).toEqual(["has_role"]);
+    expect(userDb.chains).toHaveLength(0);
     expect(db.chains).toHaveLength(0);
   });
 });

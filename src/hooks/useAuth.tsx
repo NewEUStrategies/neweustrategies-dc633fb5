@@ -1,12 +1,116 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  startTransition,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { hasAnonPersonalization, mergeAnonPersonalization } from "@/lib/personalization/anonMerge";
 import { AUTH_DEFAULTS, AUTH_SETTINGS_KEY } from "@/lib/authSettings";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+import { clearReservedSpace } from "@/lib/dock/reservedSpace";
 
 export type Role = "super_admin" | "admin" | "editor" | "author" | "user";
+
+/**
+ * Górna granica czekania na rozstrzygnięcie sesji startowej.
+ *
+ * PO CO. `loading` znaczy „NIE WIEMY, czy to gość" - i każda bramka tożsamości
+ * (`AuthGate`, `GuestCheckoutGate`, `ClubAccessGate`) kręci wtedy spinner
+ * zamiast pokazać jedyne realne wyjście, czyli odnośnik do logowania. Dopóki to
+ * „nie wiemy" nie miało terminu, wystarczyła JEDNA wisząca obietnica, żeby
+ * spinner został na ekranie na zawsze. Drogi do takiego zawieszenia są dwie
+ * i obie są realne przy niedostępnym backendzie:
+ *   * `getSession()` z PRZETERMINOWANYM tokenem w magazynie idzie do sieci po
+ *     odświeżenie - `fetch` klienta Supabase nie ma limitu czasu, więc przy
+ *     zapytaniu, które nigdy nie wraca (DNS/proxy wisi zamiast odmówić),
+ *     obietnica nie rozstrzyga się nigdy;
+ *   * aktualizacja stanu z `.then` jedzie w `startTransition` (patrz niżej),
+ *     a przejście czeka na chunki zawieszonych wysp - dostatecznie wolny
+ *     lub martwy chunk zatrzymuje commit.
+ *
+ * PO TERMINIE mówimy „nie wiemy, więc traktujemy jak gościa": `loading` schodzi,
+ * bramka pokazuje CTA logowania. NIE czyścimy magazynu i NIE wołamy
+ * `signOut()` - to jest właśnie różnica między „brak sesji" a „nie wiemy".
+ * Spóźniona odpowiedź `getSession()` albo późniejsze `onAuthStateChange`
+ * nadal promują użytkownika z powrotem na zalogowanego.
+ *
+ * 5 s: rząd wielkości powyżej zdrowego odświeżenia tokenu (dziesiątki-setki ms)
+ * i poniżej domyślnego budżetu asercji e2e (10 s).
+ */
+export const SESSION_SETTLE_TIMEOUT_MS = 5_000;
+
+/**
+ * Górna granica czekania na role i tenanta ZALOGOWANEGO.
+ *
+ * `loading` jest sumą (`sessionLoading || rolesLoading` dla zalogowanego), więc
+ * wiszące `user_roles`/`profiles` dają dokładnie ten sam wieczny spinner, co
+ * wisząca sesja - tylko na innej powierzchni (panel, profil, katalog osób).
+ *
+ * Termin jest tu dłuższy, bo cena jego wyczerpania jest wyższa: guard `/admin`
+ * czyta `isStaff`, a po terminie zobaczy PUSTY zestaw ról (kierunek bezpieczny -
+ * najmniejsze uprawnienia), czyli zalogowany redaktor wyląduje na logowaniu.
+ * To i tak jest tańsze niż ekran, który nigdy się nie kończy - a gdy zapytania
+ * wrócą później, role wskakują i guard przelicza się ponownie.
+ */
+export const ROLE_SETTLE_TIMEOUT_MS = 8_000;
+
+/**
+ * Klucze, pod którymi klient Supabase trzyma sesję w `localStorage`:
+ * `sb-<subdomena projektu>-auth-token` (`defaultStorageKey`
+ * w `@supabase/supabase-js`), wariant dzielony na części (`...-auth-token.0`)
+ * oraz historyczne `supabase.auth.token`. Ten sam wzorzec zna rejestr
+ * ciasteczek (`lib/cookieBanner/registry.ts`).
+ */
+const STORED_SESSION_KEY_RE = /^(?:sb-.+-auth-token(?:\.\d+)?|supabase\.auth\.token)$/;
+
+/**
+ * Czy w przeglądarce LEŻY zapisana sesja - rozstrzygane synchronicznie, bez
+ * sieci i bez `getSession()`.
+ *
+ * PO CO. „Brak sesji" jest wiedzą LOKALNĄ: sesja Supabase mieszka w
+ * `localStorage` (`persistSession: true` w `integrations/supabase/client.ts`),
+ * nie w ciasteczku, więc pusty magazyn to PEWNE „to gość" - bez jednego bajtu
+ * ruchu i bez czekania na klienta Supabase. Dopiero zapisana sesja wymaga
+ * czekania, bo może być przeterminowana i wymagać odświeżenia w sieci.
+ *
+ * Na serwerze zwraca `false`, ale NIE korzystamy z tego do zasiewu stanu
+ * startowego: `/admin` renderuje serwerowo szkielet powłoki dokładnie na
+ * `useAuth().loading === true` (audyt CWV 2026-09-20, F32) i pierwszy render
+ * klienta musi wyjść identycznie, inaczej hydratacja się rozjeżdża.
+ *
+ * NIE JEST EKSPORTOWANA celowo: eksport funkcji z modułu komponentu psuje
+ * fast refresh (`react-refresh/only-export-components`), a kontrakt i tak
+ * mierzy się przez zachowanie `AuthProvider` - patrz
+ * `hooks/__tests__/useAuth.test.tsx` i `components/profile/__tests__/AuthGate.test.tsx`.
+ *
+ * W RAMCE POŚREDNIKA (podgląd Lovable) magazynem nie jest `localStorage`, tylko
+ * broker `postMessage` do edytora (`previewAuthStorage.ts`) - pusty
+ * `localStorage` nie znaczy tam „brak sesji", więc w ramce wracamy do czekania
+ * na `getSession()`.
+ */
+function hasStoredAuthSession(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    if (window.parent && window.parent !== window) return true;
+    const store = window.localStorage;
+    for (let i = 0; i < store.length; i += 1) {
+      const key = store.key(i);
+      if (key && STORED_SESSION_KEY_RE.test(key) && store.getItem(key)) return true;
+    }
+  } catch {
+    // Zablokowany magazyn (tryb prywatny, zablokowane ciasteczka): klient
+    // Supabase odczyta z niego dokładnie tyle samo, co my - nic.
+  }
+  return false;
+}
 
 interface AuthCtx {
   session: Session | null;
@@ -45,6 +149,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Track the last-seen user id so we only re-gate content when identity
   // actually changes (login / logout / account switch), not on token refresh.
   const lastUidRef = useRef<string | null>(null);
+  // Termin na role/tenant - trzymany w ref, bo gasi go zarówno powrót zapytań
+  // (`settleRoles` w `finally`), jak i odmontowanie prowajdera.
+  const roleTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const settleRoles = useCallback(() => {
+    if (roleTimerRef.current !== undefined) {
+      clearTimeout(roleTimerRef.current);
+      roleTimerRef.current = undefined;
+    }
+    setRolesLoading(false);
+  }, []);
 
   const loadContext = async (uid: string) => {
     try {
@@ -54,8 +169,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ]);
       setRoles((rolesData ?? []).map((r) => r.role as Role));
       setTenantId(profile?.tenant_id ?? null);
+    } catch (error) {
+      // Martwy backend ODRZUCA te zapytania (`fetch` nie dojeżdża), a nie zwraca
+      // `{ error }`. Bez tego `catch` odrzucenie leciało przez `void loadContext`
+      // prosto w `unhandledrejection` - czyli w sondę bootu i w `pageerror`
+      // każdego testu e2e, który akurat miał zalogowaną sesję.
+      console.warn("[auth] nie udało się wczytać ról i tenanta", error);
     } finally {
-      setRolesLoading(false);
+      settleRoles();
     }
   };
 
@@ -82,16 +203,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // tę samą sesję - drugie wywołanie musi być no-opem, żeby nie dublować
     // zapytań o `user_roles` i `profiles` przy każdym mount.
     let contextLoadedForUid: string | null = null;
+    let invitationAcceptedForUid: string | null = null;
+    // Czy sesja startowa DOSTAŁA już odpowiedź (jakąkolwiek - z magazynu, z
+    // sieci albo odmowną). Steruje wyłącznie terminem niżej.
+    let sessionAnswered = false;
+    // TERMIN NA „NIE WIEMY". Patrz SESSION_SETTLE_TIMEOUT_MS: po jego upływie
+    // schodzimy z `loading` PILNIE (poza `startTransition`), bo przejście może
+    // być właśnie tym, co wisi. Magazynu nie ruszamy - to nie jest wylogowanie,
+    // tylko rezygnacja z czekania, więc spóźniona odpowiedź nadal promuje
+    // użytkownika z powrotem na zalogowanego.
+    let settleTimer: ReturnType<typeof setTimeout> | undefined = setTimeout(() => {
+      settleTimer = undefined;
+      if (sessionAnswered) return;
+      console.warn(
+        `[auth] sesja nie rozstrzygnęła się w ${SESSION_SETTLE_TIMEOUT_MS} ms - traktujemy odwiedzającego jak gościa (magazyn sesji nietknięty)`,
+      );
+      setSessionLoading(false);
+    }, SESSION_SETTLE_TIMEOUT_MS);
+    const answerSession = () => {
+      sessionAnswered = true;
+      if (settleTimer !== undefined) {
+        clearTimeout(settleTimer);
+        settleTimer = undefined;
+      }
+    };
+    // PUSTY MAGAZYN = PEWNE „TO GOŚĆ", i wiemy to OD RAZU - bez `getSession()`,
+    // bez sieci, bez klienta Supabase. Bramki tożsamości dostają wtedy swoją
+    // odpowiedź w pierwszym przebiegu efektów po hydratacji, zamiast czekać na
+    // round-trip przez magazyn i kolejkę zdarzeń klienta. `startTransition` jak
+    // niżej: zasłona hydratacji zawieszonych wysp ma zostać nienaruszona
+    // (`hooks/__tests__/authHydration.test.tsx`).
+    if (!hasStoredAuthSession()) {
+      answerSession();
+      startTransition(() => setSessionLoading(false));
+    }
     const ensureContext = (uid: string | null) => {
       if (uid === contextLoadedForUid) return;
       contextLoadedForUid = uid;
       if (!uid) {
         setRoles([]);
         setTenantId(null);
-        setRolesLoading(false);
+        settleRoles();
         return;
       }
       setRolesLoading(true);
+      if (roleTimerRef.current !== undefined) clearTimeout(roleTimerRef.current);
+      roleTimerRef.current = setTimeout(() => {
+        roleTimerRef.current = undefined;
+        console.warn(
+          `[auth] role i tenant nie wróciły w ${ROLE_SETTLE_TIMEOUT_MS} ms - widok idzie dalej bez ról`,
+        );
+        setRolesLoading(false);
+      }, ROLE_SETTLE_TIMEOUT_MS);
       setTimeout(() => {
         void loadContext(uid);
       }, 0);
@@ -114,6 +277,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           reauthorizeContent(uid);
         }
         ensureContext(uid);
+        // Domknij administracyjne zaproszenie po pierwszym poprawnym wejściu.
+        // RPC jest idempotentne i może zaakceptować wyłącznie zaproszenie
+        // przypisane do bieżącego konta, e-maila i tenanta.
+        if (
+          uid &&
+          uid !== invitationAcceptedForUid &&
+          (event === "SIGNED_IN" || event === "INITIAL_SESSION")
+        ) {
+          invitationAcceptedForUid = uid;
+          setTimeout(() => {
+            void supabase.rpc("accept_my_user_invitation").then(({ error }) => {
+              if (error) console.warn("[auth] invitation acceptance sync failed", error.message);
+            });
+          }, 0);
+        }
         if (
           s?.user &&
           (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
@@ -127,22 +305,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }, 0);
         }
       }));
-      supabase.auth.getSession().then(({ data }) => {
-        // Listener już obsłużył INITIAL_SESSION dla tej samej sesji - tu tylko
-        // domykamy `loading`, żeby konsument (route guards, header) mógł się
-        // odpalić bez dodatkowego round-tripu.
-        setSession(data.session);
-        ensureContext(data.session?.user?.id ?? null);
-        setSessionLoading(false);
-      });
+      supabase.auth
+        .getSession()
+        .then(({ data }) => {
+          // Listener już obsłużył INITIAL_SESSION dla tej samej sesji - tu tylko
+          // domykamy `loading`, żeby konsument (route guards, header) mógł się
+          // odpalić bez dodatkowego round-tripu.
+          // Preserve the server-rendered reading surface while lazy widgets
+          // hydrate. Initial auth settlement can wait; later identity changes
+          // and logout remain urgent.
+          answerSession();
+          startTransition(() => {
+            setSession(data.session);
+            ensureContext(data.session?.user?.id ?? null);
+            setSessionLoading(false);
+          });
+        })
+        .catch((error) => {
+          // ODMOWA ODCZYTU SESJI NIE JEST WYLOGOWANIEM. `getSession()` odrzuca,
+          // gdy odświeżenie tokenu padnie na sieci - a to znaczy „nie wiemy",
+          // nie „nie ma sesji". Przestajemy więc czekać (bramka pokaże CTA
+          // logowania), ale zostawiamy magazyn w spokoju: `onAuthStateChange`
+          // po powrocie sieci dostarczy sesję i widok wróci do zalogowanego.
+          // Bez tego `catch` `loading` nie schodziło NIGDY, a odrzucenie
+          // lądowało w `unhandledrejection`.
+          answerSession();
+          console.warn("[auth] nie udało się odczytać sesji - traktujemy jak gościa", error);
+          setSessionLoading(false);
+        });
     } catch (error) {
       console.error("[auth] Supabase client unavailable - continuing signed-out", error);
+      answerSession();
       setSessionLoading(false);
     }
-    return () => sub?.subscription.unsubscribe();
+    return () => {
+      if (settleTimer !== undefined) clearTimeout(settleTimer);
+      if (roleTimerRef.current !== undefined) {
+        clearTimeout(roleTimerRef.current);
+        roleTimerRef.current = undefined;
+      }
+      sub?.subscription.unsubscribe();
+    };
   }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     // Resolve the admin-configured post-logout destination BEFORE clearing the
     // cache (the bulk settings map is almost always already cached, so this is
     // a cache read, not a round-trip). Only internal paths are honoured -
@@ -156,6 +362,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       /* settings unavailable - fall back to the homepage */
     }
     await supabase.auth.signOut();
+    // Rezerwacja dolnej krawędzi jest odtwarzana PRZED pierwszym malowaniem
+    // z zapamiętanej wysokości paska doku (`lib/dock/reservedSpace.ts`).
+    // Po wylogowaniu paska nie ma, więc znacznik musi zniknąć razem z sesją -
+    // inaczej każda następna strona dostałaby pas pustego miejsca pod niczym.
+    // To jedyne miejsce w kodzie, które wie o wylogowaniu.
+    clearReservedSpace();
     setSession(null);
     setRoles([]);
     setTenantId(null);
@@ -167,7 +379,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // logout a full reload is even desirable: it guarantees no per-user state
     // survives in memory.
     if (typeof window !== "undefined") window.location.assign(target);
-  };
+  }, [queryClient]);
 
   const isSuperAdmin = roles.includes("super_admin");
   const isAdmin = isSuperAdmin || roles.includes("admin");
@@ -176,23 +388,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // half-hydrated identity (session present, roles empty).
   const loading = sessionLoading || (session !== null && rolesLoading);
 
-  return (
-    <Ctx.Provider
-      value={{
-        session,
-        user: session?.user ?? null,
-        roles,
-        tenantId,
-        loading,
-        isStaff,
-        isAdmin,
-        isSuperAdmin,
-        signOut,
-      }}
-    >
-      {children}
-    </Ctx.Provider>
+  // Unrelated root renders must not rebroadcast unchanged auth state through
+  // pending SSR widget boundaries. Identity/role/loading changes still notify
+  // every consumer, and logout keeps its existing urgent cache invalidation.
+  const value = useMemo<AuthCtx>(
+    () => ({
+      session,
+      user: session?.user ?? null,
+      roles,
+      tenantId,
+      loading,
+      isStaff,
+      isAdmin,
+      isSuperAdmin,
+      signOut,
+    }),
+    [session, roles, tenantId, loading, isStaff, isAdmin, isSuperAdmin, signOut],
   );
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 export const useAuth = () => useContext(Ctx);

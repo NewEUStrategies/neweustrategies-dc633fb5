@@ -143,9 +143,10 @@ export function clubDossierIconBoxClass(tone: ClubDossierTone): string {
 }
 
 /**
- * Etykieta rodzaju w pasku meta. Kolor rodzaju żyje tu jako TEKST (nie jako
- * wypełniony chip i nie jako poświata) - razem z grzbietem i ikoną domyka
- * wariant „grzbiet + kolorowa meta" wybrany w audycie 2026-08-11.
+ * Etykieta rodzaju w pasku meta. Renderuje się jako mała pigułka (label),
+ * żeby rodzaj wątku był czytelny na pierwszy rzut oka i różnił się od
+ * pozostałych elementów meta (autor, data, statusy). Kolor rodzaju żyje
+ * w tle i obramowaniu przez `--dossier-tone`, a tekst pozostaje wyraźny.
  * Wymaga rodzica z ustawionym `--dossier-tone` (czyli `ClubDossierRow`).
  */
 export function ClubDossierKind({
@@ -158,7 +159,10 @@ export function ClubDossierKind({
   return (
     <span
       className={cn(
-        "font-semibold uppercase tracking-wide",
+        "inline-flex items-center rounded-md border px-1.5 font-semibold uppercase tracking-wide",
+        "text-[10px] leading-none",
+        "bg-[color-mix(in_oklab,var(--dossier-tone)_12%,transparent)]",
+        "border-[color-mix(in_oklab,var(--dossier-tone)_35%,transparent)]",
         "text-[color-mix(in_oklab,var(--dossier-tone)_78%,var(--foreground))]",
         className,
       )}
@@ -208,6 +212,7 @@ export function ClubDossierRow({
   icon,
   meta,
   title,
+  byline,
   excerpt,
   children,
   metrics,
@@ -225,6 +230,8 @@ export function ClubDossierRow({
   /** Pasek meta nad tytułem: rodzaj, dział, temat, statusy. */
   meta?: ReactNode;
   title: ReactNode;
+  /** Autor i czas publikacji - na stronie wątku bezpośrednio pod tytułem. */
+  byline?: ReactNode;
   excerpt?: ReactNode;
   /** Pełna treść pod zajawką - używa jej strona wątku (post otwierający). */
   children?: ReactNode;
@@ -291,9 +298,25 @@ export function ClubDossierRow({
 
       <div className="min-w-0">
         {meta !== undefined ? (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+          // Pasek meta: etykieta rodzaju, chipy, autor, data i odznaki mają
+          // JEDNAKOWĄ wysokość (20 px) i są wycentrowane w pionie. Avatar
+          // (`img`) i kropka nieprzeczytanego zostają przy swoich rozmiarach.
+          <div
+            className={cn(
+              "flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground",
+              "[&>*:not(img):not([data-dossier-dot])]:inline-flex",
+              "[&>*:not(img):not([data-dossier-dot])]:h-5",
+              "[&>*:not(img):not([data-dossier-dot])]:items-center",
+              "[&>*:not(img):not([data-dossier-dot])]:py-0",
+              "[&>*:not(img):not([data-dossier-dot])]:leading-none",
+            )}
+          >
             {unread ? (
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+              <span
+                data-dossier-dot=""
+                className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary"
+                aria-hidden="true"
+              />
             ) : null}
             {meta}
           </div>
@@ -307,7 +330,7 @@ export function ClubDossierRow({
           )}
         >
           {titleStyle === "headline" ? (
-            <div className="text-xl font-bold leading-snug tracking-tight text-foreground transition-colors group-hover/dossier:text-foreground sm:text-2xl">
+            <div className="text-lg font-bold leading-snug tracking-tight text-foreground transition-colors group-hover/dossier:text-foreground sm:text-xl">
               {title}
             </div>
           ) : (
@@ -315,8 +338,14 @@ export function ClubDossierRow({
           )}
         </div>
 
+        {byline !== undefined ? (
+          <div className="mt-3 flex min-h-8 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            {byline}
+          </div>
+        ) : null}
+
         {excerpt !== undefined ? (
-          <div className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted-foreground">
+          <div className="mt-2 line-clamp-3 text-xs leading-relaxed text-muted-foreground">
             {excerpt}
           </div>
         ) : null}

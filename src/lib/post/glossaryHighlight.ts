@@ -85,7 +85,14 @@ export function markFirstOccurrences(
   const marked: string[] = [];
   if (remaining.size === 0) return marked;
   // Dłuższe terminy mają pierwszeństwo w obrębie jednego węzła tekstowego.
-  const ordered = () => [...remaining.keys()].sort((a, b) => b.length - a.length);
+  //
+  // WYDAJNOŚĆ (F38): ta lista powstawała RAZ NA ITERACJĘ pętli niżej - nowa
+  // tablica + `sort` dla każdego węzła tekstowego artykułu, czyli
+  // O(węzły · terminy·log terminy) pracy synchronicznej. Kolejność zmienia się
+  // wyłącznie przez USUNIĘCIE klucza, więc sortujemy raz i wycinamy element w
+  // miejscu: `sort` jest stabilny, a `splice` zachowuje kolejność pozostałych,
+  // więc lista jest w każdym kroku TA SAMA, którą dawał resort.
+  const ordered = [...remaining.keys()].sort((a, b) => b.length - a.length);
 
   // `root.ownerDocument`, nie globalny `document`: ta sama ścieżka w
   // przeglądarce, a moduł działa też na fragmencie odłączonym od dokumentu.
@@ -107,12 +114,14 @@ export function markFirstOccurrences(
   for (const textNode of textNodes) {
     if (remaining.size === 0) break;
     let node: Text | null = textNode;
+    let text = node.textContent ?? "";
+    // `lower` liczymy RAZ NA WĘZEŁ, a nie w każdym obrocie pętli: po podziale
+    // ogon jest przyrostkiem tego samego napisu, więc wystarczy go uciąć.
+    let lower = text.toLowerCase();
     // Po każdym oznaczeniu kontynuujemy w "ogonie" podzielonego węzła.
     while (node && remaining.size > 0) {
-      const text = node.textContent ?? "";
-      const lower = text.toLowerCase();
       let hit: { key: string; index: number } | null = null;
-      for (const key of ordered()) {
+      for (const key of ordered) {
         let from = 0;
         while (from <= lower.length - key.length) {
           const idx = lower.indexOf(key, from);
@@ -129,6 +138,8 @@ export function markFirstOccurrences(
       if (!hit) break;
       const slug = remaining.get(hit.key);
       remaining.delete(hit.key);
+      const position = ordered.indexOf(hit.key);
+      if (position !== -1) ordered.splice(position, 1);
       if (slug === undefined) break;
       const range = node.splitText(hit.index);
       const tail = range.splitText(hit.key.length);
@@ -140,6 +151,14 @@ export function markFirstOccurrences(
       span.appendChild(range);
       marked.push(slug);
       node = tail;
+      const cut = hit.index + hit.key.length;
+      const tailText = tail.textContent ?? "";
+      // Parytet indeksów: reguła i tak czyta granice słów z `text` po indeksie
+      // znalezionym w `lower`, więc zakłada mapowanie 1:1. Gdy zmiana wielkości
+      // liter zmienia DŁUGOŚĆ napisu (np. "ß" -> "ss"), tego parytetu nie ma -
+      // wtedy liczymy małe litery ogona od nowa, zamiast ciąć.
+      lower = lower.length === text.length ? lower.slice(cut) : tailText.toLowerCase();
+      text = tailText;
     }
   }
   return marked;

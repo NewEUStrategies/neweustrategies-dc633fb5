@@ -37,7 +37,11 @@ export function createLovableAiGatewayRunIdFetch(initialRunId?: string) {
   return {
     // `fetch(...)` below is the global fetch - the object key introduces no binding.
     fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
-      const headers = new Headers(init?.headers);
+      // Preserve Request-carried auth/content headers when init does not
+      // replace them, matching native fetch(Request, init) semantics.
+      const headers = new Headers(
+        init?.headers ?? (input instanceof Request ? input.headers : undefined),
+      );
       if (runId && !headers.has(LOVABLE_AIG_RUN_ID_HEADER)) {
         headers.set(LOVABLE_AIG_RUN_ID_HEADER, runId);
       }
@@ -148,33 +152,46 @@ export async function withLovableAiGatewayRunIdHeader(
   }
 
   const reader = response.body.getReader();
-  const firstChunk = reader.read();
-  const runId = await gateway.waitForRunId();
+  // Reading starts the SDK request that resolves the run-id promise. Observe
+  // rejection immediately: an upstream failure can precede that promise.
+  let firstChunk: Promise<ReadableStreamReadResult<Uint8Array>> | undefined = reader.read();
+  void firstChunk.catch(() => {});
+  let runId: string | undefined;
+  try {
+    runId = await gateway.waitForRunId();
+  } catch (error) {
+    await reader.cancel(error).catch(() => {});
+    reader.releaseLock();
+    throw error;
+  }
   const headers = getLovableAiGatewayResponseHeaders(undefined, response.headers);
   new Headers(init).forEach((value, name) => headers.set(name, value));
   if (runId) headers.set(LOVABLE_AIG_RUN_ID_HEADER, runId);
 
   const body = new ReadableStream({
-    async start(controller) {
+    async pull(controller) {
       try {
-        const first = await firstChunk;
-        if (first.done) {
+        const chunk = await (firstChunk ?? reader.read());
+        firstChunk = undefined;
+        if (chunk.done) {
           controller.close();
+          reader.releaseLock();
           return;
         }
-        controller.enqueue(first.value);
-        while (true) {
-          const chunk = await reader.read();
-          if (chunk.done) break;
-          controller.enqueue(chunk.value);
-        }
-        controller.close();
+        // One chunk per downstream pull; do not buffer an entire AI stream
+        // when the browser is slow or has stopped reading.
+        controller.enqueue(chunk.value);
       } catch (error) {
         controller.error(error);
+        reader.releaseLock();
       }
     },
-    cancel(reason?: unknown) {
-      return reader.cancel(reason);
+    async cancel(reason?: unknown) {
+      try {
+        await reader.cancel(reason);
+      } finally {
+        reader.releaseLock();
+      }
     },
   });
 

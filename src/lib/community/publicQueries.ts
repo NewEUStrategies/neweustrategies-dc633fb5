@@ -174,6 +174,69 @@ export async function fetchEventPageHeader(slug: string): Promise<EventPageHeade
   return data?.[0] ?? null;
 }
 
+// Prefiks `public-event` jest ZAREJESTROWANY w lib/realtime/eventInvalidationMap
+// (trzy miejsca), więc zmiana tego literału zerwałaby unieważnianie na żywo -
+// dokładnie ta sama ostrożność, co przy kluczu listy wyżej.
+const publicEventQueryKey = (slug: string) => ["public-event", slug] as const;
+
+const EVENT_SSR_TTL_MS = 60_000;
+
+/**
+ * Współdzielone queryOptions STRONY wydarzenia: loader SSR (`ensureQueryData`)
+ * i render klienta widzą ten sam klucz, więc treść schodzi z serwera zamiast
+ * dociągać się po hydratacji. Ten sam kontrakt, co `publicEventsQueryOptions`
+ * wyżej - w tym per-tenantowy TTL cache na serwerze.
+ *
+ * Odczyt SERWEROWY jest zawsze ANONIMOWY (sesja Supabase żyje w localStorage,
+ * dokument publiczny to anonimowa skorupa), a `edgeTtlCache` kluczuje wpisy po
+ * hoście najemcy, więc wpis jednego wołającego nie ma jak zostać wydany
+ * drugiemu. Izolację danych i tak egzekwuje RLS przez `public_tenant_id()`.
+ */
+export const publicEventBySlugQueryOptions = (slug: string) =>
+  queryOptions({
+    queryKey: publicEventQueryKey(slug),
+    queryFn: () =>
+      edgeTtlCache(`public:event:${slug}`, EVENT_SSR_TTL_MS, () => fetchPublicEventBySlug(slug)),
+    staleTime: 60_000,
+    gcTime: 10 * 60_000,
+  });
+
+/**
+ * Nagłówek strony wydarzenia jako queryOptions - żeby loader mógł go rozgrzać
+ * przez `ensureQueryData` tą samą drogą co reszta.
+ *
+ * TO JEST JEDYNE POPRAWNE WEJŚCIE DLA `notFound()`. `event_page_header` jest
+ * SECURITY DEFINER i oddaje wiersz KAŻDEMU, kto zna slug OPUBLIKOWANEGO
+ * wydarzenia tego najemcy (`WHERE e.tenant_id = public_tenant_id() AND
+ * e.slug = ... AND e.status = 'published'`), a bramkę warstwy tylko ETYKIETUJE.
+ * Pusty wynik znaczy więc dokładnie jedno: wydarzenia nie ma.
+ *
+ * `fetchPublicEventBySlug` NIE nadaje się na tę decyzję: stoi pod RLS, a odczyt
+ * serwerowy jest anonimowy, więc każde wydarzenie `visibility='members'` albo
+ * `min_tier_rank > 0` dawałoby TWARDE 404 uprawnionemu czytelnikowi przy
+ * przeładowaniu strony - regresja gorsza od naprawianego miękkiego 404.
+ *
+ * `viewer` JEST CZĘŚCIĄ KLUCZA i musi nim zostać: RPC personalizuje odpowiedź
+ * (`my_*`, `tier_locked`, `chatham_house_locked`), więc wpis bez tożsamości
+ * wołającego wydałby stan jednego czytelnika drugiemu. Loader SSR podaje
+ * `"anon"` - dokument publiczny jest anonimową skorupą - i to jest DOKŁADNIE
+ * ten klucz, który czyta przegląd (`user?.id ?? "anon"`), więc rozgrzewka
+ * serwerowa nie dokłada ani jednego round-tripu.
+ *
+ * ŚWIADOMIE BEZ `edgeTtlCache`, w odróżnieniu od dwóch fabryk wyżej: cache TTL
+ * kluczowany po hoście najemcy nie widzi tożsamości wołającego, a ta odpowiedź
+ * jest personalizowana. Dziś na serwerze wołający jest zawsze anonimowy, ale to
+ * jest inwariant środowiska, nie kontrakt tej funkcji - i nie wolno na nim
+ * oprzeć współdzielenia wiersza.
+ */
+export const eventPageHeaderQueryOptions = (slug: string, viewer: string) =>
+  queryOptions({
+    queryKey: ["event-page-header", slug, viewer] as const,
+    queryFn: () => fetchEventPageHeader(slug),
+    staleTime: 60_000,
+    gcTime: 10 * 60_000,
+  });
+
 export interface EventAccess {
   can_join: boolean;
   join_url: string | null;
@@ -322,12 +385,24 @@ export async function fetchPollResults(pollIds: string[]): Promise<Map<string, P
   return map;
 }
 
-/** Lista publicznych ankiet - klucz współdzielony przez loader SSR /polls
- *  i render strony (hydratacja bez ponownego fetcha). */
+/**
+ * Lista publicznych ankiet - klucz współdzielony przez loader SSR /polls
+ * i render strony (hydratacja bez ponownego fetcha).
+ *
+ * `staleTime` NIE JEST TU KOSMETYKĄ. Bez niego dane zasiane loaderem są
+ * przeterminowane w chwili hydratacji, więc `useQuery` refetchuje listę
+ * ZARAZ po montażu - zmierzone: drugi odczyt `polls` w fali klienta, czyli
+ * pełny round-trip za dane, które właśnie przyjechały w dokumencie. Minuta
+ * świeżości jest bezpieczna, bo głosy NIE zmieniają tej listy (rozkład
+ * głosów żyje w osobnym kluczu `public-poll-results`, celowo klienckim),
+ * a otwarcie i zamknięcie ankiety jest zdarzeniem redakcyjnym. Ta sama
+ * wartość, którą dla listy wydarzeń deklaruje `publicEventsQueryOptions`.
+ */
 export const publicPollsQueryOptions = () =>
   queryOptions({
     queryKey: ["public-polls"],
     queryFn: fetchPublicPolls,
+    staleTime: 60_000,
   });
 
 /**
@@ -382,6 +457,22 @@ export async function fetchPublicQaSessions(): Promise<PublicQaSession[]> {
   return (data ?? []) as PublicQaSession[];
 }
 
+/**
+ * Lista publicznych sesji Q&A - klucz WSPÓLNY dla loadera SSR `/qa` i renderu
+ * strony. Wcześniej loader wołał `fetchPublicQaSessions()` wprost (żeby zasilić
+ * `head()` i węzeł kolekcji JSON-LD), więc jego praca nie zasilała cache'u
+ * react-query: markup listy w wyjściu serwera był PUSTY (`query.isLoading`),
+ * a przeglądarka pobierała te same sto sesji drugi raz po hydratacji.
+ * `staleTime` jest tu warunkiem sensu zasiewu - bez niego dane są
+ * przeterminowane w chwili hydratacji i `useQuery` i tak refetchuje.
+ */
+export const publicQaSessionsQueryOptions = () =>
+  queryOptions({
+    queryKey: ["public-qa-sessions"],
+    queryFn: fetchPublicQaSessions,
+    staleTime: 60_000,
+  });
+
 export async function fetchPublicQaSessionBySlug(slug: string): Promise<PublicQaSession | null> {
   const { data, error } = await supabase
     .from("qa_sessions")
@@ -392,6 +483,34 @@ export async function fetchPublicQaSessionBySlug(slug: string): Promise<PublicQa
   if (error) throw error;
   return (data ?? null) as PublicQaSession | null;
 }
+
+/**
+ * Jedna sesja Q&A po slugu - klucz WSPÓLNY dla loadera `/qa/$slug` i renderu.
+ * `staleTime` jak przy liście: bez niego zasiew loaderem jest przeterminowany
+ * w chwili hydratacji i przeglądarka pobiera sesję drugi raz.
+ */
+export const publicQaSessionQueryOptions = (slug: string) =>
+  queryOptions({
+    queryKey: ["public-qa-session", slug],
+    queryFn: () => fetchPublicQaSessionBySlug(slug),
+    staleTime: 60_000,
+  });
+
+/**
+ * Pytania sesji - klucz WSPÓLNY dla loadera `/qa/$slug` i renderu.
+ *
+ * `staleTime` jest tu KRÓTSZY niż przy sesji (30 s wobec 60 s) i to nie jest
+ * niekonsekwencja: lista pytań rośnie ruchem czytelników (nowe pytania, nowe
+ * głosy), więc jest treścią „żywszą" niż opis sesji. Trzydzieści sekund
+ * wystarcza, żeby zasiew loadera nie był ponawiany zaraz po hydratacji,
+ * i jednocześnie nie zamraża listy na minutę.
+ */
+export const publicQaQuestionsQueryOptions = (sessionId: string) =>
+  queryOptions({
+    queryKey: ["public-qa-questions", sessionId],
+    queryFn: () => fetchPublicQaQuestions(sessionId),
+    staleTime: 30_000,
+  });
 
 export interface QaSummaryPostTeaser {
   slug: string;
@@ -496,11 +615,21 @@ export async function fetchLibraryResources(): Promise<PublicResource[]> {
   return (data ?? []) as PublicResource[];
 }
 
-/** Opublikowane materiały biblioteki - klucz współdzielony przez loader SSR
- *  /library i render strony. Metadane są publiczne (teaser z kłódką); sam
- *  plik i tak wymaga server fn z bramką rangi, więc SSR niczego nie odsłania. */
+/**
+ * Opublikowane materiały biblioteki - klucz współdzielony przez loader SSR
+ * /library i render strony. Metadane są publiczne (teaser z kłódką); sam plik
+ * i tak wymaga server fn z bramką rangi, więc SSR niczego nie odsłania.
+ *
+ * `staleTime` z tego samego powodu, co przy liście ankiet wyżej: bez niego
+ * lista zasiana loaderem jest przeterminowana w chwili hydratacji, więc
+ * przeglądarka pobiera ją PONOWNIE zaraz po montażu (zmierzone: drugi odczyt
+ * `member_resources` w fali klienta). Katalog materiałów zmienia się gestem
+ * redakcyjnym, nie ruchem czytelnika, więc minuta świeżości jest bezpieczna;
+ * personalizacja (ranga warstwy) i tak żyje w osobnym, klienckim kluczu.
+ */
 export const libraryResourcesQueryOptions = () =>
   queryOptions({
     queryKey: ["library-resources"],
     queryFn: fetchLibraryResources,
+    staleTime: 60_000,
   });

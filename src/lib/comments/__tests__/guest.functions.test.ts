@@ -221,20 +221,36 @@ describe("limit per IP", () => {
     });
   });
 
-  it("z x-forwarded-for bierze PIERWSZY wpis - reszta łańcucha jest sterowalna", async () => {
+  it("z x-forwarded-for bierze OSTATNI wpis - prefiks łańcucha jest sterowalny", async () => {
+    // Lista rośnie od klienta w stronę serwera, a edge proxy DOKLEJA adres
+    // połączenia na KOŃCU - nie zastępuje nim tego, co wpisał klient. Pierwszy
+    // wpis jest więc DEKLARACJĄ KLIENTA: kubełek po nim kluczowany rotuje się
+    // jednym nagłówkiem, czyli limitu nie ma. Ogon pochodzi od proxy.
     h.state.headers.set("x-forwarded-for", "198.51.100.1, 10.0.0.1, 172.16.0.1");
 
     await submit(VALID);
 
-    expect(h.calls.rateLimits[0]?.subjectId).toBe("198.51.100.1");
+    expect(h.calls.rateLimits[0]?.subjectId).toBe("172.16.0.1");
+  });
+
+  it("ten sam ogon łańcucha to ten sam kubełek, mimo innego prefiksu klienta", async () => {
+    // Regresja właściwa: napastnik dopisuje sobie dowolny prefiks i MUSI
+    // trafić w ten sam kubełek, co przy prefiksie pustym.
+    h.state.headers.set("x-forwarded-for", "1.1.1.1, 172.16.0.1");
+    await submit(VALID);
+    h.state.headers.set("x-forwarded-for", "2.2.2.2, 9.9.9.9, 172.16.0.1");
+    await submit(VALID);
+
+    expect(h.calls.rateLimits[0]?.subjectId).toBe("172.16.0.1");
+    expect(h.calls.rateLimits[1]?.subjectId).toBe("172.16.0.1");
   });
 
   it("x-forwarded-for jest przycinany z białych znaków", async () => {
-    h.state.headers.set("x-forwarded-for", "   198.51.100.9   , 10.0.0.1");
+    h.state.headers.set("x-forwarded-for", "   198.51.100.9   ,    10.0.0.1   ");
 
     await submit(VALID);
 
-    expect(h.calls.rateLimits[0]?.subjectId).toBe("198.51.100.9");
+    expect(h.calls.rateLimits[0]?.subjectId).toBe("10.0.0.1");
   });
 
   it("BRAK nagłówków: wspólny kubełek 'unknown-ip' (fail-closed)", async () => {

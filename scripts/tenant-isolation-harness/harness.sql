@@ -20,6 +20,16 @@ LANGUAGE sql STABLE AS $$
   SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::uuid
 $$;
 
+-- Supabase nadaje te uprawnienia w kazdym projekcie i BEZ NICH atrapa klamie
+-- w jednym konkretnym miejscu: wyrazenie polityki jest analizowane przy
+-- `CREATE POLICY` (jako wlasciciel), wiec brak USAGE na schemacie `auth` nie
+-- przeszkadza politykom - ale przeszkadza KAZDEMU zapytaniu, ktore rola
+-- `authenticated` pisze sama. Polityka `user_blocks_owner_insert` wyznacza
+-- tenanta PODZAPYTANIEM do `public.profiles` wykonywanym JAKO WOLAJACY, wiec
+-- bez tych dwoch grantow odbijalaby sie o uprawnienia, a nie o RLS - i dowod
+-- rownowaznosci obu form mierzylby cos innego, niz opisuje.
+GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
+
 CREATE TYPE public.app_role AS ENUM ('admin', 'editor', 'author', 'user', 'super_admin');
 
 CREATE TABLE public.tenants (
@@ -33,11 +43,22 @@ CREATE TABLE public.profiles (
   tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   display_name text
 );
+-- Produkcja daje `authenticated` odczyt profili (a nad nim RLS z polityka
+-- odczytu WLASNEGO wiersza). Atrapa daje sam GRANT: modelowanie tamtej
+-- polityki nie zmienia odpowiedzi dla wiersza WOLAJACEGO, a to jedyny wiersz,
+-- ktory czyta podzapytanie z `user_blocks_owner_insert`. Roznica miedzy forma
+-- funkcyjna (SECURITY DEFINER, omija RLS) a podzapytaniowa (biegnie jako
+-- wolajacy, podlega RLS) jest przypieta STATYCZNIE w chatPolicyContract.test.ts.
+GRANT SELECT ON public.profiles TO authenticated;
 
 CREATE TABLE public.user_roles (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   role public.app_role NOT NULL,
+  -- `tenant_id` z migracji 20260531181120 - potrzebne, bo koncowa definicja
+  -- `public.is_super_admin()` (20260824074231) porownuje je z tenantem
+  -- wolajacego, a bez tej kolumny funkcja nie da sie utworzyc.
+  tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
   UNIQUE (user_id, role)
 );
 
@@ -458,3 +479,299 @@ CREATE POLICY "personality_history_owner_read" ON public.personality_result_hist
 -- razem z auth.users i profiles. Taka jest konwencja tej uprzezy: harness.sql
 -- daje SCHEMAT, runtime_test.sql DANE - INSERT tutaj lamalby FK na auth.users,
 -- ktore jest wypelniane dopiero tam.
+
+-- ==========================================================================
+-- ROZSZERZENIE 2026-09-01: PLASZCZYZNA CZATU (MODUL 09).
+--
+-- Modul 09 dostal bramke STATYCZNA (`src/lib/ci/__tests__/chatPolicyContract.test.ts`),
+-- ktora dowodzi KSZTALTU polityk czytanego z migracji. Tutaj domykamy dowod
+-- WYKONAWCZY: na zywej bazie, z wlaczonym RLS i rola `authenticated`, te
+-- polityki naprawde odcinaja obcy obszar roboczy i obca rozmowe.
+--
+-- CZYM TA SEKCJA ROZNI SIE OD POZOSTALYCH W TYM PLIKU. Wyzej atrapa odtwarza
+-- polityki w stanie SPRZED naprawy, a migracja je podmienia - dzieki temu
+-- harness sprawdza takze, ze podmiana zaszla. Tu NIE MA czego podmieniac:
+-- polityki czatu nie sa naprawiane, tylko przypinane. Dlatego atrapa daje
+-- WYLACZNIE tabele, granty i funkcje pomocnicze, a KAZDA polityke czatu
+-- zaklada `run.sh` z tresci prawdziwych migracji (etap 2, patrz
+-- `extract_chat_policies.awk`). Gdyby ten plik zakladal tu jakakolwiek
+-- polityke, harness testowalby wlasna kopie.
+--
+-- CZEGO ATRAPA CELOWO NIE INSTALUJE - I DLACZEGO TO JEST DECYZJA:
+--
+--   1. TRIGGERY STEMPLUJACE (`messages_before_insert`, `message_reactions_
+--      before_insert`, `message_stars_before_insert`). W produkcji nadpisuja
+--      one `tenant_id`/`conversation_id` wartosciami wziętymi z rozmowy albo
+--      z wiadomosci, wiec klient nie umie ich sfalszowac. Gdyby staly w
+--      atrapie, KAZDA asercja „zapis z obcym tenant_id jest odrzucany"
+--      przechodzilaby dzieki TRIGGEROWI, a polityka - przedmiot dowodu -
+--      nie zostalaby wykonana ani razu. To jest druga kladka bezpieczenstwa
+--      i mierzymy tu wylacznie te pierwsza.
+--   2. FAN-OUT POWIADOMIEN, PURGE TTL, STORAGE ZALACZNIKOW. Stoja na tabelach
+--      spoza modulu (`notifications`, `storage.objects`) i nie wchodza do
+--      zadnej polityki czatu.
+--   3. KANAL REALTIME (`realtime.messages`: pisanie „pisze…", obecnosc).
+--      Polityki kanalow wiaza tenanta TEMATEM kanalu, a nie kolumna wiersza,
+--      i wymagaja schematu `realtime` z funkcja `realtime.topic()`. Ta atrapa
+--      go nie ma i mieć nie bedzie - patrz README.
+--
+-- Ksztalt tabel jest przepisany z migracji zrodlowych (kolumny istotne dla
+-- RLS i dla asercji); komentarz przy kazdej mowi, skad pochodzi.
+-- ==========================================================================
+
+-- Koncowa definicja z 20260824074231 (wczesniejsza, z 20260628212746, nie
+-- wiazala tenanta). Wchodzi tu, bo bez niej nie da sie zalozyc polityk
+-- `expert_inmails: …`, ktore ja wolaja.
+CREATE OR REPLACE FUNCTION public.is_super_admin(_user_id uuid DEFAULT auth.uid())
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1
+      FROM public.user_roles
+     WHERE user_id = _user_id
+       AND role = 'super_admin'::public.app_role
+       AND tenant_id = public.current_tenant_id()
+  )
+$$;
+
+-- 20260710092108 (+ 20260712230000: message_ttl_seconds).
+-- `tenant_id` BEZ klucza obcego - dokladnie jak w migracji.
+CREATE TABLE public.conversations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL,
+  kind text NOT NULL DEFAULT 'direct' CHECK (kind IN ('direct', 'group')),
+  created_by uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  last_message_at timestamptz,
+  message_ttl_seconds integer
+);
+
+-- 20260710092108 (+ 20260712230000: pinned_at … last_delivered_at).
+CREATE TABLE public.conversation_participants (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id uuid NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL,
+  unread_count integer NOT NULL DEFAULT 0,
+  last_read_at timestamptz,
+  pinned_at timestamptz,
+  archived_at timestamptz,
+  muted_until timestamptz,
+  cleared_before timestamptz,
+  last_delivered_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (conversation_id, user_id)
+);
+
+-- 20260710092108 (+ 20260712230000: expires_at, attachment_duration, kind='audio').
+CREATE TABLE public.messages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id uuid NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL,
+  sender_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  kind text NOT NULL DEFAULT 'text' CHECK (kind IN ('text', 'image', 'file', 'audio')),
+  body text,
+  attachment_path text,
+  attachment_name text,
+  attachment_mime text,
+  attachment_size bigint,
+  attachment_duration integer,
+  reply_to_id uuid REFERENCES public.messages(id) ON DELETE SET NULL,
+  edited_at timestamptz,
+  deleted_at timestamptz,
+  expires_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- 20260710092108.
+CREATE TABLE public.message_reactions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  message_id uuid NOT NULL REFERENCES public.messages(id) ON DELETE CASCADE,
+  conversation_id uuid NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  emoji text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (message_id, user_id)
+);
+
+-- 20260712230000.
+CREATE TABLE public.message_stars (
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  message_id uuid NOT NULL REFERENCES public.messages(id) ON DELETE CASCADE,
+  conversation_id uuid NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, message_id)
+);
+
+-- 20260716090000.
+CREATE TABLE public.conversation_nicknames (
+  conversation_id uuid NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  nickname text NOT NULL CHECK (char_length(nickname) BETWEEN 1 AND 60),
+  set_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (conversation_id, user_id)
+);
+
+-- 20260711190000 / 20260711212733. UWAGA: `tenant_id` jest NOT NULL i NIE MA
+-- DEFAULT-u - w calym lancuchu migracji nikt go nie dokłada. To jest powod,
+-- dla ktorego rownowaznosc obu form wyznaczania tenanta (podzapytanie do
+-- `profiles` w INSERT vs `current_tenant_id()` w SELECT/DELETE) trzeba
+-- dowodzic obiegiem zapis-odczyt, a nie wartoscia domyslna kolumny.
+CREATE TABLE public.user_blocks (
+  blocker_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  blocked_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (blocker_id, blocked_id),
+  CHECK (blocker_id <> blocked_id)
+);
+
+-- 20260723090707. NAZWA KONCOWA TO `expert_inmails`, nie `expert_requests`:
+-- 20260723180000 przemianowala tabele na `expert_requests`, a 20260806160001
+-- i 20260806185055 przemianowaly ja Z POWROTEM (komentarz w tej pierwszej
+-- mowi wprost: „na produkcji tabela nazywa sie expert_inmails, rename nigdy
+-- nie wjechal"). Polityki podrozuja z tabela, wiec stan koncowy siedzi na tej
+-- nazwie. Bramka statyczna kluczuje po nazwie tabeli z tekstu migracji
+-- i dlatego widzi jeszcze stara nazwe - to jest zrodlo rozbieznosci opisanej
+-- w sekcji `== expert_requests (ZNANY DEFEKT) ==` w runtime_test.sql.
+CREATE TABLE public.expert_inmails (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  sender_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  recipient_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  subject text NOT NULL,
+  reason text NOT NULL,
+  questions text[] NOT NULL DEFAULT ARRAY[]::text[],
+  expected_answers text,
+  external_links text[] NOT NULL DEFAULT ARRAY[]::text[],
+  status text NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'approved', 'declined', 'answered', 'cancelled')),
+  admin_note text,
+  decline_reason text,
+  responded_at timestamptz,
+  converted_conversation_id uuid REFERENCES public.conversations(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (sender_id <> recipient_id),
+  CHECK (char_length(subject) BETWEEN 5 AND 140),
+  CHECK (char_length(reason) BETWEEN 20 AND 2000)
+);
+
+-- 20260710152630 (+ 20260712190000: read_receipts_enabled, show_online_status).
+-- Ta tabela stoi tu WYLACZNIE jako zrodlo dla `chat_read_receipts_enabled()`,
+-- ktore wchodzi do polityki `conversation_participants_member_select`.
+-- Harness NIC nie twierdzi o jej wlasnych politykach.
+CREATE TABLE public.notification_preferences (
+  user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  enabled_message boolean NOT NULL DEFAULT true,
+  read_receipts_enabled boolean NOT NULL DEFAULT true,
+  show_online_status boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- --------------------------------------------------------------------------
+-- Funkcje pomocnicze, na ktorych STOJA polityki czatu. Przepisane doslownie
+-- z migracji - sygnatury i ciala, nie parafrazy.
+-- --------------------------------------------------------------------------
+
+-- 20260710092108 / 20260710092631. Wchodzi do NAJSTARSZYCH polityk czatu
+-- (`conv_select_member`, `msg_select_member`, …). One same nie sa juz stanem
+-- koncowym, ale `run.sh` odtwarza CALA historie polityk po kolei, wiec musza
+-- dac sie zalozyc - inaczej pozniejszy `DROP POLICY IF EXISTS` nie mialby co
+-- zdejmowac i harness liczylby inny stan koncowy niz produkcja.
+CREATE OR REPLACE FUNCTION public.is_conversation_member(_conv uuid, _user uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.conversation_participants
+    WHERE conversation_id = _conv AND user_id = _user
+  )
+$$;
+
+-- 20260710092631. SECURITY DEFINER przecina rekurencje polityk: gdyby wolal
+-- ja wolajacy, RLS na `conversation_participants` musialby najpierw ustalic
+-- przynaleznosc, zeby ustalic przynaleznosc.
+CREATE OR REPLACE FUNCTION public.member_conversation_ids() RETURNS SETOF uuid
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT conversation_id FROM public.conversation_participants WHERE user_id = auth.uid()
+$$;
+
+-- 20260712190000 / 20260712192421. W stanie koncowym uzywana WYLACZNIE przez
+-- polityki kanalow realtime, ktorych ta atrapa nie odtwarza; stoi tu, bo
+-- zadanie wprost o nia prosi i bo jej cialo jest samodzielnym dowodem, ze
+-- czlonkostwo w rozmowie liczy sie TYLKO w obrebie wlasnego tenanta.
+CREATE OR REPLACE FUNCTION public.is_tenant_conversation_member(_conv uuid, _user uuid)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.conversation_participants cp
+    JOIN public.conversations c ON c.id = cp.conversation_id
+    WHERE cp.conversation_id = _conv
+      AND cp.user_id = _user
+      AND c.tenant_id = public.current_tenant_id()
+  );
+$$;
+
+-- 20260712190000 / 20260712192421. Brak wiersza preferencji = potwierdzenia
+-- WLACZONE (COALESCE … true) - to jest domyslka produktu, nie przypadek.
+CREATE OR REPLACE FUNCTION public.chat_read_receipts_enabled(_user uuid)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT COALESCE(
+    (SELECT np.read_receipts_enabled FROM public.notification_preferences np WHERE np.user_id = _user),
+    true
+  );
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.is_conversation_member(uuid, uuid) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.member_conversation_ids() FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.is_tenant_conversation_member(uuid, uuid) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.chat_read_receipts_enabled(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.is_conversation_member(uuid, uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.member_conversation_ids() TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.is_tenant_conversation_member(uuid, uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.chat_read_receipts_enabled(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.is_super_admin(uuid) TO authenticated, service_role;
+
+-- --------------------------------------------------------------------------
+-- GRANTY W STANIE KONCOWYM. To NIE jest kosmetyka: brak grantu jest w tym
+-- module PIERWSZYM zamkiem, a brak polityki DRUGIM. Asercje rozdzielaja oba,
+-- wiec granty musza byc dokladnie takie jak na produkcji.
+--   conversations, conversation_participants, conversation_nicknames,
+--   expert_inmails  -> tylko SELECT (zapis idzie WYLACZNIE przez RPC)
+--   messages        -> SELECT, INSERT, UPDATE tylko na kolumnach tresci
+--   message_reactions -> SELECT, INSERT, UPDATE, DELETE (20260724190506)
+--   message_stars, user_blocks -> SELECT, INSERT, DELETE
+-- --------------------------------------------------------------------------
+GRANT SELECT ON public.conversations, public.conversation_participants TO authenticated;
+GRANT SELECT, INSERT ON public.messages TO authenticated;
+GRANT UPDATE (body, edited_at, deleted_at, attachment_path, attachment_name,
+              attachment_mime, attachment_size, attachment_duration)
+  ON public.messages TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.message_reactions TO authenticated;
+GRANT SELECT, INSERT, DELETE ON public.message_stars TO authenticated;
+GRANT SELECT ON public.conversation_nicknames TO authenticated;
+GRANT SELECT, INSERT, DELETE ON public.user_blocks TO authenticated;
+GRANT SELECT ON public.expert_inmails TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.notification_preferences TO authenticated;
+GRANT ALL ON public.conversations, public.conversation_participants, public.messages,
+  public.message_reactions, public.message_stars, public.conversation_nicknames,
+  public.user_blocks, public.expert_inmails, public.notification_preferences TO service_role;
+
+ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.conversation_participants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.message_reactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.message_stars ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.conversation_nicknames ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_blocks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.expert_inmails ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notification_preferences ENABLE ROW LEVEL SECURITY;

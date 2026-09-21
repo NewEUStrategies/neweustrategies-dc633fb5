@@ -282,8 +282,7 @@ function directTableAliases(body: string): Map<string, string> {
     /\b(?:FROM|JOIN)\s+(?:public\.)?([a-z0-9_]+)(?:\s+(?:AS\s+)?(?!ON\b|USING\b|WHERE\b|CROSS\b|LEFT\b|RIGHT\b|INNER\b|JOIN\b|GROUP\b|ORDER\b|LIMIT\b|OFFSET\b|WINDOW\b|UNION\b|HAVING\b|SELECT\b)([a-z0-9_]+))?/gi;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(body)) !== null) {
-    const table = match[1]?.toLowerCase();
-    if (!table) continue;
+    const table = match[1].toLowerCase();
     aliases.set(table, table);
     const alias = match[2]?.toLowerCase();
     if (alias) aliases.set(alias, table);
@@ -297,8 +296,7 @@ function cteBodies(body: string): Map<string, string> {
   const header = /\b([a-z0-9_]+)\s+AS\s*(?:MATERIALIZED\s+|NOT\s+MATERIALIZED\s+)?\(/gi;
   let match: RegExpExecArray | null;
   while ((match = header.exec(body)) !== null) {
-    const name = match[1]?.toLowerCase();
-    if (!name) continue;
+    const name = match[1].toLowerCase();
     let depth = 1;
     let i = header.lastIndex;
     while (i < body.length && depth > 0) {
@@ -380,11 +378,12 @@ function resolveThroughCtes(start: string, cteSources: ReadonlyMap<string, strin
 function functionBodies(sql: string): Array<{ fn: string; body: string; returns: string }> {
   const out: Array<{ fn: string; body: string; returns: string }> = [];
   const header = /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(?:public\.)?([a-z0-9_]+)\s*\(/gi;
-  let match: RegExpExecArray | null;
-  while ((match = header.exec(sql)) !== null) {
+  // A single-quoted/unsupported definition must not borrow the dollar body
+  // of the next function and attribute its FTS configuration to the wrong name.
+  const headers = [...sql.matchAll(header)];
+  for (const [index, match] of headers.entries()) {
     const fn = match[1];
-    if (!fn) continue;
-    const rest = sql.slice(match.index);
+    const rest = sql.slice(match.index, headers[index + 1]?.index);
     const tagMatch = /\$([A-Za-z_]*)\$/.exec(rest);
     if (!tagMatch) continue;
     const tag = tagMatch[0];
@@ -401,17 +400,9 @@ function functionBodies(sql: string): Array<{ fn: string; body: string; returns:
 }
 
 function allMatches(text: string, pattern: RegExp): string[] {
-  const found: string[] = [];
-  let match: RegExpExecArray | null;
-  const re = new RegExp(
-    pattern.source,
-    pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`,
-  );
-  while ((match = re.exec(text)) !== null) {
-    const value = match[1];
-    if (value) found.push(value);
-  }
-  return found;
+  // All callers supply an identifier/config pattern with a mandatory,
+  // nonempty first capture. Match globally and case-insensitively in one place.
+  return [...text.matchAll(new RegExp(pattern.source, "gi"))].map((match) => match[1]);
 }
 
 /**
@@ -437,7 +428,7 @@ const VECTOR_BUILDER_CALL = /(?:public\.)?([a-z0-9_]*(?:search_vector|_tsvector)
 function triggerTables(sql: string): Map<string, string[]> {
   const out = new Map<string, string[]>();
   for (const statement of sql.matchAll(/CREATE\s+TRIGGER\s+[a-z0-9_]+([\s\S]*?);/gi)) {
-    const body = statement[1] ?? "";
+    const body = statement[1];
     const table = /\bON\s+(?:public\.)?([a-z0-9_]+)/i.exec(body)?.[1]?.toLowerCase();
     const fn = /EXECUTE\s+(?:FUNCTION|PROCEDURE)\s+(?:public\.)?([a-z0-9_]+)/i
       .exec(body)?.[1]
@@ -501,14 +492,12 @@ export function collectFtsFacts(sources: readonly MigrationSource[]): FtsFacts {
       /CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+(?:public\.)?([a-z0-9_]+)([\s\S]*?);/gi,
     )) {
       const table = generated[1];
-      const body = generated[2] ?? "";
-      if (!table) continue;
+      const body = generated[2];
       for (const column of body.matchAll(
         /([a-z0-9_]+)\s+tsvector\s+GENERATED\s+ALWAYS\s+AS\s*\(([\s\S]*?)\)\s*STORED/gi,
       )) {
         const name = column[1];
-        const expression = column[2] ?? "";
-        if (!name) continue;
+        const expression = column[2];
         const parts = vectorExpressionParts(expression);
         if (parts.literalConfigs.length === 0 && parts.builderNames.length === 0) continue;
         vectorColumnDrafts.set(`${table}.${name}`, { file: source.file, ...parts });
@@ -528,7 +517,7 @@ export function collectFtsFacts(sources: readonly MigrationSource[]): FtsFacts {
       // zapytanie nie będzie symetryczne wobec obu połówek.
       if (/RETURNS\s+tsvector/i.test(returns)) {
         const configs = [...new Set(allMatches(body, /to_tsvector\(\s*'([a-z0-9_.]+)'/i))];
-        if (configs.length === 1 && configs[0]) {
+        if (configs.length === 1) {
           vectorBuilders.set(fn, { config: configs[0], file: source.file });
         }
       }
@@ -536,8 +525,7 @@ export function collectFtsFacts(sources: readonly MigrationSource[]): FtsFacts {
       // (2b) Trigger budujący wektor: `NEW.<kolumna> := … to_tsvector('cfg' …`.
       for (const assignment of body.matchAll(/NEW\.([a-z0-9_]+)\s*:=([\s\S]*?);/gi)) {
         const column = assignment[1];
-        const expression = assignment[2] ?? "";
-        if (!column) continue;
+        const expression = assignment[2];
         const parts = vectorExpressionParts(expression);
         if (parts.literalConfigs.length === 0 && parts.builderNames.length === 0) continue;
         // Tabelę wiąże `CREATE TRIGGER … ON public.<tabela> … EXECUTE FUNCTION <fn>`.
@@ -570,7 +558,6 @@ export function collectFtsFacts(sources: readonly MigrationSource[]): FtsFacts {
       for (const ref of body.matchAll(/\b([a-z0-9_]+)\.([a-z0-9_]*search_vector)\s*@@/gi)) {
         const alias = ref[1];
         const column = ref[2];
-        if (!alias || !column) continue;
         const table = aliases.get(alias.toLowerCase());
         if (table) vectorRefs.push(`${table}.${column}`);
         else unresolvedAliases.push(`${alias}.${column}`);
@@ -620,8 +607,8 @@ export function collectFtsFacts(sources: readonly MigrationSource[]): FtsFacts {
   // przed swoim budowniczym (ciało plpgsql nie jest walidowane przy tworzeniu)
   // trafiałaby do `unresolved` - a od zaostrzenia bramki to zatrzymuje CI.
   for (const [fn, calls] of builderCallsBySurface) {
-    const surface = searchSurfaces.get(fn);
-    if (!surface) continue;
+    // Both maps are populated together for each discovered search surface.
+    const surface = searchSurfaces.get(fn)!;
     const known: string[] = [];
     const missing: string[] = [];
     for (const call of calls) (queryBuilders.has(call) ? known : missing).push(call);

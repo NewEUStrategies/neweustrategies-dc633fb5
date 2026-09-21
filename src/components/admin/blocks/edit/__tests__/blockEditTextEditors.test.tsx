@@ -83,16 +83,33 @@ function handlery() {
   };
 }
 
-function zamontujNaglowek(block: Block) {
-  const h = handlery();
+/**
+ * Nadpisania zestawu handlerów. `undefined` jest tu ZNACZĄCE: tak wygląda
+ * edytor osadzony bez danego uchwytu (np. akapit w bloku zagnieżdżonym nie
+ * dostaje `onExtendBlockSelection`), a to inna gałąź niż uchwyt, który
+ * ODMAWIA. Oba stany muszą mieć dowód, więc typ dopuszcza brak wartości.
+ */
+type Handlery = ReturnType<typeof handlery>;
+type Nadpisania = { [K in keyof Handlery]?: Handlery[K] | undefined };
+
+function zamontujNaglowek(block: Block, nadpisz: Nadpisania = {}) {
+  const h: Handlery = { ...handlery(), ...nadpisz };
   const view = renderEditor((props) => <HeadingBlock {...props} {...h} />, block);
   return { ...view, h, pole: pole(view.container) };
 }
 
-function zamontujAkapit(block: Block) {
-  const h = handlery();
+function zamontujAkapit(block: Block, nadpisz: Nadpisania = {}) {
+  const h: Handlery = { ...handlery(), ...nadpisz };
   const view = renderEditor((props) => <ParagraphBlock {...props} {...h} />, block);
   return { ...view, h, pole: pole(view.container) };
+}
+
+/**
+ * Uchwyt, który ZAWSZE odmawia - sąsiad nie przyjmuje karetki ani scalenia.
+ * Osobna atrapa na każde użycie, żeby dało się policzyć wywołania.
+ */
+function odmowa() {
+  return vi.fn(() => false);
 }
 
 describe("nagłówek - montowanie i poziom", () => {
@@ -216,6 +233,89 @@ describe("nagłówek - klawiatura", () => {
     expect(h.onFocusNext).not.toHaveBeenCalled();
     expect(h.onSelectAllBlocks).not.toHaveBeenCalled();
   });
+
+  it("Enter na PUSTYM nagłówku daje PUSTY akapit, a nie kopię czegokolwiek", () => {
+    // Gałąź „ogon jest pusty": nagłówek bez treści nie ma czego przenieść, więc
+    // nowy akapit musi wejść czysty. Gdyby tu trafił surowy `<p></p>` z TipTapa,
+    // redaktor dostawałby blok, który wygląda na pusty, a nie jest - i pierwsze
+    // pisanie w nim zostawiałoby zbłąkany znacznik w treści wpisu.
+    const { h, pole } = zamontujNaglowek(naglowek(""));
+    fireEvent.keyDown(pole, { key: "Enter" });
+    expect(h.onInsertAfter).toHaveBeenCalledTimes(1);
+    const nowy = h.onInsertAfter.mock.calls[0][0] as Block;
+    expect(nowy.data.html).toBe("");
+  });
+
+  it("strzałka w GÓRĘ na pierwszym wierszu przenosi fokus na poprzedni blok", () => {
+    // Inna gałąź niż strzałka w lewo: tam decyduje pozycja karetki w dokumencie
+    // bloku, tutaj `endOfTextblock("up")` - czyli realna linia wizualna.
+    const { h, pole } = zamontujNaglowek(naglowek("Tytuł sekcji"));
+    fireEvent.keyDown(pole, { key: "ArrowUp" });
+    expect(h.onFocusPrevious).toHaveBeenCalledTimes(1);
+    expect(h.onFocusNext).not.toHaveBeenCalled();
+  });
+
+  it("strzałka w DÓŁ na ostatnim wierszu przenosi fokus na następny blok", () => {
+    const { h, pole } = zamontujNaglowek(naglowek("Tytuł sekcji"));
+    fireEvent.keyDown(pole, { key: "ArrowDown" });
+    expect(h.onFocusNext).toHaveBeenCalledTimes(1);
+    expect(h.onFocusPrevious).not.toHaveBeenCalled();
+  });
+
+  it("Shift+strzałka w GÓRĘ na pierwszym wierszu eskaluje zaznaczenie w tył", () => {
+    const { h, pole } = zamontujNaglowek(naglowek("Tytuł sekcji"));
+    fireEvent.keyDown(pole, { key: "ArrowUp", shiftKey: true });
+    expect(h.onExtendBlockSelection).toHaveBeenCalledWith(-1);
+  });
+
+  it("Shift+strzałka w DÓŁ na ostatnim wierszu eskaluje zaznaczenie w przód", () => {
+    const { h, pole } = zamontujNaglowek(naglowek("Tytuł sekcji"));
+    fireEvent.keyDown(pole, { key: "ArrowDown", shiftKey: true });
+    expect(h.onExtendBlockSelection).toHaveBeenCalledWith(1);
+  });
+
+  it("ODMOWA poprzedniego bloku: strzałka w lewo nie tworzy i nie usuwa bloku", () => {
+    // Poprzedni blok może nie przyjąć karetki (np. jest pierwszy w dokumencie
+    // albo nie jest edytowalny). Wtedy nagłówek musi zostawić zdarzenie
+    // przeglądarce, a NIE ratować się własnym blokiem albo usunięciem.
+    const { h, pole } = zamontujNaglowek(naglowek("Tytuł"), { onFocusPrevious: odmowa() });
+    fireEvent.keyDown(pole, { key: "ArrowLeft" });
+    expect(h.onInsertAfter).not.toHaveBeenCalled();
+    expect(h.onDeleteEmpty).not.toHaveBeenCalled();
+    expect(h.onExtendBlockSelection).not.toHaveBeenCalled();
+  });
+
+  it("ODMOWA następnego bloku: strzałka w prawo nie tworzy i nie usuwa bloku", () => {
+    const { h, pole } = zamontujNaglowek(naglowek(""), { onFocusNext: odmowa() });
+    fireEvent.keyDown(pole, { key: "ArrowRight" });
+    expect(h.onInsertAfter).not.toHaveBeenCalled();
+    expect(h.onDeleteEmpty).not.toHaveBeenCalled();
+  });
+
+  it("ODMOWA scalenia: Backspace na początku nagłówka NIE usuwa jego treści", () => {
+    // `onMergeWithPrevious` zwraca `false`, gdy nie ma z czym scalać. To jest
+    // moment, w którym redaktor mógłby stracić tytuł sekcji bez śladu.
+    const { h, pole, container } = zamontujNaglowek(naglowek("Tytuł"), {
+      onMergeWithPrevious: odmowa(),
+    });
+    fireEvent.keyDown(pole, { key: "Backspace" });
+    expect(h.onMergeWithPrevious).toHaveBeenCalledTimes(1);
+    expect(h.onDeleteEmpty).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-heading-level]")?.textContent).toContain("Tytuł");
+  });
+
+  it("BEZ uchwytu zaznaczenia w poprzek bloków Shift+strzałka nie rusza dokumentu", () => {
+    // Nagłówek osadzony bez `onExtendBlockSelection` (np. w bloku
+    // zagnieżdżonym) nie ma prawa awaryjnie przeskoczyć na sąsiedni blok -
+    // gałąź zaznaczenia blokowego po prostu nie istnieje.
+    const { h, pole } = zamontujNaglowek(naglowek("Tytuł"), {
+      onExtendBlockSelection: undefined,
+    });
+    fireEvent.keyDown(pole, { key: "ArrowLeft", shiftKey: true });
+    expect(h.onFocusPrevious).not.toHaveBeenCalled();
+    expect(h.onFocusNext).not.toHaveBeenCalled();
+    expect(h.onInsertAfter).not.toHaveBeenCalled();
+  });
 });
 
 describe("nagłówek - wklejanie", () => {
@@ -237,6 +337,65 @@ describe("nagłówek - wklejanie", () => {
     const { h, pole } = zamontujNaglowek(naglowek("Tytuł"));
     wklej(pole, { plain: "zwykły tekst" });
     expect(h.onTransform).not.toHaveBeenCalled();
+  });
+
+  it("wklejenie kilku AKAPITÓW (bez nagłówka na czele) zachowuje WSZYSTKIE", () => {
+    // Gałąź `blocks[0].type !== "heading"`: gdy schowek nie zaczyna się od
+    // nagłówka, nie ma czego „zużyć" na bieżący blok, więc żaden akapit nie
+    // może wypaść. Przy pomyłce w tym warunku redaktor traci pierwszy akapit.
+    const { h, pole } = zamontujNaglowek(naglowek("Tytuł"));
+    wklej(pole, {
+      html: '<html><body><p class="MsoNormal">Pierwszy</p><p class="MsoNormal">Drugi</p></body></html>',
+      plain: "Pierwszy\nDrugi",
+    });
+    expect(h.onTransform).toHaveBeenCalledTimes(1);
+    const bloki = h.onTransform.mock.calls[0][0] as Block[];
+    expect(bloki[0].id).toBe("h1");
+    expect(bloki).toHaveLength(3);
+    expect(bloki.slice(1).map((b) => String(b.data.html))).toEqual([
+      expect.stringContaining("Pierwszy"),
+      expect.stringContaining("Drugi"),
+    ]);
+  });
+
+  it("wklejenie JEDNEGO akapitu z Worda wchodzi w TREŚĆ nagłówka, bez nowych bloków", () => {
+    // Jeden fragment nie ma powodu rozbijać dokumentu - formatowanie inline
+    // (pogrubienie) musi się jednak zachować, bo po to jest import z Worda.
+    const { h, container, pole } = zamontujNaglowek(naglowek("Tytuł"));
+    wklej(pole, {
+      html: "<html><body><p><strong>Grubo</strong> i cienko</p></body></html>",
+      plain: "Grubo i cienko",
+    });
+    expect(h.onTransform).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-heading-level]")?.textContent).toContain("Grubo");
+    expect(container.querySelector("[data-heading-level] strong")).not.toBeNull();
+    // Zapis do dokumentu niesie znacznik, a nie sam tekst.
+    const zapis = h.onChange.mock.calls.at(-1)?.[0] as Block;
+    expect(String(zapis.data.text)).toContain("<strong>");
+  });
+
+  it("wklejenie samego PUSTEGO akapitu nie kasuje tytułu i nie robi bloków", () => {
+    // Schowek z Worda potrafi nieść wyłącznie puste akapity (odstęp między
+    // sekcjami). Import strukturalny nic z tego nie zrobi, więc nagłówek MUSI
+    // zostać nietknięty - to gałąź „nie ma czego wkleić".
+    const { h, container, pole } = zamontujNaglowek(naglowek("Tytuł"));
+    wklej(pole, { html: "<html><body><p>&nbsp;</p></body></html>", plain: " " });
+    expect(h.onTransform).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-heading-level]")?.textContent).toContain("Tytuł");
+  });
+
+  it("BEZ uchwytu przekształcenia wiele bloków wchodzi w nagłówek jako jeden wiersz", () => {
+    // Nagłówek osadzony bez `onTransform` (blok zagnieżdżony) nie może utworzyć
+    // rodzeństwa, więc struktura schowka spłaszcza się do treści nagłówka.
+    // Alternatywą byłoby ciche zgubienie wklejki.
+    const { container, pole } = zamontujNaglowek(naglowek(""), { onTransform: undefined });
+    wklej(pole, {
+      html: '<html><body><p class="MsoNormal">Pierwszy</p><p class="MsoNormal">Drugi</p></body></html>',
+      plain: "Pierwszy\nDrugi",
+    });
+    const tresc = container.querySelector("[data-heading-level]")?.textContent ?? "";
+    expect(tresc).toContain("Pierwszy");
+    expect(tresc).toContain("Drugi");
   });
 });
 
@@ -341,6 +500,69 @@ describe("akapit - klawiatura i wklejanie na poziomie samego edytora", () => {
     // do dokumentu bez opisu i psuje dostępność strony.
     expect(String(obraz?.data.alt).length).toBeGreaterThan(0);
   });
+
+  it("wklejenie PLIKU graficznego do akapitu NIEPUSTEGO zachowuje jego treść", async () => {
+    // `keepCurrent` na ścieżce obrazkowej: zrzut ekranu wklejony w środek
+    // pisania nie ma prawa zabrać ze sobą już napisanego akapitu.
+    const { h, pole } = zamontujAkapit(akapit("<p>już napisane</p>"));
+    const plik = new File([new Uint8Array([1, 2, 3])], "zrzut.png", { type: "image/png" });
+    wklej(pole, { files: [plik] });
+    await vi.waitFor(() => expect(h.onTransform).toHaveBeenCalledTimes(1));
+    const bloki = h.onTransform.mock.calls[0][0] as Block[];
+    expect(bloki[0].id).toBe("p1");
+    expect(String(bloki[0].data.html)).toContain("już napisane");
+    expect(bloki.some((b) => b.type === "image")).toBe(true);
+  });
+
+  it("NIECZYTELNY wpis ze schowka podający się za obraz nie tworzy pustego bloku", async () => {
+    // Schowek potrafi podać wpis z typem `image/*`, którego nie da się
+    // odczytać (plik zniknął z dysku, uprawnienia, zerwany transfer).
+    // `filesToImageBlocks` pomija taki wpis - i wtedy edytor NIE MOŻE wywołać
+    // przekształcenia, bo powstałby dokument z blokiem obrazu bez adresu.
+    // Złe wejście podane przez `as unknown as File` - dokładnie tak wygląda
+    // wpis schowka, który nie jest realnym plikiem.
+    const udawanyPlik = { name: "widmo.png", type: "image/png" } as unknown as File;
+    const { h, pole } = zamontujAkapit(akapit(""));
+    wklej(pole, { files: [udawanyPlik] });
+    // Odczyt jest asynchroniczny - dajemy mu dojechać do końca.
+    await Promise.resolve();
+    await vi.waitFor(() => expect(h.onChange).not.toHaveBeenCalled());
+    expect(h.onTransform).not.toHaveBeenCalled();
+  });
+
+  it("wklejenie samego PUSTEGO akapitu nie rusza treści ani układu", () => {
+    // Gałąź „import strukturalny nie dał ani jednego bloku". Bez niej akapit
+    // dostawałby przekształcenie na pustą listę, czyli zniknięcie bloku.
+    const { h, pole } = zamontujAkapit(akapit("<p>alfa</p>"));
+    wklej(pole, { html: "<html><body><p>&nbsp;</p></body></html>", plain: " " });
+    expect(h.onTransform).not.toHaveBeenCalled();
+    expect(h.onInsertAfter).not.toHaveBeenCalled();
+  });
+
+  it("wklejenie WIELU akapitów z Worda do akapitu NIEPUSTEGO zachowuje jego treść", () => {
+    // Ta sama zasada `keepCurrent`, ale na ścieżce Worda (nie WordPressa):
+    // pierwszy element wyniku to WCIĄŻ bieżący blok z jego treścią.
+    const { h, pole } = zamontujAkapit(akapit("<p>już napisane</p>"));
+    wklej(pole, {
+      html: '<html><body><h2 class="MsoNormal">Sekcja</h2><p class="MsoNormal">Pierwszy</p></body></html>',
+      plain: "Sekcja\nPierwszy",
+    });
+    expect(h.onTransform).toHaveBeenCalledTimes(1);
+    const bloki = h.onTransform.mock.calls[0][0] as Block[];
+    expect(bloki[0].id).toBe("p1");
+    expect(String(bloki[0].data.html)).toContain("już napisane");
+    expect(bloki.length).toBeGreaterThan(2);
+  });
+
+  it("ODMOWA scalenia: Backspace na początku akapitu NIE usuwa jego treści", () => {
+    const { h, pole, container } = zamontujAkapit(akapit("<p>alfa</p>"), {
+      onMergeWithPrevious: odmowa(),
+    });
+    fireEvent.keyDown(pole, { key: "Backspace" });
+    expect(h.onMergeWithPrevious).toHaveBeenCalledTimes(1);
+    expect(h.onDeleteEmpty).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("alfa");
+  });
 });
 
 describe("akapit - strzałki, Ctrl+A i eskalacja zaznaczenia", () => {
@@ -381,5 +603,66 @@ describe("akapit - strzałki, Ctrl+A i eskalacja zaznaczenia", () => {
     const { h, pole } = zamontujAkapit(akapit("<p>alfa beta</p>"));
     fireEvent.keyDown(pole, { key: "a", ctrlKey: true });
     expect(h.onSelectAllBlocks).not.toHaveBeenCalled();
+  });
+
+  it("strzałka w GÓRĘ w pierwszym akapicie wewnętrznym przenosi fokus dalej w tył", () => {
+    // Akapit sprawdza jeszcze `inFirstChild` - treść bloku może mieć kilka
+    // akapitów wewnętrznych i wyjście w tył wolno tylko z PIERWSZEGO.
+    const { h, pole } = zamontujAkapit(akapit("<p>alfa</p><p>beta</p>"));
+    fireEvent.keyDown(pole, { key: "ArrowUp" });
+    expect(h.onFocusPrevious).toHaveBeenCalledTimes(1);
+    expect(h.onFocusNext).not.toHaveBeenCalled();
+  });
+
+  it("strzałka w DÓŁ w akapicie JEDNODZIECKOWYM przenosi fokus w przód", () => {
+    const { h, pole } = zamontujAkapit(akapit("<p>alfa</p>"));
+    fireEvent.keyDown(pole, { key: "ArrowDown" });
+    expect(h.onFocusNext).toHaveBeenCalledTimes(1);
+    expect(h.onFocusPrevious).not.toHaveBeenCalled();
+  });
+
+  it("strzałka w DÓŁ z PIERWSZEGO z dwóch akapitów wewnętrznych NIE wychodzi z bloku", () => {
+    // `inLastChild` pilnuje, żeby karetka najpierw przeszła przez drugi akapit
+    // wewnętrzny - bez tego blok z dwoma akapitami byłby nieedytowalny
+    // w dolnej części.
+    const { h, pole } = zamontujAkapit(akapit("<p>alfa</p><p>beta</p>"));
+    fireEvent.keyDown(pole, { key: "ArrowDown" });
+    expect(h.onFocusNext).not.toHaveBeenCalled();
+  });
+
+  it("Shift+strzałka w GÓRĘ w pierwszym akapicie wewnętrznym eskaluje w tył", () => {
+    const { h, pole } = zamontujAkapit(akapit("<p>alfa</p><p>beta</p>"));
+    fireEvent.keyDown(pole, { key: "ArrowUp", shiftKey: true });
+    expect(h.onExtendBlockSelection).toHaveBeenCalledWith(-1);
+  });
+
+  it("Shift+strzałka w DÓŁ w OSTATNIM akapicie wewnętrznym eskaluje w przód", () => {
+    const { h, pole } = zamontujAkapit(akapit("<p>alfa</p>"));
+    fireEvent.keyDown(pole, { key: "ArrowDown", shiftKey: true });
+    expect(h.onExtendBlockSelection).toHaveBeenCalledWith(1);
+  });
+
+  it("ODMOWA obu sąsiadów: strzałki nie tworzą i nie usuwają bloków", () => {
+    // Akapit na skraju dokumentu: nie ma poprzednika ani następcy, więc oba
+    // uchwyty odmawiają. To musi być cicha odmowa, a nie awaryjny nowy blok.
+    const { h, pole } = zamontujAkapit(akapit("<p>alfa</p>"), {
+      onFocusPrevious: odmowa(),
+      onFocusNext: odmowa(),
+    });
+    fireEvent.keyDown(pole, { key: "ArrowLeft" });
+    fireEvent.keyDown(pole, { key: "ArrowDown" });
+    expect(h.onFocusPrevious).toHaveBeenCalledTimes(1);
+    expect(h.onFocusNext).toHaveBeenCalledTimes(1);
+    expect(h.onInsertAfter).not.toHaveBeenCalled();
+    expect(h.onDeleteEmpty).not.toHaveBeenCalled();
+  });
+
+  it("BEZ uchwytu zaznaczenia w poprzek bloków Shift+strzałka nie rusza dokumentu", () => {
+    const { h, pole } = zamontujAkapit(akapit("<p>alfa</p>"), {
+      onExtendBlockSelection: undefined,
+    });
+    fireEvent.keyDown(pole, { key: "ArrowLeft", shiftKey: true });
+    expect(h.onFocusPrevious).not.toHaveBeenCalled();
+    expect(h.onInsertAfter).not.toHaveBeenCalled();
   });
 });

@@ -42,7 +42,7 @@
 //     `tabsEnabled` wymaga niepustej listy, więc efekt kończy się wcześniej.
 // Nie ma tu żadnej gałęzi funkcjonalnej bez dowodu.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, cleanup, fireEvent, screen } from "@testing-library/react";
+import { act, cleanup, screen } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 // Prawdziwa instancja i18n: szkielet strumieniowanej sekcji woła
@@ -50,7 +50,8 @@ import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 // zakleszcza plik (patrz nagłówek `src/test/i18nReal.ts`).
 import "@/test/i18nReal";
 import type { BuilderDocument } from "@/lib/builder/types";
-import { __resetBuilderDebugForTests } from "@/lib/builder/builderDebug";
+import * as builderSchema from "@/lib/builder/schema";
+import { __resetBuilderDebugForTests, toggleBuilderDebug } from "@/lib/builder/builderDebug";
 import { BuilderRenderer } from "../BuilderRenderer";
 import {
   column,
@@ -213,8 +214,8 @@ describe("widget nieznanego typu", () => {
   });
 });
 
-describe("parsowanie dokumentu jest NIEZAPAMIĘTANE (stan faktyczny, L218)", () => {
-  it("każdy render tworzy nową tożsamość sekcji, więc memo(SectionsList) nie ucina", async () => {
+describe("parsowanie dokumentu zachowuje referencje między renderami", () => {
+  it("ten sam dokument nie unieważnia memo(SectionsList)", async () => {
     const schema = await import("@/lib/builder/schema");
     // Podglądacz zachowuje PRAWDZIWĄ implementację - liczy wywołania, nie
     // podmienia zachowania.
@@ -234,9 +235,9 @@ describe("parsowanie dokumentu jest NIEZAPAMIĘTANE (stan faktyczny, L218)", () 
         <BuilderRenderer doc={stabilny} lang="pl" />
       </QueryClientProvider>,
     );
-    expect(spy.mock.calls.length).toBeGreaterThan(poPierwszym);
+    expect(spy.mock.calls.length).toBe(poPierwszym);
 
-    // I dowód na źródło problemu: wynik parsowania nigdy nie jest współdzielony.
+    // Sam parser pozostaje bezstanowy. Cache należy tylko do renderera.
     const raz = schema.safeParseBuilderDoc(stabilny);
     const dwa = schema.safeParseBuilderDoc(stabilny);
     expect(raz.sections).not.toBe(dwa.sections);
@@ -264,19 +265,12 @@ describe("nakładka debug", () => {
         <BuilderRenderer doc={doc([simpleSection("b")])} lang="pl" />
       </>,
     );
-    // Nakładkę renderuje DOKŁADNIE JEDNA instancja („pierwotna"), inaczej
-    // strona główna dostawała trzy przyciski jeden na drugim.
-    const przyciski = screen.getAllByRole("button", { name: /Debug/ });
-    expect(przyciski).toHaveLength(1);
-
-    act(() => {
-      fireEvent.click(przyciski[0]);
-    });
+    act(() => toggleBuilderDebug());
 
     const korzenie = [...container.querySelectorAll("[data-builder-renderer]")];
     expect(korzenie).toHaveLength(2);
     expect(korzenie.map((el) => el.getAttribute("data-debug"))).toEqual(["1", "1"]);
-    expect(screen.getByRole("button", { name: "Debug: ON" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Debug/ })).toBeNull();
     expect(window.localStorage.getItem("builder-debug")).toBe("1");
   });
 
@@ -302,5 +296,35 @@ describe("nakładka debug", () => {
     // adnotacji, nie liczbę.
     expect(container.querySelector('[data-sec-id="a"]')?.getAttribute("data-debug-h")).toBe("0");
     expect(container.querySelector("[data-widget-id]")?.getAttribute("data-debug-h")).toBe("0");
+  });
+});
+
+describe("document normalization cache", () => {
+  it("reuses normalized nodes across viewport changes and refreshes a replaced document", () => {
+    const parse = vi.spyOn(builderSchema, "safeParseBuilderDoc");
+    const first = doc([simpleSection("first")]);
+    const { rerender, queryClient, container } = renderWithQueryClient(
+      <BuilderRenderer doc={first} lang="pl" device="desktop" />,
+    );
+    parse.mockClear();
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <BuilderRenderer doc={first} lang="en" device="mobile" />
+      </QueryClientProvider>,
+    );
+    expect(parse).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-builder-renderer]")).toHaveAttribute(
+      "data-device",
+      "mobile",
+    );
+    const second = doc([simpleSection("second")]);
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <BuilderRenderer doc={second} lang="en" device="mobile" />
+      </QueryClientProvider>,
+    );
+    expect(parse).toHaveBeenCalledOnce();
+    expect(container.querySelector('[data-sec-id="first"]')).toBeNull();
+    expect(container.querySelector('[data-sec-id="second"]')).not.toBeNull();
   });
 });

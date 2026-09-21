@@ -11,32 +11,43 @@
 //   - sendInvitation(id)            - tworzy konto (auth.admin.createUser lub
 //                                     inviteUserByEmail), rekordy profiles /
 //                                     author_profiles / user_roles i wysyła
-//                                     e-mail (dla temp_password przez
-//                                     sendTransactionalEmail).
+//                                     e-mail przez domenową kolejkę pocztową.
 //   - resendInvitation(id)          - jak wyżej, jeśli konto istnieje pomija.
 //   - revokeInvitation(id)          - miękkie oznaczenie statusu.
 //   - linkTeamWidgets(pageSlug)     - dopisuje authorSlug / authorUserId do
 //                                     widgetów team-member matchowanych po
 //                                     e-mailu.
 //
-// Rejestrujemy się do istniejącej infrastruktury: sendTransactionalEmail
-// (bramka Resend przez connector gateway platformy) i supabaseAdmin ładowany
-// wewnątrz .handler() (patrz reguły import-graph).
+// Rejestrujemy się do istniejącej infrastruktury pocztowej projektu i
+// supabaseAdmin ładowanego wewnątrz .handler() (patrz reguły import-graph).
 
+import { invitationCopy } from "@/lib/locale/invitation";
+import { replaceStrokeLetters } from "@/lib/text/strokeLetters";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import {
+  invitationIntro,
+  invitationScope,
+  tierRankByPriceId,
+} from "@/lib/email-templates/invitationScope";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 type InviteMode = Database["public"]["Enums"]["invitation_mode"];
 
 // ---------- utils ----------------------------------------------------------
 
+/**
+ * Slug profilu autora. `replaceStrokeLetters` MUSI iść przed `NFD`: „ł" (U+0142)
+ * nie ma rozkładu kanonicznego, więc normalizacja go nie rusza i bez tego kroku
+ * wpadał w `[^a-z0-9]+`, czyli zamieniał się w dywiz („Michał" -> `micha`,
+ * „Łukasz" -> `ukasz`). Mapa jest współdzielona z `slugifyTaxonomy`
+ * i `content.functions` - trzecia kopia rozjechałaby adresy między ekranami.
+ */
 function slugify(input: string): string {
-  return input
-    .toLowerCase()
+  return replaceStrokeLetters(input.toLowerCase())
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .replace(/[^a-z0-9]+/g, "-")
@@ -239,7 +250,11 @@ interface SendResult {
   email: string;
   error?: string;
   tempPassword?: string;
+  sendCount?: number;
+  sendLimit?: number;
 }
+
+const ACTIVATION_SEND_LIMIT = 5;
 
 async function performSend(
   supabase: SupabaseClient<Database>,
@@ -247,7 +262,7 @@ async function performSend(
   invitationId: string,
 ): Promise<SendResult> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { sendTransactionalEmail } = await import("@/lib/server/email.server");
+  const { sendTxEmail } = await import("@/lib/email/transactional.server");
 
   const { data: inv, error: invErr } = await supabase
     .from("user_invitations")
@@ -261,15 +276,82 @@ async function performSend(
   const displayName = inv.display_name ?? email;
   const origin = process.env.PUBLIC_APP_URL ?? "https://neweuropeanstrategies.com";
 
+  const { data: sendCount, error: claimError } = await supabase.rpc("admin_claim_invitation_send", {
+    p_invitation_id: invitationId,
+  });
+  if (claimError) {
+    const limitReached = claimError.message.includes("activation_send_limit_reached");
+    return {
+      ok: false,
+      email,
+      error: limitReached ? "activation_send_limit_reached" : claimError.message,
+      sendCount: Number(inv.send_count ?? ACTIVATION_SEND_LIMIT),
+      sendLimit: ACTIVATION_SEND_LIMIT,
+    };
+  }
+
   let authUserId: string | null = inv.auth_user_id;
   let tempPassword: string | undefined;
 
+  // Konto o tym adresie mogło już powstać (wcześniejsze zaproszenie, rejestracja
+  // własna). `createUser` zwraca wtedy twardy błąd "already been registered" i
+  // całe zaproszenie ląduje jako `failed` - mimo że jedyne, czego brakuje, to
+  // ponowny link aktywacyjny. Dlatego najpierw szukamy istniejącego konta.
+  //
+  // DLACZEGO PĘTLA, A NIE JEDNO ZAPYTANIE. `listUsers` w tej wersji SDK
+  // (@supabase/auth-js 2.106) NIE MA filtru po adresie - przyjmuje wyłącznie
+  // `PageParams` (`page`, `perPage`). Wcześniej czytaliśmy stąd JEDNĄ stronę
+  // (`perPage: 200`), więc od 201. konta w katalogu funkcja odpowiadała „nie ma
+  // takiego konta" dla kont, które są - czyli przestawała działać dokładnie
+  // wtedy, kiedy zaczynała być potrzebna, i kierowała ścieżkę prosto
+  // w `createUser` i w konflikt.
+  //
+  // DLACZEGO NIE `nextPage` Z ODPOWIEDZI. Paginacja SDK parsuje nagłówek `link`
+  // przez `.substring(0, 1)`, więc numer strony jest OBCINANY DO PIERWSZEJ
+  // CYFRY (strona 10 czyta się jako 1, strona 25 jako 2). Pętla sterowana tym
+  // polem zapętla się albo kończy za wcześnie, gdy katalog przekroczy dziesięć
+  // stron. Liczymy więc strony sami, a kończymy na stronie krótszej niż pełna.
+  const AUTH_DIRECTORY_PAGE_SIZE = 200;
+  /** Twardy sufit: 200 * 100 = 20 000 kont. Po jego przekroczeniu ODMAWIAMY. */
+  const AUTH_DIRECTORY_MAX_PAGES = 100;
+
+  async function findAuthUserIdByEmail(): Promise<string | null> {
+    const target = email.toLowerCase();
+    for (let page = 1; page <= AUTH_DIRECTORY_MAX_PAGES; page += 1) {
+      const { data, error } = await supabaseAdmin.auth.admin.listUsers({
+        page,
+        perPage: AUTH_DIRECTORY_PAGE_SIZE,
+      });
+      // Błąd katalogu NIE MOŻE czytać się jak „konta nie ma": cicha odpowiedź
+      // przecząca prowadzi wprost do `createUser`, czyli do konfliktu i do
+      // zaproszenia w stanie `failed`. Wcześniej `error` było tu pomijane przy
+      // destrukturyzacji.
+      if (error) throw error;
+      const users = data?.users ?? [];
+      const hit = users.find((u) => (u.email ?? "").toLowerCase() === target);
+      if (hit) return hit.id;
+      // Strona krótsza niż pełna jest ostatnia - w tym miejscu wiemy, że
+      // przeszliśmy CAŁY katalog i konta w nim nie ma.
+      if (users.length < AUTH_DIRECTORY_PAGE_SIZE) return null;
+    }
+    // Sufit wyczerpany, a katalog się nie skończył: nie wiemy, czy konto
+    // istnieje. „Nie wiem" musi być błędem, a nie odpowiedzią „nie ma" - ta
+    // druga kazałaby wyżej założyć konto i wywrócić zaproszenie na konflikcie.
+    throw new Error("auth_directory_scan_exhausted");
+  }
+
   try {
     if (!authUserId) {
+      authUserId = await findAuthUserIdByEmail();
+    }
+    if (!authUserId) {
       if (inv.mode === "magic_link") {
-        const { data: created, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-          redirectTo: `${origin}/auth/callback`,
-          data: { display_name: displayName, tenant_id: inv.tenant_id },
+        // Konto zakładamy bez hasła i BEZ maila Supabase - własny e-mail
+        // (niżej) niesie link aktywacyjny wygenerowany przez generateLink.
+        const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
+          email,
+          email_confirm: false,
+          user_metadata: { display_name: displayName, tenant_id: inv.tenant_id },
         });
         if (error) throw error;
         authUserId = created.user?.id ?? null;
@@ -292,20 +374,48 @@ async function performSend(
 
     if (!authUserId) throw new Error("no_auth_user_id");
 
-    // Hydrate profile + author_profile + user_role. UPSERT: jeśli konto już
-    // istniało (resend), tylko uzupełniamy braki bez nadpisywania edycji.
+    // SLUG ISTNIEJĄCEGO KONTA ZOSTAJE NIETKNIĘTY.
+    //
+    // `upsert` niżej NADPISUJE wymienione kolumny także przy ponownym wysłaniu
+    // zaproszenia - liczenie sluga z nazwy przy KAŻDYM wysłaniu zmieniałoby
+    // więc publiczny adres profilu autora (`/author/<slug>`) kontu, które już
+    // działa. To nie jest teoria: transliteracja „ł" (ta zmiana) przesunęłaby
+    // przy najbliższym resendzie każdego „Michała" z `micha` na `michal`,
+    // zrywając opublikowane i zaindeksowane linki. Gorzej: `profiles_slug_unique`
+    // jest indeksem UNIKALNYM, więc kolizja z cudzym slugiem wywróciłaby CAŁY
+    // resend na błędzie zapisu, a nie tylko sam adres.
+    //
+    // Slug liczymy zatem wyłącznie dla konta, które jeszcze go nie ma. Zmiana
+    // adresu istniejącego profilu to osobna decyzja (mapowanie stary -> nowy
+    // plus przekierowania), nie skutek uboczny wysłania zaproszenia.
+    const { data: existingProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("slug")
+      .eq("id", authUserId)
+      .maybeSingle();
+    const slug = existingProfile?.slug ?? slugify(displayName);
+
+    // Hydrate profile + author_profile + user_role. UPSERT nadpisuje wymienione
+    // kolumny danymi z zaproszenia; wyjątkiem jest `slug` (wyżej), bo ten jest
+    // publicznym adresem, a nie polem formularza.
     await supabaseAdmin.from("profiles").upsert(
       {
         id: authUserId,
         tenant_id: inv.tenant_id,
         email,
         display_name: displayName,
-        slug: slugify(displayName),
+        slug,
         avatar_url: (meta.photo as string) ?? null,
         bio_pl: (meta.bio_pl as string) ?? null,
         bio_en: (meta.bio_en as string) ?? null,
         phone: (meta.phone as string) ?? null,
-        job_title: (meta.position_pl as string) ?? (meta.position_en as string) ?? null,
+        job_title:
+          (meta.job_title as string) ??
+          (meta.position_pl as string) ??
+          (meta.position_en as string) ??
+          null,
+        current_company: (meta.company_name as string) ?? null,
+        current_company_id: (meta.company_id as string) ?? null,
         linkedin_url: (meta.linkedin as string) ?? null,
         facebook_url: (meta.facebook as string) ?? null,
         instagram_url: (meta.instagram as string) ?? null,
@@ -348,37 +458,116 @@ async function performSend(
         { onConflict: "user_id,role", ignoreDuplicates: true },
       );
 
-    // E-mail z hasłem (dla temp_password); magic_link wysyła Supabase Auth sam.
-    if (inv.mode === "temp_password" && tempPassword) {
+    // E-mail zaproszenia wysyłamy ZAWSZE własną ścieżką: dla trybu
+    // magic_link niesie link aktywacyjny (generateLink - Supabase go tylko
+    // generuje, nie wysyła), dla temp_password login + hasło tymczasowe.
+    let actionLink: string | null = null;
+    if (inv.mode === "magic_link") {
+      const redirectTo = `${origin}/auth/callback`;
+      // Adres w mailu MUSI być na naszej domenie - patrz src/routes/auth.activate.ts.
+      // Dlatego bierzemy z odpowiedzi token (`hashed_token`), a nie gotowy
+      // `action_link` wskazujący na domenę dostawcy tożsamości.
+      const prettyLink = (props: { hashed_token?: string; verification_type?: string }) =>
+        props.hashed_token
+          ? `${origin}/auth/activate?token=${encodeURIComponent(props.hashed_token)}&type=${encodeURIComponent(props.verification_type ?? "invite")}`
+          : null;
+
+      const { data: linkData, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
+        type: "invite",
+        email,
+        options: { redirectTo },
+      });
+      if (linkErr || !linkData?.properties?.action_link) {
+        // Konto istnieje już wcześniej (resend) - wtedy invite nie przejdzie.
+        const { data: magic, error: magicErr } = await supabaseAdmin.auth.admin.generateLink({
+          type: "magiclink",
+          email,
+          options: { redirectTo },
+        });
+        if (magicErr || !magic?.properties?.action_link) {
+          throw new Error(`link_failed:${(linkErr ?? magicErr)?.message ?? "unknown"}`);
+        }
+        actionLink = prettyLink(magic.properties) ?? magic.properties.action_link;
+      } else {
+        actionLink = prettyLink(linkData.properties) ?? linkData.properties.action_link;
+      }
+    }
+
+    {
+      // Mail zaproszenia idzie tym samym szablonem co pozostała poczta
+      // aplikacji (App Emails -> `user_invitation`), w języku wybranym przez
+      // administratora w popupie zaproszenia. Wcześniej był to ręcznie sklejony
+      // HTML tylko po polsku, poza rejestrem szablonów.
+      const lang: "pl" | "en" = meta.lang === "en" ? "en" : "pl";
+      const copy = invitationCopy[lang];
       const loginUrl = `${origin}/auth?email=${encodeURIComponent(email)}`;
-      const html = `
-        <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#0F172A">
-          <h1 style="color:#0F172A;font-size:22px;margin:0 0 12px">Witamy w New European Strategies</h1>
-          <p>Cześć ${displayName},</p>
-          <p>Zostało dla Ciebie utworzone konto na platformie. Poniżej znajdziesz dane logowania:</p>
-          <div style="background:#F1F5F9;border-radius:8px;padding:16px;margin:16px 0;font-family:monospace;font-size:14px">
-            <div><strong>Login (e-mail):</strong> ${email}</div>
-            <div><strong>Hasło tymczasowe:</strong> ${tempPassword}</div>
-          </div>
-          <p><a href="${loginUrl}" style="display:inline-block;background:#0F172A;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none">Zaloguj się</a></p>
-          <p style="color:#64748B;font-size:12px;margin-top:24px">Ze względów bezpieczeństwa zmień hasło zaraz po pierwszym logowaniu w panelu profilu.</p>
-        </div>`;
-      const res = await sendTransactionalEmail({
+
+      // Zakres obietnicy w treści maila musi odpowiadać dostępowi konta:
+      // redakcja i plany od PRO w górę dostają pełne brzmienie, zwykły
+      // użytkownik - analizy, raporty, quizy i wydarzenia.
+      const { data: subRow } = await supabaseAdmin
+        .from("subscriptions")
+        .select("price_id, status")
+        .eq("user_id", authUserId)
+        .in("status", ["active", "trialing", "past_due"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const scope = invitationScope({
+        role: inv.role,
+        tierRank: tierRankByPriceId(subRow?.price_id ?? null),
+      });
+      const intro = invitationIntro(scope, lang);
+
+      const details: { label: string; value: string }[] = [
+        { label: copy.loginAddress, value: email },
+        { label: copy.role, value: inv.role },
+      ];
+      if (meta.company_name) {
+        details.push({
+          label: copy.organisation,
+          value: [String(meta.company_name), meta.job_title ? String(meta.job_title) : null]
+            .filter(Boolean)
+            .join(" - "),
+        });
+      }
+      if (!actionLink && tempPassword) {
+        details.push({
+          label: copy.temporaryPassword,
+          value: tempPassword,
+        });
+      }
+
+      const res = await sendTxEmail({
+        type: "user_invitation",
         to: email,
-        subject: "Twoje konto w New European Strategies",
-        html,
+        lang,
+        metaName: displayName,
+        intro,
+        details,
+        ctaUrl: actionLink ?? loginUrl,
+        ctaLabel: actionLink ? copy.activate : copy.signIn,
+        extra: actionLink ? `${copy.copyLink} ${actionLink}` : copy.changePassword,
+        idempotencyKey: `user-invitation:${invitationId}:send:${String(sendCount)}`,
+        tenantId: inv.tenant_id,
       });
       if (!res.ok) {
         return { ok: false, email, error: `email_failed:${res.error}`, tempPassword };
       }
     }
 
+    // Autoakceptacja dotyczy administracyjnego przydzielenia roli i profilu,
+    // nie potwierdzenia zaproszenia przez odbiorcę. Samo wysłanie wiadomości
+    // nigdy nie może oznaczać, że użytkownik kliknął link aktywacyjny.
+    const autoAccept = meta.auto_accept === true;
+    const nowIso = new Date().toISOString();
     await supabase
       .from("user_invitations")
       .update({
         status: "sent",
         auth_user_id: authUserId,
-        sent_at: new Date().toISOString(),
+        sent_at: nowIso,
+        accepted_at: null,
         last_error: null,
       })
       .eq("id", invitationId);
@@ -390,10 +579,21 @@ async function performSend(
       entity_type: "user_invitation",
       entity_id: invitationId,
       tenant_id: inv.tenant_id,
-      metadata: { mode: inv.mode, email, auth_user_id: authUserId } as never,
+      metadata: {
+        mode: inv.mode,
+        email,
+        auth_user_id: authUserId,
+        auto_accept: autoAccept,
+      } as never,
     });
 
-    return { ok: true, email, tempPassword };
+    return {
+      ok: true,
+      email,
+      tempPassword,
+      sendCount: typeof sendCount === "number" ? sendCount : Number(inv.send_count ?? 0) + 1,
+      sendLimit: ACTIVATION_SEND_LIMIT,
+    };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await supabase
@@ -410,6 +610,70 @@ export const sendInvitation = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<SendResult> => {
     await assertAdmin(context.supabase, context.userId);
     return performSend(context.supabase, context.userId, data.id);
+  });
+
+/**
+ * Wysyła aktywację z poziomu listy użytkowników. Dla kont bez rekordu
+ * zaproszenia tworzy tenantowy rekord magic-link, a następnie korzysta z tej
+ * samej ścieżki wysyłki i atomowego limitu co ekran zaproszeń.
+ */
+export const sendActivationEmailForUser = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) => z.object({ userId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }): Promise<SendResult> => {
+    const { tenantId } = await assertAdmin(context.supabase, context.userId);
+    const { data: profile, error: profileError } = await context.supabase
+      .from("profiles")
+      .select("email, display_name")
+      .eq("id", data.userId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (profileError) throw new Error(profileError.message);
+    if (!profile?.email) throw new Error("activation_email_missing");
+
+    const email = profile.email.trim().toLowerCase();
+    const { data: existing, error: invitationError } = await context.supabase
+      .from("user_invitations")
+      .select("id, status")
+      .eq("tenant_id", tenantId)
+      .ilike("email", email)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (invitationError) throw new Error(invitationError.message);
+
+    let invitationId = existing?.status === "accepted" ? null : (existing?.id ?? null);
+    if (!invitationId) {
+      const { data: roleRows, error: roleError } = await context.supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", data.userId)
+        .eq("tenant_id", tenantId)
+        .limit(1);
+      if (roleError) throw new Error(roleError.message);
+      const role = roleRows?.[0]?.role ?? "user";
+      const { data: created, error: createError } = await context.supabase
+        .from("user_invitations")
+        .insert({
+          tenant_id: tenantId,
+          email,
+          display_name: profile.display_name ?? email,
+          role,
+          mode: "magic_link",
+          status: "pending",
+          source: "admin_user_actions",
+          metadata: { activation_for_user_id: data.userId } as never,
+          invited_by: context.userId,
+          auth_user_id: data.userId,
+        })
+        .select("id")
+        .single();
+      if (createError || !created)
+        throw new Error(createError?.message ?? "invitation_create_failed");
+      invitationId = created.id;
+    }
+
+    return performSend(context.supabase, context.userId, invitationId);
   });
 
 export const sendInvitationsBulk = createServerFn({ method: "POST" })
@@ -787,4 +1051,53 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
     }
 
     return { created, skipped, linked, errors };
+  });
+
+// ---------- CRM: organizacje dla zaproszeń --------------------------------
+
+export interface CrmCompanyOption {
+  id: string;
+  name: string;
+}
+
+/** Podpowiedzi organizacji z CRM (tenant wywołującego, admin-only). */
+export const searchCrmCompanies = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) => z.object({ q: z.string().max(120).optional() }).parse(input))
+  .handler(async ({ data, context }): Promise<{ companies: CrmCompanyOption[] }> => {
+    const { tenantId } = await assertAdmin(context.supabase, context.userId);
+    let query = context.supabase
+      .from("crm_companies")
+      .select("id, name")
+      .eq("tenant_id", tenantId)
+      .order("name")
+      .limit(20);
+    const q = data.q?.trim();
+    if (q) query = query.ilike("name", `%${q.replace(/[%_]/g, "")}%`);
+    const { data: rows, error } = await query;
+    if (error) throw new Error(error.message);
+    return { companies: rows ?? [] };
+  });
+
+/** Tworzy organizację w CRM, jeśli jeszcze jej nie ma (dedup po nazwie). */
+export const createCrmCompany = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) => z.object({ name: z.string().min(2).max(200) }).parse(input))
+  .handler(async ({ data, context }): Promise<CrmCompanyOption> => {
+    const { tenantId } = await assertAdmin(context.supabase, context.userId);
+    const name = data.name.trim();
+    const { data: existing } = await context.supabase
+      .from("crm_companies")
+      .select("id, name")
+      .eq("tenant_id", tenantId)
+      .ilike("name", name)
+      .maybeSingle();
+    if (existing) return existing;
+    const { data: created, error } = await context.supabase
+      .from("crm_companies")
+      .insert({ tenant_id: tenantId, name, created_by: context.userId })
+      .select("id, name")
+      .single();
+    if (error) throw new Error(error.message);
+    return created;
   });

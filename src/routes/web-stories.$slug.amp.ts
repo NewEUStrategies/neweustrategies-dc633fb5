@@ -3,6 +3,16 @@
 // prezentacji Web Stories w Google. Ten dokument <amp-story> powstaje z tych
 // samych danych i jest podlinkowany z kanonicznej strony przez rel=amphtml.
 // Service role => odczyt jawnie zawężony do tenanta hosta, FAIL-CLOSED.
+//
+// KONTRAKT BRAKU TENANTA 2026-09-02 (N2 audytu pokrycia): jednoczłonowy
+// warunek jest tu POPRAWNY i jest decyzją. Powierzchnia adresowana SLUGIEM nie
+// ma stanu zdegradowanego - bez tenanta `fetchPublishedWebStoryBySlug` nie ma
+// czego znaleźć, więc każda droga kończy się 404. Dodatkowo AMP wymaga
+// ABSOLUTNEGO `origin` (kanoniczny link, publisher, poster), a bez zaufanego
+// hosta origin jest pusty - dokument z relatywnymi adresami nie przeszedłby
+// walidacji Google, więc `!origin` też musi być 404, nie „wariantem uboższym".
+// Kanał, który degraduje do pustki, to wyłącznie kanał adresowany samym
+// hostem: `/rss.xml`, `/podcast/rss.xml`, `/tracker/rss.xml`, `/live/rss.xml`.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { trustedPublicHost } from "@/lib/http/requestHost";

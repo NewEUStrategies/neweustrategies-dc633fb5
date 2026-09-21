@@ -26,6 +26,8 @@ import { useAuthSettings } from "@/hooks/useAuthSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { trackNewsletterPopupEvent } from "@/lib/newsletter/popupTelemetry";
 import { FieldBox } from "@/components/ui/field-box";
+import { publicAuthError } from "@/lib/auth/publicAuthError";
+import { snapshotConsents, type ConsentSnapshotInput } from "@/lib/newsletter/consentSnapshot";
 import { SignupSuccessPanel } from "@/components/auth/SignupSuccessPanel";
 
 import { SubscribeButton } from "@/components/ui/subscribe-button";
@@ -34,6 +36,7 @@ import {
   popupFieldMap,
   popupFieldLabel,
   popupFieldPlaceholder,
+  isPopupFieldNeverRequired,
   type PopupFieldKey,
 } from "@/lib/newsletter/popupFields";
 import { resolvePopupDesign } from "@/lib/newsletter/popupDesign";
@@ -96,6 +99,7 @@ export function PopupSignupForm({
   const [showPass, setShowPass] = useState(false);
   // Adres, na który poszedł link aktywacyjny - pola są czyszczone po zapisie.
   const [sentTo, setSentTo] = useState("");
+  const [newsletterFailed, setNewsletterFailed] = useState(false);
 
   const [honey, setHoney] = useState("");
   const mountedAt = useRef<number>(Date.now());
@@ -107,6 +111,9 @@ export function PopupSignupForm({
   const ext = settings.popup_extended_fields;
   const lists = settings.popup_mailing_lists ?? [];
   const fields = popupFieldMap(settings.popup_fields);
+  // LinkedIn jest zawsze opcjonalne - nawet gdyby w konfiguracji zostało
+  // zapisane jako wymagane, pole nie może blokować rejestracji.
+  const linkedinNeverRequired = isPopupFieldNeverRequired("linkedin");
   const design = resolvePopupDesign(settings.popup_design);
   const form = design.form;
   // W podglądzie w adminie wyłączamy autouzupełnianie: przeglądarka podstawiała
@@ -160,14 +167,19 @@ export function PopupSignupForm({
     setErr(null);
     if (previewOnly) return;
 
-    // Honeypot + minimalny czas wypełnienia: boty dostają "sukces" bez zapisu.
+    // Honeypot zatrzymuje spam; szybki użytkownik dostaje możliwość ponowienia.
     const elapsed = Date.now() - mountedAt.current;
-    if (honey.trim() !== "" || elapsed < 1200) {
+    if (honey.trim() !== "") {
       setSentTo(v.email.trim().toLowerCase());
       setState("ok");
       setV(empty);
 
       onSuccess?.();
+      return;
+    }
+
+    if (elapsed < 1200) {
+      fail(t("signupPopup.errors.tooFast"), "too_fast");
       return;
     }
 
@@ -211,7 +223,6 @@ export function PopupSignupForm({
       ["last_name", v.surname],
       ["job", v.job],
       ["company", v.company],
-      ["linkedin", v.linkedin],
       ["phone", v.phone],
       ["list", v.list],
     ];
@@ -270,6 +281,27 @@ export function PopupSignupForm({
         throw guardErr;
       }
 
+      const consentEntries: ConsentSnapshotInput[] = [];
+      if (showNewsletter && v.newsletter) {
+        consentEntries.push({
+          key: "newsletter",
+          text: label("newsletter_optin"),
+          given: true,
+          lang,
+        });
+      }
+      if (requirePrivacy && privacyHtml) {
+        consentEntries.push({
+          key: "privacy",
+          text: sanitizeHtml(privacyHtml),
+          given: v.privacy,
+          lang,
+        });
+      }
+      if (requireTerms && termsHtml) {
+        consentEntries.push({ key: "terms", text: sanitizeHtml(termsHtml), given: v.terms, lang });
+      }
+      const consents = await snapshotConsents(consentEntries, new Date().toISOString());
       const { error } = await supabase.auth.signUp({
         email,
         password: v.password,
@@ -286,6 +318,7 @@ export function PopupSignupForm({
             phone: v.phone.trim() || undefined,
             signup_type: "reader",
             signup_source: source,
+            signup_consents: consents,
             preferred_language: lang,
             marketing_opt_in: showNewsletter ? v.newsletter : false,
           },
@@ -300,23 +333,8 @@ export function PopupSignupForm({
         if (v.company.trim()) meta.company = v.company.trim();
         if (v.linkedin.trim()) meta.linkedin = v.linkedin.trim();
         if (v.phone.trim()) meta.phone = v.phone.trim();
-        if (showLists && v.list) meta.mailing_list = v.list;
-        const consents: Array<{ key: string; text: string; given: boolean; lang: "pl" | "en" }> = [
-          {
-            key: "newsletter",
-            text: t("signupPopup.newsletterConsent", { lng: lang }),
-            given: true,
-            lang,
-          },
-        ];
-        if (requirePrivacy && privacyHtml) {
-          consents.push({ key: "privacy", text: privacyHtml, given: v.privacy, lang });
-        }
-        if (requireTerms && termsHtml) {
-          consents.push({ key: "terms", text: termsHtml, given: v.terms, lang });
-        }
         try {
-          await subscribe({
+          const result = await subscribe({
             data: {
               email,
               name: displayName,
@@ -326,10 +344,13 @@ export function PopupSignupForm({
               source: `signup_${source}`,
               consents,
               meta: Object.keys(meta).length ? meta : undefined,
+              // Lista wysyłkowa idzie kanonicznym polem - trafia do profilu i CRM.
+              mailingLists: showLists && v.list ? [v.list] : undefined,
             },
           });
+          setNewsletterFailed(!result.ok);
         } catch {
-          /* zapis na listę nie może blokować rejestracji konta */
+          setNewsletterFailed(true);
         }
       }
 
@@ -340,7 +361,7 @@ export function PopupSignupForm({
       setV(empty);
       onSuccess?.();
     } catch (error) {
-      fail(error instanceof Error ? error.message : String(error), "exception");
+      fail(t(`signupPopup.errors.${publicAuthError(error)}`), "exception");
     }
   };
 
@@ -354,12 +375,19 @@ export function PopupSignupForm({
 
   if (state === "ok") {
     return (
-      <SignupSuccessPanel
-        email={sentTo}
-        lang={lang}
-        redirectTo={previewOnly ? undefined : `${window.location.origin}${redirectPath}`}
-        previewOnly={previewOnly}
-      />
+      <>
+        <SignupSuccessPanel
+          email={sentTo}
+          lang={lang}
+          redirectTo={previewOnly ? undefined : `${window.location.origin}${redirectPath}`}
+          previewOnly={previewOnly}
+        />
+        {newsletterFailed && (
+          <p role="alert" className="text-sm">
+            {t("signupPopup.success.newsletterFailed", { lng: lang })}
+          </p>
+        )}
+      </>
     );
   }
 
@@ -369,7 +397,7 @@ export function PopupSignupForm({
   return (
     <form
       onSubmit={onSubmit}
-      className={compact ? "space-y-2 text-left" : "space-y-2.5 text-left"}
+      className={`[&_input]:scroll-my-2 ${compact ? "space-y-2 text-left" : "space-y-2.5 text-left"}`}
       noValidate
     >
       <div
@@ -447,7 +475,7 @@ export function PopupSignupForm({
         <FieldBox
           label={label("linkedin")}
           placeholder={placeholder("linkedin")}
-          required={fields.linkedin.required}
+          required={fields.linkedin.required && !linkedinNeverRequired}
           value={v.linkedin}
           onChange={(e) => upd("linkedin", e.target.value)}
           maxLength={200}

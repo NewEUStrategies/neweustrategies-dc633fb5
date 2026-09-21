@@ -82,7 +82,9 @@ function ruleWeight(css: string, declaration: string): number {
     if (!body || !body.includes(declaration)) continue;
     const weights = selector
       .replace(/^@media[^{]*/, "")
-      .split(",")
+      // Builder :is() groups contain HTML tags only (equal specificity).
+      // Their commas are not separators between independent selectors.
+      .split(/,(?![^()]*\))/)
       .map((sel) => {
         const attrs = sel.match(/\[[^\]]+\]/g)?.length ?? 0;
         const classes = sel.match(/\.[a-zA-Z_-][\w-]*/g)?.length ?? 0;
@@ -157,5 +159,83 @@ describe("widget join-us - rozmiary czcionek i ikon", () => {
     expect(widgetCss(pinned.container)).toContain(
       "[data-jus-icon]{width:28px !important;height:28px !important;",
     );
+  });
+});
+
+// ── WARTOŚCI DOMYŚLNE WIDGETU "DOŁĄCZ DO NAS" ────────────────────────────────
+// `makeWidget("join-us")` z rejestru dokłada komplet pól domyślnych, więc testy
+// wyżej nigdy nie renderują widgetu, któremu klucza BRAKUJE. A dokładnie tak
+// wyglądają dokumenty sprzed wprowadzenia danego pola i dokumenty budowane
+// programowo (import, migracja, duplikat sekcji). Ten blok montuje węzeł BEZ
+// domyślnych rejestru.
+async function renderJoinUsRaw(content: Record<string, unknown>) {
+  const node: WidgetNode = {
+    id: "join-us-raw",
+    kind: "widget",
+    type: "join-us",
+    content: content as WidgetNode["content"],
+  };
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const utils = render(
+    <QueryClientProvider client={qc}>
+      <WidgetView node={node} lang="pl" device="desktop" editable={false} />
+    </QueryClientProvider>,
+  );
+  await waitFor(() => expect(utils.container.querySelector("[data-jus-id]")).not.toBeNull());
+  return utils;
+}
+
+describe("widget join-us - węzeł bez domyślnych rejestru", () => {
+  it("wariant SPOZA katalogu spada na układ dzielony zamiast pustego renderu", async () => {
+    const { container } = await renderJoinUsRaw({
+      variant: "kosmiczny",
+      imageUrl: "https://cdn.example/tlo.webp",
+      imageFit: "contain",
+      imageOverlay: 40,
+    });
+    expect(container.querySelector("[data-jus-id]")).not.toBeNull();
+    expect(container.textContent ?? "").not.toContain("undefined");
+  });
+
+  // DEFEKT: MARTWY FALLBACK `?? "1"` GASI DOMYSLNA WYMAGALNOSC ADRESU E-MAIL.
+  //
+  // WEJSCIE: widget "join-us" w dokumencie, ktory NIE MA klucza `requireEmail`
+  //   (dokument sprzed wprowadzenia pola, import tresci, duplikat programowy).
+  // CO PSUJE: `requireEmail={(getStr(c, "requireEmail") ?? "1") === "1"}`
+  //   (WidgetView.tsx:1141). `getStr` (widget-view/frame.ts:260) NIGDY nie
+  //   zwraca undefined - dla brakujacego klucza oddaje PUSTY NAPIS - wiec
+  //   fallback `?? "1"` jest martwy, a wynik porownania to `"" === "1"`, czyli
+  //   false. Zapisane w kodzie "domyslnie wymagany" nie dziala.
+  // KONSEKWENCJA: pole e-mail traci atrybut `required` i `aria-required`, znika
+  //   gwiazdka przy etykiecie, a walidacja `if (requireEmail && ...)` w
+  //   JoinUsForm przepuszcza zgloszenie BEZ adresu. Formularz zapisu na liste
+  //   zbiera wtedy rekordy, z ktorymi nie da sie nic zrobic. Kazda inna
+  //   implementacja tego samego pola w repo domyslnie WYMAGA adresu:
+  //   `JoinUsForm` (`requireEmail = true`), `NewsletterForm`
+  //   (`boolCfg(cfg,"requireEmail",true)`), `ContactFormView`
+  //   (`bool(data,"requireEmail",true)`) - WidgetView jest jedynym wyjatkiem.
+  // WYMAGANA POPRAWKA: czytac wartosc tak, zeby BRAK klucza znaczyl "wymagany",
+  //   np. `getBool(c, "requireEmail", true)` (helper juz istnieje w frame.ts)
+  //   albo jawnie `getStr(c, "requireEmail") !== "0"`. To samo dotyczy
+  //   pozostalych `(getStr(...) ?? "…")` w tym bloku (linie 1139-1147, 1062, 1172).
+  it.fails("DEFEKT: BEZ klucza requireEmail pole e-mail powinno pozostać wymagane", async () => {
+    const { container } = await renderJoinUsRaw({ variant: "card" });
+    const email = container.querySelector('input[type="email"]');
+    expect(email).not.toBeNull();
+    expect(email?.hasAttribute("required")).toBe(true);
+  });
+
+  it("jawne wyłączenie wymagalności adresu zdejmuje atrybut required", async () => {
+    const { container } = await renderJoinUsRaw({ variant: "card", requireEmail: "0" });
+    const email = container.querySelector('input[type="email"]');
+    expect(email).not.toBeNull();
+    expect(email?.hasAttribute("required")).toBe(false);
+  });
+
+  it("jawne włączenie wymagalności adresu dokłada required i aria-required", async () => {
+    const { container } = await renderJoinUsRaw({ variant: "card", requireEmail: "1" });
+    const email = container.querySelector('input[type="email"]');
+    expect(email?.hasAttribute("required")).toBe(true);
+    expect(email?.getAttribute("aria-required")).toBe("true");
   });
 });

@@ -4,17 +4,22 @@
 // Uploady rejestrują się w bibliotece mediów (registerMediaUpload, folder
 // /widgets) - wcześniej lądowały w storage z pominięciem tabeli `media`,
 // więc były niewidoczne w bibliotece i cleanupie (higiena z audytu 13.07).
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { IMAGE_MIME, VIDEO_MIME, uploadAndRegisterMedia } from "@/lib/media/upload";
 import { useRequiredTenant } from "@/hooks/useAuth";
-import { Upload, X, AlertCircle, FolderOpen } from "lucide-react";
+import { Upload, X, AlertCircle, FileImage, FolderOpen, Images } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { UploadArea } from "@/components/ui/upload-area";
+import "@/lib/i18n-upload-area";
+import { mediaRenderUrl } from "@/lib/media/publicUrl";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
 import { createMediaFolder, registerMediaUpload, updateMediaMeta } from "@/lib/media.functions";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import { isImageOversized, isImageTooSmall, type PixelSize } from "@/lib/media/recommendedSize";
 import "@/lib/i18n-builder";
 
 /** Folder biblioteki, w którym lądują uploady z inspektora buildera. */
@@ -32,6 +37,14 @@ interface Props {
   hint?: string;
   /** Max upload size in MB (default 8). */
   maxSizeMb?: number;
+  /**
+   * Rekomendowany rozmiar pliku w pikselach - podany, włącza DWIE rzeczy:
+   * podpowiedź przy polu ("Zalecany rozmiar: 1024 × 576 px") oraz pomiar
+   * faktycznego obrazu po wgraniu/wybraniu i miękkie ostrzeżenie, gdy jest
+   * wyraźnie mniejszy albo znacznie większy, niż trzeba. Bez tego propsu
+   * kontrolka zachowuje się dokładnie jak wcześniej (zero zapytań o wymiary).
+   */
+  recommendedSize?: PixelSize | null;
 }
 
 // Obsługiwane formaty tła:
@@ -64,18 +77,79 @@ function validateUrl(raw: string, t: TFunction): string | null {
   }
 }
 
-export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }: Props) {
+export function ImageSlot({
+  label,
+  icon,
+  value,
+  onChange,
+  hint,
+  maxSizeMb = 8,
+  recommendedSize = null,
+}: Props) {
   const { t } = useTranslation();
-  const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [natural, setNatural] = useState<PixelSize | null>(null);
   const tenantId = useRequiredTenant();
   const registerUpload = useServerFn(registerMediaUpload);
   const updateMeta = useServerFn(updateMediaMeta);
   const ensureFolder = useServerFn(createMediaFolder);
 
   const urlError = validateUrl(value, t);
+
+  // Rekomendacja przyjeżdża z panelu jako NOWY obiekt przy każdym renderze
+  // (liczy ją funkcja schematu z bieżącej treści), więc efekt zależy od dwóch
+  // LICZB, nie od tożsamości obiektu - inaczej pomiar startowałby od nowa po
+  // każdym naciśnięciu klawisza w sąsiednim polu.
+  const recWidth = recommendedSize?.width ?? 0;
+  const recHeight = recommendedSize?.height ?? 0;
+
+  // Wymiary MIERZYMY, nie zgadujemy z nazwy pliku ani z nagłówka odpowiedzi:
+  // obraz wgrany przez panel przechodzi przez transformacje storage, a URL
+  // wklejony ręcznie może wskazywać cokolwiek. Pomiar idzie przez obiekt
+  // `Image` poza drzewem DOM (bez renderu, bez layoutu), a każdy wynik jest
+  // odcinany flagą `alive` - inaczej odpowiedź na poprzedni adres nadpisałaby
+  // wymiary bieżącego obrazu po szybkiej zmianie pola.
+  useEffect(() => {
+    if (recWidth <= 0 || recHeight <= 0 || !value || urlError || typeof window === "undefined") {
+      setNatural(null);
+      return;
+    }
+    let alive = true;
+    const probe = new window.Image();
+    probe.onload = () => {
+      if (alive) setNatural({ width: probe.naturalWidth, height: probe.naturalHeight });
+    };
+    // Obraz nie do pobrania to sprawa POLA ADRESU (błąd wyżej), nie
+    // rekomendacji - milczymy zamiast dokładać drugi komunikat o tym samym.
+    probe.onerror = () => {
+      if (alive) setNatural(null);
+    };
+    probe.src = value;
+    return () => {
+      alive = false;
+      probe.onload = null;
+      probe.onerror = null;
+    };
+  }, [value, urlError, recWidth, recHeight]);
+
+  const sizeNotice = (() => {
+    if (!recommendedSize || !natural) return null;
+    if (isImageTooSmall(natural, recommendedSize)) {
+      return t("builder.imageSlot.sizeTooSmall", {
+        width: natural.width,
+        height: natural.height,
+      });
+    }
+    if (isImageOversized(natural, recommendedSize)) {
+      return t("builder.imageSlot.sizeOversized", {
+        width: natural.width,
+        height: natural.height,
+      });
+    }
+    return null;
+  })();
 
   const handleFile = async (file: File) => {
     setError(null);
@@ -154,39 +228,41 @@ export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }:
           </button>
         )}
       </div>
-      <input
-        ref={fileRef}
-        type="file"
+      <UploadArea
+        size="sm"
+        title={t("uploadArea.image.title")}
+        description={t("uploadArea.image.description")}
+        ctaLabel={t("builder.imageSlot.uploadFile")}
+        busyLabel={t("builder.imageSlot.uploading")}
+        busy={uploading}
+        error={error}
+        icons={[FileImage, Upload, Images]}
         accept={ALLOWED_MIME.join(",")}
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) handleFile(f);
-          e.target.value = "";
-        }}
+        onFiles={(files) => void handleFile(files[0])}
+        preview={
+          value && !urlError ? (
+            <img
+              src={mediaRenderUrl(value)}
+              alt=""
+              className="max-h-24 max-w-full rounded-[6px] border border-border/60 object-contain"
+            />
+          ) : undefined
+        }
+        actions={
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setError(null);
+              setPickerOpen(true);
+            }}
+          >
+            <FolderOpen className="w-3.5 h-3.5" />
+            {t("builder.imageSlot.mediaLibrary")}
+          </Button>
+        }
       />
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          disabled={uploading}
-          onClick={() => fileRef.current?.click()}
-          className="inline-flex items-center justify-center gap-1.5 h-8 rounded-md border border-dashed border-border hover:border-brand hover:bg-muted/30 text-xs disabled:opacity-50"
-        >
-          <Upload className="w-3.5 h-3.5" />
-          {uploading ? t("builder.imageSlot.uploading") : t("builder.imageSlot.uploadFile")}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setError(null);
-            setPickerOpen(true);
-          }}
-          className="inline-flex items-center justify-center gap-1.5 h-8 rounded-md border border-border hover:border-brand hover:bg-muted/30 text-xs"
-        >
-          <FolderOpen className="w-3.5 h-3.5" />
-          {t("builder.imageSlot.mediaLibrary")}
-        </button>
-      </div>
       <MediaPickerDialog
         open={pickerOpen}
         onOpenChange={setPickerOpen}
@@ -197,6 +273,20 @@ export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }:
         }}
         title={t("builder.imageSlot.pickFromLibrary")}
       />
+      {recommendedSize && (
+        <div className="text-[10px] text-muted-foreground">
+          {t("builder.imageSlot.recommendedSize", {
+            width: recommendedSize.width,
+            height: recommendedSize.height,
+          })}
+        </div>
+      )}
+      {sizeNotice && (
+        <div className="flex items-start gap-1 text-[10px] text-amber-600 dark:text-amber-400">
+          <AlertCircle className="w-3 h-3 mt-[1px] shrink-0" />
+          <span>{sizeNotice}</span>
+        </div>
+      )}
       {hint && !urlError && !error && (
         <div className="text-[10px] text-muted-foreground">{hint}</div>
       )}
@@ -204,12 +294,6 @@ export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }:
         <div className="flex items-start gap-1 text-[10px] text-destructive" role="alert">
           <AlertCircle className="w-3 h-3 mt-[1px] shrink-0" />
           <span>{urlError}</span>
-        </div>
-      )}
-      {error && (
-        <div className="flex items-start gap-1 text-[10px] text-destructive" role="alert">
-          <AlertCircle className="w-3 h-3 mt-[1px] shrink-0" />
-          <span>{error}</span>
         </div>
       )}
     </div>

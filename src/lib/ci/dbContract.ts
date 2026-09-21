@@ -1,3 +1,4 @@
+import { splitSqlStatements } from "./authzGates";
 // Kontrakt schematu bazy dla bramki CI "po każdym wdrożeniu".
 //
 // Migracje są forward-only, więc oczekiwany stan bazy = wszystkie obiekty
@@ -92,21 +93,25 @@ export function extractExpectedContract(files: readonly MigrationFile[]): Expect
     }
   };
 
-  for (const { file, sql } of files) {
-    runCreate(createTable, sql, file, tables, "table");
-    runCreate(createView, sql, file, views, "view");
-    runCreate(createFn, sql, file, functions, "function");
-    runDrop(dropTable, sql, tables);
-    runDrop(dropView, sql, views);
-    runDrop(dropFn, sql, functions);
+  for (const { file, sql: migration } of files) {
+    // Preserve DROP/CREATE and RENAME order within one migration.
+    for (const sql of splitSqlStatements(migration)) {
+      runCreate(createTable, sql, file, tables, "table");
+      runCreate(createView, sql, file, views, "view");
+      runCreate(createFn, sql, file, functions, "function");
+      runDrop(dropTable, sql, tables);
+      runDrop(dropView, sql, views);
+      runDrop(dropFn, sql, functions);
 
-    renameTable.lastIndex = 0;
-    let rename: RegExpExecArray | null;
-    while ((rename = renameTable.exec(sql)) !== null) {
-      const from = normalizeName(rename[1]);
-      const to = normalizeName(rename[2]);
-      if (from !== null) tables.delete(from);
-      if (to !== null) tables.set(to, { kind: "table", name: to, file });
+      renameTable.lastIndex = 0;
+      let rename: RegExpExecArray | null;
+      while ((rename = renameTable.exec(sql)) !== null) {
+        const from = normalizeName(rename[1]);
+        const to = normalizeName(rename[2]);
+        if (from === null) continue;
+        tables.delete(from);
+        if (to !== null) tables.set(to, { kind: "table", name: to, file });
+      }
     }
   }
 
@@ -114,37 +119,6 @@ export function extractExpectedContract(files: readonly MigrationFile[]): Expect
     [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
 
   return { tables: sorted(tables), views: sorted(views), functions: sorted(functions) };
-}
-
-/**
- * Tłumaczy odpowiedź Data API na werdykt istnienia obiektu.
- *
- * - `PGRST205` = tabeli/widoku nie ma w cache schematu → brak obiektu.
- * - `PGRST202` jest niejednoznaczny: PostgREST zwraca go ZARÓWNO gdy funkcji
- *   nie ma, JAK I gdy istnieje pod inną sygnaturą niż sondowana (my sondujemy
- *   bezpiecznie, bez argumentów, żeby niczego nie wywołać). Rozróżnia je
- *   `hint`: dla nieznanej nazwy PostgREST podpowiada INNĄ, najbliższą funkcję
- *   ("Perhaps you meant to call the function public.X"); gdy nazwa istnieje
- *   i nie zgadzają się tylko argumenty - `hint` jest pusty.
- * - 401/403/42501 to brak uprawnień - obiekt ISTNIEJE (RLS/GRANT to inne bramki).
- * - 400 (np. zły typ argumentu RPC) też oznacza, że funkcja istnieje.
- */
-export function classifyProbe(
-  status: number,
-  code: string | null,
-  hint?: string | null,
-): ProbeVerdict {
-  if (code === "PGRST205") return "missing";
-  if (code === "PGRST202") {
-    return typeof hint === "string" && hint.trim() !== "" ? "missing" : "present";
-  }
-  if (status >= 200 && status < 300) return "present";
-  if (status === 400 || status === 401 || status === 403 || status === 404) {
-    // 404 bez kodu PGRST20x nie rozstrzyga (np. proxy/edge), reszta = istnieje.
-    return status === 404 ? "inconclusive" : "present";
-  }
-  if (status === 409 || status === 422 || status === 500) return "present";
-  return "inconclusive";
 }
 
 export interface ContractReport {
@@ -155,7 +129,7 @@ export interface ContractReport {
 
 /** Czy raport powinien zablokować CI. */
 export function contractFailed(report: ContractReport): boolean {
-  return report.missing.length > 0;
+  return report.checked === 0 || report.missing.length > 0 || report.inconclusive.length > 0;
 }
 
 /** Renderuje raport w formacie Markdown (do logu CI / GitHub Step Summary). */

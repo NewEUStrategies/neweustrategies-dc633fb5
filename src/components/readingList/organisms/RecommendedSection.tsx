@@ -47,10 +47,13 @@ export function RecommendedSection({
     );
   if (posts.length === 0) return <ReadingListEmptyState text={t("readingList.recommendedEmpty")} />;
   return (
-    <div className={`grid gap-6 ${gridColsClass(columns)}`}>
-      {posts.map((p) => (
-        <ReadingListPostCard key={p.id} post={p} lang={lang} reasons={p.reasons} />
-      ))}
+    <div>
+      <h2 className="sr-only">{t("readingList.recommendedContentHeading")}</h2>
+      <div className={`grid gap-6 ${gridColsClass(columns)}`}>
+        {posts.map((p) => (
+          <ReadingListPostCard key={p.id} post={p} lang={lang} reasons={p.reasons} />
+        ))}
+      </div>
     </div>
   );
 }

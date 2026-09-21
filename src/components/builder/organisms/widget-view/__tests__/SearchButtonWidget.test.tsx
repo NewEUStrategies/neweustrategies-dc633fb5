@@ -2,7 +2,7 @@
 // nawigacja klawiaturą (combobox/aria-activedescendant), ostatnie
 // wyszukiwania, stan pusty, stopka składni + link trybów zaawansowanych.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor, act } from "@testing-library/react";
 import { SearchButtonWidget } from "../SearchButtonWidget";
 
 const rpc = vi.hoisted(() => ({
@@ -13,8 +13,19 @@ const rpc = vi.hoisted(() => ({
   avatarQueries: [] as Array<{ table: string; ids: unknown }>,
   /** Symuluje padnięte zapytanie o awatary (offline / brak grantu). */
   failAvatars: false,
+  /** RPC odpowiada `data: null` (pusta odpowiedź bez błędu). */
+  nullRows: false,
+  /** Batch awatarów odpowiada `data: null`. */
+  nullAvatars: false,
+  /** Opóźnienie odpowiedzi batcha awatarów - pozwala odmontować w trakcie. */
+  avatarDelayMs: 0,
+  /** Kolejka odpowiedzi RPC: kolejne wywołania dostają kolejne pozycje. */
+  rowsQueue: [] as Array<Array<Record<string, string | number | null>>>,
 }));
-const nav = vi.hoisted(() => ({ navigate: vi.fn(), preloadRoute: vi.fn() }));
+// `absent: true` renderuje widget POZA RouterProviderem (izolowany render,
+// SSR bez routera): wtedy `useRouter({warn:false})` zwraca undefined, a widget
+// ma degradować do twardego przejścia zamiast nawigacji SPA.
+const nav = vi.hoisted(() => ({ navigate: vi.fn(), preloadRoute: vi.fn(), absent: false }));
 
 vi.mock("@/integrations/supabase/client", () => {
   // Widget dociąga awatary autorów przez `from("profiles_public")`. Bez tego
@@ -33,7 +44,11 @@ vi.mock("@/integrations/supabase/client", () => {
       ) =>
         (rpc.failAvatars
           ? Promise.reject(new Error("avatar batch unavailable"))
-          : Promise.resolve({ data: rpc.avatars, error: null })
+          : new Promise<{ data: unknown; error: null }>((resolve) => {
+              const value = { data: rpc.nullAvatars ? null : rpc.avatars, error: null };
+              if (rpc.avatarDelayMs > 0) setTimeout(() => resolve(value), rpc.avatarDelayMs);
+              else resolve(value);
+            })
         ).then(onFulfilled, onRejected),
     };
     return chain;
@@ -43,6 +58,8 @@ vi.mock("@/integrations/supabase/client", () => {
     supabase: {
       rpc: async (name: string, args: Record<string, unknown>) => {
         rpc.calls.push({ name, args });
+        if (rpc.nullRows) return { data: null, error: null };
+        if (rpc.rowsQueue.length > 0) return { data: rpc.rowsQueue.shift(), error: null };
         return { data: name === "search_autosuggest" ? rpc.rows : [], error: null };
       },
       from: (name: string) => table(name),
@@ -54,12 +71,63 @@ vi.mock("@tanstack/react-router", async (orig) => {
   const actual = await orig<typeof import("@tanstack/react-router")>();
   return {
     ...actual,
-    useRouter: () => ({
-      navigate: nav.navigate,
-      preloadRoute: () => Promise.resolve(),
-    }),
+    useRouter: () =>
+      nav.absent
+        ? undefined
+        : {
+            navigate: nav.navigate,
+            preloadRoute: () => Promise.resolve(),
+          },
   };
 });
+
+// ── DYKTOWANIE FRAZY (Web Speech API) ────────────────────────────────────────
+// happy-dom nie zna `SpeechRecognition`, więc `useVoiceSearch` raportuje
+// `supported: false` i CAŁY klaster mikrofonu (przycisk, stan nagrywania,
+// callbacki onText/onFinal, węższy padding pola) jest w testach martwy.
+// Sterowalny konstruktor włącza tę ścieżkę i pozwala wstrzyknąć transkrypcję.
+interface SpeechResultLike {
+  isFinal: boolean;
+  0: { transcript: string };
+}
+
+class ControlledSpeechRecognition {
+  lang = "";
+  interimResults = false;
+  continuous = false;
+  maxAlternatives = 0;
+  onresult: ((e: { results: ArrayLike<SpeechResultLike> }) => void) | null = null;
+  onend: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  constructor() {
+    speech.instances.push(this);
+  }
+  start(): void {}
+  stop(): void {
+    this.onend?.();
+  }
+  abort(): void {}
+}
+
+const speech = { instances: [] as ControlledSpeechRecognition[] };
+
+function installSpeechRecognition(): void {
+  speech.instances = [];
+  Object.defineProperty(window, "webkitSpeechRecognition", {
+    configurable: true,
+    writable: true,
+    value: ControlledSpeechRecognition,
+  });
+}
+
+/** Wstrzykuje transkrypcję do ostatnio utworzonego rozpoznawania mowy. */
+function emitTranscript(text: string, isFinal: boolean): void {
+  const rec = speech.instances[speech.instances.length - 1];
+  expect(rec, "brak uruchomionego rozpoznawania mowy").toBeTruthy();
+  act(() => {
+    rec.onresult?.({ results: [{ isFinal, 0: { transcript: text } }] });
+  });
+}
 
 const row = (p: Partial<Record<string, string | number | null>>) => ({
   kind: "post",
@@ -97,6 +165,12 @@ describe("SearchButtonWidget", () => {
     rpc.avatars = [];
     rpc.avatarQueries = [];
     rpc.failAvatars = false;
+    rpc.nullRows = false;
+    rpc.nullAvatars = false;
+    rpc.avatarDelayMs = 0;
+    rpc.rowsQueue = [];
+    speech.instances = [];
+    nav.absent = false;
     nav.navigate.mockReset();
   });
 
@@ -104,9 +178,27 @@ describe("SearchButtonWidget", () => {
     cleanup();
   });
 
+  it("identyfikuje pole jako wyszukiwanie i blokuje menedżery autofill", () => {
+    const { container } = renderWidget();
+    const input = container.querySelector("input[data-mobile-search-input]");
+    expect(input).toHaveAttribute("type", "search");
+    expect(input).toHaveAttribute("name", "site_search_query");
+    expect(input).toHaveAttribute("autocomplete", "one-time-code");
+    expect(input).toHaveAttribute("inputmode", "search");
+    expect(input).toHaveAttribute("data-1p-ignore", "true");
+    expect(input).toHaveAttribute("data-lpignore", "true");
+    expect(input).toHaveAttribute("data-bwignore", "true");
+  });
+
   it("grupuje podpowiedzi w cztery premium kubełki (organizacja w Osobach i organizacjach)", async () => {
     rpc.rows = [
-      row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" }),
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
       row({ kind: "pub_type", id: "t1", slug: "raport", label_pl: "Raport" }),
       row({ kind: "topic", id: "top1", slug: "energia", label_pl: "Energia" }),
       row({ kind: "author", id: "a1", slug: "jan", label_pl: "Jan Kowalski" }),
@@ -145,7 +237,15 @@ describe("SearchButtonWidget", () => {
   });
 
   it("linki stopki (wszystkie wyniki + zaawansowane) zapisują frazę i zamykają popover", async () => {
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget();
     const input = container.querySelector("input")!;
     fireEvent.focus(input);
@@ -166,7 +266,15 @@ describe("SearchButtonWidget", () => {
   });
 
   it("nawigacja klawiaturą: strzałki wybierają opcję, Enter nawiguje do jej celu", async () => {
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget();
     const input = container.querySelector("input")!;
     fireEvent.focus(input);
@@ -184,7 +292,15 @@ describe("SearchButtonWidget", () => {
   });
 
   it("Enter bez wybranej opcji prowadzi do pełnych wyników /search", async () => {
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget();
     const input = container.querySelector("input")!;
     fireEvent.focus(input);
@@ -219,7 +335,15 @@ describe("SearchButtonWidget", () => {
   });
 
   it("przycisk czyszczenia usuwa frazę i wyniki", async () => {
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget();
     const input = container.querySelector("input")! as HTMLInputElement;
     fireEvent.focus(input);
@@ -243,7 +367,15 @@ describe("SearchButtonWidget", () => {
   });
 
   it("tryb bez wyników na żywo: wyszukiwanie dopiero po Enterze", async () => {
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget({ liveResults: false });
     const input = container.querySelector("input")!;
     fireEvent.focus(input);
@@ -272,7 +404,13 @@ describe("SearchButtonWidget", () => {
     rpc.rows = [
       row({ kind: "author", id: "a1", slug: "jan", label_pl: "Jan Kowalski" }),
       row({ kind: "author", id: "a2", slug: "ewa", label_pl: "Ewa Nowak" }),
-      row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" }),
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
     ];
     rpc.avatars = [
       { id: "a1", avatar_url: "https://cdn.example/a1.webp" },
@@ -301,7 +439,15 @@ describe("SearchButtonWidget", () => {
   });
 
   it("przycisk operatora wstawia go w miejsce karetki, nie na koniec", async () => {
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget();
     const input = container.querySelector("input")!;
     fireEvent.focus(input);
@@ -320,7 +466,15 @@ describe("SearchButtonWidget", () => {
   });
 
   it("operator zastępuje zaznaczony fragment frazy", async () => {
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget();
     const input = container.querySelector("input")!;
     fireEvent.focus(input);
@@ -339,7 +493,15 @@ describe("SearchButtonWidget", () => {
   });
 
   it("lupa z frazą przechodzi do pełnych wyników i zapisuje historię", async () => {
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget();
     const input = container.querySelector("input")!;
     fireEvent.focus(input);
@@ -369,7 +531,13 @@ describe("SearchButtonWidget", () => {
 
   it("zakładka kubełka zawęża listę do jednej kategorii", async () => {
     rpc.rows = [
-      row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" }),
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
       row({ kind: "author", id: "a1", slug: "jan", label_pl: "Jan Kowalski" }),
     ];
     const { container } = renderWidget();
@@ -395,7 +563,15 @@ describe("SearchButtonWidget", () => {
   });
 
   it("przycisk czyszczenia historii usuwa ostatnie wyszukiwania", async () => {
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget();
     const input = container.querySelector("input")!;
     fireEvent.focus(input);
@@ -415,7 +591,15 @@ describe("SearchButtonWidget", () => {
   });
 
   it("fraza krótsza niż 2 znaki czyści listę bez odpytywania RPC", async () => {
-    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Tytuł wpisu" })];
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
     const { container } = renderWidget();
     const input = container.querySelector("input")!;
     fireEvent.focus(input);
@@ -447,5 +631,344 @@ describe("SearchButtonWidget", () => {
     });
     expect(container.querySelectorAll("img")).toHaveLength(0);
     warn.mockRestore();
+  });
+
+  // ── GAŁĘZIE ODMOWY I PRZYPADKI BRZEGOWE ────────────────────────────────────
+  // Testy wyżej jadą szczęśliwą ścieżką: jest router, są wiersze, są kolumny.
+  // Poniżej są rozgałęzienia, których czytelnik dotyka najczęściej wtedy, gdy
+  // coś nie działa - brak routera, spóźniona odpowiedź, puste kolumny, pusta
+  // odpowiedź RPC, odmontowanie w trakcie zapytania i dyktowanie głosem.
+
+  it("BEZ routera nawigacja degraduje do twardego przejścia, nie do wyjątku", async () => {
+    nav.absent = true;
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
+    const assign = vi.spyOn(window.location, "assign").mockImplementation(() => {});
+
+    const { container } = renderWidget();
+    const input = container.querySelector("input")!;
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "nato" } });
+    await screen.findByText("Tytuł wpisu");
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(assign).toHaveBeenCalledWith("/search?q=nato");
+    expect(nav.navigate).not.toHaveBeenCalled();
+    assign.mockRestore();
+  });
+
+  it("Enter z frazą KRÓTSZĄ niż 2 znaki nie odpytuje RPC i czyści listę", async () => {
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
+    const { container } = renderWidget({ liveResults: false });
+    const input = container.querySelector("input")!;
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "u" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(rpc.calls).toHaveLength(0);
+    });
+    expect(screen.queryByText("Tytuł wpisu")).toBeNull();
+  });
+
+  it("SPÓŹNIONA odpowiedź starszego zapytania nie nadpisuje wyników nowszego", async () => {
+    rpc.rowsQueue = [
+      [row({ kind: "post", id: "p1", slug: "stare", label_pl: "Stary wynik" })],
+      [row({ kind: "post", id: "p2", slug: "nowe", label_pl: "Nowy wynik" })],
+    ];
+    const { container } = renderWidget({ liveResults: false });
+    const input = container.querySelector("input")!;
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "unia" } });
+    // Dwa Entery W TYM SAMYM takcie: oba zapytania startują, zanim
+    // którekolwiek wróci - pierwsze wraca jako nieaktualne i musi zostać
+    // odrzucone, inaczej użytkownik zobaczy wynik do frazy sprzed chwili.
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(await screen.findByText("Nowy wynik")).toBeTruthy();
+    expect(screen.queryByText("Stary wynik")).toBeNull();
+    expect(rpc.calls).toHaveLength(2);
+  });
+
+  it("RPC bez danych (data: null) pokazuje stan pusty zamiast wywracać widget", async () => {
+    rpc.nullRows = true;
+    const { container } = renderWidget();
+    const input = container.querySelector("input")!;
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "traktat" } });
+
+    expect(await screen.findByText(/Brak wyników dla/)).toBeTruthy();
+    expect(container.textContent).not.toContain("undefined");
+  });
+
+  it("wiersz z PUSTYMI kolumnami nie wypisuje wartości zastępczych ani nie gubi klucza", async () => {
+    rpc.rows = [
+      row({ kind: "topic", id: null, slug: null, label_pl: null, label_en: null, score: null }),
+    ];
+    const { container } = renderWidget();
+    const input = container.querySelector("input")!;
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "energia" } });
+
+    const option = await waitFor(() => {
+      const el = container.querySelector('[role="option"]');
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    // Brak identyfikatora i sluga -> podpowiedź prowadzi do samego /search.
+    expect(option.getAttribute("href")).toBe("/search");
+    for (const leak of ["undefined", "null", "NaN"]) {
+      expect(container.textContent ?? "").not.toContain(leak);
+    }
+  });
+
+  it("wersja EN spada na etykietę PL, gdy kolumna angielska jest pusta", async () => {
+    rpc.rows = [row({ kind: "post", id: "p1", slug: "wpis", label_pl: "Energia", label_en: "" })];
+    const { container } = renderWidget({ lang: "en" });
+    const input = container.querySelector("input")!;
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "en" } });
+
+    expect(await screen.findByText("Energia")).toBeTruthy();
+    // Nagłówki kubełków idą ze słownika EN, więc język jest naprawdę przełączony.
+    expect(screen.getAllByText("Titles").length).toBeGreaterThan(0);
+  });
+
+  it("batch awatarów bez danych (data: null) zostawia ikony, nie puste <img>", async () => {
+    rpc.nullAvatars = true;
+    rpc.rows = [row({ kind: "author", id: "a1", slug: "jan", label_pl: "Jan Kowalski" })];
+
+    const { container } = renderWidget();
+    const input = container.querySelector("input")!;
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "ja" } });
+
+    expect(await screen.findByText("Jan Kowalski")).toBeTruthy();
+    await waitFor(() => {
+      expect(rpc.avatarQueries).toHaveLength(1);
+    });
+    expect(container.querySelectorAll("img")).toHaveLength(0);
+  });
+
+  it("odmontowanie W TRAKCIE batcha awatarów nie dopisuje stanu do martwego drzewa", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    rpc.avatarDelayMs = 30;
+    rpc.avatars = [{ id: "a1", avatar_url: "https://cdn.example/a1.webp" }];
+    rpc.rows = [row({ kind: "author", id: "a1", slug: "jan", label_pl: "Jan Kowalski" })];
+
+    renderWidget();
+    const input = document.querySelector("input")!;
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "ja" } });
+    await screen.findByText("Jan Kowalski");
+    await waitFor(() => {
+      expect(rpc.avatarQueries).toHaveLength(1);
+    });
+
+    cleanup();
+    await new Promise((r) => setTimeout(r, 60));
+
+    expect(document.querySelector("img")).toBeNull();
+    expect(error).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it("BEZ etykiety podpowiedzią pola zostaje nagłówek widgetu", () => {
+    const { container } = renderWidget({ label: "", heading: "Szukaj w serwisie" });
+    const input = container.querySelector("input")!;
+    expect(input.getAttribute("aria-label")).toBe("Szukaj w serwisie");
+    expect(container.querySelector("label.user-label")?.textContent).toBe("Szukaj w serwisie");
+  });
+
+  it("BEZ etykiety i nagłówka pole bierze napis ze słownika wyszukiwarki", () => {
+    const { container } = renderWidget({ label: "", heading: "" });
+    // "Szukaj" = `search.widget.search` z `@/lib/i18n-search` (PL).
+    expect(container.querySelector("label.user-label")?.textContent).toBe("Szukaj");
+    expect(container.querySelector("input")?.getAttribute("aria-label")).toBe("Szukaj");
+  });
+
+  it("wysokość 0 z panelu spada na domyślne 36 px zamiast zapadać się do zera", () => {
+    const { container } = renderWidget({ height: 0 });
+    const input = container.querySelector("input")!;
+    expect(input.style.height).toBe("36px");
+    expect(input.style.minHeight).toBe("36px");
+  });
+
+  it("operator ląduje na KOŃCU frazy, gdy przeglądarka nie raportuje karetki", async () => {
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
+    const { container } = renderWidget();
+    const input = container.querySelector("input")!;
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "unia" } });
+    expect(await screen.findByText("Tytuł wpisu")).toBeTruthy();
+
+    // Pole bez raportowanej karetki (selectionStart/End === null) - tak
+    // zachowują się pola typu search/email w części przeglądarek.
+    Object.defineProperty(input, "selectionStart", { configurable: true, get: () => null });
+    Object.defineProperty(input, "selectionEnd", { configurable: true, get: () => null });
+
+    const and = screen
+      .getAllByTitle("Wstaw operator do zapytania")
+      .find((b) => b.textContent === "AND")!;
+    fireEvent.mouseDown(and);
+
+    expect(input.value).toBe("unia AND ");
+  });
+
+  it("dyktowanie: transkrypcja płynie do pola i otwiera podpowiedzi", async () => {
+    installSpeechRecognition();
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
+    const { container } = renderWidget();
+    const input = container.querySelector("input")! as HTMLInputElement;
+
+    const mic = await screen.findByRole("button", { name: "Wyszukiwanie głosowe" });
+    fireEvent.click(mic);
+    await waitFor(() => {
+      expect(speech.instances).toHaveLength(1);
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Zatrzymaj dyktowanie" }).getAttribute("aria-pressed"),
+      ).toBe("true");
+    });
+
+    emitTranscript("unia europejska", false);
+    expect(input.value).toBe("unia europejska");
+    expect(await screen.findByText("Tytuł wpisu")).toBeTruthy();
+  });
+
+  it("dyktowanie BEZ wyników na żywo: finalna transkrypcja sama odpala wyszukiwanie", async () => {
+    installSpeechRecognition();
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
+    const { container } = renderWidget({ liveResults: false });
+    const input = container.querySelector("input")! as HTMLInputElement;
+
+    fireEvent.click(await screen.findByRole("button", { name: "Wyszukiwanie głosowe" }));
+    await waitFor(() => {
+      expect(speech.instances).toHaveLength(1);
+    });
+
+    emitTranscript("traktat lizbonski", true);
+    expect(input.value).toBe("traktat lizbonski");
+    expect(await screen.findByText("Tytuł wpisu")).toBeTruthy();
+    expect(rpc.calls).toHaveLength(1);
+  });
+
+  // ── REGRESJA CLS: rezerwa miejsca na mikrofon ──────────────────────────────
+  // `useVoiceSearch` rozstrzyga `supported` DOPIERO w efekcie po hydratacji
+  // (serwer i pierwsza klatka klienta zawsze widzą `false`). Pasek ikon jest
+  // kotwiczony do PRAWEJ krawędzi pola (`right: pad`), więc doklejenie
+  // separatora i mikrofonu poszerzało go W LEWO i przesuwało lupę oraz
+  // „wyczyść" o 27 px - to jest resztkowe 0,00005 CLS z raportu K7. Test
+  // pilnuje, że oba renderowania mają TĘ SAMĄ sekwencję pudełek w pasku
+  // i TĘ SAMĄ rezerwę pola, a różnią się wyłącznie widocznością.
+  const dropSpeechRecognition = (): void => {
+    const w = window as unknown as Record<string, unknown>;
+    delete w.webkitSpeechRecognition;
+    delete w.SpeechRecognition;
+  };
+
+  /** Klasy kolejnych dzieci paska ikon - podpis geometrii, nie wyglądu. */
+  const toolbarBoxes = (container: HTMLElement): string[] =>
+    Array.from(
+      container.querySelector<HTMLElement>("div.absolute.top-0")!.children,
+      (el) => el.className,
+    );
+
+  const trailingReserve = (container: HTMLElement): string =>
+    (container.querySelector("input") as HTMLInputElement).style.paddingRight;
+
+  it("REGRESJA CLS: pasek ikon ma TĘ SAMĄ geometrię bez i z obsługą dyktowania", async () => {
+    dropSpeechRecognition();
+    const bez = renderWidget();
+    const bezBoxes = toolbarBoxes(bez.container);
+    const bezReserve = trailingReserve(bez.container);
+    const bezMic = bez.container.querySelector<HTMLButtonElement>("button[data-voice-unsupported]");
+    // Mikrofon JEST w układzie, tylko niewidoczny i wyjęty z interakcji.
+    expect(bezMic, "brak zarezerwowanego pudełka mikrofonu").toBeTruthy();
+    expect(bezMic!.style.visibility).toBe("hidden");
+    expect(bezMic!.hasAttribute("inert")).toBe(true);
+    expect(screen.queryByRole("button", { name: "Wyszukiwanie głosowe" })).toBeNull();
+    cleanup();
+
+    installSpeechRecognition();
+    const zBoxem = renderWidget();
+    await screen.findByRole("button", { name: "Wyszukiwanie głosowe" });
+    const zBoxes = toolbarBoxes(zBoxem.container);
+    const mic = zBoxem.container.querySelector<HTMLButtonElement>("button[data-voice-unsupported]");
+
+    // Ta sama liczba i te same klasy pudełek => ta sama szerokość paska.
+    expect(zBoxes).toEqual(bezBoxes);
+    // Ta sama rezerwa pod ikonami => `padding-right` pola się nie rusza.
+    expect(trailingReserve(zBoxem.container)).toBe(bezReserve);
+    expect(mic, "mikrofon nie powinien być już oznaczony jako niedostępny").toBeNull();
+    dropSpeechRecognition();
+  });
+
+  it("klik POZA widgetem zamyka megabox (handler dokumentu)", async () => {
+    rpc.rows = [
+      row({
+        kind: "post",
+        id: "p1",
+        slug: "wpis",
+        label_pl: "Tytuł wpisu",
+        parent_page_id: "pg-1",
+      }),
+    ];
+    const { container } = renderWidget();
+    const input = container.querySelector("input")!;
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "unia" } });
+    expect(await screen.findByText("Tytuł wpisu")).toBeTruthy();
+
+    // Klik w cel spoza `wrapRef` - dokładnie ten warunek zamyka popover.
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+    fireEvent.mouseDown(outside);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Tytuł wpisu")).toBeNull();
+    });
+    outside.remove();
   });
 });

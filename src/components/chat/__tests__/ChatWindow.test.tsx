@@ -279,7 +279,7 @@ describe("ChatWindow - nagłówek wątku bezpośredniego", () => {
     expect(screen.getByText(chatPl.chat.offline)).toBeTruthy();
   });
 
-  it("presence rozmówcy przełącza podtytuł na online", () => {
+  it("presence rozmówcy przełącza dostępną etykietę na online", () => {
     h.online = new Set([CHAT_IDS.peer]);
     renderWindow();
     expect(screen.getByText(chatPl.chat.online)).toBeTruthy();

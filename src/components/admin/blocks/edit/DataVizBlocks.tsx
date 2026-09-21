@@ -7,7 +7,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import type { Block, Json } from "@/lib/blocks/types";
-import { Plus, Trash2 } from "lucide-react";
+// `toJson` zamiast `as unknown as Json` w miejscu użycia: podwójne
+// rzutowanie omija kontrolę typów tak samo jak `as any`, tylko nie zapala
+// reguły lintera - dlatego repo trzyma ten escape-hatch w JEDNYM
+// audytowalnym miejscu, a bramka `check:unknown-casts` pilnuje, żeby nie
+// rozsypał się po komponentach.
+import { toJson } from "@/lib/content-model/json";
+import { Plus, Trash2, TriangleAlert } from "lucide-react";
 import { AdminSelect } from "../AdminSelect";
 import {
   CHART_HEIGHT_MAX,
@@ -15,11 +21,41 @@ import {
   MAX_CATEGORIES,
   parseChartConfig,
   parseDataMapConfig,
+  parseMapRegion,
 } from "@/lib/charts/parse";
-import { MAX_SERIES, type ChartKind, type MapRegion } from "@/lib/charts/types";
+import {
+  CATEGORICAL_SAFE_SERIES,
+  MAP_REGIONS,
+  mapRegionLabelKey,
+  MAX_COLOR_SLOT,
+  MAX_SERIES,
+  PIE_MAX_SLICES,
+  type ChartKind,
+  type MapRegion,
+} from "@/lib/charts/types";
+import { pieModel } from "@/components/charts/pieModel";
+import {
+  isForecastMissingBand,
+  pieFormAdvice,
+  seriesOverSafePalette,
+  PIE_CLOSE_SHARES_PP,
+} from "@/lib/charts/honesty";
+import {
+  BAR_STYLES,
+  CHART_SLOTS,
+  slotForSeries,
+  SLOTS_CLASHING_WITH_SIGN,
+} from "@/lib/charts/palette";
+import { chartFormAdvice } from "@/lib/charts/formAdvice";
+import type { ChartLang } from "@/lib/charts/format";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-charts";
+import "@/lib/i18n-charts-editor";
 import { geoAssetQueryOptions } from "@/lib/charts/geoQuery";
 import { Chart } from "@/components/charts/Chart";
 import { ChoroplethMap } from "@/components/charts/ChoroplethMap";
+import { DataImportControl } from "@/components/admin/blocks/DataImportControl";
+import { buildCountryIndex, tableToChartData, tableToMapValues } from "@/lib/charts/importTable";
 
 interface Props {
   block: Block;
@@ -33,6 +69,39 @@ const KIND_OPTIONS: ReadonlyArray<{ value: ChartKind; labelKey: string }> = [
   { value: "area", labelKey: "kinds.area" },
   { value: "pie", labelKey: "kinds.pie" },
   { value: "donut", labelKey: "kinds.donut" },
+  // Wodospad jest narzędziem DOMYŚLNYM dla każdego pytania "od czego do
+  // czego" - mostek EBITDA rok do roku, dekompozycja zmiany marży. Te same
+  // dane słupkami obok siebie zmuszają czytelnika do dodawania w głowie.
+  { value: "waterfall", labelKey: "kinds.waterfall" },
+  // Histogram odpowiada na pytanie "jaki jest rozkład", a nie "ile jest".
+  // Kolumna "Czego unikać" z tabeli doboru formy zabrania przy rozkładzie
+  // średniej bez rozproszenia - stąd komplet pozycyjny w tabeli danych.
+  { value: "histogram", labelKey: "kinds.histogram" },
+  // Trzy formy na jedno pytanie o rozkład, bo różnią się tym, ILE ukrywają:
+  // histogram grupuje w przedziały, boxplot podsumowuje pięcioma liczbami,
+  // beeswarm nie ukrywa nic. Wybór między nimi zależy od liczby obserwacji
+  // i model każdego z nich doradza autorowi, kiedy ta forma jest zła.
+  { value: "boxplot", labelKey: "kinds.boxplot" },
+  { value: "beeswarm", labelKey: "kinds.beeswarm" },
+  // Punktowy czyta DWIE serie: pierwsza to os X, druga to os Y. Bez
+  // drugiej serii model stawia na osi X pozycje w szeregu i sam to
+  // zglasza, bo wtedy nie jest to wykres zaleznosci.
+  { value: "scatter", labelKey: "kinds.scatter" },
+  // Mapa ciepła czyta kategorie jako WIERSZE, a serie jako KOLUMNY, więc
+  // ten sam blok danych, który daje słupki grupowane, daje macierz.
+  { value: "heatmap", labelKey: "kinds.heatmap" },
+  // Tornado czyta kategorie jako PARAMETRY, a dwie pierwsze serie jako
+  // wyniki przy wartości niskiej i wysokiej. Wynik bazowy jest osobną
+  // liczbą, nie kategorią - patrz `tornadoModelFromConfig`.
+  { value: "tornado", labelKey: "kinds.tornado" },
+  // CZTERY RODZAJE SEKCJI 1 DOŁOŻONE RAZEM, bo `chartKinds.test.ts` pyta
+  // w obie strony: każdy rodzaj z `CHART_KINDS` musi tu być, a każda wartość
+  // stąd musi być znanym rodzajem. Połowa podłączenia jest czerwona z obu
+  // stron naraz.
+  { value: "fan", labelKey: "kinds.fan" },
+  { value: "index-base", labelKey: "kinds.indexBase" },
+  { value: "percent-stacked", labelKey: "kinds.percentStacked" },
+  { value: "small-multiples", labelKey: "kinds.smallMultiples" },
 ];
 
 function Shell({ label, children }: { label: string; children?: React.ReactNode }) {
@@ -75,9 +144,9 @@ function readSeries(raw: Json | undefined, rows: number): SeriesDraft[] {
         return null;
       }),
       colorSlot:
-        typeof o.colorSlot === "number" && o.colorSlot >= 1 && o.colorSlot <= MAX_SERIES
+        typeof o.colorSlot === "number" && o.colorSlot >= 1 && o.colorSlot <= MAX_COLOR_SLOT
           ? Math.round(o.colorSlot)
-          : si + 1,
+          : slotForSeries(si),
     };
   });
 }
@@ -98,9 +167,84 @@ export function ChartBlock({ block, onChange }: Props) {
   const series = readSeries(block.data.series, categories.length);
   const kind = String(block.data.variant ?? block.data.kind ?? "bar");
   const previewConfig = useMemo(() => parseChartConfig(block.data), [block.data]);
+  // `keyPrefix` haka, nie sklejanie szablonem - inaczej bramka rozjazdu
+  // kod<->słownik nie sprawdzi tych kluczy wcale.
+  const { t: ct, i18n } = useTranslation("translation", { keyPrefix: "charts" });
+  // Język do LICZB w zaleceniach formy (próg R², udział zasłoniętych punktów).
+  // Treść zdania idzie przez `ct`, czyli w języku panelu, więc liczba
+  // sformatowana innym językiem dawałaby angielskie zdanie z polskim
+  // przecinkiem dziesiętnym.
+  const lang: ChartLang = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
 
   const patch = (data: Record<string, Json>) =>
     onChange({ ...block, data: { ...block.data, ...data } });
+
+  const smoothing =
+    typeof block.data.smoothing === "number"
+      ? Math.max(0, Math.min(1, block.data.smoothing))
+      : 0.55;
+
+  const metricRaw = (block.data.metric ?? {}) as Record<string, Json>;
+  const metric = {
+    name: String(metricRaw.name ?? ""),
+    expansion: String(metricRaw.expansion ?? ""),
+    formula: String(metricRaw.formula ?? ""),
+    measures: String(metricRaw.measures ?? ""),
+    reading: String(metricRaw.reading ?? ""),
+    levers: String(metricRaw.levers ?? ""),
+    caution: String(metricRaw.caution ?? ""),
+  };
+  const patchMetric = (next: Partial<typeof metric>) =>
+    patch({ metric: toJson({ ...metric, ...next }) });
+
+  // ---- OSTRZEŻENIA DYSCYPLINY ----
+  // Reguły doboru formy i palety, których kod NIE MOŻE wymusić, bo mają
+  // wyjątki - ale których milczenie kosztuje czytelność. Liczone z tego samego
+  // configu, który idzie do podglądu, więc autor widzi ostrzeżenie obok
+  // wykresu, którego ono dotyczy.
+  const overSafePalette = seriesOverSafePalette(previewConfig, CATEGORICAL_SAFE_SERIES);
+  const usedSlots = series.map((s) => s.colorSlot);
+  const isPie = kind === "pie" || kind === "donut";
+  const isWaterfall = kind === "waterfall";
+  const sliceOverflow = isPie ? Math.max(0, categories.length - PIE_MAX_SLICES) : 0;
+  // TRZY GRANICE PIERŚCIENIA, policzone z tego samego modelu, który rysuje
+  // tarczę - inaczej ostrzeżenie mówiłoby o innym zestawie wycinków niż ten
+  // w podglądzie obok. Udziały idą z modelu, bo mianownik (suma DODATNICH)
+  // jest jego rozstrzygnięciem, a nie regułą uczciwości.
+  const pieAdvice = useMemo(() => {
+    if (!isPie) return [];
+    // Język nie ma tu znaczenia: z modelu czytamy WYŁĄCZNIE liczby (udziały
+    // i liczbę dodatnich), a tłumaczeniu podlega jedynie nazwa wycinka
+    // zbiorczego, której to sprawdzenie nie dotyka.
+    const model = pieModel(previewConfig, "pl");
+    return pieFormAdvice(
+      model.slices.map((s) => s.share),
+      { positives: model.positives, maxSlices: PIE_MAX_SLICES },
+    );
+  }, [isPie, previewConfig]);
+  // Terakota wypada z palety TYLKO na wykresie, który koduje znak czerwienią -
+  // czyli na mostku. Na zwykłych kolumnach reguła nie obowiązuje i krzyczenie
+  // o niej byłoby szumem.
+  // ZALECENIA FORMY DLA AUTORA: „ten rodzaj jest tu złym wyborem, weź inny".
+  // Do tego PR-a te zdania stały POD OPUBLIKOWANYM WYKRESEM, bo pisał je
+  // render - czyli czytelnik dostawał instrukcję dla autora, której nie ma
+  // jak wykonać. Teraz render pisze wyłącznie OBSERWACJĘ (`reading.*`),
+  // a zalecenie (`advice.*`) trafia tutaj, obok pola, którym autor rodzaj
+  // zmienia. Liczone z tego samego `previewConfig`, który idzie do podglądu.
+  const formAdvice = useMemo(() => chartFormAdvice(previewConfig, lang), [previewConfig, lang]);
+  const signClash =
+    isWaterfall && usedSlots.some((slot) => SLOTS_CLASHING_WITH_SIGN.includes(slot));
+  // OCHRA WOBEC AKCENTU NIE JEST TU OSTRZEŻENIEM, i to jest decyzja, nie
+  // przeoczenie. Kolizja ochry z pomarańczowym akcentem marki (przy
+  // deuteranopii dystans 1,6, czyli praktycznie ten sam kolor) jest FAKTEM
+  // PALETY i pilnuje jej bramka `__tests__/palette.test.ts`. Autor nie ma
+  // jednak żadnego pola, którym wprowadza akcent do wykresu: w silniku
+  // `--chart-accent` występuje wyłącznie jako obwódka fokusu, czyli stan
+  // przelotny i sterowany klawiaturą, nigdy jako kolor danych. Ostrzeżenie
+  // odpalało się więc zawsze, gdy użyto slotu 2 - a slot 2 jest domyślnym
+  // kolorem DRUGIEJ SERII, czyli komunikat wisiał nad niemal każdym wykresem
+  // o dwóch seriach. Ostrzeżenie, które widać zawsze, uczy ignorowania
+  // wszystkich ostrzeżeń, w tym tych o realnej kolizji znaku (`signClash`).
 
   const setCategories = (next: string[], nextSeries?: SeriesDraft[]) =>
     patch({
@@ -116,6 +260,25 @@ export function ChartBlock({ block, onChange }: Props) {
       <div className="pointer-events-none">
         <Chart config={{ ...previewConfig, animate: false }} lang="pl" className="my-0" />
       </div>
+
+      {overSafePalette > 0 && (
+        <Warning text={ct("editor.tooManySeries", { max: CATEGORICAL_SAFE_SERIES })} />
+      )}
+      {sliceOverflow > 0 && <Warning text={ct("editor.tooManySlices", { max: PIE_MAX_SLICES })} />}
+      {/* `tooMany` pokrywa się z `sliceOverflow` (oba mówią o przekroczeniu
+          limitu wycinków), więc go nie powtarzamy - został w module
+          uczciwości dla wywołujących bez własnego licznika kategorii. */}
+      {pieAdvice.includes("tooFew") && <Warning text={ct("editor.pieTooFewSlices")} />}
+      {pieAdvice.includes("tooClose") && (
+        <Warning text={ct("editor.pieClosePercentages", { pp: PIE_CLOSE_SHARES_PP })} />
+      )}
+      {signClash && <Warning text={ct("editor.signClashesWithTerracotta")} />}
+      {/* Klucz Reacta to NAZWA PORADY, nie indeks: lista zmienia się przy
+          każdej edycji arkusza, a indeks kazałby Reactowi utrzymać stan
+          ostrzeżenia, które zniknęło, na miejscu innego. */}
+      {formAdvice.map((m) => (
+        <Warning key={m.advice} text={ct(m.key, m.values)} />
+      ))}
 
       <div className="grid grid-cols-2 gap-2">
         <AdminSelect
@@ -136,6 +299,29 @@ export function ChartBlock({ block, onChange }: Props) {
           onChange={(e) => patch({ unit: e.target.value })}
         />
       </div>
+
+      {/* WARIANT WYPEŁNIENIA SŁUPKÓW. Bez tej kontrolki `gradient` i `solid`
+          były nieosiągalne z żadnego wspieranego interfejsu - istniały
+          w parserze i w silniku, ale autor mógł je ustawić wyłącznie ręczną
+          edycją zapisanego JSON-a. Pokazujemy ją tylko tam, gdzie są słupki:
+          tarcza i linia nie mają czego wypełniać, a mostek ma.
+          Silnik i tak wymusza `solid` przy wielu seriach, skumulowanych
+          i kreskowanych (blade wnętrze nie niesie tożsamości serii), więc
+          wybór autora jest życzeniem, nie obietnicą - i to jest zamierzone. */}
+      {(kind === "bar" || kind === "bar-horizontal" || isWaterfall) && (
+        <AdminSelect
+          className={inputCls}
+          value={String(block.data.barStyle ?? "pale")}
+          onChange={(e) => patch({ barStyle: e.target.value })}
+          aria-label={bt.editor("chart", "barStyle")}
+        >
+          {BAR_STYLES.map((style) => (
+            <option key={style} value={style}>
+              {bt.editor("chart", `barStyles.${style}`)}
+            </option>
+          ))}
+        </AdminSelect>
+      )}
       <input
         className={inputCls}
         value={String(block.data.title ?? "")}
@@ -149,6 +335,27 @@ export function ChartBlock({ block, onChange }: Props) {
         onChange={(e) => patch({ description: e.target.value })}
       />
 
+      {/* IMPORT Z PLIKU stoi NAD arkuszem, bo go NADPISUJE w całości.
+          Pod spodem wyglądałby na „dopisz do tego, co jest" - a wczytanie
+          pliku wymienia kategorie i serie, nie dokłada ich. */}
+      <DataImportControl
+        hint={bt.editor("dataImport", "hintChart")}
+        onRows={(rows) => {
+          const dane = tableToChartData(rows);
+          patch({
+            categories: dane.categories,
+            series: seriesToJson(
+              dane.series.map((s) => ({
+                name: s.name,
+                values: [...s.values],
+                colorSlot: s.colorSlot,
+              })),
+            ),
+          });
+          return dane.problems;
+        }}
+      />
+
       {/* Arkusz danych: wiersz = kategoria, kolumny = serie. */}
       <div className="overflow-x-auto">
         <table className="w-full border-separate border-spacing-1">
@@ -160,11 +367,44 @@ export function ChartBlock({ block, onChange }: Props) {
               {series.map((s, si) => (
                 <th key={si} className="min-w-[96px] px-0">
                   <div className="flex items-center gap-1">
-                    <span
-                      aria-hidden
-                      className="h-2.5 w-2.5 shrink-0 rounded-[3px]"
-                      style={{ background: `var(--chart-${s.colorSlot})` }}
-                    />
+                    {/* WYBÓR KOLORU SERII, nie sama próbka. Paleta ma
+                        `MAX_COLOR_SLOT` odcieni i bez tej kontrolki autor
+                        dosięgałby wyłącznie tych, które silnik przydzieli sam.
+                        Próbka zostaje - jest tłem kontrolki - więc autor widzi
+                        kolor, zanim otworzy listę. Nazwy slotów mówią, co się
+                        wybiera; przy odcieniach rozdzielnych dla daltonizmu
+                        lista mówi to wprost, bo to jedyna informacja, której
+                        nie da się odczytać z samego koloru. */}
+                    <label className="relative h-4 w-4 shrink-0">
+                      <span
+                        aria-hidden
+                        className="pointer-events-none absolute inset-0 rounded-[3px] border border-border"
+                        style={{ background: `var(--chart-${s.colorSlot})` }}
+                      />
+                      <select
+                        className="absolute inset-0 cursor-pointer opacity-0"
+                        aria-label={bt.editor("chart", "seriesColor", {
+                          name: s.name || String(si + 1),
+                        })}
+                        value={s.colorSlot}
+                        onChange={(e) => {
+                          const slot = Number(e.target.value);
+                          setSeries(
+                            series.map((x, i) => (i === si ? { ...x, colorSlot: slot } : x)),
+                          );
+                        }}
+                      >
+                        {CHART_SLOTS.map((slot) => (
+                          <option key={slot.slot} value={slot.slot}>
+                            {bt.editor(
+                              "chart",
+                              slot.cvdSafe ? "seriesColorSafe" : "seriesColorPlain",
+                              { key: slot.key },
+                            )}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     <input
                       className={cellCls}
                       value={s.name}
@@ -199,7 +439,7 @@ export function ChartBlock({ block, onChange }: Props) {
                         {
                           name: "",
                           values: categories.map(() => null),
-                          colorSlot: series.length + 1,
+                          colorSlot: slotForSeries(series.length),
                         },
                       ])
                     }
@@ -343,13 +583,202 @@ export function ChartBlock({ block, onChange }: Props) {
           {Number(block.data.height ?? 320)}px
         </span>
       </div>
-      <input
-        className={inputCls}
-        value={String(block.data.source ?? "")}
-        placeholder={bt.editor("chart", "source")}
-        onChange={(e) => patch({ source: e.target.value })}
-      />
+      {/* ---- PODPIS UCZCIWOŚCIOWY ----
+          Jednostka, źródło, DATA DANYCH, `n` i trzy zdania. Cztery z tych pól
+          autor pominąłby, gdyby ich nie było w formie - a wykres bez nich
+          wygląda dokładnie tak samo i znaczy co innego. */}
+      <FieldGroup label={bt.editor("chart", "honestyLabel")}>
+        <input
+          className={inputCls}
+          value={String(block.data.source ?? "")}
+          placeholder={bt.editor("chart", "source")}
+          onChange={(e) => patch({ source: e.target.value })}
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            className={inputCls}
+            value={String(block.data.sourceDate ?? "")}
+            placeholder={bt.editor("chart", "sourceDate")}
+            onChange={(e) => patch({ sourceDate: e.target.value })}
+          />
+          <input
+            className={inputCls}
+            inputMode="numeric"
+            value={block.data.sampleSize == null ? "" : String(block.data.sampleSize)}
+            placeholder={bt.editor("chart", "sampleSize")}
+            onChange={(e) => {
+              const raw = e.target.value.trim();
+              patch({ sampleSize: raw === "" ? null : Number(raw) });
+            }}
+          />
+        </div>
+        <input
+          className={inputCls}
+          value={String(block.data.notesShows ?? "")}
+          placeholder={bt.editor("chart", "notesShows")}
+          onChange={(e) => patch({ notesShows: e.target.value })}
+        />
+        <input
+          className={inputCls}
+          value={String(block.data.notesSurprising ?? "")}
+          placeholder={bt.editor("chart", "notesSurprising")}
+          onChange={(e) => patch({ notesSurprising: e.target.value })}
+        />
+        <input
+          className={inputCls}
+          value={String(block.data.notesHidden ?? "")}
+          placeholder={bt.editor("chart", "notesHidden")}
+          onChange={(e) => patch({ notesHidden: e.target.value })}
+        />
+        {!String(block.data.notesHidden ?? "").trim() && (
+          <Warning text={ct("editor.missingNotes")} />
+        )}
+      </FieldGroup>
+
+      {/* ---- KSZTAŁT I PROGNOZA ---- */}
+      <FieldGroup label={bt.editor("chart", "shapeLabel")}>
+        <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={5}
+            value={Math.round(smoothing * 100)}
+            onChange={(e) => patch({ smoothing: Number(e.target.value) / 100 })}
+            aria-label={bt.editor("chart", "smoothing")}
+          />
+          <span className="text-xs tabular-nums text-muted-foreground w-14 text-right">
+            {Math.round(smoothing * 100)}%
+          </span>
+        </div>
+        <p className="text-[10px] text-muted-foreground">{bt.editor("chart", "smoothingHint")}</p>
+        <div className="grid grid-cols-2 gap-2">
+          {/* NUMER KATEGORII, NIE INDEKS - i dlatego to pole przelicza w obie
+              strony. Etykieta mówi redaktorowi „od kategorii numer", a ludzie
+              liczą kategorie od jednej: pierwsza to 1. Silnik trzyma tę samą
+              wartość jako INDEKS liczony od zera (`forecastFrom` wchodzi do
+              `i >= forecastFrom` i do `catCenter(forecastFrom)`), więc bez
+              przeliczenia redaktor wpisujący 2 dostawał prognozę od TRZECIEJ
+              kategorii - o jedną za daleko, cicho i na każdym wykresie.
+              Zamiana strony zapisu na liczenie od jednej byłaby gorsza:
+              przeniosłaby korektę o jeden do silnika, czyli do kodu, który
+              indeksuje tablice. */}
+          <input
+            className={inputCls}
+            inputMode="numeric"
+            value={
+              typeof block.data.forecastFrom === "number" ? String(block.data.forecastFrom + 1) : ""
+            }
+            placeholder={bt.editor("chart", "forecastFrom")}
+            onChange={(e) => {
+              const raw = e.target.value.trim();
+              const numer = Number(raw);
+              patch({
+                forecastFrom: raw === "" || !Number.isFinite(numer) ? null : Math.round(numer) - 1,
+              });
+            }}
+          />
+          <input
+            className={inputCls}
+            inputMode="numeric"
+            value={block.data.forecastBandPct == null ? "" : String(block.data.forecastBandPct)}
+            placeholder={bt.editor("chart", "forecastBandPct")}
+            onChange={(e) => {
+              const raw = e.target.value.trim();
+              patch({ forecastBandPct: raw === "" ? 0 : Number(raw) });
+            }}
+          />
+        </div>
+        <p className="text-[10px] text-muted-foreground">
+          {bt.editor("chart", "forecastFromHint")}
+        </p>
+        {isForecastMissingBand(previewConfig) && (
+          <Warning text={ct("editor.forecastWithoutBand")} />
+        )}
+      </FieldGroup>
+
+      {/* ---- WYJAŚNIENIE WSKAŹNIKA ----
+          Tooltip o STAŁYCH pięciu polach. Pozostałe pola pokazują się dopiero
+          po podaniu skrótu, bo bez nazwy nie ma czego zaczepić ikony. */}
+      <FieldGroup label={bt.editor("chart", "metricLabel")}>
+        <input
+          className={inputCls}
+          value={metric.name}
+          placeholder={bt.editor("chart", "metricName")}
+          onChange={(e) => patchMetric({ name: e.target.value })}
+        />
+        {metric.name.trim() !== "" && (
+          <>
+            <input
+              className={inputCls}
+              value={metric.expansion}
+              placeholder={bt.editor("chart", "metricExpansion")}
+              onChange={(e) => patchMetric({ expansion: e.target.value })}
+            />
+            <input
+              className={inputCls}
+              value={metric.formula}
+              placeholder={bt.editor("chart", "metricFormula")}
+              onChange={(e) => patchMetric({ formula: e.target.value })}
+            />
+            <input
+              className={inputCls}
+              value={metric.measures}
+              placeholder={bt.editor("chart", "metricMeasures")}
+              onChange={(e) => patchMetric({ measures: e.target.value })}
+            />
+            <input
+              className={inputCls}
+              value={metric.reading}
+              placeholder={bt.editor("chart", "metricReading")}
+              onChange={(e) => patchMetric({ reading: e.target.value })}
+            />
+            <input
+              className={inputCls}
+              value={metric.levers}
+              placeholder={bt.editor("chart", "metricLevers")}
+              onChange={(e) => patchMetric({ levers: e.target.value })}
+            />
+            <input
+              className={inputCls}
+              value={metric.caution}
+              placeholder={bt.editor("chart", "metricCaution")}
+              onChange={(e) => patchMetric({ caution: e.target.value })}
+            />
+          </>
+        )}
+      </FieldGroup>
     </Shell>
+  );
+}
+
+/** Sekcja formy z podpisem - grupuje pola, których autor inaczej nie znajdzie. */
+function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5 rounded-md border border-border/60 p-2">
+      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Ostrzeżenie dyscypliny. NIE BLOKUJE zapisu - mówi, co się psuje, i zostawia
+ * decyzję autorowi. Blokada byłaby tu gorsza: reguły doboru formy mają
+ * wyjątki, których kod nie zna, a zablokowany autor obchodzi walidację
+ * zamiast czytać powód.
+ */
+function Warning({ text }: { text: string }) {
+  return (
+    <p
+      className="flex items-start gap-1.5 text-[11px] leading-snug"
+      style={{ color: "var(--chart-negative-text)" }}
+    >
+      <TriangleAlert className="mt-px h-3 w-3 shrink-0" aria-hidden />
+      <span>{text}</span>
+    </p>
   );
 }
 
@@ -374,7 +803,11 @@ function readMapValues(raw: Json | undefined): MapRowDraft[] {
 
 export function DataMapBlock({ block, onChange }: Props) {
   const bt = useBlocksI18n();
-  const region: MapRegion = String(block.data.region ?? "europe") === "world" ? "world" : "europe";
+  // Region idzie przez parser bloku, a nie przez porównanie z dwoma literałami:
+  // ta sama droga, co w renderze publicznym, więc podgląd nad formą pokazuje
+  // DOKŁADNIE to, co zobaczy czytelnik - także wtedy, gdy w treści siedzi
+  // region z nowszej wersji edytora.
+  const region: MapRegion = parseMapRegion(block.data.region);
   const rows = readMapValues(block.data.values);
   const previewConfig = useMemo(() => parseDataMapConfig(block.data), [block.data]);
 
@@ -407,8 +840,15 @@ export function DataMapBlock({ block, onChange }: Props) {
           value={region}
           onChange={(e) => patch({ region: e.target.value })}
         >
-          <option value="europe">{bt.editor("dataMap", "europe")}</option>
-          <option value="world">{bt.editor("dataMap", "world")}</option>
+          {/* Opcje WYPROWADZONE ze źródła regionów - wcześniej stały tu dwa
+              ręcznie wpisane `<option>`, więc dołożenie regionu wymagało
+              dotknięcia edytora i było o jedno przeoczenie od regionu, którego
+              autor nie mógł wybrać, choć silnik już go umiał narysować. */}
+          {MAP_REGIONS.map((r) => (
+            <option key={r} value={r}>
+              {bt.editor("dataMap", mapRegionLabelKey(r))}
+            </option>
+          ))}
         </AdminSelect>
         <input
           className={inputCls}
@@ -428,6 +868,18 @@ export function DataMapBlock({ block, onChange }: Props) {
         value={String(block.data.description ?? "")}
         placeholder={bt.editor("common", "subtitle")}
         onChange={(e) => patch({ description: e.target.value })}
+      />
+
+      {/* Skorowidz nazw powstaje z TEGO SAMEGO zasobu, który rysuje mapę,
+          więc kraj spoza wybranego regionu wyjdzie jako nierozpoznany
+          zamiast wejść do danych i nigdy się nie narysować. */}
+      <DataImportControl
+        hint={bt.editor("dataImport", "hintMap")}
+        onRows={(rowsIn) => {
+          const wynik = tableToMapValues(rowsIn, buildCountryIndex(geo.data?.countries ?? []));
+          patch({ values: wynik.values.map((v) => ({ id: v.id, value: v.value })) });
+          return wynik.problems;
+        }}
       />
 
       <div className="space-y-1.5">

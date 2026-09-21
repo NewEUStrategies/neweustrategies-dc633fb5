@@ -34,7 +34,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(37);
+SELECT plan(39);
 
 -- ── Seed ────────────────────────────────────────────────────────────────────
 -- Dwa tenanty: A (obszar roboczy testowany) i B (obcy, do izolacji).
@@ -92,7 +92,7 @@ INSERT INTO public.crm_companies (id, tenant_id, name) VALUES
   ('c9c00000-0000-0000-0000-0000000000c2', 'c9222222-2222-2222-2222-222222222222',
    'Firma z tenanta B');
 
--- ── A. Własność kolumn i zasięg triggerów (1-7) ──────────────────────────────
+-- ── A. Własność kolumn i zasięg triggerów ──────────────────────────────
 SELECT has_function('public', 'profiles_guard_verification', 'bramka weryfikacji istnieje');
 
 SELECT ok(
@@ -150,7 +150,7 @@ SELECT is(
   'bramka firmy pilnuje BEFORE INSERT OR UPDATE (wiersz nie rodzi się z obcą firmą)'
 );
 
--- ── B. Predykat can_manage_profile_verification (8-11) ───────────────────────
+-- ── B. Predykat can_manage_profile_verification ───────────────────────
 -- Jedno źródło prawdy dla czterech ścieżek: trigger, RPC panelu, RPC domen
 -- weryfikacji i polityka RLS `verification_domains`.
 SET LOCAL ROLE authenticated;
@@ -175,14 +175,14 @@ SELECT set_config('request.jwt.claims',
 SELECT is(public.can_manage_profile_verification(), false,
   'zwykły członek NIE nadaje weryfikacji');
 
--- ── C. Bezpośredni UPDATE pól weryfikacji (12-19) ────────────────────────────
+-- ── C. Bezpośredni UPDATE pól weryfikacji ────────────────────────────
 -- Członek: odmowa TWARDA. Do 20260806150000 samonadanie było po cichu wycofywane
 -- przez bramkę kolumn uprzywilejowanych i nie zostawiało śladu nigdzie.
 SELECT throws_ok(
   $$ UPDATE public.profiles SET verified_at = now()
       WHERE id = 'c9000000-0000-0000-0000-0000000000dd' $$,
   '42501',
-  'profiles: verification fields can only be changed by admin or super_admin',
+  'permission denied for table profiles',
   'członek nie nadaje sobie weryfikacji (42501, nie cichy revert)'
 );
 
@@ -203,8 +203,8 @@ SELECT throws_ok(
   $$ UPDATE public.profiles SET verified_at = now()
       WHERE id = 'c9000000-0000-0000-0000-0000000000cc' $$,
   '42501',
-  'profiles: verification fields can only be changed by admin or super_admin',
-  'editor dostaje 42501 z komunikatem bramki'
+  'permission denied for table profiles',
+  'editor dostaje 42501 z bramki uprawnień kolumn'
 );
 
 RESET ROLE;
@@ -220,11 +220,16 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub":"c9000000-0000-0000-0000-0000000000bb","role":"authenticated"}', true);
 
-SELECT lives_ok(
-  $$ UPDATE public.profiles
-        SET verified_at = now(),
-            verified_by = 'c9000000-0000-0000-0000-0000000000bb'
+SELECT throws_ok(
+  $$ UPDATE public.profiles SET verified_at = now()
       WHERE id = 'c9000000-0000-0000-0000-0000000000bb' $$,
+  '42501', 'permission denied for table profiles',
+  'super_admin: bezpośredni zapis nadal zabroniony; wymagany jest audytowany RPC'
+);
+
+SELECT lives_ok(
+  $$ SELECT public.admin_set_profile_verification(
+       'c9000000-0000-0000-0000-0000000000bb', true) $$,
   'super_admin bez roli admin przechodzi bramkę weryfikacji'
 );
 
@@ -241,11 +246,16 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub":"c9000000-0000-0000-0000-0000000000aa","role":"authenticated"}', true);
 
-SELECT lives_ok(
-  $$ UPDATE public.profiles
-        SET verified_at = now(),
-            verified_by = 'c9000000-0000-0000-0000-0000000000aa'
+SELECT throws_ok(
+  $$ UPDATE public.profiles SET verified_at = now()
       WHERE id = 'c9000000-0000-0000-0000-0000000000ee' $$,
+  '42501', 'permission denied for table profiles',
+  'admin: bezpośredni zapis nadal zabroniony; wymagany jest audytowany RPC'
+);
+
+SELECT lives_ok(
+  $$ SELECT public.admin_set_profile_verification(
+       'c9000000-0000-0000-0000-0000000000ee', true) $$,
   'admin nadaje weryfikację w wierszu członka swojego obszaru roboczego'
 );
 
@@ -257,28 +267,29 @@ SELECT is(
   'verified_by stempluje admina nadającego weryfikację'
 );
 
--- ── D. Sankcjonowane ścieżki systemowe (20-23) ───────────────────────────────
--- `sync_org_verification()` ustawia flagę lokalnie na czas własnego UPDATE - bez
--- niej automat nie domknąłby weryfikacji po potwierdzeniu e-maila (sesją jest
--- wtedy zwykły użytkownik, nie staff).
+-- ── D. Sankcjonowane ścieżki systemowe ───────────────────────────────
+-- Flaga app.verification_sync sama NIE daje uprawnień. Migracja z 2026-09-04
+-- odebrała authenticated UPDATE tych kolumn; prawidłowy automat działa jako
+-- SECURITY DEFINER. Użytkownik nie może podszyć się pod niego przez set_config.
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub":"c9000000-0000-0000-0000-0000000000dd","role":"authenticated"}', true);
 SELECT set_config('app.verification_sync', 'on', true);
 
-SELECT lives_ok(
+SELECT throws_ok(
   $$ UPDATE public.profiles SET verified_at = now()
       WHERE id = 'c9000000-0000-0000-0000-0000000000dd' $$,
-  'furtka app.verification_sync przepuszcza zapis automatu'
+  '42501', 'permission denied for table profiles',
+  'sfałszowana flaga app.verification_sync nie omija uprawnień kolumn'
 );
 
 SELECT set_config('app.verification_sync', 'off', true);
 RESET ROLE;
-SELECT isnt(
+SELECT is(
   (SELECT verified_at FROM public.profiles
     WHERE id = 'c9000000-0000-0000-0000-0000000000dd'),
   NULL::timestamptz,
-  'zapis przez furtkę FAKTYCZNIE wchodzi (nie ma już cichego pinu z bramki bliźniaczej)'
+  'próba przez sfałszowaną flagę nie nadała weryfikacji'
 );
 
 -- Brak sesji: `service_role`, cron, definer poza żądaniem HTTP. To nie jest
@@ -300,7 +311,7 @@ SELECT is(
   'ścieżka bez sesji realnie zdejmuje weryfikację (kontrakt ścieżki serwisowej)'
 );
 
--- ── E. Izolacja obszarów roboczych (24-26) ───────────────────────────────────
+-- ── E. Izolacja obszarów roboczych ───────────────────────────────────
 -- Weryfikacja nadaje odznakę, a odznaka `expert` dożywotni VIP - admin tenanta B
 -- nie może stemplować tego w tenancie A. Sesję udajemy samymi claimami JWT, bez
 -- `SET ROLE authenticated`: właściciel tabeli pomija RLS, więc UPDATE DOCHODZI do
@@ -333,7 +344,7 @@ SELECT throws_like(
 );
 RESET ROLE;
 
--- ── F. INSERT: wiersz nie rodzi się zweryfikowany (27-30) ────────────────────
+-- ── F. INSERT: wiersz nie rodzi się zweryfikowany ────────────────────
 -- Konto `ff` ma żywy wiersz w `auth.users`, ale NIE ma profilu - w tym oknie
 -- polityka "Users insert own profile" pozwala wstawić własny wiersz, a bramka na
 -- samym UPDATE nie miała czego pilnować.
@@ -387,7 +398,7 @@ SELECT is(
 -- żądania zdejmujemy - żeby nagłówek nie brał udziału w niczym poza sekcją F.
 SELECT set_config('request.headers', '', true);
 
--- ── G. current_company_id: właściciel ma prawo do SWOJEJ firmy (31-34) ───────
+-- ── G. current_company_id: właściciel ma prawo do SWOJEJ firmy ───────
 -- Przed 20260806150000 bramka cofała tę kolumnę KAŻDEMU nie-stafowi, w tym
 -- właścicielowi wiersza - a to jedyna ścieżka, którą pole ustawia UI. Członek
 -- dostawał zielony toast i zero zmiany w bazie.
@@ -429,7 +440,7 @@ SELECT is(
   'firma z OBCEGO obszaru roboczego jest po cichu wycofana (zostaje poprzednia)'
 );
 
--- ── H. RPC panelu: ten sam predykat co trigger (35-37) ───────────────────────
+-- ── H. RPC panelu: ten sam predykat co trigger ───────────────────────
 -- Bez parytetu naprawa bramki byłaby martwa: `admin_set_profile_verification`
 -- to jedyna ścieżka zapisu z panelu (src/routes/admin.users.$id.tsx).
 SET LOCAL ROLE authenticated;

@@ -13,7 +13,7 @@
 //
 // Moduł server-only (klucze bramki + service_role).
 import type Stripe from "stripe";
-import { createStripeClient, type StripeEnv } from "@/lib/stripe.server";
+import { getStripeClient, type StripeEnv } from "@/lib/stripe.server";
 
 export interface AdminDonationRow {
   id: string;
@@ -46,14 +46,6 @@ async function admin() {
   return supabaseAdmin;
 }
 
-async function resolveTenantId(): Promise<string | null> {
-  const [{ resolveTenantIdForHost }, { currentTenantHost }] = await Promise.all([
-    import("@/lib/server/tenant.server"),
-    import("@/lib/http/requestHost"),
-  ]);
-  return resolveTenantIdForHost(await currentTenantHost());
-}
-
 function isoOf(unixSeconds: number | null | undefined): string | null {
   return typeof unixSeconds === "number" ? new Date(unixSeconds * 1000).toISOString() : null;
 }
@@ -63,9 +55,18 @@ function idOf(value: string | { id: string } | null | undefined): string | null 
   return typeof value === "string" ? value : value.id;
 }
 
-/** Ostatnie wpłaty dla panelu (pełne dane - widok tylko dla roli `admin`). */
-export async function listAdminDonations(limit = 50): Promise<AdminDonationRow[]> {
-  const tenantId = await resolveTenantId();
+/**
+ * Ostatnie wpłaty dla panelu (pełne dane - widok tylko dla roli `admin`).
+ *
+ * `tenantId` jest parametrem WYMAGANYM i pochodzi z bramki `assertAdmin`, czyli
+ * z profilu wołającego. Rozstrzyganie go tutaj po hoście żądania było drugą,
+ * niezależną granicą - a bramka roli sprawdzała pierwszą.
+ */
+export async function listAdminDonations(
+  limit: number,
+  tenantId: string,
+): Promise<AdminDonationRow[]> {
+  // Bezpiecznik: pusta wartość NIGDY nie ma znaczyć „wszyscy najemcy".
   if (!tenantId) return [];
   const supabase = await admin();
   const { data, error } = await supabase
@@ -111,12 +112,15 @@ async function isChargeRefunded(stripe: Stripe, intentId: string | null): Promis
 
 /**
  * Uzgadnia darowizny ze Stripe. Zwraca raport liczbowy - bez PII.
+ *
+ * `tenantId` jak wyżej: WYMAGANY, z bramki `assertAdmin`. Pusta wartość kończy
+ * uzgodnienie ostrzeżeniem, zanim cokolwiek pójdzie do bazy i do operatora.
  */
 export async function syncDonationsFromStripe(
   environment: StripeEnv,
-  sinceHours = 168,
+  sinceHours: number,
+  tenantId: string,
 ): Promise<DonationsSyncReport> {
-  const tenantId = await resolveTenantId();
   const sinceMs = Date.now() - sinceHours * 3_600_000;
   const report: DonationsSyncReport = {
     environment,
@@ -134,7 +138,7 @@ export async function syncDonationsFromStripe(
   }
 
   const supabase = await admin();
-  const stripe = createStripeClient(environment);
+  const stripe = await getStripeClient(environment);
 
   // --- 1. Lokalne wiersze: domknięcie / zwroty ---------------------------
   const { data: localRows, error: localError } = await supabase

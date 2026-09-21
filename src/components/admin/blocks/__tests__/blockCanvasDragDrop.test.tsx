@@ -32,7 +32,7 @@
 //     mockowany jest tylko `sonner` (toasty) - granica UI.
 import { describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { Block, BlocksDoc } from "@/lib/blocks/types";
 import { readChildBlocks, withChildBlocks } from "@/lib/blocks/nested";
 import { realT } from "@/test/i18nReal";
@@ -351,5 +351,275 @@ describe("BlockCanvas - pusty dokument", () => {
     const next = onChange.mock.calls[0][0];
     expect(next.blocks).toHaveLength(1);
     expect(next.blocks[0].type).toBe("paragraph");
+  });
+});
+
+// ── PUNKTY WSTAWIANIA: KTORY INSERTER, TAKA POZYCJA ─────────────────────────
+// Kanwa ma TRZY osobne wejscia dla nowej tresci i kazde niesie wlasny indeks:
+// inserter nad pierwszym blokiem (0), inserter pod blokiem n-tym (n+1) oraz
+// appender na koncu dokumentu (`blocks.length`). Kazde z nich ma dodatkowo
+// dwie sciezki: JEDEN blok (`insertAt`) i WZORZEC, czyli wiele blokow naraz
+// (`insertBlocksAt`). Pomylony indeks nie zglasza sie bledem - po prostu
+// przenosi tresc redaktora w inne miejsce dokumentu, niz wskazal.
+/** Dwa akapity - dokument bez kontenera, zeby indeksy insererow byly jawne. */
+function dwaAkapity(): BlocksDoc {
+  return { version: 1, blocks: [akapit("p1", "pierwszy"), akapit("p2", "drugi")] } as BlocksDoc;
+}
+
+function zamontujKanwe(doc: BlocksDoc, activeId: string | null = null, selectedIds: string[] = []) {
+  dnd.uchwyty.length = 0;
+  const onChange = vi.fn<(next: BlocksDoc, immediate?: boolean) => void>();
+  const onSelect = vi.fn<(id: string | null) => void>();
+  const onSelectedIdsChange = vi.fn<(ids: readonly string[]) => void>();
+  render(
+    <BlockCanvas
+      doc={doc}
+      activeId={activeId}
+      onSelect={onSelect}
+      onChange={onChange}
+      selectedIds={selectedIds}
+      onSelectedIdsChange={onSelectedIdsChange}
+    />,
+  );
+  return { onChange, onSelect, onSelectedIdsChange };
+}
+
+/**
+ * Kolejny „+" kanwy w kolejnosci renderowania: [0] nad pierwszym blokiem,
+ * [1..n] pod kolejnymi blokami, [n+1] appender na koncu dokumentu.
+ */
+function plus(idx: number): HTMLElement {
+  return screen.getAllByRole("button", { name: t("blocks.addBlock") })[idx];
+}
+
+/** Otwiera wskazany „+" i wybiera z niego wzorzec „Kluczowe wnioski". */
+function wstawWzorzec(idx: number): void {
+  fireEvent.click(plus(idx));
+  fireEvent.click(screen.getByRole("button", { name: t("blocks.inserter.browseAll") }));
+  fireEvent.click(screen.getByRole("tab", { name: t("blocks.inserter.tabPatterns") }));
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: new RegExp(t("blocks.patterns.items.key-takeaways.name")),
+    }),
+  );
+}
+
+/** Otwiera wskazany „+" i wybiera z szybkiej palety blok o danym typie. */
+function wstawTyp(idx: number, typ: string): void {
+  fireEvent.click(plus(idx));
+  fireEvent.click(screen.getByRole("option", { name: t(`blocks.types.${typ}`) }));
+}
+
+describe("BlockCanvas - punkty wstawiania nowej tresci", () => {
+  it("inserter NAD pierwszym blokiem wstawia na pozycję zero", () => {
+    const { onChange, onSelect } = zamontujKanwe(dwaAkapity());
+    wstawTyp(0, "quote");
+    const [next] = onChange.mock.calls.at(-1)!;
+    expect(next.blocks.map((b) => b.type)).toEqual(["quote", "paragraph", "paragraph"]);
+    expect(onSelect).toHaveBeenCalledWith(next.blocks[0].id);
+  });
+
+  it("inserter NAD pierwszym blokiem przyjmuje CAŁY wzorzec", () => {
+    const { onChange, onSelect } = zamontujKanwe(dwaAkapity());
+    wstawWzorzec(0);
+    const [next] = onChange.mock.calls.at(-1)!;
+    expect(next.blocks.map((b) => b.type)).toEqual(["heading", "list", "paragraph", "paragraph"]);
+    // Zaznaczenie idzie na OSTATNI wstawiony blok - tam redaktor pisze dalej.
+    expect(onSelect).toHaveBeenCalledWith(next.blocks[1].id);
+  });
+
+  it("inserter POD pierwszym blokiem wstawia dokładnie za nim", () => {
+    const { onChange } = zamontujKanwe(dwaAkapity());
+    wstawTyp(1, "separator");
+    const [next] = onChange.mock.calls.at(-1)!;
+    expect(next.blocks.map((b) => b.id)).toEqual(["p1", expect.any(String), "p2"]);
+    expect(next.blocks[1].type).toBe("separator");
+  });
+
+  it("inserter POD pierwszym blokiem przyjmuje wzorzec między bloki", () => {
+    const { onChange } = zamontujKanwe(dwaAkapity());
+    wstawWzorzec(1);
+    const [next] = onChange.mock.calls.at(-1)!;
+    expect(next.blocks.map((b) => b.type)).toEqual(["paragraph", "heading", "list", "paragraph"]);
+    expect(next.blocks[0].id).toBe("p1");
+    expect(next.blocks[3].id).toBe("p2");
+  });
+
+  it("appender pod ostatnim blokiem dokłada akapit na KONIEC dokumentu", () => {
+    const { onChange, onSelect } = zamontujKanwe(dwaAkapity());
+    fireEvent.click(screen.getByRole("button", { name: t("blocks.slash.hint") }));
+    const [next] = onChange.mock.calls.at(-1)!;
+    expect(next.blocks.map((b) => b.id).slice(0, 2)).toEqual(["p1", "p2"]);
+    expect(next.blocks).toHaveLength(3);
+    expect(next.blocks[2].type).toBe("paragraph");
+    expect(onSelect).toHaveBeenCalledWith(next.blocks[2].id);
+  });
+
+  it("appender pod ostatnim blokiem wstawia wybrany typ na KONIEC", () => {
+    const { onChange } = zamontujKanwe(dwaAkapity());
+    // Insertery: [0] nad p1, [1] pod p1, [2] pod p2, [3] appender.
+    wstawTyp(3, "quote");
+    const [next] = onChange.mock.calls.at(-1)!;
+    expect(next.blocks.map((b) => b.type)).toEqual(["paragraph", "paragraph", "quote"]);
+  });
+
+  it("appender pod ostatnim blokiem przyjmuje wzorzec na KONIEC", () => {
+    const { onChange } = zamontujKanwe(dwaAkapity());
+    wstawWzorzec(3);
+    const [next] = onChange.mock.calls.at(-1)!;
+    expect(next.blocks.map((b) => b.type)).toEqual(["paragraph", "paragraph", "heading", "list"]);
+  });
+
+  it("blok NIETEKSTOWY zostaje zaznaczony, choć nie ma w nim gdzie pisać", () => {
+    // `insertAt` prosi o karetkę TYLKO dla typów, w których da się pisać.
+    // Separator zaznacza się jako blok - i na tym operacja się kończy.
+    const { onChange, onSelect } = zamontujKanwe(dwaAkapity());
+    wstawTyp(2, "separator");
+    const [next] = onChange.mock.calls.at(-1)!;
+    const wstawiony = next.blocks[2];
+    expect(wstawiony.type).toBe("separator");
+    expect(onSelect).toHaveBeenCalledWith(wstawiony.id);
+  });
+
+  it("PUSTY dokument przyjmuje blok wybrany z appendera", () => {
+    const { onChange, onSelect } = zamontujKanwe({ version: 1, blocks: [] } as BlocksDoc);
+    wstawTyp(0, "quote");
+    const [next] = onChange.mock.calls.at(-1)!;
+    expect(next.blocks.map((b) => b.type)).toEqual(["quote"]);
+    expect(onSelect).toHaveBeenCalledWith(next.blocks[0].id);
+  });
+
+  it("PUSTY dokument przyjmuje CAŁY wzorzec z appendera", () => {
+    const { onChange } = zamontujKanwe({ version: 1, blocks: [] } as BlocksDoc);
+    wstawWzorzec(0);
+    const [next] = onChange.mock.calls.at(-1)!;
+    expect(next.blocks.map((b) => b.type)).toEqual(["heading", "list"]);
+  });
+});
+
+// ── ZAZNACZENIE WIELOKROTNE: DUPLIKAT, USUNIECIE WSZYSTKIEGO, ODMOWY ────────
+describe("BlockCanvas - zaznaczenie wielokrotne w skrotach", () => {
+  it("Ctrl+Shift+D duplikuje CAŁE zaznaczenie i przenosi je na kopie", () => {
+    const { onChange, onSelectedIdsChange } = zamontujKanwe(dwaAkapity(), null, ["p1", "p2"]);
+    fireEvent.keyDown(document, { key: "d", ctrlKey: true, shiftKey: true });
+    const [next] = onChange.mock.calls.at(-1)!;
+    // Kopie lądują ZA ostatnim duplikowanym blokiem, ze świeżymi id.
+    expect(next.blocks.map((b) => b.id).slice(0, 2)).toEqual(["p1", "p2"]);
+    expect(next.blocks).toHaveLength(4);
+    expect(next.blocks[2].id).not.toBe("p1");
+    expect(next.blocks[3].id).not.toBe("p2");
+    // Zaznaczenie przechodzi na ZAKRES kopii - kolejny gest dotyczy już ich.
+    expect(onSelectedIdsChange).toHaveBeenCalledWith([next.blocks[2].id, next.blocks[3].id]);
+  });
+
+  it("Ctrl+Shift+D przy aktywnym id, którego NIE MA w dokumencie, nie zmienia niczego", () => {
+    // Stare `activeId` (blok usunięty w innym miejscu UI) nie może wstawić
+    // do dokumentu kopii nieistniejącego bloku ani wywrócić skrótu.
+    const { onChange } = zamontujKanwe(dwaAkapity(), "duch-po-usunietym-bloku");
+    fireEvent.keyDown(document, { key: "d", ctrlKey: true, shiftKey: true });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("Delete przy zaznaczeniu WSZYSTKIEGO zostawia dokument bez bloków", () => {
+    // Skrajny przypadek `removeSelected`: po filtrze nie zostaje nic, więc
+    // kanwa musi oddać PUSTĄ listę bloków (i pokazać stan pusty), a nie
+    // wersję z resztkami po zaznaczeniu.
+    const { onChange, onSelect } = zamontujKanwe(dwaAkapity(), "p1", ["p1", "p2"]);
+    fireEvent.keyDown(document, { key: "Delete" });
+    const [next] = onChange.mock.calls.at(-1)!;
+    expect(next.blocks).toEqual([]);
+    expect(onSelect).toHaveBeenCalledWith(null);
+  });
+
+  it("Backspace przy zaznaczeniu wielokrotnym usuwa je tak samo jak Delete", () => {
+    const { onChange } = zamontujKanwe(dwaAkapity(), null, ["p1"]);
+    fireEvent.keyDown(document, { key: "Backspace" });
+    expect(idy(onChange.mock.calls.at(-1)![0])).toEqual(["p2"]);
+  });
+});
+
+// ── USUNIECIE Z MENU KONTEKSTOWEGO: BLOK NIEAKTYWNY ────────────────────────
+describe("BlockCanvas - usuniecie bloku spoza aktywnego", () => {
+  it("kosz z menu kontekstowego NIEaktywnego bloku nie gasi aktywnego", async () => {
+    // Pasek akcji ma tylko blok aktywny, ale menu kontekstowe jest na KAZDYM
+    // wierszu - stąd jedyna droga do usunięcia bloku, który nie jest aktywny.
+    // Kanwa nie może wtedy zerować zaznaczenia: redaktor dalej pisze tam,
+    // gdzie pisał.
+    const { onChange, onSelect } = zamontujKanwe(dwaAkapity(), "p1");
+    fireEvent.contextMenu(
+      document.querySelector('[data-block-canvas] [data-block-id="p2"]') as Element,
+    );
+    const menu = await waitFor(() => screen.getByRole("menu"));
+    fireEvent.click(
+      within(menu).getByRole("menuitem", { name: new RegExp(t("blocks.actions.remove")) }),
+    );
+    expect(idy(onChange.mock.calls.at(-1)![0])).toEqual(["p1"]);
+    expect(onSelect).not.toHaveBeenCalledWith(null);
+  });
+});
+
+// ── TYP BLOKU SPOZA KATALOGU ───────────────────────────────────────────────
+describe("BlockCanvas - blok o typie spoza rejestru", () => {
+  /** Dokument z wpisu zapisanego przez NOWSZA wersje edytora (albo z importu). */
+  function dokumentZObcymTypem(): BlocksDoc {
+    return {
+      version: 1,
+      blocks: [{ id: "x1", type: "widget-z-przyszlosci", data: {} }],
+    } as unknown as BlocksDoc;
+  }
+
+  it("nieznany typ NIE wywraca kanwy - blok zostaje w dokumencie z podglądem zastępczym", () => {
+    // Wpis zapisany nowszą wersją edytora musi dać się otworzyć: alternatywą
+    // jest biały ekran i redaktor bez dostępu do własnej treści.
+    zamontujKanwe(dokumentZObcymTypem(), "x1");
+    expect(document.querySelector('[data-block-id="x1"]')).not.toBeNull();
+    expect(screen.getByText("[widget-z-przyszlosci]")).toBeInTheDocument();
+  });
+
+  it("nieznany typ nie dostaje menu przekształceń ani wariantów", () => {
+    zamontujKanwe(dokumentZObcymTypem(), "x1");
+    expect(screen.queryByRole("button", { name: t("blocks.transform.menuLabel") })).toBeNull();
+    expect(screen.queryByRole("group", { name: t("blocks.actions.variant") })).toBeNull();
+  });
+
+  it("nieznany typ opisuje się w menu kontekstowym SUROWĄ nazwą typu", async () => {
+    // Etykieta z rejestru nie istnieje, więc jedyne, co kanwa moze pokazac, to
+    // sam typ - i to jest informacja, ktora pozwala redaktorowi zglosic problem.
+    zamontujKanwe(dokumentZObcymTypem(), "x1");
+    fireEvent.contextMenu(
+      document.querySelector('[data-block-canvas] [data-block-id="x1"]') as Element,
+    );
+    const menu = await waitFor(() => screen.getByRole("menu"));
+    expect(within(menu).getByText(/widget-z-przyszlosci/)).toBeInTheDocument();
+  });
+});
+
+// ── UNIWERSALNY PASEK WIDGETU PODWIESZONY W KANWIE ─────────────────────────
+// Bloki spoza `OWN_TOOLBAR_TYPES` (czyli cala reszta katalogu poza akapitem,
+// naglowkiem, obrazem, wideo i audio) dostaja `GenericWidgetToolbar`. Sam pasek
+// ma wlasny plik testowy; tutaj przedmiotem dowodu jest JEGO PODLACZENIE do
+// kanwy: ktory blok dokumentu dostaje zapis z paska.
+describe("BlockCanvas - pasek uniwersalny widgetu", () => {
+  it("ustawienie z paska pisze WYŁĄCZNIE do aktywnego bloku", () => {
+    const cytat = { id: "q1", type: "quote", data: { text: "Europa", cite: "" } } as Block;
+    const sasiad = akapit("p2", "drugi");
+    const { onChange } = zamontujKanwe({ version: 1, blocks: [cytat, sasiad] } as BlocksDoc, "q1");
+    const pasek = document.querySelector('[data-widget-toolbar="generic"]');
+    expect(pasek).not.toBeNull();
+    fireEvent.click(
+      within(pasek as HTMLElement).getByRole("button", { name: t("blocks.toolbar.alignCenter") }),
+    );
+    const [next] = onChange.mock.calls.at(-1)!;
+    expect(next.blocks).toHaveLength(2);
+    expect(next.blocks[0].data.align).toBe("center");
+    // Treść cytatu przechodzi ustawienie bez zmian, sąsiad wraca tym samym obiektem.
+    expect(next.blocks[0].data.text).toBe("Europa");
+    expect(next.blocks[1]).toBe(sasiad);
+  });
+
+  it("pasek uniwersalny nie pojawia się przy bloku NIEaktywnym", () => {
+    const cytat = { id: "q1", type: "quote", data: { text: "Europa", cite: "" } } as Block;
+    zamontujKanwe({ version: 1, blocks: [cytat] } as BlocksDoc, null);
+    expect(document.querySelector('[data-widget-toolbar="generic"]')).toBeNull();
   });
 });

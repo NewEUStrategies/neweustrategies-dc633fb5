@@ -6,11 +6,15 @@
 // w renderze (organizmy mają własne testy), a w SKLEJENIU, którego czysta
 // funkcja nie dosięga:
 //
-//   1. LOADER dogrzewa cache pod DOKŁADNIE tym kluczem, z którego czyta
-//      komponent (`clubKeys.bySlug`). Rozjazd = drugi odczyt RPC przy hydracji
-//      i mrugnięcie szkieletem na każdym wejściu.
-//   2. LOADER NIE WYWALA TRASY przy awarii RPC (`.catch(() => null)`): strona
-//      ma pokazać powłokę, a nie ekran błędu routera.
+//   1. LOADER NIE PYTA BAZY W OGÓLE (audyt CWV 2026-09-20, F09). Kartę klubu
+//      czyta RAZ loader UKŁADU `/club/$clubSlug` pod kluczem widza
+//      anonimowego (`clubKeys.bySlugViewer(slug, null)`), a te czternaście
+//      tras liściowych robi już tylko odczyt z cache'u po
+//      `await parentMatchPromise`. Wcześniej każda z nich płaciła własnym
+//      `ensureQueryData` na `club_view` przed pierwszym bajtem - i to samo
+//      RPC leciało DRUGI raz po hydratacji, bo komponent czyta klucz z widzem.
+//   2. LOADER NIE WYWALA TRASY, gdy układ ZDEGRADOWAŁ i zostawił pusty cache:
+//      strona ma pokazać powłokę, a nie ekran błędu routera.
 //   3. `head()` liczy indeksowalność Z WIDOCZNOŚCI KLUBU, nie z trasy - i to
 //      jest reguła bezpieczeństwa, nie SEO-kosmetyka. Osiem tras dzieli się na
 //      dwie grupy: kalendarz/harmonogram/biblioteka są indeksowalne w klubie
@@ -54,11 +58,12 @@ const h = vi.hoisted(() => ({
   club: null as unknown,
   /** Sesja widziana przez `useAuth` - `null` znaczy gość. */
   session: null as { user: { id: string } } | null,
-  /** Odpowiedź `club_view` dla loadera; `null` = brak wiersza. */
+  /** Karta klubu, którą loader UKŁADU zostawił w cache'u; `null` = brak wiersza. */
   loaded: null as unknown,
-  /** Gdy prawdziwe, `fetchClubBySlug` rzuca - awaria RPC w loaderze. */
-  loaderFails: false,
-  /** Ile razy loader poszedł do warstwy danych. */
+  /** Układ ZDEGRADOWAŁ (budżet 800 ms albo awaria RPC): po `removeQueries`
+   *  cache jest pusty i liść nie ma z czego policzyć nagłówka. */
+  ukladZdegradowal: false,
+  /** Ile razy cokolwiek poszło do `club_view` - po F09 ma być ZERO. */
   fetchCalls: 0,
   /** Propsy zapisane przez atrapę powłoki. */
   shell: null as { clubSlug: string; title: string; lead?: string } | null,
@@ -71,10 +76,11 @@ vi.mock("@/lib/i18n-club", () => ({ ensureClubI18n: () => undefined }));
 vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({ session: h.session, user: h.session?.user ?? null, isStaff: false }),
 }));
+// KONTROLA NEGATYWNA, nie źródło danych: po F09 trasa liściowa nie ma prawa
+// tknąć tej funkcji, więc atrapa je LICZY.
 vi.mock("@/lib/clubs/publicClub", () => ({
   fetchClubBySlug: () => {
     h.fetchCalls += 1;
-    if (h.loaderFails) return Promise.reject(new Error("club_view padło"));
     return Promise.resolve(h.loaded);
   },
 }));
@@ -137,6 +143,7 @@ vi.mock("@/components/clubs/organisms/ClubSpotlightScreen", () => ({
   ClubSpotlightScreen: organismStub("ClubSpotlightScreen"),
 }));
 
+import { QueryClient } from "@tanstack/react-query";
 import { renderRoute, type RouteMetaEntry } from "@/test/routeHarness";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
 import { clubKeys } from "@/lib/clubs/queryKeys";
@@ -275,8 +282,31 @@ function titleOf(meta: readonly RouteMetaEntry[]): string | null {
   return typeof entry?.title === "string" ? entry.title : null;
 }
 
-async function mount(surface: Powierzchnia) {
-  return renderRoute({ route: surface.route, path: surface.path, initialEntry: surface.entry });
+/**
+ * Klient zapytań W STANIE, W JAKIM ZOSTAWIA GO LOADER UKŁADU `/club/$clubSlug`.
+ *
+ * Trasy liściowe są tu montowane W IZOLACJI (harness podstawia zastępczy
+ * korzeń), więc układ nie biegnie - jedynym jego skutkiem, który liść widzi,
+ * jest TEN wpis w cache'u, pod kluczem widza ANONIMOWEGO. Dokument SSR jest
+ * z konstrukcji anonimowy, więc to ten sam klucz, z którego czyta komponent.
+ *
+ * `h.ukladZdegradowal` odtwarza degradację: układ wywołał `removeQueries`
+ * i cache jest PUSTY - jedyne wejście, z którego `head()` ma prawo zejść na
+ * `noindex`.
+ */
+function klientUkladu(slug: string): QueryClient {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  if (!h.ukladZdegradowal) queryClient.setQueryData(clubKeys.bySlugViewer(slug, null), h.loaded);
+  return queryClient;
+}
+
+async function mount(surface: Powierzchnia, slug: string = SLUG) {
+  return renderRoute({
+    route: surface.route,
+    path: surface.path,
+    initialEntry: surface.entry,
+    queryClient: klientUkladu(slug),
+  });
 }
 
 beforeEach(() => {
@@ -284,7 +314,7 @@ beforeEach(() => {
   h.club = clubViewRow();
   h.session = { user: { id: CLUB_IDS.me } };
   h.loaded = clubViewRow();
-  h.loaderFails = false;
+  h.ukladZdegradowal = false;
   h.fetchCalls = 0;
   h.shell = null;
   h.organism = {};
@@ -292,26 +322,31 @@ beforeEach(() => {
 
 // --- loader ----------------------------------------------------------------
 
-describe("loader - dogrzewa cache pod kluczem, z którego czyta komponent", () => {
+describe("loader - zero round-tripów, karta z cache'u układu", () => {
   it.each(POWIERZCHNIE)(
-    "$nazwa: loader zapisuje kartę klubu pod `clubKeys.bySlug`",
+    "$nazwa: loader NIE wykonuje żadnego fetchu i czyta kartę z cache'u układu",
     async (surface) => {
-      // Rozjazd klucza jest niewidoczny na ekranie: strona się rysuje, tylko
-      // płaci drugim round-tripem do RPC przy każdym wejściu.
-      const { queryClient } = await mount(surface);
-      expect(h.fetchCalls).toBe(1);
-      expect(queryClient.getQueryData(clubKeys.bySlug(SLUG))).not.toBeUndefined();
+      // Dowód musi mieć dwie połowy naraz - ZERO wywołań `club_view` ORAZ
+      // nagłówek policzony z karty. Sama pierwsza przeszłaby też dla loadera,
+      // który nie czyta niczego i wystawia `noindex` na żywym klubie.
+      h.loaded = clubViewRow({ name_pl: "Klub korytarzowy", name_en: "Corridor club" });
+      const rendered = await mount(surface);
+      expect(h.fetchCalls).toBe(0);
+      expect(titleOf(rendered.meta())).toContain("Klub korytarzowy");
     },
   );
 
-  it.each(POWIERZCHNIE)("$nazwa: awaria RPC NIE wywala trasy", async (surface) => {
-    // `.catch(() => null)` w loaderze: użytkownik z poprawnym linkiem ma
-    // zobaczyć powłokę i komunikat powłoki, a nie ekran błędu routera.
-    h.loaderFails = true;
-    const rendered = await mount(surface);
-    expect(rendered.currentPath()).toBe(surface.entry);
-    expect(screen.getByTestId("shell")).toBeTruthy();
-  });
+  it.each(POWIERZCHNIE)(
+    "$nazwa: ZDEGRADOWANY układ (pusty cache) NIE wywala trasy",
+    async (surface) => {
+      // Użytkownik z poprawnym linkiem ma zobaczyć powłokę i komunikat
+      // powłoki, a nie ekran błędu routera.
+      h.ukladZdegradowal = true;
+      const rendered = await mount(surface);
+      expect(rendered.currentPath()).toBe(surface.entry);
+      expect(screen.getByTestId("shell")).toBeTruthy();
+    },
+  );
 
   it.each(POWIERZCHNIE)(
     "$nazwa: brak wiersza `club_view` też nie wywala trasy",
@@ -323,15 +358,19 @@ describe("loader - dogrzewa cache pod kluczem, z którego czyta komponent", () =
   );
 
   it("loader czyta slug Z PARAMETRU, a nie ze stałej", async () => {
-    // Przeklejony literał w `queryFn` dawałby kartę INNEGO klubu przy każdym
-    // wejściu - i to jest błąd, którego nie widać na jednym slugu w teście.
-    const { queryClient } = await renderRoute({
+    // Kartę w cache'u ma WYŁĄCZNIE `inny-klub`. Przeklejony literał slugu
+    // trafiłby w pustkę i zszedł na tytuł zastępczy - a na innym slugu
+    // wyciągnąłby z cache'u kartę CUDZEGO klubu.
+    h.loaded = clubViewRow({ name_pl: "Klub korytarzowy", name_en: "Corridor club" });
+    const queryClient = klientUkladu("inny-klub");
+    const rendered = await renderRoute({
       route: CalendarRoute,
       path: "/club/$clubSlug/calendar",
       initialEntry: "/club/inny-klub/calendar",
+      queryClient,
     });
-    expect(queryClient.getQueryData(clubKeys.bySlug("inny-klub"))).not.toBeUndefined();
-    expect(queryClient.getQueryData(clubKeys.bySlug(SLUG))).toBeUndefined();
+    expect(titleOf(rendered.meta())).toContain("Klub korytarzowy");
+    expect(h.fetchCalls).toBe(0);
   });
 });
 
@@ -386,13 +425,16 @@ describe("head() - indeksowalność liczy się z WIDOCZNOŚCI klubu", () => {
     expect(robotsOf(rendered.meta())).toBe("noindex, nofollow");
   });
 
-  it.each(POWIERZCHNIE)("$nazwa przy AWARII loadera schodzi na `noindex`", async (surface) => {
-    // Bezpieczny domysł: brak odpowiedzi nie może dać indeksu. Błąd w tę
-    // stronę kosztuje ruch, w drugą - wyciek nazwy klubu zamkniętego.
-    h.loaderFails = true;
-    const rendered = await mount(surface);
-    expect(robotsOf(rendered.meta())).toBe("noindex, nofollow");
-  });
+  it.each(POWIERZCHNIE)(
+    "$nazwa przy ZDEGRADOWANYM układzie (pusty cache) schodzi na `noindex`",
+    async (surface) => {
+      // Bezpieczny domysł: brak karty nie może dać indeksu. Błąd w tę
+      // stronę kosztuje ruch, w drugą - wyciek nazwy klubu zamkniętego.
+      h.ukladZdegradowal = true;
+      const rendered = await mount(surface);
+      expect(robotsOf(rendered.meta())).toBe("noindex, nofollow");
+    },
+  );
 
   it.each(POWIERZCHNIE)("$nazwa ma tytuł także wtedy, gdy loader milczy", async (surface) => {
     h.loaded = null;

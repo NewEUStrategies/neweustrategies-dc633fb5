@@ -18,10 +18,8 @@
 //     migracji), kod oddaje pusty obiekt zamiast przepuścić śmieci do
 //     normalizacji trybu - inaczej `homepage_mode` czytałby pole z wartości
 //     skalarnej i wywalał render;
-//   * AWARIA BULK-ODCZYTU JEST POŁYKANA. `catch { return {} }` (linie 401-403)
-//     zamienia odmowę bazy w „operator nic nie ustawił" i NIE próbuje już
-//     taniego selecta. Ma to widoczny skutek dla czytelnika, więc obok
-//     przypadku przypinającego stan faktyczny stoi `it.fails` z konsekwencją.
+//   * AWARIA BULK-ODCZYTU dociera do odpornego loadera. Nie udaje decyzji
+//     redakcyjnej i nie uruchamia dodatkowego selecta bez wspólnego deadline'u.
 //
 // JAK. Środowisko `node` (brak `window`, `import.meta.env.SSR === true`), więc
 // biegnie DOKŁADNIE gałąź serwerowa. Zaślepione są trzy granice: bulk-czytnik
@@ -126,39 +124,40 @@ describe("ustawienia czytania na SSR: jeden bulk-odczyt zamiast round-tripu na k
     await expect(klient().fetchQuery(homepageModeQueryOptions())).resolves.toBe("");
   });
 
-  it("STAN FAKTYCZNY: odmowa bulk-odczytu wygląda jak „operator nic nie ustawił”", async () => {
+  it("odmowa bulk-odczytu dociera do loadera bez dodatkowego round-tripu", async () => {
     h.ustawienia.mockRejectedValue(new Error("odmowa site_settings"));
-    await expect(klient().fetchQuery(homepageModeQueryOptions())).resolves.toBe("");
+    await expect(klient().fetchQuery(homepageModeQueryOptions())).rejects.toThrow(
+      "odmowa site_settings",
+    );
     // Połknięcie jest domknięte: kod NIE próbuje już taniego selecta.
     expect(baza().chainsFor("site_settings")).toHaveLength(0);
   });
 
-  it.fails(
-    "AWARIA odczytu ustawień POWINNA być odróżnialna od serwisu bez wybranego trybu",
-    async () => {
-      // DEFEKT. `src/lib/queries/public.ts:393-404`: gałąź serwerowa
-      // `fetchReadingSettings` owija bulk-odczyt w `try`, a `catch` na liniach
-      // 401-403 oddaje `{}` - bez logu, bez sygnału i BEZ próby taniego selecta
-      // z linii 405-410.
-      // MECHANIZM: `{}` przechodzi przez `normalizeHomepageMode(undefined)`
-      // (linia 421) i daje `""`, czyli DOKŁADNIE ten sam stan, co serwis, w
-      // którym nikt nigdy nie wybrał trybu strony głównej. `homePageQueryOptions`
-      // (linia 469) sprawdza tylko `=== "latest_posts"`, więc przy `""` schodzi
-      // na rezolucję strony statycznej i dalej na fallback `slug = "home"`.
-      // KONSEKWENCJA DLA UŻYTKOWNIKA: serwis skonfigurowany na „najnowsze
-      // wpisy" pokazuje pod adresem „/” starą stronę `home` razem z jej
-      // `head()` - tytułem, `canonical`, `og:image` i `seo_noindex`. Wynik
-      // trafia do `edgeTtlCache` na 60 s, więc jedna odmowa obsługuje wszystkie
-      // kolejne żądania w tym oknie; przy `seo_noindex = true` na stronie
-      // `home` potrafi to zdeindeksować stronę główną.
-      // DLACZEGO TO DECYZJA CZŁOWIEKA: naprawa to wybór między rzuceniem
-      // wyjątku (strona główna na 500, gdy nie da się odczytać ustawień),
-      // degradacją do jednowierszowego selecta (drugi round-trip w ścieżce,
-      // której optymalizacja była całym celem tej gałęzi) a zapamiętaniem
-      // „nie wiem" w kontrakcie `HomepageMode`, czytanym przez `routes/index.tsx`.
-      // Trzeba też rozstrzygnąć, czy taki wynik wolno zapisać w cache brzegowym.
-      h.ustawienia.mockRejectedValue(new Error("odmowa site_settings"));
-      await expect(klient().fetchQuery(homepageModeQueryOptions())).rejects.toThrow();
-    },
-  );
+  it("AWARIA odczytu ustawień POWINNA być odróżnialna od serwisu bez wybranego trybu", async () => {
+    // REGRESJA NAPRAWIONA: loadResilient przechwytuje błąd, zachowuje 200
+    // i no-store; nie trzeba fabrykować poprawnego trybu w queryFn.
+    // Poprzednio gałąź serwerowa
+    // `fetchReadingSettings` owija bulk-odczyt w `try`, a `catch` na liniach
+    // 401-403 oddaje `{}` - bez logu, bez sygnału i BEZ próby taniego selecta
+    // z linii 405-410.
+    // MECHANIZM: `{}` przechodzi przez `normalizeHomepageMode(undefined)`
+    // (linia 421) i daje `""`, czyli DOKŁADNIE ten sam stan, co serwis, w
+    // którym nikt nigdy nie wybrał trybu strony głównej. `homePageQueryOptions`
+    // (linia 469) sprawdza tylko `=== "latest_posts"`, więc przy `""` schodzi
+    // na rezolucję strony statycznej i dalej na fallback `slug = "home"`.
+    // KONSEKWENCJA DLA UŻYTKOWNIKA: serwis skonfigurowany na „najnowsze
+    // wpisy" pokazuje pod adresem „/” starą stronę `home` razem z jej
+    // `head()` - tytułem, `canonical`, `og:image` i `seo_noindex`. Wynik
+    // trafia do `edgeTtlCache` na 60 s, więc jedna odmowa obsługuje wszystkie
+    // kolejne żądania w tym oknie; przy `seo_noindex = true` na stronie
+    // `home` potrafi to zdeindeksować stronę główną.
+    // DLACZEGO TO DECYZJA CZŁOWIEKA: naprawa to wybór między rzuceniem
+    // wyjątku (strona główna na 500, gdy nie da się odczytać ustawień),
+    // degradacją do jednowierszowego selecta (drugi round-trip w ścieżce,
+    // której optymalizacja była całym celem tej gałęzi) a zapamiętaniem
+    // „nie wiem" w kontrakcie `HomepageMode`, czytanym przez `routes/index.tsx`.
+    // Trzeba też rozstrzygnąć, czy taki wynik wolno zapisać w cache brzegowym.
+    h.ustawienia.mockRejectedValue(new Error("odmowa site_settings"));
+    await expect(klient().fetchQuery(homepageModeQueryOptions())).rejects.toThrow();
+  });
 });

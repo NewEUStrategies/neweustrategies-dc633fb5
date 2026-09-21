@@ -4,7 +4,9 @@
 import { ArrowRight } from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
 import { safeUrl } from "@/lib/sanitizePure";
-import { DynamicIcon } from "@/lib/icons/DynamicIcon";
+// `MenuIcon` = tryb strict: nieznana nazwa z konfiguracji rysuje ikonę zastępczą
+// z zestawu kuratorowanego zamiast dociągać pełny rejestr (109 KB gzip) do chrome.
+import { MenuIcon as DynamicIcon } from "@/lib/icons/DynamicIcon";
 import type { MegaColumn } from "@/lib/menus/types";
 import type { MegaFeaturedPost } from "@/lib/menus/megaFeatured";
 
@@ -223,7 +225,7 @@ export function MegaPanelView({
                 </div>
               ) : null}
               {featuredTitle ? (
-                <h4 className="mb-1 text-[13px] font-black leading-tight text-foreground transition-colors group-hover:text-brand">
+                <h4 className="mb-1 text-[13px] font-semibold leading-tight text-foreground transition-colors group-hover:text-brand">
                   {featuredTitle}
                 </h4>
               ) : null}

@@ -96,6 +96,9 @@ import {
   joinClub,
   leaveClub,
   markClubRead,
+  proposeClub,
+  fetchMyClubProposals,
+  updateClubSettings,
   moderateClubTarget,
   moveClubThread,
   previewClubCapabilities,
@@ -1880,6 +1883,13 @@ describe("spójność kontraktu błędu w całym module", () => {
       () => fetchClubAnchorSuggestions({ query: "abc" }),
     ],
     ["markClubRead", "club_mark_read", () => markClubRead("c")],
+    ["proposeClub", "club_propose", () => proposeClub({ name_pl: "Klub" })],
+    ["fetchMyClubProposals", "club_my_proposals", () => fetchMyClubProposals()],
+    [
+      "updateClubSettings",
+      "club_update_settings",
+      () => updateClubSettings({ clubId: "c", patch: { name_pl: "Klub" } }),
+    ],
     [
       "revealClubAuthor",
       "club_moderator_reveal_author",

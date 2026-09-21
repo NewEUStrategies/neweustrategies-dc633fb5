@@ -143,6 +143,7 @@ export const newsletterAdminPl = {
       campaigns: "Kampanie",
       subscribers: "Subskrybenci",
       deliverability: "Dostarczalność",
+      outbox: "Skrzynka wysyłek",
       systemEmails: "Maile systemowe",
       authLogs: "Logi auth",
       emailContent: "Treści maili",
@@ -425,6 +426,7 @@ export const newsletterAdminEn: typeof newsletterAdminPl = {
       campaigns: "Campaigns",
       subscribers: "Subscribers",
       deliverability: "Deliverability",
+      outbox: "Outbox",
       systemEmails: "System emails",
       authLogs: "Auth logs",
       emailContent: "Email content",
@@ -570,15 +572,15 @@ export const newsletterAdminEn: typeof newsletterAdminPl = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", newsletterAdminPl, true, true);
-i18n.addResourceBundle("en", "translation", newsletterAdminEn, true, true);
-
 export {};
 
-/**
- * No-op wolany w komponencie trasy zamiast side-effectowego importu modulu.
- * Nazwane wiazanie pozwala splitterowi TanStacka przeniesc bundle tlumaczen do
- * chunka trasy - `import "@/lib/i18n-newsletter-admin"` (tak bylo w
- * SubscribersPanel) lada w eager-owym grafie wejsciowym kazdej strony.
- */
-export function ensureI18n(): void {}
+// Explicit registration must survive both Vite and Nitro tree shaking.
+// Keep the legacy side-effect import contract, and avoid repeated deep merges.
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", newsletterAdminPl, true, true);
+  i18n.addResourceBundle("en", "translation", newsletterAdminEn, true, true);
+}
+ensureI18n();

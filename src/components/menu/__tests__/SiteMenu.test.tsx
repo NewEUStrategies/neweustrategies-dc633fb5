@@ -48,6 +48,7 @@ function item(over: Partial<MenuItemRow> & { id: string }): MenuItemRow {
     href: "",
     target: "_self",
     css_class: "",
+    visibility: "all" as const,
     icon: "",
     mega_enabled: false,
     mega_config: DEFAULT_MEGA_CONFIG,
@@ -145,6 +146,22 @@ describe("wariant desktopowy", () => {
     expect(within(panel).getByRole("menuitem", { name: /Zespół/ })).toHaveAttribute(
       "href",
       "/o-nas/zespol",
+    );
+  });
+
+  it("oznacza linki i triggery wspólnym rozmiarem głównego menu", async () => {
+    setMenu([
+      item({ id: "a", label_pl: "Wywiady", href: "/wywiady" }),
+      item({ id: "b", label_pl: "Analizy", href: "/analizy", position: 1 }),
+      item({ id: "b1", parent_id: "b", label_pl: "Europa", href: "/europa" }),
+    ]);
+    await renderMenu();
+
+    expect(screen.getByRole("link", { name: "Wywiady" })).toHaveAttribute(
+      "data-site-menu-top-level",
+    );
+    expect(screen.getByRole("button", { name: /Analizy/ })).toHaveAttribute(
+      "data-site-menu-top-level",
     );
   });
 
@@ -303,32 +320,79 @@ describe("zamykanie panelu", () => {
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
+  /**
+   * Menu na sztywnych zegarach: montaż + rozwiązanie zapytania, a potem sam
+   * scenariusz. Zwraca kontener pozycji „O nas" (to on nosi handlery myszy).
+   */
+  async function menuNaSztywnychZegarach(): Promise<HTMLElement> {
+    withPanel();
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: 0 } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <SiteMenu menuKey="main" lang="pl" />
+      </QueryClientProvider>,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    return screen.getByRole("button", { name: /O nas/ }).parentElement!;
+  }
+
+  /** Próg intencji najechania z `SiteMenu` (`HOVER_INTENT_MS`). */
+  const HOVER_INTENT_MS = 80;
+
+  it("przejazd kursorem przez pasek NIE montuje panelu - dopiero zatrzymanie", async () => {
+    // Mega panel ciągnie zapytanie o wpis wyróżniony i całą siatkę kolumn.
+    // Mysz jadąca przez nawigację do treści mijała po drodze kilka triggerów
+    // i każdy z nich montował panel tylko po to, żeby go zaraz odmontować -
+    // stąd próg odróżniający INTENCJĘ od przejazdu.
+    vi.useFakeTimers();
+    try {
+      const pozycja = await menuNaSztywnychZegarach();
+
+      fireEvent.mouseEnter(pozycja);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(HOVER_INTENT_MS - 1);
+      });
+      expect(screen.queryByRole("menu")).toBeNull();
+
+      fireEvent.mouseLeave(pozycja);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10 * HOVER_INTENT_MS);
+      });
+      // Wyjazd przed progiem kasuje odliczanie - panel nie ma się pojawić
+      // „po fakcie", gdy kursor jest już dawno gdzie indziej.
+      expect(screen.queryByRole("menu")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("klik otwiera panel NATYCHMIAST, z pominięciem progu intencji", async () => {
+    // Klik jest deklaracją intencji - czekanie na próg byłoby tu wyłącznie
+    // opóźnieniem odpowiedzi na wprost wyrażone żądanie.
+    withPanel();
+    await renderMenu();
+    fireEvent.click(screen.getByRole("button", { name: /O nas/ }));
+    expect(screen.queryByRole("menu")).not.toBeNull();
+  });
+
   it("zjechanie kursorem zamyka panel dopiero PO chwili zwłoki", async () => {
     // Zwłoka jest po to, żeby przejazd myszą przez szczelinę między triggerem
     // a panelem nie zamykał menu w połowie ruchu.
     vi.useFakeTimers();
     try {
-      withPanel();
-      const client = new QueryClient({
-        defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: 0 } },
-      });
-      render(
-        <QueryClientProvider client={client}>
-          <SiteMenu menuKey="main" lang="pl" />
-        </QueryClientProvider>,
-      );
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(0);
-      });
+      const pozycja = await menuNaSztywnychZegarach();
 
-      const trigger = screen.getByRole("button", { name: /O nas/ });
-      fireEvent.mouseEnter(trigger.parentElement!);
+      fireEvent.mouseEnter(pozycja);
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(20);
+        await vi.advanceTimersByTimeAsync(HOVER_INTENT_MS);
       });
       expect(screen.queryByRole("menu")).not.toBeNull();
 
-      fireEvent.mouseLeave(trigger.parentElement!);
+      fireEvent.mouseLeave(pozycja);
       await act(async () => {
         await vi.advanceTimersByTimeAsync(100);
       });
@@ -346,26 +410,18 @@ describe("zamykanie panelu", () => {
   it("powrót kursora na trigger ODWOŁUJE zaplanowane zamknięcie", async () => {
     vi.useFakeTimers();
     try {
-      withPanel();
-      const client = new QueryClient({
-        defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: 0 } },
-      });
-      render(
-        <QueryClientProvider client={client}>
-          <SiteMenu menuKey="main" lang="pl" />
-        </QueryClientProvider>,
-      );
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(0);
-      });
+      const pozycja = await menuNaSztywnychZegarach();
 
-      const wrapper = screen.getByRole("button", { name: /O nas/ }).parentElement!;
-      fireEvent.mouseEnter(wrapper);
+      // Panel musi być NAPRAWDĘ otwarty, zanim sprawdzimy odwołanie zamknięcia
+      // - inaczej test mierzyłby próg otwarcia, a nie anulowanie zwłoki.
+      fireEvent.mouseEnter(pozycja);
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(20);
+        await vi.advanceTimersByTimeAsync(HOVER_INTENT_MS);
       });
-      fireEvent.mouseLeave(wrapper);
-      fireEvent.mouseEnter(wrapper);
+      expect(screen.queryByRole("menu")).not.toBeNull();
+
+      fireEvent.mouseLeave(pozycja);
+      fireEvent.mouseEnter(pozycja);
       await act(async () => {
         await vi.advanceTimersByTimeAsync(400);
       });

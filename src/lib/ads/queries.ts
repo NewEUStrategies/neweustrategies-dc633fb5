@@ -5,9 +5,10 @@
 // "manage") widział na froncie wygasłe i jeszcze nierozpoczęte emisje.
 // Targeting slotu (kategorie/tagi/język z ad_slots.targeting) dopasowujemy
 // client-side po pobraniu - lista placementów per pozycja jest krótka.
-import { useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery, type QueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeTtlCache } from "@/lib/ssrCache";
 import { Constants, type Database } from "@/integrations/supabase/types";
 import {
   matchesAdTargeting,
@@ -47,21 +48,46 @@ type DbAdPageType = Database["public"]["Enums"]["ad_page_type"];
  */
 const DB_AD_PAGE_TYPES: readonly DbAdPageType[] = Constants.public.Enums.ad_page_type;
 
+/**
+ * Okno świeżości listy placementów - JEDNA liczba na trzy miejsca, w których
+ * ta sama obietnica jest powtarzana: `staleTime` zapytania (przeglądarka), TTL
+ * `edgeTtlCache` (izolat) i próg, poniżej którego rozgrzewka SSR uznaje wpis za
+ * gotowy i nie pyta bazy ponownie. Rozjazd tych liczb znaczyłby, że jedna
+ * warstwa odświeża to, co druga właśnie uznała za świeże.
+ */
+const PLACEMENTS_TTL_MS = 60_000;
+
 function dbPageTypes(pageType: AdPageType): DbAdPageType[] {
   const known = DB_AD_PAGE_TYPES.find((value) => value === pageType);
   return known === undefined ? ["all"] : ["all", known];
 }
 
-async function fetchPlacements({
-  position,
-  pageType,
-  pageId,
-}: FetchArgs): Promise<AdPlacementWithSlot[]> {
+/**
+ * JEDEN round-trip po wiersze DOWOLNEJ liczby pozycji naraz.
+ *
+ * PO CO LISTA POZYCJI, SKORO WIDOK PYTA O JEDNĄ. Bo rozgrzewka SSR pyta o
+ * KILKA (baner nagłówka + slot nad treścią), a limit runtime Cloudflare Workers
+ * to 6 równoległych podżądań na żądanie - loader trasy treści ma już 5 odnóg
+ * w fali wtórnej (bramka `check:ssr-budgets`, sufit `parallelQueriesPerLoader`).
+ * Dwie osobne rozgrzewki nie zmieściłyby się w tym budżecie; jedno zapytanie
+ * `position=in.(...)` mieści się w jednej odnodze i kosztuje jeden round-trip.
+ *
+ * `page_id` NIE jest filtrowane w bazie - i to nie jest niedopatrzenie, tylko
+ * warunek, na którym stoi współdzielenie tego zapytania: ten sam wiersz
+ * wyników obsługuje projekcję BEZ identyfikatora strony (klucz banera
+ * nagłówka) i projekcję Z identyfikatorem (klucze pozycji w treści). Odsiew
+ * robi `placementsForPage` poniżej, po stronie klienta, dokładnie tak jak
+ * przedtem.
+ */
+async function fetchPlacementRows(
+  positions: readonly AdPosition[],
+  pageType: AdPageType,
+): Promise<AdPlacementWithSlot[]> {
   const nowIso = new Date().toISOString();
   const { data, error } = await supabase
     .from("ad_placements")
     .select("*, slot:ad_slots!inner(*)")
-    .eq("position", position)
+    .in("position", [...positions])
     // Filtr wysyła wyłącznie wartości, które baza zna (patrz `DB_AD_PAGE_TYPES`):
     // typ strony dodany po stronie klienta, a jeszcze nie w enumie, wywróciłby
     // całe zapytanie w PostgREST i strona zostałaby bez reklam.
@@ -73,10 +99,153 @@ async function fetchPlacements({
     .order("sort_order");
 
   if (error) throw error;
-  // Filtrujemy page_id po stronie klienta - jeśli placement ma page_id ≠ null, musi pasować.
-  return ((data as AdPlacementWithSlot[]) ?? []).filter(
-    (p) => p.page_id == null || p.page_id === pageId,
-  );
+  return (data as AdPlacementWithSlot[]) ?? [];
+}
+
+/**
+ * Projekcja wierszy na JEDNĄ pozycję i JEDEN identyfikator strony - dokładnie
+ * to, co widok czyta spod klucza `["ad_placements", position, pageType, id]`.
+ * Placement przypięty do innej strony (`page_id ≠ null`) nie wchodzi.
+ */
+function placementsForPage(
+  rows: readonly AdPlacementWithSlot[],
+  position: AdPosition,
+  pageId: string | null,
+): AdPlacementWithSlot[] {
+  return rows.filter((p) => p.position === position && (p.page_id == null || p.page_id === pageId));
+}
+
+async function fetchPlacements({
+  position,
+  pageType,
+  pageId,
+}: FetchArgs): Promise<AdPlacementWithSlot[]> {
+  const rows = await fetchPlacementRows([position], pageType);
+  return placementsForPage(rows, position, pageId ?? null);
+}
+
+/**
+ * JEDNA definicja zapytania o placementy - dla loadera (rozgrzewka SSR) i dla
+ * komponentu (`useAdPlacements`).
+ *
+ * PO CO FABRYKA, skoro hook i tak wołał `useQuery` z literałem. Bo dopóki klucz
+ * i `queryFn` żyły WYŁĄCZNIE wewnątrz hooka, rozgrzewka serwerowa musiałaby
+ * powtórzyć jedno i drugie u siebie - a dwa literały klucza to dwa wpisy cache'u
+ * i rozgrzewka, która nigdy nie trafia do komponentu. Sloty dochodziły więc po
+ * hydratacji, a baner `header_banner` (90 px nad treścią) spychał stronę w dół:
+ * ~0,11 CLS, najdroższa pojedyncza pozycja audytu CWV 2026-09-20 (F26).
+ * Kontrakt: klucz i `queryFn` MAJĄ ŻYĆ TUTAJ, hook ma ich UŻYWAĆ - nie kopiować.
+ *
+ * `edgeTtlCache` jest przezroczysty w przeglądarce (`typeof window !== "undefined"`
+ * -> natychmiastowe `fetcher()`), więc dokłada się wyłącznie w SSR: równoległe
+ * rendery tej samej pozycji dzielą jeden round-trip, a w oknie 60 s izolat nie
+ * pyta bazy ponownie. TTL jest równy `staleTime` zapytania - to ta sama
+ * obietnica świeżości powiedziana dwa razy, po obu stronach granicy.
+ */
+export function adPlacementsQueryOptions(
+  position: AdPosition,
+  pageType: AdPageType,
+  pageId?: string | null,
+) {
+  const id = pageId ?? null;
+  return queryOptions<AdPlacementWithSlot[]>({
+    // Klucz bez języka/kontekstu treści: fetch jest współdzielony, a filtr
+    // targetingu działa per obserwator w `select` (react-query v5).
+    queryKey: ["ad_placements", position, pageType, id],
+    queryFn: () =>
+      edgeTtlCache(`ad_placements:${position}:${pageType}:${id ?? "-"}`, PLACEMENTS_TTL_MS, () =>
+        fetchPlacements({ position, pageType, pageId: id }),
+      ),
+    staleTime: PLACEMENTS_TTL_MS,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/** Jedna pozycja do rozgrzania razem z `pageId`, POD KTÓRYM CZYTA JĄ WIDOK. */
+export interface AdWarmTarget {
+  readonly position: AdPosition;
+  /**
+   * `null`/`undefined` = klucz BEZ identyfikatora strony. Tak czyta baner
+   * nagłówka (`Header` renderuje `<AdZone position="header_banner">` bez
+   * `pageId`); pozycje w treści czytają klucz Z identyfikatorem wpisu/strony.
+   * Rozjazd tej wartości z widokiem oznacza rozgrzany klucz, którego nikt nie
+   * czyta - czyli round-trip za nic.
+   */
+  readonly pageId?: string | null;
+}
+
+/**
+ * ROZGRZEWKA SSR KILKU POZYCJI ZA JEDEN ROUND-TRIP (audyt CWV 2026-09-20, F26).
+ *
+ * CO NAPRAWIA. `AdZone` bez danych zwraca `null`, a `AdContainer` rezerwuje
+ * wtedy ZERO pikseli - slot dojeżdża więc po hydratacji i spycha treść w dół.
+ * Korzeń grzeje `header_banner` tylko tam, gdzie typ strony rozstrzyga sam
+ * adres (`__root.tsx`); na trasie łapiącej wszystko typ zna dopiero loader
+ * treści, więc baner nagłówka ORAZ slot nad treścią startowały tam dopiero
+ * w przeglądarce.
+ *
+ * DLACZEGO JEDNO WYWOŁANIE, A NIE DWA `prefetchQuery`. Fala wtórna loadera
+ * `$.tsx` ma 5 odnóg przy sufcie 6 (`check:ssr-budgets`,
+ * `parallelQueriesPerLoader` - twardy limit 6 równoległych podżądań runtime
+ * Cloudflare Workers). Dwie rozgrzewki to dwie odnogi i siódme podżądanie
+ * w szczycie; jedno zapytanie `position=in.(...)` mieści się w JEDNEJ odnodze
+ * i w JEDNYM round-tripie, a rozdziela je `placementsForPage` po stronie
+ * klienta - na te same klucze, które czyta `useAdPlacements`.
+ *
+ * NIGDY NIE ODRZUCA I NIGDY NIE ZGŁASZA DEGRADACJI. Reklama jest DEKORACJĄ:
+ * brak banera degraduje wyłącznie rezerwację jego własnych pikseli, więc nie
+ * ma prawa zdjąć wspólnego cache'u całego dokumentu. To ta sama doktryna, którą
+ * korzeń zapisał przy `chromeQueryKeys` (`__root.tsx`: klucz reklamy CELOWO nie
+ * wchodzi do listy rozstrzygającej o świeżości dokumentu).
+ */
+export async function prefetchAdPlacementQueries(
+  queryClient: QueryClient,
+  targets: readonly AdWarmTarget[],
+  pageType: AdPageType,
+): Promise<void> {
+  // ROZGRZEWKA PYTA WYŁĄCZNIE O TO, CZEGO W CACHE'U NIE MA ŚWIEŻEGO - i to nie
+  // jest mikrooptymalizacja, tylko warunek, żeby ta rozgrzewka nie była
+  // REGRESJĄ na nawigacji SPA. `edgeTtlCache` jest w przeglądarce przezroczysty,
+  // więc bez tej bramki KAŻDE wejście na kolejny wpis płaciłoby round-trip po
+  // listę, którą react-query trzyma jeszcze przez `PLACEMENTS_TTL_MS` - czyli
+  // rozgrzewka odbierałaby to, co daje `staleTime`. Ten sam warunek zdejmuje
+  // powtórkę w SSR, gdyby ten sam klucz rozgrzał wcześniej korzeń.
+  const cold = targets.filter((target) => {
+    const state = queryClient.getQueryState(
+      adPlacementsQueryOptions(target.position, pageType, target.pageId ?? null).queryKey,
+    );
+    return state?.data === undefined || Date.now() - state.dataUpdatedAt >= PLACEMENTS_TTL_MS;
+  });
+  // Pozycje posortowane i bez duplikatów - klucz cache'u izolatu ma być ten sam
+  // niezależnie od kolejności, w jakiej wołający wymienił sloty.
+  const positions = [...new Set(cold.map((t) => t.position))].sort();
+  if (positions.length === 0) return;
+  try {
+    const rows = await edgeTtlCache(
+      // Prefiks `multi:` oddziela ten wpis od kluczy jednopozycyjnych wyżej -
+      // te niosą jeszcze `pageId`, ten świadomie go nie zna (patrz
+      // `fetchPlacementRows`).
+      `ad_placements:multi:${positions.join("+")}:${pageType}`,
+      PLACEMENTS_TTL_MS,
+      () => fetchPlacementRows(positions, pageType),
+    );
+    // Zapisujemy WYŁĄCZNIE cele, o które to zapytanie pytało: cel pominięty jako
+    // świeży nie ma swoich wierszy w tej odpowiedzi, więc projekcja dałaby mu
+    // pustą listę i skasowała dane, które właśnie uznaliśmy za dobre.
+    for (const target of cold) {
+      const id = target.pageId ?? null;
+      // `setQueryData` bez `updatedAt: 0`: to są PRAWDZIWE wiersze, nie zasiew
+      // fallbackowy. Wpis ma się urodzić świeży, inaczej przeglądarka
+      // powtórzyłaby round-trip zaraz po hydratacji i cała rozgrzewka nie
+      // zdjęłaby ani jednego skoku układu.
+      queryClient.setQueryData(
+        adPlacementsQueryOptions(target.position, pageType, id).queryKey,
+        placementsForPage(rows, target.position, id),
+      );
+    }
+  } catch {
+    /* patrz wyżej: slot bez danych wraca do fetcha po hydratacji, jak dotąd */
+  }
 }
 
 export function useAdPlacements(
@@ -91,12 +260,7 @@ export function useAdPlacements(
   const tagSlugs = content?.tagSlugs ?? [];
 
   return useQuery({
-    // Klucz bez języka/kontekstu treści: fetch jest współdzielony, a filtr
-    // targetingu działa per obserwator w `select` (react-query v5).
-    queryKey: ["ad_placements", position, pageType, pageId ?? null],
-    queryFn: () => fetchPlacements({ position, pageType, pageId }),
-    staleTime: 60_000,
-    refetchOnWindowFocus: false,
+    ...adPlacementsQueryOptions(position, pageType, pageId),
     select: (placements) =>
       placements.filter((p) =>
         matchesAdTargeting(parseAdTargeting(p.slot.targeting), {

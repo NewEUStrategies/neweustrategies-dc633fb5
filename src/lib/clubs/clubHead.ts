@@ -22,10 +22,13 @@
 // budzet czasu), NIE zgadujemy. Brak odpowiedzi znaczy `noindex` - blad w te
 // strone kosztuje ruch, blad w druga kosztuje wyciek nazwy klubu zamknietego
 // do indeksu wyszukiwarki, skad usuwa sie ja tygodniami.
+import type { QueryClient } from "@tanstack/react-query";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead, type Lang } from "@/lib/seo/meta";
 import { pickPair } from "@/lib/i18n/pickLocalized";
+import { clubKeys } from "./queryKeys";
+import type { ClubViewRow } from "./types";
 
 /** Minimum, ktorego head() potrzebuje z karty klubu. Swiadomie waskie: loader
  *  ma dowiezc cztery pola, a nie caly wiersz - im mniej, tym mniejsza szansa,
@@ -129,4 +132,36 @@ export function buildClubHead(input: ClubHeadInput): ReturnType<typeof buildCont
     // `follow`, zeby link do watku niosl dalej sygnal, a nie konczyl sciezke.
     robots: indexable ? "index, follow" : "noindex, nofollow",
   });
+}
+
+/** Ładunek loadera trasy liściowej - wyłącznie to, czego potrzebuje `head()`. */
+export interface ClubHeadLoaderData {
+  club: ClubHeadSource | null;
+}
+
+/**
+ * Dane nagłówka trasy LIŚCIOWEJ klubu - z karty rozgrzanej przez loader
+ * UKŁADU `/club/$clubSlug`. ZERO round-tripów: `club_view` czyta układ, raz na
+ * dokument (audyt CWV 2026-09-20, F09).
+ *
+ * DLACZEGO `await parentMatchPromise`, a nie samo `getQueryData`. Loadery
+ * całego łańcucha dopasowań startują RÓWNOLEGLE (`@tanstack/router-core`,
+ * `load-server.js`: `createLoaderTask` dla każdego indeksu naraz), więc bez
+ * tego oczekiwania cache jest w chwili odczytu jeszcze pusty i KAŻDA trasa
+ * liściowa emitowałaby `noindex` - czyli dokładnie tę regresję, przed którą
+ * broni `isClubIndexable`. `parentMatchPromise` to obietnica zadania RODZICA
+ * i nie odrzuca (framework normalizuje wynik do krotki), więc nie potrzebuje
+ * własnego `catch`.
+ *
+ * Brak wpisu w cache'u (układ zdegradował albo nie zdążył) daje `null`, czyli
+ * bezpieczny domyślny `noindex` - ta sama polityka pustki, co przy awarii RPC.
+ */
+export async function clubHeadLoader(
+  queryClient: QueryClient,
+  slug: string,
+  parentMatchPromise: Promise<unknown>,
+): Promise<ClubHeadLoaderData> {
+  await parentMatchPromise;
+  const row = queryClient.getQueryData<ClubViewRow | null>(clubKeys.bySlugViewer(slug, null));
+  return { club: toClubHeadSource(row ?? null) };
 }

@@ -36,6 +36,8 @@ import {
   Link as LinkIcon,
 } from "@/lib/lucide-shim";
 import { AuthorByline } from "@/components/molecules/AuthorByline";
+import { formatDate } from "@/lib/i18n/format";
+import { useNowMs } from "@/lib/time/useNowMs";
 import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
 import {
   authorLabelText,
@@ -77,12 +79,21 @@ function pickLocalized(ctx: CurrentPostCtx, lang: Lang, key: "title" | "excerpt"
   );
 }
 
-function fmtDate(iso: string | undefined, lang: Lang, fmt: string): string {
+/**
+ * `now` PRZYCHODZI ARGUMENTEM, nie z zegara w ciele renderu - te same powody co
+ * w `blocks/ContextBlockViews.tsx`: serwer liczyłby „5 min temu" do HTML-a,
+ * który brzeg trzyma do 24 h, a klient policzyłby inną liczbę. `now === null`
+ * (SSR i pierwszy render klienta) degraduje do daty ABSOLUTNEJ.
+ *
+ * `timeZone` jest tu OBOWIĄZKOWE: bez niego `Intl` bierze strefę maszyny, a to
+ * jest UTC na Workers i strefa czytelnika w przeglądarce.
+ */
+function fmtDate(iso: string | undefined, lang: Lang, fmt: string, now: number | null): string {
   if (!iso) return "";
   try {
     const d = new Date(iso);
-    if (fmt === "relative") {
-      const diff = (Date.now() - d.getTime()) / 1000;
+    if (fmt === "relative" && now !== null) {
+      const diff = (now - d.getTime()) / 1000;
       if (diff < 60) return lang === "en" ? "just now" : "przed chwilą";
       if (diff < 3600)
         return lang === "en"
@@ -93,11 +104,11 @@ function fmtDate(iso: string | undefined, lang: Lang, fmt: string): string {
           ? `${Math.floor(diff / 3600)} h ago`
           : `${Math.floor(diff / 3600)} godz. temu`;
     }
-    return new Intl.DateTimeFormat(lang === "en" ? "en-GB" : "pl-PL", {
+    return formatDate(d, lang, {
       day: "2-digit",
       month: fmt === "short" ? "2-digit" : "long",
       year: "numeric",
-    }).format(d);
+    });
   } catch {
     return iso;
   }
@@ -125,6 +136,8 @@ function PostTitleWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
 function PostMetaWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const ctx = useCtx();
   const c = node.content;
+  // Hooki ZAWSZE przed wczesnym returnem - patrz komentarz niżej.
+  const now = useNowMs();
   const wantsViews = asBool(c.showViews, false);
   // Kontekst może już nieść licznik (kanwa buildera / trasa, która go policzyła).
   // Jeśli nie - dociągamy realną wartość tenant-scoped RPC, ale WYŁĄCZNIE gdy
@@ -169,7 +182,7 @@ function PostMetaWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   if (asBool(c.showDate, true) && ctx.publishedAt) {
     parts.push(
       <time key="d" dateTime={ctx.publishedAt}>
-        {fmtDate(ctx.publishedAt, lang, dateFmt)}
+        {fmtDate(ctx.publishedAt, lang, dateFmt, now)}
       </time>,
     );
   }

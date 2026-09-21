@@ -10,6 +10,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { toJson } from "@/lib/builder/types";
+import { escapeLike } from "@/lib/admin/listFilters";
 
 // Typ + domyślne przeniesione do lib/community/modulesSettings (małego modułu
 // współdzielonego z chrome) - re-eksport utrzymuje dotychczasowe API admina.
@@ -112,7 +113,13 @@ export async function fetchAdminConversations(params: {
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .limit(limit);
   if (params.search && params.search.trim().length > 0) {
-    query.ilike("last_message_preview", `%${params.search.trim()}%`);
+    // Fraza idzie przez `escapeLike` tak samo jak w pozostałych wyszukiwarkach
+    // panelu (`postsListQuery.ts`, `admin.pages.tsx`). Bez tego `%` i `_`
+    // z wejścia są WILDCARDAMI wzorca, a nie szukanymi znakami: moderator
+    // szukający „100%" dostaje wynik szerszy niż fraza, a sama fraza „%"
+    // zwraca wszystkie rozmowy. Nawias i przecinek rozsypują dodatkowo parser
+    // filtra PostgREST.
+    query.ilike("last_message_preview", `%${escapeLike(params.search.trim())}%`);
   }
   const { data, error } = await query;
   if (error) throw error;

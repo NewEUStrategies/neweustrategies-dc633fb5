@@ -1,17 +1,19 @@
 // Renderowanie szablonów maili autoryzacyjnych do HTML na potrzeby podglądu
 // w panelu admina (/admin/newsletter/email-preview).
 // Plik server-only: React Email `render` nie może trafić do bundla klienta.
+//
+// F04 (2026-09-20): `@react-email/render` i sześć szablonów ciągnących
+// `@react-email/components` były importowane STATYCZNIE, a ten moduł ma
+// kilkunastu importerów w grafie serwera (funkcje serwerowe podglądu, panel).
+// Rollup hoistuje moduł współdzielony do wspólnego przodka, więc cały
+// React Email był EWALUOWANY PRZY STARCIE IZOLATU Workera - także dla żądań,
+// które nigdy nie renderują maila. Krawędzie schodzą do `await import(...)`
+// WEWNĄTRZ funkcji renderującej: kontrakt eksportów bez zmian (obie funkcje
+// i tak były `async`), a graf startowy izolatu bez React Email.
 import * as React from "react";
-import { render } from "@react-email/render";
 
 import { authCopy, type AuthEmailType } from "@/lib/email-templates/copy";
 import type { EmailLang } from "@/lib/email-templates/nes-layout";
-import { SignupEmail } from "@/lib/email-templates/signup";
-import { InviteEmail } from "@/lib/email-templates/invite";
-import { MagicLinkEmail } from "@/lib/email-templates/magic-link";
-import { RecoveryEmail } from "@/lib/email-templates/recovery";
-import { EmailChangeEmail } from "@/lib/email-templates/email-change";
-import { ReauthenticationEmail } from "@/lib/email-templates/reauthentication";
 import type { PolishGender } from "@/lib/i18n/polishVocative";
 
 export const AUTH_EMAIL_TYPES: readonly AuthEmailType[] = [
@@ -55,20 +57,32 @@ type PreviewProps = {
   gender: PolishGender;
 };
 
-function componentFor(type: AuthEmailType): React.ComponentType<PreviewProps> {
+/**
+ * Szablon ładowany DOPIERO przy renderowaniu - i tylko ten jeden, którego
+ * dotyczy żądanie. `switch` ze statycznymi specyfikatorami (a nie `import()`
+ * z wyliczaną ścieżką) zostawia Rollupowi sześć jawnych, analizowalnych
+ * krawędzi, więc podział na chunki jest deterministyczny.
+ */
+async function componentFor(type: AuthEmailType): Promise<React.ComponentType<PreviewProps>> {
   switch (type) {
     case "signup":
-      return SignupEmail as React.ComponentType<PreviewProps>;
+      return (await import("@/lib/email-templates/signup"))
+        .SignupEmail as React.ComponentType<PreviewProps>;
     case "invite":
-      return InviteEmail as React.ComponentType<PreviewProps>;
+      return (await import("@/lib/email-templates/invite"))
+        .InviteEmail as React.ComponentType<PreviewProps>;
     case "magiclink":
-      return MagicLinkEmail as React.ComponentType<PreviewProps>;
+      return (await import("@/lib/email-templates/magic-link"))
+        .MagicLinkEmail as React.ComponentType<PreviewProps>;
     case "recovery":
-      return RecoveryEmail as React.ComponentType<PreviewProps>;
+      return (await import("@/lib/email-templates/recovery"))
+        .RecoveryEmail as React.ComponentType<PreviewProps>;
     case "email_change":
-      return EmailChangeEmail as React.ComponentType<PreviewProps>;
+      return (await import("@/lib/email-templates/email-change"))
+        .EmailChangeEmail as React.ComponentType<PreviewProps>;
     case "reauthentication":
-      return ReauthenticationEmail as React.ComponentType<PreviewProps>;
+      return (await import("@/lib/email-templates/reauthentication"))
+        .ReauthenticationEmail as React.ComponentType<PreviewProps>;
   }
 }
 
@@ -77,7 +91,10 @@ export async function renderAuthEmailPreview(
   input: AuthEmailPreviewInput,
 ): Promise<AuthEmailPreview> {
   const copy = authCopy(input.type, input.lang, input.gender);
-  const Component = componentFor(input.type);
+  const [{ render }, Component] = await Promise.all([
+    import("@react-email/render"),
+    componentFor(input.type),
+  ]);
 
   const props: PreviewProps = {
     siteName: "New European Strategies",

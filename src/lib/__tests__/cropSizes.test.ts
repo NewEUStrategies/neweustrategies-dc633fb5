@@ -29,13 +29,21 @@ import {
   upsertCropSize,
   deleteCropSize,
   IMAGE_QUALITY,
+  IMAGE_QUALITY_SMALL,
+  SMALL_VARIANT_MAX_WIDTH,
+  qualityForWidth,
   RESPONSIVE_WIDTHS,
   type CropSize,
 } from "@/lib/cropSizes";
+import { PUBLIC_MEDIA_ORIGIN } from "@/lib/media/publicUrl";
 
 const OBJ = "https://proj.supabase.co/storage/v1/object/public/media/cover.jpg";
 const RENDER = OBJ.replace("/object/", "/render/image/");
 const EXT = "https://cdn.example.com/cover.jpg";
+/** Obcy host z katalogiem `/media/` - kształt ścieżki jak nasz, host cudzy. */
+const EXT_MEDIA = "https://cdn.example.com/media/cover.jpg";
+/** Ten sam kształt ścieżki, ale na NASZYM origin - to jest adres markowy. */
+const BRANDED = `${PUBLIC_MEDIA_ORIGIN}/media/cover.jpg`;
 const TENANT = "11111111-1111-4111-8111-111111111111";
 
 function stub() {
@@ -58,6 +66,41 @@ describe("isSupabaseStorageUrl", () => {
     expect(isSupabaseStorageUrl("")).toBe(false);
     expect(isSupabaseStorageUrl("not a url")).toBe(false);
   });
+
+  // Marker `/media/` jest adresem MARKOWYM, więc liczy się tylko na naszym
+  // origin. Wcześniej funkcja patrzyła na samą ścieżkę i mówiła „tak" także
+  // obcemu hostowi z katalogiem `/media/` - a wtedy `buildImageSrcSet` doklejał
+  // mu kandydatów `…/storage/v1/render/image/public/…`, których ten host nie
+  // obsłuży. Przeglądarka wybiera kandydata po szerokości, więc pokazywała
+  // martwy obrazek przy nienaruszonym `src`.
+  it("marker `/media/` na OBCYM hoście to NIE jest Storage", () => {
+    expect(isSupabaseStorageUrl(EXT_MEDIA)).toBe(false);
+    expect(buildImageSrcSet(EXT_MEDIA)).toBe("");
+    expect(buildAvatarSrcSet(EXT_MEDIA, 24)).toBe("");
+  });
+
+  it("ten sam kształt ścieżki na NASZYM origin nadal jest Storage", () => {
+    expect(isSupabaseStorageUrl(BRANDED)).toBe(true);
+    expect(buildImageSrcSet(BRANDED)).toContain("/media/cover.jpg?width=");
+  });
+
+  it("ścieżka WZGLĘDNA należy do tego serwisu, więc przechodzi", () => {
+    // Aplikacja renderuje media właśnie ścieżką względną (`mediaRenderUrl`),
+    // żeby świeżo wgrany plik działał w podglądzie przed publikacją trasy.
+    expect(isSupabaseStorageUrl("/media/cover.jpg")).toBe(true);
+    expect(buildImageSrcSet("/media/cover.jpg")).toContain("/media/cover.jpg?width=");
+  });
+
+  it("markery `/storage/v1/...` zostają bez warunku na host", () => {
+    // Techniczny host magazynu bywa inny niż markowy i różni się per
+    // środowisko, a te ścieżki są jednoznacznie supabase'owe.
+    expect(
+      isSupabaseStorageUrl("https://inny.supabase.co/storage/v1/object/public/media/a.jpg"),
+    ).toBe(true);
+    expect(
+      isSupabaseStorageUrl("https://inny.supabase.co/storage/v1/render/image/public/media/a.jpg"),
+    ).toBe(true);
+  });
 });
 
 describe("buildScaledImageUrl", () => {
@@ -79,10 +122,24 @@ describe("buildScaledImageUrl", () => {
     expect(new URL(buildScaledImageUrl(OBJ, 320)).searchParams.get("resize")).toBe("contain");
   });
 
-  it("domyślna jakość to wspólna stała, nie liczba wpisana z palca", () => {
+  it("domyślna jakość idzie ze wspólnej reguły, nie z liczby wpisanej z palca", () => {
+    // ZMIANA OCZEKIWANIA (F27): wcześniej każdy wariant dostawał IMAGE_QUALITY
+    // (88). Teraz kandydaci ≤ 640 px jadą na 78 - to one są obrazem LCP na
+    // telefonie, a artefakty przy takiej gęstości pikseli są niewidoczne.
+    // Asercja celowo odwołuje się do `qualityForWidth`, a nie do literału:
+    // pilnuje spójności URL-a z regułą, a nie konkretnej wartości.
     expect(new URL(buildScaledImageUrl(OBJ, 320)).searchParams.get("quality")).toBe(
-      String(IMAGE_QUALITY),
+      String(qualityForWidth(320)),
     );
+    expect(new URL(buildScaledImageUrl(OBJ, 1280)).searchParams.get("quality")).toBe(
+      String(qualityForWidth(1280)),
+    );
+  });
+
+  it("jawna jakość wygrywa z regułą szerokościową", () => {
+    // GalleryBlock prosi o 82 dla 1920 px - wywołujący wie lepiej i reguła nie
+    // może mu tego nadpisać.
+    expect(new URL(buildScaledImageUrl(OBJ, 320, 95)).searchParams.get("quality")).toBe("95");
   });
 
   it("pusty adres zwraca bez zmian", () => {
@@ -102,6 +159,29 @@ describe("buildImageSrcSet", () => {
     expect(parts[0]).toMatch(/width=320.* 320w$/);
     expect(parts[1]).toMatch(/width=640.* 640w$/);
   });
+  it("mały kandydat dostaje 78, duży 88 - jakość jest funkcją szerokości", () => {
+    // Sedno F27: 9 kandydatów jechało na q88, także 320w. Najtańsze warianty
+    // obsługują telefon, gdzie każde kilkadziesiąt kB przekłada się na LCP.
+    const parts = buildImageSrcSet(OBJ, [320, 1280]).split(", ");
+    expect(new URL(parts[0].split(" ")[0]).searchParams.get("quality")).toBe("78");
+    expect(new URL(parts[1].split(" ")[0]).searchParams.get("quality")).toBe("88");
+  });
+
+  it("jawna jakość obowiązuje cały zestaw, bez różnicowania", () => {
+    const parts = buildImageSrcSet(OBJ, [320, 1280], 91).split(", ");
+    for (const part of parts) {
+      expect(new URL(part.split(" ")[0]).searchParams.get("quality")).toBe("91");
+    }
+  });
+
+  it("PARYTET: dwa wywołania z tymi samymi argumentami dają bajtowo ten sam łańcuch", () => {
+    // Preload (`imagesrcset`) i renderowany `<img>` idą przez tę samą funkcję.
+    // Gdyby jakość zależała od czegoś spoza argumentów (np. losowania albo
+    // stanu modułu), preload pobierałby inny plik niż malowany - podwójny
+    // transfer zamiast przyspieszenia.
+    expect(buildImageSrcSet(OBJ)).toBe(buildImageSrcSet(OBJ, RESPONSIVE_WIDTHS));
+  });
+
   it("returns empty for non-transformable urls so callers omit srcSet", () => {
     expect(buildImageSrcSet(EXT)).toBe("");
     expect(buildImageSrcSet("")).toBe("");
@@ -173,6 +253,32 @@ describe("IMAGE_QUALITY", () => {
     // 75 dawało widoczne zmiękczenie: rozmyte twarze na awatarach i tekst na
     // okładkach. Stała jest decyzją jakościową, nie parametrem do zgadywania.
     expect(IMAGE_QUALITY).toBe(88);
+  });
+});
+
+describe("qualityForWidth", () => {
+  it("≤ 640 px schodzi na 78, powyżej trzyma 88", () => {
+    expect(qualityForWidth(320)).toBe(IMAGE_QUALITY_SMALL);
+    expect(qualityForWidth(SMALL_VARIANT_MAX_WIDTH)).toBe(IMAGE_QUALITY_SMALL);
+    expect(qualityForWidth(SMALL_VARIANT_MAX_WIDTH + 1)).toBe(IMAGE_QUALITY);
+    expect(qualityForWidth(2400)).toBe(IMAGE_QUALITY);
+  });
+
+  it("próg jest domknięty od góry - 640 to jeszcze mały wariant", () => {
+    // Granica leży na realnym breakpoincie z RESPONSIVE_WIDTHS, więc pomyłka
+    // o jeden przesunęłaby cały wariant 640w na drugą stronę reguły.
+    expect(SMALL_VARIANT_MAX_WIDTH).toBe(640);
+    expect(RESPONSIVE_WIDTHS).toContain(SMALL_VARIANT_MAX_WIDTH);
+  });
+
+  it("jakość nigdy nie rośnie wraz ze zmniejszaniem wariantu", () => {
+    // Monotoniczność: mniejszy kandydat nie może być droższy w bajtach na
+    // piksel niż większy - inaczej srcSet przestaje mieć sens ekonomiczny.
+    for (let i = 1; i < RESPONSIVE_WIDTHS.length; i += 1) {
+      expect(qualityForWidth(RESPONSIVE_WIDTHS[i])).toBeGreaterThanOrEqual(
+        qualityForWidth(RESPONSIVE_WIDTHS[i - 1]),
+      );
+    }
   });
 });
 

@@ -25,6 +25,14 @@ describe("looksPolish", () => {
     expect(looksPolish("Poznaj nas")).toBe(true);
     expect(looksPolish("Programme Council")).toBe(false);
   });
+
+  it("poprawny angielski z polską nazwą własną NIE jest polskim tekstem", () => {
+    expect(
+      looksPolish(
+        "Correspondence address: ul. Tytusa Chałubińskiego 8 (Oxford Tower, 22nd floor), 00-613 Warsaw, Poland - write to the data protection officer.",
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("classifyPair", () => {

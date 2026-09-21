@@ -8,7 +8,10 @@
 //   2. push z INNEGO bloku albo innego języka MUSI być odrzucony - jeden wpis
 //      może nieść dwie relacje i dwie wersje językowe,
 //   3. `autoRefresh` wyłączone NIE otwiera kanału - inaczej strona archiwalna
-//      trzyma połączenie realtime bez powodu.
+//      trzyma połączenie realtime bez powodu,
+//   4. kanał czeka na WJAZD SEKCJI W KADR (F34) - blok bywa w połowie długiego
+//      wpisu, a websocket zakładany zaraz po hydratacji płacił za siebie także
+//      u czytelnika, który do relacji nigdy nie dojechał.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, act, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -76,6 +79,43 @@ const entry = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+/**
+ * Atrapa `IntersectionObserver`. happy-dom klasę MA, ale nigdy nią nie strzela,
+ * więc bez atrapy żaden test nie zobaczyłby otwartego kanału. `autoReveal`
+ * odsłania sekcję natychmiast po `observe()` (domyślny stan: „czytelnik jest
+ * przy relacji"); po wyłączeniu wjazd w kadr wyzwala się ręcznie przez
+ * `revealViewport()` - i to jest dowód na samą bramkę.
+ */
+const viewport = { autoReveal: true, pending: [] as Array<() => void> };
+
+class TestIntersectionObserver {
+  private readonly callback: IntersectionObserverCallback;
+  constructor(callback: IntersectionObserverCallback) {
+    this.callback = callback;
+  }
+  observe(target: Element) {
+    const fire = () =>
+      this.callback(
+        [{ isIntersecting: true, target } as IntersectionObserverEntry],
+        this as unknown as IntersectionObserver,
+      );
+    if (viewport.autoReveal) fire();
+    else viewport.pending.push(fire);
+  }
+  unobserve() {}
+  disconnect() {}
+  takeRecords(): IntersectionObserverEntry[] {
+    return [];
+  }
+}
+
+function revealViewport() {
+  const pending = viewport.pending.splice(0);
+  act(() => {
+    for (const fire of pending) fire();
+  });
+}
+
 function Wrap({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
@@ -100,6 +140,9 @@ function assertNoLeak(container: HTMLElement, label: string): void {
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   vi.setSystemTime(NOW);
+  viewport.autoReveal = true;
+  viewport.pending = [];
+  vi.stubGlobal("IntersectionObserver", TestIntersectionObserver);
   h.entries = [];
   h.handlers = [];
   h.channelNames = [];
@@ -111,6 +154,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -214,19 +258,25 @@ describe("LiveBlogBlock - znaczniki czasu", () => {
     assertNoLeak(container, `liveblog czas ${occurred_at}`);
   });
 
-  // DEFEKT PRODUKCYJNY (zgłoszony, nie obejściony) - „Invalid Date" NA STRONIE.
-  // `fmtTime` opakowuje formatowanie w `try/catch`, licząc na to, że zły ISO
-  // rzuci. Nie rzuca: `new Date("to-nie-data").toLocaleString(...)` zwraca
-  // NAPIS „Invalid Date", więc `catch` nigdy się nie wykonuje i ten napis leci
-  // prosto do znacznika `<time>` widocznego dla czytelnika. `fmtRelative` ma
-  // poprawną straż (`Number.isFinite`), ale deleguje do `fmtTime` - i tam
-  // straży już nie ma. Naprawa to sprawdzenie `Number.isFinite(date.getTime())`
-  // w `fmtTime` przed formatowaniem - zmiana zachowania produkcyjnego, poza
-  // zakresem zadania pokryciowego. Test STOI jako dowód.
-  it.fails.each([
+  // DEFEKT ZAMKNIĘTY 2026-09-01 - „Invalid Date" NA STRONIE.
+  //
+  // Historia, bo jest pouczająca. `fmtTime` opakowywał formatowanie w
+  // `try/catch`, licząc na to, że zły ISO rzuci. NIE RZUCA:
+  // `new Date("to-nie-data").toLocaleString(...)` zwraca NAPIS „Invalid Date",
+  // więc `catch` nigdy się nie wykonywał i ten napis leciał prosto do znacznika
+  // `<time>` widocznego dla czytelnika. `fmtRelative` miał poprawną straż
+  // (`Number.isFinite`), ale delegował do `fmtTime` - i tam straży nie było.
+  // Test stał tu jako `it.fails`, czyli DOWÓD zgłoszonego defektu.
+  //
+  // Zamknęła go naprawa strefy czasowej (punkt 7 audytu): `fmtTime` przechodzi
+  // teraz przez `formatDate` z `lib/i18n/format.ts`, a ta funkcja ma straż
+  // `Number.isNaN(d.getTime())` PRZED formatowaniem i zwraca pustkę, po której
+  // `fmtTime` podstawia surową wartość. Dwa oczekiwania odwrócone poniżej:
+  // brak wycieku jest teraz KONTRAKTEM, a nie znanym defektem.
+  it.each([
     ["data nieprawidłowa", "to-nie-data"],
     ["data pusta", ""],
-  ])("%s NIE POWINNA wypisywać Invalid Date", async (_l, occurred_at) => {
+  ])("%s NIE WYPISUJE Invalid Date", async (_l, occurred_at) => {
     h.entries = [entry({ occurred_at })];
     const { container } = renderBlock();
     await waitFor(() => expect(container.textContent).toContain("Wpis pierwszy"));
@@ -236,11 +286,11 @@ describe("LiveBlogBlock - znaczniki czasu", () => {
   it.each([
     ["data nieprawidłowa", "to-nie-data"],
     ["data pusta", ""],
-  ])("dziś %s pokazuje czytelnikowi napis Invalid Date", async (_l, occurred_at) => {
+  ])("%s pokazuje SUROWĄ wartość z bazy, nie Invalid Date", async (_l, occurred_at) => {
     h.entries = [entry({ occurred_at })];
     const { container } = renderBlock();
     await waitFor(() => expect(container.textContent).toContain("Wpis pierwszy"));
-    expect(container.querySelector("time")?.getAttribute("title")).toBe("Invalid Date");
+    expect(container.querySelector("time")?.getAttribute("title")).toBe(occurred_at);
   });
 
   it("etykiety względne odświeżają się co 30 sekund", async () => {
@@ -274,6 +324,23 @@ describe("LiveBlogBlock - kanał realtime", () => {
     renderBlock({ autoRefresh: false });
     await waitFor(() => expect(h.channelNames).toEqual([]));
     expect(h.subscribed).toBe(0);
+  });
+
+  it("POZA KADREM nie otwiera kanału; otwiera go dopiero wjazd sekcji w kadr", async () => {
+    // Czytelnik jest na górze wpisu: blok już wisi w DOM (SSR go wyrenderował),
+    // ale websocket nie ma jeszcze adresata. Dopiero dojazd do relacji go warto
+    // otworzyć - i wtedy kanał jest dokładnie ten sam, co bez bramki.
+    viewport.autoReveal = false;
+    const { container } = renderBlock({ autoRefresh: true });
+
+    await waitFor(() => expect(container.querySelector('[data-block="liveblog"]')).toBeTruthy());
+    expect(h.channelNames).toEqual([]);
+    expect(h.subscribed).toBe(0);
+
+    revealViewport();
+
+    await waitFor(() => expect(h.subscribed).toBe(1));
+    expect(h.channelNames).toEqual(["liveblog:post-1:b_live"]);
   });
 
   it("odmontowanie ZAMYKA kanał (brak wycieku połączenia)", async () => {

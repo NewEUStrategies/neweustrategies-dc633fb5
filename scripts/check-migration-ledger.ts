@@ -19,6 +19,7 @@
  * Env: SUPABASE_URL (lub VITE_SUPABASE_URL) + SUPABASE_PUBLISHABLE_KEY
  *      (lub VITE_SUPABASE_PUBLISHABLE_KEY / SUPABASE_SERVICE_ROLE_KEY).
  */
+import { probeMigrationVersions } from "../src/lib/ci/deploymentProbe";
 import { readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import {
   buildLedgerReport,
@@ -37,9 +38,6 @@ const key =
   process.env["SUPABASE_SERVICE_ROLE_KEY"] ||
   process.env["SUPABASE_PUBLISHABLE_KEY"] ||
   process.env["VITE_SUPABASE_PUBLISHABLE_KEY"];
-
-/** Rejestr bywa duży - pytamy partiami, żeby nie budować gigantycznego body. */
-const BATCH = 200;
 
 function loadConfig(): LedgerConfig {
   const raw: unknown = JSON.parse(readFileSync(CONFIG_PATH, "utf8"));
@@ -65,40 +63,12 @@ function loadConfig(): LedgerConfig {
   return { baseline: parsed.baseline, reconciled };
 }
 
-async function askMissing(versions: readonly string[]): Promise<string[]> {
-  const missing: string[] = [];
-  for (let i = 0; i < versions.length; i += BATCH) {
-    const batch = versions.slice(i, i + BATCH);
-    const res = await fetch(`${url}/rest/v1/rpc/missing_migration_versions`, {
-      method: "POST",
-      headers: {
-        apikey: key as string,
-        Authorization: `Bearer ${key as string}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ _versions: batch }),
-    });
-    const text = await res.text();
-    if (!res.ok) {
-      throw new Error(
-        `RPC missing_migration_versions zwróciło ${res.status}: ${text.slice(0, 400)}`,
-      );
-    }
-    const parsed: unknown = text ? JSON.parse(text) : [];
-    if (!Array.isArray(parsed)) {
-      throw new Error("RPC missing_migration_versions zwróciło nieoczekiwany kształt odpowiedzi.");
-    }
-    for (const v of parsed) if (typeof v === "string") missing.push(v);
-  }
-  return missing;
-}
-
 async function main(): Promise<void> {
   if (!url || !key) {
     console.error(
       "✗ Brak SUPABASE_URL / klucza Supabase - nie mogę zweryfikować rejestru migracji.",
     );
-    process.exit(1);
+    throw new Error("Missing deployment database configuration");
   }
 
   const config = loadConfig();
@@ -106,7 +76,7 @@ async function main(): Promise<void> {
   const askedVersions = [
     ...new Set(ledgerRequirements(parsed, config).map((r) => r.ledgerVersion)),
   ];
-  const missingVersions = await askMissing(askedVersions);
+  const missingVersions = await probeMigrationVersions(askedVersions, { url, key });
   const report = buildLedgerReport(parsed, malformed, missingVersions, config);
 
   const markdown = renderLedgerReport(report);
@@ -117,6 +87,7 @@ async function main(): Promise<void> {
     "reports/migration-ledger.json",
     `${JSON.stringify(
       {
+        status: ledgerFailed(report) ? "failed" : "passed",
         baseline: config.baseline,
         required: report.required.length,
         baselined: report.baselined,
@@ -152,4 +123,13 @@ async function main(): Promise<void> {
   );
 }
 
-void main();
+void main().catch((error: unknown) => {
+  const detail = error instanceof Error ? error.message : "Migration probe failed";
+  mkdirSync("reports", { recursive: true });
+  writeFileSync(
+    "reports/migration-ledger.json",
+    JSON.stringify({ status: "failed", error: detail }),
+  );
+  console.error(detail);
+  process.exitCode = 1;
+});

@@ -7,8 +7,14 @@
 // homepage (one strong entity signal instead of noise on every URL),
 // BreadcrumbList on every content page from SSR loader data (the previous
 // body-level emission only appeared after hydration, so crawlers never saw it).
-import { SITE_NAME, SITE_DEFAULT_DESCRIPTION, absoluteUrl, type Lang } from "@/lib/seo/meta";
-import { localizedPath } from "@/lib/i18n/localePath";
+import {
+  SITE_DEFAULT_DESCRIPTION,
+  absoluteUrl,
+  siteAlternateName,
+  siteName,
+  type Lang,
+} from "@/lib/seo/meta";
+import { localizedPath, stripLangPrefix } from "@/lib/i18n/localePath";
 import type { BreadcrumbItem } from "@/lib/breadcrumbs";
 import { homeLabel } from "@/lib/i18n/commonLabels";
 import { eventAddressLine, type EventAddressParts } from "@/lib/events/eventAddress";
@@ -74,7 +80,10 @@ export function organizationJsonLd(input: OrganizationJsonLdInput): Record<strin
     "@context": "https://schema.org",
     "@type": "NewsMediaOrganization",
     "@id": `${input.origin}/#organization`,
-    name: SITE_NAME,
+    // Encja marki i sygnał nazwy serwisu MUSZĄ podawać tę samą nazwę: dwie
+    // różne nazwy w jednym grafie to dla knowledge graphu dwie encje.
+    name: siteName(input.origin),
+    ...(siteAlternateName(input.origin) ? { alternateName: siteAlternateName(input.origin) } : {}),
     url: input.origin,
     description: input.description?.trim() || SITE_DEFAULT_DESCRIPTION[input.lang],
     ...(input.logoUrl ? { logo: { "@type": "ImageObject", url: input.logoUrl } } : {}),
@@ -122,11 +131,18 @@ export function siteNavigationJsonLd(
  * answer engines.
  */
 export function webSiteJsonLd(origin: string, lang: Lang): Record<string, unknown> {
+  // `name` to SYGNAŁ NAZWY SERWISU, który Google rysuje w osobnej linii nad
+  // niebieskim linkiem - stąd bierze się go z redakcyjnego ustawienia, a nie
+  // ze stałej. `alternateName` (skrót marki) emitujemy tylko gdy ustawiony:
+  // pusty łańcuch w danych strukturalnych jest gorszy niż brak pola, bo
+  // wygląda jak deklaracja "marka nie ma skrótu".
+  const alternateName = siteAlternateName(origin);
   return {
     "@context": "https://schema.org",
     "@type": "WebSite",
     "@id": `${origin}/#website`,
-    name: SITE_NAME,
+    name: siteName(origin),
+    ...(alternateName ? { alternateName } : {}),
     url: origin,
     inLanguage: lang,
     publisher: { "@id": `${origin}/#organization` },
@@ -144,27 +160,40 @@ export function webSiteJsonLd(origin: string, lang: Lang): Record<string, unknow
 /**
  * BreadcrumbList from the already-localized breadcrumb items. Hrefs are
  * canonical unprefixed paths - they are localized per the render language so
- * the EN page's breadcrumbs point at "/en/..." URLs. The last item (current
- * page) carries no `item` URL, per Google's recommendation.
+ * the EN page's breadcrumbs point at "/en/..." URLs.
+ *
+ * NAPRAWA 2026-09-21 (Search Console: „Brakujące pole item w itemListElement"):
+ * KAŻDY `ListItem` musi nosić `item`, także ostatni (bieżąca strona). Wcześniej
+ * ostatni okruszek celowo go nie miał - Google zgłaszał to jako błąd na 12
+ * archiwach kategorii/tagów. Widoczny okruszek pozostaje bez linku; `selfPath`
+ * pozwala trasie podać własny adres tam, gdzie ostatni okruszek nie ma `href`.
  */
 export function breadcrumbListJsonLd(
   items: readonly BreadcrumbItem[],
   origin: string,
   lang: Lang,
+  selfPath?: string,
 ): Record<string, unknown> {
   const home: BreadcrumbItem = { label: homeLabel(lang), href: "/" };
   const all = [home, ...items];
+  const last = all.length - 1;
   return {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
-    itemListElement: all.map((item, i) => ({
-      "@type": "ListItem",
-      position: i + 1,
-      name: item.label,
-      ...(item.href && i < all.length - 1
-        ? { item: absoluteUrl(origin, localizedPath(item.href, lang)) }
-        : {}),
-    })),
+    itemListElement: all.map((item, i) => {
+      const href = item.href ?? (i === last ? selfPath : undefined);
+      const url = href
+        ? /^https?:\/\//i.test(href)
+          ? href
+          : absoluteUrl(origin, localizedPath(stripLangPrefix(href).pathname, lang))
+        : null;
+      return {
+        "@type": "ListItem",
+        position: i + 1,
+        name: item.label,
+        ...(url ? { item: url } : {}),
+      };
+    }),
   };
 }
 

@@ -25,9 +25,11 @@ import { readFileSync } from "node:fs";
 
 /** Bramki, które NIE należą do zestawu statycznego - klucz: powód. */
 const EXCLUDED: Readonly<Record<string, string>> = {
+  "check:first-visit-regression": "porównuje artefakty Playwright - workflow first-visit",
   "check:bundle": "mierzy artefakt buildu (.output) - wymaga `bun run build`",
   "check:chunks": "graf chunków z artefaktu buildu",
   "check:entry-purity": "chunk startowy z artefaktu buildu",
+  "check:platform-coverage": "instrumentowany pomiar i rachunek wykonania testów - job test w CI",
   "check:db-contract": "sonduje Data API - wymaga SUPABASE_URL i klucza",
   // Ta sama klasa co `check:db-contract`: bramka PO WDROŻENIU, pyta wdrożoną
   // bazę o rejestr migracji przez RPC. W CI jedzie WYŁĄCZNIE w jobie
@@ -49,6 +51,7 @@ const EXCLUDED: Readonly<Record<string, string>> = {
   "check:chunk-parity": "test vitest - jedzie w `bun run test`",
   "check:permissions-parity": "testy vitest - jadą w `bun run test`",
   "check:i18n-parity": "testy vitest - jadą w `bun run test`",
+  "check:ci-gates": "testy vitest - jadą w `bun run test`",
   "check:widget-fidelity": "testy vitest - jadą w `bun run test`",
 };
 

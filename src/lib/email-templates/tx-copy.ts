@@ -44,7 +44,11 @@ export type TxEmailType =
   | "customer_portal_link"
   | "club_application_accepted"
   | "club_application_rejected"
-  | "club_application_more_info";
+  | "club_application_more_info"
+  // Zaproszenie do konta wysyłane z panelu administratora: link aktywacyjny albo
+  // dane logowania z hasłem tymczasowym. Poczta 1:1 - bez niej odbiorca nie
+  // wejdzie na przygotowane dla niego konto.
+  | "user_invitation";
 
 export interface TxSubjectVars {
   /** Nazwa planu subskrypcji lub tytuł wydarzenia. */
@@ -559,6 +563,19 @@ const PL: Dict = {
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
+  user_invitation: {
+    subject: () => "Aktywuj swoje konto | New European Strategies",
+    icon: "hero-handshake",
+    preview: "Twoje konto na platformie New European Strategies czeka na aktywację.",
+    eyebrow: "Zaproszenie",
+    heading: "Witamy w New European Strategies",
+    intro:
+      "Przygotowaliśmy dla Ciebie konto na platformie New European Strategies. Aktywuj je, aby korzystać z analiz, klubów dyskusyjnych i wydarzeń.",
+    cta: "Aktywuj konto",
+    note: "Jeśli nie spodziewasz się tej wiadomości, po prostu ją zignoruj - konto pozostanie nieaktywne.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
 };
 
 const EN: Dict = {
@@ -966,6 +983,19 @@ const EN: Dict = {
       "We have started reviewing your application and need a few more details about your professional profile and your expectations of the club before the panel can take a decision.",
     cta: "Complete the application",
     note: "You can simply reply to this message with the missing details, or resubmit the form - we will link both to the same record.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  user_invitation: {
+    subject: () => "Activate your account | New European Strategies",
+    icon: "hero-handshake",
+    preview: "Your New European Strategies account is ready to be activated.",
+    eyebrow: "Invitation",
+    heading: "Welcome to New European Strategies",
+    intro:
+      "We have prepared an account for you on the New European Strategies platform. Activate it to access our analysis, discussion clubs and events.",
+    cta: "Activate account",
+    note: "If you were not expecting this message, simply ignore it - the account stays inactive.",
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },

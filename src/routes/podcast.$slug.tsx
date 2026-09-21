@@ -1,4 +1,5 @@
-import { createFileRoute, notFound, Link } from "@tanstack/react-router";
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { uiLang } from "@/lib/i18n/format";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
@@ -11,7 +12,10 @@ import {
 } from "@/lib/queries/podcasts";
 import { supabase } from "@/integrations/supabase/client";
 import { PODCAST_SHOW_FIELDS } from "@/lib/queries/podcasts";
-import type { PodcastShow } from "@/lib/podcast/types";
+import type { Podcast, PodcastPerson, PodcastSettings, PodcastShow } from "@/lib/podcast/types";
+import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { notFoundIfClean } from "@/lib/ssr/notFoundIfClean";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import { PodcastPlayer } from "@/components/atoms/PodcastPlayer";
 import { Mic, Quote as QuoteIcon, Copy, Check } from "@/lib/lucide-shim";
 import { ExternalLink } from "lucide-react";
@@ -37,17 +41,56 @@ import {
   splitUrl,
   type ImagePreloadInput,
 } from "@/lib/seo/meta";
-import { appendLinkHeader } from "@/lib/http/responseHeaders";
+import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { getRequestUrl } from "@/lib/seo/request";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { buildAvatarSrc } from "@/lib/cropSizes";
 import { pickLocalized, pickPair } from "@/lib/i18n/pickLocalized";
 import { ensureI18n as ensurePodcastsI18n } from "@/lib/i18n-podcasts";
 
+/**
+ * Fallbacki renderu zdegradowanego dla trzech odczytow WTORNYCH loadera.
+ * `loadResilient` zasiewa je z `updatedAt: 0`, wiec przegladarka dociaga je po
+ * montazu i strona sama sie leczy, gdy backend wroci.
+ */
+const NO_SETTINGS: PodcastSettings | null = null;
+const NO_PARENT_SHOW: PodcastShow | null = null;
+const NO_PEOPLE: PodcastPerson[] = [];
+/** Odcinek bez `show_id` - nie ma czego czytac, wiec render jest CZYSTY. */
+const SHOW_NOT_APPLICABLE = { data: null, degraded: false } as const;
+
+/**
+ * JEDEN termin ZADANIA na caly loader. Odczyt TOZSAMOSCI odcinka jest
+ * szeregowy z koniecznosci (klucze obsady i programu nadrzednego niosa `id`
+ * i `show_id` znane dopiero z niego), wiec bez terminu ABSOLUTNEGO budzety
+ * sumowalyby sie: tozsamosc + najwolniejsze z trzech zapytan wtornych.
+ */
+const EPISODE_SSR_BUDGET_MS = 1_500;
+
+/**
+ * Fallback TOZSAMOSCIOWY. `null` jest tu WYLACZNIE wartoscia zasiewu - o tym,
+ * czy odcinek istnieje, decyduje flaga `degraded` (lib/ssr/notFoundIfClean.ts).
+ */
+const NO_EPISODE: Podcast | null = null;
+
 export const Route = createFileRoute("/podcast/$slug")({
   loader: async ({ context, params }) => {
-    const data = await context.queryClient.ensureQueryData(podcastBySlugQueryOptions(params.slug));
-    if (!data) throw notFound();
+    const deadlineAt = Date.now() + EPISODE_SSR_BUDGET_MS;
+    // Gole `ensureQueryData` zamienialo KAZDY blip bazy odcinkow w HTTP 500 na
+    // zaindeksowanej stronie. `loadResilient` oddaje sterowanie sam i nigdy nie
+    // rzuca, a `notFoundIfClean` pilnuje, ze 404 leci WYLACZNIE z odczytu
+    // CZYSTEGO - niewiedza nie ma prawa wypisac odcinka z indeksu.
+    const identity = await loadResilient(
+      context.queryClient,
+      podcastBySlugQueryOptions(params.slug),
+      NO_EPISODE,
+      { deadlineAt, label: `podcast-episode:${params.slug}` },
+    );
+    const data = notFoundIfClean(identity);
+    if (data === null) {
+      setCacheControlHeader(resilientCacheControl(true));
+      return { podcast: null, coverPreload: null, degraded: true };
+    }
     // Preload LCP okładki odcinka - render to zwykłe <img src> bez srcSet,
     // więc deskryptor niesie sam `href` (para srcset/sizes wskazywałaby inny
     // wariant niż malowany i podwoiłaby pobranie). Wartość idzie też jako
@@ -60,7 +103,53 @@ export const Route = createFileRoute("/podcast/$slug")({
       ? { href: buildAvatarSrc(data.cover_image_url, 128) }
       : null;
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
-    return { podcast: data, coverPreload };
+
+    // N5 - TRESC NAD ZGIECIEM JEDZIE Z LOADEREM, NIE PO HYDRATACJI.
+    // Nazwa programu w nadtytule, wariant odtwarzacza (`sticky` przykleja pasek
+    // do dolu ekranu, wiec decyduje o UKLADZIE strony) i lista prowadzacych sa
+    // malowane nad zgieciem. Dopoki czytal je wylacznie `useQuery`, kazde z nich
+    // bylo osobnym round-tripem PO hydratacji: crawler ich nie widzial, a
+    // czytelnik widzial przeskok ukladu. Zasiew jedzie do przegladarki
+    // w dehydrowanym cache zapytan, wiec `useQuery` w komponencie NIE ponawia
+    // swiezego wpisu - liczba odczytow sie nie zmienia, zmienia sie ich FALA.
+    // ZMIERZONE (podcastEpisodeRoute.test.tsx): 1 loader + 4 klient -> 4 loader
+    // + 1 klient.
+    //
+    // KAZDY z tych trzech odczytow jest WTORNY, wiec idzie przez
+    // `loadResilient`, ktory nigdy nie rzuca: gole `ensureQueryData` zamienialo
+    // by blip na tabeli ustawien odtwarzacza w HTTP 500 na dzialajacym odcinku.
+    // Trzy budzety biegna ROWNOLEGLE, wiec wall-clock to jeden budzet, nie trzy.
+    //
+    // ODRZUCONE SWIADOMIE: `showEpisodesQueryOptions` (kafelki "wiecej z tego
+    // programu") zostaje klienckie. To jedyne zapytanie tej trasy, ktore ciagnie
+    // do 500 wierszy pelnego `PODCAST_FIELDS` - razem z transkrypcjami i
+    // notatkami - zeby zbudowac cztery kafelki POD cala trescia. Przeniesienie
+    // go do loadera wymienia jeden round-trip po hydratacji na setki kilobajtow
+    // w ladunku SSR kazdego czytelnika, w tym tych, ktorzy do rekomendacji nigdy
+    // nie doscrolluja.
+    const [settings, parentShow, people] = await Promise.all([
+      loadResilient(context.queryClient, podcastSettingsQueryOptions, NO_SETTINGS, {
+        deadlineAt,
+        label: "podcast-settings",
+      }),
+      data.show_id
+        ? loadResilient(context.queryClient, showByIdQueryOptions(data.show_id), NO_PARENT_SHOW, {
+            deadlineAt,
+            label: `podcast-parent-show:${data.show_id}`,
+          })
+        : SHOW_NOT_APPLICABLE,
+      loadResilient(context.queryClient, episodePeopleQueryOptions(data.id), NO_PEOPLE, {
+        deadlineAt,
+        label: `podcast-episode-people:${data.id}`,
+      }),
+    ]);
+    // Render zdegradowany NIE MOZE utrwalic sie na brzegu CDN: kolejni czytelnicy
+    // dostawaliby odcinek bez nazwy programu i bez prowadzacych przez cale okno
+    // swiezosci. Czysty render zostaje przy domyslnej polityce trasy.
+    if (anyDegraded(settings, parentShow, people)) {
+      setCacheControlHeader(resilientCacheControl(true));
+    }
+    return { podcast: data, coverPreload, degraded: false };
   },
   head: ({ loaderData }) => {
     const p = loaderData?.podcast;
@@ -168,6 +257,11 @@ function PodcastNotice({ messageKey }: { messageKey: string }) {
 
 function PodcastSinglePage() {
   const { slug } = Route.useParams();
+  const { degraded: initialDegraded } = Route.useLoaderData();
+  const { degraded, retry } = useDegradedUntilHealed(
+    podcastBySlugQueryOptions(slug).queryKey,
+    initialDegraded,
+  );
   ensurePodcastsI18n();
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = uiLang(i18n.language);
@@ -195,6 +289,16 @@ function PodcastSinglePage() {
     [showEpisodes, p?.id],
   );
 
+  // DEGRADACJA TOZSAMOSCI MOWI PRAWDE, nie renderuje bialej strony. `p` jest
+  // wtedy zasianym `null`, a samo `return null` dawalo pusty dokument na HTTP
+  // 200 - dla czytelnika nieodroznialny od awarii przegladarki.
+  if (degraded) {
+    return (
+      <div className="container mx-auto max-w-3xl px-4 py-12">
+        <DegradedDataNotice onRetry={retry} variant="page" />
+      </div>
+    );
+  }
   if (!p) return null;
 
   const title = podcastTitle(p, lang);

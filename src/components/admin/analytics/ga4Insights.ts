@@ -15,10 +15,19 @@ function num(v: string | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/**
+ * Totale raportu poukładane po nazwie metryki. Data API oddaje `totals` PUSTE
+ * dla okna bez ruchu, a nagłówki metryk zwraca zawsze - dlatego mapowane są
+ * tylko te metryki, dla których total naprawdę przyjechał. Metryka bez totalu
+ * jest NIEOBECNA, nie zerowa: dzięki temu bloki bramkowane tą mapą (radar
+ * zaangażowania) nie budują zdania z podstawionych zer. Ta sama reguła co
+ * w `ga4TotalsMap` - brak danych to nie to samo, co zmierzone zero.
+ */
 function totalsFromReport(report: Ga4Report | undefined): Record<string, number> {
   const out: Record<string, number> = {};
   if (!report) return out;
-  for (let i = 0; i < report.metricHeaders.length; i++) {
+  const available = Math.min(report.metricHeaders.length, report.totals.length);
+  for (let i = 0; i < available; i++) {
     out[report.metricHeaders[i]] = num(report.totals[i]);
   }
   return out;
@@ -88,9 +97,13 @@ export function buildGa4Insights(p: Params): Insight[] {
       .slice()
       .sort((a, b) => (a.dims[0] ?? "").localeCompare(b.dims[0] ?? ""));
     const idx = p.dateReport.metricHeaders.indexOf("sessions");
+    // Obie połowy muszą obejmować TĘ SAMĄ liczbę dni, inaczej porównanie sum
+    // porównuje różne okna: przy nieparzystej liczbie dni krótsze H1 zawyża
+    // trend (albo ukrywa spadek) na serii, która nie drgnęła. Dzień środkowy
+    // nie należy więc do żadnej połowy - H1 to pierwsze `half` dni, H2 ostatnie.
     const half = Math.floor(rows.length / 2);
     const early = rows.slice(0, half).reduce((s, r) => s + num(r.metrics[idx]), 0);
-    const late = rows.slice(half).reduce((s, r) => s + num(r.metrics[idx]), 0);
+    const late = rows.slice(rows.length - half).reduce((s, r) => s + num(r.metrics[idx]), 0);
     const trend = pctDelta(late, early);
     out.push({
       id: "trend",
@@ -185,6 +198,9 @@ export function buildGa4Insights(p: Params): Insight[] {
   }
 
   // 7. Radar zaangażowania
+  // Bramką jest obecność TOTALI (`totalsFromReport` pomija metryki bez
+  // wartości), a nie sama obecność nagłówków metryk: okno bez ruchu nie może
+  // dostać ostrzeżenia zbudowanego z podstawionych zer.
   if (Object.keys(engage).length > 0) {
     const asd = engage.averageSessionDuration ?? 0;
     const bounce = engage.bounceRate ?? 0;
@@ -214,12 +230,15 @@ export function buildGa4Insights(p: Params): Insight[] {
     const idxV = p.pageReport.metricHeaders.indexOf("screenPageViews");
     const idxE = p.pageReport.metricHeaders.indexOf("engagementRate");
     rows.sort((a, b) => num(b.metrics[idxV]) - num(a.metrics[idxV]));
-    const weakTop = rows.slice(0, 10).filter((r) => num(r.metrics[idxE]) < 0.35).length;
+    // "Zaangażowane" to reszta REALNEJ czołówki, a nie reszta dziesiątki:
+    // raport krótszy niż dziesięć stron ma mniej niż dziesięć stron do oceny.
+    const topRows = rows.slice(0, 10);
+    const weakTop = topRows.filter((r) => num(r.metrics[idxE]) < 0.35).length;
     out.push({
       id: "top-pages",
       element: t(`${B}.topPages.element`),
       severity: weakTop >= 3 ? "warn" : "info",
-      title: t(`${B}.topPages.title`, { strong: 10 - weakTop, weak: weakTop }),
+      title: t(`${B}.topPages.title`, { strong: topRows.length - weakTop, weak: weakTop }),
       detail: t(`${B}.topPages.detail`),
       fixes: weakTop >= 3 ? arr(`${B}.topPages.fixesWeak`) : arr(`${B}.topPages.fixesDefault`),
     });

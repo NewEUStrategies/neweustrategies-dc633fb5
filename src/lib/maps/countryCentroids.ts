@@ -1,7 +1,7 @@
 // WYGENEROWANE PRZEZ scripts/generate-dotted-world.ts - nie edytować ręcznie.
 //
 // Centroidy krajów (ISO 3166-1 alpha-2 -> lat/lng) policzone z największego
-// pierścienia geometrii w public/geo/world-110m.v1.json. Służą WYŁĄCZNIE
+// pierścienia geometrii w public/geo/world-110m.v2.json. Służą WYŁĄCZNIE
 // panelowi widgetu „Mapa świata": autor wybiera kraj, panel wpisuje
 // współrzędne punktu. Renderer publiczny czyta już tylko lat/lng z treści,
 // więc ta tabela nigdy nie trafia do bundla strony.

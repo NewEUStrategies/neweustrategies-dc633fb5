@@ -35,17 +35,16 @@ export type NesSocialPlatform = (typeof NES_SOCIAL_PLATFORMS)[number];
  * Profile fundacji. Pusty napis = „nie znamy profilu NES na tej platformie"
  * i ma nim zostać, dopóki redakcja nie poda adresu - patrz nagłówek.
  *
- * `youtube` i `spotify` są puste świadomie: jedyny kanał wideo, jaki niesie
- * repozytorium (`youtube.com/c/HistorycznyAmbasador`, seed strony /kontakt),
- * występuje pod INNĄ marką niż fundacja, a profilu Spotify nie ma nigdzie.
+ * Wszystkie sześć platform ma już potwierdzone profile NES; redakcja może je
+ * nadpisać w Admin → Wygląd → Opcje motywu → „Ikony social".
  */
 export const NES_PROFILE_URLS: Readonly<Record<NesSocialPlatform, string>> = {
   facebook: "https://www.facebook.com/NewEuropeanStrategies",
   x: "https://x.com/NewEUStrategies",
-  youtube: "",
-  instagram: "https://www.instagram.com/neweuropeanstrategies",
-  linkedin: "https://www.linkedin.com/company/new-european-strategies",
-  spotify: "",
+  youtube: "https://www.youtube.com/@NewEuropeanStrategies",
+  instagram: "https://www.instagram.com/new.eustrategies/",
+  linkedin: "https://www.linkedin.com/company/new-european-strategies/",
+  spotify: "https://open.spotify.com/show/7GuZqsCXg0qOb3rde1IhdN",
 } as const;
 
 /** Adres kontaktowy fundacji (domena zgodna z `SITE_CANONICAL_ORIGIN`). */

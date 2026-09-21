@@ -51,8 +51,8 @@ przewraca CI tak samo jak błąd typów.
   "slug": "wydarzenia", // identyfikator, unikalny
   "nazwa": "Wydarzenia", // nazwa dla ludzi
   "zakres": "Katalog wydarzeń, studio …", // jedno zdanie: co tu wchodzi
-  "wlasciciel": "wt-nieobsadzony", // KLUCZ z `osoby`
-  "zastepca": "zastepca-nieobsadzony", // KLUCZ z `osoby`, MUSI być inny niż właściciel
+  "wlasciciel": "fundacja-utrzymanie", // KLUCZ z `osoby`
+  "zastepca": "fundacja-zastepstwo", // KLUCZ z `osoby`, MUSI być inny niż właściciel
   "eskalacja": "organizacja-nes", // KLUCZ z `osoby`
   "klasaSla": "sla-1", // klucz z `kontraktUtrzymaniowy.klasySla`
   "zespolGithub": "@NewEUStrategies/utrzymanie-wydarzenia",
@@ -261,3 +261,5 @@ rejestrze (`admin.events_.$eventId.*`) bierze 20,2%, więc zapas jest dwukrotny.
 **Nowa bramka `check:*` MUSI zostać wpięta krokiem w `.github/workflows/ci.yml`** -
 inaczej oblewa meta-bramka `check:gate-coverage`, i to w każdym innym przebiegu,
 w którym jeszcze jest. Wpięcie dwa razy w tym samym jobie oblewa tak samo.
+
+Od 12.09.2026 właścicielem wszystkich domen jest Fundacja New European Strategies. Utrzymanie i zastępstwo stanowią dwie role instytucjonalne Fundacji, kierowane na konto @NewEUStrategies i office@neweuropeanstrategies.com. Nie oznacza to dwóch niezależnych osób ani zewnętrznego wykonawcy.

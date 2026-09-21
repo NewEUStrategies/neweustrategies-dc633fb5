@@ -31,6 +31,8 @@ export interface ChatWindowHeaderProps {
   /** Presence rozmówcy; w kręgu zawsze bez kropki (liczba online jest w podtytule). */
   peerOnline: boolean;
   subtitle: HeaderSubtitle;
+  /** Wątek 1:1: stanowisko i firma pobrane z profilu rozmówcy. */
+  profileMeta?: string | null;
   muted: boolean;
   pinned: boolean;
   /** Wariant "page" na mobile: powrót do listy rozmów. */
@@ -74,7 +76,18 @@ function StateBadges({
 
 export function ChatWindowHeader(props: ChatWindowHeaderProps) {
   const { t } = useTranslation();
-  const { variant, name, avatarUrl, slug, isGroup, peerOnline, subtitle, muted, pinned } = props;
+  const {
+    variant,
+    name,
+    avatarUrl,
+    slug,
+    isGroup,
+    peerOnline,
+    subtitle,
+    profileMeta,
+    muted,
+    pinned,
+  } = props;
 
   const subtitleText =
     subtitle.kind === "group"
@@ -86,6 +99,7 @@ export function ChatWindowHeader(props: ChatWindowHeaderProps) {
         : t("chat.offline");
 
   const badgeSize = variant === "dock" ? "h-3.5 w-3.5" : "h-3 w-3";
+  const directSubtitleText = profileMeta?.trim() || subtitleText;
   const badges = (
     <StateBadges
       muted={muted}
@@ -113,7 +127,10 @@ export function ChatWindowHeader(props: ChatWindowHeaderProps) {
             <span className="truncate">{name}</span>
             {badges}
           </div>
-          <div className="text-[11px] leading-tight text-muted-foreground">{subtitleText}</div>
+          <div className="truncate text-[11px] leading-tight text-muted-foreground">
+            {directSubtitleText}
+            {profileMeta?.trim() ? <span className="sr-only">{subtitleText}</span> : null}
+          </div>
         </div>
       </>
     ) : isGroup ? (
@@ -138,7 +155,7 @@ export function ChatWindowHeader(props: ChatWindowHeaderProps) {
         </span>
       </button>
     ) : (
-      <>
+      <div className="flex min-w-0 flex-1 items-end gap-2.5">
         {/* Wariant „page" też linkuje do profilu publicznego. Organizm przed
             refaktorem tego nie robił (linkował TYLKO dock), więc z /messages
             nie dało się przejść na profil rozmówcy - a z tego samego wątku
@@ -147,7 +164,7 @@ export function ChatWindowHeader(props: ChatWindowHeaderProps) {
           name={name}
           avatarUrl={avatarUrl}
           online={peerOnline}
-          size="sm"
+          size="md"
           to={slug ? `/author/${slug}` : undefined}
         />
         <div className="min-w-0 flex-1">
@@ -155,9 +172,12 @@ export function ChatWindowHeader(props: ChatWindowHeaderProps) {
             <span className="truncate">{name}</span>
             {badges}
           </div>
-          <div className="text-[11px] text-muted-foreground">{subtitleText}</div>
+          <div className="truncate text-[11px] text-muted-foreground">
+            {directSubtitleText}
+            {profileMeta?.trim() ? <span className="sr-only">{subtitleText}</span> : null}
+          </div>
         </div>
-      </>
+      </div>
     );
 
   const chrome = (

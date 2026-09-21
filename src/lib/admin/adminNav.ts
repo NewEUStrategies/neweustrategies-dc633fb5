@@ -31,9 +31,11 @@ import {
   FlaskConical,
   Link as LinkIcon,
   Search,
+  Send,
 } from "@/lib/lucide-shim";
 import {
   BadgePercent,
+  BarChart3,
   BookOpen,
   Briefcase,
   Cable,
@@ -233,6 +235,7 @@ export function buildAdminNavGroups({
         { to: "/admin/paywall", icon: Lock, label: t("admin.nav.paywall") },
         { to: "/admin/pricing", icon: BadgePercent, label: t("admin.nav.pricing") },
         { to: "/admin/membership", icon: Crown, label: t("admin.nav.membership") },
+        { to: "/admin/members", icon: Users, label: t("admin.nav.members") },
         { to: "/admin/gifting", icon: Gift, label: t("admin.nav.gifting") },
         { to: "/admin/coupons", icon: Megaphone, label: t("admin.nav.coupons") },
         { to: "/admin/library", icon: BookOpen, label: t("admin.nav.library") },
@@ -277,7 +280,36 @@ export function buildAdminNavGroups({
           label: t("admin.nav.socialPreview"),
         },
         { to: "/admin/experiments", icon: FlaskConical, label: t("admin.nav.experiments") },
-        { to: "/admin/seo", icon: Search, label: t("admin.nav.seo") },
+        {
+          to: "/admin/seo",
+          icon: Search,
+          label: t("admin.nav.seo"),
+          // Wyszukiwarka panelu (⌘K) jest jedyną drogą do ZAKŁADEK kokpitu SEO -
+          // w nawigacji stoi tylko jego korzeń. Bez tych słów redakcja szukająca
+          // "og image" albo "tytuł w Google" nie trafia nigdzie.
+          keywords: [
+            "seo",
+            "google",
+            "wyszukiwarka",
+            "tytul",
+            "title",
+            "opis",
+            "description",
+            "og",
+            "og image",
+            "open graph",
+            "karta",
+            "social",
+            "udostepnianie",
+            "sitemap",
+            "robots",
+            "search console",
+            "strona glowna",
+            "homepage",
+            "nazwa serwisu",
+            "site name",
+          ],
+        },
         { to: "/admin/redirects", icon: LinkIcon, label: t("admin.nav.redirects") },
       ],
     },
@@ -291,6 +323,12 @@ export function buildAdminNavGroups({
         { to: "/admin/workflows", icon: Workflow, label: t("admin.nav.workflows") },
         { to: "/admin/integrations", icon: Cable, label: t("admin.nav.integrations") },
         { to: "/admin/contact", icon: Inbox, label: t("admin.nav.contact") },
+        {
+          to: "/admin/newsletter/outbox",
+          icon: Send,
+          label: t("admin.nav.emailOutbox"),
+          keywords: ["maile", "wysylka", "outbox", "email", "zaproszenia", "log"],
+        },
         { to: "/admin/expert-requests", icon: Inbox, label: t("admin.nav.expertRequests") },
         { to: "/admin/careers", icon: Briefcase, label: t("admin.nav.careers") },
         { to: "/admin/hiring", icon: Briefcase, label: t("admin.nav.hiring") },
@@ -358,6 +396,7 @@ export function buildAdminNavGroups({
         label: t("admin.navGroups.analytics"),
         items: [
           { to: "/admin/analytics", icon: TrendingUp, label: t("admin.nav.analytics") },
+          { to: "/admin/analytics/bi", icon: BarChart3, label: t("admin.nav.analyticsBi") },
           { to: "/admin/audience", icon: TrendingUp, label: t("admin.nav.audience") },
           { to: "/admin/performance", icon: Gauge, label: t("admin.nav.performance") },
           { to: "/admin/i18n", icon: Globe2, label: t("admin.nav.i18nAudit") },
@@ -422,4 +461,19 @@ export function resolveActiveNavTarget(groups: AdminNavGroup[], path: string): s
     }
   }
   return best;
+}
+
+/**
+ * Trasy, na których pasek boczny panelu startuje ZWINIĘTY - edytor wpisu,
+ * edytor strony i wygląd potrzebują szerokości na formularz.
+ *
+ * MIESZKA TU, A NIE W `AdminShell.tsx`, bo tę samą decyzję podejmują DWA
+ * niezależne komponenty: powłoka i jej SZKIELET (`AdminShellSkeleton`,
+ * montowany przez `routes/admin.tsx` na czas rozstrzygania sesji). Dopóki
+ * predykat był literałem wewnątrz powłoki, szkielet nie miał jak go poznać
+ * i rysował pasek 224 px tam, gdzie powłoka po nim stawiała 48 px - czyli sam
+ * produkował przesunięcie 176 px, które miał zdejmować.
+ */
+export function isCompactSidebarRoute(path: string): boolean {
+  return /^\/admin\/(posts|pages)\/[^/]+$/.test(path) || path.startsWith("/admin/appearance");
 }

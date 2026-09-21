@@ -116,6 +116,20 @@ describe("social-icons - hover jest ustawieniem, w obu układach", () => {
     expect(tones).toContain("var(--brand)");
   });
 
+  it.each(["auto", "official", "keep", "brand", "custom", "light"])(
+    "wymusza białą ikonę X na ciemnym gradiencie niezależnie od iconMode %s",
+    (hoverIconMode) => {
+      const container = paint({
+        x: "https://x.com/nes",
+        layout: "list",
+        hoverIconMode,
+        rowHover: "brand",
+      });
+      const row = container.querySelector(`.${SB_ROW}[aria-label="X"]`) as HTMLElement;
+      expect(row.style.getPropertyValue("--sb-ico-h")).toBe("#ffffff");
+    },
+  );
+
   it("odrzuca niebezpieczny własny kolor zamiast wpisać go w CSS", () => {
     const container = paint({
       ...LINKS,

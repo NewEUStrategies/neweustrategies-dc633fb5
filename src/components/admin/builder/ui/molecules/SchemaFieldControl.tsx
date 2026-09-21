@@ -1,3 +1,4 @@
+import "@/lib/i18n-builder";
 // Molecule: renders a single content field based on its declarative schema entry.
 // Used by ContentFields to drive simple widget editors from `WIDGET_SCHEMAS`.
 import { useState } from "react";
@@ -18,7 +19,13 @@ import {
 } from "@/components/ui/select";
 import { PropField } from "../atoms/PropField";
 import { ImageSlot } from "../organisms/widget-properties/ImageSlot";
+import { EventPicker } from "../organisms/widget-properties/EventPicker";
 import { ChartDataSpreadsheetDialog } from "./ChartDataSpreadsheetDialog";
+import { MapDataField } from "./MapDataField";
+// Region pola danych mapy idzie tym samym parserem, co render - porównanie
+// z dwoma literałami podawało skorowidzowi nazw Europę dla każdego regionu
+// spoza pary, więc kraje Azji wychodziły z importu jako NIEROZPOZNANE.
+import { parseMapRegion } from "@/lib/charts/parse";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
 import { LucideIconPicker } from "./LucideIconPicker";
 import { PageUrlAutocomplete } from "./PageUrlAutocomplete";
@@ -146,7 +153,25 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
           value={asString(read(field.key))}
           onChange={(v) => setContent(field.key, v)}
           hint={hint}
+          // Rekomendacja rozmiaru liczy się z BIEŻĄCEJ treści widgetu (kadr,
+          // szerokość karty), więc zmiana proporcji od razu zmienia liczbę
+          // pokazaną przy polu - statyczna podpowiedź by tego nie umiała.
+          recommendedSize={field.recommendedSize?.(content) ?? null}
         />
+      );
+
+    // Wybór wydarzenia z WEWNĘTRZNEGO modułu wydarzeń. Zapisujemy identyfikator
+    // (nie adres), więc zmiana daty czy slugu wydarzenia przechodzi na stronę
+    // sama, bez ruszania treści widgetu.
+    case "eventPicker":
+      return (
+        <PropField label={label} hint={hint}>
+          <EventPicker
+            value={asString(read(field.key))}
+            onChange={(id) => setContent(field.key, id)}
+            lang={lang}
+          />
+        </PropField>
       );
 
     case "i18nText":
@@ -202,9 +227,26 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
               kind={asString(content["kind"])}
               unit={asString(content["unit"])}
               title={asString(content[`title_${lang}`]) || asString(content["title_pl"])}
+              // Bez tego podgląd w arkuszu ignorował legendę, siatkę,
+              // skumulowanie i wysokość - czyli pokazywał INNY wykres niż
+              // kanwa, wbrew temu, co deklaruje nagłówek samego dialogu.
+              content={content}
               lang={lang}
             />
           </div>
+        </PropField>
+      );
+
+    case "mapData":
+      return (
+        <PropField label={label} hint={hint}>
+          <MapDataField
+            value={asString(read(field.key))}
+            onChange={(v) => setContent(field.key, v)}
+            region={parseMapRegion(asString(content["region"]))}
+            rows={field.rows}
+            placeholder={t("builder.schemaField.mapDataPlaceholder")}
+          />
         </PropField>
       );
 

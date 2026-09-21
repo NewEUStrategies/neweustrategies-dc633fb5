@@ -22,8 +22,20 @@ import {
   type CrawlHostClass,
 } from "@/lib/http/host";
 import { trustedPublicHost } from "@/lib/http/requestHost";
-import { buildRobotsTxt, type RobotsGroup } from "@/lib/seo/robots";
-import { aiCrawlerGroups, parseSeoSettings } from "@/lib/seo/settings";
+import { buildRobotsTxt, type RobotsGroup, type RobotsUsagePolicy } from "@/lib/seo/robots";
+import {
+  DEFAULT_SEO_SETTINGS,
+  aiCrawlerGroups,
+  parseSeoSettings,
+  robotsUsagePolicy,
+} from "@/lib/seo/settings";
+
+/** Polityka crawlowania jednego tenanta: mapy, grupy botów, warunki cytowania. */
+interface CrawlPolicy {
+  readonly sitemapPaths: string[];
+  readonly groups: RobotsGroup[];
+  readonly usage: RobotsUsagePolicy;
+}
 
 /** Indeks sitemapy - ogłaszany zawsze, gdy host wolno indeksować. */
 const SITEMAP_INDEX_PATH = "/sitemap.xml";
@@ -46,18 +58,27 @@ export interface RobotsPlan {
  * robots.txt: crawler musi dostać poprawny plik (indeks sitemapy + domyślna,
  * otwarta polityka AI), a nie 500 albo zakaz indeksowania.
  */
-async function tenantCrawlPolicy(
-  tenantId: string,
-): Promise<{ sitemapPaths: string[]; groups: RobotsGroup[] }> {
+async function tenantCrawlPolicy(tenantId: string): Promise<CrawlPolicy> {
   const paths = [SITEMAP_INDEX_PATH];
   try {
     const { fetchSeoSettingsValue } = await import("@/lib/server/publishedContent.server");
     const settings = parseSeoSettings(await fetchSeoSettingsValue(tenantId));
     if (settings.news_sitemap_enabled) paths.push(NEWS_SITEMAP_PATH);
-    return { sitemapPaths: paths, groups: aiCrawlerGroups(settings) };
+    return {
+      sitemapPaths: paths,
+      groups: aiCrawlerGroups(settings),
+      usage: robotsUsagePolicy(settings),
+    };
   } catch (e) {
     console.warn("[seo] robots.txt settings unavailable:", e);
-    return { sitemapPaths: paths, groups: [] };
+    // Degradacja NIE ZDEJMUJE warunku cytowania: awaria bazy nie jest zgodą na
+    // nieoznaczone przejęcie treści, więc plik nadal go stawia (na domyślnych
+    // ustawieniach polityki AI).
+    return {
+      sitemapPaths: paths,
+      groups: aiCrawlerGroups(DEFAULT_SEO_SETTINGS),
+      usage: robotsUsagePolicy(DEFAULT_SEO_SETTINGS),
+    };
   }
 }
 
@@ -132,13 +153,19 @@ export async function planRobotsTxt(request: Request): Promise<RobotsPlan> {
 
   let sitemapPaths: readonly string[] = [];
   let groups: readonly RobotsGroup[] = [];
+  let usage: RobotsUsagePolicy | undefined;
   if (indexable) {
-    const policy = tenantId
+    const policy: CrawlPolicy = tenantId
       ? await tenantCrawlPolicy(tenantId)
-      : { sitemapPaths: [SITEMAP_INDEX_PATH], groups: [] };
+      : {
+          sitemapPaths: [SITEMAP_INDEX_PATH],
+          groups: aiCrawlerGroups(DEFAULT_SEO_SETTINGS),
+          usage: robotsUsagePolicy(DEFAULT_SEO_SETTINGS),
+        };
     // Polityka crawlerów AI obowiązuje niezależnie od tego, czy mapa jest
     // serwowalna - to dwie różne decyzje redakcji.
     groups = policy.groups;
+    usage = policy.usage;
     sitemapPaths = (await sitemapsAreServed(host, tenantId)) ? policy.sitemapPaths : [];
   }
 
@@ -147,6 +174,7 @@ export async function planRobotsTxt(request: Request): Promise<RobotsPlan> {
     origin: crawlHostOrigin(hostClass, host, proto),
     sitemapPaths,
     groups,
+    usage,
   });
 
   return { body, hostClass, indexable, volatile };

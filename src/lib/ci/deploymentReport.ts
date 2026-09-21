@@ -4,6 +4,8 @@
 // w wydanie, liczbę testów, status CI oraz wynik smoke'ów (E2E). Wejście jest
 // zwykłymi danymi - I/O (git, pliki raportów vitest/playwright, zmienne
 // środowiskowe GitHuba) robi scripts/deployment-report.ts.
+import { z } from "zod";
+
 export interface PullRequestRef {
   readonly number: number;
   readonly title: string;
@@ -30,11 +32,13 @@ export interface DeploymentReportInput {
   readonly unitTests: TestTotals | null;
   readonly smoke: {
     readonly status: CheckStatus;
-    readonly tests: number;
-    readonly failed: number;
+    readonly tests: number | null;
+    readonly failed: number | null;
   } | null;
   readonly ciStatus: CheckStatus;
+  readonly deploymentStatus: CheckStatus;
   readonly dbContract: { readonly status: CheckStatus; readonly missing: number } | null;
+  readonly migrationLedger: { readonly status: CheckStatus; readonly missing: number } | null;
   readonly i18nParity: { readonly status: CheckStatus; readonly missing: number } | null;
   /**
    * Bramka wierności ustawień widgetów (panel ⇄ renderer).
@@ -58,6 +62,89 @@ const STATUS_ICON: Record<CheckStatus, string> = {
   skipped: "⏭️",
   unknown: "❔",
 };
+
+/** Missing or malformed measurements are never a passing gate. */
+export function parseGateReport(
+  raw: unknown,
+  fields: readonly string[],
+  counter?: string,
+): { status: CheckStatus; missing: number } | null {
+  if (!raw || typeof raw !== "object") return null;
+  const record = raw as Record<string, unknown>;
+  const failed = record.status === "failed";
+  let missing = 0;
+  for (const field of fields) {
+    const value = record[field];
+    if (Array.isArray(value)) missing += value.length;
+    else if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0)
+      missing += value;
+    else return failed ? { status: "failed", missing } : null;
+  }
+  if (
+    counter &&
+    !(
+      typeof record[counter] === "number" &&
+      Number.isSafeInteger(record[counter]) &&
+      Number(record[counter]) > 0
+    )
+  )
+    return null;
+  return { status: failed || missing > 0 ? "failed" : "passed", missing };
+}
+
+const count = z.number().int().nonnegative();
+const accounting = z.object({
+  commit: z.string(),
+  complete: z.literal(true),
+  modules: count.positive(),
+  collected: count.positive(),
+  reported: count,
+  unhandledErrors: z.literal(0),
+  outcomes: z.object({
+    passed: count,
+    expectedFailed: count,
+    failed: count,
+    skipped: count,
+    pending: z.literal(0),
+  }),
+});
+
+/** Only the merged, complete suite for this commit may supply release totals. */
+export function parseTestAccounting(raw: unknown, commit: string): TestTotals | null {
+  const parsed = accounting.safeParse(raw);
+  if (!parsed.success) return null;
+  const data = parsed.data;
+  if (
+    data.commit !== commit ||
+    data.collected !== data.reported ||
+    Object.values(data.outcomes).reduce((sum, n) => sum + n, 0) !== data.collected
+  )
+    return null;
+  return {
+    files: data.modules,
+    tests: data.collected,
+    passed: data.outcomes.passed + data.outcomes.expectedFailed,
+    failed: data.outcomes.failed,
+    skipped: data.outcomes.skipped,
+  };
+}
+
+export function parseE2eStatus(raw: unknown, commit: string): DeploymentReportInput["smoke"] {
+  const parsed = z
+    .object({
+      commit: z.literal(commit),
+      checks: z.object({ e2e: z.string(), "e2e-seeded": z.string() }),
+    })
+    .safeParse(raw);
+  if (!parsed.success) return null;
+  const results = Object.values(parsed.data.checks);
+  const status = results.every((result) => result === "success")
+    ? "passed"
+    : results.some((result) => ["failure", "cancelled", "timed_out", "skipped"].includes(result))
+      ? "failed"
+      : "unknown";
+  return { status, tests: null, failed: null };
+}
 
 /** Wyciąga numery PR z komunikatów merge commitów (`Merge pull request #123 from …`). */
 export function parsePullRequests(
@@ -84,13 +171,16 @@ export function parsePullRequests(
 export function overallStatus(input: DeploymentReportInput): CheckStatus {
   const statuses: CheckStatus[] = [
     input.ciStatus,
+    input.deploymentStatus,
     input.smoke?.status ?? "unknown",
     input.dbContract?.status ?? "unknown",
+    input.migrationLedger?.status ?? "unknown",
     input.i18nParity?.status ?? "unknown",
     input.widgetFidelity?.status ?? "unknown",
   ];
   if (statuses.includes("failed")) return "failed";
   if ((input.unitTests?.failed ?? 0) > 0) return "failed";
+  if (!input.unitTests || input.unitTests.tests === 0) return "unknown";
   if (statuses.every((s) => s === "passed")) return "passed";
   return "unknown";
 }
@@ -110,6 +200,7 @@ export function renderDeploymentReport(input: DeploymentReportInput): string {
     "",
     "| Bramka | Status | Szczegóły |",
     "| --- | --- | --- |",
+    `| Kontrola wdrożenia | ${STATUS_ICON[input.deploymentStatus]} ${input.deploymentStatus} | - |`,
     `| CI (typecheck, lint, build) | ${STATUS_ICON[input.ciStatus]} ${input.ciStatus} | - |`,
     input.unitTests
       ? `| Testy jednostkowe | ${STATUS_ICON[input.unitTests.failed > 0 ? "failed" : "passed"]} ${
@@ -117,11 +208,14 @@ export function renderDeploymentReport(input: DeploymentReportInput): string {
         } | ${input.unitTests.passed}/${input.unitTests.tests} zielonych w ${input.unitTests.files} plikach |`
       : `| Testy jednostkowe | ${STATUS_ICON.unknown} unknown | brak raportu |`,
     input.smoke
-      ? `| Smoke E2E | ${STATUS_ICON[input.smoke.status]} ${input.smoke.status} | ${input.smoke.tests} testów, ${input.smoke.failed} czerwonych |`
+      ? `| Smoke E2E | ${STATUS_ICON[input.smoke.status]} ${input.smoke.status} | ${input.smoke.tests === null ? "status e2e + e2e-seeded dla tego commita" : `${input.smoke.tests} testów, ${input.smoke.failed} czerwonych`} |`
       : `| Smoke E2E | ${STATUS_ICON.unknown} unknown | brak raportu |`,
     input.dbContract
       ? `| Kontrakt bazy (tabele/widoki/RPC) | ${STATUS_ICON[input.dbContract.status]} ${input.dbContract.status} | brakujących: ${input.dbContract.missing} |`
       : `| Kontrakt bazy (tabele/widoki/RPC) | ${STATUS_ICON.unknown} unknown | brak raportu |`,
+    input.migrationLedger
+      ? `| Rejestr migracji | ${STATUS_ICON[input.migrationLedger.status]} ${input.migrationLedger.status} | problemów: ${input.migrationLedger.missing} |`
+      : `| Rejestr migracji | ${STATUS_ICON.unknown} unknown | brak raportu |`,
     input.i18nParity
       ? `| Parytet PL/EN | ${STATUS_ICON[input.i18nParity.status]} ${input.i18nParity.status} | brakujących kluczy: ${input.i18nParity.missing} |`
       : `| Parytet PL/EN | ${STATUS_ICON.unknown} unknown | brak raportu |`,

@@ -19,14 +19,15 @@
 //   3. SYGNAŁ WOBEC ISTNIEJĄCEJ ZGODY: co wygrywa. Odczytane z kodu i zapisane
 //      testem - `resolveGpcForWrite` nie patrzy na wcześniejszą zgodę wcale,
 //      a klamrowanie runtime jest osobną warstwą (`gpc.ts`, własne testy).
-//   4. IP I USER-AGENT: kolejność nośników (`x-forwarded-for` przed
-//      `cf-connecting-ip` i `x-real-ip`), pierwszy adres z listy proxy,
-//      obcięcie UA do 500 znaków.
+//   4. IP I USER-AGENT: kolejność nośników (`cf-connecting-ip`, potem
+//      `x-real-ip`, na końcu OSTATNI wpis `x-forwarded-for`), brak
+//      wiarygodnego źródła jako NULL, obcięcie UA do 500 znaków.
 //   5. WALIDATORY: klucz spoza katalogu odrzucony, wersja wymagana, limit
 //      partii, `decisionId` musi być UUID, `pageUrl` obcięty limitem.
-//   6. PARTIA: sygnał rozstrzygany RAZ na całe żądanie (inaczej audyt
-//      sugerowałby, że sygnał migał w trakcie jednej decyzji), a błąd jednego
-//      klucza przerywa partię z NAZWĄ tego klucza w komunikacie.
+//   6. PARTIA JEST NIEPODZIELNA: cała decyzja idzie JEDNYM wywołaniem
+//      `set_user_consents`, sygnał rozstrzygany RAZ na całe żądanie (inaczej
+//      audyt sugerowałby, że sygnał migał w trakcie jednej decyzji), a lista
+//      potwierdzonych kluczy pochodzi z BAZY, nie z wejścia klienta.
 //   7. KLIENT: `readGpcSignal` czyta za KAŻDYM wywołaniem (bez cache),
 //      subskrypcja łapie trzy zdarzenia, `notifyGpcChange` je rozgłasza.
 //
@@ -38,8 +39,10 @@
 // - MIDDLEWARE `gpcMiddleware` i ustawiania cookie transportowego:
 //   `gpcServer.test.ts`.
 // - RPC `set_user_consent`: utwardzony SECURITY DEFINER z pgTAP
-//   (`consent_evidence_hardening_test.sql`). Test na atrapie nie odtwarza jego
-//   reguł - dowodzi, CO aplikacja do niego wysyła.
+//   (`consent_evidence_hardening_test.sql`), oraz `set_user_consents`
+//   (migracja 20260913173000), którego atomowość daje transakcja plpgsql.
+//   Test na atrapie nie odtwarza ani reguł definera, ani transakcji - dowodzi,
+//   CO aplikacja do nich wysyła i jak czyta odpowiedź.
 // - MOSTU CMP -> REJESTR: `registryBridge.test.ts` i `registryBridgeSync.test.ts`.
 //
 // RODO: adresy IP w fixture'ach pochodzą WYŁĄCZNIE z puli dokumentacyjnej
@@ -60,10 +63,17 @@ const h = vi.hoisted(() => ({
   request: null as Request | null,
   /** Gdy `true`, `getRequest()` rzuca - tak zachowuje się poza żądaniem. */
   requestThrows: false,
-  /** Zapisane wywołania RPC `set_user_consent`. */
+  /** Zapisane wywołania RPC (`set_user_consent` i `set_user_consents`). */
   rpcCalls: [] as { name: string; args: Record<string, unknown> }[],
   /** Błąd RPC per numer wywołania (1-indeksowany); `null` = powodzenie. */
   rpcErrorAtCall: null as number | null,
+  /**
+   * Lista kluczy, jaką ODDAJE `set_user_consents`. `undefined` = atrapa odbija
+   * klucze z `p_entries` (zwykły sukces), `null` = definer nie oddał niczego.
+   * Rozdzielenie jest konieczne, bo `saved` pochodzi z BAZY: bez niego test nie
+   * odróżniłby potwierdzenia zapisu od odbicia wejścia klienta.
+   */
+  bulkSaved: undefined as string[] | null | undefined,
 }));
 
 vi.mock("@tanstack/react-start", async () => {
@@ -117,13 +127,18 @@ function context(): ServerFnContext {
       from: (table: string) => db.from(table),
       rpc: (name: string, args: Record<string, unknown>) => {
         h.rpcCalls.push({ name, args });
-        const callNumber = h.rpcCalls.length;
-        const shouldFail = h.rpcErrorAtCall === callNumber;
-        return Promise.resolve(
-          shouldFail
-            ? { data: null, error: new Error("consent_key_unknown") }
-            : { data: { consent_key: args.p_key }, error: null },
-        );
+        if (h.rpcErrorAtCall === h.rpcCalls.length) {
+          return Promise.resolve({ data: null, error: new Error("consent_key_unknown") });
+        }
+        // DWA RÓŻNE KONTRAKTY ZWROTU. Wariant pojedynczy oddaje WIERSZ zgody,
+        // partia - `text[]` z kluczami, które baza faktycznie zapisała. Atrapa
+        // musi je rozróżniać, bo handler czyta te odpowiedzi inaczej.
+        if (name === "set_user_consents") {
+          const sent = (args.p_entries ?? []) as { key: string }[];
+          const saved = h.bulkSaved === undefined ? sent.map((entry) => entry.key) : h.bulkSaved;
+          return Promise.resolve({ data: saved, error: null });
+        }
+        return Promise.resolve({ data: { consent_key: args.p_key }, error: null });
       },
     },
     userId: USER,
@@ -167,6 +182,7 @@ beforeEach(() => {
   h.requestThrows = false;
   h.rpcCalls = [];
   h.rpcErrorAtCall = null;
+  h.bulkSaved = undefined;
 });
 
 // ---------------------------------------------------------------------------
@@ -279,24 +295,41 @@ describe("resolveGpcForWrite - fail-closed w stronę prywatności", () => {
 // ---------------------------------------------------------------------------
 
 describe("readIp - kolejność nośników adresu", () => {
-  it("`x-forwarded-for` jest pierwszy i bierzemy PIERWSZY adres z listy", () => {
-    // Lista `x-forwarded-for` rośnie od klienta w stronę serwera, więc adresem
-    // podmiotu jest ten PIERWSZY. Wzięcie ostatniego zapisałoby w dowodzie
-    // zgody adres własnego proxy - czyli dowód o niczym.
+  // Adres w rekordzie zgody jest DOWODEM, kto i skąd wyraził zgodę. Pierwszy
+  // wpis `x-forwarded-for` dopisuje KLIENT (proxy dokleja adres połączenia na
+  // KOŃCU listy), więc dowód oparty na nim nie ma wartości dowodowej. Kolejność
+  // jest ta sama, co w `clientIpFromHeaders`: `cf-connecting-ip` ->
+  // `x-real-ip` -> OSTATNI niepusty wpis XFF -> NULL.
+  it("`cf-connecting-ip` WYGRYWA z `x-forwarded-for`", () => {
+    const ip = readIp(
+      request({ "cf-connecting-ip": DOC_IP.edge, "x-forwarded-for": `${DOC_IP.client}, 1.2.3.4` }),
+    );
+    expect(ip).toBe(DOC_IP.edge);
+  });
+
+  it("bez Cloudflare `x-real-ip` bije `x-forwarded-for`", () => {
+    expect(
+      readIp(request({ "x-real-ip": DOC_IP.proxyHop, "x-forwarded-for": DOC_IP.client })),
+    ).toBe(DOC_IP.proxyHop);
+  });
+
+  it("z samego `x-forwarded-for` bierzemy OSTATNI wpis, nie deklarację klienta", () => {
     const ip = readIp(
       request({ "x-forwarded-for": `${DOC_IP.client}, ${DOC_IP.proxyHop}, ${DOC_IP.edge}` }),
     );
-    expect(ip).toBe(DOC_IP.client);
+    expect(ip).toBe(DOC_IP.edge);
   });
 
   it("obcina spacje wokół adresu", () => {
     expect(readIp(request({ "x-forwarded-for": `  ${DOC_IP.client}  ` }))).toBe(DOC_IP.client);
+    expect(readIp(request({ "cf-connecting-ip": `  ${DOC_IP.edge} ` }))).toBe(DOC_IP.edge);
   });
 
-  it("PUSTY `x-forwarded-for` schodzi na kolejne nagłówki", () => {
-    expect(
-      readIp(request({ "x-forwarded-for": " , ", "cf-connecting-ip": DOC_IP.edge })),
-    ).toBeNull();
+  it("PUSTY `x-forwarded-for` schodzi na nagłówki wiarygodniejsze, nie na pusty string", () => {
+    expect(readIp(request({ "x-forwarded-for": " , ", "cf-connecting-ip": DOC_IP.edge }))).toBe(
+      DOC_IP.edge,
+    );
+    expect(readIp(request({ "x-forwarded-for": " , " }))).toBeNull();
   });
 
   it("bez `x-forwarded-for` czyta `cf-connecting-ip`, potem `x-real-ip`", () => {
@@ -308,9 +341,13 @@ describe("readIp - kolejność nośników adresu", () => {
     );
   });
 
-  it("bez żadnego nagłówka i bez żądania oddaje `null`", () => {
+  it("brak wiarygodnego źródła zapisujemy jako NULL, a nie jako „unknown”", () => {
+    // Różnica wobec kubełków limitu: tam „unknown" jest legalnym WSPÓLNYM
+    // kluczem, tu byłby dowodem o wartości zero wpisanym w kolumnę, którą
+    // czyta audyt RODO. Brak dowodu jest uczciwszy niż dowód pozorny.
     expect(readIp(request())).toBeNull();
     expect(readIp(null)).toBeNull();
+    expect(readIp(request({ "x-forwarded-for": " " }))).toBeNull();
   });
 });
 
@@ -544,15 +581,95 @@ describe("setMyConsentsBulk - jedna decyzja, kilka kategorii", () => {
     { key: "cookies_marketing", given: false, version: "2.0" },
   ];
 
-  it("każdy wpis idzie OSOBNYM wywołaniem definera - upsert+event jest atomowy", async () => {
+  /** Wpisy przekazane w `p_entries` JEDYNEGO wywołania partii. */
+  function sentEntries(): Record<string, unknown>[] {
+    return (h.rpcCalls[0]?.args.p_entries ?? []) as Record<string, unknown>[];
+  }
+
+  it("CAŁA DECYZJA idzie JEDNYM wywołaniem `set_user_consents`", async () => {
+    // DEFEKT NAPRAWIONY. Wcześniej była tu pętla po `set_user_consent`, a każde
+    // takie wywołanie to WŁASNA transakcja - decyzja użytkownika nie była więc
+    // atomowa wcale. Liczba wywołań jest tu asercją o TRANSAKCJI, nie
+    // o wydajności: jedno wywołanie = jedna transakcja = wszystko albo nic.
     h.request = request();
     const result = await callServerFn<{ saved: string[] }>(setMyConsentsBulk, {
       data: { entries: THREE },
       context: context(),
     });
-    expect(h.rpcCalls).toHaveLength(3);
-    expect(h.rpcCalls.every((call) => call.name === "set_user_consent")).toBe(true);
+    expect(h.rpcCalls).toHaveLength(1);
+    expect(h.rpcCalls[0].name).toBe("set_user_consents");
+    expect(sentEntries().map((entry) => entry.key)).toEqual([
+      "cookies_functional",
+      "cookies_analytics",
+      "cookies_marketing",
+    ]);
     expect(result.saved).toEqual(["cookies_functional", "cookies_analytics", "cookies_marketing"]);
+  });
+
+  it("kształt wpisu odwzorowuje NAZWANE parametry definera - snake_case, komplet dowodów", async () => {
+    // Funkcja SQL czyta pola elementu PO NAZWIE (`v_entry ->> 'user_agent'`),
+    // więc literówka w kluczu nie jest błędem wykonania - jest cichym NULL-em
+    // w kolumnie audytowej, czyli utratą dowodu bez żadnego sygnału.
+    h.request = request({
+      "sec-gpc": "1",
+      "x-forwarded-for": DOC_IP.client,
+      "user-agent": "TestAgent/1.0",
+    });
+    await callServerFn(setMyConsentsBulk, {
+      data: {
+        entries: [
+          {
+            key: "cookies_marketing",
+            given: false,
+            version: "2.0",
+            lang: "en",
+            source: "profile_privacy",
+            bannerVersion: "cmp-v2.0",
+            decisionId: "44444444-4444-4444-8444-444444444444",
+            pageUrl: "https://example.org/profile",
+          },
+        ],
+      },
+      context: context(),
+    });
+    expect(sentEntries()[0]).toEqual({
+      key: "cookies_marketing",
+      given: false,
+      version: "2.0",
+      gpc: true,
+      lang: "en",
+      ip: DOC_IP.client,
+      user_agent: "TestAgent/1.0",
+      source: "profile_privacy",
+      banner_version: "cmp-v2.0",
+      decision_id: "44444444-4444-4444-8444-444444444444",
+      page_url: "https://example.org/profile",
+    });
+  });
+
+  it("brak wartości opcjonalnej to `null`, a brak źródła to `account`", async () => {
+    // W jsonb `undefined` ZNIKA przy serializacji - pole nie dotarłoby do
+    // definera wcale, więc nie dałoby się odróżnić „nie mamy tej danej" od
+    // „zapomnieliśmy ją wysłać". `null` mówi to pierwsze wprost, a `account`
+    // odpowiada na pytanie, GDZIE decyzja zapadła.
+    h.request = request();
+    await callServerFn(setMyConsentsBulk, {
+      data: { entries: [THREE[1]] },
+      context: context(),
+    });
+    expect(sentEntries()[0]).toEqual({
+      key: "cookies_analytics",
+      given: false,
+      version: "2.0",
+      gpc: false,
+      lang: null,
+      ip: null,
+      user_agent: null,
+      source: "account",
+      banner_version: null,
+      decision_id: null,
+      page_url: null,
+    });
   });
 
   it("sygnał GPC jest rozstrzygany RAZ na całą partię", async () => {
@@ -565,7 +682,7 @@ describe("setMyConsentsBulk - jedna decyzja, kilka kategorii", () => {
       },
       context: context(),
     });
-    const flags = h.rpcCalls.map((call) => call.args.p_gpc);
+    const flags = sentEntries().map((entry) => entry.gpc);
     expect(new Set(flags).size).toBe(1);
     // Wystarczy JEDEN wpis deklarujący sygnał, żeby cała partia go niosła -
     // fail-closed w stronę prywatności.
@@ -575,13 +692,13 @@ describe("setMyConsentsBulk - jedna decyzja, kilka kategorii", () => {
   it("bez deklaracji i bez nagłówka cała partia niesie `false`", async () => {
     h.request = request();
     await callServerFn(setMyConsentsBulk, { data: { entries: THREE }, context: context() });
-    expect(h.rpcCalls.every((call) => call.args.p_gpc === false)).toBe(true);
+    expect(sentEntries().every((entry) => entry.gpc === false)).toBe(true);
   });
 
   it("sygnał SERWEROWY nadpisuje brak deklaracji w każdym wpisie", async () => {
     h.request = request({ "sec-gpc": "1" });
     await callServerFn(setMyConsentsBulk, { data: { entries: THREE }, context: context() });
-    expect(h.rpcCalls.every((call) => call.args.p_gpc === true)).toBe(true);
+    expect(sentEntries().every((entry) => entry.gpc === true)).toBe(true);
   });
 
   it("adres i klient są IDENTYCZNE dla wszystkich wpisów partii", async () => {
@@ -589,52 +706,58 @@ describe("setMyConsentsBulk - jedna decyzja, kilka kategorii", () => {
     // niemożliwe fizycznie, więc ich wystąpienie znaczyłoby błąd kodu.
     h.request = request({ "x-forwarded-for": DOC_IP.client, "user-agent": "TestAgent/1.0" });
     await callServerFn(setMyConsentsBulk, { data: { entries: THREE }, context: context() });
-    expect(new Set(h.rpcCalls.map((call) => call.args.p_ip)).size).toBe(1);
-    expect(new Set(h.rpcCalls.map((call) => call.args.p_user_agent)).size).toBe(1);
+    expect(new Set(sentEntries().map((entry) => entry.ip)).size).toBe(1);
+    expect(new Set(sentEntries().map((entry) => entry.user_agent)).size).toBe(1);
   });
 
-  it("błąd wpisu PRZERYWA partię i NAZYWA klucz, który padł", async () => {
-    // Bez nazwy klucza administrator nie wie, która kategoria nie zapisała się
-    // z trzech - a kolejne wpisy zostały nietknięte, co trzeba ustalić.
+  it("odmowa bazy PRZERYWA CAŁĄ decyzję - nie zostaje zapisane NIC", async () => {
+    // DEFEKT NAPRAWIONY. Pętla po `set_user_consent` zostawiała przy błędzie
+    // wpisy WCZEŚNIEJSZE zatwierdzone, bo każdy z nich miał własną transakcję:
+    // „odrzuć wszystko" przerwane w połowie zostawiało część kategorii
+    // WŁĄCZONYCH, trwale i bez komunikatu (`backfillRegistryOnLogin` tego nie
+    // naprawia - uzupełnia wyłącznie klucze NIEOBECNE w rejestrze, a te są
+    // obecne ze starą wartością). Dziś jedno wywołanie wycofuje całą decyzję
+    // razem z jej wpisami w audycie.
     h.request = request();
-    h.rpcErrorAtCall = 2;
+    h.rpcErrorAtCall = 1;
     await expect(
       callServerFn(setMyConsentsBulk, { data: { entries: THREE }, context: context() }),
-    ).rejects.toThrow("cookies_analytics: consent_key_unknown");
-    // Trzeci wpis NIE poszedł - partia nie jest transakcją.
-    expect(h.rpcCalls).toHaveLength(2);
+    ).rejects.toThrow("consent_key_unknown");
+    // Nie ma wywołania „obok" tego, które padło - aplikacja nie ma więc czego
+    // doliczać ani cofać po fakcie.
+    expect(h.rpcCalls).toHaveLength(1);
   });
 
-  it("metadane decyzji przechodzą per wpis", async () => {
+  it("`saved` pochodzi z BAZY, także gdy baza potwierdzi MNIEJ kluczy", async () => {
+    // Odbicie listy wejściowej mówiłoby „zapisano", cokolwiek by się w bazie
+    // wydarzyło. Wywołujący ma zobaczyć wersję definera, nie własne życzenie.
     h.request = request();
-    await callServerFn(setMyConsentsBulk, {
-      data: {
-        entries: [
-          {
-            ...THREE[0],
-            lang: "en",
-            source: "profile_privacy",
-            bannerVersion: "cmp-v2.0",
-            decisionId: "44444444-4444-4444-8444-444444444444",
-            pageUrl: "https://example.org/profile",
-          },
-        ],
-      },
+    h.bulkSaved = ["cookies_functional"];
+    const result = await callServerFn<{ saved: string[] }>(setMyConsentsBulk, {
+      data: { entries: THREE },
       context: context(),
     });
-    expect(h.rpcCalls[0].args).toMatchObject({
-      p_lang: "en",
-      p_source: "profile_privacy",
-      p_banner_version: "cmp-v2.0",
-      p_decision_id: "44444444-4444-4444-8444-444444444444",
-      p_page_url: "https://example.org/profile",
-    });
+    expect(sentEntries()).toHaveLength(3);
+    expect(result.saved).toEqual(["cookies_functional"]);
+  });
+
+  it("definer, który NIE ODDAŁ listy, daje pustą tablicę, a nie `null`", async () => {
+    // Kontrakt zwrotu to LISTA, nie „lista albo `null`". Dziś most CMP wyniku
+    // nie czyta, ale kształt odpowiedzi jest publiczną częścią server fn:
+    // pierwszy wywołujący, który zrobi na niej `.map`, nie ma skąd wiedzieć,
+    // że w tej jednej gałęzi dostanie `null`.
+    h.request = request();
+    h.bulkSaved = null;
+    await expect(
+      callServerFn(setMyConsentsBulk, { data: { entries: THREE }, context: context() }),
+    ).resolves.toEqual({ saved: [] });
   });
 
   it("brak kontekstu żądania w partii też nie wywraca zapisu", async () => {
     h.requestThrows = true;
     await callServerFn(setMyConsentsBulk, { data: { entries: THREE }, context: context() });
-    expect(h.rpcCalls).toHaveLength(3);
+    expect(h.rpcCalls).toHaveLength(1);
+    expect(sentEntries()).toHaveLength(3);
   });
 });
 

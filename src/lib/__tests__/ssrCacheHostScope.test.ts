@@ -6,16 +6,77 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearEdgeTtlCache, edgeTtlCache, invalidateEdgeTtlCache } from "@/lib/ssrCache";
 
-const state = vi.hoisted(() => ({ host: null as string | null }));
+const state = vi.hoisted(() => ({
+  host: null as string | null,
+  /** Prace zarejestrowane przez `completeAfterResponse` - patrz niżej. */
+  afterResponse: [] as unknown[],
+  /** Budzik dla `waitForAfterResponse()`; ustawiany na czas oczekiwania. */
+  notify: null as null | (() => void),
+}));
 
 vi.mock("@/lib/http/requestHost", () => ({
   currentTenantHost: () => Promise.resolve(state.host),
   requestPublicHost: () => state.host,
 }));
 
+// ── DLACZEGO TEN MOCK USUWA NIEDETERMINIZM POKRYCIA ────────────────────────
+//
+// ZMIERZONE (2026-09-03, dwa kolejne przebiegi SAMEGO tego pliku, ten sam
+// HEAD, `--coverage.reporter=json-summary`):
+//   przebieg 1: linie 48/51  funkcje  9/12  gałęzie 28/32  instrukcje 52/58
+//   przebieg 2: linie 49/51  funkcje 10/12  gałęzie 28/32  instrukcje 53/58
+// Różnica to DOKŁADNIE jedna funkcja i jedna linia, za każdym razem te same:
+// strzałka `.then((m) => m.runAfterResponse(work))` w `completeAfterResponse`
+// (`src/lib/ssrCache.ts:64`).
+//
+// MECHANIZM. `completeAfterResponse` jest FIRE-AND-FORGET z premedytacją
+// (`void import(...)`) - i musi być, bo ten plik jest współdzielony z klientem,
+// a statyczna krawędź wciągnęłaby moduł `.server` do chunku wejściowego
+// przeglądarki. Skutkiem ubocznym jest jednak WYŚCIG: czy łańcuch mikrozadań
+// importu dynamicznego zdąży się rozstrzygnąć, ZANIM plik testowy się
+// zakończy. Zdąży albo nie zdąży - i to jest cała treść „niedeterministycznego
+// pokrycia". NIE JEST to TTL ani czekanie na zegar (ten plik od początku
+// używa `vi.useFakeTimers()` i nigdy nie czekał na prawdziwy czas) - zlecenie
+// zakładało zegar, a przyczyna jest inna i zapisuję to wprost.
+//
+// PODMIANA MODUŁU sprawia, że import rozwiązuje się Z REJESTRU MODUŁÓW
+// vitesta, a `waitForAfterResponse()` niżej daje testowi PUNKT ZACZEPIENIA:
+// czeka na FAKT wywołania, nie na upływ czasu. Strzałka wykonuje się więc
+// w KAŻDYM przebiegu, a nie w części z nich.
+//
+// I PRZY OKAZJI - to nie jest zaślepka, a przyrząd: rejestracja pracy w tle
+// przez `runAfterResponse` JEST kontacktem produkcyjnym. Na Workers praca
+// pozostawiona jako `void promise` bywa ucinana w połowie, gdy workerd ubije
+// izolat po domknięciu odpowiedzi (patrz nagłówek `waitUntil.server.ts`), więc
+// „odświeżenie w tle wystartowało" i „odświeżenie w tle się dokończy" to dwa
+// różne zdania. Dotąd nie sprawdzało tego nic.
+vi.mock("@/lib/http/waitUntil.server", () => ({
+  runAfterResponse: (work: unknown) => {
+    state.afterResponse.push(work);
+    state.notify?.();
+  },
+}));
+
+/**
+ * Czeka na REJESTRACJĘ pracy w tle - deterministycznie, bo budzi ją samo
+ * wywołanie atrapy, a nie zegar. Gdyby rejestracja nie nastąpiła, test padnie
+ * na `testTimeout` z widocznym komunikatem, a nie przemilczy braku.
+ */
+function waitForAfterResponse(): Promise<void> {
+  if (state.afterResponse.length > 0) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    state.notify = () => {
+      state.notify = null;
+      resolve();
+    };
+  });
+}
+
 beforeEach(() => {
   clearEdgeTtlCache();
   state.host = null;
+  state.afterResponse.length = 0;
+  state.notify = null;
 });
 
 afterEach(() => {
@@ -70,6 +131,13 @@ describe("edgeTtlCache host scoping", () => {
     const refresher = vi.fn().mockReturnValue(gate);
     await expect(edgeTtlCache("k", 1_000, refresher)).resolves.toBe("v1");
     expect(refresher).toHaveBeenCalledTimes(1);
+    // ODŚWIEŻENIE W TLE MUSI BYĆ ZAREJESTROWANE „ZA ODPOWIEDZIĄ", nie tylko
+    // wystartowane: na Workers `void promise` bywa ucinane, gdy workerd ubije
+    // izolat po domknięciu odpowiedzi. To jest asercja na kontrakt, a
+    // jednocześnie punkt, który zdejmuje wyścig z pomiaru pokrycia tego pliku
+    // (mechanizm rozpisany przy `vi.mock` na górze).
+    await waitForAfterResponse();
+    expect(state.afterResponse).toHaveLength(1);
     // Drugi stale-hit w trakcie TRWAJĄCEGO odświeżania nie startuje drugiego
     // fetcha i nadal serwuje nieświeżą wartość.
     const dup = vi.fn().mockResolvedValue("v2-dup");

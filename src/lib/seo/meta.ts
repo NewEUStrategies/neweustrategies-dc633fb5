@@ -75,6 +75,22 @@ export function siteDescription(lang: Lang, origin?: string): string {
   return brandDefaultsFor(origin).description[lang] || SITE_DEFAULT_DESCRIPTION[lang];
 }
 
+/**
+ * Efektywna NAZWA serwisu (site name) - redakcyjne nadpisanie albo stała marki.
+ *
+ * Nie ma wariantu językowego celowo: "New European Strategies" brzmi tak samo
+ * po polsku i po angielsku, a rozjazd nazwy między wersjami językowymi rozbija
+ * encję marki na dwie w oczach wyszukiwarki.
+ */
+export function siteName(origin?: string): string {
+  return brandDefaultsFor(origin).name || SITE_NAME;
+}
+
+/** Nazwa alternatywna serwisu ("" = brak; wtedy `alternateName` się nie emituje). */
+export function siteAlternateName(origin?: string): string {
+  return brandDefaultsFor(origin).alternateName;
+}
+
 /** Absolute origin for the canonical brand deployment - used to resolve the
  *  root-head social image to a fully-qualified URL (scrapers ignore relative
  *  og:image paths). */
@@ -167,6 +183,12 @@ export function buildContentHead(input: ContentHeadInput): HeadDescriptor {
   // why every share - including the homepage, which has no cover - gets a rich
   // "summary_large_image" card rather than a bare-text preview.
   const image = input.image || defaultSocialImage(origin);
+  // Karta społecznościowa strony BEZ własnej okładki jest kartą SERWISU, więc
+  // bierze też jej `alt`. Bez tego fallbacku strona główna wysyłała obrazek
+  // domyślny z pustym opisem - czytnik ekranu w podglądzie linku czytał wtedy
+  // sam URL pliku, choć opis był ustawiony w panelu.
+  const social = socialDefaultsFor(origin);
+  const imageAlt = input.imageAlt?.trim() || (input.image ? "" : social.imageAlt);
 
   const meta: Array<Record<string, string>> = [
     { title: input.documentTitle || input.title },
@@ -174,10 +196,10 @@ export function buildContentHead(input: ContentHeadInput): HeadDescriptor {
     { property: "og:title", content: input.title },
     { property: "og:description", content: input.description },
     { property: "og:type", content: input.type },
-    { property: "og:site_name", content: SITE_NAME },
+    { property: "og:site_name", content: siteName(origin) },
     { property: "og:locale", content: OG_LOCALE[input.lang] },
     { property: "og:locale:alternate", content: OG_LOCALE[altLang] },
-    { name: "twitter:card", content: "summary_large_image" },
+    { name: "twitter:card", content: social.twitterCard },
     { name: "twitter:title", content: input.title },
     { name: "twitter:description", content: input.description },
     { httpEquiv: "content-language", content: input.lang },
@@ -192,8 +214,7 @@ export function buildContentHead(input: ContentHeadInput): HeadDescriptor {
     meta.push({ property: "og:image:width", content: String(input.imageWidth) });
   if (input.imageHeight)
     meta.push({ property: "og:image:height", content: String(input.imageHeight) });
-  if (input.imageAlt?.trim())
-    meta.push({ property: "og:image:alt", content: input.imageAlt.trim() });
+  if (imageAlt) meta.push({ property: "og:image:alt", content: imageAlt });
   meta.push({ name: "twitter:image", content: image });
   // Explicit robots content (index directives with snippet/preview hints for
   // zero-click surfaces) wins; the legacy boolean stays for older callers.
@@ -277,26 +298,32 @@ export function buildRootHead(
   const title = siteTitle(lang, origin);
   const description = siteDescription(lang, origin);
   const image = defaultSocialImage(origin || SITE_CANONICAL_ORIGIN);
-  const alt = socialDefaultsFor(origin).imageAlt;
+  const social = socialDefaultsFor(origin);
+  const alt = social.imageAlt;
+  const name = siteName(origin);
   const meta: Array<Record<string, string>> = [
     { charSet: "utf-8" },
-    { name: "viewport", content: "width=device-width, initial-scale=1" },
+    {
+      name: "viewport",
+      content:
+        "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content",
+    },
     { title },
     { name: "description", content: description },
     { name: "google-site-verification", content: "F4uS74OW4AztK0xOVBDNbWSwkpo7fXJ6txlYBmK2Cug" },
 
-    { name: "author", content: SITE_NAME },
+    { name: "author", content: name },
     { property: "og:title", content: title },
     { property: "og:description", content: description },
     { property: "og:type", content: "website" },
-    { property: "og:site_name", content: SITE_NAME },
+    { property: "og:site_name", content: name },
     { property: "og:locale", content: OG_LOCALE[lang] },
     // Share image: obrazek ustawiony w /admin/settings/social-preview, a gdy go
     // nie ma - statyczny plik marki. buildRootHead bywa origin-less (dokumenty
     // błędu / fallbacku), więc URL rozwiązujemy do absolutnego: scrapery
     // ignorują względne og:image.
     { property: "og:image", content: image },
-    { name: "twitter:card", content: "summary_large_image" },
+    { name: "twitter:card", content: social.twitterCard },
     { name: "twitter:image", content: image },
     { name: "twitter:title", content: title },
     { name: "twitter:description", content: description },

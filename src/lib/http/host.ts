@@ -98,6 +98,64 @@ export function isPreviewHost(rawHost: string | null | undefined): boolean {
 /** Origin, na który zbiegają się wszystkie adresy publikowane crawlerom. */
 export const CANONICAL_SITE_ORIGIN = "https://neweuropeanstrategies.com";
 
+/**
+ * Sufiksy hostów warstwy hostingu/podglądu, które NIGDY nie mogą wyciec do
+ * adresu pokazywanego użytkownikowi (cytowania, udostępnienia, kody QR,
+ * linki w mailach). Adres publiczny marki to zawsze CANONICAL_SITE_ORIGIN.
+ */
+const NON_PUBLIC_HOST_SUFFIXES = [".lovableproject.com", ".lovable.app"] as const;
+
+/** True dla hostów podglądu/hostingu, które nie są publiczną domeną marki. */
+export function isNonPublicHost(rawHost: string | null | undefined): boolean {
+  const host = normalizeHost(rawHost);
+  if (!host) return false;
+  return NON_PUBLIC_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix));
+}
+
+/**
+ * Origin używany w adresach pokazywanych użytkownikowi (cytowania, share,
+ * QR, "kopiuj link"). Domena marki i hosty podglądu zbiegają się na origin
+ * kanoniczny; własna domena tenanta zachowuje swój origin.
+ */
+export function publicFacingOrigin(rawHost: string | null | undefined): string {
+  // Akceptuje host albo pełny origin ("https://host") - oba występują u
+  // wywołań (nagłówki żądania vs splitUrl(getRequestUrl())).
+  const value = rawHost?.includes("://") ? rawHost.split("://")[1] : rawHost;
+  const host = normalizeHost(value ?? null);
+  if (!host) return CANONICAL_SITE_ORIGIN;
+  if (CANONICAL_SITE_HOSTS.has(host)) return CANONICAL_SITE_ORIGIN;
+  if (isNonPublicHost(host) || isPreviewHost(host)) return CANONICAL_SITE_ORIGIN;
+  if (isNonCanonicalPublicHost(host)) return CANONICAL_SITE_ORIGIN;
+  return `https://${host}`;
+}
+
+/** Wariant przeglądarkowy: origin bieżącej karty, zawsze bezpieczny do pokazania. */
+export function browserPublicOrigin(): string {
+  if (typeof window === "undefined") return CANONICAL_SITE_ORIGIN;
+  return publicFacingOrigin(window.location.host);
+}
+
+/**
+ * Zamienia dowolny absolutny URL wskazujący host podglądu/hostingu na ten
+ * sam adres na originie kanonicznym. Adresy na innych domenach (tenant,
+ * zewnętrzne) zwraca bez zmian.
+ */
+export function toCanonicalPublicUrl(absoluteUrl: string): string {
+  try {
+    const parsed = new URL(absoluteUrl);
+    if (
+      !isNonPublicHost(parsed.host) &&
+      !isPreviewHost(parsed.host) &&
+      !isNonCanonicalPublicHost(parsed.host)
+    ) {
+      return absoluteUrl;
+    }
+    return `${CANONICAL_SITE_ORIGIN}${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return absoluteUrl;
+  }
+}
+
 /** Hosty kanoniczne marki (apex + www). */
 export const CANONICAL_SITE_HOSTS: ReadonlySet<string> = new Set([
   "neweuropeanstrategies.com",
@@ -154,19 +212,33 @@ export function isNonCanonicalPublicHost(rawHost: string | null | undefined): bo
  * adresy na jednym originie, a robots.txt ogłasza tę samą mapę pod innym
  * (Search Console traktuje to jako mapę spoza właściwości i ją odrzuca).
  *
- *   * host kanoniczny marki i każdy jego alias (hosting, domena legacy) -
- *     origin kanoniczny: aliasy dostają 301, więc nie wolno publikować na nich
- *     adresów, choćby żądanie przyszło właśnie tam;
- *   * domena własna tenanta (i host podglądowy) - jej WŁASNY origin: ten host
- *     serwuje swój serwis i nie jest kanonizowany na markę.
+ *   * host kanoniczny marki i każdy jego alias (hosting, domena legacy, podgląd
+ *     edytora, lokalny dev, BRAK hosta) - origin kanoniczny;
+ *   * domena własna tenanta - jej WŁASNY origin: ten host serwuje swój serwis i
+ *     nie jest kanonizowany na markę.
+ *
+ * DLACZEGO PODGLĄD I LOCALHOST TEŻ SĄ KANONICZNE (poprawka 2026-09-14): na
+ * hostach podglądu nagłówek `X-Forwarded-Host` nie przechodzi walidacji katalogu
+ * domen, więc `trustedPublicHost` oddaje `localhost` - mapa strony emitowała
+ * wtedy adresy `https://localhost/...`, a `llms.txt` linkował artykuły na
+ * localhoście. Adres w dokumencie maszynowym jest CYTOWANY (Search Console,
+ * asystenci AI, udostępnienia), więc nie wolno w nim publikować adresu, którego
+ * nikt z zewnątrz nie otworzy. Pusty host z tego samego powodu daje origin
+ * kanoniczny, a nie pustkę.
  */
 export function crawlerPublishOrigin(
   rawHost: string | null | undefined,
   proto: string = "https",
 ): string {
   const host = normalizeHost(rawHost);
-  if (!host) return "";
-  if (CANONICAL_SITE_HOSTS.has(host) || isNonCanonicalPublicHost(host)) {
+  if (!host) return CANONICAL_SITE_ORIGIN;
+  if (
+    CANONICAL_SITE_HOSTS.has(host) ||
+    isNonCanonicalPublicHost(host) ||
+    isNonPublicHost(host) ||
+    isPreviewHost(host) ||
+    isEditorOrLocalHost(host)
+  ) {
     return CANONICAL_SITE_ORIGIN;
   }
   return `${proto}://${host}`;
@@ -227,17 +299,18 @@ export function crawlHostIsIndexable(hostClass: CrawlHostClass): boolean {
 /**
  * Origin, na którym host tej klasy publikuje adresy crawlerom.
  *
- * Marka i jej aliasy ZAWSZE zbiegają się na originie kanonicznym (alias
- * obsłużył żądanie, ale adresy w mapie i w robots.txt muszą wskazywać domenę
- * docelową). Domena tenanta, podgląd i host nieznany publikują na własnym
- * originie - inaczej mapa jednego serwisu reklamowałaby adresy drugiego.
+ * TYLKO domena tenanta publikuje na własnym originie - jej serwis nie jest
+ * kanonizowany na markę. Marka, alias hostingu, podgląd edytora, localhost i
+ * host nieznany zbiegają się na originie kanonicznym: to jedyny adres, który
+ * cytujący (Search Console, asystent AI, człowiek kopiujący link) potrafi
+ * otworzyć. Reguła jest DELEGOWANA do `crawlerPublishOrigin`, żeby robots.txt i
+ * mapa strony nie mogły się rozjechać.
  */
 export function crawlHostOrigin(
   hostClass: CrawlHostClass,
   rawHost: string | null | undefined,
   proto = "https",
 ): string {
-  if (hostClass === "brand" || hostClass === "alias") return CANONICAL_SITE_ORIGIN;
-  const host = normalizeHost(rawHost);
-  return host ? `${proto}://${host}` : "";
+  if (hostClass === "tenant") return crawlerPublishOrigin(rawHost, proto);
+  return CANONICAL_SITE_ORIGIN;
 }

@@ -1,5 +1,5 @@
 // Curated icon registry for research programs. Icons are imported by name (NOT
-// `import * as LucideIcons`) so the bundler tree-shakes to just this set — a
+// `import * as LucideIcons`) so the bundler tree-shakes to just this set - a
 // namespace import would pull the entire lucide-react library into the public
 // bundle. Extend this map to offer a new program icon in both the admin picker
 // and the public renderer.

@@ -39,6 +39,8 @@ import { socialHostKey } from "@/lib/seo/socialDefaults";
 const FULL = {
   title: { pl: "Nowe Strategie Europejskie", en: "New European Strategies" },
   description: { pl: "Analizy polityki europejskiej.", en: "European policy analysis." },
+  name: "New European Strategies",
+  alternateName: "NES",
 };
 
 beforeEach(() => resetBrandDefaults());
@@ -100,6 +102,8 @@ describe("normalizacja wartości (`clean`)", () => {
     expect(brandDefaultsFor("nes.example")).toEqual({
       title: { pl: "", en: "" },
       description: { pl: "Opis", en: "Desc" },
+      name: "",
+      alternateName: "",
     });
   });
 
@@ -108,6 +112,8 @@ describe("normalizacja wartości (`clean`)", () => {
     expect(brandDefaultsFor("nes.example")).toEqual({
       title: { pl: "Tytuł", en: "Title" },
       description: { pl: "", en: "" },
+      name: "",
+      alternateName: "",
     });
   });
 
@@ -124,7 +130,34 @@ describe("normalizacja wartości (`clean`)", () => {
     expect(brandDefaultsFor("nes.example")).toEqual({
       title: { pl: "Tylko PL", en: "" },
       description: { pl: "", en: "Only EN" },
+      name: "",
+      alternateName: "",
     });
+  });
+
+  // NAZWA serwisu jest osobnym polem od tytułu, bo wyszukiwarka używa ich do
+  // dwóch różnych rzeczy (linia nazwy vs niebieski link). Te testy pilnują, że
+  // pozostają rozdzielone także w pamięci - zlanie ich w jedno przywróciłoby
+  // dokładnie tę wadę, dla której to pole powstało.
+  it("nazwa serwisu jest jedna dla obu języków i NIE bierze się z tytułu", () => {
+    rememberBrandDefaults("nes.example", {
+      title: { pl: "Zupełnie inny tytuł", en: "A completely different title" },
+      name: "New European Strategies",
+    });
+    const brand = brandDefaultsFor("nes.example");
+    expect(brand.name).toBe("New European Strategies");
+    expect(brand.title.pl).toBe("Zupełnie inny tytuł");
+  });
+
+  it("nazwa i skrót są przycinane tak jak tytuł", () => {
+    rememberBrandDefaults("nes.example", { name: "  Marka  ", alternateName: "  NES  " });
+    expect(brandDefaultsFor("nes.example").name).toBe("Marka");
+    expect(brandDefaultsFor("nes.example").alternateName).toBe("NES");
+  });
+
+  it("brak nazwy daje pusty napis - builder ma wtedy spaść na stałą marki", () => {
+    rememberBrandDefaults("nes.example", { title: { pl: "T", en: "T" } });
+    expect(brandDefaultsFor("nes.example").name).toBe("");
   });
 });
 

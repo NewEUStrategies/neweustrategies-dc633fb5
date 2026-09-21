@@ -101,6 +101,9 @@ export const authorCvQueryOptions = (userId: string | null | undefined) =>
           .order("sort_order", { ascending: true })
           .order("label", { ascending: true }),
       ]);
+      for (const result of [exp, edu, sk, aw, ho]) {
+        if (result.error) throw result.error;
+      }
       return {
         experiences: (exp.data ?? []) as AuthorExperience[],
         education: (edu.data ?? []) as AuthorEducation[],

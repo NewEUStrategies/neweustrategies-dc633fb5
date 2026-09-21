@@ -11,7 +11,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(5);
+SELECT plan(7);
 
 -- -- Seed (jako wlasciciel; triggery auth.users wylaczone jak w tescie RLS) --
 ALTER TABLE auth.users DISABLE TRIGGER USER;
@@ -71,6 +71,29 @@ SELECT is(
   (SELECT count(*)::int FROM public.search_people(p_query => 'ENERGY POL', p_limit => 50)),
   1,
   'wielkosc liter zapytania nie ma znaczenia'
+);
+
+-- 5. Superadmin widzi profile z discoverable=false (bramka wylacznie dla niego).
+SELECT set_config('request.jwt.claims', '', true);
+RESET ROLE;
+INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
+  ('a7000000-0000-0000-0000-0000000000aa', 'super_admin',
+   'a7111111-1111-1111-1111-111111111111');
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"a7000000-0000-0000-0000-0000000000aa","role":"authenticated"}', true);
+
+SELECT is(
+  (SELECT count(*)::int FROM public.search_people(p_query => 'Hidden', p_limit => 50)),
+  1,
+  'superadmin znajduje profil discoverable=false'
+);
+
+SELECT is(
+  (SELECT count(*)::int FROM public.search_people(p_query => '', p_limit => 50)),
+  2,
+  'superadmin przeglada katalog razem z profilami ukrytymi (bez self)'
 );
 
 SELECT * FROM finish();

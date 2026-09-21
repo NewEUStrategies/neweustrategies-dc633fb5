@@ -4,6 +4,11 @@
 // Bezpieczeństwo: zalogowanie (middleware) plus serwerowa weryfikacja roli
 // `admin`. Klient podaje wyłącznie identyfikator zgłoszenia; treść i adresat
 // pochodzą z bazy.
+//
+// ZAKRES NAJEMCY BIERZEMY Z BRAMKI, NIE Z ŁADUNKU. `assertAdmin` autoryzuje
+// rolę w obszarze PROFILU wołającego i tego samego najemcę oddaje w wyniku -
+// podajemy go dalej, bo odczyt w `outcomeResend.server.ts` idzie kluczem
+// serwisowym (z pominięciem RLS) po identyfikatorze pochodzącym od klienta.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -17,7 +22,7 @@ export const resendRegistrationNotifications = createServerFn({ method: "POST" }
   .inputValidator((input: unknown) => schema.parse(input))
   .handler(async ({ data, context }): Promise<ResendOutcomeResult> => {
     const { assertAdmin } = await import("@/lib/billing/diagnostics.server");
-    await assertAdmin(context.supabase, context.userId);
+    const { tenantId } = await assertAdmin(context.supabase, context.userId);
     const { resendTicketOutcome } = await import("@/lib/events/outcomeResend.server");
-    return resendTicketOutcome(data.registrationId);
+    return resendTicketOutcome(data.registrationId, tenantId);
   });

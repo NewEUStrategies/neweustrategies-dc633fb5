@@ -77,7 +77,7 @@ vi.mock("@supabase/supabase-js", () => ({
 
 vi.mock("@/lib/stripe.server", () => ({
   getConnectionApiKey: (env: string) => connectionKey[env] ?? "test_klucz_domyslny",
-  createStripeClient: () => {
+  getStripeClient: () => {
     if (stripeState.failOn) throw new Error(stripeState.failOn);
     return {
       products: {

@@ -108,17 +108,29 @@ function coerceProgram(row: Record<string, unknown>): Program {
   };
 }
 
-/** Resolve public hrefs for post rows (mirrors the archive hydration). */
+/**
+ * Resolve public hrefs for post rows (mirrors the archive hydration).
+ *
+ * JEDNO wywołanie `page_full_paths(uuid[])` zamiast jednego `page_full_path`
+ * NA RODZICA: strona programu hydratuje trzy listy wpisów naraz (publikacje z
+ * kategorii, raporty flagowe), więc N+1 mnożył się przez liczbę list. Wzorzec
+ * i migracja jak w `lib/queries/archives.ts`.
+ *
+ * Kontrakt błędu BEZ ZMIAN: odmowa bazy nadal rzuca (adres z prefiksem „blog"
+ * dla wpisu, którego rodzica nie da się rozwiązać, jest NIEODRÓŻNIALNY od
+ * rodzica o ścieżce „blog" - połknięty błąd dałby cichy, zły link).
+ */
 async function hydrateHref(rows: Array<Omit<BlogListItem, "href">>): Promise<BlogListItem[]> {
   if (rows.length === 0) return [];
   const parentIds = Array.from(new Set(rows.map((r) => r.parent_page_id)));
   const paths = new Map<string, string>();
-  await Promise.all(
-    parentIds.map(async (pid) => {
-      const { data } = await supabase.rpc("page_full_path", { _page_id: pid });
-      if (typeof data === "string") paths.set(pid, data);
-    }),
-  );
+  const { data, error: dataError } = await supabase.rpc("page_full_paths", {
+    _page_ids: parentIds,
+  });
+  if (dataError) throw dataError;
+  for (const row of data ?? []) {
+    if (typeof row.full_path === "string") paths.set(row.page_id, row.full_path);
+  }
   return rows.map((r) => ({
     ...r,
     href: `/${paths.get(r.parent_page_id) ?? "blog"}/${r.slug}`,

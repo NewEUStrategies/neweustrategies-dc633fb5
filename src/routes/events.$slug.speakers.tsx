@@ -11,14 +11,15 @@
 // w których się rozjeżdżają.
 //
 // SIATKA CHCE `eventId`, A TRASA MA `slug`. Identyfikator bierzemy z tej samej
-// migawki wydarzenia, co powłoka (`["public-event", slug]`), więc to nie jest
-// drugie zapytanie - react-query oddaje wynik z cache.
+// migawki wydarzenia, co powłoka (`publicEventBySlugQueryOptions`), więc to nie
+// jest drugie zapytanie - react-query oddaje wynik z cache, rozgrzany przez
+// loader powłoki jeszcze przed renderem SSR.
 import { useState } from "react";
 import { createFileRoute, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { fetchPublicEventBySlug } from "@/lib/community/publicQueries";
+import { publicEventBySlugQueryOptions } from "@/lib/community/publicQueries";
 import { uiLang } from "@/lib/i18n/format";
 import { EventModulePage } from "@/components/events/public/molecules/EventModulePage";
 import { EventSpeakersGrid } from "@/components/events/public/organisms/EventSpeakersGrid";
@@ -37,10 +38,10 @@ function EventSpeakersTab() {
   const { slug } = useParams({ from: "/events/$slug/speakers" });
   const { i18n } = useTranslation();
   const lang = uiLang(i18n.language);
-  const eventQ = useQuery({
-    queryKey: ["public-event", slug],
-    queryFn: () => fetchPublicEventBySlug(slug),
-  });
+  // TA SAMA FABRYKA, CO W POWŁOCE - jedno źródło klucza. Loader powłoki grzeje
+  // ten klucz, więc `eventId` jest znany już w SSR (wcześniej siatka dostawała
+  // pusty string i jej własne zapytanie było na serwerze trwale wyłączone).
+  const eventQ = useQuery(publicEventBySlugQueryOptions(slug));
   const eventId = eventQ.data?.id ?? "";
 
   // Dane awaryjne dialogu bierzemy z wiersza, w który uczestnik kliknął -

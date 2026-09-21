@@ -10,8 +10,10 @@
 // przedmiocie, który faktycznie mierzy; test komponentu powstał osobno.
 import { describe, it, expect } from "vitest";
 import type { AutosuggestItem } from "@/lib/queries/archives";
+import { parseSearchParams } from "@/lib/search/searchParams";
 import {
   orderSuggestions,
+  searchHref,
   suggestBucketOf,
   suggestionHref,
   SUGGEST_BUCKET_LABELS,
@@ -91,8 +93,18 @@ describe("suggestBucketOf", () => {
 });
 
 describe("suggestionHref", () => {
-  it("publikacja prowadzi do permalinka /post/<slug>", () => {
-    expect(suggestionHref(it0({ kind: "post", slug: "moj-wpis" }))).toBe("/post/moj-wpis");
+  it("publikacja Z RODZICEM prowadzi do permalinka /post/<slug>", () => {
+    expect(suggestionHref(it0({ kind: "post", slug: "moj-wpis", parentPageId: "pg-1" }))).toBe(
+      "/post/moj-wpis",
+    );
+  });
+
+  it("publikacja BEZ RODZICA szuka po tytule - /post/<slug> odesłałby na /blog", () => {
+    // `resolveLegacyPostPath` (trasa /post/$slug) zwraca null bez parent_page_id
+    // i trasa robi 302 na /blog. Adres kanoniczny takiego wpisu nie istnieje.
+    expect(suggestionHref(it0({ kind: "post", slug: "moj-wpis", label_pl: "Mój wpis" }))).toBe(
+      "/search?q=M%C3%B3j+wpis",
+    );
   });
 
   it("autor prowadzi bezpośrednio do profilu /author/<slug>", () => {
@@ -125,5 +137,118 @@ describe("suggestionHref", () => {
   it("wymiary wyliczane (format/rok) filtrują po slugu", () => {
     expect(suggestionHref(it0({ kind: "format", slug: "video" }))).toBe("/search?format=video");
     expect(suggestionHref(it0({ kind: "year", slug: "2026" }))).toBe("/search?year=2026");
+  });
+
+  it("term taksonomii BEZ id szuka po nazwie, zamiast budować zepsuty filtr", () => {
+    // Parametry spec/type/org… lecą do RPC jako uuid[] - slug w URL wywracał
+    // zapytanie, więc adres z samym slugiem był gorszy niż brak filtra.
+    expect(
+      suggestionHref(it0({ kind: "organization", id: null, slug: "nato", label_pl: "NATO" })),
+    ).toBe("/search?q=NATO");
+  });
+
+  it("opcja `base` SCALA adres z bieżącym stanem /search zamiast go kasować", () => {
+    expect(
+      suggestionHref(it0({ kind: "organization", id: "o-1" }), {
+        base: { q: "stare", tab: "titles", sort: "newest" },
+      }),
+    ).toBe("/search?q=stare&org=o-1&sort=newest&tab=titles");
+  });
+
+  it("opcja `phrase` wstawia etykietę termu w q - pole frazy ma zgadzać się z filtrem", () => {
+    expect(
+      suggestionHref(
+        it0({ kind: "organization", id: "o-1", label_pl: "NATO", label_en: "NATO EN" }),
+        {
+          phrase: true,
+          lang: "pl",
+        },
+      ),
+    ).toBe("/search?q=NATO&org=o-1");
+    expect(
+      suggestionHref(it0({ kind: "author", id: "a-1", slug: "", label_pl: "Jan Kowalski" }), {
+        phrase: true,
+        lang: "pl",
+      }),
+    ).toBe("/search?q=Jan+Kowalski&author=a-1");
+  });
+
+  it("`phrase` NIE dotyczy wymiarów wyliczanych - „Wideo” jako fraza zawęziłoby wyniki", () => {
+    expect(
+      suggestionHref(it0({ kind: "format", id: null, slug: "video", label_pl: "Wideo" }), {
+        phrase: true,
+        lang: "pl",
+      }),
+    ).toBe("/search?format=video");
+  });
+});
+
+describe("searchHref", () => {
+  it("porządkuje parametry według schematu adresu i pomija puste", () => {
+    expect(searchHref({ sort: "newest", q: "", org: "o-1", tab: undefined })).toBe(
+      "/search?org=o-1&sort=newest",
+    );
+  });
+
+  it("pomija pola spoza schematu - adres zostaje odczytywalny przez validateSearch", () => {
+    expect(searchHref({ q: "raport", nieistnieje: "x" })).toBe("/search?q=raport");
+  });
+
+  it("pusty stan daje gołe /search, nie /search?", () => {
+    expect(searchHref({})).toBe("/search");
+  });
+});
+
+describe("suggestionHref - kontrakt z validateSearch trasy", () => {
+  // Adres podpowiedzi jest JEDYNĄ ścieżką nawigacji (mysz i Enter), więc każdy,
+  // który wytworzy, musi dać się odczytać z powrotem. Adres odrzucony przez
+  // `validateSearch` nie daje pustych wyników - wywraca CAŁĄ trasę.
+  const KINDS: AutosuggestItem["kind"][] = [
+    "author",
+    "post",
+    "page",
+    "company",
+    "category",
+    "pub_type",
+    "region",
+    "topic",
+    "project",
+    "series",
+    "organization",
+    "format",
+    "lang",
+    "access",
+    "year",
+  ];
+
+  it("ŻADEN wygenerowany adres /search nie wywraca walidatora adresu", () => {
+    const odrzucone: string[] = [];
+    for (const kind of KINDS) {
+      for (const slug of ["cos", "", "pl", "de", "2026"]) {
+        for (const id of ["id-1", null]) {
+          for (const phrase of [true, false]) {
+            const href = suggestionHref(it0({ kind, slug, id, label_pl: "Etykieta" }), {
+              phrase,
+              lang: "pl",
+            });
+            if (!href.startsWith("/search")) continue;
+            const params = Object.fromEntries(new URLSearchParams(href.split("?")[1] ?? ""));
+            try {
+              parseSearchParams(params);
+            } catch {
+              odrzucone.push(`${kind} slug=${JSON.stringify(slug)} id=${id} -> ${href}`);
+            }
+          }
+        }
+      }
+    }
+    expect(odrzucone).toEqual([]);
+  });
+
+  it("język spoza {pl,en} szuka po nazwie - kod w adresie wywracał walidator", () => {
+    expect(suggestionHref(it0({ kind: "lang", id: null, slug: "de", label_pl: "Niemiecki" }))).toBe(
+      "/search?q=Niemiecki",
+    );
+    expect(suggestionHref(it0({ kind: "lang", id: null, slug: "en" }))).toBe("/search?lang=en");
   });
 });

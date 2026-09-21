@@ -169,10 +169,28 @@ vi.mock("@/lib/community/publicQueries", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/community/publicQueries")>();
   const { publicEventRow } = await import("@/test/events/publicEventRow");
   const { eventPageHeaderRow } = await import("@/test/events/eventPageHeaderRow");
+  const fetchPublicEventBySlug = vi.fn(async () => publicEventRow(h.event));
+  const fetchEventPageHeader = vi.fn(async () => eventPageHeaderRow());
   return {
     ...original,
-    fetchPublicEventBySlug: vi.fn(async () => publicEventRow(h.event)),
-    fetchEventPageHeader: vi.fn(async () => eventPageHeaderRow()),
+    fetchPublicEventBySlug,
+    fetchEventPageHeader,
+    // FABRYKI TRZEBA PODMIENIĆ RAZEM Z FETCHERAMI. Od 2026-09-01 trasa czyta
+    // `publicEventBySlugQueryOptions` / `eventPageHeaderQueryOptions` zamiast
+    // składać klucz literałem, a `queryFn` tych fabryk woła fetchery WEWNĄTRZ
+    // modułu - czyli po wiązaniu, którego `vi.mock` eksportów nie przechwytuje.
+    // Same `...original` oddałyby więc PRAWDZIWE zapytanie do zaślepki
+    // Supabase: render kończył się pustym kontenerem po pięciu sekundach.
+    // Klucze są DOKŁADNIE produkcyjne, żeby test nie przechodził dzięki
+    // rozjechanemu kluczowi.
+    publicEventBySlugQueryOptions: (slug: string) => ({
+      queryKey: ["public-event", slug],
+      queryFn: fetchPublicEventBySlug,
+    }),
+    eventPageHeaderQueryOptions: (slug: string, viewer: string) => ({
+      queryKey: ["event-page-header", slug, viewer],
+      queryFn: fetchEventPageHeader,
+    }),
     fetchEventAccess: vi.fn(async () => null),
     fetchEventRsvpCounts: vi.fn(async () => new Map()),
     fetchEventWaitlistPosition: vi.fn(async () => null),
@@ -345,7 +363,7 @@ const COVERED_SURFACES: readonly HeadingSurface[] = [
         path: "/events/$slug/",
         initialEntry: `/events/${EVENT_SLUG}`,
       });
-      // Ta trasa nie ma loadera - migawka wydarzenia i sekcje jadą zwykłym
+      // W teście migawka wydarzenia i sekcje jadą zwykłym
       // `useQuery`, więc pierwszy render to jeszcze ekran wczytywania.
       await waitFor(() => expect(presentedHeadings(route.container)).toHaveLength(3));
       return presentedHeadings(route.container);

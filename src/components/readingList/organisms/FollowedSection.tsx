@@ -25,6 +25,7 @@ import { buildFollowChips } from "@/components/readingList/atoms/followChips";
 import { gridColsClass } from "@/components/readingList/atoms/gridColsClass";
 import { FollowChips } from "@/components/readingList/molecules/FollowChips";
 import { ReadingListEmptyState } from "@/components/readingList/molecules/ReadingListEmptyState";
+import { ReadingListErrorState } from "@/components/readingList/molecules/ReadingListErrorState";
 import { ReadingListPostCard } from "@/components/readingList/molecules/ReadingListPostCard";
 
 // Nakładka słownika rejestruje klucze `readingList.*` EFEKTEM UBOCZNYM importu.
@@ -36,7 +37,8 @@ import "@/lib/i18n-reading-list";
 
 export function FollowedSection({ columns, lang }: { columns: number; lang: "pl" | "en" }) {
   const { t } = useTranslation();
-  const { data: follows } = useFollows();
+  const followsQ = useFollows();
+  const { data: follows } = followsQ;
   const feed = useFollowedFeed();
   const toggle = useToggleFollow();
 
@@ -53,7 +55,7 @@ export function FollowedSection({ columns, lang }: { columns: number; lang: "pl"
     [follows],
   );
 
-  const { data: entities } = useQuery({
+  const entitiesQ = useQuery({
     queryKey: ["followed-entities", catIds.join(","), tagIds.join(","), authorIds.join(",")],
     enabled: (follows ?? []).length > 0,
     queryFn: async () => {
@@ -61,17 +63,22 @@ export function FollowedSection({ columns, lang }: { columns: number; lang: "pl"
         catIds.length
           ? supabase.from("categories").select("id, name_pl, name_en, slug").in("id", catIds)
           : Promise.resolve({
+              error: null,
               data: [] as Array<{ id: string; name_pl: string; name_en: string; slug: string }>,
             }),
         tagIds.length
           ? supabase.from("tags").select("id, name, slug").in("id", tagIds)
-          : Promise.resolve({ data: [] as Array<{ id: string; name: string; slug: string }> }),
+          : Promise.resolve({
+              error: null,
+              data: [] as Array<{ id: string; name: string; slug: string }>,
+            }),
         authorIds.length
           ? supabase
               .from("profiles")
               .select("id, display_name, avatar_url, slug")
               .in("id", authorIds)
           : Promise.resolve({
+              error: null,
               data: [] as Array<{
                 id: string;
                 display_name: string | null;
@@ -80,13 +87,26 @@ export function FollowedSection({ columns, lang }: { columns: number; lang: "pl"
               }>,
             }),
       ]);
+      if (cats.error) throw cats.error;
+      if (tags.error) throw tags.error;
+      if (authors.error) throw authors.error;
       return { cats: cats.data ?? [], tags: tags.data ?? [], authors: authors.data ?? [] };
     },
   });
+  const { data: entities } = entitiesQ;
 
   const chips = useMemo(() => (entities ? buildFollowChips(entities, lang) : []), [entities, lang]);
 
-  if (!follows || follows.length === 0) {
+  if (followsQ.error)
+    return (
+      <ReadingListErrorState
+        message={t("readingList.followedError")}
+        onRetry={() => void followsQ.refetch()}
+      />
+    );
+  if (!follows)
+    return <p className="text-center text-muted-foreground">{t("readingList.loading")}</p>;
+  if (follows.length === 0) {
     return (
       <div className="text-center py-20 text-muted-foreground">
         <p>{t("readingList.followedEmpty")}</p>
@@ -103,15 +123,33 @@ export function FollowedSection({ columns, lang }: { columns: number; lang: "pl"
 
   return (
     <div>
-      <FollowChips
-        chips={chips}
-        pending={toggle.isPending}
-        onUnfollow={(chip) =>
-          toggle.mutate({ targetType: chip.type, targetId: chip.id, on: false })
-        }
-      />
+      {entitiesQ.error ? (
+        <section className="mb-8">
+          <h2 className="font-display mb-3 text-sm uppercase tracking-wide text-muted-foreground">
+            {t("readingList.yourFollows")}
+          </h2>
+          <ReadingListErrorState
+            message={t("readingList.followedNamesError")}
+            onRetry={() => void entitiesQ.refetch()}
+          />
+        </section>
+      ) : (
+        <FollowChips
+          chips={chips}
+          pending={toggle.isPending}
+          onUnfollow={(chip) =>
+            toggle.mutate({ targetType: chip.type, targetId: chip.id, on: false })
+          }
+        />
+      )}
 
-      {feed.isLoading ? (
+      <h2 className="sr-only">{t("readingList.followedContentHeading")}</h2>
+      {feed.error ? (
+        <ReadingListErrorState
+          message={t("readingList.followedFeedError")}
+          onRetry={() => void feed.refetch()}
+        />
+      ) : feed.isLoading ? (
         <p className="text-center text-muted-foreground">{t("readingList.loading")}</p>
       ) : items.length === 0 ? (
         <ReadingListEmptyState text={t("readingList.followedFeedEmpty")} />

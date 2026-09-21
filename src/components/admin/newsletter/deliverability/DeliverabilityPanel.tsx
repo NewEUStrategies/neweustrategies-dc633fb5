@@ -15,6 +15,7 @@ import { AlertTriangle, MailWarning, RefreshCw, ShieldCheck } from "lucide-react
 import { Button } from "@/components/ui/button";
 import { Chart } from "@/components/charts/Chart";
 import type { ChartConfig } from "@/lib/charts/types";
+import { defaultChartConfig } from "@/lib/charts/parse";
 import { ReputationMeter } from "@/components/molecules/ReputationMeter";
 import { ReputationStatusDot } from "@/components/atoms/ReputationStatusDot";
 import { formatRate } from "@/lib/email/reputation";
@@ -26,6 +27,7 @@ import { SuppressionTable } from "./SuppressionTable";
 import { WebhookSetupCard } from "./WebhookSetupCard";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-newsletter-deliverability";
+import { slotForSeries } from "@/lib/charts/palette";
 
 const RANGES = [7, 30, 90] as const;
 type Range = (typeof RANGES)[number];
@@ -60,6 +62,7 @@ export function DeliverabilityPanel() {
         month: "short",
       });
     return {
+      ...defaultChartConfig(),
       kind: "line",
       title: t("adminDeliverability.chart.title"),
       description: "",
@@ -68,17 +71,17 @@ export function DeliverabilityPanel() {
         {
           name: t("adminDeliverability.chart.delivered"),
           values: series.map((p) => p.delivered),
-          colorSlot: 1,
+          colorSlot: slotForSeries(0),
         },
         {
           name: t("adminDeliverability.chart.bounced"),
           values: series.map((p) => p.bounced),
-          colorSlot: 2,
+          colorSlot: slotForSeries(1),
         },
         {
           name: t("adminDeliverability.chart.complained"),
           values: series.map((p) => p.complained),
-          colorSlot: 3,
+          colorSlot: slotForSeries(2),
         },
       ],
       stacked: false,

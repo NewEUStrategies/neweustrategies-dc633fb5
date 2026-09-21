@@ -29,8 +29,37 @@ import { readDegree, type ConnectionBridge, type ConnectionDegree } from "./degr
 type Fns = Database["public"]["Functions"];
 export type MyConnectionRow = Fns["my_connections"]["Returns"][number];
 export type ConnectionRequestRow = Fns["my_connection_requests"]["Returns"][number];
-export type ConnectionSuggestionRow = Fns["connection_suggestions"]["Returns"][number];
 export type NetworkCounts = Fns["my_network_counts"]["Returns"][number];
+
+/**
+ * `mutual_visible_count` dołożone migracją 20260913172000 do OBU RPC stopnia.
+ * Wygenerowany `types.ts` jeszcze go nie zna, bo regeneracja wymaga dostępu do
+ * bazy i jest osobną zmianą (przepisuje ~20 tysięcy linii).
+ *
+ * DLACZEGO `Partial`, skoro baza zwraca tę kolumnę ZAWSZE. Bo w oknie wdrożenia
+ * "kod nowy, baza jeszcze stara" jest ona realnie nieobecna, a typ ma opisywać
+ * to, co może przyjść przez sieć, nie to, co powinno. Obietnica jest domykana
+ * NIŻEJ - `ConnectionState.mutualVisibleCount` jest wymaganym `number`, bo
+ * odczyt normalizuje brak do zera.
+ *
+ * Zero jest tu spadkiem BEZPIECZNYM w jedyną dopuszczalną stronę: podpowiedź
+ * i przycisk wprowadzenia znikają. Odwrotny spadek (np. na `mutual_count`)
+ * przywracałby dokładnie ten defekt, który ta migracja zamyka - link do listy,
+ * która okaże się pusta.
+ *
+ * NIE POWTARZAMY tu błędu `bridge_avatar?: string` z useIntroductions: tam
+ * augmentacja dokładała pole OPCJONALNE do wygenerowanego typu, który miał je
+ * już jako WYMAGANE `string`, więc osłabiała kontrakt zamiast go uzupełnić.
+ * Tutaj wygenerowany typ nie ma tego pola wcale.
+ *
+ * PRZY NAJBLIŻSZEJ REGENERACJI `types.ts`: usunąć `MutualVisible`, zdjąć
+ * `?? 0` w `useConnectionStatuses` i w `SuggestionsTab` (src/routes/network.tsx).
+ */
+type MutualVisible = { readonly mutual_visible_count: number };
+export type ConnectionStatusRow = Fns["connection_statuses"]["Returns"][number] &
+  Partial<MutualVisible>;
+export type ConnectionSuggestionRow = Fns["connection_suggestions"]["Returns"][number] &
+  Partial<MutualVisible>;
 
 /** Relacja wołającego z drugą osobą. Od v2 RPC zwraca wiersz także dla "none". */
 export type ConnectionStatus = "none" | "pending_out" | "pending_in" | "connected";
@@ -39,8 +68,19 @@ export interface ConnectionState {
   status: ConnectionStatus;
   /** id wiersza user_connections (null przy statusie "none"). */
   connectionId: string | null;
-  /** Wspólne kontakty (dowód społeczny na kartach). */
+  /**
+   * Wspólne kontakty jako FAKT GRAFU - na tej liczbie stoi `degree` i ranking
+   * sugestii. NIE POKAZUJEMY jej użytkownikowi: zawiera też mosty, których
+   * baza nie ma prawa nazwać (`discoverable = false`, obcy tenant).
+   */
   mutualCount: number;
+  /**
+   * Wspólne kontakty, które wołający ZOBACZY po kliknięciu w podpowiedź -
+   * ten sam zbiór, co `mutual_connections`. To jest liczba do wyświetlenia
+   * i to ona bramkuje przycisk prośby o wprowadzenie (patrz migracja
+   * 20260913172000: rozjazd tych dwóch liczb prowadził na pustą listę).
+   */
+  mutualVisibleCount: number;
   /** Czy świeże zaproszenie ma sens (widoczność, tenant, blokady, polityka). */
   canInvite: boolean;
   /** Stopień oddalenia w grafie zaakceptowanych relacji (0 = poza zasięgiem). */
@@ -53,12 +93,18 @@ export const NO_CONNECTION: ConnectionState = {
   status: "none",
   connectionId: null,
   mutualCount: 0,
+  mutualVisibleCount: 0,
   canInvite: true,
   degree: 0,
   bridge: null,
 };
 
 const PAGE_SIZE = 24;
+// Sufit `my_connection_requests` to 50 (RPC klamruje `p_limit`), więc strona
+// mniejsza niż sufit jest tu warunkiem KONIECZNYM: przy 50 `lastPage.length
+// === pageSize` byłoby prawdą także dla ostatniej pełnej strony obciętej przez
+// klamrę i pętla dociągania nie miałaby jak się zatrzymać na właściwym wierszu.
+const REQUESTS_PAGE_SIZE = 24;
 
 /**
  * Statusy relacji z partią widocznych profili (np. strona /people) - jeden
@@ -78,7 +124,8 @@ export function useConnectionStatuses(
       });
       if (error) throw error;
       const map = new Map<string, ConnectionState>();
-      for (const row of data ?? []) {
+      const rows: ReadonlyArray<ConnectionStatusRow> = data ?? [];
+      for (const row of rows) {
         if (
           row.status === "none" ||
           row.status === "pending_out" ||
@@ -89,6 +136,7 @@ export function useConnectionStatuses(
             status: row.status,
             connectionId: row.connection_id,
             mutualCount: row.mutual_count,
+            mutualVisibleCount: row.mutual_visible_count ?? 0,
             canInvite: row.can_invite,
             ...readDegree(row),
           });
@@ -131,22 +179,43 @@ export function useMyConnections(
 /**
  * Zaproszenia: "in" = oczekujące na moją odpowiedź, "out" = wysłane przeze
  * mnie (odrzucone celowo wyglądają jak oczekujące - patrz migracja).
+ *
+ * STRONICOWANE OD 20260913. Wcześniej był to zwykły `useQuery` z `p_limit: 50`
+ * i bez `p_offset`, a RPC klamruje limit do 50
+ * (`LIMIT LEAST(GREATEST(COALESCE(p_limit, 24), 1), 50)`), więc pięćdziesiąt
+ * było TWARDYM SUFITEM. Wiersz niósł `total_count`, którego hook nie czytał
+ * (`return data ?? []`), a odznaka zakładki brała `pending_in`/`pending_out`
+ * z `my_network_counts`, liczone `COUNT(*)` po całej tabeli. Użytkownik z 60
+ * zaproszeniami widział odznakę "60" nad listą pokazującą 50 i NIE MIAŁ JAK
+ * dojść do pozostałych dziesięciu.
+ *
+ * Kształt jest teraz ten sam, co w `useMyConnections` wyżej (ten sam plik,
+ * ten sam `getNextPageParam` oparty na `total_count`) - to wyrównanie do
+ * istniejącego wzorca, nie nowy mechanizm.
  */
 export function useConnectionRequests(
   direction: "in" | "out",
-): UseQueryResult<ConnectionRequestRow[]> {
+  pageSize = REQUESTS_PAGE_SIZE,
+): UseInfiniteQueryResult<InfiniteData<ConnectionRequestRow[]>> {
   const { user } = useAuth();
-  return useQuery({
-    queryKey: networkKeys.requests(user?.id, direction),
+  return useInfiniteQuery({
+    queryKey: [...networkKeys.requests(user?.id, direction), pageSize],
     enabled: !!user,
     staleTime: 15_000,
-    queryFn: async (): Promise<ConnectionRequestRow[]> => {
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }): Promise<ConnectionRequestRow[]> => {
       const { data, error } = await supabase.rpc("my_connection_requests", {
         p_direction: direction,
-        p_limit: 50,
+        p_limit: pageSize,
+        p_offset: pageParam,
       });
       if (error) throw error;
       return data ?? [];
+    },
+    getNextPageParam: (lastPage, allPages) => {
+      const total = lastPage[0]?.total_count ?? 0;
+      const loaded = allPages.reduce((sum, page) => sum + page.length, 0);
+      return lastPage.length === pageSize && loaded < total ? loaded : undefined;
     },
   });
 }
@@ -178,7 +247,8 @@ export function useConnectionSuggestions(limit = 12): UseQueryResult<ConnectionS
         p_limit: limit,
       });
       if (error) throw error;
-      return data ?? [];
+      const rows: ConnectionSuggestionRow[] = data ?? [];
+      return rows;
     },
   });
 }

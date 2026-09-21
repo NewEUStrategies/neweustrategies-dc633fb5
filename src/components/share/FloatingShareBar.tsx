@@ -1,3 +1,4 @@
+import { toCanonicalPublicUrl } from "@/lib/http/host";
 import type * as React from "react";
 // Floating reading rail - sticky left-side rail on long-form content.
 // Combines: reading progress ring + interactive article ToC (scrollspy + jump)
@@ -142,7 +143,8 @@ export function FloatingShareBar({
   // mount - the post subtree is reused on client-side post->post navigation, so
   // a mount-only capture would keep sharing/saving the previous article's URL.
   useEffect(() => {
-    if (!url && typeof window !== "undefined") setHref(window.location.href);
+    // Nigdy nie udostępniamy hosta podglądu/hostingu - zawsze domena marki.
+    if (!url && typeof window !== "undefined") setHref(toCanonicalPublicUrl(window.location.href));
   }, [url, entityId, title]);
 
   // Scan headings (h1-h5) within the article body. Assign IDs when missing.

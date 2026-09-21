@@ -442,7 +442,7 @@ describe("ClubCalendar - agenda i postacie terminu", () => {
       }),
       clubEventRow({
         id: "e-godzina",
-        title_pl: "Posiedzenie o dziesiątej",
+        title_pl: "Posiedzenie o dziesiątej UTC",
         all_day: false,
         starts_at: clubIsoOffset(1440),
         ends_at: null,
@@ -454,9 +454,20 @@ describe("ClubCalendar - agenda i postacie terminu", () => {
 
     await waitFor(() => expect(screen.getAllByTestId("club-event-card")).toHaveLength(2));
     const tekst = container.textContent ?? "";
+    // TERMIN CAŁODNIOWY nie przesuwa się o strefę: `formatDateOnly` zamyka
+    // `DATE_ONLY_TIME_ZONE = "UTC"`, bo wartość dnia z bazy nie ma godziny
+    // i doklejanie jej przesuwałoby datę przy północy.
     expect(tekst).toContain("19 sierpnia 2026");
     expect(tekst).toContain("club.calendar.allDay");
-    expect(tekst).toContain("19.08.2026, 10:00");
+    // 10:00 -> 12:00 (2026-09-01): `formatDate` ZAMYKA odtąd strefę serwisu
+    // (`SITE_TIME_ZONE = "Europe/Warsaw"`), a wcześniej brał strefę PROCESU -
+    // czyli ta asercja mierzyła `TZ` maszyny testowej, nie zachowanie produktu.
+    // `CLUB_BASE_ISO + 1440 min` to `2026-08-19T10:00:00Z`, a w sierpniu Warszawa
+    // jest na CEST (UTC+2), więc czytelnik widzi POŁUDNIE - i to jest cała treść
+    // naprawy D7: ten sam znacznik pokazuje tę samą godzinę niezależnie od tego,
+    // gdzie stoi izolat, który wyrenderował dokument. Tytuł wiersza nazywa więc
+    // instant (10:00 UTC), żeby nie kłamał o tym, co pokazuje karta.
+    expect(tekst).toContain("19.08.2026, 12:00");
   });
 
   it("dane CZĘŚCIOWE: brak opisu, miejsca, adresu spotkania i wątku nie rysuje pustych rubryk", async () => {

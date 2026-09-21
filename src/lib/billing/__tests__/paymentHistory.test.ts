@@ -94,6 +94,35 @@ describe("paymentHistoryToCsv", () => {
     );
     expect(csv).toContain('"FV;2026 ""A"""');
   });
+
+  // Neutralizacja wstrzyknięcia formuły idzie ze wspólnego modułu
+  // (`lib/csv/formatCsv`). Wektor jest tu realny: `number` dokumentu
+  // i `couponCode` pochodzą od OPERATORA PŁATNOŚCI, a plik użytkownik otwiera
+  // lokalnie w arkuszu.
+  it("neutralizes a formula payload in provider-supplied fields", () => {
+    const csv = paymentHistoryToCsv(
+      mergePaymentHistory([], [document({ number: "=cmd|'/c calc'!A0" })]),
+      labels,
+    );
+    const [, row] = csv.trim().split("\r\n");
+
+    expect(row?.split(";")[0]).toBe("'=cmd|'/c calc'!A0");
+    expect(row?.startsWith("=")).toBe(false);
+  });
+
+  it("keeps a negative amount numeric - the column must still add up", () => {
+    // Druga strona reguły: apostrof nałożony bez rozróżnienia zamieniłby
+    // korektę na tekst i kolumna kwot przestałaby się sumować.
+    const csv = paymentHistoryToCsv(
+      mergePaymentHistory([], [document({ kind: "credit_note", amount_cents: -4900 })]),
+      labels,
+    );
+    const [, row] = csv.trim().split("\r\n");
+    const amount = row?.split(";")[3] ?? "";
+
+    expect(amount).toBe("-49.00");
+    expect(Number(amount)).toBe(-49);
+  });
 });
 
 describe("historyFileName", () => {

@@ -1,3 +1,4 @@
+import { ensureI18n } from "@/lib/i18n-admin-monetization";
 // Dashboard monetyzacji: metered views, użycia kuponów, ustawienia checkoutu,
 // filtry po planie i organizacji. Odczyt via monetization_dashboard (RPC, staff-only).
 import { useMemo, useState } from "react";
@@ -46,7 +47,8 @@ interface DashboardShape {
 const ALL = "__all__";
 
 function AdminMonetizationPage() {
-  const { i18n } = useTranslation();
+  ensureI18n();
+  const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
 
@@ -59,6 +61,8 @@ function AdminMonetizationPage() {
   const [to, setTo] = useState(nowIso);
   const [planId, setPlanId] = useState<string>(ALL);
   const [orgId, setOrgId] = useState<string>(ALL);
+  const validRange =
+    Number.isFinite(Date.parse(from)) && Number.isFinite(Date.parse(to)) && from <= to;
 
   const plansQ = useQuery({
     queryKey: [...billingKeys.admin.monetization(), "plans"],
@@ -88,6 +92,7 @@ function AdminMonetizationPage() {
 
   const dashQ = useQuery({
     queryKey: [...billingKeys.admin.monetization(), from, to, planId, orgId],
+    enabled: validRange,
     queryFn: async (): Promise<DashboardShape> => {
       const { data, error } = await supabase.rpc("monetization_dashboard", {
         _from: new Date(from).toISOString(),
@@ -96,6 +101,7 @@ function AdminMonetizationPage() {
         _organization_id: orgId === ALL ? "00000000-0000-0000-0000-000000000000" : orgId,
       });
       if (error) throw error;
+      if (!data) throw new Error("Empty monetization dashboard response");
       return data as unknown as DashboardShape;
     },
   });
@@ -126,12 +132,26 @@ function AdminMonetizationPage() {
         <CardContent className="pt-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
-              <Label className="text-xs">{L("Od", "From")}</Label>
-              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+              <Label htmlFor="monetization-from" className="text-xs">
+                {L("Od", "From")}
+              </Label>
+              <Input
+                id="monetization-from"
+                type="date"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+              />
             </div>
             <div>
-              <Label className="text-xs">{L("Do", "To")}</Label>
-              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+              <Label htmlFor="monetization-to" className="text-xs">
+                {L("Do", "To")}
+              </Label>
+              <Input
+                id="monetization-to"
+                type="date"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+              />
             </div>
             <div>
               <Label className="text-xs">{L("Plan", "Plan")}</Label>
@@ -169,87 +189,98 @@ function AdminMonetizationPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <MetricCard
-          icon={<Users className="h-4 w-4" />}
-          label={L("Widoki mierzone", "Metered views")}
-          value={fmt.format(dashQ.data?.metered_views.total ?? 0)}
-          hint={L(
-            `${dashQ.data?.metered_views.members ?? 0} członków · ${dashQ.data?.metered_views.anonymous ?? 0} anon`,
-            `${dashQ.data?.metered_views.members ?? 0} members · ${dashQ.data?.metered_views.anonymous ?? 0} anon`,
-          )}
-        />
-        <MetricCard
-          icon={<Ban className="h-4 w-4" />}
-          label={L("Odmowy paywalla", "Paywall denials")}
-          value={fmt.format(dashQ.data?.metering_events.denied ?? 0)}
-        />
-        <MetricCard
-          icon={<LogIn className="h-4 w-4" />}
-          label={L("Ściana rejestracji", "Register wall")}
-          value={fmt.format(dashQ.data?.metering_events.reg_wall ?? 0)}
-        />
-        <MetricCard
-          icon={<BadgePercent className="h-4 w-4" />}
-          label={L("Aktywne kupony", "Active coupons")}
-          value={`${dashQ.data?.coupons.active ?? 0} / ${dashQ.data?.coupons.total ?? 0}`}
-        />
-        <MetricCard
-          icon={<BadgePercent className="h-4 w-4" />}
-          label={L("Użycia kuponów", "Coupon redemptions")}
-          value={fmt.format(dashQ.data?.redemptions.in_range ?? 0)}
-          hint={fmtMoney(dashQ.data?.redemptions.discount_cents ?? 0)}
-        />
-        <MetricCard
-          icon={<TrendingUp className="h-4 w-4" />}
-          label={L("Przychód (opłacone)", "Revenue (paid)")}
-          value={fmtMoney(dashQ.data?.orders.revenue_cents ?? 0)}
-          hint={L(
-            `${dashQ.data?.orders.paid ?? 0} / ${dashQ.data?.orders.total ?? 0} zamówień`,
-            `${dashQ.data?.orders.paid ?? 0} / ${dashQ.data?.orders.total ?? 0} orders`,
-          )}
-        />
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4" />
-            {L("Ustawienia checkoutu", "Checkout settings")}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-            {[
-              ["allow_promotion_codes", L("Kody Stripe", "Stripe codes")],
-              ["automatic_tax", L("Automatyczny VAT", "Automatic tax")],
-              ["tax_id_collection", L("Zbieranie NIP", "Tax ID collection")],
-              ["invoice_creation", L("Faktury", "Invoices")],
-            ].map(([key, label]) => {
-              const v = dashQ.data?.checkout_settings?.[key];
-              const on = v === true;
-              return (
-                <div
-                  key={key}
-                  className="rounded-md border border-border/60 px-3 py-2 flex items-center justify-between"
-                >
-                  <span>{label}</span>
-                  <span
-                    className={
-                      on
-                        ? "text-xs font-semibold text-emerald-600"
-                        : "text-xs text-muted-foreground"
-                    }
-                  >
-                    {on ? L("Włączone", "On") : L("Wyłączone", "Off")}
-                  </span>
-                </div>
-              );
-            })}
+      {!validRange && <p role="alert">{t("adminMonetization.rangeError")}</p>}
+      {(plansQ.isError || orgsQ.isError) && (
+        <p role="alert">{t("adminMonetization.filtersError")}</p>
+      )}
+      {dashQ.isError && <p role="alert">{t("adminMonetization.dataError")}</p>}
+      {validRange && dashQ.isPending && (
+        <p role="status">{t("adminMonetization.dashboardLoading")}</p>
+      )}
+      {validRange && dashQ.data && !dashQ.isError && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <MetricCard
+              icon={<Users className="h-4 w-4" />}
+              label={L("Widoki mierzone", "Metered views")}
+              value={fmt.format(dashQ.data?.metered_views.total ?? 0)}
+              hint={L(
+                `${dashQ.data?.metered_views.members ?? 0} członków · ${dashQ.data?.metered_views.anonymous ?? 0} anon`,
+                `${dashQ.data?.metered_views.members ?? 0} members · ${dashQ.data?.metered_views.anonymous ?? 0} anon`,
+              )}
+            />
+            <MetricCard
+              icon={<Ban className="h-4 w-4" />}
+              label={L("Odmowy paywalla", "Paywall denials")}
+              value={fmt.format(dashQ.data?.metering_events.denied ?? 0)}
+            />
+            <MetricCard
+              icon={<LogIn className="h-4 w-4" />}
+              label={L("Ściana rejestracji", "Register wall")}
+              value={fmt.format(dashQ.data?.metering_events.reg_wall ?? 0)}
+            />
+            <MetricCard
+              icon={<BadgePercent className="h-4 w-4" />}
+              label={L("Aktywne kupony", "Active coupons")}
+              value={`${dashQ.data?.coupons.active ?? 0} / ${dashQ.data?.coupons.total ?? 0}`}
+            />
+            <MetricCard
+              icon={<BadgePercent className="h-4 w-4" />}
+              label={L("Użycia kuponów", "Coupon redemptions")}
+              value={fmt.format(dashQ.data?.redemptions.in_range ?? 0)}
+              hint={fmtMoney(dashQ.data?.redemptions.discount_cents ?? 0)}
+            />
+            <MetricCard
+              icon={<TrendingUp className="h-4 w-4" />}
+              label={L("Przychód (opłacone)", "Revenue (paid)")}
+              value={fmtMoney(dashQ.data?.orders.revenue_cents ?? 0)}
+              hint={L(
+                `${dashQ.data?.orders.paid ?? 0} / ${dashQ.data?.orders.total ?? 0} zamówień`,
+                `${dashQ.data?.orders.paid ?? 0} / ${dashQ.data?.orders.total ?? 0} orders`,
+              )}
+            />
           </div>
-        </CardContent>
-      </Card>
 
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4" />
+                {L("Ustawienia checkoutu", "Checkout settings")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                {[
+                  ["allow_promotion_codes", L("Kody Stripe", "Stripe codes")],
+                  ["automatic_tax", L("Automatyczny VAT", "Automatic tax")],
+                  ["tax_id_collection", L("Zbieranie NIP", "Tax ID collection")],
+                  ["invoice_creation", L("Faktury", "Invoices")],
+                ].map(([key, label]) => {
+                  const v = dashQ.data?.checkout_settings?.[key];
+                  const on = v === true;
+                  return (
+                    <div
+                      key={key}
+                      className="rounded-md border border-border/60 px-3 py-2 flex items-center justify-between"
+                    >
+                      <span>{label}</span>
+                      <span
+                        className={
+                          on
+                            ? "text-xs font-semibold text-emerald-600"
+                            : "text-xs text-muted-foreground"
+                        }
+                      >
+                        {on ? L("Włączone", "On") : L("Wyłączone", "Off")}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
       <RetentionSummarySection />
     </div>
   );
@@ -262,7 +293,7 @@ function AdminMonetizationPage() {
 type RetentionFeedbackRow = Database["public"]["Tables"]["retention_feedback"]["Row"];
 
 function RetentionSummarySection() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
 
@@ -313,44 +344,50 @@ function RetentionSummarySection() {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="rounded-md border border-border/60 px-3 py-2">
-            <div className="text-xs text-muted-foreground">
-              {L("Odpowiedzi ankiety", "Survey responses")}
+        {feedbackQ.isError ? (
+          <p role="alert">{t("adminMonetization.retentionError")}</p>
+        ) : feedbackQ.isPending ? (
+          <p role="status">{t("adminMonetization.dashboardLoading")}</p>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-md border border-border/60 px-3 py-2">
+              <div className="text-xs text-muted-foreground">
+                {L("Odpowiedzi ankiety", "Survey responses")}
+              </div>
+              <div className="text-xl font-bold">{stats.total}</div>
             </div>
-            <div className="text-xl font-bold">{stats.total}</div>
-          </div>
-          <div className="rounded-md border border-border/60 px-3 py-2">
-            <div className="text-xs text-muted-foreground">
-              {L("Przyjęte kontrofertki", "Accepted counter-offers")}
+            <div className="rounded-md border border-border/60 px-3 py-2">
+              <div className="text-xs text-muted-foreground">
+                {L("Przyjęte kontrofertki", "Accepted counter-offers")}
+              </div>
+              <div className="text-xl font-bold">
+                {stats.accepted}
+                {stats.acceptRate !== null && (
+                  <span className="ml-2 text-sm font-medium text-muted-foreground">
+                    ({stats.acceptRate}%)
+                  </span>
+                )}
+              </div>
             </div>
-            <div className="text-xl font-bold">
-              {stats.accepted}
-              {stats.acceptRate !== null && (
-                <span className="ml-2 text-sm font-medium text-muted-foreground">
-                  ({stats.acceptRate}%)
-                </span>
+            <div className="rounded-md border border-border/60 px-3 py-2">
+              <div className="text-xs text-muted-foreground">
+                {L("Najczęstsze powody", "Top reasons")}
+              </div>
+              {stats.topReasons.length === 0 ? (
+                <div className="text-sm text-muted-foreground">-</div>
+              ) : (
+                <ul className="mt-0.5 space-y-0.5 text-sm">
+                  {stats.topReasons.map(([label, count]) => (
+                    <li key={label} className="flex items-center justify-between gap-2">
+                      <span className="truncate">{label}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">{count}</span>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
           </div>
-          <div className="rounded-md border border-border/60 px-3 py-2">
-            <div className="text-xs text-muted-foreground">
-              {L("Najczęstsze powody", "Top reasons")}
-            </div>
-            {stats.topReasons.length === 0 ? (
-              <div className="text-sm text-muted-foreground">-</div>
-            ) : (
-              <ul className="mt-0.5 space-y-0.5 text-sm">
-                {stats.topReasons.map(([label, count]) => (
-                  <li key={label} className="flex items-center justify-between gap-2">
-                    <span className="truncate">{label}</span>
-                    <span className="shrink-0 text-xs text-muted-foreground">{count}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   );

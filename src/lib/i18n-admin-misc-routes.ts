@@ -29,11 +29,16 @@ const pl = {
     },
     invitations: {
       pageTitle: "Zaproszenia",
+      intro: "Pełny rejestr wysyłek, prób aktywacji i aktywowanych kont.",
+      allUsers: "Wszyscy użytkownicy",
       colName: "Imię",
       colEmail: "E-mail",
       colRole: "Rola",
       colMode: "Tryb",
       colStatus: "Status",
+      colCreated: "Utworzono",
+      colAccepted: "Aktywowano",
+      colAttempts: "Próby",
       colSource: "Źródło",
       colSent: "Wysłano",
       colActions: "Akcje",
@@ -42,6 +47,22 @@ const pl = {
       send: "Wyślij",
       revoke: "Wycofaj",
       empty: "Brak zaproszeń",
+      openAccount: "Otwórz konto",
+      searchPlaceholder: "Szukaj po imieniu lub e-mailu",
+      summaryAll: "Wszystkie",
+      summaryWaiting: "Oczekujące",
+      summaryFailed: "Błędy / limit",
+      summaryAccepted: "Aktywowane",
+      filterAll: "Wszystkie statusy",
+      filterWaiting: "Oczekujące",
+      filterFailed: "Błędy / limit prób",
+      filterAccepted: "Aktywowane",
+      filterRevoked: "Wycofane",
+      statusPending: "Oczekuje na wysyłkę",
+      statusSent: "Wysłane - oczekuje na aktywację",
+      statusAccepted: "Konto aktywowane",
+      statusFailed: "Błąd wysyłki",
+      statusRevoked: "Wycofane",
     },
     webStories: {
       newStory: "Nowa historia",
@@ -143,11 +164,16 @@ const en = {
     },
     invitations: {
       pageTitle: "Invitations",
+      intro: "Complete register of deliveries, activation attempts, and activated accounts.",
+      allUsers: "All users",
       colName: "Name",
       colEmail: "E-mail",
       colRole: "Role",
       colMode: "Mode",
       colStatus: "Status",
+      colCreated: "Created",
+      colAccepted: "Activated",
+      colAttempts: "Attempts",
       colSource: "Source",
       colSent: "Sent",
       colActions: "Actions",
@@ -156,6 +182,22 @@ const en = {
       send: "Send",
       revoke: "Revoke",
       empty: "No invitations",
+      openAccount: "Open account",
+      searchPlaceholder: "Search by name or e-mail",
+      summaryAll: "All",
+      summaryWaiting: "Waiting",
+      summaryFailed: "Errors / limit",
+      summaryAccepted: "Activated",
+      filterAll: "All statuses",
+      filterWaiting: "Waiting",
+      filterFailed: "Errors / attempt limit",
+      filterAccepted: "Activated",
+      filterRevoked: "Revoked",
+      statusPending: "Waiting to be sent",
+      statusSent: "Sent - awaiting activation",
+      statusAccepted: "Account activated",
+      statusFailed: "Delivery failed",
+      statusRevoked: "Revoked",
     },
     webStories: {
       newStory: "New story",
@@ -232,14 +274,13 @@ const en = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", pl, true, true);
-i18n.addResourceBundle("en", "translation", en, true, true);
-
-/**
- * No-op wołany w komponencie trasy zamiast side-effectowego importu modułu.
- * Nazwane wiązanie pozwala splitterowi TanStacka przenieść cały bundle
- * tłumaczeń do chunka trasy - side-effectowy import w pliku trasy lądował
- * w eager-owym grafie wejściowym każdej strony. Rejestracja dzieje się przy
- * ewaluacji modułu (przed renderem komponentu), dokładnie jak wcześniej.
- */
-export function ensureI18n(): void {}
+// Explicit registration must survive both Vite and Nitro tree shaking.
+// Keep the legacy side-effect import contract, and avoid repeated deep merges.
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", pl, true, true);
+  i18n.addResourceBundle("en", "translation", en, true, true);
+}
+ensureI18n();

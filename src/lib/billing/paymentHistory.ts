@@ -5,6 +5,8 @@
 // operatora (też z KAŻDEGO odnowienia). Pokazanie obu list obok siebie dubluje
 // te same pieniądze, więc scalamy: dokument wygrywa (ma numer i PDF), a
 // zamówienie trafia na listę tylko wtedy, gdy nie ma jeszcze swojego dokumentu.
+import { neutralizeCsvFormula } from "@/lib/csv/formatCsv";
+
 import type { BillingDocument, PaymentOrder } from "./types";
 
 export type PaymentHistoryKind =
@@ -164,10 +166,25 @@ export function mergePaymentHistory(
   );
 }
 
+/**
+ * Jedna komórka tego pliku: neutralizacja ze WSPÓLNEGO modułu, cytowanie
+ * własne.
+ *
+ * NEUTRALIZACJA jest wspólna z resztą repo (`lib/csv/formatCsv`) z rozmysłu -
+ * to reguła BEZPIECZEŃSTWA, a trzy kopie jednej reguły bezpieczeństwa dają
+ * trzy różne poziomy ochrony w jednym systemie. Wektor jest tu realny tak samo
+ * jak w eksporcie subskrybentów: `number` faktury i `couponCode` przychodzą od
+ * OPERATORA PŁATNOŚCI, a nie z naszej bazy, i trafiają do pliku, który
+ * użytkownik otwiera lokalnie w arkuszu.
+ *
+ * CYTOWANIE zostaje osobne, bo ten eksport ma separator `;` (patrz
+ * `paymentHistoryToCsv`) - średnik MUSI wymuszać cytowanie tutaj i NIE MOŻE go
+ * wymuszać w plikach przecinkowych, gdzie jest zwykłym znakiem treści.
+ */
 function csvCell(value: string): string {
-  const needsQuotes = /[",;\n\r]/.test(value);
-  const escaped = value.replace(/"/g, '""');
-  return needsQuotes ? `"${escaped}"` : escaped;
+  const guarded = neutralizeCsvFormula(value);
+  const needsQuotes = /[",;\n\r]/.test(guarded);
+  return needsQuotes ? `"${guarded.replace(/"/g, '""')}"` : guarded;
 }
 
 export interface HistoryCsvLabels {

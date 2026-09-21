@@ -2,8 +2,14 @@
 //   - user jest zalogowany,
 //   - nie ogląda swojego profilu,
 //   - nie jest z targetem połączony (status != connected),
-//   - istnieje wspólny kontakt (mutualCount > 0),
+//   - istnieje wspólny kontakt MOŻLIWY DO WSKAZANIA (mutualVisibleCount > 0),
 // bo bez wspólnego mostu wprowadzenie nie ma sensu (baza i tak by odmówiła).
+//
+// Dlaczego `mutualVisibleCount`, a nie `mutualCount`: dialog niżej każe wybrać
+// most z listy MOICH kontaktów, a ta jest odsiewana przez `discoverable`
+// i najemcę. `mutualCount` jest faktem grafu i liczy także mosty, których baza
+// nie ma prawa nazwać - bramkowanie nim otwierało CTA prowadzące do listy,
+// z której nie dało się nic wybrać (migracja 20260913172000).
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { UsersRound } from "lucide-react";
@@ -52,7 +58,7 @@ export function RequestIntroductionButton({ userId, displayName }: RequestIntrod
   }
   if (!state) return null;
   if (state.status === "connected") return null;
-  if (state.mutualCount === 0) return null;
+  if (state.mutualVisibleCount === 0) return null;
 
   return (
     <>

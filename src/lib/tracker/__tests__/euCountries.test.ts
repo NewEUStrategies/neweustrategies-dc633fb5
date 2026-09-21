@@ -11,6 +11,29 @@ import {
   stanceLabel,
   stanceMeta,
 } from "@/lib/tracker/euCountries";
+import { CHART_SEMANTIC, slotAt } from "@/lib/charts/palette";
+
+describe("STANCE_META - awaryjny hex nie odkleja się od tokena", () => {
+  it("hex każdego stanowiska jest DOKŁADNIE jasną wartością swojego tokena", () => {
+    // `hex` jest kopią wartości jasnej dla miejsc, które nie umieją podać
+    // `var()` (kanwa, eksport PNG). Komentarz przy STANCE_META mówi, że przy
+    // zmianie palety zmienia się razem z tokenem - dopóki nikt tego nie
+    // sprawdza, jest to obietnica, a nie warunek: po przebudowie palety mapa
+    // na ekranie pokazywałaby nowy kolor, a wyeksportowany PNG stary.
+    const zTokena: Record<string, string> = {
+      "var(--chart-positive)": CHART_SEMANTIC.positiveLight,
+      "var(--chart-negative)": CHART_SEMANTIC.negativeLight,
+    };
+    for (const meta of STANCE_META) {
+      const slot = /^var\(--chart-(\d+)\)$/.exec(meta.cssVar);
+      const oczekiwany = slot ? slotAt(Number(slot[1])).light : zTokena[meta.cssVar];
+      // `--chart-axis` nie jest kolorem palety serii i nie ma go w module -
+      // ten wpis zostaje poza regułą, bo reguła dotyczy palety.
+      if (!oczekiwany) continue;
+      expect(meta.hex, meta.key).toBe(oczekiwany);
+    }
+  });
+});
 
 describe("EU_COUNTRIES", () => {
   it("zawiera dokładnie 27 unikalnych kodów ISO2", () => {
@@ -28,7 +51,7 @@ describe("EU_COUNTRIES", () => {
   });
 
   it("każdy kod istnieje w zasobie geometrii europe-50m (mapa musi umieć go namalować)", () => {
-    const raw = readFileSync(join(process.cwd(), "public/geo/europe-50m.v1.json"), "utf8");
+    const raw = readFileSync(join(process.cwd(), "public/geo/europe-50m.v2.json"), "utf8");
     const asset = JSON.parse(raw) as { countries: { id: string }[] };
     const ids = new Set(asset.countries.map((c) => c.id));
     const missing = EU_COUNTRIES.filter((c) => !ids.has(c.code)).map((c) => c.code);

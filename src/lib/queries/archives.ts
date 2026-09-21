@@ -8,6 +8,7 @@ import type { SectionNode } from "@/lib/builder/types";
 import { currentLang } from "@/lib/i18n/localeRuntime";
 import { edgeTtlCache } from "@/lib/ssrCache";
 import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
+import { postsNarrowedToTaxonomy } from "@/lib/queries/taxonomyPivot";
 
 const TTL = 2 * 60_000;
 /** TTL per-isolate archiwów: publikacje widoczne w minutę, jak reszta SSR. */
@@ -53,7 +54,10 @@ async function fetchParentPaths(parentIds: string[]): Promise<Map<string, string
   }
   await Promise.all(
     parentIds.map(async (pid) => {
-      const { data: single } = await supabase.rpc("page_full_path", { _page_id: pid });
+      const { data: single, error: singleError } = await supabase.rpc("page_full_path", {
+        _page_id: pid,
+      });
+      if (singleError) throw singleError;
       if (typeof single === "string") paths.set(pid, single);
     }),
   );
@@ -114,13 +118,14 @@ async function hydrateSponsored<T extends { id: string }>(
   >
 > {
   if (rows.length === 0) return [];
-  const { data } = await supabase
+  const { data, error: dataError } = await supabase
     .from("posts")
     .select(SPONSORED_LIST_COLS_WITH_ID)
     .in(
       "id",
       rows.map((r) => r.id),
     );
+  if (dataError) throw dataError;
   const byId = new Map((data ?? []).map((r) => [r.id, r]));
   return rows.map((r) => {
     const flags = byId.get(r.id);
@@ -166,11 +171,12 @@ export interface TaxonomyMeta {
 
 async function fetchFeaturedSection(templateId: string | null): Promise<SectionNode | null> {
   if (!templateId) return null;
-  const { data } = await supabase
+  const { data, error: dataError } = await supabase
     .from("builder_templates")
     .select("data")
     .eq("id", templateId)
     .maybeSingle();
+  if (dataError) throw dataError;
   const d = data?.data as SectionNode | undefined;
   if (!d || typeof d !== "object" || d.kind !== "section") return null;
   return d;
@@ -197,6 +203,43 @@ export interface TaxonomyArchiveResult {
  * (z count) -> ścieżki rodziców (1 batch RPC). Wcześniej łańcuch był w pełni
  * sekwencyjny (term -> pivot -> featured -> wpisy -> N+1 ścieżek).
  */
+/**
+ * Jedna strona wpisów danego terminu taksonomii - JEDNYM zapytaniem.
+ *
+ * Sortowanie, `count: "exact"` i `range()` stoją na tym samym zapytaniu, co
+ * zawężenie, więc licznik odpowiada WSZYSTKIM opublikowanym wpisom terminu,
+ * a nie tylko pobranej stronie. Termin bez wpisów wychodzi stąd jako pusta
+ * strona z licznikiem zero - nie potrzeba osobnej gałęzi.
+ */
+async function fetchTaxonomyPage(
+  kind: TaxonomyKind,
+  termId: string,
+  page: number,
+  pageSize: number,
+  sort: ArchiveSort,
+): Promise<{ posts: BlogListItem[]; total: number }> {
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+  let q = postsNarrowedToTaxonomy(POST_COLS, { kind, termIds: [termId] }, { count: "exact" })
+    .eq("status", "published")
+    .is("deleted_at", null);
+  if (sort === "oldest") q = q.order("published_at", { ascending: true });
+  else if (sort === "popular")
+    q = q.order("views_count", { ascending: false }).order("published_at", { ascending: false });
+  else q = q.order("published_at", { ascending: false });
+  const { data: rows, count, error: postsError } = await q.range(from, to);
+  if (postsError) throw postsError;
+  return {
+    // RZUTOWANIE JEST NOŚNE, mimo że wygląda na kosmetykę. `kind` wybiera jedno
+    // z dwóch osadzeń, więc `rows` jest UNIĄ dwóch typów wiersza (z kluczem
+    // `post_categories` albo `post_tags`), a `hydrateHref` jest generyczne po
+    // JEDNYM kształcie - bez rzutowania drugi wariant unii nie jest przypisywalny.
+    // Sprawdzone `tsc`: usunięcie tej linijki daje TS2345.
+    posts: await hydrateHref((rows ?? []) as Array<Omit<BlogListItem, "href">>),
+    total: count ?? 0,
+  };
+}
+
 async function fetchTaxonomyArchive(
   kind: TaxonomyKind,
   slug: string,
@@ -256,38 +299,19 @@ async function fetchTaxonomyArchive(
     };
   }
 
-  // Pivot i sekcja featured nie zależą od siebie - jedna fala zamiast dwóch.
-  const pivotQuery =
-    kind === "category"
-      ? supabase.from("post_categories").select("post_id").eq("category_id", taxRow.id)
-      : supabase.from("post_tags").select("post_id").eq("tag_id", taxRow.id);
-  const [{ data: pivot, error: pivotError }, featured_section] = await Promise.all([
-    pivotQuery,
+  // Lista wpisów i sekcja featured nie zależą od siebie - jedna fala zamiast dwóch.
+  //
+  // ZAWĘŻENIE ROBI BAZA, NIE ADRES URL. Do 13.09.2026 stał tu odczyt całej
+  // tabeli pośredniej bez `.limit()`, a pobrane identyfikatory wpisów szły do
+  // `.in("id", ...)` - czyli stronicowanie zabezpieczało DRUGIE zapytanie,
+  // a pierwsze rosło z liczbą wpisów w kategorii aż do przekroczenia limitu
+  // linii żądania. Szczegóły i powód takiego, a nie innego kształtu naprawy:
+  // nagłówek `lib/queries/taxonomyPivot.ts`.
+  const [featured_section, listing] = await Promise.all([
     fetchFeaturedSection(taxRow.featured_template_id),
+    fetchTaxonomyPage(kind, taxRow.id, page, pageSize, sort),
   ]);
-  if (pivotError) throw pivotError;
-  const postIds = (pivot ?? []).map((r) => (r as { post_id: string }).post_id);
-
-  let posts: BlogListItem[] = [];
-  let total = 0;
-  if (postIds.length > 0) {
-    const from = (page - 1) * pageSize;
-    const to = from + pageSize - 1;
-    let q = supabase
-      .from("posts")
-      .select(POST_COLS, { count: "exact" })
-      .in("id", postIds)
-      .eq("status", "published")
-      .is("deleted_at", null);
-    if (sort === "oldest") q = q.order("published_at", { ascending: true });
-    else if (sort === "popular")
-      q = q.order("views_count", { ascending: false }).order("published_at", { ascending: false });
-    else q = q.order("published_at", { ascending: false });
-    const { data: rows, count, error: postsError } = await q.range(from, to);
-    if (postsError) throw postsError;
-    total = count ?? 0;
-    posts = await hydrateHref((rows ?? []) as Array<Omit<BlogListItem, "href">>);
-  }
+  const { posts, total } = listing;
 
   return {
     taxonomy: {
@@ -615,21 +639,20 @@ export const searchAutosuggestQueryOptions = (q: string, limit: number = 8) =>
     enabled: q.trim().length >= 2,
     staleTime: 30_000,
     queryFn: async (): Promise<AutosuggestItem[]> => {
-      try {
-        const { data } = await supabase.rpc("search_autosuggest", { _q: q.trim(), _limit: limit });
-        return (data ?? []).map((r) => ({
-          kind: r.kind as AutosuggestItem["kind"],
-          id: (r.id as string | null) ?? null,
-          slug: (r.slug as string | null) ?? null,
-          label_pl: (r.label_pl as string | null) ?? "",
-          label_en: (r.label_en as string | null) ?? "",
-          parentPageId: (r.parent_page_id as string | null) ?? null,
-          score: Number(r.score ?? 0),
-        }));
-      } catch {
-        // Odporność przed wdrożeniem migracji: brak funkcji → brak podpowiedzi.
-        return [];
-      }
+      const { data, error: dataError } = await supabase.rpc("search_autosuggest", {
+        _q: q.trim(),
+        _limit: limit,
+      });
+      if (dataError) throw dataError;
+      return (data ?? []).map((r) => ({
+        kind: r.kind as AutosuggestItem["kind"],
+        id: (r.id as string | null) ?? null,
+        slug: (r.slug as string | null) ?? null,
+        label_pl: (r.label_pl as string | null) ?? "",
+        label_en: (r.label_en as string | null) ?? "",
+        parentPageId: (r.parent_page_id as string | null) ?? null,
+        score: Number(r.score ?? 0),
+      }));
     },
   });
 
@@ -656,27 +679,23 @@ export const searchPeopleOrgsQueryOptions = (q: string, limit: number = 40) =>
     queryKey: ["public", "search-people-orgs", q.trim(), { limit }] as const,
     staleTime: 60_000,
     queryFn: async (): Promise<PeopleOrgItem[]> => {
-      try {
-        const { data } = await supabase.rpc("search_people_orgs", {
-          _q: q.trim() || undefined,
-          _limit: limit,
-        });
-        return (data ?? []).map((r) => ({
-          kind: (r.kind as PeopleOrgItem["kind"]) ?? "person",
-          id: r.id as string,
-          slug: (r.slug as string | null) ?? null,
-          label_pl: (r.label_pl as string | null) ?? "",
-          label_en: (r.label_en as string | null) ?? "",
-          sublabel_pl: (r.sublabel_pl as string | null) ?? null,
-          sublabel_en: (r.sublabel_en as string | null) ?? null,
-          avatarUrl: (r.avatar_url as string | null) ?? null,
-          logoUrl: (r.logo_url as string | null) ?? null,
-          verified: Boolean(r.verified),
-          postCount: Number(r.post_count ?? 0),
-        }));
-      } catch {
-        // Odporność przed wdrożeniem migracji: brak funkcji → pusta sekcja.
-        return [];
-      }
+      const { data, error: dataError } = await supabase.rpc("search_people_orgs", {
+        _q: q.trim() || undefined,
+        _limit: limit,
+      });
+      if (dataError) throw dataError;
+      return (data ?? []).map((r) => ({
+        kind: (r.kind as PeopleOrgItem["kind"]) ?? "person",
+        id: r.id as string,
+        slug: (r.slug as string | null) ?? null,
+        label_pl: (r.label_pl as string | null) ?? "",
+        label_en: (r.label_en as string | null) ?? "",
+        sublabel_pl: (r.sublabel_pl as string | null) ?? null,
+        sublabel_en: (r.sublabel_en as string | null) ?? null,
+        avatarUrl: (r.avatar_url as string | null) ?? null,
+        logoUrl: (r.logo_url as string | null) ?? null,
+        verified: Boolean(r.verified),
+        postCount: Number(r.post_count ?? 0),
+      }));
     },
   });

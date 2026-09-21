@@ -1,5 +1,5 @@
 // Wspólna fabryka queryOptions dla statycznych zasobów geometrii map
-// (public/geo/*.v1.json) - jedna definicja klucza/fetcha/czasów życia dla
+// (public/geo/*.json) - jedna definicja klucza/fetcha/czasów życia dla
 // mapy publicznej (ChoroplethMap) i edytora bloku w adminie (lista krajów).
 import { GEO_ASSET_URL, type GeoAsset, type MapRegion } from "./types";
 

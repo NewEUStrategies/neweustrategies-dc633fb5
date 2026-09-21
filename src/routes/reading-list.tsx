@@ -32,12 +32,26 @@ import { GuestSavedSection } from "@/components/readingList/organisms/GuestSaved
 import { FollowedSection } from "@/components/readingList/organisms/FollowedSection";
 import { RecommendedSection } from "@/components/readingList/organisms/RecommendedSection";
 import { SavedSection } from "@/components/readingList/organisms/SavedSection";
+import { activeLang } from "@/lib/seo/head";
+import { getRequestUrl } from "@/lib/seo/request";
 
 export const Route = createFileRoute("/reading-list")({
   component: ReadingListPage,
-  head: () => ({
-    meta: [{ title: "Twoja lista do przeczytania" }, { name: "robots", content: "noindex" }],
-  }),
+  head: () => {
+    // head() biegnie POZA drzewem Reacta i poza dostawcą i18next, więc `t()` tu
+    // nie istnieje - język bierzemy z adresu przez `activeLang`, dokładnie jak
+    // `welcome.tsx`. Bez tego użytkownik z angielskim interfejsem dostawał polską
+    // kartę przeglądarki i polski podgląd linku przy udostępnieniu.
+    const lang = activeLang(getRequestUrl() || "/reading-list");
+    return {
+      meta: [
+        { title: lang === "en" ? "Your reading list" : "Twoja lista do przeczytania" },
+        // Świadomie samo `noindex`, bez `nofollow` - nie normalizujemy tego
+        // przy okazji zmiany językowej.
+        { name: "robots", content: "noindex" },
+      ],
+    };
+  },
 });
 
 function ReadingListPage() {

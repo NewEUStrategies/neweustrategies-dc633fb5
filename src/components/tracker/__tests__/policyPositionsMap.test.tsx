@@ -112,6 +112,17 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/**
+ * Znak zastępczy pustej noty - DYWIZ, nie pauza.
+ *
+ * Ten test przypinał wcześniej pauzę (U+2014) literałem. House style
+ * repozytorium dopuszcza w treści widocznej wyłącznie dywiz, a `i18nCohesion`
+ * pilnuje tego tylko w słownikach - literał w kodzie komponentu przechodził
+ * obok bramki. Po zamianie test padł, co dowodzi, że asercja dotyczy TEGO
+ * znaku, a nie „czegokolwiek w tej komórce".
+ */
+const NO_NOTE_DASH = "-";
+
 describe("PolicyPositionsMap - pusty zestaw", () => {
   it("dossier BEZ stanowisk nie dostaje pustej mapy", async () => {
     // Ramka wykresu z zerową legendą i pustą tabelą wygląda jak awaria
@@ -133,11 +144,11 @@ describe("PolicyPositionsMap - tabela jest równorzędną drogą do danych", () 
     expect(within(row).getByText("Poparcie rządu")).toBeInTheDocument();
   });
 
-  it("brak noty daje myślnik, a nie pustą komórkę", async () => {
-    // Pusta komórka w tabeli czyta się jak brak danych do odczytu; myślnik
+  it("brak noty daje DYWIZ, a nie pustą komórkę", async () => {
+    // Pusta komórka w tabeli czyta się jak brak danych do odczytu; dywiz
     // mówi „sprawdziliśmy, nie ma noty".
     await map({ positions: [position()] });
-    expect(within(openTable()).getByText("—")).toBeInTheDocument();
+    expect(within(openTable()).getByText(NO_NOTE_DASH)).toBeInTheDocument();
   });
 
   it("nota ma fallback językowy w OBIE strony", async () => {
@@ -151,7 +162,7 @@ describe("PolicyPositionsMap - tabela jest równorzędną drogą do danych", () 
 
   it("nota z samych spacji liczy się jako brak", async () => {
     await map({ positions: [position({ note_pl: "   " })] });
-    expect(within(openTable()).getByText("—")).toBeInTheDocument();
+    expect(within(openTable()).getByText(NO_NOTE_DASH)).toBeInTheDocument();
   });
 
   it("nagłówki tabeli są przetłumaczone", async () => {

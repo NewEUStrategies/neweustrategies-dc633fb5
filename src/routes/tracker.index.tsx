@@ -6,7 +6,7 @@
 // serwerowo, więc crawler widzi dossier zamiast "Ładowanie"; komponent czyta
 // ten sam cache bez drugiej podróży.
 import { Fragment, useState, useTransition } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, type ErrorComponentProps } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { CalendarClock, Landmark, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import { TrackerFeedLink } from "@/components/tracker/TrackerFeedLink";
 import { TrackerIndexSkeleton } from "@/components/tracker/TrackerIndexSkeleton";
 import {
@@ -32,9 +33,10 @@ import {
 import { trackerItemListJsonLd, type TrackerListEntry } from "@/lib/tracker/jsonld";
 import { TRACKER_FEED_PATH } from "@/lib/tracker/feed";
 import { localizedPath } from "@/lib/i18n/localePath";
-import { withBudget } from "@/lib/asyncBudget";
+import { withSsrBudget } from "@/lib/asyncBudget";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
-import { cacheControlHeader, contentCacheControl } from "@/lib/http/cachePolicy";
+import { resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 import {
   POLICY_STAGES,
   POLICY_AREAS,
@@ -65,14 +67,22 @@ export const Route = createFileRoute("/tracker/")({
     // strumienia SSR - budżet ścina oczekiwanie, a fallback siany z
     // updatedAt: 0 jest natychmiast przeterminowany, więc przeglądarka
     // refetchuje po mount i strona sama się leczy, gdy backend wróci.
+    //
+    // Oba budżety tej trasy liczą się WYŁĄCZNIE na serwerze (patrz docblock
+    // `withSsrBudget`): przy nawigacji SPA wynik loadera jest niezmienny, więc
+    // powolne - a nie błędne - zapytanie zamroziłoby `degraded: true` jako
+    // fałszywy komunikat awarii na całe życie dopasowania trasy.
     const itemsOptions = publishedItemsQueryOptions();
     let degraded = false;
-    await withBudget(
+    await withSsrBudget(
       queryClient.ensureQueryData(itemsOptions).catch(() => undefined),
       TRACKER_LOADER_BUDGET_MS,
     );
     let items = queryClient.getQueryData<PolicyItem[]>(itemsOptions.queryKey);
     if (!items) {
+      // W PRZEGLĄDARCE ta gałąź jest osiągalna wyłącznie po ODRZUCENIU
+      // zapytania: bez budżetu `ensureQueryData` wraca dopiero z wynikiem,
+      // więc puste `getQueryData` znaczy tam błąd, nigdy samą powolność.
       degraded = true;
       // Anuluj spóźniony fetch PRZED zasiewem: gdyby rozwiązał się między
       // renderem a dehydracją, klient hydratowałby się z innymi danymi niż
@@ -87,10 +97,11 @@ export const Route = createFileRoute("/tracker/")({
     // mrugnięcia po hydratacji. Best-effort pod krótszym budżetem.
     if (items.length > 0) {
       const countsOptions = followerCountsQueryOptions(items.map((item) => item.id));
-      await withBudget(
+      await withSsrBudget(
         queryClient.ensureQueryData(countsOptions).catch(() => undefined),
         TRACKER_FOLLOWERS_BUDGET_MS,
       );
+      // Jw. - na kliencie stan inny niż `success` oznacza odrzucone RPC.
       if (queryClient.getQueryState(countsOptions.queryKey)?.status !== "success") {
         degraded = true;
         await queryClient.cancelQueries({ queryKey: countsOptions.queryKey, exact: true });
@@ -101,9 +112,9 @@ export const Route = createFileRoute("/tracker/")({
     // ISR-owy nagłówek NA KOŃCU, bramkowany czystym renderem (wzorzec "/"):
     // zdegradowany render nigdy nie trafia do współdzielonego cache - kolejne
     // żądanie renderuje świeżo zamiast utrwalać mrugnięcie backendu na CDN.
-    setCacheControlHeader(
-      degraded ? cacheControlHeader({ cacheable: false }) : contentCacheControl(),
-    );
+    // Jw. - `resilientCacheControl(degraded)` daje dokładnie te same dwie
+    // wartości, a bramka widzi, KTÓRA gałąź jest gałęzią degradacji.
+    setCacheControlHeader(resilientCacheControl(degraded));
 
     // Szczupła projekcja pod head() (ItemList JSON-LD): loaderData jest
     // serializowane do payloadu SSR, a pełne wiersze podróżują już w
@@ -114,7 +125,12 @@ export const Route = createFileRoute("/tracker/")({
       title_en: item.title_en,
       reference: item.reference,
     }));
-    return { entries };
+    // `degraded` JEDZIE DO KOMPONENTU (naprawa 2026-09-02). Wcześniej loader
+    // zwracał samo `entries`, więc awaria backendu wyglądała na ekranie
+    // dokładnie jak pusty tracker: czytelnik dostawał zdanie „Brak dossier dla
+    // wybranych filtrów", które w tym stanie jest po prostu NIEPRAWDĄ.
+    // Nagłówek cache'a rozróżniał te dwa stany od początku - warstwa treści nie.
+    return { entries, degraded };
   },
   head: ({ loaderData }) => {
     const url = getRequestUrl() || "/tracker";
@@ -187,10 +203,21 @@ export const Route = createFileRoute("/tracker/")({
   // Zimna nawigacja klienta czeka na loader - pokazuj placeholder w kształcie
   // strony zamiast pustego ekranu (SSR nigdy tu nie trafia: loader blokuje).
   pendingComponent: () => <TrackerIndexSkeleton />,
-  errorComponent: (props) => (
-    <RouteErrorFallback {...props} title="Nie udało się załadować trackera" />
-  ),
+  errorComponent: (props) => <TrackerErrorFallback {...props} />,
 });
+
+/**
+ * Ekran awarii trasy mówiący JĘZYKIEM STRONY. Wcześniej `errorComponent` podawał
+ * tytuł zahardkodowanym literałem, więc czytelnik wersji angielskiej dostawał
+ * jedyny polski napis na całej stronie. `errorComponent` renderuje się jak każdy
+ * komponent, więc wolno mu wziąć zdanie ze słownika - klucz `tracker.loadError`
+ * istnieje w PL i EN, więc nie dopisujemy nowego.
+ */
+function TrackerErrorFallback(props: ErrorComponentProps) {
+  ensureTrackerI18n();
+  const { t } = useTranslation();
+  return <RouteErrorFallback {...props} title={t("tracker.loadError")} />;
+}
 
 type Lang = "pl" | "en";
 
@@ -303,14 +330,23 @@ function TrackerIndex() {
     setLimit(TRACKER_PAGE_SIZE);
   };
 
-  const { data: items, isLoading } = usePublishedItems(
-    {
-      area: area === "all" ? undefined : area,
-      stage: stage === "all" ? undefined : stage,
-    },
-    limit,
-  );
+  const filters = {
+    area: area === "all" ? undefined : area,
+    stage: stage === "all" ? undefined : stage,
+  };
+  const { data: items, isLoading } = usePublishedItems(filters, limit);
   const { data: followerCounts } = useFollowerCounts((items ?? []).map((item) => item.id));
+  // Sygnał z loadera: czy pusta lista pochodzi z bazy, czy z fallbacku - ale
+  // TYLKO jako stan początkowy. `loaderData` jest niezmienne przez całe życie
+  // dopasowania trasy, więc po hydratacji (i po każdej zmianie filtrów) o
+  // widoku decyduje stempel ZAPYTANIA, które ta siatka faktycznie czyta:
+  // dociągnięte dossier kasują komunikat, kolejna awaria go zostawia razem
+  // z ponowieniem (patrz `lib/ssr/useDegradedUntilHealed.ts`).
+  const { degraded: ssrDegraded } = Route.useLoaderData();
+  const { degraded, retry } = useDegradedUntilHealed(
+    publishedItemsQueryOptions(filters, limit).queryKey,
+    ssrDegraded,
+  );
   // Pełne okno = prawdopodobnie jest dalszy ciąg (dokładny count nie jest
   // wart drugiej podróży; ostatnie kliknięcie zwróci niepełną stronę).
   const canLoadMore = (items ?? []).length >= limit;
@@ -369,7 +405,17 @@ function TrackerIndex() {
       {isLoading ? (
         <p className="text-sm text-muted-foreground py-16 text-center">{t("tracker.loading")}</p>
       ) : (items ?? []).length === 0 ? (
-        <p className="text-sm text-muted-foreground py-16 text-center">{t("tracker.empty")}</p>
+        // PUSTO Z FALLBACKU NIE JEST PUSTO Z BAZY. `loadResilient` sieje pustą
+        // listę, żeby blip backendu nie dał HTTP 500 - ale zdanie „brak
+        // dossier" jest wtedy fałszywe, a czytelnik nie ma jak się dowiedzieć,
+        // że powinien ponowić. Rozróżnienie znika, gdy dane już dojechały
+        // (fallback siany z `updatedAt: 0` refetchuje się po hydratacji), więc
+        // warunek stoi WEWNĄTRZ gałęzi pustej listy, a nie przed nią.
+        degraded ? (
+          <DegradedDataNotice onRetry={retry} />
+        ) : (
+          <p className="text-sm text-muted-foreground py-16 text-center">{t("tracker.empty")}</p>
+        )
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2">

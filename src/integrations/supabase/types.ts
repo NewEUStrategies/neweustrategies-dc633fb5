@@ -275,6 +275,7 @@ export type Database = {
       analytics_events: {
         Row: {
           anon_id: string | null
+          country: string | null
           created_at: string
           entity_id: string | null
           entity_type: string | null
@@ -292,6 +293,7 @@ export type Database = {
         }
         Insert: {
           anon_id?: string | null
+          country?: string | null
           created_at?: string
           entity_id?: string | null
           entity_type?: string | null
@@ -309,6 +311,7 @@ export type Database = {
         }
         Update: {
           anon_id?: string | null
+          country?: string | null
           created_at?: string
           entity_id?: string | null
           entity_type?: string | null
@@ -462,6 +465,7 @@ export type Database = {
           sender_domain: string | null
           status: string
           subject: string | null
+          tenant_id: string | null
         }
         Insert: {
           action_url_host?: string | null
@@ -485,6 +489,7 @@ export type Database = {
           sender_domain?: string | null
           status?: string
           subject?: string | null
+          tenant_id?: string | null
         }
         Update: {
           action_url_host?: string | null
@@ -508,8 +513,17 @@ export type Database = {
           sender_domain?: string | null
           status?: string
           subject?: string | null
+          tenant_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "auth_email_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       author_profiles: {
         Row: {
@@ -4045,6 +4059,7 @@ export type Database = {
           accent_color: string | null
           attribution_mode: string
           cover_image_url: string | null
+          cover_position_y: number
           created_at: string
           created_by: string | null
           description_en: string | null
@@ -4078,6 +4093,7 @@ export type Database = {
           accent_color?: string | null
           attribution_mode?: string
           cover_image_url?: string | null
+          cover_position_y?: number
           created_at?: string
           created_by?: string | null
           description_en?: string | null
@@ -4111,6 +4127,7 @@ export type Database = {
           accent_color?: string | null
           attribution_mode?: string
           cover_image_url?: string | null
+          cover_position_y?: number
           created_at?: string
           created_by?: string | null
           description_en?: string | null
@@ -4796,6 +4813,7 @@ export type Database = {
           name_norm: string | null
           phone: string | null
           postal_code: string | null
+          tax_id: string | null
           tenant_id: string
           updated_at: string
           website: string | null
@@ -4816,6 +4834,7 @@ export type Database = {
           name_norm?: string | null
           phone?: string | null
           postal_code?: string | null
+          tax_id?: string | null
           tenant_id: string
           updated_at?: string
           website?: string | null
@@ -4836,6 +4855,7 @@ export type Database = {
           name_norm?: string | null
           phone?: string | null
           postal_code?: string | null
+          tax_id?: string | null
           tenant_id?: string
           updated_at?: string
           website?: string | null
@@ -5578,6 +5598,7 @@ export type Database = {
           recipient_email: string
           status: string
           template_name: string
+          tenant_id: string | null
         }
         Insert: {
           created_at?: string
@@ -5588,6 +5609,7 @@ export type Database = {
           recipient_email: string
           status: string
           template_name: string
+          tenant_id?: string | null
         }
         Update: {
           created_at?: string
@@ -5598,8 +5620,17 @@ export type Database = {
           recipient_email?: string
           status?: string
           template_name?: string
+          tenant_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "email_send_log_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       email_send_state: {
         Row: {
@@ -10806,6 +10837,68 @@ export type Database = {
           },
         ]
       }
+      member_crm_sync_pending: {
+        Row: {
+          actor_id: string | null
+          attempts: number
+          last_error_code: string | null
+          reason: string
+          requested_at: string
+          tenant_id: string
+          tier_key: string | null
+          user_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          attempts?: number
+          last_error_code?: string | null
+          reason: string
+          requested_at?: string
+          tenant_id: string
+          tier_key?: string | null
+          user_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          attempts?: number
+          last_error_code?: string | null
+          reason?: string
+          requested_at?: string
+          tenant_id?: string
+          tier_key?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_crm_sync_pending_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_crm_sync_pending_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "crm_funnel_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "member_crm_sync_pending_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_crm_sync_pending_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_organizations: {
         Row: {
           brand_accent: string | null
@@ -11181,6 +11274,7 @@ export type Database = {
           ref_id: string | null
           target: string
           updated_at: string
+          visibility: string
         }
         Insert: {
           created_at?: string
@@ -11199,6 +11293,7 @@ export type Database = {
           ref_id?: string | null
           target?: string
           updated_at?: string
+          visibility?: string
         }
         Update: {
           created_at?: string
@@ -11217,6 +11312,7 @@ export type Database = {
           ref_id?: string | null
           target?: string
           updated_at?: string
+          visibility?: string
         }
         Relationships: [
           {
@@ -16739,6 +16835,7 @@ export type Database = {
       site_design_tokens: {
         Row: {
           colors: Json
+          font_scale: Json
           fonts: Json
           global_colors: Json
           scale: Json
@@ -16748,6 +16845,7 @@ export type Database = {
         }
         Insert: {
           colors?: Json
+          font_scale?: Json
           fonts?: Json
           global_colors?: Json
           scale?: Json
@@ -16757,6 +16855,7 @@ export type Database = {
         }
         Update: {
           colors?: Json
+          font_scale?: Json
           fonts?: Json
           global_colors?: Json
           scale?: Json
@@ -17381,6 +17480,7 @@ export type Database = {
           metadata: Json
           mode: Database["public"]["Enums"]["invitation_mode"]
           role: Database["public"]["Enums"]["app_role"]
+          send_count: number
           sent_at: string | null
           source: string | null
           status: Database["public"]["Enums"]["invitation_status"]
@@ -17400,6 +17500,7 @@ export type Database = {
           metadata?: Json
           mode?: Database["public"]["Enums"]["invitation_mode"]
           role?: Database["public"]["Enums"]["app_role"]
+          send_count?: number
           sent_at?: string | null
           source?: string | null
           status?: Database["public"]["Enums"]["invitation_status"]
@@ -17419,6 +17520,7 @@ export type Database = {
           metadata?: Json
           mode?: Database["public"]["Enums"]["invitation_mode"]
           role?: Database["public"]["Enums"]["app_role"]
+          send_count?: number
           sent_at?: string | null
           source?: string | null
           status?: Database["public"]["Enums"]["invitation_status"]
@@ -17434,6 +17536,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_notes: {
+        Row: {
+          body: string
+          color: string
+          created_at: string
+          entity_id: string | null
+          entity_title: string | null
+          entity_type: string | null
+          entity_url: string | null
+          id: string
+          pinned: boolean
+          tenant_id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          body?: string
+          color?: string
+          created_at?: string
+          entity_id?: string | null
+          entity_title?: string | null
+          entity_type?: string | null
+          entity_url?: string | null
+          id?: string
+          pinned?: boolean
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          color?: string
+          created_at?: string
+          entity_id?: string | null
+          entity_title?: string | null
+          entity_type?: string | null
+          entity_url?: string | null
+          id?: string
+          pinned?: boolean
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       user_pending_counters: {
         Row: {
@@ -17538,6 +17688,51 @@ export type Database = {
           post_id?: string
           read_at?: string
           tenant_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_read_later: {
+        Row: {
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          note: string | null
+          read_at: string | null
+          state: string
+          tenant_id: string
+          title: string | null
+          updated_at: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          note?: string | null
+          read_at?: string | null
+          state?: string
+          tenant_id?: string
+          title?: string | null
+          updated_at?: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          note?: string | null
+          read_at?: string | null
+          state?: string
+          tenant_id?: string
+          title?: string | null
+          updated_at?: string
+          url?: string | null
           user_id?: string
         }
         Relationships: []
@@ -17671,6 +17866,56 @@ export type Database = {
           },
         ]
       }
+      user_todos: {
+        Row: {
+          created_at: string
+          done: boolean
+          done_at: string | null
+          due_at: string | null
+          id: string
+          priority: string
+          source_task_id: string | null
+          tenant_id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          done?: boolean
+          done_at?: string | null
+          due_at?: string | null
+          id?: string
+          priority?: string
+          source_task_id?: string | null
+          tenant_id?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          done?: boolean
+          done_at?: string | null
+          due_at?: string | null
+          id?: string
+          priority?: string
+          source_task_id?: string | null
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_todos_source_task_id_fkey"
+            columns: ["source_task_id"]
+            isOneToOne: false
+            referencedRelation: "crm_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       verification_domains: {
         Row: {
           academic: boolean
@@ -17785,29 +18030,44 @@ export type Database = {
       }
       web_vitals: {
         Row: {
+          cold_start: boolean | null
           created_at: string
+          device_memory: number | null
+          effective_type: string | null
           id: string
           metric: string
+          navigation_type: string | null
           path: string | null
           rating: string | null
+          since_nav_ms: number | null
           tenant_id: string
           value: number
         }
         Insert: {
+          cold_start?: boolean | null
           created_at?: string
+          device_memory?: number | null
+          effective_type?: string | null
           id?: string
           metric: string
+          navigation_type?: string | null
           path?: string | null
           rating?: string | null
+          since_nav_ms?: number | null
           tenant_id?: string
           value: number
         }
         Update: {
+          cold_start?: boolean | null
           created_at?: string
+          device_memory?: number | null
+          effective_type?: string | null
           id?: string
           metric?: string
+          navigation_type?: string | null
           path?: string | null
           rating?: string | null
+          since_nav_ms?: number | null
           tenant_id?: string
           value?: number
         }
@@ -18734,6 +18994,11 @@ export type Database = {
     Functions: {
       _are_connected: { Args: { _a: string; _b: string }; Returns: boolean }
       _caller_tenant: { Args: never; Returns: string }
+      _club_slugify: { Args: { p_text: string }; Returns: string }
+      _club_unique_slug: {
+        Args: { _tenant_id: string; p_base: string }
+        Returns: string
+      }
       _event_answer_matches: {
         Args: { _answer: Json; _expected: Json; _operator: string }
         Returns: boolean
@@ -19009,6 +19274,13 @@ export type Database = {
         Args: { _a: string; _b: string; _q: string }
         Returns: number
       }
+      accept_my_user_invitation: {
+        Args: never
+        Returns: {
+          accepted_at: string
+          invitation_id: string
+        }[]
+      }
       accounting_metadata_minimum: { Args: { p_metadata: Json }; Returns: Json }
       accounting_retention_until: { Args: { p_at: string }; Returns: string }
       accounting_subject_ref: { Args: { p_user_id: string }; Returns: string }
@@ -19029,6 +19301,10 @@ export type Database = {
         Returns: number
       }
       admin_assert_verification_admin: { Args: never; Returns: string }
+      admin_claim_invitation_send: {
+        Args: { p_invitation_id: string }
+        Returns: number
+      }
       admin_clear_content_password: {
         Args: {
           _entity_id: string
@@ -19598,6 +19874,67 @@ export type Database = {
           granted: number
           last_event_at: string
         }[]
+      }
+      admin_dashboard_audience: {
+        Args: {
+          p_bucket?: string
+          p_offset_minutes?: number
+          p_prev_since: string
+          p_prev_until: string
+          p_since: string
+          p_until: string
+        }
+        Returns: Json
+      }
+      admin_dashboard_bucket: { Args: { p_bucket: string }; Returns: string }
+      admin_dashboard_content: {
+        Args: {
+          p_lang?: string
+          p_prev_since: string
+          p_prev_until: string
+          p_since: string
+          p_until: string
+        }
+        Returns: Json
+      }
+      admin_dashboard_crm: {
+        Args: {
+          p_bucket?: string
+          p_offset_minutes?: number
+          p_prev_since: string
+          p_prev_until: string
+          p_since: string
+          p_until: string
+        }
+        Returns: Json
+      }
+      admin_dashboard_marketing: {
+        Args: {
+          p_bucket?: string
+          p_offset_minutes?: number
+          p_prev_since: string
+          p_prev_until: string
+          p_since: string
+          p_until: string
+        }
+        Returns: Json
+      }
+      admin_dashboard_realtime: {
+        Args: { p_active_minutes?: number; p_window_minutes?: number }
+        Returns: Json
+      }
+      admin_dashboard_tenant: { Args: never; Returns: string }
+      admin_dashboard_traffic: {
+        Args: {
+          p_bucket?: string
+          p_limit?: number
+          p_offset_minutes?: number
+          p_prev_since: string
+          p_prev_until: string
+          p_since: string
+          p_until: string
+        }
+        Returns: Json
       }
       admin_delete_speaker_profile: {
         Args: { p_user_id: string }
@@ -21515,6 +21852,7 @@ export type Database = {
         Args: { p_note?: string; p_slot_id: string }
         Returns: Json
       }
+      brand_media_url_text: { Args: { _value: string }; Returns: string }
       bulk_generate_coupons_for_campaign: {
         Args: { _campaign_id: string }
         Returns: number
@@ -21556,6 +21894,10 @@ export type Database = {
         Returns: undefined
       }
       career_cv_gc_scan: { Args: { _limit?: number }; Returns: Json }
+      career_cv_upload_quota_ok: {
+        Args: { _day: string; _tenant: string }
+        Returns: boolean
+      }
       change_user_role: {
         Args: {
           _new_role: Database["public"]["Enums"]["app_role"]
@@ -21688,6 +22030,7 @@ export type Database = {
           author_alias: string
           author_name: string
           club_cover_image_url: string
+          club_cover_position_y: number
           club_id: string
           club_name_en: string
           club_name_pl: string
@@ -22087,6 +22430,10 @@ export type Database = {
       }
       club_invite_quota_ok: { Args: { _user_id: string }; Returns: boolean }
       club_is_any_moderator: { Args: { _user_id: string }; Returns: boolean }
+      club_is_cover_moderator: {
+        Args: { _object_name: string; _user_id: string }
+        Returns: boolean
+      }
       club_join: { Args: { p_club_id: string }; Returns: string }
       club_leave: { Args: { p_club_id: string }; Returns: boolean }
       club_linked_item_label: {
@@ -22099,6 +22446,7 @@ export type Database = {
           accent_color: string
           can_read: boolean
           cover_image_url: string
+          cover_position_y: number
           group_count: number
           icon: string
           id: string
@@ -22126,6 +22474,7 @@ export type Database = {
           accent_color: string
           can_read: boolean
           cover_image_url: string
+          cover_position_y: number
           group_count: number
           icon: string
           id: string
@@ -22319,6 +22668,18 @@ export type Database = {
           unread_count: number
         }[]
       }
+      club_my_proposals: {
+        Args: never
+        Returns: {
+          created_at: string
+          id: string
+          name_en: string
+          name_pl: string
+          policy_area: string
+          slug: string
+          status: string
+        }[]
+      }
       club_my_subscription: { Args: { p_thread_id: string }; Returns: string }
       club_notify: {
         Args: {
@@ -22383,6 +22744,7 @@ export type Database = {
           total_count: number
         }[]
       }
+      club_propose: { Args: { p: Json }; Returns: Json }
       club_prune_thread_embeddings: { Args: never; Returns: number }
       club_react: {
         Args: { p_kind: string; p_target_id: string; p_target_type: string }
@@ -22544,6 +22906,10 @@ export type Database = {
       club_set_cover: {
         Args: { p_club_id: string; p_url: string }
         Returns: string
+      }
+      club_set_cover_position: {
+        Args: { p_club_id: string; p_position_y: number }
+        Returns: number
       }
       club_set_notify_level: {
         Args: { p_club_id: string; p_level: string }
@@ -23012,6 +23378,10 @@ export type Database = {
         Args: { p_kind: string; p_target_id: string; p_target_type: string }
         Returns: boolean
       }
+      club_update_settings: {
+        Args: { p: Json; p_club_id: string }
+        Returns: boolean
+      }
       club_upsert_thread_embedding: {
         Args: {
           p_embedding: number[]
@@ -23033,6 +23403,7 @@ export type Database = {
           can_reply: boolean
           can_see_members: boolean
           cover_image_url: string
+          cover_position_y: number
           created_at: string
           description_en: string
           description_pl: string
@@ -23117,6 +23488,7 @@ export type Database = {
           connection_id: string
           degree: number
           mutual_count: number
+          mutual_visible_count: number
           status: string
           user_id: string
         }[]
@@ -23136,6 +23508,7 @@ export type Database = {
           job_title: string
           location: string
           mutual_count: number
+          mutual_visible_count: number
           open_to: string[]
           shared_events: number
           shared_follows: number
@@ -23290,6 +23663,13 @@ export type Database = {
         Args: { p_endpoint_id?: string; p_lead_id: string }
         Returns: number
       }
+      crm_ensure_member_company: {
+        Args: { p_actor_id?: string; p_name: string; p_tenant_id: string }
+        Returns: {
+          created: boolean
+          id: string
+        }[]
+      }
       crm_funnel_stats: {
         Args: never
         Returns: {
@@ -23312,6 +23692,7 @@ export type Database = {
         Args: { p_rows: Json; p_source?: string }
         Returns: Json
       }
+      crm_member_company_key: { Args: { p_name: string }; Returns: string }
       crm_normalize_phone: { Args: { _phone: string }; Returns: string }
       crm_score_touch_user: {
         Args: { p_tenant: string; p_user: string }
@@ -23321,6 +23702,16 @@ export type Database = {
       crm_set_merydian_secret: {
         Args: { _kind: string; _plaintext: string }
         Returns: undefined
+      }
+      crm_sync_member: {
+        Args: {
+          p_actor_id: string
+          p_reason: string
+          p_tenant_id: string
+          p_tier_key: string
+          p_user_id: string
+        }
+        Returns: Json
       }
       crm_upsert_from_form:
         | {
@@ -23398,6 +23789,10 @@ export type Database = {
         Returns: boolean
       }
       early_access_window: { Args: never; Returns: string }
+      email_account_tenant_for_address: {
+        Args: { p_email: string }
+        Returns: string
+      }
       email_apply_delivery_event: {
         Args: {
           p_bounce_class?: string
@@ -23453,6 +23848,10 @@ export type Database = {
         Returns: Json
       }
       email_resolve_tenant_for_address: {
+        Args: { p_email: string }
+        Returns: string
+      }
+      email_send_log_tenant_for_address: {
         Args: { p_email: string }
         Returns: string
       }
@@ -24092,6 +24491,20 @@ export type Database = {
           label: string
           reference_id: string
           relation: string
+        }[]
+      }
+      get_mention_target: {
+        Args: { _slug: string }
+        Returns: {
+          avatar_url: string
+          id: string
+          kind: string
+          label: string
+          logo_url: string
+          slug: string
+          subtitle: string
+          verified: boolean
+          website: string
         }[]
       }
       get_my_public_exposure: {
@@ -24834,6 +25247,7 @@ export type Database = {
         Args: { _versions: string[] }
         Returns: string[]
       }
+      missing_schema_objects: { Args: { _objects: Json }; Returns: Json }
       monetization_dashboard: {
         Args: {
           _from?: string
@@ -25166,6 +25580,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      payment_webhook_event_tenant: {
+        Args: {
+          p_customer_id: string
+          p_environment: string
+          p_payload: Json
+          p_subscription_id: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       payments_apply_event_ticket_outcome: {
         Args: {
           p_order_id: string
@@ -25302,6 +25726,10 @@ export type Database = {
         Returns: boolean
       }
       profile_is_public: { Args: { _user_id: string }; Returns: boolean }
+      profile_verification_matches: {
+        Args: { _id: string; _verified_at: string; _verified_by: string }
+        Returns: boolean
+      }
       profile_view_stats: {
         Args: never
         Returns: {
@@ -25628,6 +26056,21 @@ export type Database = {
           slug: string
         }[]
       }
+      search_mention_targets: {
+        Args: { _limit?: number; _q?: string }
+        Returns: {
+          avatar_url: string
+          id: string
+          kind: string
+          label: string
+          logo_url: string
+          score: number
+          slug: string
+          subtitle: string
+          verified: boolean
+          website: string
+        }[]
+      }
       search_messages: {
         Args: {
           _conversation_id?: string
@@ -25908,6 +26351,7 @@ export type Database = {
               isSetofReturn: false
             }
           }
+      set_user_consents: { Args: { p_entries: Json }; Returns: string[] }
       skill_endorsement_counts: {
         Args: { p_user: string }
         Returns: {
@@ -26107,12 +26551,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -26136,11 +26580,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -26161,11 +26605,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -26186,11 +26630,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -26203,11 +26647,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

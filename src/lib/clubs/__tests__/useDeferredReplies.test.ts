@@ -63,6 +63,57 @@ describe("useDeferredReplies", () => {
     expect(result.current.pendingCount).toBe(0);
   });
 
+  it("pusty wynik zapytania nie zamraża niczego - lista jest pusta, kolejka też", () => {
+    // Pierwszy render wątku dostaje `undefined`: zapytanie jeszcze leci.
+    // Efekt „przyjmij pierwszą partię" musi wtedy MILCZEĆ - inaczej zapisałby
+    // pustą partię jako przyjętą i pierwsza prawdziwa odpowiedź wylądowałaby
+    // za paskiem „1 nowa", zamiast po prostu się pokazać.
+    const initialProps: { rows: ClubReplyRow[] | undefined } = { rows: undefined };
+    const { result, rerender } = renderHook(
+      ({ rows }: { rows: ClubReplyRow[] | undefined }) => useDeferredReplies(rows, THREAD),
+      { initialProps },
+    );
+    expect(result.current.rows).toEqual([]);
+    expect(result.current.pendingCount).toBe(0);
+
+    rerender({ rows: [row("a"), row("b")] });
+    expect(result.current.rows.map((r) => r.id)).toEqual(["a", "b"]);
+    expect(result.current.pendingCount).toBe(0);
+  });
+
+  it("reveal przed dojechaniem danych nie wybucha i niczego nie przyjmuje", () => {
+    // Czytelnik może kliknąć „pokaż nowe" w tej samej klatce, w której
+    // zapytanie jeszcze nie wróciło - pasek bywa widoczny z poprzedniego
+    // renderu. Bez strażnika `latest === undefined` byłoby to `.map` na
+    // `undefined`.
+    const { result } = renderHook(() => useDeferredReplies(undefined, THREAD));
+
+    act(() => result.current.reveal());
+
+    expect(result.current.rows).toEqual([]);
+    expect(result.current.pendingCount).toBe(0);
+  });
+
+  it("accept bez wpisów i accept już przyjętych NIE zmienia stanu", () => {
+    const { result, rerender } = renderHook(({ rows }) => useDeferredReplies(rows, THREAD), {
+      initialProps: { rows: [row("a")] },
+    });
+    rerender({ rows: [row("a"), row("obcy")] });
+    const before = result.current.rows;
+
+    // Pusta lista to zwykły przypadek: widok woła `accept(ids)` z wynikiem
+    // mutacji, a ten bywa pusty (np. odpowiedź trafiła do moderacji).
+    act(() => result.current.accept([]));
+    expect(result.current.rows).toBe(before);
+
+    // Ponowne przyjęcie tego samego wpisu też nie ma prawa przerysować listy:
+    // `new Set(prev)` przy każdym wywołaniu zmieniałoby referencję stanu
+    // i wymuszał render pod kursorem czytelnika.
+    act(() => result.current.accept(["a"]));
+    expect(result.current.rows).toBe(before);
+    expect(result.current.pendingCount).toBe(1);
+  });
+
   it("zmiana wątku zeruje licznik", () => {
     const { result, rerender } = renderHook(
       ({ rows, thread }) => useDeferredReplies(rows, thread),

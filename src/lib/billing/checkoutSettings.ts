@@ -144,12 +144,15 @@ export function checkoutSessionParams(
   // (6) Na płaszczyźnie MoR podatek i faktura należą do operatora, więc obie
   // flagi sprzedawcy są wygaszone jeszcze przed złożeniem parametrów.
   const automaticTax = !managed && settings.automatic_tax;
+  // Operator zbiera NIP sam - `tax_id_collection` w tej samej sesji jest
+  // parametrem sprzedawcy i Stripe odrzuca taką parę.
+  const taxIdCollection = !managed && settings.tax_id_collection;
   const invoiceCreation =
     !managed && settings.invoice_creation && context.mode === "payment"; /* (5) */
 
   // (2) Sesja musi mieć klienta, żeby zapisać NIP, policzyć podatek albo
   // powiązać fakturę. W trybie `subscription` Stripe tworzy go zawsze sam.
-  const needsCustomer = settings.tax_id_collection || automaticTax || invoiceCreation;
+  const needsCustomer = taxIdCollection || automaticTax || invoiceCreation;
 
   const params: CheckoutSessionParams = {
     // (4) Adres wymagany, gdy podatek liczymy sami albo gdy operator tak chce.
@@ -167,15 +170,16 @@ export function checkoutSessionParams(
   }
 
   if (automaticTax) params.automatic_tax = { enabled: true };
-  if (settings.tax_id_collection) params.tax_id_collection = { enabled: true };
+  if (taxIdCollection) params.tax_id_collection = { enabled: true };
   if (invoiceCreation) params.invoice_creation = { enabled: true };
   if (managed) params.managed_payments = { enabled: true };
 
   // (3) Zgoda na nadpisanie danych istniejącego klienta danymi z Checkoutu.
-  if (context.hasCustomer) {
+  // `customer_update` jest niedozwolone razem z `managed_payments`.
+  if (context.hasCustomer && !managed) {
     const customerUpdate: { address?: "auto"; name?: "auto" } = {};
     if (automaticTax) customerUpdate.address = "auto";
-    if (automaticTax || settings.tax_id_collection) customerUpdate.name = "auto";
+    if (automaticTax || taxIdCollection) customerUpdate.name = "auto";
     if (customerUpdate.address || customerUpdate.name) params.customer_update = customerUpdate;
   }
 

@@ -111,6 +111,7 @@ export function MenuManager({ menuKey }: Props) {
       href: it.href,
       target: (it.target === "_blank" ? "_blank" : "_self") as "_self" | "_blank",
       css_class: it.css_class,
+      visibility: it.visibility ?? "all",
       icon: it.icon ?? "",
       mega_enabled: it.mega_enabled,
       mega_config: it.mega_config,
@@ -590,6 +591,25 @@ function MenuNode({
                   <SelectContent>
                     <SelectItem value="_self">{t("admin.menu.targetSelf")}</SelectItem>
                     <SelectItem value="_blank">{t("admin.menu.targetBlank")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label={t("admin.menu.visibility")}>
+                <Select
+                  value={item.visibility}
+                  onValueChange={(v) =>
+                    onUpdate(item.local_id, {
+                      visibility: v === "guest" || v === "auth" ? v : "all",
+                    })
+                  }
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t("admin.menu.visibilityAll")}</SelectItem>
+                    <SelectItem value="guest">{t("admin.menu.visibilityGuest")}</SelectItem>
+                    <SelectItem value="auth">{t("admin.menu.visibilityAuth")}</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>

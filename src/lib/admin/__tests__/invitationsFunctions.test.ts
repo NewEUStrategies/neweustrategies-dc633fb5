@@ -40,7 +40,7 @@
 //   `tenant_isolation_three_tenants_test.sql`,
 //   `security_definer_tenant_scope_test.sql`.
 // - INTERFEJSU MODALEK: `src/components/admin/users/__tests__/userDialogs.test.tsx`.
-// - BRAMKI POCZTY: `sendTransactionalEmail` ma własny test; tutaj jest atrapą
+// - BRAMKI POCZTY: `enqueueRawEmail` ma własny test; tutaj jest atrapą
 //   i sprawdzamy WYŁĄCZNIE, co system zaproszeń robi z jej odmową.
 //
 // RODO: żadnych realnych danych osobowych. Adresy wyłącznie w `example.org`,
@@ -65,7 +65,10 @@ vi.mock("@/integrations/supabase/auth-middleware", () => ({
 
 const h = vi.hoisted(() => ({
   /** Wywołania `auth.admin.*` - kolejność i argumenty tworzenia kont. */
-  authCalls: [] as { kind: "invite" | "create"; email: string; payload: unknown }[],
+  claimError: null as { message: string } | null,
+  inviteLinkFails: false,
+  hashedToken: null as string | null,
+  authCalls: [] as { kind: string; email: string; payload: unknown }[],
   /** Identyfikator, jaki oddaje warstwa auth; `null` = „konto bez id". */
   authUserId: "aaaa1111-2222-4333-8444-555566667777" as string | null,
   /**
@@ -88,20 +91,66 @@ const h = vi.hoisted(() => ({
    */
   authFailsFirstOnly: false,
   /** Wysłane wiadomości - atrapa bramki poczty. */
-  emails: [] as { to: string; subject: string; html: string }[],
+  emails: [] as {
+    to: string;
+    lang: string;
+    ctaUrl?: string;
+    details?: { label: string; value: string }[];
+  }[],
   emailOk: true,
+  /** Awaria generatora linku aktywacyjnego. */
+  linkError: null as Error | null,
   emailError: "smtp down",
+  /** Konta istniejące w katalogu tożsamości - sprawdzane przed `createUser`. */
+  existingAuthUsers: [] as { id: string; email: string | null }[],
+  /** Zapis stron, o które moduł poprosił katalog - dowód na stronicowanie. */
+  listUsersPages: [] as { page: number; perPage: number }[],
+  /** Awaria katalogu tożsamości (`listUsers`). */
+  listUsersError: null as Error | null,
+  /**
+   * Slug, który konto JUŻ MA w `profiles`. `null` = konto bez sluga (nowe),
+   * więc hydracja policzy go z nazwy.
+   */
+  existingProfileSlug: null as string | null,
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: {
     auth: {
       admin: {
+        // Moduł najpierw sprawdza, czy konto o tym adresie już istnieje.
+        //
+        // Atrapa NAPRAWDĘ stronicuje: kroi `existingAuthUsers` po `page`
+        // i `perPage`, zamiast oddawać całą listę na każde pytanie. Bez tego
+        // test „konto leży na drugiej stronie" przechodziłby także dla wersji
+        // czytającej wyłącznie stronę pierwszą - czyli nie dowodziłby niczego.
+        listUsers: async (params?: { page?: number; perPage?: number }) => {
+          const page = params?.page ?? 1;
+          const perPage = params?.perPage ?? 50;
+          h.listUsersPages.push({ page, perPage });
+          if (h.listUsersError) return { data: { users: [] }, error: h.listUsersError };
+          const all = h.existingAuthUsers ?? [];
+          return { data: { users: all.slice((page - 1) * perPage, page * perPage) }, error: null };
+        },
         inviteUserByEmail: async (email: string, payload: unknown) => {
           h.authCalls.push({ kind: "invite", email, payload });
           if (h.authError) return { data: { user: null }, error: h.authError };
           return {
             data: { user: h.authUserId ? { id: h.authUserId } : null },
+            error: null,
+          };
+        },
+        generateLink: async (payload: { type: string; email: string }) => {
+          h.authCalls.push({ kind: `link:${payload.type}`, email: payload.email, payload });
+          if (h.linkError || (h.inviteLinkFails && payload.type === "invite"))
+            return { data: null, error: h.linkError ?? new Error("already invited") };
+          return {
+            data: {
+              properties: {
+                action_link: "https://example.test/activate?token=abc",
+                ...(h.hashedToken ? { hashed_token: h.hashedToken } : {}),
+              },
+            },
             error: null,
           };
         },
@@ -127,16 +176,41 @@ vi.mock("@/integrations/supabase/client.server", () => ({
         h.adminWrites.push({ table, row, options });
         return Promise.resolve({ data: null, error: null });
       },
-      select: () => ({
-        in: () =>
-          Promise.resolve({ data: h.adminProfilesNull ? null : h.adminProfiles, error: null }),
-      }),
+      select: () => {
+        // Łańcuch obsługuje dwa użycia: listę profili (`.in()` → wynik po await)
+        // oraz wiersz subskrypcji zapraszanego (`.eq().in().order().limit().maybeSingle()`),
+        // z którego wynika zakres obietnicy w treści maila. Każde ogniwo jest
+        // jednocześnie obietnicą i łańcuchem, więc oba użycia działają.
+        const result = () =>
+          Promise.resolve({ data: h.adminProfilesNull ? null : h.adminProfiles, error: null });
+        const chain: Record<string, unknown> = {};
+        for (const method of ["eq", "in", "order", "limit"]) {
+          chain[method] = () => Object.assign(result(), chain);
+        }
+        // `maybeSingle` obsługuje DWA odczyty i muszą się różnić po tabeli:
+        // slug istniejącego profilu (hydracja czyta go, żeby NIE nadpisać
+        // publicznego adresu) oraz wiersz subskrypcji zapraszanego.
+        chain["maybeSingle"] = () =>
+          Promise.resolve({
+            data:
+              table === "profiles" && h.existingProfileSlug
+                ? { slug: h.existingProfileSlug }
+                : null,
+            error: null,
+          });
+        return chain;
+      },
     }),
   },
 }));
 
-vi.mock("@/lib/server/email.server", () => ({
-  sendTransactionalEmail: async (input: { to: string; subject: string; html: string }) => {
+vi.mock("@/lib/email/transactional.server", () => ({
+  sendTxEmail: async (input: {
+    to: string;
+    lang: string;
+    ctaUrl?: string;
+    details?: { label: string; value: string }[];
+  }) => {
     h.emails.push(input);
     return h.emailOk ? { ok: true } : { ok: false, error: h.emailError };
   },
@@ -144,6 +218,9 @@ vi.mock("@/lib/server/email.server", () => ({
 
 import {
   createInvitations,
+  searchCrmCompanies,
+  createCrmCompany,
+  sendActivationEmailForUser,
   linkTeamWidgets,
   listInvitations,
   previewTeamImport,
@@ -189,6 +266,8 @@ function client(): { from: (table: string) => unknown; rpc: (name: string) => Pr
     from: (table: string) => db.from(table),
     rpc: (name: string, args?: unknown) => {
       rpcCalls.push({ name, args });
+      if (name === "admin_claim_invitation_send" && h.claimError)
+        return Promise.resolve({ data: null, error: h.claimError });
       return Promise.resolve({ data: rpcUsers, error: null });
     },
   };
@@ -260,6 +339,13 @@ function invitationRow(overrides: Partial<InvitationRow> = {}): InvitationRow {
 }
 
 beforeEach(() => {
+  h.existingAuthUsers = [];
+  h.listUsersPages = [];
+  h.listUsersError = null;
+  h.existingProfileSlug = null;
+  h.claimError = null;
+  h.inviteLinkFails = false;
+  h.hashedToken = null;
   db = supabaseFromStub();
   rpcCalls = [];
   rpcUsers = [];
@@ -272,6 +358,7 @@ beforeEach(() => {
   h.authFailsFirstOnly = false;
   h.emails = [];
   h.emailOk = true;
+  h.linkError = null;
   h.emailError = "smtp down";
 });
 
@@ -938,24 +1025,24 @@ describe("sendInvitation - tworzenie konta, hydracja profilu, ślad audytowy", (
     expect(result.error).toBe("statement timeout");
   });
 
-  it("tryb odnośnika jednorazowego woła `inviteUserByEmail`, NIE `createUser`", async () => {
+  it("tryb odnośnika jednorazowego zakłada konto i WYSYŁA własny e-mail z linkiem", async () => {
     withInvitation(invitationRow({ mode: "magic_link" }));
     const result = await send();
     expect(result.ok).toBe(true);
-    expect(h.authCalls).toHaveLength(1);
-    expect(h.authCalls[0].kind).toBe("invite");
+    expect(h.authCalls.map((call) => call.kind)).toEqual(["create", "link:invite"]);
     expect(h.authCalls[0].email).toBe("nowa@example.org");
     // Hasła tymczasowego NIE MA - w tym trybie logowanie idzie odnośnikiem.
     expect(result.tempPassword).toBeUndefined();
-    // I nie idzie żadna nasza wiadomość - wysyła ją Supabase Auth.
-    expect(h.emails).toHaveLength(0);
+    // Wiadomość wychodzi z NASZEJ bramki i niesie link aktywacyjny.
+    expect(h.emails).toHaveLength(1);
+    expect(h.emails[0].ctaUrl).toBe("https://example.test/activate?token=abc");
   });
 
   it("odnośnik jednorazowego dostępu niesie najemcę i nazwę w metadanych konta", async () => {
     withInvitation(invitationRow({ mode: "magic_link" }));
     await send();
     expect(h.authCalls[0].payload).toMatchObject({
-      data: { display_name: "Nowa Osoba", tenant_id: IDS.tenant },
+      user_metadata: { display_name: "Nowa Osoba", tenant_id: IDS.tenant },
     });
   });
 
@@ -991,7 +1078,7 @@ describe("sendInvitation - tworzenie konta, hydracja profilu, ślad audytowy", (
     // wysyłka pomija warstwę auth i tylko uzupełnia profil.
     withInvitation(invitationRow({ auth_user_id: IDS.existingUser }));
     const result = await send();
-    expect(h.authCalls).toHaveLength(0);
+    expect(h.authCalls.every((call) => call.kind.startsWith("link:"))).toBe(true);
     expect(result.ok).toBe(true);
     const profileWrite = h.adminWrites.find((write) => write.table === "profiles");
     expect(profileWrite?.row).toMatchObject({ id: IDS.existingUser });
@@ -1073,9 +1160,11 @@ describe("sendInvitation - tworzenie konta, hydracja profilu, ślad audytowy", (
       string,
       unknown
     >;
-    // Znaki z ogonkami i kreskami schodzą przez `NFD` + usunięcie znaków
-    // diakrytycznych. `ł` NIE schodzi - patrz `it.fails` na końcu pliku.
-    expect(profile.slug).toBe("zazo-c-gesla-jazn");
+    // Znaki z ogonkami schodzą przez `NFD` + usunięcie znaków diakrytycznych,
+    // a „ł" - które rozkładu kanonicznego NIE MA - przez `replaceStrokeLetters`
+    // wołane PRZED `NFD`. Wcześniej dawało tu `zazo-c-gesla-jazn`: litera
+    // zamieniała się w dywiz.
+    expect(profile.slug).toBe("zazolc-gesla-jazn");
     expect(profile).toMatchObject({
       tenant_id: IDS.tenant,
       email: "nowa@example.org",
@@ -1185,17 +1274,17 @@ describe("sendInvitation - tworzenie konta, hydracja profilu, ślad audytowy", (
     expect(h.emails).toHaveLength(1);
     expect(h.emails[0].to).toBe("nowa@example.org");
     // Hasło MUSI być w treści - to jedyny kanał, którym trafia do osoby.
-    expect(h.emails[0].html).toContain(result.tempPassword);
+    expect(JSON.stringify(h.emails[0].details)).toContain(result.tempPassword);
     // I musi być odnośnik do logowania z wypełnionym adresem.
-    expect(h.emails[0].html).toContain(encodeURIComponent("nowa@example.org"));
+    expect(h.emails[0].ctaUrl).toContain(encodeURIComponent("nowa@example.org"));
   });
 
-  it("PONOWIENIE w trybie hasła NIE wysyła wiadomości - hasła już nie ma", async () => {
-    // Konto istnieje, więc nowe hasło nie powstaje; wiadomość z pustym hasłem
-    // byłaby bezużyteczna i myląca.
+  it("PONOWIENIE w trybie hasła wysyła wiadomość, ale BEZ nowego hasła", async () => {
+    // Konto istnieje, więc nowe hasło nie powstaje - wiadomość przypomina
+    // tylko adres logowania.
     withInvitation(invitationRow({ mode: "temp_password", auth_user_id: IDS.existingUser }));
     const result = await send();
-    expect(h.emails).toHaveLength(0);
+    expect(h.emails).toHaveLength(1);
     expect(result.tempPassword).toBeUndefined();
     expect(result.ok).toBe(true);
   });
@@ -2095,36 +2184,27 @@ describe("system zaproszeń - higiena danych osobowych", () => {
     const everything = JSON.stringify([db.chains.map((chain) => chain.calls), h.adminWrites]);
     expect(everything).not.toContain(password);
     // Jedyne miejsce, w którym hasło ma prawo być, to treść wiadomości.
-    expect(h.emails[0].html).toContain(password);
+    expect(JSON.stringify(h.emails[0].details)).toContain(password);
   });
 });
 
 // ---------------------------------------------------------------------------
-// 11. DEFEKT ZGŁOSZONY, NIE NAPRAWIONY (konwencja repo: produkcja bez zmian).
+// 11. DEFEKT NAPRAWIONY: `slugify` transliteruje litery bez rozkładu Unicode.
 // ---------------------------------------------------------------------------
 
-describe("system zaproszeń - defekt zgłoszony", () => {
-  it.fails("DEFEKT: `slugify` gubi polskie `ł` - slug profilu wychodzi kaleki", async () => {
-    // `slugify` (`invitations.functions.ts:36-44`) robi
-    // `.normalize("NFD").replace(/\p{Diacritic}/gu, "")`. To działa dla znaków
-    // ROZKŁADALNYCH (`ą ę ó ć ś ń ż ź` = litera + znak diakrytyczny), ale `ł`
-    // i `Ł` (U+0142 / U+0141) NIE MAJĄ rozkładu kanonicznego - nie są literą
-    // z diakrytykiem, są osobnymi literami. `NFD` ich nie rusza, więc wpadają
-    // w `[^a-z0-9]+` i zamieniają się w KRESKĘ.
-    //
-    // Zmierzone skutki dla realnych, bardzo częstych polskich imion:
-    //   „Michał Kowalski"       -> „micha-kowalski"
-    //   „Paweł Nowak"           -> „pawe-nowak"
-    //   „Małgorzata Wiśniewska" -> „ma-gorzata-wisniewska"
-    //   „Łukasz Dąbrowski"      -> „ukasz-dabrowski"   (pierwsza litera GINIE)
-    //
-    // KONSEKWENCJA. Slug jest publicznym adresem profilu autora
-    // (`/author/<slug>`), więc jest widoczny, cytowany i indeksowany. Ta sama
-    // funkcja tworzy slugi w `performSend` i w `provisionTeamMembers`, czyli na
-    // OBU ścieżkach powstawania kont - a produkt jest polskojęzyczny, więc
-    // dotyczy to dużej części zespołu. Poprawka to jedna mapa znaków przed
-    // `NFD` (`ł->l`, `Ł->L`), ale zmiana slugów istniejących kont wymaga
-    // migracji i przekierowań, więc jest decyzją, nie poprawką w teście.
+describe("system zaproszeń - slug profilu autora", () => {
+  // Było `it.fails`. `slugify` (`invitations.functions.ts`) robiło
+  // `.normalize("NFD").replace(/\p{Diacritic}/gu, "")`. To działa dla znaków
+  // ROZKŁADALNYCH (`ą ę ó ć ś ń ż ź` = litera + znak diakrytyczny), ale „ł"
+  // i „Ł" (U+0142 / U+0141) rozkładu kanonicznego NIE MAJĄ - są osobnymi
+  // literami. `NFD` ich nie ruszało, więc wpadały w `[^a-z0-9]+` i zamieniały
+  // się w KRESKĘ. Naprawa: `replaceStrokeLetters` PRZED `NFD` - ta sama mapa,
+  // której używa `slugifyTaxonomy`.
+  //
+  // Slug jest publicznym adresem profilu autora (`/author/<slug>`), a ta sama
+  // funkcja tworzy go w `performSend` i w `provisionTeamMembers`, czyli na OBU
+  // ścieżkach powstawania kont.
+  it("„ł” staje się „l”, a nie dywizem - nazwisko nie jest okaleczone", async () => {
     grantAdmin();
     db.setResponse("user_invitations", (chain) =>
       chain.has("update") ? ok(null) : ok(invitationRow({ display_name: "Michał Kowalski" })),
@@ -2135,6 +2215,70 @@ describe("system zaproszeń - defekt zgłoszony", () => {
       slug: string;
     };
     expect(profile.slug).toBe("michal-kowalski");
+  });
+
+  it("„Ł” na POCZĄTKU nazwy nie znika - pierwsza litera adresu zostaje", async () => {
+    // Najostrzejszy z przypadków: dywiz z krawędzi jest zdejmowany, więc przed
+    // naprawą pierwsza litera ginęła bez śladu („Łukasz" -> `ukasz`).
+    grantAdmin();
+    db.setResponse("user_invitations", (chain) =>
+      chain.has("update") ? ok(null) : ok(invitationRow({ display_name: "Łukasz Dąbrowski" })),
+    );
+    db.setResponse("audit_log", ok(null));
+    await callServerFn(sendInvitation, { data: { id: IDS.invitation }, context: context() });
+    const profile = h.adminWrites.find((write) => write.table === "profiles")?.row as {
+      slug: string;
+    };
+    expect(profile.slug).toBe("lukasz-dabrowski");
+  });
+
+  it("„ł” w środku wyrazu nie rozbija go na dwa człony", async () => {
+    grantAdmin();
+    db.setResponse("user_invitations", (chain) =>
+      chain.has("update") ? ok(null) : ok(invitationRow({ display_name: "Małgorzata Wiśniewska" })),
+    );
+    db.setResponse("audit_log", ok(null));
+    await callServerFn(sendInvitation, { data: { id: IDS.invitation }, context: context() });
+    const profile = h.adminWrites.find((write) => write.table === "profiles")?.row as {
+      slug: string;
+    };
+    expect(profile.slug).toBe("malgorzata-wisniewska");
+  });
+
+  it("KONTO, KTÓRE JUŻ MA SLUG, zachowuje go - resend nie przenosi adresu autora", async () => {
+    // Najważniejszy przypadek tej naprawy, i to on decyduje o jej zasięgu.
+    // `performSend` robi UPSERT, który nadpisuje wymienione kolumny także przy
+    // PONOWNYM wysłaniu zaproszenia. Gdyby slug był liczony z nazwy za każdym
+    // razem, sama ta zmiana transliteracji przesunęłaby przy najbliższym
+    // resendzie każdego „Michała" z `micha` na `michal` - zrywając
+    // opublikowane linki, a przy kolizji wywracając cały resend na
+    // `profiles_slug_unique`.
+    grantAdmin();
+    h.existingProfileSlug = "micha-kowalski";
+    db.setResponse("user_invitations", (chain) =>
+      chain.has("update") ? ok(null) : ok(invitationRow({ display_name: "Michał Kowalski" })),
+    );
+    db.setResponse("audit_log", ok(null));
+    await callServerFn(sendInvitation, { data: { id: IDS.invitation }, context: context() });
+    const profile = h.adminWrites.find((write) => write.table === "profiles")?.row as {
+      slug: string;
+    };
+    expect(profile.slug).toBe("micha-kowalski");
+  });
+
+  it("transliteracja obejmuje też pozostałe litery bez rozkładu (ø, ß, đ)", async () => {
+    // Katalog osób jest ogólnoeuropejski, a mapa `STROKE_LETTERS` obsługuje
+    // całą tę klasę - nie samo „ł".
+    grantAdmin();
+    db.setResponse("user_invitations", (chain) =>
+      chain.has("update") ? ok(null) : ok(invitationRow({ display_name: "Søren Weiß Đurić" })),
+    );
+    db.setResponse("audit_log", ok(null));
+    await callServerFn(sendInvitation, { data: { id: IDS.invitation }, context: context() });
+    const profile = h.adminWrites.find((write) => write.table === "profiles")?.row as {
+      slug: string;
+    };
+    expect(profile.slug).toBe("soren-weiss-duric");
   });
 });
 
@@ -2152,5 +2296,319 @@ describe("kanarek harnessu", () => {
     );
     await callServerFn(listInvitations, { context: context() });
     expect(db.lastChain("user_invitations")?.has("select")).toBe(true);
+  });
+});
+
+describe("CRM company suggestions for invitations", () => {
+  it.each([undefined, "", "  New%_  "])(
+    "limits search to the administrator tenant (%s)",
+    async (q) => {
+      grantAdmin();
+      db.setResponse("crm_companies", ok([{ id: "company", name: "New" }]));
+      expect(await callServerFn(searchCrmCompanies, { data: { q }, context: context() })).toEqual({
+        companies: [{ id: "company", name: "New" }],
+      });
+      const chain = db.chainsFor("crm_companies")[0];
+      expect(chain.calls).toContainEqual({ method: "eq", args: ["tenant_id", IDS.tenant] });
+      expect(chain.argsOf("limit")).toEqual([20]);
+      if (q?.trim()) expect(chain.argsOf("ilike")).toEqual(["name", "%New%"]);
+      else expect(chain.has("ilike")).toBe(false);
+    },
+  );
+  it("returns an empty result for null data and propagates database errors", async () => {
+    grantAdmin();
+    db.setResponse("crm_companies", ok(null));
+    expect(await callServerFn(searchCrmCompanies, { data: {}, context: context() })).toEqual({
+      companies: [],
+    });
+    db.setResponse("crm_companies", fail("unavailable"));
+    await expect(
+      callServerFn(searchCrmCompanies, { data: {}, context: context() }),
+    ).rejects.toThrow("unavailable");
+  });
+  it("reuses an existing company without inserting a duplicate", async () => {
+    grantAdmin();
+    db.setResponse("crm_companies", ok({ id: "company", name: "New" }));
+    expect(
+      await callServerFn(createCrmCompany, { data: { name: " New " }, context: context() }),
+    ).toEqual({ id: "company", name: "New" });
+    expect(db.chainsFor("crm_companies").some((c) => c.has("insert"))).toBe(false);
+  });
+  it("creates a missing company in the caller tenant and propagates insertion errors", async () => {
+    grantAdmin();
+    db.setResponse("crm_companies", (chain) =>
+      chain.has("insert") ? ok({ id: "new-company", name: "New" }) : ok(null),
+    );
+    expect(
+      await callServerFn(createCrmCompany, { data: { name: " New " }, context: context() }),
+    ).toEqual({ id: "new-company", name: "New" });
+    expect(db.chainsFor("crm_companies")[1].argsOf("insert")).toEqual([
+      { tenant_id: IDS.tenant, name: "New", created_by: IDS.caller },
+    ]);
+    db.setResponse("crm_companies", (chain) =>
+      chain.has("insert") ? fail("write denied") : ok(null),
+    );
+    await expect(
+      callServerFn(createCrmCompany, { data: { name: "New" }, context: context() }),
+    ).rejects.toThrow("write denied");
+  });
+});
+
+describe("activation from the member directory", () => {
+  function profile(result: SupabaseResult): void {
+    grantAdmin();
+    db.setResponse("profiles", (chain) =>
+      chain.calls.some((c) => c.method === "eq" && c.args[1] === IDS.existingUser)
+        ? result
+        : ok({ tenant_id: IDS.tenant }),
+    );
+  }
+  it.each([fail("profile unavailable"), ok(null), ok({ email: "" })])(
+    "rejects missing or unreadable recipient data",
+    async (result) => {
+      profile(result);
+      await expect(
+        callServerFn(sendActivationEmailForUser, {
+          data: { userId: IDS.existingUser },
+          context: context(),
+        }),
+      ).rejects.toThrow();
+      expect(h.emails).toHaveLength(0);
+    },
+  );
+  it("propagates invitation lookup failure", async () => {
+    profile(ok({ email: "member@example.org", display_name: "Member" }));
+    db.setResponse("user_invitations", fail("lookup unavailable"));
+    await expect(
+      callServerFn(sendActivationEmailForUser, {
+        data: { userId: IDS.existingUser },
+        context: context(),
+      }),
+    ).rejects.toThrow("lookup unavailable");
+  });
+  it.each([null, { id: IDS.invitation, status: "accepted" }])(
+    "creates a new activation record when no reusable invitation exists",
+    async (existing) => {
+      profile(ok({ email: " MEMBER@example.org ", display_name: null }));
+      db.setResponse("user_invitations", (chain) =>
+        chain.has("insert")
+          ? ok({ id: IDS.invitationB })
+          : chain.argsOf("select")?.[0] === "id, status"
+            ? ok(existing)
+            : ok(invitationRow({ id: IDS.invitationB, email: "member@example.org" })),
+      );
+      const result = await callServerFn<{ ok: boolean }>(sendActivationEmailForUser, {
+        data: { userId: IDS.existingUser },
+        context: context(),
+      });
+      expect(result.ok).toBe(true);
+      const inserted = db.chainsFor("user_invitations").find((c) => c.has("insert"));
+      expect(inserted?.argsOf("insert")?.[0]).toMatchObject({
+        tenant_id: IDS.tenant,
+        email: "member@example.org",
+        source: "admin_user_actions",
+        auth_user_id: IDS.existingUser,
+      });
+    },
+  );
+});
+
+describe("invitation delivery recovery branches", () => {
+  function prepare(overrides: Partial<InvitationRow> = {}) {
+    grantAdmin();
+    db.setResponse("user_invitations", (chain) =>
+      chain.has("update") ? ok(null) : ok(invitationRow(overrides)),
+    );
+  }
+  it.each(["activation_send_limit_reached", "database unavailable"])(
+    "does not send when the atomic claim fails (%s)",
+    async (message) => {
+      prepare();
+      h.claimError = { message };
+      const result = await callServerFn(sendInvitation, {
+        data: { id: IDS.invitation },
+        context: context(),
+      });
+      expect(result).toMatchObject({ ok: false, error: message, sendLimit: 5 });
+      expect(h.emails).toHaveLength(0);
+      expect(h.authCalls).toHaveLength(0);
+    },
+  );
+  it("reuses an existing auth identity and skips contacts without email", async () => {
+    prepare();
+    h.existingAuthUsers = [
+      { id: "invalid", email: null },
+      { id: IDS.existingUser, email: "NOWA@example.org" },
+    ];
+    const result = await callServerFn(sendInvitation, {
+      data: { id: IDS.invitation },
+      context: context(),
+    });
+    expect(result).toMatchObject({ ok: true });
+    expect(h.authCalls.some((c) => c.kind === "create")).toBe(false);
+  });
+
+  // ---------------------------------------------------------------------
+  // DEFEKT A2 NAPRAWIONY: katalog tożsamości był czytany JEDNĄ stroną.
+  //
+  // `listUsers` nie ma w tej wersji SDK filtru po adresie, a moduł pytał
+  // wyłącznie o `{ page: 1, perPage: 200 }`. Od 201. konta istniejące konto
+  // stawało się niewidoczne, sterowanie szło w `createUser`, GoTrue zwracał
+  // „already been registered", wyjątek leciał do `catch` w `performSend`
+  // i zaproszenie kończyło jako `failed`. Funkcja, która istnieje po to, żeby
+  // nie zakładać duplikatu, przestawała działać dokładnie wtedy, kiedy
+  // zaczynała być potrzebna.
+  // ---------------------------------------------------------------------
+  it("znajduje konto leżące na DRUGIEJ stronie katalogu i nie tworzy duplikatu", async () => {
+    prepare();
+    // 200 obcych kont wypełnia stronę pierwszą co do sztuki; szukane leży
+    // zaraz za jej krawędzią.
+    h.existingAuthUsers = [
+      ...Array.from({ length: 200 }, (_, i) => ({
+        id: `obce-${i}`,
+        email: `obcy${i}@example.com`,
+      })),
+      { id: IDS.existingUser, email: "NOWA@example.org" },
+    ];
+
+    const result = await callServerFn(sendInvitation, {
+      data: { id: IDS.invitation },
+      context: context(),
+    });
+
+    expect(result).toMatchObject({ ok: true });
+    // Gałąź tworzenia konta NIE została tknięta - to jest istota naprawy.
+    expect(h.authCalls.some((c) => c.kind === "create")).toBe(false);
+    // I dowód mechanizmu: moduł faktycznie poprosił o drugą stronę.
+    expect(h.listUsersPages.map((p) => p.page)).toEqual([1, 2]);
+  });
+
+  it("przestaje pytać na pierwszej niepełnej stronie - nie skanuje katalogu w kółko", async () => {
+    prepare();
+    h.existingAuthUsers = [{ id: "ktos-inny", email: "ktos@example.com" }];
+
+    await callServerFn(sendInvitation, { data: { id: IDS.invitation }, context: context() });
+
+    // Jedna strona, krótsza niż pełna, wystarcza za dowód „przeszliśmy całość".
+    expect(h.listUsersPages).toEqual([{ page: 1, perPage: 200 }]);
+  });
+
+  it("awaria katalogu NIE czyta się jak „konta nie ma” - zaproszenie kończy jako `failed`", async () => {
+    prepare();
+    h.listUsersError = new Error("gotrue unavailable");
+
+    const result = await callServerFn(sendInvitation, {
+      data: { id: IDS.invitation },
+      context: context(),
+    });
+
+    // Przed naprawą `error` było pomijane przy destrukturyzacji, więc awaria
+    // katalogu wyglądała jak pusty katalog i prowadziła prosto w `createUser`.
+    expect(result).toMatchObject({ ok: false });
+    expect(h.authCalls.some((c) => c.kind === "create")).toBe(false);
+  });
+  it.each([false, true])("falls back from invite to magic link (hashed %s)", async (hashed) => {
+    prepare();
+    h.inviteLinkFails = true;
+    h.hashedToken = hashed ? "token/value" : null;
+    const result = await callServerFn(sendInvitation, {
+      data: { id: IDS.invitation },
+      context: context(),
+    });
+    expect(result).toMatchObject({ ok: true });
+    expect(h.authCalls.map((c) => c.kind)).toContain("link:magiclink");
+    expect(h.emails[0].ctaUrl).toContain(hashed ? "token=token%2Fvalue&type=invite" : "token=abc");
+  });
+  it.each([undefined, "Analyst"])(
+    "includes the selected organization in the invitation (%s)",
+    async (job_title) => {
+      prepare({ metadata: { company_name: "Fundacja New European Strategies", job_title } });
+      await callServerFn(sendInvitation, { data: { id: IDS.invitation }, context: context() });
+      expect(h.emails[0].details).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            value: job_title
+              ? "Fundacja New European Strategies - Analyst"
+              : "Fundacja New European Strategies",
+          }),
+        ]),
+      );
+    },
+  );
+  it("reports password identity provisioning errors without sending mail", async () => {
+    prepare({ mode: "password" });
+    h.authError = new Error("auth unavailable");
+    const result = await callServerFn(sendInvitation, {
+      data: { id: IDS.invitation },
+      context: context(),
+    });
+    expect(result).toMatchObject({ ok: false, error: "auth unavailable" });
+    expect(h.emails).toHaveLength(0);
+  });
+});
+
+describe("activation record persistence failures", () => {
+  function profileReady() {
+    grantAdmin();
+    db.setResponse("profiles", (chain) =>
+      chain.calls.some((c) => c.method === "eq" && c.args[1] === IDS.existingUser)
+        ? ok({ email: "member@example.org", display_name: "Member" })
+        : ok({ tenant_id: IDS.tenant }),
+    );
+  }
+  it("propagates role lookup failure before creating an activation record", async () => {
+    profileReady();
+    db.setResponse("user_invitations", ok(null));
+    db.setResponse("user_roles", (chain) =>
+      chain.has("limit") ? fail("roles unavailable") : ok([{ role: "admin" }]),
+    );
+    await expect(
+      callServerFn(sendActivationEmailForUser, {
+        data: { userId: IDS.existingUser },
+        context: context(),
+      }),
+    ).rejects.toThrow("roles unavailable");
+    expect(h.emails).toHaveLength(0);
+  });
+  it.each([fail("insert unavailable"), ok(null)])(
+    "rejects a missing activation record after insertion",
+    async (insertion) => {
+      profileReady();
+      db.setResponse("user_roles", (chain) =>
+        chain.has("limit") ? ok(null) : ok([{ role: "admin" }]),
+      );
+      db.setResponse("user_invitations", (chain) => (chain.has("insert") ? insertion : ok(null)));
+      await expect(
+        callServerFn(sendActivationEmailForUser, {
+          data: { userId: IDS.existingUser },
+          context: context(),
+        }),
+      ).rejects.toThrow(insertion.error?.message ?? "invitation_create_failed");
+      expect(
+        db
+          .chainsFor("user_invitations")
+          .find((c) => c.has("insert"))
+          ?.argsOf("insert")?.[0],
+      ).toMatchObject({ role: "user" });
+      expect(h.emails).toHaveLength(0);
+    },
+  );
+  it("reuses a pending invitation and reports a failed activation-link fallback", async () => {
+    profileReady();
+    h.linkError = new Error("link service unavailable");
+    db.setResponse("user_invitations", (chain) =>
+      chain.argsOf("select")?.[0] === "id, status"
+        ? ok({ id: IDS.invitation, status: "pending" })
+        : chain.has("update")
+          ? ok(null)
+          : ok(invitationRow()),
+    );
+    const result = await callServerFn(sendActivationEmailForUser, {
+      data: { userId: IDS.existingUser },
+      context: context(),
+    });
+    expect(result).toMatchObject({ ok: false, error: "link_failed:link service unavailable" });
+    expect(db.chainsFor("user_invitations").some((c) => c.has("insert"))).toBe(false);
+    expect(h.emails).toHaveLength(0);
   });
 });

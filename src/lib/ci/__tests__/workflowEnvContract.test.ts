@@ -24,7 +24,7 @@ import {
 } from "@/lib/ci/workflowEnvContract";
 
 const WORKFLOWS_DIR = ".github/workflows";
-const SOURCE_ROOTS = ["src", "scripts", "e2e"];
+const SOURCE_ROOTS = ["src", "scripts", "e2e", "e2e-ab", "e2e-performance"];
 const SOURCE_SUFFIXES = [".ts", ".tsx", ".js", ".mjs", ".cjs"];
 const SKIP_DIRS = new Set(["node_modules", "dist", ".git", ".output", "coverage", "reports"]);
 
@@ -224,7 +224,11 @@ describe("self-test na realnym repozytorium", () => {
         file: `${WORKFLOWS_DIR}/${file}`,
         yaml: readFileSync(join(WORKFLOWS_DIR, file), "utf8"),
       }));
-    const sources: SourceFile[] = SOURCE_ROOTS.flatMap((root) => walk(root, [])).map((file) => ({
+    const sourceFiles = [
+      ...SOURCE_ROOTS.flatMap((root) => walk(root, [])),
+      ...readdirSync(".").filter((file) => /\.config\.[cm]?[jt]s$/.test(file)),
+    ];
+    const sources: SourceFile[] = sourceFiles.map((file) => ({
       file,
       source: readFileSync(file, "utf8"),
     }));

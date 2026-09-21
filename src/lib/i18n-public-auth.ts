@@ -1,0 +1,128 @@
+// Loaded with its owning surface, outside the public boot closure.
+import i18n from "i18next";
+const pl = {
+  authForms: {
+    errors: {
+      invalidCredentials: "Niepoprawny adres e-mail lub hasło.",
+      emailNotConfirmed: "Potwierdź adres e-mail linkiem z wiadomości, zanim się zalogujesz.",
+      emailInUse: "Ten adres jest już zarejestrowany. Zaloguj się lub zresetuj hasło.",
+      weakPassword: "Hasło nie spełnia wymagań bezpieczeństwa. Wybierz silniejsze hasło.",
+      invalidInput: "Sprawdź poprawność wprowadzonych danych.",
+      unavailable: "Nie udało się wykonać operacji. Spróbuj ponownie za chwilę.",
+      signupDisabled: "Rejestracja jest wyłączona.",
+      rateLimited: "Zbyt wiele prób. Spróbuj ponownie za kilka minut.",
+    },
+    signinTitle: "Zaloguj się",
+    signupTitle: "Utwórz konto",
+    signupSubmit: "Zarejestruj się",
+    resetTitle: "Resetuj hasło",
+    sendLink: "Wyślij link",
+    setNewPasswordTitle: "Ustaw nowe hasło",
+    savePassword: "Zapisz hasło",
+    emailLabel: "E-mail",
+    passwordLabel: "Hasło",
+    newPasswordLabel: "Nowe hasło",
+    confirmPasswordLabel: "Powtórz hasło",
+    nameLabel: "Imię",
+    firstNameLabel: "Imię",
+    namePlaceholder: "Jan",
+    passwordPlaceholder: "min. 8 znaków",
+    passwordPlaceholderMin: "min. {{minLength}} znaków",
+    confirmPlaceholder: "powtórz hasło",
+    showPassword: "Pokaż hasło",
+    hidePassword: "Ukryj hasło",
+    remember: "Zapamiętaj mnie",
+    forgot: "Nie pamiętasz hasła?",
+    registerLink: "Załóż konto",
+    or: "lub",
+    google: "Kontynuuj z Google",
+    required: "Wypełnij pola",
+    signinOk: "Zalogowano",
+    signupOk: "Konto utworzone - sprawdź e-mail.",
+    newsletterOptIn: "Chcę otrzymywać newsletter",
+    passwordsMismatch: "Hasła muszą być identyczne.",
+    consentRequired: "Wymagana zgoda.",
+    consentDefault: "Akceptuję regulamin i politykę prywatności.",
+    haveAccount: "Masz już konto? Zaloguj się",
+    noAccount: "Nie masz konta? Zarejestruj się",
+    signupDisabled: "Rejestracja jest wyłączona.",
+    resetLinkSent: "Link wysłany. Sprawdź skrzynkę.",
+    backToSignin: "Powrót do logowania",
+    resetSuccess: "Sprawdź swoją skrzynkę - wysłaliśmy link do resetu hasła.",
+    passwordSaved: "Hasło zapisane.",
+    tooShort: "Min. {{minLength}} znaków.",
+    noToken: "Otwórz link z e-maila resetującego hasło, aby kontynuować.",
+  },
+};
+const en: typeof pl = {
+  authForms: {
+    errors: {
+      invalidCredentials: "Invalid email address or password.",
+      emailNotConfirmed: "Confirm your email using the link in your inbox before signing in.",
+      emailInUse: "This email is already registered. Sign in or reset your password.",
+      weakPassword:
+        "The password does not meet the security requirements. Choose a stronger password.",
+      invalidInput: "Check the information you entered.",
+      unavailable: "The operation could not be completed. Please try again shortly.",
+      signupDisabled: "Sign-up is disabled.",
+      rateLimited: "Too many attempts. Please try again in a few minutes.",
+    },
+    signinTitle: "Sign in",
+    signupTitle: "Create account",
+    signupSubmit: "Sign up",
+    resetTitle: "Reset password",
+    sendLink: "Send link",
+    setNewPasswordTitle: "Set new password",
+    savePassword: "Save password",
+    emailLabel: "Email",
+    passwordLabel: "Password",
+    newPasswordLabel: "New password",
+    confirmPasswordLabel: "Confirm password",
+    nameLabel: "Name",
+    firstNameLabel: "First name",
+    namePlaceholder: "John",
+    passwordPlaceholder: "min. 8 characters",
+    passwordPlaceholderMin: "min. {{minLength}} characters",
+    confirmPlaceholder: "repeat password",
+    showPassword: "Show password",
+    hidePassword: "Hide password",
+    remember: "Remember me",
+    forgot: "Forgot password?",
+    registerLink: "Create account",
+    or: "or",
+    google: "Continue with Google",
+    required: "Fill all fields",
+    signinOk: "Signed in",
+    signupOk: "Account created - check your email.",
+    newsletterOptIn: "Subscribe to newsletter",
+    passwordsMismatch: "Passwords must match.",
+    consentRequired: "Consent is required.",
+    consentDefault: "I accept the terms and privacy policy.",
+    haveAccount: "Already have an account? Sign in",
+    noAccount: "No account? Sign up",
+    signupDisabled: "Sign-up is disabled.",
+    resetLinkSent: "Reset link sent. Check your inbox.",
+    backToSignin: "Back to sign in",
+    resetSuccess: "Check your inbox - we sent you a reset link.",
+    passwordSaved: "Password saved.",
+    tooShort: "At least {{minLength}} characters.",
+    noToken: "Open the password-reset link from your email to continue.",
+  },
+};
+let registered = false;
+let scheduled = false;
+function register(): void {
+  if (registered) return;
+  registered = true;
+  i18n.off("initialized", register);
+  i18n.addResourceBundle("pl", "translation", pl, true, true);
+  i18n.addResourceBundle("en", "translation", en, true, true);
+}
+export function ensureI18n(): void {
+  if (i18n.isInitialized) register();
+  else if (!scheduled) {
+    scheduled = true;
+    i18n.on("initialized", register);
+  }
+}
+ensureI18n();

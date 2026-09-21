@@ -185,16 +185,52 @@ function AdminIntegrationsPage() {
   const deliveriesQ = useQuery({
     queryKey: ["admin", "integration-deliveries-summary"],
     queryFn: async () => {
-      // Wystarczy prosty licznik statusów (RLS scope po tenantcie).
-      const { data, error } = await supabase
-        .from("integration_deliveries")
-        .select("status")
-        .limit(1000);
-      if (error) throw error;
-      const rows = (data ?? []) as { status: string }[];
-      const counts: Record<string, number> = {};
-      for (const r of rows) counts[r.status] = (counts[r.status] ?? 0) + 1;
-      return counts;
+      // LICZYMY W BAZIE, NIE W PRZEGLĄDARCE.
+      //
+      // Wcześniej było tu `.select("status").limit(1000)` i zliczanie w pętli,
+      // a wynik szedł WPROST do czterech kafli KPI. Przy ponad tysiącu doręczeń
+      // kafle pokazywały więc PRÓBKĘ jako sumę - bez żadnego oznaczenia, że to
+      // próbka. Do tego bez `.order(...)` nie było nawet wiadomo, KTÓRY tysiąc
+      // wierszy został policzony: kolejność bez `ORDER BY` nie jest
+      // gwarantowana. Operator patrzył na cztery liczby i decydował na ich
+      // podstawie o zdrowiu integracji.
+      //
+      // `head: true` + `count: "exact"` nie ściąga ANI JEDNEGO wiersza - baza
+      // oddaje sam licznik w nagłówku `Content-Range`. Nie ma tu więc ani
+      // sufitu, ani próbki, ani potrzeby flagi `truncated`: liczba jest pełna
+      // albo zapytanie się nie udało. RLS `integration_deliveries` zawęża
+      // zliczanie do najemcy tak samo jak wcześniej.
+      //
+      // Kubełki odpowiadają CHECK-owi tabeli (queued/delivering/delivered/
+      // failed/dead); `pending` łączy dwa pierwsze, bo tak pokazuje je kafel.
+      const bucket = (status: string) =>
+        supabase
+          .from("integration_deliveries")
+          .select("id", { count: "exact", head: true })
+          .eq("status", status);
+
+      const [queued, delivering, delivered, failed, dead] = await Promise.all([
+        bucket("queued"),
+        bucket("delivering"),
+        bucket("delivered"),
+        bucket("failed"),
+        bucket("dead"),
+      ]);
+
+      // Błąd choćby jednego kubełka wywraca CAŁY odczyt. Cząstkowa odpowiedź
+      // byłaby gorsza niż brak: kafel pokazałby zero tam, gdzie zapytanie
+      // padło, czyli „nic nie utknęło" zamiast „nie wiadomo".
+      for (const part of [queued, delivering, delivered, failed, dead]) {
+        if (part.error) throw part.error;
+      }
+
+      return {
+        queued: queued.count ?? 0,
+        delivering: delivering.count ?? 0,
+        delivered: delivered.count ?? 0,
+        failed: failed.count ?? 0,
+        dead: dead.count ?? 0,
+      };
     },
   });
 
@@ -294,12 +330,12 @@ function AdminIntegrationsPage() {
   });
 
   const rows = endpointsQ.data ?? [];
-  const counts = deliveriesQ.data ?? {};
   // Statusy z CHECK-a integration_deliveries: queued/delivering/delivered/failed/dead.
-  const pending = (counts["queued"] ?? 0) + (counts["delivering"] ?? 0);
-  const dead = counts["dead"] ?? 0;
-  const delivered = counts["delivered"] ?? 0;
-  const failed = counts["failed"] ?? 0;
+  const counts = deliveriesQ.data;
+  const pending = (counts?.queued ?? 0) + (counts?.delivering ?? 0);
+  const dead = counts?.dead ?? 0;
+  const delivered = counts?.delivered ?? 0;
+  const failed = counts?.failed ?? 0;
 
   const openNew = () => setDraft({ ...EMPTY_DRAFT });
   const openEdit = (r: EndpointRow) =>

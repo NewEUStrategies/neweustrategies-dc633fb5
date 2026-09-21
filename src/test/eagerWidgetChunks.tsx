@@ -30,6 +30,7 @@ export {
   ClubCardView,
   ClubThreadsView,
 } from "@/components/builder/organisms/widget-view/ClubWidgets";
+export { ClubHubView } from "@/components/builder/organisms/widget-view/ClubHubView";
 export { WebStoriesCarouselView } from "@/components/builder/organisms/widget-view/WebStoriesCarouselView";
 export { NewsTickerView } from "@/components/builder/organisms/widget-view/NewsTickerView";
 export { TrendingNowView } from "@/components/builder/organisms/widget-view/TrendingNowView";
@@ -78,6 +79,8 @@ export { SpeakersWidget } from "@/components/builder/organisms/widget-view/Speak
 export { TeamMemberWidget } from "@/components/builder/organisms/widget-view/TeamMemberWidget";
 export { AuthorProfileCardWidget } from "@/components/builder/organisms/widget-view/AuthorProfileCardWidget";
 export { TravelRouteCardView } from "@/components/builder/organisms/widget-view/TravelRouteCardView";
+export { CoverOverlayCardView } from "@/components/builder/organisms/widget-view/CoverOverlayCardView";
+export { PromoCardView } from "@/components/builder/organisms/widget-view/PromoCardView";
 export { InteractiveCircleWidget } from "@/components/builder/organisms/widget-view/InteractiveCircleWidget";
 export { TocWidget } from "@/components/builder/organisms/widget-view/TocWidget";
 export { PricingPlansView } from "@/components/builder/organisms/widget-view/PricingPlansView";

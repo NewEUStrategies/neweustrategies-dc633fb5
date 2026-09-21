@@ -78,6 +78,8 @@ const h = vi.hoisted(() => ({
   toastError: vi.fn(),
   /** Propsy zapisane przez atrapy organizmów. */
   organism: {} as Record<string, Record<string, unknown>>,
+  /** Moje zgłoszenia klubów - lista wraz ze statusem rozpatrzenia. */
+  proposals: [] as { id: string; name_pl: string; status: string }[],
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
@@ -118,6 +120,9 @@ vi.mock("@/lib/clubs/useClubs", () => ({
     };
   },
   useMyClubInvitations: () => ({ data: h.invitations }),
+  // Zgloszenia klubow: sterowane z `h`, bo lista wlasnych zgloszen jest
+  // czescia hubu zalogowanego (blok „moje zgloszenia" pod paskiem sterowania).
+  useMyClubProposals: () => ({ data: h.proposals }),
   useRespondClubInvitation: () => ({
     mutate: (
       vars: RespondVars,
@@ -208,6 +213,15 @@ vi.mock("@/components/clubs/molecules/ClubTopicNav", () => ({
   ),
 }));
 
+// Dialog zgłoszenia klubu: marker, bo przedmiotem dowodu jest MOMENT montażu
+// (dopiero po kliknięciu), a nie jego formularz - ten ma własny zakres.
+vi.mock("@/components/clubs/molecules/ClubProposeDialog", () => ({
+  ClubProposeDialog: (props: Record<string, unknown>) => {
+    h.organism.ClubProposeDialog = props;
+    return <div data-testid="ClubProposeDialog" />;
+  },
+}));
+
 import { renderRoute, type RouteMetaEntry } from "@/test/routeHarness";
 import { buildClubHead } from "@/lib/clubs/clubHead";
 import { CLUB_IDS, clubListRow } from "@/test/clubs/fixtures";
@@ -260,6 +274,7 @@ beforeEach(() => {
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
   h.organism = {};
+  h.proposals = [];
 });
 
 // --- nagłówek --------------------------------------------------------------
@@ -324,6 +339,49 @@ describe("gość - mapa specjalizacji zamiast katalogu", () => {
     h.invitations = [{ id: "inv-1", club_id: CLUB_IDS.club }];
     await mount();
     expect(screen.queryByTestId("ClubInvitationInbox")).toBeNull();
+  });
+});
+
+describe("zalogowany - zgłoszenie własnego klubu", () => {
+  // Zgłoszenie jest JEDYNĄ drogą, którą członek zakłada klub - a cały ten
+  // blok (przycisk, dialog, lista własnych zgłoszeń) żyje wyłącznie
+  // w wariancie zalogowanym hubu.
+  it("dialog powstaje DOPIERO po kliknięciu, a nie z pierwszym renderem hubu", async () => {
+    // Formularz zgłoszenia jest ciężki i nie ma czego malować przy wejściu na
+    // katalog. Gdyby montował się bezwarunkowo, każde wejście na hub płaciłoby
+    // jego renderem za funkcję używaną raz na kilkaset odsłon.
+    await mount();
+    expect(screen.queryByTestId("ClubProposeDialog")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /club\.propose\.action/ }));
+
+    expect(screen.getByTestId("ClubProposeDialog")).toBeTruthy();
+    // Dialog dostaje OBA końce sterowania - bez `onOpenChange` nie da się go
+    // zamknąć, a przycisk otwierałby go wtedy raz na całe życie strony.
+    expect(h.organism.ClubProposeDialog.open).toBe(true);
+    expect(h.organism.ClubProposeDialog.onOpenChange).toBeTypeOf("function");
+  });
+
+  it("moje zgłoszenia są wypisane RAZEM ze statusem rozpatrzenia", async () => {
+    // Sam tytuł nie mówi nic: zgłaszający wraca na hub właśnie po to, żeby
+    // zobaczyć, czy zgłoszenie nadal czeka, czy zostało przyjęte.
+    h.proposals = [
+      { id: "prop-1", name_pl: "Klub Wodorowy", status: "pending" },
+      { id: "prop-2", name_pl: "Klub Kolejowy", status: "approved" },
+    ];
+
+    await mount();
+
+    expect(screen.getByText("club.propose.myTitle")).toBeTruthy();
+    expect(screen.getByText("Klub Wodorowy")).toBeTruthy();
+    expect(screen.getByText("club.propose.status.pending")).toBeTruthy();
+    expect(screen.getByText("Klub Kolejowy")).toBeTruthy();
+    expect(screen.getByText("club.propose.status.approved")).toBeTruthy();
+  });
+
+  it("bez zgłoszeń blok nie powstaje wcale - pusta sekcja byłaby szumem", async () => {
+    await mount();
+    expect(screen.queryByText("club.propose.myTitle")).toBeNull();
   });
 });
 

@@ -49,7 +49,8 @@ describe("TabsBlock - wyrównanie poziomego rzędu", () => {
     const row = container.querySelector(".justify-between");
     expect(row).not.toBeNull();
     for (const btn of screen.getAllByRole("tab")) {
-      expect(btn.className).toContain("flex-1");
+      // Równe rozciągnięcie na desktopie (na mobile flex-1 mają wszystkie).
+      expect(btn.className).toContain("sm:flex-1");
     }
   });
 
@@ -69,7 +70,80 @@ describe("TabsBlock - wyrównanie poziomego rzędu", () => {
       <TabsBlock tabs={tabs} lang="pl" nodeId="h-bogus" tabAlign={"bogus" as TabAlign} />,
     );
     expect(container.querySelector(".justify-start")).not.toBeNull();
-    expect(container.querySelector(".flex-1")).toBeNull();
+    // Bez justify zakładki na desktopie wracają do szerokości treści.
+    for (const btn of screen.getAllByRole("tab")) {
+      expect(btn.className).toContain("sm:flex-none");
+      expect(btn.className).not.toContain("sm:flex-1");
+    }
+  });
+});
+
+describe("TabsBlock - mobile bez przycinania", () => {
+  it("uses a stable two-column grid instead of clipping tabs on narrow screens", () => {
+    const { container } = render(<TabsBlock tabs={tabs} lang="pl" nodeId="m1" />);
+    const row = container.querySelector('[role="tablist"] > div');
+    expect(row).not.toBeNull();
+    expect(row?.className).toContain("grid-cols-2");
+    expect(row?.className).toContain("sm:flex");
+    for (const btn of screen.getAllByRole("tab")) {
+      expect(btn.className).toContain("w-full");
+      expect(btn.className).toContain("min-w-0");
+    }
+  });
+
+  it("lets long and wide panel content stay inside the screen", () => {
+    render(
+      <TabsBlock
+        tabs={[
+          {
+            label_pl: "Bardzo długa nazwa benefitu, która musi się zawinąć",
+            html_pl: "<table><tbody><tr><td>Dane</td></tr></tbody></table>",
+          },
+        ]}
+        lang="pl"
+        nodeId="m-wide"
+      />,
+    );
+    const panel = screen.getByRole("tabpanel");
+    expect(panel.className).toContain("w-full");
+    expect(panel.className).toContain("min-w-0");
+    expect(panel.className).toContain("max-w-full");
+    expect(panel.className).toContain("overflow-x-auto");
+    expect(panel.className).toContain("[overflow-wrap:anywhere]");
+    expect(panel.className).toContain("[&_*]:max-w-full");
+  });
+
+  it("centers the icon over the full tab width on mobile", () => {
+    const { container } = render(
+      <TabsBlock
+        tabs={[{ label_pl: "Z ikoną", html_pl: "<p>Ikonowa</p>", icon: "star" }]}
+        lang="pl"
+        nodeId="m3"
+      />,
+    );
+    const labelWrap = container.querySelector("button > span");
+    expect(labelWrap).not.toBeNull();
+    expect(labelWrap?.className).toContain("w-full");
+    expect(labelWrap?.className).toContain("flex-col");
+    expect(labelWrap?.className).toContain("items-center");
+    expect(labelWrap?.className).toContain("sm:flex-row");
+    const iconWrap = labelWrap?.querySelector("span[aria-hidden='true']");
+    expect(iconWrap).not.toBeNull();
+    expect(iconWrap?.className).toContain("justify-center");
+  });
+
+  it("uses the same two-column mobile grid for the vertical variant", () => {
+    const { container } = render(
+      <TabsBlock tabs={tabs} lang="pl" nodeId="m-vertical" orientation="vertical" />,
+    );
+    const row = container.querySelector('[role="tablist"] > div');
+    expect(row).not.toBeNull();
+    expect(row?.className).toContain("grid-cols-2");
+    expect(row?.className).toContain("md:flex");
+    for (const btn of screen.getAllByRole("tab")) {
+      expect(btn.className).toContain("w-full");
+      expect(btn.className).toContain("min-w-0");
+    }
   });
 });
 

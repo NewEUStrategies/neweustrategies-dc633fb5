@@ -22,17 +22,32 @@ import "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { guardDocumentResponse } from "./lib/http/documentStreamGuard.server";
+import { fetchWithFrameworkPreloads } from "./lib/http/frameworkPreloads.server";
 import {
   applyDeferredDocumentStore,
   revalidationHeader,
   setDocumentRevalidator,
 } from "./lib/http/documentCache.server";
-import { runAfterResponse } from "./lib/http/waitUntil.server";
 import { LANG_COOKIE } from "./lib/i18n/langCookie";
+import { buildDocumentLogLine } from "./lib/http/ssrTiming";
+import type { Register } from "@tanstack/react-router";
+import type { RequestHandler } from "@tanstack/react-start/server";
 
-type ServerEntry = {
-  fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
-};
+/**
+ * Kontrakt bundlowanego handlera bierzemy WPROST z frameworka, zamiast
+ * przepisywać go strukturalnie u siebie. `RequestHandler<Register>` to
+ * `(request: Request, opts?: RequestOptions<Register>)`
+ * (@tanstack/start-server-core/src/request-handler.ts:79-88), a `RequestOptions`
+ * ma dokładnie cztery pola: `context` | `inlineCss` | `onEarlyHints` |
+ * `responseLinkHeader` (tamże :60-68).
+ *
+ * Dlaczego typ frameworka, a nie własny: drugi argument nie może się już
+ * rozjechać z kontraktem. Gdy ktoś zadeklaruje `server.requestContext`
+ * w `Register`, `opts` przestanie być opcjonalne i `tsc` wskaże OBA wywołania
+ * `handler.fetch` w tym pliku - zamiast pozwolić im dalej wołać handler bez
+ * kontekstu, którego framework od tej chwili wymaga.
+ */
+type ServerEntry = { fetch: RequestHandler<Register> };
 
 let serverEntryPromise: Promise<ServerEntry> | undefined;
 
@@ -57,14 +72,19 @@ function isH3SwallowedErrorBody(body: string): boolean {
 // Klient rozłączył się w trakcie SSR (nawigacja/refresh) - to NIE jest błąd
 // aplikacji: nie logujemy i nie renderujemy strony błędu.
 function isClientAbort(request: Request, error?: unknown): boolean {
-  if (request.signal?.aborted) return true;
-  const err = error as
-    { code?: string; name?: string; message?: string; cause?: unknown } | undefined;
-  if (!err) return false;
-  const text = `${err.code ?? ""} ${err.name ?? ""} ${err.message ?? ""}`.toLowerCase();
-  if (text.includes("econnreset") || text.includes("aborted") || text.includes("abort"))
-    return true;
-  if (err.cause && err.cause !== error) return isClientAbort(request, err.cause);
+  if (request.signal.aborted) return true;
+  // Transport wrappers can form cycles in `cause`; never recurse indefinitely
+  // while deciding how to handle the original SSR failure.
+  const seen = new Set<unknown>();
+  let current = error;
+  while (current && !seen.has(current)) {
+    seen.add(current);
+    const err = current as { code?: string; name?: string; message?: string; cause?: unknown };
+    const text = `${err.code ?? ""} ${err.name ?? ""} ${err.message ?? ""}`.toLowerCase();
+    if (text.includes("econnreset") || text.includes("aborted") || text.includes("abort"))
+      return true;
+    current = err.cause;
+  }
   return false;
 }
 
@@ -98,33 +118,11 @@ async function normalizeCatastrophicSsrResponse(
   });
 }
 
-/**
- * Odświeżanie wpisów NES Edge Cache ZA odpowiedzią (stale-while-revalidate).
- *
- * Dlaczego tutaj, a nie w middleware: rewalidacja musi przejść PEŁNY potok
- * (router → normalizacja 500 → odroczony zapis), a `documentCache.server.ts`
- * zna tylko swoje middleware. Zwrócenie z middleware innej odpowiedzi niż ta,
- * którą zwrócił render, złamałoby tożsamość body koperty SSR i uruchomiło
- * `serverSsr.cleanup()` w trakcie streamowania - dokładnie mechanizm incydentu
- * ~61 s. Dlatego odświeżenie to OSOBNY, pełnoprawny przebieg potoku na
- * syntetycznym żądaniu: własny cykl życia renderu, tożsamość body nienaruszona.
- */
-
-/**
- * `env` workera jest stałe w obrębie deploymentu, więc ostatnio widziane
- * wystarcza przebiegowi w tle. `ctx` NIE jest - należy do konkretnego żądania
- * i po jego domknięciu `waitUntil` rzuca. Przebieg w tle dostaje więc własny
- * kontekst, którego `waitUntil` deleguje do modułowego `runAfterResponse`
- * (`cloudflare:workers`), ważnego niezależnie od cyklu życia pojedynczego ctx.
- */
-let lastEnv: unknown;
-
-const REVALIDATION_CTX = {
-  waitUntil(promise: Promise<unknown>): void {
-    runAfterResponse(Promise.resolve(promise));
-  },
-  passThroughOnException(): void {},
-};
+// Nitro's runtime arguments are not RequestOptions. Only our request-scoped
+// collector is passed in slot 2. It merges manifest modulepreloads AFTER h3's
+// header merge, before the deferred L1/L2 write, preserving font/image/locale
+// hints from loaders. Inline CSS stays disabled: the split public stylesheet
+// remains cacheable between routes instead of being copied into each document.
 
 /**
  * Nagłówki syntetycznego żądania odświeżenia. Świadomie WĄSKA lista:
@@ -159,15 +157,30 @@ function revalidationHeaders(request: Request): Headers {
   return headers;
 }
 
+/**
+ * Odświeżanie wpisów NES Edge Cache ZA odpowiedzią (stale-while-revalidate).
+ *
+ * Dlaczego tutaj, a nie w middleware: rewalidacja musi przejść PEŁNY potok
+ * (router → normalizacja 500 → odroczony zapis), a `documentCache.server.ts`
+ * zna tylko swoje middleware. Zwrócenie z middleware innej odpowiedzi niż ta,
+ * którą zwrócił render, złamałoby tożsamość body koperty SSR i uruchomiło
+ * `serverSsr.cleanup()` w trakcie streamowania - dokładnie mechanizm incydentu
+ * ~61 s. Dlatego odświeżenie to OSOBNY, pełnoprawny przebieg potoku na
+ * syntetycznym żądaniu: własny cykl życia renderu, tożsamość body nienaruszona.
+ */
 async function revalidateDocument(request: Request): Promise<boolean> {
   const synthetic = new Request(request.url, {
     method: "GET",
     headers: revalidationHeaders(request),
     redirect: "manual",
   });
+  const startedAt = Date.now();
   const handler = await getServerEntry();
-  const rendered = await handler.fetch(synthetic, lastEnv, REVALIDATION_CTX);
+  const rendered = await fetchWithFrameworkPreloads(handler.fetch, synthetic);
   const normalized = await normalizeCatastrophicSsrResponse(synthetic, rendered);
+  // Render w tle też idzie do logu - z flagą, bo to koszt CPU izolatu, a nie
+  // czas czytelnika; bez niej zaniżałby rozkład TTFB i zawyżał udział MISS.
+  logDocument(synthetic, normalized, 0, Date.now() - startedAt);
 
   let storeWork: Promise<boolean> | null = null;
   const finalized = applyDeferredDocumentStore(normalized, (work) => {
@@ -189,12 +202,46 @@ async function revalidateDocument(request: Request): Promise<boolean> {
 
 setDocumentRevalidator(revalidateDocument);
 
+/**
+ * Jedna linia JSON per dokument HTML do Workers Logs (audyt 0.1 / F40).
+ * Hosting zdejmuje `Server-Timing` i `x-nes-cache` z odpowiedzi, więc to
+ * JEDYNE miejsce, w którym rozkład TTFB na fazy i status cache przeżywają.
+ * Bez PII: sama ścieżka (bez query), status, liczby. Nigdy nie rzuca.
+ */
+function logDocument(
+  request: Request,
+  response: Response,
+  serverInitMs: number,
+  appMs: number,
+): void {
+  if (!response.headers.get("content-type")?.includes("text/html")) return;
+  try {
+    const [markerName, markerValue] = revalidationHeader();
+    console.log(
+      JSON.stringify(
+        buildDocumentLogLine({
+          path: new URL(request.url).pathname,
+          status: response.status,
+          cacheStatus: response.headers.get("x-nes-cache"),
+          serverTiming: response.headers.get("server-timing"),
+          serverInitMs,
+          appMs,
+          revalidation: request.headers.get(markerName) === markerValue,
+        }),
+      ),
+    );
+  } catch {
+    /* telemetria nie może zerwać potoku dokumentu */
+  }
+}
+
 export default {
-  async fetch(request: Request, env: unknown, ctx: unknown): Promise<Response> {
-    lastEnv = env;
+  async fetch(request: Request): Promise<Response> {
     try {
+      const startedAt = Date.now();
       const handler = await getServerEntry();
-      const response = await handler.fetch(request, env, ctx);
+      const initializedAt = Date.now();
+      const response = await fetchWithFrameworkPreloads(handler.fetch, request);
       const normalized = await normalizeCatastrophicSsrResponse(request, response);
       // Odroczony zapis NES Edge Cache: tee strumienia dokumentu MUSI się
       // wydarzyć dopiero tutaj, ZA egzekutorem middleware TanStack Start -
@@ -204,7 +251,21 @@ export default {
       const stored = applyDeferredDocumentStore(normalized);
       // Dokumenty HTML wychodzą wyłącznie przez strażnika strumienia - body
       // ZAWSZE się kończy, niezależnie od stanu serializacji frameworka.
-      return guardDocumentResponse(request, stored);
+      const guarded = guardDocumentResponse(request, stored);
+      if (!guarded.headers.get("content-type")?.includes("text/html")) return guarded;
+      // Measured outside the router's SSR budget and outside the cache write:
+      // includes current middleware and cache lookup work on both MISS/HIT.
+      // Body streaming and network transport happen later, so this is not TTFB.
+      const serverInitMs = initializedAt - startedAt;
+      const appMs = Date.now() - startedAt;
+      logDocument(request, guarded, serverInitMs, appMs);
+      const headers = new Headers(guarded.headers);
+      headers.append("server-timing", `server-init;dur=${serverInitMs}, app;dur=${appMs}`);
+      return new Response(guarded.body, {
+        status: guarded.status,
+        statusText: guarded.statusText,
+        headers,
+      });
     } catch (error) {
       if (isClientAbort(request, error)) {
         return new Response(null, { status: 499, headers: { "cache-control": "no-store" } });

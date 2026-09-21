@@ -11,28 +11,38 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ZwrotyIReklamacjeRouteImport } from './routes/zwroty-i-reklamacje'
 import { Route as ZatrudniamyRouteImport } from './routes/zatrudniamy'
+import { Route as ZarzadzaniePolitykaPrywatnosciRouteImport } from './routes/zarzadzanie-polityka-prywatnosci'
+import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as SupportRouteImport } from './routes/support'
+import { Route as StatutRouteImport } from './routes/statut'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SitemapIndexDotxmlRouteImport } from './routes/sitemap-index[.]xml'
 import { Route as SitemapRouteImport } from './routes/sitemap'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as ScannerRouteImport } from './routes/scanner'
 import { Route as RssDotxmlRouteImport } from './routes/rss[.]xml'
+import { Route as RodoRouteImport } from './routes/rodo'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as RegulaminWydarzenIBiletowRouteImport } from './routes/regulamin-wydarzen-i-biletow'
+import { Route as RegulaminSubskrypcjiIZakupowRouteImport } from './routes/regulamin-subskrypcji-i-zakupow'
+import { Route as RegulaminKlubowDyskusyjnychRouteImport } from './routes/regulamin-klubow-dyskusyjnych'
 import { Route as RegulaminRouteImport } from './routes/regulamin'
 import { Route as ReadingListRouteImport } from './routes/reading-list'
 import { Route as QuizRouteImport } from './routes/quiz'
 import { Route as QaRouteImport } from './routes/qa'
 import { Route as PublicationsRouteImport } from './routes/publications'
+import { Route as PrzejrzystoscAiRouteImport } from './routes/przejrzystosc-ai'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PollsRouteImport } from './routes/polls'
+import { Route as PolitykaPrzetwarzaniaDanychRouteImport } from './routes/polityka-przetwarzania-danych'
 import { Route as PolitykaPrywatnosciRouteImport } from './routes/polityka-prywatnosci'
 import { Route as PeopleRouteImport } from './routes/people'
 import { Route as NewsSitemapDotxmlRouteImport } from './routes/news-sitemap[.]xml'
 import { Route as NetworkRouteImport } from './routes/network'
+import { Route as ModeracjaKomentarzyRouteImport } from './routes/moderacja-komentarzy'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as MembershipRegistrationRouteImport } from './routes/membership-registration'
 import { Route as MembershipJoinRouteImport } from './routes/membership-join'
@@ -41,6 +51,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
 import { Route as LiveRouteImport } from './routes/live'
 import { Route as LibraryRouteImport } from './routes/library'
+import { Route as KomunikacjaIMarketingRouteImport } from './routes/komunikacja-i-marketing'
 import { Route as GlossaryRouteImport } from './routes/glossary'
 import { Route as FeedRouteImport } from './routes/feed'
 import { Route as ExpertsRouteImport } from './routes/experts'
@@ -86,6 +97,7 @@ import { Route as ProfileOrganizationRouteImport } from './routes/profile.organi
 import { Route as ProfileOrdersRouteImport } from './routes/profile.orders'
 import { Route as ProfileNotificationsRouteImport } from './routes/profile.notifications'
 import { Route as ProfileMembershipRouteImport } from './routes/profile.membership'
+import { Route as ProfileInvoicesRouteImport } from './routes/profile.invoices'
 import { Route as ProfileInterestsRouteImport } from './routes/profile.interests'
 import { Route as ProfileFollowsRouteImport } from './routes/profile.follows'
 import { Route as ProfileExpertRequestsRouteImport } from './routes/profile.expert-requests'
@@ -104,18 +116,22 @@ import { Route as PlansPlanIdRouteImport } from './routes/plans.$planId'
 import { Route as NewsletterUnsubscribeRouteImport } from './routes/newsletter.unsubscribe'
 import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
 import { Route as MeetingsEventSlugRouteImport } from './routes/meetings.$eventSlug'
+import { Route as MediaSplatRouteImport } from './routes/media.$'
 import { Route as LiveRssDotxmlRouteImport } from './routes/live_.rss[.]xml'
 import { Route as EventsSavedRouteImport } from './routes/events.saved'
 import { Route as EventsSlugRouteImport } from './routes/events.$slug'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as ClubElementsRouteImport } from './routes/club.elements'
 import { Route as ClubApplyRouteImport } from './routes/club.apply'
+import { Route as ClubClubSlugRouteImport } from './routes/club.$clubSlug'
 import { Route as CheckoutSuccessRouteImport } from './routes/checkout.success'
 import { Route as CheckoutCancelRouteImport } from './routes/checkout.cancel'
 import { Route as CheckoutPlanIdRouteImport } from './routes/checkout.$planId'
 import { Route as CategorySlugRouteImport } from './routes/category.$slug'
 import { Route as AuthorSlugRouteImport } from './routes/author.$slug'
 import { Route as OrganizationSlugRouteImport } from './routes/organization.$slug'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
+import { Route as AuthActivateRouteImport } from './routes/auth.activate'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as ApiSttRouteImport } from './routes/api/stt'
 import { Route as AdminWorkflowsRouteImport } from './routes/admin.workflows'
@@ -151,6 +167,7 @@ import { Route as AdminNamesRouteImport } from './routes/admin.names'
 import { Route as AdminMonetizationLedgerRouteImport } from './routes/admin.monetization-ledger'
 import { Route as AdminMonetizationRouteImport } from './routes/admin.monetization'
 import { Route as AdminMembershipRouteImport } from './routes/admin.membership'
+import { Route as AdminMembersRouteImport } from './routes/admin.members'
 import { Route as AdminMediaRouteImport } from './routes/admin.media'
 import { Route as AdminLoginSettingsRouteImport } from './routes/admin.login-settings'
 import { Route as AdminLiveBlogRouteImport } from './routes/admin.live-blog'
@@ -197,12 +214,14 @@ import { Route as EventsSlugIndexRouteImport } from './routes/events.$slug.index
 import { Route as ClubClubSlugIndexRouteImport } from './routes/club.$clubSlug.index'
 import { Route as AdminUsersIndexRouteImport } from './routes/admin.users.index'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
+import { Route as AdminSeoIndexRouteImport } from './routes/admin.seo.index'
 import { Route as AdminNewsletterIndexRouteImport } from './routes/admin.newsletter.index'
 import { Route as AdminEventsIndexRouteImport } from './routes/admin.events.index'
 import { Route as AdminCrmIndexRouteImport } from './routes/admin.crm.index'
 import { Route as AdminCouponsIndexRouteImport } from './routes/admin.coupons.index'
 import { Route as AdminCompaniesIndexRouteImport } from './routes/admin.companies.index'
 import { Route as AdminCommunityIndexRouteImport } from './routes/admin.community.index'
+import { Route as AdminAnalyticsIndexRouteImport } from './routes/admin.analytics.index'
 import { Route as WebStoriesSlugAmpRouteImport } from './routes/web-stories.$slug.amp'
 import { Route as TagSlugRssDotxmlRouteImport } from './routes/tag.$slug.rss[.]xml'
 import { Route as ProgramsSlugRssDotxmlRouteImport } from './routes/programs.$slug.rss[.]xml'
@@ -265,7 +284,10 @@ import { Route as AdminSettingsDiscussionRouteImport } from './routes/admin.sett
 import { Route as AdminSettingsDesignRouteImport } from './routes/admin.settings.design'
 import { Route as AdminSettingsCookieBannerRouteImport } from './routes/admin.settings.cookie-banner'
 import { Route as AdminSettingsAnalyticsRouteImport } from './routes/admin.settings.analytics'
+import { Route as AdminSeoSocialRouteImport } from './routes/admin.seo.social'
 import { Route as AdminSeoSearchConsoleRouteImport } from './routes/admin.seo.search-console'
+import { Route as AdminSeoHomepageRouteImport } from './routes/admin.seo.homepage'
+import { Route as AdminSeoContentRouteImport } from './routes/admin.seo.content'
 import { Route as AdminPostsNewRouteImport } from './routes/admin.posts.new'
 import { Route as AdminPostsCalendarRouteImport } from './routes/admin.posts.calendar'
 import { Route as AdminPostsSlugRouteImport } from './routes/admin.posts.$slug'
@@ -278,6 +300,7 @@ import { Route as AdminNewsletterSystemEmailsRouteImport } from './routes/admin.
 import { Route as AdminNewsletterSubscribersRouteImport } from './routes/admin.newsletter.subscribers'
 import { Route as AdminNewsletterPopupRouteImport } from './routes/admin.newsletter.popup'
 import { Route as AdminNewsletterOverviewRouteImport } from './routes/admin.newsletter.overview'
+import { Route as AdminNewsletterOutboxRouteImport } from './routes/admin.newsletter.outbox'
 import { Route as AdminNewsletterInlineRouteImport } from './routes/admin.newsletter.inline'
 import { Route as AdminNewsletterEmailPreviewRouteImport } from './routes/admin.newsletter.email-preview'
 import { Route as AdminNewsletterEmailContentRouteImport } from './routes/admin.newsletter.email-content'
@@ -313,7 +336,9 @@ import { Route as AdminAppearanceMenuRouteImport } from './routes/admin.appearan
 import { Route as AdminAppearanceHeaderRouteImport } from './routes/admin.appearance.header'
 import { Route as AdminAppearanceGlobalColorsRouteImport } from './routes/admin.appearance.global-colors'
 import { Route as AdminAppearanceFooterRouteImport } from './routes/admin.appearance.footer'
+import { Route as AdminAppearanceFontSizesRouteImport } from './routes/admin.appearance.font-sizes'
 import { Route as AdminAppearanceCategoryArchiveRouteImport } from './routes/admin.appearance.category-archive'
+import { Route as AdminAnalyticsBiRouteImport } from './routes/admin.analytics.bi'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 import { Route as AdminNewsletterCampaignsIndexRouteImport } from './routes/admin.newsletter.campaigns.index'
 import { Route as AdminEventsEventIdIndexRouteImport } from './routes/admin.events_.$eventId.index'
@@ -389,6 +414,17 @@ const ZatrudniamyRoute = ZatrudniamyRouteImport.update({
   path: '/zatrudniamy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ZarzadzaniePolitykaPrywatnosciRoute =
+  ZarzadzaniePolitykaPrywatnosciRouteImport.update({
+    id: '/zarzadzanie-polityka-prywatnosci',
+    path: '/zarzadzanie-polityka-prywatnosci',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UnsubscribeRoute = UnsubscribeRouteImport.update({
   id: '/unsubscribe',
   path: '/unsubscribe',
@@ -397,6 +433,11 @@ const UnsubscribeRoute = UnsubscribeRouteImport.update({
 const SupportRoute = SupportRouteImport.update({
   id: '/support',
   path: '/support',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StatutRoute = StatutRouteImport.update({
+  id: '/statut',
+  path: '/statut',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -429,6 +470,11 @@ const RssDotxmlRoute = RssDotxmlRouteImport.update({
   path: '/rss.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RodoRoute = RodoRouteImport.update({
+  id: '/rodo',
+  path: '/rodo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
   id: '/robots.txt',
   path: '/robots.txt',
@@ -439,6 +485,24 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
   path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RegulaminWydarzenIBiletowRoute =
+  RegulaminWydarzenIBiletowRouteImport.update({
+    id: '/regulamin-wydarzen-i-biletow',
+    path: '/regulamin-wydarzen-i-biletow',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const RegulaminSubskrypcjiIZakupowRoute =
+  RegulaminSubskrypcjiIZakupowRouteImport.update({
+    id: '/regulamin-subskrypcji-i-zakupow',
+    path: '/regulamin-subskrypcji-i-zakupow',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const RegulaminKlubowDyskusyjnychRoute =
+  RegulaminKlubowDyskusyjnychRouteImport.update({
+    id: '/regulamin-klubow-dyskusyjnych',
+    path: '/regulamin-klubow-dyskusyjnych',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const RegulaminRoute = RegulaminRouteImport.update({
   id: '/regulamin',
   path: '/regulamin',
@@ -464,6 +528,11 @@ const PublicationsRoute = PublicationsRouteImport.update({
   path: '/publications',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrzejrzystoscAiRoute = PrzejrzystoscAiRouteImport.update({
+  id: '/przejrzystosc-ai',
+  path: '/przejrzystosc-ai',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -479,6 +548,12 @@ const PollsRoute = PollsRouteImport.update({
   path: '/polls',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PolitykaPrzetwarzaniaDanychRoute =
+  PolitykaPrzetwarzaniaDanychRouteImport.update({
+    id: '/polityka-przetwarzania-danych',
+    path: '/polityka-przetwarzania-danych',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const PolitykaPrywatnosciRoute = PolitykaPrywatnosciRouteImport.update({
   id: '/polityka-prywatnosci',
   path: '/polityka-prywatnosci',
@@ -497,6 +572,11 @@ const NewsSitemapDotxmlRoute = NewsSitemapDotxmlRouteImport.update({
 const NetworkRoute = NetworkRouteImport.update({
   id: '/network',
   path: '/network',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ModeracjaKomentarzyRoute = ModeracjaKomentarzyRouteImport.update({
+  id: '/moderacja-komentarzy',
+  path: '/moderacja-komentarzy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MessagesRoute = MessagesRouteImport.update({
@@ -537,6 +617,11 @@ const LiveRoute = LiveRouteImport.update({
 const LibraryRoute = LibraryRouteImport.update({
   id: '/library',
   path: '/library',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KomunikacjaIMarketingRoute = KomunikacjaIMarketingRouteImport.update({
+  id: '/komunikacja-i-marketing',
+  path: '/komunikacja-i-marketing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GlossaryRoute = GlossaryRouteImport.update({
@@ -764,6 +849,11 @@ const ProfileMembershipRoute = ProfileMembershipRouteImport.update({
   path: '/membership',
   getParentRoute: () => ProfileRoute,
 } as any)
+const ProfileInvoicesRoute = ProfileInvoicesRouteImport.update({
+  id: '/invoices',
+  path: '/invoices',
+  getParentRoute: () => ProfileRoute,
+} as any)
 const ProfileInterestsRoute = ProfileInterestsRouteImport.update({
   id: '/interests',
   path: '/interests',
@@ -854,6 +944,11 @@ const MeetingsEventSlugRoute = MeetingsEventSlugRouteImport.update({
   path: '/meetings/$eventSlug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MediaSplatRoute = MediaSplatRouteImport.update({
+  id: '/media/$',
+  path: '/media/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LiveRssDotxmlRoute = LiveRssDotxmlRouteImport.update({
   id: '/live_/rss.xml',
   path: '/live/rss.xml',
@@ -884,6 +979,11 @@ const ClubApplyRoute = ClubApplyRouteImport.update({
   path: '/apply',
   getParentRoute: () => ClubRoute,
 } as any)
+const ClubClubSlugRoute = ClubClubSlugRouteImport.update({
+  id: '/$clubSlug',
+  path: '/$clubSlug',
+  getParentRoute: () => ClubRoute,
+} as any)
 const CheckoutSuccessRoute = CheckoutSuccessRouteImport.update({
   id: '/checkout/success',
   path: '/checkout/success',
@@ -912,6 +1012,16 @@ const AuthorSlugRoute = AuthorSlugRouteImport.update({
 const OrganizationSlugRoute = OrganizationSlugRouteImport.update({
   id: '/organization/$slug',
   path: '/organization/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth/callback',
+  path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthActivateRoute = AuthActivateRouteImport.update({
+  id: '/auth/activate',
+  path: '/auth/activate',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTtsRoute = ApiTtsRouteImport.update({
@@ -1087,6 +1197,11 @@ const AdminMonetizationRoute = AdminMonetizationRouteImport.update({
 const AdminMembershipRoute = AdminMembershipRouteImport.update({
   id: '/membership',
   path: '/membership',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminMembersRoute = AdminMembersRouteImport.update({
+  id: '/members',
+  path: '/members',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminMediaRoute = AdminMediaRouteImport.update({
@@ -1308,9 +1423,9 @@ const EventsSlugIndexRoute = EventsSlugIndexRouteImport.update({
   getParentRoute: () => EventsSlugRoute,
 } as any)
 const ClubClubSlugIndexRoute = ClubClubSlugIndexRouteImport.update({
-  id: '/$clubSlug/',
-  path: '/$clubSlug/',
-  getParentRoute: () => ClubRoute,
+  id: '/',
+  path: '/',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const AdminUsersIndexRoute = AdminUsersIndexRouteImport.update({
   id: '/',
@@ -1321,6 +1436,11 @@ const AdminSettingsIndexRoute = AdminSettingsIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminSettingsRoute,
+} as any)
+const AdminSeoIndexRoute = AdminSeoIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminSeoRoute,
 } as any)
 const AdminNewsletterIndexRoute = AdminNewsletterIndexRouteImport.update({
   id: '/',
@@ -1351,6 +1471,11 @@ const AdminCommunityIndexRoute = AdminCommunityIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminCommunityRoute,
+} as any)
+const AdminAnalyticsIndexRoute = AdminAnalyticsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminAnalyticsRoute,
 } as any)
 const WebStoriesSlugAmpRoute = WebStoriesSlugAmpRouteImport.update({
   id: '/amp',
@@ -1449,59 +1574,59 @@ const ClubJoinTokenRoute = ClubJoinTokenRouteImport.update({
   getParentRoute: () => ClubRoute,
 } as any)
 const ClubClubSlugSpotlightRoute = ClubClubSlugSpotlightRouteImport.update({
-  id: '/$clubSlug/spotlight',
-  path: '/$clubSlug/spotlight',
-  getParentRoute: () => ClubRoute,
+  id: '/spotlight',
+  path: '/spotlight',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ClubClubSlugScheduleRoute = ClubClubSlugScheduleRouteImport.update({
-  id: '/$clubSlug/schedule',
-  path: '/$clubSlug/schedule',
-  getParentRoute: () => ClubRoute,
+  id: '/schedule',
+  path: '/schedule',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ClubClubSlugNewRoute = ClubClubSlugNewRouteImport.update({
-  id: '/$clubSlug/new',
-  path: '/$clubSlug/new',
-  getParentRoute: () => ClubRoute,
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ClubClubSlugMinisiteRoute = ClubClubSlugMinisiteRouteImport.update({
-  id: '/$clubSlug/minisite',
-  path: '/$clubSlug/minisite',
-  getParentRoute: () => ClubRoute,
+  id: '/minisite',
+  path: '/minisite',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ClubClubSlugMembersRoute = ClubClubSlugMembersRouteImport.update({
-  id: '/$clubSlug/members',
-  path: '/$clubSlug/members',
-  getParentRoute: () => ClubRoute,
+  id: '/members',
+  path: '/members',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ClubClubSlugInsightsRoute = ClubClubSlugInsightsRouteImport.update({
-  id: '/$clubSlug/insights',
-  path: '/$clubSlug/insights',
-  getParentRoute: () => ClubRoute,
+  id: '/insights',
+  path: '/insights',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ClubClubSlugExpertsRoute = ClubClubSlugExpertsRouteImport.update({
-  id: '/$clubSlug/experts',
-  path: '/$clubSlug/experts',
-  getParentRoute: () => ClubRoute,
+  id: '/experts',
+  path: '/experts',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ClubClubSlugDocumentsRoute = ClubClubSlugDocumentsRouteImport.update({
-  id: '/$clubSlug/documents',
-  path: '/$clubSlug/documents',
-  getParentRoute: () => ClubRoute,
+  id: '/documents',
+  path: '/documents',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ClubClubSlugCalendarRoute = ClubClubSlugCalendarRouteImport.update({
-  id: '/$clubSlug/calendar',
-  path: '/$clubSlug/calendar',
-  getParentRoute: () => ClubRoute,
+  id: '/calendar',
+  path: '/calendar',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ClubClubSlugBoardRoute = ClubClubSlugBoardRouteImport.update({
-  id: '/$clubSlug/board',
-  path: '/$clubSlug/board',
-  getParentRoute: () => ClubRoute,
+  id: '/board',
+  path: '/board',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ClubClubSlugAboutRoute = ClubClubSlugAboutRouteImport.update({
-  id: '/$clubSlug/about',
-  path: '/$clubSlug/about',
-  getParentRoute: () => ClubRoute,
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const CategorySlugRssDotxmlRoute = CategorySlugRssDotxmlRouteImport.update({
   id: '/rss.xml',
@@ -1669,9 +1794,24 @@ const AdminSettingsAnalyticsRoute = AdminSettingsAnalyticsRouteImport.update({
   path: '/analytics',
   getParentRoute: () => AdminSettingsRoute,
 } as any)
+const AdminSeoSocialRoute = AdminSeoSocialRouteImport.update({
+  id: '/social',
+  path: '/social',
+  getParentRoute: () => AdminSeoRoute,
+} as any)
 const AdminSeoSearchConsoleRoute = AdminSeoSearchConsoleRouteImport.update({
   id: '/search-console',
   path: '/search-console',
+  getParentRoute: () => AdminSeoRoute,
+} as any)
+const AdminSeoHomepageRoute = AdminSeoHomepageRouteImport.update({
+  id: '/homepage',
+  path: '/homepage',
+  getParentRoute: () => AdminSeoRoute,
+} as any)
+const AdminSeoContentRoute = AdminSeoContentRouteImport.update({
+  id: '/content',
+  path: '/content',
   getParentRoute: () => AdminSeoRoute,
 } as any)
 const AdminPostsNewRoute = AdminPostsNewRouteImport.update({
@@ -1734,6 +1874,11 @@ const AdminNewsletterPopupRoute = AdminNewsletterPopupRouteImport.update({
 const AdminNewsletterOverviewRoute = AdminNewsletterOverviewRouteImport.update({
   id: '/overview',
   path: '/overview',
+  getParentRoute: () => AdminNewsletterRoute,
+} as any)
+const AdminNewsletterOutboxRoute = AdminNewsletterOutboxRouteImport.update({
+  id: '/outbox',
+  path: '/outbox',
   getParentRoute: () => AdminNewsletterRoute,
 } as any)
 const AdminNewsletterInlineRoute = AdminNewsletterInlineRouteImport.update({
@@ -1922,12 +2067,23 @@ const AdminAppearanceFooterRoute = AdminAppearanceFooterRouteImport.update({
   path: '/footer',
   getParentRoute: () => AdminAppearanceRoute,
 } as any)
+const AdminAppearanceFontSizesRoute =
+  AdminAppearanceFontSizesRouteImport.update({
+    id: '/font-sizes',
+    path: '/font-sizes',
+    getParentRoute: () => AdminAppearanceRoute,
+  } as any)
 const AdminAppearanceCategoryArchiveRoute =
   AdminAppearanceCategoryArchiveRouteImport.update({
     id: '/category-archive',
     path: '/category-archive',
     getParentRoute: () => AdminAppearanceRoute,
   } as any)
+const AdminAnalyticsBiRoute = AdminAnalyticsBiRouteImport.update({
+  id: '/bi',
+  path: '/bi',
+  getParentRoute: () => AdminAnalyticsRoute,
+} as any)
 const Char91DotmcpChar93InvokeToolToolRoute =
   Char91DotmcpChar93InvokeToolToolRouteImport.update({
     id: '/.mcp/invoke-tool/$tool',
@@ -2009,14 +2165,14 @@ const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClubClubSlugTThreadSlugRoute = ClubClubSlugTThreadSlugRouteImport.update({
-  id: '/$clubSlug/t/$threadSlug',
-  path: '/$clubSlug/t/$threadSlug',
-  getParentRoute: () => ClubRoute,
+  id: '/t/$threadSlug',
+  path: '/t/$threadSlug',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ClubClubSlugEEventSlugRoute = ClubClubSlugEEventSlugRouteImport.update({
-  id: '/$clubSlug/e/$eventSlug',
-  path: '/$clubSlug/e/$eventSlug',
-  getParentRoute: () => ClubRoute,
+  id: '/e/$eventSlug',
+  path: '/e/$eventSlug',
+  getParentRoute: () => ClubClubSlugRoute,
 } as any)
 const ApiPublicWebhooksResendRoute = ApiPublicWebhooksResendRouteImport.update({
   id: '/api/public/webhooks/resend',
@@ -2319,6 +2475,7 @@ export interface FileRoutesByFullPath {
   '/experts': typeof ExpertsRoute
   '/feed': typeof FeedRoute
   '/glossary': typeof GlossaryRoute
+  '/komunikacja-i-marketing': typeof KomunikacjaIMarketingRoute
   '/library': typeof LibraryRoute
   '/live': typeof LiveRoute
   '/llms.txt': typeof LlmsDottxtRoute
@@ -2327,35 +2484,45 @@ export interface FileRoutesByFullPath {
   '/membership-join': typeof MembershipJoinRoute
   '/membership-registration': typeof MembershipRegistrationRoute
   '/messages': typeof MessagesRoute
+  '/moderacja-komentarzy': typeof ModeracjaKomentarzyRoute
   '/network': typeof NetworkRouteWithChildren
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
   '/polityka-prywatnosci': typeof PolitykaPrywatnosciRoute
+  '/polityka-przetwarzania-danych': typeof PolitykaPrzetwarzaniaDanychRoute
   '/polls': typeof PollsRoute
   '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRouteWithChildren
+  '/przejrzystosc-ai': typeof PrzejrzystoscAiRoute
   '/publications': typeof PublicationsRoute
   '/qa': typeof QaRouteWithChildren
   '/quiz': typeof QuizRoute
   '/reading-list': typeof ReadingListRoute
   '/regulamin': typeof RegulaminRoute
+  '/regulamin-klubow-dyskusyjnych': typeof RegulaminKlubowDyskusyjnychRoute
+  '/regulamin-subskrypcji-i-zakupow': typeof RegulaminSubskrypcjiIZakupowRoute
+  '/regulamin-wydarzen-i-biletow': typeof RegulaminWydarzenIBiletowRoute
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
+  '/rodo': typeof RodoRoute
   '/rss.xml': typeof RssDotxmlRoute
   '/scanner': typeof ScannerRoute
   '/search': typeof SearchRoute
   '/sitemap': typeof SitemapRoute
   '/sitemap-index.xml': typeof SitemapIndexDotxmlRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/statut': typeof StatutRoute
   '/support': typeof SupportRoute
   '/unsubscribe': typeof UnsubscribeRoute
+  '/welcome': typeof WelcomeRoute
+  '/zarzadzanie-polityka-prywatnosci': typeof ZarzadzaniePolitykaPrywatnosciRoute
   '/zatrudniamy': typeof ZatrudniamyRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/gpc.json': typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
-  '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/analytics': typeof AdminAnalyticsRouteWithChildren
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/audience': typeof AdminAudienceRoute
   '/admin/authors': typeof AdminAuthorsRoute
@@ -2393,6 +2560,7 @@ export interface FileRoutesByFullPath {
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
+  '/admin/members': typeof AdminMembersRoute
   '/admin/membership': typeof AdminMembershipRoute
   '/admin/monetization': typeof AdminMonetizationRoute
   '/admin/monetization-ledger': typeof AdminMonetizationLedgerRoute
@@ -2428,18 +2596,22 @@ export interface FileRoutesByFullPath {
   '/admin/workflows': typeof AdminWorkflowsRoute
   '/api/stt': typeof ApiSttRoute
   '/api/tts': typeof ApiTtsRoute
+  '/auth/activate': typeof AuthActivateRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/author/$slug': typeof AuthorSlugRoute
   '/organization/$slug': typeof OrganizationSlugRoute
   '/category/$slug': typeof CategorySlugRouteWithChildren
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
+  '/club/$clubSlug': typeof ClubClubSlugRouteWithChildren
   '/club/apply': typeof ClubApplyRoute
   '/club/elements': typeof ClubElementsRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/events/$slug': typeof EventsSlugRouteWithChildren
   '/events/saved': typeof EventsSavedRoute
   '/live/rss.xml': typeof LiveRssDotxmlRoute
+  '/media/$': typeof MediaSplatRoute
   '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
@@ -2458,6 +2630,7 @@ export interface FileRoutesByFullPath {
   '/profile/expert-requests': typeof ProfileExpertRequestsRoute
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
+  '/profile/invoices': typeof ProfileInvoicesRoute
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/notifications': typeof ProfileNotificationsRoute
   '/profile/orders': typeof ProfileOrdersRoute
@@ -2490,7 +2663,9 @@ export interface FileRoutesByFullPath {
   '/tracker/': typeof TrackerIndexRoute
   '/web-stories/': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/admin/analytics/bi': typeof AdminAnalyticsBiRoute
   '/admin/appearance/category-archive': typeof AdminAppearanceCategoryArchiveRoute
+  '/admin/appearance/font-sizes': typeof AdminAppearanceFontSizesRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
@@ -2526,6 +2701,7 @@ export interface FileRoutesByFullPath {
   '/admin/newsletter/email-content': typeof AdminNewsletterEmailContentRoute
   '/admin/newsletter/email-preview': typeof AdminNewsletterEmailPreviewRoute
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
+  '/admin/newsletter/outbox': typeof AdminNewsletterOutboxRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
   '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
@@ -2538,7 +2714,10 @@ export interface FileRoutesByFullPath {
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/calendar': typeof AdminPostsCalendarRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/seo/content': typeof AdminSeoContentRoute
+  '/admin/seo/homepage': typeof AdminSeoHomepageRoute
   '/admin/seo/search-console': typeof AdminSeoSearchConsoleRoute
+  '/admin/seo/social': typeof AdminSeoSocialRoute
   '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
   '/admin/settings/cookie-banner': typeof AdminSettingsCookieBannerRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
@@ -2601,12 +2780,14 @@ export interface FileRoutesByFullPath {
   '/programs/$slug/rss.xml': typeof ProgramsSlugRssDotxmlRoute
   '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
   '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
+  '/admin/analytics/': typeof AdminAnalyticsIndexRoute
   '/admin/community/': typeof AdminCommunityIndexRoute
   '/admin/companies/': typeof AdminCompaniesIndexRoute
   '/admin/coupons/': typeof AdminCouponsIndexRoute
   '/admin/crm/': typeof AdminCrmIndexRoute
   '/admin/events/': typeof AdminEventsIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
+  '/admin/seo/': typeof AdminSeoIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
   '/club/$clubSlug/': typeof ClubClubSlugIndexRoute
@@ -2687,6 +2868,7 @@ export interface FileRoutesByTo {
   '/experts': typeof ExpertsRoute
   '/feed': typeof FeedRoute
   '/glossary': typeof GlossaryRoute
+  '/komunikacja-i-marketing': typeof KomunikacjaIMarketingRoute
   '/library': typeof LibraryRoute
   '/live': typeof LiveRoute
   '/llms.txt': typeof LlmsDottxtRoute
@@ -2695,34 +2877,43 @@ export interface FileRoutesByTo {
   '/membership-join': typeof MembershipJoinRoute
   '/membership-registration': typeof MembershipRegistrationRoute
   '/messages': typeof MessagesRoute
+  '/moderacja-komentarzy': typeof ModeracjaKomentarzyRoute
   '/network': typeof NetworkRouteWithChildren
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
   '/polityka-prywatnosci': typeof PolitykaPrywatnosciRoute
+  '/polityka-przetwarzania-danych': typeof PolitykaPrzetwarzaniaDanychRoute
   '/polls': typeof PollsRoute
   '/pricing': typeof PricingRoute
+  '/przejrzystosc-ai': typeof PrzejrzystoscAiRoute
   '/publications': typeof PublicationsRoute
   '/qa': typeof QaRouteWithChildren
   '/quiz': typeof QuizRoute
   '/reading-list': typeof ReadingListRoute
   '/regulamin': typeof RegulaminRoute
+  '/regulamin-klubow-dyskusyjnych': typeof RegulaminKlubowDyskusyjnychRoute
+  '/regulamin-subskrypcji-i-zakupow': typeof RegulaminSubskrypcjiIZakupowRoute
+  '/regulamin-wydarzen-i-biletow': typeof RegulaminWydarzenIBiletowRoute
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
+  '/rodo': typeof RodoRoute
   '/rss.xml': typeof RssDotxmlRoute
   '/scanner': typeof ScannerRoute
   '/search': typeof SearchRoute
   '/sitemap': typeof SitemapRoute
   '/sitemap-index.xml': typeof SitemapIndexDotxmlRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/statut': typeof StatutRoute
   '/support': typeof SupportRoute
   '/unsubscribe': typeof UnsubscribeRoute
+  '/welcome': typeof WelcomeRoute
+  '/zarzadzanie-polityka-prywatnosci': typeof ZarzadzaniePolitykaPrywatnosciRoute
   '/zatrudniamy': typeof ZatrudniamyRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/gpc.json': typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
-  '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/audience': typeof AdminAudienceRoute
   '/admin/authors': typeof AdminAuthorsRoute
@@ -2755,6 +2946,7 @@ export interface FileRoutesByTo {
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
+  '/admin/members': typeof AdminMembersRoute
   '/admin/membership': typeof AdminMembershipRoute
   '/admin/monetization': typeof AdminMonetizationRoute
   '/admin/monetization-ledger': typeof AdminMonetizationLedgerRoute
@@ -2775,7 +2967,6 @@ export interface FileRoutesByTo {
   '/admin/redirects': typeof AdminRedirectsRoute
   '/admin/related-posts': typeof AdminRelatedPostsRoute
   '/admin/research-programs': typeof AdminResearchProgramsRoute
-  '/admin/seo': typeof AdminSeoRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
   '/admin/theme-design': typeof AdminThemeDesignRoute
   '/admin/theme-options': typeof AdminThemeOptionsRoute
@@ -2787,6 +2978,8 @@ export interface FileRoutesByTo {
   '/admin/workflows': typeof AdminWorkflowsRoute
   '/api/stt': typeof ApiSttRoute
   '/api/tts': typeof ApiTtsRoute
+  '/auth/activate': typeof AuthActivateRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/author/$slug': typeof AuthorSlugRoute
   '/organization/$slug': typeof OrganizationSlugRoute
   '/category/$slug': typeof CategorySlugRouteWithChildren
@@ -2798,6 +2991,7 @@ export interface FileRoutesByTo {
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/events/saved': typeof EventsSavedRoute
   '/live/rss.xml': typeof LiveRssDotxmlRoute
+  '/media/$': typeof MediaSplatRoute
   '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
@@ -2816,6 +3010,7 @@ export interface FileRoutesByTo {
   '/profile/expert-requests': typeof ProfileExpertRequestsRoute
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
+  '/profile/invoices': typeof ProfileInvoicesRoute
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/notifications': typeof ProfileNotificationsRoute
   '/profile/orders': typeof ProfileOrdersRoute
@@ -2848,7 +3043,9 @@ export interface FileRoutesByTo {
   '/tracker': typeof TrackerIndexRoute
   '/web-stories': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/admin/analytics/bi': typeof AdminAnalyticsBiRoute
   '/admin/appearance/category-archive': typeof AdminAppearanceCategoryArchiveRoute
+  '/admin/appearance/font-sizes': typeof AdminAppearanceFontSizesRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
@@ -2882,6 +3079,7 @@ export interface FileRoutesByTo {
   '/admin/newsletter/email-content': typeof AdminNewsletterEmailContentRoute
   '/admin/newsletter/email-preview': typeof AdminNewsletterEmailPreviewRoute
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
+  '/admin/newsletter/outbox': typeof AdminNewsletterOutboxRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
   '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
@@ -2894,7 +3092,10 @@ export interface FileRoutesByTo {
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/calendar': typeof AdminPostsCalendarRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/seo/content': typeof AdminSeoContentRoute
+  '/admin/seo/homepage': typeof AdminSeoHomepageRoute
   '/admin/seo/search-console': typeof AdminSeoSearchConsoleRoute
+  '/admin/seo/social': typeof AdminSeoSocialRoute
   '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
   '/admin/settings/cookie-banner': typeof AdminSettingsCookieBannerRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
@@ -2957,12 +3158,14 @@ export interface FileRoutesByTo {
   '/programs/$slug/rss.xml': typeof ProgramsSlugRssDotxmlRoute
   '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
   '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
+  '/admin/analytics': typeof AdminAnalyticsIndexRoute
   '/admin/community': typeof AdminCommunityIndexRoute
   '/admin/companies': typeof AdminCompaniesIndexRoute
   '/admin/coupons': typeof AdminCouponsIndexRoute
   '/admin/crm': typeof AdminCrmIndexRoute
   '/admin/events': typeof AdminEventsIndexRoute
   '/admin/newsletter': typeof AdminNewsletterIndexRoute
+  '/admin/seo': typeof AdminSeoIndexRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/admin/users': typeof AdminUsersIndexRoute
   '/club/$clubSlug': typeof ClubClubSlugIndexRoute
@@ -3047,6 +3250,7 @@ export interface FileRoutesById {
   '/experts': typeof ExpertsRoute
   '/feed': typeof FeedRoute
   '/glossary': typeof GlossaryRoute
+  '/komunikacja-i-marketing': typeof KomunikacjaIMarketingRoute
   '/library': typeof LibraryRoute
   '/live': typeof LiveRoute
   '/llms.txt': typeof LlmsDottxtRoute
@@ -3055,35 +3259,45 @@ export interface FileRoutesById {
   '/membership-join': typeof MembershipJoinRoute
   '/membership-registration': typeof MembershipRegistrationRoute
   '/messages': typeof MessagesRoute
+  '/moderacja-komentarzy': typeof ModeracjaKomentarzyRoute
   '/network': typeof NetworkRouteWithChildren
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/people': typeof PeopleRoute
   '/polityka-prywatnosci': typeof PolitykaPrywatnosciRoute
+  '/polityka-przetwarzania-danych': typeof PolitykaPrzetwarzaniaDanychRoute
   '/polls': typeof PollsRoute
   '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRouteWithChildren
+  '/przejrzystosc-ai': typeof PrzejrzystoscAiRoute
   '/publications': typeof PublicationsRoute
   '/qa': typeof QaRouteWithChildren
   '/quiz': typeof QuizRoute
   '/reading-list': typeof ReadingListRoute
   '/regulamin': typeof RegulaminRoute
+  '/regulamin-klubow-dyskusyjnych': typeof RegulaminKlubowDyskusyjnychRoute
+  '/regulamin-subskrypcji-i-zakupow': typeof RegulaminSubskrypcjiIZakupowRoute
+  '/regulamin-wydarzen-i-biletow': typeof RegulaminWydarzenIBiletowRoute
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
+  '/rodo': typeof RodoRoute
   '/rss.xml': typeof RssDotxmlRoute
   '/scanner': typeof ScannerRoute
   '/search': typeof SearchRoute
   '/sitemap': typeof SitemapRoute
   '/sitemap-index.xml': typeof SitemapIndexDotxmlRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/statut': typeof StatutRoute
   '/support': typeof SupportRoute
   '/unsubscribe': typeof UnsubscribeRoute
+  '/welcome': typeof WelcomeRoute
+  '/zarzadzanie-polityka-prywatnosci': typeof ZarzadzaniePolitykaPrywatnosciRoute
   '/zatrudniamy': typeof ZatrudniamyRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/gpc.json': typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
-  '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/analytics': typeof AdminAnalyticsRouteWithChildren
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/audience': typeof AdminAudienceRoute
   '/admin/authors': typeof AdminAuthorsRoute
@@ -3121,6 +3335,7 @@ export interface FileRoutesById {
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
+  '/admin/members': typeof AdminMembersRoute
   '/admin/membership': typeof AdminMembershipRoute
   '/admin/monetization': typeof AdminMonetizationRoute
   '/admin/monetization-ledger': typeof AdminMonetizationLedgerRoute
@@ -3156,18 +3371,22 @@ export interface FileRoutesById {
   '/admin/workflows': typeof AdminWorkflowsRoute
   '/api/stt': typeof ApiSttRoute
   '/api/tts': typeof ApiTtsRoute
+  '/auth/activate': typeof AuthActivateRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/author/$slug': typeof AuthorSlugRoute
   '/organization/$slug': typeof OrganizationSlugRoute
   '/category/$slug': typeof CategorySlugRouteWithChildren
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
+  '/club/$clubSlug': typeof ClubClubSlugRouteWithChildren
   '/club/apply': typeof ClubApplyRoute
   '/club/elements': typeof ClubElementsRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/events/$slug': typeof EventsSlugRouteWithChildren
   '/events/saved': typeof EventsSavedRoute
   '/live_/rss.xml': typeof LiveRssDotxmlRoute
+  '/media/$': typeof MediaSplatRoute
   '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
@@ -3186,6 +3405,7 @@ export interface FileRoutesById {
   '/profile/expert-requests': typeof ProfileExpertRequestsRoute
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
+  '/profile/invoices': typeof ProfileInvoicesRoute
   '/profile/membership': typeof ProfileMembershipRoute
   '/profile/notifications': typeof ProfileNotificationsRoute
   '/profile/orders': typeof ProfileOrdersRoute
@@ -3218,7 +3438,9 @@ export interface FileRoutesById {
   '/tracker/': typeof TrackerIndexRoute
   '/web-stories/': typeof WebStoriesIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/admin/analytics/bi': typeof AdminAnalyticsBiRoute
   '/admin/appearance/category-archive': typeof AdminAppearanceCategoryArchiveRoute
+  '/admin/appearance/font-sizes': typeof AdminAppearanceFontSizesRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
@@ -3254,6 +3476,7 @@ export interface FileRoutesById {
   '/admin/newsletter/email-content': typeof AdminNewsletterEmailContentRoute
   '/admin/newsletter/email-preview': typeof AdminNewsletterEmailPreviewRoute
   '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
+  '/admin/newsletter/outbox': typeof AdminNewsletterOutboxRoute
   '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
   '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
   '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
@@ -3266,7 +3489,10 @@ export interface FileRoutesById {
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/calendar': typeof AdminPostsCalendarRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/seo/content': typeof AdminSeoContentRoute
+  '/admin/seo/homepage': typeof AdminSeoHomepageRoute
   '/admin/seo/search-console': typeof AdminSeoSearchConsoleRoute
+  '/admin/seo/social': typeof AdminSeoSocialRoute
   '/admin/settings/analytics': typeof AdminSettingsAnalyticsRoute
   '/admin/settings/cookie-banner': typeof AdminSettingsCookieBannerRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
@@ -3329,12 +3555,14 @@ export interface FileRoutesById {
   '/programs/$slug/rss.xml': typeof ProgramsSlugRssDotxmlRoute
   '/tag/$slug/rss.xml': typeof TagSlugRssDotxmlRoute
   '/web-stories/$slug/amp': typeof WebStoriesSlugAmpRoute
+  '/admin/analytics/': typeof AdminAnalyticsIndexRoute
   '/admin/community/': typeof AdminCommunityIndexRoute
   '/admin/companies/': typeof AdminCompaniesIndexRoute
   '/admin/coupons/': typeof AdminCouponsIndexRoute
   '/admin/crm/': typeof AdminCrmIndexRoute
   '/admin/events/': typeof AdminEventsIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
+  '/admin/seo/': typeof AdminSeoIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
   '/club/$clubSlug/': typeof ClubClubSlugIndexRoute
@@ -3420,6 +3648,7 @@ export interface FileRouteTypes {
     | '/experts'
     | '/feed'
     | '/glossary'
+    | '/komunikacja-i-marketing'
     | '/library'
     | '/live'
     | '/llms.txt'
@@ -3428,28 +3657,38 @@ export interface FileRouteTypes {
     | '/membership-join'
     | '/membership-registration'
     | '/messages'
+    | '/moderacja-komentarzy'
     | '/network'
     | '/news-sitemap.xml'
     | '/people'
     | '/polityka-prywatnosci'
+    | '/polityka-przetwarzania-danych'
     | '/polls'
     | '/pricing'
     | '/profile'
+    | '/przejrzystosc-ai'
     | '/publications'
     | '/qa'
     | '/quiz'
     | '/reading-list'
     | '/regulamin'
+    | '/regulamin-klubow-dyskusyjnych'
+    | '/regulamin-subskrypcji-i-zakupow'
+    | '/regulamin-wydarzen-i-biletow'
     | '/reset-password'
     | '/robots.txt'
+    | '/rodo'
     | '/rss.xml'
     | '/scanner'
     | '/search'
     | '/sitemap'
     | '/sitemap-index.xml'
     | '/sitemap.xml'
+    | '/statut'
     | '/support'
     | '/unsubscribe'
+    | '/welcome'
+    | '/zarzadzanie-polityka-prywatnosci'
     | '/zatrudniamy'
     | '/zwroty-i-reklamacje'
     | '/.mcp/list-tools'
@@ -3494,6 +3733,7 @@ export interface FileRouteTypes {
     | '/admin/live-blog'
     | '/admin/login-settings'
     | '/admin/media'
+    | '/admin/members'
     | '/admin/membership'
     | '/admin/monetization'
     | '/admin/monetization-ledger'
@@ -3529,18 +3769,22 @@ export interface FileRouteTypes {
     | '/admin/workflows'
     | '/api/stt'
     | '/api/tts'
+    | '/auth/activate'
+    | '/auth/callback'
     | '/author/$slug'
     | '/organization/$slug'
     | '/category/$slug'
     | '/checkout/$planId'
     | '/checkout/cancel'
     | '/checkout/success'
+    | '/club/$clubSlug'
     | '/club/apply'
     | '/club/elements'
     | '/email/unsubscribe'
     | '/events/$slug'
     | '/events/saved'
     | '/live/rss.xml'
+    | '/media/$'
     | '/meetings/$eventSlug'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
@@ -3559,6 +3803,7 @@ export interface FileRouteTypes {
     | '/profile/expert-requests'
     | '/profile/follows'
     | '/profile/interests'
+    | '/profile/invoices'
     | '/profile/membership'
     | '/profile/notifications'
     | '/profile/orders'
@@ -3591,7 +3836,9 @@ export interface FileRouteTypes {
     | '/tracker/'
     | '/web-stories/'
     | '/.mcp/invoke-tool/$tool'
+    | '/admin/analytics/bi'
     | '/admin/appearance/category-archive'
+    | '/admin/appearance/font-sizes'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
@@ -3627,6 +3874,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/email-content'
     | '/admin/newsletter/email-preview'
     | '/admin/newsletter/inline'
+    | '/admin/newsletter/outbox'
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
     | '/admin/newsletter/subscribers'
@@ -3639,7 +3887,10 @@ export interface FileRouteTypes {
     | '/admin/posts/$slug'
     | '/admin/posts/calendar'
     | '/admin/posts/new'
+    | '/admin/seo/content'
+    | '/admin/seo/homepage'
     | '/admin/seo/search-console'
+    | '/admin/seo/social'
     | '/admin/settings/analytics'
     | '/admin/settings/cookie-banner'
     | '/admin/settings/design'
@@ -3702,12 +3953,14 @@ export interface FileRouteTypes {
     | '/programs/$slug/rss.xml'
     | '/tag/$slug/rss.xml'
     | '/web-stories/$slug/amp'
+    | '/admin/analytics/'
     | '/admin/community/'
     | '/admin/companies/'
     | '/admin/coupons/'
     | '/admin/crm/'
     | '/admin/events/'
     | '/admin/newsletter/'
+    | '/admin/seo/'
     | '/admin/settings/'
     | '/admin/users/'
     | '/club/$clubSlug/'
@@ -3788,6 +4041,7 @@ export interface FileRouteTypes {
     | '/experts'
     | '/feed'
     | '/glossary'
+    | '/komunikacja-i-marketing'
     | '/library'
     | '/live'
     | '/llms.txt'
@@ -3796,34 +4050,43 @@ export interface FileRouteTypes {
     | '/membership-join'
     | '/membership-registration'
     | '/messages'
+    | '/moderacja-komentarzy'
     | '/network'
     | '/news-sitemap.xml'
     | '/people'
     | '/polityka-prywatnosci'
+    | '/polityka-przetwarzania-danych'
     | '/polls'
     | '/pricing'
+    | '/przejrzystosc-ai'
     | '/publications'
     | '/qa'
     | '/quiz'
     | '/reading-list'
     | '/regulamin'
+    | '/regulamin-klubow-dyskusyjnych'
+    | '/regulamin-subskrypcji-i-zakupow'
+    | '/regulamin-wydarzen-i-biletow'
     | '/reset-password'
     | '/robots.txt'
+    | '/rodo'
     | '/rss.xml'
     | '/scanner'
     | '/search'
     | '/sitemap'
     | '/sitemap-index.xml'
     | '/sitemap.xml'
+    | '/statut'
     | '/support'
     | '/unsubscribe'
+    | '/welcome'
+    | '/zarzadzanie-polityka-prywatnosci'
     | '/zatrudniamy'
     | '/zwroty-i-reklamacje'
     | '/.mcp/list-tools'
     | '/.well-known/gpc.json'
     | '/.well-known/oauth-protected-resource'
     | '/admin/ads'
-    | '/admin/analytics'
     | '/admin/appearance'
     | '/admin/audience'
     | '/admin/authors'
@@ -3856,6 +4119,7 @@ export interface FileRouteTypes {
     | '/admin/live-blog'
     | '/admin/login-settings'
     | '/admin/media'
+    | '/admin/members'
     | '/admin/membership'
     | '/admin/monetization'
     | '/admin/monetization-ledger'
@@ -3876,7 +4140,6 @@ export interface FileRouteTypes {
     | '/admin/redirects'
     | '/admin/related-posts'
     | '/admin/research-programs'
-    | '/admin/seo'
     | '/admin/tags'
     | '/admin/theme-design'
     | '/admin/theme-options'
@@ -3888,6 +4151,8 @@ export interface FileRouteTypes {
     | '/admin/workflows'
     | '/api/stt'
     | '/api/tts'
+    | '/auth/activate'
+    | '/auth/callback'
     | '/author/$slug'
     | '/organization/$slug'
     | '/category/$slug'
@@ -3899,6 +4164,7 @@ export interface FileRouteTypes {
     | '/email/unsubscribe'
     | '/events/saved'
     | '/live/rss.xml'
+    | '/media/$'
     | '/meetings/$eventSlug'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
@@ -3917,6 +4183,7 @@ export interface FileRouteTypes {
     | '/profile/expert-requests'
     | '/profile/follows'
     | '/profile/interests'
+    | '/profile/invoices'
     | '/profile/membership'
     | '/profile/notifications'
     | '/profile/orders'
@@ -3949,7 +4216,9 @@ export interface FileRouteTypes {
     | '/tracker'
     | '/web-stories'
     | '/.mcp/invoke-tool/$tool'
+    | '/admin/analytics/bi'
     | '/admin/appearance/category-archive'
+    | '/admin/appearance/font-sizes'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
@@ -3983,6 +4252,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/email-content'
     | '/admin/newsletter/email-preview'
     | '/admin/newsletter/inline'
+    | '/admin/newsletter/outbox'
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
     | '/admin/newsletter/subscribers'
@@ -3995,7 +4265,10 @@ export interface FileRouteTypes {
     | '/admin/posts/$slug'
     | '/admin/posts/calendar'
     | '/admin/posts/new'
+    | '/admin/seo/content'
+    | '/admin/seo/homepage'
     | '/admin/seo/search-console'
+    | '/admin/seo/social'
     | '/admin/settings/analytics'
     | '/admin/settings/cookie-banner'
     | '/admin/settings/design'
@@ -4058,12 +4331,14 @@ export interface FileRouteTypes {
     | '/programs/$slug/rss.xml'
     | '/tag/$slug/rss.xml'
     | '/web-stories/$slug/amp'
+    | '/admin/analytics'
     | '/admin/community'
     | '/admin/companies'
     | '/admin/coupons'
     | '/admin/crm'
     | '/admin/events'
     | '/admin/newsletter'
+    | '/admin/seo'
     | '/admin/settings'
     | '/admin/users'
     | '/club/$clubSlug'
@@ -4147,6 +4422,7 @@ export interface FileRouteTypes {
     | '/experts'
     | '/feed'
     | '/glossary'
+    | '/komunikacja-i-marketing'
     | '/library'
     | '/live'
     | '/llms.txt'
@@ -4155,28 +4431,38 @@ export interface FileRouteTypes {
     | '/membership-join'
     | '/membership-registration'
     | '/messages'
+    | '/moderacja-komentarzy'
     | '/network'
     | '/news-sitemap.xml'
     | '/people'
     | '/polityka-prywatnosci'
+    | '/polityka-przetwarzania-danych'
     | '/polls'
     | '/pricing'
     | '/profile'
+    | '/przejrzystosc-ai'
     | '/publications'
     | '/qa'
     | '/quiz'
     | '/reading-list'
     | '/regulamin'
+    | '/regulamin-klubow-dyskusyjnych'
+    | '/regulamin-subskrypcji-i-zakupow'
+    | '/regulamin-wydarzen-i-biletow'
     | '/reset-password'
     | '/robots.txt'
+    | '/rodo'
     | '/rss.xml'
     | '/scanner'
     | '/search'
     | '/sitemap'
     | '/sitemap-index.xml'
     | '/sitemap.xml'
+    | '/statut'
     | '/support'
     | '/unsubscribe'
+    | '/welcome'
+    | '/zarzadzanie-polityka-prywatnosci'
     | '/zatrudniamy'
     | '/zwroty-i-reklamacje'
     | '/.mcp/list-tools'
@@ -4221,6 +4507,7 @@ export interface FileRouteTypes {
     | '/admin/live-blog'
     | '/admin/login-settings'
     | '/admin/media'
+    | '/admin/members'
     | '/admin/membership'
     | '/admin/monetization'
     | '/admin/monetization-ledger'
@@ -4256,18 +4543,22 @@ export interface FileRouteTypes {
     | '/admin/workflows'
     | '/api/stt'
     | '/api/tts'
+    | '/auth/activate'
+    | '/auth/callback'
     | '/author/$slug'
     | '/organization/$slug'
     | '/category/$slug'
     | '/checkout/$planId'
     | '/checkout/cancel'
     | '/checkout/success'
+    | '/club/$clubSlug'
     | '/club/apply'
     | '/club/elements'
     | '/email/unsubscribe'
     | '/events/$slug'
     | '/events/saved'
     | '/live_/rss.xml'
+    | '/media/$'
     | '/meetings/$eventSlug'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
@@ -4286,6 +4577,7 @@ export interface FileRouteTypes {
     | '/profile/expert-requests'
     | '/profile/follows'
     | '/profile/interests'
+    | '/profile/invoices'
     | '/profile/membership'
     | '/profile/notifications'
     | '/profile/orders'
@@ -4318,7 +4610,9 @@ export interface FileRouteTypes {
     | '/tracker/'
     | '/web-stories/'
     | '/.mcp/invoke-tool/$tool'
+    | '/admin/analytics/bi'
     | '/admin/appearance/category-archive'
+    | '/admin/appearance/font-sizes'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
@@ -4354,6 +4648,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/email-content'
     | '/admin/newsletter/email-preview'
     | '/admin/newsletter/inline'
+    | '/admin/newsletter/outbox'
     | '/admin/newsletter/overview'
     | '/admin/newsletter/popup'
     | '/admin/newsletter/subscribers'
@@ -4366,7 +4661,10 @@ export interface FileRouteTypes {
     | '/admin/posts/$slug'
     | '/admin/posts/calendar'
     | '/admin/posts/new'
+    | '/admin/seo/content'
+    | '/admin/seo/homepage'
     | '/admin/seo/search-console'
+    | '/admin/seo/social'
     | '/admin/settings/analytics'
     | '/admin/settings/cookie-banner'
     | '/admin/settings/design'
@@ -4429,12 +4727,14 @@ export interface FileRouteTypes {
     | '/programs/$slug/rss.xml'
     | '/tag/$slug/rss.xml'
     | '/web-stories/$slug/amp'
+    | '/admin/analytics/'
     | '/admin/community/'
     | '/admin/companies/'
     | '/admin/coupons/'
     | '/admin/crm/'
     | '/admin/events/'
     | '/admin/newsletter/'
+    | '/admin/seo/'
     | '/admin/settings/'
     | '/admin/users/'
     | '/club/$clubSlug/'
@@ -4519,6 +4819,7 @@ export interface RootRouteChildren {
   ExpertsRoute: typeof ExpertsRoute
   FeedRoute: typeof FeedRoute
   GlossaryRoute: typeof GlossaryRoute
+  KomunikacjaIMarketingRoute: typeof KomunikacjaIMarketingRoute
   LibraryRoute: typeof LibraryRoute
   LiveRoute: typeof LiveRoute
   LlmsDottxtRoute: typeof LlmsDottxtRoute
@@ -4527,28 +4828,38 @@ export interface RootRouteChildren {
   MembershipJoinRoute: typeof MembershipJoinRoute
   MembershipRegistrationRoute: typeof MembershipRegistrationRoute
   MessagesRoute: typeof MessagesRoute
+  ModeracjaKomentarzyRoute: typeof ModeracjaKomentarzyRoute
   NetworkRoute: typeof NetworkRouteWithChildren
   NewsSitemapDotxmlRoute: typeof NewsSitemapDotxmlRoute
   PeopleRoute: typeof PeopleRoute
   PolitykaPrywatnosciRoute: typeof PolitykaPrywatnosciRoute
+  PolitykaPrzetwarzaniaDanychRoute: typeof PolitykaPrzetwarzaniaDanychRoute
   PollsRoute: typeof PollsRoute
   PricingRoute: typeof PricingRoute
   ProfileRoute: typeof ProfileRouteWithChildren
+  PrzejrzystoscAiRoute: typeof PrzejrzystoscAiRoute
   PublicationsRoute: typeof PublicationsRoute
   QaRoute: typeof QaRouteWithChildren
   QuizRoute: typeof QuizRoute
   ReadingListRoute: typeof ReadingListRoute
   RegulaminRoute: typeof RegulaminRoute
+  RegulaminKlubowDyskusyjnychRoute: typeof RegulaminKlubowDyskusyjnychRoute
+  RegulaminSubskrypcjiIZakupowRoute: typeof RegulaminSubskrypcjiIZakupowRoute
+  RegulaminWydarzenIBiletowRoute: typeof RegulaminWydarzenIBiletowRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
+  RodoRoute: typeof RodoRoute
   RssDotxmlRoute: typeof RssDotxmlRoute
   ScannerRoute: typeof ScannerRoute
   SearchRoute: typeof SearchRoute
   SitemapRoute: typeof SitemapRoute
   SitemapIndexDotxmlRoute: typeof SitemapIndexDotxmlRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  StatutRoute: typeof StatutRoute
   SupportRoute: typeof SupportRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
+  WelcomeRoute: typeof WelcomeRoute
+  ZarzadzaniePolitykaPrywatnosciRoute: typeof ZarzadzaniePolitykaPrywatnosciRoute
   ZatrudniamyRoute: typeof ZatrudniamyRoute
   ZwrotyIReklamacjeRoute: typeof ZwrotyIReklamacjeRoute
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
@@ -4556,6 +4867,8 @@ export interface RootRouteChildren {
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   ApiSttRoute: typeof ApiSttRoute
   ApiTtsRoute: typeof ApiTtsRoute
+  AuthActivateRoute: typeof AuthActivateRoute
+  AuthCallbackRoute: typeof AuthCallbackRoute
   AuthorSlugRoute: typeof AuthorSlugRoute
   OrganizationSlugRoute: typeof OrganizationSlugRoute
   CategorySlugRoute: typeof CategorySlugRouteWithChildren
@@ -4564,6 +4877,7 @@ export interface RootRouteChildren {
   CheckoutSuccessRoute: typeof CheckoutSuccessRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   LiveRssDotxmlRoute: typeof LiveRssDotxmlRoute
+  MediaSplatRoute: typeof MediaSplatRoute
   MeetingsEventSlugRoute: typeof MeetingsEventSlugRoute
   NewsletterConfirmRoute: typeof NewsletterConfirmRoute
   NewsletterUnsubscribeRoute: typeof NewsletterUnsubscribeRoute
@@ -4638,6 +4952,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ZatrudniamyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/zarzadzanie-polityka-prywatnosci': {
+      id: '/zarzadzanie-polityka-prywatnosci'
+      path: '/zarzadzanie-polityka-prywatnosci'
+      fullPath: '/zarzadzanie-polityka-prywatnosci'
+      preLoaderRoute: typeof ZarzadzaniePolitykaPrywatnosciRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/welcome': {
+      id: '/welcome'
+      path: '/welcome'
+      fullPath: '/welcome'
+      preLoaderRoute: typeof WelcomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/unsubscribe': {
       id: '/unsubscribe'
       path: '/unsubscribe'
@@ -4650,6 +4978,13 @@ declare module '@tanstack/react-router' {
       path: '/support'
       fullPath: '/support'
       preLoaderRoute: typeof SupportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/statut': {
+      id: '/statut'
+      path: '/statut'
+      fullPath: '/statut'
+      preLoaderRoute: typeof StatutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sitemap.xml': {
@@ -4694,6 +5029,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RssDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rodo': {
+      id: '/rodo'
+      path: '/rodo'
+      fullPath: '/rodo'
+      preLoaderRoute: typeof RodoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/robots.txt': {
       id: '/robots.txt'
       path: '/robots.txt'
@@ -4706,6 +5048,27 @@ declare module '@tanstack/react-router' {
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/regulamin-wydarzen-i-biletow': {
+      id: '/regulamin-wydarzen-i-biletow'
+      path: '/regulamin-wydarzen-i-biletow'
+      fullPath: '/regulamin-wydarzen-i-biletow'
+      preLoaderRoute: typeof RegulaminWydarzenIBiletowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/regulamin-subskrypcji-i-zakupow': {
+      id: '/regulamin-subskrypcji-i-zakupow'
+      path: '/regulamin-subskrypcji-i-zakupow'
+      fullPath: '/regulamin-subskrypcji-i-zakupow'
+      preLoaderRoute: typeof RegulaminSubskrypcjiIZakupowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/regulamin-klubow-dyskusyjnych': {
+      id: '/regulamin-klubow-dyskusyjnych'
+      path: '/regulamin-klubow-dyskusyjnych'
+      fullPath: '/regulamin-klubow-dyskusyjnych'
+      preLoaderRoute: typeof RegulaminKlubowDyskusyjnychRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/regulamin': {
@@ -4743,6 +5106,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PublicationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/przejrzystosc-ai': {
+      id: '/przejrzystosc-ai'
+      path: '/przejrzystosc-ai'
+      fullPath: '/przejrzystosc-ai'
+      preLoaderRoute: typeof PrzejrzystoscAiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/profile': {
       id: '/profile'
       path: '/profile'
@@ -4762,6 +5132,13 @@ declare module '@tanstack/react-router' {
       path: '/polls'
       fullPath: '/polls'
       preLoaderRoute: typeof PollsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/polityka-przetwarzania-danych': {
+      id: '/polityka-przetwarzania-danych'
+      path: '/polityka-przetwarzania-danych'
+      fullPath: '/polityka-przetwarzania-danych'
+      preLoaderRoute: typeof PolitykaPrzetwarzaniaDanychRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/polityka-prywatnosci': {
@@ -4790,6 +5167,13 @@ declare module '@tanstack/react-router' {
       path: '/network'
       fullPath: '/network'
       preLoaderRoute: typeof NetworkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/moderacja-komentarzy': {
+      id: '/moderacja-komentarzy'
+      path: '/moderacja-komentarzy'
+      fullPath: '/moderacja-komentarzy'
+      preLoaderRoute: typeof ModeracjaKomentarzyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/messages': {
@@ -4846,6 +5230,13 @@ declare module '@tanstack/react-router' {
       path: '/library'
       fullPath: '/library'
       preLoaderRoute: typeof LibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/komunikacja-i-marketing': {
+      id: '/komunikacja-i-marketing'
+      path: '/komunikacja-i-marketing'
+      fullPath: '/komunikacja-i-marketing'
+      preLoaderRoute: typeof KomunikacjaIMarketingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/glossary': {
@@ -5163,6 +5554,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfileMembershipRouteImport
       parentRoute: typeof ProfileRoute
     }
+    '/profile/invoices': {
+      id: '/profile/invoices'
+      path: '/invoices'
+      fullPath: '/profile/invoices'
+      preLoaderRoute: typeof ProfileInvoicesRouteImport
+      parentRoute: typeof ProfileRoute
+    }
     '/profile/interests': {
       id: '/profile/interests'
       path: '/interests'
@@ -5289,6 +5687,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MeetingsEventSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/media/$': {
+      id: '/media/$'
+      path: '/media/$'
+      fullPath: '/media/$'
+      preLoaderRoute: typeof MediaSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/live_/rss.xml': {
       id: '/live_/rss.xml'
       path: '/live/rss.xml'
@@ -5331,6 +5736,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClubApplyRouteImport
       parentRoute: typeof ClubRoute
     }
+    '/club/$clubSlug': {
+      id: '/club/$clubSlug'
+      path: '/$clubSlug'
+      fullPath: '/club/$clubSlug'
+      preLoaderRoute: typeof ClubClubSlugRouteImport
+      parentRoute: typeof ClubRoute
+    }
     '/checkout/success': {
       id: '/checkout/success'
       path: '/checkout/success'
@@ -5371,6 +5783,20 @@ declare module '@tanstack/react-router' {
       path: '/organization/$slug'
       fullPath: '/organization/$slug'
       preLoaderRoute: typeof OrganizationSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/activate': {
+      id: '/auth/activate'
+      path: '/auth/activate'
+      fullPath: '/auth/activate'
+      preLoaderRoute: typeof AuthActivateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/tts': {
@@ -5616,6 +6042,13 @@ declare module '@tanstack/react-router' {
       path: '/membership'
       fullPath: '/admin/membership'
       preLoaderRoute: typeof AdminMembershipRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/members': {
+      id: '/admin/members'
+      path: '/members'
+      fullPath: '/admin/members'
+      preLoaderRoute: typeof AdminMembersRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/media': {
@@ -5921,10 +6354,10 @@ declare module '@tanstack/react-router' {
     }
     '/club/$clubSlug/': {
       id: '/club/$clubSlug/'
-      path: '/$clubSlug'
+      path: '/'
       fullPath: '/club/$clubSlug/'
       preLoaderRoute: typeof ClubClubSlugIndexRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/admin/users/': {
       id: '/admin/users/'
@@ -5939,6 +6372,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/settings/'
       preLoaderRoute: typeof AdminSettingsIndexRouteImport
       parentRoute: typeof AdminSettingsRoute
+    }
+    '/admin/seo/': {
+      id: '/admin/seo/'
+      path: '/'
+      fullPath: '/admin/seo/'
+      preLoaderRoute: typeof AdminSeoIndexRouteImport
+      parentRoute: typeof AdminSeoRoute
     }
     '/admin/newsletter/': {
       id: '/admin/newsletter/'
@@ -5981,6 +6421,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/community/'
       preLoaderRoute: typeof AdminCommunityIndexRouteImport
       parentRoute: typeof AdminCommunityRoute
+    }
+    '/admin/analytics/': {
+      id: '/admin/analytics/'
+      path: '/'
+      fullPath: '/admin/analytics/'
+      preLoaderRoute: typeof AdminAnalyticsIndexRouteImport
+      parentRoute: typeof AdminAnalyticsRoute
     }
     '/web-stories/$slug/amp': {
       id: '/web-stories/$slug/amp'
@@ -6117,80 +6564,80 @@ declare module '@tanstack/react-router' {
     }
     '/club/$clubSlug/spotlight': {
       id: '/club/$clubSlug/spotlight'
-      path: '/$clubSlug/spotlight'
+      path: '/spotlight'
       fullPath: '/club/$clubSlug/spotlight'
       preLoaderRoute: typeof ClubClubSlugSpotlightRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/club/$clubSlug/schedule': {
       id: '/club/$clubSlug/schedule'
-      path: '/$clubSlug/schedule'
+      path: '/schedule'
       fullPath: '/club/$clubSlug/schedule'
       preLoaderRoute: typeof ClubClubSlugScheduleRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/club/$clubSlug/new': {
       id: '/club/$clubSlug/new'
-      path: '/$clubSlug/new'
+      path: '/new'
       fullPath: '/club/$clubSlug/new'
       preLoaderRoute: typeof ClubClubSlugNewRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/club/$clubSlug/minisite': {
       id: '/club/$clubSlug/minisite'
-      path: '/$clubSlug/minisite'
+      path: '/minisite'
       fullPath: '/club/$clubSlug/minisite'
       preLoaderRoute: typeof ClubClubSlugMinisiteRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/club/$clubSlug/members': {
       id: '/club/$clubSlug/members'
-      path: '/$clubSlug/members'
+      path: '/members'
       fullPath: '/club/$clubSlug/members'
       preLoaderRoute: typeof ClubClubSlugMembersRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/club/$clubSlug/insights': {
       id: '/club/$clubSlug/insights'
-      path: '/$clubSlug/insights'
+      path: '/insights'
       fullPath: '/club/$clubSlug/insights'
       preLoaderRoute: typeof ClubClubSlugInsightsRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/club/$clubSlug/experts': {
       id: '/club/$clubSlug/experts'
-      path: '/$clubSlug/experts'
+      path: '/experts'
       fullPath: '/club/$clubSlug/experts'
       preLoaderRoute: typeof ClubClubSlugExpertsRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/club/$clubSlug/documents': {
       id: '/club/$clubSlug/documents'
-      path: '/$clubSlug/documents'
+      path: '/documents'
       fullPath: '/club/$clubSlug/documents'
       preLoaderRoute: typeof ClubClubSlugDocumentsRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/club/$clubSlug/calendar': {
       id: '/club/$clubSlug/calendar'
-      path: '/$clubSlug/calendar'
+      path: '/calendar'
       fullPath: '/club/$clubSlug/calendar'
       preLoaderRoute: typeof ClubClubSlugCalendarRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/club/$clubSlug/board': {
       id: '/club/$clubSlug/board'
-      path: '/$clubSlug/board'
+      path: '/board'
       fullPath: '/club/$clubSlug/board'
       preLoaderRoute: typeof ClubClubSlugBoardRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/club/$clubSlug/about': {
       id: '/club/$clubSlug/about'
-      path: '/$clubSlug/about'
+      path: '/about'
       fullPath: '/club/$clubSlug/about'
       preLoaderRoute: typeof ClubClubSlugAboutRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/category/$slug/rss.xml': {
       id: '/category/$slug/rss.xml'
@@ -6416,11 +6863,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsAnalyticsRouteImport
       parentRoute: typeof AdminSettingsRoute
     }
+    '/admin/seo/social': {
+      id: '/admin/seo/social'
+      path: '/social'
+      fullPath: '/admin/seo/social'
+      preLoaderRoute: typeof AdminSeoSocialRouteImport
+      parentRoute: typeof AdminSeoRoute
+    }
     '/admin/seo/search-console': {
       id: '/admin/seo/search-console'
       path: '/search-console'
       fullPath: '/admin/seo/search-console'
       preLoaderRoute: typeof AdminSeoSearchConsoleRouteImport
+      parentRoute: typeof AdminSeoRoute
+    }
+    '/admin/seo/homepage': {
+      id: '/admin/seo/homepage'
+      path: '/homepage'
+      fullPath: '/admin/seo/homepage'
+      preLoaderRoute: typeof AdminSeoHomepageRouteImport
+      parentRoute: typeof AdminSeoRoute
+    }
+    '/admin/seo/content': {
+      id: '/admin/seo/content'
+      path: '/content'
+      fullPath: '/admin/seo/content'
+      preLoaderRoute: typeof AdminSeoContentRouteImport
       parentRoute: typeof AdminSeoRoute
     }
     '/admin/posts/new': {
@@ -6505,6 +6973,13 @@ declare module '@tanstack/react-router' {
       path: '/overview'
       fullPath: '/admin/newsletter/overview'
       preLoaderRoute: typeof AdminNewsletterOverviewRouteImport
+      parentRoute: typeof AdminNewsletterRoute
+    }
+    '/admin/newsletter/outbox': {
+      id: '/admin/newsletter/outbox'
+      path: '/outbox'
+      fullPath: '/admin/newsletter/outbox'
+      preLoaderRoute: typeof AdminNewsletterOutboxRouteImport
       parentRoute: typeof AdminNewsletterRoute
     }
     '/admin/newsletter/inline': {
@@ -6752,12 +7227,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAppearanceFooterRouteImport
       parentRoute: typeof AdminAppearanceRoute
     }
+    '/admin/appearance/font-sizes': {
+      id: '/admin/appearance/font-sizes'
+      path: '/font-sizes'
+      fullPath: '/admin/appearance/font-sizes'
+      preLoaderRoute: typeof AdminAppearanceFontSizesRouteImport
+      parentRoute: typeof AdminAppearanceRoute
+    }
     '/admin/appearance/category-archive': {
       id: '/admin/appearance/category-archive'
       path: '/category-archive'
       fullPath: '/admin/appearance/category-archive'
       preLoaderRoute: typeof AdminAppearanceCategoryArchiveRouteImport
       parentRoute: typeof AdminAppearanceRoute
+    }
+    '/admin/analytics/bi': {
+      id: '/admin/analytics/bi'
+      path: '/bi'
+      fullPath: '/admin/analytics/bi'
+      preLoaderRoute: typeof AdminAnalyticsBiRouteImport
+      parentRoute: typeof AdminAnalyticsRoute
     }
     '/.mcp/invoke-tool/$tool': {
       id: '/.mcp/invoke-tool/$tool'
@@ -6859,17 +7348,17 @@ declare module '@tanstack/react-router' {
     }
     '/club/$clubSlug/t/$threadSlug': {
       id: '/club/$clubSlug/t/$threadSlug'
-      path: '/$clubSlug/t/$threadSlug'
+      path: '/t/$threadSlug'
       fullPath: '/club/$clubSlug/t/$threadSlug'
       preLoaderRoute: typeof ClubClubSlugTThreadSlugRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/club/$clubSlug/e/$eventSlug': {
       id: '/club/$clubSlug/e/$eventSlug'
-      path: '/$clubSlug/e/$eventSlug'
+      path: '/e/$eventSlug'
       fullPath: '/club/$clubSlug/e/$eventSlug'
       preLoaderRoute: typeof ClubClubSlugEEventSlugRouteImport
-      parentRoute: typeof ClubRoute
+      parentRoute: typeof ClubClubSlugRoute
     }
     '/api/public/webhooks/resend': {
       id: '/api/public/webhooks/resend'
@@ -7210,8 +7699,23 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AdminAnalyticsRouteChildren {
+  AdminAnalyticsBiRoute: typeof AdminAnalyticsBiRoute
+  AdminAnalyticsIndexRoute: typeof AdminAnalyticsIndexRoute
+}
+
+const AdminAnalyticsRouteChildren: AdminAnalyticsRouteChildren = {
+  AdminAnalyticsBiRoute: AdminAnalyticsBiRoute,
+  AdminAnalyticsIndexRoute: AdminAnalyticsIndexRoute,
+}
+
+const AdminAnalyticsRouteWithChildren = AdminAnalyticsRoute._addFileChildren(
+  AdminAnalyticsRouteChildren,
+)
+
 interface AdminAppearanceRouteChildren {
   AdminAppearanceCategoryArchiveRoute: typeof AdminAppearanceCategoryArchiveRoute
+  AdminAppearanceFontSizesRoute: typeof AdminAppearanceFontSizesRoute
   AdminAppearanceFooterRoute: typeof AdminAppearanceFooterRoute
   AdminAppearanceGlobalColorsRoute: typeof AdminAppearanceGlobalColorsRoute
   AdminAppearanceHeaderRoute: typeof AdminAppearanceHeaderRoute
@@ -7222,6 +7726,7 @@ interface AdminAppearanceRouteChildren {
 
 const AdminAppearanceRouteChildren: AdminAppearanceRouteChildren = {
   AdminAppearanceCategoryArchiveRoute: AdminAppearanceCategoryArchiveRoute,
+  AdminAppearanceFontSizesRoute: AdminAppearanceFontSizesRoute,
   AdminAppearanceFooterRoute: AdminAppearanceFooterRoute,
   AdminAppearanceGlobalColorsRoute: AdminAppearanceGlobalColorsRoute,
   AdminAppearanceHeaderRoute: AdminAppearanceHeaderRoute,
@@ -7374,6 +7879,7 @@ interface AdminNewsletterRouteChildren {
   AdminNewsletterEmailContentRoute: typeof AdminNewsletterEmailContentRoute
   AdminNewsletterEmailPreviewRoute: typeof AdminNewsletterEmailPreviewRoute
   AdminNewsletterInlineRoute: typeof AdminNewsletterInlineRoute
+  AdminNewsletterOutboxRoute: typeof AdminNewsletterOutboxRoute
   AdminNewsletterOverviewRoute: typeof AdminNewsletterOverviewRoute
   AdminNewsletterPopupRoute: typeof AdminNewsletterPopupRoute
   AdminNewsletterSubscribersRoute: typeof AdminNewsletterSubscribersRoute
@@ -7388,6 +7894,7 @@ const AdminNewsletterRouteChildren: AdminNewsletterRouteChildren = {
   AdminNewsletterEmailContentRoute: AdminNewsletterEmailContentRoute,
   AdminNewsletterEmailPreviewRoute: AdminNewsletterEmailPreviewRoute,
   AdminNewsletterInlineRoute: AdminNewsletterInlineRoute,
+  AdminNewsletterOutboxRoute: AdminNewsletterOutboxRoute,
   AdminNewsletterOverviewRoute: AdminNewsletterOverviewRoute,
   AdminNewsletterPopupRoute: AdminNewsletterPopupRoute,
   AdminNewsletterSubscribersRoute: AdminNewsletterSubscribersRoute,
@@ -7455,11 +7962,19 @@ const AdminPostsRouteWithChildren = AdminPostsRoute._addFileChildren(
 )
 
 interface AdminSeoRouteChildren {
+  AdminSeoContentRoute: typeof AdminSeoContentRoute
+  AdminSeoHomepageRoute: typeof AdminSeoHomepageRoute
   AdminSeoSearchConsoleRoute: typeof AdminSeoSearchConsoleRoute
+  AdminSeoSocialRoute: typeof AdminSeoSocialRoute
+  AdminSeoIndexRoute: typeof AdminSeoIndexRoute
 }
 
 const AdminSeoRouteChildren: AdminSeoRouteChildren = {
+  AdminSeoContentRoute: AdminSeoContentRoute,
+  AdminSeoHomepageRoute: AdminSeoHomepageRoute,
   AdminSeoSearchConsoleRoute: AdminSeoSearchConsoleRoute,
+  AdminSeoSocialRoute: AdminSeoSocialRoute,
+  AdminSeoIndexRoute: AdminSeoIndexRoute,
 }
 
 const AdminSeoRouteWithChildren = AdminSeoRoute._addFileChildren(
@@ -7619,7 +8134,7 @@ const AdminEventsEventIdRouteWithChildren =
 
 interface AdminRouteChildren {
   AdminAdsRoute: typeof AdminAdsRoute
-  AdminAnalyticsRoute: typeof AdminAnalyticsRoute
+  AdminAnalyticsRoute: typeof AdminAnalyticsRouteWithChildren
   AdminAppearanceRoute: typeof AdminAppearanceRouteWithChildren
   AdminAudienceRoute: typeof AdminAudienceRoute
   AdminAuthorsRoute: typeof AdminAuthorsRoute
@@ -7657,6 +8172,7 @@ interface AdminRouteChildren {
   AdminLiveBlogRoute: typeof AdminLiveBlogRoute
   AdminLoginSettingsRoute: typeof AdminLoginSettingsRoute
   AdminMediaRoute: typeof AdminMediaRoute
+  AdminMembersRoute: typeof AdminMembersRoute
   AdminMembershipRoute: typeof AdminMembershipRoute
   AdminMonetizationRoute: typeof AdminMonetizationRoute
   AdminMonetizationLedgerRoute: typeof AdminMonetizationLedgerRoute
@@ -7698,7 +8214,7 @@ interface AdminRouteChildren {
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAdsRoute: AdminAdsRoute,
-  AdminAnalyticsRoute: AdminAnalyticsRoute,
+  AdminAnalyticsRoute: AdminAnalyticsRouteWithChildren,
   AdminAppearanceRoute: AdminAppearanceRouteWithChildren,
   AdminAudienceRoute: AdminAudienceRoute,
   AdminAuthorsRoute: AdminAuthorsRoute,
@@ -7736,6 +8252,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminLiveBlogRoute: AdminLiveBlogRoute,
   AdminLoginSettingsRoute: AdminLoginSettingsRoute,
   AdminMediaRoute: AdminMediaRoute,
+  AdminMembersRoute: AdminMembersRoute,
   AdminMembershipRoute: AdminMembershipRoute,
   AdminMonetizationRoute: AdminMonetizationRoute,
   AdminMonetizationLedgerRoute: AdminMonetizationLedgerRoute,
@@ -7777,10 +8294,7 @@ const AdminRouteChildren: AdminRouteChildren = {
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
-interface ClubRouteChildren {
-  ClubApplyRoute: typeof ClubApplyRoute
-  ClubElementsRoute: typeof ClubElementsRoute
-  ClubIndexRoute: typeof ClubIndexRoute
+interface ClubClubSlugRouteChildren {
   ClubClubSlugAboutRoute: typeof ClubClubSlugAboutRoute
   ClubClubSlugBoardRoute: typeof ClubClubSlugBoardRoute
   ClubClubSlugCalendarRoute: typeof ClubClubSlugCalendarRoute
@@ -7792,17 +8306,12 @@ interface ClubRouteChildren {
   ClubClubSlugNewRoute: typeof ClubClubSlugNewRoute
   ClubClubSlugScheduleRoute: typeof ClubClubSlugScheduleRoute
   ClubClubSlugSpotlightRoute: typeof ClubClubSlugSpotlightRoute
-  ClubJoinTokenRoute: typeof ClubJoinTokenRoute
-  ClubSpecializationSlugRoute: typeof ClubSpecializationSlugRoute
   ClubClubSlugIndexRoute: typeof ClubClubSlugIndexRoute
   ClubClubSlugEEventSlugRoute: typeof ClubClubSlugEEventSlugRoute
   ClubClubSlugTThreadSlugRoute: typeof ClubClubSlugTThreadSlugRoute
 }
 
-const ClubRouteChildren: ClubRouteChildren = {
-  ClubApplyRoute: ClubApplyRoute,
-  ClubElementsRoute: ClubElementsRoute,
-  ClubIndexRoute: ClubIndexRoute,
+const ClubClubSlugRouteChildren: ClubClubSlugRouteChildren = {
   ClubClubSlugAboutRoute: ClubClubSlugAboutRoute,
   ClubClubSlugBoardRoute: ClubClubSlugBoardRoute,
   ClubClubSlugCalendarRoute: ClubClubSlugCalendarRoute,
@@ -7814,11 +8323,31 @@ const ClubRouteChildren: ClubRouteChildren = {
   ClubClubSlugNewRoute: ClubClubSlugNewRoute,
   ClubClubSlugScheduleRoute: ClubClubSlugScheduleRoute,
   ClubClubSlugSpotlightRoute: ClubClubSlugSpotlightRoute,
-  ClubJoinTokenRoute: ClubJoinTokenRoute,
-  ClubSpecializationSlugRoute: ClubSpecializationSlugRoute,
   ClubClubSlugIndexRoute: ClubClubSlugIndexRoute,
   ClubClubSlugEEventSlugRoute: ClubClubSlugEEventSlugRoute,
   ClubClubSlugTThreadSlugRoute: ClubClubSlugTThreadSlugRoute,
+}
+
+const ClubClubSlugRouteWithChildren = ClubClubSlugRoute._addFileChildren(
+  ClubClubSlugRouteChildren,
+)
+
+interface ClubRouteChildren {
+  ClubClubSlugRoute: typeof ClubClubSlugRouteWithChildren
+  ClubApplyRoute: typeof ClubApplyRoute
+  ClubElementsRoute: typeof ClubElementsRoute
+  ClubIndexRoute: typeof ClubIndexRoute
+  ClubJoinTokenRoute: typeof ClubJoinTokenRoute
+  ClubSpecializationSlugRoute: typeof ClubSpecializationSlugRoute
+}
+
+const ClubRouteChildren: ClubRouteChildren = {
+  ClubClubSlugRoute: ClubClubSlugRouteWithChildren,
+  ClubApplyRoute: ClubApplyRoute,
+  ClubElementsRoute: ClubElementsRoute,
+  ClubIndexRoute: ClubIndexRoute,
+  ClubJoinTokenRoute: ClubJoinTokenRoute,
+  ClubSpecializationSlugRoute: ClubSpecializationSlugRoute,
 }
 
 const ClubRouteWithChildren = ClubRoute._addFileChildren(ClubRouteChildren)
@@ -7889,6 +8418,7 @@ interface ProfileRouteChildren {
   ProfileExpertRequestsRoute: typeof ProfileExpertRequestsRoute
   ProfileFollowsRoute: typeof ProfileFollowsRoute
   ProfileInterestsRoute: typeof ProfileInterestsRoute
+  ProfileInvoicesRoute: typeof ProfileInvoicesRoute
   ProfileMembershipRoute: typeof ProfileMembershipRoute
   ProfileNotificationsRoute: typeof ProfileNotificationsRoute
   ProfileOrdersRoute: typeof ProfileOrdersRoute
@@ -7914,6 +8444,7 @@ const ProfileRouteChildren: ProfileRouteChildren = {
   ProfileExpertRequestsRoute: ProfileExpertRequestsRoute,
   ProfileFollowsRoute: ProfileFollowsRoute,
   ProfileInterestsRoute: ProfileInterestsRoute,
+  ProfileInvoicesRoute: ProfileInvoicesRoute,
   ProfileMembershipRoute: ProfileMembershipRoute,
   ProfileNotificationsRoute: ProfileNotificationsRoute,
   ProfileOrdersRoute: ProfileOrdersRoute,
@@ -8016,6 +8547,7 @@ const rootRouteChildren: RootRouteChildren = {
   ExpertsRoute: ExpertsRoute,
   FeedRoute: FeedRoute,
   GlossaryRoute: GlossaryRoute,
+  KomunikacjaIMarketingRoute: KomunikacjaIMarketingRoute,
   LibraryRoute: LibraryRoute,
   LiveRoute: LiveRoute,
   LlmsDottxtRoute: LlmsDottxtRoute,
@@ -8024,28 +8556,38 @@ const rootRouteChildren: RootRouteChildren = {
   MembershipJoinRoute: MembershipJoinRoute,
   MembershipRegistrationRoute: MembershipRegistrationRoute,
   MessagesRoute: MessagesRoute,
+  ModeracjaKomentarzyRoute: ModeracjaKomentarzyRoute,
   NetworkRoute: NetworkRouteWithChildren,
   NewsSitemapDotxmlRoute: NewsSitemapDotxmlRoute,
   PeopleRoute: PeopleRoute,
   PolitykaPrywatnosciRoute: PolitykaPrywatnosciRoute,
+  PolitykaPrzetwarzaniaDanychRoute: PolitykaPrzetwarzaniaDanychRoute,
   PollsRoute: PollsRoute,
   PricingRoute: PricingRoute,
   ProfileRoute: ProfileRouteWithChildren,
+  PrzejrzystoscAiRoute: PrzejrzystoscAiRoute,
   PublicationsRoute: PublicationsRoute,
   QaRoute: QaRouteWithChildren,
   QuizRoute: QuizRoute,
   ReadingListRoute: ReadingListRoute,
   RegulaminRoute: RegulaminRoute,
+  RegulaminKlubowDyskusyjnychRoute: RegulaminKlubowDyskusyjnychRoute,
+  RegulaminSubskrypcjiIZakupowRoute: RegulaminSubskrypcjiIZakupowRoute,
+  RegulaminWydarzenIBiletowRoute: RegulaminWydarzenIBiletowRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
+  RodoRoute: RodoRoute,
   RssDotxmlRoute: RssDotxmlRoute,
   ScannerRoute: ScannerRoute,
   SearchRoute: SearchRoute,
   SitemapRoute: SitemapRoute,
   SitemapIndexDotxmlRoute: SitemapIndexDotxmlRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  StatutRoute: StatutRoute,
   SupportRoute: SupportRoute,
   UnsubscribeRoute: UnsubscribeRoute,
+  WelcomeRoute: WelcomeRoute,
+  ZarzadzaniePolitykaPrywatnosciRoute: ZarzadzaniePolitykaPrywatnosciRoute,
   ZatrudniamyRoute: ZatrudniamyRoute,
   ZwrotyIReklamacjeRoute: ZwrotyIReklamacjeRoute,
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
@@ -8055,6 +8597,8 @@ const rootRouteChildren: RootRouteChildren = {
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   ApiSttRoute: ApiSttRoute,
   ApiTtsRoute: ApiTtsRoute,
+  AuthActivateRoute: AuthActivateRoute,
+  AuthCallbackRoute: AuthCallbackRoute,
   AuthorSlugRoute: AuthorSlugRoute,
   OrganizationSlugRoute: OrganizationSlugRoute,
   CategorySlugRoute: CategorySlugRouteWithChildren,
@@ -8063,6 +8607,7 @@ const rootRouteChildren: RootRouteChildren = {
   CheckoutSuccessRoute: CheckoutSuccessRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   LiveRssDotxmlRoute: LiveRssDotxmlRoute,
+  MediaSplatRoute: MediaSplatRoute,
   MeetingsEventSlugRoute: MeetingsEventSlugRoute,
   NewsletterConfirmRoute: NewsletterConfirmRoute,
   NewsletterUnsubscribeRoute: NewsletterUnsubscribeRoute,

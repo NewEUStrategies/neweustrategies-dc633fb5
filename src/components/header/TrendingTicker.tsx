@@ -1,8 +1,10 @@
+import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
 // Header "Na czasie / Trending" - compact bar of posts.
 // Sources: trending | latest | pinned | selected | mixed.
 // Modes: scroll (marquee) | fade | slide | flip | typewriter.
 // Colors and label overridable per light/dark via CSS custom properties.
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { useIsomorphicLayoutEffect } from "@/lib/react/useIsomorphicLayoutEffect";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Flame } from "lucide-react";
@@ -21,6 +23,10 @@ import {
   type TickerColorScheme,
 } from "@/lib/views/tickerVariants";
 import { AppLink } from "@/components/atoms/AppLink";
+import {
+  HEADER_TICKER_BAND_CLASS,
+  HEADER_TICKER_BORDER_CLASS,
+} from "@/components/header/headerGeometry";
 import { hardenStyleCss } from "@/lib/sanitizePure";
 
 export type { TickerMode };
@@ -125,7 +131,15 @@ export function TrendingTicker({
     return () => window.clearInterval(t);
   }, [kind, intervalSec, totalBatches]);
 
-  if (isLoading || !posts.length) return null;
+  // REZERWA W HTML Z SERWERA. Pasek stoi NAD całą stroną, a montuje się dopiero
+  // z danymi - dopóki zwracał tu `null`, jego ~40 px doskakiwało po hydratacji
+  // i spychało `<main>` w dół (0,03 CLS na artefakcie produkcyjnym, fixture
+  // `first-visit`). Dopóki zapytanie nie wróciło, trzymamy więc JEGO pudełko:
+  // ta sama ramka, ta sama klasa wysokości, zero treści. Pusty wynik zwija
+  // pasek tak jak dotąd - wtedy nie ma czego trzymać, a `HeaderSkeleton`
+  // rezerwuje ten pas z tych samych ustawień (`header.trending.enabled`).
+  if (isLoading) return <TickerHeightReserve className={className} />;
+  if (!posts.length) return null;
 
   const defaultLabel = t("trendingTicker.badge");
   const label =
@@ -147,7 +161,7 @@ export function TrendingTicker({
     const skin = SKIN_BY_LAYOUT[layoutStyle] ?? "marquee";
     return (
       <div
-        className={`cms-trending border-b cms-trending--glass cms-trending--${skin} ${className ?? ""}`}
+        className={`cms-trending ${HEADER_TICKER_BORDER_CLASS} cms-trending--glass cms-trending--${skin} ${className ?? ""}`}
         data-testid="trending-ticker"
         data-tt-vid={vid}
         data-tt-layout={layoutStyle}
@@ -186,7 +200,7 @@ export function TrendingTicker({
 
   return (
     <div
-      className={`cms-trending border-b ${isBadge ? "cms-trending--badge" : "cms-trending--classic"} ${className ?? ""}`}
+      className={`cms-trending ${HEADER_TICKER_BORDER_CLASS} ${isBadge ? "cms-trending--badge" : "cms-trending--classic"} ${className ?? ""}`}
       data-testid="trending-ticker"
       data-tt-vid={vid}
       data-tt-layout={layoutStyle}
@@ -197,7 +211,7 @@ export function TrendingTicker({
     >
       <TickerPaletteStyle vid={vid} palette={palette} />
       <div
-        className={`${innerMax} ${isBadge ? "pr-4 lg:pr-8 pl-0" : "px-4 lg:px-8"} h-10 flex items-stretch gap-0 overflow-hidden`}
+        className={`${innerMax} ${isBadge ? "pr-4 lg:pr-8 pl-0" : "px-4 lg:px-8"} ${HEADER_TICKER_BAND_CLASS} flex items-stretch gap-0 overflow-hidden`}
       >
         {isBadge ? (
           <span
@@ -288,6 +302,31 @@ export function TrendingTicker({
         </div>
       </div>
       <TickerStyles />
+    </div>
+  );
+}
+
+/**
+ * Puste pudełko paska „na czasie" na czas ładowania jego danych.
+ *
+ * Renderuje DOKŁADNIE tę samą ramkę (`cms-trending` + dolna krawędź) i tę samą
+ * klasę wysokości, co wariant klasyczny paska, więc podmiana rezerwy na treść
+ * nie zmienia wysokości nagłówka ani o piksel. `--hdr-tt` (pomiar w
+ * `Header.tsx`) też trafia wtedy od razu na właściwą liczbę.
+ *
+ * OGRANICZENIE: warianty „glass"/marquee mają własną, wyższą geometrię
+ * (`.tt-glass` + karty `h-11`); dla nich rezerwa jest CZĘŚCIOWA - nadal
+ * nieporównanie bliżej niż zero, ale nie zeruje przesunięcia.
+ */
+export function TickerHeightReserve({ className }: { className?: string }) {
+  return (
+    <div
+      className={`cms-trending ${HEADER_TICKER_BORDER_CLASS} cms-trending--classic ${className ?? ""}`}
+      data-testid="trending-ticker-reserve"
+      aria-hidden
+      style={{ background: "var(--tt-bg)", borderColor: "var(--tt-border)" }}
+    >
+      <div className={`${HEADER_TICKER_BAND_CLASS} w-full`} />
     </div>
   );
 }
@@ -416,7 +455,9 @@ function TickerAuthor({ post }: { post: TickerItemProps["post"] }) {
     <span className="tt-live-author inline-flex shrink-0 items-center gap-[5px]">
       {avatar ? (
         <img
-          src={avatar}
+          src={buildAvatarSrc(avatar, 20)}
+          srcSet={buildAvatarSrcSet(avatar, 20)}
+          decoding="async"
           alt=""
           loading="lazy"
           width={20}
@@ -480,7 +521,13 @@ function TickerGlassMarquee({
 
   // One lap = half of the duplicated track. Measuring it keeps the configured
   // speed honest (px/s) no matter how many posts or how long the titles are.
-  useLayoutEffect(() => {
+  // This bar is server-rendered on every page, so the measurement branch is
+  // stated explicitly: the layout hook on the client (the correction lands
+  // before paint), plain useEffect on the server, where no effect body runs at
+  // all. The server therefore keeps lapPx === 0 and falls back to `estimated`
+  // below - a deterministic value, identical in the SSR HTML and in the
+  // client's first pass.
+  useIsomorphicLayoutEffect(() => {
     const el = trackRef.current;
     if (!el) return;
     const measure = () => setLapPx(el.scrollWidth / 2);
@@ -506,7 +553,11 @@ function TickerGlassMarquee({
     >
       <span className="tt-glass-label tt-glass-chip inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
         <span className="tt-chip-icon relative inline-flex items-center justify-center shrink-0">
-          <Flame className={`w-3.5 h-3.5 shrink-0 ${iconClass}`} aria-hidden />
+          <Flame
+            className={`w-3.5 h-3.5 shrink-0 ${iconClass}`}
+            style={{ color: "inherit" }}
+            aria-hidden
+          />
         </span>
         <span className="tt-chip-text hidden sm:inline">{label}</span>
       </span>
@@ -592,7 +643,11 @@ function TickerGlassCards({
     >
       <span className="tt-glass-label tt-glass-chip inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
         <span className="tt-chip-icon relative inline-flex items-center justify-center shrink-0">
-          <Flame className={`w-3.5 h-3.5 shrink-0 ${iconClass}`} aria-hidden />
+          <Flame
+            className={`w-3.5 h-3.5 shrink-0 ${iconClass}`}
+            style={{ color: "inherit" }}
+            aria-hidden
+          />
         </span>
         <span className="tt-chip-text hidden sm:inline">{label}</span>
       </span>
@@ -725,8 +780,8 @@ function TickerStyles() {
 
         /* Flame animations */
         @keyframes tt-flame-pulse {
-          0%,100% { transform: scale(1); filter: drop-shadow(0 0 0 currentColor) }
-          50%     { transform: scale(1.18); filter: drop-shadow(0 0 6px currentColor) }
+          0%,100% { transform: scale(1) }
+          50%     { transform: scale(1.18) }
         }
         @keyframes tt-flame-flicker {
           0%,100% { transform: scale(1) rotate(-2deg); opacity: 1 }
@@ -760,8 +815,6 @@ function TickerStyles() {
           background: linear-gradient(135deg,
             color-mix(in srgb, var(--tt-label) 18%, transparent),
             color-mix(in srgb, var(--tt-label) 4%, transparent));
-          box-shadow: 0 1px 0 color-mix(in srgb, #fff 22%, transparent) inset,
-                      0 6px 18px -12px color-mix(in srgb, var(--tt-label) 80%, transparent);
           backdrop-filter: blur(10px) saturate(140%);
           -webkit-backdrop-filter: blur(10px) saturate(140%);
         }
@@ -869,8 +922,7 @@ function TickerStyles() {
           font-size: 10px;
           letter-spacing: .06em;
           text-transform: uppercase;
-          box-shadow: 0 3px 10px -4px color-mix(in srgb, var(--tt-label) 55%, transparent);
-          transition: transform .25s ease, box-shadow .25s ease;
+          transition: transform .25s ease;
           gap: 6px;
           /* skew wysuwa lewą krawędź w lewo - dodajemy margines, żeby nie być obciętym przez overflow-hidden rodzica */
           margin-left: 4px;
@@ -958,7 +1010,6 @@ function TickerStyles() {
         .tt-skin--live .tt-live-avatar {
           background: color-mix(in srgb, var(--tt-label) 18%, transparent);
           color: var(--tt-label);
-          box-shadow: 0 0 0 1px color-mix(in srgb, var(--tt-border) 90%, transparent);
         }
         /* Jedna linia bazowa dla całego elementu: wspólny wiersz 24px, każdy
            składnik (numer, tytuł, kreska, awatar, nazwisko) jest wyśrodkowany

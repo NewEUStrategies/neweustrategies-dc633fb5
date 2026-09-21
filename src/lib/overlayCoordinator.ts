@@ -16,7 +16,10 @@
 //          marketing consent (not merely reordered - see setMarketingConsent),
 //        - counted against a PERSISTED, cross-session interruption budget
 //          (max N per calendar day, min gap between two overlays) so a reload
-//          or a new tab can't immediately re-show an overlay.
+//          or a new tab can't immediately re-show an overlay,
+//        - WSTRZYMANE do czasu, aż baner zgód w ogóle ZGŁOSI swój stan
+//          (patrz `consentReported`) - inaczej nakładka wchodziła przed
+//          pierwszym kontaktem odwiedzającego z banerem.
 //
 // Non-marketing dialogs (login popup - user-initiated, app dialogs) do not
 // participate: they respond to explicit user action. Non-marketing coordinated
@@ -39,9 +42,39 @@ const MIN_MARKETING_GAP_MS = 20 * 60_000; // 20 minutes between marketing overla
 type Budget = { day: string; count: number; lastTs: number };
 
 let consentVisible = false;
-// null = undecided (held by the consent banner anyway); true = granted;
-// false = explicitly denied -> marketing overlays are suppressed.
+// null = brak decyzji albo brak wiedzy; true = zgoda; false = wyraźna odmowa
+// -> nakładki marketingowe są wygaszone. UWAGA: samo `null` NIE jest bezpieczne
+// - przed pierwszym zgłoszeniem baneru znaczy „jeszcze nie zapytaliśmy", a nie
+// „odwiedzający nie zdecydował". Bramę trzyma dlatego osobna flaga niżej.
 let marketingConsent: boolean | null = null;
+// Czy baner zgód ZGŁOSIŁ JUŻ swój stan (przez `setConsentOverlayVisible(true)`
+// albo `setMarketingConsent`). Stan początkowy = niezgłoszony, bo tak wygląda
+// moduł tuż po załadowaniu strony: baner jest leniwym chunkiem montowanym
+// z opóźnieniem (`__root`: rAF + bezczynność), a nakładki marketingowe planują
+// się niezależnie od niego. W tym oknie `consentVisible === false` plus
+// `marketingConsent === null` wyglądały jak „baner nie przeszkadza, decyzji
+// brak" i popup buildera z wyzwalaczem „immediate" potrafił zająć slot, zanim
+// odwiedzający pierwszy raz zobaczył baner - tym łatwiej, im wolniej schodził
+// większy chunk zgód (recenzja Codex, PR #382).
+//
+// ZAKRES: brama obejmuje WYŁĄCZNIE wpisy `marketing: true`, nie całą kolejkę.
+// Reguła 1 z nagłówka mówi o banerze WIDOCZNYM (kolizja na ekranie plus
+// pierwszeństwo zgody), a „jeszcze nie zgłosił" to stan niewiedzy, nie
+// widoczności. Wpisy niemarketingowe z definicji nie zależą od zgody (patrz
+// `pickIndex`), więc ich wstrzymanie niczego by nie chroniło, a zamieniałoby
+// brak baneru w trwałe zakleszczenie obietnicy, której nikt nie rozwiąże.
+//
+// FAIL-CLOSED, ŚWIADOMIE: gdyby baner NIGDY nie zgłosił stanu (nie wczyta się
+// jego chunk, wyjątek w komponencie, drzewo bez baneru), żadna nakładka
+// marketingowa nie otworzy się do końca życia strony. Kierunek awarii jest
+// właściwy - ceną jest utracona przerwa reklamowa, a nie pokazanie jej bez
+// zapytania o zgodę. W przeglądarce ścieżka zgłoszenia jest bezwarunkowa:
+// efekt w `ConsentBanner` stoi wprawdzie za `if (!mounted) return`, ale
+// `mounted` przestawia się w `useEffect` przy KAŻDYM montażu, niezależnie od
+// tego, czy baner cokolwiek rysuje (wyłączony w ustawieniach, strona admina,
+// iframe podglądu) - efekt zgłaszający poprzedza wszystkie wczesne `return`
+// renderu.
+let consentReported = false;
 let owner: string | null = null;
 let cooldownUntil = 0;
 let cooldownTimer: ReturnType<typeof setTimeout> | null = null;
@@ -95,6 +128,8 @@ function recordMarketingGrant(now: number): void {
 
 /** True if a marketing entry is currently blocked (consent denied or budget). */
 function marketingBlocked(now: number): boolean {
+  // Dopóki baner nie zgłosił stanu, o zgodzie nie wiemy NIC - patrz `consentReported`.
+  if (!consentReported) return true;
   return marketingConsent === false || !marketingBudgetAllows(now);
 }
 
@@ -146,6 +181,12 @@ function pump(): void {
 
 /** ConsentBanner reports its initial-banner visibility here. */
 export function setConsentOverlayVisible(visible: boolean): void {
+  // Zgłoszeniem stanu jest tylko `true`: z `false` woła także sprzątanie przy
+  // ODMONTOWANIU baneru (również to z podwójnego montażu w StrictMode), a
+  // odmontowanie nie jest odpowiedzią na pytanie o zgodę - zdjęcie bramy
+  // `consentReported` w tym miejscu otwierałoby ją w oknie, w którym baner
+  // jeszcze niczego nie zdążył opublikować.
+  if (visible) consentReported = true;
   consentVisible = visible;
   if (!visible) pump();
 }
@@ -156,6 +197,9 @@ export function setConsentOverlayVisible(visible: boolean): void {
  * denied, marketing overlays are suppressed outright (not just reordered).
  */
 export function setMarketingConsent(value: boolean | null): void {
+  // KAŻDE wywołanie - także z `null` - jest zgłoszeniem stanu: znaczy „baner
+  // żyje i tyle wie o zgodzie". Dopiero ono zdejmuje bramę `consentReported`.
+  consentReported = true;
   marketingConsent = value;
   if (value !== false) pump();
 }
@@ -204,6 +248,9 @@ export function isOverlayActive(): boolean {
 export function __resetOverlayCoordinator(): void {
   consentVisible = false;
   marketingConsent = null;
+  // Prawdziwy stan początkowy to „baner jeszcze nie zgłosił stanu" - test,
+  // który resetuje koordynator, musi startować z zamkniętą bramą.
+  consentReported = false;
   owner = null;
   cooldownUntil = 0;
   queue.length = 0;

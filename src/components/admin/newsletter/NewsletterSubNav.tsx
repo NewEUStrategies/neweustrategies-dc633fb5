@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { ensureI18n as ensureNewsletterAdminI18n } from "@/lib/i18n-newsletter-admin";
 import {
   FileText,
+  Inbox,
   LayoutDashboard,
   Mail,
   MailCheck,
@@ -54,6 +55,12 @@ const tabs = [
     key: "deliverability",
     icon: ShieldCheck,
     labelKey: "adminNewsletter.nav.deliverability",
+  },
+  {
+    to: "/admin/newsletter/outbox",
+    key: "outbox",
+    icon: Inbox,
+    labelKey: "adminNewsletter.nav.outbox",
   },
   {
     to: "/admin/newsletter/system-emails",

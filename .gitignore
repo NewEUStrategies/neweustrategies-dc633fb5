@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 coverage
+coverage-platform
 .output
 .vinxi
 .tanstack/**
@@ -29,6 +30,7 @@ coverage
 # Playwright (E2E)
 playwright-report/
 test-results/
+test-results-performance/
 /playwright/.cache/
 
 # Editor directories and files
@@ -88,3 +90,9 @@ package-lock.json
 # konfiguracje projektowa (np. `tsconfig.node.json`).
 tsconfig.*-check.json
 tsconfig.agentcheck.json
+
+# Vitest shard reports are CI artifacts.
+.vitest-reports/
+
+# CMS performance traces are workflow artifacts.
+test-results-cms-performance/

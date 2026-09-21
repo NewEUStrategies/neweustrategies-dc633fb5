@@ -6,6 +6,11 @@
 // polegaja juz wylacznie na politykach RLS - uwierzytelniony uzytkownik bez roli
 // jest odrzucany zanim handler w ogole sie wykona.
 //
+// Osobna klasa to zasoby INSTALACJI (requirePlatformAdmin): tam sama rola nie
+// wystarcza, bo role sa nadawane per najemca - musi dojsc przynaleznosc do
+// najemcy domyslnego, inaczej super admin dowolnej organizacji rusza ustawienia
+// wspolne dla wszystkich.
+//
 // Kontekst (supabase scoped na uzytkownika, userId, claims) pochodzi z
 // requireSupabaseAuth. Sprawdzamy role bezposrednio przez user-scoped klienta:
 // uzytkownik moze odczytac wlasny profil i wlasne role, wiec mutacje contentu
@@ -24,8 +29,20 @@ const ADMIN_ROLES: readonly AppRole[] = ["admin", "super_admin"];
 // crm_* (admin/editor/super_admin), żeby middleware nie wpuszczał autorów do
 // handlerów, które i tak odbije baza.
 const CRM_STAFF_ROLES: readonly AppRole[] = ["admin", "editor", "super_admin"];
+// Operator PLATFORMY, nie najemcy. `job_runner_settings` to JEDEN wiersz (id=1)
+// bez kolumny tenant_id: adres, pod który pg_cron wysyła sekret operatora, i
+// kill switch gaszący pocztę WSZYSTKICH najemców. Baza mówi to samo od migracji
+// 20260727112330 (polityka "job_runner_settings super_admin read", komentarz
+// "platform-wide singleton, not per-tenant") - tu domykamy ZAPIS, który idzie
+// spod service_role i RLS omija.
+const PLATFORM_ADMIN_ROLES: readonly AppRole[] = ["super_admin"];
 
-function roleMiddleware(allowed: readonly AppRole[], label: string) {
+/**
+ * `requireDefaultTenant` jest opcjonalne, bo dotyczy WYŁĄCZNIE zasobów
+ * wspólnych dla całej instalacji - cztery bramki najemcy zachowują się tak jak
+ * dotąd i nie płacą za dodatkowe zapytanie.
+ */
+function roleMiddleware(allowed: readonly AppRole[], label: string, requireDefaultTenant = false) {
   return createMiddleware({ type: "function" })
     .middleware([requireSupabaseAuth])
     .server(async ({ next, context }) => {
@@ -66,6 +83,29 @@ function roleMiddleware(allowed: readonly AppRole[], label: string) {
         throw new Error(`Forbidden: ${label} required`);
       }
 
+      // `super_admin` jest rolą PER NAJEMCA (has_role/is_super_admin filtrują po
+      // current_tenant_id), więc sama rola nie wyraża „operatora instalacji".
+      // Dopiero przynależność do najemcy domyślnego rozstrzyga, kto może ruszać
+      // zasób wspólny dla wszystkich najemców.
+      if (requireDefaultTenant) {
+        const { data: tenant, error: tenantError } = await context.supabase
+          .from("tenants")
+          .select("is_default")
+          .eq("id", profile.tenant_id)
+          .maybeSingle();
+        if (tenantError) {
+          console.error(`[${label}] tenant lookup failed`, {
+            userId: context.userId,
+            message: tenantError.message,
+            code: tenantError.code,
+          });
+          throw new Error(`Forbidden: could not verify ${label} (${tenantError.message})`);
+        }
+        if (tenant?.is_default !== true) {
+          throw new Error(`Forbidden: ${label} required`);
+        }
+      }
+
       const aal = (context.claims as { aal?: string }).aal;
       if (aal !== "aal2") {
         const { data: hasMfa, error: mfaError } = await context.supabase.rpc("has_verified_mfa");
@@ -92,3 +132,11 @@ export const requireStaff = roleMiddleware(STAFF_ROLES, "staff role (admin/edito
 export const requireCrmStaff = roleMiddleware(CRM_STAFF_ROLES, "CRM staff role (admin/editor)");
 export const requireAdminEditor = roleMiddleware(ADMIN_EDITOR_ROLES, "admin/editor role");
 export const requireAdmin = roleMiddleware(ADMIN_ROLES, "admin role");
+// Bramka zasobów INSTALACJI (singleton `job_runner_settings`): rola operatora
+// plus najemca domyślny. Staff dowolnego najemcy ma tu zostać odrzucony, bo
+// jedna zmiana w tym wierszu dotyczy poczty i zadań tła wszystkich najemców.
+export const requirePlatformAdmin = roleMiddleware(
+  PLATFORM_ADMIN_ROLES,
+  "platform admin role (super_admin)",
+  true,
+);

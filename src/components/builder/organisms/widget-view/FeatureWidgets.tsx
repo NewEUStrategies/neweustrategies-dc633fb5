@@ -20,6 +20,7 @@ import {
   parseCountryCodes,
   parseSourceEntries,
 } from "@/lib/features/parse";
+import { parseMapRegion } from "@/lib/charts/parse";
 import { Timeline } from "@/components/features/Timeline";
 import { SankeyDiagram } from "@/components/features/SankeyDiagram";
 import { CountryCompare } from "@/components/features/CountryCompare";
@@ -163,7 +164,10 @@ export function NetworkWidgetView({ node, lang }: WidgetProps) {
 
 export function CorridorMapWidgetView({ node, lang }: WidgetProps) {
   const c = node.content;
-  const region = getStr(c, "region") === "world" ? "world" : "europe";
+  // Mapa korytarzy rysuje się na TYM SAMYM zasobie geometrii, co choropleta,
+  // więc region idzie tym samym parserem - inaczej kontynenty byłyby dostępne
+  // w jednym widgecie, a w drugim cicho degradowane do Europy.
+  const region = parseMapRegion(getStr(c, "region"));
   return (
     <CorridorMap
       lang={lang}

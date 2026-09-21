@@ -154,3 +154,37 @@ export const donationReceivedEnTemplate = createAppEmailTemplate(
     ctaUrl: `${SITE_URL}/analizy`,
   },
 );
+
+// Zaproszenie do konta z panelu administratora. Dwa wpisy, bo w App Emails
+// każdy szablon jest jednojęzyczny - język wybiera administrator w popupie
+// zaproszenia, a wysyłka przekazuje go do `sendTxEmail`.
+export const userInvitationPlTemplate = createAppEmailTemplate(
+  "user_invitation",
+  "Zaproszenie do konta - PL",
+  {
+    lang: "pl",
+    firstName: "Anna",
+    vocativePl: "Anno",
+    details: [
+      { label: "Adres logowania", value: "anna@example.com" },
+      { label: "Rola", value: "author" },
+      { label: "Organizacja", value: "New European Strategies" },
+    ],
+    ctaUrl: `${SITE_URL}/auth`,
+  },
+);
+
+export const userInvitationEnTemplate = createAppEmailTemplate(
+  "user_invitation",
+  "Account invitation - EN",
+  {
+    lang: "en",
+    firstName: "Anna",
+    details: [
+      { label: "Sign-in address", value: "anna@example.com" },
+      { label: "Role", value: "author" },
+      { label: "Organisation", value: "New European Strategies" },
+    ],
+    ctaUrl: `${SITE_URL}/auth`,
+  },
+);

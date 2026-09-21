@@ -242,7 +242,7 @@ describe("uploadCv - nazwa pliku kandydata nie trafia do ścieżki", () => {
     "Moje CV.pdf",
     "../../etc/passwd.pdf",
     "..%2F..%2Fsekret.pdf",
-    "cv .pdf",
+    "cv\0.pdf",
     "CV Anny Kowalskiej (ostateczne, poprawione).pdf",
     "życiorys-łódź.pdf",
   ])("ścieżka nie niesie nazwy %j", async (name) => {

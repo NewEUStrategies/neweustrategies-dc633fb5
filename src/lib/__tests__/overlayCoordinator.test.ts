@@ -16,7 +16,61 @@ describe("overlayCoordinator", () => {
     __resetOverlayCoordinator();
   });
   afterEach(() => {
+    __resetOverlayCoordinator();
+    vi.unstubAllGlobals();
     vi.useRealTimers();
+  });
+
+  it("keeps SSR usable without browser storage", async () => {
+    vi.stubGlobal("window", undefined);
+    // Baner zgód jest tu poza obrazkiem - test pyta o brak `window`, nie
+    // o bramę zgód, więc stan baneru zgłaszamy ręcznie.
+    setMarketingConsent(true);
+    const release = await requestOverlaySlot("ssr", { marketing: true });
+    expect(release).toBeTypeOf("function");
+    release();
+    __resetOverlayCoordinator();
+  });
+  it.each([
+    { day: 7, count: "bad", lastTs: "bad" },
+    { day: "2026-07-10", count: 3, lastTs: 0 },
+  ])("recovers from stale or malformed persisted budgets: %j", async (budget) => {
+    window.localStorage.setItem("overlay:budget:v1", JSON.stringify(budget));
+    setMarketingConsent(true);
+    await requestOverlaySlot("new-day", { marketing: true });
+    expect(JSON.parse(window.localStorage.getItem("overlay:budget:v1")!)).toMatchObject({
+      day: "2026-07-11",
+      count: 1,
+    });
+  });
+  it("suppresses the fourth marketing interruption even after the minimum gap", async () => {
+    window.localStorage.setItem(
+      "overlay:budget:v1",
+      JSON.stringify({ day: "2026-07-11", count: 3, lastTs: 0 }),
+    );
+    // Zgoda zgłoszona i udzielona: jedynym powodem wstrzymania ma być budżet.
+    setMarketingConsent(true);
+    const opened = vi.fn();
+    void requestOverlaySlot("fourth", { marketing: true }).then(opened);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(opened).not.toHaveBeenCalled();
+    cancelOverlayRequest("fourth");
+  });
+  it("preserves FIFO at equal priority and ignores a stale double release", async () => {
+    setConsentOverlayVisible(true);
+    const first = requestOverlaySlot("first", { priority: 10 });
+    const second = vi.fn();
+    void requestOverlaySlot("second", { priority: 10 }).then(second);
+    setConsentOverlayVisible(false);
+    const release = await first;
+    expect(second).not.toHaveBeenCalled();
+    release();
+    release();
+    // Re-pumping a cooldown must not schedule a second timer.
+    setConsentOverlayVisible(false);
+    expect(vi.getTimerCount()).toBe(1);
+    __resetOverlayCoordinator();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("grants the first request immediately", async () => {
@@ -76,6 +130,54 @@ describe("overlayCoordinator", () => {
     setConsentOverlayVisible(false);
     await vi.runOnlyPendingTimersAsync();
     expect(order).toEqual(["high"]);
+  });
+
+  it("withholds a marketing overlay until the consent banner has reported at all", async () => {
+    const granted = vi.fn();
+    void requestOverlaySlot("builder-popup:immediate", { marketing: true }).then(granted);
+    await vi.advanceTimersByTimeAsync(60_000);
+    // Chunk baneru bywa wolniejszy niż popup z wyzwalaczem „immediate": dopóki
+    // baner nie odezwał się ANI RAZU, `marketingConsent === null` znaczy „nie
+    // wiemy", a nie „odwiedzający nie zdecydował".
+    expect(granted).not.toHaveBeenCalled();
+
+    // Zgłoszenie baneru („nie zasłaniam ekranu, decyzji brak") zdejmuje bramę.
+    setConsentOverlayVisible(false);
+    expect(granted).not.toHaveBeenCalled();
+    setMarketingConsent(null);
+    await vi.runOnlyPendingTimersAsync();
+    expect(granted).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the gate closed while the banner reports itself visible", async () => {
+    const granted = vi.fn();
+    void requestOverlaySlot("newsletter", { marketing: true }).then(granted);
+    // Kolejność jak w efekcie ConsentBanner: najpierw zamknięcie bramy,
+    // dopiero potem publikacja (nieznanej jeszcze) decyzji.
+    setConsentOverlayVisible(true);
+    setMarketingConsent(null);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(granted).not.toHaveBeenCalled();
+    cancelOverlayRequest("newsletter");
+  });
+
+  it("still grants a non-marketing entry before the banner has reported", async () => {
+    const granted = vi.fn();
+    // Brama dotyczy wyłącznie wpisów marketingowych - wpis niemarketingowy
+    // nie zależy od zgody, a jego wstrzymanie byłoby zakleszczeniem.
+    void requestOverlaySlot("app-dialog", { marketing: false }).then(granted);
+    await vi.runOnlyPendingTimersAsync();
+    expect(granted).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats a coordinator reset as 'the banner has not reported yet'", async () => {
+    setMarketingConsent(true);
+    __resetOverlayCoordinator();
+    const granted = vi.fn();
+    void requestOverlaySlot("newsletter", { marketing: true }).then(granted);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(granted).not.toHaveBeenCalled();
+    cancelOverlayRequest("newsletter");
   });
 
   it("suppresses marketing overlays when marketing consent is denied", async () => {

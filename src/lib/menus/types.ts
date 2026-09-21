@@ -3,6 +3,10 @@
 // importowalne przez builder i admin UI.
 import { z } from "zod";
 
+export const MENU_ITEM_VISIBILITIES = ["all", "guest", "auth"] as const;
+/** Widoczność pozycji: wszyscy / tylko niezalogowani / tylko zalogowani. */
+export type MenuItemVisibility = (typeof MENU_ITEM_VISIBILITIES)[number];
+
 export const MENU_ITEM_TYPES = ["page", "post", "category", "tag", "custom"] as const;
 export type MenuItemType = (typeof MENU_ITEM_TYPES)[number];
 
@@ -50,6 +54,7 @@ export const menuItemInputSchema = z.object({
   href: z.string().trim().max(1000).default(""),
   target: z.enum(["_self", "_blank"]).default("_self"),
   css_class: z.string().trim().max(200).default(""),
+  visibility: z.enum(MENU_ITEM_VISIBILITIES).default("all"),
   icon: z.string().trim().max(64).default(""),
   mega_enabled: z.boolean().default(false),
   mega_config: megaConfigSchema.default(DEFAULT_MEGA_CONFIG),
@@ -74,6 +79,7 @@ export interface MenuItemRow {
   href: string;
   target: string;
   css_class: string;
+  visibility: MenuItemVisibility;
   icon: string;
   mega_enabled: boolean;
   mega_config: MegaConfig;

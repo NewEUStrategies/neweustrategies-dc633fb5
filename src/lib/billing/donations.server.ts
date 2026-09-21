@@ -16,7 +16,7 @@
 // Zmiana któregokolwiek z tych ustawień wymaga aktualizacji tamtego dokumentu.
 import type Stripe from "stripe";
 import type { Database } from "@/integrations/supabase/types";
-import { createStripeClient, getStripeErrorMessage, type StripeEnv } from "@/lib/stripe.server";
+import { getStripeClient, getStripeErrorMessage, type StripeEnv } from "@/lib/stripe.server";
 import { normalizeCheckoutLocale, type CheckoutLocale } from "@/lib/billing/checkoutLocale";
 import {
   DONATIONS_DEFAULTS,
@@ -161,7 +161,7 @@ export async function createDonationSession(
   }
 
   try {
-    const stripe = createStripeClient(input.environment);
+    const stripe = await getStripeClient(input.environment);
     const locale = normalizeCheckoutLocale(input.locale);
     const donationCopy = DONATION_CHECKOUT_COPY[locale][input.recurring ? "recurring" : "once"];
     const metadata: Record<string, string> = {

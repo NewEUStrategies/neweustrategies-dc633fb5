@@ -9,8 +9,9 @@
  * Usage:
  *   bun run report:deployment [--version=v1.2.3]
  * Wejścia opcjonalne (jeśli istnieją):
- *   reports/vitest.json        - `vitest run --reporter=json --outputFile=`
- *   reports/playwright.json    - `playwright test --reporter=json`
+ *   reports/test-accounting.json - complete merged suite, tied to commit
+ *   reports/e2e-status.json       - e2e + e2e-seeded jobs, tied to commit
+ *   reports/migration-ledger.json - applied migration requirements
  *   reports/db-contract.json   - scripts/check-db-contract.ts
  *   reports/i18n-parity.json   - test-bramka parytetu PL/EN
  */
@@ -18,18 +19,23 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import {
   overallStatus,
+  parseGateReport,
+  parseTestAccounting,
+  parseE2eStatus,
   parsePullRequests,
   renderDeploymentReport,
   type CheckStatus,
   type DeploymentReportInput,
-  type TestTotals,
 } from "../src/lib/ci/deploymentReport";
 
 const REPORTS = "reports";
 
 function git(args: string[]): string {
   try {
-    return execFileSync("git", args, { encoding: "utf8" }).trim();
+    return execFileSync("git", args, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
   } catch {
     return "";
   }
@@ -51,39 +57,6 @@ function num(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-function vitestTotals(): TestTotals | null {
-  const json = readJson(`${REPORTS}/vitest.json`);
-  if (json === null) return null;
-  const results = Array.isArray(json["testResults"]) ? json["testResults"] : [];
-  return {
-    files: results.length || num(json["numTotalTestSuites"]),
-    tests: num(json["numTotalTests"]),
-    passed: num(json["numPassedTests"]),
-    failed: num(json["numFailedTests"]),
-    skipped: num(json["numPendingTests"]),
-  };
-}
-
-function smokeTotals(): { status: CheckStatus; tests: number; failed: number } | null {
-  const json = readJson(`${REPORTS}/playwright.json`);
-  if (json === null) return null;
-  const stats = (json["stats"] ?? {}) as Record<string, unknown>;
-  const failed = num(stats["unexpected"]) + num(stats["flaky"]);
-  const tests = num(stats["expected"]) + failed + num(stats["skipped"]);
-  return { status: failed > 0 ? "failed" : "passed", tests, failed };
-}
-
-function gateStatus(
-  path: string,
-  missingKey: string,
-): { status: CheckStatus; missing: number } | null {
-  const json = readJson(path);
-  if (json === null) return null;
-  const raw = json[missingKey];
-  const missing = Array.isArray(raw) ? raw.length : num(raw);
-  return { status: missing > 0 ? "failed" : "passed", missing };
-}
-
 /**
  * Bramka wierności ustawień widgetów. Raport pisze
  * `settingsFidelity.gate.test.tsx`; `unwaived` niepuste = defekt bez
@@ -96,13 +69,13 @@ function widgetFidelityStatus(): {
 } | null {
   const json = readJson(`${REPORTS}/widget-fidelity.json`);
   if (json === null) return null;
-  const raw = json["unwaived"];
-  const unwaived = Array.isArray(raw) ? raw.length : num(raw);
-  return { status: unwaived > 0 ? "failed" : "passed", unwaived, waived: num(json["waived"]) };
+  const gate = parseGateReport(json, ["unwaived"], "widgets");
+  if (!gate) return null;
+  return { status: gate.status, unwaived: gate.missing, waived: num(json["waived"]) };
 }
 
-function parseCiStatus(): CheckStatus {
-  const raw = (process.env["CI_STATUS"] ?? "").toLowerCase();
+function parseCiStatus(value: string | undefined): CheckStatus {
+  const raw = (value ?? "").toLowerCase();
   if (raw === "success" || raw === "passed") return "passed";
   if (raw === "failure" || raw === "failed") return "failed";
   if (raw === "skipped" || raw === "cancelled") return "skipped";
@@ -115,7 +88,7 @@ function main(): void {
   const branch =
     process.env["GITHUB_REF_NAME"] || git(["rev-parse", "--abbrev-ref", "HEAD"]) || "unknown";
   const previousRef = git(["describe", "--tags", "--abbrev=0", "HEAD^"]) || null;
-  const range = previousRef ? `${previousRef}..HEAD` : "HEAD~50..HEAD";
+  const range = previousRef ? `${previousRef}..HEAD` : "HEAD";
 
   const log = git(["log", range, "--pretty=format:%H%x1f%s%x1f%b%x1e"]);
   const commits = log
@@ -134,11 +107,21 @@ function main(): void {
     branch,
     previousRef,
     pullRequests: parsePullRequests(commits),
-    unitTests: vitestTotals(),
-    smoke: smokeTotals(),
-    ciStatus: parseCiStatus(),
-    dbContract: gateStatus(`${REPORTS}/db-contract.json`, "missing"),
-    i18nParity: gateStatus(`${REPORTS}/i18n-parity.json`, "missing"),
+    unitTests: parseTestAccounting(readJson(`${REPORTS}/test-accounting.json`), commit),
+    smoke: parseE2eStatus(readJson(`${REPORTS}/e2e-status.json`), commit),
+    ciStatus: parseCiStatus(process.env["CI_STATUS"]),
+    deploymentStatus: parseCiStatus(process.env["DEPLOYMENT_STATUS"]),
+    dbContract: parseGateReport(
+      readJson(`${REPORTS}/db-contract.json`),
+      ["missing", "inconclusive"],
+      "checked",
+    ),
+    migrationLedger: parseGateReport(
+      readJson(`${REPORTS}/migration-ledger.json`),
+      ["missing", "malformed", "staleReconciliations"],
+      "required",
+    ),
+    i18nParity: parseGateReport(readJson(`${REPORTS}/i18n-parity.json`), ["missing"]),
     widgetFidelity: widgetFidelityStatus(),
   };
 

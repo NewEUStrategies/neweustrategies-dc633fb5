@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Chart } from "@/components/charts/Chart";
 import type { ChartConfig } from "@/lib/charts/types";
+import { defaultChartConfig } from "@/lib/charts/parse";
 import {
   getSystemEmailReport,
   type SystemEmailRow,
@@ -42,6 +43,7 @@ import {
   totalPages as totalPagesFor,
   type Range,
 } from "./systemEmailsView";
+import { slotForSeries } from "@/lib/charts/palette";
 
 export function SystemEmailsPanel() {
   const { t, i18n } = useTranslation();
@@ -76,17 +78,22 @@ export function SystemEmailsPanel() {
     if (series.length === 0) return null;
     const values = chartValues(series);
     return {
+      ...defaultChartConfig(),
       kind: "line",
       title: t("systemEmails.chart.title"),
       description: "",
       categories: series.map((p) => dayLabel(p.day, locale)),
       series: [
-        { name: t("systemEmails.chart.sent"), values: values.sent, colorSlot: 1 },
-        { name: t("systemEmails.chart.failed"), values: values.failed, colorSlot: 2 },
+        { name: t("systemEmails.chart.sent"), values: values.sent, colorSlot: slotForSeries(0) },
+        {
+          name: t("systemEmails.chart.failed"),
+          values: values.failed,
+          colorSlot: slotForSeries(1),
+        },
         {
           name: t("systemEmails.chart.suppressed"),
           values: values.suppressed,
-          colorSlot: 3,
+          colorSlot: slotForSeries(2),
         },
       ],
       stacked: false,

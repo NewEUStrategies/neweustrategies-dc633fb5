@@ -25,9 +25,11 @@
 // - `parseKindBreakdown` / `parseGroupBreakdown` / `parseContributors` mają
 //   tabele przypadków w zakresie `workspaceTypes`. Tutaj dowodzimy, że ekran je
 //   WOŁA i respektuje wynik (pusty przekrój chowa sekcję albo wykres).
-// - `EChart` jest atrapą: prawdziwy ECharts to leniwy klient bez layoutu pod
-//   happy-dom, a jego rysowanie nie jest regułą produktu tego ekranu. Atrapa
-//   odsłania OPCJĘ, czyli dokładnie to, co ten organizm produkuje.
+// - `Chart` jest atrapą: rysowanie nie jest regułą produktu TEGO organizmu
+//   (silnik ma własne, pełne testy renderu), a ten plik i tak podmienia
+//   `react-i18next` na stub, więc prawdziwy silnik nie miałby skąd wziąć
+//   swoich tekstów. Atrapa odsłania KONFIGURACJĘ, czyli dokładnie to, co ten
+//   organizm wytwarza.
 // - Skeletonu `ClubInsightsSkeleton` i atomów kafelka - zakres w testach atomów.
 // - Kluczy cache'u i `staleTime` - zakres w `useClubWorkspace`.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -42,13 +44,14 @@ vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18n
 vi.mock("@/lib/i18n-club", () => ({ ensureClubI18n: () => undefined }));
 vi.mock("@/lib/clubs/workspaceApi", () => workspaceApiMock);
 
-// Prawdziwy `EChart` to leniwa granica klienta ładująca ECharts dynamicznym
-// importem - pod happy-dom nie ma czego rysować. Atrapa wystawia OPCJĘ, czyli
-// jedyną rzecz, którą ten organizm naprawdę wytwarza.
-vi.mock("@/components/admin/analytics/EChart", () => ({
-  EChart: ({ option, height }: { option: unknown; height?: number | string }) => (
-    <div data-testid="wykres" data-height={String(height)}>
-      {JSON.stringify(option)}
+// Atrapa silnika wystawia KONFIGURACJĘ - jedyną rzecz, którą ten organizm
+// naprawdę wytwarza. Wysokość czytamy z konfiguracji, bo tamtędy jedzie do
+// silnika: liczy z niej geometrię, więc rysunek rozciągnięty CSS-em rozjechałby
+// się z własnymi obliczeniami.
+vi.mock("@/components/charts/Chart", () => ({
+  Chart: ({ config }: { config: { height: number } }) => (
+    <div data-testid="wykres" data-height={String(config.height)}>
+      {JSON.stringify(config)}
     </div>
   ),
 }));
@@ -321,10 +324,13 @@ describe("ClubInsights - dane PEŁNE", () => {
     expect(aktywnosc).toContain("[3,1]");
     expect(aktywnosc).toContain("[1,6]");
     expect(aktywnosc).toContain("[2,4]");
+    // ŁAMANA, NIE KRZYWA: wygładzenie dokładałoby między dwoma dniami liczby
+    // wątków, które nie istnieją nawet pojęciowo.
+    expect(aktywnosc).toContain('"smoothing":0');
     expect(wykresy()[0]).toHaveAttribute("data-height", "280");
   });
 
-  it("wykres rodzajów sortuje słupki ROSNĄCO i tłumaczy klucze rodzaju", async () => {
+  it("wykres rodzajów sortuje słupki MALEJĄCO i tłumaczy klucze rodzaju", async () => {
     // Wykres aktywności musi mieć czym się zapełnić, żeby trzy karty stały
     // w tej samej kolejności, w jakiej je składa organizm.
     workspaceApiMock.fetchClubActivitySeries.mockResolvedValue([
@@ -334,8 +340,11 @@ describe("ClubInsights - dane PEŁNE", () => {
 
     await waitFor(() => expect(wykresy()).toHaveLength(3));
     const rodzaje = wykresy()[1]?.textContent ?? "";
-    expect(rodzaje).toContain('["club.kind.poll","club.kind.announcement","club.kind.discussion"]');
-    expect(rodzaje).toContain("[2,5,9]");
+    // MALEJĄCO, bo silnik rysuje kategorie słupków poziomych od góry
+    // w kolejności tablicy - ranking czyta się wtedy z góry na dół. (ECharts
+    // układał oś Y od dołu i wymagał sortowania odwrotnego.)
+    expect(rodzaje).toContain('["club.kind.discussion","club.kind.announcement","club.kind.poll"]');
+    expect(rodzaje).toContain("[9,5,2]");
     expect(wykresy()[1]).toHaveAttribute("data-height", "240");
   });
 
@@ -349,8 +358,11 @@ describe("ClubInsights - dane PEŁNE", () => {
 
     await waitFor(() => expect(wykresy()).toHaveLength(3));
     const dzialy = wykresy()[2]?.textContent ?? "";
-    expect(dzialy).toContain('"name":"Dyskusje","value":8');
-    expect(dzialy).toContain('"name":"Analizy","value":3');
+    // Silnik nie przyjmuje rekordów wycinków, tylko kategorie i serię - ta sama
+    // informacja zapisana rozdzielnie.
+    expect(dzialy).toContain('"Dyskusje"');
+    expect(dzialy).toContain('"Analizy"');
+    expect(dzialy).toContain("[8,3]");
   });
 
   it("ranking pokazuje nazwiska, liczby odpowiedzi i inicjały tam, gdzie nie ma awatara", async () => {
@@ -406,7 +418,9 @@ describe("ClubInsights - dane CZĘŚCIOWE", () => {
     renderWithQueryClient(<ClubInsights clubId={CLUB_IDS.club} />);
 
     await waitFor(() => expect(wykresy()).toHaveLength(1));
-    expect(wykresy()[0]?.textContent ?? "").toContain('"name":"Only English","value":5');
+    const dzialy = wykresy()[0]?.textContent ?? "";
+    expect(dzialy).toContain('"Only English"');
+    expect(dzialy).toContain("[5]");
   });
 
   it("wpis rankingu bez nazwy wypada, a ranking z jedną osobą nadal się rysuje", async () => {

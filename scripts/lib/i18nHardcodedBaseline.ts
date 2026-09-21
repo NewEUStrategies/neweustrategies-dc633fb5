@@ -41,19 +41,27 @@ export const HARDCODED_LANGUAGE_BASELINE: readonly (readonly [string, number])[]
   ["src/components/builder/organisms/widget-view/NewsTickerView.tsx", 3],
   ["src/components/builder/organisms/widget-view/PostListView.tsx", 2],
   ["src/components/builder/organisms/widget-view/PricingPlansView.tsx", 2],
-  ["src/components/builder/organisms/widget-view/RatedListView.tsx", 5],
+  // 5 -> 3 (2026-09-01): dwa wystąpienia wyszły z tego pliku razem z `queryFn`
+  // listy dynamicznej do `lib/builder/ratedListQuery.ts` (ogon punktu 4 SSR), gdzie
+  // wybór kolumny sortowania zapisano szablonem `title_${lang}` zamiast ternarym
+  // po języku - dług NIE PRZENIÓSŁ SIĘ, zniknął.
+  ["src/components/builder/organisms/widget-view/RatedListView.tsx", 3],
   ["src/components/builder/organisms/widget-view/SimpleWidgets.tsx", 11],
   ["src/components/builder/organisms/widget-view/SpeakersWidget.tsx", 24],
   ["src/components/builder/organisms/widget-view/TabsBlock.tsx", 1],
   ["src/components/builder/organisms/widget-view/TailoredMustReadsView.tsx", 2],
   ["src/components/builder/organisms/widget-view/TeamMemberWidget.tsx", 3],
-  ["src/components/builder/organisms/WidgetView.tsx", 4],
+  // 2026-09-20, F17: dyspozytor chrome wydzielony z `WidgetView`. Dług NIE
+  // ROŚNIE - zmienia plik: 4 = 3 (gałęzie chrome w `ChromeWidgetView`)
+  // + 1 (widgety treściowe, które zostały w `WidgetView`).
+  ["src/components/builder/organisms/ChromeWidgetView.tsx", 3],
+  ["src/components/builder/organisms/WidgetView.tsx", 1],
   ["src/components/admin/coupons/DatePickerField.tsx", 2],
   ["src/components/admin/CustomMetaValuesEditor.tsx", 2],
   ["src/components/admin/i18n/WidgetI18nAuditPane.tsx", 8],
   ["src/components/admin/newsletter/builder/BuilderCanvas.tsx", 6],
   ["src/components/admin/newsletter/builder/NewsletterBuilder.tsx", 11],
-  ["src/components/admin/newsletter/builder/PropertiesPanel.tsx", 40],
+  ["src/components/admin/newsletter/builder/PropertiesPanel.tsx", 39],
   ["src/components/admin/newsletter/builder/WidgetLibrary.tsx", 1],
   ["src/components/admin/newsletter/builder/WidgetPreview.tsx", 5],
   ["src/components/admin/newsletter/OverviewPanel.tsx", 1],
@@ -68,7 +76,7 @@ export const HARDCODED_LANGUAGE_BASELINE: readonly (readonly [string, number])[]
   ["src/components/admin/versions/VersionsPane.tsx", 4],
   ["src/components/admin/WordPressImportDialog.tsx", 30],
   ["src/components/admin/WordPressPreviewDialog.tsx", 9],
-  ["src/components/admin/WxrUploadPanel.tsx", 28],
+  ["src/components/admin/WxrUploadPanel.tsx", 26],
   ["src/components/atoms/LangToggle.tsx", 1],
   ["src/components/blocks/ContactFormView.tsx", 5],
   ["src/components/blocks/XQuoteShare.tsx", 1],
@@ -99,7 +107,7 @@ export const HARDCODED_LANGUAGE_BASELINE: readonly (readonly [string, number])[]
   ["src/lib/email-templates/recovery.tsx", 1],
   ["src/lib/email-templates/signup.tsx", 1],
   ["src/lib/email-templates/tx-body.ts", 1],
-  ["src/lib/email/tx-preview.server.ts", 32],
+  ["src/lib/email/tx-preview.server.ts", 29],
   ["src/lib/newsletter-campaigns.functions.ts", 1],
   ["src/lib/newsletter/renderEmailHtml.ts", 1],
   ["src/lib/organizations/teamSeats.server.ts", 7],

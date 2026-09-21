@@ -44,7 +44,7 @@ describe("correlation tracker", () => {
   });
 
   it("resolves a waiter when a matching event is fed from the stream", async () => {
-    const promise = awaitDomainEvent(CID, { timeoutMs: 3000 });
+    const promise = awaitDomainEvent(CID);
     expect(pendingCorrelationCount()).toBe(1);
     feedCorrelationTracker(eventOf(CID));
     await expect(promise).resolves.toMatchObject({ correlation_id: CID });

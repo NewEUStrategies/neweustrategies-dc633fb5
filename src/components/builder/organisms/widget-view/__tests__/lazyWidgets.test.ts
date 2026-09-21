@@ -27,6 +27,9 @@ const SPLIT_WIDGETS = [
   // Kluby dyskusyjne (spec §5.5)
   "ClubCardView",
   "ClubThreadsView",
+  "ClubHubView",
+  "CoverOverlayCardView",
+  "PromoCardView",
   // Events ecosystem
   "EventScheduleView",
   "EventsListView",
@@ -92,7 +95,15 @@ describe("lazyWidgets registry", () => {
 
   it("exports every split widget as a component", () => {
     for (const name of SPLIT_WIDGETS) {
-      expect(typeof registry[name]).toBe("function");
+      const widget = registry[name];
+      expect(
+        typeof widget === "function" ||
+          (typeof widget === "object" &&
+            widget !== null &&
+            "$$typeof" in widget &&
+            widget.$$typeof === Symbol.for("react.memo")),
+        name,
+      ).toBe(true);
     }
   });
 

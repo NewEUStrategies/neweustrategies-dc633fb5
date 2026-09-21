@@ -1,11 +1,18 @@
+import { invitationCopy } from "@/lib/locale/invitation";
 // Renderowanie szablonów maili transakcyjnych (subskrypcje, wydarzenia,
 // newsletter) do HTML na potrzeby podglądu w panelu admina.
 // Plik server-only: React Email `render` nie może trafić do bundla klienta.
+//
+// F04 (2026-09-20): `@react-email/render` i szablon `TxEmail` (ciągnie
+// `@react-email/components`) schodzą ze STATYCZNEGO importu do `await import()`
+// wewnątrz `renderTxEmailPreview`. Powód ten sam, co w `auth-preview.server.ts`:
+// statyczna krawędź kazała KAŻDEMU izolatowi Workera ewaluować React Email przy
+// starcie, także dla żądań bez podglądu poczty. Funkcja i tak była `async`,
+// więc publiczny kontrakt modułu się nie zmienia.
 import * as React from "react";
-import { render } from "@react-email/render";
 
 import type { EmailLang } from "@/lib/email-templates/nes-layout";
-import { TxEmail, type TxDetail } from "@/lib/email-templates/transactional";
+import type { TxDetail } from "@/lib/email-templates/transactional";
 import { txCopy, txSubject, type TxEmailType } from "@/lib/email-templates/tx-copy";
 import type { PolishGender } from "@/lib/i18n/polishVocative";
 import { txBody } from "@/lib/email-templates/tx-body";
@@ -47,6 +54,7 @@ export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "club_application_accepted",
   "club_application_rejected",
   "club_application_more_info",
+  "user_invitation",
 ] as const;
 
 export interface TxEmailPreview {
@@ -318,6 +326,22 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
         details: [],
         ctaUrl: `${SITE_URL}/club/apply`,
       };
+    case "user_invitation":
+      return {
+        subjectName: null,
+        details: [
+          {
+            label: invitationCopy[lang].loginAddress,
+            value: "anna@example.com",
+          },
+          { label: invitationCopy[lang].role, value: "author" },
+          {
+            label: invitationCopy[lang].organisation,
+            value: "New European Strategies",
+          },
+        ],
+        ctaUrl: `${SITE_URL}/auth`,
+      };
     case "customer_portal_link":
       return {
         subjectName: plan,
@@ -331,7 +355,7 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
       return {
         subjectName: "Acme Group",
         details: [
-          { label: lang === "pl" ? "Organizacja" : "Organisation", value: "Acme Group" },
+          { label: invitationCopy[lang].organisation, value: "Acme Group" },
           { label: l.endsAt, value: lang === "pl" ? "5 sierpnia 2026" : "5 August 2026" },
         ],
         ctaUrl: `${SITE_URL}${PROFILE_PLAN_PATH}`,
@@ -340,7 +364,7 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
       return {
         subjectName: "Acme Group",
         details: [
-          { label: lang === "pl" ? "Organizacja" : "Organisation", value: "Acme Group" },
+          { label: invitationCopy[lang].organisation, value: "Acme Group" },
           { label: l.endsAt, value: lang === "pl" ? "5 sierpnia 2026" : "5 August 2026" },
           {
             label: lang === "pl" ? "Pozostało" : "Time left",
@@ -352,7 +376,7 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
     case "team_seat_access_ended":
       return {
         subjectName: "Acme Group",
-        details: [{ label: lang === "pl" ? "Organizacja" : "Organisation", value: "Acme Group" }],
+        details: [{ label: invitationCopy[lang].organisation, value: "Acme Group" }],
         ctaUrl: `${SITE_URL}/pricing`,
       };
   }
@@ -386,6 +410,10 @@ export async function renderTxEmailPreview(
   };
   const ov = (key: Parameters<typeof resolvedField>[1]) => resolvedField(override, key, tokens);
 
+  const [{ render }, { TxEmail }] = await Promise.all([
+    import("@react-email/render"),
+    import("@/lib/email-templates/transactional"),
+  ]);
   const element = React.createElement(TxEmail, {
     type,
     lang,

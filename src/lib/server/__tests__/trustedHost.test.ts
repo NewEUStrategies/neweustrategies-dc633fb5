@@ -88,6 +88,20 @@ describe("pickTrustedHost - trust order", () => {
     expect(pickTrustedHost(EMPTY, "origin.internal", "single.example")).toBe("single.example");
   });
 
+  it("PUSTY katalog oddaje SUROWY X-Forwarded-Host - dlatego ta ścieżka NIE nadaje się na adres powrotu", () => {
+    // Ostatnia reguła `pickTrustedHost` jest fail-OPEN Z ZAŁOŻENIA i przypadek
+    // wyżej opisuje to jako poprawne: bootstrap przed multi-domain, katalog
+    // nieosiągalny, przekroczony budżet TENANT_DIRECTORY_BUDGET_MS. Dla scope'u
+    // cache i atrybucji tenant_id jest to bezpieczne - nie ma czego pomylić,
+    // skoro żadna domena nie została zajęta.
+    //
+    // DLA CELU PRZEKIEROWANIA PO ZAPŁACIE ZNACZYŁOBY TO „ufamy nagłówkowi".
+    // Ten przypadek stoi tu jako kontrapunkt do bramki w
+    // `lib/billing/returnUrl.server.ts`: kto zechce naprawić adres powrotu
+    // przez `trustedPublicHost`, musi najpierw skasować ten test.
+    expect(pickTrustedHost(EMPTY, "origin.internal", "evil.example.org")).toBe("evil.example.org");
+  });
+
   it("scans a comma-separated XFH list and picks the first registered entry", () => {
     expect(pickTrustedHost(POPULATED, "origin.internal", "evil.example, b.example")).toBe(
       "b.example",

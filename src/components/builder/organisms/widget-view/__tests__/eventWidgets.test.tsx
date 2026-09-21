@@ -518,6 +518,48 @@ describe("SpeakersWidget - data sources", () => {
     expect(await screen.findByText("Brak publicznych profili prelegentów.")).toBeInTheDocument();
   });
 
+  it("wiersz RPC z PUSTYMI kolumnami nie wypisuje wartosci zastepczych", async () => {
+    // Projekcja publiczna dopuszcza NULL w kazdej kolumnie opisowej (profil bez
+    // naglowka, bez bio, bez sluga, bez zdjecia). Mapowanie wiersza na ksztalt
+    // karty musi je wygasic, a nie przepuscic jako "null" na strone.
+    db.rpc.get_public_speakers = [
+      speakerRpcRow({
+        display_name: null,
+        avatar_url: null,
+        job_title: "",
+        headline_pl: "",
+        headline_en: "",
+        bio_pl: null,
+        bio_en: null,
+        company: null,
+        slug: null,
+        is_expert: false,
+        talks_count: 0,
+        rating: 0,
+        reviews_count: 0,
+      }),
+    ];
+    const { container } = renderWithClient(
+      <SpeakersWidget node={speakersNode({ source: "directory" })} lang="pl" />,
+    );
+    await waitFor(() => {
+      expect(container.querySelectorAll("article")).toHaveLength(1);
+    });
+    for (const leak of ["null", "undefined", "NaN"]) {
+      expect(container.textContent ?? "").not.toContain(leak);
+    }
+    // Brak zdjecia -> ikona zastepcza, nie puste <img>.
+    expect(container.querySelector("img")).toBeNull();
+    // Brak sluga -> karta nie obiecuje odnosnika do nieistniejacego profilu.
+    expect(container.querySelector("a")).toBeNull();
+  });
+
+  it("katalog BEZ publicznych profili ma angielski stan pusty w wersji EN", async () => {
+    db.rpc.get_public_speakers = [];
+    renderWithClient(<SpeakersWidget node={speakersNode({ source: "directory" })} lang="en" />);
+    expect(await screen.findByText("No public speaker profiles.")).toBeInTheDocument();
+  });
+
   it("event source without a picked event renders the empty state, not the directory", async () => {
     // Katalog jest niepusty - gdyby p_event_id=null przeszlo do RPC,
     // widget pokazalby caly katalog zamiast stanu nieskonfigurowanego.

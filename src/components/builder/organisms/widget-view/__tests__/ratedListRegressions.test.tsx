@@ -225,7 +225,12 @@ describe("RatedListView - siatka jest naprawde responsywna", () => {
     );
     const list = single.container.querySelector("ol");
     expect(list?.className).not.toContain("rl-grid");
-    expect(styleCss()).not.toContain("--rl-cols-m");
+    // Arkusz siatki jest WSPÓLNYM zasobem React 19 (`href` + `precedence`), więc
+    // raz wstawiony zostaje w <head> do końca życia dokumentu - także po
+    // odmontowaniu instancji, która go zamówiła. Asercja dotyczy więc tej
+    // instancji: bez klasy `rl-grid` i bez zmiennych kolumn reguła nie ma do
+    // czego się przypiąć, niezależnie od tego, czy arkusz jest w dokumencie.
+    expect(list?.getAttribute("style") ?? "").not.toContain("--rl-cols-m");
   });
 
   it("reads column counts stored as strings by older documents", () => {

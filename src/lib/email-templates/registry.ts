@@ -11,6 +11,8 @@ import {
   subscriptionDowngradedTemplate,
   subscriptionRenewedTemplate,
   subscriptionUpgradedTemplate,
+  userInvitationEnTemplate,
+  userInvitationPlTemplate,
 } from "./app-transactional-templates";
 
 export interface TemplateEntry {
@@ -41,4 +43,6 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
   "newsletter-confirmed": newsletterConfirmedTemplate,
   "donation-received-pl": donationReceivedPlTemplate,
   "donation-received-en": donationReceivedEnTemplate,
+  "user-invitation-pl": userInvitationPlTemplate,
+  "user-invitation-en": userInvitationEnTemplate,
 };

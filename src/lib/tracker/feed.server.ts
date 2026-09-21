@@ -4,11 +4,13 @@
 // respektowanie ustawień SEO, język z prefiksu URL, identyczne nagłówki cache.
 // Treść pozycji buduje czysty `lib/tracker/feed.ts`, więc tutaj zostaje tylko
 // obsługa żądania.
+import { crawlerPublishOrigin } from "@/lib/http/host";
 import { getRequest } from "@tanstack/react-start/server";
 import { trustedPublicHost } from "@/lib/http/requestHost";
 import { DEFAULT_LANG, localizedPath, stripLangPrefix, type AppLang } from "@/lib/i18n/localePath";
 import { SITE_NAME } from "@/lib/seo/meta";
 import { buildRssXml } from "@/lib/seo/rss";
+import { rssResponseHeaders } from "@/lib/seo/feedCache";
 import { parseSeoSettings } from "@/lib/seo/settings";
 import {
   fetchSeoSettingsValue,
@@ -26,7 +28,9 @@ async function requestContext(): Promise<{ origin: string; host: string; lang: A
   const req = getRequest();
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
   const host = (await trustedPublicHost(req)) ?? "";
-  const origin = host ? `${proto}://${host}` : "";
+  // Kanał RSS publikuje adresy na domenie kanonicznej - host podglądu/hostingu
+  // nigdy nie trafia do czytników.
+  const origin = crawlerPublishOrigin(host, proto);
   let lang: AppLang = DEFAULT_LANG;
   try {
     lang = stripLangPrefix(new URL(req.url).pathname).lang ?? DEFAULT_LANG;
@@ -79,10 +83,7 @@ export async function trackerFeedResponse(): Promise<Response> {
     items: feedItems,
   });
 
-  return new Response(xml, {
-    headers: {
-      "Content-Type": "application/rss+xml; charset=utf-8",
-      "Cache-Control": "public, max-age=300, s-maxage=1800, stale-while-revalidate=86400",
-    },
-  });
+  // TTL zależny od liczby pozycji: kanał zdegradowany (czytnik źródeł padł
+  // i `resilient` oddał pustkę) nie może utrwalić się na brzegu na dobę.
+  return new Response(xml, { headers: rssResponseHeaders(feedItems.length) });
 }

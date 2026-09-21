@@ -31,7 +31,14 @@
 // `import type` so the compiler still sees each view's props without dragging
 // the implementation into this file's static graph (that would collapse the
 // split boundary).
-import { lazy, Suspense, type ComponentProps, type ComponentType, type ReactElement } from "react";
+import {
+  lazy,
+  memo,
+  Suspense,
+  type ComponentProps,
+  type ComponentType,
+  type NamedExoticComponent,
+} from "react";
 
 import type { LiveBlogBlock as LiveBlogBlockImpl } from "../LiveBlogBlock";
 import type { PollBlockView as PollBlockViewImpl } from "../PollBlockView";
@@ -42,15 +49,16 @@ import type {
 } from "../DataVizViews";
 
 /** Wrap a `React.lazy` chunk in Suspense + typed prop forwarding. */
-function withSuspense<P>(Lazy: ComponentType<P>): (props: P) => ReactElement {
-  return function Suspended(props: P) {
+function withSuspense<P extends object>(Lazy: ComponentType<P>): NamedExoticComponent<P> {
+  // Parent queries and translation readiness can update during hydration.
+  // Identical widget props must not invalidate its still-pending SSR boundary.
+  return memo(function Suspended(props: P) {
     return (
       <Suspense fallback={null}>
-        {/* @ts-expect-error - React.lazy component signature is compatible at runtime. */}
         <Lazy {...props} />
       </Suspense>
     );
-  };
+  });
 }
 
 // --- realtime / interactive -----------------------------------------------
@@ -79,3 +87,25 @@ const DataMapBlockViewLazy = lazy(() =>
   import("../DataVizViews").then((m) => ({ default: m.DataMapBlockView })),
 ) as ComponentType<ComponentProps<typeof DataMapBlockViewImpl>>;
 export const DataMapBlockView = withSuspense(DataMapBlockViewLazy);
+
+// Forms keep their server-rendered HTML, but pages without these blocks do not
+// statically load validation, auth controls or submission code. Auth variants
+// deliberately share one module rather than creating four tiny chunks.
+export const NewsletterForm = withSuspense(
+  lazy(() => import("@/components/NewsletterForm").then((m) => ({ default: m.NewsletterForm }))),
+);
+export const ContactFormView = withSuspense(
+  lazy(() => import("../MarketingContactFormView").then((m) => ({ default: m.ContactFormView }))),
+);
+export const LoginFormView = withSuspense(
+  lazy(() => import("../AuthFormBlocks").then((m) => ({ default: m.LoginFormView }))),
+);
+export const RegisterFormView = withSuspense(
+  lazy(() => import("../AuthFormBlocks").then((m) => ({ default: m.RegisterFormView }))),
+);
+export const LostPasswordFormView = withSuspense(
+  lazy(() => import("../AuthFormBlocks").then((m) => ({ default: m.LostPasswordFormView }))),
+);
+export const ResetPasswordFormView = withSuspense(
+  lazy(() => import("../AuthFormBlocks").then((m) => ({ default: m.ResetPasswordFormView }))),
+);

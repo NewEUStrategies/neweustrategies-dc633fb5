@@ -3,7 +3,15 @@
 // - Fuzzy-ranks static commands client-side (registry).
 // - Debounced server search for posts + pages.
 // - Fully bilingual (PL/EN) via i18n bundle `palette.*`.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type Dispatch,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
@@ -38,8 +46,18 @@ const SECTION_ORDER: CommandSection[] = [
   "content",
 ];
 
-export function CommandPalette() {
-  const [open, setOpen] = useState(false);
+import { useCommandPaletteShortcut } from "./useCommandPaletteShortcut";
+
+export function CommandPalette({
+  open: controlledOpen,
+  onOpenChange,
+}: {
+  open?: boolean;
+  onOpenChange?: Dispatch<SetStateAction<boolean>>;
+} = {}) {
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = controlledOpen ?? localOpen;
+  const setOpen = onOpenChange ?? setLocalOpen;
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [searching, setSearching] = useState(false);
@@ -50,28 +68,7 @@ export function CommandPalette() {
   const { isAdmin, user } = useAuth();
   const reqIdRef = useRef(0);
 
-  // Global keyboard listener.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      const isK = e.key === "k" || e.key === "K";
-      const meta = e.metaKey || e.ctrlKey;
-      if (isK && meta) {
-        e.preventDefault();
-        setOpen((v) => !v);
-        return;
-      }
-      if (e.key === "/" && !open) {
-        const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
-        const editable = (e.target as HTMLElement | null)?.isContentEditable;
-        if (tag !== "input" && tag !== "textarea" && tag !== "select" && !editable) {
-          e.preventDefault();
-          setOpen(true);
-        }
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  useCommandPaletteShortcut(open, setOpen, !onOpenChange);
 
   // Reset query when closing.
   useEffect(() => {
@@ -135,7 +132,7 @@ export function CommandPalette() {
       }
       if (cmd.to) void navigate({ to: cmd.to });
     },
-    [navigate],
+    [navigate, setOpen],
   );
 
   const onSelectHit = useCallback(
@@ -143,7 +140,7 @@ export function CommandPalette() {
       setOpen(false);
       void navigate({ to: hit.href });
     },
-    [navigate],
+    [navigate, setOpen],
   );
 
   const popular = useMemo(() => commands.filter((c) => c.popular).slice(0, 8), [commands]);

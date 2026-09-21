@@ -7,11 +7,13 @@ import i18n from "./i18n";
 const pl = {
   mentions: {
     // Etykieta listy podpowiedzi (aria) + stan pusty/ładowania.
-    listLabel: "Podpowiedzi osób do wspomnienia",
-    hint: "Wpisz @, aby wspomnieć osobę",
-    loading: "Szukam osób...",
-    empty: "Brak pasujących osób",
-    // Tekst czytany przez czytniki ekranu przy wyborze osoby.
+    listLabel: "Podpowiedzi osób i firm do wspomnienia",
+    hint: "Wpisz @, aby wspomnieć osobę albo firmę",
+    loading: "Szukam osób i firm...",
+    empty: "Brak pasujących osób lub firm",
+    person: "Osoba",
+    organization: "Firma",
+    // Tekst czytany przez czytniki ekranu przy wyborze celu.
     inserted: "Wspomniano: {{name}}",
     // Wizytówka pod wzmianką w treści (dymek po najechaniu).
     noProfile: "Nie znaleziono takiego profilu.",
@@ -23,10 +25,12 @@ const pl = {
 
 const en: typeof pl = {
   mentions: {
-    listLabel: "People suggestions to mention",
-    hint: "Type @ to mention someone",
-    loading: "Searching people...",
-    empty: "No matching people",
+    listLabel: "People and company suggestions to mention",
+    hint: "Type @ to mention a person or company",
+    loading: "Searching people and companies...",
+    empty: "No matching people or companies",
+    person: "Person",
+    organization: "Company",
     inserted: "Mentioned: {{name}}",
     noProfile: "No such profile found.",
     viewProfile: "View profile",
@@ -35,15 +39,15 @@ const en: typeof pl = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", pl, true, true);
-i18n.addResourceBundle("en", "translation", en, true, true);
-
 export {};
 
-/**
- * No-op wołany w komponencie zamiast side-effectowego importu modułu. Nazwane
- * wiązanie pozwala splitterowi TanStacka utrzymać rejestrację tłumaczeń w
- * chunku konsumenta (rejestracja dzieje się przy ewaluacji modułu, przed
- * renderem), dokładnie jak w pozostałych bundlach i18n-*.
- */
-export function ensureI18n(): void {}
+// Explicit registration must survive both Vite and Nitro tree shaking.
+// Keep the legacy side-effect import contract, and avoid repeated deep merges.
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", pl, true, true);
+  i18n.addResourceBundle("en", "translation", en, true, true);
+}
+ensureI18n();

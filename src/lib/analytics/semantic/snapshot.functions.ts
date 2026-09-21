@@ -22,7 +22,6 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { AnalyticsGatewayCtx } from "@/lib/analytics/gateway.server";
 import {
-  METRICS,
   STREAMS,
   type CanonicalWindow,
   type Ga4DateRange,
@@ -32,7 +31,6 @@ import {
   type StreamObservation,
   type WindowNote,
   type WindowPresetId,
-  authoritativeBinding,
   previousWindow,
   reconcileAll,
   resolveCustomWindow,
@@ -430,7 +428,8 @@ export const getSemanticSnapshot = createServerFn({ method: "POST" })
     const currentValues = valuesFor(currentRaw, ga4TotalsMap(ga4Current));
     const previousValues = valuesFor(previousRaw, ga4TotalsMap(ga4Previous));
 
-    const entries = reconcileAll(buildObservations(currentValues), { window: current });
+    const currentObservations = buildObservations(currentValues);
+    const entries = reconcileAll(currentObservations, { window: current });
     const previousEntries = reconcileAll(buildObservations(previousValues), { window: previous });
 
     const previousByMetric = new Map(previousEntries.map((e) => [e.metricId, e.canonicalValue]));
@@ -461,6 +460,23 @@ export const getSemanticSnapshot = createServerFn({ method: "POST" })
       },
     ];
 
+    // Strumienie, które W TYM OKNIE dowiozły choć jedną niezerową liczbę.
+    //
+    // Liczone po WSZYSTKICH obserwacjach, nie po metrykach, dla których strumień
+    // jest autorytatywny. Wcześniejsza wersja pytała wyłącznie o metryki własne,
+    // więc workspace bez CTA i bez wyszukiwarki wewnętrznej dostawał w `streams`
+    // zdanie „first-party nie ma w liczbach”, choć TA SAMA odpowiedź niosła w
+    // `entries` tysiące odsłon i sesji z `analytics_events` (te są autorytatywnie
+    // GA4, ale first-party jest tam obserwacją potwierdzającą). Panel podawał
+    // liczbę i zaprzeczał jej istnieniu w jednym widoku. Pytanie „czy ten
+    // strumień dowozi dane” dotyczy RURY, nie tego, kto wygrał uzgodnienie.
+    const contributingStreams = new Set<StreamId>();
+    for (const { observations } of currentObservations) {
+      for (const o of observations) {
+        if (typeof o.value === "number" && o.value > 0) contributingStreams.add(o.streamId);
+      }
+    }
+
     // Zdrowie strumieni: odróżniamy „nie skonfigurowany”, „odczyt padł” i „brak
     // danych w oknie”. Raport zarządczy musi wiedzieć, czego w liczbach NIE MA.
     const firstPartyRead = currentRaw !== null;
@@ -471,12 +487,7 @@ export const getSemanticSnapshot = createServerFn({ method: "POST" })
         return { streamId: s.id, available: true };
       }
       if (!firstPartyRead) return { streamId: s.id, available: false, reason: "read_failed" };
-      const served = METRICS.filter((m) => authoritativeBinding(m.id).streamId === s.id);
-      const hasAny = served.some((m) => {
-        const value = currentByMetric.get(m.id);
-        return typeof value === "number" && value > 0;
-      });
-      return hasAny
+      return contributingStreams.has(s.id)
         ? { streamId: s.id, available: true }
         : { streamId: s.id, available: false, reason: "no_data" };
     });

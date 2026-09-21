@@ -35,12 +35,24 @@ import {
 } from "@/lib/community/reputation";
 import { useAuth } from "@/hooks/useAuth";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
+import { activeLang } from "@/lib/seo/head";
+import { getRequestUrl } from "@/lib/seo/request";
 
 export const Route = createFileRoute("/contributors")({
   component: ContributorsPage,
-  head: () => ({
-    meta: [{ title: "Tablica kontrybutorów" }, { name: "robots", content: "noindex, nofollow" }],
-  }),
+  head: () => {
+    // head() biegnie POZA drzewem Reacta i poza dostawcą i18next, więc `t()` tu
+    // nie istnieje - język bierzemy z adresu przez `activeLang`, dokładnie jak
+    // `welcome.tsx`. Bez tego użytkownik z angielskim interfejsem dostawał polską
+    // kartę przeglądarki i polski podgląd linku przy udostępnieniu.
+    const lang = activeLang(getRequestUrl() || "/contributors");
+    return {
+      meta: [
+        { title: lang === "en" ? "Contributor board" : "Tablica kontrybutorów" },
+        { name: "robots", content: "noindex, nofollow" },
+      ],
+    };
+  },
 });
 
 type WindowDays = 30 | 90 | 365;

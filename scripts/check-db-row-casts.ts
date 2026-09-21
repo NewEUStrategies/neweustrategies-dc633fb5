@@ -56,11 +56,6 @@ const ROW_CAST_EXCEPTIONS: readonly RowCastException[] = [
     reason: "kolumny itunes_* są poza typami (patrz baseline check:types-freshness)",
   },
   {
-    file: "src/lib/observability/vitals.functions.ts",
-    type: "VitalSample",
-    reason: "kształt z polem pochodnym `capped`, liczonym w kodzie - nie kolumną",
-  },
-  {
     file: "src/lib/tracker/queries.ts",
     type: "Row",
     reason: "join: select zagnieżdża eu_policy_items(...) przy linkach",
@@ -109,11 +104,6 @@ const ROW_CAST_EXCEPTIONS: readonly RowCastException[] = [
     file: "src/routes/admin.pages.$slug.tsx",
     type: "PageForm",
     reason: "rpc get_page_for_edit - kształt formularza, nie wiersz tabeli",
-  },
-  {
-    file: "src/routes/network.mutual.$userId.tsx",
-    type: "MutualRow",
-    reason: "rpc mutual_connections - RETURNS TABLE kłamie o nullowalności",
   },
   {
     file: "src/routes/admin.monetization.tsx",

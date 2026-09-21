@@ -7,6 +7,7 @@
 // importu - ten sam wzorzec, co przy podziale workspace klubu i watku
 // (bramka `workspaceModuleBoundary.test.ts`).
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 import {
   fetchClubBySlug,
   fetchClubGroups,
@@ -72,11 +73,31 @@ export function useClubActivityFeed(params: {
 }
 
 export function useClubBySlug(slug: string | undefined): UseQueryResult<ClubViewRow | null, Error> {
+  // Karta klubu zalezy od TOZSAMOSCI czytajacego: ta sama trasa zwraca inne
+  // `can_read`/`my_role` dla anonima i dla czlonka - stad widz w kluczu.
+  // `enabled: !loading` wstrzymuje SAMO ZAPYTANIE, dopoki sesja nie jest
+  // rozstrzygnieta: RPC wystrzelony z nieznanym widzem i tak poszedlby do kosza
+  // po jej dojsciu.
+  //
+  // CO ZMIENILO SIE W F09 (audyt CWV 2026-09-20). Wpis dla widza `null` zasiewa
+  // teraz loader UKLADU `/club/$clubSlug`, a `enabled: false` nie zaslania
+  // danych z cache'u - wiec pierwszy render (SSR i hydratacja) widzi KARTE
+  // KLUBU, a nie szkielet. O to w tej naprawie chodzi: dokument SSR jest
+  // z konstrukcji anonimowy (sesja mieszka w localStorage), wiec jedyna karta,
+  // jaka serwer moze narysowac, to karta anonima.
+  //
+  // CENA, swiadomie zaplacona: zalogowany czlonek klubu ZAMKNIETEGO zobaczy
+  // przez moment anonimowa bramke dostepu - najpierw w HTML-u serwera, potem
+  // do czasu rozstrzygniecia sesji. Tego nie da sie uniknac inaczej niz
+  // oddaniem szkieletu KAZDEMU czytelnikowi (takze anonimowej wiekszosci
+  // i robotom), czyli dokladnie ta regresja TTFB/LCP, ktora F09 usuwa.
+  // Po rozstrzygnieciu sesji klucz zmienia sie na widza i karta sie uscisla.
+  const { user, loading } = useAuth();
   return useQuery({
-    queryKey: clubKeys.bySlug(slug ?? ""),
+    queryKey: clubKeys.bySlugViewer(slug ?? "", user?.id ?? null),
     queryFn: () => fetchClubBySlug(slug ?? ""),
     staleTime: CLUB_STALE_MS,
-    enabled: Boolean(slug),
+    enabled: Boolean(slug) && !loading,
   });
 }
 

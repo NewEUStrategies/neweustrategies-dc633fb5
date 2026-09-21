@@ -14,6 +14,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useSuspenseQuery } from "@tanstack/react-query";
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 import { useTranslation } from "react-i18next";
 import { BadgeCheck, Calendar, Lock, MapPin, Users, Video } from "lucide-react";
 import { publicEventsQueryOptions, type PublicEvent } from "@/lib/community/publicQueries";
@@ -120,27 +121,43 @@ export const Route = createFileRoute("/events/")({
       description,
     });
     const { origin } = splitUrl(url);
-    const collection = eventsCollectionJsonLd({
-      origin,
-      lang,
-      path: "/events",
-      name: title,
-      description,
-      events: (loaderData?.headEvents ?? []).map((ev) => ({
-        slug: ev.slug,
-        name: (lang === "en" ? ev.titleEn || ev.titlePl : ev.titlePl || ev.titleEn) || ev.slug,
-        startDate: ev.startsAt,
-        endDate: ev.endsAt,
-        kind: ev.kind,
-        location: ev.location,
-        image: ev.cover,
-      })),
-    });
+    // DEGRADACJA NIE SKLADA ROBOTOWI OSWIADCZENIA O ZAWARTOSCI KATALOGU.
+    // `headEvents` jest wtedy puste NIE dlatego, ze wydarzen nie ma, tylko
+    // dlatego, ze lista nie dojechala - a `CollectionPage` z pustym
+    // `ItemList` czyta sie dokladnie jak "ten serwis nie ma wydarzen".
+    // Odpowiedz wychodzi na HTTP 200 (to cala pointa degradacji), a
+    // `Cache-Control: private, no-store` odcina cache, nie indeksowanie, wiec
+    // blip backendu w chwili wizyty crawlera zostalby zapisany jako fakt.
+    // Body mowi w tej sytuacji "nie udalo sie wczytac" - dane strukturalne maja
+    // milczec z tego samego powodu. Okruszki zostaja: sciezka do katalogu jest
+    // prawdziwa niezaleznie od tego, czy lista dojechala.
+    const collection =
+      (loaderData?.degraded ?? false)
+        ? null
+        : eventsCollectionJsonLd({
+            origin,
+            lang,
+            path: "/events",
+            name: title,
+            description,
+            events: (loaderData?.headEvents ?? []).map((ev) => ({
+              slug: ev.slug,
+              name:
+                (lang === "en" ? ev.titleEn || ev.titlePl : ev.titlePl || ev.titleEn) || ev.slug,
+              startDate: ev.startsAt,
+              endDate: ev.endsAt,
+              kind: ev.kind,
+              location: ev.location,
+              image: ev.cover,
+            })),
+          });
     const breadcrumbs = breadcrumbListJsonLd([{ label: title, href: "/events" }], origin, lang);
     return {
       ...head,
       scripts: [
-        { type: "application/ld+json", children: safeJsonLd(collection) },
+        ...(collection === null
+          ? []
+          : [{ type: "application/ld+json", children: safeJsonLd(collection) }]),
         { type: "application/ld+json", children: safeJsonLd(breadcrumbs) },
       ],
     };
@@ -161,32 +178,17 @@ function EventsPage() {
   const modules = useCommunityModules();
   const { degraded } = Route.useLoaderData();
   if (!modules.events_enabled) return <CommunityDisabled />;
-  // Render zdegradowany: zamiast fałszywego „brak wydarzeń" pokazujemy, co się
-  // naprawdę stało, z przyciskiem ponowienia (router.invalidate przeładuje
-  // loader - po stronie klienta backend zwykle już odpowiada).
-  if (degraded) {
-    return (
-      <div className="container mx-auto max-w-5xl px-4 py-12 md:py-16">
-        <DegradedDataNotice
-          title={
-            activeLang() === "en" ? "Couldn't load events" : "Nie udało się załadować wydarzeń"
-          }
-        />
-      </div>
-    );
-  }
-  return <EventsPageBody />;
+  return <EventsPageBody initialDegraded={degraded} />;
 }
 
-// Osobny komponent, bo useSuspenseQuery nie zna `enabled`: bramkę modułu
-// rozstrzyga rodzic (przy wyłączonym module loader nie rozgrzewa zapytania,
-// a body się nie montuje), stany ładowania/błędu obsługują pendingComponent
-// i errorComponent trasy - lista nigdy nie miga komunikatem przejściowym.
-function EventsPageBody() {
+// Mount the query even when SSR seeded a fallback; keep the module gate
+// outside so disabled events never fetch their catalog.
+function EventsPageBody({ initialDegraded }: { initialDegraded: boolean }) {
   const { t, i18n } = useTranslation();
   const lang = (i18n.language.startsWith("en") ? "en" : "pl") as "pl" | "en";
-  const { data } = useSuspenseQuery(publicEventsQueryOptions());
-
+  const options = publicEventsQueryOptions();
+  const { data } = useSuspenseQuery(options);
+  const { degraded, retry } = useDegradedUntilHealed(options.queryKey, initialDegraded);
   const { upcoming, past } = useMemo(() => {
     const now = Date.now();
     const u: PublicEvent[] = [];
@@ -200,6 +202,18 @@ function EventsPageBody() {
     return { upcoming: u, past: p };
   }, [data]);
 
+  if (degraded) {
+    return (
+      <div className="container mx-auto max-w-5xl px-4 py-12 md:py-16">
+        <DegradedDataNotice
+          onRetry={retry}
+          title={
+            activeLang() === "en" ? "Couldn't load events" : "Nie udało się załadować wydarzeń"
+          }
+        />
+      </div>
+    );
+  }
   return (
     <div className="container mx-auto max-w-5xl px-4 py-12 md:py-16">
       <header className="mb-10">

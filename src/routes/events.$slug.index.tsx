@@ -23,6 +23,7 @@ import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
+import { useNowMs } from "@/lib/time/useNowMs";
 import { toast } from "sonner";
 import {
   Calendar,
@@ -39,11 +40,11 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 
 import {
+  eventPageHeaderQueryOptions,
   fetchEventAccess,
-  fetchEventPageHeader,
   fetchEventRsvpCounts,
   fetchEventWaitlistPosition,
-  fetchPublicEventBySlug,
+  publicEventBySlugQueryOptions,
   rsvpEvent,
   type RsvpRequestStatus,
 } from "@/lib/community/publicQueries";
@@ -107,12 +108,16 @@ function EventOverview() {
   const modules = useCommunityModules();
   const { user } = useAuth();
   const qc = useQueryClient();
+  // Cached SSR HTML and the first client render must make the same decision.
+  // Live registration eligibility remains enforced by the server mutation.
+  const now = useNowMs(30_000);
 
-  // TEN SAM KLUCZ, CO W POWŁOCE - react-query oddaje migawkę z cache, więc to
-  // nie jest drugie zapytanie ani druga chwila w czasie.
+  // TA SAMA FABRYKA, CO W POWŁOCE (jedno źródło klucza, nie dwa literały) -
+  // react-query oddaje migawkę z cache, więc to nie jest drugie zapytanie ani
+  // druga chwila w czasie. Loader powłoki rozgrzał ten klucz przez
+  // `ensureQueryData`, więc na serwerze wpis jest już rozstrzygnięty.
   const eventQ = useQuery({
-    queryKey: ["public-event", slug],
-    queryFn: () => fetchPublicEventBySlug(slug),
+    ...publicEventBySlugQueryOptions(slug),
     enabled: modules.events_enabled,
   });
   const eventId = eventQ.data?.id ?? null;
@@ -124,8 +129,7 @@ function EventOverview() {
   // kończy się odmową uprawnień. Klucz zawiera użytkownika, bo RPC
   // personalizuje odpowiedź (`my_*`, `tier_locked`, `chatham_house_locked`).
   const headerQ = useQuery({
-    queryKey: ["event-page-header", slug, user?.id ?? "anon"],
-    queryFn: () => fetchEventPageHeader(slug),
+    ...eventPageHeaderQueryOptions(slug, user?.id ?? "anon"),
     enabled: modules.events_enabled,
   });
 
@@ -246,10 +250,15 @@ function EventOverview() {
     },
   });
 
-  // Bramkę modułu, wczytywanie i „nie znaleziono” rozstrzyga POWŁOKA
-  // (`events.$slug.tsx`) - `<Outlet />` nie renderuje się, dopóki wydarzenia
-  // nie ma. Ten warunek domyka wyłącznie TYP; drugi ekran ładowania w tym
-  // miejscu mrugałby pod paskiem zakładek, który już stoi.
+  // Bramkę modułu, brak wydarzenia (`notFound()` z loadera), awarię transportu
+  // (`degraded`) i bramkę warstwy rozstrzyga POWŁOKA (`events.$slug.tsx`) -
+  // `<Outlet />` nie renderuje się w żadnym z tych przypadków. Ten warunek
+  // domyka wyłącznie TYP; drugi ekran ładowania w tym miejscu mrugałby pod
+  // paskiem zakładek, który już stoi.
+  //
+  // Od 2026-09-01 loader powłoki grzeje ten klucz, więc w SSR ten `return null`
+  // NIE jest już osiągany - a to jest cała treść naprawy: dopóki był, cały
+  // przegląd wraz z węzłem schema.org/Event był w SSR-owym HTML-u nieobecny.
   if (!eventQ.data) return null;
 
   const ev = eventQ.data;
@@ -276,7 +285,7 @@ function EventOverview() {
   const desc =
     lang === "en" ? ev.description_en || ev.description_pl : ev.description_pl || ev.description_en;
   const startsAt = new Date(ev.starts_at);
-  const isPast = startsAt.getTime() < Date.now();
+  const isPast = now !== null && startsAt.getTime() < now;
   // Wydarzenie płatne: bezpłatny RSVP jest wtedy wyłączony - wejściówkę
   // potwierdza dopiero webhook po opłaceniu biletu.
   const ticketCents = ev.ticket_price_cents ?? 0;
@@ -332,7 +341,7 @@ function EventOverview() {
   // `registration_state` z nagłówka, który sam uwzględnia early_rsvp_rank.
   // Tutaj zostaje wyłącznie to, czego nagłówek NIE ODDAJE: `early_rsvp_rank`.
   const rsvpOpensAt = ev.rsvp_opens_at ? new Date(ev.rsvp_opens_at) : null;
-  const rsvpBeforeOpen = !!rsvpOpensAt && rsvpOpensAt.getTime() > Date.now();
+  const rsvpBeforeOpen = now !== null && !!rsvpOpensAt && rsvpOpensAt.getTime() > now;
   const earlyRank = ev.early_rsvp_rank ?? null;
   const myRank = currentTierQ.data?.rank ?? 0;
   const hasEarlyAccess = earlyRank !== null && myRank >= earlyRank;
@@ -420,14 +429,18 @@ function EventOverview() {
     supportEmail: ev.support_email,
   };
 
-  // JSON-LD wydarzenia W TREŚCI, a nie w `head()`: ta trasa nie ma loadera,
-  // więc `head()` nie zna wydarzenia i wysłałby węzeł bez nazwy i bez daty.
-  // Skrypt w treści jest dla crawlera równoprawny, a wzorzec ma już precedens
-  // w repozytorium (`FaqBlockView`, `ReviewBlockView`). `safeJsonLd` zamyka
-  // ucieczkę przez `</script>` w danych z bazy.
+  // JSON-LD wydarzenia W TREŚCI, a nie w `head()`. Skrypt w treści jest dla
+  // crawlera równoprawny, a wzorzec ma już precedens w repozytorium
+  // (`FaqBlockView`, `ReviewBlockView`). `safeJsonLd` zamyka ucieczkę przez
+  // `</script>` w danych z bazy.
   //
-  // STOI NA PRZEGLĄDZIE, A NIE W POWŁOCE, żeby pięć zakładek nie wysłało
-  // pięciu razy tego samego węzła `Event` pod pięcioma adresami.
+  // STOI NA PRZEGLĄDZIE, A NIE W POWŁOCE, żeby siedem zakładek nie wysłało
+  // siedmiu razy tego samego węzła `Event` pod siedmioma adresami. To jest
+  // JEDYNY powód i jest nadal aktualny.
+  //
+  // (Do 2026-09-01 stało tu drugie uzasadnienie: „ta trasa nie ma loadera, więc
+  // head() nie zna wydarzenia". Powłoka MA teraz loader, więc ta przesłanka
+  // zniknęła - ale wniosek trzyma się na argumencie o siedmiu adresach.)
   const eventLd = publicEventJsonLd({
     origin: splitUrl(getRequestUrl() || `/events/${slug}`).origin,
     lang,

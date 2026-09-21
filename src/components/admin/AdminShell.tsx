@@ -19,6 +19,7 @@ import { AdminLangBar } from "@/components/admin/AdminLangBar";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   buildAdminNavGroups,
+  isCompactSidebarRoute,
   searchAdminNav,
   adminNavItemKey,
   resolveActiveNavTarget,
@@ -29,8 +30,26 @@ import {
   AdminSidebarExtrasProvider,
   useAdminSidebarExtrasSlot,
 } from "@/components/admin/AdminSidebarExtras";
+import {
+  ADMIN_SIDEBAR_BRAND_BOX_CLASS,
+  ADMIN_SIDEBAR_FRAME_CLASS,
+  ADMIN_SIDEBAR_SEARCH_BOX_CLASS,
+  ADMIN_SIDEBAR_SEARCH_FIELD_CLASS,
+  adminContentColumnClass,
+  adminContentPaddingClass,
+  adminShellRootClass,
+  adminSidebarBrandRowClass,
+  adminSidebarWidthClass,
+  isAdminSidebarCompact,
+  isAdminThemeOptionsRoute,
+} from "@/components/admin/adminShellGeometry";
 
-import { useSiteSetting } from "@/lib/useSiteSetting";
+import { resolveSetting, siteSettingsQueryOptions, useSiteSetting } from "@/lib/useSiteSetting";
+import { useQuery } from "@tanstack/react-query";
+import {
+  readRememberedSidebarStyle,
+  rememberSidebarStyle,
+} from "@/lib/admin/sidebarStylePreference";
 import { useClubPendingCounts } from "@/lib/clubs/useClubs";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -298,14 +317,55 @@ function AdminShellInner({
   const path = useRouterState({ select: (s) => s.location.pathname });
   const lang = i18n.language ?? "pl";
   const { extras } = useAdminSidebarExtrasSlot();
-  const themeOpts = useSiteSetting<SidebarLogoCfg>("theme_options", SIDEBAR_LOGO_DEFAULTS);
-  const sidebarStyle = themeOpts.sidebars?.style ?? "style-1";
+  // SZEROKOŚĆ PASKA JEST DECYZJĄ UKŁADU, więc nie wolno jej podjąć dwa razy.
+  //
+  // `useSiteSetting` scala domyślne z danymi i NIE ODRÓŻNIA "jeszcze nie
+  // wiem" od "najemca ma style-1" - a te dwa stany prowadzą tu do dwóch
+  // różnych szerokości (14 rem vs 3 rem dla `style-4`). Czytamy więc surowe
+  // zapytanie: dopóki mapa ustawień nie przyjechała, pierwszym malowaniem
+  // rządzi wariant ZAPAMIĘTANY z poprzedniego wejścia (patrz
+  // `lib/admin/sidebarStylePreference.ts` - to jest naprawa CLS 0,532 na
+  // `/admin`), a nie wbudowane domyślne.
+  const settingsQuery = useQuery(siteSettingsQueryOptions);
+  const themeOpts = resolveSetting<SidebarLogoCfg>(
+    settingsQuery.data,
+    "theme_options",
+    SIDEBAR_LOGO_DEFAULTS,
+  );
+  // Inicjalizator, nie odczyt w renderze: wartość musi być stabilna przez
+  // całe życie komponentu, inaczej zapis z innej karty przestawiłby układ
+  // w środku sesji.
+  const [rememberedStyle] = useState<SidebarStyle | null>(() =>
+    typeof window === "undefined" ? null : readRememberedSidebarStyle(),
+  );
+  // `dataUpdatedAt > 0`, nie samo `data !== undefined` - to ta sama doktryna,
+  // co `hasSsrQueryData` w warstwie SSR. Loader korzenia ZASIEWA pustą mapę
+  // ustawień z `updatedAt: 0`, gdy fala 1 nic nie dowiozła; taki zasiew jest
+  // PRZETERMINOWANY z premedytacją i klient dociąga prawdziwą wartość zaraz po
+  // hydratacji. Potraktowanie go jako rozstrzygnięcia zapisałoby do pamięci
+  // „style-1" wyprowadzone z fallbacku i skasowało poprawny wariant najemcy -
+  // czyli naprawa CLS fundowałaby przesunięcie przy następnym wejściu.
+  const settingsResolved = settingsQuery.data !== undefined && settingsQuery.dataUpdatedAt > 0;
+  const resolvedStyle: SidebarStyle | null = settingsResolved
+    ? (themeOpts.sidebars?.style ?? "style-1")
+    : null;
+  const sidebarStyle: SidebarStyle = resolvedStyle ?? rememberedStyle ?? "style-1";
+  useEffect(() => {
+    if (resolvedStyle) rememberSidebarStyle(resolvedStyle);
+  }, [resolvedStyle]);
 
-  const isEditRoute =
-    /^\/admin\/(posts|pages)\/[^/]+$/.test(path) || path.startsWith("/admin/appearance");
-  const isThemeOptions = path.startsWith("/admin/theme-options");
+  const isEditRoute = isCompactSidebarRoute(path);
+  const isThemeOptions = isAdminThemeOptionsRoute(path);
   const [forceCompact, setForceCompact] = useState(false);
-  const compact = ((isEditRoute || forceCompact) && !extras) || sidebarStyle === "style-4";
+  // FORMUŁA ZWINIĘCIA MIESZKA W `adminShellGeometry` - ta sama, z której liczy
+  // ją szkielet SSR. Powłoka dokłada do niej dwa człony, których przed
+  // hydratacją nie ma: przycisk zwijania i slot `extras` podstron.
+  const compact = isAdminSidebarCompact({
+    isEditRoute,
+    style: sidebarStyle,
+    forceCompact,
+    hasExtras: Boolean(extras),
+  });
 
   const groups = useMemo(
     () => buildAdminNavGroups({ t, isAdmin, isSuperAdmin, clubPending }),
@@ -370,7 +430,7 @@ function AdminShellInner({
   };
 
   return (
-    <div className={`admin-compact min-h-screen bg-muted/30 ${hideSidebar ? "" : "flex"}`}>
+    <div data-admin-shell="" className={adminShellRootClass(Boolean(hideSidebar))}>
       {hideSidebar && <AdminLangBar />}
       {!hideSidebar && (
         <aside
@@ -378,19 +438,25 @@ function AdminShellInner({
           data-sidebar-style={sidebarStyle}
           style={{ viewTransitionName: "admin-sidebar" }}
           className={cn(
-            compact ? "w-12" : "w-56",
-            "bg-card border-r border-border flex flex-col transition-all duration-200 sticky top-0 self-start h-screen max-h-screen sidebar-shell",
+            adminSidebarWidthClass(compact),
+            ADMIN_SIDEBAR_FRAME_CLASS,
+            "transition-all duration-200",
           )}
         >
           <TooltipProvider delayDuration={0}>
-            <div className="p-3 border-b border-border">
+            <div className={ADMIN_SIDEBAR_BRAND_BOX_CLASS}>
               <div className={`flex items-center ${compact ? "justify-center" : "gap-2"}`}>
                 <SidebarTooltip label={t("admin.nav.dashboard")} compact={compact}>
                   <Link
                     to="/admin"
                     data-sidebar-brand
                     title={compact ? undefined : t("admin.nav.dashboard")}
-                    className={`font-display font-bold text-sm flex items-center justify-center min-w-0 ${compact ? "" : "flex-1"} bg-transparent hover:bg-transparent`}
+                    // WYSOKOŚĆ WIERSZA MARKI JEST PRZYPIĘTA (`h-8`/`h-9`), bo
+                    // jego zawartość zmienia się PO pierwszym malowaniu: dopóki
+                    // `theme_options` nie przyjechało, renderuje się napis
+                    // (jedna linia), a po odpowiedzi bazy - logo najemcy.
+                    // Bez tego cała nawigacja pod spodem zjeżdżała w dół.
+                    className={`font-display font-bold text-sm flex items-center justify-center overflow-hidden min-w-0 ${adminSidebarBrandRowClass(compact)} bg-transparent hover:bg-transparent`}
                     style={{ background: "transparent" }}
                   >
                     <SidebarBrand compact={compact} />
@@ -420,7 +486,7 @@ function AdminShellInner({
               )}
             </div>
             {!compact && (
-              <div className="p-2 border-b border-border">
+              <div className={ADMIN_SIDEBAR_SEARCH_BOX_CLASS}>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                   <input
@@ -441,7 +507,7 @@ function AdminShellInner({
                     placeholder={t("admin.sidebar.searchPlaceholder")}
                     aria-label={t("admin.sidebar.searchLabel")}
                     data-admin-nav-search
-                    className="h-7 w-full rounded-md border border-border bg-background pl-7 pr-6 text-[12px] text-foreground outline-none transition focus:border-brand"
+                    className={`${ADMIN_SIDEBAR_SEARCH_FIELD_CLASS} w-full rounded-md border border-border bg-background pl-7 pr-6 text-[12px] text-foreground outline-none transition focus:border-brand`}
                   />
                   {searching && (
                     <button
@@ -598,20 +664,10 @@ function AdminShellInner({
       )}
       <main
         id="main-content"
-        className={`${isEditRoute ? "min-w-0" : "overflow-x-auto"} ${hideSidebar ? "w-full" : "flex-1"}`}
+        className={adminContentColumnClass({ hideSidebar: Boolean(hideSidebar), isEditRoute })}
         style={{ viewTransitionName: "admin-main" }}
       >
-        <div
-          className={
-            isEditRoute
-              ? "p-2"
-              : isThemeOptions
-                ? "w-full py-4 lg:py-6 pl-3 lg:pl-4 pr-4 lg:pr-6"
-                : "w-full px-3 py-4 lg:px-5 lg:py-6"
-          }
-        >
-          {children}
-        </div>
+        <div className={adminContentPaddingClass({ isEditRoute, isThemeOptions })}>{children}</div>
       </main>
     </div>
   );
@@ -633,6 +689,8 @@ function SidebarBrand({ compact }: { compact: boolean }) {
     (isDark ? logo.main_dark : logo.main) ||
     logo.main;
 
+  // Wysokość wiersza marki przypina RODZIC (`h-8`/`h-9` na `Link` wyżej), więc
+  // tutaj zostaje wyłącznie wybór zawartości - żadnej dodatkowej otoczki.
   if (compact) {
     return iconSrc ? (
       <img src={iconSrc} alt="Logo" className="w-8 h-8 object-contain" />

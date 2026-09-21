@@ -13,6 +13,10 @@ const pl = {
     disabledTitle: "Personalizacja jest wyłączona",
     disabledBody: "Administrator wyłączył listy czytelnicze i rekomendacje na tej stronie.",
     savedEmpty: "Nie masz jeszcze żadnych zapisanych artykułów.",
+    savedError: "Nie udało się wczytać zapisanych materiałów.",
+    savedContentHeading: "Zapisane materiały",
+    guestSaveError:
+      "Nie udało się zapisać zmiany na tym urządzeniu. Spróbuj usunąć artykuł ponownie.",
     savedPagesHeading: "Zapisane strony",
     guestSavedInfo:
       "Zapisujesz jako gość - lista jest przechowywana tylko na tym urządzeniu. Zaloguj się, aby zabrać ją ze sobą.",
@@ -24,6 +28,11 @@ const pl = {
     followedFeedEmpty:
       "Obserwowani autorzy i tematy nie mają jeszcze nowych publikacji - zajrzyj wkrótce.",
     followedGuest: "Obserwowanie autorów i tematów jest dostępne po zalogowaniu.",
+    followedError: "Nie udało się wczytać listy obserwowanych.",
+    followedNamesError: "Nie udało się wczytać nazw obserwowanych autorów i tematów.",
+    followedFeedError: "Nie udało się wczytać publikacji obserwowanych autorów i tematów.",
+    followedContentHeading: "Publikacje obserwowanych autorów i tematów",
+    recommendedContentHeading: "Polecane materiały",
     loadMore: "Wczytaj więcej",
     yourFollows: "Obserwujesz",
     unfollow: "Przestań obserwować: {{name}}",
@@ -54,6 +63,9 @@ const en: typeof pl = {
     disabledTitle: "Personalization is disabled",
     disabledBody: "The administrator has disabled reading lists and recommendations on this site.",
     savedEmpty: "You have no saved articles yet.",
+    savedError: "Could not load your saved articles and pages.",
+    savedContentHeading: "Saved articles and pages",
+    guestSaveError: "Could not save this change on your device. Try removing the article again.",
     savedPagesHeading: "Saved pages",
     guestSavedInfo:
       "You are saving as a guest - the list lives only on this device. Sign in to take it with you.",
@@ -64,6 +76,11 @@ const en: typeof pl = {
     followedEmptyCta: "Customize interests",
     followedFeedEmpty: "Your followed authors and topics have no new posts yet - check back soon.",
     followedGuest: "Following authors and topics is available after signing in.",
+    followedError: "Could not load your follows.",
+    followedNamesError: "Could not load the names of followed authors and topics.",
+    followedFeedError: "Could not load posts from followed authors and topics.",
+    followedContentHeading: "Posts from followed authors and topics",
+    recommendedContentHeading: "Recommended articles",
     loadMore: "Load more",
     yourFollows: "You follow",
     unfollow: "Unfollow: {{name}}",
@@ -85,16 +102,15 @@ const en: typeof pl = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", pl, true, true);
-i18n.addResourceBundle("en", "translation", en, true, true);
-
 export {};
 
-/**
- * No-op wołany w komponencie trasy zamiast side-effectowego importu modułu.
- * Nazwane wiązanie pozwala splitterowi TanStacka przenieść cały bundle
- * tłumaczeń do chunka trasy - side-effectowy import w pliku trasy lądował
- * w eager-owym grafie wejściowym każdej strony. Rejestracja dzieje się przy
- * ewaluacji modułu (przed renderem komponentu), dokładnie jak wcześniej.
- */
-export function ensureI18n(): void {}
+// Explicit registration must survive both Vite and Nitro tree shaking.
+// Keep the legacy side-effect import contract, and avoid repeated deep merges.
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", pl, true, true);
+  i18n.addResourceBundle("en", "translation", en, true, true);
+}
+ensureI18n();

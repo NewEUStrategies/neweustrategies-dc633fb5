@@ -1,4 +1,4 @@
-// PANEL „Integracje wychodzące” (`/admin/integrations`, 625 linii, 0% przed tą
+// PANEL „Integracje wychodzące” (`/admin/integrations`, 672 linie, 0% przed tą
 // zmianą) - jedyny ekran, z którego konfiguruje się USŁUGI ZEWNĘTRZNE: adres
 // odbiorcy, adapter formatu i KLUCZ podpisujący, którego platforma nigdy nie
 // zwraca z Vault do przeglądarki.
@@ -177,7 +177,7 @@ vi.mock("@/components/ui/select", () => ({
 
 import { renderRoute, routeMeta } from "@/test/routeHarness";
 import { Route as IntegrationsRoute } from "@/routes/admin.integrations";
-import { fail, ok } from "@/test/supabaseChain";
+import { fail, ok, okCount } from "@/test/supabaseChain";
 // Rodzaje integracji BIERZEMY Z PRODUKCJI: przepisana z ręki lista rozjechałaby
 // się z enumem bazy bez żadnego sygnału.
 import { INTEGRATION_KINDS } from "@/lib/integrations/formats";
@@ -220,12 +220,58 @@ function endpoint(overrides: Partial<EndpointFixture> = {}): EndpointFixture {
   };
 }
 
+/**
+ * Statusy z CHECK-a `integration_deliveries`, w kolejności, w jakiej panel
+ * o nie pyta. Podsumowanie kolejki to PIĘĆ osobnych zapytań liczących
+ * (`count: "exact", head: true`), po jednym na status. Nie ma już jednej
+ * odpowiedzi „wiersze kolejki”, z której cokolwiek dałoby się zliczyć
+ * w przeglądarce, więc i plan testu jest per status.
+ */
+const DELIVERY_STATUSES = ["queued", "delivering", "delivered", "failed", "dead"] as const;
+type DeliveryStatus = (typeof DELIVERY_STATUSES)[number];
+
+/** Odpowiedź JEDNEGO kubełka - zależna od statusu z `.eq("status", …)`. */
+type DeliveriesResponder = (status: string) => SupabaseResult;
+
+/**
+ * STRAŻNIK: panel ma prawo pytać WYŁĄCZNIE o statusy z CHECK-a tabeli. Status
+ * spoza tej listy to zapytanie, na które baza odpowie zerem niezależnie od
+ * stanu kolejki - czyli kafel, który zawsze kłamie. Ma być błędem testu.
+ */
+function asDeliveryStatus(value: string): DeliveryStatus {
+  const known = DELIVERY_STATUSES.find((status) => status === value);
+  if (known === undefined) throw new Error(`test: panel pyta o nieznany status „${value}”`);
+  return known;
+}
+
+/**
+ * Status kubełka odczytany z ogniwa `.eq("status", …)` - STRAŻNIK zamiast
+ * rzutowania argumentów łańcucha. Zapytanie BEZ tego zawężenia policzyłoby
+ * całą tabelę i każdy kafel pokazałby to samo, więc jego brak też jest błędem.
+ */
+function bucketStatus(chain: RecordedChain): string {
+  const args = chain.argsOf("eq");
+  if (args?.[0] !== "status" || typeof args[1] !== "string") {
+    throw new Error('test: odczyt kolejki bez zawężenia .eq("status", ...)');
+  }
+  return args[1];
+}
+
+/**
+ * Plan liczników kolejki. Status bez wpisu oddaje ZERO - dokładnie tak
+ * odpowiada baza na `count: "exact"` dla statusu bez ani jednej dostawy.
+ */
+function deliveryCounts(counts: Partial<Record<DeliveryStatus, number>>): DeliveriesResponder {
+  return (status) => okCount(counts[asDeliveryStatus(status)] ?? 0);
+}
+
 /** Plan odpowiedzi tabel: lista, insert, update i delete osobno. */
 interface Plan {
   list: SupabaseResult;
   insert: SupabaseResult;
   write: SupabaseResult;
-  deliveries: SupabaseResult;
+  /** Kolejka: odpowiedź PER KUBEŁEK, bo panel pyta o każdy status osobno. */
+  deliveries: DeliveriesResponder;
 }
 
 let plan: Plan;
@@ -236,12 +282,30 @@ function planFor(chain: RecordedChain): SupabaseResult {
   return plan.list;
 }
 
+/** Klucz podsumowania kolejki - dokładnie ten z `admin.integrations.tsx:186`. */
+const DELIVERIES_SUMMARY_KEY = ["admin", "integration-deliveries-summary"];
+
+/**
+ * Klient zapytań OSTATNIEGO renderu. Odczyt kolejki nie ma w panelu żadnego
+ * ramienia błędu (patrz `it.fails` niżej), więc „całe zapytanie padło” widać
+ * wyłącznie w cache - na ekranie jest to nieodróżnialne od kolejki pustej.
+ */
+let client: QueryClient | null = null;
+
+/** Stan odczytu kolejki - STRAŻNIK zamiast rzutowania klienta z modułu. */
+function deliveriesState(): { status: string; error: unknown } {
+  if (!client) throw new Error("test: panel nie został wyrenderowany");
+  const state = client.getQueryState(DELIVERIES_SUMMARY_KEY);
+  return { status: state?.status ?? "brak", error: state?.error ?? null };
+}
+
 async function renderPanel(): Promise<void> {
+  client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   await renderRoute({
     route: IntegrationsRoute,
     path: PATH,
     initialEntry: PATH,
-    queryClient: new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
+    queryClient: client,
   });
   await waitFor(() =>
     expect(screen.getByText("adminIntegrations.outgoingIntegrations")).toBeInTheDocument(),
@@ -377,14 +441,15 @@ beforeEach(() => {
     throw new Error("test: panel integracji NIE MA PRAWA wyjść do sieci");
   });
   vi.stubGlobal("fetch", h.fetch);
+  client = null;
   plan = {
     list: ok([]),
     insert: ok({ id: "ep-new" }),
     write: ok(null),
-    deliveries: ok([]),
+    deliveries: deliveryCounts({}),
   };
   db().setResponse(ENDPOINTS, planFor);
-  db().setResponse(DELIVERIES, () => plan.deliveries);
+  db().setResponse(DELIVERIES, (chain) => plan.deliveries(bucketStatus(chain)));
   // happy-dom nie implementuje `window.confirm`, a panel pyta nim przed
   // usunięciem endpointu. Definiujemy WŁASNOŚĆ okna - tak brzmi wywołanie
   // w produkcji, więc `vi.stubGlobal` by w nie nie trafił.
@@ -425,12 +490,23 @@ describe("panel integracji - odczyt konfiguracji", () => {
     expect(columns).not.toMatch(/secret\b(?!_id)/);
   });
 
-  it("podsumowanie kolejki czyta SAM status, z limitem partii", async () => {
+  it("podsumowanie kolejki LICZY W BAZIE: pięć zapytań liczących, ZERO wierszy", async () => {
+    // PRZEPISANE PO NAPRAWIE. Wcześniej panel robił `.select("status")
+    // .limit(1000)` i zliczał w pętli - ten test asertował właśnie ten kształt,
+    // czyli utrwalał defekt. Teraz każdy status ma własne `count: "exact",
+    // head: true`: baza oddaje sam licznik w nagłówku `Content-Range`,
+    // a przeglądarka nie dostaje ANI JEDNEGO wiersza dostawy.
     await renderReady();
 
-    const chain = db().lastChain(DELIVERIES);
-    expect(chain?.argsOf("select")).toEqual(["status"]);
-    expect(chain?.argsOf("limit")).toEqual([1000]);
+    const chains = db().chainsFor(DELIVERIES);
+    expect(chains).toHaveLength(DELIVERY_STATUSES.length);
+    expect(chains.map((chain) => bucketStatus(chain))).toEqual([...DELIVERY_STATUSES]);
+    for (const chain of chains) {
+      expect(chain.argsOf("select")).toEqual(["id", { count: "exact", head: true }]);
+      // Sufit partii nie może wrócić tylnymi drzwiami: `.limit(...)` obciąłby
+      // licznik z powrotem do rozmiaru strony, czyli znowu do próbki.
+      expect(chain.has("limit")).toBe(false);
+    }
   });
 
   it("rejestruje słownik trasy - panel bez napisów byłby nieczytelny", async () => {
@@ -456,22 +532,24 @@ describe("panel integracji - odczyt konfiguracji", () => {
   });
 
   it("`data: null` z bazy nie wywala panelu - lista pusta, nagłówek zostaje", async () => {
-    // Prawe ramię `data ?? []`: PostgREST oddaje `null` przy pustym wyniku
-    // niektórych zapytań, a panel musi to znieść bez wyjątku w renderze.
+    // Prawe ramię `data ?? []` w odczycie endpointów ORAZ prawe ramię
+    // `queued.count ?? 0` w każdym kubełku kolejki: PostgREST oddaje `null`
+    // przy pustym wyniku, a odpowiedź BEZ licznika musi dać na kaflu zero,
+    // nie pustkę ani wyjątek w renderze.
     plan.list = ok(null);
-    plan.deliveries = ok(null);
+    plan.deliveries = () => ok(null);
     await renderReady();
 
     expect(screen.getByText("adminIntegrations.endpointsYetAddOneStart")).toBeInTheDocument();
-    expect(statValue("adminIntegrations.delivered")).toBe("0");
+    await waitFor(() => expect(statValue("adminIntegrations.delivered")).toBe("0"));
   });
 
   it.fails(
     "DEFEKT: nieudany odczyt endpointów pokazuje „brak endpointów” zamiast błędu",
     async () => {
-      // CO: `src/routes/admin.integrations.tsx:362-370` rozgałęzia się wyłącznie
+      // CO: `src/routes/admin.integrations.tsx:398-407` rozgałęzia się wyłącznie
       // na `isLoading` i `rows.length === 0`. `endpointsQ.isError` nie ma tu
-      // żadnego ramienia, a `rows` przy błędzie jest `[]` (linia 296).
+      // żadnego ramienia, a `rows` przy błędzie jest `[]` (linia 332).
       // KONSEKWENCJA: odmowa RLS albo padnięty odczyt wyglądają IDENTYCZNIE jak
       // tenant bez integracji. Operator widzi „dodaj pierwszy endpoint",
       // zakłada nową konfigurację obok istniejącej i dubluje dostawy do
@@ -487,45 +565,94 @@ describe("panel integracji - odczyt konfiguracji", () => {
   );
 
   it.fails("DEFEKT: nieudany odczyt kolejki raportuje CZWÓRKĘ ZER", async () => {
-    // CO: `admin.integrations.tsx:297-302` - `deliveriesQ.data ?? {}` i cztery
-    // `counts[...] ?? 0`. Błąd odczytu nie ma tu ramienia.
+    // CO: `admin.integrations.tsx:334-338` - `const counts = deliveriesQ.data;`
+    // i cztery odczyty `counts?.… ?? 0`. Błąd odczytu nie ma tu ramienia: przy
+    // `isError` `data` jest `undefined`, więc każdy kafel pokazuje zero.
     // KONSEKWENCJA: padnięty odczyt kolejki wygląda jak „zero martwych dostaw,
     // zero błędów" - czyli jak zdrowy system. To jest fałszywy sukces na
     // ekranie, po którym nikt nie sprawdza, dlaczego odbiorca milczy.
-    plan.deliveries = fail("statement timeout", "57014");
+    plan.deliveries = () => fail("statement timeout", "57014");
     await renderReady();
 
     expect(statValue("adminIntegrations.dead"), "zero z awarii odczytu").not.toBe("0");
   });
 
-  it("liczniki statusów zliczają wiersze, sumują `queued`+`delivering` i IGNORUJĄ nieznane", async () => {
-    // Oba ramiona `counts[r.status] ?? 0` w akumulacji: pierwszy wiersz statusu
-    // wchodzi w gałąź `undefined`, drugi w gałąź z liczbą.
-    plan.deliveries = ok([
-      { status: "delivered" },
-      { status: "delivered" },
-      { status: "queued" },
-      { status: "delivering" },
-      { status: "failed" },
-      { status: "dead" },
-      { status: "dead" },
-      { status: "cokolwiek_z_przyszlej_migracji" },
-    ]);
+  it("kafle pokazują liczniki Z BAZY, a `pending` sumuje `queued`+`delivering`", async () => {
+    // PRZEPISANE PO NAPRAWIE. Ten test zliczał wcześniej wiersze próbki i przy
+    // okazji dowodził, że panel IGNORUJE status spoza enumu - gałęzi, która
+    // istniała wyłącznie dlatego, że zliczanie odbywało się w przeglądarce.
+    // Teraz o statusy pyta się WPROST, więc nieznanego statusu nie da się
+    // policzyć przypadkiem (pilnuje tego `asDeliveryStatus`), a przedmiotem
+    // dowodu jest to, że liczba na kaflu to licznik bazy, nie wynik pętli.
+    plan.deliveries = deliveryCounts({
+      delivered: 2,
+      queued: 1,
+      delivering: 1,
+      failed: 1,
+      dead: 2,
+    });
     await renderReady();
 
-    expect(statValue("adminIntegrations.delivered")).toBe("2");
+    await waitFor(() => expect(statValue("adminIntegrations.delivered")).toBe("2"));
+    // Kafel „oczekujące” łączy dwa kubełki, bo dla operatora „w kolejce”
+    // i „w trakcie wysyłki” to jeden stan: jeszcze nie dostarczone.
     expect(statValue("adminIntegrations.pending")).toBe("2");
     expect(statValue("adminIntegrations.failed")).toBe("1");
     expect(statValue("adminIntegrations.dead")).toBe("2");
+    for (const chain of db().chainsFor(DELIVERIES)) {
+      expect(chain.argsOf("select")).toEqual(["id", { count: "exact", head: true }]);
+    }
   });
 
-  it("statusy NIEOBECNE w kolejce dają zero, a nie puste miejsce", async () => {
-    // Prawe ramię każdego `counts[...] ?? 0`: karta bez liczby sugerowałaby,
-    // że panel nie potrafi policzyć - a nie że nic tam nie ma.
-    plan.deliveries = ok([{ status: "delivered" }]);
+  it("licznik POWYŻEJ tysiąca jedzie na kafel W CAŁOŚCI", async () => {
+    // TO BYŁ TEN DEFEKT. `.select("status").limit(1000)` + pętla dawały co
+    // najwyżej tysiąc na WSZYSTKIE kafle razem, bez żadnego oznaczenia, że to
+    // próbka. Operator z zatkaną kolejką widział liczby, które nie miały jak
+    // urosnąć, i nie odróżniał tysiąca doręczeń od pięćdziesięciu tysięcy -
+    // a to na ich podstawie decydował, czy integracja wymaga interwencji.
+    plan.deliveries = deliveryCounts({ delivered: 48137, queued: 1001, dead: 2500 });
     await renderReady();
 
-    expect(statValue("adminIntegrations.delivered")).toBe("1");
+    await waitFor(() => expect(statValue("adminIntegrations.delivered")).toBe("48137"));
+    expect(statValue("adminIntegrations.pending")).toBe("1001");
+    expect(statValue("adminIntegrations.dead")).toBe("2500");
+    for (const chain of db().chainsFor(DELIVERIES)) {
+      expect(chain.has("limit")).toBe(false);
+    }
+  });
+
+  it("status BEZ dostaw daje zero, a nie puste miejsce", async () => {
+    // Zero z bazy MUSI dojechać na kafel jako `0`: karta bez liczby
+    // sugerowałaby, że panel nie potrafi policzyć - a nie że nic tam nie ma.
+    plan.deliveries = deliveryCounts({ delivered: 1 });
+    await renderReady();
+
+    await waitFor(() => expect(statValue("adminIntegrations.delivered")).toBe("1"));
+    expect(statValue("adminIntegrations.pending")).toBe("0");
+    expect(statValue("adminIntegrations.failed")).toBe("0");
+    expect(statValue("adminIntegrations.dead")).toBe("0");
+  });
+
+  it("błąd JEDNEGO kubełka wywraca CAŁY odczyt - żadnych liczb cząstkowych", async () => {
+    // Cząstkowe podsumowanie byłoby GORSZE niż brak: kafel „martwe” pokazałby
+    // zero (czyli „nic nie utknęło”) obok trzech kafli z prawdziwymi liczbami,
+    // więc ekran wyglądałby na spójny i wiarygodny. Dlatego pierwszy błąd
+    // z `Promise.all` odrzuca całe zapytanie - kafle zostają zerowe, co samo
+    // w sobie jest osobnym defektem (patrz `it.fails` wyżej), ale nie jest
+    // fałszywym pomiarem.
+    plan.deliveries = (status) =>
+      status === "dead" ? fail("statement timeout", "57014") : okCount(4242);
+    await renderReady();
+
+    // Ekran nie odróżnia błędu od pustej kolejki, więc „całe zapytanie padło”
+    // czytamy ze stanu cache - inaczej asercja niżej przechodziłaby także
+    // wtedy, gdyby odczyt jeszcze trwał.
+    await waitFor(() => expect(deliveriesState().status).toBe("error"));
+    const { error } = deliveriesState();
+    expect(error).toBeInstanceOf(Error);
+    expect(error instanceof Error ? error.message : "").toBe("statement timeout");
+    // Licznik z udanych kubełków NIE przecieka na ekran.
+    expect(statValue("adminIntegrations.delivered")).toBe("0");
     expect(statValue("adminIntegrations.pending")).toBe("0");
     expect(statValue("adminIntegrations.failed")).toBe("0");
     expect(statValue("adminIntegrations.dead")).toBe("0");
@@ -1119,7 +1246,7 @@ describe("panel integracji - przełącznik i usuwanie", () => {
   });
 
   it.fails("DEFEKT: nieudane przełączenie MILCZY - brak `onError` w mutacji", async () => {
-    // CO: `src/routes/admin.integrations.tsx:265-276` - `toggleEnabled` ma
+    // CO: `src/routes/admin.integrations.tsx:301-312` - `toggleEnabled` ma
     // wyłącznie `onSuccess`. Odmowa RLS nie daje ANI toastu, ANI śladu w UI.
     // KONSEKWENCJA: operator przestawia przełącznik, widzi krótkie mrugnięcie
     // i wraca do stanu poprzedniego bez słowa wyjaśnienia. Endpoint zostaje
@@ -1327,15 +1454,15 @@ describe("panel integracji - nagłówek trasy", () => {
 // ---------------------------------------------------------------------------
 // GAŁĘZIE NIEOSIĄGALNE Z INTERFEJSU - udokumentowane, nie naciągane.
 //
-// 1. `nullifyEmpty(draft.name) ?? ""` (`admin.integrations.tsx:625`): prawe
+// 1. `nullifyEmpty(draft.name) ?? ""` (`admin.integrations.tsx:661`): prawe
 //    ramię `??` (i fałszywe ramię `t.length > 0 ? t : null` w `nullifyEmpty`,
 //    linia 112) wymaga PUSTEJ nazwy w chwili kliknięcia „Zapisz”. Bramka
-//    `canSave` (linia 502) wymaga jednak nazwy o długości >= 2 po obcięciu,
+//    `canSave` (linia 538) wymaga jednak nazwy o długości >= 2 po obcięciu,
 //    a wyłączony przycisk nie wywołuje `onSave`. Ta gałąź jest nieosiągalna
 //    z interfejsu i pozostaje bez testu świadomie - test wywołujący `onSave`
 //    w obejściu bramki dowodziłby zachowania, którego użytkownik nie ma jak
 //    wywołać.
-// 2. `onOpenChange={(o) => (o ? undefined : setDraft(null))}` (linia 505):
+// 2. `onOpenChange={(o) => (o ? undefined : setDraft(null))}` (linia 541):
 //    ramię `o === true` wymaga otwarcia okna PRZEZ komponent Radiksa
 //    (`DialogTrigger`), a to okno jest w pełni sterowane stanem trasy i żadnego
 //    triggera nie ma. Zamknięcie (`o === false`) jest pokryte testem

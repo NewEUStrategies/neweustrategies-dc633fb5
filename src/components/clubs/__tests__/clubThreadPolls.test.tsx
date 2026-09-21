@@ -184,14 +184,14 @@ describe("ClubThreadPoll", () => {
     expect(await screen.findByText("community.polls.resultsHidden")).toBeInTheDocument();
     expect(screen.queryByText(/totalVotes/)).toBeNull();
     // Warianty są klikalne, tylko bez liczb.
-    expect(screen.getByRole("button", { name: /Tak/ })).toBeEnabled();
+    expect(screen.getByRole("radio", { name: /Tak/ })).toBeEnabled();
   });
 
   it("klik na wariant oddaje głos DOKŁADNIE na ten indeks", async () => {
     h.vote.mockResolvedValue(pollResults({ visible: true, my_vote: 1, total: 1, counts: [0, 1] }));
 
     renderPoll();
-    fireEvent.click(await screen.findByRole("button", { name: /Nie/ }));
+    fireEvent.click(await screen.findByRole("radio", { name: /Nie/ }));
 
     await waitFor(() => expect(h.vote).toHaveBeenCalledWith("poll-1", 1));
   });
@@ -205,11 +205,12 @@ describe("ClubThreadPoll", () => {
     h.vote.mockResolvedValue(pollResults({ visible: true, my_vote: 1, total: 3, counts: [1, 2] }));
 
     renderPoll();
-    // Aktualny wybór jest ogłoszony przez `aria-pressed`, nie samym kolorem.
-    const wybrany = await screen.findByRole("button", { name: /Tak/ });
-    expect(wybrany).toHaveAttribute("aria-pressed", "true");
+    // Aktualny wybór jest ogłoszony przez `aria-checked` w grupie radiowej,
+    // nie samym kolorem (opcje ankiety to wybór JEDNOKROTNY, nie przełączniki).
+    const wybrany = await screen.findByRole("radio", { name: /Tak/ });
+    expect(wybrany).toHaveAttribute("aria-checked", "true");
 
-    fireEvent.click(screen.getByRole("button", { name: /Nie/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Nie/ }));
 
     await waitFor(() => expect(h.vote).toHaveBeenCalledWith("poll-1", 1));
   });
@@ -218,7 +219,7 @@ describe("ClubThreadPoll", () => {
     h.vote.mockRejectedValue(new Error("poll closed"));
 
     renderPoll();
-    fireEvent.click(await screen.findByRole("button", { name: /Tak/ }));
+    fireEvent.click(await screen.findByRole("radio", { name: /Tak/ }));
 
     await waitFor(() =>
       expect(h.toasts).toEqual([{ level: "error", key: "community.polls.voteError" }]),
@@ -249,10 +250,10 @@ describe("ClubThreadPoll", () => {
     renderPoll();
 
     expect(await screen.findByText("community.polls.closed")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Tak/ })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: /Tak/ })).toBeDisabled();
     // Zamknięcie zdejmuje głosowanie, ale NIE zabiera wyniku.
     expect(screen.getByText("community.polls.totalVotes(count=4)")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Tak/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Tak/ }));
     expect(h.vote).not.toHaveBeenCalled();
   });
 
@@ -260,7 +261,7 @@ describe("ClubThreadPoll", () => {
     renderPoll(null);
 
     expect(await screen.findByText("community.polls.signInHint")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Tak/ })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: /Tak/ })).toBeDisabled();
   });
 
   it("pytanie i warianty idą w języku interfejsu", async () => {
@@ -269,7 +270,7 @@ describe("ClubThreadPoll", () => {
     expect(
       await screen.findByRole("heading", { name: "Do you support the reform?" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Yes/ })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /Yes/ })).toBeInTheDocument();
   });
 
   it("brak wpisu w mapie wyników nie wywraca karty - rozkład zostaje ukryty", async () => {

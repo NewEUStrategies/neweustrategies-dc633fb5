@@ -390,10 +390,18 @@ Wdrożenie rekomendacji, w dwóch częściach:
      fałszywie czerwona na `20260712190000` / `20260712192421`.
 
    Świadomie: bramka stoi w `verify` obok pozostałych trzech bramek SQL, ale jej **self-test na
-   realnym katalogu jedzie w suicie vitest** (i dodatkowo w kroku `check:i18n-parity`, który
+   realnym katalogu jedzie w suicie vitest** (i dodatkowo w kroku `check:ci-gates`, który
    uruchamia całe `src/lib/ci/__tests__`) - dzięki temu inwariant jest pilnowany także wtedy, gdy
    późniejsze kroki `verify` są czerwone. Cała lekcja z tego incydentu polega na tym, że **jedna
    awaria ukrywała drugą** - dwa razy z rzędu.
+
+   > Korekta 2026-09-02: nośnikiem tej drugiej ścieżki był do dziś krok `check:i18n-parity`, bo
+   > jego glob obejmował cały `src/lib/ci/__tests__`. Właściwość jest zachowana, zmienił się
+   > wyłącznie właściciel: katalogowy glob przeniesiono pod `check:ci-gates` w tym samym jobie
+   > `verify`, z tą samą klauzulą `if: !cancelled()`. Powód zmiany jest osobny od tego incydentu:
+   > bramka JĘZYKOWA raportowała defekty SQL, RLS i ownershipu, więc dało się ją zapalić zmianą,
+   > która nie dotyka żadnego klucza tłumaczenia - i tak się stało 31.08 (dwie bliźniacze
+   > migracje z panelu, zero defektów i18n).
 
 Odwołania do przenumerowanej migracji zaktualizowane w kodzie i komentarzach (7 plików +
 `WDROZENIE_RODO_RETENCJA_ZAMOWIEN`). Tabela audytu `OCENA_FUNKCJI_TABELE_2026-08-03` zostaje

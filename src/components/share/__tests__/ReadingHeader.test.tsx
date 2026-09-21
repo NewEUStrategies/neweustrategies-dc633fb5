@@ -62,7 +62,7 @@
 //     montowana ani sprawdzana - a tu ZERO wyjść do sieci.
 //   * WNĘTRZE ATRAP: `SearchButtonWidget`, `LangSwitcherDropdown`,
 //     `LangReelSwitcher`, `SaveArticleButton`, `ThemeToggle`,
-//     `NotificationsBell`, `ChatBell` mają własnych właścicieli i własne testy.
+//     `NotificationsBell` ma własnych właścicieli i własne testy.
 //     Atrapy potwierdzają WYŁĄCZNIE przekazane propy - to jedyny kontrakt,
 //     który należy do paska.
 //   * `useHasMounted`, `rafThrottle`, `useHeaderProfile`, `useSiteSetting`,
@@ -137,7 +137,6 @@ const h = vi.hoisted(() => ({
   reelClassName: null as string | null,
   dropdownLabel: null as string | null,
   notificationsWidth: 0,
-  chatWidth: 0,
 }));
 
 // Atrapa i18n. `translateKey` pochodzi z `@/test/i18nStub` - fabryka `vi.mock`
@@ -242,13 +241,6 @@ vi.mock("@/components/notifications/NotificationsBell", () => ({
   NotificationsBell: ({ panelWidth }: { panelWidth: number }) => {
     h.notificationsWidth = panelWidth;
     return <div data-testid="bell-notifications" />;
-  },
-}));
-
-vi.mock("@/components/chat/ChatBell", () => ({
-  ChatBell: ({ panelWidth }: { panelWidth: number }) => {
-    h.chatWidth = panelWidth;
-    return <div data-testid="bell-chat" />;
   },
 }));
 
@@ -412,7 +404,6 @@ beforeEach(() => {
   h.reelClassName = null;
   h.dropdownLabel = null;
   h.notificationsWidth = 0;
-  h.chatWidth = 0;
   FakeIntersectionObserver.instances = [];
   vi.stubGlobal("IntersectionObserver", FakeIntersectionObserver);
   setScrollY(0);
@@ -1108,11 +1099,10 @@ describe("ReadingHeader - klaster mobilny i widgety poboczne", () => {
     expect(h.reelClassName).toBe("[--ls-h:28px]");
   });
 
-  it("dzwonki dostają szerokości paneli, na których stoi ich układ", () => {
+  it("dzwonek powiadomień dostaje szerokość panelu, na której stoi jego układ", () => {
     renderHeader({ pinned: true });
 
     expect(h.notificationsWidth).toBe(280);
-    expect(h.chatWidth).toBe(300);
   });
 });
 

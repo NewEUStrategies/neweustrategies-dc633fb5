@@ -289,8 +289,16 @@ export function ticketDraftIssue(draft: TicketDraft): TicketDraftIssue | null {
   // Para early-bird jest niepodzielna: cena bez terminu obowiązywałaby wiecznie,
   // a termin bez ceny nie zmieniałby niczego. CHECK w bazie odrzuca oba przypadki
   // bez nazwy pola, więc rozstrzygamy je tutaj, przy właściwym polu.
+  //
+  // SKŁADNIA LICZBY ROZSTRZYGA SIĘ PIERWSZA. „199,00" nie jest liczbą, więc jest
+  // błędem CENY, a nie brakującego terminu. Odwrotna kolejność podświetlała pole
+  // TERMINU: redaktor uzupełniał datę, zapisywał ponownie i dopiero w drugim
+  // obiegu formularza dowiadywał się, co naprawdę jest źle.
   const early = intOrNull(draft.earlyBirdPriceCents);
   const hasEarlyDate = draft.earlyBirdUntil.trim() !== "";
+  if (early !== null && Number.isNaN(early)) {
+    return { field: "earlyBirdPriceCents", errorKey: "invalidEarlyBird" };
+  }
   if (early !== null && !hasEarlyDate) {
     return { field: "earlyBirdUntil", errorKey: "invalidEarlyBird" };
   }
@@ -299,7 +307,7 @@ export function ticketDraftIssue(draft: TicketDraft): TicketDraftIssue | null {
   }
   if (early !== null) {
     const base = intOrNull(draft.priceCents);
-    if (Number.isNaN(early) || early < 0 || base === null || Number.isNaN(base) || early > base) {
+    if (early < 0 || base === null || Number.isNaN(base) || early > base) {
       return { field: "earlyBirdPriceCents", errorKey: "invalidEarlyBird" };
     }
   }

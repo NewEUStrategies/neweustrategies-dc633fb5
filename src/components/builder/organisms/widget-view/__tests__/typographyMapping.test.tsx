@@ -62,13 +62,22 @@ function widgetCss(type: WidgetType, style?: CommonStyle): string {
       <WidgetView node={node} lang="pl" device="desktop" />
     </QueryClientProvider>,
   );
-  const wrap = container.querySelector(`[data-w-id="${node.id}"]`);
-  // The wrapper's own <style> (hover/typography/override CSS) is a DIRECT
-  // child of [data-w-id]; widgets may render their own nested <style> deeper
-  // in the tree (e.g. RatedListView's color CSS), which a descendant
-  // querySelector would match first in document order.
-  const style$ = Array.from(wrap?.children ?? []).find((el) => el.tagName === "STYLE");
-  return style$?.innerHTML ?? "";
+  return frameCss(container, node.id);
+}
+
+/**
+ * CSS własnego <style> ramki widgetu.
+ */
+function frameCss(container: HTMLElement, id: string): string {
+  const wrap = container.querySelector(`[data-w-id="${id}"]`);
+  // Własny <style> ramki (hover/typografia/override) stoi TUŻ PRZED
+  // `[data-w-id]`, jako jej rodzeństwo - musi dojechać do parsera przed
+  // treścią widgetu, a wewnątrz ramki przejąłby regułę
+  // `[data-w-id] > :first-child` ze styles.css. Widgety renderują własne
+  // <style> głębiej w drzewie (np. kolory RatedListView), więc szukanie
+  // potomka trafiłoby najpierw w nie.
+  const style$ = wrap?.previousElementSibling;
+  return style$?.tagName === "STYLE" ? style$.innerHTML : "";
 }
 
 function countMatches(haystack: string, needle: string): number {
@@ -184,12 +193,25 @@ describe("typography mapping is single-sourced and uniform across widgets", () =
       typography: { fontSize: { desktop: "14px" }, fontFamily: "serif" },
     });
 
-    expect(css).toContain(
-      "span:not(.cms-post-title):not(.cms-post-excerpt):not([data-typography-exempt])",
-    );
-    expect(css).toContain(
-      "button:not(.cms-post-title):not(.cms-post-excerpt):not([data-typography-exempt])",
-    );
+    const selectors = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)]
+      .filter(([, selector, body]) => /font-size\s*:/.test(body) && !selector.includes("::"))
+      .map(([, selector]) => selector.trim());
+    expect(selectors.length).toBeGreaterThan(0);
+    const root = document.createElement("div");
+    root.setAttribute("data-w-id", "tm-search-button");
+    for (const tag of ["span", "button"]) {
+      const control = document.createElement(tag);
+      root.append(control);
+      expect(
+        selectors.some((selector) => control.matches(selector)),
+        tag,
+      ).toBe(true);
+      control.setAttribute("data-typography-exempt", "");
+      expect(
+        selectors.some((selector) => control.matches(selector)),
+        tag,
+      ).toBe(false);
+    }
   });
 
   it("updates the rendered typography CSS immediately from the live editor channel", async () => {
@@ -207,7 +229,7 @@ describe("typography mapping is single-sourced and uniform across widgets", () =
       </QueryClientProvider>,
     );
 
-    expect(container.querySelector(`[data-w-id="tm-live"] style`)?.innerHTML).toContain(
+    expect(frameCss(container, "tm-live")).toContain(
       `[data-w-id="tm-live"][data-w-id][data-w-id] .cms-post-title{font-size:14px !important;}`,
     );
 
@@ -222,7 +244,7 @@ describe("typography mapping is single-sourced and uniform across widgets", () =
     );
 
     await waitFor(() => {
-      expect(container.querySelector(`[data-w-id="tm-live"] style`)?.innerHTML).toContain(
+      expect(frameCss(container, "tm-live")).toContain(
         `[data-w-id="tm-live"][data-w-id][data-w-id] .cms-post-title{font-size:28px !important;}`,
       );
     });

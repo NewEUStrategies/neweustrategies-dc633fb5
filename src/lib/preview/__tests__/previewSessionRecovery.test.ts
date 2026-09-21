@@ -891,10 +891,6 @@ describe("cykl życia modułu", () => {
 
     expect(drugi.subscribe).not.toHaveBeenCalled();
     expect(stub).toHaveBeenCalledTimes(1);
-
-    // Sprzątaczka-atrapa z drugiego wywołania nie może zabić pierwszej
-    // instancji - inaczej podwójne wywołanie efektu w Reactcie ubijałoby
-    // działający heartbeat.
     sprzataczkaNoOp();
     expect(pierwszy.podpieci()).toBe(1);
     await vi.advanceTimersByTimeAsync(HEALTHY_INTERVAL_MS);
@@ -902,11 +898,6 @@ describe("cykl życia modułu", () => {
   });
 
   it("po sprzątnięciu nie zostaje ŻADNE wejście do sondowania", async () => {
-    // Trzy wejścia do `run()`: licznik, `online`, `visibilitychange`. Ten test
-    // zamyka wszystkie trzy naraz - i dlatego USTALA, że strażnik
-    // `if (disposed) return` na wejściu `run()` (sessionHeartbeat.ts:214) jest
-    // NIEOSIĄGALNY: po sprzątnięciu nie ma już czym do niego wejść. Realną
-    // luką jest brak takiego strażnika PO `await` (patrz `it.fails` niżej).
     const zapisy = sledzZapisy();
     const atrapa = atrapaRoutera();
     const stub = pulsWersji("build-1");
@@ -919,8 +910,6 @@ describe("cykl życia modułu", () => {
     podmien(document, "visibilityState", "visible");
     document.dispatchEvent(new Event("visibilitychange"));
     await vi.advanceTimersByTimeAsync(20 * HEALTHY_INTERVAL_MS);
-
-    // Niezdjęty licznik wisiałby do końca życia izolatu.
     expect(stub).not.toHaveBeenCalled();
     expect(atrapa.podpieci()).toBe(0);
     expect(zapisy).not.toHaveBeenCalled();
@@ -940,13 +929,6 @@ describe("cykl życia modułu", () => {
   });
 
   it("wejście spoza harmonogramu ANULUJE zaplanowany puls, a nie dubluje go", async () => {
-    // USTALENIE NIEOSIĄGALNOŚCI (nie farmimy jej, tylko nazywamy).
-    // `schedule()` (sessionHeartbeat.ts:254) leci synchronicznie, jeszcze przed
-    // zwróceniem sprzątaczki, a `timer` nigdy nie wraca do `null`. Dlatego
-    // gałęzie „nie ma czego anulować" w `if (timer) clearTimeout(timer)`
-    // (linie 244, 249, 259) są NIEOSIĄGALNE - licznik istnieje od pierwszej
-    // chwili życia modułu do końca. Tu sprawdzamy to, co da się zaobserwować:
-    // wejście spoza harmonogramu KASUJE zaplanowany puls, czyli licznik był.
     const atrapa = atrapaRoutera();
     const stub = pulsWersji("build-1");
     stop = startPreviewHeartbeat(atrapa.router);
@@ -955,8 +937,6 @@ describe("cykl życia modułu", () => {
     window.dispatchEvent(new Event("online"));
     await vi.advanceTimersByTimeAsync(0);
     expect(stub).toHaveBeenCalledTimes(1);
-
-    // Gdyby stary licznik przeżył, tu byłby drugi puls na jedno zdarzenie.
     await vi.advanceTimersByTimeAsync(HEALTHY_INTERVAL_MS - 1_000 + 100);
     expect(stub).toHaveBeenCalledTimes(1);
 
@@ -979,32 +959,10 @@ describe("cykl życia modułu", () => {
     sprzataczka();
     zawieszony.rozwiaz(wersja("build-1"));
     await vi.advanceTimersByTimeAsync(20 * HEALTHY_INTERVAL_MS);
-
-    // Sprzątaczka wygrywa z harmonogramem: żadnego trzeciego pulsu.
     expect(stub).toHaveBeenCalledTimes(2);
     expect(adresyPrzeladowan()).toEqual([]);
   });
-
-  // DEFEKT ZGŁOSZONY, NIE NAPRAWIONY. `run()` w `sessionHeartbeat.ts:213-230`
-  // sprawdza `disposed` na WEJŚCIU (linia 214) i w `schedule()` (linia 209),
-  // ale NIE po `await probe(...)` (linia 218). Skutek: sonda, która była już
-  // w drodze w chwili sprzątania, po powrocie nadal mutuje `state` i wykonuje
-  // swój efekt - włącznie z `reload`.
-  //
-  // KONSEKWENCJA DLA CZŁOWIEKA: `__root.tsx:534-541` sprząta heartbeat w
-  // funkcji czyszczącej efektu, czyli przy każdej zmianie tożsamości routera
-  // i przy podwójnym wywołaniu efektu w trybie deweloperskim. Jeśli w tym
-  // okienku wróci puls z innym `buildId`, moduł PRZEŁADOWUJE dokument, choć
-  // został wyłączony - w środku pracy w podglądzie, bez powodu widocznego dla
-  // człowieka (i zużywa jeden z pięciu żetonów strażnika).
-  //
-  // DLACZEGO TO DECYZJA DLA CZŁOWIEKA: naprawa (dodanie `if (disposed) return`
-  // po `await`) zmienia zachowanie produkcyjne w ścieżce, która sama decyduje
-  // o przeładowaniach - a wariant „sprzątnięto, ale odpowiedź niesie NOWY
-  // build" ma dwa sensowne rozwiązania (zignorować albo przeładować mimo
-  // sprzątnięcia, bo stary dokument i tak jest martwy) i wybór między nimi
-  // jest decyzją o produkcie, nie o teście.
-  it.fails("sprzątaczka ucina też skutki pulsu, który jest już w drodze", async () => {
+  it("sprzątaczka ucina też skutki pulsu, który jest już w drodze", async () => {
     const zawieszony = zawieszonyPuls();
     const atrapa = atrapaRoutera();
     stubujPuls((nr) => (nr === 0 ? Promise.resolve(wersja("build-1")) : zawieszony.obietnica));
@@ -1019,22 +977,7 @@ describe("cykl życia modułu", () => {
 
     expect(adresyPrzeladowan()).toEqual([]);
   });
-
-  // DEFEKT ZGŁOSZONY, NIE NAPRAWIONY (ta sama rodzina, mniejsza szkoda).
-  // `restoreScroll` (`sessionHeartbeat.ts:146-161`) planuje do sześciu tików
-  // po 250 ms przez `window.setTimeout` i NIE zapisuje ich nigdzie, więc
-  // sprzątaczka (linie 256-264) nie ma czego anulować.
-  //
-  // KONSEKWENCJA DLA CZŁOWIEKA: gdy heartbeat zostanie sprzątnięty w ciągu
-  // pierwszej ~1,25 s po starcie (podwójne wywołanie efektu w dev, szybka
-  // zmiana routera), wygaszony moduł nadal szarpie widok do zapamiętanej
-  // pozycji - czyli walczy z człowiekiem, który właśnie zaczął przewijać.
-  //
-  // DLACZEGO TO DECYZJA DLA CZŁOWIEKA: `restoreScroll` jest funkcją MODUŁOWĄ,
-  // wołaną przed powstaniem domknięcia z `disposed` (linia 190). Naprawa
-  // wymaga przeniesienia jej do domknięcia albo dorobienia rejestru timerów -
-  // czyli zmiany kształtu produkcyjnego modułu.
-  it.fails("sprzątaczka zatrzymuje też ponawianie przewijania", async () => {
+  it("sprzątaczka zatrzymuje też ponawianie przewijania", async () => {
     zapiszSnapshot({ href: START_URL, scrollY: 640, atMs: TERAZ_MS });
     const przewijanie = sledzPrzewijanie();
     const atrapa = atrapaRoutera();

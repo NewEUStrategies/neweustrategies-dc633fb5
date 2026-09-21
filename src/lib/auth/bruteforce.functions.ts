@@ -4,10 +4,14 @@
 // ON CONFLICT DO UPDATE RETURNING) and fail-CLOSED - a DB blip must not
 // remove the cap on credential guessing.
 //
-// IP is derived from the trusted forwarded headers (the edge proxy sets
-// them); an sha256 keyed with SESSION_SECRET is stored so raw IPs never land
-// in rate_limits. Email is normalised (lowercase + trim) then hashed the same
-// way so a leaked rate_limits row cannot enumerate accounts by email.
+// Adres bierze się WYŁĄCZNIE z `clientIpFromHeaders` (`@/lib/http/rateLimit`):
+// za Cloudflare pierwszy wpis `x-forwarded-for` pochodzi od KLIENTA, więc
+// kubełek kluczowany po nim rotuje się jednym nagłówkiem - dlatego kolejność to
+// `cf-connecting-ip` -> `x-real-ip` -> OSTATNI wpis XFF. Brak adresu NIE znosi
+// kubełka: żądanie „nie wiadomo od kogo" wpada do wspólnego `ip:unknown`.
+// Zapisujemy sha256 solony SESSION_SECRET, żeby surowe adresy nie lądowały w
+// `rate_limits`. E-mail normalizujemy (lowercase + trim) i haszujemy tak samo,
+// żeby wyciek wiersza `rate_limits` nie pozwalał enumerować kont.
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { createHash } from "node:crypto";
@@ -24,16 +28,26 @@ function hashSubject(kind: string, raw: string): string {
   return `${kind}:${createHash("sha256").update(`${SALT()}|${kind}|${raw}`).digest("hex").slice(0, 32)}`;
 }
 
-function currentIpHash(): string | null {
+/**
+ * Skrót adresu dla kubełków tej bramki. ZAWSZE zwraca hash - także dla żądania
+ * bez rozpoznawalnego adresu.
+ *
+ * Żądanie „nie wiadomo od kogo" trafia do WSPÓLNEGO kubełka `ip:unknown`, a nie
+ * wymyka się limitowi - inaczej pusty `x-forwarded-for` znosi bramkę
+ * brute-force jednym nagłówkiem, bez żadnej rotacji.
+ *
+ * `try/catch` ZOSTAJE: `preAuthGuard` jest fail-CLOSED, więc wyjątek rzucony
+ * stąd zablokowałby LOGOWANIE WSZYSTKIM. Brak kontekstu żądania schodzi więc na
+ * ten sam wspólny kubełek, a nie na wyjątek.
+ */
+function currentIpHash(): string {
   try {
     const req = getRequest();
     const headers = req?.headers;
-    if (!headers) return null;
-    const ip = clientIpFromHeaders(headers);
-    if (!ip || ip === "unknown") return null;
-    return hashSubject("ip", ip);
+    if (!headers) return hashSubject("ip", "unknown");
+    return hashSubject("ip", clientIpFromHeaders(headers));
   } catch {
-    return null;
+    return hashSubject("ip", "unknown");
   }
 }
 
@@ -103,16 +117,17 @@ export const preAuthGuard = createServerFn({ method: "POST" })
     const perIp = data.kind === "login" ? { max: 15, window: 5 } : { max: 10, window: 15 };
     const perEmail = data.kind === "login" ? { max: 8, window: 15 } : { max: 5, window: 30 };
 
-    if (ipHash) {
-      const ip = await hitBucket({
-        scope: `auth_${data.kind}_ip`,
-        subject: ipHash,
-        max: perIp.max,
-        windowMinutes: perIp.window,
-      });
-      if (!ip.allowed) {
-        throw new Error("auth: rate_limited");
-      }
+    // Kubełek IP powstaje BEZWARUNKOWO. Wcześniejsze `if (ipHash)` pomijało go
+    // dla żądań bez adresu, więc jeden nagłówek (`x-forwarded-for: " "`)
+    // zostawiał wyłącznie limit per e-mail.
+    const ip = await hitBucket({
+      scope: `auth_${data.kind}_ip`,
+      subject: ipHash,
+      max: perIp.max,
+      windowMinutes: perIp.window,
+    });
+    if (!ip.allowed) {
+      throw new Error("auth: rate_limited");
     }
 
     const email = await hitBucket({
@@ -142,13 +157,19 @@ const unlockSchema = z.object({
 export const unlockContentPassword = createServerFn({ method: "POST" })
   .validator((raw: unknown) => unlockSchema.parse(raw))
   .handler(async ({ data }) => {
+    // `_ip_hash` idzie teraz ZAWSZE - także jako skrót „unknown". RPC
+    // (20260720071845:87-103) na tej ścieżce dokłada dokładnie jeden upsert do
+    // `rate_limits` w scope `content_password_ip`, więc koszt jest ten sam co
+    // dla rozpoznanego adresu. UWAGA: anonimowe odblokowania zza brakującego
+    // nagłówka dzielą od teraz JEDEN kubełek 20/5 min - to świadomy koszt
+    // zamknięcia dziury „brak adresu = brak limitu".
     const ipHash = currentIpHash();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = await supabaseAdmin.rpc("verify_content_password", {
       _entity_type: data.entityType,
       _entity_id: data.entityId,
       _password: data.password,
-      _ip_hash: ipHash ?? undefined,
+      _ip_hash: ipHash,
     });
     if (error) {
       const msg = error.message?.includes("too many attempts")

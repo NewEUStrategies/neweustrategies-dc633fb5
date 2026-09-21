@@ -3,15 +3,16 @@ import { lazy, Suspense, type CSSProperties, type ReactNode } from "react";
 import { Header } from "@/components/Header";
 import { adPageTypeForLocation } from "@/lib/ads/pageType";
 import { Footer } from "@/components/Footer";
-import { MobileBottomBar } from "@/components/mobile/MobileBottomBar";
+
 import { RouteProgress } from "@/components/RouteProgress";
 import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
 import { SkipToContentLink } from "@/components/atoms/SkipToContentLink";
 import { useAuth } from "@/hooks/useAuth";
-import { useCommunityModules } from "@/lib/community/useCommunityModules";
 
-const ChatDock = lazy(() =>
-  import("@/components/chat/ChatDock").then((m) => ({ default: m.ChatDock })),
+// Przestrzeń robocza członka (pasek narzędzi: czat, zadania, notatki,
+// zapisane, kalendarz, do przeczytania). Lazy - gość nie pobiera jej kodu.
+const WorkspaceDock = lazy(() =>
+  import("@/components/dock/WorkspaceDock").then((m) => ({ default: m.WorkspaceDock })),
 );
 
 /**
@@ -52,37 +53,19 @@ export function SiteChrome({ children }: { children: ReactNode }) {
     },
   });
   const { user } = useAuth();
-  const community = useCommunityModules();
 
   const isAdmin = pathname === "/admin" || pathname.startsWith("/admin/");
   const isLogin = pathname === "/login" || pathname.startsWith("/login/");
 
-  // Auth-gated + globalny toggle chat_enabled z site_settings.community_modules.
-  // Superadmin może wyłączyć chat globalnie z /admin/community bez rebuildu.
-  // Renderujemy wrapper zawsze w tej samej pozycji drzewa (nawet gdy brak
-  // uprawnień => pusty div) - dzięki temu ChatDock nie jest odmontowywany przy
-  // przechodzeniu admin<->public i utrzymuje własną klatkę View Transitions.
-  const chatDock = (
-    <div data-chat-dock-slot style={{ viewTransitionName: "chat-dock" }} className="contents">
-      {!user || isAdmin || isLogin || !community.chat_enabled ? null : (
-        <Suspense fallback={null}>
-          <ChatDock />
-        </Suspense>
-      )}
-    </div>
-  );
-
-  if (isAdmin || isLogin || ownChrome) {
-    return (
-      <>
-        {(isAdmin || isLogin) && <SkipToContentLink />}
-        <ImpersonationBanner />
-        <RouteProgress />
-        {children}
-        {chatDock}
-      </>
+  // Pasek narzędzi członka: te same bramki co czat (zalogowany, poza /admin
+  // i /login), ale bez zależności od toggle'a czatu - zadania i notatki
+  // działają nawet przy wyłączonych rozmowach.
+  const workspaceDock =
+    !user || isAdmin || isLogin ? null : (
+      <Suspense fallback={null}>
+        <WorkspaceDock />
+      </Suspense>
     );
-  }
 
   // Wszystkie strony poza główną dostają domyślny 15px odstęp góra/dół
   // między treścią a header/footer. Homepage zachowuje edge-to-edge hero.
@@ -92,23 +75,54 @@ export function SiteChrome({ children }: { children: ReactNode }) {
     ...(isHome ? null : { paddingTop: 15, paddingBottom: 15 }),
   };
 
-  return (
-    // data-site-shell: stabilny uchwyt dla reguł, które muszą znać wysokość
-    // powłoki strony - m.in. rezerwacja miejsca pod mobilnym paskiem dolnym
-    // (styles.css, html[data-mbb="on"]), która obniża min-height o zajęty pas.
-    <div data-site-shell className="flex min-h-screen flex-col">
-      <SkipToContentLink />
-      <ImpersonationBanner />
-      <RouteProgress />
-      {/* contentKind idzie do headera nie tylko po reklamy: rozstrzyga, czy
-          górną krawędź przejmuje ReadingHeader wpisu (lib/layout/headerMode). */}
-      <Header adPageType={adPageTypeForLocation(pathname, contentKind)} contentKind={contentKind} />
-      <main id="main-content" className="flex-1" style={mainStyle}>
+  const body =
+    isAdmin || isLogin || ownChrome ? (
+      <>
+        {(isAdmin || isLogin) && <SkipToContentLink />}
+        <ImpersonationBanner />
+        <RouteProgress />
         {children}
-      </main>
-      <Footer />
-      <MobileBottomBar />
-      {chatDock}
-    </div>
+      </>
+    ) : (
+      // data-site-shell: stabilny uchwyt dla reguł, które muszą znać wysokość
+      // powłoki strony - m.in. rezerwacja miejsca pod paskiem doku
+      // (styles.css, html[data-mbb="on"]), która obniża min-height o zajęty pas.
+      <div data-site-shell className="flex min-h-screen flex-col">
+        <SkipToContentLink />
+        <ImpersonationBanner />
+        <RouteProgress />
+        {/* contentKind idzie do headera nie tylko po reklamy: rozstrzyga, czy
+            górną krawędź przejmuje ReadingHeader wpisu (lib/layout/headerMode). */}
+        <Header
+          adPageType={adPageTypeForLocation(pathname, contentKind)}
+          contentKind={contentKind}
+        />
+        <main id="main-content" className="flex-1" style={mainStyle}>
+          {children}
+        </main>
+        <Footer />
+      </div>
+    );
+
+  // DOK STOI W JEDNEJ, STAŁEJ POZYCJI DRZEWA - drugie dziecko tego samego
+  // fragmentu, niezależnie od wybranego wariantu powłoki.
+  //
+  // DLACZEGO TO MA ZNACZENIE. React uzgadnia drzewo po POZYCJI i typie. Dok
+  // był renderowany z dwóch strukturalnie różnych rodziców - raz z fragmentu
+  // gałęzi `admin`/`login`/`ownChrome`, raz z wnętrza `<div data-site-shell>` -
+  // więc przejście przez tę granicę było ODMONTOWANIEM i świeżym montażem,
+  // nie aktualizacją. Ścieżka jest realna: `staticData: { ownChrome: true }`
+  // niesie trasa `/quiz`, czyli wyjście z quizu na dowolną stronę treści
+  // przebudowywało dok od zera. Skutki były widoczne: otwarty panel cicho się
+  // zamykał (`state.open` wracał do `null`), a sprzątanie pomiaru zdejmowało
+  // `data-mbb` i `--mbb-space`, dając kolejną klatkę bez rezerwacji.
+  // Poprawność zależała wyłącznie od kolejności, w jakiej React zatwierdza
+  // usunięcia względem efektów nowego poddrzewa - czyli od wiedzy o wnętrzu
+  // biblioteki, a nie od czegokolwiek napisanego w kodzie.
+  return (
+    <>
+      {body}
+      {workspaceDock}
+    </>
   );
 }

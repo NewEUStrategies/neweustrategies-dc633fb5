@@ -59,7 +59,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({
 vi.mock("@/lib/stripe.server", () => ({
   getConnectionApiKey: () => "test_klucz_atrapy",
   getWebhookSecret: () => "test_sekret_atrapy",
-  createStripeClient: () => {
+  getStripeClient: () => {
     throw new Error("test: żaden przypadek nie ma prawa wołać operatora");
   },
   getStripeErrorMessage: (error: unknown) => String(error),

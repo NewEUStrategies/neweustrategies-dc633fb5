@@ -30,6 +30,14 @@ describe("highlightCode - lossless", () => {
 });
 
 describe("highlightCode - gramatyki", () => {
+  it("styles CSS at-rules and preserves trailing prose after markup", () => {
+    expect(
+      kindsOf(highlightCode("@media print { body { color: red; } }", "css"), "@media"),
+    ).toEqual(["keyword"]);
+    const code = "<div disabled>body</div> trailing text";
+    expect(joined(highlightCode(code, "html"))).toBe(code);
+    expect(highlightCode(code, "html").at(-1)?.text).toContain("trailing text");
+  });
   it("ts: keywordy, stringi, komentarze, liczby, typy", () => {
     const tokens = highlightCode(
       'const n = 10; // note\nconst s = "ala";\ninterface Foo {}\n',

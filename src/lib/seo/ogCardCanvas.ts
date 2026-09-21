@@ -4,6 +4,7 @@
 // in the editor's browser - zero server/runtime dependencies, works on any
 // deployment target. Layout math lives in the pure @/lib/seo/ogCard module.
 import { supabase } from "@/integrations/supabase/client";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 import {
   layoutOgTitle,
   ogCardStoragePath,
@@ -115,5 +116,5 @@ export async function generateAndUploadOgCard(
     .upload(path, blob, { contentType: "image/png", upsert: true });
   if (error) throw new Error(error.message);
   const { data } = supabase.storage.from("media").getPublicUrl(path);
-  return `${data.publicUrl}?v=${Date.now().toString(36)}`;
+  return `${brandedMediaUrl(data.publicUrl)}?v=${Date.now().toString(36)}`;
 }

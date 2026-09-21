@@ -1,85 +1,26 @@
-// Related posts: shared types, defaults, merge helper, and pure scoring
-// algorithm (v2) used by the public query layer, admin panel and unit tests.
+// Related posts: pure scoring algorithm (v2) used by the public query layer,
+// admin panel and unit tests.
 //
 // Wersja 2 wprowadza konfigurowalne wagi sygnałów, IDF (rzadkie tagi ważą
 // więcej), sygnały behawioralne (popularność / dwell) i personalizację
 // (profil zalogowanego użytkownika). Wynik scoringu jest rozbity per sygnał,
 // żeby panel analityczny mógł pokazać "z czego wzięło się to dopasowanie".
+//
+// TYPY I KONFIGURACJA STOJĄ W `relatedPosts/config.ts` i są stąd
+// RE-EKSPORTOWANE - powód rozdziału opisuje nagłówek tamtego pliku (chunk
+// wejściowy publicznej trasy wpisu). Re-eksport jest po to, żeby ten podział
+// był decyzją o pakowaniu, a nie zadaniem dla dwudziestu kilku importów.
 import type { BlogListItem } from "@/lib/queries/public";
+import { RELATED_POSTS_DEFAULTS, type RelatedPostsConfig } from "@/lib/relatedPosts/config";
 
-export type RelatedPosition = "end" | "sidebar" | "after_paragraph";
-export type RelatedLayout = "grid" | "list" | "slider" | "cards" | "magazine" | "timeline";
-export type RelatedSource = "categories" | "tags" | "both" | "author";
-
-export interface RelatedPostsConfig {
-  enabled: boolean;
-  position: RelatedPosition;
-  after_paragraph: number;
-  layout: RelatedLayout;
-  columns: 2 | 3 | 4;
-  items_limit: number;
-  source_strategy: RelatedSource;
-  show_excerpt: boolean;
-  show_meta: boolean;
-  show_cover: boolean;
-  recency_boost_days: number;
-  slider_autoplay: boolean;
-  slider_interval_ms: number;
-  title_pl: string;
-  title_en: string;
-  // v2 - wagi silnika 0..10, IDF, próg minimalnego score
-  weight_categories: number;
-  weight_tags: number;
-  weight_author: number;
-  weight_recency: number;
-  weight_popularity: number;
-  weight_dwell: number;
-  weight_personalization: number;
-  use_idf: boolean;
-  min_score: number;
-}
-
-export type RelatedPostsOverride = Partial<RelatedPostsConfig>;
-
-export const RELATED_POSTS_DEFAULTS: RelatedPostsConfig = {
-  enabled: true,
-  position: "end",
-  after_paragraph: 3,
-  layout: "grid",
-  columns: 3,
-  items_limit: 6,
-  source_strategy: "both",
-  show_excerpt: true,
-  show_meta: true,
-  show_cover: true,
-  recency_boost_days: 30,
-  slider_autoplay: false,
-  slider_interval_ms: 5000,
-  title_pl: "Powiązane wpisy",
-  title_en: "Related posts",
-  weight_categories: 3,
-  weight_tags: 2,
-  weight_author: 1,
-  weight_recency: 1,
-  weight_popularity: 2,
-  weight_dwell: 2,
-  weight_personalization: 3,
-  use_idf: true,
-  min_score: 0,
-};
-
-export function mergeRelatedConfig(
-  global: Partial<RelatedPostsConfig> | null | undefined,
-  override: RelatedPostsOverride | null | undefined,
-): RelatedPostsConfig {
-  const base: RelatedPostsConfig = { ...RELATED_POSTS_DEFAULTS, ...(global ?? {}) };
-  if (!override) return base;
-  // Only spread defined override keys so `null`/missing values don't clobber the global.
-  const cleaned = Object.fromEntries(
-    Object.entries(override).filter(([, v]) => v !== undefined && v !== null),
-  ) as RelatedPostsOverride;
-  return { ...base, ...cleaned };
-}
+export { RELATED_POSTS_DEFAULTS, mergeRelatedConfig } from "@/lib/relatedPosts/config";
+export type {
+  RelatedPosition,
+  RelatedLayout,
+  RelatedSource,
+  RelatedPostsConfig,
+  RelatedPostsOverride,
+} from "@/lib/relatedPosts/config";
 
 // -- Scoring algorithm v2 ----------------------------------------------------
 
@@ -132,7 +73,7 @@ export interface ScoredCandidate {
   breakdown: ScoreBreakdown;
 }
 
-type ScoringConfig = Pick<
+export type ScoringConfig = Pick<
   RelatedPostsConfig,
   | "source_strategy"
   | "recency_boost_days"
@@ -301,6 +242,24 @@ export function buildIdf(df: ReadonlyMap<string, number>, totalDocs: number): Ma
     out.set(id, Math.min(3, Math.max(0.2, v)));
   });
   return out;
+}
+
+/**
+ * Zlicza, w ilu dokumentach występuje każdy termin (`df` dla `buildIdf`).
+ *
+ * Wejściem jest mapa dokument -> zbiór terminów, czyli dokładnie ten kształt,
+ * w jakim warstwa zapytań trzyma przynależność kandydatów do kategorii i tagów.
+ * Dzięki temu IDF liczy się z danych JUŻ pobranych - bez ani jednego
+ * dodatkowego round-tripu do bazy.
+ */
+export function documentFrequency(
+  termsByDoc: ReadonlyMap<string, ReadonlySet<string>>,
+): Map<string, number> {
+  const df = new Map<string, number>();
+  termsByDoc.forEach((terms) => {
+    terms.forEach((id) => df.set(id, (df.get(id) ?? 0) + 1));
+  });
+  return df;
 }
 
 /** Normalizuje mapę do zakresu 0..1 względem maksimum. */

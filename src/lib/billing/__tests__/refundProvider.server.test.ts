@@ -13,7 +13,7 @@
 // identyfikatora, kwota niedodatnia, wywrotka SDK. Ścieżka szczęśliwa jest tu
 // tylko po to, żeby dowieść kontraktu wywołania (jakie pola idą do operatora).
 //
-// GRANICA ATRAP: podmieniony jest wyłącznie `createStripeClient` (klient
+// GRANICA ATRAP: podmieniony jest wyłącznie `getStripeClient` (klient
 // operatora). `getStripeErrorMessage` biegnie PRAWDZIWY - to on decyduje, co
 // zobaczy operator w logu po nieudanym zwrocie, więc atrapowanie go
 // zamieniłoby test komunikatu błędu w test atrapy. ŻADNE żądanie nie wychodzi
@@ -23,7 +23,7 @@ import { describe, expect, it, vi, beforeEach, type Mock } from "vitest";
 import type { StripeEnv } from "@/lib/stripe.server";
 
 const h = vi.hoisted(() => ({
-  createStripeClient: vi.fn(),
+  getStripeClient: vi.fn(),
   refundsCreate: vi.fn(),
   sessionsRetrieve: vi.fn(),
 }));
@@ -32,7 +32,7 @@ const h = vi.hoisted(() => ({
 // `stripe.server`, w tym mapowanie komunikatu błędu, zostaje prawdziwa.
 vi.mock("@/lib/stripe.server", async () => {
   const actual = await vi.importActual<typeof import("@/lib/stripe.server")>("@/lib/stripe.server");
-  return { ...actual, createStripeClient: h.createStripeClient };
+  return { ...actual, getStripeClient: h.getStripeClient };
 });
 
 import {
@@ -79,10 +79,10 @@ function refundOptions(): Record<string, unknown> | null {
 }
 
 beforeEach(() => {
-  h.createStripeClient.mockReset();
+  h.getStripeClient.mockReset();
   h.refundsCreate.mockReset();
   h.sessionsRetrieve.mockReset();
-  h.createStripeClient.mockImplementation(() => stripeDouble());
+  h.getStripeClient.mockImplementation(() => stripeDouble());
   h.refundsCreate.mockResolvedValue({ id: "re_1SyntetycznyZwrot" });
   h.sessionsRetrieve.mockResolvedValue({ payment_intent: PI });
 });
@@ -210,10 +210,10 @@ describe("refundTransactionFully - ODMOWY i awarie", () => {
   });
 
   it("brak konfiguracji klucza operatora nie wywraca ścieżki zwrotu", async () => {
-    // `createStripeClient` czyta zmienne środowiskowe i RZUCA, gdy ich nie ma.
+    // `getStripeClient` czyta zmienne środowiskowe i RZUCA, gdy ich nie ma.
     // To zdarza się realnie na źle skonfigurowanym środowisku - i musi wrócić
     // jako `ok:false`, a nie jako nieobsłużony wyjątek w webhooku.
-    h.createStripeClient.mockImplementation(() => {
+    h.getStripeClient.mockImplementation(() => {
       throw new Error("STRIPE_SANDBOX_API_KEY is not configured");
     });
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -247,7 +247,7 @@ describe("refundTransactionPartially - WALIDACJA KWOTY", () => {
       const result = await refundTransactionPartially(ENV, PI, amount, "error");
 
       expect(result).toEqual({ ok: false, error: "invalid_amount" });
-      expect(h.createStripeClient).not.toHaveBeenCalled();
+      expect(h.getStripeClient).not.toHaveBeenCalled();
       expect(h.refundsCreate).not.toHaveBeenCalled();
     },
   );

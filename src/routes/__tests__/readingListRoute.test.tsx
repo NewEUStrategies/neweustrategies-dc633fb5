@@ -14,7 +14,7 @@
 //     zapisanych" na awarii RPC mówi czytelnikowi, że system nic dla niego nie
 //     ma, kiedy w rzeczywistości nie zdołał zapytać. W tym repo ta klasa
 //     defektu wystąpiła trzy razy, dlatego każdy stan ma tu własny przypadek -
-//     w tym DWA `it.fails` na miejsca, gdzie awaria nadal udaje brak danych.
+//     w tym regresje błędów zapisanych materiałów i obserwowanych tematów.
 //  4. ZAPYTANIA NIE LECĄ BEZ POWODU. Nazwy obserwowanych bytów nie są pytane,
 //     gdy nie ma żadnej obserwacji; tabela `pages` nie jest pytana, gdy nie ma
 //     zapisanych stron. Bez tego czytelnik z pustą listą i tak puka do trzech
@@ -92,14 +92,20 @@ const h = vi.hoisted(() => ({
   /** `undefined` = zapytanie o zakładki jeszcze nie odpowiedziało. */
   bookmarks: [] as BookmarkRow[] | undefined,
   bookmarksLoading: false,
+  bookmarksError: null as Error | null,
+  bookmarkRefetches: 0,
 
   follows: null as FollowRow[] | null,
+  followsError: null as Error | null,
+  followsRefetches: 0,
   togglePending: false,
   toggleCalls: [] as { targetType: string; targetId: string; on: boolean }[],
 
   /** `null` = feed jeszcze w locie (osobny stan od PUSTEGO feedu). */
   feedPages: null as FeedRow[][] | null,
   feedLoading: false,
+  feedError: null as Error | null,
+  feedRefetches: 0,
   feedHasNext: false,
   feedFetchingNext: false,
   feedNextCalls: 0,
@@ -156,7 +162,13 @@ vi.mock("@/hooks/usePersonalizedSettings", async (importOriginal) => {
 });
 
 vi.mock("@/hooks/useFollows", () => ({
-  useFollows: () => ({ data: h.follows }),
+  useFollows: () => ({
+    data: h.follows,
+    error: h.followsError,
+    refetch: () => {
+      h.followsRefetches += 1;
+    },
+  }),
   useToggleFollow: () => ({
     isPending: h.togglePending,
     mutate: (input: { targetType: string; targetId: string; on: boolean }) =>
@@ -168,6 +180,10 @@ vi.mock("@/hooks/useFollowedFeed", () => ({
   useFollowedFeed: () => ({
     data: h.feedPages === null ? undefined : { pages: h.feedPages },
     isLoading: h.feedLoading,
+    error: h.feedError,
+    refetch: () => {
+      h.feedRefetches += 1;
+    },
     hasNextPage: h.feedHasNext,
     isFetchingNextPage: h.feedFetchingNext,
     fetchNextPage: () => {
@@ -178,7 +194,14 @@ vi.mock("@/hooks/useFollowedFeed", () => ({
 }));
 
 vi.mock("@/hooks/useBookmarks", () => ({
-  useBookmarks: () => ({ data: h.bookmarks, isLoading: h.bookmarksLoading }),
+  useBookmarks: () => ({
+    data: h.bookmarks,
+    isLoading: h.bookmarksLoading,
+    error: h.bookmarksError,
+    refetch: () => {
+      h.bookmarkRefetches += 1;
+    },
+  }),
 }));
 
 vi.mock("@/hooks/useRecommendedPosts", () => ({
@@ -304,11 +327,17 @@ beforeEach(() => {
   h.recommendedPerPage = 9;
   h.bookmarks = [];
   h.bookmarksLoading = false;
+  h.bookmarksError = null;
+  h.bookmarkRefetches = 0;
   h.follows = null;
+  h.followsError = null;
+  h.followsRefetches = 0;
   h.togglePending = false;
   h.toggleCalls = [];
   h.feedPages = null;
   h.feedLoading = false;
+  h.feedError = null;
+  h.feedRefetches = 0;
   h.feedHasNext = false;
   h.feedFetchingNext = false;
   h.feedNextCalls = 0;
@@ -489,24 +518,7 @@ describe("/reading-list - ZAPISANE u gościa: źródłem jest magazyn przegląda
     expect(bus.seen).toHaveLength(1);
   });
 
-  // AWARIA MAGAZYNU UDAJE UDANE USUNIĘCIE (defekt zachowania, nie testu).
-  //
-  // PLIK: src/components/readingList/organisms/GuestSavedSection.tsx, linie 33-39
-  //       (`writeGuestSaved(next)` w reduktorze `setItems`).
-  // MECHANIZM: `writeGuestSaved` NIGDY nie rzuca - odmowę magazynu (tryb
-  //   prywatny Safari, wyczerpany limit) zgłasza wynikiem `false`
-  //   (`src/lib/readingList/guestSaved.ts`, linie 83-89). Organizm ten wynik
-  //   IGNORUJE i bezwarunkowo zwraca nową listę ze stanu w pamięci.
-  // KONSEKWENCJA DLA UŻYTKOWNIKA: pozycja znika z ekranu, więc czytelnik jest
-  //   przekonany, że ją usunął - a po odświeżeniu karty wraca. Lista gościa
-  //   żyje wyłącznie w magazynie, więc „usunięcie" bez zapisu jest usunięciem
-  //   pozornym i nie ma żadnego innego miejsca, gdzie mogłoby się utrwalić.
-  // DLACZEGO NAPRAWA JEST DECYZJĄ DLA CZŁOWIEKA: trzeba wybrać zachowanie,
-  //   którego dziś nie ma - cofnąć usunięcie (pozycja wraca na ekran), pokazać
-  //   ostrzeżenie („nie możemy zapisać na tym urządzeniu"), czy przejść na
-  //   magazyn w pamięci na czas sesji. Każdy z tych wariantów zmienia to, co
-  //   czytelnik widzi, więc nie jest refaktorem pod test.
-  it.fails("usunięcie, którego magazyn ODMÓWIŁ, nie może wyglądać na udane", async () => {
+  it("usunięcie, którego magazyn ODMÓWIŁ, nie może wyglądać na udane", async () => {
     window.localStorage.setItem(
       GUEST_SAVED_ARTICLES_KEY.key,
       JSON.stringify([{ url: "/post/a", title: "A", savedAt: 1755000000000 }]),
@@ -514,8 +526,7 @@ describe("/reading-list - ZAPISANE u gościa: źródłem jest magazyn przegląda
     await mount();
     // Odmowa magazynu (tryb prywatny / wyczerpany limit). Szpieg siedzi na
     // INSTANCJI - w happy-dom metody magazynu nie są dziedziczone z prototypu.
-    // `finally` jest tu konieczne: asercja tego testu MA rzucić (`it.fails`),
-    // więc bez niego atrapa przeżyłaby test i zatruła sąsiadów w tym pliku.
+    // Restore the storage boundary even if a regression fails the assertion.
     const setItem = vi.spyOn(window.localStorage, "setItem").mockImplementation(() => {
       throw new Error("QuotaExceededError");
     });
@@ -526,6 +537,13 @@ describe("/reading-list - ZAPISANE u gościa: źródłem jest magazyn przegląda
       // Zapis się nie udał, więc pozycja NADAL jest zapisana - czytelnik musi to
       // widzieć, zamiast dowiedzieć się o tym po odświeżeniu strony.
       expect(screen.getByRole("link", { name: "A" })).toBeTruthy();
+      expect(screen.getByRole("alert")).toHaveTextContent("readingList.guestSaveError");
+      setItem.mockRestore();
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "readingList.guestRemove" }));
+      });
+      expect(screen.queryByRole("link", { name: "A" })).toBeNull();
+      expect(screen.queryByRole("alert")).toBeNull();
     } finally {
       setItem.mockRestore();
     }
@@ -637,32 +655,14 @@ describe("/reading-list - ZAPISANE u zalogowanego: źródłem jest baza", () => 
     expect(await screen.findByRole("link", { name: /Saved p1/ })).toBeTruthy();
   });
 
-  // AWARIA ODCZYTU TREŚCI UDAJE WIECZNE ŁADOWANIE (defekt zachowania).
-  //
-  // PLIK: src/components/readingList/organisms/SavedSection.tsx, linie 91-94
-  //       (`contentLoading` = „są identyfikatory, ale nie ma jeszcze danych").
-  // MECHANIZM: `postsQ.data` jest `undefined` zarówno WTEDY, gdy zapytanie
-  //   jeszcze biegnie, jak i wtedy, gdy odpowiedziało BŁĘDEM (queryFn rzuca na
-  //   `error` z PostgREST, linia 61). Warunek nie rozróżnia tych dwóch sytuacji,
-  //   a `postsQ.isError` nie jest w ogóle czytany.
-  // KONSEKWENCJA DLA UŻYTKOWNIKA: przy odmowie bazy czytelnik z zapisanymi
-  //   wpisami patrzy na „Ładowanie..." bez końca - bez komunikatu i bez
-  //   przycisku ponowienia. Nie wie, że coś się zepsuło, więc nie ma powodu
-  //   odświeżyć strony ani zgłosić błędu. Sekcja REKOMENDACJI obok robi to
-  //   poprawnie (błąd -> komunikat + „spróbuj ponownie"), więc ta sama strona
-  //   zachowuje się w dwóch zakładkach niespójnie.
-  // DLACZEGO NAPRAWA JEST DECYZJĄ DLA CZŁOWIEKA: trzeba dopisać CZWARTY stan do
-  //   trzech, które nagłówek organizmu opisuje jako rozłączne, i zdecydować, co
-  //   z częściową awarią (wpisy weszły, strony nie): pokazać to, co się udało,
-  //   z paskiem ostrzeżenia, czy zastąpić całą sekcję kartą błędu. To zmiana
-  //   ZACHOWANIA widoku, nie refaktor pod test.
-  it.fails("odmowa bazy przy zapisanych wpisach mówi o AWARII, nie o ładowaniu", async () => {
+  it("odmowa bazy przy zapisanych wpisach mówi o AWARII, nie o ładowaniu", async () => {
     h.bookmarks = [bookmark("post", "p1"), bookmark("page", "s1")];
     chain.setResponse("posts", fail("permission denied for table posts", "42501"));
     chain.setResponse("pages", fail("permission denied for table pages", "42501"));
     await mount();
     await waitFor(() => expect(chain.chainsFor("posts").length).toBeGreaterThan(0));
     await waitFor(() => expect(chain.chainsFor("pages").length).toBeGreaterThan(0));
+    expect(await screen.findByRole("alert")).toHaveTextContent("readingList.savedError");
     expect(screen.queryByText("readingList.loading")).toBeNull();
   });
 });
@@ -696,7 +696,8 @@ describe("/reading-list - OBSERWOWANE: chipy obserwacji i feed", () => {
     h.follows = null;
     await openFollowed();
     expect(chain.chains).toHaveLength(0);
-    expect(screen.getByText("readingList.followedEmpty")).toBeTruthy();
+    expect(screen.getByText("readingList.loading")).toBeTruthy();
+    expect(screen.queryByText("readingList.followedEmpty")).toBeNull();
   });
 
   it("chipy obserwacji pokazują nazwy z bazy i prowadzą do archiwów", async () => {
@@ -883,38 +884,14 @@ describe("/reading-list - OBSERWOWANE: chipy obserwacji i feed", () => {
     expect(bezNazwy.every((chip) => typeof chip.fallbackKey === "string")).toBe(true);
   });
 
-  // ODMOWA BAZY GUBI CHIPY BEZ ŚLADU (defekt zachowania).
-  //
-  // PLIK: src/components/readingList/organisms/FollowedSection.tsx, linie 59-84
-  //       (`queryFn` zapytania `followed-entities`).
-  // MECHANIZM: trzy odczyty w `Promise.all` czytają WYŁĄCZNIE `.data`
-  //   (`cats.data ?? []`, `tags.data ?? []`, `authors.data ?? []`, linia 83).
-  //   Pole `error` z PostgREST nie jest w ogóle sprawdzane, więc odmowa bazy
-  //   daje pustą tablicę - tak samo jak brak wierszy. `buildFollowChips`
-  //   dostaje zero źródeł, a `FollowChips` przy pustej liście zwraca `null`
-  //   (`molecules/FollowChips.tsx`, linia 33).
-  // KONSEKWENCJA DLA UŻYTKOWNIKA: czytelnik, który OBSERWUJE autorów i tematy,
-  //   widzi zakładkę bez ani jednego chipa - czyli komunikat „nie obserwujesz
-  //   niczego", którego nikt nie napisał. Traci przy tym jedyne miejsce, w którym
-  //   może przestać obserwować byt jednym kliknięciem, i nie dowiaduje się, że
-  //   coś zawiodło.
-  // DLACZEGO NAPRAWA JEST DECYZJĄ DLA CZŁOWIEKA: te trzy odczyty są CZĘŚCIOWE
-  //   z natury (kategorie mogą wejść, autorzy nie), więc trzeba wybrać kontrakt:
-  //   rzucić na pierwszym błędzie (feed zostaje, chipy znikają z komunikatem),
-  //   pokazać chipy, które się udały, i ostrzeżenie o resztcie, czy wyświetlić
-  //   identyfikator jako etykietę zapasową. Każdy wariant zmienia to, co
-  //   czytelnik widzi.
-  it.fails(
-    "odmowa bazy przy nazwach obserwowanych bytów nie może udawać braku obserwacji",
-    async () => {
-      h.follows = [follow("category", "c1")];
-      h.feedPages = [[]];
-      chain.setResponse("categories", fail("permission denied for table categories", "42501"));
-      await openFollowed();
-      await waitFor(() => expect(chain.chainsFor("categories").length).toBeGreaterThan(0));
-      expect(screen.getByText("readingList.yourFollows")).toBeTruthy();
-    },
-  );
+  it("odmowa bazy przy nazwach obserwowanych bytów nie może udawać braku obserwacji", async () => {
+    h.follows = [follow("category", "c1")];
+    h.feedPages = [[]];
+    chain.setResponse("categories", fail("permission denied for table categories", "42501"));
+    await openFollowed();
+    await waitFor(() => expect(chain.chainsFor("categories").length).toBeGreaterThan(0));
+    expect(screen.getByText("readingList.yourFollows")).toBeTruthy();
+  });
 });
 
 describe("/reading-list - REKOMENDACJE: trzy rozłączne stany", () => {
@@ -1018,31 +995,7 @@ describe("/reading-list - dostępność", () => {
     expect(summarize(await axeViolations(view.container))).toBe("");
   });
 
-  // NARUSZENIE DOSTĘPNOŚCI ZGŁOSZONE, NIE NAPRAWIONE.
-  //
-  // NARUSZENIE: `heading-order` (1 węzeł) - kolejność nagłówków przeskakuje
-  //   z poziomu 1 na 3.
-  // PLIKI I LINIE: `src/routes/reading-list.tsx` linia 90 renderuje jedyny `h1`
-  //   strony (nagłówek sekcji z ustawień personalizacji), a karty wpisów
-  //   `src/components/readingList/molecules/ReadingListPostCard.tsx` linia 60
-  //   oraz nadlinia zapisanych stron
-  //   `src/components/readingList/molecules/SavedPagesList.tsx` linia 42
-  //   renderują `h3`. Między nimi NIE MA żadnego `h2`.
-  // KONSEKWENCJA DLA UŻYTKOWNIKA: czytnik ekranu buduje z nagłówków spis treści
-  //   strony. Przeskok 1 -> 3 sugeruje pominięty poziom, więc użytkownik
-  //   nawigujący klawiszem nagłówków słyszy „nagłówek poziomu 3" bez sekcji,
-  //   do której miałby należeć - i nie wie, czy przegapił blok treści.
-  //   Zakładka OBSERWOWANE tego problemu NIE MA, bo `FollowChips` renderuje
-  //   `h2` („Obserwujesz") i domyka drabinkę - czyli ta sama strona jest
-  //   dostępna w jednej zakładce, a niedostępna w drugiej.
-  // DLACZEGO NAPRAWA JEST DECYZJĄ DLA CZŁOWIEKA: trzeba wybrać, CO jest tu
-  //   poziomem drugim. Albo karty schodzą na `h4`/`h3` pod nowym, widocznym
-  //   `h2` sekcji (zmiana układu strony, którą widzi każdy czytelnik), albo
-  //   `h2` jest ukryty klasą `sr-only` (zmiana wyłącznie dla czytników ekranu,
-  //   ale dodaje niewidzialny tekst do słownika), albo karty przestają używać
-  //   nagłówków (zmiana semantyki karty używanej w trzech zakładkach). To
-  //   decyzja o strukturze dokumentu, nie refaktor pod test.
-  it.fails("widok zalogowanego z danymi nie ma naruszeń dostępności", async () => {
+  it("widok zalogowanego z danymi nie ma naruszeń dostępności", async () => {
     h.user = { id: "u1" };
     h.bookmarks = [bookmark("post", "p1"), bookmark("page", "s1")];
     chain.setResponse("posts", ok([postRow("p1", "https://cdn.example/okladka.jpg")]));
@@ -1074,6 +1027,98 @@ describe("/reading-list - dostępność", () => {
     const view = await mount();
     await selectTab("Obserwowane");
     await screen.findByRole("link", { name: "Anna Nowak" });
+    expect(summarize(await axeViolations(view.container))).toBe("");
+  });
+});
+
+describe("reading-list recovers from failed reads", () => {
+  beforeEach(() => {
+    h.user = { id: "u1" };
+  });
+
+  it("bookmark lookup failure has a retry, even before any IDs are known", async () => {
+    h.bookmarksError = new Error("bookmark lookup failed");
+    await mount();
+    expect(screen.getByRole("alert")).toHaveTextContent("readingList.savedError");
+    expect(screen.queryByText("readingList.savedEmpty")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "readingList.retry" }));
+    expect(h.bookmarkRefetches).toBe(1);
+  });
+
+  it.each(["posts", "pages", "both"] as const)(
+    "retries failed saved content: %s",
+    async (surface) => {
+      h.bookmarks =
+        surface === "posts"
+          ? [bookmark("post", "p1")]
+          : surface === "pages"
+            ? [bookmark("page", "s1")]
+            : [bookmark("post", "p1"), bookmark("page", "s1")];
+      chain.setResponse("posts", fail("posts failed"));
+      chain.setResponse("pages", fail("pages failed"));
+      await mount();
+      expect(await screen.findByRole("alert")).toHaveTextContent("readingList.savedError");
+      chain.setResponse("posts", ok([]));
+      chain.setResponse("pages", ok([]));
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "readingList.retry" }));
+      });
+      expect(await screen.findByText("readingList.savedEmpty")).toBeTruthy();
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(h.bookmarkRefetches).toBe(0);
+    },
+  );
+
+  it("failed follows lookup does not claim the reader follows nobody", async () => {
+    h.followsError = new Error("follows failed");
+    await mount();
+    await selectTab("Obserwowane");
+    expect(screen.getByRole("alert")).toHaveTextContent("readingList.followedError");
+    expect(screen.queryByText("readingList.followedEmpty")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "readingList.retry" }));
+    expect(h.followsRefetches).toBe(1);
+  });
+
+  it.each([
+    ["category", "categories"],
+    ["tag", "tags"],
+    ["author", "profiles"],
+  ] as const)("reports and retries missing names for %s", async (type, table) => {
+    h.follows = [follow(type, "x1")];
+    h.feedPages = [[feedRow("f1")]];
+    chain.setResponse(table, fail("names failed"));
+    await mount();
+    await selectTab("Obserwowane");
+    expect(await screen.findByRole("alert")).toHaveTextContent("readingList.followedNamesError");
+    expect(screen.getByRole("link", { name: /Wpis f1/ })).toBeTruthy();
+    chain.setResponse(table, ok([]));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "readingList.retry" }));
+    });
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect(screen.getByRole("link", { name: /Wpis f1/ })).toBeTruthy();
+  });
+
+  it("feed failure retains the follows and exposes retry", async () => {
+    h.follows = [follow("category", "c1")];
+    h.feedError = new Error("feed failed");
+    chain.setResponse(
+      "categories",
+      ok([{ id: "c1", name_pl: "Klimat", name_en: "Climate", slug: "klimat" }]),
+    );
+    await mount();
+    await selectTab("Obserwowane");
+    expect(screen.getByRole("alert")).toHaveTextContent("readingList.followedFeedError");
+    expect(await screen.findByRole("link", { name: "Klimat" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "readingList.retry" }));
+    expect(h.feedRefetches).toBe(1);
+    expect(screen.queryByText("readingList.followedFeedEmpty")).toBeNull();
+  });
+
+  it("recommended cards have a complete heading hierarchy", async () => {
+    h.recommended = [feedRow("r1")];
+    const view = await mount();
+    await selectTab("Rekomendowane dla Ciebie");
     expect(summarize(await axeViolations(view.container))).toBe("");
   });
 });

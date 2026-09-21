@@ -4,25 +4,13 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { notificationActorId } from "./notificationLink";
 import type { NotificationRow } from "./useNotifications";
 
 export interface NotificationActorProfile {
   connection_id: string;
   avatar_url: string | null;
   display_name: string;
-}
-
-function isInternalHref(href: string): boolean {
-  return href.startsWith("/") && !href.startsWith("//");
-}
-
-export function notificationActorId(href: string | null): string | null {
-  if (!href || !isInternalHref(href)) return null;
-  try {
-    return new URL(href, "https://local.invalid").searchParams.get("c");
-  } catch {
-    return null;
-  }
 }
 
 export function useNotificationActorProfiles(

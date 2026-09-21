@@ -322,6 +322,17 @@ describe("GlossaryHighlighter - organizm nad regułą oznaczania", () => {
     },
   ];
 
+  /**
+   * Skan chodzi przez `whenIdle` (F38 - nie w oknie pierwszej interakcji),
+   * a happy-dom nie zna `requestIdleCallback`, więc moduł schodzi na
+   * `setTimeout(32)`. Czekamy zatem na MAKROZADANIE, nie na klatkę animacji.
+   */
+  async function flushGlossaryScan() {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 40));
+    });
+  }
+
   function mount(lang: "pl" | "en" = "pl") {
     const root = document.createElement("div");
     // Treść niesie OBA warianty terminu (PL „UE" i EN „EU"), bo etykieta zależy
@@ -339,11 +350,9 @@ describe("GlossaryHighlighter - organizm nad regułą oznaczania", () => {
     return { root, ...view };
   }
 
-  it("oznacza pierwsze wystąpienie terminu w treści po klatce animacji", async () => {
+  it("oznacza pierwsze wystąpienie terminu w treści, gdy wątek główny się uspokoi", async () => {
     const { root } = mount();
-    await act(async () => {
-      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
-    });
+    await flushGlossaryScan();
     expect(root.querySelectorAll("span[data-glossary-term]")).toHaveLength(1);
     expect(root.textContent).toBe("Rola UE w regionie rośnie, a EU debates it too.");
   });
@@ -357,9 +366,7 @@ describe("GlossaryHighlighter - organizm nad regułą oznaczania", () => {
   it("odmontowanie ZDEJMUJE oznaczenia (treść wraca do oryginału)", async () => {
     const { root, unmount } = mount();
     const before = root.innerHTML;
-    await act(async () => {
-      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
-    });
+    await flushGlossaryScan();
     expect(root.innerHTML).not.toBe(before);
 
     unmount();
@@ -368,9 +375,7 @@ describe("GlossaryHighlighter - organizm nad regułą oznaczania", () => {
 
   it("FOKUS na oznaczeniu pokazuje dymek z definicją i linkiem do słowniczka", async () => {
     const { root } = mount();
-    await act(async () => {
-      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
-    });
+    await flushGlossaryScan();
     const mark = root.querySelector<HTMLElement>("span[data-glossary-term]")!;
     await act(async () => {
       mark.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
@@ -381,9 +386,7 @@ describe("GlossaryHighlighter - organizm nad regułą oznaczania", () => {
 
   it("wariant angielski pokazuje definicję EN i angielski link", async () => {
     const { root } = mount("en");
-    await act(async () => {
-      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
-    });
+    await flushGlossaryScan();
     const mark = root.querySelector<HTMLElement>("span[data-glossary-term]")!;
     await act(async () => {
       mark.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
@@ -404,9 +407,7 @@ describe("GlossaryHighlighter - organizm nad regułą oznaczania", () => {
         <GlossaryHighlighter containerRef={{ current: root }} lang="pl" scanKey="p1" />
       </QueryClientProvider>,
     );
-    await act(async () => {
-      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
-    });
+    await flushGlossaryScan();
     expect(root.innerHTML).toBe(before);
     expect(root.querySelectorAll("span[data-glossary-term]")).toHaveLength(0);
   });

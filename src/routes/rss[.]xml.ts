@@ -4,6 +4,7 @@
 //                   matching, so both land in this handler; the raw request
 //                   URL decides the feed language).
 // Items carry excerpts only (paywall-safe) with canonical post URLs.
+import { crawlerPublishOrigin } from "@/lib/http/host";
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { trustedPublicHost } from "@/lib/http/requestHost";
@@ -11,6 +12,7 @@ import { DEFAULT_LANG, localizedPath, stripLangPrefix, type AppLang } from "@/li
 import { SITE_DEFAULT_DESCRIPTION, SITE_DEFAULT_TITLE, SITE_NAME } from "@/lib/seo/meta";
 import { siteDescriptionOverride, siteTitleOverride } from "@/lib/seo/settings";
 import { buildRssXml, type RssItem } from "@/lib/seo/rss";
+import { rssResponseHeaders } from "@/lib/seo/feedCache";
 import { parseSeoSettings } from "@/lib/seo/settings";
 import { fetchPublishedPosts, fetchSeoSettingsValue } from "@/lib/server/publishedContent.server";
 import { crawlerDegradeIsSafe, resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
@@ -19,7 +21,7 @@ async function requestContext(): Promise<{ origin: string; host: string; lang: A
   const req = getRequest();
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
   const host = (await trustedPublicHost(req)) ?? "";
-  const origin = host ? `${proto}://${host}` : "";
+  const origin = crawlerPublishOrigin(host, proto);
   let lang: AppLang = DEFAULT_LANG;
   try {
     lang = stripLangPrefix(new URL(req.url).pathname).lang ?? DEFAULT_LANG;
@@ -72,12 +74,13 @@ export const Route = createFileRoute("/rss.xml")({
           items,
         });
 
-        return new Response(xml, {
-          headers: {
-            "Content-Type": "application/rss+xml; charset=utf-8",
-            "Cache-Control": "public, max-age=300, s-maxage=1800, stale-while-revalidate=86400",
-          },
-        });
+        // NAPRAWA 2026-09-02: kanał PUSTY dostawał ten sam DŁUGI TTL co pełny,
+        // co utrwalało awarię trwającą sekundy na dobę (`s-maxage=1800` +
+        // `stale-while-revalidate=86400`). Defekt był przypięty jako `it.fails`
+        // w `routes/__tests__/feedRoutesDegradation.test.ts`; naprawa zdejmuje
+        // to przypięcie i wchodzi razem z resztą kanałów przez jeden kontrakt
+        // (`lib/seo/feedCache.ts`).
+        return new Response(xml, { headers: rssResponseHeaders(items.length) });
       },
     },
   },

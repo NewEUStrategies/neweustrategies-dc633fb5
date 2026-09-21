@@ -468,11 +468,13 @@ const adminPermissionsEn = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", adminPermissionsPl, true, true);
-i18n.addResourceBundle("en", "translation", adminPermissionsEn, true, true);
-
-/**
- * No-op wołany w komponencie trasy zamiast side-effectowego importu modułu -
- * nazwane wiązanie pozwala splitterowi trzymać ten słownik w chunku trasy.
- */
-export function ensureI18n(): void {}
+// Explicit registration must survive both Vite and Nitro tree shaking.
+// Keep the legacy side-effect import contract, and avoid repeated deep merges.
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", adminPermissionsPl, true, true);
+  i18n.addResourceBundle("en", "translation", adminPermissionsEn, true, true);
+}
+ensureI18n();

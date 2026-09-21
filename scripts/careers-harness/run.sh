@@ -145,7 +145,7 @@ echo
 echo "== testy runtime =="
 if psql -d nes -v ON_ERROR_STOP=1 -f "$HERE/runtime_test.sql" 2>&1 | grep -vE '^(SET|INSERT|UPDATE|DELETE|SELECT|CREATE|DROP|BEGIN|COMMIT|ROLLBACK|DO|RESET|ALTER)' ; then
   echo
-  echo "careers-harness: OK ($applied migracji, $CELE_LICZBA atrap-celow polityk, 0 pominietych migracji)"
+  echo "careers-harness: OK ($applied migracji, $CELE_LICZBA atrap-celow polityk, $skipped pominietych migracji)"
 else
   echo "careers-harness: testy runtime NIE przeszly."
   exit 1

@@ -7,6 +7,7 @@ import { Menu, Moon, Search, Sun, X } from "lucide-react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { cn } from "@/lib/utils";
 import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
+import { ChromeDataGate } from "@/lib/ssr/chromeWarmup";
 import type { BuilderDocument } from "@/lib/builder/types";
 import type { TickerConfig } from "@/lib/views/headerTickerQuery";
 import { resolveActiveTickerConfig } from "@/lib/views/tickerVariants";
@@ -15,14 +16,14 @@ import { AlertBar } from "@/components/AlertBar";
 import { AdZone } from "@/components/AdSlot";
 import type { AdPageType } from "@/lib/ads/types";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
-import { HeaderSkeleton } from "@/components/header/HeaderSkeleton";
-import { MobileDrawerBody } from "@/components/header/mobile/MobileDrawerBody";
-// SearchOverlay przez React.lazy: renderuje null aż do otwarcia (searchOpen
-// startuje false po obu stronach), więc lazy nie zmienia ani bajta HTML-a,
-// a ~20 kB źródeł overlayu schodzi z chunku wejściowego każdej strony.
-// Montowany BEZWARUNKOWO (nie za bramką searchOpen): stan wewnętrzny
-// (ostatnie wyszukiwania, wpisana fraza) ma przeżywać zamknięcie overlayu -
-// dokładnie jak przed zmianą. Ta sama doktryna lazy-overlay co w __root.tsx.
+import { HeaderSkeleton, useHeaderSkeletonProps } from "@/components/header/HeaderSkeleton";
+// Closed overlays stay outside the boot waterfall. Keep search state after
+// its first use, and load the mobile drawer only when its shell is opened.
+const MobileDrawerBody = lazy(() =>
+  import("@/components/header/mobile/MobileDrawerBody").then((m) => ({
+    default: m.MobileDrawerBody,
+  })),
+);
 const SearchOverlay = lazy(() =>
   import("@/components/SearchOverlay").then((m) => ({ default: m.SearchOverlay })),
 );
@@ -77,10 +78,13 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
   // Loader in __root.tsx prefetches this query, so useSuspenseQuery resolves
   // synchronously on hydration and on every client navigation - the header
   // never flashes a skeleton in steady state.
-  const { data: settingsMap } = useSuspenseQuery(siteSettingsQueryOptions);
+  const { data: settingsMap, dataUpdatedAt } = useSuspenseQuery(siteSettingsQueryOptions);
   const cfg = resolveSetting<HeaderSettings>(settingsMap, "header", {});
   const general = resolveSetting<GeneralSettings>(settingsMap, "general", {});
   const theme = resolveSetting<ThemeLogoCfg>(settingsMap, "theme_options", {});
+  // Geometria szkieletu z tych samych ustawień, które karmią chrome - czytana
+  // z cache'a bez subskrypcji, więc gałąź bez nagłówka nie dokłada fetcha.
+  const skeletonProps = useHeaderSkeletonProps(adPageType);
   const draft = useTickerDraft();
   const trending = draft ?? resolveActiveTickerConfig(cfg.trending);
   const siteName = (general.site_name && general.site_name.trim()) || "Menu";
@@ -98,6 +102,10 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
   // Jedno-tapowa szukajka na mobilnym pasku (audyt: szukanie było schowane za
   // hamburgerem -> drawer -> tap). Otwiera ten sam fullscreenowy SearchOverlay.
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchMounted, setSearchMounted] = useState(false);
+  useEffect(() => {
+    if (searchOpen) setSearchMounted(true);
+  }, [searchOpen]);
   const drawerPanelRef = useRef<HTMLDivElement>(null);
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   useFocusTrap(drawerPanelRef, open);
@@ -137,7 +145,13 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
     };
   }, []);
 
-  if (!cfg.builder_data || !cfg.builder_data.sections?.length) return null;
+  // Obie gałęzie bez chrome'u rezerwują TERAZ realną geometrię nagłówka.
+  // `return null` (0 px) było najgorszym przypadkiem z całego audytu CLS: na
+  // trasach poza home po zasiewie pustych domyślnych cały nagłówek doskakiwał
+  // po hydratacji i spychał treść w dół.
+  if (isHome && dataUpdatedAt === 0) return <HeaderSkeleton {...skeletonProps} />;
+  if (!cfg.builder_data || !cfg.builder_data.sections?.length)
+    return <HeaderSkeleton {...skeletonProps} />;
 
   const openA11y = t("common.openMenu");
   const closeA11y = t("common.closeMenu");
@@ -150,6 +164,13 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
           klatce animacji i przy okazji skalowało też fullscreenowy
           SearchOverlay, który jest renderowany poniżej - poza tym kontenerem. */}
       <div className="site-header-chrome">
+        {/* H1 strony głównej NIE należy już do powłoki. Nagłówek wisiał tu pod
+            warunkiem `isHome`, ale obie bramki wyżej (`dataUpdatedAt === 0`
+            oraz brak `builder_data`) zwracają `HeaderSkeleton`, który nie ma
+            żadnego `h*` - przy martwym backendzie dokument zostawał BEZ H1.
+            Nagłówek wrócił do trasy (`routes/index.tsx` -> `HomeSrHeading`),
+            gdzie renderuje się niezależnie od stanu bazy; trzymanie go w dwóch
+            miejscach wymagałoby lustrzanej kopii tych bramek. */}
         <AlertBar />
         {trending.enabled !== false && (
           <TrendingTicker
@@ -237,7 +258,10 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
 
         {/* Full builder-authored header - visible from lg up. */}
         <div className={cn("hidden lg:block", isHome && "home-header-grow")}>
-          <BuilderRenderer doc={cfg.builder_data} lang={lang} />
+          {/* `chrome`: kolumny nagłówka dostają `min-height` z tego samego
+              szacunku, którym `HeaderSkeleton` rezerwuje miejsce - pusta
+              granica Suspense leniwego widgetu nie zapada wtedy paska. */}
+          <BuilderRenderer doc={cfg.builder_data} lang={lang} chrome />
         </div>
       </div>
 
@@ -278,22 +302,28 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
                   <X className="w-5 h-5" aria-hidden />
                 </button>
               </div>
-              <MobileDrawerBody builderDoc={cfg.builder_data} onNavigate={() => setOpen(false)} />
+              <Suspense
+                fallback={<div aria-busy="true" className="h-24 animate-pulse bg-muted/40" />}
+              >
+                <MobileDrawerBody builderDoc={cfg.builder_data} onNavigate={() => setOpen(false)} />
+              </Suspense>
             </div>
           </div>,
           document.body,
         )}
-      <Suspense fallback={null}>
-        <SearchOverlay
-          open={searchOpen}
-          onClose={() => setSearchOpen(false)}
-          mode="fullscreen"
-          heading={t("common.search")}
-          liveResults
-          limit={8}
-          lang={lang}
-        />
-      </Suspense>
+      {(searchOpen || searchMounted) && (
+        <Suspense fallback={null}>
+          <SearchOverlay
+            open={searchOpen}
+            onClose={() => setSearchOpen(false)}
+            mode="fullscreen"
+            heading={t("common.search")}
+            liveResults
+            limit={8}
+            lang={lang}
+          />
+        </Suspense>
+      )}
     </>
   );
 }
@@ -301,6 +331,9 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
 export const Header = memo(function Header({ adPageType, contentKind = null }: HeaderProps) {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const isHome = pathname === "/" || pathname === "/en" || pathname === "/en/";
+  // Fallback Suspense też musi trzymać realną geometrię - to jego HTML widzi
+  // przeglądarka, gdy `ChromeDataGate` zawiesi granicę na serwerze.
+  const fallbackSkeletonProps = useHeaderSkeletonProps(adPageType);
   // Wpisy mają własny ReadingHeader po scrollu - tam nie robimy sticky/shrink,
   // żeby nie duplikować chrome'u (dwa przyklejone paski = pasek czytania i jego
   // akcje znikają pod mobilnym paskiem headera). Wszystkie pozostałe strony
@@ -411,12 +444,31 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
       // a żadna z tych właściwości nie ma tranzycji - nic nie zdąży drgnąć.
       const previous = el.dataset.metrics;
       delete el.dataset.metrics;
-      // offsetHeight to wysokość w układzie - `transform` jej nie zmienia,
-      // więc odczyt jest odporny na trwającą animację.
-      const natural = chrome.offsetHeight;
+      // POMIAR UŁAMKOWY, NIE `offsetHeight`.
+      //
+      // `offsetHeight` zwraca liczbę CAŁKOWITĄ, a chrome nagłówka ma wysokość
+      // ułamkową: pas „na czasie" to `h-10`, czyli 2,5 rem, a repo skaluje
+      // `root font-size` płynnie (przy 1280 px 1 rem = 15 px, więc pas ma
+      // 37,5 + 1 px ramki). Zaokrąglenie wracało jako narzucona `height`
+      // headera, czyli układ dostawał wysokość o ułamek piksela INNĄ niż
+      // naturalna - i całe `<main>` drgało dokładnie w chwili, gdy pojawiało
+      // się `data-metrics="ready"`.
+      //
+      // Ten ułamek piksela był DROGI, choć sam z siebie niewidoczny:
+      // `<main>` stawało się elementem NIESTABILNYM, więc jego pole wchodziło
+      // do „impact region" przesunięcia liczonego w tej samej klatce.
+      // Przesunięcie treści strony o ~100 px (reflow po podmianie kroju)
+      // z 0,015 robiło się wtedy 0,13 - i tak padał próg CLS w CI.
+      //
+      // `getBoundingClientRect()` daje wartość ułamkową. Transform i `zoom`
+      // fałszowałyby ten odczyt, ale oba wiszą na `data-metrics`, które
+      // zdejmujemy linijkę wyżej - mierzymy więc pudełko bez skalowania.
+      const natural = chrome.getBoundingClientRect().height;
       const ticker = chrome.querySelector<HTMLElement>(".cms-trending");
-      const tickerHeight = ticker ? ticker.offsetHeight : 0;
-      const extra = el.offsetHeight - natural;
+      const tickerHeight = ticker ? ticker.getBoundingClientRect().height : 0;
+      // Ułamki potrafią dać mikroskopijnie ujemną różnicę - strażnik niżej
+      // (`extra >= 0`) ma pilnować sensu pomiaru, nie błędu zmiennoprzecinkowego.
+      const extra = Math.max(0, el.getBoundingClientRect().height - natural);
 
       if (natural > 0 && tickerHeight >= 0 && tickerHeight < natural && extra >= 0) {
         el.style.setProperty("--hdr-nat", `${natural}px`);
@@ -548,8 +600,10 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
       }
       style={{ viewTransitionName: "site-header" }}
     >
-      <Suspense fallback={<HeaderSkeleton />}>
-        <HeaderInner adPageType={adPageType} isHome={isHome} />
+      <Suspense fallback={<HeaderSkeleton {...fallbackSkeletonProps} />}>
+        <ChromeDataGate>
+          <HeaderInner adPageType={adPageType} isHome={isHome} />
+        </ChromeDataGate>
       </Suspense>
     </header>
   );

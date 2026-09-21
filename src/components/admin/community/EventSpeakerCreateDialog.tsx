@@ -35,11 +35,11 @@
 // wejscie kaskadowe przez istniejaca klase `.pc-rise-y` ze `styles.css`, ktora
 // jest tam opisana wprost jako „odpowiednik framer-motion bez biblioteki"
 // i wygasa przy `prefers-reduced-motion: reduce`. Zadnej nowej zaleznosci.
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ImagePlus, Info, Loader2, Trash2, UserPlus } from "lucide-react";
+import { ImagePlus, Info, Loader2, Trash2, Upload, UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -51,6 +51,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { UploadArea } from "@/components/ui/upload-area";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -204,9 +205,7 @@ export function EventSpeakerCreateDialog({
   const [error, setError] = useState<string | null>(null);
   const { user, tenantId } = useAuth();
   const registerUpload = useServerFn(registerMediaUpload);
-  const fileRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [dragOver, setDragOver] = useState(false);
 
   // UPLOAD ZDJECIA. Ta sama, jedyna dopuszczalna sciezka co w reszcie panelu:
   // walidacja MIME/rozmiaru -> storage w prefiksie najemcy -> rejestracja w
@@ -231,7 +230,6 @@ export function EventSpeakerCreateDialog({
       );
     } finally {
       setUploading(false);
-      if (fileRef.current !== null) fileRef.current.value = "";
     }
   };
 
@@ -388,115 +386,57 @@ export function EventSpeakerCreateDialog({
           </Section>
 
           <Section title={t("adminCommunityEvents.speakers.create.sectionCard")} delayMs={60}>
-            {/* ZDJECIE: kafel podgladu 6 px jest JEDNOCZESNIE polem upuszczania.
-                Plik ladujemy od razu (podglad przed zapisem karty prelegenta),
-                a przycisk obok pozwala podmienic albo usunac go przed
-                zatwierdzeniem - dopiero „Dodaj" utrwala cokolwiek w bazie. */}
-            <div className="flex items-start gap-3">
-              <div
-                role="button"
-                tabIndex={0}
-                aria-label={
-                  draft.photoUrl.trim() !== ""
-                    ? t("adminCommunityEvents.speakers.create.photoReplace")
-                    : t("adminCommunityEvents.speakers.create.photoUpload")
-                }
-                onClick={() => fileRef.current?.click()}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    fileRef.current?.click();
-                  }
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragOver(true);
-                }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setDragOver(false);
-                  const file = e.dataTransfer.files?.[0];
-                  if (file !== undefined) void handlePhoto(file);
-                }}
-                className={`group relative flex size-[76px] shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-[6px] border border-dashed bg-muted/40 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${
-                  dragOver
-                    ? "border-primary bg-primary/10"
-                    : "border-border/60 hover:border-primary/60"
-                }`}
-              >
-                {uploading ? (
-                  <Loader2
-                    aria-hidden="true"
-                    className="size-5 animate-spin text-muted-foreground"
-                  />
-                ) : draft.photoUrl.trim() !== "" ? (
+            {/* ZDJECIE: obszar wgrywania w standardzie platformy - przyjmuje
+                klikniecie i upuszczenie, a plik ladujemy od razu (podglad
+                przed zapisem karty prelegenta). Adres i kasowanie stoja przy
+                nim; dopiero „Dodaj" utrwala cokolwiek w bazie. */}
+            <UploadArea
+              size="sm"
+              title={t("adminCommunityEvents.speakers.create.photoUrl")}
+              description={t("adminCommunityEvents.speakers.create.photoDropHint")}
+              ctaLabel={
+                draft.photoUrl.trim() !== ""
+                  ? t("adminCommunityEvents.speakers.create.photoReplace")
+                  : t("adminCommunityEvents.speakers.create.photoUpload")
+              }
+              busyLabel={t("adminCommunityEvents.speakers.create.photoUploading")}
+              busy={uploading}
+              icons={[ImagePlus, Upload]}
+              accept={IMAGE_ACCEPT_ATTR}
+              onFiles={(files) => void handlePhoto(files[0])}
+              preview={
+                draft.photoUrl.trim() !== "" ? (
                   <img
                     src={draft.photoUrl}
                     alt={t("adminCommunityEvents.speakers.create.photoAlt")}
-                    className="size-full object-cover"
+                    className="size-[76px] rounded-[6px] object-cover"
                   />
-                ) : (
-                  <ImagePlus aria-hidden="true" className="size-5 text-muted-foreground" />
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <Field
-                  label={t("adminCommunityEvents.speakers.create.photoUrl")}
-                  hint={t("adminCommunityEvents.speakers.create.photoDropHint")}
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Input
-                      className="h-9 min-w-[12rem] flex-1"
-                      value={draft.photoUrl}
-                      onChange={(e) => set("photoUrl", e.target.value)}
-                      placeholder={t("adminCommunityEvents.speakers.create.photoUrlPlaceholder")}
-                    />
-                    <input
-                      ref={fileRef}
-                      type="file"
-                      className="hidden"
-                      accept={IMAGE_ACCEPT_ATTR}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file !== undefined) void handlePhoto(file);
-                      }}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-9 rounded-[6px]"
-                      disabled={uploading}
-                      onClick={() => fileRef.current?.click()}
-                    >
-                      {uploading ? (
-                        <Loader2 aria-hidden="true" className="size-4 animate-spin" />
-                      ) : (
-                        <ImagePlus aria-hidden="true" className="size-4" />
-                      )}
-                      {uploading
-                        ? t("adminCommunityEvents.speakers.create.photoUploading")
-                        : draft.photoUrl.trim() !== ""
-                          ? t("adminCommunityEvents.speakers.create.photoReplace")
-                          : t("adminCommunityEvents.speakers.create.photoUpload")}
-                    </Button>
-                    {draft.photoUrl.trim() !== "" && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="size-9 rounded-[6px]"
-                        aria-label={t("adminCommunityEvents.speakers.create.photoRemove")}
-                        onClick={() => set("photoUrl", "")}
-                      >
-                        <Trash2 aria-hidden="true" className="size-4" />
-                      </Button>
-                    )}
-                  </div>
-                </Field>
-              </div>
-            </div>
+                ) : undefined
+              }
+              actions={
+                draft.photoUrl.trim() !== "" ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-9 rounded-[6px]"
+                    aria-label={t("adminCommunityEvents.speakers.create.photoRemove")}
+                    onClick={() => set("photoUrl", "")}
+                  >
+                    <Trash2 aria-hidden="true" className="size-4" />
+                  </Button>
+                ) : undefined
+              }
+              footer={
+                <Input
+                  className="h-9 w-full"
+                  value={draft.photoUrl}
+                  onChange={(e) => set("photoUrl", e.target.value)}
+                  placeholder={t("adminCommunityEvents.speakers.create.photoUrlPlaceholder")}
+                  aria-label={t("adminCommunityEvents.speakers.create.photoUrl")}
+                />
+              }
+            />
 
             <div className="grid gap-3 sm:grid-cols-2">
               <Field

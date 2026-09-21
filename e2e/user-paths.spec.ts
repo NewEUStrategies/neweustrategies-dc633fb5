@@ -9,6 +9,12 @@
 // Without E2E_SEEDED the whole file is skipped (CI without a DB stays green
 // and honest - a skip is visible, a fake pass is not).
 import { test, expect } from "@playwright/test";
+import {
+  NIEISTNIEJACE,
+  NOT_FOUND_COPY,
+  metaRobotsZHtml,
+  odkodujEncje,
+} from "./helpers/notFoundCopy";
 
 const SEEDED = process.env.E2E_SEEDED === "1";
 
@@ -183,5 +189,72 @@ test.describe("user paths (seeded)", () => {
     const res = await request.get("/post/seed-wpis-1", { maxRedirects: 0 });
     expect(res.status()).toBe(301);
     expect(res.headers()["location"] ?? "").toContain(POST.path);
+  });
+
+  // ── KONTRAKT 404: 404 WYŁĄCZNIE Z CZYSTEGO ODCZYTU ───────────────────────
+  //
+  // Te cztery przypadki mieszkały do 2026-09-21 w `e2e/ssr-degradation.spec.ts`
+  // i były tam mierzone na poświadczeniach zastępczych Supabase - czyli przy
+  // MARTWEJ bazie. To jedyne środowisko, w którym serwer NIE POTRAFI odróżnić
+  // „nie ma takiej strony" od „baza nie odpowiedziała", więc wymuszanie tam
+  // 404 kazało produktowi zgadywać: fałszywy 404 pod adresem żywego artykułu
+  // wypisuje go z indeksu. Od naprawy defektu W8 (audyt CWV) `src/routes/$.tsx`
+  // oddaje w tym stanie 200 + `noindex, nofollow` + `no-store`, a 404 zostaje
+  // zarezerwowane dla odczytu CZYSTEGO (`src/lib/ssr/notFoundIfClean.ts`).
+  //
+  // TUTAJ baza ŻYJE, więc odczyt jest czysty i oddaje „nie ma takiego wiersza" -
+  // dopiero to czyni 404 odpowiedzią PRAWDZIWĄ. Kontrakt 404 (status, kopia
+  // z `src/lib/errorCopy.ts`, szkielet strony, podpowiedzi nawigacyjne, brak
+  // zaproszenia do indeksowania) jest więc sprawdzalny wyłącznie w tej suicie.
+  //
+  // Lista ścieżek i kopia są wspólne z suitą degradacyjną
+  // (`e2e/helpers/notFoundCopy.ts`) - obie połowy kontraktu mierzą te same
+  // adresy, bo inaczej rozejście się list byłoby niewidoczne.
+  for (const { path, lang, label } of NIEISTNIEJACE) {
+    test(`nieistniejąca ścieżka daje status 404, nie 500 ani 200 (${label})`, async ({
+      request,
+    }) => {
+      const res = await request.get(path, { maxRedirects: 0 });
+      expect(
+        res.status(),
+        `${path} zwróciło ${res.status()}. 404 to „nie ma takiej strony"; 500 to ` +
+          `„wróć później" i zostawia adres-widmo w indeksie. 200 przy ŻYWEJ bazie ` +
+          `byłoby soft 404 - tamtej ścieżki naprawdę nie ma.`,
+      ).toBe(404);
+    });
+
+    test(`strona 404 renderuje pełny dokument z komunikatem (${label})`, async ({ request }) => {
+      // Sam status bez szablonu byłby połową naprawy: czytelnik ze starego
+      // linku ma dostać podpowiedź, gdzie szukać, a nie stronę błędu.
+      const res = await request.get(path, { maxRedirects: 0 });
+      const body = odkodujEncje(await res.text());
+      const copy = NOT_FOUND_COPY[lang];
+      expect(body, `${path}: brak tytułu 404 w języku ${lang}`).toContain(copy.title);
+      expect(body, `${path}: brak treści komunikatu 404`).toContain(copy.body);
+      expect(body, `${path}: 404 bez szkieletu strony`).toContain("<main");
+      expect(body, `${path}: 404 bez podpowiedzi nawigacyjnych`).toContain(copy.suggestions);
+    });
+  }
+
+  test("strona 404 nie zaprasza do indeksowania", async ({ request }) => {
+    // GŁÓWNA GWARANCJA to STATUS, nie meta: 404 jest sygnałem, który
+    // wyszukiwarki respektują same z siebie, a `noindex` byłby pasem obok
+    // szelek. Rozstrzygamy więc JAWNIE oba przypadki, żeby brak metatagu nie
+    // dawał testu bez asercji. (Render ZDEGRADOWANY nie ma tej swobody - tam
+    // status to 200, więc `noindex` jest obowiązkowy; patrz
+    // `e2e/ssr-degradation.spec.ts`.)
+    //
+    // Odczyt z SUROWEGO HTML-a, nie przez `locator`: `getAttribute()` czeka na
+    // element i przy jego braku wisi do timeoutu - dokładnie tak ten test padał
+    // w CI, zanim przeniósł się tutaj.
+    for (const { path } of NIEISTNIEJACE) {
+      const res = await request.get(path, { maxRedirects: 0 });
+      expect(res.status(), `${path} status`).toBe(404);
+      const robots = metaRobotsZHtml(await res.text());
+      if (robots === null) continue; // sygnałem jest status - sprawdzony wyżej
+      expect(robots, `${path}: 404 z \`index\` w meta robots zaprasza do indeksowania`).not.toMatch(
+        /(^|,)\s*index\b/,
+      );
+    }
   });
 });

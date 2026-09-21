@@ -29,6 +29,11 @@ const h = vi.hoisted(() => ({
   zipBinary: {} as Record<string, string>,
 }));
 
+vi.mock("../spreadsheetWorker", async () => {
+  const { decodeSpreadsheet } = await import("../spreadsheetCore");
+  return { runSpreadsheetWorker: async (buffer: ArrayBuffer) => decodeSpreadsheet(buffer) };
+});
+
 vi.mock("mammoth", () => ({
   convertToHtml: (input: unknown, options: unknown) => {
     h.docxCalls.push({ input, options });

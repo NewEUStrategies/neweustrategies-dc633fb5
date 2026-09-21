@@ -34,6 +34,35 @@ export interface RobotsGroup {
   readonly disallow: readonly string[];
   /** Wyjątki wewnątrz zakazu (dłuższy wzorzec Allow wygrywa nad Disallow). */
   readonly allow?: readonly string[];
+  /**
+   * Content Signals (`search=`, `ai-input=`, `ai-train=`) - maszynowe
+   * rozróżnienie POMIĘDZY indeksowaniem, cytowaniem w odpowiedzi asystenta i
+   * trenowaniem modelu. `Allow: /` tego nie wyraża: dla klasycznego crawlera
+   * znaczy "indeksuj", a bot AI czytał je jako zgodę na wszystko naraz.
+   */
+  readonly contentSignal?: string;
+  /** Komentarze poprzedzające grupę (warunki cytowania czytane przez ludzi). */
+  readonly comments?: readonly string[];
+}
+
+/**
+ * Warunki wykorzystania treści - blok czytany przez ludzi i przez asystenty AI,
+ * które sięgają po robots.txt razem ze stroną.
+ *
+ * PO CO, skoro `Allow: /` już wpuszcza boty: zgoda na indeksowanie i cytowanie
+ * jest tu WARUNKOWA - wolno zacytować, jeżeli odpowiedź nazywa serwis i podaje
+ * odnośnik do materiału. Bez zapisanego warunku nie ma czego dochodzić: operator
+ * modelu może twierdzić, że plik nie stawiał żadnych wymagań.
+ */
+export interface RobotsUsagePolicy {
+  /** Nazwa, którą asystent ma podać jako źródło. */
+  readonly siteName: string;
+  /** Adres pełnych warunków (np. /llms.txt) - absolutny albo ścieżka. */
+  readonly termsPath?: string;
+  /** Czy trenowanie modeli na treści jest dozwolone (wpływa na `ai-train`). */
+  readonly trainingAllowed: boolean;
+  /** Czy asystenty AI mogą w ogóle czytać treść do odpowiedzi. */
+  readonly aiInputAllowed: boolean;
 }
 
 export interface RobotsInput {
@@ -46,6 +75,8 @@ export interface RobotsInput {
   disallow?: readonly string[];
   /** Grupy per user-agent, np. polityka crawlerów AI (tylko dla mode="canonical"). */
   groups?: readonly RobotsGroup[];
+  /** Warunki cytowania (wskazanie źródła) - tylko dla mode="canonical". */
+  usage?: RobotsUsagePolicy;
 }
 
 /** Domyślnie zamknięte obszary: panel, API i ścieżki autoryzacji. */
@@ -62,12 +93,49 @@ function renderGroup(group: RobotsGroup): string[] | null {
   const rules = [
     ...(group.allow ?? []).map((path) => `Allow: ${path}`),
     ...group.disallow.map((path) => `Disallow: ${path}`),
+    ...(group.contentSignal ? [`Content-Signal: ${group.contentSignal}`] : []),
   ];
   // Grupa bez reguł nie jest polityką, tylko szumem, który crawler i tak
   // zignoruje - a przy `User-agent:` bez reguł niektóre parsery sklejają ją z
   // następną grupą, zmieniając znaczenie pliku.
   if (rules.length === 0) return null;
-  return [...group.agents.map((agent) => `User-agent: ${agent}`), ...rules];
+  return [
+    ...(group.comments ?? []).map((line) => `# ${line}`),
+    ...group.agents.map((agent) => `User-agent: ${agent}`),
+    ...rules,
+  ];
+}
+
+/** Absolutny adres warunków (ścieżka doklejana do originu kanonicznego). */
+function usageTermsUrl(origin: string, termsPath: string | undefined): string {
+  const path = termsPath ?? "/llms.txt";
+  return /^https?:\/\//i.test(path) ? path : `${origin}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+/**
+ * Blok warunków wykorzystania treści. Jednocześnie czytelny dla człowieka
+ * (komentarz) i maszynowy (`Content-Signal` w grupie `*` niżej): asystenty AI
+ * wciągają robots.txt jako tekst, więc warunek cytowania sformułowany zdaniem
+ * trafia do tego samego kontekstu, w którym powstaje odpowiedź.
+ */
+function renderUsagePolicy(origin: string, usage: RobotsUsagePolicy): string[] {
+  const terms = usageTermsUrl(origin, usage.termsPath);
+  return [
+    `# Content usage policy for ${usage.siteName}.`,
+    "#",
+    "# Search engines and AI assistants MAY crawl, index and quote this site,",
+    "# on ONE condition: every answer, summary or excerpt that uses this content",
+    `# must name "${usage.siteName}" as the source AND link the exact article URL`,
+    "# it draws on. Attribution is required, not optional - unattributed reuse is",
+    "# not covered by this permission.",
+    usage.trainingAllowed
+      ? "# Training on this content is permitted under the same attribution terms."
+      : "# Training generative models on this content requires a written licence.",
+    usage.aiInputAllowed
+      ? "# Quoting in AI answers: allowed with attribution (see Content-Signal below)."
+      : "# Quoting in AI answers: not permitted (see Content-Signal below).",
+    `# Full terms and a machine-readable index: ${terms}`,
+  ];
 }
 
 export function buildRobotsTxt(input: RobotsInput): string {
@@ -94,8 +162,25 @@ export function buildRobotsTxt(input: RobotsInput): string {
     // per host), czy statyczny plik z `public/` - dokładnie ten błąd przez
     // miesiące był niewidoczny (audyt 2026-08-06).
     [`# robots.txt for ${hostFromOrigin(origin)} - generated per request.`],
-    ["User-agent: *", "Allow: /", ...disallow.map((path) => `Disallow: ${path}`)],
   ];
+
+  if (input.usage) blocks.push(renderUsagePolicy(origin, input.usage));
+
+  blocks.push([
+    "User-agent: *",
+    "Allow: /",
+    ...disallow.map((path) => `Disallow: ${path}`),
+    // Content Signals: indeksowanie TAK, cytowanie w odpowiedzi AI zgodnie z
+    // polityką redakcji, trenowanie modelu osobno - jedno `Allow: /` nie
+    // odróżniało tych trzech zgód.
+    ...(input.usage
+      ? [
+          `Content-Signal: search=yes, ai-input=${input.usage.aiInputAllowed ? "yes" : "no"}, ai-train=${
+            input.usage.trainingAllowed ? "yes" : "no"
+          }`,
+        ]
+      : []),
+  ]);
 
   for (const group of input.groups ?? []) {
     const rendered = renderGroup(group);

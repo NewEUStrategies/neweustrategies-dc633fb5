@@ -3,8 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   DOCUMENT_CACHE_MAX_FRESH_MS,
   DOCUMENT_CACHE_MAX_SWR_MS,
+  documentPathVariants,
   documentStorePolicy,
+  normalizeDocumentPath,
   planDocumentCache,
+  postDocumentPaths,
   stripLangPrefix,
   type DocumentCacheRequest,
 } from "../documentCache";
@@ -38,6 +41,47 @@ describe("parseCacheControl", () => {
     expect(parseCacheControl(null).public).toBe(false);
     expect(parseCacheControl("s-maxage=abc").sMaxAge).toBeNull();
     expect(parseCacheControl("private, no-store")).toMatchObject({ private: true, noStore: true });
+  });
+
+  it("models no-cache and must-revalidate instead of silently dropping them", () => {
+    // A silent `default: break` meant "may be served without validation" - and
+    // this cache cannot validate. Modelling them lets the policy refuse.
+    const parsed = parseCacheControl("public, s-maxage=600, no-cache, must-revalidate");
+    expect(parsed.noCache).toBe(true);
+    expect(parsed.mustRevalidate).toBe(true);
+    expect(parsed.public).toBe(true);
+    expect(parsed.sMaxAge).toBe(600);
+  });
+
+  it("leaves both validation flags false for the header this app actually emits", () => {
+    expect(
+      parseCacheControl("public, max-age=60, s-maxage=900, stale-while-revalidate=86400"),
+    ).toMatchObject({ noCache: false, mustRevalidate: false });
+  });
+
+  it('reads a qualified no-cache="field" as an unqualified one', () => {
+    // This store cannot strip individual headers from a replayed response, so
+    // the qualified form has to be read the strict way.
+    expect(parseCacheControl('public, s-maxage=600, no-cache="set-cookie"').noCache).toBe(true);
+  });
+
+  it("treats proxy-revalidate like must-revalidate - this cache IS a shared cache", () => {
+    expect(parseCacheControl("public, s-maxage=600, proxy-revalidate").mustRevalidate).toBe(true);
+  });
+
+  it("ignores empty segments, unknown directives and a negative s-maxage", () => {
+    // A defensive parser must survive a header written by hand or by another
+    // proxy: a trailing comma, a directive this cache does not model, and a
+    // value that is syntactically fine but semantically nonsense.
+    const parsed = parseCacheControl("public, , immutable, s-maxage=-5, stale-while-revalidate=x");
+    expect(parsed.public).toBe(true);
+    expect(parsed.sMaxAge).toBeNull();
+    expect(parsed.staleWhileRevalidate).toBeNull();
+    expect(parsed.noCache).toBe(false);
+    expect(parsed.mustRevalidate).toBe(false);
+    // A seconds directive written with no "=" at all: the token parses, the
+    // value is undefined, and the field must stay null rather than NaN.
+    expect(parseCacheControl("public, s-maxage").sMaxAge).toBeNull();
   });
 });
 
@@ -134,5 +178,99 @@ describe("documentStorePolicy", () => {
     const short = documentStorePolicy(200, html, "public, s-maxage=30, stale-while-revalidate=10");
     expect(short.freshMs).toBe(30_000);
     expect(short.swrMs).toBe(10_000);
+  });
+
+  it("refuses to store a no-cache document - it cannot revalidate before reuse", () => {
+    // `freshMs = 0` is not a middle ground here: the entry would be served
+    // STALE from the first millisecond, i.e. the exact inverse of no-cache.
+    expect(documentStorePolicy(200, html, "public, s-maxage=600, no-cache").store).toBe(false);
+    expect(
+      documentStorePolicy(200, html, "public, s-maxage=900, stale-while-revalidate=86400, no-cache")
+        .store,
+    ).toBe(false);
+  });
+
+  it("keeps freshness but drops the stale window for must-revalidate", () => {
+    const policy = documentStorePolicy(
+      200,
+      html,
+      "public, s-maxage=30, stale-while-revalidate=600, must-revalidate",
+    );
+    expect(policy.store).toBe(true);
+    expect(policy.freshMs).toBe(30_000);
+    // Expiry becomes a plain MISS (full render) instead of a stale serve.
+    expect(policy.swrMs).toBe(0);
+  });
+
+  it("leaves today's emitted header untouched - this is a latent hole, not a behaviour change", () => {
+    const policy = documentStorePolicy(
+      200,
+      html,
+      "public, s-maxage=30, stale-while-revalidate=600",
+    );
+    expect(policy).toEqual({ store: true, freshMs: 30_000, swrMs: 600_000 });
+  });
+});
+
+describe("normalizeDocumentPath", () => {
+  it("sprowadza ścieżkę do postaci klucza: bez query, fragmentu, końcowego `/` i prefiksu języka", () => {
+    expect(normalizeDocumentPath("/analizy/tekst/")).toBe("/analizy/tekst");
+    expect(normalizeDocumentPath("/analizy/tekst?page=2#top")).toBe("/analizy/tekst");
+    expect(normalizeDocumentPath("/en/analizy/tekst")).toBe("/analizy/tekst");
+    expect(normalizeDocumentPath("  /blog  ")).toBe("/blog");
+    expect(normalizeDocumentPath("/")).toBe("/");
+    expect(normalizeDocumentPath("/en")).toBe("/");
+  });
+
+  it("odrzuca wejście, które nie jest ścieżką względną serwisu - purge nie zgaduje", () => {
+    expect(normalizeDocumentPath("")).toBeNull();
+    expect(normalizeDocumentPath("https://example.org/x")).toBeNull();
+    expect(normalizeDocumentPath("//evil.example/x")).toBeNull();
+    expect(normalizeDocumentPath("blog")).toBeNull();
+  });
+});
+
+describe("documentPathVariants", () => {
+  it("dokłada wariant /en do każdej ścieżki i scala duplikaty", () => {
+    expect(documentPathVariants(["/analizy/tekst", "/en/analizy/tekst"])).toEqual([
+      "/analizy/tekst",
+      "/en/analizy/tekst",
+    ]);
+    expect(documentPathVariants(["/"])).toEqual(["/", "/en"]);
+  });
+
+  it("pomija wejścia niepoprawne, nie przerywając reszty", () => {
+    expect(documentPathVariants(["", "https://x.example/a", "/blog"])).toEqual([
+      "/blog",
+      "/en/blog",
+    ]);
+  });
+});
+
+describe("postDocumentPaths", () => {
+  it("zawsze obejmuje stronę główną i listing bloga (pokazują najnowsze wpisy)", () => {
+    expect(postDocumentPaths([])).toEqual(["/", "/blog"]);
+  });
+
+  it("dokłada adres legacy /post/<slug> i adres kanoniczny (z wiodącym `/` lub bez)", () => {
+    expect(postDocumentPaths([{ slug: "tekst", canonicalPath: "analizy/tekst" }])).toEqual([
+      "/",
+      "/blog",
+      "/post/tekst",
+      "/analizy/tekst",
+    ]);
+    expect(postDocumentPaths([{ slug: "/tekst/", canonicalPath: "/analizy/tekst" }])).toContain(
+      "/post/tekst",
+    );
+  });
+
+  it("pusty slug nie produkuje adresu /post/, a brak kanonicznego nie psuje listy", () => {
+    expect(postDocumentPaths([{ slug: "  " }])).toEqual(["/", "/blog"]);
+    expect(postDocumentPaths([{ slug: "a" }, { slug: "b", canonicalPath: null }])).toEqual([
+      "/",
+      "/blog",
+      "/post/a",
+      "/post/b",
+    ]);
   });
 });

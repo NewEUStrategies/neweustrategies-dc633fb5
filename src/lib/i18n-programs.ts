@@ -36,6 +36,9 @@ export const programsPl = {
     empty: "Brak opublikowanych programów.",
     sectionEmpty: "Wkrótce.",
     loadError: "Nie udało się wczytać programów. Spróbuj ponownie później.",
+    loadFailedList: "Nie udało się załadować programów",
+    loadFailedProgram: "Nie udało się załadować programu",
+    openProject: "Otwórz projekt: {{name}}",
     programsCount_one: "{{count}} program",
     programsCount_few: "{{count}} programy",
     programsCount_many: "{{count}} programów",
@@ -145,6 +148,9 @@ export const programsEn = {
     empty: "No programs published yet.",
     sectionEmpty: "Coming soon.",
     loadError: "Failed to load programs. Please try again later.",
+    loadFailedList: "Couldn't load programs",
+    loadFailedProgram: "Couldn't load this program",
+    openProject: "Open project: {{name}}",
     programsCount_one: "{{count}} program",
     programsCount_few: "{{count}} programs",
     programsCount_many: "{{count}} programs",
@@ -226,14 +232,13 @@ const adminProgramsEn = {
 
 Object.assign(programsEn, adminProgramsEn);
 
-i18n.addResourceBundle("pl", "translation", programsPl, true, true);
-i18n.addResourceBundle("en", "translation", programsEn, true, true);
-
-/**
- * No-op wołany w komponencie trasy zamiast side-effectowego importu modułu.
- * Nazwane wiązanie pozwala splitterowi TanStacka przenieść cały bundle
- * tłumaczeń do chunka trasy - side-effectowy import w pliku trasy lądował
- * w eager-owym grafie wejściowym każdej strony. Rejestracja dzieje się przy
- * ewaluacji modułu (przed renderem komponentu), dokładnie jak wcześniej.
- */
-export function ensureI18n(): void {}
+// Explicit registration must survive both Vite and Nitro tree shaking.
+// Keep the legacy side-effect import contract, and avoid repeated deep merges.
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", programsPl, true, true);
+  i18n.addResourceBundle("en", "translation", programsEn, true, true);
+}
+ensureI18n();

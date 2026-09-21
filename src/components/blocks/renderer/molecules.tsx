@@ -21,7 +21,6 @@ import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import { parseEmbedUrl, isIframeEmbed } from "@/lib/blocks/embed";
 import { XIcon } from "@/components/atoms/XIcon";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
-import { NewsletterForm } from "@/components/NewsletterForm";
 import type { BlockRenderer } from "./context";
 import { bool, jsonList, num, objList, sanitize, str, strList } from "./data";
 import { CodeBlockView } from "../CodeBlockView";
@@ -33,12 +32,6 @@ import { AffiliateBlockView } from "../AffiliateBlockView";
 import { XQuoteShare } from "../XQuoteShare";
 import { CompareSlider } from "../CompareSlider";
 import { LinkPreviewBlockView } from "../LinkPreviewBlockView";
-import {
-  LoginFormView,
-  RegisterFormView,
-  LostPasswordFormView,
-  ResetPasswordFormView,
-} from "../AuthFormBlocks";
 import { AccordionView, TabsView, CountdownView, ProgressView } from "../InteractiveViews";
 import {
   IconBoxView,
@@ -47,13 +40,7 @@ import {
   PricingTableView,
   TimelineView,
 } from "../PresentationViews";
-import {
-  HeroView,
-  CtaSectionView,
-  ImageCarouselView,
-  ContactFormView,
-  MapView,
-} from "../MarketingViews";
+import { HeroView, CtaSectionView, ImageCarouselView, MapView } from "../MarketingViews";
 import {
   TeamGridView,
   LogoGridView,
@@ -71,7 +58,16 @@ import {
 // najcięższe, rzadko używane poddrzewo renderera - dogrywamy je leniwie z
 // osobnego chunka (lazyBlockViews.tsx). SSR wypełnia boundary, więc HTML dla
 // crawlerów pozostaje ten sam, a bundle czytelnika już go nie niesie.
-import { ChartBlockView, DataMapBlockView } from "./lazyBlockViews";
+import {
+  ChartBlockView,
+  DataMapBlockView,
+  NewsletterForm,
+  ContactFormView,
+  LoginFormView,
+  RegisterFormView,
+  LostPasswordFormView,
+  ResetPasswordFormView,
+} from "./lazyBlockViews";
 
 // ---------------------------------------------------------------------------
 // Media
@@ -147,10 +143,13 @@ export const renderImage: BlockRenderer = ({ block, cls }) => {
 };
 
 /** Blok kodu z podświetlaniem. */
-export const renderCode: BlockRenderer = ({ block, cls }) => {
+export const renderCode: BlockRenderer = ({ block, cls, lang: uiLang }) => {
   const code = str(block.data, "code");
   const lang = str(block.data, "lang");
-  return <CodeBlockView code={code} lang={lang} className={cls} />;
+  // `uiLang` z renderera, nie z `document.documentElement.lang` - patrz
+  // komentarz w CodeBlockView. Etykieta przycisku kopiowania musi być
+  // identyczna w SSR i po hydratacji.
+  return <CodeBlockView code={code} lang={lang} uiLang={uiLang} className={cls} />;
 };
 
 /** Embed (YouTube/Vimeo/X…) jako iframe lub fallback-link dla bezpiecznego URL. */

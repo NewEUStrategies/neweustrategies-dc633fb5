@@ -12,11 +12,20 @@
 //
 // ZASADA: czysta glue, wyłączona z pomiaru pokrycia - zero logiki widgetu.
 import { lazy, type ComponentProps, type ComponentType } from "react";
-import type { SliderRender as SliderRenderImpl } from "@/lib/builder/sliderVariants";
+import { SliderRender as SliderRenderImpl } from "@/lib/builder/sliderVariants";
 import { withSuspense } from "./lazySuspense";
+import { createIsomorphicFn } from "@tanstack/react-start";
 
-const SliderRenderLazy = lazy(() =>
-  import("@/lib/builder/sliderVariants").then((m) => ({ default: m.SliderRender })),
-) as ComponentType<ComponentProps<typeof SliderRenderImpl>>;
+// Nested inside PostsSliderWidget: resolving only its outer chunk would still
+// leave an empty hero in the first server shell. Keep the client edge lazy.
+const getSliderRenderer = createIsomorphicFn()
+  .server(() => SliderRenderImpl)
+  .client(
+    () =>
+      lazy(() =>
+        import("@/lib/builder/sliderVariants").then((m) => ({ default: m.SliderRender })),
+      ) as ComponentType<ComponentProps<typeof SliderRenderImpl>>,
+  );
+const SliderRenderLazy = getSliderRenderer();
 
 export const SliderRender = withSuspense(SliderRenderLazy);

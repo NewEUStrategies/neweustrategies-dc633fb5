@@ -10,6 +10,7 @@ import {
   isOverlayFile,
   isScannable,
   keysOf,
+  plTreeName,
   keysUsed,
   ratchetFailed,
   renderRatchetReport,
@@ -75,6 +76,53 @@ describe("rozpoznawanie nakładek", () => {
 
   it("plik bez drzewa `pl` zgłasza pustą listę zamiast zgadywać", () => {
     expect(keysOf('export const x = { adminUsers: { a: "b" } };')).toEqual([]);
+  });
+
+  // ── KONTROLA NEGATYWNA NAPRAWY ŚLEPOTY SKANERA ──────────────────────────
+  // To jest instrument, który PADA po cofnięciu naprawy. Skaner szukał
+  // dosłownie `const pl`, więc nakładka nazywająca drzewo inaczej wnosiła
+  // ZERO kluczy - a `collectOverlays` odsiewa nakładki z zerem, czyli taka
+  // nakładka NIE ISTNIAŁA dla bramki. ZMIERZONE przed naprawą: 128 nakładek
+  // w `src/lib/`, `const pl` miało 69, więc 59 (46%) było niewidzialnych,
+  // w tym `i18n-dock` (`dockPl`). Bramka pokazywała wtedy 2 pliki z brakiem
+  // importu; po naprawie - 371.
+  it("czyta drzewo nazwane INACZEJ niż `pl`, biorąc nazwę z addResourceBundle", () => {
+    const source = `
+import i18n from "./i18n";
+export const dockPl = { dock: { tools: { todos: "Zadania" } } };
+export const dockEn = { dock: { tools: { todos: "Tasks" } } };
+i18n.addResourceBundle("pl", "translation", dockPl, true, true);
+i18n.addResourceBundle("en", "translation", dockEn, true, true);
+`;
+    expect(plTreeName(source)).toBe("dockPl");
+    expect(keysOf(source)).toEqual(["dock.tools.todos"]);
+  });
+
+  it("nazwa drzewa idzie z REJESTRACJI, a nie z konwencji nazewniczej", () => {
+    // Stała nazwana „po polsku", ale zarejestrowana jest INNA - liczy się ta
+    // druga, bo tylko ona istnieje w czasie działania.
+    const source = `
+export const somethingPl = { ghost: { key: "nie zarejestrowane" } };
+export const realTree = { real: { key: "zarejestrowane" } };
+i18n.addResourceBundle("pl", "translation", realTree, true, true);
+`;
+    expect(plTreeName(source)).toBe("realTree");
+    expect(keysOf(source)).toEqual(["real.key"]);
+  });
+
+  it("bez wywołania `addResourceBundle` wraca do zapasowego `const pl`", () => {
+    const source = 'export const pl = { legacy: { key: "x" } };';
+    expect(plTreeName(source)).toBeNull();
+    expect(keysOf(source)).toEqual(["legacy.key"]);
+  });
+
+  it("wywołanie w komentarzu NIE jest rejestracją", () => {
+    const source = `
+// i18n.addResourceBundle("pl", "translation", zakomentowane, true, true);
+export const pl = { real: { key: "x" } };
+`;
+    expect(plTreeName(source)).toBeNull();
+    expect(keysOf(source)).toEqual(["real.key"]);
   });
 
   it("pomija nakładkę, z której nic nie odczytał", () => {
@@ -286,5 +334,46 @@ describe("ratchet", () => {
   it("stan bez zmian przechodzi cicho", () => {
     const report = compareWithRatchet(missing({ "src/a.tsx": 2 }), new Map([["src/a.tsx", 2]]));
     expect(renderRatchetReport(report, [], 1)).toContain("OK");
+  });
+});
+
+describe("platform overlay ownership and diagnostics", () => {
+  it("excludes assets and test fixtures and flattens quoted keys", () => {
+    expect(isScannable("src/a.css")).toBe(false);
+    expect(isScannable("src/x/__tests__/fixture.ts")).toBe(false);
+    expect(flattenLiteralKeys(`{ 'a': { "b": "value" }, shorthand }`)).toEqual([
+      "a.b",
+      "shorthand",
+    ]);
+    expect(flattenLiteralKeys("runtimeValue")).toEqual([]);
+  });
+  it("deduplicates a provider while preserving distinct providers and excluding core keys", () => {
+    const overlay = {
+      file: "src/lib/i18n-a.ts",
+      specifier: "@/lib/i18n-a",
+      keys: ["core.key", "extra.key"],
+    };
+    const missing = findMissingImports({
+      sources: [consumer('t("core.key"); t("extra.key")')],
+      overlays: [overlay, overlay, { ...overlay, specifier: "@/lib/i18n-b" }],
+      coreKeys: new Set(["core.key"]),
+    });
+    expect(missing).toEqual([
+      { file: "src/routes/a.tsx", key: "extra.key", providers: ["@/lib/i18n-a", "@/lib/i18n-b"] },
+    ]);
+  });
+  it("reports growth and new files separately and gives exact import instructions", () => {
+    const missing = Array.from({ length: 4 }, (_, i) => ({
+      file: "src/old.tsx",
+      key: `extra.key${i}`,
+      providers: ["@/lib/i18n-a"],
+    }));
+    expect(renderReport(missing, 1)).toContain("(+1)");
+    const grown = compareWithRatchet(missing, new Map([["src/old.tsx", 1]]));
+    expect(renderRatchetReport(grown, missing, 1)).toContain("1 -> 4");
+    const fresh = compareWithRatchet(missing, new Map());
+    expect(renderRatchetReport(fresh, missing, 0)).toContain('import "@/lib/i18n-a";');
+    const unchanged = compareWithRatchet(missing, new Map([["src/old.tsx", 4]]));
+    expect(renderRatchetReport(unchanged, missing, 1)).not.toContain("MNIEJ");
   });
 });

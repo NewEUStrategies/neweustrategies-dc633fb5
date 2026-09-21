@@ -14,7 +14,7 @@
 //      plik do biblioteki mediów tenanta; awaryjne pytanie o URL zostawiłoby
 //      w treści adres zewnętrzny, który jutro przestanie działać.
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor, act } from "@testing-library/react";
 
 const h = vi.hoisted(() => ({ prompt: null as unknown }));
 
@@ -159,7 +159,7 @@ describe("PostEditor - tryb rich text", () => {
     const onPickImage = vi.fn(async () => "https://cdn.tenant/obraz.png");
     renderRich("<p>x</p>", onPickImage);
 
-    fireEvent.click(screen.getByLabelText("Image"));
+    await act(async () => fireEvent.click(screen.getByLabelText("Image")));
 
     await waitFor(() => expect(onPickImage).toHaveBeenCalledTimes(1));
     // Awaryjne pytanie o URL NIE zostało użyte.
@@ -169,7 +169,7 @@ describe("PostEditor - tryb rich text", () => {
   it("BEZ callbacku obrazka pyta o adres jako ścieżkę awaryjną", async () => {
     renderRich("<p>x</p>", undefined);
 
-    fireEvent.click(screen.getByLabelText("Image"));
+    await act(async () => fireEvent.click(screen.getByLabelText("Image")));
 
     await waitFor(() => expect(promptDialog()).toHaveBeenCalled());
   });
@@ -178,7 +178,7 @@ describe("PostEditor - tryb rich text", () => {
     const onPickImage = vi.fn(async () => null);
     renderRich("<p>x</p>", onPickImage);
 
-    fireEvent.click(screen.getByLabelText("Image"));
+    await act(async () => fireEvent.click(screen.getByLabelText("Image")));
 
     await waitFor(() => expect(onPickImage).toHaveBeenCalled());
     expect(document.querySelector("img")).toBeNull();

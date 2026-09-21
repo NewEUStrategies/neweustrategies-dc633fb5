@@ -162,8 +162,8 @@ describe("lazyBlockViews - KAŻDY leniwy widok rozwiązuje się i montuje", () =
     ["ankieta", PollBlockView],
     ["relacja na żywo", LiveBlogBlock],
   ])("%s jest komponentem, nie surowym wynikiem React.lazy", (_label, View) => {
-    // `withSuspense` MUSI zwrócić funkcję komponentu - obiekt lazy wprost
-    // renderowałby się bez boundary i wywalał przy pierwszym zawieszeniu.
-    expect(typeof View).toBe("function");
+    // The memoized wrapper owns Suspense; a raw React.lazy export would
+    // instead escape without the local boundary on its first suspension.
+    expect(View.$$typeof).toBe(Symbol.for("react.memo"));
   });
 });

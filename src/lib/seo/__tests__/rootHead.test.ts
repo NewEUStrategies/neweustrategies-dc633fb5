@@ -23,7 +23,9 @@ import {
   rootLinkHeaderValues,
   SUPABASE_PRECONNECT_ORIGIN,
   type RootAssets,
+  dictionaryPreloadLinkHeaderValue,
 } from "../rootHead";
+import { LOCALE_CHUNK_URLS } from "../localeChunks";
 
 const ASSETS: RootAssets = {
   appCss: "/assets/app-abc123.css",
@@ -86,6 +88,50 @@ describe("parytet `<link>` i nagłówka `Link`", () => {
     expect(values[0]).toContain(ASSETS.appCss);
     expect(values[1]).toContain(SUPABASE_PRECONNECT_ORIGIN);
     expect(values.slice(2).every((v) => v.includes(".woff2"))).toBe(true);
+  });
+});
+
+// ── HINT SŁOWNIKA: JEDYNA ŚWIADOMA ASYMETRIA W TYM MODULE ────────────────────
+//
+// Reszta tego pliku pilnuje PARYTETU `<link>` i nagłówka `Link`. Ten blok pilnuje
+// wyjątku - i pilnuje go w OBIE strony, żeby nikt nie „naprawił" go przez
+// dodanie węzła do `<head>`.
+describe("preload chunku słownika - nagłówek TAK, `<link>` NIE", () => {
+  it("buduje wartość `modulepreload`, nie `preload as=script`", () => {
+    // `modulepreload` każe przeglądarce nie tylko POBRAĆ plik, ale też go
+    // sparsować i wstawić do mapy modułów. Przy `preload as=script`
+    // top-level await w `lib/i18n.ts` nadal czekałby na kompilację.
+    expect(dictionaryPreloadLinkHeaderValue("/assets/pl-ABC12345.js")).toBe(
+      '</assets/pl-ABC12345.js>; rel="modulepreload"',
+    );
+  });
+
+  it("brak znanej nazwy chunku = BRAK hintu, nie hint wskazujący w nic", () => {
+    // Poza buildem (dev, vitest) `LOCALE_CHUNK_URLS` niesie `null` - i to jest
+    // jawny fallback w źródle, nie awaria.
+    expect(dictionaryPreloadLinkHeaderValue(null)).toBeNull();
+    expect(LOCALE_CHUNK_URLS.pl).toBeNull();
+    expect(LOCALE_CHUNK_URLS.en).toBeNull();
+  });
+
+  it("NIE trafia do zestawu `<link>` - to jest wymóg, nie przeoczenie", () => {
+    // Nazwa pliku chunku jest znana WYŁĄCZNIE w środowisku serwerowym builda,
+    // więc węzeł w `<head>` byłby obecny w SSR-owym HTML-u i nieobecny
+    // w pierwszym renderze klienta. To rozjazd tożsamości KORZENIA DOKUMENTU -
+    // ta sama klasa awarii, którą naprawia cały ten obszar. Ten test istnieje,
+    // żeby „domknięcie parytetu" nie wprowadziło jej z powrotem.
+    for (const lang of ["pl", "en"] as const) {
+      const rels = rootDocumentLinks(lang, ORIGIN, ASSETS).map((l) => l.rel);
+      expect(rels).not.toContain("modulepreload");
+    }
+  });
+
+  it("korzeń wysyła ten hint TYLKO nagłówkiem", () => {
+    // Dowód po źródle, bo emisja żyje w zasięgu żądania: `__root.tsx` woła
+    // `appendLinkHeader`, a NIE dokłada deskryptora do `links`.
+    const root = readFileSync("src/routes/__root.tsx", "utf8");
+    expect(root).toContain("dictionaryPreloadLinkHeaderValue");
+    expect(root).not.toMatch(/rel:\s*"modulepreload"/);
   });
 });
 

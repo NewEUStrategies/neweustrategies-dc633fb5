@@ -91,14 +91,12 @@ describe("checkoutSessionParams", () => {
   });
 
   it("domyślne ustawienia nie zmieniają dotychczasowego kształtu sesji", () => {
-    // Regresja: przed okablowaniem flag każda sesja jechała wyłącznie z
-    // `managed_payments`. Domyślne ustawienia dokładają tylko zbieranie NIP.
+    // Na płaszczyźnie operatora rozliczeniowego sesja jedzie wyłącznie z
+    // `managed_payments` - NIP i dane klienta zbiera Stripe jako MoR.
     expect(checkoutSessionParams(DEFAULT_CHECKOUT_SETTINGS, ctx())).toEqual({
       allow_promotion_codes: true,
       billing_address_collection: "auto",
       managed_payments: { enabled: true },
-      tax_id_collection: { enabled: true },
-      customer_update: { name: "auto" },
     });
   });
 
@@ -124,32 +122,35 @@ describe("checkoutSessionParams", () => {
   });
 
   it("tax_id_collection bez klienta w trybie payment wymusza customer_creation", () => {
-    const guest = checkoutSessionParams(
-      { ...ALL_OFF, tax_id_collection: true },
-      ctx({ hasCustomer: false }),
-    );
+    const merchant = { ...ALL_OFF, automatic_tax: true, tax_id_collection: true };
+    const guest = checkoutSessionParams(merchant, ctx({ hasCustomer: false }));
     expect(guest.tax_id_collection).toEqual({ enabled: true });
     expect(guest.customer_creation).toBe("always");
     // Klient już przypięty - customer_creation byłoby błędem API.
-    const known = checkoutSessionParams({ ...ALL_OFF, tax_id_collection: true }, ctx());
+    const known = checkoutSessionParams(merchant, ctx());
     expect(known.customer_creation).toBeUndefined();
     // Subskrypcja zawsze tworzy klienta - parametr byłby błędem API.
-    const sub = checkoutSessionParams(
-      { ...ALL_OFF, tax_id_collection: true },
-      ctx({ mode: "subscription", hasCustomer: false }),
-    );
+    const sub = checkoutSessionParams(merchant, ctx({ mode: "subscription", hasCustomer: false }));
     expect(sub.tax_id_collection).toEqual({ enabled: true });
     expect(sub.customer_creation).toBeUndefined();
   });
 
   it("przy istniejącym kliencie zbieranie NIP wymaga zgody na nadpisanie nazwy", () => {
-    const params = checkoutSessionParams({ ...ALL_OFF, tax_id_collection: true }, ctx());
-    expect(params.customer_update).toEqual({ name: "auto" });
+    const merchant = { ...ALL_OFF, automatic_tax: true, tax_id_collection: true };
+    const params = checkoutSessionParams(merchant, ctx());
+    expect(params.customer_update).toEqual({ address: "auto", name: "auto" });
     // Bez klienta nie ma czego aktualizować.
-    expect(
-      checkoutSessionParams({ ...ALL_OFF, tax_id_collection: true }, ctx({ hasCustomer: false }))
-        .customer_update,
-    ).toBeUndefined();
+    expect(checkoutSessionParams(merchant, ctx({ hasCustomer: false })).customer_update).toBe(
+      undefined,
+    );
+  });
+
+  it("na płaszczyźnie MoR nie jedzie NIP ani customer_update (Stripe je odrzuca)", () => {
+    const params = checkoutSessionParams({ ...ALL_OFF, tax_id_collection: true }, ctx());
+    expect(params.managed_payments).toEqual({ enabled: true });
+    expect(params.tax_id_collection).toBeUndefined();
+    expect(params.customer_update).toBeUndefined();
+    expect(params.customer_creation).toBeUndefined();
   });
 
   it("automatic_tax wymusza pełny adres i zgodę na nadpisanie adresu klienta", () => {

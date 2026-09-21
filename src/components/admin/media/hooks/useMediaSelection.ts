@@ -10,8 +10,6 @@
  * what "range" and "select all" mean and is the only external dependency.
  */
 import { useCallback, useState, type MouseEvent as ReactMouseEvent } from "react";
-import type { MediaRow } from "../types";
-
 export interface UseMediaSelectionResult {
   selectedIds: Set<string>;
   setSelectedIds: (ids: Set<string>) => void;
@@ -23,7 +21,9 @@ export interface UseMediaSelectionResult {
   selectOnly: (id: string) => void;
 }
 
-export function useMediaSelection(orderedFiles: readonly MediaRow[]): UseMediaSelectionResult {
+export function useMediaSelection(
+  orderedFiles: readonly { id: string }[],
+): UseMediaSelectionResult {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastAnchorId, setLastAnchorId] = useState<string | null>(null);
 

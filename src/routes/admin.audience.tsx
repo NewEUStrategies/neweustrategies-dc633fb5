@@ -23,8 +23,10 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { Chart } from "@/components/charts/Chart";
 import type { ChartConfig } from "@/lib/charts/types";
+import { defaultChartConfig } from "@/lib/charts/parse";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { slotForSeries } from "@/lib/charts/palette";
 
 export const Route = createFileRoute("/admin/audience")({
   component: AudienceDashboard,
@@ -102,6 +104,7 @@ function AudienceDashboard() {
   const series = seriesQ.data ?? [];
 
   const activityChart: ChartConfig = {
+    ...defaultChartConfig(),
     kind: "line",
     title: t("adminAudience.activity.title"),
     description: t("adminAudience.activity.chartDescription"),
@@ -115,12 +118,12 @@ function AudienceDashboard() {
       {
         name: t("adminAudience.activity.active"),
         values: series.map((r) => r.active_members),
-        colorSlot: 1,
+        colorSlot: slotForSeries(0),
       },
       {
         name: t("adminAudience.funnel.newMembers"),
         values: series.map((r) => r.new_members),
-        colorSlot: 2,
+        colorSlot: slotForSeries(1),
       },
     ],
     stacked: false,

@@ -1,0 +1,1008 @@
+// Testy spisu tras publicznych i ich loaderów (`report:route-loaders`).
+//
+// PO CO TE TESTY, A NIE SAM PRZEBIEG SKRYPTU. Bo dwa defekty tego parsera
+// przeszły niezauważone na prawdziwym drzewie i ZANIŻYŁY wynik, nie zawyżyły -
+// czyli raport wyglądał wiarygodnie i był fałszywy:
+//
+//   1. `DECL_RE` bez `=\s*` gubiło 79 z 368 wpisów `routeTree.gen.ts`, bo
+//      prettier łamie długie deklaracje po znaku równości. Spis pokazywał 289 tras.
+//   2. `routeOptionsBlock` kotwiczone na `indexOf("createFileRoute")` trafiało
+//      w IMPORT identyfikatora, nie w wywołanie, więc opcje trasy czytało
+//      z następnego importu. Efekt: 143 trasy „bez komponentu" (zamiast 56)
+//      i JEDNA trasa publiczna w całym raporcie.
+//
+// Oba defekty są ciche z konstrukcji: nie rzucają, tylko oddają mniejszą liczbę.
+// Dlatego niżej stoją asercje na KSZTAŁT wejścia (jednolinijkowe opcje, złamana
+// deklaracja), a nie na wynik przebiegu.
+import { describe, expect, it } from "vitest";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
+import { PUBLIC_DOCUMENT_DENY_PREFIXES } from "@/lib/http/documentCache";
+import {
+  analysePublicRouteLoaders,
+  balancedArgs,
+  coldRouteRatchetFailed,
+  compareColdRouteRatchet,
+  renderColdRouteRatchet,
+  FROZEN_COLD_CACHED_ROUTES,
+  FROZEN_COLD_PUBLIC_ROUTES,
+  findQuerySites,
+  keyFactorySymbols,
+  loaderWarmedSymbols,
+  routesGuestViewOnly,
+  hasSessionGate,
+  hasSsrDisabled,
+  readLoaderFacts,
+  rendersHtml,
+  renderPublicRouteLoaderReport,
+  resolveSpecifier,
+  routeOptionsBlock,
+  routesMissingWarmedLoader,
+  staticImportClosure,
+  staticImportSpecifiers,
+  topLevelOption,
+  type PublicRouteLoaderInput,
+  type PublicRouteLoaderReport,
+} from "../publicRouteLoaders";
+import { COLD_PUBLIC_ROUTE_BASELINE } from "../../../../scripts/lib/coldPublicRouteBaseline";
+
+function sources(entries: Record<string, string>): Map<string, string> {
+  return new Map(Object.entries(entries));
+}
+
+const ROOT = `
+import { createRootRouteWithContext } from "@tanstack/react-router";
+import { Footer } from "../components/Footer";
+export const Route = createRootRouteWithContext()({ component: () => null });
+`;
+
+/** Minimalne `routeTree.gen.ts` - tylko to, co czyta parser. */
+function routeTree(
+  rows: ReadonlyArray<{ ident: string; file: string; path: string; parent: string }>,
+) {
+  const imports = rows.map((r) => `import { Route as ${r.ident}Import } from './${r.file}'`);
+  const decls = rows.map(
+    (r) =>
+      `const ${r.ident} = ${r.ident}Import.update({\n  id: '${r.path}',\n  path: '${r.path}',\n  getParentRoute: () => ${r.parent},\n} as any)`,
+  );
+  return [...imports, ...decls].join("\n");
+}
+
+describe("staticImportSpecifiers", () => {
+  it("bierze importy wartościowe, pomija `import type` i dynamiczne `import()`", () => {
+    const out = staticImportSpecifiers(
+      [
+        `import { A } from "@/lib/a";`,
+        `import type { B } from "@/lib/b";`,
+        `import "@/lib/side-effect";`,
+        `export { C } from "@/lib/c";`,
+        `export type { D } from "@/lib/d";`,
+        `const lazy = () => import("@/lib/lazy");`,
+      ].join("\n"),
+    );
+    expect(out).toContain("@/lib/a");
+    expect(out).toContain("@/lib/side-effect");
+    expect(out).toContain("@/lib/c");
+    expect(out).not.toContain("@/lib/b");
+    expect(out).not.toContain("@/lib/d");
+    // `React.lazy` renderuje na serwerze fallback - leniwy moduł nie jest
+    // częścią SSR-owego HTML-a trasy, więc nie tworzy krawędzi w tym grafie.
+    expect(out).not.toContain("@/lib/lazy");
+  });
+
+  it("radzi się z importem wielolinijkowym (prettier łamie listy nazw)", () => {
+    const out = staticImportSpecifiers(`import {\n  A,\n  B,\n} from "@/lib/wide";`);
+    expect(out).toEqual(["@/lib/wide"]);
+  });
+
+  it("nie widzi importu ZAKOMENTOWANEGO", () => {
+    expect(staticImportSpecifiers(`// import { X } from "@/lib/x";`)).toEqual([]);
+  });
+});
+
+describe("resolveSpecifier", () => {
+  const files = sources({
+    "src/lib/a.ts": "",
+    "src/lib/b/index.tsx": "",
+    "src/components/C.tsx": "",
+  });
+
+  it("rozwija alias @/ i dobiera rozszerzenie oraz index", () => {
+    expect(resolveSpecifier("@/lib/a", "src/routes/x.tsx", files)).toBe("src/lib/a.ts");
+    expect(resolveSpecifier("@/lib/b", "src/routes/x.tsx", files)).toBe("src/lib/b/index.tsx");
+  });
+
+  it("rozwija ścieżki relatywne z wyjściem w górę", () => {
+    expect(resolveSpecifier("../components/C", "src/lib/a.ts", files)).toBe("src/components/C.tsx");
+  });
+
+  it("zwraca null dla pakietów, assetów i nieistniejących plików", () => {
+    expect(resolveSpecifier("@tanstack/react-query", "src/routes/x.tsx", files)).toBeNull();
+    expect(resolveSpecifier("../styles.css?url", "src/routes/x.tsx", files)).toBeNull();
+    expect(resolveSpecifier("@/lib/nie-ma", "src/routes/x.tsx", files)).toBeNull();
+  });
+});
+
+describe("staticImportClosure", () => {
+  it("liczy ODLEGŁOŚĆ, nie tylko przynależność - dowód ma wskazywać treść, nie atom", () => {
+    const files = sources({
+      "src/routes/r.tsx": `import { A } from "@/lib/a";`,
+      "src/lib/a.ts": `import { B } from "@/lib/b";`,
+      "src/lib/b.ts": "",
+    });
+    const closure = staticImportClosure("src/routes/r.tsx", files);
+    expect(closure.get("src/routes/r.tsx")).toBe(0);
+    expect(closure.get("src/lib/a.ts")).toBe(1);
+    expect(closure.get("src/lib/b.ts")).toBe(2);
+  });
+
+  it("nie zapętla się na cyklu importów", () => {
+    const files = sources({
+      "src/lib/a.ts": `import { B } from "@/lib/b";`,
+      "src/lib/b.ts": `import { A } from "@/lib/a";`,
+    });
+    expect([...staticImportClosure("src/lib/a.ts", files).keys()].sort()).toEqual([
+      "src/lib/a.ts",
+      "src/lib/b.ts",
+    ]);
+  });
+});
+
+describe("routeOptionsBlock / topLevelOption", () => {
+  it("kotwiczy się na WYWOŁANIU createFileRoute, nie na jego imporcie", () => {
+    // Regresja: `indexOf("createFileRoute")` trafiało w listę importów i opcje
+    // trasy czytało z następnego importu (143 trasy „bez komponentu").
+    const block = routeOptionsBlock(
+      [
+        `import { createFileRoute } from "@tanstack/react-router";`,
+        `import { useSuspenseQuery } from "@tanstack/react-query";`,
+        `export const Route = createFileRoute("/x")({`,
+        `  component: Page,`,
+        `});`,
+      ].join("\n"),
+    );
+    expect(block).not.toBeNull();
+    expect(block).toContain("component: Page");
+    expect(block).not.toContain("useSuspenseQuery");
+  });
+
+  it("czyta opcje z definicji JEDNOLINIJKOWEJ (11 plików tras w repo)", () => {
+    const source = `import { createFileRoute, Outlet } from "@tanstack/react-router";
+export const Route = createFileRoute("/events")({ component: EventsLayout });`;
+    expect(rendersHtml(source)).toBe(true);
+    expect(readLoaderFacts(source).hasLoader).toBe(false);
+  });
+
+  it("ignoruje opcję o tej samej nazwie z ZAGNIEŻDŻONEGO obiektu", () => {
+    const block = routeOptionsBlock(
+      [
+        `export const Route = createFileRoute("/x")({`,
+        `  server: { handlers: { GET: () => new Response(null) } },`,
+        `  head: () => ({ meta: [{ component: "nie-to" }] }),`,
+        `});`,
+      ].join("\n"),
+    );
+    expect(block).not.toBeNull();
+    expect(topLevelOption(block ?? "", "server")).not.toBeNull();
+    expect(topLevelOption(block ?? "", "component")).toBeNull();
+  });
+});
+
+describe("readLoaderFacts", () => {
+  const withLoader = (body: string) =>
+    `export const Route = createFileRoute("/x")({\n  loader: async ({ context }) => {\n${body}\n  },\n  component: Page,\n});`;
+
+  it("loader z ensureQueryData GRZEJE dane", () => {
+    expect(
+      readLoaderFacts(withLoader("    await context.queryClient.ensureQueryData(o());")),
+    ).toEqual({ hasLoader: true, warms: true });
+  });
+
+  it("loadResilient też grzeje - to fail-soft wrapper repo", () => {
+    expect(
+      readLoaderFacts(withLoader("    await loadResilient(context.queryClient, o(), []);")).warms,
+    ).toBe(true);
+  });
+
+  it("loader z samym nagłówkiem cache albo redirectem jest TRYWIALNY", () => {
+    expect(readLoaderFacts(withLoader("    setCacheControlHeader(NO_STORE);"))).toEqual({
+      hasLoader: true,
+      warms: false,
+    });
+    expect(readLoaderFacts(withLoader('    throw redirect({ to: "/blog" });')).warms).toBe(false);
+  });
+
+  it("ensureQueryData w beforeLoad NIE robi z trasy trasy z loaderem", () => {
+    const source = [
+      `export const Route = createFileRoute("/x")({`,
+      `  beforeLoad: async ({ context }) => {`,
+      `    await context.queryClient.ensureQueryData(o());`,
+      `  },`,
+      `  component: Page,`,
+      `});`,
+    ].join("\n");
+    expect(readLoaderFacts(source)).toEqual({ hasLoader: false, warms: false });
+  });
+
+  it("ZAKOMENTOWANY loader się nie liczy - inaczej spis dałoby się uciszyć komentarzem", () => {
+    const source = [
+      `export const Route = createFileRoute("/x")({`,
+      `  // loader: async ({ context }) => context.queryClient.ensureQueryData(o()),`,
+      `  component: Page,`,
+      `});`,
+    ].join("\n");
+    expect(readLoaderFacts(source).hasLoader).toBe(false);
+  });
+});
+
+describe("hasSsrDisabled / hasSessionGate / findQuerySites", () => {
+  it("rozpoznaje ssr: false tylko jako opcję trasy", () => {
+    expect(hasSsrDisabled(`export const Route = createFileRoute("/x")({ ssr: false });`)).toBe(
+      true,
+    );
+    expect(hasSsrDisabled(`export const Route = createFileRoute("/x")({ component: Page });`)).toBe(
+      false,
+    );
+  });
+
+  it("bramkę sesji widzi w <AuthGate> i w nawigacji na /login", () => {
+    expect(hasSessionGate(`return <AuthGate><Panel /></AuthGate>;`)).toBe(true);
+    expect(hasSessionGate(`return <AuthGate fallbackTitle="x" />;`)).toBe(true);
+    expect(hasSessionGate(`if (!isStaff) navigate({ to: "/login" });`)).toBe(true);
+    expect(hasSessionGate(`const x = useAuth();`)).toBe(false);
+  });
+
+  it("liczy czytające hooki, pomija useMutation i useQueryClient", () => {
+    const found = findQuerySites(
+      "src/x.ts",
+      [
+        `const a = useQuery(o());`,
+        `const b = useSuspenseQuery(o());`,
+        `const c = useInfiniteQuery(o());`,
+        `const d = useQueries({ queries: [] });`,
+        `const e = useMutation({});`,
+        `const f = useQueryClient();`,
+      ].join("\n"),
+    );
+    expect(found.map((s) => s.hook)).toEqual([
+      "useQuery",
+      "useSuspenseQuery",
+      "useInfiniteQuery",
+      "useQueries",
+    ]);
+    expect(found[0].line).toBe(1);
+  });
+});
+
+describe("keyFactorySymbols / loaderWarmedSymbols", () => {
+  it("rozpoznaje fabryki `*QueryOptions`, `*QueryKey` i `xKeys.y`", () => {
+    expect(keyFactorySymbols("...publicEventBySlugQueryOptions(slug)")).toEqual([
+      "publicEventBySlugQueryOptions",
+    ]);
+    expect(keyFactorySymbols("queryKey: legalVersionQueryKey(key)")).toEqual([
+      "legalVersionQueryKey",
+    ]);
+    expect(keyFactorySymbols("queryKey: publicEventKeys.sections(slug, viewer)")).toEqual([
+      "publicEventKeys.sections",
+    ]);
+    // Literał klucza NIE jest fabryką - `BrandIcon` woła `["icon-library", …]`.
+    expect(keyFactorySymbols('queryKey: ["icon-library", kind]')).toEqual([]);
+  });
+
+  it("czyta fabryki z loadera - także przez ALIAS lokalny", () => {
+    // Regresja: `tracker.index.tsx:68` grzeje przez
+    // `const itemsOptions = publishedItemsQueryOptions()`, a czytanie samego
+    // argumentu `ensureQueryData(itemsOptions)` nie widziało tam fabryki.
+    const source = [
+      `export const Route = createFileRoute("/tracker/")({`,
+      `  loader: async ({ context }) => {`,
+      `    const itemsOptions = publishedItemsQueryOptions();`,
+      `    await context.queryClient.ensureQueryData(itemsOptions);`,
+      `  },`,
+      `  component: Page,`,
+      `});`,
+    ].join("\n");
+    expect(loaderWarmedSymbols(source)).toEqual(["publishedItemsQueryOptions"]);
+  });
+
+  it("loader BEZ wywołania grzejącego nie zalicza żadnej fabryki", () => {
+    // `/qa` ściąga dane dla `head()` i nie wpisuje ich do cache zapytań.
+    const source = [
+      `export const Route = createFileRoute("/qa")({`,
+      `  loader: async () => {`,
+      `    const sessions = await fetchPublicQaSessions();`,
+      `    return { sessions, key: qaListQueryOptions };`,
+      `  },`,
+      `  component: Page,`,
+      `});`,
+    ].join("\n");
+    expect(loaderWarmedSymbols(source)).toEqual([]);
+  });
+
+  it("balancedArgs bierze argument z zagnieżdżonymi nawiasami", () => {
+    const text = "useQuery({ ...o(a, [1, 2]), enabled: x })";
+    expect(balancedArgs(text, text.indexOf("("))).toBe("{ ...o(a, [1, 2]), enabled: x }");
+  });
+});
+
+describe("analysePublicRouteLoaders", () => {
+  /**
+   * Drzewo zastępcze pokrywające wszystkie kubełki werdyktu i wykluczenia.
+   * `ParentGated` sprawdza DZIEDZICZENIE bramki sesji w dół drzewa - to ono
+   * odpowiada za 23 z 27 tras w kubełku „bramka-sesji" na prawdziwym drzewie.
+   */
+  const input: PublicRouteLoaderInput = {
+    routeTree: routeTree([
+      { ident: "IndexRoute", file: "routes/index", path: "/", parent: "rootRouteImport" },
+      { ident: "AdminRoute", file: "routes/admin", path: "/admin", parent: "rootRouteImport" },
+      { ident: "StaticRoute", file: "routes/static", path: "/static", parent: "rootRouteImport" },
+      { ident: "WarmRoute", file: "routes/warm", path: "/warm", parent: "rootRouteImport" },
+      { ident: "ColdRoute", file: "routes/cold", path: "/cold", parent: "rootRouteImport" },
+      {
+        ident: "TrivialRoute",
+        file: "routes/trivial",
+        path: "/trivial",
+        parent: "rootRouteImport",
+      },
+      { ident: "FeedRoute", file: "routes/feed", path: "/feed", parent: "rootRouteImport" },
+      { ident: "NoSsrRoute", file: "routes/nossr", path: "/nossr", parent: "rootRouteImport" },
+      { ident: "GatedRoute", file: "routes/gated", path: "/gated", parent: "rootRouteImport" },
+      {
+        ident: "GatedChildRoute",
+        file: "routes/gated.child",
+        path: "/child",
+        parent: "GatedRoute",
+      },
+    ]),
+    sources: sources({
+      "src/routes/__root.tsx": ROOT,
+      "src/components/Footer.tsx": `import { useQuery } from "@tanstack/react-query";\nconst x = useQuery(siteSettingsQueryOptions);`,
+      "src/routes/index.tsx": `export const Route = createFileRoute("/")({ component: Page });`,
+      "src/routes/admin.tsx": `export const Route = createFileRoute("/admin")({ ssr: false, component: Page });`,
+      // Statyczna: importuje `Footer` (POWŁOKA), więc jej jedyne zapytanie zostaje odjęte.
+      "src/routes/static.tsx": `import { Footer } from "../components/Footer";\nexport const Route = createFileRoute("/static")({ component: Page });`,
+      "src/routes/warm.tsx": `import { useRows } from "@/lib/rows";\nexport const Route = createFileRoute("/warm")({\n  loader: ({ context }) => context.queryClient.ensureQueryData(rowsQueryOptions()),\n  component: Page,\n});`,
+      "src/routes/cold.tsx": `import { useRows } from "@/lib/rows";\nexport const Route = createFileRoute("/cold")({ component: Page });`,
+      "src/routes/trivial.tsx": `import { useRows } from "@/lib/rows";\nexport const Route = createFileRoute("/trivial")({\n  loader: () => setCacheControlHeader(NO_STORE),\n  component: Page,\n});`,
+      "src/routes/feed.ts": `export const Route = createFileRoute("/feed")({ server: { handlers: { GET: () => new Response(null) } } });`,
+      "src/routes/nossr.tsx": `import { useRows } from "@/lib/rows";\nexport const Route = createFileRoute("/nossr")({ ssr: false, component: Page });`,
+      "src/routes/gated.tsx": `export const Route = createFileRoute("/gated")({ component: () => <AuthGate><Outlet /></AuthGate> });`,
+      "src/routes/gated.child.tsx": `import { useRows } from "@/lib/rows";\nexport const Route = createFileRoute("/gated/child")({ component: Page });`,
+      "src/lib/rows.ts": `import { useQuery } from "@tanstack/react-query";\nexport function useRows() {\n  return useQuery(rowsQueryOptions());\n}`,
+    }),
+  };
+
+  const report = analysePublicRouteLoaders(input);
+  const at = (path: string) => report.routes.find((route) => route.fullPath === path);
+
+  it("wyklucza panel, ssr: false, trasy serwerowe i bramkę sesji (z dziedziczeniem)", () => {
+    expect(at("/admin")?.exclusion).toBe("panel-admin");
+    expect(at("/nossr")?.exclusion).toBe("ssr-wylaczony");
+    expect(at("/feed")?.exclusion).toBe("bez-komponentu");
+    expect(at("/gated")?.exclusion).toBe("bramka-sesji");
+    expect(at("/gated/child")?.exclusion).toBe("bramka-sesji");
+    // Dziecko nie ma własnej bramki - odziedziczyło ją po rodzicu.
+    expect(at("/gated/child")?.exclusionFrom).toBe("/gated");
+    expect(at("/gated")?.exclusionFrom).toBeNull();
+  });
+
+  it("odejmuje POWŁOKĘ: zapytanie z Footera nie robi z trasy statycznej defektu", () => {
+    expect(at("/static")?.verdict).toBe("bez-zapytan");
+    expect(at("/static")?.queryCount).toBe(0);
+    expect(at("/")?.verdict).toBe("bez-zapytan");
+  });
+
+  it("rozdziela trzy stany trasy czytającej dane", () => {
+    expect(at("/warm")?.verdict).toBe("loader-grzeje");
+    expect(at("/trivial")?.verdict).toBe("loader-trywialny");
+    expect(at("/cold")?.verdict).toBe("brak-loadera");
+    expect(at("/cold")?.queryCount).toBe(1);
+    // Zapytanie stoi w `lib/rows.ts`, nie w pliku trasy - hop 1.
+    expect(at("/cold")?.coldQueriesInRouteFile).toBe(false);
+    expect(at("/cold")?.querySites[0]).toMatchObject({ file: "src/lib/rows.ts", distance: 1 });
+  });
+
+  it("lista do roboty = brak loadera + loader trywialny, nic więcej", () => {
+    expect(
+      routesMissingWarmedLoader(report)
+        .map((route) => route.fullPath)
+        .sort(),
+    ).toEqual(["/cold", "/trivial"]);
+  });
+
+  it("raport tekstowy podaje liczby i nazwy plików - da się go sprawdzić w edytorze", () => {
+    const rendered = renderPublicRouteLoaderReport(report);
+    expect(rendered).toContain("PUBLICZNE STRONY SSR");
+    expect(rendered).toContain("src/routes/cold.tsx");
+    expect(rendered).toContain("src/lib/rows.ts:3");
+    // 5 publicznych stron SSR z 10 tras drzewa: /, /static, /warm, /cold, /trivial.
+    expect(rendered).toContain("DO ROBOTY: 2 z 5");
+  });
+});
+
+describe("łańcuch przodków i tożsamość w kluczu", () => {
+  /**
+   * Drzewo odwzorowuje układ, który zawiódł na prawdziwym repo:
+   * `/shell` = powłoka z loaderem (jak `events.$slug.tsx`), `/shell/` = jej
+   * dziecko `index` czytające TĘ SAMĄ fabrykę (jak `events.$slug.index.tsx`),
+   * `/shell/tab` = zakładka z WŁASNĄ, nierozgrzaną fabryką (jak
+   * `events.$slug.agenda.tsx`).
+   */
+  const input: PublicRouteLoaderInput = {
+    routeTree: routeTree([
+      { ident: "ShellRoute", file: "routes/shell", path: "/shell", parent: "rootRouteImport" },
+      { ident: "ShellIndexRoute", file: "routes/shell.index", path: "/", parent: "ShellRoute" },
+      { ident: "ShellTabRoute", file: "routes/shell.tab", path: "/tab", parent: "ShellRoute" },
+      { ident: "ViewerRoute", file: "routes/viewer", path: "/viewer", parent: "rootRouteImport" },
+      { ident: "DecoyRoute", file: "routes/decoy", path: "/decoy", parent: "rootRouteImport" },
+    ]),
+    sources: sources({
+      "src/routes/__root.tsx": ROOT,
+      "src/components/Footer.tsx": "",
+      "src/routes/shell.tsx": `import { useRows } from "@/lib/rows";\nexport const Route = createFileRoute("/shell")({\n  loader: ({ context }) => context.queryClient.ensureQueryData(rowsQueryOptions()),\n  component: Shell,\n});`,
+      "src/routes/shell.index.tsx": `import { useRows } from "@/lib/rows";\nexport const Route = createFileRoute("/shell/")({ component: Page });`,
+      "src/routes/shell.tab.tsx": `import { useOther } from "@/lib/other";\nexport const Route = createFileRoute("/shell/tab")({ component: Page });`,
+      "src/routes/viewer.tsx": `import { useMine } from "@/lib/viewer";\nexport const Route = createFileRoute("/viewer")({ component: Page });`,
+      // Loader JEST i grzeje - ale INNĄ fabrykę niż ta, którą czyta render.
+      "src/routes/decoy.tsx": `import { useOther } from "@/lib/other";\nexport const Route = createFileRoute("/decoy")({\n  loader: ({ context }) => context.queryClient.ensureQueryData(decoyQueryOptions()),\n  component: Page,\n});`,
+      "src/lib/rows.ts": `import { useQuery } from "@tanstack/react-query";\nexport function useRows() {\n  return useQuery(rowsQueryOptions());\n}`,
+      "src/lib/other.ts": `import { useQuery } from "@tanstack/react-query";\nexport function useOther() {\n  return useQuery(otherQueryOptions());\n}`,
+      "src/lib/viewer.ts": `import { useQuery } from "@tanstack/react-query";\nexport function useMine(viewer: string) {\n  return useQuery({ queryKey: mineKeys.own(viewer), queryFn: fetchMine });\n}`,
+    }),
+  };
+
+  const report = analysePublicRouteLoaders(input);
+  const at = (path: string, file?: string) =>
+    report.routes.find(
+      (route) => route.fullPath === path && (file === undefined || route.file === file),
+    );
+
+  it("dziecko bez loadera JEST rozgrzane, gdy loader PRZODKA grzeje tę samą fabrykę", () => {
+    const child = at("/shell", "src/routes/shell.index.tsx");
+    expect(child?.hasLoader).toBe(false);
+    expect(child?.verdict).toBe("loader-grzeje");
+    expect(child?.warmQueryCount).toBe(1);
+    expect(child?.warmedByAncestors).toEqual(["/shell"]);
+  });
+
+  it("zakładka z WŁASNĄ zimną fabryką dostaje `tresc-z-przodka`, nie długu", () => {
+    const tab = at("/shell/tab");
+    expect(tab?.verdict).toBe("tresc-z-przodka");
+    expect(tab?.coldQueryCount).toBe(1);
+    expect(routesMissingWarmedLoader(report).map((r) => r.fullPath)).not.toContain("/shell/tab");
+  });
+
+  it("sama OBECNOŚĆ grzejącego loadera nie wystarcza - musi grzać CZYTANY klucz", () => {
+    const decoy = at("/decoy");
+    expect(decoy?.hasLoader).toBe(true);
+    expect(decoy?.loaderWarms).toBe(true);
+    expect(decoy?.verdict).toBe("loader-trywialny");
+    expect(decoy?.coldQueryCount).toBe(1);
+  });
+
+  it("tożsamość czytelnika w kluczu to OSOBNA kategoria, nie dług SSR", () => {
+    const viewer = at("/viewer");
+    expect(viewer?.verdict).toBe("tylko-widok-goscia");
+    expect(viewer?.viewerQueryCount).toBe(1);
+    expect(viewer?.coldQueryCount).toBe(0);
+    expect(routesGuestViewOnly(report).map((r) => r.fullPath)).toEqual(["/viewer"]);
+    expect(routesMissingWarmedLoader(report).map((r) => r.fullPath)).not.toContain("/viewer");
+  });
+});
+
+describe("parser routeTree.gen.ts", () => {
+  it("czyta deklarację ZŁAMANĄ przez prettier po znaku równości", () => {
+    // Regresja: bez `=\s*` w DECL_RE spis gubił 79 z 368 wpisów w milczeniu.
+    const tree = [
+      `import { Route as LongRouteImport } from './routes/[.well-known]/gpc[.]json'`,
+      `const LongRoute =`,
+      `  LongRouteImport.update({`,
+      `    id: '/.well-known/gpc.json',`,
+      `    path: '/.well-known/gpc.json',`,
+      `    getParentRoute: () => rootRouteImport,`,
+      `  } as any)`,
+    ].join("\n");
+    const report = analysePublicRouteLoaders({
+      routeTree: tree,
+      sources: sources({
+        "src/routes/__root.tsx": ROOT,
+        "src/components/Footer.tsx": "",
+        "src/routes/[.well-known]/gpc[.]json.ts": `export const Route = createFileRoute("/.well-known/gpc.json")({ server: {} });`,
+      }),
+    });
+    expect(report.routes).toHaveLength(1);
+    expect(report.routes[0].fullPath).toBe("/.well-known/gpc.json");
+  });
+
+  it("składa pełną ścieżkę z segmentów rodziców", () => {
+    const tree = routeTree([
+      { ident: "EventsRoute", file: "routes/events", path: "/events", parent: "rootRouteImport" },
+      {
+        ident: "EventsSlugRoute",
+        file: "routes/events.$slug",
+        path: "/$slug",
+        parent: "EventsRoute",
+      },
+      {
+        ident: "EventsSlugSpeakersRoute",
+        file: "routes/events.$slug.speakers",
+        path: "/speakers",
+        parent: "EventsSlugRoute",
+      },
+    ]);
+    const stub = `export const Route = createFileRoute("/x")({ component: Page });`;
+    const report = analysePublicRouteLoaders({
+      routeTree: tree,
+      sources: sources({
+        "src/routes/__root.tsx": ROOT,
+        "src/components/Footer.tsx": "",
+        "src/routes/events.tsx": stub,
+        "src/routes/events.$slug.tsx": stub,
+        "src/routes/events.$slug.speakers.tsx": stub,
+      }),
+    });
+    expect(report.routes.map((route) => route.fullPath)).toEqual([
+      "/events",
+      "/events/$slug",
+      "/events/$slug/speakers",
+    ]);
+  });
+});
+
+describe("platform inventory handles incomplete input and inherited evidence", () => {
+  it("does not infer a loader, SSR or HTML from a file without a route declaration", () => {
+    expect(readLoaderFacts("export const component = () => null")).toEqual({
+      hasLoader: false,
+      warms: false,
+    });
+    expect(hasSsrDisabled("const options = { ssr: false }")).toBe(false);
+    expect(rendersHtml("const x = { component: X }")).toBe(false);
+    expect(topLevelOption("loader:", "loader")).toBeNull();
+    expect(topLevelOption("loader: )", "loader")).toBe(" ");
+  });
+  it("retains unresolved routes as missing files instead of silently dropping the denominator", () => {
+    const report = analysePublicRouteLoaders({
+      routeTree: routeTree([
+        { ident: "Missing", file: "routes/missing", path: "missing", parent: "rootRouteImport" },
+      ]),
+      sources: new Map(),
+    });
+    expect(report.routes).toHaveLength(1);
+    expect(report.routes[0]).toMatchObject({
+      fullPath: "/missing",
+      exclusion: "brak-pliku",
+      file: "(nierozwiązany import)",
+    });
+    expect(staticImportClosure("src/missing.ts", new Map()).size).toBe(1);
+    expect(
+      resolveSpecifier(
+        "./.././lib//known",
+        "src/routes/a.tsx",
+        sources({ "src/lib/known.ts": "" }),
+      ),
+    ).toBe("src/lib/known.ts");
+  });
+  it("credits a typed root loader and prefers the nearest loader for the same query factory", () => {
+    const report = analysePublicRouteLoaders({
+      routeTree: routeTree([
+        { ident: "Parent", file: "routes/parent", path: "/parent", parent: "rootRouteImport" },
+        { ident: "Child", file: "routes/child", path: "/child", parent: "Parent" },
+      ]),
+      sources: sources({
+        "src/routes/__root.tsx": `export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({ loader: () => { qc.ensureQueryData(rootQueryOptions()); qc.ensureQueryData(sharedQueryOptions()); }, component: Root });`,
+        "src/routes/parent.tsx": `export const Route = createFileRoute('/parent')({ loader: () => qc.ensureQueryData(sharedQueryOptions()), component: Parent }); useQuery(sharedQueryOptions());`,
+        "src/routes/child.tsx": `export const Route = createFileRoute('/parent/child')({ loader: () => qc.ensureQueryData(sharedQueryOptions()), component: Child }); useQuery(rootQueryOptions()); useQuery(sharedQueryOptions());`,
+      }),
+    });
+    const child = report.routes.find((x) => x.fullPath === "/parent/child")!;
+    expect(child.warmQueryCount).toBe(2);
+    expect(child.warmedByAncestors).toContain("/ (__root)");
+  });
+  it("inherits ssr:false from a parent and rejects cycles in a corrupt generated tree", () => {
+    const tree = routeTree([
+      { ident: "Parent", file: "routes/parent", path: "/parent", parent: "rootRouteImport" },
+      { ident: "Child", file: "routes/child", path: "/child", parent: "Parent" },
+    ]);
+    const files = sources({
+      "src/routes/parent.tsx": `createFileRoute('/parent')({ component: Parent, ssr: false })`,
+      "src/routes/child.tsx": `createFileRoute('/child')({ component: Child })`,
+    });
+    expect(
+      analysePublicRouteLoaders({ routeTree: tree, sources: files }).routes.find(
+        (x) => x.fullPath === "/parent/child",
+      ),
+    ).toMatchObject({ exclusion: "ssr-wylaczony", exclusionFrom: "/parent" });
+    files.set("src/routes/parent.tsx", `createFileRoute('/parent')({ component: Parent })`);
+    expect(() =>
+      analysePublicRouteLoaders({
+        routeTree: tree.replace("() => rootRouteImport", "() => Child"),
+        sources: files,
+      }),
+    ).toThrow("Cykl w drzewie tras");
+  });
+  it("reports noindex, viewer identity, inherited content and truncated evidence accurately", () => {
+    const report = analysePublicRouteLoaders({
+      routeTree: routeTree([
+        { ident: "Parent", file: "routes/parent", path: "/parent", parent: "rootRouteImport" },
+        { ident: "Child", file: "routes/child", path: "/child", parent: "Parent" },
+        { ident: "Guest", file: "routes/guest", path: "/guest", parent: "rootRouteImport" },
+      ]),
+      sources: sources({
+        "src/routes/parent.tsx": `createFileRoute('/parent')({ component: Parent, loader: () => qc.ensureQueryData(parentQueryOptions()) }); useQuery(parentQueryOptions());`,
+        "src/routes/child.tsx": `import A from '@/components/a';\nimport B from '@/components/b';\ncreateFileRoute('/child')({ component: Child, head: () => ({ robots: 'noindex' }) }); useQuery(coldQueryOptions());`,
+        "src/components/a.tsx": `useQuery(aQueryOptions());\nuseQuery(secondQueryOptions());`,
+        "src/components/b.tsx": `useQuery(bQueryOptions());`,
+        "src/routes/guest.tsx": `createFileRoute('/guest')({ component: Guest }); useQuery({ queryKey: ['viewer', user.id] }); useQuery({ queryKey: ['a', user.id] }); useQuery({ queryKey: ['b', user.id] }); useQuery({ queryKey: ['c', user.id] });`,
+      }),
+    });
+    const output = renderPublicRouteLoaderReport(report);
+    expect(output).toContain("noindex");
+    expect(output).toContain("tożsamość w kluczu");
+    expect(output).toContain("… i 1 dalszych");
+    expect(report.routes.find((x) => x.fullPath === "/parent/child")?.verdict).toBe(
+      "tresc-z-przodka",
+    );
+  });
+});
+
+// ===========================================================================
+// RATCHET NA PRAWDZIWYM DRZEWIE TRAS (punkt A8 zlecenia wydania 10)
+// ===========================================================================
+//
+// PO CO, SKORO 34 TESTY WYŻEJ JUŻ ISTNIEJĄ. Bo one wszystkie sprawdzają
+// ANALIZATOR NA ATRAPACH - a to jest właściwa konwencja dla inwariantu i tak
+// ma zostać. Czego nie sprawdzały: LICZBY W TYM REPOZYTORIUM. Moduł mówi
+// o sobie wprost, że jest narzędziem pomiarowym, nie bramką
+// (`publicRouteLoaders.ts:1`), a jego `--gate` był opt-in i nie biegł nigdzie -
+// więc JEDNA NOWA TRASA BEZ LOADERA nie zapalała niczego. I tak się właśnie
+// stało: między 2026-09-01 a 2026-09-12 lista urosła z 21 na 29 (gałąź
+// minisite'ów klubowych), a repozytorium się o tym nie dowiedziało.
+//
+// KOSZT: analiza czyta całe `src/` i zajmuje ~48 s. To jedyny przypadek w tym
+// pliku, który dotyka dysku, i dlatego stoi osobno na końcu - reszta zostaje
+// milisekundowa.
+
+const SCAN_ROOT = "src";
+const SKIP_DIRS = new Set(["node_modules", "dist", ".git", "coverage"]);
+
+function walkReal(dir: string, out: string[]): string[] {
+  for (const entry of readdirSync(dir)) {
+    if (SKIP_DIRS.has(entry)) continue;
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) walkReal(full, out);
+    else out.push(full);
+  }
+  return out;
+}
+
+function realSources(): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const path of walkReal(SCAN_ROOT, [])) {
+    const file = relative(process.cwd(), path).replaceAll("\\", "/");
+    if (!/\.(ts|tsx)$/.test(file)) continue;
+    out.set(file, readFileSync(file, "utf8"));
+  }
+  return out;
+}
+
+/**
+ * Analiza CAŁEGO `src/` kosztuje ~44 s, a dwa przypadki niżej pytają o ten sam
+ * stan drzewa. Jedno przeliczenie zamiast dwóch to ~44 s mniej w kroku
+ * `check:ci-gates` - liczba, która przy bramce biegnącej na każdy push ma
+ * znaczenie. Kontrola negatywna musi liczyć osobno, bo zmienia WEJŚCIE.
+ */
+let baseAnalysis: ReturnType<typeof analyseRealTreeUncached> | null = null;
+
+function analyseRealTree(): ReturnType<typeof analyseRealTreeUncached> {
+  baseAnalysis ??= analyseRealTreeUncached();
+  return baseAnalysis;
+}
+
+function analyseRealTreeUncached(
+  extra: Record<string, string> = {},
+  extraTree = "",
+): {
+  cold: readonly { fullPath: string }[];
+  cachedCold: readonly { fullPath: string }[];
+  report: PublicRouteLoaderReport;
+} {
+  const files = realSources();
+  for (const [file, source] of Object.entries(extra)) files.set(file, source);
+  const tree = (files.get("src/routeTree.gen.ts") ?? "") + extraTree;
+  const report = analysePublicRouteLoaders({ routeTree: tree, sources: files });
+  const cold = routesMissingWarmedLoader(report);
+  const cachedCold = cold.filter((route) => wchodziDoCache(route.fullPath));
+  return { cold, cachedCold, report };
+}
+
+/** Ta sama reguła co `isDeniedPath` w `lib/http/documentCache`, na ścieżce trasy. */
+function wchodziDoCache(fullPath: string): boolean {
+  return !PUBLIC_DOCUMENT_DENY_PREFIXES.some(
+    (prefix) => fullPath === prefix || fullPath.startsWith(`${prefix}/`),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// RATCHET PER TRASA - na atrapach, bez chodzenia po drzewie
+// ---------------------------------------------------------------------------
+//
+// Przypadki na PRAWDZIWYM drzewie (niżej) dowodzą liczby; te dowodzą KOMUNIKATU
+// i rozróżnień, których prawdziwe drzewo dziś nie produkuje - bo lista jest
+// aktualna, więc `moved` i `fixed` są tam z definicji puste. Bez tego bloku
+// gałęzie raportu byłyby martwym kodem: zapaliłyby się dopiero w dniu, w którym
+// ktoś przeniesie albo naprawi trasę, czyli dokładnie wtedy, gdy komunikat musi
+// być poprawny.
+describe("ratchet per trasa - komunikat i rozróżnienia", () => {
+  /** Raport z jedną zimną trasą (`useQuery` bez loadera) o zadanym pliku i adresie. */
+  function zimnyRaport(plik: string, adres: string) {
+    const files = sources({
+      "src/routes/__root.tsx": ROOT,
+      [plik]: `import { createFileRoute } from "@tanstack/react-router";
+export const Route = createFileRoute('${adres}')({ component: P });
+function P() { const q = useQuery(qo()); return <div>{q.data}</div>; }`,
+    });
+    const tree = routeTree([
+      {
+        ident: "Probe",
+        file: plik.replace("src/", "").replace(/\.tsx$/, ""),
+        path: adres,
+        parent: "rootRouteImport",
+      },
+    ]);
+    return analysePublicRouteLoaders({ routeTree: tree, sources: files });
+  }
+
+  const WSZYSTKO_W_CACHE = () => true;
+  const NIC_W_CACHE = () => false;
+
+  it("trasa NA liście nie jest ani nowa, ani naprawiona, ani przeniesiona", () => {
+    const r = compareColdRouteRatchet(zimnyRaport("src/routes/proba.tsx", "/proba"), [
+      ["src/routes/proba.tsx", "/proba"],
+    ]);
+
+    expect(r).toEqual({ fresh: [], moved: [], fixed: [], total: 1 });
+    expect(coldRouteRatchetFailed(r)).toBe(false);
+    expect(renderColdRouteRatchet(r, WSZYSTKO_W_CACHE)).toContain("ratchet trzyma kierunek");
+  });
+
+  it("trasa SPOZA listy jest nowym długiem, a komunikat NAZYWA ją i mówi, gdzie boli", () => {
+    const r = compareColdRouteRatchet(zimnyRaport("src/routes/proba.tsx", "/proba"), []);
+
+    expect(coldRouteRatchetFailed(r)).toBe(true);
+    expect(r.fresh).toEqual([{ file: "src/routes/proba.tsx", fullPath: "/proba" }]);
+    const tekst = renderColdRouteRatchet(r, WSZYSTKO_W_CACHE);
+    expect(tekst).toContain("/proba");
+    expect(tekst).toContain("src/routes/proba.tsx");
+    expect(tekst).toContain("wchodzi do NES Edge Cache");
+    expect(tekst).toContain("loader rozgrzewający");
+  });
+
+  it("komunikat odróżnia trasę POZA cache dokumentów - to jest tańsza połowa długu", () => {
+    const r = compareColdRouteRatchet(zimnyRaport("src/routes/proba.tsx", "/proba"), []);
+
+    expect(renderColdRouteRatchet(r, NIC_W_CACHE)).toContain("poza cache dokumentów");
+  });
+
+  it("ten sam plik pod INNYM adresem to PRZENIESIENIE, nie nowy dług", () => {
+    const r = compareColdRouteRatchet(zimnyRaport("src/routes/proba.tsx", "/proba"), [
+      ["src/routes/proba.tsx", "/stary-adres"],
+    ]);
+
+    expect(r.fresh).toEqual([]);
+    expect(r.fixed).toEqual([]);
+    expect(r.moved).toEqual([
+      { kind: "adres", file: "src/routes/proba.tsx", was: "/stary-adres", now: "/proba" },
+    ]);
+    expect(coldRouteRatchetFailed(r)).toBe(false);
+    const tekst = renderColdRouteRatchet(r, WSZYSTKO_W_CACHE);
+    expect(tekst).toContain("PRZENIESIONYCH");
+    expect(tekst).toContain("adres /stary-adres -> /proba");
+  });
+
+  it("ten sam adres pod INNYM plikiem też jest przeniesieniem", () => {
+    const r = compareColdRouteRatchet(zimnyRaport("src/routes/proba.tsx", "/proba"), [
+      ["src/routes/stara-nazwa.tsx", "/proba"],
+    ]);
+
+    expect(r.fresh).toEqual([]);
+    expect(r.fixed).toEqual([]);
+    expect(r.moved).toEqual([
+      {
+        kind: "plik",
+        fullPath: "/proba",
+        was: "src/routes/stara-nazwa.tsx",
+        now: "src/routes/proba.tsx",
+      },
+    ]);
+    expect(renderColdRouteRatchet(r, WSZYSTKO_W_CACHE)).toContain(
+      "plik src/routes/stara-nazwa.tsx -> src/routes/proba.tsx",
+    );
+  });
+
+  it("NIEODEBRANA naprawa OBLEWA bramkę - inaczej zapadka nie zapada", () => {
+    // To nie jest karanie za poprawę, tylko warunek, bez którego lista
+    // membershipowa przestaje działać. Dopóki naprawiona trasa stoi na liście,
+    // ma tam WOLNY SLOT: jej późniejsza regresja dopasuje się do nieaktualnego
+    // wpisu, więc nie będzie `fresh`, a licznik wróci pod sufit - i obie bramki
+    // przepuszczą cofnięcie. Poprawę trzeba ODEBRAĆ w tym samym PR-ze.
+    const r = compareColdRouteRatchet(zimnyRaport("src/routes/proba.tsx", "/proba"), [
+      ["src/routes/proba.tsx", "/proba"],
+      ["src/routes/juz-naprawiona.tsx", "/juz-naprawiona"],
+    ]);
+
+    expect(r.fresh).toEqual([]);
+    expect(r.fixed).toEqual([
+      { file: "src/routes/juz-naprawiona.tsx", fullPath: "/juz-naprawiona" },
+    ]);
+    expect(coldRouteRatchetFailed(r)).toBe(true);
+    const tekst = renderColdRouteRatchet(r, WSZYSTKO_W_CACHE);
+    expect(tekst).toContain("NAPRAWIONYCH");
+    expect(tekst).toContain("/juz-naprawiona");
+    expect(tekst).toContain("ODBIERZ poprawę");
+    expect(tekst).toContain("WOLNY SLOT");
+  });
+
+  it("DOWÓD SEKWENCJI: nieodebrana naprawa przepuściłaby późniejszą regresję", () => {
+    // Krok 2 z opisu przy `coldRouteRatchetFailed`, odegrany na atrapach.
+    // Trasa wraca do stanu zimnego, a NIEAKTUALNY wpis wciąż na nią czeka -
+    // więc bez reguły „fixed oblewa" ta regresja NIE byłaby `fresh`.
+    const nieaktualnaLista = [["src/routes/proba.tsx", "/proba"]] as const;
+    const poRegresji = compareColdRouteRatchet(
+      zimnyRaport("src/routes/proba.tsx", "/proba"),
+      nieaktualnaLista,
+    );
+
+    expect(poRegresji.fresh).toEqual([]);
+    expect(poRegresji.fixed).toEqual([]);
+    // Zielone - i o to właśnie chodzi: gdyby krok 1 (naprawa) nie oblał,
+    // lista dotrwałaby do tego momentu w tym samym kształcie.
+    expect(coldRouteRatchetFailed(poRegresji)).toBe(false);
+  });
+
+  it("DWA pliki pod tym samym adresem: drugi wpis z listy nie jest zużywany dwa razy", () => {
+    // Na prawdziwym drzewie szesnaście adresów niesie po dwa pliki tras. Gdyby
+    // mapa adresów trzymała tylko pierwszy wpis, dopasowanie potrafiłoby trafić
+    // w rekord już zużyty przez dopasowanie po pliku - i ta sama trasa dałaby
+    // JEDNOCZEŚNIE `fresh` i `fixed`.
+    const r = compareColdRouteRatchet(zimnyRaport("src/routes/proba.tsx", "/proba"), [
+      ["src/routes/inna.tsx", "/proba"],
+      ["src/routes/jeszcze-inna.tsx", "/proba"],
+    ]);
+
+    expect(r.fresh).toEqual([]);
+    expect(r.moved).toHaveLength(1);
+    expect(r.fixed).toEqual([{ file: "src/routes/jeszcze-inna.tsx", fullPath: "/proba" }]);
+    // Drugi, nadmiarowy wpis to nieodebrana naprawa - i tak ma oblewać.
+    expect(coldRouteRatchetFailed(r)).toBe(true);
+  });
+});
+
+describe("ratchet na prawdziwym drzewie tras", () => {
+  it("lista tras publicznych bez rozgrzanej treści NIE ROŚNIE", { timeout: 180_000 }, () => {
+    const { cold, cachedCold } = analyseRealTree();
+    // Sufity wolno WYŁĄCZNIE OBNIŻAĆ - kronika pomiaru i uzasadnienie stoją
+    // przy `FROZEN_COLD_PUBLIC_ROUTES` w `../publicRouteLoaders`.
+    expect(
+      cold.length,
+      `trasy o samych zimnych kluczach: ${cold.map((r) => r.fullPath).join(", ")}`,
+    ).toBeLessThanOrEqual(FROZEN_COLD_PUBLIC_ROUTES);
+    expect(cachedCold.length).toBeLessThanOrEqual(FROZEN_COLD_CACHED_ROUTES);
+  });
+
+  it("ŻADNA trasa spoza ZAMROŻONEJ LISTY nie jest zimna", { timeout: 180_000 }, () => {
+    // Sufit wyżej pilnuje OBJĘTOŚCI długu, ta lista - jego TOŻSAMOŚCI. Sam
+    // licznik przepuszcza kompensację: naprawa `/qa` w tym samym PR-ze
+    // „opłaca" nową zimną trasę i liczba stoi w miejscu, a CI nigdy nie
+    // nazwie tej nowej. Pełne uzasadnienie: sekcja „RATCHET PER TRASA"
+    // w `../publicRouteLoaders`.
+    const ratchet = compareColdRouteRatchet(analyseRealTree().report, COLD_PUBLIC_ROUTE_BASELINE);
+
+    expect(ratchet.fresh, renderColdRouteRatchet(ratchet, wchodziDoCache)).toEqual([]);
+    expect(coldRouteRatchetFailed(ratchet)).toBe(false);
+  });
+
+  it("lista jest AKTUALNA - nie ma na niej tras już naprawionych", { timeout: 180_000 }, () => {
+    // `fixed` nie OBLEWA bramki (naprawa nie może być porażką), ale lista,
+    // z której nikt nie zdejmuje naprawionych tras, po kilku PR-ach przestaje
+    // cokolwiek znaczyć. Ten przypadek każe ją skrócić razem z sufitem.
+    const ratchet = compareColdRouteRatchet(analyseRealTree().report, COLD_PUBLIC_ROUTE_BASELINE);
+
+    expect(ratchet.fixed, renderColdRouteRatchet(ratchet, wchodziDoCache)).toEqual([]);
+    expect(ratchet.moved).toEqual([]);
+  });
+
+  it(
+    "KONTROLA NEGATYWNA: atrapowa trasa spoza listy OBLEWA ratchet per trasa",
+    { timeout: 180_000 },
+    () => {
+      // Bez tego przypadku nie wiadomo, czy lista w ogóle potrafi zapalić się
+      // na czerwono - a bramka, która zawsze widzi to samo, jest napisem.
+      const { report } = analyseRealTreeUncached(
+        {
+          "src/routes/ratchet-probe.tsx": `import { createFileRoute } from "@tanstack/react-router";
+export const Route = createFileRoute('/ratchet-probe')({ component: Probe });
+function Probe() { const q = useQuery(probeQueryOptions()); return <div>{q.data}</div>; }`,
+        },
+        `\n${routeTree([
+          {
+            ident: "RatchetProbe",
+            file: "routes/ratchet-probe",
+            path: "/ratchet-probe",
+            parent: "rootRouteImport",
+          },
+        ])}\n`,
+      );
+      const ratchet = compareColdRouteRatchet(report, COLD_PUBLIC_ROUTE_BASELINE);
+
+      expect(coldRouteRatchetFailed(ratchet)).toBe(true);
+      expect(ratchet.fresh.map((r) => r.fullPath)).toEqual(["/ratchet-probe"]);
+      // Komunikat MUSI nazywać trasę - to jest cała przewaga nad licznikiem.
+      expect(renderColdRouteRatchet(ratchet, wchodziDoCache)).toContain("/ratchet-probe");
+    },
+  );
+
+  it("PRZENIESIENIE pliku trasy nie jest nowym długiem", { timeout: 180_000 }, () => {
+    // Dopasowanie po DWÓCH kluczach (plik i adres). Przy jednym kluczu zwykła
+    // zmiana nazwy pliku dawałaby JEDNOCZEŚNIE `fresh` i `fixed` dla tej samej
+    // trasy, czyli bramka obwiniałaby refaktor za dług, którego nie przybyło.
+    const [[plik, adres]] = COLD_PUBLIC_ROUTE_BASELINE;
+    const podmieniona = COLD_PUBLIC_ROUTE_BASELINE.map(([f, a]) =>
+      f === plik
+        ? ([`src/routes/przeniesiona-${f.slice("src/routes/".length)}`, a] as const)
+        : ([f, a] as const),
+    );
+    const ratchet = compareColdRouteRatchet(analyseRealTree().report, podmieniona);
+
+    expect(ratchet.fresh).toEqual([]);
+    expect(ratchet.fixed).toEqual([]);
+    expect(ratchet.moved).toHaveLength(1);
+    const przeniesiona = ratchet.moved[0];
+    expect(przeniesiona?.kind).toBe("plik");
+    if (przeniesiona?.kind !== "plik") throw new Error("test: oczekiwano przeniesienia PLIKU");
+    expect(przeniesiona.fullPath).toBe(adres);
+    expect(przeniesiona.now).toBe(plik);
+  });
+
+  it(
+    "KONTROLA NEGATYWNA: atrapowa trasa z `useQuery` bez loadera OBLEWA ratchet",
+    { timeout: 180_000 },
+    () => {
+      // Bez tego przypadku nie wiadomo, czy ratchet w ogóle potrafi wzrosnąć:
+      // bramka, która zawsze widzi tę samą liczbę, jest napisem.
+      const { cold, cachedCold } = analyseRealTreeUncached(
+        {
+          "src/routes/ratchet-probe.tsx": `import { createFileRoute } from "@tanstack/react-router";
+export const Route = createFileRoute('/ratchet-probe')({ component: Probe });
+function Probe() { const q = useQuery(probeQueryOptions()); return <div>{q.data}</div>; }`,
+        },
+        `\n${routeTree([
+          {
+            ident: "RatchetProbe",
+            file: "routes/ratchet-probe",
+            path: "/ratchet-probe",
+            parent: "rootRouteImport",
+          },
+        ])}\n`,
+      );
+      expect(cold.length).toBeGreaterThan(FROZEN_COLD_PUBLIC_ROUTES);
+      expect(cachedCold.length).toBeGreaterThan(FROZEN_COLD_CACHED_ROUTES);
+    },
+  );
+
+  it("REGRES Z 2026-09-01 (21/16) JEST SPŁACONY - wpis rejestru zamknięty", () => {
+    // Ten przypadek zastępuje `it.fails`, który stał tu od 2026-09-12 i
+    // rejestrował przyrost 21 -> 29 z gałęzi minisite'ów klubowych. Jego własny
+    // komentarz zapowiadał: „wpis padnie sam, gdy te trasy dostaną loadery -
+    // i wtedy MA zostać zdjęty razem z obniżeniem FROZEN_COLD_PUBLIC_ROUTES".
+    // Dokładnie to zaszło 2026-09-20: czternaście tras `/club/$clubSlug/**`
+    // grzeje dziś jeden loader układu, a sufity zeszły do 15/12.
+    //
+    // ZOSTAWIONY JAKO ZWYKŁY PRZYPADEK, NIE SKASOWANY, i to jest cała jego
+    // treść: `it.fails`, który zaczyna przechodzić, sam staje się czerwony -
+    // więc bez tej zamiany nikt nie odróżniłby spłaconego długu od zepsutej
+    // analizy. Porównanie z liczbami sprzed regresu pilnuje, żeby sufit nigdy
+    // nie wrócił ponad stan, od którego wszystko się zaczęło.
+    expect(FROZEN_COLD_PUBLIC_ROUTES).toBeLessThanOrEqual(21);
+    expect(FROZEN_COLD_CACHED_ROUTES).toBeLessThanOrEqual(16);
+  });
+});

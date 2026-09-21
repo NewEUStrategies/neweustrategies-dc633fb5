@@ -4,6 +4,7 @@
 // operatora płatności (Stripe obsługuje transakcje w naszym imieniu).
 import type { LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { LegalDocSwitcher } from "./LegalDocSwitcher";
 
 export interface LegalSection {
   id: string;
@@ -34,17 +35,7 @@ export function LegalPage({ eyebrow, title, lead, updatedLabel, sections, footno
         <p className="text-xs text-muted-foreground">{updatedLabel}</p>
       </header>
 
-      <nav aria-label={title} className="flex flex-wrap gap-2">
-        {sections.map((s) => (
-          <a
-            key={s.id}
-            href={`#${s.id}`}
-            className="rounded-md border border-border bg-muted/30 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-          >
-            {s.heading}
-          </a>
-        ))}
-      </nav>
+      <LegalDocSwitcher />
 
       <div className="space-y-4">
         {sections.map((s) => (

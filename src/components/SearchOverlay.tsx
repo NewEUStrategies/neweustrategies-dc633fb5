@@ -20,7 +20,7 @@ import {
   Users,
   X,
 } from "@/lib/lucide-shim";
-import "@/lib/i18n-public";
+import "@/lib/i18n-public-search-overlay";
 import { AppLink } from "@/components/atoms/AppLink";
 import {
   addRecentSearch,
@@ -511,6 +511,7 @@ function SearchBar({
     >
       <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
       <input
+        type="search"
         ref={inputRef}
         value={q}
         onChange={(e) => setQ(e.target.value)}
@@ -524,7 +525,15 @@ function SearchBar({
         enterKeyHint="search"
         autoCapitalize="off"
         autoCorrect="off"
+        autoComplete="one-time-code"
         spellCheck={false}
+        inputMode="search"
+        name="overlay_search_query"
+        data-mobile-search-input=""
+        data-1p-ignore="true"
+        data-lpignore="true"
+        data-bwignore="true"
+        data-form-type="other"
         className="flex-1 border-0 bg-transparent text-[16px] text-foreground shadow-none outline-none placeholder:text-muted-foreground/60 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 sm:text-[13px]"
         style={{ boxShadow: "none", WebkitTapHighlightColor: "transparent" }}
       />

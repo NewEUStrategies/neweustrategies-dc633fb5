@@ -25,9 +25,14 @@
 // redaktora w tenancie domowym. Zwyklym zapytaniem redaktor moglby je zapisac
 // na slepo, ale nie odczytac.
 //
-// POLE ADRESU ZEWNETRZNEGO POJAWIA SIE TYLKO W TRYBIE `external`. Pole, ktorego
-// nikt nigdy nie czyta, jest polem, ktore ktos kiedys wypelni przez pomylke -
-// a wtedy zapis ma sie udac, bo baza nie zeruje adresu przy zmianie trybu.
+// POLE ADRESU ZEWNETRZNEGO POJAWIA SIE W TRYBIE `external` - ORAZ WSZEDZIE TAM,
+// GDZIE TEN ADRES BLOKUJE ZAPIS. Pole, ktorego nikt nigdy nie czyta, jest polem,
+// ktore ktos kiedys wypelni przez pomylke - a wtedy zapis ma sie udac, bo baza
+// nie zeruje adresu przy zmianie trybu. To jednak dotyczy adresu POPRAWNEGO:
+// adres w zlym ksztalcie lamie CHECK `events_external_registration_url_https`
+// w KAZDYM trybie, wiec `validateRegistrationSettingsDraft` gasi „Zapisz" takze
+// przy `rsvp`. Zgaszony przycisk bez pola i bez czerwonego zdania jest blokada
+// bez powodu na ekranie - dlatego pole wraca razem ze swoim komunikatem.
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -103,7 +108,28 @@ export function EventRegistrationSettingsPanel({ row }: { row: AdminEventDetailR
   // FORMAT NIE JEST EDYTOWANY TUTAJ - przychodzi z wiersza, bo ostrzezenie
   // „online bez adresu transmisji" jest zdaniem o PARZE ustawien z dwoch ekranow.
   const warnings = registrationSettingsWarnings(draft, asEventFormat(row.format));
-  const dirty = registrationSettingsDirty(draft, saved);
+  // LADUNEK GUBI KWOTE NIECZYTELNA - zamienia ja na PUSTY NAPIS, czyli na to
+  // samo, co niesie pole puste. Samo porownanie ladunkow uznaje wiec „dwiescie"
+  // wpisane w wydarzeniu bezplatnym za brak zmiany: pasek zapisu nie wstaje,
+  // `touched` zostaje na `false`, a wtedy i czerwone zdanie nie ma sie kiedy
+  // pokazac. Szkic, ktorego baza by nie przyjela, JEST zmiana warta paska.
+  const dirty = registrationSettingsDirty(draft, saved) || errors.length > 0;
+
+  // Tryb „bez zapisow" nie zbiera zgloszen, wiec limit miejsc nie ma czego
+  // odcinac. Wartosc zostaje w szkicu i w ladunku (baza jej nie zeruje, a powrot
+  // do zapisow ma odzyskac pule), ale pole jest zgaszone i mowi dlaczego.
+  const withoutSignups = draft.registrationMode === "none";
+
+  // Adres zewnetrzny w zlym ksztalcie blokuje zapis w KAZDYM trybie, wiec pole
+  // musi stanac na ekranie takze poza `external` - inaczej redaktor ma zgaszony
+  // przycisk i ani jednego pola do poprawienia.
+  const externalUrlRejected = errors.some((error) => error.field === "externalRegistrationUrl");
+
+  // TA SAMA ZASADA DLA LIMITU. CHECK `capacity IS NULL OR capacity > 0` obowiazuje
+  // w kazdym trybie, wiec odrzucona wartosc gasi „Zapisz" takze przy „bez zapisow".
+  // Pole zgaszone z czerwonym zdaniem pod spodem byloby wtedy blokada, ktorej
+  // redaktor nie ma jak odblokowac - gasimy je dopiero, gdy nie ma czego poprawiac.
+  const capacityRejected = errors.some((error) => error.field === "capacity");
 
   const set = <K extends keyof RegistrationSettingsDraft>(
     key: K,
@@ -146,7 +172,7 @@ export function EventRegistrationSettingsPanel({ row }: { row: AdminEventDetailR
           ))}
         </div>
 
-        {draft.registrationMode === "external" ? (
+        {draft.registrationMode === "external" || externalUrlRejected ? (
           <AdminFormTextRow
             id="event-external-registration-url"
             label={t("adminEvents.studio.registrationSettings.externalUrlLabel")}
@@ -254,7 +280,12 @@ export function EventRegistrationSettingsPanel({ row }: { row: AdminEventDetailR
           label={t("adminEvents.studio.registrationSettings.capacityLabel")}
           value={draft.capacity}
           inputMode="numeric"
-          hint={t("adminEvents.studio.registrationSettings.capacityHint")}
+          disabled={withoutSignups && !capacityRejected}
+          hint={t(
+            withoutSignups
+              ? "adminEvents.studio.registrationSettings.capacityWithoutSignupsHint"
+              : "adminEvents.studio.registrationSettings.capacityHint",
+          )}
           error={errorFor("capacity")}
           onValueChange={(value) => set("capacity", value)}
         />

@@ -2,15 +2,16 @@
 // Uploads .woff2/.woff/.ttf/.otf to the public `media` bucket under
 // `<tenantId>/fonts/*` and appends the entry to design tokens' `fonts.custom`.
 import { useState } from "react";
-import { Upload, Trash2 } from "lucide-react";
+import { CaseSensitive, Trash2, Type, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-panes-misc";
 import { useAuth } from "@/hooks/useAuth";
 import { uploadCustomFont, type CustomFont } from "@/lib/theme/customFonts";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { UploadArea } from "@/components/ui/upload-area";
+import "@/lib/i18n-upload-area";
 
 interface Props {
   value: CustomFont[];
@@ -24,8 +25,9 @@ export function CustomFontUploader({ value, onChange }: Props) {
   const [weight, setWeight] = useState("400");
   const [busy, setBusy] = useState(false);
 
-  const onPick = async (file: File | undefined) => {
-    if (!file) return;
+  // Obszar wgrywania nie oddaje pustej listy (patrz `emit` w `upload-area`),
+  // więc pole dostaje zawsze konkretny plik - własny strażnik byłby martwy.
+  const onPick = async (file: File) => {
     if (!tenantId) {
       toast.error(t("adminPanesMisc.customFont.errNoTenant"));
       return;
@@ -54,7 +56,7 @@ export function CustomFontUploader({ value, onChange }: Props) {
       <div className="text-sm font-medium">{t("adminPanesMisc.customFont.title")}</div>
       <p className="text-xs text-muted-foreground">{t("adminPanesMisc.customFont.hint")}</p>
 
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_120px_auto] gap-2 items-end">
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_120px] gap-2 items-end">
         <div>
           <Label className="text-xs">{t("adminPanesMisc.customFont.displayName")}</Label>
           <Input
@@ -67,23 +69,19 @@ export function CustomFontUploader({ value, onChange }: Props) {
           <Label className="text-xs">{t("adminPanesMisc.customFont.weight")}</Label>
           <Input value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="400" />
         </div>
-        <div>
-          <Button asChild disabled={busy} size="sm">
-            <label className="cursor-pointer inline-flex items-center gap-1.5">
-              <Upload className="w-3.5 h-3.5" />
-              {busy
-                ? t("adminPanesMisc.customFont.uploading")
-                : t("adminPanesMisc.customFont.pickFile")}
-              <input
-                type="file"
-                accept=".woff2,.woff,.ttf,.otf,font/*"
-                className="hidden"
-                onChange={(e) => onPick(e.target.files?.[0])}
-              />
-            </label>
-          </Button>
-        </div>
       </div>
+
+      <UploadArea
+        size="sm"
+        title={t("uploadArea.font.title")}
+        description={t("uploadArea.font.description")}
+        ctaLabel={t("adminPanesMisc.customFont.pickFile")}
+        busyLabel={t("adminPanesMisc.customFont.uploading")}
+        busy={busy}
+        icons={[Type, Upload, CaseSensitive]}
+        accept=".woff2,.woff,.ttf,.otf,font/*"
+        onFiles={(files) => void onPick(files[0])}
+      />
 
       {value.length > 0 && (
         <ul className="space-y-1.5 pt-2 border-t border-border">

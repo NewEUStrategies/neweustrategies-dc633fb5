@@ -57,6 +57,8 @@ export interface SiteDesignTokensRow {
   fonts: unknown;
   scale: unknown;
   global_colors: unknown;
+  /** Tabela rozmiarów czcionek (patrz lib/theme/fontScale). */
+  font_scale: unknown;
 }
 
 const DESIGN_TOKENS_ROW_TTL_MS = 60_000;
@@ -77,22 +79,28 @@ let inflightRow: Promise<SiteDesignTokensRow | null> | null = null;
  * odporności co dotąd.
  */
 export async function fetchSiteDesignTokensRow(): Promise<SiteDesignTokensRow | null> {
-  if (inflightRow) return inflightRow;
+  // The browser has one host. SSR shares this module across tenants; its
+  // single-flight must remain inside the host-scoped edgeTtlCache.
+  const browser = typeof window !== "undefined";
+  if (browser && inflightRow) return inflightRow;
   const load = async (): Promise<SiteDesignTokensRow | null> => {
     const { data, error } = await supabase
       .from("site_design_tokens")
-      .select("colors, fonts, scale, global_colors")
+      .select("colors, fonts, scale, global_colors, font_scale")
       .maybeSingle();
-    if (error) return null;
+    // Keep a known-good stale theme when a background refresh fails. The
+    // outer catch still gives callers their normal null fallback on a miss.
+    if (error) throw error;
     return (data as SiteDesignTokensRow | null) ?? null;
   };
-  inflightRow = edgeTtlCache("site_design_tokens:row", DESIGN_TOKENS_ROW_TTL_MS, load).catch(
+  const pending = edgeTtlCache("site_design_tokens:row", DESIGN_TOKENS_ROW_TTL_MS, load).catch(
     () => null,
   );
+  if (browser) inflightRow = pending;
   try {
-    return await inflightRow;
+    return await pending;
   } finally {
-    inflightRow = null;
+    if (inflightRow === pending) inflightRow = null;
   }
 }
 

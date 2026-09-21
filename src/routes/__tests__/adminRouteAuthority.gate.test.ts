@@ -30,6 +30,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const ROUTES_DIR = "src/routes";
+const MIGRATIONS_DIR = "supabase/migrations";
 // Rodzina `admin.community.clubs.*` - sześć tras, które ta bramka pilnuje
 // osobno (patrz `describe("panel klubów - autorytet")` na końcu pliku).
 const CLUB_ROUTES = [
@@ -705,13 +706,43 @@ describe("moduł 19 - wzorzec B: trasa admina i defekty zgłoszone", () => {
 // `adminSeoRoutes.test.tsx`) i nie sprawdza bazy (to robią polityki RLS,
 // czytane tu wyłącznie jako TEKST migracji - żeby ciche rozluźnienie polityki
 // nie zostało niezauważone).
-const SEO_ROUTES = ["admin.seo.tsx", "admin.seo.search-console.tsx", "admin.settings.seo.tsx"];
+const SEO_ROUTES = [
+  "admin.seo.tsx",
+  "admin.seo.index.tsx",
+  "admin.seo.content.tsx",
+  "admin.seo.homepage.tsx",
+  "admin.seo.social.tsx",
+  "admin.seo.search-console.tsx",
+  "admin.settings.seo.tsx",
+];
+
+/**
+ * Ekrany rodziny SEO, które WYŁĄCZNIE czytają. Brak własnego sprawdzenia roli
+ * jest na nich poprawny: layout `/admin` odsiewa osoby z zewnątrz, a personel
+ * ma prawo czytać. Gdyby któryś dostał mutację, test niżej padnie i wymusi
+ * decyzję o roli - zamiast wypuścić formularz, który odrzuci RLS.
+ */
+const SEO_READ_ONLY_ROUTES = [
+  "admin.seo.tsx",
+  "admin.seo.index.tsx",
+  "admin.seo.content.tsx",
+  "admin.seo.search-console.tsx",
+];
+
+/**
+ * Ekrany rodziny SEO, które ZAPISUJĄ `site_settings`. RLS wymaga tu roli
+ * `admin`, a layout `/admin` przepuszcza także `editor` i `author` - więc
+ * każdy z nich MUSI sam sprawdzić rolę, inaczej oferuje akcję, którą baza
+ * odrzuci. To jest ta sama klasa defektu, którą `it.fails` niżej opisuje dla
+ * `/admin/settings/seo`; nowe ekrany nie mają prawa jej powielać.
+ */
+const SEO_WRITING_ROUTES = ["admin.seo.homepage.tsx", "admin.seo.social.tsx"];
 /** Migracja, która nadała `site_settings` politykę „tylko admin pisze". */
 const SITE_SETTINGS_POLICY_MIGRATION =
   "supabase/migrations/20260626162717_fe6d7498-55f7-4850-b07e-7accc7013cb5.sql";
 
 describe("panel SEO - autorytet dostępu", () => {
-  it("wszystkie trzy trasy rodziny SEO istnieją - kanarek zasięgu", () => {
+  it("wszystkie trasy rodziny SEO istnieją - kanarek zasięgu", () => {
     // Bez tego bramka zrobiłaby się pusta po zmianie nazwy pliku i milczała.
     const present = adminRoutes();
     for (const file of SEO_ROUTES) {
@@ -734,17 +765,32 @@ describe("panel SEO - autorytet dostępu", () => {
   });
 
   it("przeglądy SEO są TYLKO DO CZYTANIA - nie oferują zapisu, którego baza mogłaby odrzucić", () => {
-    // `/admin/seo` i `/admin/seo/search-console` czytają treść i dane GSC.
+    // Układ zakładek, kokpit, tabela treści i Search Console tylko CZYTAJĄ.
     // Dopóki nie mają mutacji, brak własnego sprawdzenia roli jest POPRAWNY:
     // layout `/admin` odsiewa osoby z zewnątrz, a personel ma prawo czytać.
     // Gdyby dowolna z nich dostała zapis, ten test padnie i wymusi decyzję
     // o roli - zamiast wypuścić formularz, który odrzuci RLS.
-    const offenders = ["admin.seo.tsx", "admin.seo.search-console.tsx"].filter((file) =>
+    const offenders = SEO_READ_ONLY_ROUTES.filter((file) =>
       /useMutation\(|\.mutate\(|\.upsert\(|\.insert\(|\.update\(|\.delete\(/.test(
         read(`${ROUTES_DIR}/${file}`),
       ),
     );
     expect(offenders).toEqual([]);
+  });
+
+  it("zakładki SEO, które ZAPISUJĄ, sprawdzają rolę `admin` same z siebie", () => {
+    // Odwrotność testu wyżej i domknięcie defektu, który `it.fails` niżej
+    // trzyma zamrożony dla `/admin/settings/seo`: skoro RLS puszcza zapis
+    // `site_settings` wyłącznie adminowi, a layout `/admin` wpuszcza cały
+    // personel, to ekran z `SaveBar` bez odczytu `isAdmin` KŁAMIE redaktorowi.
+    // Nowe zakładki (`/admin/seo/homepage`, `/admin/seo/social`) czytają
+    // `isAdmin` z `useAuth()` i renderują formularz tylko do odczytu.
+    const missing = SEO_WRITING_ROUTES.filter((file) => {
+      const source = read(`${ROUTES_DIR}/${file}`);
+      const writes = /save\.mutate\(|useMutation\(/.test(source);
+      return writes && !/isAdmin/.test(source);
+    });
+    expect(missing, "trasa zapisująca site_settings musi sama sprawdzać rolę `admin`").toEqual([]);
   });
 
   it("panel SEO nie mówi redaktorowi po polsku w kodzie - komunikaty idą przez klucze", () => {
@@ -849,8 +895,11 @@ describe("panel newslettera - autorytet dostępu", () => {
     for (const file of NEWSLETTER_SERVER_FNS) {
       const source = read(file);
       const ilePublicznych = (source.match(/createServerFn\(/g) ?? []).length;
+      // `requirePlatformAdmin` jest w tej liście, bo to bramka WYŻSZA niż
+      // personel najemcy (super_admin w najemcy domyślnym) - stoi przy zapisie
+      // konfiguracji runnera, czyli przy singletonie instalacji.
       const ileZBramka = (
-        source.match(/\.middleware\(\[require(Staff|AdminEditor|Admin)\]\)/g) ?? []
+        source.match(/\.middleware\(\[require(Staff|AdminEditor|PlatformAdmin|Admin)\]\)/g) ?? []
       ).length;
       expect(
         ilePublicznych,
@@ -910,5 +959,388 @@ describe("panel newslettera - autorytet dostępu", () => {
     for (const file of zTrescia) {
       expect(read(`${ROUTES_DIR}/${file}`), `${file} nie woła t() ani razu`).toMatch(/\bt\("/);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PANEL SPOŁECZNOŚCI POZA KLUBAMI
+// rozszerzenie zakresu bramki (2026-09-02, moduł 16)
+// ---------------------------------------------------------------------------
+//
+// PO CO. Bramka widziała z modułu społeczności WYŁĄCZNIE podrodzinę
+// `admin.community.clubs.*` (sześć tras, sekcja „panel klubów - autorytet
+// dostępu" wyżej). Pozostałe DZIESIĘĆ tras panelu społeczności - w tym
+// `admin.community.qa.tsx`, przez które przechodzi moderacja pytań
+// publiczności i PUBLIKACJA podsumowania sesji jako treści - nie było na
+// żadnej z list tego pliku: ani na `CLUB_ROUTES`, ani na `NEWSLETTER_ROUTES`,
+// ani na `MODULE19_ROUTES`. Skutek: gdyby ktoś dołożył tam własny warunek
+// roli albo zbudował zapytanie do Supabase z pominięciem warstwy `lib/`,
+// bramka by tego nie zauważyła.
+//
+// DLACZEGO REGUŁA JEST TU INNA NIŻ DLA KLUBÓW. Struktura klubów jest domeną
+// wyłącznie admina, więc TAM każda trasa MUSI sprawdzać `isAdmin` sama.
+// Społecznością (Q&A, ankiety, czat, odznaki, powiadomienia) zarządza CAŁA
+// redakcja - `isStaff` z layoutu `/admin` jest tu bramką właściwą, a własny
+// warunek roli w trasie byłby defektem w drugą stronę: panel odmawiałby
+// czegoś, do czego RLS i tak dopuszcza (polityki `qa sessions staff all`,
+// `qa questions staff read` wymieniają `admin` ORAZ `editor`, a dodatkowo
+// przepuszczają gospodarza sesji).
+//
+// STAN i SKLEJENIE tych tras pokrywają osobne pliki
+// (`adminCommunityQaRoute.test.tsx`, `adminCommunityChatRoute.test.tsx`,
+// `adminCommunityNotificationsRoute.test.tsx`). Tutaj - wyłącznie AUTORYTET.
+
+/** Rodzina `admin.community.*` BEZ podrodziny klubów (ta ma sekcję wyżej). */
+const COMMUNITY_ROUTES = [
+  "admin.community.tsx",
+  "admin.community.index.tsx",
+  "admin.community.qa.tsx",
+  "admin.community.polls.tsx",
+  "admin.community.events.tsx",
+  "admin.community.chat.tsx",
+  "admin.community.badges.tsx",
+  "admin.community.contributors.tsx",
+  "admin.community.engagement.tsx",
+  "admin.community.notifications.tsx",
+] as const;
+
+/** pgTAP autorytetu Q&A - anonimowość pytających i workflow publikacji. */
+const COMMUNITY_QA_PGTAP = [
+  "supabase/tests/community_qa_test.sql",
+  "supabase/tests/community_qa_summary_test.sql",
+] as const;
+
+describe("panel społeczności - autorytet dostępu", () => {
+  it("wszystkie dziesięć tras rodziny `admin.community` (poza klubami) istnieje", () => {
+    // Bez tego bramka zrobiłaby się pusta po zmianie nazwy pliku i MILCZAŁA.
+    const present = adminRoutes();
+    for (const file of COMMUNITY_ROUTES) {
+      expect(present, `brak trasy ${file}`).toContain(file);
+    }
+    // Skan widzi CAŁĄ rodzinę razem z klubami, także pliki dodane po napisaniu
+    // tej listy - inaczej nowa trasa panelu społeczności wchodziłaby poza
+    // zasięg bramki bez żadnego sygnału.
+    const skan = present.filter((name) => name.startsWith("admin.community"));
+    expect(skan.length).toBeGreaterThanOrEqual(COMMUNITY_ROUTES.length + CLUB_ROUTES.length);
+  });
+
+  it("dostępu pilnuje layout `/admin` - żadna z tych tras nie udaje własnej bramki", () => {
+    // Społecznością zarządza cała redakcja (`isStaff` = admin/editor/author),
+    // więc brak własnego `isAdmin` jest tu POPRAWNY, a nie przeoczony.
+    // `useAuth` samo w sobie nie jest zakazane (`admin.community.badges`
+    // czyta z niego `tenantId` do zapytań) - zakazany jest WARUNEK ROLI, bo
+    // to on rozjeżdża się z regułami bazy przy pierwszej zmianie ról.
+    const zRolaWTrasie = COMMUNITY_ROUTES.filter((file) =>
+      /isAdmin|isSuperAdmin|isStaff/.test(read(`${ROUTES_DIR}/${file}`)),
+    );
+    expect(zRolaWTrasie).toEqual([]);
+    // …a skoro tak, layout MUSI być jedyną i realną bramką.
+    expect(read(ADMIN_LAYOUT)).toMatch(/isStaff/);
+  });
+
+  it("trasy społeczności nie budują WŁASNYCH zapytań do Supabase", () => {
+    // Zapytanie zbudowane w pliku trasy omija warstwę `src/lib/admin/*`,
+    // w której mieszka wybór kolumn - a w Q&A ten wybór jest regułą
+    // prywatności: `qa_questions.user_id` jest odcięty grantem i lista kolumn
+    // musi go pomijać, inaczej odczyt w ogóle się nie powiedzie.
+    const offenders = COMMUNITY_ROUTES.filter((file) =>
+      /@\/integrations\/supabase|supabaseAdmin|\bsupabase\s*\n?\s*\.from\(/.test(
+        read(`${ROUTES_DIR}/${file}`),
+      ),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("trasy społeczności mówią do operatora KLUCZAMI i18n, nie polszczyzną w kodzie", () => {
+    // Bramka parytetu słowników nie widzi literału w JSX-ie, a moduł ma wersję
+    // angielską. Sprawdzamy trasy, które w ogóle mają własną treść - reszta to
+    // powłoki delegujące render do organizmów panelu.
+    const zTrescia = COMMUNITY_ROUTES.filter((file) =>
+      /useTranslation\(/.test(read(`${ROUTES_DIR}/${file}`)),
+    );
+    expect(zTrescia.length, "żadna trasa społeczności nie ma własnej treści?").toBeGreaterThan(0);
+    for (const file of zTrescia) {
+      expect(read(`${ROUTES_DIR}/${file}`), `${file} nie woła t() ani razu`).toMatch(/\bt\("/);
+    }
+  });
+
+  it("autorytet Q&A jest pokryty pgTAP - anonimowość i workflow publikacji", () => {
+    // Ten test nie sprawdza bazy (do tego jest pgTAP) - sprawdza, że pokrycie
+    // NIE ZNIKNĘŁO. To są reguły, po których (a) tożsamość pytającego nie
+    // opuszcza bazy i (b) publikacja podsumowania wymaga roli redakcyjnej.
+    for (const file of COMMUNITY_QA_PGTAP) {
+      expect(read(file).length, `pusty plik pgTAP: ${file}`).toBeGreaterThan(0);
+    }
+    const sql = COMMUNITY_QA_PGTAP.map((file) => read(file)).join("\n");
+    expect(sql, "pgTAP przestał pilnować odcięcia kolumny user_id").toContain("user_id");
+    expect(sql).toContain("publish_qa_session_summary");
+    expect(sql).toContain("publish requires editorial role");
+  });
+
+  it("panel Q&A nie oferuje publikacji jako akcji cichej - ma osobną drogę na szkic", () => {
+    // Ten sam wzorzec, który znalazł defekt z nagłówka pliku (panel oferuje
+    // akcję, którą baza odrzuci). RPC `publish_qa_session_summary` przepuszcza
+    // szkic dla redaktora i gospodarza, a PUBLIKACJĘ tylko dla
+    // `can_publish_content`. Panel musi mieć OBIE drogi widoczne obok siebie,
+    // inaczej redaktor ma jeden przycisk, który zawsze kończy się odmową.
+    const source = read(`${ROUTES_DIR}/admin.community.qa.tsx`);
+    expect(source).toMatch(/publishQaSessionSummary\(session\.id, publish\)/);
+    expect(source).toMatch(/adminCommunity\.qa\.createDraft/);
+    expect(source).toMatch(/adminCommunity\.qa\.publishNow/);
+    expect(source).toMatch(/adminCommunity\.qa\.publishingRequiresAdminRole/);
+  });
+});
+
+// Rodzina karier - dwie trasy panelu rekrutacji, które ta bramka do 03.09.2026
+// NIE WIDZIAŁA. Bramka pilnuje autorytetu dostępu przez JAWNE listy rodzin
+// (kluby, newsletter, moduł 19, SEO, społeczność); rodziny karier nie było na
+// żadnej z nich, więc dołożenie w tych trasach własnego - i niezgodnego z bazą -
+// warunku roli przechodziłoby po cichu. Dziurę wykrył `adminHiringRoute.test.tsx`
+// i zapisał jako `it.fails` z kontrolą dodatnią; ta sekcja ją zamyka, a tamten
+// `it.fails` przy najbliższym przebiegu zapali się jako NIEOCZEKIWANIE ZIELONY
+// i wymusi zamianę na zwykły `it` - czyli dokładnie tak, jak ten wzorzec ma
+// działać.
+const CAREERS_ROUTES = ["admin.careers.tsx", "admin.hiring.tsx"] as const;
+
+/** Tabele, do których panel rekrutacji ma prawo pisać WPROST (pod RLS). */
+const CAREERS_TABLES = [
+  "career_application_events",
+  "career_applications",
+  "career_cv_gc_queue",
+  "career_page_sections",
+  "career_roles",
+  "career_settings",
+  "contact_messages",
+  "crm_leads",
+] as const;
+
+/** Migracja zakładająca zakres najemcy i polityki `is_staff()` dla karier. */
+const CAREERS_TENANT_MIGRATION = "supabase/migrations/20260814100000_careers_tenant_scope.sql";
+
+/** Treść jednego `CREATE POLICY ...;` z pliku migracji (do porównań progu roli). */
+function policyBlock(migrationFile: string, policy: string): string {
+  const sql = read(`${MIGRATIONS_DIR}/${migrationFile}`);
+  return sql.slice(sql.indexOf(`CREATE POLICY ${policy}`)).split(";")[0];
+}
+
+/** Migracje definiujące daną politykę, w kolejności wykonania (ostatnia obowiązuje). */
+function migrationsDefining(policy: string): string[] {
+  return readdirSync(MIGRATIONS_DIR)
+    .filter((file) => file.endsWith(".sql"))
+    .sort()
+    .filter((file) => read(`${MIGRATIONS_DIR}/${file}`).includes(`CREATE POLICY ${policy}`));
+}
+
+/** Definicja OBOWIĄZUJĄCA - z ostatniej migracji, która politykę odtwarza. */
+function effectivePolicy(policy: string): { file: string; block: string } {
+  const defining = migrationsDefining(policy);
+  if (defining.length === 0) throw new Error(`test: nikt nie definiuje polityki ${policy}`);
+  const file = defining[defining.length - 1];
+  return { file, block: policyBlock(file, policy) };
+}
+
+describe("panel rekrutacji - autorytet dostępu", () => {
+  it("obie trasy rodziny karier istnieją", () => {
+    // Kanarek: bez tego bramka zrobiłaby się pusta po zmianie nazwy pliku
+    // i MILCZAŁA, zamiast zapalić się na braku trasy.
+    const present = adminRoutes();
+    for (const file of CAREERS_ROUTES) {
+      expect(present, `brak trasy ${file}`).toContain(file);
+    }
+    // Skan widzi CAŁĄ rodzinę, także trasy dodane po napisaniu tej listy -
+    // inaczej nowy panel rekrutacji wchodziłby poza zasięg bramki bez sygnału.
+    const skan = present.filter(
+      (name) => name.startsWith("admin.careers") || name.startsWith("admin.hiring"),
+    );
+    expect(skan.length).toBe(CAREERS_ROUTES.length);
+  });
+
+  it("dostępu pilnuje layout `/admin` - żadna z tych tras nie udaje własnej bramki", () => {
+    // Rekrutację prowadzi cała redakcja (`isStaff` = admin/editor/author), więc
+    // brak własnego `isAdmin` jest tu POPRAWNY, a nie przeoczony. Zakazany jest
+    // WARUNEK ROLI w trasie, bo to on rozjeżdża się z regułami bazy przy
+    // pierwszej zmianie ról - a tu po drugiej stronie stoją polityki
+    // `career_*_staff_*` pytające `public.is_staff()`.
+    const zRolaWTrasie = CAREERS_ROUTES.filter((file) =>
+      /isAdmin|isSuperAdmin|isStaff/.test(read(`${ROUTES_DIR}/${file}`)),
+    );
+    expect(zRolaWTrasie).toEqual([]);
+    expect(read(ADMIN_LAYOUT)).toMatch(/isStaff/);
+    const sql = read(CAREERS_TENANT_MIGRATION);
+    expect(sql, "polityki karier przestały pytać o `is_staff()`").toContain("public.is_staff()");
+  });
+
+  it("ŻADNA trasa rekrutacji nie sięga po klienta z rolą serwisową", () => {
+    // NAJWAŻNIEJSZY INWARIANT TEJ SEKCJI. Oba panele obracają DANYMI OSOBOWYMI
+    // kandydatów (imię, kontakt, plik CV w prywatnym kubełku). Klient
+    // `service_role` omija RLS W CAŁOŚCI, więc jeden taki import zamieniłby
+    // panel pod polityką najemcy w panel bez granic - i to bez śladu w typach.
+    // Ta reguła nie jest teoretyczna: sąsiedni endpoint `jobs-tick` NAPRAWDĘ
+    // używa `supabaseAdmin`, więc wzorzec jest w repo dostępny „pod ręką".
+    const offenders = CAREERS_ROUTES.filter((file) =>
+      /client\.server|supabaseAdmin/.test(read(`${ROUTES_DIR}/${file}`)),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("trasy rekrutacji nie piszą WPROST do tabel uprzywilejowanych", () => {
+    const zakazane = ["user_roles", "tenants", "role_audit_log", "user_consents"] as const;
+    for (const file of CAREERS_ROUTES) {
+      const source = read(`${ROUTES_DIR}/${file}`);
+      for (const table of zakazane) {
+        expect(source, `${file} pisze wprost do ${table}`).not.toMatch(
+          new RegExp(`from\\("${table}"\\)`),
+        );
+      }
+    }
+  });
+
+  it("zbiór tabel dotykanych przez panel rekrutacji nie rośnie po cichu", () => {
+    // RATCHET ZAKRESU, nie ozdoba. Te trasy budują zapytania W SOBIE (inaczej
+    // niż rodzina społeczności, która schodzi przez `src/lib/admin/*`), więc
+    // nowa tabela pojawia się tu jednym `.from("...")` - bez przeglądu, bez
+    // migracji polityki i bez wpisu w rejestrze własnicielskim. Lista jest
+    // JAWNA, żeby takie poszerzenie wymagało zmiany tej bramki, a więc rozmowy.
+    const dotykane = new Set<string>();
+    for (const file of CAREERS_ROUTES) {
+      for (const match of read(`${ROUTES_DIR}/${file}`).matchAll(/\.from\("([a-z_]+)"\)/g)) {
+        dotykane.add(match[1]);
+      }
+    }
+    expect([...dotykane].sort()).toEqual([...CAREERS_TABLES]);
+  });
+
+  it("próg roli tabel TREŚCIOWYCH karier jest ten sam W KAŻDEJ migracji, która go definiuje", () => {
+    // PO CO TA ASERCJA JEST TUTAJ, A NIE W TEŚCIE TRASY. Test trasy dowodzi
+    // zgodności „panel wpuszcza dokładnie tych, których wpuszcza baza",
+    // czytając JEDNĄ migrację. To za mało: `career_roles_staff_write` jest
+    // definiowane w TRZECH migracjach (20260813224302, 20260814100000,
+    // 20260814122639), a obowiązuje OSTATNIA. Test czytający pierwszą z nich
+    // zostaje zielony także wtedy, gdy ktoś zmieni próg w najnowszej -
+    // czyli dowodzi inwariantu o polityce obowiązującej, patrząc na tekst
+    // zastąpiony. Ta bramka sprawdza WSZYSTKIE definicje razem, więc
+    // rozjechanie się ich progów zapala się tutaj, niezależnie od tego, którą
+    // migrację czyta który test.
+    const contentPolicies = [
+      "career_roles_staff_write",
+      "career_roles_staff_update",
+      "career_roles_staff_delete",
+      "career_sections_staff_write",
+      "career_sections_staff_update",
+    ] as const;
+    for (const policy of contentPolicies) {
+      // `migrationsDefining` SORTUJE, i to nie jest kosmetyka: `readdirSync`
+      // oddaje wpisy w kolejności zależnej od systemu plików (na ext4 jest to
+      // kolejność haszowa, nie nazwowa), a ten test rozstrzyga, KTÓRA definicja
+      // obowiązuje, po OSTATNIM elemencie listy. Bez sortowania bramka mogłaby
+      // na innym checkoucie zatwierdzić definicję ZASTĄPIONĄ - czyli popełnić
+      // dokładnie ten błąd, przeciw któremu została napisana.
+      // ZNALEZISKO Codeksa na PR #326, potwierdzone pomiarem: przy odwróconej
+      // kolejności listingu stara wersja wybierała `20260813224302` (sprzed
+      // zakresowania najemcy) i przechodziła, choć zakres mógł już nie istnieć
+      // w migracji obowiązującej.
+      const defining = migrationsDefining(policy);
+      expect(defining.length, `nikt już nie definiuje polityki ${policy}`).toBeGreaterThan(0);
+      // PRÓG ROLI musi być ten sam w KAŻDEJ definicji - to on rozjeżdża się
+      // z bramką panelu i to jego zmiana w najnowszej migracji przeszłaby
+      // niezauważona przez test czytający starszą.
+      for (const file of defining) {
+        const block = policyBlock(file, policy);
+        expect(block, `${policy} w ${file} nie pyta o public.is_staff()`).toContain(
+          "public.is_staff()",
+        );
+      }
+      // ZAKRES NAJEMCY sprawdzamy tylko w definicji OBOWIĄZUJĄCEJ. Żądanie go
+      // od wszystkich byłoby asercją nieprawdziwą: `20260813224302` powstało
+      // PRZED zakresowaniem i ma `WITH CHECK (public.is_staff())` bez najemcy -
+      // zakres dołożyła dopiero `20260814100000_careers_tenant_scope`. Bramka
+      // ma pilnować stanu obowiązującego, nie przepisywać historii.
+      const effective = defining[defining.length - 1];
+      expect(
+        policyBlock(effective, policy),
+        `${policy} zgubiło zakres najemcy w obowiązującej ${effective}`,
+      ).toContain("public.current_tenant_id()");
+    }
+  });
+
+  it("zaostrzenie progu dla ZGŁOSZEŃ kandydatów nie zostało cicho cofnięte", () => {
+    // Migracja 20260824074231 przestawiła `career_applications*` z
+    // `is_staff()` na `is_admin_or_editor()` - różnica to DOKŁADNIE rola
+    // `author`, która od tamtej pory nie widzi procesów rekrutacyjnych,
+    // dziennika etapów ani kubełka CV. Uprząż runtime sprawdza to na żywej
+    // bazie (§15 `scripts/careers-harness/runtime_test.sql`); tutaj stoi
+    // tańszy strażnik statyczny: NAJNOWSZA definicja tych polityk nie może
+    // wrócić do `is_staff()`.
+    for (const policy of [
+      "career_applications_staff_read",
+      "career_applications_staff_update",
+      "career_application_events_staff_read",
+    ] as const) {
+      const defining = migrationsDefining(policy);
+      expect(defining.length, `nikt już nie definiuje polityki ${policy}`).toBeGreaterThan(0);
+      const last = defining[defining.length - 1];
+      const sql = read(`${MIGRATIONS_DIR}/${last}`);
+      const block = sql.slice(sql.indexOf(`CREATE POLICY ${policy}`)).split(";")[0];
+      expect(block, `${policy} wróciło do is_staff() w ${last}`).toContain("is_admin_or_editor()");
+    }
+  });
+
+  it("kubełek `career-cv` NIE MOŻE zgubić wiązania najemcy - to już raz się cofnęło", () => {
+    // TA BRAMKA POWSTAŁA NA WYRAŹNE ŻĄDANIE MIGRACJI NAPRAWCZEJ.
+    // `20260814194500_career_cv_policies_tenant_scope_reassert.sql` opisuje we
+    // własnym nagłówku, co się stało: `20260814100000` zawęziło trzy polityki
+    // bucketu do najemcy, bo `is_staff()` bada WYŁĄCZNIE rolę - więc redaktor
+    // najemcy A mógł podpisać i pobrać KAŻDE CV każdego najemcy. Trzy godziny
+    // później platforma zapisała wygenerowaną `20260814122512`, odpowiednik
+    // stanu SPRZED hardeningu, który tę samą trójkę odtworzył bez najemcy.
+    // I dalej cytat z tamtego nagłówka: „Stan końcowy bazy uratowała WYŁĄCZNIE
+    // kolejność plików. (…) Gdyby bliźniak dostał wcześniejszy znacznik czasu -
+    // izolacja najemców na plikach CV byłaby dziś otwarta na produkcji,
+    // A ŻADNA BRAMKA BY TEGO NIE POWIEDZIAŁA." Od teraz powie.
+    //
+    // Mierzymy definicję OBOWIĄZUJĄCĄ, czyli z ostatniej migracji odtwarzającej
+    // politykę - dokładnie tak, jak rozstrzyga to Postgres.
+    for (const policy of ['"career_cv_staff_read"', '"career_cv_staff_delete"'] as const) {
+      const { file, block } = effectivePolicy(policy);
+      expect(block, `${policy} zgubiło najemcę w obowiązującej ${file}`).toContain(
+        "public.current_tenant_id()::text",
+      );
+      expect(block, `${policy} zgubiło próg roli w obowiązującej ${file}`).toMatch(
+        /public\.(is_staff|is_admin_or_editor)\(\)/,
+      );
+    }
+  });
+
+  it("wgranie CV przez KANDYDATA wymusza ścieżkę z najemcą, bez warunku roli", () => {
+    // Ta polityka jest dla `anon` - kandydat z zewnątrz nie ma roli i mieć jej
+    // nie może, więc najemcę wymusza KSZTAŁT ŚCIEŻKI: dokładnie trzy segmenty,
+    // pierwszy równy najemcy przeglądanego hosta, drugi `uploads`. Zdjęcie
+    // któregokolwiek z tych warunków otwiera zapis w katalogu obcego najemcy.
+    const { file, block } = effectivePolicy('"career_cv_public_upload"');
+    expect(block, `zapis CV przestał liczyć segmenty ścieżki (${file})`).toContain(
+      "array_length(storage.foldername(name), 1) = 3",
+    );
+    expect(block, `zapis CV przestał przypinać najemcę hosta (${file})`).toContain(
+      "public.public_tenant_id()::text",
+    );
+    expect(block, `zapis CV przestał wymagać katalogu uploads (${file})`).toContain("'uploads'");
+    // Kontrola dodatnia sensu tej polityki: jest dla anonima, więc NIE MA
+    // w niej progu roli - i to jest poprawne, a nie przeoczone.
+    expect(block).toContain("TO anon");
+    expect(block).not.toContain("is_staff()");
+  });
+
+  it("plik CV kandydata wychodzi z panelu WYŁĄCZNIE jako krótkotrwały podpis", () => {
+    // Kubełek `career-cv` jest prywatny, a panel nie ma prawa budować adresu
+    // publicznego. `signCvUrl` domyślnie podpisuje na 300 sekund i to jedyna
+    // droga do pliku - `getPublicUrl` w tej ścieżce byłby wyciekiem danych
+    // osobowych do każdego, kto zobaczy adres.
+    const layer = read("src/lib/careers/cvUpload.ts");
+    expect(layer).toMatch(/createSignedUrl\(path, expiresInSeconds\)/);
+    expect(layer).toMatch(/expiresInSeconds\s*=\s*300/);
+    expect(layer, "warstwa CV zaczęła budować adres publiczny").not.toContain("getPublicUrl");
+    const panel = read(`${ROUTES_DIR}/admin.careers.tsx`);
+    expect(panel).toContain("signCvUrl");
+    expect(panel, "panel zaczął budować adres do CV sam").not.toContain("createSignedUrl");
   });
 });

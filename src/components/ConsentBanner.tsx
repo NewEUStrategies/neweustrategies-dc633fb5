@@ -378,19 +378,18 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
     return () => ro.disconnect();
   }, [prefsOpen, uiLanguage, gpcHonored, draft, t]);
 
-  const consentSurfaceVisible = mounted && (!decided || detailsOpen);
-  useEffect(() => {
-    setConsentOverlayVisible(consentSurfaceVisible);
-    return () => setConsentOverlayVisible(false);
-  }, [consentSurfaceVisible]);
-
+  const consentSurfaceVisible = mounted && (!decided || detailsOpen || dismissing);
   useEffect(() => {
     if (!mounted) return;
-    // Koordynator nakładek dostaje wartość EFEKTYWNĄ - inaczej popupy
-    // marketingowe wyświetlałyby się osobie, której sygnał GPC właśnie
-    // wyłączył kategorię marketingową.
+    // Close the gate before applying consent; publish the decision before
+    // opening it again. Effect cleanup must not pump a queue using the OLD
+    // consent while React is committing a rejection.
+    if (consentSurfaceVisible) setConsentOverlayVisible(true);
     setMarketingConsent(state ? state.categories.marketing && !gpcHonored : null);
-  }, [mounted, state, gpcHonored]);
+    if (!consentSurfaceVisible) setConsentOverlayVisible(false);
+  }, [mounted, consentSurfaceVisible, state, gpcHonored]);
+
+  useEffect(() => () => setConsentOverlayVisible(false), []);
 
   /** Powrót do respektowania sygnału: zdejmij klamrowane kategorie i override. */
   const restoreGpc = () =>

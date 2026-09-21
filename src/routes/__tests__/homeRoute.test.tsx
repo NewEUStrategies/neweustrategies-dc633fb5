@@ -20,7 +20,7 @@
 //     tytuł/opis/canonical/robots bije defaulty marki, a w trybie „najnowsze
 //     wpisy" SEO ukrytej strony NIE przecieka do listy.
 //  5. ROZGRZEWKA WIDGETÓW JEST INNA NA SERWERZE I NA KLIENCIE. SSR czeka na
-//     wszystkie sekcje, nawigacja klientowa tylko na trzy nad zgięciem -
+//     tylko trzy sekcje nad zgięciem, tak samo jak nawigacja klientowa -
 //     pomyłka tutaj to albo migający ekran po hydracji, albo przejście
 //     zatrzymane na najwolniejszym zapytaniu spod zgięcia.
 //  6. PODPOWIEDŹ LCP JEST BAJTOWO ZGODNA z malowanym obrazem (ten sam srcSet
@@ -30,7 +30,7 @@
 //  * CZYSTYCH DECYZJI ATOMÓW - `homeContent`/`homeBuilderSource`/
 //    `homeTotalPages`/`homePageSearch` mają tabele przypadków w
 //    `src/components/home/atoms/__tests__/homeAtoms.test.ts`, a `HomeSrHeading`
-//    (w tym `it.fails` o literale i18n w nagłówku) w
+//    (tabela przesłanek zapasowego `h1` i źródło jego treści) w
 //    `src/components/home/atoms/__tests__/HomeSrHeading.test.tsx`. Tutaj
 //    sprawdzamy, że trasa je WOŁA i respektuje wynik.
 //  * SIATKI ARCHIWUM I PAGINACJI LINKOWEJ - `PaginatedPostGrid` ma dowód na
@@ -47,6 +47,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { BlogArchiveResult, BlogListItem, HomepageMode, PageData } from "@/lib/queries/public";
 import { CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
+import { QueryClient } from "@tanstack/react-query";
+import { HOME_SSR_BUDGET_MS, homeSsrDeadline } from "@/lib/ssr/homeSsrBudget";
 import { axeViolations, summarize } from "@/test/axe";
 
 const h = vi.hoisted(() => ({
@@ -56,10 +58,11 @@ const h = vi.hoisted(() => ({
   renderLang: "pl" as "pl" | "en",
   /** Adres żądania widziany przez `head()` (pusty = render bez originu). */
   requestUrl: "https://neweuropeanstrategies.com/",
-  /** `true` = renderujemy jako SSR (rozgrzewka WSZYSTKICH sekcji). */
+  /** `true` = renderujemy jako SSR. */
   server: false,
   homePage: null as PageData | null,
   homePageFails: false,
+  homePageHangs: false,
   homeMode: "" as HomepageMode,
   homeModeFails: false,
   settings: {} as Record<string, unknown>,
@@ -110,9 +113,11 @@ vi.mock("@/lib/queries/public", async (importOriginal) => ({
   homePageQueryOptions: () => ({
     queryKey: ["public", "home-page"],
     queryFn: () =>
-      h.homePageFails
-        ? Promise.reject(new Error("blip backendu: strona główna"))
-        : Promise.resolve(h.homePage),
+      h.homePageHangs
+        ? new Promise<PageData | null>(() => {})
+        : h.homePageFails
+          ? Promise.reject(new Error("blip backendu: strona główna"))
+          : Promise.resolve(h.homePage),
   }),
   homepageModeQueryOptions: () => ({
     queryKey: ["public", "home-mode"],
@@ -151,9 +156,9 @@ vi.mock("@/lib/builder/prefetch", async (importOriginal) => ({
 }));
 
 vi.mock("@/components/builder/organisms/BuilderRenderer", () => ({
-  BuilderRenderer: ({ lang }: { lang: string }) => {
+  BuilderRenderer: ({ lang, stream }: { lang: string; stream?: boolean }) => {
     if (h.builderThrows) throw new Error("kanwa nie umiała się wyrenderować");
-    return <div data-testid="kanwa" data-lang={lang} />;
+    return <div data-testid="kanwa" data-lang={lang} data-stream={stream ? "1" : "0"} />;
   },
 }));
 vi.mock("@/components/ads/FooterSlideup", () => ({ FooterSlideup: () => null }));
@@ -304,6 +309,7 @@ beforeEach(() => {
   h.server = false;
   h.homePage = null;
   h.homePageFails = false;
+  h.homePageHangs = false;
   h.homeMode = "";
   h.homeModeFails = false;
   h.settings = { reading: { posts_per_page: 2 } };
@@ -327,10 +333,52 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     h.homePage = homePageData();
   });
 
-  it("czytelnik widzi treść kanwy i DOKŁADNIE JEDEN nagłówek h1", async () => {
+  it("kanwa BEZ własnego nagłówka dostaje DOKŁADNIE JEDEN `h1` z nazwą serwisu", async () => {
+    // REGRESJA ODZIEDZICZONA Z `main`. Do 2026-09-14 `h1` renderowała trasa;
+    // potem przeniósł się do chrome nagłówka (`HeaderSeoHeading`), które przy
+    // braku `site_settings` w ogóle się nie renderowało - bramka
+    // `e2e/ssr-completeness.spec.ts` liczyła wtedy ZERO nagłówków poziomu 1
+    // na `/` i `/en`. Nagłówek wrócił do właściciela: strony głównej.
     const view = await mountHome();
     expect(screen.getByTestId("kanwa")).toBeTruthy();
-    expect(view.container.querySelectorAll("h1")).toHaveLength(1);
+    const h1s = view.container.querySelectorAll("h1");
+    expect(h1s).toHaveLength(1);
+    // `sr-only`, nie widoczny pasek: kanwa ma własny hero (wymóg redakcyjny
+    // spisany przy przenosinach do powłoki), ale nagłówek MUSI zostać w drzewie
+    // dostępności i w HTML-u serwera.
+    expect(h1s[0].className).toBe("sr-only");
+    expect(h1s[0].textContent).toContain("New European Strategies");
+  });
+
+  it("ZAŁADOWANE ustawienia z kanwą nagłówka nie wyciszają `h1` strony głównej", async () => {
+    // ZDROWY BACKEND, czyli układ produkcyjny: ustawienia dojechały i mają
+    // skonfigurowaną kanwę nagłówka witryny, a dokument strony głównej nie
+    // niesie własnego `h1`. Trasa przez chwilę lustrzała tu warunki
+    // `components/Header.tsx` (dawny `HeaderSeoHeading`) i wyciszała nagłówek -
+    // efektem była produkcyjna strona główna BEZ `h1`, z nagłówkiem wyłącznie
+    // na ścieżce zdegradowanej. Powłoka `h1` już nie wypisuje, więc jedynym
+    // jego źródłem jest trasa.
+    h.settings = {
+      ...h.settings,
+      header: { builder_data: { version: 1, sections: [{ id: "hs", kind: "section" }] } },
+    };
+    const view = await mountHome();
+    expect(screen.getByTestId("kanwa")).toBeTruthy();
+    const h1s = view.container.querySelectorAll("h1");
+    expect(h1s).toHaveLength(1);
+    expect(h1s[0].className).toBe("sr-only");
+    expect(h1s[0].textContent).toContain("New European Strategies");
+  });
+
+  it("kanwa z WŁASNYM nagłówkiem poziomu 1 nie dostaje drugiego", async () => {
+    // Renderer kanwy jest tu atrapą, więc `h1` z dokumentu do DOM-u nie trafia
+    // - przedmiotem dowodu jest to, że trasa NIE dokłada swojego. Dwa `h1` to
+    // ten sam defekt, który audyt 2026-08-06 (korekta 2) zgłosił dla stron
+    // buildera, i to JEDYNY powód, dla którego trasa pomija nagłówek.
+    h.homePage = homePageData({ builder_data: builderDoc("<h1>Europa i bezpieczeństwo</h1>") });
+    const view = await mountHome();
+    expect(screen.getByTestId("kanwa")).toBeTruthy();
+    expect(view.container.querySelectorAll("h1")).toHaveLength(0);
   });
 
   it("przypis `[fn]` z widgetu tekstowego dostaje sekcję końcową, a nie dosłowny shortcode", async () => {
@@ -383,13 +431,30 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     expect(screen.getByTestId("kanwa")).toHaveAttribute("data-lang", "en");
   });
 
+  it("angielska strona bez tłumaczenia zajawki zachowuje polski opis", async () => {
+    h.requestUrl = "https://neweuropeanstrategies.com/en";
+    h.lang = "en";
+    h.homePage = homePageData({ excerpt_pl: "Zajawka czeka na tłumaczenie.", excerpt_en: "" });
+    const view = await mountHome();
+    expect(metaByName(view.meta(), "description")).toBe("Zajawka czeka na tłumaczenie.");
+    expect(metaByProperty(view.meta(), "og:locale")).toBe("en_US");
+  });
+
   it("okładka strony statycznej ląduje w og:image", async () => {
     h.homePage = homePageData({ cover_image_url: COVER });
     const view = await mountHome();
     expect(metaByProperty(view.meta(), "og:image")).toBe(COVER);
   });
 
-  it("SSR czeka na WSZYSTKIE sekcje, nawigacja klientowa tylko na te nad zgięciem", async () => {
+  // REGRESJA 2026-09-01. Do tej daty SSR strony głównej rozgrzewał CAŁY dokument
+  // buildera (`prefetchCachedRouteQueries`, budżet 6 000 ms), więc pierwszy bajt
+  // najważniejszej trasy serwisu wisiał na najwolniejszym zapytaniu SPOD
+  // ZGIĘCIA - i to na każdym cache MISS. Dwa komentarze obiecywały przy tym, że
+  // resztę „dostrumieniowuje ServerSectionGate", a `HomeBuilderContent`
+  // renderował `<BuilderRenderer>` BEZ propa `stream` (domyślnie `false`).
+  // Ten test pilnuje OBU połów naprawy naraz - inaczej wróciłaby ta sama
+  // rozbieżność między obietnicą a kodem.
+  it("i SSR, i nawigacja klientowa czekają TYLKO na sekcje nad zgięciem", async () => {
     await mountHome();
     expect(h.prefetch).toEqual(["nad-zgieciem"]);
 
@@ -397,14 +462,22 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     h.prefetch = [];
     h.server = true;
     await mountHome();
-    expect(h.prefetch).toEqual(["wszystkie-sekcje"]);
+    expect(h.prefetch).toEqual(["nad-zgieciem"]);
+    expect(h.prefetch).not.toContain("wszystkie-sekcje");
+  });
+
+  it("kanwa strony głównej strumieniuje sekcje spod zgięcia", async () => {
+    await mountHome();
+    // Bez `stream` sekcja spod zgięcia, która nie zmieści się w budżecie,
+    // ląduje w HTML-u jako PUSTY widget: bez szkieletu i bez dociągnięcia.
+    expect(screen.getByTestId("kanwa")).toHaveAttribute("data-stream", "1");
   });
 
   it("PUSTA kanwa daje zdanie „zajrzyj wkrótce”, a nie pustą powłokę buildera", async () => {
     h.homePage = homePageData({ builder_data: { version: 1, sections: [] } });
     await mountHome();
     expect(screen.queryByTestId("kanwa")).toBeNull();
-    expect(screen.getByText(/zajrzyj wkrótce/i)).toBeTruthy();
+    expect(screen.getByText("common.homeEmptyNotice(lng=pl)")).toBeTruthy();
   });
 
   it("stan pusty mówi w języku renderu, a nie zawsze po polsku", async () => {
@@ -413,14 +486,14 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     h.lang = "en";
     h.homePage = homePageData({ builder_data: { version: 1, sections: [] } });
     await mountHome();
-    expect(screen.getByText(/nothing here yet/i)).toBeTruthy();
+    expect(screen.getByText("common.homeEmptyNotice(lng=en)")).toBeTruthy();
   });
 
   it("strona w innym edytorze niż builder też trafia na stan pusty (nie na wyjątek)", async () => {
     h.homePage = homePageData({ editor: "richtext", builder_data: builderDoc() });
     await mountHome();
     expect(screen.queryByTestId("kanwa")).toBeNull();
-    expect(screen.getByText(/zajrzyj wkrótce/i)).toBeTruthy();
+    expect(screen.getByText("common.homeEmptyNotice(lng=pl)")).toBeTruthy();
     // Kanwa nie wchodzi do renderu, więc rozgrzewka widgetów nie ma po co startować.
     expect(h.prefetch).toEqual([]);
   });
@@ -554,6 +627,103 @@ describe("/ - tryb „najnowsze wpisy”", () => {
 });
 
 describe("/ - degradacja: awaria danych NIE jest tym samym co pustka", () => {
+  it("does not prefetch or expose a static page's SEO when the mode is unknown", async () => {
+    h.homePage = homePageData({ seo_canonical_url: "https://example.com/hidden-static-home" });
+    h.homeModeFails = true;
+    const view = await mountHome();
+    expect(screen.getByRole("status")).toBeVisible();
+    expect(h.prefetch).toEqual([]);
+    expect(imagePreload(view.links())).toBeUndefined();
+    expect(linkByRel(view.links(), "canonical")).not.toContain("hidden-static-home");
+  });
+
+  it("automatically replaces hydrated stale seeds when the backend is healthy again", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(["public", "home-page"], null, { updatedAt: 0 });
+    qc.setQueryData(["public", "home-mode"], "", { updatedAt: 0 });
+    h.homeMode = "static_page";
+    h.homePage = homePageData();
+    await act(async () => {
+      await renderRoute({ route: HomeRoute, path: "/", initialEntry: "/", queryClient: qc });
+    });
+    await waitFor(() => expect(screen.getByTestId("kanwa")).toBeVisible());
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(qc.getQueryState(["public", "home-page"])?.dataUpdatedAt).toBeGreaterThan(0);
+  });
+
+  it("recovers builder content after retry without a full page reload", async () => {
+    h.homePageFails = true;
+    h.homeModeFails = true;
+    const view = await mountHome();
+    expect(screen.getByRole("status")).toBeVisible();
+    h.homePageFails = false;
+    h.homeModeFails = false;
+    h.homeMode = "static_page";
+    h.homePage = homePageData();
+    fireEvent.click(screen.getByRole("button", { name: "Spróbuj ponownie" }));
+    await waitFor(() => expect(screen.getByTestId("kanwa")).toBeVisible());
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(view.queryClient.getQueryState(["public", "home-page"])?.dataUpdatedAt).toBeGreaterThan(
+      0,
+    );
+  });
+
+  it("keeps page 2 and the configured page size when an archive refetch recovers", async () => {
+    h.homeMode = "latest_posts";
+    h.archiveFails = true;
+    await mountHome("/?page=2");
+    expect(screen.getByRole("status")).toBeVisible();
+    h.archiveFails = false;
+    h.archive = { posts: [post("recovered")], total: 4, page: 2, pageSize: 2 };
+    fireEvent.click(screen.getByRole("button", { name: "Spróbuj ponownie" }));
+    await waitFor(() => expect(screen.getByRole("link", { name: /Wpis recovered/ })).toBeVisible());
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("a hanging SSR homepage stops at the shared deadline and seeds recoverable data", async () => {
+    vi.useFakeTimers();
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+    try {
+      h.server = true;
+      // Atrapa `isServer` wyżej nie wystarcza: `loadResilient` świadomie NIE
+      // ufa stałej rozstrzyganej w czasie budowania (w wariancie `development`
+      // i pod `NODE_ENV=test` jest ona `undefined`) i pyta o `document` przy
+      // każdym wywołaniu - patrz `lib/ssr/isSsrRequest.ts`. Bez tego stubu
+      // budżet byłby wyłączony, bo happy-dom daje `document` zawsze, a zwis
+      // czekałby tu w nieskończoność - dokładnie tak, jak MA czekać przy
+      // nawigacji SPA (recenzja PR #382, P1).
+      vi.stubGlobal("document", undefined);
+      h.homePageHangs = true;
+      const deadline = homeSsrDeadline(qc);
+      // Root has already used 400 ms. The home loader may not start a fresh
+      // 600 ms timer when it joins the same request later.
+      await vi.advanceTimersByTimeAsync(400);
+      type Loader = (args: {
+        context: { queryClient: QueryClient };
+        deps: { page: number };
+      }) => Promise<{
+        degraded: boolean;
+        homePage: PageData | null;
+        coverPreload: unknown;
+      }>;
+      const loader = HomeRoute.options.loader as unknown as Loader;
+      const result = loader({ context: { queryClient: qc }, deps: { page: 1 } });
+      await vi.advanceTimersByTimeAsync(HOME_SSR_BUDGET_MS - 400);
+      expect(await result).toMatchObject({ degraded: true, homePage: null, coverPreload: null });
+      expect(Date.now()).toBe(deadline);
+      expect(qc.getQueryState(["public", "home-page"])).toMatchObject({
+        status: "success",
+        fetchStatus: "idle",
+        dataUpdatedAt: 0,
+      });
+      expect(h.cacheControl.at(-1)).toBe("private, no-store");
+    } finally {
+      qc.clear();
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  });
+
   it("awaria archiwum daje pustą siatkę I ODCINA cache współdzielony", async () => {
     // To jest różnica wobec pustego archiwum: tam wynik jest prawdziwy i wolno
     // go podać następnemu odwiedzającemu, tutaj byłaby to utrwalona awaria.
@@ -572,7 +742,32 @@ describe("/ - degradacja: awaria danych NIE jest tym samym co pustka", () => {
     // nie wyleczy się sama po powrocie backendu.
     expect(view.queryClient.getQueryData(["public", "home-page"])).toBeNull();
     expect(view.queryClient.getQueryData(["public", "home-mode"])).toBe("");
-    expect(screen.getByText(/zajrzyj wkrótce/i)).toBeTruthy();
+    expect(screen.getByRole("status")).toHaveTextContent("Wczytujemy stronę główną");
+    expect(screen.queryByText(/zajrzyj wkrótce/i)).toBeNull();
+    expect(h.cacheControl.at(-1)).toContain("no-store");
+  });
+
+  it.each([
+    { lang: "pl" as const, url: "https://neweuropeanstrategies.com/" },
+    { lang: "en" as const, url: "https://neweuropeanstrategies.com/en" },
+  ])("render ZDEGRADOWANY ($lang) ma dokładnie jeden h1 z nazwą serwisu", async ({ lang, url }) => {
+    // DOKŁADNIE stan bramki `e2e` (job `e2e` w `.github/workflows/e2e.yml`):
+    // placeholderowe poświadczenia Supabase, więc KAŻDE zapytanie pada -
+    // strona statyczna, tryb strony głównej i ustawienia serwisu naraz.
+    // Bramka `ssr-completeness` wymaga wtedy jednego, niepustego `<h1>`
+    // pasującego do /new european strategies/i - i dla `/`, i dla `/en`.
+    h.lang = lang;
+    h.requestUrl = url;
+    h.homePageFails = true;
+    h.homeModeFails = true;
+    h.settingsFails = true;
+    const view = await mountHome();
+    expect(screen.getByRole("status")).toBeVisible();
+    const h1s = view.container.querySelectorAll("h1");
+    expect(h1s).toHaveLength(1);
+    expect(h1s[0].textContent).toContain("New European Strategies");
+    // Zdegradowany render nadal NIE wchodzi do cache'u współdzielonego -
+    // zapasowy nagłówek niczego w tej decyzji nie zmienia.
     expect(h.cacheControl.at(-1)).toContain("no-store");
   });
 
@@ -671,25 +866,28 @@ describe("/ - dostępność", () => {
   });
 });
 
-describe("/ - dług i18n zgłoszony, nie naprawiony", () => {
-  // Zdanie stanu pustego („Nie ma tu jeszcze treści - zajrzyj wkrótce.”) jest
-  // dwujęzycznym LITERAŁEM w kodzie molekuły, a nie kluczem słownika - treść
-  // przeniesiona znak w znak z `routes/index.tsx`.
-  //
-  // KONSEKWENCJA DLA UŻYTKOWNIKA: redakcja nie może zmienić zdania, które widzi
-  // czytelnik na PUSTEJ stronie głównej, bez wdrożenia kodu - w odróżnieniu od
-  // każdego innego tekstu w serwisie. Bramka parytetu PL/EN nie ma tu czego
-  // porównywać, więc rozjazd tłumaczeń przejdzie niezauważony.
-  //
-  // DLACZEGO NAPRAWA JEST DECYZJĄ DLA CZŁOWIEKA: strona główna nie woła żadnego
-  // `ensureI18n`, więc klucz musi albo wejść do słownika BAZOWEGO (koszt
-  // w rozmiarze wejściowego chunku najważniejszej trasy), albo strona musi
-  // zacząć dociągać nakładkę (koszt w TTFB tej samej trasy). To wybór
-  // architektoniczny, nie refaktor pod test.
-  it.fails("zdanie stanu pustego pochodzi ze słownika, nie z literału w kodzie", async () => {
-    const fs = await import("node:fs");
-    const source = fs.readFileSync("src/components/home/molecules/HomeEmptyNotice.tsx", "utf8");
-    const literaly = /There's nothing here yet|Nie ma tu jeszcze treści/.test(source);
-    expect({ dwujezycznyLiteralWKodzie: literaly }).toEqual({ dwujezycznyLiteralWKodzie: false });
-  });
+it("does not cache an above-fold data widget whose prefetch missed the deadline", async () => {
+  h.server = true;
+  const doc = {
+    version: 1,
+    sections: [
+      {
+        id: "s",
+        kind: "section",
+        children: [
+          {
+            id: "c",
+            kind: "column",
+            span: { desktop: 12 },
+            children: [{ id: "w", kind: "widget", type: "post-list", content: {} }],
+          },
+        ],
+      },
+    ],
+  };
+  h.homePage = homePageData({ builder_data: doc });
+  const view = await mountHome();
+  expect(h.prefetch).toEqual(["nad-zgieciem"]);
+  expect(view.queryClient.getQueryState(["public", "home-page"])?.dataUpdatedAt).toBeGreaterThan(0);
+  expect(h.cacheControl.at(-1)).toBe("private, no-store");
 });

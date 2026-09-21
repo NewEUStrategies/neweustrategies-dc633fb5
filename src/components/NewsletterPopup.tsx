@@ -6,20 +6,17 @@
 // Triggery: delay / scroll / exit-intent. Frequency gating w localStorage.
 // Paleta: ciemna / jasna / automatyczna (motyw strony) - patrz popupDesign.
 // Mountowany globalnie w __root.tsx.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { useLocation } from "@tanstack/react-router";
 import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
-import { NewsletterForm } from "@/components/NewsletterForm";
-import { PopupSignupForm } from "@/components/PopupSignupForm";
 import { trackNewsletterPopupEvent } from "@/lib/newsletter/popupTelemetry";
-import { SignupPopupPanel } from "@/components/popups/SignupPopupPanel";
 import "@/lib/i18n-signup-popup";
-import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
 import { X, Send } from "@/lib/lucide-shim";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
+import { useBodyScrollLock } from "@/lib/a11y/useBodyScrollLock";
 import { useTheme } from "@/components/ThemeProvider";
 import { requestOverlaySlot, cancelOverlayRequest } from "@/lib/overlayCoordinator";
 import {
@@ -28,6 +25,24 @@ import {
   resolvePopupDesign,
   resolvePopupPalette,
 } from "@/lib/newsletter/popupDesign";
+
+const PopupSignupForm = lazy(() =>
+  import("@/components/PopupSignupForm").then((m) => ({ default: m.PopupSignupForm })),
+);
+const SignupPopupPanel = lazy(() =>
+  import("@/components/popups/SignupPopupPanel").then((m) => ({ default: m.SignupPopupPanel })),
+);
+const NewsletterDocRenderer = lazy(() =>
+  import("@/components/newsletter/NewsletterDocRenderer").then((m) => ({
+    default: m.NewsletterDocRenderer,
+  })),
+);
+
+// Forms are downloaded only when the popup actually opens. Trigger timing,
+// consent coordination and the close controls remain available in this shell.
+const popupFallback = (
+  <div aria-busy="true" className="h-24 rounded-md bg-muted/40 animate-pulse" />
+);
 
 const LS_KEY = "nl_popup_last";
 
@@ -64,6 +79,34 @@ export function NewsletterPopup() {
   const panelRef = useRef<HTMLDivElement>(null);
   const releaseSlotRef = useRef<(() => void) | null>(null);
   useFocusTrap(panelRef, open);
+  useBodyScrollLock(open);
+
+  useEffect(() => {
+    if (!open) return;
+    const panel = panelRef.current;
+    const viewport = window.visualViewport;
+    let frame = 0;
+    const revealFocusedField = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const target = document.activeElement;
+        if (target instanceof HTMLElement && target !== panel && panel?.contains(target)) {
+          target.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+        }
+      });
+    };
+    // Native focus scrolling may leave a field clipped by the nested panel.
+    // Resize also matters when the focused field stays active as height changes.
+    panel?.addEventListener("focusin", revealFocusedField);
+    window.addEventListener("resize", revealFocusedField);
+    viewport?.addEventListener("resize", revealFocusedField);
+    return () => {
+      cancelAnimationFrame(frame);
+      panel?.removeEventListener("focusin", revealFocusedField);
+      window.removeEventListener("resize", revealFocusedField);
+      viewport?.removeEventListener("resize", revealFocusedField);
+    };
+  }, [open]);
 
   // Jeden jezyk dla calego popupu: kod dla dzieci i serwera oraz wybor tresci
   // z blizniaczych kolumn. Dotad ta sama derywacja powtarzala sie w siedmiu
@@ -160,6 +203,20 @@ export function NewsletterPopup() {
     releaseSlotRef.current = null;
   }, []);
 
+  // A route change or disabling the popup ends its display. In particular,
+  // a link to /login must not leave the signup modal above the new page.
+  useEffect(() => {
+    if (releaseSlotRef.current) close();
+  }, [loc.pathname, s?.popup_enabled, close]);
+
+  useEffect(
+    () => () => {
+      releaseSlotRef.current?.();
+      releaseSlotRef.current = null;
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -214,14 +271,16 @@ export function NewsletterPopup() {
           style={{ maxWidth: `${design.panel.maxWidthPx}px` }}
           onClick={(e) => e.stopPropagation()}
         >
-          <SignupPopupPanel
-            settings={s}
-            lang={lang}
-            mode={mode}
-            onClose={close}
-            onSuccess={onSuccess}
-            titleId="nl-popup-title"
-          />
+          <Suspense fallback={popupFallback}>
+            <SignupPopupPanel
+              settings={s}
+              lang={lang}
+              mode={mode}
+              onClose={close}
+              onSuccess={onSuccess}
+              titleId="nl-popup-title"
+            />
+          </Suspense>
         </div>
       ) : (
         <div
@@ -238,15 +297,19 @@ export function NewsletterPopup() {
             type="button"
             aria-label={t("common.close")}
             onClick={close}
-            className="absolute top-3 right-3 z-20 h-9 w-9 rounded-[6px] bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
-            style={{ color: palette.fg }}
+            // Bez domyślnego niebieskiego ringu przeglądarki - focus-visible
+            // rysujemy sami w kolorze palety popupu.
+            className="absolute top-3 right-3 z-20 h-9 w-9 rounded-[6px] bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--nl-accent,#fdb078)]"
+            style={{ color: palette.fg, WebkitTapHighlightColor: "transparent" }}
           >
             <X className="w-4 h-4" />
           </button>
 
           {s.popup_doc ? (
             <div className="p-6 lg:p-8 space-y-3 md:max-h-[92vh] md:overflow-y-auto">
-              <NewsletterDocRenderer doc={s.popup_doc} settings={s} lang={lang} source="popup" />
+              <Suspense fallback={popupFallback}>
+                <NewsletterDocRenderer doc={s.popup_doc} settings={s} lang={lang} source="popup" />
+              </Suspense>
             </div>
           ) : split ? (
             <>
@@ -296,7 +359,9 @@ export function NewsletterPopup() {
                     {desc}
                   </p>
                 )}
-                <PopupSignupForm settings={s} lang={lang} onSuccess={onSuccess} />
+                <Suspense fallback={popupFallback}>
+                  <PopupSignupForm settings={s} lang={lang} onSuccess={onSuccess} />
+                </Suspense>
               </div>
             </>
           ) : (
@@ -318,13 +383,9 @@ export function NewsletterPopup() {
                     {desc}
                   </p>
                 )}
-                {s.popup_extended_fields ||
-                s.popup_mailing_lists.length > 0 ||
-                s.popup_require_terms ? (
+                <Suspense fallback={popupFallback}>
                   <PopupSignupForm settings={s} lang={lang} onSuccess={onSuccess} />
-                ) : (
-                  <NewsletterForm lang={lang} source="popup" variant="inline" />
-                )}
+                </Suspense>
               </div>
             </>
           )}

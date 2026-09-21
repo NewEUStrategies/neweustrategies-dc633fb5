@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { ClubStatPill } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
 import { ClubCoverEditor } from "@/components/clubs/molecules/ClubCoverEditor";
+import { ClubCoverPositionEditor } from "@/components/clubs/molecules/ClubCoverPositionEditor";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { clubKeys } from "@/lib/clubs/queryKeys";
 import type { ClubViewRow } from "@/lib/clubs/types";
@@ -57,6 +58,7 @@ export function ClubHubIdentity({
     typeof club.cover_image_url === "string" && club.cover_image_url.trim() !== ""
       ? club.cover_image_url
       : null;
+  const coverPositionY = typeof club.cover_position_y === "number" ? club.cover_position_y : 50;
   const canEditCover = club.can_moderate === true;
 
   return (
@@ -77,6 +79,7 @@ export function ClubHubIdentity({
             alt=""
             aria-hidden="true"
             className="h-full w-full object-cover"
+            style={{ objectPosition: `center ${coverPositionY}%` }}
             loading="eager"
             decoding="async"
           />
@@ -90,12 +93,20 @@ export function ClubHubIdentity({
           aria-hidden="true"
         />
         {canEditCover ? (
-          <ClubCoverEditor
-            clubId={club.id}
-            hasCover={coverUrl !== null}
-            onChanged={() => void queryClient.invalidateQueries({ queryKey: clubKeys.all })}
-            className="absolute right-2 top-2 sm:right-3 sm:top-3"
-          />
+          <div className="absolute right-2 top-2 flex flex-col items-end gap-1.5 sm:right-3 sm:top-3">
+            <ClubCoverEditor
+              clubId={club.id}
+              hasCover={coverUrl !== null}
+              onChanged={() => void queryClient.invalidateQueries({ queryKey: clubKeys.all })}
+            />
+            <ClubCoverPositionEditor
+              clubId={club.id}
+              coverImageUrl={coverUrl}
+              positionY={coverPositionY}
+              canEdit={canEditCover}
+              onChanged={() => void queryClient.invalidateQueries({ queryKey: clubKeys.all })}
+            />
+          </div>
         ) : null}
       </div>
 

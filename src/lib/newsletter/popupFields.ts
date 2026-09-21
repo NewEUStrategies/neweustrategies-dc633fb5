@@ -42,6 +42,8 @@ interface FieldDefault {
   placeholder_en?: string;
   /** Pola, których nie da się wyłączyć ani odznaczyć jako wymagane. */
   locked?: boolean;
+  /** Pola, które zawsze pozostają opcjonalne - nie da się zaznaczyć jako wymagane. */
+  neverRequired?: boolean;
 }
 
 const DEFAULTS: Record<PopupFieldKey, FieldDefault> = {
@@ -84,6 +86,7 @@ const DEFAULTS: Record<PopupFieldKey, FieldDefault> = {
     label_en: "LinkedIn",
     placeholder_pl: "https://linkedin.com/in/jan-kowalski",
     placeholder_en: "https://linkedin.com/in/jane-doe",
+    neverRequired: true,
   },
   email: {
     enabled: true,
@@ -140,6 +143,10 @@ export function isPopupFieldLocked(key: PopupFieldKey): boolean {
   return DEFAULTS[key].locked === true;
 }
 
+export function isPopupFieldNeverRequired(key: PopupFieldKey): boolean {
+  return DEFAULTS[key].neverRequired === true;
+}
+
 /**
  * Wbudowane (fabryczne) etykiety pola w obu językach.
  *
@@ -180,10 +187,11 @@ export function resolvePopupFields(raw: unknown): PopupFieldConfig[] {
     const def = DEFAULTS[key];
     const o = overrides.get(key);
     const locked = def.locked === true;
+    const neverRequired = def.neverRequired === true;
     return {
       key,
       enabled: locked ? true : bool(o?.enabled, def.enabled),
-      required: locked ? true : bool(o?.required, def.required),
+      required: neverRequired ? false : locked ? true : bool(o?.required, def.required),
       label_pl: str(o?.label_pl, def.label_pl),
       label_en: str(o?.label_en, def.label_en),
       // Placeholdery są opcjonalne: pusty ciąg = brak podpowiedzi, więc

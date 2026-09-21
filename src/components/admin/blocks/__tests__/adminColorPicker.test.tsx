@@ -207,6 +207,50 @@ describe("AdminColorPicker - HEX, RGB, HSL", () => {
     expect(onChange.mock.calls[0][0]).not.toContain("NaN");
   });
 
+  it("skrot CZTEROZNAKOWY (hex z alfa) traci kanal alfa i rozwija sie do szesciu", () => {
+    // `#abcd` to zapis `#aabbccdd`: trzy skladowe po jednym znaku plus alfa.
+    // Pole ma z tego zrobic `#aabbcc`, a nie zgubic kolor przez nieznana dlugosc.
+    const { onChange } = setup({ value: "#112233" });
+    const dialog = openPopover();
+    fireEvent.change(hexInput(dialog), { target: { value: "abcd" } });
+    expect(onChange).toHaveBeenCalledWith("#aabbcc");
+  });
+
+  it("odcien liczy sie poprawnie, gdy zielony jest CIEMNIEJSZY od niebieskiego", () => {
+    // Sekstant, w ktorym `rgbToHsl` musi dodac pelny obrot (`gn < bn ? 6 : 0`).
+    // Bez tego dodania odcien wychodzi ujemny i suwak skacze na przeciwna
+    // strone kola barw.
+    setup({ value: "#ff0080" });
+    const dialog = openPopover();
+    expect(numberInputs(dialog)[3].value).toBe("330");
+  });
+
+  it.each([
+    [30, "#ff8000"],
+    [90, "#80ff00"],
+    [150, "#00ff80"],
+    [210, "#0080ff"],
+    [270, "#8000ff"],
+    [330, "#ff0080"],
+  ])("odcien %s idzie do rodzica jako %s - wszystkie szesc sekstantow kola barw", (h, hex) => {
+    // KAZDY z szesciu sekstantow ma w `hslToRgb` osobna galez. Pominiecie
+    // jednego znaczy jedna barwe, ktorej redaktor nie potrafi ustawic suwakiem
+    // odcienia - i zaden test happy-path tego nie zlapie.
+    const { onChange } = setup({ value: "#ff0000" });
+    const dialog = openPopover();
+    fireEvent.change(numberInputs(dialog)[3], { target: { value: String(h) } });
+    expect(onChange).toHaveBeenCalledWith(hex);
+  });
+
+  it("KLAMROWANIE HSL: napis nieliczbowy w odcieniu schodzi do zera, nie do NaN", () => {
+    const { onChange } = setup({ value: "#00ff80" });
+    const dialog = openPopover();
+    fireEvent.change(numberInputs(dialog)[3], { target: { value: "wysoko" } });
+    const arg = onChange.mock.calls[0]?.[0];
+    expect(typeof arg).toBe("string");
+    expect(arg).not.toContain("NaN");
+  });
+
   it("wartosc niebedaca hexem daje w kanwie czern zamiast wywrotki", () => {
     // `hexForPicker` schodzi na "#000000", gdy wartosc jest tokenem.
     const dialog = (setup({ value: "var(--brand)" }), openPopover());
@@ -373,6 +417,24 @@ describe("AdminColorPicker - stan odziedziczony i etykiety", () => {
     setup({ value: "#ff0000", ariaLabel: "Kolor tla sekcji" });
     expect(screen.getByRole("button", { name: "Kolor tla sekcji" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: PICK })).toBeNull();
+  });
+
+  it("BRAK propu `value` to pustka, a nie napis `undefined` w polu", () => {
+    // Panel montuje to pole takze wtedy, gdy widget nie ma jeszcze zadnego
+    // nadpisania - `undefined` musi zachowac sie jak pusty napis, inaczej
+    // redaktor widzi w polu slowo „undefined" i zapisuje je do dokumentu.
+    const { container } = setup({ value: undefined });
+    expect(tokenInput(container).value).toBe("");
+    expect(screen.getByRole("button", { name: RESET })).toBeDisabled();
+  });
+
+  it("kratka z PALETY MARKI zapisuje swoj kolor i przestawia pole HEX", () => {
+    // Stopka popovera to jedyna droga „na jeden klik" do kolorow marki.
+    const { onChange } = setup({ value: "#112233" });
+    const dialog = openPopover();
+    fireEvent.click(within(dialog).getByRole("button", { name: "#FA9346" }));
+    expect(onChange).toHaveBeenCalledWith("#FA9346");
+    expect(within(dialog).getAllByRole("textbox")[0]).toHaveValue("FA9346");
   });
 
   it("etykieta wyzwalacza istnieje w OBU slownikach", () => {

@@ -79,7 +79,21 @@ export const Route = createFileRoute("/network")({
     return { tab, c };
   },
   head: () => ({
-    meta: [{ title: "Moja sieć" }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [
+      { title: "Moja sieć | New European Strategies" },
+      {
+        name: "description",
+        content: "Kontakty zawodowe i zaproszenia w społeczności New European Strategies.",
+      },
+      { property: "og:title", content: "Moja sieć | New European Strategies" },
+      {
+        property: "og:description",
+        content: "Kontakty zawodowe i zaproszenia w społeczności New European Strategies.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
   }),
 });
 
@@ -190,7 +204,6 @@ function PersonRow({
         bridge={bridge}
         targetName={displayName}
         targetAvatarUrl={avatarUrl}
-        targetSlug={slug}
         interactive={false}
         className="mt-0.5"
       />
@@ -200,12 +213,12 @@ function PersonRow({
     <li
       ref={highlightRef(!!highlighted)}
       className={cn(
-        "flex flex-col gap-2 rounded-[6px] border border-border/60 bg-card p-3 transition-colors hover:border-border",
+        "flex min-w-0 flex-col gap-2 overflow-hidden rounded-[6px] border border-border/60 bg-card p-2.5 transition-colors hover:border-border sm:p-3",
         highlighted && "border-[var(--brand)]/60 ring-1 ring-[var(--brand)]/40",
       )}
       data-user-id={userId}
     >
-      <div className="flex items-center gap-3">
+      <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3">
         <ChatAvatar
           name={displayName}
           avatarUrl={avatarUrl}
@@ -225,7 +238,9 @@ function PersonRow({
         ) : (
           <div className="min-w-0 flex-1">{details}</div>
         )}
-        <div className="flex shrink-0 items-center gap-1.5">{children}</div>
+        <div className="flex shrink-0 items-center gap-1 [&_[data-slot=button]]:!h-8 [&_[data-slot=button]]:!min-h-8 [&_[data-slot=button]]:!w-8 [&_[data-slot=button]]:!min-w-8 [&_[data-slot=button]]:!p-0 sm:gap-1.5">
+          {children}
+        </div>
       </div>
       {intents && intents.length > 0 && (
         <ul className="flex flex-wrap gap-1" aria-label={t("profileIntent.openToLabel")}>
@@ -323,11 +338,23 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
         />
         <input
           type="search"
+          name="contact_network_query"
+          autoComplete="one-time-code"
+          autoCorrect="off"
+          autoCapitalize="none"
+          spellCheck={false}
+          inputMode="search"
+          enterKeyHint="search"
+          data-form-type="other"
+          data-mobile-search-input=""
+          data-1p-ignore="true"
+          data-lpignore="true"
+          data-bwignore="true"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={t("network.searchPlaceholder")}
           aria-label={t("network.searchPlaceholder")}
-          className="h-10 w-full rounded-[6px] border border-input bg-muted/30 !pl-[42px] pr-4 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-10 w-full min-w-0 rounded-[6px] border border-input bg-muted/30 !pl-[42px] pr-3 text-[16px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:pr-4 sm:text-sm"
         />
       </div>
       {connectionsQ.isError ? (
@@ -380,6 +407,7 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
                   displayAvatar={c.avatar_url}
                   compact
                   iconOnly
+                  className="!h-8 !min-h-8 !w-8 !min-w-8 !p-0"
                   connectionState={{
                     ...NO_CONNECTION,
                     status: "connected",
@@ -398,7 +426,8 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
                     canInvite: false,
                     degree: 1,
                   }}
-                  compact
+                  iconOnly
+                  className="!h-8 !min-h-8 !w-8 !min-w-8 !p-0"
                 />
               </PersonRow>
             ))}
@@ -465,7 +494,7 @@ function RequestsTab({
 
   if (requestsQ.isError) return <ErrorBox retry={() => void requestsQ.refetch()} />;
   if (requestsQ.isLoading) return <LoadingList rows={2} />;
-  const rows = requestsQ.data ?? [];
+  const rows = (requestsQ.data?.pages ?? []).flat();
   if (rows.length === 0) {
     return (
       <EmptyState
@@ -475,95 +504,118 @@ function RequestsTab({
     );
   }
 
+  // Licznik z `my_network_counts` nad tą listą liczy COUNT(*) po całej tabeli,
+  // więc dopóki nie dociągniemy wszystkich stron, odznaka mówi o wierszach,
+  // których tu nie ma. Kontrolka niżej jest jedyną drogą do nich - jej brak był
+  // całym defektem (odznaka "60" nad listą pokazującą 50, bez śladu obcięcia).
+  const total = requestsQ.data?.pages?.[0]?.[0]?.total_count ?? rows.length;
+
   return (
-    <ul className="grid gap-3">
-      {rows.map((r: ConnectionRequestRow) => (
-        <li
-          key={r.connection_id}
-          ref={highlightRef(highlightId === r.connection_id)}
-          className={cn(
-            "rounded-[6px] border border-border/60 bg-card p-3 transition-colors hover:border-border",
-            highlightId === r.connection_id &&
-              "border-[var(--brand)]/60 ring-1 ring-[var(--brand)]/40",
-          )}
-        >
-          <div className="flex items-center gap-3">
-            <ChatAvatar
-              name={r.display_name}
-              avatarUrl={r.avatar_url}
-              online={online.has(r.user_id)}
-              size="md"
-              to={r.slug ? `/author/${r.slug}` : undefined}
-            />
-            <div className="min-w-0 flex-1">
-              {r.slug ? (
-                <Link
-                  to="/author/$slug"
-                  params={{ slug: r.slug }}
-                  className="rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <p className="flex min-w-0 items-center gap-1.5 truncate text-sm font-semibold">
-                    <span className="truncate">{r.display_name}</span>
-                    {r.verified && (
-                      <BadgeCheck
-                        className="h-3.5 w-3.5 shrink-0 text-sky-600 dark:text-sky-400"
-                        aria-label={t("people.verifiedBadge")}
-                      />
-                    )}
+    <>
+      <ul className="grid gap-3">
+        {rows.map((r: ConnectionRequestRow) => (
+          <li
+            key={r.connection_id}
+            ref={highlightRef(highlightId === r.connection_id)}
+            className={cn(
+              "rounded-[6px] border border-border/60 bg-card p-3 transition-colors hover:border-border",
+              highlightId === r.connection_id &&
+                "border-[var(--brand)]/60 ring-1 ring-[var(--brand)]/40",
+            )}
+          >
+            <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3">
+              <ChatAvatar
+                name={r.display_name}
+                avatarUrl={r.avatar_url}
+                online={online.has(r.user_id)}
+                size="md"
+                to={r.slug ? `/author/${r.slug}` : undefined}
+              />
+              <div className="min-w-0 flex-1">
+                {r.slug ? (
+                  <Link
+                    to="/author/$slug"
+                    params={{ slug: r.slug }}
+                    className="rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <p className="flex min-w-0 items-center gap-1.5 truncate text-sm font-semibold">
+                      <span className="truncate">{r.display_name}</span>
+                      {r.verified && (
+                        <BadgeCheck
+                          className="h-3.5 w-3.5 shrink-0 text-sky-600 dark:text-sky-400"
+                          aria-label={t("people.verifiedBadge")}
+                        />
+                      )}
+                    </p>
+                  </Link>
+                ) : (
+                  <p className="truncate text-sm font-semibold">{r.display_name}</p>
+                )}
+                {(r.job_title || r.current_company) && (
+                  <p className="truncate text-xs text-muted-foreground">
+                    {[r.job_title, r.current_company].filter(Boolean).join(" - ")}
                   </p>
-                </Link>
-              ) : (
-                <p className="truncate text-sm font-semibold">{r.display_name}</p>
-              )}
-              {(r.job_title || r.current_company) && (
-                <p className="truncate text-xs text-muted-foreground">
-                  {[r.job_title, r.current_company].filter(Boolean).join(" - ")}
+                )}
+                <p className="text-[11px] text-muted-foreground/80">
+                  {t("network.requestedAt", { date: formatDate(r.requested_at) })}
                 </p>
-              )}
-              <p className="text-[11px] text-muted-foreground/80">
-                {t("network.requestedAt", { date: formatDate(r.requested_at) })}
-              </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1 [&_[data-slot=button]]:!h-8 [&_[data-slot=button]]:!min-h-8 [&_[data-slot=button]]:!w-8 [&_[data-slot=button]]:!min-w-8 [&_[data-slot=button]]:!p-0 sm:gap-1.5">
+                {direction === "in" ? (
+                  <ConnectButton
+                    userId={r.user_id}
+                    displayName={r.display_name}
+                    state={{
+                      // Zaproszenie w toku nie jest stopniem - graf relacji
+                      // opisuje fakty, nie intencje (stąd `degree` z NO_CONNECTION).
+                      ...NO_CONNECTION,
+                      status: "pending_in",
+                      connectionId: r.connection_id,
+                      canInvite: false,
+                    }}
+                    compact
+                    iconOnly
+                  />
+                ) : (
+                  <ConnectButton
+                    userId={r.user_id}
+                    displayName={r.display_name}
+                    state={{
+                      ...NO_CONNECTION,
+                      status: "pending_out",
+                      connectionId: r.connection_id,
+                      canInvite: false,
+                    }}
+                    compact
+                    iconOnly
+                  />
+                )}
+              </div>
             </div>
-            <div className="flex shrink-0 items-center gap-1.5">
-              {direction === "in" ? (
-                <ConnectButton
-                  userId={r.user_id}
-                  displayName={r.display_name}
-                  state={{
-                    // Zaproszenie w toku nie jest stopniem - graf relacji
-                    // opisuje fakty, nie intencje (stąd `degree` z NO_CONNECTION).
-                    ...NO_CONNECTION,
-                    status: "pending_in",
-                    connectionId: r.connection_id,
-                    canInvite: false,
-                    degree: 3,
-                  }}
-                  compact
-                />
-              ) : (
-                <ConnectButton
-                  userId={r.user_id}
-                  displayName={r.display_name}
-                  state={{
-                    ...NO_CONNECTION,
-                    status: "pending_out",
-                    connectionId: r.connection_id,
-                    canInvite: false,
-                    degree: 3,
-                  }}
-                  compact
-                />
-              )}
-            </div>
-          </div>
-          {direction === "in" && r.message && (
-            <blockquote className="mt-2 rounded-[4px] border-l-2 border-[var(--brand)]/50 bg-muted/40 px-3 py-2 text-xs italic text-muted-foreground">
-              {r.message}
-            </blockquote>
-          )}
-        </li>
-      ))}
-    </ul>
+            {direction === "in" && r.message && (
+              <blockquote className="mt-2 rounded-[4px] border-l-2 border-[var(--brand)]/50 bg-muted/40 px-3 py-2 text-xs italic text-muted-foreground">
+                {r.message}
+              </blockquote>
+            )}
+          </li>
+        ))}
+      </ul>
+      {requestsQ.hasNextPage && (
+        <div className="mt-3 flex justify-center">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={requestsQ.isFetchingNextPage}
+            onClick={() => void requestsQ.fetchNextPage()}
+          >
+            {requestsQ.isFetchingNextPage
+              ? t("network.loadingMore")
+              : t("network.loadMoreOf", { loaded: rows.length, total })}
+          </Button>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -653,7 +705,12 @@ function SuggestionsTab() {
             {...readDegree(s)}
             meta={
               [
-                s.mutual_count > 0 ? t("network.mutual", { count: s.mutual_count }) : null,
+                // Ta sama reguła, co w MutualConnectionsHint: pokazujemy liczbę
+                // mostów MOŻLIWYCH DO WSKAZANIA, nie fakt grafu (ten steruje
+                // rankingiem wyżej w bazie). Patrz migracja 20260913172000.
+                (s.mutual_visible_count ?? 0) > 0
+                  ? t("network.mutual", { count: s.mutual_visible_count ?? 0 })
+                  : null,
                 s.shared_follows > 0
                   ? t("network.sharedDossiers", { count: s.shared_follows })
                   : null,
@@ -670,7 +727,7 @@ function SuggestionsTab() {
               compact
               iconOnly
             />
-            <ConnectButton userId={s.user_id} displayName={s.display_name} compact />
+            <ConnectButton userId={s.user_id} displayName={s.display_name} compact iconOnly />
             <Button
               type="button"
               variant="ghost"
@@ -756,15 +813,15 @@ function NetworkInner() {
           </Link>
         </Button>
       </div>
-      <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
+      <header className="mb-4 grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+        <div className="min-w-0">
           <h1 className="flex items-center gap-2 text-xl font-bold leading-tight">
             <UsersRound className="h-5 w-5 text-[var(--brand)]" aria-hidden />
             {t("network.title")}
           </h1>
           <p className="mt-0.5 text-xs text-muted-foreground">{t("network.subtitle")}</p>
         </div>
-        <Button asChild variant="outline" size="sm" className="gap-1.5">
+        <Button asChild variant="outline" size="sm" className="w-fit gap-1.5">
           <Link to="/people">
             <UserPlus className="h-3.5 w-3.5" aria-hidden />
             {t("network.findPeople")}
@@ -784,17 +841,29 @@ function NetworkInner() {
         {/* `w-auto shrink-0` na wyzwalaczach: bazowy TabsTrigger ma `w-full`,
             co w poziomym scrollerze rozpychało zakładki i ucinało etykiety
             ("Otrzymane"/"Wysłane"). Tu każda zakładka ma szerokość treści. */}
-        <TabsList className="h-9 w-full max-w-full justify-start gap-1 overflow-x-auto rounded-[6px] bg-muted/40 sm:w-auto">
-          <TabsTrigger value="connections" className="w-auto shrink-0 rounded-[4px] text-xs">
+        <TabsList className="grid h-auto w-full max-w-full grid-cols-2 gap-1 overflow-visible rounded-[6px] bg-muted/40 sm:inline-flex sm:h-9 sm:w-auto sm:grid-cols-none">
+          <TabsTrigger
+            value="connections"
+            className="h-8 w-full min-w-0 rounded-[4px] px-2 text-[11px] sm:h-full sm:w-auto sm:shrink-0 sm:px-3 sm:text-xs"
+          >
             {tabLabel("connections", Number(counts?.connections ?? 0) || undefined)}
           </TabsTrigger>
-          <TabsTrigger value="received" className="w-auto shrink-0 rounded-[4px] text-xs">
+          <TabsTrigger
+            value="received"
+            className="h-8 w-full min-w-0 rounded-[4px] px-2 text-[11px] sm:h-full sm:w-auto sm:shrink-0 sm:px-3 sm:text-xs"
+          >
             {tabLabel("received", Number(counts?.pending_in ?? 0) || undefined)}
           </TabsTrigger>
-          <TabsTrigger value="sent" className="w-auto shrink-0 rounded-[4px] text-xs">
+          <TabsTrigger
+            value="sent"
+            className="h-8 w-full min-w-0 rounded-[4px] px-2 text-[11px] sm:h-full sm:w-auto sm:shrink-0 sm:px-3 sm:text-xs"
+          >
             {tabLabel("sent", Number(counts?.pending_out ?? 0) || undefined)}
           </TabsTrigger>
-          <TabsTrigger value="suggestions" className="w-auto shrink-0 rounded-[4px] text-xs">
+          <TabsTrigger
+            value="suggestions"
+            className="h-8 w-full min-w-0 rounded-[4px] px-2 text-[11px] sm:h-full sm:w-auto sm:shrink-0 sm:px-3 sm:text-xs"
+          >
             {tabLabel("suggestions", undefined)}
           </TabsTrigger>
         </TabsList>

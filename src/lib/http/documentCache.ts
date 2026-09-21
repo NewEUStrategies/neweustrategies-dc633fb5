@@ -60,8 +60,8 @@ export const DOCUMENT_CACHE_MAX_SWR_MS = 24 * 60 * 60 * 1000;
  * Limit rozmiaru pojedynczego dokumentu (większe nie wchodzą do cache).
  *
  * 2026-08-18: 1 MiB -> 2 MiB. Strona główna niesie w HTML-u dehydratowane
- * dane WSZYSTKICH sekcji (celowo - patrz prefetchCachedRouteQueries) plus
- * pełną mapę site_settings z builder_data chrome'u; dokument potrafi
+ * dane WSZYSTKICH sekcji plus pełną mapę site_settings z builder_data
+ * chrome'u; dokument potrafi
  * przekroczyć 1 MiB i wtedy NAJWAŻNIEJSZA trasa serwisu wypadała z cache'a
  * PO CICHU - każdy czytelnik płacił pełny render SSR (sekundy TTFB), a
  * liczniki pokazywały wyłącznie rosnące MISS-y bez śladu przyczyny. Odrzut
@@ -70,6 +70,12 @@ export const DOCUMENT_CACHE_MAX_SWR_MS = 24 * 60 * 60 * 1000;
  * zamiast objawiać się wolnym pierwszym wejściem. Budżet całego magazynu
  * (24 MiB, approx-LRU) pozostaje nadrzędny, więc koszt pamięci jest
  * ograniczony z konstrukcji.
+ *
+ * 2026-09-01: limit ZOSTAJE na 2 MiB, choć strona główna strumieniuje już
+ * sekcje spod zgięcia. Strumieniowanie przenosi te dane z początkowej paczki
+ * dehydratacji do strumienia zapytań, ale NIE zdejmuje ich z dokumentu - ciało
+ * zapisywane w cache'u jest zbierane do końca strumienia
+ * (`applyDeferredDocumentStore`), więc presja na ten limit jest ta sama.
  */
 export const DOCUMENT_CACHE_MAX_ENTRY_BYTES = 2 * 1024 * 1024;
 /** Budżet bajtów całego magazynu per isolate (approx-LRU eviction). */
@@ -187,6 +193,21 @@ const NO_STORE: StorePolicy = { store: false, freshMs: 0, swrMs: 0 };
  * HTML, które SAME zadeklarowały współdzielenie (`public` + `s-maxage>0` -
  * dokładnie to emituje `contentCacheControl()`; rendery personalized/preview
  * wysyłają `private, no-store` i naturalnie tu odpadają).
+ *
+ * Dwie dyrektywy walidacyjne rozstrzygamy tak, jak ten magazyn potrafi:
+ *   * `no-cache` -> NIE ZAPISUJEMY. RFC 9111 5.2.2.4 pozwala przechować, ale
+ *     zabrania PODAĆ bez walidacji u źródła, a tu nie ma czym walidować:
+ *     `replay()` odtwarza bajty z pamięci (żadnego ETagu ani żądania
+ *     warunkowego na `DocumentCacheEntry`), a odświeżenie biegnie ZA
+ *     odpowiedzią. „Przechowany" znaczy w tym magazynie „podany bez
+ *     walidacji", czyli dokładnie to, czego `no-cache` zakazuje. `freshMs = 0`
+ *     nie jest wyjściem pośrednim: wpis byłby serwowany STALE od pierwszej
+ *     milisekundy, czyli ODWROTNIE niż każe dyrektywa.
+ *   * `must-revalidate` -> zapisujemy, ale BEZ okna stale. Dyrektywa
+ *     (RFC 9111 5.2.2.2) nie skraca świeżości, tylko zabrania ponownego użycia
+ *     wpisu NIEŚWIEŻEGO bez walidacji - a jedyne, co ten magazyn robi po
+ *     świeżości, to serwowanie stale. Zerowe okno stale zamienia wygaśnięcie
+ *     w zwykły MISS (pełny render), co jest jedyną wierną interpretacją.
  */
 export function documentStorePolicy(
   status: number,
@@ -197,10 +218,73 @@ export function documentStorePolicy(
   if (!contentType || !contentType.includes("text/html")) return NO_STORE;
   const cc = parseCacheControl(cacheControl);
   if (!cc.public || cc.noStore || cc.private) return NO_STORE;
+  if (cc.noCache) return NO_STORE;
   if (!cc.sMaxAge || cc.sMaxAge <= 0) return NO_STORE;
   return {
     store: true,
     freshMs: Math.min(cc.sMaxAge * 1000, DOCUMENT_CACHE_MAX_FRESH_MS),
-    swrMs: Math.min((cc.staleWhileRevalidate ?? 0) * 1000, DOCUMENT_CACHE_MAX_SWR_MS),
+    swrMs: cc.mustRevalidate
+      ? 0
+      : Math.min((cc.staleWhileRevalidate ?? 0) * 1000, DOCUMENT_CACHE_MAX_SWR_MS),
   };
+}
+
+/**
+ * Normalizacja ścieżki dokumentu do postaci, w jakiej `planDocumentCache`
+ * kluczuje wpisy: wiodący `/`, bez końcowego `/` (poza korzeniem), bez query
+ * i fragmentu, bez prefiksu języka. Null dla wejścia, które nie jest ścieżką
+ * względną tego serwisu (pełny URL, pusty napis) - purge nie zgaduje.
+ */
+export function normalizeDocumentPath(path: string): string | null {
+  const trimmed = path.trim();
+  if (!trimmed || !trimmed.startsWith("/") || trimmed.startsWith("//")) return null;
+  const withoutQuery = trimmed.split(/[?#]/, 1)[0] ?? "";
+  const collapsed = withoutQuery.replace(/\/+$/, "") || "/";
+  return stripLangPrefix(collapsed);
+}
+
+/**
+ * Oba warianty językowe jednego dokumentu: PL na gołej ścieżce i EN pod `/en`.
+ * Publikacja zmienia oba, więc purge per ścieżka ZAWSZE unieważnia parę -
+ * czytelnik EN nie może dostawać starej wersji tylko dlatego, że redaktor
+ * pracował po polsku. Duplikaty (np. `/x` i `/en/x` na wejściu) są scalane.
+ */
+export function documentPathVariants(paths: readonly string[]): string[] {
+  const out = new Set<string>();
+  for (const raw of paths) {
+    const bare = normalizeDocumentPath(raw);
+    if (!bare) continue;
+    out.add(bare);
+    out.add(bare === "/" ? "/en" : `/en${bare}`);
+  }
+  return [...out];
+}
+
+/**
+ * Publiczne dokumenty zależne od WPISU - wejście dla purge'a selektywnego
+ * przy publikacji/aktualizacji wpisu (`purgeDocumentPaths`):
+ *   - adres kanoniczny (`<ścieżka-rodzica>/<slug>`), jeśli wołający go zna;
+ *     przy zmianie sluga/rodzica trzeba podać STARY i NOWY wpis - stary
+ *     dokument w cache'u serwowałby inaczej nieaktualną treść pod adresem,
+ *     który już przekierowuje;
+ *   - adres legacy `/post/<slug>` - własne listingi wciąż go generują
+ *     (audyt CWV F13), a jego 301 też siedzi w potoku dokumentów;
+ *   - strona główna i listing bloga, które pokazują najnowsze wpisy.
+ * Archiwa kategorii/tagów/autora wołający dokłada sam, gdy zna ich slugi -
+ * tu nie są deterministycznie znane. Bez prefiksu języka: warianty `/en`
+ * dokłada `documentPathVariants` w purge'u.
+ */
+export function postDocumentPaths(
+  posts: ReadonlyArray<{ slug: string; canonicalPath?: string | null }>,
+): string[] {
+  const out = new Set<string>(["/", "/blog"]);
+  for (const post of posts) {
+    const slug = post.slug.trim().replace(/^\/+|\/+$/g, "");
+    if (slug) out.add(`/post/${slug}`);
+    if (post.canonicalPath) {
+      const canonical = post.canonicalPath.trim();
+      out.add(canonical.startsWith("/") ? canonical : `/${canonical}`);
+    }
+  }
+  return [...out];
 }

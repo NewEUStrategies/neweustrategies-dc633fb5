@@ -24,7 +24,7 @@
 // który kartę ma.
 //
 // GRANICA, KTÓRĄ ATRAPUJEMY: wyłącznie budowa klienta operatora
-// (`createStripeClient`). Reszta modułu `stripe.server` zostaje prawdziwa.
+// (`getStripeClient`). Reszta modułu `stripe.server` zostaje prawdziwa.
 // Zero sieci, zero kluczy - atrapa nie wykonuje żadnego żądania.
 // RODO: żadnych prawdziwych numerów kart ani danych osobowych.
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -75,7 +75,7 @@ const h = vi.hoisted(() => ({
 // Bez rzutowania na typ `Stripe` - atrapa niesie tylko realnie wołane metody.
 vi.mock("@/lib/stripe.server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/stripe.server")>()),
-  createStripeClient: (env: string) => {
+  getStripeClient: (env: string) => {
     h.envs.push(env);
     return {
       customers: {

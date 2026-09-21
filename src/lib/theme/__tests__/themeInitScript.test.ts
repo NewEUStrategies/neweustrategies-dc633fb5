@@ -44,18 +44,26 @@ function colorScheme(): string {
   return document.documentElement.style.colorScheme;
 }
 
-beforeEach(() => {
+/**
+ * Sprzątanie `<html>` po przebiegu. Atrybut wyboru (`data-motyw`) jest tu
+ * zdejmowany, choć żadna asercja w tym pliku go nie czyta: skrypt go ZAPISUJE,
+ * więc bez tego zostawałby na dokumencie i karmił kolejny przypadek stanem,
+ * którego ten przypadek nie ustawił. Parytet obu ścieżek rozstrzygania
+ * sprawdza osobny plik (`themeParity.test.ts`) - tu chodzi wyłącznie o skrypt.
+ */
+function wyczyscHtml(): void {
   localStorage.clear();
   document.documentElement.classList.remove("dark");
   document.documentElement.style.colorScheme = "";
+  document.documentElement.removeAttribute("data-motyw");
+}
+
+beforeEach(() => {
+  wyczyscHtml();
   systemPrefersDark(false);
 });
 
-afterEach(() => {
-  localStorage.clear();
-  document.documentElement.classList.remove("dark");
-  document.documentElement.style.colorScheme = "";
-});
+afterEach(wyczyscHtml);
 
 describe("zapisany wybór użytkownika wygrywa z systemem", () => {
   it("`dark` w magazynie zapala ciemny motyw także przy jasnym systemie", () => {
@@ -110,30 +118,26 @@ describe("degradacja", () => {
     expect(() => run()).not.toThrow();
   });
 
-  // DEFEKT ZGŁOSZONY, NIE NAPRAWIONY (istniał przed wyprowadzeniem skryptu -
-  // treść przeniesiona znak w znak z `__root.tsx`).
+  // DEFEKT NAPRAWIONY - ten przypadek był tu wcześniej jako `it.fails`
+  // z adnotacją „decyzja dla człowieka".
   //
-  // GDY `window.matchMedia` NIE ISTNIEJE, wyrażenie
+  // CO BYŁO. Gdy `window.matchMedia` nie istniało, wyrażenie
   //   d = t==='dark' || (t!=='light' && window.matchMedia && window.matchMedia(...).matches)
-  // daje `undefined`, a nie `false` - łańcuch `&&` zwraca swój pierwszy fałszywy
-  // członek, którym jest tu `undefined`.
+  // dawało `undefined`, a nie `false` - łańcuch `&&` zwraca swój pierwszy
+  // fałszywy członek. Dalej z tej JEDNEJ wartości działy się DWIE różne
+  // rzeczy: `classList.toggle('dark', undefined)` jest wg specyfikacji
+  // wywołaniem BEZ drugiego argumentu, więc PRZEŁĄCZAŁO klasę (przy czystym
+  // `<html>` dodawało `dark`), a `d ? 'dark' : 'light'` traktowało `undefined`
+  // jako fałsz i ustawiało `light`. Czytelnik, który nigdy nie wybrał ciemnego
+  // motywu, dostawał ciemne tło z jasnym paskiem przewijania i jasnymi
+  // kontrolkami formularza - w starych webview i w części przeglądarek
+  // osadzonych.
   //
-  // Dalej dzieją się DWIE RÓŻNE rzeczy z tej samej wartości:
-  //   * `classList.toggle('dark', undefined)` - drugi argument `undefined` jest
-  //     wg specyfikacji traktowany jak ARGUMENT NIEOBECNY, więc metoda
-  //     PRZEŁĄCZA klasę zamiast ją wyłączyć: przy czystym `<html>` DODAJE `dark`;
-  //   * `style.colorScheme = d ? 'dark' : 'light'` - `undefined` jest fałszywe,
-  //     więc ustawia `light`.
-  //
-  // KONSEKWENCJA: czytelnik, który nigdy nie wybrał ciemnego motywu, dostaje
-  // ciemne style z jasnym `color-scheme` - czyli ciemną stronę z jasnym paskiem
-  // przewijania i jasnymi kontrolkami formularzy. Zmierzony stan faktyczny:
-  // `dark=true`, `color-scheme=light`. Dotyczy środowisk bez `matchMedia`
-  // (stare webview, część osadzonych przeglądarek).
-  //
-  // Naprawa to jedna zmiana w skrypcie produkcyjnym (`!!(...)` albo `=== true`),
-  // ale zmienia zachowanie renderu - decyzja dla człowieka.
-  it.fails("brak `matchMedia` daje SPÓJNY jasny motyw", () => {
+  // CO JEST. Wyrażenie stoi raz, w `themeChoice.ts` jako `THEME_RESOLVE_JS`,
+  // i ma `!!(...)` wokół członu `matchMedia`, więc `d` jest zawsze prawdziwym
+  // logicznym. Naprawa objęła jednocześnie drugi skrypt inline (preload tła
+  // quizu), który nosił tę samą kopię wyrażenia.
+  it("brak `matchMedia` daje SPÓJNY jasny motyw", () => {
     Object.defineProperty(window, "matchMedia", { configurable: true, value: undefined });
     run();
     expect({ dark: isDark(), scheme: colorScheme() }).toEqual({ dark: false, scheme: "light" });

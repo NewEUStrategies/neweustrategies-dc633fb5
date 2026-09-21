@@ -9,6 +9,7 @@ import type {
 import type { Lang } from "@/lib/builder/postListQuery";
 import { postListQueryOptions } from "@/lib/builder/postListQuery";
 import { menuWithItemsQueryOptions } from "@/lib/menus/queries";
+import { hasSsrQueryData } from "@/lib/ssr/homeSsrBudget";
 import { newsTickerQueryOptions } from "@/lib/builder/newsTickerQuery";
 import { postRefQueryOptions } from "@/lib/builder/contentRefs";
 // Z sliderFallbackQuery (nie sliderVariants): prefetch trafia do bundla
@@ -23,6 +24,18 @@ import {
 import { sliderAuthorIds, sliderAuthorsQueryOptions } from "@/lib/builder/sliderAuthorsQuery";
 import { eventByIdQueryOptions, eventsListQueryOptions } from "@/lib/builder/eventsQuery";
 import { clubCardQueryOptions, clubThreadsQueryOptions } from "@/lib/builder/clubsQuery";
+import { categoriesQueryOptions, tagsQueryOptions } from "@/lib/builder/taxonomyQuery";
+import { newsletterSettingsQueryOptions } from "@/hooks/useNewsletterSettings";
+import {
+  podcastLatestQueryOptions,
+  webStoriesCarouselQueryOptions,
+} from "@/lib/builder/mediaListQuery";
+// Cennik przez cienki moduł w lib/builder, nie wprost z lib/billing: uzasadnienie
+// kosztu bootu (krawędź do `billing/queries` JUŻ jest w chunku wejściowym,
+// wciągnięta przez loadery /pricing, /membership-join i /plans/$planId) stoi
+// w nagłówku `pricingPlansQuery.ts` - razem z pomiarem, na którym się opiera.
+import { activePlansQueryOptions, pricingUsesPlansSource } from "@/lib/builder/pricingPlansQuery";
+import { ratedListQueryOptions, ratedListUsesDynamicSource } from "@/lib/builder/ratedListQuery";
 import {
   speakersByIdsQueryOptions,
   speakersQueryOptions,
@@ -75,22 +88,25 @@ export function collectBuilderWidgets(doc: BuilderDocument): WidgetNode[] {
 }
 
 /**
- * Widgety odliczania czytajace wydarzenie po id (eventByIdQueryOptions).
- * "event-countdown-card" dlugo brakowalo na tej liscie, wiec premium karta w
- * trybie "event" nie miala prefetchu SSR: serwer renderowal placeholdery, a
- * tytul/okladka/data wskakiwaly dopiero po hydratacji i osobnym fetchu.
+ * Widgety czytajace JEDNO wydarzenie po id (eventByIdQueryOptions) w trybie
+ * "event". "event-countdown-card" dlugo brakowalo na tej liscie, wiec premium
+ * karta w trybie "event" nie miala prefetchu SSR: serwer renderowal
+ * placeholdery, a tytul/okladka/data wskakiwaly dopiero po hydratacji i osobnym
+ * fetchu. Kazdy nowy widget z pickerem wydarzenia MUSI tu trafic - inaczej
+ * powtarza dokladnie ten defekt.
  */
-const COUNTDOWN_WIDGET_TYPES: ReadonlySet<string> = new Set([
+const EVENT_BY_ID_WIDGET_TYPES: ReadonlySet<string> = new Set([
   "event-countdown",
   "event-countdown-card",
+  "promo-card",
 ]);
 
-function isCountdownWidget(widget: WidgetNode): boolean {
-  return COUNTDOWN_WIDGET_TYPES.has(widget.type);
+function readsEventById(widget: WidgetNode): boolean {
+  return EVENT_BY_ID_WIDGET_TYPES.has(widget.type);
 }
 
-/** Id wydarzenia dla widgetu odliczania w trybie "event" (inaczej pusty string). */
-function countdownEventId(c: WidgetContent): string {
+/** Id wydarzenia dla widgetu w trybie "event" (inaczej pusty string). */
+function widgetEventId(c: WidgetContent): string {
   const mode = typeof c.mode === "string" ? c.mode : "custom";
   const eventId = typeof c.eventId === "string" ? c.eventId : "";
   return mode === "event" ? eventId : "";
@@ -108,13 +124,6 @@ function contentItems(c: WidgetContent): Record<string, unknown>[] {
   return items;
 }
 
-/**
- * Every concrete query-options shape a data-bound builder widget can produce.
- * The union is precise (no `any`) so a value carries a strongly-typed
- * `queryKey`, which is what the Suspense-streaming gate inspects via
- * `getQueryState` to observe the EXACT cache entries the widgets read - the key
- * to streamed sections never re-fetching after hydration.
- */
 /** Adres klubu z treści widgetu. Pusty = widget nieskonfigurowany, bez zapytania. */
 function clubWidgetSlug(content: unknown): string {
   const raw = (content as { clubSlug?: unknown } | undefined)?.clubSlug;
@@ -131,10 +140,24 @@ function clubThreadsInput(content: unknown): { sort: string; policyArea: string;
   };
 }
 
+/**
+ * Every concrete query-options shape a data-bound builder widget can produce.
+ * The union is precise (no `any`) so a value carries a strongly-typed
+ * `queryKey`, which is what the Suspense-streaming gate inspects via
+ * `getQueryState` to observe the EXACT cache entries the widgets read - the key
+ * to streamed sections never re-fetching after hydration.
+ */
 export type BuilderSectionQuery =
   | ReturnType<typeof postListQueryOptions>
   | ReturnType<typeof newsTickerQueryOptions>
   | ReturnType<typeof postRefQueryOptions>
+  | ReturnType<typeof categoriesQueryOptions>
+  | ReturnType<typeof tagsQueryOptions>
+  | ReturnType<typeof podcastLatestQueryOptions>
+  | ReturnType<typeof newsletterSettingsQueryOptions>
+  | ReturnType<typeof webStoriesCarouselQueryOptions>
+  | ReturnType<typeof activePlansQueryOptions>
+  | ReturnType<typeof ratedListQueryOptions>
   | ReturnType<typeof sliderFallbackImagesQueryOptions>
   | ReturnType<typeof sliderPostsQueryOptions>
   | ReturnType<typeof menuWithItemsQueryOptions>
@@ -166,7 +189,24 @@ export function prefetchBuilderSectionQuery(
  * one list query; slider -> one ref per referenced post + one fallback-images
  * query). Single source of truth shared by prefetch and the streaming gate, so
  * the two can never drift apart on which queries back a widget.
+ *
+ * DWA WARUNKI, KTÓRYCH NIE PILNUJE KOMPILATOR - oba zamykają awarie CICHE:
+ *  1. KLUCZ MUSI BYĆ DOKŁADNIE TEN, KTÓRY CZYTA WIDOK. Klucz rozjechany choćby
+ *     o koercję liczby daje rozgrzany wpis, w który widget nigdy nie trafia:
+ *     SSR zostaje pusty, nic nie zgłasza błędu, a klient płaci drugie
+ *     zapytanie. Dlatego każda gałąź woła TĘ SAMĄ fabrykę, po którą sięga
+ *     widok (albo helper, który liczy wejście do klucza w jednym miejscu).
+ *  2. KAŻDA GAŁĄŹ MUSI MIEĆ ODBICIE W {@link widgetCacheTargets}. Tamta
+ *     funkcja zasila bramkę SWR `useSectionPreload.isSectionFresh`, która na
+ *     liście DŁUGOŚCI ZERO zwraca "świeże" - brak odbicia po cichu wyłącza
+ *     klientowy prefetch przy przewijaniu dla całej sekcji.
  */
+/** Warianty newslettera renderujące realny formularz (reszta to sam trigger). */
+function newsletterUsesForm(content: unknown): boolean {
+  const variant = (content as { variant?: unknown } | undefined)?.variant;
+  return variant === undefined || variant === "inline" || variant === "card";
+}
+
 export function widgetQueryOptionsList(widget: WidgetNode, lang: Lang): BuilderSectionQuery[] {
   const out: BuilderSectionQuery[] = [];
   // Nawigacja (widget "menu" w chrome i dokumentach buildera): bez SSR-owego
@@ -184,6 +224,17 @@ export function widgetQueryOptionsList(widget: WidgetNode, lang: Lang): BuilderS
   if (widget.type === "news-ticker" || widget.type === "trending-now") {
     out.push(newsTickerQueryOptions(widget.content, lang));
   }
+  // Taksonomie: zapytania siedziały WPROST w widokach, więc rejestr ich nie
+  // widział - sekcja z samymi chipami miała pustą listę zapytań, liczyła się
+  // jako statyczna (`shouldStreamSection`) i wychodziła z serwera pusta.
+  // Zapytania nie mają wejścia z treści: jeden klucz na cały dokument, więc
+  // kilka takich widgetów dzieli jeden wpis cache i jedno rozgrzanie.
+  if (widget.type === "categories") {
+    out.push(categoriesQueryOptions());
+  }
+  if (widget.type === "tags") {
+    out.push(tagsQueryOptions());
+  }
   if (widget.type === "event-list") {
     out.push(eventsListQueryOptions(widget.content, lang));
   }
@@ -197,8 +248,55 @@ export function widgetQueryOptionsList(widget: WidgetNode, lang: Lang): BuilderS
   if (widget.type === "club-threads") {
     out.push(clubThreadsQueryOptions(clubThreadsInput(widget.content)));
   }
-  if (isCountdownWidget(widget)) {
-    const eventId = countdownEventId(widget.content);
+  // `club-hub` grzeje TYLKO naglowek klubu: listy sekcji zaleza od identyfikatora,
+  // ktory poznajemy dopiero z odpowiedzi `club_view`, wiec ich prefetch
+  // wymagalby drugiej rundy zapytan po stronie serwera.
+  if (widget.type === "club-hub") {
+    const slug = clubWidgetSlug(widget.content);
+    if (slug !== "") out.push(clubCardQueryOptions(slug));
+  }
+  // Podcast i Web Stories: fabryki zapytań były gotowe i już grzane serwerowo
+  // w loaderach `/podcasts` i `/web-stories`, brakowało TYLKO wpisu w rejestrze
+  // widgetów. Bez niego karta odcinka i kafelek historii wychodziły z SSR jako
+  // stan `isLoading` („…") i doskakiwały po hydratacji razem z okładką - czyli
+  // wewnątrz obszaru LCP na stronach z tymi sekcjami.
+  if (widget.type === "podcast-latest") {
+    out.push(podcastLatestQueryOptions(widget.content));
+  }
+  if (widget.type === "web-stories-carousel") {
+    out.push(webStoriesCarouselQueryOptions(widget.content));
+  }
+  // Newsletter (warianty z formularzem): bez rozgrzania `NewsletterForm`
+  // zwraca `null` na serwerze - kolumna z zapisem wychodziła z SSR pusta,
+  // a pola pojawiały się dopiero po hydratacji.
+  // JoinUsForm reads the same settings, including its title and enabled flag.
+  // Without this entry, a late-hydrating widget can read client-fetched settings
+  // that differ from its SSR defaults and force React to replace the form.
+  if (
+    widget.type === "join-us" ||
+    (widget.type === "newsletter" && newsletterUsesForm(widget.content))
+  ) {
+    out.push(newsletterSettingsQueryOptions());
+  }
+
+  // Cennik zsynchronizowany z katalogiem: zapytanie ma WYŁĄCZNIE tryb "plans"
+  // (tryb domyślny renderuje ręczne wartości z treści widgetu i danych nie
+  // czyta), stąd bramka na źródło - precedens stylu to gałąź `speakers` niżej.
+  if (widget.type === "pricing" && pricingUsesPlansSource(widget.content)) {
+    out.push(activePlansQueryOptions());
+  }
+  // Lista oceniana/rankingowa w trybie dynamicznym. Klucz i `queryFn` stały
+  // WPROST w `RatedListView.tsx` (12 pól wejścia + ~135 linii zapytania), więc
+  // rejestr tego typu nie widział: siatka wychodziła z serwera bez wierszy
+  // (same numery tła), a tytuły i byline doskakiwały po hydratacji. Zapytanie
+  // przeniesiono do `ratedListQuery.ts`, więc widok i rejestr czytają JEDNĄ
+  // fabrykę - rozjazd klucza jest niewyrażalny. Tryb `manual` renderuje
+  // pozycje z treści widgetu i danych nie czyta, stąd bramka źródła.
+  if (widget.type === "rated-list" && ratedListUsesDynamicSource(widget.content)) {
+    out.push(ratedListQueryOptions(widget.content, lang));
+  }
+  if (readsEventById(widget)) {
+    const eventId = widgetEventId(widget.content);
     if (eventId) out.push(eventByIdQueryOptions(eventId));
   }
   if (widget.type === "speakers" && speakersSource(widget.content) !== "manual") {
@@ -354,6 +452,14 @@ export function widgetCacheTargets(widget: WidgetNode, lang: Lang): WidgetCacheT
     const opts = newsTickerQueryOptions(widget.content, lang);
     out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
   }
+  if (widget.type === "categories") {
+    const opts = categoriesQueryOptions();
+    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
+  }
+  if (widget.type === "tags") {
+    const opts = tagsQueryOptions();
+    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
+  }
   if (widget.type === "event-list") {
     const opts = eventsListQueryOptions(widget.content, lang);
     out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
@@ -369,8 +475,38 @@ export function widgetCacheTargets(widget: WidgetNode, lang: Lang): WidgetCacheT
     const opts = clubThreadsQueryOptions(clubThreadsInput(widget.content));
     out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
   }
-  if (isCountdownWidget(widget)) {
-    const eventId = countdownEventId(widget.content);
+  if (widget.type === "club-hub") {
+    const slug = clubWidgetSlug(widget.content);
+    if (slug !== "") {
+      const opts = clubCardQueryOptions(slug);
+      out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
+    }
+  }
+  if (widget.type === "podcast-latest") {
+    const opts = podcastLatestQueryOptions(widget.content);
+    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
+  }
+  if (widget.type === "web-stories-carousel") {
+    const opts = webStoriesCarouselQueryOptions(widget.content);
+    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
+  }
+  if (
+    widget.type === "join-us" ||
+    (widget.type === "newsletter" && newsletterUsesForm(widget.content))
+  ) {
+    const opts = newsletterSettingsQueryOptions();
+    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
+  }
+  if (widget.type === "pricing" && pricingUsesPlansSource(widget.content)) {
+    const opts = activePlansQueryOptions();
+    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
+  }
+  if (widget.type === "rated-list" && ratedListUsesDynamicSource(widget.content)) {
+    const opts = ratedListQueryOptions(widget.content, lang);
+    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
+  }
+  if (readsEventById(widget)) {
+    const eventId = widgetEventId(widget.content);
     if (eventId) {
       const opts = eventByIdQueryOptions(eventId);
       out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
@@ -442,9 +578,15 @@ export async function prefetchBuilderDocumentQueries(
  * to them. Three covers a hero plus the first content rows on every breakpoint;
  * bump it if a layout puts more data-bound widgets above the fold.
  *
- * Note: edge-cached content routes use {@link prefetchCachedRouteQueries}
- * instead, which warms the whole document - this cap applies to any uncached /
- * per-request loader that opts into above-the-fold-only prefetching.
+ * Od 2026-09-01 to jest okno OBOWIĄZUJĄCE TAKŻE dla tras edge-cache'owanych:
+ * `$.tsx` (wpisy i wszystkie strony publiczne) oraz strona główna blokują
+ * odpowiedź wyłącznie na tych pierwszych sekcjach, a reszta jedzie
+ * strumieniem przez `ServerSectionGate` albo dogrzewa się po hydratacji.
+ * (Stało tu wcześniej, że „trasy edge-cache'owane używają zamiast tego
+ * {@link prefetchCachedRouteQueries}, które grzeje CAŁY dokument, a ta czapka
+ * dotyczy tylko loaderów nie-cache'owanych" - nieprawda w obie strony:
+ * `prefetchCachedRouteQueries` grzeje dziś już tylko chrome nagłówka i stopki
+ * z loadera korzenia. To samo sprostowanie stoi w `useSectionPreload.ts`.)
  */
 export const ABOVE_FOLD_SECTION_COUNT = 3;
 
@@ -456,6 +598,34 @@ export const ABOVE_FOLD_SECTION_COUNT = 3;
  * whole server response. The widget then resolves client-side on hydration.
  */
 const ABOVE_FOLD_PREFETCH_BUDGET_MS = 2500;
+
+/**
+ * Wynik rozgrzewki sekcji nad zgięciem.
+ *
+ * PO CO SYGNAŁ, SKORO FUNKCJA NIGDY NIE RZUCA - i to jest sedno defektu
+ * zgłoszonego w recenzji PR #357 (P1, `src/routes/$.tsx:381`). Ta funkcja ma
+ * WŁASNY budżet 2 500 ms i po jego przekroczeniu rozstrzyga się NORMALNIE,
+ * zostawiając zapytania w locie. Wołający opakowywał ją w `Promise.allSettled`
+ * pod budżetem 3 000 ms i czytał degradację z ODRZUCENIA - którego tu z zasady
+ * nie ma. Skutek: najczęstszy realny kształt awarii (wolny upstream, wewnętrzny
+ * budżet mija pierwszy) dawał wynik `fulfilled`, render bez treści nad zgięciem
+ * szedł z nagłówkiem wspólnego cache'u i utrwalał się na brzegu.
+ *
+ * `degraded` odpowiada więc na pytanie, które jedyne ma tu znaczenie: CZY
+ * WSZYSTKIE zapytania, które ta rozgrzewka miała dowieźć, wylądowały świeżym
+ * sukcesem. Predykat jest ten sam, którego używa korzeń (`hasSsrQueryData`),
+ * więc zasiew fallbackowy (`dataUpdatedAt === 0`) też liczy się jako
+ * degradacja.
+ *
+ * CZEGO NIE OBEJMUJE, powiedziane wprost: łańcuchowej rozgrzewki bylinu
+ * slidera (`sliderAuthorsQueryOptions`), bo jej klucz powstaje dopiero
+ * z WYNIKU zapytania o wpisy i `widgetQueryOptionsList` go nie zna. Awaria
+ * samego bylinu nie zapali więc tego sygnału. To jest luka zmierzona i
+ * zapisana, a nie przemilczana.
+ */
+export interface AboveFoldPrefetchResult {
+  readonly degraded: boolean;
+}
 
 export interface AboveFoldPrefetchOptions {
   /** Leading sections to prefetch. Defaults to {@link ABOVE_FOLD_SECTION_COUNT}. */
@@ -512,47 +682,64 @@ export async function prefetchAboveFoldQueries(
   doc: BuilderDocument,
   lang: Lang,
   options: AboveFoldPrefetchOptions = {},
-): Promise<void> {
+): Promise<AboveFoldPrefetchResult> {
   const sectionCount = options.sections ?? ABOVE_FOLD_SECTION_COUNT;
   const widgets = collectAboveFoldWidgets(doc, sectionCount);
-  if (widgets.length === 0) return;
+  if (widgets.length === 0) return { degraded: false };
 
   const work = prefetchWidgets(queryClient, widgets, lang);
   const budgetMs = options.budgetMs ?? ABOVE_FOLD_PREFETCH_BUDGET_MS;
   if (!Number.isFinite(budgetMs) || budgetMs <= 0) {
     await work;
-    return;
+  } else {
+    await raceBudget(work, budgetMs);
   }
-  await raceBudget(work, budgetMs);
+  // TA SAMA funkcja, którą `prefetchWidgets` wylicza zadania, więc zbiór
+  // kluczy zgadza się Z KONSTRUKCJI, a nie przez utrzymywanie dwóch list.
+  const degraded = widgets.some((widget) => {
+    let optionsList: BuilderSectionQuery[] = [];
+    try {
+      optionsList = widgetQueryOptionsList(widget, lang);
+    } catch {
+      // Widget, którego `prefetchWidgets` też pominął - nie jest degradacją,
+      // bo nic z niego nie miało dojechać.
+      return false;
+    }
+    return optionsList.some((opts) => !hasSsrQueryData(queryClient, opts.queryKey));
+  });
+  return { degraded };
 }
 
 /**
- * Upper bound (ms) on a full-document server prefetch for an edge-cached route.
- * More generous than {@link ABOVE_FOLD_PREFETCH_BUDGET_MS} because the cost is
- * amortized: these routes are CDN-cached with a long stale-while-revalidate
- * window (see lib/http/cachePolicy), so a visitor is served instantly from the
- * shared cache while the full render happens at most once per revalidation. The
- * budget is only a hang-guard - any query that overruns it falls back to the
- * client-side `useSectionPreload` path.
- */
-const CACHED_ROUTE_PREFETCH_BUDGET_MS = 6000;
-
-/**
- * Prefetch EVERY section's data for an edge-cached content route (home, public
- * page/post). Where {@link prefetchAboveFoldQueries} deliberately caps at the
- * first {@link ABOVE_FOLD_SECTION_COUNT} sections to keep TTFB low on
- * per-request renders, this warms the whole document so the entire page ships
- * as server-rendered HTML and below-the-fold content never pops in on the
- * client after a refresh. Safe precisely because the route is share-cached: the
- * work is paid once per revalidation, not per visitor. All section queries run
- * in parallel and the whole batch is bounded by `budgetMs`, so a single slow
- * upstream can never hang the SSR response.
+ * Prefetch EVERY section's data of the document it is handed, in parallel,
+ * bounded by `budgetMs` - so a single slow upstream can never hang the SSR
+ * response. Where {@link prefetchAboveFoldQueries} caps at the first
+ * {@link ABOVE_FOLD_SECTION_COUNT} sections, this one has no cap: it is for
+ * documents that are SHORT and needed WHOLE.
+ *
+ * KTO TO WOŁA (2026-09-01): wyłącznie loader korzenia, dla chrome nagłówka
+ * i stopki. Wcześniej stało tu, że funkcja obsługuje „edge-cached content route
+ * (home, public page/post)" i że grzeje cały dokument, „bo trasa jest
+ * share-cached, więc koszt płaci się raz na rewalidację" - to już nieprawda
+ * w obu członach: strona główna i `$.tsx` przeszły na
+ * {@link prefetchAboveFoldQueries} plus strumieniowanie sekcji właśnie dlatego,
+ * że przy cache MISS pierwszy bajt wisiał na najwolniejszym zapytaniu spod
+ * zgięcia. Dokumenty chrome mają po kilka sekcji, więc dla nich brak czapki
+ * jest w porządku.
+ *
+ * `budgetMs` JEST WYMAGANY. Parametr miał domyślne 6000 ms - dokładnie tę
+ * liczbę, na której wisiał pierwszy bajt strony głównej. Po tamtej naprawie
+ * żaden caller już z niej nie korzystał (oba pozostałe podają
+ * `CHROME_WARM_BUDGET_MS` jawnie), a martwa domyślna wartość tej wielkości to
+ * pułapka: następne wywołanie bez argumentu po cichu wróciłoby do 6 s. Budżet
+ * jest więc częścią kontraktu - każdy nowy caller musi go NAZWAĆ. `0` (albo
+ * wartość nieskończona) znaczy "czekaj do końca, bez czapki".
  */
 export async function prefetchCachedRouteQueries(
   queryClient: QueryClient,
   doc: BuilderDocument,
   lang: Lang,
-  budgetMs: number = CACHED_ROUTE_PREFETCH_BUDGET_MS,
+  budgetMs: number,
 ): Promise<void> {
   // Fully isolate: a throw here would propagate into the route loader and
   // desynchronize SSR HTML from the dehydrated router bootstrap.

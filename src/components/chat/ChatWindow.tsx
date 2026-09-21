@@ -153,6 +153,14 @@ export function ChatWindow(props: ChatWindowProps) {
     ? conversationDisplay(view, peersQ.data, t("chat.group.circle"), conversationNicknames)
     : PENDING_DISPLAY;
   const { peerId, name: peerName, avatarUrl: peerAvatar, slug: peerSlug } = display;
+  const peerProfile = peerId ? peersQ.data?.get(peerId) : undefined;
+  const peerProfileMeta = useMemo(
+    () =>
+      [peerProfile?.job_title?.trim(), peerProfile?.current_company?.trim()]
+        .filter((value): value is string => Boolean(value))
+        .join(" - ") || null,
+    [peerProfile?.current_company, peerProfile?.job_title],
+  );
 
   // Profile reagujących: rozmówcy z RPC + zsyntetyzowany wpis „ja" z sesji
   // (własny avatar stoi na chipie reakcji, a `get_chat_peers` zwraca wyłącznie
@@ -656,6 +664,7 @@ export function ChatWindow(props: ChatWindowProps) {
       isGroup={isGroup}
       peerOnline={peerOnline}
       subtitle={subtitle}
+      profileMeta={peerProfileMeta}
       muted={muted}
       pinned={pinned}
       onBack={onBack}

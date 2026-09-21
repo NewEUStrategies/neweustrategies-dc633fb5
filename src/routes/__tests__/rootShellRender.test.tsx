@@ -1,0 +1,756 @@
+// POWŁOKA DOKUMENTU (`shellComponent`) i ekran 404 korzenia - dowód przez
+// `renderToStaticMarkup`.
+//
+// PO CO OSOBNY PLIK. `RootShell` renderuje `<html><head><body>`, więc nie
+// przechodzi przez `render()` z testing-library (ta wstawia poddrzewo do
+// istniejącego `document.body`). `renderToStaticMarkup` z `react-dom/server` to
+// jedyna droga, a jednocześnie ta sama, którą naprawdę idzie SSR.
+//
+// CO TEN PLIK MONTUJE - i gdzie leży jego granica.
+//
+// SPROSTOWANIE WŁASNEGO NAGŁÓWKA (2026-09-03). Stało tu, że `RootComponent`
+// „NIE MONTUJE SIĘ z gołego renderu" i że montaż „wymaga prawdziwego
+// `RouterProvider` z `__root` JAKO KORZENIEM". Pierwsze zdanie było
+// NIEPRAWDZIWE, drugie NIEPEŁNE - i przez oba blok montażu stał pod
+// BEZWARUNKOWYM `describe.skip` (jedynym w repozytorium), płacąc za to 41
+// niewywołanymi funkcjami z 48 w `__root.tsx`. Zmierzone przy odpinaniu:
+//
+//   * PIERWSZYM blokerem był brak `supabase.auth.onAuthStateChange` we
+//     wspólnym `supabaseAuthStub` - montaż wywracał się na
+//     `lib/ads/consent.ts:423`. Nagłówek wskazywał `useAuth.tsx`, który ten
+//     sam brak ŁAPIE i degraduje do "continuing signed-out", więc NIE jest
+//     przyczyną;
+//   * DRUGIM - i tu nagłówek miał rację - `Link` i `useRouterState`
+//     (`SiteChrome.tsx:32`, `Cannot read properties of null (reading
+//     'isServer')`). Ale atrapa tych dwóch WYSTARCZA, żeby powłoka
+//     zamontowała się w całości; prawdziwy `RouterProvider` nie jest do tego
+//     potrzebny.
+//
+// GDZIE JEST GRANICA TEGO PLIKU. Atrapa routera przestaje wystarczać dopiero
+// wtedy, gdy osiem nakładek `lazy()` korzenia REALNIE się rozstrzygnie:
+// prawdziwe `LoginPopup`/`CommandPalette`/`PopupHost` czytają dalsze haki
+// (`useNavigate`, `useMatches`) i wywracają się tym samym błędem. Zmierzone:
+// wydłużenie przepłukania w tym pliku pokrywa fabryki `lazy()`, ale wywala
+// trzy testy. Dlatego montaż na PRAWDZIWYM routerze - z `__root` jako
+// korzeniem - mieszka w osobnym pliku (`rootRouterMount.test.tsx`), a tutaj
+// zostaje wariant na atrapie, tańszy i wystarczający dla powłoki, efektów
+// korzenia, ekranu błędu i szkieletu trasy.
+import { renderToStaticMarkup } from "react-dom/server";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const h = vi.hoisted(() => ({
+  subscribed: [] as string[],
+  /** Callbacki `router.subscribe(...)` - test wywołuje je RĘCZNIE, patrz niżej. */
+  handlers: new Map<string, () => void>(),
+  /**
+   * Czy atrapa `Outlet` ma ZAWIESIĆ render. `RouteLoadingSkeleton` jest
+   * fallbackiem `<Suspense>` wokół `<Outlet/>` i NIE JEST eksportowany, więc
+   * jedyną drogą do jego wykonania jest zawieszenie dziecka tej granicy.
+   *
+   * SPROSTOWANIE WŁASNEGO KOMENTARZA (2026-09-03, jeszcze przed scaleniem).
+   * Stało tu, że jest to „dokładnie to, co w produkcji robi wolno
+   * rozwiązująca się trasa". TO NIEPRAWDA i różnica jest tu całą treścią:
+   * prawdziwy `<Outlet/>` zakłada WŁASNĄ granicę `Suspense` wokół dopasowania
+   * dziecka, z fallbackiem `null`
+   * (`@tanstack/react-router/dist/esm/Match.js:284-287` + `:71-72`, bo
+   * `src/router.tsx` nie ustawia `defaultPendingComponent`). React wybiera
+   * granicę NAJBLIŻSZĄ, więc w produkcji zawieszenie trasy NIE DOCHODZI do
+   * granicy korzenia i szkielet się NIE POKAZUJE.
+   *
+   * Ten blok dowodzi więc TYLKO tego, że szkielet renderuje się poprawnie, GDY
+   * zostanie osiągnięty - a nie że produkcja go osiąga. Nieosiągalność jest
+   * zarejestrowana jako `it.fails` w `rootRouterMount.test.tsx` („DEFEKT: wolna
+   * trasa NIE pokazuje RouteLoadingSkeleton"), na prawdziwym routerze.
+   */
+  outletSuspends: false,
+  /** Zgłoszenia z `ErrorComponent` - atrapa zamiast beaconu, patrz niżej. */
+  platformErrors: [] as { error: unknown; context: unknown }[],
+  /** Tabele, o które poddrzewo korzenia REALNIE pyta - lista z pomiaru. */
+  tables: [] as string[],
+  /** Wyszukiwanie adresu widziane przez `useRouterState` (bramka `?consent-preview=1`). */
+  search: {} as Record<string, unknown>,
+  /** Stan globalnego odtwarzacza - bramka paska audio czyta z niego dwa pola. */
+  player: { track: null as unknown, status: "idle" as string },
+}));
+
+// TRANSPORT ZGŁOSZEŃ ZAATRAPOWANY, i to nie jest wygoda: prawdziwy
+// `reportPlatformError` woła `reportBoundaryError` ->
+// `sendBeaconPayload(observabilityEndpoint(), ...)`
+// (`lib/observability/report.ts:108-115`), czyli WYCHODZI DO SIECI. Żaden test
+// w tym repozytorium nie ma do sieci wychodzić. Atrapa dodatkowo zamienia
+// „nic nie wybuchło" na sprawdzalny kontrakt: granica błędu MUSI zaraportować.
+vi.mock("@/lib/platform-error-reporting", () => ({
+  reportPlatformError: (error: unknown, context: unknown) => {
+    h.platformErrors.push({ error, context });
+  },
+}));
+
+// Background services have their own lifecycle tests; this suite owns the shell.
+vi.mock("@/lib/observability", () => ({ initObservability: vi.fn(() => vi.fn()) }));
+vi.mock("@/lib/webVitals", () => ({ markWebVitalsPage: vi.fn() }));
+vi.mock("@/lib/analytics/track", () => ({ trackPageView: vi.fn() }));
+vi.mock("@/lib/cacheBusting", () => ({ startCacheBusting: vi.fn(() => vi.fn()) }));
+vi.mock("@/lib/preview/sessionHeartbeat", () => ({ startPreviewHeartbeat: vi.fn(() => vi.fn()) }));
+vi.mock("@/lib/watchdog/previewWatchdog", () => ({ startPreviewWatchdog: vi.fn(() => vi.fn()) }));
+
+vi.mock("@tanstack/react-router", async (o) => {
+  const actual = await o<typeof import("@tanstack/react-router")>();
+  const { RouterLinkStub } = await import("@/test/routerLinkStub");
+  return {
+    ...actual,
+    HeadContent: () => null,
+    Scripts: () => null,
+    Outlet: () => {
+      // Obietnica, która NIGDY się nie rozstrzyga - granica `Suspense` zostaje
+      // więc na fallbacku i test może go zobaczyć. Rozstrzygająca się obietnica
+      // dałaby wyścig: React zdążyłby przemalować na treść przed asercją.
+      if (h.outletSuspends) throw new Promise<void>(() => undefined);
+      return null;
+    },
+    // `Link` i `useRouterState` czytają kontekst routera, którego goły render
+    // nie ma (`TypeError: Cannot read properties of null (reading 'isServer')`).
+    // `Link` idzie przez WSPÓLNY helper repozytorium (`@/test/routerLinkStub`),
+    // a `useRouterState` dostaje atrapę, która WYWOŁUJE PRAWDZIWY SELEKTOR
+    // wywołującego - czyli logika wyboru w `SiteChrome` (pathname, `ownChrome`
+    // ze `staticData`, `contentKind` z `loaderData`) jest tu wykonywana, a nie
+    // ominięta. To jest cała różnica między „powłoka się zamontowała" i
+    // „gałąź, w której mieszka `SiteChrome`, wpadła do `ErrorBoundary`".
+    Link: RouterLinkStub,
+    useRouterState: <TSelected,>(opts?: {
+      select?: (state: {
+        location: { pathname: string; href: string; search: Record<string, unknown> };
+        matches: { staticData?: unknown; loaderData?: unknown }[];
+        status: string;
+        isLoading: boolean;
+      }) => TSelected;
+    }) => {
+      const state = {
+        location: { pathname: "/", href: "/", search: h.search },
+        matches: [],
+        status: "idle",
+        isLoading: false,
+      };
+      return opts?.select ? opts.select(state) : (state as unknown as TSelected);
+    },
+    useRouter: () => ({
+      subscribe: (ev: string, cb: () => void) => {
+        h.subscribed.push(ev);
+        h.handlers.set(ev, cb);
+        return () => undefined;
+      },
+    }),
+    // ── DLACZEGO TE TRZY HAKI TEŻ MUSZĄ BYĆ ZAATRAPOWANE ──────────────────
+    //
+    // To jest naprawa FLAKA POD OBCIĄŻENIEM, nie kosmetyka. Nagłówek
+    // `rootRouterMount.test.tsx:6-10` opisał mechanizm, zanim ktokolwiek go
+    // tu zobaczył: gdy osiem nakładek `lazy()` korzenia REALNIE zdąży się
+    // rozstrzygnąć, ich prawdziwe komponenty sięgają po DALSZE haki routera
+    // (`useLocation`, `useNavigate`, `useMatches`) i wywracają się na
+    // `TypeError: Cannot read properties of null (reading 'isServer')`.
+    //
+    // Czy zdążą, zależy WYŁĄCZNIE od tego, ile czasu upłynie między
+    // przepłukaniami - czyli od obciążenia maszyny. Zmierzone na tym HEAD, dwa
+    // pełne przebiegi z pokryciem: przebieg 1 zielony, przebieg 2 dwa czerwone
+    // testy w tym pliku, przy identycznym kodzie. Pojedynczo plik jest zielony
+    // 6/6 zawsze. Koszt tej niedeterminacji nie kończy się na tym pliku:
+    // `report.ts` traci wtedy pokrycie trzech gałęzi (23/23 -> 20/23) i
+    // przewraca SWÓJ próg, więc zbiór naruszeń progów różni się między
+    // przebiegami.
+    //
+    // Atrapa jest zgodna z granicą tego pliku, wypisaną w jego nagłówku: on
+    // dowodzi POWŁOKI dokumentu i montażu korzenia, a nie nawigacji. Od
+    // nawigacji na PRAWDZIWYM routerze jest `rootRouterMount.test.tsx`.
+    useLocation: <TSelected,>(opts?: {
+      select?: (location: {
+        pathname: string;
+        href: string;
+        search: Record<string, unknown>;
+      }) => TSelected;
+    }) => {
+      const location = { pathname: "/", href: "/", search: {} };
+      return opts?.select ? opts.select(location) : (location as unknown as TSelected);
+    },
+    useNavigate: () => () => undefined,
+    useMatches: <TSelected,>(opts?: {
+      select?: (matches: { staticData?: unknown; loaderData?: unknown }[]) => TSelected;
+    }) => (opts?.select ? opts.select([]) : ([] as unknown as TSelected)),
+  };
+});
+
+// ── ATRAPY LENIWYCH NAKŁADEK KORZENIA ────────────────────────────────────
+//
+// Podmieniamy CEL leniwego importu, nie samą bramkę: fabryka `lazy()`
+// w `__root.tsx` nadal się wykonuje (to ona jest przedmiotem dowodu - „chunk
+// powstaje dopiero, gdy bramka puści"), a po drugiej stronie stoi marker
+// zamiast kilkuset linii interfejsu, które mają własne zakresy.
+//
+// WSZYSTKIE CZTERY NAKŁADKI TEJ JEDNEJ GRANICY `Suspense` - i to nie jest
+// nadgorliwość, tylko naprawa FLAKA Z CI (shard 2, run 35579184831).
+// `ConsentBanner`, `ConsentPreviewPanel`, `NewsletterPopup` i `PopupHost`
+// siedzą w `__root.tsx` w JEDNEJ granicy z fallbackiem `null`. Gdy KTÓRAKOLWIEK
+// z nich jeszcze się dociąga, React pokazuje fallback CAŁEJ granicy - czyli
+// panel podglądu zgód, już zamontowany, znika z DOM-u na czas ładowania
+// SĄSIADA. Bramki czasowe (`consentReady` ~32 ms, `overlaysReady` ~32 ms po
+// degradacji `whenIdle` w happy-dom) dosypują sąsiadów PO pierwszym
+// rozstrzygnięciu, więc na wolniejszym runnerze asercja trafiała w okno,
+// w którym granica była z powrotem na fallbacku. Marker po drugiej stronie
+// KAŻDEGO leniwego importu zamyka to okno bez dotykania bramek, które są tu
+// przedmiotem dowodu (fabryki `lazy()` nadal się wykonują).
+vi.mock("@/components/ConsentBanner", () => ({
+  ConsentBanner: () => <div data-testid="consent-banner" />,
+}));
+vi.mock("@/components/NewsletterPopup", () => ({
+  NewsletterPopup: () => <div data-testid="newsletter-popup" />,
+}));
+vi.mock("@/components/popups/PopupHost", () => ({
+  PopupHost: () => <div data-testid="popup-host" />,
+}));
+vi.mock("@/components/ConsentPreviewPanel", () => ({
+  ConsentPreviewPanel: () => <div data-testid="consent-preview-panel" />,
+}));
+vi.mock("@/components/audio/GlobalAudioBar", () => ({
+  GlobalAudioBar: () => <div data-testid="global-audio-bar" />,
+}));
+vi.mock("@/components/ui/sonner", () => ({
+  Toaster: () => <div data-testid="toaster" />,
+}));
+// Odtwarzacz: provider zostaje PRAWDZIWY (opakowuje poddrzewo), a odczyt stanu
+// idzie z `h` - inaczej bramka paska audio nie ma jak zobaczyć ścieżki
+// z aktywnym utworem ani błędu TTS.
+vi.mock("@/lib/audio/global-player", async (o) => ({
+  ...(await o<typeof import("@/lib/audio/global-player")>()),
+  useGlobalAudioPlayer: () => h.player,
+}));
+
+vi.mock("@/lib/i18n", async (o) => {
+  const actual = await o<typeof import("@/lib/i18n")>();
+  return {
+    ...actual,
+    syncI18nToRequest: async () => undefined,
+    getRenderI18n: () => actual.default,
+  };
+});
+
+vi.mock("@/integrations/supabase/client", async () => {
+  const { supabaseFromStub, supabaseAuthStub, ok } = await import("@/test/supabase");
+  const from = supabaseFromStub();
+  // TRZY TABELE, KTÓRE PODDRZEWO KORZENIA REALNIE CZYTA - lista Z POMIARU, nie
+  // z lektury importów: instrumentowałem `from` i wypisałem zbiór nazw
+  // (`site_settings`, `site_design_tokens`, `post_layout_settings`).
+  //
+  // PO CO TO TU STOI. `supabaseFromStub` na tabeli BEZ zaplanowanej odpowiedzi
+  // zwraca BŁĄD, nie pustą listę - i to jest celowe (cichy `[]` udawałby
+  // poprawny odczyt). Bez tych trzech wpisów `HeaderInner` (`Header.tsx:53`)
+  // rzucał `PostgrestError`, który wpadał do `ErrorBoundary` korzenia
+  // JUŻ PO asercjach - czyli test świecił zielono na drzewie podmienionym na
+  // ekran błędu. Pusta lista jest tu odpowiedzią WŁAŚCIWĄ, a nie wygodną:
+  // `Header` zwraca `null`, gdy `builder_data.sections` jest puste, więc to
+  // dokładnie stan „serwis bez skonfigurowanej powłoki".
+  for (const table of ["site_settings", "site_design_tokens", "post_layout_settings"]) {
+    from.setResponse(table, ok([]));
+  }
+  return {
+    supabase: {
+      from: (table: string) => {
+        h.tables.push(table);
+        return from.from(table);
+      },
+      // `supabaseAuthStub` wymaga identyfikatora - `null` znaczy ANONIM, czyli
+      // dokładnie stan, w jakim renderuje się publiczna powłoka dokumentu.
+      //
+      // `onAuthStateChange` DOKŁADANY INLINE, a nie do wspólnego helpera:
+      // `SupabaseAuthStub` (src/test/supabase/rpc.ts:133-150) wystawia sam
+      // `getUser`/`getSession`, a subskrypcję zmian sesji stubuje inline 28
+      // plików testowych w tym repozytorium - to jest tu wzorzec dominujący
+      // i najwęższy. Bez tej metody montaż korzenia wywraca się na
+      // `lib/ads/consent.ts:423` (NIE na `useAuth.tsx:100`, który ten sam brak
+      // ŁAPIE i degraduje do "continuing signed-out") - i to jest jedyna
+      // realna przeszkoda, jaką odpięcie tego bloku napotkało.
+      auth: {
+        ...supabaseAuthStub(null),
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => undefined } } }),
+      },
+      channel: () => ({
+        on: () => ({ subscribe: () => ({ unsubscribe: () => undefined }) }),
+        subscribe: () => ({ unsubscribe: () => undefined }),
+        unsubscribe: () => undefined,
+      }),
+      removeChannel: () => undefined,
+      rpc: async () => ok([]),
+    },
+  };
+});
+
+const { Route } = await import("@/routes/__root");
+
+describe("RootShell", () => {
+  it("renderuje <html lang>, <head> i <body> - pełny dokument, nie fragment", () => {
+    // `shellComponent` nie jest w publicznym typie `RouteOptions` (framework
+    // czyta je dynamicznie) - zawężamy przez `Record`, nie przez `any`.
+    const opts = Route.options as unknown as Record<string, unknown>;
+    const Shell = opts["shellComponent"] as (p: {
+      children: React.ReactNode;
+    }) => React.ReactElement;
+    const html = renderToStaticMarkup(<Shell>{null}</Shell>);
+    expect(html).toContain("<html lang=");
+    expect(html).toContain("<head>");
+    expect(html).toContain("<body>");
+  });
+});
+
+describe("NotFoundComponent / ErrorComponent / skeleton", () => {
+  it("ekran 404 korzenia renderuje się bez rzutu", () => {
+    const NF = Route.options.notFoundComponent as unknown as () => React.ReactElement;
+    expect(() => renderToStaticMarkup(<NF />)).not.toThrow();
+  });
+});
+
+// KORZEŃ APLIKACJI ZAMONTOWANY. Do 2026-09-03 ten blok stał pod
+// BEZWARUNKOWYM `describe.skip` - jedynym w całym repozytorium - i jego nagłówek
+// twierdził, że montaż wymaga „prawdziwego `RouterProvider` z `__root` JAKO
+// KORZENIEM, czyli zmiany w `src/test/routeHarness.tsx`". ZMIERZONE: nie
+// wymaga. Odpięcie kosztowało DWIE atrapy w tym pliku i ZERO zmian
+// produkcyjnych ani harness'owych:
+//
+//   1. `supabase.auth.onAuthStateChange` - brak tej metody we WSPÓLNYM
+//      `supabaseAuthStub` wywracał montaż na `lib/ads/consent.ts:423`. To był
+//      PIERWSZY blocker i nagłówek pominięcia go nie znał (wskazywał
+//      `useAuth.tsx`, który ten sam brak łapie i degraduje do
+//      "continuing signed-out", więc NIE jest przyczyną);
+//   2. `Link` + `useRouterState` - to dopiero DRUGI blocker i jedyny, który
+//      nagłówek opisywał trafnie (`Cannot read properties of null (reading
+//      'isServer')`, `SiteChrome.tsx:32`). Bez niego test „przechodził", ale
+//      cała gałąź `SiteChrome` wpadała do `ErrorBoundary` - czyli zielony wynik
+//      na niezamontowanej powłoce.
+//
+// CO TEN BLOK REALNIE DOWODZI: że `RootComponent` montuje się, że jego DWA
+// efekty biegną (obserwowalność za zgodą + subskrypcja routera, watchdog,
+// cache-busting, heartbeat) i że drzewo NIE WPADA do granicy błędu. Effekty
+// wymagają klienta, więc `renderToStaticMarkup` z górnej części pliku ich nie
+// wykonuje - i dlatego oba dowody muszą tu stać obok siebie, nie zamiast siebie.
+describe("RootComponent - korzeń aplikacji zamontowany po stronie klienta", () => {
+  /**
+   * ZGODA ANALITYCZNA ZAPISANA PRZED MONTAŻEM. Bez niej pierwszy efekt korzenia
+   * wychodzi natychmiast (`if (!consentMounted || !categories.analytics) return`)
+   * i gałąź `afterPrerendering` -> `import("../lib/observability")` nigdy się nie
+   * wykonuje. Kształt bierzemy z `safeParse` (`lib/ads/consent.ts:96-112`):
+   * `version` MUSI równać się `CONSENT_VERSION` = 2, inaczej wpis jest odrzucany
+   * w całości i test cicho mierzyłby wariant bez zgody.
+   */
+  /**
+   * Przepłukanie kolejki `Suspense` + mikrozadań importów dynamicznych.
+   * Owinięte w `act`, bo każde rozstrzygnięcie leniwego modułu jest
+   * aktualizacją stanu Reacta - bez tego React wypisuje ostrzeżenie i asercja
+   * czyta drzewo z poprzedniej klatki.
+   */
+  async function flushSuspense(rounds = 8): Promise<void> {
+    const { act } = await import("@testing-library/react");
+    for (let i = 0; i < rounds; i++) {
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, i === 0 ? 60 : 5));
+      });
+    }
+  }
+
+  function grantAnalyticsConsent(): void {
+    window.localStorage.setItem(
+      "consent:v2",
+      JSON.stringify({
+        version: 2,
+        ts: 1,
+        categories: { necessary: true, functional: true, analytics: true, marketing: false },
+        source: "local",
+      }),
+    );
+  }
+
+  it("montuje się, subskrybuje onResolved i NIE wpada do granicy błędu", async () => {
+    grantAnalyticsConsent();
+    const { render, cleanup, screen } = await import("@testing-library/react");
+    const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
+    const Root = Route.options.component as unknown as () => React.ReactElement;
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <Root />
+      </QueryClientProvider>,
+    );
+
+    expect(h.subscribed).toContain("onResolved");
+
+    // GRANICA BŁĘDU JEST CZĘŚCIĄ DOWODU, nie ozdobą. `ErrorBoundary` korzenia
+    // przechwytuje rzut z dowolnego miejsca poddrzewa i podmienia je na ekran
+    // błędu - a wtedy asercja o subskrypcji wyżej NADAL PRZECHODZI (efekt
+    // korzenia biegnie przed renderem dzieci). Pytamy o ROLĘ i o obecność
+    // znacznika powłoki, nie o polski literał z interfejsu.
+    //
+    // WCZEŚNIEJ pytaliśmy tu o `[data-chat-dock-slot]` i asercja była
+    // CZERWONA: pływający dok czatu został usunięty, bo rozmowy żyją teraz
+    // wyłącznie w `WorkspaceDock` (decyzję trzyma `SiteChrome.test.tsx`,
+    // który asertuje BRAK tego gniazda). `data-site-shell` jest znacznikiem,
+    // który `SiteChrome` renderuje w wariancie publicznym.
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(document.querySelector("[data-site-shell]")).not.toBeNull();
+
+    // KILKA CYKLI, NIE JEDEN - i to jest ustalenie z pomiaru, nie ostrożność.
+    // Gdy dziecko `<Suspense>` zawiesi render, React NIE PRÓBUJE rodzeństwa
+    // w tym samym przejściu: maluje fallback i ponawia dopiero po
+    // rozstrzygnięciu. Osiem nakładek korzenia siedzi w JEDNEJ granicy, więc
+    // pojedyncze przepłukanie wykonywało fabrykę `lazy()` WYŁĄCZNIE pierwszego
+    // z nich (zmierzone: `ConsentBanner` tak, `ConsentPreviewPanel` nie).
+    // Każdy obrót odblokowuje następną. Ta sama pętla domyka wewnętrzne
+    // `.then(m => ...)` importów dynamicznych z obu efektów.
+    //
+    // `whenIdle` bez `requestIdleCallback` (happy-dom go nie ma) degraduje do
+    // `setTimeout(min(timeout, 32))` - `lib/ads/idle.ts:40` - więc 60 ms
+    // w pierwszym obrocie starcza na cache-busting i heartbeat podglądu.
+    await flushSuspense();
+
+    // Miękka nawigacja: `onResolved` jest jedynym wejściem do atrybucji Web
+    // Vitals per URL i do `trackPageView`. Wołamy PRZECHWYCONY callback, bo
+    // atrapa routera nie ma prawdziwej historii - dowodzimy, że handler
+    // wpisany przez korzeń jest wywoływalny i nie rzuca.
+    const onResolved = h.handlers.get("onResolved");
+    expect(onResolved).toBeTypeOf("function");
+    expect(() => onResolved?.()).not.toThrow();
+    await new Promise((r) => setTimeout(r, 20));
+
+    // Odmontowanie MUSI być czyste: sprzątanie obu efektów zdejmuje
+    // subskrypcję routera i anuluje oba `whenIdle`. Rzut w tej ścieżce zostaje
+    // w produkcji cichym wyciekiem na każdej nawigacji między układami.
+    expect(() => cleanup()).not.toThrow();
+    // ŻADEN BŁĄD NIE WPADŁ DO GRANICY. Ta asercja stoi NA KOŃCU, po
+    // przepłukaniu, i to jest jej cała wartość: `PostgrestError` z `Header`
+    // przychodził PO wcześniejszych asercjach, więc test bez tego wiersza
+    // świecił zielono na drzewie już podmienionym na ekran błędu.
+    expect(h.platformErrors.map((e) => String(e.error))).toEqual([]);
+  });
+
+  it("markAppReady() ustawia flagę gotowości - kontrakt boot-testu artefaktu", async () => {
+    const { render, cleanup } = await import("@testing-library/react");
+    const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
+    const Root = Route.options.component as unknown as () => React.ReactElement;
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <Root />
+      </QueryClientProvider>,
+    );
+    // `__nesAppReady` czyta `e2e/boot-artifact.spec.ts` (żywotność artefaktu) i
+    // `e2e/boot-timing.spec.ts` (czas do gotowości). Flaga jest więc KONTRAKTEM
+    // między korzeniem i dwiema bramkami CI, a ustawia ją drugi efekt korzenia
+    // SYNCHRONICZNIE - bez round-tripu po leniwy chunk.
+    expect((window as unknown as { __nesAppReady?: boolean }).__nesAppReady).toBe(true);
+    cleanup();
+  });
+
+  it("RouteLoadingSkeleton jest fallbackiem granicy wokół <Outlet/>", async () => {
+    const { render, cleanup } = await import("@testing-library/react");
+    const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
+    const Root = Route.options.component as unknown as () => React.ReactElement;
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    h.outletSuspends = true;
+    try {
+      render(
+        <QueryClientProvider client={qc}>
+          <Root />
+        </QueryClientProvider>,
+      );
+      // `aria-busy` JEST kontraktem dostępności tego szkieletu, a nie detalem
+      // wyglądu: czytnik ekranu musi wiedzieć, że region się ładuje. Pytamy
+      // o atrybut, nie o klasy Tailwinda ani o polski literał.
+      const busy = document.querySelector('[aria-busy="true"]');
+      expect(busy).not.toBeNull();
+      cleanup();
+    } finally {
+      h.outletSuspends = false;
+    }
+  });
+});
+
+// EKRAN BŁĘDU KORZENIA. `errorComponent` to ostatnia linia obrony całej
+// aplikacji: każdy rzut, którego nie złapała granica wewnątrz drzewa, kończy
+// się TYM komponentem. Renderowany WPROST z `Route.options` - tak samo jak
+// ekran 404 wyżej w tym pliku - bo jego wejściem jest para `{error, reset}`,
+// a nie stan routera.
+describe("ErrorComponent korzenia", () => {
+  it("renderuje przyjazny ekran i ZGŁASZA błąd do obserwowalności", async () => {
+    const { render, cleanup } = await import("@testing-library/react");
+    h.platformErrors.length = 0;
+    const EC = Route.options.errorComponent as unknown as (p: {
+      error: Error;
+      reset: () => void;
+    }) => React.ReactElement;
+    // `ErrorComponent` woła `console.error(error)` bezwarunkowo - to jest jego
+    // zachowanie produkcyjne (błąd MUSI zostać w konsoli przeglądarki).
+    // Wyciszamy je, żeby log suity nie wyglądał na czerwony, i PRZYWRACAMY.
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    let resetCalls = 0;
+    const error = new Error("boom");
+    try {
+      render(<EC error={error} reset={() => (resetCalls += 1)} />);
+      // Sama obecność ekranu: rola `alert` albo jakikolwiek tekst - pytamy
+      // o strukturę, nie o copy.
+      expect(document.body.textContent).not.toBe("");
+      expect(consoleError).toHaveBeenCalled();
+      // KONTRAKT ZGŁOSZENIA: bez tego błąd korzenia jest niewidoczny dla
+      // operatora - strona pokazuje ekran, a telemetria milczy.
+      //
+      // ASERCJA IDZIE PO TREŚCI, NIE PO LICZBIE, i to jest świadome. Zmierzone:
+      // WCHODZĄ DWA zgłoszenia, z DWÓCH różnych granic, i oba są zachowaniem
+      // produkcyjnym:
+      //   * `tanstack_root_error_component` - efekt `ErrorComponent` (`:180`);
+      //   * `friendly_error_page` - samo `FriendlyErrorPage`, które zgłasza
+      //     się niezależnie od tego, kto je wyrenderował.
+      // Przypięcie liczby byłoby więc przypięciem szczegółu cudzego modułu
+      // (plus React w trybie deweloperskim wywołuje efekty dwukrotnie).
+      // Bramką jest: KAŻDE zgłoszenie niesie TEN błąd, a granica korzenia
+      // JEST wśród nadawców.
+      expect(h.platformErrors.length).toBeGreaterThan(0);
+      for (const entry of h.platformErrors) expect(entry.error).toBe(error);
+      const boundaries = h.platformErrors.map((e) =>
+        typeof e.context === "object" && e.context !== null && "boundary" in e.context
+          ? (e.context as { boundary?: unknown }).boundary
+          : undefined,
+      );
+      expect(boundaries).toContain("tanstack_root_error_component");
+      expect(resetCalls).toBe(0);
+      cleanup();
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+});
+
+// ── BRAMKI NAKŁADEK KORZENIA (audyt CWV 2026-09-20, F19/F23) ─────────────
+//
+// PROBLEM, KTÓRY TE BRAMKI ZAMYKAJĄ. `React.lazy` startuje `import()` przy
+// PIERWSZYM renderze komponentu, więc „leniwy" znaczyło tu wyłącznie
+// „w osobnym pliku", nigdy „później": pięć nakładek, pasek audio, watchdog
+// podglądu i heartbeat sesji dociągały swoje chunki w commicie hydratacji -
+// w oknie LCP i pierwszej interakcji KAŻDEJ strony, u KAŻDEGO czytelnika.
+//
+// Każda bramka niżej ma więc DWIE asercje: że bez warunku chunku NIE MA,
+// i że po spełnieniu warunku nakładka jest. Sam „nie wybuchło" nie broni tu
+// niczego - bramka wpisana odwrotnie (albo usunięta w refaktorze) przechodzi
+// każdy test, który pyta wyłącznie o brak rzutu.
+describe("bramki leniwych nakładek i usług tła korzenia", () => {
+  /** Ten sam wzorzec przepłukania, co w bloku montażu wyżej. */
+  async function flush(rounds = 6): Promise<void> {
+    const { act } = await import("@testing-library/react");
+    for (let i = 0; i < rounds; i++) {
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, i === 0 ? 60 : 5));
+      });
+    }
+  }
+
+  async function mountRoot() {
+    const { render } = await import("@testing-library/react");
+    const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
+    const Root = Route.options.component as unknown as () => React.ReactElement;
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <Root />
+      </QueryClientProvider>,
+    );
+    await flush();
+  }
+
+  /**
+   * ZAPORA DLA ASERCJI NEGATYWNYCH. „Czegoś nie ma" jest prawdą trywialną,
+   * dopóki granica `Suspense` nakładek stoi na fallbacku - a stoi tak długo,
+   * aż rozstrzygnie się OSTATNIA z nich. `NewsletterPopup` montuje się na
+   * `overlaysReady`, czyli jako ostatni w tej granicy, więc jego obecność jest
+   * dowodem, że granica pokazuje już TREŚĆ, a nie `null`. Dopiero po nim
+   * pytanie „czy panelu nie ma" cokolwiek znaczy.
+   */
+  async function overlayBoundarySettled(): Promise<void> {
+    const { screen } = await import("@testing-library/react");
+    await screen.findByTestId("newsletter-popup");
+  }
+
+  /** Udaje iframe podglądu: `window.self !== window.top`. */
+  function pretendIframe(mode: "iframe" | "cross-origin"): void {
+    Object.defineProperty(window, "top", {
+      configurable: true,
+      ...(mode === "cross-origin"
+        ? {
+            get() {
+              // Dokładnie to robi przeglądarka w iframie o obcym originie:
+              // sam ODCZYT `window.top` rzuca `SecurityError`.
+              throw new Error("SecurityError: cross-origin");
+            },
+          }
+        : { value: {} as Window }),
+    });
+  }
+
+  beforeEach(() => {
+    h.search = {};
+    h.player = { track: null, status: "idle" };
+    h.subscribed.length = 0;
+    h.handlers.clear();
+    h.platformErrors.length = 0;
+  });
+
+  afterEach(async () => {
+    const { cleanup } = await import("@testing-library/react");
+    cleanup();
+    Reflect.deleteProperty(window, "top");
+    vi.clearAllMocks();
+  });
+
+  it("poza iframem NIE dociąga ani watchdoga podglądu, ani heartbeatu sesji", async () => {
+    // Obie usługi robią no-op wszędzie poza iframem edytora, więc produkcyjny
+    // czytelnik płaciłby pobraniem i parsowaniem za dokładnie nic. Bramka stoi
+    // PRZED importem, nie w środku modułu - i to jest cała treść naprawy F23.
+    const watchdog = await import("@/lib/watchdog/previewWatchdog");
+    const heartbeat = await import("@/lib/preview/sessionHeartbeat");
+
+    await mountRoot();
+    // Zapora: dopiero gdy nakładki są już zamontowane, wiadomo, że okno
+    // bezczynności minęło - inaczej „nie zawołano" znaczyłoby „jeszcze nie".
+    await overlayBoundarySettled();
+
+    expect(watchdog.startPreviewWatchdog).not.toHaveBeenCalled();
+    expect(heartbeat.startPreviewHeartbeat).not.toHaveBeenCalled();
+  });
+
+  it("w iframie podglądu startują OBIE usługi: watchdog i heartbeat sesji", async () => {
+    // Bez nich iframe edytora potrafi zostać biały aż do ręcznego „Reload
+    // preview": watchdog łapie zawieszony boot, heartbeat - ciszę pulsu > 30 s.
+    pretendIframe("iframe");
+    const watchdog = await import("@/lib/watchdog/previewWatchdog");
+    const heartbeat = await import("@/lib/preview/sessionHeartbeat");
+
+    const { waitFor } = await import("@testing-library/react");
+
+    await mountRoot();
+
+    // Obie usługi startują zza `whenIdle`, więc asercja czeka na SKUTEK,
+    // a nie na upływ czasu zgadnięty przez test.
+    await waitFor(() => expect(watchdog.startPreviewWatchdog).toHaveBeenCalled());
+    await waitFor(() => expect(heartbeat.startPreviewHeartbeat).toHaveBeenCalled());
+  });
+
+  it("iframe o OBCYM originie (rzut przy odczycie `window.top`) liczy się jak iframe", async () => {
+    // `window.self !== window.top` bywa NIEODCZYTYWALNE - przeglądarka rzuca
+    // `SecurityError`. Domyślną odpowiedzią MUSI być „to iframe": odwrotne
+    // założenie zostawiłoby podgląd edytora bez watchdoga dokładnie w tym
+    // wariancie osadzenia, w którym najczęściej stoi.
+    pretendIframe("cross-origin");
+    const watchdog = await import("@/lib/watchdog/previewWatchdog");
+    const { waitFor } = await import("@testing-library/react");
+
+    await mountRoot();
+
+    await waitFor(() => expect(watchdog.startPreviewWatchdog).toHaveBeenCalled());
+  });
+
+  it("panel podglądu zgód powstaje WYŁĄCZNIE przy `?consent-preview=1`", async () => {
+    const { screen } = await import("@testing-library/react");
+
+    await mountRoot();
+    await overlayBoundarySettled();
+
+    expect(screen.queryByTestId("consent-preview-panel")).toBeNull();
+  });
+
+  it.each([1, "1"])(
+    "`consent-preview=%s` montuje panel - router bywa liczbą, bywa napisem",
+    async (value) => {
+      // Router PARSUJE wartości wyszukiwania, więc `1` przychodzi raz jako liczba,
+      // raz jako napis. Porównanie tylko z napisem znaczyłoby, że panel nie
+      // otworzy się nigdy, a defekt byłby niemy - nikt nie zgłasza narzędzia
+      // diagnostycznego, o którym nie wie.
+      h.search = { "consent-preview": value };
+      const { screen } = await import("@testing-library/react");
+
+      await mountRoot();
+
+      // `findBy*` zamiast odczytu synchronicznego: panel jest leniwym chunkiem
+      // w granicy `Suspense`, więc jego montaż jest ZDARZENIEM, nie stanem
+      // dostępnym w tej samej klatce, co render korzenia.
+      expect(await screen.findByTestId("consent-preview-panel")).toBeTruthy();
+    },
+  );
+
+  it("pasek audio dociąga chunk dopiero, gdy odtwarzacz MA utwór", async () => {
+    const { cleanup, screen } = await import("@testing-library/react");
+
+    await mountRoot();
+    await overlayBoundarySettled();
+    expect(screen.queryByTestId("global-audio-bar")).toBeNull();
+
+    cleanup();
+    h.player = { track: { id: "post-1" }, status: "playing" };
+
+    await mountRoot();
+
+    expect(await screen.findByTestId("global-audio-bar")).toBeTruthy();
+  });
+
+  it("pasek audio montuje się także na BŁĘDZIE - toast o nieudanym TTS mieszka w nim", async () => {
+    // Bramka nie może pytać wyłącznie o utwór: gdy synteza padnie, utworu nie
+    // ma, a komunikat o porażce nie miałby się gdzie pokazać.
+    h.player = { track: null, status: "error" };
+    const { screen } = await import("@testing-library/react");
+
+    await mountRoot();
+
+    expect(await screen.findByTestId("global-audio-bar")).toBeTruthy();
+  });
+
+  it("Toaster montuje się NATYCHMIAST po pierwszym toaście, nie dopiero po bezczynności", async () => {
+    // Most `lib/notify` widzi tylko swoich wołających, więc bezczynność jest
+    // drugim, bezwarunkowym wyzwalaczem - ale toast ze ścieżki bootowania
+    // przepadłby bez tego pierwszego (sonner nie odtwarza historii nowym
+    // subskrybentom).
+    const { act, screen } = await import("@testing-library/react");
+    const { notifySuccess } = await import("@/lib/notify");
+
+    await mountRoot();
+
+    await act(async () => {
+      notifySuccess("zapisano");
+    });
+
+    expect(await screen.findByTestId("toaster")).toBeTruthy();
+  });
+
+  it("miękka nawigacja przypisuje Web Vitals do NOWEJ ścieżki", async () => {
+    // Bez tego LCP/CLS/INP podstrony lądowały pod adresem, z którego czytelnik
+    // już zszedł - czyli panel pokazywał pomiar strony, której nikt nie oglądał.
+    const webVitals = await import("@/lib/webVitals");
+    const { act, waitFor } = await import("@testing-library/react");
+
+    await mountRoot();
+    try {
+      window.history.pushState({}, "", "/analiza/energia");
+      const onResolved = h.handlers.get("onResolved");
+      await act(async () => {
+        onResolved?.();
+        await new Promise((r) => setTimeout(r, 5));
+      });
+
+      // Zgłoszenie idzie przez `background.run(import(...))`, czyli przez
+      // dynamiczny import - to zdarzenie, nie efekt tej samej klatki.
+      await waitFor(() =>
+        expect(webVitals.markWebVitalsPage).toHaveBeenCalledWith("/analiza/energia"),
+      );
+
+      // DRUGIE rozwiązanie tej samej ścieżki to NIE jest nawigacja - ponowne
+      // zgłoszenie zerowałoby akumulatory w środku odsłony.
+      (webVitals.markWebVitalsPage as ReturnType<typeof vi.fn>).mockClear();
+      await act(async () => {
+        onResolved?.();
+        await new Promise((r) => setTimeout(r, 5));
+      });
+      expect(webVitals.markWebVitalsPage).not.toHaveBeenCalled();
+    } finally {
+      window.history.replaceState({}, "", "/");
+    }
+  });
+});

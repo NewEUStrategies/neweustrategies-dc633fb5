@@ -24,8 +24,14 @@ import {
 import { chatEn, chatPl } from "../../i18n-chat";
 
 // Ścieżki względem korzenia repo (tak jak brandContrast.test.ts).
+// Tapety: ostatnia migracja CHECK-a (kropki jako zapisana wartość, NULL =
+// gładki gradient domyślny); motywy: pierwotna migracja personalizacji.
 const migration = readFileSync(
   "supabase/migrations/20260716090000_chat_conversation_personalization.sql",
+  "utf8",
+);
+const wallpaperMigration = readFileSync(
+  "supabase/migrations/20260907194459_f34f0821-4ccb-4a42-89cc-9121379f31e9.sql",
   "utf8",
 );
 const css = readFileSync("src/styles.css", "utf8");
@@ -35,7 +41,7 @@ describe("chat themes registry", () => {
     expect(CHAT_THEMES[0]).toBe("default");
     expect(CHAT_THEMES.slice(1)).toEqual([...DB_CHAT_THEMES]);
     expect(new Set(CHAT_THEMES).size).toBe(CHAT_THEMES.length);
-    expect(CHAT_WALLPAPERS[0]).toBe("dots");
+    expect(CHAT_WALLPAPERS[0]).toBe("soft");
     expect(CHAT_WALLPAPERS.slice(1)).toEqual([...DB_CHAT_WALLPAPERS]);
     expect(new Set(CHAT_WALLPAPERS).size).toBe(CHAT_WALLPAPERS.length);
   });
@@ -53,7 +59,7 @@ describe("chat themes registry", () => {
   it("mirrors the DB CHECK constraint for wallpapers", () => {
     const check =
       /conversations_wallpaper_check\s+CHECK \(wallpaper IS NULL OR wallpaper IN \(([^)]+)\)/m.exec(
-        migration,
+        wallpaperMigration,
       );
     expect(check).not.toBeNull();
     const dbList = [...(check?.[1] ?? "").matchAll(/'([a-z]+)'/g)].map((m) => m[1]).sort();
@@ -98,9 +104,9 @@ describe("chat themes registry", () => {
     expect(normalizeTheme(undefined)).toBe("default");
     expect(normalizeTheme("neon-z-2019")).toBe("default");
     expect(normalizeTheme("ocean")).toBe("ocean");
-    expect(normalizeWallpaper(null)).toBe("dots");
-    expect(normalizeWallpaper("marmur")).toBe("dots");
-    expect(normalizeWallpaper("soft")).toBe("soft");
+    expect(normalizeWallpaper(null)).toBe("soft");
+    expect(normalizeWallpaper("marmur")).toBe("soft");
+    expect(normalizeWallpaper("dots")).toBe("dots");
   });
 
   it("normalizes quick emoji with a safe default", () => {
@@ -119,7 +125,8 @@ describe("chat themes registry", () => {
     expect(wallpaperClass("none")).toBe("chat-wallpaper-none");
     expect(themeDbValue("default")).toBeNull();
     expect(themeDbValue("forest")).toBe("forest");
-    expect(wallpaperDbValue("dots")).toBeNull();
+    expect(wallpaperDbValue("soft")).toBeNull();
+    expect(wallpaperDbValue("dots")).toBe("dots");
     expect(wallpaperDbValue("lines")).toBe("lines");
     expect(themeLabelKey("rose")).toBe("chat.appearance.themes.rose");
     expect(wallpaperLabelKey("none")).toBe("chat.appearance.wallpapers.none");

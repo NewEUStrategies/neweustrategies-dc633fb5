@@ -31,6 +31,7 @@
 // Warstwa DB (migracja 20260725090400) domyka to samo od dołu: bucket dostaje
 // `allowed_mime_types`, więc ręcznie skrojony klient też nie wstawi SVG.
 import { supabase } from "@/integrations/supabase/client";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 
 /**
  * Allowlista MIME - MUSI odpowiadać `ALLOWED_MIME` w `src/lib/media.functions.ts`
@@ -188,7 +189,8 @@ export async function uploadAndRegisterMedia(args: {
   if (upErr) throw upErr;
 
   const { data: urlData } = supabase.storage.from("media").getPublicUrl(storagePath);
-  const publicUrl = urlData?.publicUrl ?? "";
+  const storagePublicUrl = urlData?.publicUrl ?? "";
+  const publicUrl = brandedMediaUrl(storagePublicUrl);
 
   try {
     if (!publicUrl) throw new Error("storage_public_url_missing");

@@ -16,6 +16,7 @@ import { getMediaUsage } from "@/lib/media.functions";
 import type { MediaRow } from "../types";
 import { extOf } from "../lib/mediaFormat";
 import { resolvePreviewKind } from "../lib/mediaKind";
+import { mediaRenderUrl } from "@/lib/media/publicUrl";
 import { MediaUsageList } from "../molecules/MediaUsageList";
 
 interface MediaPreviewDialogProps {
@@ -32,7 +33,7 @@ export function MediaPreviewDialog({ file, onClose }: MediaPreviewDialogProps) {
   const { t } = useTranslation();
   const tenantId = useRequiredTenant();
   const mime = file?.mime_type ?? "";
-  const url = file?.public_url ?? "";
+  const url = mediaRenderUrl(file?.public_url ?? "");
   const ext = file ? extOf(file.filename).toLowerCase() : "";
   const kind = resolvePreviewKind(file?.mime_type, file?.filename);
 

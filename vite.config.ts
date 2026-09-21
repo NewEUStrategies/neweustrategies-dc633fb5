@@ -1,3 +1,4 @@
+import { widgetChunkPlugin } from "./scripts/lib/widgetChunkPlugin";
 // @lovable.dev/vite-tanstack-config already includes the following - do NOT add them manually
 // or the app will break with duplicate plugins:
 //   - tanstackStart, viteReact, tailwindcss, tsConfigPaths, nitro (build-only using cloudflare as a default target),
@@ -11,6 +12,8 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { loadEnv, type Rollup } from "vite";
 
 import { chunkInventoryPlugin } from "./scripts/lib/chunkInventoryPlugin";
+import { localeChunkPlugin } from "./scripts/lib/localeChunkPlugin";
+import { adminCssPlugin } from "./scripts/lib/adminCssPlugin";
 import { MACHINE_SURFACES } from "./src/lib/seo/machineSurfaces";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
@@ -92,7 +95,7 @@ export default defineConfig({
     // Przyrząd pomiarowy składu bundla - INERTNY, dopóki nie ustawisz
     // BUNDLE_INVENTORY=1 (patrz nagłówek wtyczki). Nie duplikuje żadnej wtyczki
     // z @lovable.dev/vite-tanstack-config: ma wyłącznie hook `generateBundle`.
-    plugins: [chunkInventoryPlugin()],
+    plugins: [chunkInventoryPlugin(), localeChunkPlugin(), widgetChunkPlugin(), adminCssPlugin()],
 
     // React Email ciągnie htmlparser2 -> entities. Wersje 5+ usunęły
     // `entities/lib/decode.js`, więc każdy zagnieżdżony nowszy egzemplarz
@@ -163,12 +166,15 @@ export default defineConfig({
         // kończy się "does not provide an export named 'default'" - dokładnie
         // tak wywalał się edytor wpisu (react-markdown -> style-to-js), a
         // pozostałe czekały w kolejce: kadrowanie okładki (react-easy-crop ->
-        // normalize-wheel), wykresy (echarts-for-react to CJS), bilety QR
-        // (qrcode), słownik krajów (i18n-iso-countries) i normalizacja HTML
-        // buildera (node-html-parser -> css-select -> boolbase).
+        // normalize-wheel), bilety QR (qrcode), słownik krajów
+        // (i18n-iso-countries) i normalizacja HTML buildera (node-html-parser
+        // -> css-select -> boolbase).
+        //
+        // WYKRESÓW TU JUŻ NIE MA. Pulpity rysowały przez `echarts-for-react`,
+        // czyli moduł CJS wymagający prebundlingu; nasz silnik jest zwykłym
+        // komponentem Reacta w tym repozytorium, więc nie ma czego prebundlować.
         "react-markdown",
         "react-easy-crop",
-        "echarts-for-react",
         "qrcode",
         "i18n-iso-countries",
         "node-html-parser",
@@ -297,6 +303,10 @@ export default defineConfig({
               // (scripts/check-chunk-graph.ts). Koszt (głębszy waterfall przy
               // dynamic importach) pokrywa modulepreload z mapDeps.
               hoistTransitiveImports: false,
+              // Coalesce tiny automatic chunks when Rollup can preserve their
+              // loading/side-effect semantics. Keep both presets identical;
+              // startup size, graph and browser boot remain blocking gates.
+              experimentalMinChunkSize: 512,
               manualChunks(id: string, meta: Rollup.ManualChunkMeta) {
                 if (!id.includes("/node_modules/")) return undefined;
                 // PUŁAPKA (2026-08-06): Rollup NIE POTRAFI przenieść modułu
@@ -311,6 +321,11 @@ export default defineConfig({
                 // `index-*.js` mimo pozornie poprawnej konfiguracji. Chunk po
                 // prostu nigdy nie powstawał - bez ostrzeżenia.
                 if (meta.getModuleInfo(id)?.isEntry) return undefined;
+                // Keep the archive engine isolated from tiny public modules.
+                // Automatic min-size merging otherwise packed a 312-byte auth
+                // server-function stub with JSZip, pulling the whole archive
+                // engine into the article's static dependency graph.
+                if (id.includes("/node_modules/jszip/")) return "vendor-jszip";
                 // ZASADA (incydent 2026-07-20, martwa hydratacja na KAŻDEJ
                 // stronie): chunk vendorowy musi zawierać DOMKNIĘCIE
                 // zależności swoich pakietów spoza vendor-react. Rozdzielenie
@@ -365,6 +380,19 @@ export default defineConfig({
                 // ikon zmienia się rzadziej niż kod aplikacji. Domknięcie
                 // trywialne - lucide-react importuje wyłącznie React.
                 if (id.includes("/node_modules/lucide-react/")) return "vendor-lucide";
+                // Heavy controls are not required by the public header. Keep
+                // their implementations out of the shared primitive chunk;
+                // dependencies still share vendor-radix and vendor-react.
+                const radixPackage = id
+                  .split("/node_modules/")
+                  .at(-1)
+                  ?.match(
+                    /^@radix-ui\/react-(select|slider|scroll-area|menu|context-menu|dropdown-menu)\//,
+                  )?.[1];
+                if (radixPackage) {
+                  const group = radixPackage.includes("menu") ? "menu" : radixPackage;
+                  return `vendor-radix-${group}`;
+                }
                 // Radix + jego sidecary (scroll-lock, aria-hidden, floating-ui)
                 // w JEDNYM chunku - patrz zasada domknięcia wyżej.
                 if (

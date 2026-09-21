@@ -12,7 +12,13 @@
 // i pozostała warstwa sterowania), a rozjechanie się atrap między nimi byłoby
 // cichym rozjechaniem się kontraktu.
 import type { ReactNode } from "react";
-import type { BuilderDocument, ColumnNode, SectionNode, WidgetNode } from "@/lib/builder/types";
+import type {
+  BuilderDocument,
+  ColumnNode,
+  InnerSectionNode,
+  SectionNode,
+  WidgetNode,
+} from "@/lib/builder/types";
 
 /** Widgety układane w wierszu mają OŚ POZIOMĄ podziału (lewo/prawo). */
 const INLINE_TYPES = new Set<string>(["button", "badge"]);
@@ -53,9 +59,23 @@ export function builderRendererStub(options: RendererStubOptions = {}): {
       {(c.children ?? []).map((child) => (child.kind === "widget" ? widget(child) : null))}
     </div>
   );
+  /**
+   * Slot dziecka sekcji. Prawdziwy renderer stempluje `data-col-id`
+   * IDENTYFIKATOREM DZIECKA - także wtedy, gdy dzieckiem jest SEKCJA
+   * WEWNĘTRZNA, której własne kolumny leżą o poziom niżej i mają własne
+   * `data-col-id` (BuilderRenderer: `visibleCols.map` -> `RenderInner`).
+   * Atrapa musi tę geometrię odwzorować, bo z niej wynika, że upuszczenie na
+   * wyściółkę sekcji wewnętrznej trafia do operacji „na kolumnę" z
+   * identyfikatorem, który kolumną NIE JEST.
+   */
+  const innerSection = (i: InnerSectionNode) => (
+    <div key={i.id} data-col-id={i.id}>
+      {(i.columns ?? []).map((c) => (c ? column(c) : null))}
+    </div>
+  );
   const section = (s: SectionNode) => {
     const inner = (s.children ?? []).map((child) =>
-      child && child.kind === "column" ? column(child) : null,
+      !child ? null : child.kind === "column" ? column(child) : innerSection(child),
     );
     const tabId = options.tabPanels?.[s.id];
     return (

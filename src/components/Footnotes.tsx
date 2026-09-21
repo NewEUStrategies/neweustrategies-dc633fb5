@@ -1,7 +1,8 @@
 // Renders the "Przypisy źródłowe" list at the bottom of an article and wires
 // up hover tooltips for the [N] markers inserted by processHtmlFootnotes /
 // processDocFootnotes.
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useIsomorphicLayoutEffect } from "@/lib/react/useIsomorphicLayoutEffect";
 import { createPortal } from "react-dom";
 import { sanitizeHtml } from "@/lib/sanitize";
 import type { Footnote } from "@/lib/footnotes";
@@ -159,7 +160,15 @@ export function FootnoteTooltips({
     };
   }, [notes, containerRef]);
 
-  useLayoutEffect(() => {
+  // Pozycjonowanie dymka MUSI być pomiarem przed malowaniem (stąd gałąź
+  // layoutowa na kliencie: dymek jest ukryty przez `visibility` aż do
+  // `ready`, więc czytelnik nigdy nie widzi go w złym miejscu). W renderze
+  // serwerowym schodzimy do `useEffect`.
+  //
+  // Wczesne wyjście `typeof document === "undefined"` niżej NIE załatwia tej
+  // sprawy: stoi PO hakach, więc na serwerze hak i tak jest rejestrowany.
+  // Ochrona musi siedzieć na samym haku, nie na renderze.
+  useIsomorphicLayoutEffect(() => {
     const tooltip = tooltipRef.current;
     if (!state || !tooltip) return;
 

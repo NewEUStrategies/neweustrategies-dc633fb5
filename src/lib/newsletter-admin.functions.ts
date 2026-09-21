@@ -1,12 +1,23 @@
 // Admin-only newsletter server functions. Uzywane wylacznie z /admin/newsletter.
 //
-// Zabezpieczenie: `requireStaff` (uwierzytelnienie + rola admin/editor/author).
+// TRZY ROZNE BRAMKI, bo to sa trzy rozne zasoby. Import listy stoi na
+// `requireStaff` - to dane najemcy, zakresowane `tenant_id` z `profiles`.
+// Odczyt stanu runnera stoi na `requireAdminEditor` - ta sama rola co RPC
+// `job_scheduler_health()` po drugiej stronie panelu zdrowia (autorzy tresci
+// nie ogladaja telemetrii platformy). Zapis konfiguracji runnera stoi na
+// `requirePlatformAdmin` - `job_runner_settings` to singleton INSTALACJI, a nie
+// wiersz najemcy.
+//
 // Import CSV zapisuje po stronie serwera przez service_role z pominieciem RLS,
 // ale w ramach tenanta wywolujacego (tenant_id z profiles). Import respektuje
 // idempotencje - istniejacy subskrybent nie jest nadpisywany.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireStaff } from "@/integrations/supabase/require-staff";
+import {
+  requireAdminEditor,
+  requirePlatformAdmin,
+  requireStaff,
+} from "@/integrations/supabase/require-staff";
 import type { RunnerTickStatus } from "@/lib/email/runnerHealth";
 
 const ImportRow = z.object({
@@ -99,8 +110,9 @@ export const importNewsletterSubscribers = createServerFn({ method: "POST" })
 // ----------------------------------------------------------------------------
 // Job runner (automatyczny tick wysyłki) - konfiguracja pojedynczego wiersza
 // job_runner_settings. Tabela jest service-role-only; te funkcje są jedynym
-// interfejsem (staff). Sekret pokazujemy TYLKO adminom - jest wpinany w
-// cron/pg_net po stronie bazy, a tu służy wyłącznie diagnostyce.
+// interfejsem. Sekret NIE opuszcza serwera nawet w podglądzie - panel dostaje
+// wyłącznie informację, czy jest ustawiony, bo do diagnostyki („czy cron ma
+// czym się uwierzytelnić") wystarczy fakt, a nie treść.
 // ----------------------------------------------------------------------------
 
 /** Głębokość kolejek pocztowych pgmq (dowód, że dren nadąża za nadawaniem). */
@@ -120,8 +132,11 @@ export interface JobRunnerSettings {
    * domyślnego). Puste = tick nie ma gdzie zapukać.
    */
   effective_base_url: string;
-  /** Podgląd sekretu (pierwsze 6 znaków) - pełny sekret nie opuszcza serwera. */
-  secret_preview: string;
+  /**
+   * Czy sekret runnera jest ustawiony. Treści sekretu panel nie potrzebuje -
+   * taki sam kształt ma RPC `job_scheduler_health` (pole `secret_set`).
+   */
+  secret_set: boolean;
   updated_at: string | null;
   /** Telemetria ostatniego ticku - „włączone" nie znaczy jeszcze „działa". */
   last_tick_at: string | null;
@@ -152,7 +167,7 @@ function queueCount(source: Record<string, unknown>, key: string): number {
  * to, które naprawdę interesuje operatora: „czy poczta wychodzi".
  */
 export const getJobRunnerSettings = createServerFn({ method: "GET" })
-  .middleware([requireStaff])
+  .middleware([requireAdminEditor])
   .handler(async (): Promise<JobRunnerSettings> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
@@ -194,7 +209,7 @@ export const getJobRunnerSettings = createServerFn({ method: "GET" })
       enabled: row?.enabled ?? false,
       base_url: row?.base_url ?? "",
       effective_base_url: typeof effectiveUrl === "string" ? effectiveUrl : "",
-      secret_preview: row?.secret ? `${row.secret.slice(0, 6)}…` : "",
+      secret_set: Boolean(row?.secret),
       updated_at: row?.updated_at ?? null,
       last_tick_at: row?.last_tick_at ?? null,
       last_tick_status: tickStatusOf(row?.last_tick_status),
@@ -211,24 +226,153 @@ export const getJobRunnerSettings = createServerFn({ method: "GET" })
     };
   });
 
+// Ten sam kształt adresu, który obowiązuje ścieżkę automatyczną (`arm_job_runner`,
+// 20260731110000:159-165). Dwa różne kontrakty na jedną kolumnę to klasa awarii:
+// ręczna ścieżka przepuszczała ścieżkę w URL, userinfo (`https://ofiara@evil.test`)
+// i adresy lokalne, po których tick wysyłał sekret operatora.
+const BASE_URL_SHAPE = /^https:\/\/[a-z0-9.-]+(:\d+)?$/i;
+const BASE_URL_LOCAL = /^https:\/\/(localhost|127\.|0\.0\.0\.0|\[)/i;
+
 const JobRunnerUpdate = z.object({
   enabled: z.boolean(),
   base_url: z
     .string()
     .trim()
     .max(500)
-    .refine((v) => v === "" || /^https:\/\/[^\s]+$/i.test(v), "https_url_required"),
+    // Ukośnik końcowy ucinamy PRZED walidacją - tak samo robi `arm_job_runner`
+    // (`rtrim(btrim(...), '/')`), więc obie ścieżki oceniają ten sam napis.
+    .transform((value) => value.replace(/\/+$/, ""))
+    .refine(
+      (value) => value === "" || (BASE_URL_SHAPE.test(value) && !BASE_URL_LOCAL.test(value)),
+      "https_url_required",
+    ),
 });
 
+/**
+ * Sam host z wpisu allowlisty. Wpisy bywają domeną (`tenants.domain`) albo
+ * pełnym adresem (zmienne środowiskowe), więc obie formy sprowadzamy do tego
+ * samego: bez schematu, bez portu, bez ścieżki, małymi literami.
+ */
+function hostOf(value: string): string {
+  const withoutScheme = value
+    .trim()
+    .toLowerCase()
+    .replace(/^[a-z]+:\/\//, "");
+  const authority = withoutScheme.split("/")[0] ?? "";
+  const afterUserinfo = authority.split("@").at(-1) ?? "";
+  return afterUserinfo.split(":")[0] ?? "";
+}
+
+/**
+ * Allowlista hostów żyje w TypeScripcie, a nie w bazie. Trigger w bazie pilnuje
+ * KSZTAŁTU adresu, bo nie ma jak zajrzeć do zmiennych środowiskowych procesu,
+ * a lista domen najemców nie wystarcza: w instalacji jednodomenowej
+ * `tenants.domain` bywa puste (jobScheduler.server.ts), a staging i podglądy
+ * mają host spoza katalogu najemców. Stąd jawna furtka
+ * `JOB_RUNNER_BASE_URL_ALLOWLIST` - bez niej pierwszy zapis po wdrożeniu na
+ * środowisko podglądowe zostałby odrzucony przez własną ochronę.
+ */
+async function assertBaseUrlAllowed(baseUrl: string): Promise<void> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const allowed = new Set<string>();
+
+  // Katalog najemców czytamy BEZ zawężenia najemcą - filtr po najemcy byłby tu
+  // błędem logicznym: adres jest wspólny dla całej instalacji.
+  const { data: tenants, error } = await supabaseAdmin.from("tenants").select("domain");
+  if (error) {
+    // Fail closed: bez katalogu domen nie wiemy, czy adres jest nasz, a stawką
+    // jest sekret operatora wysyłany pod ten adres co minutę.
+    throw new Error(`base_url_allowlist_unavailable: ${error.message}`);
+  }
+  for (const row of tenants ?? []) {
+    const host = hostOf(row.domain ?? "");
+    if (host) allowed.add(host);
+  }
+
+  const siteUrl = process.env.PUBLIC_SITE_URL || process.env.SITE_URL || process.env.URL || "";
+  const siteHost = hostOf(siteUrl);
+  if (siteHost) allowed.add(siteHost);
+
+  for (const entry of (process.env.JOB_RUNNER_BASE_URL_ALLOWLIST ?? "").split(",")) {
+    const host = hostOf(entry);
+    if (host) allowed.add(host);
+  }
+
+  if (!allowed.has(hostOf(baseUrl))) {
+    throw new Error("base_url_not_in_allowlist");
+  }
+}
+
+/**
+ * Zapis konfiguracji runnera. Bramka jest WYŻSZA niż w reszcie pliku, bo to nie
+ * są dane najemcy: `base_url` jest pierwszą gałęzią COALESCE w
+ * `job_runner_base_url()` (20260731130000:45-67), a pg_cron wysyła pod ten adres
+ * sekret operatora w nagłówkach `x-jobs-secret` i `x-community-cron-secret`
+ * (20260731210000:183-194, :298-311). Ten sam sekret otwiera
+ * /api/public/jobs-tick, /api/public/community-cron i /api/public/billing-cron,
+ * a `enabled = false` gasi zadania tła CAŁEJ instalacji. Staff najemcy nie może
+ * o tym decydować.
+ */
 export const updateJobRunnerSettings = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requirePlatformAdmin])
   .validator((data: unknown) => JobRunnerUpdate.parse(data))
-  .handler(async ({ data }): Promise<{ ok: true }> => {
+  .handler(async ({ data, context }): Promise<{ ok: true }> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // Host sprawdzamy PRZED dotknięciem tabeli - odrzucony adres nie ma prawa
+    // zostawić po sobie ani telemetrii, ani częściowego zapisu.
+    if (data.base_url !== "") {
+      await assertBaseUrlAllowed(data.base_url);
+    }
+
+    // Stan poprzedni czytamy dla audytu: po zapisie nie da się go odtworzyć,
+    // bo `updated_at` nadpisuje telemetria ticku już minutę później.
+    const { data: before } = await supabaseAdmin
+      .from("job_runner_settings")
+      .select("enabled, base_url")
+      .eq("id", 1)
+      .maybeSingle();
+    const previous = (before ?? null) as { enabled: boolean; base_url: string } | null;
+
     const { error } = await supabaseAdmin
       .from("job_runner_settings")
-      .update({ enabled: data.enabled, base_url: data.base_url.replace(/\/+$/, "") } as never)
+      .update({ enabled: data.enabled, base_url: data.base_url } as never)
       .eq("id", 1);
     if (error) throw new Error(error.message);
+
+    // Ślad audytowy jest tu jedynym śladem W OGÓLE: tabela nie ma `updated_by`,
+    // a `updated_at` zaciera pierwszy następny tick. Best-effort (jak
+    // `recordJobRun`) - nieudany audyt nie może cofnąć zapisu, który w bazie
+    // już się wydarzył, bo panel pokazałby wtedy stan niezgodny z bazą.
+    try {
+      const { data: profile } = await context.supabase
+        .from("profiles")
+        .select("tenant_id")
+        .eq("id", context.userId)
+        .maybeSingle();
+      const tenantId = (profile as { tenant_id?: string } | null)?.tenant_id;
+      if (!tenantId) throw new Error("brak tenanta wywolujacego");
+      const { error: auditError } = await supabaseAdmin.from("audit_log").insert({
+        tenant_id: tenantId,
+        actor_id: context.userId,
+        action: "job_runner.settings.update",
+        entity_type: "job_runner_settings",
+        entity_id: "1",
+        // BEZ sekretu - wpis audytowy czyta się szerzej niż samą tabelę.
+        metadata: {
+          enabled_before: previous?.enabled ?? null,
+          enabled_after: data.enabled,
+          base_url_before: previous?.base_url ?? null,
+          base_url_after: data.base_url,
+        },
+      });
+      if (auditError) throw new Error(auditError.message);
+    } catch (auditFailure) {
+      console.error("[updateJobRunnerSettings] audit_log write failed", {
+        userId: context.userId,
+        message: auditFailure instanceof Error ? auditFailure.message : String(auditFailure),
+      });
+    }
+
     return { ok: true };
   });

@@ -3,6 +3,7 @@
 // collide in one giant file.
 export const pl = {
   common: {
+    homeEmptyNotice: "Nie ma tu jeszcze treści - zajrzyj wkrótce.",
     retry: "Spróbuj ponownie",
     loading: "Ładowanie…",
     noPosts: "Brak wpisów do wyświetlenia.",
@@ -105,6 +106,13 @@ export const pl = {
     pause: "Zatrzymaj automatyczne przewijanie",
     play: "Wznów automatyczne przewijanie",
   },
+  // Karta promocyjna: podpowiedź widoczna WYŁĄCZNIE w kanwie buildera, gdy
+  // redakcja wstawi widget i nie wypełni go jeszcze treścią. Napis idzie
+  // słownikiem, a nie warunkiem po języku, bo warunek omija bramkę parytetu
+  // PL/EN i zamyka drogę do trzeciego języka.
+  promoCard: {
+    builderEmpty: "Dodaj okładkę i tytuł karty (lub wybierz wydarzenie) w panelu widgetu.",
+  },
   trendingTicker: {
     badge: "Warte przeczytania",
   },
@@ -186,6 +194,7 @@ export const pl = {
     stay: "Zostań",
     nav: {
       dashboard: "Kokpit",
+      analyticsBi: "BI - dashboardy",
       analyticsReconciliation: "Uzgodnienie",
       posts: "Wpisy",
       pages: "Strony",
@@ -203,11 +212,11 @@ export const pl = {
       names: "Słownik imion",
       greetings: "Powitania",
       relatedPosts: "Powiązane wpisy",
-      contentArea: "Content Area",
+      contentArea: "Obszar treści",
       newsletter: "Newsletter",
       podcasts: "Podcasty",
       programs: "Programy badawcze",
-      webStories: "Web Stories",
+      webStories: "Web Stories (relacje)",
       personalized: "Personalizacja",
       performance: "Wydajność",
       settings: "Ustawienia",
@@ -333,7 +342,7 @@ export const pl = {
         triggerImmediate: "od razu",
         triggerDelay: "po {{count}} s",
         triggerScroll: "po {{percent}}% przewinięcia",
-        triggerExit: "exit intent",
+        triggerExit: "zamiar wyjścia",
       },
       settings: {
         triggerSection: "Wyzwalacz",
@@ -504,7 +513,7 @@ export const pl = {
       postSidebar: "Sidebar wpisu",
       categoryArchive: "Archiwum kategorii",
       tagArchive: "Archiwum tagów",
-      globalColors: "Global Colors",
+      globalColors: "Kolory globalne",
     },
     icons: {
       title: "Biblioteka ikon",
@@ -564,6 +573,7 @@ export const pl = {
         mobileHeader: "Nagłówek mobilny",
         buttons: "Przyciski",
         textFields: "Pola tekstowe",
+        toggles: "Przełączniki (toggle)",
         inputColors: "Kolory pól tekstowych",
         iconColors: "Kolory ikon",
         linkColors: "Kolory linków",
@@ -588,7 +598,7 @@ export const pl = {
         hoverNone: "Brak",
         sticky: "Sticky menu główne",
         stickyHint: "Utrzymuj pasek menu widoczny podczas przewijania.",
-        smartSticky: "Smart Sticky",
+        smartSticky: "Inteligentne przyklejanie",
         smartStickyHint: "Pokazuj pasek tylko przy przewijaniu w górę.",
         glass: "Efekt szkła",
         glassHint: "Efekt szkła (frosted) na sticky nagłówku.",
@@ -693,6 +703,24 @@ export const pl = {
         letterSpacing: "Odstęp liter (px)",
         preview: "Podgląd",
       },
+      toggles: {
+        hint: "Globalny wygląd przełączników (toggle) na całej platformie: rozmiar, zaokrąglenie, kolory oraz rozmiar etykiety.",
+        size: "Rozmiar przełącznika",
+        sizeSm: "Mały",
+        sizeMd: "Średni",
+        sizeLg: "Duży",
+        width: "Szerokość (px)",
+        height: "Wysokość (px)",
+        radius: "Zaokrąglenie (px)",
+        onColor: "Kolor włączony",
+        offColor: "Kolor wyłączony",
+        thumbColor: "Kolor suwaka",
+        labelSize: "Rozmiar czcionki etykiety (px)",
+        labelWeight: "Grubość czcionki etykiety",
+        preview: "Podgląd",
+        previewOn: "Włączony",
+        previewOff: "Wyłączony",
+      },
       inputs: {
         hint: "Globalne ustawienia kształtu pól tekstowych. Kolory (tło, tekst, placeholder, hover, focus) konfiguruj w Global Colors → Inputs / Text Fields.",
         style: "Styl pola",
@@ -702,7 +730,7 @@ export const pl = {
         radius: "Zaokrąglenie (px)",
         height: "Wysokość pola (px)",
         borderWidth: "Grubość obramowania (px)",
-        focusRing: "Focus ring",
+        focusRing: "Obramowanie fokusu",
         focusRingHint: "Styl podświetlenia po fokusie.",
         focusNone: "Brak",
         focusBrand: "Brand (highlight)",
@@ -751,8 +779,8 @@ export const pl = {
       headers: {
         sidebarCollapsed: "Zwinięty sidebar - ikona (kwadrat)",
         sidebarExpanded: "Rozwinięty sidebar - podłużne logo",
-        iosTouchIcon: "iOS Touch Icon · 180×180px",
-        windowsTile: "Windows Metro Tile · 144×144px",
+        iosTouchIcon: "Ikona dotykowa iOS · 180×180px",
+        windowsTile: "Kafelek Windows Metro · 144×144px",
       },
       banners: {
         organization:
@@ -831,7 +859,7 @@ export const pl = {
       colPath: "Adres",
       colLastSeen: "Ostatnio",
       colReferrer: "Referrer",
-      importCsv: "Import CSV",
+      importCsv: "Importuj CSV",
       exportCsv: "Eksport CSV",
       imported_one: "Zaimportowano {{count}} przekierowanie",
       imported_few: "Zaimportowano {{count}} przekierowania",
@@ -868,6 +896,14 @@ export const pl = {
       canonicalHint: "Tylko dla treści przedrukowanych - wskazuje oryginalne źródło.",
       noindexLabel: "Ukryj przed wyszukiwarkami (noindex)",
       noindexHint: "Usuwa też adres z sitemap, RSS i news-sitemap.",
+      live: {
+        address: "Rzeczywisty adres",
+        openPage: "Otwórz stronę",
+        google: "Wynik Google",
+        facebook: "Karta na Facebooku",
+        linkedin: "Karta na LinkedInie",
+        hint: "Otwiera się w nowym oknie i pokazuje stan opublikowanej strony - nie niezapisanych zmian.",
+      },
       meter: {
         empty: "Użyty zostanie tekst domyślny",
         short: "Za krótki",
@@ -965,7 +1001,7 @@ export const pl = {
       discussion: "Dyskusja",
       cropSizes: "Rozmiary obrazów",
       privacy: "Prywatność",
-      cookieBanner: "Cookie banner",
+      cookieBanner: "Baner cookies",
       seo: "SEO",
     },
     reading: {
@@ -1006,6 +1042,8 @@ export const pl = {
       cookieBannerLabel: "Pokazuj baner zgody na pliki cookie",
     },
     dashboard: {
+      loadError: "Nie udało się wczytać liczników treści.",
+      retry: "Spróbuj ponownie",
       title: "Kokpit",
       subtitle: "Przegląd treści serwisu",
     },
@@ -1159,7 +1197,7 @@ export const pl = {
       uploading: "Wgrywanie…",
     },
     personalized: {
-      title: "Personalized System",
+      title: "System personalizacji",
       subtitle: "Bookmarks, follows, reading list i rekomendacje",
       tabs: {
         global: "Globalne",
@@ -1234,12 +1272,12 @@ export const pl = {
       confirmRemove: "Usunąć subskrybenta?",
     },
     contentArea: {
-      title: "Post Content Area",
+      title: "Obszar treści wpisu",
       subtitle: "Typografia, szerokości i hiperłącza w treści wpisu.",
       width: "Szerokość treści",
       withSidebar: "Z sidebarem (px)",
       noSidebar: "Bez sidebara (px)",
-      wideMax: "Wide image max (px)",
+      wideMax: "Maks. szerokość obrazu (px)",
       paragraphs: "Akapity i listy",
       paragraphSpacing: "Odstęp akapitów (rem)",
       listStyle: "Styl list (ul)",
@@ -1252,9 +1290,9 @@ export const pl = {
       linkColorDark: "Kolor linku (dark)",
       underlineColorLight: "Kolor podkreślenia (light)",
       underlineColorDark: "Kolor podkreślenia (dark)",
-      imageCaption: "Image caption",
+      imageCaption: "Podpis obrazu",
       imageCaptionToggle: "Pokaż lewy border przed podpisem obrazu",
-      quickView: "Quick View Info",
+      quickView: "Szybki podgląd informacji",
       quickViewToggle: "Pokaż pasek meta (review/sponsor) na górze treści",
     },
     paywall: {
@@ -1297,6 +1335,7 @@ export const pl = {
       meteringMeterMembers: "Licz artykuły „tylko dla zalogowanych”",
       meteringShowCounter: "Pokazuj licznik „X z N” nad artykułem",
       meteringSaved: "Zapisano ustawienia meteringu",
+      readError: "Nie udało się wczytać ustawień. Spróbuj ponownie.",
       meteringSaveError: "Nie udało się zapisać ustawień meteringu.",
       meteringImpactTitle: "Podgląd wpływu na bieżący miesiąc",
       meteringImpactDisabled:

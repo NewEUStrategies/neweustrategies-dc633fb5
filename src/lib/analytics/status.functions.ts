@@ -5,6 +5,11 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import {
+  resolveGa4MeasurementId,
+  type Ga4MeasurementIdSource,
+} from "@/lib/analytics/measurementId";
+import { firstEnv } from "@/lib/analytics/envSecrets";
 
 interface SelectResultRow {
   data: unknown;
@@ -84,6 +89,8 @@ export interface AnalyticsStatus {
     serviceAccountEmail: string | null;
     propertyId: string | null;
     measurementId: string | null;
+    // Skąd pochodzi ID pomiaru: sekret, ustawienia panelu czy konektor.
+    measurementIdSource: Ga4MeasurementIdSource;
     embedUrl: string | null;
     // Podpowiedzi UX - czego brakuje po stronie sekretów projektu.
     missingSecrets: string[];
@@ -118,23 +125,41 @@ export const getAnalyticsStatus = createServerFn({ method: "GET" })
       }
     }
 
-    // OAuth 2.0 refresh token
+    // OAuth 2.0 refresh token - przyjmujemy też nazwy z przedrostkiem
+    // GOOGLE_*, bo pod takimi użytkownik zapisuje klucze z Google Cloud.
     const oauthClientOk = Boolean(
-      process.env.GA4_OAUTH_CLIENT_ID && process.env.GA4_OAUTH_CLIENT_SECRET,
+      firstEnv("GA4_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_ID") &&
+      firstEnv("GA4_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_CLIENT_SECRET"),
     );
-    const oauthRefreshOk = Boolean(process.env.GA4_OAUTH_REFRESH_TOKEN);
+    const oauthRefreshOk = Boolean(
+      firstEnv("GA4_OAUTH_REFRESH_TOKEN", "GOOGLE_OAUTH_REFRESH_TOKEN"),
+    );
 
     // Measurement Protocol (send events) - fall back to stored measurement id.
-    const measurementId =
-      process.env.GA4_MEASUREMENT_ID ?? (stored.ga4_measurement_id?.trim() || null);
+    // `||`, nie `??`: pusta zmienna środowiskowa to pusty string, a nie brak
+    // wartości. Z `??` deklaracja `GA4_MEASUREMENT_ID=` przesłaniałaby wpis
+    // najemcy i panel meldowałby „nieskonfigurowane", podczas gdy
+    // `sendGa4Event` (`GA4_MEASUREMENT_ID?.trim() || stored...`) nadawałby
+    // identyfikatorem z bazy - dwie funkcje modułu przeczyłyby sobie co do
+    // tej samej wartości.
+    // Konektor Google Analytics jest trzecim (zapasowym) źródłem - ta sama
+    // kolejność co w kliencie, żeby panel nie meldował „brak", gdy skrypt GA
+    // realnie działa z ID konektora.
+    const { measurementId, source: measurementIdSource } = resolveGa4MeasurementId(
+      stored.ga4_measurement_id,
+    );
     const apiSecretOk = Boolean(process.env.GA4_API_SECRET);
     const mpOk = Boolean(measurementId && apiSecretOk);
 
     // Embed (Looker Studio / iframe)
     const embedUrl = process.env.GA4_EMBED_URL ?? null;
 
-    // Property ID: env pierwsze, potem konfiguracja z bazy.
-    const propertyId = process.env.GA4_PROPERTY_ID ?? (stored.ga4_property_id?.trim() || null);
+    // Property ID: env pierwsze, potem konfiguracja z bazy. Znowu `||`:
+    // pusty sekret znaczy BRAK sekretu, a nie skasowanie property zapisanego
+    // przez najemcę - ta sama granica, co w `resolveGa4PropertyId`
+    // (`ga4.server.ts`), żeby status i odczyt raportów mówiły to samo.
+    const propertyId =
+      process.env.GA4_PROPERTY_ID?.trim() || stored.ga4_property_id?.trim() || null;
     const hasProperty = Boolean(propertyId);
 
     let activeMode: Ga4Mode = null;
@@ -168,6 +193,7 @@ export const getAnalyticsStatus = createServerFn({ method: "GET" })
         serviceAccountEmail: saEmail,
         propertyId,
         measurementId,
+        measurementIdSource,
         embedUrl,
         missingSecrets,
       },

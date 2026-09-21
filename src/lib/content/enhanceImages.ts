@@ -23,6 +23,7 @@
 // attribute that already passed sanitization, and re-escapes them for the
 // attribute context. It must never be used to bypass or replace the sanitizer.
 import { buildImageSrcSet, isSupabaseStorageUrl } from "@/lib/cropSizes";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 
 const IMG_TAG_RE = /<img\b[^>]*?\/?>/gi;
 const SRC_RE = /\ssrc\s*=\s*("([^"]*)"|'([^']*)')/i;
@@ -82,6 +83,15 @@ function enhanceImgTag(tag: string, eager: boolean): string {
 
   const srcMatch = SRC_RE.exec(tag);
   const rawSrc = srcMatch ? unescapeAttr(srcMatch[2] ?? srcMatch[3] ?? "") : "";
+
+  // Stare wpisy mogą nadal zawierać techniczny adres magazynu. Przy każdym
+  // renderze kierujemy go przez trwałą domenę marki, bez migracji treści HTML.
+  if (srcMatch && rawSrc) {
+    const brandedSrc = brandedMediaUrl(rawSrc);
+    if (brandedSrc !== rawSrc) {
+      tag = tag.replace(srcMatch[0], ` src="${escapeAttr(brandedSrc)}"`);
+    }
+  }
 
   if (!/\ssrcset\s*=/i.test(tag) && rawSrc && isSupabaseStorageUrl(rawSrc)) {
     const srcSet = buildImageSrcSet(rawSrc, CONTENT_IMAGE_WIDTHS);

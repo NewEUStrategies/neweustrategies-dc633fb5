@@ -1,16 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { publicAuthError } from "@/lib/auth/publicAuthError";
 import { preAuthGuard } from "@/lib/auth/bruteforce.functions";
 import { isMfaChallengeRequired } from "@/lib/auth/mfa";
 import { MfaChallenge } from "@/components/auth/MfaChallenge";
 import { useAuth } from "@/hooks/useAuth";
 import { useAuthSettings } from "@/hooks/useAuthSettings";
 import { useTheme } from "@/components/ThemeProvider";
-import { onOpenLoginPopup } from "@/lib/loginPopupBus";
+import { useBrandLogoUrl } from "@/lib/brand/useBrandLogoUrl";
+import { onOpenLoginPopup, type LoginPopupOptions } from "@/lib/loginPopupBus";
 import "@/lib/i18n-public";
+import "@/lib/i18n-public-auth";
 import {
   Dialog,
   DialogContent,
@@ -25,7 +28,8 @@ import { toast } from "sonner";
 
 type Mode = "signin" | "signup";
 
-export function LoginPopup() {
+export function LoginPopup({ request }: { request?: LoginPopupOptions }) {
+  const handledRequest = useRef<LoginPopupOptions | null>(null);
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { session } = useAuth();
@@ -34,6 +38,8 @@ export function LoginPopup() {
   const lang = (i18n.language ?? "pl").startsWith("pl") ? "pl" : "en";
 
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,7 +52,7 @@ export function LoginPopup() {
   const [mfaPending, setMfaPending] = useState(false);
 
   useEffect(() => {
-    return onOpenLoginPopup((opts) => {
+    const handleRequest = (opts: LoginPopupOptions) => {
       const m = opts.mode ?? "signin";
       setOverride({ title: opts.title, description: opts.description });
       if (!settings.popup_enabled) {
@@ -66,10 +72,24 @@ export function LoginPopup() {
         navigate({ to: "/login", search: { mode: m } });
         return;
       }
+      const focused = document.activeElement;
+      if (focused instanceof HTMLElement && !dialogRef.current?.contains(focused)) {
+        triggerRef.current = focused;
+      }
       setMode(m);
       setOpen(true);
-    });
-  }, [settings.popup_enabled, settings.custom_login_url, navigate]);
+    };
+    if (request) {
+      // Preserve the first click while the form chunk loads; settings updates
+      // must not reopen an already dismissed request.
+      if (handledRequest.current !== request) {
+        handledRequest.current = request;
+        handleRequest(request);
+      }
+      return;
+    }
+    return onOpenLoginPopup(handleRequest);
+  }, [request, settings.popup_enabled, settings.custom_login_url, navigate]);
 
   useEffect(() => {
     if (session && open && !mfaPending) setOpen(false);
@@ -80,13 +100,9 @@ export function LoginPopup() {
   const description =
     override.description ??
     (lang === "pl" ? settings.popup_description_pl : settings.popup_description_en);
-  // Dark theme prefers the dedicated dark-mode logo and falls back to the
-  // light one, so a site configured before the dark variant existed keeps
-  // showing its logo.
-  const logo =
-    theme === "dark"
-      ? settings.form_logo_url_dark || settings.form_logo_url
-      : settings.form_logo_url;
+  // Logo formularza: najpierw ustawienia logowania, potem globalne logo motywu
+  // (Wygląd → Opcje motywu → Logo), z wariantem dopasowanym do motywu.
+  const logo = useBrandLogoUrl(theme === "dark" ? "dark" : "light");
 
   const runPreAuthGuard = useServerFn(preAuthGuard);
 
@@ -99,16 +115,19 @@ export function LoginPopup() {
       } catch (guardErr) {
         const msg = guardErr instanceof Error ? guardErr.message : "";
         if (msg.includes("rate_limited")) {
-          throw new Error(t("auth.rateLimited"));
+          toast.error(t("auth.rateLimited"));
+          return;
         }
         if (msg.includes("invalid_input")) {
-          throw new Error(t("auth.invalidInput"));
+          toast.error(t("auth.invalidInput"));
+          return;
         }
         throw guardErr;
       }
       if (mode === "signup") {
         if (!settings.allow_public_signup) {
-          throw new Error(t("authForms.signupDisabled"));
+          toast.error(t("authForms.signupDisabled"));
+          return;
         }
         const trimmed = name.trim();
         const parts = trimmed.split(/\s+/).filter(Boolean);
@@ -157,7 +176,8 @@ export function LoginPopup() {
         }
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      setMfaPending(false);
+      toast.error(t(`authForms.errors.${publicAuthError(err)}`));
     } finally {
       setBusy(false);
     }
@@ -180,7 +200,17 @@ export function LoginPopup() {
         }}
       />
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent
+          ref={dialogRef}
+          className="sm:max-w-md"
+          onCloseAutoFocus={(event) => {
+            const trigger = triggerRef.current;
+            if (trigger?.isConnected) {
+              event.preventDefault();
+              trigger.focus({ preventScroll: true });
+            }
+          }}
+        >
           <DialogHeader className="items-center text-center">
             {logo ? <img src={logo} alt="" className="h-12 mx-auto mb-2 object-contain" /> : null}
             <DialogTitle className="font-display text-2xl">{heading}</DialogTitle>

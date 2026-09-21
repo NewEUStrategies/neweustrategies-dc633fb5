@@ -158,3 +158,77 @@ describe("imageDimsFromUrl", () => {
     expect(imageDimsFromUrl("/huge-30000x20000.jpg")).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// GAŁĘZIE ATRYBUTU `src` I ODMOWY DOKŁADANIA - część C.
+//
+// Testy wyżej używają WYŁĄCZNIE `src="..."` w cudzysłowie i tagów bez `sizes`
+// oraz bez wymiarów. Poniżej domykamy alternatywy tej samej wyrażenia
+// regularnego (apostrof, brak `src`) i trzy odmowy dokładania atrybutów.
+// ---------------------------------------------------------------------------
+describe("enhanceContentImages - warianty zapisu src i odmowy dokładania", () => {
+  it("obraz BEZ atrybutu src dostaje tylko loading/decoding", () => {
+    // Gałąź `: ""` w `srcMatch ? ... : ""`. Sanitizer przepuszcza `<img>` bez
+    // `src` (np. po wycięciu adresu `data:`), a `isSupabaseStorageUrl("")`
+    // i `imageDimsFromUrl("")` muszą wtedy w ogóle nie być pytane.
+    const out = enhanceContentImages('<img alt="obraz bez adresu">');
+    expect(out).toContain('loading="lazy"');
+    expect(out).toContain('decoding="async"');
+    expect(out).not.toContain("srcset=");
+    expect(out).not.toContain("sizes=");
+    expect(out).not.toContain("width=");
+    expect(out).not.toContain("height=");
+  });
+
+  it("src zapisany w APOSTROFACH jest czytany tak samo jak w cudzysłowie", () => {
+    // Alternatywa `srcMatch[3]` - druga grupa wyrażenia SRC_RE. Markdown i
+    // importer WordPressa produkują oba warianty cytowania.
+    const out = enhanceContentImages(`<img src='${SUPA}'>`);
+    expect(out).toContain("srcset=");
+    expect(out).toContain("sizes=");
+    expect(out).toContain("/storage/v1/render/image/public/");
+  });
+
+  it("wymiary z nazwy pliku działają też przy src w apostrofach", () => {
+    const out = enhanceContentImages("<img src='https://wp.example.com/photo-1024x768.jpg'>");
+    expect(out).toContain('width="1024"');
+    expect(out).toContain('height="768"');
+  });
+
+  it("tag z `sizes`, ale BEZ `srcset`, nie dostaje drugiego `sizes`", () => {
+    // Gałąź `!/\ssizes\s*=/` fałszywa. Dwa atrybuty `sizes` w jednym tagu to
+    // niepoprawny HTML - przeglądarka bierze pierwszy, więc autorski układ
+    // zostałby po cichu zignorowany.
+    const out = enhanceContentImages(`<img src="${SUPA}" sizes="100vw">`);
+    expect(out.match(/sizes=/g)).toHaveLength(1);
+    expect(out).toContain('sizes="100vw"');
+    expect(out).toContain("srcset=");
+  });
+
+  it("SAM `height` autora blokuje dołożenie `width` - obu nie ruszamy", () => {
+    // Drugi człon `!/\sheight\s*=/`. Kontrakt z komentarza produkcyjnego brzmi
+    // "jeśli jest KTÓRYKOLWIEK wymiar, nie ruszamy obu" - dołożenie samego
+    // `width` do autorskiego `height` zmieniłoby proporcje obrazu.
+    const out = enhanceContentImages(
+      '<img src="https://wp.example.com/photo-1024x768.jpg" height="480">',
+    );
+    expect(out).toContain('height="480"');
+    expect(out).not.toContain('width="1024"');
+    expect(out.match(/width=/g)).toBeNull();
+  });
+
+  it("SAM `width` autora również blokuje dołożenie `height`", () => {
+    const out = enhanceContentImages(
+      '<img src="https://wp.example.com/photo-1024x768.jpg" width="640">',
+    );
+    expect(out).toContain('width="640"');
+    expect(out.match(/height=/g)).toBeNull();
+  });
+
+  it("pusty napis wraca pusty - bez wejścia w podmianę tagów", () => {
+    // Człon `!sanitizedHtml`. Trasa woła tę funkcję również dla wpisów bez
+    // treści HTML (silnik bloków/buildera), więc to ścieżka codzienna.
+    expect(enhanceContentImages("")).toBe("");
+    expect(enhanceContentImages("", { eagerFirstImage: true })).toBe("");
+  });
+});

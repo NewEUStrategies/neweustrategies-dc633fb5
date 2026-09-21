@@ -1,16 +1,77 @@
 // Zasoby i18n dla dashboardów BI w panelu analityki (/admin/analytics).
 // Obejmuje wspólne prymitywy (ChartCard, TimeRangeFilter, InsightSection) oraz
-// dashboardy: Related, Web Vitals, Audytorium, GSC i GA4 wraz z generatorami
-// interpretacji (gscInsights / ga4Insights).
+// dashboardy: Related, Web Vitals, Audytorium, GSC, GA4 i Stopka wraz z
+// generatorami interpretacji (gscInsights / ga4Insights).
 import i18n from "@/lib/i18n";
 
 const pl = {
   adminAnalytics: {
+    bi: {
+      title: "BI - wszystkie dashboardy",
+      subtitle: "Web Vitals, audytorium, błędy przeglądarki, Search Console i GA4 w jednym widoku.",
+      stripTitle: "Analityka (moduł 17)",
+      stripSubtitle: "Dane rzeczywiste z ostatnich {{days}} dni.",
+      openFull: "Otwórz pełny panel BI",
+      kpi: {
+        samples: "Próbki RUM",
+        lcp: "LCP p75",
+        errors: "Błędy przeglądarki",
+        errorGroups: "Grupy błędów",
+      },
+      charts: {
+        lcpTrend: "LCP p75 - trend dzienny",
+        lcpTrendSub: 'Im niżej, tym lepiej; linia 2500 ms to próg „dobry" Web Vitals.',
+        errorsDaily: "Błędy przeglądarki dziennie",
+        errorsDailySub: "Grupowanie po znormalizowanym komunikacie.",
+      },
+      cols: { day: "Dzień", value: "Wartość", count: "Liczba" },
+    },
+
     common: {
       refresh: "Odśwież",
       loading: "Ładowanie...",
       loadingData: "Ładowanie danych...",
+      // TRZY STANY, KTÓRE NIE SĄ POMIAREM. `noDataWindow` znaczy ZMIERZONE
+      // ZERO: okno zostało odczytane i po prostu nie ma w nim zdarzeń.
+      // Klucze poniżej opisują stany, w których pomiaru NIE MA WCALE - kafelek
+      // KPI nie może wtedy malować zera, bo zero byłoby kłamstwem o danych.
       noDataWindow: "Brak danych w oknie.",
+      // ROZRÓŻNIENIE „okno puste" od „filtr bez trafień". `noDataWindow`
+      // twierdzi o CAŁYM oknie pomiarowym, więc wypisany pod aktywnym filtrem
+      // każe operatorowi szukać awarii pomiaru tam, gdzie po prostu zawężono
+      // widok - a to dwie różne decyzje: „sprawdź ingest" kontra „zdejmij filtr".
+      noDataFilter: "Brak danych dla wybranego filtra.",
+      noDataFilterHint:
+        "Okno ma zdarzenia, ale żadne nie należy do wybranego zakresu - zdejmij filtr, żeby zobaczyć całość.",
+      measuring: "Trwa pomiar...",
+      measuringShort: "Pomiar",
+      measuringHint: "Odczyt źródła w toku - wartości pojawią się po pobraniu.",
+      readFailed: "Awaria odczytu danych.",
+      readFailedReason: "Awaria odczytu: {{reason}}",
+      readFailedShort: "Awaria odczytu",
+      readFailedHint:
+        "Pomiaru nie udało się pobrać - odśwież panel albo sprawdź połączenie ze źródłem.",
+      unknownReason: "przyczyna nieznana",
+      notConfigured: "Źródło nieskonfigurowane.",
+      notConfiguredShort: "Brak źródła",
+      notConfiguredHint: "Podłącz źródło w ustawieniach warsztatu, żeby zacząć pomiar.",
+      // Pusty strumień PRZEZ BRAK ZGODY prowadzi do innej decyzji (popraw baner
+      // zgody) niż strumień bez zdarzeń (popraw dystrybucję treści).
+      noConsent: "Brak zgody analitycznej.",
+      noConsentShort: "Brak zgody",
+      noConsentHint:
+        "Odwiedzający nie zgodzili się na pomiar - decyzja dotyczy banera zgody, nie dystrybucji treści.",
+      // OCENA METRYKI JAKO NAPIS, nie tylko kolor (WCAG 1.4.1). Sam wyraz oceny
+      // („Dobrze") mieszka w `drillDialog.rating.*`; tu są całe napisy dla
+      // dostępnej nazwy kafla, który ocenę koduje klasą koloru.
+      ratingGood: "Ocena: dobrze",
+      ratingNeeds: "Ocena: do poprawy",
+      ratingPoor: "Ocena: słabo",
+      // DOSTĘPNE NAZWY kontrolek, które mają dziś tylko etykietę wizualną
+      // (`<label>` bez powiązania) albo samą ikonę.
+      windowSelector: "Wybór okna czasu",
+      groupFilter: "Filtr grup",
+      more: "Więcej",
     },
     chartCard: {
       exportPng: "Eksport PNG",
@@ -23,6 +84,9 @@ const pl = {
       dataTable: "Dane wykresu (tabela)",
       dataTableHint: "Ta sama treść co wykres, w postaci tabeli.",
       dataTableMissing: "Dla tego wykresu nie udostępniono jeszcze tabeli danych.",
+      // Wyzwalacz „trzy kropki" to sama ikona - bez tego napisu czytnik ekranu
+      // ogłasza jedyne wejście do eksportu jako bezimienny „przycisk".
+      exportMenu: "Menu eksportu",
     },
     drillDialog: {
       hint: "Kliknij element wykresu, aby zobaczyć szczegóły",
@@ -46,6 +110,9 @@ const pl = {
       range: "Zakres",
       pickHint: "Wybierz początek i koniec",
       apply: "Zastosuj",
+      // Warstwa kalendarza jedzie jako `role="dialog"` - bez nazwy jest
+      // ogłaszana jako samo „dialog", więc nie wiadomo, że to wybór dat.
+      calendarDialog: "Wybór zakresu dat",
     },
     insightSection: {
       defaultTitle: "Interpretacja i rekomendacje",
@@ -76,15 +143,27 @@ const pl = {
         topTagsSubtitle: "Liczba opublikowanych wpisów z tagiem",
         coocTitle: "Współwystępowanie tagów",
         coocSubtitle:
-          "Heatmapa: ile wpisów łączy dwa tagi (im ciemniej, tym silniejsza więź w grafie rekomendacji)",
+          "Heatmapa top {{count}} tagów: ile wpisów łączy dwa tagi (im ciemniej, tym silniejsza więź w grafie rekomendacji)",
         popularityTitle: "Popularność wpisów",
         popularitySubtitle:
           "Wyświetlenia vs unikalni odwiedzający - kandydaci do wzmocnienia w silniku",
         hubTitle: "Hub-posty (najczęstsze cele klików)",
         hubSubtitle: "Wpisy w które ludzie klikają z rekomendacji",
-        sankeyTitle: "Ścieżki źródło → cel (klik w rekomendację)",
-        sankeySubtitle:
-          "Sankey top-25 par - pokazuje jak rekomendacje realnie kierują ruch między wpisami",
+        flowsTitle: "Przejścia źródło → cel (klik w rekomendację)",
+        flowsSubtitle:
+          "Ranking {{shown}} najsilniejszych z {{total}} par - pokazuje jak rekomendacje realnie kierują ruch między wpisami",
+      },
+      // Nazwy SERII, czyli zarazem nagłówki kolumn w tabeli danych silnika.
+      // Osobne dla huba i dla przejścia, bo to dwie różne wielkości: pierwsza
+      // liczy kliki W WPIS ze wszystkich źródeł, druga - kliki na JEDNEJ parze.
+      series: {
+        hubClicks: "Kliknięcia w hub",
+        flowClicks: "Kliknięcia w przejściu",
+      },
+      drill: {
+        source: "Źródło",
+        target: "Cel",
+        sources: "Różnych źródeł",
       },
       insightsTitle: "Interpretacja i rekomendacje - silnik rekomendacji",
       insightsSubtitle:
@@ -97,7 +176,7 @@ const pl = {
             "Odnotowano {{views}} wyświetleń wpisów, ale 0 klików w powiązane. Sygnały nie działają lub nie są wyświetlane.",
           fixes: [
             "Sprawdź czy sekcja Powiązane wpisy jest włączona globalnie i pod wpisami.",
-            "Zmniejsz próg `min_score` w zakładce Konfiguracja - być może wszystko jest odfiltrowane.",
+            "Zmniejsz próg `min_score` w zakładce Silnik (wagi) - być może wszystko jest odfiltrowane.",
             "Sprawdź czy strategia źródła nie jest zbyt restrykcyjna (spróbuj `Kategorie + Tagi`).",
           ],
         },
@@ -130,8 +209,9 @@ const pl = {
           detail:
             "user_read_history jest puste w tym oknie - personalizacja nie ma na czym się oprzeć.",
           fixes: [
-            "Wpięcie logowania czasu czytania (np. IntersectionObserver + timer) do user_read_history.",
-            "Do czasu zebrania danych utrzymuj `weight_personalization` na 3 - nie zaszkodzi, a zacznie działać automatycznie.",
+            "Sprawdź, czy czytelnicy w ogóle się logują - historia zapisuje się wyłącznie dla zalogowanych.",
+            "Personalizacja NIE włącza się sama: wymaga zgody `personalization` od czytelnika i braku sygnału GPC. Bez zgody waga nie wnosi ani punktu, choćby dane były.",
+            "Utrzymuj `weight_personalization` powyżej zera, żeby sygnał zadziałał dla tych czytelników, którzy zgodę wyrazili.",
           ],
         },
         sparseTags: {
@@ -184,6 +264,10 @@ const pl = {
       ratingsSubtitle: "Liczba próbek Good / Needs / Poor",
       ratingOverall: "Rating ogółem",
       ratingOverallSubtitle: "Cały panel próbek w oknie",
+      // PRÓG JAKO LICZBA, nie jako pas tła. Wykres rysował wcześniej trzy pasy
+      // i dwie kreskowane linie progu; próg jest liczbą, więc czyta się go
+      // dokładnie tylko wtedy, gdy jest zapisany liczbą.
+      thresholdFooter: "Próg: dobrze do {{good}}, słabo powyżej {{poor}}",
       samplesWord: "próbek",
       samplesLabel: "Próbek",
       pathsBySamples: "Ścieżki wg liczby próbek",
@@ -365,14 +449,8 @@ const pl = {
       window: "Okno",
       clicks: "Kliknięcia",
       impressions: "Wyświetlenia",
-      ctrPct: "CTR %",
       avgPosition: "Śr. pozycja",
       other: "Inne",
-      clicksShort: "klik.",
-      clicksLabel: "Kliknięcia: ",
-      impressionsLabel: "Wyświetlenia: ",
-      ctrLabel: "CTR: ",
-      positionLabel: "Pozycja: ",
       notConfiguredPre: "Search Console nie jest jeszcze podłączony. Wróć do zakładki ",
       notConfiguredTab: "Przegląd",
       notConfiguredPost: ' i użyj przycisku „Połącz Search Console".',
@@ -387,9 +465,21 @@ const pl = {
         ctr: "ctr",
         position: "pozycja",
       },
+      // Wiersze macierzy kalendarza. Skrót, nie pełna nazwa: etykieta stoi przy
+      // krawędzi siatki siedmiu wierszy, a „Poniedziałek" zjadałby tam szerokość
+      // dwóch kolumn tygodni.
+      weekdays: {
+        mon: "Pon",
+        tue: "Wt",
+        wed: "Śr",
+        thu: "Czw",
+        fri: "Pt",
+        sat: "Sob",
+        sun: "Nd",
+      },
       charts: {
         trendTitle: "Trend widoczności",
-        trendSubtitle: "Kliknięcia i wyświetlenia w czasie + CTR (linia przerywana)",
+        trendSubtitle: "Kliknięcia i wyświetlenia w czasie, dziennie",
         topQueriesTitle: "Top 15 zapytań",
         topQueriesSubtitle: "Rank wg kliknięć",
         positionTitle: "Rozkład pozycji SERP",
@@ -399,9 +489,9 @@ const pl = {
         devicesTitle: "Urządzenia",
         devicesSubtitle: "Kliknięcia wg typu urządzenia",
         pagesTitle: "Strony wg wyświetleń",
-        pagesSubtitle: "Treemap top 20 stron (wielkość = wyświetlenia)",
+        pagesSubtitle: "Top 20 stron wg wyświetleń, malejąco",
         calendarTitle: "Aktywność dzienna",
-        calendarSubtitle: "Heatmapa kalendarzowa - kliknięcia per dzień",
+        calendarSubtitle: "Mapa cieplna: tydzień w kolumnie, dzień tygodnia w wierszu",
       },
       insightsSubtitle: "Analiza dla właściwości {{site}} · okno {{days}} dni",
       insights: {
@@ -571,12 +661,19 @@ const pl = {
         retention: "Retencja (100 - bounce)",
         events: "Eventy",
         seriesName: "Ostatnie {{days}} dni",
+        // JEDNOSTKA ZE SPACJĄ WIODĄCĄ: separator jest częścią jednostki, więc
+        // „62 pkt" rozdziela, a „62%" skleja. Pięć wskaźników jest tu
+        // znormalizowanych do wspólnej skali 0-100 i żaden nie jest już
+        // procentem - „pkt" mówi wprost, że to indeks, a nie pomiar.
+        unit: " pkt",
       },
       charts: {
         trendTitle: "Trend ruchu",
         trendSubtitle: "Sesje, użytkownicy i odsłony w oknie",
         engagementTitle: "Zaangażowanie",
         engagementSubtitle: "5 wymiarów jakości ruchu",
+        engagementFooter:
+          "Wskaźniki znormalizowane do wspólnej skali 0-100 pkt; liczba stoi na słupku, bo skala nie jest procentem.",
         sourcesTitle: "Źródła ruchu",
         sourcesSubtitle: "Sesje wg sessionSource",
         countriesTitle: "Kraje",
@@ -727,16 +824,122 @@ const pl = {
       expand: "Pokaż szczegóły",
       collapse: "Zwiń szczegóły",
     },
+    // POWIERZCHNIA STOPKI (`FooterAnalyticsPanel`, /admin/analytics -> Stopka).
+    // Panel długo nie miał warstwy i18n WCALE: nagłówek, etykiety kafelków,
+    // nazwy grup, nazwy zdarzeń i nagłówki kolumn stały po polsku w JSX, choć
+    // trasa `/admin/analytics` jest dwujęzyczna - angielski administrator
+    // czytał polszczyznę. Te klucze są odtąd JEDYNYM źródłem tych napisów.
+    footer: {
+      title: "Kliknięcia w stopce",
+      // ZDANIE O ŹRÓDLE i ZDANIE O OKNIE stoją w dwóch kluczach, bo drugie
+      // zmienia się przy każdym wyborze zakresu, a pierwsze nie. Zlanie ich w
+      // jeden klucz zmuszałoby tłumacza do przenoszenia liczby przez środek
+      // zdania osobno w każdym języku.
+      subtitle:
+        "Zdarzenia zbierane przez {{endpoint}} (GA4 równolegle, jeśli zgoda marketingowa aktywna).",
+      windowInfo: "Okno: ostatnie {{days}} dni.",
+      loading: "Ładowanie danych stopki...",
+      readFailed: "Nie udało się pobrać danych: {{reason}}",
+      // BRAK POMIARU KONTRA ZMIERZONE ZERO. Zapytanie wstrzymane brakiem sieci
+      // ma `fetchStatus: "paused"`, więc `isLoading` jest fałszem, choć nie
+      // przyjechał ani jeden wiersz. Kafelek nie może wtedy malować zera - zero
+      // to twierdzenie o pomiarze, a pomiaru nie ma; `notMeasuredShort` stoi w
+      // podpowiedzi kafelka, `notMeasured` zamiast tabeli.
+      notMeasured: "Panel nie wykonał odczytu - pomiar jest wstrzymany.",
+      notMeasuredHint:
+        "Zapytanie czeka na połączenie sieciowe albo na identyfikator warsztatu. Zero na kafelku byłoby twierdzeniem o danych, których nie ma.",
+      notMeasuredShort: "Brak pomiaru",
+      kpiTotal: "Wszystkie zdarzenia",
+      kpiLinkClicks: "Linki treści",
+      kpiLegalClicks: "Linki prawne",
+      kpiNewsletterClicks: "Kliknięcia newsletter",
+      kpiNewsletterSignups: "Zapisy z newslettera",
+      conversion: "{{pct}}% konwersji",
+      // LEJEK NIEDOMKNIĘTY. `footer_newsletter_signup` leci przy KAŻDYM wyniku
+      // wysyłki formularza, a `footer_newsletter_click` tylko z linku, który ma
+      // "newsletter" w adresie - zapisów bywa więc więcej niż kliknięć. Odsetek
+      // jest wtedy ograniczony do stu procent i JAWNIE oznaczony tym napisem,
+      // bo "300.0% konwersji" nie jest wskaźnikiem, tylko usterką.
+      conversionOpen: "{{pct}}% konwersji (lejek niedomknięty: zapisów więcej niż kliknięć)",
+      topLinks: "Top linki",
+      allGroups: "Wszystkie grupy",
+      emptyWindow: "Brak zdarzeń w wybranym oknie.",
+      groups: {
+        editorial: "Redakcja",
+        topics: "Tematy",
+        community: "Społeczność",
+        institute: "Instytut",
+        legal: "Prawne",
+        unknown: "Inne",
+      },
+      events: {
+        footer_link_click: "Link stopki",
+        footer_legal_click: "Link prawny",
+        footer_newsletter_click: "Newsletter (link)",
+        footer_newsletter_signup: "Newsletter (zapis)",
+      },
+      colLabel: "Etykieta / URL",
+      colGroup: "Grupa",
+      colEvent: "Zdarzenie",
+      colClicks: "Kliknięcia",
+      colLastSeen: "Ostatnie",
+    },
   },
 };
 
 const en = {
   adminAnalytics: {
+    bi: {
+      title: "BI - all dashboards",
+      subtitle: "Web Vitals, audience, browser errors, Search Console and GA4 in one view.",
+      stripTitle: "Analytics (module 17)",
+      stripSubtitle: "Real data from the last {{days}} days.",
+      openFull: "Open full BI panel",
+      kpi: {
+        samples: "RUM samples",
+        lcp: "LCP p75",
+        errors: "Browser errors",
+        errorGroups: "Error groups",
+      },
+      charts: {
+        lcpTrend: "LCP p75 - daily trend",
+        lcpTrendSub: 'Lower is better; the 2500 ms line is the Web Vitals "good" threshold.',
+        errorsDaily: "Browser errors per day",
+        errorsDailySub: "Grouped by normalized message.",
+      },
+      cols: { day: "Day", value: "Value", count: "Count" },
+    },
+
     common: {
       refresh: "Refresh",
       loading: "Loading...",
       loadingData: "Loading data...",
       noDataWindow: "No data in this window.",
+      noDataFilter: "No data for the selected filter.",
+      noDataFilterHint:
+        "The window has events, but none fall into the selected range - clear the filter to see everything.",
+      measuring: "Measuring...",
+      measuringShort: "Measuring",
+      measuringHint: "Reading the source - values appear once the fetch completes.",
+      readFailed: "Data read failed.",
+      readFailedReason: "Data read failed: {{reason}}",
+      readFailedShort: "Read failed",
+      readFailedHint:
+        "The measurement could not be fetched - refresh the panel or check the source connection.",
+      unknownReason: "reason unknown",
+      notConfigured: "Source not configured.",
+      notConfiguredShort: "No source",
+      notConfiguredHint: "Connect the source in the workspace settings to start measuring.",
+      noConsent: "No analytics consent.",
+      noConsentShort: "No consent",
+      noConsentHint:
+        "Visitors did not consent to measurement - the fix belongs to the consent banner, not to content distribution.",
+      ratingGood: "Rating: good",
+      ratingNeeds: "Rating: needs improvement",
+      ratingPoor: "Rating: poor",
+      windowSelector: "Time window selector",
+      groupFilter: "Group filter",
+      more: "More",
     },
     chartCard: {
       exportPng: "Export PNG",
@@ -747,6 +950,7 @@ const en = {
       dataTable: "Chart data (table)",
       dataTableHint: "The same content as the chart, as a table.",
       dataTableMissing: "A data table for this chart is not available yet.",
+      exportMenu: "Export menu",
     },
     drillDialog: {
       hint: "Click a chart element to see details",
@@ -770,6 +974,7 @@ const en = {
       range: "Range",
       pickHint: "Pick a start and end",
       apply: "Apply",
+      calendarDialog: "Date range picker",
     },
     insightSection: {
       defaultTitle: "Interpretation and recommendations",
@@ -800,14 +1005,23 @@ const en = {
         topTagsSubtitle: "Number of published posts with the tag",
         coocTitle: "Tag co-occurrence",
         coocSubtitle:
-          "Heatmap: how many posts link two tags (the darker, the stronger the bond in the recommendation graph)",
+          "Heatmap of the top {{count}} tags: how many posts link two tags (the darker, the stronger the bond in the recommendation graph)",
         popularityTitle: "Post popularity",
         popularitySubtitle: "Views vs unique visitors - candidates to boost in the engine",
         hubTitle: "Hub posts (most frequent click targets)",
         hubSubtitle: "Posts people click through to from recommendations",
-        sankeyTitle: "Source → target paths (recommendation click)",
-        sankeySubtitle:
-          "Sankey of the top 25 pairs - shows how recommendations actually route traffic between posts",
+        flowsTitle: "Source → target transitions (recommendation click)",
+        flowsSubtitle:
+          "Ranking of the {{shown}} strongest of {{total}} pairs - shows how recommendations actually route traffic between posts",
+      },
+      series: {
+        hubClicks: "Clicks into the hub",
+        flowClicks: "Clicks on the transition",
+      },
+      drill: {
+        source: "Source",
+        target: "Target",
+        sources: "Distinct sources",
       },
       insightsTitle: "Interpretation and recommendations - recommendation engine",
       insightsSubtitle:
@@ -820,7 +1034,7 @@ const en = {
             "Recorded {{views}} post views, but 0 clicks on related. Signals are not working or not being shown.",
           fixes: [
             "Check whether the Related posts section is enabled globally and below posts.",
-            "Lower the `min_score` threshold in the Configuration tab - everything may be filtered out.",
+            "Lower the `min_score` threshold in the Engine (weights) tab - everything may be filtered out.",
             "Check whether the source strategy isn't too restrictive (try `Categories + Tags`).",
           ],
         },
@@ -853,8 +1067,9 @@ const en = {
           detail:
             "user_read_history is empty in this window - personalization has nothing to rely on.",
           fixes: [
-            "Wire up reading-time logging (e.g. IntersectionObserver + timer) into user_read_history.",
-            "Until data is collected keep `weight_personalization` at 3 - it won't hurt and will start working automatically.",
+            "Check whether readers sign in at all - the history is only recorded for signed-in readers.",
+            "Personalization does NOT switch itself on: it needs the reader's `personalization` consent and no GPC signal. Without consent the weight contributes nothing, however much data exists.",
+            "Keep `weight_personalization` above zero so the signal applies for readers who did grant consent.",
           ],
         },
         sparseTags: {
@@ -908,6 +1123,7 @@ const en = {
       ratingsSubtitle: "Number of Good / Needs / Poor samples",
       ratingOverall: "Overall rating",
       ratingOverallSubtitle: "All samples in the window",
+      thresholdFooter: "Threshold: good up to {{good}}, poor above {{poor}}",
       samplesWord: "samples",
       samplesLabel: "Samples",
       pathsBySamples: "Paths by sample count",
@@ -1090,14 +1306,8 @@ const en = {
       window: "Window",
       clicks: "Clicks",
       impressions: "Impressions",
-      ctrPct: "CTR %",
       avgPosition: "Avg. position",
       other: "Other",
-      clicksShort: "clicks",
-      clicksLabel: "Clicks: ",
-      impressionsLabel: "Impressions: ",
-      ctrLabel: "CTR: ",
-      positionLabel: "Position: ",
       notConfiguredPre: "Search Console isn't connected yet. Go back to the ",
       notConfiguredTab: "Overview",
       notConfiguredPost: ' tab and use the "Connect Search Console" button.',
@@ -1109,9 +1319,18 @@ const en = {
         ctr: "ctr",
         position: "position",
       },
+      weekdays: {
+        mon: "Mon",
+        tue: "Tue",
+        wed: "Wed",
+        thu: "Thu",
+        fri: "Fri",
+        sat: "Sat",
+        sun: "Sun",
+      },
       charts: {
         trendTitle: "Visibility trend",
-        trendSubtitle: "Clicks and impressions over time + CTR (dashed line)",
+        trendSubtitle: "Clicks and impressions over time, daily",
         topQueriesTitle: "Top 15 queries",
         topQueriesSubtitle: "Ranked by clicks",
         positionTitle: "SERP position distribution",
@@ -1121,9 +1340,9 @@ const en = {
         devicesTitle: "Devices",
         devicesSubtitle: "Clicks by device type",
         pagesTitle: "Pages by impressions",
-        pagesSubtitle: "Treemap of the top 20 pages (size = impressions)",
+        pagesSubtitle: "Top 20 pages by impressions, descending",
         calendarTitle: "Daily activity",
-        calendarSubtitle: "Calendar heatmap - clicks per day",
+        calendarSubtitle: "Heatmap: week in the column, weekday in the row",
       },
       insightsSubtitle: "Analysis for property {{site}} · {{days}}-day window",
       insights: {
@@ -1295,12 +1514,15 @@ const en = {
         retention: "Retention (100 - bounce)",
         events: "Events",
         seriesName: "Last {{days}} days",
+        unit: " pts",
       },
       charts: {
         trendTitle: "Traffic trend",
         trendSubtitle: "Sessions, users and views in the window",
         engagementTitle: "Engagement",
         engagementSubtitle: "5 dimensions of traffic quality",
+        engagementFooter:
+          "Indicators normalised to a common 0-100 pts scale; the number sits on the bar because the scale is not a percentage.",
         sourcesTitle: "Traffic sources",
         sourcesSubtitle: "Sessions by sessionSource",
         countriesTitle: "Countries",
@@ -1452,8 +1674,58 @@ const en = {
       expand: "Show details",
       collapse: "Hide details",
     },
+    footer: {
+      title: "Footer clicks",
+      subtitle:
+        "Events collected through {{endpoint}} (GA4 in parallel when marketing consent is active).",
+      windowInfo: "Window: last {{days}} days.",
+      loading: "Loading footer data...",
+      readFailed: "Could not fetch the data: {{reason}}",
+      notMeasured: "The panel has not completed a read - measurement is paused.",
+      notMeasuredHint:
+        "The query is waiting for a network connection or for the workspace id. A zero on the tile would be a claim about data that does not exist.",
+      notMeasuredShort: "Not measured",
+      kpiTotal: "All events",
+      kpiLinkClicks: "Content links",
+      kpiLegalClicks: "Legal links",
+      kpiNewsletterClicks: "Newsletter clicks",
+      kpiNewsletterSignups: "Newsletter signups",
+      conversion: "{{pct}}% conversion",
+      conversionOpen: "{{pct}}% conversion (open funnel: more signups than clicks)",
+      topLinks: "Top links",
+      allGroups: "All groups",
+      emptyWindow: "No events in the selected window.",
+      groups: {
+        editorial: "Editorial",
+        topics: "Topics",
+        community: "Community",
+        institute: "Institute",
+        legal: "Legal",
+        unknown: "Other",
+      },
+      events: {
+        footer_link_click: "Footer link",
+        footer_legal_click: "Legal link",
+        footer_newsletter_click: "Newsletter (link)",
+        footer_newsletter_signup: "Newsletter (signup)",
+      },
+      colLabel: "Label / URL",
+      colGroup: "Group",
+      colEvent: "Event",
+      colClicks: "Clicks",
+      colLastSeen: "Last seen",
+    },
   },
 };
 
-i18n.addResourceBundle("pl", "translation", pl, true, true);
-i18n.addResourceBundle("en", "translation", en, true, true);
+/** A live binding lets the route splitter keep registration with its view. */
+// Explicit registration must survive both Vite and Nitro tree shaking.
+// Keep the legacy side-effect import contract, and avoid repeated deep merges.
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", pl, true, true);
+  i18n.addResourceBundle("en", "translation", en, true, true);
+}
+ensureI18n();

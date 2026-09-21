@@ -21,7 +21,7 @@ interface RunnerSettings {
   last_tick_status: "dispatched" | "skipped" | "error" | null;
   last_tick_error: string | null;
   tick_count: number | null;
-  secret_preview: string | null;
+  secret_set: boolean;
   queues: {
     auth: number;
     transactional: number;
@@ -73,7 +73,7 @@ function settings(overrides: Partial<RunnerSettings> = {}): RunnerSettings {
     last_tick_status: "dispatched",
     last_tick_error: null,
     tick_count: 1234,
-    secret_preview: "abc…xyz",
+    secret_set: true,
     queues: { auth: 0, transactional: 0, authDlq: 0, transactionalDlq: 0 },
     ...overrides,
   };
@@ -258,17 +258,26 @@ describe("telemetria ticku", () => {
     expect(screen.queryByText(i18n.t("adminRunner.tick.count", { count: 0 }))).toBeNull();
   });
 
-  it("podgląd sekretu i endpoint są pokazane, gdy sekret istnieje", async () => {
+  it("ustawiony sekret pokazuje ENDPOINT, a nie ani jednego znaku sekretu", async () => {
+    // Kafel odpowiada na pytanie „czy cron ma czym się uwierzytelnić" - i to
+    // jest cała informacja, jakiej operator potrzebuje. Podgląd sześciu znaków
+    // zawężał przestrzeń sekretu i potwierdzał, że przechwycony nagłówek należy
+    // do tej instalacji, więc odpowiedź brzmi teraz „jest", nie „zaczyna się na".
     await mount();
 
-    expect(screen.getByText("abc…xyz")).toBeTruthy();
-    // Endpoint jest w tym samym akapicie co podgląd sekretu - dopasowanie po
-    // fragmencie, bo sam napis niesie nawiasy i ukośniki.
     expect(document.body.textContent).toContain(R("tick.endpoint"));
+    // Druga asercja jest tu właściwa, nie ozdobna: sama obecność wiersza
+    // o endpoincie nie dowodzi jeszcze, że sekret nie wycieka. Dowodem jest
+    // KSZTAŁT ŁADUNKU - serwer oddaje wyłącznie `secret_set: boolean`,
+    // a pola z treścią sekretu (`secret_preview`, `secret`) nie ma w ogóle,
+    // więc panel nie ma czego pokazać nawet przez pomyłkę.
+    expect(Object.keys(settings())).toEqual(
+      expect.not.arrayContaining(["secret", "secret_preview"]),
+    );
   });
 
-  it("brak sekretu nie pokazuje pustego podglądu", async () => {
-    await mount(settings({ secret_preview: null }));
+  it("brak sekretu nie pokazuje wiersza o endpoincie", async () => {
+    await mount(settings({ secret_set: false }));
 
     expect(document.body.textContent).not.toContain(R("tick.endpoint"));
     expect(screen.getByText(R("queues.title"))).toBeTruthy();

@@ -112,10 +112,11 @@ async function migrateTable(
   const { data, error } = await supabase
     .from(table)
     .select(cols)
-    .in("editor", SOURCE_EDITORS as unknown as string[]);
+    .in("editor", [...SOURCE_EDITORS])
+    .returns<Row[]>();
   if (error) fail(`Reading ${table}: ${error.message}`);
 
-  const rows = (data ?? []) as Row[];
+  const rows = data ?? [];
   const plans = rows.map((r) => ({ r, plan: planRow(r) }));
   const candidates = plans.filter((p) => p.plan !== null);
   const skippedEmpty = rows.length - candidates.length;

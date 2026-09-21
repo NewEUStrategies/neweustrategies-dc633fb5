@@ -13,6 +13,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Date-sensitive fixtures use a fixed runner timezone; public render tests
+# independently verify Europe/Warsaw formatting and SSR/client parity.
+env:
+  TZ: UTC
+
 # Cancel superseded runs on the same ref.
 concurrency:
   group: ci-${{ github.ref }}
@@ -128,6 +133,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Keep tests and artifact measurements on the same Node runtime.
+      # Coverage uses Istanbul after V8 remapping produced invalid counters on
+      # both Node 22 and 24. Bun alone does not pin the Node runtime.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.23"
@@ -149,6 +161,9 @@ jobs:
       # lokalnego. Krok „Repoint lockfile" podmienia wyłącznie URL rejestru,
       # więc nie narusza spójności lock <-> package.json, której pilnuje ta flaga.
       - name: Install dependencies
+        # `id` jest potrzebne dla warunków `if:` na KAŻDYM kroku niżej -
+        # uzasadnienie w komentarzu przy pierwszym z nich („Format (prettier)").
+        id: install
         run: bun install --frozen-lockfile
         env:
           npm_config_registry: https://registry.npmjs.org
@@ -161,7 +176,44 @@ jobs:
       # się na 115 błędach `prettier/prettier` i ani jednym błędzie logiki.
       # Osobny krok zamienia tę klasę z „ośmiu minut do informacji" na
       # „czterdzieści sekund" i mówi wprost, że lekarstwem jest `bun run format`.
+      #
+      # WARUNEK `if:` NA TYM I NA KAŻDYM NASTĘPNYM KROKU TEGO JOBA - naprawa tej
+      # samej klasy, którą blok nad jobem `test` opisuje już dla `verify` i którą
+      # wcześniej w tym pliku naprawiono dla joba `build`. Domyślnie krok
+      # w GitHub Actions NIE WYKONUJE SIĘ, gdy wcześniejszy padł, więc jedna
+      # czerwona bramka wyłącza wszystkie za nią - a bramka, która nie biegnie,
+      # nie jest bramką.
+      #
+      # ZMIERZONE, nie założone. Przebieg 33513951757 (head gałęzi
+      # `claude/ssr-hydration-public-page-wkrnre`) i przebieg 33471613171 (main
+      # `1d5d0ed`, punkt odgałęzienia) padają w jobie `verify` na TYM SAMYM,
+      # SZÓSTYM kroku - `SQL migration replay safety` - z identycznym wydrukiem
+      # (te same cztery pliki migracji: para `page_full_path_tenant_scope` +
+      # `5b55b33f-…` i para `owner_plane_tenant_scope_read_history` +
+      # `21bb8d7a-…`; czerwień odziedziczona z maina, `git diff origin/main --
+      # supabase/migrations` na tej gałęzi jest PUSTY). Za tym krokiem stało
+      # 29 kroków, które w efekcie NIE URUCHOMIŁY SIĘ ANI RAZU - w tym
+      # `Typecheck` i `Lint`, czyli jedyne bramki w całym CI, które w ogóle
+      # patrzą na typy i reguły lintu w kodzie źródłowym tej gałęzi. Cały ten
+      # PR przejechał więc CI bez ani jednego przebiegu tsc i eslinta.
+      #
+      # DLACZEGO WARUNEK STOI NA SUKCESIE `Install dependencies`, A NIE NA
+      # `always()`. Wszystkie 32 kroki niżej są NIEZALEŻNYMI bramkami statycznymi
+      # - żadna nie konsumuje wyniku innej (jedyne dwa kroki, które czytają plik
+      # zapisany przez krok poprzedni, to uploady raportów i one mają własne
+      # `if: always()`), więc porażka którejkolwiek nie mówi nic o pozostałych
+      # i nie ma powodu ich gasić. Bez `node_modules` natomiast KAŻDA z nich
+      # zgłosiłaby brak binarki zamiast pomiaru - 32 czerwienie o jednej
+      # przyczynie to szum, nie sygnał. `!cancelled()` zamiast `always()`: przy
+      # anulowaniu przebiegu nie ma po co dokładać minut.
+      #
+      # CO SIĘ NIE ZMIENIA: kolejność kroków (`if:` jej nie rusza, więc podział
+      # na „najtańsze sygnały" i bramki minutowe nadal obowiązuje) ani wynik
+      # joba - krok z `if:`, który padnie, nadal wywraca `verify` na czerwono.
+      # Zmienia się WYŁĄCZNIE to, ile bramek raportuje swój wynik w jednym
+      # przebiegu.
       - name: Format (prettier)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run format:check
 
       # Bramka meta: każda bramka `check:*` z package.json JEST wpięta w workflow
@@ -175,6 +227,7 @@ jobs:
       # skrypt. Ten sam skan złapał trzy przebiegi `check:authz-snapshot` i dwa
       # `check:permissions-parity` w tym jobie - usunięte w tej zmianie.
       - name: Gate coverage (każda bramka wpięta, żadna dwa razy)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:gate-coverage
 
       # Bramka własnicielska. Audyt 2026-08-29 zmierzył 193 trasy admina i 918
@@ -187,6 +240,7 @@ jobs:
       # pliki repo (mierzone: 0,6 s na pełnym korpusie), więc stoi w bloku
       # najtańszych sygnałów. Zakres i lekarstwa: `governance/README.md`.
       - name: Własnicielstwo (każda trasa i migracja ma właściciela)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:ownership
 
       # `.github/CODEOWNERS` jest GENEROWANY z tego samego rejestru, więc nie ma
@@ -194,7 +248,21 @@ jobs:
       # przegenerowania pliku zapala ten krok. Wzorzec jak `check:authz-snapshot`
       # (ten sam skrypt pisze i weryfikuje bajt w bajt).
       - name: CODEOWNERS zgodny z rejestrem własnicielstwa
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:codeowners
+
+      # Bramka taksonomii istniała od 2026-09-04 jako `scripts/check-feature-
+      # taxonomy.ts` i NIE BYŁA WPIĘTA W NIC: ani w `package.json`, ani w ten
+      # plik. To ta sama klasa, którą audyt 2026-08-11 (rozdz. 8.1) opisał przy
+      # `pg-harness` - skrypt istniał, uruchamiał go wyłącznie człowiek, jeśli
+      # pamiętał, i dlatego złamany CHECK trafił na produkcję. Bramka pilnuje
+      # trzech niezmienników mapy modułów (brak sieroty, brak martwej reguły,
+      # brak pustej funkcjonalności) i czyta wyłącznie pliki repo, więc stoi
+      # w bloku najtańszych sygnałów. Zmierzone przy wpięciu: OK na 3 304
+      # plikach produkcyjnych, 2 901 w modułach, 27 funkcjonalności.
+      - name: Taksonomia modułów (bez sieroty, bez martwej reguły)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:feature-taxonomy
 
       # Blokujący inwariant odtwarzalności bazy: czy `supabase db start` (świeża
       # baza, migracje od zera) dobiegnie do końca. Trzy klasy, wszystkie
@@ -211,6 +279,7 @@ jobs:
       #      zmiana weszła - przy spłaszczonej historii commitów to jedyne
       #      narzędzie datowania regresji, jakie zostaje audytowi.
       - name: SQL migration replay safety
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:sql-migration-replay
 
       # Blocking tenant-isolation gate: fails if any SECURITY DEFINER function
@@ -219,6 +288,7 @@ jobs:
       # let an admin of tenant A forge the header to read/write tenant B's data
       # (monetization_dashboard revenue leak). Repeatable root cause -> static gate.
       - name: SQL tenant-scope invariant
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:sql-tenant-scope
 
       # Blokująca bramka izolacji najemców na POLITYKACH: polityka, która raz
@@ -233,6 +303,7 @@ jobs:
       # trzy polityki razem), replay porównuje TREŚĆ plików (a ten nie był
       # bliźniakiem niczego), pgTAP stawia bazę ze stanu końcowego.
       - name: SQL policy tenant-binding regression
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:sql-policy-tenant-regression
 
       # Blocking tenant-isolation gate: fails if an owner-scoped RLS clause
@@ -245,6 +316,7 @@ jobs:
       # on every run, any NEW gap fails immediately, and a closed gap fails
       # until its entry is removed, so the list can only shrink.
       - name: SQL owner tenant-scope invariant
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:sql-owner-tenant-scope
 
       # Blocking security gate: fails if any table accepts a PERMISSIVE anonymous
@@ -256,6 +328,7 @@ jobs:
       # fabricated A/B results) - that class returns silently in migration churn
       # without a static gate.
       - name: SQL anon-insert invariant
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:sql-anon-insert
 
       # Blocking correctness gate: fails if any has_role() call passes a literal
@@ -265,6 +338,7 @@ jobs:
       # that fell through the earlier OR branches, i.e. never for an admin doing
       # a smoke test. That is how 'tenant_admin' survived unnoticed.
       - name: SQL app_role literal invariant
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:sql-app-role
 
       # Blocking: the SIXTH positional argument of emit_domain_event is the
@@ -276,6 +350,7 @@ jobs:
       # bus. Judged on the FINAL migration state: migrations are forward-only,
       # so a later file recreating the function is the fix, not an edit.
       - name: Domain event actor is the sixth argument
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:sql-emit-actor
 
       # Blocking contract gate between the client and the migration chain, in
@@ -289,6 +364,7 @@ jobs:
       # five expert-request RPCs the client calls ended up dead on every new
       # environment while production kept working (20260806160000).
       - name: RPC contract (client calls ⇄ migrations)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:rpc-contract
 
       # Blocking gate after the Paddle -> Stripe migration: any live reference to
@@ -299,6 +375,7 @@ jobs:
       # instance of this defect was a dead PADDLE_* secret in a workflow, which
       # the src/-and-scripts-only predecessor could never see.
       - name: No live legacy payment-provider references
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:legacy-payment-refs
 
       # Blocking gate on the Supabase type boundary: `as never` is the repo's
@@ -311,6 +388,7 @@ jobs:
       # browser). On 2026-08-06 the repo carried 25 such casts, some behind a
       # "remove after regenerating types.ts" comment several releases old.
       - name: No stale `as never` casts on the Supabase boundary
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:stale-never-casts
 
       # Blocking gate on the ONE architectural cycle this repo ever had. Six
@@ -328,7 +406,34 @@ jobs:
       # that finds the reverse direction convenient, which is precisely how the
       # previous six releases went. Rationale: src/lib/content-model/README.md
       - name: Content engines keep one dependency direction
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:content-layering
+
+      # Blocking gate: every `dangerouslySetInnerHTML` in src/ reaches the DOM
+      # through a trusted sanitizer. The sanitizer existed and was documented
+      # only in a comment (src/lib/sanitize.ts:2-4) - 84 sinks across 56 files,
+      # 41 of them rendering builder_data JSONB, post bodies, event copy and
+      # uploaded documents, with nothing in CI or ESLint enforcing a single one.
+      # Zero tolerance for new sinks. Constant boot scripts and generated
+      # keyframes are listed one by one, each with a written reason, in
+      # scripts/lib/dangerousHtmlAllowlist.ts. Rationale: src/lib/ci/dangerousHtml.ts
+      - name: Every dangerouslySetInnerHTML goes through the sanitizer
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:dangerous-html
+
+      # Blocking gate on the single defect that removed the login brute-force
+      # threshold entirely: every public limit keyed off `x-forwarded-for`, whose
+      # FIRST entry the client writes itself (Cloudflare appends the connection
+      # address at the END, it does not replace the client's prefix). Rotating one
+      # header rotated the bucket; `x-forwarded-for: " "` made the bucket vanish
+      # altogether, and the test suite froze both as "known behaviour". The header
+      # name may now appear in executed code only in src/lib/http/rateLimit.ts -
+      # everything else calls clientIpFromHeaders / rateLimitIpSubject from there.
+      # Named exemptions carry a written reason and a stale one fails the gate, so
+      # the allowlist can only shrink. Rationale: src/lib/ci/clientIpSource.ts
+      - name: Client IP has exactly one definition
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:client-ip-source
 
       # Blocking gate on a defect that review cannot catch by reading: the page
       # editor carried a comment promising autosave over code where
@@ -338,7 +443,82 @@ jobs:
       # comments, so a commented-out `useAutosave(...)` cannot silence it.
       # Rationale: src/lib/ci/editorAutosaveContract.ts
       - name: Editor surfaces really autosave
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:editor-autosave
+
+      # Blocking gate on the THREE INTERNAL budgets of the SSR pipeline. First
+      # load already has a gate on the RESULT (`e2e/boot-timing.spec.ts` on the
+      # built artifact); until now nothing gated the CAUSES, each of which is a
+      # single literal in a single file:
+      #   * warm-up chained before the first byte - root waves 2500 + 500 ms
+      #     (frozen at 3000, ZERO headroom on purpose) and the worst sequential
+      #     `withBudget` chain in one route loader (13 000 ms, src/routes/$.tsx);
+      #   * parallel subrequests in one loader array - frozen at 6, which is the
+      #     Cloudflare Workers per-request limit, not a measured value;
+      #   * the dehydrated payload - three structural invariants in
+      #     src/router.tsx plus a lower-bound proxy on how many cache writes
+      #     feed it.
+      # Reads SOURCES only (no build, no artifact, no database), so it belongs
+      # in `verify` and its result is machine-independent. Rationale, ceilings
+      # and the honest limits of each measurement: src/lib/ci/ssrBudgets.ts.
+      # Its unit test carries the NEGATIVE CONTROLS proving it can go red:
+      # src/lib/ci/__tests__/ssrBudgets.test.ts (run by `check:ci-gates`).
+      - name: SSR pipeline internal budgets
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:ssr-budgets
+
+      # Bramka blokująca na TRZECH WZORCACH SYSTEMOWYCH z audytu CWV
+      # 2026-09-20 (§4.4). Nie na jednej zepsutej trasie - na kształcie, który
+      # powtarzał się w kilkudziesięciu plikach, bo nic go nie pilnowało:
+      #   * W1 - loader, który MOŻE ZDEGRADOWAĆ, ogłasza WŁASNY `Cache-Control`.
+      #     `check:ssr-budgets` pilnuje już przypadku „nagłówek ustawiony, ale
+      #     nieprzepuszczony przez `resilientCacheControl`"; NIE widzi
+      #     przypadku częstszego, bo NIEWIDOCZNEGO W PLIKU: loadera BEZ
+      #     ŻADNEGO nagłówka. Taka odpowiedź dostaje z
+      #     `defaultCacheControlMiddleware` domyślne `public, s-maxage=900,
+      #     stale-while-revalidate=86400`, więc render niepełny utrwala się na
+      #     brzegu na 15 minut świeżości PLUS dobę okna stale. Audyt (F07)
+      #     naliczył 42 takie trasy publiczne.
+      #   * W2 - publiczny loader wołający sieć ma BUDŻET czasu; bez niego czas
+      #     do pierwszego bajtu ogranicza wyłącznie watchdog zapytań SSR, a ten
+      #     kończy się RZUTEM, czyli statusem 500.
+      #   * W4 - PARYTET KLUCZY loader/komponent. Rozjazd (`xKeys.bySlug` vs
+      #     `xKeys.bySlugViewer`) daje round-trip przed pierwszym bajtem, który
+      #     nie zasila renderu, drugi ten sam odczyt po hydratacji i szkielet
+      #     w SSR - tak działało czternaście tras `/club/$clubSlug/**` (F09).
+      # Czyta WYŁĄCZNIE źródła (bez builda, artefaktu i bazy), więc należy do
+      # `verify`, a jej wynik jest identyczny na każdej maszynie. Zamrożone
+      # listy wyjątków (wolno je WYŁĄCZNIE skracać) i granice każdej reguły
+      # powiedziane wprost: src/lib/ci/loaderPolicy.ts. Kontrole negatywne -
+      # dowód, że bramka umie zapalić się na czerwono - stoją w
+      # src/lib/ci/__tests__/loaderPolicy.test.ts (biegnie w `check:ci-gates`).
+      - name: Public route loader policy
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:loader-policy
+
+      # Blocking gate on an icon name that CHROME cannot render synchronously.
+      # `DynamicIcon` renders a curated set from named lucide imports; ANY other
+      # name makes the browser pull the full icon registry
+      # (src/lib/icons/lucideIconNodes.generated.ts: 473 KB of source, 109 KB
+      # gzip) through React.lazy. Menu, mobile bottom bar and event page tiles
+      # take their icon names from CONFIGURATION (site_settings, menu_items,
+      # event_pages), so a single typo in the admin panel used to cost that
+      # chunk to EVERY anonymous visitor, on the header's render path - and
+      # nothing measured it, because the configuration lives in the database.
+      # This gate measures the SOURCES the database is filled from: default
+      # configs in code, migration payloads and column defaults. The scan found
+      # nine such names on introduction (`users-round`, `Crown`, `Ticket`,
+      # `ShoppingCart`, `ShieldCheck`, `clipboard-list`, `folder-open`,
+      # `calendar-clock`, `life-buoy`); migrations are immutable, so the fix
+      # went the other way and those icons joined the curated set.
+      # Reads SOURCES only (no build, no artifact, no database), so it belongs
+      # in `verify`. Rationale and scope: src/lib/ci/menuIcons.ts; the scanned
+      # file list with a reason per file: scripts/check-menu-icons.ts. Its unit
+      # test carries the NEGATIVE CONTROLS proving it can go red:
+      # src/lib/ci/__tests__/menuIcons.test.ts (run by `check:ci-gates`).
+      - name: Chrome icon names stay inside the curated set
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:menu-icons
 
       # Blocking gate on the CAUSE of those casts: generated types going stale.
       # `src/integrations/supabase/types.ts` is generated from the database, and
@@ -354,6 +534,7 @@ jobs:
       # phantom entry was the repo's only live legacy payment-provider reference,
       # so two good gates were blocking each other.
       - name: Generated Supabase types are not stale vs migrations
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:types-freshness
 
       # Blocking gate on the SYMPTOM: a query result cast onto a row shape typed
@@ -365,6 +546,7 @@ jobs:
       # `Tables<...>` instead and a renamed column becomes a compile error in the
       # file that reads it. Exceptions live in the script WITH a reason.
       - name: No hand-written row shapes behind Supabase casts
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:db-row-casts
 
       # Blocking ratchet on user-facing text that branches on language in code
@@ -377,6 +559,7 @@ jobs:
       # global counter would be compensable - trimming twenty occurrences in one
       # file would "pay for" adding twenty in another.
       - name: No new hardcoded PL/EN text in code
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:i18n-hardcoded
 
       # Blocking ratchet on `as unknown as T` - the same type-check bypass as
@@ -389,7 +572,22 @@ jobs:
       # hand-rolled repeats of the existing `toJson()` helper. Frozen PER FILE:
       # a count may only shrink, a file absent from the baseline must be zero.
       - name: No new `as unknown as` casts
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:unknown-casts
+
+      # Blocking ratchet: a test carrying a calendar literal may not read the
+      # real clock. This class of defect does not show up as a red test on the
+      # day it is introduced - it shows up weeks later, when the literal falls
+      # out of a window that production computes from `Date.now()`, with an
+      # empty diff for that day. Measured on 2026-09-06: one donations test file
+      # held twelve such fuses on a single fixture default; the first fired on
+      # 2026-09-05 at 10:00 UTC, the remaining eleven were due at 10:00 UTC the
+      # next day. Frozen PER FILE: a literal count may only shrink, a file
+      # absent from the baseline must be zero, and `vi.setSystemTime(Date.now())`
+      # - a freeze that only looks like one - is a hard zero with no baseline.
+      - name: No new clock-bomb tests
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:clock-freeze
 
       # Blocking zero-threshold gate: `t()` may not carry a fallback string.
       # i18next reads `defaultValue` ONLY when the key is absent, and the drift
@@ -403,6 +601,7 @@ jobs:
       # Threshold is zero rather than a ratchet, because a new occurrence is
       # removable by the same codemod in the same commit that created it.
       - name: No fallback strings on t()
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:i18n-default-value
 
       # Blocking ratchet: a file calling a key from an i18n overlay must import
@@ -421,6 +620,7 @@ jobs:
       # with bundle impact in hand (three places omit it deliberately and say
       # so with an in-file directive).
       - name: Overlay keys are called only where the overlay is imported
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:i18n-overlay-imports
 
       # Blocking wiring gate: every env var a workflow exports must have a
@@ -430,6 +630,7 @@ jobs:
       # the nightly billing probe slept 40 minutes a night against a secret no
       # script ever read.
       - name: Workflow env contract (no dead exports)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:workflow-env-contract
 
       # Blokująca bramka wdrożeniowa: żaden plik z `public/` nie może przesłonić
@@ -440,6 +641,7 @@ jobs:
       # bez ogłoszenia news sitemap. Awarii nie widział ŻADEN inny test -
       # dev-server serwuje trasę normalnie (audyt 2026-08-06, MODUŁ 8).
       - name: public/ nie przesłania tras
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:public-assets
 
       # Blokująca bramka snapshotu autoryzacji, JEDEN krok na trzy dawne.
@@ -460,6 +662,7 @@ jobs:
       # snapshot freshness") - trzy nazwy, jedna komenda, zero dodatkowego
       # pokrycia. Pilnuje tego teraz `check:gate-coverage`.
       - name: Authorization snapshot vs migrations (byte-for-byte)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:authz-snapshot
 
       # Blocking gate BEFORE the build, because it does not need one: it only
@@ -472,6 +675,7 @@ jobs:
       # assigned the client ENTRY module to it, and Rollup answers that by
       # collapsing the whole named chunk back into the entry - no warning.
       - name: Chunk-split config parity (prod vs smoke)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:chunk-parity
 
       # ── TYPY I LINT (minuty) ────────────────────────────────────────────────
@@ -479,6 +683,7 @@ jobs:
       # `vite build` does NOT typecheck (esbuild strips types), so this is the
       # real type gate.
       - name: Typecheck
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run typecheck
 
       # Blocking: the Prettier backlog was cleared (repo-wide format commit) and
@@ -486,6 +691,7 @@ jobs:
       # typecheck and tests. Formatowanie samo w sobie jedzie wyżej, w kroku
       # „Format (prettier)" - tutaj zostaje warstwa reguł typowanych.
       - name: Lint
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run lint
 
       # ── BRAMKI CELOWANE (podzbiory suity) ───────────────────────────────────
@@ -504,6 +710,7 @@ jobs:
       # (dane kontra renderer). Wcześniej ten sam skrypt jechał w tym jobie
       # dwa razy pod dwiema nazwami.
       - name: Permissions matrix parity
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:permissions-parity
 
       # Blokująca bramka i18n: każdy klucz bramkowanych powierzchni (bloki
@@ -512,6 +719,7 @@ jobs:
       # i renderował surowy klucz na /en/*. Zapisuje reports/i18n-parity.json,
       # który konsumuje raport zgodności wdrożenia.
       - name: i18n PL/EN parity gate
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:i18n-parity
 
       - name: Upload i18n parity report
@@ -521,6 +729,22 @@ jobs:
           name: i18n-parity-report
           path: reports/i18n-parity.json
           if-no-files-found: ignore
+
+      # Testy własne MODUŁÓW BRAMKOWYCH z `src/lib/ci/` - odklejone od bramki
+      # i18n, w której jechały na barana przez glob katalogowy. Ten glob nie był
+      # pomyłką stylistyczną: robił z bramki JĘZYKOWEJ raportera defektów SQL,
+      # RLS, billingu, ownershipu i chunków, więc `check:i18n-parity` można było
+      # zapalić zmianą, która nie dotyka ani jednego klucza tłumaczenia - i tak
+      # się stało (dwie bliźniacze migracje z panelu, zero defektów i18n).
+      # Pomiar rozjazdu: z 42 plików katalogu 5 jest merytorycznie językowych,
+      # pozostałe 37 należy tutaj. Katalogowy glob ZOSTAJE, bo jego zaleta jest
+      # realna - nowy test bramki wchodzi do CI bez dopisywania ścieżki - tylko
+      # przenosi się pod bramkę, której nazwa nie kłamie o przedmiocie pomiaru.
+      # Bez tego kroku te 37 plików miałyby jedyne wywołanie w jobie `test`
+      # (16-26 min), czyli sygnał przyszedłby wielokrotnie później.
+      - name: CI gate module tests
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:ci-gates
 
       # Blokująca bramka wierności ustawień widgetów (panel ⇄ renderer). Mierzy
       # WYKONANIEM, które klucze treści panel oferuje redakcji, a które renderer
@@ -532,6 +756,7 @@ jobs:
       # dyscypliny danych przykładowych (żadna powierzchnia publiczna nie pokazuje
       # próbki kontekstu wpisu) i języka w kluczach zapytań widgetów.
       - name: Widget settings fidelity gate
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:widget-fidelity
 
       - name: Upload widget fidelity report
@@ -539,7 +764,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: widget-fidelity-report
-          path: reports/widget-fidelity.txt
+          path: |
+            reports/widget-fidelity.txt
+            reports/widget-fidelity.json
           if-no-files-found: ignore
 
       # Blokujący kontrakt SEO: og:image / og:title / viewport / lang, kanoniki
@@ -554,6 +781,7 @@ jobs:
       # ogłoszona nigdzie. Testy jednostkowe trasy przechodziły, bo testowały kod,
       # którego nikt nie wykonywał.
       - name: SEO head + schema contract
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: |
           bunx vitest run \
             src/lib/seo/__tests__ \
@@ -595,29 +823,22 @@ jobs:
   # `src/components/profile/**`. To osobny dług, tej samej klasy co floor
   # bundla: progi ustawiono, gdy bramka jeszcze jechała, a potem przez dwa
   # tygodnie dokładano kod przy bramce, która nie ruszyła ani razu.
-  test:
+  test-shards:
     runs-on: ubuntu-latest
-    # ZMIERZONE TRZY RAZY TEGO SAMEGO DNIA, NA PRAKTYCZNIE TEJ SAMEJ TREŚCI -
-    # i to jest najważniejsza liczba w tym komentarzu, bo nie jest jedna:
-    #   26:10  przebieg 2753, `verify` (d0ee497)
-    #   22:44  przebieg 2755, `verify` na `main` (01ecda0b)
-    #   16:05  przebieg 2756+, ten job (1de66e8), plus 20 s setupu
-    #   25:39  przebieg po scaleniu maina 145a1ff (fdd4c94)
-    # Rozrzut 1,6x na współdzielonych runnerach GitHuba. Budżet stawiamy więc
-    # od NAJDŁUŻSZEGO pomiaru, nie od średniej ani od najkrótszego: 40 minut
-    # to ~1,5x wobec 26:10 - ta sama proporcja, którą przyjęto dla `verify`
-    # przy przejściu 20 -> 35. Kto zobaczy w logu 16 minut i uzna, że limit
-    # da się ściąć do dwudziestu, ustawi go PONIŻEJ pomiaru sprzed dwóch
-    # godzin.
-    #
-    # WZROST NIE JEST HIPOTETYCZNY: scalenie PR #307 (moduł Wydarzeń) dołożyło
-    # 69 plików testowych, a tamta gałąź zmierzyła na nich suitę na 26:21
-    # (przebieg 33320445217) - najwyższy dotąd pomiar i jedyny zrobiony JUŻ
-    # z tymi testami. 40 minut daje wobec niego ~1,5x. Gdy ten zapas zacznie
-    # topnieć, następnym krokiem jest shardowanie, nie liczba w tej linii.
-    timeout-minutes: 40
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
+
+      # Keep tests and artifact measurements on the same Node runtime.
+      # Coverage uses Istanbul after V8 remapping produced invalid counters on
+      # both Node 22 and 24. Bun alone does not pin the Node runtime.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -631,15 +852,91 @@ jobs:
           sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
         env:
           npm_config_registry: https://registry.npmjs.org
 
-      # Tests run WITH the coverage gate so the per-file thresholds in
-      # vitest.config.ts actually block merges (previously CI ran plain
-      # `vitest run`, so the gate was local-only and could silently rot).
+      - name: Run test shard with coverage and accounting
+        run: bunx vitest run --config vitest.shard.config.ts --coverage --shard=${{ matrix.shard }}/4 --reporter=default --reporter=blob --reporter=./scripts/vitest/testAccountingReporter.ts
+      - name: Preserve shard evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-shard-${{ matrix.shard }}
+          path: .vitest-reports/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+  test:
+    needs: [test-shards]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Keep tests and artifact measurements on the same Node runtime.
+      # Coverage uses Istanbul after V8 remapping produced invalid counters on
+      # both Node 22 and 24. Bun alone does not pin the Node runtime.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.23"
+
+      # Ten sam repoint co w `verify` i `build` - `bun.lock` przypina tarbally
+      # do prywatnego cache GAR, nieosiągalnego z publicznego CI. Edycja
+      # wyłącznie w CI, nigdy commitowana.
+      - name: Repoint lockfile to the public npm registry
+        run: |
+          sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+        env:
+          npm_config_registry: https://registry.npmjs.org
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: vitest-shard-*
+          path: .vitest-reports
+          merge-multiple: true
+      - name: Require all four shard reports
+        run: node -e "const fs=require('node:fs'); if(fs.readdirSync('.vitest-reports').filter(f=>f.endsWith('.json')).length!==4) process.exit(1)"
       - name: Test + coverage gate
-        run: bun run test:coverage
+        run: bun run test:coverage --merge-reports
+      - name: Require every shard to succeed
+        if: ${{ !cancelled() }}
+        env:
+          SHARDS_RESULT: ${{ needs.test-shards.result }}
+        run: test "$SHARDS_RESULT" = success
+
+      - name: Platform module — all four coverage metrics at least 95%
+        if: ${{ !cancelled() }}
+        run: bun run check:platform-coverage
+
+      - name: Preserve coverage and test accounting, including failed runs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            coverage/
+            reports/platform-coverage.json
+            reports/test-accounting.json
+
+      - name: Preserve release test totals
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-test-report
+          path: reports/test-accounting.json
+          if-no-files-found: error
 
   # ── BUILD I BRAMKI ARTEFAKTU: OSOBNY JOB ────────────────────────────────────
   #
@@ -672,12 +969,24 @@ jobs:
   build:
     runs-on: ubuntu-latest
     # Zmierzone na przebiegu 2754: setup+install ~15 s, `Build` ~2:20, trzy
-    # bramki artefaktu ~60 s. Piętnaście minut to ~4x zapasu - job jest krótki
-    # i taki ma zostać; gdy zacznie się zbliżać do limitu, przyczyną będzie
-    # `Build`, a nie sąsiedzi w tym samym jobie.
-    timeout-minutes: 15
+    # bramki artefaktu ~60 s. Gdy job zacznie się zbliżać do limitu, przyczyną
+    # będzie któryś z DWÓCH buildów, a nie sąsiedzi w tym samym jobie.
+    #
+    # 2026-09-01: 15 -> 30 min. Job robi teraz DRUGI pełny build (preset
+    # `node-server`, `bun run build:smoke`) plus instalację Chromium i boot-test
+    # na artefakcie. Zmierzony koszt dodatków: Chromium ~40 s, drugi build
+    # >=3 min 30 s, boot-test <1 min. Poprzednie 15 minut było policzone jako
+    # ~4x zapasu dla JEDNEGO builda - drugi ten zapas zjada.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+
+      # Keep tests and artifact measurements on the same Node runtime.
+      # Coverage uses Istanbul after V8 remapping produced invalid counters on
+      # both Node 22 and 24. Bun alone does not pin the Node runtime.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -701,6 +1010,9 @@ jobs:
           npm_config_registry: https://registry.npmjs.org
 
       - name: Build
+        # `id` jest tu potrzebne dla warunków `if:` niżej - patrz komentarz przy
+        # „Bundle size budget".
+        id: build
         run: bun run build
         env:
           # Placeholders so Vite has defined VITE_* at build time; real values
@@ -713,14 +1025,58 @@ jobs:
       # Blocking perf gate: fails the build if the gzipped client bundle grows
       # past budget (largest chunk / total). Reliable - no server or browser
       # needed - unlike the separate Lighthouse job.
+      # WARUNEK `if:` NA TYM I NA KAŻDYM NASTĘPNYM KROKU TEGO JOBA - i to jest
+      # NAPRAWA, nie ozdoba. Domyślnie krok w GitHub Actions nie wykonuje się,
+      # gdy wcześniejszy padł, więc jedna czerwona bramka WYŁĄCZAŁA wszystkie
+      # następne. Zmierzone na artefakcie bazowym tej gałęzi (main `1d5d0ed`,
+      # przebieg CI 33471613171, job `build`): „Bundle size budget" padł na
+      # `overall`, a „Chunk graph acyclicity" i „Client boot path free of
+      # payment SDKs" zaraportowały się jako SKIPPED. Ponieważ czerwień
+      # `overall` jest długiem odziedziczonym z maina, a nie regresją, oznaczało
+      # to, że trzy bramki - w tym boot-test przeglądarkowy i budżet czasu
+      # pierwszego wczytania, dołożone tym samym PR-em - NIE URUCHOMIŁYBY SIĘ
+      # W CI ANI RAZU. Bramka, która nie biegnie, nie jest bramką.
+      #
+      # `!cancelled()` zamiast `always()`: przy anulowaniu przebiegu nie ma po co
+      # dokładać minut. Bramki MIERZĄCE ARTEFAKT dodatkowo wymagają, żeby krok
+      # `Build` się udał (`steps.build.outcome == 'success'`) - bez artefaktu
+      # zgłaszałyby „brak plików", czyli szum zamiast pomiaru. Kroki
+      # `build:smoke` i `test:e2e:artifact` budują sobie WŁASNY artefakt, więc
+      # potrzebują wyłącznie udanej instalacji zależności.
+      #
+      # KOLEJNOŚĆ KROKÓW POZOSTAJE KONTRAKTEM: `if:` nie zmienia porządku
+      # wykonania, a `build:smoke` nadal NADPISUJE `.output/` po bramkach
+      # mierzących artefakt cloudflare'owy.
+      # WYJŚCIE TEJ BRAMKI IDZIE RÓWNIEŻ DO PLIKU, nie tylko na stdout kroku.
+      # POWÓD: log joba czytany zdalnie (API `actions/jobs/{id}/logs`) oddaje
+      # wyłącznie KOŃCÓWKĘ (~1 MB / 5000 linii), a tę zajmują w całości kroki
+      # późniejsze - `build:smoke` (drugi pełny build) i boot-test Playwrighta.
+      # Werdykt bramki - KTÓRY budżet padł i o ile - wypada wtedy poza okno
+      # i zdalnie jest NIEODCZYTYWALNY: widać czerwony krok bez liczby, na
+      # której stanął. Kopia w pliku pozwala wypisać ten werdykt jeszcze raz na
+      # SAMYM KOŃCU joba (krok „Bundle size budget - werdykt" na dole).
+      #
+      # `tee` + `${PIPESTATUS[0]}`: kod wyjścia kroku MUSI pozostać kodem
+      # `check:bundle`, a nie `tee` - inaczej bramka przestałaby blokować.
+      # `shell: bash` jest tu warunkiem poprawności (PIPESTATUS to bashizm),
+      # a nie ozdobą, mimo że bash jest domyślną powłoką runnera.
+      # `mkdir -p` chroni sam pomiar: `reports/` istnieje w checkoucie tylko
+      # dzięki dwóm śledzonym plikom, a bramka rozmiaru nie może paść z powodu
+      # brakującego katalogu na log.
       - name: Bundle size budget
-        run: bun run check:bundle
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        shell: bash
+        run: |
+          mkdir -p reports
+          bun run check:bundle 2>&1 | tee reports/bundle-budget.log
+          exit ${PIPESTATUS[0]}
 
       # Blocking boot-safety gate: fails on any import cycle between built
       # client chunks. A cyclic chunk graph broke module init order in prod
       # (2026-07-20: dead hydration on every page - full SSR visuals, zero
       # interactivity) and is invisible to dev mode and unit tests.
       - name: Chunk graph acyclicity
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: bun run check:chunks
 
       # Blokująca bramka architektury bundla: żaden ciężki SDK operatora
@@ -732,7 +1088,128 @@ jobs:
       # -> @stripe/*, przez co każdy anonimowy czytelnik artykułu pobierał SDK
       # bramki płatniczej (marker js.stripe.com w chunku entry).
       - name: Client boot path free of payment SDKs
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: bun run check:entry-purity
+
+      # Ta sama zasada po stronie SERWERA, inny mechanizm pomiaru. `routeTree.gen.ts`
+      # importuje statycznie wszystkie pliki tras, więc jeden `import Stripe from
+      # "stripe"` w `lib/stripe.server.ts` (potrzebny webhookowi tylko po
+      # `verifyWebhook`, czyli po czystym WebCrypto) wciągał 198 kB SDK do chunku,
+      # od którego zaczyna się KAŻDY render SSR - ewaluowane przy każdym zimnym
+      # starcie izolatu Workera (audyt CWV F04, §8.1). Reguła jest mocniejsza niż
+      # „poza chunkiem startowym": paczka nie może mieć w artefakcie ANI JEDNEJ
+      # krawędzi statycznej, bo nazwy chunków serwera zależą od presetu Nitro.
+      # Bramka pilnuje też zamrożonej listy statycznych importerów
+      # `node-html-parser` (dwa synchroniczne API renderu, których dziś nie da się
+      # przepiąć na `import()`), żeby ten dług się nie rozlewał.
+      - name: Server request graph free of eager server-only SDKs
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: bun run check:server-entry-purity
+
+      # ── BOOT-TEST PRZEGLĄDARKOWY NA ARTEFAKCIE PRODUKCYJNYM ─────────────────
+      #
+      # KOLEJNOŚĆ JEST KONTRAKTEM, NIE PREFERENCJĄ: `build:smoke` NADPISUJE
+      # `.output/`, więc MUSI biec PO `check:bundle`, `check:chunks`,
+      # `check:entry-purity` i `check:server-entry-purity`. Te cztery mierzą
+      # artefakt cloudflare'owy; gdyby smoke build je wyprzedził, mierzyłyby
+      # artefakt node-server i ich floory przestałyby cokolwiek znaczyć.
+      #
+      # PO CO TO ISTNIEJE. `vite.config.ts` przy `manualChunks` obiecuje, że
+      # klasę awarii z 2026-07-20 (cykl chunków -> wywrócona kolejność
+      # inicjalizacji -> boot padnie PRZED hydrateRoot, strona zostaje statycznym
+      # SSR-em) pilnują DWIE rzeczy: `check-chunk-graph.ts` ORAZ boot-test na
+      # buildzie `vite.smoke.config.ts`. Pierwsza połowa działała od dawna,
+      # DRUGA NIE ISTNIAŁA: żaden skrypt nie budował tego configu, żaden workflow
+      # go nie wołał, a Playwright startował aplikację przez `bun run dev`, gdzie
+      # chunków nie ma z definicji. Pilnowany był więc PARYTET KONFIGURACJI
+      # smoke'a, którego nikt nie uruchamiał.
+      #
+      # `check:chunks` łapie WYŁĄCZNIE cykle. Artefakt bez cyklu też może paść
+      # przed hydratacją (interop CJS, brakujący eksport, rzut w chunku
+      # vendorowym) - i tylko prawdziwa przeglądarka na zbudowanym serwerze to
+      # zobaczy. Test WYKONUJE INTERAKCJĘ, nie sprawdza samego braku błędu:
+      # wszystkie asercje `ssr-completeness` są spełnione przez w pełni
+      # wyrenderowany, całkowicie martwy dokument.
+      - name: Install Playwright Chromium
+        if: ${{ !cancelled() }}
+        run: bunx playwright install --with-deps chromium
+
+      - name: Build production artifact for a node server (smoke preset)
+        if: ${{ !cancelled() }}
+        run: bun run build:smoke
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
+
+      # DWA PLIKI W TYM JEDNYM KROKU (`playwright.artifact.config.ts` łapie oba):
+      #   * `e2e/boot-artifact.spec.ts` - czy artefakt ŻYJE (interaktywność po
+      #     hydratacji). Awaria znaczy „strona jest martwa";
+      #   * `e2e/boot-timing.spec.ts` - ILE TO KOSZTUJE (TTFB, czas do gotowości
+      #     hydratacji, transfer ścieżki bootowania). Awaria znaczy „strona żyje,
+      #     ale wolniej niż wolno".
+      #
+      # DRUGI PLIK MIERZY CZAS NA TYM SAMYM ARTEFAKCIE, PO KTÓRYM JEDZIE
+      # BOOT-TEST - i to jest inny instrument niż job `lighthouse`, nie jego
+      # duplikat. Tamten (od 2026-09-01 też na artefakcie, nie na dev-serverze)
+      # mierzy METRYKI CZYTELNIKA przez Chrome'a z emulacją sieci i CPU; ten
+      # mierzy TTFB dokumentu, czas od `__nesBootT0` do `__nesAppReady`,
+      # transfer ścieżki bootowania oraz FCP bez emulacji. Biegnie w tym samym
+      # jobie co reszta bramek artefaktu. Lighthouse również wykonuje pomiary
+      # artefaktu i blokuje TBT/CLS; pomiar wdrożenia wymaga `LHCI_URL`.
+      #
+      # Progi w `boot-timing` są policzone na hoście deweloperskim i ŚWIADOMIE
+      # luźne - liczby z runnera nie istniały w chwili ich stawiania. Spec
+      # zachowuje historię późniejszych pomiarów CI i wypisuje wartości także
+      # przy zielonym przebiegu (`[boot-timing] ...`).
+      - name: Boot test and first-load timing on the production artifact
+        if: ${{ !cancelled() }}
+        run: bun run test:e2e:artifact
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
+
+      - name: Upload artifact boot report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-artifact-boot
+          path: playwright-report/
+          retention-days: 7
+
+      # WERDYKT BRAMKI ROZMIARU W OSTATNICH LINIACH LOGU JOBA - i to jest cały
+      # sens tego kroku, nie ozdobne powtórzenie. Zdalny odczyt logu oddaje
+      # tylko jego końcówkę (patrz komentarz przy „Bundle size budget"), a tę
+      # zajmują `build:smoke` i boot-test. Pomiar bramki stoi tysiące linii
+      # wcześniej i po prostu nie dociera: na PR #383 krok był czerwony przez
+      # trzy przebiegi, a KTÓRY z budżetów (largest chunk / CSS / public CSS /
+      # boot) go zapalił, nie dało się ustalić inaczej niż ściągnięciem całego
+      # archiwum logów - przy lokalnym pomiarze mieszczącym się w budżecie
+      # z zapasem 0,3 KB na CSS.
+      #
+      # `cat`, NIGDY `bun run check:bundle`: powtórne wywołanie byłoby DRUGIM
+      # pomiarem, w dodatku na innym artefakcie (`build:smoke` nadpisał
+      # `.output/` presetem node-server), a do tego zapaliłoby
+      # `check:gate-coverage`, który wymaga dokładnie JEDNEGO wywołania każdej
+      # bramki `check:*` na job.
+      #
+      # `always()` zamiast `!cancelled()` z reszty joba: koszt to ułamek
+      # sekundy, a werdykt jest najbardziej potrzebny właśnie wtedy, gdy job
+      # ginie na `timeout-minutes` - GitHub raportuje taki job jako `cancelled`,
+      # więc `!cancelled()` skasowałoby jedyną czytelną kopię pomiaru.
+      - name: Bundle size budget - werdykt (echo na końcu logu)
+        if: always()
+        shell: bash
+        run: |
+          echo "=== Bundle size budget: pełne wyjście kroku, powtórzone na końcu logu joba ==="
+          if [ -f reports/bundle-budget.log ]; then
+            cat reports/bundle-budget.log
+          else
+            echo "(brak reports/bundle-budget.log - krok 'Bundle size budget' nie wykonał się w tym przebiegu)"
+          fi
 
   # pgTAP: RLS tenant isolation, role management and full-text search run
   # against a real local Postgres (supabase db start applies migrations +
@@ -838,6 +1315,13 @@ jobs:
       # to czysty bash + psql - nie ma tu ani jednego importu z node_modules,
       # więc job CELOWO pomija `bun install` i repointowanie bun.lock. To także
       # jedyna bramka bazodanowa, która nie zależy od prywatnego rejestru npm.
+      # Keep tests and artifact measurements on the same Node runtime.
+      # Coverage uses Istanbul after V8 remapping produced invalid counters on
+      # both Node 22 and 24. Bun alone does not pin the Node runtime.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.23"
@@ -947,16 +1431,13 @@ jobs:
   # koniec generuje raport zgodności wdrożenia (PR-y, liczba testów, status CI,
   # smoke). Uruchamiany na push do main i ręcznie - PR-y nie dotykają produkcji.
   post-deploy:
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-    # `build` i `test` dołączone po wydzieleniu ich z `verify` (2026-08-30):
-    # bramki artefaktu (budżet bundla, acykliczność grafu chunków, czystość
-    # ścieżki startowej) przeniosły się do `build` razem z `Build`, a suita
-    # z coverage do `test`. Bez tych dwóch zależności `post-deploy` ruszałby,
-    # nie wiedząc ani czy artefakt przeszedł, ani czy testy w ogóle zdały -
-    # a jego produktem jest RAPORT ZGODNOŚCI WDROŻENIA, który podaje liczbę
-    # testów i status CI. Raport wystawiony obok czerwonej suity kłamałby
-    # dokładnie w tym, po co powstał.
-    needs: [verify, test, build, pgtap]
+    # Read-only diagnostics still run when a code gate fails. The report uses
+    # the release gate result, never this job's transient status.
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    needs: [release-gate]
+    permissions:
+      contents: read
+      actions: read
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -964,6 +1445,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      # Keep tests and artifact measurements on the same Node runtime.
+      # Coverage uses Istanbul after V8 remapping produced invalid counters on
+      # both Node 22 and 24. Bun alone does not pin the Node runtime.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -974,29 +1462,63 @@ jobs:
           sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
         env:
           npm_config_registry: https://registry.npmjs.org
 
-      # Sonduje Data API: PGRST205 (tabela/widok) i PGRST202 (RPC) to jedyne
-      # kody oznaczające brak obiektu; 401/403 znaczy "istnieje, ale RLS".
+      # Resolve both existing naming conventions; absent configuration fails
+      # explicitly and is preserved in the report. No placeholder production DB.
       - name: Database contract (tables / views / RPC)
         run: bun run check:db-contract
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL || vars.SUPABASE_URL || vars.VITE_SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || secrets.VITE_SUPABASE_PUBLISHABLE_KEY || vars.SUPABASE_PUBLISHABLE_KEY || vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
-      # Bramka obiektowa wyżej nie widzi migracji, ktore niczego nie tworza -
-      # ALTER, polityka RLS, GRANT, CREATE OR REPLACE, seed. Ta porownuje sam
-      # rejestr: pliki supabase/migrations ⇄ supabase_migrations.schema_migrations
-      # (przez RPC missing_migration_versions, ktore odpowiada tylko na pytanie
-      # o podane wersje). Dokladnie ten typ luki przepuscil PR #286.
       - name: Migration ledger (branch migrations actually applied)
-        if: always()
+        if: ${{ !cancelled() }}
         run: bun run check:migration-ledger
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL || vars.SUPABASE_URL || vars.VITE_SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || secrets.VITE_SUPABASE_PUBLISHABLE_KEY || vars.SUPABASE_PUBLISHABLE_KEY || vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+
+      - name: Download release test totals
+        if: ${{ !cancelled() }}
+        uses: actions/download-artifact@v4
+        with:
+          name: release-test-report
+          path: reports
+
+      - name: Download widget fidelity report
+        if: ${{ !cancelled() }}
+        uses: actions/download-artifact@v4
+        with:
+          name: widget-fidelity-report
+          path: reports
+
+      - name: Read E2E results for this commit
+        if: ${{ !cancelled() }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs');
+            const { owner, repo } = context.repo;
+            let checks = { e2e: 'unknown', 'e2e-seeded': 'unknown' };
+            let runUrl = null;
+            for (let attempt = 0; attempt < 20; attempt++) {
+              const { data } = await github.rest.actions.listWorkflowRuns({ owner, repo,
+                workflow_id: 'e2e.yml', head_sha: context.sha, branch: 'main', event: 'push', per_page: 5 });
+              const run = data.workflow_runs.find(r => r.head_sha === context.sha);
+              if (run?.status === 'completed') {
+                runUrl = run.html_url;
+                const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, { owner, repo, run_id: run.id });
+                for (const name of Object.keys(checks)) checks[name] = jobs.find(j => j.name === name)?.conclusion ?? 'unknown';
+                break;
+              }
+              if (attempt < 19) await new Promise(resolve => setTimeout(resolve, 15000));
+            }
+            fs.mkdirSync('reports', { recursive: true });
+            fs.writeFileSync('reports/e2e-status.json', JSON.stringify({ commit: context.sha, checks, runUrl }));
+            if (Object.values(checks).some(value => value !== 'success')) core.setFailed('E2E evidence for this commit is missing or unsuccessful');
 
       - name: Download i18n parity report
         if: always()
@@ -1010,7 +1532,8 @@ jobs:
         if: always()
         run: bun run report:deployment
         env:
-          CI_STATUS: ${{ job.status }}
+          CI_STATUS: ${{ needs.release-gate.result }}
+          DEPLOYMENT_STATUS: ${{ job.status }}
 
       - name: Upload deployment compliance report
         if: always()
@@ -1022,4 +1545,20 @@ jobs:
             reports/deployment-report.json
             reports/db-contract.json
             reports/migration-ledger.json
+            reports/test-accounting.json
+            reports/e2e-status.json
+            reports/widget-fidelity.json
+            reports/i18n-parity.json
           if-no-files-found: ignore
+
+  release-gate:
+    name: Required release checks
+    if: ${{ !cancelled() }}
+    needs: [verify, test, build, pgtap, pg-harness]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require successful checks
+        env:
+          CHECK_RESULTS: ${{ toJSON(needs) }}
+        run: |
+          node -e 'const checks=JSON.parse(process.env.CHECK_RESULTS); if(Object.values(checks).some(check=>check.result!=="success")) process.exit(1)'

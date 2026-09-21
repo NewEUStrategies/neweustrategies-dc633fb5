@@ -34,57 +34,48 @@ export function RouteProgress() {
   const fadeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const visibleRef = useRef(false);
+
   useEffect(() => {
-    const clearTick = () => {
-      if (tickRef.current) {
-        clearInterval(tickRef.current);
-        tickRef.current = null;
-      }
+    const clearTimers = () => {
+      if (tickRef.current !== null) clearInterval(tickRef.current);
+      if (showRef.current !== null) clearTimeout(showRef.current);
+      if (fadeRef.current !== null) clearTimeout(fadeRef.current);
+      tickRef.current = null;
+      showRef.current = null;
+      fadeRef.current = null;
     };
-    const clearShow = () => {
-      if (showRef.current) {
-        clearTimeout(showRef.current);
-        showRef.current = null;
-      }
-    };
-    const clearFade = () => {
-      if (fadeRef.current) {
-        clearTimeout(fadeRef.current);
-        fadeRef.current = null;
-      }
+    const startCrawl = () => {
+      setProgress(8);
+      tickRef.current = setInterval(() => {
+        setProgress((p) => (p >= 90 ? p : Math.min(90, p + Math.max(0.5, (90 - p) * 0.08))));
+      }, 220);
     };
 
     if (busy) {
-      clearFade();
-      if (!visible && !showRef.current) {
+      if (visibleRef.current) {
+        startCrawl();
+      } else {
         showRef.current = setTimeout(() => {
+          showRef.current = null;
+          visibleRef.current = true;
           setVisible(true);
-          setProgress(8);
-          tickRef.current = setInterval(() => {
-            setProgress((p) => {
-              if (p >= 90) return p;
-              // Eased crawl: large jump early, small jumps near 90%.
-              const delta = Math.max(0.5, (90 - p) * 0.08);
-              return p + delta;
-            });
-          }, 220);
+          startCrawl();
         }, 120);
       }
-      return () => undefined;
-    }
-
-    // Done -> snap to 100% then fade out.
-    clearShow();
-    clearTick();
-    if (visible) {
+    } else if (visibleRef.current) {
       setProgress(100);
       fadeRef.current = setTimeout(() => {
+        fadeRef.current = null;
+        visibleRef.current = false;
         setVisible(false);
         setProgress(0);
       }, 280);
     }
-    return () => undefined;
-  }, [busy, visible]);
+
+    // Navigation owns all three timers. Visibility updates do not restart them.
+    return clearTimers;
+  }, [busy]);
 
   return (
     <>

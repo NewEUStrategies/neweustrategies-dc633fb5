@@ -12,12 +12,14 @@
 // Kontrakt jak w /rss.xml: fail-closed na tenancie, respektowanie rss_enabled,
 // język z prefiksu URL - a dodatkowo filtr języka wpisu, bo wpisy relacji są
 // jednojęzyczne (kolumna live_blog_entries.lang).
+import { crawlerPublishOrigin } from "@/lib/http/host";
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { trustedPublicHost } from "@/lib/http/requestHost";
 import { DEFAULT_LANG, localizedPath, stripLangPrefix, type AppLang } from "@/lib/i18n/localePath";
 import { SITE_NAME } from "@/lib/seo/meta";
 import { buildRssXml, plainText, type RssItem } from "@/lib/seo/rss";
+import { LIVE_FEED_CACHE_CONTROL_FULL, rssResponseHeaders } from "@/lib/seo/feedCache";
 import { parseSeoSettings } from "@/lib/seo/settings";
 import {
   fetchLiveCoverageEntries,
@@ -29,7 +31,7 @@ async function requestContext(): Promise<{ origin: string; host: string; lang: A
   const req = getRequest();
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
   const host = (await trustedPublicHost(req)) ?? "";
-  const origin = host ? `${proto}://${host}` : "";
+  const origin = crawlerPublishOrigin(host, proto);
   let lang: AppLang = DEFAULT_LANG;
   try {
     lang = stripLangPrefix(new URL(req.url).pathname).lang ?? DEFAULT_LANG;
@@ -98,14 +100,13 @@ export const Route = createFileRoute("/live_/rss.xml")({
           items,
         });
 
+        // Relacja live starzeje się w minutach, nie w godzinach - krótszy cache
+        // niż pozostałe feedy (`LIVE_FEED_CACHE_CONTROL_FULL`), inaczej czytnik
+        // dostaje wpisy z półgodzinnym opóźnieniem. Kanał PUSTY (degradacja
+        // albo relacja jeszcze bez wpisów w tym języku) dostaje TTL jeszcze
+        // krótszy i bez `stale-while-revalidate` - patrz `feedCache.ts`.
         return new Response(xml, {
-          headers: {
-            "Content-Type": "application/rss+xml; charset=utf-8",
-            // Relacja live starzeje się w minutach, nie w godzinach - krótszy
-            // cache niż pozostałe feedy, inaczej czytnik dostaje wpisy z
-            // półgodzinnym opóźnieniem.
-            "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=600",
-          },
+          headers: rssResponseHeaders(items.length, LIVE_FEED_CACHE_CONTROL_FULL),
         });
       },
     },

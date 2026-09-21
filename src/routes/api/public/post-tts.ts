@@ -17,7 +17,9 @@
 // klucz główny `post_tts_renditions (post_id, lang)` + ścieżka obiektu bez
 // głosu i modelu, nadpisywana przy zmianie treści albo głosu.
 //
-// Rate-limit: 3/min i 15/h per IP; 60/h globalnie per postId (klucze tekstowe
+// Rate-limit: 3/min i 15/h per dzwoniący (solony skrót adresu z
+// `requestRateSubject` - NIE surowe IP i NIE nagłówek podrabialny przez
+// klienta); 60/h globalnie per postId (klucze tekstowe
 // wymagają rate_limits.subject_id typu text - migracja 20260711120000).
 // Endpoint jest wyłącznie same-origin (brak nagłówków CORS): audio odtwarza
 // nasz własny player, a otwarty CORS pozwalałby dowolnej obcej stronie
@@ -26,8 +28,8 @@
 // service role omija RLS, więc bez tego filtra treść tenanta A dałaby się
 // syntezować przez domenę tenanta B.
 import { createFileRoute } from "@tanstack/react-router";
-import { getRequestIP } from "@tanstack/react-start/server";
 import { rateLimit } from "@/lib/server/rate-limit.server";
+import { requestRateSubject } from "@/lib/server/rateSubject.server";
 import { trustedPublicHost } from "@/lib/http/requestHost";
 import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
 import {
@@ -167,16 +169,26 @@ async function handlePostTtsRequest(request: Request): Promise<Response> {
   // request, including cache hits), so it stays FAIL-OPEN - a DB blip must
   // not block readers listening to already-cached audio. The cost-bearing
   // gates below (cache-miss only) are fail-closed.
-  const ip = (() => {
-    try {
-      return getRequestIP({ xForwardedFor: true }) ?? "unknown";
-    } catch {
-      return "unknown";
-    }
-  })();
+  //
+  // PODMIOT LIMITU MUSI POCHODZIĆ Z NAGŁÓWKA, KTÓREGO KLIENT NIE PODRABIA.
+  // `getRequestIP({ xForwardedFor: true })` honoruje PIERWSZY wpis
+  // `x-forwarded-for` PONAD adres połączenia (h3: `getRequestIP` zwraca
+  // `xForwardedFor.split(",")[0]` zanim sięgnie po `context.clientAddress`), a
+  // za Cloudflare ten wpis dopisuje klient. Rotacja jednego nagłówka resetowała
+  // więc OBA kubełki fail-CLOSED bramkujące PŁATNĄ syntezę ElevenLabs
+  // (`post-tts:ip:min` 3/min i `post-tts:ip:hour` 15/h) - zostawał wyłącznie
+  // limit per wpis, czyli koszt skalował się liczbą opublikowanych wpisów, a nie
+  // liczbą czytelników, i deklaracja o ochronie budżetu niżej była pusta.
+  // `requestRateSubject` daje podwójny zysk (jak w `fx-rate.ts`): podmiot
+  // niepodrabialny (cf-connecting-ip pierwszy) ORAZ solony skrót zamiast
+  // surowego adresu w tabeli `rate_limits`.
+  //
+  // UWAGA WDROŻENIOWA: klucz kubełka się ZMIENIA, więc po wdrożeniu jedno okno
+  // każdego z limitów (1 min i 1 h) rusza od zera - tak samo jak w `fx-rate.ts`.
+  const subject = requestRateSubject(request.headers);
   const okMin = await rateLimit({
     scope: "post-tts:ip:min",
-    subjectId: ip,
+    subjectId: subject,
     max: 3,
     windowMinutes: 1,
   });
@@ -329,7 +341,7 @@ async function handlePostTtsRequest(request: Request): Promise<Response> {
   // rather than let the budget be drained (rate-limit.server.ts).
   const okHour = await rateLimit({
     scope: "post-tts:ip:hour",
-    subjectId: ip,
+    subjectId: subject,
     max: 15,
     windowMinutes: 60,
     failClosed: true,

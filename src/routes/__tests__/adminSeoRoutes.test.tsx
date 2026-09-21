@@ -1,5 +1,15 @@
-// Trzy trasy panelu SEO ZAMONTOWANE: `/admin/seo`, `/admin/seo/search-console`
-// i `/admin/settings/seo` (48 + 41 + 28 niepokrytych linii, wszystkie na zerze).
+// Trzy trasy panelu SEO ZAMONTOWANE: `/admin/seo/content`,
+// `/admin/seo/search-console` i `/admin/settings/seo` (48 + 41 + 28
+// niepokrytych linii, wszystkie na zerze w chwili powstania pliku).
+//
+// AKTUALIZACJA 2026-09-14. Tabela treści przyjechała z `/admin/seo` do
+// `/admin/seo/content`, gdy `/admin/seo` stało się układem zakładek
+// z `<Outlet />` (naprawa pozycji `admin.seo` ze zmrożonego długu
+// w `parentRoutesRenderOutlet.gate.test.ts`). Zmieniła się WYŁĄCZNIE trasa
+// montowana w `mount()` - żadna asercja niżej nie dotyczy adresu, więc
+// wszystkie zachowują swój przedmiot dowodu. Nowe zakładki układu (kokpit,
+// strona główna, karty społecznościowe) mają własny plik testowy
+// `adminSeoHubRoutes.test.tsx`.
 //
 // CO TEN PLIK DOWODZI - I DLACZEGO NIE JEST FARMĄ POKRYCIA.
 //
@@ -11,8 +21,8 @@
 //
 // Ten plik pokrywa to, czego bramka CELOWO nie dotyka - STAN i SKLEJENIE:
 //
-//   1. TRZY STANY LISTY, a nie dwa. `/admin/seo` renderuje jeden komunikat
-//      pustki (`admin.list.noResults`) i jeden „ładowanie” (`admin.loading`)
+//   1. TRZY STANY LISTY, a nie dwa. `/admin/seo/content` renderuje jeden komunikat
+//      pustki (`adminSeoHub.noResults`) i jeden „ładowanie” (`admin.loading`)
 //      wybierane warunkiem `rows.length ? ... : ...`. Odczyt, który PADŁ,
 //      zostawia `rows` puste - czyli awaria wygląda dokładnie jak trwające
 //      ładowanie. To jest przedmiot `it.fails` niżej.
@@ -55,7 +65,7 @@ import { renderRoute, routeMeta } from "@/test/routeHarness";
 // rozjechał się z polami, które trasa faktycznie renderuje - nowe pole
 // w ustawieniach ma tu wyjść samo.
 import { DEFAULT_SEO_SETTINGS as SEO_DEFAULTS } from "@/lib/seo/settings";
-import { Route as OverviewRoute } from "@/routes/admin.seo";
+import { Route as ContentOverviewRoute } from "@/routes/admin.seo.content";
 import { Route as SearchConsoleRoute } from "@/routes/admin.seo.search-console";
 import { Route as SeoSettingsRoute } from "@/routes/admin.settings.seo";
 
@@ -133,9 +143,15 @@ vi.mock("@/integrations/supabase/client", () => {
   };
 });
 
-vi.mock("@tanstack/react-start", () => ({
-  useServerFn: (fn: unknown) => fn,
-}));
+// Atrapa CZĄSTKOWA, nie pełna. Ta sama paczka niesie `createIsomorphicFn`,
+// na którym stoi `@/lib/i18n` - a od chwili, gdy zakładka treści rejestruje
+// własną nakładkę słownika (`@/lib/i18n-admin-seo-hub`), ten graf jest w jej
+// imporcie. Podmiana CAŁEGO modułu urywała tamten eksport i plik padał już na
+// imporcie, zanim doszedł do jakiejkolwiek asercji.
+vi.mock("@tanstack/react-start", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@tanstack/react-start")>();
+  return { ...actual, useServerFn: (fn: unknown) => fn };
+});
 
 vi.mock("@/lib/analytics/gsc.functions", () => ({
   listGscSites: () =>
@@ -311,18 +327,18 @@ afterEach(() => {
 // /admin/seo - przegląd treści
 // ===========================================================================
 
-describe("/admin/seo - przegląd treści", () => {
+describe("/admin/seo/content - przegląd treści", () => {
   async function mount(): Promise<HTMLElement> {
     const rendered = await renderRoute({
-      route: OverviewRoute,
-      path: "/admin/seo",
-      initialEntry: "/admin/seo",
+      route: ContentOverviewRoute,
+      path: "/admin/seo/content",
+      initialEntry: "/admin/seo/content",
     });
     return rendered.container;
   }
 
   it("head() niesie tytuł zakładki", async () => {
-    const meta = await routeMeta(OverviewRoute);
+    const meta = await routeMeta(ContentOverviewRoute);
     expect(meta.some((entry) => typeof entry.title === "string" && entry.title.length > 0)).toBe(
       true,
     );
@@ -338,7 +354,7 @@ describe("/admin/seo - przegląd treści", () => {
 
   it("stan PUSTY (obie tabele bez wierszy) pokazuje klucz `admin.loading`", async () => {
     // To jest stan faktyczny, nie postulowany: warunek w trasie to
-    // `rows.length ? t("admin.list.noResults") : t("admin.loading")`, więc przy
+    // `rows.length ? t("adminSeoHub.noResults") : t("admin.loading")`, więc przy
     // zerowej liczbie wierszy - także po odczycie zakończonym! - panel mówi
     // „ładowanie”. Przypinamy to, żeby naprawa od razu wywaliła test.
     h.posts = [];
@@ -466,7 +482,7 @@ describe("/admin/seo - przegląd treści", () => {
     expect(screen.getByText(expected)).toBeTruthy();
   });
 
-  it("szukanie bez trafień pokazuje `admin.list.noResults`, NIE `admin.loading`", async () => {
+  it("szukanie bez trafień pokazuje `adminSeoHub.noResults`, NIE `admin.loading`", async () => {
     // To jest ta różnica, którą trasa umie zrobić poprawnie: skoro wiersze
     // istnieją, pustka po filtrze mówi „nic nie pasuje”, a nie „ładowanie”.
     h.posts = [contentRow()];
@@ -476,7 +492,7 @@ describe("/admin/seo - przegląd treści", () => {
     fireEvent.change(screen.getByPlaceholderText("admin.seoOverview.searchPlaceholder"), {
       target: { value: "czegoś-takiego-nie-ma" },
     });
-    await waitFor(() => expect(screen.getByText("admin.list.noResults")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("adminSeoHub.noResults")).toBeTruthy());
     expect(screen.queryByText("admin.loading")).toBeNull();
   });
 
@@ -508,7 +524,10 @@ describe("/admin/seo - przegląd treści", () => {
     h.pages = [contentRow({ id: "pg", slug: "strona" })];
     await mount();
     await waitFor(() => expect(screen.getAllByTestId("score-pill")).toHaveLength(2));
-    expect(screen.getAllByText("noindex").length).toBeGreaterThan(0);
+    // Dyrektywa `noindex` idzie przez słownik (klucz `adminSeoHub.noindexLabel`),
+    // a nie literałem w JSX-ie: literał omija wszystkie trzy bramki i18n.
+    // Atrapa tłumaczeń oddaje sam klucz, stąd taka asercja.
+    expect(screen.getAllByText("adminSeoHub.noindexLabel").length).toBeGreaterThan(0);
   });
 
   it("odnośnik wiersza prowadzi do edytora WŁAŚCIWEGO rodzaju treści", async () => {

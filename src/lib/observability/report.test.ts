@@ -6,7 +6,28 @@ import {
   reportClientError,
   reportBoundaryError,
   INTERNAL_ERROR_ENDPOINT,
+  type ClientErrorPayload,
 } from "./report";
+
+/**
+ * Odczytaj ładunek beaconu. Transport pakuje JSON w `Blob`, więc `String(body)`
+ * daje "[object Blob]" i `JSON.parse` się na tym wywraca - stąd `.text()`.
+ */
+async function beaconPayload(body: BodyInit | null | undefined): Promise<ClientErrorPayload> {
+  const text = body instanceof Blob ? await body.text() : String(body);
+  return JSON.parse(text) as ClientErrorPayload;
+}
+
+/** Podmień `navigator.sendBeacon` na szpiega zbierającego wywołania. */
+function captureBeacon(): ReturnType<typeof vi.fn<(url: string, body?: BodyInit) => boolean>> {
+  const beacon = vi.fn((_url: string, _body?: BodyInit) => true);
+  Object.defineProperty(navigator, "sendBeacon", {
+    value: beacon,
+    configurable: true,
+    writable: true,
+  });
+  return beacon;
+}
 
 describe("observabilityEndpoint", () => {
   afterEach(() => vi.unstubAllEnvs());
@@ -117,6 +138,9 @@ describe("reportClientError", () => {
   });
   afterEach(() => {
     vi.unstubAllEnvs();
+    // Bez tego test podmieniający `location` zostawiłby zepsuty glob dla
+    // następnych przypadków w pliku.
+    vi.unstubAllGlobals();
     Object.defineProperty(navigator, "sendBeacon", {
       value: original,
       configurable: true,
@@ -142,6 +166,51 @@ describe("reportClientError", () => {
     expect(reportClientError(new Error("x"), "unhandledrejection")).toBe(true);
     expect(navigator.sendBeacon).toHaveBeenCalledTimes(1);
   });
+
+  it("znany szum NIE wychodzi beaconem - i nie zużywa round-tripu na sprzątanie AbortControllera", () => {
+    // Odsiew idzie U ŹRÓDŁA, a nie w panelu: anulowane żądania i pętla
+    // ResizeObservera to 82% wpisów z sierpnia/września 2026. Gdyby ten
+    // strażnik przestał działać, `/admin/performance?tab=errors` znów
+    // pokazywałby normalne życie przeglądarki zamiast awarii, a prawdziwy
+    // wyjątek tonąłby na dalszych stronach listy.
+    vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "");
+    const beacon = captureBeacon();
+
+    const aborted = new Error("signal is aborted without reason");
+    aborted.name = "AbortError";
+    expect(reportClientError(aborted, "unhandledrejection")).toBe(false);
+    expect(
+      reportClientError("ResizeObserver loop completed with undelivered notifications.", "onerror"),
+    ).toBe(false);
+    expect(reportClientError("   ", "onerror")).toBe(false);
+    expect(beacon).not.toHaveBeenCalled();
+
+    // Kontrola negatywna: filtr jest WĄSKI, więc realna awaria sieci tą samą
+    // drogą nadal wychodzi. Bez tej asercji „nic nie wysyłamy" przechodziłoby
+    // też dla filtra, który wycisza wszystko.
+    expect(reportClientError(new Error("Failed to fetch"), "onerror")).toBe(true);
+    expect(beacon).toHaveBeenCalledTimes(1);
+  });
+
+  it("środowisko bez `location` raportuje z pustą ścieżką, zamiast wywrócić globalny handler", async () => {
+    // `reportClientError` bywa wołane z `window.onerror` i z workera, a tam
+    // globalnego `location` może nie być. Rzut w reporterze błędów jest
+    // najgorszym z możliwych: leci Z handlera błędu, więc nie ma go już kto
+    // złapać - a przy okazji ginie wpis o pierwotnej awarii. Ścieżka jest
+    // metadaną, nie treścią, więc jej brak może kosztować co najwyżej pustego
+    // stringa w kolumnie `path`.
+    vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "");
+    const beacon = captureBeacon();
+    vi.stubGlobal("location", undefined);
+
+    expect(typeof location).toBe("undefined");
+    expect(reportClientError(new Error("boom"), "onerror")).toBe(true);
+
+    const payload = await beaconPayload(beacon.mock.calls[0]?.[1]);
+    expect(payload.path).toBe("");
+    expect(payload.message).toBe("boom");
+    expect(payload.source).toBe("onerror");
+  });
 });
 
 describe("reportBoundaryError", () => {
@@ -155,6 +224,7 @@ describe("reportBoundaryError", () => {
   });
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
     Object.defineProperty(navigator, "sendBeacon", {
       value: original,
       configurable: true,
@@ -191,5 +261,24 @@ describe("reportBoundaryError", () => {
     expect(beacon).toHaveBeenCalledTimes(1);
     expect(beacon.mock.calls[0][0]).toBe("https://rum.example.com");
     expect(beacon.mock.calls[0][1]).toBeInstanceOf(Blob);
+  });
+
+  it("bez globalnego `location` raport granicy nadal niesie KONTEKST awarii", async () => {
+    // Granice Reacta renderują się także po stronie serwera, gdzie `location`
+    // nie istnieje. Ta ścieżka nie ma prawa ani rzucić (rzut w raporcie awarii
+    // renderu zamieniłby zepsutą sekcję w zepsutą stronę), ani zgubić `meta` -
+    // etykieta widżetu jest jedyną rzeczą, po której da się w panelu wskazać,
+    // KTÓRY blok pada. Sam URL jest tu do zastąpienia, kontekst nie.
+    vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "");
+    const beacon = captureBeacon();
+    vi.stubGlobal("location", undefined);
+
+    expect(typeof location).toBe("undefined");
+    expect(reportBoundaryError(new Error("crash"), { label: "widget:heading:w3" })).toBe(true);
+
+    const payload = await beaconPayload(beacon.mock.calls[0]?.[1]);
+    expect(payload.path).toBe("");
+    expect(payload.source).toBe("react_error_boundary");
+    expect(payload.meta).toEqual({ label: "widget:heading:w3" });
   });
 });

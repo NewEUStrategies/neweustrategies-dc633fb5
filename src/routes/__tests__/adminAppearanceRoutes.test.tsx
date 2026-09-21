@@ -271,6 +271,7 @@ describe("/admin/appearance - pasek zakładek", () => {
       "/admin/appearance/category-archive",
       "/admin/appearance/tag-archive",
       "/admin/appearance/global-colors",
+      "/admin/appearance/font-sizes",
     ]);
   });
 

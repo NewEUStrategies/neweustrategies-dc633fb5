@@ -88,14 +88,23 @@ export function EventTypeDialog({
 
   const issue = draft === null ? null : eventTypeDraftIssue(draft);
 
+  // ZAMKNIECIE MA JEDNA DROGE. Stopka („Anuluj") i sciezka Radiksa (Escape,
+  // klik w tlo, krzyzyk) musza oddac dialog w TYM SAMYM stanie: manager
+  // odpowiada na `onClose` programowym `setDraft(null)`, a wtedy `onOpenChange`
+  // sie nie odzywa i komponent zostaje zamontowany z `keyTouched === true`.
+  // Nastepne zalozenie rodzaju mialoby wtedy klucz, ktory nie podaza za nazwa -
+  // administrator wpisuje nazwe, pole klucza zostaje puste, a zapis gasnie na
+  // `adminEvents.types.errors.key` bez slowa o przyczynie.
+  const close = () => {
+    setKeyTouched(false);
+    onClose();
+  };
+
   return (
     <Dialog
       open={draft !== null}
       onOpenChange={(open) => {
-        if (!open) {
-          setKeyTouched(false);
-          onClose();
-        }
+        if (!open) close();
       }}
     >
       <DialogContent className="event-dialog-compact max-h-[90vh] overflow-y-auto sm:max-w-2xl">
@@ -117,8 +126,18 @@ export function EventTypeDialog({
                 value={draft.namePl}
                 maxLength={EVENT_TYPE_MAX_NAME}
                 autoFocus
+                // KLUCZ WPISU ISTNIEJACEGO NIE PODAZA ZA NAZWA. Zamrozone jest
+                // POLE (`disabled` nizej), wiec `keyTouched` nie ma jak stac sie
+                // prawda w trybie edycji - a bez tego rozgraniczenia poprawienie
+                // literowki w nazwie przepinaloby klucz techniczny, ktory czyta
+                // legacy `events.kind`. Nowy wpis dalej dostaje slug nazwy, bo
+                // tam klucza jeszcze nikt nie uzywa.
                 onValueChange={(value) =>
-                  onDraftChange(eventTypeDraftWithNamePl(draft, value, keyTouched))
+                  onDraftChange(
+                    draft.id === null
+                      ? eventTypeDraftWithNamePl(draft, value, keyTouched)
+                      : { ...draft, namePl: value },
+                  )
                 }
               />
               <AdminFormTextRow
@@ -292,7 +311,7 @@ export function EventTypeDialog({
             )}
 
             <DialogFooter>
-              <Button variant="outline" onClick={onClose}>
+              <Button variant="outline" onClick={close}>
                 {t("adminEvents.types.dialog.cancelAction")}
               </Button>
               <Button onClick={() => onSave(draft)} disabled={isSaving || issue !== null}>

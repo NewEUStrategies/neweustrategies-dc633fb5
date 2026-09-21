@@ -16,6 +16,7 @@
 // publicznym `event_page_header`, więc uczestnik widzi, CZEGO dotyczy
 // rezygnacja, a klucz nie musi w tym celu wyjeżdżać do żadnego dodatkowego
 // zapytania.
+import { browserPublicOrigin } from "@/lib/http/host";
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -104,7 +105,7 @@ export function RegistrationManagePanel({
     if (activeToken === null) return;
     try {
       await navigator.clipboard.writeText(
-        `${window.location.origin}${manageLinkPath(slug, activeToken)}`,
+        `${browserPublicOrigin()}${manageLinkPath(slug, activeToken)}`,
       );
       toast.success(t("eventFront.manage.copied"));
     } catch {

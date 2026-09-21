@@ -13,11 +13,19 @@
 --      użytkowników z nieprzeczytanymi powiadomieniami; drugi claim w tym
 --      samym oknie nic nie zwraca; przeczytane powiadomienia nie generują
 --      digestu.
+--   5. push_subscriptions.tenant_id: najemca subskrypcji jest funkcją PROFILU
+--      właściciela, nie przeglądanej witryny - trigger przypina go przy INSERT
+--      i UPDATE, więc para (tenant_id, user_id) subskrypcji zgadza się z parą
+--      zadania w kolejce, po której dyspozytor dobiera urządzenia.
+--   6. przeniesienie konta między najemcami przepina STAN BIEŻĄCY konta
+--      (subskrypcje push ORAZ preferencje powiadomień), więc pin nie zostaje
+--      migawką sprzed przeniesienia, a właściciel nie traci dostępu do
+--      własnego wiersza preferencji pod politykami wiążącymi najemcę w USING.
 --
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(12);
+SELECT plan(19);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -158,6 +166,132 @@ SELECT is(
   0,
   'przeczytane powiadomienia nie generuja digestu (puste wysylki odpadaja)'
 );
+
+-- -- 5. Wiazanie najemcy subskrypcji z profilem wlasciciela --------------------
+-- Kontrakt push ma dwie polowy: trigger tg_notifications_enqueue_push szuka
+-- subskrypcji po SAMYM user_id i wstawia zadanie z najemca PROFILU odbiorcy, a
+-- dyspozytor (processPushJobs) dobiera urzadzenia po PARZE (tenant_id,
+-- user_id). Dopoki tenant_id subskrypcji pochodzil z DEFAULT
+-- public_tenant_id(), czyli z HOSTA zadania, obie polowy rozjezdzaly sie dla
+-- kazdego, kto wlaczyl push na domenie innego najemcy niz wlasny - dyspozytor
+-- nie znajdowal ani jednego urzadzenia, a zadanie szlo w 'dead' bez ani jednej
+-- proby wysylki.
+RESET ROLE;
+
+INSERT INTO public.tenants (id, slug, name) VALUES
+  ('a9222222-2222-2222-2222-222222222222', 'tenant-push-other', 'Tenant Push Other');
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"a9000000-0000-0000-0000-0000000000aa","role":"authenticated"}', true);
+
+-- Wlasciciel nalezy do 'tenant-push', a zapisuje subskrypcje z najemca OBCYM -
+-- dokladnie to robil DEFAULT wywiedziony z hosta. RLS tego nie zatrzymuje:
+-- polityka "push subs owner all" sprawdza wylacznie user_id.
+INSERT INTO public.push_subscriptions (user_id, tenant_id, endpoint, p256dh, auth)
+VALUES ('a9000000-0000-0000-0000-0000000000aa',
+        'a9222222-2222-2222-2222-222222222222',
+        'https://push.example/ep-3', 'p256dh-0123456789abcdef', 'auth-0123456789');
+
+SELECT is(
+  (SELECT tenant_id FROM public.push_subscriptions
+    WHERE endpoint = 'https://push.example/ep-3'),
+  'a9111111-1111-1111-1111-111111111111'::uuid,
+  'INSERT z obcym najemca jest przypinany do najemcy profilu wlasciciela'
+);
+
+-- Upsert klienta (onConflict "endpoint") idzie sciezka UPDATE i nie podaje
+-- tenant_id. Bez galezi UPDATE w triggerze bledny najemca zostalby na zawsze -
+-- ponowne wlaczenie pusha nie naprawialoby wiersza.
+UPDATE public.push_subscriptions
+   SET tenant_id = 'a9222222-2222-2222-2222-222222222222'
+ WHERE endpoint = 'https://push.example/ep-3';
+
+SELECT is(
+  (SELECT tenant_id FROM public.push_subscriptions
+    WHERE endpoint = 'https://push.example/ep-3'),
+  'a9111111-1111-1111-1111-111111111111'::uuid,
+  'UPDATE nie wyprowadza subskrypcji do obcego najemcy (stary wiersz sie naprawia)'
+);
+
+RESET ROLE;
+
+-- Kontrakt end-to-end: para (tenant_id, user_id) KAZDEJ zywej subskrypcji
+-- odbiorcy musi zgadzac sie z para zadania - to jest dokladnie klucz adresata
+-- (recipientKey) uzywany przez dyspozytor.
+INSERT INTO public.notifications (user_id, tenant_id, kind, title_pl, href)
+VALUES ('a9000000-0000-0000-0000-0000000000aa',
+        'a9111111-1111-1111-1111-111111111111',
+        'system', 'Test wiazania', '/z');
+
+SELECT is(
+  (SELECT count(*)::int
+     FROM public.notification_push_queue q
+     JOIN public.push_subscriptions ps
+       ON ps.user_id = q.user_id AND ps.tenant_id = q.tenant_id
+    WHERE q.user_id = 'a9000000-0000-0000-0000-0000000000aa'
+      AND q.payload->>'title_pl' = 'Test wiazania'
+      AND ps.failed_at IS NULL),
+  2,
+  'dyspozytor znajduje obie subskrypcje po parze (tenant_id, user_id) zadania'
+);
+
+-- -- 6. Przeniesienie konta miedzy najemcami -----------------------------------
+-- Pin z sekcji 5 jest MIGAWKA z chwili zapisu. Przeniesienie konta (legalne dla
+-- roli serwerowej - `profiles_pin_tenant_id` zwalnia is_service_role_caller(),
+-- ta furtka chodzi przyjecie zaproszenia) osierociloby subskrypcje dokladnie
+-- tak, jak robil to DEFAULT z hosta. Trigger profiles_repin_push_subscriptions
+-- przepina je w tej samej transakcji, bez udzialu uzytkownika.
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+
+UPDATE public.profiles
+   SET tenant_id = 'a9222222-2222-2222-2222-222222222222'
+ WHERE id = 'a9000000-0000-0000-0000-0000000000aa';
+
+SELECT is(
+  (SELECT tenant_id FROM public.push_subscriptions
+    WHERE endpoint = 'https://push.example/ep-3'),
+  'a9222222-2222-2222-2222-222222222222'::uuid,
+  'przeniesienie konta przepina subskrypcje push na nowego najemce'
+);
+
+-- Preferencje sa drugim wierszem STANU BIEZACEGO konta. Ich zamrozenie bylo
+-- ostrzejsze niz przy pushu: WSZYSTKIE cztery polityki `own prefs *` wiaza
+-- najemce juz w USING, wiec osierocony wiersz stawal sie dla wlasciciela
+-- NIEWIDOCZNY, NIEZAPISYWALNY (UPDATE 0 bez bledu) i NIEUSUWALNY, a UNIQUE
+-- (user_id) blokowal wstawienie zastepczego. Klient nie mial drogi naprawy.
+SELECT is(
+  (SELECT tenant_id FROM public.notification_preferences
+    WHERE user_id = 'a9000000-0000-0000-0000-0000000000aa'),
+  'a9222222-2222-2222-2222-222222222222'::uuid,
+  'przeniesienie konta przepina takze preferencje powiadomien'
+);
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"a9000000-0000-0000-0000-0000000000aa","role":"authenticated"}', true);
+
+SELECT is(
+  (SELECT count(*)::int FROM public.notification_preferences
+    WHERE user_id = 'a9000000-0000-0000-0000-0000000000aa'),
+  1,
+  'po przeniesieniu wlasciciel NADAL widzi swoj wiersz preferencji'
+);
+
+-- Zapis musi realnie dojsc do wiersza. Przed naprawa USING odcinalo go po
+-- cichu: UPDATE zwracalo 0 wierszy i zaden blad nie docieral do UI.
+UPDATE public.notification_preferences
+   SET push_enabled = true
+ WHERE user_id = 'a9000000-0000-0000-0000-0000000000aa';
+
+SELECT is(
+  (SELECT push_enabled FROM public.notification_preferences
+    WHERE user_id = 'a9000000-0000-0000-0000-0000000000aa'),
+  true,
+  'po przeniesieniu wlasciciel NADAL zapisuje swoje preferencje'
+);
+
+RESET ROLE;
 
 SELECT * FROM finish();
 ROLLBACK;

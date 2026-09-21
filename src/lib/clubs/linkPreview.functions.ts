@@ -145,8 +145,18 @@ export const fetchClubLinkPreview = createServerFn({ method: "POST" })
       for (;;) {
         const chunk = await reader.read();
         if (chunk.done) break;
+        // Do bufora dokładamy najwyżej tyle, ile zostało do MAX_BYTES. Bez tego
+        // sprawdzenie limitu było PO doklejeniu całego kawałka, więc próg
+        // ograniczał liczbę obrotów pętli, a nie zajętą pamięć: jeden wielki
+        // kawałek (rozpakowany gzip potrafi oddać megabajty naraz) wchodził
+        // w całości i był parsowany. `received` liczy bajty PRZECZYTANE, więc
+        // decyzja o przerwaniu nie zmienia się.
+        const remaining = MAX_BYTES - received;
         received += chunk.value.byteLength;
-        html += decoder.decode(chunk.value, { stream: true });
+        html += decoder.decode(
+          chunk.value.byteLength > remaining ? chunk.value.subarray(0, remaining) : chunk.value,
+          { stream: true },
+        );
         if (received >= MAX_BYTES) {
           await reader.cancel();
           break;

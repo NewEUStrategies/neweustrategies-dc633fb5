@@ -1,4 +1,4 @@
-// Lazy iframe dla quizu — defer bootowania ciężkiego iframe'a, żeby
+// Lazy iframe dla quizu - defer bootowania ciężkiego iframe'a, żeby
 // pierwszy render /quiz (header, tło, sidebar udostępniania) był
 // gotowy natychmiast.
 //
@@ -68,7 +68,7 @@ export function LazyQuizIframe({ src, title, className, fallbackDelayMs = 250 }:
       observer.observe(el);
     }
 
-    // Awaryjny mount po idle/fallback delay — nawet jeśli IO nie wystrzeli.
+    // Awaryjny mount po idle/fallback delay - nawet jeśli IO nie wystrzeli.
     if (typeof idle === "function") {
       idle(mount, { timeout: fallbackDelayMs + 500 });
     } else {

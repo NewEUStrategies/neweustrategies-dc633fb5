@@ -16,11 +16,50 @@ import { edgeTtlCache } from "@/lib/ssrCache";
 // tenant of the site being browsed. fetchWithTenantHost dokleja x-tenant-host
 // z bieżącego żądania - bez niego public_tenant_id() zawsze zwraca
 // DOMYŚLNEGO tenanta (patrz tenant-host-fetch.ts).
-function client() {
+function createAnonClient() {
   return createClient<Database>(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
     auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
     global: { fetch: fetchWithTenantHost },
   });
+}
+
+// JEDEN klient na izolat, tworzony LENIWIE.
+//
+// PO CO. `client()` był wołany W ŚRODKU handlera, więc każde `recordPostView`
+// - a to najgorętsze wywołanie tego modułu, jedno na odsłonę artykułu -
+// budowało nowego klienta Supabase od zera.
+//
+// DLACZEGO TO JEST BEZPIECZNE W IZOLACIE WIELOTENANTOWYM, a to jest tu jedyne
+// pytanie, które się liczy: jeden izolat Workers obsługuje RÓWNOLEGLE żądania
+// z różnych domen, więc współdzielony klient musiałby nie nieść ŻADNEGO stanu
+// żądania. I nie niesie:
+//   * nagłówki egzemplarza to sam `X-Client-Info` - opcje globalne wyżej nie
+//     ustawiają `headers`, a `x-tenant-host` i `x-tenant-assert` dokleja
+//     `fetchWithTenantHost` PER WYWOŁANIE, czytając kontekst bieżącego żądania
+//     (patrz `integrations/supabase/tenant-host-fetch.ts`), nie kontekst z
+//     chwili konstrukcji;
+//   * `persistSession: false` daje storage PAMIĘCIOWY, do którego ten moduł
+//     nigdy nie pisze (nie ma tu żadnego `sb.auth.*`), więc `Authorization`
+//     to zawsze klucz anon - nie ma czego przeciec między tenantami.
+// Dowodem jest `__tests__/postViewsClientReuse.test.ts`: dwa żądania z RÓŻNYCH
+// hostów dostają różne nagłówki tenanta z TEGO SAMEGO egzemplarza klienta.
+//
+// LENIWIE, nie `const` na poziomie modułu: `createClient` rzuca przy braku
+// `SUPABASE_URL`, a przy inicjalizacji modułu ten wyjątek wywróciłby CAŁY chunk
+// (plik wisi w grafie strony wpisu przez `useRecordPostView`) zamiast jednego
+// wywołania server function. Ten sam wzorzec, co
+// `src/lib/auth/optionalUser.server.ts` i `src/integrations/supabase/client.ts`.
+//
+// UCZCIWIE O WIELKOŚCI ZYSKU: to jest oszczędność CPU, nie latencji.
+// Konstrukcja klienta jest o dwa rzędy wielkości tańsza niż round-trip do
+// Supabase, więc na czasie ściany nie widać jej wcale. Uzasadnia ją model
+// rozliczeniowy Workers, w którym czas CPU jest zasobem bilowanym i
+// limitowanym - a nie „szybciej wczyta się strona".
+let cachedClient: ReturnType<typeof createAnonClient> | undefined;
+
+function client(): ReturnType<typeof createAnonClient> {
+  cachedClient ??= createAnonClient();
+  return cachedClient;
 }
 
 const recordSchema = z.object({
@@ -103,23 +142,36 @@ async function resolveAuthors(
   return out;
 }
 
-// Posts in one list overwhelmingly share a handful of parent pages, and
-// page_full_path is one DB round-trip per call - resolving it per POST (the
-// previous sequential loop) made the ticker cost 1+N round-trips and show up
-// seconds after the rest of the header. Dedupe to unique parent ids and
-// resolve them in parallel: worst case one extra round-trip of latency total.
+// Ścieżki rodziców JEDNYM round-tripem: RPC `page_full_paths(uuid[])`
+// (migracja 20260724150000, ten sam wzorzec co `lib/queries/archives.ts`).
+//
+// DLACZEGO: deduplikacja po rodzicu zbijała N wywołań do liczby unikalnych
+// stron, ale to nadal był N+1 - każdy unikalny rodzic to osobne połączenie,
+// a Worker ma tylko sześć równoległych gniazd wychodzących. Pasek renderuje
+// się w t0 fali 1 razem z menu i ustawieniami, więc każde z tych połączeń
+// wypychało z kolejki odczyt, od którego zależy pierwszy bajt.
+//
+// KSZTAŁT WYNIKU BEZ ZMIAN: mapa niesie WPIS DLA KAŻDEGO unikalnego rodzica,
+// domyślnie pusty - `postHref` odróżnia „ścieżki nie ma" od „ścieżka jest"
+// po falsy, więc brakujący klucz i pusty łańcuch znaczą dla niego to samo.
+// Zasiew trzymamy jawnie, żeby awaria RPC dawała dokładnie to, co dawała
+// wcześniej (adres zapasowy `/post/<slug>`), a nie mapę o innym rozmiarze.
 async function resolveParentPaths(
   sb: ReturnType<typeof client>,
   parentPageIds: Array<string | null | undefined>,
 ): Promise<Map<string, string>> {
   const unique = Array.from(new Set(parentPageIds.filter((id): id is string => !!id)));
-  const entries = await Promise.all(
-    unique.map(async (id) => {
-      const { data } = await sb.rpc("page_full_path", { _page_id: id });
-      return [id, typeof data === "string" ? data : ""] as const;
-    }),
-  );
-  return new Map(entries);
+  const paths = new Map<string, string>(unique.map((id) => [id, ""]));
+  if (unique.length === 0) return paths;
+  const { data, error } = await sb.rpc("page_full_paths", { _page_ids: unique });
+  if (error || !Array.isArray(data)) {
+    if (error) console.warn("page_full_paths failed:", error.message);
+    return paths;
+  }
+  for (const row of data) {
+    if (typeof row.full_path === "string") paths.set(row.page_id, row.full_path);
+  }
+  return paths;
 }
 
 function postHref(

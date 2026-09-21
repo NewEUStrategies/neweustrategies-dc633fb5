@@ -1,6 +1,6 @@
 // Pure data-shaping helpers for the research-program query layer. Extracted
 // from queries/programs.ts so the logic (jsonb normalization, curator-order
-// preservation) is unit-testable without mocking Supabase — the same split the
+// preservation) is unit-testable without mocking Supabase - the same split the
 // rest of the codebase uses for query modules (see archives.test.ts note).
 
 export interface ResearchQuestion {

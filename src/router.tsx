@@ -1,3 +1,4 @@
+import { RouteLoadingSkeleton } from "./lib/ssr/RouteLoadingSkeleton";
 import { QueryClient } from "@tanstack/react-query";
 import { createRouter, type ErrorComponentProps } from "@tanstack/react-router";
 import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
@@ -11,6 +12,7 @@ import { errorCopy } from "./lib/errorCopy";
 import { installSsrQueryTimeout } from "./lib/ssr/queryTimeout";
 import { guardQueryStream } from "./lib/ssr/queryStreamGuard";
 import { sweepQueryCacheForSerialization } from "./lib/ssr/postRenderSweep";
+import { withHydrateBudget } from "./lib/ssr/hydrateBudget";
 
 // World-class defaults for a content-heavy public site:
 //   - 5 min staleTime: settings/menus/posts rarely change; avoid wasted refetches.
@@ -40,7 +42,9 @@ export const getRouter = () => {
       queries: {
         staleTime: 5 * 60_000,
         gcTime: 30 * 60_000,
-        retry: 1,
+        // A retry delay consumes the SSR deadline without rendering anything.
+        // The hydrated client retries transient failures with its own budget.
+        retry: isServer ? 0 : 1,
         retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
         refetchOnWindowFocus: false,
         refetchOnReconnect: "always",
@@ -66,14 +70,19 @@ export const getRouter = () => {
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
-    // Query owns cache freshness; router never serves stale preloaded data.
-    defaultPreloadStaleTime: 0,
+    // 30 s okna „ta trasa jest już przygotowana". To NIE jest świeżość danych
+    // - tą włada react-query (staleTime 5 min, własne klucze). Router liczy tu
+    // wyłącznie swoją pracę: dopasowanie trasy, `beforeLoad` i import chunku.
+    // Przy 0 każde ponowne najechanie na ten sam odnośnik powtarzało to
+    // wszystko od zera, mimo że wynik nie mógł się zmienić.
+    defaultPreloadStaleTime: 30_000,
     // Aggressive intent preloading on hover/focus - by the time the user
     // clicks, the next route's loader has already resolved.
     defaultPreload: "intent",
     defaultPreloadDelay: 50,
     // Only show pending UI for genuinely slow navigations (>500ms). Fast
     // intent-preloaded clicks resolve instantly and never flash a skeleton.
+    defaultPendingComponent: RouteLoadingSkeleton,
     defaultPendingMs: 500,
     defaultPendingMinMs: 250,
     // Modern crossfade between routes via the View Transitions API. Header
@@ -140,9 +149,20 @@ export const getRouter = () => {
     // See lib/ssr/queryStreamGuard.
     const integrationDehydrate = router.options.dehydrate;
     router.options.dehydrate = async () => {
-      // Render się zakończył: anulujemy wiszące fetch-e i usuwamy zapytania,
-      // które nigdy się nie rozstrzygną, ZANIM integracja zrobi snapshot
-      // cache'u. Inaczej seroval czeka na ich promisy do twardego limitu.
+      // KOLEJNOŚĆ, SPROSTOWANA 2026-09-01. Stało tu „Render się zakończył",
+      // a to jest odwrotnie: `createStartHandler` woła
+      // `routerInstance.load()` (wszystkie loadery), potem
+      // `serverSsr.dehydrate()` - czyli TĘ funkcję - i DOPIERO POTEM render
+      // Reacta. Zamiatanie biegnie więc PRZED renderem, nigdy po nim (mimo
+      // nazwy modułu `postRenderSweep`, która też o tym kłamie).
+      //
+      // Unsettled loader work is cancelled before React renders. The chrome
+      // Suspense gate can restart its bounded warmup after this sweep, while
+      // the sibling route body is already free to stream.
+      //
+      // Anulujemy wiszące fetch-e i usuwamy zapytania, które nigdy się nie
+      // rozstrzygną, ZANIM integracja zrobi snapshot cache'u. Inaczej seroval
+      // czeka na ich promisy do twardego limitu.
       sweepQueryCacheForSerialization(queryClient, {
         label: router.state.location.pathname,
         reason: "dehydrate",
@@ -173,25 +193,17 @@ export const getRouter = () => {
     // hydration begins, so this delays first paint by at most one tick.
     const integrationHydrate = router.options.hydrate;
     router.options.hydrate = async (dehydrated) => {
-      // Twardy budżet: jeśli strumień zapytań z SSR nigdy nie domknie się w
-      // przeglądarce, `integrationHydrate` nigdy się nie rozstrzyga, React nie
-      // hydratuje i cała strona zostaje statycznym HTML-em (przyciski i linki
-      // nie reagują). Brakujące dane po prostu dociągną się przez refetch.
-      const HYDRATE_BUDGET_MS = 1500;
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      try {
-        await Promise.race([
-          integrationHydrate?.(dehydrated),
-          new Promise<void>((resolve) => {
-            timer = setTimeout(() => {
-              console.warn("[ssr-hydrate] hydration stream exceeded budget - continuing");
-              resolve();
-            }, HYDRATE_BUDGET_MS);
-          }),
-        ]);
-      } finally {
-        if (timer) clearTimeout(timer);
-      }
+      // This bounds the hydration HOOK, including any upstream ogHydrate.
+      // The pinned integration reads queryStream in the background and does
+      // not await its completion. Actual application readiness is measured
+      // by the boot probe and the production-artifact browser tests.
+      //
+      // Mechanika mieszka w `lib/ssr/hydrateBudget.ts`: stała jest tam
+      // EKSPORTOWANA, a raport WSTRZYKIWALNY, więc budżet jest kontraktem,
+      // a nie literałem i szpiegowaniem globalnej konsoli. Zachowanie
+      // produkcyjne bez zmian. Tam też jest zapisane, czego ten bezpiecznik
+      // w obecnej wersji integracji NIE ŚCINA (zmierzone).
+      await withHydrateBudget(integrationHydrate?.(dehydrated), { label: "router-hydrate" });
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
     };
   }

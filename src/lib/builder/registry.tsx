@@ -1298,6 +1298,82 @@ export const WIDGETS: WidgetDef[] = [
     }),
   },
   {
+    type: "cover-overlay-card",
+    label: "Karta z okładką",
+    category: "blocks",
+    icon: Newspaper,
+    defaults: () => ({
+      // Bez treści przykładowej i bez zdjęcia ze wzorca: świeżo wstawiona karta
+      // pokazuje samą płaszczyznę z nakładką, a nie zmyślony wpis, który ktoś
+      // mógłby opublikować.
+      title_pl: "",
+      title_en: "",
+      excerpt_pl: "",
+      excerpt_en: "",
+      image: "",
+      imageAlt_pl: "",
+      imageAlt_en: "",
+      date: "",
+      showDate: true,
+      href: "",
+      // Puste = kolor nakładki wzorca (gray-900).
+      overlayColor: "",
+      overlayAlphaTop: 0.25,
+      overlayAlphaBottom: 0.5,
+      mediaMinHeight: 256,
+      clampLines: 3,
+      radius: 6,
+      maxWidth: 0,
+      hoverLift: true,
+    }),
+  },
+  {
+    type: "promo-card",
+    label: "Karta promocyjna",
+    category: "blocks",
+    icon: Megaphone,
+    defaults: () => ({
+      // Bez treści przykładowej i bez zdjęcia: świeżo wstawiona karta pokazuje
+      // płaszczyznę z nakładką i podpowiedź w kanwie, a nie zmyśloną promocję,
+      // którą ktoś mógłby opublikować.
+      title_pl: "",
+      title_en: "",
+      subtitle_pl: "",
+      subtitle_en: "",
+      image: "",
+      imageAlt_pl: "",
+      imageAlt_en: "",
+      // CTA: domyślnie ręczny adres. Tryb "event" podpina wydarzenie z modułu
+      // wydarzeń i wtedy pusty `href` znaczy "prowadź na stronę wydarzenia".
+      mode: "link",
+      eventId: "",
+      href: "",
+      buttonText_pl: "",
+      buttonText_en: "",
+      newTab: false,
+      showEventMeta: true,
+      // Kadr okładki.
+      ratio: "16:9",
+      heightPx: 288,
+      maxWidth: 512,
+      fit: "cover",
+      imagePosition: "center",
+      // Prezentacja. Puste kolory = wartości wzorca / motywu.
+      overlayColor: "",
+      overlayAlphaTop: 0,
+      overlayAlphaBottom: 0.7,
+      radius: 6,
+      align: "left",
+      textColor: "",
+      buttonBg: "",
+      buttonTextColor: "",
+      // Animacja bez przesunięć: delikatny zoom okładki pod kursorem i
+      // przenikanie przy wejściu. Karta jako całość nie dostaje `transform`.
+      hover: "zoom-in",
+      entrance: "fade",
+    }),
+  },
+  {
     type: "author-profile-card",
     label: "Karta profilu autora",
     category: "blocks",
@@ -1957,6 +2033,33 @@ export const WIDGETS: WidgetDef[] = [
       sort: "hot",
       policyArea: "",
       limit: 4,
+    }),
+  },
+  // Strona klubu jako blok: artykuly, komentarze i zapisy JEDNEGO klubu -
+  // ta sama tresc, co panel `/club/$slug`, tylko osadzalna poza modulem.
+  {
+    type: "club-hub",
+    label: "Klub: strona",
+    category: "dynamic",
+    icon: MessagesSquare,
+    defaults: () => ({
+      clubSlug: "",
+      showHeader: "true",
+      showCover: "true",
+      showArticles: "true",
+      showComments: "true",
+      showSignups: "true",
+      articlesLimit: 4,
+      commentsLimit: 3,
+      signupsLimit: 6,
+      joinLabel_pl: "Dołącz do klubu",
+      joinLabel_en: "Join the club",
+      articlesTitle_pl: "Artykuły",
+      articlesTitle_en: "Articles",
+      commentsTitle_pl: "Komentarze",
+      commentsTitle_en: "Comments",
+      signupsTitle_pl: "Zapisy",
+      signupsTitle_en: "Sign-ups",
     }),
   },
   // Web Stories

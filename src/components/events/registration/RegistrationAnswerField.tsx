@@ -113,7 +113,14 @@ export function RegistrationAnswerField({
           </Select>
         </div>
       ) : field.fieldType === "multiselect" ? (
-        <fieldset className="space-y-2">
+        // WIAZANIE IDZIE NA GRUPE, bo w tej galezi „polem" jest cala grupa
+        // pol wyboru, a nie ktorykolwiek z pojedynczych kwadracikow. Bez tego
+        // czytnik ekranu czyta sama nazwe grupy, a podpowiedzi organizatora
+        // i powodu odrzucenia formularza nie czyta w ogole.
+        <fieldset
+          className="space-y-2"
+          aria-describedby={describedBy === "" ? undefined : describedBy}
+        >
           <legend className="text-sm font-medium text-foreground">
             {label}
             {field.isRequired ? " *" : ""}

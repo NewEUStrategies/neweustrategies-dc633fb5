@@ -147,7 +147,14 @@ export function EventStudioTopBar({
                 key={value}
                 type="button"
                 onClick={() => pick(value)}
-                disabled={value === status}
+                // STAN W TRAKCIE ZAPISU JEST NIE DO WYBRANIA - dokladnie tak
+                // samo jak publikacja obok. Drugie zadanie zmiany tego samego
+                // wiersza rozstrzyga kolejnosc ODPOWIEDZI bazy, a nie kolejnosc
+                // klikniec: redaktor zobaczylby toast „opublikowano" przy
+                // wydarzeniu, ktore wlasnie odwolal. Menu ZOSTAJE otwieralne,
+                // bo chip jest takze jedynym miejscem, w ktorym widac biezacy
+                // stan wiersza.
+                disabled={value === status || isBusy}
                 className={cn(
                   "flex w-full items-center rounded-sm px-2 py-1.5 text-left text-xs hover:bg-muted",
                   value === status && "font-medium text-muted-foreground",

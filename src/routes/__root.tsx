@@ -1,12 +1,20 @@
-import { QueryClient } from "@tanstack/react-query";
+import { LoginPopupHost } from "../components/LoginPopupHost";
+import { CommandPaletteHost } from "../components/search/CommandPaletteHost";
+import { ExpertRequestDialogHost } from "../components/chat/ExpertRequestDialogHost";
+import { widgetPreloadHeaders } from "../lib/seo/widgetPreloads";
+import { createBackgroundScope } from "@/lib/backgroundScope";
+import { RouteLoadingSkeleton } from "../lib/ssr/RouteLoadingSkeleton";
+import { QueryClient, type QueryKey } from "@tanstack/react-query";
+import { isServer } from "@tanstack/router-core/isServer";
 import {
   Outlet,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { Suspense, lazy, useEffect, useMemo, type ReactNode } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState, type ReactNode } from "react";
 import { I18nextProvider } from "react-i18next";
 
 import appCss from "../styles.css?url";
@@ -14,11 +22,34 @@ import appCss from "../styles.css?url";
 // references, so the preload is reused (not a second download). See styles.css.
 import redHatDisplayLatin from "../assets/fonts/red-hat-display-latin.woff2?url";
 import redHatDisplayLatinExt from "../assets/fonts/red-hat-display-latin-ext.woff2?url";
-import { appendLinkHeader } from "../lib/http/responseHeaders";
+import { appendLinkHeader, setCacheControlHeader } from "../lib/http/responseHeaders";
+import { resilientCacheControl } from "../lib/ssr/resilientLoad";
+import { chromeDegradedCacheControl } from "../lib/http/cachePolicy";
+import {
+  HOME_THEME_BUDGET_MS,
+  hasSsrQueryData,
+  homeSsrDeadline,
+  remainingHomeBudget,
+} from "../lib/ssr/homeSsrBudget";
 import { buildRootHead } from "../lib/seo/meta";
-import { rootDocumentLinks, rootLinkHeaderValues, type RootAssets } from "../lib/seo/rootHead";
+import {
+  dictionaryPreloadLinkHeaderValue,
+  rootDocumentLinks,
+  rootLinkHeaderValues,
+  type RootAssets,
+} from "../lib/seo/rootHead";
+import { LOCALE_CHUNK_URLS } from "../lib/seo/localeChunks";
 import { showsSiteChrome } from "../lib/routing/siteChrome";
+import {
+  CHROME_ONLY_WARM_BUDGET_MS,
+  CLIENT_ONLY_WARM_BUDGET_MS,
+  isChromeOnlyDocument,
+  isClientOnlyDocument,
+} from "../lib/routing/clientOnlyDocument";
 import { THEME_INIT_SCRIPT } from "../lib/theme/themeInitScript";
+import { DOCK_RESERVE_INIT_SCRIPT } from "../lib/dock/reservedSpace";
+import { BOOT_PROBE_SCRIPT } from "../lib/observability/bootProbeScript";
+import { markAppReady } from "../lib/watchdog/appReady";
 import { speculationRulesJson } from "../lib/seo/speculationRules";
 import { afterPrerendering } from "../lib/prerender";
 import { getOrigin } from "../lib/seo/request";
@@ -30,21 +61,23 @@ import { currentLang } from "../lib/i18n/localeRuntime";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { FriendlyErrorPage } from "../components/error/FriendlyErrorPage";
 import { ThemeProvider } from "../components/ThemeProvider";
-import { AuthProvider } from "../hooks/useAuth";
+import { AuthProvider, useAuth } from "../hooks/useAuth";
 import { IconPackSync } from "../components/IconPackSync";
 import { DesignTokensStyle } from "../components/DesignTokensStyle";
 import { ContentAreaStyle } from "../components/ContentAreaStyle";
+import { postLayoutSettingsQueryOptions } from "../hooks/usePostLayoutSettings";
+import { defaultPostLayoutSettings } from "../lib/postLayouts";
 import { ThemeOptionsStyle } from "../components/ThemeOptionsStyle";
 import { ThemeDesignStyle } from "../components/theme/ThemeDesignStyle";
 import { ThemeFontSizesStyle } from "../components/theme/ThemeFontSizesStyle";
 import { ConsentScriptInjector } from "../components/ConsentScriptInjector";
 import { useEffectiveConsent } from "../lib/ads/consent";
 import { whenIdle } from "../lib/ads/idle";
+import { adPageTypeForLocation } from "../lib/ads/pageType";
+import { adPlacementsQueryOptions } from "../lib/ads/queries";
 
 import { ErrorBoundary } from "../components/ErrorBoundary";
-import { WidgetLiveSync } from "../lib/builder/widgetCacheInvalidation";
-import { SiteSettingsLiveSync } from "../lib/builder/siteSettingsLiveSync";
-import { CohesionLiveSync } from "../lib/realtime/cohesionLiveSync";
+import { onFirstToast } from "../lib/notify";
 import { resolveSetting, siteSettingsQueryOptions } from "../lib/useSiteSetting";
 import { parseSeoSettings, SEO_SETTINGS_KEY } from "../lib/seo/settings";
 import { rememberSocialDefaults } from "../lib/seo/socialDefaults";
@@ -53,52 +86,47 @@ import { headerTickerQueryOptions } from "../lib/views/headerTickerQuery";
 import { resolveActiveTickerConfig } from "../lib/views/tickerVariants";
 import { designTokensQueryOptions } from "../lib/builder/designTokens";
 import { globalColorsQueryOptions } from "../hooks/useGlobalColors";
-import { postLayoutSettingsQueryOptions } from "../hooks/usePostLayoutSettings";
 import { EMPTY_GLOBAL_COLORS } from "../lib/builder/globalColors";
 import type { HeaderSettings } from "../components/Header";
 import type { BuilderDocument } from "../lib/builder/types";
 import { defaultDocFor } from "../lib/builder/chromeDefaults";
-import { prefetchCachedRouteQueries } from "../lib/builder/prefetch";
+import { prefetchCachedRouteQueries, sectionQueryOptionsList } from "../lib/builder/prefetch";
 import { SiteChrome } from "../components/SiteChrome";
 import { GlobalAudioPlayerProvider, useGlobalAudioPlayer } from "../lib/audio/global-player";
 import { UnsavedChangesGuardHost } from "../components/UnsavedChangesGuardHost";
 import { AppDialogHost } from "../components/AppDialogHost";
 import { EMPTY_TOKENS } from "../lib/builder/designTokens";
-import { defaultPostLayoutSettings } from "../lib/postLayouts";
 import { withBudget } from "../lib/asyncBudget";
+import { registerChromeWarmup } from "../lib/ssr/chromeWarmup";
+import {
+  asGa4MeasurementId,
+  ga4SsrSnippet,
+  GA4_MEASUREMENT_ID,
+  GOOGLE_ADS_ID,
+} from "../lib/analytics/ga4Client";
+import { AnalyticsConfigSchema, defaultAnalyticsConfig } from "../lib/analytics/config";
 
-const ROOT_WARM_BUDGET_MS = 2_500;
+export const ROOT_WARM_BUDGET_MS = 2_500;
+
+/** Header/footer data may suspend only their own render boundaries for 500 ms.
+ * The root loader starts the work without awaiting it. ChromeDataGate restarts
+ * a pending query after the pre-render serialization sweep when necessary.
+ */
+export const CHROME_WARM_BUDGET_MS = 500;
 
 // Nakładki (popupy, paleta komend, pasek audio) nie są potrzebne do pierwszego
 // malowania ŻADNEJ strony - React.lazy trzyma je poza bundlem wejściowym
 // (wcześniej ładowały się na każdej stronie: cmdk, formularz newslettera z
 // rendererem dokumentów, formularz logowania...). Fallback null = zero CLS,
 // bo wszystkie renderują się jako overlaye/portale poza przepływem dokumentu.
-const LoginPopup = lazy(() =>
-  import("../components/LoginPopup").then((m) => ({ default: m.LoginPopup })),
-);
 const NewsletterPopup = lazy(() =>
   import("../components/NewsletterPopup").then((m) => ({ default: m.NewsletterPopup })),
-);
-const CommandPalette = lazy(() =>
-  import("../components/search/CommandPalette").then((m) => ({ default: m.CommandPalette })),
 );
 const PopupHost = lazy(() =>
   import("../components/popups/PopupHost").then((m) => ({ default: m.PopupHost })),
 );
 const GlobalAudioBar = lazy(() =>
   import("../components/audio/GlobalAudioBar").then((m) => ({ default: m.GlobalAudioBar })),
-);
-// Dialog "zapytaj eksperta" otwiera się WYŁĄCZNIE zdarzeniem busa
-// (expertRequestDialogBus) - statyczny import ciągnął 347-liniowy formularz
-// (zod + FloatingInput + hooki quota) i pełne słowniki PL+EN do chunku
-// wejściowego każdej strony, mimo że Suspense wokół hosta już istniał.
-// UWAGA: host musi być zamontowany od pierwszego renderu (bus nie ma replay
-// ostatniego zdarzenia) - lazy tylko wydziela chunk, nie odracza montażu.
-const ExpertRequestDialogHost = lazy(() =>
-  import("../components/chat/ExpertRequestDialogHost").then((m) => ({
-    default: m.ExpertRequestDialogHost,
-  })),
 );
 // Baner zgód renderuje null zarówno w SSR, jak i w pierwszym renderze klienta
 // (`mounted` przestawia się dopiero w useEffect), więc React.lazy nie zmienia
@@ -125,6 +153,169 @@ const ConsentPreviewPanel = lazy(() =>
 // przepada (sonner nie odtwarza historii subskrybentom) - realny nadawca
 // (mutacje operatora) nie kończy się przed hydratacją.
 const Toaster = lazy(() => import("../components/ui/sonner").then((m) => ({ default: m.Toaster })));
+
+// ── ŻYWA SYNCHRONIZACJA (realtime) - WYŁĄCZNIE DLA ZALOGOWANYCH ───────────
+//
+// Wszystkie trzy mostki są z definicji redakcyjne/członkowskie i KAŻDY z nich
+// sam w sobie no-opuje dla anonima:
+//   * `WidgetLiveSync`, `SiteSettingsLiveSync` - kanały `postgres_changes` stoją
+//     za `isStaff`, a lokalna podpowiedź to `window.dispatchEvent` wewnątrz
+//     TEGO SAMEGO dokumentu, czyli nadawcą jest zawsze mutacja panelu w tej
+//     karcie (anonim nie ma jej skąd wysłać);
+//   * `CohesionLiveSync` - oba haki (`useDomainEventInvalidation`,
+//     `usePendingCountersRealtime`) wychodzą na `if (!uid) return`.
+// Statyczny import ciągnął mimo to do chunku wejściowego całą ich zależność:
+// klienta Realtime (`vendor-supabase`) i mapę inwalidacji `eventInvalidationMap`
+// (~14,9 kB źródeł) - kod, którego anonimowy czytelnik NIGDY nie wykona
+// (audyt CWV 2026-09-20, F23). `React.lazy` + montaż dopiero po rozstrzygnięciu
+// sesji przenosi to poza domknięcie bootu strony publicznej.
+const WidgetLiveSync = lazy(() =>
+  import("../lib/builder/widgetCacheInvalidation").then((m) => ({ default: m.WidgetLiveSync })),
+);
+const SiteSettingsLiveSync = lazy(() =>
+  import("../lib/builder/siteSettingsLiveSync").then((m) => ({ default: m.SiteSettingsLiveSync })),
+);
+const CohesionLiveSync = lazy(() =>
+  import("../lib/realtime/cohesionLiveSync").then((m) => ({ default: m.CohesionLiveSync })),
+);
+
+/**
+ * Mostki realtime montowane dopiero, gdy sesja jest ROZSTRZYGNIĘTA i niepusta.
+ *
+ * `loading` z `useAuth` jest tu równie ważne jak `user`: bez niego pierwszy
+ * render (sesja jeszcze w `localStorage`) wyglądałby jak „anonim" i mostki
+ * zamontowałyby się dopiero po przeskoku stanu - czyli ten sam pop-in, tylko
+ * przesunięty. Odmontowanie przy wylogowaniu zamyka kanały (efekty wewnątrz
+ * mostków mają własne `removeChannel`).
+ */
+function AuthenticatedLiveSync() {
+  const { user, loading } = useAuth();
+  if (loading || !user) return null;
+  return (
+    <Suspense fallback={null}>
+      <WidgetLiveSync />
+      <SiteSettingsLiveSync />
+      <CohesionLiveSync />
+    </Suspense>
+  );
+}
+
+/**
+ * Ile czekamy z montażem nakładek „na później" (newsletter, popupy buildera,
+ * Toaster). Te same 3 000 ms, co cache-busting i heartbeat niżej: nic z tego
+ * nie ma prawa konkurować z LCP ani z pierwszą interakcją.
+ */
+const OVERLAY_IDLE_TIMEOUT_MS = 3_000;
+
+/**
+ * Baner zgód czeka KRÓCEJ (i dodatkowo na jedną klatkę, patrz `useOverlayGates`).
+ * To jedyna z pięciu nakładek, którą odwiedzający ma zobaczyć z własnej woli
+ * ustawodawcy, a nie z własnej - a przy okazji (audyt CWV, F30) to jej akapit
+ * bywał elementem LCP w laboratorium, bo wskakiwał jako duży blok tekstu
+ * w nakładce `position: fixed`.
+ */
+const CONSENT_IDLE_TIMEOUT_MS = 1_000;
+
+/**
+ * Kiedy montować leniwe nakładki korzenia (audyt CWV 2026-09-20, F19).
+ *
+ * PROBLEM. Pięć nakładek (`ConsentBanner`, `ConsentPreviewPanel`,
+ * `NewsletterPopup`, `PopupHost`, `Toaster`) było renderowanych BEZWARUNKOWO,
+ * a `React.lazy` startuje `import()` przy PIERWSZYM renderze - czyli pięć
+ * żądań chunków lądowało w commicie hydratacji, w oknie LCP i pierwszej
+ * interakcji KAŻDEJ strony. „Leniwy" znaczyło tu tylko „w osobnym pliku",
+ * nigdy „później".
+ *
+ * KONTRAKT, KTÓREGO NIE WOLNO ZŁAMAĆ. Baner zgód wolno WYŁĄCZNIE OPÓŹNIĆ,
+ * nigdy uzależnić od czegokolwiek, co zależy od decyzji odwiedzającego: jego
+ * efekty są jedynym pisarzem `setMarketingConsent`/`setConsentOverlayVisible`
+ * w `overlayCoordinator`, więc bramka „tylko dopóki nie zdecydowano"
+ * odblokowałaby popupy marketingowe u osób, które marketing ODRZUCIŁY.
+ * Dlatego `consentReady` nie ma ANI JEDNEGO warunku poza upływem czasu.
+ *
+ * `requestAnimationFrame` PRZED `whenIdle`: pierwsza klatka po hydratacji ma
+ * należeć do treści. `whenIdle` sam w sobie potrafi wystrzelić jeszcze w tym
+ * samym zadaniu (fallback `setTimeout` 32 ms), więc bez rAF baner wracałby do
+ * okna, z którego go wyjmujemy.
+ *
+ * DLACZEGO `overlaysReady` NIE CZEKA NA BANER (recenzja Codex, PR #382).
+ * Nakładki planują się niezależnie od baneru, więc przez chwilę - zanim jego
+ * leniwy chunk dojedzie - popup buildera z wyzwalaczem „immediate" mógł
+ * poprosić o slot, gdy koordynator nie wiedział jeszcze NIC o zgodzie.
+ * Bramę trzyma dziś `overlayCoordinator` (flaga `consentReported`): żaden wpis
+ * `marketing: true` nie dostanie slotu przed pierwszym zgłoszeniem baneru.
+ * Drugiej warstwy tutaj świadomie NIE dokładamy: montaż `NewsletterPopup`
+ * i `PopupHost` to samo pobranie chunku i uzbrojenie wyzwalaczy (nic nie
+ * widać), więc wiązanie go ze zgodami przesunęłoby tę pracę z okna
+ * bezczynności w gorszy moment, a nakładka spoza tego drzewa (pasek reklamowy
+ * w stopce) i tak omijałaby bramkę z `__root`. Kontrakt `consentReady` zostaje
+ * nietknięty - to nadal wyłącznie upływ czasu.
+ */
+function useOverlayGates(): { consentReady: boolean; overlaysReady: boolean } {
+  const [consentReady, setConsentReady] = useState(false);
+  const [overlaysReady, setOverlaysReady] = useState(false);
+
+  useEffect(() => {
+    let cancelIdle: (() => void) | null = null;
+    const frame = requestAnimationFrame(() => {
+      cancelIdle = whenIdle(() => setConsentReady(true), CONSENT_IDLE_TIMEOUT_MS);
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      cancelIdle?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    const cancel = whenIdle(() => setOverlaysReady(true), OVERLAY_IDLE_TIMEOUT_MS);
+    return cancel;
+  }, []);
+
+  return { consentReady, overlaysReady };
+}
+
+/**
+ * Czy `<Toaster/>` (chunk sonnera) ma być już zamontowany.
+ *
+ * DWA NIEZALEŻNE WYZWALACZE, oba potrzebne:
+ *   1. `onFirstToast` z `lib/notify.ts` - NATYCHMIAST, gdy toast pada wcześniej
+ *      niż bezczynność. Bez tego toast ze ścieżki bootowania przepadłby
+ *      (sonner nie odtwarza historii nowym subskrybentom);
+ *   2. `whenIdle(…, 3000)` - bezwarunkowo, bo most `lib/notify.ts` widzi
+ *      WYŁĄCZNIE swoich wołających, a `import { toast } from "sonner"` wprost
+ *      robi w tym repozytorium kilkaset modułów (m.in. akcje przy wpisie).
+ *      Gdyby montaż zależał tylko od mostu, ich toasty ginęłyby bez śladu.
+ * Pierwszy wyzwalacz skraca czas do montażu; drugi jest gwarancją poprawności.
+ * Efekt netto dla F19: chunk sonnera wychodzi z commitu hydratacji.
+ */
+function useToasterWanted(): boolean {
+  const [wanted, setWanted] = useState(false);
+
+  useEffect(() => {
+    if (wanted) return;
+    const stopListening = onFirstToast(() => setWanted(true));
+    const cancelIdle = whenIdle(() => setWanted(true), OVERLAY_IDLE_TIMEOUT_MS);
+    return () => {
+      stopListening();
+      cancelIdle();
+    };
+  }, [wanted]);
+
+  return wanted;
+}
+
+/** Czy adres prosi o panel podglądu zgód (`?consent-preview=1`). */
+function useConsentPreviewRequested(): boolean {
+  return useRouterState({
+    select: (s) => {
+      const value = (s.location.search as Record<string, unknown>)["consent-preview"];
+      // Router parsuje wartości wyszukiwania (`1` bywa liczbą, nie napisem),
+      // więc porównujemy po normalizacji - inaczej panel nie otworzyłby się
+      // nigdy, a defekt byłby niemy.
+      return value === 1 || value === "1";
+    },
+  });
+}
 
 // Pasek audio montuje się (i dociąga swój chunk) dopiero, gdy odtwarzacz ma
 // track albo zgłosił błąd (toast o nieudanym TTS mieszka w GlobalAudioBar).
@@ -154,35 +345,6 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   return <FriendlyErrorPage error={error} reset={reset} />;
 }
 
-function RouteLoadingSkeleton() {
-  // Delayed fade-in (opacity 0 -> 1 after 180ms) sprawia, że krótkie
-  // przejścia (<200ms, gdy trasa jest już preloadowana) nie migają
-  // szkieletem - użytkownik widzi tylko płynny cross-fade View Transitions,
-  // a shimmer pojawia się dopiero przy naprawdę wolnych ładowaniach.
-  return (
-    <div
-      className="min-h-[55vh] w-full px-4 py-8 lg:px-8 animate-[route-skeleton-in_260ms_ease-out_140ms_both]"
-      aria-busy="true"
-    >
-      <div className="mx-auto max-w-[1200px] space-y-6">
-        <div className="skeleton-shimmer h-5 w-40 rounded" />
-        <div className="skeleton-shimmer h-10 w-2/3 max-w-2xl rounded" />
-        <div className="grid gap-5 md:grid-cols-3">
-          <div className="md:col-span-2 space-y-4">
-            <div className="skeleton-shimmer aspect-[16/7] rounded-xl" />
-            <div className="skeleton-shimmer h-4 w-full rounded" />
-            <div className="skeleton-shimmer h-4 w-5/6 rounded" />
-          </div>
-          <div className="space-y-3">
-            <div className="skeleton-shimmer h-24 rounded-xl" />
-            <div className="skeleton-shimmer h-24 rounded-xl" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /**
  * URL-e zasobów krytycznych rozwiązane przez bundler (`?url`). Jeden obiekt dla
  * `<head>` i dla nagłówka HTTP `Link` - gdyby były dwa, mogłyby się rozjechać.
@@ -193,8 +355,68 @@ const ROOT_ASSETS: RootAssets = {
   fontLatinExt: redHatDisplayLatinExt,
 };
 
+// Identyfikator pomiaru GA4 dla tagu w SSR: zmienna konektora Google Analytics
+// (build-time) WYŁĄCZNIE gdy ma kształt identyfikatora pomiaru - klucz API
+// podstawiony pod tę zmienną nie może trafić do publicznego HTML - a w
+// przeciwnym razie stała wdrożenia. Ta sama kolejność co w bootstrapie
+// klienckim (`resolveBrowserGa4Id`), więc SSR i klient mówią o jednym strumieniu.
+const ROOT_GA4_ID: string =
+  asGa4MeasurementId(import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY) ||
+  GA4_MEASUREMENT_ID;
+
+/** Tag Google emitowany w SSR: strumień GA4 z ustawień najemcy albo stała wdrożenia. */
+interface SsrGoogleTag {
+  measurementId: string;
+  enabled: boolean;
+}
+
+const DEFAULT_SSR_GOOGLE_TAG: SsrGoogleTag = { measurementId: ROOT_GA4_ID, enabled: true };
+
+/**
+ * Strumień GA4 dla tagu w `<head>` z wpisu panelu analityki
+ * (`site_settings.analytics`), którego `head()` sam nie widzi - jedzie przez
+ * `loaderData` korzenia. Wpis o kształcie innym niż `G-XXXXXXXXXX` (np. klucz
+ * API wklejony przez pomyłkę) nie trafia do HTML - zostaje stała wdrożenia.
+ * „Odłącz GA4" w panelu (`ga4_enabled: false`) wyłącza tag w SSR; bootstrap
+ * kliencki (`ConsentScriptInjector`) dopina się do TEGO strumienia, więc SSR
+ * i klient nigdy nie konfigurują dwóch różnych. Dokument jest cache'owany na
+ * brzegu, więc zmiana w panelu dochodzi z opóźnieniem `s-maxage` dokumentu.
+ */
+/**
+ * `head()` jest deklarowany PRZED `loader` w tym samym literale, więc TypeScript
+ * nie zna jeszcze typu `loaderData` (widzi `never`). Czytamy więc pole przez
+ * jawne zawężenie z `unknown` - bez `any` i bez rzutowania na kształt trasy.
+ */
+function ssrGoogleTagFromLoaderData(loaderData: unknown): SsrGoogleTag {
+  if (loaderData === null || typeof loaderData !== "object") return DEFAULT_SSR_GOOGLE_TAG;
+  const tag = (loaderData as { ga4?: unknown }).ga4;
+  if (tag === null || typeof tag !== "object") return DEFAULT_SSR_GOOGLE_TAG;
+  const { measurementId, enabled } = tag as { measurementId?: unknown; enabled?: unknown };
+  if (typeof measurementId !== "string" || typeof enabled !== "boolean") {
+    return DEFAULT_SSR_GOOGLE_TAG;
+  }
+  return { measurementId, enabled };
+}
+
+function ssrGoogleTag(settings: Readonly<Record<string, unknown>> | undefined): SsrGoogleTag {
+  const analytics = resolveSetting(
+    settings,
+    "analytics",
+    defaultAnalyticsConfig(),
+    AnalyticsConfigSchema,
+  );
+  if (analytics.ga4_enabled === false) return { measurementId: "", enabled: false };
+  return {
+    measurementId: asGa4MeasurementId(analytics.ga4_measurement_id) || ROOT_GA4_ID,
+    enabled: true,
+  };
+}
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  head: () => {
+  head: (ctx) => {
+    // Tag Google z loaderData (patrz `ssrGoogleTag`); bez loaderData (render
+    // błędu, wywołanie bez kontekstu) - stała wdrożenia.
+    const googleTag = ssrGoogleTagFromLoaderData(ctx?.loaderData);
     // One language source for the whole document head, matching the <html lang>
     // RootShell emits. Both read the request-scoped currentLang() (NOT the
     // module-global i18next singleton, which is shared across concurrent SSR
@@ -210,7 +432,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         // Mobile viewport is declared directly in the root route so every page
         // (including error/fallback renders) carries it, even when a child route
         // overrides the rest of the meta stack.
-        { name: "viewport", content: "width=device-width, initial-scale=1" },
+        {
+          name: "viewport",
+          content:
+            "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content",
+        },
         ...buildRootHead(lang, getOrigin()),
       ],
       // Red Hat Display is self-hosted via @font-face in styles.css (see there),
@@ -227,7 +453,27 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       // nawigacje SPA, więc prerenderowany dokument nigdy nie byłby
       // konsumowany (szczegóły w speculationRules.ts). Beacony i tak są
       // osłonięte przed prerenderem w src/lib/prerender.ts.
-      scripts: [{ type: "speculationrules", children: speculationRulesJson() }],
+      scripts: [
+        // Tag Google w SSR - SAM SNIPPET, BEZ `<script src>`. Warstwa danych,
+        // tryb domyślnej odmowy i konfiguracja obu miejsc docelowych (GA4 +
+        // Google Ads) jadą w pierwszym bajcie HTML, inline, za ~1,3 kB i zero
+        // żądań: bez zgody nie powstają cookies, a decyzję odwiedzającego
+        // aplikuje `ga4ConsentUpdate` (ConsentScriptInjector).
+        //
+        // SAM gtag.js ZSZEDŁ STĄD ZA BEZCZYNNOŚĆ (audyt CWV 2026-09-20, F20 /
+        // plan 3.3). Był to jedyny obcy origin w `<head>`, bez `preconnect`,
+        // ~90 KB parse+execute - a `src/router.tsx` czeka `setTimeout(0)` przed
+        // hydratacją, więc makrozadanie hydratacji stawało ZA nim. Dociąga go
+        // `ConsentScriptInjector` przez `whenIdle(…, 2000)` po `markAppReady()`;
+        // polecenia z tego okna czekają w `window.dataLayer` (natywna kolejka
+        // gtag.js), więc ani zgoda, ani pierwsza odsłona nie giną.
+        // Hosty Google zostają w CSP (`start.ts`) - skrypt nadal się wczytuje,
+        // tylko później.
+        ...(googleTag.enabled
+          ? [{ children: ga4SsrSnippet(googleTag.measurementId, GOOGLE_ADS_ID) }]
+          : []),
+        { type: "speculationrules", children: speculationRulesJson() },
+      ],
     };
   },
   // Prefetch the entire site_settings bulk map on the server. The same query
@@ -235,6 +481,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   // round-trip on the edge hydrates every layout chunk so chrome renders
   // in lockstep with the route body instead of popping in after hydration.
   loader: async ({ context, location }) => {
+    const path = location.pathname;
+    const isHome = path === "/" || path === "/en" || path === "/en/";
+    const homeDeadline = isServer && isHome ? homeSsrDeadline(context.queryClient) : undefined;
     // 301 legacy/preview hosts of the hosting layer (see canonicalRedirect.ts)
     // to https://neweuropeanstrategies.com preserving path + query. Runs
     // server-side only; editor preview (id-preview--*, EDITOR_HOST_SUFFIXES) and
@@ -247,9 +496,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // HIT/STALE - to fundament pod 103 Early Hints na Cloudflare. Zestaw jest
     // per-język (latin-ext tylko dla PL), a dokumenty są keyowane ścieżką
     // z prefiksem języka, więc wpis cache nigdy nie niesie cudzych hintów.
-    for (const value of rootLinkHeaderValues(currentLang(), ROOT_ASSETS)) {
+    const renderLang = currentLang();
+    for (const value of rootLinkHeaderValues(renderLang, ROOT_ASSETS)) {
       appendLinkHeader(value);
     }
+    // Chunk rdzenia SŁOWNIKA aktywnego języka - WYŁĄCZNIE nagłówkiem, nigdy
+    // `<link>`-iem w `<head>`. Nazwa pliku jest znana tylko w środowisku
+    // serwerowym (bundel przeglądarki wczytuje moduł wirtualny, zanim chunki
+    // dostaną nazwy), więc węzeł w `<head>` byłby rozjazdem tożsamości korzenia
+    // dokumentu. Pełne uzasadnienie: `lib/seo/rootHead.ts` przy
+    // `dictionaryPreloadLinkHeaderValue` i nagłówek
+    // `scripts/lib/localeChunkPlugin.ts`.
+    const dictionaryHint = dictionaryPreloadLinkHeaderValue(LOCALE_CHUNK_URLS[renderLang]);
+    if (dictionaryHint) appendLinkHeader(dictionaryHint);
     // Warm site_settings + design tokens / global colors / post-layout so
     // <DesignTokensStyle />, <ContentAreaStyle /> and friends render their
     // `<style>` server-side. Without this the first paint uses raw styles.css
@@ -258,8 +517,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     //
     // CRITICAL: this loader runs on EVERY route, so it MUST NOT be a single
     // point of total failure. These are all presentation-layer caches with
-    // built-in defaults (resolveSetting / EMPTY_TOKENS / EMPTY_GLOBAL_COLORS /
-    // defaultPostLayoutSettings). Warming them is best-effort: a failed fetch
+    // built-in defaults (resolveSetting / EMPTY_TOKENS / EMPTY_GLOBAL_COLORS).
+    // Warming them is best-effort: a failed fetch
     // (transient network blip, cold edge worker, momentarily unreachable
     // backend, one corrupt row) must degrade to defaults, never throw and 500
     // the whole site. `allSettled` never rejects; per-route content loaders
@@ -274,46 +533,148 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // z chrome'em. Startujemy je tutaj, równolegle z ustawieniami; druga fala
     // dostaje już rozgrzane obietnice i czeka tylko na to, co naprawdę
     // wymagało ustawień.
-    const path = location.pathname;
     const showsChrome = showsSiteChrome(path);
     // `.catch(() => null)` przy starcie, nie przy zbieraniu: obietnica leci
     // w tle przez całą pierwszą falę i nieobsłużone odrzucenie w tym oknie
     // wywróciłoby proces renderu.
-    const menuWarm: Promise<unknown>[] = showsChrome
-      ? [
-          import("../lib/menus/queries")
-            .then(({ menuWithItemsQueryOptions }) =>
-              Promise.all(
-                (["main", "footer"] as const).map((key) =>
-                  context.queryClient.ensureQueryData(menuWithItemsQueryOptions(key)),
-                ),
-              ),
-            )
-            .catch(() => null),
-        ]
-      : [];
+    const warmMenus = async () => {
+      const { menuWithItemsQueryOptions } = await import("../lib/menus/queries");
+      await Promise.allSettled(
+        ["main", "footer"].map((key) =>
+          context.queryClient.ensureQueryData(menuWithItemsQueryOptions(key)),
+        ),
+      );
+    };
+    if (showsChrome) void warmMenus().catch(() => null);
 
+    // FALA 1 - wyłącznie to, czego render nie ma czym zastąpić.
+    //
+    // `postLayoutSettings` NIE JEST tu już ROZGRZEWANE SIECIOWO: to OSOBNY klucz
+    // `edgeTtlCache("post_layout_settings:row")`, czyli osobny round-trip na
+    // każdej trasie publicznej. Trasa wpisu/strony grzeje go sobie sama
+    // (`routes/$.tsx`), a tu zostaje wyłącznie ZASIEW DOMYŚLNYCH (niżej) -
+    // za zero round-tripów.
+    //
+    // PO CO MIMO TO ZASIEW (niżej) - uzasadnienie przepisane 2026-09-20, bo
+    // poprzednie przestało być prawdziwe. Stało tu, że bez wpisu w cache'u
+    // `ContentAreaStyle` emituje w SSR DOSŁOWNIE ZERO BAJTÓW; tak było, dopóki
+    // komponent miał gałąź `return null`. Naprawa F29a ją usunęła: bez wiersza
+    // komponent emituje dziś pełny blok z `defaultPostLayoutSettings()`
+    // (`components/ContentAreaStyle.tsx`, wzorzec `ThemeFontSizesStyle`), więc
+    // odstępy akapitów i typografia linków są w pierwszym malowaniu NIEZALEŻNIE
+    // od tego zasiewu.
+    //
+    // Zasiew zostaje z dwóch powodów, i żaden z nich nie jest kosmetyczny.
+    // (1) PARYTET SSR/KLIENT. Komponent i zasiew biorą TĘ SAMĄ stałą
+    // `defaultPostLayoutSettings()`, więc wpis w cache'u nie może rozjechać
+    // serwerowego i klienckiego renderu - a zasiew przesądza, że pierwszy render
+    // klienta czyta dokładnie to, co wypisał serwer, zamiast przechodzić przez
+    // `data === undefined`. (2) WARTOŚCI NAJEMCY. Zasiew jest
+    // PRZETERMINOWANY (`updatedAt: 0`), więc klient dociąga wiersz z bazy
+    // natychmiast po hydratacji; bez wpisu zapytanie i tak by wystartowało, ale
+    // cache korzenia nie niósłby żadnej informacji o tym kluczu do dehydracji.
+    //
+    // Zasiew niżej kosztuje ZERO round-tripów i jest PRZYWRÓCENIEM stanu
+    // z `main` (tam ten sam `defaultPostLayoutSettings()` był zasiewany
+    // w `__root.tsx`), więc nie może być regresją wobec bazy - tylko że tutaj
+    // rodzi się `{ updatedAt: 0 }`, czego wersja z maina nie miała.
+    //
+    // `globalColors` ZOSTAJE, wbrew pozorom bezkosztowo: jego `queryFn` i
+    // `queryFn` tokenów wołają TEN SAM `fetchSiteDesignTokensRow()` z dedupem
+    // in-flight i wspólnym `edgeTtlCache("site_design_tokens:row")`
+    // (lib/builder/designTokens.ts:79-97), więc oba zapytania zbiegają do
+    // JEDNEGO fetcha. Wyrzucenie go nie oszczędza ani milisekundy, a zabiera
+    // z SSR-owego HTML-a całą połowę `<DesignTokensStyle/>`: `--gc-*`,
+    // nadpisania `--background`/`--foreground`/`--primary`/`--card` i mostek
+    // klas widgetów - czyli funduje repaint motywu po hydratacji na każdej
+    // stronie. Zmierzone: 3 równoległe podżądania -> 2.
+    // TERMIN FALI 1 - trzy rozłączne kontrakty: strona główna (wspólny deadline
+    // renderu docięty `HOME_THEME_BUDGET_MS`), dokument bez serwerowego renderu
+    // (uzasadnienie i wartość: `lib/routing/clientOnlyDocument.ts`), reszta
+    // serwisu bez zmian. Trzeci argument `withBudget` może budżet wyłącznie
+    // SKRÓCIĆ, więc żaden wariant nie podnosi sufitu pilnowanego przez
+    // `check:ssr-budgets`.
+    // Czwarty kontrakt (plan 1.4): powierzchnia Z chrome'em, ale BEZ
+    // serwerowego renderu treści (profil, sieć, checkout - widok rozstrzyga
+    // sesja po hydratacji). Fala 1 maluje tu tylko nagłówek i stopkę, więc nie
+    // czeka pełnych 2 500 ms na dane, z których nie powstanie treść.
+    const chromeOnly = isServer && homeDeadline === undefined && isChromeOnlyDocument(path);
+    const themeDeadline =
+      homeDeadline !== undefined
+        ? Math.min(homeDeadline, Date.now() + HOME_THEME_BUDGET_MS)
+        : isServer && isClientOnlyDocument(path)
+          ? Date.now() + CLIENT_ONLY_WARM_BUDGET_MS
+          : chromeOnly
+            ? Date.now() + CHROME_ONLY_WARM_BUDGET_MS
+            : undefined;
     await withBudget(
       Promise.allSettled([
         context.queryClient.ensureQueryData(siteSettingsQueryOptions),
         context.queryClient.ensureQueryData(designTokensQueryOptions),
         context.queryClient.ensureQueryData(globalColorsQueryOptions),
-        context.queryClient.ensureQueryData(postLayoutSettingsQueryOptions()),
       ]),
       ROOT_WARM_BUDGET_MS,
+      themeDeadline,
     );
+    // Only homepage SSR opts into early cancellation. Another route may be
+    // awaiting this same settings promise and retains its existing contract.
+    if (homeDeadline !== undefined) {
+      for (const queryKey of [
+        siteSettingsQueryOptions.queryKey,
+        designTokensQueryOptions.queryKey,
+        globalColorsQueryOptions.queryKey,
+      ]) {
+        if (!hasSsrQueryData(context.queryClient, queryKey)) {
+          setCacheControlHeader(resilientCacheControl(true));
+          await context.queryClient.cancelQueries({ queryKey, exact: true }).catch(() => undefined);
+        }
+      }
+    }
+    // Termin chrome-only minął bez ustawień: nagłówek pójdzie na domyślnych
+    // (zasiew niżej), a taki dokument nie ma prawa utrwalić się na brzegu.
+    if (chromeOnly && !hasSsrQueryData(context.queryClient, siteSettingsQueryOptions.queryKey)) {
+      setCacheControlHeader(resilientCacheControl(true));
+    }
+    // `updatedAt: 0` - zasiew MUSI rodzić się PRZETERMINOWANY.
+    //
+    // Bez tego argumentu `setQueryData` stempluje wpis `Date.now()`, a
+    // `staleTime` tych zapytań to 5-10 minut: jedna czkawka bazy w oknie fali 1
+    // przypinała WBUDOWANE DOMYŚLNE w cache'u klienta na cały ten czas i klient
+    // nigdy nie dociągał prawdziwej wartości. Dla `site_settings` skutek był
+    // najostrzejszy: `Header` zwraca `null`, gdy `builder_data.sections` jest
+    // puste (components/Header.tsx), czyli czytelnik oglądał stronę BEZ
+    // NAGŁÓWKA do końca wizyty. Doktryna jest w repo o jedną trasę dalej
+    // (routes/index.tsx - zasiew z `{ updatedAt: 0 }`, przypięty testem
+    // homeRoute.test.tsx: "inaczej strona nie wyleczy się sama po powrocie
+    // backendu"); tu jej brakowało.
     if (!context.queryClient.getQueryData(siteSettingsQueryOptions.queryKey)) {
-      context.queryClient.setQueryData(siteSettingsQueryOptions.queryKey, Object.freeze({}));
+      context.queryClient.setQueryData(siteSettingsQueryOptions.queryKey, Object.freeze({}), {
+        updatedAt: 0,
+      });
     }
     if (!context.queryClient.getQueryData(designTokensQueryOptions.queryKey)) {
-      context.queryClient.setQueryData(designTokensQueryOptions.queryKey, EMPTY_TOKENS);
+      context.queryClient.setQueryData(designTokensQueryOptions.queryKey, EMPTY_TOKENS, {
+        updatedAt: 0,
+      });
     }
     if (!context.queryClient.getQueryData(globalColorsQueryOptions.queryKey)) {
-      context.queryClient.setQueryData(globalColorsQueryOptions.queryKey, EMPTY_GLOBAL_COLORS);
+      context.queryClient.setQueryData(globalColorsQueryOptions.queryKey, EMPTY_GLOBAL_COLORS, {
+        updatedAt: 0,
+      });
     }
+    // ZASIEW BEZ ROZGRZEWKI - jedyny taki tutaj i dlatego z osobnym zdaniem.
+    // Trzy zasiewy wyżej domykają zapytania, które fala 1 PRÓBOWAŁA pobrać; ten
+    // domyka klucz, którego fala 1 świadomie NIE dotyka (uzasadnienie wyżej).
+    // `ContentAreaStyle` radzi sobie dziś bez niego (emituje blok z tej samej
+    // stałej), więc zasiew nie ratuje już pierwszego malowania - trzyma PARYTET
+    // SSR/KLIENT na jednej wartości. `{ updatedAt: 0 }` znaczy, że klient i tak
+    // dociągnie wartości najemcy natychmiast po hydratacji - domyślne są tu
+    // pierwszym malowaniem, nie ostatnim słowem.
     const postLayoutKey = postLayoutSettingsQueryOptions().queryKey;
     if (!context.queryClient.getQueryData(postLayoutKey)) {
-      context.queryClient.setQueryData(postLayoutKey, defaultPostLayoutSettings());
+      context.queryClient.setQueryData(postLayoutKey, defaultPostLayoutSettings(), {
+        updatedAt: 0,
+      });
     }
     const settings = context.queryClient.getQueryData<Readonly<Record<string, unknown>>>(
       siteSettingsQueryOptions.queryKey,
@@ -327,6 +688,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       rememberSocialDefaults(getOrigin(), {
         imageUrl: seo.default_og_image_url,
         imageAlt: seo.default_og_image_alt,
+        twitterCard: seo.twitter_card_type,
       });
       // Redakcyjny tytuł i opis serwisu (/admin/settings/site-identity) - ta
       // sama droga: pamięć kluczowana hostem czytana przez buildRootHead()
@@ -334,6 +696,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       rememberBrandDefaults(getOrigin(), {
         title: { pl: seo.site_title_pl, en: seo.site_title_en },
         description: { pl: seo.site_description_pl, en: seo.site_description_en },
+        // Nazwa serwisu (/admin/seo/homepage) - zasila `og:site_name` oraz
+        // `WebSite.name`/`alternateName`, czyli linię nazwy w wynikach Google.
+        name: seo.site_name,
+        alternateName: seo.site_name_alternate,
       });
     } catch {
       /* karta społecznościowa to dekoracja - nigdy nie wywraca renderu */
@@ -345,14 +711,52 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // postViews.functions), so in steady state this adds no extra round-trips.
     if (showsChrome) {
       try {
+        const chromeBudget =
+          homeDeadline === undefined
+            ? CHROME_WARM_BUDGET_MS
+            : remainingHomeBudget(homeDeadline, CHROME_WARM_BUDGET_MS);
         const header = resolveSetting<HeaderSettings>(settings, "header", {});
         const trending = resolveActiveTickerConfig(header.trending);
         const headerVisible = !!header.builder_data?.sections?.length;
-        const tickerWarm =
-          headerVisible && trending.enabled !== false
-            ? context.queryClient
-                .ensureQueryData(headerTickerQueryOptions(trending))
-                .catch(() => undefined)
+        if (isServer && headerVisible && header.builder_data) {
+          for (const hint of widgetPreloadHeaders(header.builder_data, 3)) appendLinkHeader(hint);
+        }
+        const chromeQueryKeys: QueryKey[] = [
+          ["menu-with-items", "main"],
+          ["menu-with-items", "footer"],
+        ];
+        // BANER `header_banner` - jedyny slot reklamowy renderowany przez samo
+        // CHROME (`components/Header.tsx` -> `<AdZone position="header_banner">`;
+        // pozostałe pozycje - `sidebar`, `top_of_post`, `mid_post`, `in_feed`,
+        // `footer_slideup` - należą do treści trasy, nie do powłoki).
+        //
+        // `AdZone` zwraca `null` bez danych, a `AdContainer` rezerwuje wtedy
+        // ZERO pikseli, więc 90 px banera NAD treścią dojeżdżało po hydratacji:
+        // ~0,11 CLS, najdroższa pojedyncza pozycja audytu CWV 2026-09-20 (F26).
+        // Rozgrzany klucz maluje baner już w SSR, a `HeaderSkeleton` czyta
+        // dokładnie ten sam wpis (`useHeaderSkeletonProps`), więc szkielet i
+        // realny nagłówek rezerwują tę samą wysokość.
+        //
+        // TYP STRONY TYLKO Z URL-a. `SiteChrome` liczy go przez
+        // `adPageTypeForLocation(pathname, contentKind)`, a `contentKind`
+        // pochodzi z `loaderData` trasy dopasowanej - korzeń go nie zna.
+        // Grzejemy więc WYŁĄCZNIE wtedy, gdy sam adres rozstrzyga typ
+        // (home/archive/category/tag/search/event); dla reszty wynikiem jest
+        // "all", a pod tym adresem może stać zarówno trasa statyczna (gdzie
+        // "all" byłoby trafne), jak i catch-all `$` z typem "post"/"page"
+        // (gdzie rozgrzalibyśmy klucz, którego nikt nie czyta - round-trip za
+        // nic na NAJCZĘŚCIEJ odwiedzanej powierzchni serwisu). Klucze wpisu
+        // grzeje loader `$.tsx`: `adPlacementsQueryOptions("header_banner",
+        // kind)` plus pozycje treści z `pageId`.
+        const adPageType = adPageTypeForLocation(path, null);
+        const headerAds =
+          adPageType === "all" ? null : adPlacementsQueryOptions("header_banner", adPageType);
+        if (headerVisible && trending.enabled !== false) {
+          chromeQueryKeys.push(headerTickerQueryOptions(trending).queryKey);
+        }
+        const tickerWarm = () =>
+          chromeBudget > 0 && headerVisible && trending.enabled !== false
+            ? context.queryClient.ensureQueryData(headerTickerQueryOptions(trending))
             : Promise.resolve();
         // Nawigacja i pozostałe data-bound widgety CHROME (header + footer to
         // pełnoprawne dokumenty buildera): bez tego SSR renderował fallback
@@ -380,38 +784,101 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         // w stanie `pending` w dehydratowanym `$_TSR.router` - inaczej klient
         // po hydratacji czekałby w nieskończoność na strumień, który nie wróci
         // (poniżej strażnik, który taki stan resetuje).
-        const chromeWarm: Promise<unknown>[] = [tickerWarm, ...menuWarm];
-        if (headerVisible && header.builder_data) {
-          chromeWarm.push(
-            prefetchCachedRouteQueries(context.queryClient, header.builder_data, lang, 2500),
+        const chromeWarm: Array<() => Promise<unknown>> = [tickerWarm, warmMenus];
+        // Reklama jest DEKORACJĄ i dlatego jej klucz NIE trafia do
+        // `chromeQueryKeys`. Tamta lista rozstrzyga, czy dokument wolno utrwalić
+        // na brzegu: nierozgrzany slot znaczyłby „dokument niekompletny" i
+        // zbijał każdy taki render do `s-maxage=30` (albo `no-store`) - czyli
+        // brak sprzedanej emisji kosztowałby cache CAŁEGO serwisu. Brak banera
+        // degraduje wyłącznie rezerwację jego własnych 90 px, a tę i tak trzyma
+        // `HeaderSkeleton` na podstawie tego samego (pustego) wpisu.
+        if (headerAds) {
+          chromeWarm.push(() => context.queryClient.ensureQueryData(headerAds));
+        }
+        // NAGŁÓWEK I STOPKA JEDNĄ PĘTLĄ, nie dwoma kopiami tego samego bloku.
+        // Oba są pełnoprawnymi dokumentami buildera i dostają DOKŁADNIE tę samą
+        // obsługę (klucze sekcji do listy świeżości + jedna rozgrzewka w budżecie
+        // fali chrome), a kolejność - najpierw nagłówek - zostaje bez zmian.
+        //
+        // Scalenie ma też drugi, mierzalny skutek: `check:ssr-budgets` liczy
+        // WYSTĄPIENIA zapisów do cache'u zapytań w loaderze
+        // (`dehydrationWritesPerLoader`, sufit 11 = cena stanu dzisiejszego,
+        // ZERO zapasu). Dwa identyczne wywołania `prefetchCachedRouteQueries`
+        // zajmowały tam dwie pozycje za jedną robotę; jedno wywołanie zwalnia
+        // miejsce dokładnie na rozgrzewkę banera wyżej - bez podnoszenia sufitu.
+        for (const doc of [headerVisible ? header.builder_data : null, footerDoc]) {
+          if (!doc?.sections?.length) continue;
+          chromeQueryKeys.push(
+            ...doc.sections.flatMap((section) =>
+              sectionQueryOptionsList(section, lang).map((options) => options.queryKey),
+            ),
           );
+          if (chromeBudget > 0)
+            chromeWarm.push(() =>
+              prefetchCachedRouteQueries(context.queryClient, doc, lang, chromeBudget),
+            );
         }
-        if (footerDoc?.sections?.length) {
-          chromeWarm.push(prefetchCachedRouteQueries(context.queryClient, footerDoc, lang, 2500));
-        }
-        // Ten sam twardy budżet obowiązuje przy pierwszym SSR i przy każdej
-        // nawigacji klientowej. Menu/ticker/widget chrome są dekoracją i nie
-        // mogą zatrzymać rozwiązania trasy (objaw: URL i przyciski reagują na
-        // klik, ale ekran pozostaje bezczynny, bo jeden fetch czeka bez końca).
-        // Niedokończone zapytania pozostają w React Query i mogą uzupełnić UI
-        // po rozwiązaniu trasy; render ma bezpieczne wartości domyślne.
-        await withBudget(Promise.allSettled(chromeWarm), ROOT_WARM_BUDGET_MS);
+        const initialChromeWarmup = registerChromeWarmup(context.queryClient, {
+          ready: () => chromeQueryKeys.every((key) => hasSsrQueryData(context.queryClient, key)),
+          expired: () =>
+            homeDeadline !== undefined &&
+            remainingHomeBudget(homeDeadline, CHROME_WARM_BUDGET_MS) <= 0,
+          // Dwa rodzaje degradacji, dwie polityki (lib/ssr/chromeWarmup.tsx):
+          // `chrome` = dane powłoki dostrumieniują się po flushu shella, dokument
+          // będzie kompletny - wolno go współdzielić KRÓTKO (s-maxage=30);
+          // `failed` = rozgrzewka padła albo budżet wyczerpany - `no-store`.
+          // Scalenie w `setCacheControlHeader` gwarantuje, że ostrzejsza wygrywa.
+          markDegraded: (kind) =>
+            setCacheControlHeader(
+              kind === "failed" ? resilientCacheControl(true) : chromeDegradedCacheControl(),
+            ),
+          warm: async () => {
+            if (chromeBudget <= 0) return;
+            await withBudget(
+              Promise.allSettled(chromeWarm.map((work) => work())),
+              CHROME_WARM_BUDGET_MS,
+              homeDeadline,
+            );
+          },
+        });
+        // Content routes must carry navigation in the first shell. Otherwise
+        // the pre-render sweep cancels this work and HeaderSkeleton later
+        // grows by ~180 px (CMS artifact trace). The existing 500 ms budget
+        // still bounds the wait. Homepage retains its shared deadline.
+        if (isServer && homeDeadline === undefined) await initialChromeWarmup;
         // Sanity-guard: jeżeli którekolwiek zapytanie menu zostało anulowane
         // przez HMR i zostało w stanie `pending`, zresetuj je - inaczej klient
         // po hydratacji zawiesi się czekając na strumień, który już nie wróci.
+        // Predykat ZAWĘŻONY do zapytań, które NIE MOGĄ się już rozstrzygnąć:
+        // `pending` + `fetchStatus: "idle"` + brak danych. Ten sam warunek co
+        // `isUnresolvableQuery` (lib/ssr/pruneUnresolvedQueries.ts).
+        //
+        // Sam `status === "pending"` był za szeroki i przy budżecie 500 ms staje
+        // się AKTYWNĄ ŚCIEŻKĄ UTRATY DANYCH: zapytanie, któremu wyczerpał się
+        // budżet, ale które NADAL LECI, zdąży się jeszcze rozstrzygnąć w oknie
+        // renderu i pojechać do klienta strumieniem integracji
+        // router<->query - a usunięcie go tutaj gwarantuje zamiast tego pusty
+        // fallback i refetch po hydratacji. Prawdziwy przypadek anulowania (HMR,
+        // `revert: true`) łapie i ten predykat, i strażnik w `dehydrate`.
         for (const key of ["main", "footer"] as const) {
           const state = context.queryClient.getQueryState(["menu-with-items", key]);
-          if (state?.status === "pending") {
+          if (
+            state?.status === "pending" &&
+            state.fetchStatus === "idle" &&
+            state.data === undefined
+          ) {
             context.queryClient.removeQueries({ queryKey: ["menu-with-items", key], exact: true });
           }
         }
       } catch {
         /* chrome warm-up is best-effort decoration - never let it block the site */
+        setCacheControlHeader(resilientCacheControl(true));
       }
     }
-    // Nothing reads the root loader's data - return null so the settings map is
-    // not serialized a second time into the dehydrated payload.
-    return null;
+    // Jedyne, co czyta loaderData korzenia: strumień GA4 dla tagu Google w
+    // head() (`ssrGoogleTag`). Mapa ustawień celowo NIE wraca stąd - byłaby
+    // serializowana drugi raz do dehydratowanego payloadu.
+    return { ga4: ssrGoogleTag(settings) };
   },
   shellComponent: RootShell,
   component: RootComponent,
@@ -434,10 +901,29 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang={lang} suppressHydrationWarning>
       <head>
         <HeadContent />
+        {/* PIERWSZY skrypt w dokumencie - wszystko po nim jest obserwowalne.
+            Klasyczny, nie modułowy: musi przeżyć rzut w chunku vendorowym,
+            czyli awarię z 2026-07-20, której żaden handler zainstalowany
+            z modułu ani z efektu Reacta nie zobaczy. Wyłącznie buforuje
+            w pamięci strony - wysyłka jest w lib/observability, za bramką
+            zgody analitycznej. */}
+        <script dangerouslySetInnerHTML={{ __html: BOOT_PROBE_SCRIPT }} />
         {supabaseConfigScript ? (
           <script dangerouslySetInnerHTML={{ __html: supabaseConfigScript }} />
         ) : null}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* Rezerwacja dolnej krawędzi PRZED pierwszym malowaniem.
+            Pasek przestrzeni roboczej członka jest `position: fixed` przy
+            dolnej krawędzi, a pojawia się PÓŹNO: sesja Supabase rozstrzyga
+            się w efekcie, potem trzeba dociągnąć leniwą powłokę doku,
+            i tylko wtedy biegnie pomiar. Bez tego skryptu dół strony
+            podskakuje sekundy po pierwszym malowaniu, a CLS nalicza się
+            przez całe życie strony.
+            Skrypt odtwarza rezerwację z wysokości ZMIERZONEJ przy poprzednim
+            wejściu. NIE czyta stanu uwierzytelnienia - wyłącznie liczbę
+            pikseli własnego paska; kontrakt, limity i czyszczenie przy
+            wylogowaniu opisuje `lib/dock/reservedSpace.ts`. */}
+        <script dangerouslySetInnerHTML={{ __html: DOCK_RESERVE_INIT_SCRIPT }} />
       </head>
       <body>
         {children}
@@ -447,8 +933,10 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
-function RootComponent() {
-  const router = useRouter();
+// Consent resolves after hydration. Keep its subscription below the root so
+// this background update cannot recreate every provider value and interrupt
+// hydration of the already visible article's lazy widgets.
+function ClientObservability() {
   const { categories, mounted: consentMounted } = useEffectiveConsent();
 
   // Client observability (Core Web Vitals RUM + global error capture) is
@@ -458,29 +946,33 @@ function RootComponent() {
   // consent (RODO/GDPR).
   useEffect(() => {
     if (!consentMounted || !categories.analytics) return;
-    let cleanup: (() => void) | undefined;
-    let cancelled = false;
+    const background = createBackgroundScope();
     // Prerender (Speculation Rules) nie jest wizytą: telemetria startuje
     // dopiero przy aktywacji strony, inaczej hover zawyżałby RUM.
     const stopPrerenderWait = afterPrerendering(() => {
-      void import("../lib/observability").then((m) => {
-        if (!cancelled) cleanup = m.initObservability();
+      void background.run(import("../lib/observability"), (m) => {
+        return m.initObservability();
       });
     });
     return () => {
-      cancelled = true;
+      background.dispose();
       stopPrerenderWait();
-      cleanup?.();
     };
   }, [consentMounted, categories.analytics]);
 
+  return null;
+}
+
+function RootComponent() {
+  const router = useRouter();
+
   useEffect(() => {
+    const background = createBackgroundScope();
     // Preview iframe watchdog: reload when the editor preview hangs on boot
     // or the main thread freezes for too long. No-op outside iframes - dlatego
     // ten sam test co wewnątrz modułu wykonujemy PRZED importem: produkcyjny
     // czytelnik (poza iframe'em edytora) nie pobiera i nie parsuje chunku,
     // który i tak zrobiłby no-op w oknie tuż po hydratacji.
-    let stopWatchdog: (() => void) | undefined;
     const inPreviewIframe = (() => {
       try {
         return window.self !== window.top;
@@ -488,10 +980,18 @@ function RootComponent() {
         return true;
       }
     })();
+    // FLAGA GOTOWOŚCI JEST KONTRAKTEM PRODUKCYJNYM, nie instalacją podglądu:
+    // czyta ją boot-test na artefakcie produkcyjnym i sonda martwej hydratacji.
+    // Ustawiamy ją SYNCHRONICZNIE tutaj, bez round-tripu po leniwy chunk -
+    // wcześniej siedziała w środku `previewWatchdog`, importowanego tylko
+    // w iframie edytora, więc na publikowanej stronie nie było ANI JEDNEGO
+    // sygnału odróżniającego „zhydratowano" od „martwe".
+    // PRZEŁADOWANIE zostaje iframe-only (patrz previewWatchdog) - publikowana
+    // strona nigdy nie jest przeładowywana pod prawdziwym czytelnikiem.
+    markAppReady();
     if (inPreviewIframe) {
-      void import("../lib/watchdog/previewWatchdog").then((m) => {
-        m.markPreviewAppReady();
-        stopWatchdog = m.startPreviewWatchdog();
+      void background.run(import("../lib/watchdog/previewWatchdog"), (m) => {
+        return m.startPreviewWatchdog();
       });
     }
     // Attribute Web Vitals to the correct subpage on soft navigations
@@ -499,7 +999,7 @@ function RootComponent() {
     // accumulators before switching so LCP/CLS/INP land per URL.
     let lastPath = typeof window !== "undefined" ? window.location.pathname : "/";
     const unsub = router.subscribe("onResolved", () => {
-      void import("../lib/webVitals").then((m) => {
+      void background.run(import("../lib/webVitals"), (m) => {
         const nextPath = window.location.pathname;
         if (nextPath !== lastPath) {
           m.markWebVitalsPage(nextPath);
@@ -508,7 +1008,9 @@ function RootComponent() {
       });
       // Silnik analityki: page_view przy każdym rozwiązanym routingu
       // (SPA + first paint). Fire-and-forget, respektuje zgodę analytics.
-      void import("../lib/analytics/track").then((m) => m.trackPageView());
+      void background.run(import("../lib/analytics/track"), (m) => {
+        m.trackPageView();
+      });
     });
 
     // Cache-busting: chunk-load errors -> jednorazowy hard reload; polling
@@ -516,10 +1018,9 @@ function RootComponent() {
     // się nowy deploy. Odroczone do bezczynności (whenIdle): setup pollingu
     // nie ma żadnej pilności w pierwszych sekundach wizyty, a jego fetch+parse
     // konkurował z dekodowaniem LCP i fontami tuż po hydratacji.
-    let stopCacheBusting: (() => void) | undefined;
     const cancelCacheBustingIdle = whenIdle(() => {
-      void import("../lib/cacheBusting").then((m) => {
-        stopCacheBusting = m.startCacheBusting(router);
+      void background.run(import("../lib/cacheBusting"), (m) => {
+        return m.startCacheBusting(router);
       });
     }, 3000);
 
@@ -527,22 +1028,30 @@ function RootComponent() {
     // sandboxem (uśpienie, przebudowa po merge, restart dev servera) i zostaje
     // biały aż do ręcznego „Reload preview". Ten moduł wykrywa milczenie pulsu
     // > 30 s, sam prosi powłokę o wznowienie, a w ostateczności przeładowuje
-    // dokument z odtworzeniem trasy i pozycji scrolla. Poza kontekstem podglądu
-    // (produkcyjna domena, nie w iframie) nie startuje w ogóle.
-    let stopPreviewHeartbeat: (() => void) | undefined;
-    const cancelHeartbeatIdle = whenIdle(() => {
-      void import("../lib/preview/sessionHeartbeat").then((m) => {
-        stopPreviewHeartbeat = m.startPreviewHeartbeat(router);
-      });
-    }, 3000);
+    // dokument z odtworzeniem trasy i pozycji scrolla.
+    //
+    // BRAMKA PRZED IMPORTEM, nie w środku modułu - ta sama poprawka, co przy
+    // `previewWatchdog` wyżej i z tego samego powodu (audyt CWV 2026-09-20,
+    // F23). `startPreviewHeartbeat` zaczyna od `isPreviewContext(location,
+    // window.parent !== window)`, a TA FUNKCJA WYCHODZI NA `false` DLA
+    // WSZYSTKIEGO, CO NIE JEST IFRAME'EM - czyli produkcyjny czytelnik pobierał
+    // i parsował 294 linie po to, żeby zrobić no-op. Powtarzamy tu wyłącznie
+    // pierwszy warunek tamtej funkcji (iframe), więc bramka nie może być
+    // OSTRZEJSZA od modułu: każdy kontekst, w którym heartbeat ma sens,
+    // jest iframe'em, a resztę decyzji (host) nadal podejmuje moduł.
+    const cancelHeartbeatIdle = inPreviewIframe
+      ? whenIdle(() => {
+          void background.run(import("../lib/preview/sessionHeartbeat"), (m) => {
+            return m.startPreviewHeartbeat(router);
+          });
+        }, 3000)
+      : null;
 
     return () => {
+      background.dispose();
       unsub();
       cancelCacheBustingIdle();
-      cancelHeartbeatIdle();
-      stopWatchdog?.();
-      stopCacheBusting?.();
-      stopPreviewHeartbeat?.();
+      cancelHeartbeatIdle?.();
     };
   }, [router]);
 
@@ -551,14 +1060,21 @@ function RootComponent() {
   // once per request on the server, so a mount-stable memo is correct.
   const renderI18n = useMemo(() => getRenderI18n(), []);
 
+  // Bramki nakładek (F19) - patrz `useOverlayGates` / `useToasterWanted`.
+  // Wszystkie startują na `false`, czyli SSR i pierwszy render klienta emitują
+  // dokładnie to samo (null), a `React.lazy` nie startuje `import()` w commicie
+  // hydratacji.
+  const { consentReady, overlaysReady } = useOverlayGates();
+  const toasterWanted = useToasterWanted();
+  const consentPreviewRequested = useConsentPreviewRequested();
+
   return (
     <I18nextProvider i18n={renderI18n}>
+      <ClientObservability />
       <ThemeProvider>
         <AuthProvider>
           <IconPackSync />
-          <WidgetLiveSync />
-          <SiteSettingsLiveSync />
-          <CohesionLiveSync />
+          <AuthenticatedLiveSync />
           <DesignTokensStyle />
           <ContentAreaStyle />
           <ThemeOptionsStyle />
@@ -576,21 +1092,23 @@ function RootComponent() {
           </ErrorBoundary>
           <ConsentScriptInjector />
           <Suspense fallback={null}>
-            <ConsentBanner />
-            <ConsentPreviewPanel />
-            <LoginPopup />
-            <NewsletterPopup />
-            <PopupHost />
-            <CommandPalette />
+            {/* Baner zgód: OPÓŹNIONY (rAF + bezczynność), nigdy WARUNKOWY -
+                patrz kontrakt w `useOverlayGates`. */}
+            {consentReady ? <ConsentBanner /> : null}
+            {/* Panel podglądu zgód dociągał swój chunk na KAŻDEJ stronie, choć
+                renderuje cokolwiek wyłącznie przy `?consent-preview=1`
+                (`isConsentPreviewRequested`). Ten sam warunek, tylko
+                PRZED montażem - dla zwykłego czytelnika chunk nie powstaje. */}
+            {consentPreviewRequested ? <ConsentPreviewPanel /> : null}
+            {overlaysReady ? <NewsletterPopup /> : null}
+            {overlaysReady ? <PopupHost /> : null}
           </Suspense>
+          <LoginPopupHost />
+          <CommandPaletteHost />
           <UnsavedChangesGuardHost />
           <AppDialogHost />
-          <Suspense fallback={null}>
-            <ExpertRequestDialogHost />
-          </Suspense>
-          <Suspense fallback={null}>
-            <Toaster />
-          </Suspense>
+          <ExpertRequestDialogHost />
+          <Suspense fallback={null}>{toasterWanted ? <Toaster /> : null}</Suspense>
         </AuthProvider>
       </ThemeProvider>
     </I18nextProvider>

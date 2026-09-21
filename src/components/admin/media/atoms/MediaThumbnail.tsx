@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { mediaRenderUrl } from "@/lib/media/publicUrl";
 import type { MediaRow } from "../types";
 import { extOf } from "../lib/mediaFormat";
 import { isRenderableImage, resolveMediaCategory } from "../lib/mediaKind";
@@ -23,7 +24,7 @@ export function MediaThumbnail({ file, className, overlay }: MediaThumbnailProps
     <div className={cn("aspect-square bg-muted/30 flex items-center justify-center", className)}>
       {renderable ? (
         <img
-          src={file.public_url}
+          src={mediaRenderUrl(file.public_url)}
           alt={file.alt_text || file.filename}
           className="w-full h-full object-cover"
           loading="lazy"

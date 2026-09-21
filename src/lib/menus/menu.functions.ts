@@ -12,6 +12,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { fetchWithTenantHost } from "@/integrations/supabase/tenant-host-fetch";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
+import { normalizeMenuVisibility } from "./visibility";
 import {
   parseMegaConfig,
   saveMenuInputSchema,
@@ -22,11 +23,36 @@ import {
 } from "./types";
 import { z } from "zod";
 
-function serverPublicClient() {
+function createServerPublicClient() {
   return createClient<Database>(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
     auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
     global: { fetch: fetchWithTenantHost },
   });
+}
+
+// JEDEN klient na izolat, budowany LENIWIE - ten sam wzorzec i to samo
+// uzasadnienie co w `lib/views/postViews.functions.ts`.
+//
+// DLACZEGO WOLNO GO WSPÓŁDZIELIĆ W IZOLACIE WIELOTENANTOWYM (jedyne pytanie,
+// które się tu liczy): egzemplarz nie niesie ŻADNEGO stanu żądania. Opcje
+// globalne nie ustawiają `headers`, a `x-tenant-host` dokłada
+// `fetchWithTenantHost` PER WYWOŁANIE, czytając kontekst bieżącego żądania -
+// nie kontekst z chwili konstrukcji. `persistSession: false` daje storage
+// pamięciowy, do którego ten moduł nigdy nie pisze, więc `Authorization` to
+// zawsze klucz anon i RLS (`menus_read_public`) rozstrzyga tenanta sama.
+//
+// PO CO: menu jest grzane w loaderze ROOTA na każdej trasie z chrome, więc
+// `createClient` per wywołanie palił czas CPU (zasób bilowany na Workers) przy
+// każdym chybieniu w `edgeTtlCache`.
+//
+// LENIWIE, nie `const` na poziomie modułu: `createClient` rzuca przy braku
+// `SUPABASE_URL` - przy inicjalizacji modułu wywróciłoby to cały chunk zamiast
+// jednego wywołania server function.
+let cachedPublicClient: ReturnType<typeof createServerPublicClient> | undefined;
+
+function serverPublicClient(): ReturnType<typeof createServerPublicClient> {
+  cachedPublicClient ??= createServerPublicClient();
+  return cachedPublicClient;
 }
 
 export interface MenuSummary {
@@ -71,9 +97,10 @@ export const getMenuWithItems = createServerFn({ method: "GET" })
     // Per-isolate TTL cache (wzorzec jak tenant-directory/ticker): menu jest
     // od 2026-07-20 grzane w loaderze ROOTA na każdej trasie z chrome (SSR
     // renderuje nawigację od pierwszego bajtu zamiast fallbacku "Menu jest
-    // puste"), więc bez cache każdy request płaciłby 2 sekwencyjne
-    // round-tripy do bazy. 60 s świeżości = zmiany menu w adminie widoczne
-    // niemal od razu, a w stanie ustalonym koszt to zero dodatkowych zapytań.
+    // puste"), więc bez cache każdy request płaciłby round-trip do bazy -
+    // i to w t0, o gniazdo współdzielone z resztą odczytów korzenia. 60 s
+    // świeżości = zmiany menu w adminie widoczne niemal od razu, a w stanie
+    // ustalonym koszt to zero dodatkowych zapytań.
     return edgeTtlCache(`menu-with-items:${data.key}`, 60_000, () => fetchMenuWithItems(data.key));
   });
 
@@ -81,32 +108,35 @@ export async function fetchMenuWithItems(
   key: string,
   supabase: MenuReadClient = serverPublicClient(),
 ): Promise<MenuWithItems | null> {
-  // Jedno okrążenie zamiast dwóch sekwencyjnych: nagłówek pokazywał się
-  // dopiero po dwóch round-tripach do bazy (menu -> pozycje). Pozycje
-  // filtrujemy przez inner join po `menus.key`, więc obie odpowiedzi lecą
-  // równolegle i cold-start nawigacji jest ~2x krótszy.
-  const [menuRes, itemsRes] = await Promise.all([
-    supabase.from("menus").select("id, key, name").eq("key", key).maybeSingle(),
-    supabase
-      .from("menu_items")
-      .select(
-        "id, menu_id, parent_id, position, item_type, ref_id, label_pl, label_en, href, target, css_class, icon, mega_enabled, mega_config, menus!inner(key)",
-      )
-      .eq("menus.key", key)
-      .order("position"),
-  ]);
-  const { data: menu, error: menuErr } = menuRes;
-  const { data: items, error: itemsErr } = itemsRes;
+  // JEDNO połączenie zamiast dwóch: dwa równoległe zapytania (menu + pozycje)
+  // zajmowały dwa z sześciu równoległych gniazd wychodzących Workera, a menu
+  // `main` i `footer` grzane naraz w loaderze ROOTA brały ich cztery - właśnie
+  // w t0 fali 1, gdy o te same gniazda biją się wszystkie pozostałe odczyty
+  // korzenia. Osadzenie PostgREST (`menus -> menu_items` po kluczu obcym
+  // `menu_items_menu_id_fkey`) oddaje ten sam komplet danych jednym żądaniem.
+  //
+  // RLS: osadzony zasób przechodzi WŁASNĄ politykę (`menu_items_read_public`
+  // sprawdza tenanta przez `menus`), więc anon widzi dokładnie to, co widział
+  // przy osobnym zapytaniu - zmienia się liczba round-tripów, nie zakres.
+  //
+  // SORTOWANIE musi być zaadresowane do zasobu osadzonego (`referencedTable`),
+  // bo `.order("position")` bez tego sortowałby WIERSZE MENU, a pozycje
+  // wróciłyby w kolejności fizycznej - czyli z losowo poprzestawianą nawigacją.
+  const { data: menu, error: menuErr } = await supabase
+    .from("menus")
+    .select(
+      "id, key, name, menu_items(id, menu_id, parent_id, position, item_type, ref_id, label_pl, label_en, href, target, css_class, visibility, icon, mega_enabled, mega_config)",
+    )
+    .eq("key", key)
+    .order("position", { referencedTable: "menu_items" })
+    .maybeSingle();
   if (menuErr || !menu) {
     if (menuErr) console.error("[getMenuWithItems]", menuErr.message);
     return null;
   }
 
-  if (itemsErr) {
-    console.error("[getMenuWithItems items]", itemsErr.message);
-    return { id: menu.id, key: menu.key, name: menu.name, items: [] };
-  }
-  const normalized: MenuItemRow[] = (items ?? []).map((row) => ({
+  const items = menu.menu_items;
+  const normalized: MenuItemRow[] = (Array.isArray(items) ? items : []).map((row) => ({
     id: row.id as string,
     menu_id: row.menu_id as string,
     parent_id: (row.parent_id as string | null) ?? null,
@@ -118,6 +148,7 @@ export async function fetchMenuWithItems(
     href: (row.href as string) ?? "",
     target: (row.target as string) ?? "_self",
     css_class: (row.css_class as string) ?? "",
+    visibility: normalizeMenuVisibility((row as { visibility?: string | null }).visibility),
     icon: ((row as { icon?: string | null }).icon as string | null) ?? "",
     mega_enabled: Boolean(row.mega_enabled),
     mega_config: parseMegaConfig(row.mega_config),
@@ -199,6 +230,7 @@ export async function saveMenuItems(
     href: it.href,
     target: it.target,
     css_class: it.css_class,
+    visibility: it.visibility,
     icon: it.icon,
     mega_enabled: it.mega_enabled,
     mega_config: it.mega_config,

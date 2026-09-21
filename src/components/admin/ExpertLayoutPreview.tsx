@@ -18,6 +18,7 @@ import {
   expertLayoutCssVars,
   type Lang,
 } from "@/components/experts/ExpertLayoutRenderer";
+import { applyTheme, THEME_STORAGE_KEY } from "@/lib/theme/themeChoice";
 
 type Theme = "light" | "dark";
 
@@ -77,10 +78,14 @@ export function ExpertLayoutPreview({
     if (!win) return;
     try {
       const doc = win.document;
-      doc.documentElement.classList.toggle("dark", theme === "dark");
-      doc.documentElement.style.colorScheme = theme;
+      // Podgląd NARZUCA motyw, więc wybór jest tu jawny i równy motywowi -
+      // dzięki temu dokument w iframe dostaje ten sam zestaw sygnałów co
+      // dokument główny (klasa, `color-scheme`, atrybut wyboru), a nie własną
+      // kopię reguły. Wcześniej ustawiał klasę i `color-scheme`, ale nie
+      // atrybut, więc podgląd i strona różniły się stanem `<html>`.
+      applyTheme(theme, theme, doc.documentElement);
       try {
-        win.localStorage.setItem("theme", theme);
+        win.localStorage.setItem(THEME_STORAGE_KEY, theme);
       } catch {
         /* storage może być zablokowane w sandboxie */
       }

@@ -77,6 +77,16 @@ describe("csvCell - wspólna reguła dla całego repo", () => {
     expect(csvCell(null)).toBe("");
     expect(csvCell(undefined)).toBe("");
   });
+
+  it("wiodący znak formuły dostaje apostrof, liczba NIE", () => {
+    // Druga połowa wspólnej reguły: neutralizacja wstrzyknięcia formuły.
+    // Pełny zestaw znaków i granice wyjątku na liczby stoją w testach modułu
+    // `lib/csv/formatCsv` - tu pilnujemy, że TEN panel ich nie omija.
+    expect(csvCell("=1+1")).toBe("'=1+1");
+    expect(csvCell("@SUM(A1:A9)")).toBe("'@SUM(A1:A9)");
+    expect(csvCell("-12.5")).toBe("-12.5");
+    expect(csvCell(3)).toBe("3");
+  });
 });
 
 describe("toCsv", () => {
@@ -216,6 +226,24 @@ describe("suppressionsToCsv", () => {
     expect(lines).toHaveLength(3);
     expect(lines[1]).toContain("hard_bounce");
     expect(lines[2]).toContain("complaint");
+  });
+
+  it("DIAGNOSTYKA od dostawcy nie wykonuje się w arkuszu operatora", () => {
+    // `reason`, `source` i `diagnostic` to tekst DOSTAWCY POCZTY, nie nasz -
+    // wchodzi do bazy z webhooka, którego treści nie kontrolujemy, a wychodzi
+    // do pliku otwieranego lokalnie w arkuszu.
+    const csv = suppressionsToCsv([suppression({ diagnostic: '=DDE("cmd";"/c calc")' })]);
+
+    expect(csv).toContain(`"'=DDE(`);
+    expect(csv).not.toContain(`,=DDE(`);
+  });
+
+  it("liczba wystąpień zostaje liczbą - kolumna nadal się sumuje", () => {
+    const csv = suppressionsToCsv([suppression({ occurrences: 12 })]);
+    const cells = (csv.split("\n")[1] ?? "").split(",");
+
+    expect(cells[SUPPRESSION_CSV_COLUMNS.indexOf("occurrences")]).toBe("12");
+    expect(csv).not.toContain("'12");
   });
 
   it("DIAGNOSTYKA z przecinkiem nie rozjeżdża kolumn", () => {

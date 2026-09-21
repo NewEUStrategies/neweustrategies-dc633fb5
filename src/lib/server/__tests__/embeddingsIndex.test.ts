@@ -354,67 +354,47 @@ describe("embedTexts - odpowiedz w nieoczekiwanym ksztalcie", () => {
     await expect(embedTexts(["a"])).rejects.toThrow();
   });
 
-  it.fails("index poza zakresem nie moze wypuscic tablicy z dziurami", async () => {
-    // DEFEKT (zglaszany, nie naprawiany): src/lib/server/embeddings.server.ts:62-70.
-    // Mechanizm: `out[r.index ?? i] = vec` zapisuje wektor pod indeksem
-    // PODANYM PRZEZ DOSTAWCE, a jedyna kontrola to `rows.length ===
-    // texts.length` (linia 59). Odpowiedz z `index` poza zakresem partii
-    // przechodzi wiec walidacje, a funkcja zwraca `number[][]` z dziurami -
-    // typ klamie, bo pod indeksem 0 jest `undefined`.
-    // Konsekwencja dla uzytkownika: `runSemanticIndexBatch` robi z tego
-    // `toVectorLiteral(undefined)` i tick pada na `TypeError: Cannot read
-    // properties of undefined (reading 'join')` - komunikat, ktory nie mowi
-    // ani ze winna jest bramka, ani ze partia nie zostala zaindeksowana.
-    // Przy zlosliwym/zbugowanym dostawcy caly indeks stoi, a wyszukiwanie
-    // semantyczne po cichu nie ma czym szukac.
-    // Dlaczego to decyzja czlowieka: naprawa to wybor polityki (odrzucic cala
-    // partie z jasnym bledem, zignorowac wiersz z bledym indeksem, czy wrocic
-    // do kolejnosci z odpowiedzi) - kazda inaczej wplywa na to, co tick uzna
-    // za "zaindeksowane".
+  it.each([-1, 1, 7, 0.5])("odrzuca indeks poza partią: %s", async (index) => {
     const { embedTexts } = await loadModule();
-    h.fetchMock.mockImplementation(async () =>
-      gatewayResponse({ data: [{ index: 7, embedding: vector() }] }),
-    );
-
-    const result = await embedTexts(["a"]);
-
-    expect(result).toHaveLength(1);
+    h.fetchMock.mockResolvedValue(gatewayResponse({ data: [{ index, embedding: vector() }] }));
+    await expect(embedTexts(["a"])).rejects.toThrow("invalid or duplicate index");
   });
 
-  it.fails(
-    "zawieszona bramka nie moze zawiesic ticku - zapytanie potrzebuje limitu czasu",
-    async () => {
-      // DEFEKT (zglaszany, nie naprawiany): src/lib/server/embeddings.server.ts:33-44.
-      // Mechanizm: `fetch` do bramki idzie BEZ `AbortController` i bez `signal`
-      // (inaczej niz sonda linkow, ktora ma `FETCH_TIMEOUT_MS`, i inaczej niz
-      // odpytanie archiwum). Bramka, ktora przyjmuje polaczenie i nie odpowiada,
-      // zawiesza `embedTexts` na czas nieokreslony.
-      // Konsekwencja dla uzytkownika: minutowy tick jobow czeka na jedna partie
-      // embeddingow, wiec razem z nim staja WSZYSTKIE pozostale joby tej samej
-      // iteracji (digesty, monitor linkow, dren outboxu, harmonogram klubow) -
-      // awaria jednego dostawcy zatrzymuje cala automatyke, nie tylko
-      // wyszukiwanie semantyczne.
-      // Dlaczego to decyzja czlowieka: trzeba wybrac limit i jego skutek
-      // (przerwanie = wyjatek i ponowienie w kolejnym ticku, czy `null` i
-      // wyciszenie jak przy twardej odmowie), a takze rozstrzygnac, czy budzet
-      // ma byc wspolny dla calego joba.
-      const { embedTexts } = await loadModule();
-      h.fetchMock.mockImplementation(() => new Promise<Response>(() => undefined));
-      let settled = false;
-      void embedTexts(["a"]).then(
-        () => {
-          settled = true;
-        },
-        () => {
-          settled = true;
-        },
-      );
+  it("odrzuca duplikat indeksu zamiast nadpisywać wektor innego tekstu", async () => {
+    const { embedTexts } = await loadModule();
+    h.fetchMock.mockResolvedValue(
+      gatewayResponse({
+        data: [
+          { index: 0, embedding: vector() },
+          { index: 0, embedding: vector() },
+        ],
+      }),
+    );
+    await expect(embedTexts(["a", "b"])).rejects.toThrow("invalid or duplicate index");
+  });
 
-      await vi.advanceTimersByTimeAsync(120_000);
+  it("odrzuca nieliczbowe współrzędne przed zapisem do pgvector", async () => {
+    const { embedTexts } = await loadModule();
+    const invalid = Array.from({ length: DIMS }, () => "0.5");
+    h.fetchMock.mockResolvedValue(gatewayResponse({ data: [{ embedding: invalid }] }));
+    await expect(embedTexts(["a"])).rejects.toThrow("non-finite coordinates");
+  });
 
-      expect(settled).toBe(true);
-    },
-  );
+  it.each(["headers", "body"])("limit obejmuje zawieszone %s i pozwala ponowić", async (phase) => {
+    const { embedTexts, EMBEDDINGS_TIMEOUT_MS } = await loadModule();
+    h.fetchMock.mockImplementation(() =>
+      phase === "headers"
+        ? new Promise<Response>(() => undefined)
+        : Promise.resolve(new Response(new ReadableStream({ start() {} }))),
+    );
+    const outcome = expect(embedTexts(["a"])).rejects.toThrow("timeout");
+    await vi.advanceTimersByTimeAsync(EMBEDDINGS_TIMEOUT_MS);
+    await outcome;
+    expect(h.fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(true);
+    h.fetchMock.mockResolvedValue(gatewayResponse(embeddingsPayload([vector()])));
+    await expect(embedTexts(["a"])).resolves.toEqual([vector()]);
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });
 
 describe("runSemanticIndexBatch - wektory wpisow", () => {

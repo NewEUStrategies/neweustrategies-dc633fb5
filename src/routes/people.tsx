@@ -90,6 +90,9 @@ import { ensureI18n as ensureChatI18n } from "@/lib/i18n-chat";
 import { ensureI18n as ensureNetworkI18n } from "@/lib/i18n-network";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
 import { ensureI18n as ensureProfileIntentI18n } from "@/lib/i18n-profile-intent";
+import { activeLang } from "@/lib/seo/head";
+import { getRequestUrl } from "@/lib/seo/request";
+import { SITE_NAME } from "@/lib/seo/meta";
 
 export const Route = createFileRoute("/people")({
   component: PeoplePage,
@@ -97,9 +100,29 @@ export const Route = createFileRoute("/people")({
   // obsluguje adres w przegladarce I snapshot z bazy przy przywracaniu
   // zapisanego wyszukiwania.
   validateSearch: parsePeopleSearchParams,
-  head: () => ({
-    meta: [{ title: "Osoby" }, { name: "robots", content: "noindex, nofollow" }],
-  }),
+  head: () => {
+    // head() biegnie POZA drzewem Reacta i poza dostawcą i18next, więc `t()` tu
+    // nie istnieje - język bierzemy z adresu przez `activeLang`, dokładnie jak
+    // `welcome.tsx`. Bez tego użytkownik z angielskim interfejsem dostawał polską
+    // kartę przeglądarki i polski podgląd linku przy udostępnieniu.
+    const lang = activeLang(getRequestUrl() || "/people");
+    const title = lang === "en" ? `People | ${SITE_NAME}` : `Osoby | ${SITE_NAME}`;
+    const description =
+      lang === "en"
+        ? "Internal people search across the New European Strategies community."
+        : "Wewnętrzna wyszukiwarka osób w społeczności New European Strategies.";
+    return {
+      meta: [
+        { title },
+        { name: "description", content: description },
+        { property: "og:title", content: title },
+        { property: "og:description", content: description },
+        { property: "og:type", content: "website" },
+        { name: "twitter:card", content: "summary" },
+        { name: "robots", content: "noindex, nofollow" },
+      ],
+    };
+  },
 });
 
 function PeoplePage() {
@@ -130,7 +153,7 @@ function DiscoverabilityBanner() {
   return (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-[6px] border px-3 py-2.5",
+        "grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2.5 gap-y-2 rounded-[6px] border px-3 py-2.5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:gap-3",
         on ? "border-border/60 bg-muted/30" : "border-[var(--brand)]/40 bg-[var(--brand)]/5",
       )}
     >
@@ -157,6 +180,7 @@ function DiscoverabilityBanner() {
           })
         }
         aria-label={t("profilePrivacy.discoverableLabel")}
+        className="col-span-2 justify-self-end sm:col-span-1"
       />
     </div>
   );
@@ -183,7 +207,7 @@ function FacetSelect({
     <Select value={value ?? ALL} onValueChange={(next) => onChange(next === ALL ? null : next)}>
       <SelectTrigger
         aria-label={ariaLabel}
-        className="h-9 w-auto min-w-[140px] max-w-[220px] rounded-[6px] bg-muted/30 text-xs"
+        className="h-9 w-full min-w-0 rounded-[6px] bg-muted/30 text-xs sm:w-auto sm:min-w-[140px] sm:max-w-[220px]"
       >
         <SelectValue placeholder={allLabel} />
       </SelectTrigger>
@@ -258,7 +282,6 @@ function PersonCard({
           bridge={connection.bridge}
           targetName={person.display_name}
           targetAvatarUrl={person.avatar_url}
-          targetSlug={person.slug}
           interactive={false}
           className="mt-0.5"
         />
@@ -267,8 +290,8 @@ function PersonCard({
   );
 
   return (
-    <li className="flex flex-col gap-2 rounded-[6px] border border-border/60 bg-card p-3 transition-colors hover:border-border">
-      <div className="flex items-center gap-3">
+    <li className="flex min-w-0 flex-col gap-2 overflow-hidden rounded-[6px] border border-border/60 bg-card p-2.5 transition-colors hover:border-border sm:p-3">
+      <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3">
         <ChatAvatar
           name={person.display_name}
           avatarUrl={person.avatar_url}
@@ -288,7 +311,7 @@ function PersonCard({
         ) : (
           <div className="min-w-0 flex-1">{details}</div>
         )}
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1 [&_[data-slot=button]]:!h-8 [&_[data-slot=button]]:!min-h-8 [&_[data-slot=button]]:!w-8 [&_[data-slot=button]]:!min-w-8 [&_[data-slot=button]]:!p-0 sm:gap-1.5">
           {person.slug && (
             <ProfileLinkButton slug={person.slug} displayName={person.display_name} compact />
           )}
@@ -300,6 +323,7 @@ function PersonCard({
               displayName={person.display_name}
               displayAvatar={person.avatar_url}
               compact
+              iconOnly
               connectionState={connection}
             />
           )}
@@ -395,17 +419,17 @@ function PeopleInner() {
 
   return (
     <div className="container mx-auto max-w-5xl px-3 py-5 sm:px-4 sm:py-6">
-      <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
+      <header className="mb-4 grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+        <div className="min-w-0">
           <h1 className="text-xl font-bold leading-tight">{t("people.title")}</h1>
           <p className="mt-0.5 text-xs text-muted-foreground">{t("people.subtitle")}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
           <Button
             asChild
             variant="outline"
             size="sm"
-            className="gap-1.5 transition-colors hover:border-brand/40 hover:bg-brand/10 hover:text-brand"
+            className="min-w-0 gap-1.5 px-2 transition-colors hover:border-brand/40 hover:bg-brand/10 hover:text-brand sm:px-3"
           >
             <Link to="/contributors">
               <Trophy className="h-3.5 w-3.5 transition-colors" aria-hidden />
@@ -417,7 +441,7 @@ function PeopleInner() {
               asChild
               variant="outline"
               size="sm"
-              className="gap-1.5 transition-colors hover:border-brand/40 hover:bg-brand/10 hover:text-brand"
+              className="min-w-0 gap-1.5 px-2 transition-colors hover:border-brand/40 hover:bg-brand/10 hover:text-brand sm:px-3"
             >
               <Link to="/network">
                 <Users className="h-3.5 w-3.5 transition-colors" aria-hidden />
@@ -447,15 +471,27 @@ function PeopleInner() {
         />
         <input
           type="search"
+          name="people_directory_query"
+          autoComplete="one-time-code"
+          autoCorrect="off"
+          autoCapitalize="none"
+          spellCheck={false}
+          inputMode="search"
+          enterKeyHint="search"
+          data-form-type="other"
+          data-mobile-search-input=""
+          data-1p-ignore="true"
+          data-lpignore="true"
+          data-bwignore="true"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={t("people.searchPlaceholder")}
           aria-label={t("people.searchPlaceholder")}
-          className="h-10 w-full rounded-[6px] border border-input bg-muted/30 !pl-[42px] pr-4 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-10 w-full min-w-0 rounded-[6px] border border-input bg-muted/30 !pl-[42px] pr-3 text-[16px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:pr-4 sm:text-sm"
         />
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      <div className="mb-4 grid min-w-0 grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
         <FacetSelect
           value={filters.specialization}
           onChange={(next) => patch({ specialization: next ?? undefined })}
@@ -492,7 +528,7 @@ function PeopleInner() {
           allLabel={t("people.allIntents")}
           ariaLabel={t("people.filterIntent")}
         />
-        <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-[6px] border border-input bg-muted/30 px-3 text-xs">
+        <label className="col-span-2 inline-flex h-9 min-w-0 cursor-pointer items-center gap-2 rounded-[6px] border border-input bg-muted/30 px-3 text-xs sm:col-span-1">
           <Switch
             checked={filters.verifiedOnly}
             onCheckedChange={(next) => patch({ verified: next ? "1" : undefined })}
@@ -507,7 +543,7 @@ function PeopleInner() {
             przełącznikiem, nie ukrytą heurystyką. */}
         <label
           className={cn(
-            "inline-flex h-9 cursor-pointer items-center gap-2 rounded-[6px] border px-3 text-xs transition-colors",
+            "col-span-2 inline-flex h-9 min-w-0 cursor-pointer items-center gap-2 rounded-[6px] border px-3 text-xs transition-colors sm:col-span-1",
             filters.semantic
               ? "border-[var(--brand)]/40 bg-[var(--brand)]/5"
               : "border-input bg-muted/30",

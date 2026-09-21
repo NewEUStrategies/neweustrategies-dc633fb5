@@ -125,7 +125,7 @@ describe("buildLlmsTxt - sekcje z niepełnym opisem", () => {
     // Sekcja zasobów maszynowych jest ogłaszana ZAWSZE (kontrakt llmstxt.org),
     // nawet gdy rejestr nic nie zwrócił - patrz machineSurfaces.contract.test.ts.
     expect(txt).toContain("## Zasoby maszynowe / Machine-readable resources");
-    expect(txt).toContain("## Zasady cytowania / Citation policy");
+    expect(txt).toContain("## Warunki wykorzystania i cytowania / Usage and citation terms");
   });
 
   it("pomija linię kontaktu, gdy adres jest pusty albo z samych spacji", () => {

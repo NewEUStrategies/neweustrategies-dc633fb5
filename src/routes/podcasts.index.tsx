@@ -1,10 +1,11 @@
-// Public podcast network. URL: /podcasts — the discovery page. Podcast is a
+// Public podcast network. URL: /podcasts - the discovery page. Podcast is a
 // NETWORK OF PROGRAMS (RUSI/think-tank pattern), not a flat file list: it leads with
 // the catalogue of programs (series), each linking to its own program page,
 // followed by the newest episodes across the whole network. Links to the
 // built-in network RSS feed.
 import { createFileRoute, Link, type ErrorComponentProps } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Mic } from "@/lib/lucide-shim";
@@ -73,8 +74,8 @@ export const Route = createFileRoute("/podcasts/")({
       title: "Podcast - New European Strategies",
       description:
         lang === "en"
-          ? "New European Strategies podcast network — browse programs and listen to the latest episodes."
-          : "Sieć podcastów New European Strategies — przeglądaj programy i słuchaj najnowszych odcinków.",
+          ? "New European Strategies podcast network - browse programs and listen to the latest episodes."
+          : "Sieć podcastów New European Strategies - przeglądaj programy i słuchaj najnowszych odcinków.",
     });
     // Autodiscovery kanału sieciowego: bez tego feed podcastu dawał się
     // zasubskrybować wyłącznie po ręcznym wklejeniu adresu.
@@ -109,7 +110,25 @@ function PodcastsIndex() {
   const { data: episodes } = useSuspenseQuery(latestPodcastsQueryOptions(INDEX_LIMIT));
   const { data: shows } = useSuspenseQuery(publishedShowsQueryOptions);
   const { data: stats } = useSuspenseQuery(showEpisodeStatsQueryOptions);
-  const { degraded } = Route.useLoaderData();
+  const { degraded: initialDegraded } = Route.useLoaderData();
+  const episodesRecovery = useDegradedUntilHealed(
+    latestPodcastsQueryOptions(INDEX_LIMIT).queryKey,
+    initialDegraded,
+  );
+  const showsRecovery = useDegradedUntilHealed(
+    publishedShowsQueryOptions.queryKey,
+    initialDegraded,
+  );
+  const statsRecovery = useDegradedUntilHealed(
+    showEpisodeStatsQueryOptions.queryKey,
+    initialDegraded,
+  );
+  const degraded = episodesRecovery.degraded || showsRecovery.degraded || statsRecovery.degraded;
+  const retry = () => {
+    if (episodesRecovery.degraded) episodesRecovery.retry();
+    if (showsRecovery.degraded) showsRecovery.retry();
+    if (statsRecovery.degraded) statsRecovery.retry();
+  };
   ensurePodcastsI18n();
   const { t, i18n } = useTranslation();
   // `lang` zostaje WYŁĄCZNIE do wyboru języka treści (bliźniacze kolumny),
@@ -162,7 +181,7 @@ function PodcastsIndex() {
           degradacji mówimy wprost, co się stało, zamiast sugerować, że sieci
           podcastów nie ma. */}
       {degraded ? (
-        <DegradedDataNotice title={t("podcastNetwork.loadFailedPodcasts")} />
+        <DegradedDataNotice title={t("podcastNetwork.loadFailedPodcasts")} onRetry={retry} />
       ) : (
         <>
           {hasShows && (

@@ -268,9 +268,17 @@ export async function invitePackageSeat(input: PackageSeatInviteInput): Promise<
   });
   if (error) throw error;
   const record = (data ?? {}) as Record<string, unknown>;
+  const inviteToken = typeof record.invite_token === "string" ? record.invite_token : "";
+  if (inviteToken === "") {
+    // Token jawny wraca RAZ (naglowek pliku) - pusty napis zamienilby sie
+    // w adres `/events/invite/` bez tokenu, ktorego juz nie da sie odzyskac.
+    // Nieczytelna odpowiedz ma byc bledem, tak samo jak w `acceptPackageInvite`
+    // (`packageInviteApi.ts:94`).
+    throw new Error("unknown: invitation response is not readable");
+  }
   return {
     seatId: String(record.seat_id ?? input.seatId),
-    inviteToken: String(record.invite_token ?? ""),
+    inviteToken,
   };
 }
 

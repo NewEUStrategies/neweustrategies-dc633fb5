@@ -17,6 +17,26 @@
 //
 // Lista mieszka osobno, żeby ścięcie długu w kolejnym module było diffem
 // w JEDNYM miejscu, a nie edycją runnera bramki.
+//
+// 2026-09-13, MODUŁ 10 (sieć kontaktów): 191 -> 189. Oba wpisy modułu zeszły
+// do zera i ZNIKAJĄ z listy, bo plik bez wpisu musi mieć zero:
+//   * `network.mutual.$userId.tsx` - lokalna kopia kształtu wiersza różniła się
+//     od wygenerowanego typu RPC nullowalnością pól, więc odczyt wymagał
+//     podwójnego rzutowania. Alias bierze teraz kształt z `Database[...]`,
+//     czyli rozjazd kolumny w migracji wychodzi na typach.
+//   * `useProfileViews.ts` - wygenerowany typ mówi `viewer_mode: string`
+//     i `display_name: string`, a baza zwraca unię trzech wartości ORAZ NULL-e
+//     w polach wymaskowanych dla widza anonimowego. Rzutowanie kupowało oba
+//     kłamstwa naraz; zastąpiła je funkcja zawężająca na granicy RPC
+//     (nieznany tryb degraduje się do `anonymous`, czyli do interpretacji
+//     najostrożniejszej).
+//
+// 2026-09-21, RUM (`web_vitals`): 189 -> 187. Wpis
+// `src/lib/observability/vitals.functions.ts` zszedł z 2 do zera i ZNIKA z listy.
+// Oba rzutowania stały tam pod komentarzem „tabela z migracji, której nie ma
+// jeszcze w wygenerowanych typach" - i to przestało być prawdą: `web_vitals`
+// jest w `types.ts` razem z kolumnami kontekstu nawigacji (20260920121000),
+// a wybrane kolumny pokrywają `VitalSample` i `DailyP75Row` co do jednej.
 export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/components/admin/archiveLayout/ArchiveLayoutAdmin.tsx", 1],
   ["src/components/admin/blocks/edit/Buttons.tsx", 2],
@@ -40,7 +60,10 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   // dług - to ta sama korekta co po review PR-a #235 (patrz nagłówek pliku):
   // baseline zapisuje liczbę PRAWDZIWĄ. Ratchet dalej trzyma kierunek: 2 -> mniej.
   ["src/components/admin/builder/WidgetProperties.tsx", 2],
-  ["src/components/builder/organisms/WidgetView.tsx", 1],
+  // 2026-09-20, F17: `c as unknown as MegaMenuConfig` pojechało razem z gałęzią
+  // `mega-menu` do dyspozytora chrome. Dług NIE ROŚNIE - zmienia plik, a
+  // `WidgetView.tsx` schodzi do zera i dlatego ZNIKA z listy.
+  ["src/components/builder/organisms/ChromeWidgetView.tsx", 1],
   ["src/components/admin/crm/CrmPartnerEndpointsPanel.tsx", 1],
   ["src/components/admin/menu/AddItemPanel.tsx", 2],
   ["src/components/admin/menu/MenuManager.tsx", 1],
@@ -108,7 +131,6 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/lib/http/middlewareResult.ts", 2],
   ["src/lib/icons/lucideIconNodes.generated.ts", 1],
   ["src/lib/lucide-shim.tsx", 1],
-  ["src/lib/network/useProfileViews.ts", 1],
   ["src/lib/newsletter-campaigns.functions.ts", 4],
   ["src/lib/newsletter/emailDocResolve.ts", 3],
   ["src/lib/newsletter/trackingEvents.server.ts", 1],
@@ -116,9 +138,12 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/lib/notifications/useNotifications.ts", 1],
   ["src/lib/observability/redact.ts", 3],
   ["src/lib/observability/report.ts", 1],
-  ["src/lib/observability/vitals.functions.ts", 2],
   ["src/lib/patterns/i18n.ts", 1],
   ["src/lib/platform-error-reporting.ts", 1],
+  // Przeniesione 1:1 z `src/routes/admin.podcasts.tsx` przy wyciągnięciu warstwy
+  // danych panelu podcastów: `explicit` / `episode_type` (migracja 20260725090500)
+  // nie są jeszcze w wygenerowanych typach. Znika przy regeneracji types.ts.
+  ["src/lib/podcast/queries.ts", 1],
   ["src/lib/profile/usePublicExposure.ts", 1],
   ["src/lib/queries/archives.ts", 1],
   ["src/lib/queries/podcasts.ts", 7],
@@ -132,7 +157,6 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/lib/server/publishedContent.server.ts", 5],
   ["src/lib/social/globalSocialLinks.ts", 1],
   ["src/lib/tracker/queries.ts", 2],
-  ["src/lib/webVitals.ts", 1],
   ["src/lib/wordpress-import.functions.ts", 1],
   ["src/routes/$.tsx", 1],
   ["src/routes/admin.audience.tsx", 3],
@@ -141,11 +165,8 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/routes/admin.monetization.tsx", 1],
   ["src/routes/admin.pages.$slug.tsx", 1],
   ["src/routes/admin.pages.new.tsx", 1],
-  ["src/routes/admin.podcasts.tsx", 1],
   ["src/routes/admin.research-programs.tsx", 2],
-  ["src/routes/admin.tracker.tsx", 1],
   ["src/routes/author.$slug.tsx", 1],
-  ["src/routes/network.mutual.$userId.tsx", 1],
   ["src/server.ts", 1],
   // Atrapa `XMLHttpRequest` w `xhrStub` (postęp wysyłki avatara/CV): `FakeXhr`
   // odgrywa tylko cztery użyte przez kod produkcyjny człony, nie pełny

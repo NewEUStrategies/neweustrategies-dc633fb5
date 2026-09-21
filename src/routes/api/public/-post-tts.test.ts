@@ -42,6 +42,12 @@ const h = vi.hoisted(() => {
     host: string;
     downloadResult: { data: unknown; error?: unknown } | (() => never);
     uploadError: { message: string } | null;
+    /**
+     * Upload RZUCA zamiast oddać `{ error }`. To inna droga niż `uploadError`:
+     * tamta to odpowiedź dostawcy, ta to zerwane połączenie albo wyjątek
+     * w kliencie - obsługuje ją `.catch` łańcucha, nie gałąź `if (error)`.
+     */
+    uploadThrows: Error | null;
     plan: {
       pin: { voiceId: string; model: string; voiceSource: "post" | "tenant" };
       storagePath: string;
@@ -64,6 +70,7 @@ const h = vi.hoisted(() => {
     host: "example.com",
     downloadResult: { data: null },
     uploadError: null,
+    uploadThrows: null,
     plan: {
       pin: {
         voiceId: "JBFqnCBsd6RMkjVDRZzb",
@@ -136,6 +143,7 @@ const h = vi.hoisted(() => {
         },
         upload: async (path: string) => {
           storageOps.push({ bucket, method: "upload", path });
+          if (state.uploadThrows) throw state.uploadThrows;
           return { error: state.uploadError };
         },
       }),
@@ -163,7 +171,6 @@ vi.mock("@supabase/supabase-js", () => ({
     };
   },
 }));
-vi.mock("@tanstack/react-start/server", () => ({ getRequestIP: () => "203.0.113.7" }));
 vi.mock("@/lib/server/rate-limit.server", () => ({
   rateLimit: async (input: {
     scope: string;
@@ -189,7 +196,8 @@ vi.mock("@/lib/server/tts.server", async (importOriginal) => {
   };
 });
 
-import { __handleForTests as handle } from "./post-tts";
+import { routeServerHandlers } from "@/test/routeHarness";
+import { __handleForTests as handle, Route } from "./post-tts";
 
 const POST_ID = "11111111-1111-1111-1111-111111111111";
 
@@ -255,6 +263,7 @@ beforeEach(() => {
   h.state.host = "example.com";
   h.state.downloadResult = { data: null };
   h.state.uploadError = null;
+  h.state.uploadThrows = null;
   h.state.plan = {
     pin: {
       voiceId: "JBFqnCBsd6RMkjVDRZzb",
@@ -549,6 +558,21 @@ describe("post-tts - zapis wygenerowanego audio do cache", () => {
     expect(h.state.recorded).toHaveLength(0);
   });
 
+  it("upload RZUCAJĄCY wyjątkiem też nie psuje odpowiedzi ani nie zapisuje rejestru", async () => {
+    // Druga, osobna droga porażki zapisu do cache: nie `{ error }` od dostawcy,
+    // tylko WYJĄTEK - zerwane połączenie, brak uprawnień do bucketa, błąd
+    // w kliencie. Łapie ją `.catch` łańcucha, a nie gałąź `if (error)`.
+    // Bez tego `catch` odrzucona obietnica z `void ...` byłaby nieobsłużona
+    // i w środowisku serwerowym potrafi przewrócić proces JUŻ PO tym, jak
+    // słuchacz dostał swoje audio - czyli awaria bez związku z tym żądaniem.
+    h.state.uploadThrows = new Error("connection reset");
+    const res = await handle(req({ postId: POST_ID, lang: "pl" }));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Tts-Cache")).toBe("miss");
+    await vi.waitFor(() => expect(h.storageOps.some((o) => o.method === "upload")).toBe(true));
+    expect(h.state.recorded).toHaveLength(0);
+  });
+
   it("REJESTR NIEDOSTĘPNY (środowisko przed migracją): upload idzie, zapisu rejestru nie ma", async () => {
     h.state.plan = { ...h.state.plan, registryAvailable: false };
     const res = await handle(req({ postId: POST_ID, lang: "pl" }));
@@ -594,6 +618,51 @@ describe("post-tts - dławienie", () => {
     expect(h.state.rateLimitCalls.find((c) => c.scope === "post-tts:post:hour")?.subjectId).toBe(
       `${POST_ID}:en`,
     );
+  });
+
+  it("PODMIOT LIMITU jest odporny na podrabiany `x-forwarded-for`", async () => {
+    // `getRequestIP({ xForwardedFor: true })` honorował PIERWSZY wpis XFF ponad
+    // adres połączenia, więc rotacja jednego nagłówka resetowała OBA kubełki
+    // bramkujące PŁATNĄ syntezę. Kubełek musi zależeć od `cf-connecting-ip`,
+    // którego klient za Cloudflare nie podrobi.
+    await handle(
+      req(
+        { postId: POST_ID, lang: "pl" },
+        { "cf-connecting-ip": "203.0.113.7", "x-forwarded-for": "1.1.1.1" },
+      ),
+    );
+    await handle(
+      req(
+        { postId: POST_ID, lang: "pl" },
+        { "cf-connecting-ip": "203.0.113.7", "x-forwarded-for": "2.2.2.2, 3.3.3.3" },
+      ),
+    );
+
+    const hourly = h.state.rateLimitCalls.filter((c) => c.scope === "post-tts:ip:hour");
+    expect(hourly).toHaveLength(2);
+    expect(hourly[0].subjectId).toBe(hourly[1].subjectId);
+  });
+
+  it("RÓŻNI dzwoniący mają RÓŻNE kubełki, a podmiot jest solonym skrótem, nie adresem", async () => {
+    // Gdyby wszyscy wpadali do jednego kubełka, limit 15/h odciąłby czytelników
+    // nawzajem; gdyby podmiotem był surowy adres, `rate_limits` stałaby się
+    // rejestrem „kto i kiedy słuchał artykułu".
+    await handle(req({ postId: POST_ID, lang: "pl" }, { "cf-connecting-ip": "203.0.113.7" }));
+    await handle(req({ postId: POST_ID, lang: "pl" }, { "cf-connecting-ip": "198.51.100.9" }));
+
+    const hourly = h.state.rateLimitCalls.filter((c) => c.scope === "post-tts:ip:hour");
+    expect(hourly[0].subjectId).not.toBe(hourly[1].subjectId);
+    expect(hourly[0].subjectId).not.toContain("203.0.113.7");
+    expect(hourly[0].subjectId).toMatch(/^ip:[0-9a-f]{32}$/);
+  });
+
+  it("ŻĄDANIE BEZ ROZPOZNAWALNEGO ADRESU wpada do wspólnego kubełka, a nie omija limitu", async () => {
+    await handle(req({ postId: POST_ID, lang: "pl" }, { "x-forwarded-for": "   " }));
+    await handle(req({ postId: POST_ID, lang: "pl" }));
+
+    const hourly = h.state.rateLimitCalls.filter((c) => c.scope === "post-tts:ip:hour");
+    expect(hourly).toHaveLength(2);
+    expect(hourly[0].subjectId).toBe(hourly[1].subjectId);
   });
 
   it("TRAFIENIE W CACHE nie uruchamia limitów budżetowych (nic nie kosztuje)", async () => {
@@ -764,6 +833,36 @@ describe("post-tts - treść do syntezy", () => {
     expect(text).toContain("Odpowiedź");
   });
 
+  it("blok `html` wchodzi do narracji ODTAGOWANY", async () => {
+    // Blok surowego HTML-a niesie treść jak każdy inny, więc pominięcie go
+    // okroiłoby nagranie bez śladu. Znaczniki MUSZĄ przy tym zniknąć: dostawca
+    // dostaje tekst do przeczytania na głos, a nie kod - inaczej słuchacz
+    // usłyszy nazwy tagów albo zapłaci za znaki, których nikt nie chciał.
+    h.state.lookups.posts = {
+      data: publishedPost({
+        content_pl: null,
+        content_en: null,
+        blocks_data: {
+          pl: {
+            version: 1,
+            blocks: [
+              { id: "h1", type: "html", data: { html: "<p>Akapit <b>wtrącony</b></p>" } },
+              // Blok `html` BEZ treści nie może dołożyć pustego wtrącenia.
+              { id: "h2", type: "html", data: { html: "" } },
+            ],
+          },
+        },
+      }),
+      error: null,
+    };
+    await handle(req({ postId: POST_ID, lang: "pl" }));
+    const text = String((h.state.fetchCalls[0].body as { text: string }).text);
+    expect(text).toContain("Akapit");
+    expect(text).toContain("wtrącony");
+    expect(text).not.toContain("<b>");
+    expect(text).not.toContain("<p>");
+  });
+
   it("WPIS BEZ CZYTELNEJ TREŚCI daje 422, nie puste żądanie do dostawcy", async () => {
     h.state.lookups.posts = {
       data: publishedPost({ title_pl: "", title_en: "", content_pl: "", content_en: "" }),
@@ -852,5 +951,28 @@ describe("post-tts - żądanie do dostawcy i zapis do cache", () => {
     const res = await handle(req({ postId: POST_ID, lang: "pl" }));
     expect(res.headers.get("Content-Type")).toBe("audio/mpeg");
     expect(res.headers.get("X-Tts-Cache")).toBe("miss");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SKLEJENIE TRASY
+//
+// Cała reszta tego pliku woła `__handleForTests`, czyli funkcję - i słusznie,
+// bo to tam mieszkają reguły. Ale eksport testowy NIE DOWODZI, że trasa HTTP
+// jest do niego podpięta: gdyby `server.handlers.POST` zniknął albo wskazał co
+// innego, wszystkie tamte przypadki nadal byłyby zielone, a endpoint w
+// produkcji oddawałby 404. Ten jeden przypadek chodzi DROGĄ TRASY.
+// ---------------------------------------------------------------------------
+describe("post-tts - trasa HTTP", () => {
+  it("`POST` trasy prowadzi do tego samego handlera co eksport testowy", async () => {
+    const handlers = routeServerHandlers(Route);
+    const res = await handlers.POST!({ request: req({ postId: POST_ID, lang: "pl" }) });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("audio/mpeg");
+    // Dowód, że to ta SAMA ścieżka, a nie przypadkowa odpowiedź: żądanie do
+    // dostawcy poszło i poszło z planem kanonicznego głosu.
+    expect(h.state.fetchCalls).toHaveLength(1);
+    expect(h.state.fetchCalls[0].url).toContain("JBFqnCBsd6RMkjVDRZzb");
   });
 });

@@ -1,6 +1,6 @@
 // Strona serii/dossier (A8): /series/$slug - uporządkowane części cyklu.
-import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { createFileRoute, notFound } from "@tanstack/react-router";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Layers } from "lucide-react";
 import { seriesPageQueryOptions } from "@/lib/queries/series";
@@ -9,23 +9,88 @@ import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
-import { buildContentHead } from "@/lib/seo/meta";
+import { buildContentHead, SITE_NAME } from "@/lib/seo/meta";
+import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 
 const COPY = {
   pl: { kicker: "Dossier", parts: "części", partLabel: "Część" },
   en: { kicker: "Dossier", parts: "parts", partLabel: "Part" },
 } as const;
 
+/** Projekcja pod synchroniczne `head()` - pełny wiersz jedzie w cache zapytań. */
+interface SeriesHeadData {
+  readonly namePl: string;
+  readonly nameEn: string | null;
+  readonly descriptionPl: string | null;
+  readonly descriptionEn: string | null;
+  readonly parts: number;
+}
+
+interface SeriesLoaderData {
+  readonly headSeries: SeriesHeadData | null;
+  readonly degraded: boolean;
+}
+
+/** Fallback zdegradowanego renderu (patrz lib/ssr/resilientLoad). */
+const NO_SERIES = null;
+
 export const Route = createFileRoute("/series/$slug")({
-  head: ({ params }) => {
+  // LOADER, KTÓREGO TA TRASA NIE MIAŁA. `useQuery` nie startuje na serwerze
+  // fetcha, więc SSR nie zawierał ani nazwy cyklu, ani ani jednej części -
+  // wyłącznie gałąź przejściową, konserwowaną w NES Edge Cache do 24 h. `head()`
+  // był przy tym zahardkodowany na „Dossier", czyli KAŻDY cykl w serwisie
+  // dzielił jeden tytuł i jeden opis.
+  //
+  // 404 JEST TERAZ PRAWDZIWYM 404. Wcześniej brak cyklu dawał pełny ekran
+  // „nie znaleziono" przy statusie HTTP 200 - crawler indeksował go jako
+  // istniejącą stronę. `notFound()` leci WYŁĄCZNIE z czystego odczytu:
+  // przy degradacji transportu „nie wiemy" nie może zamienić się w 404.
+  loader: async ({ context, params }): Promise<SeriesLoaderData> => {
+    const { data, degraded } = await loadResilient(
+      context.queryClient,
+      seriesPageQueryOptions(params.slug),
+      NO_SERIES,
+    );
+    setCacheControlHeader(resilientCacheControl(degraded));
+    if (!degraded && data === null) throw notFound();
+    return {
+      degraded,
+      headSeries:
+        data === null
+          ? null
+          : {
+              namePl: data.series.name_pl,
+              nameEn: data.series.name_en,
+              descriptionPl: data.series.description_pl,
+              descriptionEn: data.series.description_en,
+              parts: data.parts.length,
+            },
+    };
+  },
+  head: ({ params, loaderData }) => {
     const url = getRequestUrl() || `/series/${params.slug}`;
     const lang = activeLang(url);
+    const s = loaderData?.headSeries ?? null;
+    // Tytuł i opis STEROWANE DANYMI. Fallback języka jak w resztach tras:
+    // wersja żądana, potem druga, potem stała - opis wpisany tylko po polsku
+    // nie może zniknąć czytelnikowi z interfejsem EN.
+    const name = s ? (lang === "en" ? s.nameEn || s.namePl : s.namePl || s.nameEn || "") : "";
+    const title = name || "Dossier";
+    const description =
+      (s
+        ? lang === "en"
+          ? s.descriptionEn || s.descriptionPl
+          : s.descriptionPl || s.descriptionEn
+        : null) ||
+      (lang === "en" ? "A sequential series of analyses." : "Sekwencyjny cykl analiz.");
     return buildContentHead({
       url,
       lang,
       type: "website",
-      title: lang === "en" ? "Dossier" : "Dossier",
-      description: lang === "en" ? "A sequential series of analyses." : "Sekwencyjny cykl analiz.",
+      title,
+      documentTitle: `${title} - ${SITE_NAME}`,
+      description,
     });
   },
   component: SeriesPage,
@@ -37,9 +102,13 @@ function SeriesPage() {
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const c = COPY[lang];
-  const { data, isLoading } = useQuery(seriesPageQueryOptions(slug));
+  // Loader rozgrzał ten klucz, więc `useSuspenseQuery` rozstrzyga się
+  // synchronicznie w SSR i po hydratacji. Ładowanie obsługuje
+  // `pendingComponent` trasy, a brak cyklu - `notFound()` z loadera.
+  const { data } = useSuspenseQuery(seriesPageQueryOptions(slug));
 
-  if (isLoading) return <ArchiveSkeleton />;
+  // Pas bezpieczeństwa dla nawigacji klientowej: adres rozstrzygnął już loader,
+  // ale hooki muszą zostać bezwarunkowe (ta sama doktryna co `PublicPage` w /$).
   if (!data) return <PublicNotFound />;
 
   const name = lang === "en" ? data.series.name_en || data.series.name_pl : data.series.name_pl;

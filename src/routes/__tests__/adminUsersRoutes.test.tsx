@@ -78,6 +78,8 @@ const h = vi.hoisted(() => ({
   rpcCalls: [] as { name: string; args: Record<string, unknown> }[],
   /** Odpowiedzi RPC per nazwa funkcji. */
   rpcResponses: new Map<string, () => SupabaseResult>(),
+  accountStatus: vi.fn(),
+  deleteAccount: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   toastInfo: vi.fn(),
@@ -209,6 +211,12 @@ vi.mock("@tanstack/react-start", async (importOriginal) => ({
   useServerFn: (fn: unknown) => fn,
 }));
 
+vi.mock("@/lib/admin/accountAdmin.functions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/admin/accountAdmin.functions")>()),
+  getUserAccountStatus: h.accountStatus,
+  deleteUserAccount: h.deleteAccount,
+}));
+
 vi.mock("@/lib/admin/invitations.functions", () => ({
   resendInvitationsForEmails: async ({ data }: { data: { emails: string[] } }) => {
     h.resendCalls.push(data.emails);
@@ -218,6 +226,10 @@ vi.mock("@/lib/admin/invitations.functions", () => ({
   listInvitations: async () => ({ invitations: h.invitations }),
   sendInvitation: async ({ data }: { data: { id: string } }) => {
     h.sendCalls.push(data.id);
+    return h.sendResult;
+  },
+  sendActivationEmailForUser: async ({ data }: { data: { userId: string } }) => {
+    h.sendCalls.push(data.userId);
     return h.sendResult;
   },
   revokeInvitation: async ({ data }: { data: { id: string } }) => {
@@ -279,9 +291,11 @@ vi.mock("@/components/media/ImageCropDialog", () => ({
   ImageCropDialog: propsStub("ImageCropDialog"),
   CROP_PRESETS: { avatar: { aspect: 1 }, cover: { aspect: 3 } },
 }));
-vi.mock("@/components/icons/BrandIcon", () => ({
-  BrandIcon: ({ name }: { name: string }) => <span data-brand={name} />,
-}));
+// `BrandIcon` (atom z `components/atoms`) NIE jest tu atrapowany celowo -
+// karta użytkownika renderuje go sześcioma wywołaniami z fallbackami Lucide,
+// a przy pustej bibliotece ikon atom degraduje do tych fallbacków, nie mieszając
+// się w nic, co ten plik mierzy. Trasy `quiz` i `profile` atrapują go, bo tam
+// współdzielony cache ikon zakłócałby pomiar „zero odczytów" treści.
 vi.mock("@/components/admin/users/InviteUserDialog", () => ({
   InviteUserDialog: propsStub("InviteUserDialog"),
 }));
@@ -556,6 +570,24 @@ beforeEach(() => {
   h.navigations = [];
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
+  h.accountStatus.mockReset().mockResolvedValue({
+    exists: true,
+    email: "druga@example.org",
+    emailConfirmed: false,
+    emailConfirmedAt: null,
+    phoneConfirmed: false,
+    lastSignInAt: null,
+    createdAt: BASE_ISO,
+    invitedAt: BASE_ISO,
+    bannedUntil: null,
+    providers: ["email"],
+    hasMfa: false,
+    invitationId: "invite-1",
+    invitationStatus: "pending",
+    invitationSendCount: 1,
+    state: "invited",
+  });
+  h.deleteAccount.mockReset().mockResolvedValue({ ok: true });
   h.toastInfo.mockReset();
   // Domyślne, „szczęśliwe" odpowiedzi - każdy test nadpisuje to, co bada.
   setRpc("admin_list_users", ok([userRow()]));
@@ -682,16 +714,21 @@ describe("admin.users - oferta zmiany roli per rola wywołującego", () => {
     h.roles = ["admin"];
     await mountList();
     await waitFor(() => expect(dataRows()).toHaveLength(2));
-    const adminTitles = Array.from(document.querySelectorAll("button[title]")).length;
+    const adminMenu = Array.from(
+      document.querySelectorAll<HTMLButtonElement>("tbody button[title]"),
+    );
+    fireEvent.click(adminMenu[adminMenu.length - 1]);
+    expect(document.body.textContent).not.toContain("adminUsers.sign");
 
     cleanup();
     h.roles = ["super_admin"];
     await mountList();
     await waitFor(() => expect(dataRows()).toHaveLength(2));
-    const superTitles = Array.from(document.querySelectorAll("button[title]")).length;
-
-    // Super admin dostaje DOKŁADNIE jeden przycisk więcej - dla obcego wiersza.
-    expect(superTitles - adminTitles).toBe(1);
+    const superMenu = Array.from(
+      document.querySelectorAll<HTMLButtonElement>("tbody button[title]"),
+    );
+    fireEvent.click(superMenu[superMenu.length - 1]);
+    expect(document.body.textContent).toContain("adminUsers.sign");
   });
 });
 
@@ -2438,14 +2475,14 @@ describe("admin.users.invitations - lista zaproszeń", () => {
     );
   });
 
-  it("wiersz pokazuje rolę, tryb i status, a brak źródła degraduje do `-`", async () => {
+  it("wiersz pokazuje rolę, tryb, przetłumaczony status i brakujące daty", async () => {
     h.invitations = [invitation({ source: null })];
     await mountInvitations();
     await waitFor(() => expect(document.body.textContent).toContain("trzecia@example.org"));
     const text = document.body.textContent ?? "";
     expect(text).toContain("author");
     expect(text).toContain("magic_link");
-    expect(text).toContain("pending");
+    expect(text).toContain("adminMiscRoutes.invitations.statusPending");
     expect(text).toContain("-");
   });
 
@@ -2455,8 +2492,10 @@ describe("admin.users.invitations - lista zaproszeń", () => {
     );
     await mountInvitations();
     await waitFor(() => expect(document.querySelectorAll("tbody tr")).toHaveLength(4));
-    for (const status of ["sent", "accepted", "failed", "pending"]) {
-      expect(document.body.textContent, `brak statusu ${status}`).toContain(status);
+    for (const status of ["Sent", "Accepted", "Failed", "Pending"]) {
+      expect(document.body.textContent, `brak statusu ${status}`).toContain(
+        `adminMiscRoutes.invitations.status${status}`,
+      );
     }
   });
 
@@ -2571,8 +2610,15 @@ describe("admin.users.invitations - lista zaproszeń", () => {
     expect(spy).toHaveBeenCalled();
   });
 
-  it("trasa zaproszeń nie ma nagłówków SEO", async () => {
-    expect(await routeMeta(InvitationsRoute)).toEqual([]);
+  it("trasa zaproszeń ma własne kompletne nagłówki", async () => {
+    expect(await routeMeta(InvitationsRoute)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: expect.stringContaining("Zaproszenia") }),
+        expect.objectContaining({ name: "description" }),
+        expect.objectContaining({ property: "og:title" }),
+        expect.objectContaining({ name: "twitter:card" }),
+      ]),
+    );
   });
 });
 
@@ -2961,11 +3007,14 @@ describe("admin.users - ramiona warunków odczytu i wyliczeń", () => {
     h.roles = ["super_admin"];
     await mountList();
     await waitFor(() => expect(dataRows()).toHaveLength(1));
-    const impersonate = Array.from(
-      document.querySelectorAll<HTMLButtonElement>("tbody button[title]"),
-    )[0];
+    const menu = Array.from(document.querySelectorAll<HTMLButtonElement>("tbody button[title]"))[0];
+    expect(menu).toBeTruthy();
+    fireEvent.click(menu);
+    const impersonate = Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent?.includes("adminUsers.sign"),
+    );
     expect(impersonate).toBeTruthy();
-    fireEvent.click(impersonate);
+    fireEvent.click(impersonate!);
     await waitFor(() => expect(h.impersonations).toHaveLength(1));
     expect(h.impersonations[0]).toEqual({ id: IDS.other, label: "Osoba Druga" });
     // Komórka akcji ma `stopPropagation` - klik nie może przenieść na kartę.
@@ -2981,23 +3030,29 @@ describe("admin.users - ramiona warunków odczytu i wyliczeń", () => {
     try {
       await mountList();
       await waitFor(() => expect(dataRows()).toHaveLength(1));
-      const impersonate = Array.from(
+      const menu = Array.from(
         document.querySelectorAll<HTMLButtonElement>("tbody button[title]"),
       )[0];
-      fireEvent.click(impersonate);
+      fireEvent.click(menu);
+      const impersonate = Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find(
+        (button) => button.textContent?.includes("adminUsers.sign"),
+      );
+      fireEvent.click(impersonate!);
       await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("otp_expired"));
     } finally {
       spy.mockRestore();
     }
   });
 
-  it("przycisk podglądu w wierszu przenosi na kartę użytkownika", async () => {
+  it("edycja z menu wiersza przenosi na kartę użytkownika", async () => {
     await mountList();
     await waitFor(() => expect(dataRows()).toHaveLength(1));
-    const buttons = Array.from(
-      document.querySelectorAll<HTMLButtonElement>("tbody td:last-child button"),
+    const menu = Array.from(document.querySelectorAll<HTMLButtonElement>("tbody button[title]"))[0];
+    fireEvent.click(menu);
+    const edit = Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find((button) =>
+      button.textContent?.includes("adminUsers.editAccount"),
     );
-    fireEvent.click(buttons[buttons.length - 1]);
+    fireEvent.click(edit!);
     await waitFor(() =>
       expect(h.navigations).toEqual([{ to: "/admin/users/$id", params: { id: IDS.other } }]),
     );
@@ -3138,4 +3193,176 @@ describe("admin.users - ramiona warunków odczytu i wyliczeń", () => {
     await waitFor(() => expect(h.props.ImageCropDialog.open).toBe(true));
     expect(h.props.ImageCropDialog.file).not.toBeNull();
   });
+});
+
+describe("member account recovery actions", () => {
+  async function openActions() {
+    await mountList();
+    await waitFor(() => expect(dataRows()).toHaveLength(1));
+    fireEvent.click(screen.getByRole("button", { name: "adminUsers.moreActions" }));
+    await waitFor(() => expect(h.accountStatus).toHaveBeenCalled());
+  }
+  it("sends activation from the directory and closes the menu", async () => {
+    await openActions();
+    const button = await screen.findByRole("button", { name: /adminUsers.resendActivationEmail/ });
+    await waitFor(() => expect(button.hasAttribute("disabled")).toBe(false));
+    fireEvent.click(button);
+    await waitFor(() => expect(h.sendCalls).toContain(IDS.other));
+    expect(h.toastSuccess).toHaveBeenCalledWith("adminUsers.activationResent");
+  });
+  it.each(["activation_send_limit_reached", "smtp unavailable", undefined])(
+    "shows activation failure (%s) and permits retry",
+    async (error) => {
+      h.sendResult = { ok: false, error };
+      await openActions();
+      const button = await screen.findByRole("button", {
+        name: /adminUsers.resendActivationEmail/,
+      });
+      await waitFor(() => expect(button.hasAttribute("disabled")).toBe(false));
+      fireEvent.click(button);
+      await waitFor(() => expect(h.toastError).toHaveBeenCalled());
+      expect(button.hasAttribute("disabled")).toBe(false);
+    },
+  );
+  it.each([false, true])("requires matching email before deletion (failure %s)", async (fails) => {
+    if (fails) h.deleteAccount.mockRejectedValue(new Error("ADMIN_ACCOUNT/DELETE_FAILED"));
+    await openActions();
+    fireEvent.click(screen.getByRole("button", { name: "adminUsers.deleteAccount" }));
+    const submit = await screen.findByRole("button", { name: "adminUsers.deleteAccountSubmit" });
+    expect(submit.hasAttribute("disabled")).toBe(true);
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "adminUsers.deleteAccountConfirmPlaceholder" }),
+      { target: { value: " DRUGA@example.org " } },
+    );
+    expect(submit.hasAttribute("disabled")).toBe(false);
+    fireEvent.click(submit);
+    await waitFor(() =>
+      expect(h.deleteAccount).toHaveBeenCalledWith({
+        data: { userId: IDS.other, confirmEmail: " DRUGA@example.org " },
+      }),
+    );
+    await waitFor(() => expect(fails ? h.toastError : h.toastSuccess).toHaveBeenCalled());
+  });
+  it("resends activation from the account detail", async () => {
+    await mountDetail();
+    const button = await screen.findByRole("button", { name: /adminUsers.resendActivationEmail/ });
+    fireEvent.click(button);
+    await waitFor(() => expect(h.sendCalls).toContain("invite-1"));
+    expect(h.toastSuccess).toHaveBeenCalledWith("adminUsers.activationResent");
+  });
+});
+
+it.each([false, true])(
+  "deletes from account detail only after confirmation (failure %s)",
+  async (fails) => {
+    if (fails) h.deleteAccount.mockRejectedValue(new Error("ADMIN_ACCOUNT/DELETE_FAILED"));
+    await mountDetail();
+    fireEvent.click(await screen.findByRole("button", { name: "adminUsers.deleteAccount" }));
+    const submit = await screen.findByRole("button", { name: "adminUsers.deleteAccountSubmit" });
+    expect(submit.hasAttribute("disabled")).toBe(true);
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "adminUsers.deleteAccountConfirmPlaceholder" }),
+      { target: { value: "druga@example.org" } },
+    );
+    fireEvent.click(submit);
+    await waitFor(() =>
+      expect(h.deleteAccount).toHaveBeenCalledWith({
+        data: { userId: IDS.other, confirmEmail: "druga@example.org" },
+      }),
+    );
+    await waitFor(() => expect(fails ? h.toastError : h.toastSuccess).toHaveBeenCalled());
+    if (!fails) expect(h.navigations).toContainEqual({ to: "/admin/users" });
+  },
+);
+
+it("opens the account by clicking its table row", async () => {
+  await mountList();
+  await waitFor(() => expect(dataRows()).toHaveLength(1));
+  fireEvent.click(dataRows()[0]);
+  expect(h.navigations).toContainEqual({ to: "/admin/users/$id", params: { id: IDS.other } });
+});
+
+it.each(["error", "missing-error"])(
+  "reports account detail activation failure (%s)",
+  async (kind) => {
+    h.sendResult = { ok: false, ...(kind === "error" ? { error: "smtp unavailable" } : {}) };
+    await mountDetail();
+    fireEvent.click(
+      await screen.findByRole("button", { name: /adminUsers.resendActivationEmail/ }),
+    );
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith(
+        kind === "error" ? "smtp unavailable" : "adminUsers.activationResendError",
+      ),
+    );
+  },
+);
+
+it.each(["active", "banned", "missing"])("renders the account status %s", async (state) => {
+  h.accountStatus.mockResolvedValue({
+    exists: true,
+    email: "druga@example.org",
+    emailConfirmed: true,
+    emailConfirmedAt: BASE_ISO,
+    phoneConfirmed: true,
+    lastSignInAt: BASE_ISO,
+    createdAt: BASE_ISO,
+    invitedAt: null,
+    bannedUntil: state === "banned" ? BASE_ISO : null,
+    providers: [],
+    hasMfa: true,
+    invitationId: null,
+    invitationStatus: null,
+    invitationSendCount: 5,
+    state,
+  });
+  await mountDetail();
+  expect(
+    await screen.findByText(`adminUsers.status${state[0].toUpperCase()}${state.slice(1)}`),
+  ).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /adminUsers.resendActivationEmail/ })).toBeNull();
+});
+
+it("filters invitation records by summary, status, email and display name", async () => {
+  h.invitations = ["pending", "sent", "accepted", "failed", "revoked"].map((status, i) => ({
+    id: `inv-${i}`,
+    email: `member${i}@example.org`,
+    display_name: i === 4 ? null : `Person ${i}`,
+    role: "author",
+    mode: "magic_link",
+    status,
+    source: "manual",
+    sent_at: null,
+    last_error: null,
+    send_count: i === 3 ? 5 : 0,
+    accepted_at: null,
+  }));
+  await renderRoute({
+    route: InvitationsRoute,
+    path: "/admin/users/invitations",
+    initialEntry: "/admin/users/invitations",
+  });
+  await screen.findByText("member0@example.org");
+  fireEvent.click(
+    screen.getByRole("button", { name: /adminMiscRoutes.invitations.summaryWaiting/ }),
+  );
+  expect(screen.queryByText("member2@example.org")).toBeNull();
+  const filter = document.querySelector("select");
+  if (!filter) throw new Error("missing status filter");
+  for (const [status, member] of [
+    ["accepted", 2],
+    ["failed", 3],
+    ["revoked", 4],
+  ] as const) {
+    fireEvent.change(filter, { target: { value: status } });
+    expect(screen.getByText(`member${member}@example.org`)).toBeTruthy();
+    expect(screen.queryByText("member0@example.org")).toBeNull();
+  }
+  fireEvent.change(filter, { target: { value: "all" } });
+  const search = screen.getByPlaceholderText("adminMiscRoutes.invitations.searchPlaceholder");
+  fireEvent.change(search, { target: { value: "Person 1" } });
+  expect(screen.getByText("member1@example.org")).toBeTruthy();
+  expect(screen.queryByText("member4@example.org")).toBeNull();
+  fireEvent.change(search, { target: { value: "member4@" } });
+  expect(screen.getByText("member4@example.org")).toBeTruthy();
 });

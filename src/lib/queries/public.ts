@@ -70,16 +70,36 @@ export const ENTITY_SELECT_COLS = {
   homepage: `${ENTITY_BASE_COLS}, ${TAKEAWAYS_SELECT_COLS}, ${SEO_FIELDS_SELECT}`,
 } as const;
 
+/**
+ * Select wiersza wpisu W REZOLUCJI ADRESU: kolumny encji PLUS taksonomie
+ * osadzone przez tabele pivot (`post_tags(tags(...))`, `post_categories(
+ * categories(...))`) w JEDNYM round-tripie.
+ *
+ * Do 2026-09-20 tagi i kategorie jechały DWOMA osobnymi zapytaniami w fali
+ * głównej wpisu, która miała przez to SIEDEM odnóg przy limicie 6 równoległych
+ * połączeń runtime Workers - siódma czekała w kolejce na zwolnienie slotu
+ * (audyt CWV, F06). Osadzenie zdejmuje dwie odnogi i nie zmienia projekcji:
+ * PostgREST stosuje RLS każdej tabeli po drodze tak samo, jak przy osobnym
+ * zapytaniu, więc ukryty przez RLS tag daje `tags: null` w wierszu pivotu -
+ * dokładnie tak, jak wcześniej - i jest odsiewany tą samą filtracją.
+ *
+ * Osobna stała (nie rozszerzenie `ENTITY_SELECT_COLS.post`), bo osadzenia
+ * mają sens tylko tu; jeden literał szablonowy z tego samego powodu, co wyżej.
+ */
+export const POST_RESOLVE_SELECT =
+  `${ENTITY_SELECT_COLS.post}, post_tags(tags(slug, name)), post_categories(categories(slug, name_pl, name_en, color))` as const;
+
 async function fetchAccessRule(
   entityType: "post" | "page",
   entityId: string,
 ): Promise<ContentAccessRule | null> {
-  const { data } = await supabase
+  const { data, error: dataError } = await supabase
     .from("content_access_public")
     .select(ACCESS_RULE_COLS)
     .eq("entity_type", entityType)
     .eq("entity_id", entityId)
     .maybeSingle();
+  if (dataError) throw dataError;
   return (data as ContentAccessRule | null) ?? null;
 }
 
@@ -391,22 +411,20 @@ interface ReadingSettingsValue {
  */
 async function fetchReadingSettings(): Promise<ReadingSettingsValue> {
   if (typeof window === "undefined" && import.meta.env.SSR) {
-    try {
-      const { fetchAllSiteSettings } = await import("@/lib/useSiteSetting");
-      const map = await fetchAllSiteSettings();
-      const reading = map["reading"];
-      return typeof reading === "object" && reading !== null
-        ? (reading as ReadingSettingsValue)
-        : {};
-    } catch {
-      return {};
-    }
+    // Failure is not an editorial decision to use the legacy static homepage.
+    // Let the resilient route loader seed an explicitly stale fallback instead
+    // of caching a fabricated mode for 60 seconds in edgeTtlCache.
+    const { fetchAllSiteSettings } = await import("@/lib/useSiteSetting");
+    const map = await fetchAllSiteSettings();
+    const reading = map["reading"];
+    return typeof reading === "object" && reading !== null ? (reading as ReadingSettingsValue) : {};
   }
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("site_settings")
     .select("value")
     .eq("key", "reading")
     .maybeSingle();
+  if (error) throw error;
   return (data?.value ?? {}) as ReadingSettingsValue;
 }
 
@@ -477,17 +495,18 @@ export const homePageQueryOptions = () =>
         let row: Record<string, unknown> | null = null;
         if (reading.homepage_mode === "static_page") {
           if (reading.homepage_page_id) {
-            const { data } = await supabase
+            const { data, error: dataError } = await supabase
               .from("pages")
               .select(cols)
               .eq("id", reading.homepage_page_id)
               .is("deleted_at", null)
               .eq("status", "published")
               .maybeSingle();
+            if (dataError) throw dataError;
             if (data) row = data;
           }
           if (!row && reading.homepage_page_slug) {
-            const { data } = await supabase
+            const { data, error: dataError } = await supabase
               .from("pages")
               .select(cols)
               .eq("slug", reading.homepage_page_slug)
@@ -495,6 +514,7 @@ export const homePageQueryOptions = () =>
               .is("deleted_at", null)
               .eq("status", "published")
               .maybeSingle();
+            if (dataError) throw dataError;
             if (data) row = data;
           }
         }
@@ -665,8 +685,8 @@ export const publicCategoriesQueryOptions = () =>
 /**
  * Rdzeń rezolucji treści po segmentach ścieżki (wydzielony z queryFn, żeby
  * objąć go edgeTtlCache bez zmiany logiki). Trzy fale round-tripów:
- * resolve_path -> Promise.all(metadane+body+taksonomie+okruszki+access) ->
- * profile autorów.
+ * resolve_path -> Promise.all(metadane Z taksonomiami+body+współautorzy+
+ * okruszki+access; 5 odnóg) -> profile autorów.
  */
 async function resolveContentForSegments(segments: string[]): Promise<ResolvedContent | null> {
   const { data: resolved, error: rErr } = await supabase.rpc("resolve_path", {
@@ -679,24 +699,19 @@ async function resolveContentForSegments(segments: string[]): Promise<ResolvedCo
   if (hit.post_id) {
     // Body columns (content_*/builder_data/blocks_data) are fetched via the
     // gated RPC, never selected directly - the row select carries only the
-    // non-sensitive display metadata. All four requests run in parallel so
-    // gating adds no extra latency.
+    // non-sensitive display metadata (plus embedded taxonomies, see
+    // `POST_RESOLVE_SELECT`). PIĘĆ odnóg, nie siedem: wiersz wpisu niesie tagi
+    // i kategorie w osadzeniu, więc cała fala mieści się w limicie 6
+    // równoległych połączeń Workers i żadna odnoga nie czeka w kolejce.
     const [
       { data, error },
       body,
-      { data: tagRows },
-      { data: catRows },
-      { data: coAuthorRows },
+      { data: coAuthorRows, error: coAuthorRowsError },
       crumbs,
       access,
     ] = await Promise.all([
-      supabase.from("posts").select(ENTITY_SELECT_COLS.post).eq("id", hit.post_id).maybeSingle(),
+      supabase.from("posts").select(POST_RESOLVE_SELECT).eq("id", hit.post_id).maybeSingle(),
       fetchGatedBody("post", hit.post_id),
-      supabase.from("post_tags").select("tags(slug, name)").eq("post_id", hit.post_id),
-      supabase
-        .from("post_categories")
-        .select("categories(slug, name_pl, name_en, color)")
-        .eq("post_id", hit.post_id),
       supabase
         .from("post_authors")
         .select("user_id, sort_order")
@@ -705,15 +720,21 @@ async function resolveContentForSegments(segments: string[]): Promise<ResolvedCo
       fetchPageBreadcrumbs(hit.page_id),
       fetchAccessRule("post", hit.post_id),
     ]);
+    if (coAuthorRowsError) throw coAuthorRowsError;
     if (error) throw error;
     if (!data) return null;
+    // Osadzenia schodzą z wiersza PRZED złożeniem `item`: kształt `PostData`
+    // i całego `ResolvedContent` (tagi/kategorie jako osobne listy) jest
+    // kontraktem konsumentów i dehydratowanego payloadu - nie może urosnąć
+    // o surowe wiersze pivotu.
+    const { post_tags: tagRows, post_categories: catRows, ...row } = data;
     const tags = (tagRows ?? [])
       .map((r) => (r as { tags: { slug: string; name: string } | null }).tags)
       .filter((t): t is { slug: string; name: string } => !!t);
     const categories = (catRows ?? [])
       .map((r) => (r as { categories: PostCategory | null }).categories)
       .filter((c): c is PostCategory => !!c);
-    const post = { ...data, ...body } as PostData;
+    const post = { ...row, ...body } as PostData;
     // Profile WSZYSTKICH autorów (główny + współautorzy) pobieramy JEDNYM
     // selectem .in() po profiles_public - wcześniej były to dwie
     // sekwencyjne rundy (osobny profil autora głównego, a potem drugi
@@ -746,13 +767,15 @@ async function resolveContentForSegments(segments: string[]): Promise<ResolvedCo
             .eq("user_id", mainAuthorId)
             .maybeSingle()
         : null;
-      const [{ data: profileRows }, overlayRes] = await Promise.all([
+      const [{ data: profileRows, error: profileRowsError }, overlayRes] = await Promise.all([
         supabase
           .from("profiles_public")
           .select("id, slug, display_name, first_name, last_name, avatar_url, bio_pl, bio_en")
           .in("id", orderedAuthorIds),
-        overlayQuery ?? Promise.resolve({ data: null } as const),
+        overlayQuery ?? Promise.resolve({ data: null, error: null } as const),
       ]);
+      if (profileRowsError) throw profileRowsError;
+      if (overlayRes.error) throw overlayRes.error;
       ({ author, authors } = buildPostAuthors({
         orderedAuthorIds,
         profileRows: (profileRows ?? []) as FullAuthorRow[],
@@ -790,10 +813,11 @@ async function resolveContentForSegments(segments: string[]): Promise<ResolvedCo
   if (!effectiveHeaderOverride && crumbs.length > 0) {
     const ancestorIds = crumbs.map((c) => c.id).filter((id) => id !== hit.page_id);
     if (ancestorIds.length > 0) {
-      const { data: ancestorRows } = await supabase
+      const { data: ancestorRows, error: ancestorRowsError } = await supabase
         .from("pages")
         .select("id, header_override")
         .in("id", ancestorIds);
+      if (ancestorRowsError) throw ancestorRowsError;
       const overrideById = new Map(
         (ancestorRows ?? []).map((row) => [row.id, row.header_override] as const),
       );

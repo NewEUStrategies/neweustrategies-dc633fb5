@@ -79,8 +79,17 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
 
   // Zalogowanemu uzupelniamy to, co juz mamy w metadanych konta. Nie blokujemy
   // pol: dane kontaktowe do wydarzenia moga byc inne niz w profilu.
+  //
+  // ZALEZNOSCIA JEST ISTNIENIE SZKICU, NIE JEGO TRESC. Sesje `useAuth`
+  // odtwarza z pamieci przegladarki, wiec tozsamosc bywa znana ZANIM wroci
+  // `event_registration_form` - efekt zalezny od samego `user` trafialby
+  // wtedy na `draft === null`, konczyl sie na `return current` i juz nigdy nie
+  // powtarzal, bo tozsamosc sie nie zmienia. Tresc szkicu w zaleznosciach
+  // bylaby lekarstwem gorszym od choroby: wyczyszczone przez czlowieka pole
+  // e-mail wracaloby z konta.
+  const hasDraft = draft !== null;
   useEffect(() => {
-    if (user === null) return;
+    if (user === null || !hasDraft) return;
     setDraft((current) => {
       if (current === null || current.email !== "") return current;
       const meta = user.user_metadata;
@@ -93,7 +102,7 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
         lastName: current.lastName === "" ? last : current.lastName,
       };
     });
-  }, [user]);
+  }, [user, hasDraft]);
 
   const errorOf = useMemo(() => {
     const map = new Map<string, string>();

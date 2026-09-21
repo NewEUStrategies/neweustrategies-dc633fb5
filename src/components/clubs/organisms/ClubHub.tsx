@@ -35,6 +35,7 @@ import {
   MessagesSquare,
   Newspaper,
   Search,
+  Settings2,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -97,6 +98,9 @@ import { ClubGlobalSearchResults } from "@/components/clubs/organisms/ClubGlobal
 import { buildClubSourceIndex } from "@/lib/clubs/threadSources";
 import { uiLang, uiLocale } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
+import { ClubSettingsDialog } from "@/components/clubs/molecules/ClubSettingsDialog";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
+import type { BreadcrumbItem } from "@/lib/breadcrumbs";
 
 const FEED_ICONS = {
   all: LayoutList,
@@ -119,10 +123,12 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
   const lang = uiLang(i18n.language);
   const locale = uiLocale(i18n.language);
   const clubSlug = club.slug;
+  const clubName = pickLocalized(club, "name", lang);
 
   const { session } = useAuth();
   const signedIn = session !== null;
 
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [mode, setMode] = useState<ClubFeedMode>("all");
   const [groupId, setGroupId] = useState<string | null>(null);
   const [sort, setSort] = useState<ClubThreadSort>("hot");
@@ -167,7 +173,8 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
   // Dokumenty idą tym samym zawężeniem, co strumień: panel działu ma pokazywać
   // materiały TEGO działu, a nie całego klubu.
   const documentsQ = useClubDocuments({ clubId: club.id, groupId, limit: 6 });
-  const eventsQ = useClubEvents({ clubId: club.id, from: new Date().toISOString(), limit: 12 });
+  const [eventsFrom] = useState(() => new Date().toISOString());
+  const eventsQ = useClubEvents({ clubId: club.id, from: eventsFrom, limit: 12 });
   const milestonesQ = useClubMilestones(club.id);
   // Ściana (A31). Wpisy idą tym samym zawężeniem działu, co strumień - inaczej
   // wybrany dział pokazywałby wątki jednego działu i wpisy całego klubu.
@@ -375,8 +382,32 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
     </>
   );
 
+  const breadcrumbItems: BreadcrumbItem[] = [
+    { label: t("club.title"), href: "/club" },
+    { label: clubName },
+  ];
+
   return (
     <div className="mx-auto w-full max-w-[1600px] px-3 py-5 sm:px-5 lg:px-8">
+      <Breadcrumbs items={breadcrumbItems} className="mb-3" />
+      {/* Edycja danych klubu stoi PRZY kluby, nie w panelu: prowadzacy klubu
+          nie ma dostepu do panelu administracyjnego. */}
+      {club.can_manage ? (
+        <div className="mb-2 flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 rounded-[6px]"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Settings2 className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            {t("club.settings.action")}
+          </Button>
+        </div>
+      ) : null}
+      {settingsOpen ? (
+        <ClubSettingsDialog club={club} open={settingsOpen} onOpenChange={setSettingsOpen} />
+      ) : null}
       <ClubHubIdentity club={club} locale={locale} className="mb-4" />
 
       <div className="grid items-start gap-4 lg:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)_20rem]">
@@ -456,8 +487,8 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
             </div>
           ) : null}
 
-          <div className="mb-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_11rem]">
-            <div className="relative">
+          <div className="mb-3 grid items-stretch gap-2 sm:grid-cols-[minmax(0,1fr)_11rem]">
+            <div className="relative h-12 min-w-0">
               <Search
                 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
                 aria-hidden="true"
@@ -467,7 +498,7 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={t("club.searchPlaceholder")}
                 aria-label={t("club.searchPlaceholder")}
-                className="rounded-lg pl-9 pr-9"
+                className="h-12 min-h-12 rounded-[6px] py-0 pl-9 pr-9"
               />
               {query !== "" ? (
                 <button
@@ -483,7 +514,10 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
             <Select value={sort} onValueChange={(value) => setSort(value as ClubThreadSort)}>
               <SelectTrigger
                 aria-label={t("club.sort.label")}
-                className={cn("rounded-lg", searching && "hidden")}
+                className={cn(
+                  "h-12 min-h-12 items-center rounded-[6px] py-0 leading-none [&>svg]:self-center",
+                  searching && "hidden",
+                )}
               >
                 <SelectValue />
               </SelectTrigger>

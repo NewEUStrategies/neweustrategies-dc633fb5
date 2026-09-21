@@ -14,7 +14,7 @@
 //
 // ZASADA: ten plik to CZYSTA glue (jak `lazyWidgets.tsx`) - jest wyłączony
 // z pomiaru pokrycia i nie wolno wkładać tu logiki widgetu.
-import { Suspense, type ComponentType, type ReactElement } from "react";
+import { memo, Suspense, type ComponentType, type NamedExoticComponent } from "react";
 import { useBuilderMode } from "@/lib/content-model/editorCanvas";
 
 /** Builder-only shimmer; `null` on public pages (SSR fills the boundary). */
@@ -34,13 +34,14 @@ export function LazyFallback() {
 const FALLBACK = <LazyFallback />;
 
 /** Wrap a `React.lazy` chunk in Suspense + typed prop forwarding. */
-export function withSuspense<P>(Lazy: ComponentType<P>): (props: P) => ReactElement {
-  return function Suspended(props: P) {
+export function withSuspense<P extends object>(Lazy: ComponentType<P>): NamedExoticComponent<P> {
+  // Parent queries and translation readiness can update during hydration.
+  // Identical widget props must not invalidate its still-pending SSR boundary.
+  return memo(function Suspended(props: P) {
     return (
       <Suspense fallback={FALLBACK}>
-        {/* @ts-expect-error - React.lazy component signature is compatible at runtime. */}
         <Lazy {...props} />
       </Suspense>
     );
-  };
+  });
 }

@@ -1,0 +1,244 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789142382472,
+      "tag": "0000_search_people_super_admin_bypass",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789150330170,
+      "tag": "0001_profiles_discoverable_default_true",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789227676028,
+      "tag": "0002_pr350_member_crm_sync_and_chat_compat",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789232400000,
+      "tag": "0003_read_only_schema_contract",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789237916330,
+      "tag": "0004_read_only_schema_contract",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789241481684,
+      "tag": "0005_pr353_admin_dashboard_aggregates",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789296895759,
+      "tag": "0006_impersonation_tenant_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789296900412,
+      "tag": "0007_job_runner_base_url_shape_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789296967119,
+      "tag": "0008_payment_webhook_events_tenant_binding",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789297135558,
+      "tag": "0009_email_log_tenant_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789297200048,
+      "tag": "0010_email_send_log_tenant_producers",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789300800048,
+      "tag": "0011_profiles_discoverable_opt_in_restore",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789304400048,
+      "tag": "0012_email_account_tenant_for_address",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1789326756549,
+      "tag": "0013_pr355_discoverable_optin_and_email_account_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1789366349541,
+      "tag": "0014_profile_view_privacy_fix",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1789366355649,
+      "tag": "0015_introduction_gates_and_dedup",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1789366394872,
+      "tag": "0016_mutual_visible_count",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789368131307,
+      "tag": "0017_set_user_consents_atomic",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1789374609765,
+      "tag": "0018_pr365_tenant_follows_profile",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1789383610469,
+      "tag": "0019_related_post_clicks_viewer_window_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1789411078963,
+      "tag": "0020_club_covers_per_club_storage_write",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789416639327,
+      "tag": "0021_brand_media_urls_on_canonical_domain",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1789420013102,
+      "tag": "0022_club_covers_per_club_storage_write_register",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1789420193052,
+      "tag": "0023_record_club_covers_migration_in_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1789461645882,
+      "tag": "0024_profiles_tenant_id_not_client_writable",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1789501549844,
+      "tag": "0025_tenant_scope_presence_and_rsvp_owner_read",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1789663184987,
+      "tag": "0026_selfservice_privilege_pins",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1789810847620,
+      "tag": "0027_coupon_per_user_limit_and_cv_upload_quota",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1789855412587,
+      "tag": "0028_club_cover_position_y",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1789908794265,
+      "tag": "0029_club_set_cover_position_tenant_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1789968624979,
+      "tag": "0030_web_vitals_navigation_context",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1789991681265,
+      "tag": "0031_user_invitations_pin_all_non_acceptance_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1790018264900,
+      "tag": "0032_mention_targets_people_crm_companies",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1790018928921,
+      "tag": "0033_stable_organization_mention_slugs",
+      "breakpoints": true
+    }
+  ]
+}

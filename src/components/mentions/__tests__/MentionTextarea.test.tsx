@@ -24,16 +24,39 @@ function Harness() {
 }
 
 const PEOPLE: MentionSuggestion[] = [
-  // `kind` jest wymagane od czasu, gdy podpowiedzi obejmują też organizacje -
-  // wiersz osoby musi to mówić wprost, inaczej lista nie wie, co narysować.
   {
     kind: "person",
     slug: "jan-kowalski",
     name: "Jan Kowalski",
     avatarUrl: null,
+    logoUrl: null,
+    website: null,
     subtitle: "Analityk",
+    verified: false,
   },
-  { kind: "person", slug: "anna-nowak", name: "Anna Nowak", avatarUrl: null, subtitle: null },
+  {
+    kind: "person",
+    slug: "anna-nowak",
+    name: "Anna Nowak",
+    avatarUrl: null,
+    logoUrl: null,
+    website: null,
+    subtitle: null,
+    verified: false,
+  },
+];
+
+const COMPANIES: MentionSuggestion[] = [
+  {
+    kind: "organization",
+    slug: "org-123e4567-e89b-12d3-a456-426614174000",
+    name: "ACME Europe",
+    avatarUrl: null,
+    logoUrl: null,
+    website: "https://acme.example",
+    subtitle: "Energy",
+    verified: false,
+  },
 ];
 
 beforeEach(() => {
@@ -69,6 +92,16 @@ describe("MentionTextarea", () => {
     await waitFor(() => screen.getByRole("listbox"));
     fireEvent.mouseDown(screen.getByText("Jan Kowalski"));
     await waitFor(() => expect(box.value).toBe("hi @jan-kowalski "));
+  });
+
+  it("inserts organization mention slugs from CRM suggestions", async () => {
+    suggestionsRef.current = COMPANIES;
+    render(<Harness />);
+    const box = screen.getByRole("combobox") as HTMLTextAreaElement;
+    type(box, "cc @acme");
+    await waitFor(() => screen.getByRole("listbox"));
+    fireEvent.mouseDown(screen.getByText("ACME Europe"));
+    await waitFor(() => expect(box.value).toBe("cc @org-123e4567-e89b-12d3-a456-426614174000 "));
   });
 
   it("navigates with ArrowDown and selects with Enter", async () => {

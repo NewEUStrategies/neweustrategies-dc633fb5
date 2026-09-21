@@ -7,14 +7,30 @@ import { useSiteSetting } from "@/lib/useSiteSetting";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { formatDate as intlFormatDate, formatDateShort } from "@/lib/i18n/format";
+import { useNowMs } from "@/lib/time/useNowMs";
 
 type Lang = "pl" | "en";
 
-function formatDate(iso: string | undefined, format: string, lang: Lang): string {
+/**
+ * `now` PRZYCHODZI ARGUMENTEM, nie z zegara w ciele renderu.
+ *
+ * Stało tu `Date.now()` wołane wprost przy formacie „relative" (opcja wystawiona
+ * w edytorze bloków i w schemacie). Serwer liczył więc „3 godziny temu" do
+ * HTML-a, który brzeg trzyma do 24 h - a klient po hydratacji liczył inną
+ * liczbę. `now === null` (SSR i pierwszy render klienta) degraduje do daty
+ * ABSOLUTNEJ, która jest identyczna po obu stronach; etykieta względna
+ * pojawia się dopiero po montażu.
+ */
+function formatDate(
+  iso: string | undefined,
+  format: string,
+  lang: Lang,
+  now: number | null,
+): string {
   if (!iso) return "";
   const d = new Date(iso);
-  if (format === "relative") {
-    const diff = Date.now() - d.getTime();
+  if (format === "relative" && now !== null) {
+    const diff = now - d.getTime();
     const day = 86_400_000;
     const rtf = new Intl.RelativeTimeFormat(lang === "en" ? "en" : "pl", { numeric: "auto" });
     if (Math.abs(diff) < day) return rtf.format(-Math.round(diff / 3_600_000), "hour");
@@ -48,11 +64,13 @@ export function PostDateView({
   cls: string;
 }) {
   const ctx = useCurrentPostCtx();
+  // Hook BEZWARUNKOWO przed wczesnym `return` - kolejność hooków to kontrakt.
+  const now = useNowMs();
   const iso = showUpdated ? (ctx?.updatedAt ?? ctx?.publishedAt) : ctx?.publishedAt;
   if (!iso) return null;
   return (
     <time className={`text-sm text-muted-foreground ${cls}`} dateTime={iso}>
-      {formatDate(iso, format, lang)}
+      {formatDate(iso, format, lang, now)}
     </time>
   );
 }

@@ -14,6 +14,16 @@ interface SerpPreviewProps {
   title: string;
   /** Final, resolved description. */
   description: string;
+  /**
+   * NAZWA SERWISU rysowana w linii nad niebieskim linkiem.
+   *
+   * Domyślnie stała marki - tak jak było - ale zakładka strony głównej
+   * (/admin/seo/homepage) pozwala tę nazwę edytować, a to WŁAŚNIE ta linia
+   * decyduje, czy Google zdejmie z tytułu powtórzony prefiks marki. Podgląd,
+   * który pokazywałby tu stałą, ukrywałby skutek jedynego pola, dla którego
+   * tamten ekran powstał.
+   */
+  siteName?: string;
   /** Host shown in the URL line (defaults to the canonical brand host). */
   host?: string;
   /** Path segments after the host ("blog/moj-wpis"). */
@@ -21,8 +31,16 @@ interface SerpPreviewProps {
   noindex?: boolean;
 }
 
-export function SerpPreview({ title, description, host, path, noindex }: SerpPreviewProps) {
+export function SerpPreview({
+  title,
+  description,
+  host,
+  path,
+  noindex,
+  siteName,
+}: SerpPreviewProps) {
   const displayHost = host ?? CANONICAL_HOST;
+  const displaySiteName = siteName?.trim() || SITE_NAME;
   const crumbs = path.split("/").filter(Boolean);
   return (
     <div className="rounded-lg border border-border bg-background p-4 relative overflow-hidden">
@@ -39,7 +57,7 @@ export function SerpPreview({ title, description, host, path, noindex }: SerpPre
             <Globe className="w-3.5 h-3.5 text-muted-foreground" />
           </span>
           <span className="min-w-0">
-            <span className="block text-[13px] leading-4 text-foreground">{SITE_NAME}</span>
+            <span className="block text-[13px] leading-4 text-foreground">{displaySiteName}</span>
             <span className="block text-xs leading-4 text-muted-foreground truncate">
               {displayHost}
               {crumbs.map((c) => ` › ${c}`).join("")}

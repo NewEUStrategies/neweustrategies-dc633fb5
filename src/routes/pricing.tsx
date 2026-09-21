@@ -24,11 +24,13 @@ import {
   useMembershipTiers,
 } from "@/lib/billing/tiers";
 import type { MembershipTierRow, TierBenefit } from "@/lib/billing/tiers";
+import type { AccessPlan } from "@/lib/billing/queries";
 import {
   pricingAudiencesQueryOptions,
   pricingFaqQueryOptions,
   usePricingAudiences,
   usePricingFaq,
+  type PricingAudienceRow,
   type PricingFaqItemRow,
 } from "@/lib/pricing/queries";
 import {
@@ -59,9 +61,31 @@ import { ContactSalesDialog } from "@/components/pricing/organisms/ContactSalesD
 import { PlanCard } from "@/components/billing/molecules/PlanCard";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
-import { staticPageSeoQueryOptions, pickStaticSeo } from "@/lib/queries/staticPageSeo";
+import {
+  staticPageSeoQueryOptions,
+  pickStaticSeo,
+  type StaticPageSeo,
+} from "@/lib/queries/staticPageSeo";
+import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { ensureI18n as ensurePricingI18n } from "@/lib/i18n-pricing";
+
+/**
+ * Wspólny termin ŻĄDANIA na cały cennik. Pięć odczytów biegnie RÓWNOLEGLE,
+ * więc budżet jest jeden dla wszystkich, a nie pięć sumujących się. Wcześniej
+ * stało tu pięć gołych `ensureQueryData(...).catch(() => null)`: `catch` bronił
+ * przed BŁĘDEM, ale nie przed POWOLNOŚCIĄ - jeden zwis trzymał cennik aż do
+ * watchdoga SSR.
+ */
+const PRICING_SSR_BUDGET_MS = 1_400;
+
+/** Fallbacki renderu zdegradowanego - zasiew z `updatedAt: 0` (samoleczenie). */
+const NO_SEO: StaticPageSeo = null;
+const NO_AUDIENCES: PricingAudienceRow[] = [];
+const NO_FAQ: PricingFaqItemRow[] = [];
+const NO_TIERS: MembershipTierRow[] = [];
+const NO_PLANS: AccessPlan[] = [];
 
 export const Route = createFileRoute("/pricing")({
   component: PricingPage,
@@ -71,21 +95,39 @@ export const Route = createFileRoute("/pricing")({
   },
   loader: async ({ context }) => {
     const qc = context.queryClient;
+    const deadlineAt = Date.now() + PRICING_SSR_BUDGET_MS;
     // Prefetch całości cennika: SSR renderuje finalny układ bez migotania,
     // a nawigacja kliencka trafia w ciepły cache. Każde źródło degraduje
-    // niezależnie (catch -> null), strona zawsze wstaje.
-    const [seo] = await Promise.all([
-      qc.ensureQueryData(staticPageSeoQueryOptions("pricing")).catch(() => null),
-      qc.ensureQueryData(pricingAudiencesQueryOptions()).catch(() => null),
-      qc.ensureQueryData(pricingFaqQueryOptions()).catch(() => null),
-      qc
-        .ensureQueryData({ queryKey: billingKeys.membershipTiers(), queryFn: fetchMembershipTiers })
-        .catch(() => null),
-      qc
-        .ensureQueryData({ queryKey: billingKeys.plansActive(), queryFn: fetchActivePlans })
-        .catch(() => null),
+    // niezależnie, a budżety biegną WSPÓŁBIEŻNIE - pięć wolnych zapytań
+    // kosztuje tyle co jedno.
+    const [seo, audiences, faq, tiers, plans] = await Promise.all([
+      loadResilient(qc, staticPageSeoQueryOptions("pricing"), NO_SEO, {
+        deadlineAt,
+        label: "pricing-seo",
+      }),
+      loadResilient(qc, pricingAudiencesQueryOptions(), NO_AUDIENCES, {
+        deadlineAt,
+        label: "pricing-audiences",
+      }),
+      loadResilient(qc, pricingFaqQueryOptions(), NO_FAQ, { deadlineAt, label: "pricing-faq" }),
+      loadResilient(
+        qc,
+        { queryKey: billingKeys.membershipTiers(), queryFn: fetchMembershipTiers },
+        NO_TIERS,
+        { deadlineAt, label: "pricing-tiers" },
+      ),
+      loadResilient(
+        qc,
+        { queryKey: billingKeys.plansActive(), queryFn: fetchActivePlans },
+        NO_PLANS,
+        { deadlineAt, label: "pricing-plans" },
+      ),
     ]);
-    return { seo };
+    // BRAMKA NAGŁÓWKA, której ta trasa nie miała. Cennik bez warstw i bez cen
+    // wygląda jak oferta, której nie ma - nie wolno mu zamarznąć na brzegu na
+    // 15 minut świeżości plus dobę okna stale.
+    setCacheControlHeader(resilientCacheControl(anyDegraded(seo, audiences, faq, tiers, plans)));
+    return { seo: seo.data };
   },
   head: ({ loaderData }) => {
     const lang = activeLang(getRequestUrl() || "/pricing");

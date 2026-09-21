@@ -35,6 +35,10 @@ export const networkPl = {
     retry: "Spróbuj ponownie",
     showMore: "Pokaż więcej",
     loadingMore: "Wczytywanie...",
+    // Skrzynka zaproszeń dociąga strony po 24, a odznaka zakładki liczy CAŁĄ
+    // tabelę - napis niesie więc oba człony, żeby "wczytano 24 z 60" było
+    // widoczne bez liczenia wierszy wzrokiem.
+    loadMoreOf: "Pokaż więcej ({{loaded}} z {{total}})",
     // Stronicowanie listy połączeń: przyciski mają same strzałki, więc te trzy
     // napisy są WYŁĄCZNIE dla czytnika ekranu - stąd osobne klucze zamiast
     // podpisów. Gałąź `club.network` ma własną parę - to nie ta sama skala.
@@ -340,6 +344,7 @@ export const networkEn = {
     retry: "Try again",
     showMore: "Show more",
     loadingMore: "Loading...",
+    loadMoreOf: "Show more ({{loaded}} of {{total}})",
     pagination: "Pagination",
     prevPage: "Previous page",
     nextPage: "Next page",
@@ -581,14 +586,13 @@ export const networkEn = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", networkPl, true, true);
-i18n.addResourceBundle("en", "translation", networkEn, true, true);
-
-/**
- * No-op wołany w komponencie trasy zamiast side-effectowego importu modułu.
- * Nazwane wiązanie pozwala splitterowi TanStacka przenieść cały bundle
- * tłumaczeń do chunka trasy - side-effectowy import w pliku trasy lądował
- * w eager-owym grafie wejściowym każdej strony. Rejestracja dzieje się przy
- * ewaluacji modułu (przed renderem komponentu), dokładnie jak wcześniej.
- */
-export function ensureI18n(): void {}
+// Explicit registration must survive both Vite and Nitro tree shaking.
+// Keep the legacy side-effect import contract, and avoid repeated deep merges.
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", networkPl, true, true);
+  i18n.addResourceBundle("en", "translation", networkEn, true, true);
+}
+ensureI18n();

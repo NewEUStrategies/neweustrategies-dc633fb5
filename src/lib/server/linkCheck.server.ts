@@ -63,15 +63,17 @@ export function extractExternalUrls(
 
 async function probe(
   url: string,
-): Promise<{ ok: boolean; status: number | null; error: string | null }> {
+): Promise<{ ok: boolean; status: number | null; error: string | null; refused: boolean }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  let permitted = false;
   try {
     // SSRF guard: refuse private/loopback/link-local/cloud-metadata targets
     // before we make the request. `redirect: "manual"` prevents a 30x from
     // bouncing to an internal host after the pre-check.
     const { assertPublicHttpUrl } = await import("@/lib/http/egressGuard.server");
     await assertPublicHttpUrl(url);
+    permitted = true;
     // GET, nie HEAD: częsta blokada HEAD (403/405) dawałaby fałszywe alarmy.
     const res = await fetch(url, {
       method: "GET",
@@ -87,9 +89,15 @@ async function probe(
       ok: res.status < 400 || gated || redirected,
       status: res.status,
       error: null,
+      refused: false,
     };
   } catch (err) {
-    return { ok: false, status: null, error: err instanceof Error ? err.message : String(err) };
+    return {
+      ok: false,
+      status: null,
+      error: err instanceof Error ? err.message : String(err),
+      refused: !permitted,
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -203,13 +211,34 @@ export interface LinkCheckResult {
   alerted: number;
 }
 
-export async function runLinkCheckBatch(admin: DbClient, postsLimit = 3): Promise<LinkCheckResult> {
+/**
+ * Porcja rotacyjnego skanu.
+ *
+ * `tenantId` ZAWĘŻA kolejkę do jednego najemcy i jest obowiązkowy dla każdego
+ * wołającego, który ma tożsamość użytkownika. Skan nie tylko czyta - upsertuje
+ * `outbound_link_checks`, stempluje `posts.outbound_links_checked_at` i potrafi
+ * wstawić wiersze `notifications` adminom dotkniętego najemcy. Bez zakresu
+ * przycisk „skanuj teraz" w panelu jednego najemcy pisał w obszarze wszystkich
+ * pozostałych i zjadał ich budżet rotacji.
+ *
+ * `null` (wartość domyślna) znaczy „bez zawężenia" i ma DOKŁADNIE JEDNEGO
+ * legalnego wołającego: cron `src/lib/server/jobsTick.server.ts`. To jedyne
+ * wejście bez tożsamości użytkownika - jego zadaniem jest właśnie obsłużyć
+ * kolejkę wszystkich najemców. Każdy inny wołający musi podać najemcę.
+ */
+export async function runLinkCheckBatch(
+  admin: DbClient,
+  postsLimit = 3,
+  tenantId: string | null = null,
+): Promise<LinkCheckResult> {
   const dueBefore = new Date(Date.now() - RECHECK_AFTER_DAYS * 24 * 3_600_000).toISOString();
-  const { data: due, error } = await admin
+  let query = admin
     .from("posts")
     .select("id, tenant_id, content_pl, content_en, builder_data, blocks_data")
     .eq("status", "published")
-    .is("deleted_at", null)
+    .is("deleted_at", null);
+  if (tenantId !== null) query = query.eq("tenant_id", tenantId);
+  const { data: due, error } = await query
     .or(`outbound_links_checked_at.is.null,outbound_links_checked_at.lt.${dueBefore}`)
     .order("outbound_links_checked_at", { ascending: true, nullsFirst: true })
     .limit(postsLimit);
@@ -253,7 +282,7 @@ export async function runLinkCheckBatch(admin: DbClient, postsLimit = 3): Promis
       const snapshots = new Map<number, WaybackSnapshot | null>();
       const brokenIdx = slice
         .map((_, idx) => idx)
-        .filter((idx) => !results[idx].ok)
+        .filter((idx) => !results[idx].ok && !results[idx].refused)
         .slice(0, Math.max(0, MAX_ARCHIVE_LOOKUPS_PER_BATCH - archiveLookups));
       if (brokenIdx.length > 0) {
         archiveLookups += brokenIdx.length;

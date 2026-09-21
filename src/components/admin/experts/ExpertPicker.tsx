@@ -33,6 +33,7 @@ const T = {
   pl: {
     placeholder: "Wybierz osobę z bazy",
     search: "Szukaj: nazwisko, stanowisko, organizacja…",
+    listbox: "Osoby w bazie wewnętrznej",
     empty: "Brak dopasowań w bazie wewnętrznej.",
     expert: "ekspert",
     draft: "profil niepubliczny",
@@ -44,6 +45,7 @@ const T = {
   en: {
     placeholder: "Pick a person from the base",
     search: "Search: name, job title, organisation…",
+    listbox: "People in the internal base",
     empty: "No matches in the internal base.",
     expert: "expert",
     draft: "profile not published",
@@ -159,7 +161,10 @@ export function ExpertPicker({
           />
         </div>
 
-        <div role="listbox" className="max-h-72 overflow-y-auto py-1">
+        {/* `role="listbox"` bez nazwy dostępnej to naruszenie WCAG 4.1.2
+            (axe: `aria-input-field-name`): czytnik ogłaszał "listbox" i nic
+            więcej, więc nie dawał się odróżnić od żadnej innej listy panelu. */}
+        <div role="listbox" aria-label={t.listbox} className="max-h-72 overflow-y-auto py-1">
           {onClear && (
             <button
               type="button"

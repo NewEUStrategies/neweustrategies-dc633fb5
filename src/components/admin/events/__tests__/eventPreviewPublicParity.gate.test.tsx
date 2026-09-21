@@ -97,9 +97,31 @@ vi.mock("@/lib/billing/tiers", () => ({
 }));
 vi.mock("@/lib/community/publicQueries", async () => {
   const { publicEventRow } = await import("@/test/events/publicEventRow");
+  const { eventPageHeaderRow } = await import("@/test/events/eventPageHeaderRow");
+  const fetchPublicEventBySlug = vi.fn(async () => publicEventRow());
+  // NAGŁÓWEK NIE MOŻE BYĆ `null`. Od 2026-09-01 loader powłoki opiera na nim
+  // `notFound()` - `event_page_header` jest SECURITY DEFINER i oddaje wiersz
+  // każdemu, kto zna slug OPUBLIKOWANEGO wydarzenia, więc pusty wynik znaczy
+  // dokładnie jedno: wydarzenia nie ma. Atrapa oddająca `null` kazała więc
+  // routerowi wyrenderować „Not Found" zamiast powłoki, a ten plik dowodzi
+  // PARYTETU UKŁADU, nie zachowania 404 (tamto ma własny test:
+  // `src/routes/__tests__/eventShellLoader.test.ts`).
+  const fetchEventPageHeader = vi.fn(async () => eventPageHeaderRow());
   return {
-    fetchPublicEventBySlug: vi.fn(async () => publicEventRow()),
-    fetchEventPageHeader: vi.fn(async () => null),
+    fetchPublicEventBySlug,
+    fetchEventPageHeader,
+    // Fabryki `queryOptions` MUSZĄ być w atrapie razem z fetcherami: od
+    // 2026-09-01 trasa czyta je zamiast składać klucz literałem, a ich
+    // `queryFn` woła fetchery WEWNĄTRZ modułu, czyli po wiązaniu, którego
+    // podmiana eksportów nie przechwytuje. Klucze dokładnie produkcyjne.
+    publicEventBySlugQueryOptions: (slug: string) => ({
+      queryKey: ["public-event", slug],
+      queryFn: fetchPublicEventBySlug,
+    }),
+    eventPageHeaderQueryOptions: (slug: string, viewer: string) => ({
+      queryKey: ["event-page-header", slug, viewer],
+      queryFn: fetchEventPageHeader,
+    }),
     fetchEventAccess: vi.fn(async () => null),
     fetchEventRsvpCounts: vi.fn(async () => new Map()),
     fetchEventWaitlistPosition: vi.fn(async () => null),

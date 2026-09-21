@@ -9,7 +9,7 @@
 // subskrypcja jest anulowana/zmieniona - klient byłby dalej obciążany.
 import type Stripe from "stripe";
 import { BILLING_CATALOG } from "@/lib/billing/catalog";
-import { createStripeClient, getStripeErrorMessage, type StripeEnv } from "@/lib/stripe.server";
+import { getStripeClient, getStripeErrorMessage, type StripeEnv } from "@/lib/stripe.server";
 
 // `{}` jest tu celowe: domyślny wariant NIE dokłada żadnych pól do `{ok:true}`.
 // (Reguła ban-types została zastąpiona przez no-empty-object-type - stara nazwa
@@ -48,7 +48,7 @@ export async function resolveProviderPriceId(
   lookupKey: string,
 ): Promise<string | null> {
   try {
-    const stripe = createStripeClient(env);
+    const stripe = await getStripeClient(env);
     const result = await stripe.prices.list({ lookup_keys: [lookupKey], active: true, limit: 1 });
     return result.data[0]?.id ?? null;
   } catch (e) {
@@ -63,7 +63,7 @@ export async function cancelSubscriptionAtPeriodEnd(
   subscriptionId: string,
 ): Promise<SubscriptionOpResult> {
   try {
-    const stripe = createStripeClient(env);
+    const stripe = await getStripeClient(env);
     await stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: true });
     return { ok: true };
   } catch (e) {
@@ -82,7 +82,7 @@ export async function cancelSubscriptionImmediately(
   subscriptionId: string,
 ): Promise<SubscriptionOpResult> {
   try {
-    const stripe = createStripeClient(env);
+    const stripe = await getStripeClient(env);
     await stripe.subscriptions.cancel(subscriptionId);
     return { ok: true };
   } catch (e) {
@@ -96,7 +96,7 @@ export async function resumeScheduledCancellation(
   subscriptionId: string,
 ): Promise<SubscriptionOpResult> {
   try {
-    const stripe = createStripeClient(env);
+    const stripe = await getStripeClient(env);
     await stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: false });
     return { ok: true };
   } catch (e) {
@@ -110,7 +110,7 @@ export async function pauseSubscriptionCollection(
   subscriptionId: string,
 ): Promise<SubscriptionOpResult> {
   try {
-    const stripe = createStripeClient(env);
+    const stripe = await getStripeClient(env);
     await stripe.subscriptions.update(subscriptionId, {
       pause_collection: { behavior: "void" },
     });
@@ -126,7 +126,7 @@ export async function resumePausedSubscription(
   subscriptionId: string,
 ): Promise<SubscriptionOpResult> {
   try {
-    const stripe = createStripeClient(env);
+    const stripe = await getStripeClient(env);
     await stripe.subscriptions.update(subscriptionId, { pause_collection: null });
     return { ok: true };
   } catch (e) {
@@ -147,7 +147,7 @@ export async function fetchSubscriptionSnapshot(
   subscriptionId: string,
 ): Promise<SubscriptionOpResult<{ snapshot: SubscriptionSnapshot }>> {
   try {
-    const stripe = createStripeClient(env);
+    const stripe = await getStripeClient(env);
     const sub = await stripe.subscriptions.retrieve(subscriptionId, {
       expand: ["items.data.price"],
     });
@@ -183,7 +183,7 @@ export async function changeSubscriptionPrice(
 
   const isUpgrade = params.direction === "upgrade";
   try {
-    const stripe = createStripeClient(env);
+    const stripe = await getStripeClient(env);
     const current = await stripe.subscriptions.retrieve(subscriptionId);
     const itemId = current.items.data[0]?.id;
     if (!itemId) return { ok: false, error: "no_subscription_item" };
@@ -261,7 +261,7 @@ export async function updateSubscriptionQuantity(
 
   const isIncrease = quantity > params.previousQuantity;
   try {
-    const stripe = createStripeClient(env);
+    const stripe = await getStripeClient(env);
     const current = await stripe.subscriptions.retrieve(subscriptionId);
     const itemId = current.items.data[0]?.id;
     if (!itemId) return { ok: false, error: "no_subscription_item" };

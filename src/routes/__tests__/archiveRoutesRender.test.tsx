@@ -9,6 +9,7 @@
 //
 // Harness montuje PRAWDZIWĄ trasę pliku w routerze pamięciowym - ten sam krok,
 // który w produkcji robi generator drzewa (patrz src/test/routeHarness.tsx).
+import { freezeClock } from "@/test/time";
 import { describe, expect, it, afterEach, beforeEach, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -19,8 +20,16 @@ import { CARD_IMAGE_SIZES, FEATURED_CARD_IMAGE_SIZES } from "@/lib/cardImageSize
 import { SEARCH_PAGE_SIZE } from "@/lib/queries/archives";
 import { DEFAULT_ARCHIVE_LAYOUT } from "@/lib/archive-layout-settings";
 
+freezeClock();
+
 const data = vi.hoisted(() => ({
   blog: null as { posts: unknown[]; total: number; page: number; pageSize: number } | null,
+  /**
+   * Blip, który MIJA: pierwszy odczyt archiwum pada, kolejny już nie. Modeluje
+   * układ z produkcji - loader zasiewa pustkę ze stemplem `updatedAt: 0`,
+   * a refetch po hydratacji dostaje prawdziwe wpisy.
+   */
+  blogFailOnce: false,
   settings: {} as Record<string, unknown>,
   taxonomy: null as Record<string, unknown> | null,
   layout: null as Record<string, unknown> | null,
@@ -29,6 +38,7 @@ const data = vi.hoisted(() => ({
   settingsError: false,
   pageSizeError: false,
   taxonomyError: false,
+  taxonomyFailOnce: false,
   // Limity, z jakimi trasa zawołała silnik wyszukiwania - „pokaż więcej”
   // ma PODWAJAĆ limit, a nie dokładać kolejną stronę.
   limits: [] as number[],
@@ -38,8 +48,15 @@ vi.mock("@/lib/queries/public", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/queries/public")>()),
   blogArchiveQueryOptions: (params: { page: number; pageSize: number }) => ({
     queryKey: ["blog-archive", params.page, params.pageSize],
-    queryFn: () =>
-      data.blog === null ? Promise.reject(new Error("blip backendu")) : Promise.resolve(data.blog),
+    queryFn: () => {
+      if (data.blogFailOnce) {
+        data.blogFailOnce = false;
+        return Promise.reject(new Error("blip backendu, ktory mija"));
+      }
+      return data.blog === null
+        ? Promise.reject(new Error("blip backendu"))
+        : Promise.resolve(data.blog);
+    },
   }),
   resolvePostsPerPage: () => {
     if (data.pageSizeError) throw new Error("ustawienia czytania w rozsypce");
@@ -62,10 +79,15 @@ vi.mock("@/lib/queries/archives", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/queries/archives")>()),
   taxonomyArchiveQueryOptions: (kind: string, slug: string, opts: unknown) => ({
     queryKey: ["taxonomy-archive", kind, slug, opts],
-    queryFn: () =>
-      data.taxonomyError
+    queryFn: () => {
+      if (data.taxonomyFailOnce) {
+        data.taxonomyFailOnce = false;
+        return Promise.reject(new Error("temporary archive outage"));
+      }
+      return data.taxonomyError
         ? Promise.reject(new Error("baza taksonomii padła"))
-        : Promise.resolve(data.taxonomy),
+        : Promise.resolve(data.taxonomy);
+    },
   }),
   searchQueryOptions: (filters: { q: string; sort: string }, limit: number) => ({
     queryKey: ["publications-search", filters.q, filters.sort, limit, data.searchError],
@@ -175,6 +197,8 @@ async function mount(route: unknown, path: string, entry: string) {
 
 beforeEach(() => {
   data.blog = { posts: posts(2), total: 2, page: 1, pageSize: 2 };
+  data.blogFailOnce = false;
+  data.taxonomyFailOnce = false;
   data.settings = {};
   data.layout = { ...DEFAULT_ARCHIVE_LAYOUT, id: "s1", archive_type: "category" };
   data.taxonomy = {
@@ -248,6 +272,43 @@ describe("/blog", () => {
     await mount(BlogRoute, "/blog", "/blog");
     expect(screen.getByRole("heading", { level: 1, name: "Blog" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: /Wpis/ })).toBeNull();
+  });
+
+  // DEGRADACJA MÓWI PRAWDĘ, ALE LECZY SIĘ SAMA (`lib/ssr/useDegradedUntilHealed`).
+  // Zasiana pustka wyglądała dokładnie jak archiwum bez wpisów („Brak wpisów"),
+  // a ładunek loadera jest niezmienny przez życie dopasowania trasy - komunikat
+  // wisiałby więc nad siatką, którą `useSuspenseQuery` dociągnął sekundę
+  // później. Pełny dowód mechanizmu (parytet hydratacji, kontrola negatywna)
+  // stoi w `src/lib/ssr/__tests__/useDegradedUntilHealed.test.tsx`.
+  it("zdegradowane archiwum mówi PRAWDĘ, a nie „brak wpisów” - z ponowieniem", async () => {
+    data.blog = null;
+    await mount(BlogRoute, "/blog", "/blog");
+
+    expect(screen.getByText("Ta sekcja chwilowo nie ma danych")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Spróbuj ponownie" })).toBeTruthy();
+    expect(screen.queryByText(/Brak wpisów/i)).toBeNull();
+  });
+
+  it("SSR zdegradowany + UDANY refetch: komunikat znika, wpisy się renderują", async () => {
+    data.blogFailOnce = true;
+    await mount(BlogRoute, "/blog", "/blog");
+
+    expect(await screen.findByRole("link", { name: /Wpis p1/ })).toBeTruthy();
+    expect(screen.queryByText("Ta sekcja chwilowo nie ma danych")).toBeNull();
+  });
+
+  it("ponowienie pyta backend JESZCZE RAZ i leczy siatkę bez nawigacji", async () => {
+    data.blog = null;
+    await mount(BlogRoute, "/blog", "/blog");
+    const button = screen.getByRole("button", { name: "Spróbuj ponownie" });
+
+    data.blog = { posts: posts(2), total: 2, page: 1, pageSize: 2 };
+    await act(async () => {
+      fireEvent.click(button);
+    });
+
+    expect(await screen.findByRole("link", { name: /Wpis p1/ })).toBeTruthy();
+    expect(screen.queryByText("Ta sekcja chwilowo nie ma danych")).toBeNull();
   });
 
   it("pusta lista pokazuje komunikat, nie pusty ekran", async () => {
@@ -356,6 +417,19 @@ describe("/category/$slug i /tag/$slug", () => {
     expect(view.search()).toMatchObject({ page: 2 });
   });
 
+  it.each([
+    ["category", CategoryRoute, "/category/$slug", "/category/gospodarka"],
+    ["tag", TagRoute, "/tag/$slug", "/tag/gospodarka"],
+  ] as const)(
+    "recovers %s after a loader failure without a reload",
+    async (_name, route, path, url) => {
+      data.taxonomyFailOnce = true;
+      await mount(route, path, url);
+      expect(await screen.findByRole("link", { name: /Wpis p1/ })).toBeTruthy();
+      expect(screen.queryByText("Ta sekcja chwilowo nie ma danych")).toBeNull();
+    },
+  );
+
   it("preload okładki bierze `sizes` karty WYRÓŻNIONEJ, gdy archiwum ją rysuje", async () => {
     // `show_featured_top` zmienia szerokość pierwszej karty, więc zmienia też
     // wariant obrazu, który przeglądarka wybierze z srcSet. Preload musi
@@ -386,15 +460,20 @@ describe("/category/$slug i /tag/$slug", () => {
     expect(imagePreload(view.links())).toMatchObject({ imageSizes: CARD_IMAGE_SIZES });
   });
 
-  it("awaria bazy pokazuje stronę błędu, a nie białą stronę", async () => {
-    // Różnica wobec braku taksonomii: tam 404 (zasób nie istnieje), tutaj błąd
-    // (zasób może istnieć, ale nie umiemy go teraz przeczytać).
+  it("awaria bazy daje render ZDEGRADOWANY (200), a nie wyjątek ani 404", async () => {
+    // Trzy różne prawdy, trzy różne odpowiedzi: brak taksonomii -> 404,
+    // awaria kodu trasy -> strona błędu, blip ODCZYTU -> render zdegradowany.
+    // Do 2026-09-20 ostatni przypadek wychodził stąd jako HTTP 500 (gołe
+    // `ensureQueryData` bez budżetu), więc blip bazy wyglądał dla crawlera
+    // i dla monitora na awarię serwisu.
     data.taxonomyError = true;
     await mount(CategoryRoute, "/category/$slug", "/category/gospodarka");
     expect(screen.queryByRole("heading", { name: "Gospodarka" })).toBeNull();
-    expect(screen.getAllByText(/Nie udało się załadować strony/i).length).toBeGreaterThan(0);
+    // Komunikat degradacji, a NIE „404 / nie znaleziono" - kategoria istnieje.
+    expect(screen.getAllByText(/chwilowo nie ma danych/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/404|nie znaleziono/i)).toBeNull();
     // Ślepy zaułek to najgorsza wersja błędu - musi być droga powrotna.
-    expect(screen.getByRole("button", { name: /Wróć/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Spróbuj ponownie/i })).toBeTruthy();
   });
 
   it("brak taksonomii TAGU też kończy się stroną 404", async () => {
@@ -403,10 +482,11 @@ describe("/category/$slug i /tag/$slug", () => {
     expect(screen.getAllByText(/404|nie znaleziono|not found/i).length).toBeGreaterThan(0);
   });
 
-  it("awaria bazy na trasie tagu również pokazuje stronę błędu", async () => {
+  it("awaria bazy na trasie tagu również degraduje do 200, nie do 404", async () => {
     data.taxonomyError = true;
     await mount(TagRoute, "/tag/$slug", "/tag/nato");
-    expect(screen.getAllByText(/Nie udało się załadować strony/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/chwilowo nie ma danych/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/404|nie znaleziono/i)).toBeNull();
   });
 });
 

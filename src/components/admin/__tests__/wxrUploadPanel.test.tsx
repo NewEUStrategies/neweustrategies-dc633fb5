@@ -72,6 +72,13 @@ vi.mock("react-i18next", async () => {
   return reactI18nextStub(() => h.language);
 });
 
+// Nakładka i18n wspólnego obszaru wgrywania rejestruje się side-effectem
+// importu, więc wciąga PRAWDZIWY `@/lib/i18n` - a ten sięga w `localeRuntime`
+// po `createIsomorphicFn` z częściowej atrapy `@tanstack/react-start` niżej i
+// wywraca cały moduł na starcie. Panel czyta napisy przez `t`, które i tak jest
+// echem klucza, więc rejestracja nie wnosi tu nic poza tą zależnością.
+vi.mock("@/lib/i18n-upload-area", () => ({}));
+
 vi.mock("sonner", () => ({
   toast: {
     success: (m: string) => h.toastSuccess.push(m),

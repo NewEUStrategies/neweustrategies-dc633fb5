@@ -229,6 +229,8 @@ function probeEntries(
       return { [key]: "Star" };
     case "chartData":
       return { [key]: "Etykieta,Wartość\nA,1\nB,2" };
+    case "mapData":
+      return { [key]: "PL; 1\nDE; 2" };
     case "textarea":
     case "text":
     default:

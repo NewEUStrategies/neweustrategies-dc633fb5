@@ -27,13 +27,13 @@ describe("CheckoutAssurances", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("tryb operatora rozliczeniowego: kupon, NIP i faktura, bez VAT", () => {
+  it("tryb operatora rozliczeniowego: kupon, VAT, NIP i faktura", () => {
     render(<CheckoutAssurances settings={SETTINGS} mode="subscription" />);
     expect(screen.getByText("checkout.promoHint")).toBeInTheDocument();
     expect(screen.getByText("checkout.taxIdHint")).toBeInTheDocument();
     expect(screen.getByText("checkout.invoiceHint")).toBeInTheDocument();
-    // `automatic_tax` nie pojedzie do sesji, więc nie wolno go obiecywać.
-    expect(screen.queryByText("checkout.taxHint")).toBeNull();
+    // VAT nalicza operator rozliczeniowy - obietnica należy się kupującemu.
+    expect(screen.getByText("checkout.taxHint")).toBeInTheDocument();
   });
 
   it("zastosowany kupon B2B chowa obietnicę pola kodu promocyjnego", () => {
@@ -49,8 +49,8 @@ describe("CheckoutAssurances", () => {
     expect(screen.getByText("checkout.taxHint")).toBeInTheDocument();
   });
 
-  it("wszystko wyłączone przy zakupie jednorazowym -> brak listy", () => {
-    const { container } = render(
+  it("wszystko wyłączone -> zostaje tylko to, co robi operator rozliczeniowy", () => {
+    render(
       <CheckoutAssurances
         settings={{
           allow_promotion_codes: false,
@@ -62,6 +62,9 @@ describe("CheckoutAssurances", () => {
         mode="payment"
       />,
     );
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByText("checkout.promoHint")).toBeNull();
+    expect(screen.getByText("checkout.taxHint")).toBeInTheDocument();
+    expect(screen.getByText("checkout.taxIdHint")).toBeInTheDocument();
+    expect(screen.getByText("checkout.invoiceHint")).toBeInTheDocument();
   });
 });

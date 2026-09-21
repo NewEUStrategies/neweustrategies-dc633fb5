@@ -25,6 +25,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Keep tests and artifact measurements on the same Node runtime.
+      # Coverage uses Istanbul after V8 remapping produced invalid counters on
+      # both Node 22 and 24. Bun alone does not pin the Node runtime.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.23"
@@ -72,6 +79,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Keep tests and artifact measurements on the same Node runtime.
+      # Coverage uses Istanbul after V8 remapping produced invalid counters on
+      # both Node 22 and 24. Bun alone does not pin the Node runtime.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.23"
@@ -101,7 +115,17 @@ jobs:
       - name: Start local Supabase (migrations + seed)
         run: supabase start
 
+      # Execute the real production probe over PostgREST before merge. This
+      # catches protocol and migration-parser errors that pgTAP alone cannot.
+      - name: Verify database contract through local Data API
+        run: |
+          eval "$(supabase status -o env | grep -E '^[A-Z_]+=')"
+          export SUPABASE_URL="$API_URL"
+          export SUPABASE_PUBLISHABLE_KEY="$ANON_KEY"
+          bun run check:db-contract
+
       - name: Run seeded E2E (user paths)
+        if: ${{ !cancelled() }}
         run: |
           eval "$(supabase status -o env | grep -E '^[A-Z_]+=')"
           export VITE_SUPABASE_URL="$API_URL"
@@ -117,6 +141,9 @@ jobs:
           export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
           export E2E_SEEDED=1
           bun run test:e2e e2e/user-paths.spec.ts
+          # Run after the other seeded journeys: popup settings are changed only
+          # in this disposable stack and restored by the registration suite.
+          PLAYWRIGHT_HTML_OUTPUT_DIR=playwright-report-registration bun run test:e2e e2e/popup-registration.spec.ts
         env:
           CI: "true"
 
@@ -126,4 +153,14 @@ jobs:
         with:
           name: playwright-report-seeded
           path: playwright-report/
+          retention-days: 7
+
+      - name: Upload popup registration evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: popup-registration-report
+          path: |
+            playwright-report-registration/
+            test-results/
           retention-days: 7

@@ -136,9 +136,33 @@ function parseRegistration(raw: unknown): ParticipantRegistration | null {
   };
 }
 
-/** Moje zgłoszenia - baza sama ogranicza wynik do `auth.uid()`. */
+/**
+ * Sufit `limit` w `event_my_registrations`: SQL liczy
+ * `LEAST(GREATEST(COALESCE(limit, 20), 1), 50)`
+ * (`20260830090000_event_registration_checkout_binding.sql:792`).
+ */
+const MY_REGISTRATIONS_MAX = 50;
+
+/**
+ * Moje zgłoszenia - baza sama ogranicza wynik do `auth.uid()`.
+ *
+ * LIMIT JEDZIE ZAWSZE, I JEST NIM SUFIT. Ładunek bez `limit` znaczy dla RPC
+ * „dwadzieścia", więc uczestnik z dwudziestym pierwszym zapisem po prostu nie
+ * widział najstarszych zgłoszeń - i nie widział też informacji, że lista jest
+ * ucięta. Wszystkie trzy powierzchnie (`ParticipantTicketsPanel`,
+ * `MyEventsPanel`, `AccountMenuEventsSection`) wołają tę funkcję bez argumentów,
+ * więc drugiej drogi do starszych wpisów nie ma.
+ *
+ * PARAMETRU TU NIE MA I NIE MA PO CO. RPC nie przyjmuje przesunięcia, a `limit`
+ * ścina do 50 po stronie SQL - klient nie umie więc poprosić o stronę drugą,
+ * a jedyne, co może zrobić, to poprosić o WSZYSTKO, co RPC odda. Zejście niżej
+ * niż sufit byłoby wyłącznie ukrywaniem wierszy przed widokiem, który i tak
+ * filtruje je u siebie.
+ */
 export async function fetchMyRegistrations(): Promise<ParticipantRegistration[]> {
-  const { data, error } = await supabase.rpc("event_my_registrations", { p_payload: {} as Json });
+  const { data, error } = await supabase.rpc("event_my_registrations", {
+    p_payload: { limit: MY_REGISTRATIONS_MAX } as Json,
+  });
   if (error) throw error;
   const root = bag(data);
   const rows = root === null ? [] : root["registrations"];

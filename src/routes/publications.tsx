@@ -41,7 +41,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const COPY = {
+export const COPY = {
   pl: {
     title: "Publikacje",
     subtitle: "Analizy, komentarze i raporty New European Strategies - pełne archiwum z filtrami.",

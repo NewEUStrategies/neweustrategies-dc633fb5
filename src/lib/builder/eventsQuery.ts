@@ -116,6 +116,42 @@ async function fetchEventById(eventId: string): Promise<EventListRow | null> {
   return (data ?? null) as EventListRow | null;
 }
 
+/**
+ * To samo wydarzenie, ale BEZ filtra publikacji - wyłącznie dla KANWY buildera.
+ *
+ * Picker wydarzeń celowo pokazuje szkice i oznacza ich status, bo redaktor ma
+ * podpiąć widget PRZED publikacją wydarzenia (patrz nagłówek `EventPicker`).
+ * Zapytanie publiczne odcina wtedy wiersz (`status = published`), więc karta
+ * w edytorze pokazywała pustkę dokładnie w tym momencie pracy, w którym miała
+ * pomagać - redaktor nie widział, co właśnie podpiął.
+ *
+ * Dwie rzeczy są tu celowe i nie wolno ich scalić z zapytaniem publicznym:
+ *   * OSOBNY korzeń klucza - szkic nie ma prawa wylądować w cache'u dzielonym
+ *     ze stroną publiczną ani w danych zdehydratowanych z SSR,
+ *   * BRAK `edgeTtlCache` - ten cache żyje na krawędzi i jest wspólny dla
+ *     żądań; wrzucenie do niego nieopublikowanego wydarzenia byłoby wyciekiem
+ *     treści, a nie optymalizacją.
+ * Dostęp i tak rozstrzyga RLS ("events staff read"): gościowi to zapytanie
+ * zwróci `null`, więc nawet wywołane poza panelem niczego nie odsłania.
+ */
+async function fetchEventByIdAnyStatus(eventId: string): Promise<EventListRow | null> {
+  const { data, error } = await supabase
+    .from("events")
+    .select(EVENT_LIST_COLUMNS)
+    .eq("id", eventId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data ?? null) as EventListRow | null;
+}
+
+export const eventByIdForCanvasQueryOptions = (eventId: string) =>
+  queryOptions({
+    queryKey: [WIDGET_QUERY_ROOTS.eventByIdCanvas, eventId] as const,
+    queryFn: () => (eventId ? fetchEventByIdAnyStatus(eventId) : Promise.resolve(null)),
+    staleTime: 60_000,
+    gcTime: 10 * 60_000,
+  });
+
 export const eventByIdQueryOptions = (eventId: string) =>
   queryOptions({
     queryKey: [WIDGET_QUERY_ROOTS.eventById, eventId] as const,

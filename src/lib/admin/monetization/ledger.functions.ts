@@ -17,7 +17,14 @@ export const listMonetizationLedger = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => ledgerSchema.parse(input))
   .handler(async ({ data, context }): Promise<MonetizationLedgerResult> => {
     const { assertAdmin } = await import("@/lib/billing/diagnostics.server");
-    await assertAdmin(context.supabase, context.userId);
+    // Najemca jest WYNIKIEM bramki, nie osobnym rozstrzygnięciem po hoście:
+    // rola autoryzuje się po `profiles.tenant_id` wołającego i po tym samym
+    // polu ma iść zakres rejestru.
+    const { tenantId } = await assertAdmin(context.supabase, context.userId);
     const { loadMonetizationLedger } = await import("@/lib/admin/monetization/ledger.server");
-    return loadMonetizationLedger({ environment: data.environment, limit: data.limit });
+    return loadMonetizationLedger({
+      environment: data.environment,
+      limit: data.limit,
+      tenantId,
+    });
   });

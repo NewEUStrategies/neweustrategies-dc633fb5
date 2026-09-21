@@ -15,7 +15,13 @@
 //     w jednym polu to JEDEN krok cofnięcia, nie trzydzieści.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import type { BuilderDocument, ColumnNode, SectionNode, WidgetNode } from "@/lib/builder/types";
+import type {
+  BuilderDocument,
+  ColumnNode,
+  InnerSectionNode,
+  SectionNode,
+  WidgetNode,
+} from "@/lib/builder/types";
 import type { History, SetOptions } from "@/hooks/useHistory";
 import type { Selection } from "../../organisms/builder/types";
 import { useBuilderOperations } from "../useBuilderOperations";
@@ -189,6 +195,73 @@ describe("useBuilderOperations - kolumna w ognisku", () => {
     };
     const { result } = setup({ kind: null, id: null }, doc);
     expect(result.current.focusedColumn).toBeNull();
+  });
+});
+
+// Kliknięcie w wyściółkę SEKCJI WEWNĘTRZNEJ (12 px góra/dół) daje zaznaczenie
+// `{ kind: "column", id: <id sekcji wewnętrznej> }`, bo `data-col-id` stoi na
+// SLOCIE dziecka sekcji, a dzieckiem bywa sekcja wewnętrzna (BuilderRenderer,
+// `visibleCols.map`). Upuszczenie takiego identyfikatora już rozumie
+// (`columnForDrop`); ten opis przypina, że rozumie go również ŚCIEŻKA
+// KLIKNIĘCIA - inaczej ten sam piksel zachowuje się inaczej pod myszką
+// ciągnącą i pod myszką klikającą.
+describe("useBuilderOperations - identyfikator sekcji wewnętrznej w zaznaczeniu", () => {
+  const zSekcjaWewnetrzna = (): BuilderDocument => ({
+    version: 1,
+    sections: [
+      sec("s1", [
+        { id: "i1", kind: "inner-section", columns: [col("ic1", [w("iw1")]), col("ic2", [])] },
+      ]),
+      sec("s2", [col("c2", [])]),
+    ],
+  });
+  const kolumnyWewnetrzne = (d: BuilderDocument) =>
+    (d.sections[0].children[0] as InnerSectionNode).columns;
+
+  it("ognisko pada na PIERWSZĄ kolumnę tej sekcji wewnętrznej", () => {
+    const { result } = setup({ kind: "column", id: "i1" }, zSekcjaWewnetrzna());
+    expect(result.current.focusedColumn?.id).toBe("ic1");
+  });
+
+  it("widget z biblioteki ląduje w tej sekcji, a NIE w nowej sekcji na końcu", () => {
+    const s = setup({ kind: "column", id: "i1" }, zSekcjaWewnetrzna());
+    act(() => s.result.current.addWidgetToFocused("heading"));
+    const doc = s.last()!.doc;
+    // Dwie sekcje, czyli żadnej nowej na dole dokumentu - tam właśnie lądował
+    // widget, zanim zaznaczenie zaczęło rozwiązywać się na kolumnę.
+    expect(doc.sections).toHaveLength(2);
+    const [ic1, ic2] = kolumnyWewnetrzne(doc);
+    expect(ic1.children.map((x) => x.type)).toEqual(["text", "heading"]);
+    expect(ic2.children).toHaveLength(0);
+  });
+
+  it("widget globalny z biblioteki idzie tą samą drogą", () => {
+    const s = setup({ kind: "column", id: "i1" }, zSekcjaWewnetrzna());
+    act(() =>
+      s.result.current.addGlobalWidgetToFocused({ id: "g1", data: { type: "text", content: {} } }),
+    );
+    const doc = s.last()!.doc;
+    expect(doc.sections).toHaveLength(2);
+    expect(kolumnyWewnetrzne(doc)[0].children).toHaveLength(2);
+  });
+
+  it("edycja właściwości kolumny trafia w pierwszą kolumnę, a nie w nicość", () => {
+    const s = setup({ kind: "column", id: "i1" }, zSekcjaWewnetrzna());
+    act(() => s.result.current.updateColumn("i1", (c) => (c.span = { desktop: 6 })));
+    expect(kolumnyWewnetrzne(s.last()!.doc)[0].span.desktop).toBe(6);
+  });
+
+  it("sekcja wewnętrzna BEZ kolumn nadal nie daje ogniska i niczego nie zakłada", () => {
+    // Granica świadoma: `focusedColumn` to `useMemo` na ŻYWYM dokumencie, więc
+    // nie wolno mu dołożyć kolumny - taka zmiana nie trafiłaby do historii.
+    // Zakładanie kolumny zostaje po stronie upuszczeń (`columnForDrop`).
+    const doc: BuilderDocument = {
+      version: 1,
+      sections: [sec("s1", [{ id: "i1", kind: "inner-section", columns: [] }])],
+    };
+    const s = setup({ kind: "column", id: "i1" }, doc);
+    expect(s.result.current.focusedColumn).toBeNull();
+    expect((s.state.doc.sections[0].children[0] as InnerSectionNode).columns).toEqual([]);
   });
 });
 
@@ -485,31 +558,48 @@ describe("useBuilderOperations - dodawanie widgetów", () => {
 });
 
 describe("useBuilderOperations - przenoszenie", () => {
+  /**
+   * Dokument z DWOMA widgetami - potrzebny tam, gdzie celem przeniesienia jest
+   * drugi widget. `baseDoc` ma tylko `w1`, a przeniesienie na cel, którego nie
+   * ma, jest teraz odrzucane bez wpisu do historii (i tak właśnie ten test
+   * przechodził wcześniej: operacja KASOWAŁA widget, a mimo to zapisywała
+   * etykietę „Przeniesiono widget").
+   */
+  const docZDwoma = (): BuilderDocument => ({
+    version: 1,
+    sections: [sec("s1", [col("c1", [w("w1"), w("w2")])]), sec("s2", [col("c2", [])])],
+  });
+
   it.each([
     [
       "widget obok widgetu",
       (r: ReturnType<typeof setup>) => r.result.current.moveWidgetTo("w1", "w2", "after"),
       "builder.ops.movedWidget",
+      docZDwoma,
     ],
     [
       "widget do kolumny",
       (r: ReturnType<typeof setup>) => r.result.current.moveWidgetToColumn("w1", "c2"),
       "builder.ops.movedWidgetToColumn",
+      baseDoc,
     ],
     [
       "widget do sekcji",
       (r: ReturnType<typeof setup>) => r.result.current.moveWidgetToSection("w1", "s2"),
       "builder.ops.movedWidgetToSection",
+      baseDoc,
     ],
     [
       "sekcja obok sekcji",
       (r: ReturnType<typeof setup>) => r.result.current.moveSectionTo("s1", "s2", "after"),
       "builder.ops.movedSection",
+      baseDoc,
     ],
-  ])("%s zapisuje własną etykietę", (_label, run, label) => {
-    const s = setup();
+  ])("%s zapisuje własną etykietę", (_label, run, label, initial) => {
+    const s = setup({ kind: null, id: null }, initial());
     act(() => run(s));
     expect(s.last()?.opts?.label).toBe(label);
+    expect(toastError).not.toHaveBeenCalled();
   });
 
   it("przeniesienie widgetu do innej kolumny naprawdę go przenosi", () => {
@@ -517,6 +607,91 @@ describe("useBuilderOperations - przenoszenie", () => {
     act(() => s.result.current.moveWidgetToColumn("w1", "c2"));
     expect(widgetsIn(s.last()!.doc, 0)).toHaveLength(0);
     expect(widgetsIn(s.last()!.doc, 1)).toHaveLength(1);
+  });
+
+  // NIEUDANE PRZENIESIENIE NIE MOŻE DOPISAĆ SIĘ DO HISTORII. Wpis oznaczałby
+  // krok „Cofnij", który nic nie cofa, a przez `onChange` historii - rewizję
+  // autozapisu identyczną z poprzednią. Dawniej gorzej: operacja kasowała
+  // widget i zapisywała to jako udane przeniesienie.
+  it.each([
+    [
+      "widget na nieistniejący widget",
+      (r: ReturnType<typeof setup>) => r.result.current.moveWidgetTo("w1", "widget-widmo", "after"),
+    ],
+    [
+      "widget do nieistniejącej kolumny",
+      (r: ReturnType<typeof setup>) => r.result.current.moveWidgetToColumn("w1", "kolumna-widmo"),
+    ],
+    [
+      "widget do nieistniejącej sekcji",
+      (r: ReturnType<typeof setup>) => r.result.current.moveWidgetToSection("w1", "sekcja-widmo"),
+    ],
+    [
+      "sekcja o nieistniejącym źródle",
+      (r: ReturnType<typeof setup>) =>
+        r.result.current.moveSectionTo("sekcja-widmo", "s1", "after"),
+    ],
+  ])("%s nie zapisuje historii i mówi o tym redakcji", (_label, run) => {
+    const s = setup();
+    act(() => run(s));
+    expect(s.recorded).toHaveLength(0);
+    expect(toastError).toHaveBeenCalledWith("builder.ops.moveErr");
+    // Dokument roboczy hooka zostaje nietknięty - widget nadal istnieje.
+    expect(widgetsIn(s.state.doc, 0).map((x) => x.id)).toEqual(["w1"]);
+  });
+
+  // UPUSZCZENIE, KTÓRE NICZEGO NIE ZMIENIA, NIE MOŻE ANI ZAPISAĆ HISTORII, ANI
+  // NAKRZYCZEĆ NA REDAKCJĘ. `useHistory.set` nie deduplikuje niczego, więc taki
+  // wpis byłby krokiem „Cofnij", który nic nie cofa, plus rewizją autozapisu
+  // identyczną z poprzednią - a komunikat o nieudanym przeniesieniu byłby
+  // fałszywym alarmem przy najzwyklejszym geście.
+  it.each([
+    [
+      "widget na samego siebie",
+      (r: ReturnType<typeof setup>) => r.result.current.moveWidgetTo("w1", "w1", "after"),
+    ],
+    [
+      "sekcja na samą siebie",
+      (r: ReturnType<typeof setup>) => r.result.current.moveSectionTo("s1", "s1", "after"),
+    ],
+    [
+      // Tą drogą kanwa zrzuca upuszczenie widgetu na SIEBIE: gałąź „obok
+      // widgetu" odfiltrowuje własny identyfikator, a upuszczenie spada
+      // o poziom niżej, na kolumnę, w której ten widget leży (patrz
+      // visualCanvasDrop: „widget upuszczony na SIEBIE").
+      "widget na własną kolumnę, w której jest ostatni",
+      (r: ReturnType<typeof setup>) => r.result.current.moveWidgetToColumn("w1", "c1"),
+    ],
+    [
+      "widget na własną sekcję, gdy jest ostatni w jej pierwszej kolumnie",
+      (r: ReturnType<typeof setup>) => r.result.current.moveWidgetToSection("w1", "s1"),
+    ],
+  ])("%s milczy - to brak ruchu, nie błąd", (_label, run) => {
+    const s = setup();
+    act(() => run(s));
+    expect(s.recorded).toHaveLength(0);
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("upuszczenie na slot sekcji wewnętrznej trafia w jej pierwszą kolumnę", () => {
+    const s = setup(
+      { kind: null, id: null },
+      {
+        version: 1,
+        sections: [
+          sec("s1", [col("c1", [w("w1")])]),
+          sec("s2", [{ id: "i1", kind: "inner-section", columns: [col("ic1", [])] }]),
+        ],
+      },
+    );
+    // Kanwa stempluje `data-col-id` także na slocie sekcji wewnętrznej, więc
+    // przychodzi tu jej identyfikator - nie identyfikator kolumny.
+    act(() => s.result.current.moveWidgetToColumn("w1", "i1"));
+    expect(toastError).not.toHaveBeenCalled();
+    expect(s.last()?.opts?.label).toBe("builder.ops.movedWidgetToColumn");
+    const i1 = s.last()!.doc.sections[1].children[0] as InnerSectionNode;
+    expect(i1.columns[0].children.map((x) => x.id)).toEqual(["w1"]);
+    expect(widgetsIn(s.last()!.doc, 0)).toHaveLength(0);
   });
 
   it("ukrycie elementu zapisuje się bez etykiety historii", () => {

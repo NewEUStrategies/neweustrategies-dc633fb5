@@ -88,9 +88,9 @@ export const createStripePortalSession = createServerFn({ method: "POST" })
     if (!sub?.provider_customer_id) return { error: "no_customer" as const };
 
     try {
-      const { createStripeClient } = await import("@/lib/stripe.server");
+      const { getStripeClient } = await import("@/lib/stripe.server");
       const { absoluteReturnUrl } = await import("@/lib/billing/returnUrl.server");
-      const stripe = createStripeClient(data.environment);
+      const stripe = await getStripeClient(data.environment);
       // Powrót na ekran, z którego użytkownik wszedł do portalu (ścieżka jest
       // sanityzowana - tylko adresy względne w obrębie serwisu).
       const returnUrl = absoluteReturnUrl(data.returnPath);
@@ -220,8 +220,7 @@ export const resolveStripeDiscount = createServerFn({ method: "POST" })
 /**
  * Podgląd kosztu zmiany planu PRZED potwierdzeniem.
  *
- * Stripe nie ma dedykowanego endpointu podglądu proraty analogicznego do
- * Paddle - korzystamy z `invoices.retrieveUpcoming` z tymczasową podmianą
+ * Korzystamy z `invoices.createPreview` z tymczasową podmianą
  * pozycji, żeby pokazać dopłatę (upgrade) albo kwotę kolejnego rozliczenia
  * (downgrade) bez faktycznego dotykania subskrypcji.
  */
@@ -270,8 +269,8 @@ export const previewStripePlanChange = createServerFn({ method: "POST" })
         };
       }
 
-      const { createStripeClient } = await import("@/lib/stripe.server");
-      const stripe = createStripeClient(data.environment);
+      const { getStripeClient } = await import("@/lib/stripe.server");
+      const stripe = await getStripeClient(data.environment);
       const current = await stripe.subscriptions.retrieve(sub.provider_subscription_id);
       const itemId = current.items.data[0]?.id;
       const upcoming = await stripe.invoices.createPreview({

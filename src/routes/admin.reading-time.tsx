@@ -40,11 +40,24 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Clock, RotateCcw, ShieldAlert } from "lucide-react";
+import { activeLang } from "@/lib/seo/head";
+import { getRequestUrl } from "@/lib/seo/request";
 
 export const Route = createFileRoute("/admin/reading-time")({
-  head: () => ({
-    meta: [{ name: "robots", content: "noindex, nofollow" }, { title: "Czas czytania - admin" }],
-  }),
+  head: () => {
+    // head() biegnie POZA drzewem Reacta i poza dostawcą i18next, więc `t()` tu
+    // nie istnieje - język bierzemy z adresu przez `activeLang`. Trasy /admin są
+    // w NON_LOCALIZED_PREFIXES, więc w praktyce rozstrzyga ciasteczko języka; to
+    // jednak ta sama wartość, którą widzi ciało strony, a o zgodność karty
+    // przeglądarki z interfejsem tu właśnie chodzi.
+    const lang = activeLang(getRequestUrl() || "/admin/reading-time");
+    return {
+      meta: [
+        { name: "robots", content: "noindex, nofollow" },
+        { title: lang === "en" ? "Reading time - admin" : "Czas czytania - admin" },
+      ],
+    };
+  },
   component: ReadingTimeAdmin,
 });
 
@@ -136,21 +149,22 @@ function ReadingTimeAdmin() {
       return;
     }
     setBusy(true);
-    const { error } = await supabase
-      .from("site_settings")
-      .upsert(
-        { key: READING_TIME_SETTINGS_KEY, value: parsed.data as never },
-        { onConflict: "tenant_id,key" },
-      );
-    setBusy(false);
-    if (error) {
+    try {
+      const { error } = await supabase
+        .from("site_settings")
+        .upsert(
+          { key: READING_TIME_SETTINGS_KEY, value: parsed.data as never },
+          { onConflict: "tenant_id,key" },
+        );
+      if (error) throw error;
+      // Public views read this same cache; invalidate it after a confirmed write.
+      await qc.invalidateQueries({ queryKey: siteSettingsQueryOptions.queryKey });
+      toast.success(t("admin.saved"));
+    } catch {
       toast.error(t("admin.saveError"));
-      return;
+    } finally {
+      setBusy(false);
     }
-    // Publiczny widok czyta ten sam zbiorczy cache - inwalidacja sprawia, że
-    // zmiana rzutuje na wpisy bez przeładowania.
-    await qc.invalidateQueries({ queryKey: siteSettingsQueryOptions.queryKey });
-    toast.success(t("admin.saved"));
   };
 
   const resetDefaults = () => setDraft(DEFAULT_READING_TIME_SETTINGS);

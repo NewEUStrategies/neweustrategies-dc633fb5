@@ -137,7 +137,13 @@ function SponsorTierGroup({ tier, lang }: { tier: PublicSponsorTier; lang: "pl" 
           );
           const body = (
             <>
-              <SponsorLogo name={sponsor.name} logoUrl={sponsor.logoUrl} size={tier.logoSize} />
+              {/* LOGOTYP JEST OZDOBĄ, PODPIS JEST TREŚCIĄ. `SponsorLogo` bez adresu
+                  degraduje do NAZWY firmy, a nazwa stoi już w podpisie kafla - bez
+                  `aria-hidden` partner bez logotypu byłby czytany dwa razy pod rząd.
+                  Ta sama reguła co w pasie na stronie głównej (`SponsorTierLogo`). */}
+              <span aria-hidden="true" className="contents">
+                <SponsorLogo name={sponsor.name} logoUrl={sponsor.logoUrl} size={tier.logoSize} />
+              </span>
               <span className="mt-3 block text-sm font-medium text-foreground">{sponsor.name}</span>
               <span className="mt-1 flex flex-wrap items-center justify-center gap-1.5">
                 <Badge variant="secondary">{t(sponsorRoleKey(sponsor.role))}</Badge>

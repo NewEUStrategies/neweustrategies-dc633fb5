@@ -21,6 +21,9 @@ const h = vi.hoisted(() => ({
   user: { id: "user-1" } as { id: string } | null,
   registerUpload: vi.fn(),
   updateMeta: vi.fn(),
+  bulkDelete: vi.fn(),
+  bulkMove: vi.fn(),
+  createFolder: vi.fn(),
   uploadAndRegisterMedia: vi.fn(),
   toastSuccess: vi.fn(),
   toastFail: vi.fn(),
@@ -35,11 +38,23 @@ vi.mock("@/hooks/useAuth", () => ({
 }));
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
-  useServerFn: (fn: unknown) => (fn === "register" ? h.registerUpload : h.updateMeta),
+  useServerFn: (fn: unknown) =>
+    fn === "register"
+      ? h.registerUpload
+      : fn === "delete"
+        ? h.bulkDelete
+        : fn === "move"
+          ? h.bulkMove
+          : fn === "create-folder"
+            ? h.createFolder
+            : h.updateMeta,
 }));
 vi.mock("@/lib/media.functions", () => ({
   registerMediaUpload: "register",
   updateMediaMeta: "update",
+  bulkDeleteMedia: "delete",
+  bulkMoveMedia: "move",
+  createMediaFolder: "create-folder",
 }));
 vi.mock("@/integrations/supabase/client", async () => {
   const { supabaseFromStub } = await import("@/test/supabaseChain");
@@ -105,11 +120,15 @@ beforeEach(() => {
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   stub().reset();
   stub().setResponse("media", ok([]));
+  stub().setResponse("media_folders", ok([]));
   h.tenantId = TENANT;
   h.user = { id: "user-1" };
   for (const fn of [
     h.registerUpload,
     h.updateMeta,
+    h.bulkDelete,
+    h.bulkMove,
+    h.createFolder,
     h.uploadAndRegisterMedia,
     h.toastSuccess,
     h.toastFail,
@@ -122,6 +141,9 @@ beforeEach(() => {
     publicUrl: "https://cdn.example/new.png",
   });
   h.updateMeta.mockResolvedValue({ ok: true });
+  h.bulkDelete.mockResolvedValue({ ok: true, deleted: 0 });
+  h.bulkMove.mockResolvedValue({ ok: true, moved: 0 });
+  h.createFolder.mockResolvedValue({ ok: true, path: "/nowy/" });
 });
 
 describe("MediaPickerDialog - odczyt biblioteki", () => {
@@ -192,23 +214,18 @@ describe("MediaPickerDialog - filtrowanie w oknie", () => {
 
   it("lista folderów powstaje z DANYCH i jest posortowana", async () => {
     setup();
-    // Lista folderów powstaje dopiero z wczytanych wierszy - czekamy na dane,
-    // nie na sam znacznik select.
-    await waitFor(() =>
-      expect(screen.getByRole("combobox").querySelectorAll("option").length).toBeGreaterThan(1),
-    );
-    const options = Array.from(screen.getByRole("combobox").querySelectorAll("option")).map((o) =>
-      o.getAttribute("value"),
-    );
-    expect(options[0]).toBe("all");
-    expect(options.slice(1)).toEqual(["/", "/press/"]);
+    await waitFor(() => expect(screen.getByText("raport.png")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("combobox"));
+    const options = screen.getAllByRole("option").map((option) => option.textContent?.trim());
+    expect(options).toEqual(["Wszystkie foldery", "/", "/press/"]);
   });
 
   it("wybór folderu zawęża listę", async () => {
     setup();
     await waitFor(() => expect(screen.getByText("raport.png")).toBeInTheDocument());
 
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "/press/" } });
+    fireEvent.click(screen.getByRole("combobox"));
+    fireEvent.click(screen.getByRole("option", { name: "/press/" }));
     expect(screen.getByText("raport.png")).toBeInTheDocument();
     expect(screen.queryByText("okladka.png")).toBeNull();
   });
@@ -302,9 +319,15 @@ describe("MediaPickerDialog - wgrywanie", () => {
     fireEvent.change(input!);
 
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith(expect.any(Error), "upload"));
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: /wgraj|upload/i })).toBeEnabled(),
-    );
+    // W PUSTEJ bibliotece drogi do pickera są DWIE: przycisk paska narzędzi i
+    // CTA wspólnego obszaru wgrywania, który zajmuje miejsce komunikatu „brak
+    // plików". Obie muszą wrócić do stanu gotowego - blokada zdjęta z jednej,
+    // a zostawiona na drugiej, byłaby ślepą uliczką, więc mierzymy KAŻDĄ.
+    await waitFor(() => {
+      const przyciski = screen.getAllByRole("button", { name: /wgraj|upload/i });
+      expect(przyciski.length).toBeGreaterThan(0);
+      for (const przycisk of przyciski) expect(przycisk).toBeEnabled();
+    });
   });
 });
 
@@ -343,7 +366,7 @@ describe("MediaPickerDialog - opis alternatywny wybranego pliku", () => {
     await waitFor(() => expect(screen.getByText("a.png")).toBeInTheDocument());
     fireEvent.click(screen.getByText("a.png"));
 
-    const altField = screen.getAllByRole("textbox").at(-1);
+    const altField = screen.getByPlaceholderText(/opisz obraz|describe the image/i);
     if (!altField) return;
     fireEvent.change(altField, { target: { value: "  Nowy opis  " } });
 
@@ -355,9 +378,37 @@ describe("MediaPickerDialog - opis alternatywny wybranego pliku", () => {
 
     await waitFor(() =>
       expect(h.updateMeta).toHaveBeenCalledWith({
-        data: { mediaId: "a", altText: "Nowy opis" },
+        data: { mediaId: "a", filename: "a.png", altText: "Nowy opis" },
       }),
     );
+  });
+
+  it("edytuje nazwę wybranego pliku", async () => {
+    setup();
+    await waitFor(() => expect(screen.getByText("a.png")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("a.png"));
+    fireEvent.change(screen.getByLabelText(/nazwa pliku|file name/i), {
+      target: { value: "nowa-nazwa.png" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /zapisz metadane|save metadata/i }));
+    await waitFor(() =>
+      expect(h.updateMeta).toHaveBeenCalledWith({
+        data: { mediaId: "a", filename: "nowa-nazwa.png", altText: "Stary opis" },
+      }),
+    );
+  });
+
+  it("usuwa wybrany plik dopiero po potwierdzeniu", async () => {
+    Object.defineProperty(window, "confirm", { configurable: true, value: vi.fn() });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    setup();
+    await waitFor(() => expect(screen.getByText("a.png")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("a.png"));
+    fireEvent.click(screen.getByRole("button", { name: /usuń plik|delete file/i }));
+    await waitFor(() => expect(h.bulkDelete).toHaveBeenCalledWith({ data: { mediaIds: ["a"] } }));
+    expect(confirm).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /wstaw|insert/i })).toBeDisabled();
+    confirm.mockRestore();
   });
 });
 
@@ -455,5 +506,67 @@ describe("MediaPickerDialog - skróty wyboru", () => {
 
     expect(onPick).not.toHaveBeenCalled();
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("Cmd/Ctrl pozwala zaznaczyć kilka plików i usunąć je wspólnie", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    setup();
+    await waitFor(() => expect(screen.getByRole("button", { name: "a.png" })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "a.png" }), { ctrlKey: true });
+    fireEvent.click(screen.getByRole("button", { name: "b.png" }), { ctrlKey: true });
+    expect(screen.getByText("Zaznaczono: 2")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /usuń zaznaczone/i }));
+
+    await waitFor(() =>
+      expect(h.bulkDelete).toHaveBeenCalledWith({ data: { mediaIds: ["a", "b"] } }),
+    );
+    vi.restoreAllMocks();
+  });
+
+  it("Cmd/Ctrl+A zaznacza wszystkie widoczne pliki, a Escape czyści wybór", async () => {
+    setup();
+    await waitFor(() => expect(screen.getByRole("button", { name: "a.png" })).toBeInTheDocument());
+
+    fireEvent.keyDown(window, { key: "a", ctrlKey: true });
+    expect(screen.getByText("Zaznaczono: 2")).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByText("Zaznaczono: 2")).toBeNull();
+  });
+
+  it("tworzy folder z poziomu listy folderów", async () => {
+    setup();
+    await waitFor(() => expect(screen.getByText("a.png")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("combobox"));
+    fireEvent.click(screen.getByRole("button", { name: /utwórz folder/i }));
+    fireEvent.change(screen.getByPlaceholderText(/nazwa folderu/i), {
+      target: { value: "Raporty" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^utwórz$/i }));
+
+    await waitFor(() =>
+      expect(h.createFolder).toHaveBeenCalledWith({ data: { path: "/Raporty/" } }),
+    );
+  });
+
+  it("przenosi przeciągnięte zaznaczenie do folderu", async () => {
+    stub().setResponse("media_folders", ok([{ path: "/press/" }]));
+    setup();
+    await waitFor(() => expect(screen.getByRole("button", { name: "a.png" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "a.png" }), { ctrlKey: true });
+    fireEvent.click(screen.getByRole("combobox"));
+    const folderOption = screen.getByRole("option", { name: "/press/" });
+    fireEvent.drop(folderOption, {
+      dataTransfer: {
+        files: [],
+        getData: () => JSON.stringify(["a"]),
+      },
+    });
+
+    await waitFor(() =>
+      expect(h.bulkMove).toHaveBeenCalledWith({
+        data: { mediaIds: ["a"], folderPath: "/press/" },
+      }),
+    );
   });
 });

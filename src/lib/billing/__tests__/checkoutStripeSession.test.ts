@@ -14,7 +14,7 @@
 // po nieudanej sesji MUSI dostać `failed`, inaczej zostaje `pending` bez sesji
 // i panel admina raportuje je jako wiszące.
 //
-// CO ATRAPUJEMY. Wyłącznie klienta operatora (`createStripeClient`) - reszta
+// CO ATRAPUJEMY. Wyłącznie klienta operatora (`getStripeClient`) - reszta
 // `@/lib/stripe.server` (rozstrzyganie środowiska, mapowanie komunikatu błędu)
 // zostaje PRAWDZIWA, tak samo jak cały `@/lib/billing/adhocCheckout.server`,
 // `checkoutSettings.server` i `markOrderSession.server`. Testujemy handler
@@ -97,8 +97,8 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
   const { stripeStub: base } = await import("@/test/billing/fixtures");
   return {
     ...actual,
-    createStripeClient: (env: string) => {
-      h.calls.push({ method: "createStripeClient", args: [env] });
+    getStripeClient: (env: string) => {
+      h.calls.push({ method: "getStripeClient", args: [env] });
       const stub = base();
       return {
         ...stub,
@@ -301,6 +301,12 @@ beforeEach(() => {
 
   // Bramka SKONFIGUROWANA - wartości syntetyczne, nigdzie nie wychodzą:
   // klient operatora jest atrapą, więc żadne żądanie sieciowe nie powstaje.
+  // Host wdrożenia testowego MUSI być zadeklarowany, odkąd `resolveReturnUrl`
+  // przechodzi przez bramkę dozwolonych hostów (`lib/billing/returnUrl.server`).
+  // Bez tej linii przypadki o adresie powrotu dowodziłyby tylko tego, że
+  // `kasa.example.org` NIE jest naszą domeną - a mają dowodzić, że klient nie
+  // wybiera domeny powrotu.
+  vi.stubEnv("BILLING_RETURN_HOSTS", "kasa.example.org");
   vi.stubEnv("LOVABLE_API_KEY", "klucz-testowy-bramki");
   vi.stubEnv("STRIPE_SANDBOX_API_KEY", "klucz-testowy-piaskownicy");
 
@@ -363,6 +369,16 @@ describe("createCheckoutOrder - subskrypcja idzie CENĄ KATALOGOWĄ", () => {
     await call(planPayload({ success_path: "https://zlodziej.example.com/przejmij" }));
 
     expect(lastSession()?.return_url).toBe("https://kasa.example.org/przejmij");
+  });
+
+  it("KONTRPRZYKŁAD: host żądania SPOZA listy nie zostaje originem powrotu", async () => {
+    // Sam fakt, że ścieżka pochodzi z hosta żądania, nie wystarcza - host też
+    // podaje klient. Bez deklaracji wdrożenia wracamy na origin kanoniczny.
+    vi.stubEnv("BILLING_RETURN_HOSTS", "");
+
+    await call(planPayload({ success_path: "https://zlodziej.example.com/przejmij" }));
+
+    expect(lastSession()?.return_url).toBe("https://neweuropeanstrategies.com/przejmij");
   });
 
   it("okres próbny planu trafia do sesji - bez tego karta jest obciążana od razu", async () => {
@@ -806,7 +822,7 @@ describe("createCheckoutOrder - stempel środowiska", () => {
     // z piaskownicy realizuje zamówienie produkcyjne (izolacja sandbox/live).
     await call(planPayload({ environment: "live" }));
 
-    expect(stripeCall("createStripeClient")?.args[0]).toBe("live");
+    expect(stripeCall("getStripeClient")?.args[0]).toBe("live");
   });
 
   it("tryb mock nie jest już możliwy, gdy bramka jest skonfigurowana", async () => {

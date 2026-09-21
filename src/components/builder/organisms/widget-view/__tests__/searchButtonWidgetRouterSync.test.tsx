@@ -101,4 +101,23 @@ describe("SearchButtonWidget - lustro ?q= z routera", () => {
     expect(input.value).toBe("moje zapytanie");
     expect(screen.getByDisplayValue("moje zapytanie")).toBeInTheDocument();
   });
+
+  it("strona wynikow BEZ ?q= czysci pole (adres jest zrodlem prawdy, nie pamiec)", () => {
+    const { container } = renderWidget();
+    expect((container.querySelector("input") as HTMLInputElement).value).toBe("energia");
+    act(() => setLocation("/search"));
+    expect((container.querySelector("input") as HTMLInputElement).value).toBe("");
+  });
+
+  it("lokalizacja BEZ sciezki nie jest traktowana jak strona wynikow", () => {
+    // Router bez `pathname` (czesciowy stan w testach integracyjnych i w SSR
+    // przed rozstrzygnieciem trasy) nie moze udawac /search - inaczej widget
+    // wpisalby do pola przypadkowe `?q=` z zapytania spoza wyszukiwarki.
+    const { container } = renderWidget();
+    act(() => {
+      routerState.location = { pathname: "", search: { q: "obronnosc" } };
+      for (const cb of routerState.listeners) cb();
+    });
+    expect((container.querySelector("input") as HTMLInputElement).value).toBe("");
+  });
 });

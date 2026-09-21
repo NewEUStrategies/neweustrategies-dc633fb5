@@ -1,8 +1,12 @@
 import * as React from "react";
-import { render } from "@react-email/render";
 import { createClient } from "@supabase/supabase-js";
 import { createFileRoute } from "@tanstack/react-router";
-import { TEMPLATES } from "@/lib/email-templates/registry";
+
+// F04 (2026-09-20): `@react-email/render` i rejestr szablonów (ciągnie
+// `app-transactional-templates` -> `@react-email/components`) schodzą ze
+// statycznego importu do `await import(...)` w handlerze. Moduł trasy jest
+// ewaluowany przy budowie drzewa tras, czyli PRZY STARCIE IZOLATU Workera,
+// a ten kod wykonuje się wyłącznie przy realnej wysyłce maila.
 
 // Configuration baked in at scaffold time
 const SITE_NAME = "New European Strategies";
@@ -99,6 +103,7 @@ export const Route = createFileRoute("/platform/email/transactional/send")({
         }
 
         // 1. Look up template from registry (early — needed to resolve recipient)
+        const { TEMPLATES } = await import("@/lib/email-templates/registry");
         const template = TEMPLATES[templateName];
 
         if (!template) {
@@ -213,6 +218,13 @@ export const Route = createFileRoute("/platform/email/transactional/send")({
             recipient_email: effectiveRecipient,
             status: "suppressed",
             error_message: reason,
+            // Każdy z siedmiu wierszy dziennika tej trasy niesie najemcę
+            // z bramki - panel wysyłek czyta dziennik w granicach JEDNEGO
+            // najemcy, więc wiersz bez stempla jest niewidoczny dla operatora,
+            // który ma nim wytłumaczyć brak maila. Gdy bramka nie rozstrzygnęła
+            // tenanta, `null` przechodzi do triggera
+            // `trg_email_send_log_bind_tenant`, a ten dopina go z adresu.
+            tenant_id: gate.tenantId,
           });
 
           console.log("Email suppressed", {
@@ -245,6 +257,7 @@ export const Route = createFileRoute("/platform/email/transactional/send")({
             recipient_email: effectiveRecipient,
             status: "failed",
             error_message: "Failed to look up unsubscribe token",
+            tenant_id: gate.tenantId,
           });
           return Response.json({ error: "Failed to prepare email" }, { status: 500 });
         }
@@ -272,6 +285,7 @@ export const Route = createFileRoute("/platform/email/transactional/send")({
               recipient_email: effectiveRecipient,
               status: "failed",
               error_message: "Failed to create unsubscribe token",
+              tenant_id: gate.tenantId,
             });
             return Response.json({ error: "Failed to prepare email" }, { status: 500 });
           }
@@ -295,6 +309,7 @@ export const Route = createFileRoute("/platform/email/transactional/send")({
               recipient_email: effectiveRecipient,
               status: "failed",
               error_message: "Failed to confirm unsubscribe token storage",
+              tenant_id: gate.tenantId,
             });
             return Response.json({ error: "Failed to prepare email" }, { status: 500 });
           }
@@ -329,12 +344,14 @@ export const Route = createFileRoute("/platform/email/transactional/send")({
               recipient_email: effectiveRecipient,
               status: "failed",
               error_message: "Failed to rotate unsubscribe token",
+              tenant_id: gate.tenantId,
             });
             return Response.json({ error: "Failed to prepare email" }, { status: 500 });
           }
         }
 
         // 4. Render React Email template to HTML and plain text
+        const { render } = await import("@react-email/render");
         const element = React.createElement(template.component, templateData);
         const html = await render(element);
         const plainText = await render(element, { plainText: true });
@@ -354,6 +371,7 @@ export const Route = createFileRoute("/platform/email/transactional/send")({
           template_name: templateName,
           recipient_email: effectiveRecipient,
           status: "pending",
+          tenant_id: gate.tenantId,
         });
 
         const { error: enqueueError } = await supabase.rpc("enqueue_email", {
@@ -391,6 +409,7 @@ export const Route = createFileRoute("/platform/email/transactional/send")({
             recipient_email: effectiveRecipient,
             status: "failed",
             error_message: "Failed to enqueue email",
+            tenant_id: gate.tenantId,
           });
 
           return Response.json({ error: "Failed to enqueue email" }, { status: 500 });

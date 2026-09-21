@@ -1,33 +1,66 @@
 {
   "ci": {
+    "_comment": [
+      "TRYB C - POMIAR NA ARTEFAKCIE PRODUKCYJNYM. Kontrakt pomiarowy; przeczytaj PRZED zmianą jakiejkolwiek liczby niżej.",
+      "",
+      "DLACZEGO TEN KLUCZ TAK WYGLĄDA. `_comment` jest przez LHCI IGNOROWANY - `loadAndParseRcFile` (@lhci/utils/src/lighthouserc.js) zwraca wyłącznie `aggregationMethod`, `assertions`, `numberOfRuns`, `settings` i `target`; sprawdzone uruchomieniem na tym pliku. Komentarz `//` jest tu NIEMOŻLIWY: lighthouserc.js:88 parsuje `.json` przez `JSON.parse`, który rzuca „Expected property name or '}'\" i na `//`, i na `/* */` (tylko `.yml`/`.yaml` idą przez js-yaml, linia 84). Stąd tablica stringów.",
+      "",
+      "CO TEN PLIK MIERZY - I CO MIERZYŁ WCZEŚNIEJ. Do 2026-09-01 linia `startServerCommand` brzmiała `bun run dev --host 127.0.0.1 --port 4173`, czyli CAŁA historia pomiarów Lighthouse w tym repo pochodzi z serwera deweloperskiego. Teraz cele to artefakt zbudowany `vite.smoke.config.ts` (nitro preset `node-server`, `bun run build:smoke`) i uruchomiony `node .output/server/index.mjs` - ten sam artefakt, na którym jedzie boot-test z `playwright.artifact.config.ts`. Serwer podnosi KROK WORKFLOW, nie `startServerCommand`: rozgrzewka musi wysłać JAWNY User-Agent Chrome (uzasadnienie niżej), a `startServerCommand` nie umie wykonać żądania.",
+      "",
+      "ILE DEV-SERVER KŁAMAŁ - ZMIERZONE. Mediany 3 przebiegów, ta sama maszyna, Lighthouse 12.6.1, preset desktop, benchmarkIndex 1607,5 (artefakt) / 1515,5 (dev), URL /en. Trzecia kolumna to jedyny zapis, jaki CI kiedykolwiek wyprodukował (.lighthouseci/assertion-results.json + lhr-1786557103836.json, runner, benchmarkIndex 1748,5, numberOfRuns 1).",
+      "  metryka                    artefakt   dev-server   zapis CI",
+      "  categories:performance         0,60         0,34       0,34",
+      "  categories:accessibility       0,94         0,94       0,94",
+      "  categories:best-practices      0,96         0,96       0,96",
+      "  categories:seo                 0,58         0,58       0,58",
+      "  first-contentful-paint          2681          970       1005",
+      "  largest-contentful-paint        3939        34031      31215",
+      "  total-blocking-time              101         1602       1985",
+      "  cumulative-layout-shift            0            0          0",
+      "  speed-index                     4495         6113       6104",
+      "  server-response-time            5033         5174         64",
+      "  total-byte-weight            3414549     32311216   30975220",
+      "  network-requests                 119         1080       1034",
+      "Czyli dev-server zawyżał TBT 15,9x, LCP 8,6x, wagę bajtów 9,5x i liczbę żądań 9,1x, a ZANIŻAŁ FCP 2,8x; zapisany w repo `server-response-time` był 81x za niski (64 ms wobec 5033 ms na artefakcie). Dev nie potrafił nawet nazwać elementu LCP (`largest-contentful-paint-element` -> scoreDisplayMode „error\", zero szczegółów, we wszystkich przebiegach i w zapisie CI); artefakt nazywa go identycznie w każdym przebiegu: `body > div.fixed > div.relative > p.text-[12px]` z własnościami `--cb-*`, czyli AKAPIT BANERA COOKIE w nakładce `position: fixed`. Dev-server nie był też sam ze sobą zgodny: LCP 1050 / 34031 / 34142 ms w trzech kolejnych przebiegach na tym samym rozgrzanym serwerze.",
+      "",
+      "KTÓRĄ ŚCIEŻKĘ SSR OPISUJĄ TE LICZBY. Lighthouse 12.x nadpisuje User-Agent strony swoim emulowanym (lighthouse/core/config/constants.js:41-42), desktop: „Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36\". isbot@5.1.39 zwraca dla niego FALSE - sprawdzone uruchomieniem. Token „ Chrome-Lighthouse\" zniknął po Lighthouse 9 i w pakiecie 12.6.1 występuje już tylko w changelog-pre10.md. WNIOSEK: każdy budżet w tym pliku mierzy ŚCIEŻKĘ STRUMIENIOWĄ @tanstack/react-router (renderRouterToStream.tsx:166 `onShellReady`), a NIE buforowaną.",
+      "Ścieżka BUFOROWANA - renderRouterToStream.tsx:67-69 `if (isbot(request.headers.get('User-Agent'))) await waitForReadyOrAbort(stream.allReady, ...)` oraz :161 `onAllReady` - to, co dostają Googlebot, monitoring na HeadlessChrome i healthchecki `curl`, NIE jest tu mierzona przez nic. Kto chce na nią budżet, musi dodać drugi URL zbierany z jawnym UA bota.",
+      "WNIOSEK DLA ROZGRZEWKI: `curl` bez `-A` wysyła „curl/x.y\", a isbot() ocenia to jako TRUE - rozgrzewka wyrenderowałaby INNĄ gałąź kodu (i zapisała inne ciało w cache dokumentu) niż mierzony przebieg. Krok rozgrzewki w `.github/workflows/lighthouse.yml` podaje dlatego jawny UA Chrome.",
+      "ZMIERZONA UWAGA: dzisiaj ta rozwidlenie NIE MA obserwowalnego skutku. Na artefakcie, 5 klas UA x 3 żądania na /en i /blog, czas do pierwszego chunku był RÓWNY czasowi całego ciała dla każdego UA - bota i nie-bota - bo sama powłoka jest zablokowana na loaderach trasy (5-8 s). Dopóki to się nie zmieni, praca nad strumieniowaniem nie ruszy tego instrumentu ani o milisekundę.",
+      "",
+      "SKĄD LICZBY W `assertions`. NIE są wymyślone i NIE są celami: to kanoniczne granice „good\" z `src/lib/observability/vitalsThresholds.ts` (VITAL_THRESHOLDS), których używa RUM tego serwisu - LCP 2500, CLS 0,1, FCP 1800 - więc bramka CI i dashboard RUM oceniają tę samą wartość identycznie. Wyjątek: `server-response-time` 600 ms to własna stała Lighthouse'a (core/audits/server-response-time.js:26 TOO_SLOW_THRESHOLD_MS), ostrzejsza niż repozytoryjna granica TTFB „good\" = 800 ms. `speed-index` 3400 zostaje z poprzedniej wersji pliku BEZ ZMIANY, i to jest świadome: zmierzone 4495 ms jest GORSZE od tego budżetu, więc nie da się nim niczego uzasadnić poza jego rozluźnieniem - a rozluźnianie jest zabronione. Poza tym SI jest tu zdominowane tym samym 5-sekundowym TTFB, co LCP.",
+      "",
+      "DLACZEGO TYLKO DWIE ASERCJE SĄ NA POZIOMIE `error`. Blokują wyłącznie te, dla których mam POMIAR z zapasem i które opisują KSZTAŁT ARTEFAKTU, nie sieć w tym sandboksie:",
+      "  * total-blocking-time <= 300 ms - zmierzone 101 / 101 / 87 ms (mediana 101), zapas 3,0x. To praca głównego wątku wykonywana przez zbudowany bundle, więc mierzalna lokalnie.",
+      "  * cumulative-layout-shift <= 0,1 - zmierzone DOKŁADNIE 0 w siedmiu przebiegach na siedem (3 artefakt, 3 dev, 1 zapis CI).",
+      "Reszta zostaje na `warn`, bo w tym środowisku dominuje ją NIEOSIĄGALNY `placeholder.supabase.co`: `server-response-time` 5033 ms to nie latencja sieci, a 22 wystąpienia `[ssr-query-timeout] query exceeded 5000ms during SSR and was cancelled` - zapytanie, które jest awaitowane, ale nigdy nie startuje, przepala cały 5-sekundowy budżet, zanim dokument wyjdzie. LCP, SI i FCP są tym zdominowane, więc ich `error` byłby czerwienią środowiska, nie produktu.",
+      "  * categories:performance 0,8 wobec zmierzonych 0,60 - liczba BEZ ZMIANY, poziom BEZ ZMIANY. Nie wolno jej obniżyć; podniesienie poziomu ma sens dopiero, gdy loadery przestaną blokować powłokę.",
+      "  * categories:seo 0,9 jest na 127.0.0.1 NIESPEŁNIALNE Z KONSTRUKCJI i to NIE jest defekt produktu: `is-crawlable` blokuje dyrektywa z /robots.txt (src/lib/seo/robots.ts:150 wystawia `X-Robots-Tag: noindex, nofollow` dla klasy hostów nieindeksowalnych, a 127.0.0.1 do niej należy), a `canonical` dostaje „Multiple conflicting URLs (https://127.0.0.1:4173/en, http://127.0.0.1:4173/en)\". Na prawdziwym hoście HTTPS oba przechodzą - dlatego w `lighthouserc.deployed.json` ta sama asercja jest `error`.",
+      "  * categories:accessibility 0,9 wobec zmierzonych 0,94 (identycznie w dev, na artefakcie i w zapisie CI) - zapas 0,04 to za mało na nową bramkę blokującą postawioną z pomiaru na hoście. Realne wymuszanie a11y to i tak blokujące testy axe w ci.yml.",
+      "",
+      "DLACZEGO ZNIKŁA LISTA `skipAudits`. Miała 13 pozycji i JEDEN powód: dev-server podawał 1034 osobne moduły ESM (30 249 KiB), więc gatherery pobierające CIAŁO KAŻDEJ ODPOWIEDZI przewracały przebieg błędem WYKONANIA, nie asercji - „Waiting for DevTools protocol response has exceeded the allotted time. (Method: Network.getResponseBody)\", poprzedzonym „ResponseCompression:error PROTOCOL_TIMEOUT\". Poprzedni komentarz uzasadniał to zdaniem „na nieminifikowanym, niezbundlowanym wyjściu dev te audyty mierzą serwer dev, a nie produkt\" - i to było prawdą O DEV-SERWERZE. Artefakt podaje 119 żądań i 3 414 549 B (zmierzone), czyli te audyty są i tanie, i wreszcie sensowne: `unused-javascript`, `legacy-javascript`, `duplicated-javascript` i `script-treemap-data` diagnozują dokładnie ten bundle, którego pilnują `check:bundle` i `check:chunks`. Żadna z nich nie jest asercją, więc nie mogą przewrócić bramki - mogą tylko przewrócić PRZEBIEG. Gdyby któryś gatherer znów wpadł w timeout NA ARTEFAKCIE, poprawką jest dopisanie TEJ JEDNEJ pozycji z logiem jako dowodem, nie przywrócenie listy hurtem.",
+      "",
+      "DLACZEGO `aggregationMethod: median`. Domyślną wartością @lhci/utils/src/assertions.js:139 jest `optimistic`, a linia 65 sprowadza ją dla każdej asercji `max*` do MINIMUM z przebiegów, a dla `min*` do maksimum - czyli najlepszy z trzech, co ukrywa cały wolny ogon. Zmierzone na tej aplikacji: trzy kolejne przebiegi po tym samym serwerze dev dały LCP 1050 / 34031 / 34142 ms; `optimistic` zaraportowałoby 1050. `median` jest jednostronnie ostrzejsza od `optimistic` i dopiero ona nadaje sens `numberOfRuns` podniesionemu z 1 na 3.",
+      "",
+      "URL-e. „/\" wypadło świadomie: przekierowuje na „/en\" i Lighthouse mówi to sam w runWarning („Try testing the second URL directly\"), więc ten cel kosztował przebieg i dawał ostrzeżenie zamiast pomiaru. Zostają /en (strona główna po przekierowaniu) i /blog (siatka archiwum - inny profil: okładki, LCP obrazkowe, lista).",
+      "",
+      "RATCHET - reguła identyczna jak FROZEN_BUDGET_KB w scripts/check-bundle-size.ts. Każdej zmianie liczby MUSI towarzyszyć zmierzona wartość, URL, runner (host <-> runner realnie się różnią) i powód. Progi wolno wyłącznie ZACIEŚNIAĆ. Pierwszy ZIELONY log z runnera jest podstawą do zaciśnięcia TBT z 300 na ok. 1,5x mediany - dopóki go nie ma, 300 zostaje.",
+      "",
+      "DWIE USTAWIENIA W `settings`, KTÓRYCH NIE WOLNO \"POPRAWIĆ\" - OBIE KOSZTOWAŁY PRZEBIEGI CI. (1) `chromeFlags` MUSI być STRINGIEM pod `collect.settings`. Sprawdzone: oba pozostałe zapisy są przez tę wersję LHCI CICHO IGNOROWANE - TABLICA w tym samym miejscu oraz STRING pod `collect.chromeFlags` - i każdy z nich kończy się \"Unable to connect to Chrome\" bez żadnej wskazówki, że flagi nie dojechały. Same flagi (`--no-sandbox --disable-dev-shm-usage`) są potrzebne, bo przypięte Chromium padało przy starcie w piaskownicy runnera. (2) `maxWaitForLoad: 120000` zostaje, choć artefakt nie kompiluje modułów jak dev-server (tam powodem było zmierzone 53 s zimnego kompilowania): tutaj powodem jest zmierzone TTFB ~5 s na /en i ~8 s na /blog przy nieosiągalnym Supabase, a domyślne 45 s nie ma zapasu na 2-rdzeniowy runner pod obciążeniem.",
+      "",
+      "URUCHOMIENIE LOKALNE: `bun run build:smoke` && `PORT=4173 HOST=127.0.0.1 node .output/server/index.mjs &` && `curl -sS -A \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36\" http://127.0.0.1:4173/en > /dev/null` && `bunx @lhci/cli@0.15.x autorun --config=lighthouserc.json`. UWAGA: `build:smoke` NADPISUJE `.output/`, więc nie odpalaj go, gdy potrzebujesz jeszcze artefaktu cloudflare'owego (check:bundle / check:chunks / check:entry-purity)."
+    ],
     "collect": {
-      "startServerCommand": "bun run dev --host 127.0.0.1 --port 4173",
-      "startServerReadyPattern": "Local:",
-      "startServerReadyTimeout": 120000,
-      "url": ["http://127.0.0.1:4173/en", "http://127.0.0.1:4173/", "http://127.0.0.1:4173/blog"],
-      "numberOfRuns": 1,
+      "url": ["http://127.0.0.1:4173/en", "http://127.0.0.1:4173/blog"],
+      "numberOfRuns": 3,
       "settings": {
         "preset": "desktop",
-        "skipAudits": [
-          "unminified-javascript",
-          "unminified-css",
-          "unused-javascript",
-          "unused-css-rules",
-          "duplicated-javascript",
-          "legacy-javascript",
-          "valid-source-maps",
-          "duplicated-javascript-insight",
-          "legacy-javascript-insight",
-          "modern-http-insight",
-          "network-dependency-tree-insight",
-          "script-treemap-data",
-          "uses-text-compression"
-        ],
         "maxWaitForLoad": 120000,
         "chromeFlags": "--no-sandbox --disable-dev-shm-usage"
       }
     },
     "assert": {
+      "aggregationMethod": "median",
       "assertions": {
         "categories:performance": [
           "warn",
@@ -60,13 +93,13 @@
           }
         ],
         "cumulative-layout-shift": [
-          "warn",
+          "error",
           {
             "maxNumericValue": 0.1
           }
         ],
         "total-blocking-time": [
-          "warn",
+          "error",
           {
             "maxNumericValue": 300
           }
@@ -75,6 +108,18 @@
           "warn",
           {
             "maxNumericValue": 3400
+          }
+        ],
+        "first-contentful-paint": [
+          "warn",
+          {
+            "maxNumericValue": 1800
+          }
+        ],
+        "server-response-time": [
+          "warn",
+          {
+            "maxNumericValue": 600
           }
         ]
       }

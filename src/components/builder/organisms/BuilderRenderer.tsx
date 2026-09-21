@@ -1,6 +1,5 @@
 // Read-only renderer for public pages. Applies all Section settings
 // (layout, background layers, overlay, border, shape dividers, typography).
-import { createPortal } from "react-dom";
 import {
   Fragment,
   Suspense,
@@ -13,6 +12,7 @@ import {
   useMemo,
   useRef,
   useState,
+  startTransition,
   type ComponentType,
   type CSSProperties,
   type ElementType,
@@ -26,11 +26,15 @@ import type {
   Device,
   ResponsiveValue,
 } from "@/lib/builder/types";
-import { hiddenOnDevice } from "@/components/builder/organisms/WidgetView";
 import { BuilderWidgetNode } from "@/components/builder/organisms/BuilderWidgetNode";
+// `hiddenOnDevice` czytamy z modułu ŹRÓDŁOWEGO, nie przez re-eksport z
+// `WidgetView`: re-eksport był statyczną krawędzią do pełnego dyspozytora
+// widgetów, więc każdy dokument z nagłówkiem ciągnął go do chunku wejściowego
+// nawet wtedy, gdy renderuje wyłącznie widgety chrome (audyt CWV, F17).
 import {
   AUTO_SIZE_WIDGETS,
   COMPACT_WIDGET_TYPES,
+  hiddenOnDevice,
 } from "@/components/builder/organisms/widget-view/frame";
 import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
 import { afterPrerendering } from "@/lib/prerender";
@@ -53,10 +57,11 @@ import { SectionTabsBar } from "@/components/builder/molecules/SectionTabsBar";
 import { evaluateAccess, useAccessContext } from "@/lib/builder/accessControl";
 import { useInlineWidgetEdit } from "@/components/builder/inlineEditContext";
 
+import { estimateChromeColumnHeight } from "@/lib/builder/sectionHeightEstimate";
 import { useSectionPreload } from "@/lib/builder/useSectionPreload";
 import { warmCommonWidgetChunks } from "./widget-view/warmWidgetChunks";
 import { AboveFoldProvider } from "@/lib/builder/aboveFold";
-import { useBuilderDebug, toggleBuilderDebug } from "@/lib/builder/builderDebug";
+import { useBuilderDebug } from "@/lib/builder/builderDebug";
 import { safeParseBuilderDoc, isKnownWidgetType } from "@/lib/builder/schema";
 import { ABOVE_FOLD_SECTION_COUNT } from "@/lib/builder/prefetch";
 import { StreamingSection } from "@/lib/builder/sectionStreaming";
@@ -115,6 +120,12 @@ interface Props {
    * instead of bucketing the viewer, and never record experiment events.
    */
   editorPreview?: boolean;
+  /**
+   * Dokument POWŁOKI (nagłówek/stopka), nie treści. Każda kolumna dostaje wtedy
+   * `min-height` z tego samego szacunku, którym `HeaderSkeleton` rezerwuje
+   * miejsce (`estimateChromeColumnHeight`) - patrz `ChromeReserveContext`.
+   */
+  chrome?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -178,6 +189,26 @@ export function BuilderEmptyPickerProvider({
   );
 }
 
+/**
+ * Czy renderujemy dokument POWŁOKI (nagłówek/stopka).
+ *
+ * DLACZEGO TO ISTNIEJE. Ciężkie widgety jadą przez `React.lazy`, a publiczny
+ * fallback granicy Suspense to `null` (`lazySuspense.tsx`). Pilna aktualizacja
+ * przed dojściem chunku POTRAFI porzucić strumieniowany HTML granicy - wtedy
+ * `search-button` albo `account-link` znikają na chwilę z nagłówka, kolumna
+ * zapada się do samego paddingu, a `<main>` podskakuje o kilkadziesiąt
+ * pikseli. W pomiarach `first-visit` wychodziło z tego przesunięcie o 89 px
+ * (nagłówek 185 -> 128 px) i CLS 0,13 przy progu 0,1 - rzadkie, bo zależne od
+ * wyścigu chunku z hydratacją, ale w pełni deterministyczne co do geometrii.
+ *
+ * Rezerwa idzie z DOKŁADNIE tego samego szacunku, którym `HeaderSkeleton`
+ * trzyma miejsce przed przyjściem powłoki, więc pusta granica, szkielet
+ * i zamontowany nagłówek mają tę samą wysokość. Treść strony tego nie dostaje:
+ * tam szacunek jest zgrubny, a kolumna ma prawo być dokładnie tak wysoka, jak
+ * jej zawartość.
+ */
+const ChromeReserveContext = createContext(false);
+
 const MOBILE_BREAKPOINT = 768;
 const TABLET_BREAKPOINT = 1024;
 
@@ -208,6 +239,7 @@ export function BuilderRenderer({
   stream = false,
   aboveFoldCount = ABOVE_FOLD_SECTION_COUNT,
   editorPreview = false,
+  chrome = false,
 }: Props) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   // Pierwszy render MUSI byc deterministyczny (desktop-first), inaczej SSR
@@ -215,7 +247,9 @@ export function BuilderRenderer({
   // "mobile" (rozjazd hydratacji + CLS). Rzeczywiste urzadzenie ustawia
   // useIsomorphicLayoutEffect ponizej (przed malowaniem na kliencie).
   const [viewportDevice, setViewportDevice] = useState<Device>(() => device ?? "desktop");
-  const safeDoc = safeParseBuilderDoc(doc);
+  // Keep normalized node identities stable through viewport/context updates.
+  // Editors replace the document immutably when its content changes.
+  const safeDoc = useMemo(() => safeParseBuilderDoc(doc), [doc]);
   // Debug state is shared across every BuilderRenderer on the page; only the
   // "primary" instance renders the overlay (toggle + debug CSS) - see builderDebug.
   const { debug, isPrimary } = useBuilderDebug();
@@ -230,7 +264,10 @@ export function BuilderRenderer({
     // preview frame in the admin). Fall back to window width.
     const measure = () => {
       const w = el?.clientWidth && el.clientWidth > 0 ? el.clientWidth : window.innerWidth;
-      setViewportDevice(deviceForWidth(w));
+      // A viewport correction can arrive before a lazy widget hydrates.
+      // Keep its server DOM while React waits for the chunk; an urgent update
+      // would discard the boundary and temporarily show its empty fallback.
+      startTransition(() => setViewportDevice(deviceForWidth(w)));
     };
     measure();
     let ro: ResizeObserver | null = null;
@@ -257,34 +294,34 @@ export function BuilderRenderer({
 
   return (
     <UsedPostIdsProvider>
-      <div
-        ref={rootRef}
-        data-theme-typography
-        data-builder-renderer
-        data-debug={debug ? "1" : "0"}
-        data-device={effectiveDevice}
-      >
-        <SectionsList
-          sections={safeDoc.sections}
-          lang={lang}
-          device={effectiveDevice}
-          stream={stream}
-          aboveFoldCount={aboveFoldCount}
-          editorPreview={editorPreview}
-        />
-      </div>
+      <ChromeReserveContext.Provider value={chrome}>
+        <div
+          ref={rootRef}
+          data-theme-typography
+          data-builder-renderer
+          data-debug={debug ? "1" : "0"}
+          data-device={effectiveDevice}
+        >
+          <SectionsList
+            sections={safeDoc.sections}
+            lang={lang}
+            device={effectiveDevice}
+            stream={stream}
+            aboveFoldCount={aboveFoldCount}
+            editorPreview={editorPreview}
+          />
+        </div>
+      </ChromeReserveContext.Provider>
       {isPrimary && <BuilderDebugOverlay debug={debug} doc={safeDoc} />}
     </UsedPostIdsProvider>
   );
 }
 
-// Single, page-wide debug overlay owned by the primary renderer. The toggle is a
-// dev affordance: it only appears in dev or when debug was explicitly enabled
-// (e.g. `?debug=1`), so production visitors never see it. The height-annotation
-// loop runs once and labels every renderer on the page.
+// Single, page-wide debug overlay owned by the primary renderer. The overlay
+// is a DEV-only affordance controlled by `?debug=1` or localStorage, so
+// production visitors never see it. The height-annotation loop runs once and
+// labels every renderer on the page.
 function BuilderDebugOverlay({ debug, doc }: { debug: boolean; doc: BuilderDocument }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
   useEffect(() => {
     if (!import.meta.env.DEV || !debug || typeof window === "undefined") return;
     const annotate = () => {
@@ -305,31 +342,10 @@ function BuilderDebugOverlay({ debug, doc }: { debug: boolean; doc: BuilderDocum
     };
   }, [debug, doc]);
 
-  // The debug overlay (CSS + toggle) is a DEV-only affordance. Gating the whole
-  // output behind import.meta.env.DEV means the CSS string and the button
-  // tree-shake out of production builds entirely - they can never reach a
-  // visitor, even via ?debug=1. (The functional/responsive CSS lives in the
-  // global stylesheet, so production layout is unaffected.)
+  // Gating the whole output behind import.meta.env.DEV means the debug CSS
+  // string tree-shakes out of production builds entirely.
   if (!import.meta.env.DEV) return null;
-  const toggle = (
-    <button
-      type="button"
-      className="builder-debug-toggle"
-      data-on={debug ? "1" : "0"}
-      onClick={toggleBuilderDebug}
-    >
-      {debug ? "Debug: ON" : "Debug: OFF"}
-    </button>
-  );
-  return (
-    <>
-      {debug && <style dangerouslySetInnerHTML={{ __html: DEBUG_OVERLAY_CSS }} />}
-      {/* Portal do <body>: renderer bywa montowany wewnątrz headera/kontenerów
-          z transform|filter|contain, które tworzą nowy containing block i
-          "przyklejają" position:fixed do rodzica zamiast do viewportu. */}
-      {mounted ? createPortal(toggle, document.body) : null}
-    </>
-  );
+  return debug ? <style dangerouslySetInnerHTML={{ __html: DEBUG_OVERLAY_CSS }} /> : null;
 }
 
 const SectionsList = memo(function SectionsList({
@@ -585,6 +601,29 @@ const RenderSection = memo(function RenderSection({
       className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(section.advanced?.cssClass) ?? ""}`.trim()}
       style={wrapStyle}
     >
+      {/* Style sekcji PRZED jej dziećmi: przy strumieniowanym HTML parser
+          maluje kolumny od razu po wczytaniu, a bloki na końcu sekcji docierały
+          dopiero po nich - pierwsza klatka szła bez typografii sekcji i bez
+          mobilnej kolejności kolumn, czyli z przesunięciem układu. */}
+      {typoCss && <style dangerouslySetInnerHTML={{ __html: hardenStyleCss(typoCss) }} />}
+      {(() => {
+        const mobileOrderCss = visibleCols
+          .filter(
+            (c): c is ColumnNode => c.kind === "column" && typeof c.order?.mobile === "number",
+          )
+          .map(
+            (c) =>
+              `[data-sec-id="${section.id}"] [data-col-id="${c.id}"]{order:${c.order!.mobile};}`,
+          )
+          .join("");
+        return mobileOrderCss ? (
+          <style
+            dangerouslySetInnerHTML={{
+              __html: hardenStyleCss(`@media (max-width: 767px){${mobileOrderCss}}`),
+            }}
+          />
+        ) : null;
+      })()}
       {section.background?.type === "video" && videoUrl && (
         <SectionBackgroundVideo src={videoUrl} />
       )}
@@ -685,25 +724,6 @@ const RenderSection = memo(function RenderSection({
           </div>
         </div>
       </div>
-      {(() => {
-        const mobileOrderCss = visibleCols
-          .filter(
-            (c): c is ColumnNode => c.kind === "column" && typeof c.order?.mobile === "number",
-          )
-          .map(
-            (c) =>
-              `[data-sec-id="${section.id}"] [data-col-id="${c.id}"]{order:${c.order!.mobile};}`,
-          )
-          .join("");
-        return mobileOrderCss ? (
-          <style
-            dangerouslySetInnerHTML={{
-              __html: hardenStyleCss(`@media (max-width: 767px){${mobileOrderCss}}`),
-            }}
-          />
-        ) : null;
-      })()}
-      {typoCss && <style dangerouslySetInnerHTML={{ __html: hardenStyleCss(typoCss) }} />}
     </Tag>
   );
 });
@@ -788,6 +808,7 @@ const RenderColumn = memo(function RenderColumn({
   const va = column.verticalAlign ?? "start";
   const accessCtx = useAccessContext();
   const inlineEdit = useInlineWidgetEdit();
+  const chromeReserve = useContext(ChromeReserveContext);
 
   const visibleChildren = useMemo(
     () =>
@@ -867,7 +888,11 @@ const RenderColumn = memo(function RenderColumn({
       style={{
         padding: `${COLUMN_SAFE_AREA_PX}px`,
         boxSizing: "border-box",
-        minHeight: column.style?.minHeight,
+        // Powłoka: kolumna nigdy nie jest niższa niż rezerwa szkieletu, więc
+        // pusta granica Suspense leniwego widgetu nie zapada nagłówka.
+        minHeight:
+          column.style?.minHeight ??
+          (chromeReserve ? estimateChromeColumnHeight(column, device) : undefined),
         background: column.style?.bgColor,
         color: column.style?.textColor,
         borderRadius: column.style?.borderRadius,
@@ -878,7 +903,36 @@ const RenderColumn = memo(function RenderColumn({
           return (
             <div
               key={gi}
-              className={`flex flex-row flex-wrap items-center gap-2 min-w-0 max-w-full ${axisClass}`}
+              // PASEK NARZĘDZI POWŁOKI TO JEDEN RZĄD - I MA NIM ZOSTAĆ.
+              //
+              // `isToolbar` scala CAŁĄ kolumnę kompaktowych widgetów w jeden
+              // wiersz, a rezerwa szkieletu nagłówka liczy go dokładnie tak
+              // samo (`estimateChromeColumnHeight`: wysokość = najwyższy
+              // widget, nie suma). Przy `flex-wrap` ta obietnica zależała od
+              // SZEROKOŚCI TEKSTU: ten sam nagłówek mieścił się w jednej linii
+              // lokalnie (fallback `local("Arial")` + `size-adjust`), a na
+              // runnerze CI - gdzie ten fallback nie ma czym się rozwiązać i
+              // tekst mierzy szerszym krojem - przeskakiwał do dwóch linii.
+              // Wiersz rósł wtedy z 30 na 66 px, nagłówek za nim, a całe
+              // `<main>` zjeżdżało w dół (CLS 0,1348 w „first visit pl, cold").
+              // Nie zawijamy więc paska powłoki: przy ciasnej kolumnie widgety
+              // ścieśniają się (`min-w-0` z ramki widgetu), a nadmiar przycina
+              // kontener sekcji - wysokość zostaje STAŁA przy każdym kroju.
+              //
+              // DLACZEGO WARUNEK `chromeReserve`, A NIE SAM `isToolbar`.
+              // Brak zawijania kupujemy PRZYCIĘCIEM nadmiaru (`data-column-slot`
+              // / kontener sekcji), więc płacimy nim tylko tam, gdzie coś za to
+              // dostajemy: powłoka ma zarezerwowaną wysokość wiersza i pasek
+              // jest w niej jednym rzędem Z DEFINICJI. Treść redakcyjna rezerwy
+              // NIE MA - jej kolumna ma prawo urosnąć, a przycięcie odbierałoby
+              // czytelnikowi etykiety i kontrolki. Na wąskiej stronie CMS
+              // kolumna kilku kompaktowych widgetów (np. paru przycisków) była
+              // wciskana w jeden rząd i wychodziła poza krawędź - recenzja
+              // PR #383. Poza powłoką zawijamy więc tak jak przed rezerwą CLS.
+              //
+              // Grupy inline ZADEKLAROWANE przez autora (`advanced.layout`)
+              // zachowują zawijanie zawsze - tam wiersz jest treścią, nie paskiem.
+              className={`flex flex-row ${isToolbar && chromeReserve ? "flex-nowrap" : "flex-wrap"} items-center gap-2 min-w-0 max-w-full ${axisClass}`}
             >
               {g.items.map((w) => (
                 <BuilderWidgetNode

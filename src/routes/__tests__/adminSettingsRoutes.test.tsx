@@ -93,6 +93,16 @@ const h = vi.hoisted(() => ({
   /** Odpowiedź `analyticsStatus` w panelu analityki. */
   analyticsStatus: null as unknown,
   analyticsStatusError: false,
+  /**
+   * Gdy ustawione, diagnostyka NIE ODPOWIADA - zapytanie zostaje w toku.
+   *
+   * To jedyny wierny model stanu „jeszcze nie wróciła". Oddanie `undefined`
+   * nim NIE JEST: react-query odrzuca zapytanie, które zwróciło `undefined`
+   * („Query data cannot be undefined"), więc panel wchodziłby w stan BŁĘDU -
+   * a to osobny wskaźnik, świadomie odróżniony od „sprawdzania" (komentarz
+   * przy `StatusKind` w `admin.settings.analytics.tsx`).
+   */
+  analyticsStatusPending: false,
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
@@ -230,6 +240,8 @@ vi.mock("@/hooks/useGlobalColors", () => ({
 }));
 vi.mock("@/lib/analytics/status.functions", () => ({
   getAnalyticsStatus: async () => {
+    // Zapytanie, które nigdy się nie rozstrzyga - patrz `analyticsStatusPending`.
+    if (h.analyticsStatusPending) return new Promise<unknown>(() => undefined);
     if (h.analyticsStatusError) throw new Error("status_unavailable");
     return h.analyticsStatus;
   },
@@ -289,6 +301,10 @@ vi.mock("@/components/admin/blocks/AdminSelect", () => ({
 }));
 
 import { renderRoute, routeMeta } from "@/test/routeHarness";
+// Ta sama funkcja, którą podstawia atrapa `react-i18next` powyżej - dzięki
+// temu helper paska zapisu liczy napis DOKŁADNIE tak, jak policzy go panel,
+// zamiast trzymać przepisany z ręki literał.
+import { translateKey } from "@/test/i18nStub";
 // Klucze sekcji BIERZEMY Z PRODUKCJI, nie przepisujemy z ręki: literówka
 // w łańcuchu dałaby test, który „przechodzi" obok panelu (mierzy sekcję,
 // której panel nie czyta).
@@ -386,10 +402,26 @@ async function mount(
   return renderRoute({ route, path, initialEntry: path });
 }
 
+/**
+ * Napisy paska zapisu (`src/components/admin/settings/fields.tsx` -> `SaveBar`)
+ * w stanie spoczynku i w trakcie zapisu.
+ *
+ * SKĄD KLUCZE, A NIE LITERAŁY. Pasek renderował kiedyś wpisane w kod „Zapisz
+ * zmiany" i „Zapisywanie…", więc na angielskim panelu jedyny przycisk, który
+ * cokolwiek utrwala, stał po polsku - w KAŻDYM z kilkunastu paneli
+ * `admin.settings.*`. Naprawą było przepuszczenie obu napisów przez `t()`
+ * (dowód i uzasadnienie: `adminSettingsAnalyticsRoute.test.tsx`, przypadek
+ * „pasek zapisu mówi po angielsku na angielskim panelu"). Helper przypięty do
+ * polskiego literału przestał wtedy znajdować pasek - a bez paska ŻADEN
+ * przypadek w tym pliku nie ma czego kliknąć ani czego się doczekać.
+ */
+const SAVE_BAR_IDLE = translateKey("admin.saveSettings");
+const SAVE_BAR_SAVING = translateKey("admin.saving");
+
 /** Pasek zapisu - jedyny przycisk, którego napis zmienia się w trakcie zapisu. */
 function saveButton(): HTMLButtonElement | undefined {
   return Array.from(document.querySelectorAll("button")).find(
-    (button) => button.textContent === "Zapisz zmiany" || button.textContent === "Zapisywanie…",
+    (button) => button.textContent === SAVE_BAR_IDLE || button.textContent === SAVE_BAR_SAVING,
   );
 }
 
@@ -432,6 +464,7 @@ beforeEach(() => {
   h.clipboard = [];
   h.analyticsStatus = null;
   h.analyticsStatusError = false;
+  h.analyticsStatusPending = false;
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
   h.toastInfo.mockReset();
@@ -511,7 +544,7 @@ describe("admin.settings.* - reguły wspólne wszystkich paneli", () => {
       await mount(route, path);
       await waitFor(() => expect(saveButton()).toBeTruthy());
       expect(saveButton()?.disabled).toBe(true);
-      expect(saveButton()?.textContent).toBe("Zapisywanie…");
+      expect(saveButton()?.textContent).toBe(SAVE_BAR_SAVING);
     },
   );
 
@@ -1921,11 +1954,30 @@ describe("admin.settings.analytics - stan połączenia i okno łączenia GA4", (
   it("stan „sprawdzanie” pokazuje się, DOPÓKI diagnostyka nie wróci", async () => {
     // `!s -> "loading"`: brak odpowiedzi nie może wyglądać jak „nie
     // skonfigurowano", bo to dwie różne decyzje administratora.
-    h.analyticsStatus = undefined;
+    //
+    // ZAPYTANIE MUSI WISIEĆ, a nie oddać `undefined`: react-query odrzuca
+    // zapytanie, które zwróciło `undefined`, więc panel pokazałby wskaźnik
+    // BŁĘDU - osobny stan, dowiedziony niżej i świadomie odróżniony od
+    // „sprawdzania" (`StatusKind` w `admin.settings.analytics.tsx`).
+    h.analyticsStatusPending = true;
     h.rows.analytics = {};
     await mount(AnalyticsRoute, "/admin/settings/analytics");
     await waitFor(() => expect(saveButton()).toBeTruthy());
     expect(document.body.textContent).toContain("admin.analyticsSettings.status.checking");
+    expect(document.body.textContent).not.toContain("admin.analyticsSettings.status.error");
+  });
+
+  it("padnięta diagnostyka pokazuje BŁĄD, a nie wieczne „sprawdzanie”", async () => {
+    // Druga strona tej samej reguły: odrzucone zapytanie to informacja
+    // „idź po uprawnienia albo po sekrety", a nie „poczekaj jeszcze".
+    h.analyticsStatusError = true;
+    h.rows.analytics = {};
+    await mount(AnalyticsRoute, "/admin/settings/analytics");
+    await waitFor(() => expect(saveButton()).toBeTruthy());
+    await waitFor(() =>
+      expect(document.body.textContent).toContain("admin.analyticsSettings.status.error"),
+    );
+    expect(document.body.textContent).not.toContain("admin.analyticsSettings.status.checking");
   });
 
   it.each([
@@ -2208,13 +2260,27 @@ describe("admin.settings.analytics - stan połączenia i okno łączenia GA4", (
   });
 
   it("ODŚWIEŻENIE diagnostyki jest osobnym przyciskiem i BLOKUJE się w trakcie", async () => {
+    // Przycisk niesie NAZWĘ AKCJI (`status.refresh`), a nie napis stanu:
+    // etykieta „sprawdzanie…" wyglądała na wskaźnik, więc nikt jej nie klikał -
+    // a to jedyna droga do ponownej diagnostyki (komentarz przy przycisku
+    // w `admin.settings.analytics.tsx`). Trwanie sprawdzania niesie `disabled`,
+    // nie podmiana etykiety - i to jest tu przedmiotem dowodu, w obu ramionach.
+    h.analyticsStatusPending = true;
     await mountAnalytics({}, status());
-    const refresh = buttonWith("admin.analyticsSettings.status.checking");
-    expect(refresh).toBeTruthy();
-    if (!refresh) throw new Error("test: brak przycisku odświeżenia");
-    fireEvent.click(refresh);
-    // Po kliknięciu przycisk jest w locie - i nie może przyjąć drugiego.
-    await waitFor(() => expect(document.body.textContent).toBeTruthy());
+    const inFlight = buttonWith("admin.analyticsSettings.status.refresh");
+    expect(inFlight, "brak przycisku odświeżenia diagnostyki").toBeTruthy();
+    expect(inFlight).not.toBe(saveButton());
+    // Napis stanu został przy wskaźniku, nie na przycisku.
+    expect(inFlight?.textContent).not.toContain("admin.analyticsSettings.status.checking");
+    expect(inFlight?.disabled).toBe(true);
+
+    cleanup();
+    h.analyticsStatusPending = false;
+    await mountAnalytics({}, status());
+    const ready = buttonWith("admin.analyticsSettings.status.refresh");
+    if (!ready) throw new Error("test: brak przycisku odświeżenia");
+    await waitFor(() => expect(ready.disabled).toBe(false));
+    fireEvent.click(ready);
   });
 
   it("zapis panelu unieważnia CACHE DIAGNOSTYKI - inaczej wskaźnik kłamie", async () => {

@@ -75,13 +75,26 @@ export function EventPackagesPanel({ eventId }: { eventId: string }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [edited, setEdited] = useState<EventPackageRow | null>(null);
   const [pendingDelete, setPendingDelete] = useState<EventPackageRow | null>(null);
-  const [filterPackageId, setFilterPackageId] = useState<string | null>(null);
+  const [selectedPackageId, setSelectedPackageId] = useState<string | null>(null);
   const [orderDialogPackage, setOrderDialogPackage] = useState<string | null>(null);
   const [seatsOrderId, setSeatsOrderId] = useState<string | null>(null);
 
-  const ordersQ = usePackageOrders(eventId, filterPackageId);
-
   const rows = useMemo(() => packagesQ.data ?? [], [packagesQ.data]);
+
+  // FILTR NIE PRZEZYWA SWOJEGO PAKIETU. Usuniecie dziala tylko dla pakietu bez
+  // zamowien, wiec organizator moze skasowac wlasnie ten pakiet, po ktorym
+  // zawezil liste. Identyfikator w stanie zostawalby wtedy w mocy: zapytanie
+  // pytaloby o zamowienia oferty, ktorej juz nie ma, sekcja mowilaby „brak
+  // zamowien dla wybranego pakietu" (czyli „nikt nic nie kupil" na calym
+  // wydarzeniu), a sama kontrolka pokazywalaby juz co innego niz zawezenie,
+  // bo jej wartosc nie ma odpowiednika w opcjach. Zawezenie liczymy wiec z
+  // LISTY, a nie z samego stanu - znika pakiet, wraca „wszystkie pakiety".
+  const filterPackageId = useMemo(
+    () => (rows.some((row) => row.id === selectedPackageId) ? selectedPackageId : null),
+    [rows, selectedPackageId],
+  );
+
+  const ordersQ = usePackageOrders(eventId, filterPackageId);
   const nextSortOrder = rows.reduce((max, row) => Math.max(max, row.sort_order ?? 0), 0) + 10;
   const isPl = i18n.language.startsWith("pl");
 
@@ -152,6 +165,16 @@ export function EventPackagesPanel({ eventId }: { eventId: string }) {
           </Button>
         </header>
 
+        {ticketsQ.error === null ? null : (
+          // Bilety nie maja na tym ekranie wlasnej listy, ale sa polem WYMAGANYM
+          // formularza pakietu - po odmowie okno otwieraloby sie z pusta
+          // droplista i bez sladu, ze zapytanie padlo. Odmowa dochodzi zdaniem,
+          // tak samo jak przy pakietach i zamowieniach.
+          <p className="text-sm text-destructive">
+            {adminRegistrationErrorMessage(ticketsQ.error)}
+          </p>
+        )}
+
         <AdminCatalogListState
           isLoading={packagesQ.isLoading}
           errorMessage={
@@ -198,10 +221,18 @@ export function EventPackagesPanel({ eventId }: { eventId: string }) {
                   </Badge>
                 ) : null}
 
+                {row.is_active ? null : (
+                  <Badge variant="outline">
+                    {t("adminEventRegistration.packages.inactiveBadge")}
+                  </Badge>
+                )}
+
                 <Switch
                   checked={row.is_active}
                   onCheckedChange={(next) => toggleActive(row, next)}
-                  aria-label={t("adminEventRegistration.packages.editor.active")}
+                  aria-label={t("adminEventRegistration.packages.activeToggle", {
+                    name: isPl ? row.name_pl : row.name_en,
+                  })}
                 />
 
                 <div className="flex gap-1">
@@ -263,7 +294,7 @@ export function EventPackagesPanel({ eventId }: { eventId: string }) {
                   label: isPl ? row.name_pl : row.name_en,
                 })),
               ]}
-              onValueChange={(value) => setFilterPackageId(value === "all" ? null : value)}
+              onValueChange={(value) => setSelectedPackageId(value === "all" ? null : value)}
             />
           </div>
         </header>
@@ -278,60 +309,65 @@ export function EventPackagesPanel({ eventId }: { eventId: string }) {
           emptyLabel={t("adminEventRegistration.packages.orders.empty")}
         >
           <ul className="space-y-2">
-            {(ordersQ.data ?? []).map((order) => (
-              <li
-                key={order.id}
-                className="flex flex-wrap items-center gap-3 rounded-[6px] border border-border/70 p-3"
-              >
-                <div className="min-w-[14rem] flex-1">
-                  <p className="text-sm font-medium">
-                    {order.buyer_name !== null && order.buyer_name !== ""
-                      ? order.buyer_name
-                      : order.buyer_email}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {isPl ? order.package_name_pl : order.package_name_en} ·{" "}
-                    {t("adminEventRegistration.packages.orders.seatsSummary", {
-                      assigned: order.seats_assigned,
-                      invited: order.seats_invited,
-                      total: order.seats_total,
-                    })}
-                  </p>
-                </div>
+            {(ordersQ.data ?? []).map((order) => {
+              // Platnik nazywa wiersz i - to wazniejsze - nazywa POLE STANU:
+              // dwa zamowienia obok siebie z identycznie nazwanymi polami
+              // koncza sie „oplacone" wpisanym w cudze zamowienie.
+              const buyer =
+                order.buyer_name !== null && order.buyer_name !== ""
+                  ? order.buyer_name
+                  : order.buyer_email;
+              return (
+                <li
+                  key={order.id}
+                  className="flex flex-wrap items-center gap-3 rounded-[6px] border border-border/70 p-3"
+                >
+                  <div className="min-w-[14rem] flex-1">
+                    <p className="text-sm font-medium">{buyer}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {isPl ? order.package_name_pl : order.package_name_en} ·{" "}
+                      {t("adminEventRegistration.packages.orders.seatsSummary", {
+                        assigned: order.seats_assigned,
+                        invited: order.seats_invited,
+                        total: order.seats_total,
+                      })}
+                    </p>
+                  </div>
 
-                <div className="min-w-[7rem] text-sm">
-                  {formatPrice(order.amount_cents, order.currency, i18n.language)}
-                </div>
+                  <div className="min-w-[7rem] text-sm">
+                    {formatPrice(order.amount_cents, order.currency, i18n.language)}
+                  </div>
 
-                <div className="w-44">
-                  <FormSelect
-                    value={orderStatus(order.status)}
-                    options={PACKAGE_ORDER_STATUSES.map((status) => ({
-                      value: status,
-                      label: t(`adminEventRegistration.packages.orders.statuses.${status}`),
-                    }))}
-                    aria-label={t("adminEventRegistration.packages.orders.status")}
-                    onValueChange={(value) =>
-                      setStatus.mutate(
-                        { id: order.id, status: orderStatus(value) },
-                        {
-                          onSuccess: () =>
-                            toast.success(
-                              t("adminEventRegistration.packages.orders.toasts.statusChanged"),
-                            ),
-                          onError: fail,
-                        },
-                      )
-                    }
-                  />
-                </div>
+                  <div className="w-44">
+                    <FormSelect
+                      value={orderStatus(order.status)}
+                      options={PACKAGE_ORDER_STATUSES.map((status) => ({
+                        value: status,
+                        label: t(`adminEventRegistration.packages.orders.statuses.${status}`),
+                      }))}
+                      aria-label={t("adminEventRegistration.packages.orders.status", { buyer })}
+                      onValueChange={(value) =>
+                        setStatus.mutate(
+                          { id: order.id, status: orderStatus(value) },
+                          {
+                            onSuccess: () =>
+                              toast.success(
+                                t("adminEventRegistration.packages.orders.toasts.statusChanged"),
+                              ),
+                            onError: fail,
+                          },
+                        )
+                      }
+                    />
+                  </div>
 
-                <Button size="sm" variant="outline" onClick={() => setSeatsOrderId(order.id)}>
-                  <Users className="mr-2 h-3.5 w-3.5" />
-                  {t("adminEventRegistration.packages.orders.manageSeats")}
-                </Button>
-              </li>
-            ))}
+                  <Button size="sm" variant="outline" onClick={() => setSeatsOrderId(order.id)}>
+                    <Users className="mr-2 h-3.5 w-3.5" />
+                    {t("adminEventRegistration.packages.orders.manageSeats")}
+                  </Button>
+                </li>
+              );
+            })}
           </ul>
         </AdminCatalogListState>
       </section>

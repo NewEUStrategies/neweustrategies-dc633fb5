@@ -168,3 +168,44 @@ describe("prepareContentForRender - przypisy", () => {
     expect(withoutToc.hasManualToc).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// GAŁĄŹ OBRONNA `rawHtml ?? ""` - część C (gałęziowa).
+//
+// Typ `PrepareContentInput` deklaruje `rawHtml: string`, ale kod broni się
+// przed `undefined`. Obrona jest realna: rekordy sprzed migracji na kolumny
+// `content_pl/en` mają NULL, a trasa przekazuje wartość z bazy wprost. Skoro
+// obrona istnieje, musi być wykonana - inaczej "uproszczenie" jej usunie i
+// pierwszy taki rekord wywali render całej strony.
+// ---------------------------------------------------------------------------
+describe("prepareContentForRender - brak surowego HTML", () => {
+  it("wpis buildera BEZ `rawHtml` renderuje się, a html wychodzi pusty", () => {
+    const r = prepareContentForRender({
+      editor: "builder",
+      builderDoc: docWithText("<p>Treść buildera[fn] nota [/fn]</p>"),
+      blocksDoc: null,
+      rawHtml: undefined as unknown as string,
+      lang: "pl",
+    });
+
+    expect(r.engine).toBe("builder");
+    expect(r.html).toBe("");
+    expect(r.hasManualToc).toBe(false);
+    // Przypisy buildera nie zniknęły przez brak drugiego wejścia.
+    expect(r.footnotes.map((n) => n.html)).toEqual(["nota"]);
+  });
+
+  it("wpis richtext BEZ `rawHtml` daje pustą treść i pustą sekcję przypisów", () => {
+    const r = prepareContentForRender({
+      editor: "richtext",
+      builderDoc: emptyDoc,
+      blocksDoc: null,
+      rawHtml: null as unknown as string,
+      lang: "en",
+    });
+
+    expect(r.engine).toBe("html");
+    expect(r.html).toBe("");
+    expect(r.footnotes).toEqual([]);
+  });
+});

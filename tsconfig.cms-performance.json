@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["e2e-performance/cms-widgets.spec.ts", "playwright.cms-performance.config.ts"],
+  "compilerOptions": {
+    "incremental": false,
+    "types": ["node", "vite/client"]
+  }
+}

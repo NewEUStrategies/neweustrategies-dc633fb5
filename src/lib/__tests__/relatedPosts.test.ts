@@ -125,3 +125,82 @@ describe("rankRelated", () => {
     expect(ranked.map((r) => r.post.id)).toEqual(["c", "b"]);
   });
 });
+
+describe("mergeRelatedConfig - nadpisanie per wpis nie może wywrócić silnika", () => {
+  // `posts.related_override` to surowy jsonb bez CHECK-ów w bazie. Odkąd wagi
+  // realnie docierają do scoringu, uszkodzone nadpisanie przestało być
+  // kosmetyką: `min_score` jako NAPIS wchodzi w porównanie `score >= minScore`,
+  // które dla napisu jest zawsze fałszem - cała sekcja znika bez śladu.
+  it("NIELICZBOWY `min_score` wraca do wartości globalnej, nie kasuje sekcji", () => {
+    // Bez tej klamry napis wszedłby WPROST w `score >= minScore`. Porównanie
+    // liczby z napisem nieliczbowym jest zawsze fałszem, więc próg odrzuciłby
+    // KAŻDEGO kandydata, a widget zniknąłby bez jednego komunikatu.
+    const cfg = mergeRelatedConfig(
+      { min_score: 5 },
+      {
+        min_score: "bardzo wysoki" as unknown as number,
+      },
+    );
+    expect(cfg.min_score).toBe(5);
+  });
+
+  it("`min_score` jest LICZBĄ po scaleniu - porównanie progu nie może dostać napisu", () => {
+    const cfg = mergeRelatedConfig(
+      { min_score: 5 },
+      {
+        min_score: "12" as unknown as number,
+      },
+    );
+    expect(cfg.min_score).toBe(12);
+    expect(typeof cfg.min_score).toBe("number");
+  });
+
+  it("wartość spoza zakresu wraca do globalnej - w obie strony", () => {
+    const zaDuzo = mergeRelatedConfig({ weight_tags: 4 }, { weight_tags: 9999 });
+    const ujemna = mergeRelatedConfig({ weight_tags: 4 }, { weight_tags: -3 });
+    expect(zaDuzo.weight_tags).toBe(4);
+    expect(ujemna.weight_tags).toBe(4);
+  });
+
+  it("NaN i null nie przechodzą do silnika", () => {
+    const cfg = mergeRelatedConfig(
+      { weight_categories: 3, items_limit: 6 },
+      { weight_categories: Number.NaN, items_limit: null as unknown as number },
+    );
+    expect(cfg.weight_categories).toBe(3);
+    expect(cfg.items_limit).toBe(6);
+  });
+
+  it("`use_idf` jest boolem, a nie czymkolwiek prawdziwym w sensie JS", () => {
+    // Napis "false" jest w JS prawdziwy - bez jawnego porównania włączyłby IDF
+    // i przeskalował cały wynik, choć nadpisanie mówi coś przeciwnego.
+    const cfg = mergeRelatedConfig(
+      { use_idf: false },
+      {
+        use_idf: "false" as unknown as boolean,
+      },
+    );
+    expect(cfg.use_idf).toBe(false);
+  });
+
+  it("POPRAWNE nadpisanie nadal działa - klamra nie może zjeść prawdziwej zmiany", () => {
+    const cfg = mergeRelatedConfig(
+      { weight_tags: 2, min_score: 0, use_idf: false },
+      { weight_tags: 8, min_score: 3, use_idf: true },
+    );
+    expect(cfg.weight_tags).toBe(8);
+    expect(cfg.min_score).toBe(3);
+    expect(cfg.use_idf).toBe(true);
+  });
+
+  it("liczba podana jako NAPIS NUMERYCZNY jest przyjmowana po konwersji", () => {
+    // jsonb z panelu bywa serializowany luźno; wartość sensowna ma przejść.
+    const cfg = mergeRelatedConfig(
+      { weight_tags: 2 },
+      {
+        weight_tags: "7" as unknown as number,
+      },
+    );
+    expect(cfg.weight_tags).toBe(7);
+  });
+});

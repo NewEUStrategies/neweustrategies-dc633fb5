@@ -5,6 +5,7 @@ import {
   popupFieldLabel,
   popupFieldPlaceholder,
   isPopupFieldLocked,
+  isPopupFieldNeverRequired,
   POPUP_FIELD_KEYS,
 } from "@/lib/newsletter/popupFields";
 
@@ -29,6 +30,12 @@ describe("popupFields", () => {
     expect(fields.email.enabled).toBe(true);
     expect(fields.email.required).toBe(true);
     expect(isPopupFieldLocked("email")).toBe(true);
+  });
+
+  it("linkedin zawsze pozostaje opcjonalne, nawet gdyby zapisano required=true", () => {
+    expect(isPopupFieldNeverRequired("linkedin")).toBe(true);
+    const fields = popupFieldMap([{ key: "linkedin", required: true }]);
+    expect(fields.linkedin.required).toBe(false);
   });
 
   it("ignoruje śmieciowe wpisy i puste etykiety", () => {

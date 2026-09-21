@@ -16,10 +16,30 @@ import {
   type MarketingConfig,
 } from "@/lib/analytics/config";
 import { useEffectiveConsent } from "@/lib/ads/consent";
+import { whenIdle } from "@/lib/ads/idle";
+import {
+  bootstrapGa4,
+  ga4ConsentUpdate,
+  GOOGLE_ADS_ID,
+  resolveBrowserGa4Id,
+} from "@/lib/analytics/ga4Client";
 
 type CleanupFn = () => void;
 
 const MARK_ATTR = "data-consent-owner";
+
+/**
+ * Ile najdłużej czekamy z DOCIĄGNIĘCIEM gtag.js po rozstrzygnięciu zgody.
+ *
+ * Nie dotyczy poleceń (zgoda domyślna, `config`, odsłony) - te idą do
+ * `window.dataLayer` natychmiast i czekają tam na skrypt. Odroczony jest
+ * wyłącznie transfer + parse ~90 KB z obcego originu, który do 2026-09-20
+ * biegł w oknie hydratacji, czyli wprost przeciwko LCP i pierwszej interakcji
+ * (audyt CWV, F20). 2 000 ms to ta sama skala, co inne odroczenia bootu w
+ * `__root.tsx` (cache-busting i heartbeat: 3 000 ms), ale krótsza - pomiar ma
+ * ruszyć, gdy tylko główny wątek zwolni, a nie „kiedyś".
+ */
+const GTAG_IDLE_TIMEOUT_MS = 2_000;
 
 function removeMarked(owner: string) {
   if (typeof document === "undefined") return;
@@ -77,16 +97,8 @@ function loadAnalytics(cfg: AnalyticsConfig): CleanupFn {
   const owner = "consent-analytics";
   removeMarked(owner);
 
-  if (cfg.ga4_measurement_id) {
-    injectExternalScript(
-      `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(cfg.ga4_measurement_id)}`,
-      owner,
-    );
-    injectInlineScript(
-      `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config',${JSON.stringify(cfg.ga4_measurement_id)},{anonymize_ip:true});`,
-      owner,
-    );
-  }
+  // GA4 NIE jest tu ładowany: pracuje w trybie domyślnej odmowy Google i jest
+  // uruchamiany niezależnie od tej bramki (patrz `Ga4ConsentBridge` niżej).
 
   if (cfg.gtm_container_id) {
     injectInlineScript(
@@ -155,12 +167,67 @@ function loadMarketing(cfg: MarketingConfig): CleanupFn {
 
 // ---------------- Component ----------------
 
+/** Nieprawidłowy wpis w site_settings degraduje do domyślnych - nie wywraca strony. */
+function parseOrDefault<T>(
+  parse: { safeParse: (v: unknown) => { success: boolean; data?: T } },
+  raw: unknown,
+  fallback: () => T,
+): T {
+  const result = parse.safeParse(raw);
+  return result.success && result.data !== undefined ? result.data : fallback();
+}
+
 export function ConsentScriptInjector() {
   const analyticsRaw = useSiteSetting("analytics", defaultAnalyticsConfig());
   const marketingRaw = useSiteSetting("marketing", defaultMarketingConfig());
-  const analytics: AnalyticsConfig = AnalyticsConfigSchema.parse(analyticsRaw);
-  const marketing: MarketingConfig = MarketingConfigSchema.parse(marketingRaw);
+  const analytics: AnalyticsConfig = parseOrDefault(
+    AnalyticsConfigSchema,
+    analyticsRaw,
+    defaultAnalyticsConfig,
+  );
+  const marketing: MarketingConfig = parseOrDefault(
+    MarketingConfigSchema,
+    marketingRaw,
+    defaultMarketingConfig,
+  );
   const { categories, mounted } = useEffectiveConsent();
+  // Identyfikator GA4 dla przeglądarki: tag z SSR > wpis z panelu > konektor >
+  // stała (patrz `resolveBrowserGa4Id`). „Odłącz GA4" w panelu
+  // (`ga4_enabled: false`) zatrzymuje bootstrap i aktualizacje zgody - tag z SSR
+  // zostaje wtedy w trybie pełnej odmowy, czyli bez cookies i identyfikatorów.
+  const ga4Id =
+    analytics.ga4_enabled === false
+      ? ""
+      : resolveBrowserGa4Id({
+          settingsId: analytics.ga4_measurement_id,
+          connectorId: import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_ANALYTICS_API_KEY,
+        });
+
+  // GA4 w trybie domyślnej odmowy: strumień konfiguruje się od razu z wszystkimi
+  // kategoriami `denied`, a decyzja odwiedzającego jedynie je aktualizuje.
+  // Dlatego tu NIE ma bramki `categories.analytics` - jest nią sam Consent Mode.
+  //
+  // ROZDZIELENIE POLECEŃ OD SKRYPTU. `bootstrapGa4` wypycha polecenia do
+  // `window.dataLayer` SYNCHRONICZNIE (albo rozpoznaje, że zrobił to już snippet
+  // SSR), a sam plik gtag.js dociąga dopiero przy bezczynności. Semantyka zgody
+  // nie zmienia się ani o krok: `consent default`/`update` siedzą w warstwie
+  // danych, którą skrypt przetwarza od początku, gdy dojedzie.
+  useEffect(() => {
+    if (!mounted || !ga4Id) return;
+    let cancelIdle: (() => void) | null = null;
+    bootstrapGa4(ga4Id, GOOGLE_ADS_ID, {
+      scheduleScript: (load) => {
+        cancelIdle = whenIdle(load, GTAG_IDLE_TIMEOUT_MS);
+      },
+    });
+    return () => cancelIdle?.();
+  }, [mounted, ga4Id]);
+
+  useEffect(() => {
+    if (!mounted || !ga4Id) return;
+    ga4ConsentUpdate(categories);
+  }, [mounted, ga4Id, categories]);
+
   const analyticsCleanup = useRef<CleanupFn | null>(null);
   const marketingCleanup = useRef<CleanupFn | null>(null);
 

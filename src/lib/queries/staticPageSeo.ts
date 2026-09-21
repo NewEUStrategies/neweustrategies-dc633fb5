@@ -4,6 +4,25 @@
 // editable in /admin/pages.
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeTtlCache } from "@/lib/ssrCache";
+
+/**
+ * Metadane stron statycznych zmieniają się z częstością edycji w /admin/pages,
+ * a czyta je KAŻDE wejście na stronę prawną/cennik. 5 min w cache'u izolatu
+ * (na kliencie `edgeTtlCache` jest przezroczyste) zdejmuje ten round-trip ze
+ * ścieżki pierwszego bajtu - audyt CWV 2026-09-20, F10.
+ */
+export const STATIC_PAGE_SEO_TTL_MS = 5 * 60_000;
+
+/**
+ * Wspólny termin loaderów stron prawnych/statycznych (F10): oba odczyty
+ * (nadpisania SEO, wersja dokumentu) są dekoracją treści żyjącej w kodzie,
+ * więc dokument nie czeka na nie dłużej niż zdrowy round-trip z zapasem.
+ */
+export const LEGAL_SSR_BUDGET_MS = 400;
+
+/** Fallback renderu zdegradowanego: brak nadpisań = meta z kodu strony. */
+export const NO_STATIC_SEO: StaticPageSeo = null;
 
 export type StaticPageSeo = {
   slug: string;
@@ -25,19 +44,20 @@ export function staticPageSeoQueryOptions(slug: string) {
   return queryOptions({
     queryKey: ["static-page-seo", slug],
     staleTime: 60_000,
-    queryFn: async (): Promise<StaticPageSeo> => {
-      const { data, error } = await supabase
-        .from("pages")
-        .select(
-          "slug,title_pl,title_en,excerpt_pl,excerpt_en,seo_title_pl,seo_title_en,seo_description_pl,seo_description_en,seo_canonical_url,seo_noindex,seo_og_image_url,og_image_generated_url",
-        )
-        .eq("slug", slug)
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .maybeSingle();
-      if (error) return null;
-      return (data as StaticPageSeo) ?? null;
-    },
+    queryFn: (): Promise<StaticPageSeo> =>
+      edgeTtlCache(`static-page-seo:${slug}`, STATIC_PAGE_SEO_TTL_MS, async () => {
+        const { data, error } = await supabase
+          .from("pages")
+          .select(
+            "slug,title_pl,title_en,excerpt_pl,excerpt_en,seo_title_pl,seo_title_en,seo_description_pl,seo_description_en,seo_canonical_url,seo_noindex,seo_og_image_url,og_image_generated_url",
+          )
+          .eq("slug", slug)
+          .eq("status", "published")
+          .is("deleted_at", null)
+          .maybeSingle();
+        if (error) throw error;
+        return (data as StaticPageSeo) ?? null;
+      }),
   });
 }
 

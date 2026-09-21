@@ -23,6 +23,8 @@
 //     on the stored path so WP shortlinks (`/?p=123`) show up individually.
 import { resolveTenantForHost } from "@/lib/server/tenant.server";
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
+import { readBootstrapSnapshot, writeBootstrapSnapshot } from "@/lib/http/bootstrapCache.server";
+import { BUDGET_LAPSED, settleWithinBudget } from "@/lib/asyncBudget";
 import {
   buildRedirectIndex,
   isProtectedPath,
@@ -42,38 +44,142 @@ interface CachedIndex {
 }
 
 const REDIRECT_CACHE_TTL_MS = 30_000;
+
+/**
+ * TERMIN round-tripu indeksu przekierowań - stała W KODZIE, nie w zmiennej
+ * środowiskowej.
+ *
+ * `redirectMiddleware` stoi na pozycji 6 w `requestMiddleware`, czyli PRZED
+ * `documentCacheMiddleware` (pozycja 10). Dopóki ten odczyt nie miał terminu,
+ * zawieszone połączenie z bazą czekało PRZED konsultacją cache'u dokumentów -
+ * więc nawet gorący wpis nie ratował czytelnika i cała logika „HIT to
+ * mikrosekundy" się przewracała. `try/catch` niżej broni przed BŁĘDEM;
+ * zawieszenie nie rzuca, ono czeka.
+ *
+ * DLACZEGO 1 500 ms, tak samo jak w katalogu tenantów: to odczyt po indeksie
+ * (`tenant_id`, `is_enabled`), a nie raport. Dwa terminy tej płaszczyzny są
+ * SZEREGOWE (najpierw host -> tenant, potem reguły), więc wspólny sufit tej
+ * warstwy to 3 000 ms - tyle, co cała rozgrzewka korzenia. Zejście po terminie
+ * to TA SAMA gałąź, co dla błędu (nieświeży indeks albo pusty).
+ */
+const REDIRECT_INDEX_BUDGET_MS = 1_500;
+
+/**
+ * Twardy limit wierszy zapytania. ROZSTRZYGNIĘCIE (2026-09-12, punkt A9.4
+ * zlecenia): liczba ZOSTAJE, bo jej obniżenie CICHO wyłączyłoby część reguł
+ * 301 - a cicho zepsuta 301-ka jest gorsza od wolnego odczytu. Zmienia się
+ * natomiast to, że osiągnięcie limitu przestaje być niewidoczne: przy pełnym
+ * wyniku logujemy ostrzeżenie, bo od 5 000. wiersza reguły są obcinane bez
+ * żadnego sygnału. Koszt czasu ogranicza dziś termin wyżej, nie limit.
+ */
+const REDIRECT_ROW_LIMIT = 5000;
 const cache = new Map<string, CachedIndex>();
 const inflight = new Map<string, Promise<RedirectIndex>>();
+let sharedSnapshotsAllowed = true;
 
 /** Test hook - drop every cached tenant index. */
 export function invalidateRedirectCache(): void {
+  // An explicit local invalidation must not immediately restore an old L2
+  // snapshot. The next successful database read publishes its replacement.
+  sharedSnapshotsAllowed = false;
   cache.clear();
   inflight.clear();
 }
 
-async function loadIndexForTenant(tenantId: string): Promise<RedirectIndex> {
+function isRedirectRules(value: unknown): value is RedirectRule[] {
+  return (
+    Array.isArray(value) &&
+    value.length <= 5000 &&
+    value.every(
+      (row) =>
+        row &&
+        typeof row === "object" &&
+        typeof row.id === "string" &&
+        typeof row.source_path === "string" &&
+        typeof row.target_path === "string" &&
+        typeof row.status_code === "number" &&
+        [301, 302, 307, 308, 410].includes(row.status_code),
+    )
+  );
+}
+
+async function loadIndexForTenant(tenantId: string): Promise<CachedIndex> {
   try {
+    // Migawka NIEŚWIEŻA (po TTL, przed dobą) też wraca - z ORYGINALNYM `at`,
+    // więc `getIndexForTenant` serwuje ją jak własny wpis po TTL i odświeża
+    // w tle. Zimny izolat po ciszy dłuższej niż 30 s przestaje płacić
+    // blokujący odczyt planu service-role przed cache dokumentów (audyt F01);
+    // nieświeże 301-ki są lepsze niż pusty indeks, na który spadała
+    // degradacja po terminie.
+    if (sharedSnapshotsAllowed && !cache.has(tenantId)) {
+      const snapshot = await readBootstrapSnapshot(
+        `redirects:${tenantId}`,
+        REDIRECT_CACHE_TTL_MS,
+        isRedirectRules,
+      );
+      if (snapshot) {
+        const index = buildRedirectIndex(snapshot.value);
+        return { at: snapshot.at, index, count: index.exact.size + index.wildcards.length };
+      }
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin
-      .from("redirects")
-      .select("id, source_path, target_path, status_code")
-      .eq("tenant_id", tenantId)
-      .eq("is_enabled", true)
-      .limit(5000);
+    const settled = await settleWithinBudget(
+      supabaseAdmin
+        .from("redirects")
+        .select("id, source_path, target_path, status_code")
+        .eq("tenant_id", tenantId)
+        .eq("is_enabled", true)
+        .limit(REDIRECT_ROW_LIMIT),
+      REDIRECT_INDEX_BUDGET_MS,
+    );
+    if (settled === BUDGET_LAPSED) return degradedIndex(tenantId, "timeout");
+    const { data, error } = settled;
     if (error) throw error;
+    if ((data?.length ?? 0) >= REDIRECT_ROW_LIMIT) {
+      console.warn(
+        `[redirects] rule set hit the ${REDIRECT_ROW_LIMIT}-row read limit for tenant ${tenantId} - rules beyond it are SILENTLY not served`,
+      );
+    }
     const rules: RedirectRule[] = (data ?? []).map((row) => ({
       id: row.id as string,
       source_path: row.source_path as string,
       target_path: row.target_path as string,
       status_code: row.status_code as number,
     }));
-    return buildRedirectIndex(rules);
+    const at = Date.now();
+    const index = buildRedirectIndex(rules);
+    // Świeżość = REDIRECT_CACHE_TTL_MS, przetrwanie = domyślna doba migawki.
+    runAfterResponse(
+      writeBootstrapSnapshot(`redirects:${tenantId}`, { at, value: rules }, REDIRECT_CACHE_TTL_MS),
+    );
+    return { at, index, count: index.exact.size + index.wildcards.length };
   } catch (e) {
     console.warn("[redirects] index load failed:", e);
-    // Stale cache is preferable to hard-failing every request while Supabase
-    // is degraded; empty when nothing is cached yet.
-    return cache.get(tenantId)?.index ?? buildRedirectIndex([]);
+    return degradedIndex(tenantId, "error");
   }
+}
+
+/**
+ * Jedno zejście dla OBU przyczyn degradacji - i jedyne miejsce, które je
+ * ROZRÓŻNIA w logu. „failed" to odpowiedź bazy, której nie da się użyć;
+ * „timed out" to brak odpowiedzi w terminie: inna awaria, inna naprawa,
+ * a do 2026-09-12 obie kończyły się tym samym `console.warn`. Zachowanie
+ * pozostaje identyczne: nieświeży indeks jest lepszy od twardej awarii
+ * każdego żądania, pusty gdy nic jeszcze nie ma; migawka współdzielona
+ * powstaje wyłącznie po UDANYM odczycie z bazy.
+ */
+function degradedIndex(tenantId: string, reason: "error" | "timeout"): CachedIndex {
+  if (reason === "timeout") {
+    console.warn(
+      `[redirects] index load timed out after ${REDIRECT_INDEX_BUDGET_MS}ms (budget lapsed, no database error)`,
+    );
+  }
+  const previous = cache.get(tenantId);
+  return {
+    at: Date.now(),
+    index: previous?.index ?? buildRedirectIndex([]),
+    count: previous?.count ?? 0,
+  };
 }
 
 /**
@@ -83,30 +189,40 @@ async function loadIndexForTenant(tenantId: string): Promise<RedirectIndex> {
  * odświeżanie dokładało pełny round-trip do TTFB pierwszego żądania każdych
  * 30 s na każdym izolacie - zanim NES Edge Cache mógł w ogóle odpowiedzieć.
  * Nowa reguła przekierowania może obowiązywać o sekundy później; zimny
- * izolat (brak wpisu) nadal blokuje jednorazowo - 301-ki pozostają poprawne.
+ * izolat bez ŻADNEJ migawki w kolonii nadal blokuje jednorazowo - 301-ki
+ * pozostają poprawne; zimny izolat z migawką nieświeżą serwuje ją od ręki
+ * i odświeża w tle jeszcze w tym samym żądaniu (patrz `loadIndexForTenant`).
  */
 async function getIndexForTenant(tenantId: string): Promise<RedirectIndex> {
   const now = Date.now();
   const cached = cache.get(tenantId);
   if (cached && now - cached.at < REDIRECT_CACHE_TTL_MS) return cached.index;
+  const pending = startIndexRefresh(tenantId);
+  // Nieświeży wpis: serwuj od ręki - odświeżenie już biegnie w tle.
+  if (cached) return cached.index;
+  const index = await pending;
+  // Zimny izolat wstał z NIEŚWIEŻEJ migawki współdzielonej (oryginalne `at`
+  // sprzed TTL): odświeżenie startuje TERAZ, za odpowiedzią - izolat, który
+  // obsłuży jednego czytelnika, inaczej nigdy nie odnowiłby migawki.
+  const loaded = cache.get(tenantId);
+  if (loaded && Date.now() - loaded.at >= REDIRECT_CACHE_TTL_MS) startIndexRefresh(tenantId);
+  return index;
+}
+
+/** Single-flight per tenant: jedno odświeżenie indeksu naraz, dokończone pod waitUntil. */
+function startIndexRefresh(tenantId: string): Promise<RedirectIndex> {
   let pending = inflight.get(tenantId);
   if (!pending) {
-    pending = loadIndexForTenant(tenantId).then((index) => {
-      cache.set(tenantId, {
-        at: Date.now(),
-        index,
-        count: index.exact.size + index.wildcards.length,
-      });
+    pending = loadIndexForTenant(tenantId).then((loaded) => {
+      cache.set(tenantId, loaded);
       inflight.delete(tenantId);
-      return index;
+      return loaded.index;
     });
     inflight.set(tenantId, pending);
     // Bez waitUntil runtime Workers ucinałby odświeżenie w tle razem
     // z domknięciem żądania. loadIndexForTenant nigdy nie rzuca.
     runAfterResponse(pending.then(() => undefined));
   }
-  // Nieświeży wpis: serwuj od ręki - odświeżenie już biegnie w tle.
-  if (cached) return cached.index;
   return pending;
 }
 

@@ -11,7 +11,10 @@ import {
   CHART_HEIGHT_DEFAULT,
   CHART_HEIGHT_MAX,
   CHART_HEIGHT_MIN,
+  defaultChartConfig,
+  parseBarStyle,
   parseChartKind,
+  parseMapRegion,
 } from "@/lib/charts/parse";
 import { parseChartData, parseMapData } from "@/lib/charts/csv";
 import { Chart } from "@/components/charts/Chart";
@@ -31,12 +34,19 @@ export function ChartWidgetView({ node, lang }: WidgetProps) {
   const c = node.content;
   const { categories, series } = parseChartData(getStr(c, "data"));
   const config: ChartConfig = {
+    // Domyślne ustawienia uczciwości (wygładzanie 0,55, brak prognozy, pusty
+    // podpis) - widget nadpisuje tylko to, co autor naprawdę ustawił.
+    ...defaultChartConfig(),
     kind: parseChartKind(getStr(c, "kind")),
     title: i18nStr(c, "title", lang),
     description: i18nStr(c, "description", lang),
     categories,
     series,
     stacked: getStr(c, "stacked") === "on",
+    // Wariant wypełnienia idzie tą samą drogą, co w bloku CMS: przez parser,
+    // więc nieznana albo pusta wartość wraca do `pale`. Bez tej linii widget
+    // buildera ignorował ustawienie autora, choć schemat je zapisywał.
+    barStyle: parseBarStyle(getStr(c, "barStyle")),
     unit: getStr(c, "unit"),
     height: Math.max(
       CHART_HEIGHT_MIN,
@@ -53,7 +63,10 @@ export function ChartWidgetView({ node, lang }: WidgetProps) {
 
 export function DataMapWidgetView({ node, lang }: WidgetProps) {
   const c = node.content;
-  const region: MapRegion = getStr(c, "region") === "world" ? "world" : "europe";
+  // Region przez parser - ta sama droga, co w bloku CMS. Porównanie z dwoma
+  // literałami degradowało do Europy KAŻDY region spoza tej pary, więc widget
+  // buildera ignorowałby wybór autora z własnego schematu.
+  const region: MapRegion = parseMapRegion(getStr(c, "region"));
   const config: DataMapConfig = {
     region,
     title: i18nStr(c, "title", lang),

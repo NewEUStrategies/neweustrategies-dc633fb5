@@ -24,8 +24,9 @@ import {
 } from "@/components/quiz/QuizBackground";
 import { LazyQuizIframe } from "@/components/quiz/LazyQuizIframe";
 import { activeLang } from "@/lib/seo/head";
-import { getRequestUrl } from "@/lib/seo/request";
-import { buildContentHead, splitUrl, SITE_NAME, SITE_CANONICAL_ORIGIN } from "@/lib/seo/meta";
+import { getOrigin, getRequestUrl } from "@/lib/seo/request";
+import { buildContentHead, splitUrl, SITE_NAME } from "@/lib/seo/meta";
+import { publicFacingOrigin, toCanonicalPublicUrl } from "@/lib/http/host";
 import { platformLandingJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { localizedPath } from "@/lib/i18n/localePath";
 import { useLang } from "@/lib/i18n/useLang";
@@ -102,13 +103,23 @@ function useShareUrl() {
   // SSR nie zna window.location, a przyciski udostępniania renderują się już
   // z serwera - fallback musi więc trafiać w wariant językowy tego renderu,
   // inaczej HTML dla /en/quiz niesie polski adres do udostępnienia.
+  //
+  // HOST ŻĄDANIA, NIE KANONICZNY ORIGIN MARKI. Wcześniej fallback wpisywał
+  // twardo `SITE_CANONICAL_ORIGIN`, więc HTML wyrenderowany na DRUGIEJ domenie
+  // obszaru roboczego niósł przyciski udostępniania prowadzące na domenę
+  // pierwszego. Klient naprawiał to po hydratacji, ale podgląd linku, crawler
+  // i kliknięcie przed hydracją dostawały cudzy host. `getOrigin()` jest
+  // izomorficzny i na serwerze czyta host bieżącego żądania (proxy-aware),
+  // a marka zostaje wyłącznie jako ostatnia deska ratunku.
   const url =
     typeof window !== "undefined"
-      ? window.location.href
-      : `${SITE_CANONICAL_ORIGIN}${localizedPath("/quiz", lang)}`;
+      ? toCanonicalPublicUrl(window.location.href)
+      : `${publicFacingOrigin(getOrigin())}${localizedPath("/quiz", lang)}`;
   const encodedUrl = encodeURIComponent(url);
   const title = t("quiz.share.title");
-  const text = encodeURIComponent(`${title} — ${SITE_NAME}`);
+  // DYWIZ, NIE PAUZA. Ten ciąg jedzie do WhatsAppa jako tekst udostępnienia,
+  // czyli jest treścią widoczną - a house style dopuszcza tu wyłącznie dywiz.
+  const text = encodeURIComponent(`${title} - ${SITE_NAME}`);
 
   return {
     url,
@@ -282,7 +293,7 @@ function QuizPage() {
         <div className="flex flex-1">
           {/* Obszar quizu: znacznie wyższy iframe, strona może scrollować */}
           <main className="relative flex flex-1 min-w-0 items-center justify-center p-2 pb-8 sm:p-3 sm:pb-10 md:pb-12 lg:pb-16">
-            {/* Floating back button — minimal overlay, does not steal height from iframe */}
+            {/* Floating back button - minimal overlay, does not steal height from iframe */}
             <Link
               to="/"
               className="absolute left-3 top-3 z-10 inline-flex items-center gap-1 rounded-[6px] bg-background/90 px-2 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:left-4 sm:top-4"
@@ -300,7 +311,7 @@ function QuizPage() {
             </div>
           </main>
 
-          {/* Sidebar udostępniania — zawsze widoczny na desktopie, zwijany na mobile */}
+          {/* Sidebar udostępniania - zawsze widoczny na desktopie, zwijany na mobile */}
           <div className="hidden shrink-0 border-l border-border bg-background/95 p-1 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:p-1.5 lg:block">
             <div className="flex h-full flex-col items-stretch">
               <QuizShareSidebar />

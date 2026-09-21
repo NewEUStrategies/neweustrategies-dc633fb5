@@ -4,7 +4,7 @@
 // szklana karta z inline'owym numerem, tytułem, awatarem i imieniem autora.
 // Dane pochodzą z tego samego zapytania co `news-ticker`, więc prefetch,
 // cache i de-duplikacja wpisów na stronie działają identycznie.
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Flame } from "lucide-react";
@@ -13,6 +13,7 @@ import { useUsedPostIds } from "@/lib/builder/usedPostIds";
 import { AppLink } from "@/components/atoms/AppLink";
 import { dedupeAndSlice, type Lang } from "@/lib/builder/postListQuery";
 import { asBool, asNum, asStr } from "@/lib/content-model/contentValue";
+import { WIDGET_SHEET_PRECEDENCE } from "./widgetStyleSheets";
 import {
   newsTickerQueryOptions,
   newsTickerDisplayLimit,
@@ -72,8 +73,6 @@ export function TrendingNowView({ c, lang }: { c: WidgetContent; lang: Lang }) {
     if (visibleIdsKey) used.register(visibleIdsKey.split(","));
   }, [visibleIdsKey, used]);
 
-  const animName = `trending-now-${useId().replace(/:/g, "")}`;
-
   if ((isLoading && !rows.length) || !rows.length) {
     return (
       <div className="cms-meta w-full overflow-hidden rounded-full border border-border bg-card px-4 py-2">
@@ -88,6 +87,11 @@ export function TrendingNowView({ c, lang }: { c: WidgetContent; lang: Lang }) {
 
   const track = rows.length > 1 ? [...rows, rows[0]] : rows;
   const durationSec = Math.max(2, rows.length * intervalSec);
+  // Klatki zależą WYŁĄCZNIE od liczby kafelków w torze, więc nazwa animacji
+  // idzie z tej liczby, nie z `useId()`. Dwie instancje o tej samej długości
+  // listy dzielą wtedy jeden arkusz-zasób React 19 (`href` + `precedence`),
+  // wypisywany raz na dokument zamiast raz na instancję.
+  const animName = `nes-trending-now-${track.length}`;
   const keyframes = rows.length > 1 ? buildTrendingKeyframes(track.length, animName) : "";
 
   const title = (p: TickerPost) =>
@@ -158,7 +162,13 @@ export function TrendingNowView({ c, lang }: { c: WidgetContent; lang: Lang }) {
             </AppLink>
           ))}
         </div>
-        {keyframes ? <style dangerouslySetInnerHTML={{ __html: keyframes }} /> : null}
+        {keyframes ? (
+          <style
+            href={animName}
+            precedence={WIDGET_SHEET_PRECEDENCE}
+            dangerouslySetInnerHTML={{ __html: keyframes }}
+          />
+        ) : null}
       </div>
     </div>
   );

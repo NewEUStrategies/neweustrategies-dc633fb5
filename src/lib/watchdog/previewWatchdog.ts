@@ -15,7 +15,8 @@
 // watchdog runs only inside an iframe (window.self !== window.top) so it never
 // reloads the published site for real end users.
 
-const READY_FLAG_KEY = "__nesAppReady";
+import { isAppReady, markAppReady } from "./appReady";
+
 const RELOAD_COUNTER_KEY = "nes:preview-watchdog:reloads";
 const BOOT_TIMEOUT_MS = 15_000;
 const FREEZE_THRESHOLD_MS = 8_000;
@@ -27,7 +28,6 @@ type ReloadCounter = { count: number; since: number };
 
 declare global {
   interface Window {
-    __nesAppReady?: boolean;
     __nesPreviewWatchdogStarted?: boolean;
   }
 }
@@ -78,12 +78,14 @@ export interface WatchdogTriggerOptions {
  */
 export function triggerWatchdogReload(options: WatchdogTriggerOptions): boolean {
   const now = options.now ?? Date.now;
-  const storage =
-    options.storage !== undefined
-      ? options.storage
-      : typeof window !== "undefined"
-        ? window.sessionStorage
-        : null;
+  let storage: Storage | null = options.storage ?? null;
+  if (options.storage === undefined && typeof window !== "undefined") {
+    try {
+      storage = window.sessionStorage;
+    } catch {
+      /* The getter itself throws in storage-blocked preview frames. */
+    }
+  }
   const currentTime = now();
   const counter = readReloadCounter(storage);
   const hasActiveWindow = counter.count > 0;
@@ -143,7 +145,7 @@ export function startPreviewWatchdog(): () => void {
 
   const bootTimer = window.setTimeout(() => {
     if (stopped) return;
-    if (window[READY_FLAG_KEY]) return;
+    if (isAppReady()) return;
     triggerWatchdogReload({ reason: "boot-timeout", logger });
   }, BOOT_TIMEOUT_MS);
 
@@ -174,9 +176,14 @@ export function startPreviewWatchdog(): () => void {
  * component's mount effect - it flips the READY flag so the boot-timeout arm
  * of the watchdog stands down.
  */
+/**
+ * @deprecated Flaga gotowości jest od 2026-09-01 kontraktem PRODUKCYJNYM
+ * i mieszka w `lib/watchdog/appReady` - korzeń ustawia ją synchronicznie,
+ * bez round-tripu po ten leniwy chunk. Reeksport zostaje wyłącznie po to, żeby
+ * nazwa flagi miała jedno źródło; nowy kod woła `markAppReady()` wprost.
+ */
 export function markPreviewAppReady(): void {
-  if (typeof window === "undefined") return;
-  window[READY_FLAG_KEY] = true;
+  markAppReady();
 }
 
 export const __watchdogInternals = {

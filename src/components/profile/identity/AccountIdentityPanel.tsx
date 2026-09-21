@@ -3,7 +3,7 @@
 // zachowanie bez zmian: RPC get_own_profile, update profiles, avatar/cover
 // z kadrowaniem, sekcja prywatności/powiadomień.
 import { useTranslation } from "react-i18next";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +25,7 @@ import { Lock, ArrowRight } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { ImageCropDialog, CROP_PRESETS } from "@/components/media/ImageCropDialog";
+import { brandedMediaUrl } from "@/lib/media/publicUrl";
 
 type Gender = "male" | "female" | "neutral";
 
@@ -104,8 +105,6 @@ export function AccountIdentityPanel() {
     avatar: "idle",
     cover: "idle",
   });
-  const avatarInput = useRef<HTMLInputElement | null>(null);
-  const coverInput = useRef<HTMLInputElement | null>(null);
   const [cropKind, setCropKind] = useState<"avatar" | "cover" | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
 
@@ -205,7 +204,7 @@ export function AccountIdentityPanel() {
       });
 
       const { data: pub } = supabase.storage.from("media").getPublicUrl(path);
-      const publicUrl = pub.publicUrl;
+      const publicUrl = brandedMediaUrl(pub.publicUrl);
       const patch = kind === "avatar" ? { avatar_url: publicUrl } : { cover_url: publicUrl };
 
       const { error: updErr } = await supabase.from("profiles").update(patch).eq("id", user.id);
@@ -439,38 +438,16 @@ export function AccountIdentityPanel() {
                 status={status}
                 onAvatarUrlChange={(url) => setData({ ...data, avatar_url: url })}
                 onCoverUrlChange={(url) => setData({ ...data, cover_url: url })}
-                onAvatarUploadClick={() => avatarInput.current?.click()}
-                onCoverUploadClick={() => coverInput.current?.click()}
+                accept={ACCEPT}
+                onAvatarFile={(file) => {
+                  setPendingFile(file);
+                  setCropKind("avatar");
+                }}
+                onCoverFile={(file) => {
+                  setPendingFile(file);
+                  setCropKind("cover");
+                }}
                 t={t}
-              />
-              {/* Hidden file inputs triggered by the preview component */}
-              <input
-                ref={avatarInput}
-                type="file"
-                accept={ACCEPT}
-                hidden
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) {
-                    setPendingFile(f);
-                    setCropKind("avatar");
-                  }
-                  e.target.value = "";
-                }}
-              />
-              <input
-                ref={coverInput}
-                type="file"
-                accept={ACCEPT}
-                hidden
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) {
-                    setPendingFile(f);
-                    setCropKind("cover");
-                  }
-                  e.target.value = "";
-                }}
               />
               <ImageCropDialog
                 open={cropKind !== null}

@@ -26,6 +26,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { attachmentVariant } from "@/lib/chat/attachmentPresentation";
 import { QUICK_REACTIONS, isEmojiOnly } from "@/lib/chat/emojiQuick";
 import { computeReceipt, type ReceiptState } from "@/lib/chat/receipts";
 import { clockTime, type ChatLang } from "@/lib/chat/time";
@@ -444,20 +445,24 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
       </div>
     );
   } else if (message.kind === "image" || message.kind === "audio" || message.kind === "file") {
+    // Wybór wariantu to czysta reguła (`attachmentVariant`) - wiersz z rodzajem
+    // załącznika, ale bez ścieżki (nieudane przesyłanie) MUSI pokazać sam
+    // podpis, a nie połamany obrazek.
+    const variant = message.attachment_path ? attachmentVariant(message) : "none";
     const media =
-      message.kind === "image" && message.attachment_path ? (
+      variant === "image" && message.attachment_path ? (
         <AttachmentImage
           path={message.attachment_path}
           name={message.attachment_name}
           mine={mine}
         />
-      ) : message.kind === "audio" && message.attachment_path ? (
+      ) : variant === "audio" && message.attachment_path ? (
         <AttachmentAudio
           path={message.attachment_path}
           duration={message.attachment_duration}
           mine={mine}
         />
-      ) : message.kind === "file" && message.attachment_path ? (
+      ) : variant === "file" && message.attachment_path ? (
         <AttachmentFile
           path={message.attachment_path}
           name={message.attachment_name}

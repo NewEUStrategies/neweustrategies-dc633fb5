@@ -153,7 +153,9 @@ describe("buildRootHead", () => {
   it("keeps the document essentials and a language-correct og:locale", () => {
     const en = buildRootHead("en");
     expect(en.find((m) => m.charSet === "utf-8")).toBeDefined();
-    expect(find(en, "name", "viewport")?.content).toBe("width=device-width, initial-scale=1");
+    expect(find(en, "name", "viewport")?.content).toBe(
+      "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content",
+    );
     expect(find(en, "property", "og:type")?.content).toBe("website");
     expect(find(en, "property", "og:locale")?.content).toBe("en_US");
     expect(find(buildRootHead("pl"), "property", "og:locale")?.content).toBe("pl_PL");

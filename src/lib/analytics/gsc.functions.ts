@@ -6,31 +6,30 @@
  * Docs: https://developers.google.com/webmaster-tools/v1/api_reference_index
  */
 import { createServerFn } from "@tanstack/react-start";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database } from "@/integrations/supabase/types";
 
 const GATEWAY = "https://connector-gateway.lovable.dev/google_search_console";
 
 interface GatewayCtx {
-  supabase: {
-    from: (t: string) => {
-      select: (c: string) => {
-        eq: (
-          col: string,
-          val: string,
-        ) => Promise<{ data: unknown; error: { message: string } | null }>;
-      };
-    };
-    rpc: (
-      fn: string,
-      args: Record<string, unknown>,
-    ) => Promise<{ data: unknown; error: { message: string } | null }>;
-  };
+  // Pełny klient, a nie strukturalna atrapa z `from`/`rpc`. Atrapa wystarczała,
+  // dopóki moduł tylko wołał `has_role()`; odkąd najemcę wołającego ustala
+  // `resolveUserTenantId` (wspólny helper przyjmujący `SupabaseClient`), atrapa
+  // wymuszałaby rzutowanie przez `unknown` - czyli wyłączenie kontroli typów
+  // dokładnie na granicy, na której stoi izolacja najemców.
+  supabase: SupabaseClient<Database>;
   userId: string;
 }
 
 async function requireAdmin(context: GatewayCtx): Promise<void> {
   // Tenant-scoped: has_role() filters user_roles by current_tenant_id().
+  //
+  // TA BRAMKA NIE ZAWĘŻA DANYCH. Konektor GSC jest jeden na wdrożenie (klucze
+  // ze środowiska), więc każdy admin każdego najemcy pyta Google tym samym
+  // kontem - o zakres DANYCH dba dopiero związanie `siteUrl` z `tenants.domain`
+  // wołającego (`assertSiteUrlBelongsToTenant`), a nie ta funkcja.
   const { data: isAdmin, error } = await context.supabase.rpc("has_role", {
     _user_id: context.userId,
     _role: "admin",
@@ -41,11 +40,39 @@ async function requireAdmin(context: GatewayCtx): Promise<void> {
   }
 }
 
+/**
+ * Najemca wołającego - z jego PROFILU, czyli z tej samej płaszczyzny, po
+ * której autoryzowało `has_role()`. Nigdy z ładunku żądania.
+ */
+async function callerTenantId(context: GatewayCtx): Promise<string> {
+  const { resolveUserTenantId } = await import("@/lib/server/userTenant.server");
+  return resolveUserTenantId(context.supabase, context.userId);
+}
+
+/**
+ * Sentinel braku konektora. Nie jest komunikatem dla użytkownika: żadna
+ * funkcja tego modułu nie ma prawa wypuścić go do przeglądarki - patrz
+ * `isGscNotConfigured` i trzy handlery niżej.
+ */
+const GSC_NOT_CONFIGURED = "GSC_NOT_CONFIGURED";
+
+/**
+ * Czy to brak konfiguracji konektora, a nie awaria bramki.
+ *
+ * Porównanie idzie po treści, bo runtime workera potrafi odrzucić obietnicę
+ * napisem, a nie `Error` (limit podzapytań) - i wtedy NIE wolno wziąć awarii
+ * za „konektor niepodłączony". Wołający zawsze rzuca dalej ORYGINALNĄ
+ * wartością, żeby nie przebierać cudzego błędu w `Error`.
+ */
+function isGscNotConfigured(e: unknown): boolean {
+  return (e instanceof Error ? e.message : String(e)) === GSC_NOT_CONFIGURED;
+}
+
 function gwHeaders(): HeadersInit {
   const lk = process.env.LOVABLE_API_KEY;
   const gk = process.env.GOOGLE_SEARCH_CONSOLE_API_KEY;
   if (!lk || !gk) {
-    throw new Error("GSC_NOT_CONFIGURED");
+    throw new Error(GSC_NOT_CONFIGURED);
   }
   return {
     Authorization: `Bearer ${lk}`,
@@ -76,13 +103,22 @@ export interface GscSite {
 export const listGscSites = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<{ sites: GscSite[]; configured: boolean }> => {
-    await requireAdmin(context as unknown as GatewayCtx);
+    const ctx = context as unknown as GatewayCtx;
+    await requireAdmin(ctx);
+    const tenantId = await callerTenantId(ctx);
+    const { siteUrlBelongsToTenant } = await import("@/lib/server/tenant.server");
     try {
       const res = await gwFetch<{ siteEntry?: GscSite[] }>("/webmasters/v3/sites");
-      return { sites: res.siteEntry ?? [], configured: true };
+      // LISTA TEŻ JEST DANYMI. Bez odsiania panel sam wyliczałby adresy
+      // wszystkich najemców obsługiwanych przez ten jeden konektor - czyli
+      // podawałby gotowe `siteUrl` do wpisania w pozostałe dwie funkcje.
+      const entries = res.siteEntry ?? [];
+      const owned = await Promise.all(
+        entries.map((site) => siteUrlBelongsToTenant(site.siteUrl, tenantId)),
+      );
+      return { sites: entries.filter((_, i) => owned[i]), configured: true };
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg === "GSC_NOT_CONFIGURED") return { sites: [], configured: false };
+      if (isGscNotConfigured(e)) return { sites: [], configured: false };
       throw e;
     }
   });
@@ -112,7 +148,12 @@ export const queryGscAnalytics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((i: unknown) => analyticsInput.parse(i))
   .handler(async ({ data, context }): Promise<{ rows: GscRow[] }> => {
-    await requireAdmin(context as unknown as GatewayCtx);
+    const ctx = context as unknown as GatewayCtx;
+    await requireAdmin(ctx);
+    // Odmowa PRZED `gwFetch`: kwerenda cudzej właściwości nie ma prawa ruszyć
+    // do Google ani kosztować limitu konektora.
+    const { assertSiteUrlBelongsToTenant } = await import("@/lib/server/tenant.server");
+    await assertSiteUrlBelongsToTenant(data.siteUrl, await callerTenantId(ctx));
     const path = `/webmasters/v3/sites/${encodeURIComponent(data.siteUrl)}/searchAnalytics/query`;
     const body = {
       startDate: data.startDate,
@@ -120,11 +161,22 @@ export const queryGscAnalytics = createServerFn({ method: "POST" })
       dimensions: data.dimensions,
       rowLimit: data.rowLimit,
     };
-    const res = await gwFetch<{ rows?: GscRow[] }>(path, {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-    return { rows: res.rows ?? [] };
+    try {
+      const res = await gwFetch<{ rows?: GscRow[] }>(path, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      return { rows: res.rows ?? [] };
+    } catch (e) {
+      // Brak konektora to PIERWSZORZĘDNY STAN całej warstwy analityki, nie
+      // awaria - dokładnie jak `EMPTY_GA4_REPORT` z `configured: false` po
+      // stronie GA4 i jak `listGscSites` w tym samym pliku. Bez tej gałęzi
+      // panel świeżej instalacji (albo instalacji po rotacji kluczy)
+      // pokazywałby adminowi surowy napis „GSC_NOT_CONFIGURED" zamiast stanu
+      // „nie podłączono". Każdy inny błąd leci dalej nietknięty.
+      if (isGscNotConfigured(e)) return { rows: [] };
+      throw e;
+    }
   });
 
 // ---------- URL inspection ----------
@@ -139,10 +191,26 @@ export const inspectGscUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((i: unknown) => inspectInput.parse(i))
   .handler(async ({ data, context }): Promise<{ raw: string }> => {
-    await requireAdmin(context as unknown as GatewayCtx);
-    const res = await gwFetch<unknown>("/v1/urlInspection/index:inspect", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-    return { raw: JSON.stringify(res) };
+    const ctx = context as unknown as GatewayCtx;
+    await requireAdmin(ctx);
+    // OBA pola niosą adres: `siteUrl` wybiera właściwość, a `inspectionUrl`
+    // konkretną stronę w niej. Sprawdzamy oba, bo inspekcja zwraca stan
+    // indeksowania adresu, a nie właściwości.
+    const { assertSiteUrlBelongsToTenant } = await import("@/lib/server/tenant.server");
+    const tenantId = await callerTenantId(ctx);
+    await assertSiteUrlBelongsToTenant(data.siteUrl, tenantId);
+    await assertSiteUrlBelongsToTenant(data.inspectionUrl, tenantId);
+    try {
+      const res = await gwFetch<unknown>("/v1/urlInspection/index:inspect", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+      return { raw: JSON.stringify(res) };
+    } catch (e) {
+      // Ta sama granica, co w `queryGscAnalytics` - trzeci kanał tego samego
+      // wycieku. Pusty obiekt jest tu odpowiednikiem pustej odpowiedzi bramki,
+      // którą panel już umie pokazać.
+      if (isGscNotConfigured(e)) return { raw: "{}" };
+      throw e;
+    }
   });

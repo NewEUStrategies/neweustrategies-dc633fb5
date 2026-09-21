@@ -1,5 +1,6 @@
 // Injects CSS variables driven by site_settings.theme_options
 // (Buttons + Text Fields tabs) so changes apply across the whole site.
+import { useMemo } from "react";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { hardenStyleCss } from "@/lib/sanitizePure";
 
@@ -22,14 +23,30 @@ type InputsCfg = {
   focus_ring_width?: number;
 };
 
-type Cfg = { buttons?: ButtonsCfg; text_fields?: InputsCfg };
+type TogglesCfg = {
+  width?: number;
+  height?: number;
+  radius?: number;
+  on_color?: string;
+  off_color?: string;
+  thumb_color?: string;
+  label_size?: number;
+  label_weight?: number;
+};
+
+type Cfg = { buttons?: ButtonsCfg; text_fields?: InputsCfg; toggles?: TogglesCfg };
 
 const DEFAULTS: Cfg = {};
 
-export function ThemeOptionsStyle() {
-  const cfg = useSiteSetting<Cfg>("theme_options", DEFAULTS);
+/**
+ * Budowa CSS wydzielona z ciała komponentu, żeby dało się ją zapamiętać
+ * (`useMemo` niżej) - wszystkie wartości pochodzą z jednego wiersza ustawień,
+ * więc bez zmiany ustawień wynik jest zawsze ten sam.
+ */
+function themeOptionsCss(cfg: Cfg): string {
   const b = cfg.buttons ?? {};
   const i = cfg.text_fields ?? {};
+  const tg = cfg.toggles ?? {};
 
   const btnRadius = b.default_variant === "pill" ? 999 : (b.radius ?? 8);
   const buttonsCss = `
@@ -88,6 +105,52 @@ export function ThemeOptionsStyle() {
     }
   `;
 
-  const css = (buttonsCss + inputsCss).replace(/\s+/g, " ").trim();
-  return <style data-theme-options dangerouslySetInnerHTML={{ __html: hardenStyleCss(css) }} />;
+  const tgW = tg.width ?? 44;
+  const tgH = tg.height ?? 24;
+  const tgR = tg.radius ?? 999;
+  const togglesCss = `
+    :root {
+      --to-toggle-w: ${tgW}px;
+      --to-toggle-h: ${tgH}px;
+      --to-toggle-radius: ${tgR}px;
+      --to-toggle-on: ${tg.on_color ?? "var(--primary)"};
+      --to-toggle-off: ${tg.off_color ?? "var(--input)"};
+      --to-toggle-thumb: ${tg.thumb_color ?? "var(--background)"};
+      --to-toggle-label-size: ${tg.label_size ?? 14}px;
+      --to-toggle-label-weight: ${tg.label_weight ?? 500};
+    }
+    button[role="switch"] {
+      width: var(--to-toggle-w);
+      height: var(--to-toggle-h);
+      border-radius: var(--to-toggle-radius);
+      display: inline-flex;
+      align-items: center;
+      position: relative;
+      overflow: hidden;
+      padding: 0;
+      border-width: 0;
+    }
+    button[role="switch"][data-state="unchecked"] {
+      background: var(--to-toggle-off);
+    }
+    button[role="switch"][data-state="checked"] {
+      background: var(--to-toggle-on);
+    }
+    label:has(+ button[role="switch"]),
+    button[role="switch"] + label,
+    [data-toggle-label] {
+      font-size: var(--to-toggle-label-size);
+      font-weight: var(--to-toggle-label-weight);
+    }
+  `;
+
+  return (buttonsCss + inputsCss + togglesCss).replace(/\s+/g, " ").trim();
+}
+
+export function ThemeOptionsStyle() {
+  const cfg = useSiteSetting<Cfg>("theme_options", DEFAULTS);
+  // Komponent wisi przy korzeniu aplikacji - bez memo budował i utwardzał
+  // kilkaset znaków CSS przy każdym renderze drzewa.
+  const css = useMemo(() => hardenStyleCss(themeOptionsCss(cfg)), [cfg]);
+  return <style data-theme-options dangerouslySetInnerHTML={{ __html: css }} />;
 }

@@ -18,7 +18,7 @@
 //   4. anulowanie jest NATYCHMIASTOWE (`cancel`), nie „na koniec okresu".
 //
 // GRANICE, KTÓRE ATRAPUJEMY: klient Supabase, klient operatora płatności
-// (`createStripeClient`) i dostawca poczty. PRAWDZIWE zostają
+// (`getStripeClient`) i dostawca poczty. PRAWDZIWE zostają
 // `subscriptionProvider.server` (w tym `getStripeErrorMessage`), `grant.server`,
 // `purchaseEffects.server` i `notifications.server` - to sąsiedzi z tego samego
 // modułu, a nie granice systemu.
@@ -54,7 +54,7 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
     // dotyka kod produkcyjny, a fabryka `vi.mock` nie wymaga pełnego kształtu
     // SDK. `as unknown as` jest w tym repo pod ratchetem i nie ma po co go tu
     // dokładać - brak metody w atrapie MA być błędem testu.
-    createStripeClient: (env: string) => {
+    getStripeClient: (env: string) => {
       provider.envs.push(env);
       return {
         subscriptions: {

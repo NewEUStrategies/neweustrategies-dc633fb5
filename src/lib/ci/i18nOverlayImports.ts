@@ -137,6 +137,42 @@ export function flattenLiteralKeys(text: string, prefix = ""): string[] {
 }
 
 /**
+ * Nazwa drzewa PL wzięta Z WYWOŁANIA `addResourceBundle`, a nie z konwencji
+ * nazewniczej.
+ *
+ * ── DLACZEGO TO SIĘ ZMIENIŁO. BRAMKA BYŁA ŚLEPA NA POŁOWĘ REPOZYTORIUM ───
+ * Poprzednia wersja szukała dosłownie `const pl` i zwracała PUSTĄ listę dla
+ * każdej nakładki, która nazywa drzewo inaczej. ZMIERZONE na tym HEAD:
+ * 128 nakładek w `src/lib/`, z czego `const pl` ma 69 - czyli 59 nakładek
+ * (46%) nie wnosiło do bramki ANI JEDNEGO klucza. Wśród nich `i18n-dock.ts`
+ * (`dockPl`), `i18n-network.ts` (`networkPl`), `i18n-paywall.ts`
+ * (`paywallPl`) i pięćdziesiąt sześć innych.
+ *
+ * Skutek był dokładnie taki, jaki nagłówek tego modułu opisuje jako defekt
+ * do wyłapania: `collectOverlays` odsiewa nakładki z zerem kluczy
+ * (`.filter((o) => o.keys.length > 0)`), więc te 59 nakładek NIE ISTNIAŁO dla
+ * bramki - plik mógł wołać ich klucze bez importu, a bramka świeciła zielono.
+ * Znalazło się to przy pracy nad dokiem: dziewięć plików wołało `dock.*` bez
+ * `import "@/lib/i18n-dock"` i żadna bramka tego nie zgłosiła.
+ *
+ * ── DLACZEGO WŁAŚNIE `addResourceBundle`, A NIE SZERSZY WZORZEC NAZWY ────
+ * Wariant „`const pl` albo `const <cokolwiek>Pl`" też by te 59 plików objął,
+ * ale byłby zgadywaniem po nazwie - a nazwa nie jest kontraktem. Kontraktem
+ * jest REJESTRACJA: nakładka istnieje wyłącznie przez
+ * `i18n.addResourceBundle("pl", "translation", <drzewo>, ...)`, więc trzeci
+ * argument TEGO wywołania jest jedynym miejscem, które NIE MOŻE się mylić.
+ * Nakładka, która zarejestruje drzewo pod inną nazwą, zostanie zobaczona;
+ * stała nazwana `somethingPl`, ale nigdzie nie zarejestrowana, nie - i tak
+ * jest poprawnie, bo takie klucze nie istnieją w czasie działania.
+ */
+const PL_BUNDLE_CALL = /addResourceBundle\(\s*"pl"\s*,\s*"[^"]*"\s*,\s*([A-Za-z_$][\w$]*)/;
+
+export function plTreeName(source: string): string | null {
+  const match = PL_BUNDLE_CALL.exec(maskComments(source));
+  return match === null ? null : match[1];
+}
+
+/**
  * Klucze wnoszone przez nakładkę - czytane z drzewa PL.
  *
  * Gdyby EN wnosiło inny zbiór niż PL, to defekt parytetu; pilnuje go
@@ -144,7 +180,12 @@ export function flattenLiteralKeys(text: string, prefix = ""): string[] {
  */
 export function keysOf(source: string): string[] {
   const masked = maskComments(source);
-  const match = /\bconst\s+pl\s*(?::[^=]*)?=\s*/.exec(masked);
+  const name = plTreeName(source);
+  // ZAPAS `pl` zostaje dla plików, które drzewo rejestrują gdzieś indziej
+  // (np. przez pomocnika) - dla nich nadal działa stara ścieżka.
+  const identifier = name ?? "pl";
+  const escaped = identifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = new RegExp(`\\bconst\\s+${escaped}\\s*(?::[^=]*)?=\\s*`).exec(masked);
   if (match === null) return [];
   return flattenLiteralKeys(masked.slice(match.index + match[0].length));
 }

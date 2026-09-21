@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MINUTA, advanceClock } from "@/test/time";
 
 import { NES_CACHE_HEADER } from "@/lib/http/documentCache";
 import {
   bumpL2Version,
+  l2Delete,
   l2Match,
   l2Put,
+  l2Stats,
   setColoCacheForTests,
   type ColoCache,
 } from "@/lib/http/documentCacheL2.server";
@@ -13,6 +16,7 @@ import {
   getDocumentCacheSnapshot,
   handleDocumentRequest,
   purgeDocumentCache,
+  purgeDocumentPaths,
   resetDocumentCacheForTests,
 } from "@/lib/http/documentCache.server";
 
@@ -31,7 +35,48 @@ function memoryColoCache(): ColoCache & { size(): number } {
         headers: new Headers(response.headers),
       });
     },
+    // Standardowe `Cache.delete`: true tylko, gdy coś realnie usunięto.
+    async delete(request: Request) {
+      return entries.delete(request.url);
+    },
     size: () => entries.size,
+  };
+}
+
+/**
+ * Magazyn kolonii z ZATRZASKIEM na odczycie dokumentu: pozwala zaparkować
+ * jednego czytelnika w środku `l2Match` i wpuścić przed nim drugiego. Wpisy
+ * wersji przechodzą bez zatrzymania - zatrzask dotyczy wyłącznie dokumentu.
+ */
+function gatedColoCache(base: ColoCache): ColoCache & {
+  holdNextDocumentMatch(): void;
+  isHolding(): boolean;
+  releaseDocumentMatch(): void;
+} {
+  let pending: Promise<void> | null = null;
+  let release: (() => void) | undefined;
+  let holding = false;
+  return {
+    holdNextDocumentMatch() {
+      pending = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    },
+    isHolding: () => holding,
+    releaseDocumentMatch() {
+      release?.();
+    },
+    async match(request: Request) {
+      if (pending !== null && request.url.includes("/__nes/doc/")) {
+        const gate = pending;
+        pending = null;
+        holding = true;
+        await gate;
+        holding = false;
+      }
+      return base.match(request);
+    },
+    put: (request, response) => base.put(request, response),
   };
 }
 
@@ -72,10 +117,62 @@ beforeEach(() => {
 
 afterEach(() => {
   setColoCacheForTests(undefined);
+  vi.unstubAllGlobals();
   vi.useRealTimers();
 });
 
 describe("documentCacheL2 (Cache API per-colo)", () => {
+  it.each([null, { match: 1, put() {} }, { match() {}, put: 1 }])(
+    "degrades safely with an unsupported runtime cache: %j",
+    async (runtimeCache) => {
+      setColoCacheForTests(undefined);
+      vi.stubGlobal("caches", { default: runtimeCache });
+      expect(await l2Match(null, "no-host::/x")).toBeNull();
+    },
+  );
+  it.each(["v2", "  "])(
+    "reads persisted version %j and tolerates absent optional response metadata",
+    async (version) => {
+      const match = vi.fn(async (request: Request) =>
+        request.url.includes("/__nes/version")
+          ? new Response(version)
+          : new Response("body", {
+              headers: {
+                "x-nes-l2-stored-at": String(Date.now()),
+                "x-nes-l2-fresh-ms": "1000",
+                "x-nes-l2-swr-ms": "2000",
+              },
+            }),
+      );
+      setColoCacheForTests(undefined);
+      vi.stubGlobal("caches", { default: { match, put: async () => {} } });
+      const result = await l2Match(null, "no-host::/x");
+      expect(result).toMatchObject({ contentType: "text/html; charset=utf-8", cacheControl: "" });
+      const key = match.mock.calls.at(-1)![0].url;
+      expect(key).toContain(version.trim() || "0");
+      expect(match.mock.calls.filter(([r]) => r.url.includes("/__nes/version"))).toHaveLength(2);
+    },
+  );
+  it.each(["x-nes-l2-stored-at", "x-nes-l2-fresh-ms", "x-nes-l2-swr-ms"])(
+    "rejects corrupt numeric metadata %s",
+    async (header) => {
+      setColoCacheForTests({
+        put: async () => {},
+        match: async (request) =>
+          request.url.includes("/__nes/version")
+            ? undefined
+            : new Response("body", {
+                headers: {
+                  "x-nes-l2-stored-at": "100",
+                  "x-nes-l2-fresh-ms": "1000",
+                  "x-nes-l2-swr-ms": "1000",
+                  [header]: "not-a-number",
+                },
+              }),
+      });
+      expect(await l2Match("tenant-a.eu", "tenant-a.eu::/x")).toBeNull();
+    },
+  );
   it("zapisuje i odczytuje wpis dokumentu z metadanymi świeżości", async () => {
     const body = new TextEncoder().encode("<html>colo</html>");
     await l2Put("tenant-a.eu", "tenant-a.eu::/x", { ...ENTRY, body, storedAt: Date.now() });
@@ -180,7 +277,7 @@ describe("handleDocumentRequest z warstwą L2", () => {
 
     // Rotacja izolatu + upływ czasu poza świeżość (cap 3 min), w oknie SWR.
     resetDocumentCacheForTests();
-    vi.setSystemTime(Date.now() + 10 * 60 * 1000);
+    advanceClock(10 * MINUTA);
 
     const failingNext = vi.fn(async () => {
       throw new Error("db hiccup");
@@ -197,5 +294,119 @@ describe("handleDocumentRequest z warstwą L2", () => {
     const serverTiming = res.headers.get("server-timing") ?? "";
     expect(serverTiming).toContain('nes-edge;desc="MISS"');
     expect(serverTiming).toMatch(/ssr;dur=\d+(\.\d+)?/);
+  });
+
+  it("wpis L2 w oknie SWR: drugi czytelnik dostaje STALE, zamiast dublować render", async () => {
+    // Bez zarejestrowanego drivera rewalidacji (tak działa suita jednostkowa
+    // i tak degraduje produkcja przed wpięciem drivera) rewalidację płaci JEDEN
+    // czytelnik synchronicznie. Zamek single-flight musi być sprawdzany także
+    // na ścieżce KOLONII, nie tylko na wpisie z pamięci izolatu: świeży izolat
+    // ma L1 pusty, więc bez tego sprawdzenia każdy równoległy czytelnik wpisu
+    // L2 po świeżości ruszałby własny pełny render - dokładnie stampede, przed
+    // którym zamek ma chronić.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const gated = gatedColoCache(memoryColoCache());
+    setColoCacheForTests(gated);
+
+    const seed = vi.fn(async () => htmlResponse("<html>old</html>"));
+    const miss = applyDeferredDocumentStore(
+      (await handleDocumentRequest(docRequest("/wpis"), seed)) as Response,
+    );
+    await miss.text();
+    await vi.waitFor(() => {
+      expect(getDocumentCacheSnapshot().entries).toBe(1);
+    });
+
+    // Rotacja izolatu (L1 znika, kolonia zostaje) + wyjście poza okno
+    // świeżości, wewnątrz okna SWR.
+    resetDocumentCacheForTests();
+    advanceClock(10 * MINUTA);
+
+    // Czytelnik A parkuje w środku odczytu z kolonii...
+    gated.holdNextDocumentMatch();
+    const renderA = vi.fn(async () => htmlResponse("<html>A-nie-powinien</html>"));
+    const czytelnikA = handleDocumentRequest(docRequest("/wpis"), renderA);
+    await settle();
+    expect(gated.isHolding()).toBe(true);
+
+    // ...a czytelnik B w tym czasie odczytuje kolonię, bierze zamek i zaczyna
+    // render, którego my trzymamy w miejscu.
+    let releaseRender: (() => void) | undefined;
+    const renderGate = new Promise<void>((resolve) => {
+      releaseRender = resolve;
+    });
+    const renderB = vi.fn(async () => {
+      await renderGate;
+      return htmlResponse("<html>new</html>");
+    });
+    const czytelnikB = handleDocumentRequest(docRequest("/wpis"), renderB);
+    await settle();
+    expect(renderB).toHaveBeenCalledTimes(1);
+
+    // A wraca z kolonii na zajęty zamek: dostaje STALE, a nie drugi render.
+    gated.releaseDocumentMatch();
+    const staleA = (await czytelnikA) as Response;
+    expect(staleA.headers.get(NES_CACHE_HEADER)).toBe("STALE");
+    expect(await staleA.text()).toBe("<html>old</html>");
+    expect(renderA).not.toHaveBeenCalled();
+    expect(getDocumentCacheSnapshot().l2.stale).toBe(1);
+
+    releaseRender?.();
+    const missB = applyDeferredDocumentStore((await czytelnikB) as Response);
+    expect(missB.headers.get(NES_CACHE_HEADER)).toBe("MISS");
+    await missB.text();
+    await settle();
+  });
+});
+
+describe("purge selektywny w L2 (`l2Delete`, plan 1.5)", () => {
+  it("usuwa JEDEN wpis pod bieżącą wersją, liczy go w statystykach, a sąsiada zostawia", async () => {
+    const body = new TextEncoder().encode("<html>a</html>");
+    await l2Put("tenant-a.eu", "tenant-a.eu::/a", { ...ENTRY, body, storedAt: Date.now() });
+    await l2Put("tenant-a.eu", "tenant-a.eu::/b", { ...ENTRY, body, storedAt: Date.now() });
+    expect(await l2Delete("tenant-a.eu", "tenant-a.eu::/a")).toBe(true);
+    expect(await l2Match("tenant-a.eu", "tenant-a.eu::/a")).toBeNull();
+    expect(await l2Match("tenant-a.eu", "tenant-a.eu::/b")).not.toBeNull();
+    expect(l2Stats().deletes).toBe(1);
+    // Drugie usunięcie tego samego wpisu nie ma czego usuwać.
+    expect(await l2Delete("tenant-a.eu", "tenant-a.eu::/a")).toBe(false);
+    expect(l2Stats().deletes).toBe(1);
+  });
+
+  it("magazyn bez `delete` degraduje do no-op (false), nie do wyjątku", async () => {
+    setColoCacheForTests({ match: async () => undefined, put: async () => {} });
+    expect(await l2Delete("tenant-a.eu", "tenant-a.eu::/a")).toBe(false);
+  });
+
+  it("`purgeDocumentPaths` czyści L1 i L2 zmienionej ścieżki BEZ bumpu wersji hosta - sąsiedni dokument zostaje HIT", async () => {
+    for (const path of ["/a", "/b"]) {
+      const rendered = await handleDocumentRequest(docRequest(path), () =>
+        htmlResponse(`<html>${path}</html>`),
+      );
+      let work: Promise<boolean> | undefined;
+      const final = applyDeferredDocumentStore(rendered as Response, (pending) => {
+        work = pending;
+      });
+      await final.arrayBuffer();
+      expect(await work).toBe(true);
+    }
+    expect(getDocumentCacheSnapshot().entries).toBe(2);
+
+    expect(purgeDocumentPaths("tenant-a.eu", ["/a"])).toBe(1);
+    await settle();
+
+    // Sąsiad: dalej HIT z L1 - wersja hosta nie ruszyła się.
+    const b = await handleDocumentRequest(docRequest("/b"), () => htmlResponse("<html>b2</html>"));
+    expect((b as Response).headers.get(NES_CACHE_HEADER)).toBe("HIT");
+    // Zmieniona ścieżka: L1 puste, a L2 nie ma czym zasilić (wpis usunięty) - MISS.
+    const a = await handleDocumentRequest(docRequest("/a"), () => htmlResponse("<html>a2</html>"));
+    expect((a as Response).headers.get(NES_CACHE_HEADER)).toBe("MISS");
+    expect(l2Stats().bumps).toBe(0);
+    expect(l2Stats().deletes).toBeGreaterThanOrEqual(1);
+    // Purge pełny nadal bumpuje wersję - to inna, świadomie droższa ścieżka.
+    purgeDocumentCache("tenant-a.eu");
+    await settle();
+    expect(l2Stats().bumps).toBe(1);
+    expect(bumpL2Version).toBeTypeOf("function");
   });
 });

@@ -1,16 +1,23 @@
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 // Szczegóły pojedynczego planu (/plans/:planId) - rozwinięcie karty z /pricing:
 // pełny opis, cena w cyklu, okres próbny, benefity (własne planu lub warstwy),
 // limity wynikające z realnych `features` warstwy oraz porównanie z resztą
 // segmentu (ta sama matryca co na cenniku). Dane są prefetchowane w loaderze,
 // więc strona jest w pełni SSR-owalna i linkowalna (SEO + udostępnianie).
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Check, ShieldCheck } from "lucide-react";
 
 import { billingKeys } from "@/lib/billing/keys";
 import { fetchActivePlans } from "@/lib/billing/queries";
-import { fetchMembershipTiers, parseTierBenefits, useCurrentTier } from "@/lib/billing/tiers";
+import {
+  fetchMembershipTiers,
+  parseTierBenefits,
+  useCurrentTier,
+  type MembershipTierRow,
+} from "@/lib/billing/tiers";
 import type { AccessPlan } from "@/lib/billing/types";
 import {
   formatMoney,
@@ -24,29 +31,74 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PricingComparisonMatrix } from "@/components/pricing/organisms/PricingComparisonMatrix";
+import { ContactSalesDialog } from "@/components/pricing/organisms/ContactSalesDialog";
+import { isEnquiryOnlyPlan } from "@/lib/billing/enquiryPlans";
 import { activeLang } from "@/lib/seo/head";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { ensureI18n as ensurePricingI18n } from "@/lib/i18n-pricing";
+import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { notFoundIfClean } from "@/lib/ssr/notFoundIfClean";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
+
+/**
+ * Wspólny termin ŻĄDANIA na cały loader. Oba odczyty biegną RÓWNOLEGLE, więc
+ * budżet jest jeden dla obu, a nie dwa sumujące się. Wcześniej stały tu dwa
+ * gołe `ensureQueryData(...).catch(() => null)`: `catch` bronił przed BŁĘDEM,
+ * ale nie przed POWOLNOŚCIĄ - jeden zwis trzymał stronę planu aż do watchdoga
+ * SSR (5 s). Budżet TOŻSAMOŚCIOWY, bo to ten odczyt rozstrzyga, czy ten adres
+ * w ogóle istnieje.
+ */
+const PLAN_SSR_BUDGET_MS = 1_500;
+
+/**
+ * Fallbacki renderu zdegradowanego - zasiew z `updatedAt: 0` (samoleczenie).
+ * Pusty katalog jest tu WYŁĄCZNIE wartością zasiewu: o tym, czy plan istnieje,
+ * rozstrzyga flaga `degraded` (patrz `lib/ssr/notFoundIfClean.ts`).
+ */
+const NO_PLANS: AccessPlan[] = [];
+const NO_TIERS: MembershipTierRow[] = [];
 
 export const Route = createFileRoute("/plans/$planId")({
   component: PlanDetailsPage,
   loader: async ({ context, params }) => {
     const qc = context.queryClient;
-    const [plans] = await Promise.all([
-      qc
-        .ensureQueryData({ queryKey: billingKeys.plansActive(), queryFn: fetchActivePlans })
-        .catch(() => null),
-      qc
-        .ensureQueryData({ queryKey: billingKeys.membershipTiers(), queryFn: fetchMembershipTiers })
-        .catch(() => null),
+    const deadlineAt = Date.now() + PLAN_SSR_BUDGET_MS;
+    const [plans, tiers] = await Promise.all([
+      loadResilient(
+        qc,
+        { queryKey: billingKeys.plansActive(), queryFn: fetchActivePlans },
+        NO_PLANS,
+        { deadlineAt, label: "plan-details-plans" },
+      ),
+      loadResilient(
+        qc,
+        { queryKey: billingKeys.membershipTiers(), queryFn: fetchMembershipTiers },
+        NO_TIERS,
+        { deadlineAt, label: "plan-details-tiers" },
+      ),
     ]);
-    const plan = (plans ?? []).find((p) => p.id === params.planId) ?? null;
-    if (!plan) throw notFound();
-    return { plan };
+    const found = plans.data.find((p) => p.id === params.planId) ?? null;
+    const degraded = anyDegraded(plans, tiers);
+    // BRAMKA NAGŁÓWKA, której ta trasa nie miała. `no-store` należy się DWÓM
+    // sytuacjom i obie są przejściowe: renderowi zdegradowanemu („nie wiemy")
+    // i 404 (plan bywa włączany minutę po tym, jak crawler go odwiedził).
+    setCacheControlHeader(resilientCacheControl(degraded || found === null));
+    // 404 WYŁĄCZNIE z czystego odczytu KATALOGU - to on rozstrzyga o istnieniu
+    // planu, a nie odczyt warstw. `CleanReadResult` jest strukturalny, więc
+    // składamy go z wyniku `find` i flagi odczytu listy.
+    const plan = notFoundIfClean({ data: found, degraded: plans.degraded });
+    if (plan === null) return { plan: null, degraded: true };
+    return { plan, degraded };
   },
   head: ({ loaderData }) => {
     const lang = activeLang();
-    if (!loaderData) {
+    // `head()` bywa wołane bez ładunku loadera (przerwana nawigacja), a od
+    // czasu fail-open ładunek bywa też ZDEGRADOWANY - wtedy `plan` jest
+    // zasianym `null`. Oba przypadki wychodzą z indeksu zamiast zostawiać
+    // w nim pusty tytuł.
+    const plan = loaderData?.plan ?? null;
+    if (!plan) {
       return {
         meta: [
           { title: lang === "en" ? "Plan unavailable" : "Plan niedostępny" },
@@ -54,7 +106,6 @@ export const Route = createFileRoute("/plans/$planId")({
         ],
       };
     }
-    const plan = loaderData.plan;
     const title = `${planName(plan, lang)} - ${lang === "en" ? "plan details" : "szczegóły planu"}`;
     const description =
       planDescription(plan, lang) ||
@@ -80,6 +131,9 @@ function PlanDetailsPage() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const { planId } = Route.useParams();
+  const { degraded: initialDegraded } = Route.useLoaderData();
+  const { degraded, retry } = useDegradedUntilHealed(billingKeys.plansActive(), initialDegraded);
+  const [enquiryOpen, setEnquiryOpen] = useState(false);
 
   const plansQ = useQuery({ queryKey: billingKeys.plansActive(), queryFn: fetchActivePlans });
   const tiersQ = useQuery({
@@ -105,6 +159,16 @@ function PlanDetailsPage() {
     .sort((a, b) => a.rank - b.rank || a.sort_order - b.sort_order);
 
   if (!plan) {
+    // DEGRADACJA MÓWI PRAWDĘ, nie wypisuje planu ze sprzedaży. „Plan wycofany"
+    // to zdanie o KATALOGU, więc wolno je powiedzieć wyłącznie po odczycie
+    // CZYSTYM - przy blipie backendu byłoby zwykłym kłamstwem handlowym.
+    if (degraded) {
+      return (
+        <div className="container mx-auto max-w-3xl px-4 py-12">
+          <DegradedDataNotice onRetry={retry} variant="page" />
+        </div>
+      );
+    }
     return (
       <div className="container mx-auto max-w-3xl px-4 py-16">
         <p className="text-muted-foreground">{t("pricing.planDetails.notFound")}</p>
@@ -117,6 +181,7 @@ function PlanDetailsPage() {
 
   const badge = planBadge(plan, lang);
   const description = planDescription(plan, lang);
+  const enquiryOnly = isEnquiryOnlyPlan(plan);
 
   return (
     <div className="container mx-auto max-w-5xl space-y-8 px-4 py-10">
@@ -133,26 +198,49 @@ function PlanDetailsPage() {
           {badge && <Badge>{badge}</Badge>}
         </div>
         {description && <p className="max-w-2xl text-muted-foreground">{description}</p>}
-        <div className="flex flex-wrap items-baseline gap-2">
-          <span className="text-4xl font-bold tracking-tight">
-            {formatMoney(plan.price_cents, plan.currency, lang)}
-          </span>
-          <span className="text-sm text-muted-foreground">{intervalLabel(plan.interval, t)}</span>
-        </div>
-        {plan.trial_days > 0 && (
+        {enquiryOnly ? (
+          <div className="space-y-1">
+            <p className="text-2xl font-bold tracking-tight">{t("pricing.enquiry.price")}</p>
+            <p className="text-sm text-muted-foreground">{t("pricing.enquiry.note")}</p>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-baseline gap-2">
+            <span className="text-4xl font-bold tracking-tight">
+              {formatMoney(plan.price_cents, plan.currency, lang)}
+            </span>
+            <span className="text-sm text-muted-foreground">{intervalLabel(plan.interval, t)}</span>
+          </div>
+        )}
+        {!enquiryOnly && plan.trial_days > 0 && (
           <p className="text-sm text-primary">{t("pricing.trial", { count: plan.trial_days })}</p>
         )}
         <div className="flex flex-wrap gap-2 pt-2">
-          <Button asChild size="lg">
-            <Link to="/checkout/$planId" params={{ planId: plan.id }}>
-              {t("pricing.choose")}
-            </Link>
-          </Button>
+          {enquiryOnly ? (
+            <Button size="lg" onClick={() => setEnquiryOpen(true)}>
+              {t("pricing.enquiry.cta")}
+            </Button>
+          ) : (
+            <Button asChild size="lg">
+              <Link to="/checkout/$planId" params={{ planId: plan.id }}>
+                {t("pricing.choose")}
+              </Link>
+            </Button>
+          )}
           <Button asChild variant="outline" size="lg">
             <Link to="/pricing">{t("pricing.compareAll")}</Link>
           </Button>
         </div>
       </header>
+
+      {enquiryOnly && (
+        <ContactSalesDialog
+          open={enquiryOpen}
+          onOpenChange={setEnquiryOpen}
+          tier={null}
+          lang={lang}
+          subjectLabel={planName(plan, lang)}
+        />
+      )}
 
       {benefits.length > 0 && (
         <Card>

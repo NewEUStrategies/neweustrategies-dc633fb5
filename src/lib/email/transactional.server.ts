@@ -1,10 +1,18 @@
 import * as React from "react";
 
-import { render } from "@react-email/render";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 
-import { TxEmail, type TxDetail } from "@/lib/email-templates/transactional";
+// F04 (2026-09-20): `@react-email/render` i szablon `TxEmail` (przez
+// `nes-layout` ciągnie `@react-email/components`) były importowane STATYCZNIE.
+// Ten moduł ma ~15 importerów w grafie serwera (webhooki płatności, funkcje
+// serwerowe klubów i wydarzeń, dren kolejki), więc Rollup hoistował React Email
+// do ich wspólnego przodka i KAŻDY izolat Workera ewaluował go przy starcie -
+// również obsługując żądanie, które żadnego maila nie wysyła. Renderowanie
+// dzieje się w JEDNYM miejscu (`sendTxEmail`) i tam obie krawędzie są teraz
+// dynamiczne. `enqueueRawEmail` dostaje gotowy HTML, więc React Email nie jest
+// mu potrzebny w ogóle.
+import type { TxDetail } from "@/lib/email-templates/transactional";
 import { txCopy, txSubject, type TxEmailType } from "@/lib/email-templates/tx-copy";
 import type { EmailLang } from "@/lib/email-templates/nes-layout";
 // `uiLocale` to jedyne miejsce, w ktorym jezyk zamienia sie na znacznik BCP-47.
@@ -15,6 +23,7 @@ import { uiLocale } from "@/lib/i18n/format";
 import { resolveRecipientName } from "@/lib/email/recipient-name.server";
 import { txBody, type TxBodyVars } from "@/lib/email-templates/tx-body";
 import { loadTxOverrides } from "@/lib/email/txOverrides.server";
+import { ensureUnsubscribeToken } from "@/lib/email/unsubscribeToken.server";
 import { overrideFor, resolvedField } from "@/lib/email/txOverrides";
 import { checkSendAllowed } from "@/lib/email/suppression.server";
 import {
@@ -27,8 +36,44 @@ import {
 const SITE_NAME = "New European Strategies";
 const SITE_URL = "https://neweuropeanstrategies.com";
 const SENDER_DOMAIN = "notify.mail.neweuropeanstrategies.com";
-const FROM_DOMAIN = "neweuropeanstrategies.com";
+// Domena widoczna w polu From. MUSI należeć do zweryfikowanej strefy poczty
+// (`mail.neweuropeanstrategies.com` jest delegowana), inaczej dostawca odrzuca
+// wysyłkę: "domain is not verified". Root `neweuropeanstrategies.com` nie jest
+// zweryfikowany jako nadawca - taka wartość wrzucała każdy mail aplikacji do DLQ.
+const FROM_DOMAIN = SENDER_DOMAIN;
 const QUEUE = "transactional_emails";
+
+/**
+ * Nazwa kolumny najemcy podana jako `string`, a nie literał.
+ *
+ * PO CO W OGÓLE ZAPISUJEMY NAJEMCĘ. Raport poczty systemowej filtruje dziennik
+ * RÓWNOŚCIOWO po `tenant_id` (`fetchSystemEmailReport`), a wiersz bez najemcy
+ * nie należy do nikogo - jest niewidoczny dla operatora KAŻDEJ organizacji.
+ * Gdyby producenci nadal wstawiali wiersze bez tej kolumny, panel pokazywałby
+ * wyłącznie zamrożoną historię sprzed migracji 20260913101000: pending, sent,
+ * failed i suppressed powstałe po wdrożeniu znikałyby po cichu. Diagnostyka
+ * poczty zniknęłaby dokładnie w dniu, w którym zaczyna być potrzebna.
+ *
+ * KTÓREGO NAJEMCĘ. Tego, w którego kontekście podjęto decyzję o wysyłce -
+ * `gate.tenantId` z bramy listy wykluczeń. To ten sam najemca, który jedzie
+ * w ładunku kolejki (`tenant_id`) i w tagu u dostawcy (`tags.tenant`), więc
+ * wiersz dziennika, wiadomość w kolejce i zdarzenie zwrotne od dostawcy opisują
+ * JEDNĄ organizację. Wybranie tu czegokolwiek innego rozjechałoby te trzy ślady.
+ *
+ * DLACZEGO `string`, A NIE LITERAŁ. Kolumna wchodzi migracją 20260913101000,
+ * a `src/integrations/supabase/types.ts` jest GENEROWANY z bazy - do najbliższej
+ * regeneracji jej tam nie ma. Stała typu `string` wystarcza dla `.eq()`, które
+ * i tak przyjmuje nazwę kolumny jako tekst (tak używa jej `system-log.server.ts`).
+ *
+ * W ŁADUNKU `insert` TO NIE WYSTARCZA i trzeba `as never`: klucz wyliczany nie
+ * omija kontroli nadmiarowych właściwości, bo `insert` sprawdza CAŁY kształt
+ * obiektu wobec wygenerowanego typu wiersza. `as never` jest tu idiomem repo
+ * (ten sam zapis w `newsletter-admin.functions.ts`), a `check:stale-never-casts`
+ * dopilnuje, żeby rzutowanie zniknęło: bramka zapala się, gdy rzutowana nazwa
+ * JEST już w wygenerowanych typach, czyli przy pierwszej regeneracji po tej
+ * migracji. Stała i rzutowania znikają wtedy razem.
+ */
+const TENANT_COLUMN: string = "tenant_id";
 
 export interface TxSendInput {
   type: TxEmailType;
@@ -45,6 +90,12 @@ export interface TxSendInput {
   ctaUrl?: string;
   ctaLabel?: string;
   extra?: string | null;
+  /**
+   * Akapit wstępu narzucony przez wywołującego - używany, gdy treść zależy od
+   * kontekstu odbiorcy (np. zakres dostępu w zaproszeniu). Ustawienia z panelu
+   * (`overrides`) mają pierwszeństwo, słownik `tx-body` jest ostatnią deską.
+   */
+  intro?: string | null;
   /**
    * Zmienne personalizacji treści (plan, kwota, daty, prorata, karencja).
    * Na ich podstawie `tx-body` buduje akapity odmienione przez rodzaj
@@ -133,7 +184,8 @@ async function suppressionGate(
     recipient_email: args.to,
     status: "suppressed",
     error_message: reason,
-  });
+    [TENANT_COLUMN]: gate.tenantId,
+  } as never);
   return { allowed: false, reason, tenantId: gate.tenantId };
 }
 
@@ -238,6 +290,12 @@ export async function sendTxEmail(input: TxSendInput): Promise<TxSendResult> {
     };
     const ov = (key: Parameters<typeof resolvedField>[1]) => resolvedField(override, key, tokens);
 
+    // Dopiero tutaj - po bramie wykluczeń i kontroli duplikatu, czyli na
+    // ścieżce, która NAPRAWDĘ wysyła maila.
+    const [{ render }, { TxEmail }] = await Promise.all([
+      import("@react-email/render"),
+      import("@/lib/email-templates/transactional"),
+    ]);
     const element = React.createElement(TxEmail, {
       type: input.type,
       lang,
@@ -245,7 +303,7 @@ export async function sendTxEmail(input: TxSendInput): Promise<TxSendResult> {
       ctaUrl: input.ctaUrl ?? (input.ctaPath ? `${SITE_URL}${input.ctaPath}` : undefined),
       details: input.details ?? [],
       extra: ov("extra") ?? input.extra ?? body.extra ?? null,
-      intro: ov("intro") ?? body.intro ?? null,
+      intro: ov("intro") ?? input.intro ?? body.intro ?? null,
       note: ov("note") ?? body.note ?? null,
       preview: ov("preview"),
       eyebrow: ov("eyebrow"),
@@ -265,13 +323,19 @@ export async function sendTxEmail(input: TxSendInput): Promise<TxSendResult> {
       template_name: input.type,
       recipient_email: to,
       status: "pending",
-    });
+      [TENANT_COLUMN]: gate.tenantId,
+    } as never);
 
     const { error } = await supabase.rpc("enqueue_email", {
       queue_name: QUEUE,
       payload: {
-        run_id: crypto.randomUUID(),
+        // Bez `run_id`: to pole identyfikuje PRZEBIEG po stronie dostawcy
+        // platformy. Losowy UUID nie istnieje w jego rejestrze i wysyłka
+        // kończyła się 404 "Run not found or expired".
         message_id: messageId,
+        // Wymóg dostawcy: poczta transakcyjna bez tokenu wypisu jest odrzucana
+        // (400 `missing_unsubscribe`) - stopkę wypisu dokleja platforma.
+        unsubscribe_token: await ensureUnsubscribeToken(supabase, to),
         to,
         from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
         sender_domain: SENDER_DOMAIN,
@@ -296,7 +360,8 @@ export async function sendTxEmail(input: TxSendInput): Promise<TxSendResult> {
         recipient_email: to,
         status: "failed",
         error_message: error.message,
-      });
+        [TENANT_COLUMN]: gate.tenantId,
+      } as never);
       return { ok: false, error: error.message };
     }
 
@@ -370,13 +435,19 @@ export async function enqueueRawEmail(input: RawEmailInput): Promise<TxSendResul
       template_name: input.label,
       recipient_email: to,
       status: "pending",
-    });
+      [TENANT_COLUMN]: gate.tenantId,
+    } as never);
 
     const { error } = await supabase.rpc("enqueue_email", {
       queue_name: QUEUE,
       payload: {
-        run_id: crypto.randomUUID(),
+        // Bez `run_id`: to pole identyfikuje PRZEBIEG po stronie dostawcy
+        // platformy. Losowy UUID nie istnieje w jego rejestrze i wysyłka
+        // kończyła się 404 "Run not found or expired".
         message_id: messageId,
+        // Wymóg dostawcy: poczta transakcyjna bez tokenu wypisu jest odrzucana
+        // (400 `missing_unsubscribe`) - stopkę wypisu dokleja platforma.
+        unsubscribe_token: await ensureUnsubscribeToken(supabase, to),
         to,
         from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
         sender_domain: SENDER_DOMAIN,
@@ -399,7 +470,8 @@ export async function enqueueRawEmail(input: RawEmailInput): Promise<TxSendResul
         recipient_email: to,
         status: "failed",
         error_message: error.message,
-      });
+        [TENANT_COLUMN]: gate.tenantId,
+      } as never);
       return { ok: false, error: error.message };
     }
     return { ok: true };

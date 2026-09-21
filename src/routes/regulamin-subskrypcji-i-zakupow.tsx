@@ -1,0 +1,104 @@
+// Publiczna strona prawna. Treść bazowa żyje w @/lib/legal/content, a
+// opublikowana wersja z panelu (/admin/versions) ma pierwszeństwo.
+//
+// LOADER GRZEJE OBA KLUCZE - SEO i TREŚĆ. Rozgrzanie samego SEO oddawałoby
+// w SSR treść bazową z kodu, a opublikowaną wersję podmieniało dopiero po
+// hydracji. Fabryka `legalDocumentQueryOptions` jest ta sama, którą czyta
+// `useLegalDocumentCopy`, więc dokument jedzie w pierwszym renderze.
+import { createFileRoute } from "@tanstack/react-router";
+import { LegalPage } from "@/components/legal/LegalPage";
+import { activeLang } from "@/lib/seo/head";
+import { getRequestUrl } from "@/lib/seo/request";
+import { buildContentHead } from "@/lib/seo/meta";
+import {
+  staticPageSeoQueryOptions,
+  pickStaticSeo,
+  LEGAL_SSR_BUDGET_MS,
+  NO_STATIC_SEO,
+} from "@/lib/queries/staticPageSeo";
+import { anyDegraded, loadResilient } from "@/lib/ssr/resilientLoad";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { staticFallbackCacheControl } from "@/lib/http/cachePolicy";
+import { LEGAL_ENTITY } from "@/lib/legal/entity";
+import { SUBSCRIPTIONS_CONTENT } from "@/lib/legal/content/subscriptions";
+import { SUBSCRIPTIONS_META } from "@/lib/legal/meta";
+import {
+  legalDocumentQueryOptions,
+  useLegalDocumentCopy,
+  NO_LEGAL_DOCUMENT,
+} from "@/lib/legal/useLegalDocument";
+
+const COPY = SUBSCRIPTIONS_CONTENT;
+
+export const Route = createFileRoute("/regulamin-subskrypcji-i-zakupow")({
+  component: SubscriptionsPage,
+  loader: async ({ context }) => {
+    // Oba odczyty pod JEDNYM krótkim terminem (F10): to nadpisania SEO i wersja
+    // dokumentu, nie warunek renderu - treść bazowa żyje w kodzie.
+    const deadlineAt = Date.now() + LEGAL_SSR_BUDGET_MS;
+    const [seo, document] = await Promise.all([
+      loadResilient(
+        context.queryClient,
+        staticPageSeoQueryOptions("regulamin-subskrypcji-i-zakupow"),
+        NO_STATIC_SEO,
+        {
+          deadlineAt,
+          label: "legal-seo:regulamin-subskrypcji-i-zakupow",
+        },
+      ),
+      loadResilient(
+        context.queryClient,
+        legalDocumentQueryOptions("subscriptions"),
+        NO_LEGAL_DOCUMENT,
+        {
+          deadlineAt,
+          label: "legal-doc:subscriptions",
+        },
+      ),
+    ]);
+    // Treść bazowa zamiast opublikowanej wersji to dokument KOMPLETNY dla
+    // czytelnika, tylko niekanoniczny dla brzegu - stąd krótka świeżość
+    // z rewalidacją zamiast `no-store` (różnica wobec `resilientCacheControl`:
+    // docblock helpera).
+    setCacheControlHeader(staticFallbackCacheControl(anyDegraded(seo, document)));
+    return { seo: seo.data };
+  },
+  head: ({ loaderData }) => {
+    const url = getRequestUrl() || "/regulamin-subskrypcji-i-zakupow";
+    const lang = activeLang(url);
+    // Meta z lekkiego modułu lib/legal/meta.ts - NIE z COPY: stała wspólna dla
+    // head() i komponentu ląduje w module ?tsr-shared, czyli w chunku wejściowym
+    // każdej strony, razem z pełną treścią dokumentu.
+    const c = SUBSCRIPTIONS_META[lang];
+    const seo = pickStaticSeo(loaderData?.seo ?? null, lang, {
+      title: `${c.title} - ${LEGAL_ENTITY}`,
+      description: c.lead,
+    });
+    return buildContentHead({
+      url,
+      lang,
+      type: "website",
+      title: seo.title,
+      description: seo.description,
+      image: seo.image ?? undefined,
+      robots: seo.noindex ? "noindex,nofollow" : undefined,
+      canonicalOverride: seo.canonical ?? undefined,
+    });
+  },
+});
+
+function SubscriptionsPage() {
+  const url =
+    typeof window !== "undefined" ? window.location.pathname : "/regulamin-subskrypcji-i-zakupow";
+  const c = useLegalDocumentCopy("subscriptions", COPY, activeLang(url));
+  return (
+    <LegalPage
+      eyebrow={c.eyebrow}
+      title={c.title}
+      lead={c.lead}
+      updatedLabel={c.updated}
+      sections={c.sections}
+      footnote={c.footnote}
+    />
+  );
+}

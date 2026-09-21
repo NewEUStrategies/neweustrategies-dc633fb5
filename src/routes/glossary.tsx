@@ -1,13 +1,19 @@
 // Publiczny słowniczek pojęć (A7): /glossary - lista alfabetyczna z
 // definicjami PL/EN + JSON-LD DefinedTermSet/DefinedTerm (long-tail SEO).
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useMemo } from "react";
 import { glossaryTermsQueryOptions } from "@/lib/queries/glossary";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead, SITE_NAME } from "@/lib/seo/meta";
+// Kanoniczny helper JSON-LD - ucieka też `>`, `&`, U+2028/9, więc jedna
+// polityka ucieczki obowiązuje wszystkie pięć sinków JSON-LD w repo.
+import { safeJsonLd } from "@/lib/seo/jsonld";
+import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import type { GlossaryTerm } from "@/lib/queries/glossary";
 
 const COPY = {
   pl: {
@@ -22,7 +28,27 @@ const COPY = {
   },
 } as const;
 
+/** Fallback zdegradowanego renderu (patrz lib/ssr/resilientLoad). */
+const NO_TERMS: GlossaryTerm[] = [];
+
 export const Route = createFileRoute("/glossary")({
+  // LOADER, KTÓREGO TA TRASA NIE MIAŁA. Bez niego SSR nie zawierał ani jednego
+  // terminu, a węzeł JSON-LD `DefinedTermSet` był z konstrukcji `null`
+  // (`if (!terms || terms.length === 0) return null`). Cała wartość tej strony
+  // to long-tail SEO, więc brak węzła strukturalnego kasował jej sens - a HTML
+  // bez terminów wchodził do NES Edge Cache na do 24 h.
+  //
+  // Ta trasa NIE ma tu `notFound()`: pusty słowniczek jest legalnym stanem
+  // (redakcja go dopiero uzupełnia) i ma własny, dwujęzyczny komunikat.
+  loader: async ({ context }) => {
+    const { degraded } = await loadResilient(
+      context.queryClient,
+      glossaryTermsQueryOptions(),
+      NO_TERMS,
+    );
+    setCacheControlHeader(resilientCacheControl(degraded));
+    return { degraded };
+  },
   head: () => {
     const url = getRequestUrl() || "/glossary";
     const lang = activeLang(url);
@@ -42,7 +68,8 @@ function GlossaryPage() {
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const c = COPY[lang];
-  const { data: terms } = useQuery(glossaryTermsQueryOptions());
+  // Loader rozgrzał ten klucz, więc terminy i węzeł JSON-LD schodzą z SERWERA.
+  const { data: terms } = useSuspenseQuery(glossaryTermsQueryOptions());
 
   const groups = useMemo(() => {
     const map = new Map<string, typeof terms>();
@@ -59,7 +86,7 @@ function GlossaryPage() {
   // DefinedTermSet dla wyszukiwarek - definicje są danymi publicznymi.
   const jsonLd = useMemo(() => {
     if (!terms || terms.length === 0) return null;
-    return JSON.stringify({
+    return safeJsonLd({
       "@context": "https://schema.org",
       "@type": "DefinedTermSet",
       name: `${c.title} - ${SITE_NAME}`,
@@ -68,7 +95,7 @@ function GlossaryPage() {
         name: lang === "en" ? term.term_en || term.term_pl : term.term_pl,
         description: lang === "en" ? term.definition_en || term.definition_pl : term.definition_pl,
       })),
-    }).replace(/</g, "\\u003c");
+    });
   }, [terms, lang, c.title]);
 
   return (
@@ -81,11 +108,19 @@ function GlossaryPage() {
         {(terms ?? []).length === 0 ? (
           <p className="text-sm text-muted-foreground">{c.empty}</p>
         ) : (
-          <dl className="space-y-8">
+          // LISTA DEFINICJI MUSI BYĆ POPRAWNA STRUKTURALNIE. Wcześniej `<dl>`
+          // otaczało CAŁY słowniczek, a między nim i parami `<dt>`/`<dd>`
+          // stały `<section>` i `<div>`, więc żadna para nie miała rodzica
+          // `<dl>` (axe: „Description list item does not have a <dl> parent
+          // element", waga serious). Czytnik ekranu traci wtedy powiązanie
+          // hasła z definicją i czyta dwa niezależne akapity - a to jedyna
+          // treść tej strony. Poprawka: `<dl>` PER GRUPA LITEROWĄ, wewnątrz
+          // sekcji; nagłówek litery zostaje poza listą.
+          <div className="space-y-8">
             {groups.map(([letter, items]) => (
               <section key={letter} aria-label={letter}>
                 <h2 className="font-display text-lg text-brand mb-3">{letter}</h2>
-                <div className="space-y-4">
+                <dl className="space-y-4">
                   {(items ?? []).map((term) => (
                     <div key={term.id} id={term.slug}>
                       <dt className="font-semibold">
@@ -98,10 +133,10 @@ function GlossaryPage() {
                       </dd>
                     </div>
                   ))}
-                </div>
+                </dl>
               </section>
             ))}
-          </dl>
+          </div>
         )}
       </div>
       {jsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />}

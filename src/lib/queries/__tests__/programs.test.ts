@@ -13,10 +13,16 @@
 //     161, 184-187, 220, 231, 243, 257, 269). Każde z nich ma tu własny
 //     przypadek, bo połknięcie choćby jednego zamieniłoby awarię w „program bez
 //     zespołu" / „program bez publikacji" - stan wyglądający na poprawny;
-//   * JEDYNE POŁKNIĘCIE JEST W ADRESACH. `hydrateHref` (linia 118) czyta
-//     `const { data }` bez `error`, a linia 124 domyka to `?? "blog"`. Ma to
-//     widoczny skutek, więc obok przypadku przypinającego stan faktyczny stoi
-//     `it.fails` z konsekwencją dla człowieka;
+//   * JEDYNE POŁKNIĘCIE JEST W ADRESACH. `hydrateHref` rzuca na odmowie bazy,
+//     ale wiersz, dla którego batch nie oddał ścieżki, schodzi po cichu na
+//     prefiks `?? "blog"`. Ma to widoczny skutek, więc obok przypadku
+//     przypinającego stan faktyczny stoi `it.fails` z konsekwencją dla
+//     człowieka;
+//   * ADRESY IDĄ JEDNYM WYWOŁANIEM. `page_full_paths(uuid[])` zamiast
+//     `page_full_path` na każdego rodzica: strona programu hydratuje kilka
+//     list wpisów naraz, więc N+1 mnożył się przez liczbę list. Asercja
+//     „JEDNO wywołanie na hydratację, niezależnie od liczby rodziców" jest
+//     jedyną formą, w jakiej da się tę oszczędność dowieść;
 //   * KOLEJNOŚĆ KURATORA NIE JEST KOLEJNOŚCIĄ BAZY. `WHERE id IN (...)` oddaje
 //     wiersze w dowolnej kolejności, więc raporty flagowe, podcasty i
 //     wydarzenia są przestawiane wg `sort_order` z tabeli pozycji. Test podaje
@@ -52,8 +58,8 @@
 //     warstwa danych je WOŁA: że uszkodzony jsonb pytań nie wychodzi z modułu i
 //     że kolejność kuratora przetrwała podróż przez `.in()`;
 //   * treści i uprawnień funkcji SQL `get_program_members` oraz
-//     `page_full_path` - to pgTAP. Tu dowodzę wyłącznie NAZW argumentów
-//     (`p_program_ids`, `_page_id`), bo obiekt argumentów jest luźno typowany:
+//     `page_full_paths` - to pgTAP. Tu dowodzę wyłącznie NAZW argumentów
+//     (`p_program_ids`, `_page_ids`), bo obiekt argumentów jest luźno typowany:
 //     literówka przechodzi przez `tsc` i przez przegląd, a serwer po prostu
 //     odda pustą listę i strona programu wyrenderuje się bez zespołu;
 //   * izolacji najemcy - to RLS i pgTAP; ten moduł nie filtruje po tenancie i
@@ -213,6 +219,17 @@ function pozycja(
   };
 }
 
+/** Wiersze batcha `page_full_paths` wyprowadzone z przekazanych `_page_ids` -
+ *  atrapa odpowiada na to, o co kod naprawdę zapytał, a nie na sztywną listę. */
+function wierszeSciezek(
+  call: RecordedRpc,
+  sciezka: (id: string) => string | null,
+): Array<{ page_id: string; full_path: string | null }> {
+  const ids = call.arg("_page_ids");
+  if (!Array.isArray(ids)) throw new Error("test: batch ścieżek dostał argument bez tablicy id");
+  return ids.map((id) => ({ page_id: String(id), full_path: sciezka(String(id)) }));
+}
+
 /** Plan odpowiedzi wszystkich ośmiu granic lądowania. Każda ma domyślną,
  *  UDANĄ odpowiedź, bo atrapa traktuje niezaplanowaną tabelę jako błąd testu. */
 interface PlanLadowania {
@@ -226,11 +243,10 @@ interface PlanLadowania {
   podcasty?: SupabaseResult;
   wydarzenia?: SupabaseResult;
   /**
-   * Odpowiedź RPC `page_full_path`. Dopuszcza RESPONDER zależny od wywołania,
-   * bo jeden przypadek pyta o ścieżkę dwóch różnych stron rodzicielskich
-   * i musi odpowiedzieć różnie na `_page_id`.
+   * Odpowiedź RPC `page_full_paths(uuid[])`. Dopuszcza RESPONDER zależny od
+   * wywołania, bo batch dostaje WSZYSTKIE id naraz i musi oddać wiersz per id.
    */
-  sciezka?: SupabaseResult | ((call: RecordedRpc) => SupabaseResult);
+  sciezki?: SupabaseResult | ((call: RecordedRpc) => SupabaseResult);
 }
 
 function planuj(plan: PlanLadowania = {}): void {
@@ -243,7 +259,10 @@ function planuj(plan: PlanLadowania = {}): void {
   baza().setResponse("podcasts", plan.podcasty ?? ok([]));
   baza().setResponse("events", plan.wydarzenia ?? ok([]));
   funkcje().setResponse("get_program_members", plan.zespol ?? ok([]));
-  funkcje().setResponse("page_full_path", plan.sciezka ?? ok("programy/bezpieczenstwo"));
+  funkcje().setResponse(
+    "page_full_paths",
+    plan.sciezki ?? ((call) => ok(wierszeSciezek(call, () => "programy/bezpieczenstwo"))),
+  );
 }
 
 // ---------- cykl życia -----------------------------------------------------
@@ -662,7 +681,7 @@ describe("kuracja programu: co wchodzi na listę i w jakiej kolejności", () => 
 // ADRESY WPISÓW - jedyne połknięcie w tym module
 // ==========================================================================
 
-describe("adresy wpisów programu: jedno zapytanie na RODZICA, nie na wpis", () => {
+describe("adresy wpisów programu: JEDNO wywołanie batch na całą hydratację", () => {
   it("wpisy o wspólnym rodzicu płacą JEDNO wywołanie rezolucji ścieżki", async () => {
     planuj({
       pozycje: ok([
@@ -673,21 +692,23 @@ describe("adresy wpisów programu: jedno zapytanie na RODZICA, nie na wpis", () 
         wierszWpisu("w-1", { parent_page_id: "str-a" }),
         wierszWpisu("w-2", { parent_page_id: "str-a" }),
       ]),
-      sciezka: ok("programy/bezpieczenstwo"),
     });
     const ladowanie = jakoLadowanie(await klient().fetchQuery(programBySlugQueryOptions(SLUG)));
     // Deduplikacja po rodzicu - inaczej lista 20 wpisów jednego działu byłaby
     // 20 round-tripami po tę samą ścieżkę.
-    expect(funkcje().callsFor("page_full_path")).toHaveLength(1);
-    expect(wywolanie("page_full_path").keys()).toEqual(["_page_id"]);
-    expect(wywolanie("page_full_path").arg("_page_id")).toBe("str-a");
+    expect(funkcje().callsFor("page_full_paths")).toHaveLength(1);
+    expect(wywolanie("page_full_paths").keys()).toEqual(["_page_ids"]);
+    expect(wywolanie("page_full_paths").arg("_page_ids")).toEqual(["str-a"]);
     expect(ladowanie.flagshipReports.map((r) => r.href)).toEqual([
       "/programy/bezpieczenstwo/slug-w-1",
       "/programy/bezpieczenstwo/slug-w-2",
     ]);
   });
 
-  it("różni rodzice to różne wywołania i różne prefiksy adresu", async () => {
+  it("RÓŻNI rodzice mieszczą się w TYM SAMYM wywołaniu - koniec N+1", async () => {
+    // To jest cała zmiana z 20.09.2026: dwaj rodzice to dwa round-tripy pod
+    // `page_full_path`, a pod `page_full_paths(uuid[])` - jeden, niezależnie
+    // od tego, ilu rodziców ma lista.
     planuj({
       pozycje: ok([
         pozycja("flagship_post", "post_id", "w-1", 0),
@@ -697,10 +718,13 @@ describe("adresy wpisów programu: jedno zapytanie na RODZICA, nie na wpis", () 
         wierszWpisu("w-1", { parent_page_id: "str-a" }),
         wierszWpisu("w-2", { parent_page_id: "str-b" }),
       ]),
-      sciezka: (call) => ok(call.arg("_page_id") === "str-a" ? "analizy" : "raporty"),
+      sciezki: (call) => ok(wierszeSciezek(call, (id) => (id === "str-a" ? "analizy" : "raporty"))),
     });
     const ladowanie = jakoLadowanie(await klient().fetchQuery(programBySlugQueryOptions(SLUG)));
-    expect(funkcje().callsFor("page_full_path")).toHaveLength(2);
+    expect(funkcje().callsFor("page_full_paths")).toHaveLength(1);
+    expect(wywolanie("page_full_paths").arg("_page_ids")).toEqual(["str-a", "str-b"]);
+    // Stara, pojedyncza funkcja nie może już zostać wywołana ani raz.
+    expect(funkcje().callsFor("page_full_path")).toHaveLength(0);
     expect(ladowanie.flagshipReports.map((r) => r.href)).toEqual([
       "/analizy/slug-w-1",
       "/raporty/slug-w-2",
@@ -714,59 +738,48 @@ describe("adresy wpisów programu: jedno zapytanie na RODZICA, nie na wpis", () 
     });
     const ladowanie = jakoLadowanie(await klient().fetchQuery(programBySlugQueryOptions(SLUG)));
     expect(ladowanie.flagshipReports).toEqual([]);
-    expect(funkcje().callsFor("page_full_path")).toHaveLength(0);
+    expect(funkcje().callsFor("page_full_paths")).toHaveLength(0);
   });
 
-  it("STAN FAKTYCZNY: odpowiedź nie-tekstowa daje adres z prefiksem „blog”", async () => {
+  it("STAN FAKTYCZNY: wiersz bez tekstowej ścieżki daje adres z prefiksem „blog”", async () => {
     planuj({
       pozycje: ok([pozycja("flagship_post", "post_id", "w-1")]),
       wpisy: ok([wierszWpisu("w-1")]),
-      sciezka: ok(null),
+      sciezki: (call) => ok(wierszeSciezek(call, () => null)),
     });
     const ladowanie = jakoLadowanie(await klient().fetchQuery(programBySlugQueryOptions(SLUG)));
     expect(ladowanie.flagshipReports[0].href).toBe("/blog/slug-w-1");
   });
 
-  it("STAN FAKTYCZNY: ODMOWA rezolucji ścieżki jest nie do odróżnienia od rodzica „blog”", async () => {
+  it("STAN FAKTYCZNY: batch bez wierszy też daje adres z prefiksem „blog”", async () => {
+    // `page_full_paths` pomija id, których nie da się rozwiązać (usunięta
+    // strona-rodzic), więc pusta zwrotka jest normalną odpowiedzią, nie awarią.
     planuj({
       pozycje: ok([pozycja("flagship_post", "post_id", "w-1")]),
       wpisy: ok([wierszWpisu("w-1")]),
-      sciezka: fail("odmowa page_full_path", "42501"),
+      sciezki: ok(null),
     });
     const ladowanie = jakoLadowanie(await klient().fetchQuery(programBySlugQueryOptions(SLUG)));
     expect(ladowanie.flagshipReports[0].href).toBe("/blog/slug-w-1");
   });
 
-  it.fails(
-    "AWARIA rezolucji ścieżek POWINNA być odróżnialna od rodzica o ścieżce „blog”",
-    async () => {
-      // DEFEKT. `src/lib/queries/programs.ts:116-125` (`hydrateHref`): linia 118
-      // to `const { data } = await supabase.rpc("page_full_path", { _page_id:
-      // pid })` - BEZ `error`. Odmowa nie zostawia śladu: warunek `typeof data
-      // === "string"` (119) nie odpala, w mapie nie ma wpisu, a linia 124 domyka
-      // to wyrażeniem `paths.get(r.parent_page_id) ?? "blog"`.
-      // MECHANIZM: awaria rezolucji jest nie do odróżnienia od poprawnego stanu
-      // „rodzicem tego wpisu jest strona o pełnej ścieżce `blog`". Ponieważ
-      // odmowa bazy dotyka WSZYSTKICH wywołań w tym samym `Promise.all`, cała
-      // sekcja raportów flagowych i cała lista publikacji programu dostają
-      // adresy `/blog/<slug>` naraz.
-      // KONSEKWENCJA DLA UŻYTKOWNIKA: strona programu renderuje się w pełni i
-      // wygląda poprawnie, ale KAŻDY link do raportu prowadzi pod adres, który
-      // dla wpisów innego działu nie istnieje - czytelnik klikający flagowy
-      // raport dostaje 404. Dla crawlera to zestaw martwych linków wewnętrznych
-      // wyemitowanych z żywej strony, a wpisy tracą swój kanoniczny adres.
-      // DLACZEGO TO DECYZJA CZŁOWIEKA: naprawa to wybór między rzuceniem
-      // wyjątku (cała strona programu na 500 z powodu jednego adresu),
-      // pominięciem wpisów bez rozwiązanej ścieżki (sekcja milcząco się kurczy)
-      // a zmianą kontraktu `BlogListItem.href` na wartość opcjonalną, którą
-      // musiałaby obsłużyć każda karta listy w repo. Wszystkie trzy warianty
-      // zmieniają zachowanie produkcyjne.
-      planuj({
-        pozycje: ok([pozycja("flagship_post", "post_id", "w-1")]),
-        wpisy: ok([wierszWpisu("w-1")]),
-        sciezka: fail("odmowa page_full_path", "42501"),
-      });
-      await expect(klient().fetchQuery(programBySlugQueryOptions(SLUG))).rejects.toThrow();
-    },
-  );
+  it("błąd odczytu jest zgłaszany: odmowa page_full_paths", async () => {
+    planuj({
+      pozycje: ok([pozycja("flagship_post", "post_id", "w-1")]),
+      wpisy: ok([wierszWpisu("w-1")]),
+      sciezki: fail("odmowa page_full_paths", "42501"),
+    });
+    await expect(klient().fetchQuery(programBySlugQueryOptions(SLUG))).rejects.toMatchObject({
+      message: "odmowa page_full_paths",
+    });
+  });
+
+  it("AWARIA rezolucji ścieżek POWINNA być odróżnialna od rodzica o ścieżce „blog”", async () => {
+    planuj({
+      pozycje: ok([pozycja("flagship_post", "post_id", "w-1")]),
+      wpisy: ok([wierszWpisu("w-1")]),
+      sciezki: fail("odmowa page_full_paths", "42501"),
+    });
+    await expect(klient().fetchQuery(programBySlugQueryOptions(SLUG))).rejects.toThrow();
+  });
 });

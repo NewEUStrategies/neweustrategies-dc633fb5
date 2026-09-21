@@ -44,6 +44,20 @@ import {
 import { parseRegistrationCounts, type RegistrationCounts } from "@/lib/events/registrationCounts";
 import type { Json } from "@/integrations/supabase/types";
 
+/**
+ * Fraza w kluczu jest PRZYCIETA, bo warstwa API i tak wysyla ja przez
+ * `trimmedOrNull` (`registrationsApi.ts` - `p_q: trimmedOrNull(query.q) ??
+ * undefined`). "Kowalska" i "Kowalska " pytaja baze o dokladnie te same
+ * wiersze, wiec musza trafiac do JEDNEJ szuflady; tak samo "" i " ", ktore dla
+ * bazy oba znacza brak filtra. Bez przyciecia spacja doklejona przy wklejeniu
+ * nazwiska ze schowka kasuje trafienie w pamiec i lista ORAZ liczniki id do
+ * bazy jeszcze raz - w dniu wydarzenia organizator dostaje kreciolek zamiast
+ * danych, ktore juz ma.
+ */
+function withTrimmedQ<T extends { q: string }>(query: T): T {
+  return { ...query, q: query.q.trim() };
+}
+
 export const registrationKeys = {
   all: ["event-registrations"] as const,
   event: (eventId: string) => [...registrationKeys.all, eventId] as const,
@@ -55,11 +69,11 @@ export const registrationKeys = {
   counts: (query: RegistrationCountsQuery | null) =>
     query === null
       ? ([...registrationKeys.all, "counts", "idle"] as const)
-      : ([...registrationKeys.event(query.eventId), "counts", query] as const),
+      : ([...registrationKeys.event(query.eventId), "counts", withTrimmedQ(query)] as const),
   list: (query: RegistrationsQuery | null) =>
     query === null
       ? ([...registrationKeys.all, "list", "idle"] as const)
-      : ([...registrationKeys.event(query.eventId), "list", query] as const),
+      : ([...registrationKeys.event(query.eventId), "list", withTrimmedQ(query)] as const),
 };
 
 // Lista i liczniki starzeja sie szybko - w dniu wydarzenia organizator patrzy na

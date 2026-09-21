@@ -31,6 +31,10 @@ import {
   prefetchBuilderSectionQuery,
   sectionQueryOptionsList,
 } from "@/lib/builder/prefetch";
+import {
+  estimateSectionHeight,
+  SECTION_STREAM_MIN_HEIGHT,
+} from "@/lib/builder/sectionHeightEstimate";
 import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
 
 /**
@@ -165,8 +169,17 @@ export function ServerSectionGate({
  * On a cache HIT it is never seen (the CDN serves the resolved body); on a cold
  * render it appears only for the brief window between shell flush and the
  * section's data settling. `minHeight` reserves space to blunt layout shift.
+ *
+ * Domyślne `SECTION_STREAM_MIN_HEIGHT` zostaje wyłącznie jako dno dla wołających
+ * bez sekcji - `StreamingSection` liczy wysokość z jej konfiguracji
+ * (`estimateSectionHeight`), bo stałe 280 px wobec sekcji 400-900 px zamieniało
+ * każde dostrumieniowanie w przesunięcie układu.
  */
-export function SectionStreamSkeleton({ minHeight = 280 }: { minHeight?: number }): ReactElement {
+export function SectionStreamSkeleton({
+  minHeight = SECTION_STREAM_MIN_HEIGHT,
+}: {
+  minHeight?: number;
+}): ReactElement {
   const { t } = useTranslation();
   return (
     <div
@@ -215,12 +228,19 @@ interface StreamingSectionProps {
  *  - it sits at or below the eager above-the-fold window (`index >= aboveFoldCount`), and
  *  - it has at least one data-bound query to await.
  *
- * So `aboveFoldCount` is the eager-render budget: callers that prefetch their
- * leading sections in the loader (e.g. `$.tsx`) keep a non-zero count to land
- * the hero's data in the shell, while a route that cannot safely prefetch in
- * the loader (the homepage) passes `0` to stream every data-bound section
- * through the dehydration-safe gate instead - static sections (no queries)
- * stay eager regardless, so the hero shell is never delayed.
+ * So `aboveFoldCount` is the eager-render budget, and every streaming caller
+ * keeps it NON-ZERO: `$.tsx` (posts + all public pages) and, since 2026-09-01,
+ * the homepage both prefetch their leading `ABOVE_FOLD_SECTION_COUNT` sections
+ * in the loader and render exactly that window eagerly, so the hero's data is
+ * in the shell. No caller passes `0`.
+ *
+ * (Do 2026-09-01 stało tu zdanie, że „strona główna przekazuje `0`, żeby
+ * strumieniować każdą sekcję z danymi" - nieprawda w obie strony: strona główna
+ * nie strumieniowała wtedy w ogóle, a dziś używa domyślnego okna 3 sekcji.
+ * Zapisane, żeby nieprawdziwy komentarz nie wrócił po cichu.)
+ *
+ * Static sections (no queries) stay eager regardless, so the hero shell is
+ * never delayed.
  *
  * Pure + side-effect free so the eager/stream decision is unit-testable without
  * rendering or an SSR environment.
@@ -256,7 +276,7 @@ export function StreamingSection({
 
   return (
     <RenderErrorBoundary label={`stream-section:${section.id}`} fallback={null}>
-      <Suspense fallback={<SectionStreamSkeleton />}>
+      <Suspense fallback={<SectionStreamSkeleton minHeight={estimateSectionHeight(section)} />}>
         {IS_SSR ? (
           <ServerSectionGate section={section} lang={lang}>
             {children}

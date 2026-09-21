@@ -92,6 +92,7 @@ export const CLUB_SAVE_ERRORS = [
   "forbidden",
   "tenant_unresolved",
   "not_found",
+  "quota",
   "unknown",
 ] as const;
 export type ClubSaveError = (typeof CLUB_SAVE_ERRORS)[number];
@@ -109,6 +110,11 @@ export function toClubSaveError(error: unknown): ClubSaveError {
   if (message.includes("tenant not resolved")) return "tenant_unresolved";
   if (message.includes("not found")) return "not_found";
   if (message.includes("forbidden")) return "forbidden";
+  // Limit zgloszen klubow na dobe (`club_propose`). Bez wlasnego kodu czlonek
+  // dostawal "Nie udalo sie zapisac" i probowal dalej, bo nie wiedzial, ze
+  // to on jest limitem, a nie awaria.
+  if (message.includes("quota exceeded")) return "quota";
+  if (message.includes("sign in required")) return "forbidden";
   return "unknown";
 }
 

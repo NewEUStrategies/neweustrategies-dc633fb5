@@ -47,20 +47,51 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
 
   const docRef = useRef(doc);
   docRef.current = doc;
+  /**
+   * @returns czy zmiana została ZATWIERDZONA. Mutacja, która zwróci `false`,
+   *   zgłasza „nie było czego (albo gdzie) zmienić i dokumentu nie ruszyłem" -
+   *   wtedy przerywamy przed `history.set`. Bez tego przerwania nieudane
+   *   przeniesienie dokładało krok „Cofnij", który nic nie cofa, i - przez
+   *   `onChange` historii - rewizję autozapisu identyczną z poprzednią.
+   *   Operacje zwracające `undefined` (a takich jest większość) zatwierdzają
+   *   się jak dotąd, bez żadnej zmiany zachowania - dlatego test jest na
+   *   `=== false`, a nie na falsy. Przenoszenie przechodzi tędy przez `runMove`,
+   *   które tłumaczy trójstanowy `MoveOutcome` na to `false`.
+   *
+   *   Pomijamy wtedy również sanityzację (`safeParseBuilderDoc`): odrzucone
+   *   upuszczenie nie ma prawa przepisać dokumentu, nawet „na lepsze".
+   *
+   *   UBOCZNY SKUTEK, ŚWIADOMY: pominięty `history.set` nie zeruje też klucza
+   *   zwijania w `useHistory`, więc odrzucone upuszczenie w środku serii
+   *   naciśnięć w jednym polu nie rozcina jej na dwa kroki cofania. Skoro nic
+   *   się nie zmieniło, seria edycji jest nieprzerwana - i tak ma być.
+   */
   const update = useCallback(
-    (mut: (d: BuilderDocument) => void, opts?: { label?: string; coalesceKey?: string }) => {
+    (
+      mut: (d: BuilderDocument) => void | boolean,
+      opts?: { label?: string; coalesceKey?: string },
+    ): boolean => {
       const next: BuilderDocument = safeParseBuilderDoc(JSON.parse(JSON.stringify(docRef.current)));
-      mut(next);
+      if (mut(next) === false) return false;
       const normalized = safeParseBuilderDoc(next);
       docRef.current = normalized;
       history.set(normalized, opts);
+      return true;
     },
     [history],
   );
 
   // ---------- focused column / add widget ----------
+  // `ops.columnForCanvasId`, a nie `ops.findColumn`: zaznaczenie rodzaju
+  // „column" niesie identyfikator, KTÓRY PODAŁA KANWA, a ten bywa
+  // identyfikatorem sekcji wewnętrznej (`data-col-id` stoi na SLOCIE dziecka
+  // sekcji - patrz opis resolwera). Kliknięcie w jej wyściółkę dawało wcześniej
+  // brak ogniska, więc widget wzięty z biblioteki KLIKNIĘCIEM lądował w nowej
+  // sekcji na samym dole dokumentu - podczas gdy PRZECIĄGNIĘTY na ten sam
+  // piksel trafiał tam, gdzie trzeba. Resolwer jest czysty, bo to `useMemo`.
   const focusedColumn = useMemo<ColumnNode | null>(() => {
-    if (selection.kind === "column" && selection.id) return ops.findColumn(doc, selection.id);
+    if (selection.kind === "column" && selection.id)
+      return ops.columnForCanvasId(doc, selection.id);
     if (selection.kind === "widget" && selection.id)
       return ops.findWidget(doc, selection.id)?.column ?? null;
     const normalized = safeParseBuilderDoc(doc);
@@ -160,10 +191,12 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
       },
       { label: t("builder.ops.editSection"), coalesceKey: `s:${sid}` },
     );
+  // Jak w `focusedColumn`: `cid` przychodzi z zaznaczenia, więc może być
+  // identyfikatorem sekcji wewnętrznej.
   const updateColumn = (cid: string, mut: (c: ColumnNode) => void) =>
     update(
       (d) => {
-        const c = ops.findColumn(d, cid);
+        const c = ops.columnForCanvasId(d, cid);
         if (c) mut(c);
       },
       { label: t("builder.ops.editColumn"), coalesceKey: `c:${cid}` },
@@ -274,22 +307,67 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     toast.success(t("builder.ops.abEnded"));
   };
 
-  const moveWidgetTo = (srcId: string, targetId: string, pos: "before" | "after") =>
-    update((d) => ops.moveWidgetTo(d, srcId, targetId, pos), {
-      label: t("builder.ops.movedWidget"),
-    });
-  const moveWidgetToColumn = (srcId: string, targetColId: string) =>
-    update((d) => ops.moveWidgetToColumn(d, srcId, targetColId), {
-      label: t("builder.ops.movedWidgetToColumn"),
-    });
-  const moveWidgetToSection = (srcId: string, targetSectionId: string) =>
-    update((d) => ops.moveWidgetToSection(d, srcId, targetSectionId), {
-      label: t("builder.ops.movedWidgetToSection"),
-    });
-  const moveSectionTo = (srcId: string, targetId: string, pos: "before" | "after") =>
-    update((d) => ops.moveSectionTo(d, srcId, targetId, pos), {
-      label: t("builder.ops.movedSection"),
-    });
+  /**
+   * PRZENOSZENIE MA TRZY WYNIKI, nie dwa, i każdy zasługuje na inną reakcję.
+   *
+   * `"moved"` zapisujemy. `"unchanged"` (węzeł już tam stoi - podniesienie
+   * i odłożenie na miejsce, upuszczenie na siebie, na bliższą połowę sąsiada)
+   * przemilczamy CAŁKOWICIE: nie ma zmiany, więc nie ma ani kroku „Cofnij",
+   * ani rewizji autozapisu, ani powodu, żeby zawracać redakcji głowę.
+   * `"rejected"` mówimy wprost, bo tu gest NIE ZADZIAŁAŁ: identyfikator celu
+   * czyta się z DOM w chwili upuszczenia, więc bywa, że wskazuje węzeł, którego
+   * już nie ma (druga karta redakcji, cofnięcie zmiany w trakcie przeciągania,
+   * przebudowa sekcji pod kursorem). Wcześniej taki drop KASOWAŁ widget
+   * i zapisywał brak autozapisem; teraz dokument zostaje nietknięty - ale samo
+   * „nic się nie stało" byłoby dalej mylące, bo redaktor nie wie, czy jego treść
+   * jeszcze istnieje. Dlatego komunikat mówi wprost, że nic nie zginęło.
+   *
+   * `ops.moveSectionTo` jest tu jednym wyjątkiem wartym zapamiętania: przy
+   * NIEZNANYM CELU dokleja sekcję na koniec dokumentu i zwraca `"moved"`
+   * (zachowanie przypięte testem od czasu, gdy alternatywą było zgubienie
+   * sekcji). Czyli dla sekcji `"moved"` nie znaczy „wylądowała tam, gdzie ją
+   * upuszczono" - i dlatego ta jedna ścieżka nie pokazuje komunikatu, choć cel
+   * zniknął w trakcie przeciągania.
+   */
+  const runMove = (
+    mut: (d: BuilderDocument) => ops.MoveOutcome,
+    label: string,
+  ): ops.MoveOutcome => {
+    // Rzutowanie na `MoveOutcome` NIE jest ozdobą: bez niego typem
+    // przepływu `outcome` zostaje literał `"unchanged"` z inicjalizatora, bo
+    // analiza przepływu TypeScriptu nie widzi przypisania z WNĘTRZA callbacka
+    // (`update` woła mutację synchronicznie, ale kompilator tego nie wie).
+    // Wtedy `outcome === "rejected"` niżej jest błędem TS2367 - „typy nie mają
+    // części wspólnej" - i cały komunikat o odrzuceniu jest kodem martwym.
+    let outcome = "unchanged" as ops.MoveOutcome;
+    update(
+      (d) => {
+        outcome = mut(d);
+        return outcome === "moved";
+      },
+      { label },
+    );
+    if (outcome === "rejected") toast.error(t("builder.ops.moveErr"));
+    return outcome;
+  };
+  const moveWidgetTo = (srcId: string, targetId: string, pos: "before" | "after") => {
+    runMove((d) => ops.moveWidgetTo(d, srcId, targetId, pos), t("builder.ops.movedWidget"));
+  };
+  const moveWidgetToColumn = (srcId: string, targetColId: string) => {
+    runMove(
+      (d) => ops.moveWidgetToColumn(d, srcId, targetColId),
+      t("builder.ops.movedWidgetToColumn"),
+    );
+  };
+  const moveWidgetToSection = (srcId: string, targetSectionId: string) => {
+    runMove(
+      (d) => ops.moveWidgetToSection(d, srcId, targetSectionId),
+      t("builder.ops.movedWidgetToSection"),
+    );
+  };
+  const moveSectionTo = (srcId: string, targetId: string, pos: "before" | "after") => {
+    runMove((d) => ops.moveSectionTo(d, srcId, targetId, pos), t("builder.ops.movedSection"));
+  };
 
   const toggleHidden = (id: string, kind: NonNullable<SelectionKind>) =>
     update((d) => ops.toggleHidden(d, id, kind, device));

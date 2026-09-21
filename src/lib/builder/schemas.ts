@@ -4,6 +4,66 @@
 import type { WidgetType } from "./types";
 import { asBool } from "@/lib/content-model/contentValue";
 import { SOCIAL_IDLE_ICON_COLOR } from "./socialBrand";
+import { MAP_REGIONS, type MapRegion } from "@/lib/charts/types";
+import {
+  PROMO_CARD_DEFAULTS,
+  PROMO_CARD_RATIOS,
+  promoCardImageSize,
+  promoCardRatio,
+  type PromoCardRatio,
+} from "./promoCard";
+
+/**
+ * Regiony map (`data-map`, `feature-corridor-map`) - opcje WYPROWADZONE
+ * z `MAP_REGIONS`, nie wpisane ręcznie.
+ *
+ * Schemat sam w sobie wymaga literałów: to zwykłe dane, a `options` nie ma
+ * jak wiedzieć, że akurat te napisy są regionami. Ale literałem musi być tylko
+ * ETYKIETA, i to wystarczy, żeby TypeScript przypilnował całości: tablica jest
+ * typowana `Record<MapRegion, string>`, więc region dopisany do źródła bez
+ * polskiej etykiety NIE SKOMPILUJE SIĘ, a etykieta dla regionu, którego nie ma
+ * w źródle, jest niewyrażalna. Bramka
+ * `src/lib/charts/__tests__/mapRegions.test.ts` sprawdza to samo od strony
+ * PANELU (czy opcja rzeczywiście dojeżdża do pola `region` obu widgetów) -
+ * kompilator pilnuje tablicy, bramka pilnuje tego, że ktoś jej użył.
+ *
+ * Etykiety są po polsku, bo schemat trzyma napisy ŹRÓDŁOWE; na angielskie
+ * mapuje je `BUILDER_LABELS_EN` (i pilnuje tego bramka `labelsEn.test.ts`).
+ */
+const MAP_REGION_LABEL_PL: Record<MapRegion, string> = {
+  europe: "Europa",
+  world: "Świat",
+  africa: "Afryka",
+  asia: "Azja",
+  "north-america": "Ameryka Północna",
+  "south-america": "Ameryka Południowa",
+  oceania: "Oceania",
+};
+
+const MAP_REGION_OPTIONS: ReadonlyArray<{ value: string; label: string }> = MAP_REGIONS.map(
+  (value) => ({ value, label: MAP_REGION_LABEL_PL[value] }),
+);
+
+/**
+ * Proporcje kadru karty promocyjnej - opcje WYPROWADZONE z `PROMO_CARD_RATIOS`,
+ * dokładnie jak regiony map wyżej. Etykieta jest literałem (schemat trzyma
+ * napisy źródłowe), ale tablica jest typowana `Record<PromoCardRatio, string>`,
+ * więc proporcja dopisana do modelu bez etykiety NIE SKOMPILUJE SIĘ, a etykieta
+ * dla proporcji, której model nie zna, jest niewyrażalna.
+ */
+const PROMO_CARD_RATIO_LABEL_PL: Record<PromoCardRatio, string> = {
+  "21:9": "21:9 (panorama)",
+  "16:9": "16:9 (wideo)",
+  "3:2": "3:2 (foto)",
+  "4:3": "4:3",
+  "1:1": "1:1 (kwadrat)",
+  "4:5": "4:5 (pion)",
+  "3:4": "3:4 (pion)",
+  auto: "stała wysokość (px)",
+};
+
+const PROMO_CARD_RATIO_OPTIONS: ReadonlyArray<{ value: string; label: string }> =
+  PROMO_CARD_RATIOS.map((value) => ({ value, label: PROMO_CARD_RATIO_LABEL_PL[value] }));
 
 /**
  * Wspólna podpowiedź widgetów `post-*`. Od naprawy wycieku danych
@@ -26,8 +86,10 @@ type FieldType =
   | "color" // hex color with native picker + text fallback ("" = inherit)
   | "textarea"
   | "chartData" // textarea CSV + spreadsheet dialog with live chart preview
+  | "mapData" // textarea "KOD; wartość" + import z pliku (xlsx/csv)
   | "stringArray" // textarea with one item per line
-  | "i18nStringArray"; // textarea with one item per line, stored as `${key}_pl|_en`
+  | "i18nStringArray" // textarea with one item per line, stored as `${key}_pl|_en`
+  | "eventPicker"; // select wydarzenia z WEWNĘTRZNEGO modułu wydarzeń (zapisuje id)
 
 export interface SchemaField {
   /** Storage key for non-i18n fields, OR base key (without `_pl|_en`) for i18n fields. */
@@ -60,6 +122,18 @@ export interface SchemaField {
   rows?: number;
   /** Optional hint shown under the control. */
   hint?: string;
+  /**
+   * Rekomendowany rozmiar pliku dla pola `image`, LICZONY z treści widgetu.
+   *
+   * Statyczna podpowiedź (`hint`) nie umie tego powiedzieć: zalecany rozmiar
+   * zależy od tego, jaki kadr i jaką szerokość redakcja wybrała przed chwilą w
+   * sąsiednich kontrolkach. Zwracamy więc same LICZBY, a napis („Zalecany
+   * rozmiar: 1024 × 576 px") składa panel w swoim języku - dzięki temu
+   * rekomendacja nie wchodzi do słownika etykiet i nie może się z nim rozjechać.
+   *
+   * `null` = to pole nie ma rekomendacji.
+   */
+  recommendedSize?: (content: Record<string, unknown>) => { width: number; height: number } | null;
   /** Show only when this predicate returns true (against full content object). */
   visibleWhen?: (content: Record<string, unknown>) => boolean;
   /** Optional group label to visually cluster related fields in the editor. */
@@ -759,6 +833,21 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "area", label: "pole (area)" },
         { value: "pie", label: "kołowy" },
         { value: "donut", label: "pierścień (donut)" },
+        // Mostek był w typie `ChartKind` i w edytorze bloku CMS, ale nie tutaj -
+        // czyli autor widgetu buildera nie mógł go wybrać wcale. Bramka
+        // `src/lib/charts/__tests__/chartKinds.test.ts` pilnuje, żeby ta lista
+        // obejmowała każdy rodzaj z `CHART_KINDS`.
+        { value: "waterfall", label: "wodospadowy (mostek)" },
+        { value: "histogram", label: "histogram (rozkład)" },
+        { value: "boxplot", label: "boxplot (rozkład)" },
+        { value: "beeswarm", label: "rój punktów (rozkład)" },
+        { value: "scatter", label: "punktowy (zależność)" },
+        { value: "heatmap", label: "mapa ciepła (wrażliwość)" },
+        { value: "tornado", label: "tornado (wrażliwość)" },
+        { value: "fan", label: "wachlarz (scenariusze)" },
+        { value: "index-base", label: "indeks, baza = 100 (różne skale)" },
+        { value: "percent-stacked", label: "stos 100% (struktura)" },
+        { value: "small-multiples", label: "małe panele (wiele podmiotów)" },
       ],
     },
     { key: "title", type: "i18nText", label: "Tytuł" },
@@ -778,6 +867,17 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       options: [
         { value: "off", label: "nie" },
         { value: "on", label: "tak" },
+      ],
+      visibleWhen: (c) => c.kind === "bar" || c.kind === "bar-horizontal" || !c.kind,
+    },
+    {
+      key: "barStyle",
+      type: "select",
+      label: "Wypełnienie słupków",
+      options: [
+        { value: "pale", label: "blade wnętrze z obwódką" },
+        { value: "gradient", label: "gradient z obwódką" },
+        { value: "solid", label: "pełne wypełnienie" },
       ],
       visibleWhen: (c) => c.kind === "bar" || c.kind === "bar-horizontal" || !c.kind,
     },
@@ -825,20 +925,12 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "source", type: "i18nText", label: "Źródło danych" },
   ],
   "data-map": [
-    {
-      key: "region",
-      type: "select",
-      label: "Region",
-      options: [
-        { value: "europe", label: "Europa" },
-        { value: "world", label: "Świat" },
-      ],
-    },
+    { key: "region", type: "select", label: "Region", options: MAP_REGION_OPTIONS },
     { key: "title", type: "i18nText", label: "Tytuł" },
     { key: "description", type: "i18nText", label: "Opis (podtytuł)" },
     {
       key: "data",
-      type: "textarea",
+      type: "mapData",
       label: "Dane per kraj",
       rows: 6,
       hint: 'Jeden kraj na wiersz: "KOD; wartość" (kod ISO-2, np. PL; 12,5).',
@@ -1070,15 +1162,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   "feature-corridor-map": [
     { key: "title", type: "i18nText", label: "Tytuł" },
     { key: "description", type: "i18nText", label: "Opis (podtytuł)" },
-    {
-      key: "region",
-      type: "select",
-      label: "Region",
-      options: [
-        { value: "europe", label: "Europa" },
-        { value: "world", label: "Świat" },
-      ],
-    },
+    { key: "region", type: "select", label: "Region", options: MAP_REGION_OPTIONS },
     {
       key: "corridors",
       type: "textarea",
@@ -1178,14 +1262,22 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       type: "select",
       label: "Głos",
       options: [
+        // LISTA MUSI BYĆ PODZBIOREM `TTS_VOICES` z `lib/audio/ttsCanonical`.
+        //
+        // Do 2026-09-14 stały tu DWIE pozycje spoza allowlisty kanonicznej:
+        // Liam (TX3LPaxmHKxFdv7VOQHJ) i Jessica (cgSgspJ2msm6clMCkdW9).
+        // Przechodziły, bo `/api/tts` sprawdzała wtedy KSZTAŁT identyfikatora
+        // regexem, a nie jego PRZYNALEŻNOŚĆ. Po domknięciu walidacji trasy
+        // widget z takim głosem dostawałby 400 i przestawał mówić, a redakcja
+        // wybrałaby go z panelu zupełnie legalnie. Panel nie ma prawa oferować
+        // wartości, którą serwer odrzuca - dlatego obie pozycje znikają stąd
+        // razem ze swoimi wpisami w `labelsEn.ts`.
         { value: "JBFqnCBsd6RMkjVDRZzb", label: "George (męski, EN)" },
         { value: "EXAVITQu4vr4xnSDxMaL", label: "Sarah (kobiecy, EN)" },
         { value: "FGY2WhTYpPnrIDTdsKH5", label: "Laura (kobiecy, EN)" },
-        { value: "TX3LPaxmHKxFdv7VOQHJ", label: "Liam (męski, EN)" },
         { value: "XrExE9yKIg1WjnnlVkGX", label: "Matilda (kobiecy, EN)" },
         { value: "pFZP5JQG7iQjIQuC4Bku", label: "Lily (kobiecy, EN)" },
         { value: "onwK4e9ZLuTAKqWW03F9", label: "Daniel (męski, EN)" },
-        { value: "cgSgspJ2msm6clMCkdW9", label: "Jessica (kobiecy, EN)" },
       ],
     },
     {
@@ -1527,6 +1619,326 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   ],
   // Karta trasy: mapa w tle, tytuł + autor, wielki dystans, polubienie.
   // Renderer (TravelRouteCardView) czyta KAŻDY z tych kluczy bezwarunkowo.
+  "cover-overlay-card": [
+    {
+      key: "image",
+      type: "image",
+      label: "Okładka (tło karty)",
+      hint: "Kadr pionowy lub kwadratowy. Puste = sama płaszczyzna w kolorze nakładki.",
+    },
+    {
+      key: "imageAlt",
+      type: "i18nText",
+      label: "Tekst alternatywny okładki",
+      hint: "Puste = okładka jest dekoracją i znika z drzewa dostępności. Wypełnij, jeśli obraz niesie własną informację.",
+    },
+    { key: "title", type: "i18nText", label: "Tytuł karty" },
+    { key: "excerpt", type: "i18nText", label: "Zajawka" },
+    {
+      key: "date",
+      type: "text",
+      label: "Data (RRRR-MM-DD)",
+      placeholder: "np. 2022-10-10",
+      hint: "Jedna data dla obu języków - napis dla czytelnika powstaje w języku widoku.",
+    },
+    { key: "showDate", type: "bool", label: "Pokaż datę" },
+    {
+      key: "href",
+      type: "url",
+      label: "Adres tytułu",
+      placeholder: "https://…",
+      hint: "Puste = tytuł nie jest odnośnikiem.",
+    },
+    {
+      key: "clampLines",
+      type: "number",
+      label: "Wiersze zajawki",
+      group: "Prezentacja",
+      min: 1,
+      max: 6,
+      step: 1,
+      default: 3,
+    },
+    {
+      key: "overlayColor",
+      type: "color",
+      label: "Kolor nakładki",
+      group: "Prezentacja",
+      inheritedValue: "#111827",
+      hint: "Puste = grafit wzorca. Nakładka daje kontrast dla białego tekstu nad zdjęciem.",
+    },
+    {
+      key: "overlayAlphaTop",
+      type: "number",
+      label: "Krycie nakładki u góry (0-1)",
+      group: "Prezentacja",
+      min: 0,
+      max: 1,
+      step: 0.05,
+      default: 0.25,
+    },
+    {
+      key: "overlayAlphaBottom",
+      type: "number",
+      label: "Krycie nakładki u dołu (0-1)",
+      group: "Prezentacja",
+      min: 0,
+      max: 1,
+      step: 0.05,
+      default: 0.5,
+    },
+    {
+      key: "mediaMinHeight",
+      type: "number",
+      label: "Wysokość kadru nad treścią (px)",
+      group: "Prezentacja",
+      min: 0,
+      max: 720,
+      step: 8,
+      default: 256,
+    },
+    {
+      key: "radius",
+      type: "number",
+      label: "Zaokrąglenie (px)",
+      group: "Prezentacja",
+      min: 0,
+      max: 48,
+      step: 1,
+      default: 6,
+    },
+    {
+      key: "maxWidth",
+      type: "number",
+      label: "Maksymalna szerokość (px)",
+      group: "Prezentacja",
+      min: 0,
+      max: 1200,
+      step: 8,
+      default: 0,
+      hint: "0 = pełna szerokość kolumny.",
+    },
+    {
+      key: "hoverLift",
+      type: "bool",
+      label: "Podświetl cień na hoverze",
+      group: "Prezentacja",
+    },
+  ],
+  // Karta promocyjna: okładka pod nakładką, tytuł/podtytuł i przycisk CTA.
+  // Renderer (PromoCardView) czyta KAŻDY z tych kluczy bezwarunkowo.
+  "promo-card": [
+    {
+      key: "image",
+      type: "image",
+      label: "Okładka (tło karty)",
+      hint: "Puste = sama płaszczyzna w kolorze nakładki. W trybie wydarzenia puste pole bierze okładkę wydarzenia.",
+      // Rekomendacja liczy się z WYBRANEGO kadru i szerokości karty, więc
+      // zmiana proporcji od razu zmienia liczbę pokazaną przy polu.
+      recommendedSize: (c) =>
+        promoCardImageSize(
+          promoCardRatio(c.ratio),
+          typeof c.maxWidth === "number" ? c.maxWidth : PROMO_CARD_DEFAULTS.maxWidth,
+          typeof c.heightPx === "number" ? c.heightPx : PROMO_CARD_DEFAULTS.heightPx,
+        ),
+    },
+    {
+      key: "imageAlt",
+      type: "i18nText",
+      label: "Tekst alternatywny okładki",
+      hint: "Puste = okładka jest dekoracją i znika z drzewa dostępności. Wypełnij, jeśli obraz niesie własną informację.",
+    },
+    {
+      key: "title",
+      type: "i18nText",
+      label: "Tytuł karty",
+      hint: "Puste w trybie wydarzenia = tytuł wydarzenia.",
+    },
+    { key: "subtitle", type: "i18nText", label: "Podtytuł" },
+    {
+      key: "mode",
+      type: "select",
+      label: "Źródło przycisku",
+      options: [
+        { value: "link", label: "ręczny adres" },
+        { value: "event", label: "wydarzenie z kreatora" },
+      ],
+    },
+    {
+      key: "eventId",
+      type: "eventPicker",
+      label: "Wydarzenie",
+      visibleWhen: (c) => c.mode === "event",
+      hint: "Przycisk prowadzi na stronę wydarzenia, a puste pola karty biorą z niego tytuł, okładkę i termin.",
+    },
+    {
+      key: "showEventMeta",
+      type: "bool",
+      label: "Pokaż termin i miejsce wydarzenia",
+      visibleWhen: (c) => c.mode === "event",
+    },
+    {
+      key: "href",
+      type: "url",
+      label: "Adres przycisku",
+      placeholder: "https://…",
+      hint: "W trybie wydarzenia puste = strona wydarzenia. Wpisany adres ma pierwszeństwo.",
+    },
+    {
+      key: "buttonText",
+      type: "i18nText",
+      label: "Etykieta przycisku",
+      hint: "Puste = etykieta domyślna dla wybranego źródła.",
+    },
+    { key: "newTab", type: "bool", label: "Otwórz w nowej karcie" },
+    {
+      key: "ratio",
+      type: "select",
+      label: "Proporcje kadru",
+      group: "Kadr zdjęcia",
+      options: PROMO_CARD_RATIO_OPTIONS,
+    },
+    {
+      key: "heightPx",
+      type: "number",
+      label: "Wysokość kadru (px)",
+      group: "Kadr zdjęcia",
+      min: 80,
+      max: 1200,
+      step: 8,
+      default: 288,
+      visibleWhen: (c) => c.ratio === "auto",
+    },
+    {
+      key: "maxWidth",
+      type: "number",
+      label: "Maksymalna szerokość (px)",
+      group: "Kadr zdjęcia",
+      min: 0,
+      max: 1600,
+      step: 8,
+      default: 512,
+      hint: "0 = pełna szerokość kolumny. Ta liczba steruje też rekomendacją rozmiaru okładki.",
+    },
+    {
+      key: "fit",
+      type: "select",
+      label: "Dopasowanie zdjęcia",
+      group: "Kadr zdjęcia",
+      options: [
+        { value: "cover", label: "wypełnij kadr (przytnij)" },
+        { value: "contain", label: "zmieść w całości" },
+      ],
+    },
+    {
+      key: "imagePosition",
+      type: "select",
+      label: "Punkt kadrowania",
+      group: "Kadr zdjęcia",
+      options: [
+        { value: "center", label: "środek" },
+        { value: "top", label: "góra" },
+        { value: "bottom", label: "dół" },
+        { value: "left", label: "lewo" },
+        { value: "right", label: "prawo" },
+      ],
+    },
+    {
+      key: "overlayColor",
+      type: "color",
+      label: "Kolor nakładki",
+      group: "Prezentacja",
+      inheritedValue: "#0B1220",
+      hint: "Nakładka daje kontrast dla jasnego tekstu nad zdjęciem.",
+    },
+    {
+      key: "overlayAlphaTop",
+      type: "number",
+      label: "Krycie nakładki u góry (0-1)",
+      group: "Prezentacja",
+      min: 0,
+      max: 1,
+      step: 0.05,
+      default: 0,
+    },
+    {
+      key: "overlayAlphaBottom",
+      type: "number",
+      label: "Krycie nakładki u dołu (0-1)",
+      group: "Prezentacja",
+      min: 0,
+      max: 1,
+      step: 0.05,
+      default: 0.7,
+    },
+    {
+      key: "radius",
+      type: "number",
+      label: "Zaokrąglenie (px)",
+      group: "Prezentacja",
+      min: 0,
+      max: 48,
+      step: 1,
+      default: 6,
+    },
+    {
+      key: "align",
+      type: "select",
+      label: "Wyrównanie treści",
+      group: "Prezentacja",
+      options: [
+        { value: "left", label: "do lewej" },
+        { value: "center", label: "do środka" },
+      ],
+    },
+    {
+      key: "textColor",
+      type: "color",
+      label: "Kolor tekstu",
+      group: "Prezentacja",
+      inheritedValue: "#FFFFFF",
+      hint: "Puste = biel nad nakładką.",
+    },
+    {
+      key: "buttonBg",
+      type: "color",
+      label: "Tło przycisku",
+      group: "Prezentacja",
+      hint: "Puste = kolor marki.",
+    },
+    {
+      key: "buttonTextColor",
+      type: "color",
+      label: "Kolor tekstu przycisku",
+      group: "Prezentacja",
+    },
+    {
+      key: "hover",
+      type: "select",
+      label: "Reakcja na kursor",
+      group: "Prezentacja",
+      options: [
+        { value: "zoom-in", label: "zbliżenie okładki" },
+        { value: "zoom-out", label: "oddalenie okładki" },
+        { value: "fade", label: "rozjaśnienie nakładki" },
+        { value: "shadow", label: "cień" },
+        { value: "none", label: "bez reakcji" },
+      ],
+      hint: "Żaden wariant nie przesuwa karty ani jej treści - zmienia się wyłącznie okładka w kadrze, nakładka albo cień.",
+    },
+    {
+      key: "entrance",
+      type: "select",
+      label: "Animacja wejścia",
+      group: "Prezentacja",
+      options: [
+        { value: "fade", label: "przenikanie" },
+        { value: "zoom", label: "przenikanie + zbliżenie" },
+        { value: "none", label: "bez animacji" },
+      ],
+      hint: "Efekt jest wyłączany przez systemowe ograniczenie animacji (prefers-reduced-motion).",
+    },
+  ],
   "travel-route-card": [
     {
       key: "image",
@@ -1990,6 +2402,48 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     },
     { key: "limit", type: "number", label: "Liczba wątków", min: 1, max: 12, group: "Dane" },
   ],
+  "club-hub": [
+    {
+      key: "clubSlug",
+      type: "text",
+      label: "Adres klubu",
+      placeholder: "bezpieczenstwo-europy-srodkowo-wschodniej",
+      hint: "Fragment adresu po /club/. Pusty = widget nic nie pokazuje (i nie pyta bazy).",
+    },
+    { key: "showHeader", type: "bool", label: "Pokaż nagłówek klubu", group: "Sekcje" },
+    { key: "showCover", type: "bool", label: "Pokaż okładkę", group: "Sekcje" },
+    { key: "showArticles", type: "bool", label: "Sekcja: artykuły", group: "Sekcje" },
+    { key: "showComments", type: "bool", label: "Sekcja: komentarze", group: "Sekcje" },
+    { key: "showSignups", type: "bool", label: "Sekcja: zapisy", group: "Sekcje" },
+    { key: "articlesTitle", type: "i18nText", label: "Tytuł sekcji artykułów", group: "Sekcje" },
+    { key: "commentsTitle", type: "i18nText", label: "Tytuł sekcji komentarzy", group: "Sekcje" },
+    { key: "signupsTitle", type: "i18nText", label: "Tytuł sekcji zapisów", group: "Sekcje" },
+    {
+      key: "articlesLimit",
+      type: "number",
+      label: "Liczba artykułów",
+      min: 1,
+      max: 12,
+      group: "Dane",
+    },
+    {
+      key: "commentsLimit",
+      type: "number",
+      label: "Liczba komentarzy",
+      min: 1,
+      max: 12,
+      group: "Dane",
+    },
+    {
+      key: "signupsLimit",
+      type: "number",
+      label: "Liczba zapisów",
+      min: 1,
+      max: 12,
+      group: "Dane",
+    },
+    { key: "joinLabel", type: "i18nText", label: "Etykieta przycisku zapisu", group: "Wygląd" },
+  ],
   "event-list": [
     { key: "heading", type: "i18nText", label: "Nagłówek", placeholder: "Nadchodzące wydarzenia" },
     {
@@ -2396,7 +2850,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       label: "Własny kolor podświetlenia",
       placeholder: "#B85410 lub var(--brand)",
       visibleWhen: (c) => c.rowHover === "custom",
-      hint: "Z koloru budowany jest gradient; kolor tekstu dobiera się automatycznie do jego jasności.",
+      hint: "Z koloru budowany jest gradient; kolor tekstu dobiera się automatycznie do jego jasności. Dla zapisów, których jasności nie da się policzyć (var(--...), oklch, transparent), tekst bierze kolor motywu.",
     },
     {
       key: "hoverIconMode",

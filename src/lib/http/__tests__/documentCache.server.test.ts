@@ -1,12 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MINUTA, advanceClock } from "@/test/time";
 
-import { DOCUMENT_CACHE_MAX_ENTRY_BYTES, NES_CACHE_HEADER } from "@/lib/http/documentCache";
+import {
+  DOCUMENT_CACHE_MAX_ENTRY_BYTES,
+  NES_CACHE_HEADER,
+  NES_EDGE_CACHE_NAME,
+} from "@/lib/http/documentCache";
 import {
   applyDeferredDocumentStore,
   getDocumentCacheSnapshot,
   handleDocumentRequest,
   probeDocumentCache,
   purgeDocumentCache,
+  purgeDocumentPaths,
   resetDocumentCacheForTests,
   revalidationHeader,
   setDocumentRevalidator,
@@ -218,7 +224,7 @@ describe("handleDocumentRequest", () => {
     });
 
     // Poza oknem świeżości (cap 3 min), wewnątrz okna SWR.
-    vi.setSystemTime(Date.now() + 10 * 60 * 1000);
+    advanceClock(10 * MINUTA);
     const failingNext = vi.fn(async () => {
       throw new Error("db hiccup");
     });
@@ -252,6 +258,58 @@ describe("handleDocumentRequest", () => {
     expect(next).toHaveBeenCalledTimes(2);
     expect(getDocumentCacheSnapshot().enabled).toBe(false);
   });
+
+  it("działa w środowisku BEZ globalnego `process` (workerd bez nodejs_compat)", () => {
+    // Kill-switch czyta `process.env.NES_EDGE_CACHE`. Gołe odwołanie do
+    // `process` w runtimie, który go nie ma, rzuca ReferenceError - i nie
+    // w migawce admina, tylko w `cacheEnabled()`, czyli w PIERWSZEJ linii
+    // obsługi KAŻDEGO żądania dokumentu. Bez osłony `typeof` cała warstwa
+    // dokumentów padałaby na Workers bez `nodejs_compat`, a testy w Node
+    // nigdy by tego nie zobaczyły.
+    const realProcess = globalThis.process;
+    try {
+      Reflect.deleteProperty(globalThis, "process");
+      const snapshot = getDocumentCacheSnapshot();
+      // Brak zmiennej środowiskowej = brak wyłącznika, czyli cache WŁĄCZONY.
+      expect(snapshot.enabled).toBe(true);
+      expect(snapshot.name).toBe(NES_EDGE_CACHE_NAME);
+    } finally {
+      globalThis.process = realProcess;
+    }
+  });
+
+  it("MISS bez nagłówka Cache-Control zostawia w pierścieniu PUSTE pole polityki", async () => {
+    // Pierścień decyzji jest jedynym źródłem prawdy karty /admin/performance:
+    // warstwa hostingu zdejmuje `x-nes-cache` i nadpisuje `Cache-Control`,
+    // więc z zewnątrz nie da się zobaczyć, co aplikacja naprawdę policzyła.
+    // Render bez Cache-Control (trasa poza defaultCacheControlMiddleware,
+    // błąd loadera) musi zostawić pole PUSTE. Gdyby wpadał tam napis "null",
+    // karta pokazywałaby politykę cache'a, której nigdy nie było, i nikt by
+    // nie zauważył, że ta trasa nie ma szans trafić do magazynu.
+    const next = vi.fn(
+      async () =>
+        new Response("<html>bez-cc</html>", {
+          status: 200,
+          headers: { "content-type": "text/html; charset=utf-8" },
+        }),
+    );
+    const res = await renderThroughEdge("/bez-cache-control", next);
+    expect(res.headers.get(NES_CACHE_HEADER)).toBe("MISS");
+
+    const recent = getDocumentCacheSnapshot().recent;
+    expect(recent[0]?.status).toBe("MISS");
+    expect(recent[0]?.path).toBe("/bez-cache-control");
+    expect(recent[0]?.cacheControl).toBeUndefined();
+
+    // Bez `s-maxage` polityka zapisu nie przepuszcza wpisu, więc kolejny
+    // czytelnik znów płaci pełny render. Sonda pyta o TĘ ścieżkę, a nie
+    // o licznik wpisów - odświeżenia w tle z innych przypadków tej suity
+    // mogą jeszcze dosypywać własne klucze do magazynu.
+    await settle();
+    const probe = await probeDocumentCache("/bez-cache-control", "tenant-a.eu");
+    expect(probe.cached).toBe(false);
+    expect(probe.status).toBe("MISS");
+  });
 });
 
 describe("stale-while-revalidate za odpowiedzią", () => {
@@ -271,7 +329,7 @@ describe("stale-while-revalidate za odpowiedzią", () => {
     await vi.waitFor(async () => {
       expect((await probeDocumentCache(path, "tenant-a.eu")).cached).toBe(true);
     });
-    vi.setSystemTime(Date.now() + 10 * 60 * 1000);
+    advanceClock(10 * MINUTA);
   }
 
   it("czytelnik dostaje STALE bez czekania na render, a wpis odświeża się w tle", async () => {
@@ -508,5 +566,83 @@ describe("odrzut rozmiarowy (dokument > limit wpisu)", () => {
     const second = await renderThroughEdge("/w-limicie", render);
     expect(second.headers.get(NES_CACHE_HEADER)).toBe("HIT");
     expect(render).toHaveBeenCalledTimes(1);
+  });
+});
+
+// TELEMETRIA FAZ NA GAŁĘZI BYPASS.
+//
+// `edge-routing` mierzy odcinek przed routerem (katalog tenantów + indeks
+// przekierowań, szeregowo, planem service-role) i powstał po to, żeby dało się
+// rozstrzygnąć, z czego składa się zmierzone na produkcji TTFB. Deny-lista NES
+// Edge Cache obejmuje `/admin` - czyli DOKŁADNIE jedną z powierzchni, których
+// TTFB był zgłoszony (3,15 s). Gdyby faza wypadała na BYPASS-ie, instrument
+// byłby ślepy tam, gdzie postawiono pytanie: `/admin`, `/profile`, `/checkout`
+// i całe `/api` nie niosłyby ani jednej liczby o tym odcinku.
+//
+// KONTROLA NEGATYWNA jest w drugim teście: bez zmierzonej fazy nagłówek NIE
+// POWSTAJE, więc BYPASS nie zaczyna nagle deklarować pomiaru, którego nie ma.
+describe("handleDocumentRequest - fazy Server-Timing na BYPASS", () => {
+  it("ścieżka z deny-listy (/admin) NIESIE zmierzoną fazę edge-routing", async () => {
+    // Telemetria jest server-only (`if (!import.meta.env.SSR) return []`), a ta
+    // suita biegnie w happy-dom. Bez podstawienia flagi test mierzyłby wyłącznie
+    // gałąź "nie jesteśmy na serwerze" - czyli nie mierzyłby niczego.
+    vi.stubEnv("SSR", true);
+    const request = docRequest("/admin");
+    const timing = await import("../ssrTiming.server");
+    timing.recordRequestPhase(request, "edge-routing", 284.2);
+
+    const result = (await handleDocumentRequest(request, () =>
+      htmlResponse("<html>panel</html>"),
+    )) as Response;
+
+    expect(result.headers.get("server-timing")).toBe(
+      'nes-edge;desc="BYPASS", edge-routing;dur=284.2',
+    );
+    vi.unstubAllEnvs();
+  });
+
+  it("bez zmierzonej fazy BYPASS nie dokłada nagłówka - pomiar, nie deklaracja", async () => {
+    const request = docRequest("/admin/posts");
+
+    const result = (await handleDocumentRequest(request, () =>
+      htmlResponse("<html>panel</html>"),
+    )) as Response;
+
+    expect(result.headers.get("server-timing")).toBeNull();
+  });
+});
+
+describe("purgeDocumentPaths (purge selektywny L1)", () => {
+  it("usuwa dokument zmienionej ścieżki w OBU językach i jego warianty z query, sąsiada zostawia HIT", async () => {
+    const next = vi.fn(async () => htmlResponse("<html>doc</html>"));
+    for (const path of ["/analizy/tekst", "/en/analizy/tekst", "/analizy/tekst?page=2", "/blog"]) {
+      await (await renderThroughEdge(path, next)).text();
+    }
+    await settle();
+    const before = getDocumentCacheSnapshot();
+
+    const removed = purgeDocumentPaths("tenant-a.eu", ["/analizy/tekst/"]);
+    await settle();
+    expect(removed).toBeGreaterThanOrEqual(2);
+    const after = getDocumentCacheSnapshot();
+    expect(after.entries).toBe(before.entries - removed);
+    expect(after.purges).toBe(before.purges + 1);
+
+    const blog = await renderThroughEdge("/blog", next);
+    expect(blog.headers.get(NES_CACHE_HEADER)).toBe("HIT");
+    const pl = await renderThroughEdge("/analizy/tekst", next);
+    expect(pl.headers.get(NES_CACHE_HEADER)).toBe("MISS");
+    const en = await renderThroughEdge("/en/analizy/tekst", next);
+    expect(en.headers.get(NES_CACHE_HEADER)).toBe("MISS");
+  });
+
+  it("nie dotyka dokumentów innego hosta i zwraca 0 dla ścieżek niepoprawnych", async () => {
+    const next = vi.fn(async () => htmlResponse("<html>doc</html>"));
+    await (await renderThroughEdge("/blog", next, "tenant-b.eu")).text();
+    await settle();
+    expect(purgeDocumentPaths("tenant-a.eu", ["/blog"])).toBe(0);
+    expect(purgeDocumentPaths("tenant-b.eu", ["", "https://x.example/blog"])).toBe(0);
+    const still = await renderThroughEdge("/blog", next, "tenant-b.eu");
+    expect(still.headers.get(NES_CACHE_HEADER)).toBe("HIT");
   });
 });

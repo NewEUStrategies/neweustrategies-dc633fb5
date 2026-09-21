@@ -129,6 +129,16 @@ export function useSetMyConsent() {
       void qc.invalidateQueries({
         queryKey: ["user-consent-events", user?.id ?? "anon"],
       });
+      // Rekomendacje pod wpisem czytają zgodę `personalization` WŁASNYM kluczem
+      // (`lib/queries/relatedPosts`), bo droga przez te hooki wciągała runtime
+      // funkcji serwerowych do publicznej paczki trasy wpisu. Osobny klucz
+      // znaczy jednak osobne unieważnianie: bez tej linii czytelnik, który
+      // WYCOFAŁ zgodę, byłby jeszcze profilowany przez `staleTime` tamtego
+      // zapytania. Na ścieżce RODO pięć minut zwłoki to nie szczegół
+      // wydajnościowy, tylko profilowanie po cofnięciu zgody.
+      void qc.invalidateQueries({
+        queryKey: ["public", "related-posts-consent", user?.id ?? "anon"],
+      });
     },
   });
 }

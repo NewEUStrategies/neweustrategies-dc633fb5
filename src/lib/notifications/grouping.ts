@@ -25,8 +25,10 @@ const CONVERSATION_HREF = /^\/messages\?c=([0-9a-f-]{36})$/i;
 
 function conversationIdFromHref(href: string | null | undefined): string | null {
   if (!href) return null;
+  // Grupa `([0-9a-f-]{36})` nie jest opcjonalna, więc dopasowanie ZAWSZE ma
+  // `match[1]` - dawne `?? null` było gałęzią nieosiągalną (i dziurą w pokryciu).
   const match = CONVERSATION_HREF.exec(href);
-  return match ? (match[1] ?? null) : null;
+  return match === null ? null : match[1]!;
 }
 
 /**
@@ -38,24 +40,23 @@ export function groupNotifications(
   options: { groupByConversation: boolean },
 ): NotificationGroup[] {
   const groups: NotificationGroup[] = [];
-  const indexByConv = new Map<string, number>();
+  // Mapa trzyma SAM OBIEKT grupy, nie jego indeks: indeks wymagał odczytu
+  // `groups[i]` i strażnika `if (!g)`, którego żadne wejście nie mogło wywołać.
+  const groupByConv = new Map<string, NotificationGroup>();
 
   for (const row of items) {
     const convId = conversationIdFromHref(row.href);
     const canGroup = options.groupByConversation && row.kind === "message" && convId;
 
     if (canGroup) {
-      const existing = indexByConv.get(convId);
+      const existing = groupByConv.get(convId);
       if (existing !== undefined) {
-        const g = groups[existing];
-        if (!g) continue;
-        g.items.push(row);
-        if (!row.read_at) g.unreadCount += 1;
-        g.isSingle = false;
+        existing.items.push(row);
+        if (!row.read_at) existing.unreadCount += 1;
+        existing.isSingle = false;
         continue;
       }
-      indexByConv.set(convId, groups.length);
-      groups.push({
+      const group: NotificationGroup = {
         key: `conv:${convId}`,
         latest: row,
         items: [row],
@@ -63,7 +64,9 @@ export function groupNotifications(
         isSingle: true,
         isConversation: true,
         conversationId: convId,
-      });
+      };
+      groupByConv.set(convId, group);
+      groups.push(group);
       continue;
     }
 

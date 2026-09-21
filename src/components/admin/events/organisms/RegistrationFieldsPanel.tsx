@@ -6,6 +6,18 @@
 //
 // PYTANIE KWALIFIKUJĄCE MA ZNACZNIK W WIERSZU. Pole, które odrzuca zgłoszenia
 // automatycznie, nie może wyglądać jak zwykłe pytanie o stanowisko.
+//
+// WIERSZ NAZYWA SIEBIE W KAŻDEJ AKCJI. Przełącznik „aktywne" i potwierdzenie
+// usunięcia dotyczą JEDNEGO pytania z kilkunastu, a ikona kosza i przełącznik
+// wyglądają w każdym wierszu tak samo. Dlatego obie akcje niosą etykietę
+// I KLUCZ pola: klucz jest tu tożsamością (niezmienny, unikalny w wydarzeniu),
+// a etykieta bywa w dwóch pytaniach ta sama.
+//
+// POLE ZGODY POKAZUJE OBA SWOJE DOKUMENTY. `consent_url_pl` i `consent_url_en`
+// są opcjonalne (kolumny z DEFAULT ''), a obie wersje wchodzą do formularza
+// uczestnika - pole z dokumentem wyłącznie po polsku wyglądało na liście
+// dokładnie tak samo jak pole z kompletem, więc uczestnik anglojęzyczny
+// dostawał pytanie o zgodę bez treści, na którą się godzi.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -49,6 +61,17 @@ export function RegistrationFieldsPanel({ eventId }: { eventId: string }) {
 
   const rows = listQ.data ?? [];
   const nextSortOrder = rows.reduce((max, row) => Math.max(max, row.sort_order ?? 0), 90) + 10;
+
+  /** Etykieta pytania w języku interfejsu - ta sama w wierszu, w przełączniku i w oknie. */
+  const fieldLabel = (row: EventRegistrationFieldRow): string =>
+    i18n.language.startsWith("pl") ? row.label_pl : row.label_en;
+
+  /**
+   * Liczba złożonych odpowiedzi. Kolumna wraca z RPC jako NULL-owalna (generator
+   * typów opisuje `RETURNS TABLE` jako niepustą), a brak znaczy tu ZERO, nie puste
+   * miejsce - jedno wejście, żeby wiersz i potwierdzenie liczyły tak samo.
+   */
+  const answersCount = (row: EventRegistrationFieldRow): number => row.answers_count ?? 0;
 
   const fail = (error: unknown) => toast.error(adminRegistrationErrorMessage(error));
 
@@ -117,9 +140,7 @@ export function RegistrationFieldsPanel({ eventId }: { eventId: string }) {
           {rows.map((row) => (
             <li key={row.id} className="flex flex-wrap items-center gap-3 p-4">
               <div className="min-w-[14rem] flex-1">
-                <p className="font-medium">
-                  {i18n.language.startsWith("pl") ? row.label_pl : row.label_en}
-                </p>
+                <p className="font-medium">{fieldLabel(row)}</p>
                 <p className="font-medium tracking-tight text-xs text-muted-foreground">
                   {row.key}
                 </p>
@@ -137,14 +158,32 @@ export function RegistrationFieldsPanel({ eventId }: { eventId: string }) {
                 <Badge>{t("adminEventRegistration.form.columns.qualifying")}</Badge>
               ) : null}
 
+              {row.field_type === "consent" ? (
+                <div className="min-w-[16rem] flex-1 space-y-0.5 text-xs">
+                  <ConsentDocumentLine
+                    label={t("adminEventRegistration.form.editor.consentUrlPl")}
+                    url={row.consent_url_pl}
+                    missingLabel={t("adminEventRegistration.form.editor.consentUrlMissing")}
+                  />
+                  <ConsentDocumentLine
+                    label={t("adminEventRegistration.form.editor.consentUrlEn")}
+                    url={row.consent_url_en}
+                    missingLabel={t("adminEventRegistration.form.editor.consentUrlMissing")}
+                  />
+                </div>
+              ) : null}
+
               <div className="min-w-[7rem] text-sm text-muted-foreground">
-                {t("adminEventRegistration.form.columns.answers")}: {row.answers_count ?? 0}
+                {t("adminEventRegistration.form.columns.answers")}: {answersCount(row)}
               </div>
 
               <Switch
                 checked={row.is_active}
                 onCheckedChange={(next) => toggleActive(row, next)}
-                aria-label={t("adminEventRegistration.form.editor.active")}
+                aria-label={t("adminEventRegistration.form.editor.activeToggle", {
+                  label: fieldLabel(row),
+                  key: row.key,
+                })}
               />
 
               <Button
@@ -195,6 +234,19 @@ export function RegistrationFieldsPanel({ eventId }: { eventId: string }) {
             <AlertDialogDescription>
               {t("adminEventRegistration.form.editor.deleteConfirm")}
             </AlertDialogDescription>
+            {/* PRZEDMIOT USUNIĘCIA, A NIE SAMO ZDANIE OGÓLNE. Ikony kosza są
+                w każdym wierszu identyczne, a usunięcie nie ma cofnięcia -
+                okno musi powtórzyć etykietę, klucz i liczbę odpowiedzi, które
+                właśnie osieroci. */}
+            {pendingDelete === null ? null : (
+              <p className="rounded-md bg-muted px-3 py-2 text-sm">
+                {t("adminEventRegistration.form.editor.deleteSubject", {
+                  label: fieldLabel(pendingDelete),
+                  key: pendingDelete.key,
+                  answers: answersCount(pendingDelete),
+                })}
+              </p>
+            )}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>
@@ -207,5 +259,30 @@ export function RegistrationFieldsPanel({ eventId }: { eventId: string }) {
         </AlertDialogContent>
       </AlertDialog>
     </section>
+  );
+}
+
+/**
+ * Jedna wersja językowa dokumentu zgody w wierszu listy.
+ *
+ * BRAK DOKUMENTU JEST TREŚCIĄ, a nie pustym miejscem: uczestnik czytający
+ * formularz w tym języku dostaje pytanie o zgodę bez treści, na którą się
+ * godzi. Adres pokazujemy w całości - to on jest tu jedyną informacją, a
+ * skrócony wygląda jak adres poprawny.
+ */
+function ConsentDocumentLine({
+  label,
+  url,
+  missingLabel,
+}: {
+  label: string;
+  url: string;
+  missingLabel: string;
+}) {
+  const missing = url.trim() === "";
+  return (
+    <p className={missing ? "break-all text-amber-600 dark:text-amber-400" : "break-all"}>
+      {label}: {missing ? missingLabel : url}
+    </p>
   );
 }

@@ -11,14 +11,23 @@
 // poda obrazka tenanta B - nawet przy współbieżnym SSR w jednym isolate.
 // Brak wpisu = statyczny fallback marki (`SITE_DEFAULT_OG_IMAGE`).
 
+/** Wartość `twitter:card` - karta pełnowymiarowa albo mały kwadrat. */
+export type TwitterCardType = "summary_large_image" | "summary";
+
 export type SocialDefaults = {
   /** Absolutny URL albo ścieżka względna od originu ("" = fallback marki). */
   imageUrl: string;
   /** og:image:alt - opis karty dla czytników ekranu i scraperów. */
   imageAlt: string;
+  /** Typ karty X/Twittera wybrany redakcyjnie. */
+  twitterCard: TwitterCardType;
 };
 
-export const EMPTY_SOCIAL_DEFAULTS: SocialDefaults = { imageUrl: "", imageAlt: "" };
+export const EMPTY_SOCIAL_DEFAULTS: SocialDefaults = {
+  imageUrl: "",
+  imageAlt: "",
+  twitterCard: "summary_large_image",
+};
 
 /** Host bez portu, lowercase. Akceptuje host, origin i pełny URL. */
 export function socialHostKey(input: string | null | undefined): string {
@@ -37,14 +46,31 @@ const byHost = new Map<string, SocialDefaults>();
 /** Sufit wpisów - klucz to host, więc przestrzeń jest teoretycznie otwarta. */
 const MAX_HOSTS = 100;
 
+/**
+ * Wejście zapisu. `twitterCard` jest OPCJONALNE, bo to pole doszło później niż
+ * sam moduł: wołający, który go nie poda (starszy kod, test skupiony na
+ * obrazku), ma dostać wariant domyślny, a nie `undefined` wstawione wprost
+ * w `twitter:card`. Typ wymagający wszystkich pól zamieniłby brak wartości
+ * w cichy atrybut „undefined" w `<head>` na produkcji.
+ */
+export type SocialDefaultsInput = {
+  imageUrl: string;
+  imageAlt: string;
+  twitterCard?: TwitterCardType;
+};
+
 /** Zapamiętaj ustawienia dla hosta bieżącego żądania (woła root loader). */
 export function rememberSocialDefaults(
   host: string | null | undefined,
-  value: SocialDefaults,
+  value: SocialDefaultsInput,
 ): void {
   const key = socialHostKey(host);
   byHost.delete(key);
-  byHost.set(key, { imageUrl: value.imageUrl.trim(), imageAlt: value.imageAlt.trim() });
+  byHost.set(key, {
+    imageUrl: value.imageUrl.trim(),
+    imageAlt: value.imageAlt.trim(),
+    twitterCard: value.twitterCard ?? EMPTY_SOCIAL_DEFAULTS.twitterCard,
+  });
   while (byHost.size > MAX_HOSTS) {
     const oldest = byHost.keys().next().value;
     if (oldest === undefined) break;

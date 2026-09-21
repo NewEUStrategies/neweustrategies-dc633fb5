@@ -15,7 +15,7 @@
 //
 // Reguły filtra i eksportu mają własny test obok. Asercje celują w klucze i18n.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import type {
   DeliverabilitySetup,
   SuppressionRow,
@@ -242,6 +242,34 @@ describe("WebhookSetupCard", () => {
     // Adres nadal na ekranie - operator zaznaczy go ręcznie.
     expect(screen.getByText("https://example.test/api/public/webhooks/resend")).toBeTruthy();
     expect(screen.queryByText("adminDeliverability.setup.copied")).toBeNull();
+  });
+
+  it("ponowne kopiowanie odnawia potwierdzenie, a odmontowanie usuwa timer", async () => {
+    vi.useFakeTimers();
+    try {
+      const view = mount(setupData());
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button"));
+      });
+      expect(screen.getByText("adminDeliverability.setup.copied")).toBeTruthy();
+      await act(() => vi.advanceTimersByTimeAsync(1500));
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button"));
+      });
+      await act(() => vi.advanceTimersByTimeAsync(1500));
+      expect(screen.getByText("adminDeliverability.setup.copied")).toBeTruthy();
+      await act(() => vi.advanceTimersByTimeAsync(500));
+      expect(screen.getByText("adminDeliverability.setup.copy")).toBeTruthy();
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button"));
+      });
+      const clear = vi.spyOn(globalThis, "clearTimeout");
+      view.unmount();
+      expect(clear).toHaveBeenCalled();
+      clear.mockRestore();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("lista zdarzeń do subskrypcji jest wypisana wprost", () => {

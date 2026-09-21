@@ -155,6 +155,19 @@ function lancuch(tabela: string): RecordedChain {
   return c;
 }
 
+/**
+ * Ogniwa `.in(...)` niosące listę identyfikatorów WPISÓW - po naprawie A2/A3/A4
+ * ma ich nie być ANI JEDNEGO.
+ *
+ * Zwykłe `expect(chain.has("in")).toBe(false)` byłoby tu BŁĘDNE: zawężenie
+ * przez osadzenie legalnie używa `.in(...)` na kolumnie TERMINU
+ * (`post_categories.category_id`). Defektem jest wyłącznie lista po `"id"`,
+ * bo tylko ona rośnie razem z liczbą wpisów.
+ */
+function listaIdWpisow(chain: RecordedChain): ReadonlyArray<ReadonlyArray<unknown>> {
+  return chain.calls.filter((c) => c.method === "in" && c.args[0] === "id").map((c) => c.args);
+}
+
 /** Ostatnie wywołanie RPC o danej nazwie (brak = błąd testu, jak wyżej). */
 function wywolanie(nazwa: string): RecordedRpc {
   const c = funkcje().lastCall(nazwa);
@@ -253,7 +266,6 @@ const SCIEZKI_OK = ok([{ page_id: STRONA_RODZIC, full_path: SCIEZKA_RODZICA }]);
 interface PlanArchiwum {
   kind: "category" | "tag";
   taksonomia?: SupabaseResult;
-  pivot?: SupabaseResult;
   wpisy?: SupabaseResult;
   szablon?: SupabaseResult;
   sciezki?: SupabaseResult;
@@ -266,7 +278,6 @@ function planujArchiwum(p: PlanArchiwum): void {
     kategoria ? "categories" : "tags",
     p.taksonomia ?? ok(kategoria ? WIERSZ_KATEGORII : WIERSZ_TAGU),
   );
-  s.setResponse(kategoria ? "post_categories" : "post_tags", p.pivot ?? ok([{ post_id: "p1" }]));
   s.setResponse("posts", p.wpisy ?? okZLicznikiem([wpis("p1")], 1));
   s.setResponse("builder_templates", p.szablon ?? ok(null));
   funkcje().setResponse("page_full_paths", p.sciezki ?? SCIEZKI_OK);
@@ -397,19 +408,56 @@ describe("archiwum kategorii: kształt zapytań", () => {
     expect(wynik?.taxonomy.description_en).toBe("opis en");
   });
 
-  it("pivot kategorii filtruje po category_id i oddaje same identyfikatory wpisów", async () => {
+  it("zawężenie kategorią robi BAZA - osadzenie w `select`, zero zapytań do tabeli pośredniej", async () => {
+    // Asercja na DOSŁOWNYM napisie jest tu obowiązkowa, a nie stylistyczna:
+    // literówka w nazwie osadzenia (`post_categoriez!inner(...)`) przechodzi
+    // przez tsc bez błędu, a kolumny obok zachowują poprawne typy. Napis jest
+    // jedynym miejscem, w którym da się to złapać.
     planujArchiwum({ kind: "category" });
     await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
-    const pivot = lancuch("post_categories");
-    expect(pivot.argsOf("select")?.[0]).toBe("post_id");
-    expect(pivot.argsOf("eq")).toEqual(["category_id", WIERSZ_KATEGORII.id]);
+    const posty = lancuch("posts");
+    expect(String(posty.argsOf("select")?.[0])).toContain("post_categories!inner(category_id)");
+    expect(posty.argsOf("in")).toEqual(["post_categories.category_id", [WIERSZ_KATEGORII.id]]);
+    expect(baza().chainsFor("post_categories")).toHaveLength(0);
+    // Filtr niesie identyfikator TERMINU (jeden), a nie WPISÓW (tyle, ile ma
+    // kategoria) - różnica między linią żądania o stałej długości a linią
+    // rosnącą o około 38 bajtów na wpis. To jest cały defekt A2.
+    expect(listaIdWpisow(posty)).toEqual([]);
+  });
+
+  it("zapytanie NIE rośnie razem z kategorią - 1 a 3000 przypisań daje IDENTYCZNY łańcuch", async () => {
+    // DLACZEGO ROZMIAR SIEDZI W ODPOWIEDZI TABELI POŚREDNIEJ, A NIE W LIŚCIE
+    // WPISÓW. Pierwsza wersja tego przypadku planowała 3000 WPISÓW i była
+    // BEZWARTOŚCIOWA: liczba wierszy w odpowiedzi `posts` jest konsumowana PO
+    // zapisaniu łańcucha, więc `lancuch("posts").calls` wygląda tak samo przy
+    // KAŻDEJ implementacji - przypadek przechodził także na pełnym coficie
+    // naprawy (sprawdzone). Rozmiar musi siedzieć tam, skąd defekt brał listę:
+    // w tabeli POŚREDNIEJ. Kod sprzed naprawy odczytał ją i włożyłby 3000
+    // identyfikatorów do `.in("id", ...)`, więc łańcuchy by się rozjechały;
+    // kod po naprawie o tę tabelę w ogóle nie pyta.
+    planujArchiwum({ kind: "category" });
+    baza().setResponse("post_categories", ok([{ post_id: "p1" }]));
+    await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
+    const male = JSON.stringify(lancuch("posts").calls);
+
+    baza().reset();
+    planujArchiwum({ kind: "category" });
+    baza().setResponse(
+      "post_categories",
+      ok(Array.from({ length: 3000 }, (_, i) => ({ post_id: `p${i}` }))),
+    );
+    await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
+
+    expect(JSON.stringify(lancuch("posts").calls)).toBe(male);
+    // I to jest druga połowa dowodu: tabela pośrednia nie została dotknięta ANI RAZU.
+    expect(baza().chainsFor("post_categories")).toHaveLength(0);
   });
 
   it("lista wpisów bierze tylko opublikowane i nieusunięte, z dokładnym licznikiem", async () => {
     planujArchiwum({ kind: "category", wpisy: okZLicznikiem([wpis("p1")], 137) });
     const wynik = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
     const posty = lancuch("posts");
-    expect(posty.argsOf("in")).toEqual(["id", ["p1"]]);
+    expect(posty.argsOf("in")).toEqual(["post_categories.category_id", [WIERSZ_KATEGORII.id]]);
     expect(posty.argsOf("eq")).toEqual(["status", "published"]);
     expect(posty.argsOf("is")).toEqual(["deleted_at", null]);
     expect(posty.argsOf("select")?.[1]).toEqual({ count: "exact" });
@@ -452,11 +500,15 @@ describe("archiwum tagu: kształt zapytań i jedna nazwa na oba języki", () => 
     expect(wynik?.taxonomy.description_en).toBeNull();
   });
 
-  it("pivot tagu filtruje po tag_id, a nie po category_id", async () => {
+  it("zawężenie tagiem osadza post_tags, a nie post_categories", async () => {
     planujArchiwum({ kind: "tag" });
     await klient().fetchQuery(taxonomyArchiveQueryOptions("tag", "nato"));
-    expect(lancuch("post_tags").argsOf("eq")).toEqual(["tag_id", WIERSZ_TAGU.id]);
+    const posty = lancuch("posts");
+    expect(String(posty.argsOf("select")?.[0])).toContain("post_tags!inner(tag_id)");
+    expect(posty.argsOf("in")).toEqual(["post_tags.tag_id", [WIERSZ_TAGU.id]]);
+    expect(listaIdWpisow(posty)).toEqual([]);
     expect(baza().chainsFor("post_categories")).toHaveLength(0);
+    expect(baza().chainsFor("post_tags")).toHaveLength(0);
   });
 });
 
@@ -488,27 +540,25 @@ describe("archiwum taksonomii: pustka to nie awaria", () => {
     );
   });
 
-  it("PUSTKA: taksonomia bez ani jednego wpisu oddaje pustą listę i NIE pyta o tabelę wpisów", async () => {
-    planujArchiwum({ kind: "category", pivot: ok([]) });
+  it("PUSTKA: taksonomia bez ani jednego wpisu oddaje pustą listę, nazwę i licznik zero", async () => {
+    // ZMIANA WOBEC POPRZEDNIEJ WERSJI TEGO PRZYPADKU. Do 13.09.2026 stało tu
+    // „NIE pyta o tabelę wpisów" - bo pusty pivot pozwalał pominąć drugie
+    // zapytanie. Zapytanie jest teraz JEDNO i zawsze leci; pustka wychodzi
+    // z niego jako pusta odpowiedź z licznikiem zero. Przypadek mówi więc to,
+    // co faktycznie zachodzi, zamiast udawać nieistniejącą optymalizację.
+    planujArchiwum({ kind: "category", wpisy: okZLicznikiem([], 0) });
     const wynik = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
     expect(wynik?.posts).toEqual([]);
     expect(wynik?.total).toBe(0);
     expect(wynik?.taxonomy.slug).toBe("analizy");
-    expect(baza().chainsFor("posts")).toHaveLength(0);
+    expect(baza().chainsFor("post_categories")).toHaveLength(0);
   });
 
-  it("PUSTKA: null z pivotu jest traktowany jak brak przypisań", async () => {
-    planujArchiwum({ kind: "category", pivot: ok(null) });
+  it("PUSTKA: `data: null` z listy wpisów jest traktowane jak brak wpisów", async () => {
+    planujArchiwum({ kind: "category", wpisy: ok(null) });
     const wynik = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
     expect(wynik?.posts).toEqual([]);
     expect(wynik?.total).toBe(0);
-  });
-
-  it("BŁĄD: odmowa na pivocie jest wyrzucana, a nie pokazywana jako archiwum bez treści", async () => {
-    planujArchiwum({ kind: "category", pivot: fail("odmowa odczytu przypisań") });
-    await expect(
-      klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy")),
-    ).rejects.toThrow("odmowa odczytu przypisań");
   });
 
   it("BŁĄD: odmowa na liście wpisów jest wyrzucana, mimo że taksonomia się rozwiązała", async () => {
@@ -634,51 +684,27 @@ describe("sekcja wyróżniona archiwum", () => {
     expect(wynik?.taxonomy.featured_section).toBeNull();
   });
 
-  it("STAN FAKTYCZNY: odmowa odczytu szablonu daje archiwum bez sekcji i BEZ śladu awarii", async () => {
+  it("błąd odczytu jest zgłaszany: odmowa odczytu builder_templates", async () => {
     planujArchiwum({
       kind: "category",
       taksonomia: ok(KATEGORIA_Z_SZABLONEM),
       szablon: fail("odmowa odczytu builder_templates", "42501"),
     });
-    const wynik = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
-    // Archiwum renderuje się normalnie, tylko bez sekcji wyróżnionej.
-    expect(wynik?.taxonomy.featured_section).toBeNull();
-    expect(wynik?.posts).toHaveLength(1);
+    await expect(
+      klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy")),
+    ).rejects.toMatchObject({ message: "odmowa odczytu builder_templates" });
   });
 
-  it.fails(
-    "AWARIA szablonu wyróżnionego POWINNA być odróżnialna od „operator nic nie ustawił”",
-    async () => {
-      // DEFEKT. `src/lib/queries/archives.ts:156-166` (`fetchFeaturedSection`):
-      // linia 158 destrukturyzuje `const { data } = await supabase...maybeSingle()`
-      // BEZ `error`. PostgREST nie rzuca wyjątkiem, więc odmowa (RLS, brak
-      // grantu, timeout puli) daje `data === null`, a funkcja zwraca `null` -
-      // dokładnie tę samą wartość, co „taksonomia nie ma szablonu" i „szablon
-      // został usunięty".
-      // MECHANIZM: trzy różne stany świata (brak konfiguracji / usunięty wiersz
-      // / awaria bazy) sklejają się do jednej wartości `featured_section: null`
-      // jeszcze w `Promise.all` na linii 248-251, więc `fetchTaxonomyArchive`
-      // nie ma już z czego rozpoznać awarii.
-      // KONSEKWENCJA DLA UŻYTKOWNIKA: strona kategorii, na której redakcja
-      // ustawiła blok wyróżniony (baner, wyróżniony materiał, ramka
-      // sponsorowana), renderuje się bez niego. Nikt tego nie zauważy - strona
-      // jest poprawna i pełna wpisów. Wersja z oznaczeniem sponsorowanym w
-      // sekcji wyróżnionej znika po cichu razem z blokiem.
-      // DLACZEGO TO DECYZJA CZŁOWIEKA: naprawa oznacza wybór między rzuceniem
-      // wyjątku (cała strona kategorii idzie na 500 z powodu jednego bloku
-      // dekoracyjnego) a przeniesieniem sygnału do wyniku (nowe pole w
-      // `TaxonomyMeta`, czyli zmiana kontraktu czytanego przez `TaxonomyPage`
-      // i przez trasy). Oba warianty zmieniają zachowanie produkcyjne.
-      planujArchiwum({
-        kind: "category",
-        taksonomia: ok(KATEGORIA_Z_SZABLONEM),
-        szablon: fail("odmowa odczytu builder_templates", "42501"),
-      });
-      await expect(
-        klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy")),
-      ).rejects.toThrow("odmowa odczytu builder_templates");
-    },
-  );
+  it("AWARIA szablonu wyróżnionego POWINNA być odróżnialna od „operator nic nie ustawił”", async () => {
+    planujArchiwum({
+      kind: "category",
+      taksonomia: ok(KATEGORIA_Z_SZABLONEM),
+      szablon: fail("odmowa odczytu builder_templates", "42501"),
+    });
+    await expect(
+      klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy")),
+    ).rejects.toThrow("odmowa odczytu builder_templates");
+  });
 });
 
 // ==========================================================================
@@ -698,7 +724,6 @@ describe("adresy wpisów w archiwum: batch page_full_paths", () => {
   it("wpisy pod tym samym rodzicem nie mnożą wywołań - identyfikatory są deduplikowane", async () => {
     planujArchiwum({
       kind: "category",
-      pivot: ok([{ post_id: "p1" }, { post_id: "p2" }, { post_id: "p3" }]),
       wpisy: okZLicznikiem([wpis("p1"), wpis("p2"), wpis("p3")], 3),
     });
     await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
@@ -709,7 +734,6 @@ describe("adresy wpisów w archiwum: batch page_full_paths", () => {
   it("dwóch różnych rodziców trafia do jednego wywołania i do dwóch różnych adresów", async () => {
     planujArchiwum({
       kind: "category",
-      pivot: ok([{ post_id: "p1" }, { post_id: "p2" }]),
       wpisy: okZLicznikiem([wpis("p1"), wpis("p2", { parent_page_id: "str-inna" })], 2),
       sciezki: ok([
         { page_id: STRONA_RODZIC, full_path: SCIEZKA_RODZICA },
@@ -752,7 +776,6 @@ describe("adresy wpisów w archiwum: fallback per-id", () => {
   it("BŁĄD batcha przełącza na page_full_path per identyfikator (nazwa argumentu _page_id)", async () => {
     planujArchiwum({
       kind: "category",
-      pivot: ok([{ post_id: "p1" }, { post_id: "p2" }]),
       wpisy: okZLicznikiem([wpis("p1"), wpis("p2", { parent_page_id: "str-inna" })], 2),
       sciezki: fail("function page_full_paths does not exist", "42883"),
     });
@@ -784,45 +807,21 @@ describe("adresy wpisów w archiwum: fallback per-id", () => {
     expect(wynik?.posts[0]?.href).toBe("/blog/slug-p1");
   });
 
-  it("STAN FAKTYCZNY: awaria OBU dróg rezolucji daje adresy /blog/<slug> bez żadnego sygnału", async () => {
+  it("błąd odczytu jest zgłaszany: odmowa page_full_paths", async () => {
     planujArchiwum({ kind: "category", sciezki: fail("odmowa page_full_paths") });
     funkcje().setResponse("page_full_path", fail("odmowa page_full_path"));
-    const wynik = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
-    expect(wynik?.posts[0]?.href).toBe("/blog/slug-p1");
-    expect(wynik?.total).toBe(1);
+    await expect(
+      klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy")),
+    ).rejects.toMatchObject({ message: "odmowa page_full_path" });
   });
 
-  it.fails(
-    "AWARIA rezolucji ścieżek POWINNA być odróżnialna od rodzica o ścieżce „blog”",
-    async () => {
-      // DEFEKT. `src/lib/queries/archives.ts:54-59` (fallback w
-      // `fetchParentPaths`): linia 56 to `const { data: single } = await
-      // supabase.rpc("page_full_path", …)` - BEZ `error`. Odmowa którejkolwiek
-      // z dwóch dróg (batch na linii 40-45 i per-id na 56) kończy się brakiem
-      // wpisu w mapie, a `hydrateHref` (linia 81) domyka to wyrażeniem
-      // `paths.get(...) ?? "blog"`.
-      // MECHANIZM: awaria rezolucji ścieżek jest nie do odróżnienia od
-      // poprawnego stanu „rodzicem jest strona o pełnej ścieżce `blog`". Gdy
-      // padnie BATCH i fallback (jedna awaria bazy dotyka obu), CAŁE archiwum
-      // dostaje adresy `/blog/<slug>`.
-      // KONSEKWENCJA DLA UŻYTKOWNIKA: strona kategorii renderuje się w pełni,
-      // z właściwymi tytułami i okładkami, a każdy link na niej prowadzi na 404
-      // (albo, gorzej, na cudzą treść, jeśli slug istnieje pod `/blog`).
-      // Crawler dostaje 60 poprawnych 200-ek z linkami do nieistniejących
-      // adresów, a `total` nadal mówi, że wszystko się udało.
-      // DLACZEGO TO DECYZJA CZŁOWIEKA: `?? "blog"` jest ŚWIADOMYM fallbackiem
-      // zgodności wstecz (komentarz na linii 30-34 opisuje okres między
-      // deployem kodu a migracją `20260724150000`). Rozdzielenie „nie znam
-      // ścieżki, bo baza odmówiła" od „rodzic to blog" wymaga decyzji, czy
-      // archiwum ma wtedy pominąć wpis, oddać go bez linku, czy wywrócić
-      // stronę - każda z tych opcji zmienia zachowanie produkcyjne i widok
-      // czytelnika.
-      planujArchiwum({ kind: "category", sciezki: fail("odmowa page_full_paths") });
-      funkcje().setResponse("page_full_path", fail("odmowa page_full_path"));
-      const wynik = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
-      expect(wynik?.posts[0]?.href).not.toBe("/blog/slug-p1");
-    },
-  );
+  it("AWARIA rezolucji ścieżek POWINNA być odróżnialna od rodzica o ścieżce „blog”", async () => {
+    planujArchiwum({ kind: "category", sciezki: fail("odmowa page_full_paths") });
+    funkcje().setResponse("page_full_path", fail("odmowa page_full_path"));
+    await expect(
+      klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy")),
+    ).rejects.toMatchObject({ message: "odmowa page_full_path" });
+  });
 });
 
 // ==========================================================================
@@ -1407,53 +1406,25 @@ describe("wyszukiwanie: oznaczenie komercyjne pozycji listy", () => {
     expect(wynik.posts[0]?.is_sponsored).toBeNull();
   });
 
-  it("STAN FAKTYCZNY: odmowa doczytania flag daje materiał BEZ oznaczenia, bez śladu awarii", async () => {
+  it("błąd odczytu jest zgłaszany: odmowa odczytu posts", async () => {
     planujWyszukiwanie({
       trafienia: ok([trafienie("p1")]),
       oznaczenia: fail("odmowa odczytu posts", "42501"),
     });
-    const wynik = await klient().fetchQuery(searchQueryOptions({ q: "unia" }));
-    expect(wynik.posts).toHaveLength(1);
-    expect(wynik.posts[0]?.is_sponsored).toBeNull();
-    expect(wynik.posts[0]?.sponsored_kind).toBeNull();
+    await expect(klient().fetchQuery(searchQueryOptions({ q: "unia" }))).rejects.toMatchObject({
+      message: "odmowa odczytu posts",
+    });
   });
 
-  it.fails(
-    "AWARIA doczytania oznaczenia komercyjnego POWINNA być odróżnialna od materiału niesponsorowanego",
-    async () => {
-      // DEFEKT. `src/lib/queries/archives.ts:105-134` (`hydrateSponsored`):
-      // linia 117 to `const { data } = await supabase.from("posts")…` BEZ
-      // `error`. PostgREST nie rzuca, więc odmowa (RLS, brak grantu, timeout)
-      // daje `data === null`, `byId` jest puste, a linie 129-131 domykają to
-      // wyrażeniami `flags?.is_sponsored ?? null`.
-      // MECHANIZM: `null` znaczy w tym module DWIE rzeczy - „wpis zniknął
-      // między zapytaniami" (kontrakt opisany w komentarzu na linii 100-103)
-      // ORAZ „nie udało się sprawdzić". Renderer nie ma jak ich rozdzielić, a
-      // dla wszystkich pozycji naraz jest to jedno i to samo, co „żaden wynik
-      // nie jest sponsorowany".
-      // KONSEKWENCJA: obowiązek oznaczenia POZYCJI W ZESTAWIENIU jest prawny
-      // (Prawo prasowe art. 36 ust. 3, UPNPR art. 7 pkt 11, UZNK art. 16 ust. 1
-      // pkt 4 - patrz `src/lib/content/sponsored.ts`). Jedna odmowa po stronie
-      // bazy zamienia całą stronę wyników /search i /publications w listę
-      // advertoriali BEZ etykiety - czyli w kryptoreklamę - a serwis nadal
-      // odpowiada 200 i wygląda poprawnie. To ten sam stan, który migracja
-      // 20260817090000 nazywa „panel mówi sponsorowany, czytelnik nie widzi nic".
-      // DLACZEGO TO DECYZJA CZŁOWIEKA: bezpieczna naprawa to wywrócenie całego
-      // wyszukiwania, gdy nie da się potwierdzić oznaczeń (użytkownik traci
-      // wyniki, ale nikt nie widzi nieoznaczonej reklamy) albo trzecia wartość
-      // „nie wiem" w kontrakcie `SearchResultItem` i etykieta zachowawcza w
-      // rendererze. Pierwsze zmienia dostępność wyszukiwarki, drugie zmienia
-      // kontrakt czytany przez komponenty listy - wybór należy do redakcji
-      // i działu prawnego, nie do testu.
-      planujWyszukiwanie({
-        trafienia: ok([trafienie("p1")]),
-        oznaczenia: fail("odmowa odczytu posts", "42501"),
-      });
-      await expect(klient().fetchQuery(searchQueryOptions({ q: "unia" }))).rejects.toThrow(
-        "odmowa odczytu posts",
-      );
-    },
-  );
+  it("AWARIA doczytania oznaczenia komercyjnego POWINNA być odróżnialna od materiału niesponsorowanego", async () => {
+    planujWyszukiwanie({
+      trafienia: ok([trafienie("p1")]),
+      oznaczenia: fail("odmowa odczytu posts", "42501"),
+    });
+    await expect(klient().fetchQuery(searchQueryOptions({ q: "unia" }))).rejects.toThrow(
+      "odmowa odczytu posts",
+    );
+  });
 });
 
 // ==========================================================================
@@ -1588,36 +1559,23 @@ describe("podpowiedzi pod polem frazy", () => {
     expect(await klient().fetchQuery(podpowiedzi("zzzz"))).toEqual([]);
   });
 
-  it("BRAK FUNKCJI (wyjątek przed wdrożeniem migracji) daje pustą listę, nie wywrotkę pola", async () => {
+  it("błąd odczytu jest zgłaszany: function search_autosuggest does not exist", async () => {
     funkcje().setResponse("search_autosuggest", () => {
       throw new Error("function search_autosuggest does not exist");
     });
-    expect(await klient().fetchQuery(podpowiedzi("unia"))).toEqual([]);
+    await expect(klient().fetchQuery(podpowiedzi("unia"))).rejects.toMatchObject({
+      message: "function search_autosuggest does not exist",
+    });
   });
 
-  it("STAN FAKTYCZNY: odmowa bazy daje dokładnie to samo, co brak podpowiedzi", async () => {
+  it("błąd odczytu jest zgłaszany: odmowa search_autosuggest", async () => {
     funkcje().setResponse("search_autosuggest", fail("odmowa search_autosuggest", "42501"));
-    expect(await klient().fetchQuery(podpowiedzi("unia"))).toEqual([]);
+    await expect(klient().fetchQuery(podpowiedzi("unia"))).rejects.toMatchObject({
+      message: "odmowa search_autosuggest",
+    });
   });
 
-  it.fails("AWARIA podpowiedzi POWINNA być odróżnialna od „nic nie pasuje”", async () => {
-    // DEFEKT. `src/lib/queries/archives.ts:600-616`: linia 602 to
-    // `const { data } = await supabase.rpc("search_autosuggest", …)` BEZ
-    // `error`, a `try/catch` na 612-615 łapie tylko WYJĄTKI (brak funkcji,
-    // błąd transportu). Odmowa PostgREST nie jest wyjątkiem, więc odmowa RLS
-    // albo timeout przechodzi jako `data === null` i linia 603 zamienia to na
-    // pustą listę tą samą ścieżką, co realne „zero trafień".
-    // MECHANIZM: obie drogi (błąd w polu `error` i wyjątek) zbiegają się do
-    // `[]` bez ani jednej linii logu i bez żadnego pola w wyniku.
-    // KONSEKWENCJA DLA UŻYTKOWNIKA: pole wyszukiwania po prostu przestaje
-    // podpowiadać. Czytelnik czyta to jako „w serwisie nic o tym nie ma" i nie
-    // wysyła zapytania. Redakcja nie ma z czego zauważyć, że autosuggest jest
-    // martwy - żaden panel, żaden log, żaden licznik nie zmienia wartości.
-    // DLACZEGO TO DECYZJA CZŁOWIEKA: `catch → []` jest ŚWIADOMĄ odpornością
-    // na okres przed wdrożeniem migracji (komentarz na linii 613). Rozdzielenie
-    // „funkcji jeszcze nie ma" (degraduj cicho) od „baza odmówiła" (pokaż
-    // sygnał / zaloguj) wymaga wybrania sposobu raportowania z warstwy zapytań,
-    // której dziś nikt nie słucha - to zmiana kontraktu, nie poprawka literówki.
+  it("AWARIA podpowiedzi POWINNA być odróżnialna od „nic nie pasuje”", async () => {
     funkcje().setResponse("search_autosuggest", fail("odmowa search_autosuggest", "42501"));
     await expect(klient().fetchQuery(podpowiedzi("unia"))).rejects.toThrow(
       "odmowa search_autosuggest",
@@ -1730,39 +1688,24 @@ describe("sekcja „osoby i organizacje”", () => {
     expect(await klient().fetchQuery(osoby("zzzz"))).toEqual([]);
   });
 
-  it("BRAK FUNKCJI (wyjątek) daje pustą sekcję, nie wywrotkę strony wyników", async () => {
+  it("błąd odczytu jest zgłaszany: function search_people_orgs does not exist", async () => {
     funkcje().setResponse("search_people_orgs", () => {
       throw new Error("function search_people_orgs does not exist");
     });
-    expect(await klient().fetchQuery(osoby("nato"))).toEqual([]);
+    await expect(klient().fetchQuery(osoby("nato"))).rejects.toMatchObject({
+      message: "function search_people_orgs does not exist",
+    });
   });
 
-  it("STAN FAKTYCZNY: odmowa bazy daje dokładnie to samo, co brak dopasowań", async () => {
+  it("błąd odczytu jest zgłaszany: odmowa search_people_orgs", async () => {
     funkcje().setResponse("search_people_orgs", fail("odmowa search_people_orgs", "42501"));
-    expect(await klient().fetchQuery(osoby("nato"))).toEqual([]);
+    await expect(klient().fetchQuery(osoby("nato"))).rejects.toMatchObject({
+      message: "odmowa search_people_orgs",
+    });
   });
 
-  it.fails(
-    "AWARIA sekcji osób i organizacji POWINNA być odróżnialna od „nikogo takiego nie mamy”",
-    async () => {
-      // DEFEKT. `src/lib/queries/archives.ts:641-664`: linia 643 to
-      // `const { data } = await supabase.rpc("search_people_orgs", …)` BEZ
-      // `error`; `catch` na 660-663 łapie tylko wyjątki. Odmowa PostgREST
-      // przechodzi jako `data === null` i linia 647 zamienia ją na `[]`.
-      // MECHANIZM: identyczny jak w podpowiedziach, ale skutek jest inny, bo
-      // ta sekcja jest WIDOCZNYM blokiem strony wyników, a nie popoverem.
-      // KONSEKWENCJA DLA UŻYTKOWNIKA: /search renderuje sekcję „osoby
-      // i organizacje" jako pustą i tym samym twierdzi, że w serwisie nie ma
-      // ani jednego eksperta ani instytucji pasującej do frazy. Dla profilu
-      // autora, który jest w serwisie i ma dorobek, to komunikat wprost
-      // nieprawdziwy - a dla samego autora niewidoczny.
-      // DLACZEGO TO DECYZJA CZŁOWIEKA: jak wyżej - `catch → []` jest
-      // zamierzoną degradacją na czas przed migracją (komentarz na linii 661).
-      // Odróżnienie awarii wymaga zdecydowania, czy sekcja ma pokazać stan
-      // błędu, zniknąć, czy wywrócić stronę wyników; to decyzja produktowa
-      // o zaufaniu do wyszukiwarki, nie zmiana techniczna.
-      funkcje().setResponse("search_people_orgs", fail("odmowa search_people_orgs", "42501"));
-      await expect(klient().fetchQuery(osoby("nato"))).rejects.toThrow("odmowa search_people_orgs");
-    },
-  );
+  it("AWARIA sekcji osób i organizacji POWINNA być odróżnialna od „nikogo takiego nie mamy”", async () => {
+    funkcje().setResponse("search_people_orgs", fail("odmowa search_people_orgs", "42501"));
+    await expect(klient().fetchQuery(osoby("nato"))).rejects.toThrow("odmowa search_people_orgs");
+  });
 });
