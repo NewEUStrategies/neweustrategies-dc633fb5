@@ -160,27 +160,40 @@ export function webSiteJsonLd(origin: string, lang: Lang): Record<string, unknow
 /**
  * BreadcrumbList from the already-localized breadcrumb items. Hrefs are
  * canonical unprefixed paths - they are localized per the render language so
- * the EN page's breadcrumbs point at "/en/..." URLs. The last item (current
- * page) carries no `item` URL, per Google's recommendation.
+ * the EN page's breadcrumbs point at "/en/..." URLs.
+ *
+ * NAPRAWA 2026-09-21 (Search Console: „Brakujące pole item w itemListElement"):
+ * KAŻDY `ListItem` musi nosić `item`, także ostatni (bieżąca strona). Wcześniej
+ * ostatni okruszek celowo go nie miał - Google zgłaszał to jako błąd na 12
+ * archiwach kategorii/tagów. Widoczny okruszek pozostaje bez linku; `selfPath`
+ * pozwala trasie podać własny adres tam, gdzie ostatni okruszek nie ma `href`.
  */
 export function breadcrumbListJsonLd(
   items: readonly BreadcrumbItem[],
   origin: string,
   lang: Lang,
+  selfPath?: string,
 ): Record<string, unknown> {
   const home: BreadcrumbItem = { label: homeLabel(lang), href: "/" };
   const all = [home, ...items];
+  const last = all.length - 1;
   return {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
-    itemListElement: all.map((item, i) => ({
-      "@type": "ListItem",
-      position: i + 1,
-      name: item.label,
-      ...(item.href && i < all.length - 1
-        ? { item: absoluteUrl(origin, localizedPath(item.href, lang)) }
-        : {}),
-    })),
+    itemListElement: all.map((item, i) => {
+      const href = item.href ?? (i === last ? selfPath : undefined);
+      const url = href
+        ? /^https?:\/\//i.test(href)
+          ? href
+          : absoluteUrl(origin, localizedPath(stripLangPrefix(href).path, lang))
+        : null;
+      return {
+        "@type": "ListItem",
+        position: i + 1,
+        name: item.label,
+        ...(url ? { item: url } : {}),
+      };
+    }),
   };
 }
 
