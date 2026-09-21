@@ -37,6 +37,35 @@ let fallbackClient: QueryClient | null = null;
 
 /** Klucz zapytania: slugi posortowane, żeby ta sama treść w innej kolejności
  *  trafiała w ten sam wpis cache'u. */
+/** Osoby jednym zapytaniem wsadowym. Pusty wejściowy zbiór nie pyta o nic. */
+async function fetchPersonRows(slugs: readonly string[]): Promise<Record<string, unknown>[]> {
+  if (slugs.length === 0) return [];
+  const { data, error } = await supabase
+    .from("profiles_public")
+    .select(PERSON_COLS)
+    .in("slug", slugs);
+  if (error) throw error;
+  return data ?? [];
+}
+
+/**
+ * Firmy - po jednym zapytaniu na firmę, bo kartoteka nie ma wejścia wsadowego.
+ * Firma, której kartoteka nie zna, wypada z wyniku i NIE wywraca pozostałych:
+ * jedna nierozwiązana wzmianka nie może zabrać etykiet całemu wątkowi.
+ */
+async function fetchOrgRows(slugs: readonly string[]): Promise<Record<string, unknown>[]> {
+  if (slugs.length === 0) return [];
+  const settled = await Promise.all(
+    slugs.map(async (slug): Promise<Record<string, unknown> | null> => {
+      const { data, error } = await supabase.rpc("get_mention_target", { _slug: slug });
+      if (error) return null;
+      const row = (data ?? [])[0];
+      return row === undefined ? null : { ...row, slug };
+    }),
+  );
+  return settled.filter((row): row is Record<string, unknown> => row !== null);
+}
+
 export function directoryKey(slugs: readonly string[]): string {
   return [...slugs].sort().join(",");
 }
@@ -58,33 +87,10 @@ export function useMentionDirectory(
       queryFn: async (): Promise<MentionDirectory> => {
         const orgSlugs = wanted.filter((slug) => decodeOrganizationMentionSlug(slug) !== null);
         const personSlugs = wanted.filter((slug) => decodeOrganizationMentionSlug(slug) === null);
-
         const [personRows, orgRows] = await Promise.all([
-          personSlugs.length === 0
-            ? Promise.resolve([] as Record<string, unknown>[])
-            : supabase
-                .from("profiles_public")
-                .select(PERSON_COLS)
-                .in("slug", personSlugs)
-                .then(({ data, error }) => {
-                  if (error) throw error;
-                  return data ?? [];
-                }),
-          orgSlugs.length === 0
-            ? Promise.resolve([] as Record<string, unknown>[])
-            : Promise.all(
-                orgSlugs.map((slug) =>
-                  supabase.rpc("get_mention_target", { _slug: slug }).then(({ data, error }) => {
-                    // Jedna firma, której kartoteka nie zna, nie może wywrócić
-                    // etykiet całego wątku - reszta wzmianek ma się rozwiązać.
-                    if (error) return null;
-                    const row = (data ?? [])[0];
-                    return row === undefined ? null : { ...row, slug };
-                  }),
-                ),
-              ).then((rows) => rows.filter((row): row is Record<string, unknown> => row !== null)),
+          fetchPersonRows(personSlugs),
+          fetchOrgRows(orgSlugs),
         ]);
-
         return buildDirectory(personRows, orgRows, lang);
       },
     },
