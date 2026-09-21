@@ -8,15 +8,20 @@
  *     w `Header.tsx` rezerwował zero - to była najdroższa pozycja w audycie
  *     CLS. Asercje idą na SUMĘ wysokości pasów, bo to ona jest kontraktem
  *     wobec układu, a nie liczba divów.
- *  2. WYPROWADZENIE PROPSÓW Z USTAWIEŃ. `headerSkeletonPropsFromSettings` to
+ *  2. RZĘDY Z DOKUMENTU NAGŁÓWKA. `navRows: 1` na sztywno rezerwowało JEDEN
+ *     pas 64 px wobec dwurzędowego nagłówka o realnych 147 px (artefakt
+ *     produkcyjny, fixture `first-visit`, 1280 px) - regresja CLS 0,13 przy
+ *     progu 0,1 w „first visit pl, cold". Rezerwa liczy się teraz z tego
+ *     samego `header.builder_data`, które renderuje `BuilderRenderer`.
+ *  3. WYPROWADZENIE PROPSÓW Z USTAWIEŃ. `headerSkeletonPropsFromSettings` to
  *     jedyne miejsce, które tłumaczy `site_settings` na geometrię; bez mapy
  *     ustawień musi dawać wariant domyślny (nawigacja + ticker), bo tak
  *     wygląda większość dokumentów.
- *  3. ZERO KOSZTU SIECIOWEGO. `useHeaderSkeletonProps` czyta cache przez
+ *  4. ZERO KOSZTU SIECIOWEGO. `useHeaderSkeletonProps` czyta cache przez
  *     `getQueryData` - szkielet pokazuje się dokładnie w zimnym starcie, więc
  *     nie wolno mu dokładać round-tripu. Test dowodzi, że bez `queryFn`
  *     w cache'u nic się nie pobiera, a wynik schodzi do defaultów.
- *  4. DOSTĘPNOŚĆ. Placeholder jest `aria-hidden`, nie ma tekstu ani elementów
+ *  5. DOSTĘPNOŚĆ. Placeholder jest `aria-hidden`, nie ma tekstu ani elementów
  *     interaktywnych - inaczej łapałby fokus z klawiatury i prowadził donikąd.
  */
 import { describe, expect, it } from "vitest";
@@ -25,27 +30,64 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   HEADER_SKELETON_BANDS,
   HEADER_SKELETON_DEFAULT_PROPS,
+  HEADER_SKELETON_NAV_MAX_PX,
+  HEADER_SKELETON_ROW_MAX_PX,
+  HEADER_SKELETON_ROW_MIN_PX,
   HeaderSkeleton,
+  clampNavRows,
   headerSkeletonHeight,
   headerSkeletonPropsFromSettings,
   useHeaderSkeletonProps,
   type HeaderSkeletonProps,
 } from "@/components/header/HeaderSkeleton";
+import {
+  HEADER_TICKER_BAND_CLASS,
+  HEADER_TICKER_BORDER_CLASS,
+} from "@/components/header/headerGeometry";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+import type { BuilderDocument } from "@/lib/builder/types";
 
-/** Suma wysokości wszystkich pasów wyrenderowanego szkieletu (px). */
+/**
+ * Suma wysokości pasów WIDOCZNYCH NA DESKTOPIE (px). Pas mobilny (`lg:hidden`)
+ * i rzędy nagłówka (`hidden lg:*`) są rozłączne - jsdom nie liczy mediów, więc
+ * sumujemy to, co widzi desktop, czyli dokładnie kontrakt
+ * `headerSkeletonHeight`.
+ */
 function renderedHeight(container: HTMLElement): number {
-  return Array.from(container.querySelectorAll<HTMLElement>("[data-skeleton-band]")).reduce(
-    (total, band) => {
-      // Pasy reklam/alertu/tickera niosą wysokość inline, rząd nawigacji -
-      // klasą `h-16` (ta sama, co mobilny pasek nagłówka).
+  return Array.from(container.querySelectorAll<HTMLElement>("[data-skeleton-band]"))
+    .filter((band) => band.dataset.skeletonBand !== "nav-mobile")
+    .reduce((total, band) => {
       const inline = Number.parseFloat(band.style.height || "0");
+      // Pas „na czasie" nie ma wysokości inline: dzieli klasę `h-10` z samym
+      // paskiem (patrz headerGeometry), więc w sumie liczy się jego wartość
+      // nominalna.
       return (
-        total + (Number.isFinite(inline) && inline > 0 ? inline : HEADER_SKELETON_BANDS.navRow)
+        total + (Number.isFinite(inline) && inline > 0 ? inline : HEADER_SKELETON_BANDS.ticker)
       );
-    },
-    0,
-  );
+    }, 0);
+}
+
+/** Dokument nagłówka o zadanych kolumnach - minimum, które czyta estymator. */
+function headerDoc(...rows: Array<Array<{ type: string; height?: number }>>): BuilderDocument {
+  return {
+    version: 1,
+    sections: rows.map((widgets, r) => ({
+      id: `sec-${r}`,
+      kind: "section" as const,
+      children: [
+        {
+          id: `col-${r}`,
+          kind: "column" as const,
+          children: widgets.map((w, i) => ({
+            id: `w-${r}-${i}`,
+            kind: "widget" as const,
+            type: w.type,
+            ...(w.height ? { advanced: { height: { desktop: w.height } } } : {}),
+          })),
+        },
+      ],
+    })),
+  } as unknown as BuilderDocument;
 }
 
 describe("HeaderSkeleton - geometria z propsów", () => {
@@ -62,8 +104,8 @@ describe("HeaderSkeleton - geometria z propsów", () => {
   it.each<[string, HeaderSkeletonProps]>([
     ["sam pasek nawigacji", { ticker: false }],
     ["alert + ticker + baner", { alertBar: true, ticker: true, adBanner: true }],
-    ["dwa rzędy nawigacji", { navRows: 2 }],
-    ["pełny nagłówek", { alertBar: true, ticker: true, adBanner: true, navRows: 3 }],
+    ["dwa rzędy nawigacji", { navRows: [90, 57] }],
+    ["pełny nagłówek", { alertBar: true, ticker: true, adBanner: true, navRows: [88, 56, 40] }],
   ])("%s: wyrenderowane pasy sumują się do zadeklarowanej wysokości", (_nazwa, props) => {
     const { container } = render(<HeaderSkeleton {...props} />);
     expect(renderedHeight(container)).toBe(headerSkeletonHeight(props));
@@ -83,26 +125,40 @@ describe("HeaderSkeleton - geometria z propsów", () => {
     );
   });
 
-  it("liczba rzędów nawigacji jest przycinana do 1-3, także dla śmieci", () => {
-    // Wartość z ustawień może być czymkolwiek - zero rzędów to znowu 0 px
-    // nagłówka, a trzydzieści to ekran pustki.
-    for (const [navRows, oczekiwane] of [
-      [0, 1],
-      [1, 1],
-      [3, 3],
-      [30, 3],
-      [Number.NaN, 1],
-    ] as const) {
-      const { container, unmount } = render(<HeaderSkeleton ticker={false} navRows={navRows} />);
-      expect(container.querySelectorAll('[data-skeleton-band="nav"]')).toHaveLength(oczekiwane);
-      unmount();
-    }
+  it("pas „na czasie” dzieli klasę wysokości z samym paskiem, bez wysokości inline", () => {
+    // Root font-size jest w tym repo płynny (1280 -> 1920 px), więc rezerwa
+    // zapisana liczbą rozjeżdżałaby się z `h-10` realnego paska.
+    const { container } = render(<HeaderSkeleton ticker />);
+    const band = container.querySelector<HTMLElement>('[data-skeleton-band="ticker"]')!;
+    expect(band.style.height).toBe("");
+    for (const cls of `${HEADER_TICKER_BAND_CLASS} ${HEADER_TICKER_BORDER_CLASS}`.split(" "))
+      expect(band.className).toContain(cls);
+  });
+
+  it("pasek mobilny i rzędy desktopu są rozłączne - dokładnie jak w Header.tsx", () => {
+    const { container } = render(<HeaderSkeleton navRows={[90, 57]} />);
+    const mobile = container.querySelector<HTMLElement>('[data-skeleton-band="nav-mobile"]')!;
+    expect(mobile.className).toContain("lg:hidden");
+    const rows = Array.from(container.querySelectorAll<HTMLElement>('[data-skeleton-band="nav"]'));
+    expect(rows.map((row) => row.style.height)).toEqual(["90px", "57px"]);
+    for (const row of rows) expect(row.className).toContain("lg:flex");
+  });
+
+  it("wysokości rzędów są przycinane do widełek, także dla śmieci z bazy", () => {
+    expect(clampNavRows(undefined)).toEqual([HEADER_SKELETON_BANDS.navRow]);
+    expect(clampNavRows([])).toEqual([HEADER_SKELETON_BANDS.navRow]);
+    expect(clampNavRows([0, Number.NaN, -5])).toEqual([HEADER_SKELETON_BANDS.navRow]);
+    expect(clampNavRows([1])).toEqual([HEADER_SKELETON_ROW_MIN_PX]);
+    expect(clampNavRows([10_000])).toEqual([HEADER_SKELETON_ROW_MAX_PX]);
+    // Sufit całej rezerwy: nadmiarowe rzędy odpadają zamiast malować ekran pustki.
+    const total = clampNavRows([200, 200, 200, 200]).reduce((sum, row) => sum + row, 0);
+    expect(total).toBeLessThanOrEqual(HEADER_SKELETON_NAV_MAX_PX);
   });
 });
 
 describe("HeaderSkeleton - dostępność placeholdera", () => {
   it("jest ukryty przed czytnikiem ekranu, bez tekstu i bez fokusu", () => {
-    const { container } = render(<HeaderSkeleton alertBar ticker adBanner navRows={2} />);
+    const { container } = render(<HeaderSkeleton alertBar ticker adBanner navRows={[90, 57]} />);
     const root = container.firstElementChild!;
     expect(root).toHaveAttribute("aria-hidden", "true");
     expect(root).toHaveAttribute("data-skeleton", "header");
@@ -142,6 +198,33 @@ describe("headerSkeletonPropsFromSettings - ustawienia na geometrię", () => {
     expect(headerSkeletonPropsFromSettings({}, true).adBanner).toBe(true);
     expect(headerSkeletonPropsFromSettings({}, false).adBanner).toBe(false);
   });
+
+  it("REGRESJA CLS: dwurzędowy nagłówek rezerwuje DWA rzędy, nie jeden", () => {
+    // Do 2026-09-21 mapowanie zwracało `navRows: 1` niezależnie od dokumentu,
+    // więc szkielet trzymał jeden pas 64 px pod dwurzędowym nagłówkiem.
+    const props = headerSkeletonPropsFromSettings({
+      header: {
+        trending: { enabled: true },
+        builder_data: headerDoc(
+          [{ type: "image", height: 64 }],
+          [{ type: "search-button" }, { type: "menu" }],
+        ),
+      },
+    });
+    expect(props.navRows).toHaveLength(2);
+    // Rząd 1: obrazek o wysokości autorskiej 64 + 2x12 bezpiecznego marginesu.
+    expect(props.navRows[0]).toBe(88);
+    expect(headerSkeletonHeight(props)).toBeGreaterThan(
+      HEADER_SKELETON_BANDS.ticker + HEADER_SKELETON_BANDS.navRow,
+    );
+  });
+
+  it("pusty dokument nagłówka wraca do jednego awaryjnego rzędu", () => {
+    const props = headerSkeletonPropsFromSettings({
+      header: { builder_data: { version: 1, sections: [] } },
+    });
+    expect(props.navRows).toEqual([HEADER_SKELETON_BANDS.navRow]);
+  });
 });
 
 describe("useHeaderSkeletonProps - czyta cache, nie sieć", () => {
@@ -173,6 +256,11 @@ describe("useHeaderSkeletonProps - czyta cache, nie sieć", () => {
       theme_options: { header: { alert_bar: { enabled: true, message_en: "Heads up" } } },
     });
     qc.setQueryData(["ad_placements", "header_banner", "all", null], [{ id: "p1" }]);
-    expect(odczyt(qc)).toEqual({ alertBar: true, ticker: false, adBanner: true, navRows: 1 });
+    expect(odczyt(qc)).toEqual({
+      alertBar: true,
+      ticker: false,
+      adBanner: true,
+      navRows: [HEADER_SKELETON_BANDS.navRow],
+    });
   });
 });

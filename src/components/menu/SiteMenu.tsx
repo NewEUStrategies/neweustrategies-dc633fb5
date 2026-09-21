@@ -5,7 +5,7 @@
 //   - zwykły dropdown (płaska lista dzieci),
 //   - mega-panel (item.mega_enabled + mega_config.columns),
 //   - wariant mobilny (accordion na <details>).
-import { memo, useEffect, useId, useRef, useState } from "react";
+import { lazy, memo, Suspense, useEffect, useId, useRef, useState } from "react";
 import { useIsomorphicLayoutEffect } from "@/lib/react/useIsomorphicLayoutEffect";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -18,7 +18,27 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { useAuth } from "@/hooks/useAuth";
 import { menuWithItemsQueryOptions } from "@/lib/menus/queries";
 import { megaFeaturedPostQueryOptions } from "@/lib/menus/megaFeatured";
-import { MegaPanelView } from "@/components/menu/MegaPanelView";
+// PANEL REDAKCYJNY (mega) JEST WYŁĄCZNIE POHYDRATACYJNY - i dlatego jego kod
+// nie ma prawa siedzieć w chunku wejściowym KAŻDEJ strony.
+//
+// `DropdownPanel` (jedyny konsument) renderuje się TYLKO w portalu, pod
+// warunkiem `mounted && open && anchor`: `mounted` ustawia efekt, więc ani
+// render serwerowy, ani PIERWSZY render klienta tego modułu nie dotykają.
+// Statyczny import trzymał mimo to ~14 kB źródeł w domknięciu bootu - kod,
+// którego czytelnik nie wykona, dopóki sam nie sięgnie do menu.
+//
+// KOSZT OTWARCIA SIĘ NIE ZMIENIA, bo pobranie startuje razem z INTENCJĄ
+// najechania (`warmMegaPanel` w `scheduleOpen`), czyli ~80 ms przed montażem
+// panelu - a `Suspense` z `fallback={null}` zachowuje dotychczasowy stan
+// pośredni (portal z `opacity: 0`), więc nie ma nowego przebłysku układu.
+const MegaPanelView = lazy(() =>
+  import("@/components/menu/MegaPanelView").then((m) => ({ default: m.MegaPanelView })),
+);
+
+/** Start pobrania chunku panelu - wołany przy intencji najechania. */
+function warmMegaPanel(): void {
+  void import("@/components/menu/MegaPanelView");
+}
 // Reguły menu (drzewo, etykiety, wariant panelu, źródło kolumn, geometria
 // panelu) mieszkają w `lib/menus/siteMenu.ts` i mają tam własne asercje -
 // ten plik jest kompozycją nagłówka, nie miejscem na logikę.
@@ -148,15 +168,17 @@ function MegaPanel({
   if (!megaPanelHasContent(node)) return null;
 
   return (
-    <MegaPanelView
-      cols={cols}
-      lang={lang}
-      parentLabel={pickLabel(node, lang)}
-      parentHref={itemHref(node)}
-      featured={featured}
-      variant="live"
-      onMouseLeave={onRequestClose}
-    />
+    <Suspense fallback={null}>
+      <MegaPanelView
+        cols={cols}
+        lang={lang}
+        parentLabel={pickLabel(node, lang)}
+        parentHref={itemHref(node)}
+        featured={featured}
+        variant="live"
+        onMouseLeave={onRequestClose}
+      />
+    </Suspense>
   );
 }
 
@@ -311,6 +333,9 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
   // INTENCJĘ od przejazdu; klik otwiera dalej natychmiast.
   const scheduleOpen = () => {
     if (open || openTimer.current) return;
+    // Pobranie chunku panelu biegnie RÓWNOLEGLE ze zwłoką intencji, więc
+    // leniwy import nie dokłada opóźnienia do otwarcia (patrz `warmMegaPanel`).
+    if (panelKindFor(node) === "mega") warmMegaPanel();
     openTimer.current = setTimeout(() => {
       openTimer.current = null;
       setOpen(true);
@@ -362,6 +387,9 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
           // Klik jest deklaracją intencji - zwłoka najechania nie ma tu nic do
           // roboty (inaczej panel otwierałby się jeszcze raz po zamknięciu).
           cancelOpen();
+          // Ścieżka dotykowa/klawiaturowa nie przechodzi przez `scheduleOpen`,
+          // więc pobranie chunku panelu trzeba zacząć również tutaj.
+          if (panelKindFor(node) === "mega") warmMegaPanel();
           setOpen((v) => !v);
         }}
         className="inline-flex min-h-11 items-center gap-1.5 rounded px-4 py-2.5 text-sm font-medium text-foreground/90 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"

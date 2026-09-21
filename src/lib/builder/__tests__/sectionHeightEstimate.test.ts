@@ -29,10 +29,16 @@ import {
   SECTION_VERTICAL_PADDING_PX,
   WIDGET_GAP_PX,
   WIDGET_HEIGHT_ESTIMATE_PX,
+  CHROME_ROW_WIDGET_GAP_PX,
+  CHROME_ROW_WIDGET_HEIGHT_PX,
+  estimateChromeRowHeight,
+  estimateChromeRowHeights,
+  estimateChromeWidgetHeight,
   estimateColumnHeight,
   estimateSectionHeight,
   estimateWidgetHeight,
 } from "@/lib/builder/sectionHeightEstimate";
+import { COLUMN_SAFE_AREA_PX } from "@/lib/builder/sectionStyles";
 
 function widget(type: WidgetNode["type"], extra: Partial<WidgetNode> = {}): WidgetNode {
   return {
@@ -209,5 +215,133 @@ describe("estimateSectionHeight - sekcja", () => {
       SLIDER + POST_LIST + WIDGET_GAP_PX + SECTION_VERTICAL_PADDING_PX,
     );
     expect(estimateSectionHeight(mieszana, "mobile")).toBe(POST_LIST + SECTION_VERTICAL_PADDING_PX);
+  });
+});
+
+/**
+ * PASEK CHROME (nagłówek) - rezerwa dla `HeaderSkeleton`.
+ *
+ * CO TEN BLOK PRZYPINA.
+ *  1. ODWROTNY KIERUNEK BŁĘDU. Szkielet nagłówka jest MALOWANY, a potem
+ *     podmieniany na realny nagłówek, więc przeszacowanie kosztuje dokładnie
+ *     tyle samo co niedoszacowanie - obie strony przesuwają `<main>`. Stąd
+ *     druga ścieżka bez dna 280 px i bez oddechu 48 px.
+ *  2. PASEK NARZĘDZI TO JEDEN RZĄD. `RenderColumn` układa kolumnę samych
+ *     widgetów „compact"/„auto-size" poziomo (`isToolbar`), więc trzy
+ *     przyciski to wysokość JEDNEGO, nie suma trzech.
+ *  3. WYSOKOŚĆ AUTORSKA Z TREŚCI. Logo nagłówka trzyma wysokość w
+ *     `content.heightPx`, a szukajka w `content.height` - bez tego odczytu
+ *     64-pikselowe logo rezerwowałoby wartość z tabeli.
+ *  4. REGRESJA Z CI. Dokument nagłówka z artefaktu produkcyjnego ma DWA rzędy
+ *     o zmierzonych 90 px i 57 px; szkielet trzymał pod nie jeden pas 64 px
+ *     (`navRows: 1` na sztywno), czyli 85 px za mało na cały nagłówek - to
+ *     przewracało próg CLS < 0,1 w „first visit pl, cold".
+ */
+describe("estimateChromeRowHeight - rezerwa rzędu nagłówka", () => {
+  const SAFE = 2 * COLUMN_SAFE_AREA_PX;
+
+  it("kolumna z jednym widgetem: wysokość z tabeli paska + bezpieczny margines", () => {
+    expect(estimateChromeRowHeight(section([column([widget("menu")])]))).toBe(
+      CHROME_ROW_WIDGET_HEIGHT_PX.menu! + SAFE,
+    );
+  });
+
+  it("pasek narzędzi liczy się jak JEDEN rząd, a nie jak suma pięter", () => {
+    const toolbar = section([
+      column([widget("theme-toggle"), widget("account-link"), widget("lang-switcher")]),
+    ]);
+    const najwyzszy = Math.max(
+      CHROME_ROW_WIDGET_HEIGHT_PX["theme-toggle"]!,
+      CHROME_ROW_WIDGET_HEIGHT_PX["account-link"]!,
+      CHROME_ROW_WIDGET_HEIGHT_PX["lang-switcher"]!,
+    );
+    expect(estimateChromeRowHeight(toolbar)).toBe(najwyzszy + SAFE);
+    // Ta sama kolumna policzona jak sekcja treści (pionowy stos) daje
+    // wielokrotność - dlatego nagłówek ma własną ścieżkę.
+    expect(estimateColumnHeight(toolbar.children[0] as ColumnNode)).toBeGreaterThan(
+      najwyzszy + SAFE,
+    );
+  });
+
+  it("kolumna widgetów blokowych sumuje się z odstępem `gap-2`", () => {
+    const stos = section([column([widget("search-button"), widget("menu")])]);
+    expect(estimateChromeRowHeight(stos)).toBe(
+      CHROME_ROW_WIDGET_HEIGHT_PX["search-button"]! +
+        CHROME_ROW_WIDGET_HEIGHT_PX.menu! +
+        CHROME_ROW_WIDGET_GAP_PX +
+        SAFE,
+    );
+  });
+
+  it("kolumny stoją obok siebie - decyduje najwyższa, nie suma", () => {
+    const rzad = section([
+      column([widget("social-icons")]),
+      column([widget("image", { content: { heightPx: 64 } })]),
+    ]);
+    expect(estimateChromeRowHeight(rzad)).toBe(64 + SAFE);
+  });
+
+  it("wysokość autorska z treści bije tabelę (logo i szukajka)", () => {
+    expect(estimateChromeWidgetHeight(widget("image", { content: { heightPx: 64 } }))).toBe(64);
+    expect(estimateChromeWidgetHeight(widget("search-button", { content: { height: 32 } }))).toBe(
+      32,
+    );
+    // Bez wysokości autorskiej zostaje tabela paska.
+    expect(estimateChromeWidgetHeight(widget("search-button"))).toBe(
+      CHROME_ROW_WIDGET_HEIGHT_PX["search-button"],
+    );
+  });
+
+  it("pusta kolumna nadal zajmuje swój bezpieczny margines", () => {
+    expect(estimateChromeRowHeight(section([column([])]))).toBe(SAFE);
+  });
+
+  it("dokłada marginesy sekcji, bo one też są w układzie", () => {
+    const zMarginesem = section([column([widget("menu")])], {
+      layout: { marginTop: 1, marginBottom: 4 },
+    });
+    expect(estimateChromeRowHeight(zMarginesem)).toBe(CHROME_ROW_WIDGET_HEIGHT_PX.menu! + SAFE + 5);
+  });
+
+  it("znosi dokument z bazy bez `children` i bez sekcji", () => {
+    expect(
+      estimateChromeRowHeight({ id: "s-goly", kind: "section" } as unknown as SectionNode),
+    ).toBe(0);
+    expect(estimateChromeRowHeights(null)).toEqual([]);
+    expect(estimateChromeRowHeights({ version: 1, sections: [] })).toEqual([]);
+  });
+
+  it("REGRESJA CLS: nagłówek z artefaktu produkcyjnego to DWA rzędy ~90 i ~57 px", () => {
+    // Dokument 1:1 z `e2e/fixtures/first-visit.json` (`site_settings.header`).
+    // Zmierzone na zbudowanym artefakcie w Chromium 1280x720: rząd 1 = 90 px,
+    // rząd 2 = 57 px (56 + 1 px `marginTop`), razem 147 px. Stary szkielet
+    // trzymał pod to 60 px (`h-16` przy 15 px roota).
+    const naglowek = {
+      version: 1 as const,
+      sections: [
+        section([
+          column([widget("social-icons")], { contentAlign: "center" }),
+          column([widget("image", { content: { heightPx: 64, maxWidth: "180px" } })]),
+          column([widget("theme-toggle"), widget("account-link"), widget("lang-switcher")], {
+            contentAlign: "center",
+          }),
+        ]),
+        section(
+          [
+            column([widget("search-button", { content: { height: 32 } })]),
+            column([widget("menu", { content: { menu_key: "main" } })], {
+              contentAlign: "center",
+            }),
+            column([], { contentAlign: "center" }),
+          ],
+          { layout: { marginTop: 1 } },
+        ),
+      ],
+    };
+    const rzedy = estimateChromeRowHeights(naglowek);
+    expect(rzedy).toEqual([88, 57]);
+    const suma = rzedy.reduce((total, row) => total + row, 0);
+    // Realne 147 px - rezerwa mieści się w 4 px, a nie w 85 px jak wcześniej.
+    expect(Math.abs(suma - 147)).toBeLessThanOrEqual(4);
   });
 });

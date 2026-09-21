@@ -252,11 +252,27 @@ export const CHROME_ROW_WIDGET_HEIGHT_PX: Partial<Record<WidgetType, number>> = 
   divider: 1,
 };
 
+/**
+ * Wysokość autorska zapisana w TREŚCI widgetu, a nie w jego ramce. Logo
+ * nagłówka (`image` -> `content.heightPx`, `mediaWidgets.tsx`) i szukajka
+ * (`search-button` -> `content.height`) tak właśnie trzymają swoją wysokość -
+ * `getWidgetFrameStyle` czyta wyłącznie `advanced.height`, więc bez tego
+ * odczytu 64-pikselowe logo rezerwowałoby wartość z tabeli.
+ */
+function authoredContentHeight(node: WidgetNode): number | undefined {
+  const content = node.content as Record<string, unknown> | undefined;
+  if (!content) return undefined;
+  return (
+    pxOf(content.heightPx as string | number | undefined) ??
+    pxOf(content.height as string | number | undefined)
+  );
+}
+
 /** Wysokość jednego widgetu paska. Wysokość autorska zawsze bije tabelę. */
 export function estimateChromeWidgetHeight(node: WidgetNode, device: Device = "desktop"): number {
   if (hiddenOnDevice(node.advanced, device)) return 0;
   const frame = getWidgetFrameStyle(node, device);
-  const authored = pxOf(frame.height) ?? pxOf(frame.minHeight);
+  const authored = pxOf(frame.height) ?? pxOf(frame.minHeight) ?? authoredContentHeight(node);
   if (authored !== undefined) return authored;
   return CHROME_ROW_WIDGET_HEIGHT_PX[node.type] ?? CHROME_ROW_DEFAULT_WIDGET_HEIGHT_PX;
 }
