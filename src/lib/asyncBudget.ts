@@ -1,3 +1,5 @@
+import { isSsrRequest } from "@/lib/ssr/isSsrRequest";
+
 // Cap a best-effort async task by a wall-clock budget. Never rejects: the work
 // is expected to already be internally allSettled/try/catched, so a budget
 // race can never surface an unhandled error into an SSR loader chain.
@@ -95,4 +97,40 @@ export function settleWithinBudget<T>(
       },
     );
   });
+}
+
+/**
+ * BUDŻET TYLKO W RENDERZE SERWEROWYM - `withBudget` bramkowany `isSsrRequest()`.
+ *
+ * DLACZEGO BUDŻET CZASOWY NIE MA PRAWA DZIAŁAĆ W PRZEGLĄDARCE (recenzja PR
+ * #382, P1). Wynik loadera jest NIEZMIENNY przez całe życie dopasowania trasy:
+ * router liczy go raz i nie przelicza, dopóki czytelnik nie odejdzie z trasy
+ * albo nie przeładuje strony. Termin, który wygasa przy nawigacji SPA, zasiewa
+ * więc fallback i `degraded: true` NA STAŁE - czytelnik zostaje z komunikatem
+ * awarii, choć to samo zapytanie dociąga prawdziwe dane sekundę później
+ * (1,5 s na łączu mobilnym w zupełności wystarczy). Na serwerze ta sama
+ * wymiana jest opłacalna, bo render i tak musi skończyć się przed watchdogiem
+ * zapytań SSR, a zasiew z `updatedAt: 0` leczy się refetchem po hydratacji.
+ *
+ * Degradacja przez BŁĄD zostaje na obu ścieżkach bez zmian: odrzucone
+ * zapytanie oddaje pusty `getQueryData`, więc gałąź fallbacku nadal biegnie -
+ * i słusznie, bo komunikat awarii po realnej awarii jest prawdą.
+ *
+ * To samo rozstrzygnięcie, tylko dla loaderów czytających WYNIK, siedzi
+ * centralnie w `lib/ssr/resilientLoad.ts` (nagłówek pliku niesie pełny wykład).
+ * Ten wariant jest dla wywołań, które zostały przy gołym `withBudget`, bo ich
+ * produktem jest sam zasiew cache'u, a nie wartość zwrotna.
+ *
+ * W przeglądarce praca jest po prostu awaitowana - bez wyścigu z zegarem.
+ * `.then(noop, noop)` zostaje, bo kontrakt całego modułu brzmi „nigdy nie
+ * odrzuca": wołający przekazuje tu obietnicę z własnym `.catch`, ale pojedyncze
+ * przeoczenie nie ma prawa wywrócić potoku renderu nieobsłużonym odrzuceniem.
+ */
+export function withSsrBudget(
+  work: Promise<unknown>,
+  ms: number,
+  deadlineAt?: number,
+): Promise<void> {
+  if (isSsrRequest()) return withBudget(work, ms, deadlineAt);
+  return work.then(noop, noop);
 }

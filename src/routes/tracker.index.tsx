@@ -33,7 +33,7 @@ import {
 import { trackerItemListJsonLd, type TrackerListEntry } from "@/lib/tracker/jsonld";
 import { TRACKER_FEED_PATH } from "@/lib/tracker/feed";
 import { localizedPath } from "@/lib/i18n/localePath";
-import { withBudget } from "@/lib/asyncBudget";
+import { withSsrBudget } from "@/lib/asyncBudget";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import {
@@ -66,14 +66,22 @@ export const Route = createFileRoute("/tracker/")({
     // strumienia SSR - budżet ścina oczekiwanie, a fallback siany z
     // updatedAt: 0 jest natychmiast przeterminowany, więc przeglądarka
     // refetchuje po mount i strona sama się leczy, gdy backend wróci.
+    //
+    // Oba budżety tej trasy liczą się WYŁĄCZNIE na serwerze (patrz docblock
+    // `withSsrBudget`): przy nawigacji SPA wynik loadera jest niezmienny, więc
+    // powolne - a nie błędne - zapytanie zamroziłoby `degraded: true` jako
+    // fałszywy komunikat awarii na całe życie dopasowania trasy.
     const itemsOptions = publishedItemsQueryOptions();
     let degraded = false;
-    await withBudget(
+    await withSsrBudget(
       queryClient.ensureQueryData(itemsOptions).catch(() => undefined),
       TRACKER_LOADER_BUDGET_MS,
     );
     let items = queryClient.getQueryData<PolicyItem[]>(itemsOptions.queryKey);
     if (!items) {
+      // W PRZEGLĄDARCE ta gałąź jest osiągalna wyłącznie po ODRZUCENIU
+      // zapytania: bez budżetu `ensureQueryData` wraca dopiero z wynikiem,
+      // więc puste `getQueryData` znaczy tam błąd, nigdy samą powolność.
       degraded = true;
       // Anuluj spóźniony fetch PRZED zasiewem: gdyby rozwiązał się między
       // renderem a dehydracją, klient hydratowałby się z innymi danymi niż
@@ -88,10 +96,11 @@ export const Route = createFileRoute("/tracker/")({
     // mrugnięcia po hydratacji. Best-effort pod krótszym budżetem.
     if (items.length > 0) {
       const countsOptions = followerCountsQueryOptions(items.map((item) => item.id));
-      await withBudget(
+      await withSsrBudget(
         queryClient.ensureQueryData(countsOptions).catch(() => undefined),
         TRACKER_FOLLOWERS_BUDGET_MS,
       );
+      // Jw. - na kliencie stan inny niż `success` oznacza odrzucone RPC.
       if (queryClient.getQueryState(countsOptions.queryKey)?.status !== "success") {
         degraded = true;
         await queryClient.cancelQueries({ queryKey: countsOptions.queryKey, exact: true });

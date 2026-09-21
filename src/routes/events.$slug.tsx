@@ -66,7 +66,7 @@ import {
 import { asEventVideoPlatform, videoEmbedUrl } from "@/lib/events/eventVideoHeader";
 import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
-import { withBudget } from "@/lib/asyncBudget";
+import { withSsrBudget } from "@/lib/asyncBudget";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
@@ -140,7 +140,13 @@ export const Route = createFileRoute("/events/$slug")({
   // wypadał z cache'a i wyglądał dla crawlera na awarię serwera.
   loader: async ({ context, params, location }): Promise<EventShellLoaderData> => {
     const deadlineAt = Date.now() + EVENT_SHELL_SSR_BUDGET_MS;
-    await withBudget(
+    // Termin bramki modułu liczy się TYLKO w renderze serwerowym (patrz
+    // docblock `withSsrBudget`): przy nawigacji SPA powolne `site_settings`
+    // zamrażałoby `COMMUNITY_MODULES_DEFAULTS` na całe życie dopasowania, a
+    // domyślka `events_enabled` potrafi schować powłokę razem z siedmioma
+    // podstronami. W przeglądarce `settings === undefined` znaczy więc
+    // wyłącznie ODRZUCONY odczyt.
+    await withSsrBudget(
       context.queryClient.ensureQueryData(siteSettingsQueryOptions).catch(() => undefined),
       EVENT_SETTINGS_BUDGET_MS,
       deadlineAt,

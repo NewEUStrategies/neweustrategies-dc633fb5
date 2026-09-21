@@ -7,7 +7,7 @@ import { publicQaSessionsQueryOptions, type PublicQaSession } from "@/lib/commun
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { COMMUNITY_MODULES_DEFAULTS, COMMUNITY_MODULES_KEY } from "@/lib/community/modulesSettings";
 import { resolveSetting, siteSettingsQueryOptions, type SettingsMap } from "@/lib/useSiteSetting";
-import { withBudget } from "@/lib/asyncBudget";
+import { withSsrBudget } from "@/lib/asyncBudget";
 import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
@@ -54,8 +54,11 @@ export const Route = createFileRoute("/qa")({
     const deadlineAt = Date.now() + QA_LIST_SSR_BUDGET_MS;
     // Bramka modułu POD TERMINEM. Wcześniej było tu gołe `await
     // ensureQueryData` - odczyt KONFIGURACJI mógł więc zjeść cały budżet SSR,
-    // zanim padło pierwsze zapytanie o TREŚĆ.
-    await withBudget(
+    // zanim padło pierwsze zapytanie o TREŚĆ. Termin liczy się TYLKO na
+    // serwerze (patrz docblock `withSsrBudget`), więc w przeglądarce
+    // `settings === undefined` znaczy wyłącznie ODRZUCONY odczyt, a nie
+    // „ustawienia nie zdążyły" - domyślki nie zamrażają już powierzchni.
+    await withSsrBudget(
       context.queryClient.ensureQueryData(siteSettingsQueryOptions).catch(() => undefined),
       QA_SETTINGS_BUDGET_MS,
       deadlineAt,

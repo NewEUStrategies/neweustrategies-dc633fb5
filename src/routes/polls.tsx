@@ -19,7 +19,7 @@ import { PollCard } from "@/components/community/PollCard";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { COMMUNITY_MODULES_DEFAULTS, COMMUNITY_MODULES_KEY } from "@/lib/community/modulesSettings";
 import { resolveSetting, siteSettingsQueryOptions, type SettingsMap } from "@/lib/useSiteSetting";
-import { withBudget } from "@/lib/asyncBudget";
+import { withSsrBudget } from "@/lib/asyncBudget";
 import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
@@ -54,8 +54,12 @@ export const Route = createFileRoute("/polls")({
     // Bramka modułu z tej samej mapy site_settings, którą rozgrzewa root
     // loader - `ensureQueryData` deduplikuje z jego równoległym fetchem, ale
     // POD TERMINEM: wcześniej gołe `await` pozwalało odczytowi KONFIGURACJI
-    // zjeść cały budżet SSR, zanim padło pierwsze zapytanie o TREŚĆ.
-    await withBudget(
+    // zjeść cały budżet SSR, zanim padło pierwsze zapytanie o TREŚĆ. Termin
+    // liczy się TYLKO na serwerze (patrz docblock `withSsrBudget`), więc
+    // w przeglądarce `settings === undefined` znaczy wyłącznie ODRZUCONY
+    // odczyt - domyślki modułu nie zamrażają już powierzchni po samej
+    // powolności.
+    await withSsrBudget(
       context.queryClient.ensureQueryData(siteSettingsQueryOptions).catch(() => undefined),
       POLLS_SETTINGS_BUDGET_MS,
       deadlineAt,
