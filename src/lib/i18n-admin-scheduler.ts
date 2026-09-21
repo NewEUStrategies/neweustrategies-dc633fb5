@@ -269,12 +269,13 @@ export const adminSchedulerEn = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", adminSchedulerPl, true, true);
-i18n.addResourceBundle("en", "translation", adminSchedulerEn, true, true);
-
-/**
- * No-op wołany w komponencie zamiast side-effectowego importu modułu - nazwane
- * wiązanie pozwala splitterowi przenieść bundel do chunku panelu (ta sama
- * konwencja co ensureI18n w i18n-community).
- */
-export function ensureI18n(): void {}
+// Explicit registration must survive both Vite and Nitro tree shaking.
+// Keep the legacy side-effect import contract, and avoid repeated deep merges.
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", adminSchedulerPl, true, true);
+  i18n.addResourceBundle("en", "translation", adminSchedulerEn, true, true);
+}
+ensureI18n();

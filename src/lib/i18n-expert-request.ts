@@ -243,8 +243,14 @@ export const expertRequestEn = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", expertRequestPl, true, true);
-i18n.addResourceBundle("en", "translation", expertRequestEn, true, true);
-
 /** No-op - side-effect import registers the bundle. */
-export function ensureI18n(): void {}
+// Explicit registration must survive both Vite and Nitro tree shaking.
+// Keep the legacy side-effect import contract, and avoid repeated deep merges.
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", expertRequestPl, true, true);
+  i18n.addResourceBundle("en", "translation", expertRequestEn, true, true);
+}
+ensureI18n();

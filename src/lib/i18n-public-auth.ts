@@ -109,10 +109,20 @@ const en: typeof pl = {
     noToken: "Open the password-reset link from your email to continue.",
   },
 };
+let registered = false;
+let scheduled = false;
 function register(): void {
+  if (registered) return;
+  registered = true;
+  i18n.off("initialized", register);
   i18n.addResourceBundle("pl", "translation", pl, true, true);
   i18n.addResourceBundle("en", "translation", en, true, true);
 }
-if (i18n.isInitialized) register();
-else i18n.on("initialized", register);
-export function ensureI18n(): void {}
+export function ensureI18n(): void {
+  if (i18n.isInitialized) register();
+  else if (!scheduled) {
+    scheduled = true;
+    i18n.on("initialized", register);
+  }
+}
+ensureI18n();

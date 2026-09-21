@@ -1,3 +1,4 @@
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 // Szczegóły pojedynczego planu (/plans/:planId) - rozwinięcie karty z /pricing:
 // pełny opis, cena w cyklu, okres próbny, benefity (własne planu lub warstwy),
 // limity wynikające z realnych `features` warstwy oraz porównanie z resztą
@@ -130,7 +131,8 @@ function PlanDetailsPage() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const { planId } = Route.useParams();
-  const { degraded } = Route.useLoaderData();
+  const { degraded: initialDegraded } = Route.useLoaderData();
+  const { degraded, retry } = useDegradedUntilHealed(billingKeys.plansActive(), initialDegraded);
   const [enquiryOpen, setEnquiryOpen] = useState(false);
 
   const plansQ = useQuery({ queryKey: billingKeys.plansActive(), queryFn: fetchActivePlans });
@@ -163,7 +165,7 @@ function PlanDetailsPage() {
     if (degraded) {
       return (
         <div className="container mx-auto max-w-3xl px-4 py-12">
-          <DegradedDataNotice variant="page" />
+          <DegradedDataNotice onRetry={retry} variant="page" />
         </div>
       );
     }

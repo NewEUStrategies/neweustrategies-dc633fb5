@@ -269,7 +269,13 @@ export function widgetQueryOptionsList(widget: WidgetNode, lang: Lang): BuilderS
   // Newsletter (warianty z formularzem): bez rozgrzania `NewsletterForm`
   // zwraca `null` na serwerze - kolumna z zapisem wychodziła z SSR pusta,
   // a pola pojawiały się dopiero po hydratacji.
-  if (widget.type === "newsletter" && newsletterUsesForm(widget.content)) {
+  // JoinUsForm reads the same settings, including its title and enabled flag.
+  // Without this entry, a late-hydrating widget can read client-fetched settings
+  // that differ from its SSR defaults and force React to replace the form.
+  if (
+    widget.type === "join-us" ||
+    (widget.type === "newsletter" && newsletterUsesForm(widget.content))
+  ) {
     out.push(newsletterSettingsQueryOptions());
   }
 
@@ -484,7 +490,10 @@ export function widgetCacheTargets(widget: WidgetNode, lang: Lang): WidgetCacheT
     const opts = webStoriesCarouselQueryOptions(widget.content);
     out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
   }
-  if (widget.type === "newsletter" && newsletterUsesForm(widget.content)) {
+  if (
+    widget.type === "join-us" ||
+    (widget.type === "newsletter" && newsletterUsesForm(widget.content))
+  ) {
     const opts = newsletterSettingsQueryOptions();
     out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
   }

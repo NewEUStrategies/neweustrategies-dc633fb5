@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { edgeTtlL2Adapter, resetEdgeTtlL2ForTests } from "@/lib/ssrCacheL2.server";
 import { bumpL2Version, setColoCacheForTests } from "@/lib/http/documentCacheL2.server";
 import {
+  EDGE_TTL_CHROME_MAX_AGE_MS,
   clearEdgeTtlCache,
   edgeTtlCache,
   invalidateEdgeTtlCache,
@@ -68,6 +69,48 @@ afterEach(() => {
 });
 
 describe("adapter L2 edgeTtlCache: adresowanie migawki", () => {
+  it("a cold isolate serves chrome after a quiet hour and refreshes it once", async () => {
+    const key = "site_settings_public:all";
+    setEdgeTtlL2Adapter(edgeTtlL2Adapter);
+    await edgeTtlCache(key, TTL, async () => ({ title: "existing chrome" }));
+    await settleBackground();
+    const stored = [...entries.values()].find(
+      (entry) => entry.headers.get("content-type") === "application/json",
+    );
+    expect(stored?.headers.get("cache-control")).toBe(
+      `public, max-age=${EDGE_TTL_CHROME_MAX_AGE_MS / 1000}`,
+    );
+
+    vi.advanceTimersByTime(60 * 60_000);
+    clearEdgeTtlCache();
+    resetEdgeTtlL2ForTests();
+    let release!: (value: { title: string }) => void;
+    const refresh = vi.fn(
+      () =>
+        new Promise<{ title: string }>((resolve) => {
+          release = resolve;
+        }),
+    );
+    await expect(edgeTtlCache(key, TTL, refresh)).resolves.toEqual({ title: "existing chrome" });
+    await expect(edgeTtlCache(key, TTL, refresh)).resolves.toEqual({ title: "existing chrome" });
+    expect(refresh).toHaveBeenCalledTimes(1);
+    release({ title: "new chrome" });
+    await settleBackground();
+    await expect(edgeTtlCache(key, TTL, refresh)).resolves.toEqual({ title: "new chrome" });
+  });
+
+  it("content snapshots still expire after five TTLs", async () => {
+    const key = "public:resolved:article";
+    setEdgeTtlL2Adapter(edgeTtlL2Adapter);
+    await edgeTtlCache(key, TTL, async () => "old content");
+    await settleBackground();
+    vi.advanceTimersByTime(TTL * 5 + 1);
+    clearEdgeTtlCache();
+    const fresh = vi.fn(async () => "current content");
+    await expect(edgeTtlCache(key, TTL, fresh)).resolves.toBe("current content");
+    expect(fresh).toHaveBeenCalledTimes(1);
+  });
+
   it("zapis i odczyt w obrębie okna: świeży -> stale na granicy TTL -> null na granicy 5 x TTL", async () => {
     const at = Date.now();
     await edgeTtlL2Adapter.write("a.example", "k", { at, value: "v" }, TTL, MAX_AGE);
@@ -194,6 +237,15 @@ describe("adapter L2 edgeTtlCache: degradacja poza Workers", () => {
 });
 
 describe("edgeTtlCache + prawdziwy adapter: rotacja izolatu w ciepłej kolonii", () => {
+  it("does not keep a missing chrome row for the extended snapshot lifetime", async () => {
+    setEdgeTtlL2Adapter(edgeTtlL2Adapter);
+    await edgeTtlCache("site_design_tokens:row", TTL, async () => null);
+    vi.advanceTimersByTime(TTL * 5 + 1);
+    await expect(
+      edgeTtlCache("site_design_tokens:row", TTL, async () => ({ fonts: {} })),
+    ).resolves.toEqual({ fonts: {} });
+  });
+
   it("zimny izolat wstaje z migawki poprzednika bez round-tripu do bazy", async () => {
     setEdgeTtlL2Adapter(edgeTtlL2Adapter);
     const first = vi.fn().mockResolvedValue({ site_title: "NES" });

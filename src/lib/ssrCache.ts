@@ -26,6 +26,24 @@ const MAX_ENTRIES = 500;
 // odwiedzane klucze nie serwowały dowolnie starych danych.
 const STALE_FACTOR = 5;
 
+// Stable chrome survives quiet periods and isolate rotation. These public,
+// host-scoped snapshots are versioned by the existing settings/menu purge;
+// freshness remains 60 s and a stale hit refreshes behind the response.
+// Content, identity, ticker and access-dependent keys keep their shorter TTL.
+export const EDGE_TTL_CHROME_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const DURABLE_CHROME_KEYS = new Set([
+  "site_settings_public:all",
+  "site_design_tokens:row",
+  "menu-with-items:main",
+  "menu-with-items:footer",
+]);
+
+function maxAgeFor(key: string, ttlMs: number): number {
+  return DURABLE_CHROME_KEYS.has(key)
+    ? Math.max(ttlMs * STALE_FACTOR, EDGE_TTL_CHROME_MAX_AGE_MS)
+    : ttlMs * STALE_FACTOR;
+}
+
 // ── Warstwa L2 (migawka w Cache API per-colo, `ssrCacheL2.server.ts`) ──────
 //
 // L1 znika z każdą rotacją izolatu, więc klucze decydujące o pierwszym bajcie
@@ -200,7 +218,7 @@ function readL2WithTimeout<T>(
     };
     const timer = setTimeout(() => finish(null), EDGE_TTL_L2_READ_TIMEOUT_MS);
     adapter
-      .read(scope, key, ttlMs, ttlMs * STALE_FACTOR)
+      .read(scope, key, ttlMs, maxAgeFor(key, ttlMs))
       // Magazyn oddaje `unknown`; typ zna wyłącznie wołający `edgeTtlCache<T>`
       // (patrz kontrakt `EdgeTtlL2Adapter.read`).
       .then(
@@ -248,7 +266,9 @@ function persistFetched(
   l2Bypass.delete(scopedKey);
   if (l2 && l2Storable(data)) {
     completeAfterResponse(
-      l2.write(scope, key, { at, value: data }, ttlMs, ttlMs * STALE_FACTOR).catch(() => undefined),
+      l2
+        .write(scope, key, { at, value: data }, ttlMs, maxAgeFor(key, ttlMs))
+        .catch(() => undefined),
     );
   }
 }
@@ -292,13 +312,13 @@ function startBackgroundRefresh<T>(
  * which matches the database's default-tenant fallback.
  *
  * FRESHNESS MODEL: fresh hit (< ttlMs) -> cached data; stale hit
- * (< STALE_FACTOR x ttlMs) -> cached data natychmiast + odświeżenie w tle
+ * (< maxAgeFor(key, ttlMs), 24 h for public chrome) -> cached data + refresh
  * (single-flight per klucz, dokończone przez waitUntil); zimny/twardo
  * wygasły miss -> blokujący fetch dzielony przez równoległe żądania.
  *
  * L2 (klucze z `EDGE_TTL_L2_KEY_PREFIXES`, tylko SSR na Workers): na chybieniu
  * L1 najpierw migawka kolonii z terminem `EDGE_TTL_L2_READ_TIMEOUT_MS` -
- * świeża zasila L1 i wraca bez `fn()`; nieświeża (< STALE_FACTOR x ttlMs)
+ * świeża zasila L1 i wraca bez `fn()`; nieświeża (< maxAgeFor(key, ttlMs))
  * wraca NATYCHMIAST, a `fn()` odświeża L1 i L2 w tle; brak/termin -> `fn()`
  * jak dotąd, a wynik ląduje w L1 od razu i w L2 za odpowiedzią. Poza Workers
  * L2 jest no-op z konstrukcji (`ssrCacheL2.server.ts`).
@@ -319,7 +339,9 @@ export async function edgeTtlCache<T>(
 
   const l2Wanted = l2Allowed(key, opts);
 
-  if (cached && age < ttlMs * STALE_FACTOR) {
+  // A missing settings/theme row is not a durable chrome snapshot.
+  const maxAge = cached?.data == null ? ttlMs * STALE_FACTOR : maxAgeFor(key, ttlMs);
+  if (cached && age < maxAge) {
     // Serve-stale + refresh-behind. Odświeżenie zapisuje też L2, żeby migawka
     // kolonii nie starzała się szybciej niż L1 izolatu, który ją odnawia.
     const l2 = l2Wanted ? await resolveL2Adapter() : null;

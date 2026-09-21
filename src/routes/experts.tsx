@@ -1,3 +1,4 @@
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 // Publiczny katalog ekspertów. Karty z funkcją, obszarami i liczbą publikacji,
 // filtrowane po obszarze ekspertyzy i programie (deep-link przez ?area=slug
 // z profilu). Każda karta prowadzi do huba eksperta (/author/$slug).
@@ -85,7 +86,11 @@ function ExpertsDirectoryPage() {
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
-  const { degraded } = Route.useLoaderData();
+  const { degraded: initialDegraded } = Route.useLoaderData();
+  const { degraded, retry } = useDegradedUntilHealed(
+    expertsDirectoryQueryOptions().queryKey,
+    initialDegraded,
+  );
   const { data } = useSuspenseQuery(expertsDirectoryQueryOptions());
   const [programFilter, setProgramFilter] = useState<string | null>(null);
 
@@ -184,7 +189,7 @@ function ExpertsDirectoryPage() {
       {degraded ? (
         // Pusty katalog i „nic nie dojechało" to dwie różne prawdy - przy
         // degradacji mówimy wprost, co się stało (patrz lib/ssr/resilientLoad).
-        <DegradedDataNotice title={t("expert.directoryLoadFailed")} />
+        <DegradedDataNotice onRetry={retry} title={t("expert.directoryLoadFailed")} />
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-[8px] border border-dashed border-border/70 p-12 text-center">
           <Users className="h-6 w-6 text-muted-foreground/50" aria-hidden />

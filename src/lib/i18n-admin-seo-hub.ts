@@ -334,16 +334,15 @@ const en: typeof pl = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", pl, true, true);
-i18n.addResourceBundle("en", "translation", en, true, true);
-
 export {};
 
-/**
- * No-op wołany w KOMPONENCIE trasy zamiast side-effectowego importu modułu.
- * Splitter TanStacka przenosi wtedy import razem z komponentem do jego chunku,
- * a rejestracja (addResourceBundle wyżej) uruchamia się przy załadowaniu tego
- * chunku - słownik nie wchodzi do chunku wejściowego KAŻDEJ strony. Import bez
- * referencji zostawał w shellu trasy, a shelle wszystkich tras są eager.
- */
-export function ensureI18n(): void {}
+// Explicit registration must survive both Vite and Nitro tree shaking.
+// Keep the legacy side-effect import contract, and avoid repeated deep merges.
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", pl, true, true);
+  i18n.addResourceBundle("en", "translation", en, true, true);
+}
+ensureI18n();

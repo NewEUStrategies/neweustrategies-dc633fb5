@@ -42,7 +42,9 @@ export const getRouter = () => {
       queries: {
         staleTime: 5 * 60_000,
         gcTime: 30 * 60_000,
-        retry: 1,
+        // A retry delay consumes the SSR deadline without rendering anything.
+        // The hydrated client retries transient failures with its own budget.
+        retry: isServer ? 0 : 1,
         retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
         refetchOnWindowFocus: false,
         refetchOnReconnect: "always",

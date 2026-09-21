@@ -1,3 +1,4 @@
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 import { createFileRoute, Link, type ErrorComponentProps } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -126,7 +127,11 @@ function ProgramsIndex() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureProgramsI18n();
   const { data: programs } = useSuspenseQuery(latestProgramsQueryOptions(PROGRAMS_INDEX_LIMIT));
-  const { degraded } = Route.useLoaderData();
+  const { degraded: initialDegraded } = Route.useLoaderData();
+  const { degraded, retry } = useDegradedUntilHealed(
+    latestProgramsQueryOptions(PROGRAMS_INDEX_LIMIT).queryKey,
+    initialDegraded,
+  );
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
 
@@ -139,7 +144,7 @@ function ProgramsIndex() {
 
       {degraded ? (
         // „Brak programów" i „nie udało się pobrać" to dwie różne prawdy.
-        <DegradedDataNotice title={t("programs.loadFailedList")} />
+        <DegradedDataNotice onRetry={retry} title={t("programs.loadFailedList")} />
       ) : programs.length === 0 ? (
         <p className="text-sm text-muted-foreground py-16 text-center">{t("programs.empty")}</p>
       ) : (

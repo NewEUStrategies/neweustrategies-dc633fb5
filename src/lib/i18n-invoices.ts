@@ -82,8 +82,14 @@ export const invoicesEn: typeof invoicesPl = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", invoicesPl, true, true);
-i18n.addResourceBundle("en", "translation", invoicesEn, true, true);
-
 /** No-op wołany w komponencie trasy - patrz nota w i18n-donate.ts. */
-export function ensureI18n(): void {}
+// Explicit registration must survive both Vite and Nitro tree shaking.
+// Keep the legacy side-effect import contract, and avoid repeated deep merges.
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", invoicesPl, true, true);
+  i18n.addResourceBundle("en", "translation", invoicesEn, true, true);
+}
+ensureI18n();

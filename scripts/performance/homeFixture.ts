@@ -42,6 +42,14 @@ const emptyTables = new Set([
   "content_access_public",
   "newsletter_settings",
   "post_layout_settings",
+  // Valid empty catalogs for the cross-platform cold-entry smoke test.
+  // Route tests separately exercise populated catalogs and failure recovery.
+  "research_programs",
+  "podcasts",
+  "podcast_shows",
+  "web_stories",
+  "live_blog_entries",
+  "profile_badges",
 ]);
 
 function selectRows(rows: Row[], search: URLSearchParams): Row[] {

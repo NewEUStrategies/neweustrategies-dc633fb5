@@ -26,15 +26,15 @@ const en: typeof pl = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", pl, true, true);
-i18n.addResourceBundle("en", "translation", en, true, true);
-
 export {};
 
-/**
- * No-op wołany w komponencie zamiast side-effectowego importu modułu. Nazwane
- * wiązanie pozwala splitterowi TanStacka utrzymać rejestrację tłumaczeń w
- * chunku konsumenta (rejestracja dzieje się przy ewaluacji modułu, przed
- * renderem), dokładnie jak w pozostałych bundlach i18n-*.
- */
-export function ensureI18n(): void {}
+// Explicit registration must survive both Vite and Nitro tree shaking.
+// Keep the legacy side-effect import contract, and avoid repeated deep merges.
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", pl, true, true);
+  i18n.addResourceBundle("en", "translation", en, true, true);
+}
+ensureI18n();

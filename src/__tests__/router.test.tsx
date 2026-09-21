@@ -167,6 +167,23 @@ describe("getRouter - przepisywanie adresu na język", () => {
 });
 
 describe("getRouter - gałąź SERWERA", () => {
+  it("SSR fails once without retry backoff; client recovery still retries", async () => {
+    h.server = true;
+    const router = getRouter();
+    const client = queryClientOf(router);
+    const fetch = vi.fn().mockRejectedValue(new Error("temporary backend outage"));
+    try {
+      await expect(client.fetchQuery({ queryKey: ["cold-ssr"], queryFn: fetch })).rejects.toThrow(
+        "temporary backend outage",
+      );
+      expect(fetch).toHaveBeenCalledTimes(1);
+    } finally {
+      client.clear();
+      h.server = false;
+    }
+    expect(queryClientOf(getRouter()).getDefaultOptions().queries!.retry).toBe(1);
+  });
+
   it("wpina disposer watchdoga w cykl życia serverSsr, zachowując istniejące", async () => {
     h.server = true;
     h.dehydrateImpl = async () => ({ dehydratedQueryClient: {} });

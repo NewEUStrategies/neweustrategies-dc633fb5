@@ -2155,14 +2155,13 @@ export const adminEventsEn = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", adminEventsPl, true, true);
-i18n.addResourceBundle("en", "translation", adminEventsEn, true, true);
-
-/**
- * No-op wolany w komponencie trasy zamiast side-effectowego importu modulu.
- * Nazwane wiazanie pozwala splitterowi TanStacka przeniesc caly bundle
- * tlumaczen do chunka trasy - side-effectowy import w pliku trasy landowal
- * w eager-owym grafie wejsciowym kazdej strony. Rejestracja dzieje sie przy
- * ewaluacji modulu (przed renderem komponentu), dokladnie jak wczesniej.
- */
-export function ensureI18n(): void {}
+// Explicit registration must survive both Vite and Nitro tree shaking.
+// Keep the legacy side-effect import contract, and avoid repeated deep merges.
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", adminEventsPl, true, true);
+  i18n.addResourceBundle("en", "translation", adminEventsEn, true, true);
+}
+ensureI18n();

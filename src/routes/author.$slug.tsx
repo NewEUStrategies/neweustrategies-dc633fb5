@@ -1,3 +1,4 @@
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 // Hub eksperta: /author/$slug. Nie jest to prosta wizytówka - to hub treściowy
 // agregujący WSZYSTKIE relacje eksperta (stanowisko, funkcje, programy, obszary,
 // kontakt bezpośredni i dla mediów, „W mediach" oraz filtrowalny zbiór
@@ -401,7 +402,11 @@ function ExpertHubPage() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureExpertsI18n();
   const { slug } = Route.useParams();
-  const { degraded } = Route.useLoaderData();
+  const { degraded: initialDegraded } = Route.useLoaderData();
+  const { degraded, retry } = useDegradedUntilHealed(
+    expertHubQueryOptions(slug).queryKey,
+    initialDegraded,
+  );
   const { data } = useSuspenseQuery(expertHubQueryOptions(slug));
   const { data: tenantSettings } = useSuspenseQuery(
     expertLayoutSettingsQueryOptions(data?.expert.tenant_id ?? null),
@@ -442,6 +447,7 @@ function ExpertHubPage() {
     return (
       <div className="container mx-auto max-w-4xl px-4 py-10">
         <DegradedDataNotice
+          onRetry={retry}
           title={lang === "en" ? "Couldn't load this profile" : "Nie udało się załadować profilu"}
         />
       </div>

@@ -48,6 +48,7 @@ const h = vi.hoisted(() => ({
   events: [] as PublicEvent[],
   /** Rzut z zapytania listy - ścieżka degradacji transportu. */
   listThrows: false,
+  listFailsOnce: false,
   eventsEnabled: true,
   /** Nagłówki `Cache-Control`, jakie loader ustawił na odpowiedzi. */
   cacheControl: [] as string[],
@@ -70,6 +71,10 @@ vi.mock("@/lib/community/publicQueries", () => ({
     queryKey: ["public-events"],
     queryFn: async () => {
       h.listCalls += 1;
+      if (h.listFailsOnce) {
+        h.listFailsOnce = false;
+        throw new Error("temporary events outage");
+      }
       if (h.listThrows) throw new Error("lista wydarzeń padła");
       return h.events;
     },
@@ -228,6 +233,7 @@ async function zamontuj() {
 beforeEach(() => {
   h.events = [];
   h.listThrows = false;
+  h.listFailsOnce = false;
   h.eventsEnabled = true;
   h.cacheControl = [];
   h.listCalls = 0;
@@ -531,6 +537,14 @@ describe("nagłówek dokumentu - to, co widzi robot", () => {
 });
 
 describe("ekran katalogu - trzy różne fakty, trzy różne widoki", () => {
+  it("recovers events after a loader failure without another navigation", async () => {
+    h.listFailsOnce = true;
+    h.events = [row({ title_pl: "Recovered event", slug: "recovered", starts_at: ZA_ROK })];
+    await zamontuj();
+    expect(await screen.findByText("Recovered event")).toBeTruthy();
+    expect(screen.queryByTestId("komunikat-degradacji")).toBeNull();
+  });
+
   it("moduł wyłączony pokazuje ZAPROSZENIE do innej części serwisu, nie pustkę", async () => {
     h.eventsEnabled = false;
 

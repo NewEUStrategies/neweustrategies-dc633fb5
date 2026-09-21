@@ -190,13 +190,13 @@ export const notificationsEn = {
 
 export const notificationsResources = { pl: notificationsPl, en: notificationsEn };
 
-i18n.addResourceBundle("pl", "translation", notificationsPl, true, true);
-i18n.addResourceBundle("en", "translation", notificationsEn, true, true);
-
-/**
- * No-op wolany w komponencie trasy zamiast side-effectowego importu modulu -
- * ta sama konwencja co w i18n-network/i18n-chat. Nazwane wiazanie pozwala
- * splitterowi trzymac slownik w chunku trasy, a nie w grafie wejsciowym
- * kazdej strony; rejestracja dzieje sie przy ewaluacji modulu.
- */
-export function ensureI18n(): void {}
+// Explicit registration must survive both Vite and Nitro tree shaking.
+// Keep the legacy side-effect import contract, and avoid repeated deep merges.
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", notificationsPl, true, true);
+  i18n.addResourceBundle("en", "translation", notificationsEn, true, true);
+}
+ensureI18n();

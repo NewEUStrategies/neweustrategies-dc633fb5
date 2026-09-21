@@ -219,6 +219,11 @@ const EXTERNAL_READERS: ReadonlyArray<{
   reader: string;
 }> = [
   {
+    type: "join-us",
+    content: {},
+    reader: "src/components/interests/JoinUsForm.tsx",
+  },
+  {
     type: "menu",
     content: { menu_key: "main" },
     reader: "src/components/menu/SiteMenu.tsx",

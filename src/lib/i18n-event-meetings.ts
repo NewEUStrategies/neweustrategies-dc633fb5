@@ -525,11 +525,13 @@ export const eventMeetingsEn = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", eventMeetingsPl, true, true);
-i18n.addResourceBundle("en", "translation", eventMeetingsEn, true, true);
-
-/**
- * No-op wolany w komponencie trasy zamiast side-effectowego importu modulu -
- * pozwala splitterowi zostawic caly slownik w chunku trasy gieldy.
- */
-export function ensureI18n(): void {}
+// Explicit registration must survive both Vite and Nitro tree shaking.
+// Keep the legacy side-effect import contract, and avoid repeated deep merges.
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", eventMeetingsPl, true, true);
+  i18n.addResourceBundle("en", "translation", eventMeetingsEn, true, true);
+}
+ensureI18n();

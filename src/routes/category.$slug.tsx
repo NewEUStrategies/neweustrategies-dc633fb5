@@ -33,7 +33,6 @@ import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHead
 import { chromeDegradedCacheControl } from "@/lib/http/cachePolicy";
 import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import { notFoundIfClean } from "@/lib/ssr/notFoundIfClean";
-import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 
 /**
  * Wspólny termin ŻĄDANIA dla obu faz loadera. Dwa gołe `ensureQueryData`
@@ -281,20 +280,7 @@ function CategoryArchivePage() {
   const { slug } = Route.useParams();
   const { page = 1, sort = "newest" } = Route.useSearch();
   const { degraded } = Route.useLoaderData();
-  // Render ZDEGRADOWANY mówi prawdę zamiast udawać 404. `TaxonomyPage` na
-  // zasianym `null` pokazałby `PublicNotFound`, czyli miękkie 404 na żywej
-  // kategorii - a nagłówek jest już `no-store`, więc ten HTML nie zamarza
-  // na brzegu (wzór: events.$slug.tsx, podcasts.$show.tsx).
-  //
-  // Ta gałąź należy się WYŁĄCZNIE brakowi TREŚCI. Archiwum z wpisami, któremu
-  // zdegradował się tylko layout, idzie normalną ścieżką niżej: wpisy są
-  // prawdziwe, a rysuje je domyślny wariant z `DEFAULT_ARCHIVE_LAYOUT`.
-  if (degraded) {
-    return (
-      <div className="container mx-auto max-w-3xl px-4 py-12">
-        <DegradedDataNotice variant="page" />
-      </div>
-    );
-  }
-  return <TaxonomyPage kind="category" slug={slug} page={page} sort={sort} />;
+  return (
+    <TaxonomyPage kind="category" slug={slug} page={page} sort={sort} initialDegraded={degraded} />
+  );
 }

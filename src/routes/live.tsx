@@ -1,3 +1,4 @@
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 // Publiczny indeks relacji na żywo. URL: /live
 // Do tej pory live blog nie miał żadnego publicznego adresu - redakcja nie
 // mogła nigdzie podlinkować "relacji", a czytelnik/crawler nie miał jak
@@ -93,7 +94,11 @@ export const Route = createFileRoute("/live")({
 
 function LiveIndex() {
   const { data } = useSuspenseQuery(liveBlogsQueryOptions());
-  const { degraded } = Route.useLoaderData();
+  const { degraded: initialDegraded } = Route.useLoaderData();
+  const { degraded, retry } = useDegradedUntilHealed(
+    liveBlogsQueryOptions().queryKey,
+    initialDegraded,
+  );
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
@@ -125,6 +130,7 @@ function LiveIndex() {
         // Pusta lista i „nic nie dojechało" wyglądają identycznie - a to dwie
         // różne prawdy. Przy degradacji mówimy wprost, co się stało.
         <DegradedDataNotice
+          onRetry={retry}
           title={L("Nie udało się załadować relacji", "Couldn't load live coverage")}
         />
       ) : data.length === 0 ? (
