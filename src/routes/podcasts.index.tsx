@@ -5,6 +5,7 @@
 // built-in network RSS feed.
 import { createFileRoute, Link, type ErrorComponentProps } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Mic } from "@/lib/lucide-shim";
@@ -109,7 +110,25 @@ function PodcastsIndex() {
   const { data: episodes } = useSuspenseQuery(latestPodcastsQueryOptions(INDEX_LIMIT));
   const { data: shows } = useSuspenseQuery(publishedShowsQueryOptions);
   const { data: stats } = useSuspenseQuery(showEpisodeStatsQueryOptions);
-  const { degraded } = Route.useLoaderData();
+  const { degraded: initialDegraded } = Route.useLoaderData();
+  const episodesRecovery = useDegradedUntilHealed(
+    latestPodcastsQueryOptions(INDEX_LIMIT).queryKey,
+    initialDegraded,
+  );
+  const showsRecovery = useDegradedUntilHealed(
+    publishedShowsQueryOptions.queryKey,
+    initialDegraded,
+  );
+  const statsRecovery = useDegradedUntilHealed(
+    showEpisodeStatsQueryOptions.queryKey,
+    initialDegraded,
+  );
+  const degraded = episodesRecovery.degraded || showsRecovery.degraded || statsRecovery.degraded;
+  const retry = () => {
+    if (episodesRecovery.degraded) episodesRecovery.retry();
+    if (showsRecovery.degraded) showsRecovery.retry();
+    if (statsRecovery.degraded) statsRecovery.retry();
+  };
   ensurePodcastsI18n();
   const { t, i18n } = useTranslation();
   // `lang` zostaje WYŁĄCZNIE do wyboru języka treści (bliźniacze kolumny),
@@ -162,7 +181,7 @@ function PodcastsIndex() {
           degradacji mówimy wprost, co się stało, zamiast sugerować, że sieci
           podcastów nie ma. */}
       {degraded ? (
-        <DegradedDataNotice title={t("podcastNetwork.loadFailedPodcasts")} />
+        <DegradedDataNotice title={t("podcastNetwork.loadFailedPodcasts")} onRetry={retry} />
       ) : (
         <>
           {hasShows && (

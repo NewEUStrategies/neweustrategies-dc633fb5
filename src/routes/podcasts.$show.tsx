@@ -4,6 +4,7 @@
 // distinct series" model rather than one undifferentiated feed.
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Mic } from "@/lib/lucide-shim";
@@ -232,13 +233,19 @@ function bySeasons(episodes: Podcast[]): Array<{ season: number | null; episodes
 
 function ShowPage() {
   const { show: slug } = Route.useParams();
-  const { degraded } = Route.useLoaderData();
+  const { degraded: initialDegraded } = Route.useLoaderData();
   ensurePodcastsI18n();
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
 
   const { data: show } = useSuspenseQuery(showBySlugQueryOptions(slug));
-  const { data: episodes } = useSuspenseQuery(showEpisodesQueryOptions(show?.id ?? ""));
+  const identityRecovery = useDegradedUntilHealed(
+    showBySlugQueryOptions(slug).queryKey,
+    initialDegraded,
+  );
+  const episodeOptions = showEpisodesQueryOptions(show?.id ?? "");
+  const { data: episodes = NO_EPISODES } = useQuery({ ...episodeOptions, enabled: !!show });
+  const episodesRecovery = useDegradedUntilHealed(episodeOptions.queryKey, initialDegraded);
   const episodeIds = useMemo(() => episodes.map((e) => e.id), [episodes]);
   const { data: people } = useQuery(episodesPeopleQueryOptions(episodeIds));
 
@@ -250,11 +257,14 @@ function ShowPage() {
   // ukrywanie jej przed czytelnikiem i przed crawlerem jest stratą bez powodu:
   // do 2026-09-02 blip na tabeli odcinków chował całą stronę programu, mimo że
   // komentarz loadera mówi wprost „lista odcinków jest wtórna".
-  const identityUnknown = degraded && !show;
+  const identityUnknown = identityRecovery.degraded && !show;
   if (identityUnknown) {
     return (
       <div className="container mx-auto px-4 py-10 max-w-4xl">
-        <DegradedDataNotice title={t("podcastNetwork.loadFailedShow")} />
+        <DegradedDataNotice
+          title={t("podcastNetwork.loadFailedShow")}
+          onRetry={identityRecovery.retry}
+        />
       </div>
     );
   }
@@ -374,10 +384,13 @@ function ShowPage() {
         </section>
       )}
 
-      {degraded ? (
+      {episodesRecovery.degraded ? (
         // „Brak odcinków" i „nie dojechała lista" to dwie różne prawdy: program
         // zapowiedziany przed pierwszym nagraniem kontra blip backendu.
-        <DegradedDataNotice title={t("podcastNetwork.loadFailedEpisodes")} />
+        <DegradedDataNotice
+          title={t("podcastNetwork.loadFailedEpisodes")}
+          onRetry={episodesRecovery.retry}
+        />
       ) : episodes.length === 0 ? (
         <p className="text-sm text-muted-foreground py-16 text-center">
           {t("podcastNetwork.emptyEpisodes")}

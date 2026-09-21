@@ -69,11 +69,13 @@ const gpcEn: typeof gpcPl = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", gpcPl, true, true);
-i18n.addResourceBundle("en", "translation", gpcEn, true, true);
-
-/**
- * No-op wołany w komponencie zamiast side-effectowego importu modułu -
- * rejestracja słowników przy ewaluacji chunka, jak w pozostałych lib/i18n-*.
- */
-export function ensureI18n(): void {}
+// Explicit registration must survive both Vite and Nitro tree shaking.
+// Keep the legacy side-effect import contract, and avoid repeated deep merges.
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", gpcPl, true, true);
+  i18n.addResourceBundle("en", "translation", gpcEn, true, true);
+}
+ensureI18n();

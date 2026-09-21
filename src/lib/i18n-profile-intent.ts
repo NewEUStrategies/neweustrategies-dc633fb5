@@ -190,12 +190,13 @@ export const profileIntentEn = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", profileIntentPl, true, true);
-i18n.addResourceBundle("en", "translation", profileIntentEn, true, true);
-
-/**
- * No-op wołany w komponencie trasy zamiast side-effectowego importu modułu -
- * nazwane wiązanie pozwala splitterowi TanStacka przenieść cały bundle
- * tłumaczeń do chunka trasy. Rejestracja dzieje się przy ewaluacji modułu.
- */
-export function ensureI18n(): void {}
+// Explicit registration must survive both Vite and Nitro tree shaking.
+// Keep the legacy side-effect import contract, and avoid repeated deep merges.
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", profileIntentPl, true, true);
+  i18n.addResourceBundle("en", "translation", profileIntentEn, true, true);
+}
+ensureI18n();

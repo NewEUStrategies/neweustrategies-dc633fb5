@@ -1,3 +1,4 @@
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 // Public web stories index. URL: /web-stories - the discovery page that
 // previously did not exist (stories were reachable only via a builder widget
 // or a known URL). Lists published stories as a 9:16 card grid.
@@ -59,7 +60,11 @@ export const Route = createFileRoute("/web-stories/")({
 
 function WebStoriesIndex() {
   const { data: stories } = useSuspenseQuery(latestWebStoriesQueryOptions(INDEX_LIMIT));
-  const { degraded } = Route.useLoaderData();
+  const { degraded: initialDegraded } = Route.useLoaderData();
+  const { degraded, retry } = useDegradedUntilHealed(
+    latestWebStoriesQueryOptions(INDEX_LIMIT).queryKey,
+    initialDegraded,
+  );
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
 
@@ -80,6 +85,7 @@ function WebStoriesIndex() {
       {degraded ? (
         // „Brak historii" i „nie udało się pobrać" to dwie różne prawdy.
         <DegradedDataNotice
+          onRetry={retry}
           title={lang === "en" ? "Couldn't load stories" : "Nie udało się załadować historii"}
         />
       ) : stories.length === 0 ? (

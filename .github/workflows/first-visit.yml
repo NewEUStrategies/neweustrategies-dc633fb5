@@ -86,6 +86,13 @@ jobs:
         env:
           NES_PERFORMANCE_ARTIFACT_ROOT: ${{ github.workspace }}/candidate
           NES_PERFORMANCE_BASELINE: "0"
+      - name: Gate cold entry across public platform catalogs
+        if: ${{ !cancelled() }}
+        working-directory: harness
+        run: node scripts/performance/run-platform-cold-start.mjs
+        env:
+          NES_PERFORMANCE_ARTIFACT_ROOT: ${{ github.workspace }}/candidate
+          NES_PERFORMANCE_BASELINE: "0"
       - name: Compare equivalent cold and warm samples
         working-directory: harness
         run: bun run check:first-visit-regression

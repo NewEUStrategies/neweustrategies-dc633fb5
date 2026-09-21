@@ -8,6 +8,7 @@
 // = brak `window`, więc biegnie ścieżka serwerowa.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  EDGE_TTL_CHROME_MAX_AGE_MS,
   EDGE_TTL_L2_MAX_BYTES,
   EDGE_TTL_L2_READ_TIMEOUT_MS,
   clearEdgeTtlCache,
@@ -87,7 +88,7 @@ describe("edgeTtlCache L2: kolejność na chybieniu L1", () => {
     await expect(edgeTtlCache(KEY, TTL, fetcher)).resolves.toEqual({ site_title: "z kolonii" });
     expect(fetcher).not.toHaveBeenCalled();
     expect(l2.read).toHaveBeenCalledTimes(1);
-    expect(l2.read).toHaveBeenCalledWith("a.example", KEY, TTL, TTL * 5);
+    expect(l2.read).toHaveBeenCalledWith("a.example", KEY, TTL, EDGE_TTL_CHROME_MAX_AGE_MS);
     // Wartość z migawki NIE wraca do L2 - nie ma czego odświeżać.
     expect(l2.write).not.toHaveBeenCalled();
 
@@ -135,7 +136,7 @@ describe("edgeTtlCache L2: kolejność na chybieniu L1", () => {
       KEY,
       { at: Date.now(), value: "v-fresh" },
       TTL,
-      TTL * 5,
+      EDGE_TTL_CHROME_MAX_AGE_MS,
     );
   });
 
@@ -292,10 +293,10 @@ describe("edgeTtlCache L2: unieważnienie operatora", () => {
       KEY,
       { at: Date.now(), value: "po zapisie" },
       TTL,
-      TTL * 5,
+      EDGE_TTL_CHROME_MAX_AGE_MS,
     );
     // Obejście jest jednorazowe: po twardym wygaśnięciu L1 migawka znów działa.
-    vi.advanceTimersByTime(TTL * 5 + 1);
+    vi.advanceTimersByTime(EDGE_TTL_CHROME_MAX_AGE_MS + 1);
     await expect(edgeTtlCache(KEY, TTL, () => Promise.resolve("MISS"))).resolves.toBe(
       "sprzed zapisu",
     );

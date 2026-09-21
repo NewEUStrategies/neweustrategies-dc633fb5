@@ -146,7 +146,8 @@ vi.mock("@/lib/http/responseHeaders", () => ({
 vi.mock("@/lib/experts/queries", () => ({
   expertHubQueryOptions: (slug: string) => ({
     queryKey: ["expert-hub", slug],
-    queryFn: () => Promise.resolve(h.hub),
+    queryFn: () =>
+      h.degraded ? Promise.reject(new Error("hub unavailable")) : Promise.resolve(h.hub),
   }),
 }));
 vi.mock("@/lib/experts/materials", () => ({
@@ -175,8 +176,8 @@ vi.mock("@/lib/queries/podcasts", () => ({
     queryFn: () => Promise.resolve(h.podcasts),
   }),
 }));
-// Degradacja jest STANEM LOADERA, nie awarią zapytania - atrapa pozwala nim
-// sterować bez czekania na realny budżet czasu.
+// Modelujemy realną awarię zapytania i zasiew fallbacku, aby testy obejmowały
+// także stan zapytania po hydratacji, nie tylko flagę zwróconą przez loader.
 vi.mock("@/lib/ssr/resilientLoad", async (importOriginal) => ({
   // `resilientCacheControl` zostaje PRAWDZIWE (atrapa jest cząstkowa):
   // asercje tego pliku na nagłówek cache'a mają mierzyć produkcyjną politykę,
@@ -206,7 +207,6 @@ vi.mock("@/lib/ssr/resilientLoad", async (importOriginal) => ({
     options: { queryKey: unknown; queryFn: () => Promise<unknown> },
     fallback: unknown,
   ) => {
-    if (h.degraded) return { data: fallback, degraded: true };
     try {
       return { data: await client.ensureQueryData(options), degraded: false };
     } catch {
@@ -476,6 +476,18 @@ describe("loader - trzy rozłączne stany", () => {
     await mount();
     await waitFor(() => expect(h.cacheHeaders.length).toBeGreaterThan(0));
     expect(h.cacheHeaders.at(-1)).toContain("no-store");
+  });
+
+  it("retry restores the profile after an outage without navigating again", async () => {
+    h.degraded = true;
+    await mount();
+    await waitFor(() => expect(screen.getByTestId("DegradedDataNotice")).toBeTruthy());
+    const retry = h.organism.DegradedDataNotice?.onRetry;
+    if (typeof retry !== "function") throw new Error("missing recovery action");
+    h.degraded = false;
+    await act(async () => retry());
+    await waitFor(() => expect(screen.getByTestId("ExpertLayoutHero")).toBeTruthy());
+    expect(screen.queryByTestId("DegradedDataNotice")).toBeNull();
   });
 
   it("brak profilu też ustawia `no-store` - 404 nie może utknąć na brzegu", async () => {

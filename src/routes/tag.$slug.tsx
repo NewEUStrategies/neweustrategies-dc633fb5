@@ -30,7 +30,6 @@ import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHead
 import { chromeDegradedCacheControl } from "@/lib/http/cachePolicy";
 import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import { notFoundIfClean } from "@/lib/ssr/notFoundIfClean";
-import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import { TaxonomyPage } from "@/components/archive/TaxonomyPage";
 
 /** Wspólny termin ŻĄDANIA obu faz - identyczny kontrakt co w category.$slug. */
@@ -223,15 +222,5 @@ function TagArchivePage() {
   const { slug } = Route.useParams();
   const { page = 1, sort = "newest" } = Route.useSearch();
   const { degraded } = Route.useLoaderData();
-  // Zdegradowany render mówi prawdę zamiast udawać 404 (patrz category.$slug).
-  // Flaga niesie WYŁĄCZNIE brak treści - tag z wpisami i zdegradowanym samym
-  // layoutem idzie do `TaxonomyPage` na domyślkach z kodu.
-  if (degraded) {
-    return (
-      <div className="container mx-auto max-w-3xl px-4 py-12">
-        <DegradedDataNotice variant="page" />
-      </div>
-    );
-  }
-  return <TaxonomyPage kind="tag" slug={slug} page={page} sort={sort} />;
+  return <TaxonomyPage kind="tag" slug={slug} page={page} sort={sort} initialDegraded={degraded} />;
 }

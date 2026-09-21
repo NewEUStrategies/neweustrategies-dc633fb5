@@ -275,6 +275,15 @@ afterEach(async () => {
 // ═══ /programs - katalog ════════════════════════════════════════════════════
 
 describe("trasa /programs - katalog programów", () => {
+  it("recovers the catalog after a loader failure without another navigation", async () => {
+    h.failOnce.add("research_programs");
+    await mountIndex();
+    expect(
+      await screen.findByRole("heading", { level: 2, name: "Bezpieczeństwo Europy" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Ta sekcja chwilowo nie ma danych")).toBeNull();
+  });
+
   it("pokazuje kartę programu z nazwą, tezą i drogą do landingu", async () => {
     await mountIndex();
 

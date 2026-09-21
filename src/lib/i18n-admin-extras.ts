@@ -1741,8 +1741,14 @@ export const adminExtrasEn = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", adminExtrasPl, true, true);
-i18n.addResourceBundle("en", "translation", adminExtrasEn, true, true);
-
 /** No-op so a route can pull this overlay into its own chunk (see lib/i18n-*). */
-export function ensureI18n(): void {}
+// Explicit registration must survive both Vite and Nitro tree shaking.
+// Keep the legacy side-effect import contract, and avoid repeated deep merges.
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", adminExtrasPl, true, true);
+  i18n.addResourceBundle("en", "translation", adminExtrasEn, true, true);
+}
+ensureI18n();

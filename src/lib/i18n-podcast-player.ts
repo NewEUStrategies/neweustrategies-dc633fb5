@@ -59,13 +59,13 @@ export const podcastPlayerEn = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", podcastPlayerPl, true, true);
-i18n.addResourceBundle("en", "translation", podcastPlayerEn, true, true);
-
-/**
- * No-op wołany w komponencie zamiast side-effectowego importu modułu. Nazwane
- * wiązanie pozwala bundlerowi trzymać ten słownik w chunku odtwarzacza, a nie
- * w eager-owym grafie wejściowym każdej strony. Rejestracja dzieje się przy
- * ewaluacji modułu (przed renderem), dokładnie jak przy pozostałych nakładkach.
- */
-export function ensureI18n(): void {}
+// Explicit registration must survive both Vite and Nitro tree shaking.
+// Keep the legacy side-effect import contract, and avoid repeated deep merges.
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", podcastPlayerPl, true, true);
+  i18n.addResourceBundle("en", "translation", podcastPlayerEn, true, true);
+}
+ensureI18n();

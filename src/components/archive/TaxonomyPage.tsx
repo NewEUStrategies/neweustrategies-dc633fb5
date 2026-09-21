@@ -19,17 +19,21 @@ import { PodcastEpisodeStrip } from "@/components/podcast/PodcastEpisodeStrip";
 import { archiveLayoutQueryOptions } from "@/lib/archive-layout-settings";
 import { getLayoutComponent } from "@/components/archive/layouts/registry";
 import { ensureI18n as ensureArchiveLayoutI18n } from "@/lib/i18n-archive-layout";
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 
 export function TaxonomyPage({
   kind,
   slug,
   page,
   sort,
+  initialDegraded = false,
 }: {
   kind: "category" | "tag";
   slug: string;
   page: number;
   sort: ArchiveSort;
+  initialDegraded?: boolean;
 }) {
   // Rejestracja słowników w chunku tras archiwum (nie w entry).
   ensureArchiveLayoutI18n();
@@ -37,13 +41,13 @@ export function TaxonomyPage({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const { data: settings } = useSuspenseQuery(archiveLayoutQueryOptions(kind));
-  const { data } = useSuspenseQuery(
-    taxonomyArchiveQueryOptions(kind, slug, {
-      page,
-      pageSize: settings.posts_per_page,
-      sort,
-    }),
-  );
+  const archiveOptions = taxonomyArchiveQueryOptions(kind, slug, {
+    page,
+    pageSize: settings.posts_per_page,
+    sort,
+  });
+  const { data } = useSuspenseQuery(archiveOptions);
+  const { degraded, retry } = useDegradedUntilHealed(archiveOptions.queryKey, initialDegraded);
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const podcastsQ = useQuery({
@@ -58,6 +62,16 @@ export function TaxonomyPage({
     }
   }, [page]);
 
+  // Keep the query mounted while showing the SSR fallback so hydration can
+  // recover it. Returning from the route before this component prevented
+  // both the refetch and removal of the immutable loader error flag.
+  if (degraded) {
+    return (
+      <div className="container mx-auto max-w-3xl px-4 py-12">
+        <DegradedDataNotice variant="page" onRetry={retry} />
+      </div>
+    );
+  }
   if (!data) return <PublicNotFound />;
   const { taxonomy, posts, total, page: currentPage, pageSize, sort: currentSort } = data;
 

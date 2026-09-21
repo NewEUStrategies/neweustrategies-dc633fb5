@@ -38,6 +38,7 @@ const data = vi.hoisted(() => ({
   settingsError: false,
   pageSizeError: false,
   taxonomyError: false,
+  taxonomyFailOnce: false,
   // Limity, z jakimi trasa zawołała silnik wyszukiwania - „pokaż więcej”
   // ma PODWAJAĆ limit, a nie dokładać kolejną stronę.
   limits: [] as number[],
@@ -78,10 +79,15 @@ vi.mock("@/lib/queries/archives", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/queries/archives")>()),
   taxonomyArchiveQueryOptions: (kind: string, slug: string, opts: unknown) => ({
     queryKey: ["taxonomy-archive", kind, slug, opts],
-    queryFn: () =>
-      data.taxonomyError
+    queryFn: () => {
+      if (data.taxonomyFailOnce) {
+        data.taxonomyFailOnce = false;
+        return Promise.reject(new Error("temporary archive outage"));
+      }
+      return data.taxonomyError
         ? Promise.reject(new Error("baza taksonomii padła"))
-        : Promise.resolve(data.taxonomy),
+        : Promise.resolve(data.taxonomy);
+    },
   }),
   searchQueryOptions: (filters: { q: string; sort: string }, limit: number) => ({
     queryKey: ["publications-search", filters.q, filters.sort, limit, data.searchError],
@@ -192,6 +198,7 @@ async function mount(route: unknown, path: string, entry: string) {
 beforeEach(() => {
   data.blog = { posts: posts(2), total: 2, page: 1, pageSize: 2 };
   data.blogFailOnce = false;
+  data.taxonomyFailOnce = false;
   data.settings = {};
   data.layout = { ...DEFAULT_ARCHIVE_LAYOUT, id: "s1", archive_type: "category" };
   data.taxonomy = {
@@ -409,6 +416,19 @@ describe("/category/$slug i /tag/$slug", () => {
     const view = await mount(CategoryRoute, "/category/$slug", "/category/gospodarka?page=2");
     expect(view.search()).toMatchObject({ page: 2 });
   });
+
+  it.each([
+    ["category", CategoryRoute, "/category/$slug", "/category/gospodarka"],
+    ["tag", TagRoute, "/tag/$slug", "/tag/gospodarka"],
+  ] as const)(
+    "recovers %s after a loader failure without a reload",
+    async (_name, route, path, url) => {
+      data.taxonomyFailOnce = true;
+      await mount(route, path, url);
+      expect(await screen.findByRole("link", { name: /Wpis p1/ })).toBeTruthy();
+      expect(screen.queryByText("Ta sekcja chwilowo nie ma danych")).toBeNull();
+    },
+  );
 
   it("preload okładki bierze `sizes` karty WYRÓŻNIONEJ, gdy archiwum ją rysuje", async () => {
     // `show_featured_top` zmienia szerokość pierwszej karty, więc zmienia też

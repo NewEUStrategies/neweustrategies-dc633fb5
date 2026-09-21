@@ -1,3 +1,4 @@
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { uiLang } from "@/lib/i18n/format";
 import { useQuery } from "@tanstack/react-query";
@@ -256,7 +257,11 @@ function PodcastNotice({ messageKey }: { messageKey: string }) {
 
 function PodcastSinglePage() {
   const { slug } = Route.useParams();
-  const { degraded } = Route.useLoaderData();
+  const { degraded: initialDegraded } = Route.useLoaderData();
+  const { degraded, retry } = useDegradedUntilHealed(
+    podcastBySlugQueryOptions(slug).queryKey,
+    initialDegraded,
+  );
   ensurePodcastsI18n();
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = uiLang(i18n.language);
@@ -290,7 +295,7 @@ function PodcastSinglePage() {
   if (degraded) {
     return (
       <div className="container mx-auto max-w-3xl px-4 py-12">
-        <DegradedDataNotice variant="page" />
+        <DegradedDataNotice onRetry={retry} variant="page" />
       </div>
     );
   }
