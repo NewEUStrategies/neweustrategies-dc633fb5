@@ -170,6 +170,12 @@ import { AdZone } from "@/components/AdSlot";
 import { MidPostAds } from "@/components/ads/MidPostAds";
 import { FooterSlideup } from "@/components/ads/FooterSlideup";
 import type { AdPageType } from "@/lib/ads/types";
+// Rozgrzewka slotów reklamowych w SSR - JEDNO zapytanie o wszystkie pozycje
+// tej trasy (uzasadnienie przy jej wywołaniu w fali wtórnej).
+import { prefetchAdPlacementQueries, type AdWarmTarget } from "@/lib/ads/queries";
+// Typ strony reklamowej liczony TAK SAMO jak w powłoce (`SiteChrome`) -
+// inaczej rozgrzany klucz banera nagłówka minąłby się z tym, co czyta widok.
+import { adPageTypeForLocation } from "@/lib/ads/pageType";
 import { prefetchAboveFoldQueries } from "@/lib/builder/prefetch";
 import { prefetchBlockQueries } from "@/lib/queries/blocks";
 import { postLayoutSettingsQueryOptions } from "@/hooks/usePostLayoutSettings";
@@ -474,6 +480,37 @@ export const Route = createFileRoute("/$")({
     // rozstrzygnąć. Uchwyt jest OBIEKTEM, nie `let`-em: zapis w domknięciu nie
     // istnieje dla analizy przepływu TypeScriptu, więc zwykła zmienna zostałaby
     // zawężona do `null` w miejscu odczytu.
+    // SLOTY REKLAMOWE TEJ TRASY, ROZGRZANE W SSR (audyt CWV 2026-09-20, F26 -
+    // pozycja z §8.1 „rozgrzewka `ad_placements` w trasie catch-all").
+    //
+    // CO NAPRAWIA. `AdZone` bez danych zwraca `null`, a `AdContainer` rezerwuje
+    // wtedy ZERO pikseli: baner nagłówka (90 px NAD treścią) i slot nad
+    // artykułem dojeżdżały dopiero po hydratacji i spychały stronę w dół.
+    // Korzeń grzeje `header_banner` WYŁĄCZNIE tam, gdzie typ strony rozstrzyga
+    // sam adres; tu typ zna dopiero ten loader, więc korzeń zostawia to miejsce
+    // tej trasie (komentarz przy `adPageTypeForLocation` w `__root.tsx`).
+    //
+    // DLACZEGO TYLKO TE DWIE POZYCJE. Tyle i dokładnie tyle renderuje SSR:
+    // `useReadingAdBudget` startuje z budżetem PŁACĄCEGO (`tierQ.isPending`),
+    // czyli jedna strefa - `top_of_post` (priorytet 0). `mid_post`, `sidebar`,
+    // `bottom_of_post` i `footer_slideup` wchodzą dopiero po rozstrzygnięciu
+    // planu w przeglądarce i stoją pod zgięciem - ich rozgrzewka byłaby
+    // dehydratowanym ładunkiem za nic.
+    //
+    // JEDNA ODNOGA, JEDEN ROUND-TRIP. `prefetchAdPlacementQueries` pyta o obie
+    // pozycje jednym `position=in.(...)` i rozdziela wynik na klucze widoków,
+    // więc fala wtórna ma 6 odnóg przy sufcie 6 (`check:ssr-budgets`, twardy
+    // limit 6 równoległych podżądań runtime Workers), a nie 7.
+    const adPageType: AdPageType = data.kind;
+    // Baner nagłówka renderuje POWŁOKA, a ona liczy typ strony z ADRESU
+    // (`SiteChrome` -> `adPageTypeForLocation`). Na ścieżkach, gdzie adres każe
+    // jej co innego niż `kind` treści, rozgrzalibyśmy klucz, którego nikt nie
+    // czyta - a wyrównanie tego drugim zapytaniem kosztowałoby siódme
+    // podżądanie. Wtedy baner zostaje przy fetchu po hydratacji, jak dotąd.
+    const adWarmTargets: AdWarmTarget[] = [{ position: "top_of_post", pageId: data.item.id }];
+    if (adPageTypeForLocation(splitUrl(url).path, data.kind) === adPageType) {
+      adWarmTargets.push({ position: "header_banner" });
+    }
     const secondary: { results: PromiseSettledResult<unknown>[] | null } = { results: null };
     await withBudget(
       Promise.allSettled([
@@ -529,6 +566,11 @@ export const Route = createFileRoute("/$")({
         data.kind === "page" && data.item.template_type === "archive_listing"
           ? context.queryClient.prefetchQuery(archiveListingQueryOptions(data.item.id))
           : Promise.resolve(),
+        // SZÓSTA ODNOGA - sloty reklamowe (uzasadnienie i lista pozycji wyżej).
+        // NIE wchodzi do `directArmCold` ani do sygnału degradacji: reklama to
+        // dekoracja, więc jej brak nie ma prawa zdjąć wspólnego cache'u CAŁEGO
+        // dokumentu (ta sama doktryna, co przy `chromeQueryKeys` w korzeniu).
+        prefetchAdPlacementQueries(context.queryClient, adWarmTargets, adPageType),
       ]).then((results) => {
         secondary.results = results;
       }),
@@ -807,7 +849,13 @@ export const Route = createFileRoute("/$")({
 // Named (uppercase) component - hooks inside an inline lowercase
 // `errorComponent` arrow violate rules-of-hooks (ESLint cannot treat it as a
 // component, and neither can React DevTools).
-function PublicErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+// `error: unknown`, a nie `Error`, i to też jest odporność na wersję routera,
+// nie ostrożność: `ErrorComponentProps` niesie dziś `error: unknown`
+// (@tanstack/react-router 1.170.38), a rzucić w JavaScripcie można DOWOLNĄ
+// wartością. Parametr szerszy niż deklarowany przez framework jest zgodny
+// z KAŻDĄ wersją (kontrawariancja), a ten komponent i tak wyłącznie loguje
+// wartość - surowy komunikat nigdy nie trafia do czytelnika.
+function PublicErrorComponent({ error, reset }: { error: unknown; reset: () => void }) {
   const router = useRouter();
   const copy = errorCopy();
   // Raw error.message is logged for diagnostics, never rendered to visitors.

@@ -168,9 +168,31 @@ export const FROZEN_SSR_BUDGETS = {
  * (`Promise.all(menuWarm)` i `Promise.allSettled(chromeWarm)` - tablice
  * budowane zmienną, `__root.tsx:326` i `:508`). ZERO rozwinięć w tablicach
  * literałowych w całym `src/routes`. Ta liczba wolno wyłącznie MALEĆ.
+ *
+ * RATCHET 2 -> 1 (2026-09-21, audyt CWV §8.1). PIERWSZA dziura zniknęła
+ * i nikt za nią nie obniżył tej liczby: rozgrzewka menu chrome'u przestała być
+ * tablicą ze zmiennej i jest dziś literałem
+ * (`Promise.allSettled(["main", "footer"].map(...))` w `__root.tsx`), więc
+ * bramka liczy ją normalnie - DWIE odnogi, tyle ile elementów ma literał.
+ * Zmierzone tą bramką po zmianie: JEDNO miejsce niemierzalne w całym
+ * `src/routes`, nie dwa. Sufit 2 przepuszczał więc od tamtej pory jedną NOWĄ
+ * dziurę za darmo, a to jest dokładnie ta klasa regresji, której ten rekord
+ * ma bronić.
+ *
+ * DLACZEGO NIE DO ZERA, powiedziane wprost, żeby następny czytelnik nie
+ * zaczynał od zera. Druga dziura (`Promise.allSettled(chromeWarm.map(...))`)
+ * jest tablicą składaną warunkowo: baner nagłówka dokłada odnogę tylko wtedy,
+ * gdy adres rozstrzyga typ strony reklamowej, a rozgrzewka widgetów chrome'u
+ * dokłada po jednej na KAŻDY dokument powłoki (nagłówek, stopka) w JEDNEJ
+ * pętli. Rozwinięcie tej pętli do literału dałoby bramce liczbę, ale rozbiłoby
+ * jedno wywołanie `prefetchCachedRouteQueries` na dwa - a `cacheWrites` tego
+ * loadera wynosi DOKŁADNIE 11 przy sufcie 11
+ * (`dehydrationWritesPerLoader`, zero zapasu). Zamiana jednej zmierzonej
+ * liczby na przekroczenie drugiej nie jest poprawą; ta dziura zostaje opisana,
+ * a nie ukryta.
  */
 export const FROZEN_UNMEASURABLE_PARALLEL: Readonly<Record<string, number>> = {
-  "src/routes/__root.tsx": 2,
+  "src/routes/__root.tsx": 1,
 };
 
 /**
