@@ -259,10 +259,11 @@ export const CLOCK_FREEZE_BASELINE: readonly (readonly [string, number])[] = [
   // (`created_at`, `published_at`), których kierunek okna nie dotyczy. To jest
   // przypadek „wejście konwersji albo etykieta" z instrukcji bramki; triage
   // przeczytany na produkcji. `ga4Ecommerce.test.ts` był czerwony już na bazie
-  // (fca7aca) z tego samego powodu - wpisany, żeby bramka opisywała drzewo, na
-  // którym stoi. Liczby przy plikach mogą już tylko maleć.
+  // (fca7aca) z tego samego powodu i też tu stał; 2026-09-21 został ROZBROJONY
+  // (`freezeClock()` + `relativeIso` w samym teście), więc jego wpis zszedł
+  // z listy - zapadka maleje razem ze stanem faktycznym, a nie z opóźnieniem.
+  // Liczby przy plikach mogą już tylko maleć.
   ["src/components/admin/events/__tests__/eventPreviewPublicParity.gate.test.tsx", 1],
-  ["src/lib/analytics/__tests__/ga4Ecommerce.test.ts", 1],
   ["src/routes/__tests__/authorHubRoute.test.tsx", 2],
   ["src/routes/__tests__/eventShellLoader.test.ts", 3],
   ["src/routes/__tests__/legalComplianceRoutes.test.tsx", 1],
