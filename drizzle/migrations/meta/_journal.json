@@ -246,6 +246,13 @@
       "when": 1790033510557,
       "tag": "0034_mention_targets_rpc",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1790033520629,
+      "tag": "0035_user_invitations_pin_all_non_acceptance_columns",
+      "breakpoints": true
     }
   ]
 }
