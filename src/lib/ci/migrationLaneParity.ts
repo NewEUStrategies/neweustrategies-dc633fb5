@@ -201,6 +201,19 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0030_web_vitals_navigation_context",
     twin: "20260920121000_web_vitals_navigation_context.sql",
   },
+  {
+    tag: "0031_user_invitations_pin_all_non_acceptance_columns",
+    twin: "20260922080100_user_invitations_pin_all_non_acceptance_columns.sql",
+  },
+  {
+    tag: "0032_mention_targets_people_crm_companies",
+    drizzleOnly:
+      "Pierwsza wersja funkcji celów @wzmianki (search_mention_targets, get_mention_target), nadpisana w całości przez 0033 na tym samym pasie - firmy dostały tam stabilny slug `org-<uuid>` zamiast identyfikatora z nazwy. Obie deklaracje to CREATE OR REPLACE, więc pas kanoniczny dostaje WYŁĄCZNIE stan końcowy (20260922080000_mention_targets_rpc.sql): odtwarzanie wersji pośredniej niczego nie dowodzi, a zostawiałoby w bazie przez moment funkcję, której żaden klient już nie woła. Pliku nie usuwamy - repozytorium jest forward-only.",
+  },
+  {
+    tag: "0033_stable_organization_mention_slugs",
+    twin: "20260922080000_mention_targets_rpc.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";
