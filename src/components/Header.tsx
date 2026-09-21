@@ -258,7 +258,10 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
 
         {/* Full builder-authored header - visible from lg up. */}
         <div className={cn("hidden lg:block", isHome && "home-header-grow")}>
-          <BuilderRenderer doc={cfg.builder_data} lang={lang} />
+          {/* `chrome`: kolumny nagłówka dostają `min-height` z tego samego
+              szacunku, którym `HeaderSkeleton` rezerwuje miejsce - pusta
+              granica Suspense leniwego widgetu nie zapada wtedy paska. */}
+          <BuilderRenderer doc={cfg.builder_data} lang={lang} chrome />
         </div>
       </div>
 
@@ -441,12 +444,31 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
       // a żadna z tych właściwości nie ma tranzycji - nic nie zdąży drgnąć.
       const previous = el.dataset.metrics;
       delete el.dataset.metrics;
-      // offsetHeight to wysokość w układzie - `transform` jej nie zmienia,
-      // więc odczyt jest odporny na trwającą animację.
-      const natural = chrome.offsetHeight;
+      // POMIAR UŁAMKOWY, NIE `offsetHeight`.
+      //
+      // `offsetHeight` zwraca liczbę CAŁKOWITĄ, a chrome nagłówka ma wysokość
+      // ułamkową: pas „na czasie" to `h-10`, czyli 2,5 rem, a repo skaluje
+      // `root font-size` płynnie (przy 1280 px 1 rem = 15 px, więc pas ma
+      // 37,5 + 1 px ramki). Zaokrąglenie wracało jako narzucona `height`
+      // headera, czyli układ dostawał wysokość o ułamek piksela INNĄ niż
+      // naturalna - i całe `<main>` drgało dokładnie w chwili, gdy pojawiało
+      // się `data-metrics="ready"`.
+      //
+      // Ten ułamek piksela był DROGI, choć sam z siebie niewidoczny:
+      // `<main>` stawało się elementem NIESTABILNYM, więc jego pole wchodziło
+      // do „impact region" przesunięcia liczonego w tej samej klatce.
+      // Przesunięcie treści strony o ~100 px (reflow po podmianie kroju)
+      // z 0,015 robiło się wtedy 0,13 - i tak padał próg CLS w CI.
+      //
+      // `getBoundingClientRect()` daje wartość ułamkową. Transform i `zoom`
+      // fałszowałyby ten odczyt, ale oba wiszą na `data-metrics`, które
+      // zdejmujemy linijkę wyżej - mierzymy więc pudełko bez skalowania.
+      const natural = chrome.getBoundingClientRect().height;
       const ticker = chrome.querySelector<HTMLElement>(".cms-trending");
-      const tickerHeight = ticker ? ticker.offsetHeight : 0;
-      const extra = el.offsetHeight - natural;
+      const tickerHeight = ticker ? ticker.getBoundingClientRect().height : 0;
+      // Ułamki potrafią dać mikroskopijnie ujemną różnicę - strażnik niżej
+      // (`extra >= 0`) ma pilnować sensu pomiaru, nie błędu zmiennoprzecinkowego.
+      const extra = Math.max(0, el.getBoundingClientRect().height - natural);
 
       if (natural > 0 && tickerHeight >= 0 && tickerHeight < natural && extra >= 0) {
         el.style.setProperty("--hdr-nat", `${natural}px`);

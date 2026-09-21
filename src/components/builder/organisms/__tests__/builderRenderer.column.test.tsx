@@ -128,6 +128,55 @@ describe("kolumna jako PASEK NARZĘDZI", () => {
     ).toEqual(["inline", "inline"]);
   });
 
+  it("REGRESJA CLS: kolumna POWŁOKI trzyma min-height nawet bez zawartości", () => {
+    // Publiczny fallback granicy Suspense leniwego widgetu to `null`
+    // (`lazySuspense.tsx`). Pilna aktualizacja przed dojściem chunku potrafi
+    // porzucić strumieniowany HTML - wtedy `search-button`/`account-link`
+    // znikały, kolumna zapadała się do paddingu, a `<main>` podskakiwało
+    // o ~89 px (CLS 0,13 przy progu 0,1). Rezerwa idzie z tego samego
+    // szacunku, którym `HeaderSkeleton` trzyma miejsce.
+    const pusta = renderWithQueryClient(
+      <BuilderRenderer
+        doc={doc([section("s", [column("k", [])])])}
+        lang="pl"
+        device="desktop"
+        chrome
+      />,
+    );
+    expect(kolumna(pusta.container)?.style.minHeight).toBe(`${2 * COLUMN_SAFE_AREA_PX}px`);
+    cleanup();
+
+    const paskowaKol = renderWithQueryClient(
+      <BuilderRenderer
+        doc={doc([section("s", [column("k", paskowa)])])}
+        lang="pl"
+        device="desktop"
+        chrome
+      />,
+    );
+    expect(Number.parseFloat(kolumna(paskowaKol.container)!.style.minHeight)).toBeGreaterThan(
+      2 * COLUMN_SAFE_AREA_PX,
+    );
+  });
+
+  it("treść strony NIE dostaje rezerwy - tam szacunek jest zgrubny", () => {
+    const { container } = render(column("k", paskowa));
+    expect(kolumna(container)?.style.minHeight).toBe("");
+  });
+
+  it("REGRESJA CLS: pasek NIE ZAWIJA się do drugiej linii", () => {
+    // `estimateChromeColumnHeight` (rezerwa `HeaderSkeleton`) liczy pasek jako
+    // JEDEN rząd - wysokość = najwyższy widget, nie suma. Przy `flex-wrap` ta
+    // obietnica zależała od szerokości TEKSTU: ten sam nagłówek mieścił się
+    // w jednej linii lokalnie, a na runnerze CI (inny fallback fontu, szerszy
+    // krój) przeskakiwał do dwóch. Wiersz rósł z 30 na 66 px, nagłówek za nim,
+    // a `<main>` zjeżdżało w dół - CLS 0,1348 przy progu 0,1.
+    const { container } = render(column("k", paskowa));
+    const wiersz = kolumna(container)?.firstElementChild as HTMLElement;
+    expect(wiersz.className).toContain("flex-nowrap");
+    expect(wiersz.className).not.toContain("flex-wrap ");
+  });
+
   it("JEDEN widget nie-kompaktowy w zestawie zdejmuje tryb paska", () => {
     const { container } = render(
       column("k", [widget("b1", "button", { content: {} }), widget("t1", "heading")]),
@@ -153,6 +202,20 @@ describe("kolumna jako PASEK NARZĘDZI", () => {
 });
 
 describe("grupowanie widgetów inline", () => {
+  it("grupa inline ZADEKLAROWANA przez autora nadal zawija się do kolejnych linii", () => {
+    // Tam wiersz jest TREŚCIĄ, nie paskiem chrome: przycięcie nadmiaru
+    // ukryłoby redakcyjne bloki, a zawinięcie jest zamierzone.
+    const { container } = render(
+      column("k", [
+        widget("i1", "heading", { advanced: { layout: "inline" } }),
+        widget("i2", "heading", { advanced: { layout: "inline" } }),
+      ]),
+    );
+    const wiersz = kolumna(container)?.firstElementChild as HTMLElement;
+    expect(wiersz.className).toContain("flex-wrap");
+    expect(wiersz.className).not.toContain("flex-nowrap");
+  });
+
   it("sąsiadujące widgety inline trafiają do jednego wiersza, blokowy przerywa grupę", () => {
     const { container } = render(
       column("k", [

@@ -334,18 +334,38 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
   });
 
   it("kanwa BEZ własnego nagłówka dostaje DOKŁADNIE JEDEN `h1` z nazwą serwisu", async () => {
-    // REGRESJA ODZIEDZICZONA Z `main`. Do 2026-09-14 zapasowy `h1` renderowała
-    // trasa; potem przeniósł się do chrome nagłówka (`HeaderSeoHeading`), które
-    // przy braku `site_settings` w ogóle się nie renderuje - bramka
+    // REGRESJA ODZIEDZICZONA Z `main`. Do 2026-09-14 `h1` renderowała trasa;
+    // potem przeniósł się do chrome nagłówka (`HeaderSeoHeading`), które przy
+    // braku `site_settings` w ogóle się nie renderowało - bramka
     // `e2e/ssr-completeness.spec.ts` liczyła wtedy ZERO nagłówków poziomu 1
-    // na `/` i `/en`. Zapas wrócił do właściciela: strony głównej.
+    // na `/` i `/en`. Nagłówek wrócił do właściciela: strony głównej.
     const view = await mountHome();
     expect(screen.getByTestId("kanwa")).toBeTruthy();
     const h1s = view.container.querySelectorAll("h1");
     expect(h1s).toHaveLength(1);
     // `sr-only`, nie widoczny pasek: kanwa ma własny hero (wymóg redakcyjny
-    // spisany w `HeaderSeoHeading`), ale nagłówek MUSI zostać w drzewie
+    // spisany przy przenosinach do powłoki), ale nagłówek MUSI zostać w drzewie
     // dostępności i w HTML-u serwera.
+    expect(h1s[0].className).toBe("sr-only");
+    expect(h1s[0].textContent).toContain("New European Strategies");
+  });
+
+  it("ZAŁADOWANE ustawienia z kanwą nagłówka nie wyciszają `h1` strony głównej", async () => {
+    // ZDROWY BACKEND, czyli układ produkcyjny: ustawienia dojechały i mają
+    // skonfigurowaną kanwę nagłówka witryny, a dokument strony głównej nie
+    // niesie własnego `h1`. Trasa przez chwilę lustrzała tu warunki
+    // `components/Header.tsx` (dawny `HeaderSeoHeading`) i wyciszała nagłówek -
+    // efektem była produkcyjna strona główna BEZ `h1`, z nagłówkiem wyłącznie
+    // na ścieżce zdegradowanej. Powłoka `h1` już nie wypisuje, więc jedynym
+    // jego źródłem jest trasa.
+    h.settings = {
+      ...h.settings,
+      header: { builder_data: { version: 1, sections: [{ id: "hs", kind: "section" }] } },
+    };
+    const view = await mountHome();
+    expect(screen.getByTestId("kanwa")).toBeTruthy();
+    const h1s = view.container.querySelectorAll("h1");
+    expect(h1s).toHaveLength(1);
     expect(h1s[0].className).toBe("sr-only");
     expect(h1s[0].textContent).toContain("New European Strategies");
   });
@@ -354,21 +374,8 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     // Renderer kanwy jest tu atrapą, więc `h1` z dokumentu do DOM-u nie trafia
     // - przedmiotem dowodu jest to, że trasa NIE dokłada swojego. Dwa `h1` to
     // ten sam defekt, który audyt 2026-08-06 (korekta 2) zgłosił dla stron
-    // buildera, i dlatego zapas jest warunkowy.
+    // buildera, i to JEDYNY powód, dla którego trasa pomija nagłówek.
     h.homePage = homePageData({ builder_data: builderDoc("<h1>Europa i bezpieczeństwo</h1>") });
-    const view = await mountHome();
-    expect(screen.getByTestId("kanwa")).toBeTruthy();
-    expect(view.container.querySelectorAll("h1")).toHaveLength(0);
-  });
-
-  it("gdy `h1` wypisuje POWŁOKA witryny, trasa nie dokłada drugiego", async () => {
-    // `components/Header.tsx` renderuje `HeaderSeoHeading` na stronie głównej,
-    // gdy ustawienia niosą kanwę nagłówka. Powłoki nie ma w tym harnessie, więc
-    // liczymy to, co trasa dokłada OD SIEBIE - i ma nie dokładać nic.
-    h.settings = {
-      ...h.settings,
-      header: { builder_data: { version: 1, sections: [{ id: "hs", kind: "section" }] } },
-    };
     const view = await mountHome();
     expect(screen.getByTestId("kanwa")).toBeTruthy();
     expect(view.container.querySelectorAll("h1")).toHaveLength(0);

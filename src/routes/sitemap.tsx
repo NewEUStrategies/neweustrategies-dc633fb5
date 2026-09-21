@@ -18,6 +18,7 @@ import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 
 /** Wspólny termin trzech zapytań mapy - biegną równolegle, więc jeden budżet. */
 const SITEMAP_SSR_BUDGET_MS = 2_000;
@@ -40,6 +41,7 @@ export const COPY = {
     home: "Strona główna",
     blog: "Blog",
     community: "Społeczność",
+    degraded: "Nie udało się załadować pełnej mapy strony",
   },
   en: {
     title: "Site map",
@@ -50,6 +52,7 @@ export const COPY = {
     home: "Home",
     blog: "Blog",
     community: "Community",
+    degraded: "Couldn't load the full site map",
   },
 } as const;
 
@@ -116,9 +119,23 @@ export const Route = createFileRoute("/sitemap")({
     ]);
     const degraded = anyDegraded(pages, categories, posts);
     setCacheControlHeader(resilientCacheControl(degraded));
-    // Flaga jedzie do komponentu tym samym kontraktem co `/experts` i `/glossary`
-    // - pusta mapa z awarii ma dać się odróżnić od pustej mapy z redakcji.
-    return { degraded };
+    // FLAGI JADĄ DO KOMPONENTU tym samym kontraktem co `/experts` i `/glossary`:
+    // pusta mapa z awarii ma dać się odróżnić od pustej mapy z redakcji. Bez
+    // tego zasiany fallback wyglądał dokładnie jak prawda - sekcja wpisów pusta,
+    // a kategorie z myślnikiem „brak" - czyli transport był naprawiony, a warstwa
+    // treści kłamała (recenzja Codeksa, P2).
+    //
+    // PER SEKCJĄ, nie jedną flagą na całą trasę: zapytania są niezależne, więc
+    // blip kategorii nie ma prawa ukryć stron ani wpisów, które backend oddał
+    // w komplecie. `degraded` zostaje jako zbiorczy sygnał dla komunikatu.
+    return {
+      degraded,
+      degradedSections: {
+        pages: pages.degraded,
+        categories: categories.degraded,
+        posts: posts.degraded,
+      },
+    };
   },
   head: () => {
     const url = getRequestUrl() || "/sitemap";
@@ -166,6 +183,7 @@ function SiteMapPage() {
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const copy = COPY[lang];
+  const { degraded, degradedSections } = Route.useLoaderData();
   const { data: pageRows } = useSuspenseQuery(publicPagesTreeQueryOptions());
   const { data: categories } = useSuspenseQuery(publicCategoriesQueryOptions());
   const { data: blog } = useSuspenseQuery(blogListQueryOptions());
@@ -180,7 +198,21 @@ function SiteMapPage() {
         <h1 className="font-display text-4xl lg:text-5xl mb-2">{copy.title}</h1>
         <p className="text-sm text-muted-foreground mb-8">{copy.description}</p>
 
+        {degraded && (
+          // Wariant INLINE, nie `page`: `<h1>`, opis i nawigacja statyczna są
+          // prawdziwe niezależnie od backendu, więc podmiana całej strony
+          // zabrałaby czytelnikowi (i crawlerowi) treść, która dojechała.
+          <div className="mb-8">
+            <DegradedDataNotice title={copy.degraded} />
+          </div>
+        )}
+
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-3">
+          {/* Sekcja STRON zostaje zawsze, także przy degradacji: „Strona główna"
+              i „Blog" to trasy statyczne, prawdziwe niezależnie od backendu,
+              a `PageTreeList` przy pustym drzewie nie renderuje NIC - żadna pustka
+              nie udaje tu więc danych. Ukrycie tej sekcji zabrałoby crawlerowi dwa
+              linki, które właśnie po to tu stoją. */}
           <section aria-labelledby="sitemap-pages">
             <h2 id="sitemap-pages" className="font-display text-xl font-semibold mb-3">
               {copy.pages}
@@ -215,51 +247,60 @@ function SiteMapPage() {
             </ul>
           </section>
 
-          <section aria-labelledby="sitemap-categories">
-            <h2 id="sitemap-categories" className="font-display text-xl font-semibold mb-3">
-              {copy.categories}
-            </h2>
-            <ul className="space-y-1.5">
-              {categories.map((c) => (
-                <li key={c.slug}>
-                  <Link
-                    to="/category/$slug"
-                    params={{ slug: c.slug }}
-                    className="text-sm hover:text-brand hover:underline"
-                  >
-                    {(lang === "en" ? c.name_en || c.name_pl : c.name_pl || c.name_en) || c.slug}
-                  </Link>
-                </li>
-              ))}
-              {!categories.length && <li className="text-sm text-muted-foreground">-</li>}
-            </ul>
-          </section>
+          {/* Zdegradowany odczyt zawsze niesie PUSTY fallback, więc sekcja
+              pokazałaby „brak kategorii" jako fakt. Chowamy ją - komunikat wyżej
+              mówi, czego zabrakło, a klient dociąga listę po hydratacji. */}
+          {!degradedSections.categories && (
+            <section aria-labelledby="sitemap-categories">
+              <h2 id="sitemap-categories" className="font-display text-xl font-semibold mb-3">
+                {copy.categories}
+              </h2>
+              <ul className="space-y-1.5">
+                {categories.map((c) => (
+                  <li key={c.slug}>
+                    <Link
+                      to="/category/$slug"
+                      params={{ slug: c.slug }}
+                      className="text-sm hover:text-brand hover:underline"
+                    >
+                      {(lang === "en" ? c.name_en || c.name_pl : c.name_pl || c.name_en) || c.slug}
+                    </Link>
+                  </li>
+                ))}
+                {!categories.length && <li className="text-sm text-muted-foreground">-</li>}
+              </ul>
+            </section>
+          )}
 
-          <section aria-labelledby="sitemap-posts" className="md:col-span-2 lg:col-span-1">
-            <h2 id="sitemap-posts" className="font-display text-xl font-semibold mb-3">
-              {copy.posts}
-            </h2>
-            <ul className="space-y-1.5">
-              {blog.posts.map((post) => (
-                <li key={post.id} className="flex items-baseline gap-2">
-                  <Link
-                    to="/post/$slug"
-                    params={{ slug: post.slug }}
-                    className="text-sm hover:text-brand hover:underline min-w-0"
-                  >
-                    {(lang === "en"
-                      ? post.title_en || post.title_pl
-                      : post.title_pl || post.title_en) || post.slug}
-                  </Link>
-                  {post.published_at && (
-                    <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">
-                      {post.published_at.slice(0, 10)}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
+          {/* Jak wyżej: pusta lista wpisów z awarii jest nie do odróżnienia od
+              serwisu bez ani jednego artykułu. */}
+          {!degradedSections.posts && (
+            <section aria-labelledby="sitemap-posts" className="md:col-span-2 lg:col-span-1">
+              <h2 id="sitemap-posts" className="font-display text-xl font-semibold mb-3">
+                {copy.posts}
+              </h2>
+              <ul className="space-y-1.5">
+                {blog.posts.map((post) => (
+                  <li key={post.id} className="flex items-baseline gap-2">
+                    <Link
+                      to="/post/$slug"
+                      params={{ slug: post.slug }}
+                      className="text-sm hover:text-brand hover:underline min-w-0"
+                    >
+                      {(lang === "en"
+                        ? post.title_en || post.title_pl
+                        : post.title_pl || post.title_en) || post.slug}
+                    </Link>
+                    {post.published_at && (
+                      <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">
+                        {post.published_at.slice(0, 10)}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </div>
       </div>
     </div>

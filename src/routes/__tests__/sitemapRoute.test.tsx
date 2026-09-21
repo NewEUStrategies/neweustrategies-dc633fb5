@@ -94,6 +94,13 @@ function stubOptions(name: string, payload: unknown) {
     });
 }
 
+// `head()` biegnie w `router.load()` harnessu - adres ma być deterministyczny,
+// a nie zależny od `window.location` środowiska testowego.
+vi.mock("@/lib/seo/request", () => ({
+  getRequestUrl: () => "https://nes.example.org/sitemap",
+  getOrigin: () => "https://nes.example.org",
+}));
+
 vi.mock("@/lib/queries/public", async (o) => ({
   ...(await o<typeof import("@/lib/queries/public")>()),
   publicPagesTreeQueryOptions: stubOptions("pages-tree", h.pageRows),
@@ -101,7 +108,17 @@ vi.mock("@/lib/queries/public", async (o) => ({
   blogListQueryOptions: stubOptions("blog-list", h.blogResult),
 }));
 
-import { Route } from "@/routes/sitemap";
+import "@/test/i18nReal";
+import { cleanup, screen } from "@testing-library/react";
+import { renderRoute } from "@/test/routeHarness";
+import { COPY, Route } from "@/routes/sitemap";
+
+const PATH = "/sitemap";
+
+/** Zamontowanie trasy w routerze pamięciowym - loader biegnie tak jak w produkcji. */
+async function mount() {
+  return renderRoute({ route: Route, path: PATH, initialEntry: PATH });
+}
 
 type Loader = (args: {
   context: { queryClient: QueryClient };
@@ -148,6 +165,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
   // Stub środowiska z `renderOnServer()` nie może przeciekać na kolejny test.
   vi.unstubAllGlobals();
 });
@@ -239,5 +257,57 @@ describe("loader `/sitemap` - `Cache-Control` bramkowany czystością renderu", 
     // na wolny runner. Trzy zapytania dzielą JEDEN termin, więc zwis wszystkich
     // trzech kosztuje tyle co zwis jednego.
     expect(Date.now() - started).toBeLessThan(4_000);
+  });
+});
+
+describe("render `/sitemap` - degradacja MUSI być widoczna, a nie wyglądać jak pustka", () => {
+  // PO CO TEN BLOK (recenzja Codeksa, P2). Loader zasiewa puste fallbacki, więc
+  // awaria backendu renderowała się jako POPRAWNA mapa: sekcja wpisów pusta,
+  // kategorie z myślnikiem „brak". Transport był naprawiony, a warstwa treści
+  // kłamała - i to jest gorsze niż błąd, bo nie do odróżnienia od prawdy.
+  const NOTICE = COPY.pl.degraded;
+
+  it("awaria WSZYSTKICH trzech odczytów: komunikat degradacji zamiast pustych sekcji", async () => {
+    h.failing.add("pages-tree");
+    h.failing.add("categories");
+    h.failing.add("blog-list");
+    await mount();
+
+    expect(screen.getByText(NOTICE)).toBeInTheDocument();
+    // Żadna pusta lista nie udaje danych: nagłówki sekcji kategorii i wpisów
+    // znikają razem z myślnikiem „brak kategorii".
+    expect(screen.queryByText(COPY.pl.categories)).toBeNull();
+    expect(screen.queryByText(COPY.pl.posts)).toBeNull();
+    expect(screen.queryByText("-")).toBeNull();
+    // A to, co jest prawdą niezależnie od backendu, ZOSTAJE - w tym `<h1>`,
+    // na którym stoi test e2e „HTML sitemap /sitemap renders navigable page".
+    expect(screen.getByRole("heading", { level: 1, name: COPY.pl.title })).toBeInTheDocument();
+    expect(screen.getByText(COPY.pl.community)).toBeInTheDocument();
+    expect(screen.getByText("Wydarzenia")).toBeInTheDocument();
+  });
+
+  it("KONTROLA DODATNIA: czysty render NIE pokazuje komunikatu degradacji", async () => {
+    // Bez tej pary poprzedni test przechodziłby też wtedy, gdyby trasa pokazywała
+    // komunikat awarii ZAWSZE - a to gorsze niż brak komunikatu.
+    await mount();
+
+    expect(screen.queryByText(NOTICE)).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: COPY.pl.title })).toBeInTheDocument();
+    expect(screen.getByText("Analizy")).toBeInTheDocument();
+    expect(screen.getByText("Wpis")).toBeInTheDocument();
+    expect(screen.getByText("O nas")).toBeInTheDocument();
+  });
+
+  it("awaria JEDNEJ sekcji chowa TYLKO ją - reszta mapy zostaje pełna", async () => {
+    // Flagi są per sekcję właśnie po to: blip kategorii nie ma prawa wykasować
+    // wpisów ani stron, które backend oddał w komplecie.
+    h.failing.add("categories");
+    await mount();
+
+    expect(screen.getByText(NOTICE)).toBeInTheDocument();
+    expect(screen.queryByText(COPY.pl.categories)).toBeNull();
+    expect(screen.queryByText("-")).toBeNull();
+    expect(screen.getByText("Wpis")).toBeInTheDocument();
+    expect(screen.getByText("O nas")).toBeInTheDocument();
   });
 });

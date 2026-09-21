@@ -16,7 +16,15 @@
  * nagłówek spychało całe `<main>` w dół (CLS 0,13 w „first visit pl, cold"
  * przy progu 0,1). Nagłówek jest dokumentem buildera i siedzi w tych samych
  * `site_settings`, które szkielet już czyta, więc rezerwę liczymy wprost
- * z niego (`estimateChromeRowHeights`).
+ * z niego (`estimateChromeRowHeights`). Dziś: rezerwa 184 px wobec 185 px
+ * realnego nagłówka.
+ *
+ * DLACZEGO TA LICZBA W OGÓLE TRZYMA. Rezerwa zakłada, że kolumna kompaktowych
+ * widgetów to JEDEN rząd - i `RenderColumn` egzekwuje to `flex-nowrap`em
+ * (`BuilderRenderer.tsx`). Dopóki pasek narzędzi mógł się zawinąć, ta sama
+ * konfiguracja dawała 88 px rzędu lokalnie i 124 px na runnerze CI (inny
+ * fallback kroju = szerszy tekst), więc rezerwa liczona z konfiguracji nie
+ * miała szans trafić w oba środowiska naraz.
  *
  * DLACZEGO OSOBNO MOBILE I DESKTOP. `Header.tsx` renderuje pasek mobilny pod
  * `lg:hidden`, a header builderowy pod `hidden lg:block`. Jedna wspólna

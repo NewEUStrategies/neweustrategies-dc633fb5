@@ -1,13 +1,19 @@
-// Zapasowy nagłówek poziomu 1 strony głównej.
+// Nagłówek poziomu 1 strony głównej - jedyny w serwisie.
 //
 // CO TO DOWODZI. Strona główna musi mieć DOKŁADNIE JEDEN `h1` - zawsze, także
 // przy martwym backendzie. Zero `h1` to strona bez tytułu dla czytnika ekranu
 // i dla crawlera (regresja odziedziczona z `main`: bramka
 // `e2e/ssr-completeness.spec.ts` liczyła `0`, bo jedyny `h1` przeniósł się
 // 2026-09-14 do chrome nagłówka, które przy braku `site_settings` w ogóle się
-// nie renderuje). DWA `h1` to ten sam defekt, który audyt 2026-08-06 zgłosił
-// dla stron buildera. Dlatego zapas jest WARUNKOWY i tutaj sprawdzamy obie
-// przesłanki jego zniknięcia - powłokę i dokument.
+// nie renderowało). DWA `h1` to ten sam defekt, który audyt 2026-08-06 zgłosił
+// dla stron buildera - i dlatego atom ustępuje dokumentowi, który sam niesie
+// nagłówek poziomu 1.
+//
+// DLACZEGO NIE MA TU JUŻ WARUNKU O POWŁOCE. `HeaderSeoHeading` został z chrome
+// usunięty, więc powłoka nie jest kandydatem na `h1`. Lustrzana kopia jego
+// warunków stała tu przez chwilę i SAMA była defektem: po usunięciu atomu
+// z powłoki wyciszała nagłówek na produkcyjnej stronie głównej, zostawiając
+// `h1` wyłącznie na ścieżce zdegradowanej.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. Wykrywania nagłówka w dokumencie
 // (`builderDocHasTopHeading` ma własne testy w `src/lib/builder/__tests__/`)
@@ -20,7 +26,24 @@ import { SITE_DEFAULT_TITLE } from "@/lib/seo/meta";
 import { emptyDocument, type BuilderDocument, type SectionNode } from "@/lib/builder/types";
 
 import { HomeSrHeading } from "../HomeSrHeading";
-import { homeSrHeadingText, siteHeaderHasHomeHeading } from "../homeHeadingSource";
+import { homeSrHeadingText } from "../homeHeadingSource";
+
+/** Dokument z realną treścią, ale BEZ nagłówka poziomu 1. */
+function docWithoutTopHeading(): BuilderDocument {
+  const section: SectionNode = {
+    id: "s1",
+    kind: "section",
+    children: [
+      {
+        id: "c1",
+        kind: "column",
+        span: { desktop: 12 },
+        children: [{ id: "w1", kind: "widget", type: "text", content: { html: "<p>Zdanie.</p>" } }],
+      },
+    ],
+  };
+  return { ...emptyDocument(), sections: [section] };
+}
 
 /** Dokument, którego kanwa sama niesie nagłówek poziomu 1. */
 function docWithHeading(): BuilderDocument {
@@ -41,27 +64,15 @@ function docWithHeading(): BuilderDocument {
   return { ...emptyDocument(), sections: [heading] };
 }
 
-/** Kanwa nagłówka witryny w kształcie, który czyta `components/Header.tsx`. */
-const HEADER_WITH_CANVAS = {
-  header: { builder_data: { version: 1, sections: [{ id: "h1", kind: "section", children: [] }] } },
-} as const;
-
 function headings(container: HTMLElement): string[] {
   return [...container.querySelectorAll("h1")].map((el) => el.textContent ?? "");
 }
 
 function renderHeading(props: Partial<Parameters<typeof HomeSrHeading>[0]> = {}) {
-  return render(
-    <HomeSrHeading
-      title="New European Strategies"
-      doc={null}
-      siteHeaderHasHeading={false}
-      {...props}
-    />,
-  );
+  return render(<HomeSrHeading title="New European Strategies" doc={null} {...props} />);
 }
 
-describe("HomeSrHeading - kiedy strona główna dorysowuje własny h1", () => {
+describe("HomeSrHeading - kiedy strona główna rysuje własny h1", () => {
   it("renderuje h1, gdy dokumentu nie ma (tryb listy wpisów, pustka, zasiew awaryjny)", () => {
     const { container } = renderHeading();
     expect(headings(container)).toEqual(["New European Strategies"]);
@@ -72,6 +83,15 @@ describe("HomeSrHeading - kiedy strona główna dorysowuje własny h1", () => {
     expect(headings(container)).toHaveLength(1);
   });
 
+  it("renderuje h1 dla dokumentu Z TREŚCIĄ, ale bez nagłówka poziomu 1", () => {
+    // Najczęstszy układ produkcyjny: kanwa ma sekcje i widgety, a nagłówek
+    // poziomu 1 nie jest w niej zaprojektowany. Ta gałąź była przez chwilę
+    // wyciszona lustrzanym warunkiem o powłoce - efektem była PRODUKCYJNA
+    // strona główna bez żadnego `h1`.
+    const { container } = renderHeading({ doc: docWithoutTopHeading() });
+    expect(headings(container)).toEqual(["New European Strategies"]);
+  });
+
   it("NIE renderuje h1, gdy kanwa sama niesie nagłówek poziomu 1", () => {
     // To jest sedno: drugi `h1` na tej samej stronie jest defektem dostępności
     // i SEO, nie kosmetyką.
@@ -79,17 +99,11 @@ describe("HomeSrHeading - kiedy strona główna dorysowuje własny h1", () => {
     expect(headings(container)).toEqual([]);
   });
 
-  it("NIE renderuje h1, gdy wypisuje go powłoka witryny", () => {
-    // `HeaderSeoHeading` (chrome nagłówka) jest na stronie głównej pierwszy
-    // w kolejności dokumentu - zapas musi mu wtedy ustąpić.
-    const { container } = renderHeading({ siteHeaderHasHeading: true });
-    expect(headings(container)).toEqual([]);
-  });
-
   it("nagłówek jest `sr-only`, nie widoczny paskiem nad treścią", () => {
-    // Wymóg redakcyjny (patrz `HeaderSeoHeading`): `h1` ma istnieć w kodzie
-    // strony, ale nie rysować się nad kanwą, która ma własny hero. `sr-only`,
-    // a NIE `hidden` - nagłówek musi zostać w drzewie dostępności.
+    // Wymóg redakcyjny spisany przy przenosinach nagłówka do powłoki: `h1` ma
+    // istnieć w kodzie strony, ale nie rysować się nad kanwą, która ma własny
+    // hero. `sr-only`, a NIE `hidden` - nagłówek musi zostać w drzewie
+    // dostępności.
     const { container } = renderHeading();
     expect(container.querySelector("h1")?.className).toBe("sr-only");
   });
@@ -118,24 +132,5 @@ describe("homeSrHeadingText - to samo źródło, co domyślny <title>", () => {
     // `parseSeoSettings` toleruje śmieć; nagłówek najważniejszej trasy serwisu
     // nie może zniknąć przez jeden zepsuty wiersz ustawień.
     expect(homeSrHeadingText({ seo: "nie-obiekt" }, "pl")).toBe(SITE_DEFAULT_TITLE.pl);
-  });
-});
-
-describe("siteHeaderHasHomeHeading - czy powłoka wypisuje już h1", () => {
-  it("dane ustawień, których NIE MA, nie mogą wyrenderować nagłówka", () => {
-    // `dataUpdatedAt === 0` to zasiew awaryjny loadera: `Header` zwraca wtedy
-    // `HeaderSkeleton`, czyli zero nagłówków. Dokładnie ten stan miała bramka
-    // e2e przy placeholderowych poświadczeniach Supabase.
-    expect(siteHeaderHasHomeHeading(HEADER_WITH_CANVAS, 0)).toBe(false);
-  });
-
-  it("ustawienia BEZ kanwy nagłówka też dają szkielet, nie nagłówek", () => {
-    expect(siteHeaderHasHomeHeading({ reading: { posts_per_page: 2 } }, 1)).toBe(false);
-    expect(siteHeaderHasHomeHeading({ header: { builder_data: null } }, 1)).toBe(false);
-    expect(siteHeaderHasHomeHeading({ header: { builder_data: { sections: [] } } }, 1)).toBe(false);
-  });
-
-  it("świeże ustawienia z kanwą nagłówka = powłoka ma własny h1", () => {
-    expect(siteHeaderHasHomeHeading(HEADER_WITH_CANVAS, 1)).toBe(true);
   });
 });

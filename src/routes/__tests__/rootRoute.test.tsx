@@ -35,6 +35,7 @@ import { chromeDegradedCacheControl } from "@/lib/http/cachePolicy";
 import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GA4_MEASUREMENT_ID } from "@/lib/analytics/ga4Client";
+import { homeSsrDeadline } from "@/lib/ssr/homeSsrBudget";
 
 const h = vi.hoisted(() => ({
   lang: "pl" as "pl" | "en",
@@ -57,6 +58,16 @@ const h = vi.hoisted(() => ({
   brand: [] as unknown[],
   ads: [] as string[],
   adsHang: false,
+  /** `syncI18nToRequest` odrzuca - awaria warstwy językowej żądania. */
+  i18nSyncFails: false,
+  /** Fabryka opcji menu rzuca - rozgrzewka menu odrzuca JESZCZE przed falą 1. */
+  menusThrow: false,
+  /** Fabryka opcji tickera rzuca - awaria WEWNĄTRZ bloku rozgrzewki chrome'u. */
+  tickerThrows: false,
+  /** Nazwa chunku rdzenia słownika, którą build podstawia w `LOCALE_CHUNK_URLS`. */
+  dictionaryChunk: null as string | null,
+  /** Hinty chunków widgetów, które build podstawia w `WIDGET_CHUNK_URLS`. */
+  widgetHints: [] as string[],
 }));
 
 vi.mock("@/lib/i18n/localeRuntime", async (o) => ({
@@ -72,8 +83,27 @@ vi.mock("@/lib/http/canonicalRedirect", () => ({
 }));
 vi.mock("@/lib/i18n", async (o) => ({
   ...(await o<typeof import("@/lib/i18n")>()),
-  syncI18nToRequest: async () => void h.i18nSyncCalls++,
+  syncI18nToRequest: async () => {
+    h.i18nSyncCalls++;
+    if (h.i18nSyncFails) throw new Error("i18n zadania padlo");
+  },
   getRenderI18n: () => ({}),
+}));
+// Nazwy chunków słownika i widgetów powstają dopiero w BUILDZIE serwerowym
+// (`scripts/lib/localeChunkPlugin.ts`), a w źródłach stoją puste - bez atrapy
+// obie gałęzie „build podstawił nazwę" byłyby w teście nieosiągalne.
+vi.mock("@/lib/seo/localeChunks", () => ({
+  LOCALE_CHUNK_URLS: {
+    get pl() {
+      return h.dictionaryChunk;
+    },
+    get en() {
+      return h.dictionaryChunk;
+    },
+  },
+}));
+vi.mock("@/lib/seo/widgetPreloads", () => ({
+  widgetPreloadHeaders: () => h.widgetHints,
 }));
 vi.mock("@/lib/http/responseHeaders", () => ({
   appendLinkHeader: (v: string) => h.linkHeaders.push(v),
@@ -106,10 +136,14 @@ vi.mock("@/hooks/useGlobalColors", async (o) => ({
   globalColorsQueryOptions: { queryKey: ["global-colors"], queryFn: async () => null },
 }));
 vi.mock("@/lib/menus/queries", () => ({
-  menuWithItemsQueryOptions: (key: string) => ({
-    queryKey: ["menu-with-items", key],
-    queryFn: () => (h.menusHang ? new Promise(() => {}) : Promise.resolve((h.menus.push(key), []))),
-  }),
+  menuWithItemsQueryOptions: (key: string) => {
+    if (h.menusThrow) throw new Error("modul menu padl");
+    return {
+      queryKey: ["menu-with-items", key],
+      queryFn: () =>
+        h.menusHang ? new Promise(() => {}) : Promise.resolve((h.menus.push(key), [])),
+    };
+  },
 }));
 // Placementy reklamowe: atrapa oddaje TEN SAM klucz, co produkcja (fabryka
 // `adPlacementsQueryOptions`), więc test dowodzi też, że korzeń grzeje klucz,
@@ -126,10 +160,13 @@ vi.mock("@/lib/ads/queries", async (o) => ({
 }));
 vi.mock("@/lib/views/headerTickerQuery", async (o) => ({
   ...(await o<typeof import("@/lib/views/headerTickerQuery")>()),
-  headerTickerQueryOptions: () => ({
-    queryKey: ["header-ticker"],
-    queryFn: async () => (h.ticker.push("warm"), []),
-  }),
+  headerTickerQueryOptions: () => {
+    if (h.tickerThrows) throw new Error("konfiguracja tickera padla");
+    return {
+      queryKey: ["header-ticker"],
+      queryFn: async () => (h.ticker.push("warm"), []),
+    };
+  },
 }));
 vi.mock("@/lib/builder/prefetch", async (o) => ({
   ...(await o<typeof import("@/lib/builder/prefetch")>()),
@@ -140,15 +177,27 @@ vi.mock("@/lib/builder/prefetch", async (o) => ({
     budget: number,
   ) => {
     h.prefetch.push({ budget });
-    // Odwzorowanie anulowania (HMR / `revert: true`): zapytanie zostaje
-    // `pending` + `fetchStatus: "idle"` + bez danych - DOKŁADNIE ten stan,
-    // którego szuka strażnik zapytań menu w loaderze.
+    // Odwzorowanie anulowania (HMR / zamiatanie serializacji przed prerenderem):
+    // zapytanie zostaje `pending` + `fetchStatus: "idle"` + bez danych -
+    // DOKŁADNIE ten stan, którego szuka strażnik zapytań menu w loaderze.
     if (h.cancelMenus) {
-      // Fetch menu startuje po rozstrzygnięciu dynamicznego importu - anulujemy
-      // DOPIERO gdy naprawdę leci, inaczej `cancelQueries` nie ma czego złapać.
+      // Czekamy makrozadanie, żeby rozgrzewka menu zdążyła się rozstrzygnąć:
+      // przedmiotem dowodu jest stan PO anulowaniu, więc nie może go już
+      // nadpisać fetch startujący po dynamicznym imporcie.
+      await new Promise((r) => setTimeout(r, 20));
+      qcArg.removeQueries({ queryKey: ["menu-with-items"] });
+      const wiszace = ["main", "footer"].map((key) =>
+        qcArg
+          .ensureQueryData({
+            queryKey: ["menu-with-items", key],
+            queryFn: () => new Promise(() => {}),
+          })
+          .catch(() => undefined),
+      );
       await new Promise((r) => setTimeout(r, 0));
       // `revert` jest OPCJĄ anulowania, nie filtrem - drugi argument.
       await qcArg.cancelQueries({ queryKey: ["menu-with-items"] }, { revert: true });
+      await Promise.allSettled(wiszace);
     }
   },
 }));
@@ -191,6 +240,11 @@ beforeEach(() => {
   h.chrome = true;
   h.server = false;
   h.cacheControl = [];
+  h.i18nSyncFails = false;
+  h.menusThrow = false;
+  h.tickerThrows = false;
+  h.dictionaryChunk = null;
+  h.widgetHints = [];
 });
 
 describe("__root loader", () => {
@@ -453,6 +507,158 @@ describe("__root loader", () => {
     h.cancelMenus = false;
   });
 
+  // ── AWARIE, KTÓRYCH LOADER KORZENIA NIE MA PRAWA PODNIEŚĆ ───────────────
+  //
+  // Ten loader biegnie na KAŻDEJ trasie serwisu, więc każdy rzut, który z niego
+  // wyjdzie, jest awarią CAŁEGO serwisu - także tam, gdzie zawiodła wyłącznie
+  // dekoracja. Poniżej trzy niezależne miejsca, w których coś realnie potrafi
+  // paść, i dowód, że żadne z nich nie wychodzi na zewnątrz.
+  it("awaria synchronizacji i18n żądania NIE wywraca loadera", async () => {
+    // `syncI18nToRequest` sięga po słowniki; jego awaria (zimny izolat, brak
+    // chunku) zostawia render na języku domyślnym - ale zostawia RENDER.
+    h.i18nSyncFails = true;
+
+    await expect(runLoader(qc)).resolves.toEqual({
+      ga4: { measurementId: GA4_MEASUREMENT_ID, enabled: true },
+    });
+    expect(h.i18nSyncCalls).toBe(1);
+  });
+
+  it("awaria modułu menu NIE wywraca loadera - menu dociągnie klient", async () => {
+    // Rozgrzewka menu startuje PRZED falą 1 (`void warmMenus()`), czyli poza
+    // jakimkolwiek `await` loadera. Bez `.catch()` przy starcie jej odrzucenie
+    // byłoby NIEOBSŁUŻONE i wywróciłoby proces renderu, a nie tylko nagłówek.
+    h.menusThrow = true;
+
+    await expect(runLoader(qc)).resolves.toBeTruthy();
+    await vi.dynamicImportSettled();
+
+    expect(h.menus).toEqual([]);
+  });
+
+  it("awaria WEWNĄTRZ fali chrome'u odbiera dokumentowi brzeg, ale nie serwis", async () => {
+    // Rozgrzewka chrome'u jest dekoracją, więc jej rzut łapie `try/catch` -
+    // ale dokument, którego powłoka nie powstała, nie ma prawa utrwalić się
+    // na brzegu dla kolejnych czytelników.
+    h.settings = { header: { builder_data: { sections: [{ id: "s" }] } } };
+    h.tickerThrows = true;
+
+    await expect(runLoader(qc)).resolves.toBeTruthy();
+
+    expect(h.cacheControl).toContain("private, no-store");
+  });
+
+  it("odrzucone anulowanie zapytania motywu nie wywraca renderu strony głównej", async () => {
+    // `cancelQueries` odrzuca, gdy zapytanie zdąży wejść w stan, którego nie da
+    // się anulować. To ostatnia operacja przed zasiewem - jej rzut kosztowałby
+    // stronę główną CAŁY dokument, a nie jedno nieanulowane zapytanie.
+    h.server = true;
+    h.settingsHangs = true;
+    const cancel = vi
+      .spyOn(qc, "cancelQueries")
+      .mockImplementation(() => Promise.reject(new Error("anulowanie padlo")));
+    try {
+      await expect(runLoader(qc, "/")).resolves.toBeTruthy();
+      expect(h.cacheControl).toContain("private, no-store");
+    } finally {
+      cancel.mockRestore();
+      await qc.cancelQueries();
+    }
+  });
+
+  // ── HINTY, KTÓRE ISTNIEJĄ DOPIERO PO BUILDZIE ──────────────────────────
+  //
+  // `LOCALE_CHUNK_URLS` i `WIDGET_CHUNK_URLS` są w źródłach PUSTE - nazwy
+  // chunków podstawia wtyczka builda serwerowego. Bez atrapy obie gałęzie
+  // „nazwa jest" byłyby w teście nieosiągalne, a to one działają na produkcji.
+  it("chunk rdzenia słownika jedzie WYŁĄCZNIE nagłówkiem `Link`, jako modulepreload", async () => {
+    // Nigdy `<link>` w `<head>`: nazwa pliku jest znana tylko na serwerze, więc
+    // węzeł w dokumencie rozjeżdżałby hydratację korzenia.
+    h.dictionaryChunk = "/assets/locale-pl-abc123.js";
+
+    await runLoader(qc);
+
+    expect(h.linkHeaders).toContain('</assets/locale-pl-abc123.js>; rel="modulepreload"');
+  });
+
+  it("hinty chunków widgetów nagłówka jadą nagłówkiem `Link` tylko w SSR", async () => {
+    // Powód jest ten sam co wyżej i dodatkowo: w przeglądarce nagłówka
+    // odpowiedzi już nie ma komu dołożyć, a chunki i tak są w mapie modułów.
+    h.settings = { header: { builder_data: { sections: [{ id: "s" }] } } };
+    h.widgetHints = ['</assets/widget-menu.js>; rel="modulepreload"; crossorigin'];
+
+    h.server = true;
+    await runLoader(qc, "/blog");
+    expect(h.linkHeaders).toContain('</assets/widget-menu.js>; rel="modulepreload"; crossorigin');
+
+    h.linkHeaders = [];
+    h.server = false;
+    await runLoader(new QueryClient({ defaultOptions: { queries: { retry: false } } }), "/blog");
+    expect(h.linkHeaders).not.toContain(
+      '</assets/widget-menu.js>; rel="modulepreload"; crossorigin',
+    );
+  });
+
+  // ── POWIERZCHNIA Z CHROME'EM, ALE BEZ SERWEROWEJ TREŚCI ────────────────
+  it("`/profile` czeka KRÓCEJ niż pełna fala 1 i nie utrwala się na brzegu", async () => {
+    // Widok profilu rozstrzyga sesja z `localStorage` po hydratacji, więc fala
+    // 1 maluje tu wyłącznie nagłówek i stopkę. Czekanie pełnych 2 500 ms na
+    // dane, z których nie powstanie ani jeden piksel treści, było czystą stratą
+    // TTFB - a dokument na domyślnych ustawieniach nie może pojechać na brzeg.
+    h.server = true;
+    h.settingsHangs = true;
+    const started = performance.now();
+
+    await runLoader(qc, "/profile/moje-konto");
+
+    expect(performance.now() - started).toBeLessThan(2_000);
+    expect(h.cacheControl).toContain("private, no-store");
+    await qc.cancelQueries();
+  });
+
+  it("wyczerpany zegar żądania ZERUJE budżet fali chrome - nie zaczynamy pracy na nic", async () => {
+    // Zegar jest WSPÓLNY dla loaderów jednego dokumentu (`routeSsrDeadline`
+    // trzyma go na `QueryClient`), więc wolny loader trasy potrafi zjeść cały
+    // budżet, zanim korzeń dojdzie do fali chrome. Startowanie wtedy rozgrzewki
+    // to round-tripy, których wynik i tak nie zdąży do HTML-a.
+    h.server = true;
+    // Ustawienia JUŻ SĄ w cache'u, więc pusta lista rozgrzewek niżej jest
+    // skutkiem wyzerowanego budżetu, a nie braku konfiguracji nagłówka.
+    qc.setQueryData(["site-settings"], { header: { builder_data: { sections: [{ id: "s" }] } } });
+    const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now() - 10_000);
+    homeSsrDeadline(qc);
+    clock.mockRestore();
+
+    await runLoader(qc, "/");
+
+    expect(h.ticker).toEqual([]);
+    expect(h.prefetch).toEqual([]);
+    // Nierozgrzana powłoka po wyczerpanym terminie to `failed`, nie krótka
+    // świeżość wspólna - dokumentu nikt już nie dogrzeje.
+    expect(h.cacheControl.at(-1)).toBe("private, no-store");
+  });
+
+  it("ANULOWANE menu jest usuwane TAKŻE po serwerowym domknięciu fali chrome", async () => {
+    // Wariant serwerowy tej samej reguły co niżej: korzeń AWAITUJE falę chrome,
+    // więc strażnik ogląda stan PO anulowaniu, a nie przed jego powstaniem.
+    // Zapytanie `pending` + `idle` + bez danych w dehydratowanym payloadzie
+    // zawiesza klienta na strumieniu, który już nie wróci.
+    h.server = true;
+    h.menusHang = true;
+    h.cancelMenus = true;
+    h.settings = { header: { builder_data: { sections: [{ id: "s" }] } } };
+    try {
+      await runLoader(qc, "/blog");
+
+      expect(qc.getQueryState(["menu-with-items", "main"])).toBeUndefined();
+      expect(qc.getQueryState(["menu-with-items", "footer"])).toBeUndefined();
+    } finally {
+      h.menusHang = false;
+      h.cancelMenus = false;
+      await qc.cancelQueries();
+    }
+  });
+
   it("awaria ustawień NIE wywraca loadera - dekoracja nie może zabrać serwisu", async () => {
     h.settingsFails = true;
     await expect(runLoader(qc)).resolves.toEqual({
@@ -598,6 +804,27 @@ describe("__root loader -> tag Google w SSR", () => {
     // wypycha drugiego kompletu poleceń.
     expect(r.scripts[0]?.children).toContain(`window.__nesGa4SsrTag="G-PANEL00001"`);
     expect(r.scripts.some((script) => script.src?.includes("googletagmanager"))).toBe(false);
+  });
+
+  it("loaderData BEZ strumienia GA4 spada na stałą wdrożenia, a nie na pusty tag", () => {
+    // `head()` bywa wołane bez loaderData korzenia (render błędu, 404), a jego
+    // pole `ga4` może być `null` po zdegradowanym loaderze. Obie ścieżki mają
+    // dać TEN SAM, ważny strumień - tag bez identyfikatora konfigurowałby
+    // `gtag` na pustce i gasił pomiar całego serwisu po cichu.
+    const bezStrumienia = headWithData()({ loaderData: { ga4: null } });
+    expect(bezStrumienia.scripts[0]?.children).toContain(`gtag('config',"${GA4_MEASUREMENT_ID}"`);
+  });
+
+  it("strumień o złym KSZTAŁCIE w loaderData jest odrzucany razem z `enabled`", () => {
+    // Kontrakt jest na PARĘ pól: sam identyfikator bez `enabled` (albo
+    // identyfikator, który nie jest napisem) to ładunek spoza tego loadera -
+    // wpuszczenie go znaczyłoby, że dowolny kształt `loaderData` steruje
+    // tagiem Google w publicznym HTML-u.
+    const zlyKsztalt = headWithData()({ loaderData: { ga4: { measurementId: 7, enabled: true } } });
+    expect(zlyKsztalt.scripts[0]?.children).toContain(`gtag('config',"${GA4_MEASUREMENT_ID}"`);
+
+    const bezFlagi = headWithData()({ loaderData: { ga4: { measurementId: "G-PANEL00001" } } });
+    expect(bezFlagi.scripts[0]?.children).toContain(`gtag('config',"${GA4_MEASUREMENT_ID}"`);
   });
 
   it("wpis o złym kształcie (np. klucz API) nie trafia do HTML - zostaje stała wdrożenia", async () => {

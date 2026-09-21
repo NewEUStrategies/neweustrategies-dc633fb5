@@ -1194,6 +1194,22 @@ describe("kontekst nawigacji w ładunku", () => {
     return beaconMetrics(sent[0]?.body);
   }
 
+  it("niemierzalny zegar nawigacji NIE dokłada pola `sinceNav`", async () => {
+    // `performance.now()` bywa w przeglądarce wyłączone albo zamrożone
+    // (ochrona przed pomiarem czasu): wtedy zwraca wartość spoza skali.
+    // Kontrakt jest wtedy taki sam jak dla reszty kontekstu - BRAK POLA, a nie
+    // zero. Zero wygląda w panelu jak pomiar „metryka padła natychmiast po
+    // starcie nawigacji" i zaniża każdą agregację, która je wpuści.
+    vi.spyOn(performance, "now").mockReturnValue(Number.NaN);
+
+    const metrics = await reportOnce();
+
+    expect(metrics[0]).not.toHaveProperty("sinceNav");
+    // Reszta kontekstu jedzie dalej - jedno niedostępne źródło nie kasuje
+    // pozostałych opisów próbki.
+    expect(metrics[0]).toHaveProperty("coldStart");
+  });
+
   it("komplet pól jedzie razem z metryką", async () => {
     vi.spyOn(performance, "getEntriesByType").mockReturnValue([
       navigationTypeEntry("back_forward"),
@@ -1303,6 +1319,24 @@ describe("kontekst nawigacji w ładunku", () => {
       const metrics = await reportOnce();
 
       expect(metrics[0]?.coldStart).toBe(false);
+    });
+
+    it("środowisko BEZ `sessionStorage` (worker, SSR) daje false zamiast wywrotki", async () => {
+      // `readColdStart` pyta o magazyn PRZEZ `typeof`, bo ten moduł jest
+      // osiągalny z grafu serwerowego (`observability/index.ts`). Odwołanie do
+      // nieistniejącej globalnej rzuciłoby `ReferenceError` z wnętrza budowy
+      // kontekstu - czyli telemetria zabijałaby render, dla którego jest
+      // wyłącznie opisem. Wariant „magazyn rzuca" (tryb prywatny) sprawdza
+      // przypadek wyżej; ten sprawdza „magazynu NIE MA WCALE".
+      vi.stubGlobal("sessionStorage", undefined);
+      try {
+        const metrics = await reportOnce();
+
+        expect(metrics[0]?.coldStart).toBe(false);
+      } finally {
+        // Zdejmujemy od razu: sprzątanie tego bloku woła `sessionStorage.clear()`.
+        vi.unstubAllGlobals();
+      }
     });
 
     it("ponowna zgoda w TEJ SAMEJ odsłonie nie ogłasza drugiego zimnego startu", async () => {

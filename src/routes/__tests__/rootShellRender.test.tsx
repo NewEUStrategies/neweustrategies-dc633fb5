@@ -36,7 +36,7 @@
 // zostaje wariant na atrapie, tańszy i wystarczający dla powłoki, efektów
 // korzenia, ekranu błędu i szkieletu trasy.
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   subscribed: [] as string[],
@@ -67,6 +67,10 @@ const h = vi.hoisted(() => ({
   platformErrors: [] as { error: unknown; context: unknown }[],
   /** Tabele, o które poddrzewo korzenia REALNIE pyta - lista z pomiaru. */
   tables: [] as string[],
+  /** Wyszukiwanie adresu widziane przez `useRouterState` (bramka `?consent-preview=1`). */
+  search: {} as Record<string, unknown>,
+  /** Stan globalnego odtwarzacza - bramka paska audio czyta z niego dwa pola. */
+  player: { track: null as unknown, status: "idle" as string },
 }));
 
 // TRANSPORT ZGŁOSZEŃ ZAATRAPOWANY, i to nie jest wygoda: prawdziwy
@@ -121,7 +125,7 @@ vi.mock("@tanstack/react-router", async (o) => {
       }) => TSelected;
     }) => {
       const state = {
-        location: { pathname: "/", href: "/", search: {} },
+        location: { pathname: "/", href: "/", search: h.search },
         matches: [],
         status: "idle",
         isLoading: false,
@@ -172,6 +176,29 @@ vi.mock("@tanstack/react-router", async (o) => {
     }) => (opts?.select ? opts.select([]) : ([] as unknown as TSelected)),
   };
 });
+
+// ── ATRAPY LENIWYCH NAKŁADEK KORZENIA ────────────────────────────────────
+//
+// Podmieniamy CEL leniwego importu, nie samą bramkę: fabryka `lazy()`
+// w `__root.tsx` nadal się wykonuje (to ona jest przedmiotem dowodu - „chunk
+// powstaje dopiero, gdy bramka puści"), a po drugiej stronie stoi marker
+// zamiast kilkuset linii interfejsu, które mają własne zakresy.
+vi.mock("@/components/ConsentPreviewPanel", () => ({
+  ConsentPreviewPanel: () => <div data-testid="consent-preview-panel" />,
+}));
+vi.mock("@/components/audio/GlobalAudioBar", () => ({
+  GlobalAudioBar: () => <div data-testid="global-audio-bar" />,
+}));
+vi.mock("@/components/ui/sonner", () => ({
+  Toaster: () => <div data-testid="toaster" />,
+}));
+// Odtwarzacz: provider zostaje PRAWDZIWY (opakowuje poddrzewo), a odczyt stanu
+// idzie z `h` - inaczej bramka paska audio nie ma jak zobaczyć ścieżki
+// z aktywnym utworem ani błędu TTS.
+vi.mock("@/lib/audio/global-player", async (o) => ({
+  ...(await o<typeof import("@/lib/audio/global-player")>()),
+  useGlobalAudioPlayer: () => h.player,
+}));
 
 vi.mock("@/lib/i18n", async (o) => {
   const actual = await o<typeof import("@/lib/i18n")>();
@@ -469,6 +496,204 @@ describe("ErrorComponent korzenia", () => {
       cleanup();
     } finally {
       consoleError.mockRestore();
+    }
+  });
+});
+
+// ── BRAMKI NAKŁADEK KORZENIA (audyt CWV 2026-09-20, F19/F23) ─────────────
+//
+// PROBLEM, KTÓRY TE BRAMKI ZAMYKAJĄ. `React.lazy` startuje `import()` przy
+// PIERWSZYM renderze komponentu, więc „leniwy" znaczyło tu wyłącznie
+// „w osobnym pliku", nigdy „później": pięć nakładek, pasek audio, watchdog
+// podglądu i heartbeat sesji dociągały swoje chunki w commicie hydratacji -
+// w oknie LCP i pierwszej interakcji KAŻDEJ strony, u KAŻDEGO czytelnika.
+//
+// Każda bramka niżej ma więc DWIE asercje: że bez warunku chunku NIE MA,
+// i że po spełnieniu warunku nakładka jest. Sam „nie wybuchło" nie broni tu
+// niczego - bramka wpisana odwrotnie (albo usunięta w refaktorze) przechodzi
+// każdy test, który pyta wyłącznie o brak rzutu.
+describe("bramki leniwych nakładek i usług tła korzenia", () => {
+  /** Ten sam wzorzec przepłukania, co w bloku montażu wyżej. */
+  async function flush(rounds = 6): Promise<void> {
+    const { act } = await import("@testing-library/react");
+    for (let i = 0; i < rounds; i++) {
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, i === 0 ? 60 : 5));
+      });
+    }
+  }
+
+  async function mountRoot() {
+    const { render } = await import("@testing-library/react");
+    const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
+    const Root = Route.options.component as unknown as () => React.ReactElement;
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <Root />
+      </QueryClientProvider>,
+    );
+    await flush();
+  }
+
+  /** Udaje iframe podglądu: `window.self !== window.top`. */
+  function pretendIframe(mode: "iframe" | "cross-origin"): void {
+    Object.defineProperty(window, "top", {
+      configurable: true,
+      ...(mode === "cross-origin"
+        ? {
+            get() {
+              // Dokładnie to robi przeglądarka w iframie o obcym originie:
+              // sam ODCZYT `window.top` rzuca `SecurityError`.
+              throw new Error("SecurityError: cross-origin");
+            },
+          }
+        : { value: {} as Window }),
+    });
+  }
+
+  beforeEach(() => {
+    h.search = {};
+    h.player = { track: null, status: "idle" };
+    h.subscribed.length = 0;
+    h.handlers.clear();
+    h.platformErrors.length = 0;
+  });
+
+  afterEach(async () => {
+    const { cleanup } = await import("@testing-library/react");
+    cleanup();
+    Reflect.deleteProperty(window, "top");
+    vi.clearAllMocks();
+  });
+
+  it("poza iframem NIE dociąga ani watchdoga podglądu, ani heartbeatu sesji", async () => {
+    // Obie usługi robią no-op wszędzie poza iframem edytora, więc produkcyjny
+    // czytelnik płaciłby pobraniem i parsowaniem za dokładnie nic. Bramka stoi
+    // PRZED importem, nie w środku modułu - i to jest cała treść naprawy F23.
+    const watchdog = await import("@/lib/watchdog/previewWatchdog");
+    const heartbeat = await import("@/lib/preview/sessionHeartbeat");
+
+    await mountRoot();
+
+    expect(watchdog.startPreviewWatchdog).not.toHaveBeenCalled();
+    expect(heartbeat.startPreviewHeartbeat).not.toHaveBeenCalled();
+  });
+
+  it("w iframie podglądu startują OBIE usługi: watchdog i heartbeat sesji", async () => {
+    // Bez nich iframe edytora potrafi zostać biały aż do ręcznego „Reload
+    // preview": watchdog łapie zawieszony boot, heartbeat - ciszę pulsu > 30 s.
+    pretendIframe("iframe");
+    const watchdog = await import("@/lib/watchdog/previewWatchdog");
+    const heartbeat = await import("@/lib/preview/sessionHeartbeat");
+
+    await mountRoot();
+
+    expect(watchdog.startPreviewWatchdog).toHaveBeenCalled();
+    expect(heartbeat.startPreviewHeartbeat).toHaveBeenCalled();
+  });
+
+  it("iframe o OBCYM originie (rzut przy odczycie `window.top`) liczy się jak iframe", async () => {
+    // `window.self !== window.top` bywa NIEODCZYTYWALNE - przeglądarka rzuca
+    // `SecurityError`. Domyślną odpowiedzią MUSI być „to iframe": odwrotne
+    // założenie zostawiłoby podgląd edytora bez watchdoga dokładnie w tym
+    // wariancie osadzenia, w którym najczęściej stoi.
+    pretendIframe("cross-origin");
+    const watchdog = await import("@/lib/watchdog/previewWatchdog");
+
+    await mountRoot();
+
+    expect(watchdog.startPreviewWatchdog).toHaveBeenCalled();
+  });
+
+  it("panel podglądu zgód powstaje WYŁĄCZNIE przy `?consent-preview=1`", async () => {
+    await mountRoot();
+    expect(document.querySelector("[data-testid='consent-preview-panel']")).toBeNull();
+  });
+
+  it.each([1, "1"])(
+    "`consent-preview=%s` montuje panel - router bywa liczbą, bywa napisem",
+    async (value) => {
+      // Router PARSUJE wartości wyszukiwania, więc `1` przychodzi raz jako liczba,
+      // raz jako napis. Porównanie tylko z napisem znaczyłoby, że panel nie
+      // otworzy się nigdy, a defekt byłby niemy - nikt nie zgłasza narzędzia
+      // diagnostycznego, o którym nie wie.
+      h.search = { "consent-preview": value };
+
+      await mountRoot();
+
+      expect(document.querySelector("[data-testid='consent-preview-panel']")).not.toBeNull();
+    },
+  );
+
+  it("pasek audio dociąga chunk dopiero, gdy odtwarzacz MA utwór", async () => {
+    await mountRoot();
+    expect(document.querySelector("[data-testid='global-audio-bar']")).toBeNull();
+
+    const { cleanup } = await import("@testing-library/react");
+    cleanup();
+    h.player = { track: { id: "post-1" }, status: "playing" };
+
+    await mountRoot();
+
+    expect(document.querySelector("[data-testid='global-audio-bar']")).not.toBeNull();
+  });
+
+  it("pasek audio montuje się także na BŁĘDZIE - toast o nieudanym TTS mieszka w nim", async () => {
+    // Bramka nie może pytać wyłącznie o utwór: gdy synteza padnie, utworu nie
+    // ma, a komunikat o porażce nie miałby się gdzie pokazać.
+    h.player = { track: null, status: "error" };
+
+    await mountRoot();
+
+    expect(document.querySelector("[data-testid='global-audio-bar']")).not.toBeNull();
+  });
+
+  it("Toaster montuje się NATYCHMIAST po pierwszym toaście, nie dopiero po bezczynności", async () => {
+    // Most `lib/notify` widzi tylko swoich wołających, więc bezczynność jest
+    // drugim, bezwarunkowym wyzwalaczem - ale toast ze ścieżki bootowania
+    // przepadłby bez tego pierwszego (sonner nie odtwarza historii nowym
+    // subskrybentom).
+    const { act } = await import("@testing-library/react");
+    const { notifySuccess } = await import("@/lib/notify");
+
+    await mountRoot();
+
+    await act(async () => {
+      notifySuccess("zapisano");
+      await new Promise((r) => setTimeout(r, 5));
+    });
+
+    expect(document.querySelector("[data-testid='toaster']")).not.toBeNull();
+  });
+
+  it("miękka nawigacja przypisuje Web Vitals do NOWEJ ścieżki", async () => {
+    // Bez tego LCP/CLS/INP podstrony lądowały pod adresem, z którego czytelnik
+    // już zszedł - czyli panel pokazywał pomiar strony, której nikt nie oglądał.
+    const webVitals = await import("@/lib/webVitals");
+    const { act } = await import("@testing-library/react");
+
+    await mountRoot();
+    try {
+      window.history.pushState({}, "", "/analiza/energia");
+      const onResolved = h.handlers.get("onResolved");
+      await act(async () => {
+        onResolved?.();
+        await new Promise((r) => setTimeout(r, 5));
+      });
+
+      expect(webVitals.markWebVitalsPage).toHaveBeenCalledWith("/analiza/energia");
+
+      // DRUGIE rozwiązanie tej samej ścieżki to NIE jest nawigacja - ponowne
+      // zgłoszenie zerowałoby akumulatory w środku odsłony.
+      (webVitals.markWebVitalsPage as ReturnType<typeof vi.fn>).mockClear();
+      await act(async () => {
+        onResolved?.();
+        await new Promise((r) => setTimeout(r, 5));
+      });
+      expect(webVitals.markWebVitalsPage).not.toHaveBeenCalled();
+    } finally {
+      window.history.replaceState({}, "", "/");
     }
   });
 });

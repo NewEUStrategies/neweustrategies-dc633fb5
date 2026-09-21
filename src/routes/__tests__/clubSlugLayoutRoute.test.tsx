@@ -69,12 +69,21 @@ vi.mock("@/lib/clubs/publicClub", () => ({
   },
 }));
 
+// `Outlet` czyta kontekst routera, którego goły render nie ma. Atrapa jest
+// MARKEREM: przedmiotem dowodu jest to, że układ oddaje dziecku CAŁĄ ramę
+// (nie rysuje własnej powłoki), a nie to, jak router dobiera dopasowanie.
+vi.mock("@tanstack/react-router", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+  Outlet: () => <div data-testid="outlet" />,
+}));
+
 vi.mock("@/lib/http/responseHeaders", () => ({
   setCacheControlHeader: (value: string) => void h.cacheControl.push(value),
   appendLinkHeader: (value: string) => void h.linkHeaders.push(value),
   readRouteCacheDirective: () => null,
 }));
 
+import { render } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { clubKeys } from "@/lib/clubs/queryKeys";
 import { toClubHeadSource } from "@/lib/clubs/clubHead";
@@ -364,5 +373,23 @@ describe("układ klubu - degradacja nie wypisuje klubu z indeksu ani z brzegu", 
 
     expect(data.coverPreload).toBeNull();
     expect(h.linkHeaders).toEqual([]);
+  });
+});
+
+// KOMPONENT UKŁADU. Loader wyżej jest tu całą wartością trasy, ale komponent
+// nadal musi istnieć i nadal musi być PUSTY: hub (`club.$clubSlug.index`) oraz
+// `ClubWorkspaceLayout` rysują własne ramy, więc każda powłoka dołożona tutaj
+// dublowałaby nagłówek klubu na czternastu powierzchniach naraz.
+describe("układ klubu - komponent oddaje ramę trasom liściowym", () => {
+  it("renderuje WYŁĄCZNIE gniazdo trasy potomnej", () => {
+    const Component = LayoutRoute.options.component;
+    if (typeof Component !== "function") throw new Error("test: układ nie ma komponentu");
+
+    const { container } = render(<Component />);
+
+    expect(container.querySelector("[data-testid='outlet']")).not.toBeNull();
+    // Zero własnej powłoki: gdyby układ cokolwiek dorysował, ten węzeł nie
+    // byłby jedynym elementem drzewa.
+    expect(container.querySelectorAll("*")).toHaveLength(1);
   });
 });
