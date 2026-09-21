@@ -594,7 +594,11 @@ function decorateMissAndDeferStore(
   timing?: RenderTiming,
 ): Response {
   const contentType = response.headers.get("content-type");
-  const policy = documentStorePolicy(response.status, contentType, response.headers.get("cache-control"));
+  const policy = documentStorePolicy(
+    response.status,
+    contentType,
+    response.headers.get("cache-control"),
+  );
   // Pełny (200) dokument HTML, którego polityka NIE wpuszcza do magazynu, to
   // zdegradowany render (`no-store` z loadera): czytelnik dostał go już
   // z pełnym kosztem, a bez odświeżenia w tle następny zapłaci to samo.

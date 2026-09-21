@@ -434,9 +434,7 @@ describe("trasa /podcast/$slug - stan pusty i brak odcinka", () => {
     h.broken.add("podcasts");
     await mount();
 
-    await waitFor(() =>
-      expect(screen.getByText(/chwilowo nie ma danych/i)).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText(/chwilowo nie ma danych/i)).toBeInTheDocument());
     // KONTROLA NEGATYWNA: to NIE jest 404 - odcinek może istnieć.
     expect(screen.queryByText("Nie znaleziono odcinka.")).not.toBeInTheDocument();
     // Render zdegradowany nie ma prawa utrwalić się na brzegu.

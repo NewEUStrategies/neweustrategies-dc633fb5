@@ -144,9 +144,7 @@ export const Route = createFileRoute("/author/$slug")({
     // `.then(noop, noop)` JUŻ TUTAJ: obietnica bywa porzucana w gałęziach
     // wcześniejszego wyjścia (degradacja, 404), a nieobsłużone odrzucenie
     // wywróciłoby proces renderu.
-    const materialsPromise = context.queryClient
-      .ensureQueryData(materialsOptions)
-      .then(noop, noop);
+    const materialsPromise = context.queryClient.ensureQueryData(materialsOptions).then(noop, noop);
     // Hub - potrzebujemy `expert.tenant_id`, żeby dobrać właściwe
     // `expert_layout_settings` (per tenant, nie tylko dla tenanta hosta).
     //

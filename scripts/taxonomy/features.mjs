@@ -517,7 +517,7 @@ export const FEATURES_3 = [
     // WIERSZ NOWY. KIEDY sekcja ma się pojawić, a nie SKĄD bierze dane -
     // regresje są tu wydajnościowe (LCP, podwójne zapytanie), nie treściowe.
     patterns: [
-      /^src\/lib\/builder\/(aboveFold|sectionStreaming|useSectionPreload|prefetch)\.tsx?$/,
+      /^src\/lib\/builder\/(aboveFold|sectionStreaming|sectionHeightEstimate|useSectionPreload|prefetch)\.tsx?$/,
     ],
   },
   {

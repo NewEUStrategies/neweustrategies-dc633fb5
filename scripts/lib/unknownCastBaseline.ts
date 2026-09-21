@@ -53,7 +53,10 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   // dług - to ta sama korekta co po review PR-a #235 (patrz nagłówek pliku):
   // baseline zapisuje liczbę PRAWDZIWĄ. Ratchet dalej trzyma kierunek: 2 -> mniej.
   ["src/components/admin/builder/WidgetProperties.tsx", 2],
-  ["src/components/builder/organisms/WidgetView.tsx", 1],
+  // 2026-09-20, F17: `c as unknown as MegaMenuConfig` pojechało razem z gałęzią
+  // `mega-menu` do dyspozytora chrome. Dług NIE ROŚNIE - zmienia plik, a
+  // `WidgetView.tsx` schodzi do zera i dlatego ZNIKA z listy.
+  ["src/components/builder/organisms/ChromeWidgetView.tsx", 1],
   ["src/components/admin/crm/CrmPartnerEndpointsPanel.tsx", 1],
   ["src/components/admin/menu/AddItemPanel.tsx", 2],
   ["src/components/admin/menu/MenuManager.tsx", 1],

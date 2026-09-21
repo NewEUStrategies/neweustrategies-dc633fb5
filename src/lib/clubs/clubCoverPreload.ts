@@ -66,7 +66,5 @@ export function clubCoverPreload(
   // `buildImageSrcSet` oddaje "" dla adresu spoza Supabase Storage - wtedy
   // `<img>` też nie dostaje `srcSet`, więc preload samego `href` JEST parytetem.
   const imageSrcSet = buildImageSrcSet(href);
-  return imageSrcSet === ""
-    ? { href }
-    : { href, imageSrcSet, imageSizes: CLUB_COVER_BANNER_SIZES };
+  return imageSrcSet === "" ? { href } : { href, imageSrcSet, imageSizes: CLUB_COVER_BANNER_SIZES };
 }

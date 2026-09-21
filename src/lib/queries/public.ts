@@ -703,18 +703,23 @@ async function resolveContentForSegments(segments: string[]): Promise<ResolvedCo
     // `POST_RESOLVE_SELECT`). PIĘĆ odnóg, nie siedem: wiersz wpisu niesie tagi
     // i kategorie w osadzeniu, więc cała fala mieści się w limicie 6
     // równoległych połączeń Workers i żadna odnoga nie czeka w kolejce.
-    const [{ data, error }, body, { data: coAuthorRows, error: coAuthorRowsError }, crumbs, access] =
-      await Promise.all([
-        supabase.from("posts").select(POST_RESOLVE_SELECT).eq("id", hit.post_id).maybeSingle(),
-        fetchGatedBody("post", hit.post_id),
-        supabase
-          .from("post_authors")
-          .select("user_id, sort_order")
-          .eq("post_id", hit.post_id)
-          .order("sort_order", { ascending: true }),
-        fetchPageBreadcrumbs(hit.page_id),
-        fetchAccessRule("post", hit.post_id),
-      ]);
+    const [
+      { data, error },
+      body,
+      { data: coAuthorRows, error: coAuthorRowsError },
+      crumbs,
+      access,
+    ] = await Promise.all([
+      supabase.from("posts").select(POST_RESOLVE_SELECT).eq("id", hit.post_id).maybeSingle(),
+      fetchGatedBody("post", hit.post_id),
+      supabase
+        .from("post_authors")
+        .select("user_id, sort_order")
+        .eq("post_id", hit.post_id)
+        .order("sort_order", { ascending: true }),
+      fetchPageBreadcrumbs(hit.page_id),
+      fetchAccessRule("post", hit.post_id),
+    ]);
     if (coAuthorRowsError) throw coAuthorRowsError;
     if (error) throw error;
     if (!data) return null;

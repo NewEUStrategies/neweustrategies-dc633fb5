@@ -665,7 +665,11 @@ export const MONOLINGUAL_USER_TEXT_BASELINE: readonly (readonly [string, number]
   ["src/components/builder/organisms/widget-view/SimpleWidgets.tsx", 3],
   ["src/components/builder/organisms/widget-view/TabsBlock.tsx", 2],
   ["src/components/builder/organisms/widget-view/TeamMemberWidget.tsx", 1],
-  ["src/components/builder/organisms/WidgetView.tsx", 6],
+  // 2026-09-20, F17: dyspozytor chrome wydzielony z `WidgetView`. Dług NIE
+  // ROŚNIE - zmienia plik: 6 = 5 (gałęzie chrome, które przeniosły się do
+  // `ChromeWidgetView`) + 1 (to, co zostało przy widgetach treściowych).
+  ["src/components/builder/organisms/ChromeWidgetView.tsx", 5],
+  ["src/components/builder/organisms/WidgetView.tsx", 1],
   ["src/components/checkout/GuestCheckoutGate.tsx", 1],
   ["src/components/error/RenderErrorBoundary.tsx", 1],
   ["src/components/experts/ExpertLayoutRenderer.tsx", 1],
