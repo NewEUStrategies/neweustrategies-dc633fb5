@@ -272,4 +272,22 @@ export const CLOCK_FREEZE_BASELINE: readonly (readonly [string, number])[] = [
   ["src/routes/__tests__/programsPublicRoutes.test.tsx", 3],
   ["src/routes/__tests__/qaSessionsRoutes.test.tsx", 7],
   ["src/routes/__tests__/webStoriesRoutes.test.tsx", 4],
+  // 2026-09-21 - CIĄG DALSZY PLANU CWV: dwa NOWE testy tras publicznych, ten sam
+  // wzorzec co blok wyżej. Loader liczy z `Date.now()` TERMIN ODPOWIEDZI
+  // (`withSsrBudget`/`loadResilient`), a nie okno daty, więc kierunek okna nie
+  // dotyczy żadnego z tych literałów - triage przeczytany na produkcji:
+  //   * `sitemapRoute` - `published_at` siedzi w ładunku ATRAPY zapytania i jest
+  //     porównywany przez `toEqual` jako wartość nieprzezroczysta; test wywołuje
+  //     sam loader, więc nikt tej daty nie czyta jako daty,
+  //   * `trackerIndexRoute` - `next_milestone_at` jest wyłącznie wejściem
+  //     `toLocaleDateString` w `formatDate`, a `created_at`/`updated_at` to klucze
+  //     sortowania w (zamockowanym) zapytaniu; żadne okno ich nie obejmuje.
+  // ZAMROŻENIE ZEGARA BYŁOBY TU SZKODLIWE, a nie tylko zbędne: oba pliki MIERZĄ
+  // CZAS TRWANIA (`Date.now() - started < budżet`) i to jest ich dowód na to, że
+  // budżet ścina ZWIS backendu. Na zamrożonym `Date` ta różnica jest zawsze zerem,
+  // więc asercja przechodziłaby także wtedy, gdyby budżet przestał działać - por.
+  // przestrogę o testach mierzących czas trwania w nagłówku `freezeClock`
+  // (`src/test/time.ts`). Liczby przy plikach mogą już tylko maleć.
+  ["src/routes/__tests__/sitemapRoute.test.tsx", 1],
+  ["src/routes/__tests__/trackerIndexRoute.test.tsx", 3],
 ];
