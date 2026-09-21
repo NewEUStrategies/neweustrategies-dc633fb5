@@ -9,14 +9,21 @@
 //     profil tenanta (trigger process_mentions) - autocomplete tylko UŁATWIA
 //     wybór osób publicznych.
 //
-// Filtrujemy do osób (kind === "person"); slug jest wymagany (RPC zwraca tylko
-// profile ze slugiem, ale zawężamy defensywnie). Zapytanie jest debounce'owane
-// u wołającego; przy braku funkcji w bazie degradujemy do pustej listy.
+// Podpowiadamy OSOBY I ORGANIZACJE - `search_people_orgs` zwraca jedne i drugie,
+// a wzmianka firmy zapisuje się tą samą składnią `@slug` co wzmianka osoby.
+// Rozstrzygnięcie „kto to jest" schodzi do warstwy rozwiązywania (`directory`),
+// więc front nie rozjeżdża się z triggerem `process_mentions` w bazie: dla
+// organizacji po prostu nie ma kogo powiadomić i nikt powiadomienia nie dostaje.
+// Slug jest wymagany (RPC zwraca tylko wpisy ze slugiem, ale zawężamy
+// defensywnie). Zapytanie jest debounce'owane u wołającego; przy braku funkcji
+// w bazie degradujemy do pustej listy.
 import { useContext } from "react";
 import { QueryClient, QueryClientContext, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface MentionSuggestion {
+  /** Czym jest podpowiedź - rozstrzyga ikonę wiersza i treść podglądu. */
+  kind: "person" | "org";
   slug: string;
   name: string;
   avatarUrl: string | null;
@@ -49,12 +56,15 @@ export function useMentionSuggestions(query: string | null, lang: "pl" | "en") {
           });
           if (error) throw error;
           return (data ?? [])
-            .filter((r) => r.kind === "person" && Boolean(r.slug))
+            .filter((r) => (r.kind === "person" || r.kind === "organization") && Boolean(r.slug))
             .slice(0, MENTION_SUGGESTION_LIMIT)
             .map((r) => ({
+              kind: r.kind === "organization" ? ("org" as const) : ("person" as const),
               slug: r.slug,
               name: (lang === "en" ? r.label_en : r.label_pl) || r.label_pl || r.label_en || r.slug,
-              avatarUrl: r.avatar_url || null,
+              // Osoba ma zdjęcie, organizacja - logo; gałąź UNION zwraca w
+              // drugiej kolumnie NULL, więc bierzemy pierwszą niepustą.
+              avatarUrl: r.avatar_url || r.logo_url || null,
               subtitle: (lang === "en" ? r.sublabel_en : r.sublabel_pl) || null,
             }));
         } catch {

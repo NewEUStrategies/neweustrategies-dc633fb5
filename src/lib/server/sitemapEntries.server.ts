@@ -133,14 +133,22 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
   // zlokalizowane metadane, breadcrumbs i schema CollectionPage.
   async taxonomy({ admin, tenantId, origin }) {
     const [{ data: categories }, { data: tags }] = await Promise.all([
-      admin.from("categories").select("slug, created_at").eq("tenant_id", tenantId),
+      admin.from("categories").select("slug, kind, created_at").eq("tenant_id", tenantId),
       admin.from("tags").select("slug, created_at").eq("tenant_id", tenantId),
     ]);
     const out: SitemapEntry[] = [];
     for (const row of categories ?? []) {
-      const category = row as { slug: string; created_at: string | null };
+      const category = row as { slug: string; kind: string | null; created_at: string | null };
+      // ORGANIZACJA NIE JEST ARCHIWUM. Term `kind = 'organization'` ma własną,
+      // kanoniczną stronę profilu; `/category/<slug>` dalej działa, ale wskazuje
+      // ją znacznikiem `canonical`. Sitemapa reklamująca oba adresy kazałaby
+      // crawlerowi pobrać stronę tylko po to, żeby dowiedzieć się, że kanoniczny
+      // jest inny - czyli wypalałaby budżet indeksowania na duplikat.
+      const isOrganization = category.kind === "organization";
       out.push({
-        loc: `${origin}/category/${category.slug}`,
+        loc: isOrganization
+          ? `${origin}/organization/${category.slug}`
+          : `${origin}/category/${category.slug}`,
         lastmod: day(category.created_at),
         changefreq: "weekly",
         priority: "0.6",

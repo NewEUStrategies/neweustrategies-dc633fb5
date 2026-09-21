@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
+import { ClubAuthorIdentity } from "@/components/clubs/atoms/ClubAuthorIdentity";
 import { ClubInlineTitle } from "@/components/clubs/atoms/ClubInlineTitle";
 import { ClubSourceChip } from "@/components/clubs/atoms/ClubSourceChip";
 import { clubSourceOf, type ClubSourceMark } from "@/lib/clubs/threadSources";
@@ -363,17 +364,15 @@ export function ClubPostCard({
         />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-            {post.author_slug !== null ? (
-              <Link
-                to="/author/$slug"
-                params={{ slug: post.author_slug }}
-                className="font-medium text-foreground hover:underline"
-              >
-                {authorName}
-              </Link>
-            ) : (
-              <span className="font-medium text-foreground">{authorName}</span>
-            )}
+            <ClubAuthorIdentity
+              author={{
+                kind: post.author_id === null ? "unknown" : "named",
+                name: authorName,
+                avatarUrl: post.author_avatar,
+                profileSlug: post.author_slug,
+              }}
+              nameClassName="truncate font-medium text-foreground"
+            />
             {/* Ten sam znacznik źródła, co na karcie wątku - wpis ze ściany
                 należy do działu dokładnie tak samo jak wątek i nie ma powodu,
                 żeby jego pochodzenie wyglądało inaczej. */}

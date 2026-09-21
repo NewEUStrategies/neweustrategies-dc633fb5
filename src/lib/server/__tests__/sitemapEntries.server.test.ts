@@ -436,6 +436,36 @@ describe("sekcja taxonomy - archiwa kategorii i tagów", () => {
     ]);
   });
 
+  it("term organizacji jedzie pod /organization/, a nie pod /category/", async () => {
+    // Organizacja ma własną, kanoniczną stronę profilu. Stara trasa dalej
+    // działa, ale wskazuje ją znacznikiem `canonical` - sitemapa reklamująca
+    // oba adresy kazałaby crawlerowi pobrać stronę tylko po to, żeby dowiedzieć
+    // się, że kanoniczny jest inny.
+    const db = atrapaAdmina({
+      categories: {
+        wiersze: [
+          { slug: "nato", kind: "organization", created_at: "2026-02-02T10:00:00.000Z" },
+          { slug: "prawo", kind: "category", created_at: null },
+        ],
+      },
+      tags: { wiersze: [] },
+    });
+    const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "taxonomy");
+    expect(wpisy.map((w) => w.loc)).toEqual([
+      `${ORIGIN}/organization/nato`,
+      `${ORIGIN}/category/prawo`,
+    ]);
+  });
+
+  it("term bez rodzaju zostaje archiwum kategorii - brak danej nie tworzy profilu", async () => {
+    const db = atrapaAdmina({
+      categories: { wiersze: [{ slug: "prawo", kind: null, created_at: null }] },
+      tags: { wiersze: [] },
+    });
+    const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "taxonomy");
+    expect(wpisy.map((w) => w.loc)).toEqual([`${ORIGIN}/category/prawo`]);
+  });
+
   it("brak taksonomii to pusta sekcja, nie błąd", async () => {
     const db = atrapaAdmina({ categories: { wiersze: [] }, tags: { wiersze: [] } });
     expect(await collectSitemapSection(db.admin, TENANT, ORIGIN, "taxonomy")).toEqual([]);

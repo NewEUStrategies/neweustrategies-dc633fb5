@@ -12,12 +12,13 @@
 import { Fragment, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { BadgeCheck, ExternalLink, Hash } from "lucide-react";
+import { ExternalLink, Hash } from "lucide-react";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { splitInline } from "@/lib/clubs/inlineSegments";
 import { useClubLinkPreview } from "@/lib/clubs/useClubLinkPreview";
-import { useMentionProfile } from "@/lib/mentions/useMentionProfile";
+import { MentionTag } from "@/components/mentions/MentionTag";
+import { useMentionEntity } from "@/components/mentions/MentionDirectory";
 import { ensureClubI18n } from "@/lib/i18n-club";
 import { cn } from "@/lib/utils";
 import { uiLang } from "@/lib/i18n/format";
@@ -89,85 +90,33 @@ function LinkSegment({ href, raw }: { href: string; raw: string }) {
   );
 }
 
-export function MentionSegment({
-  slug,
-  raw,
-  className,
-}: {
-  slug: string;
-  raw: string;
-  className?: string;
-}) {
+/**
+ * Wzmianka osoby albo organizacji w treści klubowej.
+ *
+ * ETYKIETĄ JEST CZŁOWIEK, NIE NICK. Nazwa, awatar i firma pochodzą z katalogu
+ * powierzchni (`MentionDirectoryProvider` na stronie wątku / ścianie klubu),
+ * więc wątek rozwiązuje wszystkie wzmianki JEDNYM zapytaniem. Poza katalogiem
+ * wzmianka schodzi na uczytelniony slug i leniwy dymek - `@slug` nie pojawia
+ * się w żadnym z tych stanów.
+ */
+export function MentionSegment({ slug, className }: { slug: string; className?: string }) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
-  const [open, setOpen] = useState(false);
-  const profile = useMentionProfile(slug, lang, open);
-  const person = profile.data ?? null;
-
+  const entity = useMentionEntity(slug);
   return (
-    <HoverCard openDelay={200} closeDelay={120} open={open} onOpenChange={setOpen}>
-      <HoverCardTrigger asChild>
-        <Link
-          to="/author/$slug"
-          params={{ slug }}
-          data-mention={slug}
-          className={cn("font-medium text-primary hover:underline", className)}
-        >
-          {raw}
-        </Link>
-      </HoverCardTrigger>
-      <HoverCardContent className="w-72" data-testid="club-mention-preview">
-        {profile.isPending ? (
-          <div className="flex gap-3">
-            <Skeleton className="h-10 w-10 rounded-full" />
-            <div className="flex-1 space-y-2">
-              <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="h-3 w-1/2" />
-            </div>
-          </div>
-        ) : person === null ? (
-          <p className="text-xs text-muted-foreground">{t("club.inline.noProfile")}</p>
-        ) : (
-          <div className="space-y-2">
-            <div className="flex items-start gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-semibold text-muted-foreground">
-                {person.avatarUrl ? (
-                  <img src={person.avatarUrl} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  person.name.slice(0, 2).toLocaleUpperCase()
-                )}
-              </span>
-              <div className="min-w-0">
-                <p className="flex items-center gap-1 text-sm font-semibold text-foreground">
-                  <span className="truncate">{person.name}</span>
-                  {person.verified ? (
-                    <BadgeCheck
-                      className="h-3.5 w-3.5 shrink-0 text-primary"
-                      aria-label={t("club.inline.verified")}
-                    />
-                  ) : null}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {[person.jobTitle, person.company].filter(Boolean).join(" - ") || `@${slug}`}
-                </p>
-              </div>
-            </div>
-            {person.bio ? (
-              <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground">
-                {person.bio}
-              </p>
-            ) : null}
-            <Link
-              to="/author/$slug"
-              params={{ slug }}
-              className="inline-block text-xs font-medium text-primary hover:underline"
-            >
-              {t("club.inline.viewProfile")}
-            </Link>
-          </div>
-        )}
-      </HoverCardContent>
-    </HoverCard>
+    <MentionTag
+      slug={slug}
+      entity={entity}
+      lang={lang}
+      className={className}
+      testId="club-mention-preview"
+      labels={{
+        noProfile: t("club.inline.noProfile"),
+        viewProfile: t("club.inline.viewProfile"),
+        verified: t("club.inline.verified"),
+        viewOrg: t("club.inline.viewOrg"),
+      }}
+    />
   );
 }
 
@@ -222,7 +171,7 @@ export function ClubInlineText({
       {segments.map((seg, i) => {
         if (seg.kind === "text") return <Fragment key={i}>{seg.text}</Fragment>;
         if (seg.kind === "url") return <LinkSegment key={i} href={seg.href} raw={seg.raw} />;
-        if (seg.kind === "mention") return <MentionSegment key={i} slug={seg.slug} raw={seg.raw} />;
+        if (seg.kind === "mention") return <MentionSegment key={i} slug={seg.slug} />;
         return <HashtagSegment key={i} tag={seg.tag} raw={seg.raw} clubSlug={clubSlug} />;
       })}
     </>

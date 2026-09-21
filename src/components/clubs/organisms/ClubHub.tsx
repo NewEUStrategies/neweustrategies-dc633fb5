@@ -91,6 +91,8 @@ import { ClubRosterPanel } from "@/components/clubs/molecules/ClubRosterPanel";
 import { ClubSpotlightPanel } from "@/components/clubs/molecules/ClubSpotlightPanel";
 import { ClubThreadTopicBar } from "@/components/clubs/molecules/ClubThreadTopicBar";
 import { ClubFeedItem } from "@/components/clubs/organisms/ClubFeedItem";
+import { MentionDirectoryProvider } from "@/components/mentions/MentionDirectory";
+import { withAuthorSlugs } from "@/lib/mentions/directory";
 import { ClubGlobalSearchResults } from "@/components/clubs/organisms/ClubGlobalSearch";
 import { buildClubSourceIndex } from "@/lib/clubs/threadSources";
 import { uiLang, uiLocale } from "@/lib/i18n/format";
@@ -227,6 +229,23 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
     () => feed.flatMap((entry) => (entry.kind === "thread" ? [entry.thread.id] : [])),
     [feed],
   );
+  // Autorzy CAŁEJ widocznej partii strumienia jednym zapytaniem - byline
+  // dokłada firmę z profilu, a bez katalogu każda karta pytałaby osobno.
+  const feedAuthorSlugs = useMemo(
+    () =>
+      withAuthorSlugs(
+        [],
+        feed.flatMap((entry) =>
+          entry.kind === "thread"
+            ? [entry.thread.author_slug]
+            : entry.kind === "post"
+              ? [entry.post.author_slug]
+              : [],
+        ),
+      ),
+    [feed],
+  );
+
   const threadReactionsQ = useClubReactions({ targetType: "thread", targetIds: feedThreadIds });
   const threadActorsQ = useClubReactionActors({
     targetType: "thread",
@@ -541,35 +560,37 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
                   : t(`club.hub.feed.empty.${mode}`)}
             </p>
           ) : (
-            <div className="flex flex-col gap-3">
-              {feed.map((entry) => (
-                <ClubFeedItem
-                  key={entry.key}
-                  entry={entry}
-                  clubSlug={clubSlug}
-                  mediaUrls={mediaUrls}
-                  sourceIndex={sourceIndex}
-                  activeGroupId={groupId}
-                  onSourceSelect={setGroupId}
-                  topicsCatalog={topicsCatalog}
-                  activeTopic={topic}
-                  onTopicSelect={(next) => applyThreadFilter(() => setTopic(next), next !== null)}
-                  onPostLike={(postId) => {
-                    toggleLike.mutate(postId, {
-                      onSuccess: () => void postsQ.refetch(),
-                    });
-                  }}
-                  onPostDelete={(postId) => deletePost.mutate(postId)}
-                  threadReactions={threadReactionsQ.data}
-                  threadReactionActors={threadActorsQ.data}
-                  reactionsPending={toggleThreadReaction.isPending}
-                  canReact={signedIn && club.can_reply}
-                  onThreadReact={(threadId, kind, active) =>
-                    toggleThreadReaction.mutate({ targetId: threadId, kind, active })
-                  }
-                />
-              ))}
-            </div>
+            <MentionDirectoryProvider slugs={feedAuthorSlugs} lang={lang}>
+              <div className="flex flex-col gap-3">
+                {feed.map((entry) => (
+                  <ClubFeedItem
+                    key={entry.key}
+                    entry={entry}
+                    clubSlug={clubSlug}
+                    mediaUrls={mediaUrls}
+                    sourceIndex={sourceIndex}
+                    activeGroupId={groupId}
+                    onSourceSelect={setGroupId}
+                    topicsCatalog={topicsCatalog}
+                    activeTopic={topic}
+                    onTopicSelect={(next) => applyThreadFilter(() => setTopic(next), next !== null)}
+                    onPostLike={(postId) => {
+                      toggleLike.mutate(postId, {
+                        onSuccess: () => void postsQ.refetch(),
+                      });
+                    }}
+                    onPostDelete={(postId) => deletePost.mutate(postId)}
+                    threadReactions={threadReactionsQ.data}
+                    threadReactionActors={threadActorsQ.data}
+                    reactionsPending={toggleThreadReaction.isPending}
+                    canReact={signedIn && club.can_reply}
+                    onThreadReact={(threadId, kind, active) =>
+                      toggleThreadReaction.mutate({ targetId: threadId, kind, active })
+                    }
+                  />
+                ))}
+              </div>
+            </MentionDirectoryProvider>
           )}
 
           {/* Doładowanie dotyczy WĄTKÓW - konteksty przyjechały w całości. */}

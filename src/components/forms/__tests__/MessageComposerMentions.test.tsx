@@ -17,8 +17,14 @@ vi.mock("@/lib/mentions/useMentionSuggestions", () => ({
 import { MessageComposerField } from "@/components/forms/MessageComposerField";
 
 const PEOPLE: MentionSuggestion[] = [
-  { slug: "jan-kowalski", name: "Jan Kowalski", avatarUrl: null, subtitle: "Analityk" },
-  { slug: "anna-nowak", name: "Anna Nowak", avatarUrl: null, subtitle: null },
+  {
+    kind: "person",
+    slug: "jan-kowalski",
+    name: "Jan Kowalski",
+    avatarUrl: null,
+    subtitle: "Analityk",
+  },
+  { kind: "person", slug: "anna-nowak", name: "Anna Nowak", avatarUrl: null, subtitle: null },
 ];
 
 beforeEach(() => {

@@ -110,6 +110,16 @@ export const Route = createFileRoute("/category/$slug")({
         : lang === "en"
           ? `${name} - category`
           : `${name} - kategoria`;
+    const { origin } = splitUrl(url);
+    const originAbs = origin || SITE_CANONICAL_ORIGIN;
+    // TERM ORGANIZACJI MA WŁASNY, KANONICZNY ADRES. `/category/<slug>` renderuje
+    // się dla niego dalej (zastane linki nie mogą paść), ale wskazuje profil
+    // organizacji - inaczej wyszukiwarka indeksowałaby dwie strony tego samego
+    // bytu, a sygnały rankingowe rozjeżdżałyby się po obu.
+    const canonicalOverride =
+      tax?.kind === "organization"
+        ? `${originAbs}${localizedPath(`/organization/${params.slug}`, lang)}`
+        : null;
     const head = buildContentHead({
       url,
       lang,
@@ -118,9 +128,8 @@ export const Route = createFileRoute("/category/$slug")({
       description: cleanedDesc,
       // Paginated pages are noindex to consolidate ranking on page 1.
       robots: page > 1 ? "noindex, follow" : null,
+      canonicalOverride,
     });
-    const { origin } = splitUrl(url);
-    const originAbs = origin || SITE_CANONICAL_ORIGIN;
     const crumbsLabel = lang === "en" ? "Categories" : "Kategorie";
     const breadcrumbs = breadcrumbListJsonLd(
       [{ label: crumbsLabel, href: "/blog" }, { label: name }],

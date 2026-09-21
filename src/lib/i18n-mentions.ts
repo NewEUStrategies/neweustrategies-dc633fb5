@@ -13,6 +13,11 @@ const pl = {
     empty: "Brak pasujących osób",
     // Tekst czytany przez czytniki ekranu przy wyborze osoby.
     inserted: "Wspomniano: {{name}}",
+    // Wizytówka pod wzmianką w treści (dymek po najechaniu).
+    noProfile: "Nie znaleziono takiego profilu.",
+    viewProfile: "Zobacz profil",
+    verified: "Profil zweryfikowany",
+    viewOrg: "Zobacz organizację",
   },
 };
 
@@ -23,6 +28,10 @@ const en: typeof pl = {
     loading: "Searching people...",
     empty: "No matching people",
     inserted: "Mentioned: {{name}}",
+    noProfile: "No such profile found.",
+    viewProfile: "View profile",
+    verified: "Verified profile",
+    viewOrg: "View organisation",
   },
 };
 

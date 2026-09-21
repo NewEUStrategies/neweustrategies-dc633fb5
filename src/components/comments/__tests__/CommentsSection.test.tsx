@@ -19,6 +19,13 @@
 //
 //   4. MAPOWANIE BŁĘDÓW NA COPY. Limit tempa, wygasłe okno edycji i wymagane
 //      logowanie mają własne komunikaty; reszta - ogólny.
+//
+//   5. ZWIJANIE GAŁĘZI. Akordeon DODAJE możliwość złożenia wątku, więc po
+//      zamontowaniu nic nie jest schowane, a wyzwalacz stoi tylko tam, gdzie
+//      jest co chować. Sedno: odpowiedź wysłana w gałąź ZWINIĘTĄ musi ją
+//      rozwinąć - inaczej autor nie widzi własnej wypowiedzi i wysyła ją drugi
+//      raz. Reguły samego zbioru zwiniętych mają osobny zakres
+//      (`src/lib/discussion/__tests__/branches.test.ts`).
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -312,5 +319,91 @@ describe("mapowanie błędów na komunikaty", () => {
     await failWith(new Error("cokolwiek innego"));
 
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("comments.errors.generic"));
+  });
+});
+
+describe("zwijanie gałęzi", () => {
+  /** Dwa wątki: pierwszy z odpowiedzią, drugi goły - jeden render, dwa przypadki. */
+  function twoThreads() {
+    return {
+      comments: [
+        withAuthorRow({ id: "c1", body: "Wątek z odpowiedzią" }),
+        withAuthorRow({ id: "c1a", parent_id: "c1", body: "Odpowiedź w gałęzi" }),
+        withAuthorRow({ id: "c2", body: "Wątek bez odpowiedzi" }),
+      ],
+      topLevelCount: 2,
+      approvedCount: 3,
+    };
+  }
+
+  function expander(): HTMLElement {
+    return screen.getByTestId("discussion-expand");
+  }
+
+  it("komentarz Z ODPOWIEDZIAMI dostaje wyzwalacz liczący gałąź", async () => {
+    h.page = twoThreads();
+
+    section();
+
+    await waitFor(() => expect(screen.getAllByTestId("discussion-expand").length).toBe(1));
+    // Rozwinięta gałąź proponuje ZWINIĘCIE - klucz `hide`, nie `show`.
+    expect(expander().textContent).toContain('comments.hideReplies|{"count":1}');
+  });
+
+  it("komentarz BEZ odpowiedzi wyzwalacza NIE dostaje", async () => {
+    // Przycisk „pokaż 0 odpowiedzi" byłby obietnicą bez pokrycia.
+    h.page = { comments: [withAuthorRow({ id: "c2" })], topLevelCount: 1, approvedCount: 1 };
+
+    section();
+
+    await waitFor(() => expect(hasKey("Treść komentarza")).toBe(true));
+    expect(screen.queryByTestId("discussion-expand")).toBeNull();
+  });
+
+  it("po zamontowaniu gałąź jest ROZWINIĘTA - akordeon niczego nie ukrył", async () => {
+    h.page = twoThreads();
+
+    section();
+
+    // Czytelnik wchodzi tu z linku do konkretnej odpowiedzi; start w stanie
+    // zwiniętym wyglądałby jak utrata treści.
+    await waitFor(() => expect(screen.getByText("Odpowiedź w gałęzi")).toBeTruthy());
+    expect(expander().getAttribute("data-state")).toBe("open");
+  });
+
+  it("kliknięcie wyzwalacza ZWIJA gałąź i przestawia etykietę na „pokaż”", async () => {
+    h.page = twoThreads();
+    section();
+    await waitFor(() => expect(screen.getByText("Odpowiedź w gałęzi")).toBeTruthy());
+
+    fireEvent.click(expander());
+
+    expect(expander().getAttribute("data-state")).toBe("closed");
+    expect(expander().textContent).toContain('comments.showReplies|{"count":1}');
+    expect(screen.queryByText("Odpowiedź w gałęzi")).toBeNull();
+    // Zwinięcie dotyczy GAŁĘZI, nie całego wątku - korzeń zostaje widoczny.
+    expect(screen.getByText("Wątek z odpowiedzią")).toBeTruthy();
+  });
+
+  it("odpowiedź wysłana w ZWINIĘTĄ gałąź rozwija ją z powrotem", async () => {
+    h.user = { id: USER_ID.author };
+    h.page = twoThreads();
+    section();
+    await waitFor(() => expect(screen.getByText("Odpowiedź w gałęzi")).toBeTruthy());
+    fireEvent.click(expander());
+    expect(expander().getAttribute("data-state")).toBe("closed");
+
+    // Pierwszy „Odpowiedz" należy do korzenia `c1` - reszta gałęzi jest schowana.
+    fireEvent.click(screen.getAllByText("comments.reply")[0]);
+    const forms = document.querySelectorAll("form");
+    const replyForm = forms[forms.length - 1];
+    fireEvent.change(replyForm.querySelector("textarea")!, {
+      target: { value: "Moja odpowiedź" },
+    });
+    fireEvent.submit(replyForm);
+
+    // Bez `revealBranch` autor wysyła w ciemno i pisze drugi raz.
+    await waitFor(() => expect(expander().getAttribute("data-state")).toBe("open"));
+    expect(h.createComment).toHaveBeenCalled();
   });
 });

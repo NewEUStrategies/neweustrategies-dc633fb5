@@ -19,6 +19,7 @@ import type { TaxonomyMeta } from "@/lib/queries/archives";
 const CATEGORY: TaxonomyMeta = {
   id: "c1",
   slug: "bezpieczenstwo",
+  kind: "category",
   name_pl: "Bezpieczeństwo",
   name_en: "Security",
   description_pl: "Analizy o bezpieczeństwie.",
@@ -30,6 +31,7 @@ const CATEGORY: TaxonomyMeta = {
 const TAG: TaxonomyMeta = {
   id: "t1",
   slug: "nato",
+  kind: "tag",
   name_pl: "NATO",
   name_en: "NATO",
   description_pl: null,

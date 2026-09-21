@@ -110,6 +110,17 @@ import { ClubNewRepliesBar } from "@/components/clubs/molecules/ClubNewRepliesBa
 import { ClubReportButton } from "@/components/clubs/molecules/ClubReportButton";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
+import { ClubAuthorIdentity } from "@/components/clubs/atoms/ClubAuthorIdentity";
+import {
+  Discussion,
+  DiscussionExpand,
+  DiscussionItem,
+  DiscussionReplies,
+} from "@/components/ui/discussion";
+import { MentionDirectoryProvider } from "@/components/mentions/MentionDirectory";
+import { collectMentionSlugs, withAuthorSlugs } from "@/lib/mentions/directory";
+import { splitInline } from "@/lib/clubs/inlineSegments";
+import { countDescendants, revealBranch, toggleBranch } from "@/lib/discussion/branches";
 import { ClubProse } from "@/components/clubs/atoms/ClubProse";
 
 import { ClubThreadListSkeleton, Shimmer } from "@/components/clubs/atoms/ClubSkeletons";
@@ -243,6 +254,13 @@ function ClubThreadView() {
   // otwarty jest najwyżej jeden edytor - dwa naraz to dwie wersje tej samej
   // dyskusji na ekranie.
   const [editing, setEditing] = useState<string | null>(null);
+  // Zbiór ZWINIĘTYCH gałęzi, kluczowany po id odpowiedzi. Pusty zbiór znaczy
+  // „wszystko rozwinięte", więc odpowiedź, która właśnie przyszła, jest widoczna
+  // bez dopisywania jej gdziekolwiek. Klucz po id, a nie po pozycji: nowa partia
+  // z `useDeferredReplies` przestawiłaby stan indeksowany na złe gałęzie.
+  const [collapsedBranches, setCollapsedBranches] = useState<ReadonlySet<string>>(
+    () => new Set<string>(),
+  );
 
   const replyM = useReplyToThread(club?.id ?? "", threadSlug);
   const resolveM = useResolveClubThread(club?.id ?? "", threadSlug);
@@ -374,6 +392,15 @@ function ClubThreadView() {
 
   const author = toAuthorLabel(thread, t("club.anonymousAuthor"), t("club.deletedAuthor"));
   const tree = buildClubReplyTree(deferred.rows);
+  // Wzmianki w treści i autorzy wpisów schodzą do JEDNEGO zapytania zbiorczego:
+  // etykietą wzmianki jest imię i nazwisko, a bylina dokłada firmę z profilu,
+  // więc oba potrzebują profilu przy renderze, nie dopiero po najechaniu.
+  const mentionSlugs = withAuthorSlugs(
+    collectMentionSlugs([thread.body, ...deferred.rows.map((row) => row.body)], splitInline),
+    [thread.author_slug, ...deferred.rows.map((row) => row.author_slug)],
+  );
+  const onBranchToggle = (replyId: string, open: boolean) =>
+    setCollapsedBranches((prev) => toggleBranch(prev, replyId, open));
   // Licznik strony odpowiedzi: `undefined` znaczy ZAPYTANIE W LOCIE, nie zero.
   const replies = clubRepliesMeter(repliesQ.data);
   // Uprawnienia postu otwierającego - jedno wejście, jeden wynik. Trasa nie
@@ -412,6 +439,11 @@ function ClubThreadView() {
           // pojawi - i bez przyjęcia jej tutaj wpadłaby do licznika "N nowych
           // odpowiedzi" jako cudza treść.
           deferred.accept([outcome.id]);
+          // Autor wysłał odpowiedź w gałąź, którą sam wcześniej zwinął -
+          // zostawienie jej zwiniętej wyglądałoby jak zgubiona wypowiedź.
+          if (replyTo !== null) {
+            setCollapsedBranches((prev) => revealBranch(prev, replyTo));
+          }
           if (outcome.queued) {
             // Wpis jest widoczny dla autora, ale dla nikogo więcej - dopóki
             // prowadzenie go nie zatwierdzi. Obiecywanie publikacji byłoby więc
@@ -457,183 +489,187 @@ function ClubThreadView() {
           Belka zakładek + panele A28. Dyskusja jedzie jako `children`, więc
           renderuje się natychmiast, niezależnie od tego, czy liczniki paneli
           zdążyły dojść. */}
-      <ClubThreadWorkspace
-        threadId={thread.id}
-        lang={lang}
-        userId={user?.id ?? null}
-        summary={workspaceQ.data ?? EMPTY_WORKSPACE_SUMMARY}
-        canGoAnonymous={canGoAnonymous}
-      >
-        {/* --- post otwierający --- */}
-        {/* Post otwierający mówi tym samym językiem, co wiersz dossier w
+      {/* Katalog wzmianek dla CAŁEJ strony wątku: jedno zapytanie rozwiązuje
+          wszystkie @wzmianki w treści i wszystkich autorów w bylinach. Bez
+          niego każda wzmianka pytałaby osobno. */}
+      <MentionDirectoryProvider slugs={mentionSlugs} lang={lang}>
+        <ClubThreadWorkspace
+          threadId={thread.id}
+          lang={lang}
+          userId={user?.id ?? null}
+          summary={workspaceQ.data ?? EMPTY_WORKSPACE_SUMMARY}
+          canGoAnonymous={canGoAnonymous}
+        >
+          {/* --- post otwierający --- */}
+          {/* Post otwierający mówi tym samym językiem, co wiersz dossier w
             strumieniu: grzbiet rodzaju po lewej, ikona rodzaju w kwadracie,
             meta wersalikami nad tytułem. Inaczej ten sam wątek wyglądałby
             inaczej na hubie i na własnej stronie. */}
-        <ClubDossierRow
-          testId="club-thread-lead"
-          tone={threadTone}
-          pinned={thread.pinned_at !== null}
-          titleStyle="headline"
-          icon={<ClubThreadKindIcon kind={thread.kind} icon={threadIcon} />}
-          meta={
-            <>
-              <ClubDossierKind className="text-[10px]">
-                {t(`club.kind.${thread.kind}`)}
-              </ClubDossierKind>
-              {thread.status === "resolved" ? (
-                <Badge className="rounded-lg bg-emerald-600 px-1.5 py-0 text-[10px] hover:bg-emerald-600">
-                  {t("club.threadStatus.resolved")}
-                </Badge>
-              ) : null}
-              {thread.locked_at !== null ? (
-                <Badge variant="outline" className="gap-1 text-[10px]">
-                  <Lock className="h-3 w-3" aria-hidden="true" />
-                  {t("club.threadStatus.locked")}
-                </Badge>
-              ) : null}
-              {thread.attribution_mode === "chatham" ? (
-                <Badge variant="outline" className="gap-1 text-[10px]">
-                  <ShieldQuestion className="h-3 w-3" aria-hidden="true" />
-                  {t("club.attribution.chatham")}
-                </Badge>
-              ) : null}
-              {/* Obszar tematyczny wątku - ten sam chip co na hubie i w klubie. */}
-              <ClubTopicChip topic={thread.topic} lang={lang} catalog={topicCatalog} size="sm" />
-              {thread.anchor_type !== null ? (
-                <Badge variant="secondary" className="gap-1 text-[10px]">
-                  <Link2 className="h-3 w-3" aria-hidden="true" />
-                  {t(`club.anchorType.${thread.anchor_type}`)}
-                </Badge>
-              ) : null}
-              <span aria-hidden="true">·</span>
-              <ClubAuthorAvatar
-                name={author.name}
-                avatarUrl={author.avatarUrl}
-                size="sm"
-                muted={author.kind !== "named"}
-              />
-              <span className="truncate font-medium text-foreground">{author.name}</span>
-              <span aria-hidden="true">·</span>
-              <time dateTime={thread.created_at}>{formatDateTime(thread.created_at, lang)}</time>
-              {thread.edited_at !== null ? <span>{t("club.edited")}</span> : null}
-              {thread.pinned_at !== null ? (
-                <span className="inline-flex items-center gap-1 text-primary">
-                  <Pin className="h-3 w-3" aria-hidden="true" />
-                  {t("club.hub.feed.pinned")}
-                </span>
-              ) : null}
-            </>
-          }
-          title={<h1 className="[overflow-wrap:anywhere]">{thread.title}</h1>}
-          footer={
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border/60 pt-2.5">
-              <ClubReactionBar
-                tallies={threadReactionsQ.data?.get(thread.id) ?? []}
-                disabled={!thread.can_reply || toggleThreadReaction.isPending}
-                variant="full"
-                labels="hover"
-                onToggle={(kind, active) =>
-                  toggleThreadReaction.mutate({ targetId: thread.id, kind, active })
-                }
-              />
-              <ClubReactionAvatars
-                actors={threadActorsQ.data?.get(thread.id) ?? []}
-                total={clubReactionTotal(threadReactionsQ.data?.get(thread.id) ?? [])}
-                size="sm"
-              />
-              <div className="ml-auto flex flex-wrap items-center gap-1.5">
-                {caps.canEdit && editing !== "thread" ? (
-                  <button
-                    type="button"
-                    onClick={() => setEditing("thread")}
-                    aria-label={t("club.editor.edit")}
-                    className={clubHoverActionClass()}
-                  >
-                    <ClubHoverActionBody icon={Pencil} label={t("club.editor.edit")} />
-                  </button>
+          <ClubDossierRow
+            testId="club-thread-lead"
+            tone={threadTone}
+            pinned={thread.pinned_at !== null}
+            titleStyle="headline"
+            icon={<ClubThreadKindIcon kind={thread.kind} icon={threadIcon} />}
+            meta={
+              <>
+                <ClubDossierKind className="text-[10px]">
+                  {t(`club.kind.${thread.kind}`)}
+                </ClubDossierKind>
+                {thread.status === "resolved" ? (
+                  <Badge className="rounded-lg bg-emerald-600 px-1.5 py-0 text-[10px] hover:bg-emerald-600">
+                    {t("club.threadStatus.resolved")}
+                  </Badge>
                 ) : null}
-                {caps.canReport ? (
-                  <ClubReportButton targetType="thread" targetId={thread.id} />
+                {thread.locked_at !== null ? (
+                  <Badge variant="outline" className="gap-1 text-[10px]">
+                    <Lock className="h-3 w-3" aria-hidden="true" />
+                    {t("club.threadStatus.locked")}
+                  </Badge>
                 ) : null}
-                <ClubFollowButton
-                  compact
-                  state={subscriptionQ.data ?? null}
-                  pending={setSubscriptionM.isPending}
-                  disabled={subscriptionQ.isPending}
-                  onChange={(next) =>
-                    setSubscriptionM.mutate(next, {
-                      onError: () => toast.error(t("adminClubs.saveFailed")),
-                    })
+                {thread.attribution_mode === "chatham" ? (
+                  <Badge variant="outline" className="gap-1 text-[10px]">
+                    <ShieldQuestion className="h-3 w-3" aria-hidden="true" />
+                    {t("club.attribution.chatham")}
+                  </Badge>
+                ) : null}
+                {/* Obszar tematyczny wątku - ten sam chip co na hubie i w klubie. */}
+                <ClubTopicChip topic={thread.topic} lang={lang} catalog={topicCatalog} size="sm" />
+                {thread.anchor_type !== null ? (
+                  <Badge variant="secondary" className="gap-1 text-[10px]">
+                    <Link2 className="h-3 w-3" aria-hidden="true" />
+                    {t(`club.anchorType.${thread.anchor_type}`)}
+                  </Badge>
+                ) : null}
+                <span aria-hidden="true">·</span>
+                <ClubAuthorAvatar
+                  name={author.name}
+                  avatarUrl={author.avatarUrl}
+                  size="sm"
+                  muted={author.kind !== "named"}
+                />
+                <ClubAuthorIdentity author={author} />
+                <span aria-hidden="true">·</span>
+                <time dateTime={thread.created_at}>{formatDateTime(thread.created_at, lang)}</time>
+                {thread.edited_at !== null ? <span>{t("club.edited")}</span> : null}
+                {thread.pinned_at !== null ? (
+                  <span className="inline-flex items-center gap-1 text-primary">
+                    <Pin className="h-3 w-3" aria-hidden="true" />
+                    {t("club.hub.feed.pinned")}
+                  </span>
+                ) : null}
+              </>
+            }
+            title={<h1 className="[overflow-wrap:anywhere]">{thread.title}</h1>}
+            footer={
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border/60 pt-2.5">
+                <ClubReactionBar
+                  tallies={threadReactionsQ.data?.get(thread.id) ?? []}
+                  disabled={!thread.can_reply || toggleThreadReaction.isPending}
+                  variant="full"
+                  labels="hover"
+                  onToggle={(kind, active) =>
+                    toggleThreadReaction.mutate({ targetId: thread.id, kind, active })
                   }
                 />
+                <ClubReactionAvatars
+                  actors={threadActorsQ.data?.get(thread.id) ?? []}
+                  total={clubReactionTotal(threadReactionsQ.data?.get(thread.id) ?? [])}
+                  size="sm"
+                />
+                <div className="ml-auto flex flex-wrap items-center gap-1.5">
+                  {caps.canEdit && editing !== "thread" ? (
+                    <button
+                      type="button"
+                      onClick={() => setEditing("thread")}
+                      aria-label={t("club.editor.edit")}
+                      className={clubHoverActionClass()}
+                    >
+                      <ClubHoverActionBody icon={Pencil} label={t("club.editor.edit")} />
+                    </button>
+                  ) : null}
+                  {caps.canReport ? (
+                    <ClubReportButton targetType="thread" targetId={thread.id} />
+                  ) : null}
+                  <ClubFollowButton
+                    compact
+                    state={subscriptionQ.data ?? null}
+                    pending={setSubscriptionM.isPending}
+                    disabled={subscriptionQ.isPending}
+                    onChange={(next) =>
+                      setSubscriptionM.mutate(next, {
+                        onError: () => toast.error(t("adminClubs.saveFailed")),
+                      })
+                    }
+                  />
+                </div>
               </div>
-            </div>
-          }
-        >
-          {editing === "thread" ? (
-            <ClubInlineEditor
-              idPrefix="club-thread-edit"
-              initialTitle={thread.title}
-              initialBody={thread.body}
-              showReason={!caps.isMine}
-              pending={editThreadM.isPending}
-              onCancel={() => setEditing(null)}
-              onSave={(patch) =>
-                editThreadM.mutate(
-                  { threadId: thread.id, ...patch },
-                  {
-                    onSuccess: () => {
-                      setEditing(null);
-                      toast.success(t("club.editor.saved"));
+            }
+          >
+            {editing === "thread" ? (
+              <ClubInlineEditor
+                idPrefix="club-thread-edit"
+                initialTitle={thread.title}
+                initialBody={thread.body}
+                showReason={!caps.isMine}
+                pending={editThreadM.isPending}
+                onCancel={() => setEditing(null)}
+                onSave={(patch) =>
+                  editThreadM.mutate(
+                    { threadId: thread.id, ...patch },
+                    {
+                      onSuccess: () => {
+                        setEditing(null);
+                        toast.success(t("club.editor.saved"));
+                      },
+                      onError: () => toast.error(t("adminClubs.saveFailed")),
                     },
-                    onError: () => toast.error(t("adminClubs.saveFailed")),
-                  },
-                )
-              }
-            />
-          ) : (
-            <ClubProse className="max-w-none" body={thread.body} clubSlug={clubSlug} />
-          )}
-        </ClubDossierRow>
+                  )
+                }
+              />
+            ) : (
+              <ClubProse className="max-w-none" body={thread.body} clubSlug={clubSlug} />
+            )}
+          </ClubDossierRow>
 
-        {/* --- sondaż (wyłącznie wątek typu "sondaż") ---
+          {/* --- sondaż (wyłącznie wątek typu "sondaż") ---
           Rodzaj `poll` był do A20 samą etykietą: model dopuszczał go od A3,
           specyfikacja obiecywała reużycie `polls`, a krawędzi między wątkiem
           a ankietą nie było. Teraz jest kolumna `poll_id` i to samo
           głosowanie, co na /polls - z anti-anchoringiem włącznie. */}
-        {thread.kind === "poll" && thread.poll_id !== null ? (
-          <div className="mt-4">
-            <Suspense
-              fallback={
-                <div className="h-40 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
-              }
-            >
-              <ClubThreadPoll pollId={thread.poll_id} lang={lang} userId={user?.id ?? null} />
-            </Suspense>
-          </div>
-        ) : null}
+          {thread.kind === "poll" && thread.poll_id !== null ? (
+            <div className="mt-4">
+              <Suspense
+                fallback={
+                  <div className="h-40 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
+                }
+              >
+                <ClubThreadPoll pollId={thread.poll_id} lang={lang} userId={user?.id ?? null} />
+              </Suspense>
+            </div>
+          ) : null}
 
-        {/* --- stanowiska (wyłącznie wątek typu "stanowisko") --- */}
-        {isPosition ? (
-          <div className="mt-4">
-            <ClubStanceBar
-              rows={stanceQ.data ?? []}
-              disabled={!thread.can_reply}
-              pending={setStanceM.isPending}
-              onSet={(stance) =>
-                setStanceM.mutate(
-                  { stance },
-                  {
-                    onSuccess: () => toast.success(t("club.stance.saved")),
-                    onError: () => toast.error(t("adminClubs.saveFailed")),
-                  },
-                )
-              }
-            />
-          </div>
-        ) : null}
+          {/* --- stanowiska (wyłącznie wątek typu "stanowisko") --- */}
+          {isPosition ? (
+            <div className="mt-4">
+              <ClubStanceBar
+                rows={stanceQ.data ?? []}
+                disabled={!thread.can_reply}
+                pending={setStanceM.isPending}
+                onSet={(stance) =>
+                  setStanceM.mutate(
+                    { stance },
+                    {
+                      onSuccess: () => toast.success(t("club.stance.saved")),
+                      onError: () => toast.error(t("adminClubs.saveFailed")),
+                    },
+                  )
+                }
+              />
+            </div>
+          ) : null}
 
-        {/* --- eksperci tego wątku ---
+          {/* --- eksperci tego wątku ---
           Stoi MIĘDZY postem otwierającym a dyskusją, bo dokładnie w tym
           miejscu czytelnik zadaje pytanie, na które ten panel odpowiada:
           "kto właściwie mógłby to rozstrzygnąć". Nad postem byłby przedwczesny
@@ -644,238 +680,249 @@ function ClubThreadView() {
           Bez `Suspense` z widocznym szkieletem: panel ma prawo nie istnieć,
           więc placeholder w jego miejscu obiecywałby treść, której często nie
           będzie, i rozpychałby dyskusję przy każdym wejściu w wątek. */}
-        <Suspense fallback={null}>
-          <ClubThreadExpertsPanel threadId={thread.id} canAsk={thread.can_reply} className="mt-4" />
-        </Suspense>
+          <Suspense fallback={null}>
+            <ClubThreadExpertsPanel
+              threadId={thread.id}
+              canAsk={thread.can_reply}
+              className="mt-4"
+            />
+          </Suspense>
 
-        {/* --- odpowiedzi --- */}
-        <section className="mt-6">
-          {/* Pasek przykleja się POD belką zakładek, nie do tej samej krawędzi:
+          {/* --- odpowiedzi --- */}
+          <section className="mt-6">
+            {/* Pasek przykleja się POD belką zakładek, nie do tej samej krawędzi:
               `position: sticky` nie układa się w stos sam z siebie, więc dwa
               paski z `top-16` po prostu na siebie nachodzą. Offset przychodzi
               z `--club-ws-stack` ustawianego przez powłokę przestrzeni - jedna
               liczba na oba paski. */}
-          <div className="sticky top-[var(--club-ws-stack,4rem)] z-10 mb-3 -mx-1 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-background/85 px-1 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-            <h2 className="flex items-center gap-2 text-sm font-semibold">
-              <MessageSquare className="h-4 w-4 text-primary" aria-hidden="true" />
-              {t("club.repliesCount", { count: thread.reply_count })}
-            </h2>
-            {replies.sortPickerVisible ? (
-              <Select value={replySort} onValueChange={(v) => setReplySort(v as ClubReplySort)}>
-                <SelectTrigger
-                  className="h-8 w-auto min-w-40"
-                  aria-label={t("club.replySort.label")}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {caps.replySorts.map((sort) => (
-                    <SelectItem key={sort} value={sort}>
-                      {t(`club.replySort.${sort}`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : null}
-          </div>
-
-          <ClubNewRepliesBar count={deferred.pendingCount} onReveal={deferred.reveal} />
-
-          {repliesQ.isPending ? (
-            <ClubThreadListSkeleton count={3} />
-          ) : tree.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border/60 bg-muted/20 px-6 py-8 text-center">
-              <span className="grid h-9 w-9 place-items-center rounded-lg bg-muted text-muted-foreground">
-                <MessageSquare className="h-4 w-4" aria-hidden="true" />
-              </span>
-              <p className="text-sm text-muted-foreground">{t("club.noReplies")}</p>
+            <div className="sticky top-[var(--club-ws-stack,4rem)] z-10 mb-3 -mx-1 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-background/85 px-1 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+              <h2 className="flex items-center gap-2 text-sm font-semibold">
+                <MessageSquare className="h-4 w-4 text-primary" aria-hidden="true" />
+                {t("club.repliesCount", { count: thread.reply_count })}
+              </h2>
+              {replies.sortPickerVisible ? (
+                <Select value={replySort} onValueChange={(v) => setReplySort(v as ClubReplySort)}>
+                  <SelectTrigger
+                    className="h-8 w-auto min-w-40"
+                    aria-label={t("club.replySort.label")}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {caps.replySorts.map((sort) => (
+                      <SelectItem key={sort} value={sort}>
+                        {t(`club.replySort.${sort}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : null}
             </div>
-          ) : (
-            <ul className="space-y-2.5">
-              {tree.map((node) => (
-                <ReplyBranch
-                  key={node.reply.id}
-                  node={node}
-                  lang={lang}
-                  clubSlug={clubSlug}
-                  canResolve={caps.canResolve}
-                  canReact={thread.can_reply}
-                  canModerate={thread.can_moderate}
-                  threadLocked={thread.locked_at !== null}
-                  myUserId={user?.id ?? null}
-                  editing={editing}
-                  editPending={editReplyM.isPending}
-                  onEdit={setEditing}
-                  onSaveEdit={(replyId, patch) =>
-                    editReplyM.mutate(
-                      { replyId, body: patch.body, reason: patch.reason },
-                      {
-                        onSuccess: () => {
-                          setEditing(null);
-                          toast.success(t("club.editor.saved"));
-                        },
-                        onError: () => toast.error(t("adminClubs.saveFailed")),
-                      },
-                    )
-                  }
-                  reactions={replyReactionsQ.data ?? new Map()}
-                  reactionActors={replyActorsQ.data ?? new Map()}
-                  onToggleReaction={(targetId, kind, active) =>
-                    toggleReplyReaction.mutate({ targetId, kind, active })
-                  }
-                  onReply={setReplyTo}
-                  hasResolution={hasResolution}
-                  onResolve={(replyId) =>
-                    resolveM.mutate(
-                      { threadId: thread.id, replyId },
-                      {
-                        onSuccess: () =>
-                          toast.success(t(clubResolveToastKey(replyId, hasResolution))),
-                        onError: () => toast.error(t("adminClubs.saveFailed")),
-                      },
-                    )
-                  }
-                />
-              ))}
-            </ul>
-          )}
 
-          {/* Ucięcie strony mówi się WPROST. Nagłówek pokazuje pełny licznik
+            <ClubNewRepliesBar count={deferred.pendingCount} onReveal={deferred.reveal} />
+
+            {repliesQ.isPending ? (
+              <ClubThreadListSkeleton count={3} />
+            ) : tree.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border/60 bg-muted/20 px-6 py-8 text-center">
+                <span className="grid h-9 w-9 place-items-center rounded-lg bg-muted text-muted-foreground">
+                  <MessageSquare className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <p className="text-sm text-muted-foreground">{t("club.noReplies")}</p>
+              </div>
+            ) : (
+              <Discussion
+                siblingIds={tree.map((node) => node.reply.id)}
+                collapsed={collapsedBranches}
+                onToggle={onBranchToggle}
+              >
+                {tree.map((node) => (
+                  <ReplyBranch
+                    key={node.reply.id}
+                    node={node}
+                    collapsed={collapsedBranches}
+                    onBranchToggle={onBranchToggle}
+                    lang={lang}
+                    clubSlug={clubSlug}
+                    canResolve={caps.canResolve}
+                    canReact={thread.can_reply}
+                    canModerate={thread.can_moderate}
+                    threadLocked={thread.locked_at !== null}
+                    myUserId={user?.id ?? null}
+                    editing={editing}
+                    editPending={editReplyM.isPending}
+                    onEdit={setEditing}
+                    onSaveEdit={(replyId, patch) =>
+                      editReplyM.mutate(
+                        { replyId, body: patch.body, reason: patch.reason },
+                        {
+                          onSuccess: () => {
+                            setEditing(null);
+                            toast.success(t("club.editor.saved"));
+                          },
+                          onError: () => toast.error(t("adminClubs.saveFailed")),
+                        },
+                      )
+                    }
+                    reactions={replyReactionsQ.data ?? new Map()}
+                    reactionActors={replyActorsQ.data ?? new Map()}
+                    onToggleReaction={(targetId, kind, active) =>
+                      toggleReplyReaction.mutate({ targetId, kind, active })
+                    }
+                    onReply={setReplyTo}
+                    hasResolution={hasResolution}
+                    onResolve={(replyId) =>
+                      resolveM.mutate(
+                        { threadId: thread.id, replyId },
+                        {
+                          onSuccess: () =>
+                            toast.success(t(clubResolveToastKey(replyId, hasResolution))),
+                          onError: () => toast.error(t("adminClubs.saveFailed")),
+                        },
+                      )
+                    }
+                  />
+                ))}
+              </Discussion>
+            )}
+
+            {/* Ucięcie strony mówi się WPROST. Nagłówek pokazuje pełny licznik
             z denormalizacji, więc milcząca różnica wyglądałaby jak utrata
             treści, a nie jak paginacja. */}
-          {replies.truncated ? (
-            <p className="mt-3 rounded-lg border border-dashed border-border/60 p-3 text-center text-xs text-muted-foreground">
-              {t("club.repliesTruncated", { shown: replies.shown, total: replies.total })}
-            </p>
-          ) : null}
-        </section>
+            {replies.truncated ? (
+              <p className="mt-3 rounded-lg border border-dashed border-border/60 p-3 text-center text-xs text-muted-foreground">
+                {t("club.repliesTruncated", { shown: replies.shown, total: replies.total })}
+              </p>
+            ) : null}
+          </section>
 
-        {/* Wpis w drodze. Widać go od razu, zanim baza odpowie - bez tego
+          {/* Wpis w drodze. Widać go od razu, zanim baza odpowie - bez tego
             jedynym sygnałem jest wyszarzony przycisk, a przy wolnym łączu
             wygląda to jak kliknięcie, które nic nie zrobiło. */}
-        {replyM.isPending && replyM.variables !== undefined ? (
-          <div
-            aria-live="polite"
-            className="mt-6 flex items-start gap-3 rounded-xl border border-dashed border-primary/40 bg-primary/5 p-4"
-          >
-            <Loader2
-              className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary"
-              aria-hidden="true"
-            />
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-primary">{t("club.replySending")}</p>
-              <p className="mt-1 whitespace-pre-wrap break-words text-sm text-muted-foreground">
-                {replyM.variables.body}
+          {replyM.isPending && replyM.variables !== undefined ? (
+            <div
+              aria-live="polite"
+              className="mt-6 flex items-start gap-3 rounded-xl border border-dashed border-primary/40 bg-primary/5 p-4"
+            >
+              <Loader2
+                className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary"
+                aria-hidden="true"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-primary">{t("club.replySending")}</p>
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm text-muted-foreground">
+                  {replyM.variables.body}
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Kolejka moderacji - komunikat, który nie znika razem z toastem. */}
+          {queued ? (
+            <div className="mt-6 flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
+              <ShieldQuestion
+                className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
+                aria-hidden="true"
+              />
+              <p className="text-sm text-amber-900 dark:text-amber-200">
+                {t("club.replyQueuedHint")}
               </p>
             </div>
-          </div>
-        ) : null}
+          ) : null}
 
-        {/* Kolejka moderacji - komunikat, który nie znika razem z toastem. */}
-        {queued ? (
-          <div className="mt-6 flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
-            <ShieldQuestion
-              className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
-              aria-hidden="true"
-            />
-            <p className="text-sm text-amber-900 dark:text-amber-200">
-              {t("club.replyQueuedHint")}
-            </p>
-          </div>
-        ) : null}
-
-        {/* --- kompozytor ---
+          {/* --- kompozytor ---
             Skrót Ctrl/Cmd + Enter DALEJ działa (patrz `onComposerKeyDown`), ale
             znika z ekranu: plakietka klawiszy stała w miejscu, w którym oko
             szuka przycisku wysyłki, i konkurowała z nim o uwagę. Licznik
             znaków też przestał być stałym elementem - pokazuje się dopiero,
             gdy limit robi się realny (od 70% długości). */}
-        {thread.can_reply ? (
-          <section
-            ref={composerRef}
-            id="club-reply-composer"
-            className="mt-6 overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm focus-within:border-primary/40"
-            onKeyDown={onComposerKeyDown}
-          >
-            <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-muted/25 px-4 py-2">
-              <span className="inline-flex items-center gap-2 text-xs font-semibold text-foreground">
-                <MessageSquare className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-                {t(clubComposerHeadingKey(replyTo))}
-              </span>
-              {replyTo !== null ? (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 px-2 text-xs"
-                  onClick={() => setReplyTo(null)}
-                >
-                  {t("club.cancelReplyTo")}
-                </Button>
-              ) : null}
-            </header>
+          {thread.can_reply ? (
+            <section
+              ref={composerRef}
+              id="club-reply-composer"
+              className="mt-6 overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm focus-within:border-primary/40"
+              onKeyDown={onComposerKeyDown}
+            >
+              <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-muted/25 px-4 py-2">
+                <span className="inline-flex items-center gap-2 text-xs font-semibold text-foreground">
+                  <MessageSquare className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                  {t(clubComposerHeadingKey(replyTo))}
+                </span>
+                {replyTo !== null ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => setReplyTo(null)}
+                  >
+                    {t("club.cancelReplyTo")}
+                  </Button>
+                ) : null}
+              </header>
 
-            <div className="p-4">
-              {/* Wzmianki: ten sam komponent i ten sam parser, co w komentarzach.
+              <div className="p-4">
+                {/* Wzmianki: ten sam komponent i ten sam parser, co w komentarzach.
                 Backend obsługuje `club_reply` w `process_mentions` od A12, więc
                 bez podpowiedzi w polu jedyną drogą było wpisanie sluga z pamięci. */}
-              <MentionTextarea
-                id="club-reply-body"
-                label={t("club.replyPlaceholder")}
-                value={body}
-                onChange={(next) => {
-                  setBody(next);
-                  // Pisanie nowej odpowiedzi zdejmuje komunikat o poprzedniej:
-                  // "czeka na zatwierdzenie" nad świeżym tekstem sugerowałoby,
-                  // że to TEN wpis czeka.
-                  if (queued) setQueued(false);
-                }}
-                lang={lang}
-                rows={4}
-                maxLength={CLUB_REPLY_BODY_MAX}
-              />
+                <MentionTextarea
+                  id="club-reply-body"
+                  label={t("club.replyPlaceholder")}
+                  value={body}
+                  onChange={(next) => {
+                    setBody(next);
+                    // Pisanie nowej odpowiedzi zdejmuje komunikat o poprzedniej:
+                    // "czeka na zatwierdzenie" nad świeżym tekstem sugerowałoby,
+                    // że to TEN wpis czeka.
+                    if (queued) setQueued(false);
+                  }}
+                  lang={lang}
+                  rows={4}
+                  maxLength={CLUB_REPLY_BODY_MAX}
+                />
 
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                <div className="flex flex-wrap items-center gap-3">
-                  {canGoAnonymous ? (
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="club-reply-anon"
-                        checked={anonymous}
-                        disabled={replyM.isPending}
-                        onCheckedChange={setAnonymous}
-                      />
-                      <Label htmlFor="club-reply-anon" className="text-xs">
-                        {t("club.postAnonymously")}
-                      </Label>
-                    </div>
-                  ) : null}
-                  {showsClubReplyCounter(body) ? (
-                    <span className="text-xs tabular-nums text-muted-foreground">
-                      {clubReplyBodyLength(body)} / {CLUB_REPLY_BODY_MAX}
-                    </span>
-                  ) : null}
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                  <div className="flex flex-wrap items-center gap-3">
+                    {canGoAnonymous ? (
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="club-reply-anon"
+                          checked={anonymous}
+                          disabled={replyM.isPending}
+                          onCheckedChange={setAnonymous}
+                        />
+                        <Label htmlFor="club-reply-anon" className="text-xs">
+                          {t("club.postAnonymously")}
+                        </Label>
+                      </div>
+                    ) : null}
+                    {showsClubReplyCounter(body) ? (
+                      <span className="text-xs tabular-nums text-muted-foreground">
+                        {clubReplyBodyLength(body)} / {CLUB_REPLY_BODY_MAX}
+                      </span>
+                    ) : null}
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={submitReply}
+                    disabled={!canSubmitClubReply(body, replyM.isPending)}
+                  >
+                    {replyM.isPending ? (
+                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Send className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                    )}
+                    {t("club.postReply")}
+                  </Button>
                 </div>
-                <Button
-                  size="sm"
-                  onClick={submitReply}
-                  disabled={!canSubmitClubReply(body, replyM.isPending)}
-                >
-                  {replyM.isPending ? (
-                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <Send className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                  )}
-                  {t("club.postReply")}
-                </Button>
               </div>
-            </div>
-          </section>
-        ) : (
-          <p className="mt-6 rounded-lg border border-border/60 bg-muted/30 p-4 text-center text-sm text-muted-foreground">
-            {t(clubBlockedReplyKey(thread.reason))}
-          </p>
-        )}
-      </ClubThreadWorkspace>
+            </section>
+          ) : (
+            <p className="mt-6 rounded-lg border border-border/60 bg-muted/30 p-4 text-center text-sm text-muted-foreground">
+              {t(clubBlockedReplyKey(thread.reason))}
+            </p>
+          )}
+        </ClubThreadWorkspace>
+      </MentionDirectoryProvider>
     </div>
   );
 }
@@ -912,6 +959,9 @@ interface ReplyBranchProps {
   onResolve: (replyId: string | null) => void;
   /** Czy w watku JUZ jest odpowiedz rozstrzygajaca - zmienia etykiete akcji. */
   hasResolution: boolean;
+  /** Zbiór ZWINIĘTYCH gałęzi, kluczowany po id odpowiedzi. */
+  collapsed: ReadonlySet<string>;
+  onBranchToggle: (replyId: string, open: boolean) => void;
 }
 
 function ReplyBranch(props: ReplyBranchProps) {
@@ -934,6 +984,8 @@ function ReplyBranch(props: ReplyBranchProps) {
     onReply,
     onResolve,
     hasResolution,
+    collapsed,
+    onBranchToggle,
   } = props;
   const { t } = useTranslation();
   const [unmarkOpen, setUnmarkOpen] = useState(false);
@@ -958,7 +1010,7 @@ function ReplyBranch(props: ReplyBranchProps) {
   });
 
   return (
-    <li>
+    <DiscussionItem value={reply.id}>
       <div
         className={
           "group/reply rounded-lg border p-3 transition-colors sm:p-4 " +
@@ -979,7 +1031,7 @@ function ReplyBranch(props: ReplyBranchProps) {
           />
           <div className="min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="truncate text-sm font-semibold leading-tight">{author.name}</span>
+              <ClubAuthorIdentity author={author} />
               {/* Stanowisko autora - jedyny sygnał, który zamienia listę odpowiedzi
                   w mapę sporu. Baza zwraca je wyłącznie w wątku `position` i
                   wyłącznie przy autorstwie jawnym. */}
@@ -1112,12 +1164,28 @@ function ReplyBranch(props: ReplyBranchProps) {
       </div>
 
       {children.length > 0 ? (
-        <ul className="mt-2 space-y-2 border-l border-border/50 pl-3 sm:pl-5">
-          {children.map((child) => (
-            <ReplyBranch {...props} key={child.reply.id} node={child} />
-          ))}
-        </ul>
+        <>
+          <div className="mt-1.5">
+            <DiscussionExpand
+              label={t(collapsed.has(reply.id) ? "club.showReplies" : "club.hideReplies", {
+                count: countDescendants(node),
+              })}
+            />
+          </div>
+          <DiscussionReplies>
+            <Discussion
+              siblingIds={children.map((child) => child.reply.id)}
+              collapsed={collapsed}
+              onToggle={onBranchToggle}
+              className="space-y-2"
+            >
+              {children.map((child) => (
+                <ReplyBranch {...props} key={child.reply.id} node={child} />
+              ))}
+            </Discussion>
+          </DiscussionReplies>
+        </>
       ) : null}
-    </li>
+    </DiscussionItem>
   );
 }
