@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { splitInline } from "@/lib/clubs/inlineSegments";
 import { useClubLinkPreview } from "@/lib/clubs/useClubLinkPreview";
 import { useMentionProfile } from "@/lib/mentions/useMentionProfile";
+import { decodeOrganizationMentionSlug } from "@/lib/mentions/mentionTargets";
 import { ensureClubI18n } from "@/lib/i18n-club";
 import { cn } from "@/lib/utils";
 import { uiLang } from "@/lib/i18n/format";
@@ -103,7 +104,7 @@ export function MentionSegment({
   const [open, setOpen] = useState(false);
   const profile = useMentionProfile(slug, lang, open);
   const target = profile.data ?? null;
-  const isOrganizationSlug = slug.startsWith("org-");
+  const isOrganizationSlug = decodeOrganizationMentionSlug(slug) !== null;
   const mentionText = target?.kind === "organization" ? `@${target.name}` : raw;
   const imageUrl = target?.kind === "organization" ? target.logoUrl : target?.avatarUrl;
 
