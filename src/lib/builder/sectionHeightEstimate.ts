@@ -17,6 +17,7 @@
 // przesuwa całą treść pod sekcją), a wynik jest przycinany do widełek, żeby
 // błąd w danych nie zarezerwował ekranu pustki.
 import type {
+  BuilderDocument,
   ColumnNode,
   Device,
   SectionChild,
@@ -25,9 +26,12 @@ import type {
   WidgetType,
 } from "@/lib/builder/types";
 import {
+  AUTO_SIZE_WIDGETS,
+  COMPACT_WIDGET_TYPES,
   getWidgetFrameStyle,
   hiddenOnDevice,
 } from "@/components/builder/organisms/widget-view/frame";
+import { COLUMN_SAFE_AREA_PX } from "@/lib/builder/sectionStyles";
 
 /** Dolna granica - tyle rezerwował szkielet przed tą zmianą. */
 export const SECTION_STREAM_MIN_HEIGHT = 280;
@@ -195,4 +199,139 @@ export function estimateSectionHeight(section: SectionNode, device: Device = "de
     SECTION_STREAM_MIN_HEIGHT,
     SECTION_STREAM_MAX_HEIGHT,
   );
+}
+
+// ---------------------------------------------------------------------------
+// PASEK CHROME (nagłówek / stopka) - rezerwa dla `HeaderSkeleton`
+// ---------------------------------------------------------------------------
+//
+// DLACZEGO OSOBNA ŚCIEŻKA, A NIE `estimateSectionHeight`. Tamta liczy sekcję
+// TREŚCI: dokłada 48 px oddechu, dolne 280 px i celowo PRZESZACOWUJE, bo pusty
+// pas pod zgięciem nic nie kosztuje. Rezerwa nagłówka ma odwrotny kontrakt -
+// szkielet jest MALOWANY, a potem podmieniany na realny nagłówek, więc każdy
+// piksel różnicy (w GÓRĘ tak samo jak w dół) przesuwa całą stronę i ląduje
+// w CLS. Stąd druga, ciasna ścieżka bez dna, bez oddechu i z regułami układu
+// przepisanymi 1:1 z `RenderColumn`.
+//
+// KALIBRACJA. Liczby zmierzone na artefakcie produkcyjnym (`bun run
+// build:smoke` + fixture `e2e/fixtures/first-visit.json`, Chromium 1280x720):
+// social-icons 22, theme-toggle 30, account-link 26, lang-switcher 29,
+// menu 18, search-button 32, obrazek 64 (wysokość autorska). Wpisane wartości
+// są zaokrąglone w górę do najbliższego typowego rozmiaru kontrolki.
+//
+// OGRANICZENIE. To wciąż SZACUNEK z konfiguracji, nie pomiar: nie przewidzi
+// zawijania paska narzędzi do drugiej linii ani zmian wysokości wynikających
+// z płynnego `root font-size` (repo skaluje go między 1280 a 1920 px).
+
+/** Odstęp między widgetami w kolumnie paska: `gap-2` z `RenderColumn`. */
+export const CHROME_ROW_WIDGET_GAP_PX = 8;
+/** Widget paska bez wpisu w tabeli - jedna kontrolka wysokości przycisku. */
+export const CHROME_ROW_DEFAULT_WIDGET_HEIGHT_PX = 40;
+
+/**
+ * Wysokości widgetów W PASKU CHROME. Te same typy co w
+ * `WIDGET_HEIGHT_ESTIMATE_PX`, ale w pasku renderują się jako JEDNA LINIA
+ * (przycisk, ikona, rząd linków), a nie jako blok treści - `menu` w sekcji to
+ * lista 56 px, w nagłówku rząd linków ~18 px. Jedna wartość naciągana na oba
+ * konteksty musiałaby być błędna w którymś z nich.
+ */
+export const CHROME_ROW_WIDGET_HEIGHT_PX: Partial<Record<WidgetType, number>> = {
+  "social-icons": 24,
+  "theme-toggle": 32,
+  "account-link": 32,
+  "lang-switcher": 32,
+  "search-button": 40,
+  "nav-link": 24,
+  "mega-menu": 24,
+  menu: 24,
+  copyright: 20,
+  heading: 32,
+  text: 24,
+  button: 40,
+  icon: 40,
+  divider: 1,
+};
+
+/** Wysokość jednego widgetu paska. Wysokość autorska zawsze bije tabelę. */
+export function estimateChromeWidgetHeight(node: WidgetNode, device: Device = "desktop"): number {
+  if (hiddenOnDevice(node.advanced, device)) return 0;
+  const frame = getWidgetFrameStyle(node, device);
+  const authored = pxOf(frame.height) ?? pxOf(frame.minHeight);
+  if (authored !== undefined) return authored;
+  return CHROME_ROW_WIDGET_HEIGHT_PX[node.type] ?? CHROME_ROW_DEFAULT_WIDGET_HEIGHT_PX;
+}
+
+/**
+ * Wysokość kolumny paska RAZEM z jej bezpiecznym marginesem
+ * (`COLUMN_SAFE_AREA_PX` po obu stronach - dokładnie to, co `RenderColumn`
+ * wstawia jako `padding`).
+ *
+ * Kolumna samych widgetów „compact"/„auto-size" jest w `RenderColumn` JEDNYM
+ * RZĘDEM (`isToolbar` -> `flex-row`), więc decyduje najwyższy widget, a nie
+ * suma - inaczej trójka przycisków rezerwowałaby trzy piętra nagłówka.
+ */
+export function estimateChromeColumnHeight(column: ColumnNode, device: Device = "desktop"): number {
+  if (hiddenOnDevice(column.advanced, device)) return 0;
+  const widgets = (Array.isArray(column.children) ? column.children : []).filter(
+    (child): child is WidgetNode =>
+      !!child && child.kind === "widget" && !hiddenOnDevice(child.advanced, device),
+  );
+  const heights = widgets
+    .map((widget) => estimateChromeWidgetHeight(widget, device))
+    .filter((height) => height > 0);
+  if (heights.length === 0) return 2 * COLUMN_SAFE_AREA_PX;
+  const isToolbar =
+    widgets.length > 1 &&
+    widgets.every(
+      (widget) => COMPACT_WIDGET_TYPES.has(widget.type) || AUTO_SIZE_WIDGETS.has(widget.type),
+    );
+  const content = isToolbar
+    ? Math.max(...heights)
+    : heights.reduce((total, height) => total + height, 0) +
+      (heights.length - 1) * CHROME_ROW_WIDGET_GAP_PX;
+  return content + 2 * COLUMN_SAFE_AREA_PX;
+}
+
+/**
+ * Wysokość JEDNEGO rzędu paska chrome (sekcja buildera nagłówka/stopki):
+ * najwyższa kolumna plus marginesy sekcji. Bez dna i bez sufitu - rezerwa ma
+ * trafić w realną wysokość, a nie być bezpiecznie za duża.
+ */
+export function estimateChromeRowHeight(section: SectionNode, device: Device = "desktop"): number {
+  if (hiddenOnDevice(section.advanced, device)) return 0;
+  const children = Array.isArray(section.children) ? section.children : [];
+  const content = children.reduce((tallest, child) => {
+    if (child.kind === "inner-section") {
+      if (hiddenOnDevice(child.advanced, device)) return tallest;
+      const columns = Array.isArray(child.columns) ? child.columns : [];
+      return Math.max(
+        tallest,
+        columns.reduce(
+          (widest, column) => Math.max(widest, estimateChromeColumnHeight(column, device)),
+          0,
+        ),
+      );
+    }
+    return Math.max(tallest, estimateChromeColumnHeight(child, device));
+  }, 0);
+  const authored = authoredSectionHeight(section);
+  const base = authored !== undefined ? Math.max(authored, content) : content;
+  const layout = section.layout;
+  const margins =
+    (typeof layout?.marginTop === "number" ? layout.marginTop : 0) +
+    (typeof layout?.marginBottom === "number" ? layout.marginBottom : 0);
+  return Math.max(0, Math.round(base + margins));
+}
+
+/**
+ * Wysokości kolejnych rzędów dokumentu paska chrome - jedna liczba na sekcję,
+ * w kolejności renderu. Pusty/nieznany dokument nie daje żadnego rzędu, więc
+ * wołający sam decyduje, co zarezerwować, gdy o nagłówku nie wiadomo nic.
+ */
+export function estimateChromeRowHeights(
+  doc: BuilderDocument | null | undefined,
+  device: Device = "desktop",
+): number[] {
+  const sections = Array.isArray(doc?.sections) ? doc.sections : [];
+  return sections.map((section) => estimateChromeRowHeight(section, device)).filter((h) => h > 0);
 }
