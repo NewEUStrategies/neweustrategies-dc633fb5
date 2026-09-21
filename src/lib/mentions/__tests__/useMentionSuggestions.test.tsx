@@ -38,7 +38,7 @@ function organizationRow(over: Record<string, unknown> = {}) {
   return {
     kind: "organization",
     id: "o1",
-    slug: "org-acme",
+    slug: "org-123e4567-e89b-12d3-a456-426614174000",
     label: "ACME Europe",
     subtitle: "Energy",
     avatar_url: null,
@@ -87,7 +87,7 @@ describe("useMentionSuggestions", () => {
     });
     expect(result.current.data?.[1]).toEqual({
       kind: "organization",
-      slug: "org-acme",
+      slug: "org-123e4567-e89b-12d3-a456-426614174000",
       name: "ACME Europe",
       avatarUrl: null,
       logoUrl: "https://cdn/acme.png",
