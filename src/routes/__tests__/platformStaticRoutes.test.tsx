@@ -189,22 +189,25 @@ describe("zdegradowana strona statyczna kontra NES Edge Cache", () => {
   // `private, no-store`, `documentStorePolicy` nie zapisywała dokumentu, więc
   // DRUGIE żądanie `/cookies` przy padającej bazie znowu było MISS-em - pełny
   // render na każdą odsłonę przez cały czas trwania blipu.
-  it.each(routes)("%s zdegradowane NIE jest `no-store` i JEST zapisywalne", async (slug, options) => {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    vi.spyOn(queryClient, "ensureQueryData").mockRejectedValue(new Error("offline"));
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  it.each(routes)(
+    "%s zdegradowane NIE jest `no-store` i JEST zapisywalne",
+    async (slug, options) => {
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      vi.spyOn(queryClient, "ensureQueryData").mockRejectedValue(new Error("offline"));
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
-    await (options.loader as (args: unknown) => Promise<unknown>)({ context: { queryClient } });
+      await (options.loader as (args: unknown) => Promise<unknown>)({ context: { queryClient } });
 
-    const header = h.cacheControl.at(-1)!;
-    expect(header).not.toContain("no-store");
-    expect(header).toBe(chromeDegradedCacheControl());
-    const policy = documentStorePolicy(200, "text/html", header);
-    expect(policy.store).toBe(true);
-    expect(policy.freshMs).toBeGreaterThan(0);
-    expect(slug).toBeTruthy();
-    warn.mockRestore();
-  });
+      const header = h.cacheControl.at(-1)!;
+      expect(header).not.toContain("no-store");
+      expect(header).toBe(chromeDegradedCacheControl());
+      const policy = documentStorePolicy(200, "text/html", header);
+      expect(policy.store).toBe(true);
+      expect(policy.freshMs).toBeGreaterThan(0);
+      expect(slug).toBeTruthy();
+      warn.mockRestore();
+    },
+  );
 });
 
 describe("cookie preferences", () => {

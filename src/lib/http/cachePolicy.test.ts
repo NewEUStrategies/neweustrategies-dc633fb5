@@ -104,15 +104,18 @@ describe("staticFallbackCacheControl", () => {
     expect(policy.store).toBe(true);
     expect(policy.freshMs).toBeGreaterThan(0);
     expect(policy.swrMs).toBeGreaterThan(0);
-    expect(documentStorePolicy(200, "text/html", cacheControlHeader({ cacheable: false })).store).toBe(
-      false,
-    );
+    expect(
+      documentStorePolicy(200, "text/html", cacheControlHeader({ cacheable: false })).store,
+    ).toBe(false);
   });
 
   it("scalone z polityką korzenia nie zawęża dokumentu do `no-store`", () => {
     // Trasa i bramka chrome ustawiają politykę tego samego żądania; wynik
     // scalenia musi zostać zapisywalny, niezależnie od kolejności loaderów.
-    const merged = narrowestCacheControl(chromeDegradedCacheControl(), staticFallbackCacheControl(true));
+    const merged = narrowestCacheControl(
+      chromeDegradedCacheControl(),
+      staticFallbackCacheControl(true),
+    );
     expect(documentStorePolicy(200, "text/html", merged).store).toBe(true);
     expect(
       documentStorePolicy(

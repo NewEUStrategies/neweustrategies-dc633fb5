@@ -7,6 +7,11 @@ import { useTranslation } from "react-i18next";
 
 import { FooterSlideup } from "@/components/ads/FooterSlideup";
 import { homeBuilderSource, homeContent } from "@/components/home/atoms/homeRenderMode";
+import {
+  HomeSrHeading,
+  homeSrHeadingText,
+  siteHeaderHasHomeHeading,
+} from "@/components/home/atoms/HomeSrHeading";
 import { HomeBuilderContent } from "@/components/home/molecules/HomeBuilderContent";
 import { HomeEmptyNotice } from "@/components/home/molecules/HomeEmptyNotice";
 import { HomeErrorNotice } from "@/components/home/molecules/HomeErrorNotice";
@@ -346,6 +351,12 @@ function Index() {
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const pageQuery = useSuspenseQuery(homePageQueryOptions());
   const modeQuery = useSuspenseQuery(homepageModeQueryOptions());
+  // Ustawienia serwisu są tu potrzebne WYŁĄCZNIE dla zapasowego `h1`
+  // (`HomeSrHeading`): dają jego treść i rozstrzygają, czy nagłówek poziomu 1
+  // wypisuje już powłoka witryny. Loader rozgrzewa to zapytanie zawsze (także
+  // zasiewem awaryjnym), więc `useSuspenseQuery` rozwiązuje się synchronicznie
+  // i nie dokłada ani round-tripu, ani granicy zawieszenia.
+  const settingsQuery = useSuspenseQuery(siteSettingsQueryOptions);
   const homePage = pageQuery.data;
   const homeMode = modeQuery.data;
   // Query state, not a latched loader flag: a successful browser refetch must
@@ -384,6 +395,20 @@ function Index() {
   return (
     <div data-theme-typography className="min-h-screen flex flex-col bg-background text-foreground">
       <div className="flex-1 w-full">
+        {/* Zapasowy `h1` strony głównej - PRZED treścią, bo kolejność dokumentu
+            jest tym, co czyta czytnik ekranu i co porządkuje strukturę
+            nagłówków dla crawlera. Renderuje się na KAŻDEJ z czterech
+            powierzchni (kanwa, lista wpisów, pustka, zasiew awaryjny), o ile
+            nagłówka poziomu 1 nie wypisuje już powłoka witryny ani sam
+            dokument buildera - szczegóły w `HomeSrHeading`. */}
+        <HomeSrHeading
+          title={homeSrHeadingText(settingsQuery.data, lang)}
+          doc={doc}
+          siteHeaderHasHeading={siteHeaderHasHomeHeading(
+            settingsQuery.data,
+            settingsQuery.dataUpdatedAt,
+          )}
+        />
         {contentUnavailable ? (
           <HomeLoadingNotice
             onRetry={() => {
