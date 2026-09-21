@@ -1662,6 +1662,10 @@ describe("odpowiedzi - wpis pojedynczy", () => {
       replyRow({ id: "leaf", parent_id: "mid", depth: 2 }),
     ]);
     await mount();
+    expect(screen.getAllByText("club.reply").length).toBe(1);
+    fireEvent.click(screen.getByRole("button", { name: "club.showNestedReplies(count=1)" }));
+    expect(screen.getAllByText("club.reply").length).toBe(2);
+    fireEvent.click(screen.getByRole("button", { name: "club.showNestedReplies(count=1)" }));
     expect(screen.getAllByText("club.reply").length).toBe(2);
   });
 

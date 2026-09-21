@@ -1,52 +1,23 @@
 // Wspólne kodowanie celów @wzmianek.
 //
-// Osoby zachowują dotychczasowy slug profilu (`@jan-kowalski`). Firmy nie mają
-// bezpiecznej publicznej trasy po `id`, więc w tekście dostają jawny prefiks
-// `org-` oraz slug z nazwy. Dzięki temu render po publikacji może odróżnić
-// organizację od osoby bez odpytywania prywatnej tabeli CRM na starcie.
+// Osoby zachowują dotychczasowy slug profilu (`@jan-kowalski`). Firmy dostają
+// jawny prefiks `org-` oraz stabilny identyfikator rekordu z bezpiecznej
+// projekcji. Nazwa firmy NIE jest identyfikatorem - dwie firmy mogą nazywać się
+// tak samo, a wzmianka nadal musi wskazywać właściwy rekord tenantowy.
 
 const ORGANIZATION_PREFIX = "org-";
 
-const TRANSLITERATION: Record<string, string> = {
-  ą: "a",
-  ć: "c",
-  ę: "e",
-  ł: "l",
-  ń: "n",
-  ó: "o",
-  ś: "s",
-  ź: "z",
-  ż: "z",
-  ä: "a",
-  ö: "o",
-  ü: "u",
-  ß: "ss",
-  æ: "ae",
-  ø: "o",
-  å: "a",
-};
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export function slugifyMentionLabel(label: string): string {
-  const normalized = label
-    .trim()
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[ąćęłńóśźżäöüßæøå]/g, (char) => TRANSLITERATION[char] ?? "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60);
-
-  return normalized || "organization";
-}
-
-export function organizationMentionSlug(labelOrSlug: string): string {
-  const slug = slugifyMentionLabel(labelOrSlug);
-  return slug.startsWith(ORGANIZATION_PREFIX) ? slug : `${ORGANIZATION_PREFIX}${slug}`;
+export function organizationMentionSlug(idOrSlug: string): string | null {
+  const token = idOrSlug.trim().toLowerCase();
+  const id = token.startsWith(ORGANIZATION_PREFIX) ? token.slice(ORGANIZATION_PREFIX.length) : token;
+  return UUID_RE.test(id) ? `${ORGANIZATION_PREFIX}${id}` : null;
 }
 
 export function decodeOrganizationMentionSlug(slug: string): string | null {
-  return slug.startsWith(ORGANIZATION_PREFIX) ? slug.slice(ORGANIZATION_PREFIX.length) : null;
+  const raw = slug.startsWith(ORGANIZATION_PREFIX) ? slug.slice(ORGANIZATION_PREFIX.length) : "";
+  return UUID_RE.test(raw) ? raw.toLowerCase() : null;
 }
 
 export function mentionSlugSearchPhrase(slug: string): string {

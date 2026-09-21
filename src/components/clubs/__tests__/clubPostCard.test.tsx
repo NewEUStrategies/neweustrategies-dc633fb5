@@ -110,6 +110,10 @@ vi.mock("@/components/files/useDocumentViewer", () => ({
   }),
 }));
 
+vi.mock("@/lib/mentions/useMentionProfile", () => ({
+  useMentionProfile: () => ({ data: null, isPending: false }),
+}));
+
 import { ClubPostCard } from "@/components/clubs/organisms/ClubPostCard";
 import { CLUB_BASE_ISO, CLUB_IDS, clubIsoOffset } from "@/test/clubs/fixtures";
 import { clubPostRow } from "@/test/clubs/hubFixtures";
@@ -300,7 +304,8 @@ describe("ClubPostCard - treść", () => {
     render(
       <ClubPostCard
         post={clubPostRow({
-          body: "Raport od @anna-nowak jest tu https://komisja.example/raport.pdf w #energia.",
+          body:
+            "Raport od @anna-nowak jest tu https://komisja.example/raport.pdf w #energia.",
         })}
         clubSlug={CLUB_SLUG}
         mediaUrls={{}}
