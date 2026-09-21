@@ -46,6 +46,19 @@ const PEOPLE: MentionSuggestion[] = [
   },
 ];
 
+const COMPANIES: MentionSuggestion[] = [
+  {
+    kind: "organization",
+    slug: "org-acme-europe",
+    name: "ACME Europe",
+    avatarUrl: null,
+    logoUrl: null,
+    website: "https://acme.example",
+    subtitle: "Energy",
+    verified: false,
+  },
+];
+
 beforeEach(() => {
   suggestionsRef.current = PEOPLE;
   suggestionsRef.fetching = false;
@@ -79,6 +92,16 @@ describe("MentionTextarea", () => {
     await waitFor(() => screen.getByRole("listbox"));
     fireEvent.mouseDown(screen.getByText("Jan Kowalski"));
     await waitFor(() => expect(box.value).toBe("hi @jan-kowalski "));
+  });
+
+  it("inserts organization mention slugs from CRM suggestions", async () => {
+    suggestionsRef.current = COMPANIES;
+    render(<Harness />);
+    const box = screen.getByRole("combobox") as HTMLTextAreaElement;
+    type(box, "cc @acme");
+    await waitFor(() => screen.getByRole("listbox"));
+    fireEvent.mouseDown(screen.getByText("ACME Europe"));
+    await waitFor(() => expect(box.value).toBe("cc @org-acme-europe "));
   });
 
   it("navigates with ArrowDown and selects with Enter", async () => {
