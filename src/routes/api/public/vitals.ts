@@ -99,7 +99,7 @@ interface IncomingVital {
  * (`supabase gen types typescript --linked`), a generator potrzebuje dostępu do
  * projektu Supabase - nie da się go uruchomić z tej gałęzi. Bramka
  * `check:types-freshness` porównuje `ADD COLUMN` z migracji z zawartością
- * `types.ts`, więc po migracji `20260920120000_web_vitals_navigation_context`
+ * `types.ts`, więc po migracji `20260920121000_web_vitals_navigation_context`
  * zgłosi pięć nowych kolumn poza typami. Domknięcie należy do człowieka:
  * regeneracja `types.ts` ALBO dopisanie tych pięciu kluczy do `BASELINE`
  * w `scripts/check-generated-types-freshness.ts`. Dokładne linie do wklejenia

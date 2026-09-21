@@ -87,7 +87,7 @@ const BASELINE: readonly string[] = [
   "research_program_members.tenant_id",
   "research_program_partners.tenant_id",
   "research_program_projects.tenant_id",
-  // 2026-09-20: migracja 20260920120000_web_vitals_navigation_context (RUM: kontekst
+  // 2026-09-20: migracja 20260920121000_web_vitals_navigation_context (RUM: kontekst
   // nawigacji, plan naprawczy CWV wiersz 0.3). Regeneracja types.ts wymaga dostępu do
   // bazy (`supabase gen types --linked`), którego w tym środowisku nie ma - wpisy do
   // usunięcia razem z regeneracją (bramka sama zgłosi martwe wpisy).
