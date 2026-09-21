@@ -1,7 +1,16 @@
 // Współdzielona warstwa dostępu do dostawcy płatności (server-only).
 // Klucze API nigdy nie trafiają do kodu aplikacji - ruch idzie przez bramkę
 // konektorów platformy, która dokłada właściwe poświadczenia per środowisko.
-import Stripe from "stripe";
+//
+// SDK OPERATORA JEST ŁADOWANE LENIWIE (`import type` + `await import`) - i to
+// jest naprawa, nie kosmetyka. `routeTree.gen.ts` importuje statycznie WSZYSTKIE
+// pliki tras, a wśród nich `routes/api/public/payments/webhook.ts`, który
+// potrzebuje z tego modułu wyłącznie `verifyWebhook` (czyste WebCrypto, bez
+// SDK). Statyczny `import Stripe from "stripe"` sprawiał więc, że paczka
+// (198 kB chunku `_libs/stripe.mjs` w artefakcie serwera) była EWALUOWANA przy
+// każdym starcie izolatu Workera - również dla anonimowego czytelnika artykułu,
+// który nigdy nie dotknie płatności. Audyt CWV F04 / §8.1 (2026-09-20).
+import type Stripe from "stripe";
 
 const getEnv = (key: string): string => {
   const value = process.env[key];
@@ -18,12 +27,59 @@ export function getConnectionApiKey(env: StripeEnv): string {
 }
 
 /**
+ * Moduł SDK ładowany RAZ na izolat. Memoizujemy obietnicę, nie wynik: dwa
+ * równoległe pierwsze żądania płatnicze mają wtedy jeden import zamiast dwóch.
+ */
+let stripeSdk: Promise<typeof import("stripe")> | null = null;
+
+function loadStripeSdk(): Promise<typeof import("stripe")> {
+  stripeSdk ??= import("stripe");
+  return stripeSdk;
+}
+
+/** Zapamiętany klient wraz z poświadczeniami, z których powstał. */
+interface CachedClient {
+  readonly connectionApiKey: string;
+  readonly lovableApiKey: string;
+  readonly client: Promise<Stripe>;
+}
+
+const clients = new Map<StripeEnv, CachedClient>();
+
+/**
  * Klient SDK z transportem przepiętym na bramkę konektorów - SDK nigdy nie
  * widzi prawdziwego klucza sekretnego operatora.
+ *
+ * SINGLETON PER ŚRODOWISKO, ale poświadczenia czytamy PRZY KAŻDYM WYWOŁANIU i
+ * porównujemy z tymi, z których powstał wpis w cache. Dzięki temu brak klucza
+ * nadal rzuca tu, a nie dopiero na pierwszym żądaniu do operatora (tak samo jak
+ * przed leniwym ładowaniem), a podmiana zmiennych środowiskowych - w testach
+ * przez `vi.stubEnv`, na produkcji przy rotacji - buduje nowego klienta zamiast
+ * po cichu używać starego.
  */
-export function createStripeClient(env: StripeEnv): Stripe {
+export async function getStripeClient(env: StripeEnv): Promise<Stripe> {
   const connectionApiKey = getConnectionApiKey(env);
   const lovableApiKey = getEnv("LOVABLE_API_KEY");
+
+  const cached = clients.get(env);
+  if (
+    cached !== undefined &&
+    cached.connectionApiKey === connectionApiKey &&
+    cached.lovableApiKey === lovableApiKey
+  ) {
+    return cached.client;
+  }
+
+  const client = buildStripeClient(connectionApiKey, lovableApiKey);
+  clients.set(env, { connectionApiKey, lovableApiKey, client });
+  return client;
+}
+
+async function buildStripeClient(
+  connectionApiKey: string,
+  lovableApiKey: string,
+): Promise<Stripe> {
+  const { default: Stripe } = await loadStripeSdk();
 
   return new Stripe(connectionApiKey, {
     apiVersion: "2026-03-25.dahlia",

@@ -57,6 +57,24 @@ function render(kol: ReturnType<typeof column>) {
   );
 }
 
+/** Ta sama kolumna, ale jako dokument POWŁOKI (nagłówek/stopka) - prop `chrome`. */
+function renderPowloka(kol: ReturnType<typeof column>) {
+  return renderWithQueryClient(
+    <BuilderRenderer doc={doc([section("s", [kol])])} lang="pl" device="desktop" chrome />,
+  );
+}
+
+/** Ta sama kolumna w kanwie buildera (`VisualCanvas` podaje `editorPreview`). */
+function renderKanwa(kol: ReturnType<typeof column>) {
+  return renderWithQueryClient(
+    <BuilderRenderer doc={doc([section("s", [kol])])} lang="pl" device="desktop" editorPreview />,
+  );
+}
+
+/** Wiersz grupy inline - pierwsze dziecko wewnętrznego węzła kolumny. */
+const wierszInline = (container: HTMLElement) =>
+  kolumna(container)?.firstElementChild as HTMLElement;
+
 describe("kolumna zwykła (nie pasek narzędzi)", () => {
   const trescBlokowa = [widget("w1", "heading"), widget("w2", "heading")];
 
@@ -164,17 +182,36 @@ describe("kolumna jako PASEK NARZĘDZI", () => {
     expect(kolumna(container)?.style.minHeight).toBe("");
   });
 
-  it("REGRESJA CLS: pasek NIE ZAWIJA się do drugiej linii", () => {
+  it("REGRESJA CLS: pasek POWŁOKI nie zawija się do drugiej linii", () => {
     // `estimateChromeColumnHeight` (rezerwa `HeaderSkeleton`) liczy pasek jako
     // JEDEN rząd - wysokość = najwyższy widget, nie suma. Przy `flex-wrap` ta
     // obietnica zależała od szerokości TEKSTU: ten sam nagłówek mieścił się
     // w jednej linii lokalnie, a na runnerze CI (inny fallback fontu, szerszy
     // krój) przeskakiwał do dwóch. Wiersz rósł z 30 na 66 px, nagłówek za nim,
     // a `<main>` zjeżdżało w dół - CLS 0,1348 przy progu 0,1.
+    const { container } = renderPowloka(column("k", paskowa));
+    expect(wierszInline(container).className).toContain("flex-nowrap");
+    expect(wierszInline(container).className).not.toContain("flex-wrap ");
+  });
+
+  it("TREŚĆ STRONY zawija pasek - tam nadmiar byłby PRZYCIĘTY, nie zarezerwowany", () => {
+    // Zakaz zawijania płaci się przycięciem nadmiaru przez `data-column-slot`
+    // / kontener sekcji. W treści redakcyjnej nie ma za co: kolumna nie dostaje
+    // rezerwy wysokości (patrz test wyżej), więc ma prawo urosnąć, a przycięcie
+    // schowałoby etykiety i kontrolki - wąska strona CMS z kolumną kilku
+    // przycisków traciła je za krawędzią (recenzja PR #383).
     const { container } = render(column("k", paskowa));
-    const wiersz = kolumna(container)?.firstElementChild as HTMLElement;
-    expect(wiersz.className).toContain("flex-nowrap");
-    expect(wiersz.className).not.toContain("flex-wrap ");
+    expect(wierszInline(container).className).toContain("flex-wrap");
+    expect(wierszInline(container).className).not.toContain("flex-nowrap");
+  });
+
+  it("KANWA BUILDERA zawija pasek - podgląd nie ma rezerwy powłoki", () => {
+    // `VisualCanvas` renderuje sekcje z `editorPreview` i BEZ `chrome`, także
+    // dla dokumentu nagłówka. Redaktor musi widzieć wszystkie widgety kolumny
+    // w wąskiej ramce podglądu, żeby móc je kliknąć.
+    const { container } = renderKanwa(column("k", paskowa));
+    expect(wierszInline(container).className).toContain("flex-wrap");
+    expect(wierszInline(container).className).not.toContain("flex-nowrap");
   });
 
   it("JEDEN widget nie-kompaktowy w zestawie zdejmuje tryb paska", () => {
@@ -214,6 +251,19 @@ describe("grupowanie widgetów inline", () => {
     const wiersz = kolumna(container)?.firstElementChild as HTMLElement;
     expect(wiersz.className).toContain("flex-wrap");
     expect(wiersz.className).not.toContain("flex-nowrap");
+  });
+
+  it("grupa inline autora zawija się TAKŻE w powłoce - to nie jest pasek narzędzi", () => {
+    // `isToolbar` wymaga, by KAŻDY widget kolumny był kompaktowy; tu są to
+    // nagłówki, więc nawet dokument powłoki nie dostaje `flex-nowrap`.
+    const { container } = renderPowloka(
+      column("k", [
+        widget("i1", "heading", { advanced: { layout: "inline" } }),
+        widget("i2", "heading", { advanced: { layout: "inline" } }),
+      ]),
+    );
+    expect(wierszInline(container).className).toContain("flex-wrap");
+    expect(wierszInline(container).className).not.toContain("flex-nowrap");
   });
 
   it("sąsiadujące widgety inline trafiają do jednego wiersza, blokowy przerywa grupę", () => {

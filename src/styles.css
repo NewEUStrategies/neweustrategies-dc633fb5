@@ -54,10 +54,36 @@ span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge]
    SAMĄ przestrzeń (size-adjust z ważonej częstością szerokości znaków;
    overrides z metryk hhea RHD: ascent 1018 / descent 305 / upm 1000).
    Podmiana fontu przestaje przesuwać układ - kluczowe dla CLS pierwszego
-   wczytania, zwłaszcza na mobile, gdzie fonty schodzą wolniej. */
+   wczytania, zwłaszcza na mobile, gdzie fonty schodzą wolniej.
+
+   MECHANIZM `src` z czterema kandydatami (2026-09-21): `src` z JEDNYM
+   `local("Arial")` znaczy „jeśli nie ma Arialu, ta rodzina NIE POWSTAJE".
+   Na obrazach bez msttcorefonts (ubuntu-latest w CI, większość kontenerów
+   linuksowych) reguła schodziła więc do zera: tekst mierzył się krojem
+   systemowym, a podmiana na Red Hat Display przesuwała układ - czyli
+   dokładnie to, przed czym ten blok miał chronić. Przeglądarka próbuje
+   źródeł PO KOLEI i bierze pierwsze, które się rozwiąże, więc kolejność jest
+   malejącą zgodnością metryczną wobec Arialu, na którym policzono
+   `size-adjust`:
+     * Liberation Sans i Arimo - metrycznie IDENTYCZNE z Arialem (te same
+       szerokości znaków, upm 2048), więc `size-adjust: 96.03%` jest dla nich
+       tą samą liczbą co dla Arialu; to domyślne zamienniki Arialu w
+       fontconfig na dystrybucjach linuksowych i w obrazach CI;
+     * Helvetica - bliska, nie identyczna (Arial powstał jako metrycznie
+       zgodny z Helveticą); domykamy nią macOS-a bez Arialu.
+   `ascent-override`/`descent-override`/`line-gap-override` NIE zależą od
+   wybranego źródła - narzucają metryki pionowe wprost, więc pozostają
+   policzone z hhea Red Hat Display niezależnie od tego, który local() wygra.
+   Pomiar: `test:e2e:performance` na artefakcie z `FONTCONFIG_FILE`
+   wystawiającym wyłącznie DejaVu (emulacja runnera bez Arialu) - patrz
+   raport pr2-K15. */
 @font-face {
   font-family: "Red Hat Display Fallback";
-  src: local("Arial");
+  src:
+    local("Arial"),
+    local("Liberation Sans"),
+    local("Arimo"),
+    local("Helvetica");
   size-adjust: 96.03%;
   ascent-override: 106.01%;
   descent-override: 31.76%;

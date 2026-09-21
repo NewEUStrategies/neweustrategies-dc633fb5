@@ -41,6 +41,7 @@ import {
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 import { notFoundIfClean } from "@/lib/ssr/notFoundIfClean";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { ensureI18n as ensureProgramsI18n } from "@/lib/i18n-programs";
@@ -327,10 +328,19 @@ function ProgramDetail() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureProgramsI18n();
   const { slug } = Route.useParams();
-  const { degraded } = Route.useLoaderData();
+  const { degraded: ssrDegraded } = Route.useLoaderData();
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const { data: landing, isLoading } = useQuery(programBySlugQueryOptions(slug));
+  // ...ALE LECZY SIĘ SAMA. Flaga loadera jest niezmienna przez życie
+  // dopasowania trasy, a zasiew ma stempel `updatedAt: 0`, więc `useQuery` wyżej
+  // dociąga landing zaraz po hydratacji - i wtedy komunikat nie ma już o czym
+  // mówić. Gałąź stoi POD odczytem zapytania z premedytacją: to ten obserwator
+  // odpala refetch (`lib/ssr/useDegradedUntilHealed.ts`).
+  const { degraded, retry } = useDegradedUntilHealed(
+    programBySlugQueryOptions(slug).queryKey,
+    ssrDegraded,
+  );
 
   // DEGRADACJA MÓWI PRAWDĘ, nie udaje 404. `landing` jest wtedy zasianym
   // `null`, więc `PublicNotFound` byłby MIĘKKIM 404 na żywej stronie programu -
@@ -338,7 +348,7 @@ function ProgramDetail() {
   if (degraded) {
     return (
       <div className="container mx-auto max-w-3xl px-4 py-12">
-        <DegradedDataNotice variant="page" />
+        <DegradedDataNotice variant="page" onRetry={retry} />
       </div>
     );
   }

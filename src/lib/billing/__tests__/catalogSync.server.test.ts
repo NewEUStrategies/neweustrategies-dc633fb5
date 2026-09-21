@@ -48,7 +48,7 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/stripe.server", () => ({
-  createStripeClient: (env: string) => {
+  getStripeClient: (env: string) => {
     if (h.clientError) throw h.clientError;
     h.envs.push(env);
     return {

@@ -1071,13 +1071,28 @@ jobs:
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: bun run check:entry-purity
 
+      # Ta sama zasada po stronie SERWERA, inny mechanizm pomiaru. `routeTree.gen.ts`
+      # importuje statycznie wszystkie pliki tras, więc jeden `import Stripe from
+      # "stripe"` w `lib/stripe.server.ts` (potrzebny webhookowi tylko po
+      # `verifyWebhook`, czyli po czystym WebCrypto) wciągał 198 kB SDK do chunku,
+      # od którego zaczyna się KAŻDY render SSR - ewaluowane przy każdym zimnym
+      # starcie izolatu Workera (audyt CWV F04, §8.1). Reguła jest mocniejsza niż
+      # „poza chunkiem startowym": paczka nie może mieć w artefakcie ANI JEDNEJ
+      # krawędzi statycznej, bo nazwy chunków serwera zależą od presetu Nitro.
+      # Bramka pilnuje też zamrożonej listy statycznych importerów
+      # `node-html-parser` (dwa synchroniczne API renderu, których dziś nie da się
+      # przepiąć na `import()`), żeby ten dług się nie rozlewał.
+      - name: Server request graph free of eager server-only SDKs
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: bun run check:server-entry-purity
+
       # ── BOOT-TEST PRZEGLĄDARKOWY NA ARTEFAKCIE PRODUKCYJNYM ─────────────────
       #
       # KOLEJNOŚĆ JEST KONTRAKTEM, NIE PREFERENCJĄ: `build:smoke` NADPISUJE
-      # `.output/`, więc MUSI biec PO `check:bundle`, `check:chunks`
-      # i `check:entry-purity`. Te trzy mierzą artefakt cloudflare'owy; gdyby
-      # smoke build je wyprzedził, mierzyłyby artefakt node-server i ich floory
-      # przestałyby cokolwiek znaczyć.
+      # `.output/`, więc MUSI biec PO `check:bundle`, `check:chunks`,
+      # `check:entry-purity` i `check:server-entry-purity`. Te cztery mierzą
+      # artefakt cloudflare'owy; gdyby smoke build je wyprzedził, mierzyłyby
+      # artefakt node-server i ich floory przestałyby cokolwiek znaczyć.
       #
       # PO CO TO ISTNIEJE. `vite.config.ts` przy `manualChunks` obiecuje, że
       # klasę awarii z 2026-07-20 (cykl chunków -> wywrócona kolejność

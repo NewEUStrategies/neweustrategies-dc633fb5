@@ -66,7 +66,7 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
     // BEZ RZUTOWANIA na `Stripe` - patrz komentarz w
     // `accountClosure.server.test.ts`: atrapa niesie tylko realnie używane
     // metody, a `as unknown as` jest w repo pod ratchetem.
-    createStripeClient: (env: string) => {
+    getStripeClient: (env: string) => {
       stripe.envs.push(env);
       return {
         promotionCodes: {

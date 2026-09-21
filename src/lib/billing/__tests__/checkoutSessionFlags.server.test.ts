@@ -15,7 +15,7 @@ const search = vi.fn();
 const customersCreate = vi.fn();
 
 vi.mock("@/lib/stripe.server", () => ({
-  createStripeClient: () => ({
+  getStripeClient: () => ({
     checkout: { sessions: { create } },
     prices: { list },
     customers: { search, list: vi.fn().mockResolvedValue({ data: [] }), create: customersCreate },

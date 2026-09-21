@@ -18,6 +18,7 @@ import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 
 /** Wspólny termin trzech zapytań mapy - biegną równolegle, więc jeden budżet. */
@@ -183,10 +184,39 @@ function SiteMapPage() {
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const copy = COPY[lang];
-  const { degraded, degradedSections } = Route.useLoaderData();
-  const { data: pageRows } = useSuspenseQuery(publicPagesTreeQueryOptions());
-  const { data: categories } = useSuspenseQuery(publicCategoriesQueryOptions());
-  const { data: blog } = useSuspenseQuery(blogListQueryOptions());
+  const { degradedSections } = Route.useLoaderData();
+  const pagesOptions = publicPagesTreeQueryOptions();
+  const categoriesOptions = publicCategoriesQueryOptions();
+  const postsOptions = blogListQueryOptions();
+  const { data: pageRows } = useSuspenseQuery(pagesOptions);
+  const { data: categories } = useSuspenseQuery(categoriesOptions);
+  const { data: blog } = useSuspenseQuery(postsOptions);
+
+  // BRAMKI WIDOKU LICZONE ZE STANU ZAPYTAŃ, NIE Z ŁADUNKU LOADERA (recenzja
+  // Codeksa na PR #383, P2). Trzy zasiewy mają stempel `updatedAt: 0`, więc
+  // `useSuspenseQuery` wyżej dociąga każdy z nich zaraz po hydratacji - a
+  // `degradedSections` z `loaderData` jest NIEZMIENNE, przez co odzyskane
+  // kategorie i wpisy zostawały ukryte, a komunikat wisiał aż do
+  // `router.invalidate()` albo przeładowania. Flagi loadera są tu wyłącznie
+  // stanem POCZĄTKOWYM: na serwerze i w pierwszym renderze klienta dają
+  // dokładnie tę samą decyzję (patrz `lib/ssr/useDegradedUntilHealed.ts`),
+  // a od pierwszego renderu po hydratacji rozstrzyga stempel zapytania.
+  //
+  // PER SEKCJĄ, bo zapytania są niezależne: wyleczone kategorie nie mogą czekać
+  // na wpisy. Komunikat zbiorczy znika dopiero, gdy wyleczy się WSZYSTKO, i do
+  // tej chwili niesie ponowienie WSZYSTKICH trzech.
+  const pagesState = useDegradedUntilHealed(pagesOptions.queryKey, degradedSections.pages);
+  const categoriesState = useDegradedUntilHealed(
+    categoriesOptions.queryKey,
+    degradedSections.categories,
+  );
+  const postsState = useDegradedUntilHealed(postsOptions.queryKey, degradedSections.posts);
+  const degraded = pagesState.degraded || categoriesState.degraded || postsState.degraded;
+  const retryAll = () => {
+    pagesState.retry();
+    categoriesState.retry();
+    postsState.retry();
+  };
 
   // The "home" root page is served at "/" - the explicit home link above the
   // tree covers it, so drop the duplicate node.
@@ -203,7 +233,7 @@ function SiteMapPage() {
           // prawdziwe niezależnie od backendu, więc podmiana całej strony
           // zabrałaby czytelnikowi (i crawlerowi) treść, która dojechała.
           <div className="mb-8">
-            <DegradedDataNotice title={copy.degraded} />
+            <DegradedDataNotice title={copy.degraded} onRetry={retryAll} />
           </div>
         )}
 
@@ -250,7 +280,7 @@ function SiteMapPage() {
           {/* Zdegradowany odczyt zawsze niesie PUSTY fallback, więc sekcja
               pokazałaby „brak kategorii" jako fakt. Chowamy ją - komunikat wyżej
               mówi, czego zabrakło, a klient dociąga listę po hydratacji. */}
-          {!degradedSections.categories && (
+          {!categoriesState.degraded && (
             <section aria-labelledby="sitemap-categories">
               <h2 id="sitemap-categories" className="font-display text-xl font-semibold mb-3">
                 {copy.categories}
@@ -274,7 +304,7 @@ function SiteMapPage() {
 
           {/* Jak wyżej: pusta lista wpisów z awarii jest nie do odróżnienia od
               serwisu bez ani jednego artykułu. */}
-          {!degradedSections.posts && (
+          {!postsState.degraded && (
             <section aria-labelledby="sitemap-posts" className="md:col-span-2 lg:col-span-1">
               <h2 id="sitemap-posts" className="font-display text-xl font-semibold mb-3">
                 {copy.posts}

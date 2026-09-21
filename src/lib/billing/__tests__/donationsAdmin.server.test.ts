@@ -80,7 +80,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: { from: (table: string) => h.from?.(table) },
 }));
 vi.mock("@/lib/stripe.server", () => ({
-  createStripeClient: (env: string) => {
+  getStripeClient: (env: string) => {
     h.envs.push(env);
     return h.stripe;
   },

@@ -60,7 +60,7 @@ const h = vi.hoisted(() => ({
 
 vi.mock("@/lib/stripe.server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/stripe.server")>()),
-  createStripeClient: (env: string) => {
+  getStripeClient: (env: string) => {
     h.envs.push(env);
     const odmowa = () => Promise.reject(new Error(h.throws ?? "operator"));
     return {

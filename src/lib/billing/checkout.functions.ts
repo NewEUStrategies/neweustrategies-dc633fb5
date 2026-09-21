@@ -461,10 +461,10 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         const { createPlanCheckoutSession } = await import("@/lib/billing/adhocCheckout.server");
         let discount: { coupon: string } | null = null;
         if (couponCode && couponDiscountCents > 0) {
-          const { createStripeClient } = await import("@/lib/stripe.server");
+          const { getStripeClient } = await import("@/lib/stripe.server");
           const { createAdhocDiscountForCoupon } =
             await import("@/lib/billing/adhocCheckout.server");
-          const stripe = createStripeClient(environment);
+          const stripe = await getStripeClient(environment);
           const couponRef = await createAdhocDiscountForCoupon(stripe, {
             code: couponCode,
             discountCents: couponDiscountCents,
@@ -534,9 +534,9 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       let lineAmountCents = amountCents;
       const phaseDiscountCents = ticketListPriceCents - amountCents;
       if (eventId && phaseDiscountCents > 0 && amountCents >= 50) {
-        const { createStripeClient } = await import("@/lib/stripe.server");
+        const { getStripeClient } = await import("@/lib/stripe.server");
         const { createAdhocDiscountForCoupon } = await import("@/lib/billing/adhocCheckout.server");
-        const couponRef = await createAdhocDiscountForCoupon(createStripeClient(environment), {
+        const couponRef = await createAdhocDiscountForCoupon(await getStripeClient(environment), {
           code: ticketPhaseLabel || "Rabat",
           discountCents: phaseDiscountCents,
           currency,

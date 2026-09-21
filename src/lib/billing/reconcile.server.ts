@@ -16,7 +16,7 @@
 //
 // Moduł server-only (klucze bramki + service_role).
 import type Stripe from "stripe";
-import { createStripeClient, type StripeEnv, type VerifiedWebhookEvent } from "@/lib/stripe.server";
+import { getStripeClient, type StripeEnv, type VerifiedWebhookEvent } from "@/lib/stripe.server";
 
 /** Typy zdarzeń, które nasza integracja umie obsłużyć (reszta jest ignorowana). */
 const SUPPORTED_EVENT_TYPES = [
@@ -119,7 +119,7 @@ export async function buildReconcileReport(
   const hours = Math.min(Math.max(Math.round(sinceHours), 1), 24 * 30);
   const sinceMs = Date.now() - hours * 3600_000;
   const sinceIso = new Date(sinceMs).toISOString();
-  const stripe = createStripeClient(environment);
+  const stripe = await getStripeClient(environment);
   const supabase = await admin();
   const issues: ReconcileIssue[] = [];
   const warnings: string[] = [];
@@ -602,7 +602,7 @@ export async function repairReconcileIssue(
   reference: string,
   tenantId: string,
 ): Promise<RepairOutcome> {
-  const stripe = createStripeClient(environment);
+  const stripe = await getStripeClient(environment);
 
   if (kind === "event") {
     const event = (await stripe.events.retrieve(reference)) as unknown as VerifiedWebhookEvent;

@@ -52,7 +52,7 @@ vi.mock("@/lib/billing/paymentMethod.server", () => ({
 }));
 vi.mock("@/lib/billing/returnUrl.server", () => ({ absoluteReturnUrl: h.returnUrl }));
 vi.mock("@/lib/stripe.server", () => ({
-  createStripeClient: h.createClient,
+  getStripeClient: h.createClient,
   getStripeErrorMessage: () => "provider unavailable",
 }));
 import * as payments from "@/utils/payments.functions";

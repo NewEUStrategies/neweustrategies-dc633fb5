@@ -13,7 +13,6 @@ import { resolveUserTenantId } from "@/lib/server/userTenant.server";
 import {
   aggregateVitals,
   trendsFromDailyP75,
-  type DailyP75Row,
   type VitalSample,
   type VitalsReport,
 } from "./aggregate";

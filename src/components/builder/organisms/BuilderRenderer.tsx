@@ -903,7 +903,7 @@ const RenderColumn = memo(function RenderColumn({
           return (
             <div
               key={gi}
-              // PASEK NARZĘDZI TO JEDEN RZĄD - I MA NIM ZOSTAĆ.
+              // PASEK NARZĘDZI POWŁOKI TO JEDEN RZĄD - I MA NIM ZOSTAĆ.
               //
               // `isToolbar` scala CAŁĄ kolumnę kompaktowych widgetów w jeden
               // wiersz, a rezerwa szkieletu nagłówka liczy go dokładnie tak
@@ -915,13 +915,24 @@ const RenderColumn = memo(function RenderColumn({
               // tekst mierzy szerszym krojem - przeskakiwał do dwóch linii.
               // Wiersz rósł wtedy z 30 na 66 px, nagłówek za nim, a całe
               // `<main>` zjeżdżało w dół (CLS 0,1348 w „first visit pl, cold").
-              // Nie zawijamy więc paska: przy ciasnej kolumnie widgety
+              // Nie zawijamy więc paska powłoki: przy ciasnej kolumnie widgety
               // ścieśniają się (`min-w-0` z ramki widgetu), a nadmiar przycina
               // kontener sekcji - wysokość zostaje STAŁA przy każdym kroju.
               //
+              // DLACZEGO WARUNEK `chromeReserve`, A NIE SAM `isToolbar`.
+              // Brak zawijania kupujemy PRZYCIĘCIEM nadmiaru (`data-column-slot`
+              // / kontener sekcji), więc płacimy nim tylko tam, gdzie coś za to
+              // dostajemy: powłoka ma zarezerwowaną wysokość wiersza i pasek
+              // jest w niej jednym rzędem Z DEFINICJI. Treść redakcyjna rezerwy
+              // NIE MA - jej kolumna ma prawo urosnąć, a przycięcie odbierałoby
+              // czytelnikowi etykiety i kontrolki. Na wąskiej stronie CMS
+              // kolumna kilku kompaktowych widgetów (np. paru przycisków) była
+              // wciskana w jeden rząd i wychodziła poza krawędź - recenzja
+              // PR #383. Poza powłoką zawijamy więc tak jak przed rezerwą CLS.
+              //
               // Grupy inline ZADEKLAROWANE przez autora (`advanced.layout`)
-              // zachowują zawijanie - tam wiersz jest treścią, nie paskiem.
-              className={`flex flex-row ${isToolbar ? "flex-nowrap" : "flex-wrap"} items-center gap-2 min-w-0 max-w-full ${axisClass}`}
+              // zachowują zawijanie zawsze - tam wiersz jest treścią, nie paskiem.
+              className={`flex flex-row ${isToolbar && chromeReserve ? "flex-nowrap" : "flex-wrap"} items-center gap-2 min-w-0 max-w-full ${axisClass}`}
             >
               {g.items.map((w) => (
                 <BuilderWidgetNode

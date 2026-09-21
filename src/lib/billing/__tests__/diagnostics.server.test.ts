@@ -162,14 +162,14 @@ vi.mock("@/lib/server/tenant.server", () => ({
 }));
 
 // Atrapa na GRANICY SDK operatora, nie na naszym wrapperze - z tego samego
-// powodu, co przy Supabase. Dodatkowa korzyść: przez `createStripeClient`
+// powodu, co przy Supabase. Dodatkowa korzyść: przez `getStripeClient`
 // przechodzi PRAWDZIWY kod, więc test pilnuje też wymagania kluczy
 // środowiskowych i przepięcia transportu na bramkę konektorów.
 vi.mock("stripe", () => {
   class StripeStub {
     constructor() {
       // Konstruktor zwracający obiekt podmienia instancję - `new Stripe(...)`
-      // w `createStripeClient` daje wprost naszą atrapę.
+      // w `getStripeClient` daje wprost naszą atrapę.
       return h.stripe as unknown as StripeStub;
     }
     static createFetchHttpClient() {

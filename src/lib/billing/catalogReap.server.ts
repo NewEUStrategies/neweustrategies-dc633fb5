@@ -13,7 +13,7 @@
 //    (ręcznie założone produkty Stripe zostają nietknięte),
 //  - reap nie rusza, jeśli podstawowa synchronizacja miała błąd - awaria API
 //    nie może wyglądać jak "plan zniknął ze źródła".
-import { createStripeClient, type StripeEnv } from "@/lib/stripe.server";
+import { getStripeClient, type StripeEnv } from "@/lib/stripe.server";
 
 export interface ReapedEntry {
   kind: "product" | "price";
@@ -44,7 +44,7 @@ function externalIdOf(metadata: Record<string, string> | null | undefined): stri
  */
 export async function reapOrphanCatalogEntries(input: ReapInput): Promise<ReapedEntry[]> {
   const { env, expectedPriceIds, expectedProductIds, inactivePriceIds = new Set<string>() } = input;
-  const stripe = createStripeClient(env);
+  const stripe = await getStripeClient(env);
   const reaped: ReapedEntry[] = [];
 
   const reasonFor = (externalId: string): ReapedEntry["reason"] =>

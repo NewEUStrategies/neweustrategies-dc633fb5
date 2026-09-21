@@ -65,6 +65,7 @@ import {
 } from "@/lib/seo/meta";
 import { asEventVideoPlatform, videoEmbedUrl } from "@/lib/events/eventVideoHeader";
 import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { withSsrBudget } from "@/lib/asyncBudget";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
@@ -348,41 +349,54 @@ function EventShell() {
   ensureCommunityI18n();
   ensureEventFrontI18n();
   const modules = useCommunityModules();
-  const { degraded } = Route.useLoaderData();
 
   if (!modules.events_enabled) return <CommunityDisabled />;
+  return <EventShellBody />;
+}
+
+/**
+ * Ciało powłoki wydzielone, bo `useSuspenseQuery` nie zna opcji `enabled`:
+ * bramkę modułu rozstrzyga rodzic (przy wyłączonym module loader nie grzeje
+ * zapytania, a to ciało się nie montuje). Ten sam podział stoi w
+ * `events.index.tsx`.
+ *
+ * GAŁĄŹ DEGRADACJI ZJECHAŁA TUTAJ Z RODZICA i to nie jest kosmetyka.
+ * Zdegradowany loader ZASIAŁ wydarzenie (`null` ze stemplem `updatedAt: 0`),
+ * więc `useSuspenseQuery` niżej rozstrzyga się bez zawieszenia - a dopóki
+ * komunikat stał NAD tym odczytem, nikt nie był obserwatorem tego klucza:
+ * `refetchOnMount` nie miał czego odpalić i degradacja zamarzała do kolejnej
+ * nawigacji. Komunikat POD odczytem leczy się sam (patrz
+ * `lib/ssr/useDegradedUntilHealed.ts`).
+ */
+function EventShellBody() {
+  const { slug } = useParams({ from: "/events/$slug" });
+  const { t, i18n } = useTranslation();
+  const lang = (i18n.language.startsWith("en") ? "en" : "pl") as "pl" | "en";
+  const { degraded: ssrDegraded } = Route.useLoaderData();
+  // TEN SAM KLUCZ, CO W PRZEGLĄDZIE I W POZOSTAŁYCH ZAKŁADKACH - loader
+  // rozgrzał go przez `ensureQueryData`, więc `useSuspenseQuery` rozstrzyga się
+  // synchronicznie i w SSR, i po hydratacji. Przekazywanie wydarzenia przez
+  // kontekst trasy dałoby drugie źródło tej samej migawki.
+  const { data } = useSuspenseQuery(publicEventBySlugQueryOptions(slug));
+  const { degraded, retry } = useDegradedUntilHealed(
+    publicEventBySlugQueryOptions(slug).queryKey,
+    ssrDegraded,
+  );
+
   // Render ZDEGRADOWANY mówi prawdę zamiast udawać brak wydarzenia, i ma
   // przycisk ponowienia. Nagłówek `no-store` ustawił już loader, więc ten HTML
   // nie zamarza na brzegu (patrz lib/http/responseHeaders - dyrektywa trasy).
   if (degraded) {
     return (
       <div className="container mx-auto max-w-3xl px-4 py-12">
-        <DegradedDataNotice variant="page" />
+        <DegradedDataNotice variant="page" onRetry={retry} />
       </div>
     );
   }
-  return <EventShellBody />;
-}
-
-/**
- * Ciało powłoki wydzielone, bo `useSuspenseQuery` nie zna opcji `enabled`:
- * bramkę modułu i ścieżkę degradacji rozstrzyga rodzic (przy wyłączonym module
- * loader nie grzeje zapytania, a to ciało się nie montuje). Ten sam podział
- * stoi w `events.index.tsx`.
- */
-function EventShellBody() {
-  const { slug } = useParams({ from: "/events/$slug" });
-  const { t, i18n } = useTranslation();
-  const lang = (i18n.language.startsWith("en") ? "en" : "pl") as "pl" | "en";
-  // TEN SAM KLUCZ, CO W PRZEGLĄDZIE I W POZOSTAŁYCH ZAKŁADKACH - loader
-  // rozgrzał go przez `ensureQueryData`, więc `useSuspenseQuery` rozstrzyga się
-  // synchronicznie i w SSR, i po hydratacji. Przekazywanie wydarzenia przez
-  // kontekst trasy dałoby drugie źródło tej samej migawki.
-  const { data } = useSuspenseQuery(publicEventBySlugQueryOptions(slug));
 
   // NIE MA JUŻ EKRANU „nie udało się załadować". Brak wydarzenia rozstrzygnął
   // loader (`notFound()` na pustym nagłówku definerowym), a awarię transportu -
-  // gałąź `degraded` w rodzicu. `null` tutaj znaczy więc DOKŁADNIE JEDNO: RLS
+  // gałąź `degraded` wyżej. `null` tutaj znaczy więc DOKŁADNIE JEDNO: RLS
   // ucięło wiersz adresatowi bramki warstwy. Adresat bramki ma dostać
   // zaproszenie, nie komunikat błędu.
   if (data === null) {

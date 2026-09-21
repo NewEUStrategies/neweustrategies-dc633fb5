@@ -431,11 +431,15 @@ describe("trasa /qa - lista sesji", () => {
     expect(screen.getByText("Brak zaplanowanych sesji Q&A.")).toBeInTheDocument();
   });
 
-  it("awaria odczytu mówi „nie udało się”, a NIE „brak sesji”", async () => {
+  it("awaria odczytu mówi „nie udało się”, a NIE „brak sesji” - z ponowieniem", async () => {
+    // Komunikat idzie ze WSPÓLNEJ warstwy degradacji (`DegradedDataNotice`),
+    // a nie z gołego akapitu: zdegradowany render musi dać czytelnikowi coś do
+    // zrobienia, bo zasiew z `updatedAt: 0` leczy się właśnie ponowieniem.
     h.broken.add("qa_sessions");
     await mountList();
 
-    expect(await screen.findByText("Nie udało się pobrać danych.")).toBeInTheDocument();
+    expect(await screen.findByText("Ta sekcja chwilowo nie ma danych")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Spróbuj ponownie" })).toBeInTheDocument();
     expect(screen.queryByText("Brak zaplanowanych sesji Q&A.")).toBeNull();
   });
 

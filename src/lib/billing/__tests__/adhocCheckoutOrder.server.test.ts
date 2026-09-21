@@ -53,7 +53,7 @@ const h = vi.hoisted(() => {
 // GRANICA: operator płatności. Żaden test nie wychodzi do sieci ani nie dotyka
 // prawdziwych kluczy.
 vi.mock("@/lib/stripe.server", () => ({
-  createStripeClient: (env: string) => {
+  getStripeClient: (env: string) => {
     h.envs.push(env);
     return h.stripe;
   },

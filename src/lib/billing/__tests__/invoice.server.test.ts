@@ -49,7 +49,7 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/stripe.server", () => ({
-  createStripeClient: () => ({
+  getStripeClient: () => ({
     invoices: {
       retrieve: (id: string) => {
         h.stripeCalls.push(`invoices.retrieve:${id}`);
