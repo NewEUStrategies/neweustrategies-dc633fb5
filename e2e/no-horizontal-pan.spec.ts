@@ -45,7 +45,16 @@ test.describe("brak poziomego przesuwania strony", () => {
             mode === "fixed"
               ? "position:fixed;left:300px;top:100px;width:200px;height:20px;background:red"
               : "position:absolute;left:300px;top:100px;width:200px;height:20px;background:red";
-          const host = mode === "visible" ? flow : card;
+          let host = mode === "visible" ? flow : card;
+          if (mode === "auto") {
+            const scroller = document.createElement("div");
+            scroller.style.cssText = "overflow-x:auto;position:static";
+            const wide = document.createElement("div");
+            wide.style.cssText = "width:600px;height:20px;background:red";
+            scroller.appendChild(wide);
+            flow.appendChild(scroller);
+            host = null;
+          }
           if (host) host.appendChild(probe);
           (window as unknown as { __k23host?: string }).__k23host = host
             ? `${host.tagName}.${String(host.className).slice(0, 40)}`

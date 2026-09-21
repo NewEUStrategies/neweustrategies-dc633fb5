@@ -203,9 +203,22 @@ export async function prefetchAdPlacementQueries(
   targets: readonly AdWarmTarget[],
   pageType: AdPageType,
 ): Promise<void> {
+  // ROZGRZEWKA PYTA WYŁĄCZNIE O TO, CZEGO W CACHE'U NIE MA ŚWIEŻEGO - i to nie
+  // jest mikrooptymalizacja, tylko warunek, żeby ta rozgrzewka nie była
+  // REGRESJĄ na nawigacji SPA. `edgeTtlCache` jest w przeglądarce przezroczysty,
+  // więc bez tej bramki KAŻDE wejście na kolejny wpis płaciłoby round-trip po
+  // listę, którą react-query trzyma jeszcze przez `PLACEMENTS_TTL_MS` - czyli
+  // rozgrzewka odbierałaby to, co daje `staleTime`. Ten sam warunek zdejmuje
+  // powtórkę w SSR, gdyby ten sam klucz rozgrzał wcześniej korzeń.
+  const cold = targets.filter((target) => {
+    const state = queryClient.getQueryState(
+      adPlacementsQueryOptions(target.position, pageType, target.pageId ?? null).queryKey,
+    );
+    return state?.data === undefined || Date.now() - state.dataUpdatedAt >= PLACEMENTS_TTL_MS;
+  });
   // Pozycje posortowane i bez duplikatów - klucz cache'u izolatu ma być ten sam
   // niezależnie od kolejności, w jakiej wołający wymienił sloty.
-  const positions = [...new Set(targets.map((t) => t.position))].sort();
+  const positions = [...new Set(cold.map((t) => t.position))].sort();
   if (positions.length === 0) return;
   try {
     const rows = await edgeTtlCache(
@@ -213,10 +226,13 @@ export async function prefetchAdPlacementQueries(
       // te niosą jeszcze `pageId`, ten świadomie go nie zna (patrz
       // `fetchPlacementRows`).
       `ad_placements:multi:${positions.join("+")}:${pageType}`,
-      60_000,
+      PLACEMENTS_TTL_MS,
       () => fetchPlacementRows(positions, pageType),
     );
-    for (const target of targets) {
+    // Zapisujemy WYŁĄCZNIE cele, o które to zapytanie pytało: cel pominięty jako
+    // świeży nie ma swoich wierszy w tej odpowiedzi, więc projekcja dałaby mu
+    // pustą listę i skasowała dane, które właśnie uznaliśmy za dobre.
+    for (const target of cold) {
       const id = target.pageId ?? null;
       // `setQueryData` bez `updatedAt: 0`: to są PRAWDZIWE wiersze, nie zasiew
       // fallbackowy. Wpis ma się urodzić świeży, inaczej przeglądarka

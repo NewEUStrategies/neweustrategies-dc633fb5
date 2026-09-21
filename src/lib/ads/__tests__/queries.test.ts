@@ -698,3 +698,56 @@ describe("prefetchAdPlacementQueries - rozgrzewka SSR", () => {
     expect(from().chainsFor("ad_placements")).toHaveLength(0);
   });
 });
+
+describe("prefetchAdPlacementQueries - bramka świeżości", () => {
+  it("NIE pyta bazy o klucz, który ma świeże dane - inaczej rozgrzewka odbierałaby `staleTime`", async () => {
+    // `edgeTtlCache` jest w przeglądarce przezroczysty, więc bez tej bramki
+    // każda nawigacja SPA płaciłaby round-trip po listę, którą react-query
+    // trzyma jeszcze przez minutę.
+    respondWith([]);
+    const qc = new QueryClient();
+    qc.setQueryData(adPlacementsQueryOptions("header_banner", "post").queryKey, []);
+
+    await prefetchAdPlacementQueries(qc, [{ position: "header_banner" }], "post");
+
+    expect(from().chainsFor("ad_placements")).toHaveLength(0);
+  });
+
+  it("cel ŚWIEŻY nie traci danych przez zapytanie wysłane po cel ZIMNY", async () => {
+    // Jedno zapytanie idzie wtedy wyłącznie po zimne pozycje, więc odpowiedź
+    // nie zawiera wierszy celu świeżego - nadpisanie go dałoby pustą listę.
+    const banner = placement({ position: "header_banner", page_id: null });
+    const above = placement({ position: "top_of_post", page_id: null });
+    respondWith([above]);
+    const qc = new QueryClient();
+    qc.setQueryData(adPlacementsQueryOptions("header_banner", "post").queryKey, [banner]);
+
+    await prefetchAdPlacementQueries(
+      qc,
+      [{ position: "header_banner" }, { position: "top_of_post" }],
+      "post",
+    );
+
+    expect(inArg("position")).toEqual(["top_of_post"]);
+    expect(qc.getQueryData(adPlacementsQueryOptions("header_banner", "post").queryKey)).toEqual([
+      banner,
+    ]);
+    expect(qc.getQueryData(adPlacementsQueryOptions("top_of_post", "post").queryKey)).toEqual([
+      above,
+    ]);
+  });
+
+  it("wpis PRZETERMINOWANY (`updatedAt: 0`) liczy się jak zimny", async () => {
+    // Zasiew fallbackowy rodzi się przeterminowany właśnie po to, żeby prawdziwe
+    // dane go zastąpiły - rozgrzewka nie może go czytać jako „gotowe".
+    respondWith([]);
+    const qc = new QueryClient();
+    qc.setQueryData(adPlacementsQueryOptions("header_banner", "post").queryKey, [], {
+      updatedAt: 0,
+    });
+
+    await prefetchAdPlacementQueries(qc, [{ position: "header_banner" }], "post");
+
+    expect(from().chainsFor("ad_placements")).toHaveLength(1);
+  });
+});
