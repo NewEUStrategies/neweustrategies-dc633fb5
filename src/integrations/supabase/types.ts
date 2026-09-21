@@ -24493,6 +24493,20 @@ export type Database = {
           relation: string
         }[]
       }
+      get_mention_target: {
+        Args: { _slug: string }
+        Returns: {
+          avatar_url: string
+          id: string
+          kind: string
+          label: string
+          logo_url: string
+          slug: string
+          subtitle: string
+          verified: boolean
+          website: string
+        }[]
+      }
       get_my_public_exposure: {
         Args: never
         Returns: {
@@ -26040,6 +26054,21 @@ export type Database = {
           label_pl: string
           parent_id: string
           slug: string
+        }[]
+      }
+      search_mention_targets: {
+        Args: { _limit?: number; _q?: string }
+        Returns: {
+          avatar_url: string
+          id: string
+          kind: string
+          label: string
+          logo_url: string
+          score: number
+          slug: string
+          subtitle: string
+          verified: boolean
+          website: string
         }[]
       }
       search_messages: {
