@@ -42,7 +42,13 @@ vi.mock("@/integrations/supabase/client", async () => {
   return { supabase: { from: from.from } };
 });
 
-import { useAdPlacements } from "@/lib/ads/queries";
+import { QueryClient } from "@tanstack/react-query";
+
+import {
+  adPlacementsQueryOptions,
+  prefetchAdPlacementQueries,
+  useAdPlacements,
+} from "@/lib/ads/queries";
 import { renderHookWithQueryClient } from "@/test/renderWithQueryClient";
 import { fail, ok, type RecordedChain, type SupabaseFromStub } from "@/test/supabaseChain";
 import type {

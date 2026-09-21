@@ -82,7 +82,6 @@ vi.mock("@/lib/useSiteSetting", () => ({
 
 import {
   AuthProvider,
-  hasStoredAuthSession,
   ROLE_SETTLE_TIMEOUT_MS,
   SESSION_SETTLE_TIMEOUT_MS,
   useAuth,
@@ -512,27 +511,6 @@ it("keeps the signed-in context when invitation acceptance returns an error", as
 // na której `loading` może nie zejść NIGDY, jest tam wiecznym spinnerem.
 // Te przypadki pilnują obu stron kontraktu: gość dostaje odpowiedź w
 // ograniczonym czasie, a zalogowany NIE zostaje wylogowany przez awarię sieci.
-describe("hasStoredAuthSession()", () => {
-  it("pusty magazyn to pewne gość; zapisany token Supabase to trzeba poczekać", () => {
-    expect(hasStoredAuthSession()).toBe(false);
-    window.localStorage.setItem(STORED_SESSION_KEY, JSON.stringify({ access_token: "t" }));
-    try {
-      expect(hasStoredAuthSession()).toBe(true);
-    } finally {
-      window.localStorage.removeItem(STORED_SESSION_KEY);
-    }
-  });
-
-  it("obcy klucz w magazynie nie udaje sesji", () => {
-    window.localStorage.setItem("theme", "dark");
-    try {
-      expect(hasStoredAuthSession()).toBe(false);
-    } finally {
-      window.localStorage.removeItem("theme");
-    }
-  });
-});
-
 describe("AuthProvider - rozstrzygnięcie gościa przy martwym backendzie", () => {
   it("pusty magazyn + wiszący getSession(): loading schodzi bez czekania na sieć", async () => {
     // Tak wygląda backend, który nie odpowiada: obietnica nie rozstrzyga się
@@ -542,6 +520,21 @@ describe("AuthProvider - rozstrzygnięcie gościa przy martwym backendzie", () =
     await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"));
     expect(screen.getByTestId("uid")).toHaveTextContent("anon");
     expect(h.signOutMock).not.toHaveBeenCalled();
+  });
+
+  it("obcy klucz w magazynie nie udaje sesji Supabase", async () => {
+    // Sonda magazynu rozpoznaje WYŁĄCZNIE klucze klienta Supabase
+    // (`sb-<projekt>-auth-token`) - inaczej pierwszy lepszy zapis w
+    // `localStorage` kazałby czekać gościowi na termin.
+    window.localStorage.setItem("theme", "dark");
+    h.getSessionPromise = new Promise(() => {});
+    try {
+      renderProbe();
+      await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"));
+      expect(screen.getByTestId("uid")).toHaveTextContent("anon");
+    } finally {
+      window.localStorage.removeItem("theme");
+    }
   });
 
   it("odrzucone getSession(): loading schodzi, magazyn i sesja nietknięte", async () => {

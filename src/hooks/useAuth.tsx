@@ -86,12 +86,17 @@ const STORED_SESSION_KEY_RE = /^(?:sb-.+-auth-token(?:\.\d+)?|supabase\.auth\.to
  * `useAuth().loading === true` (audyt CWV 2026-09-20, F32) i pierwszy render
  * klienta musi wyjść identycznie, inaczej hydratacja się rozjeżdża.
  *
+ * NIE JEST EKSPORTOWANA celowo: eksport funkcji z modułu komponentu psuje
+ * fast refresh (`react-refresh/only-export-components`), a kontrakt i tak
+ * mierzy się przez zachowanie `AuthProvider` - patrz
+ * `hooks/__tests__/useAuth.test.tsx` i `components/profile/__tests__/AuthGate.test.tsx`.
+ *
  * W RAMCE POŚREDNIKA (podgląd Lovable) magazynem nie jest `localStorage`, tylko
  * broker `postMessage` do edytora (`previewAuthStorage.ts`) - pusty
  * `localStorage` nie znaczy tam „brak sesji", więc w ramce wracamy do czekania
  * na `getSession()`.
  */
-export function hasStoredAuthSession(): boolean {
+function hasStoredAuthSession(): boolean {
   if (typeof window === "undefined") return false;
   try {
     if (window.parent && window.parent !== window) return true;
