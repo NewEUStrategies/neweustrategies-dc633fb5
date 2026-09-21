@@ -120,6 +120,7 @@ export function WidgetLibrary({
     "rich-text": "content",
     testimonial: "content",
     "team-member": "content",
+    "team-member-grid": "content",
     "author-profile-card": "content",
     "travel-route-card": "content",
     "cover-overlay-card": "content",

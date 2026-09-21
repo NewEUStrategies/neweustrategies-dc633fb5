@@ -58,6 +58,13 @@ export const WIDGET_TEXT_FIELDS: Partial<Record<WidgetType, WidgetTextFieldSpec>
   // renderują się jako tekst, więc NIE wchodzą.
   "team-member": { scalar: ["bio"] },
 
+  // widget-view/TeamMemberGridWidget.tsx - PEŁNY biogram w oknie osoby
+  // (`fullBio_*`, jedyne `dangerouslySetInnerHTML` tego widgetu). Skrót
+  // `bio_*` renderuje się jako węzeł tekstowy na kafelku ORAZ - gdy pełny
+  // biogram jest pusty - w oknie, więc NIE wchodzi: marker `[fn]…[/fn]`
+  // zamieniony na <sup> pokazałby się czytelnikowi dosłownie.
+  "team-member-grid": { arrays: [{ arrayKey: "members", fields: ["fullBio"] }] },
+
   // widget-view/SpeakersWidget.tsx celowo NIE ma wpisu: opis prelegenta
   // renderuje się jako węzeł tekstowy (line-clamp), więc marker `[fn]…[/fn]`
   // zamieniony na <sup> pokazałby się czytelnikowi dosłownie (patrz

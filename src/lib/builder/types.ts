@@ -404,6 +404,11 @@ export type WidgetType =
   | "logo-cloud"
   | "testimonial"
   | "team-member"
+  // Siatka CAŁEGO zespołu w jednym widgecie: lista opisanych osób
+  // (rola w NES, afiliacja, projekty, kontakt, social media) + okno
+  // pełnej kartoteki po kliknięciu kafelka. Nie zastępuje `team-member`,
+  // który zostaje pojedynczym kafelkiem dla układów budowanych kolumnami.
+  | "team-member-grid"
   // Karta profilu autora/eksperta: ta sama prezentacja co wariant `profile`
   // bloku `author-bio` w block editorze (komponent ProfileCard).
   | "author-profile-card"

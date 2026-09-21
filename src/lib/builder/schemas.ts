@@ -2205,6 +2205,11 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   // "Speakers" ma dedykowany edytor (SpeakersEditor) - schema pusta, żeby
   // fallback po schemacie nie próbował renderować duplikatów pól.
   speakers: [],
+  // Siatka zespołu ma dedykowany edytor (TeamMemberGridEditor): lista osób
+  // z przeciąganiem wierszy i kilkunastoma polami kartoteki na osobę nie
+  // mieści się w schemacie płaskich pól. Pusta tablica z tego samego
+  // powodu co `speakers` wyżej.
+  "team-member-grid": [],
   // Agenda i odliczanie maja dedykowane edytory (EventScheduleEditor /
   // EventCountdownEditor) - schema pusta z tego samego powodu co speakers.
   "event-schedule": [],

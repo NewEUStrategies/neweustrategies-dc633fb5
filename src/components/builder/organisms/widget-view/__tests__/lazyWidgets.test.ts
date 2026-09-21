@@ -72,6 +72,7 @@ const SPLIT_WIDGETS = [
   "AccountMenuWidget",
   "SpeakersWidget",
   "TeamMemberWidget",
+  "TeamMemberGridWidget",
   "AuthorProfileCardWidget",
   "TravelRouteCardView",
   "InteractiveCircleWidget",

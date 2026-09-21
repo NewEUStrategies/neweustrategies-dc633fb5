@@ -108,6 +108,7 @@ import type { SearchButtonWidget as SearchButtonWidgetImpl } from "./SearchButto
 import type { AccountMenuWidget as AccountMenuWidgetImpl } from "./AccountMenuWidget";
 import type { SpeakersWidget as SpeakersWidgetImpl } from "./SpeakersWidget";
 import type { TeamMemberWidget as TeamMemberWidgetImpl } from "./TeamMemberWidget";
+import type { TeamMemberGridWidget as TeamMemberGridWidgetImpl } from "./TeamMemberGridWidget";
 import type { AuthorProfileCardWidget as AuthorProfileCardWidgetImpl } from "./AuthorProfileCardWidget";
 import type { TravelRouteCardView as TravelRouteCardViewImpl } from "./TravelRouteCardView";
 import type { CoverOverlayCardView as CoverOverlayCardViewImpl } from "./CoverOverlayCardView";
@@ -461,6 +462,11 @@ const TeamMemberWidgetLazy = lazy(() =>
   import("./TeamMemberWidget").then((m) => ({ default: m.TeamMemberWidget })),
 ) as ComponentType<ComponentProps<typeof TeamMemberWidgetImpl>>;
 export const TeamMemberWidget = withSuspense(TeamMemberWidgetLazy);
+
+const TeamMemberGridWidgetLazy = lazy(() =>
+  import("./TeamMemberGridWidget").then((m) => ({ default: m.TeamMemberGridWidget })),
+) as ComponentType<ComponentProps<typeof TeamMemberGridWidgetImpl>>;
+export const TeamMemberGridWidget = withSuspense(TeamMemberGridWidgetLazy);
 
 const AuthorProfileCardWidgetLazy = lazy(() =>
   import("./AuthorProfileCardWidget").then((m) => ({ default: m.AuthorProfileCardWidget })),
