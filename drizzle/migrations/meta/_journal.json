@@ -218,6 +218,13 @@
       "when": 1789968624979,
       "tag": "0030_web_vitals_navigation_context",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1789991681265,
+      "tag": "0031_user_invitations_pin_all_non_acceptance_columns",
+      "breakpoints": true
     }
   ]
 }
