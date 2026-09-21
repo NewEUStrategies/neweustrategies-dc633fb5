@@ -65,6 +65,7 @@ import type { ReactNode } from "react";
 import type { Json } from "@/integrations/supabase/types";
 import type { ClubSourceMark } from "@/lib/clubs/threadSources";
 import type { RouterLinkStubProps } from "@/test/routerLinkStub";
+import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 
 const h = vi.hoisted(() => ({
   /** Pliki oddane do podglądu w platformie - dowód, CO karta wysłała dalej. */
@@ -301,7 +302,7 @@ describe("ClubPostCard - podpięcie pod wątek i wejście w dyskusję", () => {
 
 describe("ClubPostCard - treść", () => {
   it("adresy, wzmianki i tagi w treści idą przez wspólny renderer klubowy", () => {
-    render(
+    renderWithQueryClient(
       <ClubPostCard
         post={clubPostRow({
           body:
