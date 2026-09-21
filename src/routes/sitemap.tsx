@@ -185,12 +185,14 @@ function SiteMapPage() {
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const copy = COPY[lang];
   const { degradedSections } = Route.useLoaderData();
-  const pagesOptions = publicPagesTreeQueryOptions();
-  const categoriesOptions = publicCategoriesQueryOptions();
-  const postsOptions = blogListQueryOptions();
-  const { data: pageRows } = useSuspenseQuery(pagesOptions);
-  const { data: categories } = useSuspenseQuery(categoriesOptions);
-  const { data: blog } = useSuspenseQuery(postsOptions);
+  // FABRYKI KLUCZA WOŁANE W MIEJSCU WYWOŁANIA, nie przez zmienną pomocniczą:
+  // raport `scripts/report-public-route-loaders.ts` (i zapadka per trasa
+  // w `lib/ci/publicRouteLoaders.ts`) dopasowuje NAZWY fabryk użyte w loaderze
+  // i w `useSuspenseQuery` tego samego pliku. Zmienna między nimi zrywa to
+  // dopasowanie i trasa wypada z rozgrzanych na „loader tych kluczy nie grzeje".
+  const { data: pageRows } = useSuspenseQuery(publicPagesTreeQueryOptions());
+  const { data: categories } = useSuspenseQuery(publicCategoriesQueryOptions());
+  const { data: blog } = useSuspenseQuery(blogListQueryOptions());
 
   // BRAMKI WIDOKU LICZONE ZE STANU ZAPYTAŃ, NIE Z ŁADUNKU LOADERA (recenzja
   // Codeksa na PR #383, P2). Trzy zasiewy mają stempel `updatedAt: 0`, więc
@@ -205,12 +207,18 @@ function SiteMapPage() {
   // PER SEKCJĄ, bo zapytania są niezależne: wyleczone kategorie nie mogą czekać
   // na wpisy. Komunikat zbiorczy znika dopiero, gdy wyleczy się WSZYSTKO, i do
   // tej chwili niesie ponowienie WSZYSTKICH trzech.
-  const pagesState = useDegradedUntilHealed(pagesOptions.queryKey, degradedSections.pages);
+  const pagesState = useDegradedUntilHealed(
+    publicPagesTreeQueryOptions().queryKey,
+    degradedSections.pages,
+  );
   const categoriesState = useDegradedUntilHealed(
-    categoriesOptions.queryKey,
+    publicCategoriesQueryOptions().queryKey,
     degradedSections.categories,
   );
-  const postsState = useDegradedUntilHealed(postsOptions.queryKey, degradedSections.posts);
+  const postsState = useDegradedUntilHealed(
+    blogListQueryOptions().queryKey,
+    degradedSections.posts,
+  );
   const degraded = pagesState.degraded || categoriesState.degraded || postsState.degraded;
   const retryAll = () => {
     pagesState.retry();

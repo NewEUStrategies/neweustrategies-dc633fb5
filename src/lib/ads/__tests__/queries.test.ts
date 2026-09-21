@@ -586,3 +586,115 @@ describe("bramka: typy stron znane bazie a filtr wysyłany przez klienta", () =>
     expect(inArg("page_type")).toEqual(["all", "event"]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// ROZGRZEWKA SSR KILKU POZYCJI ZA JEDEN ROUND-TRIP.
+//
+// PO CO OSOBNY BLOK. Trasa łapiąca wszystko (`src/routes/$.tsx`) grzeje dwie
+// pozycje naraz - baner nagłówka i slot nad treścią - a jej fala wtórna ma
+// sufit 6 równoległych odnóg (`check:ssr-budgets`; twardy limit 6 podżądań
+// runtime Cloudflare Workers). Dowód musi więc obejmować OBIE własności naraz:
+// że round-trip jest JEDEN i że rozgrzane klucze to DOKŁADNIE te, które czyta
+// `useAdPlacements` - rozgrzewka pod innym kluczem kosztuje zapytanie i nie
+// zdejmuje ani jednego skoku układu.
+// ---------------------------------------------------------------------------
+describe("prefetchAdPlacementQueries - rozgrzewka SSR", () => {
+  it("pyta bazę RAZ o wszystkie pozycje, a nie raz na pozycję", async () => {
+    respondWith([]);
+    const qc = new QueryClient();
+
+    await prefetchAdPlacementQueries(
+      qc,
+      [{ position: "top_of_post", pageId: "post-1" }, { position: "header_banner" }],
+      "post",
+    );
+
+    expect(from().chainsFor("ad_placements")).toHaveLength(1);
+    expect(inArg("position")).toEqual(["header_banner", "top_of_post"]);
+    expect(inArg("page_type")).toEqual(["all", "post"]);
+  });
+
+  it("zasiewa DOKŁADNIE te klucze, spod których czyta widok", async () => {
+    const banner = placement({ position: "header_banner", page_id: null });
+    const above = placement({ position: "top_of_post", page_id: "post-1" });
+    respondWith([banner, above]);
+    const qc = new QueryClient();
+
+    await prefetchAdPlacementQueries(
+      qc,
+      [{ position: "top_of_post", pageId: "post-1" }, { position: "header_banner" }],
+      "post",
+    );
+
+    // Klucze biorą się z tej samej fabryki, co w `useAdPlacements` - gdyby
+    // rozgrzewka budowała literał u siebie, każdy jej wpis byłby osobnym
+    // wpisem cache'u i komponent i tak poszedłby po dane po hydratacji.
+    expect(
+      qc.getQueryData(adPlacementsQueryOptions("top_of_post", "post", "post-1").queryKey),
+    ).toEqual([above]);
+    expect(qc.getQueryData(adPlacementsQueryOptions("header_banner", "post").queryKey)).toEqual([
+      banner,
+    ]);
+  });
+
+  it("każda pozycja dostaje WŁASNĄ projekcję page_id z tej samej odpowiedzi", async () => {
+    // Na tym stoi współdzielenie jednego round-tripu: klucz banera nie zna
+    // identyfikatora strony, klucz slotu nad treścią - zna. Placement przypięty
+    // do tej strony należy więc WYŁĄCZNIE do tego drugiego.
+    const pinned = placement({ position: "header_banner", page_id: "post-1" });
+    const general = placement({ position: "header_banner", page_id: null });
+    respondWith([pinned, general]);
+    const qc = new QueryClient();
+
+    await prefetchAdPlacementQueries(
+      qc,
+      [{ position: "header_banner" }, { position: "header_banner", pageId: "post-1" }],
+      "post",
+    );
+
+    expect(qc.getQueryData(adPlacementsQueryOptions("header_banner", "post").queryKey)).toEqual([
+      general,
+    ]);
+    expect(
+      qc.getQueryData(adPlacementsQueryOptions("header_banner", "post", "post-1").queryKey),
+    ).toEqual([pinned, general]);
+  });
+
+  it("wiersz CUDZEJ pozycji nie wchodzi do klucza sąsiada", async () => {
+    // Jedno zapytanie oddaje wiersze OBU pozycji - rozdziela je kod, nie baza.
+    // Bez filtra po `position` baner nagłówka dostałby kreację slotu nad
+    // treścią (i odwrotnie), czyli emisję sprzedaną na inne miejsce.
+    const above = placement({ position: "top_of_post", page_id: null });
+    respondWith([above]);
+    const qc = new QueryClient();
+
+    await prefetchAdPlacementQueries(qc, [{ position: "header_banner" }], "post");
+
+    expect(qc.getQueryData(adPlacementsQueryOptions("header_banner", "post").queryKey)).toEqual([]);
+  });
+
+  it("awaria bazy NIE rzuca - slot wraca do fetchu po hydratacji", async () => {
+    from().setResponse("ad_placements", fail("permission denied for table ad_placements", "42501"));
+    const qc = new QueryClient();
+
+    await expect(
+      prefetchAdPlacementQueries(qc, [{ position: "header_banner" }], "post"),
+    ).resolves.toBeUndefined();
+
+    // Rozgrzewka reklamy NIE ma prawa zdjąć wspólnego cache'u dokumentu, więc
+    // nie zgłasza degradacji ani nie odrzuca - a brak wpisu znaczy tyle, że
+    // przeglądarka pobierze listę sama, jak przed tą rozgrzewką.
+    expect(
+      qc.getQueryData(adPlacementsQueryOptions("header_banner", "post").queryKey),
+    ).toBeUndefined();
+  });
+
+  it("pusta lista pozycji nie kosztuje round-tripu", async () => {
+    respondWith([]);
+    const qc = new QueryClient();
+
+    await prefetchAdPlacementQueries(qc, [], "post");
+
+    expect(from().chainsFor("ad_placements")).toHaveLength(0);
+  });
+});

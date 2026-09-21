@@ -187,17 +187,24 @@ function BlogIndex() {
   const { data: settingsMap } = useSuspenseQuery(siteSettingsQueryOptions);
   const pageSize = resolvePostsPerPage(settingsMap);
   const { page = 1 } = Route.useSearch();
-  const listOptions = blogArchiveQueryOptions({ page, pageSize });
+  // FABRYKA KLUCZA WOŁANA W MIEJSCU WYWOŁANIA, nie przez zmienną pomocniczą:
+  // raport `scripts/report-public-route-loaders.ts` (i zapadka per trasa
+  // w `lib/ci/publicRouteLoaders.ts`) dopasowuje NAZWY fabryk użyte w loaderze
+  // i w `useSuspenseQuery` tego samego pliku. Zmienna między nimi zrywa to
+  // dopasowanie i trasa wypada z rozgrzanych na „loader tych kluczy nie grzeje".
   const {
     data: { posts, total },
-  } = useSuspenseQuery(listOptions);
+  } = useSuspenseQuery(blogArchiveQueryOptions({ page, pageSize }));
   // DEGRADACJA MÓWI PRAWDĘ, ALE LECZY SIĘ SAMA. `degraded` z loadera jest tylko
   // stanem POCZĄTKOWYM: ładunek loadera jest niezmienny, a zasiew pustki ma
   // stempel `updatedAt: 0`, więc `useSuspenseQuery` wyżej dociąga prawdziwe
   // wpisy zaraz po hydratacji. Od tej chwili o widoku decyduje stempel
   // zapytania (patrz `lib/ssr/useDegradedUntilHealed.ts`).
   const { degraded: ssrDegraded } = Route.useLoaderData();
-  const { degraded, retry } = useDegradedUntilHealed(listOptions.queryKey, ssrDegraded);
+  const { degraded, retry } = useDegradedUntilHealed(
+    blogArchiveQueryOptions({ page, pageSize }).queryKey,
+    ssrDegraded,
+  );
   const navigate = useNavigate();
   const router = useRouter();
   // Zmiana strony biegnie w transition - obecna siatka zostaje na ekranie

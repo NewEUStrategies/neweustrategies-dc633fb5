@@ -52,7 +52,7 @@ const KNOWN_SIDEBAR_STYLES: Record<SidebarStyle, true> = {
 };
 
 /** Czy wartość z ustawień najemcy jest wariantem, który ten kod zna. */
-export function isSidebarStyle(value: unknown): value is SidebarStyle {
+function isSidebarStyle(value: unknown): value is SidebarStyle {
   return typeof value === "string" && Object.hasOwn(KNOWN_SIDEBAR_STYLES, value);
 }
 
@@ -60,10 +60,10 @@ export function isSidebarStyle(value: unknown): value is SidebarStyle {
  * JEDYNY wariant, który sam z siebie zwija pasek - `Style 4 - Compact Icon Rail`.
  * Pozostałe pięć zmienia wyłącznie tło, krawędź i promienie pozycji menu.
  */
-export const COMPACT_SIDEBAR_STYLE: SidebarStyle = "style-4";
+const COMPACT_SIDEBAR_STYLE: SidebarStyle = "style-4";
 
 /** Czy ten wariant najemcy zwija pasek niezależnie od trasy. */
-export function isCompactSidebarStyle(style: SidebarStyle | null | undefined): boolean {
+function isCompactSidebarStyle(style: SidebarStyle | null | undefined): boolean {
   return style === COMPACT_SIDEBAR_STYLE;
 }
 
@@ -120,7 +120,7 @@ export const ADMIN_SIDEBAR_BRAND_BOX_CLASS = "p-3 border-b border-border";
  * malowaniu: dopóki `theme_options` nie przyjechało, renderuje się napis, a po
  * odpowiedzi bazy - logo najemcy. Bez przypięcia cała nawigacja zjeżdża w dół.
  */
-export const ADMIN_SIDEBAR_BRAND_ROW_CLASS = {
+const ADMIN_SIDEBAR_BRAND_ROW_CLASS = {
   expanded: "h-9 flex-1",
   compact: "h-8 w-8",
 } as const;

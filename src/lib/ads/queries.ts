@@ -103,9 +103,7 @@ function placementsForPage(
   position: AdPosition,
   pageId: string | null,
 ): AdPlacementWithSlot[] {
-  return rows.filter(
-    (p) => p.position === position && (p.page_id == null || p.page_id === pageId),
-  );
+  return rows.filter((p) => p.position === position && (p.page_id == null || p.page_id === pageId));
 }
 
 async function fetchPlacements({
