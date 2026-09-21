@@ -751,6 +751,7 @@ export const clubPl = {
     inline: {
       noPreview: "Brak podglądu dla tego adresu.",
       noProfile: "Nie znaleziono takiego profilu.",
+      organization: "Firma",
       viewProfile: "Zobacz profil",
       verified: "Profil zweryfikowany",
       tagFilter: "Tag: #{{tag}}",
@@ -797,6 +798,14 @@ export const clubPl = {
     replyQueuedHint:
       "Ten klub ma premoderację. Widzisz swoją odpowiedź w wątku, ale pozostali członkowie zobaczą ją dopiero po zatwierdzeniu przez prowadzenie. Nie musisz wysyłać jej ponownie.",
     replyPlaceholder: "Napisz odpowiedź...",
+    showNestedReplies_one: "Pokaż {{count}} odpowiedź",
+    showNestedReplies_few: "Pokaż {{count}} odpowiedzi",
+    showNestedReplies_many: "Pokaż {{count}} odpowiedzi",
+    showNestedReplies_other: "Pokaż {{count}} odpowiedzi",
+    hideNestedReplies_one: "Ukryj {{count}} odpowiedź",
+    hideNestedReplies_few: "Ukryj {{count}} odpowiedzi",
+    hideNestedReplies_many: "Ukryj {{count}} odpowiedzi",
+    hideNestedReplies_other: "Ukryj {{count}} odpowiedzi",
     replyingTo: "Odpowiadasz na wypowiedź powyżej",
     cancelReplyTo: "Anuluj",
     repliesCount_one: "{{count}} odpowiedź",
@@ -2612,6 +2621,7 @@ export const clubEn = {
     inline: {
       noPreview: "No preview available for this link.",
       noProfile: "Profile not found.",
+      organization: "Company",
       viewProfile: "View profile",
       verified: "Verified profile",
       tagFilter: "Tag: #{{tag}}",
@@ -2655,6 +2665,10 @@ export const clubEn = {
     replyQueuedHint:
       "This club pre-moderates posts. You can see your reply in the thread, but other members will only see it once the leads approve it. There is no need to send it again.",
     replyPlaceholder: "Write a reply...",
+    showNestedReplies_one: "Show {{count}} reply",
+    showNestedReplies_other: "Show {{count}} replies",
+    hideNestedReplies_one: "Hide {{count}} reply",
+    hideNestedReplies_other: "Hide {{count}} replies",
     replyingTo: "You are replying to the post above",
     cancelReplyTo: "Cancel",
     repliesCount_one: "{{count}} reply",

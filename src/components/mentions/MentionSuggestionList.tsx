@@ -4,6 +4,7 @@
 // w widgetach formularzy renderowały DOKŁADNIE tę samą listę.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Building2, UserRound } from "lucide-react";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useMentionProfile } from "@/lib/mentions/useMentionProfile";
 import type { MentionSuggestion } from "@/lib/mentions/useMentionSuggestions";
@@ -20,30 +21,41 @@ export interface MentionSuggestionListProps {
   onChoose: (s: MentionSuggestion) => void;
 }
 
-/** Wizytówka osoby pod pozycją listy - podgląd PRZED wstawieniem wzmianki. */
+/** Wizytówka celu pod pozycją listy - podgląd PRZED wstawieniem wzmianki. */
 function SuggestionPreview({ slug, lang }: { slug: string; lang: "pl" | "en" }) {
+  const { t } = useTranslation();
   const { data, isPending } = useMentionProfile(slug, lang, true);
   if (isPending) return <p className="text-xs text-muted-foreground">...</p>;
   if (!data) return <p className="text-xs text-muted-foreground">@{slug}</p>;
+  const imageUrl = data.kind === "organization" ? data.logoUrl : data.avatarUrl;
+  const fallbackIcon = data.kind === "organization" ? (
+    <Building2 className="h-4 w-4" aria-hidden="true" />
+  ) : (
+    data.name.slice(0, 2).toLocaleUpperCase()
+  );
   return (
     <div className="space-y-2">
       <div className="flex items-start gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-semibold text-muted-foreground">
-          {data.avatarUrl ? (
-            <img src={data.avatarUrl} alt="" className="h-full w-full object-cover" />
+          {imageUrl ? (
+            <img src={imageUrl} alt="" className="h-full w-full object-cover" />
           ) : (
-            data.name.slice(0, 2).toLocaleUpperCase()
+            fallbackIcon
           )}
         </span>
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-foreground">{data.name}</p>
           <p className="truncate text-xs text-muted-foreground">
-            {[data.jobTitle, data.company].filter(Boolean).join(" - ") || `@${slug}`}
+            {[data.jobTitle, data.company].filter(Boolean).join(" - ") ||
+              (data.kind === "organization" ? t("mentions.organization") : `@${slug}`)}
           </p>
         </div>
       </div>
       {data.bio ? (
         <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground">{data.bio}</p>
+      ) : null}
+      {data.website ? (
+        <p className="truncate text-xs text-primary">{data.website.replace(/^https?:\/\//, "")}</p>
       ) : null}
     </div>
   );
@@ -99,9 +111,17 @@ export function MentionSuggestionList({
                     aria-hidden
                     className="flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-[10px] font-medium text-muted-foreground"
                   >
-                    {s.avatarUrl ? (
-                      <img src={s.avatarUrl} alt="" className="h-full w-full object-cover" />
+                    {s.avatarUrl || s.logoUrl ? (
+                      <img src={s.avatarUrl ?? s.logoUrl ?? ""} alt="" className="h-full w-full object-cover" />
+                    ) : s.kind === "organization" ? (
+                      <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
                     ) : (
+                      <UserRound className="h-3.5 w-3.5" aria-hidden="true" />
+                    )}
+                    <span className="sr-only">
+                      {s.kind === "organization" ? t("mentions.organization") : t("mentions.person")}
+                    </span>
+                    {s.avatarUrl || s.logoUrl || s.kind === "organization" ? null : (
                       s.name.slice(0, 2).toUpperCase()
                     )}
                   </span>

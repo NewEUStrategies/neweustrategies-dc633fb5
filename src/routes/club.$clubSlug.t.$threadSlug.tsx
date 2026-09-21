@@ -35,6 +35,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft,
   CheckCircle2,
+  ChevronDown,
   Link2,
   Loader2,
   Lock,
@@ -947,6 +948,7 @@ function ReplyBranch(props: ReplyBranchProps) {
   } = props;
   const { t } = useTranslation();
   const [unmarkOpen, setUnmarkOpen] = useState(false);
+  const [childrenOpen, setChildrenOpen] = useState(false);
   const { reply, children } = node;
   const author = toAuthorLabel(reply, t("club.anonymousAuthor"), t("club.deletedAuthor"));
   // W klubie pod regułą Chatham House `author_id` nie wychodzi z RPC, więc
@@ -1122,11 +1124,31 @@ function ReplyBranch(props: ReplyBranchProps) {
       </div>
 
       {children.length > 0 ? (
-        <ul className="mt-2 space-y-2 border-l border-border/50 pl-3 sm:pl-5">
-          {children.map((child) => (
-            <ReplyBranch {...props} key={child.reply.id} node={child} />
-          ))}
-        </ul>
+        <div className="mt-2 border-l border-border/50 pl-3 sm:pl-5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="mb-2 h-7 gap-1.5 rounded-lg px-2 text-xs"
+            aria-expanded={childrenOpen}
+            onClick={() => setChildrenOpen((open) => !open)}
+          >
+            <ChevronDown
+              className={cn("h-3.5 w-3.5 transition-transform", childrenOpen && "rotate-180")}
+              aria-hidden="true"
+            />
+            {childrenOpen
+              ? t("club.hideNestedReplies", { count: children.length })
+              : t("club.showNestedReplies", { count: children.length })}
+          </Button>
+          {childrenOpen ? (
+            <ul className="space-y-2">
+              {children.map((child) => (
+                <ReplyBranch {...props} key={child.reply.id} node={child} />
+              ))}
+            </ul>
+          ) : null}
+        </div>
       ) : null}
     </li>
   );

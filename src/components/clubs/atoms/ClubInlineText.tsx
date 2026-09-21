@@ -12,7 +12,7 @@
 import { Fragment, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { BadgeCheck, ExternalLink, Hash } from "lucide-react";
+import { BadgeCheck, Building2, ExternalLink, Hash } from "lucide-react";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { splitInline } from "@/lib/clubs/inlineSegments";
@@ -102,19 +102,31 @@ export function MentionSegment({
   const lang = uiLang(i18n.language);
   const [open, setOpen] = useState(false);
   const profile = useMentionProfile(slug, lang, open);
-  const person = profile.data ?? null;
+  const target = profile.data ?? null;
+  const isOrganizationSlug = slug.startsWith("org-");
+  const mentionText = target?.kind === "organization" ? `@${target.name}` : raw;
+  const imageUrl = target?.kind === "organization" ? target.logoUrl : target?.avatarUrl;
 
   return (
     <HoverCard openDelay={200} closeDelay={120} open={open} onOpenChange={setOpen}>
       <HoverCardTrigger asChild>
-        <Link
-          to="/author/$slug"
-          params={{ slug }}
-          data-mention={slug}
-          className={cn("font-medium text-primary hover:underline", className)}
-        >
-          {raw}
-        </Link>
+        {isOrganizationSlug ? (
+          <span
+            data-mention={slug}
+            className={cn("inline-flex cursor-default items-baseline font-medium text-primary", className)}
+          >
+            {mentionText}
+          </span>
+        ) : (
+          <Link
+            to="/author/$slug"
+            params={{ slug }}
+            data-mention={slug}
+            className={cn("font-medium text-primary hover:underline", className)}
+          >
+            {raw}
+          </Link>
+        )}
       </HoverCardTrigger>
       <HoverCardContent className="w-72" data-testid="club-mention-preview">
         {profile.isPending ? (
@@ -125,22 +137,24 @@ export function MentionSegment({
               <Skeleton className="h-3 w-1/2" />
             </div>
           </div>
-        ) : person === null ? (
+        ) : target === null ? (
           <p className="text-xs text-muted-foreground">{t("club.inline.noProfile")}</p>
         ) : (
           <div className="space-y-2">
             <div className="flex items-start gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-semibold text-muted-foreground">
-                {person.avatarUrl ? (
-                  <img src={person.avatarUrl} alt="" className="h-full w-full object-cover" />
+                {imageUrl ? (
+                  <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+                ) : target.kind === "organization" ? (
+                  <Building2 className="h-4 w-4" aria-hidden="true" />
                 ) : (
-                  person.name.slice(0, 2).toLocaleUpperCase()
+                  target.name.slice(0, 2).toLocaleUpperCase()
                 )}
               </span>
               <div className="min-w-0">
                 <p className="flex items-center gap-1 text-sm font-semibold text-foreground">
-                  <span className="truncate">{person.name}</span>
-                  {person.verified ? (
+                  <span className="truncate">{target.name}</span>
+                  {target.verified ? (
                     <BadgeCheck
                       className="h-3.5 w-3.5 shrink-0 text-primary"
                       aria-label={t("club.inline.verified")}
@@ -148,22 +162,35 @@ export function MentionSegment({
                   ) : null}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {[person.jobTitle, person.company].filter(Boolean).join(" - ") || `@${slug}`}
+                  {[target.jobTitle, target.company].filter(Boolean).join(" - ") ||
+                    (target.kind === "organization" ? t("club.inline.organization") : `@${slug}`)}
                 </p>
               </div>
             </div>
-            {person.bio ? (
+            {target.bio ? (
               <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground">
-                {person.bio}
+                {target.bio}
               </p>
             ) : null}
-            <Link
-              to="/author/$slug"
-              params={{ slug }}
-              className="inline-block text-xs font-medium text-primary hover:underline"
-            >
-              {t("club.inline.viewProfile")}
-            </Link>
+            {target.kind === "person" ? (
+              <Link
+                to="/author/$slug"
+                params={{ slug }}
+                className="inline-block text-xs font-medium text-primary hover:underline"
+              >
+                {t("club.inline.viewProfile")}
+              </Link>
+            ) : target.website ? (
+              <a
+                href={target.website}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+                className="inline-flex max-w-full items-center gap-1 text-xs font-medium text-primary hover:underline"
+              >
+                <span className="truncate">{target.website.replace(/^https?:\/\//, "")}</span>
+                <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
+              </a>
+            ) : null}
           </div>
         )}
       </HoverCardContent>
