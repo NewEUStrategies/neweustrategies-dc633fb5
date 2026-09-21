@@ -31,6 +31,8 @@ const h = vi.hoisted(() => ({
   settings: {} as Record<string, unknown>,
   settingsHangs: false,
   settingsThrow: false,
+  /** Opóźnienie odpowiedzi `site_settings` w ms - POWOLNOŚĆ, nie awaria. */
+  settingsDelayMs: 0,
   polls: [] as Record<string, unknown>[],
   pollsThrow: false,
   resources: [] as Record<string, unknown>[],
@@ -82,6 +84,9 @@ vi.mock("@/lib/useSiteSetting", async (importOriginal) => ({
     queryFn: () => {
       if (h.settingsHangs) return new Promise(() => {});
       if (h.settingsThrow) return Promise.reject(new Error("test: ustawienia niedostępne"));
+      if (h.settingsDelayMs > 0) {
+        return new Promise((resolve) => setTimeout(() => resolve(h.settings), h.settingsDelayMs));
+      }
       return Promise.resolve(h.settings);
     },
   },
@@ -199,6 +204,7 @@ beforeEach(() => {
   h.settings = { [COMMUNITY_MODULES_KEY]: { polls_enabled: true } };
   h.settingsHangs = false;
   h.settingsThrow = false;
+  h.settingsDelayMs = 0;
   h.polls = [{ id: "poll-1" }];
   h.pollsThrow = false;
   h.resources = [{ id: "res-1" }];
@@ -291,6 +297,32 @@ describe("/polls - bramka modułu i lista ankiet", () => {
     expect(h.cacheControl).toEqual([NO_STORE]);
     // Termin bramki, a nie watchdog SSR (5 000 ms): zapas na wolny runner.
     expect(Date.now() - started).toBeLessThan(2_000);
+  });
+
+  it("NAWIGACJA SPA: POWOLNE ustawienia NIE degradują - loader czeka i oddaje dane", async () => {
+    // SEDNO NAPRAWY (recenzja PR #382, P1 - patrz docblock `withSsrBudget`
+    // w `lib/asyncBudget.ts`). Budżet bramki modułu to 300 ms. Tu odpowiedź
+    // przychodzi PÓŹNIEJ, ale jest POPRAWNA - i przy nawigacji po stronie
+    // klienta nie ma prawa zamienić się w komunikat awarii, bo wynik loadera
+    // jest niezmienny przez całe życie dopasowania trasy: czytelnik zostałby
+    // z „dane niedostępne" mimo danych, które dojechały sekundę później.
+    //
+    // BEZ `renderOnServer()` z premedytacją - suita biegnie w happy-dom,
+    // czyli domyślnie JEST przeglądarką.
+    h.settingsDelayMs = 400;
+    const spa = await runLoader(PollsRoute);
+
+    expect(spa.degraded).toBe(false);
+    expect(h.cacheControl).toEqual([CONTENT]);
+
+    // KONTROLA POZYTYWNA: dokładnie to samo opóźnienie NA SERWERZE degraduje.
+    // Bez tej pary test wyżej dowodziłby tylko tego, że 400 ms się mieści.
+    h.cacheControl = [];
+    renderOnServer();
+    const ssr = await runLoader(PollsRoute);
+
+    expect(ssr.degraded).toBe(true);
+    expect(h.cacheControl).toEqual([NO_STORE]);
   });
 
   it("wyłączony moduł kończy loader BEZ odczytu ankiet i z polityką treści", async () => {

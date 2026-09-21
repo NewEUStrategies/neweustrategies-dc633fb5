@@ -255,7 +255,7 @@ export function isPublicRouteFile(file: string): boolean {
  * NAJCZĘSTSZA forma cichej degradacji w loaderze (`.catch(() => null)`).
  */
 const DEGRADABLE_WORK_RE =
-  /\.\s*catch\s*\(|Promise\s*\.\s*allSettled\s*\(|\b(?:loadResilient|withBudget|settleWithinBudget)\s*\(/;
+  /\.\s*catch\s*\(|Promise\s*\.\s*allSettled\s*\(|\b(?:loadResilient|with(?:Ssr)?Budget|settleWithinBudget)\s*\(/;
 
 /**
  * Ogłoszenie polityki cache'u przez SAM loader. `resilientCacheControl` bez
@@ -295,9 +295,15 @@ const NETWORK_SIGNALS: readonly (readonly [string, RegExp])[] = [
  * Budżet czasu ALBO wspólny termin żądania. `deadlineAt` jest tu nazwą pola
  * opcji `loadResilient` i `routeSsrDeadline` - loader, który je przekazuje,
  * jedzie pod terminem absolutnym, nawet jeśli sam nie woła `withBudget`.
+ *
+ * `withSsrBudget` (`src/lib/asyncBudget.ts`) liczy się jak `withBudget`: to ten
+ * sam termin, tylko honorowany WYŁĄCZNIE w renderze serwerowym - a reguła W2
+ * pilnuje czasu do pierwszego bajtu, czyli dokładnie tej ścieżki. Przy
+ * nawigacji SPA loader czeka na zapytanie z premedytacją (wynik loadera jest
+ * niezmienny, więc degradacja z zegara zamarzłaby jako fałszywa awaria).
  */
 const BUDGET_RE =
-  /\b(?:withBudget|settleWithinBudget|loadResilient|routeSsrDeadline|remainingBudget)\s*\(|\bdeadlineAt\b/;
+  /\b(?:with(?:Ssr)?Budget|settleWithinBudget|loadResilient|routeSsrDeadline|remainingBudget)\s*\(|\bdeadlineAt\b/;
 
 /** Czytające hooki React Query - te same, co w `publicRouteLoaders.ts`. */
 const QUERY_HOOK_RE = /\buse(?:Suspense)?(?:Infinite)?Quer(?:y|ies)\s*\(/g;

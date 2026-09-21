@@ -743,29 +743,26 @@ describe("/ - degradacja: awaria danych NIE jest tym samym co pustka", () => {
   it.each([
     { lang: "pl" as const, url: "https://neweuropeanstrategies.com/" },
     { lang: "en" as const, url: "https://neweuropeanstrategies.com/en" },
-  ])(
-    "render ZDEGRADOWANY ($lang) ma dokładnie jeden h1 z nazwą serwisu",
-    async ({ lang, url }) => {
-      // DOKŁADNIE stan bramki `e2e` (job `e2e` w `.github/workflows/e2e.yml`):
-      // placeholderowe poświadczenia Supabase, więc KAŻDE zapytanie pada -
-      // strona statyczna, tryb strony głównej i ustawienia serwisu naraz.
-      // Bramka `ssr-completeness` wymaga wtedy jednego, niepustego `<h1>`
-      // pasującego do /new european strategies/i - i dla `/`, i dla `/en`.
-      h.lang = lang;
-      h.requestUrl = url;
-      h.homePageFails = true;
-      h.homeModeFails = true;
-      h.settingsFails = true;
-      const view = await mountHome();
-      expect(screen.getByRole("status")).toBeVisible();
-      const h1s = view.container.querySelectorAll("h1");
-      expect(h1s).toHaveLength(1);
-      expect(h1s[0].textContent).toContain("New European Strategies");
-      // Zdegradowany render nadal NIE wchodzi do cache'u współdzielonego -
-      // zapasowy nagłówek niczego w tej decyzji nie zmienia.
-      expect(h.cacheControl.at(-1)).toContain("no-store");
-    },
-  );
+  ])("render ZDEGRADOWANY ($lang) ma dokładnie jeden h1 z nazwą serwisu", async ({ lang, url }) => {
+    // DOKŁADNIE stan bramki `e2e` (job `e2e` w `.github/workflows/e2e.yml`):
+    // placeholderowe poświadczenia Supabase, więc KAŻDE zapytanie pada -
+    // strona statyczna, tryb strony głównej i ustawienia serwisu naraz.
+    // Bramka `ssr-completeness` wymaga wtedy jednego, niepustego `<h1>`
+    // pasującego do /new european strategies/i - i dla `/`, i dla `/en`.
+    h.lang = lang;
+    h.requestUrl = url;
+    h.homePageFails = true;
+    h.homeModeFails = true;
+    h.settingsFails = true;
+    const view = await mountHome();
+    expect(screen.getByRole("status")).toBeVisible();
+    const h1s = view.container.querySelectorAll("h1");
+    expect(h1s).toHaveLength(1);
+    expect(h1s[0].textContent).toContain("New European Strategies");
+    // Zdegradowany render nadal NIE wchodzi do cache'u współdzielonego -
+    // zapasowy nagłówek niczego w tej decyzji nie zmienia.
+    expect(h.cacheControl.at(-1)).toContain("no-store");
+  });
 
   it("awaria ustawień serwisu nie zabiera czytelnikowi treści ani powłoki", async () => {
     // `<Header/>` czyta DOKŁADNIE to zapytanie przez `useSuspenseQuery`, więc

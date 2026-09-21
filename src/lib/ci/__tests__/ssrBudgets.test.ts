@@ -276,6 +276,32 @@ export const Route = createFileRoute("/slow")({
     );
   });
 
+  it("`withSsrBudget` liczy się DOKŁADNIE jak `withBudget` - inaczej zamiana prymitywu chowałaby sufit", () => {
+    // `withSsrBudget` (`src/lib/asyncBudget.ts`) honoruje termin wyłącznie
+    // w renderze serwerowym - czyli dokładnie na ścieżce, której ta bramka
+    // pilnuje. Gdyby wzorzec go nie widział, dwie zamiany w
+    // `tracker.index.tsx` zbiłyby raportowany łańcuch z 5 500 na 0 ms bez
+    // skrócenia ani jednego budżetu, a bramka powiedziałaby „zielono".
+    const source = `
+const A_MS = 7_000;
+const B_MS = 7_000;
+export const Route = createFileRoute("/slow")({
+  loader: async () => {
+    await withSsrBudget(one, A_MS);
+    await withSsrBudget(two, B_MS, deadlineAt);
+  },
+});
+`;
+    const facts = loaderBudgetFacts("src/routes/slow.tsx", source);
+    expect(facts?.chainMs).toBe(14000);
+    expect(facts?.budgetSites.map((site) => site.constName)).toEqual(["A_MS", "B_MS"]);
+    // Ta sama alternatywa musi trzymać flagę „loader może zdegradować po
+    // cichu": bez niej reguła (4) przestałaby wymagać bramki `Cache-Control`
+    // od loaderów, które właśnie na nią przeszły.
+    expect(facts?.canDegrade).toBe(true);
+    expect(ssrBudgetsFailed(analyze([{ file: "src/routes/slow.tsx", source }]))).toBe(true);
+  });
+
   it("rozwiązuje budżet IMPORTOWANY z innego modułu (mapa międzyplikowa)", () => {
     // Bez tego budżet dałoby się podnieść w `src/lib/...` i bramka milczałaby.
     const report = analyze([

@@ -21,7 +21,7 @@
 // Testujemy loader jako funkcję, bez montowania drzewa - ten sam kod, który
 // wykona framework, tylko bez kosztu całego drzewa (ta sama doktryna co
 // `archiveRoutes.test.ts`).
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   /** Wynik RPC `event_page_header` - `null` = wydarzenia nie ma. */
@@ -32,6 +32,8 @@ const h = vi.hoisted(() => ({
   headerThrows: false,
   eventThrows: false,
   eventsEnabled: true,
+  /** Opóźnienie odczytu `site_settings` w ms - POWOLNOŚĆ, nie awaria. */
+  settingsDelayMs: 0,
   /** Nagłówek `Cache-Control`, jaki loader ustawił na odpowiedzi. */
   cacheControl: [] as string[],
   /** Wartości nagłówka HTTP `Link` - dowód, że preload LCP wyszedł na drut. */
@@ -60,9 +62,17 @@ vi.mock("@/lib/community/publicQueries", () => ({
 vi.mock("@/lib/useSiteSetting", () => ({
   siteSettingsQueryOptions: {
     queryKey: ["site_settings_public", "all"],
-    queryFn: async () => ({}),
+    queryFn: () =>
+      h.settingsDelayMs > 0
+        ? new Promise((resolve) => setTimeout(() => resolve({}), h.settingsDelayMs))
+        : Promise.resolve({}),
   },
-  resolveSetting: () => ({ events_enabled: h.eventsEnabled }),
+  // Atrapa WIERNA w jedynym punkcie, który tu rozstrzyga: BRAK mapy ustawień
+  // znaczy „wchodzą `COMMUNITY_MODULES_DEFAULTS` z kodu" (`events_enabled`
+  // jest tam WŁĄCZONE), a nie „konfiguracja tenanta". Bez tego rozróżnienia
+  // przekroczony budżet bramki modułu byłby w tym pliku niewidoczny.
+  resolveSetting: (settings: unknown) =>
+    settings === undefined ? { events_enabled: true } : { events_enabled: h.eventsEnabled },
 }));
 
 vi.mock("@/lib/http/responseHeaders", () => ({
@@ -147,9 +157,28 @@ beforeEach(() => {
   h.headerThrows = false;
   h.eventThrows = false;
   h.eventsEnabled = true;
+  h.settingsDelayMs = 0;
   h.cacheControl = [];
   h.linkHeaders = [];
 });
+
+afterEach(() => {
+  // Stub środowiska z `renderOnServer()` nie może przeciekać na kolejny test.
+  vi.unstubAllGlobals();
+});
+
+/**
+ * Przestaw JEDEN przebieg loadera na RENDER SERWEROWY.
+ *
+ * Budżet bramki modułu (`EVENT_SETTINGS_BUDGET_MS`, 300 ms) liczy się wyłącznie
+ * na serwerze (recenzja PR #382, P1 - patrz docblock `withSsrBudget`
+ * w `src/lib/asyncBudget.ts`). Suita biegnie w happy-dom, gdzie `document`
+ * istnieje zawsze, więc DOMYŚLNIE jesteśmy w przeglądarce; predykat środowiska
+ * liczy `typeof document` przy każdym wywołaniu, więc podmiana globalu wystarcza.
+ */
+function renderOnServer(): void {
+  vi.stubGlobal("document", undefined);
+}
 
 describe("loader powłoki /events/$slug", () => {
   it("rzuca notFound(), gdy CZYSTY odczyt nagłówka definerowego jest pusty", async () => {
@@ -245,6 +274,36 @@ describe("loader powłoki /events/$slug", () => {
     const data = await runLoader();
     expect(data).toEqual({ headEvent: null, degraded: false, coverPreload: null });
     expect(h.cacheControl).toEqual([]);
+  });
+
+  it("NAWIGACJA SPA: POWOLNE ustawienia NIE zamrażają domyślek bramki modułu", async () => {
+    // SEDNO NAPRAWY (recenzja PR #382, P1 - patrz docblock `withSsrBudget`
+    // w `src/lib/asyncBudget.ts`). Bramka modułu ma 300 ms, a po tym czasie
+    // wchodzi `COMMUNITY_MODULES_DEFAULTS` z kodu, gdzie `events_enabled` jest
+    // WŁĄCZONE. Wynik loadera jest niezmienny przez całe życie dopasowania, a
+    // ta powłoka stoi pod SIEDMIOMA podstronami - przy nawigacji po stronie
+    // klienta powolny, ale POPRAWNY odczyt `site_settings` przestawiałby więc
+    // cały moduł na domyślkę zamiast na prawdę tenanta.
+    //
+    // Moduł jest tu WYŁĄCZONY W USTAWIENIACH, bo to jedyny układ, w którym
+    // domyślka i konfiguracja dają RÓŻNY wynik - widać, którą z nich loader
+    // naprawdę przeczytał. BEZ `renderOnServer()` z premedytacją: happy-dom
+    // JEST przeglądarką.
+    h.header = HEADER_ROW;
+    h.event = { id: "e1", slug: "szczyt" };
+    h.eventsEnabled = false;
+    h.settingsDelayMs = 600;
+    const spa = await runLoader();
+
+    expect(spa.headEvent, "budżet zadziałał w przeglądarce - to jest naprawiany defekt").toBeNull();
+    expect(h.cacheControl).toEqual([]);
+
+    // KONTROLA POZYTYWNA: to samo opóźnienie NA SERWERZE przepuszcza domyślkę,
+    // bo tam budżet MA obowiązywać - konfiguracja nie blokuje treści.
+    renderOnServer();
+    const ssr = await runLoader();
+
+    expect(ssr.headEvent?.slug).toBe("szczyt");
   });
 
   it("projekcja nagłówka niesie oba języki, okładkę i datę publikacji", async () => {

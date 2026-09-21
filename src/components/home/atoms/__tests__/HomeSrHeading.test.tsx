@@ -19,7 +19,8 @@ import { describe, expect, it } from "vitest";
 import { SITE_DEFAULT_TITLE } from "@/lib/seo/meta";
 import { emptyDocument, type BuilderDocument, type SectionNode } from "@/lib/builder/types";
 
-import { HomeSrHeading, homeSrHeadingText, siteHeaderHasHomeHeading } from "../HomeSrHeading";
+import { HomeSrHeading } from "../HomeSrHeading";
+import { homeSrHeadingText, siteHeaderHasHomeHeading } from "../homeHeadingSource";
 
 /** Dokument, którego kanwa sama niesie nagłówek poziomu 1. */
 function docWithHeading(): BuilderDocument {

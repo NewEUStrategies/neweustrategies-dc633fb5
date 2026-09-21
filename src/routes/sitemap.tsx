@@ -10,17 +10,25 @@ import {
   blogListQueryOptions,
   publicCategoriesQueryOptions,
   publicPagesTreeQueryOptions,
+  type BlogListItem,
 } from "@/lib/queries/public";
-import { buildPageTree, type PageTreeNode } from "@/lib/seo/pageTree";
+import { buildPageTree, type PageTreeNode, type PageTreeRow } from "@/lib/seo/pageTree";
 import { buildContentHead } from "@/lib/seo/meta";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
-import { BUDGET_LAPSED, settleWithinBudget } from "@/lib/asyncBudget";
+import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
 
 /** Wspólny termin trzech zapytań mapy - biegną równolegle, więc jeden budżet. */
 const SITEMAP_SSR_BUDGET_MS = 2_000;
-import { resilientCacheControl } from "@/lib/ssr/resilientLoad";
+
+// FALLBACKI ZASIEWANE PRZY DEGRADACJI - puste struktury DOKŁADNIE w typach
+// trzech zapytań mapy. `loadResilient` wpisuje je ze stemplem `updatedAt: 0`,
+// więc `useSuspenseQuery` w komponencie widzi stan `success` i renderuje bez
+// zawieszenia, a przeglądarka i tak refetchuje je zaraz po hydratacji.
+const NO_PAGES: PageTreeRow[] = [];
+const NO_CATEGORIES: Array<{ slug: string; name_pl: string; name_en: string }> = [];
+const NO_POSTS: { posts: BlogListItem[] } = { posts: [] };
 
 export const COPY = {
   pl: {
@@ -69,24 +77,48 @@ export const Route = createFileRoute("/sitemap")({
     // dobę okna stale. Mapa strony jest powierzchnią, z której crawler czerpie
     // strukturę serwisu, więc jej okrojona wersja w cache'u kosztuje indeks.
     //
-    // BUDŻET (2026-09-20): `.allSettled` chroniło przed rzutem, ale nie przed
-    // czekaniem - zwis jednego zapytania trzymał mapę aż do watchdoga SSR.
-    // Po terminie render idzie z `no-store`, a spóźnione zapytania kończą się
-    // w tle (cache zapytań je przyjmie dla następnego żądania).
-    const results = await settleWithinBudget(
-      Promise.allSettled([
-        context.queryClient.ensureQueryData(publicPagesTreeQueryOptions()),
-        context.queryClient.ensureQueryData(publicCategoriesQueryOptions()),
-        context.queryClient.ensureQueryData(blogListQueryOptions()),
-      ]),
-      SITEMAP_SSR_BUDGET_MS,
-    );
-    setCacheControlHeader(
-      resilientCacheControl(
-        results === BUDGET_LAPSED || results.some((result) => result.status === "rejected"),
-      ),
-    );
-    return null;
+    // CZEGO NIE ZAŁATWIŁ SAM BUDŻET (regresja 2026-09-20, naprawiona tutaj).
+    // Wariant pośredni owijał `Promise.allSettled` w `settleWithinBudget`, więc
+    // po terminie LOADER oddał sterowanie - ale NIE anulował spóźnionych fetchów
+    // i NIE zasiewał żadnych danych. Komponent czyta te same trzy klucze przez
+    // `useSuspenseQuery`, więc render i tak zawieszał się na tych samych, wciąż
+    // biegnących zapytaniach: budżet skracał wyłącznie czas do NAGŁÓWKA, a nie
+    // do pierwszego bajtu. Zmierzone na serwerze deweloperskim z poświadczeniami
+    // zastępczymi (każde zapytanie pada): `curl /sitemap` powyżej 90 s i dokument
+    // BEZ `<h1>`, bo render nie ruszył nawet z samą powłoką.
+    //
+    // CO JEST TERAZ: trzy równoległe `loadResilient` pod JEDNYM terminem. Prymityw
+    // anuluje spóźniony fetch PRZED zasiewem fallbacku (inaczej rozstrzygnięcie
+    // między renderem a dehydracją rozjechałoby hydratację), więc komponent
+    // renderuje się natychmiast - mapą okrojoną, ale z pełną nawigacją statyczną
+    // i nagłówkiem `<h1>` - a klient dociąga dane po hydratacji (`updatedAt: 0`).
+    // Render zdegradowany wychodzi z `no-store`, więc nie utrwala się na brzegu.
+    const queryClient = context.queryClient;
+    // Termin liczony BEZWARUNKOWO: `loadResilient` honoruje go wyłącznie
+    // w renderze serwerowym, a w przeglądarce czeka na zapytanie (patrz nagłówek
+    // `lib/ssr/resilientLoad.ts`), więc bramkowanie pod `isServer` byłoby tu
+    // martwym kodem. Trzy zapytania dzielą JEDEN termin, bo biegną równolegle -
+    // sekwencyjne `await` sumowałoby budżety i samo stałoby się źródłem TTFB.
+    const deadlineAt = Date.now() + SITEMAP_SSR_BUDGET_MS;
+    const [pages, categories, posts] = await Promise.all([
+      loadResilient(queryClient, publicPagesTreeQueryOptions(), NO_PAGES, {
+        deadlineAt,
+        label: "sitemap.pages",
+      }),
+      loadResilient(queryClient, publicCategoriesQueryOptions(), NO_CATEGORIES, {
+        deadlineAt,
+        label: "sitemap.categories",
+      }),
+      loadResilient(queryClient, blogListQueryOptions(), NO_POSTS, {
+        deadlineAt,
+        label: "sitemap.posts",
+      }),
+    ]);
+    const degraded = anyDegraded(pages, categories, posts);
+    setCacheControlHeader(resilientCacheControl(degraded));
+    // Flaga jedzie do komponentu tym samym kontraktem co `/experts` i `/glossary`
+    // - pusta mapa z awarii ma dać się odróżnić od pustej mapy z redakcji.
+    return { degraded };
   },
   head: () => {
     const url = getRequestUrl() || "/sitemap";

@@ -403,8 +403,15 @@ const CACHE_WRITE_RE =
 // BEZ flagi `g`: `RegExp.test` z `g` jest STANOWY (`lastIndex` przenosi się
 // między wywołaniami), więc ta sama bramka dawałaby różne wyniki w zależności
 // od kolejności plików - dokładnie ta klasa błędu, której bramka ma pilnować.
+// `with(?:Ssr)?Budget` JEDNYM wzorcem: `withSsrBudget` (`src/lib/asyncBudget.ts`)
+// to ten sam termin, tylko honorowany wyłącznie w renderze serwerowym. Dla tej
+// bramki różnica jest żadna - mierzy ona SUFIT ZE ŹRÓDEŁ, a ten sufit dotyczy
+// dokładnie renderu serwerowego. Bez tej alternatywy budżet dałoby się schować
+// przed sufitem (1b) samą zamianą prymitywu: zmierzone na
+// `src/routes/tracker.index.tsx`, gdzie dwie zamiany zbiły raportowany łańcuch
+// z 5 500 na 0 ms bez skrócenia ani jednego budżetu.
 const DEGRADABLE_WORK_RE =
-  /\b(?:withBudget|settleWithinBudget|loadResilient)\s*\(|Promise\s*\.\s*allSettled\s*\(/;
+  /\b(?:with(?:Ssr)?Budget|settleWithinBudget|loadResilient)\s*\(|Promise\s*\.\s*allSettled\s*\(/;
 
 /**
  * Polityki, które POZWALAJĄ WSPÓLNEMU cache'owi zapisać dokument. Wołane BEZ
@@ -538,7 +545,9 @@ export function loaderBudgetFacts(
   // zmianę prymitywu: zmierzone na `src/routes/$.tsx`, gdzie zamiana jednego
   // wywołania zbiła raportowany łańcuch z 13 000 na 10 000 ms bez skrócenia
   // ani jednego budżetu.
-  const budgetRe = /await\s+(?:withBudget|settleWithinBudget)\s*\(/g;
+  // `withSsrBudget` liczy się TAK SAMO jak `withBudget` - patrz komentarz przy
+  // `DEGRADABLE_WORK_RE`.
+  const budgetRe = /await\s+(?:with(?:Ssr)?Budget|settleWithinBudget)\s*\(/g;
   for (const m of loader.matchAll(budgetRe)) {
     const open = loader.indexOf("(", m.index + m[0].length - 1);
     const args = balancedArgs(loader, open);
@@ -681,7 +690,7 @@ export function analyzeSsrBudgets(input: SsrBudgetInput): SsrBudgetReport {
         file: loader.file,
         measured: loader.chainMs,
         ceiling: FROZEN_SSR_BUDGETS.loaderChainMs,
-        detail: `${loader.budgetSites.length} x await withBudget: ${loader.budgetSites
+        detail: `${loader.budgetSites.length} x await with(Ssr)Budget: ${loader.budgetSites
           .map((s) => `${s.constName}=${s.ms ?? "?"}`)
           .join(" + ")}`,
       });

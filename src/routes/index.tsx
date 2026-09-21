@@ -7,11 +7,11 @@ import { useTranslation } from "react-i18next";
 
 import { FooterSlideup } from "@/components/ads/FooterSlideup";
 import { homeBuilderSource, homeContent } from "@/components/home/atoms/homeRenderMode";
+import { HomeSrHeading } from "@/components/home/atoms/HomeSrHeading";
 import {
-  HomeSrHeading,
   homeSrHeadingText,
   siteHeaderHasHomeHeading,
-} from "@/components/home/atoms/HomeSrHeading";
+} from "@/components/home/atoms/homeHeadingSource";
 import { HomeBuilderContent } from "@/components/home/molecules/HomeBuilderContent";
 import { HomeEmptyNotice } from "@/components/home/molecules/HomeEmptyNotice";
 import { HomeErrorNotice } from "@/components/home/molecules/HomeErrorNotice";

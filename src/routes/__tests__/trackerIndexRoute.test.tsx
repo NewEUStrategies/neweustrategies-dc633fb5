@@ -56,6 +56,12 @@ const h = vi.hoisted(() => ({
   tenantId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   /** Powierzchnie, których odczyt ma paść (blip backendu). */
   broken: new Set<string>(),
+  /**
+   * Opóźnienie odczytu dossier w ms - POWOLNOŚĆ, nie awaria. Osobno od
+   * `broken`, bo to dwie różne przyczyny pustej siatki i tylko jedna z nich
+   * jest prawdziwą niedostępnością danych.
+   */
+  itemsDelayMs: 0,
   /** Etykiety odczytów w kolejności - podstawa pomiaru fal loadera. */
   reads: [] as string[],
   /** Pary `.eq()` z kolejnych odczytów dossier - dowód działania filtrów. */
@@ -86,7 +92,11 @@ vi.mock("@/integrations/supabase/client", async () => {
       .filter((row) => row.status === eq.status)
       .filter((row) => eq.policy_area === undefined || row.policy_area === eq.policy_area)
       .filter((row) => eq.stage === undefined || row.stage === eq.stage);
-    return ok(typeof limit === "number" ? rows.slice(0, limit) : rows);
+    const result = ok(typeof limit === "number" ? rows.slice(0, limit) : rows);
+    if (h.itemsDelayMs > 0) {
+      return new Promise((resolve) => setTimeout(() => resolve(result), h.itemsDelayMs));
+    }
+    return result;
   });
   rpc.setResponse("get_policy_follower_counts", () => {
     h.reads.push("get_policy_follower_counts");
@@ -245,6 +255,7 @@ beforeEach(async () => {
   h.followerCounts = [{ item_id: ITEM_ID, followers: 12 }];
   h.tenantId = TENANT_A;
   h.broken = new Set<string>();
+  h.itemsDelayMs = 0;
   h.reads = [];
   h.itemFilters = [];
   h.requestUrl = "https://nes.example.org/tracker";
@@ -255,7 +266,22 @@ afterEach(async () => {
   cleanup();
   await i18n.changeLanguage("pl");
   vi.restoreAllMocks();
+  // Stub środowiska z `renderOnServer()` nie może przeciekać na kolejny test.
+  vi.unstubAllGlobals();
 });
+
+/**
+ * Przestaw JEDEN przebieg loadera na RENDER SERWEROWY.
+ *
+ * Budżety czasowe tej trasy liczą się wyłącznie na serwerze (recenzja PR #382,
+ * P1 - patrz docblock `withSsrBudget` w `src/lib/asyncBudget.ts`). Suita biegnie
+ * w happy-dom, gdzie `document` istnieje zawsze, więc DOMYŚLNIE jesteśmy
+ * w przeglądarce, a predykat środowiska liczy `typeof document` przy każdym
+ * wywołaniu - podmiana globalu wystarcza.
+ */
+function renderOnServer(): void {
+  vi.stubGlobal("document", undefined);
+}
 
 describe("trasa /tracker - siatka dossier", () => {
   it("karta niesie tytuł, referencję, kamień milowy i licznik obserwujących", async () => {
@@ -435,6 +461,37 @@ describe("trasa /tracker - stan pusty kontra stan zdegradowany", () => {
     expect(data.degraded).toBe(true);
     expect(data.entries).toHaveLength(1);
     expect(h.cacheControl.at(-1)).toContain("no-store");
+  });
+
+  it("NAWIGACJA SPA: POWOLNY odczyt dossier NIE degraduje - loader czeka i oddaje dane", async () => {
+    // SEDNO NAPRAWY (recenzja PR #382, P1 - patrz docblock `withSsrBudget`
+    // w `src/lib/asyncBudget.ts`). Po przekroczeniu `TRACKER_LOADER_BUDGET_MS`
+    // loader sieje `items = []` i podnosi `degraded`, a komponent zamienia to
+    // na ekran „Ta sekcja chwilowo nie ma danych". Wynik loadera jest
+    // niezmienny przez całe życie dopasowania trasy, więc przy nawigacji po
+    // stronie klienta czytelnik zostawałby z komunikatem awarii mimo dossier,
+    // które dojechały sekundę później.
+    //
+    // BEZ `renderOnServer()` z premedytacją - happy-dom JEST przeglądarką.
+    h.itemsDelayMs = 4_200;
+    const spa = await indexLoader()({ context: { queryClient: freshClient() } });
+
+    expect(spa.degraded, "budżet zadziałał w przeglądarce - to jest naprawiany defekt").toBe(false);
+    expect(spa.entries).toHaveLength(1);
+    expect(h.cacheControl.at(-1)).toContain("s-maxage=900");
+
+    // KONTROLA POZYTYWNA: to samo opóźnienie NA SERWERZE degraduje w budżecie,
+    // a nie w watchdogu SSR. Bez tej pary przypadek wyżej dowodziłby wyłącznie
+    // tego, że 4 200 ms się mieści.
+    h.cacheControl = [];
+    renderOnServer();
+    const started = Date.now();
+    const ssr = await indexLoader()({ context: { queryClient: freshClient() } });
+
+    expect(ssr.degraded).toBe(true);
+    expect(ssr.entries).toEqual([]);
+    expect(h.cacheControl.at(-1)).toContain("no-store");
+    expect(Date.now() - started).toBeLessThan(4_200);
   });
 
   it("pusta lista dossier NIE wywołuje RPC liczników", async () => {

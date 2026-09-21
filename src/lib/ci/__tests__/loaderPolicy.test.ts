@@ -207,6 +207,35 @@ export const Route = createFileRoute("/proba")({
     expect(loaderPolicyFailed(report)).toBe(true);
   });
 
+  it("`withSsrBudget` domyka regułę tak samo - to ten sam termin, tylko SSR-only", () => {
+    // `withSsrBudget` (`src/lib/asyncBudget.ts`) honoruje budżet wyłącznie
+    // w renderze serwerowym, bo przy nawigacji SPA wynik loadera jest
+    // niezmienny i degradacja „z zegara" zamarzłaby jako fałszywa awaria.
+    // Reguła W2 pilnuje CZASU DO PIERWSZEGO BAJTU, czyli dokładnie ścieżki
+    // serwerowej - gdyby wzorzec go nie widział, `tracker.index.tsx` oblewałby
+    // bramkę mimo dwóch nienaruszonych budżetów.
+    const source = `
+import { createFileRoute } from "@tanstack/react-router";
+const PROBA_BUDGET_MS = 2_000;
+export const Route = createFileRoute("/proba")({
+  loader: async ({ context }) => {
+    await withSsrBudget(
+      context.queryClient.ensureQueryData(probaQueryOptions()).catch(() => null),
+      PROBA_BUDGET_MS,
+    );
+    setCacheControlHeader(resilientCacheControl(false));
+  },
+  component: ProbaPage,
+});
+`;
+    const facts = loaderPolicyFacts("src/routes/proba.tsx", source);
+    expect(facts?.budgeted).toBe(true);
+    // Ta sama zamiana nie ma prawa zgubić flagi „może zdegradować": bez niej
+    // reguła W1 przestałaby wymagać własnego `Cache-Control`.
+    expect(facts?.canDegrade).toBe(true);
+    expect(nowyDlug(analyze([{ file: "src/routes/proba.tsx", source }]))).toEqual([]);
+  });
+
   it("wspólny termin żądania (`deadlineAt`) liczy się jak budżet", () => {
     // Loader, który dostał termin ABSOLUTNY, jedzie pod ograniczeniem czasu,
     // nawet jeśli sam nie woła `withBudget` - taki kształt ma `$.tsx` po
