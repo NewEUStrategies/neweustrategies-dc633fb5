@@ -120,7 +120,10 @@ export const FROZEN_DEGRADED_WITHOUT_CACHE_CONTROL: Readonly<Record<string, stri
     "dokument potwierdzenia zakupu poza cache'em dokumentów (deny-lista) - dług doktrynalny, nie ekspozycja",
   // 2026-09-20: `support.tsx` i `contribute.tsx` (realny dług: render bez treści
   // wchodził do wspólnego cache'u) spłacone tego samego dnia - oba loadery
-  // ogłaszają politykę przez `resilientCacheControl`.
+  // ogłaszają politykę przez `staticFallbackCacheControl` (`lib/http/cachePolicy.ts`).
+  // NIE `resilientCacheControl`, i to jest wybór, nie skrót: ich fallback to
+  // PEŁNA TREŚĆ z kodu, więc dokument jest kompletny, tylko niekanoniczny dla
+  // brzegu - dostaje krótką świeżość z rewalidacją zamiast `no-store`.
 };
 
 /**
@@ -258,12 +261,21 @@ const DEGRADABLE_WORK_RE =
   /\.\s*catch\s*\(|Promise\s*\.\s*allSettled\s*\(|\b(?:loadResilient|with(?:Ssr)?Budget|settleWithinBudget)\s*\(/;
 
 /**
- * Ogłoszenie polityki cache'u przez SAM loader. `resilientCacheControl` bez
- * `setCacheControlHeader` nie występuje w repozytorium, ale liczy się tak samo:
- * obecność którejkolwiek z tych funkcji znaczy, że autor loadera podjął
- * decyzję o nagłówku, zamiast oddać ją domyślnej polityce middleware.
+ * Ogłoszenie polityki cache'u przez SAM loader. `resilientCacheControl` /
+ * `staticFallbackCacheControl` bez `setCacheControlHeader` nie występują
+ * w repozytorium, ale liczą się tak samo: obecność którejkolwiek z tych funkcji
+ * znaczy, że autor loadera podjął decyzję o nagłówku, zamiast oddać ją
+ * domyślnej polityce middleware.
+ *
+ * `staticFallbackCacheControl` (`lib/http/cachePolicy.ts`) jest tu na równi
+ * z `resilientCacheControl`: to ta sama decyzja, tylko z innym FALLBACKIEM -
+ * pełna treść z kodu dostaje krótką świeżość z rewalidacją zamiast `no-store`,
+ * bo `no-store` nie chroniłby tam przed niczym, a kosztowałby pełny render
+ * każdego czytelnika przez cały blip bazy. Tą drogą ogłaszają dziś politykę
+ * trasy prawne i statyczne (`support`, `contribute`, `rodo`, regulaminy).
  */
-const DECLARES_CACHE_CONTROL_RE = /\b(?:setCacheControlHeader|resilientCacheControl)\s*\(/;
+const DECLARES_CACHE_CONTROL_RE =
+  /\b(?:setCacheControlHeader|resilientCacheControl|staticFallbackCacheControl)\s*\(/;
 
 /**
  * ZAMKNIĘTA lista sygnałów „ten loader wychodzi do sieci". Zamknięta, bo

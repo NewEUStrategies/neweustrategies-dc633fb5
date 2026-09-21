@@ -53,7 +53,8 @@
  *       TAK, da się statycznie i bez żadnego przybliżenia: „może zdegradować"
  *       to obecność `withBudget` / `settleWithinBudget` / `loadResilient` /
  *       `Promise.allSettled` w ciele loadera, a „bramkuje" to przejście
- *       wartości nagłówka przez `resilientCacheControl(...)`. Doktryna jest
+ *       wartości nagłówka przez funkcję, której SYGNATURA ustala kierunek:
+ *       `resilientCacheControl(...)` albo `staticFallbackCacheControl(...)`. Doktryna jest
  *       w repozytorium napisana wzorowo (`src/lib/ssr/resilientLoad.ts:123-138`)
  *       i mechanizm istnieje od dawna - brakowało wyłącznie zapadki. Dwie
  *       trasy jej nie stosowały (`src/routes/$.tsx`, `src/routes/sitemap.tsx`)
@@ -418,8 +419,19 @@ const DEGRADABLE_WORK_RE =
  * argumentu, bo `contentCacheControl({ preview: true })` /
  * `({ personalized: true })` zwracają `private, no-store` - czyli są
  * przeciwieństwem tego, czego ta reguła pilnuje.
+ *
+ * `staticFallbackCacheControl` jest tu MIMO argumentu i to nie jest wyjątek od
+ * powyższej zasady, tylko jej konsekwencja: ten helper oddaje politykę
+ * ZAPISYWALNĄ NA OBU gałęziach (`chromeDegradedCacheControl()` przy degradacji,
+ * `contentCacheControl()` przy czystym renderze - `lib/http/cachePolicy.ts`),
+ * więc każde jego wywołanie ustawia cache WSPÓLNY. Zastrzeżenie „bez
+ * argumentu" broni przed wariantami, które zwracają `private, no-store`, a tu
+ * taki wariant po prostu nie istnieje. Bez tej alternatywy trasy prawne
+ * i statyczne (`support`, `contribute`, `rodo`, regulaminy) wypadałyby spod
+ * reguły (4) CAŁKOWICIE - bramka nie widziałaby, że w ogóle ustawiają nagłówek.
  */
-const SHARED_CACHE_POLICY_RE = /\b(contentCacheControl|liveCacheControl)\s*\(\s*\)/;
+const SHARED_CACHE_POLICY_RE =
+  /\b(contentCacheControl|liveCacheControl)\s*\(\s*\)|\bstaticFallbackCacheControl\s*\(/;
 
 /**
  * JEDYNA droga do nagłówka renderu, który MOŻE być zdegradowany.
@@ -443,8 +455,17 @@ const SHARED_CACHE_POLICY_RE = /\b(contentCacheControl|liveCacheControl)\s*\(\s*
  * trasy bramkujące dotąd ręcznym warunkiem (`author.$slug.tsx`,
  * `blog.index.tsx`, `tracker.index.tsx`) zostały na nią przełożone tym samym
  * commitem - wartości nagłówka nie zmieniła ani jedna.
+ *
+ * DRUGA taka funkcja: `staticFallbackCacheControl(degraded)`
+ * (`lib/http/cachePolicy.ts`). Ma DOKŁADNIE tę własność, na której ta reguła
+ * stoi - kierunek ustala sygnatura, a nie warunek w wywołaniu: prawda oddaje
+ * politykę WĘŻSZĄ, fałsz szerszą. Różni się WYŁĄCZNIE tym, CZYM JEST fallback:
+ * tam pusta powłoka albo komunikat awarii (jedyna poprawna odpowiedź to
+ * `no-store`), tu PEŁNA TREŚĆ z kodu, dla której `no-store` nie chroniłby przed
+ * niczym, a kosztowałby pełny render każdego czytelnika przez cały blip bazy.
+ * Dla bramki liczy się kierunek, nie stopień - więc obie są bramką na równi.
  */
-const GATED_POLICY_RE = /\bresilientCacheControl\s*\(/;
+const GATED_POLICY_RE = /\b(?:resilientCacheControl|staticFallbackCacheControl)\s*\(/;
 
 /**
  * Nazwy stałych MODUŁU związanych z polityką wspólnego cache'u
@@ -464,8 +485,9 @@ export function sharedCachePolicyAliases(cleanSource: string): {
     const name = m[1];
     const value = m[2] ?? "";
     if (name === undefined) continue;
-    // Kolejność ma znaczenie: stała złożona z `resilientCacheControl(...)`
-    // pasuje do OBU wzorców patrząc naiwnie, a jest bramkowana.
+    // Kolejność ma znaczenie: stała złożona z funkcji bramkującej
+    // (`resilientCacheControl(...)`, `staticFallbackCacheControl(...)`) pasuje
+    // do OBU wzorców patrząc naiwnie, a jest bramkowana.
     if (GATED_POLICY_RE.test(value)) gated.add(name);
     else if (SHARED_CACHE_POLICY_RE.test(value)) shared.add(name);
   }
@@ -474,7 +496,8 @@ export function sharedCachePolicyAliases(cleanSource: string): {
 
 /**
  * Linie `setCacheControlHeader(...)` w ciele loadera, których argument ustawia
- * politykę WSPÓLNEGO cache'u, a NIE przechodzi przez `resilientCacheControl`.
+ * politykę WSPÓLNEGO cache'u, a NIE przechodzi przez jedną z funkcji
+ * bramkujących (`resilientCacheControl` / `staticFallbackCacheControl`).
  *
  * Wołanie z aliasem polityki `no-store` (`setCacheControlHeader(NO_STORE)`)
  * nie jest tu liczone: opt-out jest właśnie tym, czego ta reguła chce.
@@ -493,8 +516,9 @@ export function ungatedCacheControlSites(
     const arg = balancedArgs(loaderBody, open).trim();
     const setsSharedCache = SHARED_CACHE_POLICY_RE.test(arg) || mentions(arg, aliases.shared);
     if (!setsSharedCache) continue;
-    // Wartość MUSI przejść przez `resilientCacheControl` - patrz uzasadnienie
-    // przy `GATED_POLICY_RE`. Wywołanie z aliasem polityki `no-store`
+    // Wartość MUSI przejść przez funkcję bramkującą (`resilientCacheControl`
+    // albo `staticFallbackCacheControl`) - patrz uzasadnienie przy
+    // `GATED_POLICY_RE`. Wywołanie z aliasem polityki `no-store`
     // (`setCacheControlHeader(NO_STORE)`) nie dochodzi tu w ogóle: nie ustawia
     // polityki wspólnej, więc odsiewa je warunek wyżej.
     if (GATED_POLICY_RE.test(arg) || mentions(arg, aliases.gated)) continue;

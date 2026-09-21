@@ -160,6 +160,42 @@ export const Route = createFileRoute("/proba")({
     expect(nowyDlug(report).map((v) => v.rule)).toContain("degradedCacheControl");
   });
 
+  it("`staticFallbackCacheControl` ogłasza politykę tak samo jak `resilientCacheControl`", () => {
+    // Trasy prawne i statyczne (`support`, `contribute`, `rodo`, regulaminy)
+    // przeszły na ten helper: ich fallback to PEŁNA TREŚĆ z kodu, więc dokument
+    // jest kompletny, tylko niekanoniczny dla brzegu - dostaje krótką świeżość
+    // z rewalidacją zamiast `no-store`. Dla reguły W1 liczy się to, że loader
+    // PODJĄŁ decyzję o nagłówku, a nie jak ostrożną.
+    const source = `
+import { createFileRoute } from "@tanstack/react-router";
+export const Route = createFileRoute("/proba")({
+  loader: async ({ context }) => {
+    const seo = await loadResilient(context.queryClient, probaQueryOptions(), null, {
+      deadlineAt: Date.now() + 1_500,
+    });
+    setCacheControlHeader(staticFallbackCacheControl(seo.degraded));
+    return { seo: seo.data };
+  },
+  component: ProbaPage,
+});
+`;
+    const facts = loaderPolicyFacts("src/routes/proba.tsx", source);
+    expect(facts?.canDegrade).toBe(true);
+    expect(facts?.declaresCacheControl).toBe(true);
+    expect(nowyDlug(analyze([{ file: "src/routes/proba.tsx", source }]))).toEqual([]);
+
+    // KONTROLA NEGATYWNA: zdjęcie całej linii z nagłówkiem OBLEWA - zieleń wyżej
+    // pochodzi z rozpoznanej deklaracji, a nie z tego, że reguła przestała
+    // widzieć tę trasę.
+    const zepsuta = source.replace(
+      "setCacheControlHeader(staticFallbackCacheControl(seo.degraded));",
+      "",
+    );
+    expect(
+      nowyDlug(analyze([{ file: "src/routes/proba.tsx", source: zepsuta }])).map((v) => v.rule),
+    ).toContain("degradedCacheControl");
+  });
+
   it("trasa z `ssr: false` nie podlega regule - nie ma SSR-owego dokumentu", () => {
     const source = OK_ROUTE.replace(
       'createFileRoute("/proba")({',

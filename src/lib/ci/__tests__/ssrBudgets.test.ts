@@ -545,6 +545,71 @@ export const Route = createFileRoute("/alias-gated")({
     expect(ssrBudgetsFailed(report)).toBe(false);
   });
 
+  it("`staticFallbackCacheControl` jest bramką NA RÓWNI z `resilientCacheControl`", () => {
+    // Trasy prawne i statyczne (`support`, `contribute`, `rodo`, regulaminy)
+    // ogłaszają politykę tą funkcją: ich fallback to PEŁNA TREŚĆ z kodu, więc
+    // dokument jest kompletny i dostaje krótką świeżość z rewalidacją zamiast
+    // `no-store`. Dla tej reguły liczy się KIERUNEK, który ustala sygnatura
+    // (prawda -> polityka węższa), a nie stopień ostrożności - patrz docblock
+    // `GATED_POLICY_RE`.
+    //
+    // Bez tej alternatywy cała ta rodzina tras wypadłaby spod reguły (4):
+    // `staticFallbackCacheControl(...)` nie jest gołym `contentCacheControl()`,
+    // więc bramka nie widziałaby nawet tego, że trasa ustawia nagłówek.
+    const source = `
+export const Route = createFileRoute("/prawne")({
+  loader: async ({ context }) => {
+    const r = await Promise.allSettled([context.queryClient.prefetchQuery(a)]);
+    setCacheControlHeader(staticFallbackCacheControl(r.some((x) => x.status === "rejected")));
+  },
+});
+`;
+    const report = analyze([{ file: "src/routes/prawne.tsx", source }]);
+    const facts = report.loaders.find((l) => l.file === "src/routes/prawne.tsx");
+
+    expect(facts?.canDegrade).toBe(true);
+    // WYMÓG POZYTYWNY: bramka MUSI widzieć wywołanie jako politykę wspólną
+    // (inaczej „zielono" znaczyłoby tylko tyle, że reguła go nie zauważyła)
+    // i jednocześnie jako BRAMKOWANE, czyli bez ani jednej linii do zgłoszenia.
+    expect(facts?.ungatedCacheControlLines).toEqual([]);
+    expect(ssrBudgetsFailed(report)).toBe(false);
+
+    // KONTROLA NEGATYWNA: ta sama trasa z bezwarunkową polityką wspólną OBLEWA,
+    // więc zieleń wyżej pochodzi z bramki, a nie ze ślepoty wzorca.
+    const bezBramki = analyze([
+      {
+        file: "src/routes/prawne.tsx",
+        source: source.replace(
+          'staticFallbackCacheControl(r.some((x) => x.status === "rejected"))',
+          "contentCacheControl()",
+        ),
+      },
+    ]);
+    expect(ssrBudgetsFailed(bezBramki)).toBe(true);
+    expect(renderSsrBudgetReport(bezBramki)).toContain("degradedCacheControl = 1 > 0");
+  });
+
+  it("stała złożona z `staticFallbackCacheControl` jest bramką także przez alias", () => {
+    // Ten sam wymóg co dla `resilientCacheControl`: bramka na samym wywołaniu
+    // omijałoby się jedną stałą, a tu stawka jest odwrotna - alias jest
+    // POPRAWNY i nie wolno go zgłosić jako naruszenia.
+    const report = analyze([
+      {
+        file: "src/routes/aliasStatic.tsx",
+        source: `
+export const Route = createFileRoute("/alias-static")({
+  loader: async ({ context }) => {
+    const r = await Promise.allSettled([context.queryClient.prefetchQuery(a)]);
+    const policy = staticFallbackCacheControl(r.some((x) => x.status === "rejected"));
+    setCacheControlHeader(policy);
+  },
+});
+`,
+      },
+    ]);
+    expect(ssrBudgetsFailed(report)).toBe(false);
+  });
+
   it("loader BEZ pracy degradowalnej nie jest przedmiotem tej reguły", () => {
     // Gołe `await ensureQueryData` degraduje wyłącznie RZUTEM, a rzut staje
     // się statusem, którego wspólny cache i tak nie zapisze. Zapalanie się na
