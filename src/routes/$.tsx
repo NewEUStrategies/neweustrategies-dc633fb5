@@ -231,7 +231,6 @@ interface CoverPreload {
   imageSizes?: string;
 }
 
-
 /**
  * WYNIK LOADERA TEJ TRASY JAKO JAWNA UNIA Z DYSKRYMINATOREM `kind` - i to jest
  * naprawa realnego defektu typów, a nie porządkowanie dla ozdoby.
