@@ -1,6 +1,9 @@
 // Molecule: single toolbar-button swatch used in the toolbar editor's live
-// preview. Reads the draft's toolbarButton geometry + the scoped `--td-tb-*`
-// color variables set on an ancestor.
+// preview. Geometry (radius/padding/size) comes from the draft via inline
+// style; colors come from the production `.cms-tb-btn` rules, which read the
+// scoped `--td-tb-*` variables set on an ancestor. The ACTIVE state is carried
+// by `data-active` - exactly as in the real CMS toolbar - so switching it swaps
+// colors only and never moves geometry (otherwise the bar would jump).
 import type { CSSProperties } from "react";
 import type { ThemeDesign } from "@/lib/theme/themeDesign";
 
@@ -14,8 +17,6 @@ export function ToolbarButtonPreview({
   active?: boolean;
 }) {
   const style: CSSProperties = {
-    background: active ? "var(--td-tb-active-bg, currentColor)" : "var(--td-tb-bg, transparent)",
-    color: active ? "var(--td-tb-active-color, #fff)" : "var(--td-tb-color, currentColor)",
     borderRadius: design.toolbarButton.radius,
     padding: `${design.toolbarButton.paddingY} ${design.toolbarButton.paddingX}`,
     fontSize: design.toolbarButton.size,
@@ -24,7 +25,8 @@ export function ToolbarButtonPreview({
   };
   return (
     <span
-      className="inline-flex items-center justify-center font-semibold transition-colors"
+      className="cms-tb-btn inline-flex items-center justify-center font-semibold transition-colors"
+      data-active={active ? "true" : undefined}
       style={style}
     >
       {icon}

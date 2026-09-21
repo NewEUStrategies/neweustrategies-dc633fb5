@@ -142,6 +142,48 @@ const nextButton = (root: HTMLElement) => root.querySelector<HTMLButtonElement>(
 const titleOf = (root: HTMLElement) => root.querySelector<HTMLElement>("h3.cms-post-title");
 const excerptOf = (root: HTMLElement) => root.querySelector<HTMLElement>("p.cms-post-excerpt");
 
+/**
+ * STAN WCZYTANIA OBRAZU JEST WEJŚCIEM TESTU, NIE DOMYŚLNĄ WARTOŚCIĄ ŚRODOWISKA.
+ *
+ * `ResilientSliderImage` ma efekt montażu, który podmienia okładkę na obrazek
+ * zastępczy dokładnie dla kombinacji `complete === true && naturalWidth === 0`
+ * (obraz „skończył się ładować" przed podpięciem handlera `error`, więc
+ * zdarzenie już nie przyjdzie). happy-dom nigdy nie pobiera obrazów, więc
+ * `naturalWidth` zawsze jest zerem, a o wyniku decyduje WYŁĄCZNIE startowa
+ * wartość `complete` - a ta jest szczegółem WERSJI happy-dom (20.9 zaczyna od
+ * `false`, 20.14 od `true`). Test, który tej wartości nie ustawia, mierzy więc
+ * wersję zależności, a nie renderer: w jednej wersji przechodzi przypadkiem,
+ * w drugiej wywraca się przypadkiem.
+ *
+ * Dlatego każdy test dotykający tego efektu stawia oba gettery JAWNIE na czas
+ * jednego przebiegu i przywraca oryginalne deskryptory w `finally`.
+ */
+function withImageLoadState(
+  state: { complete: boolean; naturalWidth: number },
+  run: () => void,
+): void {
+  const proto = window.HTMLImageElement.prototype;
+  const completeDesc = Object.getOwnPropertyDescriptor(proto, "complete");
+  const widthDesc = Object.getOwnPropertyDescriptor(proto, "naturalWidth");
+  Object.defineProperty(proto, "complete", { configurable: true, get: () => state.complete });
+  Object.defineProperty(proto, "naturalWidth", {
+    configurable: true,
+    get: () => state.naturalWidth,
+  });
+  try {
+    run();
+  } finally {
+    if (completeDesc) Object.defineProperty(proto, "complete", completeDesc);
+    else Reflect.deleteProperty(proto, "complete");
+    if (widthDesc) Object.defineProperty(proto, "naturalWidth", widthDesc);
+    else Reflect.deleteProperty(proto, "naturalWidth");
+  }
+}
+
+/** Okładka wczytana i niosąca piksele - efekt montażu nie ma jej ruszać. */
+const withLoadedImages = (run: () => void) =>
+  withImageLoadState({ complete: true, naturalWidth: 1200 }, run);
+
 /** Geometria każdego kształtu strzałki - jedno źródło prawdy dla asercji. */
 const ARROW_PATHS: Record<NavArrowVariant, string> = {
   chevron: "M9 6l6 6-6 6",
@@ -799,24 +841,31 @@ describe("SliderRender - rozstrzyganie treści slajdu", () => {
   });
 
   it("nie dodaje kandydatów responsywnych dla okładki spoza Storage", () => {
-    const { container } = renderSlider();
-    const img = container.querySelector<HTMLImageElement>("img[data-fill-image]");
-    expect(img?.getAttribute("srcset")).toBeNull();
-    expect(img?.getAttribute("sizes")).toBeNull();
+    withLoadedImages(() => {
+      const { container } = renderSlider();
+      const img = container.querySelector<HTMLImageElement>("img[data-fill-image]");
+      expect(img?.getAttribute("srcset")).toBeNull();
+      expect(img?.getAttribute("sizes")).toBeNull();
+    });
   });
 
   it("dodaje kandydatów responsywnych i deklarację sizes dla okładki ze Storage", () => {
-    const { container } = renderSlider({
-      items: [
-        {
-          image: "https://baza.example.com/storage/v1/object/public/media/okladka.jpg",
-          title_pl: "Okładka ze Storage",
-        },
-      ],
+    // Okładka musi być wczytana: `srcSet` powstaje z AKTUALNEGO `displaySrc`,
+    // więc podmiana na obrazek zastępczy zdjęłaby oba atrybuty i test mierzyłby
+    // efekt montażu zamiast budowania kandydatów.
+    withLoadedImages(() => {
+      const { container } = renderSlider({
+        items: [
+          {
+            image: "https://baza.example.com/storage/v1/object/public/media/okladka.jpg",
+            title_pl: "Okładka ze Storage",
+          },
+        ],
+      });
+      const img = container.querySelector<HTMLImageElement>("img[data-fill-image]");
+      expect(img?.getAttribute("srcset")).toContain("/storage/v1/render/image/public/");
+      expect(img?.getAttribute("sizes")).toBe("100vw");
     });
-    const img = container.querySelector<HTMLImageElement>("img[data-fill-image]");
-    expect(img?.getAttribute("srcset")).toContain("/storage/v1/render/image/public/");
-    expect(img?.getAttribute("sizes")).toBe("100vw");
   });
 
   it("daje pierwszemu slajdowi wysoki priorytet pobrania, a pozostałym niski", () => {
@@ -836,32 +885,36 @@ describe("SliderRender - rozstrzyganie treści slajdu", () => {
   });
 
   it("prosi w wariancie multi-card o rozmiary właściwe dla liczby kolumn", () => {
-    const { container } = renderSlider({
-      variant: "multi-card",
-      columns: 2,
-      items: [
-        {
-          image: "https://baza.example.com/storage/v1/object/public/media/karta.jpg",
-          title_pl: "Karta",
-        },
-      ],
+    withLoadedImages(() => {
+      const { container } = renderSlider({
+        variant: "multi-card",
+        columns: 2,
+        items: [
+          {
+            image: "https://baza.example.com/storage/v1/object/public/media/karta.jpg",
+            title_pl: "Karta",
+          },
+        ],
+      });
+      expect(container.querySelector("img[data-fill-image]")?.getAttribute("sizes")).toBe("50vw");
     });
-    expect(container.querySelector("img[data-fill-image]")?.getAttribute("sizes")).toBe("50vw");
   });
 
   it("prosi w wariancie split-feature o rozmiary połówkowe", () => {
-    const { container } = renderSlider({
-      variant: "split-feature",
-      items: [
-        {
-          image: "https://baza.example.com/storage/v1/object/public/media/split.jpg",
-          title_pl: "Split",
-        },
-      ],
+    withLoadedImages(() => {
+      const { container } = renderSlider({
+        variant: "split-feature",
+        items: [
+          {
+            image: "https://baza.example.com/storage/v1/object/public/media/split.jpg",
+            title_pl: "Split",
+          },
+        ],
+      });
+      expect(container.querySelector("img[data-fill-image]")?.getAttribute("sizes")).toBe(
+        "(max-width: 767px) 100vw, 50vw",
+      );
     });
-    expect(container.querySelector("img[data-fill-image]")?.getAttribute("sizes")).toBe(
-      "(max-width: 767px) 100vw, 50vw",
-    );
   });
 
   // DEFEKT: SLAJD BEZ ADRESU I TAK JEST RENDEROWANY JAKO ODNOŚNIK.
@@ -899,27 +952,14 @@ describe("SliderRender - rozstrzyganie treści slajdu", () => {
 describe("SliderRender - obraz zepsuty już w chwili montażu", () => {
   /**
    * happy-dom nie pobiera obrazów, więc `complete`/`naturalWidth` nigdy nie
-   * ułożą się w kombinację „wczytany, ale bez pikseli". Podmieniamy oba
+   * ułożą się SAME w kombinację „wczytany, ale bez pikseli". Podmieniamy oba
    * gettery na prototypie na czas jednego testu - to jedyny sposób, żeby
    * dotknąć efektu montażu, który w prawdziwej przeglądarce ratuje slajd
    * z martwym CDN-em (zdarzenie `error` już nie przyjdzie, bo obraz
    * „skończył" się ładować przed podpięciem handlera).
    */
-  function withBrokenImages(run: () => void) {
-    const proto = window.HTMLImageElement.prototype;
-    const completeDesc = Object.getOwnPropertyDescriptor(proto, "complete");
-    const widthDesc = Object.getOwnPropertyDescriptor(proto, "naturalWidth");
-    Object.defineProperty(proto, "complete", { configurable: true, get: () => true });
-    Object.defineProperty(proto, "naturalWidth", { configurable: true, get: () => 0 });
-    try {
-      run();
-    } finally {
-      if (completeDesc) Object.defineProperty(proto, "complete", completeDesc);
-      else Reflect.deleteProperty(proto, "complete");
-      if (widthDesc) Object.defineProperty(proto, "naturalWidth", widthDesc);
-      else Reflect.deleteProperty(proto, "naturalWidth");
-    }
-  }
+  const withBrokenImages = (run: () => void) =>
+    withImageLoadState({ complete: true, naturalWidth: 0 }, run);
 
   it("przechodzi na obrazek zastępczy, gdy okładka jest martwa już przy montażu", () => {
     withBrokenImages(() => {
@@ -932,11 +972,18 @@ describe("SliderRender - obraz zepsuty już w chwili montażu", () => {
   });
 
   it("nie rusza obrazu, który zgłasza niezerową szerokość naturalną", () => {
-    const { container } = renderSlider({
-      items: [{ image: "https://obrazy.example.com/zdrowy.jpg", title_pl: "Zdrowa okładka" }],
+    // Druga połowa warunku efektu: `complete` też jest prawdą, więc o wyniku
+    // decyduje WYŁĄCZNIE niezerowa `naturalWidth`. Bez jawnego ustawienia obu
+    // getterów test przechodziłby tylko dzięki temu, że happy-dom w danej
+    // wersji startuje z `complete === false` - czyli nie dotykałby wcale
+    // gałęzi, którą nazywa w tytule.
+    withLoadedImages(() => {
+      const { container } = renderSlider({
+        items: [{ image: "https://obrazy.example.com/zdrowy.jpg", title_pl: "Zdrowa okładka" }],
+      });
+      expect(container.querySelector("img[data-fill-image]")?.getAttribute("src")).toBe(
+        "https://obrazy.example.com/zdrowy.jpg",
+      );
     });
-    expect(container.querySelector("img[data-fill-image]")?.getAttribute("src")).toBe(
-      "https://obrazy.example.com/zdrowy.jpg",
-    );
   });
 });
