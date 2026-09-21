@@ -5,16 +5,23 @@
 // bezpośrednio ten plik. Walidacja obejmuje: MIME + rozszerzenie, limit 50 MB,
 // wykrycie uszkodzonego pliku (metadata error). Po sukcesie prezentujemy
 // czas trwania i toast, po błędach - jednoznaczne komunikaty PL/EN.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { brandedMediaUrl, mediaRenderUrl } from "@/lib/media/publicUrl";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Upload, Link as LinkIcon, X, Mic, Clock } from "@/lib/lucide-shim";
+import {
+  Upload,
+  File as FileIcon,
+  Headphones,
+  Link as LinkIcon,
+  X,
+  Mic,
+  Clock,
+} from "@/lib/lucide-shim";
+import { UploadArea } from "@/components/ui/upload-area";
 import { formatAudioTime } from "@/lib/audio/global-player";
 
 interface Props {
@@ -33,6 +40,7 @@ const COPY = {
     uploading: "Wgrywam…",
     remove: "Usuń plik (powrót do lektora AI)",
     empty: "Brak pliku audio - dla tego języka użyty zostanie lektor AI (ElevenLabs)",
+    replaceHint: "Przeciągnij plik audio tutaj albo wybierz go z dysku, żeby podmienić nagranie.",
     fileTooLarge: "Plik jest za duży - maksymalnie 50 MB",
     invalidType: "Nieprawidłowy format. Dozwolone: MP3, M4A, AAC, OGG, WAV",
     corrupt: "Plik audio jest uszkodzony lub nieczytelny",
@@ -45,6 +53,7 @@ const COPY = {
     uploading: "Uploading…",
     remove: "Remove file (fall back to AI narration)",
     empty: "No audio file - AI narration (ElevenLabs) will be used for this language",
+    replaceHint: "Drag an audio file here, or pick one from your disk, to replace the recording.",
     fileTooLarge: "File is too large - maximum 50 MB",
     invalidType: "Invalid format. Allowed: MP3, M4A, AAC, OGG, WAV",
     corrupt: "Audio file is corrupted or unreadable",
@@ -93,7 +102,6 @@ export function AudioPicker({
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const t = COPY[lang];
   const tenantId = useRequiredTenant();
-  const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [urlDraft, setUrlDraft] = useState(value ?? "");
@@ -190,94 +198,72 @@ export function AudioPicker({
     if (v !== value) onChange(v);
   };
 
+  const preview =
+    value === "" ? null : (
+      <div className="w-full rounded-md border border-border bg-muted/30 p-3 space-y-2 text-left">
+        <div className="flex items-center gap-2">
+          <Mic className="w-4 h-4 text-brand shrink-0" />
+          <div className="flex-1 min-w-0 text-xs text-foreground truncate" title={value}>
+            {value.split("/").pop() || value}
+          </div>
+          <button
+            type="button"
+            onClick={clear}
+            className="h-6 w-6 inline-flex items-center justify-center rounded-md border border-border hover:bg-destructive hover:text-destructive-foreground transition-colors"
+            title={t.remove}
+            aria-label={t.remove}
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        {duration !== null && (
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <Clock className="w-3 h-3" aria-hidden />
+            <span>
+              {t.duration}:{" "}
+              <span className="tabular-nums text-foreground">{formatAudioTime(duration)}</span>
+            </span>
+          </div>
+        )}
+        <audio src={mediaRenderUrl(value)} controls preload="metadata" className="w-full h-8" />
+      </div>
+    );
+
   return (
     <div className="space-y-2">
-      {label && <Label>{label}</Label>}
-
-      {value ? (
-        <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2">
-          <div className="flex items-center gap-2">
-            <Mic className="w-4 h-4 text-brand shrink-0" />
-            <div className="flex-1 min-w-0 text-xs text-foreground truncate" title={value}>
-              {value.split("/").pop() || value}
-            </div>
-            <button
-              type="button"
-              onClick={clear}
-              className="h-6 w-6 inline-flex items-center justify-center rounded-md border border-border hover:bg-destructive hover:text-destructive-foreground transition-colors"
-              title={t.remove}
-              aria-label={t.remove}
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          {duration !== null && (
-            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <Clock className="w-3 h-3" aria-hidden />
-              <span>
-                {t.duration}:{" "}
-                <span className="tabular-nums text-foreground">{formatAudioTime(duration)}</span>
-              </span>
-            </div>
-          )}
-          <audio src={mediaRenderUrl(value)} controls preload="metadata" className="w-full h-8" />
-        </div>
-      ) : (
-        <div className="rounded-md border border-dashed border-border p-3 text-[11px] text-muted-foreground text-center">
-          {t.empty}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 gap-1.5">
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={uploading}
-          onClick={() => fileRef.current?.click()}
-          className="h-8 text-xs"
-        >
-          <Upload className="w-3.5 h-3.5 mr-1" />
-          {uploading ? t.uploading : t.upload}
-        </Button>
-      </div>
-
-      <div className="flex items-center gap-1.5">
-        <LinkIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-        <Input
-          type="url"
-          value={urlDraft}
-          onChange={(e) => setUrlDraft(e.target.value)}
-          onBlur={commitUrl}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              commitUrl();
-            }
-          }}
-          placeholder="https://…/audio.mp3"
-          className="h-8 text-xs"
-        />
-      </div>
-
-      <input
-        ref={fileRef}
-        type="file"
+      <UploadArea
+        size="sm"
+        title={label ?? t.upload}
+        description={value === "" ? t.empty : t.replaceHint}
+        ctaLabel={t.upload}
+        busyLabel={t.uploading}
+        busy={uploading}
+        error={error}
+        icons={[Headphones, Upload, FileIcon]}
         accept="audio/mpeg,audio/mp3,audio/mp4,audio/x-m4a,audio/aac,audio/ogg,audio/wav,.mp3,.m4a,.aac,.ogg,.wav"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) void handleFile(f);
-          e.target.value = "";
-        }}
+        onFiles={(files) => void handleFile(files[0])}
+        preview={preview}
+        hint={hint}
+        footer={
+          <div className="flex items-center gap-1.5">
+            <LinkIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" aria-hidden />
+            <Input
+              type="url"
+              value={urlDraft}
+              onChange={(e) => setUrlDraft(e.target.value)}
+              onBlur={commitUrl}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  commitUrl();
+                }
+              }}
+              placeholder="https://…/audio.mp3"
+              className="h-8 text-xs"
+            />
+          </div>
+        }
       />
-
-      {hint && <div className="text-[10px] text-muted-foreground">{hint}</div>}
-      {error && (
-        <div className="text-[11px] text-destructive" role="alert">
-          {error}
-        </div>
-      )}
     </div>
   );
 }

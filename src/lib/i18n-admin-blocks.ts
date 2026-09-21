@@ -113,6 +113,7 @@ const pl = {
       },
       dataImport: {
         button: "Importuj z pliku",
+        areaTitle: "Dane z pliku",
         hintChart:
           "xlsx, csv, tsv, ods - pierwszy wiersz to nazwy serii, pierwsza kolumna to kategorie",
         hintMap:
@@ -885,6 +886,7 @@ const en: typeof pl = {
       },
       dataImport: {
         button: "Import from file",
+        areaTitle: "Data from a file",
         hintChart:
           "xlsx, csv, tsv, ods - first row holds series names, first column holds categories",
         hintMap:

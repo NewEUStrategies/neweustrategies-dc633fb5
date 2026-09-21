@@ -1,12 +1,18 @@
 // Reusable image upload slot used by ThemeOptions and similar forms.
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
-import { Upload, X } from "@/lib/lucide-shim";
+import { Image, Upload, X } from "@/lib/lucide-shim";
+import { UploadArea } from "@/components/ui/upload-area";
+import { matchesAccept } from "@/lib/media/acceptMatch";
+import "@/lib/i18n-upload-area";
 import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "react-i18next";
 import { brandedMediaUrl, mediaRenderUrl } from "@/lib/media/publicUrl";
 import "@/lib/i18n-admin-panes-misc";
+
+/** Limit dla slotu obrazu - ten sam, co w `lib/media/upload.ts` dla grafik. */
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 export interface ImageSlotTransform {
   /** Zwraca plik do wysyłki (null = odrzucony) plus komunikaty dla użytkownika. */
@@ -40,7 +46,6 @@ export function ImageSlot({
   transformFile?: ImageSlotTransform;
 }) {
   const { t } = useTranslation();
-  const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notices, setNotices] = useState<string[]>([]);
@@ -49,6 +54,24 @@ export function ImageSlot({
   const handleFile = async (input: File) => {
     setError(null);
     setNotices([]);
+    // WALIDACJA STOI PRZED SIECIĄ i dotyczy TAK SAMO pliku z okna wyboru, jak
+    // i upuszczonego. `accept` filtruje wyłącznie okno systemowe, więc bez
+    // tego sprawdzenia upuszczony PDF albo wideo szedł wprost do publicznego
+    // bucketu i zapisywał w ustawieniach adres, którego nie da się wyświetlić
+    // jako obrazu (zgłoszenie Codeksa P2 do tego pliku).
+    if (!matchesAccept(input, accept)) {
+      setError(t("uploadArea.badType", { name: input.name }));
+      return;
+    }
+    if (input.size > MAX_IMAGE_BYTES) {
+      setError(
+        t("uploadArea.tooLarge", {
+          name: input.name,
+          max: Math.round(MAX_IMAGE_BYTES / (1024 * 1024)),
+        }),
+      );
+      return;
+    }
     if (!tenantId) {
       setError(t("adminPanesMisc.imageSlot.uploadError"));
       return;
@@ -88,73 +111,77 @@ export function ImageSlot({
 
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-        {icon}
-        {label}
-      </div>
-      {value && (
-        <div
-          className={`rounded-md border border-border p-2 flex items-center justify-center min-h-[80px] ${previewMode === "auto" ? "bg-muted/30" : ""}`}
-          style={{
-            background:
-              previewMode === "dark" ? "#141414" : previewMode === "light" ? "#f8f6f4" : undefined,
-          }}
-          data-preview-mode={previewMode}
-        >
-          <img src={mediaRenderUrl(value)} alt="" className="max-h-24 max-w-full object-contain" />
-        </div>
-      )}
-      <div className="flex items-center gap-2">
-        <Input
-          value={brandedMediaUrl(value)}
-          placeholder={t("adminPanesMisc.imageSlot.urlPlaceholder")}
-          onChange={(e) => onChange(brandedMediaUrl(e.target.value))}
-          className="h-8 text-xs flex-1"
-        />
-        {value && (
-          <button
-            type="button"
-            onClick={() => onChange("")}
-            className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-border hover:bg-muted text-muted-foreground"
-            title={t("adminPanesMisc.imageSlot.remove")}
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        )}
-      </div>
-      <input
-        ref={fileRef}
-        type="file"
+      <UploadArea
+        size="sm"
+        title={
+          <span className="inline-flex items-center justify-center gap-1.5">
+            {icon}
+            {label}
+          </span>
+        }
+        description={t("uploadArea.image.description")}
+        ctaLabel={t("adminPanesMisc.imageSlot.uploadBtn")}
+        busyLabel={t("adminPanesMisc.imageSlot.uploadingBtn")}
+        busy={uploading}
+        error={error}
+        icons={[Image, Upload]}
         accept={accept}
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) void handleFile(f);
-          e.target.value = "";
-        }}
+        onFiles={(files) => void handleFile(files[0])}
+        onRejectedFiles={(files) => setError(t("uploadArea.badType", { name: files[0].name }))}
+        preview={
+          value ? (
+            <div
+              className={`w-full rounded-md border border-border p-2 flex items-center justify-center min-h-[80px] ${previewMode === "auto" ? "bg-muted/30" : ""}`}
+              style={{
+                background:
+                  previewMode === "dark"
+                    ? "#141414"
+                    : previewMode === "light"
+                      ? "#f8f6f4"
+                      : undefined,
+              }}
+              data-preview-mode={previewMode}
+            >
+              <img
+                src={mediaRenderUrl(value)}
+                alt=""
+                className="max-h-24 max-w-full object-contain"
+              />
+            </div>
+          ) : undefined
+        }
+        actions={
+          value ? (
+            <button
+              type="button"
+              onClick={() => onChange("")}
+              className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-border hover:bg-muted text-muted-foreground"
+              title={t("adminPanesMisc.imageSlot.remove")}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          ) : undefined
+        }
+        hint={
+          <>
+            {hint && <div>{hint}</div>}
+            {notices.map((n) => (
+              <div key={n} role="status">
+                {n}
+              </div>
+            ))}
+          </>
+        }
+        footer={
+          <Input
+            value={brandedMediaUrl(value)}
+            placeholder={t("adminPanesMisc.imageSlot.urlPlaceholder")}
+            onChange={(e) => onChange(brandedMediaUrl(e.target.value))}
+            className="h-8 text-xs w-full"
+            aria-label={t("adminPanesMisc.imageSlot.urlPlaceholder")}
+          />
+        }
       />
-      <button
-        type="button"
-        disabled={uploading}
-        onClick={() => fileRef.current?.click()}
-        className="w-full inline-flex items-center justify-center gap-1.5 h-8 rounded-md border border-dashed border-border hover:border-brand hover:bg-muted/30 text-xs disabled:opacity-50"
-      >
-        <Upload className="w-3.5 h-3.5" />
-        {uploading
-          ? t("adminPanesMisc.imageSlot.uploadingBtn")
-          : t("adminPanesMisc.imageSlot.uploadBtn")}
-      </button>
-      {hint && <div className="text-[10px] text-muted-foreground">{hint}</div>}
-      {notices.map((n) => (
-        <div key={n} className="text-[10px] text-muted-foreground" role="status">
-          {n}
-        </div>
-      ))}
-      {error && (
-        <div className="text-[10px] text-destructive" role="alert">
-          {error}
-        </div>
-      )}
     </div>
   );
 }

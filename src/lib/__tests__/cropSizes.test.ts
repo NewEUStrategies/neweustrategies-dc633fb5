@@ -35,10 +35,15 @@ import {
   RESPONSIVE_WIDTHS,
   type CropSize,
 } from "@/lib/cropSizes";
+import { PUBLIC_MEDIA_ORIGIN } from "@/lib/media/publicUrl";
 
 const OBJ = "https://proj.supabase.co/storage/v1/object/public/media/cover.jpg";
 const RENDER = OBJ.replace("/object/", "/render/image/");
 const EXT = "https://cdn.example.com/cover.jpg";
+/** Obcy host z katalogiem `/media/` - kształt ścieżki jak nasz, host cudzy. */
+const EXT_MEDIA = "https://cdn.example.com/media/cover.jpg";
+/** Ten sam kształt ścieżki, ale na NASZYM origin - to jest adres markowy. */
+const BRANDED = `${PUBLIC_MEDIA_ORIGIN}/media/cover.jpg`;
 const TENANT = "11111111-1111-4111-8111-111111111111";
 
 function stub() {
@@ -60,6 +65,41 @@ describe("isSupabaseStorageUrl", () => {
     expect(isSupabaseStorageUrl(EXT)).toBe(false);
     expect(isSupabaseStorageUrl("")).toBe(false);
     expect(isSupabaseStorageUrl("not a url")).toBe(false);
+  });
+
+  // Marker `/media/` jest adresem MARKOWYM, więc liczy się tylko na naszym
+  // origin. Wcześniej funkcja patrzyła na samą ścieżkę i mówiła „tak" także
+  // obcemu hostowi z katalogiem `/media/` - a wtedy `buildImageSrcSet` doklejał
+  // mu kandydatów `…/storage/v1/render/image/public/…`, których ten host nie
+  // obsłuży. Przeglądarka wybiera kandydata po szerokości, więc pokazywała
+  // martwy obrazek przy nienaruszonym `src`.
+  it("marker `/media/` na OBCYM hoście to NIE jest Storage", () => {
+    expect(isSupabaseStorageUrl(EXT_MEDIA)).toBe(false);
+    expect(buildImageSrcSet(EXT_MEDIA)).toBe("");
+    expect(buildAvatarSrcSet(EXT_MEDIA, 24)).toBe("");
+  });
+
+  it("ten sam kształt ścieżki na NASZYM origin nadal jest Storage", () => {
+    expect(isSupabaseStorageUrl(BRANDED)).toBe(true);
+    expect(buildImageSrcSet(BRANDED)).toContain("/media/cover.jpg?width=");
+  });
+
+  it("ścieżka WZGLĘDNA należy do tego serwisu, więc przechodzi", () => {
+    // Aplikacja renderuje media właśnie ścieżką względną (`mediaRenderUrl`),
+    // żeby świeżo wgrany plik działał w podglądzie przed publikacją trasy.
+    expect(isSupabaseStorageUrl("/media/cover.jpg")).toBe(true);
+    expect(buildImageSrcSet("/media/cover.jpg")).toContain("/media/cover.jpg?width=");
+  });
+
+  it("markery `/storage/v1/...` zostają bez warunku na host", () => {
+    // Techniczny host magazynu bywa inny niż markowy i różni się per
+    // środowisko, a te ścieżki są jednoznacznie supabase'owe.
+    expect(
+      isSupabaseStorageUrl("https://inny.supabase.co/storage/v1/object/public/media/a.jpg"),
+    ).toBe(true);
+    expect(
+      isSupabaseStorageUrl("https://inny.supabase.co/storage/v1/render/image/public/media/a.jpg"),
+    ).toBe(true);
   });
 });
 

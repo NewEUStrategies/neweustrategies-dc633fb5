@@ -406,7 +406,7 @@ describe("ImportLeadsCsvDialog - pozostałe ścieżki", () => {
     await uploadCsv("E-mail\nanna@example.test\n");
     fireEvent.click(await screen.findByRole("button", { name: "Zmień plik" }));
     await waitFor(() => expect(screen.queryByText("Mapowanie kolumn")).toBeNull());
-    expect(screen.getByText(/Kliknij, aby wybrać plik/)).toBeInTheDocument();
+    expect(screen.getByText("Wgraj plik CSV z leadami")).toBeInTheDocument();
   });
 
   it("błędy zwrócone przez bazę są zgłaszane osobnym powiadomieniem", async () => {

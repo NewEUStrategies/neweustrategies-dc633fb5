@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
 import { setClubCoverPosition } from "@/lib/clubs/coverPosition.functions";
+import { ensureClubI18n } from "@/lib/i18n-club";
 import { cn } from "@/lib/utils";
 
 export function ClubCoverPositionEditor({
@@ -45,6 +46,10 @@ export function ClubCoverPositionEditor({
   onChanged: () => void;
   className?: string;
 }) {
+  // Bez tego wiązania nakładka `i18n-club` wchodziła do chunka tylko przypadkiem
+  // - razem z innym komponentem klubu. Gdy edytor renderował się sam, nagłówek
+  // pokazywał surowe `club.hub.identity.cover.position.*` zamiast napisów.
+  ensureClubI18n();
   const { t } = useTranslation();
   const save = useServerFn(setClubCoverPosition);
   const [open, setOpen] = useState(false);

@@ -20,7 +20,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -29,7 +28,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FileText, Upload } from "lucide-react";
+import { FileSpreadsheet, FileText, Upload } from "lucide-react";
+import { UploadArea } from "@/components/ui/upload-area";
 import { parseCsv } from "@/lib/csv/parseCsv";
 import {
   LEAD_IMPORT_FIELD_CHOICES,
@@ -86,7 +86,9 @@ const TXT = {
     open: "Import CSV",
     title: "Import leadów z CSV",
     desc: "Wgraj plik, zmapuj kolumny i zatwierdź. Duplikaty po e-mailu są scalane z istniejącymi leadami (merge), nie duplikowane.",
-    pick: "Kliknij, aby wybrać plik .csv (do 5000 wierszy)",
+    pickTitle: "Wgraj plik CSV z leadami",
+    pick: "Przeciągnij plik .csv tutaj albo wybierz go z dysku.\nDo 5000 wierszy w jednym pliku.",
+    pickCta: "Wybierz plik CSV",
     rows: (total: number, valid: number, dupes: number) =>
       `${total} wierszy, ${valid} z poprawnym e-mailem` +
       (dupes > 0 ? `, ${dupes} duplikatów w pliku` : ""),
@@ -105,7 +107,9 @@ const TXT = {
     open: "Import CSV",
     title: "Import leads from CSV",
     desc: "Upload a file, map the columns and confirm. E-mail duplicates are merged into existing leads, never duplicated.",
-    pick: "Click to choose a .csv file (up to 5000 rows)",
+    pickTitle: "Upload a CSV file with leads",
+    pick: "Drag a .csv file here, or pick one from your disk.\nUp to 5000 rows per file.",
+    pickCta: "Choose a CSV file",
     rows: (total: number, valid: number, dupes: number) =>
       `${total} rows, ${valid} with a valid e-mail` +
       (dupes > 0 ? `, ${dupes} in-file duplicates` : ""),
@@ -219,16 +223,15 @@ export function ImportLeadsCsvDialog({
         </DialogHeader>
 
         {!parsed ? (
-          <label className="flex flex-col items-center justify-center gap-3 border-2 border-dashed border-border rounded-xl p-10 cursor-pointer hover:border-primary/50 transition-colors">
-            <Upload className="w-8 h-8 text-muted-foreground" aria-hidden />
-            <span className="text-sm text-muted-foreground">{t.pick}</span>
-            <Input
-              type="file"
-              accept=".csv,text/csv"
-              className="hidden"
-              onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
-            />
-          </label>
+          <UploadArea
+            className="mx-auto"
+            title={t.pickTitle}
+            description={t.pick}
+            ctaLabel={t.pickCta}
+            icons={[FileSpreadsheet, Upload, FileText]}
+            accept=".csv,text/csv"
+            onFiles={(files) => onFile(files[0])}
+          />
         ) : (
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm">

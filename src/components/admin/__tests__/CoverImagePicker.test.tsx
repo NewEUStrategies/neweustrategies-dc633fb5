@@ -231,18 +231,80 @@ describe("CoverImagePicker - upload z dysku", () => {
 
   it("odmowa Storage zostawia komunikat, a wartość rodzica bez zmian", async () => {
     const { host, view } = mountPicker();
-    sb().storage.failUpload("mime type image/svg+xml is not supported");
+    sb().storage.failUpload("payload too large for this bucket");
+
+    // Plik MUSI przejść walidację wejściową (typ z allowlisty, rozmiar pod
+    // limitem) - inaczej test mierzyłby odmowę panelu, a nie odmowę Storage.
+    fireEvent.change(fileInput(view.container), {
+      target: { files: [new File(["dane"], "okladka.png", { type: "image/png" })] },
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText("payload too large for this bucket")).toBeInTheDocument(),
+    );
+    expect(host.changes).toHaveLength(0);
+    expect(screen.getByText("admin.posts.coverEmpty")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /admin.posts.coverUpload/ })).toBeEnabled();
+  });
+
+  // ────────────────────────────────────────────────────────────────────────
+  // WALIDACJA WEJŚCIOWA - STOI PRZED SIECIĄ
+  //
+  // `accept` na `<input type="file">` filtruje WYŁĄCZNIE okno systemowe:
+  // upuszczenie dowozi dowolny plik, a w oknie użytkownik może przełączyć
+  // filtr na „wszystkie pliki". Bez własnego sprawdzenia SVG (wektor z
+  // wykonywalnym skryptem), PDF albo wideo lądowało w publicznym buckecie
+  // jako „okładka wpisu" i zapisywało w dokumencie adres, którego nie da się
+  // wyrenderować jako obrazu.
+  it("plik SPOZA allowlisty nie dociera do Storage - SVG jest odrzucony z nazwą pliku", async () => {
+    const { host, view } = mountPicker();
 
     fireEvent.change(fileInput(view.container), {
       target: { files: [new File(["<svg/>"], "logo.svg", { type: "image/svg+xml" })] },
     });
 
-    await waitFor(() =>
-      expect(screen.getByText("mime type image/svg+xml is not supported")).toBeInTheDocument(),
-    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("uploadArea.badType");
+    expect(sb().storage.upload).not.toHaveBeenCalled();
     expect(host.changes).toHaveLength(0);
-    expect(screen.getByText("admin.posts.coverEmpty")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /admin.posts.coverUpload/ })).toBeEnabled();
+  });
+
+  it("plik ponad 10 MB nie dociera do Storage", async () => {
+    const { host, view } = mountPicker();
+    const wielki = new File(["x"], "panorama.jpg", { type: "image/jpeg" });
+    // `File` z happy-dom nie alokuje 10 MB - rozmiar podstawiamy wprost.
+    Object.defineProperty(wielki, "size", { value: 10 * 1024 * 1024 + 1 });
+
+    fireEvent.change(fileInput(view.container), { target: { files: [wielki] } });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("uploadArea.tooLarge");
+    expect(sb().storage.upload).not.toHaveBeenCalled();
+    expect(host.changes).toHaveLength(0);
+  });
+
+  it("UPUSZCZONY plik spoza allowlisty wraca komunikatem, a dozwolony jedzie do Storage", async () => {
+    const { view } = mountPicker();
+    const obszar = view.container.querySelector('[data-slot="upload-area"]');
+    expect(obszar, "panel okładki bez wspólnego obszaru wgrywania").toBeTruthy();
+
+    fireEvent.drop(obszar as Element, {
+      dataTransfer: {
+        types: ["Files"],
+        files: [new File(["%PDF"], "umowa.pdf", { type: "application/pdf" })],
+      },
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("uploadArea.badType");
+    expect(sb().storage.upload).not.toHaveBeenCalled();
+
+    fireEvent.drop(obszar as Element, {
+      dataTransfer: {
+        types: ["Files"],
+        files: [new File(["dane"], "okladka.webp", { type: "image/webp" })],
+      },
+    });
+
+    await waitFor(() => expect(sb().storage.upload).toHaveBeenCalledTimes(1));
+    expect(String(sb().storage.upload.mock.calls[0][0])).toMatch(/\.webp$/);
   });
 
   it("kliknięcie przycisku uploadu otwiera ukryte pole pliku", () => {

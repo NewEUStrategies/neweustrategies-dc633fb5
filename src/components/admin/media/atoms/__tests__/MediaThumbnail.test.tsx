@@ -4,9 +4,10 @@
 // wyłącznie obraz, który przeglądarka naprawdę wyświetli. Reszta - PDF, wideo,
 // audio, a także animowany GIF - dostaje ikonę typu. GIF jest tu świadomym
 // wyjątkiem: siatka stu animacji odtwarzanych naraz zabija panel.
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 import "@/lib/i18n-admin-media";
+import "@/lib/i18n-upload-area";
 import { MediaThumbnail } from "../MediaThumbnail";
 import { MediaEmptyState } from "../MediaEmptyState";
 import type { MediaRow } from "../../types";
@@ -114,12 +115,32 @@ describe("MediaThumbnail - nakładka", () => {
 describe("MediaEmptyState", () => {
   it("zachęca do przeciągnięcia plików zamiast pokazywać pustkę", () => {
     // Pusty obszar bez komunikatu wygląda jak błąd ładowania.
-    render(<MediaEmptyState />);
+    render(<MediaEmptyState onFiles={vi.fn()} />);
     expect(screen.getByText(/Przeciągnij|Drop/i)).toBeInTheDocument();
   });
 
   it("niesie ikonę wgrywania jako wskazówkę wizualną", () => {
-    const { container } = render(<MediaEmptyState />);
+    const { container } = render(<MediaEmptyState onFiles={vi.fn()} />);
     expect(container.querySelector("svg")).toBeTruthy();
+  });
+
+  it("PRZYJMUJE PLIK w miejscu, w którym stoi - a nie odsyła do paska narzędzi", () => {
+    // Pusty folder był wcześniej samym napisem „kliknij «Wgraj»", czyli
+    // instrukcją odsyłającą gdzie indziej. Teraz jest obszarem wgrywania:
+    // upuszczenie pliku na niego wgrywa do BIEŻĄCEGO folderu.
+    const onFiles = vi.fn();
+    const { container } = render(<MediaEmptyState onFiles={onFiles} />);
+    const area = container.querySelector('[data-slot="upload-area"]');
+    expect(area).not.toBeNull();
+
+    fireEvent.drop(area as Element, {
+      dataTransfer: {
+        types: ["Files"],
+        files: [new File(["x"], "raport.pdf", { type: "application/pdf" })],
+      },
+    });
+
+    expect(onFiles).toHaveBeenCalledTimes(1);
+    expect(onFiles.mock.calls[0][0][0].name).toBe("raport.pdf");
   });
 });

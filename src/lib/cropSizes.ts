@@ -120,15 +120,35 @@ export function buildTransformedImageUrl(
   }
 }
 
-/** True for Supabase Storage public/transform URLs (the ones we can scale). */
+/**
+ * True for Supabase Storage public/transform URLs (the ones we can scale).
+ *
+ * MARKER `/media/` LICZY SIĘ WYŁĄCZNIE NA NASZYM ORIGIN. To jest cała stawka
+ * tej funkcji, a nie drobiazg: `/media/<ścieżka>` jest adresem MARKOWYM, który
+ * umie obsłużyć tylko nasza trasa `/media/$` - przepisuje go na transformację
+ * w magazynie. Dowolny obcy serwis też może mieć katalog `/media/`, a wcześniej
+ * ta funkcja patrzyła na samą ścieżkę i odpowiadała „tak" również dla niego.
+ * Skutkiem był `srcSet` zbudowany z adresów `…/storage/v1/render/image/public/…`
+ * doklejonych do CUDZEGO hosta - kandydaci, których ten host nie obsłuży.
+ * Przeglądarka wybiera kandydata po szerokości, więc dostawała martwy obrazek
+ * przy nienaruszonym `src`, czyli regresję niewidoczną w teście renderującym.
+ *
+ * Markery `/storage/v1/...` zostają BEZ warunku na host - techniczny host
+ * magazynu bywa inny niż markowy (i różny per środowisko), a te ścieżki są
+ * jednoznacznie supabase'owe. Ten sam podział robi `mediaStoragePath`
+ * w `@/lib/media/publicUrl` i to on jest tu wzorcem, żeby dwa miejsca nie
+ * odpowiadały różnie na to samo pytanie.
+ */
 export function isSupabaseStorageUrl(src: string): boolean {
   if (!src) return false;
   try {
-    const { pathname } = src.startsWith("/") ? new URL(src, PUBLIC_MEDIA_ORIGIN) : new URL(src);
+    // Ścieżka względna należy z definicji do tego serwisu - rozwinięcie
+    // względem `PUBLIC_MEDIA_ORIGIN` daje jej nasz origin i przechodzi niżej.
+    const url = src.startsWith("/") ? new URL(src, PUBLIC_MEDIA_ORIGIN) : new URL(src);
     return (
-      pathname.startsWith("/media/") ||
-      pathname.includes("/storage/v1/object/public/") ||
-      pathname.includes("/storage/v1/render/image/public/")
+      (url.origin === PUBLIC_MEDIA_ORIGIN && url.pathname.startsWith("/media/")) ||
+      url.pathname.includes("/storage/v1/object/public/") ||
+      url.pathname.includes("/storage/v1/render/image/public/")
     );
   } catch {
     return false;

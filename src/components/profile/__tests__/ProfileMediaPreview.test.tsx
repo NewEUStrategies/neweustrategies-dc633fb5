@@ -28,8 +28,8 @@ function renderPreview(overrides: Partial<Props> = {}) {
     status: { avatar: "idle", cover: "idle" },
     onAvatarUrlChange: vi.fn(),
     onCoverUrlChange: vi.fn(),
-    onAvatarUploadClick: vi.fn(),
-    onCoverUploadClick: vi.fn(),
+    onAvatarFile: vi.fn(),
+    onCoverFile: vi.fn(),
     t,
     ...overrides,
   };
@@ -101,12 +101,25 @@ describe("ProfileMediaPreview - kontrolki", () => {
     expect(props.onCoverUrlChange).toHaveBeenCalledWith("https://c");
   });
 
-  it("przyciski wysyłki wołają swoje akcje", () => {
+  it("każdy obszar wgrywania oddaje plik swojemu callbackowi", () => {
+    // Pola nie wołają już „otwórz picker" w górę: wspólny obszar wgrywania ma
+    // własny input i oddaje GOTOWY plik, więc rodzic nie trzyma ukrytych pól.
     const { props } = renderPreview();
-    fireEvent.click(screen.getByRole("button", { name: /uploadAvatar/ }));
-    fireEvent.click(screen.getByRole("button", { name: /uploadCover/ }));
-    expect(props.onAvatarUploadClick).toHaveBeenCalledTimes(1);
-    expect(props.onCoverUploadClick).toHaveBeenCalledTimes(1);
+    const inputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
+    expect(inputs).toHaveLength(2);
+    const plik = (name: string) => new File(["x"], name, { type: "image/png" });
+    fireEvent.change(inputs[0], { target: { files: [plik("awatar.png")] } });
+    fireEvent.change(inputs[1], { target: { files: [plik("okladka.png")] } });
+    expect(props.onAvatarFile).toHaveBeenCalledTimes(1);
+    expect(props.onCoverFile).toHaveBeenCalledTimes(1);
+    // Nie wystarczy „wywolano": test pilnuje, ze KAZDY obszar oddaje SWOJ plik
+    // (zamiana callbackow miejscami przeszlaby sama liczba wywolan).
+    expect(props.onAvatarFile).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "awatar.png" }),
+    );
+    expect(props.onCoverFile).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "okladka.png" }),
+    );
   });
 
   it("trwająca wysyłka blokuje TYLKO swój przycisk", () => {

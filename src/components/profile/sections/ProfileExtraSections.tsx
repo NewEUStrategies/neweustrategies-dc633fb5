@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { UploadArea } from "@/components/ui/upload-area";
 import { Label } from "@/components/ui/label";
 
 /* ------------------------------------------------------------------ */
@@ -828,7 +829,10 @@ export function CvSection({
       icon={<FileText className="h-4 w-4" />}
       title={t("profile.sections.cv")}
       action={
-        editable ? (
+        // Przycisk w nagłówku zostaje WYŁĄCZNIE jako podmiana istniejącego CV.
+        // Przy pustej sekcji rolę wejścia przejmuje obszar wgrywania niżej -
+        // dwa pola pliku na jedną czynność to dwie różne afordancje obok siebie.
+        editable && current ? (
           <label className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-[6px] border border-border bg-card px-2 text-xs hover:bg-muted">
             <Upload className="h-3.5 w-3.5" />
             {uploading ? t("profile.actions.uploading") : t("profile.sections.cvUpload")}
@@ -878,6 +882,21 @@ export function CvSection({
             ) : null}
           </div>
         </div>
+      ) : editable ? (
+        // Pusta sekcja CV jest OBSZAREM WGRYWANIA w standardzie platformy, a nie
+        // samym zdaniem „brak CV": miejsce, w którym użytkownik szuka pliku, ma
+        // ten plik przyjąć - także upuszczony.
+        <UploadArea
+          size="sm"
+          title={t("profile.sections.cv")}
+          description={t("profile.sections.cvEmpty")}
+          ctaLabel={t("profile.sections.cvUpload")}
+          busyLabel={t("profile.actions.uploading")}
+          busy={uploading}
+          icons={[FileText, Upload]}
+          accept=".pdf,.doc,.docx"
+          onFiles={(files) => void onUpload(files[0])}
+        />
       ) : (
         <p className="text-sm italic text-muted-foreground">{t("profile.sections.cvEmpty")}</p>
       )}

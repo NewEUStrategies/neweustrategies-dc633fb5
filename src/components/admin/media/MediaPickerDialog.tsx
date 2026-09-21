@@ -42,13 +42,17 @@ import {
   Search,
   Check,
   X,
+  FileText,
   Folder,
+  Image,
   Upload,
   Loader2,
   Trash2,
   ChevronDown,
   FolderPlus,
 } from "@/lib/lucide-shim";
+import { UploadArea } from "@/components/ui/upload-area";
+import "@/lib/i18n-upload-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { toastError } from "@/lib/toastError";
@@ -719,10 +723,25 @@ export function MediaPickerDialog({
             </div>
           )}
           {!filtered.length ? (
-            <div className="text-center text-muted-foreground text-sm py-10">
-              {uploading
-                ? t("adminTeamMedia.mediaPicker.uploadingInProgress")
-                : t("adminTeamMedia.mediaPicker.noMatch")}
+            // Pusta biblioteka (albo pusty wynik filtra) jest OBSZAREM
+            // WGRYWANIA w standardzie platformy, a nie samym komunikatem:
+            // dokładnie tam użytkownik szuka miejsca na plik.
+            <div className="flex items-center justify-center py-6">
+              <UploadArea
+                title={t("uploadArea.media.title")}
+                description={
+                  q.trim() || folder !== "all"
+                    ? t("adminTeamMedia.mediaPicker.noMatch")
+                    : t("uploadArea.media.description")
+                }
+                ctaLabel={t("adminTeamMedia.mediaPicker.uploadFromDisk")}
+                busyLabel={t("adminTeamMedia.mediaPicker.uploadingInProgress")}
+                busy={uploading}
+                icons={[Image, Upload, FileText]}
+                accept={acceptAttr}
+                multiple
+                onFiles={(files) => void handleFiles(files)}
+              />
             </div>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
