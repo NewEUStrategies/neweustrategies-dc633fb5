@@ -1,22 +1,21 @@
-// Lekki podgląd osoby po slugu - dla dymka nad @wzmianką i nad pozycją listy
-// podpowiedzi. Czytamy z `profiles_public` (publiczna projekcja bez PII,
-// izolowana tenantem przez RLS widoku), a nie z pełnego huba eksperta: dymek
-// potrzebuje pięciu pól, a nie materiałów, faset i mediów.
+// Lekki podgląd celu @wzmianki - osoby albo firmy. Czytamy przez publiczny,
+// tenant-scoped RPC, który oddaje tylko pola do wizytówki (bez PII i notatek CRM).
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface MentionProfilePreview {
+  kind: "person" | "organization";
+  id: string;
   slug: string;
   name: string;
   avatarUrl: string | null;
+  logoUrl: string | null;
   jobTitle: string | null;
   company: string | null;
+  website: string | null;
   bio: string | null;
   verified: boolean;
 }
-
-const COLS =
-  "slug, display_name, first_name, last_name, avatar_url, job_title, current_company, specialization, bio_pl, bio_en, verified_at";
 
 function trimText(value: unknown, max: number): string | null {
   if (typeof value !== "string") return null;
@@ -32,26 +31,25 @@ export function useMentionProfile(slug: string | null, lang: "pl" | "en", enable
     retry: false,
     queryFn: async (): Promise<MentionProfilePreview | null> => {
       if (slug === null) return null;
-      const { data, error } = await supabase
-        .from("profiles_public")
-        .select(COLS)
-        .eq("slug", slug)
-        .maybeSingle();
+      const { data, error } = await supabase.rpc("get_mention_target", { _slug: slug });
       if (error) throw error;
-      if (data === null) return null;
-      const row = data as Record<string, unknown>;
-      const name =
-        trimText(row.display_name, 120) ??
-        trimText([row.first_name, row.last_name].filter(Boolean).join(" "), 120) ??
-        slug;
+      const row = data?.[0];
+      if (row === undefined) return null;
+      const kind = row.kind === "organization" ? "organization" : "person";
+      const name = trimText(row.label, 120) ?? slug;
+      const subtitle = trimText(row.subtitle, 120);
       return {
+        kind,
+        id: row.id,
         slug,
         name,
         avatarUrl: trimText(row.avatar_url, 2048),
-        jobTitle: trimText(row.job_title, 120) ?? trimText(row.specialization, 120),
-        company: trimText(row.current_company, 120),
-        bio: trimText(lang === "en" ? row.bio_en : row.bio_pl, 240),
-        verified: typeof row.verified_at === "string" && row.verified_at.length > 0,
+        logoUrl: trimText(row.logo_url, 2048),
+        jobTitle: kind === "person" ? subtitle : null,
+        company: kind === "person" ? null : subtitle,
+        website: trimText(row.website, 2048),
+        bio: null,
+        verified: row.verified === true,
       };
     },
   });

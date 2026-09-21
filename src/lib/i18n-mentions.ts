@@ -7,21 +7,25 @@ import i18n from "./i18n";
 const pl = {
   mentions: {
     // Etykieta listy podpowiedzi (aria) + stan pusty/ładowania.
-    listLabel: "Podpowiedzi osób do wspomnienia",
-    hint: "Wpisz @, aby wspomnieć osobę",
-    loading: "Szukam osób...",
-    empty: "Brak pasujących osób",
-    // Tekst czytany przez czytniki ekranu przy wyborze osoby.
+    listLabel: "Podpowiedzi osób i firm do wspomnienia",
+    hint: "Wpisz @, aby wspomnieć osobę albo firmę",
+    loading: "Szukam osób i firm...",
+    empty: "Brak pasujących osób lub firm",
+    person: "Osoba",
+    organization: "Firma",
+    // Tekst czytany przez czytniki ekranu przy wyborze celu.
     inserted: "Wspomniano: {{name}}",
   },
 };
 
 const en: typeof pl = {
   mentions: {
-    listLabel: "People suggestions to mention",
-    hint: "Type @ to mention someone",
-    loading: "Searching people...",
-    empty: "No matching people",
+    listLabel: "People and company suggestions to mention",
+    hint: "Type @ to mention a person or company",
+    loading: "Searching people and companies...",
+    empty: "No matching people or companies",
+    person: "Person",
+    organization: "Company",
     inserted: "Mentioned: {{name}}",
   },
 };

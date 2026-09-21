@@ -10,6 +10,7 @@
 import { Fragment } from "react";
 import { Link } from "@tanstack/react-router";
 import { splitMentions } from "@/lib/mentions/parse";
+import { decodeOrganizationMentionSlug } from "@/lib/mentions/mentionTargets";
 
 interface MentionTextProps {
   body: string | null | undefined;
@@ -26,6 +27,14 @@ export function MentionText({ body, mentionClassName }: MentionTextProps) {
       {segments.map((seg, i) =>
         seg.kind === "text" ? (
           <Fragment key={i}>{seg.text}</Fragment>
+        ) : decodeOrganizationMentionSlug(seg.slug) !== null ? (
+          <span
+            key={i}
+            className={mentionClassName ?? DEFAULT_MENTION_CLASS}
+            data-mention={seg.slug}
+          >
+            {seg.raw}
+          </span>
         ) : (
           <Link
             key={i}

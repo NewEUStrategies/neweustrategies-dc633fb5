@@ -1551,7 +1551,7 @@ describe("odpowiedzi - lista, porządek i ucięcie strony", () => {
     expect(screen.queryByText(/repliesTruncated/)).toBeNull();
   });
 
-  it("drzewo odpowiedzi zagnieżdża dziecko POD rodzicem, a nie obok", async () => {
+  it("drzewo odpowiedzi zagnieżdża dziecko POD rodzicem po rozwinięciu", async () => {
     h.replies = page([
       replyRow({ id: "root", body: "Wpis nadrzędny." }),
       replyRow({ id: "child", parent_id: "root", depth: 1, body: "Wpis podrzędny." }),
@@ -1559,7 +1559,12 @@ describe("odpowiedzi - lista, porządek i ucięcie strony", () => {
     await mount();
     const bodies = screen.getAllByTestId("prose").map((node) => node.getAttribute("data-body"));
     expect(bodies).toContain("Wpis nadrzędny.");
-    expect(bodies).toContain("Wpis podrzędny.");
+    expect(bodies).not.toContain("Wpis podrzędny.");
+    fireEvent.click(screen.getByRole("button", { name: "club.showNestedReplies(count=1)" }));
+    const expandedBodies = screen
+      .getAllByTestId("prose")
+      .map((node) => node.getAttribute("data-body"));
+    expect(expandedBodies).toContain("Wpis podrzędny.");
     const nested = document.querySelectorAll("li li");
     expect(nested.length).toBe(1);
   });
@@ -1657,6 +1662,10 @@ describe("odpowiedzi - wpis pojedynczy", () => {
       replyRow({ id: "leaf", parent_id: "mid", depth: 2 }),
     ]);
     await mount();
+    expect(screen.getAllByText("club.reply").length).toBe(1);
+    fireEvent.click(screen.getByRole("button", { name: "club.showNestedReplies(count=1)" }));
+    expect(screen.getAllByText("club.reply").length).toBe(2);
+    fireEvent.click(screen.getByRole("button", { name: "club.showNestedReplies(count=1)" }));
     expect(screen.getAllByText("club.reply").length).toBe(2);
   });
 

@@ -40,6 +40,16 @@ describe("MentionText", () => {
     expect(links.map((l) => l.getAttribute("data-mention"))).toEqual(["jan", "anna-k"]);
   });
 
+  it("renders stable organization mentions as text, not author links", () => {
+    const { container } = render(
+      <MentionText body="cc @org-123e4567-e89b-12d3-a456-426614174000" />,
+    );
+    expect(container.querySelector("a[data-mention]")).toBeNull();
+    expect(container.querySelector("span[data-mention]")?.getAttribute("data-mention")).toBe(
+      "org-123e4567-e89b-12d3-a456-426614174000",
+    );
+  });
+
   it("does not inject markup from hostile input (text stays escaped)", () => {
     const { container } = render(<MentionText body={"<img src=x onerror=alert(1)> @bob"} />);
     // Brak realnego <img> - wrogi tekst pozostał tekstem; tylko wzmianka to link.

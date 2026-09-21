@@ -65,6 +65,7 @@ import type { ReactNode } from "react";
 import type { Json } from "@/integrations/supabase/types";
 import type { ClubSourceMark } from "@/lib/clubs/threadSources";
 import type { RouterLinkStubProps } from "@/test/routerLinkStub";
+import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 
 const h = vi.hoisted(() => ({
   /** Pliki oddane do podglądu w platformie - dowód, CO karta wysłała dalej. */
@@ -108,6 +109,10 @@ vi.mock("@/components/files/useDocumentViewer", () => ({
     },
     viewer: <span data-testid="club-post-viewer" />,
   }),
+}));
+
+vi.mock("@/lib/mentions/useMentionProfile", () => ({
+  useMentionProfile: () => ({ data: null, isPending: false }),
 }));
 
 import { ClubPostCard } from "@/components/clubs/organisms/ClubPostCard";
@@ -296,22 +301,23 @@ describe("ClubPostCard - podpięcie pod wątek i wejście w dyskusję", () => {
 });
 
 describe("ClubPostCard - treść", () => {
-  it("adresy w treści stają się linkami bez protokołu w napisie, reszta zostaje tekstem", () => {
-    render(
+  it("adresy, wzmianki i tagi w treści idą przez wspólny renderer klubowy", () => {
+    renderWithQueryClient(
       <ClubPostCard
         post={clubPostRow({
-          body: "Raport jest tu https://komisja.example/raport.pdf - warto przeczytać.",
+          body: "Raport od @anna-nowak jest tu https://komisja.example/raport.pdf w #energia.",
         })}
         clubSlug={CLUB_SLUG}
         mediaUrls={{}}
       />,
     );
 
-    const link = screen.getByRole("link", { name: "komisja.example/raport.pdf" });
+    const link = screen.getByRole("link", { name: "https://komisja.example/raport.pdf" });
     expect(link.getAttribute("href")).toBe("https://komisja.example/raport.pdf");
     expect(link.getAttribute("target")).toBe("_blank");
-    expect(link.getAttribute("rel")).toBe("noopener noreferrer nofollow");
-    expect(screen.getByText(/warto przeczytać/)).toBeTruthy();
+    expect(link.getAttribute("rel")).toContain("ugc");
+    expect(document.querySelector("[data-mention='anna-nowak']")).toBeTruthy();
+    expect(document.querySelector("[data-club-tag='energia']")).toBeTruthy();
   });
 
   it("wpis z samych spacji (sam załącznik) nie rysuje akapitu treści", () => {

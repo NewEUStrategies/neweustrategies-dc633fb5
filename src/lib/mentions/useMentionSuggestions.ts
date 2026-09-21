@@ -1,26 +1,24 @@
-// Podpowiedzi osób do @wzmianki. Źródłem jest publiczny, tenant-owy RPC
-// search_people_orgs (SECURITY DEFINER + current_tenant_id()/public_tenant_id())
-// - ten sam, którym wyszukiwarka osób zasila stronę /people. Dzięki temu:
+// Podpowiedzi osób i firm do @wzmianki. Źródłem jest publiczny, tenant-owy RPC
+// search_mention_targets (SECURITY DEFINER + current_tenant_id()/public_tenant_id()). Dzięki temu:
 //   * IZOLACJA TENANTA jest wymuszona w bazie (podpowiedzi nigdy nie zawierają
-//     osób z obszaru roboczego innej firmy), bez filtra tenant_id w kliencie;
-//   * PRYWATNOŚĆ: RPC zwraca wyłącznie profile discoverable + redakcyjne
-//     (autorzy/eksperci), więc anonimowy komentujący nie może wyliczyć całej
-//     bazy członków. Ręczne wpisanie znanego sluga i tak notyfikuje dowolny
-//     profil tenanta (trigger process_mentions) - autocomplete tylko UŁATWIA
-//     wybór osób publicznych.
-//
-// Filtrujemy do osób (kind === "person"); slug jest wymagany (RPC zwraca tylko
-// profile ze slugiem, ale zawężamy defensywnie). Zapytanie jest debounce'owane
-// u wołającego; przy braku funkcji w bazie degradujemy do pustej listy.
+//     osób ani firm z innego obszaru roboczego), bez filtra tenant_id w kliencie;
+//   * PRYWATNOŚĆ: RPC zwraca wyłącznie publiczne profile osób i bezpieczny
+//     wycinek firm CRM (nazwa, logo, strona, branża), bez PII i notatek.
+// Zapytanie jest debounce'owane u wołającego; przy braku funkcji w bazie
+// degradujemy do pustej listy.
 import { useContext } from "react";
 import { QueryClient, QueryClientContext, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface MentionSuggestion {
+  kind: "person" | "organization";
   slug: string;
   name: string;
   avatarUrl: string | null;
+  logoUrl: string | null;
+  website: string | null;
   subtitle: string | null;
+  verified: boolean;
 }
 
 /** Ile podpowiedzi pokazujemy naraz (lista pozostaje zwięzła i nawigowalna). */
@@ -43,19 +41,28 @@ export function useMentionSuggestions(query: string | null, lang: "pl" | "en") {
       staleTime: 60_000,
       queryFn: async (): Promise<MentionSuggestion[]> => {
         try {
-          const { data, error } = await supabase.rpc("search_people_orgs", {
+          const { data, error } = await supabase.rpc("search_mention_targets", {
             _q: q.length > 0 ? q : undefined,
             _limit: MENTION_SUGGESTION_LIMIT,
           });
           if (error) throw error;
           return (data ?? [])
-            .filter((r) => r.kind === "person" && Boolean(r.slug))
+            .filter(
+              (r) =>
+                (r.kind === "person" || r.kind === "organization") &&
+                typeof r.slug === "string" &&
+                r.slug.length > 0,
+            )
             .slice(0, MENTION_SUGGESTION_LIMIT)
             .map((r) => ({
+              kind: r.kind === "organization" ? "organization" : "person",
               slug: r.slug,
-              name: (lang === "en" ? r.label_en : r.label_pl) || r.label_pl || r.label_en || r.slug,
+              name: r.label || r.slug,
               avatarUrl: r.avatar_url || null,
-              subtitle: (lang === "en" ? r.sublabel_en : r.sublabel_pl) || null,
+              logoUrl: r.logo_url || null,
+              website: r.website || null,
+              subtitle: r.subtitle || null,
+              verified: r.verified === true,
             }));
         } catch {
           // Odporność przed wdrożeniem migracji / przy błędzie sieci: brak podpowiedzi.

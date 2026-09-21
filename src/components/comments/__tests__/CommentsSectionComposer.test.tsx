@@ -95,8 +95,26 @@ const t = realT("pl");
 
 /** Zmyślone osoby do podpowiedzi - żadnych prawdziwych danych. */
 const PEOPLE: MentionSuggestion[] = [
-  { slug: "jan-testowy", name: "Jan Testowy", avatarUrl: null, subtitle: "Analityk" },
-  { slug: "ola-przykladowa", name: "Ola Przykładowa", avatarUrl: null, subtitle: null },
+  {
+    kind: "person",
+    slug: "jan-testowy",
+    name: "Jan Testowy",
+    avatarUrl: null,
+    logoUrl: null,
+    website: null,
+    subtitle: "Analityk",
+    verified: false,
+  },
+  {
+    kind: "person",
+    slug: "ola-przykladowa",
+    name: "Ola Przykładowa",
+    avatarUrl: null,
+    logoUrl: null,
+    website: null,
+    subtitle: null,
+    verified: false,
+  },
 ];
 
 function section() {
