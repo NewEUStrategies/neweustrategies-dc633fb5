@@ -113,6 +113,7 @@ import { Route as PodcastsShowRouteImport } from './routes/podcasts.$show'
 import { Route as PodcastRssDotxmlRouteImport } from './routes/podcast.rss[.]xml'
 import { Route as PodcastSlugRouteImport } from './routes/podcast.$slug'
 import { Route as PlansPlanIdRouteImport } from './routes/plans.$planId'
+import { Route as OrganizationSlugRouteImport } from './routes/organization.$slug'
 import { Route as NewsletterUnsubscribeRouteImport } from './routes/newsletter.unsubscribe'
 import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
 import { Route as MeetingsEventSlugRouteImport } from './routes/meetings.$eventSlug'
@@ -926,6 +927,11 @@ const PodcastSlugRoute = PodcastSlugRouteImport.update({
 const PlansPlanIdRoute = PlansPlanIdRouteImport.update({
   id: '/plans/$planId',
   path: '/plans/$planId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrganizationSlugRoute = OrganizationSlugRouteImport.update({
+  id: '/organization/$slug',
+  path: '/organization/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NewsletterUnsubscribeRoute = NewsletterUnsubscribeRouteImport.update({
@@ -2608,6 +2614,7 @@ export interface FileRoutesByFullPath {
   '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
+  '/organization/$slug': typeof OrganizationSlugRoute
   '/plans/$planId': typeof PlansPlanIdRoute
   '/podcast/$slug': typeof PodcastSlugRoute
   '/podcast/rss.xml': typeof PodcastRssDotxmlRoute
@@ -2987,6 +2994,7 @@ export interface FileRoutesByTo {
   '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
+  '/organization/$slug': typeof OrganizationSlugRoute
   '/plans/$planId': typeof PlansPlanIdRoute
   '/podcast/$slug': typeof PodcastSlugRoute
   '/podcast/rss.xml': typeof PodcastRssDotxmlRoute
@@ -3381,6 +3389,7 @@ export interface FileRoutesById {
   '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
+  '/organization/$slug': typeof OrganizationSlugRoute
   '/plans/$planId': typeof PlansPlanIdRoute
   '/podcast/$slug': typeof PodcastSlugRoute
   '/podcast/rss.xml': typeof PodcastRssDotxmlRoute
@@ -3778,6 +3787,7 @@ export interface FileRouteTypes {
     | '/meetings/$eventSlug'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
+    | '/organization/$slug'
     | '/plans/$planId'
     | '/podcast/$slug'
     | '/podcast/rss.xml'
@@ -4157,6 +4167,7 @@ export interface FileRouteTypes {
     | '/meetings/$eventSlug'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
+    | '/organization/$slug'
     | '/plans/$planId'
     | '/podcast/$slug'
     | '/podcast/rss.xml'
@@ -4550,6 +4561,7 @@ export interface FileRouteTypes {
     | '/meetings/$eventSlug'
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
+    | '/organization/$slug'
     | '/plans/$planId'
     | '/podcast/$slug'
     | '/podcast/rss.xml'
@@ -4868,6 +4880,7 @@ export interface RootRouteChildren {
   MeetingsEventSlugRoute: typeof MeetingsEventSlugRoute
   NewsletterConfirmRoute: typeof NewsletterConfirmRoute
   NewsletterUnsubscribeRoute: typeof NewsletterUnsubscribeRoute
+  OrganizationSlugRoute: typeof OrganizationSlugRoute
   PlansPlanIdRoute: typeof PlansPlanIdRoute
   PodcastSlugRoute: typeof PodcastSlugRoute
   PodcastRssDotxmlRoute: typeof PodcastRssDotxmlRoute
@@ -5651,6 +5664,13 @@ declare module '@tanstack/react-router' {
       path: '/plans/$planId'
       fullPath: '/plans/$planId'
       preLoaderRoute: typeof PlansPlanIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/organization/$slug': {
+      id: '/organization/$slug'
+      path: '/organization/$slug'
+      fullPath: '/organization/$slug'
+      preLoaderRoute: typeof OrganizationSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/newsletter/unsubscribe': {
@@ -8590,6 +8610,7 @@ const rootRouteChildren: RootRouteChildren = {
   MeetingsEventSlugRoute: MeetingsEventSlugRoute,
   NewsletterConfirmRoute: NewsletterConfirmRoute,
   NewsletterUnsubscribeRoute: NewsletterUnsubscribeRoute,
+  OrganizationSlugRoute: OrganizationSlugRoute,
   PlansPlanIdRoute: PlansPlanIdRoute,
   PodcastSlugRoute: PodcastSlugRoute,
   PodcastRssDotxmlRoute: PodcastRssDotxmlRoute,

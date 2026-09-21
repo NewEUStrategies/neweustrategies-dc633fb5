@@ -15,6 +15,11 @@ const pl = {
     organization: "Firma",
     // Tekst czytany przez czytniki ekranu przy wyborze celu.
     inserted: "Wspomniano: {{name}}",
+    // Wizytówka pod wzmianką w treści (dymek po najechaniu).
+    noProfile: "Nie znaleziono takiego profilu.",
+    viewProfile: "Zobacz profil",
+    verified: "Profil zweryfikowany",
+    viewOrg: "Zobacz organizację",
   },
 };
 
@@ -27,6 +32,10 @@ const en: typeof pl = {
     person: "Person",
     organization: "Company",
     inserted: "Mentioned: {{name}}",
+    noProfile: "No such profile found.",
+    viewProfile: "View profile",
+    verified: "Verified profile",
+    viewOrg: "View organisation",
   },
 };
 

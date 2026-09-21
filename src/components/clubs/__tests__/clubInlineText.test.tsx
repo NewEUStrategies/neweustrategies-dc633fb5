@@ -6,14 +6,17 @@
 //     Zgubienie `noopener` daje otwartej stronie dostęp do `window.opener`
 //     (tabnabbing), a zgubienie `nofollow ugc` zamienia klub w farmę linków.
 //     Recenzja kodu tego nie łapie, bo brak atrybutu wygląda identycznie.
-// (2) LENIWOŚĆ PODGLĄDU. Wątek z kilkoma linkami NIE MOŻE odpalić kilku wyjść
-//     na świat przy renderze - dlatego test asertuje, że hook podglądu dostaje
-//     `enabled: false` do momentu otwarcia dymka, i `true` dopiero po otwarciu.
-//     To jedyna warstwa, w której ta obietnica z nagłówka pliku jest widoczna.
-// (3) TREŚĆ ZOSTAJE TEKSTEM. Render odtwarza wejście znak w znak - z JEDNYM
-//     świadomym wyjątkiem: kratę tagu zastępuje ikona, więc `#energia`
-//     renderuje się jako chip „energia". Etykieta tagu i wzmianki pokazuje
-//     pisownię autora, choć klucz filtra i cel linku są znormalizowane.
+// (2) LENIWOŚĆ PODGLĄDU. Wątek z kilkoma linkami i wzmiankami NIE MOŻE odpalić
+//     kilku wyjść na świat przy renderze. Obie ścieżki trzymają tę obietnicę
+//     inaczej i test zapisuje to, co jest naprawdę: hook podglądu LINKU dostaje
+//     `enabled: false` aż do otwarcia dymka, a hook profilu WZMIANKI nie jest
+//     przed otwarciem wołany w ogóle, bo siedzi w treści dymka (Radix montuje
+//     ją dopiero po otwarciu). To jedyna warstwa, w której to widać.
+// (3) TREŚĆ ZOSTAJE TEKSTEM. Render odtwarza wejście znak w znak - z DWOMA
+//     świadomymi wyjątkami: kratę tagu zastępuje ikona (`#energia` -> chip
+//     „energia"), a wzmianka schodzi z nicku na CZŁOWIEKA („@anna-nowak" ->
+//     awatar + „Anna Nowak"). Etykieta tagu pokazuje pisownię autora, choć
+//     klucz filtra i cel linku są znormalizowane.
 // (4) DEGRADACJA BEZ KONTEKSTU KLUBU. `clubSlug === null` zamienia tag w
 //     etykietę (nie ma dokąd prowadzić); każda inna wartość - także pusty
 //     napis - zostaje linkiem filtra. Strażnik jest ścisły, nie „falsy".
@@ -23,6 +26,17 @@
 // (6) TON I ROZMIAR `ClubInlineTitle` to nośniki znaczenia (rodzaj elementu),
 //     więc każda wartość obu unii dostaje własny, ROZŁĄCZNY zestaw klas -
 //     `Record<Tone, string>` pilnuje tylko tego, żeby COŚ tam było.
+// (7) NICKU NIE MA NIGDZIE. Wzmianka bez katalogu pokazuje uczytelniony slug
+//     („Anna Nowak"), wzmianka z katalogu - nazwę z profilu; w żadnym stanie
+//     w drzewie nie pojawia się małpa. To jest KONTRAKT, nie kosmetyka:
+//     dostępną nazwą linku jest nazwisko, bo awatar obok jest `aria-hidden`.
+// (8) AWATAR SCHODZI INACZEJ W BIEGU TEKSTU NIŻ W DYMKU. Bez zdjęcia w linii
+//     tekstu wchodzi IKONA (inicjały tuż obok pełnego nazwiska czytałyby się
+//     jak literówka), a w dymku - INICJAŁY. Test pilnuje obu wariantów naraz,
+//     bo pojedynczy łatwo „naprawić" przez ujednolicenie i zepsuć drugi.
+// (9) FIRMA JEST OPCJONALNA I NIE ZOSTAWIA ŚLADU. Brak firmy to brak elementu,
+//     nie pusty `<span>` i nie separator-sierota; brak stanowiska ORAZ firmy
+//     to brak całej linii tożsamości, nie awaryjny uchwyt `@slug`.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE.
 // (a) REGUŁ PARSERA. `splitInline` (granice wzmianki, obcinanie interpunkcji
@@ -46,17 +60,26 @@
 //     W samym `LinkSegment` NIE MA gałęzi „link wewnętrzny": każdy adres
 //     z treści jest zewnętrzny, co test utrwala jawnie.
 // (f) ISTNIENIA KLUCZY w słownikach - to `clubI18nKeys.gate.test.ts`.
+// (g) KATALOGU WZMIANEK. `slugToDisplayName`, `buildDirectory` (pierwszeństwo
+//     osoby) i `identityLine` mają własną suitę
+//     `src/lib/mentions/__tests__/directory.test.ts`, a rozwiązywanie slugów
+//     jednym zapytaniem - warstwę `useMentionDirectory`. Tutaj `useMentionEntity`
+//     jest atrapą: sprawdzamy, CO atom robi z rozwiązanym bytem, a nie skąd go
+//     bierze.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import type { ClubLinkPreview } from "@/lib/clubs/useClubLinkPreview";
 import type { MentionProfilePreview } from "@/lib/mentions/useMentionProfile";
+import type { MentionEntity, MentionOrg, MentionPerson } from "@/lib/mentions/directory";
 
-/** Stan atrap: język UI oraz to, co „zwracają" hooki danych. */
+/** Stan atrap: język UI, to, co „zwracają" hooki danych, oraz KATALOG. */
 const state = vi.hoisted(() => ({
   lang: "pl",
   linkPreview: { data: null as ClubLinkPreview | null, isPending: false },
   mention: { data: null as MentionProfilePreview | null, isPending: false },
+  /** Byt, który katalog powierzchni rozwiązał dla sluga; `null` = nie zna go. */
+  entity: null as MentionEntity | null,
   linkCalls: [] as Array<{ url: string | null; enabled: boolean }>,
   mentionCalls: [] as Array<{ slug: string | null; lang: string; enabled: boolean }>,
 }));
@@ -80,6 +103,13 @@ vi.mock("@/lib/mentions/useMentionProfile", () => ({
     state.mentionCalls.push({ slug, lang, enabled });
     return state.mention;
   },
+}));
+// Katalog powierzchni podstawiamy w całości: atom czyta z niego przy renderze,
+// a my chcemy sterować JEDNYM wymiarem - czy slug jest rozwiązany i na co.
+// Prawdziwy dostawca robi zapytanie do Supabase, więc w teście atomu byłby
+// tylko drugą atrapą, za to o dwa poziomy dalej od asercji.
+vi.mock("@/components/mentions/MentionDirectory", () => ({
+  useMentionEntity: () => state.entity,
 }));
 
 import { ClubInlineText, MentionSegment } from "@/components/clubs/atoms/ClubInlineText";
@@ -105,7 +135,7 @@ function preview(overrides: Partial<ClubLinkPreview> = {}): ClubLinkPreview {
 function person(overrides: Partial<MentionProfilePreview> = {}): MentionProfilePreview {
   return {
     kind: "person",
-    id: "user-anna",
+    id: "person-1",
     slug: "anna-nowak",
     name: "Anna Nowak",
     avatarUrl: null,
@@ -115,6 +145,35 @@ function person(overrides: Partial<MentionProfilePreview> = {}): MentionProfileP
     website: null,
     bio: null,
     verified: false,
+    ...overrides,
+  };
+}
+
+/** Osoba ROZWIĄZANA PRZEZ KATALOG - to, co widz dostaje już przy renderze. */
+function personEntity(overrides: Partial<MentionPerson> = {}): MentionPerson {
+  return {
+    kind: "person",
+    slug: "anna-nowak",
+    name: "Anna Nowak",
+    avatarUrl: null,
+    jobTitle: null,
+    company: null,
+    bio: null,
+    verified: false,
+    ...overrides,
+  };
+}
+
+/** Organizacja rozwiązana przez katalog (term taksonomii, nie profil). */
+function orgEntity(overrides: Partial<MentionOrg> = {}): MentionOrg {
+  return {
+    kind: "org",
+    slug: "org-00000000-0000-4000-8000-000000000001",
+    id: "00000000-0000-4000-8000-000000000001",
+    name: "ACME Polska",
+    logoUrl: null,
+    description: null,
+    website: null,
     ...overrides,
   };
 }
@@ -129,9 +188,17 @@ async function openCard(trigger: HTMLElement, testId: string): Promise<HTMLEleme
   return await waitFor(() => screen.getByTestId(testId));
 }
 
-function linkNamed(name: string): HTMLElement {
+/**
+ * Wzorzec, a nie dokładny napis, bo nazwa dostępna linku wzmianki bywa dłuższa
+ * o firmę („Anna Nowak · ACME"). Awatar jest `aria-hidden`, więc do nazwy
+ * dostępnej nie wchodzi - i o to właśnie chodzi.
+ */
+function linkNamed(name: string | RegExp): HTMLElement {
   return screen.getByRole("link", { name });
 }
+
+/** Wyzwalacz wzmianki - po nazwisku, bo nicku w drzewie już nie ma. */
+const ANNA = /Anna Nowak/;
 
 /** Liczba szkieletów w dymku - odróżnia „ładuje się" od „nie ma danych". */
 function skeletons(card: HTMLElement): number {
@@ -142,6 +209,7 @@ beforeEach(() => {
   state.lang = "pl";
   state.linkPreview = { data: null, isPending: false };
   state.mention = { data: null, isPending: false };
+  state.entity = null;
   state.linkCalls = [];
   state.mentionCalls = [];
 });
@@ -314,36 +382,98 @@ describe("ClubInlineText - trzy stany dymka linku", () => {
 // ---------------------------------------------------------------------------
 // Wzmianka (komponent eksportowany - testowany bezpośrednio)
 // ---------------------------------------------------------------------------
+describe("MentionSegment - wyzwalacz bez katalogu", () => {
+  /** Awatar z biegu tekstu - jeden na wzmiankę, zawsze pod tym atrybutem. */
+  function avatar(): HTMLElement {
+    const found = document.querySelector<HTMLElement>("[data-mention-avatar]");
+    if (found === null) throw new Error("test: brak awatara wzmianki w drzewie");
+    return found;
+  }
 
-describe("MentionSegment - wyzwalacz", () => {
   it("prowadzi do profilu autora i niesie slug w atrybucie danych", () => {
-    render(<MentionSegment slug="anna-nowak" raw="@anna-nowak" />);
-    const link = linkNamed("@anna-nowak");
+    render(<MentionSegment slug="anna-nowak" />);
+    const link = linkNamed(ANNA);
 
     expect(link).toHaveAttribute("href", "/author/anna-nowak");
     expect(link).toHaveAttribute("data-mention", "anna-nowak");
   });
 
+  it("etykietą jest UCZYTELNIONY SLUG, a małpy nie ma nigdzie w drzewie", () => {
+    // Regresja, którą to łapie: powrót do renderowania `@slug`. Nick nie niesie
+    // informacji - czytelnik widzi „@a-nowak" i nie wie, kto to jest - więc
+    // nawet stan zastępczy (katalog nie zna sluga) pokazuje człowieka.
+    const { container } = render(<MentionSegment slug="anna-nowak" />);
+
+    expect(linkNamed(ANNA).textContent).toBe("Anna Nowak");
+    expect(container.textContent).not.toContain("@");
+  });
+
+  it("wieloczłonowy slug rozkłada się na słowa wersalikiem na początku", () => {
+    render(<MentionSegment slug="jan_kowalski-nowak" />);
+
+    expect(linkNamed("Jan Kowalski Nowak")).toHaveAttribute("href", "/author/jan_kowalski-nowak");
+  });
+
+  it("bez zdjęcia w BIEGU TEKSTU wchodzi ikona, nie inicjały", () => {
+    // Inicjały stoją tu tuż obok pełnego nazwiska, więc czytnik zrzucający
+    // tekst strony przeczytałby „AN Anna Nowak" - to wygląda jak literówka.
+    render(<MentionSegment slug="anna-nowak" />);
+    const mark = avatar();
+
+    expect(mark.tagName).toBe("SPAN");
+    expect(mark.querySelector("svg")).not.toBeNull();
+    expect(mark.textContent).toBe("");
+    expect(mark).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("zdjęcie z katalogu wchodzi jako leniwy obrazek bez nazwy dostępnej", () => {
+    state.entity = personEntity({ avatarUrl: "https://cdn.example.com/a.jpg" });
+    render(<MentionSegment slug="anna-nowak" />);
+    const mark = avatar();
+
+    expect(mark.tagName).toBe("IMG");
+    expect(mark).toHaveAttribute("src", "https://cdn.example.com/a.jpg");
+    // Nazwę niesie tekst obok, więc obrazek jest dekoracją - inaczej czytnik
+    // przeczytałby nazwisko dwa razy.
+    expect(mark).toHaveAttribute("aria-hidden", "true");
+    expect(mark).toHaveAttribute("loading", "lazy");
+    expect(linkNamed(ANNA).textContent).toBe("Anna Nowak");
+  });
+
   it("bez `className` ma tylko klasy własne", () => {
-    render(<MentionSegment slug="anna-nowak" raw="@anna-nowak" />);
-    const link = linkNamed("@anna-nowak");
+    render(<MentionSegment slug="anna-nowak" />);
+    const link = linkNamed(ANNA);
 
     expect(link.classList.contains("text-primary")).toBe(true);
     expect(link.className).not.toContain("undefined");
   });
 
   it("z `className` DOKŁADA klasę wywołującego, nie podmienia własnych", () => {
-    render(<MentionSegment slug="anna-nowak" raw="@anna-nowak" className="text-xs" />);
-    const link = linkNamed("@anna-nowak");
+    render(<MentionSegment slug="anna-nowak" className="text-xs" />);
+    const link = linkNamed(ANNA);
 
     expect(link.classList.contains("text-xs")).toBe(true);
     expect(link.classList.contains("font-medium")).toBe(true);
   });
 
-  it("NIE pyta o profil przed otwarciem dymka", () => {
-    render(<MentionSegment slug="anna-nowak" raw="@anna-nowak" />);
+  it("NIE pyta o profil przed otwarciem dymka - trzy wzmianki to zero zapytań", () => {
+    // Obietnica z nagłówka pliku jest dziś SPEŁNIONA MOCNIEJ niż kiedyś: hook
+    // profilu siedzi w treści dymka, a Radix montuje ją dopiero po otwarciu,
+    // więc przed otwarciem nie ma nawet wywołania z `enabled: false`. Asercja
+    // na PUSTEJ liście łapie obie regresje naraz - i wywołanie z `enabled`
+    // na sztywno `true`, i wyciągnięcie hooka z powrotem na poziom atomu.
+    render(<ClubInlineText body="cc @anna-nowak @jan-kowalski @ewa-lis" />);
 
-    expect(state.mentionCalls).toEqual([{ slug: "anna-nowak", lang: "pl", enabled: false }]);
+    expect(state.mentionCalls).toEqual([]);
+  });
+
+  it("pyta o profil DOPIERO po otwarciu i tylko o swój slug", async () => {
+    render(<MentionSegment slug="anna-nowak" />);
+    await openCard(linkNamed(ANNA), "club-mention-preview");
+
+    expect(state.mentionCalls.length).toBeGreaterThan(0);
+    expect(state.mentionCalls.every((call) => call.slug === "anna-nowak")).toBe(true);
+    expect(state.mentionCalls.every((call) => call.enabled)).toBe(true);
   });
 
   it.each([
@@ -355,8 +485,8 @@ describe("MentionSegment - wyzwalacz", () => {
     // Biogram ma dwie kolumny (`bio_pl`/`bio_en`) - zły język to cudzy tekst
     // w dymku, a nie brak tekstu, więc nikt tego nie zgłosi jako błąd.
     state.lang = uiLanguage;
-    render(<MentionSegment slug="anna-nowak" raw="@anna-nowak" />);
-    await openCard(linkNamed("@anna-nowak"), "club-mention-preview");
+    render(<MentionSegment slug="anna-nowak" />);
+    await openCard(linkNamed(ANNA), "club-mention-preview");
 
     const enabled = state.mentionCalls.filter((call) => call.enabled);
     expect(enabled.length).toBeGreaterThan(0);
@@ -364,10 +494,76 @@ describe("MentionSegment - wyzwalacz", () => {
   });
 });
 
+describe("MentionSegment - wzmianka rozwiązana przez katalog", () => {
+  it("pokazuje nazwę z profilu, nie uczytelniony slug", () => {
+    state.entity = personEntity({ slug: "a-nowak", name: "Anna Kowalska-Nowak" });
+    const { container } = render(<MentionSegment slug="a-nowak" />);
+
+    expect(linkNamed("Anna Kowalska-Nowak")).toHaveAttribute("href", "/author/a-nowak");
+    // „A Nowak" to postać zastępcza - jej obecność znaczyłaby, że katalog jest
+    // pobierany, ale nieczytany.
+    expect(screen.queryByText("A Nowak")).toBeNull();
+    expect(container.textContent).not.toContain("@");
+  });
+
+  it("firma z profilu stoi w linii tekstu obok nazwiska", () => {
+    state.entity = personEntity({ company: "ACME Polska" });
+    render(<MentionSegment slug="anna-nowak" />);
+
+    expect(linkNamed(/Anna Nowak/).textContent).toBe("Anna Nowak· ACME Polska");
+  });
+
+  it("brak firmy NIE zostawia separatora ani pustego elementu", () => {
+    // Regresja, którą to łapie: separator wpisany na sztywno przed firmą.
+    // Wtedy wzmianka bez firmy kończy się sierotą „· " i wygląda na uciętą.
+    state.entity = personEntity({ company: null });
+    const { container } = render(<MentionSegment slug="anna-nowak" />);
+    const link = linkNamed(ANNA);
+
+    expect(link.textContent).toBe("Anna Nowak");
+    expect(container.textContent).not.toContain("·");
+    // Awatar + nazwisko. Trzeci `span` znaczyłby pustą ramkę po firmie.
+    expect(link.querySelectorAll("span > span")).toHaveLength(2);
+  });
+
+  it("mając byt z katalogu NIE dociąga profilu nawet po otwarciu dymka", async () => {
+    // To jest cała stawka jednego zapytania na powierzchnię: skoro wątek
+    // rozwiązał slugi zbiorczo, dymek nie ma po co wychodzić drugi raz.
+    state.entity = personEntity({ jobTitle: "Dyrektor" });
+    render(<MentionSegment slug="anna-nowak" />);
+    const card = await openCard(linkNamed(ANNA), "club-mention-preview");
+
+    expect(within(card).getByText("Dyrektor")).toBeInTheDocument();
+    expect(state.mentionCalls).toEqual([]);
+  });
+
+  it("ORGANIZACJA dostaje własny atrybut i cel, nie link do profilu osoby", () => {
+    state.entity = orgEntity();
+    const { container } = render(<MentionSegment slug="acme" />);
+    const link = linkNamed("ACME Polska");
+
+    expect(link).toHaveAttribute("data-mention-org", "org-00000000-0000-4000-8000-000000000001");
+    expect(container.querySelector("[data-mention]")).toBeNull();
+    // Ikona budynku zamiast awatara - organizacja nie ma twarzy.
+    expect(link.querySelector("[data-mention-avatar]")?.tagName).toBe("svg");
+  });
+
+  it("ORGANIZACJA dostaje kartę organizacji zamiast karty osoby", async () => {
+    state.entity = orgEntity({ description: "Operator terminalu." });
+    render(<MentionSegment slug="acme" />);
+    const card = await openCard(linkNamed("ACME Polska"), "club-mention-preview");
+
+    expect(within(card).getByText("Operator terminalu.")).toBeInTheDocument();
+    expect(within(card).getByRole("link", { name: "club.inline.viewOrg" })).toBeInTheDocument();
+    expect(within(card).queryByText("club.inline.viewProfile")).toBeNull();
+    expect(state.mentionCalls).toEqual([]);
+  });
+});
+
 describe("MentionSegment - stany dymka", () => {
   async function cardFor(): Promise<HTMLElement> {
-    render(<MentionSegment slug="anna-nowak" raw="@anna-nowak" />);
-    return await openCard(linkNamed("@anna-nowak"), "club-mention-preview");
+    render(<MentionSegment slug="anna-nowak" />);
+    return await openCard(linkNamed(ANNA), "club-mention-preview");
   }
 
   it("w trakcie ładowania pokazuje szkielet wizytówki, bez komunikatu o braku", async () => {
@@ -397,7 +593,9 @@ describe("MentionSegment - stany dymka", () => {
     expect(view).toHaveAttribute("href", "/author/anna-nowak");
   });
 
-  it("bez awatara pokazuje inicjały wersalikami", async () => {
+  it("bez awatara W DYMKU pokazuje inicjały wersalikami", async () => {
+    // Odwrotnie niż w biegu tekstu: tu jest miejsce i nie ma nazwiska tuż
+    // obok, więc inicjały czytają się jak awatar, a nie jak literówka.
     state.mention = { data: person({ name: "anna nowak", avatarUrl: null }), isPending: false };
     const card = await cardFor();
 
@@ -442,18 +640,11 @@ describe("MentionSegment - stany dymka", () => {
     {
       jobTitle: "Dyrektor",
       company: "ACME",
-      expected: "Dyrektor - ACME",
+      expected: "Dyrektor · ACME",
       opis: "stanowisko i firma",
     },
     { jobTitle: "Dyrektor", company: null, expected: "Dyrektor", opis: "tylko stanowisko" },
     { jobTitle: null, company: "ACME", expected: "ACME", opis: "tylko firma" },
-    { jobTitle: null, company: null, expected: "@anna-nowak", opis: "brak obu - zostaje uchwyt" },
-    {
-      jobTitle: "",
-      company: "",
-      expected: "@anna-nowak",
-      opis: "puste napisy są traktowane jak brak",
-    },
   ];
 
   it.each(PODPISY)("podpis: $opis -> $expected", async ({ jobTitle, company, expected }) => {
@@ -463,8 +654,33 @@ describe("MentionSegment - stany dymka", () => {
     expect(within(card).getByText(expected)).toBeInTheDocument();
   });
 
+  // Tam, gdzie kiedyś stał awaryjny uchwyt `@slug`, dziś nie ma NICZEGO.
+  // Uchwyt był jedynym miejscem, w którym nick wyciekał do dymka.
+  const BEZ_PODPISU: readonly {
+    readonly jobTitle: string | null;
+    readonly company: string | null;
+    readonly opis: string;
+  }[] = [
+    { jobTitle: null, company: null, opis: "brak obu" },
+    { jobTitle: "", company: "", opis: "puste napisy są traktowane jak brak" },
+  ];
+
+  it.each(BEZ_PODPISU)("bez linii tożsamości: $opis", async ({ jobTitle, company }) => {
+    state.mention = { data: person({ jobTitle, company, bio: null }), isPending: false };
+    const card = await cardFor();
+
+    // Sama nazwa. Drugi akapit znaczyłby pustą linię pod nazwiskiem, a jeszcze
+    // gorzej - powrót uchwytu `@anna-nowak` jako wypełniacza.
+    expect(card.querySelectorAll("p")).toHaveLength(1);
+    expect(card.textContent).not.toContain("@");
+    expect(card.textContent).not.toContain("·");
+  });
+
   it("biogram, gdy jest, wchodzi jako trzeci akapit wizytówki", async () => {
-    state.mention = { data: person({ bio: "Pracuje nad korytarzem." }), isPending: false };
+    state.mention = {
+      data: person({ jobTitle: "Dyrektor", bio: "Pracuje nad korytarzem." }),
+      isPending: false,
+    };
     const card = await cardFor();
 
     expect(within(card).getByText("Pracuje nad korytarzem.")).toBeInTheDocument();
@@ -473,7 +689,7 @@ describe("MentionSegment - stany dymka", () => {
   });
 
   it("bez biogramu nie zostawia pustego akapitu", async () => {
-    state.mention = { data: person({ bio: null }), isPending: false };
+    state.mention = { data: person({ jobTitle: "Dyrektor", bio: null }), isPending: false };
     const card = await cardFor();
 
     expect(card.querySelectorAll("p")).toHaveLength(2);
@@ -580,8 +796,11 @@ describe("ClubInlineText - składanie treści", () => {
       "anna-nowak",
       "jan-kowalski",
     ]);
-    // Pisownia autora zostaje widoczna, mimo znormalizowanego celu linku.
-    expect(mentions[0]?.textContent).toBe("@Anna-Nowak");
+    // Inaczej niż przy tagu: pisownia autora NIE zostaje, bo etykietą wzmianki
+    // jest człowiek, a nie zapis uchwytu. Nicku nie ma w żadnej z nich.
+    expect(mentions[0]?.textContent).toBe("Anna Nowak");
+    expect(mentions[1]?.textContent).toBe("Jan Kowalski");
+    expect(container.textContent).not.toContain("@");
   });
 
   it("adres e-mail NIE staje się linkiem ani wzmianką", () => {
@@ -600,8 +819,9 @@ describe("ClubInlineText - składanie treści", () => {
     expect(container.querySelectorAll("[data-club-link]")).toHaveLength(1);
     expect(container.querySelectorAll("[data-mention]")).toHaveLength(1);
     expect(container.querySelectorAll("[data-club-tag]")).toHaveLength(1);
-    // Jedyna różnica wobec wejścia: krata tagu jest ikoną, nie znakiem.
-    expect(container.textContent).toBe(body.replace("#", ""));
+    // Dwie różnice wobec wejścia i obie są świadome: krata tagu jest ikoną,
+    // a uchwyt wzmianki - nazwiskiem. Reszta znaków przechodzi bez zmian.
+    expect(container.textContent).toBe(body.replace("#", "").replace("@anna-nowak", "Anna Nowak"));
   });
 });
 

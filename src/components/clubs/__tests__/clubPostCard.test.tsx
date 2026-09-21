@@ -96,9 +96,16 @@ vi.mock("@radix-ui/react-hover-card", () => {
     Root: Passthrough,
     Trigger: Passthrough,
     Portal: Passthrough,
-    Content: ({ children }: { children?: ReactNode }) => (
-      <div data-testid="club-post-link-popup">{children}</div>
-    ),
+    // Karta niesie DWA rodzaje dymków (podgląd linku i wizytówka autora), więc
+    // przepust musi oddać identyfikator podany przez komponent - inaczej oba
+    // wyglądają w DOM tak samo i `getByTestId` łapie dwa elementy naraz.
+    Content: ({
+      children,
+      "data-testid": testId,
+    }: {
+      children?: ReactNode;
+      "data-testid"?: string;
+    }) => <div data-testid={testId ?? "club-post-link-popup"}>{children}</div>,
   };
 });
 
@@ -329,7 +336,10 @@ describe("ClubPostCard - treść", () => {
       />,
     );
 
-    expect(container.querySelector("p")).toBeNull();
+    // Celujemy w AKAPIT TREŚCI po jego klasach, a nie w „jakikolwiek <p>":
+    // bylina niesie teraz wizytówkę autora, której dymek też jest akapitem, a
+    // pod atrapą Radiksa stoi w DOM-ie bez otwierania.
+    expect(container.querySelector("p.whitespace-pre-wrap")).toBeNull();
     expect(screen.getByTestId("club-post-images")).toBeTruthy();
   });
 });
