@@ -4,6 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { periodEndFor } from "@/lib/billing/entitlement";
 import { mockCheckoutAllowed } from "@/lib/billing/mockMode.server";
 import { resolveReturnUrl } from "@/lib/http/resolveReturnUrl";
+import type { TicketTaxMode } from "@/lib/events/ticketTaxGroup";
 
 // Zamówienie płatnicze (server-side, RLS jako użytkownik).
 // Kwota jest zawsze wyliczana serwerowo (plan / reguła dostępu / bilet /
@@ -65,6 +66,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     // rabatu w nakładce operatora.
     let ticketListPriceCents = 0;
     let ticketPhaseLabel = "";
+    let ticketTaxMode: TicketTaxMode | null = null;
     let trialDays = 0;
     /** Czytelny identyfikator ceny katalogowej dla subskrypcji (cykl + trial). */
     let catalogPriceId: string | null = null;
@@ -219,6 +221,27 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
             : phaseSource === "phase"
               ? "Faza sprzedaży"
               : "");
+      // PODATEK I GRUPA. Tryb podatku (wliczony/doliczany) pochodzi z biletu;
+      // stawkę liczy Stripe. Rejestracja grupowa płaci jednym zamówieniem za
+      // prowadzącego i wszystkich dopisanych gości - liczbę miejsc zna baza.
+      const { data: opts } = await supabase.rpc("event_ticket_public_options", {
+        p_ticket_type_id: data.ticket_type_id,
+      });
+      if (opts !== null && typeof opts === "object" && !Array.isArray(opts)) {
+        const mode = (opts as Record<string, unknown>).tax_mode;
+        ticketTaxMode = mode === "inclusive" || mode === "exclusive" ? mode : null;
+      }
+      if (registrationId !== null) {
+        const { data: seatsRaw } = await supabase.rpc("event_registration_group_seats", {
+          p_registration_id: registrationId,
+        });
+        const seats = typeof seatsRaw === "number" ? Math.max(1, Math.trunc(seatsRaw)) : 1;
+        if (seats > 1) {
+          amountCents *= seats;
+          ticketListPriceCents *= seats;
+          label = `${label} × ${seats}`;
+        }
+      }
     } else if (isEventTicket) {
       // Cena biletu pochodzi z wiersza wydarzenia (RLS jako użytkownik), więc
       // klient przekazuje wyłącznie identyfikator wydarzenia.
@@ -568,6 +591,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         name: label || "Zamówienie",
         amountCents: lineAmountCents,
         discount: ticketDiscount,
+        ...(ticketTaxMode ? { taxBehavior: ticketTaxMode } : {}),
         currency,
         orderId: order.id,
         purpose: eventId ? "event_ticket" : "content_unlock",

@@ -281,6 +281,13 @@
       "when": 1790113892816,
       "tag": "0039_event_ticket_codes",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1790115021196,
+      "tag": "0040_event_ticket_tax_and_group",
+      "breakpoints": true
     }
   ]
 }

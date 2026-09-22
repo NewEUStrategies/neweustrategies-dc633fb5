@@ -249,6 +249,10 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0039_event_ticket_codes",
     twin: "20260922220000_event_ticket_codes.sql",
   },
+  {
+    tag: "0040_event_ticket_tax_and_group",
+    twin: "20260922230000_event_ticket_tax_and_group.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";

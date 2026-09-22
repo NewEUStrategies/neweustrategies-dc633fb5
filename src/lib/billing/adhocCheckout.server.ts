@@ -274,6 +274,8 @@ export interface AdhocCheckoutSessionInput {
    * widzi, ile i za co dostał zniżki, a kwota do zapłaty pozostaje ta sama.
    */
   discount?: { coupon: string } | null;
+  /** Podatek wliczony w cenę (`inclusive`) albo doliczany (`exclusive`). */
+  taxBehavior?: "inclusive" | "exclusive";
 }
 
 /**
@@ -319,6 +321,7 @@ export async function createAdhocCheckoutSession(
           price_data: {
             currency: input.currency.toLowerCase(),
             unit_amount: Math.round(input.amountCents),
+            ...(input.taxBehavior ? { tax_behavior: input.taxBehavior } : {}),
             product_data: {
               name: input.name.slice(0, 200),
               ...(input.description ? { description: input.description.slice(0, 200) } : {}),

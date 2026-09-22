@@ -40,6 +40,13 @@ import {
   type RegistrationDraft,
   type RegistrationDraftError,
 } from "@/lib/events/registrationSubmitDraft";
+import { GroupGuestsEditor } from "@/components/events/registration/GroupGuestsEditor";
+import {
+  guestIssues,
+  registerGroupGuests,
+  type GroupGuest,
+  type GuestIssue,
+} from "@/lib/events/ticketTaxGroup";
 import { EMPTY_REGISTRATION_FORM } from "@/lib/events/registrationFormSurface";
 import { confirmEventRegistrationEmail } from "@/lib/events/registrationSelfNotify.functions";
 import { Button } from "@/components/ui/button";
@@ -69,6 +76,8 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
   const [failure, setFailure] = useState<string | null>(null);
   const [result, setResult] = useState<RegistrationResult | null>(null);
   const [cancelled, setCancelled] = useState(false);
+  const [guests, setGuests] = useState<GroupGuest[]>([]);
+  const [guestErrors, setGuestErrors] = useState<(GuestIssue | null)[]>([]);
 
   // Szkic powstaje dopiero, gdy znamy bilety - domyslny wybor zalezy od tego,
   // ile pozycji jest naprawde w sprzedazy.
@@ -119,8 +128,14 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
   const sendConfirmation = useServerFn(confirmEventRegistrationEmail);
 
   const submit = useMutation({
-    mutationFn: async (current: RegistrationDraft) => {
-      return submitRegistration({
+    mutationFn: async ({
+      current,
+      groupGuests,
+    }: {
+      current: RegistrationDraft;
+      groupGuests: GroupGuest[];
+    }) => {
+      const registered = await submitRegistration({
         eventSlug: slug,
         firstName: current.firstName.trim(),
         lastName: current.lastName.trim(),
@@ -136,9 +151,18 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
         consentMarketing: current.consentMarketing,
         consentPartnerSharing: current.consentPartnerSharing,
       });
+      // Goście grupy dochodzą do zgłoszenia prowadzącego; płatność obejmie
+      // wszystkie miejsca jednym zamówieniem, a każdy dostanie własny kod QR.
+      if (groupGuests.length > 0) {
+        try {
+          await registerGroupGuests(registered.registrationId, groupGuests);
+        } catch (error) {
+          setFailure(registrationErrorMessage(error));
+        }
+      }
+      return registered;
     },
     onSuccess: (data) => {
-      setFailure(null);
       setResult(data);
       if (data.manageToken !== null) {
         void sendConfirmation({ data: { manageToken: data.manageToken } }).catch(() => {
@@ -235,6 +259,8 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
       : (form.tickets.find((ticket) => ticket.id === current.ticketTypeId) ?? null);
   const paidTicketNeedsAccount =
     user === null && selectedTicket !== null && selectedTicket.effectivePriceCents > 0;
+  const groupEnabled = selectedTicket !== null && selectedTicket.groupRegistrationEnabled;
+  const groupGuests = groupEnabled && user !== null ? guests : [];
 
   return (
     <form
@@ -244,11 +270,14 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
         event.preventDefault();
         const found = validateRegistrationDraft(current, form);
         setErrors(found);
-        if (found.length > 0) {
+        const guestFound = guestIssues(groupGuests, current.email);
+        setGuestErrors(guestFound);
+        if (found.length > 0 || guestFound.some((issue) => issue !== null)) {
           setFailure(null);
           return;
         }
-        submit.mutate(current);
+        setFailure(null);
+        submit.mutate({ current, groupGuests });
       }}
     >
       <Header title={eventTitle} />
@@ -335,6 +364,19 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
           />
           {paidTicketNeedsAccount && <PaidTicketAccountNotice />}
         </section>
+      )}
+
+      {groupEnabled && (
+        <GroupGuestsEditor
+          guests={guests}
+          issues={guestErrors}
+          maxSize={10}
+          requiresAccount={user === null}
+          onChange={(next) => {
+            setGuests(next);
+            setGuestErrors([]);
+          }}
+        />
       )}
 
       {form.fields.length > 0 && (
