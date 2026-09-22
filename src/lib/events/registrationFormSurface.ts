@@ -103,6 +103,14 @@ export interface RegistrationFormTicket {
   /** Bilet za kodem z zaproszenia - kod weryfikuje wyłącznie baza. */
   requiresAccessCode: boolean;
   accessCodeHint: string;
+  /** Bilet ukryty - dostępny tylko z bezpośredniego linku (?ticket=klucz). */
+  isHidden?: boolean;
+  /** Czy pokazać etykietę ceny; własna etykieta zastępuje „Bezpłatny"/kwotę. */
+  showPriceLabel?: boolean;
+  priceLabelPl?: string;
+  priceLabelEn?: string;
+  /** Zapis grupowy - kupujący rejestruje kilka osób (pakiety grupowe). */
+  groupRegistrationEnabled?: boolean;
 }
 
 export interface RegistrationFormTerm {
@@ -368,6 +376,11 @@ export function parseRegistrationForm(payload: Json | null | undefined): Registr
         tierLocked: bool(row, "tier_locked"),
         requiresAccessCode: bool(row, "requires_access_code"),
         accessCodeHint: text(row, "access_code_hint"),
+        isHidden: bool(row, "is_hidden"),
+        showPriceLabel: row.show_price_label !== false,
+        priceLabelPl: text(row, "price_label_pl"),
+        priceLabelEn: text(row, "price_label_en"),
+        groupRegistrationEnabled: bool(row, "group_registration_enabled"),
       };
     }),
 
@@ -398,4 +411,23 @@ export function requiresTicketChoice(form: RegistrationForm): boolean {
 /** Zgody obowiązkowe - bez nich `event_register()` rzuca `terms_required`. */
 export function requiredTermIds(form: RegistrationForm): string[] {
   return form.terms.filter((term) => term.isRequired).map((term) => term.id);
+}
+
+/**
+ * Bilety widoczne dla uczestnika. Bilet ukryty pojawia się wyłącznie wtedy,
+ * gdy link rejestracyjny wskazuje go kluczem (`?ticket=klucz`) - tak działa
+ * „bezpośredni link rejestracyjny" z panelu biletów. Ukrycie nie jest
+ * zabezpieczeniem; do tego służy kod dostępu weryfikowany w bazie.
+ */
+export function visibleTickets(
+  tickets: RegistrationFormTicket[],
+  requestedKey: string | null,
+): RegistrationFormTicket[] {
+  return tickets.filter((ticket) => ticket.isHidden !== true || ticket.key === requestedKey);
+}
+
+/** Własna etykieta ceny biletu albo `null`, gdy obowiązuje etykieta domyślna. */
+export function customPriceLabel(ticket: RegistrationFormTicket, lang: "pl" | "en"): string | null {
+  const label = (lang === "en" ? ticket.priceLabelEn : ticket.priceLabelPl) ?? "";
+  return label.trim() === "" ? null : label.trim();
 }

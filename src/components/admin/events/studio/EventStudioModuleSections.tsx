@@ -103,7 +103,7 @@ export function EventRegistrationTicketsSection({ row }: { row: AdminEventDetail
   ensureRegistrationI18n();
   return (
     <ModuleScreen titleKey="adminEventRegistration.nav.tickets">
-      <EventTicketsPanel key={row.id} eventId={row.id} />
+      <EventTicketsPanel key={row.id} eventId={row.id} eventSlug={row.slug} />
     </ModuleScreen>
   );
 }
