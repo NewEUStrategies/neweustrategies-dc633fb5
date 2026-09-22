@@ -99,7 +99,11 @@ export function DateTimePicker({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-auto p-0" sideOffset={4}>
+      <PopoverContent
+        align="start"
+        className="w-[18.5rem] overflow-hidden rounded-xl border-border bg-popover p-0 shadow-lg"
+        sideOffset={6}
+      >
         <Calendar
           mode="single"
           selected={date ?? undefined}
@@ -108,20 +112,27 @@ export function DateTimePicker({
           weekStartsOn={1}
           disabled={minDate ? { before: minDate } : undefined}
           initialFocus
-          className={cn("pointer-events-auto p-3")}
+          className={cn("pointer-events-auto w-full bg-transparent p-3 [--cell-size:2.25rem]")}
+          classNames={{
+            root: "w-full",
+            today:
+              "rounded-md ring-1 ring-inset ring-primary/60 text-foreground data-[selected=true]:ring-0",
+          }}
         />
-        <div className="flex items-center gap-2 border-t border-border/60 bg-muted/30 p-3">
-          <label className="text-xs text-muted-foreground">
-            {lang === "pl" ? "Godzina" : "Time"}
-          </label>
-          <Input
-            type="time"
-            step={60}
-            value={timeValue}
-            onChange={(e) => setTimePart(e.target.value)}
-            className="h-8 w-[110px] font-mono text-sm"
-          />
-          <div className="ml-auto flex gap-1">
+        <div className="flex flex-col gap-2 border-t border-border/60 bg-muted/30 p-3">
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-muted-foreground">
+              {lang === "pl" ? "Godzina" : "Time"}
+            </label>
+            <Input
+              type="time"
+              step={60}
+              value={timeValue}
+              onChange={(e) => setTimePart(e.target.value)}
+              className="ml-auto h-8 w-[120px] font-mono text-sm"
+            />
+          </div>
+          <div className="flex justify-end gap-1">
             <Button
               type="button"
               size="sm"
