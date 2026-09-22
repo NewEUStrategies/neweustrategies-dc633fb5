@@ -394,7 +394,18 @@ describe("ChartDrillDialog - zamykanie i ognisko", () => {
 
     const tlo = document.querySelector("[data-state=open].fixed.inset-0");
     expect(tlo).not.toBeNull();
+    // PEŁNA SEKWENCJA, NIE SAM `pointerdown`. `react-dismissable-layer` od
+    // 1.1.19 ODKŁADA zamknięcie dla przycisku głównego do zdarzenia `click`
+    // (`deferPointerDownOutside` + `addEventListener("click", ..., { once: true })`
+    // w `dist/index.mjs`). Wcześniej zamykał już na `pointerdown`. Zmiana jest
+    // celowa i dobra dla użytkownika: naciśnięcie na tle i zwolnienie NA OKNIE
+    // (zaznaczanie tekstu ciągnięciem) nie zamyka już okna, a naciśnięcie
+    // i zwolnienie na tle - zamyka. Sam `pointerdown` przestał więc być
+    // kompletnym kliknięciem; kontrakt „tło zamyka" jest niezmieniony i dalej
+    // sprawdzany, tylko wejście jest teraz takie, jakie daje prawdziwa mysz.
     fireEvent.pointerDown(tlo as Element, { button: 0 });
+    fireEvent.mouseDown(tlo as Element, { button: 0 });
+    fireEvent.click(tlo as Element, { button: 0 });
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });
