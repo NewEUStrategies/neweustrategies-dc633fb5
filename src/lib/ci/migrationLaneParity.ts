@@ -214,6 +214,40 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0033_stable_organization_mention_slugs",
     twin: "20260922080000_mention_targets_rpc.sql",
   },
+  // DWA PONOWNE WYDANIA TEGO SAMEGO STANU, dołożone przez serię „Wdrożono
+  // brakujące migracje" (commity 9502bf88e i dfeab0735) już PO tym, jak oba
+  // stany weszły na pas kanoniczny. Nie są to nowe migracje i nie ma tu pytania
+  // o poprawność schematu - co niżej jest ZMIERZONE, nie założone.
+  //
+  // POMIAR. `executableSql` z tego pliku (ta sama funkcja, którą bramka liczy
+  // odciski) daje dla trójek:
+  //   0031 == 0035 == 20260922080100_...  -> odcisk identyczny, 1161 znaków
+  //   0033 == 0034 == 20260922080000_...  -> odcisk identyczny
+  // Czyli pas kanoniczny niesie oba stany DOKŁADNIE RAZ, a nowe pliki drizzle
+  // powtarzają je bajt w bajt po odcięciu prozy. Bliźniaki są już przypisane
+  // do 0031 i 0033, a jeden plik supabase nie może mieć dwóch bliźniaków -
+  // stąd `drizzleOnly`, nie `twin`.
+  //
+  // DLACZEGO KANONICZNE ZOSTAJĄ 0031 I 0033, A NIE NOWSZE PLIKI. Przy
+  // identycznym kodzie wykonywalnym rozstrzyga JAKOŚĆ OPISU, bo to jedyna
+  // rzecz, którą te pliki jeszcze różnicują. 0031 niesie czterolinijkowy
+  // nagłówek mówiący, PO CO ten wyzwalacz istnieje (samoakceptacja zaproszenia
+  // może przestawić wyłącznie status i accepted_at; UPDATE przepisujący
+  // role/tenant/email/tożsamość jest CICHO NEUTRALIZOWANY, zamiast nadać
+  // podniesione uprawnienia) plus dwa komentarze sekcyjne rozdzielające kolumny
+  // administracyjne od jedynego przejścia po stronie odbiorcy. 0035 to ta sama
+  // funkcja z wyciętą CAŁĄ prozą. Utrzymywanie jako kanonicznej wersji bez
+  // uzasadnienia byłoby wyborem gorszego źródła przy zerowym zysku.
+  {
+    tag: "0034_mention_targets_rpc",
+    drizzleOnly:
+      "Ponowne wydanie stanu, który pas kanoniczny ma już raz, w 20260922080000_mention_targets_rpc.sql przypisanym do 0033_stable_organization_mention_slugs. Plik jest BAJT W BAJT identyczny z 0033 (nie tylko po odcięciu prozy - dosłownie ten sam plik pod nowym numerem), więc nie wnosi ani jednej instrukcji. Deklaracje to CREATE OR REPLACE, zatem powtórny przebieg nie zmienia stanu końcowego bazy. Pliku nie usuwamy - repozytorium jest forward-only.",
+  },
+  {
+    tag: "0035_user_invitations_pin_all_non_acceptance_columns",
+    drizzleOnly:
+      "Ponowne wydanie stanu, który pas kanoniczny ma już raz, w 20260922080100_user_invitations_pin_all_non_acceptance_columns.sql przypisanym do 0031_user_invitations_pin_all_non_acceptance_columns. Kod WYKONYWALNY jest identyczny z 0031 i z bliźniakiem - zmierzone przez executableSql, odcisk 1161 znaków we wszystkich trzech plikach. Cała różnica 50 kontra 43 linie to KOMENTARZE: 0035 nie ma nagłówka opisującego kontrakt wyzwalacza ani dwóch komentarzy sekcyjnych, które ma 0031. Kanonicznym źródłem zostaje więc 0031. To NIE jest drugie, konkurencyjne przypięcie tych samych kolumn i nie wymaga rozstrzygnięcia, który stan schematu jest docelowy - stan jest jeden. Pliku nie usuwamy - repozytorium jest forward-only.",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";
