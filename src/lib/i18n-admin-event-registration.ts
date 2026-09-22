@@ -830,8 +830,16 @@ export const adminEventRegistrationPl = {
           "Zgłoszenia z tym biletem czekają na akceptację albo odrzucenie - pełna kontrola nad dostępem.",
         groupRegistration: "Rejestracja grupowa",
         groupRegistrationHint:
-          "Uczestnik kupuje kilka biletów i rejestruje grupę w swoim imieniu (pakiety grupowe).",
+          "Kupujący zapisuje kilka osób naraz (imię, nazwisko, e-mail każdej) i płaci jednym zamówieniem.",
         managePackages: "Zarządzaj pakietami grupowymi",
+        groupMaxSize: "Maksymalna wielkość grupy",
+        groupMaxSizeHint:
+          "Łącznie z kupującym, od 2 do 50 osób. Każda osoba dostaje własny bilet z kodem QR.",
+        taxMode: "Podatek",
+        taxInclusive: "Wliczony w cenę",
+        taxExclusive: "Doliczany do ceny",
+        taxHint:
+          "Stawkę podatku ustala i rozlicza Stripe. Tu wybierasz tylko, czy cena biletu już go zawiera.",
         access: "Dostęp i kolejka",
         preview: "Podgląd biletu",
         previewHint: "Tak bilet zobaczy osoba rejestrująca się.",
@@ -1955,8 +1963,16 @@ export const adminEventRegistrationEn = {
           "Registrations with this ticket stay pending until approved or rejected, giving you full control over access.",
         groupRegistration: "Group registration",
         groupRegistrationHint:
-          "Attendees purchase multiple tickets and register a group on their behalf (group packages).",
+          "The buyer registers several people at once (name and email of each) and pays in one order.",
         managePackages: "Manage group packages",
+        groupMaxSize: "Maximum group size",
+        groupMaxSizeHint:
+          "Including the buyer, 2 to 50 people. Everyone gets their own ticket with a QR code.",
+        taxMode: "Tax",
+        taxInclusive: "Included in price",
+        taxExclusive: "Added to price",
+        taxHint:
+          "Stripe sets and settles the tax rate. Here you only choose whether the ticket price already includes it.",
         access: "Access and waiting list",
         preview: "Ticket preview",
         previewHint: "How the ticket appears to registrants.",

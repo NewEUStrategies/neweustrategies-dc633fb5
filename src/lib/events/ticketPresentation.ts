@@ -13,6 +13,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { browserPublicOrigin } from "@/lib/http/host";
 import type { EventTicketRow } from "@/lib/events/registrationsApi";
 import type { TicketDraft } from "@/lib/events/ticketDraft";
+import {
+  DEFAULT_TICKET_TAX_GROUP,
+  fetchTicketTaxGroup,
+  saveTicketTaxGroup,
+  type TicketTaxMode,
+} from "@/lib/events/ticketTaxGroup";
 
 export const TICKET_PRICE_LABEL_MAX = 40;
 
@@ -22,6 +28,10 @@ export interface TicketPresentation {
   priceLabelPl: string;
   priceLabelEn: string;
   groupRegistrationEnabled: boolean;
+  /** Podatek wliczony w cenę albo doliczany w kasie (stawkę liczy Stripe). */
+  taxMode: TicketTaxMode;
+  /** Maksymalna liczba osób w jednym zapisie grupowym (z prowadzącym). */
+  groupMaxSize: number;
 }
 
 export const DEFAULT_TICKET_PRESENTATION: TicketPresentation = {
@@ -30,6 +40,8 @@ export const DEFAULT_TICKET_PRESENTATION: TicketPresentation = {
   priceLabelPl: "",
   priceLabelEn: "",
   groupRegistrationEnabled: false,
+  taxMode: DEFAULT_TICKET_TAX_GROUP.taxMode,
+  groupMaxSize: DEFAULT_TICKET_TAX_GROUP.groupMaxSize,
 };
 
 export type TicketStatus = "on_sale" | "scheduled" | "ended" | "sold_out" | "inactive";
@@ -109,9 +121,13 @@ async function fetchTicketPresentation(eventId: string): Promise<Map<string, Tic
     p_event_id: eventId,
   });
   if (error) throw error;
+  const taxGroup = await fetchTicketTaxGroup(eventId);
   const map = new Map<string, TicketPresentation>();
   for (const row of data ?? []) {
+    const tg = taxGroup.get(row.id) ?? DEFAULT_TICKET_TAX_GROUP;
     map.set(row.id, {
+      taxMode: tg.taxMode,
+      groupMaxSize: tg.groupMaxSize,
       isHidden: row.is_hidden,
       showPriceLabel: row.show_price_label,
       priceLabelPl: row.price_label_pl ?? "",
@@ -135,6 +151,10 @@ export async function saveTicketPresentation(
     p_group_registration_enabled: value.groupRegistrationEnabled,
   });
   if (error) throw error;
+  await saveTicketTaxGroup(ticketId, {
+    taxMode: value.taxMode,
+    groupMaxSize: value.groupMaxSize,
+  });
   return data === true;
 }
 

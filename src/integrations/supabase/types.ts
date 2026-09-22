@@ -8001,6 +8001,7 @@ export type Database = {
           directory_opt_out: boolean
           event_id: string
           group_id: string | null
+          group_lead_registration_id: string | null
           id: string
           manage_token_hash: string | null
           notify_email: boolean
@@ -8035,6 +8036,7 @@ export type Database = {
           directory_opt_out?: boolean
           event_id: string
           group_id?: string | null
+          group_lead_registration_id?: string | null
           id?: string
           manage_token_hash?: string | null
           notify_email?: boolean
@@ -8069,6 +8071,7 @@ export type Database = {
           directory_opt_out?: boolean
           event_id?: string
           group_id?: string | null
+          group_lead_registration_id?: string | null
           id?: string
           manage_token_hash?: string | null
           notify_email?: boolean
@@ -8103,6 +8106,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "event_groups"
             referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_registrations_group_lead_registration_id_fkey"
+            columns: ["group_lead_registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "event_registrations_payment_order_id_fkey"
@@ -9331,6 +9341,7 @@ export type Database = {
           early_bird_until: string | null
           event_id: string
           group_id: string | null
+          group_max_size: number
           group_registration_enabled: boolean
           id: string
           is_active: boolean
@@ -9352,6 +9363,7 @@ export type Database = {
           show_price_label: boolean
           sold_count: number
           sort_order: number
+          tax_mode: string
           tenant_id: string
           updated_at: string
           waitlist_enabled: boolean
@@ -9370,6 +9382,7 @@ export type Database = {
           early_bird_until?: string | null
           event_id: string
           group_id?: string | null
+          group_max_size?: number
           group_registration_enabled?: boolean
           id?: string
           is_active?: boolean
@@ -9391,6 +9404,7 @@ export type Database = {
           show_price_label?: boolean
           sold_count?: number
           sort_order?: number
+          tax_mode?: string
           tenant_id: string
           updated_at?: string
           waitlist_enabled?: boolean
@@ -9409,6 +9423,7 @@ export type Database = {
           early_bird_until?: string | null
           event_id?: string
           group_id?: string | null
+          group_max_size?: number
           group_registration_enabled?: boolean
           id?: string
           is_active?: boolean
@@ -9430,6 +9445,7 @@ export type Database = {
           show_price_label?: boolean
           sold_count?: number
           sort_order?: number
+          tax_mode?: string
           tenant_id?: string
           updated_at?: string
           waitlist_enabled?: boolean
@@ -19157,6 +19173,10 @@ export type Database = {
         Args: { _answer: Json; _expected: Json; _operator: string }
         Returns: boolean
       }
+      _event_apply_outcome_to_group: {
+        Args: { p_lead_id: string; p_order_id: string; p_outcome: string }
+        Returns: number
+      }
       _event_badge_print_write: {
         Args: {
           _copies: number
@@ -21308,6 +21328,22 @@ export type Database = {
           p_ticket_id: string
         }
         Returns: boolean
+      }
+      admin_event_ticket_set_tax_group: {
+        Args: {
+          p_group_max_size: number
+          p_tax_mode: string
+          p_ticket_id: string
+        }
+        Returns: boolean
+      }
+      admin_event_ticket_tax_group: {
+        Args: { p_event_id: string }
+        Returns: {
+          group_max_size: number
+          id: string
+          tax_mode: string
+        }[]
       }
       admin_event_ticket_upsert: { Args: { p_payload: Json }; Returns: string }
       admin_event_tickets_list: {
@@ -24413,8 +24449,16 @@ export type Database = {
         }[]
       }
       event_register: { Args: { p_payload: Json }; Returns: Json }
+      event_register_group_guests: {
+        Args: { p_guests: Json; p_lead_registration_id: string }
+        Returns: Json
+      }
       event_registration_cancel: { Args: { p_payload: Json }; Returns: Json }
       event_registration_form: { Args: { p_event_slug: string }; Returns: Json }
+      event_registration_group_seats: {
+        Args: { p_registration_id: string }
+        Returns: number
+      }
       event_registration_manage_view: {
         Args: { p_payload?: Json }
         Returns: Json
@@ -24510,6 +24554,10 @@ export type Database = {
       }
       event_ticket_checkout_quote: {
         Args: { p_access_code?: string; p_ticket_type_id: string }
+        Returns: Json
+      }
+      event_ticket_public_options: {
+        Args: { p_ticket_type_id: string }
         Returns: Json
       }
       event_types_active: {

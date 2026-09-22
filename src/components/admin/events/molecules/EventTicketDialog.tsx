@@ -8,6 +8,7 @@
 // GRUPY NIE WYBIERAMY TUTAJ. Katalog grup wydarzenia ma własny ekran; do czasu
 // jego powstania edycja biletu PRZENOSI istniejące przypisanie bez zmian,
 // zamiast po cichu je zerować przy każdym zapisie nazwy.
+import { clampGroupSize } from "@/lib/events/ticketTaxGroup";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -443,6 +444,39 @@ export function EventTicketDialog({
                 checked={look.groupRegistrationEnabled}
                 onCheckedChange={(checked) => setLookField("groupRegistrationEnabled", checked)}
               />
+              {look.groupRegistrationEnabled && (
+                <AdminFormTextRow
+                  id="ticket-group-max-size"
+                  label={t("adminEventRegistration.tickets.studio.groupMaxSize")}
+                  hint={t("adminEventRegistration.tickets.studio.groupMaxSizeHint")}
+                  type="number"
+                  inputMode="numeric"
+                  value={String(look.groupMaxSize)}
+                  onValueChange={(value) =>
+                    setLookField("groupMaxSize", clampGroupSize(Number(value)))
+                  }
+                />
+              )}
+              <FormSelect
+                value={look.taxMode}
+                aria-label={t("adminEventRegistration.tickets.studio.taxMode")}
+                options={[
+                  {
+                    value: "inclusive",
+                    label: t("adminEventRegistration.tickets.studio.taxInclusive"),
+                  },
+                  {
+                    value: "exclusive",
+                    label: t("adminEventRegistration.tickets.studio.taxExclusive"),
+                  },
+                ]}
+                onValueChange={(value) =>
+                  setLookField("taxMode", value === "exclusive" ? "exclusive" : "inclusive")
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("adminEventRegistration.tickets.studio.taxHint")}
+              </p>
               <AdminFormSwitchRow
                 label={t("adminEventRegistration.tickets.editor.active")}
                 checked={draft.isActive}

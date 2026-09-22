@@ -105,6 +105,20 @@ export const eventRegistrationPl = {
     // „nie masz jeszcze wejściówki" i na tym kończył: nie było przycisku,
     // odnośnika ani niczego. Te napisy obsługują trzy stany - można zapłacić,
     // trzeba się najpierw zalogować, nie ma czego płacić.
+    group: {
+      title: "Uczestnicy grupy",
+      lead: "Dodaj dane każdej osoby, za którą płacisz. Ty zajmujesz pierwsze miejsce, łącznie do {{max}} osób. Każdy dostanie własny bilet z kodem QR.",
+      accountRequired: "Zaloguj się, aby zapisać kilka osób naraz.",
+      person: "Osoba {{n}}",
+      add: "Dodaj osobę",
+      remove: "Usuń osobę",
+      seats: "Miejsc w zamówieniu: {{count}}",
+      issues: {
+        name: "Podaj imię i nazwisko (do 80 znaków).",
+        email: "Podaj poprawny adres e-mail.",
+        duplicate: "Ten adres e-mail już jest na liście.",
+      },
+    },
     payment: {
       payNow: "Zapłać",
       promoLabel: "Kod rabatowy",
@@ -395,6 +409,20 @@ export const eventRegistrationEn = {
       manageTokenCopyFailed: "Could not copy the key - write it down from the screen.",
       cancelled: "Cancellation accepted.",
       promoted: "Someone moved up from the waiting list ({{count}}).",
+    },
+    group: {
+      title: "Group attendees",
+      lead: "Add details of every person you are paying for. You take the first seat, up to {{max}} people in total. Everyone gets their own ticket with a QR code.",
+      accountRequired: "Sign in to register several people at once.",
+      person: "Person {{n}}",
+      add: "Add person",
+      remove: "Remove person",
+      seats: "Seats in this order: {{count}}",
+      issues: {
+        name: "Enter first and last name (up to 80 characters).",
+        email: "Enter a valid email address.",
+        duplicate: "This email address is already on the list.",
+      },
     },
     payment: {
       payNow: "Pay",
