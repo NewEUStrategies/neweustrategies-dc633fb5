@@ -173,8 +173,14 @@ export async function createPlanCheckoutSession(
       email: input.customerEmail,
     });
 
-    const mode: NonNullable<SessionCreateParams["mode"]> =
+    // Literalna unia, NIE `NonNullable<SessionCreateParams["mode"]>`: od
+    // stripe@22.6 ten typ dopuszcza też `string & Record<never, never>`
+    // (otwarta unia dla nowych trybów SDK), więc przez `sessionFlags`, które
+    // przyjmuje wyłącznie `"payment" | "subscription"`, już nie przechodził.
+    // Zawężamy u ŹRÓDŁA - to nasz kontrakt, nie kontrakt SDK.
+    const mode: "payment" | "subscription" =
       price.type === "recurring" ? "subscription" : "payment";
+
     const quantity = Math.min(Math.max(Math.trunc(input.quantity ?? 1), 1), 100);
 
     const productName =

@@ -28,10 +28,29 @@ configure({ asyncUtilTimeout: 5000 });
 // the test completes and flake the run. A no-op default keeps unit tests off
 // the network; observability tests that assert beacon behaviour still override
 // `navigator.sendBeacon` per-test (and restore the original) as before.
+// OSŁONA DESKRYPTOREM: `navigator.sendBeacon` bywa w happy-dom definiowany jako
+// właściwość NIEKONFIGUROWALNA (zmienia się to między wydaniami). Wtedy samo
+// `Object.defineProperty` RZUCA - a rzut w pliku setupowym oblewa KAŻDY plik
+// testowy w domyślnym środowisku, we wszystkich shardach, plus bramki
+// `check:chunk-parity`, `check:permissions-parity`, `check:i18n-parity`,
+// `check:ci-gates` i `check:widget-fidelity`. Dlatego: podmieniamy tylko, gdy
+// deskryptor na to pozwala, a próbę i tak domykamy `try`/`catch`. Środowiska
+// testowego NIE zmieniamy.
 if (typeof navigator !== "undefined") {
-  Object.defineProperty(navigator, "sendBeacon", {
-    configurable: true,
-    writable: true,
-    value: () => true,
-  });
+  const descriptor = Object.getOwnPropertyDescriptor(navigator, "sendBeacon");
+  const patchable = descriptor === undefined || descriptor.configurable === true;
+  if (patchable) {
+    try {
+      Object.defineProperty(navigator, "sendBeacon", {
+        configurable: true,
+        writable: true,
+        value: () => true,
+      });
+    } catch {
+      // Silnik nie pozwolił na podmianę - testy obserwowalności nadpisują
+      // `sendBeacon` per-test, a reszta suity nie może z tego powodu padać.
+    }
+  } else if (descriptor.writable === true) {
+    navigator.sendBeacon = () => true;
+  }
 }

@@ -91,7 +91,7 @@ async function buildStripeClient(connectionApiKey: string, lovableApiKey: string
   const { default: Stripe } = await loadStripeSdk();
 
   return new Stripe(connectionApiKey, {
-    apiVersion: "2026-03-25.dahlia",
+    apiVersion: "2026-08-26.dahlia",
     httpClient: Stripe.createFetchHttpClient((input, init) => {
       const stripeUrl = input instanceof Request ? input.url : input.toString();
       const gatewayUrl = stripeUrl.replace("https://api.stripe.com", GATEWAY_STRIPE_BASE);

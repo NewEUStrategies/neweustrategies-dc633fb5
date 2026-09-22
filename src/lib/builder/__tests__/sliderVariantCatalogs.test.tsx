@@ -171,6 +171,14 @@ function withImageLoadState(
     get: () => state.naturalWidth,
   });
   try {
+    // ŁATKA MUSI SIĘ ZAŁOŻYĆ, zanim cokolwiek zmierzymy. `complete` startuje w
+    // happy-dom 20.9 z `false`, a od 20.14 z `true`, a `naturalWidth` bywa
+    // niezerowa domyślnie - więc test „zdrowej okładki" mógłby przejść MIMO
+    // nieudanej podmiany getterów i zielony wynik nie dowodziłby niczego.
+    // Ta asercja zamienia takie ciche przejście w jawną porażkę.
+    const probe = document.createElement("img");
+    expect(probe.complete, "łatka `complete` nie założyła się").toBe(state.complete);
+    expect(probe.naturalWidth, "łatka `naturalWidth` nie założyła się").toBe(state.naturalWidth);
     run();
   } finally {
     if (completeDesc) Object.defineProperty(proto, "complete", completeDesc);
