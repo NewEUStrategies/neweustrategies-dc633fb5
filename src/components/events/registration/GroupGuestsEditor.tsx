@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EMPTY_GUEST, type GroupGuest, type GuestIssue } from "@/lib/events/ticketTaxGroup";
+import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
+
+ensureEventRegistrationI18n();
 
 interface GroupGuestsEditorProps {
   guests: GroupGuest[];

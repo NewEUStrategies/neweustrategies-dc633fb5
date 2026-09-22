@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ensureClubI18n } from "@/lib/i18n-club";
 
 interface ClubDateTimeInputProps {
   id: string;
@@ -96,6 +97,7 @@ export function ClubDateTimeInput({
   allDay,
   required,
 }: ClubDateTimeInputProps) {
+  ensureClubI18n();
   const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
   const locale = i18n.language?.startsWith("en") ? enGB : plLocale;

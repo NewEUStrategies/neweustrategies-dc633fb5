@@ -14,6 +14,11 @@ import {
   type RegistrationFormTicket,
 } from "@/lib/events/registrationFormSurface";
 import type { EventTicketRow } from "@/lib/events/registrationsApi";
+import { DZIEN, freezeClock, relativeDate, relativeIso } from "@/test/time";
+
+// `ticketStatus` przyjmuje „teraz" jawnie, ale plik i tak zamraża zegar:
+// daty okna sprzedaży są liczone względem tego samego `FIXED_NOW`.
+freezeClock();
 
 const row = (patch: Partial<EventTicketRow>): EventTicketRow =>
   ({
@@ -38,10 +43,10 @@ describe("ticketPresentation", () => {
   });
 
   it("derives status, preferring the database availability", () => {
-    const now = new Date("2026-09-22T12:00:00Z");
+    const now = relativeDate(0);
     expect(ticketStatus(row({ is_active: false }), now)).toBe("inactive");
-    expect(ticketStatus(row({ sales_from: "2026-10-01T00:00:00Z" }), now)).toBe("scheduled");
-    expect(ticketStatus(row({ sales_to: "2026-09-01T00:00:00Z" }), now)).toBe("ended");
+    expect(ticketStatus(row({ sales_from: relativeIso(9 * DZIEN) }), now)).toBe("scheduled");
+    expect(ticketStatus(row({ sales_to: relativeIso(-21 * DZIEN) }), now)).toBe("ended");
     expect(ticketStatus(row({ quota: 2, sold_count: 2 }), now)).toBe("sold_out");
     expect(ticketStatus(row({ availability: "sold_out" }), now)).toBe("sold_out");
     expect(ticketStatus(row({}), now)).toBe("on_sale");
