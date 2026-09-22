@@ -290,12 +290,22 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     let couponDiscountCents = 0;
     if (data.coupon_code && data.coupon_code.trim().length > 0) {
       const normalizedCode = data.coupon_code.trim().toUpperCase();
-      const { data: rows, error: validateErr } = await supabase.rpc("validate_b2b_coupon", {
-        _code: normalizedCode,
-        _plan_id: data.plan_id ?? "00000000-0000-0000-0000-000000000000",
-        _amount_cents: amountCents,
-        _currency: currency,
-      });
+      // Bilet wydarzenia: kod sprawdzany z zakresem wydarzenia i biletu
+      // (kody tworzone w studiu wydarzenia). Pozostałe zakupy: kod ogólny.
+      const { data: rows, error: validateErr } = data.event_id
+        ? await supabase.rpc("validate_event_ticket_coupon", {
+            _code: normalizedCode,
+            _event_id: data.event_id,
+            _ticket_type_id: data.ticket_type_id ?? null,
+            _amount_cents: amountCents,
+            _currency: currency,
+          })
+        : await supabase.rpc("validate_b2b_coupon", {
+            _code: normalizedCode,
+            _plan_id: data.plan_id ?? "00000000-0000-0000-0000-000000000000",
+            _amount_cents: amountCents,
+            _currency: currency,
+          });
       if (validateErr) throw validateErr;
       const row = (rows ?? [])[0];
       if (!row || !row.ok) {
