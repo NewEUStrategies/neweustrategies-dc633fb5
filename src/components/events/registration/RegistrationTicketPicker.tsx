@@ -30,22 +30,81 @@ export function RegistrationTicketPicker({
   onChange,
   lang,
   invalid,
+  eventId,
 }: {
   tickets: RegistrationFormTicket[];
   value: string | null;
   onChange: (ticketId: string) => void;
   lang: "pl" | "en";
   invalid: boolean;
+  /** Włącza pole kodu dostępu (odsłanianie ukrytych biletów). */
+  eventId?: string;
 }) {
   const { t } = useTranslation();
   // Klucz z linku czytamy po hydratacji - SSR nie zna query stringa klienta.
   const [requestedKey, setRequestedKey] = useState<string | null>(null);
+  const [revealed, setRevealed] = useState<string[]>([]);
+  const [code, setCode] = useState("");
+  const [revealNote, setRevealNote] = useState<string | null>(null);
+  const hasHidden = tickets.some((ticket) => ticket.isHidden === true);
+
+  const applyCode = async (raw: string) => {
+    if (!eventId || raw.trim() === "") return;
+    rememberEventCode(eventId, raw);
+    const ids = await fetchRevealedTickets(eventId, raw);
+    setRevealed(ids);
+    setRevealNote(
+      ids.length > 0
+        ? t("eventRegistration.payment.revealFound", { count: ids.length })
+        : t("eventRegistration.payment.revealNone"),
+    );
+  };
+
   useEffect(() => {
-    setRequestedKey(new URLSearchParams(window.location.search).get("ticket"));
+    const params = new URLSearchParams(window.location.search);
+    setRequestedKey(params.get("ticket"));
+    const fromUrl = params.get("code");
+    if (fromUrl) {
+      setCode(fromUrl.toUpperCase());
+      void applyCode(fromUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const shown = visibleTickets(tickets, requestedKey);
+  const shown = visibleTickets(tickets, requestedKey).concat(
+    tickets.filter(
+      (ticket) =>
+        ticket.isHidden === true && ticket.key !== requestedKey && revealed.includes(ticket.id),
+    ),
+  );
 
   return (
+    <div className="space-y-3">
+    {eventId && hasHidden && (
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+        <label className="flex-1 space-y-1 text-sm">
+          <span className="font-medium">{t("eventRegistration.payment.revealLabel")}</span>
+          <input
+            value={code}
+            maxLength={64}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            placeholder={t("eventRegistration.payment.promoPlaceholder")}
+            className="h-10 w-full rounded-[6px] border border-input bg-background px-3 text-sm uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => void applyCode(code)}
+          className="h-10 rounded-[6px] border border-border px-4 text-sm font-medium hover:bg-muted"
+        >
+          {t("eventRegistration.payment.revealApply")}
+        </button>
+      </div>
+    )}
+    {revealNote && (
+      <p role="status" className="text-xs text-muted-foreground">
+        {revealNote}
+      </p>
+    )}
     <div
       role="radiogroup"
       aria-label={t("eventRegistration.labels.chooseTicket")}
