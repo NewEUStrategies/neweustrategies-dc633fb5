@@ -744,7 +744,7 @@ export const adminEventRegistrationPl = {
         salesFrom: "Sprzedaż od",
         salesTo: "Sprzedaż do",
         minTierRank: "Próg warstwy członkostwa",
-        requiresApproval: "Wymaga akceptacji organizatora",
+        requiresApproval: "Rejestracja moderowana",
         requiresApprovalHint:
           "Podnosi wymóg akceptacji nawet na wydarzeniu z zapisem natychmiastowym. Nie może go obniżyć.",
         group: "Grupa nadawana przy zapisie",
@@ -1868,7 +1868,7 @@ export const adminEventRegistrationEn = {
         salesFrom: "Sales from",
         salesTo: "Sales until",
         minTierRank: "Membership tier threshold",
-        requiresApproval: "Requires the organiser's approval",
+        requiresApproval: "Moderated registration",
         requiresApprovalHint:
           "Raises the approval requirement even on an event with instant registration. It cannot lower it.",
         group: "Group granted on registration",

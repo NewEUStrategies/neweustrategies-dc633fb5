@@ -445,7 +445,7 @@ export function EventTicketDialog({
                 </SelectContent>
               </Select>
               <AdminFormSwitchRow
-                label={t("adminEventRegistration.tickets.studio.moderated")}
+                label={t("adminEventRegistration.tickets.editor.requiresApproval")}
                 hint={t("adminEventRegistration.tickets.studio.moderatedHint")}
                 checked={draft.requiresApproval}
                 onCheckedChange={(checked) => set("requiresApproval", checked)}
