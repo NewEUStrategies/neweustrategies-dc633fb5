@@ -103,8 +103,26 @@ export function EventRegistrationTicketsSection({ row }: { row: AdminEventDetail
   ensureRegistrationI18n();
   return (
     <ModuleScreen titleKey="adminEventRegistration.nav.tickets">
-      <EventTicketsPanel key={row.id} eventId={row.id} eventSlug={row.slug} />
+      <TicketsAndCodes row={row} />
     </ModuleScreen>
+  );
+}
+
+function TicketsAndCodes({ row }: { row: AdminEventDetailRow }) {
+  const { t } = useTranslation();
+  return (
+    <Tabs defaultValue="tickets" className="space-y-4">
+      <TabsList className="tabs-scroller">
+        <TabsTrigger value="tickets">{t("eventCodes.tabTickets")}</TabsTrigger>
+        <TabsTrigger value="codes">{t("eventCodes.tabCodes")}</TabsTrigger>
+      </TabsList>
+      <TabsContent value="tickets">
+        <EventTicketsPanel key={row.id} eventId={row.id} eventSlug={row.slug} />
+      </TabsContent>
+      <TabsContent value="codes">
+        <EventCodesPanel key={row.id} eventId={row.id} eventSlug={row.slug} />
+      </TabsContent>
+    </Tabs>
   );
 }
 
