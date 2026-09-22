@@ -64,13 +64,7 @@ export const emptyEventCodeDraft = (currency: string): EventCodeDraft => ({
 });
 
 export type EventCodeIssue =
-  | "code"
-  | "noEffect"
-  | "percent"
-  | "amount"
-  | "quantity"
-  | "dates"
-  | "tickets";
+  "code" | "noEffect" | "percent" | "amount" | "quantity" | "dates" | "tickets";
 
 function parseAmount(raw: string): number {
   const n = Number(raw.replace(",", ".").trim());

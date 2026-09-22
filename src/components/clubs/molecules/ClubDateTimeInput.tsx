@@ -7,6 +7,7 @@
 // shadcn oraz kolumnami godzin/minut w tokenach projektu.
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-club";
 import { format, parse, isValid } from "date-fns";
 import { pl as plLocale, enGB } from "date-fns/locale";
 import { CalendarDays } from "lucide-react";

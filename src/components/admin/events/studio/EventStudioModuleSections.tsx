@@ -32,6 +32,7 @@
 // formularzy, zamiast przepisywac stan poprzedniego wydarzenia na nowe.
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-event-sponsor-board";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EventStudioPage } from "@/components/admin/events/studio/EventStudioSection";
 import { EventSpeakersManager } from "@/components/admin/community/EventSpeakersManager";

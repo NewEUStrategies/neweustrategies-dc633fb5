@@ -9,6 +9,7 @@
 // tym, czy można ją bezpiecznie obniżyć - a RPC odmawia zejścia poniżej zajętych.
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-event-registration";
 import { toast } from "sonner";
 import { Copy, CopyPlus, Link2, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
