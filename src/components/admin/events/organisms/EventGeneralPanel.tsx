@@ -132,7 +132,7 @@ export function EventGeneralPanel({ row }: { row: AdminEventDetailRow }) {
     });
   };
 
-  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  const origin = browserPublicOrigin();
   const languages = eventLanguageOptions(i18n.language);
   const zones = timeZoneOptions(draft.timezone);
 
