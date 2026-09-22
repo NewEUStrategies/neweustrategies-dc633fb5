@@ -63,7 +63,13 @@ describe("ticketPresentation", () => {
 
 describe("public ticket visibility", () => {
   const ticket = (key: string, isHidden: boolean): RegistrationFormTicket =>
-    ({ id: key, key, isHidden, priceLabelPl: " Gratis ", priceLabelEn: "" }) as RegistrationFormTicket;
+    ({
+      id: key,
+      key,
+      isHidden,
+      priceLabelPl: " Gratis ",
+      priceLabelEn: "",
+    }) as RegistrationFormTicket;
 
   it("shows a hidden ticket only through its direct link", () => {
     const list = [ticket("open", false), ticket("secret", true)];

@@ -234,6 +234,8 @@ function publicRouteFamily(): string[] {
 const COMPONENT_EXCEPTIONS: Record<string, string> = {
   EventMenuNav:
     "ZAPYTANIE + NAWIGACJA, nie rysunek: kazda pozycja to <Link> do `/$` albo do `/events/<slug>/<module>`, wiec klikniecie w podgladzie wyprowadziloby redaktora ze studia, a `event_menu` ma `AND e.status = 'published'` i na szkicu jest puste. SAM RYSUNEK kafli podglad ma - z `EventMenuTiles`, tego samego, ktorego uzywa ten organizm",
+  EventHomeAd:
+    'ZAPYTANIE WIDZA: reklame wybiera `event_home_ads_for_viewer` wedlug grup zalogowanego uczestnika i liczy wyswietlenia/klikniecia - w podgladzie studia licznik bylby falszywy, a redaktor zarzadza reklamami na tablicy „Sponsorzy i reklama"',
   EventBookmarkButton: "akcja konta - useAuth i mutacja zakladki, a nie tresc strony",
   SectionLockCard: "zamki liczy baza dla wolajacego; redaktor widzi wlasne wydarzenie w calosci",
   EventTabsNav:
