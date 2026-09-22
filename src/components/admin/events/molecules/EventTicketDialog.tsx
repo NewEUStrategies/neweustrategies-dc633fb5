@@ -358,60 +358,58 @@ export function EventTicketDialog({
               </div>
             </AdminFormSection>
 
-            {paid ? (
-              <>
-                <AdminFormSection
-                  title={t("adminEventRegistration.tickets.studio.payment")}
-                  hint={t("adminEventRegistration.tickets.studio.paymentHint")}
-                  columns={2}
-                >
-                  <AdminFormTextRow
-                    label={t("adminEventRegistration.tickets.editor.priceCents")}
-                    hint={t("adminEventRegistration.tickets.editor.priceHint")}
-                    value={draft.priceCents}
-                    onValueChange={(value) => {
-                      set("priceCents", value);
-                      const cents = Number(value.trim());
-                      setPaid(value.trim() !== "" && Number.isFinite(cents) && cents !== 0);
-                    }}
-                    inputMode="numeric"
-                    error={errorFor("priceCents")}
-                  />
-                  <AdminFormEnumRow<TicketCurrency>
-                    label={t("adminEventRegistration.tickets.editor.currency")}
-                    value={draft.currency}
-                    options={TICKET_CURRENCIES}
-                    labelFor={(option) => t(`adminEventRegistration.currencies.${option}`)}
-                    onValueChange={(value) => set("currency", value)}
-                  />
-                  <AdminFormTextRow
-                    label={t("adminEventRegistration.tickets.editor.earlyBirdPriceCents")}
-                    hint={t("adminEventRegistration.tickets.editor.earlyBirdHint")}
-                    value={draft.earlyBirdPriceCents}
-                    onValueChange={(value) => set("earlyBirdPriceCents", value)}
-                    inputMode="numeric"
-                    error={errorFor("earlyBirdPriceCents")}
-                  />
-                  <AdminFormTextRow
-                    label={t("adminEventRegistration.tickets.editor.earlyBirdUntil")}
-                    value={draft.earlyBirdUntil}
-                    onValueChange={(value) => set("earlyBirdUntil", value)}
-                    type="datetime-local"
-                    error={errorFor("earlyBirdUntil")}
-                  />
-                </AdminFormSection>
-                <AdminFormSection
-                  title={t("adminEventRegistration.tickets.editor.phasesSection")}
-                  columns={1}
-                >
-                  <EventTicketPhasesEditor
-                    phases={draft.phases}
-                    onChange={(phases) => set("phases", phases)}
-                    error={errorFor("phases")}
-                  />
-                </AdminFormSection>
-              </>
-            ) : null}
+            {/* Szczegóły płatności są zawsze widoczne: kwota > 0 sama przełącza
+                bilet na „Płatny", a wybór „Bezpłatny" zeruje cenę i cennik. */}
+            <AdminFormSection
+              title={t("adminEventRegistration.tickets.studio.payment")}
+              hint={t("adminEventRegistration.tickets.studio.paymentHint")}
+              columns={2}
+            >
+              <AdminFormTextRow
+                label={t("adminEventRegistration.tickets.editor.priceCents")}
+                hint={t("adminEventRegistration.tickets.editor.priceHint")}
+                value={draft.priceCents}
+                onValueChange={(value) => {
+                  set("priceCents", value);
+                  const cents = Number(value.trim());
+                  setPaid(value.trim() !== "" && Number.isFinite(cents) && cents !== 0);
+                }}
+                inputMode="numeric"
+                error={errorFor("priceCents")}
+              />
+              <AdminFormEnumRow<TicketCurrency>
+                label={t("adminEventRegistration.tickets.editor.currency")}
+                value={draft.currency}
+                options={TICKET_CURRENCIES}
+                labelFor={(option) => t(`adminEventRegistration.currencies.${option}`)}
+                onValueChange={(value) => set("currency", value)}
+              />
+              <AdminFormTextRow
+                label={t("adminEventRegistration.tickets.editor.earlyBirdPriceCents")}
+                hint={t("adminEventRegistration.tickets.editor.earlyBirdHint")}
+                value={draft.earlyBirdPriceCents}
+                onValueChange={(value) => set("earlyBirdPriceCents", value)}
+                inputMode="numeric"
+                error={errorFor("earlyBirdPriceCents")}
+              />
+              <AdminFormTextRow
+                label={t("adminEventRegistration.tickets.editor.earlyBirdUntil")}
+                value={draft.earlyBirdUntil}
+                onValueChange={(value) => set("earlyBirdUntil", value)}
+                type="datetime-local"
+                error={errorFor("earlyBirdUntil")}
+              />
+            </AdminFormSection>
+            <AdminFormSection
+              title={t("adminEventRegistration.tickets.editor.phasesSection")}
+              columns={1}
+            >
+              <EventTicketPhasesEditor
+                phases={draft.phases}
+                onChange={(phases) => set("phases", phases)}
+                error={errorFor("phases")}
+              />
+            </AdminFormSection>
 
             <AdminFormSection
               title={t("adminEventRegistration.tickets.studio.other")}
