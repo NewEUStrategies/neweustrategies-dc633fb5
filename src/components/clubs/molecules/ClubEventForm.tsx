@@ -245,6 +245,7 @@ export function ClubEventForm({
                   <Input
                     id="club-event-start"
                     type={allDay ? "date" : "datetime-local"}
+                    className="[color-scheme:light] dark:[color-scheme:dark]"
                     required
                     value={startsAt}
                     onChange={(event) => setStartsAt(event.target.value)}
@@ -254,6 +255,7 @@ export function ClubEventForm({
                   <Input
                     id="club-event-end"
                     type={allDay ? "date" : "datetime-local"}
+                    className="[color-scheme:light] dark:[color-scheme:dark]"
                     value={endsAt}
                     onChange={(event) => setEndsAt(event.target.value)}
                   />
