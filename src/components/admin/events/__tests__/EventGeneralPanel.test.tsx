@@ -75,6 +75,12 @@ vi.mock("@/components/admin/events/studio/EventStudioPreviewContext", () => ({
   },
 }));
 
+// Adres publiczny zawsze pokazuje kanoniczny host, nawet gdy redaktor otwiera
+// panel z podglądu na domenie zarządzanej przez Lovable.
+vi.mock("@/lib/http/host", () => ({
+  browserPublicOrigin: () => "https://neweuropeanstrategies.com",
+}));
+
 // Droplisty stoją na Radix Select (przez `FormSelect`), a ten pod happy-dom nie
 // otwiera listy bez pełnego API wskaźnika. Atrapa jest natywna i ETYKIETOWANA,
 // bo przedmiotem dowodu jest to, KTÓRE wartości panel oferuje i która dojedzie
@@ -826,6 +832,11 @@ describe("EventGeneralPanel - adres publiczny pod kłódką", () => {
     fireEvent.click(screen.getByLabelText(`${G}editUrl`));
     wpisz("urlLabel", "KONGRES-2027");
     expect(pole("urlLabel").value).toBe("kongres-2027");
+  });
+
+  it("adres publiczny pokazuje KANONICZNY host, nie origin podglądu", () => {
+    panel();
+    expect(screen.getByText("https://neweuropeanstrategies.com/events/")).toBeTruthy();
   });
 
   it("po UDANYM zapisie kłódka wraca na miejsce", () => {

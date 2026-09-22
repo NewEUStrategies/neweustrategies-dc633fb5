@@ -19,6 +19,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Check, Copy, Info, Pencil } from "@/lib/lucide-shim";
+import { browserPublicOrigin } from "@/lib/http/host";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -131,7 +132,7 @@ export function EventGeneralPanel({ row }: { row: AdminEventDetailRow }) {
     });
   };
 
-  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  const origin = browserPublicOrigin();
   const languages = eventLanguageOptions(i18n.language);
   const zones = timeZoneOptions(draft.timezone);
 
