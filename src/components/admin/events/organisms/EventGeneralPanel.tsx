@@ -19,6 +19,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Check, Copy, Info, Pencil } from "@/lib/lucide-shim";
+import { browserPublicOrigin } from "@/lib/http/host";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
