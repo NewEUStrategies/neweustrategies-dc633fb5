@@ -834,6 +834,11 @@ describe("EventGeneralPanel - adres publiczny pod kłódką", () => {
     expect(pole("urlLabel").value).toBe("kongres-2027");
   });
 
+  it("adres publiczny pokazuje KANONICZNY host, nie origin podglądu", () => {
+    panel();
+    expect(screen.getByText("https://neweuropeanstrategies.com/events/")).toBeTruthy();
+  });
+
   it("po UDANYM zapisie kłódka wraca na miejsce", () => {
     panel();
     fireEvent.click(screen.getByLabelText(`${G}editUrl`));
