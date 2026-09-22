@@ -5,6 +5,7 @@ import { periodEndFor } from "@/lib/billing/entitlement";
 import { mockCheckoutAllowed } from "@/lib/billing/mockMode.server";
 import { resolveReturnUrl } from "@/lib/http/resolveReturnUrl";
 import type { TicketTaxMode } from "@/lib/events/ticketTaxGroup";
+import { groupCouponDiscount } from "@/lib/events/groupOrderPricing";
 
 // Zamówienie płatnicze (server-side, RLS jako użytkownik).
 // Kwota jest zawsze wyliczana serwerowo (plan / reguła dostępu / bilet /
@@ -67,6 +68,8 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     let ticketListPriceCents = 0;
     let ticketPhaseLabel = "";
     let ticketTaxMode: TicketTaxMode | null = null;
+    /** Miejsca opłacane jednym zamówieniem (rejestracja grupowa), domyślnie 1. */
+    let ticketSeats = 1;
     let trialDays = 0;
     /** Czytelny identyfikator ceny katalogowej dla subskrypcji (cykl + trial). */
     let catalogPriceId: string | null = null;
@@ -237,6 +240,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         });
         const seats = typeof seatsRaw === "number" ? Math.max(1, Math.trunc(seatsRaw)) : 1;
         if (seats > 1) {
+          ticketSeats = seats;
           amountCents *= seats;
           ticketListPriceCents *= seats;
           label = `${label} × ${seats}`;
@@ -340,8 +344,17 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       }
       couponId = row.coupon_id;
       couponCode = normalizedCode;
-      couponDiscountCents = row.discount_cents;
-      amountCents = row.final_cents;
+      // Zamówienie grupowe: kod kwotowy zdejmuje swoją kwotę z KAŻDEGO miejsca
+      // (baza policzyła ją raz, od sumy). Procentowy przechodzi bez zmian.
+      const split = groupCouponDiscount({
+        kind: row.discount_kind,
+        discountCents: row.discount_cents,
+        finalCents: row.final_cents,
+        totalCents: amountCents,
+        seats: ticketSeats,
+      });
+      couponDiscountCents = split.discountCents;
+      amountCents = split.finalCents;
       // Bezpiecznik: rabat 100% (final=0) traktujemy jak darmowy przydział -
       // i tak nie przejdzie minimalnej kwoty transakcji, więc odrzucamy < 50 gr.
       if (amountCents < 50) {

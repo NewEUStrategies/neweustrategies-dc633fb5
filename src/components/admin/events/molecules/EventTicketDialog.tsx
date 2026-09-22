@@ -11,6 +11,7 @@
 import { clampGroupSize } from "@/lib/events/ticketTaxGroup";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-event-registration";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -56,6 +57,24 @@ import { formatMoney } from "@/lib/billing/types";
 import type { EventTicketInput, EventTicketRow } from "@/lib/events/registrationsApi";
 
 const NO_GROUP = "__none";
+
+/** Pola szkicu i klucze słownika jednej zakładki językowej. */
+const LANG_FIELDS = {
+  pl: {
+    suffix: "Pl",
+    nameKey: "namePl",
+    descKey: "descriptionPl",
+    benKey: "benefitsPl",
+    labelKey: "priceLabelPl",
+  },
+  en: {
+    suffix: "En",
+    nameKey: "nameEn",
+    descKey: "descriptionEn",
+    benKey: "benefitsEn",
+    labelKey: "priceLabelEn",
+  },
+} as const;
 
 interface EventTicketDialogProps {
   open: boolean;
@@ -167,11 +186,7 @@ export function EventTicketDialog({
       .catch(() => toast.error(t("adminEventRegistration.tickets.studio.copyFailed")));
   };
   const langFields = (lang: "pl" | "en") => {
-    const suffix = lang === "pl" ? "Pl" : "En";
-    const nameKey = lang === "pl" ? "namePl" : "nameEn";
-    const descKey = lang === "pl" ? "descriptionPl" : "descriptionEn";
-    const benKey = lang === "pl" ? "benefitsPl" : "benefitsEn";
-    const labelKey = lang === "pl" ? "priceLabelPl" : "priceLabelEn";
+    const { suffix, nameKey, descKey, benKey, labelKey } = LANG_FIELDS[lang];
     return (
       <div className="grid gap-4">
         <AdminFormTextRow
@@ -538,6 +553,12 @@ export function EventTicketDialog({
                     (paid && Number(draft.priceCents) > 0
                       ? formatMoney(Number(draft.priceCents), draft.currency, contentLang)
                       : t("adminEventRegistration.tickets.studio.free"))
+              }
+              taxAdded={
+                look.showPriceLabel &&
+                look.taxMode === "exclusive" &&
+                paid &&
+                Number(draft.priceCents) > 0
               }
               salesTo={draft.salesTo}
               lang={contentLang}

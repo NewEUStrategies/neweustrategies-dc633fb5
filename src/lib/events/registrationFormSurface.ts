@@ -21,6 +21,12 @@ import {
   REGISTRATION_FIELD_TYPES,
   type RegistrationFieldType,
 } from "@/lib/events/registrationsApi";
+import {
+  clampGroupSize,
+  GROUP_SIZE_DEFAULT,
+  parseTicketTaxMode,
+  type TicketTaxMode,
+} from "@/lib/events/ticketTaxGroup";
 
 /** Dostępność biletu wyliczona w SQL-u - nie liczymy jej z zegara przeglądarki. */
 export const TICKET_AVAILABILITIES = ["on_sale", "scheduled", "ended", "sold_out"] as const;
@@ -111,6 +117,10 @@ export interface RegistrationFormTicket {
   priceLabelEn?: string;
   /** Zapis grupowy - kupujący rejestruje kilka osób (pakiety grupowe). */
   groupRegistrationEnabled?: boolean;
+  /** Limit osób w jednym zapisie grupowym (z kupującym) - ten sam, który egzekwuje baza. */
+  groupMaxSize?: number;
+  /** `exclusive` = podatek doliczany w kasie, karta dopisuje „+ podatek". */
+  taxMode?: TicketTaxMode;
 }
 
 export interface RegistrationFormTerm {
@@ -381,6 +391,10 @@ export function parseRegistrationForm(payload: Json | null | undefined): Registr
         priceLabelPl: text(row, "price_label_pl"),
         priceLabelEn: text(row, "price_label_en"),
         groupRegistrationEnabled: bool(row, "group_registration_enabled"),
+        // Starszy backend bez tych kluczy degraduje do wartości domyślnych
+        // kolumn (10 osób, podatek wliczony) - tych samych, które ma baza.
+        groupMaxSize: clampGroupSize(optionalInt(row, "group_max_size") ?? GROUP_SIZE_DEFAULT),
+        taxMode: parseTicketTaxMode(row.tax_mode) ?? "inclusive",
       };
     }),
 

@@ -41,3 +41,34 @@ export function readManageToken(value: unknown): string | null {
 export function manageLinkPath(eventSlug: string, token: string): string {
   return `/events/${encodeURIComponent(eventSlug)}/manage?token=${encodeURIComponent(token)}`;
 }
+
+// BILET Z KODEM QR: KOD JEDZIE WE FRAGMENCIE (`#`), NIE W ZAPYTANIU. Kod
+// wejścia to poświadczenie przy bramce, a fragmentu przeglądarka nie wysyła
+// na serwer - nie trafia więc do logów dostępu, do nagłówka `Referer` ani do
+// podglądu linków w poczcie. Strona biletu rysuje QR w przeglądarce.
+// Kod ma ten sam kształt co klucz samoobsługi (`_event_new_qr_token()`).
+
+export interface TicketFragment {
+  qrToken: string;
+  /** Klucz samoobsługi - tylko w bilecie gościa grupy, który go nie miał. */
+  manageToken: string | null;
+}
+
+/** Ścieżka strony biletu: `/events/<slug>/ticket#t=<kod>&m=<klucz>`. */
+export function ticketLinkPath(
+  eventSlug: string,
+  qrToken: string,
+  manageToken: string | null = null,
+): string {
+  const fragment = new URLSearchParams({ t: qrToken });
+  if (manageToken !== null) fragment.set("m", manageToken);
+  return `/events/${encodeURIComponent(eventSlug)}/ticket#${fragment.toString()}`;
+}
+
+/** `location.hash` -> kod i opcjonalny klucz albo `null`, gdy kodu brak. */
+export function readTicketFragment(hash: string): TicketFragment | null {
+  const params = new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : hash);
+  const qrToken = readManageToken(params.get("t"));
+  if (qrToken === null) return null;
+  return { qrToken, manageToken: readManageToken(params.get("m")) };
+}

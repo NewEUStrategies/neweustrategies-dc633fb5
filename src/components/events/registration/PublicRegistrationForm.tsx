@@ -42,6 +42,7 @@ import {
 } from "@/lib/events/registrationSubmitDraft";
 import { GroupGuestsEditor } from "@/components/events/registration/GroupGuestsEditor";
 import {
+  GROUP_SIZE_DEFAULT,
   guestIssues,
   registerGroupGuests,
   type GroupGuest,
@@ -49,6 +50,7 @@ import {
 } from "@/lib/events/ticketTaxGroup";
 import { EMPTY_REGISTRATION_FORM } from "@/lib/events/registrationFormSurface";
 import { confirmEventRegistrationEmail } from "@/lib/events/registrationSelfNotify.functions";
+import { sendGroupTicketCodes } from "@/lib/events/groupTicketCodes.functions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FieldBox } from "@/components/ui/field-box";
@@ -126,6 +128,7 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
   // fail-soft: brak maila nie moze uniewaznic zapisu ani zepsuc ekranu
   // potwierdzenia. Ten sam uklad, co przy bezplatnym RSVP.
   const sendConfirmation = useServerFn(confirmEventRegistrationEmail);
+  const sendTicketCodes = useServerFn(sendGroupTicketCodes);
 
   const submit = useMutation({
     mutationFn: async ({
@@ -156,6 +159,14 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
       if (groupGuests.length > 0) {
         try {
           await registerGroupGuests(registered.registrationId, groupGuests);
+          // Zapis bezpłatny: bilety z kodem QR wychodzą od razu, każdy na adres
+          // swojej osoby. Przy zapisie płatnym serwer nic nie wyda - zrobi to
+          // webhook po zaksięgowaniu płatności. Mail jest dodatkiem (fail-soft).
+          if (registered.manageToken !== null) {
+            void sendTicketCodes({ data: { manageToken: registered.manageToken } }).catch(() => {
+              /* brak maila nie unieważnia zapisu grupy */
+            });
+          }
         } catch (error) {
           setFailure(registrationErrorMessage(error));
         }
@@ -260,7 +271,11 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
   const paidTicketNeedsAccount =
     user === null && selectedTicket !== null && selectedTicket.effectivePriceCents > 0;
   const groupEnabled = selectedTicket !== null && selectedTicket.groupRegistrationEnabled;
-  const groupGuests = groupEnabled && user !== null ? guests : [];
+  // Limit grupy pochodzi z biletu (ten sam, który egzekwuje baza). Po zmianie
+  // biletu na mniejszy nadmiarowi goście nie jadą do zapisu - baza i tak
+  // odrzuciłaby całą listę jako `group_too_large`.
+  const groupMaxSize = selectedTicket?.groupMaxSize ?? GROUP_SIZE_DEFAULT;
+  const groupGuests = groupEnabled && user !== null ? guests.slice(0, groupMaxSize - 1) : [];
 
   return (
     <form
@@ -368,9 +383,9 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
 
       {groupEnabled && (
         <GroupGuestsEditor
-          guests={guests}
+          guests={groupGuests}
           issues={guestErrors}
-          maxSize={10}
+          maxSize={groupMaxSize}
           requiresAccount={user === null}
           onChange={(next) => {
             setGuests(next);

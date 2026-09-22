@@ -8017,6 +8017,7 @@ export type Database = {
           source: string
           status: string
           tenant_id: string
+          ticket_code_sent_at: string | null
           ticket_type_id: string | null
           updated_at: string
           waitlist_notified_at: string | null
@@ -8052,6 +8053,7 @@ export type Database = {
           source?: string
           status?: string
           tenant_id: string
+          ticket_code_sent_at?: string | null
           ticket_type_id?: string | null
           updated_at?: string
           waitlist_notified_at?: string | null
@@ -8087,6 +8089,7 @@ export type Database = {
           source?: string
           status?: string
           tenant_id?: string
+          ticket_code_sent_at?: string | null
           ticket_type_id?: string | null
           updated_at?: string
           waitlist_notified_at?: string | null
@@ -19245,6 +19248,10 @@ export type Database = {
           sort_order: number
           visibility: string
         }[]
+      }
+      _event_issue_ticket_codes: {
+        Args: { p_registration_id: string }
+        Returns: Json
       }
       _event_meeting_available: {
         Args: {

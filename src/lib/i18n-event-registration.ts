@@ -47,6 +47,7 @@ export const eventRegistrationPl = {
       phaseEarlyBird: "Cena promocyjna",
       phaseEndsAt: "obowiązuje do {{date}}",
       benefitsTitle: "W cenie biletu",
+      plusTax: "+ podatek",
       accessCodeRequired: "Bilet za kodem z zaproszenia",
       selectPlaceholder: "Wybierz z listy",
     },
@@ -105,6 +106,19 @@ export const eventRegistrationPl = {
     // „nie masz jeszcze wejściówki" i na tym kończył: nie było przycisku,
     // odnośnika ani niczego. Te napisy obsługują trzy stany - można zapłacić,
     // trzeba się najpierw zalogować, nie ma czego płacić.
+    // Strona biletu z kodem QR otwierana z maila (`/events/<slug>/ticket#t=…`).
+    ticketPage: {
+      title: "Twój bilet",
+      lead: "Pokaż ten kod QR przy wejściu na wydarzenie.",
+      qrAlt: "Kod QR biletu",
+      codeLabel: "Kod wejścia",
+      codeHint: "Gdy skaner nie odczyta obrazka, obsługa wpisze ten kod ręcznie.",
+      private: "Kod jest przypisany do Ciebie - nie publikuj go i nie przekazuj dalej.",
+      manage: "Zarządzaj zgłoszeniem",
+      missingTitle: "Brak kodu biletu",
+      missingBody:
+        "Ten odnośnik nie zawiera kodu biletu. Otwórz bilet przyciskiem z maila „Twój bilet z kodem QR”.",
+    },
     group: {
       title: "Uczestnicy grupy",
       lead: "Dodaj dane każdej osoby, za którą płacisz. Ty zajmujesz pierwsze miejsce, łącznie do {{max}} osób. Każdy dostanie własny bilet z kodem QR.",
@@ -361,6 +375,7 @@ export const eventRegistrationEn = {
       phaseEarlyBird: "Early bird price",
       phaseEndsAt: "valid until {{date}}",
       benefitsTitle: "Included in this ticket",
+      plusTax: "+ tax",
       accessCodeRequired: "Ticket unlocked with an invitation code",
       selectPlaceholder: "Pick from the list",
     },
@@ -409,6 +424,19 @@ export const eventRegistrationEn = {
       manageTokenCopyFailed: "Could not copy the key - write it down from the screen.",
       cancelled: "Cancellation accepted.",
       promoted: "Someone moved up from the waiting list ({{count}}).",
+    },
+    // Ticket page with the QR code opened from the email (`/events/<slug>/ticket#t=…`).
+    ticketPage: {
+      title: "Your ticket",
+      lead: "Show this QR code at the event entrance.",
+      qrAlt: "Ticket QR code",
+      codeLabel: "Entry code",
+      codeHint: "If the scanner cannot read the image, staff can type in this code by hand.",
+      private: "This code belongs to you - do not publish it or pass it on.",
+      manage: "Manage your registration",
+      missingTitle: "No ticket code",
+      missingBody:
+        "This link does not contain a ticket code. Open your ticket with the button in the “Your ticket with the QR code” email.",
     },
     group: {
       title: "Group attendees",
