@@ -42,6 +42,8 @@ import { EventTermsPanel } from "@/components/admin/events/organisms/EventTermsP
 import { EventPackagesPanel } from "@/components/admin/events/organisms/EventPackagesPanel";
 import { EventAudienceGrantsPanel } from "@/components/admin/events/organisms/EventAudienceGrantsPanel";
 import { EventTicketsPanel } from "@/components/admin/events/organisms/EventTicketsPanel";
+import { EventCodesPanel } from "@/components/admin/events/organisms/EventCodesPanel";
+import "@/lib/i18n-admin-event-codes";
 import { GroupMembersPanel } from "@/components/admin/events/organisms/GroupMembersPanel";
 import { MeetingSettingsPanel } from "@/components/admin/events/organisms/MeetingSettingsPanel";
 import { MeetingStatsPanel } from "@/components/admin/events/organisms/MeetingStatsPanel";
