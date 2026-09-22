@@ -224,6 +224,35 @@ Z tego wynikają trzy rzeczy, wszystkie sprawdzone:
 **Czego nie robić:** nie zostawiaj stanu bez decyzji i nie zapisuj do repo locka z URL-ami
 `registry.npmjs.org`, jeżeli wybrano A2 - komentarz w `ci.yml` mówi wprost „never committed".
 
+### 2.0. DECYZJA WŁAŚCICIELA: wybrano A1
+
+**Właściciel repozytorium wybrał A1 - utrwalenie repointu w locku** (decyzja z 2026-09-22).
+Do wykonania w etapie 0, osobnym commitem, zanim ruszy cokolwiek innego:
+
+1. Ujednolicić 384 wpisy na rejestr publiczny (najprościej: tym samym `sed`-em, który stoi
+   w `ci.yml:152-153`, tylko z zapisem wyniku do repo).
+2. **Usunąć krok „Repoint lockfile to the public npm registry" ze WSZYSTKICH miejsc, gdzie
+   występuje.** Zmierzone: **8 wystąpień w 3 plikach workflow** (nie jedno, jak sugeruje
+   czytanie samego `verify`):
+
+   | Plik                               | Linie                    |
+   | ---------------------------------- | ------------------------ |
+   | `.github/workflows/ci.yml`         | 152, 850, 893, 998, 1460 |
+   | `.github/workflows/e2e.yml`        | 41, 93                   |
+   | `.github/workflows/lighthouse.yml` | 224                      |
+
+   Do tego **8 wystąpień `npm_config_registry`** w tych samych plikach oraz opis kroku
+   w komentarzu `ci.yml:161`. Zostawienie kroku po utrwaleniu repointu jest nieszkodliwe
+   (`sed` nie znajdzie wzorca), ale zostawia w CI osiem martwych kroków udających, że problem
+   istnieje.
+
+3. Zaktualizować komentarz nad krokiem instalacji, żeby nie opisywał stanu, którego już nie ma.
+4. Zweryfikować `bun install --frozen-lockfile` **bez** `npm_config_registry` - po utrwaleniu
+   repointu zmienna przestaje być potrzebna.
+
+**Zysk jest mierzalny:** lock daje się zainstalować w każdym środowisku, a nie tylko w sandboxie
+platformy, i z CI znika krok wykonywany dziś pięć razy na przebieg.
+
 ### 2.1. `pnpm.overrides` jest martwą konfiguracją
 
 ```json
@@ -464,12 +493,103 @@ która zmiana co zepsuła.
 **Etap 0 idzie pierwszy**, bo porządkuje grunt: kasuje martwą zależność, która niepotrzebnie
 usztywnia etap D, i rozstrzyga rejestr, od którego zależy każda kolejna instalacja.
 
-### 5.1. Etap A - uwaga szczegółowa
+### 5.0. KROK ZEROWY PRZED WSZYSTKIM: zdejmij punkt odniesienia z nietkniętego HEAD
 
-`happy-dom` 20.9 -> 20.14 to **nie kosmetyka** (rozdz. 0, test 1). Po etapie A uruchom
-`src/lib/builder/__tests__/sliderVariantCatalogs.test.tsx` **osobno** i zapisz wynik. Dziś jest
-zielony na 20.9.0; jeżeli po bumpie zczerwienieje, to **realny defekt testu**, nie wersji -
-napraw test, nie cofaj paczki.
+**Suita JUŻ PADA, przed jakąkolwiek aktualizacją.** Nie jest to przypuszczenie - stoi
+w `ci.yml` (okolice linii 821-825), w komentarzu joba `test-shards`:
+
+> CZEGO TEN JOB NIE NAPRAWIA: na dziś suita PADA - nie na czasie, tylko na progach pokrycia
+> dla `src/components/admin/billing/**` oraz `src/components/profile/**`. To osobny dług,
+> tej samej klasy co floor bundla.
+
+**Jeżeli nie zdejmiesz punktu odniesienia na nietkniętym `main`, pierwszy PR aktualizacyjny
+odziedziczy tę czerwień i każde kolejne przypisanie przyczyny będzie błędne.** To jest
+najbardziej prawdopodobna pomyłka w całym tym planie - ta sama klasa, która w poprzedniej sesji
+kazała szukać 17-21 nieistniejących błędów typów.
+
+**Do zrobienia, zanim ruszysz cokolwiek:** przebieg joba `test` na nietkniętym `main`, wynik
+zapisany (które globy pokrycia padają i o ile). Dopiero różnica wobec tej liczby jest sygnałem.
+
+### 5.0.1. Dwa joby, które NIE SĄ dowodem
+
+`pgtap` i `pg-harness` nie instalują node-a ani bun-a i nie mają kroku „Repoint lockfile".
+Są blokującymi członkami `release-gate`, więc **zostaną zielone przez wszystkie cztery etapy
+niezależnie od tego, co zepsujesz**. Realny sygnał dają wyłącznie `verify`, `test-shards` + `test`
+oraz `build`.
+
+### 5.0.2. Najgroźniejszy tryb awarii: `package.json` bez przegenerowanego `bun.lock`
+
+Wszystkie 40 kroków bramkowych joba `verify` nosi warunek
+`if: !cancelled() && steps.install.outcome == 'success'`. Zmiana `package.json` bez
+przegenerowanego locka wywala `bun install --frozen-lockfile`, a wtedy **wszystkie 40 bramek
+raportuje się jako POMINIĘTE, a `release-gate` czerwienieje bez ani jednej diagnostyki na temat
+samej aktualizacji.**
+
+**Każdy commit etapu musi nieść przegenerowany `bun.lock`**, zwalidowany tak, jak widzi go CI:
+
+```
+sed -E 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock \
+  && npm_config_registry=https://registry.npmjs.org bun install --frozen-lockfile
+```
+
+(po wykonaniu decyzji z rozdz. 2 `sed` przestaje być potrzebny - to jest jeden z zysków tej decyzji)
+
+### 5.0.3. `check:gate-coverage` pilnuje wiązania skryptów z workflow
+
+`scripts/check-gate-coverage.ts` wyprowadza listę bramek z `package.json` i sprawdza, że każdy
+`check:*` występuje w workflow **dokładnie raz na job**. Jeżeli któryś etap doda albo przemianuje
+skrypt `check:*` (np. bramkę świeżości rejestru ikon) bez podpięcia go w `ci.yml`, ta bramka
+padnie. Pilnuje też samej siebie.
+
+### 5.1. Etap A NIE JEST bezpiecznym etapem - cztery konkretne miny
+
+Nazwa „minor/patch" myli. W tych 73 pozycjach siedzą cztery pułapki, z których każda potrafi
+wywalić więcej niż którykolwiek major z etapu B.
+
+**A1. Trio Tailwinda musi ruszać się jako jedność.** Zmierzone na dysku:
+`@tailwindcss/vite@4.2.4` zależy od `@tailwindcss/node@4.2.4`, `@tailwindcss/oxide@4.2.4`
+i `tailwindcss@4.2.4` - **wszystkie CO DO WERSJI**. A w `package.json` stoi:
+
+```
+"@tailwindcss/vite": "^4.2.1",   (karetka, linia 135)
+"tailwindcss":       "^4.2.1",   (karetka, linia 175)
+"@tailwindcss/oxide": "4.2.4",   (PRZYPIĘTE, linia 187)
+```
+
+Podniesienie `@tailwindcss/vite` do 4.3.3 w ramach etapu A **dociągnie zagnieżdżony
+`oxide` 4.3.3 obok przypiętego w korzeniu 4.2.4** - czyli dokładnie ten rozjazd binarki NAPI,
+przed którym przypięcie miało chronić. **`tailwindcss`, `@tailwindcss/vite` i `@tailwindcss/oxide`
+podnosisz razem, jednym commitem, albo żadnego.**
+
+**A2. `happy-dom` 20.9 -> 20.14 może wywalić CAŁĄ suitę, nie jeden test.**
+`vitest.setup.ts` (okolice linii 31-37) definiuje no-opowy `navigator.sendBeacon` przez
+`Object.defineProperty`, **bo happy-dom wykonuje prawdziwe żądanie sieciowe**. Dziś deskryptor
+ma `configurable: true`. Jeżeli 20.14 zdefiniuje `sendBeacon` jako niekonfigurowalny,
+`defineProperty` rzuci - a wtedy **plik setupowy rzuci, czyli padnie każdy plik testowy
+w domyślnym środowisku**, we wszystkich czterech shardach, plus `check:chunk-parity`,
+`check:permissions-parity`, `check:i18n-parity`, `check:ci-gates`, `check:widget-fidelity`
+i krok SEO. Remedium: osłoń `defineProperty` sprawdzeniem deskryptora i `try/catch`.
+**Nie zmieniaj środowiska testowego.**
+
+**A3. Test slidera może przejść Z ZŁEGO POWODU.**
+`sliderVariantCatalogs.test.tsx` (okolice linii 908-921) łata
+`HTMLImageElement.prototype.complete` i `naturalWidth` w `withBrokenImages()` i przywraca stan,
+rozgałęziając się na to, czy deskryptor istniał. W 20.14 `naturalWidth` bywa `> 0` domyślnie,
+więc jeden z testów **przejdzie, mimo że łatka nie zadziałała**. Zielony wynik nie jest tu
+dowodem. Remedium: asercja, że łatka się założyła, **przed** ciałem testu.
+
+**A4. Minory TanStacka przepisują `src/routeTree.gen.ts`.** Plik ma ~346 KB i jest commitowany;
+`@tanstack/react-router` 1.170.18 -> 1.170.38 i `@tanstack/react-start` 1.168.28 -> 1.168.57
+mogą go przegenerować. To tryb awarii przypisywany etapowi D, który przychodzi już w etapie A.
+Sprawdź `git diff --stat src/routeTree.gen.ts` po instalacji i pierwszym buildzie.
+
+Do tego tło: **18 paczek `@radix-ui/*` na karetkach** stoi pod 21 prymitywami w
+`src/components/ui`, na których około tysiąca testów RTL asertuje DOM. To nie jest powód,
+żeby ich nie podnosić - to powód, żeby podnieść je **osobnym commitem** w ramach etapu A.
+
+**Sugerowany podział etapu A na commity:** (1) trio Tailwinda, (2) TanStack, (3) `@radix-ui/*`
+razem, (4) `happy-dom` osobno, (5) reszta. Pięć commitów zamiast jednego, bo przy jednym nie
+ustalisz, która z tych czterech min wybuchła.
 
 ### 5.2. Etap B - uwaga szczegółowa
 
