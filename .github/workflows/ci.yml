@@ -144,29 +144,21 @@ jobs:
         with:
           bun-version: "1.2.23"
 
-      # The committed bun.lock pins tarballs to the build platform's private GAR cache
-      # (europe-west4-npm.pkg.dev/...), which is unreachable from public CI. The
-      # path after the cache prefix is byte-identical to the npm registry layout,
-      # so repointing the host keeps the exact pinned versions + integrity while
-      # installing from the public registry. This edit is CI-only (never committed).
-      - name: Repoint lockfile to the public npm registry
-        run: |
-          sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
-
       # `--frozen-lockfile`: bez tego runner może rozwiązać w zakresach semver
       # nowsze wersje niż `bun.lock`, a build z innych wersji daje inny podział
       # chunków - stąd udokumentowana w `scripts/check-bundle-size.ts` (wpis
       # 2026-08-19 III) rozbieżność host <-> runner rzędu +10 KB na OVERALL,
       # przez którą floor bramki bundla nie dawał się postawić z pomiaru
-      # lokalnego. Krok „Repoint lockfile" podmienia wyłącznie URL rejestru,
-      # więc nie narusza spójności lock <-> package.json, której pilnuje ta flaga.
+      # lokalnego. `bun.lock` rozstrzyga wszystkie tarbally na publicznym
+      # rejestrze npm (jeden host dla całego locka, sumy `sha512` nietknięte),
+      # więc ta flaga egzekwuje ten sam zbiór wersji na hoście i na runnerze
+      # bez żadnej edycji locka w CI.
+
       - name: Install dependencies
         # `id` jest potrzebne dla warunków `if:` na KAŻDYM kroku niżej -
         # uzasadnienie w komentarzu przy pierwszym z nich („Format (prettier)").
         id: install
         run: bun install --frozen-lockfile
-        env:
-          npm_config_registry: https://registry.npmjs.org
 
       # ── NAJTAŃSZE SYGNAŁY (sekundy) ─────────────────────────────────────────
 
@@ -844,17 +836,8 @@ jobs:
         with:
           bun-version: "1.2.23"
 
-      # Ten sam repoint co w `verify` i `build` - `bun.lock` przypina tarbally
-      # do prywatnego cache GAR, nieosiągalnego z publicznego CI. Edycja
-      # wyłącznie w CI, nigdy commitowana.
-      - name: Repoint lockfile to the public npm registry
-        run: |
-          sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
-
       - name: Install dependencies
         run: bun install --frozen-lockfile
-        env:
-          npm_config_registry: https://registry.npmjs.org
 
       - name: Run test shard with coverage and accounting
         run: bunx vitest run --config vitest.shard.config.ts --coverage --shard=${{ matrix.shard }}/4 --reporter=default --reporter=blob --reporter=./scripts/vitest/testAccountingReporter.ts
@@ -887,17 +870,8 @@ jobs:
         with:
           bun-version: "1.2.23"
 
-      # Ten sam repoint co w `verify` i `build` - `bun.lock` przypina tarbally
-      # do prywatnego cache GAR, nieosiągalnego z publicznego CI. Edycja
-      # wyłącznie w CI, nigdy commitowana.
-      - name: Repoint lockfile to the public npm registry
-        run: |
-          sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
-
       - name: Install dependencies
         run: bun install --frozen-lockfile
-        env:
-          npm_config_registry: https://registry.npmjs.org
 
       - uses: actions/download-artifact@v4
         with:
@@ -992,13 +966,6 @@ jobs:
         with:
           bun-version: "1.2.23"
 
-      # Ten sam repoint co w `verify` - `bun.lock` przypina tarbally do
-      # prywatnego cache GAR, nieosiągalnego z publicznego CI. Edycja wyłącznie
-      # w CI, nigdy commitowana.
-      - name: Repoint lockfile to the public npm registry
-        run: |
-          sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
-
       # `--frozen-lockfile` JEST TU ISTOTNE, nie skopiowane z rozpędu: floor
       # bramki bundla stawia się z liczby zmierzonej NA RUNNERZE, a build
       # z innych wersji zależności daje inny podział chunków (udokumentowana
@@ -1006,8 +973,6 @@ jobs:
       # OVERALL). Bez tej flagi liczba z tego joba przestaje być podstawą floora.
       - name: Install dependencies
         run: bun install --frozen-lockfile
-        env:
-          npm_config_registry: https://registry.npmjs.org
 
       - name: Build
         # `id` jest tu potrzebne dla warunków `if:` niżej - patrz komentarz przy
@@ -1457,14 +1422,8 @@ jobs:
         with:
           bun-version: "1.2.23"
 
-      - name: Repoint lockfile to the public npm registry
-        run: |
-          sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
-
       - name: Install dependencies
         run: bun install --frozen-lockfile
-        env:
-          npm_config_registry: https://registry.npmjs.org
 
       # Resolve both existing naming conventions; absent configuration fails
       # explicitly and is preserved in the report. No placeholder production DB.

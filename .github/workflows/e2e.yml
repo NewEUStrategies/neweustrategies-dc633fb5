@@ -36,16 +36,8 @@ jobs:
         with:
           bun-version: "1.2.23"
 
-      # See ci.yml: the committed bun.lock pins tarballs to the build platform's private GAR
-      # cache; repoint to the public npm registry for CI (edit is never committed).
-      - name: Repoint lockfile to the public npm registry
-        run: |
-          sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
-
       - name: Install dependencies
         run: bun install
-        env:
-          npm_config_registry: https://registry.npmjs.org
 
       # CI has no pre-installed browser (unlike the dev sandbox), so fetch Chromium.
       - name: Install Playwright Chromium
@@ -90,14 +82,8 @@ jobs:
         with:
           bun-version: "1.2.23"
 
-      - name: Repoint lockfile to the public npm registry
-        run: |
-          sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
-
       - name: Install dependencies
         run: bun install
-        env:
-          npm_config_registry: https://registry.npmjs.org
 
       - name: Install Playwright Chromium
         run: bunx playwright install --with-deps chromium
