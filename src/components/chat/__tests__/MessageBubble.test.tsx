@@ -775,11 +775,10 @@ describe("menu kontekstowe", () => {
     expect(screen.queryByRole("menuitem", { name: t.forward.action })).toBeNull();
   });
 
-  // STRAŻNIK ZAŁOŻENIA dla `it.fails` poniżej. `it.fails` zielenieje od
-  // DOWOLNEGO wyjątku, więc sam z siebie nie odróżnia „pasek się nie otworzył"
-  // od „pozycji menu w ogóle nie ma". Ten test trzyma założenie osobno: gdyby
-  // pozycja „Dodaj reakcję" zniknęła albo została wyłączona, czerwieni się TU,
-  // a nie chowa pod oczekiwaną porażką.
+  // STRAŻNIK ZAŁOŻENIA dla testu poniżej. Tamten sprawdza SKUTEK kliknięcia,
+  // ten trzyma osobno samą OBECNOŚĆ pozycji: gdyby „Dodaj reakcję" zniknęła
+  // albo została wyłączona, czerwieni się TU, a nie w teście paska - i wiadomo
+  // od razu, czy pasek się nie otworzył, czy nie było w co kliknąć.
   it("pozycja „reaguj” JEST w menu i jest klikalna", () => {
     renderBubble();
     openContextMenu(screen.getByText(BODY));
@@ -788,22 +787,30 @@ describe("menu kontekstowe", () => {
     expect(item.getAttribute("data-disabled")).toBeNull();
   });
 
-  // DEFEKT PRODUKCYJNY - zapisany jako `it.fails`, komponentu NIE ruszam.
+  // DEFEKT NAPRAWIONY. Stał tu jako `it.fails` z adnotacją, że pasek montuje
+  // się i znika w tej samej interakcji (węzeł DODANY i natychmiast USUNIĘTY,
+  // `reactOpen` z powrotem na `false`), a naprawa należy do komponentu.
+  // Naprawa przyszła skądinąd i komponentu nikt nie ruszył: przyczyną był
+  // rozjazd drzewa zależności, nie kompozycja menu z popoverem.
   //
-  // ZŁAMANY KONTRAKT: pozycja „Dodaj reakcję" ustawia `reactOpen`, pasek
-  // szybkich reakcji faktycznie montuje się w drzewie - i znika w tej samej
-  // interakcji. Zmierzone obserwatorem mutacji na `document.body`: węzeł paska
-  // jest DODANY i natychmiast USUNIĘTY, a `reactOpen` wraca do `false`. Powód
-  // jest kompozycyjny: menu Radiksa zamyka się zaraz po `onSelect` i przy
-  // oddawaniu ogniska odrzuca świeżo otwarty popover (klasyczna pułapka
-  // „popover otwierany z pozycji menu"). Dla użytkownika ta pozycja menu jest
-  // MARTWA - klika i nic się nie dzieje.
+  // `@radix-ui/react-focus-scope` trzyma stos aktywnych pułapek fokusu w
+  // zmiennej modułowej (`dist/index.mjs`, `var focusScopesStack = ...`). Drzewo
+  // miało CZTERY kopie tego modułu, czyli cztery niezależne stosy. Menu i
+  // pasek trafiały na różne kopie, więc pułapka menu nie dostawała `pause()`
+  // i przy oddawaniu ogniska odrzucała świeżo otwarty pasek. Dla użytkownika
+  // pozycja menu była MARTWA - klikał i nic się nie działo.
   //
-  // OCZEKIWANY KONTRAKT: po wybraniu „Dodaj reakcję" pasek sześciu szybkich
-  // reakcji zostaje OTWARTY - dokładnie tak, jak po kliknięciu ikony uśmiechu
-  // w rzędzie akcji (test wyżej w „rząd akcji przy dymku"). Naprawa należy do
-  // komponentu (otwarcie paska dopiero po zamknięciu menu), nie do testu.
-  it.fails("pozycja „reaguj” otwiera pasek szybkich reakcji", () => {
+  // `overrides` w `package.json` sprowadza `react-focus-scope` do JEDNEJ kopii,
+  // czyli do jednego stosu. Zmierzone na tym samym pliku: przy czterech kopiach
+  // pasek się nie otwierał, przy jednej otwiera się i ten test przechodzi
+  // zwyczajnie.
+  //
+  // KONTRAKT: po wybraniu „Dodaj reakcję" pasek sześciu szybkich reakcji
+  // zostaje OTWARTY - dokładnie tak, jak po kliknięciu ikony uśmiechu w
+  // rzędzie akcji (test wyżej w „rząd akcji przy dymku"). Test jest teraz
+  // strażnikiem warunku „jedna kopia `focus-scope`": zaczerwieni się, gdy
+  // drzewo znów rozjedzie się na dwie.
+  it("pozycja „reaguj” otwiera pasek szybkich reakcji", () => {
     renderBubble();
     openContextMenu(screen.getByText(BODY));
     fireEvent.click(menuItem(t.react));
