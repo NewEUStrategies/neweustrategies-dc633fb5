@@ -218,25 +218,16 @@ jobs:
           exit $status
 
       # ---- TRYB C: brak wdrożonego URL-a -> pomiar na artefakcie produkcyjnym ----
-      # Ten sam repoint co w ci.yml: `bun.lock` przypina tarbally do prywatnego
-      # cache GAR, nieosiągalnego z publicznego CI. Edycja wyłącznie w CI, nigdy
-      # commitowana.
-      - name: Repoint lockfile to the public npm registry
-        if: ${{ vars.LHCI_URL == '' }}
-        run: |
-          sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
-
       # `--frozen-lockfile` doszło razem z buildem: ten job stawia teraz floory
       # z liczb zmierzonych NA RUNNERZE, a build z innych wersji zależności daje
       # inny podział chunków (udokumentowana w scripts/check-bundle-size.ts
       # rozbieżność host <-> runner). Bez tej flagi log z tego joba przestaje być
-      # podstawą ratchetu. Ta sama kolejność (sed, potem `--frozen-lockfile`)
-      # jedzie w jobie `build` w ci.yml.
+      # podstawą ratchetu. `bun.lock` wskazuje publiczny rejestr npm dla
+      # wszystkich rozstrzygnięć, więc instalacja nie wymaga edycji locka.
+
       - name: Install dependencies
         if: ${{ vars.LHCI_URL == '' }}
         run: bun install --frozen-lockfile
-        env:
-          npm_config_registry: https://registry.npmjs.org
 
       # Chrome PRZYPIĘTY do buildu Playwrighta, nie do tego, co runner ma
       # zainstalowane. Powód jest zmierzony: smoke padał serią ~15 ostrzeżeń

@@ -522,6 +522,34 @@ describe("slider - pasek miniatur wariantu minimal-strip", () => {
   const renderStrip = (config: Partial<SliderConfig> = {}, lang: "pl" | "en" = "pl") =>
     renderSlider({ variant: "minimal-strip", items: STRIP_ITEMS, ...config }, lang);
 
+  /**
+   * OKŁADKA WCZYTANA I NIOSĄCA PIKSELE - na czas jednego testu.
+   *
+   * happy-dom nie pobiera obrazów, a od 20.14 startuje z `complete === true`
+   * przy `naturalWidth === 0`. Renderer czyta dokładnie tę kombinację jako
+   * „martwy CDN" i podmienia `src` na zastępczy obrazek SVG, więc asercje o
+   * adresie miniatury mierzyłyby placeholder zamiast adresu ze Storage. Stan
+   * ustawiamy więc JAWNIE - test nie może zależeć od wersji silnika DOM.
+   */
+  const withLoadedImages = (run: () => void): void => {
+    const proto = window.HTMLImageElement.prototype;
+    const completeDesc = Object.getOwnPropertyDescriptor(proto, "complete");
+    const widthDesc = Object.getOwnPropertyDescriptor(proto, "naturalWidth");
+    Object.defineProperty(proto, "complete", { configurable: true, get: () => true });
+    Object.defineProperty(proto, "naturalWidth", { configurable: true, get: () => 1200 });
+    try {
+      const probe = document.createElement("img");
+      expect(probe.complete, "łatka `complete` nie założyła się").toBe(true);
+      expect(probe.naturalWidth, "łatka `naturalWidth` nie założyła się").toBe(1200);
+      run();
+    } finally {
+      if (completeDesc) Object.defineProperty(proto, "complete", completeDesc);
+      else Reflect.deleteProperty(proto, "complete");
+      if (widthDesc) Object.defineProperty(proto, "naturalWidth", widthDesc);
+      else Reflect.deleteProperty(proto, "naturalWidth");
+    }
+  };
+
   const thumbsOf = (root: HTMLElement): HTMLElement[] =>
     Array.from(root.querySelectorAll<HTMLElement>("[data-thumb-strip] button"));
 
@@ -547,23 +575,27 @@ describe("slider - pasek miniatur wariantu minimal-strip", () => {
   });
 
   it("buduje adres miniatury ze Storage przez wariant transformowany 192x144", () => {
-    const { container } = renderStrip();
-    const src = thumbsOf(container)[0].querySelector("img")?.getAttribute("src") ?? "";
-    // Miniatura maluje się w polu 96x72, więc wolno jej pobrać najwyżej
-    // wariant 2x DPR - nigdy drugiego pełnowymiarowego oryginału.
-    expect(src).toContain("/storage/v1/render/image/public/");
-    expect(src).toContain("width=192");
-    expect(src).toContain("height=144");
-    expect(src).toContain("resize=cover");
+    withLoadedImages(() => {
+      const { container } = renderStrip();
+      const src = thumbsOf(container)[0].querySelector("img")?.getAttribute("src") ?? "";
+      // Miniatura maluje się w polu 96x72, więc wolno jej pobrać najwyżej
+      // wariant 2x DPR - nigdy drugiego pełnowymiarowego oryginału.
+      expect(src).toContain("/storage/v1/render/image/public/");
+      expect(src).toContain("width=192");
+      expect(src).toContain("height=144");
+      expect(src).toContain("resize=cover");
+    });
   });
 
   it("dokleja do adresu spoza Storage wyłącznie nieszkodliwe parametry w/h", () => {
-    const { container } = renderStrip();
-    const src = thumbsOf(container)[1].querySelector("img")?.getAttribute("src") ?? "";
-    expect(src).toContain("https://cdn.example.com/2.jpg");
-    expect(src).toContain("w=192");
-    expect(src).toContain("h=144");
-    expect(src).not.toContain("/render/image/");
+    withLoadedImages(() => {
+      const { container } = renderStrip();
+      const src = thumbsOf(container)[1].querySelector("img")?.getAttribute("src") ?? "";
+      expect(src).toContain("https://cdn.example.com/2.jpg");
+      expect(src).toContain("w=192");
+      expect(src).toContain("h=144");
+      expect(src).not.toContain("/render/image/");
+    });
   });
 
   it("nie rysuje paska miniatur dla pojedynczego slajdu", () => {
