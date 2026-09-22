@@ -235,7 +235,6 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
   },
 ];
 
-
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";
 
 export interface LaneViolation {
