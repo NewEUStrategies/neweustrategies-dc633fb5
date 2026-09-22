@@ -42,6 +42,8 @@ import { EventTermsPanel } from "@/components/admin/events/organisms/EventTermsP
 import { EventPackagesPanel } from "@/components/admin/events/organisms/EventPackagesPanel";
 import { EventAudienceGrantsPanel } from "@/components/admin/events/organisms/EventAudienceGrantsPanel";
 import { EventTicketsPanel } from "@/components/admin/events/organisms/EventTicketsPanel";
+import { EventCodesPanel } from "@/components/admin/events/organisms/EventCodesPanel";
+import "@/lib/i18n-admin-event-codes";
 import { GroupMembersPanel } from "@/components/admin/events/organisms/GroupMembersPanel";
 import { MeetingSettingsPanel } from "@/components/admin/events/organisms/MeetingSettingsPanel";
 import { MeetingStatsPanel } from "@/components/admin/events/organisms/MeetingStatsPanel";
@@ -103,8 +105,26 @@ export function EventRegistrationTicketsSection({ row }: { row: AdminEventDetail
   ensureRegistrationI18n();
   return (
     <ModuleScreen titleKey="adminEventRegistration.nav.tickets">
-      <EventTicketsPanel key={row.id} eventId={row.id} eventSlug={row.slug} />
+      <TicketsAndCodes row={row} />
     </ModuleScreen>
+  );
+}
+
+function TicketsAndCodes({ row }: { row: AdminEventDetailRow }) {
+  const { t } = useTranslation();
+  return (
+    <Tabs defaultValue="tickets" className="space-y-4">
+      <TabsList className="tabs-scroller">
+        <TabsTrigger value="tickets">{t("eventCodes.tabTickets")}</TabsTrigger>
+        <TabsTrigger value="codes">{t("eventCodes.tabCodes")}</TabsTrigger>
+      </TabsList>
+      <TabsContent value="tickets">
+        <EventTicketsPanel key={row.id} eventId={row.id} eventSlug={row.slug} />
+      </TabsContent>
+      <TabsContent value="codes">
+        <EventCodesPanel key={row.id} eventId={row.id} eventSlug={row.slug} />
+      </TabsContent>
+    </Tabs>
   );
 }
 

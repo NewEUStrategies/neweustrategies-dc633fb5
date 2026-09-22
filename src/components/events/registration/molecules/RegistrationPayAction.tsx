@@ -27,7 +27,7 @@
 // `requireSupabaseAuth`, a księgowanie wpłaty wymaga `payment_orders.user_id`,
 // więc gość zobaczy zdanie z prawdziwym powodem (paragon i droga zwrotu należą
 // do konta) i odnośnik do logowania - a nie kontrolkę, która go wyrzuci.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -44,6 +44,7 @@ import {
   type TicketCheckoutRefusal,
 } from "@/lib/events/admissionApi";
 import { RegistrationAmountDue } from "@/components/events/registration/atoms/RegistrationAmountDue";
+import { recallEventCode } from "@/lib/events/eventCodeMemory";
 import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
 
 ensureEventRegistrationI18n();
@@ -96,6 +97,13 @@ export function RegistrationPayAction({
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState<TicketCheckoutRefusal | null>(null);
+  // Kod rabatowy to tylko napis - rabat liczy validate_event_ticket_coupon
+  // w `createCheckoutOrder`, a Stripe dostaje go jako kupon na różnicę ceny.
+  const [promo, setPromo] = useState("");
+  const [promoRejected, setPromoRejected] = useState(false);
+  useEffect(() => {
+    if (eventId !== null) setPromo(recallEventCode(eventId));
+  }, [eventId]);
 
   // BRAK KONTA. Zdanie ma być prawdziwe - „płatna wejściówka wymaga konta, bo
   // do niego należy paragon i możliwość zwrotu" - a nie ogólne „zaloguj się".
@@ -137,6 +145,8 @@ export function RegistrationPayAction({
     if (!ready) return;
     setBusy(true);
     setRefusal(null);
+    setPromoRejected(false);
+    const code = promo.trim().toUpperCase();
     try {
       const result = await checkout({
         data: {
@@ -147,9 +157,14 @@ export function RegistrationPayAction({
           success_path: returnPath,
           cancel_path: returnPath,
           environment: getStripeEnvironment(),
+          ...(code.length > 0 ? { coupon_code: code } : {}),
         },
       });
       if (!result.ok) {
+        if (result.mode === "coupon") {
+          setPromoRejected(true);
+          return;
+        }
         // Odmowa kuponu/konfiguracji wraca jako `ok: false` z własnym kodem;
         // mapujemy ją tym samym słownikiem, co odmowy wyceny.
         setRefusal(ticketCheckoutRefusal(result.error));
@@ -177,6 +192,26 @@ export function RegistrationPayAction({
         }}
       />
       {showAmount && <RegistrationAmountDue amountCents={amountCents} currency={currency} />}
+      <label className="block max-w-xs space-y-1 text-sm">
+        <span className="font-medium">{t("eventRegistration.payment.promoLabel")}</span>
+        <input
+          value={promo}
+          maxLength={64}
+          autoComplete="off"
+          spellCheck={false}
+          onChange={(event) => setPromo(event.target.value.toUpperCase())}
+          placeholder={t("eventRegistration.payment.promoPlaceholder")}
+          className="h-10 w-full rounded-[6px] border border-input bg-background px-3 text-sm uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+        <span className="block text-xs text-muted-foreground">
+          {t("eventRegistration.payment.promoHint")}
+        </span>
+      </label>
+      {promoRejected && (
+        <p role="status" className="text-sm text-destructive">
+          {t("eventRegistration.payment.promoError")}
+        </p>
+      )}
       <Button type="button" disabled={busy || !ready} onClick={() => void pay()}>
         {busy ? (
           <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />

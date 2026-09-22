@@ -290,12 +290,22 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     let couponDiscountCents = 0;
     if (data.coupon_code && data.coupon_code.trim().length > 0) {
       const normalizedCode = data.coupon_code.trim().toUpperCase();
-      const { data: rows, error: validateErr } = await supabase.rpc("validate_b2b_coupon", {
-        _code: normalizedCode,
-        _plan_id: data.plan_id ?? "00000000-0000-0000-0000-000000000000",
-        _amount_cents: amountCents,
-        _currency: currency,
-      });
+      // Bilet wydarzenia: kod sprawdzany z zakresem wydarzenia i biletu
+      // (kody tworzone w studiu wydarzenia). Pozostałe zakupy: kod ogólny.
+      const { data: rows, error: validateErr } = data.event_id
+        ? await supabase.rpc("validate_event_ticket_coupon", {
+            _code: normalizedCode,
+            _event_id: data.event_id,
+            _ticket_type_id: data.ticket_type_id ?? "00000000-0000-0000-0000-000000000000",
+            _amount_cents: amountCents,
+            _currency: currency,
+          })
+        : await supabase.rpc("validate_b2b_coupon", {
+            _code: normalizedCode,
+            _plan_id: data.plan_id ?? "00000000-0000-0000-0000-000000000000",
+            _amount_cents: amountCents,
+            _currency: currency,
+          });
       if (validateErr) throw validateErr;
       const row = (rows ?? [])[0];
       if (!row || !row.ok) {
@@ -537,7 +547,10 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         const { getStripeClient } = await import("@/lib/stripe.server");
         const { createAdhocDiscountForCoupon } = await import("@/lib/billing/adhocCheckout.server");
         const couponRef = await createAdhocDiscountForCoupon(await getStripeClient(environment), {
-          code: ticketPhaseLabel || "Rabat",
+          // Różnica cena regularna - kwota końcowa obejmuje fazę sprzedaży
+          // ORAZ kod rabatowy, więc nazwa rabatu w Stripe mówi o obu.
+          code:
+            [ticketPhaseLabel, couponCode].filter((part) => Boolean(part)).join(" + ") || "Rabat",
           discountCents: phaseDiscountCents,
           currency,
         }).catch((err: unknown) => {

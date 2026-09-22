@@ -325,6 +325,7 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
             value={current.ticketTypeId}
             lang={lang}
             invalid={errorOf.has("ticketTypeId")}
+            eventId={form.event.id}
             onChange={(ticketId) => patch({ ticketTypeId: ticketId })}
           />
           <FieldErrors
