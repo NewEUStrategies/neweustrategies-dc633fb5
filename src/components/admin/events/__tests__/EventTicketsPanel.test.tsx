@@ -236,6 +236,16 @@ vi.mock("@/lib/events/useEventRegistrations", () => ({
   }),
 }));
 
+vi.mock("@/lib/events/ticketPresentation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/events/ticketPresentation")>();
+  return {
+    ...actual,
+    useTicketPresentation: () => ({ data: new Map(), refetch: vi.fn() }),
+    useSaveTicketPresentation: () => ({ mutate: vi.fn(), isPending: false }),
+    saveTicketPresentation: vi.fn(async () => true),
+  };
+});
+
 import { EventTicketsPanel } from "@/components/admin/events/organisms/EventTicketsPanel";
 import { SALES_IDS, eventTicketRow } from "@/test/events/adminSalesRows";
 
@@ -286,7 +296,7 @@ function panel() {
   return render(<EventTicketsPanel eventId={SALES_IDS.event} />);
 }
 
-const wiersze = (): HTMLElement[] => screen.queryAllByRole("listitem");
+const wiersze = (): HTMLElement[] => screen.queryAllByRole("row").slice(1);
 
 const wiersz = (index = 0): HTMLElement => {
   const found = wiersze()[index];

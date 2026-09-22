@@ -49,6 +49,10 @@ vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18n
 // Atrapa Radixa: `Root` renderuje dzieci zawsze, ale `Content` istnieje TYLKO
 // przy otwartym dialogu (portal nie jest montowany). Bez tego „dialog zamknięty
 // nie renderuje treści" byłoby dowodem na atrapę, a nie na molekułę.
+vi.mock("@/lib/events/useEventTermsGroups", () => ({
+  useEventGroups: () => ({ data: [], isLoading: false, error: null }),
+}));
+
 vi.mock("@/components/ui/dialog", () => {
   const stan = { open: false };
   return {

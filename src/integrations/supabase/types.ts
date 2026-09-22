@@ -9325,20 +9325,25 @@ export type Database = {
           early_bird_until: string | null
           event_id: string
           group_id: string | null
+          group_registration_enabled: boolean
           id: string
           is_active: boolean
+          is_hidden: boolean
           key: string
           max_per_person: number | null
           min_tier_rank: number
           name_en: string
           name_pl: string
           price_cents: number
+          price_label_en: string
+          price_label_pl: string
           price_schedule: Json
           quota: number | null
           requires_approval: boolean
           requires_verification: boolean
           sales_from: string | null
           sales_to: string | null
+          show_price_label: boolean
           sold_count: number
           sort_order: number
           tenant_id: string
@@ -9359,20 +9364,25 @@ export type Database = {
           early_bird_until?: string | null
           event_id: string
           group_id?: string | null
+          group_registration_enabled?: boolean
           id?: string
           is_active?: boolean
+          is_hidden?: boolean
           key: string
           max_per_person?: number | null
           min_tier_rank?: number
           name_en: string
           name_pl: string
           price_cents?: number
+          price_label_en?: string
+          price_label_pl?: string
           price_schedule?: Json
           quota?: number | null
           requires_approval?: boolean
           requires_verification?: boolean
           sales_from?: string | null
           sales_to?: string | null
+          show_price_label?: boolean
           sold_count?: number
           sort_order?: number
           tenant_id: string
@@ -9393,20 +9403,25 @@ export type Database = {
           early_bird_until?: string | null
           event_id?: string
           group_id?: string | null
+          group_registration_enabled?: boolean
           id?: string
           is_active?: boolean
+          is_hidden?: boolean
           key?: string
           max_per_person?: number | null
           min_tier_rank?: number
           name_en?: string
           name_pl?: string
           price_cents?: number
+          price_label_en?: string
+          price_label_pl?: string
           price_schedule?: Json
           quota?: number | null
           requires_approval?: boolean
           requires_verification?: boolean
           sales_from?: string | null
           sales_to?: string | null
+          show_price_label?: boolean
           sold_count?: number
           sort_order?: number
           tenant_id?: string
@@ -21249,6 +21264,28 @@ export type Database = {
         }[]
       }
       admin_event_ticket_delete: { Args: { _id: string }; Returns: boolean }
+      admin_event_ticket_presentation: {
+        Args: { p_event_id: string }
+        Returns: {
+          group_registration_enabled: boolean
+          id: string
+          is_hidden: boolean
+          price_label_en: string
+          price_label_pl: string
+          show_price_label: boolean
+        }[]
+      }
+      admin_event_ticket_set_presentation: {
+        Args: {
+          p_group_registration_enabled: boolean
+          p_is_hidden: boolean
+          p_price_label_en: string
+          p_price_label_pl: string
+          p_show_price_label: boolean
+          p_ticket_id: string
+        }
+        Returns: boolean
+      }
       admin_event_ticket_upsert: { Args: { p_payload: Json }; Returns: string }
       admin_event_tickets_list: {
         Args: { p_event_id: string }

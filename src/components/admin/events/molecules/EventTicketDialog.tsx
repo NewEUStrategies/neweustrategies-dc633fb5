@@ -23,6 +23,24 @@ import { AdminFormSection } from "@/components/admin/molecules/AdminFormSection"
 import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow";
 import { AdminFormSwitchRow } from "@/components/admin/molecules/AdminFormSwitchRow";
 import { AdminFormEnumRow } from "@/components/admin/molecules/AdminFormEnumRow";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { EventTicketPreview } from "@/components/admin/events/atoms/EventTicketPreview";
+import { EventTicketChoice } from "@/components/admin/events/atoms/EventTicketChoice";
+import { useEventGroups } from "@/lib/events/useEventTermsGroups";
+import {
+  DEFAULT_TICKET_PRESENTATION,
+  TICKET_PRICE_LABEL_MAX,
+  ticketRegistrationUrl,
+  type TicketPresentation,
+} from "@/lib/events/ticketPresentation";
+import { toast } from "sonner";
 import { EventTicketPhasesEditor } from "@/components/admin/events/molecules/EventTicketPhasesEditor";
 import {
   TICKET_ACCESS_CODE_MAX,
@@ -39,6 +57,7 @@ import {
   type TicketDraft,
   type TicketDraftField,
 } from "@/lib/events/ticketDraft";
+import { formatMoney } from "@/lib/billing/types";
 import type { EventTicketInput, EventTicketRow } from "@/lib/events/registrationsApi";
 
 interface EventTicketDialogProps {
@@ -50,7 +69,13 @@ interface EventTicketDialogProps {
   /** Domyślna kolejność dla nowego biletu - koniec listy. */
   nextSortOrder: number;
   isSaving: boolean;
-  onSubmit: (input: EventTicketInput) => void;
+  onSubmit: (input: EventTicketInput, presentation: TicketPresentation) => void;
+  /** Slug wydarzenia - buduje bezpośredni link rejestracyjny biletu. */
+  eventSlug?: string;
+  /** Zapisana prezentacja edytowanego biletu (widoczność, etykieta, zapis grupowy). */
+  presentation?: TicketPresentation;
+  /** Duplikacja z poziomu edycji (jak w szufladzie biletu). */
+  onDuplicate?: () => void;
 }
 
 export function EventTicketDialog({
@@ -61,10 +86,20 @@ export function EventTicketDialog({
   nextSortOrder,
   isSaving,
   onSubmit,
+  eventSlug,
+  presentation,
+  onDuplicate,
 }: EventTicketDialogProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const uiLang: "pl" | "en" = i18n.language.startsWith("en") ? "en" : "pl";
   const [draft, setDraft] = useState<TicketDraft>(() => emptyTicketDraft(nextSortOrder));
   const [touched, setTouched] = useState(false);
+  const [look, setLook] = useState<TicketPresentation>(DEFAULT_TICKET_PRESENTATION);
+  const [contentLang, setContentLang] = useState<"pl" | "en">("pl");
+  const [paid, setPaid] = useState(false);
+  const groupsQ = useEventGroups(eventId, open);
+  const presentationRef = useRef(presentation);
+  presentationRef.current = presentation;
 
   // Szkic odtwarzamy przy KAŻDYM otwarciu, nie tylko przy zmianie biletu:
   // porzucone zmiany nie mogą wrócić do formularza następnego biletu.
@@ -85,7 +120,12 @@ export function EventTicketDialog({
   useEffect(() => {
     if (!open) return;
     const row = ticketRef.current;
-    setDraft(row === null ? emptyTicketDraft(nextSortOrderRef.current) : ticketDraftFromRow(row));
+    const next =
+      row === null ? emptyTicketDraft(nextSortOrderRef.current) : ticketDraftFromRow(row);
+    setDraft(next);
+    setPaid(next.priceCents.trim() !== "" && next.priceCents.trim() !== "0");
+    setLook(presentationRef.current ?? DEFAULT_TICKET_PRESENTATION);
+    setContentLang("pl");
     setTouched(false);
   }, [open, ticketId]);
 
@@ -98,15 +138,91 @@ export function EventTicketDialog({
 
   const submit = () => {
     setTouched(true);
-    if (issue !== null) return;
-    onSubmit(ticketDraftToInput(draft, eventId));
+    if (issue !== null) {
+      // Błąd w polu drugiego języka przełącza zakładkę - inaczej komunikat
+      // stałby w niewidocznej karcie, a przycisk „nic by nie robił".
+      if (issue.field.endsWith("Pl")) setContentLang("pl");
+      if (issue.field.endsWith("En")) setContentLang("en");
+      return;
+    }
+    onSubmit(ticketDraftToInput(draft, eventId), look);
   };
 
   const isNew = draft.id === null;
+  const setLookField = <K extends keyof TicketPresentation>(key: K, value: TicketPresentation[K]) =>
+    setLook((previous) => ({ ...previous, [key]: value }));
+  const choosePaid = (next: boolean) => {
+    setPaid(next);
+    if (!next) {
+      set("priceCents", "0");
+      set("earlyBirdPriceCents", "");
+      set("phases", []);
+    }
+  };
+  const registrationUrl =
+    !isNew && eventSlug !== undefined && eventSlug !== ""
+      ? ticketRegistrationUrl(eventSlug, draft.key)
+      : null;
+  const copy = (value: string) => {
+    void navigator.clipboard
+      .writeText(value)
+      .then(() => toast.success(t("adminEventRegistration.tickets.studio.copied")))
+      .catch(() => toast.error(t("adminEventRegistration.tickets.studio.copyFailed")));
+  };
+  const langFields = (lang: "pl" | "en") => {
+    const suffix = lang === "pl" ? "Pl" : "En";
+    const nameKey = lang === "pl" ? "namePl" : "nameEn";
+    const descKey = lang === "pl" ? "descriptionPl" : "descriptionEn";
+    const benKey = lang === "pl" ? "benefitsPl" : "benefitsEn";
+    const labelKey = lang === "pl" ? "priceLabelPl" : "priceLabelEn";
+    return (
+      <div className="grid gap-4">
+        <AdminFormTextRow
+          label={t(`adminEventRegistration.tickets.editor.name${suffix}`)}
+          value={draft[nameKey]}
+          onValueChange={(value) => set(nameKey, value)}
+          maxLength={TICKET_MAX_NAME}
+          error={errorFor(nameKey)}
+        />
+        <AdminFormTextRow
+          label={t(`adminEventRegistration.tickets.editor.description${suffix}`)}
+          value={draft[descKey]}
+          onValueChange={(value) => set(descKey, value)}
+          rows={3}
+          maxLength={TICKET_MAX_DESCRIPTION}
+          error={errorFor(descKey)}
+        />
+        <AdminFormTextRow
+          label={t(`adminEventRegistration.tickets.editor.benefits${suffix}`)}
+          hint={t("adminEventRegistration.tickets.editor.benefitsHint", {
+            max: TICKET_MAX_BENEFITS,
+          })}
+          value={draft[benKey]}
+          onValueChange={(value) => set(benKey, value)}
+          rows={4}
+          error={errorFor(benKey)}
+        />
+        {look.showPriceLabel ? (
+          <AdminFormTextRow
+            label={`${t("adminEventRegistration.tickets.studio.label")} (${t(
+              `adminEventRegistration.tickets.studio.tab${suffix}`,
+            )})`}
+            hint={t("adminEventRegistration.tickets.studio.charCount", {
+              count: look[labelKey].length,
+              max: TICKET_PRICE_LABEL_MAX,
+            })}
+            value={look[labelKey]}
+            onValueChange={(value) => setLookField(labelKey, value)}
+            maxLength={TICKET_PRICE_LABEL_MAX}
+          />
+        ) : null}
+      </div>
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="event-dialog-compact max-h-[92vh] max-w-3xl overflow-y-auto">
+      <DialogContent className="event-dialog-compact max-h-[92vh] max-w-5xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {t(
@@ -118,224 +234,340 @@ export function EventTicketDialog({
           <DialogDescription>{t("adminEventRegistration.tickets.subtitle")}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
-          <AdminFormSection title={t("adminEventRegistration.tickets.columns.name")} columns={2}>
-            <AdminFormTextRow
-              label={t("adminEventRegistration.tickets.editor.key")}
-              hint={t("adminEventRegistration.tickets.editor.keyHint")}
-              value={draft.key}
-              onValueChange={(value) => set("key", value)}
-              disabled={!isNew}
-              monospace
-              maxLength={49}
-              error={errorFor("key")}
-            />
-            <AdminFormTextRow
-              label={t("adminEventRegistration.tickets.editor.sortOrder")}
-              value={draft.sortOrder}
-              onValueChange={(value) => set("sortOrder", value)}
-              inputMode="numeric"
-            />
-            <AdminFormTextRow
-              label={t("adminEventRegistration.tickets.editor.namePl")}
-              value={draft.namePl}
-              onValueChange={(value) => set("namePl", value)}
-              maxLength={TICKET_MAX_NAME}
-              error={errorFor("namePl")}
-            />
-            <AdminFormTextRow
-              label={t("adminEventRegistration.tickets.editor.nameEn")}
-              value={draft.nameEn}
-              onValueChange={(value) => set("nameEn", value)}
-              maxLength={TICKET_MAX_NAME}
-              error={errorFor("nameEn")}
-            />
-            <AdminFormTextRow
-              label={t("adminEventRegistration.tickets.editor.descriptionPl")}
-              value={draft.descriptionPl}
-              onValueChange={(value) => set("descriptionPl", value)}
-              rows={3}
-              maxLength={TICKET_MAX_DESCRIPTION}
-              error={errorFor("descriptionPl")}
-            />
-            <AdminFormTextRow
-              label={t("adminEventRegistration.tickets.editor.descriptionEn")}
-              value={draft.descriptionEn}
-              onValueChange={(value) => set("descriptionEn", value)}
-              rows={3}
-              maxLength={TICKET_MAX_DESCRIPTION}
-              error={errorFor("descriptionEn")}
-            />
-          </AdminFormSection>
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
+          <div className="min-w-0 space-y-6">
+            <AdminFormSection
+              title={t("adminEventRegistration.tickets.studio.content")}
+              hint={t("adminEventRegistration.tickets.studio.contentHint")}
+              columns={1}
+            >
+              <Tabs
+                value={contentLang}
+                onValueChange={(value) => setContentLang(value === "en" ? "en" : "pl")}
+              >
+                <TabsList aria-label={t("adminEventRegistration.tickets.studio.langTabs")}>
+                  <TabsTrigger value="pl">
+                    {t("adminEventRegistration.tickets.studio.tabPl")}
+                  </TabsTrigger>
+                  <TabsTrigger value="en">
+                    {t("adminEventRegistration.tickets.studio.tabEn")}
+                  </TabsTrigger>
+                </TabsList>
+                {/* forceMount: pola drugiego języka zostają w formularzu (walidacja,
+                  czytniki ekranu, testy) - karta jest tylko ukryta wizualnie. */}
+                <TabsContent value="pl" forceMount className="mt-4 data-[state=inactive]:hidden">
+                  {langFields("pl")}
+                </TabsContent>
+                <TabsContent value="en" forceMount className="mt-4 data-[state=inactive]:hidden">
+                  {langFields("en")}
+                </TabsContent>
+              </Tabs>
+            </AdminFormSection>
 
-          <AdminFormSection title={t("adminEventRegistration.tickets.columns.price")} columns={2}>
-            <AdminFormTextRow
-              label={t("adminEventRegistration.tickets.editor.priceCents")}
-              hint={t("adminEventRegistration.tickets.editor.priceHint")}
-              value={draft.priceCents}
-              onValueChange={(value) => set("priceCents", value)}
-              inputMode="numeric"
-              error={errorFor("priceCents")}
-            />
-            <AdminFormEnumRow<TicketCurrency>
-              label={t("adminEventRegistration.tickets.editor.currency")}
-              value={draft.currency}
-              options={TICKET_CURRENCIES}
-              labelFor={(option) => t(`adminEventRegistration.currencies.${option}`)}
-              onValueChange={(value) => set("currency", value)}
-            />
-            <AdminFormTextRow
-              label={t("adminEventRegistration.tickets.editor.quota")}
-              hint={t("adminEventRegistration.tickets.editor.quotaHint")}
-              value={draft.quota}
-              onValueChange={(value) => set("quota", value)}
-              inputMode="numeric"
-              placeholder={t("adminEventRegistration.tickets.unlimitedQuota")}
-              error={errorFor("quota")}
-            />
-            <AdminFormTextRow
-              label={t("adminEventRegistration.tickets.editor.minTierRank")}
-              value={draft.minTierRank}
-              onValueChange={(value) => set("minTierRank", value)}
-              inputMode="numeric"
-              error={errorFor("minTierRank")}
-            />
-          </AdminFormSection>
+            <AdminFormSection
+              title={t("adminEventRegistration.tickets.studio.basics")}
+              hint={t("adminEventRegistration.tickets.studio.basicsHint")}
+              columns={2}
+            >
+              <AdminFormTextRow
+                label={t("adminEventRegistration.tickets.editor.key")}
+                hint={t("adminEventRegistration.tickets.editor.keyHint")}
+                value={draft.key}
+                onValueChange={(value) => set("key", value)}
+                disabled={!isNew}
+                monospace
+                maxLength={49}
+                error={errorFor("key")}
+              />
+              <AdminFormTextRow
+                label={t("adminEventRegistration.tickets.editor.sortOrder")}
+                value={draft.sortOrder}
+                onValueChange={(value) => set("sortOrder", value)}
+                inputMode="numeric"
+              />
+              <AdminFormTextRow
+                label={t("adminEventRegistration.tickets.editor.salesFrom")}
+                value={draft.salesFrom}
+                onValueChange={(value) => set("salesFrom", value)}
+                type="datetime-local"
+              />
+              <AdminFormTextRow
+                label={t("adminEventRegistration.tickets.editor.salesTo")}
+                value={draft.salesTo}
+                onValueChange={(value) => set("salesTo", value)}
+                type="datetime-local"
+                error={errorFor("salesTo")}
+              />
+              <AdminFormTextRow
+                label={t("adminEventRegistration.tickets.editor.quota")}
+                hint={t("adminEventRegistration.tickets.editor.quotaHint")}
+                value={draft.quota}
+                onValueChange={(value) => set("quota", value)}
+                inputMode="numeric"
+                placeholder={t("adminEventRegistration.tickets.unlimitedQuota")}
+                error={errorFor("quota")}
+              />
+              <AdminFormTextRow
+                label={t("adminEventRegistration.tickets.editor.minTierRank")}
+                value={draft.minTierRank}
+                onValueChange={(value) => set("minTierRank", value)}
+                inputMode="numeric"
+                error={errorFor("minTierRank")}
+              />
+            </AdminFormSection>
 
-          {/* KORZYSCI SA CZESCIA OFERTY, NIE OPISEM. Karta biletu wypisuje je
-              punktami w jezyku widza, wiec kazda linia to jedna korzysc - bez
-              recznego wstawiania myslnikow, ktore rozjechalyby sie miedzy PL a EN. */}
-          <AdminFormSection
-            title={t("adminEventRegistration.tickets.editor.benefitsSection")}
-            columns={2}
-          >
-            <AdminFormTextRow
-              label={t("adminEventRegistration.tickets.editor.benefitsPl")}
-              hint={t("adminEventRegistration.tickets.editor.benefitsHint", {
-                max: TICKET_MAX_BENEFITS,
-              })}
-              value={draft.benefitsPl}
-              onValueChange={(value) => set("benefitsPl", value)}
-              rows={5}
-              error={errorFor("benefitsPl")}
-            />
-            <AdminFormTextRow
-              label={t("adminEventRegistration.tickets.editor.benefitsEn")}
-              hint={t("adminEventRegistration.tickets.editor.benefitsHint", {
-                max: TICKET_MAX_BENEFITS,
-              })}
-              value={draft.benefitsEn}
-              onValueChange={(value) => set("benefitsEn", value)}
-              rows={5}
-              error={errorFor("benefitsEn")}
-            />
-          </AdminFormSection>
+            <AdminFormSection
+              title={t("adminEventRegistration.tickets.studio.visibility")}
+              hint={t("adminEventRegistration.tickets.studio.hiddenHint")}
+              columns={2}
+            >
+              <EventTicketChoice
+                name="ticket-visibility"
+                selected={!look.isHidden}
+                label={t("adminEventRegistration.tickets.studio.visible")}
+                onSelect={() => setLookField("isHidden", false)}
+              />
+              <EventTicketChoice
+                name="ticket-visibility"
+                selected={look.isHidden}
+                label={t("adminEventRegistration.tickets.studio.hidden")}
+                onSelect={() => setLookField("isHidden", true)}
+              />
+            </AdminFormSection>
 
-          {/* CENNIK FAZOWY WYGRYWA Z CENA BAZOWA I EARLY BIRD - tak liczy baza,
-              wiec edytor stoi tuz nad polami, ktore nadpisuje. */}
-          <AdminFormSection
-            title={t("adminEventRegistration.tickets.editor.phasesSection")}
-            columns={1}
-          >
-            <EventTicketPhasesEditor
-              phases={draft.phases}
-              onChange={(phases) => set("phases", phases)}
-              error={errorFor("phases")}
-            />
-          </AdminFormSection>
+            <AdminFormSection
+              title={t("adminEventRegistration.tickets.studio.type")}
+              hint={t("adminEventRegistration.tickets.studio.typeHint")}
+              columns={2}
+            >
+              <EventTicketChoice
+                name="ticket-type"
+                selected={!paid}
+                label={t("adminEventRegistration.tickets.studio.free")}
+                onSelect={() => choosePaid(false)}
+              />
+              <EventTicketChoice
+                name="ticket-type"
+                selected={paid}
+                label={t("adminEventRegistration.tickets.studio.paid")}
+                onSelect={() => choosePaid(true)}
+              />
+              <div className="sm:col-span-2">
+                <AdminFormSwitchRow
+                  label={t("adminEventRegistration.tickets.studio.showLabel")}
+                  hint={t("adminEventRegistration.tickets.studio.showLabelHint")}
+                  checked={look.showPriceLabel}
+                  onCheckedChange={(checked) => setLookField("showPriceLabel", checked)}
+                />
+              </div>
+            </AdminFormSection>
 
-          <AdminFormSection title={t("adminEventRegistration.tickets.columns.window")} columns={2}>
-            <AdminFormTextRow
-              label={t("adminEventRegistration.tickets.editor.salesFrom")}
-              value={draft.salesFrom}
-              onValueChange={(value) => set("salesFrom", value)}
-              type="datetime-local"
-            />
-            <AdminFormTextRow
-              label={t("adminEventRegistration.tickets.editor.salesTo")}
-              value={draft.salesTo}
-              onValueChange={(value) => set("salesTo", value)}
-              type="datetime-local"
-              error={errorFor("salesTo")}
-            />
-          </AdminFormSection>
+            {paid ? (
+              <>
+                <AdminFormSection
+                  title={t("adminEventRegistration.tickets.studio.payment")}
+                  hint={t("adminEventRegistration.tickets.studio.paymentHint")}
+                  columns={2}
+                >
+                  <AdminFormTextRow
+                    label={t("adminEventRegistration.tickets.editor.priceCents")}
+                    hint={t("adminEventRegistration.tickets.editor.priceHint")}
+                    value={draft.priceCents}
+                    onValueChange={(value) => {
+                      set("priceCents", value);
+                      const cents = Number(value.trim());
+                      setPaid(value.trim() !== "" && Number.isFinite(cents) && cents !== 0);
+                    }}
+                    inputMode="numeric"
+                    error={errorFor("priceCents")}
+                  />
+                  <AdminFormEnumRow<TicketCurrency>
+                    label={t("adminEventRegistration.tickets.editor.currency")}
+                    value={draft.currency}
+                    options={TICKET_CURRENCIES}
+                    labelFor={(option) => t(`adminEventRegistration.currencies.${option}`)}
+                    onValueChange={(value) => set("currency", value)}
+                  />
+                  <AdminFormTextRow
+                    label={t("adminEventRegistration.tickets.editor.earlyBirdPriceCents")}
+                    hint={t("adminEventRegistration.tickets.editor.earlyBirdHint")}
+                    value={draft.earlyBirdPriceCents}
+                    onValueChange={(value) => set("earlyBirdPriceCents", value)}
+                    inputMode="numeric"
+                    error={errorFor("earlyBirdPriceCents")}
+                  />
+                  <AdminFormTextRow
+                    label={t("adminEventRegistration.tickets.editor.earlyBirdUntil")}
+                    value={draft.earlyBirdUntil}
+                    onValueChange={(value) => set("earlyBirdUntil", value)}
+                    type="datetime-local"
+                    error={errorFor("earlyBirdUntil")}
+                  />
+                </AdminFormSection>
+                <AdminFormSection
+                  title={t("adminEventRegistration.tickets.editor.phasesSection")}
+                  columns={1}
+                >
+                  <EventTicketPhasesEditor
+                    phases={draft.phases}
+                    onChange={(phases) => set("phases", phases)}
+                    error={errorFor("phases")}
+                  />
+                </AdminFormSection>
+              </>
+            ) : null}
 
-          <AdminFormSection
-            title={t("adminEventRegistration.tickets.columns.approval")}
-            columns={1}
-          >
-            <AdminFormSwitchRow
-              label={t("adminEventRegistration.tickets.editor.requiresApproval")}
-              hint={t("adminEventRegistration.tickets.editor.requiresApprovalHint")}
-              checked={draft.requiresApproval}
-              onCheckedChange={(checked) => set("requiresApproval", checked)}
-            />
-            <AdminFormSwitchRow
-              label={t("adminEventRegistration.tickets.editor.active")}
-              checked={draft.isActive}
-              onCheckedChange={(checked) => set("isActive", checked)}
-            />
-          </AdminFormSection>
+            <AdminFormSection
+              title={t("adminEventRegistration.tickets.studio.other")}
+              hint={t("adminEventRegistration.tickets.studio.otherHint")}
+              columns={1}
+            >
+              <Select
+                value={draft.groupId ?? "__none"}
+                onValueChange={(value) => set("groupId", value === "__none" ? null : value)}
+              >
+                <SelectTrigger
+                  aria-label={t("adminEventRegistration.tickets.studio.columns.group")}
+                >
+                  <SelectValue
+                    placeholder={t("adminEventRegistration.tickets.studio.groupPlaceholder")}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">
+                    {t("adminEventRegistration.tickets.studio.groupPlaceholder")}
+                  </SelectItem>
+                  {(groupsQ.data ?? []).map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {(uiLang === "en" ? group.name_en : group.name_pl) || group.key}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <AdminFormSwitchRow
+                label={t("adminEventRegistration.tickets.studio.moderated")}
+                hint={t("adminEventRegistration.tickets.studio.moderatedHint")}
+                checked={draft.requiresApproval}
+                onCheckedChange={(checked) => set("requiresApproval", checked)}
+              />
+              <AdminFormSwitchRow
+                label={t("adminEventRegistration.tickets.studio.groupRegistration")}
+                hint={t("adminEventRegistration.tickets.studio.groupRegistrationHint")}
+                checked={look.groupRegistrationEnabled}
+                onCheckedChange={(checked) => setLookField("groupRegistrationEnabled", checked)}
+              />
+              <AdminFormSwitchRow
+                label={t("adminEventRegistration.tickets.editor.active")}
+                checked={draft.isActive}
+                onCheckedChange={(checked) => set("isActive", checked)}
+              />
+            </AdminFormSection>
 
-          {/* KOD DOSTĘPU NIE WRACA Z SERWERA. Baza trzyma wyłącznie skrót, więc
+            {/* KOD DOSTĘPU NIE WRACA Z SERWERA. Baza trzyma wyłącznie skrót, więc
               formularz nie ma czego pokazać w polu: puste pole znaczy „zostaw
               obecny kod", a zdjęcie bramki ma osobny przełącznik. Wpisanie
               pustego napisu jako „skasuj" myliłoby jedno z drugim. */}
-          <AdminFormSection
-            title={t("adminEventRegistration.tickets.editor.advancedSection")}
-            columns={2}
-          >
-            <AdminFormTextRow
-              label={t("adminEventRegistration.tickets.editor.earlyBirdPriceCents")}
-              hint={t("adminEventRegistration.tickets.editor.earlyBirdHint")}
-              value={draft.earlyBirdPriceCents}
-              onValueChange={(value) => set("earlyBirdPriceCents", value)}
-              inputMode="numeric"
-              error={errorFor("earlyBirdPriceCents")}
-            />
-            <AdminFormTextRow
-              label={t("adminEventRegistration.tickets.editor.earlyBirdUntil")}
-              value={draft.earlyBirdUntil}
-              onValueChange={(value) => set("earlyBirdUntil", value)}
-              type="datetime-local"
-              error={errorFor("earlyBirdUntil")}
-            />
-            <AdminFormTextRow
-              label={t("adminEventRegistration.tickets.editor.accessCode")}
-              hint={t(
-                draft.hasAccessCode
-                  ? "adminEventRegistration.tickets.editor.accessCodeSet"
-                  : "adminEventRegistration.tickets.editor.accessCodeNone",
-              )}
-              value={draft.accessCode}
-              onValueChange={(value) => set("accessCode", value)}
-              disabled={draft.removeAccessCode}
-              maxLength={TICKET_ACCESS_CODE_MAX}
-              placeholder={t("adminEventRegistration.tickets.editor.accessCodeHelp")}
-              error={errorFor("accessCode")}
-            />
-            <AdminFormTextRow
-              label={t("adminEventRegistration.tickets.editor.accessCodeHintLabel")}
-              hint={t("adminEventRegistration.tickets.editor.accessCodeHintHelp")}
-              value={draft.accessCodeHint}
-              onValueChange={(value) => set("accessCodeHint", value)}
-              maxLength={TICKET_MAX_ACCESS_CODE_HINT}
-              error={errorFor("accessCodeHint")}
-            />
-            {draft.hasAccessCode ? (
-              <AdminFormSwitchRow
-                label={t("adminEventRegistration.tickets.editor.removeAccessCode")}
-                checked={draft.removeAccessCode}
-                onCheckedChange={(checked) => set("removeAccessCode", checked)}
+            <AdminFormSection title={t("adminEventRegistration.tickets.studio.access")} columns={2}>
+              <AdminFormTextRow
+                label={t("adminEventRegistration.tickets.editor.accessCode")}
+                hint={t(
+                  draft.hasAccessCode
+                    ? "adminEventRegistration.tickets.editor.accessCodeSet"
+                    : "adminEventRegistration.tickets.editor.accessCodeNone",
+                )}
+                value={draft.accessCode}
+                onValueChange={(value) => set("accessCode", value)}
+                disabled={draft.removeAccessCode}
+                maxLength={TICKET_ACCESS_CODE_MAX}
+                placeholder={t("adminEventRegistration.tickets.editor.accessCodeHelp")}
+                error={errorFor("accessCode")}
               />
-            ) : null}
-            <AdminFormSwitchRow
-              label={t("adminEventRegistration.tickets.editor.waitlistEnabled")}
-              hint={t("adminEventRegistration.tickets.editor.waitlistHint")}
-              checked={draft.waitlistEnabled}
-              onCheckedChange={(checked) => set("waitlistEnabled", checked)}
+              <AdminFormTextRow
+                label={t("adminEventRegistration.tickets.editor.accessCodeHintLabel")}
+                hint={t("adminEventRegistration.tickets.editor.accessCodeHintHelp")}
+                value={draft.accessCodeHint}
+                onValueChange={(value) => set("accessCodeHint", value)}
+                maxLength={TICKET_MAX_ACCESS_CODE_HINT}
+                error={errorFor("accessCodeHint")}
+              />
+              {draft.hasAccessCode ? (
+                <AdminFormSwitchRow
+                  label={t("adminEventRegistration.tickets.editor.removeAccessCode")}
+                  checked={draft.removeAccessCode}
+                  onCheckedChange={(checked) => set("removeAccessCode", checked)}
+                />
+              ) : null}
+              <AdminFormSwitchRow
+                label={t("adminEventRegistration.tickets.editor.waitlistEnabled")}
+                hint={t("adminEventRegistration.tickets.editor.waitlistHint")}
+                checked={draft.waitlistEnabled}
+                onCheckedChange={(checked) => set("waitlistEnabled", checked)}
+              />
+            </AdminFormSection>
+          </div>
+
+          <aside className="space-y-4 lg:sticky lg:top-0 lg:self-start">
+            <EventTicketPreview
+              name={(contentLang === "en" ? draft.nameEn : draft.namePl).trim()}
+              description={contentLang === "en" ? draft.descriptionEn : draft.descriptionPl}
+              priceLabel={
+                !look.showPriceLabel
+                  ? null
+                  : (contentLang === "en" ? look.priceLabelEn : look.priceLabelPl).trim() ||
+                    (paid && Number(draft.priceCents) > 0
+                      ? formatMoney(Number(draft.priceCents), draft.currency, contentLang)
+                      : t("adminEventRegistration.tickets.studio.free"))
+              }
+              salesTo={draft.salesTo}
+              lang={contentLang}
             />
-          </AdminFormSection>
+            {registrationUrl !== null ? (
+              <div className="space-y-3 rounded-[6px] border border-border bg-card p-3 text-sm">
+                <div className="space-y-1">
+                  <p className="font-medium text-foreground">
+                    {t("adminEventRegistration.tickets.studio.registrationUrl")}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("adminEventRegistration.tickets.studio.registrationUrlHint")}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <code className="min-w-0 flex-1 truncate text-xs">{registrationUrl}</code>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => copy(registrationUrl)}
+                    >
+                      {t("adminEventRegistration.tickets.studio.copy")}
+                    </Button>
+                  </div>
+                </div>
+                {draft.id !== null ? (
+                  <div className="space-y-1">
+                    <p className="font-medium text-foreground">
+                      {t("adminEventRegistration.tickets.studio.ticketId")}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <code className="min-w-0 flex-1 truncate text-xs">{draft.id}</code>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => copy(draft.id ?? "")}
+                      >
+                        {t("adminEventRegistration.tickets.studio.copy")}
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+                {onDuplicate !== undefined ? (
+                  <Button type="button" variant="outline" className="w-full" onClick={onDuplicate}>
+                    {t("adminEventRegistration.tickets.studio.duplicate")}
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+          </aside>
         </div>
 
         <DialogFooter>

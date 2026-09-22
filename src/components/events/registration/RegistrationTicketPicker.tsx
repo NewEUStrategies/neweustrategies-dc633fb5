@@ -11,11 +11,14 @@
 //
 // NATYWNE `radio`, a nie przyciski: klawiatura, czytnik ekranu i walidacja
 // grupy dzialaja bez jednej linii naszego kodu.
+import { useEffect, useState } from "react";
 import { Check, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import {
+  customPriceLabel,
   isTicketSelectable,
+  visibleTickets,
   type RegistrationFormTicket,
 } from "@/lib/events/registrationFormSurface";
 import { formatMoney } from "@/lib/billing/types";
@@ -35,6 +38,12 @@ export function RegistrationTicketPicker({
   invalid: boolean;
 }) {
   const { t } = useTranslation();
+  // Klucz z linku czytamy po hydratacji - SSR nie zna query stringa klienta.
+  const [requestedKey, setRequestedKey] = useState<string | null>(null);
+  useEffect(() => {
+    setRequestedKey(new URLSearchParams(window.location.search).get("ticket"));
+  }, []);
+  const shown = visibleTickets(tickets, requestedKey);
 
   return (
     <div
@@ -43,7 +52,7 @@ export function RegistrationTicketPicker({
       aria-invalid={invalid ? true : undefined}
       className="grid gap-3 sm:grid-cols-2"
     >
-      {tickets.map((ticket) => {
+      {shown.map((ticket) => {
         const selectable = isTicketSelectable(ticket);
         const checked = value === ticket.id;
         const name = (lang === "en" ? ticket.nameEn : ticket.namePl) || ticket.key;
@@ -98,9 +107,12 @@ export function RegistrationTicketPicker({
               </span>
               <span className="flex flex-col items-end gap-0.5 whitespace-nowrap text-sm font-medium text-foreground">
                 <span>
-                  {ticket.effectivePriceCents === 0
-                    ? t("eventRegistration.labels.free")
-                    : formatMoney(ticket.effectivePriceCents, ticket.currency, lang)}
+                  {ticket.showPriceLabel === false
+                    ? null
+                    : (customPriceLabel(ticket, lang) ??
+                      (ticket.effectivePriceCents === 0
+                        ? t("eventRegistration.labels.free")
+                        : formatMoney(ticket.effectivePriceCents, ticket.currency, lang)))}
                 </span>
                 {/* Cena bazowa pojawia sie WYLACZNIE wtedy, gdy prog realnie
                     obniza kwote - przekreslenie przy tej samej liczbie udaje

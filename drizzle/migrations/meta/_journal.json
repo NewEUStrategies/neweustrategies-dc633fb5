@@ -267,6 +267,13 @@
       "when": 1790109050786,
       "tag": "0037_event_home_ads_viewer_status_fix",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1790110482546,
+      "tag": "0038_event_ticket_presentation",
+      "breakpoints": true
     }
   ]
 }
