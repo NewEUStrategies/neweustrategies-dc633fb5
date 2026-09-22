@@ -24,13 +24,7 @@ import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow"
 import { AdminFormSwitchRow } from "@/components/admin/molecules/AdminFormSwitchRow";
 import { AdminFormEnumRow } from "@/components/admin/molecules/AdminFormEnumRow";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { FormSelect } from "@/components/atoms/FormSelect";
 import { EventTicketPreview } from "@/components/admin/events/atoms/EventTicketPreview";
 import { EventTicketChoice } from "@/components/admin/events/atoms/EventTicketChoice";
 import { useEventGroups } from "@/lib/events/useEventTermsGroups";
@@ -59,6 +53,8 @@ import {
 } from "@/lib/events/ticketDraft";
 import { formatMoney } from "@/lib/billing/types";
 import type { EventTicketInput, EventTicketRow } from "@/lib/events/registrationsApi";
+
+const NO_GROUP = "__none";
 
 interface EventTicketDialogProps {
   open: boolean;
@@ -422,28 +418,21 @@ export function EventTicketDialog({
               hint={t("adminEventRegistration.tickets.studio.otherHint")}
               columns={1}
             >
-              <Select
-                value={draft.groupId ?? "__none"}
-                onValueChange={(value) => set("groupId", value === "__none" ? null : value)}
-              >
-                <SelectTrigger
-                  aria-label={t("adminEventRegistration.tickets.studio.columns.group")}
-                >
-                  <SelectValue
-                    placeholder={t("adminEventRegistration.tickets.studio.groupPlaceholder")}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">
-                    {t("adminEventRegistration.tickets.studio.groupPlaceholder")}
-                  </SelectItem>
-                  {(groupsQ.data ?? []).map((group) => (
-                    <SelectItem key={group.id} value={group.id}>
-                      {(uiLang === "en" ? group.name_en : group.name_pl) || group.key}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FormSelect
+                value={draft.groupId ?? NO_GROUP}
+                aria-label={t("adminEventRegistration.tickets.studio.columns.group")}
+                options={[
+                  {
+                    value: NO_GROUP,
+                    label: t("adminEventRegistration.tickets.studio.groupPlaceholder"),
+                  },
+                  ...(groupsQ.data ?? []).map((group) => ({
+                    value: group.id,
+                    label: (uiLang === "en" ? group.name_en : group.name_pl) || group.key,
+                  })),
+                ]}
+                onValueChange={(value) => set("groupId", value === NO_GROUP ? null : value)}
+              />
               <AdminFormSwitchRow
                 label={t("adminEventRegistration.tickets.editor.requiresApproval")}
                 hint={t("adminEventRegistration.tickets.studio.moderatedHint")}
