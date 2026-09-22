@@ -86,6 +86,7 @@ export const WIDGET_TYPES = [
   "logo-cloud",
   "testimonial",
   "team-member",
+  "team-member-grid",
   "author-profile-card",
   "travel-route-card",
   "cover-overlay-card",

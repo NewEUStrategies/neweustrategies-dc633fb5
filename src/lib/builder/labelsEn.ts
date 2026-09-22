@@ -168,6 +168,7 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   Menu: "Menu",
   Accordion: "Accordion",
   "Team member": "Team member",
+  "Zespół (siatka)": "Team grid",
   "Etykieta sekcji": "Section label",
   Przepływy: "Flows",
   Korytarze: "Corridors",

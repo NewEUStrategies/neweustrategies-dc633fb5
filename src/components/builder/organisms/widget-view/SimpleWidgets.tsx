@@ -50,6 +50,7 @@ import {
   SearchButtonWidget,
   AccountMenuWidget,
   TeamMemberWidget,
+  TeamMemberGridWidget,
   AuthorProfileCardWidget,
   SpeakersWidget,
   InteractiveCircleWidget,
@@ -1548,6 +1549,10 @@ export function renderSimpleWidget(
       // `editable` musi dojechać do komponentu - bez tego guard w
       // TeamMemberWidget (modal bio nie otwiera się w kanwie) był martwy.
       return <TeamMemberWidget node={node} lang={lang} editable={editable} />;
+    }
+    case "team-member-grid": {
+      // Ten sam kontrakt co wyżej: `editable` gasi otwieranie okna w kanwie.
+      return <TeamMemberGridWidget node={node} lang={lang} editable={editable} />;
     }
     case "author-profile-card": {
       return <AuthorProfileCardWidget node={node} lang={lang} />;

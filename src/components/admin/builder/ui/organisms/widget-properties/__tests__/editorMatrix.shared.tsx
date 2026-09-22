@@ -184,6 +184,7 @@ const ALL_EDITORS: ReadonlyArray<readonly [string, ContentEditor]> = [
   ["SponsorsEditor", editors.SponsorsEditor],
   ["TabsEditor", editors.TabsEditor],
   ["TeamMemberEditor", editors.TeamMemberEditor],
+  ["TeamMemberGridEditor", editors.TeamMemberGridEditor],
   ["TextRotateEditor", editors.TextRotateEditor],
   ["TimelineEditor", editors.TimelineEditor],
   ["WorldMapEditor", editors.WorldMapEditor],
@@ -442,7 +443,13 @@ export const MATRIX_SLICES = {
     "SectionLabelEditor",
   ],
   part5: ["SliderEditor", "SponsorsEditor", "TabsEditor"],
-  part6: ["TeamMemberEditor", "TextRotateEditor", "TimelineEditor", "WorldMapEditor"],
+  part6: [
+    "TeamMemberEditor",
+    "TeamMemberGridEditor",
+    "TextRotateEditor",
+    "TimelineEditor",
+    "WorldMapEditor",
+  ],
 } as const;
 
 export type MatrixSlice = keyof typeof MATRIX_SLICES;

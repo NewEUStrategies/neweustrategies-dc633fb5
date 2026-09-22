@@ -27,11 +27,13 @@ describe("WIDGET_TEXT_FIELDS - niezmiennik 'tylko pola HTML'", () => {
     //   accordion           -> SimpleWidgets (odpowiedź `a_*`)
     //   interactive-circle  -> InteractiveCircleWidget (opis widgetu + elementu)
     //   team-member         -> TeamMemberWidget (biogram)
+    //   team-member-grid    -> TeamMemberGridWidget (pełny biogram w oknie)
     expect(Object.keys(WIDGET_TEXT_FIELDS).sort()).toEqual([
       "accordion",
       "interactive-circle",
       "tabs",
       "team-member",
+      "team-member-grid",
       "text",
     ]);
   });
@@ -45,6 +47,11 @@ describe("WIDGET_TEXT_FIELDS - niezmiennik 'tylko pola HTML'", () => {
     });
     expect(WIDGET_TEXT_FIELDS.tabs?.arrays?.[0]).toEqual({ arrayKey: "items", fields: ["html"] });
     expect(WIDGET_TEXT_FIELDS["team-member"]?.scalar).toEqual(["bio"]);
+    // Siatka trzyma osoby w kolekcji, więc pole jest `members[].fullBio` -
+    // a NIE `bio`, który na kafelku jest węzłem tekstowym.
+    expect(WIDGET_TEXT_FIELDS["team-member-grid"]).toEqual({
+      arrays: [{ arrayKey: "members", fields: ["fullBio"] }],
+    });
     expect(WIDGET_TEXT_FIELDS["interactive-circle"]).toEqual({
       scalar: ["desc"],
       arrays: [{ arrayKey: "items", fields: ["desc"] }],

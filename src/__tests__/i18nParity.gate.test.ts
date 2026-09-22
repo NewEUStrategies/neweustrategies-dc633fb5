@@ -109,6 +109,12 @@ const GATED_PREFIXES = [
   // wpuścić człowieka - goły klucz zamiast "Kod z innego wydarzenia" zatrzymuje
   // kolejkę. Bramka od pierwszego dnia, nie po pierwszym incydencie.
   "eventScanner",
+  // Siatka zespołu: napisy okna osoby (rola w NES, afiliacja, przynależność
+  // projektowa, kontakt) są PUBLICZNE i jadą za językiem treści, nie panelu.
+  // Brak klucza po jednej stronie dałby surowe `teamGrid.dialog.affiliation`
+  // na karcie człowieka - dlatego bramka od pierwszego dnia, a nie po
+  // pierwszym rozjeździe (ta sama lekcja co przy "network" i "club").
+  "teamGrid",
 ] as const;
 
 // Klucze, dla których identyczny tekst PL i EN jest poprawny (nazwy własne,

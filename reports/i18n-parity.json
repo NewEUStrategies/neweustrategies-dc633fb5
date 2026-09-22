@@ -27,7 +27,8 @@
     "eventRegistration",
     "eventMeetings",
     "eventFront",
-    "eventScanner"
+    "eventScanner",
+    "teamGrid"
   ],
   "missing": [],
   "missingEn": [],

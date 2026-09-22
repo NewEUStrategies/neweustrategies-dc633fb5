@@ -1264,6 +1264,32 @@ export const WIDGETS: WidgetDef[] = [
     }),
   },
   {
+    type: "team-member-grid",
+    label: "Zespół (siatka)",
+    category: "blocks",
+    icon: Users,
+    defaults: () => ({
+      // Zero danych przykładowych - dokładnie jak w `team-member`. Nagłówek,
+      // wstęp i lista startują puste, a renderer nie rysuje elementu, którego
+      // pole jest puste, więc świeżo wstawiony widget pokazuje w kanwie
+      // podpowiedź "dodaj osoby", a nie zmyślony zespół do opublikowania.
+      badge_pl: "",
+      badge_en: "",
+      heading_pl: "",
+      heading_en: "",
+      intro_pl: "",
+      intro_en: "",
+      columns: 3,
+      // 6 px na KAŻDEJ powierzchni widgetu (kadr zdjęcia, plakietki, ramka
+      // siatki, okno) - jedna liczba, jedna zmienna CSS w rendererze.
+      radius: 6,
+      accentColor: "",
+      grayscale: true,
+      openPopup: true,
+      members: toJson([]),
+    }),
+  },
+  {
     type: "travel-route-card",
     label: "Karta trasy",
     category: "blocks",
