@@ -582,6 +582,13 @@ describe("ClubEventForm - długość spotkania", () => {
 });
 
 describe("ClubEventForm - przełącznik całodniowy", () => {
+  it("dopasowuje oba natywne kalendarze do jasnego i ciemnego motywu klubu", () => {
+    renderForm(null);
+
+    expect(byId(F.start)).toHaveClass("[color-scheme:light]", "dark:[color-scheme:dark]");
+    expect(byId(F.end)).toHaveClass("[color-scheme:light]", "dark:[color-scheme:dark]");
+  });
+
   it("zmienia TYP obu pól terminu", () => {
     renderForm(null);
     expect(byId(F.start)).toHaveAttribute("type", "datetime-local");
