@@ -89,7 +89,13 @@ function TimeColumn({
   );
 }
 
-export function ClubDateTimeInput({ id, value, onChange, allDay, required }: ClubDateTimeInputProps) {
+export function ClubDateTimeInput({
+  id,
+  value,
+  onChange,
+  allDay,
+  required,
+}: ClubDateTimeInputProps) {
   const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
   const locale = i18n.language?.startsWith("en") ? enGB : plLocale;
@@ -196,7 +202,12 @@ export function ClubDateTimeInput({ id, value, onChange, allDay, required }: Clu
               >
                 {t("club.eventForm.now")}
               </Button>
-              <Button type="button" size="sm" className="h-8 text-xs" onClick={() => setOpen(false)}>
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => setOpen(false)}
+              >
                 {t("club.eventForm.done")}
               </Button>
             </div>

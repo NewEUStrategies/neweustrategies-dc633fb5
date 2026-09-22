@@ -17,6 +17,7 @@ import { CalendarDays, Clock, Link as LinkIcon, MapPin, Type, Users } from "luci
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ClubDateTimeInput } from "./ClubDateTimeInput";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -242,22 +243,20 @@ export function ClubEventForm({
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field htmlFor="club-event-start" label={t("club.eventForm.startsAt")} required>
-                  <Input
+                  <ClubDateTimeInput
                     id="club-event-start"
-                    type={allDay ? "date" : "datetime-local"}
-                    className="[color-scheme:light] dark:[color-scheme:dark]"
+                    allDay={allDay}
                     required
                     value={startsAt}
-                    onChange={(event) => setStartsAt(event.target.value)}
+                    onChange={setStartsAt}
                   />
                 </Field>
                 <Field htmlFor="club-event-end" label={t("club.eventForm.endsAt")}>
-                  <Input
+                  <ClubDateTimeInput
                     id="club-event-end"
-                    type={allDay ? "date" : "datetime-local"}
-                    className="[color-scheme:light] dark:[color-scheme:dark]"
+                    allDay={allDay}
                     value={endsAt}
-                    onChange={(event) => setEndsAt(event.target.value)}
+                    onChange={setEndsAt}
                   />
                 </Field>
               </div>
