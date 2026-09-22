@@ -547,7 +547,10 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         const { getStripeClient } = await import("@/lib/stripe.server");
         const { createAdhocDiscountForCoupon } = await import("@/lib/billing/adhocCheckout.server");
         const couponRef = await createAdhocDiscountForCoupon(await getStripeClient(environment), {
-          code: ticketPhaseLabel || "Rabat",
+          // Różnica cena regularna - kwota końcowa obejmuje fazę sprzedaży
+          // ORAZ kod rabatowy, więc nazwa rabatu w Stripe mówi o obu.
+          code:
+            [ticketPhaseLabel, couponCode].filter((part) => Boolean(part)).join(" + ") || "Rabat",
           discountCents: phaseDiscountCents,
           currency,
         }).catch((err: unknown) => {
