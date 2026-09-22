@@ -3,6 +3,13 @@
 > **HEAD pomiaru: `119c03b`.** Każda liczba w tym dokumencie została zmierzona na tym commicie,
 > na drzewie zgodnym z `bun.lock` (nie z npm), bun 1.2.23, rejestr `registry.npmjs.org`.
 >
+> **ERRATA WŁASNA (2026-09-22).** W trakcie pisania tego zlecenia scalono PR #385, a `main`
+> przeszedł z `119c03b` na `a80dc767e`. Test aktualności uruchomiony na nowym `main` wskazał
+> **jeden** plik: `scripts/check-bundle-size.ts`. Skutek jest konkretny i unieważnia jedno
+> z moich własnych sprostowań - szczegóły w rozdz. 4.3.1. **`package.json` i `bun.lock` NIE
+> ZMIENIŁY SIĘ**, więc cały inwentarz zależności, wszystkie peery i wszystkie cztery testy
+> akceptacyjne z rozdz. 0 zachowują ważność.
+>
 > **Sprawdzisz aktualność tego zlecenia jednym poleceniem:**
 >
 > ```
@@ -416,10 +423,36 @@ job `test`, a **nie** `test-shards`. Zielone shardy nie dowodzą niczego o pokry
 chunk: 286,  public: 2826,  overall: 4509,  css: 96,  publicCss: 83,  boot: 579
 ```
 
-**SPROSTOWANIE briefu.** Brief podawał „floor OVERALL: 4572 (wpis XVII)". Ciąg `4572`
-**nie występuje w pliku ani razu**; faktyczny floor to **4509**. Ostatni wpis kroniki to **XVI**
-(2026-09-21, nie ruszył żadnego progu), a ostatni ruch progu to **XV** (2026-09-18,
-`chunk` 285 -> 286). Następny wpis w kolejności to **XVII**.
+### 4.3.1. OBOWIĄZUJE: floor OVERALL to 4572, wpis XVII. Moje sprostowanie było przedwczesne.
+
+**To jest errata do mojego własnego sprostowania i najciekawszy wpis w tym dokumencie, bo
+pokazuje dokładnie ten tryb pomyłki, przed którym zlecenie ostrzega.**
+
+Pierwsza redakcja tego rozdziału twierdziła: „Brief podawał floor OVERALL 4572 (wpis XVII),
+a ciąg `4572` nie występuje w pliku ani razu; faktyczny floor to 4509, ostatni wpis to XVI".
+
+**Na `119c03b` to było prawdą.** Ale w trakcie pisania tego zlecenia scalono PR #385, a wraz
+z nim wjechał **wpis kroniki XVII (2026-09-22)**, który podniósł `overall` z **4509 na 4572**.
+Zmierzone na `a80dc767e`:
+
+```
+chunk: 286,  public: 2826,  overall: 4572,  css: 96,  publicCss: 83,  boot: 579
+```
+
+**Autor briefu czytał nowsze drzewo niż ja, a nie mylił się.** Moje „sprostowanie" było poprawne
+wobec HEAD-a pomiaru i nieaktualne wobec `main` w chwili, gdy ktokolwiek je przeczyta.
+
+**Co OBOWIĄZUJE wykonawcę:** `overall` = **4572**, ostatni wpis kroniki = **XVII**, następny
+w kolejności = **XVIII**. Pozostałe pięć progów bez zmian.
+
+**Morał, który jest wart więcej niż sama liczba.** To jest ta sama klasa pomyłki, którą zlecenie
+opisuje dwa razy: raz przy 17-21 nieistniejących błędach typów (rozdz. 0, test 2) i raz przy
+punkcie odniesienia suity (rozdz. 5.0). Za każdym razem mechanizm jest identyczny - **ktoś
+porównuje pomiar z jednego drzewa z oczekiwaniem z innego**. Dlatego to zlecenie nosi test
+aktualności w nagłówku i dlatego go na sobie uruchomiłem. Uruchom go też, zanim ruszysz.
+
+Pozostałe cztery sprostowania briefu (rozdz. 1) sprawdziłem ponownie po scaleniu #385
+i **wszystkie dalej obowiązują**: `package.json` i `bun.lock` nie zmieniły się ani o bajt.
 
 Uwaga ratująca przed fałszywym pomiarem: **w CI zmienne `MAX_CHUNK_KB`, `MAX_PUBLIC_KB`,
 `MAX_TOTAL_KB`, `MAX_CSS_KB`, `MAX_BOOT_KB` są IGNOROWANE** - bramką jest zamrożona tabela
@@ -704,8 +737,9 @@ niezwiązany diff w tym samym commicie.
    z rozdz. 6 na zielono **przed** commitem.
 3. **`lucideIconNodes.generated.ts` przegenerowany** z nowej wersji `lucide-react`, w tym samym
    commicie co bump, `check:menu-icons` zielone.
-4. **Budżety bundla zmierzone po obu stronach**; jeśli ruszyły - wpis **XVII** w kronice
-   `scripts/check-bundle-size.ts` z pomiarem obu stron i uzasadnieniem.
+4. **Budżety bundla zmierzone po obu stronach**; jeśli ruszyły - wpis **XVIII** w kronice
+   `scripts/check-bundle-size.ts` z pomiarem obu stron i uzasadnieniem (XVII zajął PR #385,
+   rozdz. 4.3.1).
 5. **`src/routeTree.gen.ts`** albo bez zmian, albo przegenerowany osobnym, opisanym commitem.
 6. **Żadnego nowego `as unknown as`, `as any` ani `any`.** `check:unknown-casts` zielone,
    liczniki per plik nie wzrosły.
@@ -720,7 +754,19 @@ niezwiązany diff w tym samym commicie.
   niż doba.
 - **Budżety bundla przed i po**, tą samą metodą, z zaznaczeniem: runner czy host.
 - **Czy `typescript-eslint` wydał wersję z peerem na TypeScript 7** - data sprawdzenia.
-- **Osobno: które liczby z tego zlecenia okazały się nieaktualne.** To zlecenie samo zawiera
-  pięć sprostowań briefu (`typescript-eslint` 8.59.0 nie 8.70.1; floor 4509 nie 4572; wpis XVI
-  nie XVII; plugin-react 5.2.0 już obsługuje Vite 8; `check:bundle-size` nie istnieje) i wszystkie
-  wzięły się ze sprawdzenia liczby, a nie z jej przepisania.
+- **Osobno: które liczby z tego zlecenia okazały się nieaktualne.** Ta lista jest dla audytu
+  najcenniejsza, a to zlecenie daje jej dwa rodzaje wpisu.
+
+  **Cztery sprostowania briefu, które OBOWIĄZUJĄ** (sprawdzone ponownie po scaleniu #385,
+  bo `package.json` i `bun.lock` nie drgnęły): `typescript-eslint` to 8.59.0, nie 8.70.1;
+  `@vitejs/plugin-react` 5.2.0 już obsługuje Vite 8, więc etap D się rozprzęga;
+  skryptu `check:bundle-size` nie ma, właściwa nazwa to `check:bundle`; minor/patch jest 73,
+  nie 76.
+
+  **Jedno sprostowanie, które SAMO SIĘ UNIEWAŻNIŁO** i dlatego jest tu najbardziej pouczające:
+  twierdziłem, że floor OVERALL to 4509, a nie 4572 z briefu. Na HEAD-zie pomiaru było to
+  prawdą. Scalenie #385 dołożyło wpis XVII, który podniósł floor na 4572 - czyli **brief miał
+  rację, tylko czytał nowsze drzewo** (rozdz. 4.3.1). Mechanizm jest ten sam co przy 17-21
+  nieistniejących błędach typów: porównanie pomiaru z jednego drzewa z oczekiwaniem z innego.
+  Uruchom test aktualności z nagłówka, zanim uwierzysz którejkolwiek liczbie w tym pliku -
+  ja go na sobie uruchomiłem i właśnie dlatego ten akapit istnieje.
