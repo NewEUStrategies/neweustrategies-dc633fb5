@@ -836,6 +836,7 @@ export type Database = {
       b2b_coupons: {
         Row: {
           active: boolean
+          applies_discount: boolean
           assigned_company_id: string | null
           assigned_lead_id: string | null
           campaign_id: string | null
@@ -862,6 +863,7 @@ export type Database = {
           plan_ids: string[]
           prefix: string | null
           redemptions_count: number
+          reveals_hidden: boolean
           tenant_id: string
           ticket_type_ids: string[]
           updated_at: string
@@ -870,6 +872,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          applies_discount?: boolean
           assigned_company_id?: string | null
           assigned_lead_id?: string | null
           campaign_id?: string | null
@@ -896,6 +899,7 @@ export type Database = {
           plan_ids?: string[]
           prefix?: string | null
           redemptions_count?: number
+          reveals_hidden?: boolean
           tenant_id?: string
           ticket_type_ids?: string[]
           updated_at?: string
@@ -904,6 +908,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          applies_discount?: boolean
           assigned_company_id?: string | null
           assigned_lead_id?: string | null
           campaign_id?: string | null
@@ -930,6 +935,7 @@ export type Database = {
           plan_ids?: string[]
           prefix?: string | null
           redemptions_count?: number
+          reveals_hidden?: boolean
           tenant_id?: string
           ticket_type_ids?: string[]
           updated_at?: string
@@ -19124,6 +19130,23 @@ export type Database = {
     }
     Functions: {
       _are_connected: { Args: { _a: string; _b: string }; Returns: boolean }
+      _b2b_coupon_evaluate: {
+        Args: {
+          _amount_cents: number
+          _currency: string
+          c: Database["public"]["Tables"]["b2b_coupons"]["Row"]
+        }
+        Returns: {
+          coupon_id: string
+          discount_cents: number
+          discount_kind: string
+          discount_percent: number
+          error: string
+          final_cents: number
+          label: string
+          ok: boolean
+        }[]
+      }
       _caller_tenant: { Args: never; Returns: string }
       _club_slugify: { Args: { p_text: string }; Returns: string }
       _club_unique_slug: {
@@ -24169,6 +24192,10 @@ export type Database = {
       }
       event_checkin_record: { Args: { p_payload: Json }; Returns: Json }
       event_checkin_resolve: { Args: { p_payload: Json }; Returns: Json }
+      event_coupon_revealed_tickets: {
+        Args: { p_code: string; p_event_id: string }
+        Returns: string[]
+      }
       event_discussions: { Args: { p_slug: string }; Returns: Json }
       event_home_ad_track: {
         Args: { p_ad_id: string; p_kind: string; p_session: string }
@@ -26602,6 +26629,25 @@ export type Database = {
           _code: string
           _currency: string
           _plan_id: string
+        }
+        Returns: {
+          coupon_id: string
+          discount_cents: number
+          discount_kind: string
+          discount_percent: number
+          error: string
+          final_cents: number
+          label: string
+          ok: boolean
+        }[]
+      }
+      validate_event_ticket_coupon: {
+        Args: {
+          _amount_cents: number
+          _code: string
+          _currency: string
+          _event_id: string
+          _ticket_type_id: string
         }
         Returns: {
           coupon_id: string
