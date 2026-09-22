@@ -6707,6 +6707,113 @@ export type Database = {
           },
         ]
       }
+      event_home_ad_events: {
+        Row: {
+          ad_id: string
+          created_at: string
+          day: string
+          id: number
+          kind: string
+          session_hash: string
+          tenant_id: string
+        }
+        Insert: {
+          ad_id: string
+          created_at?: string
+          day?: string
+          id?: never
+          kind: string
+          session_hash: string
+          tenant_id: string
+        }
+        Update: {
+          ad_id?: string
+          created_at?: string
+          day?: string
+          id?: never
+          kind?: string
+          session_hash?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_home_ad_events_ad_id_fkey"
+            columns: ["ad_id"]
+            isOneToOne: false
+            referencedRelation: "event_home_ads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_home_ads: {
+        Row: {
+          alt_text: string
+          created_at: string
+          created_by: string | null
+          ends_at: string | null
+          event_id: string
+          group_ids: string[]
+          id: string
+          image_mobile_url: string | null
+          image_url: string
+          is_active: boolean
+          link_url: string | null
+          sort_order: number
+          starts_at: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          alt_text?: string
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          event_id: string
+          group_ids?: string[]
+          id?: string
+          image_mobile_url?: string | null
+          image_url: string
+          is_active?: boolean
+          link_url?: string | null
+          sort_order?: number
+          starts_at?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          alt_text?: string
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          event_id?: string
+          group_ids?: string[]
+          id?: string
+          image_mobile_url?: string | null
+          image_url?: string
+          is_active?: boolean
+          link_url?: string | null
+          sort_order?: number
+          starts_at?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_home_ads_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_home_ads_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_lead_scans: {
         Row: {
           checkpoint_id: string | null
@@ -8791,6 +8898,7 @@ export type Database = {
           id: string
           is_active: boolean
           key: string
+          layout: string
           logo_size: string
           max_companies: number | null
           name_en: string
@@ -8809,6 +8917,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           key: string
+          layout?: string
           logo_size?: string
           max_companies?: number | null
           name_en: string
@@ -8827,6 +8936,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           key?: string
+          layout?: string
           logo_size?: string
           max_companies?: number | null
           name_en?: string
@@ -8863,6 +8973,8 @@ export type Database = {
           id: string
           internal_note: string | null
           is_published: boolean
+          link_mode: string
+          link_url: string | null
           role: string
           snapshot_country: string | null
           snapshot_description_en: string
@@ -8886,6 +8998,8 @@ export type Database = {
           id?: string
           internal_note?: string | null
           is_published?: boolean
+          link_mode?: string
+          link_url?: string | null
           role?: string
           snapshot_country?: string | null
           snapshot_description_en?: string
@@ -8909,6 +9023,8 @@ export type Database = {
           id?: string
           internal_note?: string | null
           is_published?: boolean
+          link_mode?: string
+          link_url?: string | null
           role?: string
           snapshot_country?: string | null
           snapshot_description_en?: string
@@ -20285,6 +20401,25 @@ export type Database = {
           updated_at: string
         }[]
       }
+      admin_event_home_ad_delete: { Args: { _id: string }; Returns: boolean }
+      admin_event_home_ad_save: { Args: { p_payload: Json }; Returns: string }
+      admin_event_home_ads_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          alt_text: string
+          clicks: number
+          ends_at: string
+          group_ids: string[]
+          id: string
+          image_mobile_url: string
+          image_url: string
+          is_active: boolean
+          link_url: string
+          sort_order: number
+          starts_at: string
+          views: number
+        }[]
+      }
       admin_event_lead_scans_export: {
         Args: { p_event_id: string; p_sponsor_id?: string }
         Returns: {
@@ -20956,6 +21091,14 @@ export type Database = {
           updated_at: string
         }[]
       }
+      admin_event_sponsor_links: {
+        Args: { p_event_id: string }
+        Returns: {
+          id: string
+          link_mode: string
+          link_url: string
+        }[]
+      }
       admin_event_sponsor_material_delete: {
         Args: { _id: string }
         Returns: boolean
@@ -20969,6 +21112,10 @@ export type Database = {
         Returns: number
       }
       admin_event_sponsor_save: { Args: { p_payload: Json }; Returns: string }
+      admin_event_sponsor_set_link: {
+        Args: { _id: string; _mode: string; _url: string }
+        Returns: boolean
+      }
       admin_event_sponsor_snapshot_refresh: {
         Args: { p_payload: Json }
         Returns: number
@@ -20977,9 +21124,20 @@ export type Database = {
         Args: { _id: string }
         Returns: boolean
       }
+      admin_event_sponsor_tier_layouts: {
+        Args: { p_event_id: string }
+        Returns: {
+          id: string
+          layout: string
+        }[]
+      }
       admin_event_sponsor_tier_save: {
         Args: { p_payload: Json }
         Returns: string
+      }
+      admin_event_sponsor_tier_set_layout: {
+        Args: { _id: string; _layout: string }
+        Returns: boolean
       }
       admin_event_sponsor_tiers_list: {
         Args: { p_event_id: string }
@@ -23975,6 +24133,20 @@ export type Database = {
       event_checkin_record: { Args: { p_payload: Json }; Returns: Json }
       event_checkin_resolve: { Args: { p_payload: Json }; Returns: Json }
       event_discussions: { Args: { p_slug: string }; Returns: Json }
+      event_home_ad_track: {
+        Args: { p_ad_id: string; p_kind: string; p_session: string }
+        Returns: boolean
+      }
+      event_home_ads_for_viewer: {
+        Args: { p_slug: string }
+        Returns: {
+          alt_text: string
+          id: string
+          image_mobile_url: string
+          image_url: string
+          link_url: string
+        }[]
+      }
       event_lead_scan_record: { Args: { p_payload: Json }; Returns: Json }
       event_lead_scans_list: { Args: { p_payload: Json }; Returns: Json }
       event_meeting_availability_delete: {

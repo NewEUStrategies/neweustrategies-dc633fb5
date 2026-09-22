@@ -38,6 +38,7 @@ import {
   Ticket,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { EventHomeAd } from "@/components/events/public/molecules/EventHomeAd";
 
 import {
   eventPageHeaderQueryOptions,
@@ -609,6 +610,8 @@ function EventOverview() {
         }
         right={
           <>
+            <EventHomeAd slug={slug} variant="desktop" />
+            <EventHomeAd slug={slug} variant="mobile" />
             {tierBlocked && (
               <div className="rounded-lg border border-primary/40 bg-primary/5 p-5">
                 <p className="text-sm font-medium">
