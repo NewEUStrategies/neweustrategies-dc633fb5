@@ -253,6 +253,20 @@
       "when": 1790033520629,
       "tag": "0035_user_invitations_pin_all_non_acceptance_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1790108531653,
+      "tag": "0036_event_sponsor_sections_and_home_ads",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1790109050786,
+      "tag": "0037_event_home_ads_viewer_status_fix",
+      "breakpoints": true
     }
   ]
 }

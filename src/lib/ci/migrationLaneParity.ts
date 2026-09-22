@@ -233,6 +233,14 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     drizzleOnly:
       "Duplikat 0031_user_invitations_pin_all_non_acceptance_columns z tego samego scalenia (PR #385) - różnica to wyłącznie komentarze nagłówka i brak znaku końca linii. Bliźniaka supabase/migrations/20260922080100_user_invitations_pin_all_non_acceptance_columns.sql pilnuje wpis 0031.",
   },
+  {
+    tag: "0036_event_sponsor_sections_and_home_ads",
+    twin: "20260922200000_event_sponsor_sections_and_home_ads.sql",
+  },
+  {
+    tag: "0037_event_home_ads_viewer_status_fix",
+    twin: "20260922200100_event_home_ads_viewer_status_fix.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";

@@ -58,6 +58,7 @@ import { OnsiteStatsPanel } from "@/components/admin/events/organisms/OnsiteStat
 import { RegistrationFieldsPanel } from "@/components/admin/events/organisms/RegistrationFieldsPanel";
 import { RegistrationsListPanel } from "@/components/admin/events/organisms/RegistrationsListPanel";
 import { SponsorTiersPanel } from "@/components/admin/events/organisms/SponsorTiersPanel";
+import { SponsorSectionsBoard } from "@/components/admin/events/organisms/SponsorSectionsBoard";
 import { SponsorsListPanel } from "@/components/admin/events/organisms/SponsorsListPanel";
 import { eventTimeZone } from "@/lib/events/timezone";
 import type { AdminEventDetailRow } from "@/lib/events/eventDetailApi";
@@ -325,11 +326,15 @@ export function EventSponsorsSection({ row }: { row: AdminEventDetailRow }) {
   const eventId = row.id;
   return (
     <EventStudioPage title={t("adminEvents.studio.sections.sponsors")}>
-      <Tabs defaultValue="sponsors" className="space-y-4 py-6">
+      <Tabs defaultValue="board" className="space-y-4 py-6">
         <TabsList className="tabs-scroller">
+          <TabsTrigger value="board">{t("sponsorBoard.tab")}</TabsTrigger>
           <TabsTrigger value="sponsors">{t("adminEventSponsors.nav.sponsors")}</TabsTrigger>
           <TabsTrigger value="tiers">{t("adminEventSponsors.nav.tiers")}</TabsTrigger>
         </TabsList>
+        <TabsContent value="board">
+          <SponsorSectionsBoard key={eventId} eventId={eventId} />
+        </TabsContent>
         <TabsContent value="sponsors">
           <SponsorsListPanel key={eventId} eventId={eventId} />
         </TabsContent>

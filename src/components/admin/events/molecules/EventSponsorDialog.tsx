@@ -61,6 +61,8 @@ interface EventSponsorDialogProps {
   nextSortOrder: number;
   isSaving: boolean;
   onSubmit: (input: SponsorInput) => void;
+  /** Poziom podstawiany przy NOWYM przypięciu (boczny panel sekcji). */
+  defaultTierId?: string;
 }
 
 export function EventSponsorDialog({
@@ -69,6 +71,7 @@ export function EventSponsorDialog({
   eventId,
   sponsor,
   tiers,
+  defaultTierId,
   nextSortOrder,
   isSaving,
   onSubmit,
@@ -91,10 +94,14 @@ export function EventSponsorDialog({
 
   useEffect(() => {
     if (!open) return;
-    setDraft(sponsor === null ? emptySponsorDraft(nextSortOrder) : sponsorDraftFromRow(sponsor));
+    setDraft(
+      sponsor === null
+        ? { ...emptySponsorDraft(nextSortOrder), tierId: defaultTierId ?? "" }
+        : sponsorDraftFromRow(sponsor),
+    );
     setTouched(false);
     setCompanyQuery("");
-  }, [open, sponsor, nextSortOrder]);
+  }, [open, sponsor, nextSortOrder, defaultTierId]);
 
   // Notatka dojezdza po wierszu listy, wiec wpisujemy ja OSOBNYM efektem i tylko
   // wtedy, gdy szkic jej jeszcze nie zna. Warunek chroni to, co redaktor zdazyl

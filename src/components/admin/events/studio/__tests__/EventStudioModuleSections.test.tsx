@@ -137,6 +137,9 @@ vi.mock("@/components/admin/events/organisms/SponsorTiersPanel", () => ({
 vi.mock("@/components/admin/events/organisms/SponsorsListPanel", () => ({
   SponsorsListPanel: atrapa("sponsors"),
 }));
+vi.mock("@/components/admin/events/organisms/SponsorSectionsBoard", () => ({
+  SponsorSectionsBoard: atrapa("sponsorBoard"),
+}));
 
 const S = await import("@/components/admin/events/studio/EventStudioModuleSections");
 
@@ -347,12 +350,16 @@ describe("EventStudioModuleSections - dane, ktore panel dostaje osobno", () => {
 });
 
 describe("EventStudioModuleSections - dwa ekrany z zakladkami", () => {
-  it("„Sponsorzy i reklama”: lista domyslnie, poziomy pod druga zakladka", () => {
+  it("„Sponsorzy i reklama”: tablica domyslnie, lista i poziomy pod kolejnymi zakladkami", () => {
     // Zakladki zostaja TYLKO tutaj i w regulaminach, bo sidebar wzorca jest
     // dwupoziomowy - „Kreator > Sponsorzy > Poziomy" byloby trzecim poziomem.
     render(<S.EventSponsorsSection row={adminEventDetailRow()} />);
 
     expect(tytulEkranu()).toBe("adminEvents.studio.sections.sponsors");
+    expect(screen.getByTestId("panel-sponsorBoard").getAttribute("data-event-id")).toBe(
+      STUDIO_EVENT_ID,
+    );
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "adminEventSponsors.nav.sponsors" }));
     expect(screen.getByTestId("panel-sponsors").getAttribute("data-event-id")).toBe(
       STUDIO_EVENT_ID,
     );
