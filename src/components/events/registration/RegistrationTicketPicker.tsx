@@ -22,6 +22,8 @@ import {
   type RegistrationFormTicket,
 } from "@/lib/events/registrationFormSurface";
 import { formatMoney } from "@/lib/billing/types";
+import { fetchRevealedTickets } from "@/lib/events/eventCodesApi";
+import { rememberEventCode } from "@/lib/events/eventCodeMemory";
 import { formatEventDateTime } from "@/lib/events/timezone";
 
 export function RegistrationTicketPicker({
@@ -242,6 +244,7 @@ export function RegistrationTicketPicker({
           </label>
         );
       })}
+    </div>
     </div>
   );
 }
