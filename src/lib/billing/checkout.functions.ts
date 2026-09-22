@@ -296,7 +296,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         ? await supabase.rpc("validate_event_ticket_coupon", {
             _code: normalizedCode,
             _event_id: data.event_id,
-            _ticket_type_id: data.ticket_type_id ?? null,
+            _ticket_type_id: data.ticket_type_id ?? "00000000-0000-0000-0000-000000000000",
             _amount_cents: amountCents,
             _currency: currency,
           })
