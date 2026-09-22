@@ -13,7 +13,13 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { normalizeCouponCode } from "@/lib/billing/coupons";
 import { browserPublicOrigin } from "@/lib/http/host";
 import { fetchEventTickets } from "@/lib/events/registrationsApi";
@@ -120,13 +126,21 @@ export function EventCodesPanel({ eventId, eventSlug }: Props) {
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-left text-xs uppercase text-muted-foreground">
               <tr>
-                {(["code", "status", "effect", "uses", "validFrom", "validUntil", "actions"] as const).map(
-                  (c) => (
-                    <th key={c} className="px-3 py-2 font-semibold">
-                      {t(`eventCodes.cols.${c}`)}
-                    </th>
-                  ),
-                )}
+                {(
+                  [
+                    "code",
+                    "status",
+                    "effect",
+                    "uses",
+                    "validFrom",
+                    "validUntil",
+                    "actions",
+                  ] as const
+                ).map((c) => (
+                  <th key={c} className="px-3 py-2 font-semibold">
+                    {t(`eventCodes.cols.${c}`)}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -136,10 +150,14 @@ export function EventCodesPanel({ eventId, eventSlug }: Props) {
                   <tr key={r.id} className="border-t border-border">
                     <td className="px-3 py-2">
                       <span className="font-mono font-semibold">{r.code}</span>
-                      {r.name && <span className="block text-xs text-muted-foreground">{r.name}</span>}
+                      {r.name && (
+                        <span className="block text-xs text-muted-foreground">{r.name}</span>
+                      )}
                     </td>
                     <td className="px-3 py-2">
-                      <Badge variant="outline">{t(`eventCodes.status.${eventCodeStatus(r)}`)}</Badge>
+                      <Badge variant="outline">
+                        {t(`eventCodes.status.${eventCodeStatus(r)}`)}
+                      </Badge>
                     </td>
                     <td className="px-3 py-2">{effect(r)}</td>
                     <td className="px-3 py-2">
@@ -151,10 +169,19 @@ export function EventCodesPanel({ eventId, eventSlug }: Props) {
                       <div className="flex items-center gap-1">
                         <Switch
                           checked={r.active}
-                          aria-label={r.active ? t("eventCodes.actions.deactivate") : t("eventCodes.actions.activate")}
+                          aria-label={
+                            r.active
+                              ? t("eventCodes.actions.deactivate")
+                              : t("eventCodes.actions.activate")
+                          }
                           onCheckedChange={(active) => toggle.mutate({ id: r.id, active })}
                         />
-                        <Button size="icon" variant="ghost" aria-label={t("eventCodes.edit")} onClick={() => setEditing({ row: r })}>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          aria-label={t("eventCodes.edit")}
+                          onClick={() => setEditing({ row: r })}
+                        >
                           <Pencil className="h-4 w-4" aria-hidden="true" />
                         </Button>
                         <Button
@@ -241,7 +268,11 @@ function EventCodeDialog({ eventId, eventSlug, row, tickets, onClose }: DialogPr
     );
   };
 
-  const url = eventCodeRegistrationUrl(browserPublicOrigin(), eventSlug, normalizeCouponCode(d.code));
+  const url = eventCodeRegistrationUrl(
+    browserPublicOrigin(),
+    eventSlug,
+    normalizeCouponCode(d.code),
+  );
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -268,20 +299,40 @@ function EventCodeDialog({ eventId, eventSlug, row, tickets, onClose }: DialogPr
           </div>
           <div className="space-y-1">
             <Label htmlFor="ec-desc">{t("eventCodes.form.description")}</Label>
-            <Textarea id="ec-desc" rows={2} value={d.description} onChange={(e) => set("description", e.target.value)} />
+            <Textarea
+              id="ec-desc"
+              rows={2}
+              value={d.description}
+              onChange={(e) => set("description", e.target.value)}
+            />
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1">
               <Label htmlFor="ec-from">{t("eventCodes.form.validFrom")}</Label>
-              <Input id="ec-from" type="datetime-local" value={d.validFrom} onChange={(e) => set("validFrom", e.target.value)} />
+              <Input
+                id="ec-from"
+                type="datetime-local"
+                value={d.validFrom}
+                onChange={(e) => set("validFrom", e.target.value)}
+              />
             </div>
             <div className="space-y-1">
               <Label htmlFor="ec-until">{t("eventCodes.form.validUntil")}</Label>
-              <Input id="ec-until" type="datetime-local" value={d.validUntil} onChange={(e) => set("validUntil", e.target.value)} />
+              <Input
+                id="ec-until"
+                type="datetime-local"
+                value={d.validUntil}
+                onChange={(e) => set("validUntil", e.target.value)}
+              />
             </div>
             <div className="space-y-1">
               <Label htmlFor="ec-qty">{t("eventCodes.form.quantity")}</Label>
-              <Input id="ec-qty" inputMode="numeric" value={d.quantity} onChange={(e) => set("quantity", e.target.value)} />
+              <Input
+                id="ec-qty"
+                inputMode="numeric"
+                value={d.quantity}
+                onChange={(e) => set("quantity", e.target.value)}
+              />
               <p className="text-xs text-muted-foreground">{t("eventCodes.form.quantityHint")}</p>
             </div>
           </div>
@@ -289,7 +340,10 @@ function EventCodeDialog({ eventId, eventSlug, row, tickets, onClose }: DialogPr
           <div className="space-y-3 rounded-[6px] border border-border p-3">
             <label className="flex items-center justify-between gap-3 text-sm font-medium">
               {t("eventCodes.form.applyDiscount")}
-              <Switch checked={d.appliesDiscount} onCheckedChange={(v) => set("appliesDiscount", v)} />
+              <Switch
+                checked={d.appliesDiscount}
+                onCheckedChange={(v) => set("appliesDiscount", v)}
+              />
             </label>
             {d.appliesDiscount && (
               <div className="grid gap-3 sm:grid-cols-3">
@@ -302,18 +356,30 @@ function EventCodeDialog({ eventId, eventSlug, row, tickets, onClose }: DialogPr
                       variant={d.discountKind === k ? "default" : "outline"}
                       onClick={() => set("discountKind", k)}
                     >
-                      {k === "percent" ? t("eventCodes.form.percentOff") : t("eventCodes.form.amountOff")}
+                      {k === "percent"
+                        ? t("eventCodes.form.percentOff")
+                        : t("eventCodes.form.amountOff")}
                     </Button>
                   ))}
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="ec-amount">{t("eventCodes.form.amount")}</Label>
-                  <Input id="ec-amount" inputMode="decimal" value={d.amount} onChange={(e) => set("amount", e.target.value)} />
+                  <Input
+                    id="ec-amount"
+                    inputMode="decimal"
+                    value={d.amount}
+                    onChange={(e) => set("amount", e.target.value)}
+                  />
                 </div>
                 {d.discountKind === "fixed" && (
                   <div className="space-y-1">
                     <Label htmlFor="ec-cur">{t("eventCodes.form.currency")}</Label>
-                    <Input id="ec-cur" maxLength={3} value={d.currency} onChange={(e) => set("currency", e.target.value.toUpperCase())} />
+                    <Input
+                      id="ec-cur"
+                      maxLength={3}
+                      value={d.currency}
+                      onChange={(e) => set("currency", e.target.value.toUpperCase())}
+                    />
                   </div>
                 )}
               </div>
@@ -339,7 +405,9 @@ function EventCodeDialog({ eventId, eventSlug, row, tickets, onClose }: DialogPr
                   variant={d.ticketScope === s ? "default" : "outline"}
                   onClick={() => set("ticketScope", s)}
                 >
-                  {s === "all" ? t("eventCodes.form.allTickets") : t("eventCodes.form.specificTickets")}
+                  {s === "all"
+                    ? t("eventCodes.form.allTickets")
+                    : t("eventCodes.form.specificTickets")}
                 </Button>
               ))}
             </div>
@@ -373,7 +441,11 @@ function EventCodeDialog({ eventId, eventSlug, row, tickets, onClose }: DialogPr
               <Label>{t("eventCodes.form.registrationUrl")}</Label>
               <div className="flex gap-2">
                 <Input readOnly value={url} className="font-mono text-xs" />
-                <Button type="button" variant="outline" onClick={() => void copy(url, t("eventCodes.toasts.copied"))}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void copy(url, t("eventCodes.toasts.copied"))}
+                >
                   {t("eventCodes.form.copy")}
                 </Button>
               </div>

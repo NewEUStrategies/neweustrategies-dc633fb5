@@ -27,7 +27,11 @@ export const eventCodesPl = {
       used_up: "Wykorzystany",
       inactive: "Nieaktywny",
     },
-    effect: { reveal: "Odsłania bilety", all: "Wszystkie bilety", specific: "Wybrane bilety: {{count}}" },
+    effect: {
+      reveal: "Odsłania bilety",
+      all: "Wszystkie bilety",
+      specific: "Wybrane bilety: {{count}}",
+    },
     form: {
       code: "Kod",
       name: "Nazwa wewnętrzna",
@@ -96,7 +100,11 @@ export const eventCodesEn = {
       used_up: "Used up",
       inactive: "Inactive",
     },
-    effect: { reveal: "Reveals tickets", all: "All tickets", specific: "Specific tickets: {{count}}" },
+    effect: {
+      reveal: "Reveals tickets",
+      all: "All tickets",
+      specific: "Specific tickets: {{count}}",
+    },
     form: {
       code: "Code",
       name: "Internal name",

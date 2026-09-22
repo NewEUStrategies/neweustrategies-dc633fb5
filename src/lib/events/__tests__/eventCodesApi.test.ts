@@ -23,7 +23,9 @@ describe("eventCodeDraftIssue", () => {
   });
   it("requires an effect", () => {
     expect(eventCodeDraftIssue({ ...base(), appliesDiscount: false })).toBe("noEffect");
-    expect(eventCodeDraftIssue({ ...base(), appliesDiscount: false, revealsHidden: true })).toBeNull();
+    expect(
+      eventCodeDraftIssue({ ...base(), appliesDiscount: false, revealsHidden: true }),
+    ).toBeNull();
   });
   it("validates percent and amount", () => {
     expect(eventCodeDraftIssue({ ...base(), amount: "101" })).toBe("percent");
@@ -32,7 +34,11 @@ describe("eventCodeDraftIssue", () => {
   it("validates quantity, dates and tickets", () => {
     expect(eventCodeDraftIssue({ ...base(), quantity: "0" })).toBe("quantity");
     expect(
-      eventCodeDraftIssue({ ...base(), validFrom: "2026-10-02T10:00", validUntil: "2026-10-01T10:00" }),
+      eventCodeDraftIssue({
+        ...base(),
+        validFrom: "2026-10-02T10:00",
+        validUntil: "2026-10-01T10:00",
+      }),
     ).toBe("dates");
     expect(eventCodeDraftIssue({ ...base(), ticketScope: "specific" })).toBe("tickets");
   });
@@ -48,7 +54,11 @@ describe("eventCodeDraftToPayload", () => {
     expect(p.ticket_type_ids).toEqual([]);
   });
   it("reveal-only code carries no discount", () => {
-    const p = eventCodeDraftToPayload("ev1", { ...base(), appliesDiscount: false, revealsHidden: true });
+    const p = eventCodeDraftToPayload("ev1", {
+      ...base(),
+      appliesDiscount: false,
+      revealsHidden: true,
+    });
     expect(p.discount_percent).toBeNull();
     expect(p.discount_cents).toBeNull();
     expect(p.applies_discount).toBe(false);
