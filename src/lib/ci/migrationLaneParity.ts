@@ -214,7 +214,27 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0033_stable_organization_mention_slugs",
     twin: "20260922080000_mention_targets_rpc.sql",
   },
+  // DWA DUPLIKATY Z SCALENIA PR #385. Gałąź dorzuciła na pas drizzle drugą
+  // kopię plików, które już na nim stały pod innym numerem: SQL WYKONYWALNY
+  // 0034 jest bajt w bajt tożsamy z 0033, a 0035 różni się od 0031 wyłącznie
+  // komentarzami nagłówka i brakiem znaku końca linii. Pas kanoniczny
+  // (supabase/migrations) ma po jednym bliźniaku dla każdej z tych zmian i tam
+  // wskazują wpisy 0031/0033 wyżej - dopisanie im drugiego bliźniaka kazałoby
+  // bramce oczekiwać dwóch wykonań tej samej definicji. Plików nie usuwamy,
+  // repozytorium jest forward-only; obie definicje to CREATE OR REPLACE /
+  // DROP POLICY + CREATE POLICY, więc powtórne wykonanie jest idempotentne.
+  {
+    tag: "0034_mention_targets_rpc",
+    drizzleOnly:
+      "Duplikat 0033_stable_organization_mention_slugs z tego samego scalenia (PR #385) - SQL wykonywalny identyczny bajt w bajt. Bliźniaka supabase/migrations/20260922080000_mention_targets_rpc.sql pilnuje wpis 0033.",
+  },
+  {
+    tag: "0035_user_invitations_pin_all_non_acceptance_columns",
+    drizzleOnly:
+      "Duplikat 0031_user_invitations_pin_all_non_acceptance_columns z tego samego scalenia (PR #385) - różnica to wyłącznie komentarze nagłówka i brak znaku końca linii. Bliźniaka supabase/migrations/20260922080100_user_invitations_pin_all_non_acceptance_columns.sql pilnuje wpis 0031.",
+  },
 ];
+
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";
 
