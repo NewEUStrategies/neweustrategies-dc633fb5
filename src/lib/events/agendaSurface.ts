@@ -51,6 +51,14 @@ export interface AgendaTrack {
   namePl: string | null;
   nameEn: string | null;
   accentColor: string | null;
+  sponsor: AgendaSponsor | null;
+}
+
+export interface AgendaSponsor {
+  id: string;
+  name: string | null;
+  logoUrl: string | null;
+  role: string | null;
 }
 
 export interface AgendaRoom {
@@ -93,6 +101,9 @@ export interface AgendaSession {
   seatsLeft: number | null;
   track: AgendaTrack | null;
   room: AgendaRoom | null;
+  affiliationPl: string | null;
+  affiliationEn: string | null;
+  sponsor: AgendaSponsor | null;
   hasStream: boolean;
   hasRecording: boolean;
   mySignupStatus: AgendaSignupStatus | null;
@@ -193,6 +204,28 @@ function parseTrack(row: EventAgendaRow): AgendaTrack | null {
     namePl: text(row.track_name_pl),
     nameEn: text(row.track_name_en),
     accentColor: text(row.track_accent_color),
+    sponsor: parseSponsor({
+      id: row.track_sponsor_id,
+      name: row.track_sponsor_name,
+      logoUrl: row.track_sponsor_logo_url,
+      role: row.track_sponsor_role,
+    }),
+  };
+}
+
+function parseSponsor(input: {
+  id: unknown;
+  name: unknown;
+  logoUrl: unknown;
+  role: unknown;
+}): AgendaSponsor | null {
+  const id = text(input.id);
+  if (id === null) return null;
+  return {
+    id,
+    name: text(input.name),
+    logoUrl: text(input.logoUrl),
+    role: text(input.role),
   };
 }
 
@@ -236,6 +269,14 @@ export function parseEventAgenda(rows: readonly EventAgendaRow[] | null): Agenda
       seatsLeft: nullableInt(row.seats_left),
       track: parseTrack(row),
       room: parseRoom(row),
+      affiliationPl: text(row.affiliation_pl),
+      affiliationEn: text(row.affiliation_en),
+      sponsor: parseSponsor({
+        id: row.session_sponsor_id,
+        name: row.session_sponsor_name,
+        logoUrl: row.session_sponsor_logo_url,
+        role: row.session_sponsor_role,
+      }),
       hasStream: row.has_stream === true,
       hasRecording: row.has_recording === true,
       mySignupStatus: signupStatusOf(row.my_signup_status),
@@ -313,6 +354,8 @@ export function hasSeat(session: AgendaSession): boolean {
 function searchHaystack(session: AgendaSession): string {
   const parts: string[] = [session.titlePl ?? "", session.titleEn ?? ""];
   if (session.track !== null) parts.push(session.track.namePl ?? "", session.track.nameEn ?? "");
+  parts.push(session.affiliationPl ?? "", session.affiliationEn ?? "", session.sponsor?.name ?? "");
+  if (session.track?.sponsor !== undefined) parts.push(session.track.sponsor?.name ?? "");
   if (session.room !== null) parts.push(session.room.name ?? "", session.room.floor ?? "");
   for (const speaker of session.speakers) {
     parts.push(speaker.displayName, speaker.headlinePl ?? "", speaker.headlineEn ?? "");

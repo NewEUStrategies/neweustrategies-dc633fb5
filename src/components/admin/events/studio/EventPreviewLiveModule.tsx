@@ -23,6 +23,7 @@ import type { AttendeeEntry } from "@/lib/events/publicEventApi";
 import type { PreviewTrackChip } from "@/lib/events/previewLiveData";
 import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 import { uiLang } from "@/lib/i18n/format";
+import { mediaRenderUrl } from "@/lib/media/publicUrl";
 
 /** Fakty modulowe, ktore nakladka podgladu dociaga RPC panelu. */
 export interface EventPreviewLiveData {
@@ -75,6 +76,19 @@ function PreviewTracks({ tracks }: { tracks: readonly PreviewTrackChip[] }) {
             <span className="font-medium">
               {(en ? track.nameEn : track.namePl) ?? track.namePl ?? track.nameEn ?? ""}
             </span>
+            {track.sponsorLogoUrl !== null && (
+              <img
+                src={mediaRenderUrl(track.sponsorLogoUrl)}
+                alt=""
+                loading="lazy"
+                className="h-5 w-10 rounded-[4px] object-contain"
+              />
+            )}
+            {track.sponsorName !== null && (
+              <span className="max-w-32 truncate text-xs text-muted-foreground">
+                {track.sponsorName}
+              </span>
+            )}
             <span className="text-xs text-muted-foreground">{track.sessionsCount}</span>
             {track.draftCount > 0 && (
               <span className="rounded-[6px] border border-border px-1.5 py-0.5 text-xs text-muted-foreground">

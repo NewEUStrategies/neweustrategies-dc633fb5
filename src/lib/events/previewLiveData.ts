@@ -73,11 +73,23 @@ export function agendaSessionsFromAdminRows(
                 namePl: nullable(row.track_name_pl),
                 nameEn: nullable(row.track_name_en),
                 accentColor: nullable(row.track_accent_color),
+                sponsor: null,
               },
         room:
           nullable(row.room_id) === null
             ? null
             : { id: row.room_id, name: nullable(row.room_name), floor: null },
+        affiliationPl: nullable(row.affiliation_pl),
+        affiliationEn: nullable(row.affiliation_en),
+        sponsor:
+          nullable(row.sponsor_id) === null
+            ? null
+            : {
+                id: row.sponsor_id,
+                name: nullable(row.sponsor_name),
+                logoUrl: nullable(row.sponsor_logo_url),
+                role: nullable(row.sponsor_role),
+              },
         hasStream: row.has_stream,
         hasRecording: row.has_recording,
         // Zapis nalezy do uczestnika - organizator nie ma tu wlasnego stanu.
@@ -188,6 +200,8 @@ export interface PreviewTrackChip {
   namePl: string | null;
   nameEn: string | null;
   accentColor: string | null;
+  sponsorName: string | null;
+  sponsorLogoUrl: string | null;
   sessionsCount: number;
   draftCount: number;
   isPublic: boolean;
@@ -204,6 +218,8 @@ export function trackChipsFromAdminRows(
       namePl: nullable(row.name_pl),
       nameEn: nullable(row.name_en),
       accentColor: nullable(row.accent_color),
+      sponsorName: nullable(row.sponsor_name),
+      sponsorLogoUrl: nullable(row.sponsor_logo_url),
       sessionsCount: row.sessions_count ?? 0,
       draftCount: row.draft_count ?? 0,
       isPublic: row.is_public !== false,

@@ -88,6 +88,9 @@ function session(over: Partial<AgendaSession>): AgendaSession {
     accessState: "signup_required",
     speakers: [],
     ...over,
+    affiliationPl: over.affiliationPl ?? null,
+    affiliationEn: over.affiliationEn ?? null,
+    sponsor: over.sponsor ?? null,
   };
 }
 

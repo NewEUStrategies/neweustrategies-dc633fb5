@@ -161,6 +161,8 @@ function detailRow(overrides: Partial<AdminEventDetailRow> = {}): AdminEventDeta
 /** Wiersz sesji - 37 kolumn sygnatury `admin_event_sessions_list`. */
 function sessionRow(overrides: Partial<EventSessionRow> = {}): EventSessionRow {
   return {
+    affiliation_en: "",
+    affiliation_pl: "",
     allow_overlap: false,
     cancelled_at: "",
     cancelled_count: 0,
@@ -188,6 +190,10 @@ function sessionRow(overrides: Partial<EventSessionRow> = {}): EventSessionRow {
     seats_left: 0,
     sort_order: 0,
     speakers_count: 0,
+    sponsor_id: "",
+    sponsor_logo_url: "",
+    sponsor_name: "",
+    sponsor_role: "",
     starts_at: "2026-09-01T09:00:00.000Z",
     status: "published",
     title_en: "Opening",

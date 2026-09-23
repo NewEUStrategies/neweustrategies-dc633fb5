@@ -107,6 +107,8 @@ export interface EventTrackInput {
   coverUrl: string | null;
   /** Sala domyslna pasma; podpowiedz przy planowaniu sesji, nie ograniczenie. */
   defaultRoomId: string | null;
+  /** Sponsor lub partner widoczny przy calym pasmie. */
+  sponsorId: string | null;
   sortOrder: number;
   /** `is_active` rzadzi selektem w formularzu sesji. */
   isActive: boolean;
@@ -133,6 +135,7 @@ export async function saveEventTrack(input: EventTrackInput): Promise<string> {
       description_en: input.descriptionEn,
       cover_url: input.coverUrl,
       default_room_id: input.defaultRoomId,
+      sponsor_id: input.sponsorId,
       sort_order: input.sortOrder,
       is_active: input.isActive,
       is_public: input.isPublic,
@@ -262,6 +265,11 @@ export interface EventSessionInput {
   status: SessionStatus;
   trackId: string | null;
   roomId: string | null;
+  /** Sponsor lub partner przypiety do pojedynczej debaty/sesji. */
+  sponsorId: string | null;
+  /** Krótka afiliacja merytoryczna widoczna przy debacie/sesji. */
+  affiliationPl: string | null;
+  affiliationEn: string | null;
   parentSessionId: string | null;
   requiresSignup: boolean;
   /** `null` = bez limitu miejsc; limit wymaga wlaczonych zapisow. */
@@ -295,6 +303,9 @@ export async function saveEventSession(input: EventSessionInput): Promise<string
       status: input.status,
       track_id: input.trackId,
       room_id: input.roomId,
+      sponsor_id: input.sponsorId,
+      affiliation_pl: input.affiliationPl,
+      affiliation_en: input.affiliationEn,
       parent_session_id: input.parentSessionId,
       requires_signup: input.requiresSignup,
       capacity: input.capacity,

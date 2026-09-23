@@ -146,6 +146,11 @@ export const adminEventAgendaPl = {
       streamUrl: "Adres transmisji",
       recordingUrl: "Adres nagrania",
       urlHint: "Pełny adres z https://",
+      affiliationPl: "Afiliacja debaty (PL)",
+      affiliationEn: "Afiliacja debaty (EN)",
+      sponsor: "Sponsor debaty",
+      sponsorHint: "Partner pokazany przy tej debacie na publicznym programie.",
+      noSponsor: "Bez sponsora debaty",
       saveAction: "Zapisz",
       cancelAction: "Anuluj",
       validation: {
@@ -155,6 +160,7 @@ export const adminEventAgendaPl = {
         capacityNeedsSignup: "Limit miejsc wymaga włączonych zapisów.",
         capacityNegative: "Limit miejsc nie może być ujemny.",
         urlNotHttps: "Adres musi zaczynać się od https://",
+        affiliationTooLong: "Afiliacja ma najwyżej 300 znaków.",
       },
     },
 
@@ -207,6 +213,9 @@ export const adminEventAgendaPl = {
         coverUrl: "Grafika nagłówka",
         coverUrlHint:
           "Obraz pokazywany nad nazwą ścieżki. Przeciągnij plik, wybierz z dysku albo wklej pełny adres.",
+        sponsor: "Sponsor ścieżki",
+        sponsorHint: "Partner pokazany przy całej ścieżce programu.",
+        noSponsor: "Bez sponsora ścieżki",
 
         saveAction: "Zapisz",
         cancelAction: "Anuluj",
@@ -257,6 +266,8 @@ export const adminEventAgendaPl = {
           descriptionField: "Opis",
           descriptionEmpty: "Brak opisu",
           room: "Sala domyślna",
+          sponsor: "Sponsor ścieżki",
+          sponsorEmpty: "Brak sponsora ścieżki",
           keyField: "Klucz",
         },
         format: {
@@ -605,6 +616,11 @@ export const adminEventAgendaEn = {
       streamUrl: "Stream address",
       recordingUrl: "Recording address",
       urlHint: "A full address starting with https://",
+      affiliationPl: "Debate affiliation (PL)",
+      affiliationEn: "Debate affiliation (EN)",
+      sponsor: "Debate sponsor",
+      sponsorHint: "The partner shown with this debate on the public programme.",
+      noSponsor: "No debate sponsor",
       saveAction: "Save",
       cancelAction: "Cancel",
       validation: {
@@ -614,6 +630,7 @@ export const adminEventAgendaEn = {
         capacityNeedsSignup: "A seat limit requires signups to be enabled.",
         capacityNegative: "The seat limit cannot be negative.",
         urlNotHttps: "The address must start with https://",
+        affiliationTooLong: "The affiliation takes at most 300 characters.",
       },
     },
 
@@ -665,6 +682,9 @@ export const adminEventAgendaEn = {
         coverUrl: "Header image",
         coverUrlHint:
           "Shown above the track name. Drop a file, pick one from your disk or paste a full address.",
+        sponsor: "Track sponsor",
+        sponsorHint: "The partner shown with the whole programme strand.",
+        noSponsor: "No track sponsor",
 
         saveAction: "Save",
         cancelAction: "Cancel",
@@ -716,6 +736,8 @@ export const adminEventAgendaEn = {
           descriptionField: "Description",
           descriptionEmpty: "No description",
           room: "Default room",
+          sponsor: "Track sponsor",
+          sponsorEmpty: "No track sponsor",
           keyField: "Key",
         },
         format: {

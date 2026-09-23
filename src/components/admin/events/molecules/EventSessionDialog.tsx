@@ -29,6 +29,7 @@ import { AdminFormEnumRow } from "@/components/admin/molecules/AdminFormEnumRow"
 import { useSessionDetail } from "@/lib/events/useEventSessions";
 import {
   SESSION_MAX_DESCRIPTION,
+  SESSION_MAX_AFFILIATION,
   SESSION_MAX_TITLE,
   emptySessionDraft,
   sessionDraftFromRow,
@@ -44,6 +45,7 @@ import {
   type EventSessionRow,
   type EventTrackRow,
 } from "@/lib/events/sessionsApi";
+import type { EventSponsorRow } from "@/lib/events/sponsorsApi";
 
 /** Wartość dropslisty dla „brak wyboru" - `SelectItem` nie przyjmuje pustego stringu. */
 const NONE = "__none__";
@@ -58,6 +60,7 @@ interface EventSessionDialogProps {
   rooms: readonly EventRoomRow[];
   /** Kandydaci na sesję nadrzędną - pełna lista sesji wydarzenia. */
   sessions: readonly EventSessionRow[];
+  sponsorCandidates?: readonly EventSponsorRow[];
   /** Strefa wydarzenia; godziny wpisuje się w niej, nie w UTC. */
   timeZoneLabel: string;
   nextSortOrder: number;
@@ -78,6 +81,7 @@ export function EventSessionDialog({
   tracks,
   rooms,
   sessions,
+  sponsorCandidates = [],
   timeZoneLabel,
   nextSortOrder,
   defaultTrackId = null,
@@ -174,10 +178,12 @@ export function EventSessionDialog({
   const isNew = draft.id === null;
   const trackValue = draft.trackId ?? NONE;
   const roomValue = draft.roomId ?? NONE;
+  const sponsorValue = draft.sponsorId ?? NONE;
   const parentValue = draft.parentSessionId ?? NONE;
 
   const trackOptions: readonly string[] = [NONE, ...tracks.map((row) => row.id)];
   const roomOptions: readonly string[] = [NONE, ...rooms.map((row) => row.id)];
+  const sponsorOptions: readonly string[] = [NONE, ...sponsorCandidates.map((row) => row.id)];
   const parentOptions: readonly string[] = [NONE, ...parentCandidates.map((row) => row.id)];
 
   const trackLabel = (value: string): string => {
@@ -194,6 +200,11 @@ export function EventSessionDialog({
     if (value === NONE) return "-";
     const found = parentCandidates.find((row) => row.id === value);
     return found === undefined ? value : label(found.title_pl, found.title_en);
+  };
+  const sponsorLabel = (value: string): string => {
+    if (value === NONE) return t("adminEventAgenda.sessionDialog.noSponsor");
+    const found = sponsorCandidates.find((row) => row.id === value);
+    return found === undefined ? value : found.snapshot_name;
   };
 
   return (
@@ -241,6 +252,20 @@ export function EventSessionDialog({
               onValueChange={(value) => set("descriptionEn", value)}
               rows={3}
               maxLength={SESSION_MAX_DESCRIPTION}
+            />
+            <AdminFormTextRow
+              label={t("adminEventAgenda.sessionDialog.affiliationPl")}
+              value={draft.affiliationPl}
+              onValueChange={(value) => set("affiliationPl", value)}
+              maxLength={SESSION_MAX_AFFILIATION}
+              error={errorFor("affiliationPl")}
+            />
+            <AdminFormTextRow
+              label={t("adminEventAgenda.sessionDialog.affiliationEn")}
+              value={draft.affiliationEn}
+              onValueChange={(value) => set("affiliationEn", value)}
+              maxLength={SESSION_MAX_AFFILIATION}
+              error={errorFor("affiliationEn")}
             />
           </AdminFormSection>
 
@@ -295,13 +320,20 @@ export function EventSessionDialog({
               onValueChange={(value) => set("roomId", value === NONE ? null : value)}
             />
             <AdminFormEnumRow
+              label={t("adminEventAgenda.sessionDialog.sponsor")}
+              hint={t("adminEventAgenda.sessionDialog.sponsorHint")}
+              value={sponsorValue}
+              options={sponsorOptions}
+              labelFor={sponsorLabel}
+              onValueChange={(value) => set("sponsorId", value === NONE ? null : value)}
+            />
+            <AdminFormEnumRow
               label={t("adminEventAgenda.sessionDialog.parentSession")}
               hint={t("adminEventAgenda.sessionDialog.parentSessionHint")}
               value={parentValue}
               options={parentOptions}
               labelFor={parentLabel}
               onValueChange={(value) => set("parentSessionId", value === NONE ? null : value)}
-              className="sm:col-span-2"
             />
           </AdminFormSection>
 

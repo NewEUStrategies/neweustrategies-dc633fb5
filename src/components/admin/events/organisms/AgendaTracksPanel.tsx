@@ -41,6 +41,7 @@ import {
   useSaveEventTrack,
   useSetSessionsTrack,
 } from "@/lib/events/useEventSessions";
+import { useSponsors } from "@/lib/events/useEventSponsors";
 import type { EventTrackInput, EventTrackRow } from "@/lib/events/sessionsApi";
 
 interface AgendaTracksPanelProps {
@@ -69,6 +70,7 @@ export function AgendaTracksPanel({
   const save = useSaveEventTrack(eventId);
   const remove = useDeleteEventTrack(eventId);
   const setTrack = useSetSessionsTrack(eventId);
+  const sponsorsQ = useSponsors({ eventId, limit: 200 });
   // Diagram i licznik „bez ścieżki" czytają program, nie same ścieżki.
   const sessionsQ = useEventSessions({
     eventId,
@@ -94,6 +96,7 @@ export function AgendaTracksPanel({
   };
 
   const rows = listQ.data ?? [];
+  const sponsors = sponsorsQ.data ?? [];
   const nextSortOrder = rows.reduce((max, row) => Math.max(max, row.sort_order), 0) + 10;
 
   const fail = (error: unknown) => toast.error(adminAgendaErrorMessage(error));
@@ -296,6 +299,7 @@ export function AgendaTracksPanel({
         track={edited}
         nextSortOrder={nextSortOrder}
         isSaving={save.isPending}
+        sponsorCandidates={sponsors}
         onSubmit={submit}
       />
 

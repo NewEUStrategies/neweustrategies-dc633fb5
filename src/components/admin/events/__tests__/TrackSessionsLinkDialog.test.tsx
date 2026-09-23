@@ -110,6 +110,10 @@ function trackRow(overrides: Partial<EventTrackRow> = {}): EventTrackRow {
     sessions_count: 0,
     sort_order: 10,
     speakers_count: 0,
+    sponsor_id: "",
+    sponsor_logo_url: "",
+    sponsor_name: "",
+    sponsor_role: "",
     tagline_en: "",
     tagline_pl: "",
     updated_at: "2026-08-01T09:00:00.000Z",
@@ -119,6 +123,8 @@ function trackRow(overrides: Partial<EventTrackRow> = {}): EventTrackRow {
 
 function sessionRow(overrides: Partial<EventSessionRow> = {}): EventSessionRow {
   return {
+    affiliation_en: "",
+    affiliation_pl: "",
     allow_overlap: true,
     cancelled_at: "",
     cancelled_count: 0,
@@ -146,6 +152,10 @@ function sessionRow(overrides: Partial<EventSessionRow> = {}): EventSessionRow {
     seats_left: 0,
     sort_order: 10,
     speakers_count: 0,
+    sponsor_id: "",
+    sponsor_logo_url: "",
+    sponsor_name: "",
+    sponsor_role: "",
     starts_at: "2026-09-01T08:00:00.000Z",
     status: "draft",
     title_en: "Opening",

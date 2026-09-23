@@ -102,6 +102,9 @@ function sesja(overrides: Partial<AgendaSession> = {}): AgendaSession {
     accessState: "open",
     speakers: [],
     ...overrides,
+    affiliationPl: overrides.affiliationPl ?? null,
+    affiliationEn: overrides.affiliationEn ?? null,
+    sponsor: overrides.sponsor ?? null,
   };
 }
 
@@ -115,6 +118,8 @@ function pasmo(overrides: Partial<PreviewTrackChip> = {}): PreviewTrackChip {
     draftCount: 0,
     isPublic: true,
     ...overrides,
+    sponsorName: overrides.sponsorName ?? null,
+    sponsorLogoUrl: overrides.sponsorLogoUrl ?? null,
   };
 }
 

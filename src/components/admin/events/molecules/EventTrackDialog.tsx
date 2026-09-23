@@ -34,9 +34,11 @@ import {
   type TrackDraft,
 } from "@/lib/events/agendaCatalogDraft";
 import type { EventTrackInput, EventTrackRow } from "@/lib/events/sessionsApi";
+import type { EventSponsorRow } from "@/lib/events/sponsorsApi";
 
 /** Wartownik „bez sali" - Radix Select zabrania pustego `value`. */
 const NO_ROOM = "__none__";
+const NO_SPONSOR = "__none__";
 
 interface EventTrackDialogProps {
   open: boolean;
@@ -46,6 +48,7 @@ interface EventTrackDialogProps {
   track: EventTrackRow | null;
   nextSortOrder: number;
   isSaving: boolean;
+  sponsorCandidates?: readonly EventSponsorRow[];
   onSubmit: (input: EventTrackInput) => void;
 }
 
@@ -56,6 +59,7 @@ export function EventTrackDialog({
   track,
   nextSortOrder,
   isSaving,
+  sponsorCandidates = [],
   onSubmit,
 }: EventTrackDialogProps) {
   const { t } = useTranslation();
@@ -107,6 +111,11 @@ export function EventTrackDialog({
   };
 
   const isNew = draft.id === null;
+  const sponsorLabel = (value: string): string => {
+    if (value === NO_SPONSOR) return t("adminEventAgenda.tracks.dialog.noSponsor");
+    const found = sponsorCandidates.find((row) => row.id === value);
+    return found === undefined ? value : found.snapshot_name;
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -159,6 +168,14 @@ export function EventTrackDialog({
                 : ((roomsQ.data ?? []).find((room) => String(room.id) === option)?.name ?? option)
             }
             onValueChange={(value) => set("defaultRoomId", value === NO_ROOM ? "" : value)}
+          />
+          <AdminFormEnumRow
+            label={t("adminEventAgenda.tracks.dialog.sponsor")}
+            hint={t("adminEventAgenda.tracks.dialog.sponsorHint")}
+            value={draft.sponsorId === "" ? NO_SPONSOR : draft.sponsorId}
+            options={[NO_SPONSOR, ...sponsorCandidates.map((sponsor) => sponsor.id)]}
+            labelFor={sponsorLabel}
+            onValueChange={(value) => set("sponsorId", value === NO_SPONSOR ? "" : value)}
           />
           <AdminFormSwitchRow
             label={t("adminEventAgenda.tracks.dialog.isActive")}

@@ -25,7 +25,7 @@
 // czy przycisk jest, co na nim pisze i jak wygląda - ten sam rachunek obsługuje
 // „moją agendę", więc obie powierzchnie nie mogą się rozjechać.
 import { useState } from "react";
-import { ChevronDown, Clock, DoorOpen, Loader2, Radio, Video } from "lucide-react";
+import { ChevronDown, Clock, DoorOpen, Loader2, Radio, ShieldCheck, Video } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,7 @@ import {
 import { SessionStateBadge } from "@/components/events/public/atoms/SessionStateBadge";
 import { SpeakerAvatar } from "@/components/events/SpeakerAvatar";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
+import { mediaRenderUrl } from "@/lib/media/publicUrl";
 
 ensureEventFrontI18n();
 
@@ -62,7 +63,23 @@ ensureEventFrontI18n();
  * buduje obsadę z `speaker_profiles.headline_pl/en`; osobnej kolumny z organizacją
  * w tym RPC nie ma, a dołożenie jej to zmiana kontraktu bazy, nie widoku.
  */
+function speakerRoleLabelKey(role: string | null): string {
+  if (role === "moderator") return "eventFront.agenda.moderatorsLabel";
+  if (role === "panelist") return "eventFront.agenda.panelistsLabel";
+  if (role === "host") return "eventFront.agenda.hostsLabel";
+  return "eventFront.agenda.speakersLabel";
+}
+
+function sponsorRoleKey(role: string | null): string | null {
+  if (role === "sponsor") return "eventFront.sponsors.roles.sponsor";
+  if (role === "partner") return "eventFront.sponsors.roles.partner";
+  if (role === "media_partner") return "eventFront.sponsors.roles.mediaPartner";
+  if (role === "exhibitor") return "eventFront.sponsors.roles.exhibitor";
+  return null;
+}
+
 function AgendaSpeakerRow({ speaker, lang }: { speaker: AgendaSpeaker; lang: UiLang }) {
+  const { t } = useTranslation();
   const headline = pickLocalized(
     { headline_pl: speaker.headlinePl, headline_en: speaker.headlineEn },
     "headline",
@@ -72,8 +89,13 @@ function AgendaSpeakerRow({ speaker, lang }: { speaker: AgendaSpeaker; lang: UiL
     <li className="flex min-w-0 items-center gap-2">
       <SpeakerAvatar name={speaker.displayName} photoUrl={speaker.avatarUrl} size="sm" />
       <span className="min-w-0">
-        <span className="block truncate text-sm font-semibold leading-tight text-foreground">
-          {speaker.displayName}
+        <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+          <span className="truncate text-sm font-semibold leading-tight text-foreground">
+            {speaker.displayName}
+          </span>
+          <span className="rounded-[4px] border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
+            {t(speakerRoleLabelKey(speaker.role))}
+          </span>
         </span>
         {headline !== "" && (
           // Ucięta nazwa organizacji zostaje w `title` - w trzech kolumnach
@@ -144,33 +166,90 @@ export function AgendaSessionCard({
   const seatsLeft = agendaSeatsLeft(session);
   const cancelled = session.status === "cancelled";
   const speakers = session.speakers.filter((speaker) => speaker.displayName !== "");
+  const sponsor = session.sponsor ?? session.track?.sponsor ?? null;
+  const sponsorLogo = sponsor?.logoUrl === null || sponsor?.logoUrl === undefined ? null : sponsor.logoUrl;
+  const sponsorRole = sponsorRoleKey(sponsor?.role ?? null);
+  const affiliation = pickLocalized(
+    { affiliation_pl: session.affiliationPl, affiliation_en: session.affiliationEn },
+    "affiliation",
+    lang,
+  );
 
   return (
-    <article
-      id={agendaSessionAnchor(session.id)}
-      className={cn(
-        "scroll-mt-24 border-l-[3px] py-5 pl-4 transition-colors",
-        cancelled && "opacity-70",
-      )}
-      // Kolor nurtu jest AKCENTEM, nie tłem - kontrast tekstu nie może zależeć
-      // od barwy wpisanej w panelu.
-      style={{ borderLeftColor: accent ?? "transparent" }}
-    >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-6">
-        <div className="min-w-0 flex-1 space-y-2">
-          <h3 className="text-base font-semibold leading-snug text-foreground">{title}</h3>
+    <article id={agendaSessionAnchor(session.id)} className={cn("scroll-mt-24 py-6", cancelled && "opacity-70")}>
+      <div className="grid gap-4 md:grid-cols-[minmax(6.5rem,8rem)_minmax(0,1fr)]">
+        <div
+          className="space-y-1 border-l-[3px] pl-3"
+          style={{ borderLeftColor: accent ?? "transparent" }}
+        >
+          <time
+            dateTime={session.startsAt}
+            className="block font-display text-xl font-semibold text-foreground"
+          >
+            {formatEventTime(session.startsAt, session.timezone, lang)}
+          </time>
+          <time
+            dateTime={session.endsAt}
+            className="block text-xs font-medium text-muted-foreground"
+          >
+            {formatEventTime(session.endsAt, session.timezone, lang)}
+          </time>
+          {trackName !== "" && (
+            <p className="pt-2 text-xs font-semibold uppercase text-muted-foreground">
+              {trackName}
+            </p>
+          )}
+        </div>
 
-          <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <Clock className="h-4 w-4 shrink-0" aria-hidden="true" />
-            <time dateTime={session.startsAt}>{timeRange}</time>
-          </p>
+        <div className="min-w-0 space-y-4">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_12rem]">
+            <div className="min-w-0 space-y-2">
+              <h3 className="font-display text-xl font-semibold leading-snug text-foreground md:text-2xl">
+                {title}
+              </h3>
+
+              <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <Clock className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <time dateTime={session.startsAt}>{timeRange}</time>
+              </p>
+
+              {affiliation !== "" && (
+                <p className="flex items-start gap-1.5 text-sm text-muted-foreground">
+                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>
+                    <span className="sr-only">{t("eventFront.agenda.affiliationLabel")}: </span>
+                    {affiliation}
+                  </span>
+                </p>
+              )}
+            </div>
+
+            {sponsor !== null && sponsor.name !== null && sponsor.name !== "" && (
+              <div className="rounded-[6px] border border-border bg-muted/30 p-3">
+                <p className="text-[10px] font-semibold uppercase text-muted-foreground">
+                  {sponsorRole === null ? t("eventFront.agenda.sponsorLabel") : t(sponsorRole)}
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  {sponsorLogo !== null && (
+                    <img
+                      src={mediaRenderUrl(sponsorLogo)}
+                      alt=""
+                      loading="lazy"
+                      className="h-8 w-12 rounded-[4px] object-contain"
+                    />
+                  )}
+                  <p
+                    className="min-w-0 truncate text-sm font-semibold text-foreground"
+                    title={sponsor.name}
+                  >
+                    {sponsor.name}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {trackName !== "" && (
-              <Badge variant="outline" className="whitespace-nowrap">
-                {trackName}
-              </Badge>
-            )}
             <SessionStateBadge state={session.accessState} />
             {session.chathamHouse && (
               <Badge variant="outline">{t("eventFront.agenda.chathamHouse")}</Badge>
@@ -223,49 +302,48 @@ export function AgendaSessionCard({
               )}
             </>
           )}
-        </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {seatsLeft !== null && !cancelled && (
+              <span className="text-xs text-muted-foreground">
+                {t("eventFront.agenda.seatsLeft", { count: seatsLeft })}
+              </span>
+            )}
+            {seatsLeft === null && session.requiresSignup && !cancelled && (
+              <span className="text-xs text-muted-foreground">
+                {t("eventFront.agenda.seatsUnlimited")}
+              </span>
+            )}
+            {control !== null && (
+              <Button
+                type="button"
+                size="sm"
+                variant={control.variant}
+                disabled={pending}
+                onClick={() => (control.action === "cancel" ? onCancel(session) : onSignup(session))}
+                className="w-full sm:w-auto"
+              >
+                {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
+                {pending
+                  ? t("eventFront.agenda.actions.working")
+                  : signedIn
+                    ? t(control.labelKey)
+                    : t("eventFront.agenda.actions.signIn")}
+              </Button>
+            )}
+          </div>
 
-        <div className="flex shrink-0 flex-col items-start gap-2 sm:w-44 sm:items-end">
-          {seatsLeft !== null && !cancelled && (
-            <span className="text-xs text-muted-foreground">
-              {t("eventFront.agenda.seatsLeft", { count: seatsLeft })}
-            </span>
-          )}
-          {seatsLeft === null && session.requiresSignup && !cancelled && (
-            <span className="text-xs text-muted-foreground">
-              {t("eventFront.agenda.seatsUnlimited")}
-            </span>
-          )}
-          {control !== null && (
-            <Button
-              type="button"
-              size="sm"
-              variant={control.variant}
-              disabled={pending}
-              onClick={() => (control.action === "cancel" ? onCancel(session) : onSignup(session))}
-              className="w-full sm:w-auto"
+          {speakers.length > 0 && (
+            <ul
+              aria-label={t("eventFront.agenda.speakersLabel")}
+              className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 xl:grid-cols-3"
             >
-              {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
-              {pending
-                ? t("eventFront.agenda.actions.working")
-                : signedIn
-                  ? t(control.labelKey)
-                  : t("eventFront.agenda.actions.signIn")}
-            </Button>
+              {speakers.map((speaker) => (
+                <AgendaSpeakerRow key={speaker.userId} speaker={speaker} lang={lang} />
+              ))}
+            </ul>
           )}
         </div>
       </div>
-
-      {speakers.length > 0 && (
-        <ul
-          aria-label={t("eventFront.agenda.speakersLabel")}
-          className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 xl:grid-cols-3"
-        >
-          {speakers.map((speaker) => (
-            <AgendaSpeakerRow key={speaker.userId} speaker={speaker} lang={lang} />
-          ))}
-        </ul>
-      )}
     </article>
   );
 }
