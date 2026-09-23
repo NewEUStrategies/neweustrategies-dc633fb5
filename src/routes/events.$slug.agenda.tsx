@@ -11,6 +11,22 @@ import { EventModulePage } from "@/components/events/public/molecules/EventModul
 import { EventAgendaSection } from "@/components/events/public/organisms/EventAgendaSection";
 
 export const Route = createFileRoute("/events/$slug/agenda")({
+  head: () => ({
+    meta: [
+      { title: "Program wydarzenia - New European Strategies" },
+      {
+        name: "description",
+        content: "Dni, ścieżki, debaty i sesje programu wydarzenia New European Strategies.",
+      },
+      { property: "og:title", content: "Program wydarzenia - New European Strategies" },
+      {
+        property: "og:description",
+        content: "Dni, ścieżki, debaty i sesje programu wydarzenia New European Strategies.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
   component: EventAgendaTab,
 });
 
