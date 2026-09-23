@@ -7,7 +7,7 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-dashboard";
-import { Eye, Globe2, UserCheck, Users } from "lucide-react";
+import { CalendarDays, Eye, Globe2, UserCheck, Users } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { ChartCard } from "@/components/admin/analytics/ChartCard";
@@ -25,10 +25,37 @@ export interface TrafficPanelProps {
   range: DashboardRange;
 }
 
+function formatRangeBoundary(
+  iso: string,
+  offsetMinutes: number,
+  locale: string,
+  withTime: boolean,
+) {
+  const shifted = new Date(Date.parse(iso) + offsetMinutes * 60_000);
+  return new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    ...(withTime ? { hour: "2-digit", minute: "2-digit" } : {}),
+    timeZone: "UTC",
+  }).format(shifted);
+}
+
+function formatDashboardRange(range: DashboardRange, locale: string): string {
+  const withTime = range.period === "realtime" || range.period === "today";
+  const inclusiveUntil = range.complete
+    ? new Date(Date.parse(range.current.untilIso) - 1).toISOString()
+    : range.current.untilIso;
+  const start = formatRangeBoundary(range.current.sinceIso, range.offsetMinutes, locale, withTime);
+  const end = formatRangeBoundary(inclusiveUntil, range.offsetMinutes, locale, withTime);
+  return `${start} - ${end}`;
+}
+
 export function TrafficPanel({ report, range }: TrafficPanelProps) {
   const { t, i18n } = useTranslation();
   const lang = chartLangFrom(i18n.language);
   const { current, previous } = report;
+  const exactRange = formatDashboardRange(range, lang === "pl" ? "pl-PL" : "en-GB");
 
   const categories = useMemo(
     () => report.series.map((p) => bucketLabel(p.bucket, range.bucket)),
@@ -70,6 +97,15 @@ export function TrafficPanel({ report, range }: TrafficPanelProps) {
 
   return (
     <div className="space-y-3">
+      <div className="flex items-center gap-2 text-xs font-medium text-foreground">
+        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
+          <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
+        </span>
+        <span>
+          <span className="text-muted-foreground">{t("adminDashboard.traffic.dateRange")} </span>
+          <time>{exactRange}</time>
+        </span>
+      </div>
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5">
         <StatTile
           label={t("adminDashboard.traffic.sessions")}
