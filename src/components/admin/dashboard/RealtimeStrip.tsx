@@ -80,7 +80,7 @@ export function RealtimeStrip({ report, expanded = false, className }: RealtimeS
                 className={cn(
                   "relative inline-flex h-1.5 w-1.5 rounded-full transition-colors duration-300",
                   live
-                    ? "bg-[var(--chart-positive)] shadow-[0_0_0.45rem_var(--chart-positive)]/20"
+                    ? "bg-[var(--chart-positive)] shadow-sm"
                     : "bg-muted-foreground/40",
                 )}
               />
