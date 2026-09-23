@@ -31,6 +31,25 @@ import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 
 export const Route = createFileRoute("/events/$slug/speakers")({
+  head: () => ({
+    meta: [
+      { title: "Prelegenci i moderatorzy - New European Strategies" },
+      {
+        name: "description",
+        content: "Prelegenci, moderatorzy i eksperci wydarzenia New European Strategies.",
+      },
+      {
+        property: "og:title",
+        content: "Prelegenci i moderatorzy - New European Strategies",
+      },
+      {
+        property: "og:description",
+        content: "Prelegenci, moderatorzy i eksperci wydarzenia New European Strategies.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
   component: EventSpeakersTab,
 });
 

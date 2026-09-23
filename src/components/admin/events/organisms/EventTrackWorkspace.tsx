@@ -53,6 +53,7 @@ import { useSponsors } from "@/lib/events/useEventSponsors";
 import { useRegistrationsList } from "@/lib/events/useEventRegistrations";
 import { DEFAULT_REGISTRATIONS_QUERY } from "@/lib/events/registrationsApi";
 import type { EventTrackInput, EventTrackRow } from "@/lib/events/sessionsApi";
+import { mediaRenderUrl } from "@/lib/media/publicUrl";
 
 interface EventTrackWorkspaceProps {
   eventId: string;
@@ -332,7 +333,7 @@ export function EventTrackWorkspace({
                   </div>
                 ) : (
                   <img
-                    src={track.cover_url}
+                    src={mediaRenderUrl(track.cover_url)}
                     alt=""
                     loading="lazy"
                     className="h-24 w-44 rounded-md object-cover"
@@ -355,6 +356,10 @@ export function EventTrackWorkspace({
                   ? t("adminEventAgenda.tracks.workspace.details.taglineEmpty")
                   : tagline
               }
+            />
+            <ReadField
+              label={t("adminEventAgenda.tracks.dialog.sponsor")}
+              value={track.sponsor_name ?? t("adminEventAgenda.tracks.dialog.noSponsor")}
             />
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -522,7 +527,10 @@ export function EventTrackWorkspace({
                       className="flex items-center gap-3 border-b border-border/60 px-4 py-3 last:border-b-0"
                     >
                       <Avatar className="h-10 w-10 rounded-md">
-                        <AvatarImage src={row.avatar_url ?? undefined} alt="" />
+                        <AvatarImage
+                          src={row.avatar_url === null ? undefined : mediaRenderUrl(row.avatar_url)}
+                          alt=""
+                        />
                         <AvatarFallback className="rounded-md text-xs">
                           {initialsOf(displayName)}
                         </AvatarFallback>
@@ -588,7 +596,7 @@ export function EventTrackWorkspace({
                       </span>
                     ) : (
                       <img
-                        src={row.snapshot_logo_url}
+                        src={mediaRenderUrl(row.snapshot_logo_url)}
                         alt=""
                         loading="lazy"
                         className="h-10 w-10 rounded-md object-contain"

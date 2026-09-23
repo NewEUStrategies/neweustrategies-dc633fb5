@@ -167,7 +167,8 @@ export function AgendaSessionCard({
   const cancelled = session.status === "cancelled";
   const speakers = session.speakers.filter((speaker) => speaker.displayName !== "");
   const sponsor = session.sponsor ?? session.track?.sponsor ?? null;
-  const sponsorLogo = sponsor?.logoUrl === null || sponsor?.logoUrl === undefined ? null : sponsor.logoUrl;
+  const sponsorLogo =
+    sponsor?.logoUrl === null || sponsor?.logoUrl === undefined ? null : sponsor.logoUrl;
   const sponsorRole = sponsorRoleKey(sponsor?.role ?? null);
   const affiliation = pickLocalized(
     { affiliation_pl: session.affiliationPl, affiliation_en: session.affiliationEn },
@@ -176,7 +177,10 @@ export function AgendaSessionCard({
   );
 
   return (
-    <article id={agendaSessionAnchor(session.id)} className={cn("scroll-mt-24 py-6", cancelled && "opacity-70")}>
+    <article
+      id={agendaSessionAnchor(session.id)}
+      className={cn("scroll-mt-24 py-6", cancelled && "opacity-70")}
+    >
       <div className="grid gap-4 md:grid-cols-[minmax(6.5rem,8rem)_minmax(0,1fr)]">
         <div
           className="space-y-1 border-l-[3px] pl-3"
@@ -319,7 +323,9 @@ export function AgendaSessionCard({
                 size="sm"
                 variant={control.variant}
                 disabled={pending}
-                onClick={() => (control.action === "cancel" ? onCancel(session) : onSignup(session))}
+                onClick={() =>
+                  control.action === "cancel" ? onCancel(session) : onSignup(session)
+                }
                 className="w-full sm:w-auto"
               >
                 {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
