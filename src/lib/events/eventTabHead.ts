@@ -11,12 +11,14 @@
 // Tu zakładka dokłada tylko to, co ją odróżnia: nazwę zakładki przed nazwą
 // wydarzenia i własny opis. Kanonik, hreflang, okładka i język idą tą samą
 // drogą, co w powłoce (`buildContentHead`).
+//
+// SŁOWNIK TO `i18n-event-head`, NIE `i18n-event-front`: ten moduł jedzie
+// w chunku startowym (patrz nagłówek nakładki), więc nie może ciągnąć za sobą
+// słownika całego frontu wydarzenia.
 import i18n from "@/lib/i18n";
+import "@/lib/i18n-event-head";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { buildContentHead, SITE_NAME, type HeadDescriptor, type Lang } from "@/lib/seo/meta";
-import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
-
-ensureEventFrontI18n();
 
 export type EventTab = "agenda" | "speakers";
 
@@ -40,16 +42,16 @@ export function buildEventTabHead(input: {
     input.event === null ? null : { title_pl: input.event.titlePl, title_en: input.event.titleEn },
     "title",
     input.lang,
-    t("eventFront.head.eventFallback"),
+    t("eventHead.eventFallback"),
   );
   const title =
     input.tab === "agenda"
-      ? t("eventFront.head.agendaTitle", { event: name })
-      : t("eventFront.head.speakersTitle", { event: name });
+      ? t("eventHead.agendaTitle", { event: name })
+      : t("eventHead.speakersTitle", { event: name });
   const description =
     input.tab === "agenda"
-      ? t("eventFront.head.agendaDescription", { event: name })
-      : t("eventFront.head.speakersDescription", { event: name });
+      ? t("eventHead.agendaDescription", { event: name })
+      : t("eventHead.speakersDescription", { event: name });
 
   return buildContentHead({
     url: input.url,

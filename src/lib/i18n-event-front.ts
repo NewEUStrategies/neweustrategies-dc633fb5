@@ -33,16 +33,6 @@ import i18n from "@/lib/i18n";
 
 export const eventFrontPl = {
   eventFront: {
-    // Nagłówki dokumentu zakładek programu i prelegentów. Nazwa wydarzenia
-    // przychodzi z loadera powłoki - bez niej wszystkie wydarzenia miały ten
-    // sam tytuł karty i ten sam opis w podglądzie linku.
-    head: {
-      agendaTitle: "Program - {{event}}",
-      agendaDescription: "Program wydarzenia {{event}}: dni, ścieżki, debaty i sesje z obsadą.",
-      speakersTitle: "Prelegenci i moderatorzy - {{event}}",
-      speakersDescription: "Prelegenci, moderatorzy i eksperci wydarzenia {{event}}.",
-      eventFallback: "Wydarzenie",
-    },
     // ---------------------------------------------------------------------
     // Sekcje strony wydarzenia. `heading` jest wartością DOMYŚLNĄ - redakcja
     // nadpisuje ją kolumnami `event_page_sections.heading_pl/heading_en`,
@@ -711,14 +701,6 @@ export const eventFrontPl = {
 
 export const eventFrontEn = {
   eventFront: {
-    head: {
-      agendaTitle: "Programme - {{event}}",
-      agendaDescription:
-        "The {{event}} programme: days, tracks, debates and sessions with their line-up.",
-      speakersTitle: "Speakers and moderators - {{event}}",
-      speakersDescription: "Speakers, moderators and experts of {{event}}.",
-      eventFallback: "Event",
-    },
     sections: {
       description: {
         heading: "About the event",
