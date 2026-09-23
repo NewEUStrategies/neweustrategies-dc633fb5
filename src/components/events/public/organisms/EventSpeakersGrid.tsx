@@ -61,7 +61,7 @@ import { speakerHasProfileToShow, speakerRowKey } from "@/lib/builder/speakerRow
 import { publicEventErrorMessage } from "@/lib/events/publicEventErrors";
 import { SpeakerExpertBadge } from "@/components/events/SpeakerExpertBadge";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
-import { ArrowUpRight } from "@/lib/lucide-shim";
+import { ArrowRight } from "@/lib/lucide-shim";
 
 ensureEventFrontI18n();
 
@@ -248,7 +248,10 @@ function SpeakerCard({
           )}
           {onSelect && speakerHasProfileToShow(speaker) ? (
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border text-foreground transition-colors duration-300 group-hover:border-foreground group-hover:bg-foreground group-hover:text-background">
-              <ArrowUpRight aria-hidden className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+              <ArrowRight
+                aria-hidden
+                className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5"
+              />
             </span>
           ) : null}
         </span>
