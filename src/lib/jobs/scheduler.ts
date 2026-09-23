@@ -29,6 +29,9 @@ export const SCHEDULER_JOBS = [
   // Retencja plików CV kandydatów: usuwa pliki osierocone (kreator porzucony po
   // wyborze pliku, przed wysyłką) i te po okresie retencji domkniętego procesu.
   "career-cv-retention",
+  // Bilety z kodem QR dla zgłoszeń przyjętych dowolną drogą (decyzja
+  // organizatora, awans z rezerwy, płatność) i ponowienia nieudanych wysyłek.
+  "event-ticket-codes",
 ] as const;
 
 export type SchedulerJob = (typeof SCHEDULER_JOBS)[number];

@@ -2,10 +2,11 @@
 // także do gości zapisanych przez prowadzącego grupy.
 //
 // JAWNY KOD ISTNIEJE TYLKO W CHWILI WYDANIA. Baza trzyma skrót
-// (`qr_token_hash`), więc `_event_issue_ticket_codes` wydaje kod i oddaje go
-// tutaj, a ten moduł od razu wkłada go do maila. Funkcja bazy wydaje kod RAZ
-// na zgłoszenie (`ticket_code_sent_at`) - powtórzony webhook albo podwójne
-// kliknięcie nie rotują kodu, który ktoś już ma w skrzynce.
+// (`qr_token_hash`), więc `_event_issue_ticket_codes` zajmuje zgłoszenie,
+// wydaje kod i oddaje go tutaj, a ten moduł wkłada go do maila. Wysyłkę
+// odnotowujemy DOPIERO po przyjęciu maila do kolejki - nieudana wysyłka
+// zwalnia zgłoszenie i kolejna próba (cron) wyda nowy kod. Wysłanego biletu
+// nic już nie rotuje: powtórzony webhook nie dostaje wierszy.
 //
 // KOD JEDZIE WE FRAGMENCIE ADRESU (`ticketLinkPath`), nie w zapytaniu: strona
 // biletu rysuje QR w przeglądarce, a fragment nie trafia do logów serwera.
@@ -83,15 +84,60 @@ export function buildTicketCodeNotice(row: Record<string, unknown>): TicketCodeN
   };
 }
 
+type SendOutcome = "sent" | "undeliverable" | "retry";
+
 /**
- * Wydaje bilety zgłoszeniu i jego gościom, po czym wysyła każdemu osobny mail.
- * Zwraca liczbę wysłanych wiadomości. Nigdy nie rzuca.
+ * Wynik wysyłki -> decyzja o kodzie. `retry` zwalnia zgłoszenie (kolejne
+ * zajęcie wyda NOWY kod), a `undeliverable` zamyka je jak wysłane: adres
+ * wypisany albo pusty nie ożyje przy następnym ticku, a rotowanie kodu co
+ * minutę tylko zapełniałoby dziennik poczty.
+ */
+async function deliver(row: Record<string, unknown>): Promise<SendOutcome> {
+  const notice = buildTicketCodeNotice(row);
+  if (notice === null) return "undeliverable";
+  try {
+    const { sendTxEmail } = await import("@/lib/email/transactional.server");
+    const result = await sendTxEmail({
+      type: "event_ticket_issued",
+      to: notice.to,
+      lang: notice.lang,
+      subjectName: notice.eventTitle,
+      details: notice.details,
+      ctaPath: notice.ctaPath,
+      metaName: notice.firstName,
+      tenantId: notice.tenantId,
+      // Klucz per ZAJĘCIE: ponowienie po nieudanej wysyłce niesie nowy kod,
+      // więc bramka duplikatów nie może go zatrzymać jako „już wysłany".
+      idempotencyKey: `event-ticket-code:${notice.registrationId}:${text(row.claimed_at) ?? ""}`,
+    });
+    if (result.ok) {
+      return result.skipped === "suppressed" || result.skipped === "no_recipient"
+        ? "undeliverable"
+        : "sent";
+    }
+    console.error(
+      "[events] ticket code email failed",
+      notice.registrationId,
+      result.reason ?? result.error,
+    );
+    return "retry";
+  } catch (err) {
+    console.error("[events] ticket code email failed", notice.registrationId, err);
+    return "retry";
+  }
+}
+
+/**
+ * Wydaje bilety zgłoszeniu i jego gościom, wysyła każdemu osobny mail i dopiero
+ * wtedy odnotowuje wysyłkę (`_event_ticket_code_confirm`). Zwraca liczbę
+ * wysłanych wiadomości. Nigdy nie rzuca.
  */
 export async function issueAndSendTicketCodes(registrationId: string): Promise<number> {
   let rows: Record<string, unknown>[] = [];
+  let admin: (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
   try {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin.rpc("_event_issue_ticket_codes", {
+    ({ supabaseAdmin: admin } = await import("@/integrations/supabase/client.server"));
+    const { data, error } = await admin.rpc("_event_issue_ticket_codes", {
       p_registration_id: registrationId,
     });
     if (error) {
@@ -107,37 +153,48 @@ export async function issueAndSendTicketCodes(registrationId: string): Promise<n
     console.error("[events] ticket code issue failed", registrationId, err);
     return 0;
   }
-  if (rows.length === 0) return 0;
 
-  const { sendTxEmail } = await import("@/lib/email/transactional.server");
   let sent = 0;
   for (const row of rows) {
-    const notice = buildTicketCodeNotice(row);
-    if (notice === null) continue;
+    const outcome = await deliver(row);
+    if (outcome === "sent") sent += 1;
+    const id = text(row.registration_id);
+    const claimedAt = text(row.claimed_at);
+    if (id === null || claimedAt === null) continue;
     try {
-      const result = await sendTxEmail({
-        type: "event_ticket_issued",
-        to: notice.to,
-        lang: notice.lang,
-        subjectName: notice.eventTitle,
-        details: notice.details,
-        ctaPath: notice.ctaPath,
-        metaName: notice.firstName,
-        tenantId: notice.tenantId,
-        // Kod wydaje się raz na zgłoszenie, więc i klucz jest jeden.
-        idempotencyKey: `event-ticket-code:${notice.registrationId}`,
+      const { error } = await admin.rpc("_event_ticket_code_confirm", {
+        p_registration_id: id,
+        p_claimed_at: claimedAt,
+        p_sent: outcome !== "retry",
       });
-      if (result.ok && !result.skipped) sent += 1;
-      else if (!result.ok) {
-        console.error(
-          "[events] ticket code email failed",
-          notice.registrationId,
-          result.reason ?? result.error,
-        );
-      }
+      // Nieodnotowane zajęcie wygaśnie samo (dzierżawa w bazie) - wtedy cron
+      // wyda nowy kod. Gorzej byłoby rzucić i przerwać wysyłkę reszcie grupy.
+      if (error) console.error("[events] ticket code confirm failed", id, error.message);
     } catch (err) {
-      console.error("[events] ticket code email failed", notice.registrationId, err);
+      console.error("[events] ticket code confirm failed", id, err);
     }
   }
   return sent;
+}
+
+/**
+ * Cron: bilety dla zgłoszeń przyjętych DOWOLNĄ drogą (płatność, decyzja
+ * organizatora, awans z rezerwy, zapis bezpłatny) i dla ponowień po nieudanej
+ * wysyłce. Ścieżki natychmiastowe (webhook, zapis grupowy) zostają - cron
+ * domyka to, czego one nie złapały.
+ */
+export async function runPendingTicketCodes(
+  limit = 50,
+): Promise<{ registrations: number; sent: number }> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin.rpc("_event_ticket_codes_pending", {
+    p_limit: limit,
+  });
+  if (error) throw new Error(error.message);
+  const ids = (Array.isArray(data) ? data : []).filter(
+    (id): id is string => typeof id === "string",
+  );
+  let sent = 0;
+  for (const id of ids) sent += await issueAndSendTicketCodes(id);
+  return { registrations: ids.length, sent };
 }

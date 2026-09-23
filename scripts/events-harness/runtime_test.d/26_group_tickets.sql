@@ -15,10 +15,14 @@
 --   2. Zapis bezplatny: goscie dopisani, limit grupy egzekwowany, kazda osoba
 --      dostaje WLASNY kod (skrot w bazie = sha256 kodu z odpowiedzi), gosc
 --      dostaje wlasny klucz samoobslugi, prowadzacy zachowuje swoj.
---   3. Wydanie jest JEDNORAZOWE - ponowne wolanie nie rotuje kodow.
+--   3. Wydanie ZAJMUJE zgloszenie, a wysylke odnotowuje dopiero potwierdzenie:
+--      nieudana wysylka zwalnia zgloszenie i ponowienie wydaje nowy kod,
+--      udana - zamyka je, wiec powtorzony webhook niczego nie rotuje.
 --   4. Zapis platny: przed wplata nic nie wychodzi, po wplacie prowadzacego
 --      bilety dostaje cala grupa.
---   5. Funkcja wydajaca kody jest wylacznie dla service_role.
+--   4b. Cron widzi zgloszenie przyjete DOWOLNA droga (tu: decyzja
+--      organizatora), a nie widzi oczekujacych ani zakonczonych wydarzen.
+--   5. Funkcje wydania i potwierdzenia sa wylacznie dla service_role.
 --
 -- SPRZATANIE: caly plik siedzi w BEGIN ... ROLLBACK.
 -- ============================================================================
@@ -137,7 +141,7 @@ SELECT pg_temp.assert_raises_like(
   '26/grupa: czwarta osoba przy limicie 3 jest odrzucona');
 
 -- ---------------------------------------------------------------------------
--- 3) BILET DLA KAZDEGO - WYDANY RAZ
+-- 3) BILET DLA KAZDEGO - ZAJECIE, WYSYLKA, POTWIERDZENIE
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.act_as();
 
@@ -175,9 +179,9 @@ BEGIN
         = encode(sha256(convert_to(r->>'qr_token', 'UTF8')), 'hex'),
       format('26/bilety: skrot w bazie to sha256 kodu z odpowiedzi (%s)', r->>'email'));
     PERFORM pg_temp.assert(
-      (SELECT ticket_code_sent_at IS NOT NULL FROM public.event_registrations
-        WHERE id = (r->>'registration_id')::uuid),
-      format('26/bilety: wydanie jest odnotowane (%s)', r->>'email'));
+      (SELECT ticket_code_sent_at IS NULL AND ticket_code_claimed_at = (r->>'claimed_at')::timestamptz
+         FROM public.event_registrations WHERE id = (r->>'registration_id')::uuid),
+      format('26/bilety: wydanie ZAJMUJE zgloszenie, ale wysylki jeszcze nie odnotowuje (%s)', r->>'email'));
     IF (r->>'is_guest')::boolean THEN
       PERFORM pg_temp.assert(
         (SELECT manage_token_hash FROM public.event_registrations
@@ -199,16 +203,63 @@ BEGIN
 END $$;
 
 DO $$
-DECLARE v jsonb;
+DECLARE v jsonb; e jsonb;
 BEGIN
   v := public._event_issue_ticket_codes('c6400000-0000-0000-0000-000000000001');
   PERFORM pg_temp.assert(jsonb_array_length(v) = 0,
-    '26/bilety: ponowne wolanie niczego nie wydaje (powtorzony webhook)');
+    '26/bilety: rownolegle wolanie w czasie dzierzawy niczego nie rotuje');
+
+  -- Serwer potwierdza wysylke dwoch osob, trzecia (gosc drugi) sie nie udala.
+  FOR e IN SELECT * FROM jsonb_array_elements((SELECT j FROM grp_q WHERE k = 'free')) LOOP
+    PERFORM pg_temp.assert(public._event_ticket_code_confirm(
+      (e->>'registration_id')::uuid, (e->>'claimed_at')::timestamptz,
+      e->>'email' <> 'guest.two@example.org'),
+      format('26/potwierdzenie: wynik wysylki przyjety (%s)', e->>'email'));
+  END LOOP;
+
   PERFORM pg_temp.assert(
-    (SELECT bool_and(r.qr_token_hash = encode(sha256(convert_to(e->>'qr_token', 'UTF8')), 'hex'))
-       FROM jsonb_array_elements((SELECT j FROM grp_q WHERE k = 'free')) e
-       JOIN public.event_registrations r ON r.id = (e->>'registration_id')::uuid),
-    '26/bilety: kody z pierwszego wydania nadal sa wazne');
+    (SELECT count(*) FROM public.event_registrations r
+      WHERE r.id IN (SELECT (x->>'registration_id')::uuid
+                     FROM jsonb_array_elements((SELECT j FROM grp_q WHERE k = 'free')) x)
+        AND r.ticket_code_sent_at IS NOT NULL) = 2,
+    '26/potwierdzenie: wyslane bilety sa odnotowane');
+  PERFORM pg_temp.assert(
+    (SELECT ticket_code_sent_at IS NULL AND ticket_code_claimed_at IS NULL
+       FROM public.event_registrations r
+       JOIN public.event_people p ON p.id = r.person_id
+      WHERE p.email_norm = 'guest.two@example.org'),
+    '26/potwierdzenie: nieudana wysylka ZWALNIA zgloszenie od razu');
+  PERFORM pg_temp.assert(
+    NOT public._event_ticket_code_confirm(
+      (SELECT r.id FROM public.event_registrations r JOIN public.event_people p ON p.id = r.person_id
+        WHERE p.email_norm = 'guest.two@example.org'),
+      now() - interval '1 hour', true),
+    '26/potwierdzenie: potwierdzenie cudzego (starego) zajecia niczego nie odnotowuje');
+
+  -- Ponowienie (cron) wydaje TYLKO zwolnionemu gosciowi NOWY kod i NOWY klucz,
+  -- a dane prowadzacego bierze z jego zgloszenia, nie z goscia.
+  v := public._event_issue_ticket_codes('c6400000-0000-0000-0000-000000000001');
+  PERFORM pg_temp.assert(jsonb_array_length(v) = 1 AND v->0->>'email' = 'guest.two@example.org',
+    '26/ponowienie: nowy kod dostaje tylko osoba, ktorej wysylka sie nie udala');
+  PERFORM pg_temp.assert(
+    v->0->>'qr_token' <> (SELECT e2->>'qr_token'
+      FROM jsonb_array_elements((SELECT j FROM grp_q WHERE k = 'free')) e2
+      WHERE e2->>'email' = 'guest.two@example.org')
+    AND (SELECT manage_token_hash FROM public.event_registrations
+          WHERE id = (v->0->>'registration_id')::uuid)
+        = encode(sha256(convert_to(v->0->>'manage_token', 'UTF8')), 'hex'),
+    '26/ponowienie: kod i klucz z nieudanej wysylki zastapione nowymi');
+  PERFORM public._event_ticket_code_confirm(
+    (v->0->>'registration_id')::uuid, (v->0->>'claimed_at')::timestamptz, false);
+  v := public._event_issue_ticket_codes((v->0->>'registration_id')::uuid);
+  PERFORM pg_temp.assert(v->0->>'lead_first_name' = 'Lidia',
+    '26/ponowienie: gosc wydawany osobno nadal wie, kto go zapisal');
+  PERFORM public._event_ticket_code_confirm(
+    (v->0->>'registration_id')::uuid, (v->0->>'claimed_at')::timestamptz, true);
+
+  PERFORM pg_temp.assert(
+    jsonb_array_length(public._event_issue_ticket_codes('c6400000-0000-0000-0000-000000000001')) = 0,
+    '26/bilety: po wysylce nic juz nie rotuje kodow grupy (powtorzony webhook)');
 END $$;
 
 -- ---------------------------------------------------------------------------
@@ -254,6 +305,47 @@ BEGIN
     (SELECT count(*) FROM jsonb_array_elements(v) e
       WHERE (e->>'is_guest')::boolean AND e->>'manage_token' ~ '^[A-Za-z0-9_-]{32}$') = 2,
     '26/platny: kazdy gosc dostaje wlasny klucz samoobslugi');
+  PERFORM public._event_ticket_code_confirm(
+    (e->>'registration_id')::uuid, (e->>'claimed_at')::timestamptz, true)
+  FROM jsonb_array_elements(v) e;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- 4b) KAZDA DROGA PRZYJECIA TRAFIA DO CRONA
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE v uuid[];
+BEGIN
+  -- Zgloszenie czekajace na decyzje - jeszcze nie ma czego wydawac.
+  INSERT INTO public.event_people (id, tenant_id, email, first_name, last_name) VALUES
+    ('c6300000-0000-0000-0000-000000000009', 'c6c6c6c6-c6c6-c6c6-c6c6-c6c6c6c6c6c6',
+     'approved.later@example.org', 'Ala', 'Pozniej');
+  INSERT INTO public.event_registrations
+    (id, tenant_id, event_id, person_id, ticket_type_id, status, registration_mode, payment_status)
+  VALUES
+    ('c6400000-0000-0000-0000-000000000009', 'c6c6c6c6-c6c6-c6c6-c6c6-c6c6c6c6c6c6',
+     'c6100000-0000-0000-0000-000000000001', 'c6300000-0000-0000-0000-000000000009',
+     'c6200000-0000-0000-0000-000000000001', 'pending', 'form', 'not_required');
+  v := public._event_ticket_codes_pending(500);
+  PERFORM pg_temp.assert(NOT ('c6400000-0000-0000-0000-000000000009'::uuid = ANY(v)),
+    '26/cron: zgloszenie oczekujace na decyzje NIE dostaje biletu');
+  PERFORM pg_temp.assert(NOT ('c6400000-0000-0000-0000-000000000001'::uuid = ANY(v)),
+    '26/cron: wyslany bilet nie wraca do kolejki');
+
+  -- Organizator przyjmuje zgloszenie (dowolna droga konczy sie tym stanem).
+  UPDATE public.event_registrations SET status = 'approved', decided_at = now(),
+    decision_source = 'organizer'
+  WHERE id = 'c6400000-0000-0000-0000-000000000009';
+  v := public._event_ticket_codes_pending(500);
+  PERFORM pg_temp.assert('c6400000-0000-0000-0000-000000000009'::uuid = ANY(v),
+    '26/cron: zgloszenie przyjete przez organizatora czeka na bilet');
+
+  -- Wydarzenie, ktore juz sie skonczylo, nie dostaje biletow wstecz.
+  UPDATE public.events SET starts_at = now() - interval '3 days', ends_at = now() - interval '2 days'
+  WHERE id = 'c6100000-0000-0000-0000-000000000001';
+  v := public._event_ticket_codes_pending(500);
+  PERFORM pg_temp.assert(NOT ('c6400000-0000-0000-0000-000000000009'::uuid = ANY(v)),
+    '26/cron: zakonczone wydarzenie nie dostaje biletow');
 END $$;
 
 -- ---------------------------------------------------------------------------
@@ -261,8 +353,11 @@ END $$;
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.assert(
   NOT has_function_privilege('authenticated', 'public._event_issue_ticket_codes(uuid)', 'EXECUTE')
-  AND NOT has_function_privilege('anon', 'public._event_issue_ticket_codes(uuid)', 'EXECUTE'),
-  '26/uprawnienia: anon i authenticated NIE wydaja kodow');
+  AND NOT has_function_privilege('anon', 'public._event_issue_ticket_codes(uuid)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated',
+    'public._event_ticket_code_confirm(uuid, timestamptz, boolean)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public._event_ticket_codes_pending(integer)', 'EXECUTE'),
+  '26/uprawnienia: anon i authenticated NIE wydaja ani nie potwierdzaja kodow');
 SELECT pg_temp.assert(
   has_function_privilege('service_role', 'public._event_issue_ticket_codes(uuid)', 'EXECUTE'),
   '26/uprawnienia: service_role wydaje kody (webhook i funkcja serwerowa)');

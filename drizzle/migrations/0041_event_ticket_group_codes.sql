@@ -4,15 +4,36 @@
 --    (tax_mode) kazdego biletu. Bez tego formularz zakladal sztywne 10 osob,
 --    a karta biletu nie wiedziala, ze w kasie dojdzie podatek.
 --
--- 2. Bilet z kodem QR dla kazdej osoby z grupy. Baza trzyma wylacznie skrot
+-- 2. Bilet z kodem QR dla kazdej przyjetej osoby. Baza trzyma wylacznie skrot
 --    kodu (qr_token_hash), a jawny kod istnieje tylko w chwili wydania - dotad
---    gubil go zarowno trigger grupy, jak i ksiegowanie platnosci. Funkcja
---    ponizej wydaje kod JEDEN raz na zgloszenie (ticket_code_sent_at) i oddaje
---    jawny kod serwerowi, ktory od razu wysyla go mailem. Gosc dostaje tez
---    wlasny klucz samoobslugi (manage_token), bo zapisal go prowadzacy.
+--    gubil go trigger grupy, ksiegowanie platnosci i decyzja organizatora.
+--    Wydanie idzie w trzech krokach, zeby awaria wysylki NIE gubila biletu:
+--      a) `_event_issue_ticket_codes` ZAJMUJE zgloszenie (ticket_code_claimed_at,
+--         dzierzawa 15 min), rotuje kod i oddaje go serwerowi;
+--      b) serwer wysyla mail;
+--      c) `_event_ticket_code_confirm` odnotowuje wysylke (ticket_code_sent_at)
+--         albo zwalnia zgloszenie do ponowienia.
+--    Proces, ktory padl miedzy a) i c), zwalnia zgloszenie sam - po wygasnieciu
+--    dzierzawy. `_event_ticket_codes_pending` podaje zgloszenia bez biletu
+--    niezaleznie od tego, CO je przyjelo (platnosc, decyzja organizatora,
+--    awans z rezerwy, zapis bezplatny) - zbiera je cron co minute.
+--    Gosc grupy dostaje tez wlasny klucz samoobslugi (manage_token).
 
 ALTER TABLE public.event_registrations
-  ADD COLUMN IF NOT EXISTS ticket_code_sent_at timestamptz;
+  ADD COLUMN IF NOT EXISTS ticket_code_sent_at timestamptz,
+  ADD COLUMN IF NOT EXISTS ticket_code_claimed_at timestamptz;
+
+-- Zgloszenia przyjete PRZED ta migracja nie dostaja maila wstecz: cron nie
+-- moze wyslac setek biletow na wydarzenia, o ktorych uczestnicy juz wiedza.
+UPDATE public.event_registrations r
+SET ticket_code_sent_at = COALESCE(r.qr_issued_at, r.updated_at, now())
+WHERE r.ticket_code_sent_at IS NULL
+  AND r.status IN ('approved', 'attended')
+  AND r.payment_status IN ('paid', 'not_required');
+
+CREATE INDEX IF NOT EXISTS event_registrations_ticket_code_pending_idx
+  ON public.event_registrations (created_at)
+  WHERE ticket_code_sent_at IS NULL AND status IN ('approved', 'attended');
 
 CREATE OR REPLACE FUNCTION public.event_registration_form(p_event_slug text)
  RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
@@ -89,36 +110,31 @@ BEGIN
 END;
 $function$;
 
--- Wydanie biletow z kodem QR: zgloszenie wskazane przez serwer (po platnosci
--- albo po bezplatnym zapisie grupy) oraz jego goscie. Wydaje tylko miejscom
--- potwierdzonym i rozliczonym, i tylko raz - powtorzony webhook nie rotuje
--- kodu, ktory ktos juz ma w skrzynce. Wylacznie service_role: wynik niesie
--- jawne kody.
+-- a) Zajecie i wydanie: zgloszenie wskazane przez serwer oraz jego goscie.
+-- Tylko miejsca przyjete i rozliczone, jeszcze bez wyslanego biletu i bez
+-- zywej dzierzawy - rownolegly proces nie zrotuje kodu, ktory wlasnie idzie
+-- mailem. Wylacznie service_role: wynik niesie jawne kody.
 CREATE OR REPLACE FUNCTION public._event_issue_ticket_codes(p_registration_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public','extensions','pg_temp'
 AS $$
 DECLARE
   v_root public.event_registrations;
-  v_lead_first text;
-  v_lead_last text;
   r record;
   v_qr text;
   v_manage text;
+  v_claim timestamptz := clock_timestamp();
   v_out jsonb := '[]'::jsonb;
 BEGIN
   SELECT * INTO v_root FROM public.event_registrations reg
   WHERE reg.id = p_registration_id;
   IF v_root.id IS NULL THEN RETURN v_out; END IF;
 
-  SELECT p.first_name, p.last_name INTO v_lead_first, v_lead_last
-  FROM public.event_people p
-  WHERE p.id = v_root.person_id AND p.tenant_id = v_root.tenant_id;
-
   FOR r IN
     SELECT reg.id, reg.tenant_id, reg.manage_token_hash,
            (reg.group_lead_registration_id IS NOT NULL) AS is_guest,
            p.email, p.first_name,
+           lp.first_name AS lead_first_name, lp.last_name AS lead_last_name,
            e.slug AS event_slug, e.title_pl AS event_title_pl, e.title_en AS event_title_en,
            e.starts_at AS event_starts_at, e.timezone AS event_timezone, e.location AS event_location,
            tt.name_pl AS ticket_name_pl, tt.name_en AS ticket_name_en,
@@ -145,39 +161,46 @@ BEGIN
     JOIN public.events e ON e.id = reg.event_id AND e.tenant_id = reg.tenant_id
     LEFT JOIN public.profiles pr ON pr.id = p.user_id AND pr.tenant_id = reg.tenant_id
     LEFT JOIN public.event_ticket_types tt ON tt.id = reg.ticket_type_id AND tt.tenant_id = reg.tenant_id
+    LEFT JOIN public.event_registrations lr
+      ON lr.id = reg.group_lead_registration_id AND lr.tenant_id = reg.tenant_id
+    LEFT JOIN public.event_people lp ON lp.id = lr.person_id AND lp.tenant_id = lr.tenant_id
     WHERE reg.tenant_id = v_root.tenant_id
       AND (reg.id = v_root.id OR reg.group_lead_registration_id = v_root.id)
       AND reg.status IN ('approved', 'attended')
       AND reg.payment_status IN ('paid', 'not_required')
       AND reg.ticket_code_sent_at IS NULL
+      AND (reg.ticket_code_claimed_at IS NULL
+           OR reg.ticket_code_claimed_at < now() - interval '15 minutes')
     ORDER BY (reg.id = v_root.id) DESC, reg.created_at, reg.id
     FOR UPDATE OF reg
   LOOP
     v_qr := public._event_new_qr_token();
-    -- Klucz samoobslugi dostaje tylko ten, kto go nie ma (gosc grupy).
-    -- Istniejacego nie rotujemy - uniewaznilby odnosnik z potwierdzenia zapisu.
-    v_manage := CASE WHEN r.manage_token_hash IS NULL THEN public._event_new_qr_token() END;
+    -- Klucz samoobslugi wydajemy gosciowi grupy (przy kazdym zajeciu - klucz
+    -- z nieudanej wysylki nigdzie nie dotarl) i temu, kto go nie ma. Klucza
+    -- z `event_register` nie rotujemy: uniewaznilby link z potwierdzenia zapisu.
+    v_manage := CASE WHEN r.is_guest OR r.manage_token_hash IS NULL
+                     THEN public._event_new_qr_token() END;
     UPDATE public.event_registrations reg SET
       qr_token_hash = encode(digest(v_qr, 'sha256'), 'hex'),
       qr_issued_at = now(),
-      manage_token_hash = COALESCE(
-        reg.manage_token_hash,
-        CASE WHEN v_manage IS NOT NULL THEN encode(digest(v_manage, 'sha256'), 'hex') END),
-      ticket_code_sent_at = now(),
+      manage_token_hash = CASE WHEN v_manage IS NOT NULL
+        THEN encode(digest(v_manage, 'sha256'), 'hex') ELSE reg.manage_token_hash END,
+      ticket_code_claimed_at = v_claim,
       updated_at = now()
     WHERE reg.id = r.id AND reg.tenant_id = v_root.tenant_id;
 
     v_out := v_out || jsonb_build_array(jsonb_build_object(
       'registration_id', r.id,
       'tenant_id', r.tenant_id,
+      'claimed_at', v_claim,
       'is_guest', r.is_guest,
       'qr_token', v_qr,
       'manage_token', v_manage,
       'email', r.email,
       'first_name', r.first_name,
       'lang', r.lang,
-      'lead_first_name', CASE WHEN r.is_guest THEN v_lead_first END,
-      'lead_last_name', CASE WHEN r.is_guest THEN v_lead_last END,
+      'lead_first_name', CASE WHEN r.is_guest THEN r.lead_first_name END,
+      'lead_last_name', CASE WHEN r.is_guest THEN r.lead_last_name END,
       'event_slug', r.event_slug,
       'event_title_pl', r.event_title_pl,
       'event_title_en', r.event_title_en,
@@ -192,3 +215,51 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public._event_issue_ticket_codes(uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public._event_issue_ticket_codes(uuid) TO service_role;
+
+-- c) Wynik wysylki. `p_claimed_at` wiaze potwierdzenie z TYM zajeciem: proces,
+-- ktorego dzierzawa wygasla i ktory zostal wyprzedzony, nie odnotuje wysylki
+-- kodu, ktory juz nie obowiazuje. Nieudana wysylka zwalnia zgloszenie od razu.
+CREATE OR REPLACE FUNCTION public._event_ticket_code_confirm(
+  p_registration_id uuid, p_claimed_at timestamptz, p_sent boolean)
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public','pg_temp'
+AS $$
+BEGIN
+  UPDATE public.event_registrations reg SET
+    ticket_code_sent_at = CASE WHEN p_sent THEN now() ELSE NULL END,
+    ticket_code_claimed_at = CASE WHEN p_sent THEN reg.ticket_code_claimed_at ELSE NULL END,
+    updated_at = now()
+  WHERE reg.id = p_registration_id
+    AND reg.ticket_code_claimed_at = p_claimed_at
+    AND reg.ticket_code_sent_at IS NULL;
+  RETURN FOUND;
+END $$;
+REVOKE ALL ON FUNCTION public._event_ticket_code_confirm(uuid, timestamptz, boolean) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public._event_ticket_code_confirm(uuid, timestamptz, boolean) TO service_role;
+
+-- Zgloszenia czekajace na bilet - dla crona. Wszystkie drogi przyjecia
+-- (platnosc, decyzja organizatora, awans z rezerwy, zapis bezplatny) koncza
+-- sie tym samym stanem wiersza, wiec jedno zapytanie lapie kazda z nich.
+-- Tylko zapis formularzowy i wydarzenia, ktore sie jeszcze nie skonczyly.
+CREATE OR REPLACE FUNCTION public._event_ticket_codes_pending(p_limit integer DEFAULT 50)
+RETURNS uuid[]
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public','pg_temp'
+AS $$
+  SELECT COALESCE(array_agg(q.id ORDER BY q.created_at), ARRAY[]::uuid[])
+  FROM (
+    SELECT reg.id, reg.created_at
+    FROM public.event_registrations reg
+    JOIN public.events e ON e.id = reg.event_id AND e.tenant_id = reg.tenant_id
+    WHERE reg.ticket_code_sent_at IS NULL
+      AND reg.status IN ('approved', 'attended')
+      AND reg.payment_status IN ('paid', 'not_required')
+      AND reg.registration_mode = 'form'
+      AND (reg.ticket_code_claimed_at IS NULL
+           OR reg.ticket_code_claimed_at < now() - interval '15 minutes')
+      AND COALESCE(e.ends_at, e.starts_at + interval '1 day') > now()
+    ORDER BY reg.created_at
+    LIMIT LEAST(GREATEST(COALESCE(p_limit, 50), 1), 500)
+  ) q;
+$$;
+REVOKE ALL ON FUNCTION public._event_ticket_codes_pending(integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public._event_ticket_codes_pending(integer) TO service_role;

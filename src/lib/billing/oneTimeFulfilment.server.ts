@@ -157,8 +157,10 @@ export async function applyTicketOutcome(
   }
 
   // BILETY Z KODEM QR po opłaceniu: płacący i każdy gość jego grupy dostaje
-  // osobny mail. Bez warunku `applied` - ponowiony webhook musi móc dokończyć
-  // wysyłkę, a podwójnemu wydaniu zapobiega sama baza (`ticket_code_sent_at`).
+  // osobny mail od razu. Bez warunku `applied` - ponowiony webhook musi móc
+  // dokończyć wysyłkę, a podwójnemu wydaniu zapobiega baza (zajęcie
+  // i `ticket_code_sent_at`). Czego ta ścieżka nie domknie, zbierze cron
+  // (`event-ticket-codes`).
   const registrationId =
     data !== null && typeof data === "object" && !Array.isArray(data)
       ? (data as Record<string, unknown>).registration_id

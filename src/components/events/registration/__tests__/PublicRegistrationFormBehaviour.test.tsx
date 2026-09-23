@@ -62,6 +62,7 @@ const h = vi.hoisted(() => ({
   user: null as TestUser | null,
   lang: "pl" as "pl" | "en",
   sendConfirmation: vi.fn(),
+  sendTicketCodes: vi.fn(),
   checkout: vi.fn(),
 }));
 
@@ -90,6 +91,10 @@ vi.mock("@/lib/events/registrationSelfNotify.functions", () => ({
   confirmEventRegistrationEmail: { name: "confirmEventRegistrationEmail" },
 }));
 
+vi.mock("@/lib/events/groupTicketCodes.functions", () => ({
+  sendGroupTicketCodes: { name: "sendGroupTicketCodes" },
+}));
+
 vi.mock("@/lib/billing/checkout.functions", () => ({
   createCheckoutOrder: { name: "createCheckoutOrder" },
 }));
@@ -97,7 +102,11 @@ vi.mock("@/lib/billing/checkout.functions", () => ({
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
   useServerFn: (fn: { name?: string }) =>
-    fn.name === "confirmEventRegistrationEmail" ? h.sendConfirmation : h.checkout,
+    fn.name === "confirmEventRegistrationEmail"
+      ? h.sendConfirmation
+      : fn.name === "sendGroupTicketCodes"
+        ? h.sendTicketCodes
+        : h.checkout,
 }));
 
 vi.mock("@/hooks/useAuth", () => ({
@@ -296,6 +305,8 @@ beforeEach(() => {
   h.lang = "pl";
   h.sendConfirmation.mockReset();
   h.sendConfirmation.mockResolvedValue({ ok: true });
+  h.sendTicketCodes.mockReset();
+  h.sendTicketCodes.mockResolvedValue({ ok: true, sent: 2 });
   h.checkout.mockReset();
 });
 
@@ -1011,5 +1022,142 @@ describe("PublicRegistrationForm - dostepnosc", () => {
     expect(personSection).not.toContainElement(
       screen.getByText("eventRegistration.validation.dataProcessing"),
     );
+  });
+});
+
+describe("PublicRegistrationForm - zapis grupowy", () => {
+  const GROUP_RPC = "event_register_group_guests";
+  const USER: TestUser = { id: "u-lead", email: "anna.kowalska@example.com" };
+
+  function groupForm(over: Record<string, Json> = {}): void {
+    stub().setData(
+      FORM_RPC,
+      formPayload({
+        tickets: [ticketRow({ group_registration_enabled: true, group_max_size: 3, ...over })],
+      }),
+    );
+  }
+
+  function guestInput(index: number, part: "first" | "last" | "email"): HTMLInputElement {
+    const el = document.getElementById(`group-guest-${index}-${part}`);
+    if (!(el instanceof HTMLInputElement)) throw new Error(`test: brak pola gościa ${index}`);
+    return el;
+  }
+
+  function fillGuest(index: number, email: string): void {
+    fireEvent.change(guestInput(index, "first"), { target: { value: "Gość" } });
+    fireEvent.change(guestInput(index, "last"), { target: { value: `Numer${index}` } });
+    fireEvent.change(guestInput(index, "email"), { target: { value: email } });
+  }
+
+  const addButton = () => screen.getByRole("button", { name: /eventRegistration.group.add/ });
+
+  it("limit gości pochodzi z biletu, a nie ze sztywnych 10 osób", async () => {
+    h.user = USER;
+    groupForm();
+    renderForm();
+
+    expect(await screen.findByText("eventRegistration.group.lead(max=3)")).toBeInTheDocument();
+    fireEvent.click(addButton());
+    fireEvent.click(addButton());
+    // Prowadzący zajmuje pierwsze miejsce - przy limicie 3 zostaje dwóch gości.
+    expect(addButton()).toBeDisabled();
+    expect(screen.getByText("eventRegistration.group.seats(count=3)")).toBeInTheDocument();
+  });
+
+  it("gość bez konta widzi prośbę o logowanie zamiast listy gości", async () => {
+    groupForm();
+    renderForm();
+
+    expect(await screen.findByText("eventRegistration.group.accountRequired")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /eventRegistration.group.add/ })).toBeNull();
+  });
+
+  it("zapis dopisuje gości i wysyła bilety z kodem QR kluczem prowadzącego", async () => {
+    h.user = USER;
+    groupForm();
+    stub().setData(GROUP_RPC, { added: 2, registration_ids: [] });
+    renderForm();
+    await fillPerson();
+    fireEvent.click(addButton());
+    fireEvent.click(addButton());
+    fillGuest(0, "gosc.jeden@example.com");
+    fillGuest(1, "GOSC.DWA@example.com");
+    acceptDataProcessing();
+    submitForm();
+
+    await waitFor(() => expect(h.sendTicketCodes).toHaveBeenCalledTimes(1));
+    expect(stub().lastCall(GROUP_RPC)?.arg("p_lead_registration_id")).toBe(REGISTRATION_ID);
+    expect(stub().lastCall(GROUP_RPC)?.arg("p_guests")).toEqual([
+      { first_name: "Gość", last_name: "Numer0", email: "gosc.jeden@example.com" },
+      { first_name: "Gość", last_name: "Numer1", email: "gosc.dwa@example.com" },
+    ]);
+    expect(h.sendTicketCodes).toHaveBeenCalledWith({ data: { manageToken: MANAGE_TOKEN } });
+  });
+
+  it("awaria wysyłki biletów nie unieważnia zapisu grupy", async () => {
+    h.user = USER;
+    groupForm();
+    stub().setData(GROUP_RPC, { added: 1, registration_ids: [] });
+    h.sendTicketCodes.mockRejectedValue(new Error("network"));
+    renderForm();
+    await fillPerson();
+    fireEvent.click(addButton());
+    fillGuest(0, "gosc.jeden@example.com");
+    acceptDataProcessing();
+    submitForm();
+
+    await waitFor(() => expect(h.sendTicketCodes).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("eventRegistration.actions.back")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("błędny gość zatrzymuje zapis i mówi, co poprawić", async () => {
+    h.user = USER;
+    groupForm();
+    renderForm();
+    await fillPerson();
+    fireEvent.click(addButton());
+    fillGuest(0, "anna.kowalska@example.com");
+    acceptDataProcessing();
+    submitForm();
+
+    expect(await screen.findByText("eventRegistration.group.issues.duplicate")).toBeInTheDocument();
+    expect(stub().lastCall(REGISTER_RPC)).toBeUndefined();
+  });
+
+  it("odmowa dopisania gości jest widoczna, a bilety nie wychodzą", async () => {
+    h.user = USER;
+    groupForm();
+    stub().setError(GROUP_RPC, "group_too_large");
+    renderForm();
+    await fillPerson();
+    fireEvent.click(addButton());
+    fillGuest(0, "gosc.jeden@example.com");
+    acceptDataProcessing();
+    submitForm();
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(h.sendTicketCodes).not.toHaveBeenCalled();
+  });
+
+  it("usunięcie gościa zwalnia miejsce na liście", async () => {
+    h.user = USER;
+    groupForm();
+    renderForm();
+    await screen.findByText("eventRegistration.group.lead(max=3)");
+    fireEvent.click(addButton());
+    fireEvent.click(addButton());
+    fireEvent.click(screen.getAllByRole("button", { name: "eventRegistration.group.remove" })[0]!);
+
+    expect(addButton()).not.toBeDisabled();
+    expect(screen.getByText("eventRegistration.group.seats(count=2)")).toBeInTheDocument();
+  });
+
+  it("bilet z podatkiem doliczanym mówi o tym na karcie", async () => {
+    groupForm({ price_cents: 10000, effective_price_cents: 10000, tax_mode: "exclusive" });
+    renderForm();
+
+    expect(await screen.findByText("eventRegistration.labels.plusTax")).toBeInTheDocument();
   });
 });
