@@ -53,6 +53,7 @@ const pl = {
     traffic: {
       title: "Ruch na stronie",
       subtitle: "Pomiar własny - zdarzenia z ingestu, nie próbka zewnętrzna.",
+      dateRange: "Zakres danych:",
       sessions: "Sesje",
       pageViews: "Odsłony",
       visitors: "Unikalni odwiedzający",
@@ -275,6 +276,7 @@ const en = {
     traffic: {
       title: "Site traffic",
       subtitle: "First-party measurement - ingest events, not an external sample.",
+      dateRange: "Data range:",
       sessions: "Sessions",
       pageViews: "Page views",
       visitors: "Unique visitors",
