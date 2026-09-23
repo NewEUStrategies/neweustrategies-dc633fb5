@@ -79,9 +79,7 @@ export function RealtimeStrip({ report, expanded = false, className }: RealtimeS
               <span
                 className={cn(
                   "relative inline-flex h-1.5 w-1.5 rounded-full transition-colors duration-300",
-                  live
-                    ? "bg-[var(--chart-positive)] shadow-sm"
-                    : "bg-muted-foreground/40",
+                  live ? "bg-[var(--chart-positive)] shadow-sm" : "bg-muted-foreground/40",
                 )}
               />
             </span>
