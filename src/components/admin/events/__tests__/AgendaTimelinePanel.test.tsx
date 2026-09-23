@@ -97,6 +97,8 @@ const BRAK_LICZBY = null as unknown as number;
 /** Wiersz `admin_event_sessions_list` - pełny kształt sygnatury RPC. */
 function sessionRow(overrides: Partial<EventSessionRow> = {}): EventSessionRow {
   return {
+    affiliation_en: "",
+    affiliation_pl: "",
     allow_overlap: false,
     cancelled_at: "",
     cancelled_count: 0,
@@ -124,6 +126,10 @@ function sessionRow(overrides: Partial<EventSessionRow> = {}): EventSessionRow {
     seats_left: 0,
     sort_order: 10,
     speakers_count: 0,
+    sponsor_id: "",
+    sponsor_logo_url: "",
+    sponsor_name: "",
+    sponsor_role: "",
     // 07:00 UTC = 09:00 w Warszawie (CEST).
     starts_at: "2026-09-01T07:00:00.000Z",
     status: "published",
