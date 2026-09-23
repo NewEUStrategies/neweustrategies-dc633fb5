@@ -48,6 +48,6 @@
 
 ## Archiwum GGM 2021
 
-- [ ] Utworzyć wydarzenie z trzema dniami, 12 debatami, moderatorami i panelistami.
-- [ ] Przygotować i przypisać spójne miniaturki z materiałów źródłowych konferencji.
-- [ ] Zweryfikować publiczny program i listę prelegentów.
+- [x] Utworzyć wydarzenie z trzema dniami, 12 debatami, moderatorami i panelistami.
+- [x] Przygotować i przypisać spójne miniaturki z materiałów źródłowych konferencji.
+- [x] Zweryfikować publiczny program i listę prelegentów.
