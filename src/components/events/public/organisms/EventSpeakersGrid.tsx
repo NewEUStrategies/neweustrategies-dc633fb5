@@ -210,14 +210,9 @@ function SpeakerCard({
     </>
   );
 
-  // KLIKALNA JEST KARTA, KTÓRA MA CO OTWORZYĆ. Dla osoby z kontem odpowiedź
-  // jest zawsze twierdząca (dialog dociąga profil i listę wystąpień), dla osoby
-  // BEZ konta - tylko wtedy, gdy wiersz niesie coś, czego na karcie nie ma
-  // (biogram, tematy, języki, statystyki). Karta wyglądająca na klikalną,
-  // która po kliknięciu powtarza to samo nazwisko i tę samą firmę, jest gorsza
-  // niż martwy wpis: obiecuje więcej i tego nie dowozi. Ta sama reguła stoi
-  // w zapowiedzi na przeglądzie - decyduje o niej JEDEN predykat, a nie dwie
-  // kopie warunku.
+  // Gdy powierzchnia podaje `onSelect`, każdy kafelek zachowuje się jednakowo:
+  // rozwija profil także dla osoby bez konta. Jej wiersz nadal zawiera zdjęcie,
+  // rolę i organizację, więc powiększenie nigdy nie prowadzi do pustego widoku.
   if (onSelect) {
     return (
       <button
