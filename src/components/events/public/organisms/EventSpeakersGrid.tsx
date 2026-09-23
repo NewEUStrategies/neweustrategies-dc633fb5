@@ -67,11 +67,11 @@ ensureEventFrontI18n();
 // Cztery kolumny to docelowy układ wzorca, ale karta ma pod zdjęciem trzy linie
 // tekstu - przy dwóch kolumnach na telefonie każda z nich ma jeszcze szerokość
 // na cokolwiek poza wielokropkiem.
-const GRID_CLASS = "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4";
+const GRID_CLASS = "grid grid-cols-1 border-l border-t border-border sm:grid-cols-2 lg:grid-cols-3";
 const CARD_CLASS =
-  "flex h-full w-full flex-col items-center rounded-[6px] border border-border bg-card p-3 text-center";
+  "group flex h-full w-full flex-col items-start border-b border-r border-border bg-background p-5 text-left";
 const CARD_INTERACTIVE_CLASS =
-  " transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand)]/50";
+  " transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--brand)]/50";
 
 // Osiem kart zastępczych: tyle, ile wchodzi w dwa wiersze docelowego układu,
 // więc wysokość sekcji nie skacze w chwili, gdy przyjdą dane.
@@ -104,8 +104,8 @@ export function EventSpeakersGrid({
         {SKELETON_SLOTS.map((slot) => (
           <div key={slot} className={CARD_CLASS}>
             <Skeleton className="h-20 w-20 rounded-[6px]" />
-            <Skeleton className="mt-3 h-4 w-24" />
-            <Skeleton className="mt-2 h-3 w-16" />
+            <Skeleton className="mt-5 h-5 w-32" />
+            <Skeleton className="mt-2 h-3 w-24" />
           </div>
         ))}
       </div>
@@ -177,23 +177,20 @@ function SpeakerCard({
       {name !== "" && (
         <span
           title={name}
-          className="mt-3 block w-full truncate text-sm font-semibold leading-tight text-foreground"
+          className="mt-5 block w-full text-lg font-semibold leading-tight text-foreground"
         >
           {name}
         </span>
       )}
       {role !== "" && (
-        <span
-          title={role}
-          className="mt-1 block w-full truncate text-xs leading-tight text-muted-foreground"
-        >
+        <span title={role} className="mt-2 block w-full text-sm leading-snug text-muted-foreground">
           {role}
         </span>
       )}
       {organization !== "" && (
         <span
           title={organization}
-          className="mt-0.5 block w-full truncate text-xs leading-tight text-foreground/80"
+          className="mt-1 block w-full text-xs font-semibold uppercase leading-tight text-foreground/80"
         >
           {organization}
         </span>

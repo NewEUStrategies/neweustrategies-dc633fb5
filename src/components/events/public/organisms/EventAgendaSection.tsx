@@ -193,9 +193,12 @@ export function EventAgendaSection({ slug, enabled = true }: { slug: string; ena
   const scheduleShown = scheduleOpen ? mySessions : mySessions.slice(0, SCHEDULE_PREVIEW);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]">
-      <aside aria-label={t("eventFront.agenda.sidebarLabel")} className="space-y-3">
-        <div className="rounded-[6px] border border-border bg-card p-3">
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] xl:gap-12">
+      <aside
+        aria-label={t("eventFront.agenda.sidebarLabel")}
+        className="space-y-5 lg:sticky lg:top-24 lg:self-start"
+      >
+        <div className="border-b border-border pb-5">
           <label className="relative block">
             <span className="sr-only">{t("eventFront.agenda.search")}</span>
             <Search
@@ -212,7 +215,7 @@ export function EventAgendaSection({ slug, enabled = true }: { slug: string; ena
           </label>
         </div>
 
-        <p className="flex items-start gap-2 px-1 text-xs text-muted-foreground">
+        <p className="flex items-start gap-2 border-b border-border pb-5 text-xs text-muted-foreground">
           <Globe className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>
             {t("eventFront.agenda.timezoneRow", { zone: eventZone })}
@@ -221,13 +224,10 @@ export function EventAgendaSection({ slug, enabled = true }: { slug: string; ena
         </p>
 
         {mySessions.length > 0 && (
-          <section
-            aria-labelledby="event-agenda-schedule-title"
-            className="rounded-[6px] border border-border bg-card"
-          >
+          <section aria-labelledby="event-agenda-schedule-title" className="border-t border-border">
             <h3
               id="event-agenda-schedule-title"
-              className="border-b border-border px-3 py-2 text-sm font-semibold text-foreground"
+              className="border-b border-border py-3 text-xs font-semibold uppercase text-muted-foreground"
             >
               {t("eventFront.agenda.myScheduleTitle")}
             </h3>
@@ -237,7 +237,7 @@ export function EventAgendaSection({ slug, enabled = true }: { slug: string; ena
                   <button
                     type="button"
                     onClick={() => revealSession(session)}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-muted/40"
+                    className="flex w-full items-center gap-2 py-3 text-left transition-colors hover:text-primary"
                   >
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold leading-tight text-foreground">
@@ -263,7 +263,7 @@ export function EventAgendaSection({ slug, enabled = true }: { slug: string; ena
               ))}
             </ul>
             {!scheduleOpen && mySessions.length > SCHEDULE_PREVIEW && (
-              <div className="border-t border-border px-3 py-2">
+              <div className="border-t border-border py-3">
                 <button
                   type="button"
                   onClick={() => setScheduleOpen(true)}
@@ -277,12 +277,12 @@ export function EventAgendaSection({ slug, enabled = true }: { slug: string; ena
         )}
       </aside>
 
-      <div className="min-w-0 space-y-4">
+      <div className="min-w-0 space-y-6">
         {days.length > 1 && (
           <div
             role="tablist"
             aria-label={t("eventFront.header.tabs.agenda")}
-            className="flex flex-wrap gap-2"
+            className="grid border-b border-border sm:grid-cols-2 lg:grid-flow-col lg:auto-cols-fr"
           >
             {days.map((day, index) => {
               const active = day.key === activeDayKey;
@@ -294,10 +294,10 @@ export function EventAgendaSection({ slug, enabled = true }: { slug: string; ena
                   aria-selected={active}
                   onClick={() => setDayKey(day.key)}
                   className={cn(
-                    "inline-flex items-center gap-2 rounded-[6px] border px-3 py-2 text-sm transition-colors",
+                    "relative inline-flex min-h-16 items-center justify-center gap-2 border-b-2 px-4 py-3 text-sm transition-colors",
                     active
-                      ? "border-primary bg-primary/10 font-medium text-foreground"
-                      : "border-border bg-card text-muted-foreground hover:text-foreground",
+                      ? "border-primary font-semibold text-foreground"
+                      : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
                   )}
                 >
                   <CalendarDays className="h-4 w-4" aria-hidden="true" />
@@ -312,10 +312,10 @@ export function EventAgendaSection({ slug, enabled = true }: { slug: string; ena
         )}
 
         {(tracks.length > 1 || mineAvailable) && (
-          <div className="flex flex-wrap items-center gap-3 rounded-[6px] border border-border bg-muted/30 px-3 py-2">
+          <div className="flex flex-wrap items-center gap-3 border-b border-border pb-4">
             {tracks.length > 1 && (
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                <span className="text-xs font-semibold uppercase text-muted-foreground">
                   {t("eventFront.agenda.trackLabel")}
                 </span>
                 <Button
@@ -361,7 +361,7 @@ export function EventAgendaSection({ slug, enabled = true }: { slug: string; ena
                 : t("eventFront.agenda.emptyFiltered")}
           </p>
         ) : (
-          <div className="divide-y divide-border border-t border-border">
+          <div className="divide-y divide-border border-y border-border">
             {visible.map((session) => (
               <AgendaSessionCard
                 key={session.id}
