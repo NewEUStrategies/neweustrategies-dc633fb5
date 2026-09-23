@@ -79,6 +79,7 @@ function sponsorRoleKey(role: string | null): string | null {
 }
 
 function AgendaSpeakerRow({ speaker, lang }: { speaker: AgendaSpeaker; lang: UiLang }) {
+  const { t } = useTranslation();
   const headline = pickLocalized(
     { headline_pl: speaker.headlinePl, headline_en: speaker.headlineEn },
     "headline",
@@ -93,7 +94,7 @@ function AgendaSpeakerRow({ speaker, lang }: { speaker: AgendaSpeaker; lang: UiL
             {speaker.displayName}
           </span>
           <span className="rounded-[4px] border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
-            {useTranslation().t(speakerRoleLabelKey(speaker.role))}
+            {t(speakerRoleLabelKey(speaker.role))}
           </span>
         </span>
         {headline !== "" && (
@@ -175,28 +176,37 @@ export function AgendaSessionCard({
   );
 
   return (
-    <article
-      id={agendaSessionAnchor(session.id)}
-      className={cn("scroll-mt-24 py-6 transition-colors", cancelled && "opacity-70")}
-      // Kolor nurtu jest AKCENTEM, nie tłem - kontrast tekstu nie może zależeć
-      // od barwy wpisanej w panelu.
-      style={{ borderLeftColor: accent ?? "transparent" }}
-    >
+    <article id={agendaSessionAnchor(session.id)} className={cn("scroll-mt-24 py-6", cancelled && "opacity-70")}>
       <div className="grid gap-4 md:grid-cols-[minmax(6.5rem,8rem)_minmax(0,1fr)]">
-        <div className="space-y-1 border-l-[3px] pl-3" style={{ borderLeftColor: accent ?? "transparent" }}>
-          <time dateTime={session.startsAt} className="block font-display text-xl font-semibold text-foreground">
+        <div
+          className="space-y-1 border-l-[3px] pl-3"
+          style={{ borderLeftColor: accent ?? "transparent" }}
+        >
+          <time
+            dateTime={session.startsAt}
+            className="block font-display text-xl font-semibold text-foreground"
+          >
             {formatEventTime(session.startsAt, session.timezone, lang)}
           </time>
-          <time dateTime={session.endsAt} className="block text-xs font-medium text-muted-foreground">
+          <time
+            dateTime={session.endsAt}
+            className="block text-xs font-medium text-muted-foreground"
+          >
             {formatEventTime(session.endsAt, session.timezone, lang)}
           </time>
-          {trackName !== "" && <p className="pt-2 text-xs font-semibold uppercase text-muted-foreground">{trackName}</p>}
+          {trackName !== "" && (
+            <p className="pt-2 text-xs font-semibold uppercase text-muted-foreground">
+              {trackName}
+            </p>
+          )}
         </div>
 
         <div className="min-w-0 space-y-4">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_12rem]">
             <div className="min-w-0 space-y-2">
-              <h3 className="font-display text-xl font-semibold leading-snug text-foreground md:text-2xl">{title}</h3>
+              <h3 className="font-display text-xl font-semibold leading-snug text-foreground md:text-2xl">
+                {title}
+              </h3>
 
               <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <Clock className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -228,7 +238,10 @@ export function AgendaSessionCard({
                       className="h-8 w-12 rounded-[4px] object-contain"
                     />
                   )}
-                  <p className="min-w-0 truncate text-sm font-semibold text-foreground" title={sponsor.name}>
+                  <p
+                    className="min-w-0 truncate text-sm font-semibold text-foreground"
+                    title={sponsor.name}
+                  >
                     {sponsor.name}
                   </p>
                 </div>
@@ -290,45 +303,47 @@ export function AgendaSessionCard({
             </>
           )}
           <div className="flex flex-wrap items-center gap-2">
-          {seatsLeft !== null && !cancelled && (
-            <span className="text-xs text-muted-foreground">
-              {t("eventFront.agenda.seatsLeft", { count: seatsLeft })}
-            </span>
-          )}
-          {seatsLeft === null && session.requiresSignup && !cancelled && (
-            <span className="text-xs text-muted-foreground">
-              {t("eventFront.agenda.seatsUnlimited")}
-            </span>
-          )}
-          {control !== null && (
-            <Button
-              type="button"
-              size="sm"
-              variant={control.variant}
-              disabled={pending}
-              onClick={() => (control.action === "cancel" ? onCancel(session) : onSignup(session))}
-              className="w-full sm:w-auto"
-            >
-              {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
-              {pending
-                ? t("eventFront.agenda.actions.working")
-                : signedIn
-                  ? t(control.labelKey)
-                  : t("eventFront.agenda.actions.signIn")}
-            </Button>
-          )}
+            {seatsLeft !== null && !cancelled && (
+              <span className="text-xs text-muted-foreground">
+                {t("eventFront.agenda.seatsLeft", { count: seatsLeft })}
+              </span>
+            )}
+            {seatsLeft === null && session.requiresSignup && !cancelled && (
+              <span className="text-xs text-muted-foreground">
+                {t("eventFront.agenda.seatsUnlimited")}
+              </span>
+            )}
+            {control !== null && (
+              <Button
+                type="button"
+                size="sm"
+                variant={control.variant}
+                disabled={pending}
+                onClick={() => (control.action === "cancel" ? onCancel(session) : onSignup(session))}
+                className="w-full sm:w-auto"
+              >
+                {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
+                {pending
+                  ? t("eventFront.agenda.actions.working")
+                  : signedIn
+                    ? t(control.labelKey)
+                    : t("eventFront.agenda.actions.signIn")}
+              </Button>
+            )}
           </div>
 
-      {speakers.length > 0 && (
-        <ul
-          aria-label={t("eventFront.agenda.speakersLabel")}
-          className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 xl:grid-cols-3"
-        >
-          {speakers.map((speaker) => (
-            <AgendaSpeakerRow key={speaker.userId} speaker={speaker} lang={lang} />
-          ))}
-        </ul>
-      )}
+          {speakers.length > 0 && (
+            <ul
+              aria-label={t("eventFront.agenda.speakersLabel")}
+              className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 xl:grid-cols-3"
+            >
+              {speakers.map((speaker) => (
+                <AgendaSpeakerRow key={speaker.userId} speaker={speaker} lang={lang} />
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
     </article>
   );
 }
