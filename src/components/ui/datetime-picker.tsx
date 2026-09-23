@@ -8,7 +8,6 @@ import { CalendarIcon, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -47,7 +46,6 @@ export function DateTimePicker({
 }: DateTimePickerProps) {
   const locale = lang === "pl" ? plLocale : enGB;
   const date = useMemo(() => (value ? new Date(value) : null), [value]);
-  const timeValue = date ? format(date, "HH:mm") : "";
   const selectedHour = date ? String(date.getHours()).padStart(2, "0") : "00";
   const selectedMinute = date ? String(date.getMinutes()).padStart(2, "0") : "00";
   const minutes = FIVE_MINUTE_STEPS.includes(selectedMinute)
