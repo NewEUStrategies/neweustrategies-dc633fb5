@@ -61,6 +61,8 @@ export interface TrackDraft {
   coverUrl: string;
   /** Pusty tekst = pasmo bez sali domyślnej. */
   defaultRoomId: string;
+  /** Pusty tekst = pasmo bez sponsora. */
+  sponsorId: string;
   sortOrder: string;
   isActive: boolean;
   isPublic: boolean;
@@ -79,6 +81,7 @@ export function emptyTrackDraft(sortOrder: number): TrackDraft {
     descriptionEn: "",
     coverUrl: "",
     defaultRoomId: "",
+    sponsorId: "",
     sortOrder: String(sortOrder),
     isActive: true,
     isPublic: true,
@@ -98,6 +101,7 @@ export function trackDraftFromRow(row: EventTrackRow): TrackDraft {
     descriptionEn: textOf(row.description_en),
     coverUrl: textOf(row.cover_url),
     defaultRoomId: textOf(row.default_room_id),
+    sponsorId: textOf(row.sponsor_id),
     sortOrder: String(numberOf(row.sort_order, 0)),
     isActive: row.is_active !== false,
     // Brak kolumny w starym wierszu (np. w atrapie testu) to pasmo widoczne -
@@ -166,6 +170,7 @@ export function trackDraftToInput(draft: TrackDraft, eventId: string): EventTrac
     descriptionEn: trimOrNull(draft.descriptionEn),
     coverUrl: trimOrNull(draft.coverUrl),
     defaultRoomId: trimOrNull(draft.defaultRoomId),
+    sponsorId: trimOrNull(draft.sponsorId),
     sortOrder: intOrNull(draft.sortOrder) ?? 100,
     isActive: draft.isActive,
     isPublic: draft.isPublic,

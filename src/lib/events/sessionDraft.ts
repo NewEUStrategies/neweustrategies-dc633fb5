@@ -22,6 +22,7 @@ import { SESSION_FORMATS, SESSION_STATUSES } from "@/lib/events/sessionsApi";
 
 export const SESSION_MAX_TITLE = 300;
 export const SESSION_MAX_DESCRIPTION = 5000;
+export const SESSION_MAX_AFFILIATION = 300;
 /** Górna granica limitu miejsc; wyżej to literówka, nie sala. */
 export const SESSION_MAX_CAPACITY = 100_000;
 
@@ -39,6 +40,9 @@ export interface SessionDraft {
   status: SessionStatus;
   trackId: string | null;
   roomId: string | null;
+  sponsorId: string | null;
+  affiliationPl: string;
+  affiliationEn: string;
   parentSessionId: string | null;
   requiresSignup: boolean;
   /** Pusty tekst = bez limitu miejsc. */
@@ -65,6 +69,9 @@ export function emptySessionDraft(sortOrder: number): SessionDraft {
     status: "draft",
     trackId: null,
     roomId: null,
+    sponsorId: null,
+    affiliationPl: "",
+    affiliationEn: "",
     parentSessionId: null,
     requiresSignup: false,
     capacity: "",
@@ -123,6 +130,9 @@ export function sessionDraftFromRow(row: EventSessionDetailRow): SessionDraft {
     status: pick(SESSION_STATUSES, textOf(row.status), "draft"),
     trackId: typeof row.track_id === "string" ? row.track_id : null,
     roomId: typeof row.room_id === "string" ? row.room_id : null,
+    sponsorId: typeof row.sponsor_id === "string" ? row.sponsor_id : null,
+    affiliationPl: textOf(row.affiliation_pl),
+    affiliationEn: textOf(row.affiliation_en),
     parentSessionId: typeof row.parent_session_id === "string" ? row.parent_session_id : null,
     requiresSignup: row.requires_signup === true,
     // Kolumna jest NULL-owalna, a wygenerowany typ podaje liczbę - brak limitu
@@ -179,6 +189,13 @@ export function validateSessionDraft(draft: SessionDraft): SessionFieldError[] {
     errors.push({ field: "capacity", messageKey: `${V}capacityNeedsSignup` });
   }
 
+  if (draft.affiliationPl.trim().length > SESSION_MAX_AFFILIATION) {
+    errors.push({ field: "affiliationPl", messageKey: `${V}affiliationTooLong` });
+  }
+  if (draft.affiliationEn.trim().length > SESSION_MAX_AFFILIATION) {
+    errors.push({ field: "affiliationEn", messageKey: `${V}affiliationTooLong` });
+  }
+
   for (const field of ["streamUrl", "recordingUrl"] as const) {
     const value = draft[field].trim();
     if (value !== "" && !value.startsWith("https://")) {
@@ -213,6 +230,9 @@ export function sessionDraftToInput(draft: SessionDraft, eventId: string): Event
     status: draft.status,
     trackId: draft.trackId,
     roomId: draft.roomId,
+    sponsorId: draft.sponsorId,
+    affiliationPl: trimOrNull(draft.affiliationPl),
+    affiliationEn: trimOrNull(draft.affiliationEn),
     parentSessionId: draft.parentSessionId,
     requiresSignup: draft.requiresSignup,
     capacity: intOrNull(draft.capacity),
