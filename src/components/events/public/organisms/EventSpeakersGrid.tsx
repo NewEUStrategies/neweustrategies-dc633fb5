@@ -56,7 +56,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { speakersQueryOptions, type PublicSpeakerRow } from "@/lib/builder/speakersQuery";
-import { speakerHasProfileToShow, speakerRowKey } from "@/lib/builder/speakerRow";
+import { speakerRowKey } from "@/lib/builder/speakerRow";
 import { publicEventErrorMessage } from "@/lib/events/publicEventErrors";
 import { SpeakerAvatar } from "@/components/events/SpeakerAvatar";
 import { SpeakerExpertBadge } from "@/components/events/SpeakerExpertBadge";
