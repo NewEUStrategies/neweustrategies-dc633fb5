@@ -26,13 +26,13 @@ import { cn } from "@/lib/utils";
 import type { UiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import {
-  browserTimeZone,
   eventDayKey,
   eventTimeZone,
   formatEventDate,
   formatEventDateTime,
   isForeignTimeZone,
 } from "@/lib/events/timezone";
+import { useViewerTimeZone } from "@/lib/events/useViewerTimeZone";
 import {
   agendaSessionAnchor,
   agendaSessionTitle,
@@ -44,6 +44,12 @@ import {
   type AgendaSession,
 } from "@/lib/events/agendaSurface";
 import { AgendaSessionCard } from "@/components/events/public/molecules/AgendaSessionCard";
+import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
+
+// Podgląd studia montuje ten widok BEZ `EventAgendaSection`, więc słownik
+// frontu wydarzenia musi zarejestrować import tego pliku, a nie przypadek
+// wspólnego chunka.
+ensureEventFrontI18n();
 
 /**
  * Ile terminów pokazuje karta „Twój harmonogram” przed rozwinięciem.
@@ -80,6 +86,8 @@ export function EventAgendaBoardView({
   const [query, setQuery] = useState("");
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [focusId, setFocusId] = useState<string | null>(null);
+  // `null` w SSR i przy hydratacji - patrz `useViewerTimeZone`.
+  const viewerZone = useViewerTimeZone();
 
   const days = useMemo(() => groupAgendaByDay(sessions), [sessions]);
   const tracks = useMemo(() => agendaTrackOptions(sessions), [sessions]);
@@ -128,7 +136,7 @@ export function EventAgendaBoardView({
   // dziedziczy strefę wydarzenia, więc jest ta sama w całym programie, a gdyby
   // kiedyś nie była, podpis nadal opisuje dzień, od którego program się zaczyna.
   const eventZone = eventTimeZone({ timezone: sessions[0].timezone });
-  const foreignZone = isForeignTimeZone(sessions[0].timezone, browserTimeZone());
+  const foreignZone = isForeignTimeZone(sessions[0].timezone, viewerZone);
   const scheduleShown = scheduleOpen ? mySessions : mySessions.slice(0, SCHEDULE_PREVIEW);
 
   return (

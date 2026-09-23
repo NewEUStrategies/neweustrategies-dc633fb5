@@ -25,9 +25,15 @@
 // wypadała z listy BEZWARUNKOWO i BEZ BŁĘDU: redaktor widział pięć nazwisk
 // w panelu, uczestnik pustą sekcję. Skutek dla tego pliku jest dwojaki:
 // klucz karty NIE MOŻE stać na `user_id` (dla takiej osoby jest pusty -
-// stąd `speakerRowKey`), a klikalność nie może być bezwarunkowa (patrz
-// `speakerHasProfileToShow` niżej). Pilnuje tego bramka
+// stąd `speakerRowKey`). Pilnuje tego bramka
 // `src/components/events/__tests__/eventSpeakerWithoutAccount.gate.test.tsx`.
+//
+// KLIKALNOŚĆ JEST TU BEZWARUNKOWA - decyzja właściciela z 2026-09-23 („każdy
+// kafelek otwiera powiększony profil”). Okno pokazuje duży portret, rolę
+// i organizację, więc nawet osoba bez biogramu nie dostaje pustego widoku.
+// Zapowiedź na przeglądzie (`EventSpeakersSection`) ma MAŁE chipy bez portretu
+// i nadal otwiera okno tylko wtedy, gdy `speakerHasProfileToShow` - tam okno
+// bez biogramu byłoby powtórzeniem chipa.
 //
 // LINIA PODPISU ISTNIEJE TYLKO WTEDY, GDY MA TREŚĆ. Prelegent bez roli albo bez
 // firmy zostawiłby inaczej puste miejsce w karcie - w siatce czterech kolumn

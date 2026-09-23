@@ -13,6 +13,7 @@
 // nie pierwsza.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-event-agenda";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -183,7 +184,16 @@ export function EventSessionDialog({
 
   const trackOptions: readonly string[] = [NONE, ...tracks.map((row) => row.id)];
   const roomOptions: readonly string[] = [NONE, ...rooms.map((row) => row.id)];
-  const sponsorOptions: readonly string[] = [NONE, ...sponsorCandidates.map((row) => row.id)];
+  // Bieżące przypięcie zostaje opcją także wtedy, gdy nie ma go (jeszcze)
+  // wśród kandydatów - lista dojeżdża po otwarciu okna i ma limit 200. Bez tego
+  // selektor pokazywałby pustkę, a organizator nie wiedziałby, co jest wybrane.
+  const sponsorOptions: readonly string[] = [
+    NONE,
+    ...sponsorCandidates.map((row) => row.id),
+    ...(draft.sponsorId !== null && !sponsorCandidates.some((row) => row.id === draft.sponsorId)
+      ? [draft.sponsorId]
+      : []),
+  ];
   const parentOptions: readonly string[] = [NONE, ...parentCandidates.map((row) => row.id)];
 
   const trackLabel = (value: string): string => {
@@ -204,7 +214,16 @@ export function EventSessionDialog({
   const sponsorLabel = (value: string): string => {
     if (value === NONE) return t("adminEventAgenda.sessionDialog.noSponsor");
     const found = sponsorCandidates.find((row) => row.id === value);
-    return found === undefined ? value : found.snapshot_name;
+    // Lista kandydatów dojeżdża po otwarciu okna - do tego czasu nazwę zna
+    // szczegół sesji, więc wybór nie miga identyfikatorem.
+    if (found === undefined) {
+      return detail !== null && detail.sponsor_id === value && detail.sponsor_name
+        ? detail.sponsor_name
+        : value;
+    }
+    return found.is_published
+      ? found.snapshot_name
+      : t("adminEventAgenda.sponsorPicker.unpublished", { name: found.snapshot_name });
   };
 
   return (

@@ -165,14 +165,31 @@ export function EventStudioPreview({
       ? { ...DEFAULT_REGISTRATIONS_QUERY, eventId, status: "all", limit: 60, offset: 0 }
       : null,
   );
+  // Program i pasma pokazuja sponsora TYLKO z ogloszonego przypiecia - ta sama
+  // bramka `is_published`, ktora stosuje publiczne `event_agenda`. Lista jest
+  // juz pobrana wyzej (`sponsorsQ`), wiec to nie jest drugie zapytanie.
+  const publishedSponsorIds = useMemo(
+    () => (sponsorsQ.data === undefined ? undefined : new Set(sponsorsQ.data.map((row) => row.id))),
+    [sponsorsQ.data],
+  );
   const live: EventPreviewLiveData = useMemo(
     () => ({
-      sessions: agendaSessionsFromAdminRows(sessionsQ.data, base.timezone),
-      tracks: trackChipsFromAdminRows(tracksQ.data),
+      sessions: agendaSessionsFromAdminRows(sessionsQ.data, base.timezone, {
+        tracks: tracksQ.data,
+        publishedSponsorIds,
+      }),
+      tracks: trackChipsFromAdminRows(tracksQ.data, publishedSponsorIds),
       speakers: speakerRowsFromAdminEntries(speakersQ.data),
       attendees: attendeeEntriesFromRegistrationRows(registrationsQ.data?.rows),
     }),
-    [sessionsQ.data, tracksQ.data, speakersQ.data, registrationsQ.data, base.timezone],
+    [
+      sessionsQ.data,
+      tracksQ.data,
+      speakersQ.data,
+      registrationsQ.data,
+      base.timezone,
+      publishedSponsorIds,
+    ],
   );
 
   // Wybor z nakladki WYGRYWA z podstrona wskazana w ekranie „Strony i menu":

@@ -15,6 +15,7 @@
 // pokazuje sumę tych przypisań (`admin_event_track_speakers`).
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-event-agenda";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -147,7 +148,8 @@ export function EventTrackWorkspace({
   const [attendeeQuery, setAttendeeQuery] = useState("");
 
   const sponsorsQ = useSponsors({ eventId, q: exhibitorQuery, limit: 50 });
-  const sponsorCandidatesQ = useSponsors({ eventId, limit: 200 });
+  // Kandydaci na sponsora ścieżki - tylko dla otwartego okna edycji.
+  const sponsorCandidatesQ = useSponsors({ eventId, limit: 200 }, editOpen);
   const attendeesQ = useRegistrationsList({
     ...DEFAULT_REGISTRATIONS_QUERY,
     eventId,
@@ -358,8 +360,10 @@ export function EventTrackWorkspace({
               }
             />
             <ReadField
-              label={t("adminEventAgenda.tracks.dialog.sponsor")}
-              value={track.sponsor_name ?? t("adminEventAgenda.tracks.dialog.noSponsor")}
+              label={t("adminEventAgenda.tracks.workspace.details.sponsor")}
+              value={
+                track.sponsor_name || t("adminEventAgenda.tracks.workspace.details.sponsorEmpty")
+              }
             />
 
             <div className="grid gap-4 sm:grid-cols-2">

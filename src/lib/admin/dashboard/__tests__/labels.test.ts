@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { bucketLabel, countryNamer, labelOrKey } from "../labels";
+import { bucketLabel, countryNamer, dashboardRangeLabel, labelOrKey } from "../labels";
+import type { DashboardRange } from "../period";
 
 describe("bucketLabel", () => {
   it("minuta i godzina pokazują godzinę", () => {
@@ -49,5 +50,70 @@ describe("countryNamer", () => {
   it("nieznany kod wraca jako kod, a nie jako pustka", () => {
     const name = countryNamer("en")("ZZ");
     expect(name).toBeTruthy();
+  });
+});
+
+describe("dashboardRangeLabel", () => {
+  const WAW = "Europe/Warsaw";
+  // ICU wstawia wokół myślnika zakresu cienkie spacje (U+2009) - asercja
+  // sprawdza treść, nie wybór znaku odstępu.
+  const flat = (text: string) => text.replace(/\s+/g, " ");
+
+  function range(over: Partial<DashboardRange>): DashboardRange {
+    return {
+      period: "month",
+      bucket: "day",
+      current: { sinceIso: "2026-08-31T22:00:00.000Z", untilIso: "2026-09-23T10:15:00.000Z" },
+      previous: { sinceIso: "2026-07-31T22:00:00.000Z", untilIso: "2026-08-23T10:15:00.000Z" },
+      offsetMinutes: 120,
+      complete: false,
+      ...over,
+    };
+  }
+
+  it("okres trwający kończy się na teraz, bez godzin", () => {
+    expect(dashboardRangeLabel(range({}), "pl", WAW)).toBe("1–23 wrz 2026");
+  });
+
+  // Regresja: przesunięcie „teraz” (CET, +60) doklejone do początku
+  // października (CEST, +120) dawało w podpisie 30 września.
+  it("miesiąc przez zmianę czasu zaczyna się pierwszego, nie dzień wcześniej", () => {
+    const october = range({
+      period: "prev-month",
+      current: { sinceIso: "2026-09-30T22:00:00.000Z", untilIso: "2026-10-31T23:00:00.000Z" },
+      offsetMinutes: 60,
+      complete: true,
+    });
+    expect(dashboardRangeLabel(october, "pl", WAW)).toBe("1–31 paź 2026");
+  });
+
+  // Górna granica okna domkniętego jest wyłączna (północ 1 listopada) - podpis
+  // nie może obiecywać danych z dnia, którego okno nie obejmuje.
+  it("okno domknięte kończy się ostatnim dniem okresu", () => {
+    const october = range({
+      period: "prev-month",
+      current: { sinceIso: "2026-09-30T22:00:00.000Z", untilIso: "2026-10-31T23:00:00.000Z" },
+      complete: true,
+    });
+    expect(flat(dashboardRangeLabel(october, "en", WAW))).toBe("1 – 31 Oct 2026");
+  });
+
+  it("dziś i na żywo pokazują godziny", () => {
+    const today = range({
+      period: "today",
+      bucket: "hour",
+      current: { sinceIso: "2026-09-22T22:00:00.000Z", untilIso: "2026-09-23T10:15:00.000Z" },
+    });
+    expect(dashboardRangeLabel(today, "pl", WAW)).toBe("23 wrz 2026, 00:00–12:15");
+  });
+
+  it("puste okno nie odwraca granic", () => {
+    const empty = range({
+      period: "realtime",
+      bucket: "minute",
+      current: { sinceIso: "2026-09-23T10:00:00.000Z", untilIso: "2026-09-23T10:00:00.000Z" },
+      complete: true,
+    });
+    expect(() => dashboardRangeLabel(empty, "pl", WAW)).not.toThrow();
   });
 });

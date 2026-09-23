@@ -14,7 +14,7 @@ import { ChartCard } from "@/components/admin/analytics/ChartCard";
 import { biChart } from "@/components/admin/analytics/biChart";
 import { chartLangFrom } from "@/lib/charts/format";
 import { computeDelta, formatCount, rate } from "@/lib/admin/dashboard/compare";
-import { bucketLabel } from "@/lib/admin/dashboard/labels";
+import { bucketLabel, dashboardRangeLabel } from "@/lib/admin/dashboard/labels";
 import type { DashboardRange } from "@/lib/admin/dashboard/period";
 import type { TrafficReport } from "@/lib/admin/dashboard/types";
 import { StatTile } from "./StatTile";
@@ -25,37 +25,11 @@ export interface TrafficPanelProps {
   range: DashboardRange;
 }
 
-function formatRangeBoundary(
-  iso: string,
-  offsetMinutes: number,
-  locale: string,
-  withTime: boolean,
-) {
-  const shifted = new Date(Date.parse(iso) + offsetMinutes * 60_000);
-  return new Intl.DateTimeFormat(locale, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    ...(withTime ? { hour: "2-digit", minute: "2-digit" } : {}),
-    timeZone: "UTC",
-  }).format(shifted);
-}
-
-function formatDashboardRange(range: DashboardRange, locale: string): string {
-  const withTime = range.period === "realtime" || range.period === "today";
-  const inclusiveUntil = range.complete
-    ? new Date(Date.parse(range.current.untilIso) - 1).toISOString()
-    : range.current.untilIso;
-  const start = formatRangeBoundary(range.current.sinceIso, range.offsetMinutes, locale, withTime);
-  const end = formatRangeBoundary(inclusiveUntil, range.offsetMinutes, locale, withTime);
-  return `${start} - ${end}`;
-}
-
 export function TrafficPanel({ report, range }: TrafficPanelProps) {
   const { t, i18n } = useTranslation();
   const lang = chartLangFrom(i18n.language);
   const { current, previous } = report;
-  const exactRange = formatDashboardRange(range, lang === "pl" ? "pl-PL" : "en-GB");
+  const exactRange = dashboardRangeLabel(range, lang);
 
   const categories = useMemo(
     () => report.series.map((p) => bucketLabel(p.bucket, range.bucket)),
@@ -103,7 +77,7 @@ export function TrafficPanel({ report, range }: TrafficPanelProps) {
         </span>
         <span>
           <span className="text-muted-foreground">{t("adminDashboard.traffic.dateRange")} </span>
-          <time>{exactRange}</time>
+          {exactRange}
         </span>
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5">

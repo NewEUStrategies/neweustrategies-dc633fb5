@@ -319,6 +319,67 @@ describe("agendaSurface - dni, filtry i kontrolka zapisu", () => {
     expect(agendaSessionTitle(onlyEn, "pl")).toBe("Closing panel");
   });
 
+  it("sponsor sesji i sciezki oraz afiliacja przechodza z RPC, pusty identyfikator to brak sponsora", () => {
+    const [sponsored] = parseEventAgenda([
+      agendaRow({
+        track_id: "t1",
+        track_key: "energy",
+        track_name_pl: "Energia",
+        track_sponsor_id: "sp-track",
+        track_sponsor_name: "PGE",
+        track_sponsor_logo_url: "",
+        track_sponsor_role: "sponsor",
+        session_sponsor_id: "sp-session",
+        session_sponsor_name: "Orlen",
+        session_sponsor_logo_url: "https://cdn.example.org/orlen.svg",
+        session_sponsor_role: "partner",
+        affiliation_pl: "Rada Programowa",
+        affiliation_en: "",
+      }),
+    ]);
+    expect(sponsored.sponsor).toEqual({
+      id: "sp-session",
+      name: "Orlen",
+      logoUrl: "https://cdn.example.org/orlen.svg",
+      role: "partner",
+    });
+    expect(sponsored.track?.sponsor).toEqual({
+      id: "sp-track",
+      name: "PGE",
+      logoUrl: null,
+      role: "sponsor",
+    });
+    expect(sponsored.affiliationPl).toBe("Rada Programowa");
+    expect(sponsored.affiliationEn).toBeNull();
+
+    // `event_agenda` oddaje NULL, gdy przypiecie nie jest ogloszone - karta nie
+    // moze wtedy narysowac pustej ramki partnera.
+    const [plain] = parseEventAgenda([
+      agendaRow({ track_id: "t1", track_sponsor_id: "", session_sponsor_id: "" }),
+    ]);
+    expect(plain.sponsor).toBeNull();
+    expect(plain.track?.sponsor).toBeNull();
+  });
+
+  it("wyszukiwanie znajduje debate po afiliacji, sponsorze sesji i sponsorze sciezki", () => {
+    const sessions = parseEventAgenda([
+      agendaRow({ id: "aff", affiliation_pl: "Instytut Kościuszki" }),
+      agendaRow({ id: "own", session_sponsor_id: "sp1", session_sponsor_name: "Orlen" }),
+      agendaRow({
+        id: "trk",
+        track_id: "t1",
+        track_sponsor_id: "sp2",
+        track_sponsor_name: "PGE Energia",
+      }),
+      agendaRow({ id: "none" }),
+    ]);
+    const find = (query: string) =>
+      filterAgenda(sessions, { trackId: null, onlyMine: false, query }).map((row) => row.id);
+    expect(find("kosciuszki")).toEqual(["aff"]);
+    expect(find("orlen")).toEqual(["own"]);
+    expect(find("pge")).toEqual(["trk"]);
+  });
+
   it("prelegent bez identyfikatora wypada, kolejnosc bierze sie z `sort_order`", () => {
     const [session] = parseEventAgenda([
       agendaRow({

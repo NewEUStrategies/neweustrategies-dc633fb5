@@ -67,10 +67,14 @@ interface PropsyOkna {
   rooms: readonly EventRoomRow[];
   sessions: readonly EventSessionRow[];
   timeZoneLabel: string;
+  sponsorCandidates?: readonly { id: string }[];
 }
 
 const h = vi.hoisted(() => ({
   language: "pl",
+  /** Kandydaci na sponsora debaty i flaga `enabled` każdego wywołania haka. */
+  sponsors: [] as { id: string }[],
+  sponsorsEnabled: [] as boolean[],
   // Typ `unknown`, a nie `unknown[]`: KAŻDE z trzech zapytań może wrócić jako
   // `undefined` (jeszcze nie dojechało) i organizm musi to przeżyć.
   sessions: [] as unknown,
@@ -253,6 +257,15 @@ vi.mock("@/lib/events/useEventSessions", () => ({
   }),
 }));
 
+// Kandydaci na sponsora debaty - organizm pyta o nich wyłącznie dla OTWARTEGO
+// okna sesji, więc atrapa zapisuje flagę `enabled` każdego wywołania.
+vi.mock("@/lib/events/useEventSponsors", () => ({
+  useSponsors: (_query: unknown, enabled = true) => {
+    h.sponsorsEnabled.push(enabled);
+    return { data: enabled ? h.sponsors : undefined };
+  },
+}));
+
 const { AgendaSessionsPanel } =
   await import("@/components/admin/events/organisms/AgendaSessionsPanel");
 
@@ -393,6 +406,8 @@ function ostatnieZapytanie(): ZapytanieSesji {
 
 beforeEach(() => {
   h.language = "pl";
+  h.sponsors = [];
+  h.sponsorsEnabled = [];
   h.sessions = [];
   h.tracks = [];
   h.rooms = [];
@@ -938,6 +953,16 @@ describe("okno sesji - z czym się otwiera i co robi z odpowiedzią", () => {
     fireEvent.click(screen.getByText("adminEventAgenda.sessions.addAction"));
     expect(screen.getByRole("dialog")).toBeTruthy();
     expect(h.okno?.session).toBeNull();
+  });
+
+  it("kandydaci na sponsora są pobierani dopiero po otwarciu okna i trafiają do niego", () => {
+    h.sessions = [sessionRow()];
+    h.sponsors = [{ id: "sponsor-a" }];
+    renderuj();
+    expect(h.sponsorsEnabled.at(-1)).toBe(false);
+    fireEvent.click(screen.getByText("adminEventAgenda.sessions.addAction"));
+    expect(h.sponsorsEnabled.at(-1)).toBe(true);
+    expect(h.okno?.sponsorCandidates).toEqual([{ id: "sponsor-a" }]);
   });
 
   it("„Edytuj” otwiera okno Z TYM wierszem, nie z pierwszym z listy", () => {

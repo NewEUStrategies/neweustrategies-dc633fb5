@@ -8,6 +8,7 @@
 // publiczną agendę i musi przejść wzór, zanim pojedzie do bazy.
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-event-agenda";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -111,10 +112,26 @@ export function EventTrackDialog({
   };
 
   const isNew = draft.id === null;
+  // Bieżące przypięcie zostaje opcją, zanim dojadą kandydaci (patrz okno sesji).
+  const sponsorOptions: readonly string[] = [
+    NO_SPONSOR,
+    ...sponsorCandidates.map((sponsor) => sponsor.id),
+    ...(draft.sponsorId !== "" && !sponsorCandidates.some((row) => row.id === draft.sponsorId)
+      ? [draft.sponsorId]
+      : []),
+  ];
   const sponsorLabel = (value: string): string => {
     if (value === NO_SPONSOR) return t("adminEventAgenda.tracks.dialog.noSponsor");
     const found = sponsorCandidates.find((row) => row.id === value);
-    return found === undefined ? value : found.snapshot_name;
+    // Kandydaci dojeżdżają po otwarciu okna; nazwę zna już wiersz ścieżki.
+    if (found === undefined) {
+      return track !== null && track.sponsor_id === value && track.sponsor_name
+        ? track.sponsor_name
+        : value;
+    }
+    return found.is_published
+      ? found.snapshot_name
+      : t("adminEventAgenda.sponsorPicker.unpublished", { name: found.snapshot_name });
   };
 
   return (
@@ -173,7 +190,7 @@ export function EventTrackDialog({
             label={t("adminEventAgenda.tracks.dialog.sponsor")}
             hint={t("adminEventAgenda.tracks.dialog.sponsorHint")}
             value={draft.sponsorId === "" ? NO_SPONSOR : draft.sponsorId}
-            options={[NO_SPONSOR, ...sponsorCandidates.map((sponsor) => sponsor.id)]}
+            options={sponsorOptions}
             labelFor={sponsorLabel}
             onValueChange={(value) => set("sponsorId", value === NO_SPONSOR ? "" : value)}
           />

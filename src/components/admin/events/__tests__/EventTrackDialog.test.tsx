@@ -37,6 +37,7 @@ import type { ReactNode } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { radixSelectStub, radixSwitchStub } from "@/test/reactStubs";
 import type { EventRoomRow, EventTrackInput, EventTrackRow } from "@/lib/events/sessionsApi";
+import type { EventSponsorRow } from "@/lib/events/sponsorsApi";
 
 const h = vi.hoisted(() => ({
   /** Sale wydarzenia widziane przez droplistę „sala domyślna". */
@@ -158,6 +159,7 @@ function renderuj(
     track?: EventTrackRow | null;
     isSaving?: boolean;
     nextSortOrder?: number;
+    sponsorCandidates?: readonly EventSponsorRow[];
   } = {},
 ) {
   const onOpenChange = vi.fn();
@@ -167,6 +169,7 @@ function renderuj(
     track: props.track ?? null,
     isSaving: props.isSaving ?? false,
     nextSortOrder: props.nextSortOrder ?? 30,
+    sponsorCandidates: props.sponsorCandidates ?? [],
   };
   const rysuj = () => (
     <EventTrackDialog
@@ -176,6 +179,7 @@ function renderuj(
       track={wejscie.track}
       nextSortOrder={wejscie.nextSortOrder}
       isSaving={wejscie.isSaving}
+      sponsorCandidates={wejscie.sponsorCandidates}
       onSubmit={onSubmit}
     />
   );
@@ -201,6 +205,7 @@ const przelacznikAktywnosci = () => screen.getByLabelText(`${K}isActive`);
 const przelacznikWidocznosci = () => screen.getByLabelText(`${K}isPublic`);
 const przyciskZapisu = () => screen.getByRole("button", { name: `${K}saveAction` });
 const przyciskAnuluj = () => screen.getByRole("button", { name: `${K}cancelAction` });
+const droplistaSponsora = () => screen.getByLabelText(`${K}sponsor`);
 
 const ladunek = (onSubmit: ReturnType<typeof vi.fn>, nr = 0): EventTrackInput =>
   onSubmit.mock.calls[nr][0] as EventTrackInput;
@@ -369,6 +374,8 @@ describe("EventTrackDialog - ładunek zapisu", () => {
       descriptionEn: null,
       coverUrl: null,
       defaultRoomId: null,
+      // Nowe pasmo bez sponsora jedzie `null`, nie pustym łańcuchem.
+      sponsorId: null,
       sortOrder: 30,
       isActive: true,
       isPublic: true,
@@ -521,5 +528,36 @@ describe("EventTrackDialog - stan oczekiwania i odmowa", () => {
 
     expect(poleNazwyPl()).toHaveValue("Ścieżka Cyfrowa");
     expect(poleOpisuPl()).toHaveValue("Opis pisany od kwadransa");
+  });
+});
+
+describe("EventTrackDialog - sponsor ścieżki", () => {
+  const sponsor = (over: Partial<EventSponsorRow> = {}): EventSponsorRow =>
+    ({ id: "sponsor-a", snapshot_name: "PGE", is_published: true, ...over }) as EventSponsorRow;
+
+  it("wybór sponsora dochodzi do warstwy zapisu, a „bez sponsora” jako null", () => {
+    const { onSubmit } = renderuj({
+      track: trackRow({ sponsor_id: "sponsor-a", sponsor_name: "PGE" }),
+      sponsorCandidates: [sponsor(), sponsor({ id: "sponsor-b", snapshot_name: "Orlen" })],
+    });
+    expect((droplistaSponsora() as HTMLSelectElement).value).toBe("sponsor-a");
+    fireEvent.change(droplistaSponsora(), { target: { value: "sponsor-b" } });
+    fireEvent.click(przyciskZapisu());
+    expect(ladunek(onSubmit)).toMatchObject({ sponsorId: "sponsor-b" });
+
+    fireEvent.change(droplistaSponsora(), { target: { value: "__none__" } });
+    fireEvent.click(przyciskZapisu());
+    expect(ladunek(onSubmit, 1)).toMatchObject({ sponsorId: null });
+  });
+
+  it("przed przyjściem kandydatów sponsor ścieżki zostaje wybrany i nazwany", () => {
+    const { onSubmit } = renderuj({
+      track: trackRow({ sponsor_id: "sponsor-x", sponsor_name: "PGE" }),
+    });
+    const select = droplistaSponsora() as HTMLSelectElement;
+    expect(select.value).toBe("sponsor-x");
+    expect(Array.from(select.options).map((option) => option.textContent)).toContain("PGE");
+    fireEvent.click(przyciskZapisu());
+    expect(ladunek(onSubmit)).toMatchObject({ sponsorId: "sponsor-x" });
   });
 });

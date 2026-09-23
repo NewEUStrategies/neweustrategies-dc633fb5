@@ -14,7 +14,12 @@
 // nalezy do uczestnika, nie do organizatora ogladajacego wlasny szkic - dlatego
 // `mySignupStatus` jest zawsze `null`, a `accessState` opisuje sam zapis
 // ("otwarte" albo "wymaga zapisu"), nie decyzje reguly dla konkretnej osoby.
-import type { AgendaAccessState, AgendaFormat, AgendaSession } from "@/lib/events/agendaSurface";
+import type {
+  AgendaAccessState,
+  AgendaFormat,
+  AgendaSession,
+  AgendaSponsor,
+} from "@/lib/events/agendaSurface";
 import { AGENDA_FORMATS } from "@/lib/events/agendaSurface";
 import type { EventSessionRow, EventTrackRow } from "@/lib/events/sessionsApi";
 import type { EventSpeakerEntry } from "@/lib/admin/community";
@@ -30,16 +35,62 @@ function formatOf(value: string): AgendaFormat {
 }
 
 /**
+ * Sponsor z wiersza panelu w ksztalcie strony - albo `null`, gdy strona
+ * publiczna by go NIE pokazala.
+ *
+ * `event_agenda` dolacza sponsora warunkiem `is_published`, a listy panelu
+ * oddaja kazde przypiecie. Bez tego filtra podglad obiecywalby logo partnera,
+ * ktore uczestnik zobaczy dopiero po ogloszeniu przypiecia (klasa 1 z testow).
+ * `published === undefined` znaczy „wywolujacy nie zna stanu ogloszen" -
+ * wtedy ufamy wierszowi, jak przed wprowadzeniem filtra.
+ */
+function previewSponsor(
+  row: {
+    sponsor_id: string | null;
+    sponsor_name: string | null;
+    sponsor_logo_url: string | null;
+    sponsor_role: string | null;
+  },
+  published: ReadonlySet<string> | undefined,
+): AgendaSponsor | null {
+  const id = nullable(row.sponsor_id);
+  if (id === null || (published !== undefined && !published.has(id))) return null;
+  return {
+    id,
+    name: nullable(row.sponsor_name),
+    logoUrl: nullable(row.sponsor_logo_url),
+    role: nullable(row.sponsor_role),
+  };
+}
+
+/** Kontekst, ktorego lista sesji panelu sama nie niesie. */
+export interface AgendaPreviewContext {
+  /** Sciezki wydarzenia - lista sesji nie oddaje sponsora sciezki. */
+  tracks?: readonly EventTrackRow[];
+  /** Identyfikatory OGLOSZONYCH przypiec sponsorow tego wydarzenia. */
+  publishedSponsorIds?: ReadonlySet<string>;
+}
+
+/**
  * Wiersz sesji z panelu -> sesja programu w ksztalcie strony publicznej.
  *
  * `timezone` wchodzi z WYDARZENIA, bo lista panelu jej nie oddaje - sesja bez
- * strefy rysowalaby godziny w strefie przegladarki redaktora.
+ * strefy rysowalaby godziny w strefie przegladarki redaktora. Sponsor sciezki
+ * wchodzi z listy sciezek (`context.tracks`): karta sesji siega po niego, gdy
+ * sesja nie ma wlasnego, tak jak na stronie.
  */
 export function agendaSessionsFromAdminRows(
   rows: readonly EventSessionRow[] | undefined,
   timezone: string,
+  context: AgendaPreviewContext = {},
 ): AgendaSession[] {
   if (rows === undefined) return [];
+  const trackSponsors = new Map<string, AgendaSponsor | null>(
+    (context.tracks ?? []).map((track) => [
+      track.id,
+      previewSponsor(track, context.publishedSponsorIds),
+    ]),
+  );
   return rows
     .filter((row) => row.status !== "cancelled" && !row.is_private)
     .map((row) => {
@@ -73,7 +124,7 @@ export function agendaSessionsFromAdminRows(
                 namePl: nullable(row.track_name_pl),
                 nameEn: nullable(row.track_name_en),
                 accentColor: nullable(row.track_accent_color),
-                sponsor: null,
+                sponsor: trackSponsors.get(row.track_id) ?? null,
               },
         room:
           nullable(row.room_id) === null
@@ -81,15 +132,7 @@ export function agendaSessionsFromAdminRows(
             : { id: row.room_id, name: nullable(row.room_name), floor: null },
         affiliationPl: nullable(row.affiliation_pl),
         affiliationEn: nullable(row.affiliation_en),
-        sponsor:
-          nullable(row.sponsor_id) === null
-            ? null
-            : {
-                id: row.sponsor_id,
-                name: nullable(row.sponsor_name),
-                logoUrl: nullable(row.sponsor_logo_url),
-                role: nullable(row.sponsor_role),
-              },
+        sponsor: previewSponsor(row, context.publishedSponsorIds),
         hasStream: row.has_stream,
         hasRecording: row.has_recording,
         // Zapis nalezy do uczestnika - organizator nie ma tu wlasnego stanu.
@@ -209,19 +252,24 @@ export interface PreviewTrackChip {
 
 export function trackChipsFromAdminRows(
   rows: readonly EventTrackRow[] | undefined,
+  publishedSponsorIds?: ReadonlySet<string>,
 ): PreviewTrackChip[] {
   if (rows === undefined) return [];
   return rows
     .filter((row) => row.is_active !== false)
-    .map((row) => ({
-      id: row.id,
-      namePl: nullable(row.name_pl),
-      nameEn: nullable(row.name_en),
-      accentColor: nullable(row.accent_color),
-      sponsorName: nullable(row.sponsor_name),
-      sponsorLogoUrl: nullable(row.sponsor_logo_url),
-      sessionsCount: row.sessions_count ?? 0,
-      draftCount: row.draft_count ?? 0,
-      isPublic: row.is_public !== false,
-    }));
+    .map((row) => {
+      // Ten sam filtr ogloszen, co przy sesjach - patrz `previewSponsor`.
+      const sponsor = previewSponsor(row, publishedSponsorIds);
+      return {
+        id: row.id,
+        namePl: nullable(row.name_pl),
+        nameEn: nullable(row.name_en),
+        accentColor: nullable(row.accent_color),
+        sponsorName: sponsor?.name ?? null,
+        sponsorLogoUrl: sponsor?.logoUrl ?? null,
+        sessionsCount: row.sessions_count ?? 0,
+        draftCount: row.draft_count ?? 0,
+        isPublic: row.is_public !== false,
+      };
+    });
 }

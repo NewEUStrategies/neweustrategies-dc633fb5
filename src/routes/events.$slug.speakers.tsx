@@ -29,27 +29,28 @@ import {
 } from "@/components/events/SpeakerProfileDialog";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
+import { buildEventTabHead } from "@/lib/events/eventTabHead";
+import { activeLang } from "@/lib/seo/head";
+import { getRequestUrl } from "@/lib/seo/request";
 
 export const Route = createFileRoute("/events/$slug/speakers")({
-  head: () => ({
-    meta: [
-      { title: "Prelegenci i moderatorzy - New European Strategies" },
-      {
-        name: "description",
-        content: "Prelegenci, moderatorzy i eksperci wydarzenia New European Strategies.",
-      },
-      {
-        property: "og:title",
-        content: "Prelegenci i moderatorzy - New European Strategies",
-      },
-      {
-        property: "og:description",
-        content: "Prelegenci, moderatorzy i eksperci wydarzenia New European Strategies.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-    ],
-  }),
+  // Nazwa wydarzenia do nagłówka przychodzi z loadera POWŁOKI - zero
+  // round-tripów. `await parentMatchPromise`, bo loadery łańcucha startują
+  // równolegle i bez oczekiwania dane rodzica nie istnieją (wzorzec
+  // `clubHeadLoader`). Obietnica rodzica nie odrzuca.
+  loader: async ({ parentMatchPromise }) => {
+    const parent = await parentMatchPromise;
+    return { headEvent: parent.loaderData?.headEvent ?? null };
+  },
+  head: ({ params, loaderData }) => {
+    const url = getRequestUrl() || `/events/${params.slug}/speakers`;
+    return buildEventTabHead({
+      tab: "speakers",
+      url,
+      lang: activeLang(url),
+      event: loaderData?.headEvent ?? null,
+    });
+  },
   component: EventSpeakersTab,
 });
 
