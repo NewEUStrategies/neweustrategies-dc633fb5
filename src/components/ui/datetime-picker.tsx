@@ -9,10 +9,18 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const HOURS = Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, "0"));
-const FIVE_MINUTE_STEPS = Array.from({ length: 12 }, (_, step) => String(step * 5).padStart(2, "0"));
+const FIVE_MINUTE_STEPS = Array.from({ length: 12 }, (_, step) =>
+  String(step * 5).padStart(2, "0"),
+);
 
 interface DateTimePickerProps {
   /** Identyfikator przycisku-triggera - wiąże `<Label htmlFor>` z kontrolką. */
@@ -142,7 +150,10 @@ export function DateTimePicker({
             <span className="text-xs font-medium text-muted-foreground">
               {lang === "pl" ? "Godzina" : "Time"}
             </span>
-            <div className="flex items-center gap-1" aria-label={lang === "pl" ? "Godzina" : "Time"}>
+            <div
+              className="flex items-center gap-1"
+              aria-label={lang === "pl" ? "Godzina" : "Time"}
+            >
               <Select value={selectedHour} onValueChange={setHour}>
                 <SelectTrigger
                   className="h-8 w-[4.25rem] rounded-md px-2 font-mono text-sm shadow-none"
@@ -158,7 +169,10 @@ export function DateTimePicker({
                   ))}
                 </SelectContent>
               </Select>
-              <span className="select-none text-sm font-semibold text-muted-foreground" aria-hidden="true">
+              <span
+                className="select-none text-sm font-semibold text-muted-foreground"
+                aria-hidden="true"
+              >
                 :
               </span>
               <Select value={selectedMinute} onValueChange={setMinute}>
