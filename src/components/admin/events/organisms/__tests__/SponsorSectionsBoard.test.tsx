@@ -13,14 +13,18 @@
 //   4. ZMIANA KOLEJNOŚCI WYSYŁA CAŁĄ LISTĘ na nowo ponumerowaną (co 10, ranga
 //      od 1), bo RPC przestawia wszystkie wiersze naraz; odmowa kończy się
 //      komunikatem. Ruch poza krawędź listy nie wysyła niczego.
-//   5. NOWA SEKCJA DOSTAJE MIEJSCE NA KOŃCU i parametry z układu (baner = duże
-//      logo i jedna firma, siatka = średnie bez limitu). „Na końcu" liczy się od
-//      NAJWIĘKSZEJ kolejności i rangi (+10 / +1, ranga nie ponad 1000), a nie od
-//      liczby sekcji - po usunięciu sekcji liczba spada, a zajęte wartości
-//      zostają. Sekcja dostaje też klucz techniczny z tytułu (bez diakrytyków,
-//      wolny w tym wydarzeniu), bez którego baza odmawia (`invalid_key`).
-//      Układ zapisuje się osobnym RPC i DOPIERO PO odświeżeniu układów otwiera
-//      się panel nowej sekcji - inaczej panel pokazałby baner jako siatkę.
+//   5. NOWA SEKCJA DOSTAJE MIEJSCE NA KOŃCU i wielkość logo z układu (baner =
+//      duże, siatka = średnie). Limitu firm tablica NIE wysyła (w obu układach
+//      „bez limitu"): limit 1 banera ustawia baza przy zapisie układu, więc awaria
+//      tego zapisu zostawia spójną siatkę, a nie siatkę z ukrytym limitem 1.
+//      „Na końcu" liczy się od NAJWIĘKSZEJ kolejności i rangi (+10 / +1, ranga
+//      nie ponad 1000), a nie od liczby sekcji - po usunięciu sekcji liczba
+//      spada, a zajęte wartości zostają. Sekcja dostaje też klucz techniczny
+//      z tytułu (bez diakrytyków, wolny w tym wydarzeniu), bez którego baza
+//      odmawia (`invalid_key`).
+//      Układ zapisuje się osobnym RPC, po nim odświeża się lista sekcji (limit
+//      banera) i układy, i DOPIERO WTEDY otwiera się panel nowej sekcji -
+//      inaczej panel pokazałby baner jako siatkę.
 //      Odmowa zapisu SEKCJI zostawia okno dodawania otwarte. Gdy sekcja już
 //      powstała, okno zamyka się OD RAZU (jeszcze przed zapisem układu), a awaria
 //      układu kończy się panelem nowej sekcji i zdaniem „utworzona, układu nie
@@ -75,7 +79,7 @@ const h = vi.hoisted(() => ({
   sponsorzy: [] as EventSponsorRow[] | undefined,
   uklady: undefined as Map<string, SponsorSectionLayout> | undefined,
   przekierowania: undefined as Map<string, SponsorLink> | undefined,
-  /** Kolejność kroków tworzenia sekcji - zapis, układ, odświeżenie. */
+  /** Kolejność kroków tworzenia sekcji - zapis, układ, odświeżenia. */
   dziennik: [] as string[],
   zapisySekcji: [] as SponsorTierInput[],
   zapisSekcjiBlad: null as Error | null,
@@ -116,7 +120,13 @@ vi.mock("@/lib/events/adminSponsorErrors", () => ({
 vi.mock("@/lib/events/useEventSponsors", () => ({
   useSponsorTiers: (eventId: string) => {
     h.hooki.push(`sekcje:${eventId}`);
-    return { data: h.sekcje };
+    return {
+      data: h.sekcje,
+      refetch: async () => {
+        h.dziennik.push("odswiezenie-sekcji");
+        return { data: h.sekcje };
+      },
+    };
   },
   useSponsors: (query: SponsorsQuery) => {
     h.zapytaniaSponsorow.push(query);
@@ -743,7 +753,12 @@ describe("dodawanie sekcji", () => {
     expect(h.ukladyZapisane).toEqual([{ id: "t-nowa", layout: "grid" }]);
   });
 
-  it("baner dostaje duże logo i miejsce na JEDNĄ firmę", async () => {
+  // ZMIANA: ten przypadek twierdził, że baner wysyła `maxCompanies: 1`. Limit
+  // banera ustawia dziś BAZA przy zapisie układu (`admin_event_sponsor_tier_set_layout`,
+  // 20260923100100). Wysłany z tablicy zostawał w wierszu także wtedy, gdy zapis
+  // układu padł - a wtedy sekcja była siatką z ukrytym limitem 1 i druga firma
+  // odbijała się od `tier_full` (patrz przypadek z awarią układu banera niżej).
+  it("baner dostaje duże logo, a limit JEDNEJ firmy zostawia bazie (zapis układu)", async () => {
     h.sekcje = trzySekcje();
     h.wejscieSekcji = { layout: "banner", namePl: "Sponsor główny", nameEn: "Main sponsor" };
     tablica();
@@ -760,9 +775,10 @@ describe("dodawanie sekcji", () => {
         rank: 2,
         sortOrder: 40,
         logoSize: "lg",
-        maxCompanies: 1,
+        maxCompanies: null,
       },
     ]);
+    expect(h.ukladyZapisane).toEqual([{ id: "t-nowa", layout: "banner" }]);
   });
 
   it("pierwsza sekcja wydarzenia dostaje rangę 1 i kolejność 10", async () => {
@@ -832,12 +848,20 @@ describe("dodawanie sekcji", () => {
     expect(klucz).toMatch(/^[a-z][a-z0-9_]{1,48}$/);
   });
 
-  it("po zapisie: układ, odświeżenie układów, komunikat - i DOPIERO WTEDY panel nowej sekcji", async () => {
+  // ZMIANA: dziennik dostał krok „odswiezenie-sekcji". Zapis banera ustawia
+  // w bazie limit 1, a lista sekcji odświeżona po samym zapisie sekcji (jeszcze
+  // bez limitu) pokazywałaby w panelu poziomów „bez limitu" dla banera.
+  it("po zapisie: układ, odświeżenie sekcji i układów, komunikat - i DOPIERO WTEDY panel nowej sekcji", async () => {
     h.wejscieSekcji = { layout: "banner", namePl: "Partnerzy", nameEn: "Partners" };
     tablica();
     kliknij(przycisk(`${S}.create`));
     await utworzSekcje();
-    expect(h.dziennik).toEqual(["zapis-sekcji", "uklad:t-nowa:banner", "odswiezenie-ukladow"]);
+    expect(h.dziennik).toEqual([
+      "zapis-sekcji",
+      "uklad:t-nowa:banner",
+      "odswiezenie-sekcji",
+      "odswiezenie-ukladow",
+    ]);
     expect(h.toastSuccess).toHaveBeenCalledWith("sponsorBoard.toasts.sectionCreated");
     expect(screen.queryByRole("dialog", { name: "dodawanie-sekcji" })).toBeNull();
     expect(panel().getAttribute("data-sekcja")).toBe("t-nowa");
@@ -877,12 +901,35 @@ describe("dodawanie sekcji", () => {
     expect(h.zapisySekcji).toHaveLength(1);
   });
 
+  // REGRESJA: baner szedł do bazy z `maxCompanies: 1` jeszcze PRZED zapisem
+  // układu. Gdy ten zapis padł, w bazie zostawała siatka z limitem 1 - panel
+  // pokazywał siatkę (wiele logotypów), a druga firma odbijała się od
+  // `tier_full`. Kliknięcie „siatka" limitu nie czyściło, bo baza zdejmuje go
+  // tylko przy przejściu Z banera. Tablica nie wysyła więc limitu wcale - limit
+  // 1 powstaje w bazie razem z układem banera albo nie powstaje w ogóle.
+  it("awaria zapisu układu banera nie zostawia siatki z ukrytym limitem 1", async () => {
+    h.ukladBlad = new Error("rpc");
+    h.wejscieSekcji = { layout: "banner", namePl: "Sponsor główny", nameEn: "Main sponsor" };
+    tablica();
+    kliknij(przycisk(`${S}.create`));
+    await utworzSekcje();
+    expect(h.zapisySekcji).toHaveLength(1);
+    expect(h.zapisySekcji[0]?.maxCompanies).toBeNull();
+    expect(h.zapisySekcji[0]?.logoSize).toBe("lg");
+    expect(panel().getAttribute("data-uklad")).toBe("grid");
+  });
+
   it("awaria odświeżenia układów: okno znika, panel nowej sekcji, zdanie „utworzona, bez układu”", async () => {
     h.odswiezenieBlad = new Error("network");
     tablica();
     kliknij(przycisk(`${S}.create`));
     await utworzSekcje();
-    expect(h.dziennik).toEqual(["zapis-sekcji", "uklad:t-nowa:grid", "odswiezenie-ukladow"]);
+    expect(h.dziennik).toEqual([
+      "zapis-sekcji",
+      "uklad:t-nowa:grid",
+      "odswiezenie-sekcji",
+      "odswiezenie-ukladow",
+    ]);
     expect(h.toastError).toHaveBeenCalledWith("sponsorBoard.toasts.sectionCreatedLayoutFailed");
     expect(h.toastSuccess).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog", { name: "dodawanie-sekcji" })).toBeNull();

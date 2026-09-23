@@ -1,6 +1,6 @@
 -- UKLAD SEKCJI SPONSOROW PROWADZI LIMIT FIRM (`max_companies`).
 --
--- Tablica "Sponsorzy i reklama" tworzy sekcje banerowa z `max_companies = 1`,
+-- Tablica "Sponsorzy i reklama" tworzyla sekcje banerowa z `max_companies = 1`,
 -- a siatke bez limitu (NULL). Pozniejsza zmiana ukladu w bocznym panelu wolala
 -- jednak TYLKO `admin_event_sponsor_tier_set_layout` z 20260922200000, ktora
 -- zmieniala kolumne `layout` i nic wiecej. Skutek:
@@ -17,6 +17,11 @@
 --   * `grid` czysci limit (NULL) TYLKO wtedy, gdy jest to pozostalosc po banerze:
 --     poprzedni uklad to `banner`, a limit wynosi 1. Kazdy inny limit - takze 1
 --     ustawione swiadomie na siatce w panelu poziomow - zostaje nietkniety.
+--
+-- JEDYNY WLASCICIEL LIMITU BANERA. Tablica tworzy teraz kazda sekcje BEZ limitu
+-- i dopiero potem wola te funkcje. Gdyby wysylala limit 1 sama, awaria zapisu
+-- ukladu zostawialaby siatke z limitem 1, a ponowny wybor siatki by go nie zdjal
+-- (poprzedni uklad to juz `grid`) - ta sama odmowa `tier_full`, co przed migracja.
 --
 -- GRANICA NAJEMCY OBEJMUJE TEZ LICZNIK. Poprzednia wersja liczyla przypiecia
 -- poziomu bez warunku `tenant_id` i PRZED sprawdzeniem, czy poziom nalezy do
@@ -35,8 +40,13 @@
 -- UPDATE-u i konczyl sie naruszeniem NOT NULL) i `banner_single_image`.
 --
 -- Forward-only: 20260922200000 zostaje nietkniete, bo jest juz zastosowane.
+-- Plik jedzie na produkcje dwoma pasami (blizniak drizzle
+-- 0043_event_sponsor_layout_follows_limit); `CREATE OR REPLACE` wykonany drugi
+-- raz daje ten sam stan.
 -- Istniejacych wierszy nie przeliczamy: siatki z limitem 1 nie da sie odroznic
--- od limitu ustawionego swiadomie, a nastepna zmiana ukladu i tak wyrowna stan.
+-- od limitu ustawionego swiadomie. Taka siatka NIE wyrowna sie przy ponownym
+-- wyborze siatki (poprzedni uklad to `grid`, wiec limit zostaje) - wyrownuje ja
+-- przelaczenie na baner i z powrotem albo zmiana limitu w panelu poziomow.
 
 CREATE OR REPLACE FUNCTION public.admin_event_sponsor_tier_set_layout(_id uuid, _layout text)
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$

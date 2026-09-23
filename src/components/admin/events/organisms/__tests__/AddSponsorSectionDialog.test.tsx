@@ -19,8 +19,9 @@
 //      `onOpenChange(false)`.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. Tego, co rodzic robi z ładunkiem (zapis
-// poziomu, `setTierLayout`, limit firm baneru) - to `SponsorSectionsBoard`,
-// testowany osobno. Okno nie woła bazy, więc nie ma tu atrap hooków.
+// poziomu, `setTierLayout`, za którym baza nadaje banerowi limit jednej firmy)
+// - to `SponsorSectionsBoard`, testowany osobno. Okno nie woła bazy, więc nie ma
+// tu atrap hooków.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 

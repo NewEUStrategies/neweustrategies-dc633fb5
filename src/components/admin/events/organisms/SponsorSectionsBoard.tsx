@@ -128,7 +128,13 @@ export function SponsorSectionsBoard({ eventId }: { eventId: string }) {
         rank: nextRank(tiers),
         sortOrder: nextSortOrder(tiers),
         logoSize: input.layout === "banner" ? "lg" : "md",
-        maxCompanies: input.layout === "banner" ? 1 : null,
+        // LIMIT FIRM USTAWIA BAZA, NIE TABLICA. Limit 1 banera nadaje
+        // `admin_event_sponsor_tier_set_layout` (20260923100100) razem z układem.
+        // Wysłany tutaj zostawał w wierszu także wtedy, gdy zapis układu padł -
+        // a wtedy sekcja była siatką z ukrytym limitem 1, druga firma odbijała
+        // się od `tier_full`, a kliknięcie „siatka" limitu nie zdejmowało (baza
+        // zdejmuje go tylko przy przejściu Z banera).
+        maxCompanies: null,
       },
       {
         onSuccess: async (id) => {
@@ -139,6 +145,10 @@ export function SponsorSectionsBoard({ eventId }: { eventId: string }) {
           setAdding(false);
           try {
             await setTierLayout({ id, layout: input.layout });
+            // Zapis układu zmienia w bazie także `max_companies`, a lista sekcji
+            // odświeżyła się już po samym zapisie sekcji - bez tego panel poziomów
+            // pokazywałby baner „bez limitu".
+            void tiersQ.refetch();
             await layoutsQ.refetch();
             toast.success(t("sponsorBoard.toasts.sectionCreated"));
           } catch {
