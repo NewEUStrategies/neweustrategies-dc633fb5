@@ -94,8 +94,7 @@ export function EventSpeakersSection({
           // Klik ma sens tylko wtedy, gdy dialog ma co pokazac - inaczej chip
           // zostaje MARTWYM WPISEM (`SpeakerChip` bez `onClick` nie udaje
           // przycisku, wiec czytnik ekranu nie oglasza akcji, ktorej nie ma).
-          // Siatka na zakladce ma duze portrety i otwiera okno ZAWSZE - chip nie
-          // ma czego powiekszyc, wiec tu zostaje predykat.
+          // Ten sam predykat rozstrzyga to w siatce na zakladce.
           const openable = speakerHasProfileToShow(speaker);
           return (
             <li key={speakerRowKey(speaker)}>

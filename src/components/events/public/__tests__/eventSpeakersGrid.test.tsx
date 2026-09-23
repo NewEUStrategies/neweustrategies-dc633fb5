@@ -1,7 +1,7 @@
 // Siatka prelegentów: to, co po zepsuciu widzi każdy gość strony wydarzenia.
 //
-// SPRAWDZAMY KONTRAKT UKŁADU, NIE KLAS CSS. Karta daje duży portret i trzy
-// linie podpisu, a szeroki ekran utrzymuje trzy kolumny.
+// SPRAWDZAMY KONTRAKT UKŁADU, NIE KLAS CSS. Wzorzec (Swapcard) daje karcie trzy
+// linie pod zdjęciem i cztery kolumny - liczba kolumn to sprawa Tailwinda,
 // natomiast REGUŁY, których złamanie widzi uczestnik, są cztery:
 // 1. brak prelegentów = brak czegokolwiek (nagłówek rysuje sekcja wyżej),
 // 2. brak roli albo firmy = linia NIE ISTNIEJE, a nie „pusty wiersz”,
@@ -131,14 +131,6 @@ describe("EventSpeakersGrid", () => {
     expect(screen.getByText("AK")).toBeTruthy();
   });
 
-  it("szeroki ekran ma trzy kolumny, a portret zajmuje szerokość kafelka", async () => {
-    h.rows = [speaker()];
-    const { container } = render(<EventSpeakersGrid eventId="e1" />, { wrapper });
-    await screen.findByText("Anna Kowalska");
-    expect(container.querySelector("ul")).toHaveClass("lg:grid-cols-3");
-    expect(screen.getByText("AK")).toHaveClass("w-full");
-  });
-
   it("bez onSelect karta jest martwa, z onSelect jest przyciskiem oddającym wiersz", async () => {
     h.rows = [speaker()];
     const { unmount } = render(<EventSpeakersGrid eventId="e1" />, { wrapper });
@@ -151,24 +143,5 @@ describe("EventSpeakersGrid", () => {
     fireEvent.click(await screen.findByRole("button"));
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect.mock.calls[0]?.[0]).toMatchObject({ user_id: "u1" });
-  });
-
-  it("każdy kafelek jest interaktywny, gdy siatka obsługuje otwieranie profilu", async () => {
-    h.rows = [
-      speaker({
-        user_id: "",
-        person_id: "person-1",
-        has_speaker_profile: false,
-        bio_pl: null,
-        bio_en: null,
-        topics_pl: [],
-        topics_en: [],
-        languages: [],
-      }),
-    ];
-    const onSelect = vi.fn();
-    render(<EventSpeakersGrid eventId="e1" onSelect={onSelect} />, { wrapper });
-    fireEvent.click(await screen.findByRole("button"));
-    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ person_id: "person-1" }));
   });
 });

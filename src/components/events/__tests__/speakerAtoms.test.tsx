@@ -71,27 +71,6 @@ describe("SpeakerAvatar - zdjęcie", () => {
     expect(img?.getAttribute("src") ?? "").toContain(String(PX_BY_SIZE.lg * 2));
   });
 
-  it("kafel siatki zamawia kadr 4:3, a nie kwadrat obcinany w przeglądarce", () => {
-    const { container } = render(
-      <SpeakerAvatar name="Anna" photoUrl="https://cdn.example/a.jpg" size="card" />,
-    );
-    const src = new URL(container.querySelector("img")?.getAttribute("src") ?? "");
-    expect(src.searchParams.get("w")).toBe(String(PX_BY_SIZE.card * 2));
-    expect(src.searchParams.get("h")).toBe(String((PX_BY_SIZE.card * 2 * 3) / 4));
-  });
-
-  it("promień wywołującego WYGRYWA z domyślnym, zamiast stać obok niego", () => {
-    // Kafel siatki ma kwadratowe rogi; dwie klasy `rounded-*` naraz
-    // rozstrzygałaby kolejność reguł w arkuszu.
-    const { container } = render(
-      <SpeakerAvatar name="Anna" photoUrl="https://cdn.example/a.jpg" className="rounded-none" />,
-    );
-    const box = container.firstElementChild;
-    expect(box).toHaveClass("rounded-none");
-    expect(box).not.toHaveClass("rounded-[6px]");
-    expect(container.querySelector("img")).toHaveClass("rounded-[inherit]");
-  });
-
   it("zdjęcie ma PUSTY tekst alternatywny - nazwisko stoi obok", () => {
     const { container } = render(
       <SpeakerAvatar name="Anna Kowalska" photoUrl="https://cdn.example/a.jpg" />,
@@ -104,14 +83,11 @@ describe("SpeakerAvatar - zdjęcie", () => {
     expect(container.querySelector(".ring-2")).toBeInTheDocument();
   });
 
-  it.each(["sm", "md", "lg", "xl", "card"] as const)(
-    "rozmiar %s ma zdefiniowany bok w px",
-    (size) => {
-      expect(PX_BY_SIZE[size]).toBeGreaterThan(0);
-      const { container } = render(<SpeakerAvatar name="Anna" size={size} />);
-      expect(container.firstElementChild).toBeTruthy();
-    },
-  );
+  it.each(["sm", "md", "lg", "xl"] as const)("rozmiar %s ma zdefiniowany bok w px", (size) => {
+    expect(PX_BY_SIZE[size]).toBeGreaterThan(0);
+    const { container } = render(<SpeakerAvatar name="Anna" size={size} />);
+    expect(container.firstElementChild).toBeTruthy();
+  });
 });
 
 describe("SpeakerStars", () => {

@@ -75,6 +75,7 @@ import {
 /** Zakladki szuflady. Wartosci sa techniczne - nie ida do slownika. */
 const TAB_GENERAL = "general";
 const TAB_MEMBERS = "members";
+const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 
 // PODKRESLENIE, NIE KAFELEK. Wspoldzielony `TabsList` rysuje pigulki na tle
 // `bg-muted` - w szufladzie o stalej szerokosci pigulki konkuruja o uwage z
@@ -148,6 +149,9 @@ export function EventGroupDialog({
   };
 
   const isNew = draft.id === null;
+  const colorPreview = HEX_COLOR_PATTERN.test(draft.color.trim())
+    ? draft.color.trim()
+    : "transparent";
 
   // NAGLOWEK NIESIE NAZWE ZAPISANA, NIE SZKIC. Tytul wiazany z `aria` nie moze
   // znikac w trakcie pisania - a szkic bywa pusty miedzy skasowaniem starej
@@ -248,6 +252,14 @@ export function EventGroupDialog({
                 monospace
                 maxLength={7}
                 error={errorFor("color")}
+                endAdornment={
+                  <span
+                    aria-hidden="true"
+                    data-testid="group-color-preview"
+                    className="h-9 w-9 shrink-0 rounded-md border border-border shadow-sm transition-colors duration-150 motion-reduce:transition-none"
+                    style={{ backgroundColor: colorPreview }}
+                  />
+                }
               />
               <AdminFormTextRow
                 label={t("adminEventTerms.groups.dialog.minTierRank")}
