@@ -7,7 +7,6 @@
 // shadcn oraz kolumnami godzin/minut w tokenach projektu.
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import "@/lib/i18n-club";
 import { format, parse, isValid } from "date-fns";
 import { pl as plLocale, enGB } from "date-fns/locale";
 import { CalendarDays } from "lucide-react";
@@ -17,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ensureClubI18n } from "@/lib/i18n-club";
 
 interface ClubDateTimeInputProps {
   id: string;
@@ -97,6 +97,7 @@ export function ClubDateTimeInput({
   allDay,
   required,
 }: ClubDateTimeInputProps) {
+  ensureClubI18n();
   const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
   const locale = i18n.language?.startsWith("en") ? enGB : plLocale;
@@ -156,7 +157,7 @@ export function ClubDateTimeInput({
               onSelect={pickDay}
               locale={locale}
               weekStartsOn={1}
-              initialFocus
+              autoFocus
               className="pointer-events-auto p-3"
             />
             {!allDay && (

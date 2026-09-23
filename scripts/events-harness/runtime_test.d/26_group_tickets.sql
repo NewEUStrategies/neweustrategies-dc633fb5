@@ -3,7 +3,7 @@
 --
 -- PO CO TEN PLIK ISTNIEJE
 -- Zapis grupowy (20260922230000) i domkniecie go biletami z kodem QR
--- (20260922233000) przechodza przez trzy funkcje bazy i jeden trigger:
+-- (20260923000200) przechodza przez trzy funkcje bazy i jeden trigger:
 -- `event_register_group_guests` dopisuje gosci, `payments_apply_event_ticket_
 -- outcome` + `_tg_event_group_follow_lead` przenosza wplate prowadzacego na
 -- cala grupe, a `_event_issue_ticket_codes` wydaje kazdemu wlasny kod. Jawny

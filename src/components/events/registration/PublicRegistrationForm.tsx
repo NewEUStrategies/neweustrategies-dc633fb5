@@ -157,18 +157,24 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
       // Goście grupy dochodzą do zgłoszenia prowadzącego; płatność obejmie
       // wszystkie miejsca jednym zamówieniem, a każdy dostanie własny kod QR.
       if (groupGuests.length > 0) {
+        let guestsAdded = false;
         try {
           await registerGroupGuests(registered.registrationId, groupGuests);
-          // Zapis bezpłatny: bilety z kodem QR wychodzą od razu, każdy na adres
-          // swojej osoby. Przy zapisie płatnym serwer nic nie wyda - zrobi to
-          // webhook po zaksięgowaniu płatności. Mail jest dodatkiem (fail-soft).
-          if (registered.manageToken !== null) {
-            void sendTicketCodes({ data: { manageToken: registered.manageToken } }).catch(() => {
-              /* brak maila nie unieważnia zapisu grupy */
-            });
-          }
+          guestsAdded = true;
         } catch (error) {
           setFailure(registrationErrorMessage(error));
+        }
+        // Zapis bezpłatny: bilety z kodem QR wychodzą od razu, każdy na adres
+        // swojej osoby. Przy zapisie płatnym serwer nic nie wyda - zrobi to
+        // webhook po zaksięgowaniu płatności. Mail jest dodatkiem: ŻADNA awaria
+        // wysyłki (także synchroniczna) nie może wyglądać jak nieudany zapis.
+        const manageToken = registered.manageToken;
+        if (guestsAdded && manageToken !== null) {
+          void Promise.resolve()
+            .then(() => sendTicketCodes({ data: { manageToken } }))
+            .catch(() => {
+              /* brak maila nie unieważnia zapisu grupy - cron ponowi wysyłkę */
+            });
         }
       }
       return registered;

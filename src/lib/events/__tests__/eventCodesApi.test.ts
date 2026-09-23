@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { DZIEN, freezeClock, relativeIso } from "@/test/time";
+
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
 import {
@@ -13,6 +15,10 @@ import {
 } from "@/lib/events/eventCodesApi";
 
 const base = () => ({ ...emptyEventCodeDraft("PLN"), code: "vip10", amount: "10" });
+
+// `eventCodeStatus` czyta domyślnie prawdziwy zegar, więc plik zamraża
+// „teraz", a daty ważności kodu liczy względem niego.
+freezeClock();
 
 describe("eventCodeDraftIssue", () => {
   it("accepts a valid percent code", () => {
@@ -36,8 +42,8 @@ describe("eventCodeDraftIssue", () => {
     expect(
       eventCodeDraftIssue({
         ...base(),
-        validFrom: "2026-10-02T10:00",
-        validUntil: "2026-10-01T10:00",
+        validFrom: relativeIso(10 * DZIEN),
+        validUntil: relativeIso(9 * DZIEN),
       }),
     ).toBe("dates");
     expect(eventCodeDraftIssue({ ...base(), ticketScope: "specific" })).toBe("tickets");

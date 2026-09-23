@@ -1,9 +1,12 @@
-import { decodeSpreadsheet } from "./spreadsheetCore";
+import { handleSpreadsheetRequest } from "./spreadsheetCore";
+import type { SpreadsheetRequest, SpreadsheetResponse } from "./spreadsheetProtocol";
 
-self.onmessage = (event: MessageEvent<ArrayBuffer>) => {
+self.onmessage = (event: MessageEvent<SpreadsheetRequest>) => {
+  let response: SpreadsheetResponse;
   try {
-    self.postMessage({ ok: true, sheets: decodeSpreadsheet(event.data) });
+    response = { ok: true, result: handleSpreadsheetRequest(event.data) };
   } catch {
-    self.postMessage({ ok: false });
+    response = { ok: false };
   }
+  self.postMessage(response);
 };

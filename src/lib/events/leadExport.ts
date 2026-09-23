@@ -14,6 +14,7 @@
 // polskie znaki w nazwiskach - a to jest plik czytany poza systemem.
 import { toCsv } from "@/lib/csv/formatCsv";
 import type { LeadExportRow } from "@/lib/events/onsiteApi";
+import { writeSpreadsheetInWorker } from "@/lib/files/spreadsheetWorker";
 
 export interface LeadExportFile {
   fileName: string;
@@ -109,7 +110,7 @@ export function leadExportFileName(prefix: string, nowIso: string, extension: st
   return `${slug === "" ? "leady" : slug}-${nowIso.slice(0, 10)}.${extension}`;
 }
 
-/** Buduje plik eksportu w żądanym formacie (XLSX ładowany leniwie). */
+/** Buduje plik eksportu w żądanym formacie (XLSX zapisuje proces arkuszy). */
 export async function buildLeadExport(
   rows: readonly LeadExportRow[],
   options: { format: "csv" | "xlsx"; lang: string; prefix: string; nowIso: string },
@@ -125,14 +126,10 @@ export async function buildLeadExport(
     };
   }
 
-  const XLSX = await import("xlsx");
-  const book = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(
-    book,
-    XLSX.utils.aoa_to_sheet([[...columns], ...cells.map((row) => [...row])]),
-    options.lang === "en" ? "Leads" : "Leady",
-  );
-  const bytes = XLSX.write(book, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
+  const bytes = await writeSpreadsheetInWorker(options.lang === "en" ? "Leads" : "Leady", [
+    columns,
+    ...cells,
+  ]);
   return {
     fileName: leadExportFileName(options.prefix, options.nowIso, "xlsx"),
     mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

@@ -248,6 +248,7 @@ vi.mock("@/lib/events/ticketPresentation", async (importOriginal) => {
 
 import { EventTicketsPanel } from "@/components/admin/events/organisms/EventTicketsPanel";
 import { SALES_IDS, eventTicketRow } from "@/test/events/adminSalesRows";
+import { DZIEN, freezeClock, relativeIso } from "@/test/time";
 
 /** Minimalny ładunek formularza - liczy się TRASA, nie zawartość (ma swój plik). */
 const LADUNEK: EventTicketInput = {
@@ -291,6 +292,16 @@ const T = "adminEventRegistration.tickets";
  * nie padła.
  */
 const BRAK_TERMINU: string | null = null;
+
+// Panel liczy status wiersza z PRAWDZIWEGO zegara (`ticketStatus(row)` bez
+// podanego „teraz"), więc daty okna sprzedaży i progu są liczone względem
+// zamrożonego `FIXED_NOW`, a nie wpisane kalendarzowo. Odstępy są te same, co
+// w dniu napisania tych przypadków: start 52 dni temu, koniec 21 dni temu,
+// próg 33 dni temu.
+freezeClock();
+const START_SPRZEDAZY = relativeIso(-52 * DZIEN);
+const KONIEC_SPRZEDAZY = relativeIso(-21 * DZIEN);
+const KONIEC_PROGU = relativeIso(-33 * DZIEN);
 
 function panel() {
   return render(<EventTicketsPanel eventId={SALES_IDS.event} />);
@@ -466,19 +477,19 @@ describe("co niesie wiersz biletu", () => {
     ],
     [
       "od terminu",
-      { sales_from: "2026-08-01T10:00:00.000Z", sales_to: BRAK_TERMINU },
+      { sales_from: START_SPRZEDAZY, sales_to: BRAK_TERMINU },
       [`${T}.windowFrom`],
       [`${T}.windowTo`, `${T}.noWindow`],
     ],
     [
       "do terminu",
-      { sales_from: BRAK_TERMINU, sales_to: "2026-09-01T10:00:00.000Z" },
+      { sales_from: BRAK_TERMINU, sales_to: KONIEC_SPRZEDAZY },
       [`${T}.windowTo`],
       [`${T}.windowFrom`, `${T}.noWindow`],
     ],
     [
       "od i do",
-      { sales_from: "2026-08-01T10:00:00.000Z", sales_to: "2026-09-01T10:00:00.000Z" },
+      { sales_from: START_SPRZEDAZY, sales_to: KONIEC_SPRZEDAZY },
       [`${T}.windowFrom`, `${T}.windowTo`],
       [`${T}.noWindow`],
     ],
@@ -500,7 +511,7 @@ describe("co niesie wiersz biletu", () => {
     h.rows = [
       eventTicketRow({
         id: SALES_IDS.ticket,
-        early_bird_until: "2026-08-20T10:00:00.000Z",
+        early_bird_until: KONIEC_PROGU,
         has_access_code: true,
         waitlist_enabled: false,
         requires_approval: true,
