@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   buildLeadExport,
   leadExportCells,
@@ -6,6 +6,21 @@ import {
   leadExportFileName,
 } from "@/lib/events/leadExport";
 import type { LeadExportRow } from "@/lib/events/onsiteApi";
+import type { WritableCell } from "@/lib/files/spreadsheetProtocol";
+
+// Proces arkuszy (Web Worker) nie istnieje w środowisku testów. Jego transport
+// ma własny test (`src/lib/files/__tests__/spreadsheetWorker.test.ts`); tutaj
+// biegnie TEN SAM rdzeń zapisu, tylko w procesie testu - więc plik XLSX
+// sprawdzany niżej jest prawdziwym plikiem z prawdziwej biblioteki.
+vi.mock("@/lib/files/spreadsheetWorker", async () => {
+  const core = await import("@/lib/files/spreadsheetCore");
+  return {
+    writeSpreadsheetInWorker: async (
+      sheetName: string,
+      rows: readonly (readonly WritableCell[])[],
+    ) => core.writeSpreadsheet(sheetName, rows),
+  };
+});
 
 const withConsent: LeadExportRow = {
   sponsor_name: "Acme",

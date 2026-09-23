@@ -14,7 +14,6 @@
 import { useEffect, useState } from "react";
 import { Check, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import "@/lib/i18n-event-registration";
 
 import {
   customPriceLabel,
@@ -26,6 +25,9 @@ import { formatMoney } from "@/lib/billing/types";
 import { fetchRevealedTickets } from "@/lib/events/eventCodesApi";
 import { rememberEventCode } from "@/lib/events/eventCodeMemory";
 import { formatEventDateTime } from "@/lib/events/timezone";
+import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
+
+ensureEventRegistrationI18n();
 
 export function RegistrationTicketPicker({
   tickets,

@@ -9,7 +9,6 @@
 // tym, czy można ją bezpiecznie obniżyć - a RPC odmawia zejścia poniżej zajętych.
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import "@/lib/i18n-admin-event-registration";
 import { toast } from "sonner";
 import { Copy, CopyPlus, Link2, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -49,6 +48,7 @@ import {
   useTicketPresentation,
   type TicketPresentation,
 } from "@/lib/events/ticketPresentation";
+import { ensureI18n as ensureRegistrationI18n } from "@/lib/i18n-admin-event-registration";
 
 /** Cena w najmniejszej jednostce -> zapis walutowy w języku interfejsu. */
 function formatPrice(cents: number, currency: string, locale: string): string {
@@ -56,6 +56,7 @@ function formatPrice(cents: number, currency: string, locale: string): string {
 }
 
 export function EventTicketsPanel({ eventId, eventSlug }: { eventId: string; eventSlug?: string }) {
+  ensureRegistrationI18n();
   const { t, i18n } = useTranslation();
   const presentationQ = useTicketPresentation(eventId);
   const savePresentation = useSaveTicketPresentation(eventId);

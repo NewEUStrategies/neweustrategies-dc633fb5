@@ -1,4 +1,4 @@
-// Lista gości zapisu grupowego - molekuła, z której korzysta formularz zapisu
+// Stany listy gości zapisu grupowego - molekuła, z której korzysta formularz zapisu
 // ORAZ panel ponownego dopisania gości na ekranie potwierdzenia.
 //
 // CO TEN PLIK DOWODZI.

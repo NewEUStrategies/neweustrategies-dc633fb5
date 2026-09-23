@@ -409,7 +409,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
       {/* STAŁA szerokość, nie `max-w`: podpis dojeżdża etapami (sesja ->
           profil -> powitanie), a każda zmiana szerokości przesuwałaby
           sąsiadów w pasku narzędzi. Nadmiar ucinamy wielokropkiem. */}
-      <span className="hidden sm:inline-block w-[9rem] shrink-0 truncate text-left align-middle">
+      <span className="hidden sm:inline-block w-[9rem] shrink-0 truncate text-right align-middle">
         {triggerLabel}
       </span>
     </button>

@@ -118,7 +118,7 @@ function DateFilterPicker({ label, value, placeholder, onSelect, lang }: DateFil
             mode="single"
             selected={date}
             onSelect={onSelect}
-            initialFocus
+            autoFocus
             locale={locale}
             className="pointer-events-auto p-3"
           />

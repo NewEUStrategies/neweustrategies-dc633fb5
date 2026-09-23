@@ -32,7 +32,6 @@
 // formularzy, zamiast przepisywac stan poprzedniego wydarzenia na nowe.
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import "@/lib/i18n-admin-event-sponsor-board";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EventStudioPage } from "@/components/admin/events/studio/EventStudioSection";
 import { EventSpeakersManager } from "@/components/admin/community/EventSpeakersManager";
@@ -73,6 +72,7 @@ import { ensureOnsiteI18n } from "@/lib/i18n-admin-event-onsite";
 import { ensureI18n as ensureRegistrationI18n } from "@/lib/i18n-admin-event-registration";
 import { ensureSponsorsI18n } from "@/lib/i18n-admin-event-sponsors";
 import { ensureTermsI18n } from "@/lib/i18n-admin-event-terms";
+import "@/lib/i18n-admin-event-sponsor-board";
 
 /**
  * Rama jednoekranowej podstrony studia.

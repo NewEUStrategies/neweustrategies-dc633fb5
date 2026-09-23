@@ -1450,6 +1450,44 @@ const CLIENT_DIR =
 // i pozostanie ciasny, dopóki arkusze i wykresy jadą w tej samej sumie
 // co reszta panelu.
 
+// 2026-09-23 XVIII  JEDNA KOPIA `xlsx`. ŻADEN PRÓG NIE RUSZONY - redukcja.
+//
+// STAN WYJŚCIOWY (runner, przebieg CI 3558 na main 78ae684): overall 4604,1 KB
+// przy progu 4572, czyli 32,1 KB ponad, public 2720,3 przy 2826.
+//
+// KOREKTA WPISU XVII. Tamten wpis mówił, że `spreadsheet.worker` i
+// `vendor-jszip` (150 KB) „używa jedna powierzchnia panelu". To nieprawda:
+// proces arkuszy obsługuje PUBLICZNY podgląd załączników w postach klubów
+// (`ClubPostCard` -> `DocumentViewerBody` -> `officeParse.parseSpreadsheet`),
+// i dlatego bramka słusznie liczy go w PUBLIC - nie ma importera w grafie
+// `import`, a chunk bez importera zostaje publiczny (`adminOnlyByGraph`).
+// Wyprowadzenie go „poza sumę" byłoby więc naciąganiem księgowości.
+//
+// PRAWDZIWA NADWYŻKA: `xlsx` BYŁO W PACZCE DWA RAZY. Raz w procesie arkuszy
+// (120,9 KB, sam odczyt), drugi raz w głównym wątku jako chunk `xlsx`
+// (159,1 KB) - dla importu danych wykresu (`charts/importTable.readWorkbook`)
+// i eksportu leadów (`events/leadExport.buildLeadExport`). Obie te
+// powierzchnie przechodzą teraz przez ten sam proces
+// (`src/lib/files/spreadsheetProtocol.ts`: operacje `preview` / `rows` /
+// `write`), a w głównym grafie nie ma ani jednego modułu `xlsx` - sprawdzone
+// w `reports/chunk-inventory.json` (BUNDLE_INVENTORY=1).
+//
+// POMIAR NA HOŚCIE (Linux, pełny build, `xlsx` 0.18.5 z rejestru npm, bo
+// cdn.sheetjs.com jest z tej maszyny nieosiągalny - 0.20.3 mierzy dopiero
+// runner): overall 4449,1 KB, public 2737,4, admin-only 1711,6; proces arkuszy
+// z odczytem i zapisem 137,5 KB. W tym -12,1 KB z usunięcia drugiej kopii
+// `prosemirror-view` z paczki edytora (PR bramki `check:module-singletons`).
+// PUBLIC rośnie o różnicę procesu (dochodzi kod zapisu), OVERALL spada, bo
+// znika cała druga kopia biblioteki. Liczby z runnera trafią tu z pierwszego
+// zielonego logu (zasada z wpisu V).
+//
+// DLACZEGO PROGU NIE OBNIŻAM ZA ŚLADEM. Zapas około 100 KB na OVERALL to
+// świadoma decyzja: kolejne scalenia z ostatnich dni (wpis XVII, PR #386,
+// zmiany z 22.09) zatrzymywały się na tym samym progu z nadwyżką od kilku do
+// kilkudziesięciu kilobajtów, zawsze z przyczyną w cudzej warstwie. Bramka dalej łapie wzrost ponad 4572 - przestaje tylko łapać
+// każdą nową powierzchnię panelu jako alarm. Następny wpis, który będzie
+// podnosił OVERALL, zaczyna od pomiaru, nie od tego zapasu.
+
 const FROZEN_BUDGET_KB = {
   // Największy pojedynczy chunk gzip. Zmierzone 2026-08-18: 266,8 (EChartClient,
   // admin-only) - entry po cięciu ścieżki bootowania ma 253,2. Ratchet

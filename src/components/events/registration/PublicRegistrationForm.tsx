@@ -150,16 +150,18 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
   // potwierdzenia. Ten sam uklad, co przy bezplatnym RSVP.
   const sendConfirmation = useServerFn(confirmEventRegistrationEmail);
   const sendTicketCodes = useServerFn(sendGroupTicketCodes);
-  // Zapis bezpłatny: bilety z kodem QR wychodzą od razu, każdy na adres
-  // swojej osoby. Przy zapisie płatnym serwer nic nie wyda - zrobi to
-  // webhook po zaksięgowaniu płatności. Mail jest dodatkiem (fail-soft).
-  // Ta sama droga po zapisie z formularza i po ponownym dopisaniu gości
-  // z ekranu potwierdzenia.
+  // Zapis bezpłatny: bilety z kodem QR wychodzą od razu, każdy na adres swojej
+  // osoby. Przy zapisie płatnym serwer nic nie wyda - zrobi to webhook po
+  // zaksięgowaniu płatności. Mail jest dodatkiem: ŻADNA awaria wysyłki (także
+  // synchroniczna) nie może wyglądać jak nieudany zapis. Ta sama droga po
+  // zapisie grupy i po ponownym dopisaniu gości z ekranu potwierdzenia.
   const sendGuestTickets = (manageToken: string | null): void => {
     if (manageToken === null) return;
-    void sendTicketCodes({ data: { manageToken } }).catch(() => {
-      /* brak maila nie unieważnia zapisu grupy */
-    });
+    void Promise.resolve()
+      .then(() => sendTicketCodes({ data: { manageToken } }))
+      .catch(() => {
+        /* brak maila nie unieważnia zapisu grupy - cron ponowi wysyłkę */
+      });
   };
 
   const submit = useMutation({
