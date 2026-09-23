@@ -1724,8 +1724,62 @@ BEGIN
     $q$SELECT public.admin_event_sponsor_tier_set_layout('%s', 'carousel')$q$, v_media),
     'invalid_layout',
     '30/uklad: nieznany uklad odrzucony');
+  PERFORM pg_temp.assert_raises_like(format(
+    $q$SELECT public.admin_event_sponsor_tier_set_layout('%s', NULL)$q$, v_media),
+    'invalid_layout',
+    '30/uklad: brak ukladu (NULL) odrzucony kodem, a nie naruszeniem NOT NULL');
   PERFORM pg_temp.assert(public.admin_event_sponsor_tier_set_layout(v_media, 'grid'),
     '30/uklad: powrot do siatki');
+
+  -- UKLAD PROWADZI LIMIT FIRM (20260923100100). Baner ustawia limit 1, a siatka
+  -- czysci go tylko jako pozostalosc po banerze - inaczej sekcja przelaczona
+  -- z banera na siatke odbijala druga firme kodem `tier_full`.
+  PERFORM pg_temp.assert(
+    (SELECT t.max_companies FROM public.event_sponsor_tiers t WHERE t.id = v_media) IS NULL,
+    '30/uklad/limit: baner przelaczony na siatke nie zostawia limitu 1');
+  PERFORM public.admin_event_sponsor_tier_set_layout(v_media, 'banner');
+  PERFORM pg_temp.assert(
+    (SELECT t.max_companies FROM public.event_sponsor_tiers t WHERE t.id = v_media) = 1,
+    '30/uklad/limit: siatka bez limitu przelaczona na baner dostaje limit 1');
+  PERFORM public.admin_event_sponsor_tier_set_layout(v_media, 'banner');
+  PERFORM pg_temp.assert(
+    (SELECT t.max_companies FROM public.event_sponsor_tiers t WHERE t.id = v_media) = 1,
+    '30/uklad/limit: ponowny wybor banera zostawia limit 1');
+  PERFORM public.admin_event_sponsor_tier_set_layout(v_media, 'grid');
+  PERFORM pg_temp.assert(
+    (SELECT t.max_companies FROM public.event_sponsor_tiers t WHERE t.id = v_media) IS NULL,
+    '30/uklad/limit: siatka po banerze czysci limit 1');
+
+  -- Limit wybrany w panelu poziomow na siatce nie jest pozostaloscia po banerze.
+  PERFORM public.admin_event_sponsor_tier_save(jsonb_build_object(
+    'id', v_media, 'name_pl', 'Patronat medialny', 'name_en', 'Media patronage',
+    'max_companies', 3));
+  PERFORM public.admin_event_sponsor_tier_set_layout(v_media, 'grid');
+  PERFORM pg_temp.assert(
+    (SELECT t.max_companies FROM public.event_sponsor_tiers t WHERE t.id = v_media) = 3,
+    '30/uklad/limit: siatka zostawia limit 3 wybrany przez admina');
+  PERFORM public.admin_event_sponsor_tier_save(jsonb_build_object(
+    'id', v_media, 'name_pl', 'Patronat medialny', 'name_en', 'Media patronage',
+    'max_companies', 1));
+  PERFORM public.admin_event_sponsor_tier_set_layout(v_media, 'grid');
+  PERFORM pg_temp.assert(
+    (SELECT t.max_companies FROM public.event_sponsor_tiers t WHERE t.id = v_media) = 1,
+    '30/uklad/limit: limit 1 wybrany na siatce (bez banera przed nia) zostaje');
+
+  -- Odmowa banera niczego nie zmienia - ani ukladu, ani limitu diamond (2).
+  PERFORM pg_temp.assert(
+    (SELECT t.layout = 'grid' AND t.max_companies = 2
+       FROM public.event_sponsor_tiers t WHERE t.id = v_diamond),
+    '30/uklad/limit: odmowa banera zostawia uklad i limit poziomu');
+
+  -- Stan zastany: media bez limitu, w siatce.
+  PERFORM public.admin_event_sponsor_tier_save(jsonb_build_object(
+    'id', v_media, 'name_pl', 'Patronat medialny', 'name_en', 'Media patronage',
+    'max_companies', NULL));
+  PERFORM pg_temp.assert(
+    (SELECT t.layout = 'grid' AND t.max_companies IS NULL
+       FROM public.event_sponsor_tiers t WHERE t.id = v_media),
+    '30/uklad/limit: poziom media wraca do stanu zastanego');
 
   -- Link: zewnetrzny wymaga adresu https, pozostale tryby zeruja adres.
   PERFORM pg_temp.assert(
@@ -1790,23 +1844,24 @@ BEGIN
     AND (SELECT s.link_mode FROM public.event_sponsors s WHERE s.id = v_s1) = 'exhibitor',
     '30/link/izolacja: zmiana linku cudzego sponsora nic nie zmienia');
 
-  -- Regula banera liczy przypiecia poziomu BEZ filtra najemcy i PRZED
-  -- sprawdzeniem, czy poziom w ogole nalezy do wolajacego. Admin B dostaje
-  -- wiec dla cudzego poziomu `banner_single_image` zamiast tego samego
-  -- `false`, co dla pustego - czyli dowiaduje sie, ze poziom ma wiecej niz
-  -- jedno przypiecie. Waga niska: potrzebny jest UUID cudzego poziomu, a zaden
-  -- odczyt panelu go najemcy B nie podaje. Naprawa to warunek `tenant_id`
-  -- w liczniku, czyli NOWA migracja - wpis zostaje do jej decyzji.
+  -- Regula banera liczyla przypiecia poziomu BEZ filtra najemcy i PRZED
+  -- sprawdzeniem, czy poziom w ogole nalezy do wolajacego - admin B dostawal
+  -- dla cudzego poziomu `banner_single_image` zamiast `false`, czyli
+  -- dowiadywal sie, ze poziom ma wiecej niz jedno przypiecie. Byl to wpis
+  -- `assert_known_defect`; migracja 20260923100100 blokuje najpierw wiersz
+  -- poziomu w granicach najemcy i dopiero potem liczy (z `tenant_id`), wiec
+  -- cudzy poziom z dwiema firmami wyglada tak samo jak pusty: `false`.
   BEGIN
-    PERFORM public.admin_event_sponsor_tier_set_layout(v_diamond, 'banner');
-    v_present := false;
+    v_present := public.admin_event_sponsor_tier_set_layout(v_diamond, 'banner');
   EXCEPTION WHEN OTHERS THEN
-    v_present := SQLERRM ILIKE '%banner_single_image%';
+    RAISE EXCEPTION 'ASERCJA: cudzy poziom dal odmowe % zamiast false', SQLERRM;
   END;
-  PERFORM pg_temp.assert_known_defect(
-    v_present,
-    '30/uklad/izolacja: regula banera zdradza liczbe przypiec cudzego poziomu',
-    'dopisac s.tenant_id = v_tenant w liczniku admin_event_sponsor_tier_set_layout');
+  PERFORM pg_temp.assert(NOT v_present,
+    '30/uklad/izolacja: regula banera nie zdradza liczby przypiec cudzego poziomu');
+  PERFORM pg_temp.assert(
+    (SELECT t.layout = 'grid' AND t.max_companies = 2
+       FROM public.event_sponsor_tiers t WHERE t.id = v_diamond),
+    '30/uklad/izolacja: proba banera na cudzym poziomie nie rusza ukladu ani limitu');
 END
 $do$;
 

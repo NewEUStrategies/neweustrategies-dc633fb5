@@ -262,8 +262,12 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     twin: "20260923000100_member_resources_file_path_regex_within_limit.sql",
   },
   {
-    tag: "0043_event_ticket_group_codes",
-    twin: "20260923000200_event_ticket_group_codes.sql",
+    tag: "0043_event_sponsor_layout_follows_limit",
+    twin: "20260923100100_event_sponsor_layout_follows_limit.sql",
+  },
+  {
+    tag: "0044_event_ticket_group_codes",
+    twin: "20260923110000_event_ticket_group_codes.sql",
   },
 ];
 

@@ -63,6 +63,14 @@ export const SESSION_SETTLE_TIMEOUT_MS = 5_000;
 export const ROLE_SETTLE_TIMEOUT_MS = 8_000;
 
 /**
+ * Pusty zestaw ról jako JEDNA stała. `setRoles([])` z nową tablicą za każdym
+ * razem to nowa wartość dla Reacta (`Object.is([], []) === false`), więc każde
+ * wylogowanie i każda zmiana konta przebudowywała kontekst także wtedy, gdy ról
+ * już nie było. Ta sama referencja pozwala Reactowi pominąć render.
+ */
+const NO_ROLES: Role[] = [];
+
+/**
  * Klucze, pod którymi klient Supabase trzyma sesję w `localStorage`:
  * `sb-<subdomena projektu>-auth-token` (`defaultStorageKey`
  * w `@supabase/supabase-js`), wariant dzielony na części (`...-auth-token.0`)
@@ -139,7 +147,7 @@ const Ctx = createContext<AuthCtx>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [session, setSession] = useState<Session | null>(null);
-  const [roles, setRoles] = useState<Role[]>([]);
+  const [roles, setRoles] = useState<Role[]>(NO_ROLES);
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   // Role/tenant context is fetched separately from the session. Route guards
@@ -152,6 +160,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Termin na role/tenant - trzymany w ref, bo gasi go zarówno powrót zapytań
   // (`settleRoles` w `finally`), jak i odmontowanie prowajdera.
   const roleTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // NUMER BIEŻĄCEGO PYTANIA O ROLE I TENANTA. Każda zmiana tożsamości (logowanie,
+  // wylogowanie, zmiana konta) dostaje nowy numer, a odpowiedź `loadContext`
+  // wolno zapisać WYŁĄCZNIE wtedy, gdy jej numer nadal jest bieżący.
+  //
+  // PO CO. Zapytania o role nie wracają w kolejności wysłania. Bez numeru
+  // odpowiedź konta A, która dojechała po przełączeniu na konto B, nadpisywała
+  // role i tenanta B - panel pokazywał uprawnienia A, a `useRequiredTenant()`
+  // oddawał tenanta A. Ta sama spóźniona odpowiedź po wylogowaniu wpisywała
+  // role do sesji gościa, a jej `finally` zdejmowało `rolesLoading` i kasowało
+  // termin NOWEGO konta, więc guardy dostawały pół-tożsamość (sesja B, role A).
+  // Numer, a nie sam uid: po A -> gość -> A pierwsza odpowiedź A też jest
+  // nieaktualna, bo pytała przed wylogowaniem.
+  const contextRequestRef = useRef(0);
 
   const settleRoles = useCallback(() => {
     if (roleTimerRef.current !== undefined) {
@@ -161,22 +182,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRolesLoading(false);
   }, []);
 
-  const loadContext = async (uid: string) => {
+  const loadContext = async (uid: string, request: number) => {
+    // Nieaktualna odpowiedź nie dotyka stanu: ani ról, ani tenanta, ani
+    // `rolesLoading`, ani terminu - to wszystko należy już do nowej tożsamości.
+    const current = () => contextRequestRef.current === request;
     try {
       const [{ data: rolesData }, { data: profile }] = await Promise.all([
         supabase.from("user_roles").select("role").eq("user_id", uid),
         supabase.from("profiles").select("tenant_id").eq("id", uid).maybeSingle(),
       ]);
-      setRoles((rolesData ?? []).map((r) => r.role as Role));
+      if (!current()) return;
+      setRoles(rolesData?.map((r) => r.role) ?? NO_ROLES);
       setTenantId(profile?.tenant_id ?? null);
     } catch (error) {
       // Martwy backend ODRZUCA te zapytania (`fetch` nie dojeżdża), a nie zwraca
       // `{ error }`. Bez tego `catch` odrzucenie leciało przez `void loadContext`
       // prosto w `unhandledrejection` - czyli w sondę bootu i w `pageerror`
-      // każdego testu e2e, który akurat miał zalogowaną sesję.
-      console.warn("[auth] nie udało się wczytać ról i tenanta", error);
+      // każdego testu e2e, który akurat miał zalogowaną sesję. Odrzucenie
+      // pytania o konto, którego już nie ma, nie jest alarmem.
+      if (current()) console.warn("[auth] nie udało się wczytać ról i tenanta", error);
     } finally {
-      settleRoles();
+      if (current()) settleRoles();
     }
   };
 
@@ -204,6 +230,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // zapytań o `user_roles` i `profiles` przy każdym mount.
     let contextLoadedForUid: string | null = null;
     let invitationAcceptedForUid: string | null = null;
+    // Czy nasłuch dostał już INITIAL_SESSION. Do tego momentu odświeżenie
+    // tokenu USTALA tożsamość startową, a nie ją zmienia (patrz niżej).
+    let initialSessionSeen = false;
     // Czy sesja startowa DOSTAŁA już odpowiedź (jakąkolwiek - z magazynu, z
     // sieci albo odmowną). Steruje wyłącznie terminem niżej.
     let sessionAnswered = false;
@@ -240,9 +269,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const ensureContext = (uid: string | null) => {
       if (uid === contextLoadedForUid) return;
       contextLoadedForUid = uid;
+      contextRequestRef.current += 1;
+      const request = contextRequestRef.current;
+      // Role i tenant poprzedniej tożsamości znikają OD RAZU, a nie dopiero
+      // z odpowiedzią dla nowej. Inaczej po terminie ról (patrz
+      // ROLE_SETTLE_TIMEOUT_MS) nowe konto zostawało z uprawnieniami starego
+      // zamiast z obiecanym pustym zestawem, a konsument czytający `roles`
+      // bez `loading` widział je przez cały czas czekania.
+      setRoles(NO_ROLES);
+      setTenantId(null);
       if (!uid) {
-        setRoles([]);
-        setTenantId(null);
         settleRoles();
         return;
       }
@@ -256,24 +292,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setRolesLoading(false);
       }, ROLE_SETTLE_TIMEOUT_MS);
       setTimeout(() => {
-        void loadContext(uid);
+        // Tożsamość zmieniła się, zanim pytanie wyszło - nie pytamy wcale.
+        if (contextRequestRef.current !== request) return;
+        void loadContext(uid, request);
       }, 0);
     };
     try {
       ({ data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+        setSession(s);
+        const uid = s?.user?.id ?? null;
         // TOKEN_REFRESHED odpala się cyklicznie (co ~godzinę + focus tab) z
         // tą samą tożsamością - nie potrzebujemy wtedy nic przeładowywać
         // (bearer i tak jest odświeżany na poziomie klienta Supabase).
-        if (event === "TOKEN_REFRESHED") {
-          setSession(s);
-          return;
-        }
-        setSession(s);
-        const uid = s?.user?.id ?? null;
-        if (event === "INITIAL_SESSION") {
+        //
+        // ALE TO ZDARZENIE BYWA ZMIANĄ KONTA. `setSession()` z PRZETERMINOWANYM
+        // tokenem odświeża go i emituje WYŁĄCZNIE TOKEN_REFRESHED z sesją
+        // innego konta, bez SIGNED_IN (`_setSession` w `@supabase/auth-js`) -
+        // także do pozostałych kart przez BroadcastChannel. Tak kończy się
+        // wyjście z podglądu jako inny użytkownik trwające dłużej niż ważność
+        // zapisanego tokenu admina (`lib/admin/impersonation.ts`). Bezwarunkowy
+        // powrót zostawiał wtedy sesję admina z rolami i tenantem podglądanego
+        // konta przy `loading === false`.
+        if (event === "TOKEN_REFRESHED" && uid === lastUidRef.current) return;
+        // Przed INITIAL_SESSION odświeżenie przeterminowanego tokenu z magazynu
+        // USTALA tożsamość startową - jak INITIAL_SESSION, bez inwalidacji
+        // cache'u, na którym stoi hydratacja treści.
+        if (event === "INITIAL_SESSION" || (event === "TOKEN_REFRESHED" && !initialSessionSeen)) {
+          if (event === "INITIAL_SESSION") initialSessionSeen = true;
           lastUidRef.current = uid;
         } else {
-          // SIGNED_IN / SIGNED_OUT / USER_UPDATED -> re-gate cached content.
+          // SIGNED_IN / SIGNED_OUT / USER_UPDATED / TOKEN_REFRESHED innego
+          // konta -> re-gate cached content.
           reauthorizeContent(uid);
         }
         ensureContext(uid);
@@ -339,6 +388,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSessionLoading(false);
     }
     return () => {
+      // Odpowiedzi w locie należą do odmontowanego prowajdera - unieważnione.
+      contextRequestRef.current += 1;
       if (settleTimer !== undefined) clearTimeout(settleTimer);
       if (roleTimerRef.current !== undefined) {
         clearTimeout(roleTimerRef.current);
@@ -369,7 +420,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // To jedyne miejsce w kodzie, które wie o wylogowaniu.
     clearReservedSpace();
     setSession(null);
-    setRoles([]);
+    setRoles(NO_ROLES);
     setTenantId(null);
     // Drop every cached query so the next user (e.g. on a shared device) never
     // sees the previous account's data - billing, orders, subscription and

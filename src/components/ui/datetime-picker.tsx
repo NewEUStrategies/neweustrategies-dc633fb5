@@ -22,6 +22,10 @@ interface DateTimePickerProps {
   disabled?: boolean;
   className?: string;
   minDate?: Date;
+  /** Błąd walidacji rodzica - trafia na przycisk-trigger razem z `aria-describedby`. */
+  "aria-invalid"?: boolean;
+  /** Identyfikator komunikatu (np. błędu) czytanego razem z nazwą pola. */
+  "aria-describedby"?: string;
 }
 
 export function DateTimePicker({
@@ -34,6 +38,8 @@ export function DateTimePicker({
   disabled,
   className,
   minDate,
+  "aria-invalid": ariaInvalid,
+  "aria-describedby": ariaDescribedBy,
 }: DateTimePickerProps) {
   const locale = lang === "pl" ? plLocale : enGB;
   const date = useMemo(() => (value ? new Date(value) : null), [value]);
@@ -68,6 +74,8 @@ export function DateTimePicker({
           type="button"
           variant="outline"
           disabled={disabled}
+          aria-invalid={ariaInvalid}
+          aria-describedby={ariaDescribedBy}
           className={cn(
             "h-10 w-full justify-start gap-2 font-normal",
             !date && "text-muted-foreground",

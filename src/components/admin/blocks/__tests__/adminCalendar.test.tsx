@@ -108,6 +108,15 @@ function siatkaDniIstnieje(container: HTMLElement): boolean {
   return container.querySelector("[data-slot='calendar']") !== null;
 }
 
+/**
+ * Nazwa strzalki nastepnego miesiaca. Idzie za jezykiem INTERFEJSU: `Calendar`
+ * doklada etykiety z `react-day-picker/locale/pl` albo `en-US`, a ten plik nie
+ * montuje i18n, wiec interfejs jest domyslny, polski. ZMIANA (2026-09): tu stalo
+ * angielskie `/Next Month/i`, bo kalendarz ignorowal jezyk interfejsu i czytal
+ * nawigacje po angielsku takze w polskim panelu - test przypinal ten defekt.
+ */
+const NASTEPNY_MIESIAC = "Przejdź do następnego miesiąca";
+
 /** Przechodzi z siatki dni do siatki miesiecy. */
 function oddalDoMiesiecy(container: HTMLElement): void {
   fireEvent.click(podpis(container));
@@ -177,7 +186,7 @@ describe("siatka dni - podpis, wybor daty i podniesiony stan miesiaca", () => {
   it("strzalka nastepnego miesiaca przesuwa podpis, bo stan miesiaca trzyma ten komponent", () => {
     const { container, onSelect } = zamontuj({ selected: MAJ_2026 });
 
-    fireEvent.click(within(container).getByRole("button", { name: /Next Month/i }));
+    fireEvent.click(within(container).getByRole("button", { name: NASTEPNY_MIESIAC }));
 
     expect(podpis(container)).toHaveTextContent("czerwiec 2026");
     // Nawigacja NIE jest wyborem - pole formularza ma zostac nietkniete.
@@ -538,7 +547,7 @@ describe("defekty kalendarza panelu", () => {
   it.fails("DEFEKT: nowa instancja tej samej daty NIE moze cofac nawigacji redaktora", () => {
     const { container, rerender } = zamontuj({ selected: new Date(2026, 4, 15) });
 
-    fireEvent.click(within(container).getByRole("button", { name: /Next Month/i }));
+    fireEvent.click(within(container).getByRole("button", { name: NASTEPNY_MIESIAC }));
     expect(podpis(container)).toHaveTextContent("czerwiec 2026");
 
     rerender(

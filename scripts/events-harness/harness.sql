@@ -590,7 +590,7 @@ GRANT SELECT ON public.events TO anon, authenticated;
 GRANT ALL ON public.events TO service_role;
 
 -- ---------------------------------------------------------------------------
--- JEZYK ODBIORCY MAILA - atrapy pod `_event_issue_ticket_codes` (20260923000200)
+-- JEZYK ODBIORCY MAILA - atrapy pod `_event_issue_ticket_codes` (20260923110000)
 -- i `event_registration_notify_payload`. Obie funkcje wybieraja jezyk maila
 -- z `profiles.prefs`, a dla goscia bez konta z `newsletter_subscribers`.
 -- Ksztalt z oryginalow: `prefs` (20260601055702) i `newsletter_subscribers`

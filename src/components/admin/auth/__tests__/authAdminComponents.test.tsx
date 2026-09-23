@@ -13,6 +13,10 @@
 //      obraz, obraz DOMYŚLNY wbudowany w aplikację, brak obrazu. Zlanie
 //      drugiego z pierwszym każe administratorowi wierzyć, że wybrał
 //      ilustrację, której nie wybrał - a wyczyszczenie pola niczego nie zmienia.
+//      Do tego ETYKIETA NAZYWA POLE ADRESU (`htmlFor`/`id` z `useId`, osobne
+//      `id` dla każdej instancji), a podpowiedź i błąd rodzica są jego opisem.
+//      Przed poprawką etykieta stała obok pola bez powiązania i czytnik
+//      ogłaszał samo „pole edycji".
 //   3. `BilingualTextField` - ETYKIETA POWIĄZANA Z POLEM. W zakładce stoi
 //      dwadzieścia kilka pól; bez `htmlFor`/`id` czytnik ogłasza „pole edycji".
 //   4. `SettingToggleCard` - wiersz bez opisu nie renderuje pustego akapitu.
@@ -388,6 +392,82 @@ describe("ImageUrlField (organizm)", () => {
 
   it("nie ma naruszeń dostępności w stanie z obrazem", async () => {
     const { container } = mount({ value: "https://cdn.example.org/hero.webp" });
+    expect(await axeViolations(container).then(summarize)).toBe("");
+  });
+
+  it("ETYKIETA NAZYWA POLE ADRESU: getByLabelText(etykieta) zwraca pole URL", () => {
+    // Regresja: `<Label>` bez `htmlFor` i `<Input>` bez `id` - pole nie miało
+    // nazwy dostępnej, a zapytanie po etykiecie nie znajdowało niczego.
+    mount({ value: "https://cdn.example.org/hero.webp" });
+    const pole = screen.getByLabelText("Ilustracja hero");
+    expect(pole.tagName).toBe("INPUT");
+    expect(pole).toHaveProperty("value", "https://cdn.example.org/hero.webp");
+    expect(screen.getByRole("textbox", { name: "Ilustracja hero" })).toBe(pole);
+  });
+
+  it("ikona motywu przy etykiecie nie wchodzi do nazwy pola", () => {
+    mount({ icon: "dark" });
+    expect(screen.getByRole("textbox", { name: "Ilustracja hero" })).toBeTruthy();
+  });
+
+  it("dwa pola na jednym ekranie mają różne `id` i każda etykieta wskazuje SWOJE pole", () => {
+    const onLight = vi.fn();
+    render(
+      <>
+        <ImageUrlField label="Motyw jasny" value="" onChange={onLight} />
+        <ImageUrlField label="Motyw ciemny" value="" onChange={vi.fn()} />
+      </>,
+    );
+    const jasne = screen.getByLabelText("Motyw jasny");
+    const ciemne = screen.getByLabelText("Motyw ciemny");
+    expect(jasne.id).not.toBe("");
+    expect(jasne.id).not.toBe(ciemne.id);
+    fireEvent.change(jasne, { target: { value: "/media/jasny.webp" } });
+    expect(onLight).toHaveBeenCalledWith("https://neweuropeanstrategies.com/media/jasny.webp");
+  });
+
+  it("bez podpowiedzi i błędu pole nie ma opisu ani `aria-invalid`", () => {
+    mount();
+    const pole = screen.getByLabelText("Ilustracja hero");
+    expect(pole.hasAttribute("aria-describedby")).toBe(false);
+    expect(pole.hasAttribute("aria-invalid")).toBe(false);
+  });
+
+  it("podpowiedź jest opisem pola", () => {
+    mount({ hint: "1600×1200 px" });
+    const pole = screen.getByLabelText("Ilustracja hero");
+    expect(pole).toHaveAccessibleDescription("1600×1200 px");
+    expect(pole.hasAttribute("aria-invalid")).toBe(false);
+  });
+
+  it("błąd rodzica: komunikat widoczny, jest opisem pola, a pole ma `aria-invalid`", () => {
+    mount({ error: "Podaj adres https://" });
+    const pole = screen.getByLabelText("Ilustracja hero");
+    expect(screen.getByText("Podaj adres https://")).toBeTruthy();
+    expect(pole).toHaveAccessibleDescription("Podaj adres https://");
+    expect(pole.getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("błąd i podpowiedź razem: opis zaczyna się od błędu, a kończy podpowiedzią", () => {
+    mount({ error: "Podaj adres https://", hint: "1600×1200 px" });
+    expect(screen.getByLabelText("Ilustracja hero")).toHaveAccessibleDescription(
+      "Podaj adres https:// 1600×1200 px",
+    );
+  });
+
+  it("ikony w przyciskach i w pustym podglądzie są ukryte przed czytnikiem", () => {
+    const { container } = mount({ value: "https://cdn.example.org/hero.webp" });
+    const ikonyPrzyciskow = Array.from(container.querySelectorAll("button svg"));
+    expect(ikonyPrzyciskow.length).toBeGreaterThan(0);
+    for (const ikona of ikonyPrzyciskow) expect(ikona.getAttribute("aria-hidden")).toBe("true");
+    expect(screen.getByRole("button", { name: "adminLoginSettings.pick" })).toBeTruthy();
+    cleanup();
+    const pusty = mount();
+    expect(pusty.container.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("nie ma naruszeń dostępności w stanie błędu z podpowiedzią", async () => {
+    const { container } = mount({ error: "Podaj adres https://", hint: "1600×1200 px" });
     expect(await axeViolations(container).then(summarize)).toBe("");
   });
 });

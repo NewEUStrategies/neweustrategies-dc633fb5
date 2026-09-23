@@ -84,6 +84,9 @@ export const adminEventSponsorsPl = {
       contactNotFound: "Ta osoba nie istnieje w CRM.",
       tierInUse: "Do tego poziomu przypięto jeszcze {{count}} firm(y) - najpierw je przenieś.",
       tierFull: "Poziom dopuszcza {{count}} firm(y), a przypiętych jest już {{total}}.",
+      bannerSingleImage:
+        "Baner mieści tylko jeden obraz, a w tej sekcji jest więcej firm. Zostaw jedną i spróbuj ponownie.",
+      invalidLayout: "Nieznany układ sekcji. Wybierz baner albo siatkę logo.",
       sponsorTierRequired: "Opublikowany sponsor musi mieć przypisany poziom.",
       invalidColor: "Kolor akcentu musi mieć postać #RRGGBB.",
       invalidNumber: "Podaj liczbę całkowitą nie mniejszą niż zero.",
@@ -268,6 +271,9 @@ export const adminEventSponsorsEn = {
       contactNotFound: "This person does not exist in the CRM.",
       tierInUse: "{{count}} company(ies) are still pinned to this tier - move them first.",
       tierFull: "The tier allows {{count}} company(ies) and {{total}} are already pinned.",
+      bannerSingleImage:
+        "A banner holds only one image and this section has more companies. Keep one and try again.",
+      invalidLayout: "Unknown section layout. Choose a banner or a grid of logos.",
       sponsorTierRequired: "A published sponsor must have a tier.",
       invalidColor: "The accent colour must use the #RRGGBB form.",
       invalidNumber: "Provide a whole number that is zero or greater.",

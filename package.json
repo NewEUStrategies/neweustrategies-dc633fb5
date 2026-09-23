@@ -8,6 +8,7 @@
   ],
   "type": "module",
   "scripts": {
+    "postinstall": "bun run scripts/check-module-singletons.ts --warn || true",
     "predev": "node scripts/clean-vite-cache.mjs",
     "dev": "NODE_OPTIONS=\"--max-old-space-size=6144\" vite dev",
     "clean:vite-cache": "node scripts/clean-vite-cache.mjs",
@@ -49,6 +50,7 @@
     "check:stale-never-casts": "bun run scripts/check-stale-never-casts.ts",
     "check:unknown-casts": "bun run scripts/check-unknown-casts.ts",
     "check:clock-freeze": "bun run scripts/check-clock-freeze.ts",
+    "check:module-singletons": "bun run scripts/check-module-singletons.ts",
     "check:content-layering": "bun run scripts/check-content-layering.ts",
     "check:dangerous-html": "bun run scripts/check-dangerous-html.ts",
     "check:client-ip-source": "bun run scripts/check-client-ip-source.ts",
