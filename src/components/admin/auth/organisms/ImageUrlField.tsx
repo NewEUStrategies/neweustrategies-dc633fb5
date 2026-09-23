@@ -13,7 +13,16 @@
 //   - brak obrazu (ikona zastępcza plus tekst).
 // Pomyłka między drugim i trzecim to ta sama klasa defektu, co „awaria kontra
 // pustka" na listach: dwa różne stany o jednym wyglądzie.
-import { useState } from "react";
+//
+// ETYKIETA JEST POWIĄZANA Z POLEM ADRESU przez `htmlFor`/`id` z `useId`, a
+// podpowiedź i komunikat błędu przez `aria-describedby`. Wcześniej `<Label>`
+// stała obok pola bez żadnego powiązania: czytnik ekranu ogłaszał samo „pole
+// edycji", a trasa ustawień logowania rysuje takich pól dziewięć. `useId`
+// daje każdej instancji własny identyfikator, więc para jasny/ciemny na jednym
+// ekranie nie dzieli jednego `id`. Ikony (w przyciskach i w pustym podglądzie)
+// są jawnie `aria-hidden` - nazwę niesie tekst obok, a ukrycie nie zależy od
+// domyślnego zachowania pakietu ikon wybranego w ustawieniach wyglądu.
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +49,12 @@ export interface ImageUrlFieldProps {
   icon?: "light" | "dark";
   /** Obraz wbudowany, używany, gdy pole jest puste. */
   fallbackUrl?: string;
+  /**
+   * Komunikat walidacji rodzica (już przetłumaczony). Gdy jest, pole adresu
+   * dostaje `aria-invalid`, a komunikat - wiązany przez `aria-describedby` -
+   * czytnik ekranu przeczyta razem z nazwą pola, a nie gdzieś obok.
+   */
+  error?: string;
 }
 
 const PREVIEW_BG = {
@@ -56,9 +71,16 @@ export function ImageUrlField({
   previewBg,
   icon,
   fallbackUrl,
+  error,
 }: ImageUrlFieldProps) {
   const { t } = useTranslation();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const inputId = useId();
+  const hintId = `${inputId}-hint`;
+  const errorId = `${inputId}-error`;
+  const describedBy = [error ? errorId : "", hint ? hintId : ""]
+    .filter((id) => id !== "")
+    .join(" ");
 
   const bgClass = previewBg ? PREVIEW_BG[previewBg] : "bg-muted border-border";
   const IconEl = icon === "dark" ? Moon : icon === "light" ? Sun : null;
@@ -69,7 +91,7 @@ export function ImageUrlField({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <Label className="flex items-center gap-1.5">
+        <Label htmlFor={inputId} className="flex items-center gap-1.5">
           {IconEl ? <IconEl className="w-3.5 h-3.5" aria-hidden /> : null}
           {label}
         </Label>
@@ -79,7 +101,7 @@ export function ImageUrlField({
             onClick={() => onChange("")}
             className="text-xs text-muted-foreground hover:text-destructive inline-flex items-center gap-1"
           >
-            <X className="w-3 h-3" /> {t("adminLoginSettings.clear")}
+            <X className="w-3 h-3" aria-hidden /> {t("adminLoginSettings.clear")}
           </button>
         ) : null}
       </div>
@@ -102,23 +124,35 @@ export function ImageUrlField({
           </>
         ) : (
           <div className="flex flex-col items-center gap-2 text-muted-foreground text-xs">
-            <ImageIcon className="w-6 h-6 opacity-60" />
+            <ImageIcon className="w-6 h-6 opacity-60" aria-hidden />
             <span>{t("adminLoginSettings.noImage")}</span>
           </div>
         )}
       </div>
       <div className="flex gap-2">
         <Input
+          id={inputId}
           value={brandedValue}
           onChange={(event) => onChange(brandedMediaUrl(event.target.value))}
           placeholder={t("adminLoginSettings.imgUrlPlaceholder")}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy === "" ? undefined : describedBy}
           className="flex-1"
         />
         <Button type="button" variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
-          <Upload className="w-3.5 h-3.5 mr-1.5" /> {t("adminLoginSettings.pick")}
+          <Upload className="w-3.5 h-3.5 mr-1.5" aria-hidden /> {t("adminLoginSettings.pick")}
         </Button>
       </div>
-      {hint ? <p className="text-[11px] text-muted-foreground leading-snug">{hint}</p> : null}
+      {error ? (
+        <p id={errorId} className="text-xs text-destructive">
+          {error}
+        </p>
+      ) : null}
+      {hint ? (
+        <p id={hintId} className="text-[11px] text-muted-foreground leading-snug">
+          {hint}
+        </p>
+      ) : null}
       <MediaPickerDialog
         open={pickerOpen}
         onOpenChange={setPickerOpen}

@@ -1,11 +1,45 @@
 "use client";
 
+// ETYKIETY ARIA KALENDARZA IDĄ ZA JĘZYKIEM INTERFEJSU.
+//
+// react-day-picker 9 bierze nazwy przycisków nawigacji, siatki i dni
+// z `locale.labels`, a gdy ich brak - z angielskich domyślnych („Go to the Next
+// Month", „Today, ..."). Wywołujący podają `locale` z date-fns, który formatuje
+// daty, ale ETYKIET NIE MA - więc przy polskim interfejsie czytnik ekranu
+// czytał nawigację po angielsku. Kalendarz dokłada więc etykiety języka
+// interfejsu (`pl` albo `enUS` z `react-day-picker/locale/*`) do `locale`
+// wywołującego, nie ruszając reszty obiektu:
+//   - `locale` wywołującego nadal formatuje daty (podpis miesiąca, dni tygodnia),
+//   - etykiety z `locale` wywołującego (locale react-day-pickera) wygrywają
+//     z etykietami interfejsu, a prop `labels` wygrywa z obydwoma - to
+//     kolejność samego `getLabels` biblioteki,
+//   - bez `locale` kalendarz formatuje i podpisuje w języku interfejsu.
+// Język bierzemy z `i18n.language`, jak każdy dzisiejszy wywołujący wybierający
+// locale date-fns - etykiety i formatowanie nie rozjadą się między sobą.
+//
+// IMPORT PER JĘZYK, NIE BECZKA `react-day-picker/locale` (reeksportuje ~100
+// locale date-fns). `en-US` to ten sam moduł, który biblioteka ładuje jako
+// domyślny - koszt zero. `pl` importuje `date-fns/locale`, czyli TEN SAM moduł
+// polskiego locale, którego używają wywołujący: od 2026-09-23 date-fns ma
+// w bun.lock jedną kopię (4.4.0). Wcześniej react-day-picker trzymał własną,
+// zagnieżdżoną 4.1.0, choć jego zakres `^4.1.0` spełnia wersja aplikacji -
+// wtedy do chunka kalendarza trafiała druga kopia funkcji date-fns i drugi
+// polski locale. Nowy język UI kosztuje tu tylko słownik etykiet.
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "@/lib/lucide-shim";
-import { DayButton, DayPicker, getDefaultClassNames } from "react-day-picker";
+import { DayButton, DayPicker, getDefaultClassNames, type DayPickerLocale } from "react-day-picker";
+import { enUS as dayPickerEnUS } from "react-day-picker/locale/en-US";
+import { pl as dayPickerPl } from "react-day-picker/locale/pl";
 
 import { cn } from "@/lib/utils";
+import { DEFAULT_LANG, normalizeLang, type AppLang } from "@/lib/i18n/localePath";
 import { Button, buttonVariants } from "@/components/ui/button";
+
+const UI_LOCALES: Record<AppLang, DayPickerLocale> = {
+  pl: dayPickerPl,
+  en: dayPickerEnUS,
+};
 
 function Calendar({
   className,
@@ -15,14 +49,22 @@ function Calendar({
   buttonVariant = "ghost",
   formatters,
   components,
+  locale,
   ...props
 }: React.ComponentProps<typeof DayPicker> & {
   buttonVariant?: React.ComponentProps<typeof Button>["variant"];
 }) {
   const defaultClassNames = getDefaultClassNames();
+  const { i18n } = useTranslation();
+  const uiLocale = UI_LOCALES[normalizeLang(i18n.language) ?? DEFAULT_LANG];
+  const labelledLocale = React.useMemo(() => {
+    const base = locale ?? uiLocale;
+    return { ...base, labels: { ...uiLocale.labels, ...base.labels } };
+  }, [locale, uiLocale]);
 
   return (
     <DayPicker
+      locale={labelledLocale}
       showOutsideDays={showOutsideDays}
       className={cn(
         "bg-background group/calendar p-3 [--cell-size:2rem] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
