@@ -45,3 +45,9 @@
 
 - [x] Ujednolicić jasne wnętrze i ciemniejszy obrys wszystkich słupków oraz wykresów kołowych.
 - [x] Usunąć widoczną ramkę całego wykresu po kliknięciu, zachowując dostępny fokus klawiatury.
+
+## Archiwum GGM 2021
+
+- [x] Utworzyć wydarzenie z trzema dniami, 12 debatami, moderatorami i panelistami.
+- [x] Przygotować i przypisać spójne miniaturki z materiałów źródłowych konferencji.
+- [x] Zweryfikować publiczny program i listę prelegentów.
