@@ -424,6 +424,21 @@ describe("co zatrzymuje zapis PRZED zadaniem", () => {
 });
 
 describe("ksztalt ladunku", () => {
+  it("aktualizuje próbnik koloru natychmiast po zmianie wartości pola", () => {
+    renderuj({ group: groupRow({ color: "#FA9346" }) });
+    const preview = screen.getByTestId("group-color-preview");
+
+    expect(preview.style.backgroundColor).toBe("#FA9346");
+    wpisz("color", "#B45309");
+    expect(preview.style.backgroundColor).toBe("#B45309");
+  });
+
+  it("nie próbuje wyświetlać niepełnej wartości jako koloru", () => {
+    renderuj({ group: groupRow({ color: "#FA9346" }) });
+    wpisz("color", "#B45");
+    expect(screen.getByTestId("group-color-preview").style.backgroundColor).toBe("transparent");
+  });
+
   it("nowa grupa niesie wydarzenie, przyciety klucz i przyciete nazwy", () => {
     renderuj();
     wpisz("key", "  rada_programowa  ");
