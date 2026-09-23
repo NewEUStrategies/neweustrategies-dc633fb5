@@ -71,6 +71,28 @@ export function guestsToPayload(guests: readonly GroupGuest[]) {
   }));
 }
 
+/** Bilet w postaci, z której da się odczytać limit grupy (formularz zapisu). */
+export interface GroupLimitSource {
+  id: string;
+  groupRegistrationEnabled?: boolean;
+  groupMaxSize?: number;
+}
+
+/**
+ * Limit grupy biletu `ticketTypeId` (prowadzący + goście) z listy biletów.
+ *
+ * `null`, gdy tego biletu na liście nie ma albo zapis grupowy jest na nim
+ * wyłączony - wtedy o limicie nie wiemy nic i nie wolno go zgadywać.
+ */
+export function ticketGroupMaxSize(
+  tickets: readonly GroupLimitSource[],
+  ticketTypeId: string | null,
+): number | null {
+  const ticket = tickets.find((entry) => entry.id === ticketTypeId);
+  if (ticket === undefined || ticket.groupRegistrationEnabled !== true) return null;
+  return ticket.groupMaxSize === undefined ? null : clampGroupSize(ticket.groupMaxSize);
+}
+
 /** Kwota za całą grupę (prowadzący + goście). */
 export function groupTotalCents(unitCents: number, guestCount: number): number {
   return Math.max(0, Math.round(unitCents)) * (1 + Math.max(0, Math.trunc(guestCount)));
@@ -135,9 +157,10 @@ export async function registerGroupGuests(
     p_guests: guestsToPayload(guests),
   });
   if (error) throw new Error(error.message);
-  const added =
-    data !== null && typeof data === "object" && !Array.isArray(data)
-      ? (data as Record<string, unknown>).added
-      : 0;
-  return typeof added === "number" ? added : 0;
+  // `Json` zawęża się do obiektu samym sprawdzeniem typu - rzutowanie na
+  // `Record<string, unknown>` niczego tu nie dodawało poza ślepą plamką.
+  if (data === null || typeof data !== "object" || Array.isArray(data) || !("added" in data)) {
+    return 0;
+  }
+  return typeof data.added === "number" ? data.added : 0;
 }

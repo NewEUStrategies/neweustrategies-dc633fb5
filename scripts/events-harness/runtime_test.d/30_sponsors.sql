@@ -1968,6 +1968,9 @@ SELECT pg_temp.assert(
                         'event_sponsor_materials')) = 5,
   '30/struktura: migracja zostawila wszystkie piec tabel podmodulu');
 
+-- 19 -> 23: 20260922200000 (sekcje sponsorow) dolozyla cztery funkcje panelu -
+-- `admin_event_sponsor_links`, `admin_event_sponsor_set_link`,
+-- `admin_event_sponsor_tier_layouts` i `admin_event_sponsor_tier_set_layout`.
 SELECT pg_temp.assert(
   (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public' AND p.proname LIKE '%sponsor%') = 23,

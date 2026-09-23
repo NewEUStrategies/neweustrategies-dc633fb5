@@ -291,4 +291,18 @@ export const CLOCK_FREEZE_BASELINE: readonly (readonly [string, number])[] = [
   // (`src/test/time.ts`). Liczby przy plikach mogą już tylko maleć.
   ["src/routes/__tests__/sitemapRoute.test.tsx", 1],
   ["src/routes/__tests__/trackerIndexRoute.test.tsx", 3],
+  // 2026-09-22 - BILETY WYDARZEŃ (zmiany 0038-0040 z panelu Lovable): trzy testy
+  // weszły z literałami daty bez zamrożenia zegara. Triage przeczytany na
+  // produkcji - żaden literał nie jest mierzony względem `Date.now()`:
+  //   * `EventTicketsPanel` - daty okna sprzedaży i progu są WYŁĄCZNIE wejściem
+  //     `formatDateTime` w napisach; status biletu (`ticketStatus`) bierze
+  //     `availability` z fixture (`adminSalesRows`: "on_sale"), więc do zegara
+  //     nie schodzi,
+  //   * `eventCodesApi` - `validFrom`/`validUntil` porównywane MIĘDZY SOBĄ
+  //     (kolejność okna kodu) i konwertowane `toISOString`,
+  //   * `ticketPresentation` - `ticketStatus` dostaje JAWNE `now` z testu.
+  // Liczby przy plikach mogą już tylko maleć.
+  ["src/components/admin/events/__tests__/EventTicketsPanel.test.tsx", 5],
+  ["src/lib/events/__tests__/eventCodesApi.test.ts", 2],
+  ["src/lib/events/__tests__/ticketPresentation.test.ts", 3],
 ];

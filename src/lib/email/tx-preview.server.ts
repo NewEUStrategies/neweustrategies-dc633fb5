@@ -23,6 +23,7 @@ import {
   type TxOverrides,
 } from "@/lib/email/txOverrides";
 import { PROFILE_PLAN_PATH } from "@/lib/profile/routes";
+import { ticketLinkPath } from "@/lib/events/manageToken";
 
 export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "subscription_confirmed",
@@ -48,6 +49,7 @@ export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "event_ticket_paid",
   "event_ticket_refunded",
   "event_ticket_partially_refunded",
+  "event_ticket_issued",
   "donation_received",
   "newsletter_confirmed",
   "customer_portal_link",
@@ -95,6 +97,8 @@ const DEMO_TICKET_TYPE: Record<EmailLang, string> = {
 };
 const DEMO_TICKET_PRICE: Record<EmailLang, string> = { pl: "450,00 PLN", en: "PLN 450.00" };
 const DEMO_PARTIAL_REFUND: Record<EmailLang, string> = { pl: "150,00 PLN", en: "PLN 150.00" };
+/** Kod wejścia w kształcie `_event_new_qr_token()` (32 znaki base64url). */
+const DEMO_ENTRY_CODE = "Nes2026DemoTicketCode0123456789A";
 const DEMO_REFUND_LABEL: Record<EmailLang, string> = {
   pl: "Kwota zwrotu",
   en: "Refunded amount",
@@ -294,6 +298,22 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
               ]),
         ],
         ctaUrl: `${SITE_URL}/events`,
+      };
+    // Bilet z kodem QR: podgląd z przykładowym gościem grupy (wiersz „zgłoszenie
+    // od") i kodem w kształcie `_event_new_qr_token()` - przycisk prowadzi na
+    // stronę biletu z kodem we fragmencie adresu.
+    case "event_ticket_issued":
+      return {
+        subjectName: eventTitle,
+        details: [
+          { label: l.event, value: eventTitle },
+          { label: l.date, value: eventDate },
+          { label: l.place, value: place },
+          { label: l.ticketType, value: DEMO_TICKET_TYPE[lang] },
+          { label: l.registeredBy, value: "Anna Nowak" },
+          { label: l.entryCode, value: DEMO_ENTRY_CODE },
+        ],
+        ctaUrl: `${SITE_URL}${ticketLinkPath("demo", DEMO_ENTRY_CODE)}`,
       };
     case "donation_received":
       return {

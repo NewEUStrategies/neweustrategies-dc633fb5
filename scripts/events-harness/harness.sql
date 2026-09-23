@@ -590,6 +590,23 @@ GRANT SELECT ON public.events TO anon, authenticated;
 GRANT ALL ON public.events TO service_role;
 
 -- ---------------------------------------------------------------------------
+-- JEZYK ODBIORCY MAILA - atrapy pod `_event_issue_ticket_codes` (20260923110000)
+-- i `event_registration_notify_payload`. Obie funkcje wybieraja jezyk maila
+-- z `profiles.prefs`, a dla goscia bez konta z `newsletter_subscribers`.
+-- Ksztalt z oryginalow: `prefs` (20260601055702) i `newsletter_subscribers`
+-- (20260601054247) - tylko kolumny, ktore czyta modul.
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS prefs jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+CREATE TABLE IF NOT EXISTS public.newsletter_subscribers (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id  uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  email      text NOT NULL,
+  language   text NOT NULL DEFAULT 'pl',
+  UNIQUE (tenant_id, email)
+);
+
+-- ---------------------------------------------------------------------------
 -- KASA I SILNIK KUPONOW - atrapy pod migracje 20260824080000 (wejsciowki,
 -- pakiety, kupony). Modul Wydarzen zaczal od niej zalezec od trzech rzeczy
 -- spoza swojego zakresu, a harness wylapal to REPLAYEM, nie lektura:

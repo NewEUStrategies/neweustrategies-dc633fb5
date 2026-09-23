@@ -565,6 +565,12 @@ export function EventTicketDialog({
                       ? formatMoney(Number(draft.priceCents), draft.currency, contentLang)
                       : t("adminEventRegistration.tickets.studio.free"))
               }
+              taxAdded={
+                look.showPriceLabel &&
+                look.taxMode === "exclusive" &&
+                paid &&
+                Number(draft.priceCents) > 0
+              }
               salesTo={draft.salesTo}
               lang={contentLang}
             />

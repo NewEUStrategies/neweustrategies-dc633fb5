@@ -39,6 +39,10 @@ export type TxEmailType =
   | "event_ticket_paid"
   | "event_ticket_refunded"
   | "event_ticket_partially_refunded"
+  // Bilet z kodem QR - osobny mail do KAZDEJ osoby z miejscem (takze gosci
+  // zapisanych przez prowadzacego grupy). Jawny kod istnieje tylko w chwili
+  // wydania, wiec ten mail jest jedyna jego kopia u uczestnika.
+  | "event_ticket_issued"
   | "donation_received"
   | "newsletter_confirmed"
   | "customer_portal_link"
@@ -90,6 +94,10 @@ export interface TxCopy {
     decisionNote: string;
     /** Wiadomość darczyńcy przekazana w formularzu darowizny. */
     donorMessage: string;
+    /** Kod wejścia (to samo, co w QR) - do wpisania ręcznie, gdy skaner zawiedzie. */
+    entryCode: string;
+    /** Kto zapisał gościa grupy - bez tego mail od obcej osoby wygląda na spam. */
+    registeredBy: string;
     /**
      * Napis przycisku prowadzącego do samoobsługi zgłoszenia.
      *
@@ -125,6 +133,8 @@ const LABELS_PL: TxCopy["labels"] = {
   waitlistPosition: "Miejsce w kolejce",
   decisionNote: "Uzasadnienie organizatora",
   donorMessage: "Twoja wiadomość",
+  entryCode: "Kod wejścia",
+  registeredBy: "Zgłoszenie od",
   manageCta: "Zarządzaj zgłoszeniem",
 };
 
@@ -148,6 +158,8 @@ const LABELS_EN: TxCopy["labels"] = {
   waitlistPosition: "Waiting list position",
   decisionNote: "Organiser's note",
   donorMessage: "Your message",
+  entryCode: "Entry code",
+  registeredBy: "Registered by",
   manageCta: "Manage your registration",
 };
 
@@ -460,9 +472,22 @@ const PL: Dict = {
     eyebrow: "Wydarzenie",
     heading: "Bilet op\u0142acony",
     intro:
-      "Zaksi\u0119gowali\u015bmy p\u0142atno\u015b\u0107 za wej\u015bci\u00f3wk\u0119. Twoje zg\u0142oszenie ma status potwierdzonego, a kod wej\u015bcia czeka na stronie zg\u0142oszenia.",
+      "Zaksi\u0119gowali\u015bmy p\u0142atno\u015b\u0107 za wej\u015bci\u00f3wk\u0119. Twoje zg\u0142oszenie ma status potwierdzonego, a bilet z kodem QR wysy\u0142amy w osobnej wiadomo\u015bci.",
     cta: "Szczeg\u00f3\u0142y wydarzenia",
     note: "Faktur\u0119 i potwierdzenie p\u0142atno\u015bci znajdziesz w profilu, w sekcji p\u0142atno\u015bci.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_ticket_issued: {
+    subject: (v) => `🎟️ Twój bilet${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "Bilet z kodem QR do okazania przy wejściu.",
+    eyebrow: "Wydarzenie",
+    heading: "Twój bilet z kodem QR",
+    intro:
+      "Masz potwierdzone miejsce na wydarzeniu. Przycisk poniżej otwiera bilet z kodem QR - pokaż go przy wejściu. Kod jest przypisany do Ciebie, nie przekazuj go dalej.",
+    cta: "Pokaż bilet z kodem QR",
+    note: "Zachowaj tę wiadomość - to jedyna kopia kodu. Gdy skaner nie odczyta QR, obsługa wpisze kod wejścia ręcznie.",
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
@@ -882,9 +907,22 @@ const EN: Dict = {
     eyebrow: "Event",
     heading: "Ticket payment received",
     intro:
-      "We have recorded your ticket payment. Your registration is confirmed and the entry code is waiting on your registration page.",
+      "We have recorded your ticket payment. Your registration is confirmed and your ticket with the QR code follows in a separate email.",
     cta: "Event details",
     note: "The invoice and payment receipt are available in your profile, under payments.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_ticket_issued: {
+    subject: (v) => `🎟️ Your ticket${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "Your ticket with the QR code to show at the entrance.",
+    eyebrow: "Event",
+    heading: "Your ticket with the QR code",
+    intro:
+      "Your seat at the event is confirmed. The button below opens your ticket with the QR code - show it at the entrance. The code belongs to you, please do not pass it on.",
+    cta: "Show my ticket with the QR code",
+    note: "Keep this email - it is the only copy of your code. If the scanner cannot read the QR, staff can type in the entry code by hand.",
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },

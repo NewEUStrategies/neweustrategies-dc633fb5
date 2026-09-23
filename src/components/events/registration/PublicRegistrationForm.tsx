@@ -16,6 +16,14 @@
 //
 // SZKIC ZYJE W KOMPONENCIE, NIE W CACHE. `manage_token` wraca raz i nie moze
 // wpasc do cache zapytan, dlatego wynik zapisu trzymamy w stanie lokalnym.
+//
+// ODMOWA GOSCI NIE GUBI LISTY. Zgloszenie prowadzacego stoi juz w bazie, gdy
+// `event_register_group_guests` odmawia, wiec ekran przechodzi na
+// potwierdzenie - ale z lista gosci w `GroupGuestsRetryPanel`, a nie z samym
+// komunikatem. Ponowny zapis z formularza konczylby sie `already_registered`.
+// Po odmowie `group_too_large` panel czyta limit biletu od nowa - osobnym
+// wywolaniem `fetchRegistrationForm`, a nie przez `formQuery`: porazka tego
+// odczytu nie moze przelaczyc strony w „zapisy niedostepne".
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -42,13 +50,17 @@ import {
 } from "@/lib/events/registrationSubmitDraft";
 import { GroupGuestsEditor } from "@/components/events/registration/GroupGuestsEditor";
 import {
+  GROUP_SIZE_DEFAULT,
   guestIssues,
   registerGroupGuests,
+  ticketGroupMaxSize,
   type GroupGuest,
   type GuestIssue,
 } from "@/lib/events/ticketTaxGroup";
 import { EMPTY_REGISTRATION_FORM } from "@/lib/events/registrationFormSurface";
 import { confirmEventRegistrationEmail } from "@/lib/events/registrationSelfNotify.functions";
+import { sendGroupTicketCodes } from "@/lib/events/groupTicketCodes.functions";
+import { GroupGuestsRetryPanel } from "@/components/events/registration/organisms/GroupGuestsRetryPanel";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FieldBox } from "@/components/ui/field-box";
@@ -58,6 +70,16 @@ import { RegistrationAnswerField } from "./RegistrationAnswerField";
 import { RegistrationConfirmation } from "./RegistrationConfirmation";
 import { RegistrationTermsList } from "./RegistrationTermsList";
 import { RegistrationTicketPicker } from "./RegistrationTicketPicker";
+
+/** Goście, których baza nie dopisała - wracają do edycji na ekranie potwierdzenia. */
+interface GuestRetry {
+  guests: GroupGuest[];
+  error: unknown;
+  maxSize: number;
+  leadEmail: string;
+  /** Bilet zgłoszenia - po nim panel czyta aktualny limit grupy. */
+  ticketTypeId: string | null;
+}
 
 export function PublicRegistrationForm({ slug }: { slug: string }) {
   const { t } = useTranslation();
@@ -78,6 +100,7 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
   const [cancelled, setCancelled] = useState(false);
   const [guests, setGuests] = useState<GroupGuest[]>([]);
   const [guestErrors, setGuestErrors] = useState<(GuestIssue | null)[]>([]);
+  const [guestRetry, setGuestRetry] = useState<GuestRetry | null>(null);
 
   // Szkic powstaje dopiero, gdy znamy bilety - domyslny wybor zalezy od tego,
   // ile pozycji jest naprawde w sprzedazy.
@@ -126,14 +149,30 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
   // fail-soft: brak maila nie moze uniewaznic zapisu ani zepsuc ekranu
   // potwierdzenia. Ten sam uklad, co przy bezplatnym RSVP.
   const sendConfirmation = useServerFn(confirmEventRegistrationEmail);
+  const sendTicketCodes = useServerFn(sendGroupTicketCodes);
+  // Zapis bezpłatny: bilety z kodem QR wychodzą od razu, każdy na adres swojej
+  // osoby. Przy zapisie płatnym serwer nic nie wyda - zrobi to webhook po
+  // zaksięgowaniu płatności. Mail jest dodatkiem: ŻADNA awaria wysyłki (także
+  // synchroniczna) nie może wyglądać jak nieudany zapis. Ta sama droga po
+  // zapisie grupy i po ponownym dopisaniu gości z ekranu potwierdzenia.
+  const sendGuestTickets = (manageToken: string | null): void => {
+    if (manageToken === null) return;
+    void Promise.resolve()
+      .then(() => sendTicketCodes({ data: { manageToken } }))
+      .catch(() => {
+        /* brak maila nie unieważnia zapisu grupy - cron ponowi wysyłkę */
+      });
+  };
 
   const submit = useMutation({
     mutationFn: async ({
       current,
       groupGuests,
+      groupMaxSize,
     }: {
       current: RegistrationDraft;
       groupGuests: GroupGuest[];
+      groupMaxSize: number;
     }) => {
       const registered = await submitRegistration({
         eventSlug: slug,
@@ -156,8 +195,18 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
       if (groupGuests.length > 0) {
         try {
           await registerGroupGuests(registered.registrationId, groupGuests);
+          sendGuestTickets(registered.manageToken);
         } catch (error) {
-          setFailure(registrationErrorMessage(error));
+          // Zgłoszenie prowadzącego już stoi, więc potwierdzenie i tak się
+          // pokaże - ale lista gości jedzie z nim dalej, żeby kupujący mógł ją
+          // poprawić i dopisać ponownie, zamiast wpisywać wszystko od nowa.
+          setGuestRetry({
+            guests: groupGuests,
+            error,
+            maxSize: groupMaxSize,
+            leadEmail: current.email.trim(),
+            ticketTypeId: current.ticketTypeId,
+          });
         }
       }
       return registered;
@@ -218,6 +267,23 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
       <div className="space-y-6">
         <Header title={eventTitle} />
         {failure !== null && <FailureNotice message={failure} />}
+        {guestRetry !== null && !cancelled && (
+          <GroupGuestsRetryPanel
+            registrationId={result.registrationId}
+            leadEmail={guestRetry.leadEmail}
+            maxSize={guestRetry.maxSize}
+            loadMaxSize={async () =>
+              ticketGroupMaxSize(
+                (await fetchRegistrationForm(slug)).tickets,
+                guestRetry.ticketTypeId,
+              )
+            }
+            initialGuests={guestRetry.guests}
+            initialError={guestRetry.error}
+            paymentRequired={result.paymentRequired}
+            onAdded={() => sendGuestTickets(result.manageToken)}
+          />
+        )}
         <RegistrationConfirmation
           result={result}
           slug={slug}
@@ -260,7 +326,11 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
   const paidTicketNeedsAccount =
     user === null && selectedTicket !== null && selectedTicket.effectivePriceCents > 0;
   const groupEnabled = selectedTicket !== null && selectedTicket.groupRegistrationEnabled;
-  const groupGuests = groupEnabled && user !== null ? guests : [];
+  // Limit grupy pochodzi z biletu (ten sam, który egzekwuje baza). Po zmianie
+  // biletu na mniejszy nadmiarowi goście nie jadą do zapisu - baza i tak
+  // odrzuciłaby całą listę jako `group_too_large`.
+  const groupMaxSize = selectedTicket?.groupMaxSize ?? GROUP_SIZE_DEFAULT;
+  const groupGuests = groupEnabled && user !== null ? guests.slice(0, groupMaxSize - 1) : [];
 
   return (
     <form
@@ -277,7 +347,7 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
           return;
         }
         setFailure(null);
-        submit.mutate({ current, groupGuests });
+        submit.mutate({ current, groupGuests, groupMaxSize });
       }}
     >
       <Header title={eventTitle} />
@@ -368,9 +438,9 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
 
       {groupEnabled && (
         <GroupGuestsEditor
-          guests={guests}
+          guests={groupGuests}
           issues={guestErrors}
-          maxSize={10}
+          maxSize={groupMaxSize}
           requiresAccount={user === null}
           onChange={(next) => {
             setGuests(next);

@@ -168,6 +168,12 @@ async function runJobs(job: SchedulerJob): Promise<{ result: JobOutcome; errors:
   if (job === "all" || job === "crm-task-reminders") {
     await step("crmTaskReminders", () => runCrmTaskReminders());
   }
+  if (job === "all" || job === "event-ticket-codes") {
+    await step("eventTicketCodes", async () => {
+      const { runPendingTicketCodes } = await import("@/lib/events/ticketCodeNotify.server");
+      return runPendingTicketCodes(50);
+    });
+  }
   if (job === "all" || job === "career-cv-retention") {
     // Dane osobowe kandydatów: plik CV ląduje w buckecie przy WYBORZE, przed
     // wysyłką formularza, więc bez tego kroku porzucony kreator zostawiał CV na

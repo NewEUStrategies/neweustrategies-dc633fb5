@@ -47,6 +47,7 @@ export const eventRegistrationPl = {
       phaseEarlyBird: "Cena promocyjna",
       phaseEndsAt: "obowiązuje do {{date}}",
       benefitsTitle: "W cenie biletu",
+      plusTax: "+ podatek",
       accessCodeRequired: "Bilet za kodem z zaproszenia",
       selectPlaceholder: "Wybierz z listy",
     },
@@ -105,6 +106,19 @@ export const eventRegistrationPl = {
     // „nie masz jeszcze wejściówki" i na tym kończył: nie było przycisku,
     // odnośnika ani niczego. Te napisy obsługują trzy stany - można zapłacić,
     // trzeba się najpierw zalogować, nie ma czego płacić.
+    // Strona biletu z kodem QR otwierana z maila (`/events/<slug>/ticket#t=…`).
+    ticketPage: {
+      title: "Twój bilet",
+      lead: "Pokaż ten kod QR przy wejściu na wydarzenie.",
+      qrAlt: "Kod QR biletu",
+      codeLabel: "Kod wejścia",
+      codeHint: "Gdy skaner nie odczyta obrazka, obsługa wpisze ten kod ręcznie.",
+      private: "Kod jest przypisany do Ciebie - nie publikuj go i nie przekazuj dalej.",
+      manage: "Zarządzaj zgłoszeniem",
+      missingTitle: "Brak kodu biletu",
+      missingBody:
+        "Ten odnośnik nie zawiera kodu biletu. Otwórz bilet przyciskiem z maila „Twój bilet z kodem QR”.",
+    },
     group: {
       title: "Uczestnicy grupy",
       lead: "Dodaj dane każdej osoby, za którą płacisz. Ty zajmujesz pierwsze miejsce, łącznie do {{max}} osób. Każdy dostanie własny bilet z kodem QR.",
@@ -117,6 +131,39 @@ export const eventRegistrationPl = {
         name: "Podaj imię i nazwisko (do 80 znaków).",
         email: "Podaj poprawny adres e-mail.",
         duplicate: "Ten adres e-mail już jest na liście.",
+      },
+      // Odmowy `event_register_group_guests`. Zgłoszenie kupującego w tym
+      // momencie już STOI, więc zdania mówią o gościach, a nie o zapisie.
+      errors: {
+        accountRequired: "Zaloguj się, aby dopisać gości do swojego zgłoszenia.",
+        invalidGuests: "Lista gości ma nieprawidłowy format. Sprawdź dane i spróbuj ponownie.",
+        notFound:
+          "Nie znaleźliśmy Twojego zgłoszenia na tym koncie. Gości dopisuje osoba, która złożyła zgłoszenie, z tego samego konta.",
+        registrationClosed:
+          "Twoje zgłoszenie zostało odwołane lub odrzucone - nie można już dopisać do niego gości.",
+        alreadySettled:
+          "Twoje zgłoszenie jest już rozliczone - do opłaconego zamówienia nie dopiszemy gości. Zapisz ich osobnym zgłoszeniem.",
+        groupNotEnabled: "Ten bilet nie pozwala na zapis grupowy.",
+        groupTooLarge: "Za dużo osób jak na limit grupy tego biletu. Usuń część gości.",
+        groupTooLargeMax:
+          "Za dużo osób: ten bilet pozwala na grupę do {{max}} osób łącznie z Tobą. Usuń część gości.",
+        soldOut: "Nie ma już tylu wolnych miejsc na tym bilecie. Usuń część gości.",
+        invalidName: "Każdy gość musi mieć imię i nazwisko (do 80 znaków).",
+        invalidEmail: "Adres e-mail jednego z gości jest niepoprawny.",
+        alreadyRegistered:
+          "Osoba z adresem {{email}} ma już aktywny zapis na to wydarzenie. Usuń ją z listy gości.",
+        alreadyRegisteredUnknown:
+          "Jedna z osób ma już aktywny zapis na to wydarzenie. Usuń ją z listy gości.",
+        unknown: "Nie udało się dopisać gości. Twoje zgłoszenie jest zapisane - spróbuj ponownie.",
+      },
+      // Ponowienie z ekranu potwierdzenia: lista gości nie ginie po odmowie.
+      retry: {
+        hint: "Twoje zgłoszenie jest zapisane. Popraw listę gości i dopisz ich ponownie - nie musisz wypełniać formularza od nowa.",
+        beforePayment:
+          "Dopisz gości przed płatnością - wtedy jedno zamówienie obejmie wszystkie miejsca.",
+        submit: "Dopisz gości ponownie",
+        submitting: "Dopisujemy gości...",
+        added: "Dopisano gości do zgłoszenia: {{count}}.",
       },
     },
     payment: {
@@ -361,6 +408,7 @@ export const eventRegistrationEn = {
       phaseEarlyBird: "Early bird price",
       phaseEndsAt: "valid until {{date}}",
       benefitsTitle: "Included in this ticket",
+      plusTax: "+ tax",
       accessCodeRequired: "Ticket unlocked with an invitation code",
       selectPlaceholder: "Pick from the list",
     },
@@ -410,6 +458,19 @@ export const eventRegistrationEn = {
       cancelled: "Cancellation accepted.",
       promoted: "Someone moved up from the waiting list ({{count}}).",
     },
+    // Ticket page with the QR code opened from the email (`/events/<slug>/ticket#t=…`).
+    ticketPage: {
+      title: "Your ticket",
+      lead: "Show this QR code at the event entrance.",
+      qrAlt: "Ticket QR code",
+      codeLabel: "Entry code",
+      codeHint: "If the scanner cannot read the image, staff can type in this code by hand.",
+      private: "This code belongs to you - do not publish it or pass it on.",
+      manage: "Manage your registration",
+      missingTitle: "No ticket code",
+      missingBody:
+        "This link does not contain a ticket code. Open your ticket with the button in the “Your ticket with the QR code” email.",
+    },
     group: {
       title: "Group attendees",
       lead: "Add details of every person you are paying for. You take the first seat, up to {{max}} people in total. Everyone gets their own ticket with a QR code.",
@@ -422,6 +483,35 @@ export const eventRegistrationEn = {
         name: "Enter first and last name (up to 80 characters).",
         email: "Enter a valid email address.",
         duplicate: "This email address is already on the list.",
+      },
+      errors: {
+        accountRequired: "Sign in to add guests to your registration.",
+        invalidGuests: "The guest list has an invalid format. Check the details and try again.",
+        notFound:
+          "We could not find your registration on this account. Guests are added by the person who registered, from the same account.",
+        registrationClosed:
+          "Your registration has been cancelled or rejected - guests can no longer be added to it.",
+        alreadySettled:
+          "Your registration is already settled - we cannot add guests to a paid order. Register them separately.",
+        groupNotEnabled: "This ticket does not allow group registration.",
+        groupTooLarge: "Too many people for this ticket's group limit. Remove some guests.",
+        groupTooLargeMax:
+          "Too many people: this ticket allows a group of up to {{max}} people including you. Remove some guests.",
+        soldOut: "There are not that many seats left on this ticket. Remove some guests.",
+        invalidName: "Every guest needs a first and last name (up to 80 characters).",
+        invalidEmail: "The e-mail address of one of the guests is not valid.",
+        alreadyRegistered:
+          "The person with the address {{email}} already has an active registration for this event. Remove them from the guest list.",
+        alreadyRegisteredUnknown:
+          "One of the people already has an active registration for this event. Remove them from the guest list.",
+        unknown: "We could not add the guests. Your registration is saved - please try again.",
+      },
+      retry: {
+        hint: "Your registration is saved. Correct the guest list and add the guests again - you do not need to fill in the form from scratch.",
+        beforePayment: "Add the guests before paying - then one order covers every seat.",
+        submit: "Add guests again",
+        submitting: "Adding guests...",
+        added: "Guests added to your registration: {{count}}.",
       },
     },
     payment: {

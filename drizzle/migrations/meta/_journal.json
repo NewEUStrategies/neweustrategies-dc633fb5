@@ -309,6 +309,13 @@
       "when": 1790115024196,
       "tag": "0043_event_sponsor_layout_follows_limit",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1790115025196,
+      "tag": "0044_event_ticket_group_codes",
+      "breakpoints": true
     }
   ]
 }

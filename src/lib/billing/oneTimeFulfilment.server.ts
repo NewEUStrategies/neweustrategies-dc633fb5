@@ -155,6 +155,20 @@ export async function applyTicketOutcome(
   } catch (err) {
     console.error("[payments] ticket outcome notify failed", orderId, err);
   }
+
+  // BILETY Z KODEM QR po opłaceniu: płacący i każdy gość jego grupy dostaje
+  // osobny mail od razu. Bez warunku `applied` - ponowiony webhook musi móc
+  // dokończyć wysyłkę, a podwójnemu wydaniu zapobiega baza (zajęcie
+  // i `ticket_code_sent_at`). Czego ta ścieżka nie domknie, zbierze cron
+  // (`event-ticket-codes`).
+  const registrationId =
+    data !== null && typeof data === "object" && !Array.isArray(data)
+      ? (data as Record<string, unknown>).registration_id
+      : null;
+  if (outcome === "paid" && typeof registrationId === "string") {
+    const { issueAndSendTicketCodes } = await import("@/lib/events/ticketCodeNotify.server");
+    await issueAndSendTicketCodes(registrationId);
+  }
 }
 
 /**

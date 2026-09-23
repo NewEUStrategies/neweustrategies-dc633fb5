@@ -186,6 +186,16 @@ export function RegistrationTicketPicker({
                       {formatMoney(ticket.priceCents, ticket.currency, lang)}
                     </span>
                   )}
+                  {/* PODATEK DOLICZANY MÓWI O SOBIE PRZED KASĄ. Stawkę liczy
+                    Stripe, więc kwoty tu nie znamy - ale kupujący musi wiedzieć,
+                    że w kasie zobaczy więcej niż na karcie. */}
+                  {ticket.showPriceLabel !== false &&
+                    ticket.taxMode === "exclusive" &&
+                    ticket.effectivePriceCents > 0 && (
+                      <span className="text-xs font-normal text-muted-foreground">
+                        {t("eventRegistration.labels.plusTax")}
+                      </span>
+                    )}
                 </span>
               </span>
 

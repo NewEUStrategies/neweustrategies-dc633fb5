@@ -845,6 +845,7 @@ export const adminEventRegistrationPl = {
         previewHint: "Tak bilet zobaczy osoba rejestrująca się.",
         previewUntil: "Dostępny do {{date}}",
         previewAlways: "Dostępny bez ograniczenia czasu",
+        previewPlusTax: "+ podatek",
         previewName: "Nazwa biletu",
         registrationUrl: "Link rejestracyjny",
         registrationUrlHint:
@@ -1978,6 +1979,7 @@ export const adminEventRegistrationEn = {
         previewHint: "How the ticket appears to registrants.",
         previewUntil: "Available until {{date}}",
         previewAlways: "Available with no time limit",
+        previewPlusTax: "+ tax",
         previewName: "Ticket name",
         registrationUrl: "Registration URL",
         registrationUrlHint: "Share this link with registrants and apply a code if needed.",

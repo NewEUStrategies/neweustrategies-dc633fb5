@@ -8017,6 +8017,8 @@ export type Database = {
           source: string
           status: string
           tenant_id: string
+          ticket_code_claimed_at: string | null
+          ticket_code_sent_at: string | null
           ticket_type_id: string | null
           updated_at: string
           waitlist_notified_at: string | null
@@ -8052,6 +8054,8 @@ export type Database = {
           source?: string
           status?: string
           tenant_id: string
+          ticket_code_claimed_at?: string | null
+          ticket_code_sent_at?: string | null
           ticket_type_id?: string | null
           updated_at?: string
           waitlist_notified_at?: string | null
@@ -8087,6 +8091,8 @@ export type Database = {
           source?: string
           status?: string
           tenant_id?: string
+          ticket_code_claimed_at?: string | null
+          ticket_code_sent_at?: string | null
           ticket_type_id?: string | null
           updated_at?: string
           waitlist_notified_at?: string | null
@@ -19246,6 +19252,10 @@ export type Database = {
           visibility: string
         }[]
       }
+      _event_issue_ticket_codes: {
+        Args: { p_registration_id: string }
+        Returns: Json
+      }
       _event_meeting_available: {
         Args: {
           _ends: string
@@ -19404,6 +19414,18 @@ export type Database = {
       _event_slugify: { Args: { _text: string }; Returns: string }
       _event_speaker_text_array: { Args: { p_value: Json }; Returns: string[] }
       _event_sponsor_web_url: { Args: { p_raw: string }; Returns: string }
+      _event_ticket_code_confirm: {
+        Args: {
+          p_claimed_at: string
+          p_registration_id: string
+          p_sent: boolean
+        }
+        Returns: boolean
+      }
+      _event_ticket_codes_pending: {
+        Args: { p_limit?: number }
+        Returns: string[]
+      }
       _event_ticket_effective_price: {
         Args: {
           p_early_price_cents: number

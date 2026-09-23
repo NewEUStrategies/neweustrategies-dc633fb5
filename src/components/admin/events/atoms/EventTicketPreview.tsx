@@ -7,6 +7,7 @@ export function EventTicketPreview({
   name,
   description,
   priceLabel,
+  taxAdded = false,
   salesTo,
   lang,
 }: {
@@ -14,6 +15,8 @@ export function EventTicketPreview({
   description: string;
   /** `null` = etykieta ceny wyłączona. */
   priceLabel: string | null;
+  /** Podatek doliczany w kasie - karta publiczna dopisuje wtedy „+ podatek". */
+  taxAdded?: boolean;
   /** Wartość pola datetime-local lub pusty napis. */
   salesTo: string;
   lang: "pl" | "en";
@@ -43,7 +46,14 @@ export function EventTicketPreview({
             {name === "" ? t("adminEventRegistration.tickets.studio.previewName") : name}
           </span>
           {priceLabel !== null ? (
-            <span className="shrink-0 text-sm font-medium text-foreground">{priceLabel}</span>
+            <span className="flex shrink-0 flex-col items-end text-sm font-medium text-foreground">
+              <span>{priceLabel}</span>
+              {taxAdded ? (
+                <span className="text-xs font-normal text-muted-foreground">
+                  {t("adminEventRegistration.tickets.studio.previewPlusTax")}
+                </span>
+              ) : null}
+            </span>
           ) : null}
         </div>
         {description.trim() !== "" ? (

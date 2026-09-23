@@ -170,6 +170,34 @@ describe("parseRegistrationForm", () => {
     expect(form.tickets).toHaveLength(1);
     expect(isTicketSelectable(form.tickets[0]!)).toBe(false);
   });
+
+  it("czyta limit grupy i tryb podatku biletu", () => {
+    const form = parseRegistrationForm({
+      ...formPayload,
+      tickets: [
+        {
+          ...formPayload.tickets[0],
+          group_registration_enabled: true,
+          group_max_size: 25,
+          tax_mode: "exclusive",
+        },
+      ],
+    } as never);
+    expect(form.tickets[0]?.groupMaxSize).toBe(25);
+    expect(form.tickets[0]?.taxMode).toBe("exclusive");
+  });
+
+  it("starszy backend bez limitu grupy i podatku dostaje wartości domyślne kolumn", () => {
+    const form = parseRegistrationForm(formPayload as never);
+    expect(form.tickets[0]?.groupMaxSize).toBe(10);
+    expect(form.tickets[0]?.taxMode).toBe("inclusive");
+    const odd = parseRegistrationForm({
+      ...formPayload,
+      tickets: [{ ...formPayload.tickets[0], group_max_size: 999, tax_mode: "kosmos" }],
+    } as never);
+    expect(odd.tickets[0]?.groupMaxSize).toBe(50);
+    expect(odd.tickets[0]?.taxMode).toBe("inclusive");
+  });
 });
 
 describe("publicRegistrationApi", () => {

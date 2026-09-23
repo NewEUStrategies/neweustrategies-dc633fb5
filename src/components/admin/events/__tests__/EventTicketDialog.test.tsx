@@ -39,7 +39,7 @@
 // przeglądarka - dzięki temu asercja nie zakłada strefy maszyny.
 // Radix Dialog i Select nie działają pod happy-dom bez pełnego pointer API.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { SALES_IDS, eventTicketRow } from "@/test/events/adminSalesRows";
 import type { EventTicketInput, EventTicketRow } from "@/lib/events/registrationsApi";
@@ -110,6 +110,19 @@ vi.mock("@/components/atoms/FormSelect", () => {
 
 import { EventTicketDialog } from "@/components/admin/events/molecules/EventTicketDialog";
 
+type TicketPresentation = NonNullable<ComponentProps<typeof EventTicketDialog>["presentation"]>;
+
+/** Prezentacja domyślna, przepisana jawnie - moduł prezentacji czyta zegar. */
+const DEFAULT_TICKET_PRESENTATION: TicketPresentation = {
+  isHidden: false,
+  showPriceLabel: true,
+  priceLabelPl: "",
+  priceLabelEn: "",
+  groupRegistrationEnabled: false,
+  taxMode: "inclusive",
+  groupMaxSize: 10,
+};
+
 const onSubmit = vi.fn<(input: EventTicketInput) => void>();
 const onOpenChange = vi.fn();
 
@@ -118,6 +131,7 @@ interface Wejscie {
   ticket?: EventTicketRow | null;
   nextSortOrder?: number;
   isSaving?: boolean;
+  presentation?: TicketPresentation;
 }
 
 function renderuj(props: Wejscie = {}) {
@@ -130,6 +144,7 @@ function renderuj(props: Wejscie = {}) {
       nextSortOrder={wejscie.nextSortOrder ?? 30}
       isSaving={wejscie.isSaving ?? false}
       onSubmit={onSubmit}
+      presentation={wejscie.presentation}
     />
   );
   const wynik = render(pelne(props));
@@ -709,5 +724,45 @@ describe("EventTicketDialog - moment komunikatu i zapis w locie", () => {
     przerysuj({ nextSortOrder: 40 });
 
     expect(pole("priceCents")).toHaveValue("12900");
+  });
+});
+
+describe("EventTicketDialog - podgląd podatku", () => {
+  const PLUS_TAX = "adminEventRegistration.tickets.studio.previewPlusTax";
+
+  it("płatny bilet z podatkiem doliczanym pokazuje w podglądzie „+ podatek”", () => {
+    renderuj({
+      ticket: eventTicketRow({ price_cents: 1999 }),
+      presentation: { ...DEFAULT_TICKET_PRESENTATION, taxMode: "exclusive" },
+    });
+    expect(screen.getByText(PLUS_TAX)).toBeTruthy();
+  });
+
+  it("podatek wliczony albo ukryta etykieta ceny - bez dopisku", () => {
+    const { przerysuj } = renderuj({
+      ticket: eventTicketRow({ price_cents: 1999 }),
+      presentation: { ...DEFAULT_TICKET_PRESENTATION, taxMode: "inclusive" },
+    });
+    expect(screen.queryByText(PLUS_TAX)).toBeNull();
+    przerysuj({
+      open: false,
+    });
+    przerysuj({
+      open: true,
+      presentation: {
+        ...DEFAULT_TICKET_PRESENTATION,
+        taxMode: "exclusive",
+        showPriceLabel: false,
+      },
+    });
+    expect(screen.queryByText(PLUS_TAX)).toBeNull();
+  });
+
+  it("bilet bezpłatny nie dostaje dopisku nawet przy podatku doliczanym", () => {
+    renderuj({
+      ticket: eventTicketRow({ price_cents: 0 }),
+      presentation: { ...DEFAULT_TICKET_PRESENTATION, taxMode: "exclusive" },
+    });
+    expect(screen.queryByText(PLUS_TAX)).toBeNull();
   });
 });

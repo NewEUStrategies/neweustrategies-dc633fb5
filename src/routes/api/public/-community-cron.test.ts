@@ -142,6 +142,11 @@ vi.mock("@/lib/notifications/dispatch.server", () => ({
   runCrmTaskReminders: () => jobs.run("crmTaskReminders", [], 1),
 }));
 
+vi.mock("@/lib/events/ticketCodeNotify.server", () => ({
+  runPendingTicketCodes: (limit: number) =>
+    jobs.run("eventTicketCodes", [limit], { registrations: 1, sent: 2 }),
+}));
+
 vi.mock("@/lib/server/careerCvRetention.server", () => ({
   runCareerCvRetention: () => jobs.run("careerCvRetention", [], { removed: 2, scanned: 9 }),
 }));
@@ -856,6 +861,7 @@ describe("wybór kanałów: `?job=`, ciało żądania i pierwszeństwo query", (
     ["digest-weekly", "digest:weekly", "digestWeekly"],
     ["event-reminders", "eventReminders", "eventReminders"],
     ["crm-task-reminders", "crmTaskReminders", "crmTaskReminders"],
+    ["event-ticket-codes", "eventTicketCodes", "eventTicketCodes"],
     ["career-cv-retention", "careerCvRetention", "careerCvRetention"],
   ])("`?job=%s` uruchamia dokładnie jeden kanał", async (job, step, key) => {
     const res = await tick({ query: `?job=${job}` });
@@ -886,6 +892,7 @@ describe("wybór kanałów: `?job=`, ciało żądania i pierwszeństwo query", (
       "digest:weekly",
       "eventReminders",
       "crmTaskReminders",
+      "eventTicketCodes",
       "careerCvRetention",
       "reputationBadges",
     ]);
@@ -898,6 +905,7 @@ describe("wybór kanałów: `?job=`, ciało żądania i pierwszeństwo query", (
         "digestWeekly",
         "eventReminders",
         "crmTaskReminders",
+        "eventTicketCodes",
         "careerCvRetention",
         "reputationBadges",
       ]),
@@ -1061,7 +1069,7 @@ describe("uzbrojenie ścieżki podstawowej (`arm_job_runner`)", () => {
 
     expect(res.status).toBe(200);
     await expect(body(res)).resolves.toMatchObject({ ok: true, runnerArmed: "unavailable" });
-    expect(jobs.steps()).toHaveLength(7);
+    expect(jobs.steps()).toHaveLength(8);
   });
 });
 
@@ -1082,6 +1090,7 @@ describe("izolacja kanałów: awaria jednego nie zabiera pozostałych", () => {
       "digest:weekly",
       "eventReminders",
       "crmTaskReminders",
+      "eventTicketCodes",
       "careerCvRetention",
       "reputationBadges",
     ]);
@@ -1178,13 +1187,14 @@ describe("budżet czasu (COMMUNITY_CRON_DEADLINE_MS = 25 s)", () => {
     const res = await tick({ query: "?job=all" });
     const payload = await body(res);
 
-    // Wykonał się TYLKO push - pozostałe sześć kanałów nawet nie startowało.
+    // Wykonał się TYLKO push - pozostałe siedem kanałów nawet nie startowało.
     expect(jobs.steps()).toEqual(["push"]);
     for (const key of [
       "digestDaily",
       "digestWeekly",
       "eventReminders",
       "crmTaskReminders",
+      "eventTicketCodes",
       "careerCvRetention",
       "reputationBadges",
     ]) {
@@ -1220,6 +1230,7 @@ describe("budżet czasu (COMMUNITY_CRON_DEADLINE_MS = 25 s)", () => {
       "digest:weekly",
       "eventReminders",
       "crmTaskReminders",
+      "eventTicketCodes",
       "careerCvRetention",
       "reputationBadges",
     ]);
