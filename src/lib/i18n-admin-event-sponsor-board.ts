@@ -37,10 +37,14 @@ export const sponsorBoardPl = {
       save: "Zapisz tytuł",
       addSponsor: "Dodaj sponsora",
       bannerFull: "Baner może zawierać tylko jeden obraz.",
+      bannerBlocked:
+        "Baner mieści tylko jeden obraz. Zostaw w sekcji jedną firmę, aby przełączyć ją na baner.",
       deleteSection: "Usuń sekcję",
+      deleteBlocked:
+        "Sekcję można usunąć dopiero, gdy nie ma w niej firm. Odepnij je albo przenieś do innej sekcji.",
       deleteConfirmTitle: "Usunąć sekcję?",
       deleteConfirmBody:
-        "Sekcję można usunąć dopiero, gdy nie ma w niej firm. Odepnij je albo przenieś do innej sekcji.",
+        "Sekcja zniknie z panelu i ze strony wydarzenia. Tej operacji nie można cofnąć.",
       cancel: "Anuluj",
       confirm: "Usuń",
       editLogo: "Edytuj logotyp",
@@ -95,6 +99,8 @@ export const sponsorBoardPl = {
     },
     toasts: {
       sectionCreated: "Sekcja utworzona.",
+      sectionCreatedLayoutFailed:
+        "Sekcja została utworzona, ale nie udało się zapisać jej układu. Sprawdź układ w panelu sekcji.",
       sectionSaved: "Sekcja zapisana.",
       sectionDeleted: "Sekcja usunięta.",
       linkSaved: "Przekierowanie zapisane.",
@@ -143,10 +149,14 @@ export const sponsorBoardEn = {
       save: "Save title",
       addSponsor: "Add a sponsor",
       bannerFull: "A banner can contain only one image.",
+      bannerBlocked:
+        "A banner holds only one image. Keep a single company in this section to switch it to a banner.",
       deleteSection: "Delete section",
+      deleteBlocked:
+        "A section can only be deleted once it has no companies. Unpin them or move them to another section.",
       deleteConfirmTitle: "Delete this section?",
       deleteConfirmBody:
-        "A section can only be deleted once it has no companies. Unpin them or move them to another section.",
+        "The section will disappear from the panel and from the event page. This cannot be undone.",
       cancel: "Cancel",
       confirm: "Delete",
       editLogo: "Edit logo",
@@ -201,6 +211,8 @@ export const sponsorBoardEn = {
     },
     toasts: {
       sectionCreated: "Section created.",
+      sectionCreatedLayoutFailed:
+        "The section was created, but its layout could not be saved. Check the layout in the section panel.",
       sectionSaved: "Section saved.",
       sectionDeleted: "Section deleted.",
       linkSaved: "Redirection saved.",
