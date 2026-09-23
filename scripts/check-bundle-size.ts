@@ -1478,8 +1478,18 @@ const CLIENT_DIR =
 // z odczytem i zapisem 137,5 KB. W tym -12,1 KB z usunięcia drugiej kopii
 // `prosemirror-view` z paczki edytora (PR bramki `check:module-singletons`).
 // PUBLIC rośnie o różnicę procesu (dochodzi kod zapisu), OVERALL spada, bo
-// znika cała druga kopia biblioteki. Liczby z runnera trafią tu z pierwszego
-// zielonego logu (zasada z wpisu V).
+// znika cała druga kopia biblioteki.
+//
+// POMIAR NA RUNNERZE (zasada z wpisu V; `xlsx` 0.20.3, `--frozen-lockfile`):
+//   * sama jedna kopia `xlsx` (PR #392, head 213ee69): overall 4481,0 KB,
+//     public 2756,7, admin-only 1724,4; `spreadsheet.worker` 120,9 -> 157,1
+//     (doszedł kod zapisu), chunk `xlsx` 159,1 -> znikł. Netto -123,1 KB.
+//   * plus jedna kopia `prosemirror-view` (PR #393, head 16a5447): overall
+//     4468,6 KB, public 2756,6, admin-only 1712,0 - kolejne -12,4 KB, w całości
+//     w paczce edytora.
+// Razem 4604,1 -> 4468,6 (-135,5 KB). Zapas OVERALL 103,4 KB (2,26%), PUBLIC
+// 69,4 KB (2,46%) - PUBLIC wzrósł o 36,4 KB, bo proces arkuszy jest publiczny
+// i niesie teraz także zapis; to cena za usunięcie 159 KB z panelu.
 //
 // DLACZEGO PROGU NIE OBNIŻAM ZA ŚLADEM. Zapas około 100 KB na OVERALL to
 // świadoma decyzja: kolejne scalenia z ostatnich dni (wpis XVII, PR #386,
