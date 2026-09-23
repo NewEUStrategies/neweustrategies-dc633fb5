@@ -42,7 +42,7 @@ export function AdminCalendar({ selected, onSelect, locale, className }: Props) 
         onSelect={onSelect}
         month={month}
         onMonthChange={setMonth}
-        initialFocus
+        autoFocus
         locale={locale}
         className={cn("pointer-events-auto", className)}
         components={{

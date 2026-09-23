@@ -16,12 +16,16 @@
 // i opublikuje. Dlatego każda funkcja zwraca `problems` obok danych, a UI ma
 // obowiązek to pokazać.
 //
-// BIBLIOTEKA JEST ŁADOWANA LENIWIE - `xlsx` to kilkaset kilobajtów i nie ma
-// prawa wejść do grafu komuś, kto nigdy nie kliknie „Importuj". Ten sam
-// wzorzec co `src/lib/files/officeParse.ts`.
+// SKOROSZYT CZYTA PROCES ARKUSZY, NIE TA STRONA. `xlsx` to kilkaset kilobajtów
+// i nie ma prawa wejść do grafu komuś, kto nigdy nie kliknie „Importuj" -
+// a od 2026-09-23 nie wchodzi do grafu głównego wątku W OGÓLE: ta sama kopia
+// biblioteki obsługuje podgląd załączników w klubach, import i eksport leadów
+// (`src/lib/files/spreadsheetProtocol.ts`). Wcześniej import ładował `xlsx`
+// drugi raz, obok kopii w procesie - 159 KB gzip tego samego kodu.
 import { MAX_SERIES, type ChartSeries, type MapDatum } from "./types";
 import { MAX_CATEGORIES } from "./parse";
 import { slotForSeries } from "@/lib/charts/palette";
+import { readSpreadsheetRowsInWorker } from "@/lib/files/spreadsheetWorker";
 
 /** Górny limit rozmiaru importowanego pliku. */
 export const IMPORT_MAX_BYTES = 5 * 1024 * 1024;
@@ -330,20 +334,11 @@ export async function readWorkbook(file: File): Promise<ImportedWorkbook> {
     const sep = ext === "tsv" ? "\t" : undefined;
     return { sheets: [{ name: file.name, rows: rectangular(parseDelimitedText(text, sep)) }] };
   }
-  const XLSX = await import("xlsx");
-  const book = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
-  const sheets: ImportedSheet[] = [];
-  for (const name of book.SheetNames) {
-    const sheet = book.Sheets[name];
-    if (sheet === undefined) continue;
-    const raw = XLSX.utils.sheet_to_json(sheet, {
-      header: 1,
-      raw: true,
-      defval: null,
-      blankrows: false,
-    }) as unknown[][];
-    sheets.push({ name, rows: rectangular(raw.map((r) => r.map(formatImportedCell))) });
-  }
+  const book = await readSpreadsheetRowsInWorker(await file.arrayBuffer());
+  const sheets: ImportedSheet[] = book.map(({ name, rows }) => ({
+    name,
+    rows: rectangular(rows.map((r) => r.map(formatImportedCell))),
+  }));
   return { sheets };
 }
 

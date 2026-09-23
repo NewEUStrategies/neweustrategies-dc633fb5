@@ -72,6 +72,7 @@ import { ensureOnsiteI18n } from "@/lib/i18n-admin-event-onsite";
 import { ensureI18n as ensureRegistrationI18n } from "@/lib/i18n-admin-event-registration";
 import { ensureSponsorsI18n } from "@/lib/i18n-admin-event-sponsors";
 import { ensureTermsI18n } from "@/lib/i18n-admin-event-terms";
+import "@/lib/i18n-admin-event-sponsor-board";
 
 /**
  * Rama jednoekranowej podstrony studia.

@@ -25,7 +25,7 @@
 // Magazyn (`@/lib/unsavedChanges`) jest PRAWDZIWY - to kilkadziesiąt linii
 // bez sieci i bez DOM. Atrapowany jest wyłącznie `react-i18next`, i to
 // PRAWDZIWYM tłumaczem (`realT`), żeby asercje mierzyły słownik rdzenia.
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 
 const h = vi.hoisted(() => ({
@@ -78,6 +78,16 @@ function clickButton(name: string): void {
 
 const LEAVE = () => realT(h.lang)("admin.leave");
 const STAY = () => realT(h.lang)("admin.stay");
+
+// Moduł okna wczytany RAZ, zanim ktokolwiek zacznie czekać. `React.lazy`
+// rozwiązuje wtedy import z pamięci modułów, a nie z pierwszej transformacji
+// pliku - a ta na runnerze z instrumentacją pokrycia potrafi przekroczyć cały
+// limit `flushLazyDialog` (zmierzone: dwa przypadki czerwone w części 4 CI,
+// zielone lokalnie i przy innym składzie części). Leniwość w produkcie zostaje
+// nietknięta; znika tylko wyścig testu z czasem transformacji.
+beforeAll(async () => {
+  await import("@/components/UnsavedChangesGuardDialog");
+});
 
 beforeEach(() => {
   h.lang = "pl";

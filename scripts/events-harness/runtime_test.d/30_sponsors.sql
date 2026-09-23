@@ -1675,6 +1675,166 @@ SELECT pg_temp.assert_raises_like(
 RESET ROLE;
 
 -- ---------------------------------------------------------------------------
+-- SEKCJA 13A: UKLAD POZIOMU I LINK SPONSORA
+--
+-- Migracja `20260922200000_event_sponsor_sections_and_home_ads` dodala cztery
+-- RPC panelu: odczyt i zapis ukladu poziomu (`banner` albo `grid`) oraz odczyt
+-- i zapis linku sponsora (`exhibitor`, `external`, `none`). Kazda dostaje tu
+-- ten sam komplet, co reszta podmodulu: wartosc domyslna, walidacja wejscia,
+-- regula biznesowa, granica najemcy i bramka roli. Bez tego licznik funkcji
+-- w sekcji 15 mowilby tylko, ze funkcje ISTNIEJA, a nie, ze dzialaja.
+--
+-- Stan zastany: poziomy `diamond`, `gold` i `media` na wydarzeniu a1;
+-- `diamond` ma dwa przypiecia (sekcja 14 odmawia jego usuniecia z liczba 2),
+-- `media` nie ma zadnego. Sekcja zostawia uklady i linki tak, jak zastala.
+-- ---------------------------------------------------------------------------
+SELECT pg_temp.act_as('30a00000-0000-0000-0000-0000000000a1',
+                      '11111111-1111-1111-1111-111111111111');
+
+DO $do$
+DECLARE
+  v_diamond uuid := (SELECT u FROM spo_q WHERE k = 'diamond');
+  v_media uuid := (SELECT u FROM spo_q WHERE k = 'media');
+  v_s1 uuid := (SELECT u FROM spo_q WHERE k = 's1');
+BEGIN
+  -- Wartosci domyslne kolumn dodanych przez migracje.
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.admin_event_sponsor_tier_layouts(
+       '30e00000-0000-0000-0000-0000000000a1')) = 3
+    AND (SELECT bool_and(l.layout = 'grid') FROM public.admin_event_sponsor_tier_layouts(
+       '30e00000-0000-0000-0000-0000000000a1') l),
+    '30/uklad: trzy poziomy wydarzenia, kazdy domyslnie w siatce');
+  PERFORM pg_temp.assert(
+    (SELECT bool_and(l.link_mode = 'exhibitor' AND l.link_url IS NULL)
+       FROM public.admin_event_sponsor_links('30e00000-0000-0000-0000-0000000000a1') l),
+    '30/link: sponsor domyslnie prowadzi do karty wystawcy, bez adresu');
+
+  -- Uklad: baner dopuszcza najwyzej jedno przypiecie.
+  PERFORM pg_temp.assert(public.admin_event_sponsor_tier_set_layout(v_media, 'banner'),
+    '30/uklad: poziom bez przypiec przechodzi na baner');
+  PERFORM pg_temp.assert(
+    (SELECT l.layout FROM public.admin_event_sponsor_tier_layouts(
+       '30e00000-0000-0000-0000-0000000000a1') l WHERE l.id = v_media) = 'banner',
+    '30/uklad: odczyt oddaje zapisany baner');
+  PERFORM pg_temp.assert_raises_like(format(
+    $q$SELECT public.admin_event_sponsor_tier_set_layout('%s', 'banner')$q$, v_diamond),
+    'banner_single_image',
+    '30/uklad: poziom z dwoma przypieciami nie przejdzie na baner');
+  PERFORM pg_temp.assert_raises_like(format(
+    $q$SELECT public.admin_event_sponsor_tier_set_layout('%s', 'carousel')$q$, v_media),
+    'invalid_layout',
+    '30/uklad: nieznany uklad odrzucony');
+  PERFORM pg_temp.assert(public.admin_event_sponsor_tier_set_layout(v_media, 'grid'),
+    '30/uklad: powrot do siatki');
+
+  -- Link: zewnetrzny wymaga adresu https, pozostale tryby zeruja adres.
+  PERFORM pg_temp.assert(
+    public.admin_event_sponsor_set_link(v_s1, 'external', 'https://example.org/partner'),
+    '30/link: link zewnetrzny z adresem https zapisany');
+  PERFORM pg_temp.assert(
+    (SELECT l.link_mode = 'external' AND l.link_url = 'https://example.org/partner'
+       FROM public.admin_event_sponsor_links('30e00000-0000-0000-0000-0000000000a1') l
+      WHERE l.id = v_s1),
+    '30/link: odczyt oddaje tryb i adres');
+  PERFORM pg_temp.assert_raises_like(format(
+    $q$SELECT public.admin_event_sponsor_set_link('%s', 'external', 'http://example.org')$q$,
+    v_s1),
+    'invalid_link_url',
+    '30/link: adres bez https odrzucony');
+  PERFORM pg_temp.assert_raises_like(format(
+    $q$SELECT public.admin_event_sponsor_set_link('%s', 'external', NULL)$q$, v_s1),
+    'invalid_link_url',
+    '30/link: link zewnetrzny bez adresu odrzucony');
+  PERFORM pg_temp.assert_raises_like(format(
+    $q$SELECT public.admin_event_sponsor_set_link('%s', 'website', NULL)$q$, v_s1),
+    'invalid_link_mode',
+    '30/link: nieznany tryb odrzucony');
+  PERFORM pg_temp.assert(
+    public.admin_event_sponsor_set_link(v_s1, 'none', 'https://example.org/partner'),
+    '30/link: tryb bez linku zapisany');
+  PERFORM pg_temp.assert(
+    (SELECT l.link_mode = 'none' AND l.link_url IS NULL
+       FROM public.admin_event_sponsor_links('30e00000-0000-0000-0000-0000000000a1') l
+      WHERE l.id = v_s1),
+    '30/link: tryb bez linku nie przechowuje adresu, nawet podanego');
+  PERFORM pg_temp.assert(public.admin_event_sponsor_set_link(v_s1, 'exhibitor', NULL),
+    '30/link: powrot do karty wystawcy');
+END
+$do$;
+
+-- Granica najemcy: admin najemcy B nie odczyta ani nie zmieni niczego u A.
+SELECT pg_temp.act_as('30a00000-0000-0000-0000-0000000000b1',
+                      '30000000-0000-0000-0000-0000000000b0');
+
+DO $do$
+DECLARE
+  v_diamond uuid := (SELECT u FROM spo_q WHERE k = 'diamond');
+  v_media uuid := (SELECT u FROM spo_q WHERE k = 'media');
+  v_s1 uuid := (SELECT u FROM spo_q WHERE k = 's1');
+  v_present boolean;
+BEGIN
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.admin_event_sponsor_tier_layouts(
+       '30e00000-0000-0000-0000-0000000000a1')) = 0,
+    '30/uklad/izolacja: admin najemcy B nie widzi ukladow poziomow A');
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.admin_event_sponsor_links(
+       '30e00000-0000-0000-0000-0000000000a1')) = 0,
+    '30/link/izolacja: admin najemcy B nie widzi linkow sponsorow A');
+  PERFORM pg_temp.assert(
+    NOT public.admin_event_sponsor_tier_set_layout(v_media, 'banner')
+    AND (SELECT t.layout FROM public.event_sponsor_tiers t WHERE t.id = v_media) = 'grid',
+    '30/uklad/izolacja: zmiana ukladu cudzego poziomu nic nie zmienia');
+  PERFORM pg_temp.assert(
+    NOT public.admin_event_sponsor_set_link(v_s1, 'external', 'https://example.org/b')
+    AND (SELECT s.link_mode FROM public.event_sponsors s WHERE s.id = v_s1) = 'exhibitor',
+    '30/link/izolacja: zmiana linku cudzego sponsora nic nie zmienia');
+
+  -- Regula banera liczy przypiecia poziomu BEZ filtra najemcy i PRZED
+  -- sprawdzeniem, czy poziom w ogole nalezy do wolajacego. Admin B dostaje
+  -- wiec dla cudzego poziomu `banner_single_image` zamiast tego samego
+  -- `false`, co dla pustego - czyli dowiaduje sie, ze poziom ma wiecej niz
+  -- jedno przypiecie. Waga niska: potrzebny jest UUID cudzego poziomu, a zaden
+  -- odczyt panelu go najemcy B nie podaje. Naprawa to warunek `tenant_id`
+  -- w liczniku, czyli NOWA migracja - wpis zostaje do jej decyzji.
+  BEGIN
+    PERFORM public.admin_event_sponsor_tier_set_layout(v_diamond, 'banner');
+    v_present := false;
+  EXCEPTION WHEN OTHERS THEN
+    v_present := SQLERRM ILIKE '%banner_single_image%';
+  END;
+  PERFORM pg_temp.assert_known_defect(
+    v_present,
+    '30/uklad/izolacja: regula banera zdradza liczbe przypiec cudzego poziomu',
+    'dopisac s.tenant_id = v_tenant w liczniku admin_event_sponsor_tier_set_layout');
+END
+$do$;
+
+-- Bramki roli: anonim i uczestnik bez roli sa odbijani przez kazda z czterech.
+SELECT pg_temp.act_as(NULL, NULL);
+SELECT pg_temp.assert_raises_like(
+  $q$SELECT * FROM public.admin_event_sponsor_links('30e00000-0000-0000-0000-0000000000a1')$q$,
+  'forbidden',
+  '30/bramka: anonim nie widzi linkow sponsorow');
+SELECT pg_temp.assert_raises_like(
+  $q$SELECT * FROM public.admin_event_sponsor_tier_layouts('30e00000-0000-0000-0000-0000000000a1')$q$,
+  'forbidden',
+  '30/bramka: anonim nie widzi ukladow poziomow');
+
+SELECT pg_temp.act_as('30a00000-0000-0000-0000-0000000000a3',
+                      '11111111-1111-1111-1111-111111111111');
+SELECT pg_temp.assert_raises_like(
+  format($q$SELECT public.admin_event_sponsor_tier_set_layout('%s', 'banner')$q$,
+         (SELECT u FROM spo_q WHERE k = 'media')),
+  'forbidden',
+  '30/bramka: uczestnik bez roli nie zmienia ukladu poziomu');
+SELECT pg_temp.assert_raises_like(
+  format($q$SELECT public.admin_event_sponsor_set_link('%s', 'none', NULL)$q$,
+         (SELECT u FROM spo_q WHERE k = 's1')),
+  'forbidden',
+  '30/bramka: uczestnik bez roli nie zmienia linku sponsora');
+
+-- ---------------------------------------------------------------------------
 -- SEKCJA 14: USUNIECIA I KASKADY
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.act_as('30a00000-0000-0000-0000-0000000000a1',
@@ -1755,8 +1915,8 @@ SELECT pg_temp.assert(
 
 SELECT pg_temp.assert(
   (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-    WHERE n.nspname = 'public' AND p.proname LIKE '%sponsor%') = 19,
-  '30/struktura: migracja zostawila 19 funkcji (16 panelu, 2 publiczne, 1 pomocnik)');
+    WHERE n.nspname = 'public' AND p.proname LIKE '%sponsor%') = 23,
+  '30/struktura: migracje zostawily 23 funkcje (20 panelu, 2 publiczne, 1 pomocnik)');
 
 SELECT pg_temp.assert(
   (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace

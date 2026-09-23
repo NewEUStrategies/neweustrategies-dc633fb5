@@ -54,8 +54,31 @@ import {
 } from "@/lib/events/ticketDraft";
 import { formatMoney } from "@/lib/billing/types";
 import type { EventTicketInput, EventTicketRow } from "@/lib/events/registrationsApi";
+import { ensureI18n as ensureRegistrationI18n } from "@/lib/i18n-admin-event-registration";
 
 const NO_GROUP = "__none";
+
+/**
+ * Pola jednej wersji językowej biletu. To wybór KOLUMNY, nie tekst dla
+ * użytkownika - jedna mapa zamiast pięciu ternary po `lang`, więc etykiety
+ * zostają w słowniku, a nazwy pól w jednym miejscu.
+ */
+const LANG_FIELDS = {
+  pl: {
+    suffix: "Pl",
+    name: "namePl",
+    description: "descriptionPl",
+    benefits: "benefitsPl",
+    priceLabel: "priceLabelPl",
+  },
+  en: {
+    suffix: "En",
+    name: "nameEn",
+    description: "descriptionEn",
+    benefits: "benefitsEn",
+    priceLabel: "priceLabelEn",
+  },
+} as const;
 
 interface EventTicketDialogProps {
   open: boolean;
@@ -87,6 +110,7 @@ export function EventTicketDialog({
   presentation,
   onDuplicate,
 }: EventTicketDialogProps) {
+  ensureRegistrationI18n();
   const { t, i18n } = useTranslation();
   const uiLang: "pl" | "en" = i18n.language.startsWith("en") ? "en" : "pl";
   const [draft, setDraft] = useState<TicketDraft>(() => emptyTicketDraft(nextSortOrder));
@@ -167,11 +191,13 @@ export function EventTicketDialog({
       .catch(() => toast.error(t("adminEventRegistration.tickets.studio.copyFailed")));
   };
   const langFields = (lang: "pl" | "en") => {
-    const suffix = lang === "pl" ? "Pl" : "En";
-    const nameKey = lang === "pl" ? "namePl" : "nameEn";
-    const descKey = lang === "pl" ? "descriptionPl" : "descriptionEn";
-    const benKey = lang === "pl" ? "benefitsPl" : "benefitsEn";
-    const labelKey = lang === "pl" ? "priceLabelPl" : "priceLabelEn";
+    const {
+      suffix,
+      name: nameKey,
+      description: descKey,
+      benefits: benKey,
+      priceLabel: labelKey,
+    } = LANG_FIELDS[lang];
     return (
       <div className="grid gap-4">
         <AdminFormTextRow

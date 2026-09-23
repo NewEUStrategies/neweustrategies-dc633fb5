@@ -1,6 +1,7 @@
 // Atom: podgląd karty biletu tak, jak zobaczy ją osoba rejestrująca się.
 import { useTranslation } from "react-i18next";
 import { formatEventDateTime } from "@/lib/events/timezone";
+import { ensureI18n as ensureRegistrationI18n } from "@/lib/i18n-admin-event-registration";
 
 export function EventTicketPreview({
   name,
@@ -17,6 +18,7 @@ export function EventTicketPreview({
   salesTo: string;
   lang: "pl" | "en";
 }) {
+  ensureRegistrationI18n();
   const { t } = useTranslation();
   const until =
     salesTo.trim() === ""

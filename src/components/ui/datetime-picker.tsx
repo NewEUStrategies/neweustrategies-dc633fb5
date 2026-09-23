@@ -111,7 +111,7 @@ export function DateTimePicker({
           locale={locale}
           weekStartsOn={1}
           disabled={minDate ? { before: minDate } : undefined}
-          initialFocus
+          autoFocus
           className={cn("pointer-events-auto w-full bg-transparent p-3 [--cell-size:2.25rem]")}
           classNames={{
             root: "w-full",
