@@ -581,6 +581,21 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:clock-freeze
 
+      # Blocking zero-threshold gate: a package that keeps module-level state
+      # or recognises its own objects via `instanceof` (React, Radix, TipTap,
+      # ProseMirror, TanStack, i18next, Babel's core and traverse) must have
+      # exactly ONE install path in `bun.lock`. A stale nested entry is a second
+      # copy of that state, and it never shows up at install or type-check time:
+      # on 2026-09-22 two such copies cost hours of diagnosis each - Radix
+      # dismissable layers (PR #389, a dialog inside a dialog closed on the first
+      # click) and `@babel/traverse` under the route splitter (PR #390, seven
+      # pages stopped loading) - and both surfaced only as a red e2e run. The
+      # same check runs in `postinstall` in warning mode, so the message
+      # appears on the first `bun install`, not on the first red run.
+      - name: One copy of every stateful package
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:module-singletons
+
       # Blocking zero-threshold gate: `t()` may not carry a fallback string.
       # i18next reads `defaultValue` ONLY when the key is absent, and the drift
       # gate (`check:i18n-parity`) proves at every run that no key is absent -
