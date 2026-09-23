@@ -389,7 +389,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   const trigger = session ? (
     <button
       type="button"
-      className="inline-flex h-8 shrink-0 items-center gap-2 rounded-full pl-1 pr-3 text-xs font-medium hover:bg-muted/60 transition-colors cursor-pointer"
+      className="inline-flex h-8 shrink-0 flex-row-reverse items-center gap-2 rounded-full pl-3 pr-1 text-xs font-medium hover:bg-muted/60 transition-colors cursor-pointer"
       aria-label={displayName || "Account"}
       title={triggerLabel}
     >
