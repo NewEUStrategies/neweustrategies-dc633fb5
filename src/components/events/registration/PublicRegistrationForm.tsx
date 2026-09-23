@@ -21,6 +21,9 @@
 // `event_register_group_guests` odmawia, wiec ekran przechodzi na
 // potwierdzenie - ale z lista gosci w `GroupGuestsRetryPanel`, a nie z samym
 // komunikatem. Ponowny zapis z formularza konczylby sie `already_registered`.
+// Po odmowie `group_too_large` panel czyta limit biletu od nowa - osobnym
+// wywolaniem `fetchRegistrationForm`, a nie przez `formQuery`: porazka tego
+// odczytu nie moze przelaczyc strony w „zapisy niedostepne".
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -50,6 +53,7 @@ import {
   GROUP_SIZE_DEFAULT,
   guestIssues,
   registerGroupGuests,
+  ticketGroupMaxSize,
   type GroupGuest,
   type GuestIssue,
 } from "@/lib/events/ticketTaxGroup";
@@ -73,6 +77,8 @@ interface GuestRetry {
   error: unknown;
   maxSize: number;
   leadEmail: string;
+  /** Bilet zgłoszenia - po nim panel czyta aktualny limit grupy. */
+  ticketTypeId: string | null;
 }
 
 export function PublicRegistrationForm({ slug }: { slug: string }) {
@@ -197,6 +203,7 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
             error,
             maxSize: groupMaxSize,
             leadEmail: current.email.trim(),
+            ticketTypeId: current.ticketTypeId,
           });
         }
       }
@@ -263,6 +270,12 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
             registrationId={result.registrationId}
             leadEmail={guestRetry.leadEmail}
             maxSize={guestRetry.maxSize}
+            loadMaxSize={async () =>
+              ticketGroupMaxSize(
+                (await fetchRegistrationForm(slug)).tickets,
+                guestRetry.ticketTypeId,
+              )
+            }
             initialGuests={guestRetry.guests}
             initialError={guestRetry.error}
             paymentRequired={result.paymentRequired}

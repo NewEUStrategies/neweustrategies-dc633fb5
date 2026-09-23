@@ -2,7 +2,13 @@
 //
 // CO TEN PLIK DOWODZI.
 //   1. PIERWSZA ODMOWA JEST WIDOCZNA I MÓWI O GOŚCIACH - słownikiem odmów
-//      `event_register_group_guests`, z limitem biletu przy `group_too_large`.
+//      `event_register_group_guests`.
+//   1a. LIMIT W `group_too_large` JEST CZYTANY OD NOWA. Formularz tnie listę do
+//      limitu z chwili otwarcia strony, więc ta odmowa znaczy, że limit w bazie
+//      jest już niższy. Zdanie podaje liczbę WYŁĄCZNIE z odczytu po odmowie,
+//      edytor przyjmuje ten limit, a za długiej listy nie da się wysłać.
+//      Nieudany odczyt nie zmyśla liczby, a spóźniona odpowiedź na starszą
+//      odmowę nie podpisuje się pod nowszą.
 //   2. LISTA WRACA WYPEŁNIONA. Goście wpisani w formularzu stoją w polach i da
 //      się ich poprawić - kupujący nie przepisuje niczego od nowa.
 //   3. PONOWIENIE IDZIE DO TEGO SAMEGO ZGŁOSZENIA i wysyła listę po poprawkach,
@@ -55,27 +61,57 @@ function renderPanel(
     initialError: unknown;
     paymentRequired: boolean;
     maxSize: number;
+    loadMaxSize: () => Promise<number | null>;
   }> = {},
 ) {
   const onAdded = vi.fn<(added: number) => void>();
+  // Domyślnie odczyt limitu nic nie wie (bilet zniknął z formularza) - panel
+  // zostaje wtedy przy limicie z formularza.
+  const loadMaxSize = vi.fn(over.loadMaxSize ?? (async (): Promise<number | null> => null));
   const view = renderWithQueryClient(
     <GroupGuestsRetryPanel
       registrationId={LEAD_ID}
       leadEmail="anna.kowalska@example.com"
       maxSize={over.maxSize ?? 3}
+      loadMaxSize={loadMaxSize}
       initialGuests={over.initialGuests ?? GUESTS}
       initialError={over.initialError ?? new Error("group_too_large")}
       paymentRequired={over.paymentRequired ?? false}
       onAdded={onAdded}
     />,
   );
-  return { ...view, onAdded };
+  return { ...view, onAdded, loadMaxSize };
 }
+
+/** Odczyt limitu trzymany w ręku testu - do sprawdzenia stanu „w trakcie". */
+function deferredLimit(): {
+  load: () => Promise<number | null>;
+  answer: (value: number | null) => void;
+} {
+  let answer: (value: number | null) => void = () => {};
+  return {
+    load: () =>
+      new Promise<number | null>((resolve) => {
+        answer = resolve;
+      }),
+    answer: (value) => answer(value),
+  };
+}
+
+/** Pełna treść alertu - `toHaveTextContent` z napisem dopasowuje też PODciąg. */
+const alertText = () => screen.getByRole("alert").textContent;
 
 function input(index: number, part: "first" | "last" | "email"): HTMLInputElement {
   const el = document.getElementById(`group-guest-${index}-${part}`);
   if (!(el instanceof HTMLInputElement)) throw new Error(`test: brak pola gościa ${index}`);
   return el;
+}
+
+/** Przycisk usunięcia gościa `index` - zawężenie zamiast `!`. */
+function removeButton(index: number): HTMLElement {
+  const button = screen.getAllByRole("button", { name: "eventRegistration.group.remove" })[index];
+  if (button === undefined) throw new Error(`test: brak przycisku usunięcia gościa ${index}`);
+  return button;
 }
 
 const retryButton = () =>
@@ -101,17 +137,153 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("GroupGuestsRetryPanel - stan po odmowie", () => {
-  it("pokazuje odmowę słownikiem gości, z limitem biletu", () => {
-    renderPanel({ maxSize: 3 });
+  it("pokazuje odmowę słownikiem gości, a nie słownikiem zapisu prowadzącego", () => {
+    renderPanel({ initialError: new Error("sold_out") });
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "eventRegistration.group.errors.groupTooLargeMax(max=3)",
-    );
+    expect(alertText()).toBe("eventRegistration.group.errors.soldOut");
     // Zdanie z formularza zapisu („Nie udało się zapisać") byłoby nieprawdą -
     // zgłoszenie kupującego już stoi.
     expect(screen.queryByText("eventRegistration.errors.unknown")).toBeNull();
   });
 
+  it("odmowa inna niż limit nie czyta limitu od nowa", () => {
+    const { loadMaxSize } = renderPanel({ initialError: new Error("sold_out") });
+
+    expect(loadMaxSize).not.toHaveBeenCalled();
+  });
+});
+
+describe("GroupGuestsRetryPanel - limit po odmowie group_too_large", () => {
+  it("zdanie podaje limit PRZECZYTANY po odmowie, a nie ten z formularza", async () => {
+    // ZMIANA ASERCJI: wcześniej ten przypadek oczekiwał `max=3` z formularza
+    // przy prowadzącym i DWÓCH gościach - czyli liczby, którą lista już
+    // spełniała. Baza nie odmówiłaby takiej listy limitem 3; odmawia, bo ma
+    // limit niższy, i to on ma stać w zdaniu.
+    const { loadMaxSize } = renderPanel({ maxSize: 5, loadMaxSize: async () => 2 });
+
+    await waitFor(() =>
+      expect(alertText()).toBe("eventRegistration.group.errors.groupTooLargeMax(max=2)"),
+    );
+    expect(loadMaxSize).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/max=5/)).toBeNull();
+  });
+
+  it("edytor przyjmuje aktualny limit i nie wyśle listy, która go przekracza", async () => {
+    renderPanel({ maxSize: 5, loadMaxSize: async () => 2 });
+
+    expect(await screen.findByText("eventRegistration.group.lead(max=2)")).toBeInTheDocument();
+    expect(retryButton()).toBeDisabled();
+    expect(screen.getByRole("button", { name: /eventRegistration.group.add/ })).toBeDisabled();
+    fireEvent.click(retryButton());
+    expect(h.rpc).not.toHaveBeenCalled();
+
+    fireEvent.click(removeButton(1));
+
+    expect(retryButton()).not.toBeDisabled();
+    fireEvent.click(retryButton());
+    await waitFor(() => expect(h.rpc).toHaveBeenCalledTimes(1));
+    expect(h.rpc.mock.calls[0]?.[1]?.p_guests).toEqual([
+      { first_name: "Ewa", last_name: "Lis", email: "ewa.lis@example.com" },
+    ]);
+  });
+
+  it("w trakcie odczytu zdanie nie podaje liczby - ani starej, ani zgadniętej", () => {
+    const limit = deferredLimit();
+    renderPanel({ maxSize: 5, loadMaxSize: limit.load });
+
+    expect(alertText()).toBe("eventRegistration.group.errors.groupTooLarge");
+    expect(screen.getByText("eventRegistration.group.lead(max=5)")).toBeInTheDocument();
+  });
+
+  it("nieudany odczyt: zdanie bez liczby, edytor przy limicie z formularza", async () => {
+    const { loadMaxSize } = renderPanel({
+      maxSize: 5,
+      loadMaxSize: () => Promise.reject(new Error("Failed to fetch")),
+    });
+
+    await waitFor(() => expect(loadMaxSize).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(alertText()).toBe("eventRegistration.group.errors.groupTooLarge"));
+    expect(screen.getByText("eventRegistration.group.lead(max=5)")).toBeInTheDocument();
+    expect(retryButton()).not.toBeDisabled();
+  });
+
+  it("bilet zniknął z formularza (`null`): zdanie bez liczby", async () => {
+    const { loadMaxSize } = renderPanel({ maxSize: 5, loadMaxSize: async () => null });
+
+    await waitFor(() => expect(loadMaxSize).toHaveBeenCalledTimes(1));
+    expect(alertText()).toBe("eventRegistration.group.errors.groupTooLarge");
+    expect(screen.getByText("eventRegistration.group.lead(max=5)")).toBeInTheDocument();
+  });
+
+  it("kolejna odmowa limitem czyta limit ZNOWU i dopiero wtedy podaje nową liczbę", async () => {
+    const second = deferredLimit();
+    const reads = [async (): Promise<number | null> => 4, second.load];
+    const { loadMaxSize } = renderPanel({
+      maxSize: 5,
+      loadMaxSize: () => (reads.shift() ?? second.load)(),
+    });
+    await waitFor(() =>
+      expect(alertText()).toBe("eventRegistration.group.errors.groupTooLargeMax(max=4)"),
+    );
+    h.rpc.mockResolvedValueOnce({ data: null, error: { message: "group_too_large" } });
+
+    fireEvent.click(retryButton());
+
+    await waitFor(() => expect(loadMaxSize).toHaveBeenCalledTimes(2));
+    // Poprzednia liczba (4) nie jest już prawdą, skoro baza odmówiła znowu -
+    // zdanie czeka na nowy odczyt, a edytor trzyma ostatni znany limit.
+    expect(alertText()).toBe("eventRegistration.group.errors.groupTooLarge");
+    expect(screen.getByText("eventRegistration.group.lead(max=4)")).toBeInTheDocument();
+
+    second.answer(2);
+
+    await waitFor(() =>
+      expect(alertText()).toBe("eventRegistration.group.errors.groupTooLargeMax(max=2)"),
+    );
+    expect(screen.getByText("eventRegistration.group.lead(max=2)")).toBeInTheDocument();
+  });
+
+  it("spóźniona odpowiedź na STARSZĄ odmowę nie nadpisuje nowszej", async () => {
+    const first = deferredLimit();
+    const reads = [first.load, async (): Promise<number | null> => 3];
+    renderPanel({
+      maxSize: 5,
+      initialGuests: [EWA],
+      loadMaxSize: () => (reads.shift() ?? first.load)(),
+    });
+    h.rpc.mockResolvedValueOnce({ data: null, error: { message: "group_too_large" } });
+
+    // Kupujący ponawia, zanim wrócił pierwszy odczyt limitu.
+    fireEvent.click(retryButton());
+    await waitFor(() =>
+      expect(alertText()).toBe("eventRegistration.group.errors.groupTooLargeMax(max=3)"),
+    );
+
+    first.answer(4);
+
+    // Odpowiedź na pierwszą odmowę ląduje pod starym kluczem odczytu.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(alertText()).toBe("eventRegistration.group.errors.groupTooLargeMax(max=3)");
+    expect(screen.getByText("eventRegistration.group.lead(max=3)")).toBeInTheDocument();
+  });
+
+  it("odmowa inna niż limit po ponowieniu nie wymusza nowego odczytu", async () => {
+    const { loadMaxSize } = renderPanel({ maxSize: 5, loadMaxSize: async () => 4 });
+    await waitFor(() =>
+      expect(alertText()).toBe("eventRegistration.group.errors.groupTooLargeMax(max=4)"),
+    );
+    h.rpc.mockResolvedValueOnce({ data: null, error: { message: "sold_out" } });
+
+    fireEvent.click(retryButton());
+
+    await waitFor(() => expect(alertText()).toBe("eventRegistration.group.errors.soldOut"));
+    expect(loadMaxSize).toHaveBeenCalledTimes(1);
+    // Edytor trzyma aktualny limit z ostatniego odczytu.
+    expect(screen.getByText("eventRegistration.group.lead(max=4)")).toBeInTheDocument();
+  });
+});
+
+describe("GroupGuestsRetryPanel - lista po odmowie", () => {
   it("lista wraca wypełniona gośćmi z formularza i da się ją poprawić", () => {
     renderPanel();
 

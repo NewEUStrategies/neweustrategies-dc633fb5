@@ -18,6 +18,16 @@
 //   5. NIEZNANA ODMOWA NIE UDAJE ZNANEJ: najpierw słownik zapisu prowadzącego
 //      (to samo połączenie może odmówić np. limitem prób), potem zdanie ogólne
 //      O GOŚCIACH, które mówi, że zgłoszenie kupującego jest zapisane.
+//   6. `isGroupTooLarge` ROZPOZNAJE ODMOWĘ LIMITEM po głowie komunikatu - tylko
+//      po niej panel ponowienia czyta limit biletu od nowa.
+//   7. KAŻDY NAPIS PANELU PONOWIENIA STOI W OBU SŁOWNIKACH, słowo w słowo.
+//
+// OBECNOŚĆ KLUCZA CZYTAMY Z EKSPORTOWANEGO SŁOWNIKA, NIE PRZEZ
+// `i18n.exists(klucz, { lng: "en" })` ani `getFixedT("en")`. Instancja ma
+// `fallbackLng: "pl"`, więc klucz obecny tylko po polsku przechodzi oba te
+// sprawdzenia po angielsku (zmierzone: usunięty EN `retry.hint` zostawiał ten
+// plik zielonym). `readKey(eventRegistrationEn, klucz)` patrzy dokładnie w
+// bundel angielski - ta sama technika, co w `eventErrorMapsI18n.gate.test.ts`.
 //
 // i18n jedzie PRAWDZIWE (ta sama instancja, którą widzi uczestnik). Lista
 // `GROUP_GUEST_REFUSALS` jest porównywana z ciałem funkcji w migracji
@@ -27,15 +37,27 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import i18n from "@/lib/i18n";
-import "@/lib/i18n-event-registration";
+import { readKey, type ResourceTree } from "@/lib/ci/i18nParity";
+import { eventRegistrationEn, eventRegistrationPl } from "@/lib/i18n-event-registration";
 import {
   GROUP_GUEST_REFUSALS,
   groupGuestsFailure,
+  isGroupTooLarge,
   type RegistrationFailure,
 } from "@/lib/events/publicRegistrationErrors";
 
 const MIGRATION = "supabase/migrations/20260922230000_event_ticket_tax_and_group.sql";
 const LANGS = ["pl", "en"] as const;
+const DICTIONARIES: Record<(typeof LANGS)[number], ResourceTree> = {
+  pl: eventRegistrationPl,
+  en: eventRegistrationEn,
+};
+
+/** Napis spod klucza W SŁOWNIKU DANEGO JĘZYKA - bez zapasowego „pl". */
+function ownText(lang: (typeof LANGS)[number], key: string): string | null {
+  const value = readKey(DICTIONARIES[lang], key);
+  return typeof value === "string" && value.trim() !== "" ? value : null;
+}
 
 function render(failure: RegistrationFailure, lang: (typeof LANGS)[number]): string {
   return i18n.getFixedT(lang)(failure.key, failure.params);
@@ -63,7 +85,7 @@ describe("groupGuestsFailure - komplet odmów bazy", () => {
         const failure = groupGuestsFailure(new Error(`${code}: gosc@example.com`), { maxSize: 4 });
 
         expect(failure.key.startsWith("eventRegistration.group.errors.")).toBe(true);
-        expect(i18n.exists(failure.key, { lng: lang })).toBe(true);
+        expect(ownText(lang, failure.key), `${lang}:${failure.key}`).not.toBeNull();
         const text = render(failure, lang);
         expect(text).not.toBe(failure.key);
         expect(text).not.toMatch(/\{\{/);
@@ -226,15 +248,70 @@ describe("groupGuestsFailure - odmowy spoza funkcji gości", () => {
   });
 });
 
-describe("eventRegistration.group.retry - napisy panelu ponowienia", () => {
-  it("każdy napis panelu istnieje w obu językach, a liczba trafia do zdania sukcesu", () => {
-    for (const lang of LANGS) {
-      const t = i18n.getFixedT(lang);
-      for (const key of ["hint", "beforePayment", "submit", "submitting"]) {
-        const full = `eventRegistration.group.retry.${key}`;
-        expect(t(full), `${lang}:${full}`).not.toBe(full);
-      }
+describe("isGroupTooLarge - odmowa limitem grupy", () => {
+  it("rozpoznaje `group_too_large` w każdym kształcie błędu", () => {
+    for (const error of [
+      "group_too_large",
+      new Error("group_too_large"),
+      { message: " group_too_large " },
+      new Error("group_too_large: 5"),
+    ]) {
+      expect(isGroupTooLarge(error), String(error)).toBe(true);
     }
+  });
+
+  it("inna odmowa albo brak komunikatu to nie odmowa limitem", () => {
+    for (const error of [
+      new Error("sold_out"),
+      new Error("group_not_enabled"),
+      new Error("already_registered: group_too_large@example.com"),
+      null,
+      42,
+    ]) {
+      expect(isGroupTooLarge(error), String(error)).toBe(false);
+    }
+  });
+});
+
+describe("eventRegistration.group.retry - napisy panelu ponowienia", () => {
+  // ZMIANA ASERCJI: wcześniej sprawdzenie szło przez `getFixedT(lang)(klucz)
+  // !== klucz`, a przy `fallbackLng: "pl"` usunięty napis angielski wracał
+  // po polsku i test zostawał zielony. Teraz każdy napis czytamy z bundla
+  // SWOJEGO języka i porównujemy dosłownie.
+  const expected: Record<string, { pl: string; en: string }> = {
+    hint: {
+      pl: "Twoje zgłoszenie jest zapisane. Popraw listę gości i dopisz ich ponownie - nie musisz wypełniać formularza od nowa.",
+      en: "Your registration is saved. Correct the guest list and add the guests again - you do not need to fill in the form from scratch.",
+    },
+    beforePayment: {
+      pl: "Dopisz gości przed płatnością - wtedy jedno zamówienie obejmie wszystkie miejsca.",
+      en: "Add the guests before paying - then one order covers every seat.",
+    },
+    submit: { pl: "Dopisz gości ponownie", en: "Add guests again" },
+    submitting: { pl: "Dopisujemy gości...", en: "Adding guests..." },
+    added: {
+      pl: "Dopisano gości do zgłoszenia: {{count}}.",
+      en: "Guests added to your registration: {{count}}.",
+    },
+  };
+
+  it("każdy napis panelu stoi w bundlu SWOJEGO języka, słowo w słowo", () => {
+    for (const [key, text] of Object.entries(expected)) {
+      const full = `eventRegistration.group.retry.${key}`;
+      expect(ownText("pl", full), full).toBe(text.pl);
+      expect(ownText("en", full), full).toBe(text.en);
+    }
+  });
+
+  it("lista napisów w teście to dokładnie gałąź `retry` obu słowników", () => {
+    for (const lang of LANGS) {
+      const branch = readKey(DICTIONARIES[lang], "eventRegistration.group.retry");
+      expect(typeof branch === "object" && branch !== null, lang).toBe(true);
+      expect(Object.keys(branch ?? {}).sort(), lang).toEqual(Object.keys(expected).sort());
+    }
+  });
+
+  it("liczba trafia do zdania sukcesu w obu językach", () => {
     expect(i18n.getFixedT("pl")("eventRegistration.group.retry.added", { count: 2 })).toBe(
       "Dopisano gości do zgłoszenia: 2.",
     );

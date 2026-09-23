@@ -9,9 +9,18 @@
 // dopisania (i opłacenia) osób, po które przyszedł.
 //
 // LISTA WRACA DO RĘKI. Panel dostaje gości wpisanych w formularzu, pozwala ich
-// poprawić w tym samym limicie biletu i dopisuje ich tym samym RPC do TEGO
-// SAMEGO zgłoszenia. RPC jest atomowe - odmowa cofa całą listę - więc
-// ponowienie nie dubluje osób dopisanych „w połowie".
+// poprawić w limicie biletu i dopisuje ich tym samym RPC do TEGO SAMEGO
+// zgłoszenia. RPC jest atomowe - odmowa cofa całą listę - więc ponowienie nie
+// dubluje osób dopisanych „w połowie".
+//
+// PO `group_too_large` LIMIT CZYTAMY OD NOWA. Formularz tnie listę do limitu
+// znanego przy otwarciu strony, a świeże zgłoszenie nie ma jeszcze gości, więc
+// baza odmawia limitem tylko wtedy, gdy organizator obniżył go w międzyczasie.
+// Limit z formularza jest wtedy z definicji nieaktualny: zdanie z nim mówiłoby
+// kupującemu liczbę, którą jego lista już spełnia, a edytor pozwalałby wracać
+// w tę samą odmowę. `loadMaxSize` idzie osobnym zapytaniem (fail-soft): gdy
+// odczyt się nie uda, zdanie nie podaje liczby, a edytor zostaje przy limicie
+// z formularza - lepszego nie znamy.
 //
 // ZGŁOSZENIE PROWADZĄCEGO NIE ZALEŻY OD GOŚCI. Panel stoi obok potwierdzenia,
 // a nie zamiast niego: odmowa dopisania gości nie cofa zapisu kupującego.
@@ -22,16 +31,13 @@
 // prowadzącego - po udanym dopisaniu ten sam przycisk obejmie już wszystkie
 // miejsca. Żadne zapytanie ekranu potwierdzenia nie trzyma tej liczby w cache.
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, CheckCircle2, Loader2, UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { GroupGuestsEditor } from "@/components/events/registration/GroupGuestsEditor";
-import {
-  groupGuestsFailure,
-  type RegistrationFailure,
-} from "@/lib/events/publicRegistrationErrors";
+import { groupGuestsFailure, isGroupTooLarge } from "@/lib/events/publicRegistrationErrors";
 import {
   guestIssues,
   registerGroupGuests,
@@ -47,8 +53,17 @@ export interface GroupGuestsRetryPanelProps {
   registrationId: string;
   /** Adres prowadzącego - blokuje wpisanie samego siebie jako gościa. */
   leadEmail: string;
-  /** Limit grupy biletu (prowadzący + goście), ten sam, co w formularzu. */
+  /**
+   * Limit grupy biletu (prowadzący + goście) z chwili otwarcia formularza.
+   * Obowiązuje, dopóki `loadMaxSize` nie poda aktualnego.
+   */
   maxSize: number;
+  /**
+   * Aktualny limit grupy biletu prosto z bazy (`null`, gdy biletu nie ma już
+   * w formularzu). Wołany po każdej odmowie `group_too_large`, POZA zapytaniem
+   * formularza - jego porażka nie może zamknąć strony zapisu.
+   */
+  loadMaxSize: () => Promise<number | null>;
   /** Goście wpisani w formularzu - odmowa bazy ich nie kasuje. */
   initialGuests: readonly GroupGuest[];
   /** Pierwsza odmowa `event_register_group_guests` (surowy błąd). */
@@ -63,6 +78,7 @@ export function GroupGuestsRetryPanel({
   registrationId,
   leadEmail,
   maxSize,
+  loadMaxSize,
   initialGuests,
   initialError,
   paymentRequired,
@@ -71,19 +87,50 @@ export function GroupGuestsRetryPanel({
   const { t } = useTranslation();
   const [guests, setGuests] = useState<GroupGuest[]>(() => [...initialGuests]);
   const [issues, setIssues] = useState<(GuestIssue | null)[]>([]);
-  const [failure, setFailure] = useState<RegistrationFailure | null>(() =>
-    groupGuestsFailure(initialError, { maxSize }),
-  );
+  // Surowa odmowa, a nie gotowe zdanie: liczba do `group_too_large`
+  // przychodzi później, z osobnego odczytu limitu.
+  const [refusal, setRefusal] = useState<{ error: unknown } | null>(() => ({
+    error: initialError,
+  }));
+  // Numer odczytu limitu. Każda odmowa `group_too_large` to NOWY klucz, więc
+  // spóźniona odpowiedź na starszą odmowę nie podpisze się pod nowszą.
+  const [limitRead, setLimitRead] = useState(() => (isGroupTooLarge(initialError) ? 1 : 0));
   const [added, setAdded] = useState<number | null>(null);
+
+  const freshLimit = useQuery({
+    queryKey: ["event-registration-group-limit", registrationId, limitRead],
+    queryFn: loadMaxSize,
+    enabled: limitRead > 0,
+    retry: false,
+    staleTime: Infinity,
+    // Kolejny odczyt nie cofa edytora do limitu z formularza, zanim wróci.
+    placeholderData: keepPreviousData,
+  });
+  const knownLimit = freshLimit.data ?? null;
+  const limit = knownLimit ?? maxSize;
+  // Liczba w zdaniu tylko z odczytu po TEJ odmowie - poprzedni mógł już nie
+  // być prawdą, skoro baza odmówiła znowu.
+  const failure =
+    refusal === null
+      ? null
+      : groupGuestsFailure(refusal.error, {
+          maxSize: freshLimit.isPlaceholderData ? null : knownLimit,
+        });
+  // Lista ponad aktualny limit skończyłaby się tą samą odmową - najpierw
+  // kupujący musi ją skrócić (zdanie odmowy mówi, do ilu osób).
+  const overLimit = guests.length > limit - 1;
 
   const retry = useMutation({
     mutationFn: (next: GroupGuest[]) => registerGroupGuests(registrationId, next),
     onSuccess: (count) => {
-      setFailure(null);
+      setRefusal(null);
       setAdded(count);
       onAdded(count);
     },
-    onError: (error: unknown) => setFailure(groupGuestsFailure(error, { maxSize })),
+    onError: (error: unknown) => {
+      setRefusal({ error });
+      if (isGroupTooLarge(error)) setLimitRead((read) => read + 1);
+    },
   });
 
   if (added !== null) {
@@ -124,7 +171,7 @@ export function GroupGuestsRetryPanel({
       <GroupGuestsEditor
         guests={guests}
         issues={issues}
-        maxSize={maxSize}
+        maxSize={limit}
         requiresAccount={false}
         disabled={retry.isPending}
         onChange={(next) => {
@@ -132,7 +179,11 @@ export function GroupGuestsRetryPanel({
           setIssues([]);
         }}
       />
-      <Button type="button" disabled={retry.isPending || guests.length === 0} onClick={submit}>
+      <Button
+        type="button"
+        disabled={retry.isPending || guests.length === 0 || overLimit}
+        onClick={submit}
+      >
         {retry.isPending ? (
           <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
         ) : (

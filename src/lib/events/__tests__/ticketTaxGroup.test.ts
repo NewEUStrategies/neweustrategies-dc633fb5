@@ -25,6 +25,7 @@ const {
   guestsToPayload,
   parseTicketTaxMode,
   registerGroupGuests,
+  ticketGroupMaxSize,
   fetchTicketTaxGroup,
   saveTicketTaxGroup,
   useTicketTaxGroup,
@@ -99,6 +100,34 @@ describe("registerGroupGuests", () => {
     h.rpc.mockResolvedValue({ data: null, error: { message: "group_too_large" } });
 
     await expect(registerGroupGuests(LEAD, [GUEST])).rejects.toThrow("group_too_large");
+  });
+});
+
+// Limit grupy odczytany od nowa po odmowie `group_too_large`. Liczba trafia do
+// zdania dla kupującego i do edytora gości, więc „nie wiem" (`null`) jest
+// lepsze niż liczba zgadnięta - brak biletu albo wyłączona grupa to `null`.
+describe("ticketGroupMaxSize", () => {
+  const GROUP = { id: "t-grupa", groupRegistrationEnabled: true, groupMaxSize: 4 };
+
+  it("oddaje limit wskazanego biletu grupowego", () => {
+    expect(ticketGroupMaxSize([{ id: "t-inny", groupMaxSize: 9 }, GROUP], "t-grupa")).toBe(4);
+  });
+
+  it("limit spoza 2-50 przycina tak samo jak baza", () => {
+    expect(ticketGroupMaxSize([{ ...GROUP, groupMaxSize: 99 }], "t-grupa")).toBe(50);
+  });
+
+  it("bez biletu, bez grupy albo bez limitu - nie zgaduje", () => {
+    expect(ticketGroupMaxSize([GROUP], "t-brak")).toBeNull();
+    expect(ticketGroupMaxSize([GROUP], null)).toBeNull();
+    expect(ticketGroupMaxSize([], "t-grupa")).toBeNull();
+    expect(
+      ticketGroupMaxSize([{ ...GROUP, groupRegistrationEnabled: false }], "t-grupa"),
+    ).toBeNull();
+    expect(ticketGroupMaxSize([{ id: "t-grupa", groupMaxSize: 4 }], "t-grupa")).toBeNull();
+    expect(
+      ticketGroupMaxSize([{ id: "t-grupa", groupRegistrationEnabled: true }], "t-grupa"),
+    ).toBeNull();
   });
 });
 

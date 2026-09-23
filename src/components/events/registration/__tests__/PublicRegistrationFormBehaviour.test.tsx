@@ -6,7 +6,7 @@
 // uczestnika - a wiec wszystko, co dzieje sie, gdy cos idzie NIE TAK, i to, co
 // zostaje w reku po wyslaniu.
 //
-// DZIEWIEC RZECZY, KTORE PO ZEPSUCIU KOSZTUJA ZGLOSZENIE ALBO ZAUFANIE:
+// DZIESIEC RZECZY, KTORE PO ZEPSUCIU KOSZTUJA ZGLOSZENIE ALBO ZAUFANIE:
 //
 // 1. ODMOWA BAZY NIE KASUJE FORMULARZA. „Limit miejsc" albo „juz zapisany" po
 //    wyczyszczeniu pol znaczy, ze uczestnik przepisuje wszystko od nowa - i
@@ -32,6 +32,11 @@
 //    ponowienia - ponowny zapis z formularza konczylby sie
 //    `already_registered`, wiec bez tego kupujacy tracil osoby, za ktore
 //    chcial zaplacic.
+// 10. LIMIT W ODMOWIE `group_too_large` JEST Z BAZY, NIE Z FORMULARZA.
+//    Formularz tnie liste do limitu znanego przy otwarciu strony, wiec baza
+//    odmawia tylko wtedy, gdy organizator limit w miedzyczasie obnizyl -
+//    liczba z formularza bylaby w zdaniu zawsze nieprawdziwa. Odczyt limitu
+//    idzie osobno (fail-soft) i jego porazka nie zamyka strony zapisu.
 //
 // ATRAPUJEMY WYLACZNIE GRANICE: klienta Supabase, wywolania server fn (poczta
 // potwierdzajaca i kasa), tozsamosc, jezyk interfejsu, toasty i modal operatora
@@ -1066,6 +1071,13 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
 
   const addButton = () => screen.getByRole("button", { name: /eventRegistration.group.add/ });
 
+  /** Przycisk usunięcia gościa `index` - zawężenie zamiast `!`. */
+  function removeButton(index: number): HTMLElement {
+    const button = screen.getAllByRole("button", { name: "eventRegistration.group.remove" })[index];
+    if (button === undefined) throw new Error(`test: brak przycisku usunięcia gościa ${index}`);
+    return button;
+  }
+
   it("limit gości pochodzi z biletu, a nie ze sztywnych 10 osób", async () => {
     h.user = USER;
     groupForm();
@@ -1140,7 +1152,77 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
     expect(stub().lastCall(REGISTER_RPC)).toBeUndefined();
   });
 
-  it("odmowa dopisania gości jest widoczna, a bilety nie wychodzą", async () => {
+  /**
+   * Formularz otwarty przy limicie 3, prowadzący + dwóch gości, a organizator
+   * obniża limit do 2, zanim kupujący kliknie „Zapisz się". Tylko w takim
+   * układzie baza odpowiada `group_too_large`: formularz tnie listę do
+   * własnego limitu, a świeże zgłoszenie nie ma jeszcze żadnych gości.
+   */
+  async function submitAfterLimitLowered(): Promise<void> {
+    h.user = USER;
+    groupForm();
+    stub().setError(GROUP_RPC, "group_too_large");
+    renderForm();
+    await fillPerson();
+    fireEvent.click(addButton());
+    fireEvent.click(addButton());
+    fillGuest(0, "gosc.jeden@example.com");
+    fillGuest(1, "gosc.dwa@example.com");
+    acceptDataProcessing();
+    groupForm({ group_max_size: 2 });
+    submitForm();
+    await screen.findByRole("button", { name: "eventRegistration.group.retry.submit" });
+  }
+
+  it("odmowa dopisania gości podaje limit Z BAZY, a bilety nie wychodzą", async () => {
+    await submitAfterLimitLowered();
+
+    // ZMIANA ASERCJI (dwie). Najpierw wystarczał DOWOLNY alert, a był nim
+    // ogólny „Nie udało się zapisać. Spróbuj ponownie." ze słownika zapisu
+    // prowadzącego - zdanie nieprawdziwe, bo zgłoszenie kupującego już stało.
+    // Potem alert podawał limit 3 z formularza przy liście, która w 3 się
+    // mieściła - `group_too_large` pada tylko wtedy, gdy limit w bazie jest
+    // NIŻSZY niż znany formularzowi, więc liczba z formularza była w zdaniu
+    // zawsze nieprawdziwa. Teraz limit jest czytany od nowa.
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "eventRegistration.group.errors.groupTooLargeMax(max=2)",
+      ),
+    );
+    expect(screen.queryByText(/groupTooLargeMax\(max=3\)/)).toBeNull();
+    expect(screen.queryByText("Nie udało się zapisać. Spróbuj ponownie.")).toBeNull();
+    expect(h.sendTicketCodes).not.toHaveBeenCalled();
+    // Odczyt limitu poszedł osobnym wywołaniem formularza, po odmowie gości.
+    expect(stub().callsFor(FORM_RPC)).toHaveLength(2);
+    expect(stub().names().lastIndexOf(FORM_RPC)).toBeGreaterThan(
+      stub().names().lastIndexOf(GROUP_RPC),
+    );
+  });
+
+  it("edytor gości przyjmuje limit z bazy: za długiej listy nie da się wysłać, dopóki kupujący jej nie skróci", async () => {
+    await submitAfterLimitLowered();
+
+    expect(await screen.findByText("eventRegistration.group.lead(max=2)")).toBeInTheDocument();
+    expect(screen.queryByText("eventRegistration.group.lead(max=3)")).toBeNull();
+    // Dwóch gości przy limicie 2 (z prowadzącym) to ta sama odmowa po raz drugi.
+    expect(retryButton()).toBeDisabled();
+    expect(addButton()).toBeDisabled();
+
+    fireEvent.click(removeButton(1));
+    expect(retryButton()).not.toBeDisabled();
+    expect(addButton()).toBeDisabled();
+
+    stub().setData(GROUP_RPC, { added: 1, registration_ids: [] });
+    fireEvent.click(retryButton());
+    expect(
+      await screen.findByText("eventRegistration.group.retry.added(count=1)"),
+    ).toBeInTheDocument();
+    expect(stub().lastCall(GROUP_RPC)?.arg("p_guests")).toEqual([
+      { first_name: "Gość", last_name: "Numer0", email: "gosc.jeden@example.com" },
+    ]);
+  });
+
+  it("nieudany odczyt limitu nie zmyśla liczby i NIE zamyka strony zapisu", async () => {
     h.user = USER;
     groupForm();
     stub().setError(GROUP_RPC, "group_too_large");
@@ -1149,17 +1231,24 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
     fireEvent.click(addButton());
     fillGuest(0, "gosc.jeden@example.com");
     acceptDataProcessing();
+    stub().setError(FORM_RPC, "Failed to fetch");
     submitForm();
+    await screen.findByRole("button", { name: "eventRegistration.group.retry.submit" });
 
-    // ZMIANA ASERCJI: wczesniej wystarczal DOWOLNY alert, a byl nim ogolny
-    // „Nie udalo sie zapisac. Sprobuj ponownie." ze slownika zapisu
-    // prowadzacego - zdanie nieprawdziwe, bo zgloszenie kupujacego juz stalo.
-    // Teraz alert ma mowic o GOSCIACH i podawac limit biletu.
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "eventRegistration.group.errors.groupTooLargeMax(max=3)",
+    await waitFor(() => expect(stub().callsFor(FORM_RPC)).toHaveLength(2));
+    // Zdanie bez liczby - limitu z formularza nie wolno podać jako prawdy.
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe(
+        "eventRegistration.group.errors.groupTooLarge",
+      ),
     );
-    expect(screen.queryByText("Nie udało się zapisać. Spróbuj ponownie.")).toBeNull();
-    expect(h.sendTicketCodes).not.toHaveBeenCalled();
+    // Odczyt szedł POZA zapytaniem formularza: jego porażka nie przełącza
+    // strony w „zapisy niedostępne", a potwierdzenie prowadzącego stoi.
+    expect(screen.getByText("eventRegistration.result.approved")).toBeInTheDocument();
+    expect(screen.queryByText("eventRegistration.closed.title")).toBeNull();
+    // Edytor zostaje przy limicie z formularza - lepszego nie znamy.
+    expect(screen.getByText("eventRegistration.group.lead(max=3)")).toBeInTheDocument();
+    expect(retryButton()).not.toBeDisabled();
   });
 
   /** Formularz z jednym gościem, którego baza odmówiła - kończy na potwierdzeniu. */

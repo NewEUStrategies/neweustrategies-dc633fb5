@@ -113,10 +113,24 @@ function isGroupGuestRefusal(head: string): head is GroupGuestRefusal {
   return GROUP_GUEST_REFUSALS.some((known) => known === head);
 }
 
+/**
+ * Czy baza odmówiła dopisania gości limitem grupy biletu (`group_too_large`).
+ *
+ * Tylko przy tej odmowie wołający czyta limit od nowa: formularz tnie listę
+ * do limitu znanego przy otwarciu strony, więc odmowa znaczy, że limit w
+ * bazie jest już NIŻSZY - i liczba z formularza byłaby w zdaniu nieprawdą.
+ */
+export function isGroupTooLarge(error: unknown): boolean {
+  return splitMessage(error).head === "group_too_large";
+}
+
 export interface GroupGuestsFailureContext {
   /**
    * Limit grupy biletu (prowadzący + goście), gdy wołający go zna. Baza mówi
    * samo `group_too_large`, a kupujący musi wiedzieć, ilu gości usunąć.
+   *
+   * Musi to być limit przeczytany PO odmowie (patrz `isGroupTooLarge`), a nie
+   * ten z chwili otwarcia formularza - tamten lista gości już spełnia.
    */
   maxSize?: number | null;
 }
