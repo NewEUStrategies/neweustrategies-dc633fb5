@@ -24,6 +24,10 @@ const SQL_KEYS = [
   "tier_in_use",
   "tier_full",
   "sponsor_tier_required",
+  // Tablica „Sponsorzy i reklama": zmiana układu sekcji
+  // (`admin_event_sponsor_tier_set_layout`, 20260922200000 i 20260923100100).
+  "banner_single_image",
+  "invalid_layout",
 ] as const;
 
 describe("adminSponsorErrors", () => {
@@ -34,6 +38,23 @@ describe("adminSponsorErrors", () => {
       expect(failure.key).not.toBe("adminEventSponsors.errors.unknown");
       expect(i18n.exists(failure.key)).toBe(true);
     }
+  });
+
+  it("odmowy ukladu sekcji maja wlasne zdanie w obu jezykach, nie `unknown`", () => {
+    for (const key of ["banner_single_image", "invalid_layout"]) {
+      const failure = adminSponsorFailure(new Error(key));
+      for (const lng of ["pl", "en"]) {
+        const text = i18n.getFixedT(lng)(failure.key);
+        expect(text).not.toBe(failure.key);
+        expect(text).not.toBe(i18n.getFixedT(lng)("adminEventSponsors.errors.unknown"));
+      }
+    }
+    expect(adminSponsorFailure(new Error("banner_single_image")).key).toBe(
+      "adminEventSponsors.errors.bannerSingleImage",
+    );
+    expect(adminSponsorFailure(new Error("invalid_layout")).key).toBe(
+      "adminEventSponsors.errors.invalidLayout",
+    );
   });
 
   it("wyciaga liczby z ogona komunikatu do interpolacji", () => {

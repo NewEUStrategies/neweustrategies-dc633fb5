@@ -16,6 +16,9 @@ import {
 } from "@/components/admin/events/organisms/AddSponsorSectionDialog";
 import { EventHomeAdsPanel } from "@/components/admin/events/organisms/EventHomeAdsPanel";
 import { SponsorSectionDrawer } from "@/components/admin/events/organisms/SponsorSectionDrawer";
+import { adminSponsorErrorMessage } from "@/lib/events/adminSponsorErrors";
+import { slugifyEventTypeKey } from "@/lib/events/eventTypes";
+import { SPONSOR_KEY_PATTERN } from "@/lib/events/sponsorDraft";
 import type { EventSponsorRow } from "@/lib/events/sponsorsApi";
 import { setTierLayout, useSponsorLinks, useTierLayouts } from "@/lib/events/sponsorBoardApi";
 import {
@@ -33,6 +36,37 @@ function logoOf(row: EventSponsorRow): SponsorLogo {
     name: row.snapshot_name || row.crm_name,
     logoUrl: row.snapshot_logo_url || row.crm_logo_url,
   };
+}
+
+/** Górna granica rangi w bazie (`event_sponsor_tiers_rank_range`). */
+const RANK_MAX = 1000;
+
+// NUMERACJA OD MAKSIMUM, NIE OD LICZBY WIERSZY. Po usunięciu sekcji albo
+// logotypu liczba wierszy spada, a zajęte wartości zostają - `(n + 1) * 10`
+// trafiało wtedy w `sort_order` (i rangę) istniejącego wiersza albo stawiało
+// nowy element PRZED ostatnim. Nowy element dostaje więc miejsce za
+// największą wartością: kolejność +10, ranga +1.
+function nextSortOrder(rows: ReadonlyArray<{ sort_order: number }>): number {
+  return rows.reduce((max, row) => Math.max(max, row.sort_order), 0) + 10;
+}
+
+function nextRank(rows: ReadonlyArray<{ rank: number }>): number {
+  return Math.min(RANK_MAX, rows.reduce((max, row) => Math.max(max, row.rank), 0) + 1);
+}
+
+// KLUCZ TECHNICZNY NOWEJ SEKCJI. `admin_event_sponsor_tier_save` odmawia nowego
+// poziomu bez klucza `^[a-z][a-z0-9_]{1,48}$` (`invalid_key`), a okno dodawania
+// sekcji pyta tylko o tytuł - bez tego żadna sekcja nie powstawała. Klucz to
+// tytuł bez diakrytyków; tytuł, z którego nie da się go zrobić (cyfry, jedna
+// litera, same znaki), dostaje przedrostek `sekcja`. Klucz zajęty w tym
+// wydarzeniu (`event_sponsor_tiers_event_key_unique`) dostaje przyrostek `_2`,
+// `_3`... Przycięcie do 32 znaków zostawia miejsce na oba.
+function sectionKey(title: string, taken: ReadonlySet<string>): string {
+  const slug = slugifyEventTypeKey(title).slice(0, 32).replace(/_+$/, "");
+  const base = SPONSOR_KEY_PATTERN.test(slug) ? slug : slug === "" ? "sekcja" : `sekcja_${slug}`;
+  let key = base;
+  for (let n = 2; taken.has(key); n += 1) key = `${base}_${n}`;
+  return key;
 }
 
 export function SponsorSectionsBoard({ eventId }: { eventId: string }) {
@@ -71,6 +105,7 @@ export function SponsorSectionsBoard({ eventId }: { eventId: string }) {
   const layoutOf = (id: string) => layoutsQ.data?.get(id) ?? "grid";
   const openTier = tiers.find((x) => x.id === openTierId) ?? null;
   const fail = () => toast.error(t("sponsorBoard.toasts.error"));
+  const failWith = (error: unknown) => toast.error(adminSponsorErrorMessage(error));
 
   const move = (index: number, dir: -1 | 1) => {
     const next = [...tiers];
@@ -84,28 +119,32 @@ export function SponsorSectionsBoard({ eventId }: { eventId: string }) {
   };
 
   const create = (input: NewSectionInput) => {
-    const order = (tiers.length + 1) * 10;
     saveTier.mutate(
       {
         eventId,
+        key: sectionKey(input.namePl, new Set(tiers.map((tier) => tier.key))),
         namePl: input.namePl,
         nameEn: input.nameEn,
-        rank: tiers.length + 1,
-        sortOrder: order,
+        rank: nextRank(tiers),
+        sortOrder: nextSortOrder(tiers),
         logoSize: input.layout === "banner" ? "lg" : "md",
         maxCompanies: input.layout === "banner" ? 1 : null,
       },
       {
         onSuccess: async (id) => {
+          // SEKCJA JUŻ ISTNIEJE - okno dodawania zamyka się OD RAZU. Zostawione
+          // otwarte na czas (albo po awarii) zapisu układu pozwalało wysłać je
+          // drugi raz, a to tworzyło DRUGĄ sekcję o tym samym tytule. Awaria
+          // układu kończy się panelem nowej sekcji, gdzie układ da się przełączyć.
+          setAdding(false);
           try {
             await setTierLayout({ id, layout: input.layout });
             await layoutsQ.refetch();
             toast.success(t("sponsorBoard.toasts.sectionCreated"));
-            setAdding(false);
-            setOpenTierId(id);
           } catch {
-            fail();
+            toast.error(t("sponsorBoard.toasts.sectionCreatedLayoutFailed"));
           }
+          setOpenTierId(id);
         },
         onError: fail,
       },
@@ -181,14 +220,16 @@ export function SponsorSectionsBoard({ eventId }: { eventId: string }) {
         sponsor={sponsorDialog?.sponsor ?? null}
         tiers={tiers}
         defaultTierId={sponsorDialog?.tierId}
-        nextSortOrder={
-          ((sponsorDialog ? byTier.get(sponsorDialog.tierId)?.length : 0) ?? 0) * 10 + 10
-        }
+        nextSortOrder={nextSortOrder(
+          sponsorDialog === null ? [] : (byTier.get(sponsorDialog.tierId) ?? []),
+        )}
         isSaving={saveSponsor.isPending}
         onSubmit={(input) =>
           saveSponsor.mutate(input, {
             onSuccess: () => setSponsorDialog(null),
-            onError: fail,
+            // `tier_full` (pełna sekcja - także baner z limitem 1) i reszta odmów
+            // bazy - zdaniem z mapy odmów sponsorów, a nie ogólnym „nie udało się".
+            onError: failWith,
           })
         }
       />

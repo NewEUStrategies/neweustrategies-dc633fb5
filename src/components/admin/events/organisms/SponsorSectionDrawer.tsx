@@ -1,12 +1,9 @@
 // Organizm: boczny panel edycji sekcji sponsorów - tytuł PL/EN, układ, logotypy
 // z przekierowaniem, dodawanie firmy z CRM i usunięcie sekcji.
-import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Sheet,
   SheetContent,
@@ -16,7 +13,9 @@ import {
 } from "@/components/ui/sheet";
 import { SponsorRedirectField } from "@/components/admin/events/molecules/SponsorRedirectField";
 import type { SponsorLogo } from "@/components/admin/events/molecules/SponsorSectionCard";
+import { SponsorSectionTitleForm } from "@/components/admin/events/molecules/SponsorSectionTitleForm";
 import { confirmDialog } from "@/lib/appDialogs";
+import { adminSponsorErrorMessage } from "@/lib/events/adminSponsorErrors";
 import { brandedMediaUrl } from "@/lib/media/publicUrl";
 import type { EventSponsorTierRow } from "@/lib/events/sponsorsApi";
 import {
@@ -59,13 +58,6 @@ export function SponsorSectionDrawer({
   const setLayout = useSetTierLayout(eventId);
   const setLink = useSetSponsorLink(eventId);
   const deleteSponsor = useDeleteSponsor(eventId);
-  const [namePl, setNamePl] = useState("");
-  const [nameEn, setNameEn] = useState("");
-
-  useEffect(() => {
-    setNamePl(tier?.name_pl ?? "");
-    setNameEn(tier?.name_en ?? "");
-  }, [tier]);
 
   const fail = () => toast.error(t("sponsorBoard.toasts.error"));
   const title =
@@ -75,6 +67,9 @@ export function SponsorSectionDrawer({
         ? tier.name_en || tier.name_pl
         : tier.name_pl || tier.name_en;
   const bannerFull = layout === "banner" && logos.length >= 1;
+  // Baza odmówi banera przy więcej niż jednej firmie (`banner_single_image`),
+  // więc przycisk gaśnie wcześniej i mówi, co trzeba zrobić.
+  const bannerBlocked = logos.length > 1;
 
   return (
     <Sheet open={tier !== null} onOpenChange={onOpenChange}>
@@ -86,67 +81,55 @@ export function SponsorSectionDrawer({
               <SheetDescription>{t(`sponsorBoard.sponsors.${layout}`)}</SheetDescription>
             </SheetHeader>
 
-            <form
-              className="mt-6 space-y-3"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (namePl.trim() === "" && nameEn.trim() === "") return;
+            {/* `key` = nowa sekcja to nowy formularz; odświeżony wiersz TEJ SAMEJ
+                sekcji nie nadpisuje tytułu, którego organizator jeszcze nie zapisał. */}
+            <SponsorSectionTitleForm
+              key={tier.id}
+              initialNamePl={tier.name_pl}
+              initialNameEn={tier.name_en}
+              isSaving={saveTier.isPending}
+              onSave={(titles) =>
                 saveTier.mutate(
-                  {
-                    id: tier.id,
-                    eventId,
-                    namePl: namePl.trim() || nameEn.trim(),
-                    nameEn: nameEn.trim() || namePl.trim(),
-                  },
+                  { id: tier.id, eventId, ...titles },
                   {
                     onSuccess: () => toast.success(t("sponsorBoard.toasts.sectionSaved")),
                     onError: fail,
                   },
-                );
-              }}
-            >
-              <div className="space-y-1">
-                <Label htmlFor="drawer-title-pl">{t("sponsorBoard.add.titlePl")}</Label>
-                <Input
-                  id="drawer-title-pl"
-                  value={namePl}
-                  maxLength={120}
-                  onChange={(e) => setNamePl(e.target.value)}
-                />
+                )
+              }
+            />
+
+            <fieldset className="mt-4 space-y-1">
+              <legend className="text-sm font-medium">{t("sponsorBoard.drawer.layout")}</legend>
+              <div className="flex gap-2">
+                {(["grid", "banner"] as const).map((key) => (
+                  <Button
+                    key={key}
+                    type="button"
+                    size="sm"
+                    variant={layout === key ? "default" : "outline"}
+                    aria-pressed={layout === key}
+                    aria-describedby={
+                      key === "banner" && bannerBlocked ? "drawer-banner-blocked" : undefined
+                    }
+                    disabled={setLayout.isPending || (key === "banner" && bannerBlocked)}
+                    onClick={() =>
+                      setLayout.mutate(
+                        { id: tier.id, layout: key },
+                        { onError: (error) => toast.error(adminSponsorErrorMessage(error)) },
+                      )
+                    }
+                  >
+                    {t(`sponsorBoard.sponsors.${key}`)}
+                  </Button>
+                ))}
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="drawer-title-en">{t("sponsorBoard.add.titleEn")}</Label>
-                <Input
-                  id="drawer-title-en"
-                  value={nameEn}
-                  maxLength={120}
-                  onChange={(e) => setNameEn(e.target.value)}
-                />
-              </div>
-              <fieldset className="space-y-1">
-                <legend className="text-sm font-medium">{t("sponsorBoard.drawer.layout")}</legend>
-                <div className="flex gap-2">
-                  {(["grid", "banner"] as const).map((key) => (
-                    <Button
-                      key={key}
-                      type="button"
-                      size="sm"
-                      variant={layout === key ? "default" : "outline"}
-                      aria-pressed={layout === key}
-                      disabled={setLayout.isPending}
-                      onClick={() =>
-                        setLayout.mutate({ id: tier.id, layout: key }, { onError: fail })
-                      }
-                    >
-                      {t(`sponsorBoard.sponsors.${key}`)}
-                    </Button>
-                  ))}
-                </div>
-              </fieldset>
-              <Button type="submit" size="sm" disabled={saveTier.isPending}>
-                {t("sponsorBoard.drawer.save")}
-              </Button>
-            </form>
+              {bannerBlocked ? (
+                <p id="drawer-banner-blocked" className="text-xs text-muted-foreground">
+                  {t("sponsorBoard.drawer.bannerBlocked")}
+                </p>
+              ) : null}
+            </fieldset>
 
             <ul className="mt-6 space-y-4">
               {logos.map((logo) => (
@@ -250,7 +233,7 @@ export function SponsorSectionDrawer({
               </Button>
               {logos.length > 0 ? (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {t("sponsorBoard.drawer.deleteConfirmBody")}
+                  {t("sponsorBoard.drawer.deleteBlocked")}
                 </p>
               ) : null}
             </div>

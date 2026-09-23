@@ -9,8 +9,15 @@
 //   2. TYTUŁ ZAWSZE WYCHODZI W OBU JĘZYKACH. Zapis niesie identyfikator sekcji
 //      i wydarzenia, tytuły przycięte, a brakujący język dostaje tytuł z drugiego.
 //      Oba pola puste nie idą do bazy wcale. Wynik zapisu kończy się komunikatem.
+//      NIEZAPISANY TYTUŁ PRZEŻYWA ODŚWIEŻENIE: nowy obiekt wiersza TEJ SAMEJ
+//      sekcji (lista sekcji odświeża się po zmianie układu, zapisie linku,
+//      usunięciu logotypu) nie nadpisuje wpisanego tekstu; dopiero INNA sekcja
+//      wczytuje swoje tytuły.
 //   3. UKŁAD PRZEŁĄCZA SIĘ OSOBNĄ OPERACJĄ z identyfikatorem sekcji; bieżący
 //      układ jest wciśnięty, a w trakcie zmiany oba przyciski są zgaszone.
+//      Sekcja z więcej niż jednym logotypem ma zgaszony baner z wyjaśnieniem
+//      (baza i tak odmówi `banner_single_image`), a odmowa bazy mówi zdaniem
+//      z mapy odmów sponsorów, nie ogólnym „nie udało się".
 //   4. KAŻDY LOGOTYP MA SWOJE OPERACJE. Edycja i usunięcie dostają identyfikator
 //      TEJ firmy; logo z magazynu idzie przez adres markowy, a firma bez logo
 //      pokazuje nazwę zamiast pustego obrazka.
@@ -22,11 +29,19 @@
 //      firmy jest zgaszone i panel mówi dlaczego; siatka i pusty baner przyjmują.
 //   7. USUNIĘCIE SEKCJI TYLKO PUSTEJ I TYLKO PO POTWIERDZENIU. Z firmami przycisk
 //      jest zgaszony z wyjaśnieniem; pusta sekcja pyta (okno niszczące), odmowa
-//      niczego nie usuwa, a udane usunięcie zamyka panel.
+//      niczego nie usuwa, a udane usunięcie zamyka panel. Okno potwierdzenia
+//      mówi, CO się stanie (sekcja zniknie z panelu i ze strony, bez cofnięcia),
+//      a nie powtarza podpowiedzi o firmach - do okna dochodzi się tylko
+//      z pustej sekcji, więc tamto zdanie było w nim nieprawdą.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. Reguł pola przekierowania (granice adresu,
 // „zapis tylko zmiany") - to `molecules/__tests__/SponsorRedirectField.test.tsx`;
 // tutaj molekuła jest PRAWDZIWA, bo dowodem jest to, z czym panel woła zapis.
+// Tak samo formularz tytułu (`SponsorSectionTitleForm.test.tsx`) - prawdziwy,
+// bo o jego ponownym montowaniu decyduje `key` nadany przez panel.
+// Słownika odmów bazy - to `lib/events/__tests__/adminSponsorErrors.test.ts`;
+// tutaj mapa jest atrapą oddającą `odmowa:<komunikat>`, żeby było widać, że
+// odmowa przeszła przez nią, a nie przez ogólny komunikat.
 // Tablicy sekcji i karty sekcji (`SponsorSectionsBoard`, `SponsorSectionCard`) -
 // osobne pliki. Zapytań do bazy - hooki są atrapą, liczy się to, z czym panel je
 // woła. `brandedMediaUrl` zostaje prawdziwe.
@@ -90,6 +105,10 @@ vi.mock("@/lib/appDialogs", () => ({
 vi.mock("@/components/ui/select", async () =>
   (await import("@/test/reactStubs")).radixSelectStub(await import("react")),
 );
+vi.mock("@/lib/events/adminSponsorErrors", () => ({
+  adminSponsorErrorMessage: (error: unknown) =>
+    `odmowa:${error instanceof Error ? error.message : String(error)}`,
+}));
 
 vi.mock("@/lib/events/sponsorBoardApi", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/events/sponsorBoardApi")>();
@@ -110,6 +129,7 @@ vi.mock("@/lib/events/useEventSponsors", async (importOriginal) => {
 });
 
 import { SponsorSectionDrawer } from "@/components/admin/events/organisms/SponsorSectionDrawer";
+import { sponsorBoardEn, sponsorBoardPl } from "@/lib/i18n-admin-event-sponsor-board";
 
 type Props = ComponentProps<typeof SponsorSectionDrawer>;
 
@@ -256,6 +276,30 @@ describe("otwarcie i nagłówek", () => {
     expect(pole(`${B}.add.titleEn`).getAttribute("maxlength")).toBe("120");
   });
 
+  // REGRESJA: panel przepisywał pola efektem zależnym od OBIEKTU wiersza, a lista
+  // sekcji oddaje nowy obiekt po każdym odświeżeniu - wpisany tytuł znikał.
+  it("odświeżony wiersz TEJ SAMEJ sekcji nie kasuje niezapisanego tytułu, inna sekcja wczytuje swoje", () => {
+    const widok = szuflada();
+    wpisz(`${B}.add.titlePl`, "Roboczy tytuł");
+    wpisz(`${B}.add.titleEn`, "Draft title");
+    // Odświeżenie po np. zmianie układu: ten sam identyfikator, nowy obiekt,
+    // inne pola pochodne (limit, licznik) - i te same zapisane tytuły.
+    widok.przerysuj({ tier: sekcja({ max_companies: 1, sponsors_count: 1, updated_at: "x" }) });
+    expect(pole(`${B}.add.titlePl`).value).toBe("Roboczy tytuł");
+    expect(pole(`${B}.add.titleEn`).value).toBe("Draft title");
+    widok.przerysuj({ tier: sekcja({ id: "t2", name_pl: "Srebrni", name_en: "Silver" }) });
+    expect(pole(`${B}.add.titlePl`).value).toBe("Srebrni");
+    expect(pole(`${B}.add.titleEn`).value).toBe("Silver");
+  });
+
+  it("ponowne otwarcie tej samej sekcji po zamknięciu panelu wczytuje jej zapisane tytuły", () => {
+    const widok = szuflada();
+    wpisz(`${B}.add.titlePl`, "Porzucony tytuł");
+    widok.przerysuj({ tier: null });
+    widok.przerysuj({ tier: sekcja() });
+    expect(pole(`${B}.add.titlePl`).value).toBe("Złoci partnerzy");
+  });
+
   it("otwarcie panelu nad sekcją wczytuje jej tytuły, a przejście do innej sekcji - tytuły tamtej", () => {
     const widok = szuflada({ tier: null });
     widok.przerysuj({ tier: sekcja() });
@@ -353,11 +397,41 @@ describe("układ sekcji", () => {
     expect(wywolania("saveTier")).toEqual([]);
   });
 
-  it("odmowa zmiany układu kończy się komunikatem błędu", () => {
-    h.errors.setLayout = new Error("banner_single_image");
+  // ZMIANA: ta asercja oczekiwała ogólnego `toasts.error` dla `banner_single_image`,
+  // a przy dwóch logotypach. Dwa logotypy gaszą dziś baner zawczasu (niżej), więc
+  // odmowa bazy przychodzi tylko przy wyścigu (ktoś dopiął firmę w międzyczasie)
+  // i MA mówić, dlaczego - przez mapę odmów sponsorów, nie ogólnym zdaniem.
+  it.each(["banner_single_image", "invalid_layout"])(
+    "odmowa zmiany układu (%s) mówi zdaniem z mapy odmów, nie ogólnym błędem",
+    (kod) => {
+      h.errors.setLayout = new Error(kod);
+      szuflada({ logos: [ACME] });
+      kliknij(przycisk(`${B}.sponsors.banner`));
+      expect(h.toastError).toHaveBeenCalledWith(`odmowa:${kod}`);
+      expect(h.toastError).not.toHaveBeenCalledWith(`${B}.toasts.error`);
+    },
+  );
+
+  it("sekcja z więcej niż jednym logotypem ma zgaszony baner i mówi dlaczego", () => {
     szuflada({ logos: [ACME, BEZ_LOGO] });
-    kliknij(przycisk(`${B}.sponsors.banner`));
-    expect(h.toastError).toHaveBeenCalledWith(`${B}.toasts.error`);
+    const baner = przycisk(`${B}.sponsors.banner`);
+    expect(baner.disabled).toBe(true);
+    expect(przycisk(`${B}.sponsors.grid`).disabled).toBe(false);
+    const wyjasnienie = within(panel()).getByText(`${B}.drawer.bannerBlocked`);
+    expect(baner.getAttribute("aria-describedby")).toBe(wyjasnienie.id);
+    kliknij(baner);
+    expect(wywolania("setLayout")).toEqual([]);
+  });
+
+  it.each<[string, SponsorLogo[]]>([
+    ["bez logotypów", []],
+    ["z jednym logotypem", [ACME]],
+  ])("sekcja %s może przejść na baner i nie widzi wyjaśnienia blokady", (_nazwa, logos) => {
+    szuflada({ logos });
+    const baner = przycisk(`${B}.sponsors.banner`);
+    expect(baner.disabled).toBe(false);
+    expect(baner.hasAttribute("aria-describedby")).toBe(false);
+    expect(within(panel()).queryByText(`${B}.drawer.bannerBlocked`)).toBeNull();
   });
 
   it("w trakcie zmiany układu oba przyciski są zgaszone", () => {
@@ -476,15 +550,19 @@ describe("dodawanie sponsora", () => {
 });
 
 describe("usuwanie sekcji", () => {
+  // ZMIANA: podpowiedź pod zgaszonym przyciskiem i treść okna potwierdzenia były
+  // TYM SAMYM kluczem (`deleteConfirmBody`). Podpowiedź ma dziś własny klucz
+  // `deleteBlocked`; `deleteConfirmBody` mówi, co się stanie po potwierdzeniu.
   it("sekcja z firmami ma zgaszone usuwanie i wyjaśnienie", () => {
     szuflada({ logos: [ACME] });
     expect(przycisk(`${B}.drawer.deleteSection`).disabled).toBe(true);
-    expect(within(panel()).getByText(`${B}.drawer.deleteConfirmBody`)).toBeTruthy();
+    expect(within(panel()).getByText(`${B}.drawer.deleteBlocked`)).toBeTruthy();
+    expect(within(panel()).queryByText(`${B}.drawer.deleteConfirmBody`)).toBeNull();
   });
 
   it("pusta sekcja pyta o potwierdzenie w oknie niszczącym", async () => {
     szuflada();
-    expect(within(panel()).queryByText(`${B}.drawer.deleteConfirmBody`)).toBeNull();
+    expect(within(panel()).queryByText(`${B}.drawer.deleteBlocked`)).toBeNull();
     await usunSekcje();
     expect(h.confirmCalls).toEqual([
       {
@@ -496,6 +574,17 @@ describe("usuwanie sekcji", () => {
       },
     ]);
   });
+
+  it.each([
+    ["pl", sponsorBoardPl.sponsorBoard.drawer, /nie można cofnąć/],
+    ["en", sponsorBoardEn.sponsorBoard.drawer, /cannot be undone/],
+  ] as const)(
+    "treść okna potwierdzenia (%s) mówi o skutku, a nie powtarza podpowiedzi o firmach",
+    (_lang, slownik, nieodwracalne) => {
+      expect(slownik.deleteConfirmBody).not.toBe(slownik.deleteBlocked);
+      expect(slownik.deleteConfirmBody).toMatch(nieodwracalne);
+    },
+  );
 
   it("odmowa w oknie potwierdzenia niczego nie usuwa", async () => {
     h.confirmAnswer = false;

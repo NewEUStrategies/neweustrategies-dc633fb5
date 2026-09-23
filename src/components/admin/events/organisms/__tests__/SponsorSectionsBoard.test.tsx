@@ -14,15 +14,23 @@
 //      od 1), bo RPC przestawia wszystkie wiersze naraz; odmowa kończy się
 //      komunikatem. Ruch poza krawędź listy nie wysyła niczego.
 //   5. NOWA SEKCJA DOSTAJE MIEJSCE NA KOŃCU i parametry z układu (baner = duże
-//      logo i jedna firma, siatka = średnie bez limitu). Układ zapisuje się
-//      osobnym RPC i DOPIERO PO odświeżeniu układów otwiera się panel nowej
-//      sekcji - inaczej panel pokazałby baner jako siatkę. Każda odmowa po
-//      drodze zostawia okno dodawania otwarte i mówi zdaniem, że się nie udało.
+//      logo i jedna firma, siatka = średnie bez limitu). „Na końcu" liczy się od
+//      NAJWIĘKSZEJ kolejności i rangi (+10 / +1, ranga nie ponad 1000), a nie od
+//      liczby sekcji - po usunięciu sekcji liczba spada, a zajęte wartości
+//      zostają. Sekcja dostaje też klucz techniczny z tytułu (bez diakrytyków,
+//      wolny w tym wydarzeniu), bez którego baza odmawia (`invalid_key`).
+//      Układ zapisuje się osobnym RPC i DOPIERO PO odświeżeniu układów otwiera
+//      się panel nowej sekcji - inaczej panel pokazałby baner jako siatkę.
+//      Odmowa zapisu SEKCJI zostawia okno dodawania otwarte. Gdy sekcja już
+//      powstała, okno zamyka się OD RAZU (jeszcze przed zapisem układu), a awaria
+//      układu kończy się panelem nowej sekcji i zdaniem „utworzona, układu nie
+//      zapisano" - ponowne wysłanie okna tworzyło DRUGĄ sekcję o tym tytule.
 //   6. PANEL SEKCJI DOSTAJE DANE TEJ SEKCJI: wiersz, układ, logotypy i mapę
 //      przekierowań (pustą, gdy zapytanie w locie).
 //   7. OKNO SPONSORA WIE, DLA KTÓREJ SEKCJI JEST: domyślna sekcja z panelu,
-//      kolejność na końcu tej sekcji, edytowany wiersz albo „nowy". Zapis
-//      zamyka okno, odmowa zostawia je otwarte.
+//      kolejność na końcu tej sekcji (za NAJWIĘKSZĄ kolejnością logotypów, nie
+//      za ich liczbą), edytowany wiersz albo „nowy". Zapis zamyka okno, odmowa
+//      zostawia je otwarte i mówi zdaniem z mapy odmów sponsorów (`tier_full`).
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. (1) Wnętrza okna dodawania sekcji
 // (`AddSponsorSectionDialog`), panelu sekcji (`SponsorSectionDrawer`), okna
@@ -31,7 +39,9 @@
 // z jakimi danymi tablica je otwiera i co robi z tym, co oddają.
 // (2) Rysowania karty - `molecules/__tests__/SponsorSectionCard.test.tsx`; tutaj
 // karta jest PRAWDZIWA, bo przez jej przyciski organizator zmienia kolejność.
-// (3) Warstwy RPC - hooki bazy i `setTierLayout` są atrapami.
+// (3) Warstwy RPC - hooki bazy i `setTierLayout` są atrapami. (4) Słownika odmów
+// bazy (`lib/events/__tests__/adminSponsorErrors.test.ts`) - mapa jest atrapą
+// oddającą `odmowa:<komunikat>`.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
@@ -76,6 +86,8 @@ const h = vi.hoisted(() => ({
   poZapisieSekcji: null as Promise<void> | null,
   ukladyZapisane: [] as { id: string; layout: SponsorSectionLayout }[],
   ukladBlad: null as Error | null,
+  /** Gdy ustawione, zapis układu czeka na tę obietnicę (odpowiedź „w locie"). */
+  ukladCzeka: null as Promise<void> | null,
   odswiezenieBlad: null as Error | null,
   kolejnosci: [] as SponsorOrderItem[][],
   kolejnoscBlad: null as Error | null,
@@ -96,6 +108,10 @@ vi.mock("react-i18next", async () =>
   (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang),
 );
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
+vi.mock("@/lib/events/adminSponsorErrors", () => ({
+  adminSponsorErrorMessage: (error: unknown) =>
+    `odmowa:${error instanceof Error ? error.message : String(error)}`,
+}));
 
 vi.mock("@/lib/events/useEventSponsors", () => ({
   useSponsorTiers: (eventId: string) => {
@@ -173,6 +189,7 @@ vi.mock("@/lib/events/sponsorBoardApi", async (importOriginal) => ({
   },
   setTierLayout: async (input: { id: string; layout: SponsorSectionLayout }) => {
     h.dziennik.push(`uklad:${input.id}:${input.layout}`);
+    if (h.ukladCzeka !== null) await h.ukladCzeka;
     if (h.ukladBlad !== null) throw h.ukladBlad;
     h.ukladyZapisane.push(input);
     return true;
@@ -489,6 +506,7 @@ beforeEach(() => {
   h.poZapisieSekcji = null;
   h.ukladyZapisane = [];
   h.ukladBlad = null;
+  h.ukladCzeka = null;
   h.odswiezenieBlad = null;
   h.kolejnosci = [];
   h.kolejnoscBlad = null;
@@ -713,6 +731,7 @@ describe("dodawanie sekcji", () => {
     expect(h.zapisySekcji).toEqual([
       {
         eventId: WYDARZENIE,
+        key: "partnerzy",
         namePl: "Partnerzy",
         nameEn: "Partners",
         rank: 2,
@@ -733,9 +752,12 @@ describe("dodawanie sekcji", () => {
     expect(h.zapisySekcji).toEqual([
       {
         eventId: WYDARZENIE,
+        key: "sponsor_glowny",
         namePl: "Sponsor główny",
         nameEn: "Main sponsor",
-        rank: 4,
+        // ZMIANA: było 4 (liczba sekcji + 1). Ranga idzie dziś od NAJWIĘKSZEJ
+        // rangi, a wszystkie trzy sekcje z `trzySekcje()` mają rangę 1.
+        rank: 2,
         sortOrder: 40,
         logoSize: "lg",
         maxCompanies: 1,
@@ -749,6 +771,65 @@ describe("dodawanie sekcji", () => {
     kliknij(przycisk(`${S}.create`));
     await utworzSekcje();
     expect(h.zapisySekcji).toMatchObject([{ rank: 1, sortOrder: 10 }]);
+  });
+
+  // REGRESJA: numeracja szła od LICZBY sekcji (`(n + 1) * 10`, ranga `n + 1`).
+  // Po usunięciu sekcji ze środka dwie pozostałe (10 i 30, rangi 1 i 3) dawały
+  // nowej kolejność 30 i rangę 3 - te same, co ostatnia istniejąca.
+  it("po usunięciu sekcji ze środka nowa staje ZA największą kolejnością i rangą", async () => {
+    h.sekcje = [
+      sekcja({ id: "t-a", key: "a_1", sort_order: 30, rank: 3 }),
+      sekcja({ id: "t-b", key: "b_1", sort_order: 10, rank: 1 }),
+    ];
+    tablica();
+    kliknij(przycisk(`${S}.create`));
+    await utworzSekcje();
+    expect(h.zapisySekcji).toMatchObject([{ rank: 4, sortOrder: 40 }]);
+  });
+
+  it("największa kolejność i ranga liczą się niezależnie (sekcje spoza tablicy)", async () => {
+    h.sekcje = [
+      sekcja({ id: "t-a", key: "a_1", sort_order: 90, rank: 2 }),
+      sekcja({ id: "t-b", key: "b_1", sort_order: 20, rank: 70 }),
+    ];
+    tablica();
+    kliknij(przycisk(`${S}.create`));
+    await utworzSekcje();
+    expect(h.zapisySekcji).toMatchObject([{ rank: 71, sortOrder: 100 }]);
+  });
+
+  it("ranga nowej sekcji nie przekracza górnej granicy bazy (1000)", async () => {
+    h.sekcje = [sekcja({ rank: 1000 })];
+    tablica();
+    kliknij(przycisk(`${S}.create`));
+    await utworzSekcje();
+    expect(h.zapisySekcji).toMatchObject([{ rank: 1000, sortOrder: 20 }]);
+  });
+
+  // REGRESJA: tablica nie wysyłała klucza, a `admin_event_sponsor_tier_save`
+  // odmawia nowego poziomu bez klucza `^[a-z][a-z0-9_]{1,48}$` (`invalid_key`).
+  it.each<[string, string, string[], string]>([
+    ["tytuł z diakrytykami", "Złoci Partnerzy 2026!", [], "zloci_partnerzy_2026"],
+    ["klucz zajęty w wydarzeniu", "Partnerzy", ["partnerzy"], "partnerzy_2"],
+    ["kolejne zajęte klucze", "Partnerzy", ["partnerzy", "partnerzy_2"], "partnerzy_3"],
+    ["tytuł od cyfry", "2026", [], "sekcja_2026"],
+    ["jednoliterowy tytuł", "A", [], "sekcja_a"],
+    ["tytuł bez liter i cyfr", "!!!", [], "sekcja"],
+    ["zajęty klucz zastępczy", "***", ["sekcja"], "sekcja_2"],
+    [
+      "długi tytuł",
+      "Partnerzy strategiczni programu gospodarczego",
+      [],
+      "partnerzy_strategiczni_programu",
+    ],
+  ])("%s daje klucz techniczny, który baza przyjmie", async (_nazwa, tytul, zajete, klucz) => {
+    h.sekcje = zajete.map((key, i) => sekcja({ id: `t-${key}`, key, sort_order: (i + 1) * 10 }));
+    h.wejscieSekcji = { layout: "grid", namePl: tytul, nameEn: "Partners" };
+    tablica();
+    kliknij(przycisk(`${S}.create`));
+    await utworzSekcje();
+    expect(h.zapisySekcji).toMatchObject([{ key: klucz }]);
+    expect(klucz).toMatch(/^[a-z][a-z0-9_]{1,48}$/);
   });
 
   it("po zapisie: układ, odświeżenie układów, komunikat - i DOPIERO WTEDY panel nowej sekcji", async () => {
@@ -775,28 +856,60 @@ describe("dodawanie sekcji", () => {
     expect(panel().getAttribute("data-sekcja")).toBe("brak");
   });
 
-  it("odmowa zapisu układu: komunikat błędu, okno otwarte, bez odświeżenia i bez panelu", async () => {
+  // ZMIANA (REGRESJA): te dwa przypadki twierdziły, że po awarii układu okno
+  // dodawania ZOSTAJE otwarte, bez panelu i z ogólnym błędem. Sekcja była wtedy
+  // już zapisana, więc ponowne „Dodaj" tworzyło DRUGĄ sekcję o tym samym tytule.
+  // Dziś okno znika, otwiera się panel nowej sekcji (tam przełącza się układ),
+  // a komunikat mówi, że sekcja powstała, ale układu nie zapisano.
+  it("odmowa zapisu układu: okno znika, panel nowej sekcji, zdanie „utworzona, bez układu”", async () => {
     h.ukladBlad = new Error("rpc");
+    h.wejscieSekcji = { layout: "banner", namePl: "Partnerzy", nameEn: "Partners" };
     tablica();
     kliknij(przycisk(`${S}.create`));
     await utworzSekcje();
-    expect(h.dziennik).toEqual(["zapis-sekcji", "uklad:t-nowa:grid"]);
-    expect(h.toastError).toHaveBeenCalledWith("sponsorBoard.toasts.error");
+    expect(h.dziennik).toEqual(["zapis-sekcji", "uklad:t-nowa:banner"]);
+    expect(h.toastError).toHaveBeenCalledWith("sponsorBoard.toasts.sectionCreatedLayoutFailed");
     expect(h.toastSuccess).not.toHaveBeenCalled();
-    expect(oknoDodawania()).toBeTruthy();
-    expect(panel().getAttribute("data-sekcja")).toBe("brak");
+    expect(screen.queryByRole("dialog", { name: "dodawanie-sekcji" })).toBeNull();
+    expect(panel().getAttribute("data-sekcja")).toBe("t-nowa");
+    // Układ w bazie to nadal domyślna siatka - panel mówi prawdę.
+    expect(panel().getAttribute("data-uklad")).toBe("grid");
+    expect(h.zapisySekcji).toHaveLength(1);
   });
 
-  it("awaria odświeżenia układów: komunikat błędu, okno otwarte, bez panelu", async () => {
+  it("awaria odświeżenia układów: okno znika, panel nowej sekcji, zdanie „utworzona, bez układu”", async () => {
     h.odswiezenieBlad = new Error("network");
     tablica();
     kliknij(przycisk(`${S}.create`));
     await utworzSekcje();
     expect(h.dziennik).toEqual(["zapis-sekcji", "uklad:t-nowa:grid", "odswiezenie-ukladow"]);
-    expect(h.toastError).toHaveBeenCalledWith("sponsorBoard.toasts.error");
+    expect(h.toastError).toHaveBeenCalledWith("sponsorBoard.toasts.sectionCreatedLayoutFailed");
     expect(h.toastSuccess).not.toHaveBeenCalled();
-    expect(oknoDodawania()).toBeTruthy();
+    expect(screen.queryByRole("dialog", { name: "dodawanie-sekcji" })).toBeNull();
+    expect(panel().getAttribute("data-sekcja")).toBe("t-nowa");
+    expect(h.zapisySekcji).toHaveLength(1);
+  });
+
+  it("okno dodawania znika, zanim zapis układu wróci - drugiego wysłania nie ma skąd zrobić", async () => {
+    let wypusc: () => void = () => {};
+    h.ukladCzeka = new Promise<void>((resolve) => {
+      wypusc = resolve;
+    });
+    tablica();
+    kliknij(przycisk(`${S}.create`));
+    act(() => {
+      fireEvent.click(przycisk("dodawanie-zapisz"));
+    });
+    expect(h.dziennik).toEqual(["zapis-sekcji", "uklad:t-nowa:grid"]);
+    expect(screen.queryByRole("dialog", { name: "dodawanie-sekcji" })).toBeNull();
     expect(panel().getAttribute("data-sekcja")).toBe("brak");
+    await act(async () => {
+      wypusc();
+      await h.poZapisieSekcji;
+    });
+    expect(h.zapisySekcji).toHaveLength(1);
+    expect(panel().getAttribute("data-sekcja")).toBe("t-nowa");
+    expect(h.toastSuccess).toHaveBeenCalledWith("sponsorBoard.toasts.sectionCreated");
   });
 });
 
@@ -891,6 +1004,21 @@ describe("okno sponsora", () => {
     expect(okno.getAttribute("data-zapis")).toBe("true");
   });
 
+  // REGRESJA: kolejność szła od LICZBY logotypów (`n * 10 + 10`). Po odpięciu
+  // pierwszej firmy dwie pozostałe (20 i 30) dawały nowej 30 - kolejność
+  // ostatniej, zamiast miejsca za nią.
+  it("po odpięciu firmy nowe przypięcie staje ZA największą kolejnością sekcji", () => {
+    h.sponsorzy = [
+      sponsor({ id: "s-beta", tier_id: "t-srebro", snapshot_name: "Beta", sort_order: 30 }),
+      sponsor({ id: "s-gamma", tier_id: "t-srebro", snapshot_name: "Gamma", sort_order: 20 }),
+      sponsor({ id: "s-media", tier_id: "t-media", snapshot_name: "Radio", sort_order: 90 }),
+    ];
+    tablica();
+    otworzPanel("Srebrni partnerzy");
+    kliknij(przycisk("panel-dodaj-sponsora"));
+    expect(oknoSponsora().getAttribute("data-kolejnosc")).toBe("40");
+  });
+
   it("w pustej sekcji nowe przypięcie jest pierwsze (kolejność 10)", () => {
     tablica();
     otworzPanel("Złoci partnerzy");
@@ -939,13 +1067,19 @@ describe("okno sponsora", () => {
     expect(h.toastError).not.toHaveBeenCalled();
   });
 
-  it("odmowa zapisu zostawia okno otwarte i mówi, że się nie udało", () => {
-    h.zapisSponsoraBlad = new Error("tier_full");
+  // ZMIANA: odmowa `tier_full` (pełna sekcja) kończyła się ogólnym
+  // `toasts.error`; dziś idzie przez mapę odmów sponsorów, która mówi ile miejsc
+  // ma sekcja i ile jest zajętych.
+  it("odmowa zapisu zostawia okno otwarte i mówi zdaniem z mapy odmów (tier_full)", () => {
+    h.zapisSponsoraBlad = new Error("tier_full: tier allows 1 company(ies), 1 already pinned");
     tablica();
     otworzPanel("Srebrni partnerzy");
     kliknij(przycisk("panel-dodaj-sponsora"));
     kliknij(przycisk("sponsor-zapisz"));
-    expect(h.toastError).toHaveBeenCalledWith("sponsorBoard.toasts.error");
+    expect(h.toastError).toHaveBeenCalledWith(
+      "odmowa:tier_full: tier allows 1 company(ies), 1 already pinned",
+    );
+    expect(h.toastError).not.toHaveBeenCalledWith("sponsorBoard.toasts.error");
     expect(oknoSponsora()).toBeTruthy();
   });
 
