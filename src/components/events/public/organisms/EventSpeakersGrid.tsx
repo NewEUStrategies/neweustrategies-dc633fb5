@@ -1,6 +1,6 @@
 // Organizm: siatka prelegentów wydarzenia w układzie ekranu wzorcowego -
-// kwadratowe zdjęcie u góry karty, pod nim WYŚRODKOWANE imię i nazwisko, rola
-// i organizacja, po cztery karty w wierszu na szerokim ekranie.
+// duży portret u góry karty, pod nim imię i nazwisko, rola i organizacja,
+// po trzy karty w wierszu na szerokim ekranie.
 //
 // SIATKA NIE RYSUJE NAGŁÓWKA - I NIE RYSUJE GO `EventPageSections`. Ta lista
 // NIE JEST jego sekcją: `OWNED` w `EventPageSections.tsx` wymienia program,
@@ -56,7 +56,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { speakersQueryOptions, type PublicSpeakerRow } from "@/lib/builder/speakersQuery";
-import { speakerHasProfileToShow, speakerRowKey } from "@/lib/builder/speakerRow";
+import { speakerRowKey } from "@/lib/builder/speakerRow";
 import { publicEventErrorMessage } from "@/lib/events/publicEventErrors";
 import { SpeakerAvatar } from "@/components/events/SpeakerAvatar";
 import { SpeakerExpertBadge } from "@/components/events/SpeakerExpertBadge";
@@ -64,14 +64,13 @@ import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
 ensureEventFrontI18n();
 
-// Cztery kolumny to docelowy układ wzorca, ale karta ma pod zdjęciem trzy linie
-// tekstu - przy dwóch kolumnach na telefonie każda z nich ma jeszcze szerokość
-// na cokolwiek poza wielokropkiem.
+// Trzy kolumny dają portretom wystarczająco dużo miejsca, a na telefonie każda
+// karta zachowuje pełną szerokość bez przycinania nazwiska i afiliacji.
 const GRID_CLASS = "grid grid-cols-1 border-l border-t border-border sm:grid-cols-2 lg:grid-cols-3";
 const CARD_CLASS =
-  "group flex h-full w-full flex-col items-start border-b border-r border-border bg-background p-5 text-left";
+  "group relative flex h-full w-full flex-col items-start overflow-hidden border-b border-r border-border bg-background text-left";
 const CARD_INTERACTIVE_CLASS =
-  " transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--brand)]/50";
+  " cursor-pointer transition-[background-color,transform,box-shadow] duration-300 motion-reduce:transition-none hover:z-10 hover:-translate-y-1 hover:bg-muted/30 hover:shadow-lg motion-reduce:hover:translate-y-0 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--brand)]/50";
 
 // Osiem kart zastępczych: tyle, ile wchodzi w dwa wiersze docelowego układu,
 // więc wysokość sekcji nie skacze w chwili, gdy przyjdą dane.
@@ -103,9 +102,11 @@ export function EventSpeakersGrid({
       <div className={GRID_CLASS} aria-busy="true" aria-label={t("eventFront.speakers.loading")}>
         {SKELETON_SLOTS.map((slot) => (
           <div key={slot} className={CARD_CLASS}>
-            <Skeleton className="h-20 w-20 rounded-[6px]" />
-            <Skeleton className="mt-5 h-5 w-32" />
-            <Skeleton className="mt-2 h-3 w-24" />
+            <Skeleton className="aspect-[4/3] w-full rounded-none" />
+            <div className="w-full p-5">
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="mt-2 h-3 w-24" />
+            </div>
           </div>
         ))}
       </div>
@@ -173,45 +174,49 @@ function SpeakerCard({
   // degradację (inicjały na tle muted), a nie ikonę zepsutego obrazka.
   const body = (
     <>
-      <SpeakerAvatar name={name} photoUrl={speaker.avatar_url} size="xl" />
-      {name !== "" && (
-        <span
-          title={name}
-          className="mt-5 block w-full text-lg font-semibold leading-tight text-foreground"
-        >
-          {name}
-        </span>
-      )}
-      {role !== "" && (
-        <span title={role} className="mt-2 block w-full text-sm leading-snug text-muted-foreground">
-          {role}
-        </span>
-      )}
-      {organization !== "" && (
-        <span
-          title={organization}
-          className="mt-1 block w-full text-xs font-semibold uppercase leading-tight text-foreground/80"
-        >
-          {organization}
-        </span>
-      )}
-      {/* Plakietka eksperta stoi POD podpisem, a nie w wierszu nazwiska: nazwisko
-        ma `truncate`, więc rodzeństwo w tej samej linii zabierałoby mu szerokość
-        i ucinało je tym wcześniej, im dłuższa nazwa. Sam rysunek plakietki jest
-        wspólny z zapowiedzią na przeglądzie - fakt ma jeden renderer. */}
-      {speaker.is_expert && <SpeakerExpertBadge className="mt-1.5" />}
+      <div className="relative w-full overflow-hidden bg-muted">
+        <SpeakerAvatar
+          name={name}
+          photoUrl={speaker.avatar_url}
+          size="card"
+          className="rounded-none transition-transform duration-500 motion-reduce:transition-none group-hover:scale-[1.025] motion-reduce:group-hover:scale-100"
+        />
+        <span className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-background/65 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 motion-reduce:transition-none" />
+      </div>
+      <span className="flex w-full flex-1 flex-col p-5">
+        {name !== "" && (
+          <span
+            title={name}
+            className="block w-full text-xl font-semibold leading-tight text-foreground"
+          >
+            {name}
+          </span>
+        )}
+        {role !== "" && (
+          <span
+            title={role}
+            className="mt-2 block w-full text-sm leading-snug text-muted-foreground"
+          >
+            {role}
+          </span>
+        )}
+        {organization !== "" && (
+          <span
+            title={organization}
+            className="mt-1 block w-full text-xs font-semibold uppercase leading-tight text-foreground/80"
+          >
+            {organization}
+          </span>
+        )}
+        {speaker.is_expert && <SpeakerExpertBadge className="mt-2" />}
+      </span>
     </>
   );
 
-  // KLIKALNA JEST KARTA, KTÓRA MA CO OTWORZYĆ. Dla osoby z kontem odpowiedź
-  // jest zawsze twierdząca (dialog dociąga profil i listę wystąpień), dla osoby
-  // BEZ konta - tylko wtedy, gdy wiersz niesie coś, czego na karcie nie ma
-  // (biogram, tematy, języki, statystyki). Karta wyglądająca na klikalną,
-  // która po kliknięciu powtarza to samo nazwisko i tę samą firmę, jest gorsza
-  // niż martwy wpis: obiecuje więcej i tego nie dowozi. Ta sama reguła stoi
-  // w zapowiedzi na przeglądzie - decyduje o niej JEDEN predykat, a nie dwie
-  // kopie warunku.
-  if (onSelect && speakerHasProfileToShow(speaker)) {
+  // Gdy powierzchnia podaje `onSelect`, każdy kafelek zachowuje się jednakowo:
+  // rozwija profil także dla osoby bez konta. Jej wiersz nadal zawiera zdjęcie,
+  // rolę i organizację, więc powiększenie nigdy nie prowadzi do pustego widoku.
+  if (onSelect) {
     return (
       <button
         type="button"
