@@ -26,8 +26,8 @@ describe("DateTimePicker", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /24 wrz 2026/i }));
     const hour = screen.getByRole("combobox", { name: "Godzina" });
-    fireEvent.keyDown(hour, { key: "Home" });
-    fireEvent.keyDown(hour, { key: "Enter" });
+    fireEvent.click(hour);
+    fireEvent.click(screen.getByRole("option", { name: "00" }));
 
     expect(onChange).toHaveBeenCalled();
     const changedValue = onChange.mock.calls.at(-1)?.[0];
@@ -41,8 +41,8 @@ describe("DateTimePicker", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /24 wrz 2026/i }));
     const minute = screen.getByRole("combobox", { name: "Minuta" });
-    fireEvent.keyDown(minute, { key: "Home" });
-    fireEvent.keyDown(minute, { key: "Enter" });
+    fireEvent.click(minute);
+    fireEvent.click(screen.getByRole("option", { name: "00" }));
 
     expect(onChange).toHaveBeenCalled();
     const changedValue = onChange.mock.calls.at(-1)?.[0];
