@@ -51,3 +51,9 @@
 - [x] Utworzyć wydarzenie z trzema dniami, 12 debatami, moderatorami i panelistami.
 - [x] Przygotować i przypisać spójne miniaturki z materiałów źródłowych konferencji.
 - [x] Zweryfikować publiczny program i listę prelegentów.
+
+## Publiczna siatka prelegentów
+
+- [x] Wprowadzić trzy kolumny na szerokim ekranie, duże portrety i subtelne reakcje kafelków.
+- [x] Ujednolicić otwieranie powiększonego profilu dla każdego kafelka.
+- [x] Zweryfikować siatkę i profil na komputerze oraz telefonie.
