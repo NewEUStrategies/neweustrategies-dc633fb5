@@ -168,11 +168,11 @@ function ProfileBody({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-5 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] sm:items-start">
-        <SpeakerAvatar name={name} photoUrl={photo} size="card" className="rounded-[6px]" />
-        <div className="min-w-0 space-y-1 sm:pt-3">
+      <div className="flex items-start gap-4">
+        <SpeakerAvatar name={name} photoUrl={photo} size="xl" />
+        <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-display text-2xl font-semibold leading-tight text-foreground">
+            <h3 className="font-display text-lg font-semibold leading-tight text-foreground">
               {name}
             </h3>
             {/* WSPÓLNA PLAKIETKA, NIE WŁASNY JSX. Ten dialog otwiera się PROSTO
@@ -288,7 +288,7 @@ export function SpeakerProfileDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[88vh] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto rounded-[6px] p-5 shadow-2xl duration-300 motion-reduce:duration-0 sm:p-7">
+      <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto rounded-[6px]">
         <DialogHeader>
           <DialogTitle className="sr-only">{title}</DialogTitle>
           <DialogDescription className="sr-only">
