@@ -6,7 +6,7 @@
 // uczestnika - a wiec wszystko, co dzieje sie, gdy cos idzie NIE TAK, i to, co
 // zostaje w reku po wyslaniu.
 //
-// SIEDEM RZECZY, KTORE PO ZEPSUCIU KOSZTUJA ZGLOSZENIE ALBO ZAUFANIE:
+// DZIEWIEC RZECZY, KTORE PO ZEPSUCIU KOSZTUJA ZGLOSZENIE ALBO ZAUFANIE:
 //
 // 1. ODMOWA BAZY NIE KASUJE FORMULARZA. „Limit miejsc" albo „juz zapisany" po
 //    wyczyszczeniu pol znaczy, ze uczestnik przepisuje wszystko od nowa - i
@@ -23,6 +23,15 @@
 // 6. REZYGNACJA DZIALA DLA GOSCIA (kluczem) I DLA WLASCICIELA (identyfikatorem).
 // 7. POTWIERDZENIE MAILOWE JEST FAIL-SOFT. Brak maila nie moze uniewaznic
 //    zapisu ani wywrocic ekranu potwierdzenia.
+// 8. ODMOWA DOPISANIA GOSCI MOWI O GOSCIACH. `event_register_group_guests`
+//    odmawia wlasnymi kodami (`group_too_large`, `already_registered: <email>`),
+//    a do tej naprawy szly one przez slownik zapisu prowadzacego i konczyly sie
+//    ogolnym „Nie udalo sie zapisac" - choc zgloszenie kupujacego juz stalo.
+// 9. ODMOWA GOSCI NIE GUBI LISTY. Zgloszenie prowadzacego zostaje potwierdzone,
+//    a goscie wracaja do edycji na ekranie potwierdzenia z przyciskiem
+//    ponowienia - ponowny zapis z formularza konczylby sie
+//    `already_registered`, wiec bez tego kupujacy tracil osoby, za ktore
+//    chcial zaplacic.
 //
 // ATRAPUJEMY WYLACZNIE GRANICE: klienta Supabase, wywolania server fn (poczta
 // potwierdzajaca i kasa), tozsamosc, jezyk interfejsu, toasty i modal operatora
@@ -66,10 +75,14 @@ const h = vi.hoisted(() => ({
   checkout: vi.fn(),
 }));
 
+/** Zapora przed odpowiedzia RPC - test trzyma zadanie „w trakcie". */
+const rpcGate = vi.hoisted((): { current: Promise<void> | null } => ({ current: null }));
+
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    rpc: (name: string, args?: Record<string, unknown>) => {
+    rpc: async (name: string, args?: Record<string, unknown>) => {
       if (h.rpc === null) throw new Error("test: atrapa RPC nie zostala ustawiona");
+      if (rpcGate.current !== null) await rpcGate.current;
       return h.rpc.rpc(name, args);
     },
   },
@@ -308,6 +321,7 @@ beforeEach(() => {
   h.sendTicketCodes.mockReset();
   h.sendTicketCodes.mockResolvedValue({ ok: true, sent: 2 });
   h.checkout.mockReset();
+  rpcGate.current = null;
 });
 
 afterEach(cleanup);
@@ -1137,8 +1151,174 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
     acceptDataProcessing();
     submitForm();
 
-    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    // ZMIANA ASERCJI: wczesniej wystarczal DOWOLNY alert, a byl nim ogolny
+    // „Nie udalo sie zapisac. Sprobuj ponownie." ze slownika zapisu
+    // prowadzacego - zdanie nieprawdziwe, bo zgloszenie kupujacego juz stalo.
+    // Teraz alert ma mowic o GOSCIACH i podawac limit biletu.
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "eventRegistration.group.errors.groupTooLargeMax(max=3)",
+    );
+    expect(screen.queryByText("Nie udało się zapisać. Spróbuj ponownie.")).toBeNull();
     expect(h.sendTicketCodes).not.toHaveBeenCalled();
+  });
+
+  /** Formularz z jednym gościem, którego baza odmówiła - kończy na potwierdzeniu. */
+  async function submitWithRefusedGuest(
+    refusal: string,
+    register: Record<string, Json> = {},
+  ): Promise<void> {
+    h.user = USER;
+    stub().setError(GROUP_RPC, refusal);
+    stub().setData(REGISTER_RPC, registerPayload(register));
+    renderForm();
+    await fillPerson();
+    fireEvent.click(addButton());
+    fillGuest(0, "gosc.jeden@example.com");
+    acceptDataProcessing();
+    submitForm();
+    await screen.findByRole("button", { name: "eventRegistration.group.retry.submit" });
+  }
+
+  const retryButton = () =>
+    screen.getByRole("button", { name: /eventRegistration.group.retry.(submit|submitting)/ });
+
+  it("odmowa gości NIE gubi listy: potwierdzenie stoi, a goście wracają do edycji", async () => {
+    groupForm();
+    await submitWithRefusedGuest("already_registered: gosc.jeden@example.com");
+
+    // Zgłoszenie prowadzącego jest potwierdzone mimo odmowy gości.
+    expect(screen.getByText("eventRegistration.result.approved")).toBeInTheDocument();
+    expect(screen.getByText(MANAGE_TOKEN)).toBeInTheDocument();
+    // Odmowa mówi, KTÓRY gość ma już zapis.
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "eventRegistration.group.errors.alreadyRegistered(email=gosc.jeden@example.com)",
+    );
+    // Lista wpisana w formularzu stoi w polach, edytowalna, w limicie biletu.
+    expect(guestInput(0, "first")).toHaveValue("Gość");
+    expect(guestInput(0, "last")).toHaveValue("Numer0");
+    expect(guestInput(0, "email")).toHaveValue("gosc.jeden@example.com");
+    expect(guestInput(0, "email")).not.toBeDisabled();
+    expect(screen.getByText("eventRegistration.group.lead(max=3)")).toBeInTheDocument();
+    // Formularz zapisu zniknął - ponowny zapis prowadzącego skończyłby się
+    // `already_registered`.
+    expect(screen.queryByLabelText(label("jobTitle"))).not.toBeInTheDocument();
+  });
+
+  it("ponowienie dopisuje gości do TEGO SAMEGO zgłoszenia i wysyła bilety kluczem", async () => {
+    groupForm();
+    await submitWithRefusedGuest("already_registered: gosc.jeden@example.com");
+    expect(h.sendTicketCodes).not.toHaveBeenCalled();
+
+    fireEvent.change(guestInput(0, "email"), { target: { value: "gosc.nowy@example.com" } });
+    stub().setData(GROUP_RPC, { added: 1, registration_ids: [] });
+    fireEvent.click(retryButton());
+
+    expect(
+      await screen.findByText("eventRegistration.group.retry.added(count=1)"),
+    ).toBeInTheDocument();
+    expect(stub().callsFor(GROUP_RPC)).toHaveLength(2);
+    expect(stub().callsFor(REGISTER_RPC)).toHaveLength(1);
+    expect(stub().lastCall(GROUP_RPC)?.arg("p_lead_registration_id")).toBe(REGISTRATION_ID);
+    expect(stub().lastCall(GROUP_RPC)?.arg("p_guests")).toEqual([
+      { first_name: "Gość", last_name: "Numer0", email: "gosc.nowy@example.com" },
+    ]);
+    // Ten sam fail-soft, co po udanym zapisie grupy z formularza.
+    await waitFor(() =>
+      expect(h.sendTicketCodes).toHaveBeenCalledWith({ data: { manageToken: MANAGE_TOKEN } }),
+    );
+    expect(h.sendTicketCodes).toHaveBeenCalledTimes(1);
+    // Odmowa i lista znikają; potwierdzenie prowadzącego zostaje.
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(document.getElementById("group-guest-0-email")).toBeNull();
+    expect(screen.getByText("eventRegistration.result.approved")).toBeInTheDocument();
+  });
+
+  it("w trakcie ponowienia przycisk jest zablokowany - jedno kliknięcie, jedno żądanie", async () => {
+    groupForm();
+    await submitWithRefusedGuest("sold_out");
+    expect(screen.getByRole("alert")).toHaveTextContent("eventRegistration.group.errors.soldOut");
+    let release: () => void = () => {};
+    stub().setResponse(GROUP_RPC, { data: { added: 1, registration_ids: [] }, error: null });
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    rpcGate.current = gate;
+
+    fireEvent.click(retryButton());
+
+    await waitFor(() => expect(retryButton()).toBeDisabled());
+    expect(retryButton()).toHaveTextContent("eventRegistration.group.retry.submitting");
+    fireEvent.click(retryButton());
+    release();
+    expect(
+      await screen.findByText("eventRegistration.group.retry.added(count=1)"),
+    ).toBeInTheDocument();
+    expect(stub().callsFor(GROUP_RPC)).toHaveLength(2);
+  });
+
+  it("awaria wysyłki biletów po ponowieniu nie unieważnia dopisanych gości", async () => {
+    groupForm();
+    h.sendTicketCodes.mockRejectedValue(new Error("network"));
+    await submitWithRefusedGuest("group_too_large");
+
+    stub().setData(GROUP_RPC, { added: 1, registration_ids: [] });
+    fireEvent.click(retryButton());
+
+    expect(
+      await screen.findByText("eventRegistration.group.retry.added(count=1)"),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(h.sendTicketCodes).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("bez klucza samoobsługi ponowienie nie woła wysyłki biletów", async () => {
+    groupForm();
+    await submitWithRefusedGuest("group_too_large", { manage_token: null });
+
+    stub().setData(GROUP_RPC, { added: 1, registration_ids: [] });
+    fireEvent.click(retryButton());
+
+    expect(
+      await screen.findByText("eventRegistration.group.retry.added(count=1)"),
+    ).toBeInTheDocument();
+    expect(h.sendTicketCodes).not.toHaveBeenCalled();
+  });
+
+  it("zgłoszenie płatne: goście przed kasą, a kasa idzie po zgłoszeniu prowadzącego", async () => {
+    groupForm({ price_cents: 10000, effective_price_cents: 10000 });
+    h.checkout.mockResolvedValue({ ok: true, mode: "stripe", clientSecret: "cs_test_grupa" });
+    await submitWithRefusedGuest("group_too_large", {
+      status: "pending",
+      ticket_type_id: "t-standard",
+      payment_required: true,
+      payment_status: "unpaid",
+      amount_cents: 10000,
+      currency: "PLN",
+    });
+    expect(screen.getByText("eventRegistration.group.retry.beforePayment")).toBeInTheDocument();
+
+    stub().setData(GROUP_RPC, { added: 1, registration_ids: [] });
+    fireEvent.click(retryButton());
+    await screen.findByText("eventRegistration.group.retry.added(count=1)");
+    fireEvent.click(screen.getByRole("button", { name: "eventRegistration.payment.payNow" }));
+
+    // Liczbę miejsc liczy `event_registration_group_seats` w funkcji kasy po
+    // `registration_id` - po udanym dopisaniu to samo zamówienie obejmuje
+    // prowadzącego i gości, bez odświeżania czegokolwiek po stronie klienta.
+    await waitFor(() => expect(h.checkout).toHaveBeenCalledTimes(1));
+    expect(h.checkout.mock.calls[0]?.[0]).toMatchObject({
+      data: { registration_id: REGISTRATION_ID, ticket_type_id: "t-standard" },
+    });
+  });
+
+  it("rezygnacja z zapisu chowa panel gości - do odwołanego zgłoszenia nic się nie dopisze", async () => {
+    groupForm();
+    await submitWithRefusedGuest("group_too_large");
+
+    fireEvent.click(screen.getByRole("button", { name: "eventRegistration.actions.cancel" }));
+
+    expect(await screen.findByText("eventRegistration.result.cancelled")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /eventRegistration.group.retry/ })).toBeNull();
   });
 
   it("usunięcie gościa zwalnia miejsce na liście", async () => {

@@ -16,6 +16,11 @@
 //
 // SZKIC ZYJE W KOMPONENCIE, NIE W CACHE. `manage_token` wraca raz i nie moze
 // wpasc do cache zapytan, dlatego wynik zapisu trzymamy w stanie lokalnym.
+//
+// ODMOWA GOSCI NIE GUBI LISTY. Zgloszenie prowadzacego stoi juz w bazie, gdy
+// `event_register_group_guests` odmawia, wiec ekran przechodzi na
+// potwierdzenie - ale z lista gosci w `GroupGuestsRetryPanel`, a nie z samym
+// komunikatem. Ponowny zapis z formularza konczylby sie `already_registered`.
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -51,6 +56,7 @@ import {
 import { EMPTY_REGISTRATION_FORM } from "@/lib/events/registrationFormSurface";
 import { confirmEventRegistrationEmail } from "@/lib/events/registrationSelfNotify.functions";
 import { sendGroupTicketCodes } from "@/lib/events/groupTicketCodes.functions";
+import { GroupGuestsRetryPanel } from "@/components/events/registration/organisms/GroupGuestsRetryPanel";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FieldBox } from "@/components/ui/field-box";
@@ -60,6 +66,14 @@ import { RegistrationAnswerField } from "./RegistrationAnswerField";
 import { RegistrationConfirmation } from "./RegistrationConfirmation";
 import { RegistrationTermsList } from "./RegistrationTermsList";
 import { RegistrationTicketPicker } from "./RegistrationTicketPicker";
+
+/** Goście, których baza nie dopisała - wracają do edycji na ekranie potwierdzenia. */
+interface GuestRetry {
+  guests: GroupGuest[];
+  error: unknown;
+  maxSize: number;
+  leadEmail: string;
+}
 
 export function PublicRegistrationForm({ slug }: { slug: string }) {
   const { t } = useTranslation();
@@ -80,6 +94,7 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
   const [cancelled, setCancelled] = useState(false);
   const [guests, setGuests] = useState<GroupGuest[]>([]);
   const [guestErrors, setGuestErrors] = useState<(GuestIssue | null)[]>([]);
+  const [guestRetry, setGuestRetry] = useState<GuestRetry | null>(null);
 
   // Szkic powstaje dopiero, gdy znamy bilety - domyslny wybor zalezy od tego,
   // ile pozycji jest naprawde w sprzedazy.
@@ -129,14 +144,27 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
   // potwierdzenia. Ten sam uklad, co przy bezplatnym RSVP.
   const sendConfirmation = useServerFn(confirmEventRegistrationEmail);
   const sendTicketCodes = useServerFn(sendGroupTicketCodes);
+  // Zapis bezpłatny: bilety z kodem QR wychodzą od razu, każdy na adres
+  // swojej osoby. Przy zapisie płatnym serwer nic nie wyda - zrobi to
+  // webhook po zaksięgowaniu płatności. Mail jest dodatkiem (fail-soft).
+  // Ta sama droga po zapisie z formularza i po ponownym dopisaniu gości
+  // z ekranu potwierdzenia.
+  const sendGuestTickets = (manageToken: string | null): void => {
+    if (manageToken === null) return;
+    void sendTicketCodes({ data: { manageToken } }).catch(() => {
+      /* brak maila nie unieważnia zapisu grupy */
+    });
+  };
 
   const submit = useMutation({
     mutationFn: async ({
       current,
       groupGuests,
+      groupMaxSize,
     }: {
       current: RegistrationDraft;
       groupGuests: GroupGuest[];
+      groupMaxSize: number;
     }) => {
       const registered = await submitRegistration({
         eventSlug: slug,
@@ -159,16 +187,17 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
       if (groupGuests.length > 0) {
         try {
           await registerGroupGuests(registered.registrationId, groupGuests);
-          // Zapis bezpłatny: bilety z kodem QR wychodzą od razu, każdy na adres
-          // swojej osoby. Przy zapisie płatnym serwer nic nie wyda - zrobi to
-          // webhook po zaksięgowaniu płatności. Mail jest dodatkiem (fail-soft).
-          if (registered.manageToken !== null) {
-            void sendTicketCodes({ data: { manageToken: registered.manageToken } }).catch(() => {
-              /* brak maila nie unieważnia zapisu grupy */
-            });
-          }
+          sendGuestTickets(registered.manageToken);
         } catch (error) {
-          setFailure(registrationErrorMessage(error));
+          // Zgłoszenie prowadzącego już stoi, więc potwierdzenie i tak się
+          // pokaże - ale lista gości jedzie z nim dalej, żeby kupujący mógł ją
+          // poprawić i dopisać ponownie, zamiast wpisywać wszystko od nowa.
+          setGuestRetry({
+            guests: groupGuests,
+            error,
+            maxSize: groupMaxSize,
+            leadEmail: current.email.trim(),
+          });
         }
       }
       return registered;
@@ -229,6 +258,17 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
       <div className="space-y-6">
         <Header title={eventTitle} />
         {failure !== null && <FailureNotice message={failure} />}
+        {guestRetry !== null && !cancelled && (
+          <GroupGuestsRetryPanel
+            registrationId={result.registrationId}
+            leadEmail={guestRetry.leadEmail}
+            maxSize={guestRetry.maxSize}
+            initialGuests={guestRetry.guests}
+            initialError={guestRetry.error}
+            paymentRequired={result.paymentRequired}
+            onAdded={() => sendGuestTickets(result.manageToken)}
+          />
+        )}
         <RegistrationConfirmation
           result={result}
           slug={slug}
@@ -292,7 +332,7 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
           return;
         }
         setFailure(null);
-        submit.mutate({ current, groupGuests });
+        submit.mutate({ current, groupGuests, groupMaxSize });
       }}
     >
       <Header title={eventTitle} />

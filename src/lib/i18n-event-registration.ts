@@ -132,6 +132,39 @@ export const eventRegistrationPl = {
         email: "Podaj poprawny adres e-mail.",
         duplicate: "Ten adres e-mail już jest na liście.",
       },
+      // Odmowy `event_register_group_guests`. Zgłoszenie kupującego w tym
+      // momencie już STOI, więc zdania mówią o gościach, a nie o zapisie.
+      errors: {
+        accountRequired: "Zaloguj się, aby dopisać gości do swojego zgłoszenia.",
+        invalidGuests: "Lista gości ma nieprawidłowy format. Sprawdź dane i spróbuj ponownie.",
+        notFound:
+          "Nie znaleźliśmy Twojego zgłoszenia na tym koncie. Gości dopisuje osoba, która złożyła zgłoszenie, z tego samego konta.",
+        registrationClosed:
+          "Twoje zgłoszenie zostało odwołane lub odrzucone - nie można już dopisać do niego gości.",
+        alreadySettled:
+          "Twoje zgłoszenie jest już rozliczone - do opłaconego zamówienia nie dopiszemy gości. Zapisz ich osobnym zgłoszeniem.",
+        groupNotEnabled: "Ten bilet nie pozwala na zapis grupowy.",
+        groupTooLarge: "Za dużo osób jak na limit grupy tego biletu. Usuń część gości.",
+        groupTooLargeMax:
+          "Za dużo osób: ten bilet pozwala na grupę do {{max}} osób łącznie z Tobą. Usuń część gości.",
+        soldOut: "Nie ma już tylu wolnych miejsc na tym bilecie. Usuń część gości.",
+        invalidName: "Każdy gość musi mieć imię i nazwisko (do 80 znaków).",
+        invalidEmail: "Adres e-mail jednego z gości jest niepoprawny.",
+        alreadyRegistered:
+          "Osoba z adresem {{email}} ma już aktywny zapis na to wydarzenie. Usuń ją z listy gości.",
+        alreadyRegisteredUnknown:
+          "Jedna z osób ma już aktywny zapis na to wydarzenie. Usuń ją z listy gości.",
+        unknown: "Nie udało się dopisać gości. Twoje zgłoszenie jest zapisane - spróbuj ponownie.",
+      },
+      // Ponowienie z ekranu potwierdzenia: lista gości nie ginie po odmowie.
+      retry: {
+        hint: "Twoje zgłoszenie jest zapisane. Popraw listę gości i dopisz ich ponownie - nie musisz wypełniać formularza od nowa.",
+        beforePayment:
+          "Dopisz gości przed płatnością - wtedy jedno zamówienie obejmie wszystkie miejsca.",
+        submit: "Dopisz gości ponownie",
+        submitting: "Dopisujemy gości...",
+        added: "Dopisano gości do zgłoszenia: {{count}}.",
+      },
     },
     payment: {
       payNow: "Zapłać",
@@ -450,6 +483,35 @@ export const eventRegistrationEn = {
         name: "Enter first and last name (up to 80 characters).",
         email: "Enter a valid email address.",
         duplicate: "This email address is already on the list.",
+      },
+      errors: {
+        accountRequired: "Sign in to add guests to your registration.",
+        invalidGuests: "The guest list has an invalid format. Check the details and try again.",
+        notFound:
+          "We could not find your registration on this account. Guests are added by the person who registered, from the same account.",
+        registrationClosed:
+          "Your registration has been cancelled or rejected - guests can no longer be added to it.",
+        alreadySettled:
+          "Your registration is already settled - we cannot add guests to a paid order. Register them separately.",
+        groupNotEnabled: "This ticket does not allow group registration.",
+        groupTooLarge: "Too many people for this ticket's group limit. Remove some guests.",
+        groupTooLargeMax:
+          "Too many people: this ticket allows a group of up to {{max}} people including you. Remove some guests.",
+        soldOut: "There are not that many seats left on this ticket. Remove some guests.",
+        invalidName: "Every guest needs a first and last name (up to 80 characters).",
+        invalidEmail: "The e-mail address of one of the guests is not valid.",
+        alreadyRegistered:
+          "The person with the address {{email}} already has an active registration for this event. Remove them from the guest list.",
+        alreadyRegisteredUnknown:
+          "One of the people already has an active registration for this event. Remove them from the guest list.",
+        unknown: "We could not add the guests. Your registration is saved - please try again.",
+      },
+      retry: {
+        hint: "Your registration is saved. Correct the guest list and add the guests again - you do not need to fill in the form from scratch.",
+        beforePayment: "Add the guests before paying - then one order covers every seat.",
+        submit: "Add guests again",
+        submitting: "Adding guests...",
+        added: "Guests added to your registration: {{count}}.",
       },
     },
     payment: {

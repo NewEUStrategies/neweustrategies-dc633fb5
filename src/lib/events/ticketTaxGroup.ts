@@ -135,9 +135,10 @@ export async function registerGroupGuests(
     p_guests: guestsToPayload(guests),
   });
   if (error) throw new Error(error.message);
-  const added =
-    data !== null && typeof data === "object" && !Array.isArray(data)
-      ? (data as Record<string, unknown>).added
-      : 0;
-  return typeof added === "number" ? added : 0;
+  // `Json` zawęża się do obiektu samym sprawdzeniem typu - rzutowanie na
+  // `Record<string, unknown>` niczego tu nie dodawało poza ślepą plamką.
+  if (data === null || typeof data !== "object" || Array.isArray(data) || !("added" in data)) {
+    return 0;
+  }
+  return typeof data.added === "number" ? data.added : 0;
 }
