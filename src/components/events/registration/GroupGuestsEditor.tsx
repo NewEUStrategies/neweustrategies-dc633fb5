@@ -1,6 +1,11 @@
 // Molekuła: lista gości rejestracji grupowej (imię, nazwisko, e-mail każdej
 // osoby). Prowadzący liczy się jako pierwsze miejsce, więc gości może być
 // najwyżej `maxSize - 1`.
+//
+// `disabled` ZAMRAŻA LISTĘ NA CZAS WYSYŁKI. Ponowne dopisanie gości z ekranu
+// potwierdzenia wysyła listę z chwili kliknięcia; poprawka wpisana w trakcie
+// żądania zniknęłaby razem z edytorem po sukcesie, więc pola są wtedy
+// zablokowane, a nie tylko przycisk.
 import { Plus, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -16,6 +21,8 @@ interface GroupGuestsEditorProps {
   issues: (GuestIssue | null)[];
   maxSize: number;
   requiresAccount: boolean;
+  /** Lista zablokowana (np. w trakcie wysyłki) - bez edycji, dodawania i usuwania. */
+  disabled?: boolean;
   onChange: (next: GroupGuest[]) => void;
 }
 
@@ -24,6 +31,7 @@ export function GroupGuestsEditor({
   issues,
   maxSize,
   requiresAccount,
+  disabled = false,
   onChange,
 }: GroupGuestsEditorProps) {
   const { t } = useTranslation();
@@ -63,6 +71,7 @@ export function GroupGuestsEditor({
                   <Input
                     id={`${base}-first`}
                     value={guest.firstName}
+                    disabled={disabled}
                     aria-invalid={issue === "name"}
                     onChange={(e) => update(index, { firstName: e.target.value })}
                   />
@@ -72,6 +81,7 @@ export function GroupGuestsEditor({
                   <Input
                     id={`${base}-last`}
                     value={guest.lastName}
+                    disabled={disabled}
                     aria-invalid={issue === "name"}
                     onChange={(e) => update(index, { lastName: e.target.value })}
                   />
@@ -82,6 +92,7 @@ export function GroupGuestsEditor({
                     id={`${base}-email`}
                     type="email"
                     value={guest.email}
+                    disabled={disabled}
                     aria-invalid={issue === "email" || issue === "duplicate"}
                     onChange={(e) => update(index, { email: e.target.value })}
                   />
@@ -91,6 +102,7 @@ export function GroupGuestsEditor({
                     type="button"
                     variant="ghost"
                     size="icon"
+                    disabled={disabled}
                     aria-label={t("eventRegistration.group.remove")}
                     onClick={() => onChange(guests.filter((_, i) => i !== index))}
                   >
@@ -108,7 +120,7 @@ export function GroupGuestsEditor({
           <Button
             type="button"
             variant="outline"
-            disabled={!canAdd}
+            disabled={disabled || !canAdd}
             onClick={() => onChange([...guests, { ...EMPTY_GUEST }])}
           >
             <Plus className="mr-2 size-4" aria-hidden />

@@ -11,7 +11,9 @@
 //      adres prowadzącego na liście gości - bez żadnego wywołania RPC. Każda
 //      zmiana listy zdejmuje komunikaty, bo odnosiły się do starej listy.
 //   4. ODMOWA DOPISANIA GOŚCI NIE COFA ZAPISU PROWADZĄCEGO: potwierdzenie stoi,
-//      mail do prowadzącego wychodzi, a powód odmowy widać nad potwierdzeniem.
+//      mail do prowadzącego wychodzi, a powód odmowy (zdanie o gościu, nie
+//      o zapisie prowadzącego) widać nad potwierdzeniem razem z listą gości
+//      gotową do ponownego dopisania.
 //   5. GOŚCIE ZOSTAJĄ W FORMULARZU, GDY PRZESTAJĄ MIEĆ SENS: po zmianie biletu na
 //      zwykły albo po wylogowaniu lista nie jedzie do bazy, która by jej nie
 //      przyjęła.
@@ -435,11 +437,15 @@ describe("zapis grupowy - zalogowany prowadzący", () => {
     submitForm();
 
     expect(await screen.findByText(MANAGE_TOKEN)).toBeInTheDocument();
-    // Zdanie z prawdziwego słownika - `registrationErrorMessage` liczy je poza
-    // Reactem, na tej samej instancji i18next, którą widzi uczestnik.
+    // ZMIANA 2026-09-23: odmowa gości ma WŁASNE zdanie, które nazywa gościa
+    // (`groupGuestsFailure`), zamiast zdania o zapisie prowadzącego. Panel
+    // ponowienia na ekranie potwierdzenia rysuje je przez `t()`, więc w tym
+    // pliku widać klucz z parametrem - treść PL/EN pilnuje
+    // `groupGuestsFailure.test.ts`. Lista gości zostaje do poprawienia.
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Ten adres ma już aktywny zapis na to wydarzenie.",
+      `${G}.errors.alreadyRegistered(email=ewa.nowak@example.org)`,
     );
+    expect(screen.getByDisplayValue("ewa.nowak@example.org")).toBeInTheDocument();
     expect(stub().callsFor(GUESTS_RPC)).toHaveLength(1);
     await waitFor(() =>
       expect(h.sendConfirmation).toHaveBeenCalledWith({ data: { manageToken: MANAGE_TOKEN } }),
