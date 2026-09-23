@@ -15,7 +15,7 @@
 // LICZNIK ZNAKÓW POJAWIA SIĘ TYLKO PRZY LIMICIE i tylko gdy pole jest bliskie
 // granicy. Licznik świecący od pierwszej litery uczy redaktora go ignorować,
 // a wtedy nie zauważy go w momencie, w którym naprawdę ma znaczenie.
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,6 +40,7 @@ export function AdminFormTextRow({
   autoFocus,
   error,
   className,
+  endAdornment,
 }: {
   /** Brak = identyfikator generowany; podany wygrywa (test celuje w stały). */
   id?: string;
@@ -61,6 +62,8 @@ export function AdminFormTextRow({
   /** Gotowy komunikat błędu - wiąże `aria-invalid` i `aria-describedby`. */
   error?: string | null;
   className?: string;
+  /** Element wizualny powiązany z bieżącą wartością, np. próbnik koloru. */
+  endAdornment?: ReactNode;
 }) {
   const reactId = useId();
   const fieldId = id ?? reactId;
@@ -94,7 +97,20 @@ export function AdminFormTextRow({
         ) : null}
       </div>
       {rows === undefined ? (
-        <Input {...shared} type={type} inputMode={inputMode} autoFocus={autoFocus} />
+        endAdornment === undefined ? (
+          <Input {...shared} type={type} inputMode={inputMode} autoFocus={autoFocus} />
+        ) : (
+          <div className="flex items-center gap-2">
+            <Input
+              {...shared}
+              type={type}
+              inputMode={inputMode}
+              autoFocus={autoFocus}
+              className={cn(shared.className, "min-w-0 flex-1")}
+            />
+            {endAdornment}
+          </div>
+        )
       ) : (
         <Textarea {...shared} rows={rows} />
       )}
