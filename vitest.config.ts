@@ -3039,15 +3039,18 @@ export default defineConfig({
         // PONIŻEJ pomiaru (100% funkcji, 91,66% gałęzi). Ratchet wpisany wyżej
         // był martwy: regresja z 100% na 90% funkcji przeszłaby przez bramkę
         // niezauważona. Duplikat usunięty; obowiązuje wpis wyżej.
-        // useAuth.tsx - niedobite: fallback `?? []` dla `rolesData` (RPC nigdy
-        // nie zwraca null/undefined w testach) i strażnik `typeof window !==
-        // "undefined"` w signOut() - zawsze prawdziwy pod happy-dom, więc
-        // ścieżka SSR-bez-window jest nieosiągalna z testu jednostkowego.
+        // useAuth.tsx - 100% w każdej kolumnie od 2026-09-23. Dawne luki są
+        // domknięte: odmowa `user_roles` z `data: null` i ścieżka bez `window`
+        // mają swoje testy (`useAuthDegradedPaths.test.tsx`,
+        // `useAuthWithoutWindow.node.test.tsx`), a strażnik nieaktualnej
+        // odpowiedzi ról i zmiana konta przez TOKEN_REFRESHED (wyścig
+        // tożsamości) - w tym pierwszym pliku i w `useAuth.test.tsx`. Każda
+        // nowa gałąź w tym pliku wchodzi z testem.
         "src/hooks/useAuth.tsx": {
           statements: 100,
-          functions: 93,
+          functions: 100,
           lines: 100,
-          branches: 95,
+          branches: 100,
         },
         // reset-password.tsx - niedobite: `lang` z `head()` zależny od URL-a
         // (activeLang), nie od `i18n.language` czytanego w ciele komponentu -

@@ -292,6 +292,52 @@ describe("AuthProvider - re-gating przy zmianie tożsamości", () => {
     expect(screen.getByTestId("uid")).toHaveTextContent("u4");
     expect(screen.getByTestId("token")).toHaveTextContent("new-token");
   });
+  it("TOKEN_REFRESHED z sesją innego konta po starcie: inwalidacja cache'u i kontekst nowego konta", async () => {
+    const { qc } = renderProbe();
+    await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"));
+
+    h.rolesRows = [{ role: "editor" }];
+    await act(async () => {
+      h.authCb!("INITIAL_SESSION", makeSession("u-podglad"));
+    });
+    await waitFor(() => expect(screen.getByTestId("roles")).toHaveTextContent("editor"));
+
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+    const rolesCallsBefore = h.fromCalls.filter((t) => t === "user_roles").length;
+    h.rolesRows = [{ role: "super_admin" }];
+    // `setSession()` z przeterminowanym tokenem admina emituje samo TOKEN_REFRESHED.
+    await act(async () => {
+      h.authCb!("TOKEN_REFRESHED", makeSession("u-admin"));
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["public", "resolved"] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["unlocked-body"] });
+    await waitFor(() => expect(screen.getByTestId("roles")).toHaveTextContent("super_admin"));
+    expect(screen.getByTestId("uid")).toHaveTextContent("u-admin");
+    expect(h.fromCalls.filter((t) => t === "user_roles")).toHaveLength(rolesCallsBefore + 1);
+  });
+
+  it("TOKEN_REFRESHED przed INITIAL_SESSION ustala tożsamość startową - bez inwalidacji i bez drugiego wczytania", async () => {
+    const { qc } = renderProbe();
+    await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"));
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+
+    h.rolesRows = [{ role: "author" }];
+    const session = makeSession("u-start");
+    // Przeterminowany token w magazynie: auth-js odświeża go w trakcie
+    // inicjalizacji i TOKEN_REFRESHED dociera do nasłuchu przed INITIAL_SESSION.
+    await act(async () => {
+      h.authCb!("TOKEN_REFRESHED", session);
+    });
+    await waitFor(() => expect(screen.getByTestId("roles")).toHaveTextContent("author"));
+    await act(async () => {
+      h.authCb!("INITIAL_SESSION", session);
+    });
+
+    expect(invalidateSpy).not.toHaveBeenCalled();
+    expect(h.fromCalls.filter((t) => t === "user_roles")).toHaveLength(1);
+    expect(screen.getByTestId("uid")).toHaveTextContent("u-start");
+  });
 });
 
 describe("AuthProvider - flagi roli", () => {
