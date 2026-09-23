@@ -19,7 +19,12 @@
 //
 // IMPORT PER JĘZYK, NIE BECZKA `react-day-picker/locale` (reeksportuje ~100
 // locale date-fns). `en-US` to ten sam moduł, który biblioteka ładuje jako
-// domyślny, a `pl` sięga po locale date-fns obecne już w chunkach wywołujących.
+// domyślny - koszt zero. `pl` NIE jest darmowy: `react-day-picker/locale/pl`
+// importuje `date-fns/locale` z WŁASNEGO, zagnieżdżonego date-fns 4.1.0
+// react-day-pickera (bun.lock), a wywołujący biorą `pl` z date-fns 4.4.0
+// aplikacji - to dwa osobne moduły, więc do chunka trafia DRUGA kopia polskiego
+// locale date-fns (~2,4 KB gzip razem z etykietami), dopóki date-fns nie
+// zostanie zdeduplikowany w bun.lock. Każdy kolejny język UI kosztuje podobnie.
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "@/lib/lucide-shim";
