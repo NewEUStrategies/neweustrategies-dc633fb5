@@ -8,6 +8,7 @@ const SIZES = {
   md: "h-10 w-10 text-sm",
   lg: "h-14 w-14 text-base",
   xl: "h-20 w-20 text-lg",
+  card: "aspect-[4/3] h-auto w-full text-3xl",
 } as const;
 
 export type SpeakerAvatarSize = keyof typeof SIZES;
@@ -37,7 +38,7 @@ export function SpeakerAvatar({ name, photoUrl, size = "md", className }: Speake
         <OptimizedImage
           src={photoUrl}
           alt=""
-          aspectRatio={1}
+          aspectRatio={size === "card" ? 4 / 3 : 1}
           crop={{ width: PX_BY_SIZE[size] * 2, height: PX_BY_SIZE[size] * 2, resize: "cover" }}
           className="h-full w-full rounded-[6px] object-cover"
         />
