@@ -8499,6 +8499,8 @@ export type Database = {
       }
       event_sessions: {
         Row: {
+          affiliation_en: string | null
+          affiliation_pl: string | null
           allow_overlap: boolean
           cancelled_at: string | null
           capacity: number | null
@@ -8519,6 +8521,7 @@ export type Database = {
           requires_signup: boolean
           room_id: string | null
           sort_order: number
+          sponsor_id: string | null
           starts_at: string
           status: string
           stream_url: string | null
@@ -8530,6 +8533,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          affiliation_en?: string | null
+          affiliation_pl?: string | null
           allow_overlap?: boolean
           cancelled_at?: string | null
           capacity?: number | null
@@ -8550,6 +8555,7 @@ export type Database = {
           requires_signup?: boolean
           room_id?: string | null
           sort_order?: number
+          sponsor_id?: string | null
           starts_at: string
           status?: string
           stream_url?: string | null
@@ -8561,6 +8567,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          affiliation_en?: string | null
+          affiliation_pl?: string | null
           allow_overlap?: boolean
           cancelled_at?: string | null
           capacity?: number | null
@@ -8581,6 +8589,7 @@ export type Database = {
           requires_signup?: boolean
           room_id?: string | null
           sort_order?: number
+          sponsor_id?: string | null
           starts_at?: string
           status?: string
           stream_url?: string | null
@@ -8611,6 +8620,13 @@ export type Database = {
             columns: ["tenant_id", "event_id", "room_id"]
             isOneToOne: false
             referencedRelation: "event_rooms"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sessions_sponsor_fk"
+            columns: ["tenant_id", "event_id", "sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "event_sponsors"
             referencedColumns: ["tenant_id", "event_id", "id"]
           },
           {
@@ -9496,6 +9512,7 @@ export type Database = {
           name_en: string
           name_pl: string
           sort_order: number
+          sponsor_id: string | null
           tagline_en: string | null
           tagline_pl: string | null
           tenant_id: string
@@ -9516,6 +9533,7 @@ export type Database = {
           name_en: string
           name_pl: string
           sort_order?: number
+          sponsor_id?: string | null
           tagline_en?: string | null
           tagline_pl?: string | null
           tenant_id: string
@@ -9536,6 +9554,7 @@ export type Database = {
           name_en?: string
           name_pl?: string
           sort_order?: number
+          sponsor_id?: string | null
           tagline_en?: string | null
           tagline_pl?: string | null
           tenant_id?: string
@@ -9555,6 +9574,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "events"
             referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_tracks_sponsor_fk"
+            columns: ["tenant_id", "event_id", "sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "event_sponsors"
+            referencedColumns: ["tenant_id", "event_id", "id"]
           },
           {
             foreignKeyName: "event_tracks_tenant_id_fkey"
@@ -20965,6 +20991,8 @@ export type Database = {
       admin_event_session_detail: {
         Args: { _id: string }
         Returns: {
+          affiliation_en: string
+          affiliation_pl: string
           allow_overlap: boolean
           cancelled_at: string
           capacity: number
@@ -20991,6 +21019,10 @@ export type Database = {
           seats_left: number
           sort_order: number
           speakers: Json
+          sponsor_id: string
+          sponsor_logo_url: string
+          sponsor_name: string
+          sponsor_role: string
           starts_at: string
           status: string
           stream_url: string
@@ -21033,6 +21065,8 @@ export type Database = {
           p_track_id?: string
         }
         Returns: {
+          affiliation_en: string
+          affiliation_pl: string
           allow_overlap: boolean
           cancelled_at: string
           cancelled_count: number
@@ -21060,6 +21094,10 @@ export type Database = {
           seats_left: number
           sort_order: number
           speakers_count: number
+          sponsor_id: string
+          sponsor_logo_url: string
+          sponsor_name: string
+          sponsor_role: string
           starts_at: string
           status: string
           title_en: string
@@ -21447,6 +21485,10 @@ export type Database = {
           sessions_count: number
           sort_order: number
           speakers_count: number
+          sponsor_id: string
+          sponsor_logo_url: string
+          sponsor_name: string
+          sponsor_role: string
           tagline_en: string
           tagline_pl: string
           updated_at: string
@@ -24183,6 +24225,8 @@ export type Database = {
         Args: { p_slug: string }
         Returns: {
           access_state: string
+          affiliation_en: string
+          affiliation_pl: string
           capacity: number
           chatham_house: boolean
           description_en: string
@@ -24202,6 +24246,10 @@ export type Database = {
           room_id: string
           room_name: string
           seats_left: number
+          session_sponsor_id: string
+          session_sponsor_logo_url: string
+          session_sponsor_name: string
+          session_sponsor_role: string
           sort_order: number
           speakers: Json
           starts_at: string
@@ -24214,6 +24262,10 @@ export type Database = {
           track_key: string
           track_name_en: string
           track_name_pl: string
+          track_sponsor_id: string
+          track_sponsor_logo_url: string
+          track_sponsor_name: string
+          track_sponsor_role: string
         }[]
       }
       event_attendee_sessions: { Args: { p_payload: Json }; Returns: Json }
