@@ -73,15 +73,7 @@ export function agendaSessionsFromAdminRows(
                 namePl: nullable(row.track_name_pl),
                 nameEn: nullable(row.track_name_en),
                 accentColor: nullable(row.track_accent_color),
-                sponsor:
-                  nullable(row.sponsor_id) === null
-                    ? null
-                    : {
-                        id: row.sponsor_id,
-                        name: nullable(row.sponsor_name),
-                        logoUrl: nullable(row.sponsor_logo_url),
-                        role: nullable(row.sponsor_role),
-                      },
+                sponsor: null,
               },
         room:
           nullable(row.room_id) === null

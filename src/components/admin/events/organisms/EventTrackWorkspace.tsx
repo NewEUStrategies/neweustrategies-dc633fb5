@@ -146,6 +146,7 @@ export function EventTrackWorkspace({
   const [attendeeQuery, setAttendeeQuery] = useState("");
 
   const sponsorsQ = useSponsors({ eventId, q: exhibitorQuery, limit: 50 });
+  const sponsorCandidatesQ = useSponsors({ eventId, limit: 200 });
   const attendeesQ = useRegistrationsList({
     ...DEFAULT_REGISTRATIONS_QUERY,
     eventId,
@@ -183,6 +184,7 @@ export function EventTrackWorkspace({
 
   const speakers = speakersQ.data ?? [];
   const sponsors = sponsorsQ.data ?? [];
+  const sponsorCandidates = sponsorCandidatesQ.data ?? [];
   const attendees = attendeesQ.data?.rows ?? [];
 
   const fail = (error: unknown) => toast.error(adminAgendaErrorMessage(error));
@@ -794,6 +796,7 @@ export function EventTrackWorkspace({
         track={track}
         nextSortOrder={track.sort_order}
         isSaving={save.isPending}
+        sponsorCandidates={sponsorCandidates}
         onSubmit={submitEdit}
       />
 

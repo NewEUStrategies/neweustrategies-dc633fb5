@@ -46,6 +46,7 @@ import {
   useSaveEventSession,
   useSetSessionsStatus,
 } from "@/lib/events/useEventSessions";
+import { useSponsors } from "@/lib/events/useEventSponsors";
 
 const ALL = "all";
 
@@ -79,6 +80,7 @@ export function AgendaSessionsPanel({
 
   const tracksQ = useEventTracks(eventId);
   const roomsQ = useEventRooms(eventId);
+  const sponsorsQ = useSponsors({ eventId, limit: 200 });
   const listQ = useEventSessions({
     eventId,
     q: search,
@@ -97,6 +99,7 @@ export function AgendaSessionsPanel({
 
   const tracks = tracksQ.data ?? [];
   const rooms = roomsQ.data ?? [];
+  const sponsors = sponsorsQ.data ?? [];
   const rows = listQ.data ?? [];
   const hasFilters =
     search.trim() !== "" ||
@@ -400,6 +403,7 @@ export function AgendaSessionsPanel({
         tracks={tracks}
         rooms={rooms}
         sessions={rows}
+        sponsorCandidates={sponsors}
         timeZoneLabel={timeZoneLabel}
         nextSortOrder={nextSortOrder}
         defaultTrackId={lockedTrackId}

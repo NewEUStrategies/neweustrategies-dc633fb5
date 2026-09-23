@@ -97,6 +97,9 @@ function session(over: Partial<AgendaSession>): AgendaSession {
     seatsLeft: 30,
     track: null,
     room: null,
+    affiliationPl: over.affiliationPl ?? null,
+    affiliationEn: over.affiliationEn ?? null,
+    sponsor: over.sponsor ?? null,
     hasStream: false,
     hasRecording: false,
     mySignupStatus: null,
@@ -262,14 +265,28 @@ describe("EventAgendaSection - pusty dzień i filtry", () => {
       session({
         id: "a",
         titlePl: "Panel energetyczny",
-        track: { id: "t1", key: "energia", namePl: "Energia", nameEn: "Energy", accentColor: null },
+        track: {
+          id: "t1",
+          key: "energia",
+          namePl: "Energia",
+          nameEn: "Energy",
+          accentColor: null,
+          sponsor: null,
+        },
       }),
       session({
         id: "b",
         titlePl: "Panel pracy",
         startsAt: "2026-09-02T08:00:00Z",
         endsAt: "2026-09-02T09:00:00Z",
-        track: { id: "t2", key: "praca", namePl: "Praca", nameEn: "Work", accentColor: "#2563eb" },
+        track: {
+          id: "t2",
+          key: "praca",
+          namePl: "Praca",
+          nameEn: "Work",
+          accentColor: "#2563eb",
+          sponsor: null,
+        },
       }),
     ]);
     renderAgenda();
