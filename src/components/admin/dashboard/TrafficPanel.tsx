@@ -25,7 +25,12 @@ export interface TrafficPanelProps {
   range: DashboardRange;
 }
 
-function formatRangeBoundary(iso: string, offsetMinutes: number, locale: string, withTime: boolean) {
+function formatRangeBoundary(
+  iso: string,
+  offsetMinutes: number,
+  locale: string,
+  withTime: boolean,
+) {
   const shifted = new Date(Date.parse(iso) + offsetMinutes * 60_000);
   return new Intl.DateTimeFormat(locale, {
     day: "numeric",
@@ -41,12 +46,7 @@ function formatDashboardRange(range: DashboardRange, locale: string): string {
   const inclusiveUntil = range.complete
     ? new Date(Date.parse(range.current.untilIso) - 1).toISOString()
     : range.current.untilIso;
-  const start = formatRangeBoundary(
-    range.current.sinceIso,
-    range.offsetMinutes,
-    locale,
-    withTime,
-  );
+  const start = formatRangeBoundary(range.current.sinceIso, range.offsetMinutes, locale, withTime);
   const end = formatRangeBoundary(inclusiveUntil, range.offsetMinutes, locale, withTime);
   return `${start} - ${end}`;
 }
