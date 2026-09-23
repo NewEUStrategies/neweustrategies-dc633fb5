@@ -207,7 +207,10 @@ describe("EventPreviewLiveModule - program", () => {
     expect(h.karty.every((karta) => karta.pending === false)).toBe(true);
   });
 
-  it("dzieli program NA DNI - ta sama kolejnosc i ten sam podzial, co na stronie", () => {
+  it("DZIEN JEST ZAKLADKA, jak na stronie - nie plaska lista naglowkow", () => {
+    // Podglad rysuje `EventAgendaBoardView`, ten sam widok, co strona: dni sa
+    // zakladkami, a lista pokazuje dzien AKTYWNY. Wczesniej stala tu wlasna
+    // plaska lista dni i redaktor widzial w studiu inny uklad niz uczestnik.
     modul("agenda", {
       sessions: [
         sesja({ id: "dzien-2", startsAt: "2026-09-02T09:00:00.000Z" }),
@@ -215,11 +218,11 @@ describe("EventPreviewLiveModule - program", () => {
       ],
     });
 
-    // Dwa naglowki dni, a wczesniejszy dzien stoi pierwszy - mimo odwrotnej
-    // kolejnosci na wejsciu.
-    const naglowki = screen.getAllByRole("heading", { level: 2 });
-    expect(naglowki).toHaveLength(2);
-    expect(h.karty.map((karta) => karta.id)).toEqual(["dzien-1", "dzien-2"]);
+    const zakladki = screen.getAllByRole("tab");
+    expect(zakladki).toHaveLength(2);
+    expect(zakladki[0]).toHaveAttribute("aria-selected", "true");
+    // Wczesniejszy dzien jest pierwszy - mimo odwrotnej kolejnosci na wejsciu.
+    expect(h.karty.map((karta) => karta.id)).toEqual(["dzien-1"]);
   });
 
   it("PASMA stoja nad programem z liczba sesji i kolorem akcentu", () => {
