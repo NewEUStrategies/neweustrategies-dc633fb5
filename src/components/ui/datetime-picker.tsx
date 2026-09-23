@@ -8,8 +8,19 @@ import { CalendarIcon, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const HOURS = Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, "0"));
+const FIVE_MINUTE_STEPS = Array.from({ length: 12 }, (_, step) =>
+  String(step * 5).padStart(2, "0"),
+);
 
 interface DateTimePickerProps {
   /** Identyfikator przycisku-triggera - wiąże `<Label htmlFor>` z kontrolką. */
@@ -43,7 +54,11 @@ export function DateTimePicker({
 }: DateTimePickerProps) {
   const locale = lang === "pl" ? plLocale : enGB;
   const date = useMemo(() => (value ? new Date(value) : null), [value]);
-  const timeValue = date ? format(date, "HH:mm") : "";
+  const selectedHour = date ? String(date.getHours()).padStart(2, "0") : "00";
+  const selectedMinute = date ? String(date.getMinutes()).padStart(2, "0") : "00";
+  const minutes = FIVE_MINUTE_STEPS.includes(selectedMinute)
+    ? FIVE_MINUTE_STEPS
+    : [...FIVE_MINUTE_STEPS, selectedMinute].sort((a, b) => Number(a) - Number(b));
 
   const setDatePart = (next: Date | undefined) => {
     if (!next) return;
@@ -61,6 +76,9 @@ export function DateTimePicker({
     merged.setHours(h || 0, m || 0, 0, 0);
     onChange(merged.toISOString());
   };
+
+  const setHour = (hour: string) => setTimePart(`${hour}:${selectedMinute}`);
+  const setMinute = (minute: string) => setTimePart(`${selectedHour}:${minute}`);
 
   const display = date
     ? format(date, lang === "pl" ? "d MMM yyyy, HH:mm" : "MMM d, yyyy, HH:mm", { locale })
@@ -128,17 +146,51 @@ export function DateTimePicker({
           }}
         />
         <div className="flex flex-col gap-2 border-t border-border/60 bg-muted/30 p-3">
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-muted-foreground">
+          <div className="grid grid-cols-[1fr_auto] items-center gap-3">
+            <span className="text-xs font-medium text-muted-foreground">
               {lang === "pl" ? "Godzina" : "Time"}
-            </label>
-            <Input
-              type="time"
-              step={60}
-              value={timeValue}
-              onChange={(e) => setTimePart(e.target.value)}
-              className="ml-auto h-8 w-[120px] font-mono text-sm"
-            />
+            </span>
+            <div
+              className="flex items-center gap-1"
+              aria-label={lang === "pl" ? "Godzina" : "Time"}
+            >
+              <Select value={selectedHour} onValueChange={setHour}>
+                <SelectTrigger
+                  className="h-8 w-[4.25rem] rounded-md px-2 font-mono text-sm shadow-none"
+                  aria-label={lang === "pl" ? "Godzina" : "Hour"}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-56 min-w-[4.25rem]">
+                  {HOURS.map((hour) => (
+                    <SelectItem key={hour} value={hour} className="font-mono">
+                      {hour}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span
+                className="select-none text-sm font-semibold text-muted-foreground"
+                aria-hidden="true"
+              >
+                :
+              </span>
+              <Select value={selectedMinute} onValueChange={setMinute}>
+                <SelectTrigger
+                  className="h-8 w-[4.25rem] rounded-md px-2 font-mono text-sm shadow-none"
+                  aria-label={lang === "pl" ? "Minuta" : "Minute"}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-56 min-w-[4.25rem]">
+                  {minutes.map((minute) => (
+                    <SelectItem key={minute} value={minute} className="font-mono">
+                      {minute}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="flex justify-end gap-1">
             <Button
