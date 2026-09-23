@@ -29,6 +29,24 @@
 //   8. BEZ PROWAJDERA KONTEKST MÓWI „NIE WIEMY". `useAuth()` poza
 //      `AuthProvider` zwraca `loading`, brak sesji i ról, a `signOut()` nie
 //      robi niczego - ani wylogowania w Supabase, ani nawigacji.
+//   9. ODPOWIEDŹ DLA POPRZEDNIEJ TOŻSAMOŚCI NIE MA GŁOSU. Zapytania o role nie
+//      wracają w kolejności wysłania. Spóźniona odpowiedź konta A po
+//      przełączeniu na B (w dowolnej kolejności powrotu), po wylogowaniu albo
+//      po A -> gość -> A nie wpisuje ról ani tenanta, nie zdejmuje `loading`
+//      nowej tożsamości i nie kasuje jej terminu. Jej odrzucenie nie jest
+//      alarmem, a pytanie, którego tożsamość zmieniła się przed wysłaniem, nie
+//      wychodzi wcale. Termin ról nowej tożsamości biegnie dalej: gdy jej
+//      zapytania wiszą, widok schodzi z `loading` po ROLE_SETTLE_TIMEOUT_MS,
+//      a nie nigdy. Do 2026-09-23 każdy z tych przypadków był czerwony:
+//      sesja B dostawała role i tenanta A.
+//  10. ROLE POPRZEDNIEGO KONTA ZNIKAJĄ OD RAZU. Przy zmianie konta widok czeka
+//      z pustym zestawem ról, a po terminie ról zostaje z pustym zestawem -
+//      najmniejsze uprawnienia, jak obiecuje ROLE_SETTLE_TIMEOUT_MS - a nie
+//      z uprawnieniami poprzedniego konta.
+//  11. TOKEN_REFRESHED Z INNYM KONTEM TO ZMIANA KONTA. `setSession()`
+//      z przeterminowanym tokenem (wyjście z podglądu jako inny użytkownik)
+//      emituje samo TOKEN_REFRESHED z sesją innego konta - role i tenant
+//      poprzedniego znikają, a nowe są wczytywane.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. Terminu sesji przy wiszącym `getSession()`,
 // odrzuconego `getSession()`, terminu ról przy wiszących zapytaniach, dedupe
@@ -63,6 +81,8 @@ const h = vi.hoisted(() => ({
   profile: new Map<string, Promise<WynikProfilu>>(),
   signOut: vi.fn(),
   rpc: vi.fn(),
+  /** Uidy, o których role zapytano, w kolejności wysłania. */
+  pytania: [] as string[],
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -80,8 +100,10 @@ vi.mock("@/integrations/supabase/client", () => ({
       if (table === "user_roles") {
         return {
           select: () => ({
-            eq: (_kolumna: string, uid: string) =>
-              h.role.get(uid) ?? Promise.resolve({ data: [], error: null }),
+            eq: (_kolumna: string, uid: string) => {
+              h.pytania.push(uid);
+              return h.role.get(uid) ?? Promise.resolve({ data: [], error: null });
+            },
           }),
         };
       }
@@ -130,6 +152,21 @@ function odroczona<T>() {
   return { promise, resolve };
 }
 
+/** Odpowiedź `user_roles`, którą test rozstrzyga sam: rolą admina albo odrzuceniem. */
+function odrzucana() {
+  let resolve!: (value: WynikRol) => void;
+  let reject!: (reason: Error) => void;
+  const promise = new Promise<WynikRol>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return {
+    promise,
+    resolve: () => resolve({ data: [{ role: "admin" }], error: null }),
+    reject,
+  };
+}
+
 function Sonda() {
   const { session, roles, tenantId, loading, isStaff } = useAuth();
   return (
@@ -174,6 +211,7 @@ beforeEach(() => {
   h.profile = new Map();
   h.signOut.mockReset().mockResolvedValue({ error: null });
   h.rpc.mockReset().mockResolvedValue({ data: null, error: null });
+  h.pytania = [];
   window.localStorage.clear();
 });
 
@@ -370,6 +408,283 @@ describe("terminy na sesję i role", () => {
       clear.mockRestore();
       vi.useRealTimers();
     }
+  });
+});
+
+describe("wyścig tożsamości", () => {
+  const ALARM_ODCZYTU = "nie udało się wczytać ról i tenanta";
+
+  /** Czeka, aż pytanie o role danego konta faktycznie wyjdzie (`setTimeout(0)`). */
+  async function zapytano(uid: string, razy = 1): Promise<void> {
+    await waitFor(() => expect(h.pytania.filter((u) => u === uid)).toHaveLength(razy));
+  }
+
+  /** Role i tenant, które konto dostanie, gdy odpowiedź zostanie zwolniona. */
+  function kontekstKonta(uid: string) {
+    const role = odroczona<WynikRol>();
+    const profil = odroczona<WynikProfilu>();
+    h.role.set(uid, role.promise);
+    h.profile.set(uid, profil.promise);
+    return {
+      zwolnij: async (rola: string, tenant: string) => {
+        await act(async () => {
+          role.resolve({ data: [{ role: rola }], error: null });
+          profil.resolve({ data: { tenant_id: tenant }, error: null });
+        });
+      },
+    };
+  }
+
+  async function zalogowany(uid: string): Promise<void> {
+    await act(async () => {
+      h.authCb!("SIGNED_IN", sesja(uid));
+    });
+  }
+
+  it("odpowiedź konta A, która wróciła PO odpowiedzi B, nie nadpisuje ról ani tenanta B", async () => {
+    const a = kontekstKonta("u-a");
+    const b = kontekstKonta("u-b");
+    renderuj();
+    await waitFor(() => expect(pole("loading")).toBe("false"));
+
+    await zalogowany("u-a");
+    await zapytano("u-a");
+    await zalogowany("u-b");
+    await zapytano("u-b");
+
+    await b.zwolnij("user", "t-b");
+    await waitFor(() => expect(pole("loading")).toBe("false"));
+    expect(pole("roles")).toBe("user");
+
+    await a.zwolnij("admin", "t-a");
+    expect(pole("uid")).toBe("u-b");
+    expect(pole("roles")).toBe("user");
+    expect(pole("tenant")).toBe("t-b");
+    expect(pole("isStaff")).toBe("false");
+  });
+
+  it("odpowiedź konta A, która wróciła PRZED odpowiedzią B, nie zwalnia widoku B i nie daje mu ról A", async () => {
+    const a = kontekstKonta("u-a");
+    const b = kontekstKonta("u-b");
+    renderuj();
+    await waitFor(() => expect(pole("loading")).toBe("false"));
+
+    await zalogowany("u-a");
+    await zapytano("u-a");
+    await zalogowany("u-b");
+    await zapytano("u-b");
+
+    await a.zwolnij("admin", "t-a");
+    // Guard nie może teraz ruszyć: sesja B z rolami A to pół-tożsamość.
+    expect(pole("uid")).toBe("u-b");
+    expect(pole("loading")).toBe("true");
+    expect(pole("roles")).toBe("");
+    expect(pole("tenant")).toBe("brak");
+    expect(pole("isStaff")).toBe("false");
+
+    await b.zwolnij("editor", "t-b");
+    await waitFor(() => expect(pole("loading")).toBe("false"));
+    expect(pole("roles")).toBe("editor");
+    expect(pole("tenant")).toBe("t-b");
+  });
+
+  it("wylogowanie w trakcie wczytywania ról - spóźniona odpowiedź nie wpisuje ról do sesji gościa", async () => {
+    const a = kontekstKonta("u-a");
+    renderuj();
+    await waitFor(() => expect(pole("loading")).toBe("false"));
+
+    await zalogowany("u-a");
+    await zapytano("u-a");
+    await act(async () => {
+      h.authCb!("SIGNED_OUT", null);
+    });
+    expect(pole("loading")).toBe("false");
+
+    await a.zwolnij("super_admin", "t-a");
+    expect(pole("uid")).toBe("anon");
+    expect(pole("roles")).toBe("");
+    expect(pole("tenant")).toBe("brak");
+    expect(pole("isStaff")).toBe("false");
+  });
+
+  it("A -> gość -> A: odpowiedź sprzed wylogowania jest nieaktualna, liczy się tylko nowe pytanie", async () => {
+    const przedWylogowaniem = kontekstKonta("u-a");
+    renderuj();
+    await waitFor(() => expect(pole("loading")).toBe("false"));
+
+    await zalogowany("u-a");
+    await zapytano("u-a");
+    await act(async () => {
+      h.authCb!("SIGNED_OUT", null);
+    });
+    const poPowrocie = kontekstKonta("u-a");
+    await zalogowany("u-a");
+    await zapytano("u-a", 2);
+
+    // Role sprzed wylogowania (np. odebrane w międzyczasie) nie wracają.
+    await przedWylogowaniem.zwolnij("admin", "t-stary");
+    expect(pole("loading")).toBe("true");
+    expect(pole("roles")).toBe("");
+
+    await poPowrocie.zwolnij("author", "t-a");
+    await waitFor(() => expect(pole("loading")).toBe("false"));
+    expect(pole("roles")).toBe("author");
+    expect(pole("tenant")).toBe("t-a");
+  });
+
+  it("odrzucenie pytania o poprzednie konto nie podnosi alarmu i nie zwalnia widoku nowego", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const a = odrzucana();
+    h.role.set("u-a", a.promise);
+    h.role.set("u-b", wisi<WynikRol>());
+    renderuj();
+    await waitFor(() => expect(pole("loading")).toBe("false"));
+
+    await zalogowany("u-a");
+    await zapytano("u-a");
+    await zalogowany("u-b");
+    await zapytano("u-b");
+
+    // Odrzucenie jak przy martwym backendzie: `fetch` nie dojechał.
+    await act(async () => {
+      a.reject(new TypeError("Failed to fetch"));
+    });
+    expect(alarmy(warn, ALARM_ODCZYTU)).toBe(0);
+    expect(pole("loading")).toBe("true");
+  });
+
+  it("zmiana konta, zanim pytanie wyszło - o poprzednie konto nie pytamy wcale", async () => {
+    renderuj();
+    await waitFor(() => expect(pole("loading")).toBe("false"));
+
+    // Oba zdarzenia w jednym takcie: pytanie A czeka jeszcze na `setTimeout(0)`.
+    await act(async () => {
+      h.authCb!("SIGNED_IN", sesja("u-a"));
+      h.authCb!("SIGNED_IN", sesja("u-b"));
+    });
+    await zapytano("u-b");
+    await waitFor(() => expect(pole("loading")).toBe("false"));
+
+    expect(h.pytania).toEqual(["u-b"]);
+    expect(pole("uid")).toBe("u-b");
+  });
+
+  it.each([
+    ["wraca z rolami", (a: ReturnType<typeof odrzucana>) => a.resolve()],
+    ["odrzuca", (a: ReturnType<typeof odrzucana>) => a.reject(new TypeError("Failed to fetch"))],
+  ])(
+    "spóźniona odpowiedź poprzedniego konta (%s) nie kasuje terminu ról nowego - widok schodzi z loading po terminie",
+    async (_opis, zwolnij) => {
+      vi.useFakeTimers();
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const a = odrzucana();
+      h.role.set("u-a", a.promise);
+      h.role.set("u-b", wisi<WynikRol>());
+
+      renderuj();
+      await przesuń(1);
+      act(() => {
+        h.authCb!("SIGNED_IN", sesja("u-a"));
+      });
+      await przesuń(1);
+      act(() => {
+        h.authCb!("SIGNED_IN", sesja("u-b"));
+      });
+      await przesuń(1);
+      expect(h.pytania).toEqual(["u-a", "u-b"]);
+
+      await act(async () => {
+        zwolnij(a);
+      });
+      await przesuń(1);
+      expect(pole("loading")).toBe("true");
+      expect(alarmy(warn, ALARM_RÓL)).toBe(0);
+
+      await przesuń(ROLE_SETTLE_TIMEOUT_MS);
+      expect(alarmy(warn, ALARM_RÓL)).toBe(1);
+      expect(pole("loading")).toBe("false");
+      expect(pole("uid")).toBe("u-b");
+      expect(pole("roles")).toBe("");
+    },
+  );
+
+  it("TOKEN_REFRESHED z sesją innego konta czyści role i tenanta poprzedniego i wczytuje nowe", async () => {
+    h.role.set("u-podgląd", Promise.resolve({ data: [{ role: "editor" }], error: null }));
+    h.profile.set("u-podgląd", Promise.resolve({ data: { tenant_id: "t-podgląd" }, error: null }));
+    const admin = kontekstKonta("u-admin");
+    renderuj();
+    await waitFor(() => expect(pole("loading")).toBe("false"));
+
+    // Strona otwarta w trakcie podglądu: sesja startowa należy do podglądanego konta.
+    await act(async () => {
+      h.authCb!("INITIAL_SESSION", sesja("u-podgląd"));
+    });
+    await waitFor(() => expect(pole("roles")).toBe("editor"));
+
+    // Wyjście z podglądu po terminie ważności zapisanego tokenu admina:
+    // auth-js odświeża token i emituje samo TOKEN_REFRESHED, bez SIGNED_IN.
+    await act(async () => {
+      h.authCb!("TOKEN_REFRESHED", sesja("u-admin"));
+    });
+    expect(pole("uid")).toBe("u-admin");
+    expect(pole("loading")).toBe("true");
+    expect(pole("roles")).toBe("");
+    expect(pole("tenant")).toBe("brak");
+    await zapytano("u-admin");
+
+    await admin.zwolnij("super_admin", "t-admin");
+    await waitFor(() => expect(pole("loading")).toBe("false"));
+    expect(pole("roles")).toBe("super_admin");
+    expect(pole("tenant")).toBe("t-admin");
+  });
+
+  it("role poprzedniego konta znikają od razu, a po terminie ról zostaje pusty zestaw", async () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    h.role.set("u-admin", Promise.resolve({ data: [{ role: "admin" }], error: null }));
+    h.profile.set("u-admin", Promise.resolve({ data: { tenant_id: "t-admin" }, error: null }));
+    h.role.set("u-wisi", wisi<WynikRol>());
+
+    renderuj();
+    await przesuń(1);
+    act(() => {
+      h.authCb!("SIGNED_IN", sesja("u-admin"));
+    });
+    await przesuń(1);
+    expect(pole("roles")).toBe("admin");
+    expect(pole("isStaff")).toBe("true");
+
+    act(() => {
+      h.authCb!("SIGNED_IN", sesja("u-wisi"));
+    });
+    expect(pole("uid")).toBe("u-wisi");
+    expect(pole("loading")).toBe("true");
+    expect(pole("roles")).toBe("");
+    expect(pole("tenant")).toBe("brak");
+    expect(pole("isStaff")).toBe("false");
+
+    await przesuń(ROLE_SETTLE_TIMEOUT_MS);
+    expect(alarmy(warn, ALARM_RÓL)).toBe(1);
+    expect(pole("loading")).toBe("false");
+    expect(pole("roles")).toBe("");
+    expect(pole("isStaff")).toBe("false");
+  });
+
+  it("odmontowanie w trakcie wczytywania ról - spóźnione odrzucenie nie podnosi alarmu", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const a = odrzucana();
+    h.role.set("u-a", a.promise);
+    const { unmount } = renderuj();
+    await waitFor(() => expect(pole("loading")).toBe("false"));
+    await zalogowany("u-a");
+    await zapytano("u-a");
+
+    unmount();
+    await act(async () => {
+      a.reject(new TypeError("Failed to fetch"));
+    });
+
+    expect(alarmy(warn, ALARM_ODCZYTU)).toBe(0);
   });
 });
 
