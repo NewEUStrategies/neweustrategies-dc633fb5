@@ -82,15 +82,15 @@ function session(over: Partial<AgendaSession>): AgendaSession {
     seatsLeft: 30,
     track: null,
     room: null,
-    affiliationPl: over.affiliationPl ?? null,
-    affiliationEn: over.affiliationEn ?? null,
-    sponsor: over.sponsor ?? null,
     hasStream: false,
     hasRecording: false,
     mySignupStatus: null,
     accessState: "signup_required",
     speakers: [],
     ...over,
+    affiliationPl: over.affiliationPl ?? null,
+    affiliationEn: over.affiliationEn ?? null,
+    sponsor: over.sponsor ?? null,
   };
 }
 

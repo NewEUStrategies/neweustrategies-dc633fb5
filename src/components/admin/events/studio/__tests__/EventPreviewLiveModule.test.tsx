@@ -96,15 +96,15 @@ function sesja(overrides: Partial<AgendaSession> = {}): AgendaSession {
     seatsLeft: null,
     track: null,
     room: null,
-    affiliationPl: overrides.affiliationPl ?? null,
-    affiliationEn: overrides.affiliationEn ?? null,
-    sponsor: overrides.sponsor ?? null,
     hasStream: false,
     hasRecording: false,
     mySignupStatus: null,
     accessState: "open",
     speakers: [],
     ...overrides,
+    affiliationPl: overrides.affiliationPl ?? null,
+    affiliationEn: overrides.affiliationEn ?? null,
+    sponsor: overrides.sponsor ?? null,
   };
 }
 
@@ -114,12 +114,12 @@ function pasmo(overrides: Partial<PreviewTrackChip> = {}): PreviewTrackChip {
     namePl: "Energetyka",
     nameEn: "Energy",
     accentColor: "#2f6f4e",
-    sponsorName: overrides.sponsorName ?? null,
-    sponsorLogoUrl: overrides.sponsorLogoUrl ?? null,
     sessionsCount: 5,
     draftCount: 0,
     isPublic: true,
     ...overrides,
+    sponsorName: overrides.sponsorName ?? null,
+    sponsorLogoUrl: overrides.sponsorLogoUrl ?? null,
   };
 }
 
