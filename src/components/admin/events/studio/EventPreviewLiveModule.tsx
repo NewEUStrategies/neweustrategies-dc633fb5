@@ -11,14 +11,12 @@
 // i `EventAttendeesList`. Ten plik wnosi wylacznie ZRODLO DANYCH (RPC panelu
 // zamiast projekcji publicznej) i martwe przyciski zapisu: organizator ma
 // zobaczyc program, a nie zapisac sie na sesje z ekranu panelu.
-import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { AgendaSessionCard } from "@/components/events/public/molecules/AgendaSessionCard";
+import { EventAgendaBoardView } from "@/components/events/public/organisms/EventAgendaBoardView";
 import { EventSpeakersGridView } from "@/components/events/public/organisms/EventSpeakersGrid";
 import { EventAttendeesGridView } from "@/components/events/public/organisms/EventAttendeesList";
-import { groupAgendaByDay, type AgendaSession } from "@/lib/events/agendaSurface";
-import { formatEventDate } from "@/lib/events/timezone";
+import { type AgendaSession } from "@/lib/events/agendaSurface";
 import type { AttendeeEntry } from "@/lib/events/publicEventApi";
 import type { PreviewTrackChip } from "@/lib/events/previewLiveData";
 import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
@@ -107,41 +105,22 @@ function PreviewTracks({ tracks }: { tracks: readonly PreviewTrackChip[] }) {
   );
 }
 
-/** Program dnia po dniu - ta sama kolejnosc i ten sam podzial, co na stronie. */
+/**
+ * Program w PRODUKCYJNEJ tablicy - zakladki dni, filtr nurtu, bloki sesji.
+ *
+ * Wczesniej stala tu wlasna plaska lista dni: redaktor widzial w studiu inny
+ * uklad, niz uczestnik na stronie. Teraz rysuje `EventAgendaBoardView`, ten sam
+ * widok, ktorego uzywa `EventAgendaSection` - podglad wnosi tylko dane szkicu
+ * i MARTWY zapis (`signedIn={false}`, brak uchwytow).
+ */
 function PreviewAgenda({ sessions }: { sessions: readonly AgendaSession[] }) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
-  const days = useMemo(() => groupAgendaByDay(sessions), [sessions]);
 
-  if (days.length === 0)
+  if (sessions.length === 0)
     return <EmptyNote text={t("adminEvents.studio.preview.moduleEmptyAgenda")} />;
 
-  return (
-    <div className="space-y-6">
-      {days.map((day) => (
-        <section key={day.key} className="space-y-3">
-          <h2 className="text-sm font-semibold text-foreground">
-            {formatEventDate(day.startsAt, day.timezone, lang)}
-          </h2>
-          <ul className="space-y-3">
-            {day.sessions.map((session) => (
-              <li key={session.id}>
-                <AgendaSessionCard
-                  session={session}
-                  pending={false}
-                  // Podglad NIE zapisuje na sesje: „niezalogowany" wygasza
-                  // przycisk zapisu bez dokladania warunku do karty.
-                  signedIn={false}
-                  onSignup={() => undefined}
-                  onCancel={() => undefined}
-                />
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
-    </div>
-  );
+  return <EventAgendaBoardView sessions={sessions} lang={lang} signedIn={false} />;
 }
 
 /**
