@@ -96,10 +96,6 @@ export function EventAgendaSection({ slug, enabled = true }: { slug: string; ena
   const [focusId, setFocusId] = useState<string | null>(null);
 
   const sessions = useMemo(() => agendaQuery.data ?? [], [agendaQuery.data]);
-  const days = useMemo(() => groupAgendaByDay(sessions), [sessions]);
-  const tracks = useMemo(() => agendaTrackOptions(sessions), [sessions]);
-  const mineAvailable = useMemo(() => hasOwnAgenda(sessions), [sessions]);
-  const mySessions = useMemo(() => ownAgenda(sessions), [sessions]);
 
   // Wybrany dzień musi ISTNIEĆ w danych - po odświeżeniu programu dzień
   // z pamięci komponentu bywa już nieaktualny, a wtedy widok byłby pusty
