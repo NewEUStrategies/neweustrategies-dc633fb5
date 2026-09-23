@@ -11,14 +11,12 @@
 // i `EventAttendeesList`. Ten plik wnosi wylacznie ZRODLO DANYCH (RPC panelu
 // zamiast projekcji publicznej) i martwe przyciski zapisu: organizator ma
 // zobaczyc program, a nie zapisac sie na sesje z ekranu panelu.
-import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { AgendaSessionCard } from "@/components/events/public/molecules/AgendaSessionCard";
+import { EventAgendaBoardView } from "@/components/events/public/organisms/EventAgendaBoardView";
 import { EventSpeakersGridView } from "@/components/events/public/organisms/EventSpeakersGrid";
 import { EventAttendeesGridView } from "@/components/events/public/organisms/EventAttendeesList";
-import { groupAgendaByDay, type AgendaSession } from "@/lib/events/agendaSurface";
-import { formatEventDate } from "@/lib/events/timezone";
+import { type AgendaSession } from "@/lib/events/agendaSurface";
 import type { AttendeeEntry } from "@/lib/events/publicEventApi";
 import type { PreviewTrackChip } from "@/lib/events/previewLiveData";
 import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
