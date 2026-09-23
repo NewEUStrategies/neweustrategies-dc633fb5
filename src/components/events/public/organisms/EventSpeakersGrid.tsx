@@ -1,6 +1,6 @@
-// Organizm: redakcyjna siatka prelegentów wydarzenia. Duży portret zajmuje
-// niemal połowę karty, a nazwisko, rola i organizacja tworzą obok wyraźną,
-// magazynową hierarchię. Na telefonie fotografia wraca nad podpis.
+// Organizm: siatka prelegentów wydarzenia w układzie ekranu wzorcowego -
+// kwadratowe zdjęcie u góry karty, pod nim WYŚRODKOWANE imię i nazwisko, rola
+// i organizacja, po cztery karty w wierszu na szerokim ekranie.
 //
 // SIATKA NIE RYSUJE NAGŁÓWKA - I NIE RYSUJE GO `EventPageSections`. Ta lista
 // NIE JEST jego sekcją: `OWNED` w `EventPageSections.tsx` wymienia program,
@@ -53,23 +53,25 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { speakersQueryOptions, type PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 import { speakerHasProfileToShow, speakerRowKey } from "@/lib/builder/speakerRow";
 import { publicEventErrorMessage } from "@/lib/events/publicEventErrors";
+import { SpeakerAvatar } from "@/components/events/SpeakerAvatar";
 import { SpeakerExpertBadge } from "@/components/events/SpeakerExpertBadge";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
-import { ArrowRight } from "@/lib/lucide-shim";
 
 ensureEventFrontI18n();
 
-const GRID_CLASS = "grid grid-cols-1 gap-px bg-border md:grid-cols-2";
+// Cztery kolumny to docelowy układ wzorca, ale karta ma pod zdjęciem trzy linie
+// tekstu - przy dwóch kolumnach na telefonie każda z nich ma jeszcze szerokość
+// na cokolwiek poza wielokropkiem.
+const GRID_CLASS = "grid grid-cols-1 border-l border-t border-border sm:grid-cols-2 lg:grid-cols-3";
 const CARD_CLASS =
-  "group relative grid h-full min-h-[22rem] w-full grid-rows-[minmax(17rem,1.2fr)_auto] overflow-hidden bg-background text-left sm:min-h-[25rem] lg:grid-cols-[43%_57%] lg:grid-rows-1";
+  "group flex h-full w-full flex-col items-start border-b border-r border-border bg-background p-5 text-left";
 const CARD_INTERACTIVE_CLASS =
-  " cursor-pointer focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--brand)]";
+  " transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--brand)]/50";
 
 // Osiem kart zastępczych: tyle, ile wchodzi w dwa wiersze docelowego układu,
 // więc wysokość sekcji nie skacze w chwili, gdy przyjdą dane.
@@ -101,15 +103,9 @@ export function EventSpeakersGrid({
       <div className={GRID_CLASS} aria-busy="true" aria-label={t("eventFront.speakers.loading")}>
         {SKELETON_SLOTS.map((slot) => (
           <div key={slot} className={CARD_CLASS}>
-            <Skeleton className="h-full min-h-[17rem] w-full rounded-none" />
-            <div className="flex flex-col justify-between p-7">
-              <div>
-                <Skeleton className="h-3 w-20 rounded-none" />
-                <Skeleton className="mt-8 h-8 w-4/5 rounded-none" />
-                <Skeleton className="mt-3 h-4 w-2/3 rounded-none" />
-              </div>
-              <Skeleton className="mt-12 h-3 w-1/2 rounded-none" />
-            </div>
+            <Skeleton className="h-20 w-20 rounded-[6px]" />
+            <Skeleton className="mt-5 h-5 w-32" />
+            <Skeleton className="mt-2 h-3 w-24" />
           </div>
         ))}
       </div>
@@ -172,90 +168,38 @@ function SpeakerCard({
   // ta sama osoba nie była „Prezesem” w jednym miejscu i bez roli w drugim.
   const role = pickLocalized(speaker, "headline", lang, speaker.job_title ?? "");
   const organization = speaker.company ?? "";
-  const initials = name
-    .split(/\s+/)
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .filter((_, index, parts) => index === 0 || index === parts.length - 1)
-    .map((part) => part[0] ?? "")
-    .join("")
-    .toUpperCase();
 
+  // Zdjęcie idzie przez `SpeakerAvatar`, bo brak awatara ma tam już rozwiązaną
+  // degradację (inicjały na tle muted), a nie ikonę zepsutego obrazka.
   const body = (
     <>
-      <span className="relative block min-h-[17rem] overflow-hidden bg-muted">
-        {speaker.avatar_url ? (
-          <OptimizedImage
-            src={speaker.avatar_url}
-            alt=""
-            aspectRatio={3 / 4}
-            responsive
-            sizes="(min-width: 1024px) 22vw, (min-width: 768px) 50vw, 100vw"
-            className="h-full w-full object-cover transition-transform duration-700 ease-out motion-safe:group-hover:scale-[1.035]"
-          />
-        ) : (
-          <span
-            aria-hidden
-            className="flex h-full min-h-[17rem] w-full items-center justify-center bg-muted text-5xl font-light text-muted-foreground"
-          >
-            {initials || "?"}
-          </span>
-        )}
+      <SpeakerAvatar name={name} photoUrl={speaker.avatar_url} size="xl" />
+      {name !== "" && (
         <span
-          aria-hidden
-          className="pointer-events-none absolute inset-4 border border-background/20"
-        />
-      </span>
-
-      <span className="relative flex min-w-0 flex-col justify-between p-7 sm:p-8">
-        <span className="block">
-          <span className="flex min-h-5 items-center justify-between gap-3">
-            <span
-              aria-hidden
-              className="h-px w-9 bg-[color:var(--speakers-accent,var(--brand))] transition-[width] duration-500 motion-safe:group-hover:w-14"
-            />
-            {speaker.is_expert && <SpeakerExpertBadge />}
-          </span>
-
-          {name !== "" && (
-            <span
-              title={name}
-              className="mt-8 block text-[clamp(1.5rem,2.2vw,2.35rem)] font-black leading-[0.95] text-foreground"
-            >
-              {name}
-            </span>
-          )}
-          {role !== "" && (
-            <span
-              title={role}
-              className="mt-4 block text-base font-light leading-snug text-muted-foreground"
-            >
-              {role}
-            </span>
-          )}
+          title={name}
+          className="mt-5 block w-full text-lg font-semibold leading-tight text-foreground"
+        >
+          {name}
         </span>
-
-        <span className="mt-10 flex items-end justify-between gap-4 border-t border-border/70 pt-5">
-          {organization !== "" ? (
-            <span
-              title={organization}
-              className="block min-w-0 text-[11px] font-bold uppercase leading-snug text-foreground"
-            >
-              {organization}
-            </span>
-          ) : (
-            <span />
-          )}
-          {onSelect && speakerHasProfileToShow(speaker) ? (
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border text-foreground transition-colors duration-300 group-hover:border-foreground group-hover:bg-foreground group-hover:text-background">
-              <ArrowRight
-                aria-hidden
-                className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5"
-              />
-            </span>
-          ) : null}
+      )}
+      {role !== "" && (
+        <span title={role} className="mt-2 block w-full text-sm leading-snug text-muted-foreground">
+          {role}
         </span>
-      </span>
+      )}
+      {organization !== "" && (
+        <span
+          title={organization}
+          className="mt-1 block w-full text-xs font-semibold uppercase leading-tight text-foreground/80"
+        >
+          {organization}
+        </span>
+      )}
+      {/* Plakietka eksperta stoi POD podpisem, a nie w wierszu nazwiska: nazwisko
+        ma `truncate`, więc rodzeństwo w tej samej linii zabierałoby mu szerokość
+        i ucinało je tym wcześniej, im dłuższa nazwa. Sam rysunek plakietki jest
+        wspólny z zapowiedzią na przeglądzie - fakt ma jeden renderer. */}
+      {speaker.is_expert && <SpeakerExpertBadge className="mt-1.5" />}
     </>
   );
 
