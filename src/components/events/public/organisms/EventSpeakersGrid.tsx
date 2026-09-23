@@ -193,7 +193,10 @@ function SpeakerCard({
           </span>
         )}
         {role !== "" && (
-          <span title={role} className="mt-2 block w-full text-sm leading-snug text-muted-foreground">
+          <span
+            title={role}
+            className="mt-2 block w-full text-sm leading-snug text-muted-foreground"
+          >
             {role}
           </span>
         )}

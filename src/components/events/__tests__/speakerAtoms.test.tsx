@@ -86,9 +86,9 @@ describe("SpeakerAvatar - zdjęcie", () => {
   it.each(["sm", "md", "lg", "xl", "card"] as const)(
     "rozmiar %s ma zdefiniowany bok w px",
     (size) => {
-    expect(PX_BY_SIZE[size]).toBeGreaterThan(0);
-    const { container } = render(<SpeakerAvatar name="Anna" size={size} />);
-    expect(container.firstElementChild).toBeTruthy();
+      expect(PX_BY_SIZE[size]).toBeGreaterThan(0);
+      const { container } = render(<SpeakerAvatar name="Anna" size={size} />);
+      expect(container.firstElementChild).toBeTruthy();
     },
   );
 });
