@@ -31,6 +31,14 @@
 //      mają nazwy w języku panelu.
 //   8. PANEL PRACUJE NA SWOIM WYDARZENIU - każdy hook dostaje jego
 //      identyfikator, a szkic zapisu niesie go dalej.
+//   9. WALIDUJE PANEL, NIE PRZEGLĄDARKA, A BŁĄD JEST PRZYPIĘTY DO POLA.
+//      Formularz ma `noValidate`, więc link bez schematu dochodzi do
+//      `validateHomeAd` i dostaje komunikat panelu w języku panelu - przed
+//      poprawką natywna walidacja `type="url"` zatrzymywała wysłanie dymkiem
+//      w języku przeglądarki i komunikatu panelu nie było. Każdy komunikat
+//      (oba obrazy, link, koniec emisji) jest opisem SWOJEGO pola
+//      (`aria-describedby`), a pole ma `aria-invalid`; pole bez błędu nie ma
+//      ani jednego, ani drugiego.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. Tabeli reguł `validateHomeAd`/`isHttpsUrl` - ma
 // ją `src/lib/events/sponsorBoardApi.test.ts`. Tutaj walidacja zostaje
@@ -136,10 +144,12 @@ const A = "sponsorBoard.ads";
 const OBRAZ = "https://cdn.example.org/reklamy/baner.webp";
 const OBRAZ_MOBILNY = "https://cdn.example.org/reklamy/plansza.webp";
 const LINK = "https://sponsor.example.org/oferta";
-// Placeholder pola adresu w `ImageUrlField` (klucz słownika logowania - organizm
-// jest wspólny dla paneli). Etykieta nie jest związana z polem (`htmlFor`),
-// więc oba pola obrazu rozróżnia kolejność: najpierw komputer, potem telefon.
-const POLE_OBRAZU = "adminLoginSettings.imgUrlPlaceholder";
+// Etykiety obu pól obrazu. Do 2026-09 etykieta `ImageUrlField` NIE była
+// związana z polem (`htmlFor`), więc test szukał pól po wspólnym placeholderze
+// i rozróżniał je kolejnością - czyli dokładnie tak, jak nie potrafi tego
+// czytnik ekranu. Organizm wiąże dziś etykietę z polem przez `useId`, więc pole
+// znajduje się po NAZWIE, a pomyłka w powiązaniu oblewa test.
+const ETYKIETY_OBRAZOW = [`${A}.image`, `${A}.imageMobile`] as const;
 
 function reklama(patch: Partial<EventHomeAdRow> = {}): EventHomeAdRow {
   return {
@@ -216,11 +226,10 @@ function wpisz(pole: HTMLElement, wartosc: string): void {
   });
 }
 
-const poleObrazu = (index: 0 | 1): HTMLElement => {
-  const found = within(okno()).getAllByPlaceholderText(POLE_OBRAZU)[index];
-  if (found === undefined) throw new Error(`brak pola obrazu nr ${index}`);
-  return found;
-};
+const poleObrazu = (index: 0 | 1): HTMLElement =>
+  within(okno()).getByLabelText(ETYKIETY_OBRAZOW[index]);
+
+const poleLinku = (): HTMLElement => within(okno()).getByLabelText(`${A}.link`);
 
 const zapisz = () => kliknij(within(okno()).getByRole("button", { name: `${A}.save` }));
 
@@ -400,7 +409,7 @@ describe("okno nowej reklamy", () => {
     expect(within(okno()).getByRole("heading", { name: `${A}.dialogNew` })).toBeTruthy();
     expect(poleObrazu(0)).toHaveProperty("value", "");
     expect(poleObrazu(1)).toHaveProperty("value", "");
-    expect(within(okno()).getByLabelText(`${A}.link`)).toHaveProperty("value", "");
+    expect(poleLinku()).toHaveProperty("value", "");
     expect(within(okno()).getByLabelText(`${A}.alt`)).toHaveProperty("value", "");
     expect(within(okno()).getByRole("switch", { name: `${A}.isActive` })).toHaveProperty(
       "checked",
@@ -437,23 +446,73 @@ describe("okno nowej reklamy", () => {
     otworzNowa();
     wpisz(poleObrazu(0), "http://cdn.example.org/baner.webp");
     wpisz(poleObrazu(1), "http://cdn.example.org/plansza.webp");
-    wpisz(within(okno()).getByLabelText(`${A}.link`), "http://sponsor.example.org/oferta");
+    wpisz(poleLinku(), "http://sponsor.example.org/oferta");
     zapisz();
     expect(within(okno()).getAllByText(`${A}.imageInvalid`)).toHaveLength(2);
     expect(within(okno()).getByText(`${A}.linkInvalid`)).toBeTruthy();
     expect(h.saveCalls).toEqual([]);
   });
 
-  it("link, który nie jest adresem, zatrzymuje już natywna walidacja pola typu url", () => {
-    // Pole linku ma `type="url"`, więc napis bez schematu blokuje wysłanie
-    // formularza, zanim dojdzie do walidacji panelu - jak w przeglądarce.
+  it("link bez schematu dostaje komunikat PANELU przypięty do pola, a zapis stoi", () => {
+    // ZMIANA ASERCJI (2026-09). Ten test przypinał wcześniej defekt: „link,
+    // który nie jest adresem, zatrzymuje już natywna walidacja pola typu url".
+    // Natywna walidacja blokowała wysłanie dymkiem w języku przeglądarki,
+    // `validateHomeAd` nie dostawał głosu, a `sponsorBoard.ads.linkInvalid`
+    // nie pojawiał się nigdy. Formularz ma dziś `noValidate`: to samo wejście
+    // kończy się komunikatem panelu, związanym z polem.
     panel();
     otworzNowa();
     wpisz(poleObrazu(0), OBRAZ);
-    wpisz(within(okno()).getByLabelText(`${A}.link`), "sponsor.example.org");
+    wpisz(poleLinku(), "sponsor.example.org");
     zapisz();
+    expect(within(okno()).getByText(`${A}.linkInvalid`)).toBeTruthy();
+    expect(poleLinku()).toHaveAccessibleDescription(`${A}.linkInvalid`);
+    expect(poleLinku().getAttribute("aria-invalid")).toBe("true");
     expect(h.saveCalls).toEqual([]);
-    expect(okno()).toBeTruthy();
+  });
+
+  it("formularz okna oddaje walidację aplikacji (`noValidate`), a link zostaje polem typu url", () => {
+    panel();
+    otworzNowa();
+    const formularz = okno().querySelector("form");
+    expect(formularz?.noValidate).toBe(true);
+    // Typ `url` zostaje dla klawiatury ekranowej - reguły trzyma `validateHomeAd`.
+    expect(poleLinku().getAttribute("type")).toBe("url");
+  });
+
+  it("komunikat KAŻDEGO złego pola jest opisem SWOJEGO pola, a pole ma `aria-invalid`", () => {
+    panel();
+    otworzNowa();
+    wpisz(poleObrazu(0), "http://cdn.example.org/baner.webp");
+    wpisz(poleObrazu(1), "ftp://cdn.example.org/plansza.webp");
+    wpisz(poleLinku(), "http://sponsor.example.org/oferta");
+    ustawTeraz(`${A}.startsAt`);
+    ustawTeraz(`${A}.endsAt`);
+    zapisz();
+    for (const pole of [poleObrazu(0), poleObrazu(1)]) {
+      expect(pole).toHaveAccessibleDescription(`${A}.imageInvalid`);
+      expect(pole.getAttribute("aria-invalid")).toBe("true");
+    }
+    expect(poleLinku()).toHaveAccessibleDescription(`${A}.linkInvalid`);
+    const koniec = screen.getByLabelText(`${A}.endsAt`);
+    expect(koniec).toHaveAccessibleDescription(`${A}.endsInvalid`);
+    expect(koniec.getAttribute("aria-invalid")).toBe("true");
+    // Początek emisji nie jest błędny - komunikat o kolejności należy do końca.
+    expect(screen.getByLabelText(`${A}.startsAt`).hasAttribute("aria-invalid")).toBe(false);
+    expect(h.saveCalls).toEqual([]);
+  });
+
+  it("pola bez błędu nie mają `aria-invalid` ani opisu błędu", () => {
+    panel();
+    otworzNowa();
+    wpisz(poleObrazu(1), OBRAZ_MOBILNY);
+    wpisz(poleLinku(), LINK);
+    zapisz();
+    expect(poleObrazu(0).getAttribute("aria-invalid")).toBe("true");
+    for (const pole of [poleObrazu(1), poleLinku(), screen.getByLabelText(`${A}.endsAt`)]) {
+      expect(pole.hasAttribute("aria-invalid")).toBe(false);
+      expect(pole).not.toHaveAccessibleDescription();
+    }
   });
 
   it("zły obraz mobilny blokuje zapis, choć obraz komputerowy jest poprawny", () => {
@@ -494,7 +553,7 @@ describe("okno nowej reklamy", () => {
     otworzNowa();
     wpisz(poleObrazu(0), OBRAZ);
     wpisz(poleObrazu(1), OBRAZ_MOBILNY);
-    wpisz(within(okno()).getByLabelText(`${A}.link`), LINK);
+    wpisz(poleLinku(), LINK);
     wpisz(within(okno()).getByLabelText(`${A}.alt`), "Baner partnera");
     kliknij(grupaWOknie("Goście VIP"));
     kliknij(grupaWOknie("Wolontariusze"));
@@ -540,12 +599,12 @@ describe("okno nowej reklamy", () => {
     panel();
     otworzNowa();
     wpisz(poleObrazu(0), OBRAZ);
-    wpisz(within(okno()).getByLabelText(`${A}.link`), LINK);
+    wpisz(poleLinku(), LINK);
     zapisz();
     expect(h.saveCalls).toHaveLength(1);
     expect(h.toastError).toHaveBeenCalledWith("sponsorBoard.toasts.error");
     expect(h.toastSuccess).not.toHaveBeenCalled();
-    expect(within(okno()).getByLabelText(`${A}.link`)).toHaveProperty("value", LINK);
+    expect(poleLinku()).toHaveProperty("value", LINK);
     expect(poleObrazu(0)).toHaveProperty("value", OBRAZ);
   });
 
@@ -589,12 +648,12 @@ describe("okno nowej reklamy", () => {
   it("ponowne otwarcie po anulowaniu zaczyna od czystego szkicu, bez starych komunikatów", () => {
     panel();
     otworzNowa();
-    wpisz(within(okno()).getByLabelText(`${A}.link`), "http://sponsor.example.org/oferta");
+    wpisz(poleLinku(), "http://sponsor.example.org/oferta");
     zapisz();
     expect(within(okno()).getByText(`${A}.linkInvalid`)).toBeTruthy();
     kliknij(within(okno()).getByRole("button", { name: `${A}.cancel` }));
     otworzNowa();
-    expect(within(okno()).getByLabelText(`${A}.link`)).toHaveProperty("value", "");
+    expect(poleLinku()).toHaveProperty("value", "");
     expect(within(okno()).queryByText(`${A}.linkInvalid`)).toBeNull();
     expect(within(okno()).queryByText(`${A}.imageInvalid`)).toBeNull();
   });
@@ -619,7 +678,7 @@ describe("okno edycji reklamy", () => {
     expect(within(okno()).getByRole("heading", { name: `${A}.dialogEdit` })).toBeTruthy();
     expect(poleObrazu(0)).toHaveProperty("value", OBRAZ);
     expect(poleObrazu(1)).toHaveProperty("value", OBRAZ_MOBILNY);
-    expect(within(okno()).getByLabelText(`${A}.link`)).toHaveProperty("value", LINK);
+    expect(poleLinku()).toHaveProperty("value", LINK);
     expect(within(okno()).getByLabelText(`${A}.alt`)).toHaveProperty("value", "Baner sponsora");
     expect(grupaWOknie("Goście VIP").getAttribute("aria-checked")).toBe("true");
     expect(grupaWOknie("Press").getAttribute("aria-checked")).toBe("false");
@@ -677,7 +736,7 @@ describe("okno edycji reklamy", () => {
   it("zmiana linku i włączenie reklamy trafiają do zapisu", () => {
     panel();
     otworzEdycje();
-    wpisz(within(okno()).getByLabelText(`${A}.link`), "https://sponsor.example.org/nowa");
+    wpisz(poleLinku(), "https://sponsor.example.org/nowa");
     kliknij(within(okno()).getByRole("switch", { name: `${A}.isActive` }));
     zapisz();
     expect(h.saveCalls[0]).toMatchObject({

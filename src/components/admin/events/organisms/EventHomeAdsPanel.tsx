@@ -1,5 +1,15 @@
 // Organizm: reklamy strony głównej wydarzenia - tabela (obraz, grupy, wyświetlenia,
 // kliknięcia, status) i okno dodawania/edycji z grupami docelowymi i harmonogramem.
+//
+// FORMULARZ WALIDUJE APLIKACJA, NIE PRZEGLĄDARKA (`noValidate`). Pole linku ma
+// `type="url"` dla klawiatury ekranowej z „/" i „.com", ale natywna walidacja
+// tego typu zatrzymywała wysłanie dymkiem w języku PRZEGLĄDARKI, zanim
+// `validateHomeAd` zdążył zadziałać - komunikat panelu (PL/EN) nigdy się nie
+// pojawiał. Reguły wszystkich pól okna ma `validateHomeAd` (obrazy, link,
+// kolejność dat); tekst alternatywny ogranicza `maxLength`, które działa przy
+// wpisywaniu, a nie przy wysyłce, więc `noValidate` go nie wyłącza. Każdy
+// komunikat błędu jest związany ze swoim polem (`aria-invalid` plus
+// `aria-describedby`), żeby czytnik ekranu przeczytał go razem z nazwą pola.
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -72,6 +82,8 @@ export function EventHomeAdsPanel({ eventId }: { eventId: string }) {
     return g === undefined ? "" : lang === "en" ? g.name_en || g.name_pl : g.name_pl || g.name_en;
   };
   const ads = adsQ.data ?? [];
+  const linkInvalid = errors.includes("linkUrl");
+  const endsInvalid = errors.includes("endsAt");
 
   return (
     <section className="space-y-4" aria-labelledby="home-ads-title">
@@ -184,6 +196,7 @@ export function EventHomeAdsPanel({ eventId }: { eventId: string }) {
           </DialogHeader>
           <form
             className="space-y-4"
+            noValidate
             onSubmit={(e) => {
               e.preventDefault();
               const found = validateHomeAd(draft);
@@ -203,29 +216,31 @@ export function EventHomeAdsPanel({ eventId }: { eventId: string }) {
               value={draft.imageUrl}
               aspect="1 / 2"
               onChange={(v) => setDraft({ ...draft, imageUrl: v })}
+              error={errors.includes("imageUrl") ? t("sponsorBoard.ads.imageInvalid") : undefined}
             />
-            {errors.includes("imageUrl") ? (
-              <p className="text-xs text-destructive">{t("sponsorBoard.ads.imageInvalid")}</p>
-            ) : null}
             <ImageUrlField
               label={t("sponsorBoard.ads.imageMobile")}
               value={draft.imageMobileUrl}
               aspect="9 / 16"
               onChange={(v) => setDraft({ ...draft, imageMobileUrl: v })}
+              error={
+                errors.includes("imageMobileUrl") ? t("sponsorBoard.ads.imageInvalid") : undefined
+              }
             />
-            {errors.includes("imageMobileUrl") ? (
-              <p className="text-xs text-destructive">{t("sponsorBoard.ads.imageInvalid")}</p>
-            ) : null}
             <div className="space-y-1">
               <Label htmlFor="ad-link">{t("sponsorBoard.ads.link")}</Label>
               <Input
                 id="ad-link"
                 type="url"
                 value={draft.linkUrl}
+                aria-invalid={linkInvalid || undefined}
+                aria-describedby={linkInvalid ? "ad-link-error" : undefined}
                 onChange={(e) => setDraft({ ...draft, linkUrl: e.target.value })}
               />
-              {errors.includes("linkUrl") ? (
-                <p className="text-xs text-destructive">{t("sponsorBoard.ads.linkInvalid")}</p>
+              {linkInvalid ? (
+                <p id="ad-link-error" className="text-xs text-destructive">
+                  {t("sponsorBoard.ads.linkInvalid")}
+                </p>
               ) : null}
             </div>
             <div className="space-y-1">
@@ -280,9 +295,13 @@ export function EventHomeAdsPanel({ eventId }: { eventId: string }) {
                   lang={lang}
                   value={draft.endsAt || null}
                   onChange={(v) => setDraft({ ...draft, endsAt: v ?? "" })}
+                  aria-invalid={endsInvalid || undefined}
+                  aria-describedby={endsInvalid ? "ad-to-error" : undefined}
                 />
-                {errors.includes("endsAt") ? (
-                  <p className="text-xs text-destructive">{t("sponsorBoard.ads.endsInvalid")}</p>
+                {endsInvalid ? (
+                  <p id="ad-to-error" className="text-xs text-destructive">
+                    {t("sponsorBoard.ads.endsInvalid")}
+                  </p>
                 ) : null}
               </div>
             </div>
