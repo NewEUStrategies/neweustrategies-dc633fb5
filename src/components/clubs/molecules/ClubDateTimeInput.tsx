@@ -157,7 +157,7 @@ export function ClubDateTimeInput({
               onSelect={pickDay}
               locale={locale}
               weekStartsOn={1}
-              initialFocus
+              autoFocus
               className="pointer-events-auto p-3"
             />
             {!allDay && (

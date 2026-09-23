@@ -93,7 +93,7 @@ export function DatePickerField({
             mode="single"
             selected={value}
             onSelect={handleDateSelect}
-            initialFocus
+            autoFocus
             locale={locale}
             className={cn("p-3 pointer-events-auto")}
           />
