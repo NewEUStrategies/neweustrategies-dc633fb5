@@ -7,6 +7,7 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
 import { useAuth } from "@/hooks/useAuth";
 import { useRecommendedPosts } from "@/hooks/useRecommendedPosts";
+import { useHasMounted } from "@/hooks/useHasMounted";
 import { supabase } from "@/integrations/supabase/client";
 import { toPlVocative } from "@/lib/i18n/plVocative";
 import { localizedPath } from "@/lib/i18n/localePath";
@@ -138,6 +139,7 @@ function useAuthorsMap(authorIds: string[]) {
 }
 
 export function TailoredMustReadsView({ c, lang }: { c: WidgetContent; lang: Lang }) {
+  const mounted = useHasMounted();
   const firstName = useCurrentUserFirstName();
   const { user, loading: authLoading } = useAuth();
 
@@ -174,7 +176,7 @@ export function TailoredMustReadsView({ c, lang }: { c: WidgetContent; lang: Lan
   // Reguły widoczności zgodne z ustawieniem "audience" w edytorze widgetu.
   // Domyślnie widget jest dostępny wyłącznie dla zalogowanych (rekomendacje
   // wymagają zainteresowań / historii). Nie renderujemy pustego bloku.
-  if (authLoading) return null;
+  if (!mounted || authLoading) return null;
   if (audience === "auth" && !user) return null;
   if (audience === "guest" && user) return null;
 

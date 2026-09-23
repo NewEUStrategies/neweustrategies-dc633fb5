@@ -64,14 +64,24 @@ export function RealtimeStrip({ report, expanded = false, className }: RealtimeS
           <div className="flex items-center gap-2.5">
             {/* Kropka pulsuje TYLKO wtedy, gdy ktoś naprawdę jest. Animacja przy
                 zerze sugerowałaby żywy ruch, którego nie ma. */}
-            <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden="true">
+            <span
+              className={cn(
+                "relative grid h-5 w-5 shrink-0 place-items-center rounded-full border",
+                live
+                  ? "border-[var(--chart-positive)]/35 bg-[var(--chart-positive)]/10"
+                  : "border-border bg-muted/40",
+              )}
+              aria-hidden="true"
+            >
               {live ? (
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--chart-positive)] opacity-60" />
+                <span className="absolute inset-0 rounded-full border border-[var(--chart-positive)]/40 motion-safe:animate-[ping_2.4s_ease-out_infinite] motion-reduce:animate-none" />
               ) : null}
               <span
                 className={cn(
-                  "relative inline-flex rounded-full h-2.5 w-2.5",
-                  live ? "bg-[var(--chart-positive)]" : "bg-muted-foreground/40",
+                  "relative inline-flex h-1.5 w-1.5 rounded-full transition-colors duration-300",
+                  live
+                    ? "bg-[var(--chart-positive)] shadow-[0_0_0.45rem_var(--chart-positive)]/20"
+                    : "bg-muted-foreground/40",
                 )}
               />
             </span>
