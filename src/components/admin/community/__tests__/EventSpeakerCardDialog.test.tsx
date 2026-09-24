@@ -574,6 +574,54 @@ describe("EventSpeakerCardDialog - klawiatura i jezyk podgladu", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it("Escape przy rozwinietym podgladzie, gdy fokus jest na samym dialogu (Safari), zwija karte", () => {
+    // Safari i Firefox na macOS nie daja fokusu przyciskowi po kliknieciu - cel
+    // klawisza to wtedy dialog, nie karta. Dialog i tak nie moze sie zamknac.
+    renderDialog(entry({ card_cta_label_pl: "Niezapisane" }));
+    fireEvent.click(
+      within(previewCard()).getByRole("button", { name: "Powiększ zdjęcie: Halszka Borowik" }),
+    );
+    expect(previewCard()).toHaveAttribute("data-state", "expanded");
+
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape", code: "Escape" });
+
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(previewCard()).toHaveAttribute("data-state", "collapsed");
+    expect(input("Napis na przycisku PL").value).toBe("Niezapisane");
+  });
+
+  it("wewnetrzny link w podgladzie nie nawiguje - niezapisany szkic zostaje w panelu", () => {
+    renderDialog(
+      entry({ card_cta_url: "/eksperci/halszka", card_cta_label_pl: "Profil eksperta" }),
+    );
+    const marker = previewCard().closest('[data-builder-renderer="widget-props-preview"]');
+    expect(marker).not.toBeNull();
+    const link = within(previewCard()).getByRole("link", { name: /Profil eksperta/ });
+    expect(link).toHaveAttribute("href", "/eksperci/halszka");
+    // `false` = klikniecie mialo `preventDefault` - `AppLink` nie ruszyl routera.
+    expect(fireEvent.click(link)).toBe(false);
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("trwajacy zapis trzyma dialog: Escape go nie zamyka, a odmowa bazy trafia na ekran", async () => {
+    let reject: (reason: Error) => void = () => undefined;
+    saveEventSpeakerCard.mockReturnValue(
+      new Promise((_resolve, rejectPromise) => {
+        reject = rejectPromise;
+      }),
+    );
+    renderDialog(entry());
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(saveEventSpeakerCard).toHaveBeenCalledTimes(1));
+
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape", code: "Escape" });
+    expect(onOpenChange).not.toHaveBeenCalled();
+
+    reject(new Error("event_speakers: speaker profile not found in tenant"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("speaker profile not found");
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
   it("podglad mowi jezykiem interfejsu: po angielsku napis EN i nazwy sciezek EN", async () => {
     await i18n.changeLanguage("en");
     try {

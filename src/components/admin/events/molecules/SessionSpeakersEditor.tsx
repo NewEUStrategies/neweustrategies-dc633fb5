@@ -17,7 +17,7 @@
 //
 // NOWA SESJA NIE MA OBSADY. RPC potrzebuje identyfikatora sesji, wiec przed
 // pierwszym zapisem sekcja mowi, co zrobic, zamiast pokazywac martwa liste.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, EyeOff, Loader2, Trash2 } from "lucide-react";
@@ -36,12 +36,14 @@ import { AdminFormSection } from "@/components/admin/molecules/AdminFormSection"
 import { SpeakerAvatar } from "@/components/events/SpeakerAvatar";
 import { fetchEventSpeakers } from "@/lib/admin/community";
 import { adminAgendaFailure } from "@/lib/events/adminAgendaErrors";
+import { uiLang } from "@/lib/i18n/format";
 import { SESSION_SPEAKER_ROLES } from "@/lib/events/sessionsApi";
 import {
   castCandidates,
   castMemberFromEntry,
   moveCastMember,
   parseSessionCast,
+  sessionCastRoleLine,
   sessionCastSignature,
   sessionCastToInput,
   sessionSpeakerRole,
@@ -53,12 +55,19 @@ export function SessionSpeakersEditor({
   eventId,
   sessionId,
   trackName,
+  onDirtyChange,
 }: {
   eventId: string;
   /** `null` = sesja jeszcze niezapisana. */
   sessionId: string | null;
   /** Nazwa sciezki sesji (ze szkicu formularza) albo `null` bez sciezki. */
   trackName: string | null;
+  /**
+   * Czy obsada ma niezapisane zmiany. Formularz sesji ma wlasne „Zapisz",
+   * ktore zamyka dialog - bez tej wiadomosci zamkniecie po cichu wyrzucaloby
+   * edycje obsady.
+   */
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const { t } = useTranslation();
   const hint = t("adminEventAgenda.sessionSpeakers.hint");
@@ -73,7 +82,13 @@ export function SessionSpeakersEditor({
   }
   return (
     <AdminFormSection title={t("adminEventAgenda.sessionSpeakers.title")} hint={hint}>
-      <CastEditor eventId={eventId} sessionId={sessionId} trackName={trackName} />
+      <CastEditor
+        key={sessionId}
+        eventId={eventId}
+        sessionId={sessionId}
+        trackName={trackName}
+        onDirtyChange={onDirtyChange}
+      />
     </AdminFormSection>
   );
 }
@@ -82,12 +97,15 @@ function CastEditor({
   eventId,
   sessionId,
   trackName,
+  onDirtyChange,
 }: {
   eventId: string;
   sessionId: string;
   trackName: string | null;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const detailQ = useSessionDetail(sessionId);
   // TEN SAM KLUCZ, CO EKRAN PRELEGENTOW - rejestr jest w cache, gdy redaktor
   // przychodzi z listy prelegentow, i wietrzy go kazda mutacja programu.
@@ -110,6 +128,13 @@ function CastEditor({
   const dirty =
     edited !== null && sessionCastSignature(edited) !== sessionCastSignature(serverCast);
   const candidates = castCandidates(speakersQ.data, cast);
+
+  // Odmontowanie (zamkniecie dialogu, zmiana sesji) = brak zmian do pilnowania.
+  // Jeden efekt: nowa funkcja od rodzica dostaje od razu biezacy stan.
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+    return () => onDirtyChange?.(false);
+  }, [dirty, onDirtyChange]);
 
   const update = (next: SessionCastMember[]): void => {
     setEdited(next);
@@ -175,9 +200,9 @@ function CastEditor({
                 <SpeakerAvatar name={member.displayName} photoUrl={member.avatarUrl} size="sm" />
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate text-sm">{name}</span>
-                  {member.jobTitle !== null && (
+                  {sessionCastRoleLine(member, lang) !== null && (
                     <span className="truncate text-[11px] text-muted-foreground">
-                      {member.jobTitle}
+                      {sessionCastRoleLine(member, lang)}
                     </span>
                   )}
                   {!member.isPublic && (
@@ -306,9 +331,22 @@ function CastEditor({
             : t("adminEventAgenda.sessionSpeakers.saveAction")}
         </Button>
         {dirty && !saveM.isPending && (
-          <span className="text-[11px] text-muted-foreground">
-            {t("adminEventAgenda.sessionSpeakers.unsaved")}
-          </span>
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setEdited(null);
+                setError(null);
+              }}
+            >
+              {t("adminEventAgenda.sessionSpeakers.discardAction")}
+            </Button>
+            <span className="text-[11px] text-muted-foreground">
+              {t("adminEventAgenda.sessionSpeakers.unsaved")}
+            </span>
+          </>
         )}
       </div>
     </div>

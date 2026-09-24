@@ -72,6 +72,28 @@ export function speakerTrackName(track: SpeakerTrack, lang: "pl" | "en"): string
 }
 
 /**
+ * Czy lista ma choc jedna sciezke, ktora `SpeakerTrackChips` narysuje (z nazwa
+ * w ktoryms jezyku). Program pyta o to, zanim pokaze „Pokaz szczegoly" - ta
+ * sama regula, co w rendererze, wiec przycisk nie obiecuje pustego rzedu.
+ */
+export function hasNamedSpeakerTrack(tracks: readonly SpeakerTrack[], lang: "pl" | "en"): boolean {
+  return tracks.some((track) => speakerTrackName(track, lang) !== "");
+}
+
+/** Limit adresu (przycisk i zdjecie) - `char_length(...) <= 2048` w CHECK-ach. */
+export const SPEAKER_CARD_URL_MAX = 2048;
+
+/** Znaki licza sie jak `char_length` w bazie: punkty kodowe, nie jednostki UTF-16. */
+const codePoints = (value: string): number => Array.from(value).length;
+
+/** C0, DEL i C1 - to, co `[[:cntrl:]]` odrzuca w CHECK-u adresu przycisku. */
+const hasControlChar = (value: string): boolean =>
+  Array.from(value).some((char) => {
+    const code = char.codePointAt(0) ?? 0;
+    return code <= 0x1f || (code >= 0x7f && code <= 0x9f);
+  });
+
+/**
  * Adres przycisku, ktory wolno wstawic do `href`. Baza wymusza to samo
  * (CHECK `speaker_profiles_card_cta_url_shape`), ale karta dostaje tez wiersze
  * z podgladu i z pamieci podrecznej - druga linia obrony kosztuje jedno
@@ -86,10 +108,16 @@ export function speakerTrackName(track: SpeakerTrack, lang: "pl" | "en"): string
  * drugi znak nie moze byc ani ukosnikiem, ani odwrotnym ukosnikiem. Bialych
  * znakow nie ma nigdzie: parser adresu wycina tabulatory, a `/<tab>/evil.com`
  * stalby sie `//evil.com`.
+ *
+ * DLUGOSC I ZNAKI STERUJACE JAK W BAZIE. CHECK odrzuca adres dluzszy niz 2048
+ * znakow i kazdy znak `[[:cntrl:]]` - takze te, ktorych `\s` nie lapie
+ * (U+0001..U+0008, U+007F, U+0085). Bez tego panel przepuszczalby adres,
+ * ktory baza odrzuci surowym komunikatem po angielsku.
  */
 export function safeCardHref(value: unknown): string | null {
   const url = textOrNull(value);
   if (url === null) return null;
+  if (codePoints(url) > SPEAKER_CARD_URL_MAX || hasControlChar(url)) return null;
   if (/^https:\/\/\S+$/.test(url)) return url;
   if (/^\/[^/\\\s]\S*$/.test(url)) return url;
   return null;
@@ -193,9 +221,8 @@ export const EMPTY_SPEAKER_CARD_DRAFT: SpeakerCardDraft = {
   color: "",
 };
 
-export type SpeakerCardDraftError = "labelTooLong" | "urlShape" | "photoShape" | "colorShape";
-
-const codePoints = (value: string): number => Array.from(value).length;
+export type SpeakerCardDraftError =
+  "labelTooLong" | "urlShape" | "urlTooLong" | "photoShape" | "colorShape";
 
 /**
  * Bledy szkicu karty - PRZED zapisem, zeby redaktor nie dostawal odmowy bazy
@@ -210,10 +237,12 @@ export function speakerCardDraftErrors(
   // UTF-16) - emoji nie moze byc w panelu „dwoma znakami", a w bazie jednym.
   if (codePoints(draft.labelPl.trim()) > SPEAKER_CARD_LABEL_MAX) errors.labelPl = "labelTooLong";
   if (codePoints(draft.labelEn.trim()) > SPEAKER_CARD_LABEL_MAX) errors.labelEn = "labelTooLong";
-  if (draft.url.trim() !== "" && safeCardHref(draft.url) === null) errors.url = "urlShape";
-  if (draft.photoUrl.trim() !== "" && !/^https:\/\/\S+$/.test(draft.photoUrl.trim())) {
-    errors.photoUrl = "photoShape";
-  }
+  const url = draft.url.trim();
+  if (codePoints(url) > SPEAKER_CARD_URL_MAX) errors.url = "urlTooLong";
+  else if (url !== "" && safeCardHref(url) === null) errors.url = "urlShape";
+  const photoUrl = draft.photoUrl.trim();
+  if (codePoints(photoUrl) > SPEAKER_CARD_URL_MAX) errors.photoUrl = "urlTooLong";
+  else if (photoUrl !== "" && !/^https:\/\/\S+$/.test(photoUrl)) errors.photoUrl = "photoShape";
   if (draft.color.trim() !== "" && hexColorOrNull(draft.color) === null)
     errors.color = "colorShape";
   return errors;

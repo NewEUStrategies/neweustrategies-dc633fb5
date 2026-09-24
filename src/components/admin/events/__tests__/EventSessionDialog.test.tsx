@@ -87,12 +87,23 @@ vi.mock("@/lib/events/useEventSessions", () => ({
 // plik testow). Tu sprawdzamy WYLACZNIE, co formularz sesji jej podaje:
 // identyfikator sesji (albo `null` dla nowej) i nazwe sciezki ze szkicu.
 vi.mock("@/components/admin/events/molecules/SessionSpeakersEditor", () => ({
-  SessionSpeakersEditor: (props: { sessionId: string | null; trackName: string | null }) => (
+  SessionSpeakersEditor: (props: {
+    sessionId: string | null;
+    trackName: string | null;
+    onDirtyChange?: (dirty: boolean) => void;
+  }) => (
     <div
       data-testid="session-speakers"
       data-session={props.sessionId ?? ""}
       data-track={props.trackName ?? ""}
-    />
+    >
+      <button type="button" onClick={() => props.onDirtyChange?.(true)}>
+        atrapa: obsada zmieniona
+      </button>
+      <button type="button" onClick={() => props.onDirtyChange?.(false)}>
+        atrapa: obsada czysta
+      </button>
+    </div>
   ),
 }));
 
@@ -958,5 +969,23 @@ describe("EventSessionDialog - obsada sesji", () => {
 
     fireEvent.change(droplistaSciezki(), { target: { value: "__none__" } });
     expect(screen.getByTestId("session-speakers")).toHaveAttribute("data-track", "");
+  });
+
+  it("niezapisana obsada blokuje glowne „Zapisz” - zamkniecie po zapisie wyrzucaloby ja po cichu", () => {
+    h.details["session-a"] = detailRow();
+    const { onSubmit } = renderuj({ session: sessionRow() });
+    expect(przyciskZapisu()).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "atrapa: obsada zmieniona" }));
+    expect(przyciskZapisu()).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "adminEventAgenda.sessionSpeakers.saveCastFirst",
+    );
+    fireEvent.click(przyciskZapisu());
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "atrapa: obsada czysta" }));
+    expect(przyciskZapisu()).toBeEnabled();
+    expect(screen.queryByText("adminEventAgenda.sessionSpeakers.saveCastFirst")).toBeNull();
   });
 });

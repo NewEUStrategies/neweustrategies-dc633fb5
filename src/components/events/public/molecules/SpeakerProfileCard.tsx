@@ -44,7 +44,14 @@
 //     nikt nie otworzy, a pod duzym kadrem od razu lezy miniatura z cache;
 //   * ruch to `transform` jednej karty + jej wysokosc, odgrywane PO malowaniu
 //     nowego stanu (INP), i wylaczone przy `prefers-reduced-motion`.
-import { useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import { AppLink } from "@/components/atoms/AppLink";
@@ -81,6 +88,9 @@ ensureEventFrontI18n();
 /** Bok duzego kadru w px - 2x szerokosci karty w trzech kolumnach (~375 px). */
 export const SPEAKER_CARD_LARGE_PX = 800;
 
+/** Lewa granica zwinietego przycisku: miniatura 80 px (5rem) + odstep. */
+const COLLAPSED_ACTION_LEFT = "5.75rem";
+
 const CARD_CLASS =
   "flex h-full w-full flex-col items-start overflow-hidden border-b border-r border-border bg-background p-5 text-left";
 
@@ -105,7 +115,7 @@ export function SpeakerProfileCard({
   onSelect?: (speaker: PublicSpeakerRow) => void;
 }) {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(false);
+  const [expandedState, setExpanded] = useState(false);
   // STAN DUZEGO KADRU JEST PRZYPISANY DO ADRESU, a nie do karty. Podglad
   // w panelu zmienia adres, gdy redaktor pisze - blad posredniego napisu
   // („https://exa") nie moze zgasic kadru, ktory przyjdzie po nim.
@@ -153,6 +163,15 @@ export function SpeakerProfileCard({
   // Karta bez zdjecia sie nie rozwija: kwadrat inicjalow na cala szerokosc nie
   // pokazuje niczego, czego nie ma w zwinietej karcie.
   const expandable = largeUrl !== null;
+  // ROZWINIECIE WYNIKA ZE STANU I ZE ZDJECIA. Zdjecie moze zniknac pod otwarta
+  // karta (podglad w panelu, gdy redaktor czysci pole; odswiezenie danych na
+  // stronie). Sam stan zostawilby wtedy bialy podpis na bialym tle i zadnego
+  // przycisku do zwiniecia - dlatego rysunek bierze iloczyn, a efekt nizej
+  // sprowadza stan do zwinietego, zeby powrot zdjecia nie rozwinal karty sam.
+  const expanded = expandedState && expandable;
+  useEffect(() => {
+    if (!expandable) setExpanded(false);
+  }, [expandable]);
 
   const action = speakerCardAction(
     speaker,
@@ -303,12 +322,17 @@ export function SpeakerProfileCard({
           "right-3 top-3 px-3 py-1.5 shadow-sm",
           accent === null && "bg-brand text-brand-foreground",
         )
-      : "right-0 top-0 px-2 py-1 text-brand-ink hover:underline",
+      : "right-0 top-0 justify-end px-2 py-1 text-right text-brand-ink hover:underline",
   );
+  // ZWINIETA: napis nie wchodzi na zdjecie. Bez lewej granicy dlugi napis
+  // (do 40 znakow) rozlewa sie w lewo nad miniature i przejmuje jej klikniecie.
+  // Granica w stylu, nie w klasie - arkusz publiczny nie dostaje nowej klasy.
   const actionStyle =
     expanded && accent !== null
       ? { backgroundColor: accent, color: readableInkOn(accent) }
-      : undefined;
+      : expanded
+        ? undefined
+        : { left: COLLAPSED_ACTION_LEFT };
 
   let actionNode: ReactNode = null;
   if (action !== null && action.kind === "link") {

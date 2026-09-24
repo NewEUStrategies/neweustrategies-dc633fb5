@@ -476,10 +476,13 @@ describe("agendaSessionsFromAdminRows - obsada sesji z rejestru prelegentow", ()
       headlineEn: "Head of programme",
     });
 
-    // COALESCE(headline, job_title) - kazdy jezyk osobno.
+    // COALESCE(headline, pe.job_title) - kazdy jezyk osobno; stanowisko
+    // wchodzi tylko u osoby BEZ konta (kartoteka `event_people`).
     for (const empty of [null, undefined, "", "   "]) {
       const [fallback] = withCast([
         speakerEntry({
+          user_id: null,
+          person_id: "person-1",
           job_title: "Dyrektor",
           headline_pl: empty,
           headline_en: "Director",
@@ -491,6 +494,21 @@ describe("agendaSessionsFromAdminRows - obsada sesji z rejestru prelegentow", ()
         headlineEn: "Director",
       });
     }
+  });
+
+  it("osoba Z KONTEM bez naglowka nie dostaje stanowiska z profilu autora - jak w agendzie", () => {
+    const [session] = withCast([
+      speakerEntry({
+        job_title: "Dyrektor",
+        headline_pl: null,
+        headline_en: "Director of Programme",
+        sessions: [link("ses-1")],
+      }),
+    ]);
+    expect(session?.speakers[0]).toMatchObject({
+      headlinePl: null,
+      headlineEn: "Director of Programme",
+    });
   });
 
   it("bez naglowka i bez stanowiska rola sceniczna jest NULL-em, a nie pustym napisem", () => {

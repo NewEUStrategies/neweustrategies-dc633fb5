@@ -113,7 +113,10 @@ function agendaSpeakerIdentity(entry: EventSpeakerEntry): string {
  * TE SAME BRAMKI, CO `event_agenda`: nakladka niepubliczna (`is_public =
  * false`) nie wchodzi do obsady, osoba bez nazwy do wyswietlenia tez nie.
  * Rola sceniczna w programie to naglowek nakladki, a w jego braku stanowisko
- * (`COALESCE(headline, job_title)` - jak w agendzie).
+ * osoby BEZ konta - jak w agendzie (`COALESCE(spf.headline, pe.job_title)`,
+ * gdzie `pe` to kartoteka `event_people`). Stanowisko z profilu autora konta
+ * agenda pomija, wiec podglad tez - inaczej pokazywalby role, ktorej
+ * opublikowany program nie ma.
  */
 function speakersBySession(
   entries: readonly EventSpeakerEntry[] | undefined,
@@ -123,6 +126,7 @@ function speakersBySession(
     if (!entry.is_public) continue;
     const displayName = nullable(entry.display_name);
     if (displayName === null) continue;
+    const fallbackRole = entry.user_id === null ? nullable(entry.job_title) : null;
     for (const link of entry.sessions ?? []) {
       const list = bySession.get(link.sessionId) ?? [];
       list.push({
@@ -130,8 +134,8 @@ function speakersBySession(
         slug: null,
         displayName,
         avatarUrl: nullable(entry.avatar_url),
-        headlinePl: nullable(entry.headline_pl) ?? nullable(entry.job_title),
-        headlineEn: nullable(entry.headline_en) ?? nullable(entry.job_title),
+        headlinePl: nullable(entry.headline_pl) ?? fallbackRole,
+        headlineEn: nullable(entry.headline_en) ?? fallbackRole,
         role: nullable(link.role),
         sortOrder: link.sortOrder,
       });

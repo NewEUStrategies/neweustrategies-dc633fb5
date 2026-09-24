@@ -233,6 +233,7 @@ export const adminCommunityEventsPl = {
         errors: {
           labelTooLong: "Napis może mieć najwyżej 40 znaków.",
           urlShape: "Adres musi zaczynać się od https:// albo od ukośnika (ścieżka w serwisie).",
+          urlTooLong: "Adres może mieć najwyżej 2048 znaków.",
           photoShape: "Adres zdjęcia musi zaczynać się od https://",
           colorShape: "Kolor w formacie #RRGGBB.",
         },
@@ -472,6 +473,7 @@ export const adminCommunityEventsEn = {
         errors: {
           labelTooLong: "The text can be at most 40 characters long.",
           urlShape: "The address must start with https:// or with a slash (a path on this site).",
+          urlTooLong: "The address can be at most 2048 characters long.",
           photoShape: "The photo address must start with https://",
           colorShape: "Use the #RRGGBB colour format.",
         },

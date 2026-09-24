@@ -20,7 +20,7 @@
 import { renderToString } from "react-dom/server";
 import { hydrateRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
 import type { AgendaSession, AgendaSpeaker, AgendaTrack } from "@/lib/events/agendaSurface";
 import type { SpeakerTrack } from "@/lib/events/speakerCard";
@@ -259,8 +259,10 @@ describe("AgendaSessionCard - uklad obsady", () => {
 });
 
 describe("AgendaSessionCard - przelacznik szczegolow", () => {
-  it("obsada bez opisu nadal daje przelacznik, ktory wskazuje wylacznie liste prelegentow", () => {
-    renderCard(session({ descriptionPl: null, speakers: [speaker({ userId: "u1" })] }));
+  it("obsada ze sciezka, bez opisu: przelacznik wskazuje wylacznie liste prelegentow", () => {
+    renderCard(
+      session({ descriptionPl: null, track: WORK, speakers: [speaker({ userId: "u1" })] }),
+    );
 
     const toggle = screen.getByRole("button", { name: OPEN });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
@@ -269,8 +271,42 @@ describe("AgendaSessionCard - przelacznik szczegolow", () => {
     expect(toggle.getAttribute("aria-controls")).toBe(list.id);
   });
 
+  it("obsada bez sciezek i bez opisu nie ma przelacznika - rozwiniecie nie mialoby co pokazac", () => {
+    // Obsada jest widoczna zawsze; rozwiniecie dokladaloby tylko sciezki. Program
+    // bez sciezek (albo sesja plenarna) nie dostaje martwego przycisku.
+    renderCard(
+      session({ descriptionPl: null, track: null, speakers: [speaker({ userId: "u1" })] }),
+    );
+    expect(screen.queryByRole("button", { name: OPEN })).toBeNull();
+    expect(screen.getByRole("list", { name: SPEAKERS_LABEL })).toBeInTheDocument();
+
+    // To samo z indeksem programu, w ktorym osoba nie ma zadnej sciezki.
+    cleanup();
+    renderCard(
+      session({ descriptionPl: null, track: WORK, speakers: [speaker({ userId: "u1" })] }),
+      {
+        speakerTracks: new Map(),
+      },
+    );
+    expect(screen.queryByRole("button", { name: OPEN })).toBeNull();
+  });
+
+  it("sciezka bez nazwy w zadnym jezyku nie liczy sie jako cos do pokazania", () => {
+    const unnamed: SpeakerTrack = { ...trackOf(WORK), namePl: null, nameEn: null };
+    renderCard(session({ descriptionPl: null, speakers: [speaker({ userId: "u1" })] }), {
+      speakerTracks: new Map([["u1", [unnamed]]]),
+    });
+    expect(screen.queryByRole("button", { name: OPEN })).toBeNull();
+  });
+
   it("opis i obsada: aria-controls wymienia oba regiony, a kazdy z nich jest w DOM", () => {
-    renderCard(session({ descriptionPl: "Opis panelu", speakers: [speaker({ userId: "u1" })] }));
+    renderCard(
+      session({
+        descriptionPl: "Opis panelu",
+        track: WORK,
+        speakers: [speaker({ userId: "u1" })],
+      }),
+    );
 
     const toggle = screen.getByRole("button", { name: OPEN });
     const ids = (toggle.getAttribute("aria-controls") ?? "").split(" ");
@@ -347,9 +383,14 @@ describe("AgendaSessionCard - sciezki prelegenta", () => {
   });
 
   it("karta bez indeksu i bez sciezki sesji nie rysuje pustego rzedu sciezek", () => {
-    renderCard(session({ track: null, speakers: [speaker({ userId: "u1" })] }));
+    renderCard(
+      session({ descriptionPl: "Opis panelu", track: null, speakers: [speaker({ userId: "u1" })] }),
+    );
 
-    fireEvent.click(screen.getByRole("button", { name: OPEN }));
+    const toggle = screen.getByRole("button", { name: OPEN });
+    // Przelacznik jest - dla opisu - ale nie obiecuje listy prelegentow.
+    expect(toggle.getAttribute("aria-controls")).toBe(screen.getByText("Opis panelu").id);
+    fireEvent.click(toggle);
     expect(within(speakerRow("Anna Zablocka")).queryByText(TRACKS_LABEL)).toBeNull();
   });
 
@@ -358,9 +399,10 @@ describe("AgendaSessionCard - sciezki prelegenta", () => {
     // odwolanych albo bez sciezki - wlasna sciezka sesji to zapas TYLKO dla
     // karty bez indeksu.
     const index = new Map([["u9", [trackOf(ENERGY)]]]);
-    renderCard(session({ track: WORK, speakers: [speaker({ userId: "u1" })] }), {
-      speakerTracks: index,
-    });
+    renderCard(
+      session({ descriptionPl: "Opis panelu", track: WORK, speakers: [speaker({ userId: "u1" })] }),
+      { speakerTracks: index },
+    );
 
     fireEvent.click(screen.getByRole("button", { name: OPEN }));
     const row = speakerRow("Anna Zablocka");

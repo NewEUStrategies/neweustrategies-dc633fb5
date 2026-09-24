@@ -14,9 +14,11 @@ import { describe, expect, it } from "vitest";
 import {
   EMPTY_SPEAKER_CARD_DRAFT,
   SPEAKER_CARD_LABEL_MAX,
+  hasNamedSpeakerTrack,
   hexColorOrNull,
   parseSpeakerTracks,
   readableInkOn,
+  SPEAKER_CARD_URL_MAX,
   safeCardHref,
   speakerCardAction,
   speakerCardDraftErrors,
@@ -652,5 +654,55 @@ describe("speakerCardDraftErrors - zgodnosc z CHECK-ami bazy", () => {
     expect(speakerCardDraftErrors(draft({ labelEn: emoji.repeat(41) }))).toEqual({
       labelEn: "labelTooLong",
     });
+  });
+
+  it("adres dluzszy niz 2048 znakow to blad pola „za dlugi”, nie odmowa bazy", () => {
+    const at = (length: number): string =>
+      "https://example.com/" + "a".repeat(length - "https://example.com/".length);
+    expect(SPEAKER_CARD_URL_MAX).toBe(2048);
+    expect(speakerCardDraftErrors(draft({ url: at(2048) }))).toEqual({});
+    expect(speakerCardDraftErrors(draft({ url: at(2049) }))).toEqual({ url: "urlTooLong" });
+    expect(speakerCardDraftErrors(draft({ photoUrl: at(2048) }))).toEqual({});
+    expect(speakerCardDraftErrors(draft({ photoUrl: at(2049) }))).toEqual({
+      photoUrl: "urlTooLong",
+    });
+    // Na karcie ten sam limit: za dlugi adres nie trafia do `href`.
+    expect(safeCardHref(at(2048))).toBe(at(2048));
+    expect(safeCardHref(at(2049))).toBeNull();
+    // Punkty kodowe, jak `char_length`: 2048 emoji to 4096 jednostek UTF-16.
+    const emojiPath = "/" + "\u{1F600}".repeat(2047);
+    expect(speakerCardDraftErrors(draft({ url: emojiPath }))).toEqual({});
+  });
+
+  it("znaki sterujace, ktorych `\\s` nie lapie, sa bledem ksztaltu - jak `[[:cntrl:]]`", () => {
+    for (const control of ["\u0001", "\u0008", "\u007f", "\u0085", "\u009f"]) {
+      expect(speakerCardDraftErrors(draft({ url: `/a${control}b` }))).toEqual({ url: "urlShape" });
+      expect(speakerCardDraftErrors(draft({ url: `https://x/${control}` }))).toEqual({
+        url: "urlShape",
+      });
+      expect(safeCardHref(`/a${control}b`)).toBeNull();
+    }
+    // Zwykle znaki spoza ASCII nie sa sterujace.
+    expect(speakerCardDraftErrors(draft({ url: "/prelegenci/łódź" }))).toEqual({});
+  });
+});
+
+describe("hasNamedSpeakerTrack", () => {
+  const named = {
+    id: "t1",
+    key: "a",
+    namePl: "Energia",
+    nameEn: null,
+    accentColor: null,
+    sessionsCount: 1,
+  };
+  const unnamed = { ...named, id: "t2", namePl: null };
+
+  it("liczy sciezke z nazwa w ktorymkolwiek jezyku - jak renderer chipow", () => {
+    expect(hasNamedSpeakerTrack([named], "pl")).toBe(true);
+    expect(hasNamedSpeakerTrack([named], "en")).toBe(true);
+    expect(hasNamedSpeakerTrack([unnamed], "pl")).toBe(false);
+    expect(hasNamedSpeakerTrack([unnamed, named], "en")).toBe(true);
+    expect(hasNamedSpeakerTrack([], "pl")).toBe(false);
   });
 });

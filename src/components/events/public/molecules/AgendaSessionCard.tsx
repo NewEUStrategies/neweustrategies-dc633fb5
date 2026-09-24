@@ -61,7 +61,7 @@ import {
   type AgendaSession,
   type AgendaSpeaker,
 } from "@/lib/events/agendaSurface";
-import type { SpeakerTrack } from "@/lib/events/speakerCard";
+import { hasNamedSpeakerTrack, type SpeakerTrack } from "@/lib/events/speakerCard";
 import { SessionStateBadge } from "@/components/events/public/atoms/SessionStateBadge";
 import { SpeakerAvatar } from "@/components/events/SpeakerAvatar";
 import { SpeakerTrackChips } from "@/components/events/SpeakerTrackChips";
@@ -225,17 +225,22 @@ export function AgendaSessionCard({
   const seatsLeft = agendaSeatsLeft(session);
   const cancelled = session.status === "cancelled";
   const speakers = session.speakers.filter((speaker) => speaker.displayName !== "");
-  // „Pokaż szczegóły" ma co pokazać, gdy sesja ma opis ALBO obsadę (ścieżki
-  // prelegentów stają przy nazwiskach po rozwinięciu).
-  const hasDetails = description !== "" || speakers.length > 0;
   // Z indeksem programu prawdą jest indeks: osoba, której w nim nie ma,
   // występuje wyłącznie w sesjach odwołanych albo bez ścieżki - i ścieżki nie
   // dostaje. Własna ścieżka sesji to zapas TYLKO dla karty bez indeksu.
   const speakerTracksFor = (userId: string): readonly SpeakerTrack[] =>
     speakerTracks === undefined ? ownTrack(session) : (speakerTracks.get(userId) ?? []);
+  // Obsada jest widoczna zawsze - rozwinięcie dokłada przy nazwiskach tylko
+  // ŚCIEŻKI. „Pokaż szczegóły" ma więc co pokazać, gdy sesja ma opis albo
+  // choć jeden prelegent ma nazwaną ścieżkę; inaczej przycisk przełączałby
+  // stan bez żadnej zmiany na ekranie (program bez ścieżek, sesja plenarna).
+  const speakersWithTracks = speakers.some((speaker) =>
+    hasNamedSpeakerTrack(speakerTracksFor(speaker.userId), lang),
+  );
+  const hasDetails = description !== "" || speakersWithTracks;
   const detailsControls = [
     description !== "" ? detailsId : "",
-    speakers.length > 0 ? speakersId : "",
+    speakersWithTracks ? speakersId : "",
   ]
     .filter((id) => id !== "")
     .join(" ");

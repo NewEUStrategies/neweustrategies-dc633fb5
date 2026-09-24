@@ -242,6 +242,43 @@ describe("SpeakerProfileCard - rozwijanie i zwijanie", () => {
     expect(screen.getByText("Anna Kowalska").getAttribute("title")).toBe("Anna Kowalska");
   });
 
+  it("zdjecie znikajace pod rozwinieta karta zwija ja - bez bialego podpisu na bialym tle", () => {
+    // Podglad w panelu: osoba bez zdjecia profilu, redaktor czysci zdjecie karty
+    // przy rozwinietej karcie. Nie ma juz przelacznika, wiec karta nie moze
+    // zostac w stanie, z ktorego nie da sie wyjsc.
+    const row = speaker({ avatar_url: null, card_cta_url: "https://example.com/x" });
+    const { article, rerender } = renderCard(row);
+    fireEvent.click(screen.getByRole("button", { name: EXPAND }));
+    expect(article.getAttribute("data-state")).toBe("expanded");
+
+    rerender(<SpeakerProfileCard speaker={{ ...row, card_photo_url: null }} lang="pl" />);
+    expect(article.getAttribute("data-state")).toBe("collapsed");
+    expect(screen.getByText("Anna Kowalska").className).toContain("text-foreground");
+    expect(screen.getByText("Anna Kowalska").className).not.toContain("text-white");
+    expect(screen.getByRole("link").className).not.toContain("bg-brand");
+
+    // Powrot zdjecia nie rozwija karty sam - dopiero klik.
+    rerender(<SpeakerProfileCard speaker={row} lang="pl" />);
+    expect(article.getAttribute("data-state")).toBe("collapsed");
+    expect(screen.getByRole("button", { name: EXPAND })).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("zwiniety przycisk akcji ma lewa granice za miniatura - dlugi napis nie wchodzi na zdjecie", () => {
+    renderCard(
+      speaker({
+        card_cta_url: "https://example.com/x",
+        card_cta_label_pl: "Pobierz prezentację prelegenta z konferencji",
+      }),
+    );
+    const link = screen.getByRole("link", { name: /Pobierz prezentację/ });
+    expect(link.style.left).toBe("5.75rem");
+    expect(link.className).toContain("justify-end");
+
+    // Rozwinieta karta: przycisk wraca na zdjecie, bez tej granicy.
+    fireEvent.click(screen.getByRole("button", { name: EXPAND }));
+    expect(screen.getByRole("link", { name: /Pobierz prezentację/ }).style.left).toBe("");
+  });
+
   it("drugi klik zwija karte i zdejmuje duzy kadr", () => {
     const { article } = renderCard();
     const toggle = screen.getByRole("button", { name: EXPAND });

@@ -14,6 +14,7 @@ import {
   castMemberFromEntry,
   moveCastMember,
   parseSessionCast,
+  sessionCastRoleLine,
   sessionCastSignature,
   sessionCastToInput,
   sessionSpeakerRole,
@@ -46,6 +47,7 @@ function member(overrides: Partial<SessionCastMember> = {}): SessionCastMember {
     displayName: "Anna Nowak",
     avatarUrl: null,
     jobTitle: null,
+    jobTitleEn: null,
     isPublic: true,
     role: "speaker",
     allowOverlap: false,
@@ -101,6 +103,7 @@ describe("parseSessionCast", () => {
         displayName: "Anna Nowak",
         avatarUrl: "https://cdn.example/anna.jpg",
         jobTitle: "Dyrektorka programowa",
+        jobTitleEn: "Director",
         isPublic: true,
         role: "moderator",
         allowOverlap: true,
@@ -123,6 +126,7 @@ describe("parseSessionCast", () => {
       displayName: "",
       avatarUrl: null,
       jobTitle: null,
+      jobTitleEn: null,
       isPublic: true,
       role: "speaker",
       allowOverlap: false,
@@ -213,10 +217,24 @@ describe("castMemberFromEntry", () => {
       displayName: "Anna Nowak",
       avatarUrl: "https://cdn.example/anna.jpg",
       jobTitle: "Dyrektorka programowa",
+      jobTitleEn: "Director",
       isPublic: true,
       role: "speaker",
       allowOverlap: false,
     });
+  });
+
+  it("linia roli EN bierze naglowek EN, a w jego braku stanowisko - nigdy naglowka PL", () => {
+    const both = castMemberFromEntry(
+      entry({ headline_pl: "Dyrektorka programowa", headline_en: "Programme Director" }),
+    );
+    expect(sessionCastRoleLine(both, "pl")).toBe("Dyrektorka programowa");
+    expect(sessionCastRoleLine(both, "en")).toBe("Programme Director");
+    const plOnly = castMemberFromEntry(entry({ headline_pl: "Dyrektorka programowa" }));
+    expect(sessionCastRoleLine(plOnly, "en")).toBe("Director");
+    const [parsed] = parseSessionCast([rawMember({ headline_en: "Programme Director" })]);
+    expect(sessionCastRoleLine(parsed, "en")).toBe("Programme Director");
+    expect(sessionCastRoleLine(parsed, "pl")).toBe("Dyrektorka programowa");
   });
 
   it("bez naglowka scenicznego bierze stanowisko", () => {

@@ -13,7 +13,7 @@
 //
 // SCIEZKI SA TYLKO DO ODCZYTU. Wynikaja z obsady sesji (`tracks` wpisu), wiec
 // zamiast pola wyboru stoi wyjasnienie, skad sie biora.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
@@ -115,6 +115,8 @@ export function EventSpeakerCardDialog({
     [speaker, draft],
   );
 
+  const contentRef = useRef<HTMLDivElement | null>(null);
+
   const saveM = useMutation({
     mutationFn: () => {
       if (speaker === null) return Promise.resolve();
@@ -146,17 +148,34 @@ export function EventSpeakerCardDialog({
   const tracks = speaker.tracks ?? [];
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      // TRWAJACY ZAPIS TRZYMA DIALOG. Zamkniety w trakcie dialog nie pokazalby
+      // odmowy bazy (komunikat ladowalby w odmontowanym stanie), a wspolna
+      // mutacja zamknelaby po sukcesie dialog INNEGO prelegenta.
+      onOpenChange={(next) => {
+        if (!next && saveM.isPending) return;
+        onOpenChange(next);
+      }}
+    >
       <DialogContent
+        ref={contentRef}
         className="max-h-[92vh] max-w-4xl overflow-y-auto rounded-[6px] p-5"
-        // ESCAPE NA ROZWINIETEJ KARCIE PODGLADU zwija karte, a NIE zamyka
+        // ESCAPE PRZY ROZWINIETEJ KARCIE PODGLADU zwija karte, a NIE zamyka
         // dialogu. Radix nasluchuje klawiatury w fazie przechwytywania, wiec
         // `stopPropagation` karty go nie zatrzyma - a zamkniecie dialogu
-        // przepadloby niezapisane zmiany karty.
+        // przepadloby niezapisane zmiany karty. Karta jest szukana w CALYM
+        // dialogu, nie po celu zdarzenia: Safari i Firefox na macOS nie daja
+        // fokusu przyciskowi po kliknieciu, wiec cel to wtedy sam dialog.
         onEscapeKeyDown={(event) => {
+          const card = contentRef.current?.querySelector('article[data-state="expanded"]');
+          if (!card) return;
+          event.preventDefault();
+          // Fokus w karcie: zwija ja jej wlasna obsluga klawisza. Poza karta -
+          // ten sam przycisk zdjecia, co klikniecie.
           const target = event.target;
-          if (target instanceof Element && target.closest('article[data-state="expanded"]')) {
-            event.preventDefault();
+          if (!(target instanceof Node && card.contains(target))) {
+            card.querySelector<HTMLButtonElement>('button[aria-expanded="true"]')?.click();
           }
         }}
       >
@@ -224,7 +243,13 @@ export function EventSpeakerCardDialog({
               </div>
             </div>
             {previewRow !== null && (
-              <div className="border-l border-t border-border">
+              // Znacznik podgladu builderu: `AppLink` nie nawiguje w jego
+              // wnetrzu. Klik w przycisk karty wyprowadzilby z panelu i
+              // przepadlby niezapisany szkic.
+              <div
+                data-builder-renderer="widget-props-preview"
+                className="border-l border-t border-border"
+              >
                 <SpeakerProfileCard
                   key={speaker.speaker_profile_id}
                   speaker={previewRow}

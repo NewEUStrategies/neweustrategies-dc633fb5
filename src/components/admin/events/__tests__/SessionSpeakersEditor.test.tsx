@@ -184,9 +184,16 @@ function gotowyStan(speakers: unknown = surowaObsada()): StanSzczegolu {
   return { isPending: false, isError: false, data: { speakers } };
 }
 
-function renderuj(props: { sessionId?: string | null; trackName?: string | null } = {}): {
+function renderuj(
+  props: {
+    sessionId?: string | null;
+    trackName?: string | null;
+    onDirtyChange?: (dirty: boolean) => void;
+  } = {},
+): {
   queryClient: QueryClient;
   rerender: () => void;
+  unmount: () => void;
 } {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const ui = (): ReactElement => (
@@ -195,11 +202,12 @@ function renderuj(props: { sessionId?: string | null; trackName?: string | null 
         eventId={EVENT_ID}
         sessionId={props.sessionId === undefined ? SESSION_ID : props.sessionId}
         trackName={props.trackName === undefined ? "Ścieżka Cyfrowa" : props.trackName}
+        onDirtyChange={props.onDirtyChange}
       />
     </QueryClientProvider>
   );
   const view = render(ui());
-  return { queryClient, rerender: () => view.rerender(ui()) };
+  return { queryClient, rerender: () => view.rerender(ui()), unmount: () => view.unmount() };
 }
 
 /** Nazwy osób w kolejności wierszy obsady. */
@@ -700,5 +708,52 @@ describe("SessionSpeakersEditor - wynik zapisu", () => {
 
     expect(h.saves).toHaveLength(2);
     expect(h.saves[1]?.speakers.map((s) => s.speakerProfileId)).toEqual(["sp-jan", "sp-bez-nazwy"]);
+  });
+});
+
+describe("SessionSpeakersEditor - niezapisane zmiany i formularz sesji", () => {
+  it("zmiana melduje formularzowi sesji niezapisane zmiany, a „Cofnij” je gasi i wraca do serwera", async () => {
+    const onDirty = vi.fn<(dirty: boolean) => void>();
+    renderuj({ onDirtyChange: onDirty });
+    await dodaj();
+    expect(onDirty).toHaveBeenLastCalledWith(false);
+    expect(screen.queryByRole("button", { name: `${K}.discardAction` })).toBeNull();
+
+    fireEvent.change(rola("Anna Nowak"), { target: { value: "speaker" } });
+    expect(onDirty).toHaveBeenLastCalledWith(true);
+
+    fireEvent.click(screen.getByRole("button", { name: `${K}.discardAction` }));
+    expect(onDirty).toHaveBeenLastCalledWith(false);
+    expect(rola("Anna Nowak").value).toBe("moderator");
+    expect(zapisz()).toBeDisabled();
+    expect(screen.queryByText(`${K}.unsaved`)).toBeNull();
+  });
+
+  it("odmontowanie (zamkniecie dialogu) melduje brak zmian - blokada zapisu sesji nie zostaje", async () => {
+    const onDirty = vi.fn<(dirty: boolean) => void>();
+    const { unmount } = renderuj({ onDirtyChange: onDirty });
+    await dodaj();
+    fireEvent.change(rola("Anna Nowak"), { target: { value: "speaker" } });
+    expect(onDirty).toHaveBeenLastCalledWith(true);
+
+    unmount();
+    expect(onDirty).toHaveBeenLastCalledWith(false);
+  });
+
+  it("panel po angielsku pokazuje naglowek EN, a bez niego stanowisko - nigdy naglowka PL", async () => {
+    h.language = "en";
+    const [anna, jan, ...rest] = surowaObsada() as Record<string, unknown>[];
+    h.detail = gotowyStan([
+      { ...anna, headline_en: "Programme Director" },
+      { ...jan, headline_pl: "Ekspert", job_title: "Analyst" },
+      ...rest,
+    ]);
+    renderuj();
+    await dodaj();
+
+    expect(screen.getByText("Programme Director")).toBeInTheDocument();
+    expect(screen.queryByText("Dyrektorka programowa")).toBeNull();
+    expect(screen.getByText("Analyst")).toBeInTheDocument();
+    expect(screen.queryByText("Ekspert")).toBeNull();
   });
 });

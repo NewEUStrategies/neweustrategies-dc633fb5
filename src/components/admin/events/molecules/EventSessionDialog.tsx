@@ -99,6 +99,9 @@ export function EventSessionDialog({
   const lang = i18n.language.startsWith("en") ? "en" : "pl";
   const [draft, setDraft] = useState<SessionDraft>(() => emptySessionDraft(nextSortOrder));
   const [touched, setTouched] = useState(false);
+  // Niezapisana obsada blokuje glowne „Zapisz": zapis sesji zamyka dialog,
+  // a obsada ma wlasny zapis - zamkniecie wyrzucaloby ja bez slowa.
+  const [castDirty, setCastDirty] = useState(false);
 
   // SZCZEGOL, A NIE WIERSZ LISTY. `stream_url` i `recording_url` sa odciete
   // od klienckiego SELECT-a grantem kolumnowym (patrz granty w migracji
@@ -366,6 +369,7 @@ export function EventSessionDialog({
             eventId={eventId}
             sessionId={session === null ? null : session.id}
             trackName={draft.trackId === null ? null : trackLabel(draft.trackId)}
+            onDirtyChange={setCastDirty}
           />
 
           <AdminFormSection title={t("adminEventAgenda.sessionDialog.requiresSignup")} columns={2}>
@@ -441,11 +445,16 @@ export function EventSessionDialog({
           </AdminFormSection>
         </div>
 
+        {castDirty && (
+          <p role="status" className="text-xs text-amber-700 dark:text-amber-400">
+            {t("adminEventAgenda.sessionSpeakers.saveCastFirst")}
+          </p>
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
             {t("adminEventAgenda.sessionDialog.cancelAction")}
           </Button>
-          <Button onClick={submit} disabled={isSaving || isLoadingDetail}>
+          <Button onClick={submit} disabled={isSaving || isLoadingDetail || castDirty}>
             {t("adminEventAgenda.sessionDialog.saveAction")}
           </Button>
         </DialogFooter>

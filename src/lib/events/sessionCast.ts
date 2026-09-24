@@ -20,7 +20,10 @@ export interface SessionCastMember {
   speakerProfileId: string;
   displayName: string;
   avatarUrl: string | null;
+  /** Linia roli po polsku: naglowek sceniczny PL, a w jego braku stanowisko. */
   jobTitle: string | null;
+  /** To samo po angielsku - panel w EN nie moze pokazywac polskiego naglowka. */
+  jobTitleEn: string | null;
   /** Nakladka niepubliczna nie wchodzi do publicznego programu. */
   isPublic: boolean;
   role: SessionSpeakerRole;
@@ -54,6 +57,7 @@ export function parseSessionCast(raw: unknown): SessionCastMember[] {
         displayName: textOrNull(row.display_name) ?? "",
         avatarUrl: textOrNull(row.avatar_url),
         jobTitle: textOrNull(row.headline_pl) ?? textOrNull(row.job_title),
+        jobTitleEn: textOrNull(row.headline_en) ?? textOrNull(row.job_title),
         isPublic: row.is_public !== false,
         role: sessionSpeakerRole(row.role),
         allowOverlap: row.allow_overlap === true,
@@ -70,11 +74,17 @@ export function castMemberFromEntry(entry: EventSpeakerEntry): SessionCastMember
     speakerProfileId: entry.speaker_profile_id,
     displayName: entry.display_name ?? "",
     avatarUrl: entry.avatar_url,
-    jobTitle: entry.headline_pl ?? entry.job_title,
+    jobTitle: textOrNull(entry.headline_pl) ?? textOrNull(entry.job_title),
+    jobTitleEn: textOrNull(entry.headline_en) ?? textOrNull(entry.job_title),
     isPublic: entry.is_public,
     role: "speaker",
     allowOverlap: false,
   };
+}
+
+/** Linia roli w jezyku panelu. */
+export function sessionCastRoleLine(member: SessionCastMember, lang: "pl" | "en"): string | null {
+  return lang === "en" ? member.jobTitleEn : member.jobTitle;
 }
 
 /**

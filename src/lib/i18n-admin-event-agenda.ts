@@ -150,6 +150,8 @@ export const adminEventAgendaPl = {
       saveAction: "Zapisz obsadę",
       saving: "Zapisywanie obsady…",
       unsaved: "Obsada ma niezapisane zmiany.",
+      discardAction: "Cofnij zmiany obsady",
+      saveCastFirst: "Obsada ma niezapisane zmiany - zapisz je albo cofnij, zanim zapiszesz sesję.",
     },
 
     sessionDialog: {
@@ -649,6 +651,9 @@ export const adminEventAgendaEn = {
       saveAction: "Save the line-up",
       saving: "Saving the line-up…",
       unsaved: "The line-up has unsaved changes.",
+      discardAction: "Discard line-up changes",
+      saveCastFirst:
+        "The line-up has unsaved changes - save or discard them before saving the session.",
     },
 
     sessionDialog: {
