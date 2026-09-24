@@ -307,9 +307,10 @@ function AvatarTile({
     borderRadius: RADIUS,
   };
   const frameClass = cn(
-    "avg-frame block transition-transform duration-150",
+    // Uniesienie po najechaniu i ruch karty tylko przy zgodzie na animację.
+    "avg-frame block motion-safe:transition-transform motion-safe:duration-150",
     interactive &&
-      "group-hover/avatar:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+      "motion-safe:group-hover/avatar:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
   );
 
   const body = (
@@ -390,7 +391,7 @@ function AvatarTile({
           className={cn(
             "pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 w-max max-w-[16rem]",
             "-translate-x-1/2 rounded-lg border border-border bg-popover px-2.5 py-1.5",
-            "text-left shadow-md transition-all duration-150",
+            "text-left shadow-md motion-safe:transition-all motion-safe:duration-150",
             open ? "translate-y-0 scale-100 opacity-100" : "translate-y-1 scale-95 opacity-0",
           )}
         >
