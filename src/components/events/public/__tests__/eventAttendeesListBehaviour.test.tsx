@@ -246,7 +246,7 @@ describe("EventAttendeesList - kto trafia na listę", () => {
     await screen.findByText("Marta Kowalik");
     const links = within(grid()).getAllByRole("link");
     expect(links).toHaveLength(1);
-    expect(links[0]).toHaveAttribute("href", '/author/$slug:{"slug":"igor-wisniewski"}');
+    expect(links[0]).toHaveAttribute("href", '/people/$slug:{"slug":"igor-wisniewski"}');
   });
 });
 
