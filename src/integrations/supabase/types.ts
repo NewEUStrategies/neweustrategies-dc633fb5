@@ -4819,8 +4819,6 @@ export type Database = {
           name_norm: string | null
           phone: string | null
           postal_code: string | null
-          social_links: Json
-          specialization: string | null
           tax_id: string | null
           tenant_id: string
           updated_at: string
@@ -4842,8 +4840,6 @@ export type Database = {
           name_norm?: string | null
           phone?: string | null
           postal_code?: string | null
-          social_links?: Json
-          specialization?: string | null
           tax_id?: string | null
           tenant_id: string
           updated_at?: string
@@ -4865,8 +4861,6 @@ export type Database = {
           name_norm?: string | null
           phone?: string | null
           postal_code?: string | null
-          social_links?: Json
-          specialization?: string | null
           tax_id?: string | null
           tenant_id?: string
           updated_at?: string
@@ -23971,20 +23965,6 @@ export type Database = {
           website: string
         }[]
       }
-      crm_company_inline_lookup: {
-        Args: { p_id?: string; p_limit?: number; p_query?: string }
-        Returns: {
-          branch: string
-          country: string
-          domain: string
-          id: string
-          logo_url: string
-          name: string
-          social_links: Json
-          specialization: string
-          website: string
-        }[]
-      }
       crm_company_search: {
         Args: { p_limit?: number; p_query: string }
         Returns: {
@@ -24127,25 +24107,6 @@ export type Database = {
         Returns: boolean
       }
       early_access_window: { Args: never; Returns: string }
-      editor_inline_author_lookup: {
-        Args: { p_id?: string; p_limit?: number; p_query?: string }
-        Returns: {
-          avatar_url: string
-          company: string
-          display_name: string
-          facebook_url: string
-          first_name: string
-          id: string
-          instagram_url: string
-          job_title: string
-          last_name: string
-          linkedin_url: string
-          slug: string
-          specialization: string
-          website_url: string
-          x_url: string
-        }[]
-      }
       email_account_tenant_for_address: {
         Args: { p_email: string }
         Returns: string
