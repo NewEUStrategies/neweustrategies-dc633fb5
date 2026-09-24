@@ -80,7 +80,7 @@ describe("ConnectionPathTrail", () => {
     render(<ConnectionPathTrail degree={2} bridge={BRIDGE} targetName={TARGET} />);
     expect(screen.getByRole("link", { name: "Anna Nowak" })).toHaveAttribute(
       "href",
-      "/author/anna-nowak",
+      "/people/anna-nowak",
     );
   });
 

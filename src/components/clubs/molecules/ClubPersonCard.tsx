@@ -78,7 +78,7 @@ export function ClubPersonCard({
         <div className="flex flex-wrap items-center gap-1.5">
           {profileSlug !== null ? (
             <Link
-              to="/author/$slug"
+              to="/people/$slug"
               params={{ slug: profileSlug }}
               className="min-w-0 truncate text-sm font-medium hover:text-primary"
             >

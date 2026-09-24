@@ -330,6 +330,13 @@
       "when": 1790195320427,
       "tag": "0046_event_agenda_people_without_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1790270475594,
+      "tag": "0047_member_profile_people_route",
+      "breakpoints": true
     }
   ]
 }

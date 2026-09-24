@@ -196,11 +196,11 @@ describe("ClubSpotlightScreen - osoba tygodnia", () => {
     );
     expect(screen.getByRole("link", { name: "Anna Nowak" })).toHaveAttribute(
       "href",
-      "/author/anna-nowak",
+      "/people/anna-nowak",
     );
     expect(
       screen.getByRole("link", { name: "club.network.spotlight.openProfile" }),
-    ).toHaveAttribute("href", "/author/anna-nowak");
+    ).toHaveAttribute("href", "/people/anna-nowak");
     expect(screen.getByText("Analityk - NES")).toBeInTheDocument();
     // Blurb redakcyjny WYGRYWA z biogramem z profilu - to jest teza modułu.
     expect(
@@ -244,7 +244,7 @@ describe("ClubSpotlightScreen - archiwum", () => {
     const row = screen.getAllByRole("listitem")[0];
     expect(within(row).getByRole("link", { name: "Jan Kowalski" })).toHaveAttribute(
       "href",
-      "/author/jan-kowalski",
+      "/people/jan-kowalski",
     );
     expect(within(row).getByText(/club\.network\.spotlight\.weekOf/)).toBeInTheDocument();
     expect(within(row).getByText("Dyrektor - MSZ")).toBeInTheDocument();

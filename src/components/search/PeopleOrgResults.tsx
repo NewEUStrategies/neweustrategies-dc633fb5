@@ -27,7 +27,7 @@ function itemSublabel(it: PeopleOrgItem, lang: "pl" | "en"): string | null {
 }
 
 function hrefFor(it: PeopleOrgItem): string {
-  if (it.kind === "person") return `/author/${it.slug ?? it.id}`;
+  if (it.kind === "person") return `/people/${it.slug ?? it.id}`;
   return `/search?org=${encodeURIComponent(it.id)}`;
 }
 

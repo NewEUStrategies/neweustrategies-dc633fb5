@@ -84,6 +84,7 @@ const pl = {
     shortcutRedirects: "Przekierowania",
     shortcutRedirectsHint: "Stare adresy, które mają prowadzić do nowych.",
     open: "Otwórz",
+    download: "Pobierz plik",
 
     // --- Strona główna ---
     homepageIntro:
@@ -245,6 +246,7 @@ const en: typeof pl = {
     shortcutRedirects: "Redirects",
     shortcutRedirectsHint: "Old addresses that should lead to new ones.",
     open: "Open",
+    download: "Download file",
 
     homepageIntro:
       "This is how the homepage looks when someone searches your brand name. The site name and the title are TWO different things - Google draws them on separate lines.",

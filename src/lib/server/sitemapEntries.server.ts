@@ -48,7 +48,6 @@ export function coreSitemapEntries(origin: string): SitemapEntry[] {
     { loc: `${origin}/polls`, changefreq: "weekly", priority: "0.5" },
     { loc: `${origin}/tracker`, changefreq: "daily", priority: "0.7" },
     { loc: `${origin}/programs`, changefreq: "weekly", priority: "0.7" },
-    { loc: `${origin}/people`, changefreq: "weekly", priority: "0.5" },
     { loc: `${origin}/experts`, changefreq: "weekly", priority: "0.7" },
     { loc: `${origin}/contribute`, changefreq: "monthly", priority: "0.4" },
     { loc: `${origin}/sitemap`, changefreq: "weekly", priority: "0.3" },

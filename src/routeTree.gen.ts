@@ -71,6 +71,7 @@ import { Route as TrackerIndexRouteImport } from './routes/tracker.index'
 import { Route as ProgramsIndexRouteImport } from './routes/programs.index'
 import { Route as ProfileIndexRouteImport } from './routes/profile.index'
 import { Route as PodcastsIndexRouteImport } from './routes/podcasts.index'
+import { Route as PeopleIndexRouteImport } from './routes/people.index'
 import { Route as EventsIndexRouteImport } from './routes/events.index'
 import { Route as ClubIndexRouteImport } from './routes/club.index'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
@@ -113,6 +114,7 @@ import { Route as PodcastsShowRouteImport } from './routes/podcasts.$show'
 import { Route as PodcastRssDotxmlRouteImport } from './routes/podcast.rss[.]xml'
 import { Route as PodcastSlugRouteImport } from './routes/podcast.$slug'
 import { Route as PlansPlanIdRouteImport } from './routes/plans.$planId'
+import { Route as PeopleSlugRouteImport } from './routes/people.$slug'
 import { Route as OrganizationSlugRouteImport } from './routes/organization.$slug'
 import { Route as NewsletterUnsubscribeRouteImport } from './routes/newsletter.unsubscribe'
 import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
@@ -720,6 +722,11 @@ const PodcastsIndexRoute = PodcastsIndexRouteImport.update({
   path: '/podcasts/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PeopleIndexRoute = PeopleIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PeopleRoute,
+} as any)
 const EventsIndexRoute = EventsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -929,6 +936,11 @@ const PlansPlanIdRoute = PlansPlanIdRouteImport.update({
   id: '/plans/$planId',
   path: '/plans/$planId',
   getParentRoute: () => rootRouteImport,
+} as any)
+const PeopleSlugRoute = PeopleSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => PeopleRoute,
 } as any)
 const OrganizationSlugRoute = OrganizationSlugRouteImport.update({
   id: '/organization/$slug',
@@ -2493,7 +2505,7 @@ export interface FileRoutesByFullPath {
   '/moderacja-komentarzy': typeof ModeracjaKomentarzyRoute
   '/network': typeof NetworkRouteWithChildren
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
-  '/people': typeof PeopleRoute
+  '/people': typeof PeopleRouteWithChildren
   '/polityka-prywatnosci': typeof PolitykaPrywatnosciRoute
   '/polityka-przetwarzania-danych': typeof PolitykaPrzetwarzaniaDanychRoute
   '/polls': typeof PollsRoute
@@ -2621,6 +2633,7 @@ export interface FileRoutesByFullPath {
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
   '/organization/$slug': typeof OrganizationSlugRoute
+  '/people/$slug': typeof PeopleSlugRoute
   '/plans/$planId': typeof PlansPlanIdRoute
   '/podcast/$slug': typeof PodcastSlugRoute
   '/podcast/rss.xml': typeof PodcastRssDotxmlRoute
@@ -2663,6 +2676,7 @@ export interface FileRoutesByFullPath {
   '/blog/': typeof BlogIndexRoute
   '/club/': typeof ClubIndexRoute
   '/events/': typeof EventsIndexRoute
+  '/people/': typeof PeopleIndexRoute
   '/podcasts/': typeof PodcastsIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/programs/': typeof ProgramsIndexRoute
@@ -2887,7 +2901,6 @@ export interface FileRoutesByTo {
   '/moderacja-komentarzy': typeof ModeracjaKomentarzyRoute
   '/network': typeof NetworkRouteWithChildren
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
-  '/people': typeof PeopleRoute
   '/polityka-prywatnosci': typeof PolitykaPrywatnosciRoute
   '/polityka-przetwarzania-danych': typeof PolitykaPrzetwarzaniaDanychRoute
   '/polls': typeof PollsRoute
@@ -3002,6 +3015,7 @@ export interface FileRoutesByTo {
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
   '/organization/$slug': typeof OrganizationSlugRoute
+  '/people/$slug': typeof PeopleSlugRoute
   '/plans/$planId': typeof PlansPlanIdRoute
   '/podcast/$slug': typeof PodcastSlugRoute
   '/podcast/rss.xml': typeof PodcastRssDotxmlRoute
@@ -3044,6 +3058,7 @@ export interface FileRoutesByTo {
   '/blog': typeof BlogIndexRoute
   '/club': typeof ClubIndexRoute
   '/events': typeof EventsIndexRoute
+  '/people': typeof PeopleIndexRoute
   '/podcasts': typeof PodcastsIndexRoute
   '/profile': typeof ProfileIndexRoute
   '/programs': typeof ProgramsIndexRoute
@@ -3270,7 +3285,7 @@ export interface FileRoutesById {
   '/moderacja-komentarzy': typeof ModeracjaKomentarzyRoute
   '/network': typeof NetworkRouteWithChildren
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
-  '/people': typeof PeopleRoute
+  '/people': typeof PeopleRouteWithChildren
   '/polityka-prywatnosci': typeof PolitykaPrywatnosciRoute
   '/polityka-przetwarzania-danych': typeof PolitykaPrzetwarzaniaDanychRoute
   '/polls': typeof PollsRoute
@@ -3398,6 +3413,7 @@ export interface FileRoutesById {
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
   '/organization/$slug': typeof OrganizationSlugRoute
+  '/people/$slug': typeof PeopleSlugRoute
   '/plans/$planId': typeof PlansPlanIdRoute
   '/podcast/$slug': typeof PodcastSlugRoute
   '/podcast/rss.xml': typeof PodcastRssDotxmlRoute
@@ -3440,6 +3456,7 @@ export interface FileRoutesById {
   '/blog/': typeof BlogIndexRoute
   '/club/': typeof ClubIndexRoute
   '/events/': typeof EventsIndexRoute
+  '/people/': typeof PeopleIndexRoute
   '/podcasts/': typeof PodcastsIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/programs/': typeof ProgramsIndexRoute
@@ -3797,6 +3814,7 @@ export interface FileRouteTypes {
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
     | '/organization/$slug'
+    | '/people/$slug'
     | '/plans/$planId'
     | '/podcast/$slug'
     | '/podcast/rss.xml'
@@ -3839,6 +3857,7 @@ export interface FileRouteTypes {
     | '/blog/'
     | '/club/'
     | '/events/'
+    | '/people/'
     | '/podcasts/'
     | '/profile/'
     | '/programs/'
@@ -4063,7 +4082,6 @@ export interface FileRouteTypes {
     | '/moderacja-komentarzy'
     | '/network'
     | '/news-sitemap.xml'
-    | '/people'
     | '/polityka-prywatnosci'
     | '/polityka-przetwarzania-danych'
     | '/polls'
@@ -4178,6 +4196,7 @@ export interface FileRouteTypes {
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
     | '/organization/$slug'
+    | '/people/$slug'
     | '/plans/$planId'
     | '/podcast/$slug'
     | '/podcast/rss.xml'
@@ -4220,6 +4239,7 @@ export interface FileRouteTypes {
     | '/blog'
     | '/club'
     | '/events'
+    | '/people'
     | '/podcasts'
     | '/profile'
     | '/programs'
@@ -4573,6 +4593,7 @@ export interface FileRouteTypes {
     | '/newsletter/confirm'
     | '/newsletter/unsubscribe'
     | '/organization/$slug'
+    | '/people/$slug'
     | '/plans/$planId'
     | '/podcast/$slug'
     | '/podcast/rss.xml'
@@ -4615,6 +4636,7 @@ export interface FileRouteTypes {
     | '/blog/'
     | '/club/'
     | '/events/'
+    | '/people/'
     | '/podcasts/'
     | '/profile/'
     | '/programs/'
@@ -4843,7 +4865,7 @@ export interface RootRouteChildren {
   ModeracjaKomentarzyRoute: typeof ModeracjaKomentarzyRoute
   NetworkRoute: typeof NetworkRouteWithChildren
   NewsSitemapDotxmlRoute: typeof NewsSitemapDotxmlRoute
-  PeopleRoute: typeof PeopleRoute
+  PeopleRoute: typeof PeopleRouteWithChildren
   PolitykaPrywatnosciRoute: typeof PolitykaPrywatnosciRoute
   PolitykaPrzetwarzaniaDanychRoute: typeof PolitykaPrzetwarzaniaDanychRoute
   PollsRoute: typeof PollsRoute
@@ -5384,6 +5406,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PodcastsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/people/': {
+      id: '/people/'
+      path: '/'
+      fullPath: '/people/'
+      preLoaderRoute: typeof PeopleIndexRouteImport
+      parentRoute: typeof PeopleRoute
+    }
     '/events/': {
       id: '/events/'
       path: '/'
@@ -5677,6 +5706,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/plans/$planId'
       preLoaderRoute: typeof PlansPlanIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/people/$slug': {
+      id: '/people/$slug'
+      path: '/$slug'
+      fullPath: '/people/$slug'
+      preLoaderRoute: typeof PeopleSlugRouteImport
+      parentRoute: typeof PeopleRoute
     }
     '/organization/$slug': {
       id: '/organization/$slug'
@@ -8429,6 +8465,19 @@ const NetworkRouteChildren: NetworkRouteChildren = {
 const NetworkRouteWithChildren =
   NetworkRoute._addFileChildren(NetworkRouteChildren)
 
+interface PeopleRouteChildren {
+  PeopleSlugRoute: typeof PeopleSlugRoute
+  PeopleIndexRoute: typeof PeopleIndexRoute
+}
+
+const PeopleRouteChildren: PeopleRouteChildren = {
+  PeopleSlugRoute: PeopleSlugRoute,
+  PeopleIndexRoute: PeopleIndexRoute,
+}
+
+const PeopleRouteWithChildren =
+  PeopleRoute._addFileChildren(PeopleRouteChildren)
+
 interface ProfileRouteChildren {
   ProfileAccountRoute: typeof ProfileAccountRoute
   ProfileAuthorRoute: typeof ProfileAuthorRoute
@@ -8580,7 +8629,7 @@ const rootRouteChildren: RootRouteChildren = {
   ModeracjaKomentarzyRoute: ModeracjaKomentarzyRoute,
   NetworkRoute: NetworkRouteWithChildren,
   NewsSitemapDotxmlRoute: NewsSitemapDotxmlRoute,
-  PeopleRoute: PeopleRoute,
+  PeopleRoute: PeopleRouteWithChildren,
   PolitykaPrywatnosciRoute: PolitykaPrywatnosciRoute,
   PolitykaPrzetwarzaniaDanychRoute: PolitykaPrzetwarzaniaDanychRoute,
   PollsRoute: PollsRoute,

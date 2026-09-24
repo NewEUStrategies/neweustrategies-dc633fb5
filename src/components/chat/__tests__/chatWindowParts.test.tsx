@@ -184,12 +184,12 @@ describe("ChatWindowHeader", () => {
     const { container } = withTooltips(
       <ChatWindowHeader {...headerProps({ slug: "anna-nowak" })} />,
     );
-    expect(container.querySelector('a[href="/author/anna-nowak"]')).not.toBeNull();
+    expect(container.querySelector('a[href="/people/anna-nowak"]')).not.toBeNull();
   });
 
   it("bez sluga avatar nie jest linkiem", () => {
     const { container } = withTooltips(<ChatWindowHeader {...headerProps()} />);
-    expect(container.querySelector('a[href^="/author/"]')).toBeNull();
+    expect(container.querySelector('a[href^="/people/"]')).toBeNull();
   });
 
   it("powrót do listy jest tylko w wariancie page i tylko z handlerem", () => {

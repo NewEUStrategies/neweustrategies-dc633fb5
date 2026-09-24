@@ -11,7 +11,8 @@ import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 // admin tenanta) nadpisuje pojedyncze pola bezpośrednio na tej stronie
 // inline-edytorem (ExpertLayoutInlineEditor, lazy) - merge nadpisań robi
 // `mergeExpertLayout`, a draft edytora renderuje się na żywo tym samym torem.
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
+import { isNonAuthorMemberSlug } from "@/lib/profile/memberSlug.functions";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
@@ -171,6 +172,11 @@ export const Route = createFileRoute("/author/$slug")({
     }
     const data = identity.data;
     if (!data) {
+      // Osoba bez roli autora ma profil członka - trwałe przekierowanie
+      // zamiast 404 (People = każdy użytkownik, Author = nadane przez admina).
+      if (await isNonAuthorMemberSlug({ data: { slug: params.slug } })) {
+        throw redirect({ to: "/people/$slug", params: { slug: params.slug }, statusCode: 301 });
+      }
       setCacheControlHeader(NO_STORE);
       throw notFound();
     }

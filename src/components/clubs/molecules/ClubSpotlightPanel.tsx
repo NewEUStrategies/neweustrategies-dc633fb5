@@ -59,7 +59,7 @@ export function ClubSpotlightPanel({ clubSlug, clubId }: { clubSlug: string; clu
         <div className="min-w-0 flex-1">
           {row.profile_slug !== null ? (
             <Link
-              to="/author/$slug"
+              to="/people/$slug"
               params={{ slug: row.profile_slug }}
               className="block truncate text-sm font-semibold leading-tight hover:text-primary"
             >

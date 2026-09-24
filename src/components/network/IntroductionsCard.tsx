@@ -90,7 +90,7 @@ function Row({ row, role }: { row: IntroductionRow; role: Role }) {
     >
       <div className="flex items-start gap-3">
         <Link
-          to="/author/$slug"
+          to="/people/$slug"
           params={{ slug: otherId }}
           className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-border bg-muted"
         >
@@ -103,7 +103,7 @@ function Row({ row, role }: { row: IntroductionRow; role: Role }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <Link
-              to="/author/$slug"
+              to="/people/$slug"
               params={{ slug: otherId }}
               className="truncate text-sm font-semibold text-foreground hover:underline"
             >

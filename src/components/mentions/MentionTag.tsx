@@ -134,7 +134,7 @@ export function MentionPersonCard({
         <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground">{person.bio}</p>
       ) : null}
       <Link
-        to="/author/$slug"
+        to="/people/$slug"
         params={{ slug: person.slug }}
         className="inline-block text-xs font-medium text-primary hover:underline"
       >
@@ -308,7 +308,7 @@ export function MentionTag({
       </Link>
     ) : (
       <Link
-        to="/author/$slug"
+        to="/people/$slug"
         params={{ slug }}
         data-mention={slug}
         className={cn("font-medium text-primary hover:underline", className)}
