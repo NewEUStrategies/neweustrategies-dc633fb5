@@ -33,6 +33,7 @@ import type { EventSessionRow, EventTrackRow } from "@/lib/events/sessionsApi";
 import {
   agendaSessionsFromAdminRows,
   attendeeEntriesFromRegistrationRows,
+  publishedSponsorIdSet,
   speakerRowsFromAdminEntries,
   trackChipsFromAdminRows,
 } from "@/lib/events/previewLiveData";
@@ -837,5 +838,20 @@ describe("trackChipsFromAdminRows", () => {
       trackRow({ id: "c", is_active: null }),
     ]);
     expect(chips.map((chip) => chip.id)).toEqual(["a", "c"]);
+  });
+});
+
+describe("publishedSponsorIdSet", () => {
+  it("lista krotsza od limitu jest pelna - daje zbior do filtra", () => {
+    expect(publishedSponsorIdSet([{ id: "a" }, { id: "b" }], 200)).toEqual(new Set(["a", "b"]));
+    expect(publishedSponsorIdSet([], 200)).toEqual(new Set());
+  });
+
+  // Pelna strona moze byc ucieta: brak przypiecia na niej nie dowodzi, ze jest
+  // nieogloszone, wiec podglad nie moze zdjac sponsora widocznego na stronie.
+  it("pelna strona albo brak odpowiedzi to brak filtra", () => {
+    const full = Array.from({ length: 200 }, (_, i) => ({ id: `s${i}` }));
+    expect(publishedSponsorIdSet(full, 200)).toBeUndefined();
+    expect(publishedSponsorIdSet(undefined, 200)).toBeUndefined();
   });
 });

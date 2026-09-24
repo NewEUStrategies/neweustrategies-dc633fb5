@@ -63,6 +63,23 @@ function previewSponsor(
   };
 }
 
+/**
+ * Zbior ogloszonych przypiec do filtra `previewSponsor` - albo `undefined`,
+ * gdy wywolujacy NIE MA pewnosci, ze zna je wszystkie.
+ *
+ * Lista panelu ma limit. Pelna strona (`rows.length >= limit`) moze byc
+ * ucieta, a wtedy brak przypiecia na liscie nie dowodzi, ze jest nieogloszone:
+ * podglad zdejmowalby sponsora, ktorego strona publiczna pokaze. Przy
+ * niepewnosci wolimy nie filtrowac (tak jak przed wprowadzeniem filtra).
+ */
+export function publishedSponsorIdSet(
+  rows: readonly { id: string }[] | undefined,
+  limit: number,
+): ReadonlySet<string> | undefined {
+  if (rows === undefined || rows.length >= limit) return undefined;
+  return new Set(rows.map((row) => row.id));
+}
+
 /** Kontekst, ktorego lista sesji panelu sama nie niesie. */
 export interface AgendaPreviewContext {
   /** Sciezki wydarzenia - lista sesji nie oddaje sponsora sciezki. */

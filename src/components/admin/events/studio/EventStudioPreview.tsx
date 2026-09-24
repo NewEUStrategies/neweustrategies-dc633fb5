@@ -54,6 +54,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchEventSpeakers } from "@/lib/admin/community";
 import {
   agendaSessionsFromAdminRows,
+  publishedSponsorIdSet,
   attendeeEntriesFromRegistrationRows,
   speakerRowsFromAdminEntries,
   trackChipsFromAdminRows,
@@ -69,6 +70,9 @@ type PreviewNavTarget = {
   /** Znacznik pozycji modulowej - decyduje, czy podstrona dostaje zywe dane. */
   module: string | null;
 };
+
+/** Górna granica listy ogłoszonych przypięć w podglądzie (zaciskana w RPC do 1..200). */
+const PREVIEW_SPONSORS_LIMIT = 200;
 
 export function EventStudioPreview({
   open,
@@ -143,7 +147,10 @@ export function EventStudioPreview({
   const viewer = useViewerCardFacts();
   // Tylko przypiecia OGLOSZONE - ten sam filtr, ktory stosuje publiczne
   // `event_sponsors_public`.
-  const sponsorsQ = useSponsors({ eventId, published: "published", limit: 200 }, open);
+  const sponsorsQ = useSponsors(
+    { eventId, published: "published", limit: PREVIEW_SPONSORS_LIMIT },
+    open,
+  );
   const sponsorTiers = useMemo(() => sponsorTiersFromAdminRows(sponsorsQ.data), [sponsorsQ.data]);
 
   // ZYWE DANE PODSTRON MODULOWYCH. Projekcje publiczne (`event_agenda`,
@@ -169,7 +176,7 @@ export function EventStudioPreview({
   // bramka `is_published`, ktora stosuje publiczne `event_agenda`. Lista jest
   // juz pobrana wyzej (`sponsorsQ`), wiec to nie jest drugie zapytanie.
   const publishedSponsorIds = useMemo(
-    () => (sponsorsQ.data === undefined ? undefined : new Set(sponsorsQ.data.map((row) => row.id))),
+    () => publishedSponsorIdSet(sponsorsQ.data, PREVIEW_SPONSORS_LIMIT),
     [sponsorsQ.data],
   );
   const live: EventPreviewLiveData = useMemo(
