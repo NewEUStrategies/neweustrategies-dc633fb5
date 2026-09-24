@@ -286,12 +286,15 @@ SELECT pg_temp.assert(
 
 -- Liczba kolumn wyniku jest czescia kontraktu (`check:rpc-contract` i widget
 -- buildera): przepisanie ciala `CREATE OR REPLACE`-em nie moze jej ruszyc.
+-- 20260924120000 dopisala SWIADOMIE szesc kolumn (piec pol karty prelegenta
+-- i `tracks`) - razem z `types.ts` i `mapSpeakerRow`, wiec liczba rosnie tu
+-- w tym samym kroku, a nie po cichu.
 SELECT pg_temp.assert(
-  (SELECT count(*) = 22
+  (SELECT count(*) = 28
      FROM pg_proc p
      JOIN pg_namespace n ON n.oid = p.pronamespace
      JOIN unnest(p.proargnames) AS a(name) ON true
     WHERE n.nspname = 'public' AND p.proname = 'event_speakers_public'),
-  '97 kontrakt: sygnatura + 21 kolumn RETURNS TABLE bez zmian');
+  '97 kontrakt: sygnatura + 27 kolumn RETURNS TABLE bez zmian');
 
 ROLLBACK;

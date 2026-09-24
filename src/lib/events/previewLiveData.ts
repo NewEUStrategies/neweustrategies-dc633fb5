@@ -18,12 +18,14 @@ import type {
   AgendaAccessState,
   AgendaFormat,
   AgendaSession,
+  AgendaSpeaker,
   AgendaSponsor,
 } from "@/lib/events/agendaSurface";
 import { AGENDA_FORMATS } from "@/lib/events/agendaSurface";
 import type { EventSessionRow, EventTrackRow } from "@/lib/events/sessionsApi";
 import type { EventSpeakerEntry } from "@/lib/admin/community";
 import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
+import type { SpeakerTrack } from "@/lib/events/speakerCard";
 import type { AttendeeEntry } from "@/lib/events/publicEventApi";
 import type { EventRegistrationRow } from "@/lib/events/registrationsApi";
 
@@ -86,6 +88,62 @@ export interface AgendaPreviewContext {
   tracks?: readonly EventTrackRow[];
   /** Identyfikatory OGLOSZONYCH przypiec sponsorow tego wydarzenia. */
   publishedSponsorIds?: ReadonlySet<string>;
+  /**
+   * Rejestr prelegentow panelu z OBSADA (`sessions` wpisu). Lista sesji panelu
+   * oddaje tylko liczbe prelegentow, wiec obsade sesji odwracamy z rejestru -
+   * to jest zapytanie, ktore podglad i tak wykonuje dla siatki prelegentow,
+   * a nie drugie.
+   */
+  speakers?: readonly EventSpeakerEntry[];
+}
+
+/**
+ * Tozsamosc prelegenta w programie. `event_agenda` oddaje w kluczu `user_id`
+ * konto ALBO wiersz kartoteki (`COALESCE(profiles.id, event_people.id)`), wiec
+ * podglad robi dokladnie to samo - inaczej indeks sciezek prelegentow
+ * (`agendaSpeakerTracks`) mialby w podgladzie inne klucze niz na stronie.
+ */
+function agendaSpeakerIdentity(entry: EventSpeakerEntry): string {
+  return entry.user_id ?? entry.person_id ?? entry.speaker_profile_id;
+}
+
+/**
+ * Obsada sesji z rejestru panelu, w ksztalcie `AgendaSpeaker`.
+ *
+ * TE SAME BRAMKI, CO `event_agenda`: nakladka niepubliczna (`is_public =
+ * false`) nie wchodzi do obsady, osoba bez nazwy do wyswietlenia tez nie.
+ * Rola sceniczna w programie to naglowek nakladki, a w jego braku stanowisko
+ * (`COALESCE(headline, job_title)` - jak w agendzie).
+ */
+function speakersBySession(
+  entries: readonly EventSpeakerEntry[] | undefined,
+): Map<string, AgendaSpeaker[]> {
+  const bySession = new Map<string, AgendaSpeaker[]>();
+  for (const entry of entries ?? []) {
+    if (!entry.is_public) continue;
+    const displayName = nullable(entry.display_name);
+    if (displayName === null) continue;
+    for (const link of entry.sessions ?? []) {
+      const list = bySession.get(link.sessionId) ?? [];
+      list.push({
+        userId: agendaSpeakerIdentity(entry),
+        slug: null,
+        displayName,
+        avatarUrl: nullable(entry.avatar_url),
+        headlinePl: nullable(entry.headline_pl) ?? nullable(entry.job_title),
+        headlineEn: nullable(entry.headline_en) ?? nullable(entry.job_title),
+        role: nullable(link.role),
+        sortOrder: link.sortOrder,
+      });
+      bySession.set(link.sessionId, list);
+    }
+  }
+  for (const list of bySession.values()) {
+    list.sort(
+      (a, b) => a.sortOrder - b.sortOrder || a.displayName.localeCompare(b.displayName, "pl"),
+    );
+  }
+  return bySession;
 }
 
 /**
@@ -102,6 +160,7 @@ export function agendaSessionsFromAdminRows(
   context: AgendaPreviewContext = {},
 ): AgendaSession[] {
   if (rows === undefined) return [];
+  const cast = speakersBySession(context.speakers);
   const trackSponsors = new Map<string, AgendaSponsor | null>(
     (context.tracks ?? []).map((track) => [
       track.id,
@@ -155,9 +214,48 @@ export function agendaSessionsFromAdminRows(
         // Zapis nalezy do uczestnika - organizator nie ma tu wlasnego stanu.
         mySignupStatus: null,
         accessState,
-        speakers: [],
+        speakers: cast.get(row.id) ?? [],
       } satisfies AgendaSession;
     });
+}
+
+/**
+ * Sciezki prelegenta w podgladzie - z TYCH SAMYCH sesji, ktore rysuje program
+ * podgladu (bez odwolanych i prywatnych, patrz `agendaSessionsFromAdminRows`).
+ * Lista panelu (`tracks` wpisu) liczy takze sesje prywatne, a podglad ma
+ * pokazac karte taka, jak zobaczy ja uczestnik obok tego programu.
+ */
+function previewSpeakerTracks(
+  entry: EventSpeakerEntry,
+  sessions: readonly EventSessionRow[],
+): SpeakerTrack[] {
+  const visible = new Map(
+    sessions
+      .filter((row) => row.status !== "cancelled" && !row.is_private)
+      .map((row) => [row.id, row] as const),
+  );
+  const tracks = new Map<string, SpeakerTrack>();
+  for (const link of entry.sessions ?? []) {
+    const row = visible.get(link.sessionId);
+    const trackId = row === undefined ? null : nullable(row.track_id);
+    if (row === undefined || trackId === null) continue;
+    const known = tracks.get(trackId);
+    if (known !== undefined) {
+      known.sessionsCount += 1;
+      continue;
+    }
+    tracks.set(trackId, {
+      id: trackId,
+      key: nullable(row.track_key),
+      namePl: nullable(row.track_name_pl),
+      nameEn: nullable(row.track_name_en),
+      accentColor: nullable(row.track_accent_color),
+      sessionsCount: 1,
+    });
+  }
+  return [...tracks.values()].sort(
+    (a, b) => (a.key ?? "").localeCompare(b.key ?? "") || a.id.localeCompare(b.id),
+  );
 }
 
 /**
@@ -166,9 +264,15 @@ export function agendaSessionsFromAdminRows(
  * ODSIEWAMY NIEPUBLICZNYCH (`is_public === false`): strona publiczna ich nie
  * pokaze, wiec podglad, ktory by je narysowal, obiecywalby cos, czego po
  * publikacji nie bedzie.
+ *
+ * KARTA JEST TA SAMA. Pola karty rozwijanej kliknieciem i sciezki jada do
+ * wiersza, wiec podglad rozwija karte tak samo, jak strona. `sessions` to
+ * lista sesji panelu - z niej liczymy sciezki widoczne obok programu podgladu;
+ * bez niej karta dostaje sciezki z listy panelu.
  */
 export function speakerRowsFromAdminEntries(
   entries: readonly EventSpeakerEntry[] | undefined,
+  sessions?: readonly EventSessionRow[],
 ): PublicSpeakerRow[] {
   if (entries === undefined) return [];
   return entries
@@ -182,8 +286,10 @@ export function speakerRowsFromAdminEntries(
       avatar_url: entry.avatar_url,
       job_title: entry.job_title,
       company: entry.company,
-      headline_pl: null,
-      headline_en: null,
+      // Naglowek sceniczny wychodzi publicznie za ta sama bramka `is_public`,
+      // ktora ten filtr juz sprawdzil - wiec podglad moze go pokazac.
+      headline_pl: entry.headline_pl ?? null,
+      headline_en: entry.headline_en ?? null,
       bio_pl: null,
       bio_en: null,
       topics_pl: [],
@@ -195,6 +301,12 @@ export function speakerRowsFromAdminEntries(
       is_expert: false,
       has_speaker_profile: entry.speaker_profile_id !== "",
       sort_order: entry.sort_order,
+      card_photo_url: entry.card_photo_url ?? null,
+      card_cta_label_pl: entry.card_cta_label_pl ?? null,
+      card_cta_label_en: entry.card_cta_label_en ?? null,
+      card_cta_url: entry.card_cta_url ?? null,
+      card_cta_color: entry.card_cta_color ?? null,
+      tracks: sessions === undefined ? (entry.tracks ?? []) : previewSpeakerTracks(entry, sessions),
     }));
 }
 

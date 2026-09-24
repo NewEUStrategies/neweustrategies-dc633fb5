@@ -161,6 +161,17 @@ function useInvalidateEvent(): (eventId: string) => Promise<void> {
     // klienckiego SELECT-a), wiec bez tej linii ponowne otwarcie sesji zaraz
     // po zapisie pokazywaloby WARTOSC SPRZED zapisu - i odsylalo ja z powrotem.
     await queryClient.invalidateQueries({ queryKey: [...agendaKeys.all, "session"] });
+    // TRZECIE: OBSADA PASMA I SCIEZKI PRELEGENTOW SA WYLICZANE Z SESJI.
+    // `admin_event_track_speakers` (zakladka „Prelegenci" pasma) i `tracks`
+    // w rejestrze prelegentow (panel + podglad studia) liczy baza z obsady
+    // sesji i ich sciezek. Kazda mutacja programu - obsada, przypiecie do
+    // pasma, status, usuniecie sesji - moze je zmienic, a klucz obsady pasma
+    // lezy poza galezia wydarzenia (`["event-agenda", "track-speakers", id]`).
+    // Bez tego organizator dopisywal osobe do sesji i przez `CONFIG_STALE_MS`
+    // widzial w pasmie stara obsade, a na karcie prelegenta - stare sciezki.
+    await queryClient.invalidateQueries({ queryKey: [...agendaKeys.all, "track-speakers"] });
+    await queryClient.invalidateQueries({ queryKey: ["admin-event-speakers", eventId] });
+    await queryClient.invalidateQueries({ queryKey: ["admin", "event", eventId, "speakers"] });
   };
 }
 

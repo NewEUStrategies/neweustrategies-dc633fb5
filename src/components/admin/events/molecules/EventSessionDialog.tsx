@@ -8,6 +8,11 @@
 // ŚCIEŻKA, SALA I SESJA NADRZĘDNA TO DROPLISTY Z DANYCH WYDARZENIA. Wpisywany
 // identyfikator byłby jedynym miejscem panelu, gdzie organizator musi znać UUID.
 //
+// OBSADA MA WŁASNĄ SEKCJĘ I WŁASNY ZAPIS (`SessionSpeakersEditor`). To ona
+// decyduje o ścieżkach prelegenta - przypisanie do sesji w ścieżce dopisuje
+// ścieżkę samo - a RPC obsady ma własne odmowy, więc nie jedzie tym samym
+// przyciskiem, co pola sesji.
+//
 // SESJA NADRZĘDNA NIE MOŻE BYĆ TĄ SESJĄ ani podsesją innej (`parent_depth`),
 // więc lista kandydatów jest już odfiltrowana - odmowa bazy to ostatnia linia,
 // nie pierwsza.
@@ -27,6 +32,7 @@ import { AdminFormSection } from "@/components/admin/molecules/AdminFormSection"
 import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow";
 import { AdminFormSwitchRow } from "@/components/admin/molecules/AdminFormSwitchRow";
 import { AdminFormEnumRow } from "@/components/admin/molecules/AdminFormEnumRow";
+import { SessionSpeakersEditor } from "@/components/admin/events/molecules/SessionSpeakersEditor";
 import { useSessionDetail } from "@/lib/events/useEventSessions";
 import {
   SESSION_MAX_DESCRIPTION,
@@ -355,6 +361,12 @@ export function EventSessionDialog({
               onValueChange={(value) => set("parentSessionId", value === NONE ? null : value)}
             />
           </AdminFormSection>
+
+          <SessionSpeakersEditor
+            eventId={eventId}
+            sessionId={session === null ? null : session.id}
+            trackName={draft.trackId === null ? null : trackLabel(draft.trackId)}
+          />
 
           <AdminFormSection title={t("adminEventAgenda.sessionDialog.requiresSignup")} columns={2}>
             <AdminFormSwitchRow

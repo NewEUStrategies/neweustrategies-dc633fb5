@@ -1,6 +1,13 @@
 // Organizm: siatka prelegentów wydarzenia w układzie ekranu wzorcowego -
-// kwadratowe zdjęcie u góry karty, pod nim WYŚRODKOWANE imię i nazwisko, rola
-// i organizacja, po cztery karty w wierszu na szerokim ekranie.
+// kwadratowe zdjęcie u góry karty, pod nim imię i nazwisko, rola i organizacja,
+// do trzech kart w wierszu na szerokim ekranie.
+//
+// KARTA ROZWIJA SIĘ KLIKNIĘCIEM W ZDJĘCIE. Rysunek i ruch karty mieszkają
+// w `SpeakerProfileCard` (wzorzec: nagłówek profilu - małe zdjęcie rośnie do
+// pełnego kadru z podpisem na gradiencie). Domyślny wygląd siatki się nie
+// zmienia: zwinięta karta to ten sam kwadrat 80 px i te same trzy linie.
+// Profil (dialog) otwiera PRZYCISK karty, a nie cała karta - klik w zdjęcie
+// jest zarezerwowany dla powiększenia.
 //
 // SIATKA NIE RYSUJE NAGŁÓWKA - I NIE RYSUJE GO `EventPageSections`. Ta lista
 // NIE JEST jego sekcją: `OWNED` w `EventPageSections.tsx` wymienia program,
@@ -26,7 +33,7 @@
 // w panelu, uczestnik pustą sekcję. Skutek dla tego pliku jest dwojaki:
 // klucz karty NIE MOŻE stać na `user_id` (dla takiej osoby jest pusty -
 // stąd `speakerRowKey`), a klikalność nie może być bezwarunkowa (patrz
-// `speakerHasProfileToShow` niżej). Pilnuje tego bramka
+// `speakerHasProfileToShow` w `SpeakerProfileCard`). Pilnuje tego bramka
 // `src/components/events/__tests__/eventSpeakerWithoutAccount.gate.test.tsx`.
 //
 // LINIA PODPISU ISTNIEJE TYLKO WTEDY, GDY MA TREŚĆ. Prelegent bez roli albo bez
@@ -54,12 +61,10 @@ import { useTranslation } from "react-i18next";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { uiLang } from "@/lib/i18n/format";
-import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { speakersQueryOptions, type PublicSpeakerRow } from "@/lib/builder/speakersQuery";
-import { speakerHasProfileToShow, speakerRowKey } from "@/lib/builder/speakerRow";
+import { speakerRowKey } from "@/lib/builder/speakerRow";
 import { publicEventErrorMessage } from "@/lib/events/publicEventErrors";
-import { SpeakerAvatar } from "@/components/events/SpeakerAvatar";
-import { SpeakerExpertBadge } from "@/components/events/SpeakerExpertBadge";
+import { SpeakerProfileCard } from "@/components/events/public/molecules/SpeakerProfileCard";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
 ensureEventFrontI18n();
@@ -68,10 +73,10 @@ ensureEventFrontI18n();
 // tekstu - przy dwóch kolumnach na telefonie każda z nich ma jeszcze szerokość
 // na cokolwiek poza wielokropkiem.
 const GRID_CLASS = "grid grid-cols-1 border-l border-t border-border sm:grid-cols-2 lg:grid-cols-3";
+// Karta zastepcza ma TEN SAM obrys, co karta prelegenta (`SpeakerProfileCard`),
+// wiec wysokosc sekcji nie skacze w chwili, gdy przyjda dane.
 const CARD_CLASS =
-  "group flex h-full w-full flex-col items-start border-b border-r border-border bg-background p-5 text-left";
-const CARD_INTERACTIVE_CLASS =
-  " transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--brand)]/50";
+  "flex h-full w-full flex-col items-start border-b border-r border-border bg-background p-5 text-left";
 
 // Osiem kart zastępczych: tyle, ile wchodzi w dwa wiersze docelowego układu,
 // więc wysokość sekcji nie skacze w chwili, gdy przyjdą dane.
@@ -146,81 +151,9 @@ export function EventSpeakersGridView({
     <ul className={GRID_CLASS}>
       {speakers.map((speaker) => (
         <li key={speakerRowKey(speaker)} className="flex">
-          <SpeakerCard speaker={speaker} lang={lang} onSelect={onSelect} />
+          <SpeakerProfileCard speaker={speaker} lang={lang} onSelect={onSelect} />
         </li>
       ))}
     </ul>
   );
-}
-
-function SpeakerCard({
-  speaker,
-  lang,
-  onSelect,
-}: {
-  speaker: PublicSpeakerRow;
-  lang: "pl" | "en";
-  onSelect?: (speaker: PublicSpeakerRow) => void;
-}) {
-  const name = speaker.display_name ?? "";
-  // Rola: `headline` w języku interfejsu, a gdy prelegent go nie wypełnił -
-  // stanowisko z profilu. Ta sama kolejność, co w `EventSpeakersSection`, żeby
-  // ta sama osoba nie była „Prezesem” w jednym miejscu i bez roli w drugim.
-  const role = pickLocalized(speaker, "headline", lang, speaker.job_title ?? "");
-  const organization = speaker.company ?? "";
-
-  // Zdjęcie idzie przez `SpeakerAvatar`, bo brak awatara ma tam już rozwiązaną
-  // degradację (inicjały na tle muted), a nie ikonę zepsutego obrazka.
-  const body = (
-    <>
-      <SpeakerAvatar name={name} photoUrl={speaker.avatar_url} size="xl" />
-      {name !== "" && (
-        <span
-          title={name}
-          className="mt-5 block w-full text-lg font-semibold leading-tight text-foreground"
-        >
-          {name}
-        </span>
-      )}
-      {role !== "" && (
-        <span title={role} className="mt-2 block w-full text-sm leading-snug text-muted-foreground">
-          {role}
-        </span>
-      )}
-      {organization !== "" && (
-        <span
-          title={organization}
-          className="mt-1 block w-full text-xs font-semibold uppercase leading-tight text-foreground/80"
-        >
-          {organization}
-        </span>
-      )}
-      {/* Plakietka eksperta stoi POD podpisem, a nie w wierszu nazwiska: nazwisko
-        ma `truncate`, więc rodzeństwo w tej samej linii zabierałoby mu szerokość
-        i ucinało je tym wcześniej, im dłuższa nazwa. Sam rysunek plakietki jest
-        wspólny z zapowiedzią na przeglądzie - fakt ma jeden renderer. */}
-      {speaker.is_expert && <SpeakerExpertBadge className="mt-1.5" />}
-    </>
-  );
-
-  // KLIKALNA JEST KARTA, KTÓRA MA CO OTWORZYĆ. Dla osoby z kontem odpowiedź
-  // jest zawsze twierdząca (dialog dociąga profil i listę wystąpień), dla osoby
-  // BEZ konta - tylko wtedy, gdy wiersz niesie coś, czego na karcie nie ma
-  // (biogram, tematy, języki, statystyki). Karta wyglądająca na klikalną,
-  // która po kliknięciu powtarza to samo nazwisko i tę samą firmę, jest gorsza
-  // niż martwy wpis: obiecuje więcej i tego nie dowozi. Ta sama reguła stoi
-  // w zapowiedzi na przeglądzie - decyduje o niej JEDEN predykat, a nie dwie
-  // kopie warunku.
-  if (onSelect && speakerHasProfileToShow(speaker)) {
-    return (
-      <button
-        type="button"
-        onClick={() => onSelect(speaker)}
-        className={CARD_CLASS + CARD_INTERACTIVE_CLASS}
-      >
-        {body}
-      </button>
-    );
-  }
-  return <div className={CARD_CLASS}>{body}</div>;
 }

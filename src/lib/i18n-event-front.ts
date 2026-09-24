@@ -375,6 +375,9 @@ export const eventFrontPl = {
       roomLabel: "Sala",
       floorLabel: "Piętro",
       speakersLabel: "Prelegenci",
+      // Ścieżki prelegenta w programie wynikają z obsady sesji - nikt ich nie
+      // wpisuje, więc napis mówi o udziale, a nie o przypisaniu.
+      speakerTracksLabel: "Występuje w ścieżkach",
       // Plakietka roli stoi przy JEDNYM nazwisku - liczba pojedyncza.
       speakerRole: {
         speaker: "Prelegent",
@@ -439,6 +442,18 @@ export const eventFrontPl = {
     speakers: {
       loading: "Wczytywanie prelegentów…",
       expertBadge: "Ekspert",
+      // Karta rozwijana kliknięciem w zdjęcie. Nazwa przycisku niesie
+      // nazwisko: kilkanaście przycisków „Powiększ zdjęcie" na jednej stronie
+      // byłoby dla czytnika ekranu listą nierozróżnialnych pozycji.
+      card: {
+        expand: "Powiększ zdjęcie: {{name}}",
+        collapse: "Zmniejsz zdjęcie: {{name}}",
+        profileAction: "Profil",
+        linkAction: "Więcej",
+        actionFor: "{{label}}: {{name}}",
+        opensInNewTab: "(otwiera się w nowej karcie)",
+        tracksLabel: "Ścieżki",
+      },
     },
 
     // ---------------------------------------------------------------------
@@ -968,6 +983,7 @@ export const eventFrontEn = {
       roomLabel: "Room",
       floorLabel: "Floor",
       speakersLabel: "Speakers",
+      speakerTracksLabel: "Appears in tracks",
       speakerRole: {
         speaker: "Speaker",
         moderator: "Moderator",
@@ -1013,6 +1029,17 @@ export const eventFrontEn = {
     speakers: {
       loading: "Loading speakers…",
       expertBadge: "Expert",
+      // Card expanded by clicking the photo. The button name carries the
+      // person's name so a screen reader can tell a dozen of them apart.
+      card: {
+        expand: "Enlarge photo: {{name}}",
+        collapse: "Shrink photo: {{name}}",
+        profileAction: "Profile",
+        linkAction: "More",
+        actionFor: "{{label}}: {{name}}",
+        opensInNewTab: "(opens in a new tab)",
+        tracksLabel: "Tracks",
+      },
     },
 
     // Partners and sponsors - a snapshot taken when the partner was pinned.

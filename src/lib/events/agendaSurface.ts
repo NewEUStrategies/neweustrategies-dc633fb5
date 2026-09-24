@@ -17,6 +17,7 @@ import { eventDayKey } from "@/lib/events/timezone";
 import { foldQuery } from "@/lib/search/fuzzy";
 import type { UiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
+import type { SpeakerTrack } from "@/lib/events/speakerCard";
 
 type Fns = Database["public"]["Functions"];
 
@@ -326,6 +327,61 @@ export function agendaTrackOptions(sessions: readonly AgendaSession[]): AgendaTr
   return [...tracks.values()].sort(
     (a, b) => (a.key ?? "").localeCompare(b.key ?? "") || b.count - a.count,
   );
+}
+
+/**
+ * Ścieżki KAŻDEGO prelegenta programu - klucz to `AgendaSpeaker.userId`.
+ *
+ * PRELEGENT JEST W ŚCIEŻCE, BO WYSTĘPUJE W JEJ SESJI. Nikt tego nie wpisuje:
+ * przypisanie osoby do sesji w ścieżce automatycznie dopisuje jej tę ścieżkę,
+ * a zdjęcie z sesji - zdejmuje. Liczymy z TEJ SAMEJ listy sesji, którą rysuje
+ * program (bez drugiego zapytania), więc karta sesji nie może pokazać ścieżki,
+ * której w programie nie ma. Sesja odwołana nie dopisuje ścieżki - prelegent
+ * w niej nie wystąpi.
+ *
+ * Kolejność ścieżek: klucz techniczny, jak w filtrach programu
+ * (`agendaTrackOptions`), żeby chipy przy nazwisku i przyciski filtra stały
+ * w tym samym porządku.
+ */
+export function agendaSpeakerTracks(
+  sessions: readonly AgendaSession[],
+): Map<string, SpeakerTrack[]> {
+  const perSpeaker = new Map<string, Map<string, SpeakerTrack>>();
+  for (const session of sessions) {
+    if (session.track === null || session.status === "cancelled") continue;
+    const track = session.track;
+    for (const speaker of session.speakers) {
+      if (speaker.userId === "") continue;
+      let tracks = perSpeaker.get(speaker.userId);
+      if (tracks === undefined) {
+        tracks = new Map();
+        perSpeaker.set(speaker.userId, tracks);
+      }
+      const known = tracks.get(track.id);
+      if (known === undefined) {
+        tracks.set(track.id, {
+          id: track.id,
+          key: track.key,
+          namePl: track.namePl,
+          nameEn: track.nameEn,
+          accentColor: track.accentColor,
+          sessionsCount: 1,
+        });
+      } else {
+        known.sessionsCount += 1;
+      }
+    }
+  }
+  const out = new Map<string, SpeakerTrack[]>();
+  for (const [userId, tracks] of perSpeaker) {
+    out.set(
+      userId,
+      [...tracks.values()].sort(
+        (a, b) => (a.key ?? "").localeCompare(b.key ?? "") || a.id.localeCompare(b.id),
+      ),
+    );
+  }
+  return out;
 }
 
 /**

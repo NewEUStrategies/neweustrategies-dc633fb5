@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { toJson } from "@/lib/builder/types";
 import { escapeLike } from "@/lib/admin/listFilters";
+import { parseSpeakerTracks, type SpeakerTrack } from "@/lib/events/speakerCard";
 
 // Typ + domyślne przeniesione do lib/community/modulesSettings (małego modułu
 // współdzielonego z chrome) - re-eksport utrzymuje dotychczasowe API admina.
@@ -356,6 +357,49 @@ export interface EventSpeakerEntry {
   sort_order: number;
   /** true = wiersz pochodzi WYLACZNIE ze starego rejestru. */
   is_legacy: boolean;
+  /**
+   * NAGLOWEK SCENICZNY i POLA KARTY rozwijanej kliknieciem (20260924120000).
+   * Opcjonalne: wiersz legacy bez nakladki ich nie ma, a starsze fikstury
+   * i wpisy cache sprzed kolumn nie musza ich nosic.
+   */
+  headline_pl?: string | null;
+  headline_en?: string | null;
+  card_photo_url?: string | null;
+  card_cta_label_pl?: string | null;
+  card_cta_label_en?: string | null;
+  card_cta_url?: string | null;
+  card_cta_color?: string | null;
+  /**
+   * Sciezki prelegenta WYPROWADZONE z obsady sesji (lacznie ze szkicami sesji -
+   * redaktor widzi skutek przypisania przed publikacja). Nikt ich nie wpisuje.
+   */
+  tracks?: SpeakerTrack[];
+  /** Obsada wpisu: sesje (bez odwolanych), rola i kolejnosc w sesji. */
+  sessions?: EventSpeakerSessionLink[];
+}
+
+/** Jedno wystapienie prelegenta w sesji programu. */
+export interface EventSpeakerSessionLink {
+  sessionId: string;
+  role: string;
+  sortOrder: number;
+}
+
+function parseSessionLinks(raw: unknown): EventSpeakerSessionLink[] {
+  if (!Array.isArray(raw)) return [];
+  const out: EventSpeakerSessionLink[] = [];
+  for (const item of raw) {
+    if (item === null || typeof item !== "object" || Array.isArray(item)) continue;
+    const row = item as Record<string, unknown>;
+    const sessionId = strOrEmpty(row.session_id);
+    if (sessionId === "") continue;
+    out.push({
+      sessionId,
+      role: strOrEmpty(row.role) || "speaker",
+      sortOrder: numOrZero(row.sort_order),
+    });
+  }
+  return out;
 }
 
 const strOrNull = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
@@ -374,6 +418,15 @@ function mapSpeakerRow(row: Record<string, unknown>): EventSpeakerEntry {
     is_public: row.is_public !== false,
     sort_order: numOrZero(row.sort_order),
     is_legacy: row.is_legacy === true,
+    headline_pl: strOrNull(row.headline_pl),
+    headline_en: strOrNull(row.headline_en),
+    card_photo_url: strOrNull(row.card_photo_url),
+    card_cta_label_pl: strOrNull(row.card_cta_label_pl),
+    card_cta_label_en: strOrNull(row.card_cta_label_en),
+    card_cta_url: strOrNull(row.card_cta_url),
+    card_cta_color: strOrNull(row.card_cta_color),
+    tracks: parseSpeakerTracks(row.tracks),
+    sessions: parseSessionLinks(row.sessions),
   };
 }
 
@@ -412,6 +465,12 @@ export interface EventSpeakerPersonInput {
   languages?: readonly string[];
   /** Nakladka sceniczna widoczna publicznie (opis, nie sama obecnosc). */
   isPublic?: boolean;
+  /** Karta rozwijana kliknieciem - patrz `EventSpeakerCardInput`. */
+  cardPhotoUrl?: string;
+  cardCtaLabelPl?: string;
+  cardCtaLabelEn?: string;
+  cardCtaUrl?: string;
+  cardCtaColor?: string;
 }
 
 export interface EventSpeakerUpsertResult {
@@ -476,10 +535,46 @@ export async function createEventSpeakerPerson(
       topics_en: input.topicsEn,
       languages: input.languages,
       is_public: input.isPublic,
+      card_photo_url: input.cardPhotoUrl,
+      card_cta_label_pl: input.cardCtaLabelPl,
+      card_cta_label_en: input.cardCtaLabelEn,
+      card_cta_url: input.cardCtaUrl,
+      card_cta_color: input.cardCtaColor,
     }),
   });
   if (error) throw new Error(error.message);
   return mapUpsertResult(data);
+}
+
+/**
+ * Karta prelegenta rozwijana kliknieciem - edycja ISTNIEJACEGO wpisu.
+ *
+ * Kazde pole jest napisem, a PUSTY napis znaczy „wyczysc" (SQL patchuje po
+ * OBECNOSCI klucza i zamienia pusty napis na NULL). Dlatego ta funkcja NIE
+ * idzie przez `speakerPayload`, ktory pusty napis odsiewa jako „nie dotykaj":
+ * redaktor, ktory skasowal adres przycisku, musi go faktycznie skasowac.
+ */
+export interface EventSpeakerCardInput {
+  speakerProfileId: string;
+  cardPhotoUrl: string;
+  cardCtaLabelPl: string;
+  cardCtaLabelEn: string;
+  cardCtaUrl: string;
+  cardCtaColor: string;
+}
+
+export async function saveEventSpeakerCard(input: EventSpeakerCardInput): Promise<void> {
+  const { error } = await rpcUntyped("admin_event_speaker_card_save", {
+    p_payload: {
+      speaker_profile_id: input.speakerProfileId,
+      card_photo_url: input.cardPhotoUrl.trim(),
+      card_cta_label_pl: input.cardCtaLabelPl.trim(),
+      card_cta_label_en: input.cardCtaLabelEn.trim(),
+      card_cta_url: input.cardCtaUrl.trim(),
+      card_cta_color: input.cardCtaColor.trim(),
+    },
+  });
+  if (error) throw new Error(error.message);
 }
 
 /** Podpina ISTNIEJACE konto platformy (droplista wyszukiwarki kont). */

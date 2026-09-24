@@ -125,6 +125,32 @@ export const adminEventAgendaPl = {
       },
     },
 
+    // Obsada sesji w formularzu sesji. Ścieżka prelegenta NIE jest osobnym
+    // przypisaniem - wynika z sesji, więc napisy mówią o skutku, nie o polu.
+    sessionSpeakers: {
+      title: "Obsada sesji",
+      hint: "Prelegent przypisany do sesji automatycznie trafia do jej ścieżki - na karcie prelegenta i w programie.",
+      newSessionHint: "Zapisz sesję, aby przypisać do niej prelegentów.",
+      trackNote: "Ścieżka tej sesji: {{name}}",
+      noTrack: "Sesja nie ma ścieżki, więc prelegenci nie dostaną z niej żadnej ścieżki.",
+      loading: "Wczytywanie obsady…",
+      loadFailed: "Nie udało się wczytać obsady sesji.",
+      empty: "Nikt nie jest jeszcze przypisany do tej sesji.",
+      addLabel: "Dodaj prelegenta do sesji",
+      addPlaceholder: "Wybierz prelegenta wydarzenia…",
+      noCandidates:
+        "Wszyscy prelegenci wydarzenia są już w obsadzie. Nowych dodasz w ekranie Prelegenci.",
+      roleLabel: "Rola: {{name}}",
+      moveUp: "Wyżej: {{name}}",
+      moveDown: "Niżej: {{name}}",
+      remove: "Usuń z sesji: {{name}}",
+      notPublic: "Profil niepubliczny - nie pojawi się w programie.",
+      unnamed: "Bez nazwy",
+      saveAction: "Zapisz obsadę",
+      saving: "Zapisywanie obsady…",
+      unsaved: "Obsada ma niezapisane zmiany.",
+    },
+
     sessionDialog: {
       createTitle: "Nowa sesja",
       editTitle: "Edycja sesji",
@@ -597,6 +623,30 @@ export const adminEventAgendaEn = {
         reordered: "Order saved",
         speakersSaved: "Line-up saved",
       },
+    },
+
+    sessionSpeakers: {
+      title: "Session line-up",
+      hint: "A speaker assigned to a session automatically joins its track - on the speaker card and in the programme.",
+      newSessionHint: "Save the session to assign speakers to it.",
+      trackNote: "This session's track: {{name}}",
+      noTrack: "The session has no track, so its speakers get no track from it.",
+      loading: "Loading the line-up…",
+      loadFailed: "The session line-up could not be loaded.",
+      empty: "Nobody is assigned to this session yet.",
+      addLabel: "Add a speaker to the session",
+      addPlaceholder: "Choose an event speaker…",
+      noCandidates:
+        "Every event speaker is already in the line-up. Add new ones on the Speakers screen.",
+      roleLabel: "Role: {{name}}",
+      moveUp: "Move up: {{name}}",
+      moveDown: "Move down: {{name}}",
+      remove: "Remove from the session: {{name}}",
+      notPublic: "Private profile - it will not appear in the programme.",
+      unnamed: "No name",
+      saveAction: "Save the line-up",
+      saving: "Saving the line-up…",
+      unsaved: "The line-up has unsaved changes.",
     },
 
     sessionDialog: {

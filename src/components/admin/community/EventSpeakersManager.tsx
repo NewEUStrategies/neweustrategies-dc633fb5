@@ -15,6 +15,12 @@
 // wydarzenie („Brak prelegentow"), czyli odmowa RLS byla nie do odroznienia od
 // prawdy. Teraz blad ma wlasny komunikat z tresci wyjatku i przycisk ponowienia.
 //
+// KARTA I SCIEZKI. Kazdy wpis - z kontem i bez - ma przycisk „Karta"
+// (`EventSpeakerCardDialog`): zdjecie rozwinietej karty, napis, adres i kolor
+// przycisku na stronie prelegentow. Pod nazwiskiem stoja SCIEZKI prelegenta,
+// ktore baza wyprowadza z obsady sesji - nikt ich tu nie wpisuje, wiec to
+// tylko odczyt.
+//
 // PLAKIETKA O SZKICU. Publiczna projekcja filtruje po `status = 'published'`
 // (`event_speakers_public`, wczesniej `get_public_speakers`), wiec na szkicu
 // lista prelegentow NIE JEST widoczna publicznie. Bez tego zdania redaktor
@@ -31,6 +37,7 @@ import {
   ChevronUp,
   ContactRound,
   EyeOff,
+  PanelTop,
   Trash2,
   UserPlus,
 } from "lucide-react";
@@ -50,7 +57,11 @@ import {
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
 import { MemberPicker } from "./MemberPicker";
 import { EventSpeakerCreateDialog } from "./EventSpeakerCreateDialog";
+import { EventSpeakerCardDialog } from "./EventSpeakerCardDialog";
+import { SpeakerTrackChips } from "@/components/events/SpeakerTrackChips";
 import { useAdminEventDetail } from "@/lib/events/useAdminEventDetail";
+import { uiLang } from "@/lib/i18n/format";
+import { ensureI18n as ensureCommunityEventsI18n } from "@/lib/i18n-admin-community-events";
 import {
   addEventSpeaker,
   deleteAdminSpeakerProfile,
@@ -62,6 +73,8 @@ import {
   type EventSpeakerEntry,
 } from "@/lib/admin/community";
 
+ensureCommunityEventsI18n();
+
 const csvToList = (raw: string): string[] =>
   raw
     .split(",")
@@ -69,10 +82,12 @@ const csvToList = (raw: string): string[] =>
     .filter(Boolean);
 
 export function EventSpeakersManager({ eventId }: { eventId: string }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const qc = useQueryClient();
   const [pickerValue, setPickerValue] = useState("");
   const [profileOf, setProfileOf] = useState<EventSpeakerEntry | null>(null);
+  const [cardOf, setCardOf] = useState<EventSpeakerEntry | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
 
   const detailQ = useAdminEventDetail(eventId);
@@ -215,6 +230,14 @@ export function EventSpeakersManager({ eventId }: { eventId: string }) {
                     {[speaker.job_title, speaker.company].filter(Boolean).join(", ")}
                   </span>
                 )}
+                {(speaker.tracks ?? []).length > 0 && (
+                  <SpeakerTrackChips
+                    tracks={speaker.tracks ?? []}
+                    lang={lang}
+                    label={t("adminCommunityEvents.speakers.tracksLabel")}
+                    className="mt-1"
+                  />
+                )}
               </span>
               {speaker.person_id !== null && (
                 <span className="shrink-0 rounded-full border border-border/60 px-2 py-0.5 text-[10px] text-muted-foreground">
@@ -246,6 +269,23 @@ export function EventSpeakersManager({ eventId }: { eventId: string }) {
               >
                 <ChevronDown className="h-3.5 w-3.5" />
               </Button>
+              {/* Karta dziala po `speaker_profile_id`, wiec takze dla osoby BEZ
+                  konta. Rzad legacy bez nakladki scenicznej nie ma czego
+                  zapisac - wtedy przycisku nie ma. */}
+              {speaker.speaker_profile_id !== "" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  aria-label={t("adminCommunityEvents.speakers.card.openActionFor", {
+                    name: speaker.display_name ?? "",
+                  })}
+                  onClick={() => setCardOf(speaker)}
+                >
+                  <PanelTop className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                  {t("adminCommunityEvents.speakers.card.openAction")}
+                </Button>
+              )}
               {/* Dialog profilu scenicznego stoi na RPC po `user_id`, wiec dla
                   osoby BEZ konta nie ma czego otworzyc - jej pola redaguje
                   popup kartoteki. Przycisk jest wtedy ukryty, nie martwy. */}
@@ -281,6 +321,15 @@ export function EventSpeakersManager({ eventId }: { eventId: string }) {
         onCreated={(_result, name) => {
           invalidate();
           toast.success(t("adminCommunityEvents.speakers.toasts.created", { name }));
+        }}
+      />
+
+      <EventSpeakerCardDialog
+        eventId={eventId}
+        speaker={cardOf}
+        open={cardOf !== null}
+        onOpenChange={(open) => {
+          if (!open) setCardOf(null);
         }}
       />
 

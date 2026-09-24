@@ -36,6 +36,7 @@ import { useViewerTimeZone } from "@/lib/events/useViewerTimeZone";
 import {
   agendaSessionAnchor,
   agendaSessionTitle,
+  agendaSpeakerTracks,
   agendaTrackOptions,
   filterAgenda,
   groupAgendaByDay,
@@ -91,6 +92,9 @@ export function EventAgendaBoardView({
 
   const days = useMemo(() => groupAgendaByDay(sessions), [sessions]);
   const tracks = useMemo(() => agendaTrackOptions(sessions), [sessions]);
+  // Ścieżki prelegentów liczone z CAŁEGO programu, nie z przefiltrowanego dnia:
+  // filtr ścieżki albo dnia nie może zmieniać tego, w czym osoba występuje.
+  const speakerTracks = useMemo(() => agendaSpeakerTracks(sessions), [sessions]);
   const mineAvailable = useMemo(() => hasOwnAgenda(sessions), [sessions]);
   const mySessions = useMemo(() => ownAgenda(sessions), [sessions]);
 
@@ -317,6 +321,7 @@ export function EventAgendaBoardView({
                 pending={pendingId === session.id}
                 onSignup={(item) => onSignup?.(item)}
                 onCancel={(item) => onCancel?.(item)}
+                speakerTracks={speakerTracks}
               />
             ))}
           </div>

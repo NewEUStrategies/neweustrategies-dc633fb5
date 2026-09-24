@@ -83,6 +83,19 @@ vi.mock("@/lib/events/useEventSessions", () => ({
   },
 }));
 
+// OBSADA TO OSOBNA MOLEKULA z wlasnymi zapytaniami i wlasnym zapisem (ma swoj
+// plik testow). Tu sprawdzamy WYLACZNIE, co formularz sesji jej podaje:
+// identyfikator sesji (albo `null` dla nowej) i nazwe sciezki ze szkicu.
+vi.mock("@/components/admin/events/molecules/SessionSpeakersEditor", () => ({
+  SessionSpeakersEditor: (props: { sessionId: string | null; trackName: string | null }) => (
+    <div
+      data-testid="session-speakers"
+      data-session={props.sessionId ?? ""}
+      data-track={props.trackName ?? ""}
+    />
+  ),
+}));
+
 const { EventSessionDialog } =
   await import("@/components/admin/events/molecules/EventSessionDialog");
 
@@ -923,5 +936,27 @@ describe("EventSessionDialog - stan oczekiwania i odmowa", () => {
     przerysuj({});
 
     expect(poleTytuluPl()).toHaveValue("Otwarcie kongresu");
+  });
+});
+
+describe("EventSessionDialog - obsada sesji", () => {
+  it("nowa sesja podaje edytorowi obsady `null` - nie ma jeszcze czego przypisac", () => {
+    renderuj();
+    expect(screen.getByTestId("session-speakers")).toHaveAttribute("data-session", "");
+  });
+
+  it("edycja podaje edytorowi identyfikator TEJ sesji", () => {
+    renderuj({ session: sessionRow() });
+    expect(screen.getByTestId("session-speakers")).toHaveAttribute("data-session", "session-a");
+  });
+
+  it("nazwa sciezki idzie ze SZKICU - edytor mowi o sciezce, ktora sesja dostanie", () => {
+    renderuj({ defaultTrackId: "track-a" });
+    const editor = screen.getByTestId("session-speakers");
+    expect(editor.getAttribute("data-track")).not.toBe("");
+    expect(editor.getAttribute("data-track")).not.toBe("track-a");
+
+    fireEvent.change(droplistaSciezki(), { target: { value: "__none__" } });
+    expect(screen.getByTestId("session-speakers")).toHaveAttribute("data-track", "");
   });
 });

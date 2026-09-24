@@ -107,6 +107,7 @@ export const adminCommunityEventsPl = {
       // Prelegent bez konta to NORMA, nie wyjątek: w danych referencyjnych
       // wzorca 21 z 21 osób w grupie „Speakers" nie ma konta na platformie.
       noAccount: "Bez konta",
+      tracksLabel: "Ścieżki",
       accountBadge: "Konto platformy",
       legacyBadge: "Stary rejestr",
       loadFailed: "Nie udało się wczytać listy prelegentów.",
@@ -194,6 +195,44 @@ export const adminCommunityEventsPl = {
         submit: "Utwórz prelegenta",
         submitting: "Zapisywanie…",
         failed: "Nie udało się utworzyć prelegenta",
+      },
+      // Karta rozwijana kliknięciem (strona prelegentów). Ścieżki są TYLKO do
+      // odczytu: wynikają z obsady sesji, więc panel mówi, skąd się biorą.
+      card: {
+        openAction: "Karta",
+        openActionFor: "Karta prelegenta: {{name}}",
+        title: "Karta prelegenta: {{name}}",
+        subtitle:
+          "Domyślnie widać zdjęcie. Kliknięcie w zdjęcie rozwija kartę do pełnego kadru z podpisem i przyciskiem akcji.",
+        sectionTitle: "Karta po kliknięciu",
+        photo: "Zdjęcie rozwiniętej karty",
+        photoHint: "Puste = karta rozwija się na zdjęciu prelegenta.",
+        photoRecommendation: "800 x 800 px",
+        ctaLabelPl: "Napis na przycisku PL",
+        ctaLabelEn: "Napis na przycisku EN",
+        ctaLabelHint: "Maks. 40 znaków. Puste = napis domyślny (Profil albo Więcej).",
+        ctaUrl: "Adres przycisku",
+        ctaUrlPlaceholder: "https://… albo /experts/…",
+        ctaUrlHint:
+          "Adres https albo ścieżka w serwisie. Puste = przycisk otwiera profil prelegenta.",
+        ctaColor: "Kolor przycisku",
+        ctaColorHint: "Puste = kolor marki wydarzenia. Kolor napisu dobiera się sam.",
+        ctaColorPicker: "Wybierz kolor przycisku",
+        ctaColorReset: "Kolor marki",
+        tracks: "Ścieżki (automatycznie)",
+        tracksHint:
+          "Ścieżki wynikają z sesji, w których prelegent występuje. Przypisz go do sesji w programie, a ścieżka dopisze się sama.",
+        tracksEmpty: "Prelegent nie występuje jeszcze w żadnej sesji ze ścieżką.",
+        preview: "Podgląd karty",
+        previewHint: "Kliknij zdjęcie w podglądzie, żeby zobaczyć kartę rozwiniętą.",
+        saveAction: "Zapisz kartę",
+        saved: "Zapisano kartę prelegenta",
+        errors: {
+          labelTooLong: "Napis może mieć najwyżej 40 znaków.",
+          urlShape: "Adres musi zaczynać się od https:// albo od ukośnika (ścieżka w serwisie).",
+          photoShape: "Adres zdjęcia musi zaczynać się od https://",
+          colorShape: "Kolor w formacie #RRGGBB.",
+        },
       },
       profile: {
         title: "Profil prelegenta: {{name}}",
@@ -312,6 +351,7 @@ export const adminCommunityEventsEn = {
       removeFromEvent: "Remove from event",
       newAction: "New speaker",
       noAccount: "No account",
+      tracksLabel: "Tracks",
       accountBadge: "Platform account",
       legacyBadge: "Legacy registry",
       loadFailed: "Could not load the speaker list.",
@@ -393,6 +433,42 @@ export const adminCommunityEventsEn = {
         submit: "Create speaker",
         submitting: "Saving…",
         failed: "Could not create the speaker",
+      },
+      card: {
+        openAction: "Card",
+        openActionFor: "Speaker card: {{name}}",
+        title: "Speaker card: {{name}}",
+        subtitle:
+          "The photo is visible by default. Clicking the photo expands the card to a full frame with a caption and an action button.",
+        sectionTitle: "Card on click",
+        photo: "Expanded card photo",
+        photoHint: "Empty = the card expands on the speaker's photo.",
+        photoRecommendation: "800 x 800 px",
+        ctaLabelPl: "Button text PL",
+        ctaLabelEn: "Button text EN",
+        ctaLabelHint: "Up to 40 characters. Empty = default text (Profile or More).",
+        ctaUrl: "Button address",
+        ctaUrlPlaceholder: "https://… or /experts/…",
+        ctaUrlHint:
+          "An https address or a path on this site. Empty = the button opens the speaker profile.",
+        ctaColor: "Button colour",
+        ctaColorHint: "Empty = the event brand colour. The text colour is picked automatically.",
+        ctaColorPicker: "Choose the button colour",
+        ctaColorReset: "Brand colour",
+        tracks: "Tracks (automatic)",
+        tracksHint:
+          "Tracks come from the sessions the speaker appears in. Assign them to a session in the programme and the track is added automatically.",
+        tracksEmpty: "The speaker does not appear in any session with a track yet.",
+        preview: "Card preview",
+        previewHint: "Click the photo in the preview to see the expanded card.",
+        saveAction: "Save the card",
+        saved: "Speaker card saved",
+        errors: {
+          labelTooLong: "The text can be at most 40 characters long.",
+          urlShape: "The address must start with https:// or with a slash (a path on this site).",
+          photoShape: "The photo address must start with https://",
+          colorShape: "Use the #RRGGBB colour format.",
+        },
       },
       profile: {
         title: "Speaker profile: {{name}}",

@@ -28,6 +28,13 @@
 //     pulapka. Konwencja repozytorium (EventSessionDialog) to para
 //     outline + primary.
 //
+// KARTA PO KLIKNIECIU. Osobna sekcja (`EventSpeakerCardFields`, wspolna
+// z dialogiem „Karta" na liscie) zbiera to, co widac dopiero po rozwinieciu
+// karty na stronie prelegentow: duze zdjecie, napis, adres i kolor przycisku.
+// Pola sa opcjonalne - pusta karta rozwija sie na zdjeciu osoby i otwiera
+// profil. Sekcja stoi PO sekcji karty, bo obszar wgrywania zdjecia osoby ma
+// zostac pierwszym w dialogu.
+//
 // ANIMACJA IDZIE Z TEGO, CO JEST W REPOZYTORIUM. W `package.json` NIE MA ani
 // `framer-motion`, ani `tailwindcss-animate` - jest `tw-animate-css`
 // (importowany w `src/styles.css`). `DialogContent` animuje sie sam
@@ -68,6 +75,15 @@ import { registerMediaUpload } from "@/lib/media.functions";
 import { IMAGE_ACCEPT_ATTR, IMAGE_MIME, uploadAndRegisterMedia } from "@/lib/media/upload";
 import { useEventGroups } from "@/lib/events/useEventTermsGroups";
 import { createEventSpeakerPerson, type EventSpeakerUpsertResult } from "@/lib/admin/community";
+import {
+  EMPTY_SPEAKER_CARD_DRAFT,
+  speakerCardDraftErrors,
+  type SpeakerCardDraft,
+} from "@/lib/events/speakerCard";
+import { ensureI18n as ensureCommunityEventsI18n } from "@/lib/i18n-admin-community-events";
+import { EventSpeakerCardFields } from "./EventSpeakerCardFields";
+
+ensureCommunityEventsI18n();
 
 /** „Bez grupy" nie moze byc pustym napisem: Radix Select rezerwuje "" na reset. */
 const NO_GROUP = "__none__";
@@ -90,6 +106,7 @@ interface Draft {
   phone: string;
   socialUrl: string;
   isPublic: boolean;
+  card: SpeakerCardDraft;
 }
 
 const EMPTY_DRAFT: Draft = {
@@ -110,6 +127,7 @@ const EMPTY_DRAFT: Draft = {
   phone: "",
   socialUrl: "",
   isPublic: true,
+  card: EMPTY_SPEAKER_CARD_DRAFT,
 };
 
 /** Pusty napis idzie do RPC jako `undefined`, czyli „nie dotykaj kolumny". */
@@ -245,8 +263,11 @@ export function EventSpeakerCreateDialog({
   // kluczem dopasowania, a nie loginem zakladanego konta - osoba bez adresu
   // (mowca zaproszony przez sekretariat) musi dac sie wpisac.
   const canSubmit = useMemo(
-    () => draft.firstName.trim() !== "" && draft.lastName.trim() !== "",
-    [draft.firstName, draft.lastName],
+    () =>
+      draft.firstName.trim() !== "" &&
+      draft.lastName.trim() !== "" &&
+      Object.keys(speakerCardDraftErrors(draft.card)).length === 0,
+    [draft.firstName, draft.lastName, draft.card],
   );
 
   const createM = useMutation({
@@ -272,6 +293,12 @@ export function EventSpeakerCreateDialog({
         // i tak zapisuje je istniejacy dialog profilu.
         languages: csvOrUndefined(draft.languages.toLowerCase()),
         isPublic: draft.isPublic,
+        // Pola karty: puste = „ustawienie domyslne" (klucz nie jedzie wcale).
+        cardPhotoUrl: trimmedOrUndefined(draft.card.photoUrl),
+        cardCtaLabelPl: trimmedOrUndefined(draft.card.labelPl),
+        cardCtaLabelEn: trimmedOrUndefined(draft.card.labelEn),
+        cardCtaUrl: trimmedOrUndefined(draft.card.url),
+        cardCtaColor: trimmedOrUndefined(draft.card.color),
       }),
     onSuccess: (result) => {
       const name = `${draft.firstName.trim()} ${draft.lastName.trim()}`.trim();
@@ -505,6 +532,17 @@ export function EventSpeakerCreateDialog({
                 </span>
               </span>
             </label>
+          </Section>
+
+          <Section title={t("adminCommunityEvents.speakers.card.sectionTitle")} delayMs={90}>
+            <p className="text-[11px] leading-snug text-muted-foreground">
+              {t("adminCommunityEvents.speakers.card.subtitle")}
+            </p>
+            <EventSpeakerCardFields
+              idPrefix="speaker-create-card"
+              value={draft.card}
+              onChange={(card) => set("card", card)}
+            />
           </Section>
 
           <Section title={t("adminCommunityEvents.speakers.create.sectionContact")} delayMs={120}>

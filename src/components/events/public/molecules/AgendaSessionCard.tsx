@@ -21,6 +21,19 @@
 // nad niczym, a prelegent bez nazwy do wyświetlenia nie dostaje wiersza z pogrubioną
 // pustką - takie miejsca czytają się jak awaria strony, a nie jak brak informacji.
 //
+// OBSADA STOI OBOK STANU SESJI, NIE POD PRZYCISKAMI. Prelegenci mają własną
+// kolumnę po prawej stronie plakietek, formatu i „Pokaż szczegóły" - tam, gdzie
+// wzorzec zostawiał pustą przestrzeń - więc zdjęcia osób są widoczne od razu,
+// bez przewijania pod zapis. Opis sesji po rozwinięciu idzie na PEŁNĄ
+// szerokość pod obiema kolumnami: tekst w wąskiej kolumnie plakietek czytałby
+// się jak przypis.
+//
+// ŚCIEŻKI PRELEGENTA SĄ WYPROWADZONE. Po rozwinięciu szczegółów przy każdym
+// nazwisku stają ścieżki, w których ta osoba występuje - policzone z tej samej
+// listy sesji, którą rysuje program (`agendaSpeakerTracks`). Przypisanie do
+// sesji w ścieżce dopisuje ścieżkę samo; nie ma drugiego rejestru do
+// rozjechania.
+//
 // KONTROLKA POCHODZI Z REGUŁY, NIE Z `if`-ów. `agendaSignupControl` decyduje,
 // czy przycisk jest, co na nim pisze i jak wygląda - ten sam rachunek obsługuje
 // „moją agendę", więc obie powierzchnie nie mogą się rozjechać.
@@ -48,8 +61,10 @@ import {
   type AgendaSession,
   type AgendaSpeaker,
 } from "@/lib/events/agendaSurface";
+import type { SpeakerTrack } from "@/lib/events/speakerCard";
 import { SessionStateBadge } from "@/components/events/public/atoms/SessionStateBadge";
 import { SpeakerAvatar } from "@/components/events/SpeakerAvatar";
+import { SpeakerTrackChips } from "@/components/events/SpeakerTrackChips";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 import { mediaRenderUrl } from "@/lib/media/publicUrl";
 
@@ -78,7 +93,18 @@ function sponsorRoleKey(role: string | null): string | null {
   return null;
 }
 
-function AgendaSpeakerRow({ speaker, lang }: { speaker: AgendaSpeaker; lang: UiLang }) {
+function AgendaSpeakerRow({
+  speaker,
+  lang,
+  tracks,
+  showTracks,
+}: {
+  speaker: AgendaSpeaker;
+  lang: UiLang;
+  tracks: readonly SpeakerTrack[];
+  /** Ścieżki stają przy nazwisku dopiero po rozwinięciu szczegółów sesji. */
+  showTracks: boolean;
+}) {
   const { t } = useTranslation();
   const headline = pickLocalized(
     { headline_pl: speaker.headlinePl, headline_en: speaker.headlineEn },
@@ -86,9 +112,9 @@ function AgendaSpeakerRow({ speaker, lang }: { speaker: AgendaSpeaker; lang: UiL
     lang,
   );
   return (
-    <li className="flex min-w-0 items-center gap-2">
-      <SpeakerAvatar name={speaker.displayName} photoUrl={speaker.avatarUrl} size="sm" />
-      <span className="min-w-0">
+    <li className="flex min-w-0 items-start gap-2.5">
+      <SpeakerAvatar name={speaker.displayName} photoUrl={speaker.avatarUrl} size="md" />
+      <span className="min-w-0 flex-1">
         <span className="flex min-w-0 flex-wrap items-center gap-1.5">
           <span className="truncate text-sm font-semibold leading-tight text-foreground">
             {speaker.displayName}
@@ -107,9 +133,32 @@ function AgendaSpeakerRow({ speaker, lang }: { speaker: AgendaSpeaker; lang: UiL
             {headline}
           </span>
         )}
+        {showTracks && tracks.length > 0 && (
+          <SpeakerTrackChips
+            tracks={tracks}
+            lang={lang}
+            label={t("eventFront.agenda.speakerTracksLabel")}
+            className="mt-1.5"
+          />
+        )}
       </span>
     </li>
   );
+}
+
+/** Ścieżka samej sesji - gdy program nie podał indeksu całej agendy. */
+function ownTrack(session: AgendaSession): SpeakerTrack[] {
+  if (session.track === null) return [];
+  return [
+    {
+      id: session.track.id,
+      key: session.track.key,
+      namePl: session.track.namePl,
+      nameEn: session.track.nameEn,
+      accentColor: session.track.accentColor,
+      sessionsCount: 1,
+    },
+  ];
 }
 
 export function AgendaSessionCard({
@@ -118,12 +167,18 @@ export function AgendaSessionCard({
   signedIn,
   onSignup,
   onCancel,
+  speakerTracks,
 }: {
   session: AgendaSession;
   pending: boolean;
   signedIn: boolean;
   onSignup: (session: AgendaSession) => void;
   onCancel: (session: AgendaSession) => void;
+  /**
+   * Ścieżki prelegentów z CAŁEGO programu (`agendaSpeakerTracks`). Bez indeksu
+   * karta zna tylko własną ścieżkę sesji - i tylko ją pokaże.
+   */
+  speakerTracks?: ReadonlyMap<string, readonly SpeakerTrack[]>;
 }) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
@@ -131,6 +186,7 @@ export function AgendaSessionCard({
   // `useId` jest stabilny między serwerem a klientem, więc wskazanie regionu
   // opisu nie rozjeżdża hydratacji.
   const detailsId = useId();
+  const speakersId = useId();
 
   // Tytuł idzie przez wspólną regułę, bo ten sam napis pokazuje kolumna
   // „Twój harmonogram” - dwa rachunki rozjechałyby się na sesji wpisanej
@@ -169,6 +225,15 @@ export function AgendaSessionCard({
   const seatsLeft = agendaSeatsLeft(session);
   const cancelled = session.status === "cancelled";
   const speakers = session.speakers.filter((speaker) => speaker.displayName !== "");
+  // „Pokaż szczegóły" ma co pokazać, gdy sesja ma opis ALBO obsadę (ścieżki
+  // prelegentów stają przy nazwiskach po rozwinięciu).
+  const hasDetails = description !== "" || speakers.length > 0;
+  const detailsControls = [
+    description !== "" ? detailsId : "",
+    speakers.length > 0 ? speakersId : "",
+  ]
+    .filter((id) => id !== "")
+    .join(" ");
   const sponsor = session.sponsor ?? session.track?.sponsor ?? null;
   const sponsorLogo = sponsor?.logoUrl ?? null;
   const sponsorRole = sponsorRoleKey(sponsor?.role ?? null);
@@ -255,105 +320,124 @@ export function AgendaSessionCard({
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <SessionStateBadge state={session.accessState} />
-            {session.chathamHouse && (
-              <Badge variant="outline">{t("eventFront.agenda.chathamHouse")}</Badge>
+          <div
+            className={cn(
+              speakers.length > 0 &&
+                "grid gap-x-8 gap-y-4 lg:grid-cols-[minmax(10rem,14rem)_minmax(0,1fr)]",
+            )}
+          >
+            <div className="min-w-0 space-y-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <SessionStateBadge state={session.accessState} />
+                {session.chathamHouse && (
+                  <Badge variant="outline">{t("eventFront.agenda.chathamHouse")}</Badge>
+                )}
+              </div>
+
+              <dl className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                <div className="inline-flex items-center gap-1.5">
+                  <dt className="sr-only">{t("eventFront.list.formatLabel")}</dt>
+                  <Radio className="h-3.5 w-3.5" aria-hidden="true" />
+                  <dd>{t(agendaFormatKey(session.format))}</dd>
+                </div>
+                {session.room !== null && (
+                  <div className="inline-flex items-center gap-1.5">
+                    <dt className="sr-only">{t("eventFront.agenda.roomLabel")}</dt>
+                    <DoorOpen className="h-3.5 w-3.5" aria-hidden="true" />
+                    <dd>
+                      {session.room.name ?? ""}
+                      {session.room.floor === null ? "" : ` (${session.room.floor})`}
+                    </dd>
+                  </div>
+                )}
+                {session.hasStream && (
+                  <div className="inline-flex items-center gap-1.5">
+                    <dt className="sr-only">{t("eventFront.agenda.streamAvailable")}</dt>
+                    <Video className="h-3.5 w-3.5" aria-hidden="true" />
+                    <dd>{t("eventFront.agenda.streamAvailable")}</dd>
+                  </div>
+                )}
+              </dl>
+
+              {hasDetails && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-expanded={open}
+                  aria-controls={detailsControls}
+                  onClick={() => setOpen((current) => !current)}
+                  className="-ml-2 gap-1.5 text-xs"
+                >
+                  <ChevronDown
+                    className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")}
+                    aria-hidden="true"
+                  />
+                  {open ? t("eventFront.agenda.closeDetails") : t("eventFront.agenda.openDetails")}
+                </Button>
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                {seatsLeft !== null && !cancelled && (
+                  <span className="text-xs text-muted-foreground">
+                    {t("eventFront.agenda.seatsLeft", { count: seatsLeft })}
+                  </span>
+                )}
+                {seatsLeft === null && session.requiresSignup && !cancelled && (
+                  <span className="text-xs text-muted-foreground">
+                    {t("eventFront.agenda.seatsUnlimited")}
+                  </span>
+                )}
+                {control !== null && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={control.variant}
+                    disabled={pending}
+                    onClick={() =>
+                      control.action === "cancel" ? onCancel(session) : onSignup(session)
+                    }
+                    className="w-full sm:w-auto"
+                  >
+                    {pending && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                    )}
+                    {pending
+                      ? t("eventFront.agenda.actions.working")
+                      : signedIn
+                        ? t(control.labelKey)
+                        : t("eventFront.agenda.actions.signIn")}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {speakers.length > 0 && (
+              <ul
+                id={speakersId}
+                aria-label={t("eventFront.agenda.speakersLabel")}
+                className="grid min-w-0 grid-cols-1 content-start gap-x-6 gap-y-3 sm:grid-cols-2"
+              >
+                {speakers.map((speaker) => (
+                  <AgendaSpeakerRow
+                    key={speaker.userId}
+                    speaker={speaker}
+                    lang={lang}
+                    tracks={speakerTracks?.get(speaker.userId) ?? ownTrack(session)}
+                    showTracks={open}
+                  />
+                ))}
+              </ul>
             )}
           </div>
-
-          <dl className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            <div className="inline-flex items-center gap-1.5">
-              <dt className="sr-only">{t("eventFront.list.formatLabel")}</dt>
-              <Radio className="h-3.5 w-3.5" aria-hidden="true" />
-              <dd>{t(agendaFormatKey(session.format))}</dd>
-            </div>
-            {session.room !== null && (
-              <div className="inline-flex items-center gap-1.5">
-                <dt className="sr-only">{t("eventFront.agenda.roomLabel")}</dt>
-                <DoorOpen className="h-3.5 w-3.5" aria-hidden="true" />
-                <dd>
-                  {session.room.name ?? ""}
-                  {session.room.floor === null ? "" : ` (${session.room.floor})`}
-                </dd>
-              </div>
-            )}
-            {session.hasStream && (
-              <div className="inline-flex items-center gap-1.5">
-                <dt className="sr-only">{t("eventFront.agenda.streamAvailable")}</dt>
-                <Video className="h-3.5 w-3.5" aria-hidden="true" />
-                <dd>{t("eventFront.agenda.streamAvailable")}</dd>
-              </div>
-            )}
-          </dl>
 
           {description !== "" && (
-            <>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                aria-expanded={open}
-                aria-controls={detailsId}
-                onClick={() => setOpen((current) => !current)}
-                className="-ml-2 gap-1.5 text-xs"
-              >
-                <ChevronDown
-                  className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")}
-                  aria-hidden="true"
-                />
-                {open ? t("eventFront.agenda.closeDetails") : t("eventFront.agenda.openDetails")}
-              </Button>
-              <p
-                id={detailsId}
-                hidden={!open}
-                className="whitespace-pre-line text-sm text-muted-foreground"
-              >
-                {description}
-              </p>
-            </>
-          )}
-          <div className="flex flex-wrap items-center gap-2">
-            {seatsLeft !== null && !cancelled && (
-              <span className="text-xs text-muted-foreground">
-                {t("eventFront.agenda.seatsLeft", { count: seatsLeft })}
-              </span>
-            )}
-            {seatsLeft === null && session.requiresSignup && !cancelled && (
-              <span className="text-xs text-muted-foreground">
-                {t("eventFront.agenda.seatsUnlimited")}
-              </span>
-            )}
-            {control !== null && (
-              <Button
-                type="button"
-                size="sm"
-                variant={control.variant}
-                disabled={pending}
-                onClick={() =>
-                  control.action === "cancel" ? onCancel(session) : onSignup(session)
-                }
-                className="w-full sm:w-auto"
-              >
-                {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
-                {pending
-                  ? t("eventFront.agenda.actions.working")
-                  : signedIn
-                    ? t(control.labelKey)
-                    : t("eventFront.agenda.actions.signIn")}
-              </Button>
-            )}
-          </div>
-
-          {speakers.length > 0 && (
-            <ul
-              aria-label={t("eventFront.agenda.speakersLabel")}
-              className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 xl:grid-cols-3"
+            <p
+              id={detailsId}
+              hidden={!open}
+              className="whitespace-pre-line text-sm text-muted-foreground"
             >
-              {speakers.map((speaker) => (
-                <AgendaSpeakerRow key={speaker.userId} speaker={speaker} lang={lang} />
-              ))}
-            </ul>
+              {description}
+            </p>
           )}
         </div>
       </div>
