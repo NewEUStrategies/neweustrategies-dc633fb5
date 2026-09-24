@@ -52,10 +52,14 @@ interface PropsyOkna {
   track: EventTrackRow | null;
   nextSortOrder: number;
   isSaving: boolean;
+  sponsorCandidates?: readonly { id: string }[];
 }
 
 const h = vi.hoisted(() => ({
   language: "pl",
+  /** Kandydaci na sponsora ścieżki i flaga `enabled` każdego wywołania haka. */
+  sponsors: [] as { id: string }[],
+  sponsorsEnabled: [] as boolean[],
   tracks: undefined as unknown,
   sessions: undefined as unknown,
   isLoading: false,
@@ -255,6 +259,14 @@ vi.mock("@/lib/events/useEventSessions", () => ({
   }),
 }));
 
+// Kandydaci na sponsora ścieżki - tylko dla OTWARTEGO okna edycji.
+vi.mock("@/lib/events/useEventSponsors", () => ({
+  useSponsors: (_query: unknown, enabled = true) => {
+    h.sponsorsEnabled.push(enabled);
+    return { data: enabled ? h.sponsors : undefined };
+  },
+}));
+
 const { AgendaTracksPanel } = await import("@/components/admin/events/organisms/AgendaTracksPanel");
 
 const EVENT_ID = "11111111-1111-4111-8111-111111111111";
@@ -370,6 +382,8 @@ function wiersz(nazwa: string): HTMLElement {
 
 beforeEach(() => {
   h.language = "pl";
+  h.sponsors = [];
+  h.sponsorsEnabled = [];
   h.tracks = [];
   h.sessions = [];
   h.isLoading = false;
@@ -578,6 +592,9 @@ describe("przełącznik „aktywna” w wierszu", () => {
         description_pl: "Opis",
         cover_url: "https://cdn.test/okladka.jpg",
         default_room_id: "room-a",
+        // RPC zapisuje każdy klucz obecny w ładunku - przełącznik, który
+        // zgubiłby sponsora, zdejmowałby partnera z programu przy okazji.
+        sponsor_id: "sponsor-a",
         sort_order: 30,
       }),
     ];
@@ -599,6 +616,7 @@ describe("przełącznik „aktywna” w wierszu", () => {
         descriptionEn: null,
         coverUrl: "https://cdn.test/okladka.jpg",
         defaultRoomId: "room-a",
+        sponsorId: "sponsor-a",
         sortOrder: 30,
         isActive: false,
         isPublic: true,
@@ -645,6 +663,15 @@ describe("okno ścieżki - tworzenie i edycja", () => {
     fireEvent.click(screen.getByText("adminEventAgenda.tracks.addAction"));
     expect(h.okno?.track).toBeNull();
     expect(h.okno?.nextSortOrder).toBe(80);
+  });
+
+  it("kandydaci na sponsora są pobierani dopiero po otwarciu okna i trafiają do niego", () => {
+    h.sponsors = [{ id: "sponsor-a" }];
+    renderuj();
+    expect(h.sponsorsEnabled.at(-1)).toBe(false);
+    fireEvent.click(screen.getByText("adminEventAgenda.tracks.addAction"));
+    expect(h.sponsorsEnabled.at(-1)).toBe(true);
+    expect(h.okno?.sponsorCandidates).toEqual([{ id: "sponsor-a" }]);
   });
 
   it("pusta lista daje pierwszemu pasmu pozycję dziesiątą", () => {

@@ -46,6 +46,7 @@ import type {
   EventSessionRow,
   EventTrackRow,
 } from "@/lib/events/sessionsApi";
+import type { EventSponsorRow } from "@/lib/events/sponsorsApi";
 
 const h = vi.hoisted(() => ({
   language: "pl",
@@ -247,6 +248,7 @@ function renderuj(
     sessions?: readonly EventSessionRow[];
     tracks?: readonly EventTrackRow[];
     rooms?: readonly EventRoomRow[];
+    sponsorCandidates?: readonly EventSponsorRow[];
     defaultTrackId?: string | null;
     isSaving?: boolean;
     nextSortOrder?: number;
@@ -260,6 +262,7 @@ function renderuj(
     sessions: props.sessions ?? [],
     tracks: props.tracks ?? [trackRow()],
     rooms: props.rooms ?? [roomRow()],
+    sponsorCandidates: props.sponsorCandidates ?? [],
     defaultTrackId: props.defaultTrackId ?? null,
     isSaving: props.isSaving ?? false,
     nextSortOrder: props.nextSortOrder ?? 50,
@@ -273,6 +276,7 @@ function renderuj(
       tracks={wejscie.tracks}
       rooms={wejscie.rooms}
       sessions={wejscie.sessions}
+      sponsorCandidates={wejscie.sponsorCandidates}
       timeZoneLabel={STREFA}
       nextSortOrder={wejscie.nextSortOrder}
       defaultTrackId={wejscie.defaultTrackId}
@@ -311,6 +315,19 @@ const poleTransmisji = () => screen.getByLabelText(`${K}streamUrl`);
 const poleNagrania = () => screen.getByLabelText(`${K}recordingUrl`);
 const przyciskZapisu = () => screen.getByRole("button", { name: `${K}saveAction` });
 const przyciskAnuluj = () => screen.getByRole("button", { name: `${K}cancelAction` });
+const droplistaSponsora = () => screen.getByLabelText(`${K}sponsor`);
+const poleAfiliacjiPl = () => screen.getByLabelText(`${K}affiliationPl`);
+const poleAfiliacjiEn = () => screen.getByLabelText(`${K}affiliationEn`);
+
+/** Przypięcie sponsora - wyłącznie pola, które czyta okno sesji. */
+function sponsorRow(overrides: Partial<EventSponsorRow> = {}): EventSponsorRow {
+  return {
+    id: "sponsor-a",
+    snapshot_name: "Orlen",
+    is_published: true,
+    ...overrides,
+  } as EventSponsorRow;
+}
 
 const ladunek = (onSubmit: ReturnType<typeof vi.fn>, nr = 0): EventSessionInput =>
   onSubmit.mock.calls[nr][0] as EventSessionInput;
@@ -650,6 +667,84 @@ describe("EventSessionDialog - ścieżka, sala i sesja nadrzędna", () => {
   });
 });
 
+describe("EventSessionDialog - sponsor i afiliacja debaty", () => {
+  it("droplista sponsora pokazuje NAZWY i oznacza przypięcie NIEOGŁOSZONE", () => {
+    // Program publiczny pokazuje wyłącznie przypięcia ogłoszone - wybór
+    // nieogłoszonego bez ostrzeżenia dawałby debatę bez partnera na stronie.
+    renderuj({
+      sponsorCandidates: [
+        sponsorRow(),
+        sponsorRow({ id: "sponsor-b", snapshot_name: "Ukryta SA", is_published: false }),
+      ],
+    });
+    expect(opcje(droplistaSponsora())).toEqual(["__none__", "sponsor-a", "sponsor-b"]);
+    expect(etykietyOpcji(droplistaSponsora())).toEqual([
+      `${K}noSponsor`,
+      "Orlen",
+      "adminEventAgenda.sponsorPicker.unpublished(name=Ukryta SA)",
+    ]);
+  });
+
+  it("wybrany sponsor i afiliacja dochodzą do warstwy zapisu, pusta afiliacja jako null", () => {
+    const { onSubmit } = renderuj({ sponsorCandidates: [sponsorRow()] });
+    wypelnijMinimum();
+    fireEvent.change(droplistaSponsora(), { target: { value: "sponsor-a" } });
+    fireEvent.change(poleAfiliacjiPl(), { target: { value: "  Rada Programowa  " } });
+    fireEvent.change(poleAfiliacjiEn(), { target: { value: "   " } });
+    fireEvent.click(przyciskZapisu());
+
+    expect(ladunek(onSubmit)).toMatchObject({
+      sponsorId: "sponsor-a",
+      affiliationPl: "Rada Programowa",
+      affiliationEn: null,
+    });
+  });
+
+  it("wartownik „bez sponsora” NIE wycieka do warstwy zapisu - jedzie null", () => {
+    const { onSubmit } = renderuj({ sponsorCandidates: [sponsorRow()] });
+    wypelnijMinimum();
+    fireEvent.change(droplistaSponsora(), { target: { value: "sponsor-a" } });
+    fireEvent.change(droplistaSponsora(), { target: { value: "__none__" } });
+    fireEvent.click(przyciskZapisu());
+
+    expect(ladunek(onSubmit)).toMatchObject({ sponsorId: null });
+  });
+
+  it("afiliacja ponad limit nie wychodzi z okna", () => {
+    const { onSubmit } = renderuj();
+    wypelnijMinimum();
+    fireEvent.change(poleAfiliacjiPl(), { target: { value: "x".repeat(301) } });
+    fireEvent.click(przyciskZapisu());
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByText(`${K}validation.affiliationTooLong`)).toBeInTheDocument();
+  });
+
+  // Kandydaci dojeżdżają dopiero po otwarciu okna. Do tego czasu przypięcie
+  // sesji musi zostać wybrane i nazwane - inaczej selektor byłby pusty,
+  // a zapis bez dotykania pola... nadal niósłby poprawne `sponsor_id`, tylko
+  // organizator nie wiedziałby o tym z ekranu.
+  it("edycja przed przyjściem kandydatów pokazuje nazwę sponsora ze szczegółu i go nie gubi", () => {
+    h.details["session-a"] = detailRow({
+      sponsor_id: "sponsor-x",
+      sponsor_name: "Orlen",
+      affiliation_pl: "Rada Programowa",
+    });
+    const { onSubmit } = renderuj({ session: sessionRow() });
+
+    const select = droplistaSponsora() as HTMLSelectElement;
+    expect(select.value).toBe("sponsor-x");
+    expect(etykietyOpcji(select)).toContain("Orlen");
+    expect(poleAfiliacjiPl()).toHaveValue("Rada Programowa");
+
+    fireEvent.click(przyciskZapisu());
+    expect(ladunek(onSubmit)).toMatchObject({
+      sponsorId: "sponsor-x",
+      affiliationPl: "Rada Programowa",
+    });
+  });
+});
+
 describe("EventSessionDialog - ładunek zapisu", () => {
   it("nowa sesja: białe znaki obcięte, puste adresy jako null", () => {
     const { onSubmit } = renderuj({ nextSortOrder: 50 });
@@ -672,6 +767,11 @@ describe("EventSessionDialog - ładunek zapisu", () => {
       status: "draft",
       trackId: null,
       roomId: null,
+      // Nowa sesja bez sponsora i bez afiliacji: `null`, nie pusty łańcuch -
+      // RPC zapisuje wartość klucza, który jest w ładunku.
+      sponsorId: null,
+      affiliationPl: null,
+      affiliationEn: null,
       parentSessionId: null,
       requiresSignup: false,
       capacity: null,

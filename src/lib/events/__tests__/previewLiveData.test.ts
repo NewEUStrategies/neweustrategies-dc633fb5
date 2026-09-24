@@ -33,6 +33,7 @@ import type { EventSessionRow, EventTrackRow } from "@/lib/events/sessionsApi";
 import {
   agendaSessionsFromAdminRows,
   attendeeEntriesFromRegistrationRows,
+  publishedSponsorIdSet,
   speakerRowsFromAdminEntries,
   trackChipsFromAdminRows,
 } from "@/lib/events/previewLiveData";
@@ -363,6 +364,8 @@ describe("agendaSessionsFromAdminRows - pasmo i sala", () => {
       namePl: "Polityka",
       nameEn: "Policy",
       accentColor: "#FA9346",
+      // Lista sesji nie niesie sponsora sciezki - bez listy sciezek go nie ma.
+      sponsor: null,
     });
   });
 
@@ -375,7 +378,14 @@ describe("agendaSessionsFromAdminRows - pasmo i sala", () => {
         track_name_en: null,
         track_accent_color: "",
       }).track,
-    ).toEqual({ id: "trk-1", key: null, namePl: null, nameEn: null, accentColor: null });
+    ).toEqual({
+      id: "trk-1",
+      key: null,
+      namePl: null,
+      nameEn: null,
+      accentColor: null,
+      sponsor: null,
+    });
   });
 
   it("sesja BEZ sali nie dostaje pustego kafla sali", () => {
@@ -398,6 +408,72 @@ describe("agendaSessionsFromAdminRows - pasmo i sala", () => {
       name: null,
       floor: null,
     });
+  });
+});
+
+describe("agendaSessionsFromAdminRows - sponsor debaty i sciezki", () => {
+  const SPONSORED = {
+    sponsor_id: "spn-1",
+    sponsor_name: "Orlen",
+    sponsor_logo_url: "https://cdn.example.org/orlen.svg",
+    sponsor_role: "partner",
+  };
+
+  it("sponsor sesji wchodzi w ksztalcie strony, a afiliacja jako tekst", () => {
+    const session = oneSession({
+      ...SPONSORED,
+      affiliation_pl: "Rada Programowa",
+      affiliation_en: "",
+    });
+    expect(session.sponsor).toEqual({
+      id: "spn-1",
+      name: "Orlen",
+      logoUrl: "https://cdn.example.org/orlen.svg",
+      role: "partner",
+    });
+    expect(session.affiliationPl).toBe("Rada Programowa");
+    expect(session.affiliationEn).toBeNull();
+  });
+
+  // Klasa 1: `event_agenda` dolacza sponsora warunkiem `is_published`.
+  it("przypiecie NIEOGLOSZONE nie trafia do podgladu, ogloszone - tak", () => {
+    const [hidden] = agendaSessionsFromAdminRows([sessionRow(SPONSORED)], "Europe/Warsaw", {
+      publishedSponsorIds: new Set(["spn-inny"]),
+    });
+    expect(hidden?.sponsor).toBeNull();
+    const [shown] = agendaSessionsFromAdminRows([sessionRow(SPONSORED)], "Europe/Warsaw", {
+      publishedSponsorIds: new Set(["spn-1"]),
+    });
+    expect(shown?.sponsor?.id).toBe("spn-1");
+  });
+
+  it("sponsor sciezki przychodzi z listy sciezek, bo lista sesji go nie niesie", () => {
+    const tracks = [
+      trackRow({
+        id: "trk-1",
+        sponsor_id: "spn-2",
+        sponsor_name: "PGE",
+        sponsor_logo_url: null,
+        sponsor_role: "sponsor",
+      }),
+    ];
+    const [session] = agendaSessionsFromAdminRows(
+      [sessionRow({ track_id: "trk-1", track_name_pl: "Energia" })],
+      "Europe/Warsaw",
+      { tracks, publishedSponsorIds: new Set(["spn-2"]) },
+    );
+    expect(session?.track?.sponsor).toEqual({
+      id: "spn-2",
+      name: "PGE",
+      logoUrl: null,
+      role: "sponsor",
+    });
+    const [unpublished] = agendaSessionsFromAdminRows(
+      [sessionRow({ track_id: "trk-1" })],
+      "Europe/Warsaw",
+      { tracks, publishedSponsorIds: new Set() },
+    );
+    expect(unpublished?.track?.sponsor).toBeNull();
   });
 });
 
@@ -697,6 +773,23 @@ describe("trackChipsFromAdminRows", () => {
     expect(oneChip({ is_public: null }).isPublic).toBe(true);
   });
 
+  it("sponsor pasma wchodzi tylko z OGLOSZONEGO przypiecia", () => {
+    const sponsored = trackRow({
+      sponsor_id: "spn-1",
+      sponsor_name: "Orlen",
+      sponsor_logo_url: "https://cdn.example.org/orlen.svg",
+    });
+    expect(trackChipsFromAdminRows([sponsored])[0]).toMatchObject({
+      sponsorName: "Orlen",
+      sponsorLogoUrl: "https://cdn.example.org/orlen.svg",
+    });
+    expect(trackChipsFromAdminRows([sponsored], new Set(["spn-1"]))[0]?.sponsorName).toBe("Orlen");
+    expect(trackChipsFromAdminRows([sponsored], new Set())[0]).toMatchObject({
+      sponsorName: null,
+      sponsorLogoUrl: null,
+    });
+  });
+
   it("SZKICE licza sie osobno, zamiast filtrowac pasmo", () => {
     expect(oneChip({ sessions_count: 4, draft_count: 3 })).toMatchObject({
       sessionsCount: 4,
@@ -745,5 +838,20 @@ describe("trackChipsFromAdminRows", () => {
       trackRow({ id: "c", is_active: null }),
     ]);
     expect(chips.map((chip) => chip.id)).toEqual(["a", "c"]);
+  });
+});
+
+describe("publishedSponsorIdSet", () => {
+  it("lista krotsza od limitu jest pelna - daje zbior do filtra", () => {
+    expect(publishedSponsorIdSet([{ id: "a" }, { id: "b" }], 200)).toEqual(new Set(["a", "b"]));
+    expect(publishedSponsorIdSet([], 200)).toEqual(new Set());
+  });
+
+  // Pelna strona moze byc ucieta: brak przypiecia na niej nie dowodzi, ze jest
+  // nieogloszone, wiec podglad nie moze zdjac sponsora widocznego na stronie.
+  it("pelna strona albo brak odpowiedzi to brak filtra", () => {
+    const full = Array.from({ length: 200 }, (_, i) => ({ id: `s${i}` }));
+    expect(publishedSponsorIdSet(full, 200)).toBeUndefined();
+    expect(publishedSponsorIdSet(undefined, 200)).toBeUndefined();
   });
 });

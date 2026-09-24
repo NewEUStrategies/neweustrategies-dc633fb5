@@ -269,6 +269,18 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0044_event_ticket_group_codes",
     twin: "20260923110000_event_ticket_group_codes.sql",
   },
+  {
+    tag: "0045_event_agenda_sponsor_affiliation",
+    twin: "20260923120000_event_agenda_sponsor_affiliation.sql",
+  },
+  // Plik zastosowany z panelu Lovable WYŁĄCZNIE na pasie drizzle. Bliźniak
+  // supabase dopisany później, z nagłówkiem, ale z tym samym SQL-em
+  // wykonywalnym - bez niego świeża baza (pgTAP, harness wydarzeń) gubiła
+  // z programu prelegentów bez konta, widocznych na produkcji.
+  {
+    tag: "0046_event_agenda_people_without_accounts",
+    twin: "20260923130000_event_agenda_people_without_accounts.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";

@@ -28,6 +28,12 @@ export const adminEventAgendaPl = {
       failed: "Nie udało się wgrać grafiki.",
     },
 
+    // Selektor sponsora debaty i ścieżki. Program publiczny pokazuje wyłącznie
+    // przypięcia OGŁOSZONE, więc wybór nieogłoszonego musi to mówić wprost.
+    sponsorPicker: {
+      unpublished: "{{name}} (nieogłoszony - niewidoczny w programie)",
+    },
+
     nav: {
       sectionTitle: "Agenda",
       sectionsNavLabel: "Sekcje agendy wydarzenia",
@@ -496,6 +502,10 @@ export const adminEventAgendaEn = {
       recommended: "Recommended size: {{size}}",
       urlLabel: "Image address",
       failed: "The image could not be uploaded.",
+    },
+
+    sponsorPicker: {
+      unpublished: "{{name}} (not announced - hidden from the programme)",
     },
 
     nav: {

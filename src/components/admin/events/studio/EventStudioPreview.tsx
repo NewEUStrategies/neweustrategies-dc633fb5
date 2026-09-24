@@ -54,6 +54,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchEventSpeakers } from "@/lib/admin/community";
 import {
   agendaSessionsFromAdminRows,
+  publishedSponsorIdSet,
   attendeeEntriesFromRegistrationRows,
   speakerRowsFromAdminEntries,
   trackChipsFromAdminRows,
@@ -69,6 +70,9 @@ type PreviewNavTarget = {
   /** Znacznik pozycji modulowej - decyduje, czy podstrona dostaje zywe dane. */
   module: string | null;
 };
+
+/** Górna granica listy ogłoszonych przypięć w podglądzie (zaciskana w RPC do 1..200). */
+const PREVIEW_SPONSORS_LIMIT = 200;
 
 export function EventStudioPreview({
   open,
@@ -143,7 +147,10 @@ export function EventStudioPreview({
   const viewer = useViewerCardFacts();
   // Tylko przypiecia OGLOSZONE - ten sam filtr, ktory stosuje publiczne
   // `event_sponsors_public`.
-  const sponsorsQ = useSponsors({ eventId, published: "published", limit: 200 }, open);
+  const sponsorsQ = useSponsors(
+    { eventId, published: "published", limit: PREVIEW_SPONSORS_LIMIT },
+    open,
+  );
   const sponsorTiers = useMemo(() => sponsorTiersFromAdminRows(sponsorsQ.data), [sponsorsQ.data]);
 
   // ZYWE DANE PODSTRON MODULOWYCH. Projekcje publiczne (`event_agenda`,
@@ -165,14 +172,31 @@ export function EventStudioPreview({
       ? { ...DEFAULT_REGISTRATIONS_QUERY, eventId, status: "all", limit: 60, offset: 0 }
       : null,
   );
+  // Program i pasma pokazuja sponsora TYLKO z ogloszonego przypiecia - ta sama
+  // bramka `is_published`, ktora stosuje publiczne `event_agenda`. Lista jest
+  // juz pobrana wyzej (`sponsorsQ`), wiec to nie jest drugie zapytanie.
+  const publishedSponsorIds = useMemo(
+    () => publishedSponsorIdSet(sponsorsQ.data, PREVIEW_SPONSORS_LIMIT),
+    [sponsorsQ.data],
+  );
   const live: EventPreviewLiveData = useMemo(
     () => ({
-      sessions: agendaSessionsFromAdminRows(sessionsQ.data, base.timezone),
-      tracks: trackChipsFromAdminRows(tracksQ.data),
+      sessions: agendaSessionsFromAdminRows(sessionsQ.data, base.timezone, {
+        tracks: tracksQ.data,
+        publishedSponsorIds,
+      }),
+      tracks: trackChipsFromAdminRows(tracksQ.data, publishedSponsorIds),
       speakers: speakerRowsFromAdminEntries(speakersQ.data),
       attendees: attendeeEntriesFromRegistrationRows(registrationsQ.data?.rows),
     }),
-    [sessionsQ.data, tracksQ.data, speakersQ.data, registrationsQ.data, base.timezone],
+    [
+      sessionsQ.data,
+      tracksQ.data,
+      speakersQ.data,
+      registrationsQ.data,
+      base.timezone,
+      publishedSponsorIds,
+    ],
   );
 
   // Wybor z nakladki WYGRYWA z podstrona wskazana w ekranie „Strony i menu":

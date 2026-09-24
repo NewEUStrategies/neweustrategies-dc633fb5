@@ -1,11 +1,13 @@
-// DateTimePicker - popover kalendarz (shadcn Calendar) + input godziny.
+// DateTimePicker - popover kalendarz (shadcn Calendar) + selektory godziny i minuty.
 // Wartość jest ISO stringiem (UTC) LUB null. Reprezentacja lokalna dla użytkownika,
 // zapis do bazy w ISO. Klawisz "Wyczyść" ustawia null (bez limitu czasowego).
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { format } from "date-fns";
 import { pl as plLocale, enGB } from "date-fns/locale";
 import { CalendarIcon, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import "@/lib/i18n-datetime-picker";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -52,6 +54,8 @@ export function DateTimePicker({
   "aria-invalid": ariaInvalid,
   "aria-describedby": ariaDescribedBy,
 }: DateTimePickerProps) {
+  const { t } = useTranslation();
+  const timeLabelId = useId();
   const locale = lang === "pl" ? plLocale : enGB;
   const date = useMemo(() => (value ? new Date(value) : null), [value]);
   const selectedHour = date ? String(date.getHours()).padStart(2, "0") : "00";
@@ -147,17 +151,16 @@ export function DateTimePicker({
         />
         <div className="flex flex-col gap-2 border-t border-border/60 bg-muted/30 p-3">
           <div className="grid grid-cols-[1fr_auto] items-center gap-3">
-            <span className="text-xs font-medium text-muted-foreground">
-              {lang === "pl" ? "Godzina" : "Time"}
+            <span id={timeLabelId} className="text-xs font-medium text-muted-foreground">
+              {t("dateTimePicker.time", { lng: lang })}
             </span>
-            <div
-              className="flex items-center gap-1"
-              aria-label={lang === "pl" ? "Godzina" : "Time"}
-            >
+            {/* `role="group"`: sam `aria-label` na `div` bez roli jest dla
+                czytnika ekranu niewidoczny (ARIA zabrania nazwy roli generic). */}
+            <div role="group" aria-labelledby={timeLabelId} className="flex items-center gap-1">
               <Select value={selectedHour} onValueChange={setHour}>
                 <SelectTrigger
                   className="h-8 w-[4.25rem] rounded-md px-2 font-mono text-sm shadow-none"
-                  aria-label={lang === "pl" ? "Godzina" : "Hour"}
+                  aria-label={t("dateTimePicker.hour", { lng: lang })}
                 >
                   <SelectValue />
                 </SelectTrigger>
@@ -178,7 +181,7 @@ export function DateTimePicker({
               <Select value={selectedMinute} onValueChange={setMinute}>
                 <SelectTrigger
                   className="h-8 w-[4.25rem] rounded-md px-2 font-mono text-sm shadow-none"
-                  aria-label={lang === "pl" ? "Minuta" : "Minute"}
+                  aria-label={t("dateTimePicker.minute", { lng: lang })}
                 >
                   <SelectValue />
                 </SelectTrigger>

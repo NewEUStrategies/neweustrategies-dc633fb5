@@ -70,7 +70,6 @@ export function AgendaTracksPanel({
   const save = useSaveEventTrack(eventId);
   const remove = useDeleteEventTrack(eventId);
   const setTrack = useSetSessionsTrack(eventId);
-  const sponsorsQ = useSponsors({ eventId, limit: 200 });
   // Diagram i licznik „bez ścieżki" czytają program, nie same ścieżki.
   const sessionsQ = useEventSessions({
     eventId,
@@ -81,6 +80,8 @@ export function AgendaTracksPanel({
   });
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  // Kandydaci na sponsora ścieżki - tylko dla otwartego okna edycji.
+  const sponsorsQ = useSponsors({ eventId, limit: 200 }, dialogOpen);
   const [edited, setEdited] = useState<EventTrackRow | null>(null);
   const [pendingDelete, setPendingDelete] = useState<EventTrackRow | null>(null);
   const [linked, setLinked] = useState<EventTrackRow | null>(null);

@@ -24,8 +24,8 @@
 // KONTROLKA POCHODZI Z REGUŁY, NIE Z `if`-ów. `agendaSignupControl` decyduje,
 // czy przycisk jest, co na nim pisze i jak wygląda - ten sam rachunek obsługuje
 // „moją agendę", więc obie powierzchnie nie mogą się rozjechać.
-import { useState } from "react";
-import { ChevronDown, Clock, DoorOpen, Loader2, Radio, ShieldCheck, Video } from "lucide-react";
+import { useId, useState } from "react";
+import { ChevronDown, Clock, DoorOpen, Landmark, Loader2, Radio, Video } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -64,10 +64,10 @@ ensureEventFrontI18n();
  * w tym RPC nie ma, a dołożenie jej to zmiana kontraktu bazy, nie widoku.
  */
 function speakerRoleLabelKey(role: string | null): string {
-  if (role === "moderator") return "eventFront.agenda.moderatorsLabel";
-  if (role === "panelist") return "eventFront.agenda.panelistsLabel";
-  if (role === "host") return "eventFront.agenda.hostsLabel";
-  return "eventFront.agenda.speakersLabel";
+  if (role === "moderator") return "eventFront.agenda.speakerRole.moderator";
+  if (role === "panelist") return "eventFront.agenda.speakerRole.panelist";
+  if (role === "host") return "eventFront.agenda.speakerRole.host";
+  return "eventFront.agenda.speakerRole.speaker";
 }
 
 function sponsorRoleKey(role: string | null): string | null {
@@ -128,6 +128,9 @@ export function AgendaSessionCard({
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const [open, setOpen] = useState(false);
+  // `useId` jest stabilny między serwerem a klientem, więc wskazanie regionu
+  // opisu nie rozjeżdża hydratacji.
+  const detailsId = useId();
 
   // Tytuł idzie przez wspólną regułę, bo ten sam napis pokazuje kolumna
   // „Twój harmonogram” - dwa rachunki rozjechałyby się na sesji wpisanej
@@ -167,8 +170,7 @@ export function AgendaSessionCard({
   const cancelled = session.status === "cancelled";
   const speakers = session.speakers.filter((speaker) => speaker.displayName !== "");
   const sponsor = session.sponsor ?? session.track?.sponsor ?? null;
-  const sponsorLogo =
-    sponsor?.logoUrl === null || sponsor?.logoUrl === undefined ? null : sponsor.logoUrl;
+  const sponsorLogo = sponsor?.logoUrl ?? null;
   const sponsorRole = sponsorRoleKey(sponsor?.role ?? null);
   const affiliation = pickLocalized(
     { affiliation_pl: session.affiliationPl, affiliation_en: session.affiliationEn },
@@ -219,7 +221,7 @@ export function AgendaSessionCard({
 
               {affiliation !== "" && (
                 <p className="flex items-start gap-1.5 text-sm text-muted-foreground">
-                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  <Landmark className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                   <span>
                     <span className="sr-only">{t("eventFront.agenda.affiliationLabel")}: </span>
                     {affiliation}
@@ -292,6 +294,7 @@ export function AgendaSessionCard({
                 variant="ghost"
                 size="sm"
                 aria-expanded={open}
+                aria-controls={detailsId}
                 onClick={() => setOpen((current) => !current)}
                 className="-ml-2 gap-1.5 text-xs"
               >
@@ -301,9 +304,13 @@ export function AgendaSessionCard({
                 />
                 {open ? t("eventFront.agenda.closeDetails") : t("eventFront.agenda.openDetails")}
               </Button>
-              {open && (
-                <p className="whitespace-pre-line text-sm text-muted-foreground">{description}</p>
-              )}
+              <p
+                id={detailsId}
+                hidden={!open}
+                className="whitespace-pre-line text-sm text-muted-foreground"
+              >
+                {description}
+              </p>
             </>
           )}
           <div className="flex flex-wrap items-center gap-2">

@@ -6,7 +6,7 @@
 // `new Date("2026-03-12 00:00")` przeczytałoby ten napis jako czas lokalny
 // i doliczyło przesunięcie DRUGI RAZ.
 import { uiLocale, type UiLang } from "@/lib/i18n/format";
-import type { DashboardBucket } from "./period";
+import type { DashboardBucket, DashboardRange } from "./period";
 
 /**
  * Krótka etykieta kubełka pod oś wykresu.
@@ -70,4 +70,37 @@ export function countryNamer(lang: UiLang): (code: string) => string {
  */
 export function labelOrKey(translated: string, fullKey: string, raw: string): string {
   return translated === fullKey ? raw : translated;
+}
+
+/**
+ * Dokładny zakres bieżącego okna pulpitu słowami, np. „1–23 wrz 2026”;
+ * dla „na żywo” i „dziś” z godzinami.
+ *
+ * STREFA TO STREFA OGLĄDAJĄCEGO, A NIE `offsetMinutes`. Granice okna liczy
+ * `resolveDashboardRange` z lokalnego `Date`, więc każda z nich ma WŁASNE
+ * przesunięcie. Przesunięcie „teraz” doklejone do początku okresu sprzed
+ * zmiany czasu (miesiąc albo rok przechodzący przez koniec października)
+ * przesuwało go o godzinę - i „październik” zaczynał się w podpisie
+ * 30 września. `timeZone` jest parametrem wyłącznie dla testów.
+ *
+ * Okno DOMKNIĘTE ma górną granicę wyłączną (północ dnia następnego), więc
+ * pokazujemy chwilę tuż przed nią - inaczej „poprzedni miesiąc” kończyłby się
+ * w podpisie pierwszym dniem bieżącego.
+ */
+export function dashboardRangeLabel(
+  range: DashboardRange,
+  lang: UiLang,
+  timeZone?: string,
+): string {
+  const withTime = range.period === "realtime" || range.period === "today";
+  const format = new Intl.DateTimeFormat(uiLocale(lang), {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    ...(withTime ? { hour: "2-digit", minute: "2-digit" } : {}),
+    ...(timeZone === undefined ? {} : { timeZone }),
+  });
+  const since = Date.parse(range.current.sinceIso);
+  const until = Math.max(since, Date.parse(range.current.untilIso) - (range.complete ? 1 : 0));
+  return format.formatRange(since, until);
 }

@@ -90,6 +90,8 @@ const h = vi.hoisted(() => ({
   sessionQueries: [] as SessionsQuery[],
   speakerTrackIds: [] as (string | null)[],
   sponsorQueries: [] as { eventId: string; q: string; limit: number }[],
+  /** Flaga `enabled` zapytania o KANDYDATÓW na sponsora pasma (bez frazy). */
+  sponsorCandidatesEnabled: [] as boolean[],
   attendeeQueries: [] as { eventId: string; q: string; limit: number }[],
   saveInputs: [] as EventTrackInput[],
   saveFails: null as string | null,
@@ -223,8 +225,11 @@ vi.mock("@/lib/events/useEventSessions", () => ({
 }));
 
 vi.mock("@/lib/events/useEventSponsors", () => ({
-  useSponsors: (query: FiltrZFraza) => {
-    h.sponsorQueries.push(query);
+  // Dwa zapytania o ten sam hak: wystawcy zakładki (z frazą) i kandydaci na
+  // sponsora pasma dla okna edycji (bez frazy) - rozdzielamy je po `q`.
+  useSponsors: (query: Omit<FiltrZFraza, "q"> & { q?: string }, enabled = true) => {
+    if (query.q === undefined) h.sponsorCandidatesEnabled.push(enabled);
+    else h.sponsorQueries.push({ ...query, q: query.q });
     return { data: h.sponsors, isLoading: h.sponsorsLoading, error: h.sponsorsError };
   },
 }));
@@ -508,6 +513,7 @@ beforeEach(() => {
   h.sessionQueries = [];
   h.speakerTrackIds = [];
   h.sponsorQueries = [];
+  h.sponsorCandidatesEnabled = [];
   h.attendeeQueries = [];
   h.saveInputs = [];
   h.saveFails = null;
@@ -1277,6 +1283,15 @@ describe("edycja pasma", () => {
 
     expect(h.okno?.open).toBe(true);
     expect(h.okno?.track?.id).toBe(TRACK_ID);
+  });
+
+  // Kandydaci na sponsora są potrzebni tylko w oknie - organizm nie płaci za
+  // to zapytanie przy każdym wejściu w pasmo.
+  it("kandydaci na sponsora pasma są pobierani dopiero po otwarciu okna", () => {
+    renderuj();
+    expect(h.sponsorCandidatesEnabled.at(-1)).toBe(false);
+    fireEvent.click(screen.getAllByText(`${W}details.editAction`)[0]);
+    expect(h.sponsorCandidatesEnabled.at(-1)).toBe(true);
   });
 
   it("przycisk w kolumnie objaśnień otwiera to samo okno", () => {

@@ -353,9 +353,14 @@ export function hasSeat(session: AgendaSession): boolean {
  */
 function searchHaystack(session: AgendaSession): string {
   const parts: string[] = [session.titlePl ?? "", session.titleEn ?? ""];
-  if (session.track !== null) parts.push(session.track.namePl ?? "", session.track.nameEn ?? "");
+  if (session.track !== null) {
+    parts.push(
+      session.track.namePl ?? "",
+      session.track.nameEn ?? "",
+      session.track.sponsor?.name ?? "",
+    );
+  }
   parts.push(session.affiliationPl ?? "", session.affiliationEn ?? "", session.sponsor?.name ?? "");
-  if (session.track?.sponsor !== undefined) parts.push(session.track.sponsor?.name ?? "");
   if (session.room !== null) parts.push(session.room.name ?? "", session.room.floor ?? "");
   for (const speaker of session.speakers) {
     parts.push(speaker.displayName, speaker.headlinePl ?? "", speaker.headlineEn ?? "");

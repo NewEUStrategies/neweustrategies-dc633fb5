@@ -1,6 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
+import { freezeClock } from "@/test/time";
+
+// Selektor sięga po `new Date()` przy wyborze godziny bez daty i przy „Teraz",
+// a literały niżej są wejściem konwersji. Zamrożony zegar trzyma oba
+// w tej samej dobie, niezależnie od dnia, w którym biegnie suita.
+freezeClock("2026-09-24T12:00:00.000Z");
 
 describe("DateTimePicker", () => {
   it("uses project-styled hour and minute selectors instead of a native time input", () => {

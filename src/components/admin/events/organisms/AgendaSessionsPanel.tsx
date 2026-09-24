@@ -80,7 +80,6 @@ export function AgendaSessionsPanel({
 
   const tracksQ = useEventTracks(eventId);
   const roomsQ = useEventRooms(eventId);
-  const sponsorsQ = useSponsors({ eventId, limit: 200 });
   const listQ = useEventSessions({
     eventId,
     q: search,
@@ -94,6 +93,9 @@ export function AgendaSessionsPanel({
   const setStatuses = useSetSessionsStatus(eventId);
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  // Kandydaci na sponsora debaty są potrzebni WYŁĄCZNIE w oknie sesji - lista
+  // programu ich nie rysuje, więc nie płaci za zapytanie przy każdym wejściu.
+  const sponsorsQ = useSponsors({ eventId, limit: 200 }, dialogOpen);
   const [edited, setEdited] = useState<EventSessionRow | null>(null);
   const [pendingDelete, setPendingDelete] = useState<EventSessionRow | null>(null);
 

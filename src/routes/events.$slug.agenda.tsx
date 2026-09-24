@@ -9,24 +9,28 @@ import { createFileRoute, useParams } from "@tanstack/react-router";
 
 import { EventModulePage } from "@/components/events/public/molecules/EventModulePage";
 import { EventAgendaSection } from "@/components/events/public/organisms/EventAgendaSection";
+import { buildEventTabHead } from "@/lib/events/eventTabHead";
+import { activeLang } from "@/lib/seo/head";
+import { getRequestUrl } from "@/lib/seo/request";
 
 export const Route = createFileRoute("/events/$slug/agenda")({
-  head: () => ({
-    meta: [
-      { title: "Program wydarzenia - New European Strategies" },
-      {
-        name: "description",
-        content: "Dni, ścieżki, debaty i sesje programu wydarzenia New European Strategies.",
-      },
-      { property: "og:title", content: "Program wydarzenia - New European Strategies" },
-      {
-        property: "og:description",
-        content: "Dni, ścieżki, debaty i sesje programu wydarzenia New European Strategies.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-    ],
-  }),
+  // Nazwa wydarzenia do nagłówka przychodzi z loadera POWŁOKI - zero
+  // round-tripów. `await parentMatchPromise`, bo loadery łańcucha startują
+  // równolegle i bez oczekiwania dane rodzica nie istnieją (wzorzec
+  // `clubHeadLoader`). Obietnica rodzica nie odrzuca.
+  loader: async ({ parentMatchPromise }) => {
+    const parent = await parentMatchPromise;
+    return { headEvent: parent.loaderData?.headEvent ?? null };
+  },
+  head: ({ params, loaderData }) => {
+    const url = getRequestUrl() || `/events/${params.slug}/agenda`;
+    return buildEventTabHead({
+      tab: "agenda",
+      url,
+      lang: activeLang(url),
+      event: loaderData?.headEvent ?? null,
+    });
+  },
   component: EventAgendaTab,
 });
 
