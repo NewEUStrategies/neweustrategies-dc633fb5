@@ -9,7 +9,7 @@
 // więc tu nie ma żadnej mutacji - wyłącznie odczyty GET tego samego serwisu.
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink } from "@/lib/lucide-shim";
+import { Download, ExternalLink } from "@/lib/lucide-shim";
 import { CANONICAL_SITE_ORIGIN } from "@/lib/http/host";
 // Karta woła wyłącznie klucze `adminSeoHub.*`. Bez tego importu nakładka
 // wchodziła do chunka tylko wtedy, gdy wciągnął ją inny moduł kokpitu -
@@ -67,6 +67,14 @@ const OPEN_HREF: Record<string, string> = {
   htmlLang: `${CANONICAL_SITE_ORIGIN}/`,
 };
 
+// Pliki do pobrania - same-origin, żeby atrybut `download` zadziałał
+// (przeglądarka ignoruje go dla adresów z innej domeny).
+const DOWNLOAD: Record<string, { href: string; file: string }> = {
+  sitemap: { href: "/sitemap.xml", file: "sitemap.xml" },
+  robots: { href: "/robots.txt", file: "robots.txt" },
+  llms: { href: "/llms.txt", file: "llms.txt" },
+};
+
 export function TechnicalFoundationCard() {
   const { t } = useTranslation();
   const { data, isPending } = useQuery({
@@ -107,7 +115,8 @@ export function TechnicalFoundationCard() {
                   <td className="px-3 py-2 align-top text-xs text-muted-foreground">
                     {t(`adminSeoHub.${check.detailKey}`, { value: check.detailValue ?? "" })}
                   </td>
-                  <td className="w-24 px-3 py-2 text-right align-top">
+                  <td className="w-40 px-3 py-2 text-right align-top">
+                    <span className="inline-flex flex-wrap justify-end gap-3">
                     {/* Pliki generowane nie są trasami routera - zwykłe <a>. */}
                     <a
                       href={OPEN_HREF[check.id] ?? "/"}
@@ -118,6 +127,18 @@ export function TechnicalFoundationCard() {
                       {t("adminSeoHub.open")}
                       <ExternalLink className="h-3 w-3 shrink-0" />
                     </a>
+                    {DOWNLOAD[check.id] ? (
+                      <a
+                        href={DOWNLOAD[check.id]?.href}
+                        download={DOWNLOAD[check.id]?.file}
+                        data-seo-download={check.id}
+                        className="inline-flex items-center gap-1 text-brand hover:underline"
+                      >
+                        {t("adminSeoHub.download")}
+                        <Download className="h-3 w-3 shrink-0" />
+                      </a>
+                    ) : null}
+                    </span>
                   </td>
                 </tr>
               ))}
