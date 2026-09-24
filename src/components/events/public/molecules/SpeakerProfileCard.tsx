@@ -88,6 +88,9 @@ ensureEventFrontI18n();
 /** Bok duzego kadru w px - 2x szerokosci karty w trzech kolumnach (~375 px). */
 export const SPEAKER_CARD_LARGE_PX = 800;
 
+/** Znacznik podgladu builderu/panelu - wewnatrz niego linki nie nawiguja. */
+const PREVIEW_MARKER = '[data-builder-renderer="widget-props-preview"]';
+
 /** Lewa granica zwinietego przycisku: miniatura 80 px (5rem) + odstep. */
 const COLLAPSED_ACTION_LEFT = "5.75rem";
 
@@ -344,6 +347,11 @@ export function SpeakerProfileCard({
         href={action.href}
         target="_blank"
         rel="noopener noreferrer"
+        // Ta sama bramka podgladu, co w `AppLink`: w podgladzie panelu klik
+        // nie otwiera obcej strony (redaktor sprawdza wyglad, nie cel).
+        onClick={(event) => {
+          if (event.currentTarget.closest(PREVIEW_MARKER)) event.preventDefault();
+        }}
         aria-label={`${actionName} ${t("eventFront.speakers.card.opensInNewTab", { lng: lang })}`}
         className={actionClass}
         style={actionStyle}

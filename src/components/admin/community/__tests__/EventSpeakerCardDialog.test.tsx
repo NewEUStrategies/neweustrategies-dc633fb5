@@ -603,6 +603,15 @@ describe("EventSpeakerCardDialog - klawiatura i jezyk podgladu", () => {
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 
+  it("zewnetrzny link w podgladzie tez nie nawiguje - bez otwierania obcej strony", () => {
+    renderDialog(
+      entry({ card_cta_url: "https://example.com/zapisy", card_cta_label_pl: "Zapisy" }),
+    );
+    const link = within(previewCard()).getByRole("link", { name: /Zapisy/ });
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(fireEvent.click(link)).toBe(false);
+  });
+
   it("trwajacy zapis trzyma dialog: Escape go nie zamyka, a odmowa bazy trafia na ekran", async () => {
     let reject: (reason: Error) => void = () => undefined;
     saveEventSpeakerCard.mockReturnValue(
