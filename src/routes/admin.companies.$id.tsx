@@ -76,10 +76,25 @@ type Company = {
   website: string | null;
   phone: string | null;
   logo_url: string | null;
+  specialization?: string | null;
+  social_links?: Record<string, string> | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;
 };
+/**
+ * Linki społecznościowe firmy (kolumna `social_links`). Nazwy sieci to marki -
+ * nie tłumaczy się ich, więc etykiety stoją w danych, nie w słowniku.
+ * Kolejność = kolejność pól w formularzu i ikon na karcie encji inline.
+ */
+const COMPANY_SOCIAL_FIELDS = [
+  { key: "linkedin", label: "LinkedIn" },
+  { key: "x", label: "X" },
+  { key: "facebook", label: "Facebook" },
+  { key: "instagram", label: "Instagram" },
+  { key: "youtube", label: "YouTube" },
+] as const;
+
 type LinkedProfile = {
   id: string;
   display_name: string | null;
@@ -213,6 +228,11 @@ function AdminCompanyDetailPage() {
       postal_code: query.data.company.postal_code,
       website: query.data.company.website,
       phone: query.data.company.phone,
+      specialization: query.data.company.specialization ?? null,
+      // Tylko obsługiwane sieci - walidator zapisu odrzuca nieznane klucze.
+      social_links: Object.fromEntries(
+        COMPANY_SOCIAL_FIELDS.map(({ key }) => [key, query.data.company.social_links?.[key] ?? ""]),
+      ),
     });
     setEditing(true);
   };
@@ -510,6 +530,30 @@ function AdminCompanyDetailPage() {
                       onChange={(e) => setForm((f) => ({ ...f, branch: e.target.value || null }))}
                     />
                   </Field>
+                  <Field label={t("Specjalizacja", "Specialization")}>
+                    <Input
+                      value={form.specialization ?? ""}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, specialization: e.target.value || null }))
+                      }
+                    />
+                  </Field>
+                  {COMPANY_SOCIAL_FIELDS.map(({ key, label }) => (
+                    <Field key={key} label={label}>
+                      <Input
+                        type="url"
+                        inputMode="url"
+                        placeholder="https://"
+                        value={form.social_links?.[key] ?? ""}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            social_links: { ...(f.social_links ?? {}), [key]: e.target.value },
+                          }))
+                        }
+                      />
+                    </Field>
+                  ))}
                   <Field label={t("Kraj", "Country")}>
                     <Input
                       value={form.country ?? ""}
@@ -567,6 +611,31 @@ function AdminCompanyDetailPage() {
                     }
                   />
                   <PropRow label={t("Branża", "Industry")} value={c.branch} />
+                  <PropRow
+                    label={t("Specjalizacja", "Specialization")}
+                    value={c.specialization ?? null}
+                  />
+                  {COMPANY_SOCIAL_FIELDS.map(({ key, label }) => {
+                    const href = c.social_links?.[key];
+                    if (!href) return null;
+                    return (
+                      <PropRow
+                        key={key}
+                        label={label}
+                        value={
+                          <a
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-primary hover:underline"
+                          >
+                            {href.replace(/^https?:\/\/(www\.)?/, "")}
+                            <ExternalLink className="h-3 w-3" aria-hidden />
+                          </a>
+                        }
+                      />
+                    );
+                  })}
                   <PropRow label={t("Kraj", "Country")} value={c.country} />
                   <PropRow label={t("Miasto", "City")} value={c.city} />
                   <PropRow label={t("Adres", "Address")} value={c.address} />

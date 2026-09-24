@@ -284,8 +284,8 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
   // Karta prelegenta rozwijana kliknieciem (pola na nakladce scenicznej)
   // i sciezki prelegenta wyprowadzone z obsady sesji.
   {
-    tag: "0048_event_speaker_card_tracks",
-    twin: "20260924120000_event_speaker_card_tracks.sql",
+    tag: "0050_event_speaker_card_tracks",
+    twin: "20260924140000_event_speaker_card_tracks.sql",
   },
 ];
 

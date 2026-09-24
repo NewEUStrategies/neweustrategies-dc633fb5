@@ -2,7 +2,7 @@
 -- 41_speaker_card_tracks - KARTA PRELEGENTA I SCIEZKI Z OBSADY SESJI
 --
 -- PO CO TEN PLIK ISTNIEJE
--- Migracja 20260924120000 doklada dwie rzeczy, ktorych bramki tekstowe nie
+-- Migracja 20260924140000 doklada dwie rzeczy, ktorych bramki tekstowe nie
 -- sprawdza: pola karty prelegenta (zapisywane przy zakladaniu i w edycji
 -- karty) oraz SCIEZKI prelegenta, ktore NIE sa wpisywane, tylko wynikaja
 -- z obsady sesji. Obie sa kontraktem strony publicznej, wiec obie maja tu

@@ -13,7 +13,7 @@
 //    `SpeakerTrack`. Stary wpis cache sprzed kolumny (`tracks` brak albo
 //    obiekt zamiast tablicy) ma dac pusta liste, a nie wyjatek przy renderze.
 //
-// 3. KLUCZ CACHE MA WERSJE. Od 20260924120000 projekcja wydarzenia oddaje pola
+// 3. KLUCZ CACHE MA WERSJE. Od 20260924140000 projekcja wydarzenia oddaje pola
 //    karty i sciezki; wpis rozgrzany przed zmiana (`builder:event-speakers:`
 //    bez `v2`) dawalby karte bez nich przez caly TTL. Klucz widac przez atrape
 //    `edgeTtlCache`, ktora zapisuje klucz i przepuszcza fetcher.

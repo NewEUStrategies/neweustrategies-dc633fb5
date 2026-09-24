@@ -23,6 +23,11 @@ import {
   type FootnoteCounter,
 } from "@/lib/footnotes";
 import { readBlocksArray, sanitize } from "./data";
+import type { InlineEntityRegistry } from "@/lib/blocks/inlineEntities/model";
+import { containsInlineEntityMarkup } from "@/lib/blocks/inlineEntities/registry";
+import { expandInlineEntities } from "@/lib/blocks/inlineEntities/expand";
+
+const NO_ENTITIES: InlineEntityRegistry = {};
 
 /**
  * Kolektor przypisów. Alias na wspólny `FootnoteCounter`, żeby oba silniki
@@ -68,18 +73,28 @@ export function renderFootnoteHtml(text: string): string {
  *   quote:                   `${id}:text`, `${id}:cite`
  *   list:                    `${id}:item:${i}`
  *   table:                   `${id}:cell:${r}:${c}`
+ *
+ * ENCJE INLINE. Ten sam pre-pass rozwija odwołania `<span data-nes-entity>`
+ * (firma / osoba z rejestru `doc.meta.inlineEntities`) - PO sanityzacji i PO
+ * przypisach, dokładnie w tych samych polach HTML. Pole z samą encją (bez
+ * przypisu) też trafia do mapy, inaczej nagłówek czy pozycja listy pokazałyby
+ * tylko tekst zastępczy.
  */
 export function precomputeFootnotes(
   blocks: readonly Block[],
   fn: FootnoteCollector,
   out: Map<string, string>,
+  entities: InlineEntityRegistry = NO_ENTITIES,
 ): void {
   // Pełne treści przypisów WP żyją w końcowej tabeli źródeł - zbieramy je z
   // CAŁEGO dokumentu, zanim znormalizujemy pojedynczy blok (skrót "Czytaj dalej").
   const wpTexts = collectWpFootnoteTexts(blocks.map((b) => b.data.html));
   const process = (raw: unknown): string | null => {
-    if (!hasFn(raw)) return null;
-    return replaceFootnotes(sanitize(normalizeLegacyFootnoteHtml(raw, wpTexts)), fn);
+    const withFn = hasFn(raw);
+    const withEntity = containsInlineEntityMarkup(raw);
+    if (!withFn && !withEntity) return null;
+    const safe = sanitize(normalizeLegacyFootnoteHtml(raw, wpTexts));
+    return expandInlineEntities(withFn ? replaceFootnotes(safe, fn) : safe, entities);
   };
   for (const b of blocks) {
     if (b.type === "paragraph" || b.type === "html" || b.type === "spoiler") {
@@ -87,9 +102,12 @@ export function precomputeFootnotes(
       // (molecules.tsx::renderSpoiler), więc należy do tej samej rodziny.
       out.set(
         b.id,
-        replaceFootnotes(
-          sanitize(normalizeLegacyFootnoteHtml(String(b.data.html ?? ""), wpTexts)),
-          fn,
+        expandInlineEntities(
+          replaceFootnotes(
+            sanitize(normalizeLegacyFootnoteHtml(String(b.data.html ?? ""), wpTexts)),
+            fn,
+          ),
+          entities,
         ),
       );
     } else if (b.type === "heading") {
@@ -116,13 +134,13 @@ export function precomputeFootnotes(
         });
       });
     } else if (b.type === "columns") {
-      precomputeFootnotes(readBlocksArray(b.data.left), fn, out);
-      precomputeFootnotes(readBlocksArray(b.data.right), fn, out);
+      precomputeFootnotes(readBlocksArray(b.data.left), fn, out, entities);
+      precomputeFootnotes(readBlocksArray(b.data.right), fn, out, entities);
     } else if (b.type === "group" || b.type === "row" || b.type === "stack" || b.type === "grid") {
       // Kontenery trzymają dzieci pod `data.children`; przechodzimy je też, bo
       // inaczej przypisy w zagnieżdżonym paragraphie renderują się jako dosłowne
       // shortcody i wypadają z sekcji przypisów.
-      precomputeFootnotes(readBlocksArray(b.data.children), fn, out);
+      precomputeFootnotes(readBlocksArray(b.data.children), fn, out, entities);
     }
   }
 }

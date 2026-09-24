@@ -4,7 +4,7 @@
 // - dwie zakładki językowe (PL/EN) z izolowanymi stosami historii
 // - sidebar po prawej z zakładkami Blok / Dokument
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-blocks";
 import { cn } from "@/lib/utils";
@@ -22,6 +22,12 @@ import { useOnboardingTour } from "@/lib/onboarding/useOnboardingTour";
 import { CoachmarkTour } from "@/components/admin/onboarding/CoachmarkTour";
 import { BLOCK_TOUR_STEPS } from "@/lib/onboarding/tours";
 import { EditorLangSwitch } from "@/components/admin/atoms/EditorLangSwitch";
+import { mirrorInlineEntities } from "@/lib/blocks/inlineEntities/registry";
+import { InlineEntitiesProvider } from "./inlineEntities/InlineEntitiesProvider";
+import { InlineEntitiesManagerButton } from "./inlineEntities/InlineEntitiesManagerButton";
+
+type BlocksLang = "pl" | "en";
+const OTHER_LANG: Readonly<Record<BlocksLang, BlocksLang>> = { pl: "en", en: "pl" };
 
 interface Props {
   value: LocalizedBlocks | null;
@@ -41,9 +47,38 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap, pre
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [codeViewOpen, setCodeViewOpen] = useState(false);
 
+  // Rejestr encji inline (`meta.inlineEntities`) jest lustrzany w PL i EN:
+  // każda propagacja aktywnej wersji kopiuje zmiany rejestru do drugiej, więc
+  // encja edytowana w jednym języku jest aktualna w obu, a obie wersje
+  // publikują się razem z wpisem. `mirrorInlineEntities` zwraca TEN SAM
+  // obiekt, gdy nie ma czego lustrzyć - zwykłe pisanie nie tworzy nowych
+  // referencji drugiej wersji.
+  const langRef = useRef<BlocksLang>("pl");
+  // Pisanie zmienia bloki, nie `meta` - gdy obie strony niosą te same obiekty
+  // `meta` co przy ostatnim lustrze, nie ma czego porównywać (INP przy długich
+  // tekstach: zero pracy na klawisz).
+  const lastMirrorRef = useRef<{ active?: unknown; other?: unknown }>({});
+  const onChangeMirrored = useCallback(
+    (next: LocalizedBlocks) => {
+      const active = langRef.current;
+      const other = OTHER_LANG[active];
+      const last = lastMirrorRef.current;
+      if (next[active].meta === last.active && next[other].meta === last.other) {
+        onChange(next);
+        return;
+      }
+      const mirrored = mirrorInlineEntities(next[active], next[other]);
+      lastMirrorRef.current = { active: next[active].meta, other: mirrored.meta };
+      onChange(mirrored === next[other] ? next : { ...next, [other]: mirrored });
+    },
+    [onChange],
+  );
+
   // Per-language undo/redo with parent-echo protection (dead-undo fix) -
   // see useLocalizedBlocksHistory for the sync contract.
-  const { lang, setLang, history } = useLocalizedBlocksHistory(value, onChange);
+  const { lang, setLang, history, safe } = useLocalizedBlocksHistory(value, onChangeMirrored);
+  langRef.current = lang;
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   // Keyboard: Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z (or Y), Alt+ArrowUp/Down to move active block.
   useEffect(() => {
@@ -108,134 +143,144 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap, pre
 
   return (
     <BlockEditorProvider lang={lang}>
-      <div
-        className={cn(
-          "grid grid-cols-1 gap-4 min-h-[600px]",
-          sidebarCollapsed ? "lg:grid-cols-[1fr_48px]" : "lg:grid-cols-[1fr_320px]",
-        )}
+      <InlineEntitiesProvider
+        activeDoc={history.doc}
+        otherDoc={safe[OTHER_LANG[lang]]}
+        lang={lang}
+        update={(next) => history.setDoc(next, true)}
+        rootRef={rootRef}
       >
-        <div className="min-w-0">
-          <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
-            <div data-tour="blocks-lang">
-              <EditorLangSwitch
-                lang={lang}
-                onLangChange={(v) => {
-                  setLang(v);
-                  setActiveId(null);
-                }}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              {previewHref ? (
-                <a
-                  href={previewHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
+        <div
+          ref={rootRef}
+          className={cn(
+            "grid grid-cols-1 gap-4 min-h-[600px]",
+            sidebarCollapsed ? "lg:grid-cols-[1fr_48px]" : "lg:grid-cols-[1fr_320px]",
+          )}
+        >
+          <div className="min-w-0">
+            <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+              <div data-tour="blocks-lang">
+                <EditorLangSwitch
+                  lang={lang}
+                  onLangChange={(v) => {
+                    setLang(v);
+                    setActiveId(null);
+                  }}
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                {previewHref ? (
+                  <a
+                    href={previewHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                    title={t("blocks.actions.preview")}
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>{t("blocks.actions.preview")}</span>
+                  </a>
+                ) : null}
+                <InlineEntitiesManagerButton />
+                <button
+                  type="button"
+                  onClick={() => setCodeViewOpen(true)}
                   className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-                  title={t("blocks.actions.preview")}
+                  title={t("blocks.codeView.title")}
                 >
-                  <Eye className="w-3.5 h-3.5" />
-                  <span>{t("blocks.actions.preview")}</span>
-                </a>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => setCodeViewOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-                title={t("blocks.codeView.title")}
-              >
-                <FileCode2 className="w-3.5 h-3.5" />
-                <span>{t("blocks.codeView.button")}</span>
-              </button>
-              <div
-                data-tour="blocks-history"
-                className="flex items-center gap-1 rounded-md border border-border bg-card px-1 py-1"
-              >
-                <IconButton
-                  onClick={history.undo}
-                  disabled={!history.canUndo}
-                  title={`${t("blocks.actions.undo")} (Ctrl+Z)`}
-                  aria-label={t("blocks.actions.undo")}
+                  <FileCode2 className="w-3.5 h-3.5" />
+                  <span>{t("blocks.codeView.button")}</span>
+                </button>
+                <div
+                  data-tour="blocks-history"
+                  className="flex items-center gap-1 rounded-md border border-border bg-card px-1 py-1"
                 >
-                  <Undo className="w-3.5 h-3.5" />
-                </IconButton>
-                <IconButton
-                  onClick={history.redo}
-                  disabled={!history.canRedo}
-                  title={`${t("blocks.actions.redo")} (Ctrl+Shift+Z)`}
-                  aria-label={t("blocks.actions.redo")}
-                >
-                  <Redo className="w-3.5 h-3.5" />
-                </IconButton>
+                  <IconButton
+                    onClick={history.undo}
+                    disabled={!history.canUndo}
+                    title={`${t("blocks.actions.undo")} (Ctrl+Z)`}
+                    aria-label={t("blocks.actions.undo")}
+                  >
+                    <Undo className="w-3.5 h-3.5" />
+                  </IconButton>
+                  <IconButton
+                    onClick={history.redo}
+                    disabled={!history.canRedo}
+                    title={`${t("blocks.actions.redo")} (Ctrl+Shift+Z)`}
+                    aria-label={t("blocks.actions.redo")}
+                  >
+                    <Redo className="w-3.5 h-3.5" />
+                  </IconButton>
+                </div>
               </div>
             </div>
-          </div>
 
-          <Tabs value={lang}>
-            {/*
+            <Tabs value={lang}>
+              {/*
               `data-tour="blocks-canvas"` to kotwica drugiego kroku przewodnika
               (`BLOCK_TOUR_STEPS`). Była jedyną z czterech, której nie było
               w drzewie - krok celował w selektor, którego nikt nie renderował.
             */}
-            <TabsContent value={lang} className="mt-0" data-tour="blocks-canvas">
-              {(() => {
-                const canvas = (
-                  <BlockCanvas
-                    doc={history.doc}
-                    activeId={activeId}
-                    onSelect={setActiveId}
-                    onChange={(next, immediate) => history.setDoc(next, immediate)}
-                    selectedIds={selectedIds}
-                    onSelectedIdsChange={setSelectedIds}
-                  />
-                );
-                return canvasWrap ? canvasWrap(canvas, lang) : canvas;
-              })()}
-            </TabsContent>
-          </Tabs>
-        </div>
+              <TabsContent value={lang} className="mt-0" data-tour="blocks-canvas">
+                {(() => {
+                  const canvas = (
+                    <BlockCanvas
+                      doc={history.doc}
+                      activeId={activeId}
+                      onSelect={setActiveId}
+                      onChange={(next, immediate) => history.setDoc(next, immediate)}
+                      selectedIds={selectedIds}
+                      onSelectedIdsChange={setSelectedIds}
+                    />
+                  );
+                  return canvasWrap ? canvasWrap(canvas, lang) : canvas;
+                })()}
+              </TabsContent>
+            </Tabs>
+          </div>
 
-        <aside
-          data-tour="blocks-sidebar"
-          className={cn(
-            "bg-card border border-border rounded-lg lg:sticky lg:top-4 self-start max-h-[80vh] lg:max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden transition-all duration-300",
-            sidebarCollapsed ? "w-12" : "w-full",
-          )}
-        >
-          <BlockSidebar
-            doc={history.doc}
-            activeBlock={activeBlock}
-            activeId={activeId}
-            onSelect={setActiveId}
-            onChangeBlock={updateActive}
-            selectedIds={selectedIds}
-            onSelectedIdsChange={setSelectedIds}
-            onReorder={(from, to) => {
-              const next = [...history.doc.blocks];
-              const [moved] = next.splice(from, 1);
-              next.splice(to, 0, moved);
-              history.setDoc({ ...history.doc, blocks: next }, true);
-            }}
-            documentPane={documentPane}
-            collapsed={sidebarCollapsed}
-            onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
-          />
-        </aside>
-      </div>
-      <CodeViewDialog
-        doc={history.doc}
-        lang={lang}
-        open={codeViewOpen}
-        onOpenChange={setCodeViewOpen}
-      />
-      {/*
+          <aside
+            data-tour="blocks-sidebar"
+            className={cn(
+              "bg-card border border-border rounded-lg lg:sticky lg:top-4 self-start max-h-[80vh] lg:max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden transition-all duration-300",
+              sidebarCollapsed ? "w-12" : "w-full",
+            )}
+          >
+            <BlockSidebar
+              doc={history.doc}
+              activeBlock={activeBlock}
+              activeId={activeId}
+              onSelect={setActiveId}
+              onChangeBlock={updateActive}
+              selectedIds={selectedIds}
+              onSelectedIdsChange={setSelectedIds}
+              onReorder={(from, to) => {
+                const next = [...history.doc.blocks];
+                const [moved] = next.splice(from, 1);
+                next.splice(to, 0, moved);
+                history.setDoc({ ...history.doc, blocks: next }, true);
+              }}
+              documentPane={documentPane}
+              collapsed={sidebarCollapsed}
+              onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
+            />
+          </aside>
+        </div>
+        <CodeViewDialog
+          doc={history.doc}
+          lang={lang}
+          open={codeViewOpen}
+          onOpenChange={setCodeViewOpen}
+        />
+        {/*
         Przewodnik po edytorze bloków. Był zbudowany w CAŁOŚCI - cztery kroki
         z tekstami PL i EN (`admin.onboarding.blocks.*`), definicje w
         `BLOCK_TOUR_STEPS`, wywołany hak `useOnboardingTour` i trzy kotwiki
         `data-tour` w drzewie - brakowało wyłącznie TEGO renderu, więc nowy
         redaktor nie widział przewodnika ani razu. Wzorzec jak w `Builder.tsx`.
       */}
-      <CoachmarkTour controller={tour} />
+        <CoachmarkTour controller={tour} />
+      </InlineEntitiesProvider>
     </BlockEditorProvider>
   );
 }

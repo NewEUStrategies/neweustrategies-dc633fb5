@@ -78,7 +78,7 @@ export interface PublicSpeakerRow {
   has_speaker_profile: boolean;
   sort_order: number;
   /**
-   * POLA KARTY ROZWIJANEJ KLIKNIECIEM (nakladka sceniczna, 20260924120000).
+   * POLA KARTY ROZWIJANEJ KLIKNIECIEM (nakladka sceniczna, 20260924140000).
    *
    * OPCJONALNE, bo oddaje je tylko projekcja wydarzenia (`event_speakers_public`)
    * - katalog i odczyt po `user_id` ich nie maja, a wiersz udajacy, ze je ma,
@@ -259,7 +259,7 @@ export const speakersQueryOptions = (c: WidgetContent, _lang: Lang) => {
             // inputem: te wiersze maja INNY ksztalt (doszly
             // `speaker_profile_id` i `person_id`) i inne zrodlo, wiec izolat
             // rozgrzany przed zmiana projekcji nie ma czym odpowiedziec po niej.
-            // `v2`: od 20260924120000 projekcja oddaje pola karty i sciezki -
+            // `v2`: od 20260924140000 projekcja oddaje pola karty i sciezki -
             // wpis sprzed tej zmiany dawalby karte bez nich przez minute TTL.
             edgeTtlCache(`builder:event-speakers:v2:${input.eventId}:${input.limit}`, 60_000, () =>
               fetchEventSpeakers({ eventId: input.eventId, limit: input.limit }),

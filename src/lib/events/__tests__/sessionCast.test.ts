@@ -4,7 +4,7 @@
 // (`admin_event_session_speakers_set` usuwa wiersze nieobecne w tablicy), wiec
 // kazdy blad tej warstwy jest cichy i trwaly: zgubiony duplikat, zla
 // kolejnosc albo kandydat legacy bez nakladki konczy sie obsada w programie
-// inna niz ta, ktora redaktor widzial w edytorze. Od 0048 szczegol sesji
+// inna niz ta, ktora redaktor widzial w edytorze. Od 0050 szczegol sesji
 // zwraca tez osoby BEZ konta - parser nie moze ich odsiewac.
 import { describe, expect, it } from "vitest";
 

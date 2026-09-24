@@ -37,7 +37,7 @@
 //      przez ekran prelegentow i tylko chowany, wiec nieskasowany szkic
 //      wrocilby przy zakladaniu NASTEPNEJ osoby - z cudzym nazwiskiem
 //      i cudzym telefonem w polach.
-//   9. KARTA PO KLIKNIECIU (20260924120000). Sekcja wspolna z dialogiem
+//   9. KARTA PO KLIKNIECIU (20260924140000). Sekcja wspolna z dialogiem
 //      „Karta" na liscie: wypelnione pola jada w payloadzie PRZYCIETE, puste
 //      jako `undefined` („ustawienie domyslne", klucz nie jedzie wcale),
 //      a blad ksztaltu (adres, kolor, dlugosc napisu) blokuje zapis, zanim

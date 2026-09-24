@@ -8,7 +8,7 @@
 // musza widziec te same reguly.
 //
 // WALIDACJA PRZED ZAPISEM, BAZA NA KONCU. `speakerCardDraftErrors` jest
-// lustrem CHECK-ow z migracji 20260924120000: redaktor widzi blad przy polu,
+// lustrem CHECK-ow z migracji 20260924140000: redaktor widzi blad przy polu,
 // zanim wysle formularz; odmowa bazy zostaje ostatnia linia obrony.
 //
 // LIMIT ETYKIETY BEZ `maxLength`. Przegladarka liczy `maxLength` w jednostkach

@@ -931,7 +931,7 @@ describe("fetchEventSpeakers", () => {
         is_public: true,
         sort_order: 0,
         is_legacy: false,
-        // Kolumny z 20260924120000: wiersz bez nich (stary cache, legacy)
+        // Kolumny z 20260924140000: wiersz bez nich (stary cache, legacy)
         // oddaje NULL i puste listy, nigdy `undefined`.
         headline_pl: null,
         headline_en: null,

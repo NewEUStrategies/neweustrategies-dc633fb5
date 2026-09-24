@@ -8,7 +8,7 @@
 // sieciowej, a reguly sprawdza test jednostkowy bez montowania czegokolwiek.
 //
 // SCIEZKI NIE SA WPISYWANE. `tracks` przychodzi z bazy wyprowadzone z obsady
-// sesji (`_event_speaker_tracks` w 20260924120000), wiec parser nie „naprawia"
+// sesji (`_event_speaker_tracks` w 20260924140000), wiec parser nie „naprawia"
 // danych - odsiewa tylko wpisy, ktorych nie da sie narysowac (bez id, bez
 // nazwy) i duplikaty, zeby klucz Reacta byl jednoznaczny.
 
@@ -226,7 +226,7 @@ export type SpeakerCardDraftError =
 
 /**
  * Bledy szkicu karty - PRZED zapisem, zeby redaktor nie dostawal odmowy bazy
- * za cos, co widac od razu. Reguly sa lustrem CHECK-ow z 20260924120000;
+ * za cos, co widac od razu. Reguly sa lustrem CHECK-ow z 20260924140000;
  * baza zostaje ostatnia linia obrony, nie pierwsza.
  */
 export function speakerCardDraftErrors(

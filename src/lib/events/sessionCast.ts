@@ -1,7 +1,7 @@
 // OBSADA SESJI w panelu - czysta warstwa edytora obsady (`SessionSpeakersEditor`).
 //
 // SKAD DANE. Obsada przychodzi z `admin_event_session_detail(...).speakers`
-// (od 20260924120000 takze osoby BEZ konta - wczesniej JOIN po `profiles`
+// (od 20260924140000 takze osoby BEZ konta - wczesniej JOIN po `profiles`
 // gubil je bez bledu), a kandydaci z rejestru prelegentow wydarzenia
 // (`admin_event_speakers_list`). Zapis to podmiana CALEJ obsady
 // (`admin_event_session_speakers_set`), wiec edytor trzyma stan docelowy.

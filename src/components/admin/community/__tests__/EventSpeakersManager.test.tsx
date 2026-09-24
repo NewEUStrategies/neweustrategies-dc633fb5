@@ -41,7 +41,7 @@
 //   9. TRZY DROGI BLEDU KONCZA SIE KOMUNIKATEM BAZY, nie cisza: dodanie,
 //      usuniecie z wydarzenia i zapis profilu.
 //
-// KARTA I SCIEZKI (20260924120000):
+// KARTA I SCIEZKI (20260924140000):
 //
 //  10. KAZDY WPIS Z NAKLADKA - z kontem i BEZ - ma przycisk „Karta" nazwany
 //      nazwiskiem (kilkanascie przyciskow „Karta" byloby dla czytnika ekranu

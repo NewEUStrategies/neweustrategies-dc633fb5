@@ -358,7 +358,7 @@ export interface EventSpeakerEntry {
   /** true = wiersz pochodzi WYLACZNIE ze starego rejestru. */
   is_legacy: boolean;
   /**
-   * NAGLOWEK SCENICZNY i POLA KARTY rozwijanej kliknieciem (20260924120000).
+   * NAGLOWEK SCENICZNY i POLA KARTY rozwijanej kliknieciem (20260924140000).
    * Opcjonalne: wiersz legacy bez nakladki ich nie ma, a starsze fikstury
    * i wpisy cache sprzed kolumn nie musza ich nosic.
    */

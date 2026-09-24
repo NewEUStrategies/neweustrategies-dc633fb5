@@ -286,7 +286,7 @@ SELECT pg_temp.assert(
 
 -- Liczba kolumn wyniku jest czescia kontraktu (`check:rpc-contract` i widget
 -- buildera): przepisanie ciala `CREATE OR REPLACE`-em nie moze jej ruszyc.
--- 20260924120000 dopisala SWIADOMIE szesc kolumn (piec pol karty prelegenta
+-- 20260924140000 dopisala SWIADOMIE szesc kolumn (piec pol karty prelegenta
 -- i `tracks`) - razem z `types.ts` i `mapSpeakerRow`, wiec liczba rosnie tu
 -- w tym samym kroku, a nie po cichu.
 SELECT pg_temp.assert(

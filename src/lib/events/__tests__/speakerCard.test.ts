@@ -7,7 +7,7 @@
 // i dobor koloru napisu musza bronic sie same - `javascript:` w `href`,
 // zdublowany klucz Reacta albo bialy napis na zoltym przycisku to bledy, ktore
 // widac dopiero na zywej stronie wydarzenia. Walidacja szkicu jest lustrem
-// CHECK-ow z migracji 0048: jesli sie rozjedzie, redaktor dostanie odmowe
+// CHECK-ow z migracji 0050: jesli sie rozjedzie, redaktor dostanie odmowe
 // `23514` bez wskazania pola.
 import { describe, expect, it } from "vitest";
 
