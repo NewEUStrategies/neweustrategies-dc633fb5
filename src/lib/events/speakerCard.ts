@@ -76,12 +76,22 @@ export function speakerTrackName(track: SpeakerTrack, lang: "pl" | "en"): string
  * (CHECK `speaker_profiles_card_cta_url_shape`), ale karta dostaje tez wiersze
  * z podgladu i z pamieci podrecznej - druga linia obrony kosztuje jedno
  * wyrazenie i zamyka `javascript:` niezaleznie od zrodla.
+ *
+ * WIELKOSC LITER JAK W BAZIE. CHECK porownuje `^https://` z rozroznieniem
+ * wielkosci liter, wiec tu tez - inaczej panel przepuszczalby „HTTPS://",
+ * ktore baza odrzuci bez wskazania pola.
+ *
+ * SCIEZKA WEWNETRZNA NIE MOZE ZACZYNAC SIE OD `//` ANI `/\`. Przegladarka
+ * czyta `/\evil.com` jak `//evil.com` (adres wzgledny wobec protokolu), wiec
+ * drugi znak nie moze byc ani ukosnikiem, ani odwrotnym ukosnikiem. Bialych
+ * znakow nie ma nigdzie: parser adresu wycina tabulatory, a `/<tab>/evil.com`
+ * stalby sie `//evil.com`.
  */
 export function safeCardHref(value: unknown): string | null {
   const url = textOrNull(value);
   if (url === null) return null;
-  if (/^https:\/\/[^\s]+$/i.test(url)) return url;
-  if (/^\/[^/\s][^\s]*$/.test(url)) return url;
+  if (/^https:\/\/\S+$/.test(url)) return url;
+  if (/^\/[^/\\\s]\S*$/.test(url)) return url;
   return null;
 }
 
@@ -185,6 +195,8 @@ export const EMPTY_SPEAKER_CARD_DRAFT: SpeakerCardDraft = {
 
 export type SpeakerCardDraftError = "labelTooLong" | "urlShape" | "photoShape" | "colorShape";
 
+const codePoints = (value: string): number => Array.from(value).length;
+
 /**
  * Bledy szkicu karty - PRZED zapisem, zeby redaktor nie dostawal odmowy bazy
  * za cos, co widac od razu. Reguly sa lustrem CHECK-ow z 20260924120000;
@@ -194,10 +206,12 @@ export function speakerCardDraftErrors(
   draft: SpeakerCardDraft,
 ): Partial<Record<keyof SpeakerCardDraft, SpeakerCardDraftError>> {
   const errors: Partial<Record<keyof SpeakerCardDraft, SpeakerCardDraftError>> = {};
-  if (draft.labelPl.trim().length > SPEAKER_CARD_LABEL_MAX) errors.labelPl = "labelTooLong";
-  if (draft.labelEn.trim().length > SPEAKER_CARD_LABEL_MAX) errors.labelEn = "labelTooLong";
+  // Znaki licza sie jak `char_length` w bazie (punkty kodowe, nie jednostki
+  // UTF-16) - emoji nie moze byc w panelu „dwoma znakami", a w bazie jednym.
+  if (codePoints(draft.labelPl.trim()) > SPEAKER_CARD_LABEL_MAX) errors.labelPl = "labelTooLong";
+  if (codePoints(draft.labelEn.trim()) > SPEAKER_CARD_LABEL_MAX) errors.labelEn = "labelTooLong";
   if (draft.url.trim() !== "" && safeCardHref(draft.url) === null) errors.url = "urlShape";
-  if (draft.photoUrl.trim() !== "" && !/^https:\/\/\S+$/i.test(draft.photoUrl.trim())) {
+  if (draft.photoUrl.trim() !== "" && !/^https:\/\/\S+$/.test(draft.photoUrl.trim())) {
     errors.photoUrl = "photoShape";
   }
   if (draft.color.trim() !== "" && hexColorOrNull(draft.color) === null)

@@ -337,8 +337,256 @@ describe("agendaSessionsFromAdminRows - miejsca, licznik i flagi", () => {
     });
   });
 
-  it("lista prelegentow sesji jest pusta - panel oddaje ich osobnym zapytaniem", () => {
+  it("BEZ rejestru prelegentow w kontekscie lista prelegentow sesji jest pusta", () => {
+    // Kontekst `speakers` jest opcjonalny: lista sesji panelu oddaje tylko
+    // liczbe prelegentow, wiec bez rejestru nie ma skad wziac obsady.
     expect(oneSession({}).speakers).toEqual([]);
+    const [withEmptyContext] = agendaSessionsFromAdminRows([sessionRow()], "UTC", {});
+    expect(withEmptyContext?.speakers).toEqual([]);
+    const [withEmptyRegistry] = agendaSessionsFromAdminRows([sessionRow()], "UTC", {
+      speakers: [],
+    });
+    expect(withEmptyRegistry?.speakers).toEqual([]);
+  });
+});
+
+/* ------------------------------------------ obsada sesji z rejestru panelu -- */
+
+describe("agendaSessionsFromAdminRows - obsada sesji z rejestru prelegentow", () => {
+  /** Program jednej albo kilku sesji z rejestrem prelegentow w kontekscie. */
+  function withCast(
+    speakers: readonly EventSpeakerEntry[],
+    rows: readonly EventSessionRow[] = [sessionRow()],
+  ) {
+    return agendaSessionsFromAdminRows(rows, "Europe/Warsaw", { speakers });
+  }
+
+  const link = (sessionId: string, role = "speaker", sortOrder = 0) => ({
+    sessionId,
+    role,
+    sortOrder,
+  });
+
+  it("prelegent przypisany do sesji wchodzi do jej obsady w ksztalcie programu", () => {
+    const [session] = withCast([
+      speakerEntry({
+        headline_pl: "Dyrektor programu",
+        headline_en: "Programme director",
+        sessions: [link("ses-1", "moderator", 4)],
+      }),
+    ]);
+    expect(session?.speakers).toEqual([
+      {
+        userId: "user-1",
+        slug: null,
+        displayName: "Anna Kowalska",
+        avatarUrl: "https://cdn.test/anna.jpg",
+        headlinePl: "Dyrektor programu",
+        headlineEn: "Programme director",
+        role: "moderator",
+        sortOrder: 4,
+      },
+    ]);
+  });
+
+  it("sesja BEZ obsady dostaje pusta liste, a sasiednia - swoja obsade", () => {
+    const sessions = withCast(
+      [speakerEntry({ sessions: [link("ses-1")] })],
+      [sessionRow({ id: "ses-1" }), sessionRow({ id: "ses-2" })],
+    );
+    expect(sessions.map((s) => [s.id, s.speakers.map((sp) => sp.userId)])).toEqual([
+      ["ses-1", ["user-1"]],
+      ["ses-2", []],
+    ]);
+  });
+
+  it("wpis bez listy sesji (stary wiersz, legacy) nie wchodzi do zadnej obsady", () => {
+    const [session] = withCast([speakerEntry({ sessions: undefined })]);
+    expect(session?.speakers).toEqual([]);
+    const [emptyLinks] = withCast([speakerEntry({ sessions: [] })]);
+    expect(emptyLinks?.speakers).toEqual([]);
+  });
+
+  // Klasa 1: `event_agenda` wpuszcza do obsady tylko nakladke publiczna.
+  it("prelegent NIEPUBLICZNY nie trafia do obsady, publiczny obok - tak", () => {
+    const [session] = withCast([
+      speakerEntry({ user_id: "u-hidden", is_public: false, sessions: [link("ses-1")] }),
+      speakerEntry({ user_id: "u-shown", sessions: [link("ses-1")] }),
+    ]);
+    expect(session?.speakers.map((sp) => sp.userId)).toEqual(["u-shown"]);
+  });
+
+  // Klasa 2: osoba bez nazwy do wyswietlenia to chip-widmo w programie.
+  it("osoba BEZ nazwy do wyswietlenia nie trafia do obsady", () => {
+    for (const empty of [null, "", "   "]) {
+      const [session] = withCast([
+        speakerEntry({ display_name: empty, sessions: [link("ses-1")] }),
+      ]);
+      expect(session?.speakers).toEqual([]);
+    }
+  });
+
+  it("nazwa z bialymi znakami po bokach jedzie NIENARUSZONA, gdy ma tresc", () => {
+    const [session] = withCast([
+      speakerEntry({ display_name: "  Anna  ", sessions: [link("ses-1")] }),
+    ]);
+    expect(session?.speakers[0]?.displayName).toBe("  Anna  ");
+  });
+
+  it("tozsamosc to konto, w jego braku osoba z kartoteki, a na koncu wpis rejestru", () => {
+    // Ten sam COALESCE, co klucz `user_id` w `event_agenda` - inaczej indeks
+    // sciezek prelegentow mialby w podgladzie inne klucze niz na stronie.
+    const [session] = withCast([
+      speakerEntry({
+        user_id: "u-1",
+        person_id: "per-1",
+        speaker_profile_id: "sp-1",
+        display_name: "A",
+        sessions: [link("ses-1", "speaker", 1)],
+      }),
+      speakerEntry({
+        user_id: null,
+        person_id: "per-2",
+        speaker_profile_id: "sp-2",
+        display_name: "B",
+        sessions: [link("ses-1", "speaker", 2)],
+      }),
+      speakerEntry({
+        user_id: null,
+        person_id: null,
+        speaker_profile_id: "sp-3",
+        display_name: "C",
+        sessions: [link("ses-1", "speaker", 3)],
+      }),
+    ]);
+    expect(session?.speakers.map((sp) => sp.userId)).toEqual(["u-1", "per-2", "sp-3"]);
+  });
+
+  it("naglowek sceniczny wygrywa ze stanowiskiem, a w jego braku wchodzi stanowisko", () => {
+    const [withHeadline] = withCast([
+      speakerEntry({
+        job_title: "Dyrektor",
+        headline_pl: "Szefowa programu",
+        headline_en: "Head of programme",
+        sessions: [link("ses-1")],
+      }),
+    ]);
+    expect(withHeadline?.speakers[0]).toMatchObject({
+      headlinePl: "Szefowa programu",
+      headlineEn: "Head of programme",
+    });
+
+    // COALESCE(headline, job_title) - kazdy jezyk osobno.
+    for (const empty of [null, undefined, "", "   "]) {
+      const [fallback] = withCast([
+        speakerEntry({
+          job_title: "Dyrektor",
+          headline_pl: empty,
+          headline_en: "Director",
+          sessions: [link("ses-1")],
+        }),
+      ]);
+      expect(fallback?.speakers[0]).toMatchObject({
+        headlinePl: "Dyrektor",
+        headlineEn: "Director",
+      });
+    }
+  });
+
+  it("bez naglowka i bez stanowiska rola sceniczna jest NULL-em, a nie pustym napisem", () => {
+    const [session] = withCast([
+      speakerEntry({
+        job_title: "  ",
+        headline_pl: null,
+        headline_en: "",
+        sessions: [link("ses-1")],
+      }),
+    ]);
+    expect(session?.speakers[0]).toMatchObject({ headlinePl: null, headlineEn: null });
+  });
+
+  it("puste zdjecie schodzi do NULL, zamiast dawac pusty obrazek", () => {
+    for (const empty of [null, "", "   "]) {
+      const [session] = withCast([speakerEntry({ avatar_url: empty, sessions: [link("ses-1")] })]);
+      expect(session?.speakers[0]?.avatarUrl).toBeNull();
+    }
+  });
+
+  it("rola w sesji przychodzi z powiazania, a pusta rola schodzi do NULL", () => {
+    const [moderated, blank] = withCast(
+      [
+        speakerEntry({
+          sessions: [link("ses-1", "moderator", 0), link("ses-2", "", 0)],
+        }),
+      ],
+      [sessionRow({ id: "ses-1" }), sessionRow({ id: "ses-2" })],
+    );
+    expect(moderated?.speakers[0]?.role).toBe("moderator");
+    expect(blank?.speakers[0]?.role).toBeNull();
+  });
+
+  it("ta sama osoba w dwoch sesjach wchodzi do obu, kazda z wlasna rola i kolejnoscia", () => {
+    const sessions = withCast(
+      [
+        speakerEntry({
+          sessions: [link("ses-1", "speaker", 2), link("ses-2", "moderator", 0)],
+        }),
+      ],
+      [sessionRow({ id: "ses-1" }), sessionRow({ id: "ses-2" })],
+    );
+    expect(sessions.map((s) => s.speakers.map((sp) => [sp.userId, sp.role, sp.sortOrder]))).toEqual(
+      [[["user-1", "speaker", 2]], [["user-1", "moderator", 0]]],
+    );
+  });
+
+  it("obsada jest sortowana po kolejnosci w sesji, NIE po kolejnosci w rejestrze", () => {
+    const [session] = withCast([
+      speakerEntry({ user_id: "u-3", display_name: "Adam", sessions: [link("ses-1", "s", 3)] }),
+      speakerEntry({ user_id: "u-1", display_name: "Zenon", sessions: [link("ses-1", "s", 1)] }),
+      speakerEntry({ user_id: "u-2", display_name: "Maria", sessions: [link("ses-1", "s", 2)] }),
+    ]);
+    expect(session?.speakers.map((sp) => sp.displayName)).toEqual(["Zenon", "Maria", "Adam"]);
+  });
+
+  it("przy rownej kolejnosci rozstrzyga nazwisko wg POLSKIEGO porzadku alfabetu", () => {
+    // W porzadku polskim „C" stoi przed „Ć" jako osobna litera, wiec „Czarny"
+    // wyprzedza „Ćwik"; porzadek bez lokalizacji traktuje „Ć" jak „C" z akcentem
+    // i odwraca te dwie pozycje. Tak samo „L" przed „Ł".
+    const [session] = withCast([
+      speakerEntry({ user_id: "u-1", display_name: "Ćwik", sessions: [link("ses-1", "s", 1)] }),
+      speakerEntry({ user_id: "u-2", display_name: "Łucja", sessions: [link("ses-1", "s", 1)] }),
+      speakerEntry({ user_id: "u-3", display_name: "Czarny", sessions: [link("ses-1", "s", 1)] }),
+      speakerEntry({ user_id: "u-4", display_name: "Lucyna", sessions: [link("ses-1", "s", 1)] }),
+      speakerEntry({ user_id: "u-5", display_name: "Adam", sessions: [link("ses-1", "s", 0)] }),
+    ]);
+    expect(session?.speakers.map((sp) => sp.displayName)).toEqual([
+      "Adam",
+      "Czarny",
+      "Ćwik",
+      "Lucyna",
+      "Łucja",
+    ]);
+  });
+
+  it("obsada sesji odwolanej albo prywatnej nie wycieka do innych sesji programu", () => {
+    const sessions = withCast(
+      [
+        speakerEntry({
+          sessions: [link("ses-cancelled"), link("ses-private"), link("ses-ok")],
+        }),
+      ],
+      [
+        sessionRow({ id: "ses-cancelled", status: "cancelled" }),
+        sessionRow({ id: "ses-private", is_private: true }),
+        sessionRow({ id: "ses-ok" }),
+      ],
+    );
+    expect(sessions.map((s) => [s.id, s.speakers.length])).toEqual([["ses-ok", 1]]);
+  });
+
+  it("powiazanie z sesja spoza listy nie tworzy sesji ani nie psuje programu", () => {
+    const sessions = withCast([speakerEntry({ sessions: [link("ses-nieznana")] })]);
+    expect(sessions.map((s) => [s.id, s.speakers])).toEqual([["ses-1", []]]);
   });
 });
 
@@ -593,6 +841,224 @@ describe("speakerRowsFromAdminEntries", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].user_id).toBe("");
     expect(rows[0].person_id).toBeNull();
+  });
+});
+
+describe("speakerRowsFromAdminEntries - naglowek i pola karty rozwijanej", () => {
+  it("naglowek sceniczny jedzie do karty w obu jezykach", () => {
+    const [row] = speakerRowsFromAdminEntries([
+      speakerEntry({ headline_pl: "Szefowa programu", headline_en: "Head of programme" }),
+    ]);
+    expect(row).toMatchObject({
+      headline_pl: "Szefowa programu",
+      headline_en: "Head of programme",
+    });
+  });
+
+  it("naglowek karty NIE spada na stanowisko - stanowisko ma na karcie wlasne pole", () => {
+    // Inaczej niz w programie (COALESCE w obsadzie sesji): wiersz karty niesie
+    // stanowisko osobnym polem `job_title`, tak jak `event_speakers_public`.
+    const [row] = speakerRowsFromAdminEntries([
+      speakerEntry({ job_title: "Dyrektor", headline_pl: null, headline_en: undefined }),
+    ]);
+    expect(row).toMatchObject({ headline_pl: null, headline_en: null, job_title: "Dyrektor" });
+  });
+
+  it("pola karty jada z rejestru bez zmian, wiec podglad rozwija karte jak strona", () => {
+    const [row] = speakerRowsFromAdminEntries([
+      speakerEntry({
+        card_photo_url: "https://cdn.test/anna-full.jpg",
+        card_cta_label_pl: "Zobacz wystapienie",
+        card_cta_label_en: "Watch the talk",
+        card_cta_url: "https://example.org/talk",
+        card_cta_color: "#FA9346",
+      }),
+    ]);
+    expect(row).toMatchObject({
+      card_photo_url: "https://cdn.test/anna-full.jpg",
+      card_cta_label_pl: "Zobacz wystapienie",
+      card_cta_label_en: "Watch the talk",
+      card_cta_url: "https://example.org/talk",
+      card_cta_color: "#FA9346",
+    });
+  });
+
+  it("wiersz BEZ pol karty (legacy, stary wpis cache) dostaje NULL-e, a nie undefined", () => {
+    // Brak pola = karta z ustawieniami domyslnymi; `undefined` w wierszu
+    // rozjechalby porownania z wierszem strony, ktory niesie jawne NULL-e.
+    const [missing] = speakerRowsFromAdminEntries([speakerEntry()]);
+    const [explicitNull] = speakerRowsFromAdminEntries([
+      speakerEntry({
+        card_photo_url: null,
+        card_cta_label_pl: null,
+        card_cta_label_en: null,
+        card_cta_url: null,
+        card_cta_color: null,
+      }),
+    ]);
+    for (const row of [missing, explicitNull]) {
+      expect(row).toMatchObject({
+        card_photo_url: null,
+        card_cta_label_pl: null,
+        card_cta_label_en: null,
+        card_cta_url: null,
+        card_cta_color: null,
+      });
+    }
+  });
+});
+
+describe("speakerRowsFromAdminEntries - sciezki prelegenta", () => {
+  const PANEL_TRACK = {
+    id: "trk-panel",
+    key: "panel",
+    namePl: "Z listy panelu",
+    nameEn: "From the panel list",
+    accentColor: "#123456",
+    sessionsCount: 5,
+  };
+
+  const link = (sessionId: string) => ({ sessionId, role: "speaker", sortOrder: 0 });
+
+  const trackSession = (id: string, track: string | null, overrides: SessionOverrides = {}) =>
+    sessionRow({
+      id,
+      track_id: track,
+      track_key: track === null ? null : `key-${track}`,
+      track_name_pl: track === null ? null : `Sciezka ${track}`,
+      track_name_en: track === null ? null : `Track ${track}`,
+      track_accent_color: track === null ? null : "#FA9346",
+      ...overrides,
+    });
+
+  function tracksOf(entry: EventSpeakerEntry, sessions?: readonly EventSessionRow[]) {
+    const [row] = speakerRowsFromAdminEntries([entry], sessions);
+    return row?.tracks;
+  }
+
+  it("BEZ listy sesji karta dostaje sciezki z listy panelu", () => {
+    expect(tracksOf(speakerEntry({ tracks: [PANEL_TRACK] }))).toEqual([PANEL_TRACK]);
+  });
+
+  it("BEZ listy sesji i bez sciezek wpisu karta ma pusta liste, a nie undefined", () => {
+    expect(tracksOf(speakerEntry({ tracks: undefined }))).toEqual([]);
+  });
+
+  it("Z lista sesji sciezki licza sie z obsady, a lista panelu jest pomijana", () => {
+    // Lista panelu liczy takze sesje prywatne - podglad ma pokazac karte taka,
+    // jaka zobaczy uczestnik obok programu podgladu.
+    const entry = speakerEntry({ tracks: [PANEL_TRACK], sessions: [link("ses-a")] });
+    expect(tracksOf(entry, [trackSession("ses-a", "t1")])).toEqual([
+      {
+        id: "t1",
+        key: "key-t1",
+        namePl: "Sciezka t1",
+        nameEn: "Track t1",
+        accentColor: "#FA9346",
+        sessionsCount: 1,
+      },
+    ]);
+    // Pusta lista sesji to tez odpowiedz: prelegent nie wystepuje w zadnej.
+    expect(tracksOf(entry, [])).toEqual([]);
+  });
+
+  it("wpis bez obsady ma pusta liste sciezek, nawet gdy program ma sesje w sciezkach", () => {
+    expect(tracksOf(speakerEntry({ sessions: undefined }), [trackSession("ses-a", "t1")])).toEqual(
+      [],
+    );
+  });
+
+  // Klasa 1: sesja, ktorej program podgladu nie pokaze, nie daje sciezki.
+  it("sesja ODWOLANA i PRYWATNA nie daja sciezki, widoczna obok - daje", () => {
+    const entry = speakerEntry({
+      sessions: [link("ses-cancelled"), link("ses-private"), link("ses-ok")],
+    });
+    const tracks = tracksOf(entry, [
+      trackSession("ses-cancelled", "t-cancelled", { status: "cancelled" }),
+      trackSession("ses-private", "t-private", { is_private: true }),
+      trackSession("ses-ok", "t-ok"),
+    ]);
+    expect(tracks?.map((t) => t.id)).toEqual(["t-ok"]);
+  });
+
+  it("sesja BEZ sciezki nie daje kafla sciezki", () => {
+    for (const empty of [null, "", "   "]) {
+      const entry = speakerEntry({ sessions: [link("ses-a")] });
+      expect(tracksOf(entry, [trackSession("ses-a", null, { track_id: empty })])).toEqual([]);
+    }
+  });
+
+  it("powiazanie z sesja spoza listy nie daje sciezki", () => {
+    const entry = speakerEntry({ sessions: [link("ses-nieznana")] });
+    expect(tracksOf(entry, [trackSession("ses-a", "t1")])).toEqual([]);
+  });
+
+  it("kilka sesji w tej samej sciezce SUMUJE sie w jeden kafel z licznikiem", () => {
+    const entry = speakerEntry({
+      sessions: [link("ses-a"), link("ses-b"), link("ses-c"), link("ses-d")],
+    });
+    const tracks = tracksOf(entry, [
+      trackSession("ses-a", "t1"),
+      trackSession("ses-b", "t1"),
+      trackSession("ses-c", "t2"),
+      trackSession("ses-d", "t1"),
+    ]);
+    expect(tracks?.map((t) => [t.id, t.sessionsCount])).toEqual([
+      ["t1", 3],
+      ["t2", 1],
+    ]);
+  });
+
+  it("sesja niewidoczna w tej samej sciezce NIE podbija licznika", () => {
+    const entry = speakerEntry({ sessions: [link("ses-a"), link("ses-b"), link("ses-c")] });
+    const tracks = tracksOf(entry, [
+      trackSession("ses-a", "t1"),
+      trackSession("ses-b", "t1", { status: "cancelled" }),
+      trackSession("ses-c", "t1", { is_private: true }),
+    ]);
+    expect(tracks).toEqual([expect.objectContaining({ id: "t1", sessionsCount: 1 })]);
+  });
+
+  it("sciezki sa uporzadkowane po kluczu, a przy rownym kluczu po identyfikatorze", () => {
+    const entry = speakerEntry({
+      sessions: [link("s1"), link("s2"), link("s3"), link("s4"), link("s5")],
+    });
+    const tracks = tracksOf(entry, [
+      trackSession("s1", "t-z", { track_key: "policy" }),
+      trackSession("s2", "t-b", { track_key: "energy" }),
+      trackSession("s3", "t-a", { track_key: "energy" }),
+      // Brak klucza sortuje sie jak pusty napis - na poczatek, a dwa takie
+      // miedzy soba - po identyfikatorze.
+      trackSession("s4", "t-y", { track_key: null }),
+      trackSession("s5", "t-x", { track_key: "" }),
+    ]);
+    expect(tracks?.map((t) => t.id)).toEqual(["t-x", "t-y", "t-a", "t-b", "t-z"]);
+  });
+
+  it("puste klucz, nazwy i kolor sciezki schodza do NULL, zamiast dawac kafel-widmo", () => {
+    const entry = speakerEntry({ sessions: [link("ses-a")] });
+    const tracks = tracksOf(entry, [
+      trackSession("ses-a", "t1", {
+        track_key: "",
+        track_name_pl: "   ",
+        track_name_en: null,
+        track_accent_color: "",
+      }),
+    ]);
+    expect(tracks).toEqual([
+      { id: "t1", key: null, namePl: null, nameEn: null, accentColor: null, sessionsCount: 1 },
+    ]);
+  });
+
+  it("kazdy prelegent dostaje WLASNE sciezki z tej samej listy sesji", () => {
+    const rows = speakerRowsFromAdminEntries(
+      [
+        speakerEntry({ speaker_profile_id: "sp-1", sessions: [link("ses-a"), link("ses-b")] }),
+        speakerEntry({ speaker_profile_id: "sp-2", sessions: [link("ses-b")] }),
+      ],
+      [trackSession("ses-a", "t1"), trackSession("ses-b", "t2")],
+    );
+    expect(rows.map((row) => row.tracks?.map((t) => t.id))).toEqual([["t1", "t2"], ["t2"]]);
   });
 });
 

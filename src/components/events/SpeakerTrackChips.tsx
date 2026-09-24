@@ -60,7 +60,7 @@ export function SpeakerTrackChips({
           <span
             key={track.id}
             aria-hidden="true"
-            className="size-2.5 shrink-0 rounded-[3px] border border-border bg-muted"
+            className="h-2.5 w-2.5 shrink-0 rounded-[3px] border border-border bg-muted"
             style={track.accentColor === null ? undefined : { backgroundColor: track.accentColor }}
           />
         ))}
@@ -78,15 +78,15 @@ export function SpeakerTrackChips({
           className={cn(
             "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-[6px] border px-1.5 py-0.5 text-[11px] font-medium leading-tight",
             inverse
-              ? "border-white/35 bg-black/40 text-white"
+              ? "border-white/30 bg-black/40 text-white"
               : "border-border bg-background text-muted-foreground",
           )}
         >
           <span
             aria-hidden="true"
             className={cn(
-              "size-2 shrink-0 rounded-[2px]",
-              track.accentColor === null && (inverse ? "bg-white/70" : "bg-muted-foreground/60"),
+              "h-2 w-2 shrink-0 rounded-[2px]",
+              track.accentColor === null && (inverse ? "bg-white/80" : "bg-muted-foreground/60"),
             )}
             style={track.accentColor === null ? undefined : { backgroundColor: track.accentColor }}
           />

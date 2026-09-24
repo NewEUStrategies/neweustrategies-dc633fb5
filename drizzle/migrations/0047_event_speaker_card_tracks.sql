@@ -5,7 +5,10 @@
 -- jada do `src`/`href` strony serwowanej po https, a mieszana zawartosc jest
 -- blokowana. Przycisk przyjmuje tez sciezke wewnetrzna („/experts/...") -
 -- link w obrebie serwisu nie potrzebuje domeny. Adres zaczynajacy sie od
--- DWOCH ukosnikow (protokol-wzgledny) jest odrzucany, bo prowadzi poza serwis.
+-- `//` albo `/\` jest odrzucany: przegladarka czyta oba jak adres wzgledny
+-- wobec protokolu, czyli link POZA serwis. Bialych i sterujacych znakow nie ma
+-- nigdzie w adresie przycisku - parser adresu wycina tabulatory, wiec
+-- `/<tab>/evil` stalby sie `//evil`.
 -- Kolor to ten sam format, co `event_tracks.accent_color`.
 -- ----------------------------------------------------------------------------
 ALTER TABLE public.speaker_profiles
@@ -40,7 +43,8 @@ BEGIN
       CHECK (
         card_cta_url IS NULL
         OR (
-          (card_cta_url ~ '^https://' OR card_cta_url ~ '^/[^/]')
+          (card_cta_url ~ '^https://' OR card_cta_url ~ '^/[^/\\]')
+          AND card_cta_url !~ '[[:space:][:cntrl:]]'
           AND char_length(card_cta_url) <= 2048
         )
       );
@@ -95,7 +99,10 @@ COMMENT ON COLUMN public.speaker_profiles.card_cta_color IS
 --     zanim opublikuje sesje.
 -- Sciezki NIE sa filtrowane po `event_tracks.is_public`, bo `event_agenda`
 -- tego nie robi: karta prelegenta i program musza mowic o tych samych
--- sciezkach (ta sama nazwa przy sesji i przy osobie).
+-- sciezkach (ta sama nazwa przy sesji i przy osobie). Kolejnosc: klucz
+-- techniczny, jak filtry sciezek programu (`agendaTrackOptions`) i sciezki
+-- prelegenta w programie oraz w podgladzie studia - chipy stoja wszedzie
+-- w tym samym porzadku.
 --
 -- LANGUAGE sql, SECURITY INVOKER: pomocnik nie ma wlasnej bramki - wolaja go
 -- WYLACZNIE funkcje SECURITY DEFINER, ktore same rozstrzygaja najemce, a
@@ -121,7 +128,7 @@ AS $$
         'name_en', t.name_en,
         'accent_color', t.accent_color,
         'sessions_count', x.sessions_count
-      ) ORDER BY t.sort_order, t.name_pl
+      ) ORDER BY t.key, t.id
     ),
     '[]'::jsonb
   )

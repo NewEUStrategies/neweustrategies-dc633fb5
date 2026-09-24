@@ -100,7 +100,10 @@ export function SpeakerProfileCard({
 }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
-  const [largeFailed, setLargeFailed] = useState(false);
+  // STAN DUZEGO KADRU JEST PRZYPISANY DO ADRESU, a nie do karty. Podglad
+  // w panelu zmienia adres, gdy redaktor pisze - blad posredniego napisu
+  // („https://exa") nie moze zgasic kadru, ktory przyjdzie po nim.
+  const [failedLargeUrl, setFailedLargeUrl] = useState<string | null>(null);
 
   const cardRef = useRef<HTMLElement | null>(null);
   const mediaRef = useRef<HTMLButtonElement | null>(null);
@@ -110,7 +113,8 @@ export function SpeakerProfileCard({
   const extrasRef = useRef<HTMLSpanElement | null>(null);
   const actionRef = useRef<HTMLElement | null>(null);
   const pending = useRef<FlipSnapshot | null>(null);
-  const warmed = useRef(false);
+  const running = useRef<(Animation | null | undefined)[]>([]);
+  const warmedUrl = useRef<string | null>(null);
 
   const name = speaker.display_name ?? "";
   // Rola: ta sama kolejnosc, co wszedzie indziej - `headline` w jezyku
@@ -159,8 +163,8 @@ export function SpeakerProfileCard({
   });
 
   const warm = (): void => {
-    if (warmed.current || largeUrl === null) return;
-    warmed.current = true;
+    if (largeUrl === null || warmedUrl.current === largeUrl) return;
+    warmedUrl.current = largeUrl;
     preloadImage(largeUrl);
   };
 
@@ -174,27 +178,37 @@ export function SpeakerProfileCard({
   // FLIP: pomiar PRZED zmiana jest w `toggle`, pomiar PO - tutaj, zanim
   // przegladarka pomaluje nowy uklad. Odwrocenie roznicy i odegranie jej do
   // zera daje ruch bez jednej klatki „skoku".
+  //
+  // KLIKNIECIE W TRAKCIE RUCHU. Pomiar „przed" w `toggle` lapie stan WIDOCZNY
+  // (z biezaca animacja) - i tak ma byc, bo z niego rusza odwrocenie. Pomiar
+  // „po" musi juz byc bez niej: animacja wysokosci i transformacji z
+  // poprzedniego klikniecia zawyzylaby nowy uklad, a zwrot startowal z
+  // krzywej geometrii. Dlatego trwajace animacje sa kasowane PRZED pomiarem -
+  // w tej samej klatce, wiec bez migniecia.
   useLayoutEffect(() => {
+    running.current.forEach((animation) => animation?.cancel());
+    running.current = [];
     const first = pending.current;
     pending.current = null;
     if (first === null) return;
     const last = snapshot();
     const easing = speakerCardEasing();
+    const play = (element: Element | null, keyframes: Keyframe[] | null): void => {
+      running.current.push(playKeyframes(element, keyframes, easing));
+    };
     if (first.card !== null && last.card !== null) {
-      playKeyframes(cardRef.current, flipHeightKeyframes(first.card, last.card), easing);
+      play(cardRef.current, flipHeightKeyframes(first.card, last.card));
     }
     if (first.media !== null && last.media !== null) {
-      playKeyframes(mediaRef.current, flipMediaKeyframes(first.media, last.media), easing);
+      play(mediaRef.current, flipMediaKeyframes(first.media, last.media));
     }
     [nameRef, roleRef, orgRef, extrasRef].forEach((ref, index) => {
       const from = first.parts[index] ?? null;
       const to = last.parts[index] ?? null;
-      if (from !== null && to !== null) {
-        playKeyframes(ref.current, flipShiftKeyframes(from, to), easing);
-      }
+      if (from !== null && to !== null) play(ref.current, flipShiftKeyframes(from, to));
     });
     if (first.action !== null && last.action !== null) {
-      playKeyframes(actionRef.current, flipShiftKeyframes(first.action, last.action), easing);
+      play(actionRef.current, flipShiftKeyframes(first.action, last.action));
     }
     // `snapshot` czyta wylacznie refy - efekt reaguje tylko na zmiane stanu.
   }, [expanded]);
@@ -357,7 +371,7 @@ export function SpeakerProfileCard({
             onTouchStart={warm}
             className={cn(
               "relative block shrink-0 overflow-hidden rounded-[6px] bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand)]/60 focus-visible:ring-offset-2",
-              expanded ? "aspect-square w-full cursor-zoom-out" : "size-20 cursor-zoom-in",
+              expanded ? "aspect-square w-full cursor-pointer" : "h-20 w-20 cursor-zoom-in",
             )}
           >
             {expanded ? (
@@ -371,18 +385,19 @@ export function SpeakerProfileCard({
                     className="absolute inset-0 size-full object-cover"
                   />
                 )}
-                {largeUrl !== null && !largeFailed && (
+                {largeUrl !== null && failedLargeUrl !== largeUrl && (
                   <img
+                    key={largeUrl}
                     src={largeUrl}
                     alt=""
                     decoding="async"
-                    onError={() => setLargeFailed(true)}
+                    onError={() => setFailedLargeUrl(largeUrl)}
                     className="oi-fade-in absolute inset-0 size-full object-cover"
                   />
                 )}
                 <span
                   aria-hidden="true"
-                  className="absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-black/80 via-black/35 to-transparent"
+                  className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/80 via-black/40 to-transparent"
                 />
               </>
             ) : (

@@ -228,6 +228,11 @@ export function AgendaSessionCard({
   // „Pokaż szczegóły" ma co pokazać, gdy sesja ma opis ALBO obsadę (ścieżki
   // prelegentów stają przy nazwiskach po rozwinięciu).
   const hasDetails = description !== "" || speakers.length > 0;
+  // Z indeksem programu prawdą jest indeks: osoba, której w nim nie ma,
+  // występuje wyłącznie w sesjach odwołanych albo bez ścieżki - i ścieżki nie
+  // dostaje. Własna ścieżka sesji to zapas TYLKO dla karty bez indeksu.
+  const speakerTracksFor = (userId: string): readonly SpeakerTrack[] =>
+    speakerTracks === undefined ? ownTrack(session) : (speakerTracks.get(userId) ?? []);
   const detailsControls = [
     description !== "" ? detailsId : "",
     speakers.length > 0 ? speakersId : "",
@@ -323,7 +328,7 @@ export function AgendaSessionCard({
           <div
             className={cn(
               speakers.length > 0 &&
-                "grid gap-x-8 gap-y-4 lg:grid-cols-[minmax(10rem,14rem)_minmax(0,1fr)]",
+                "grid gap-x-8 gap-y-4 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]",
             )}
           >
             <div className="min-w-0 space-y-4">
@@ -422,7 +427,7 @@ export function AgendaSessionCard({
                     key={speaker.userId}
                     speaker={speaker}
                     lang={lang}
-                    tracks={speakerTracks?.get(speaker.userId) ?? ownTrack(session)}
+                    tracks={speakerTracksFor(speaker.userId)}
                     showTracks={open}
                   />
                 ))}

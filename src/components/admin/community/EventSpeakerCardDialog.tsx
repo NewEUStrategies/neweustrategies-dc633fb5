@@ -141,7 +141,19 @@ export function EventSpeakerCardDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto rounded-[6px] p-5">
+      <DialogContent
+        className="max-h-[92vh] max-w-4xl overflow-y-auto rounded-[6px] p-5"
+        // ESCAPE NA ROZWINIETEJ KARCIE PODGLADU zwija karte, a NIE zamyka
+        // dialogu. Radix nasluchuje klawiatury w fazie przechwytywania, wiec
+        // `stopPropagation` karty go nie zatrzyma - a zamkniecie dialogu
+        // przepadloby niezapisane zmiany karty.
+        onEscapeKeyDown={(event) => {
+          const target = event.target;
+          if (target instanceof Element && target.closest('article[data-state="expanded"]')) {
+            event.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{t("adminCommunityEvents.speakers.card.title", { name })}</DialogTitle>
           <DialogDescription>{t("adminCommunityEvents.speakers.card.subtitle")}</DialogDescription>

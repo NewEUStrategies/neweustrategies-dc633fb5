@@ -243,6 +243,24 @@ BEGIN
       'speaker_profile_id', %L, 'card_cta_url', 'javascript:alert(1)'))$q$, v_p1),
     'speaker_profiles_card_cta_url_shape',
     '41 ksztalt: adres javascript: przycisku jest odrzucany');
+  -- `/\` przegladarka czyta jak `//` (poza serwis), a tabulator wycina parser
+  -- adresu - `/<tab>/evil` stalby sie `//evil`. Wielkie „HTTPS" odrzuca CHECK
+  -- z rozroznieniem liter; panel ma te sama regule (`safeCardHref`).
+  PERFORM pg_temp.assert_raises_like(
+    format($q$SELECT public.admin_event_speaker_card_save(jsonb_build_object(
+      'speaker_profile_id', %L, 'card_cta_url', %L))$q$, v_p1, E'/\\evil.example.org'),
+    'speaker_profiles_card_cta_url_shape',
+    '41 ksztalt: sciezka z odwrotnym ukosnikiem na drugim miejscu jest odrzucana');
+  PERFORM pg_temp.assert_raises_like(
+    format($q$SELECT public.admin_event_speaker_card_save(jsonb_build_object(
+      'speaker_profile_id', %L, 'card_cta_url', %L))$q$, v_p1, E'/\t/evil.example.org'),
+    'speaker_profiles_card_cta_url_shape',
+    '41 ksztalt: znak sterujacy w adresie przycisku jest odrzucany');
+  PERFORM pg_temp.assert_raises_like(
+    format($q$SELECT public.admin_event_speaker_card_save(jsonb_build_object(
+      'speaker_profile_id', %L, 'card_cta_url', 'HTTPS://example.org'))$q$, v_p1),
+    'speaker_profiles_card_cta_url_shape',
+    '41 ksztalt: wielkie HTTPS jest odrzucane jak w panelu');
   PERFORM pg_temp.assert_raises_like(
     format($q$SELECT public.admin_event_speaker_card_save(jsonb_build_object(
       'speaker_profile_id', %L, 'card_cta_color', 'orange'))$q$, v_p1),
@@ -307,6 +325,14 @@ BEGIN
     FROM jsonb_array_elements(v_row.tracks) x;
   PERFORM pg_temp.assert(v_tracks = '["dyplomacja", "energia", "media"]'::jsonb,
     '41 panel: sciezki = energia + dyplomacja (szkic) + media (prywatna), bez obrony (dostano: '
+      || COALESCE(v_tracks::text, 'NULL') || ')');
+  -- Kolejnosc = klucz techniczny (jak filtry programu), a NIE `sort_order`:
+  -- scenografia ma sort_order energia=1, dyplomacja=2, wiec obie kolejnosci
+  -- sie tu roznia i asercja widzi, ktora wygrala.
+  SELECT jsonb_agg(x.item->>'key' ORDER BY x.ord) INTO v_tracks
+    FROM jsonb_array_elements(v_row.tracks) WITH ORDINALITY AS x(item, ord);
+  PERFORM pg_temp.assert(v_tracks = '["dyplomacja", "energia", "media"]'::jsonb,
+    '41 panel: sciezki w kolejnosci klucza, nie sort_order (dostano: '
       || COALESCE(v_tracks::text, 'NULL') || ')');
   PERFORM pg_temp.assert(jsonb_array_length(v_row.sessions) = 3,
     '41 panel: obsada wpisu bez sesji odwolanej (3 sesje)');
