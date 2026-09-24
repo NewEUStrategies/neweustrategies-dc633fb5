@@ -7,7 +7,7 @@
 // rejestr). Dzięki temu dodanie bloku to jeden wpis w rejestrze, a nie edycja
 // wielkiego `switch`.
 
-import { useMemo, useRef } from "react";
+import { lazy, Suspense, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import type { BlocksDoc } from "@/lib/blocks/types";
 import "@/lib/i18n-public";
@@ -15,6 +15,7 @@ import { FootnoteTooltips } from "@/components/Footnotes";
 import { createCounter, isLegacyFootnoteReferenceHtml, type Footnote } from "@/lib/footnotes";
 import { safeParseBlocks } from "@/lib/blocks/schema";
 import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
+import { readInlineEntities, referencedInlineEntities } from "@/lib/blocks/inlineEntities/registry";
 import {
   BlockView,
   BlocksTenantProvider,
@@ -22,6 +23,12 @@ import {
   renderFootnoteHtml,
   type FootnoteCollector,
 } from "./renderer";
+
+// Karty encji inline (firma / osoba) - osobny, leniwy chunk ładowany tylko dla
+// artykułów, które mają encje w treści. Na SSR komponent i tak nic nie
+// renderuje (znaczniki są statycznym HTML-em z pre-passu), więc leniwość nie
+// zmienia ani bajtu dokumentu, a pozostałe artykuły nie płacą za niego nic.
+const InlineEntityCards = lazy(() => import("./inlineEntities/InlineEntityCards"));
 
 interface Props {
   doc: BlocksDoc | null | undefined;
@@ -43,15 +50,22 @@ export function BlocksRenderer({ doc, lang = "pl", postId, tenantHost }: Props) 
   const articleRef = useRef<HTMLElement | null>(null);
   // Validation and footnotes depend on document content, not language/context
   // rerenders. This cache belongs to this renderer, never to another request.
-  const { contentBlocks, fn, fnHtml, hasBlocks } = useMemo(() => {
+  const { contentBlocks, fn, fnHtml, hasBlocks, inlineEntities } = useMemo(() => {
     const safe = safeParseBlocks(doc);
     const contentBlocks = safe.blocks.filter(
       (block) => !(block.type === "html" && isLegacyFootnoteReferenceHtml(block.data.html)),
     );
     const fn: FootnoteCollector = createCounter(1);
     const fnHtml = new Map<string, string>();
-    precomputeFootnotes(contentBlocks, fn, fnHtml);
-    return { contentBlocks, fn, fnHtml, hasBlocks: safe.blocks.length > 0 };
+    // Rejestr encji inline żyje w `doc.meta` - dane są częścią materiału, więc
+    // SSR ma je bez żadnego zapytania do bazy. Czytamy go z dokumentu
+    // wejściowego, nie z `safe`: degradacja schematu świadomie gubi `meta`,
+    // a rejestr ma własną walidację (`normalizeInlineEntityRegistry`), więc
+    // jeden wadliwy blok nie odbiera encji blokom poprawnym.
+    const registry = readInlineEntities(doc);
+    precomputeFootnotes(contentBlocks, fn, fnHtml, registry);
+    const inlineEntities = referencedInlineEntities(contentBlocks, registry);
+    return { contentBlocks, fn, fnHtml, hasBlocks: safe.blocks.length > 0, inlineEntities };
   }, [doc]);
   if (!hasBlocks) return null;
   const tooltipNotes: Footnote[] = fn.notes;
@@ -142,6 +156,11 @@ export function BlocksRenderer({ doc, lang = "pl", postId, tenantHost }: Props) 
         )}
         {tooltipNotes.length > 0 && (
           <FootnoteTooltips notes={tooltipNotes} containerRef={articleRef} />
+        )}
+        {inlineEntities.length > 0 && (
+          <Suspense fallback={null}>
+            <InlineEntityCards entities={inlineEntities} lang={lang} containerRef={articleRef} />
+          </Suspense>
         )}
       </article>
     </BlocksTenantProvider>

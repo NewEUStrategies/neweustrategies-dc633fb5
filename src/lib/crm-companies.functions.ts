@@ -149,6 +149,33 @@ export const getCrmCompany = createServerFn({ method: "POST" })
     return { json: j({ company, profiles, leads }) };
   });
 
+/**
+ * Linki społecznościowe (kolumna `social_links`, te same sieci co karta encji
+ * inline). Pusty string = usunięcie wpisu, reszta musi być adresem http(s).
+ * Zapisujemy obiekt bez pustych kluczy - kolumna ma CHECK `jsonb_typeof = 'object'`.
+ */
+const socialUrl = z
+  .string()
+  .trim()
+  .max(500)
+  .refine((v) => v === "" || /^https?:\/\/\S+\.\S+/i.test(v), "invalid_url")
+  .optional();
+
+const SocialLinksInput = z
+  .object({
+    linkedin: socialUrl,
+    x: socialUrl,
+    facebook: socialUrl,
+    instagram: socialUrl,
+    youtube: socialUrl,
+  })
+  .strict()
+  .transform((links) => {
+    const out: Record<string, string> = {};
+    for (const [network, url] of Object.entries(links)) if (url) out[network] = url;
+    return out;
+  });
+
 const UpdateInput = z.object({
   id: z.string().uuid(),
   name: z.string().trim().min(1).max(200).optional(),
@@ -161,6 +188,8 @@ const UpdateInput = z.object({
   website: z.string().trim().max(300).nullable().optional(),
   phone: z.string().trim().max(60).nullable().optional(),
   logo_url: z.string().trim().url().max(1000).nullable().optional(),
+  specialization: z.string().trim().max(200).nullable().optional(),
+  social_links: SocialLinksInput.optional(),
 });
 
 export const updateCrmCompany = createServerFn({ method: "POST" })

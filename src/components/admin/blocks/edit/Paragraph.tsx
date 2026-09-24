@@ -31,6 +31,7 @@ import { reapplyPendingBlockFocus } from "@/lib/blocks/focus";
 import { parseSlashQuery, searchBlockSpecs } from "@/lib/blocks/search";
 
 import { WordStyleToolbar } from "../WordStyleToolbar";
+import { InlineEntityNode } from "../inlineEntities/InlineEntityExtension";
 import { SlashMenu } from "../molecules/SlashMenu";
 
 interface Props {
@@ -123,6 +124,10 @@ export function ParagraphBlock({
       TextAlign.configure({ types: ["heading", "paragraph"] }),
       Subscript,
       Superscript,
+      // Odwołania do encji inline (firma / osoba). Rejestrowane ZAWSZE - bez
+      // węzła TipTap zamieniłby `<span data-nes-entity>` na zwykły tekst
+      // i odwołanie zniknęłoby z treści przy pierwszej edycji akapitu.
+      InlineEntityNode,
     ],
     content: html || "<p></p>",
     editorProps: {
