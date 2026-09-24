@@ -117,27 +117,27 @@ export function TechnicalFoundationCard() {
                   </td>
                   <td className="w-40 px-3 py-2 text-right align-top">
                     <span className="inline-flex flex-wrap justify-end gap-3">
-                    {/* Pliki generowane nie są trasami routera - zwykłe <a>. */}
-                    <a
-                      href={OPEN_HREF[check.id] ?? "/"}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-brand hover:underline"
-                    >
-                      {t("adminSeoHub.open")}
-                      <ExternalLink className="h-3 w-3 shrink-0" />
-                    </a>
-                    {DOWNLOAD[check.id] ? (
+                      {/* Pliki generowane nie są trasami routera - zwykłe <a>. */}
                       <a
-                        href={DOWNLOAD[check.id]?.href}
-                        download={DOWNLOAD[check.id]?.file}
-                        data-seo-download={check.id}
+                        href={OPEN_HREF[check.id] ?? "/"}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-brand hover:underline"
                       >
-                        {t("adminSeoHub.download")}
-                        <Download className="h-3 w-3 shrink-0" />
+                        {t("adminSeoHub.open")}
+                        <ExternalLink className="h-3 w-3 shrink-0" />
                       </a>
-                    ) : null}
+                      {DOWNLOAD[check.id] ? (
+                        <a
+                          href={DOWNLOAD[check.id]?.href}
+                          download={DOWNLOAD[check.id]?.file}
+                          data-seo-download={check.id}
+                          className="inline-flex items-center gap-1 text-brand hover:underline"
+                        >
+                          {t("adminSeoHub.download")}
+                          <Download className="h-3 w-3 shrink-0" />
+                        </a>
+                      ) : null}
                     </span>
                   </td>
                 </tr>

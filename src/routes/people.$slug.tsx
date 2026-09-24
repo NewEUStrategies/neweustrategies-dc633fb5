@@ -40,7 +40,10 @@ function MemberProfilePage() {
   const { t } = useTranslation();
   return (
     <main className="container mx-auto px-4 py-8">
-      <AuthGate fallbackTitle={t("memberProfile.gateTitle")} fallbackBody={t("memberProfile.gateBody")}>
+      <AuthGate
+        fallbackTitle={t("memberProfile.gateTitle")}
+        fallbackBody={t("memberProfile.gateBody")}
+      >
         <MemberProfileBody />
       </AuthGate>
     </main>
@@ -55,13 +58,21 @@ function MemberProfileBody() {
   const query = useQuery(memberProfileQueryOptions(slug, user?.id ?? null));
 
   if (query.isPending) {
-    return <p className="py-12 text-center text-sm text-muted-foreground">{t("memberProfile.loading")}</p>;
+    return (
+      <p className="py-12 text-center text-sm text-muted-foreground">
+        {t("memberProfile.loading")}
+      </p>
+    );
   }
   if (query.isError) {
     return (
       <div className="py-12 text-center text-sm">
         <p className="text-muted-foreground">{t("memberProfile.error")}</p>
-        <button type="button" onClick={() => void query.refetch()} className="mt-3 text-primary underline">
+        <button
+          type="button"
+          onClick={() => void query.refetch()}
+          className="mt-3 text-primary underline"
+        >
           {t("memberProfile.retry")}
         </button>
       </div>
@@ -70,7 +81,9 @@ function MemberProfileBody() {
   if (query.data === null) {
     return (
       <div className="mx-auto max-w-md py-12 text-center">
-        <h1 className="text-xl font-semibold text-foreground">{t("memberProfile.notFoundTitle")}</h1>
+        <h1 className="text-xl font-semibold text-foreground">
+          {t("memberProfile.notFoundTitle")}
+        </h1>
         <p className="mt-2 text-sm text-muted-foreground">{t("memberProfile.notFoundBody")}</p>
         <Link to="/people" className="mt-4 inline-block text-sm text-primary underline">
           {t("memberProfile.backToPeople")}

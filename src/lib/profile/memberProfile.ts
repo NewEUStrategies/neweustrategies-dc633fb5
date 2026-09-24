@@ -5,7 +5,11 @@ import { queryOptions } from "@tanstack/react-query";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 
-const nullableText = z.string().nullable().optional().transform((v) => v ?? null);
+const nullableText = z
+  .string()
+  .nullable()
+  .optional()
+  .transform((v) => v ?? null);
 
 export const memberProfileSchema = z.object({
   id: z.string(),

@@ -25,7 +25,13 @@ function safeHttps(url: string | null): string | null {
   }
 }
 
-export function MemberProfileView({ profile, lang }: { profile: MemberProfile; lang: "pl" | "en" }) {
+export function MemberProfileView({
+  profile,
+  lang,
+}: {
+  profile: MemberProfile;
+  lang: "pl" | "en";
+}) {
   const { t } = useTranslation();
   const bio = lang === "en" ? profile.bio_en : profile.bio_pl;
   const role = [profile.job_title, profile.company].filter(Boolean).join(" - ");
@@ -54,7 +60,10 @@ export function MemberProfileView({ profile, lang }: { profile: MemberProfile; l
           <h1 className="flex items-center gap-2 text-2xl font-semibold text-foreground">
             <span className="truncate">{profile.display_name}</span>
             {profile.verified ? (
-              <BadgeCheck className="h-5 w-5 shrink-0 text-primary" aria-label={t("memberProfile.verified")} />
+              <BadgeCheck
+                className="h-5 w-5 shrink-0 text-primary"
+                aria-label={t("memberProfile.verified")}
+              />
             ) : null}
           </h1>
           {role !== "" ? (
@@ -116,11 +125,18 @@ export function MemberProfileView({ profile, lang }: { profile: MemberProfile; l
           ) : null}
           {linkedin !== null || website !== null ? (
             <div>
-              <h2 className="mb-1 text-sm font-semibold text-muted-foreground">{t("memberProfile.links")}</h2>
+              <h2 className="mb-1 text-sm font-semibold text-muted-foreground">
+                {t("memberProfile.links")}
+              </h2>
               <ul className="space-y-1 text-sm">
                 {linkedin !== null ? (
                   <li>
-                    <a href={linkedin} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex items-center gap-1.5 text-primary hover:underline">
+                    <a
+                      href={linkedin}
+                      target="_blank"
+                      rel="noopener noreferrer nofollow"
+                      className="inline-flex items-center gap-1.5 text-primary hover:underline"
+                    >
                       <Linkedin className="h-3.5 w-3.5" aria-hidden="true" />
                       LinkedIn
                     </a>
@@ -128,7 +144,12 @@ export function MemberProfileView({ profile, lang }: { profile: MemberProfile; l
                 ) : null}
                 {website !== null ? (
                   <li>
-                    <a href={website} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex items-center gap-1.5 text-primary hover:underline">
+                    <a
+                      href={website}
+                      target="_blank"
+                      rel="noopener noreferrer nofollow"
+                      className="inline-flex items-center gap-1.5 text-primary hover:underline"
+                    >
                       <Globe className="h-3.5 w-3.5" aria-hidden="true" />
                       {t("memberProfile.website")}
                     </a>
