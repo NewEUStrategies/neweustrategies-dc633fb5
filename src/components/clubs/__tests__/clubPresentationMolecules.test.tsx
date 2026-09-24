@@ -162,7 +162,7 @@ describe("ClubReactionAvatars - kto zareagował", () => {
   it("osoba znana dostaje nazwę, stanowisko i rodzaj reakcji w jednej etykiecie", () => {
     render(<ClubReactionAvatars actors={[actor({ kinds: ["insightful", "thanks"] })]} />);
     const link = screen.getByRole("link");
-    expect(link).toHaveAttribute("href", "/people/anna-nowak");
+    expect(link).toHaveAttribute("href", "/author/anna-nowak");
     expect(link).toHaveAccessibleName(
       "Anna Nowak - Analityczka rynku energii – club.reaction.insightful · club.reaction.thanks",
     );
