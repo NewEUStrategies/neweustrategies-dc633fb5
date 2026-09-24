@@ -53,6 +53,7 @@
 - [x] Zweryfikować publiczny program i listę prelegentów.
 
 ## Profile People vs Author (2026-09-24)
+
 - [x] /people/$slug dla każdego użytkownika, /author tylko z roli/zaproszenia autora, redirect 301
 - [x] Linki klub/wzmianki/wyszukiwarka/organizacje -> /people
 - [x] Sitemap aktualizacja + widok/plik w Admin > SEO

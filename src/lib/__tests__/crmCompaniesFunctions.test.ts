@@ -298,6 +298,41 @@ describe("updateCrmCompany", () => {
       }),
     ).rejects.toThrow();
   });
+
+  it("zapisuje specjalizację i linki społecznościowe bez pustych wpisów", async () => {
+    db.setResponse("crm_companies", () => ok(null));
+    db.setResponse("audit_log", () => ok(null));
+    await callServerFn(companies.updateCrmCompany, {
+      data: {
+        id: COMPANY_ID,
+        specialization: "Magazyny energii",
+        social_links: { linkedin: " https://linkedin.com/company/acme ", x: "" },
+      },
+      context: context(),
+    });
+    const updateChain = db.chainsFor("crm_companies").find((c) => c.argsOf("update") !== undefined);
+    expect(updateChain?.argsOf("update")).toEqual([
+      {
+        specialization: "Magazyny energii",
+        social_links: { linkedin: "https://linkedin.com/company/acme" },
+      },
+    ]);
+  });
+
+  it("link społecznościowy musi być adresem http(s), a sieć znana", async () => {
+    await expect(
+      callServerFn(companies.updateCrmCompany, {
+        data: { id: COMPANY_ID, social_links: { linkedin: "javascript:alert(1)" } },
+        context: context(),
+      }),
+    ).rejects.toThrow();
+    await expect(
+      callServerFn(companies.updateCrmCompany, {
+        data: { id: COMPANY_ID, social_links: { myspace: "https://myspace.com/acme" } },
+        context: context(),
+      }),
+    ).rejects.toThrow();
+  });
 });
 
 describe("createCrmContactForCompany", () => {

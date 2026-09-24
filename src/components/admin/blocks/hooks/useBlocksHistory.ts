@@ -11,9 +11,18 @@ interface Options {
   limit?: number;
 }
 
+/**
+ * Nowy dokument albo funkcja liczona na NAJŚWIEŻSZYM stanie. Wariant funkcyjny
+ * jest dla zmian nakładanych na dokument niezależnie od kanwy (np. rejestr
+ * encji inline w `meta`): kanwa oddaje pełny dokument policzony ze swojego
+ * propsa, więc zmiana z tego samego ticku przekazana jako gotowy obiekt
+ * zostałaby nadpisana.
+ */
+export type BlocksDocUpdate = BlocksDoc | ((prev: BlocksDoc) => BlocksDoc);
+
 export interface BlocksHistory {
   doc: BlocksDoc;
-  setDoc: (next: BlocksDoc, immediate?: boolean) => void;
+  setDoc: (next: BlocksDocUpdate, immediate?: boolean) => void;
   reset: (next: BlocksDoc) => void;
   undo: () => void;
   redo: () => void;
@@ -41,8 +50,9 @@ export function useBlocksHistory(initial: BlocksDoc, opts: Options = {}): Blocks
   }, []);
 
   const setDoc = useCallback(
-    (next: BlocksDoc, immediate = false) => {
+    (update: BlocksDocUpdate, immediate = false) => {
       setState((prev) => {
+        const next = typeof update === "function" ? update(prev.doc) : update;
         if (prev.doc === next) return prev;
         const now = Date.now();
         const elapsed = now - lastCommitRef.current;

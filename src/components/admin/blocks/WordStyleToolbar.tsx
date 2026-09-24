@@ -30,11 +30,16 @@ import {
   Undo2,
   Redo2,
   StickyNote,
+  Building2,
+  UserRound,
 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 
 import { promptDialog } from "@/lib/appDialogs";
+import type { InlineEntityKind } from "@/lib/blocks/inlineEntities/model";
+import { useInlineEntities } from "./inlineEntities/InlineEntitiesContext";
+import { INLINE_ENTITY_NODE, inlineEntityContent } from "./inlineEntities/InlineEntityExtension";
 interface Props {
   editor: Editor;
 }
@@ -160,6 +165,8 @@ function ColorPopover({
 
 export function WordStyleToolbar({ editor }: Props) {
   const i18n = useBlocksI18n();
+  const inlineEntities = useInlineEntities();
+  const canInsertEntity = Boolean(inlineEntities && editor.schema.nodes[INLINE_ENTITY_NODE]);
   const [colorOpen, setColorOpen] = useState(false);
   const [hlOpen, setHlOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -216,6 +223,22 @@ export function WordStyleToolbar({ editor }: Props) {
     // więc pozycja w tekście decyduje o numerze, nie kolejność klików.
     const at = empty ? from : to;
     editor.chain().focus().insertContentAt(at, `[fn]${body}[/fn]`).run();
+  };
+
+  // Firma / osoba inline: zaznaczony tekst staje się nazwą i jest ZASTĘPOWANY
+  // odwołaniem (w odróżnieniu od przypisu, który dopisuje się obok).
+  const insertEntity = (kind: InlineEntityKind) => {
+    if (!inlineEntities) return;
+    const { from, to, empty } = editor.state.selection;
+    const selected = empty ? "" : editor.state.doc.textBetween(from, to, " ").trim();
+    inlineEntities.openEditor({
+      mode: "create",
+      kind,
+      prefillName: selected || undefined,
+      onSaved: (entity) => {
+        editor.chain().focus().insertContentAt({ from, to }, inlineEntityContent(entity)).run();
+      },
+    });
   };
 
   return (
@@ -370,6 +393,22 @@ export function WordStyleToolbar({ editor }: Props) {
         <ToolbarBtn title={i18n.t("blocks.toolbar.footnoteInsert")} onClick={insertFootnote}>
           <StickyNote className="h-3.5 w-3.5" />
         </ToolbarBtn>
+        {canInsertEntity ? (
+          <>
+            <ToolbarBtn
+              title={i18n.t("blocks.inlineEntity.insertCompany")}
+              onClick={() => insertEntity("company")}
+            >
+              <Building2 className="h-3.5 w-3.5" />
+            </ToolbarBtn>
+            <ToolbarBtn
+              title={i18n.t("blocks.inlineEntity.insertPerson")}
+              onClick={() => insertEntity("person")}
+            >
+              <UserRound className="h-3.5 w-3.5" />
+            </ToolbarBtn>
+          </>
+        ) : null}
       </div>
 
       {/* Wiersz 2: akapit + wyrównanie + listy */}

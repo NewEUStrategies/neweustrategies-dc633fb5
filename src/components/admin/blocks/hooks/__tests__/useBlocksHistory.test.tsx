@@ -317,3 +317,31 @@ it.fails("DEFEKT: Ctrl+Z w otwartym oknie nie moze cofac dwoch zmian naraz", () 
   // Oczekiwane: pierwsze cofniecie wraca do tekstu sprzed pisania („k1").
   expect(tresc(result.current.doc)).toBe("<p>k1</p>");
 });
+
+describe("useBlocksHistory - aktualizacja funkcyjna", () => {
+  it("liczy zmianę na NAJŚWIEŻSZYM stanie (dwie zmiany w jednym ticku nie nadpisują się)", () => {
+    const start: BlocksDoc = { version: 1, blocks: [] };
+    const { result } = renderHook(() => useBlocksHistory(start));
+    const withBlock: BlocksDoc = {
+      version: 1,
+      blocks: [{ id: "b1", type: "paragraph", data: { html: "<p>x</p>" } }],
+    };
+    act(() => {
+      // Kanwa oddaje gotowy dokument, rejestr (meta) wchodzi funkcyjnie - na
+      // stanie PO zmianie kanwy, więc obie zmiany przeżywają.
+      result.current.setDoc(withBlock, true);
+      result.current.setDoc((prev) => ({ ...prev, meta: { note: "ok" } }), true);
+    });
+    expect(result.current.doc.blocks).toHaveLength(1);
+    expect(result.current.doc.meta).toEqual({ note: "ok" });
+    act(() => result.current.undo());
+    expect(result.current.doc).toBe(withBlock);
+  });
+
+  it("funkcja zwracająca ten sam dokument nie tworzy kroku historii", () => {
+    const start: BlocksDoc = { version: 1, blocks: [] };
+    const { result } = renderHook(() => useBlocksHistory(start));
+    act(() => result.current.setDoc((prev) => prev, true));
+    expect(result.current.canUndo).toBe(false);
+  });
+});
