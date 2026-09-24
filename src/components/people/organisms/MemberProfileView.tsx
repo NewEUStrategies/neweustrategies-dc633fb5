@@ -138,7 +138,7 @@ export function MemberProfileView({
                       className="inline-flex items-center gap-1.5 text-primary hover:underline"
                     >
                       <Linkedin className="h-3.5 w-3.5" aria-hidden="true" />
-                      LinkedIn
+                      {t("memberProfile.linkedin")}
                     </a>
                   </li>
                 ) : null}
