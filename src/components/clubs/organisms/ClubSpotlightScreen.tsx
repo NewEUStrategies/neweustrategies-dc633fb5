@@ -228,7 +228,7 @@ export function ClubSpotlightScreen({
             <div className="min-w-0 flex-1">
               {current.profile_slug !== null ? (
                 <Link
-                  to="/author/$slug"
+                  to="/people/$slug"
                   params={{ slug: current.profile_slug }}
                   className="text-xl font-semibold leading-tight hover:text-primary sm:text-2xl"
                 >
@@ -263,7 +263,7 @@ export function ClubSpotlightScreen({
                 />
                 {current.profile_slug !== null ? (
                   <Button asChild variant="outline" size="sm" className="rounded-lg">
-                    <Link to="/author/$slug" params={{ slug: current.profile_slug }}>
+                    <Link to="/people/$slug" params={{ slug: current.profile_slug }}>
                       {t("club.network.spotlight.openProfile")}
                     </Link>
                   </Button>
@@ -300,7 +300,7 @@ export function ClubSpotlightScreen({
                   <div className="flex flex-wrap items-center gap-2">
                     {row.profile_slug !== null ? (
                       <Link
-                        to="/author/$slug"
+                        to="/people/$slug"
                         params={{ slug: row.profile_slug }}
                         className="truncate text-sm font-medium hover:text-primary"
                       >

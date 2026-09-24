@@ -42,7 +42,7 @@ export function OrganizationPersonCard({
   return (
     <li>
       <Link
-        to="/author/$slug"
+        to="/people/$slug"
         params={{ slug: person.slug }}
         data-organization-person={person.slug}
         className="flex min-w-0 items-center gap-3 rounded-[6px] border border-border bg-background p-3 transition-colors hover:border-primary/50"

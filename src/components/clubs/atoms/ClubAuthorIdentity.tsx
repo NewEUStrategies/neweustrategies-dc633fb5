@@ -60,7 +60,7 @@ export function ClubAuthorIdentity({
         }}
       >
         <Link
-          to="/author/$slug"
+          to="/people/$slug"
           params={{ slug }}
           data-club-author={slug}
           className={`${nameClassName} hover:underline`}

@@ -509,7 +509,7 @@ function AttendeeCard({
             </p>
           ) : (
             <Link
-              to="/author/$slug"
+              to="/people/$slug"
               params={{ slug: entry.profileSlug }}
               className="block truncate text-sm font-semibold text-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >

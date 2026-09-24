@@ -120,7 +120,7 @@ export function ChatWindowHeader(props: ChatWindowHeaderProps) {
           avatarUrl={avatarUrl}
           online={!isGroup && peerOnline}
           size="md"
-          to={slug ? `/author/${slug}` : undefined}
+          to={slug ? `/people/${slug}` : undefined}
         />
         <div className="min-w-0 flex-1 pl-0.5">
           <div className="flex items-center gap-1 truncate text-[14px] font-semibold leading-tight">
@@ -165,7 +165,7 @@ export function ChatWindowHeader(props: ChatWindowHeaderProps) {
           avatarUrl={avatarUrl}
           online={peerOnline}
           size="md"
-          to={slug ? `/author/${slug}` : undefined}
+          to={slug ? `/people/${slug}` : undefined}
         />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 truncate text-sm font-semibold">
