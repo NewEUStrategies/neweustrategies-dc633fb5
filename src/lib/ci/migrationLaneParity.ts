@@ -287,6 +287,29 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0050_event_speaker_card_tracks",
     twin: "20260924140000_event_speaker_card_tracks.sql",
   },
+  // Podzial profili: /people dla kazdego, /author tylko z nadania roli.
+  {
+    tag: "0047_member_profile_people_route",
+    twin: "20260924100000_member_profile_people_route.sql",
+  },
+  {
+    tag: "0048_crm_company_inline_entities",
+    twin: "20260924120000_crm_company_inline_entities.sql",
+  },
+  {
+    tag: "0049_editor_inline_author_lookup",
+    twin: "20260924120100_editor_inline_author_lookup.sql",
+  },
+  {
+    tag: "0051_event_speaker_card_tracks",
+    drizzleOnly:
+      "Ponowne zastosowanie SQL-u 0050 z panelu Lovable (0050 bylo w repozytorium, ale nie na bazie). SQL identyczny i idempotentny; blizniak supabase to juz 20260924140000 - drugi plik uruchomilby to samo drugi raz.",
+  },
+  // Usuniecie prelegenta z wydarzenia zdejmuje go tez z obsady sesji.
+  {
+    tag: "0052_event_speaker_remove_clears_sessions",
+    twin: "20260924150000_event_speaker_remove_clears_sessions.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";

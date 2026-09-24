@@ -138,6 +138,10 @@ vi.mock("@/lib/profile/badges", () => ({
   useUserBadges: () => ({ data: h.badges }),
 }));
 vi.mock("@/lib/seo/request", () => ({ getRequestUrl: () => h.requestUrl }));
+// Bramka People/Author: domyślnie slug należy do autora (brak przekierowania).
+vi.mock("@/lib/profile/memberSlug.functions", () => ({
+  isNonAuthorMemberSlug: () => Promise.resolve(false),
+}));
 vi.mock("@/lib/http/responseHeaders", () => ({
   setCacheControlHeader: (value: string) => h.cacheHeaders.push(value),
 }));

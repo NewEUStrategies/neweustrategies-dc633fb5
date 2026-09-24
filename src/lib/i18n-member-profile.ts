@@ -19,6 +19,7 @@ export const memberProfilePl = {
     specialization: "Specjalizacja",
     links: "Odnośniki",
     website: "Strona internetowa",
+    linkedin: "LinkedIn",
     authorProfile: "Zobacz profil autora",
     editProfile: "Edytuj profil",
   },
@@ -43,6 +44,7 @@ export const memberProfileEn: typeof memberProfilePl = {
     links: "Links",
     website: "Website",
     authorProfile: "View author profile",
+    linkedin: "LinkedIn",
     editProfile: "Edit profile",
   },
 };

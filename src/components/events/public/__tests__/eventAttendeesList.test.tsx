@@ -157,7 +157,7 @@ describe("EventAttendeesList", () => {
     expect(screen.getByText("Dyrektorka")).toBeInTheDocument();
     expect(screen.getByRole("link")).toHaveAttribute(
       "href",
-      '/author/$slug:{"slug":"anna-adamska"}',
+      '/people/$slug:{"slug":"anna-adamska"}',
     );
   });
 
