@@ -57,7 +57,7 @@ describe("dashboardRangeLabel", () => {
   const WAW = "Europe/Warsaw";
   // ICU wstawia wokół myślnika zakresu cienkie spacje (U+2009) - asercja
   // sprawdza treść, nie wybór znaku odstępu.
-  const flat = (text: string) => text.replace(/\s+/g, " ");
+  const flat = (text: string) => text.replace(/\s+/g, " ").replace(/\s*–\s*/g, "–");
 
   function range(over: Partial<DashboardRange>): DashboardRange {
     return {
@@ -95,7 +95,7 @@ describe("dashboardRangeLabel", () => {
       current: { sinceIso: "2026-09-30T22:00:00.000Z", untilIso: "2026-10-31T23:00:00.000Z" },
       complete: true,
     });
-    expect(flat(dashboardRangeLabel(october, "en", WAW))).toBe("1 – 31 Oct 2026");
+    expect(flat(dashboardRangeLabel(october, "en", WAW))).toBe("1–31 Oct 2026");
   });
 
   it("dziś i na żywo pokazują godziny", () => {

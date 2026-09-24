@@ -87,15 +87,24 @@ d("i18n parity: no duplicate pages after translation updates", () => {
   it("no duplicated title_pl or title_en among published pages", async () => {
     const { data, error } = await client!
       .from("pages")
-      .select("title_pl, title_en")
+      .select("title_pl, title_en, parent_id")
       .eq("status", "published")
       .is("deleted_at", null);
     expect(error, error?.message).toBeNull();
     const pl = new Map<string, number>();
     const en = new Map<string, number>();
     for (const row of data ?? []) {
-      if (row.title_pl) pl.set(row.title_pl, (pl.get(row.title_pl) ?? 0) + 1);
-      if (row.title_en) en.set(row.title_en, (en.get(row.title_en) ?? 0) + 1);
+      // Tytuł musi być unikalny wśród rodzeństwa - podstrony różnych wydarzeń
+      // (np. „Agenda" każdego eventu) legalnie dzielą ten sam tytuł.
+      const scope = row.parent_id ?? "root";
+      if (row.title_pl) {
+        const k = `${scope}:${row.title_pl}`;
+        pl.set(k, (pl.get(k) ?? 0) + 1);
+      }
+      if (row.title_en) {
+        const k = `${scope}:${row.title_en}`;
+        en.set(k, (en.get(k) ?? 0) + 1);
+      }
     }
     const plDups = [...pl.entries()].filter(([, n]) => n > 1).map(([s]) => s);
     const enDups = [...en.entries()].filter(([, n]) => n > 1).map(([s]) => s);
