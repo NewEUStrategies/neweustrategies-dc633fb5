@@ -655,12 +655,16 @@ describe("ClubFaceStack - granica licznika „+N”", () => {
   });
 
   it("rozmiar `md` powiększa także plakietkę „+N”, żeby rząd był równy", () => {
-    render(<ClubFaceStack faces={faces(3)} max={2} size="md" />);
-    expect(overflowBadge()?.className).toContain("h-9");
+    // Bok liczony w px przez wspólny `AvatarGroup` (styl inline), a nie klasą:
+    // plakietka ma DOKŁADNIE wysokość twarzy - 36 px przy `md` (h-9), 28 px
+    // przy `sm` (h-7), tak jak `ClubAuthorAvatar` obok.
+    const { container: md } = render(<ClubFaceStack faces={faces(3)} max={2} size="md" />);
+    expect(overflowBadge()?.style.height).toBe("36px");
+    expect(md.querySelector<HTMLElement>("li[title] .avg-frame")?.style.height).toBe("36px");
 
     render(<ClubFaceStack faces={faces(3)} max={2} />);
     const badges = screen.getAllByText(/^\+\d+$/);
-    expect(badges[1]?.className).toContain("h-7");
+    expect(badges[1]?.style.height).toBe("28px");
   });
 
   it("`className` dokłada się do opakowania stosu", () => {
