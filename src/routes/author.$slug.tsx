@@ -171,6 +171,11 @@ export const Route = createFileRoute("/author/$slug")({
     }
     const data = identity.data;
     if (!data) {
+      // Osoba bez roli autora ma profil członka - trwałe przekierowanie
+      // zamiast 404 (People = każdy użytkownik, Author = nadane przez admina).
+      if (await isNonAuthorMemberSlug({ data: { slug: params.slug } })) {
+        throw redirect({ to: "/people/$slug", params: { slug: params.slug }, statusCode: 301 });
+      }
       setCacheControlHeader(NO_STORE);
       throw notFound();
     }
