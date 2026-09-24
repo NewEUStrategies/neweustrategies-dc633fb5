@@ -34,6 +34,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { WidgetContent } from "@/lib/builder/types";
 import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import { edgeTtlCache } from "@/lib/ssrCache";
+import { parseSpeakerTracks, type SpeakerTrack } from "@/lib/events/speakerCard";
 
 export type Lang = "pl" | "en";
 
@@ -76,6 +77,23 @@ export interface PublicSpeakerRow {
   is_expert: boolean;
   has_speaker_profile: boolean;
   sort_order: number;
+  /**
+   * POLA KARTY ROZWIJANEJ KLIKNIECIEM (nakladka sceniczna, 20260924140000).
+   *
+   * OPCJONALNE, bo oddaje je tylko projekcja wydarzenia (`event_speakers_public`)
+   * - katalog i odczyt po `user_id` ich nie maja, a wiersz udajacy, ze je ma,
+   * klamalby o pochodzeniu. Brak pola = karta z ustawieniami domyslnymi.
+   */
+  card_photo_url?: string | null;
+  card_cta_label_pl?: string | null;
+  card_cta_label_en?: string | null;
+  card_cta_url?: string | null;
+  card_cta_color?: string | null;
+  /**
+   * Sciezki, w ktorych prelegent wystepuje - WYPROWADZONE przez baze z obsady
+   * opublikowanych sesji, nie wpisywane. Pusta lista = brak sesji w sciezce.
+   */
+  tracks?: SpeakerTrack[];
 }
 
 export type SpeakersSource = "manual" | "directory" | "event";
@@ -135,6 +153,12 @@ export function mapSpeakerRow(raw: Record<string, unknown>): PublicSpeakerRow {
     is_expert: raw.is_expert === true,
     has_speaker_profile: raw.has_speaker_profile === true,
     sort_order: numOf(raw.sort_order),
+    card_photo_url: strOf(raw.card_photo_url) || null,
+    card_cta_label_pl: strOf(raw.card_cta_label_pl) || null,
+    card_cta_label_en: strOf(raw.card_cta_label_en) || null,
+    card_cta_url: strOf(raw.card_cta_url) || null,
+    card_cta_color: strOf(raw.card_cta_color) || null,
+    tracks: parseSpeakerTracks(raw.tracks),
   };
 }
 
@@ -235,7 +259,9 @@ export const speakersQueryOptions = (c: WidgetContent, _lang: Lang) => {
             // inputem: te wiersze maja INNY ksztalt (doszly
             // `speaker_profile_id` i `person_id`) i inne zrodlo, wiec izolat
             // rozgrzany przed zmiana projekcji nie ma czym odpowiedziec po niej.
-            edgeTtlCache(`builder:event-speakers:${input.eventId}:${input.limit}`, 60_000, () =>
+            // `v2`: od 20260924140000 projekcja oddaje pola karty i sciezki -
+            // wpis sprzed tej zmiany dawalby karte bez nich przez minute TTL.
+            edgeTtlCache(`builder:event-speakers:v2:${input.eventId}:${input.limit}`, 60_000, () =>
               fetchEventSpeakers({ eventId: input.eventId, limit: input.limit }),
             )
         : edgeTtlCache(`builder:speakers:${JSON.stringify(input)}`, 60_000, () =>

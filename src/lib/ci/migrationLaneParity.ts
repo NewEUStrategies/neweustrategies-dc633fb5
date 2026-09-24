@@ -281,6 +281,12 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0046_event_agenda_people_without_accounts",
     twin: "20260923130000_event_agenda_people_without_accounts.sql",
   },
+  // Karta prelegenta rozwijana kliknieciem (pola na nakladce scenicznej)
+  // i sciezki prelegenta wyprowadzone z obsady sesji.
+  {
+    tag: "0050_event_speaker_card_tracks",
+    twin: "20260924140000_event_speaker_card_tracks.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";

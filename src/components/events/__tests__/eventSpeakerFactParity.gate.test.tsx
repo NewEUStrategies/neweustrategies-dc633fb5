@@ -86,6 +86,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { ReactElement, ReactNode } from "react";
 
+import type { SpeakerTrack } from "@/lib/events/speakerCard";
+
 const h = vi.hoisted(() => ({ rows: [] as unknown[] }));
 
 // `t` oddaje KLUCZ, nie tłumaczenie: fakt mierzymy obecnością klucza w drzewie,
@@ -146,16 +148,43 @@ const ICON_EXCEPTIONS: Record<string, string> = {};
 /** Klucz nazwy plakietki eksperta - ŚLAD faktu `is_expert` w drzewie. */
 const EXPERT_FACT_KEY = "eventFront.speakers.expertBadge";
 
+/** JEDYNY plik katalogu, któremu wolno zamieniać ścieżkę prelegenta na napis. */
+const TRACKS_FILE = "src/components/events/SpeakerTrackChips.tsx";
+
+/** Klucz etykiety ścieżek - stoi w drzewie DOKŁADNIE wtedy, gdy stoi ścieżka. */
+const TRACKS_LABEL_KEY = "eventFront.speakers.card.tracksLabel";
+
+/**
+ * Ścieżka prelegenta w wierszu RPC - już sparsowana (`parseSpeakerTracks`),
+ * bo atrapa zapytania oddaje wiersze tak, jak oddałaby je warstwa danych.
+ */
+const FACT_TRACK: SpeakerTrack = {
+  id: "t-energia",
+  key: "energia",
+  namePl: "Energetyka jądrowa",
+  nameEn: "Nuclear energy",
+  accentColor: "#aa3300",
+  sessionsCount: 1,
+};
+
 // ── FAKTY O OSOBIE ─────────────────────────────────────────────────────────
 //
 // Każdy fakt ma w wierszu RPC swoją kolumnę i w drzewie swój rozpoznawalny
 // ślad. Wartości są rozłączne, więc `includes` nie może pomylić jednego faktu
 // z drugim ani skleić dwóch sąsiednich węzłów tekstowych w trafienie.
+//
+// ŚCIEŻKI (`tracks`) SĄ FAKTEM, NIE OZDOBĄ. Baza wyprowadza je z obsady sesji,
+// więc mówią, w czym osoba NAPRAWDĘ występuje. Układ wolno różnić: zapowiedź
+// rysuje same kwadraty koloru, a nazwę niesie zdanie `sr-only` (i `title`),
+// siatka rysuje chipy z nazwą. Tekst `sr-only` LICZY SIĘ jako obecność faktu -
+// czytnik ekranu go czyta, a `textContent` mierzy dokładnie to, co jest w
+// drzewie. Kwadrat koloru BEZ nazwy w drzewie nie byłby faktem, tylko plamą.
 const PERSON_FACTS = {
   display_name: "Anna Kowalska",
   role: "Prezes zarządu",
   company: "Szkoła Główna Handlowa",
   is_expert: EXPERT_FACT_KEY,
+  tracks: "Energetyka jądrowa",
 } as const;
 
 type FactName = keyof typeof PERSON_FACTS;
@@ -184,6 +213,7 @@ function speakerRow(overrides: Record<string, unknown> = {}): Record<string, unk
     is_expert: true,
     has_speaker_profile: true,
     sort_order: 0,
+    tracks: [FACT_TRACK],
     ...overrides,
   };
 }
@@ -330,6 +360,115 @@ describe("prelegenci wydarzenia: dwie powierzchnie, JEDEN zestaw faktów", () =>
       cleanup();
     }
     expect([...seen.entries()].filter(([, has]) => !has).map(([label]) => label)).toEqual([]);
+  });
+
+  it("ŚLAD ścieżki to NAZWA z wiersza, a nie tylko kolor", () => {
+    // Bez tego asercje wyżej przeszłyby na powierzchni, która rysuje tylko
+    // kwadrat koloru: `tracks` w PERSON_FACTS musi być nazwą ścieżki z wiersza.
+    expect(PERSON_FACTS.tracks).toBe(FACT_TRACK.namePl);
+    expect(speakerRow().tracks).toEqual([FACT_TRACK]);
+  });
+
+  it("ŚCIEŻKI nie zagnieżdżają listy: jedna osoba = jedno `li` na KAŻDEJ powierzchni", async () => {
+    // Zagnieżdżona lista ścieżek podwoiłaby licznik pozycji - a każda asercja
+    // tej bramki czeka na DOKŁADNIE jedną. Tu czekamy na nazwisko, żeby rozjazd
+    // dał nazwaną różnicę, a nie timeout.
+    const second: SpeakerTrack = {
+      ...FACT_TRACK,
+      id: "t-cyber",
+      key: "cyber",
+      namePl: "Cyberbezpieczeństwo",
+      nameEn: "Cybersecurity",
+      accentColor: null,
+    };
+    const counts = new Map<string, number>();
+    for (const surface of COVERED_SURFACES) {
+      h.rows = [speakerRow({ tracks: [FACT_TRACK, second] })];
+      const { container } = render(surface.render(), { wrapper });
+      await waitFor(() => expect(container.textContent ?? "").toContain(PERSON_FACTS.display_name));
+      counts.set(surface.label, container.querySelectorAll("li").length);
+      cleanup();
+    }
+    expect([...counts.entries()].filter(([, count]) => count !== 1)).toEqual([]);
+  });
+
+  it("ŚCIEŻKI jadą tą samą polityką pustki i języka na obu powierzchniach", async () => {
+    // Cztery wiersze, jedna odpowiedź na KAŻDEJ powierzchni:
+    //  * ścieżki są -> etykieta stoi (kontrola dodatnia: bez niej brak klucza
+    //    niżej przechodziłby także po zmianie nazwy klucza),
+    //  * lista pusta albo ścieżka bez nazwy -> NIE MA etykiety bez treści,
+    //  * brak nazwy w języku strony -> obie biorą drugi język, nie „nic".
+    const cases: Array<{
+      name: string;
+      row: Record<string, unknown>;
+      expect: string[];
+      not: string[];
+    }> = [
+      { name: "ze ścieżką", row: speakerRow(), expect: [TRACKS_LABEL_KEY], not: [] },
+      { name: "pusta lista", row: speakerRow({ tracks: [] }), expect: [], not: [TRACKS_LABEL_KEY] },
+      {
+        name: "ścieżka bez nazwy",
+        row: speakerRow({ tracks: [{ ...FACT_TRACK, namePl: null, nameEn: null }] }),
+        expect: [],
+        not: [TRACKS_LABEL_KEY],
+      },
+      {
+        name: "nazwa tylko po angielsku",
+        row: speakerRow({ tracks: [{ ...FACT_TRACK, namePl: null }] }),
+        expect: [TRACKS_LABEL_KEY, "Nuclear energy"],
+        not: [],
+      },
+    ];
+    const wrong: string[] = [];
+    for (const testCase of cases) {
+      for (const surface of COVERED_SURFACES) {
+        h.rows = [testCase.row];
+        const { container } = render(surface.render(), { wrapper });
+        await waitFor(() => expect(container.querySelectorAll("li")).toHaveLength(1));
+        const text = container.textContent ?? "";
+        for (const needle of testCase.expect) {
+          if (!text.includes(needle))
+            wrong.push(`${surface.label} [${testCase.name}]: brak ${needle}`);
+        }
+        for (const needle of testCase.not) {
+          if (text.includes(needle))
+            wrong.push(`${surface.label} [${testCase.name}]: jest ${needle}`);
+        }
+        cleanup();
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+});
+
+describe("fakt ścieżek ma JEDEN rysunek", () => {
+  it("nazwę ścieżki prelegenta wypisuje WYŁĄCZNIE wspólny renderer", () => {
+    // Ta sama reguła, co przy tarczy eksperta: dopóki `speakerTrackName` woła
+    // w katalogu prelegentów jeden plik, drugi rysunek ścieżek (raz z kolorem,
+    // raz bez; raz z drugim językiem, raz bez) nie ma jak powstać po cichu.
+    const rogue = walk(EVENTS_DIR, [])
+      .filter((file) => file !== TRACKS_FILE && /\bspeakerTrackName\s*\(/.test(codeOf(file)))
+      .sort();
+    expect(rogue).toEqual([]);
+  });
+
+  it("wspólny renderer nadal stoi tam, gdzie bramka go szuka", () => {
+    // Bez tego poprzednia asercja przechodziłaby po USUNIĘCIU renderera.
+    expect(/\bspeakerTrackName\s*\(/.test(codeOf(TRACKS_FILE))).toBe(true);
+    expect(codeOf(TRACKS_FILE)).toContain(TRACKS_LABEL_KEY);
+  });
+
+  it("KANAREK: etykieta ścieżek jest prawdziwym kluczem w obu słownikach", () => {
+    const resolve = (tree: unknown): unknown =>
+      TRACKS_LABEL_KEY.split(".").reduce<unknown>(
+        (node, part) =>
+          node !== null && typeof node === "object"
+            ? (node as Record<string, unknown>)[part]
+            : undefined,
+        tree,
+      );
+    expect(typeof resolve(eventFrontPl)).toBe("string");
+    expect(typeof resolve(eventFrontEn)).toBe("string");
   });
 });
 

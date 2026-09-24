@@ -490,8 +490,19 @@ function wyslij<TInput, TResult>(
   return { result: uchwyt.result, queryClient: uchwyt.queryClient };
 }
 
-/** Dwa uniewaznienia wspolne dla KAZDEJ mutacji modulu (`useInvalidateEvent`). */
-const GALAZ_I_SZCZEGOLY = [agendaKeys.event(WYDARZENIE), [...agendaKeys.all, "session"]] as const;
+/**
+ * Uniewaznienia wspolne dla KAZDEJ mutacji modulu (`useInvalidateEvent`):
+ * galaz wydarzenia, szczegoly sesji, a potem wszystko, co baza WYLICZA
+ * z obsady sesji - obsada pasm, rejestr prelegentow panelu (sciezki
+ * prelegenta) i rejestr podgladu studia.
+ */
+const GALAZ_I_SZCZEGOLY = [
+  agendaKeys.event(WYDARZENIE),
+  [...agendaKeys.all, "session"],
+  [...agendaKeys.all, "track-speakers"],
+  ["admin-event-speakers", WYDARZENIE],
+  ["admin", "event", WYDARZENIE, "speakers"],
+] as const;
 
 const MUTACJE: ReadonlyArray<readonly [string, PrzypadekMutacji]> = [
   [
@@ -914,13 +925,12 @@ describe("mutacje - zasieg uniewaznienia", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // DEFEKT: naglowek `useEventSessions.ts` obiecuje wprost „UNIEWAZNIAMY GALAZ
-  // WYDARZENIA (...) kazda mutacja tego modulu potrafi ruszyc wiecej niz jedna
-  // liste". OBSADA PASMA (`agendaKeys.trackSpeakers`) tej obietnicy nie dostaje:
-  // klucz brzmi `["event-agenda", "track-speakers", trackId]`, wiec nie ma ani
-  // przedrostka `agendaKeys.event(eventId)`, ani przedrostka
-  // `[...agendaKeys.all, "session"]` - jedynych dwoch, ktore `useInvalidateEvent`
-  // podaje. Zadna z jedenastu mutacji nie wietrzy wiec listy prelegentow pasma.
+  // BYLY DEFEKT, TERAZ REGRESJA: naglowek `useEventSessions.ts` obiecuje wprost
+  // „UNIEWAZNIAMY GALAZ WYDARZENIA (...) kazda mutacja tego modulu potrafi ruszyc
+  // wiecej niz jedna liste". OBSADA PASMA (`agendaKeys.trackSpeakers`) tej
+  // obietnicy nie dostawala: klucz brzmi `["event-agenda", "track-speakers",
+  // trackId]`, wiec nie ma przedrostka `agendaKeys.event(eventId)`. Zadna
+  // z jedenastu mutacji nie wietrzyla listy prelegentow pasma.
   //
   // WIDAC TO W WARSZTACIE PASMA (`EventTrackWorkspace`), ktorego naglowek mowi:
   // „OBSADA JEST WYLICZANA, NIE WPISYWANA. Prelegent nalezy do SESJI; pasmo
@@ -929,22 +939,19 @@ describe("mutacje - zasieg uniewaznienia", () => {
   // stara obsade jeszcze przez `CONFIG_STALE_MS` (60 s) - a organizator patrzy
   // na nia zaraz po zapisie, bo po to ja otworzyl.
   //
-  // NAPRAWA: `agendaKeys.trackSpeakers` musialoby lezec w galezi wydarzenia
-  // (`event(eventId), "track-speakers", trackId`) albo `useInvalidateEvent`
-  // musialoby podac trzeci przedrostek.
+  // NAPRAWIONE: `useInvalidateEvent` podaje trzeci przedrostek
+  // (`[...agendaKeys.all, "track-speakers"]`) - obsada pasma i sciezki na karcie
+  // prelegenta sa wyliczane z sesji, wiec kazda mutacja programu je wietrzy.
   // ---------------------------------------------------------------------------
-  it.fails(
-    "DEFEKT: zapis obsady sesji NIE wietrzy obsady PASMA, choc pasmo liczy ja z sesji",
-    async () => {
-      const { result, queryClient } = wyslij(useSetSessionSpeakers, WEJSCIE_OBSADY);
-      queryClient.setQueryData(agendaKeys.trackSpeakers(SCIEZKA), LISTA_OBSADY);
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  it("zapis obsady sesji wietrzy obsade PASMA, bo pasmo liczy ja z sesji", async () => {
+    const { result, queryClient } = wyslij(useSetSessionSpeakers, WEJSCIE_OBSADY);
+    queryClient.setQueryData(agendaKeys.trackSpeakers(SCIEZKA), LISTA_OBSADY);
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(zwietrzal(queryClient, agendaKeys.trackSpeakers(SCIEZKA))).toBe(true);
-    },
-  );
+    expect(zwietrzal(queryClient, agendaKeys.trackSpeakers(SCIEZKA))).toBe(true);
+  });
 
-  it.fails("DEFEKT: przypiecie sesji do pasma NIE wietrzy obsady tego pasma", async () => {
+  it("przypiecie sesji do pasma wietrzy obsade tego pasma", async () => {
     const { result, queryClient } = wyslij(useSetSessionsTrack, WEJSCIE_PASMA);
     queryClient.setQueryData(agendaKeys.trackSpeakers(SCIEZKA), LISTA_OBSADY);
     await waitFor(() => expect(result.current.isSuccess).toBe(true));

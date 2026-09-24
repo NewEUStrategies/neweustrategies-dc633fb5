@@ -184,9 +184,12 @@ export function EventStudioPreview({
       sessions: agendaSessionsFromAdminRows(sessionsQ.data, base.timezone, {
         tracks: tracksQ.data,
         publishedSponsorIds,
+        // Obsada sesji z rejestru prelegentow - tego samego zapytania, ktore
+        // karmi siatke prelegentow; lista sesji panelu oddaje tylko liczbe.
+        speakers: speakersQ.data,
       }),
       tracks: trackChipsFromAdminRows(tracksQ.data, publishedSponsorIds),
-      speakers: speakerRowsFromAdminEntries(speakersQ.data),
+      speakers: speakerRowsFromAdminEntries(speakersQ.data, sessionsQ.data),
       attendees: attendeeEntriesFromRegistrationRows(registrationsQ.data?.rows),
     }),
     [

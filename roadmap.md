@@ -52,6 +52,14 @@
 - [x] Przygotować i przypisać spójne miniaturki z materiałów źródłowych konferencji.
 - [x] Zweryfikować publiczny program i listę prelegentów.
 
+## Karta prelegenta i ścieżki z obsady sesji
+
+- [x] Karta prelegenta rozwijana kliknięciem w zdjęcie (domyślnie widać zdjęcie; pełny kadr z podpisem i przyciskiem akcji), 6 px, bez nowej zależności.
+- [x] Pola karty w panelu: zdjęcie rozwiniętej karty, napis PL/EN, adres i kolor przycisku - dla prelegenta z kontem i bez konta.
+- [x] Ścieżki prelegenta wyprowadzane automatycznie z obsady sesji (karta, zapowiedź, program, podgląd studia).
+- [x] Program: prelegenci sesji w prawej kolumnie obok stanu sesji, po rozwinięciu szczegółów ścieżki każdej osoby.
+- [x] Edytor obsady sesji w formularzu sesji (rola, kolejność, zapis z odmową nachodzenia godzin).
+
 ## Profile People vs Author (2026-09-24)
 
 - [x] /people/$slug dla każdego użytkownika, /author tylko z roli/zaproszenia autora, redirect 301

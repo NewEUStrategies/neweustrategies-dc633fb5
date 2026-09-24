@@ -124,6 +124,7 @@ import {
   publishQaSessionSummary,
   purgeExpiredMessages,
   removeEventSpeaker,
+  saveEventSpeakerCard,
   reviewContributorSubmission,
   runEventReminders,
   setEventSpeakerOrder,
@@ -930,8 +931,74 @@ describe("fetchEventSpeakers", () => {
         is_public: true,
         sort_order: 0,
         is_legacy: false,
+        // Kolumny z 20260924140000: wiersz bez nich (stary cache, legacy)
+        // oddaje NULL i puste listy, nigdy `undefined`.
+        headline_pl: null,
+        headline_en: null,
+        card_photo_url: null,
+        card_cta_label_pl: null,
+        card_cta_label_en: null,
+        card_cta_url: null,
+        card_cta_color: null,
+        tracks: [],
+        sessions: [],
       },
     ]);
+  });
+
+  it("pola karty, sciezki i obsada wpisu przechodza z RPC do wiersza panelu", async () => {
+    setRpc(
+      "admin_event_speakers_list",
+      ok([
+        row({
+          headline_pl: "Moderator debaty",
+          card_photo_url: "https://cdn.example.com/duze.jpg",
+          card_cta_label_pl: "LinkedIn",
+          card_cta_url: "https://www.linkedin.com/in/lech",
+          card_cta_color: "#ff7000",
+          tracks: [
+            {
+              id: "tr-1",
+              key: "energia",
+              name_pl: "Energia",
+              name_en: "Energy",
+              accent_color: "#C2410C",
+              sessions_count: 2,
+            },
+            { id: "tr-1", key: "energia", name_pl: "Duplikat", name_en: null },
+            { id: "", name_pl: "Bez id" },
+          ],
+          sessions: [
+            { session_id: "s-1", role: "moderator", sort_order: 10 },
+            { session_id: "", role: "panelist" },
+            "nie-obiekt",
+          ],
+        }),
+      ]),
+    );
+    const [speaker] = await fetchEventSpeakers("ev-1");
+    expect(speaker.headline_pl).toBe("Moderator debaty");
+    expect(speaker.card_photo_url).toBe("https://cdn.example.com/duze.jpg");
+    expect(speaker.card_cta_label_pl).toBe("LinkedIn");
+    expect(speaker.card_cta_url).toBe("https://www.linkedin.com/in/lech");
+    expect(speaker.card_cta_color).toBe("#ff7000");
+    expect(speaker.tracks).toEqual([
+      {
+        id: "tr-1",
+        key: "energia",
+        namePl: "Energia",
+        nameEn: "Energy",
+        accentColor: "#C2410C",
+        sessionsCount: 2,
+      },
+    ]);
+    expect(speaker.sessions).toEqual([{ sessionId: "s-1", role: "moderator", sortOrder: 10 }]);
+  });
+
+  it("obsada bez roli dostaje role prelegenta, a nie pusty napis", async () => {
+    setRpc("admin_event_speakers_list", ok([row({ sessions: [{ session_id: "s-2" }] })]));
+    const [speaker] = await fetchEventSpeakers("ev-1");
+    expect(speaker.sessions).toEqual([{ sessionId: "s-2", role: "speaker", sortOrder: 0 }]);
   });
 
   it("sort_order 0 (pierwszy prelegent) nie gubi sie przy odczycie", async () => {
@@ -1021,6 +1088,75 @@ describe("mutacje prelegentow", () => {
         is_public: true,
       },
     });
+  });
+
+  it("createEventSpeakerPerson niesie pola karty tylko wtedy, gdy sa wypelnione", async () => {
+    setRpc("admin_event_speaker_upsert", ok({ entry_id: "en-1", speaker_profile_id: "sp-1" }));
+
+    await createEventSpeakerPerson({
+      eventId: "ev-1",
+      firstName: "Anna",
+      lastName: "Karta",
+      cardPhotoUrl: "https://cdn.example.com/duze.jpg",
+      cardCtaLabelPl: "Profil",
+      cardCtaLabelEn: "",
+      cardCtaUrl: "/experts/anna",
+      cardCtaColor: undefined,
+    });
+
+    expect(rpcArgs("admin_event_speaker_upsert")).toEqual({
+      p_payload: {
+        event_id: "ev-1",
+        first_name: "Anna",
+        last_name: "Karta",
+        card_photo_url: "https://cdn.example.com/duze.jpg",
+        card_cta_label_pl: "Profil",
+        card_cta_url: "/experts/anna",
+      },
+    });
+  });
+
+  it("saveEventSpeakerCard wysyla WSZYSTKIE piec pol - pusty napis znaczy wyczysc", async () => {
+    setRpc("admin_event_speaker_card_save", ok({ speaker_profile_id: "sp-1" }));
+
+    await saveEventSpeakerCard({
+      speakerProfileId: "sp-1",
+      cardPhotoUrl: "  https://cdn.example.com/duze.jpg ",
+      cardCtaLabelPl: " LinkedIn ",
+      cardCtaLabelEn: "",
+      cardCtaUrl: "",
+      cardCtaColor: "#FF7000",
+    });
+
+    // Tu NIE ma odsiewu pustych kluczy (w odroznieniu od zakladania): redaktor,
+    // ktory skasowal adres przycisku, musi go naprawde skasowac w bazie.
+    expect(rpcArgs("admin_event_speaker_card_save")).toEqual({
+      p_payload: {
+        speaker_profile_id: "sp-1",
+        card_photo_url: "https://cdn.example.com/duze.jpg",
+        card_cta_label_pl: "LinkedIn",
+        card_cta_label_en: "",
+        card_cta_url: "",
+        card_cta_color: "#FF7000",
+      },
+    });
+  });
+
+  it("saveEventSpeakerCard: odmowa bazy podnosi wyjatek z jej trescia", async () => {
+    setRpc(
+      "admin_event_speaker_card_save",
+      fail("violates check constraint speaker_profiles_card_cta_url_shape", "23514"),
+    );
+    await expect(
+      saveEventSpeakerCard({
+        speakerProfileId: "sp-1",
+        cardPhotoUrl: "",
+        cardCtaLabelPl: "",
+        cardCtaLabelEn: "",
+        cardCtaUrl: "//evil.example.org",
+        cardCtaColor: "",
+      }),
+    ).rejects.toThrow("speaker_profiles_card_cta_url_shape");
   });
 
   it("createEventSpeakerPerson oddaje identyfikatory z jednego zapisu", async () => {

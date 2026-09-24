@@ -8,6 +8,11 @@
 // ŚCIEŻKA, SALA I SESJA NADRZĘDNA TO DROPLISTY Z DANYCH WYDARZENIA. Wpisywany
 // identyfikator byłby jedynym miejscem panelu, gdzie organizator musi znać UUID.
 //
+// OBSADA MA WŁASNĄ SEKCJĘ I WŁASNY ZAPIS (`SessionSpeakersEditor`). To ona
+// decyduje o ścieżkach prelegenta - przypisanie do sesji w ścieżce dopisuje
+// ścieżkę samo - a RPC obsady ma własne odmowy, więc nie jedzie tym samym
+// przyciskiem, co pola sesji.
+//
 // SESJA NADRZĘDNA NIE MOŻE BYĆ TĄ SESJĄ ani podsesją innej (`parent_depth`),
 // więc lista kandydatów jest już odfiltrowana - odmowa bazy to ostatnia linia,
 // nie pierwsza.
@@ -27,6 +32,7 @@ import { AdminFormSection } from "@/components/admin/molecules/AdminFormSection"
 import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow";
 import { AdminFormSwitchRow } from "@/components/admin/molecules/AdminFormSwitchRow";
 import { AdminFormEnumRow } from "@/components/admin/molecules/AdminFormEnumRow";
+import { SessionSpeakersEditor } from "@/components/admin/events/molecules/SessionSpeakersEditor";
 import { useSessionDetail } from "@/lib/events/useEventSessions";
 import {
   SESSION_MAX_DESCRIPTION,
@@ -93,6 +99,9 @@ export function EventSessionDialog({
   const lang = i18n.language.startsWith("en") ? "en" : "pl";
   const [draft, setDraft] = useState<SessionDraft>(() => emptySessionDraft(nextSortOrder));
   const [touched, setTouched] = useState(false);
+  // Niezapisana obsada blokuje glowne „Zapisz": zapis sesji zamyka dialog,
+  // a obsada ma wlasny zapis - zamkniecie wyrzucaloby ja bez slowa.
+  const [castDirty, setCastDirty] = useState(false);
 
   // SZCZEGOL, A NIE WIERSZ LISTY. `stream_url` i `recording_url` sa odciete
   // od klienckiego SELECT-a grantem kolumnowym (patrz granty w migracji
@@ -356,6 +365,13 @@ export function EventSessionDialog({
             />
           </AdminFormSection>
 
+          <SessionSpeakersEditor
+            eventId={eventId}
+            sessionId={session === null ? null : session.id}
+            trackName={draft.trackId === null ? null : trackLabel(draft.trackId)}
+            onDirtyChange={setCastDirty}
+          />
+
           <AdminFormSection title={t("adminEventAgenda.sessionDialog.requiresSignup")} columns={2}>
             <AdminFormSwitchRow
               label={t("adminEventAgenda.sessionDialog.requiresSignup")}
@@ -429,11 +445,16 @@ export function EventSessionDialog({
           </AdminFormSection>
         </div>
 
+        {castDirty && (
+          <p role="status" className="text-xs text-amber-700 dark:text-amber-400">
+            {t("adminEventAgenda.sessionSpeakers.saveCastFirst")}
+          </p>
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
             {t("adminEventAgenda.sessionDialog.cancelAction")}
           </Button>
-          <Button onClick={submit} disabled={isSaving || isLoadingDetail}>
+          <Button onClick={submit} disabled={isSaving || isLoadingDetail || castDirty}>
             {t("adminEventAgenda.sessionDialog.saveAction")}
           </Button>
         </DialogFooter>

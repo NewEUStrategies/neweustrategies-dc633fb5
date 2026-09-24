@@ -20,7 +20,10 @@
 // tutaj, a organizacja tylko w siatce - wiec ta sama osoba miala na jednej
 // powierzchni afiliacje bez tytulu eksperta, a na drugiej odwrotnie. Oba fakty
 // stoja teraz w obu miejscach i pilnuje tego bramka
-// `__tests__/eventSpeakerFactParity.gate.test.tsx`.
+// `__tests__/eventSpeakerFactParity.gate.test.tsx`. To samo dotyczy SCIEZEK
+// prelegenta (wyprowadzonych z obsady sesji): tu jako kwadraty koloru z pelna
+// nazwa dla czytnika ekranu, w siatce jako chipy z nazwa - jeden renderer
+// (`SpeakerTrackChips`) w obu miejscach.
 //
 // NAGLOWEK IDZIE Z JEDNEGO KLUCZA, WSPOLNEGO Z ZAMKIEM. Ten sam <h2> ma na
 // przegladzie dwa miejsca rysowania: to (sekcja otwarta) i trase (sekcja
@@ -49,6 +52,7 @@ import { eventSectionHeading, type EventSection } from "@/lib/events/eventSectio
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 import { SpeakerChip } from "./SpeakerChip";
 import { SpeakerExpertBadge } from "./SpeakerExpertBadge";
+import { SpeakerTrackChips } from "./SpeakerTrackChips";
 import { SpeakerProfileDialog, type SpeakerDialogFallback } from "./SpeakerProfileDialog";
 
 ensureEventFrontI18n();
@@ -118,7 +122,18 @@ export function EventSpeakersSection({
                         })
                     : undefined
                 }
-                trailing={speaker.is_expert ? <SpeakerExpertBadge /> : undefined}
+                trailing={
+                  speaker.is_expert || (speaker.tracks ?? []).length > 0 ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      {speaker.is_expert && <SpeakerExpertBadge />}
+                      <SpeakerTrackChips
+                        tracks={speaker.tracks ?? []}
+                        lang={lang}
+                        variant="compact"
+                      />
+                    </span>
+                  ) : undefined
+                }
               />
             </li>
           );

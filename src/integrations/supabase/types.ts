@@ -17117,6 +17117,11 @@ export type Database = {
         Row: {
           bio_en: string | null
           bio_pl: string | null
+          card_cta_color: string | null
+          card_cta_label_en: string | null
+          card_cta_label_pl: string | null
+          card_cta_url: string | null
+          card_photo_url: string | null
           created_at: string
           crm_lead_id: string | null
           headline_en: string | null
@@ -17137,6 +17142,11 @@ export type Database = {
         Insert: {
           bio_en?: string | null
           bio_pl?: string | null
+          card_cta_color?: string | null
+          card_cta_label_en?: string | null
+          card_cta_label_pl?: string | null
+          card_cta_url?: string | null
+          card_photo_url?: string | null
           created_at?: string
           crm_lead_id?: string | null
           headline_en?: string | null
@@ -17157,6 +17167,11 @@ export type Database = {
         Update: {
           bio_en?: string | null
           bio_pl?: string | null
+          card_cta_color?: string | null
+          card_cta_label_en?: string | null
+          card_cta_label_pl?: string | null
+          card_cta_url?: string | null
+          card_photo_url?: string | null
           created_at?: string
           crm_lead_id?: string | null
           headline_en?: string | null
@@ -19445,6 +19460,15 @@ export type Database = {
       }
       _event_slugify: { Args: { _text: string }; Returns: string }
       _event_speaker_text_array: { Args: { p_value: Json }; Returns: string[] }
+      _event_speaker_tracks: {
+        Args: {
+          p_event_id: string
+          p_published_only: boolean
+          p_speaker_profile_id: string
+          p_tenant: string
+        }
+        Returns: Json
+      }
       _event_sponsor_web_url: { Args: { p_raw: string }; Returns: string }
       _event_ticket_code_confirm: {
         Args: {
@@ -21132,6 +21156,7 @@ export type Database = {
         Args: { p_event_id: string; p_status: string }
         Returns: string
       }
+      admin_event_speaker_card_save: { Args: { p_payload: Json }; Returns: Json }
       admin_event_speaker_remove: {
         Args: { p_payload: Json }
         Returns: boolean
@@ -21145,16 +21170,25 @@ export type Database = {
         Args: { p_event_id: string }
         Returns: {
           avatar_url: string
+          card_cta_color: string
+          card_cta_label_en: string
+          card_cta_label_pl: string
+          card_cta_url: string
+          card_photo_url: string
           company: string
           display_name: string
           email: string
           entry_id: string
+          headline_en: string
+          headline_pl: string
           is_legacy: boolean
           is_public: boolean
           job_title: string
           person_id: string
+          sessions: Json
           sort_order: number
           speaker_profile_id: string
+          tracks: Json
           user_id: string
         }[]
       }
@@ -24611,6 +24645,11 @@ export type Database = {
           avatar_url: string
           bio_en: string
           bio_pl: string
+          card_cta_color: string
+          card_cta_label_en: string
+          card_cta_label_pl: string
+          card_cta_url: string
+          card_photo_url: string
           company: string
           display_name: string
           has_speaker_profile: boolean
@@ -24628,6 +24667,7 @@ export type Database = {
           talks_count: number
           topics_en: string[]
           topics_pl: string[]
+          tracks: Json
           user_id: string
         }[]
       }

@@ -351,6 +351,13 @@
       "when": 1790279939664,
       "tag": "0049_editor_inline_author_lookup",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1790281000000,
+      "tag": "0050_event_speaker_card_tracks",
+      "breakpoints": true
     }
   ]
 }

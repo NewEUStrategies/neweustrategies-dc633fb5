@@ -62,8 +62,6 @@ export const I18N_OVERLAY_IMPORT_BASELINE: readonly (readonly [string, number])[
   ["src/components/admin/clubs/organisms/ClubSegmentCampaign.tsx", 1],
   ["src/components/admin/clubs/organisms/ClubSpecializationsManager.tsx", 33],
   ["src/components/admin/clubs/organisms/ClubThreadsTab.tsx", 19],
-  ["src/components/admin/community/EventSpeakerCreateDialog.tsx", 51],
-  ["src/components/admin/community/EventSpeakersManager.tsx", 40],
   ["src/components/admin/CoverImagePicker.tsx", 6],
   ["src/components/admin/donations/organisms/DonationsRecordsPanel.tsx", 9],
   ["src/components/admin/donations/organisms/DonationsSummaryPanel.tsx", 3],

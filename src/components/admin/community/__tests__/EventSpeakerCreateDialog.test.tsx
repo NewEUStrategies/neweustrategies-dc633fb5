@@ -37,9 +37,14 @@
 //      przez ekran prelegentow i tylko chowany, wiec nieskasowany szkic
 //      wrocilby przy zakladaniu NASTEPNEJ osoby - z cudzym nazwiskiem
 //      i cudzym telefonem w polach.
+//   9. KARTA PO KLIKNIECIU (20260924140000). Sekcja wspolna z dialogiem
+//      „Karta" na liscie: wypelnione pola jada w payloadzie PRZYCIETE, puste
+//      jako `undefined` („ustawienie domyslne", klucz nie jedzie wcale),
+//      a blad ksztaltu (adres, kolor, dlugosc napisu) blokuje zapis, zanim
+//      baza odmowi bez wskazania pola.
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import type { ReactNode } from "react";
-import { cleanup, render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const createEventSpeakerPerson = vi.fn();
@@ -132,6 +137,7 @@ vi.mock("@/lib/events/termsGroupsApi", () => ({
   deleteEventTerm: () => Promise.resolve(true),
 }));
 
+import i18n from "@/lib/i18n";
 import { ensureI18n as ensureCommunityEventsI18n } from "@/lib/i18n-admin-community-events";
 
 const { EventSpeakerCreateDialog } =
@@ -692,5 +698,298 @@ describe("EventSpeakerCreateDialog - zdjecie prelegenta", () => {
     await waitFor(() =>
       expect(field("Zdjęcie (adres)").value).toBe("https://cdn.example.com/late.png"),
     );
+  });
+});
+
+// --- KARTA PO KLIKNIECIU ----------------------------------------------------
+
+/** Sekcja karty - po naglowku, bo „Zdjecie" wystepuje w popupie dwa razy. */
+function cardSection(): HTMLElement {
+  const heading = screen.getByRole("heading", { name: "Karta po kliknięciu" });
+  const section = heading.closest("section");
+  if (section === null) throw new Error("test: brak sekcji karty");
+  return section;
+}
+
+function cardInput(label: string): HTMLInputElement {
+  const element = within(cardSection()).getByLabelText(label);
+  if (!(element instanceof HTMLInputElement)) throw new Error(`test: "${label}" to nie input`);
+  return element;
+}
+
+function fillCard(label: string, value: string): void {
+  fireEvent.change(cardInput(label), { target: { value } });
+}
+
+describe("EventSpeakerCreateDialog - karta po kliknieciu", () => {
+  beforeEach(() => {
+    createEventSpeakerPerson.mockReset().mockResolvedValue({
+      entry_id: "en-1",
+      speaker_profile_id: "sp-1",
+      person_id: "pe-1",
+      user_id: null,
+    });
+    fetchEventGroups.mockReset().mockResolvedValue([]);
+    uploadAndRegisterMedia.mockReset();
+    onCreated.mockReset();
+    onOpenChange.mockReset();
+    authState.user = { id: "usr-1" };
+    authState.tenantId = "tnt-1";
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("popup ma sekcje karty z piecioma polami i podpowiedzia, co widac po kliknieciu", () => {
+    renderDialog();
+    const section = cardSection();
+    expect(within(section).getByText(/Kliknięcie w zdjęcie rozwija kartę/)).toBeInTheDocument();
+    expect(cardInput("Adres grafiki")).toBeInTheDocument();
+    // Limit etykiety pilnuje walidator (punkty kodowe jak w bazie), nie
+    // `maxLength` przegladarki (jednostki UTF-16).
+    expect(cardInput("Napis na przycisku PL")).not.toHaveAttribute("maxLength");
+    expect(cardInput("Napis na przycisku EN")).not.toHaveAttribute("maxLength");
+    expect(cardInput("Adres przycisku")).toBeInTheDocument();
+    expect(cardInput("Kolor przycisku")).toBeInTheDocument();
+    expect(cardInput("Wybierz kolor przycisku").value).toBe("#fa9346");
+    // Obszar zdjecia osoby zostaje PIERWSZYM obszarem wgrywania w popupie.
+    const areas = document.querySelectorAll('[data-slot="upload-area"]');
+    expect(areas).toHaveLength(2);
+    expect(section.contains(areas[0])).toBe(false);
+    expect(section.contains(areas[1])).toBe(true);
+  });
+
+  it("wypelnione pola karty jada w payloadzie PRZYCIETE, kazde pod wlasnym kluczem", async () => {
+    renderDialog();
+    fill("Imię", "Halszka");
+    fill("Nazwisko", "Borowik");
+    fillCard("Adres grafiki", "https://cdn.example.com/karta.jpg");
+    fillCard("Napis na przycisku PL", "  Zapisz się  ");
+    fillCard("Napis na przycisku EN", " Sign up ");
+    fillCard("Adres przycisku", " https://example.com/zapisy ");
+    fillCard("Kolor przycisku", " #0A7D3B ");
+    expect(submitButton()).toBeEnabled();
+    fireEvent.click(submitButton());
+
+    await waitFor(() => expect(createEventSpeakerPerson).toHaveBeenCalledTimes(1));
+    const payload = createEventSpeakerPerson.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.cardPhotoUrl).toBe("https://cdn.example.com/karta.jpg");
+    expect(payload.cardCtaLabelPl).toBe("Zapisz się");
+    expect(payload.cardCtaLabelEn).toBe("Sign up");
+    expect(payload.cardCtaUrl).toBe("https://example.com/zapisy");
+    expect(payload.cardCtaColor).toBe("#0A7D3B");
+    // Zdjecie KARTY to nie zdjecie OSOBY - dwa rozne klucze.
+    expect(payload.photoUrl).toBeUndefined();
+  });
+
+  it("pelny payload z karta: sciezka wewnetrzna i kolor, bez zamiany pol", async () => {
+    renderDialog();
+    fill("Imię", "Halszka");
+    fill("Nazwisko", "Borowik");
+    fillCard("Napis na przycisku PL", "Profil eksperta");
+    fillCard("Adres przycisku", "/experts/halszka-borowik");
+    fireEvent.change(cardInput("Wybierz kolor przycisku"), { target: { value: "#112233" } });
+    fireEvent.click(submitButton());
+
+    await waitFor(() => expect(createEventSpeakerPerson).toHaveBeenCalledTimes(1));
+    expect(createEventSpeakerPerson.mock.calls[0][0]).toEqual({
+      eventId: "ev-1",
+      groupId: undefined,
+      email: undefined,
+      firstName: "Halszka",
+      lastName: "Borowik",
+      jobTitle: undefined,
+      companyText: undefined,
+      phone: undefined,
+      socialProfileUrl: undefined,
+      photoUrl: undefined,
+      bioPl: undefined,
+      bioEn: undefined,
+      headlinePl: undefined,
+      headlineEn: undefined,
+      topicsPl: undefined,
+      topicsEn: undefined,
+      languages: undefined,
+      isPublic: true,
+      cardPhotoUrl: undefined,
+      cardCtaLabelPl: "Profil eksperta",
+      cardCtaLabelEn: undefined,
+      cardCtaUrl: "/experts/halszka-borowik",
+      cardCtaColor: "#112233",
+    });
+  });
+
+  it("puste i biale pola karty NIE jada jako pusty napis - sa `undefined`", async () => {
+    renderDialog();
+    fill("Imię", "Halszka");
+    fill("Nazwisko", "Borowik");
+    // Sam bialy znak to tez „puste": pusty napis w RPC wymazalby kolumne.
+    fillCard("Napis na przycisku PL", "   ");
+    fillCard("Kolor przycisku", "  ");
+    fireEvent.click(submitButton());
+
+    await waitFor(() => expect(createEventSpeakerPerson).toHaveBeenCalledTimes(1));
+    const payload = createEventSpeakerPerson.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.cardPhotoUrl).toBeUndefined();
+    expect(payload.cardCtaLabelPl).toBeUndefined();
+    expect(payload.cardCtaLabelEn).toBeUndefined();
+    expect(payload.cardCtaUrl).toBeUndefined();
+    expect(payload.cardCtaColor).toBeUndefined();
+  });
+
+  it("niepoprawny adres przycisku blokuje zapis i mowi, ktore pole poprawic", () => {
+    renderDialog();
+    fill("Imię", "Halszka");
+    fill("Nazwisko", "Borowik");
+    expect(submitButton()).toBeEnabled();
+
+    fillCard("Adres przycisku", "javascript:alert(1)");
+    expect(submitButton()).toBeDisabled();
+    expect(within(cardSection()).getByRole("alert")).toHaveTextContent(
+      "Adres musi zaczynać się od https:// albo od ukośnika (ścieżka w serwisie).",
+    );
+    fireEvent.click(submitButton());
+    expect(createEventSpeakerPerson).not.toHaveBeenCalled();
+
+    fillCard("Adres przycisku", "https://example.com/zapisy");
+    expect(submitButton()).toBeEnabled();
+    expect(within(cardSection()).queryByRole("alert")).toBeNull();
+  });
+
+  it.each([
+    ["Kolor przycisku", "zielony"],
+    ["Napis na przycisku PL", "x".repeat(41)],
+    ["Adres grafiki", "http://cdn.example.com/karta.jpg"],
+  ])("blad w polu karty „%s” tez blokuje zapis", (label, value) => {
+    renderDialog();
+    fill("Imię", "Halszka");
+    fill("Nazwisko", "Borowik");
+    fillCard(label, value);
+    expect(submitButton()).toBeDisabled();
+  });
+
+  it("zdjecie karty wgrywa sie ta sama sciezka do katalogu prelegentow i jedzie jako cardPhotoUrl", async () => {
+    uploadAndRegisterMedia.mockResolvedValue({
+      publicUrl: "https://cdn.example.com/tnt-1/event-speakers/karta.png",
+    });
+    renderDialog();
+    fill("Imię", "Halszka");
+    fill("Nazwisko", "Borowik");
+    const cardFile = cardSection().querySelector('input[type="file"]');
+    if (!(cardFile instanceof HTMLInputElement)) throw new Error("test: brak pola pliku karty");
+
+    fireEvent.change(cardFile, { target: { files: [PORTRAIT()] } });
+
+    await waitFor(() => expect(uploadAndRegisterMedia).toHaveBeenCalledTimes(1));
+    const args = uploadAndRegisterMedia.mock.calls[0][0] as Record<string, unknown>;
+    expect(args.subfolder).toBe("event-speakers");
+    expect(args.tenantId).toBe("tnt-1");
+    await waitFor(() =>
+      expect(cardInput("Adres grafiki").value).toBe(
+        "https://cdn.example.com/tnt-1/event-speakers/karta.png",
+      ),
+    );
+    // Zdjecie osoby zostaje nietkniete.
+    expect(field("Zdjęcie (adres)").value).toBe("");
+
+    fireEvent.click(submitButton());
+    await waitFor(() => expect(createEventSpeakerPerson).toHaveBeenCalledTimes(1));
+    const payload = createEventSpeakerPerson.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.cardPhotoUrl).toBe("https://cdn.example.com/tnt-1/event-speakers/karta.png");
+    expect(payload.photoUrl).toBeUndefined();
+  });
+
+  it("„Anuluj” czysci takze szkic karty", () => {
+    renderDialog();
+    fillCard("Napis na przycisku PL", "Zapisz się");
+    fillCard("Kolor przycisku", "#0a7d3b");
+
+    fireEvent.click(screen.getByRole("button", { name: "Anuluj" }));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(cardInput("Napis na przycisku PL").value).toBe("");
+    expect(cardInput("Kolor przycisku").value).toBe("");
+  });
+
+  it("po udanym zapisie szkic karty jest czysty dla nastepnej osoby", async () => {
+    renderDialog();
+    fill("Imię", "Halszka");
+    fill("Nazwisko", "Borowik");
+    fillCard("Adres przycisku", "/experts/halszka");
+    fireEvent.click(submitButton());
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(cardInput("Adres przycisku").value).toBe("");
+  });
+
+  it("sekcja karty nie wypuszcza surowych kluczy i18n (takze obszaru wgrywania)", () => {
+    renderDialog();
+    fillCard("Adres przycisku", "javascript:alert(1)");
+    const text = document.body.textContent ?? "";
+    expect(text).not.toContain("adminCommunityEvents.");
+    expect(text).not.toContain("adminEventAgenda.");
+  });
+});
+
+// --- LISTA GRUP: NAZWY I STAN BLEDU ------------------------------------------
+
+describe("EventSpeakerCreateDialog - nazwy grup i stan bledu listy", () => {
+  beforeEach(() => {
+    createEventSpeakerPerson.mockReset();
+    fetchEventGroups.mockReset();
+    onCreated.mockReset();
+    onOpenChange.mockReset();
+    authState.user = { id: "usr-1" };
+    authState.tenantId = "tnt-1";
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("grupa bez nazwy PL pokazuje nazwe EN, a nie pusta pozycje", async () => {
+    fetchEventGroups.mockResolvedValue([
+      { id: "grp-1", name_pl: "Prelegenci", name_en: "Speakers" },
+      { id: "grp-2", name_pl: "", name_en: "Moderators" },
+    ]);
+    renderDialog();
+    expect(await screen.findByRole("option", { name: "Moderators" })).toBeEnabled();
+    expect(screen.getByRole("option", { name: "Prelegenci" })).toBeInTheDocument();
+  });
+
+  it("nieudany odczyt grup zostawia samo „Bez grupy” - bez martwej pozycji ladowania", async () => {
+    fetchEventGroups.mockRejectedValue(new Error("forbidden"));
+    renderDialog();
+    await waitFor(() =>
+      expect(screen.queryByRole("option", { name: "Wczytywanie grup…" })).toBeNull(),
+    );
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "Bez grupy",
+    ]);
+    // Brak grup nie blokuje zalozenia prelegenta - grupa jest opcjonalna.
+    fill("Imię", "Halszka");
+    fill("Nazwisko", "Borowik");
+    expect(submitButton()).toBeEnabled();
+  });
+
+  it("po angielsku grupy biora nazwe EN, a w jej braku PL; sekcja karty tez mowi po angielsku", async () => {
+    fetchEventGroups.mockResolvedValue([
+      { id: "grp-1", name_pl: "Prelegenci", name_en: "Speakers" },
+      { id: "grp-2", name_pl: "Moderatorzy", name_en: "" },
+    ]);
+    await i18n.changeLanguage("en");
+    try {
+      renderDialog();
+      expect(await screen.findByRole("option", { name: "Speakers" })).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "Moderatorzy" })).toBeInTheDocument();
+      expect(screen.queryByRole("option", { name: "Prelegenci" })).toBeNull();
+      expect(screen.getByRole("heading", { name: "Card on click" })).toBeInTheDocument();
+      expect(document.body.textContent ?? "").not.toContain("adminCommunityEvents.");
+    } finally {
+      cleanup();
+      await i18n.changeLanguage("pl");
+    }
   });
 });
