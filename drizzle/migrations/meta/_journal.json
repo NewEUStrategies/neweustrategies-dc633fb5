@@ -337,6 +337,13 @@
       "when": 1790270475594,
       "tag": "0047_member_profile_people_route",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1790279863379,
+      "tag": "0048_crm_company_inline_entities",
+      "breakpoints": true
     }
   ]
 }
