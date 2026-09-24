@@ -399,6 +399,8 @@ export const FEATURES_3 = [
     // rozjazd między tym, co emituje renderer, a tym, co liczy spis treści.
     patterns: [
       /^src\/lib\/blocks\/(anchors|footnoteOrigins|footnoteValidation|embed|linkPreview)\.ts$/,
+      // Encje inline (firma / osoba) - odwołanie wstawiane w zdanie, jak przypis.
+      /^src\/lib\/blocks\/inlineEntities\//,
       /^src\/components\/admin\/blocks\/AutoFootnotesPreview\.tsx$/,
     ],
   },
