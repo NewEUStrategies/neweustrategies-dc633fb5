@@ -992,7 +992,7 @@ describe("ClubSpotlightPanel", () => {
     renderPoznaj();
 
     const nazwisko = await screen.findByRole("link", { name: "Anna Nowak" });
-    expect(nazwisko).toHaveAttribute("href", "/author/anna-nowak");
+    expect(nazwisko).toHaveAttribute("href", "/people/anna-nowak");
     expect(screen.getByText("Analityk - NES")).toBeInTheDocument();
     // Trzy zdania redakcji - cięcie po granicy zdania robi `firstSentences`.
     expect(

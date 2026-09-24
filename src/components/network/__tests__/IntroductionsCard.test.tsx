@@ -119,7 +119,7 @@ describe("IntroductionsCard - rola mostu (moderacja)", () => {
     renderCard();
     expect(screen.getByRole("link", { name: "Marek Requester" })).toHaveAttribute(
       "href",
-      "/author/user-requester",
+      "/people/user-requester",
     );
     expect(
       screen.getByText(k("network.introductions.wantsIntroTo", { name: PEER_NAME })),

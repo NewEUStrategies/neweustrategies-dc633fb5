@@ -142,7 +142,7 @@ describe("ClubRosterFaces - rząd twarzy składu", () => {
       />,
     );
     const link = screen.getByRole("link");
-    expect(link).toHaveAttribute("href", "/author/anna-nowak");
+    expect(link).toHaveAttribute("href", "/people/anna-nowak");
     // Kolejność członów opisu jest umową: nazwa, rola, stanowisko, obecność.
     expect(
       screen.getByText(
@@ -234,7 +234,7 @@ describe("ClubPersonCard - karta osoby na pełnym ekranie", () => {
     );
     expect(screen.getByRole("link", { name: "Anna Nowak" })).toHaveAttribute(
       "href",
-      "/author/anna-nowak",
+      "/people/anna-nowak",
     );
     expect(screen.getByText("club.role.lead")).toBeInTheDocument();
     expect(screen.getByText("Analityczka rynku energii")).toBeInTheDocument();

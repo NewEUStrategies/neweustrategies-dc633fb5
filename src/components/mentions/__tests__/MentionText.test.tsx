@@ -7,7 +7,7 @@
 //     Regresja jest cicha - powrót do `raw` wygląda w przeglądarce „normalnie".
 // (2) PRZED NAZWĄ STOI AWATAR. Element z `data-mention-avatar` jest PIERWSZYM
 //     dzieckiem wyzwalacza; bez niego wzmianka zlewa się z resztą zdania.
-// (3) CEL I KLUCZ ZOSTAJĄ TECHNICZNE. Link prowadzi do `/author/<slug>`, a slug
+// (3) CEL I KLUCZ ZOSTAJĄ TECHNICZNE. Link prowadzi do `/people/<slug>`, a slug
 //     w `data-mention` jest małymi literami - spójnie z `process_mentions`,
 //     które po tej samej postaci rozsyła powiadomienia.
 // (4) TREŚĆ POZOSTAJE TEKSTEM. Budujemy węzły React, więc wrogi wpis nie
@@ -139,7 +139,7 @@ describe("MentionText - wzmianka bez nicku", () => {
 
     // Widoczna etykieta ma wielką literę, klucz notyfikacji - małą.
     expect(link).toHaveAttribute("data-mention", "alice");
-    expect(link).toHaveAttribute("href", "/author/alice");
+    expect(link).toHaveAttribute("href", "/people/alice");
   });
 
   it("przed nazwą stoi awatar (pierwsze dziecko wyzwalacza)", () => {
@@ -213,7 +213,7 @@ describe("MentionText - dymek powierzchni komentarzy", () => {
     expect(within(card).getByText("Alice Kowalska")).toBeInTheDocument();
     expect(within(card).getByRole("link", { name: "mentions.viewProfile" })).toHaveAttribute(
       "href",
-      "/author/alice",
+      "/people/alice",
     );
   });
 

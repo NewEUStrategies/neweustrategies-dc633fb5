@@ -20,7 +20,7 @@ describe("ProfileLinkButton", () => {
   it("prowadzi na profil autora po slugu i opisuje osobę w etykiecie", () => {
     render(<ProfileLinkButton slug="anna-nowak" displayName={PEER_NAME} />);
     const link = screen.getByRole("link", { name: ARIA });
-    expect(link).toHaveAttribute("href", "/author/anna-nowak");
+    expect(link).toHaveAttribute("href", "/people/anna-nowak");
     // Etykieta jest też w treści (sr-only), więc nie polega na samym aria.
     expect(link).toHaveTextContent(ARIA);
   });

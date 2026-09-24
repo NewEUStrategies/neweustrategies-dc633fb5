@@ -85,8 +85,8 @@ describe("sekcja osób organizacji", () => {
     expect(screen.getByText("organization.peopleHeading")).toBeTruthy();
     const linki = Array.from(document.querySelectorAll("a[data-organization-person]"));
     expect(linki.map((a) => a.getAttribute("href"))).toEqual([
-      "/author/anna-nowak",
-      "/author/jan-kowal",
+      "/people/anna-nowak",
+      "/people/jan-kowal",
     ]);
   });
 
