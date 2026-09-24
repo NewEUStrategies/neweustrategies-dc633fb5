@@ -266,11 +266,16 @@ function CastEditor({
           <SelectContent>
             {candidates.map((entry) => (
               <SelectItem key={entry.speaker_profile_id} value={entry.speaker_profile_id}>
-                {entry.display_name ?? t("adminEventAgenda.sessionSpeakers.unnamed")}
+                {entry.display_name || t("adminEventAgenda.sessionSpeakers.unnamed")}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+      ) : speakersQ.isError ? (
+        // Bez tej galezi odmowa rejestru bylaby cisza: ani listy, ani powodu.
+        <p role="alert" className="text-[11px] text-destructive">
+          {t("adminEventAgenda.sessionSpeakers.registryFailed")}
+        </p>
       ) : (
         speakersQ.isSuccess && (
           <p className="text-[11px] text-muted-foreground">

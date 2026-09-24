@@ -140,6 +140,7 @@ export const adminEventAgendaPl = {
       addPlaceholder: "Wybierz prelegenta wydarzenia…",
       noCandidates:
         "Wszyscy prelegenci wydarzenia są już w obsadzie. Nowych dodasz w ekranie Prelegenci.",
+      registryFailed: "Nie udało się wczytać listy prelegentów wydarzenia - odśwież stronę.",
       roleLabel: "Rola: {{name}}",
       moveUp: "Wyżej: {{name}}",
       moveDown: "Niżej: {{name}}",
@@ -638,6 +639,7 @@ export const adminEventAgendaEn = {
       addPlaceholder: "Choose an event speaker…",
       noCandidates:
         "Every event speaker is already in the line-up. Add new ones on the Speakers screen.",
+      registryFailed: "The event's speaker list could not be loaded - refresh the page.",
       roleLabel: "Role: {{name}}",
       moveUp: "Move up: {{name}}",
       moveDown: "Move down: {{name}}",

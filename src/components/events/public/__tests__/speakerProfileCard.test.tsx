@@ -60,12 +60,12 @@ const largeOf = (src: string): string =>
     resize: "cover",
   });
 
-const EXPAND = "eventFront.speakers.card.expand(name=Anna Kowalska)";
-const COLLAPSE = "eventFront.speakers.card.collapse(name=Anna Kowalska)";
+const EXPAND = "eventFront.speakers.card.expand(lng=pl,name=Anna Kowalska)";
+const COLLAPSE = "eventFront.speakers.card.collapse(lng=pl,name=Anna Kowalska)";
 const PROFILE_ACTION =
-  "eventFront.speakers.card.actionFor(label=eventFront.speakers.card.profileAction,name=Anna Kowalska)";
+  "eventFront.speakers.card.actionFor(label=eventFront.speakers.card.profileAction(lng=pl),lng=pl,name=Anna Kowalska)";
 const LINK_ACTION =
-  "eventFront.speakers.card.actionFor(label=eventFront.speakers.card.linkAction,name=Anna Kowalska)";
+  "eventFront.speakers.card.actionFor(label=eventFront.speakers.card.linkAction(lng=pl),lng=pl,name=Anna Kowalska)";
 
 function track(over: Partial<SpeakerTrack> = {}): SpeakerTrack {
   return {
@@ -178,7 +178,7 @@ describe("SpeakerProfileCard - karta zwinieta (domyslny wyglad)", () => {
     const { article } = renderCard(speaker({ display_name: null }));
     expect(article.querySelector('span[title=""]')).toBeNull();
     expect(
-      screen.getByRole("button", { name: "eventFront.speakers.card.expand(name=)" }),
+      screen.getByRole("button", { name: "eventFront.speakers.card.expand(lng=pl,name=)" }),
     ).toBeTruthy();
   });
 
@@ -648,7 +648,7 @@ describe("SpeakerProfileCard - przycisk akcji", () => {
     renderCard(row, { onSelect });
 
     const action = screen.getByRole("button", { name: PROFILE_ACTION });
-    expect(action.textContent).toBe("eventFront.speakers.card.profileAction");
+    expect(action.textContent).toBe("eventFront.speakers.card.profileAction(lng=pl)");
     fireEvent.click(action);
 
     expect(onSelect).toHaveBeenCalledTimes(1);
@@ -693,13 +693,13 @@ describe("SpeakerProfileCard - przycisk akcji", () => {
     renderCard(speaker({ card_cta_url: "https://example.org/rejestracja" }), { onSelect: vi.fn() });
 
     const link = screen.getByRole("link", {
-      name: `${LINK_ACTION} eventFront.speakers.card.opensInNewTab`,
+      name: `${LINK_ACTION} eventFront.speakers.card.opensInNewTab(lng=pl)`,
     });
     expect(link.getAttribute("href")).toBe("https://example.org/rejestracja");
     expect(link.getAttribute("target")).toBe("_blank");
     expect(link.getAttribute("rel")).toBe("noopener noreferrer");
     expect(link.hasAttribute("data-app-link")).toBe(false);
-    expect(link.textContent).toBe("eventFront.speakers.card.linkAction");
+    expect(link.textContent).toBe("eventFront.speakers.card.linkAction(lng=pl)");
     expect(screen.queryByRole("button", { name: PROFILE_ACTION })).toBeNull();
   });
 
@@ -737,7 +737,7 @@ describe("SpeakerProfileCard - przycisk akcji", () => {
     const second = renderCard(speaker(both), { lang: "pl" });
     expect(screen.getByRole("link").textContent).toBe("Umow spotkanie");
     expect(screen.getByRole("link").getAttribute("aria-label")).toBe(
-      "eventFront.speakers.card.actionFor(label=Umow spotkanie,name=Anna Kowalska) eventFront.speakers.card.opensInNewTab",
+      "eventFront.speakers.card.actionFor(label=Umow spotkanie,lng=pl,name=Anna Kowalska) eventFront.speakers.card.opensInNewTab(lng=pl)",
     );
     second.unmount();
 
@@ -752,7 +752,7 @@ describe("SpeakerProfileCard - przycisk akcji", () => {
     // Etykieta redakcji dziala tez na przycisku profilu.
     expect(
       screen.getByRole("button", {
-        name: "eventFront.speakers.card.actionFor(label=Full bio,name=Anna Kowalska)",
+        name: "eventFront.speakers.card.actionFor(label=Full bio,lng=pl,name=Anna Kowalska)",
       }).textContent,
     ).toBe("Full bio");
   });
@@ -807,7 +807,7 @@ describe("SpeakerProfileCard - sciezki i ekspert", () => {
 
     expect(screen.getByTitle("Energetyka")).toBeTruthy();
     expect(screen.getByTitle("Cyberbezpieczenstwo")).toBeTruthy();
-    expect(article.textContent).toContain("eventFront.speakers.card.tracksLabel: ");
+    expect(article.textContent).toContain("eventFront.speakers.card.tracksLabel(lng=pl): ");
     expect(article.textContent).toContain("Energetyka");
     expect(article.textContent).toContain("Cyberbezpieczenstwo");
   });

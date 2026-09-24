@@ -278,7 +278,9 @@ export function EventSpeakersManager({ eventId }: { eventId: string }) {
                   size="sm"
                   className="h-7 text-xs"
                   aria-label={t("adminCommunityEvents.speakers.card.openActionFor", {
-                    name: speaker.display_name ?? "",
+                    // Ten sam zapas, co etykieta wiersza - dwa wpisy bez
+                    // nazwiska nie moga miec jednakowej nazwy przycisku.
+                    name: speaker.display_name || speaker.speaker_profile_id,
                   })}
                   onClick={() => setCardOf(speaker)}
                 >

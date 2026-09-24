@@ -94,6 +94,9 @@ export function EventSpeakerCardDialog({
   const qc = useQueryClient();
   const [draft, setDraft] = useState<SpeakerCardDraft>(EMPTY_SPEAKER_CARD_DRAFT);
   const [error, setError] = useState<string | null>(null);
+  // Karta ma DWIE wersje jezykowe (napis przycisku PL/EN, nazwy sciezek),
+  // wiec podglad pozwala obejrzec obie - startuje w jezyku panelu.
+  const [previewLang, setPreviewLang] = useState<"pl" | "en">(lang);
 
   // Zasiew przy otwarciu i przy zmianie OSOBY - nie przy kazdym odswiezeniu
   // listy w tle, ktore nadpisaloby to, co redaktor wlasnie wpisuje.
@@ -102,6 +105,7 @@ export function EventSpeakerCardDialog({
     if (!open || speaker === null) return;
     setDraft(speakerCardDraftFrom(speaker));
     setError(null);
+    setPreviewLang(lang);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, speakerKey]);
 
@@ -136,7 +140,9 @@ export function EventSpeakerCardDialog({
   });
 
   if (speaker === null) return null;
-  const name = speaker.display_name ?? "";
+  // Ten sam zapas, co etykieta wiersza na liscie: bez nazwiska tytul mowi,
+  // KTORY wpis jest edytowany, zamiast konczyc sie dwukropkiem.
+  const name = speaker.display_name || speaker.speaker_profile_id;
   const tracks = speaker.tracks ?? [];
 
   return (
@@ -189,15 +195,40 @@ export function EventSpeakerCardDialog({
           </div>
 
           <aside className="space-y-2">
-            <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              {t("adminCommunityEvents.speakers.card.preview")}
-            </h3>
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("adminCommunityEvents.speakers.card.preview")}
+              </h3>
+              <div
+                role="group"
+                aria-label={t("adminCommunityEvents.speakers.card.previewLang")}
+                className="inline-flex rounded-[6px] border border-border p-0.5"
+              >
+                {(["pl", "en"] as const).map((code) => (
+                  <Button
+                    key={code}
+                    type="button"
+                    size="sm"
+                    variant={previewLang === code ? "secondary" : "ghost"}
+                    aria-pressed={previewLang === code}
+                    className="h-6 rounded-[6px] px-2 text-[11px]"
+                    onClick={() => setPreviewLang(code)}
+                  >
+                    {t(
+                      code === "pl"
+                        ? "adminCommunityEvents.speakers.card.previewLangPl"
+                        : "adminCommunityEvents.speakers.card.previewLangEn",
+                    )}
+                  </Button>
+                ))}
+              </div>
+            </div>
             {previewRow !== null && (
               <div className="border-l border-t border-border">
                 <SpeakerProfileCard
                   key={speaker.speaker_profile_id}
                   speaker={previewRow}
-                  lang={lang}
+                  lang={previewLang}
                   onSelect={speaker.user_id === null ? undefined : () => undefined}
                 />
               </div>

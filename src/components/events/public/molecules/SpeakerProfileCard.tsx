@@ -27,6 +27,12 @@
 //   * przycisk „Edit" -> akcja z panelu (link) albo otwarcie profilu; gdy nie
 //     ma czego otworzyc, przycisku nie ma wcale.
 //
+// JEZYK KARTY TO PROPS `lang`, NIE INSTANCJA I18N. Tresc (rola, sciezki, napis
+// przycisku) i napisy samej karty („Profil", „Powieksz zdjecie") ida w TYM
+// SAMYM jezyku - ta sama decyzja, co w `SpeakerExpertBadge`. Na stronie to
+// jezyk interfejsu; w podgladzie panelu redaktor przelacza PL/EN i widzi karte
+// dokladnie tak, jak zobaczy ja uczestnik w danej wersji jezykowej.
+//
 // HYDRATACJA I CORE WEB VITALS
 //   * serwer i pierwszy render klienta rysuja karte ZWINIETA - stan zalezy
 //     tylko od klikniecia, a `matchMedia` i pomiary czyta obsluga zdarzenia
@@ -283,9 +289,13 @@ export function SpeakerProfileCard({
       ? ""
       : (action.label ??
         (action.kind === "link"
-          ? t("eventFront.speakers.card.linkAction")
-          : t("eventFront.speakers.card.profileAction")));
-  const actionName = t("eventFront.speakers.card.actionFor", { label: actionLabel, name });
+          ? t("eventFront.speakers.card.linkAction", { lng: lang })
+          : t("eventFront.speakers.card.profileAction", { lng: lang })));
+  const actionName = t("eventFront.speakers.card.actionFor", {
+    label: actionLabel,
+    name,
+    lng: lang,
+  });
   const actionClass = cn(
     "absolute z-20 inline-flex items-center rounded-[6px] text-sm font-semibold transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand)]/60",
     expanded
@@ -310,7 +320,7 @@ export function SpeakerProfileCard({
         href={action.href}
         target="_blank"
         rel="noopener noreferrer"
-        aria-label={`${actionName} ${t("eventFront.speakers.card.opensInNewTab")}`}
+        aria-label={`${actionName} ${t("eventFront.speakers.card.opensInNewTab", { lng: lang })}`}
         className={actionClass}
         style={actionStyle}
       >
@@ -363,7 +373,7 @@ export function SpeakerProfileCard({
             aria-expanded={expanded}
             aria-label={t(
               expanded ? "eventFront.speakers.card.collapse" : "eventFront.speakers.card.expand",
-              { name },
+              { name, lng: lang },
             )}
             onClick={toggle}
             onPointerEnter={warm}

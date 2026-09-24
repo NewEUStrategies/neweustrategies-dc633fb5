@@ -11,6 +11,11 @@
 // lustrem CHECK-ow z migracji 20260924120000: redaktor widzi blad przy polu,
 // zanim wysle formularz; odmowa bazy zostaje ostatnia linia obrony.
 //
+// LIMIT ETYKIETY BEZ `maxLength`. Przegladarka liczy `maxLength` w jednostkach
+// UTF-16, a baza (`char_length`) i walidator - w punktach kodowych; emoji
+// zatrzymalyby pisanie w polowie limitu. Dlugosc pilnuje wiec komunikat przy
+// polu (i blokada zapisu), a nie ucinanie wpisu.
+//
 // KOLOR: natywny wybierak + pole #RRGGBB. Wybierak nie umie byc pusty, a pusty
 // kolor znaczy „kolor marki wydarzenia" - dlatego obok stoi przycisk powrotu do
 // koloru marki, a wybierak pokazuje kolor marki, dopoki redaktor nic nie wybral.
@@ -22,7 +27,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EventImageDropzone } from "@/components/admin/events/atoms/EventImageDropzone";
 import {
-  SPEAKER_CARD_LABEL_MAX,
   hexColorOrNull,
   speakerCardDraftErrors,
   type SpeakerCardDraft,
@@ -89,7 +93,6 @@ export function EventSpeakerCardFields({
           <Input
             id={id("label-pl")}
             value={value.labelPl}
-            maxLength={SPEAKER_CARD_LABEL_MAX}
             aria-invalid={errors.labelPl !== undefined}
             onChange={(event) => set("labelPl", event.target.value)}
           />
@@ -102,7 +105,6 @@ export function EventSpeakerCardFields({
           <Input
             id={id("label-en")}
             value={value.labelEn}
-            maxLength={SPEAKER_CARD_LABEL_MAX}
             aria-invalid={errors.labelEn !== undefined}
             onChange={(event) => set("labelEn", event.target.value)}
           />

@@ -49,7 +49,8 @@ export function SpeakerTrackChips({
     .filter((entry) => entry.name !== "");
   if (named.length === 0) return null;
 
-  const heading = label ?? t("eventFront.speakers.card.tracksLabel");
+  // Jezyk z propsa, jak nazwy sciezek - naglowek i nazwy w jednym jezyku.
+  const heading = label ?? t("eventFront.speakers.card.tracksLabel", { lng: lang });
   const spoken = `${heading}: ${named.map((entry) => entry.name).join(", ")}`;
 
   if (variant === "compact") {

@@ -67,10 +67,10 @@ const { EventSpeakersGrid } =
 const { publicEventErrorMessage } = await import("@/lib/events/publicEventErrors");
 
 const AVATAR = "https://proj.supabase.co/storage/v1/object/public/avatars/anna.jpg";
-const EXPAND = "eventFront.speakers.card.expand(name=Anna Kowalska)";
-const COLLAPSE = "eventFront.speakers.card.collapse(name=Anna Kowalska)";
+const EXPAND = "eventFront.speakers.card.expand(lng=pl,name=Anna Kowalska)";
+const COLLAPSE = "eventFront.speakers.card.collapse(lng=pl,name=Anna Kowalska)";
 const PROFILE_ACTION =
-  "eventFront.speakers.card.actionFor(label=eventFront.speakers.card.profileAction,name=Anna Kowalska)";
+  "eventFront.speakers.card.actionFor(label=eventFront.speakers.card.profileAction(lng=pl),lng=pl,name=Anna Kowalska)";
 
 function track(over: Partial<SpeakerTrack> = {}): SpeakerTrack {
   return {
@@ -294,7 +294,7 @@ describe("EventSpeakersGrid - karta rozwijana kliknięciem w zdjęcie", () => {
 
     const name = await screen.findByText("Energetyka");
     expect(name.closest("[title]")?.getAttribute("title")).toBe("Energetyka");
-    expect(container.textContent).toContain("eventFront.speakers.card.tracksLabel: ");
+    expect(container.textContent).toContain("eventFront.speakers.card.tracksLabel(lng=pl): ");
     // Ścieżki nie zagnieżdżają listy - jedna osoba, jedno `li`.
     expect(container.querySelectorAll("li")).toHaveLength(1);
   });

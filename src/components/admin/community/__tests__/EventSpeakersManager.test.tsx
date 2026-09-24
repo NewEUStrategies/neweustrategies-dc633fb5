@@ -40,15 +40,25 @@
 //      OBU stron: odmowa w oknie potwierdzenia NIE kasuje niczego.
 //   9. TRZY DROGI BLEDU KONCZA SIE KOMUNIKATEM BAZY, nie cisza: dodanie,
 //      usuniecie z wydarzenia i zapis profilu.
+//
+// KARTA I SCIEZKI (20260924120000):
+//
+//  10. KAZDY WPIS Z NAKLADKA - z kontem i BEZ - ma przycisk „Karta" nazwany
+//      nazwiskiem (kilkanascie przyciskow „Karta" byloby dla czytnika ekranu
+//      lista nierozroznialnych pozycji). Karta jest zapisywana po
+//      `speaker_profile_id`, wiec dziala takze dla osoby bez konta - a przycisk
+//      PROFILU scenicznego nadal jej nie dotyczy (punkt 4 zostaje prawda).
+//  11. SCIEZKI z obsady sesji stoja pod nazwiskiem - tylko do odczytu.
 import type { ReactNode } from "react";
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { cleanup, render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type {
   AdminSpeakerProfile,
   EventSpeakerEntry,
   EventSpeakerUpsertResult,
 } from "@/lib/admin/community";
+import type { SpeakerTrack } from "@/lib/events/speakerCard";
 
 const fetchEventSpeakers = vi.fn();
 const addEventSpeaker = vi.fn();
@@ -57,6 +67,7 @@ const setEventSpeakerOrder = vi.fn();
 const fetchAdminSpeakerProfile = vi.fn();
 const upsertAdminSpeakerProfile = vi.fn();
 const deleteAdminSpeakerProfile = vi.fn();
+const saveEventSpeakerCard = vi.fn();
 
 vi.mock("@/lib/admin/community", () => ({
   fetchEventSpeakers: (...a: unknown[]) => fetchEventSpeakers(...a),
@@ -66,6 +77,21 @@ vi.mock("@/lib/admin/community", () => ({
   fetchAdminSpeakerProfile: (...a: unknown[]) => fetchAdminSpeakerProfile(...a),
   upsertAdminSpeakerProfile: (...a: unknown[]) => upsertAdminSpeakerProfile(...a),
   deleteAdminSpeakerProfile: (...a: unknown[]) => deleteAdminSpeakerProfile(...a),
+  saveEventSpeakerCard: (...a: unknown[]) => saveEventSpeakerCard(...a),
+}));
+
+// Pole zdjecia w dialogu karty. Prawdziwy obszar wgrywania wchodzi do
+// Supabase Storage i ma wlasny test - tu wystarczy kontrakt `value`.
+vi.mock("@/components/admin/events/atoms/EventImageDropzone", () => ({
+  EventImageDropzone: ({
+    label,
+    value,
+    onValueChange,
+  }: {
+    label: string;
+    value: string;
+    onValueChange: (value: string) => void;
+  }) => <input aria-label={label} value={value} onChange={(e) => onValueChange(e.target.value)} />,
 }));
 
 // Odnosnik do kartoteki CRM jest jedynym miejscem, w ktorym ten ekran dotyka
@@ -203,6 +229,7 @@ function resetAll(): void {
   fetchAdminSpeakerProfile.mockReset().mockResolvedValue(null);
   upsertAdminSpeakerProfile.mockReset().mockResolvedValue({ id: "pr-1", crm_lead_id: null });
   deleteAdminSpeakerProfile.mockReset().mockResolvedValue(true);
+  saveEventSpeakerCard.mockReset().mockResolvedValue(undefined);
   toasts.success.mockReset();
   toasts.error.mockReset();
   detailState.data = { id: "ev-1", status: "published" };
@@ -229,6 +256,7 @@ describe("EventSpeakersManager", () => {
     fetchAdminSpeakerProfile.mockReset().mockResolvedValue(null);
     upsertAdminSpeakerProfile.mockReset().mockResolvedValue({ id: "pr-1", crm_lead_id: null });
     deleteAdminSpeakerProfile.mockReset().mockResolvedValue(true);
+    saveEventSpeakerCard.mockReset().mockResolvedValue(undefined);
     toasts.success.mockReset();
     toasts.error.mockReset();
     detailState.data = { id: "ev-1", status: "published" };
@@ -839,5 +867,287 @@ describe("EventSpeakersManager - profil sceniczny", () => {
   it("dialog profilu nie wypuszcza surowych kluczy i18n", async () => {
     await openProfile(profileRow({ crm_lead_id: "lead-7" }));
     expect(document.body.textContent ?? "").not.toContain("adminCommunityEvents.");
+  });
+});
+
+// --- KARTA I SCIEZKI --------------------------------------------------------
+
+const TRACKS: SpeakerTrack[] = [
+  {
+    id: "tr-1",
+    key: "econ",
+    namePl: "Ekonomia",
+    nameEn: "Economy",
+    accentColor: "#0a7d3b",
+    sessionsCount: 2,
+  },
+  {
+    id: "tr-2",
+    key: "energy",
+    namePl: "Energetyka",
+    nameEn: null,
+    accentColor: null,
+    sessionsCount: 1,
+  },
+];
+
+/** Osoba BEZ konta i osoba Z KONTEM na jednej liscie - oba rodzaje wierszy. */
+function mixedList(): EventSpeakerEntry[] {
+  return [
+    speaker(),
+    speaker({
+      entry_id: "en-2",
+      speaker_profile_id: "sp-2",
+      user_id: "u-1",
+      person_id: null,
+      display_name: "Anna Konto",
+      sort_order: 1,
+    }),
+  ];
+}
+
+/** Wiersz listy po nazwisku - asercje nie moga uciec do sasiedniego wiersza. */
+function row(name: string): HTMLElement {
+  const li = screen.getByText(name).closest("li");
+  if (li === null) throw new Error(`test: brak wiersza "${name}"`);
+  return li;
+}
+
+describe("EventSpeakersManager - karta prelegenta i sciezki", () => {
+  beforeEach(() => {
+    resetAll();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("kazdy wpis - z kontem i BEZ - ma przycisk „Karta” nazwany nazwiskiem", async () => {
+    fetchEventSpeakers.mockResolvedValue(mixedList());
+    renderManager();
+    await waitFor(() => expect(screen.getByText("Anna Konto")).toBeInTheDocument());
+
+    const noAccount = within(row("Halszka Borowik")).getByRole("button", {
+      name: "Karta prelegenta: Halszka Borowik",
+    });
+    const account = within(row("Anna Konto")).getByRole("button", {
+      name: "Karta prelegenta: Anna Konto",
+    });
+    // Widoczny napis jest krotki, a nazwisko niesie nazwa dostepna.
+    expect(noAccount).toHaveTextContent("Karta");
+    expect(account).toHaveTextContent("Karta");
+    // Punkt 4 zostaje prawda: przycisk profilu scenicznego ma TYLKO konto.
+    expect(
+      within(row("Halszka Borowik")).queryByRole("button", { name: /Profil prelegenta/ }),
+    ).toBeNull();
+    expect(
+      within(row("Anna Konto")).getByRole("button", { name: /Profil prelegenta/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("osoba BEZ konta: „Karta” otwiera dialog karty, a przycisku profilu nadal nie ma", async () => {
+    fetchEventSpeakers.mockResolvedValue([speaker()]);
+    renderManager();
+    await waitFor(() => expect(screen.getByText("Halszka Borowik")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Karta prelegenta: Halszka Borowik" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Karta prelegenta: Halszka Borowik" });
+    expect(within(dialog).getByLabelText("Adres przycisku")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Profil prelegenta/ })).toBeNull();
+    // Dialog karty nie siega po profil sceniczny - to RPC po `user_id`.
+    expect(fetchAdminSpeakerProfile).not.toHaveBeenCalled();
+  });
+
+  it("osoba Z KONTEM: „Karta” otwiera dialog KARTY, nie profilu scenicznego", async () => {
+    fetchEventSpeakers.mockResolvedValue(mixedList());
+    renderManager();
+    await waitFor(() => expect(screen.getByText("Anna Konto")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Karta prelegenta: Anna Konto" }));
+
+    expect(
+      await screen.findByRole("dialog", { name: "Karta prelegenta: Anna Konto" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Profil prelegenta: Anna Konto")).toBeNull();
+    expect(fetchAdminSpeakerProfile).not.toHaveBeenCalled();
+  });
+
+  it("wpis bez nazwy: „Karta” i tytul dialogu niosa identyfikator profilu, a nie pustke", async () => {
+    fetchEventSpeakers.mockResolvedValue([
+      speaker({ display_name: null, job_title: null, company: null }),
+    ]);
+    renderManager();
+    await waitFor(() => expect(screen.getByText("sp-1")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Karta prelegenta: sp-1" }));
+
+    expect(
+      await screen.findByRole("dialog", { name: "Karta prelegenta: sp-1" }),
+    ).toBeInTheDocument();
+  });
+
+  it("dialog karty dostaje wpis z listy - pola karty sa zasiane", async () => {
+    fetchEventSpeakers.mockResolvedValue([
+      speaker({
+        card_cta_label_pl: "Zapisz się",
+        card_cta_url: "https://example.com/zapisy",
+        tracks: TRACKS,
+      }),
+    ]);
+    renderManager();
+    await waitFor(() => expect(screen.getByText("Halszka Borowik")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Karta prelegenta: Halszka Borowik" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText("Napis na przycisku PL")).toHaveValue("Zapisz się");
+    expect(within(dialog).getByLabelText("Adres przycisku")).toHaveValue(
+      "https://example.com/zapisy",
+    );
+  });
+
+  it("wiersz legacy bez nakladki scenicznej (pusty speaker_profile_id) nie ma przycisku „Karta”", async () => {
+    fetchEventSpeakers.mockResolvedValue([
+      speaker({
+        entry_id: null,
+        speaker_profile_id: "",
+        user_id: "u-9",
+        person_id: null,
+        display_name: "Stary Wpis",
+        is_legacy: true,
+      }),
+    ]);
+    renderManager();
+    await waitFor(() => expect(screen.getByText("Stary Wpis")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: /Karta prelegenta/ })).toBeNull();
+    // Profil sceniczny (po `user_id`) nadal jest dostepny.
+    expect(screen.getByRole("button", { name: /Profil prelegenta/ })).toBeInTheDocument();
+  });
+
+  it("sciezki z obsady sesji stoja pod nazwiskiem wlasnego wiersza", async () => {
+    fetchEventSpeakers.mockResolvedValue([
+      speaker({ tracks: TRACKS }),
+      speaker({
+        entry_id: "en-2",
+        speaker_profile_id: "sp-2",
+        person_id: "pe-2",
+        display_name: "Bogumił Trawka",
+        tracks: [],
+      }),
+    ]);
+    renderManager();
+    await waitFor(() => expect(screen.getByText("Bogumił Trawka")).toBeInTheDocument());
+
+    const withTracks = row("Halszka Borowik");
+    expect(within(withTracks).getByText("Ekonomia")).toBeInTheDocument();
+    expect(within(withTracks).getByText("Energetyka")).toBeInTheDocument();
+    // Czytnik ekranu slyszy etykiete przed lista sciezek.
+    expect(within(withTracks).getByText("Ścieżki:")).toBeInTheDocument();
+    // Sciezki sa odczytem - zadnego przycisku ani pola na chipach.
+    expect(within(withTracks).getByText("Ekonomia").closest("button")).toBeNull();
+
+    const without = row("Bogumił Trawka");
+    expect(within(without).queryByText("Ścieżki:")).toBeNull();
+    expect(within(without).queryByText("Ekonomia")).toBeNull();
+  });
+
+  it("wiersz bez pola `tracks` (wpis cache sprzed kolumny) nie ma sciezek i dziala", async () => {
+    const bare = speaker();
+    delete bare.tracks;
+    fetchEventSpeakers.mockResolvedValue([bare]);
+    renderManager();
+    await waitFor(() => expect(screen.getByText("Halszka Borowik")).toBeInTheDocument());
+    expect(screen.queryByText("Ścieżki:")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Karta prelegenta: Halszka Borowik" }),
+    ).toBeInTheDocument();
+  });
+
+  it("„Anuluj” w dialogu karty zamyka go bez zapisu", async () => {
+    fetchEventSpeakers.mockResolvedValue([speaker()]);
+    renderManager();
+    await waitFor(() => expect(screen.getByText("Halszka Borowik")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Karta prelegenta: Halszka Borowik" }));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Anuluj" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(saveEventSpeakerCard).not.toHaveBeenCalled();
+  });
+
+  it("zapis karty z listy idzie po speaker_profile_id, wietrzy liste i zamyka dialog", async () => {
+    fetchEventSpeakers.mockResolvedValue([speaker()]);
+    const { client } = renderManager();
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    await waitFor(() => expect(screen.getByText("Halszka Borowik")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Karta prelegenta: Halszka Borowik" }));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.change(within(dialog).getByLabelText("Napis na przycisku PL"), {
+      target: { value: "Zapisz się" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Zapisz kartę" }));
+
+    await waitFor(() => expect(saveEventSpeakerCard).toHaveBeenCalledTimes(1));
+    expect(saveEventSpeakerCard).toHaveBeenCalledWith({
+      speakerProfileId: "sp-1",
+      cardPhotoUrl: "",
+      cardCtaLabelPl: "Zapisz się",
+      cardCtaLabelEn: "",
+      cardCtaUrl: "",
+      cardCtaColor: "",
+    });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["admin-event-speakers", "ev-1"] });
+    expect(toasts.success).toHaveBeenCalledWith("Zapisano kartę prelegenta");
+  });
+
+  it("lista z karta i sciezkami nie wypuszcza surowych kluczy i18n", async () => {
+    fetchEventSpeakers.mockResolvedValue([speaker({ tracks: TRACKS })]);
+    renderManager();
+    await waitFor(() => expect(screen.getByText("Halszka Borowik")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Karta prelegenta: Halszka Borowik" }));
+    await screen.findByRole("dialog");
+    const text = document.body.textContent ?? "";
+    expect(text).not.toContain("adminCommunityEvents.");
+    expect(text).not.toContain("eventFront.");
+  });
+});
+
+// --- PROFIL SCENICZNY: BRZEGI ------------------------------------------------
+
+describe("EventSpeakersManager - profil sceniczny, brzegi", () => {
+  beforeEach(() => {
+    resetAll();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("konto bez nazwy: tytul profilu niesie identyfikator konta, a nie pusty napis", async () => {
+    fetchAdminSpeakerProfile.mockResolvedValue(profileRow());
+    fetchEventSpeakers.mockResolvedValue([
+      speaker({ user_id: "u-1", person_id: null, display_name: null }),
+    ]);
+    renderManager();
+    await waitFor(() => expect(screen.getByText("sp-1")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /Profil prelegenta/ }));
+    expect(await screen.findByText("Profil prelegenta: u-1")).toBeInTheDocument();
+  });
+
+  it("puste liczniki i ocena jada do zapisu jako 0, a nie NaN", async () => {
+    await openProfile();
+    fireEvent.change(field("Wystąpienia"), { target: { value: "" } });
+    fireEvent.change(field("Ocena (0-5)"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Zapisz profil" }));
+
+    await waitFor(() => expect(upsertAdminSpeakerProfile).toHaveBeenCalledTimes(1));
+    const payload = upsertAdminSpeakerProfile.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.talksCount).toBe(0);
+    expect(payload.rating).toBe(0);
   });
 });

@@ -225,6 +225,9 @@ export const adminCommunityEventsPl = {
         tracksEmpty: "Prelegent nie występuje jeszcze w żadnej sesji ze ścieżką.",
         preview: "Podgląd karty",
         previewHint: "Kliknij zdjęcie w podglądzie, żeby zobaczyć kartę rozwiniętą.",
+        previewLang: "Język podglądu",
+        previewLangPl: "PL",
+        previewLangEn: "EN",
         saveAction: "Zapisz kartę",
         saved: "Zapisano kartę prelegenta",
         errors: {
@@ -461,6 +464,9 @@ export const adminCommunityEventsEn = {
         tracksEmpty: "The speaker does not appear in any session with a track yet.",
         preview: "Card preview",
         previewHint: "Click the photo in the preview to see the expanded card.",
+        previewLang: "Preview language",
+        previewLangPl: "PL",
+        previewLangEn: "EN",
         saveAction: "Save the card",
         saved: "Speaker card saved",
         errors: {

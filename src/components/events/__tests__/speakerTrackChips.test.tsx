@@ -71,6 +71,8 @@ const { SpeakerTrackChips } = await import("@/components/events/SpeakerTrackChip
 const { EventSpeakersSection } = await import("@/components/events/EventSpeakersSection");
 
 const LABEL = "eventFront.speakers.card.tracksLabel";
+/** Naglowek idzie w JEZYKU KARTY (props `lang`), wiec stub dokleja `lng`. */
+const labelIn = (lang: "pl" | "en"): string => `${LABEL}(lng=${lang})`;
 
 function track(over: Partial<SpeakerTrack> = {}): SpeakerTrack {
   return {
@@ -131,7 +133,7 @@ describe("SpeakerTrackChips - brak tresci = brak elementu", () => {
       />,
     );
     expect(swatchesOf(container)).toHaveLength(1);
-    expect(container.textContent).toBe(`${LABEL}: Cyberbezpieczenstwo`);
+    expect(container.textContent).toBe(`${labelIn("pl")}: Cyberbezpieczenstwo`);
   });
 });
 
@@ -149,10 +151,10 @@ describe("SpeakerTrackChips - wariant chips (karta w siatce)", () => {
     const { container } = render(<SpeakerTrackChips tracks={[track(), SECOND]} lang="pl" />);
 
     const heading = container.querySelector(".sr-only");
-    expect(heading?.textContent).toBe(`${LABEL}: `);
+    expect(heading?.textContent).toBe(`${labelIn("pl")}: `);
     // Etykieta stoi jako PIERWSZA - czytnik ma uslyszec, czym sa nazwy obok.
     expect(container.firstElementChild?.firstElementChild).toBe(heading);
-    expect(container.textContent).toBe(`${LABEL}: EnergetykaCyberbezpieczenstwo`);
+    expect(container.textContent).toBe(`${labelIn("pl")}: EnergetykaCyberbezpieczenstwo`);
     expect(swatchesOf(container)).toHaveLength(2);
   });
 
@@ -236,7 +238,7 @@ describe("SpeakerTrackChips - wariant compact (chip zapowiedzi)", () => {
     const { container } = render(
       <SpeakerTrackChips tracks={[track(), SECOND]} lang="pl" variant="compact" />,
     );
-    const sentence = `${LABEL}: Energetyka, Cyberbezpieczenstwo`;
+    const sentence = `${labelIn("pl")}: Energetyka, Cyberbezpieczenstwo`;
     const root = container.firstElementChild as HTMLElement;
     expect(root.getAttribute("title")).toBe(sentence);
     expect(root.querySelector(".sr-only")?.textContent).toBe(sentence);
@@ -279,7 +281,7 @@ describe("SpeakerTrackChips - jezyk nazwy", () => {
     const { unmount } = render(
       <SpeakerTrackChips tracks={[track({ nameEn: null })]} lang="en" variant="compact" />,
     );
-    expect(document.body.textContent).toBe(`${LABEL}: Energetyka`);
+    expect(document.body.textContent).toBe(`${labelIn("en")}: Energetyka`);
     unmount();
 
     render(<SpeakerTrackChips tracks={[track({ namePl: null })]} lang="pl" />);
@@ -324,7 +326,7 @@ describe("EventSpeakersSection - sciezki w chipie zapowiedzi", () => {
     const { container } = render(<EventSpeakersSection eventId="e1" lang="pl" />, { wrapper });
 
     const chip = await screen.findByRole("button", { name: /Anna Kowalska/ });
-    const sentence = `${LABEL}: Energetyka, Cyberbezpieczenstwo`;
+    const sentence = `${labelIn("pl")}: Energetyka, Cyberbezpieczenstwo`;
     expect(chip.querySelector(`[title="${sentence}"]`)).not.toBeNull();
     expect(chip.textContent).toContain(sentence);
     // Kwadraty to ozdoba; nazwy niesie zdanie wyzej.
@@ -338,7 +340,7 @@ describe("EventSpeakersSection - sciezki w chipie zapowiedzi", () => {
     h.speakers = [speaker({ tracks: [track()] })];
     render(<EventSpeakersSection eventId="e1" lang="en" />, { wrapper });
     const chip = await screen.findByRole("button", { name: /Anna Kowalska/ });
-    expect(chip.textContent).toContain(`${LABEL}: Energy`);
+    expect(chip.textContent).toContain(`${labelIn("en")}: Energy`);
     expect(chip.textContent).not.toContain("Energetyka");
   });
 
@@ -363,7 +365,7 @@ describe("EventSpeakersSection - sciezki w chipie zapowiedzi", () => {
     render(<EventSpeakersSection eventId="e1" lang="pl" />, { wrapper });
     const chip = await screen.findByRole("button", { name: /Anna Kowalska/ });
     expect(chip.textContent).toContain("eventFront.speakers.expertBadge");
-    expect(chip.textContent).toContain(`${LABEL}: Energetyka`);
+    expect(chip.textContent).toContain(`${labelIn("pl")}: Energetyka`);
   });
 
   it("ekspert bez sciezek ma sama plakietke, bez pustej etykiety sciezek", async () => {
@@ -386,7 +388,7 @@ describe("EventSpeakersSection - sciezki w chipie zapowiedzi", () => {
     const { container } = render(<EventSpeakersSection eventId="e1" lang="pl" />, { wrapper });
     await screen.findByText("Anna Kowalska");
     expect(screen.queryByRole("button")).toBeNull();
-    expect(container.querySelector("li")?.textContent).toContain(`${LABEL}: Energetyka`);
+    expect(container.querySelector("li")?.textContent).toContain(`${labelIn("pl")}: Energetyka`);
   });
 
   it("klik w chip ze sciezkami otwiera profil, a zamkniecie go czysci", async () => {
