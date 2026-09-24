@@ -46,7 +46,7 @@ export function ClubReactionAvatars({
           name,
           designation: [actor.headline, kinds].filter(Boolean).join(" \u2013 ") || kinds,
           image: actor.avatarUrl,
-          href: actor.slug ? `/people/${actor.slug}` : null,
+          href: actor.slug ? `/author/${encodeURIComponent(actor.slug)}` : null,
           anonymous,
         };
       }),
