@@ -21156,7 +21156,10 @@ export type Database = {
         Args: { p_event_id: string; p_status: string }
         Returns: string
       }
-      admin_event_speaker_card_save: { Args: { p_payload: Json }; Returns: Json }
+      admin_event_speaker_card_save: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       admin_event_speaker_remove: {
         Args: { p_payload: Json }
         Returns: boolean
