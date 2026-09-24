@@ -53,7 +53,7 @@ vi.mock("react-i18next", () => ({
 }));
 vi.mock("@tanstack/react-router", () => ({
   // `params` są interpolowane, bo test „autor z profilem" mierzy DOCELOWY adres
-  // (`/author/anna-nowak`), a nie sam wzorzec trasy.
+  // (`/people/anna-nowak`), a nie sam wzorzec trasy.
   Link: ({
     children,
     to,
@@ -979,7 +979,7 @@ describe("stany pojedynczego wiersza", () => {
 
     await waitFor(() => expect(screen.getByText("Piotr Bezprofilu")).toBeTruthy());
     expect(screen.getByRole("link", { name: "Anna Nowak" }).getAttribute("href")).toBe(
-      "/author/anna-nowak",
+      "/people/anna-nowak",
     );
     expect(screen.queryByRole("link", { name: "Piotr Bezprofilu" })).toBeNull();
   });

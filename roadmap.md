@@ -59,3 +59,8 @@
 - [x] Ścieżki prelegenta wyprowadzane automatycznie z obsady sesji (karta, zapowiedź, program, podgląd studia).
 - [x] Program: prelegenci sesji w prawej kolumnie obok stanu sesji, po rozwinięciu szczegółów ścieżki każdej osoby.
 - [x] Edytor obsady sesji w formularzu sesji (rola, kolejność, zapis z odmową nachodzenia godzin).
+
+## Profile People vs Author (2026-09-24)
+- [x] /people/$slug dla każdego użytkownika, /author tylko z roli/zaproszenia autora, redirect 301
+- [x] Linki klub/wzmianki/wyszukiwarka/organizacje -> /people
+- [x] Sitemap aktualizacja + widok/plik w Admin > SEO

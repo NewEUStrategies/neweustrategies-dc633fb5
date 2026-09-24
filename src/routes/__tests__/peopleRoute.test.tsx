@@ -259,7 +259,7 @@ vi.mock("@/components/network/molecules/ConnectionPathTrail", () => ({
 }));
 
 const { renderRoute, routeMeta, routeSearchValidator } = await import("@/test/routeHarness");
-const { Route: PeopleRoute } = await import("@/routes/people");
+const { Route: PeopleRoute } = await import("@/routes/people.index");
 const { NO_CONNECTION } = await import("@/lib/network/useConnections");
 
 function person(id: string, overrides: Partial<PersonRow> = {}): PersonRow {

@@ -24891,6 +24891,7 @@ export type Database = {
           relation: string
         }[]
       }
+      get_member_profile: { Args: { p_slug: string }; Returns: Json }
       get_mention_target: {
         Args: { _slug: string }
         Returns: {
@@ -25402,6 +25403,7 @@ export type Database = {
         | { Args: { _tenant: string; _uid: string }; Returns: boolean }
       is_nes_staff: { Args: { _user_id?: string }; Returns: boolean }
       is_org_owner: { Args: { p_org: string }; Returns: boolean }
+      is_platform_author: { Args: { _user_id: string }; Returns: boolean }
       is_service_role_caller: { Args: never; Returns: boolean }
       is_staff: { Args: never; Returns: boolean }
       is_super_admin: { Args: { _user_id?: string }; Returns: boolean }
@@ -25609,6 +25611,7 @@ export type Database = {
         Returns: undefined
       }
       member_conversation_ids: { Args: never; Returns: string[] }
+      member_slug_is_non_author: { Args: { p_slug: string }; Returns: boolean }
       membership_year_window: {
         Args: { p_user: string }
         Returns: {

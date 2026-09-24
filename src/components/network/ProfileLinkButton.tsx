@@ -41,7 +41,7 @@ export function ProfileLinkButton({
             )}
           >
             <Link
-              to="/author/$slug"
+              to="/people/$slug"
               params={{ slug }}
               aria-label={aria}
               onClick={(e) => e.stopPropagation()}

@@ -116,7 +116,7 @@ export function ClubRosterFaces({
                 topics={face.topics.map((topic) => topicLabel(topic, lang, topicCatalog))}
               >
                 {face.slug !== null ? (
-                  <Link to="/author/$slug" params={{ slug: face.slug }} className={TRIGGER}>
+                  <Link to="/people/$slug" params={{ slug: face.slug }} className={TRIGGER}>
                     {avatar}
                   </Link>
                 ) : (

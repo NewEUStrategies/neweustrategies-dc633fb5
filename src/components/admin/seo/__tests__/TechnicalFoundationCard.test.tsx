@@ -101,6 +101,7 @@ describe("TechnicalFoundationCard - sondy odpowiadają", () => {
 
     const hrefs = screen
       .getAllByRole("link")
+      .filter((link) => !link.hasAttribute("download"))
       .map((link) => link.getAttribute("href"))
       .filter((href): href is string => href !== null);
     expect(hrefs).toEqual([
@@ -108,6 +109,21 @@ describe("TechnicalFoundationCard - sondy odpowiadają", () => {
       `${CANONICAL_SITE_ORIGIN}/robots.txt`,
       `${CANONICAL_SITE_ORIGIN}/llms.txt`,
       `${CANONICAL_SITE_ORIGIN}/`,
+    ]);
+  });
+
+  it("sitemap, robots i llms można pobrać jako plik z tego samego hosta", async () => {
+    stubFetch({});
+    renderWithQueryClient(<TechnicalFoundationCard />);
+    await waitFor(() => expect(document.querySelector("[data-seo-foundation]")).not.toBeNull());
+    const downloads = [...document.querySelectorAll("a[download]")].map((a) => [
+      a.getAttribute("href"),
+      a.getAttribute("download"),
+    ]);
+    expect(downloads).toEqual([
+      ["/sitemap.xml", "sitemap.xml"],
+      ["/robots.txt", "robots.txt"],
+      ["/llms.txt", "llms.txt"],
     ]);
   });
 

@@ -89,7 +89,7 @@ export function PathNode({
   if (variant === "person" && slug) {
     return (
       <Link
-        to="/author/$slug"
+        to="/people/$slug"
         params={{ slug }}
         className={cn(
           base,

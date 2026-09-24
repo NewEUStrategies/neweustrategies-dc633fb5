@@ -61,7 +61,7 @@ describe("PeopleOrgResults", () => {
       />,
     );
     const hrefs = Array.from(container.querySelectorAll("a")).map((a) => a.getAttribute("href"));
-    expect(hrefs).toContain("/author/jan-kowalski");
+    expect(hrefs).toContain("/people/jan-kowalski");
     expect(hrefs).toContain("/search?org=o1");
   });
 
@@ -164,11 +164,11 @@ describe("PeopleOrgResults - etykiety i identyfikacja", () => {
     expect(container.textContent).not.toContain("Analityk");
   });
 
-  it("OSOBA BEZ SLUGA identyfikuje się ID - link nie może prowadzić do /author/undefined", () => {
+  it("OSOBA BEZ SLUGA identyfikuje się ID - link nie może prowadzić do /people/undefined", () => {
     renderWithQueryClient(
       <PeopleOrgResults items={[item({ slug: null, id: "u-42" })]} lang="pl" />,
     );
-    expect(screen.getAllByRole("link")[0]).toHaveAttribute("href", "/author/u-42");
+    expect(screen.getAllByRole("link")[0]).toHaveAttribute("href", "/people/u-42");
   });
 
   it("osoba bez awatara dostaje inicjał, nie pusty krążek", () => {

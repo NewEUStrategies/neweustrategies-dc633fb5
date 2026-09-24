@@ -394,7 +394,7 @@ describe("MentionSegment - wyzwalacz bez katalogu", () => {
     render(<MentionSegment slug="anna-nowak" />);
     const link = linkNamed(ANNA);
 
-    expect(link).toHaveAttribute("href", "/author/anna-nowak");
+    expect(link).toHaveAttribute("href", "/people/anna-nowak");
     expect(link).toHaveAttribute("data-mention", "anna-nowak");
   });
 
@@ -411,7 +411,7 @@ describe("MentionSegment - wyzwalacz bez katalogu", () => {
   it("wieloczłonowy slug rozkłada się na słowa wersalikiem na początku", () => {
     render(<MentionSegment slug="jan_kowalski-nowak" />);
 
-    expect(linkNamed("Jan Kowalski Nowak")).toHaveAttribute("href", "/author/jan_kowalski-nowak");
+    expect(linkNamed("Jan Kowalski Nowak")).toHaveAttribute("href", "/people/jan_kowalski-nowak");
   });
 
   it("bez zdjęcia w BIEGU TEKSTU wchodzi ikona, nie inicjały", () => {
@@ -499,7 +499,7 @@ describe("MentionSegment - wzmianka rozwiązana przez katalog", () => {
     state.entity = personEntity({ slug: "a-nowak", name: "Anna Kowalska-Nowak" });
     const { container } = render(<MentionSegment slug="a-nowak" />);
 
-    expect(linkNamed("Anna Kowalska-Nowak")).toHaveAttribute("href", "/author/a-nowak");
+    expect(linkNamed("Anna Kowalska-Nowak")).toHaveAttribute("href", "/people/a-nowak");
     // „A Nowak" to postać zastępcza - jej obecność znaczyłaby, że katalog jest
     // pobierany, ale nieczytany.
     expect(screen.queryByText("A Nowak")).toBeNull();
@@ -590,7 +590,7 @@ describe("MentionSegment - stany dymka", () => {
 
     expect(within(card).getByText("Anna Nowak")).toBeInTheDocument();
     const view = within(card).getByRole("link", { name: "club.inline.viewProfile" });
-    expect(view).toHaveAttribute("href", "/author/anna-nowak");
+    expect(view).toHaveAttribute("href", "/people/anna-nowak");
   });
 
   it("bez awatara W DYMKU pokazuje inicjały wersalikami", async () => {

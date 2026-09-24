@@ -1,7 +1,7 @@
 -- ============================================================================
 -- KARTA PRELEGENTA ROZWIJANA KLIKNIECIEM + SCIEZKI WYPROWADZONE Z OBSADY SESJI.
 --
--- BLIZNIAK drizzle/migrations/0047_event_speaker_card_tracks.sql - ten sam SQL
+-- BLIZNIAK drizzle/migrations/0048_event_speaker_card_tracks.sql - ten sam SQL
 -- wykonywalny (pilnuje tego `src/lib/ci/migrationLaneParity.ts`).
 --
 -- PO CO

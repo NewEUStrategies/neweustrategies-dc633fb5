@@ -334,8 +334,15 @@
     {
       "idx": 47,
       "version": "7",
-      "when": 1790269011949,
-      "tag": "0047_event_speaker_card_tracks",
+      "when": 1790270475594,
+      "tag": "0047_member_profile_people_route",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1790271000000,
+      "tag": "0048_event_speaker_card_tracks",
       "breakpoints": true
     }
   ]

@@ -13,7 +13,7 @@
 //     separatora-sieroty; `showCompany={false}` zdejmuje ją mimo danych w
 //     profilu (bylina ma własny tag firmy i nie chce jej dwa razy).
 // (4) OSOBA I ORGANIZACJA TO DWA RÓŻNE CELE. Osoba niesie `data-mention` i
-//     prowadzi do `/author/<slug>`; organizacja niesie `data-mention-org` i
+//     prowadzi do `/people/<slug>`; organizacja niesie `data-mention-org` i
 //     prowadzi do `/organization/<slug>`. Obie wzmianki wyglądają w treści tak
 //     samo, więc zlanie tych gałęzi daje link w nicość, który wygląda poprawnie.
 // (5) WERYFIKACJA JEST OGŁOSZONA CZYTNIKOWI, nie tylko kolorem ikony.
@@ -309,18 +309,18 @@ describe("MentionTag - osoba kontra organizacja", () => {
     render(<MentionTag slug="anna-nowak" entity={person()} lang="pl" labels={LABELS} />);
     const link = tagFor("anna-nowak");
 
-    expect(link).toHaveAttribute("href", "/author/anna-nowak");
+    expect(link).toHaveAttribute("href", "/people/anna-nowak");
     expect(link).not.toHaveAttribute("data-mention-org");
   });
 
   it("nierozwiązany slug traktujemy jak osobę - profil bywa poza zasięgiem RLS", () => {
     render(<MentionTag slug="anna-nowak" entity={null} lang="pl" labels={LABELS} />);
 
-    expect(tagFor("anna-nowak")).toHaveAttribute("href", "/author/anna-nowak");
+    expect(tagFor("anna-nowak")).toHaveAttribute("href", "/people/anna-nowak");
   });
 
   it("organizacja niesie `data-mention-org` i prowadzi na stronę organizacji", () => {
-    // Organizacja NIE jest autorem - `/author/<slug>` byłoby 404 przy wzmiance,
+    // Organizacja NIE jest autorem - `/people/<slug>` byłoby 404 przy wzmiance,
     // która w treści wygląda dokładnie tak samo jak wzmianka człowieka.
     render(
       <MentionTag
@@ -471,7 +471,7 @@ describe("MentionPersonCard", () => {
 
     expect(screen.getByRole("link", { name: LABELS.viewProfile })).toHaveAttribute(
       "href",
-      "/author/anna-nowak",
+      "/people/anna-nowak",
     );
   });
 });

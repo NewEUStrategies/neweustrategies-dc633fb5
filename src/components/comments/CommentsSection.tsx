@@ -747,7 +747,7 @@ function CommentItem({
         <header className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
           {c.author?.slug ? (
             <Link
-              to="/author/$slug"
+              to="/people/$slug"
               params={{ slug: c.author.slug }}
               className="font-medium hover:underline"
             >

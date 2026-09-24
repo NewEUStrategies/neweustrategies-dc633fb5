@@ -45,7 +45,7 @@ import { routeHead } from "@/test/routeHarness";
 // Import STATYCZNY, nie `await import()` w tabeli - `vi.mock` i tak jest
 // hoistowane nad importy, a statyczny kształt daje `routeHead` KONKRETNY typ
 // trasy zamiast `unknown` (to jest idiom `membershipRegistrationRoute.test.tsx`).
-import { Route as PeopleRoute } from "@/routes/people";
+import { Route as PeopleRoute } from "@/routes/people.index";
 import { Route as CartRoute } from "@/routes/cart";
 import { Route as ContributorsRoute } from "@/routes/contributors";
 import { Route as ReadingListRoute } from "@/routes/reading-list";

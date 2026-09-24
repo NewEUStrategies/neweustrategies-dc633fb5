@@ -168,7 +168,7 @@ describe("ClubPostCard - autor i pochodzenie", () => {
     const card = screen.getByTestId("club-feed-post");
     expect(card.getAttribute("data-post-id")).toBe("post-1");
     expect(within(card).getByRole("link", { name: "Anna Nowak" }).getAttribute("href")).toBe(
-      "/author/anna-nowak",
+      "/people/anna-nowak",
     );
     expect(card.querySelector("time")?.getAttribute("datetime")).toBe(CLUB_BASE_ISO);
     expect(within(card).getByText("(club.post.edited)")).toBeTruthy();

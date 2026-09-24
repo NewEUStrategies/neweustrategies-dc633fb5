@@ -12,6 +12,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { AvatarGroup, type AvatarGroupItem } from "@/components/atoms/AvatarGroup";
 import type { ClubReactionActor } from "@/lib/clubs/types";
+import { profileHref } from "@/lib/profile/profileHref";
 
 interface ClubReactionAvatarsProps {
   actors: readonly ClubReactionActor[];
@@ -46,7 +47,7 @@ export function ClubReactionAvatars({
           name,
           designation: [actor.headline, kinds].filter(Boolean).join(" \u2013 ") || kinds,
           image: actor.avatarUrl,
-          href: actor.slug ? `/people/${actor.slug}` : null,
+          href: actor.slug ? profileHref({ slug: actor.slug }) : null,
           anonymous,
         };
       }),
