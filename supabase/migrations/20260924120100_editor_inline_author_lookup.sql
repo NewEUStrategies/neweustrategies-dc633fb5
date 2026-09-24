@@ -14,7 +14,7 @@
 -- (/people/<slug>): imię, nazwisko, stanowisko, firma, strona, linki
 -- społecznościowe, zdjęcie (z poszanowaniem `hide_avatar`), specjalizacja.
 -- Pola z `author_profiles` (profil autorski) mają pierwszeństwo przed polami
--- konta. Bez e-maila i telefonu. Tenant wymusza baza, rola - `is_staff()`.
+-- konta - wyłącznie gdy profil autorski jest publiczny (`is_public`). Bez e-maila i telefonu. Tenant wymusza baza, rola - `is_staff()`.
 
 CREATE OR REPLACE FUNCTION public.editor_inline_author_lookup(
   p_query text DEFAULT NULL,
@@ -59,8 +59,10 @@ AS $function$
          pr.specialization
   FROM public.profiles pr
   CROSS JOIN q
+  -- Profil autorski TYLKO publiczny: prywatne nadpisania (zdjęcie, strona,
+  -- pracodawca, linki) nie mogą przez SECURITY DEFINER trafić do artykułu.
   LEFT JOIN public.author_profiles ap
-    ON ap.user_id = pr.id AND ap.tenant_id = pr.tenant_id
+    ON ap.user_id = pr.id AND ap.tenant_id = pr.tenant_id AND ap.is_public
   WHERE auth.uid() IS NOT NULL
     AND (public.is_staff() OR public.has_role(auth.uid(), 'super_admin'::app_role))
     AND pr.tenant_id = public.current_tenant_id()

@@ -11,6 +11,7 @@
 import type { Block, BlocksDoc, Json } from "@/lib/blocks/types";
 import { escapeInlineText } from "@/lib/blocks/inlineHtml";
 import {
+  INLINE_ENTITY_LIMITS,
   inlineEntityDisplayName,
   inlineEntityToJson,
   normalizeInlineEntityRegistry,
@@ -195,9 +196,28 @@ export function syncInlineEntityLabels<T extends BlocksDoc>(
 // Operacje edytorskie
 // ---------------------------------------------------------------------------
 
-/** Dodaje/aktualizuje encję i od razu wyrównuje etykiety jej odwołań. */
+/**
+ * Czy do rejestru zmieści się NOWY rekord. Odczyt przycina rejestr do limitu,
+ * więc rekord ponad limitem zniknąłby przy następnym odczycie, a jego
+ * odwołanie zostałoby „bez danych" - wstawienie trzeba odrzucić wcześniej.
+ */
+export function canAddInlineEntity(
+  registry: InlineEntityRegistry,
+  id: string | undefined = undefined,
+): boolean {
+  if (id && registry[id]) return true;
+  return Object.keys(registry).length < INLINE_ENTITY_LIMITS.perDocument;
+}
+
+/**
+ * Dodaje/aktualizuje encję i od razu wyrównuje etykiety jej odwołań.
+ * Nowy rekord ponad limit dokumentu jest odrzucany (dokument bez zmian) -
+ * wołający sprawdza `canAddInlineEntity`, zanim wstawi odwołanie.
+ */
 export function upsertInlineEntity<T extends BlocksDoc>(doc: T, entity: InlineEntity): T {
-  const registry = { ...readInlineEntities(doc), [entity.id]: entity };
+  const current = readInlineEntities(doc);
+  if (!canAddInlineEntity(current, entity.id)) return doc;
+  const registry = { ...current, [entity.id]: entity };
   return syncInlineEntityLabels(withInlineEntities(doc, registry), { [entity.id]: entity });
 }
 
@@ -210,6 +230,7 @@ export function importInlineEntities<T extends BlocksDoc>(
   let changed = false;
   for (const entity of entities) {
     if (registry[entity.id]) continue;
+    if (!canAddInlineEntity(registry)) break;
     registry[entity.id] = entity;
     changed = true;
   }

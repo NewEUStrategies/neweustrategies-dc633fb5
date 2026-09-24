@@ -254,6 +254,24 @@ describe("InlineEntityDialog - create", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("refuses a new entity when the material is at the cap", () => {
+    const full = Object.fromEntries(
+      Array.from({ length: 200 }, (_, i) => {
+        const id = `ie_cap${String(i).padStart(5, "0")}`;
+        return [id, company({ id, name: `Firma ${i}` })];
+      }),
+    );
+    const onSaved = vi.fn();
+    const { onSave } = open({
+      request: { mode: "create", kind: "company", prefillName: "Nowa", onSaved },
+      entities: full,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Wstaw w tekst" }));
+    expect(screen.getByRole("alert").textContent).toMatch(/ma już 200 firm i osób/);
+    expect(onSave).not.toHaveBeenCalled();
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
   it("cancel closes without saving", () => {
     const { onSave, onClose } = open({
       request: { mode: "create", kind: "company", onSaved: vi.fn() },

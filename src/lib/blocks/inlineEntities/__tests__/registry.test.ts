@@ -1,7 +1,9 @@
 import { toJsonArray } from "@/lib/content-model/json";
 import { describe, expect, it } from "vitest";
 import type { Block } from "@/lib/blocks/types";
+import { INLINE_ENTITY_LIMITS } from "../model";
 import {
+  canAddInlineEntity,
   collectInlineEntityIds,
   collectInlineEntityIdsFromHtml,
   containsInlineEntityMarkup,
@@ -199,5 +201,32 @@ describe("mirrorInlineEntities", () => {
     expect(mirrorInlineEntities(active, other)).toBe(other);
     const empty = { version: 1 as const, blocks: [] };
     expect(mirrorInlineEntities(empty, empty)).toBe(empty);
+  });
+});
+
+describe("per-document cap", () => {
+  const full = () =>
+    docWith(
+      [],
+      Array.from({ length: INLINE_ENTITY_LIMITS.perDocument }, (_, i) =>
+        company({ id: `ie_cap${String(i).padStart(5, "0")}` }),
+      ),
+    );
+
+  it("refuses a new record over the cap but still updates existing ones", () => {
+    const doc = full();
+    expect(canAddInlineEntity(readInlineEntities(doc))).toBe(false);
+    expect(upsertInlineEntity(doc, person())).toBe(doc);
+    const updated = upsertInlineEntity(doc, company({ id: "ie_cap00000", name: "Zmieniona" }));
+    expect(readInlineEntities(updated).ie_cap00000).toMatchObject({ name: "Zmieniona" });
+    expect(canAddInlineEntity(readInlineEntities(doc), "ie_cap00000")).toBe(true);
+  });
+
+  it("imports only up to the cap", () => {
+    const almost = removeInlineEntity(full(), "ie_cap00000");
+    const next = importInlineEntities(almost, [person(), person({ id: "ie_extra001" })]);
+    expect(Object.keys(readInlineEntities(next))).toHaveLength(INLINE_ENTITY_LIMITS.perDocument);
+    expect(readInlineEntities(next).ie_maya0001).toBeDefined();
+    expect(readInlineEntities(next).ie_extra001).toBeUndefined();
   });
 });

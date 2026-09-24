@@ -29,7 +29,8 @@ export function entityProfileHref(entity: InlineEntity): string | null {
 
 /**
  * Pozycja karty względem viewportu: pod nazwą, a gdy się nie mieści - nad nią;
- * poziomo wyśrodkowana na nazwie i docięta do krawędzi ekranu.
+ * gdy nie mieści się nigdzie - docięta do dolnej krawędzi ekranu. Poziomo
+ * wyśrodkowana na nazwie i docięta do krawędzi ekranu.
  */
 export function computeCardPlacement(
   trigger: Pick<DOMRect, "left" | "right" | "top" | "bottom">,
@@ -44,6 +45,11 @@ export function computeCardPlacement(
   const spaceBelow = viewport.height - trigger.bottom;
   const spaceAbove = trigger.top;
   const flipUp = spaceBelow < required && spaceAbove >= required;
-  const top = flipUp ? trigger.top - CARD_GAP_PX - cardHeight : trigger.bottom + CARD_GAP_PX;
-  return { left, top, width, flipUp };
+  if (flipUp) return { left, top: trigger.top - CARD_GAP_PX - cardHeight, width, flipUp };
+  // Pod nazwą - a gdy nie mieści się ani pod, ani nad (niski viewport), karta
+  // jest dosuwana w górę tak, by jej dół stał w ekranie. Wyższa od ekranu
+  // karta i tak ma `max-height` z przewijaniem, więc linki są osiągalne.
+  const below = trigger.bottom + CARD_GAP_PX;
+  const maxTop = Math.max(viewport.height - cardHeight - EDGE_PADDING_PX, EDGE_PADDING_PX);
+  return { left, top: Math.min(below, maxTop), width, flipUp };
 }

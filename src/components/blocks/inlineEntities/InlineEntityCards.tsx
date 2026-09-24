@@ -357,6 +357,8 @@ export default function InlineEntityCards({ entities, lang, containerRef }: Prop
           // (z góry pod nią, z dołu nad nią). Zamknięcie jest natychmiastowe:
           // decyzja o wyjściu już zapadła. `prefers-reduced-motion` = bez ruchu.
           "animate-in fade-in-0 zoom-in-95 duration-200 ease-out motion-reduce:animate-none",
+          // Karta wyższa od ekranu przewija się sama - linki zawsze osiągalne.
+          "max-h-[calc(100dvh-1rem)] overflow-y-auto overscroll-contain",
           placement?.flipUp ? "slide-in-from-bottom-1" : "slide-in-from-top-1",
         )}
       />

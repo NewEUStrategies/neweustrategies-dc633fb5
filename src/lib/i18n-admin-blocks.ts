@@ -744,6 +744,8 @@ const pl = {
         insert: "Wstaw w tekst",
         invalidCompany: "Podaj nazwę firmy.",
         invalidPerson: "Podaj imię lub nazwisko.",
+        limitReached:
+          "Materiał ma już {{max}} firm i osób - usuń nieużywane w menedżerze albo użyj istniejącej.",
         saved: "Zapisano - zaktualizowano wszystkie wystąpienia w materiale.",
       },
       manager: {
@@ -1620,6 +1622,8 @@ const en: typeof pl = {
         insert: "Insert into text",
         invalidCompany: "Enter the company name.",
         invalidPerson: "Enter a first or last name.",
+        limitReached:
+          "This material already has {{max}} companies and people - remove unused ones in the manager or reuse an existing one.",
         saved: "Saved - every occurrence in this material was updated.",
       },
       manager: {

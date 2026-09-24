@@ -29,7 +29,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { uiLang } from "@/lib/i18n/format";
+import { canAddInlineEntity } from "@/lib/blocks/inlineEntities/registry";
 import {
+  INLINE_ENTITY_LIMITS,
   createBlankInlineEntity,
   inlineEntityDisplayName,
   inlineEntityInitials,
@@ -416,6 +418,12 @@ export function InlineEntityDialog({ request, entities, usage, lang, onClose, on
           }
         : { ...draft, updatedAt: nowIso() };
     const entity = normalizeInlineEntity(candidate);
+    if (entity && !canAddInlineEntity(entities, entity.id)) {
+      setError(
+        t("blocks.inlineEntity.dialog.limitReached", { max: INLINE_ENTITY_LIMITS.perDocument }),
+      );
+      return;
+    }
     if (!entity) {
       setError(
         t(

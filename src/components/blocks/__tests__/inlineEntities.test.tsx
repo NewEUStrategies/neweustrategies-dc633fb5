@@ -279,6 +279,20 @@ describe("placement and helpers", () => {
     expect(narrow.width).toBe(184);
   });
 
+  it("keeps a card that fits nowhere inside the viewport (clamped from below)", () => {
+    const p = computeCardPlacement({ left: 400, right: 500, top: 150, bottom: 170 }, 250, {
+      width: 1000,
+      height: 320,
+    });
+    expect(p.flipUp).toBe(false);
+    expect(p.top).toBe(320 - 250 - 8);
+    const tall = computeCardPlacement({ left: 0, right: 10, top: 100, bottom: 120 }, 900, {
+      width: 1000,
+      height: 320,
+    });
+    expect(tall.top).toBe(8);
+  });
+
   it("builds profile links only for authors with a slug", () => {
     expect(entityProfileHref(person())).toBeNull();
     expect(entityProfileHref(company())).toBeNull();
