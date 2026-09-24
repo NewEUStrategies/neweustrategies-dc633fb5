@@ -4,6 +4,10 @@
 // klubu wchodzi w rozmowę. W trybie poufnym (Chatham House) baza nie oddaje
 // tożsamości, więc pokazujemy neutralne znaczniki i sam licznik: interfejs nie
 // może sugerować nazwisk, których zasady klubu celowo nie ujawniają.
+//
+// Nadwyżkę niesie JEDEN element - licznik "+N" na końcu stosu (z pełnym
+// "i N innych osób" dla czytnika ekranu i w dymku). Osobny podpis obok stosu
+// dublował tę samą liczbę, gdy twarzy było więcej niż miejsc.
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { AvatarGroup, type AvatarGroupItem } from "@/components/atoms/AvatarGroup";
@@ -51,26 +55,18 @@ export function ClubReactionAvatars({
 
   if (items.length === 0) return null;
 
-  const people = actors.length;
-  const shown = Math.min(items.length, maxVisible);
-  const hidden = Math.max(0, (total ?? people) - shown);
-
   return (
     <div className={className}>
-      <div className="flex items-center gap-2">
-        <AvatarGroup
-          items={items}
-          size={size}
-          maxVisible={maxVisible}
-          label={t("club.reactionActors.label")}
-          overflowLabel={(count) => t("club.reactionActors.more", { count })}
-        />
-        {hidden > 0 ? (
-          <span className="text-[11px] leading-none text-muted-foreground">
-            {t("club.reactionActors.more", { count: hidden })}
-          </span>
-        ) : null}
-      </div>
+      <AvatarGroup
+        items={items}
+        size={size}
+        maxVisible={maxVisible}
+        // Licznik z bazy wygrywa z liczbą twarzy: RPC oddaje najwyżej kilka
+        // wierszy na cel, a "+N" ma mówić o wszystkich.
+        total={total}
+        label={t("club.reactionActors.label")}
+        overflowLabel={(count) => t("club.reactionActors.more", { count })}
+      />
     </div>
   );
 }

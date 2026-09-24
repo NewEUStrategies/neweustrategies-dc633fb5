@@ -221,8 +221,8 @@ describe("ClubReactionAvatars - kto zareagował", () => {
         className="mt-2"
       />,
     );
-    // Trzy osoby, dwa miejsca: nadwyżka jest jedna - i pada zarówno z etykiety
-    // stosu awatarów, jak i z podpisu obok.
+    // Trzy osoby, dwa miejsca: nadwyżka jest jedna - i niesie ją JEDEN
+    // element, licznik „+N” stosu (pełny tekst dla czytnika ekranu i w dymku).
     expect(screen.getAllByText("club.reactionActors.more(count=1)").length).toBeGreaterThan(0);
   });
 });

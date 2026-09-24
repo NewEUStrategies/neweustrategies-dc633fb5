@@ -8829,6 +8829,117 @@ html[data-mbb="on"] [data-site-shell] {
   }
 }
 
+/* --- Stos obecności (AvatarGroup) ---------------------------------------- */
+/* KTO TU JEST - JEDEN RUCH DLA KAŻDEGO STOSU TWARZY W SERWISIE.
+   Reakcje w klubie, uczestnicy spotkania klubu, "kto teraz ogląda" w CRM -
+   wszystkie jadą przez `AvatarGroup.tsx`, a ruch jest tutaj, bez biblioteki
+   animacji (patrz nagłówek warstwy `.wd-*` wyżej).
+
+   ZASADY:
+     1. Slot to WYŁĄCZNIE `translate` na elemencie listy, wejście i wyjście to
+        `scale` + `opacity` - trzy niezależne własności transformacji, więc
+        przesunięcie w slot i "wyskok" nie walczą o jedno `transform`.
+        Jedynym przejściem układu jest szerokość szyny (jeden węzeł), bo tekst
+        obok stosu ma się przesuwać razem z nim, a nie skakać.
+     2. Krzywa slotu to sprężyna k=520, c=34, m=0,45 spróbkowana do `linear()`
+        (przetłumiona, bez przestrzału, osiada w ~0,25 s). Silnik bez
+        `linear()` dostaje `cubic-bezier` o tym samym charakterze.
+     3. Wejście gra TYLKO kafel, który pojawił się po zamontowaniu grupy
+        (`data-enter` nadaje komponent) - stos z SSR nie "wlatuje" po
+        hydratacji. Wyjście (`data-leaving`) jest o ~1/3 krótsze od wejścia.
+     4. Ramka i studnia to kolory WYPROWADZONE z `--foreground` i `--card`,
+        a nie nowa para szarości: w obu motywach ramka odcina nachodzące
+        twarze od siebie, a studnia (tło inicjałów) leży bliżej karty.
+     5. `prefers-reduced-motion: reduce` - stan końcowy od razu. */
+:root {
+  --avg-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --avg-slot-ms: 320ms;
+  --avg-out-ms: 160ms;
+  --avg-img-ms: 240ms;
+  --avg-frame: color-mix(in oklab, var(--foreground) 11%, var(--card));
+  --avg-well: color-mix(in oklab, var(--foreground) 5%, var(--card));
+}
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --avg-spring: linear(
+      0,
+      0.177,
+      0.434,
+      0.634,
+      0.77,
+      0.857,
+      0.912,
+      0.945,
+      0.966,
+      0.979,
+      0.987,
+      0.992,
+      0.995,
+      0.997,
+      1
+    );
+  }
+}
+@keyframes avg-in {
+  from {
+    opacity: 0;
+    scale: 0.86;
+  }
+}
+@keyframes avg-out {
+  to {
+    opacity: 0;
+    scale: 0.86;
+  }
+}
+.avg-rail {
+  width: var(--avg-w);
+  transition: width var(--avg-slot-ms) var(--avg-spring);
+}
+.avg-slot {
+  translate: var(--avg-x) 0;
+  transition: translate var(--avg-slot-ms) var(--avg-spring);
+  user-select: none;
+}
+.avg-slot[data-enter] {
+  animation: avg-in var(--avg-slot-ms) var(--avg-spring) backwards;
+}
+.avg-slot[data-leaving] {
+  pointer-events: none;
+  animation: avg-out var(--avg-out-ms) var(--wd-ease) forwards;
+}
+.avg-frame {
+  background: var(--avg-frame);
+}
+.avg-well {
+  background: var(--avg-well);
+  color: var(--muted-foreground);
+}
+.avg-img {
+  transition: opacity var(--avg-img-ms) cubic-bezier(0.23, 1, 0.32, 1);
+}
+.avg-img[data-status="loading"] {
+  opacity: 0;
+}
+.avg-chip {
+  border: 1px solid var(--avg-frame);
+  background: var(--card);
+  color: var(--muted-foreground);
+  /* Obwódka w kolorze karty odcina licznik od ostatniej twarzy. */
+  box-shadow: 0 0 0 2px var(--card);
+}
+@media (prefers-reduced-motion: reduce) {
+  .avg-rail,
+  .avg-slot,
+  .avg-img {
+    transition: none;
+  }
+  .avg-slot[data-enter],
+  .avg-slot[data-leaving] {
+    animation: none;
+  }
+}
+
 /* Byline autora: mobile trzyma wartości z panelu, desktop (>= 768 px) skaluje
    proporcjonalnie - kontrakt domyślny 12/20 px daje 16/24 px.
    `!important` jest konieczne, bo warstwa typografii widgetu generuje reguły

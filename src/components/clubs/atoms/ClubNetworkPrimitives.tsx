@@ -9,12 +9,13 @@
 //
 // Wszystko trzyma promień `rounded-lg` (6 px) i skalę huba - patrz
 // `ClubHubPrimitives`.
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Activity, GraduationCap, HandHelping, Search, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
+import { AvatarGroup, type AvatarGroupItem } from "@/components/atoms/AvatarGroup";
 import type { ClubNoticeKind } from "@/lib/clubs/networkTypes";
 
 /**
@@ -111,8 +112,11 @@ export interface ClubFace {
  * spodem albo pełny ekran składu. W kolumnie 20 rem siatka ośmiu awatarów
  * zjada dwa wiersze, stos - jeden.
  *
- * Nazwiska idą do `title` i do warstwy dla czytnika ekranu: stos jest
- * ozdobą dla oka, ale informacja w nim zawarta musi być dostępna bez oczu.
+ * Układ, licznik i ruch (kto dołącza - wchodzi na koniec, kto wychodzi - gaśnie,
+ * reszta zsuwa się na sprężynie) daje wspólny `AvatarGroup`, ten sam co pod
+ * reakcjami - jeden stos obecności w całym serwisie. Tu w trybie ozdobnym:
+ * nazwiska idą do `title` i do warstwy dla czytnika ekranu, bo obok stosu stoi
+ * już podpis "N osób", a sześć dodatkowych przystanków tabulatora nic nie wnosi.
  */
 export function ClubFaceStack({
   faces,
@@ -128,36 +132,33 @@ export function ClubFaceStack({
   size?: "sm" | "md";
   className?: string;
 }) {
+  const items = useMemo<AvatarGroupItem[]>(
+    () =>
+      faces.map((face) => ({
+        id: face.userId,
+        name: face.name,
+        image: face.avatarUrl,
+        badge:
+          face.active === true ? (
+            <ClubPresenceDot className="absolute -bottom-0.5 -right-0.5 z-10" />
+          ) : null,
+      })),
+    [faces],
+  );
+
   if (faces.length === 0) return null;
-  const shown = faces.slice(0, max);
-  const hidden = Math.max(0, (total ?? faces.length) - shown.length);
 
   return (
-    <div className={cn("flex items-center", className)}>
-      <ul className="flex items-center -space-x-2" aria-hidden="true">
-        {shown.map((face) => (
-          <li key={face.userId} className="relative" title={face.name}>
-            <ClubPresenceAvatar
-              name={face.name}
-              avatarUrl={face.avatarUrl}
-              active={face.active === true}
-              size={size}
-            />
-          </li>
-        ))}
-        {hidden > 0 ? (
-          <li
-            className={cn(
-              "grid shrink-0 place-items-center rounded-lg border border-border/60 bg-muted font-semibold tabular-nums text-muted-foreground",
-              size === "md" ? "h-9 w-9 text-xs" : "h-7 w-7 text-[11px]",
-            )}
-          >
-            +{hidden}
-          </li>
-        ) : null}
-      </ul>
-      <span className="sr-only">{faces.map((face) => face.name).join(", ")}</span>
-    </div>
+    <AvatarGroup
+      items={items}
+      total={total}
+      maxVisible={max}
+      // Te same boki co `ClubAuthorAvatar` (h-7 / h-9), żeby stos stał w jednym
+      // rytmie z awatarami autorów obok.
+      size={size === "md" ? 36 : 28}
+      interactive={false}
+      className={cn("flex items-center", className)}
+    />
   );
 }
 
