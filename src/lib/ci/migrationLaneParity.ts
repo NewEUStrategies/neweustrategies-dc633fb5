@@ -322,6 +322,11 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0053_member_slug_non_author_visibility",
     twin: "20260925100000_member_slug_non_author_visibility.sql",
   },
+  {
+    tag: "0054_member_slug_non_author_visibility",
+    drizzleOnly:
+      "Zastosowanie ciala 0053 z panelu Lovable (0053 bylo w repozytorium, ale nie na bazie). Bez REVOKE is_platform_author z authenticated - narzedzie wdrozeniowe go blokuje; blizniak supabase to juz 20260925100000.",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";
