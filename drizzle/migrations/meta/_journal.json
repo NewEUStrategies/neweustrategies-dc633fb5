@@ -379,6 +379,13 @@
       "when": 1790300865932,
       "tag": "0053_member_slug_non_author_visibility",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1790327813979,
+      "tag": "0054_member_slug_non_author_visibility",
+      "breakpoints": true
     }
   ]
 }
