@@ -5476,8 +5476,12 @@ export default defineConfig({
         },
 
         // Trasy publiczne. Zmierzone: `index.tsx` i `reading-list.tsx`
-        // 100 / 100 / 100 / 100; `people.tsx` 98,91 / 98,48 / 100 / 100
-        // (niepokryte gałęzie: 250, 394).
+        // 100 / 100 / 100 / 100. Katalog osób (/people) mieszka w
+        // `people.index.tsx` - `people.tsx` jest teraz 10-liniowym layoutem
+        // z samym <Outlet/> (katalog + profil członka /people/<slug>), więc
+        // nie ma tam czego bramkować. Katalog w CI: 98,94 instrukcji /
+        // 98,55 gałęzi / 100 funkcji / 100 linii; floor 97 / 100 / 99 / 96
+        // trzyma co najmniej 1 pp pod tym pomiarem.
         //
         // TEN PRÓG CHRONI STAN I SKLEJENIE, A DOSTĘPU PILNUJE OSOBNO
         // `adminRouteAuthority.gate.test.ts`.
@@ -5500,7 +5504,7 @@ export default defineConfig({
           lines: 99,
           branches: 98,
         },
-        "src/routes/people.tsx": { statements: 97, functions: 100, lines: 99, branches: 96 },
+        "src/routes/people.index.tsx": { statements: 97, functions: 100, lines: 99, branches: 96 },
 
         // Warstwa zapytań publicznych. Dwanaście plików objętych tą pracą stoi
         // na 100 we wszystkich czterech wymiarach (`archives.ts` na

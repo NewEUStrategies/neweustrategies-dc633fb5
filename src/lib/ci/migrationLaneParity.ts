@@ -310,6 +310,18 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0052_event_speaker_remove_clears_sessions",
     twin: "20260924150000_event_speaker_remove_clears_sessions.sql",
   },
+  // Poprawka forward-only do 0047: `member_slug_is_non_author` odpowiadała
+  // anonowi dla każdego sluga w każdym tenancie (wyrocznia istnienia profili
+  // ukrytych przed `profiles_public`), a `is_platform_author` miało zbędny
+  // EXECUTE dla `authenticated`. 0047 stoi już na produkcji, a jej bliźniak
+  // musi zostać z nią zgodny, więc nowe ciało idzie osobną parą. KOLEJNOŚĆ:
+  // bliźniak 0047 (20260924100000) niesie stare ciało i grant - zastosowany
+  // na zdalnej bazie PO tym pliku przywróciłby wyrocznię, więc wtedy ten plik
+  // trzeba ponowić.
+  {
+    tag: "0053_member_slug_non_author_visibility",
+    twin: "20260925100000_member_slug_non_author_visibility.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";

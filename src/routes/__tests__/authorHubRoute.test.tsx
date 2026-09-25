@@ -37,6 +37,24 @@
 //      („to dekoracja"), ale komponent czyta ten sam klucz przez
 //      `useSuspenseQuery`, więc błąd wraca w renderze i zamienia indeksowany
 //      profil w ekran błędu.
+//   7. /author JEST TYLKO DLA AUTORÓW (roadmap: „/people/$slug dla każdego
+//      użytkownika, /author tylko z roli/zaproszenia autora, redirect 301").
+//      Slug osoby BEZ roli autora dostaje trwałe 301 na /people/<ten sam slug>
+//      - także wtedy, gdy hub oddał dla niej wiersz. Pytanie o rolę (server fn
+//      nad RPC `member_slug_is_non_author`) jest POMOCNICZE: jego awaria ani
+//      zwis nie mogą zamienić istniejącego profilu w ekran błędu ani trzymać
+//      TTFB, a render bez werdyktu nie trafia do wspólnego cache'a. Awaria RPC
+//      (`{ error }` z postgrest-js - sieć, 5xx, PGRST202, statement timeout)
+//      ODRZUCA server fn, a nie oddaje `false` - to dowodzi
+//      `src/lib/profile/__tests__/memberSlug.functions.test.ts`, więc atrapa
+//      niżej modeluje ją odrzuceniem. TREŚĆ werdyktu (kto jest autorem, czyj
+//      profil wolno potwierdzić gościowi) to kontrakt SQL, nie tej trasy.
+//      Werdykt jest PER CZYTELNIK (migracja 0053: gość - `profiles_public`,
+//      zalogowany - czy /people rozwiąże mu profil; server fn przekazuje
+//      bearer sesji), więc atrapa odróżnia wywołanie z sesją od anonimowego,
+//      a 404 z twardego wejścia (SSR bez sesji) jest sprawdzane ponownie, gdy
+//      sesja się rozstrzygnie - ale nie wtedy, gdy werdykt tego samego
+//      czytelnika policzył już loader w przeglądarce.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE.
 // - REGUŁ INDEKSACJI: `isIndexableProfile`/`profileRobots` mają własny plik
@@ -62,6 +80,8 @@
 // INDEKSACJĘ, i to ona jest przedmiotem dowodu w punkcie 2.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, screen, waitFor } from "@testing-library/react";
+import { QueryClient } from "@tanstack/react-query";
+import { isNotFound, isRedirect } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 const h = vi.hoisted(() => ({
@@ -71,6 +91,29 @@ const h = vi.hoisted(() => ({
   degraded: false,
   /** Czy zapytanie o materiały ma paść (wtórne wobec tożsamości). */
   materialsFail: false,
+  /**
+   * Werdykt server fn `isNonAuthorMemberSlug` (RPC `member_slug_is_non_author`,
+   * migracje 0047/0053) dla wywołania BEZ sesji: `true` = slug osoby BEZ roli
+   * autora (301 na /people), `false` = autor, profil niewidoczny albo brak, `"fails"` = wywołanie odrzuca (błąd
+   * RPC `{ error }` albo brak konfiguracji - handler rzuca; brak sieci przy
+   * nawigacji SPA; walidator wejścia), `"hangs"` = RPC nie odpowiada.
+   */
+  nonAuthor: false as boolean | "fails" | "hangs",
+  /**
+   * Werdykt wywołania Z SESJĄ. W produkcji bearer dokleja `attachSupabaseAuth`
+   * z sesji przeglądarki, a server fn przekazuje go do RPC - atrapa modeluje
+   * to, czytając `h.user` W CHWILI wywołania. `null` = ten sam co `nonAuthor`.
+   */
+  nonAuthorWithSession: null as boolean | "fails" | null,
+  /** Subskrybenci atrapy `useAuth` - sesja rozstrzygana PO montażu (hydratacja). */
+  authListeners: new Set<() => void>(),
+  authVersion: 0,
+  /** Opóźnienie werdyktu w ms - dowód, że termin działa WYŁĄCZNIE w SSR. */
+  nonAuthorDelayMs: 0,
+  /** Slugi, o które loader zapytał - dowód na pytanie o TEN SAM slug. */
+  nonAuthorChecks: [] as string[],
+  /** Ile pytań o rolę poleciało W CHWILI startu odczytu huba - dowód równoległości. */
+  roleChecksAtHubFetch: [] as number[],
   layoutSettings: { tenant_id: "tenant-1" } as Record<string, unknown> | null,
   /** Czy OSOBNY odczyt layoutu ma paść (ścieżka legacy, bez layoutu w RPC). */
   layoutFail: false,
@@ -117,15 +160,31 @@ vi.mock("react-i18next", async () =>
   (await import("@/test/i18nStub")).reactI18nextStub(() => h.language),
 );
 vi.mock("@/lib/i18n-experts", () => ({ ensureI18n: () => undefined }));
-vi.mock("@/hooks/useAuth", () => ({
-  useAuth: () => ({
-    user: h.user,
-    isAdmin: h.isAdmin,
-    tenantId: h.viewerTenantId,
-    session: h.user ? {} : null,
-    loading: false,
-  }),
-}));
+// Atrapa SUBSKRYBOWALNA: twarde wejście rozstrzyga sesję dopiero po
+// hydratacji, więc test musi umieć zmienić `user` pod zamontowanym drzewem
+// (`signInAfterMount`), a nie tylko przed montażem.
+vi.mock("@/hooks/useAuth", async () => {
+  const { useSyncExternalStore } = await import("react");
+  const subscribe = (listener: () => void) => {
+    h.authListeners.add(listener);
+    return () => {
+      h.authListeners.delete(listener);
+    };
+  };
+  const snapshot = () => h.authVersion;
+  return {
+    useAuth: () => {
+      useSyncExternalStore(subscribe, snapshot, snapshot);
+      return {
+        user: h.user,
+        isAdmin: h.isAdmin,
+        tenantId: h.viewerTenantId,
+        session: h.user ? {} : null,
+        loading: false,
+      };
+    },
+  };
+});
 vi.mock("@/lib/network/useProfileViews", () => ({
   useRecordProfileView: () => ({
     mutate: (id: string) => h.recordedViews.push(id),
@@ -138,10 +197,6 @@ vi.mock("@/lib/profile/badges", () => ({
   useUserBadges: () => ({ data: h.badges }),
 }));
 vi.mock("@/lib/seo/request", () => ({ getRequestUrl: () => h.requestUrl }));
-// Bramka People/Author: domyślnie slug należy do autora (brak przekierowania).
-vi.mock("@/lib/profile/memberSlug.functions", () => ({
-  isNonAuthorMemberSlug: () => Promise.resolve(false),
-}));
 vi.mock("@/lib/http/responseHeaders", () => ({
   setCacheControlHeader: (value: string) => h.cacheHeaders.push(value),
 }));
@@ -150,9 +205,30 @@ vi.mock("@/lib/http/responseHeaders", () => ({
 vi.mock("@/lib/experts/queries", () => ({
   expertHubQueryOptions: (slug: string) => ({
     queryKey: ["expert-hub", slug],
-    queryFn: () =>
-      h.degraded ? Promise.reject(new Error("hub unavailable")) : Promise.resolve(h.hub),
+    queryFn: () => {
+      h.roleChecksAtHubFetch.push(h.nonAuthorChecks.length);
+      return h.degraded ? Promise.reject(new Error("hub unavailable")) : Promise.resolve(h.hub);
+    },
   }),
+}));
+// Pytanie o rolę autora to SERVER FN (TanStack Start). Bez atrapy wywołanie
+// w loaderze szuka kontekstu Start w AsyncLocalStorage, rzuca „No Start
+// context found" i KAŻDY montaż tego pliku kończył się na `errorComponent` -
+// tak padło 47 przypadków po wprowadzeniu 301 z /author na /people. Atrapa
+// oddaje kształt wywołania produkcyjnego: `fn({ data: { slug } })` ->
+// `Promise<boolean>`.
+vi.mock("@/lib/profile/memberSlug.functions", () => ({
+  isNonAuthorMemberSlug: ({ data }: { data: { slug: string } }): Promise<boolean> => {
+    h.nonAuthorChecks.push(data.slug);
+    const verdict =
+      h.user !== null && h.nonAuthorWithSession !== null ? h.nonAuthorWithSession : h.nonAuthor;
+    if (verdict === "hangs") return new Promise<boolean>(() => undefined);
+    if (verdict === "fails") return Promise.reject(new Error("member_slug_is_non_author padło"));
+    if (h.nonAuthorDelayMs <= 0) return Promise.resolve(verdict);
+    return new Promise<boolean>((resolve) => {
+      setTimeout(() => resolve(verdict), h.nonAuthorDelayMs);
+    });
+  },
 }));
 vi.mock("@/lib/experts/materials", () => ({
   expertMaterialsQueryOptions: (slug: string, args: unknown) => ({
@@ -411,11 +487,75 @@ async function mount(search = "") {
   });
 }
 
+/**
+ * Loader trasy w kształcie, którego dotyka dowód o przekierowaniu: status 301
+ * i docelowe `to`/`params` niesie OBIEKT rzucony z loadera - router w teście
+ * pokazuje tylko adres, na którym wylądował, a nie kod odpowiedzi.
+ */
+type AuthorHubLoader = (ctx: {
+  params: { slug: string };
+  context: { queryClient: QueryClient };
+  deps: { page: number; paginated: boolean };
+}) => Promise<unknown>;
+
+/** STRAŻNIK, nie rzutowanie: warunek sprawdza w runtime, że to funkcja. */
+function isAuthorHubLoader(value: unknown): value is AuthorHubLoader {
+  return typeof value === "function";
+}
+
+/** Jeden bieg loadera na świeżym kliencie zapytań - bez montowania trasy. */
+function runLoader(): Promise<unknown> {
+  const loader: unknown = AuthorHubRoute.options.loader;
+  if (!isAuthorHubLoader(loader)) throw new Error("test: trasa nie ma loadera");
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return loader({
+    params: { slug: "anna-kowalska" },
+    context: { queryClient },
+    deps: { page: 1, paginated: false },
+  });
+}
+
+/** To, co loader RZUCIŁ - brak rzutu jest tu porażką dowodu, nie wynikiem. */
+async function loaderThrow(): Promise<unknown> {
+  try {
+    await runLoader();
+  } catch (thrown) {
+    return thrown;
+  }
+  throw new Error("test: loader NIE rzucił - /author zostaje dla osoby bez roli autora");
+}
+
+/** Przestaw JEDEN przebieg na RENDER SERWEROWY (`isSsrRequest` czyta `document`). */
+function renderOnServer(): void {
+  vi.stubGlobal("document", undefined);
+}
+
+/** Sesja rozstrzyga się PO montażu - tak jak po hydratacji twardego wejścia. */
+function signInAfterMount(user: { id: string }): void {
+  act(() => {
+    h.user = user;
+    h.authVersion += 1;
+    for (const listener of h.authListeners) listener();
+  });
+}
+
+/** Stan ponownego pytania o rolę z 404 (`AuthorHubNotFound`) dla danego czytelnika. */
+function recheckState(queryClient: QueryClient, viewerId: string | null) {
+  return queryClient.getQueryState(["member-slug-non-author", "anna-kowalska", viewerId]);
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   h.hub = hub();
   h.degraded = false;
   h.materialsFail = false;
+  h.nonAuthor = false;
+  h.nonAuthorWithSession = null;
+  h.authListeners.clear();
+  h.authVersion = 0;
+  h.nonAuthorDelayMs = 0;
+  h.nonAuthorChecks = [];
+  h.roleChecksAtHubFetch = [];
   h.layoutSettings = { tenant_id: "tenant-1" };
   h.layoutFail = false;
   h.heroThrows = false;
@@ -442,7 +582,12 @@ beforeEach(() => {
   h.organism = {};
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+  // Stub środowiska SSR nie może przeciekać na kolejny przypadek - i musi
+  // zejść PRZED `cleanup()`, które odmontowuje drzewo z prawdziwego `document`.
+  vi.unstubAllGlobals();
+  cleanup();
+});
 
 describe("loader - trzy rozłączne stany", () => {
   it("PROFIL ISTNIEJE: hub renderuje się z hero i sekcjami", async () => {
@@ -1029,6 +1174,288 @@ describe("loader - domykanie równoległej gałęzi materiałów", () => {
     await mount();
     await waitFor(() => expect(screen.getByTestId("PublicNotFound")).toBeTruthy());
     expect(h.cacheHeaders.at(-1)).toContain("no-store");
+  });
+});
+
+describe("loader - /author tylko dla autorów, reszta 301 na /people", () => {
+  it("OSOBA BEZ ROLI AUTORA: trwałe 301 na /people/$slug z TYM SAMYM slugiem", async () => {
+    // 301, nie 307: adres członka jest docelowym adresem tej osoby, więc
+    // ranking i zakładki mają przejść na /people na stałe. Zgubiony albo
+    // zmieniony slug wysłałby czytelnika na cudzy profil albo w 404.
+    h.nonAuthor = true;
+    const thrown = await loaderThrow();
+    if (!isRedirect(thrown)) throw new Error("test: loader rzucił, ale nie przekierowaniem");
+    expect(thrown.status).toBe(301);
+    expect(thrown.options.to).toBe("/people/$slug");
+    expect(thrown.options.params).toEqual({ slug: "anna-kowalska" });
+    // Pytanie idzie o slug z ADRESU - i dokładnie raz na bieg loadera.
+    expect(h.nonAuthorChecks).toEqual(["anna-kowalska"]);
+  });
+
+  it("w routerze adres ląduje na /people/<slug>, a hub autora się nie montuje", async () => {
+    h.nonAuthor = true;
+    const view = await mount();
+    await waitFor(() => expect(view.currentPath()).toBe("/people/anna-kowalska"));
+    expect(screen.queryByTestId("ExpertLayoutHero")).toBeNull();
+    expect(screen.queryByTestId("RouteErrorFallback")).toBeNull();
+  });
+
+  it("KOLEJNOŚĆ GAŁĘZI: werdykt `true` rozstrzyga przed `null` z huba - 301, nie 404", async () => {
+    // Dowód o TRASIE, nie o tym, kiedy RPC wolno odpowiedzieć `true`. `null`
+    // z huba znaczy „profil niewidoczny dla TEGO wołającego" (`get_expert_hub`
+    // czyta `profiles_public`), a nie „nie ma huba eksperta". Trasa nie zgaduje
+    // widoczności - ufa werdyktowi, więc to ciało SQL
+    // `member_slug_is_non_author` musi nie potwierdzać gościowi profilu, którego
+    // `profiles_public` mu nie pokazuje (inaczej różnica 301/404 zdradza, że
+    // ukryty członek istnieje). Kolejność „werdykt przed 404" to main (2ba6eac).
+    h.hub = null;
+    h.nonAuthor = true;
+    const thrown = await loaderThrow();
+    expect(isNotFound(thrown)).toBe(false);
+    if (!isRedirect(thrown)) throw new Error("test: loader rzucił, ale nie przekierowaniem");
+    expect(thrown.status).toBe(301);
+    expect(thrown.options.params).toEqual({ slug: "anna-kowalska" });
+  });
+
+  it("pytanie o rolę startuje RÓWNOLEGLE z tożsamością, a nie po niej", async () => {
+    // Werdykt zależy wyłącznie od sluga. Doklejony PO hubie dokładał pełny
+    // round-trip na ścieżkę TTFB każdego profilu - najcięższej trasy
+    // publicznej. Dowód bez zegara: w chwili startu odczytu huba pytanie
+    // o rolę jest już w drodze.
+    await runLoader();
+    expect(h.roleChecksAtHubFetch).toEqual([1]);
+  });
+
+  it("AUTOR zostaje na /author: hub się renderuje, odpowiedź jest cache'owalna", async () => {
+    h.nonAuthor = false;
+    const view = await mount();
+    await waitFor(() => expect(screen.getByTestId("ExpertLayoutHero")).toBeTruthy());
+    expect(view.currentPath()).toBe("/author/anna-kowalska");
+    expect(h.nonAuthorChecks).toEqual(["anna-kowalska"]);
+    expect(h.cacheHeaders.at(-1)).not.toContain("no-store");
+  });
+
+  it("AWARIA pytania o rolę NIE wywraca profilu: hub bez 301, ale `no-store`", async () => {
+    // Pytanie jest POMOCNICZE. Wyjątek z server fn (błąd RPC, brak sieci przy
+    // nawigacji SPA, walidator odrzucający slug > 200 znaków) zamieniał
+    // indeksowany profil w ekran błędu. Bez werdyktu zostaje hub - ale nie na
+    // brzegu, bo nie wiemy, czy nie należało się 301.
+    h.nonAuthor = "fails";
+    const view = await mount();
+    await waitFor(() => expect(screen.getByTestId("ExpertLayoutHero")).toBeTruthy());
+    expect(screen.queryByTestId("RouteErrorFallback")).toBeNull();
+    expect(view.currentPath()).toBe("/author/anna-kowalska");
+    expect(h.cacheHeaders.at(-1)).toContain("no-store");
+  });
+
+  it("AWARIA pytania o rolę przy braku profilu: nadal czysty 404, nie ekran błędu", async () => {
+    h.hub = null;
+    h.nonAuthor = "fails";
+    await mount();
+    await waitFor(() => expect(screen.getByTestId("PublicNotFound")).toBeTruthy());
+    expect(screen.queryByTestId("RouteErrorFallback")).toBeNull();
+    expect(h.cacheHeaders.at(-1)).toContain("no-store");
+  });
+
+  it("DEGRADACJA huba z padniętym pytaniem o rolę: porzucona gałąź nie wywraca renderu", async () => {
+    // Pytanie startuje RÓWNOLEGLE z tożsamością. W gałęzi degradacji nikt na
+    // nie nie czeka - bez domknięcia przy starcie jego odrzucenie leciałoby
+    // jako unhandled rejection (vitest oblewa na nim przebieg).
+    h.degraded = true;
+    h.nonAuthor = "fails";
+    await mount();
+    await waitFor(() => expect(screen.getByTestId("DegradedDataNotice")).toBeTruthy());
+    expect(screen.queryByTestId("RouteErrorFallback")).toBeNull();
+    expect(h.cacheHeaders.at(-1)).toContain("no-store");
+  });
+
+  it("SSR: werdykt w terminie daje 301 także w renderze serwerowym", async () => {
+    // Kontrola pozytywna dla przypadku zwisu niżej: termin nie może połykać
+    // werdyktu, który przyszedł na czas.
+    renderOnServer();
+    h.nonAuthor = true;
+    const thrown = await loaderThrow();
+    if (!isRedirect(thrown)) throw new Error("test: loader rzucił, ale nie przekierowaniem");
+    expect(thrown.status).toBe(301);
+  });
+
+  it("SSR: BŁĄD RPC o rolę (odrzucenie server fn) - hub bez 301 i `no-store`, nie wspólny cache", async () => {
+    // Najczęstsza awaria w produkcji: w SSR handler biegnie w procesie, a
+    // postgrest-js oddaje sieć/5xx/PGRST202/timeout jako `{ error }`, na co
+    // handler RZUCA (memberSlug.functions.test.ts). Hub osoby, o której nie
+    // wiemy, czy nie należy się jej 301, nie może trafić na brzeg.
+    renderOnServer();
+    h.nonAuthor = "fails";
+    const data = await runLoader();
+    expect(data).toMatchObject({
+      hub: { expert: { display_name: "Anna Kowalska" } },
+      degraded: false,
+    });
+    expect(h.nonAuthorChecks).toEqual(["anna-kowalska"]);
+    expect(h.cacheHeaders.at(-1)).toContain("no-store");
+  });
+
+  it("SSR: ZAWIESZONE pytanie o rolę nie trzyma TTFB - hub w terminie żądania, `no-store`", async () => {
+    // Gołe `await` czekało tu do watchdoga SSR. Termin to wspólny budżet
+    // żądania trasy (1 500 ms), a nie czas odpowiedzi RPC.
+    renderOnServer();
+    h.nonAuthor = "hangs";
+    const started = performance.now();
+    const data = await runLoader();
+    expect(performance.now() - started).toBeLessThan(2_500);
+    expect(data).toMatchObject({
+      hub: { expert: { display_name: "Anna Kowalska" } },
+      degraded: false,
+    });
+    expect(h.cacheHeaders.at(-1)).toContain("no-store");
+  });
+
+  it("ZALOGOWANY, NAWIGACJA SPA: hub z jego warstwy + werdykt z sesji `true` - 301, nie hub", async () => {
+    // Hub w przeglądarce czyta klient Z SESJĄ, więc zwraca profil członka
+    // widocznego tylko w warstwie członkowskiej (tu: anonimowy werdykt byłby
+    // `false`). Werdykt liczony na TEJ SAMEJ warstwie - server fn przekazuje
+    // bearer, memberSlug.functions.test.ts - mówi `true`, a trasa MUSI zrobić
+    // 301: hub autora dla osoby bez roli autora łamałby „/author tylko dla
+    // autorów".
+    h.user = { id: "viewer-1" };
+    h.viewerTenantId = "tenant-1";
+    h.nonAuthor = false;
+    h.nonAuthorWithSession = true;
+    const thrown = await loaderThrow();
+    if (!isRedirect(thrown)) throw new Error("test: loader rzucił, ale nie przekierowaniem");
+    expect(thrown.status).toBe(301);
+    expect(thrown.options.to).toBe("/people/$slug");
+    expect(thrown.options.params).toEqual({ slug: "anna-kowalska" });
+    const view = await mount();
+    await waitFor(() => expect(view.currentPath()).toBe("/people/anna-kowalska"));
+    expect(screen.queryByTestId("ExpertLayoutHero")).toBeNull();
+  });
+
+  it("ZALOGOWANY, TWARDE WEJŚCIE: anonimowe 404 sprawdzone po sesji - przejście na /people", async () => {
+    // SSR nie ma sesji: hub `null` i werdykt anonima `false` -> 404. Gdy sesja
+    // się rozstrzygnie, `AuthorHubNotFound` pyta drugi raz, już z bearerem,
+    // i przy `true` prowadzi tam, gdzie ten czytelnik profil otworzy.
+    h.hub = null;
+    h.nonAuthor = false;
+    h.nonAuthorWithSession = true;
+    const view = await mount();
+    await waitFor(() => expect(screen.getByTestId("PublicNotFound")).toBeTruthy());
+    expect(view.currentPath()).toBe("/author/anna-kowalska");
+    signInAfterMount({ id: "viewer-1" });
+    await waitFor(() => expect(view.currentPath()).toBe("/people/anna-kowalska"));
+    expect(recheckState(view.queryClient, "viewer-1")?.data).toBe(true);
+    expect(screen.queryByTestId("RouteErrorFallback")).toBeNull();
+  });
+
+  it("ZALOGOWANY, ponowne pytanie mówi `false`: zostaje 404 na /author", async () => {
+    h.hub = null;
+    h.nonAuthor = false;
+    h.nonAuthorWithSession = false;
+    const view = await mount();
+    await waitFor(() => expect(screen.getByTestId("PublicNotFound")).toBeTruthy());
+    signInAfterMount({ id: "viewer-1" });
+    await waitFor(() => expect(recheckState(view.queryClient, "viewer-1")?.status).toBe("success"));
+    expect(recheckState(view.queryClient, "viewer-1")?.data).toBe(false);
+    expect(screen.getByTestId("PublicNotFound")).toBeTruthy();
+    expect(view.currentPath()).toBe("/author/anna-kowalska");
+  });
+
+  it("ZALOGOWANY, ponowne pytanie PADA: zostaje 404, nie ekran błędu", async () => {
+    h.hub = null;
+    h.nonAuthor = false;
+    h.nonAuthorWithSession = "fails";
+    const view = await mount();
+    await waitFor(() => expect(screen.getByTestId("PublicNotFound")).toBeTruthy());
+    signInAfterMount({ id: "viewer-1" });
+    await waitFor(() => expect(recheckState(view.queryClient, "viewer-1")?.status).toBe("error"));
+    expect(screen.getByTestId("PublicNotFound")).toBeTruthy();
+    expect(screen.queryByTestId("RouteErrorFallback")).toBeNull();
+    expect(view.currentPath()).toBe("/author/anna-kowalska");
+  });
+
+  it("GOŚĆ: 404 bez drugiego pytania - jego werdykt dał już loader", async () => {
+    h.hub = null;
+    h.nonAuthor = false;
+    const view = await mount();
+    await waitFor(() => expect(screen.getByTestId("PublicNotFound")).toBeTruthy());
+    // Zapytanie jest WYŁĄCZONE bez sesji: nigdy nie wystartowało.
+    const state = recheckState(view.queryClient, null);
+    expect(state?.fetchStatus ?? "idle").toBe("idle");
+    expect(state?.dataUpdateCount ?? 0).toBe(0);
+    expect(state?.errorUpdateCount ?? 0).toBe(0);
+    expect(view.currentPath()).toBe("/author/anna-kowalska");
+  });
+
+  it("ZALOGOWANY, NAWIGACJA SPA do brakującego huba: JEDNO pytanie o rolę, bez duplikatu z 404", async () => {
+    // Loader w przeglądarce pyta już Z SESJĄ (bearer dokleja
+    // `attachSupabaseAuth`), więc jego `false` jest odpowiedzią dla TEGO
+    // czytelnika. `AuthorHubNotFound` nie może wysłać drugiego, identycznego
+    // żądania pod kluczem, którego loader nie zasiał. Licznik `nonAuthorChecks`
+    // nie nadaje się tu na dowód: harness biegnie loaderem dopasowania 404
+    // dwa razy (`router.load()` i montaż `RouterProvider` - status inny niż
+    // `success` omija `defaultStaleTime`), więc mierzymy SAMO zapytanie 404.
+    h.user = { id: "viewer-1" };
+    h.hub = null;
+    h.nonAuthor = false;
+    h.nonAuthorWithSession = false;
+    const view = await mount();
+    await waitFor(() => expect(screen.getByTestId("PublicNotFound")).toBeTruthy());
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(h.nonAuthorChecks.length).toBeGreaterThan(0);
+    const state = recheckState(view.queryClient, "viewer-1");
+    expect(state?.fetchStatus ?? "idle").toBe("idle");
+    expect(state?.dataUpdateCount ?? 0).toBe(0);
+    expect(view.currentPath()).toBe("/author/anna-kowalska");
+  });
+
+  it("NAWIGACJA SPA: zmiana czytelnika pod otwartym 404 to NOWE pytanie", async () => {
+    // Werdykt loadera dotyczył czytelnika z chwili nawigacji. Przelogowanie
+    // na inne konto to inna warstwa - tu drugie pytanie jest potrzebne.
+    h.user = { id: "viewer-1" };
+    h.hub = null;
+    h.nonAuthor = false;
+    h.nonAuthorWithSession = false;
+    const view = await mount();
+    await waitFor(() => expect(screen.getByTestId("PublicNotFound")).toBeTruthy());
+    expect(recheckState(view.queryClient, "viewer-1")?.dataUpdateCount ?? 0).toBe(0);
+    h.nonAuthorWithSession = true;
+    signInAfterMount({ id: "viewer-2" });
+    await waitFor(() => expect(view.currentPath()).toBe("/people/anna-kowalska"));
+    expect(recheckState(view.queryClient, "viewer-2")?.data).toBe(true);
+  });
+
+  it("404 niesie flagę werdyktu z przeglądarki TYLKO poza SSR i tylko z werdyktem", async () => {
+    // SSR liczy werdykt anonimowo - po hydratacji zalogowany MUSI dostać
+    // drugie pytanie, więc flaga nie może tam paść. Brak werdyktu (awaria RPC)
+    // też niczego nie rozstrzyga.
+    h.hub = null;
+    const inBrowser = await loaderThrow();
+    if (!isNotFound(inBrowser)) throw new Error("test: loader rzucił, ale nie 404");
+    expect(inBrowser.data).toEqual({ verdictFromBrowser: true });
+    h.nonAuthor = "fails";
+    const withoutVerdict = await loaderThrow();
+    if (!isNotFound(withoutVerdict)) throw new Error("test: loader rzucił, ale nie 404");
+    expect(withoutVerdict.data).toEqual({ verdictFromBrowser: false });
+    h.nonAuthor = false;
+    renderOnServer();
+    const onServer = await loaderThrow();
+    if (!isNotFound(onServer)) throw new Error("test: loader rzucił, ale nie 404");
+    expect(onServer.data).toEqual({ verdictFromBrowser: false });
+  });
+
+  it("NAWIGACJA SPA: POWOLNY werdykt nie przepada - 301 i tak wychodzi", async () => {
+    // Para kontrolna do zwisu w SSR: w przeglądarce terminu NIE MA, bo wynik
+    // loadera jest niezmienny przez życie dopasowania - termin zamroziłby hub
+    // osoby bez roli autora, choć werdykt dojechałby chwilę później. Opóźnienie
+    // jest DŁUŻSZE niż budżet SSR trasy (1 500 ms), więc różnicę robi
+    // środowisko, a nie długość opóźnienia. BEZ `renderOnServer()` celowo.
+    h.nonAuthor = true;
+    h.nonAuthorDelayMs = 1_700;
+    const thrown = await loaderThrow();
+    if (!isRedirect(thrown)) throw new Error("test: loader rzucił, ale nie przekierowaniem");
+    expect(thrown.status).toBe(301);
   });
 });
 

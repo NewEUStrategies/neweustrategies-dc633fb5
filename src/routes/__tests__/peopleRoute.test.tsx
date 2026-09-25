@@ -378,7 +378,7 @@ describe("/people - bramka dostępu", () => {
     // w logach i niepotrzebny round-trip na każdym wejściu bota.
     //
     // TEN TEST USTALA TEŻ NIEOSIĄGALNOŚĆ obrony `if (!user) return null;`
-    // (`src/routes/people.tsx` linia 394). `AuthGate`
+    // (`src/routes/people.index.tsx`). `AuthGate`
     // (`src/components/profile/AuthGate.tsx` linie 31-42) wpuszcza wnętrze
     // WYŁĄCZNIE przy istniejącej sesji, a `useAuth` wyprowadza `user` z tej
     // samej sesji (`src/hooks/useAuth.tsx` linia 183: `user: session?.user ?? null`),

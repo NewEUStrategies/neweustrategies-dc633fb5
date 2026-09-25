@@ -69,8 +69,8 @@ vi.mock("sonner", () => ({
 const authState = { user: null as { id: string } | null };
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => authState }));
 
-// Trasa profilu autora jest cudzą powierzchnią - w teście komponentu wystarczy,
-// że odnośnik powstaje z właściwym slugiem.
+// Trasa profilu członka (`/people/$slug`) jest cudzą powierzchnią - w teście
+// komponentu wystarczy, że odnośnik powstaje z właściwą trasą i slugiem.
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
     to,
@@ -246,6 +246,8 @@ describe("EventAttendeesList - kto trafia na listę", () => {
     await screen.findByText("Marta Kowalik");
     const links = within(grid()).getAllByRole("link");
     expect(links).toHaveLength(1);
+    // Jedyny odnośnik prowadzi na profil członka - `event_attendees` oddaje tylko
+    // osoby z `profiles.discoverable`, więc `get_member_profile` ma co pokazać.
     expect(links[0]).toHaveAttribute("href", '/people/$slug:{"slug":"igor-wisniewski"}');
   });
 });

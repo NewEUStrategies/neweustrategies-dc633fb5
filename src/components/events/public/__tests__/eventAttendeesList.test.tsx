@@ -40,8 +40,8 @@ vi.mock("sonner", () => ({
 const authState = { user: null as { id: string } | null };
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => authState }));
 
-// Trasa profilu autora jest cudzą powierzchnią - w teście komponentu wystarczy,
-// że odnośnik powstaje z właściwym slugiem.
+// Trasa profilu członka (`/people/$slug`) jest cudzą powierzchnią - w teście
+// komponentu wystarczy, że odnośnik powstaje z właściwą trasą i slugiem.
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
     to,
@@ -155,6 +155,9 @@ describe("EventAttendeesList", () => {
 
     expect(await screen.findByText("Anna Adamska")).toBeInTheDocument();
     expect(screen.getByText("Dyrektorka")).toBeInTheDocument();
+    // Uczestnik to CZŁONEK, nie z definicji autor: profil każdej osoby stoi pod
+    // `/people/<slug>`, a `/author` jest tylko dla roli/zaproszenia autora
+    // (nie-autora odsyła 301 na `/people`, autora `/people` sam linkuje do huba).
     expect(screen.getByRole("link")).toHaveAttribute(
       "href",
       '/people/$slug:{"slug":"anna-adamska"}',
