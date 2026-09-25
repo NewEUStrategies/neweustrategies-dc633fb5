@@ -449,6 +449,42 @@ describe("optionalUserIdFromRequest - klient anonimowy", () => {
 });
 
 // ---------------------------------------------------------------------------
+// optionalBearerFromRequest
+// ---------------------------------------------------------------------------
+
+describe("optionalBearerFromRequest - surowy bearer do przekazania, bez weryfikacji", () => {
+  /** Świeży moduł - ta sama higiena co przy `optionalUserIdFromRequest`. */
+  async function optionalBearer(): Promise<string | null> {
+    vi.resetModules();
+    const mod = await import("@/lib/auth/optionalUser.server");
+    return mod.optionalBearerFromRequest();
+  }
+
+  it("oddaje token z `Bearer <token>` i NIE dotyka Supabase", async () => {
+    // Helper tylko czyta nagłówek: weryfikację podpisu robi odbiorca tokenu
+    // (PostgREST), więc tu nie ma ani klienta, ani round-tripu do Auth.
+    withAuthorization("Bearer  jwt-czytelnika ");
+
+    expect(await optionalBearer()).toBe("jwt-czytelnika");
+    expect(h.createClient).not.toHaveBeenCalled();
+    expect(h.getClaims).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { label: "brak nagłówka", arrange: () => withAuthorization(null) },
+    { label: "obcy schemat", arrange: () => withAuthorization("Basic dXNlcjpoYXNsbw==") },
+    { label: "pusty token", arrange: () => withAuthorization("Bearer    ") },
+    { label: "brak żądania", arrange: () => (h.request = undefined) },
+    { label: "żądanie bez nagłówków", arrange: () => (h.request = {}) },
+    { label: "getRequest() rzuca", arrange: () => (h.requestThrows = true) },
+  ])("$label: `null`, nie wyjątek", async ({ arrange }) => {
+    arrange();
+
+    expect(await optionalBearer()).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // currentUser.ts
 // ---------------------------------------------------------------------------
 

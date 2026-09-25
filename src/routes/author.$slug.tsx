@@ -11,7 +11,8 @@ import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 // admin tenanta) nadpisuje pojedyncze pola bezpośrednio na tej stronie
 // inline-edytorem (ExpertLayoutInlineEditor, lazy) - merge nadpisań robi
 // `mergeExpertLayout`, a draft edytora renderuje się na żywo tym samym torem.
-import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
+import { createFileRoute, notFound, redirect, useNavigate } from "@tanstack/react-router";
+import type { NotFoundRouteProps } from "@tanstack/react-router";
 import { isNonAuthorMemberSlug } from "@/lib/profile/memberSlug.functions";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
@@ -72,7 +73,8 @@ import { ensureI18n as ensureExpertsI18n } from "@/lib/i18n-experts";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
 import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
-import { withBudget } from "@/lib/asyncBudget";
+import { withBudget, withSsrBudget } from "@/lib/asyncBudget";
+import { isSsrRequest } from "@/lib/ssr/isSsrRequest";
 import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import type { ExpertHubData } from "@/lib/experts/types";
 
@@ -147,6 +149,24 @@ export const Route = createFileRoute("/author/$slug")({
     // wcześniejszego wyjścia (degradacja, 404), a nieobsłużone odrzucenie
     // wywróciłoby proces renderu.
     const materialsPromise = context.queryClient.ensureQueryData(materialsOptions).then(noop, noop);
+    // Pytanie „czy slug należy do osoby BEZ roli autora" (301 na /people)
+    // zależy od sluga i od CZYTELNIKA (gość: `profiles_public` - to samo
+    // źródło co hub; zalogowany: czy /people rozwiąże mu profil - migracja
+    // 0053; server fn przekazuje bearer sesji, gdy jest -
+    // `memberSlug.functions.ts`), ale NIE od huba, więc jedzie
+    // równolegle z tożsamością - doklejone po hubie dokładało pełny
+    // round-trip na ścieżkę TTFB KAŻDEGO profilu. Wynik idzie przez uchwyt-OBIEKT (wzorzec z `src/routes/$.tsx`),
+    // bo termin niżej to `withSsrBudget` ze STAŁĄ widoczną dla
+    // `check:ssr-budgets`. `verdict === null` = nie wiemy (błąd albo brak
+    // czasu). `.then(..., noop)` JUŻ TUTAJ z tego samego powodu co przy
+    // materiałach: w gałęzi degradacji obietnica jest porzucana.
+    const authorRole: { verdict: boolean | null } = { verdict: null };
+    const authorRolePromise = isNonAuthorMemberSlug({ data: { slug: params.slug } }).then(
+      (nonAuthor) => {
+        authorRole.verdict = nonAuthor;
+      },
+      noop,
+    );
     // Hub - potrzebujemy `expert.tenant_id`, żeby dobrać właściwe
     // `expert_layout_settings` (per tenant, nie tylko dla tenanta hosta).
     //
@@ -171,15 +191,44 @@ export const Route = createFileRoute("/author/$slug")({
       };
     }
     const data = identity.data;
+    // Pytanie o rolę jest POMOCNICZE, nie tożsamościowe: jego awaria (błąd
+    // RPC - handler rzuca zamiast udawać werdykt „autor", brak sieci przy
+    // nawigacji SPA, walidator wejścia server fn odrzucający slug dłuższy niż
+    // 200 znaków) ani jego powolność NIE MOGĄ zamienić istniejącego profilu
+    // w ekran błędu. Gołe `await` robiło dokładnie to (wyjątek ->
+    // `errorComponent` zamiast huba albo 404), a zawieszone RPC trzymało TTFB
+    // aż do watchdoga SSR. Bez werdyktu zostaje stan sprzed przekierowania -
+    // hub albo 404 - tylko bez wspólnego `Cache-Control` (niżej). Termin TYLKO
+    // w SSR: w przeglądarce wynik loadera jest niezmienny, więc termin
+    // zamroziłby brak przekierowania na stałe.
+    await withSsrBudget(authorRolePromise, AUTHOR_HUB_SSR_BUDGET_MS, deadlineAt);
     // Osoba bez roli autora ma profil członka - trwałe przekierowanie także
     // wtedy, gdy hub zwraca dane z samego profilu (People = każdy użytkownik,
     // Author = rola nadana przez admina lub zaproszenie).
-    if (await isNonAuthorMemberSlug({ data: { slug: params.slug } })) {
+    //
+    // `true` pada WYŁĄCZNIE wtedy, gdy ten czytelnik profil zobaczy (migracja
+    // 0053). Gość dostaje więc 301 tylko dla członka z realną publiczną
+    // obecnością (`profiles_public`, źródło huba); dla członka widocznego
+    // jedynie w katalogu wewnętrznym (`discoverable`) - 404 zamiast dawnego
+    // 301 na /people z bramką logowania. To ŚWIADOMY koszt: różnica 301/404
+    // była wyrocznią istnienia ukrytych profili. Zalogowany przy nawigacji SPA
+    // dostaje werdykt z bearerem i `true` tylko wtedy, gdy /people rozwiąże mu
+    // profil (`get_member_profile`) - personel tenanta albo czytelnik profilu
+    // z samą publiczną obecnością zostaje przy hubie, który widzi, zamiast
+    // lądować na pustej karcie. Przy twardym wejściu (SSR bez sesji) 404
+    // `AuthorHubNotFound` sprawdza ponownie po rozstrzygnięciu sesji.
+    if (authorRole.verdict === true) {
       throw redirect({ to: "/people/$slug", params: { slug: params.slug }, statusCode: 301 });
     }
     if (!data) {
       setCacheControlHeader(NO_STORE);
-      throw notFound();
+      // W PRZEGLĄDARCE werdykt policzono już z sesją czytelnika (bearer
+      // dokleja `attachSupabaseAuth`), więc `AuthorHubNotFound` nie pyta tego
+      // samego czytelnika drugi raz. Werdykt SSR jest anonimowy, a brak
+      // werdyktu niczego nie rozstrzyga - wtedy flagi nie ma.
+      throw notFound({
+        data: { verdictFromBrowser: authorRole.verdict !== null && !isSsrRequest() },
+      });
     }
     const layoutOptions = expertLayoutSettingsQueryOptions(data.expert.tenant_id);
     let layout: { readonly degraded: boolean };
@@ -222,7 +271,11 @@ export const Route = createFileRoute("/author/$slug")({
     // jest bajt w bajt ta sama, ale bramka `check:ssr-budgets` weryfikuje
     // STRUKTURALNIE, że to sygnał degradacji wybiera `no-store` - ręczny
     // ternar przepuszczał też wersję ODWRÓCONĄ (patrz recenzja PR #357, P2).
-    setCacheControlHeader(resilientCacheControl(materials || layout.degraded));
+    // Brak werdyktu o roli autora też degraduje: hub bez pewności, że nie
+    // należy się 301, nie może zostać rozdany z brzegu kolejnym czytelnikom.
+    setCacheControlHeader(
+      resilientCacheControl(materials || layout.degraded || authorRole.verdict === null),
+    );
     return {
       hub: data,
       degraded: false,
@@ -394,7 +447,7 @@ export const Route = createFileRoute("/author/$slug")({
   },
   component: ExpertHubPage,
   pendingComponent: () => <ArchiveSkeleton />,
-  notFoundComponent: PublicNotFound,
+  notFoundComponent: AuthorHubNotFound,
   errorComponent: (props) => (
     <RouteErrorFallback
       {...props}
@@ -404,6 +457,57 @@ export const Route = createFileRoute("/author/$slug")({
     />
   ),
 });
+
+/** Czy 404 rzucił loader W PRZEGLĄDARCE z gotowym werdyktem (patrz loader). */
+function verdictFromBrowser(data: unknown): boolean {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    "verdictFromBrowser" in data &&
+    data.verdictFromBrowser === true
+  );
+}
+
+/**
+ * 404 huba z DRUGIM PODEJŚCIEM do werdyktu, gdy znamy już sesję.
+ *
+ * Twarde wejście (nowa karta, zakładka, wklejony link) renderuje SSR BEZ sesji
+ * - ta żyje w localStorage - więc hub i werdykt `member_slug_is_non_author` są
+ * tam oba anonimowe. Dla członka bez roli autora, którego profil zalogowany
+ * czytelnik otworzy na /people (`discoverable`, połączenie, własny profil -
+ * dokładnie to, co rozwiązuje `get_member_profile`), daje to 404. Po
+ * hydratacji pytamy więc jeszcze raz - już z bearerem sesji (globalny
+ * `attachSupabaseAuth`) - i przy `true` przechodzimy na /people/<slug>.
+ * Personel tenanta, który widzi hub członka tylko z racji roli, dostaje
+ * `false` (karta /people nie ma gałęzi personelu) i zostaje przy 404.
+ * Gość nie pyta drugi raz: jego odpowiedź dał już SSR, a werdykt i tak
+ * zależy od tego, co wołający widzi, więc nie zdradza niczego ponad hub.
+ * Nie pyta też czytelnik, dla którego werdykt policzył już loader
+ * w przeglądarce (nawigacja SPA) - dopóki sesja się nie zmieni.
+ * Odpowiedź HTTP zostaje 404 - dla robotów i gości to jest prawda.
+ */
+function AuthorHubNotFound({ data }: NotFoundRouteProps) {
+  const { slug } = Route.useParams();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const viewerId = user?.id ?? null;
+  // Czytelnik, któremu loader już odpowiedział; `undefined` = werdykt
+  // anonimowy z SSR albo żaden. Zamrożony przy montażu: logowanie albo
+  // przelogowanie pod otwartym 404 to nowy czytelnik i nowe pytanie.
+  const [answeredViewer] = useState(() => (verdictFromBrowser(data) ? viewerId : undefined));
+  const { data: nonAuthor } = useQuery({
+    queryKey: ["member-slug-non-author", slug, viewerId] as const,
+    queryFn: () => isNonAuthorMemberSlug({ data: { slug } }),
+    enabled: viewerId !== null && viewerId !== answeredViewer,
+    retry: false,
+    staleTime: 60_000,
+  });
+  useEffect(() => {
+    if (nonAuthor !== true) return;
+    void navigate({ to: "/people/$slug", params: { slug }, replace: true });
+  }, [nonAuthor, navigate, slug]);
+  return <PublicNotFound />;
+}
 
 function ExpertHubPage() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.

@@ -214,39 +214,58 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/**
+ * Pełny, uporządkowany szkielet sekcji `core`. Jedno źródło prawdy dla testu
+ * listy hubów i dla testów degradacji ("core zostaje nietknięty") - zamiast
+ * magicznej liczby wpisów, która przy każdej zmianie listy psuła się bez
+ * wskazania, KTÓREGO adresu brakuje.
+ *
+ * Katalogu osób `/people` tu NIE MA (zmiana 2026-09-24, podział People/Author).
+ * Trasa `people.index.tsx` jest wyłącznie dla zalogowanych i zawsze wysyła
+ * `robots: noindex, nofollow`, a profile członków `/people/<slug>` również są
+ * noindex - sitemapa nie może reklamować adresów, które meta robots każe
+ * crawlerowi pominąć (w Search Console: "Przesłany URL oznaczony jako noindex").
+ */
+const HUBY_CORE: readonly string[] = [
+  `${ORIGIN}/`,
+  `${ORIGIN}/blog`,
+  `${ORIGIN}/podcasts`,
+  `${ORIGIN}/web-stories`,
+  `${ORIGIN}/live`,
+  `${ORIGIN}/events`,
+  `${ORIGIN}/qa`,
+  `${ORIGIN}/polls`,
+  `${ORIGIN}/tracker`,
+  `${ORIGIN}/programs`,
+  `${ORIGIN}/experts`,
+  `${ORIGIN}/contribute`,
+  `${ORIGIN}/sitemap`,
+  // Pakiet zgodności 2026-09 - dokumenty prawne renderowane z tras React,
+  // niewidoczne dla kolektora `pages` (ten czyta tabelę `pages`).
+  `${ORIGIN}/rodo`,
+  `${ORIGIN}/zarzadzanie-polityka-prywatnosci`,
+  `${ORIGIN}/polityka-przetwarzania-danych`,
+  `${ORIGIN}/komunikacja-i-marketing`,
+  `${ORIGIN}/regulamin-klubow-dyskusyjnych`,
+  `${ORIGIN}/moderacja-komentarzy`,
+  `${ORIGIN}/regulamin-wydarzen-i-biletow`,
+  `${ORIGIN}/regulamin-subskrypcji-i-zakupow`,
+  `${ORIGIN}/przejrzystosc-ai`,
+  `${ORIGIN}/statut`,
+];
+
 describe("sekcja core - huby serwisu bez udziału bazy", () => {
   it("wypisuje wszystkie huby serwisu i nie wysyła ani jednego zapytania", async () => {
     const db = atrapaAdmina({});
     const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "core");
     expect(db.zadania).toEqual([]);
-    expect(locs(wpisy)).toEqual([
-      `${ORIGIN}/`,
-      `${ORIGIN}/blog`,
-      `${ORIGIN}/podcasts`,
-      `${ORIGIN}/web-stories`,
-      `${ORIGIN}/live`,
-      `${ORIGIN}/events`,
-      `${ORIGIN}/qa`,
-      `${ORIGIN}/polls`,
-      `${ORIGIN}/tracker`,
-      `${ORIGIN}/programs`,
-      `${ORIGIN}/people`,
-      `${ORIGIN}/experts`,
-      `${ORIGIN}/contribute`,
-      `${ORIGIN}/sitemap`,
-      // Pakiet zgodności 2026-09 - dokumenty prawne renderowane z tras React,
-      // niewidoczne dla kolektora `pages` (ten czyta tabelę `pages`).
-      `${ORIGIN}/rodo`,
-      `${ORIGIN}/zarzadzanie-polityka-prywatnosci`,
-      `${ORIGIN}/polityka-przetwarzania-danych`,
-      `${ORIGIN}/komunikacja-i-marketing`,
-      `${ORIGIN}/regulamin-klubow-dyskusyjnych`,
-      `${ORIGIN}/moderacja-komentarzy`,
-      `${ORIGIN}/regulamin-wydarzen-i-biletow`,
-      `${ORIGIN}/regulamin-subskrypcji-i-zakupow`,
-      `${ORIGIN}/przejrzystosc-ai`,
-      `${ORIGIN}/statut`,
-    ]);
+    expect(locs(wpisy)).toEqual(HUBY_CORE);
+  });
+
+  it("nie reklamuje katalogu osób ani profili członków - obie trasy są noindex", () => {
+    const sciezki = coreSitemapEntries(ORIGIN).map((w) => w.loc.slice(ORIGIN.length));
+    expect(sciezki).not.toContain("/people");
+    expect(sciezki.filter((s) => s.startsWith("/people/"))).toEqual([]);
   });
 
   it("daje stronie głównej najwyższy priorytet, a mapie serwisu najniższy", () => {
@@ -684,7 +703,7 @@ describe("degradacja odczytu - pustka kontra awaria", () => {
       if (sekcja === "core") continue;
       expect(mapa.get(sekcja)).toEqual([]);
     }
-    expect(mapa.get("core")).toHaveLength(24);
+    expect(locs(mapa.get("core") ?? [])).toEqual(HUBY_CORE);
   });
 
   it("odmowa bazy zostawia ślad z nazwą sekcji", async () => {
@@ -720,7 +739,7 @@ describe("collectAllSitemapSections - mapa dla indeksu", () => {
     const db = atrapaAdmina({});
     const mapa = await collectAllSitemapSections(db.admin, null, ORIGIN);
     expect([...mapa.keys()]).toEqual(["core"]);
-    expect(mapa.get("core")).toHaveLength(24);
+    expect(locs(mapa.get("core") ?? [])).toEqual(HUBY_CORE);
     expect(db.zadania).toEqual([]);
   });
 
@@ -744,7 +763,7 @@ describe("collectAllSitemapSections - mapa dla indeksu", () => {
     const mapa = await collectAllSitemapSections(db.admin, TENANT, ORIGIN);
     expect(mapa.get("posts")).toEqual([]);
     expect(locs(mapa.get("taxonomy") ?? [])).toEqual([`${ORIGIN}/category/prawo`]);
-    expect(mapa.get("core")).toHaveLength(24);
+    expect(locs(mapa.get("core") ?? [])).toEqual(HUBY_CORE);
     expect(ostrzezenia).toHaveBeenCalledWith(
       '[seo] sitemap section "posts" read failed:',
       expect.any(TypeError),
