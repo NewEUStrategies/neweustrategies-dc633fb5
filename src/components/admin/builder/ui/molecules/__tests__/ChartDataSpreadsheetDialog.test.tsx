@@ -18,7 +18,7 @@
 // własne testy, a tutaj sprawdzamy WEJŚCIE, które arkusz mu podaje.
 import { describe, it, expect, vi } from "vitest";
 import { useState } from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MAX_SERIES } from "@/lib/charts/types";
 import { MAX_CATEGORIES } from "@/lib/charts/parse";
 import { ChartDataSpreadsheetDialog } from "../ChartDataSpreadsheetDialog";
@@ -175,6 +175,58 @@ describe("ChartDataSpreadsheetDialog - edycja i zapis", () => {
     await waitFor(() => expect(onChange.mock.calls.at(-1)?.[0]).toContain("2022; 10; 5"));
   });
 
+  it("ponowne otwarcie po zmianie z zewnątrz nie zostawia statusu „Synchronizacja…”", async () => {
+    const onChange = vi.fn();
+    const view = (value: string) => (
+      <ChartDataSpreadsheetDialog value={value} onChange={onChange} lang="pl" />
+    );
+    const { rerender } = render(view(CSV));
+    openSheet();
+    fireEvent.click(screen.getByRole("button", { name: "Zamknij" }));
+    rerender(view("; Eksport; Import\n2023; 7; 5\n2024; 12; 8"));
+    openSheet();
+    expect(numberCells()[0]).toHaveValue("7");
+    expect(await screen.findByText("Zsynchronizowano")).toBeInTheDocument();
+    expect(screen.queryByText("Synchronizacja…")).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("echo synchronizacji, które wraca od rodzica PO kolejnej edycji, jej nie kasuje", () => {
+    // Deterministyczna wersja wyścigu: rodzic oddaje pierwszą wysłaną wartość
+    // dopiero wtedy, gdy autor zdążył już wpisać kolejną komórkę.
+    vi.useFakeTimers();
+    try {
+      const onChange = vi.fn();
+      const view = (value: string) => (
+        <ChartDataSpreadsheetDialog value={value} onChange={onChange} lang="pl" />
+      );
+      const { rerender } = render(view(CSV));
+      openSheet();
+      fireEvent.change(textCells()[0], { target: { value: "Wywóz" } });
+      act(() => {
+        vi.advanceTimersByTime(150);
+      });
+      const first = onChange.mock.calls.at(-1)?.[0] as string;
+      expect(first).toContain("; Wywóz; Import");
+
+      fireEvent.change(textCells()[2], { target: { value: "2022" } });
+      rerender(view(first));
+      // Echo nie cofa arkusza do stanu sprzed drugiej edycji.
+      expect(textCells()[2]).toHaveValue("2022");
+      act(() => {
+        vi.advanceTimersByTime(150);
+      });
+      expect(onChange.mock.calls.at(-1)?.[0]).toContain("2022; 10; 5");
+
+      // Wartość zmieniona Z ZEWNĄTRZ nadal przebudowuje arkusz.
+      rerender(view(CSV));
+      expect(textCells()[0]).toHaveValue("Eksport");
+      expect(textCells()[2]).toHaveValue("2023");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("zapisz i zamknij zapisuje ostatnią edycję bez czekania na debounce", () => {
     const { onChange } = renderDialog();
     openSheet();
@@ -213,6 +265,9 @@ describe("ChartDataSpreadsheetDialog - edycja i zapis", () => {
     openSheet();
     fireEvent.change(numberCells()[0], { target: { value: "1" } });
     await waitFor(() => expect(onChange).toHaveBeenCalled());
+    // Echo od rodzica musi już być w DOM (status wraca do „Zsynchronizowano"
+    // w tym samym renderze) - inaczej klik trafia w okno wyścigu.
+    await screen.findByText("Zsynchronizowano");
     fireEvent.click(screen.getByRole("button", { name: "Przywróć" }));
     expect(numberCells().map((i) => i.value)).toEqual(["10", "5", "12", "8"]);
   });
@@ -222,6 +277,9 @@ describe("ChartDataSpreadsheetDialog - edycja i zapis", () => {
     openSheet();
     fireEvent.change(numberCells()[0], { target: { value: "1" } });
     await waitFor(() => expect(onChange).toHaveBeenCalled());
+    // Echo od rodzica musi już być w DOM (status wraca do „Zsynchronizowano"
+    // w tym samym renderze) - inaczej klik trafia w okno wyścigu.
+    await screen.findByText("Zsynchronizowano");
     fireEvent.click(screen.getByRole("button", { name: "Przywróć" }));
     expect(numberCells().map((i) => i.value)).toEqual(["1", "5", "12", "8"]);
   });

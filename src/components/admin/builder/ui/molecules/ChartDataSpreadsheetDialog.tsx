@@ -136,13 +136,30 @@ export function ChartDataSpreadsheetDialog({
   const [syncing, setSyncing] = useState(false);
 
   // Rehydrate when the dialog opens so external edits are not shadowed.
+  //
+  // ECHO WŁASNEJ SYNCHRONIZACJI NIE NADPISUJE ARKUSZA. Rodzic dostaje CSV
+  // z debounce'u i oddaje go jako `value`; jeśli autor zdążył w tym czasie
+  // wpisać kolejną komórkę, ponowne `csvToGrid(value)` cofało arkusz do
+  // stanu sprzed tej edycji i wpis ginął bez śladu (wyścig widoczny pod
+  // obciążeniem - test „zmiana nazwy kategorii i serii trafia do CSV"). Echo
+  // tylko przesuwa punkt „przywróć"; arkusz przebudowuje otwarcie dialogu
+  // albo wartość zmieniona Z ZEWNĄTRZ (inna niż ostatnio wysłana).
+  const wasOpenRef = useRef(false);
   useEffect(() => {
-    if (open) {
-      setGrid(csvToGrid(value));
-      initialRef.current = value;
-      lastSyncedRef.current = value;
-      setSyncing(false);
+    if (!open) {
+      wasOpenRef.current = false;
+      return;
     }
+    const justOpened = !wasOpenRef.current;
+    wasOpenRef.current = true;
+    if (!justOpened && value === lastSyncedRef.current) {
+      initialRef.current = value;
+      return;
+    }
+    setGrid(csvToGrid(value));
+    initialRef.current = value;
+    lastSyncedRef.current = value;
+    setSyncing(false);
   }, [open, value]);
 
   const chartKind: ChartKind = parseChartKind(kind);
@@ -187,7 +204,14 @@ export function ChartDataSpreadsheetDialog({
   useEffect(() => {
     if (!open) return;
     const nextCsv = gridToCsv(grid);
-    if (nextCsv === lastSyncedRef.current) return;
+    // Nic do wysłania - także gdy arkusz wrócił do stanu ostatnio wysłanego
+    // w oknie debounce (przywróć, ponowne otwarcie). Bez zgaszenia tu status
+    // „Synchronizacja…" zostawał na zawsze: timer poprzedniego przebiegu jest
+    // już skasowany, więc nikt inny go nie wyłączy.
+    if (nextCsv === lastSyncedRef.current) {
+      setSyncing(false);
+      return;
+    }
     setSyncing(true);
     const handle = setTimeout(() => {
       lastSyncedRef.current = nextCsv;
