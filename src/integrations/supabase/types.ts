@@ -19233,6 +19233,7 @@ export type Database = {
         Args: { p_lead_id: string; p_order_id: string; p_outcome: string }
         Returns: number
       }
+      _event_assert_ticket_codes_schema: { Args: never; Returns: undefined }
       _event_badge_print_write: {
         Args: {
           _copies: number
@@ -19302,9 +19303,30 @@ export type Database = {
           visibility: string
         }[]
       }
+      _event_group_admit_guest: {
+        Args: {
+          p_guest: Database["public"]["Tables"]["event_registrations"]["Row"]
+          p_lead: Database["public"]["Tables"]["event_registrations"]["Row"]
+        }
+        Returns: undefined
+      }
+      _event_group_admit_guests: {
+        Args: {
+          p_lead: Database["public"]["Tables"]["event_registrations"]["Row"]
+          p_prev: Database["public"]["Tables"]["event_registrations"]["Row"]
+        }
+        Returns: undefined
+      }
       _event_group_repair_stranded_guests: {
         Args: { p_limit?: number }
         Returns: number
+      }
+      _event_guest_closed_with_lead: {
+        Args: {
+          p_guest: Database["public"]["Tables"]["event_registrations"]["Row"]
+          p_lead: Database["public"]["Tables"]["event_registrations"]["Row"]
+        }
+        Returns: boolean
       }
       _event_issue_ticket_codes: {
         Args: { p_registration_id: string }
