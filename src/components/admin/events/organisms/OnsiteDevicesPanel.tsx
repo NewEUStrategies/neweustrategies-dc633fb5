@@ -11,10 +11,17 @@
 //
 // WSTRZYMANIE ≠ UNIEWAŻNIENIE. Wstrzymane poświadczenie wraca do pracy jednym
 // kliknięciem (padł akumulator, zmiana operatora); unieważnione nie wraca nigdy.
+//
+// LISTA OFFLINE WIDAĆ NA LIŚCIE. Plakietka mówi, które urządzenie ma zgodę na
+// listę uczestników, a linia pod nią - kiedy ostatnio ją pobrało (każde
+// pobranie jest też zdarzeniem audytowym). Włączenie przechodzi przez
+// potwierdzenie z ostrzeżeniem RODO, wyłączenie działa od razu.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Ban, KeyRound, Pause, Play } from "lucide-react";
+import { Ban, CloudDownload, CloudOff, KeyRound, Pause, Play } from "lucide-react";
+import { confirmDialog } from "@/lib/appDialogs";
+import { formatEventDateTime } from "@/lib/events/timezone";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -39,6 +46,7 @@ import {
   useRevokeScannerDevice,
   useScannerDevices,
   useSetScannerDeviceActive,
+  useSetScannerDeviceOffline,
 } from "@/lib/events/useEventOnsite";
 import { useSponsors } from "@/lib/events/useEventSponsors";
 import { uiLang } from "@/lib/i18n/format";
@@ -57,6 +65,7 @@ export function OnsiteDevicesPanel({ eventId }: { eventId: string }) {
   const issue = useIssueScannerDevice(eventId);
   const revoke = useRevokeScannerDevice(eventId);
   const setActive = useSetScannerDeviceActive(eventId);
+  const setOffline = useSetScannerDeviceOffline(eventId);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [credential, setCredential] = useState<ScannerDeviceCredential | null>(null);
@@ -125,6 +134,33 @@ export function OnsiteDevicesPanel({ eventId }: { eventId: string }) {
     );
   };
 
+  const toggleOffline = async (row: ScannerDeviceRow) => {
+    const next = !row.offline_roster;
+    if (next) {
+      const confirmed = await confirmDialog({
+        title: t("adminEventOnsite.devices.offlineConfirmTitle"),
+        description: t("adminEventOnsite.devices.dialog.offlineRosterWarning"),
+        confirmLabel: t("adminEventOnsite.actions.enableOffline"),
+        cancelLabel: t("adminEventOnsite.actions.cancel"),
+      });
+      if (!confirmed) return;
+    }
+    setOffline.mutate(
+      { deviceId: row.id, offlineRoster: next },
+      {
+        onSuccess: () =>
+          toast.success(
+            t(
+              next
+                ? "adminEventOnsite.devices.toasts.offlineEnabled"
+                : "adminEventOnsite.devices.toasts.offlineDisabled",
+            ),
+          ),
+        onError: fail,
+      },
+    );
+  };
+
   return (
     <section className="space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
@@ -172,6 +208,15 @@ export function OnsiteDevicesPanel({ eventId }: { eventId: string }) {
                     .filter((part) => part !== null && part !== "")
                     .join(" · ")}
                 </p>
+                {row.offline_roster && (
+                  <p className="truncate text-xs text-muted-foreground">
+                    {row.roster_downloaded_at === null
+                      ? t("adminEventOnsite.devices.rosterNever")
+                      : t("adminEventOnsite.devices.rosterDownloaded", {
+                          when: formatEventDateTime(row.roster_downloaded_at, null, lang),
+                        })}
+                  </p>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-1.5">
@@ -186,6 +231,9 @@ export function OnsiteDevicesPanel({ eventId }: { eventId: string }) {
                 >
                   {t(`adminEventOnsite.deviceStates.${row.state}`, { defaultValue: row.state })}
                 </Badge>
+                {row.offline_roster && (
+                  <Badge variant="secondary">{t("adminEventOnsite.devices.offlineBadge")}</Badge>
+                )}
                 {row.scopes.map((scope) => (
                   <Badge key={scope} variant="outline">
                     {t(`adminEventOnsite.scopes.${scope}`, { defaultValue: scope })}
@@ -224,6 +272,25 @@ export function OnsiteDevicesPanel({ eventId }: { eventId: string }) {
                         <Play className="h-4 w-4" aria-hidden="true" />
                       )}
                     </Button>
+                    {row.scopes.includes("checkin") && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={t(
+                          row.offline_roster
+                            ? "adminEventOnsite.actions.disableOffline"
+                            : "adminEventOnsite.actions.enableOffline",
+                        )}
+                        onClick={() => void toggleOffline(row)}
+                        disabled={setOffline.isPending}
+                      >
+                        {row.offline_roster ? (
+                          <CloudOff className="h-4 w-4" aria-hidden="true" />
+                        ) : (
+                          <CloudDownload className="h-4 w-4" aria-hidden="true" />
+                        )}
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"

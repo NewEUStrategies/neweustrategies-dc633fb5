@@ -64,6 +64,20 @@ export const eventScannerPl = {
       offline: "Brak sieci - skany czekają w kolejce",
       memoryOnly:
         "Ta przeglądarka nie pozwala zapisać kolejki na urządzeniu. Nie zamykaj karty, dopóki kolejka nie jest pusta.",
+      offlineReady: "Bez sieci - decyzje z listy offline",
+      staleBadge: "Sesja z pamięci",
+      staleSession:
+        "Pracujesz na sesji zapisanej na urządzeniu. Potwierdzę ją w bazie, gdy wróci sieć.",
+      clockSkew_one:
+        "Zegar tego telefonu różni się od serwera o {{count}} minutę. Czas skanów jest korygowany - włącz automatyczny czas w ustawieniach.",
+      clockSkew_few:
+        "Zegar tego telefonu różni się od serwera o {{count}} minuty. Czas skanów jest korygowany - włącz automatyczny czas w ustawieniach.",
+      clockSkew_many:
+        "Zegar tego telefonu różni się od serwera o {{count}} minut. Czas skanów jest korygowany - włącz automatyczny czas w ustawieniach.",
+      clockSkew_other:
+        "Zegar tego telefonu różni się od serwera o {{count}} minut. Czas skanów jest korygowany - włącz automatyczny czas w ustawieniach.",
+      expiredSyncing:
+        "Skany z kolejki są jeszcze wysyłane - baza przyjmuje je do 72 godzin po terminie kodu. Nie odłączaj urządzenia, dopóki kolejka nie będzie pusta.",
     },
 
     modes: {
@@ -142,6 +156,7 @@ export const eventScannerPl = {
       deniedCapacity: "Brak miejsc",
       deniedCheckpointInactive: "Punkt nieaktywny",
       saved: "Zapisano",
+      replay: "Skan już zapisany",
       printed: "Wydruk zapisany",
       unknown: "Nieznany wynik",
     },
@@ -155,6 +170,7 @@ export const eventScannerPl = {
       deniedDirection: "Ten punkt obsługuje inny kierunek ruchu.",
       deniedCapacity: "Punkt osiągnął limit obecności.",
       deniedCheckpointInactive: "Ten punkt został wyłączony w panelu.",
+      replay: "Ten sam skan dotarł do bazy wcześniej - nic nie zostało zdublowane.",
       previousCheckin: "Poprzednia odprawa: {{when}}",
     },
 
@@ -244,6 +260,105 @@ export const eventScannerPl = {
       flushedToast_other: "Wysłano {{count}} skanów z kolejki.",
     },
 
+    // -----------------------------------------------------------------
+    // Tryb offline: lista osób na urządzeniu i decyzja bez sieci. Decyzja
+    // offline jest TYMCZASOWA - każdy napis to mówi, bo serwer ma ostatnie
+    // słowo po powrocie sieci.
+    // -----------------------------------------------------------------
+    offline: {
+      rosterFresh_one: "Lista offline: {{count}} osoba, stan z {{time}}",
+      rosterFresh_few: "Lista offline: {{count}} osoby, stan z {{time}}",
+      rosterFresh_many: "Lista offline: {{count}} osób, stan z {{time}}",
+      rosterFresh_other: "Lista offline: {{count}} osób, stan z {{time}}",
+      rosterStale_one: "Lista offline może być nieaktualna: {{count}} osoba, stan z {{time}}",
+      rosterStale_few: "Lista offline może być nieaktualna: {{count}} osoby, stan z {{time}}",
+      rosterStale_many: "Lista offline może być nieaktualna: {{count}} osób, stan z {{time}}",
+      rosterStale_other: "Lista offline może być nieaktualna: {{count}} osób, stan z {{time}}",
+      rosterNone:
+        "Lista offline nie jest jeszcze pobrana - pobierze się, gdy urządzenie połączy się z siecią.",
+      rosterSyncing: "Pobieram listę offline…",
+      rosterDisabled:
+        "To urządzenie nie ma listy offline - bez sieci skany tylko czekają w kolejce.",
+      refresh: "Odśwież listę",
+      decisionHint:
+        "Decyzja z listy offline (stan z {{time}}) - serwer potwierdzi ją po powrocie sieci.",
+      approximateCapacity: "Limitu miejsc nie da się sprawdzić bez sieci.",
+      personFromRoster: "Dane z listy offline",
+    },
+
+    // -----------------------------------------------------------------
+    // Gotowość do pracy bez sieci - cztery warunki, każdy z odpowiedzią.
+    // -----------------------------------------------------------------
+    readiness: {
+      title: "Gotowość do pracy bez sieci",
+      shellReady: "Aplikacja zapisana na urządzeniu",
+      shellPartial: "Aplikacja zapisana częściowo ({{cached}} z {{total}} plików)",
+      shellMissing:
+        "Aplikacja nie jest jeszcze zapisana - otwórz skaner raz przy dobrym zasięgu",
+      shellChecking: "Sprawdzam, czy aplikacja jest zapisana…",
+      rosterReady: "Lista offline aktualna",
+      rosterNotReady: "Brak aktualnej listy offline",
+      rosterDisabled: "Lista offline wyłączona przez organizatora",
+      queuePersistent: "Kolejka skanów zapisuje się na urządzeniu",
+      queueMemoryOnly: "Kolejka skanów żyje tylko w tej karcie",
+      storagePersisted: "Przeglądarka nie usunie danych skanera",
+      storageNotPersisted: "Przeglądarka może usunąć dane skanera przy braku miejsca",
+      storageUnknown: "Ta przeglądarka nie mówi, czy zachowa dane skanera",
+      requestPersist: "Poproś o trwałe przechowywanie",
+      persistGranted: "Dane skanera są przechowywane trwale.",
+      persistDenied: "Przeglądarka odmówiła trwałego przechowywania.",
+    },
+
+    // -----------------------------------------------------------------
+    // Po synchronizacji: konflikty decyzji offline i skany odrzucone.
+    // -----------------------------------------------------------------
+    sync: {
+      title: "Do wyjaśnienia z organizatorem",
+      conflicts_one: "{{count}} konflikt decyzji offline",
+      conflicts_few: "{{count}} konflikty decyzji offline",
+      conflicts_many: "{{count}} konfliktów decyzji offline",
+      conflicts_other: "{{count}} konfliktów decyzji offline",
+      rejected_one: "{{count}} skan odrzucony przez bazę",
+      rejected_few: "{{count}} skany odrzucone przez bazę",
+      rejected_many: "{{count}} skanów odrzuconych przez bazę",
+      rejected_other: "{{count}} skanów odrzuconych przez bazę",
+      kinds: {
+        admittedOffline: "Wpuszczony bez sieci - serwer odmawia",
+        deniedOffline: "Odmowa bez sieci - serwer by wpuścił",
+      },
+      hint: "Skany odrzucone NIE są w bazie. Pobierz plik i przekaż go organizatorowi, zanim wyczyścisz listę.",
+      exportCsv: "Pobierz CSV",
+      exportJson: "Pobierz JSON",
+      clear: "Wyczyść listę",
+      clearTitle: "Wyczyścić listę do wyjaśnienia?",
+      clearDescription:
+        "Konflikty i odrzucone skany znikną z tego urządzenia. Zrób to dopiero po przekazaniu pliku organizatorowi.",
+      cancel: "Anuluj",
+      flushedConflicts_one: "Po wysyłce: {{count}} konflikt decyzji offline - sprawdź listę do wyjaśnienia.",
+      flushedConflicts_few: "Po wysyłce: {{count}} konflikty decyzji offline - sprawdź listę do wyjaśnienia.",
+      flushedConflicts_many: "Po wysyłce: {{count}} konfliktów decyzji offline - sprawdź listę do wyjaśnienia.",
+      flushedConflicts_other: "Po wysyłce: {{count}} konfliktów decyzji offline - sprawdź listę do wyjaśnienia.",
+      flushedRejected_one: "{{count}} skan odrzucony przez bazę - jest na liście do wyjaśnienia.",
+      flushedRejected_few: "{{count}} skany odrzucone przez bazę - są na liście do wyjaśnienia.",
+      flushedRejected_many: "{{count}} skanów odrzuconych przez bazę - są na liście do wyjaśnienia.",
+      flushedRejected_other: "{{count}} skanów odrzuconych przez bazę - są na liście do wyjaśnienia.",
+      columns: {
+        type: "Typ",
+        kind: "Rodzaj",
+        scannedAt: "Czas skanu",
+        checkpoint: "Punkt",
+        direction: "Kierunek",
+        offlineOutcome: "Decyzja offline",
+        serverResult: "Wynik serwera",
+        person: "Osoba",
+        registrationId: "Zgłoszenie",
+        code: "Kod",
+        reference: "Identyfikator",
+        conflict: "konflikt",
+        rejected: "odrzucony",
+      },
+    },
+
     install: {
       title: "Zainstaluj skaner",
       body: "Dodaj skaner do ekranu głównego - uruchomi się bez paska adresu i zadziała też przy słabym zasięgu.",
@@ -269,6 +384,11 @@ export const eventScannerPl = {
       personNotFound: "Nie znaleziono tej osoby w tej organizacji.",
       templateMissing: "To wydarzenie nie ma domyślnego szablonu identyfikatora.",
       templateNotInEvent: "Ten szablon identyfikatora należy do innego wydarzenia.",
+      rosterDisabled: "Organizator wyłączył listę offline dla tego urządzenia.",
+      rosterThrottled: "Lista offline była pobrana przed chwilą. Spróbuj ponownie za pół minuty.",
+      rosterResyncRequired: "Lista offline wymaga pełnego pobrania od nowa.",
+      deviceTimeOutOfRange:
+        "Skan jest starszy niż tydzień - baza go nie przyjmie. Pokaż go organizatorowi.",
       offline: "Brak sieci. Skan czeka w kolejce i pojedzie, gdy zasięg wróci.",
       unknown: "Coś nie zadziałało. Spróbuj jeszcze raz.",
     },
@@ -309,6 +429,16 @@ export const eventScannerEn = {
       offline: "No network - scans are queued",
       memoryOnly:
         "This browser will not let us store the queue on the device. Keep the tab open until the queue is empty.",
+      offlineReady: "Offline - decisions from the offline list",
+      staleBadge: "Stored session",
+      staleSession:
+        "You are working on the session stored on this device. It will be confirmed with the server when the network returns.",
+      clockSkew_one:
+        "This phone's clock differs from the server by {{count}} minute. Scan times are corrected - turn on automatic time in the settings.",
+      clockSkew_other:
+        "This phone's clock differs from the server by {{count}} minutes. Scan times are corrected - turn on automatic time in the settings.",
+      expiredSyncing:
+        "Queued scans are still being sent - the server accepts them for up to 72 hours after the code expired. Do not disconnect the device until the queue is empty.",
     },
 
     modes: {
@@ -375,6 +505,7 @@ export const eventScannerEn = {
       deniedDirection: "Wrong direction",
       deniedCapacity: "At capacity",
       deniedCheckpointInactive: "Checkpoint inactive",
+      replay: "Scan already recorded",
       saved: "Saved",
       printed: "Print recorded",
       unknown: "Unknown result",
@@ -389,6 +520,7 @@ export const eventScannerEn = {
       deniedDirection: "This checkpoint handles the other direction of travel.",
       deniedCapacity: "The checkpoint reached its occupancy limit.",
       deniedCheckpointInactive: "This checkpoint was switched off in the panel.",
+      replay: "The same scan reached the server earlier - nothing was duplicated.",
       previousCheckin: "Previous check-in: {{when}}",
     },
 
@@ -459,6 +591,81 @@ export const eventScannerEn = {
       flushedToast_other: "Sent {{count}} scans from the queue.",
     },
 
+    offline: {
+      rosterFresh_one: "Offline list: {{count}} person, as of {{time}}",
+      rosterFresh_other: "Offline list: {{count}} people, as of {{time}}",
+      rosterStale_one: "The offline list may be out of date: {{count}} person, as of {{time}}",
+      rosterStale_other: "The offline list may be out of date: {{count}} people, as of {{time}}",
+      rosterNone:
+        "The offline list has not been downloaded yet - it will download when the device is online.",
+      rosterSyncing: "Downloading the offline list…",
+      rosterDisabled:
+        "This device has no offline list - without a network scans only wait in the queue.",
+      refresh: "Refresh the list",
+      decisionHint:
+        "Decision from the offline list (as of {{time}}) - the server confirms it when the network returns.",
+      approximateCapacity: "Capacity cannot be checked without a network.",
+      personFromRoster: "Details from the offline list",
+    },
+
+    readiness: {
+      title: "Ready to work offline",
+      shellReady: "The app is stored on the device",
+      shellPartial: "The app is partly stored ({{cached}} of {{total}} files)",
+      shellMissing: "The app is not stored yet - open the scanner once with a good signal",
+      shellChecking: "Checking whether the app is stored…",
+      rosterReady: "Offline list up to date",
+      rosterNotReady: "No up-to-date offline list",
+      rosterDisabled: "Offline list turned off by the organiser",
+      queuePersistent: "The scan queue is stored on the device",
+      queueMemoryOnly: "The scan queue lives only in this tab",
+      storagePersisted: "The browser will not delete scanner data",
+      storageNotPersisted: "The browser may delete scanner data when space runs low",
+      storageUnknown: "This browser does not say whether it keeps scanner data",
+      requestPersist: "Ask for persistent storage",
+      persistGranted: "Scanner data is stored persistently.",
+      persistDenied: "The browser refused persistent storage.",
+    },
+
+    sync: {
+      title: "To clear up with the organiser",
+      conflicts_one: "{{count}} offline decision conflict",
+      conflicts_other: "{{count}} offline decision conflicts",
+      rejected_one: "{{count}} scan rejected by the server",
+      rejected_other: "{{count}} scans rejected by the server",
+      kinds: {
+        admittedOffline: "Admitted offline - the server refuses",
+        deniedOffline: "Refused offline - the server would admit",
+      },
+      hint: "Rejected scans are NOT in the database. Download the file and hand it to the organiser before clearing the list.",
+      exportCsv: "Download CSV",
+      exportJson: "Download JSON",
+      clear: "Clear the list",
+      clearTitle: "Clear the list to clear up?",
+      clearDescription:
+        "Conflicts and rejected scans disappear from this device. Only do this after handing the file to the organiser.",
+      cancel: "Cancel",
+      flushedConflicts_one: "After sending: {{count}} offline decision conflict - check the list to clear up.",
+      flushedConflicts_other: "After sending: {{count}} offline decision conflicts - check the list to clear up.",
+      flushedRejected_one: "{{count}} scan rejected by the server - it is on the list to clear up.",
+      flushedRejected_other: "{{count}} scans rejected by the server - they are on the list to clear up.",
+      columns: {
+        type: "Type",
+        kind: "Kind",
+        scannedAt: "Scan time",
+        checkpoint: "Checkpoint",
+        direction: "Direction",
+        offlineOutcome: "Offline decision",
+        serverResult: "Server result",
+        person: "Person",
+        registrationId: "Registration",
+        code: "Code",
+        reference: "Reference",
+        conflict: "conflict",
+        rejected: "rejected",
+      },
+    },
+
     install: {
       title: "Install the scanner",
       body: "Add the scanner to your home screen - it starts without the address bar and works on a weak signal too.",
@@ -481,6 +688,11 @@ export const eventScannerEn = {
       personNotFound: "This person does not exist in this organisation.",
       templateMissing: "This event has no default badge template.",
       templateNotInEvent: "This badge template belongs to another event.",
+      rosterDisabled: "The organiser turned off the offline list for this device.",
+      rosterThrottled: "The offline list was downloaded a moment ago. Try again in half a minute.",
+      rosterResyncRequired: "The offline list needs a full download from scratch.",
+      deviceTimeOutOfRange:
+        "The scan is older than a week - the server will not accept it. Show it to the organiser.",
       offline: "No network. The scan is queued and goes out when the signal returns.",
       unknown: "Something went wrong. Please try again.",
     },

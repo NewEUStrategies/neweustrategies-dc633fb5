@@ -98,6 +98,10 @@ export const DOMAIN_EVENT_TYPES = [
   "event_scanner_device.issued.v1",
   "event_scanner_device.locked.v1",
   "event_scanner_device.revoked.v1",
+  // Lista offline skanera (20260926150000): pobranie pelnej listy (audyt,
+  // aktor NULL - plaszczyzna urzadzenia) i zmiana zgody administratora.
+  "event_scanner_device.roster_downloaded.v1",
+  "event_scanner_device.offline_changed.v1",
   // Zgloszenia na wydarzenie (migracje 20260823150000 i pozniejsze). NAZWA
   // JEST TRZYCZLONOWA (`event.registration.<czasownik>.v1`) - agregatem jest
   // zgloszenie, a payload niesie `event_id`, wiec inwalidacja schodzi do

@@ -60,6 +60,24 @@ export const CHECKIN_RESULTS = [
 ] as const;
 export type CheckinResult = (typeof CHECKIN_RESULTS)[number];
 
+/**
+ * Wynik decyzji skanera BEZ SIECI (z listy offline) - lustro
+ * `event_checkins_offline_outcome_values` z 20260926150000. Brak
+ * `denied_capacity`: limit obecności offline jest przybliżony i nie odmawia.
+ */
+export const OFFLINE_OUTCOMES = [
+  "granted",
+  "denied_direction",
+  "denied_registration_status",
+  "unknown_code",
+  "repeat",
+] as const;
+export type OfflineOutcome = (typeof OFFLINE_OUTCOMES)[number];
+
+export function isOfflineOutcome(value: string): value is OfflineOutcome {
+  return (OFFLINE_OUTCOMES as readonly string[]).includes(value);
+}
+
 /** Źródła wpisu w dzienniku odpraw. */
 export const CHECKIN_SOURCES = ["qr_code", "manual_entry", "name_search", "self_service"] as const;
 export type CheckinSource = (typeof CHECKIN_SOURCES)[number];
@@ -76,6 +94,10 @@ export type BadgePrintReason = (typeof BADGE_PRINT_REASONS)[number];
 
 export function isCheckinResult(value: string): value is CheckinResult {
   return (CHECKIN_RESULTS as readonly string[]).includes(value);
+}
+
+export function isCheckinDirection(value: string): value is CheckinDirection {
+  return (CHECKIN_DIRECTIONS as readonly string[]).includes(value);
 }
 
 export function isScannerScope(value: string): value is ScannerScope {

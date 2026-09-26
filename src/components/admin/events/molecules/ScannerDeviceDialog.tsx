@@ -12,10 +12,15 @@
 //
 // UPRAWNIENIE `lead` WYMAGA SPONSORA. Skan leada zapisuje zgodę marketingową na
 // czyjąś rzecz - bez wskazanego sponsora nie ma czyjej.
+//
+// LISTA OFFLINE TO ŚWIADOMA DECYZJA Z OSTRZEŻENIEM RODO. Zaznaczenie wysyła na
+// telefon listę uczestników (bez e-maili i telefonów, ze skrótami kodów zamiast
+// kodów), więc pole jest domyślnie puste, stoi obok ostrzeżenia i działa tylko
+// razem z uprawnieniem do odprawy.
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Copy, KeyRound, Link as LinkIcon } from "lucide-react";
+import { Copy, KeyRound, Link as LinkIcon, ShieldAlert } from "lucide-react";
 import QRCode from "qrcode";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -83,6 +88,7 @@ export function ScannerDeviceDialog({
   }, [open]);
 
   const errors = validateScannerDeviceDraft(draft);
+  const hasCheckin = draft.scopes.includes("checkin");
   const errorFor = (field: string): string | null => {
     if (!touched) return null;
     const found = errors.find((error) => error.field === field);
@@ -174,6 +180,33 @@ export function ScannerDeviceDialog({
               error={errorFor("sponsorId")}
               aria-label={t("adminEventOnsite.devices.dialog.sponsor")}
             />
+          </div>
+
+          <div className="space-y-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="device-offline-roster"
+                checked={draft.offlineRoster && hasCheckin}
+                disabled={!hasCheckin}
+                onCheckedChange={(next) =>
+                  setDraft((prev) => ({ ...prev, offlineRoster: next === true }))
+                }
+              />
+              <div className="space-y-1">
+                <Label htmlFor="device-offline-roster" className="text-sm font-medium">
+                  {t("adminEventOnsite.devices.dialog.offlineRoster")}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {hasCheckin
+                    ? t("adminEventOnsite.devices.dialog.offlineRosterHint")
+                    : t("adminEventOnsite.devices.dialog.offlineRosterNeedsCheckin")}
+                </p>
+              </div>
+            </div>
+            <p className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
+              <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              {t("adminEventOnsite.devices.dialog.offlineRosterWarning")}
+            </p>
           </div>
 
           <AdminFormTextRow

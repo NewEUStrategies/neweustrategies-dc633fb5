@@ -196,6 +196,8 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   "event_scanner_device.issued.v1": (event) => onsiteEventKeys(event),
   "event_scanner_device.locked.v1": (event) => onsiteEventKeys(event),
   "event_scanner_device.revoked.v1": (event) => onsiteEventKeys(event),
+  "event_scanner_device.roster_downloaded.v1": (event) => onsiteEventKeys(event),
+  "event_scanner_device.offline_changed.v1": (event) => onsiteEventKeys(event),
   "event_sponsor.published.v1": (event) => sponsorEventKeys(event),
   "event_sponsor.snapshot_refreshed.v1": (event) => sponsorEventKeys(event),
 
