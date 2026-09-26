@@ -41,6 +41,8 @@ import {
   type SponsorTrackerDeps,
 } from "@/lib/events/sponsorTracking";
 import type { SponsorExposureItem } from "@/lib/events/sponsorExposure";
+import { classifyKey } from "@/lib/cookieBanner/registry";
+import { SPONSOR_SESSION_STORAGE_KEY } from "@/lib/storageKeys";
 
 const S = "11111111-1111-4111-8111-111111111111";
 const KEY = "nes-sponsor-session";
@@ -265,5 +267,19 @@ describe("tracker bez jawnych zależności", () => {
     ]);
     tracker.dispose();
     window.sessionStorage.clear();
+  });
+});
+
+describe("deklaracja w banerze zgód", () => {
+  it("klucz sesji pomiaru jest zadeklarowany jako sessionStorage w kategorii MARKETING", () => {
+    // Deklaracja RODO musi mówić prawdę: identyfikator powstaje tylko po zgodzie
+    // marketingowej, więc w banerze stoi pod tą kategorią, a nie jako
+    // „wykryty automatycznie" element niezbędny.
+    expect(SPONSOR_SESSION_STORAGE_KEY.key).toBe(KEY);
+    expect(classifyKey(KEY)).toMatchObject({
+      name: "sponsor_event",
+      category: "marketing",
+      kind: "sessionStorage",
+    });
   });
 });

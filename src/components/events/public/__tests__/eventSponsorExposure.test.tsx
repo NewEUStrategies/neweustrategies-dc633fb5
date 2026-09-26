@@ -61,7 +61,8 @@ const { EventMaterialsSection } =
 const { AgendaSessionCard } =
   await import("@/components/events/public/molecules/AgendaSessionCard");
 const { EventHomeAd } = await import("@/components/events/public/molecules/EventHomeAd");
-const { parseSponsorTiers } = await import("@/lib/events/sponsorsSurface");
+const { parseSponsorMaterials, parseSponsorTiers } = await import("@/lib/events/sponsorsSurface");
+const { publicEventKeys } = await import("@/lib/events/usePublicEvent");
 
 const SP_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const SP_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -636,6 +637,92 @@ describe("reklama na stronie głównej", () => {
     });
     expect(errors).toEqual([]);
     expect(host.querySelector("aside img")?.getAttribute("alt")).toBe("Reklama dd");
+    act(() => root.unmount());
+    host.remove();
+  });
+});
+
+// ------------------------------------------------------------ hydratacja ---
+
+describe("hydratacja powierzchni z pomiarem", () => {
+  function seeded(): QueryClient {
+    const qc = client();
+    qc.setQueryData(
+      publicEventKeys.sponsors("kongres"),
+      parseSponsorTiers([
+        tierWire([sponsorWire(), sponsorWire({ id: SP_B, name: "Beta", url: null })]),
+      ] as never),
+    );
+    qc.setQueryData(
+      publicEventKeys.materials("kongres"),
+      parseSponsorMaterials([
+        {
+          id: MAT,
+          sponsor_id: SP_A,
+          sponsor_name: "Nordwind Analytics",
+          sponsor_logo_url: null,
+          tier_id: null,
+          tier_name_pl: null,
+          tier_name_en: null,
+          tier_rank: 0,
+          title_pl: "Raport rynku",
+          title_en: null,
+          kind: "document",
+          url: "https://cdn.example.org/raport.pdf",
+          sort_order: 0,
+        },
+      ] as never),
+    );
+    return qc;
+  }
+
+  const surfaces = (): ReactElement => (
+    <>
+      <EventSponsorTiers slug="kongres" />
+      <EventSponsorsSection slug="kongres" />
+      <EventMaterialsSection slug="kongres" />
+      {card(
+        agendaSession({
+          sponsor: { id: SP_A, name: "Orlen", logoUrl: null, role: "partner" },
+        }),
+      )}
+    </>
+  );
+
+  it("dostawca pomiaru nie zmienia ani jednego znacznika serwera", () => {
+    const plain = renderToString(
+      <QueryClientProvider client={seeded()}>{surfaces()}</QueryClientProvider>,
+    );
+    const measured = renderToString(
+      <QueryClientProvider client={seeded()}>
+        {tracked(surfaces(), trackerDeps().deps)}
+      </QueryClientProvider>,
+    );
+    expect(measured).toBe(plain);
+    // Treść naprawdę się narysowała - porównanie pustych napisów nie dowodzi niczego.
+    expect(plain).toContain("Nordwind Analytics");
+    expect(plain).toContain("Raport rynku");
+    expect(plain).toContain("Orlen");
+  });
+
+  it("hydratacja z pomiarem przechodzi bez rozjazdu, a obserwatory startują dopiero po niej", async () => {
+    const t = trackerDeps();
+    const view = (
+      <QueryClientProvider client={seeded()}>{tracked(surfaces(), t.deps)}</QueryClientProvider>
+    );
+    const host = document.createElement("div");
+    host.innerHTML = renderToString(view);
+    document.body.append(host);
+    expect(FakeObserver.instances).toEqual([]);
+    const errors: unknown[] = [];
+    let root!: ReturnType<typeof hydrateRoot>;
+    await act(async () => {
+      root = hydrateRoot(host, view, { onRecoverableError: (error) => errors.push(error) });
+    });
+    expect(errors).toEqual([]);
+    // Pas (2), sekcja (2), grupa materiałów (1), znaczek agendy (1).
+    expect(FakeObserver.instances).toHaveLength(6);
+    expect(t.sent).toEqual([]);
     act(() => root.unmount());
     host.remove();
   });

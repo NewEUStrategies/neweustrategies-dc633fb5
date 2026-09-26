@@ -81,14 +81,13 @@ export const Route = createFileRoute("/api/public/ad-event")({
             if (placement) verifiedPlacementId = placementId;
           }
 
-          // `ad_events` is not yet in the generated Supabase types (cast).
           await supabaseAdmin.from("ad_events").insert({
             slot_id: slotId,
             placement_id: verifiedPlacementId,
             kind,
             path,
             tenant_id: tenantId,
-          } as never);
+          });
         } catch {
           // Ingest is best-effort - never error the beacon.
         }

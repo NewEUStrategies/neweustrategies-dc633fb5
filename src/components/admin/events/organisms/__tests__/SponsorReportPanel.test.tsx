@@ -21,6 +21,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { adminEventDetailRow, STUDIO_EVENT_ID } from "@/test/events/adminEventStudioRows";
+import { freezeClock } from "@/test/time";
 import type { ChartConfig } from "@/lib/charts/types";
 import type { LeadExportFile } from "@/lib/events/leadExport";
 import type {
@@ -159,6 +160,10 @@ vi.mock("@/lib/files/spreadsheetWorker", () => ({
 
 const { SponsorReportPanel } =
   await import("@/components/admin/events/organisms/SponsorReportPanel");
+
+// Dni szeregu (czerwiec 2099) i nazwa pliku eksportu (dzień „teraz") liczą się
+// od tej samej, zamrożonej chwili - 15.06.2099, 12:00 UTC.
+freezeClock();
 
 const R = "adminEventSponsorReport";
 const SP_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
