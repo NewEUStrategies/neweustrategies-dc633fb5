@@ -16,7 +16,7 @@
 // PODSUMOWANIE WYNIKU ZYJE W CACHE, NIE W ADRESIE. Po klonie organizator
 // laduje na pulpicie nowej edycji; tam czyta wynik z klucza
 // `["event-clone", noweId, "result"]` wpisanego przez mutacje. Zapytanie
-// nigdy nie idzie do bazy (`enabled: false`) - odswiezenie strony gubi
+// nigdy nie idzie do bazy (`skipToken`) - odswiezenie strony gubi
 // podsumowanie, a to jest wlasciwe: to jest raport z JEDNEJ operacji, a nie
 // stan wydarzenia (stan pokazuje studio).
 //
@@ -24,6 +24,7 @@
 import { useMemo } from "react";
 import {
   keepPreviousData,
+  skipToken,
   useMutation,
   useQuery,
   useQueryClient,
@@ -123,8 +124,8 @@ export function useEventEditions(eventId: string): UseQueryResult<EventEditionRo
 export function useEventCloneResult(eventId: string): EventCloneResult | null {
   const q = useQuery<EventCloneResult | null>({
     queryKey: eventCloneKeys.result(eventId),
-    queryFn: () => Promise.resolve(null),
-    enabled: false,
+    // `skipToken`: zapytanie NIGDY nie idzie do bazy - wpis tworzy mutacja.
+    queryFn: skipToken,
     staleTime: Number.POSITIVE_INFINITY,
   });
   return q.data ?? null;

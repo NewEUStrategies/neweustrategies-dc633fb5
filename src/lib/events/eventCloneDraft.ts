@@ -66,10 +66,15 @@ const TITLE_MAX = 200;
  * Stan adresu `/admin/events/new`: `?from=<uuid>` wlacza tryb kopii. Wszystko
  * inne jest odrzucane - adres przeklejony z literowka nie moze poleciec do RPC
  * jako nie-UUID (odmowa `22P02` nic nie mowi organizatorowi).
+ *
+ * KLUCZ `from` JEST ZAWSZE W WYNIKU (takze jako `undefined`). Router scala
+ * search dziecka z search rodzica, a korzen nie waliduje niczego - pominiety
+ * klucz przepuscilby wiec surowe `?from=nie-uuid` do komponentu. Jawny
+ * `undefined` nadpisuje surowa wartosc.
  */
-export function parseCloneSearch(search: Record<string, unknown>): { from?: string } {
+export function parseCloneSearch(search: Record<string, unknown>): { from: string | undefined } {
   const from = typeof search.from === "string" ? search.from.trim() : "";
-  return UUID_RE.test(from) ? { from: from.toLowerCase() } : {};
+  return { from: UUID_RE.test(from) ? from.toLowerCase() : undefined };
 }
 
 /**

@@ -66,6 +66,8 @@ import {
   adminEventSponsorReportPl,
 } from "@/lib/i18n-admin-event-sponsor-report";
 import { adminEventAdsFunnelEn, adminEventAdsFunnelPl } from "@/lib/i18n-admin-event-ads-funnel";
+import { adminCloneFailure } from "@/lib/events/adminCloneErrors";
+import { adminEventCloneEn, adminEventClonePl } from "@/lib/i18n-admin-event-clone";
 
 /** Klucz ma tekst, gdy w słowniku stoi pod nim NIEPUSTY napis (nie gałąź). */
 function maTekst(slownik: ResourceTree, klucz: string): boolean {
@@ -535,6 +537,34 @@ const KODY_PLANU_SALI = [
   STRAZNIK_TENANTA,
 ] as const;
 
+/**
+ * Klon edycji - `eventCloneApi` (migracja 20260926170000): klon, podglad,
+ * lista edycji i wyszukiwarka zrodla (`admin_events_list`).
+ */
+const KODY_KLONU = [
+  // admin_event_clone - idempotencja komendy
+  "invalid_idempotency_key",
+  "idempotency_conflict",
+  "clone_in_progress",
+  // _event_clone_settings
+  "invalid_code_suffix",
+  "invalid_task_due_days",
+  // _event_clone_resolve
+  "invalid_source",
+  "not_found",
+  "invalid_timezone",
+  "invalid_starts_at",
+  "invalid_ends_at",
+  // admin_event_clone - pola nowej edycji i okno sesji
+  "invalid_titles",
+  "invalid_slug",
+  "slug_taken",
+  "external_url_required",
+  "external_url_invalid",
+  "clone_sessions_outside_window",
+  STRAZNIK_TENANTA,
+] as const;
+
 interface BramkowanaMapa {
   nazwa: string;
   prefix: string;
@@ -678,6 +708,17 @@ const MAPY: readonly BramkowanaMapa[] = [
     en: eventInvoicesEn,
     moduly: ["myEventInvoicesApi"],
     interpoluje: false,
+  },
+  {
+    nazwa: "adminCloneErrors",
+    prefix: "adminEventClone.errors.",
+    klucz: (error) => adminCloneFailure(error).key,
+    kody: KODY_KLONU,
+    nakladka: "src/lib/i18n-admin-event-clone.ts",
+    pl: adminEventClonePl,
+    en: adminEventCloneEn,
+    moduly: ["eventCloneApi"],
+    interpoluje: true,
   },
   {
     nazwa: "adminSeatingErrors",
