@@ -19,9 +19,7 @@ export const adminEventSponsorReportPl = {
     consentNote:
       "Mierzymy wyłącznie odwiedzających, którzy zgodzili się na pomiar marketingowy. Wyświetlenie to element sponsora widoczny co najmniej w połowie przez sekundę; wartości unikalne liczą jedną sesję raz dziennie (w strefie wydarzenia).",
     loading: "Wczytywanie raportu…",
-    loadError: "Nie udało się wczytać raportu. Spróbuj ponownie.",
     empty: "To wydarzenie nie ma jeszcze przypiętych sponsorów.",
-    noData: "Brak danych w wybranym zakresie.",
     filters: {
       label: "Filtry raportu",
       from: "Od dnia",
@@ -136,6 +134,7 @@ export const adminEventSponsorReportPl = {
       confirmBody:
         "Kontakty dostaną tagi wydarzenia i sponsora. Nowych kontaktów nie zakładamy bez zgody marketingowej.",
       confirmAction: "Przenieś",
+      leadsLink: "Kontakty zebrane na stoiskach",
       done: "Przeniesiono: nowe {{created}}, zaktualizowane {{updated}}, pominięte {{skipped}}.",
       failedSome_one: "{{count}} osoby nie udało się przenieść - spróbuj ponownie.",
       failedSome_few: "{{count}} osób nie udało się przenieść - spróbuj ponownie.",
@@ -209,10 +208,6 @@ export const adminEventSponsorReportPl = {
       empty: "Firma nie sponsorowała jeszcze żadnego wydarzenia.",
       loadError: "Nie udało się wczytać historii sponsoringu.",
       unpublished: "nieopublikowany",
-      views: "Wyśw.",
-      clicks: "Klik.",
-      leads: "Kontakty",
-      meetings: "Spotk.",
       openReport: "Otwórz raport sponsora: {{title}}",
       metrics:
         "Wyświetlenia {{views}}, kliknięcia {{clicks}}, kontakty {{leads}} (ze zgodą {{consented}}), spotkania {{meetings}}",
@@ -241,9 +236,7 @@ export const adminEventSponsorReportEn = {
     consentNote:
       "Only visitors who agreed to marketing measurement are counted. An impression is a sponsor element at least half visible for one second; unique values count one session once a day (in the event time zone).",
     loading: "Loading the report…",
-    loadError: "The report could not be loaded. Try again.",
     empty: "This event has no sponsors pinned yet.",
-    noData: "No data in the selected range.",
     filters: {
       label: "Report filters",
       from: "From day",
@@ -358,6 +351,7 @@ export const adminEventSponsorReportEn = {
       confirmBody:
         "Contacts get the event and sponsor tags. No new contact is created without marketing consent.",
       confirmAction: "Move",
+      leadsLink: "Contacts collected at the booths",
       done: "Moved: new {{created}}, updated {{updated}}, skipped {{skipped}}.",
       failedSome_one: "{{count}} person could not be moved - try again.",
       failedSome_other: "{{count}} people could not be moved - try again.",
@@ -430,10 +424,6 @@ export const adminEventSponsorReportEn = {
       empty: "The company has not sponsored any event yet.",
       loadError: "The sponsorship history could not be loaded.",
       unpublished: "unpublished",
-      views: "Impr.",
-      clicks: "Clicks",
-      leads: "Contacts",
-      meetings: "Meet.",
       openReport: "Open the sponsor report: {{title}}",
       metrics:
         "Impressions {{views}}, clicks {{clicks}}, contacts {{leads}} (with consent {{consented}}), meetings {{meetings}}",

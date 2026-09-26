@@ -123,18 +123,19 @@ export function useSponsorImpression(
 
     let timer: ReturnType<typeof setTimeout> | null = null;
     let inView = false;
-    // Zaliczone wyświetlenie zamyka pomiar na ten montaż - także wobec
-    // powiadomienia, które obserwator zdążył ustawić w kolejce przed `disconnect`.
-    let counted = false;
+    // Zaliczone wyświetlenie (albo sprzątnięty efekt) zamyka pomiar na ten
+    // montaż - także wobec powiadomienia, które obserwator zdążył ustawić
+    // w kolejce przed `disconnect`.
+    let closed = false;
     const stop = () => {
       if (timer !== null) clearTimeout(timer);
       timer = null;
     };
     const arm = () => {
-      if (counted || timer !== null || !inView || document.visibilityState !== "visible") return;
+      if (closed || timer !== null || !inView || document.visibilityState !== "visible") return;
       timer = setTimeout(() => {
         timer = null;
-        counted = true;
+        closed = true;
         observer.disconnect();
         document.removeEventListener("visibilitychange", onVisibility);
         handle.track({ sponsorId, placement, kind: "view", materialId, homeAdId });
@@ -157,6 +158,7 @@ export function useSponsorImpression(
     observer.observe(element);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
+      closed = true;
       stop();
       observer.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);

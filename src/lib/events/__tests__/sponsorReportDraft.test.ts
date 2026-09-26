@@ -126,6 +126,6 @@ describe("wersja robocza linku", () => {
       { sponsorId: "s", label: "L", expiresOn: "2099-12-12", includeLeads: false },
       NOW,
     );
-    expect(Date.parse(clamped.expiresAt)).toBe(NOW + SPONSOR_LINK_MAX_DAYS * DAY - 60_000);
+    expect(Date.parse(clamped.expiresAt ?? "")).toBe(NOW + SPONSOR_LINK_MAX_DAYS * DAY - 60_000);
   });
 });

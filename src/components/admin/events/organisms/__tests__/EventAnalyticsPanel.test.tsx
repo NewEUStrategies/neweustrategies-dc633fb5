@@ -482,6 +482,16 @@ describe("EventAnalyticsPanel - drogowskaz do ruchu na stronie", () => {
     expect(screen.getByText(`${A}siteTrafficDescription`)).toBeInTheDocument();
   });
 
+  it("raport dla sponsorow ma wlasny ekran - pulpit prowadzi do niego odnosnikiem", async () => {
+    planujKomplet(stub());
+    panel();
+
+    await poczekajNaKomplet();
+    const link = screen.getByRole("link", { name: "adminEventSponsorReport.navLink.open" });
+    expect(link.getAttribute("href")).toBe(`/admin/events/${EVENT_ID}/sponsor-report`);
+    expect(screen.getByText("adminEventSponsorReport.navLink.analyticsDescription")).toBeTruthy();
+  });
+
   it("naglowek ekranu to ETYKIETA SEKCJI ze sidebara, nie wlasny napis", async () => {
     planujKomplet(stub());
     panel();

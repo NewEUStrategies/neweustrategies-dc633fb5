@@ -50,7 +50,7 @@ export async function buildSponsorReportExport(
     return {
       fileName: leadExportFileName(options.prefix, options.nowIso, "csv"),
       mimeType: "text/csv;charset=utf-8",
-      data: `﻿${toCsv(headers, rows)}`,
+      data: `\uFEFF${toCsv(headers, rows)}`,
     };
   }
   const bytes = await writeSpreadsheetInWorker(options.sheetName, [

@@ -46,7 +46,7 @@ function viewportVariant(): HomeAdVariant {
 }
 
 /** Wariant reklamy po hydratacji; `null` na serwerze i w pierwszym renderze. */
-export function useHomeAdVariant(): HomeAdVariant | null {
+function useHomeAdVariant(): HomeAdVariant | null {
   return useSyncExternalStore(subscribeViewport, viewportVariant, () => null);
 }
 

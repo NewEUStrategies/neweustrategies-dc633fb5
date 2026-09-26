@@ -22,10 +22,15 @@ interface SponsorReportSearch {
 }
 
 export const Route = createFileRoute("/admin/events_/$eventId/sponsor-report")({
-  validateSearch: (search: Record<string, unknown>): SponsorReportSearch =>
-    typeof search.sponsor === "string" && UUID_PATTERN.test(search.sponsor)
-      ? { sponsor: search.sponsor }
-      : {},
+  // Klucz wraca ZAWSZE, także jako `undefined`: router składa search z surowego
+  // adresu i wyniku walidatora (`{...surowy, ...zwalidowany}`), więc pominięty
+  // klucz przepuściłby surową wartość `?sponsor=` do komponentu.
+  validateSearch: (search: Record<string, unknown>): SponsorReportSearch => ({
+    sponsor:
+      typeof search.sponsor === "string" && UUID_PATTERN.test(search.sponsor)
+        ? search.sponsor
+        : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Sponsor report · Event · Admin" },

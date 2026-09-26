@@ -562,7 +562,7 @@ export function SponsorReportPanel({
             params={{ eventId }}
             className="text-sm text-primary hover:underline"
           >
-            {t("adminEventSponsorReport.kpi.leads")}
+            {t("adminEventSponsorReport.crm.leadsLink")}
           </Link>
         </div>
       </EventStudioRow>

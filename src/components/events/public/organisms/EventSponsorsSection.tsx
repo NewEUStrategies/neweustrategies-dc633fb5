@@ -197,9 +197,9 @@ function SponsorTile({
   const body = (
     <>
       {/* LOGOTYP JEST OZDOBĄ, PODPIS JEST TREŚCIĄ. `SponsorLogo` bez adresu
-                  degraduje do NAZWY firmy, a nazwa stoi już w podpisie kafla - bez
-                  `aria-hidden` partner bez logotypu byłby czytany dwa razy pod rząd.
-                  Ta sama reguła co w pasie na stronie głównej (`SponsorTierLogo`). */}
+          degraduje do NAZWY firmy, a nazwa stoi już w podpisie kafla - bez
+          `aria-hidden` partner bez logotypu byłby czytany dwa razy pod rząd.
+          Ta sama reguła co w pasie na stronie głównej (`SponsorTierLogo`). */}
       <span aria-hidden="true" className="contents">
         <SponsorLogo name={sponsor.name} logoUrl={sponsor.logoUrl} size={logoSize} />
       </span>
