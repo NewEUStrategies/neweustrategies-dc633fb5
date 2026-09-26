@@ -820,6 +820,39 @@ function leadResult(): LeadScanResult {
   };
 }
 
+describe("odmowa poświadczenia przy skanie na żywo", () => {
+  it("unieważnione poświadczenie przy odprawie: błąd do operatora I lista znika z telefonu", async () => {
+    const { result } = await withRoster();
+    api.recordCheckinScan.mockRejectedValue(new Error("device_revoked: gone"));
+    let caught: unknown;
+    await act(async () => {
+      await result.current
+        .submitCheckin({ code: CODE, checkpointId: CP, direction: "in" })
+        .catch((error: unknown) => {
+          caught = error;
+        });
+    });
+    expect(String(caught)).toContain("device_revoked");
+    expect(result.current.status).toBe("idle");
+    expect(result.current.roster.count).toBe(0);
+    expect(store.wipes).toBeGreaterThan(0);
+  });
+
+  it("wygasłe poświadczenie przy leadzie: ekran „wygasło”, kolejka zostaje do wysyłki", async () => {
+    api.bootstrapScanner.mockResolvedValue(session({ offlineRoster: false }));
+    api.recordLeadScan.mockRejectedValue(new Error("device_expired: past"));
+    const { result } = render();
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    await act(async () => {
+      await result.current
+        .submitLead({ code: CODE, note: null, interestRating: null })
+        .catch(() => undefined);
+    });
+    expect(result.current.status).toBe("expired");
+    expect(device.token).toBe(TOKEN);
+  });
+});
+
 /* ------------------------------------------------------- synchronizacja --- */
 
 describe("wysyłka kolejki: konflikty i odrzucone", () => {

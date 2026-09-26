@@ -831,11 +831,17 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
       } catch (error: unknown) {
         // Odmowa poświadczenia albo błąd ładunku nie stanie się poprawna po
         // odczekaniu - podajemy ją operatorowi zamiast chować w kolejce.
-        if (invalidatesSession(error) || !isRetryableScanError(error)) throw error;
+        // Odmowa POŚWIADCZENIA dodatkowo kończy sesję: lista osób znika
+        // z telefonu od razu, a nie dopiero przy następnej wysyłce kolejki.
+        if (invalidatesSession(error)) {
+          credentialFailed(error);
+          throw error;
+        }
+        if (!isRetryableScanError(error)) throw error;
         return queueWithDecision();
       }
     },
-    [queue, decideLocally, logGrant],
+    [queue, decideLocally, logGrant, credentialFailed],
   );
 
   const submitLead = useCallback(
@@ -879,12 +885,16 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         );
         return { queued: false, result };
       } catch (error: unknown) {
-        if (invalidatesSession(error) || !isRetryableScanError(error)) throw error;
+        if (invalidatesSession(error)) {
+          credentialFailed(error);
+          throw error;
+        }
+        if (!isRetryableScanError(error)) throw error;
         queue(item);
         return { queued: true, local: null };
       }
     },
-    [queue],
+    [queue, credentialFailed],
   );
 
   return {

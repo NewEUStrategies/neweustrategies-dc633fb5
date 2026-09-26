@@ -803,7 +803,8 @@ BEGIN
       RAISE EXCEPTION 'roster_resync_required: start a new full roster download';
     END IF;
   ELSIF v_device.roster_downloaded_at IS NULL
-     OR v_since < v_device.roster_downloaded_at - interval '1 second' THEN
+     OR v_since < v_device.roster_downloaded_at - interval '1 second'
+     OR v_device.roster_downloaded_at < now() - interval '6 hours' THEN
     RAISE EXCEPTION 'roster_resync_required: the delta cursor is older than the last full download';
   END IF;
 
@@ -1096,6 +1097,10 @@ DECLARE
 BEGIN
   IF v_id IS NULL THEN
     RAISE EXCEPTION 'invalid_payload: device_id is required';
+  END IF;
+
+  IF NOT (p_payload ? 'offline_roster') THEN
+    RAISE EXCEPTION 'invalid_payload: offline_roster is required';
   END IF;
 
   SELECT d.* INTO v_row

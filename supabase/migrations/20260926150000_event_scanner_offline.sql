@@ -82,7 +82,11 @@
 --     blokada wiersza), kolejne strony tylko do 10 min od startu pelnego
 --     pobrania, delta tylko od chwili ostatniego pelnego pobrania - obejscie
 --     audytu "delta od 1970" albo "strona od zera" konczy sie
---     `roster_resync_required:`.
+--     `roster_resync_required:`;
+--   * pelne pobranie co najmniej co 6 godzin (starsza baza delty =
+--     `roster_resync_required:`) - delta widzi zmiany zapisow, ale nie widzi
+--     wierszy USUNIETYCH kaskadowo (np. usuniecie osoby na zadanie RODO);
+--     pelna lista je wycina najpozniej po 6 godzinach.
 --   Z3 (okno blokady): skan z kolejki (`queued` albo z decyzja offline)
 --   z nieznanym kodem podnosi WYLACZNIE monotoniczny `failed_scan_count`.
 --   Inaczej urzadzenie, ktore godzine pracowalo bez sieci i trafilo na 25
@@ -91,6 +95,12 @@
 --   ja ustawi: blokada nigdy nie byla obrona kryptograficzna (tokeny maja
 --   192 bity), tylko hamulcem; licznik monotoniczny w panelu zostaje
 --   sygnalem proby zgadywania, a skan na zywo nadal liczy sie do okna.
+--   Okno 72 h po terminie: czas skanu DEKLARUJE urzadzenie, wiec przechwycone
+--   poswiadczenie moze przez 72 h dopisywac skany z czasem wstecznym sprzed
+--   terminu. Swiadomy koszt synchronizacji kolejki; mitygacje: uniewaznienie
+--   (i pauza) dzialaja natychmiast i bez okna, lista offline i konfiguracja
+--   skanera sa po terminie niedostepne, a wpisy maja `scanned_at` serwera
+--   (widoczny w dzienniku obok czasu urzadzenia).
 --
 -- REGULY KONFLIKTOW (skan offline vs wynik serwera po synchronizacji)
 --   | przypadek                                  | offline | serwer           | zapis / pokaz                   |
@@ -932,7 +942,8 @@ BEGIN
       RAISE EXCEPTION 'roster_resync_required: start a new full roster download';
     END IF;
   ELSIF v_device.roster_downloaded_at IS NULL
-     OR v_since < v_device.roster_downloaded_at - interval '1 second' THEN
+     OR v_since < v_device.roster_downloaded_at - interval '1 second'
+     OR v_device.roster_downloaded_at < now() - interval '6 hours' THEN
     RAISE EXCEPTION 'roster_resync_required: the delta cursor is older than the last full download';
   END IF;
 
@@ -1225,6 +1236,10 @@ DECLARE
 BEGIN
   IF v_id IS NULL THEN
     RAISE EXCEPTION 'invalid_payload: device_id is required';
+  END IF;
+
+  IF NOT (p_payload ? 'offline_roster') THEN
+    RAISE EXCEPTION 'invalid_payload: offline_roster is required';
   END IF;
 
   SELECT d.* INTO v_row

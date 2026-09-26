@@ -504,6 +504,24 @@ SELECT pg_temp.assert_raises_like($q$
 $q$, 'roster_resync_required',
   '51/delta: "delta od 1970" (obejscie audytu) wymaga pelnego pobrania');
 
+-- Pelne pobranie starsze niz 6 h: delta nie widzi wierszy usunietych
+-- kaskadowo (RODO), wiec baza wymusza pelna liste.
+DO $$
+DECLARE v_prev timestamptz;
+BEGIN
+  SELECT roster_downloaded_at INTO v_prev FROM public.event_scanner_devices
+   WHERE id = '51d10000-0000-0000-0000-000000000001';
+  UPDATE public.event_scanner_devices SET roster_downloaded_at = now() - interval '7 hours'
+   WHERE id = '51d10000-0000-0000-0000-000000000001';
+  PERFORM pg_temp.assert_raises_like($q$
+    SELECT public.event_scanner_roster(jsonb_build_object(
+      'device_token', 'tok51-offline-000001', 'since', now() - interval '1 minute'))
+  $q$, 'roster_resync_required',
+    '51/delta: po 6 godzinach od pelnego pobrania delta wymaga pelnej listy');
+  UPDATE public.event_scanner_devices SET roster_downloaded_at = v_prev
+   WHERE id = '51d10000-0000-0000-0000-000000000001';
+END $$;
+
 -- IZOLACJA NAJEMCY: lista urzadzenia B zna tylko zapisy najemcy B.
 DO $$
 DECLARE v jsonb;
@@ -851,6 +869,12 @@ SELECT pg_temp.assert_raises_like($q$
   SELECT public.admin_event_scanner_device_set_offline('{}'::jsonb)
 $q$, 'invalid_payload',
   '51/panel: bez device_id jest blad ladunku');
+
+SELECT pg_temp.assert_raises_like($q$
+  SELECT public.admin_event_scanner_device_set_offline(jsonb_build_object(
+    'device_id', '51d10000-0000-0000-0000-000000000002'))
+$q$, 'offline_roster is required',
+  '51/panel: brak jawnej wartosci zgody NIE wylacza listy po cichu - jest bledem ladunku');
 
 DO $$
 DECLARE v_row record;
