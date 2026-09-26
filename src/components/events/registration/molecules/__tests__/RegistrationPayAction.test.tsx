@@ -29,7 +29,11 @@ const navigate = vi.fn();
 const auth = vi.hoisted(() => ({
   session: { user: { id: "u-1" } } as { user: { id: string } } | null,
 }));
-const memory = vi.hoisted(() => ({ code: "" }));
+const memory = vi.hoisted(() => ({
+  code: "",
+  access: "",
+  remembered: [] as Array<[string, string, string]>,
+}));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 
@@ -56,7 +60,13 @@ vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ session: auth.session }) }
 
 vi.mock("@/lib/stripe", () => ({ getStripeEnvironment: () => "sandbox" }));
 
-vi.mock("@/lib/events/eventCodeMemory", () => ({ recallEventCode: () => memory.code }));
+vi.mock("@/lib/events/eventCodeMemory", () => ({
+  recallEventCode: () => memory.code,
+  recallAccessCodeHint: () => memory.access,
+  rememberTicketAccessCode: (eventId: string, ticketTypeId: string, code: string) => {
+    memory.remembered.push([eventId, ticketTypeId, code]);
+  },
+}));
 
 // Modal operatora: przyciski udają zamknięcie i ponowne otwarcie ramki.
 vi.mock("@/components/checkout/LazyEmbeddedCheckoutDialog", () => ({
@@ -147,6 +157,8 @@ beforeEach(() => {
   quote.mockResolvedValue(quoteResult());
   auth.session = { user: { id: "u-1" } };
   memory.code = "";
+  memory.access = "";
+  memory.remembered = [];
 });
 
 describe("RegistrationPayAction - rozbicie kwoty z podglądu kasy", () => {
@@ -671,5 +683,203 @@ describe("RegistrationPayAction - bez sesji i cudze zgłoszenie", () => {
     renderAction({ eventId: null });
 
     expect(promoInput().value).toBe("");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// KOD DOSTĘPU WEJŚCIÓWKI (`access_code_hash`). Kasa pyta o niego tak samo jak
+// zapis - do tej naprawy molekuła go nie wysyłała i zgłoszenie przyjęte
+// z kodem kończyło się w kasie odmową `ticket_access_code_invalid`.
+// ---------------------------------------------------------------------------
+describe("RegistrationPayAction - kod dostępu wejściówki", () => {
+  const ACCESS_LABEL = "eventRegistration.payment.accessCodeLabel";
+  const ACCESS_APPLY = "eventRegistration.payment.accessCodeApply";
+  const REFUSED = "eventPackages.quoteReasons.access_code_invalid";
+
+  it("kod z pamięci karty jedzie do podglądu i do kasy pod `access_code`", async () => {
+    memory.access = "PARTNER";
+    checkout.mockResolvedValue({ ok: true, mode: "stripe", clientSecret: "cs_1", orderId: "o-1" });
+    renderAction();
+
+    await waitFor(() =>
+      expect(quote).toHaveBeenLastCalledWith({
+        data: {
+          event_id: EVENT_ID,
+          ticket_type_id: TICKET_ID,
+          registration_id: REGISTRATION_ID,
+          access_code: "PARTNER",
+        },
+      }),
+    );
+    click(PAY);
+    await waitFor(() => expect(checkout).toHaveBeenCalledTimes(1));
+    expect(checkout.mock.calls[0]?.[0].data).toMatchObject({ access_code: "PARTNER" });
+    expect(screen.queryByText(ACCESS_LABEL)).not.toBeInTheDocument();
+  });
+
+  it("bez kodu w pamięci klucz nie jedzie wcale - bilet bez kodu go nie potrzebuje", async () => {
+    checkout.mockResolvedValue({ ok: true, mode: "stripe", clientSecret: "cs_1", orderId: "o-1" });
+    renderAction();
+    await waitFor(() => expect(quote).toHaveBeenCalled());
+    expect(quote.mock.calls.at(-1)?.[0].data).not.toHaveProperty("access_code");
+    click(PAY);
+    await waitFor(() => expect(checkout).toHaveBeenCalledTimes(1));
+    expect(checkout.mock.calls[0]?.[0].data).not.toHaveProperty("access_code");
+  });
+
+  it("zdjęcie kuponu z pamięci NIE zdejmuje kodu dostępu", async () => {
+    memory.code = "ODSLON";
+    memory.access = "PARTNER";
+    quote.mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+      Promise.resolve(
+        data.coupon_code === undefined ? quoteResult() : quoteResult({ couponError: "not_found" }),
+      ),
+    );
+    checkout.mockResolvedValue({ ok: true, mode: "stripe", clientSecret: "cs_1", orderId: "o-1" });
+    renderAction();
+
+    expect(
+      await screen.findByText("eventRegistration.payment.promoRememberedDropped(code=ODSLON)"),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(quote).toHaveBeenLastCalledWith({
+        data: {
+          event_id: EVENT_ID,
+          ticket_type_id: TICKET_ID,
+          registration_id: REGISTRATION_ID,
+          access_code: "PARTNER",
+        },
+      }),
+    );
+    click(PAY);
+    await waitFor(() => expect(checkout).toHaveBeenCalledTimes(1));
+    expect(checkout.mock.calls[0]?.[0].data).toMatchObject({ access_code: "PARTNER" });
+    expect(checkout.mock.calls[0]?.[0].data).not.toHaveProperty("coupon_code");
+  });
+
+  it("odmowa podglądu za brak kodu odsłania pole; wpisany kod trafia do podglądu i pamięci", async () => {
+    quote.mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+      data.access_code === "PARTNER"
+        ? Promise.resolve(quoteResult())
+        : Promise.reject(new Error("ticket_access_code_invalid")),
+    );
+    renderAction();
+
+    expect(await screen.findByText(REFUSED)).toBeInTheDocument();
+    const input = screen.getByLabelText(ACCESS_LABEL);
+    fireEvent.change(input, { target: { value: " partner " } });
+    expect(input).toHaveValue(" PARTNER ");
+    click(ACCESS_APPLY);
+
+    await waitFor(() => expect(screen.queryByText(REFUSED)).not.toBeInTheDocument());
+    expect(quote).toHaveBeenLastCalledWith({
+      data: {
+        event_id: EVENT_ID,
+        ticket_type_id: TICKET_ID,
+        registration_id: REGISTRATION_ID,
+        access_code: "PARTNER",
+      },
+    });
+    expect(memory.remembered).toEqual([[EVENT_ID, TICKET_ID, "PARTNER"]]);
+    expect(screen.queryByText(ACCESS_LABEL)).not.toBeInTheDocument();
+  });
+
+  it("odmowa kasy za zły kod pokazuje pole wypełnione kodem z pamięci; ten sam kod ponawia podgląd", async () => {
+    memory.access = "STARY";
+    checkout.mockRejectedValue(new Error("ticket_access_code_invalid"));
+    renderAction();
+    // Pierwszy podgląd rusza przed odczytem pamięci - liczymy od stanu z kodem.
+    await waitFor(() =>
+      expect(quote.mock.calls.at(-1)?.[0].data).toMatchObject({ access_code: "STARY" }),
+    );
+    const settled = quote.mock.calls.length;
+
+    click(PAY);
+    expect(await screen.findByText(REFUSED)).toBeInTheDocument();
+    expect(screen.getByLabelText(ACCESS_LABEL)).toHaveValue("STARY");
+
+    click(ACCESS_APPLY);
+    await waitFor(() => expect(quote).toHaveBeenCalledTimes(settled + 1));
+    expect(screen.queryByText(REFUSED)).not.toBeInTheDocument();
+    expect(memory.remembered).toEqual([[EVENT_ID, TICKET_ID, "STARY"]]);
+  });
+
+  it("bez kompletu identyfikatorów nie czyta pamięci kodu dostępu", async () => {
+    memory.access = "PARTNER";
+    renderAction({ ticketTypeId: null });
+    expect(quote).not.toHaveBeenCalled();
+    expect(screen.queryByText(ACCESS_LABEL)).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BENEFIT PLANU MA JEDNO MIEJSCE: członka. Rozbicie mówi osobno o jego miejscu
+// i o gościach - „3 × cena" byłoby nieprawdą dla któregoś z miejsc.
+// ---------------------------------------------------------------------------
+describe("RegistrationPayAction - benefit planu w rozbiciu", () => {
+  it("zniżka członka: „Twoje miejsce: 50 zł”, „Goście: 2 × 100 zł”, bez wiersza miejsc", async () => {
+    quote.mockResolvedValue(
+      quoteResult({
+        seats: 3,
+        leadUnitCents: 5000,
+        planBenefit: "discount",
+        subtotalCents: 25000,
+        totalCents: 25000,
+      }),
+    );
+    renderAction();
+
+    expect(
+      await screen.findByText("eventRegistration.payment.quoteLeadSeat(unit=50,00 zł)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("eventRegistration.payment.quoteGuestSeats(count=2,unit=100,00 zł)"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/quoteSeats/)).not.toBeInTheDocument();
+    expect(
+      screen.getByText("eventRegistration.payment.amountDue(amount=250,00 zł)"),
+    ).toBeInTheDocument();
+  });
+
+  it("bilet z puli: „Twoje miejsce: bilet z planu” i sami goście do zapłaty", async () => {
+    quote.mockResolvedValue(
+      quoteResult({
+        seats: 2,
+        leadUnitCents: 0,
+        planBenefit: "included",
+        subtotalCents: 10000,
+        totalCents: 10000,
+      }),
+    );
+    renderAction();
+
+    expect(
+      await screen.findByText("eventRegistration.payment.quoteLeadIncluded"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("eventRegistration.payment.quoteGuestSeats(count=1,unit=100,00 zł)"),
+    ).toBeInTheDocument();
+  });
+
+  it("jedno miejsce z benefitem - bez wierszy miejsc, sama kwota", async () => {
+    quote.mockResolvedValue(
+      quoteResult({ leadUnitCents: 5000, planBenefit: "discount", totalCents: 5000 }),
+    );
+    renderAction();
+
+    expect(
+      await screen.findByText("eventRegistration.payment.amountDue(amount=50,00 zł)"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/quoteLead|quoteGuestSeats|quoteSeats/)).not.toBeInTheDocument();
+  });
+
+  it("grupa bez benefitu (albo starszy serwer bez pola) - jeden wiersz „3 × cena”", async () => {
+    quote.mockResolvedValue(quoteResult({ seats: 3, planBenefit: null, totalCents: 30000 }));
+    renderAction();
+
+    expect(
+      await screen.findByText("eventRegistration.payment.quoteSeats(count=3,unit=100,00 zł)"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/quoteLead|quoteGuestSeats/)).not.toBeInTheDocument();
   });
 });

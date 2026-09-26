@@ -46,13 +46,16 @@ import {
 } from "@/lib/events/publicRegistrationApi";
 import { registrationErrorMessage } from "@/lib/events/publicRegistrationErrors";
 import {
+  draftAccessCode,
   draftAnswers,
   draftOptionalText,
   emptyRegistrationDraft,
   validateRegistrationDraft,
+  withRememberedAccessCode,
   type RegistrationDraft,
   type RegistrationDraftError,
 } from "@/lib/events/registrationSubmitDraft";
+import { recallAccessCodeHint, rememberTicketAccessCode } from "@/lib/events/eventCodeMemory";
 import { GroupGuestsEditor } from "@/components/events/registration/GroupGuestsEditor";
 import {
   GROUP_SIZE_DEFAULT,
@@ -146,6 +149,22 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
     });
   }, [user, hasDraft]);
 
+  // KOD DOSTĘPU Z PAMIĘCI KARTY. Wejściówka za kodem (`requiresAccessCode`)
+  // odmawia zapisu bez niego, a uczestnik z linku zaproszenia (`?code=`) ma go
+  // już w pamięci - pole wypełniamy, ale nie blokujemy: czy kod pasuje, wie
+  // tylko baza. Zmiana biletu ponawia próbę dla nowej wejściówki.
+  const codeEventId = form.event?.id ?? "";
+  const gatedTicketId =
+    draft !== null &&
+    form.tickets.some((ticket) => ticket.id === draft.ticketTypeId && ticket.requiresAccessCode)
+      ? draft.ticketTypeId
+      : null;
+  useEffect(() => {
+    if (gatedTicketId === null) return;
+    const remembered = recallAccessCodeHint(codeEventId, gatedTicketId);
+    setDraft((current) => withRememberedAccessCode(current, remembered));
+  }, [codeEventId, gatedTicketId]);
+
   const errorOf = useMemo(() => {
     const map = new Map<string, string>();
     for (const entry of errors) {
@@ -184,6 +203,7 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
       groupGuests: GroupGuest[];
       groupMaxSize: number;
     }) => {
+      const access = draftAccessCode(current, form);
       const registered = await submitRegistration({
         eventSlug: slug,
         firstName: current.firstName.trim(),
@@ -194,12 +214,18 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
         companyText: draftOptionalText(current.companyText),
         socialProfileUrl: draftOptionalText(current.socialProfileUrl),
         ticketTypeId: current.ticketTypeId,
+        accessCode: access === null ? undefined : access.code,
         answers: draftAnswers(current, form),
         acceptedTermIds: current.acceptedTermIds,
         consentDataProcessing: current.consentDataProcessing,
         consentMarketing: current.consentMarketing,
         consentPartnerSharing: current.consentPartnerSharing,
       });
+      // Baza przyjęła zapis z tym kodem - kasa zgłoszenia (ekran potwierdzenia)
+      // zapyta `event_ticket_checkout_quote` o TEN SAM kod.
+      if (access !== null) {
+        rememberTicketAccessCode(access.eventId, access.ticketTypeId, access.code);
+      }
       // Goście grupy dochodzą do zgłoszenia prowadzącego; płatność obejmie
       // wszystkie miejsca jednym zamówieniem, a każdy dostanie własny kod QR.
       if (groupGuests.length > 0) {
@@ -339,6 +365,7 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
       : (form.tickets.find((ticket) => ticket.id === current.ticketTypeId) ?? null);
   const paidTicketNeedsAccount =
     user === null && selectedTicket !== null && selectedTicket.effectivePriceCents > 0;
+  const accessCodeRequired = selectedTicket !== null && selectedTicket.requiresAccessCode;
   const groupEnabled = selectedTicket !== null && selectedTicket.groupRegistrationEnabled;
   // Limit grupy pochodzi z biletu (ten sam, który egzekwuje baza). Po zmianie
   // biletu na mniejszy nadmiarowi goście nie jadą do zapisu - baza i tak
@@ -454,8 +481,24 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
             eventId={form.event.id}
             onChange={(ticketId) => patch({ ticketTypeId: ticketId })}
           />
+          {/* KOD DOSTĘPU WYBRANEJ WEJŚCIÓWKI. Karta biletu mówi, skąd go wziąć
+              (podpowiedź organizatora); bez pola kod nie miał jak dojść do
+              `event_register`, a zapis kończył się odmową `invalid_access_code`. */}
+          {accessCodeRequired && (
+            <FieldBox
+              label={t("eventRegistration.fields.accessCode")}
+              required
+              autoComplete="off"
+              spellCheck={false}
+              maxLength={64}
+              className="max-w-md uppercase"
+              value={current.accessCode}
+              invalid={errorOf.has("accessCode")}
+              onChange={(event) => patch({ accessCode: event.target.value.toUpperCase() })}
+            />
+          )}
           <FieldErrors
-            messages={[errorOf.get("ticketTypeId")].filter(
+            messages={[errorOf.get("ticketTypeId"), errorOf.get("accessCode")].filter(
               (entry): entry is string => entry !== undefined,
             )}
           />

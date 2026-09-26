@@ -29,6 +29,7 @@ export const eventRegistrationPl = {
       jobTitle: "Stanowisko",
       company: "Instytucja lub firma",
       socialProfile: "Profil zawodowy (https://)",
+      accessCode: "Kod dostępu do wejściówki",
     },
     labels: {
       required: "Pole obowiązkowe",
@@ -186,6 +187,10 @@ export const eventRegistrationPl = {
         "Kod kwotowy schodzi z każdego miejsca w zamówieniu - kwotę po rabacie pokażemy przed płatnością.",
       promoError: "Ten kod nie obejmuje tego biletu albo jest już nieważny.",
       promoApply: "Zastosuj",
+      // Pole kodu dostepu wejsciowki w kasie - tylko po odmowie
+      // `ticket_access_code_invalid` (inna karta, kod spoza pamieci).
+      accessCodeLabel: "Kod dostępu do wejściówki",
+      accessCodeApply: "Sprawdź kod",
       promoRevealOnly:
         "Kod {{code}} odsłania ukryte bilety, ale nie daje rabatu - płacisz cenę biletu.",
       // Kod z linku `?code=` wpisał ekran, nie kupujący - jego odmowa nie jest
@@ -197,6 +202,10 @@ export const eventRegistrationPl = {
       // PRZED nakładką operatora, a nie dopiero w niej.
       quoteLoading: "Liczymy kwotę…",
       quoteSeats: "Miejsca: {{count}} × {{unit}}",
+      // Benefit planu obejmuje tylko miejsce czlonka - goscie placa cennik.
+      quoteLeadIncluded: "Twoje miejsce: bilet z planu członkowskiego",
+      quoteLeadSeat: "Twoje miejsce (benefit planu): {{unit}}",
+      quoteGuestSeats: "Goście: {{count}} × {{unit}}",
       quoteCodeFixed: "Kod {{code}}: -{{perSeat}} × {{count}}",
       quoteCodeAmount: "Kod {{code}}: -{{amount}}",
       quoteCodePercent: "Kod {{code}}: -{{percent}}% (-{{amount}})",
@@ -239,6 +248,7 @@ export const eventRegistrationPl = {
       email: "Podaj poprawny adres e-mail.",
       socialProfile: "Adres profilu musi zaczynać się od https://.",
       ticket: "Wybierz bilet.",
+      accessCode: "Podaj kod dostępu do tej wejściówki.",
       requiredField: "To pole jest obowiązkowe.",
       requiredConsent: "Ta zgoda jest obowiązkowa.",
       requiredTerms: "Zaznacz zgody obowiązkowe.",
@@ -252,6 +262,7 @@ export const eventRegistrationPl = {
       invalidRequest: "Brak danych potrzebnych do wykonania operacji.",
       invalidName: "Imię i nazwisko są obowiązkowe.",
       invalidEmail: "Podaj poprawny adres e-mail.",
+      invalidAccessCode: "Kod dostępu do tej wejściówki jest nieprawidłowy - sprawdź zaproszenie.",
       invalidAnswers: "Odpowiedzi na pytania mają nieprawidłowy format.",
       invalidSocialUrl: "Adres profilu musi zaczynać się od https://.",
       payloadTooLarge: "Zgłoszenie jest zbyt duże - skróć odpowiedzi.",
@@ -425,6 +436,7 @@ export const eventRegistrationEn = {
       jobTitle: "Job title",
       company: "Institution or company",
       socialProfile: "Professional profile (https://)",
+      accessCode: "Ticket access code",
     },
     labels: {
       required: "Required field",
@@ -566,12 +578,17 @@ export const eventRegistrationEn = {
         "A fixed-amount code comes off every seat in the order - we show the discounted total before you pay.",
       promoError: "This code does not cover this ticket or is no longer valid.",
       promoApply: "Apply",
+      accessCodeLabel: "Ticket access code",
+      accessCodeApply: "Check code",
       promoRevealOnly:
         "Code {{code}} reveals hidden tickets but gives no discount - you pay the ticket price.",
       promoRememberedDropped:
         "Code {{code}} from your link does not lower the price of this ticket - we removed it and you pay the price without a code.",
       quoteLoading: "Calculating the amount…",
       quoteSeats: "Seats: {{count}} × {{unit}}",
+      quoteLeadIncluded: "Your seat: ticket from your membership plan",
+      quoteLeadSeat: "Your seat (plan benefit): {{unit}}",
+      quoteGuestSeats: "Guests: {{count}} × {{unit}}",
       quoteCodeFixed: "Code {{code}}: -{{perSeat}} × {{count}}",
       quoteCodeAmount: "Code {{code}}: -{{amount}}",
       quoteCodePercent: "Code {{code}}: -{{percent}}% (-{{amount}})",
@@ -614,6 +631,7 @@ export const eventRegistrationEn = {
       email: "Enter a valid e-mail address.",
       socialProfile: "The profile address must start with https://.",
       ticket: "Choose a ticket.",
+      accessCode: "Enter the access code for this ticket.",
       requiredField: "This field is required.",
       requiredConsent: "This consent is required.",
       requiredTerms: "Tick the required consents.",
@@ -627,6 +645,7 @@ export const eventRegistrationEn = {
       invalidRequest: "Required operation data is missing.",
       invalidName: "First name and last name are required.",
       invalidEmail: "Enter a valid e-mail address.",
+      invalidAccessCode: "The access code for this ticket is not valid - check your invitation.",
       invalidAnswers: "The answers have an invalid format.",
       invalidSocialUrl: "The profile address must start with https://.",
       payloadTooLarge: "The request is too large - shorten your answers.",

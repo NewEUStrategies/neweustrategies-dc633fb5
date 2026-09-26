@@ -67,12 +67,15 @@ vi.mock("@/lib/http/resolveReturnUrl", () => ({
 
 vi.mock("@/lib/stripe.server", () => ({ resolveEnvironment: () => "sandbox" }));
 
-vi.mock("@/lib/events/ticketAllowance.server", () => ({
-  ticketPriceForCaller: async (_client: unknown, amountCents: number) => ({
-    amountCents,
-    kind: "full" as const,
-  }),
-}));
+vi.mock("@/lib/events/ticketAllowance.server", async () => {
+  const { EMPTY_TICKET_ALLOWANCE } = await import("@/lib/events/ticketAllowance");
+  return {
+    ticketPriceForCaller: async (_client: unknown, amountCents: number) => ({
+      amountCents,
+      allowance: EMPTY_TICKET_ALLOWANCE,
+    }),
+  };
+});
 
 const { callServerFn } = await import("@/test/serverFn");
 const { createCheckoutOrder } = await import("@/lib/billing/checkout.functions");

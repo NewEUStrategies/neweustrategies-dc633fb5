@@ -74,6 +74,18 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
      * miejsca" pod tą nazwą, a etykieta zamówienia niesie sufiks „× N".
      */
     let ticketLineName = "";
+    /**
+     * Benefit planu na miejscu prowadzącego i ceny miejsc (prowadzący / gość).
+     * `null` = wszystkie miejsca po tej samej cenie - zwłaszcza każdy zakup
+     * poza cennikiem wejściówek.
+     */
+    let ticketPlan: {
+      benefit: "included" | "discount";
+      leadCents: number;
+      guestCents: number;
+    } | null = null;
+    /** Cena miejsca prowadzącego dla rozbicia kodu kwotowego (tylko cennik wejściówek). */
+    let ticketLeadCents: number | undefined;
     let trialDays = 0;
     /** Czytelny identyfikator ceny katalogowej dla subskrypcji (cykl + trial). */
     let catalogPriceId: string | null = null;
@@ -145,8 +157,20 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         ticketTypeId: data.ticket_type_id,
         registrationId,
         accessCode: data.access_code,
+        // Kasa - i tylko kasa - zajmuje bilet z puli planu dla miejsca
+        // prowadzącego (podgląd liczy, ale nie konsumuje).
+        claimPlanSeat: true,
       });
       amountCents = price.amountCents;
+      ticketLeadCents = price.leadUnitCents;
+      ticketPlan =
+        price.planBenefit === null
+          ? null
+          : {
+              benefit: price.planBenefit,
+              leadCents: price.leadUnitCents,
+              guestCents: price.unitCents,
+            };
       currency = price.currency;
       ticketListPriceCents = price.listCents;
       ticketPhaseLabel = price.phaseLabel;
@@ -224,8 +248,11 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     let couponId: string | null = null;
     let couponCode: string | null = null;
     let couponDiscountCents = 0;
-    /** Rodzaj kodu biletu wydarzenia - kod kwotowy dostaje kwotę na miejsce. */
-    let couponKind: "fixed" | "percent" | null = null;
+    /**
+     * Rabat kodu kwotowego na jedno miejsce - gdy każde miejsce zeszło tak
+     * samo (`applyEventTicketCoupon`); `null` dla procentu i miejsc różnych.
+     */
+    let couponPerSeatCents: number | null = null;
     if (data.coupon_code && data.coupon_code.trim().length > 0) {
       const normalizedCode = data.coupon_code.trim().toUpperCase();
       if (data.event_id) {
@@ -240,12 +267,13 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           amountCents,
           currency,
           seats: ticketSeats,
+          leadCents: ticketLeadCents,
         });
         if (!applied.ok) {
           return { ok: false as const, mode: "coupon" as const, error: applied.error };
         }
         couponId = applied.couponId;
-        couponKind = applied.kind;
+        couponPerSeatCents = applied.perSeatCents;
         couponDiscountCents = applied.discountCents;
         amountCents = applied.finalCents;
       } else {
@@ -371,6 +399,15 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           // (`payments_apply_event_ticket_outcome`). Bez niego zostaje
           // dopasowanie po osobie z `LIMIT 1` po dacie utworzenia.
           ...(registrationId ? { registration_id: registrationId } : {}),
+          // Benefit planu członka i ceny miejsc - „200 zł za trzy miejsca"
+          // da się wtedy sprawdzić jako 0 zł (bilet z puli) + 2 × 100 zł.
+          ...(ticketPlan
+            ? {
+                plan_benefit: ticketPlan.benefit,
+                lead_unit_cents: ticketPlan.leadCents,
+                guest_unit_cents: ticketPlan.guestCents,
+              }
+            : {}),
           ...(couponCode
             ? {
                 coupon_code: couponCode,
@@ -379,11 +416,10 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
                 original_amount_cents: originalCents,
                 // Kod kwotowy na bilet: ile zeszło z JEDNEGO miejsca - po to,
                 // żeby „-60 zł" na zamówieniu dało się sprawdzić jako 3 × 20 zł.
-                ...(couponKind === "fixed"
-                  ? {
-                      coupon_discount_per_seat_cents: Math.floor(couponDiscountCents / ticketSeats),
-                    }
-                  : {}),
+                // Miejsca zeszły różnie (prowadzący tańszy od kodu) - bez klucza.
+                ...(couponPerSeatCents === null
+                  ? {}
+                  : { coupon_discount_per_seat_cents: couponPerSeatCents }),
               }
             : {}),
         },
@@ -513,7 +549,9 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           // Różnica cena regularna - kwota końcowa obejmuje fazę sprzedaży
           // ORAZ kod rabatowy, więc nazwa rabatu w Stripe mówi o obu.
           code:
-            [ticketPhaseLabel, couponCode].filter((part) => Boolean(part)).join(" + ") || "Rabat",
+            [ticketPhaseLabel, ticketPlan ? "Benefit planu" : "", couponCode]
+              .filter((part) => Boolean(part))
+              .join(" + ") || "Rabat",
           discountCents: phaseDiscountCents,
           currency,
         }).catch((err: unknown) => {

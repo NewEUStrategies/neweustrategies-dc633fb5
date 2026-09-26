@@ -414,6 +414,27 @@
       "when": 1790434569087,
       "tag": "0058_event_package_coupon_per_seat",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1790438169087,
+      "tag": "0059_event_group_lead_closes_admitted_guests",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1790441769087,
+      "tag": "0060_event_package_order_cancel_returns_coupon",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1790445369087,
+      "tag": "0061_event_group_lead_plan_seat",
+      "breakpoints": true
     }
   ]
 }

@@ -79,15 +79,31 @@ wyłącznie o AKTYWNE kopie takich kodów).
 
 ## 3. Poza zakresem tej zmiany - do osobnych zadań
 
-- **Kod dostępu ukrytego biletu w kasie zgłoszenia.** `RegistrationPayAction`
-  nie wysyła `access_code`, więc wycena ukrytego biletu w kasie zgłoszenia
-  (`event_ticket_checkout_quote`) nie dostaje klucza z linku `?code=`.
-- **Benefit planu członka liczony na miejsce, a nie na członka.**
-  `ticketPriceForCaller` liczy cenę JEDNEGO miejsca z uwzględnieniem planu
-  prowadzącego, a zamówienie grupowe mnoży ją przez liczbę miejsc: zniżka planu
-  schodzi z każdego gościa, a bilet wliczony w pulę planu odmawia
-  (`ticket_included_in_plan`) całemu zamówieniu - także gościom, którzy powinni
-  zapłacić.
-- **Anulowanie zamówienia pakietu nie zwraca użycia kodu.**
-  `admin_event_package_order_set_status` nie cofa `redemptions_count` ani
-  wiersza w `b2b_coupon_redemptions`, które zakup pakietu teraz zapisuje.
+Oba punkty zrobione w tej serii (`docs/WDROZENIE_BRAKI_WYDARZEN_CZ2_2026-09-26.md`):
+
+- ~~**Kod dostępu ukrytego biletu w kasie zgłoszenia.**~~ Formularz zapisu ma
+  pole kodu dostępu wejściówki i wysyła `access_code` do `event_register`, a
+  kasa zgłoszenia (`RegistrationPayAction`) wysyła go do podglądu i do kasy;
+  bez kodu w pamięci karty odmowa kasy odsłania pole kodu.
+- ~~**Benefit planu członka liczony na miejsce, a nie na członka.**~~ Benefit
+  (zniżka albo bilet z puli) obejmuje tylko miejsce członka, goście płacą
+  cennik; bilet z puli dla miejsca prowadzącego schodzi z puli w kasie
+  (`20260926140000_event_group_lead_plan_seat.sql`, drizzle 0061).
+
+## 4. Zrobione później w tej serii
+
+- **Anulowanie zamówienia pakietu zwraca użycie kodu** - migracja
+  `supabase/migrations/20260926130000_event_package_order_cancel_returns_coupon.sql`
+  (bliźniak `drizzle/migrations/0060_event_package_order_cancel_returns_coupon.sql`,
+  zastosować PO 0056), harness `72_package_order_cancel_coupon.sql`. Wiersz
+  `b2b_coupon_redemptions` wskazuje teraz zamówienie (`package_order_id`),
+  a `admin_event_package_order_set_status` przy wejściu w „anulowane” kasuje go
+  i zdejmuje z `redemptions_count` (zatrzask `coupon_released_at`). Powrót
+  z anulowania zużywa kod z powrotem albo odmawia (`coupon_restore_exhausted`,
+  `coupon_restore_used_by_buyer`) i wtedy nie zmienia niczego; „zwrócone”
+  zatrzymuje użycie. Stare dane dopina jednorazowo
+  `_event_package_coupon_link_backfill()` (wołana przez migrację): pary
+  jednoznaczne 1:1 są wiązane, zamówieniom już anulowanym użycie wraca.
+  Realizacje niejednoznaczne zostają niepowiązane - anulowanie ich nie oddaje,
+  a powrót nie zużywa drugi raz. Zwrot puli zestawów i miejsc przy anulowaniu
+  nadal jest poza zakresem.

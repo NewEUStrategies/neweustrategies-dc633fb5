@@ -789,6 +789,7 @@ export type Database = {
           id: string
           order_id: string | null
           original_cents: number
+          package_order_id: string | null
           tenant_id: string
           user_id: string | null
         }
@@ -801,6 +802,7 @@ export type Database = {
           id?: string
           order_id?: string | null
           original_cents: number
+          package_order_id?: string | null
           tenant_id?: string
           user_id?: string | null
         }
@@ -813,6 +815,7 @@ export type Database = {
           id?: string
           order_id?: string | null
           original_cents?: number
+          package_order_id?: string | null
           tenant_id?: string
           user_id?: string | null
         }
@@ -830,6 +833,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "payment_orders"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_coupon_redemptions_package_order_fkey"
+            columns: ["tenant_id", "package_order_id"]
+            isOneToOne: false
+            referencedRelation: "event_package_orders"
+            referencedColumns: ["tenant_id", "id"]
           },
         ]
       }
@@ -7442,6 +7452,7 @@ export type Database = {
           cancelled_at: string | null
           company_id: string | null
           coupon_id: string | null
+          coupon_released_at: string | null
           created_at: string
           created_by: string | null
           currency: string
@@ -7467,6 +7478,7 @@ export type Database = {
           cancelled_at?: string | null
           company_id?: string | null
           coupon_id?: string | null
+          coupon_released_at?: string | null
           created_at?: string
           created_by?: string | null
           currency?: string
@@ -7492,6 +7504,7 @@ export type Database = {
           cancelled_at?: string | null
           company_id?: string | null
           coupon_id?: string | null
+          coupon_released_at?: string | null
           created_at?: string
           created_by?: string | null
           currency?: string
@@ -19424,6 +19437,7 @@ export type Database = {
         Args: { _event_id: string; _person_id: string; _tenant: string }
         Returns: Json
       }
+      _event_package_coupon_link_backfill: { Args: never; Returns: Json }
       _event_page_chain_published: {
         Args: { _page_id: string }
         Returns: boolean
@@ -24672,6 +24686,10 @@ export type Database = {
         Returns: Json
       }
       event_registration_cancel: { Args: { p_payload: Json }; Returns: Json }
+      event_registration_claim_plan_seat: {
+        Args: { p_dry_run?: boolean; p_registration_id: string }
+        Returns: Json
+      }
       event_registration_form: { Args: { p_event_slug: string }; Returns: Json }
       event_registration_group_seats: {
         Args: { p_registration_id: string }

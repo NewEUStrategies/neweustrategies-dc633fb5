@@ -1566,11 +1566,36 @@ describe("zatwierdzenie prowadzącego grupy", () => {
     ).toBeTruthy();
   });
 
-  it("odrzucenie prowadzącego nie niesie tej podpowiedzi", () => {
+  it("odrzucenie prowadzącego ostrzega, że bilety przyjętych gości przestaną wpuszczać", () => {
     h.groupLinks = [groupLink({ guest_count: 2 })];
     panel();
     fireEvent.click(przycisk("adminEventRegistration.actions.reject"));
-    expect(within(screen.getByRole("dialog")).queryByText(/approveGroupHint/)).toBeNull();
+    const dialog = within(screen.getByRole("dialog"));
+    expect(dialog.getByText(`${B}.decideDialog.rejectGroupHint(count=2)`)).toBeTruthy();
+    expect(dialog.queryByText(/approveGroupHint/)).toBeNull();
+  });
+
+  it("anulowanie prowadzącego ostrzega o gościach i zwolnionych miejscach", () => {
+    h.groupLinks = [groupLink({ guest_count: 3 })];
+    panel();
+    fireEvent.click(przycisk("adminEventRegistration.actions.cancel"));
+    expect(
+      within(screen.getByRole("dialog")).getByText(`${B}.decideDialog.cancelGroupHint(count=3)`),
+    ).toBeTruthy();
+  });
+
+  it("przeniesienie prowadzącego na rezerwę nie niesie podpowiedzi grupy - kaskada go nie obejmuje", () => {
+    h.groupLinks = [groupLink({ guest_count: 2 })];
+    panel();
+    fireEvent.click(przycisk("adminEventRegistration.actions.waitlist"));
+    expect(within(screen.getByRole("dialog")).queryByText(/GroupHint/)).toBeNull();
+  });
+
+  it("odrzucenie wiersza bez gości nie niesie podpowiedzi grupy", () => {
+    h.groupLinks = [groupLink()];
+    panel();
+    fireEvent.click(przycisk("adminEventRegistration.actions.reject"));
+    expect(within(screen.getByRole("dialog")).queryByText(/GroupHint/)).toBeNull();
   });
 
   it("zatwierdzenie wiersza bez gości nie niesie tej podpowiedzi", () => {

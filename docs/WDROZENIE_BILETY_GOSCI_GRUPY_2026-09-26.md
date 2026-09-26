@@ -145,7 +145,13 @@ Cron wyśle tym osobom bilety w ciągu minuty. Alternatywa bez SQL: przycisk
 
 ## 5. Poza zakresem tej zmiany
 
-- Goście JUŻ przyjęci zostają przyjęci, gdy prowadzący zostaje odrzucony albo
-  anulowany - ich kod QR nadal wpuszcza (decyzja produktu).
-- Ścieżka Stripe gałęzi „opłacone" nie sprawdza miejsc (zamówienie opłaciło
-  całą grupę naraz) - znane i przybite w harnessie (`25_payment_binding.sql`).
+Oba punkty, które tu stały, domknęła migracja
+`20260926120000_event_group_lead_closes_admitted_guests.sql` (drizzle 0059) - patrz
+`docs/WDROZENIE_BRAKI_WYDARZEN_CZ2_2026-09-26.md`:
+
+- ~~Goście JUŻ przyjęci zostają przyjęci, gdy prowadzący zostaje odrzucony albo
+  anulowany - ich kod QR nadal wpuszcza.~~ Odrzucenie i anulowanie prowadzącego
+  zamyka teraz także przyjętych gości (kod QR przestaje wpuszczać), a zwolnione
+  miejsca awansują kolejkę rezerwową.
+- ~~Ścieżka Stripe gałęzi „opłacone" nie sprawdza miejsc.~~ Wpłata Stripe
+  przyjmuje gości z kontrolą miejsc; nadmiarowy gość czeka w kolejce opłacony.
