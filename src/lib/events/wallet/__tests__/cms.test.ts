@@ -44,6 +44,16 @@ import {
 const CONTENT = new TextEncoder().encode('{"pass.json":"0123","icon.png":"abcd"}');
 const SIGNED_AT = new Date("2026-09-26T08:00:00Z");
 
+/** WebCrypto przyjmuje wyłącznie widok na zwykły `ArrayBuffer`. */
+function verify(signature: Uint8Array, data: Uint8Array, key: CryptoKey): Promise<boolean> {
+  return crypto.subtle.verify(
+    "RSASSA-PKCS1-v1_5",
+    key,
+    new Uint8Array(signature),
+    new Uint8Array(data),
+  );
+}
+
 async function publicKey(): Promise<CryptoKey> {
   const spki = pemBlock(TEST_SIGNER_PUBLIC_KEY_PEM, ["PUBLIC KEY"]).der;
   return crypto.subtle.importKey(
@@ -100,9 +110,7 @@ describe("rsa", () => {
     for (const pem of [TEST_SIGNER_KEY_PKCS8_PEM, TEST_SIGNER_KEY_PKCS1_PEM]) {
       const signature = await signRsaSha256(await importRsaSigningKey(pem), data);
       expect(signature).toHaveLength(256);
-      await expect(
-        crypto.subtle.verify("RSASSA-PKCS1-v1_5", await publicKey(), signature, data),
-      ).resolves.toBe(true);
+      await expect(verify(signature, data, await publicKey())).resolves.toBe(true);
     }
   });
 
@@ -159,14 +167,10 @@ describe("signDetachedCms", () => {
     expect(toHex(d.attrs[2].value.slice(2))).toBe(toHex(await sha256(CONTENT)));
 
     // Podpis liczony z kodowania SET OF atrybutów (0x31), nie z [0].
-    await expect(
-      crypto.subtle.verify("RSASSA-PKCS1-v1_5", await publicKey(), d.signature, d.attrsSetBytes),
-    ).resolves.toBe(true);
+    await expect(verify(d.signature, d.attrsSetBytes, await publicKey())).resolves.toBe(true);
     const tampered = Uint8Array.from(d.attrsSetBytes);
     tampered[tampered.length - 1] ^= 0xff;
-    await expect(
-      crypto.subtle.verify("RSASSA-PKCS1-v1_5", await publicKey(), d.signature, tampered),
-    ).resolves.toBe(false);
+    await expect(verify(d.signature, tampered, await publicKey())).resolves.toBe(false);
   });
 
   it("porządek atrybutów nie zależy od kolejności ich budowy (zbiór DER)", async () => {
