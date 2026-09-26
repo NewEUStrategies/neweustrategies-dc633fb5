@@ -7905,6 +7905,76 @@ export type Database = {
           },
         ]
       }
+      event_person_crm_links: {
+        Row: {
+          created_at: string
+          crm_lead_id: string | null
+          last_attempt_at: string
+          last_create: boolean
+          last_error: string | null
+          last_source_label: string | null
+          last_source_type: string | null
+          last_tags: string[]
+          person_id: string
+          sync_status: string
+          synced_at: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          crm_lead_id?: string | null
+          last_attempt_at?: string
+          last_create?: boolean
+          last_error?: string | null
+          last_source_label?: string | null
+          last_source_type?: string | null
+          last_tags?: string[]
+          person_id: string
+          sync_status?: string
+          synced_at?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          crm_lead_id?: string | null
+          last_attempt_at?: string
+          last_create?: boolean
+          last_error?: string | null
+          last_source_label?: string | null
+          last_source_type?: string | null
+          last_tags?: string[]
+          person_id?: string
+          sync_status?: string
+          synced_at?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_person_crm_links_lead_fk"
+            columns: ["tenant_id", "crm_lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_person_crm_links_person_fk"
+            columns: ["tenant_id", "person_id"]
+            isOneToOne: true
+            referencedRelation: "event_people"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_person_crm_links_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_registration_fields: {
         Row: {
           consent_url_en: string
@@ -19222,6 +19292,10 @@ export type Database = {
         Args: { _tenant_id: string; p_base: string }
         Returns: string
       }
+      _crm_source_type_rank: {
+        Args: { p_source_type: string }
+        Returns: number
+      }
       _event_answer_matches: {
         Args: { _answer: Json; _expected: Json; _operator: string }
         Returns: boolean
@@ -19403,6 +19477,20 @@ export type Database = {
       _event_page_seats_left: {
         Args: { _event_id: string; _tenant: string }
         Returns: number
+      }
+      _event_person_crm_sync: {
+        Args: {
+          p_audit_action?: string
+          p_audit_meta?: Json
+          p_create?: boolean
+          p_custom?: Json
+          p_person_id: string
+          p_source_label: string
+          p_source_type: string
+          p_tags?: string[]
+          p_tenant: string
+        }
+        Returns: string
       }
       _event_registration_verdict: {
         Args: { _answers: Json; _event_id: string; _tenant: string }
@@ -20834,6 +20922,10 @@ export type Database = {
       admin_event_pages_reorder: {
         Args: { p_event_id: string; p_ids: string[] }
         Returns: number
+      }
+      admin_event_person_crm_retry: {
+        Args: { p_person_id: string }
+        Returns: string
       }
       admin_event_registration_decide: {
         Args: { p_payload: Json }
@@ -26969,6 +27061,7 @@ export type Database = {
         | "webinar"
         | "import"
         | "other"
+        | "event"
       crm_stage:
         | "new"
         | "contacted"
@@ -27170,6 +27263,7 @@ export const Constants = {
         "webinar",
         "import",
         "other",
+        "event",
       ],
       crm_stage: [
         "new",

@@ -1,0 +1,14 @@
+-- ============================================================================
+-- ZAREZERWOWANE MIEJSCE NA MIGRACJE FUNKCJI: faktury-firmowe (wlasciciel: f2).
+--
+-- BLIZNIAK drizzle/migrations/0058_event_invoices.sql - ten sam SQL wykonywalny
+-- (pilnuje tego `src/lib/ci/migrationLaneParity.ts`).
+-- events-harness: include
+--
+-- Numeracja obu torow jest przydzielona z gory, zeby siedem funkcji
+-- organizatora powstajacych rownolegle nie kolidowalo na numerach, dzienniku
+-- drizzle ani rejestrze blizniakow. Wlasciciel ZASTEPUJE tresc obu plikow
+-- wlasciwym SQL-em; do tego czasu plik jest bezczynny (zapytanie bez wierszy),
+-- a jego jedyny literal odroznia go od pozostalych rezerwacji.
+-- ============================================================================
+SELECT 'placeholder:0058_event_invoices'::text AS event_migration_placeholder FROM public.events WHERE false;
