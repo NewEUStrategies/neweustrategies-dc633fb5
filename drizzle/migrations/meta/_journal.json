@@ -442,6 +442,13 @@
       "when": 1790445120329,
       "tag": "0062_event_group_lead_closes_admitted_guests",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1790445299491,
+      "tag": "0063_event_package_order_cancel_returns_coupon",
+      "breakpoints": true
     }
   ]
 }
