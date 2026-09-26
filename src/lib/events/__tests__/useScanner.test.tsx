@@ -1019,8 +1019,13 @@ describe("useScannerRuntime - oproznianie kolejki w szczegolach", () => {
       device.queue = [queuedItem({ id: "z-nocy", code: "QR-Z-NOCY" })];
 
       const view = render(TOKEN);
-      await act(async () => {});
-      expect(view.result.current.status).toBe("ready");
+      // Bez sieci środowisko najpierw szuka sesji w pamięci urządzenia (skrót
+      // tokenu liczy WebCrypto - to nie jest mikrozadanie), dopiero potem
+      // pyta bazę. `vi.waitFor` przesuwa przy tym udawany zegar o krok sondy.
+      await vi.waitFor(async () => {
+        await act(async () => {});
+        expect(view.result.current.status).toBe("ready");
+      });
       expect(view.result.current.online).toBe(false);
 
       // Pierwsze tykniecie PRZY BRAKU ZASIEGU nie wysyla niczego.

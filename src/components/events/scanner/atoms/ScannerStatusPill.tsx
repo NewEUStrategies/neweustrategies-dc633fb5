@@ -10,7 +10,7 @@
 // odpowiedzialność - to stan alarmowy, czerwony. Sesja podniesiona z pamięci
 // urządzenia (zimny start bez sieci) ma osobny napis, bo baza jej jeszcze nie
 // potwierdziła.
-import { CloudOff, HardDrive, RefreshCw, ShieldCheck, Wifi } from "lucide-react";
+import { CloudOff, HardDrive, ListChecks, RefreshCw, Wifi } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
@@ -38,7 +38,7 @@ export function ScannerStatusPill({
   if (!online && offlineReady) {
     return (
       <Badge variant="secondary" className="gap-1.5">
-        <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+        <ListChecks className="h-3.5 w-3.5" aria-hidden="true" />
         {t("eventScanner.session.offlineReady")}
       </Badge>
     );
