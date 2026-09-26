@@ -327,35 +327,61 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     drizzleOnly:
       "Zastosowanie ciala 0053 z panelu Lovable (0053 bylo w repozytorium, ale nie na bazie). Bez REVOKE is_platform_author z authenticated - narzedzie wdrozeniowe go blokuje; blizniak supabase to juz 20260925100000.",
   },
-  // Rejestr zgod CRM zna zrodlo 'event' (osobny plik: nowej wartosci enuma nie
-  // wolno uzyc w transakcji, ktora ja dodaje).
+  // Goscie grupy ida za decyzja o prowadzacym (zatwierdzenie, odrzucenie,
+  // anulowanie) i dostaja wlasny bilet z kodem QR; ponowna wysylka z panelu.
   {
-    tag: "0055_crm_consent_source_event",
-    twin: "20260926085900_crm_consent_source_event.sql",
+    tag: "0055_event_group_guests_follow_lead",
+    twin: "20260926100000_event_group_guests_follow_lead.sql",
   },
-  // Fundament funkcji organizatora: przelaczniki cfp/seating, segment
-  // event_cfp i most osoba wydarzenia -> kontakt CRM.
+  // Kod kwotowy schodzi z kazdego miejsca pakietu grupowego, a uzycie kodu
+  // jest zuzywane razem z zamowieniem pakietu.
   {
-    tag: "0056_event_organizer_foundation",
-    twin: "20260926090000_event_organizer_foundation.sql",
+    tag: "0056_event_package_coupon_per_seat",
+    twin: "20260926110000_event_package_coupon_per_seat.sql",
   },
-  // Rezerwacja: nabor prelegentow ze zgloszeniami, ocena i panelem prelegenta.
-  { tag: "0057_event_cfp", twin: "20260926100000_event_cfp.sql" },
-  // Rezerwacja: faktury na firme przy zakupie biletow, takze zbiorcze.
-  { tag: "0058_event_invoices", twin: "20260926110000_event_invoices.sql" },
-  // Rezerwacja: lejek sprzedazy powiazany z kampaniami Google Ads.
-  { tag: "0059_event_ads_funnel", twin: "20260926120000_event_ads_funnel.sql" },
-  // Rezerwacja: plan sali z przydzialem miejsc.
-  { tag: "0060_event_seating", twin: "20260926130000_event_seating.sql" },
-  // Rezerwacja: raport dla sponsorow (wyswietlenia, klikniecia, kontakty).
-  { tag: "0061_event_sponsor_report", twin: "20260926140000_event_sponsor_report.sql" },
-  // Rezerwacja: tryb offline skanera.
-  { tag: "0062_event_scanner_offline", twin: "20260926150000_event_scanner_offline.sql" },
-  // Rezerwacja: bilet w Apple Wallet / Google Wallet.
-  { tag: "0063_event_ticket_wallet", twin: "20260926160000_event_ticket_wallet.sql" },
-  // Rezerwacja: kopiowanie calego wydarzenia z poprzedniej edycji (ostatnia
-  // w kolejce - kopiuje tabele wszystkich funkcji powyzej).
-  { tag: "0064_event_clone", twin: "20260926170000_event_clone.sql" },
+  {
+    tag: "0057_event_group_guests_follow_lead",
+    drizzleOnly:
+      "Zastosowanie SQL-u 0055 z panelu Lovable (0055 bylo w repozytorium, ale nie na bazie). SQL identyczny bajt w bajt i idempotentny; blizniak supabase to juz 20260926100000.",
+  },
+  {
+    tag: "0058_event_package_coupon_per_seat",
+    drizzleOnly:
+      "Zastosowanie SQL-u 0056 z panelu Lovable (0056 bylo w repozytorium, ale nie na bazie). SQL identyczny bajt w bajt i idempotentny; blizniak supabase to juz 20260926110000.",
+  },
+  // Odrzucenie i anulowanie prowadzacego zamyka takze przyjetych gosci (kod QR
+  // przestaje wpuszczac), a platnosc Stripe przyjmuje gosci z kontrola miejsc.
+  {
+    tag: "0059_event_group_lead_closes_admitted_guests",
+    twin: "20260926120000_event_group_lead_closes_admitted_guests.sql",
+  },
+  // Anulowanie zamowienia pakietu zwraca uzycie kodu, powrot z anulowania
+  // zuzywa je ponownie.
+  {
+    tag: "0060_event_package_order_cancel_returns_coupon",
+    twin: "20260926130000_event_package_order_cancel_returns_coupon.sql",
+  },
+  // Benefit planu czlonka tylko na jego miejscu; bilet z puli dla miejsca
+  // prowadzacego schodzi z puli.
+  {
+    tag: "0061_event_group_lead_plan_seat",
+    twin: "20260926140000_event_group_lead_plan_seat.sql",
+  },
+  {
+    tag: "0062_event_group_lead_closes_admitted_guests",
+    drizzleOnly:
+      "Zastosowanie SQL-u 0059 z panelu Lovable (bez komentarzy, instrukcje identyczne i idempotentne); blizniak supabase to juz 20260926120000.",
+  },
+  {
+    tag: "0063_event_package_order_cancel_returns_coupon",
+    drizzleOnly:
+      "Zastosowanie SQL-u 0060 z panelu Lovable (bez komentarzy, instrukcje identyczne i idempotentne); blizniak supabase to juz 20260926130000.",
+  },
+  {
+    tag: "0064_event_group_lead_plan_seat",
+    drizzleOnly:
+      "Zastosowanie SQL-u 0061 z panelu Lovable (bez komentarzy, instrukcje identyczne i idempotentne); blizniak supabase to juz 20260926140000.",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";

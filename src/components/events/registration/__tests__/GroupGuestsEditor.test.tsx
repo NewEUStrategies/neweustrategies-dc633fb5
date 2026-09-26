@@ -32,6 +32,12 @@ vi.mock("react-i18next", async () =>
   (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang),
 );
 
+// Odnośnik do logowania (wariant bez konta) potrzebuje routera - tu stoi
+// zwykła kotwica z prawdziwym adresem.
+vi.mock("@tanstack/react-router", async () => ({
+  Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
+}));
+
 import { GroupGuestsEditor } from "@/components/events/registration/GroupGuestsEditor";
 
 const G = "eventRegistration.group";
@@ -91,6 +97,22 @@ describe("lista gości bez konta", () => {
     expect(screen.getByText(`${G}.accountRequired`)).toBeInTheDocument();
     expect(screen.queryByRole("group")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: `${G}.add` })).not.toBeInTheDocument();
+  });
+
+  it("zdanie o logowaniu ma drogę do logowania - samo zdanie zostawiało gościa bez wyjścia", () => {
+    // Bez konta baza gości nie dopisze (`account_required`), a formularz
+    // zapisałby samego prowadzącego. Odnośnik jest ten sam, co przy płatnej
+    // wejściówce.
+    lista({ requiresAccount: true });
+
+    const link = screen.getByRole("link", { name: `${G}.signIn` });
+    expect(link).toHaveAttribute("href", "/login");
+  });
+
+  it("z kontem odnośnika do logowania nie ma", () => {
+    lista();
+
+    expect(screen.queryByRole("link", { name: `${G}.signIn` })).not.toBeInTheDocument();
   });
 
   it("nagłówek mówi, ile osób łącznie obejmuje zapis", () => {

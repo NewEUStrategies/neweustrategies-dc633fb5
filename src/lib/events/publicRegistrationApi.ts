@@ -87,6 +87,8 @@ export interface RegisterInput {
   companyText?: string | null;
   socialProfileUrl?: string | null;
   ticketTypeId?: string | null;
+  /** Kod dostępu wejściówki za kodem; pusty albo brak - klucz nie jedzie. */
+  accessCode?: string | null;
   answers?: RegistrationAnswer[];
   acceptedTermIds?: string[];
   consentDataProcessing: boolean;
@@ -164,6 +166,8 @@ export async function submitRegistration(input: RegisterInput): Promise<Registra
   if (input.companyText !== undefined) payload.company_text = input.companyText;
   if (input.socialProfileUrl !== undefined) payload.social_profile_url = input.socialProfileUrl;
   if (input.ticketTypeId !== undefined) payload.ticket_type_id = input.ticketTypeId;
+  const accessCode = input.accessCode?.trim() ?? "";
+  if (accessCode !== "") payload.access_code = accessCode;
 
   const { data, error } = await supabase.rpc("event_register", {
     p_payload: payload,

@@ -7,9 +7,11 @@ import {
   ADMISSION_QUOTE_REASONS,
   TICKET_CHECKOUT_ONLY_REASONS,
   admissionQuoteMessageKey,
+  packagePurchaseRefusal,
   parseAdmissionQuote,
   ticketCheckoutRefusal,
 } from "@/lib/events/admissionApi";
+import { eventRegistrationEn, eventRegistrationPl } from "@/lib/i18n-event-registration";
 
 describe("parseAdmissionQuote", () => {
   it("reads a priced package quote", () => {
@@ -66,6 +68,89 @@ describe("parseAdmissionQuote", () => {
   it("treats a null response as a refusal", () => {
     expect(parseAdmissionQuote(null).ok).toBe(false);
   });
+
+  it("czyta rodzaj kodu i rabat NA MIEJSCE - ekran pisze z nich „5 × 50 zł”", () => {
+    const quote = parseAdmissionQuote({
+      ok: true,
+      kind: "package",
+      seats: 5,
+      price_cents: 320000,
+      discount_cents: 25000,
+      total_cents: 295000,
+      discount_kind: "fixed",
+      discount_per_seat_cents: 5000,
+    });
+    expect(quote.ok).toBe(true);
+    if (!quote.ok) return;
+    expect(quote.discountKind).toBe("fixed");
+    expect(quote.discountPerSeatCents).toBe(5000);
+    expect(quote.totalCents).toBe(295000);
+  });
+
+  it("kod procentowy nie ma kwoty na miejsce, a wycena bez kodu - rodzaju", () => {
+    const percent = parseAdmissionQuote({
+      ok: true,
+      kind: "package",
+      discount_kind: "percent",
+      discount_per_seat_cents: null,
+    });
+    const none = parseAdmissionQuote({ ok: true, kind: "package", discount_kind: null });
+    if (!percent.ok || !none.ok) throw new Error("test: wycena miala byc zgoda");
+    expect(percent.discountKind).toBe("percent");
+    expect(percent.discountPerSeatCents).toBeNull();
+    expect(none.discountKind).toBeNull();
+    expect(none.discountPerSeatCents).toBeNull();
+  });
+
+  it("nieznany rodzaj kodu i nieliczbowa kwota na miejsce nie udają rabatu", () => {
+    const quote = parseAdmissionQuote({
+      ok: true,
+      kind: "package",
+      discount_kind: "amount",
+      discount_per_seat_cents: "5000",
+    });
+    if (!quote.ok) throw new Error("test: wycena miala byc zgoda");
+    expect(quote.discountKind).toBeNull();
+    expect(quote.discountPerSeatCents).toBeNull();
+  });
+
+  it("kod BEZ RABATU (tylko odsłania bilety) ma własną nazwę odmowy", () => {
+    const quote = parseAdmissionQuote({ ok: false, reason: "coupon_no_discount" });
+    expect(quote.ok).toBe(false);
+    if (quote.ok) return;
+    expect(quote.reason).toBe("coupon_no_discount");
+    expect(ADMISSION_QUOTE_REASONS).toContain("coupon_no_discount");
+  });
+});
+
+describe("packagePurchaseRefusal - odmowa zakupu przeniesiona z wyceny", () => {
+  it("czyta `refused_<powód>` z wyjątku bazy", () => {
+    expect(
+      packagePurchaseRefusal(
+        new Error("refused_coupon_exhausted: last use taken by a concurrent order"),
+      ),
+    ).toBe("coupon_exhausted");
+    expect(packagePurchaseRefusal("refused_coupon_no_discount: coupon_no_discount")).toBe(
+      "coupon_no_discount",
+    );
+  });
+
+  it("nieznany powód i inne błędy to `null` - mają własny słownik", () => {
+    expect(packagePurchaseRefusal(new Error("refused_moon_phase: x"))).toBeNull();
+    expect(packagePurchaseRefusal(new Error("sold_out: no packages left"))).toBeNull();
+  });
+});
+
+describe("słownik odmów - PL i EN mają zdanie dla każdego powodu", () => {
+  it("każdy powód wyceny i kasy ma zdanie w obu językach", () => {
+    const pl = eventRegistrationPl.eventPackages.quoteReasons as Record<string, string>;
+    const en = eventRegistrationEn.eventPackages.quoteReasons as Record<string, string>;
+    for (const reason of [...ADMISSION_QUOTE_REASONS, ...TICKET_CHECKOUT_ONLY_REASONS]) {
+      expect(pl[reason], `pl:${reason}`).toBeTruthy();
+      expect(en[reason], `en:${reason}`).toBeTruthy();
+      expect(pl[reason], `pl=en:${reason}`).not.toBe(en[reason]);
+    }
+  });
 });
 
 describe("admissionQuoteMessageKey", () => {
@@ -105,6 +190,9 @@ describe("ticketCheckoutRefusal", () => {
     ["auth_required: sign in to buy a ticket", "account_required"],
     ["ticket_included_in_plan", "ticket_included_in_plan"],
     ["registration_not_payable:event_mismatch", "registration_not_payable"],
+    // Awaria liczby miejsc to NIE „zgłoszenie odwołane albo rozliczone".
+    ["registration_not_payable:seats_unavailable", "group_seats_unavailable"],
+    ["Error: registration_not_payable:seats_unavailable", "group_seats_unavailable"],
     ["billing_unconfigured", "payments_unavailable"],
   ];
 

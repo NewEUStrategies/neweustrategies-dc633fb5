@@ -60,3 +60,16 @@ export function adminSponsorErrorMessage(error: unknown): string {
   const failure = adminSponsorFailure(error);
   return i18n.t(failure.key, failure.params);
 }
+
+/**
+ * Zdanie o awarii ODCZYTU listy (nie zapisu).
+ *
+ * `unknown` mówi „nie udało się zapisać zmian" - pod listą, która się nie
+ * wczytała, to nieprawda, bo organizator niczego nie zapisywał. Nieznana
+ * odmowa (albo zerwana sieć) oddaje więc zdanie wołającego; znane odmowy bazy
+ * (`forbidden`, `not_found`) mówią swoje, bo są prawdą także przy odczycie.
+ */
+export function adminSponsorLoadErrorMessage(error: unknown, fallback: string): string {
+  const failure = adminSponsorFailure(error);
+  return failure.key === `${PREFIX}unknown` ? fallback : i18n.t(failure.key, failure.params);
+}

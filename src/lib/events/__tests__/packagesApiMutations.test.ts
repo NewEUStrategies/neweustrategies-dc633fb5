@@ -21,9 +21,10 @@
 //    Polkniety blad daje panel, ktory zdejmuje wiersz z listy, choc w bazie
 //    nadal jest.
 // 3) ZAKRES NAJEMCY (zasada 12). Te operacje ida przez RPC `admin_event_*`,
-//    wiec zawezenie najemcem siedzi w SQL: `assert_editor_tenant()` plus
-//    warunek `tenant_id = v_tenant` w kazdym zapytaniu
-//    (`20260827221214:185-212, 354-400, 527-553`). Pilnuje go bramka
+//    wiec zawezenie najemcem siedzi w SQL: `assert_editor_tenant()` (w zmianie
+//    statusu wprost `assert_event_admin_tenant()`, do ktorej ten alias
+//    deleguje) plus warunek `tenant_id = v_tenant` w kazdym zapytaniu
+//    (`20260827221214:185-212, 527-553`, `20260926130000:297-430`). Pilnuje go bramka
 //    `check:sql-tenant-scope`. Po stronie klienta testowalne jest to, ze
 //    klient NIE PROBUJE podac najemcy sam - podany bylby i tak zignorowany,
 //    a w przegladzie udawalby zabezpieczenie.
@@ -174,7 +175,7 @@ describe("setPackageOrderStatus", () => {
   // `refunded` bylo w tej liscie brakujace i zamowienia nie dalo sie oznaczyc
   // jako zwrocone z panelu (komentarz `packagesApi.ts:86-93`). Kazdy stan
   // z CHECK-a ma dojechac do bazy DOKLADNIE pod swoja nazwa - baza porownuje
-  // `lower(btrim(...))` z czworka nazw (`20260827221214:367`).
+  // `lower(btrim(...))` z czworka nazw (`20260926130000:307-316`).
   it("wszystkie cztery stany z CHECK-a jada nietkniete, ze zwrotem wlacznie", async () => {
     rpc().setData("admin_event_package_order_set_status", true);
 
@@ -189,10 +190,12 @@ describe("setPackageOrderStatus", () => {
   //
   // Warstwa danych nie zna kierunku: nie pyta o stan poprzedni, nie ma listy
   // przejsc dozwolonych i wysyla `paid -> pending` tak samo jak
-  // `pending -> paid`. Baza tez nie broni kierunku (`20260827221214:367-385`).
-  // Nieodwracalny jest SKUTEK anulowania: `status = 'cancelled'` kasuje skroty
-  // tokenow i oznacza `revoked_at` na kazdym miejscu bez zgloszenia
-  // (`20260827221214:387-397`), a powrot na `paid` NICZEGO nie przywraca.
+  // `pending -> paid`. Baza tez nie broni kierunku (`20260926130000:314-330,
+  // 409-414`). Nieodwracalny jest SKUTEK anulowania: `status = 'cancelled'`
+  // kasuje skroty tokenow i oznacza `revoked_at` na kazdym miejscu bez
+  // zgloszenia (`20260926130000:416-426`), a powrot na `paid` zaproszen NIE
+  // przywraca. Przywraca wylacznie uzycie kodu rabatowego oddane przy
+  // anulowaniu (`20260926130000:358-404`) - i to baza, bez drugiego wywolania.
   // Dlatego test pilnuje, ze cofniecie statusu nie wysyla zadnego drugiego
   // wywolania udajacego odtworzenie zaproszen - organizator musi zaprosic
   // ponownie recznie (`invitePackageSeat`).
@@ -213,7 +216,7 @@ describe("setPackageOrderStatus", () => {
   });
 
   // Nieznany stan nie ma przejsc: baza podnosi `invalid_status`
-  // (`20260827221214:367-369`), a warstwa danych ma ten blad ODDAC. Gdyby go
+  // (`20260926130000:314-316`), a warstwa danych ma ten blad ODDAC. Gdyby go
   // polknela i zwrocila `true`, panel pokazalby zmiane statusu, ktorej nigdy
   // nie bylo, i ksiegowosc szukalaby platnosci po nieistniejacym stanie.
   it("nieznany status nie przechodzi - odmowa bazy leci wyjatkiem", async () => {
@@ -242,6 +245,25 @@ describe("setPackageOrderStatus", () => {
 
     await expect(api.setPackageOrderStatus(ORDER_ID, "cancelled")).rejects.toThrow(/not_found/);
   });
+
+  // Powrot z anulowania zuzywa kod z powrotem, a baza odmawia, gdy kodu nie da
+  // sie juz zuzyc (`20260926130000:358-404`) - i wtedy zamowienie ZOSTAJE
+  // anulowane. Polkniety blad pokazalby w panelu oplacone zamowienie, ktore
+  // w bazie jest nadal anulowane i bez rabatu na liczniku kodu.
+  it.each(["coupon_restore_exhausted", "coupon_restore_used_by_buyer"])(
+    "odmowa powrotu z anulowania (%s) leci wyjatkiem",
+    async (code) => {
+      rpc().setError("admin_event_package_order_set_status", `${code}: detail`);
+
+      await expect(api.setPackageOrderStatus(ORDER_ID, "paid")).rejects.toThrow(
+        new RegExp(`^${code}:`),
+      );
+      expect(payloadOf("admin_event_package_order_set_status")).toEqual({
+        id: ORDER_ID,
+        status: "paid",
+      });
+    },
+  );
 });
 
 /* -------------------------------------------------- odwolanie miejsca --- */

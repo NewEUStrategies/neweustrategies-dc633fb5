@@ -225,8 +225,23 @@ describe("handler synchronizacji kuponów - co robi z argumentami", () => {
       context: kontekst(),
     });
 
-    expect(h.syncCouponDiscounts).toHaveBeenCalledWith("live");
+    expect(h.syncCouponDiscounts).toHaveBeenCalledWith("live", NAJEMCA);
     expect(wynik).toBe(WYNIK_KUPONOW);
+  });
+
+  it("synchronizacja dostaje najemcę Z BRAMKI - klient serwisowy nie widzi granic najemców", async () => {
+    // Bez tego admin najemcy A wypychał do operatora kody WSZYSTKICH najemców.
+    h.assertAdmin.mockResolvedValue({ tenantId: "88888888-8888-4888-8888-888888888888" });
+
+    await callServerFn(syncCouponsToProvider, {
+      data: { environment: "live" },
+      context: kontekst(),
+    });
+
+    expect(h.syncCouponDiscounts).toHaveBeenCalledWith(
+      "live",
+      "88888888-8888-4888-8888-888888888888",
+    );
   });
 
   it("piaskownica nie jest podmieniana na produkcję", async () => {
@@ -237,7 +252,7 @@ describe("handler synchronizacji kuponów - co robi z argumentami", () => {
       context: kontekst(),
     });
 
-    expect(h.syncCouponDiscounts).toHaveBeenCalledWith("sandbox");
+    expect(h.syncCouponDiscounts).toHaveBeenCalledWith("sandbox", NAJEMCA);
     expect(h.syncCouponDiscounts).toHaveBeenCalledTimes(1);
   });
 });

@@ -33,11 +33,15 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 const api = await import("@/lib/events/publicRegistrationApi");
 
-/** Klucze CZYTANE przez `event_register` (migracja 20260824090214). */
+/**
+ * Klucze CZYTANE przez `event_register` (migracja 20260824090214; `access_code`
+ * czyta od 20260827220713 - kod dostępu wejściówki).
+ */
 const REGISTER_KEYS = new Set([
   "event_slug",
   "event_id",
   "ticket_type_id",
+  "access_code",
   "first_name",
   "last_name",
   "email",
@@ -237,6 +241,37 @@ describe("publicRegistrationApi", () => {
     expect(payload.ticket_type_id).toBe(TICKET);
     expect(payload.answers).toEqual({ diet: ["vege"] });
     expect(payload.accepted_term_ids).toEqual([TERM]);
+  });
+
+  it("kod dostępu wejściówki jedzie jako `access_code` - przycięty", async () => {
+    await api.submitRegistration({
+      eventSlug: "kongres",
+      firstName: "Anna",
+      lastName: "Kowalska",
+      email: "anna@example.com",
+      ticketTypeId: TICKET,
+      accessCode: "  PARTNER-7 ",
+      consentDataProcessing: true,
+    });
+    const payload = h.rpc?.lastCall("event_register")?.arg("p_payload") as Record<string, unknown>;
+    expect(payload.access_code).toBe("PARTNER-7");
+  });
+
+  it.each([
+    ["pusty", ""],
+    ["same spacje", "   "],
+    ["null", null],
+  ])("kod dostępu %s nie jedzie do bazy", async (_label, accessCode) => {
+    await api.submitRegistration({
+      eventSlug: "kongres",
+      firstName: "Anna",
+      lastName: "Kowalska",
+      email: "anna@example.com",
+      accessCode,
+      consentDataProcessing: true,
+    });
+    const payload = h.rpc?.lastCall("event_register")?.arg("p_payload") as Record<string, unknown>;
+    expect("access_code" in payload).toBe(false);
   });
 
   it("pomija nieustawione pola opcjonalne, ale wysyła jawny null", async () => {

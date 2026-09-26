@@ -48,6 +48,9 @@ on:
           - digest-weekly
           - event-reminders
           - crm-task-reminders
+          # Bilety z kodem QR (decyzje organizatora, kaskada grupy, ponowienia)
+          # - ten sam krok biegnie co minutę w jobs-tick; tu do ręcznego wypchnięcia.
+          - event-ticket-codes
           - billing
       ticks:
         description: Liczba ticków w przebiegu (1-10)

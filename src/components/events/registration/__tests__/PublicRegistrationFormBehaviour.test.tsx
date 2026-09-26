@@ -78,6 +78,7 @@ const h = vi.hoisted(() => ({
   sendConfirmation: vi.fn(),
   sendTicketCodes: vi.fn(),
   checkout: vi.fn(),
+  quote: vi.fn(),
 }));
 
 /** Zapora przed odpowiedzia RPC - test trzyma zadanie „w trakcie". */
@@ -117,6 +118,10 @@ vi.mock("@/lib/billing/checkout.functions", () => ({
   createCheckoutOrder: { name: "createCheckoutOrder" },
 }));
 
+vi.mock("@/lib/billing/eventTicketQuote.functions", () => ({
+  quoteEventTicketCheckout: { name: "quoteEventTicketCheckout" },
+}));
+
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
   useServerFn: (fn: { name?: string }) =>
@@ -124,7 +129,9 @@ vi.mock("@tanstack/react-start", async (importOriginal) => ({
       ? h.sendConfirmation
       : fn.name === "sendGroupTicketCodes"
         ? h.sendTicketCodes
-        : h.checkout,
+        : fn.name === "quoteEventTicketCheckout"
+          ? h.quote
+          : h.checkout,
 }));
 
 vi.mock("@/hooks/useAuth", () => ({
@@ -335,6 +342,17 @@ beforeEach(() => {
   h.sendTicketCodes.mockReset();
   h.sendTicketCodes.mockResolvedValue({ ok: true, sent: 2 });
   h.checkout.mockReset();
+  h.quote.mockReset();
+  h.quote.mockResolvedValue({
+    seats: 1,
+    unitCents: 10000,
+    subtotalCents: 10000,
+    currency: "PLN",
+    coupon: null,
+    discountCents: 0,
+    totalCents: 10000,
+    couponError: null,
+  });
   rpcGate.current = null;
   funnel.send.mockReset();
   funnel.attach.mockReset();
@@ -864,6 +882,113 @@ describe("PublicRegistrationForm - wybor biletu", () => {
 
     await waitFor(() => expect(stub().callsFor(REGISTER_RPC)).toHaveLength(1));
     expect(payloadOf(REGISTER_RPC).ticket_type_id).toBe("t-vip");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// WEJSCIOWKA ZA KODEM DOSTEPU (`requires_access_code`). Do tej naprawy
+// formularz nie mial pola kodu, a `submitRegistration` nie wysylal
+// `access_code` - `event_register` odmawial takiego zapisu ZAWSZE.
+// ---------------------------------------------------------------------------
+describe("PublicRegistrationForm - wejsciowka za kodem dostepu", () => {
+  const GATED = "t-partner";
+  const gatedForm = (): void =>
+    stub().setData(
+      FORM_RPC,
+      formPayload({
+        tickets: [
+          ticketRow(),
+          ticketRow({
+            id: GATED,
+            key: "partner",
+            name_pl: "Bilet partnera",
+            requires_access_code: true,
+            access_code_hint: "Kod z zaproszenia partnera",
+          }),
+        ],
+      }),
+    );
+
+  afterEach(() => window.sessionStorage.clear());
+
+  it("bilet bez kodu nie pokazuje pola kodu i nie wysyla `access_code`", async () => {
+    gatedForm();
+    renderForm();
+    await fillPerson();
+    fireEvent.click(await screen.findByRole("radio", { name: /Bilet standardowy/ }));
+    expect(screen.queryByLabelText(label("accessCode"))).not.toBeInTheDocument();
+    acceptDataProcessing();
+    submitForm();
+
+    await waitFor(() => expect(stub().callsFor(REGISTER_RPC)).toHaveLength(1));
+    expect("access_code" in payloadOf(REGISTER_RPC)).toBe(false);
+  });
+
+  it("brak kodu zatrzymuje zapis U SIEBIE, ze zdaniem przy sekcji biletu", async () => {
+    gatedForm();
+    renderForm();
+    await fillPerson();
+    fireEvent.click(await screen.findByRole("radio", { name: /Bilet partnera/ }));
+    acceptDataProcessing();
+    submitForm();
+
+    expect(await screen.findByText("eventRegistration.validation.accessCode")).toBeInTheDocument();
+    expect(stub().callsFor(REGISTER_RPC)).toHaveLength(0);
+  });
+
+  it("wpisany kod jedzie do bazy jako `access_code` i zostaje zapamietany dla kasy", async () => {
+    gatedForm();
+    renderForm();
+    await fillPerson();
+    fireEvent.click(await screen.findByRole("radio", { name: /Bilet partnera/ }));
+    fireEvent.change(screen.getByLabelText(label("accessCode")), {
+      target: { value: "partner-7" },
+    });
+    expect(screen.getByLabelText(label("accessCode"))).toHaveValue("PARTNER-7");
+    acceptDataProcessing();
+    submitForm();
+
+    await waitFor(() => expect(stub().callsFor(REGISTER_RPC)).toHaveLength(1));
+    expect(payloadOf(REGISTER_RPC)).toMatchObject({
+      ticket_type_id: GATED,
+      access_code: "PARTNER-7",
+    });
+    await waitFor(() =>
+      expect(window.sessionStorage.getItem(`nes-ticket-access-${EVENT_ID}-${GATED}`)).toBe(
+        "PARTNER-7",
+      ),
+    );
+  });
+
+  it("kod z linku zaproszenia wypelnia pole - uczestnik nie przepisuje go drugi raz", async () => {
+    window.sessionStorage.setItem(`nes-event-code-${EVENT_ID}`, "ZAPROSZENIE");
+    gatedForm();
+    renderForm();
+    await fillPerson();
+    fireEvent.click(await screen.findByRole("radio", { name: /Bilet partnera/ }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText(label("accessCode"))).toHaveValue("ZAPROSZENIE"),
+    );
+  });
+
+  it("odmowa bazy za zly kod mowi o kodzie i nie kasuje formularza", async () => {
+    stub().setError(REGISTER_RPC, "invalid_access_code: this ticket requires a valid access code");
+    gatedForm();
+    renderForm();
+    await fillPerson();
+    fireEvent.click(await screen.findByRole("radio", { name: /Bilet partnera/ }));
+    fireEvent.change(screen.getByLabelText(label("accessCode")), { target: { value: "ZLY" } });
+    acceptDataProcessing();
+    submitForm();
+
+    expect(
+      await screen.findByText(
+        "Kod dostępu do tej wejściówki jest nieprawidłowy - sprawdź zaproszenie.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(label("accessCode"))).toHaveValue("ZLY");
+    expect(window.sessionStorage.getItem(`nes-ticket-access-${EVENT_ID}-${GATED}`)).toBeNull();
   });
 });
 
@@ -1437,9 +1562,17 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
     });
     expect(screen.getByText("eventRegistration.group.retry.beforePayment")).toBeInTheDocument();
 
+    // Podgląd kasy przed dopisaniem gości: jedno miejsce.
+    await waitFor(() => expect(h.quote).toHaveBeenCalledTimes(1));
+    h.quote.mockResolvedValue({ ...(await h.quote.mock.results[0]?.value), seats: 2 });
     stub().setData(GROUP_RPC, { added: 1, registration_ids: [] });
     fireEvent.click(retryButton());
     await screen.findByText("eventRegistration.group.retry.added(count=1)");
+    // Dopisanie gości zmienia liczbę miejsc - rozbicie pod przyciskiem musi się
+    // przeliczyć, zanim kupujący kliknie „Zapłać".
+    expect(
+      await screen.findByText("eventRegistration.payment.quoteSeats(count=2,unit=100,00 zł)"),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "eventRegistration.payment.payNow" }));
 
     // Liczbę miejsc liczy `event_registration_group_seats` w funkcji kasy po

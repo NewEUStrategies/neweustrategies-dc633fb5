@@ -187,6 +187,9 @@ export const adminEventRegistrationPl = {
       promote: "Awansuj z rezerwy",
       markNotified: "Oznacz jako powiadomionych",
       exportCsv: "Eksport CSV",
+      // Ponowna wysylka biletu z kodem QR (`admin_event_ticket_resend`).
+      resendTicket: "Wyślij bilet ponownie",
+      resendGroupTickets: "Wyślij bilety całej grupie",
     },
 
     registrations: {
@@ -253,6 +256,24 @@ export const adminEventRegistrationPl = {
         ofCapacity: "{{left}} z {{capacity}}",
       },
 
+      // Rejestracja grupowa i bilet z kodem QR (`admin_event_registration_group_links`).
+      // `has_qr` z listy nie mowi, czy mail wyszedl - mowi o tym dopiero znacznik
+      // wysylki, wiec plakietki biletu stoja osobno od „kodu wejsciowego".
+      badges: {
+        guestOf: "Gość: {{name}}",
+        guest: "Gość grupy",
+        groupLead: "Grupa: +{{count}}",
+        ticketSent: "Bilet wysłany",
+        ticketNotSent: "Bilet niewysłany",
+        // Przyjety, ale nieoplacony: bilet sie jeszcze NIE nalezy, wiec nie
+        // „niewyslany" (to wygladaloby na awarie poczty), tylko na co czeka.
+        ticketAwaitingPayment: "Bilet po wpłacie",
+        // Poczta nie przyjela maila (adres na liscie wykluczen albo pusty):
+        // bez tej plakietki wiersz udawal „wyslany", a bilet trzeba przekazac
+        // inna droga.
+        ticketUndeliverable: "Bilet nie dotarł - adres zablokowany",
+      },
+
       entryCode: {
         issued: "Wydany",
         notIssued: "Niewydany",
@@ -283,16 +304,24 @@ export const adminEventRegistrationPl = {
 
       decideDialog: {
         approveTitle: "Zatwierdzić to zgłoszenie?",
+        // Bilet z kodem QR wychodzi mailem sam (wydanie po decyzji i cron) -
+        // dawna prosba o przekazanie kodu recznie przeczylaby podpowiedzi grupy.
         approveBody:
-          "Zgłoszenie zajmie miejsce w puli i otrzyma kod wejściowy. Kod przekaż uczestnikowi wiadomością.",
+          "Zgłoszenie zajmie miejsce w puli, a uczestnik dostanie mailem bilet z kodem QR - od razu albo po zaksięgowaniu płatności.",
+        approveGroupHint:
+          "Goście z tego zgłoszenia ({{count}}) zostaną przyjęci razem z prowadzącym - jeśli są rozliczeni i jest dla nich miejsce - i każdy dostanie własny bilet mailem.",
         rejectTitle: "Odrzucić to zgłoszenie?",
         rejectBody:
           "Powód jest wymagany i zostaje w historii zgłoszenia. Osoba może złożyć nowe zgłoszenie.",
+        rejectGroupHint:
+          "Goście z tego zgłoszenia ({{count}}) zostaną odrzuceni razem z prowadzącym - także ci już przyjęci: ich bilety przestaną wpuszczać. Obecność już odnotowana zostaje. Ponowne zatwierdzenie prowadzącego przywróci gości z nowymi biletami.",
         waitlistTitle: "Przenieść na listę rezerwową?",
         waitlistBody:
           "Zgłoszenie trafi na koniec kolejki i zwolni zajmowane miejsce, jeśli je zajmowało.",
         cancelTitle: "Anulować ten zapis?",
         cancelBody: "Miejsce wróci do puli, a pierwsza osoba z kolejki rezerwowej awansuje.",
+        cancelGroupHint:
+          "Goście z tego zgłoszenia ({{count}}) zostaną anulowani razem z prowadzącym - także ci już przyjęci: ich bilety przestaną wpuszczać, a zwolnione miejsca awansują kolejkę rezerwową. Obecność już odnotowana zostaje.",
         attendedTitle: "Oznaczyć obecność?",
         attendedBody: "Obecność jest faktem osobnym od zapisu i zasila raport frekwencji.",
         noShowTitle: "Oznaczyć nieobecność?",
@@ -358,6 +387,16 @@ export const adminEventRegistrationPl = {
         exported: "Wyeksportowano zgłoszenia: {{count}}",
         exportTruncated:
           "Plik nie zawiera wszystkich zgłoszeń - zawęź filtr i wyeksportuj resztę osobno.",
+        // Bilety z kodem QR po decyzji i po ponownej wysylce - ta sama konstrukcja
+        // „rzeczownik: liczba", bez sufiksow liczby mnogiej (patrz wyzej).
+        ticketsSent: "Wysłano bilety: {{count}}",
+        ticketResent: "Bilety wysłane ponownie: {{count}}",
+        ticketResendFailed: "Nie udało się wysłać biletu.",
+        // Osoby z grupy pominiete przy ponownej wysylce - ich stary bilet
+        // dziala dalej, a nowy i tak by nie dotarl (ta sama konstrukcja
+        // „rzeczownik: liczba", bez sufiksow liczby mnogiej).
+        ticketResendSkippedSuppressed:
+          "Pominięto adresy z listy wykluczeń poczty: {{count}} - ich dotychczasowe bilety nadal działają.",
       },
     },
 
@@ -1170,11 +1209,24 @@ export const adminEventRegistrationPl = {
         "Każdy próg cennika potrzebuje ceny i okna, które kończy się po tym, jak się zaczyna.",
       invalidConsentUrl: "Adres dokumentu zgody musi zaczynać się od https:// (do 500 znaków).",
       notFound: "Rekord nie istnieje w tej organizacji.",
+      ticketNotIssuable: "Bilet dostaje tylko zgłoszenie przyjęte i rozliczone.",
+      ticketSendInProgress: "Bilet jest właśnie wysyłany - spróbuj ponownie za kilka minut.",
+      // Odmowa SERWERA, nie bazy (`ticketResend.functions.ts`): nowy bilet by
+      // nie dotarl, a wydanie uniewazniloby stary - wiec nic sie nie dzieje.
+      ticketAddressSuppressed:
+        "Na ten adres poczta nie wyśle biletu (lista wykluczeń) - dotychczasowy bilet nadal działa. Przekaż go inną drogą.",
       packageSoldOut: "Pula pakietów tego rodzaju została wyczerpana.",
       packageInUse: "Pakiet ma {{count}} zamówień - wyłącz go zamiast usuwać.",
       seatTaken: "To miejsce jest już zajęte przez uczestnika.",
       seatRevoked: "To miejsce zostało wycofane.",
       orderCancelled: "Zamówienie stojące za tym miejscem jest anulowane.",
+      // POWRÓT Z ANULOWANIA (`admin_event_package_order_set_status`, 20260926130000).
+      // Anulowanie oddało użycie kodu rabatowego; powrót musi je zużyć z powrotem,
+      // a baza odmawia, gdy kodu nie da się już zużyć - zamówienie zostaje anulowane.
+      couponRestoreExhausted:
+        "Nie można przywrócić zamówienia: jego kod rabatowy wykorzystano do limitu, gdy zamówienie było anulowane. Zwiększ limit użyć kodu i spróbuj ponownie.",
+      couponRestoreUsedByBuyer:
+        "Nie można przywrócić zamówienia: kupujący wykorzystał już ten kod rabatowy w innym zamówieniu (limit na osobę). Zwiększ limit na osobę albo anuluj tamto zamówienie.",
       invitationExpired: "Zaproszenie wygasło - wyślij je ponownie.",
       invalidToken: "Odnośnik zaproszenia jest nieprawidłowy.",
       // ODMOWY EKRANU „STAWKI I UPRAWNIENIA" (`admin_event_audience_grant_save`).
@@ -1341,6 +1393,8 @@ export const adminEventRegistrationEn = {
       promote: "Promote from the waiting list",
       markNotified: "Mark as notified",
       exportCsv: "Export CSV",
+      resendTicket: "Resend ticket",
+      resendGroupTickets: "Resend tickets to the whole group",
     },
 
     registrations: {
@@ -1408,6 +1462,16 @@ export const adminEventRegistrationEn = {
         ofCapacity: "{{left}} of {{capacity}}",
       },
 
+      badges: {
+        guestOf: "Guest of {{name}}",
+        guest: "Group guest",
+        groupLead: "Group: +{{count}}",
+        ticketSent: "Ticket sent",
+        ticketNotSent: "Ticket not sent",
+        ticketAwaitingPayment: "Ticket after payment",
+        ticketUndeliverable: "Ticket not delivered - address blocked",
+      },
+
       entryCode: {
         issued: "Issued",
         notIssued: "Not issued",
@@ -1439,15 +1503,21 @@ export const adminEventRegistrationEn = {
       decideDialog: {
         approveTitle: "Approve this application?",
         approveBody:
-          "The application will take a seat from the pool and receive an entry code. Pass the code to the participant in a message.",
+          "The application will take a seat from the pool and the participant will receive a QR ticket by e-mail - right away or once the payment is booked.",
+        approveGroupHint:
+          "This registration's guests ({{count}}) will be admitted together with the lead - if they are settled and there is a seat for them - and each gets their own ticket by e-mail.",
         rejectTitle: "Reject this application?",
         rejectBody:
           "A reason is required and stays in the application history. The person may submit a new application.",
+        rejectGroupHint:
+          "This registration's guests ({{count}}) will be rejected together with the lead - including those already admitted: their tickets will stop working. Attendance already recorded stays. Approving the lead again restores the guests with new tickets.",
         waitlistTitle: "Move to the waiting list?",
         waitlistBody:
           "The application goes to the end of the queue and frees the seat it held, if it held one.",
         cancelTitle: "Cancel this registration?",
         cancelBody: "The seat returns to the pool and the first person in the queue is promoted.",
+        cancelGroupHint:
+          "This registration's guests ({{count}}) will be cancelled together with the lead - including those already admitted: their tickets will stop working and the freed seats promote the waiting list. Attendance already recorded stays.",
         attendedTitle: "Mark attendance?",
         attendedBody:
           "Attendance is a separate fact from registration and feeds the turnout report.",
@@ -1508,6 +1578,11 @@ export const adminEventRegistrationEn = {
         exported: "Exported registrations: {{count}}",
         exportTruncated:
           "The file does not contain every registration - narrow the filter and export the rest separately.",
+        ticketsSent: "Tickets sent: {{count}}",
+        ticketResent: "Tickets resent: {{count}}",
+        ticketResendFailed: "The ticket could not be sent.",
+        ticketResendSkippedSuppressed:
+          "Skipped addresses on the e-mail suppression list: {{count}} - their existing tickets still work.",
       },
     },
 
@@ -2302,11 +2377,19 @@ export const adminEventRegistrationEn = {
       invalidConsentUrl:
         "The consent document address must start with https:// (up to 500 characters).",
       notFound: "The record does not exist in this organisation.",
+      ticketNotIssuable: "Only an approved and settled registration gets a ticket.",
+      ticketSendInProgress: "The ticket is being sent right now - try again in a few minutes.",
+      ticketAddressSuppressed:
+        "E-mail will not deliver a ticket to this address (suppression list) - the existing ticket still works. Hand it over another way.",
       packageSoldOut: "The pool of packages of this kind is exhausted.",
       packageInUse: "The package has {{count}} orders - disable it instead of deleting.",
       seatTaken: "This seat is already taken by a participant.",
       seatRevoked: "This seat has been withdrawn.",
       orderCancelled: "The order behind this seat is cancelled.",
+      couponRestoreExhausted:
+        "The order cannot be restored: its discount code ran out of uses while the order was cancelled. Raise the code's usage limit and try again.",
+      couponRestoreUsedByBuyer:
+        "The order cannot be restored: the buyer has already used this discount code in another order (per-person limit). Raise the per-person limit or cancel that order.",
       invitationExpired: "The invitation has expired - send it again.",
       invalidToken: "The invitation link is invalid.",
       invalidAudience: "The audience is academic, NGO or company.",

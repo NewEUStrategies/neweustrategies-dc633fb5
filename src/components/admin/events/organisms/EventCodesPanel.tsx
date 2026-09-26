@@ -1,6 +1,12 @@
 // Organizm: kody rejestracyjne wydarzenia (Swapcard „Registration codes").
-// Lista + okno tworzenia/edycji. Rabat liczy baza i kasa Stripe - panel
-// zapisuje tylko definicję kodu.
+// Lista + okno tworzenia/edycji. Rabat liczy baza i nasza kasa (kod NIE jedzie
+// do pola kodów Stripe) - panel zapisuje tylko definicję kodu.
+//
+// KOD KWOTOWY JEST „OD BILETU". Kasa zapisu grupowego i pakiet zdejmują kwotę
+// z KAŻDEGO miejsca (najwyżej do ceny miejsca), a jedno zamówienie zużywa
+// jedno użycie kodu. Kolumna działania i podpowiedzi formularza mówią to
+// wprost - organizator widział dotąd samo „-50.00 PLN" i nie miał jak
+// sprawdzić, od czego ta kwota schodzi.
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -86,7 +92,9 @@ export function EventCodesPanel({ eventId, eventSlug }: Props) {
       parts.push(
         r.discountKind === "percent"
           ? `-${r.discountPercent ?? 0}%`
-          : `-${((r.discountCents ?? 0) / 100).toFixed(2)} ${r.currency ?? ""}`.trim(),
+          : t("eventCodes.effect.perTicket", {
+              amount: `-${((r.discountCents ?? 0) / 100).toFixed(2)} ${r.currency ?? ""}`.trim(),
+            }),
       );
     }
     if (r.revealsHidden) parts.push(t("eventCodes.effect.reveal"));
@@ -370,6 +378,11 @@ function EventCodeDialog({ eventId, eventSlug, row, tickets, onClose }: DialogPr
                     value={d.amount}
                     onChange={(e) => set("amount", e.target.value)}
                   />
+                  {d.discountKind === "fixed" && (
+                    <p className="text-xs text-muted-foreground">
+                      {t("eventCodes.form.amountPerTicketHint")}
+                    </p>
+                  )}
                 </div>
                 {d.discountKind === "fixed" && (
                   <div className="space-y-1">

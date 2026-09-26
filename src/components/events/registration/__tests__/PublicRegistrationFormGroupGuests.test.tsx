@@ -61,6 +61,7 @@ const h = vi.hoisted(() => ({
   formOverride: null as RegistrationForm | null,
   sendConfirmation: vi.fn(),
   checkout: vi.fn(),
+  quote: vi.fn(),
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -91,10 +92,18 @@ vi.mock("@/lib/billing/checkout.functions", () => ({
   createCheckoutOrder: { name: "createCheckoutOrder" },
 }));
 
+vi.mock("@/lib/billing/eventTicketQuote.functions", () => ({
+  quoteEventTicketCheckout: { name: "quoteEventTicketCheckout" },
+}));
+
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
   useServerFn: (fn: { name?: string }) =>
-    fn.name === "confirmEventRegistrationEmail" ? h.sendConfirmation : h.checkout,
+    fn.name === "confirmEventRegistrationEmail"
+      ? h.sendConfirmation
+      : fn.name === "quoteEventTicketCheckout"
+        ? h.quote
+        : h.checkout,
 }));
 
 vi.mock("@/hooks/useAuth", () => ({
@@ -299,6 +308,17 @@ beforeEach(() => {
   h.sendConfirmation.mockReset();
   h.sendConfirmation.mockResolvedValue({ ok: true });
   h.checkout.mockReset();
+  h.quote.mockReset();
+  h.quote.mockResolvedValue({
+    seats: 1,
+    unitCents: 10000,
+    subtotalCents: 10000,
+    currency: "PLN",
+    coupon: null,
+    discountCents: 0,
+    totalCents: 10000,
+    couponError: null,
+  });
 });
 
 afterEach(cleanup);
@@ -473,7 +493,10 @@ describe("zapis grupowy - lista gości, która przestała mieć sens", () => {
     expect(stub().callsFor(GUESTS_RPC)).toHaveLength(0);
   });
 
-  it("wylogowanie po wpisaniu gości chowa pola i zapisuje wyłącznie prowadzącego", async () => {
+  it("wylogowanie po wpisaniu gości ZATRZYMUJE zapis - zamiast cichego zapisu samego prowadzącego", async () => {
+    // ZMIANA 2026-09-26: do tej pory formularz wysyłał wtedy pustą listę
+    // gości i pokazywał sukces. Goście nie istnieli w bazie, więc nie było
+    // komu wysłać biletu - a kupujący był przekonany, że zapisał grupę.
     h.user = LEAD;
     const { rerender } = renderForm();
     await screen.findByText(`${G}.title`);
@@ -484,12 +507,114 @@ describe("zapis grupowy - lista gości, która przestała mieć sens", () => {
     rerender();
 
     expect(screen.getByText(`${G}.accountRequired`)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: `${G}.signIn` })).toHaveAttribute("href", "/login");
     expect(screen.queryByRole("group", { name: `${G}.person(n=2)` })).not.toBeInTheDocument();
+    acceptDataProcessing();
+    submitForm();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(`${G}.sessionLost`);
+    expect(stub().callsFor(REGISTER_RPC)).toHaveLength(0);
+    expect(stub().callsFor(GUESTS_RPC)).toHaveLength(0);
+
+    // Powrót sesji oddaje listę - nic nie zginęło.
+    h.user = LEAD;
+    rerender();
+    expect(within(guestBox(2)).getByLabelText("eventRegistration.fields.email")).toHaveValue(
+      "ewa.nowak@example.org",
+    );
+  });
+
+  it("po zatrzymaniu zapisu można świadomie usunąć ukrytych gości i zapisać samego siebie", async () => {
+    // Bez tego przycisku zablokowany zapis był ślepą uliczką: lista gości
+    // stoi ukryta pod prośbą o logowanie, a logowanie opuszcza stronę.
+    h.user = LEAD;
+    const { rerender } = renderForm();
+    await screen.findByText(`${G}.title`);
+    fireEvent.click(addButton());
+    fillGuest(2, "Ewa", "Nowak", "ewa.nowak@example.org");
+
+    h.user = null;
+    rerender();
+    expect(screen.queryByRole("button", { name: `${G}.removeLostGuests` })).not.toBeInTheDocument();
+    acceptDataProcessing();
+    submitForm();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(`${G}.sessionLost`);
+    fireEvent.click(screen.getByRole("button", { name: `${G}.removeLostGuests` }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: `${G}.removeLostGuests` })).not.toBeInTheDocument();
+    expect(stub().callsFor(REGISTER_RPC)).toHaveLength(0);
+
+    submitForm();
+    expect(await screen.findByText(MANAGE_TOKEN)).toBeInTheDocument();
+    expect(stub().callsFor(REGISTER_RPC)).toHaveLength(1);
+    expect(stub().callsFor(GUESTS_RPC)).toHaveLength(0);
+  });
+
+  it("pusty wiersz gościa po wylogowaniu nie blokuje zapisu - nie ma czego zgubić", async () => {
+    h.user = LEAD;
+    const { rerender } = renderForm();
+    await screen.findByText(`${G}.title`);
+    fireEvent.click(addButton());
+    fillGuest(2, "  ", "", " ");
+
+    h.user = null;
+    rerender();
     acceptDataProcessing();
     submitForm();
 
     expect(await screen.findByText(MANAGE_TOKEN)).toBeInTheDocument();
     expect(stub().callsFor(GUESTS_RPC)).toHaveLength(0);
+  });
+});
+
+describe("zapis grupowy - kiedy goście dostaną bilety", () => {
+  async function registerWithGuest(): Promise<void> {
+    h.user = LEAD;
+    renderForm();
+    await screen.findByText(`${G}.title`);
+    fireEvent.click(addButton());
+    fillGuest(2, "Ewa", "Nowak", "ewa.nowak@example.org");
+    acceptDataProcessing();
+    submitForm();
+    await screen.findByText(MANAGE_TOKEN);
+  }
+
+  it("prowadzący przyjęty od ręki: bilety idą do gości (liczba z bazy)", async () => {
+    await registerWithGuest();
+    expect(screen.getByText(`${G}.ticketsSent(count=1)`)).toBeInTheDocument();
+  });
+
+  it("prowadzący czeka na decyzję organizatora: bilety po przyjęciu zgłoszenia", async () => {
+    stub().setData(REGISTER_RPC, { ...registerPayload(), status: "pending" });
+    await registerWithGuest();
+    expect(screen.getByText(`${G}.ticketsAfterApproval`)).toBeInTheDocument();
+    expect(screen.queryByText(`${G}.ticketsSent(count=1)`)).not.toBeInTheDocument();
+  });
+
+  it("bez gości ekran nie mówi o biletach gości", async () => {
+    h.user = LEAD;
+    renderForm();
+    await screen.findByText(`${G}.title`);
+    acceptDataProcessing();
+    submitForm();
+
+    expect(await screen.findByText(MANAGE_TOKEN)).toBeInTheDocument();
+    expect(screen.queryByText(/ticketsSent|ticketsAfter/)).not.toBeInTheDocument();
+  });
+
+  it("goście dopisani ponownie z ekranu potwierdzenia też dostają zdanie o biletach", async () => {
+    stub().setError(GUESTS_RPC, "sold_out");
+    await registerWithGuest();
+    expect(screen.queryByText(/ticketsSent/)).not.toBeInTheDocument();
+
+    stub().setData(GUESTS_RPC, {
+      added: 1,
+      registration_ids: ["33333333-3333-3333-3333-333333333333"],
+    });
+    fireEvent.click(screen.getByRole("button", { name: `${G}.retry.submit` }));
+
+    expect(await screen.findByText(`${G}.ticketsSent(count=1)`)).toBeInTheDocument();
   });
 });
 

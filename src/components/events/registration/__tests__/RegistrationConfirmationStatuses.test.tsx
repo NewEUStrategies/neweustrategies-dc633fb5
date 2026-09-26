@@ -29,6 +29,8 @@ import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { axeViolations, summarize } from "@/test/axe";
 
 const checkout = vi.fn();
+// Podgląd kasy (`quoteEventTicketCheckout`) - molekuła kasy pyta go o kwotę.
+const quote = vi.fn();
 const writeText = vi.fn<(value: string) => Promise<void>>();
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
@@ -42,11 +44,16 @@ vi.mock("@tanstack/react-router", async () => ({
 
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
-  useServerFn: () => checkout,
+  useServerFn: (fn: { name?: string }) =>
+    fn.name === "quoteEventTicketCheckout" ? quote : checkout,
 }));
 
 vi.mock("@/lib/billing/checkout.functions", () => ({
   createCheckoutOrder: { name: "createCheckoutOrder" },
+}));
+
+vi.mock("@/lib/billing/eventTicketQuote.functions", () => ({
+  quoteEventTicketCheckout: { name: "quoteEventTicketCheckout" },
 }));
 
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ session: { user: { id: "u-1" } } }) }));
@@ -107,6 +114,16 @@ function renderConfirmation(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  quote.mockResolvedValue({
+    seats: 1,
+    unitCents: 15000,
+    subtotalCents: 15000,
+    currency: "PLN",
+    coupon: null,
+    discountCents: 0,
+    totalCents: 15000,
+    couponError: null,
+  });
   writeText.mockResolvedValue(undefined);
   Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
 });

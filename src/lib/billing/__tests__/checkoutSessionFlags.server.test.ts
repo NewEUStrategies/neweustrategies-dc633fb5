@@ -112,6 +112,68 @@ describe("createAdhocCheckoutSession - flagi tenantu w sesji", () => {
     expect(payload.tax_id_collection).toBeUndefined();
   });
 
+  // ZMIANA: ten test podawał bilet z ustawieniami, w których WOŁAJĄCY już
+  // wyłączył pole kodu („tak woła kasa"). Reguła zależała więc od każdego
+  // wołającego z osobna - a server fn ad-hoc (`buildAdhocOrder`) podawał
+  // ustawienia tenantu bez zmian i jego sesja biletu miała pole kodu Stripe.
+  // Dziś regułę egzekwuje sam budowniczy sesji, więc dowodzimy jej na tenancie,
+  // który pole kodu WŁĄCZA.
+  it("bilet NIE dostaje pola kodu Stripe, nawet gdy tenant je włącza", async () => {
+    // Kod wpisany w nakładce operatora schodziłby RAZ z całej sesji, z pominięciem
+    // zakresu wydarzenia, rozbicia na miejsca i limitu użyć.
+    const { createAdhocCheckoutSession } = await import("../adhocCheckout.server");
+    await createAdhocCheckoutSession({
+      ...base,
+      purpose: "event_ticket",
+      quantity: 3,
+      amountCents: 10000,
+      settings: SETTINGS.managed,
+    });
+    const payload = lastSessionPayload();
+    expect(payload.allow_promotion_codes).toBeUndefined();
+    // Reszta flag tenantu jedzie bez zmian - wyłączamy JEDNO pole, nie ustawienia.
+    expect(payload.managed_payments).toEqual({ enabled: true });
+    expect(payload.billing_address_collection).toBe("auto");
+  });
+
+  it("bilet BEZ ustawień tenantu też nie dostaje pola kodu (domyślne je włączają)", async () => {
+    const { createAdhocCheckoutSession } = await import("../adhocCheckout.server");
+    await createAdhocCheckoutSession({ ...base, purpose: "event_ticket" });
+
+    const payload = lastSessionPayload();
+    expect(payload.allow_promotion_codes).toBeUndefined();
+    // Bezpieczne domyślne zostają domyślnymi - poza polem kodu.
+    expect(payload.managed_payments).toEqual({ enabled: true });
+    expect(payload.tax_id_collection).toBeUndefined();
+  });
+
+  it("bilet na płaszczyźnie sprzedawcy: bez pola kodu, z podatkiem i fakturą tenantu", async () => {
+    const { createAdhocCheckoutSession } = await import("../adhocCheckout.server");
+    await createAdhocCheckoutSession({
+      ...base,
+      purpose: "event_ticket",
+      settings: { ...SETTINGS.merchant, allow_promotion_codes: true },
+    });
+
+    const payload = lastSessionPayload();
+    expect(payload.allow_promotion_codes).toBeUndefined();
+    expect(payload.automatic_tax).toEqual({ enabled: true });
+    expect(payload.invoice_creation).toEqual({ enabled: true });
+  });
+
+  it.each([["content_unlock" as const], ["donation" as const]])(
+    "%s z tym samym tenantem ZOSTAJE przy polu kodu Stripe",
+    async (purpose) => {
+      const { createAdhocCheckoutSession } = await import("../adhocCheckout.server");
+      await createAdhocCheckoutSession({ ...base, purpose, settings: SETTINGS.managed });
+      expect(lastSessionPayload().allow_promotion_codes).toBe(true);
+
+      // Bez ustawień - domyślne, które pole kodu włączają.
+      await createAdhocCheckoutSession({ ...base, purpose });
+      expect(lastSessionPayload().allow_promotion_codes).toBe(true);
+    },
+  );
+
   it("darowizna anonimowa na płaszczyźnie MoR nie tworzy klienta sprzedawcy", async () => {
     const { createAdhocCheckoutSession } = await import("../adhocCheckout.server");
     await createAdhocCheckoutSession({

@@ -41,8 +41,9 @@ import {
   type EventPreviewModel,
 } from "@/components/admin/events/studio/EventStudioPreviewContext";
 import { useEventPageDocument } from "@/lib/events/useAdminEventPages";
-import { useSponsors } from "@/lib/events/useEventSponsors";
-import { sponsorTiersFromAdminRows } from "@/lib/events/sponsorsPreview";
+import { useAllSponsors, useSponsorTiers } from "@/lib/events/useEventSponsors";
+import { previewSponsorsStatus, sponsorTiersFromAdminRows } from "@/lib/events/sponsorsPreview";
+import { adminSponsorLoadErrorMessage } from "@/lib/events/adminSponsorErrors";
 import { useViewerCardFacts } from "@/lib/profile/useViewerCard";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import type { BuilderDocument } from "@/lib/builder/types";
@@ -71,9 +72,6 @@ type PreviewNavTarget = {
   module: string | null;
 };
 
-/** Górna granica listy ogłoszonych przypięć w podglądzie (zaciskana w RPC do 1..200). */
-const PREVIEW_SPONSORS_LIMIT = 200;
-
 export function EventStudioPreview({
   open,
   onOpenChange,
@@ -85,7 +83,8 @@ export function EventStudioPreview({
   /** Adres strony publicznej albo `null` dla szkicu - nie ma czego otwierac. */
   publicHref: string | null;
   /**
-   * Wydarzenie, ktorego partnerow ma pokazac pas w podgladzie.
+   * Wydarzenie, ktorego partnerow, program, prelegentow i uczestnikow ma
+   * pokazac podglad.
    *
    * ZAPYTANIE STOI TUTAJ, NIE W KANWIE - kanwa rysuje szkic i nie odpala
    * zapytan (patrz `viewer`). Zapytanie chodzi TYLKO przy otwartej nakladce,
@@ -145,13 +144,50 @@ export function EventStudioPreview({
   // WIDZ JEST WLASNOSCIA SESJI, NIE SZKICU - dlatego czyta go nakladka, a nie
   // kanwa.
   const viewer = useViewerCardFacts();
-  // Tylko przypiecia OGLOSZONE - ten sam filtr, ktory stosuje publiczne
-  // `event_sponsors_public`.
-  const sponsorsQ = useSponsors(
-    { eventId, published: "published", limit: PREVIEW_SPONSORS_LIMIT },
-    open,
+  // WSZYSTKIE PRZYPIECIA, TAKZE NIEOGLOSZONE. Tablica „Sponsorzy i reklama"
+  // zapisuje nowe logo jako nieogloszone, a podglad z filtrem „published"
+  // pokazywal wtedy pustke w miejscu logotypow, ktore organizator widzial na
+  // tablicy - bez slowa, dlaczego. Pas i sekcja „Partnerzy" rysuja je wiec
+  // PRZYGASZONE, z plakietka „Nieogloszony" - tak jak szkice sesji i sciezek
+  // w programie podgladu. Program i sciezki biora sponsora dalej TYLKO
+  // z przypiecia ogloszonego (`publishedSponsorIdSet` nizej).
+  //
+  // CALA LISTA, NIE JEDNA STRONA. RPC oddaje najwyzej 200 wierszy na strone,
+  // posortowanych ranga poziomu - a nieogloszone przypiecia licza sie do tej
+  // samej strony. 180 ogloszonych i 30 nieogloszonych wypychalo wiec z podgladu
+  // ogloszonych partnerow z konca listy i wylaczalo filtr programu.
+  // `useAllSponsors` czyta liste strona po stronie az do `total_count`.
+  const sponsorsQ = useAllSponsors({ eventId }, open);
+  // Opis, korzysci i `sort_order` poziomu - lista przypiec ich nie niesie,
+  // a sekcja „Partnerzy" je rysuje. Ten sam klucz cache, co ekran poziomow.
+  const sponsorTiersQ = useSponsorTiers(eventId, open);
+  const sponsorTiers = useMemo(
+    () =>
+      sponsorTiersFromAdminRows(sponsorsQ.data, {
+        tiers: sponsorTiersQ.data,
+        includeDrafts: true,
+      }),
+    [sponsorsQ.data, sponsorTiersQ.data],
   );
-  const sponsorTiers = useMemo(() => sponsorTiersFromAdminRows(sponsorsQ.data), [sponsorsQ.data]);
+  // PUSTA LISTA TO JESZCZE NIE „BRAK PARTNEROW". Zakladka „Partnerzy" otwiera
+  // sie zanim lista dojedzie, a RPC potrafi pasc - bez statusu podglad mowil
+  // w obu chwilach „dodaj ich na tablicy", takze wydarzeniu z partnerami.
+  // Odmowe mowi mapa odmow sponsorow, ale nieznana (zerwana siec) dostaje
+  // zdanie o ODCZYCIE, a nie „nie udalo sie zapisac zmian".
+  const sponsorsStatus = useMemo(
+    () =>
+      previewSponsorsStatus(
+        {
+          isPending: sponsorsQ.isPending,
+          isError: sponsorsQ.isError,
+          error: sponsorsQ.error,
+          fetchStatus: sponsorsQ.fetchStatus,
+        },
+        (error) =>
+          adminSponsorLoadErrorMessage(error, t("adminEvents.studio.preview.sponsorsLoadFailed")),
+      ),
+    [sponsorsQ.isPending, sponsorsQ.isError, sponsorsQ.error, sponsorsQ.fetchStatus, t],
+  );
 
   // ZYWE DANE PODSTRON MODULOWYCH. Projekcje publiczne (`event_agenda`,
   // `get_public_speakers`, `event_attendees`) maja bramke `published` albo
@@ -174,9 +210,10 @@ export function EventStudioPreview({
   );
   // Program i pasma pokazuja sponsora TYLKO z ogloszonego przypiecia - ta sama
   // bramka `is_published`, ktora stosuje publiczne `event_agenda`. Lista jest
-  // juz pobrana wyzej (`sponsorsQ`), wiec to nie jest drugie zapytanie.
+  // juz pobrana wyzej (`sponsorsQ`, ze WSZYSTKIMI przypieciami), wiec to nie
+  // jest drugie zapytanie - nieogloszone odsiewa sam zbior.
   const publishedSponsorIds = useMemo(
-    () => publishedSponsorIdSet(sponsorsQ.data, PREVIEW_SPONSORS_LIMIT),
+    () => publishedSponsorIdSet(sponsorsQ.data),
     [sponsorsQ.data],
   );
   const live: EventPreviewLiveData = useMemo(
@@ -191,6 +228,8 @@ export function EventStudioPreview({
       tracks: trackChipsFromAdminRows(tracksQ.data, publishedSponsorIds),
       speakers: speakerRowsFromAdminEntries(speakersQ.data, sessionsQ.data),
       attendees: attendeeEntriesFromRegistrationRows(registrationsQ.data?.rows),
+      sponsorTiers,
+      sponsorsStatus,
     }),
     [
       sessionsQ.data,
@@ -199,6 +238,8 @@ export function EventStudioPreview({
       registrationsQ.data,
       base.timezone,
       publishedSponsorIds,
+      sponsorTiers,
+      sponsorsStatus,
     ],
   );
 
@@ -233,22 +274,28 @@ export function EventStudioPreview({
   const frameRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
+  // RAMA I KANWA SA ALBO OBIE, ALBO ZADNA. Montuje je ten sam commit, wiec
+  // jedyna chwila bez nich to spozniony ResizeObserver po zamknieciu nakladki -
+  // wtedy nie ma czego mierzyc. Jeden warunek zamiast osobnego dla kazdej
+  // z nich: osobne obiecywaly stan „rama bez kanwy", ktorego React nie wytwarza.
   const measure = useCallback(() => {
     const frame = frameRef.current;
     const canvas = canvasRef.current;
-    if (frame === null) return;
+    if (frame === null || canvas === null) return;
     const available = frame.clientWidth;
     if (available > 0) setScale(Math.min(1, available / PREVIEW_WIDTHS[device]));
-    if (canvas !== null) setContentHeight(canvas.scrollHeight);
+    setContentHeight(canvas.scrollHeight);
   }, [device]);
 
   useEffect(() => {
     if (!open) return;
     measure();
-    if (typeof ResizeObserver === "undefined") return;
+    const frame = frameRef.current;
+    const canvas = canvasRef.current;
+    if (typeof ResizeObserver === "undefined" || frame === null || canvas === null) return;
     const observer = new ResizeObserver(() => measure());
-    if (frameRef.current !== null) observer.observe(frameRef.current);
-    if (canvasRef.current !== null) observer.observe(canvasRef.current);
+    observer.observe(frame);
+    observer.observe(canvas);
     return () => observer.disconnect();
   }, [open, measure, model]);
 
@@ -349,7 +396,6 @@ export function EventStudioPreview({
               model={model}
               device={device}
               viewer={viewer}
-              sponsorTiers={sponsorTiers}
               onNavigate={handleNavigate}
               onBack={handleBack}
               live={live}

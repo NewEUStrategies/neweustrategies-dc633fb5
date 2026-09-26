@@ -3,7 +3,11 @@
 // nieznany klucz spada do `unknown` (organizator nie czyta kodow SQLSTATE).
 import { describe, expect, it } from "vitest";
 import i18n from "@/lib/i18n";
-import { adminSponsorErrorMessage, adminSponsorFailure } from "@/lib/events/adminSponsorErrors";
+import {
+  adminSponsorErrorMessage,
+  adminSponsorFailure,
+  adminSponsorLoadErrorMessage,
+} from "@/lib/events/adminSponsorErrors";
 import {
   adminEventSponsorsEn,
   adminEventSponsorsPl,
@@ -71,6 +75,46 @@ describe("adminSponsorErrors", () => {
     );
     expect(adminSponsorFailure("Failed to fetch").key).toBe("adminEventSponsors.errors.unknown");
     expect(adminSponsorFailure(null).key).toBe("adminEventSponsors.errors.unknown");
+  });
+
+  it("odmowa w ksztalcie `PostgrestError` (obiekt z `message`, nie `Error`) tez jest rozpoznana", () => {
+    // Tak odmowe oddaje klient Supabase z `rpc(...)` - zwykly obiekt.
+    const failure = adminSponsorFailure({
+      message: "tier_full: tier allows 3 company(ies), 5 already pinned",
+      code: "P0001",
+    });
+    expect(failure).toEqual({
+      key: "adminEventSponsors.errors.tierFull",
+      params: { count: 3, total: 5 },
+    });
+    // Obiekt bez `message` nie ma z czego czytac - `unknown`, nie wyjatek.
+    expect(adminSponsorFailure({ code: "42501" }).key).toBe("adminEventSponsors.errors.unknown");
+  });
+
+  it("poprawnie zbudowany, ale nieznany klucz nie udaje znanego", () => {
+    expect(adminSponsorFailure(new Error("no_such_refusal: detail")).key).toBe(
+      "adminEventSponsors.errors.unknown",
+    );
+  });
+
+  // ODCZYT TO NIE ZAPIS. `unknown` mowi „nie udalo sie zapisac zmian" - pod
+  // lista, ktora sie nie wczytala (podglad studia), to nieprawda.
+  it("awaria ODCZYTU: nieznana odmowa oddaje zdanie wolajacego, nie „nie zapisano zmian”", () => {
+    expect(adminSponsorLoadErrorMessage("Failed to fetch", "lista-nie-doszla")).toBe(
+      "lista-nie-doszla",
+    );
+    expect(adminSponsorLoadErrorMessage(new Error("23514: check"), "lista-nie-doszla")).toBe(
+      "lista-nie-doszla",
+    );
+  });
+
+  it("awaria ODCZYTU: znana odmowa bazy mowi swoje zdanie, z liczbami z ogona", () => {
+    expect(adminSponsorLoadErrorMessage(new Error("forbidden"), "lista-nie-doszla")).toBe(
+      adminSponsorErrorMessage(new Error("forbidden")),
+    );
+    expect(
+      adminSponsorLoadErrorMessage(new Error("tier_in_use: 2 company(ies)"), "lista-nie-doszla"),
+    ).toContain("2");
   });
 });
 

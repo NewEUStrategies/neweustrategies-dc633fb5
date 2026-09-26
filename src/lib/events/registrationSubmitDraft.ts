@@ -31,6 +31,11 @@ export interface RegistrationDraft {
   companyText: string;
   socialProfileUrl: string;
   ticketTypeId: string | null;
+  /**
+   * Kod dostępu wybranej wejściówki (`requiresAccessCode`). Dla biletu bez
+   * kodu pole nie jedzie do bazy - `event_register` i tak by je pominęło.
+   */
+  accessCode: string;
   /** Klucz pola -> wartość; `multiselect` trzyma listę wybranych wartości. */
   answers: Record<string, string | string[]>;
   acceptedTermIds: string[];
@@ -40,7 +45,7 @@ export interface RegistrationDraft {
 }
 
 export function emptyRegistrationDraft(form: RegistrationForm): RegistrationDraft {
-  const selectable = form.tickets.filter(isTicketSelectable);
+  const [only, ...others] = form.tickets.filter(isTicketSelectable);
   return {
     firstName: "",
     lastName: "",
@@ -51,7 +56,8 @@ export function emptyRegistrationDraft(form: RegistrationForm): RegistrationDraf
     socialProfileUrl: "",
     // Jeden wybieralny bilet zaznaczamy z góry - wybór bez alternatywy jest
     // tylko dodatkowym klikiem, o którym łatwo zapomnieć.
-    ticketTypeId: selectable.length === 1 ? (selectable[0]?.id ?? null) : null,
+    ticketTypeId: only !== undefined && others.length === 0 ? only.id : null,
+    accessCode: "",
     answers: {},
     acceptedTermIds: [],
     consentDataProcessing: false,
@@ -66,6 +72,7 @@ export type RegistrationDraftField =
   | "email"
   | "socialProfileUrl"
   | "ticketTypeId"
+  | "accessCode"
   | "consentDataProcessing"
   | "terms"
   | `answer:${string}`;
@@ -116,6 +123,11 @@ export function validateRegistrationDraft(
     const chosen = form.tickets.find((ticket) => ticket.id === draft.ticketTypeId);
     if (chosen === undefined || !isTicketSelectable(chosen)) {
       errors.push({ field: "ticketTypeId", errorKey: "ticket" });
+    } else if (chosen.requiresAccessCode && draft.accessCode.trim() === "") {
+      // Bez kodu `event_register` odmawia (`invalid_access_code`) - mówimy
+      // to pod polem, zanim uczestnik straci wypełniony formularz. Czy kod
+      // jest POPRAWNY, wie tylko baza (skrót kodu nie wychodzi do klienta).
+      errors.push({ field: "accessCode", errorKey: "accessCode" });
     }
   }
 
@@ -195,4 +207,40 @@ export function draftAnswers(
 export function draftOptionalText(value: string): string | undefined {
   const trimmed = value.trim();
   return trimmed === "" ? undefined : trimmed;
+}
+
+/**
+ * Kod dostępu, który jedzie do `event_register` - tylko dla wejściówki za
+ * kodem. Niesie też wydarzenie i bilet, pod którymi formularz zapamiętuje kod
+ * dla kasy (`rememberTicketAccessCode`): kasa zgłoszenia pyta
+ * `event_ticket_checkout_quote` o ten sam kod.
+ */
+export interface DraftAccessCode {
+  eventId: string;
+  ticketTypeId: string;
+  code: string;
+}
+
+export function draftAccessCode(
+  draft: RegistrationDraft,
+  form: RegistrationForm,
+): DraftAccessCode | null {
+  const chosen = form.tickets.find((ticket) => ticket.id === draft.ticketTypeId);
+  const code = draft.accessCode.trim().toUpperCase();
+  if (form.event === null || chosen === undefined || !chosen.requiresAccessCode || code === "") {
+    return null;
+  }
+  return { eventId: form.event.id, ticketTypeId: chosen.id, code };
+}
+
+/**
+ * Szkic z kodem dostępu z pamięci karty. Wpisany kod wygrywa - pamięć
+ * uzupełnia tylko puste pole, a pusta pamięć niczego nie zmienia.
+ */
+export function withRememberedAccessCode(
+  draft: RegistrationDraft | null,
+  remembered: string,
+): RegistrationDraft | null {
+  if (draft === null || draft.accessCode !== "" || remembered === "") return draft;
+  return { ...draft, accessCode: remembered };
 }
