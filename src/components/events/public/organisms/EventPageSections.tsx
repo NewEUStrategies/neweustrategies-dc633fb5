@@ -61,6 +61,7 @@ import {
   hasPracticalContent,
   isEventPracticalSection,
   type EventPracticalInfo,
+  type EventPracticalSectionKey,
 } from "@/lib/events/eventPractical";
 import { EventAgendaSection } from "@/components/events/public/organisms/EventAgendaSection";
 import {
@@ -73,6 +74,17 @@ import type { PublicSponsorTier } from "@/lib/events/sponsorsSurface";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
 ensureEventFrontI18n();
+
+/** Dane otwartej sekcji praktycznej z treścią - razem z jej kluczem. */
+interface PracticalBody {
+  info: EventPracticalInfo;
+  key: EventPracticalSectionKey;
+}
+
+interface OwnedSection {
+  section: EventSection;
+  practical: PracticalBody | null;
+}
 
 /** Sekcje, które ten organizm umie narysować. Reszta należy do trasy. */
 const OWNED: readonly EventSectionKey[] = [
@@ -107,23 +119,30 @@ export function EventPageSections({
    */
   sponsorErrorMessage?: string;
 }) {
-  const owned = sections.filter((section) => {
-    if (!OWNED.includes(section.key) || !shouldRenderSection(section)) return false;
+  // Filtr i zawężenie `practical` w JEDNYM przejściu: sekcja dostaje dane
+  // praktyczne tylko wtedy, gdy jest otwartą sekcją praktyczną z treścią.
+  // Osobny filtr zostawiał w sekcji strażnik `practical === null`, do którego
+  // żadna ścieżka nie mogła dojść.
+  const owned = sections.flatMap((section): OwnedSection[] => {
+    if (!OWNED.includes(section.key) || !shouldRenderSection(section)) return [];
     // Zamek zostaje ZAWSZE (karta zaproszenia jest treścią sekcji), więc
     // pustkę praktyczną sprawdzamy dopiero dla sekcji otwartej.
-    if (!isEventPracticalSection(section.key) || section.isLocked) return true;
-    return practical !== null && hasPracticalContent(practical, section.key);
+    if (!isEventPracticalSection(section.key) || section.isLocked) {
+      return [{ section, practical: null }];
+    }
+    if (practical === null || !hasPracticalContent(practical, section.key)) return [];
+    return [{ section, practical: { info: practical, key: section.key } }];
   });
   if (owned.length === 0) return null;
 
   return (
     <>
-      {owned.map((section) => (
+      {owned.map(({ section, practical: sectionPractical }) => (
         <EventPageSection
           key={section.key}
           slug={slug}
           section={section}
-          practical={practical}
+          practical={sectionPractical}
           sponsorTiers={sponsorTiers}
           sponsorDraftLabel={sponsorDraftLabel}
           sponsorErrorMessage={sponsorErrorMessage}
@@ -143,7 +162,7 @@ function EventPageSection({
 }: {
   slug: string;
   section: EventSection;
-  practical: EventPracticalInfo | null;
+  practical: PracticalBody | null;
   sponsorTiers: readonly PublicSponsorTier[] | undefined;
   sponsorDraftLabel: string | undefined;
   sponsorErrorMessage: string | undefined;
@@ -173,12 +192,10 @@ function EventPageSection({
           ) : (
             <EventSponsorsSectionView tiers={sponsorTiers} draftLabel={sponsorDraftLabel} />
           )
-        ) : isEventPracticalSection(section.key) ? (
-          // `practical !== null` jest już rozstrzygnięte przez filtr wyżej -
-          // pozycja bez danych nie doszłaby do nagłówka.
-          practical === null ? null : (
-            <EventPracticalSection info={practical} section={section.key} />
-          )
+        ) : practical !== null ? (
+          // Dane praktyczne ma WYŁĄCZNIE otwarta sekcja praktyczna z treścią
+          // (rozstrzyga to `EventPageSections`), więc to jest mapa albo kontakt.
+          <EventPracticalSection info={practical.info} section={practical.key} />
         ) : (
           <EventMaterialsSection slug={slug} />
         )}
