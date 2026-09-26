@@ -58,7 +58,13 @@ import { uiLang } from "@/lib/i18n/format";
 import { ensureEventCfpI18n } from "@/lib/i18n-event-cfp";
 import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
 
-export function CfpSubmitPage({ slug, submissionId }: { slug: string; submissionId: string | null }) {
+export function CfpSubmitPage({
+  slug,
+  submissionId,
+}: {
+  slug: string;
+  submissionId: string | null;
+}) {
   ensureEventCfpI18n();
   ensureEventRegistrationI18n();
   const { t } = useTranslation();
@@ -96,7 +102,8 @@ export function CfpSubmitPage({ slug, submissionId }: { slug: string; submission
     return <Notice slug={slug} text={t("eventCfp.submit.notFound")} />;
   }
 
-  const item = submissionId === null ? null : (mine.items.find((entry) => entry.id === submissionId) ?? null);
+  const item =
+    submissionId === null ? null : (mine.items.find((entry) => entry.id === submissionId) ?? null);
   // Świeżo zapisany szkic: adres ma już `?id=`, a lista „moich" jeszcze się
   // odświeża - to nie jest „nie znaleziono".
   if (submissionId !== null && item === null && mineQ.isFetching) return <FormSkeleton />;
@@ -173,7 +180,9 @@ function CfpSubmitEditor({
   const submit = useSubmitCfpSubmission(slug);
   const confirmEmail = useServerFn(confirmCfpSubmissionEmail);
   const [draft, setDraft] = useState<CfpSubmissionDraft>(() =>
-    item === null ? emptyCfpSubmissionDraft(mine.person, lang) : cfpSubmissionDraftFromItem(item, mine.person),
+    item === null
+      ? emptyCfpSubmissionDraft(mine.person, lang)
+      : cfpSubmissionDraftFromItem(item, mine.person),
   );
   const [issues, setIssues] = useState<CfpSubmissionIssue[]>([]);
   const busy = save.isPending || submit.isPending;
@@ -193,7 +202,9 @@ function CfpSubmitEditor({
    */
   const persist = async (pinUrl: boolean): Promise<string | null> => {
     try {
-      const result = await save.mutateAsync(cfpSubmissionSaveInput(draft, { slug, cfp, notifyLang: lang }));
+      const result = await save.mutateAsync(
+        cfpSubmissionSaveInput(draft, { slug, cfp, notifyLang: lang }),
+      );
       if (draft.id === null) {
         setDraft((previous) => ({ ...previous, id: result.id }));
       }
@@ -435,7 +446,11 @@ function CfpSubmitEditor({
 
       <div className="flex flex-wrap gap-2 border-t border-border pt-4">
         <Button type="button" variant="outline" disabled={busy} onClick={() => void saveDraft()}>
-          {t(save.isPending && !submit.isPending ? "eventCfp.common.saving" : "eventCfp.submit.saveDraft")}
+          {t(
+            save.isPending && !submit.isPending
+              ? "eventCfp.common.saving"
+              : "eventCfp.submit.saveDraft",
+          )}
         </Button>
         <Button type="submit" disabled={busy}>
           {t(submit.isPending ? "eventCfp.submit.sending" : "eventCfp.submit.send")}

@@ -83,7 +83,9 @@ describe("EventCfpPage", () => {
     stub().setData("event_cfp_public", cfp());
     renderWithQueryClient(<EventCfpPage slug="kongres" />);
     expect(await screen.findByText("Zapraszamy do zgłoszeń.")).toBeInTheDocument();
-    expect(screen.getByText(/^eventCfp\.page\.phase\.open\(date=1 października 2026 22:00\)$/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/^eventCfp\.page\.phase\.open\(date=1 października 2026 22:00\)$/),
+    ).toBeInTheDocument();
     expect(screen.getByText(/^eventCfp\.page\.countdown\.toClose/)).toBeInTheDocument();
     expect(screen.getByText("Zasady naboru")).toBeInTheDocument();
     expect(screen.getByText(/Wykład/)).toBeInTheDocument();
@@ -102,7 +104,18 @@ describe("EventCfpPage", () => {
 
   it("zalogowany widzi zgłoszenie i swoje zgłoszenia; nabór bez terminu", async () => {
     h.session = { user: { id: "u1", email: "a@b.pl" } };
-    stub().setData("event_cfp_public", cfp({ closes_at: null, formats: [], tracks: [], fields: [], allow_co_speakers: false, guidelines_pl: "", intro_pl: "" }));
+    stub().setData(
+      "event_cfp_public",
+      cfp({
+        closes_at: null,
+        formats: [],
+        tracks: [],
+        fields: [],
+        allow_co_speakers: false,
+        guidelines_pl: "",
+        intro_pl: "",
+      }),
+    );
     renderWithQueryClient(<EventCfpPage slug="kongres" />);
     expect(await screen.findByRole("link", { name: "eventCfp.page.submit" })).toHaveAttribute(
       "href",
@@ -118,11 +131,16 @@ describe("EventCfpPage", () => {
   });
 
   it("zaplanowany nabór odlicza do otwarcia i nie zaprasza do zgłoszeń", async () => {
-    stub().setData("event_cfp_public", cfp({ phase: "scheduled", is_open: false, opens_at: "2099-01-01T00:00:00Z" }));
+    stub().setData(
+      "event_cfp_public",
+      cfp({ phase: "scheduled", is_open: false, opens_at: "2099-01-01T00:00:00Z" }),
+    );
     renderWithQueryClient(<EventCfpPage slug="kongres" />);
     expect(await screen.findByText(/^eventCfp\.page\.phase\.scheduled/)).toBeInTheDocument();
     expect(screen.getByText(/^eventCfp\.page\.countdown\.toOpen/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "eventCfp.page.signInToSubmit" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "eventCfp.page.signInToSubmit" }),
+    ).not.toBeInTheDocument();
   });
 
   it("zamknięty nabór dziękuje; brak naboru, brak wydarzenia i awaria mają własne zdania", async () => {

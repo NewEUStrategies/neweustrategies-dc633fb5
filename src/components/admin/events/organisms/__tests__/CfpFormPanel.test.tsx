@@ -31,12 +31,15 @@ vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError
 vi.mock("@/lib/appDialogs", () => ({ confirmDialog: h.confirm }));
 vi.mock("@/lib/i18n-admin-event-cfp", () => ({ ensureAdminEventCfpI18n: () => undefined }));
 vi.mock("@/lib/events/adminCfpErrors", () => ({
-  adminCfpErrorMessage: (error: unknown) => `odmowa:${error instanceof Error ? error.message : String(error)}`,
+  adminCfpErrorMessage: (error: unknown) =>
+    `odmowa:${error instanceof Error ? error.message : String(error)}`,
 }));
 vi.mock("@/components/atoms/FormSelect", async () =>
   (await import("@/test/events/cfpStubs")).formSelectStubModule(await import("react")),
 );
-vi.mock("@/components/ui/switch", async () => (await import("@/test/reactStubs")).radixSwitchStub(await import("react")));
+vi.mock("@/components/ui/switch", async () =>
+  (await import("@/test/reactStubs")).radixSwitchStub(await import("react")),
+);
 
 const { CfpFormPanel } = await import("@/components/admin/events/organisms/CfpFormPanel");
 
@@ -129,7 +132,12 @@ describe("CfpFormPanel - lista pytań", () => {
     expect(down[1]).toBeDisabled();
     stub().setData("admin_event_cfp_fields_reorder", 2);
     fireEvent.click(down[0] as HTMLElement);
-    await waitFor(() => expect(payload("admin_event_cfp_fields_reorder")).toEqual({ event_id: "e1", ids: ["f2", "f1"] }));
+    await waitFor(() =>
+      expect(payload("admin_event_cfp_fields_reorder")).toEqual({
+        event_id: "e1",
+        ids: ["f2", "f1"],
+      }),
+    );
     stub().setError("admin_event_cfp_fields_reorder", "invalid_order: x");
     fireEvent.click(up[1] as HTMLElement);
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("odmowa:invalid_order: x"));
@@ -139,7 +147,9 @@ describe("CfpFormPanel - lista pytań", () => {
     await renderPanel();
     stub().setData("admin_event_cfp_field_delete", true);
     h.confirm.mockResolvedValueOnce(false);
-    fireEvent.click(screen.getAllByRole("button", { name: "adminEventCfp.common.delete" })[0] as HTMLElement);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "adminEventCfp.common.delete" })[0] as HTMLElement,
+    );
     await waitFor(() => expect(h.confirm).toHaveBeenCalledTimes(1));
     expect(h.confirm.mock.calls[0]?.[0 as number]).toMatchObject({
       description: "adminEventCfp.form.deleteWithAnswers(count=3)",
@@ -147,13 +157,21 @@ describe("CfpFormPanel - lista pytań", () => {
     });
     expect(stub().callsFor("admin_event_cfp_field_delete")).toHaveLength(0);
 
-    fireEvent.click(screen.getAllByRole("button", { name: "adminEventCfp.common.delete" })[1] as HTMLElement);
-    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.fieldDeleted"));
-    expect(h.confirm.mock.calls[1]?.[0 as number]).toMatchObject({ description: "adminEventCfp.form.deleteDescription" });
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "adminEventCfp.common.delete" })[1] as HTMLElement,
+    );
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.fieldDeleted"),
+    );
+    expect(h.confirm.mock.calls[1]?.[0 as number]).toMatchObject({
+      description: "adminEventCfp.form.deleteDescription",
+    });
     expect(stub().lastCall("admin_event_cfp_field_delete")?.arg("p_field_id")).toBe("f2");
 
     stub().setError("admin_event_cfp_field_delete", "not_found: x");
-    fireEvent.click(screen.getAllByRole("button", { name: "adminEventCfp.common.delete" })[1] as HTMLElement);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "adminEventCfp.common.delete" })[1] as HTMLElement,
+    );
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("odmowa:not_found: x"));
   });
 });
@@ -174,39 +192,77 @@ describe("CfpFieldDialog - nowe pytanie", () => {
     fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.labelPl"), {
       target: { value: "Poziom zaawansowania" },
     });
-    expect(within(dialog).getByLabelText("adminEventCfp.form.dialog.key")).toHaveValue("poziom_zaawansowania");
-    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.key"), { target: { value: "level" } });
-    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.labelPl"), { target: { value: "Poziom" } });
+    expect(within(dialog).getByLabelText("adminEventCfp.form.dialog.key")).toHaveValue(
+      "poziom_zaawansowania",
+    );
+    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.key"), {
+      target: { value: "level" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.labelPl"), {
+      target: { value: "Poziom" },
+    });
     expect(within(dialog).getByLabelText("adminEventCfp.form.dialog.key")).toHaveValue("level");
-    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.labelEn"), { target: { value: "Level" } });
-    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.helpPl"), { target: { value: "h" } });
-    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.helpEn"), { target: { value: "x".repeat(501) } });
+    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.labelEn"), {
+      target: { value: "Level" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.helpPl"), {
+      target: { value: "h" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.helpEn"), {
+      target: { value: "x".repeat(501) },
+    });
     expect(within(dialog).queryByText("adminEventCfp.form.dialog.options")).not.toBeInTheDocument();
-    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.type"), { target: { value: "select" } });
+    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.type"), {
+      target: { value: "select" },
+    });
     expect(within(dialog).getByText("adminEventCfp.form.dialog.options")).toBeInTheDocument();
     expect(within(dialog).getByText("adminEventCfp.form.validation.help")).toBeInTheDocument();
     expect(within(dialog).getByText("adminEventCfp.form.validation.options")).toBeInTheDocument();
-    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.helpEn"), { target: { value: "" } });
+    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.helpEn"), {
+      target: { value: "" },
+    });
 
-    fireEvent.click(within(dialog).getByRole("button", { name: "adminEventCfp.form.dialog.addOption" }));
-    fireEvent.click(within(dialog).getByRole("button", { name: "adminEventCfp.form.dialog.addOption" }));
-    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.optionPl", { selector: "#cfp-option-0-pl" }), {
-      target: { value: "Początkujący" },
-    });
-    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.optionEn", { selector: "#cfp-option-0-en" }), {
-      target: { value: "Beginner" },
-    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "adminEventCfp.form.dialog.addOption" }),
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "adminEventCfp.form.dialog.addOption" }),
+    );
     fireEvent.change(
-      within(dialog).getByLabelText("adminEventCfp.form.dialog.optionValue", { selector: "#cfp-option-0-value" }),
+      within(dialog).getByLabelText("adminEventCfp.form.dialog.optionPl", {
+        selector: "#cfp-option-0-pl",
+      }),
+      {
+        target: { value: "Początkujący" },
+      },
+    );
+    fireEvent.change(
+      within(dialog).getByLabelText("adminEventCfp.form.dialog.optionEn", {
+        selector: "#cfp-option-0-en",
+      }),
+      {
+        target: { value: "Beginner" },
+      },
+    );
+    fireEvent.change(
+      within(dialog).getByLabelText("adminEventCfp.form.dialog.optionValue", {
+        selector: "#cfp-option-0-value",
+      }),
       { target: { value: "beginner" } },
     );
-    fireEvent.click(within(dialog).getAllByRole("button", { name: "adminEventCfp.list.remove" })[1] as HTMLElement);
+    fireEvent.click(
+      within(dialog).getAllByRole("button", {
+        name: "adminEventCfp.list.remove",
+      })[1] as HTMLElement,
+    );
     fireEvent.click(within(dialog).getByLabelText("adminEventCfp.form.dialog.required"));
     fireEvent.click(within(dialog).getByLabelText("adminEventCfp.form.dialog.active"));
 
     stub().setData("admin_event_cfp_field_upsert", "f9");
     fireEvent.click(within(dialog).getByRole("button", { name: "adminEventCfp.common.save" }));
-    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.fieldSaved"));
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.fieldSaved"),
+    );
     expect(payload("admin_event_cfp_field_upsert")).toEqual({
       event_id: "e1",
       key: "level",
@@ -226,13 +282,21 @@ describe("CfpFieldDialog - nowe pytanie", () => {
     await renderPanel([]);
     fireEvent.click(screen.getByRole("button", { name: "adminEventCfp.form.add" }));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.type"), { target: { value: "multiselect" } });
+    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.type"), {
+      target: { value: "multiselect" },
+    });
     const add = within(dialog).getByRole("button", { name: "adminEventCfp.form.dialog.addOption" });
     for (let i = 0; i < 50; i += 1) fireEvent.click(add);
     expect(add).toBeDisabled();
-    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.type"), { target: { value: "text" } });
-    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.labelPl"), { target: { value: "Pytanie" } });
-    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.labelEn"), { target: { value: "Question" } });
+    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.type"), {
+      target: { value: "text" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.labelPl"), {
+      target: { value: "Pytanie" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.labelEn"), {
+      target: { value: "Question" },
+    });
     stub().setError("admin_event_cfp_field_upsert", "key_taken: x");
     fireEvent.click(within(dialog).getByRole("button", { name: "adminEventCfp.common.save" }));
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("odmowa:key_taken: x"));
@@ -245,25 +309,42 @@ describe("CfpFieldDialog - nowe pytanie", () => {
     await renderPanel([]);
     fireEvent.click(screen.getByRole("button", { name: "adminEventCfp.form.add" }));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.labelPl"), { target: { value: "Pytanie" } });
-    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.labelEn"), { target: { value: "Question" } });
+    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.labelPl"), {
+      target: { value: "Pytanie" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.form.dialog.labelEn"), {
+      target: { value: "Question" },
+    });
     stub().setResponse("admin_event_cfp_field_upsert", () => new Promise(() => undefined) as never);
     fireEvent.click(within(dialog).getByRole("button", { name: "adminEventCfp.common.save" }));
-    expect(await within(dialog).findByRole("button", { name: "adminEventCfp.common.saving" })).toBeDisabled();
+    expect(
+      await within(dialog).findByRole("button", { name: "adminEventCfp.common.saving" }),
+    ).toBeDisabled();
   });
 });
 
 describe("CfpFieldDialog - edycja", () => {
   it("okno edycji zaczyna od wiersza i nie pokazuje klucza", async () => {
     await renderPanel();
-    fireEvent.click(screen.getAllByRole("button", { name: "adminEventCfp.common.edit" })[0] as HTMLElement);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "adminEventCfp.common.edit" })[0] as HTMLElement,
+    );
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("adminEventCfp.form.dialog.editTitle")).toBeInTheDocument();
-    expect(within(dialog).queryByLabelText("adminEventCfp.form.dialog.key")).not.toBeInTheDocument();
-    expect(within(dialog).getByLabelText("adminEventCfp.form.dialog.labelPl")).toHaveValue("Doświadczenie");
+    expect(
+      within(dialog).queryByLabelText("adminEventCfp.form.dialog.key"),
+    ).not.toBeInTheDocument();
+    expect(within(dialog).getByLabelText("adminEventCfp.form.dialog.labelPl")).toHaveValue(
+      "Doświadczenie",
+    );
     stub().setData("admin_event_cfp_field_upsert", "f1");
     fireEvent.click(within(dialog).getByRole("button", { name: "adminEventCfp.common.save" }));
-    await waitFor(() => expect(payload("admin_event_cfp_field_upsert")).toMatchObject({ id: "f1", field_type: "select" }));
+    await waitFor(() =>
+      expect(payload("admin_event_cfp_field_upsert")).toMatchObject({
+        id: "f1",
+        field_type: "select",
+      }),
+    );
     expect(payload("admin_event_cfp_field_upsert")).not.toHaveProperty("key");
     expect(payload("admin_event_cfp_field_upsert")).not.toHaveProperty("event_id");
   });

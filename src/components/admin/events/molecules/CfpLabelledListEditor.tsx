@@ -59,7 +59,9 @@ export function CfpLabelledListEditor({
             key={`${idPrefix}-${index}`}
             className="grid gap-2 rounded-[6px] border border-border p-3 sm:grid-cols-[1fr_1fr_1fr_7rem_auto]"
           >
-            <legend className="sr-only">{t("adminEventCfp.list.rowLegend", { index: index + 1 })}</legend>
+            <legend className="sr-only">
+              {t("adminEventCfp.list.rowLegend", { index: index + 1 })}
+            </legend>
             <AdminFormTextRow
               id={`${idPrefix}-${index}-pl`}
               label={t("adminEventCfp.list.labelPl")}

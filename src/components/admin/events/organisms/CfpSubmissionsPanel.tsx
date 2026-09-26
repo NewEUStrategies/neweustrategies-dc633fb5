@@ -15,7 +15,7 @@
 // pokazuje - zgłoszenie poniżej minimum wymaga uwagi przed decyzją.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search } from "@/lib/lucide-shim";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -89,7 +89,9 @@ export function CfpSubmissionsPanel({ eventId }: { eventId: string }) {
   return (
     <Tabs defaultValue="submissions" className="space-y-4">
       <TabsList>
-        <TabsTrigger value="submissions">{t("adminEventCfp.submissions.tabs.submissions")}</TabsTrigger>
+        <TabsTrigger value="submissions">
+          {t("adminEventCfp.submissions.tabs.submissions")}
+        </TabsTrigger>
         <TabsTrigger value="materials">{t("adminEventCfp.submissions.tabs.materials")}</TabsTrigger>
       </TabsList>
       <TabsContent value="submissions">
@@ -113,7 +115,15 @@ function CfpSubmissionsList({ eventId, settings }: { eventId: string; settings: 
   const [page, setPage] = useState(0);
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const query: CfpSubmissionsQuery = { eventId, status, trackId, q, sort, page, pageSize: PAGE_SIZE };
+  const query: CfpSubmissionsQuery = {
+    eventId,
+    status,
+    trackId,
+    q,
+    sort,
+    page,
+    pageSize: PAGE_SIZE,
+  };
   const listQ = useCfpSubmissions(query);
   const countsQ = useCfpCounts(eventId);
   const counts = countsQ.data;
@@ -141,10 +151,16 @@ function CfpSubmissionsList({ eventId, settings }: { eventId: string; settings: 
 
   return (
     <div className="space-y-4">
-      <p className="max-w-2xl text-sm text-muted-foreground">{t("adminEventCfp.submissions.lead")}</p>
+      <p className="max-w-2xl text-sm text-muted-foreground">
+        {t("adminEventCfp.submissions.lead")}
+      </p>
 
       {counts === undefined ? null : (
-        <div role="group" aria-label={t("adminEventCfp.submissions.counts.label")} className="flex flex-wrap gap-2">
+        <div
+          role="group"
+          aria-label={t("adminEventCfp.submissions.counts.label")}
+          className="flex flex-wrap gap-2"
+        >
           <Button
             type="button"
             size="sm"
@@ -237,7 +253,12 @@ function CfpSubmissionsList({ eventId, settings }: { eventId: string; settings: 
               placeholder={t("adminEventCfp.submissions.filters.searchPlaceholder")}
               onChange={(event) => setSearch(event.target.value)}
             />
-            <Button type="submit" variant="outline" size="icon" aria-label={t("adminEventCfp.submissions.filters.search")}>
+            <Button
+              type="submit"
+              variant="outline"
+              size="icon"
+              aria-label={t("adminEventCfp.submissions.filters.search")}
+            >
               <Search className="h-4 w-4" aria-hidden="true" />
             </Button>
           </div>
@@ -249,7 +270,9 @@ function CfpSubmissionsList({ eventId, settings }: { eventId: string; settings: 
         loadingLabel={t("adminEventCfp.common.loading")}
         errorMessage={listQ.error ? adminCfpErrorMessage(listQ.error) : null}
         isEmpty={rows.length === 0}
-        emptyLabel={t(filtered ? "adminEventCfp.submissions.emptyFiltered" : "adminEventCfp.submissions.empty")}
+        emptyLabel={t(
+          filtered ? "adminEventCfp.submissions.emptyFiltered" : "adminEventCfp.submissions.empty",
+        )}
       >
         <Table>
           <TableHeader>
@@ -281,7 +304,9 @@ function CfpSubmissionsList({ eventId, settings }: { eventId: string; settings: 
               return (
                 <TableRow key={row.id}>
                   <TableCell className="max-w-[18rem]">
-                    <div className="font-medium">{localizedPair(lang, row.title_pl, row.title_en)}</div>
+                    <div className="font-medium">
+                      {localizedPair(lang, row.title_pl, row.title_en)}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div>{row.speaker_name}</div>
@@ -294,7 +319,9 @@ function CfpSubmissionsList({ eventId, settings }: { eventId: string; settings: 
                   </TableCell>
                   <TableCell>
                     <div>{track}</div>
-                    {format === null ? null : <div className="text-xs text-muted-foreground">{format}</div>}
+                    {format === null ? null : (
+                      <div className="text-xs text-muted-foreground">{format}</div>
+                    )}
                   </TableCell>
                   <TableCell>
                     <CfpStatusBadge status={rowStatus} />
@@ -315,7 +342,12 @@ function CfpSubmissionsList({ eventId, settings }: { eventId: string; settings: 
                     {formatEventDateTime(row.submitted_at, settings.eventTimezone, lang)}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button type="button" variant="outline" size="sm" onClick={() => setOpenId(row.id)}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setOpenId(row.id)}
+                    >
                       {t("adminEventCfp.submissions.open")}
                     </Button>
                   </TableCell>
@@ -329,7 +361,11 @@ function CfpSubmissionsList({ eventId, settings }: { eventId: string; settings: 
           className="flex items-center justify-end gap-2 pt-2 text-xs text-muted-foreground"
         >
           <span className="tabular-nums">
-            {t("adminEventCfp.submissions.pagination.range", { from: range.from, to: range.to, total })}
+            {t("adminEventCfp.submissions.pagination.range", {
+              from: range.from,
+              to: range.to,
+              total,
+            })}
           </span>
           <Button
             type="button"

@@ -48,7 +48,11 @@ describe("buildCfpNotice", () => {
       tenantId: "t1",
       ctaPath: "/events/kongres/speaker",
     });
-    expect(notice.details.map((detail) => detail.label)).toEqual(["Wydarzenie", "Wystąpienie", "Termin"]);
+    expect(notice.details.map((detail) => detail.label)).toEqual([
+      "Wydarzenie",
+      "Wystąpienie",
+      "Termin",
+    ]);
     expect(notice.details[1]?.value).toBe("Energia jutra");
     expect(notice.details[2]?.value).toContain("10:00");
     expect(JSON.stringify(notice)).not.toContain("NOTATKA");
@@ -96,10 +100,17 @@ describe("buildCfpNotice", () => {
       title_pl: "Tylko PL",
       feedback_to_speaker: "   ",
     });
-    expect(notice).toMatchObject({ eventTitle: "", firstName: null, tenantId: null, ctaPath: "/events" });
+    expect(notice).toMatchObject({
+      eventTitle: "",
+      firstName: null,
+      tenantId: null,
+      ctaPath: "/events",
+    });
     expect(notice.details).toEqual([{ label: "Talk", value: "Tylko PL" }]);
     expect(buildCfpNotice("rejected", {}).ctaPath).toBe("/events");
     expect(buildCfpNotice("received", { event_starts_at: "nie-data" }).details).toEqual([]);
-    expect(buildCfpNotice("changes_requested", { event_slug: "k" }).ctaPath).toBe("/events/k/speaker");
+    expect(buildCfpNotice("changes_requested", { event_slug: "k" }).ctaPath).toBe(
+      "/events/k/speaker",
+    );
   });
 });

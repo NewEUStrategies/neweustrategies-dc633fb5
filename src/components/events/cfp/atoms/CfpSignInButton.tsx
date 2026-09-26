@@ -21,7 +21,11 @@ export function CfpSignInButton({
   description: string;
 }) {
   return (
-    <Button type="button" size="sm" onClick={() => openLoginPopup({ mode: "signin", title, description })}>
+    <Button
+      type="button"
+      size="sm"
+      onClick={() => openLoginPopup({ mode: "signin", title, description })}
+    >
       {label}
     </Button>
   );

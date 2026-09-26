@@ -215,7 +215,8 @@ export const eventCfpPl = {
         reviewsInfo: "Ocen: {{count}}, średnia {{avg}} na {{max}}",
         submittedAt: "Wysłane {{date}}",
         updatedAt: "Ostatnia zmiana {{date}}",
-        acceptedHint: "Gratulacje! Potwierdź udział, aby organizator mógł ogłosić Twoje wystąpienie.",
+        acceptedHint:
+          "Gratulacje! Potwierdź udział, aby organizator mógł ogłosić Twoje wystąpienie.",
         confirmedHint: "Udział potwierdzony - do zobaczenia na wydarzeniu.",
         limit: "Wysłane zgłoszenia: {{count}} z {{max}}.",
         withdrawn: "Wycofano zgłoszenie.",
@@ -326,7 +327,8 @@ export const eventCfpPl = {
       emailInUse: "Ten adres e-mail należy do innego konta.",
       emailRequired: "Twoje konto nie ma adresu e-mail - uzupełnij go w ustawieniach konta.",
       invalidAbstract: "Streszczenie może mieć do 4000 znaków.",
-      invalidAnswers: "Odpowiedź na jedno z pytań ma niewłaściwą postać. Sprawdź pytania organizatora.",
+      invalidAnswers:
+        "Odpowiedź na jedno z pytań ma niewłaściwą postać. Sprawdź pytania organizatora.",
       invalidAuditAction: "Nie udało się zapisać wpisu w historii. Spróbuj ponownie.",
       invalidComment: "Każdy komentarz może mieć do 4000 znaków.",
       invalidFormat: "Wybierz formę z listy naboru.",
@@ -570,7 +572,8 @@ export const eventCfpEn = {
         reviewsInfo: "Reviews: {{count}}, average {{avg}} out of {{max}}",
         submittedAt: "Sent {{date}}",
         updatedAt: "Last changed {{date}}",
-        acceptedHint: "Congratulations! Confirm your participation so the organiser can announce your talk.",
+        acceptedHint:
+          "Congratulations! Confirm your participation so the organiser can announce your talk.",
         confirmedHint: "Participation confirmed - see you at the event.",
         limit: "Submissions sent: {{count}} of {{max}}.",
         withdrawn: "Submission withdrawn.",
@@ -613,7 +616,8 @@ export const eventCfpEn = {
         empty: "You have no materials yet.",
         add: "Add material",
         dialogTitle: "Speaker material",
-        dialogDescription: "Changing a material withdraws its publication until it is approved again.",
+        dialogDescription:
+          "Changing a material withdraws its publication until it is approved again.",
         deleteTitle: "Delete the material?",
         deleteDescription: "The material disappears from the panel and from the event site.",
         kind: "Kind",
@@ -681,7 +685,8 @@ export const eventCfpEn = {
       emailInUse: "This e-mail address belongs to another account.",
       emailRequired: "Your account has no e-mail address - add one in your account settings.",
       invalidAbstract: "The abstract may have up to 4000 characters.",
-      invalidAnswers: "An answer to one of the questions has the wrong form. Check the organiser's questions.",
+      invalidAnswers:
+        "An answer to one of the questions has the wrong form. Check the organiser's questions.",
       invalidAuditAction: "The history entry could not be saved. Try again.",
       invalidComment: "Each comment may have up to 4000 characters.",
       invalidFormat: "Choose a format from the call's list.",

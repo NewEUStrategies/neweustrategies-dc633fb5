@@ -154,7 +154,11 @@ describe("ekrany naboru dostają wydarzenie ze ścieżki", () => {
     stub().setData("admin_event_detail", [
       { id: STUDIO_ROUTE_EVENT_ID, title_pl: "Kongres", title_en: "Congress" },
     ]);
-    await renderRoute({ route, path, initialEntry: path.replace("$eventId", STUDIO_ROUTE_EVENT_ID) });
+    await renderRoute({
+      route,
+      path,
+      initialEntry: path.replace("$eventId", STUDIO_ROUTE_EVENT_ID),
+    });
     await waitFor(() => expect(screen.getByTestId("cfp-organism")).toBeInTheDocument());
     const node = screen.getByTestId("cfp-organism");
     expect(node.getAttribute("data-organism")).toBe(organism);

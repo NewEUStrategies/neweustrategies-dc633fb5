@@ -26,7 +26,12 @@ export function CfpAnswerValue({ field, value }: { field: CfpFieldDef; value: un
       return <span>{t("eventCfp.answers.no")}</span>;
     case "url":
       return (
-        <a href={display.value} target="_blank" rel="noopener noreferrer nofollow" className="break-all underline">
+        <a
+          href={display.value}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          className="break-all underline"
+        >
           {display.value}
         </a>
       );

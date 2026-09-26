@@ -96,11 +96,7 @@ export const CFP_SESSION_FORMATS = ["onsite", "online", "hybrid"] as const;
 export type CfpSessionFormat = (typeof CFP_SESSION_FORMATS)[number];
 
 /** Zawężenie napisu z bazy do zbioru; wartość spoza zbioru = `fallback`. */
-export function asOneOf<T extends string>(
-  values: readonly T[],
-  value: unknown,
-  fallback: T,
-): T {
+export function asOneOf<T extends string>(values: readonly T[], value: unknown, fallback: T): T {
   return typeof value === "string" && (values as readonly string[]).includes(value)
     ? (value as T)
     : fallback;

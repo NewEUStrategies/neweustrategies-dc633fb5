@@ -67,7 +67,13 @@ function ScoreButtons({
             {score}
           </Button>
         ))}
-        <Button type="button" size="sm" variant="ghost" disabled={value === null} onClick={() => onChange(null)}>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          disabled={value === null}
+          onClick={() => onChange(null)}
+        >
           {clearLabel}
         </Button>
       </div>
@@ -117,7 +123,9 @@ export function CfpReviewForm({
         />
         <span>
           {t("eventCfp.review.conflict")}
-          <span className="block text-xs text-muted-foreground">{t("eventCfp.review.conflictHint")}</span>
+          <span className="block text-xs text-muted-foreground">
+            {t("eventCfp.review.conflictHint")}
+          </span>
         </span>
       </label>
 
@@ -161,7 +169,9 @@ export function CfpReviewForm({
             : t(CFP_RECOMMENDATION_LABEL_KEYS[known]);
         }}
         onChange={(option) => {
-          const known: CfpRecommendation | undefined = CFP_RECOMMENDATIONS.find((entry) => entry === option);
+          const known: CfpRecommendation | undefined = CFP_RECOMMENDATIONS.find(
+            (entry) => entry === option,
+          );
           set("recommendation", known ?? null);
         }}
       />

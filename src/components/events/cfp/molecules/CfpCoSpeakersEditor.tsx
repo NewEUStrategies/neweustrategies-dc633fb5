@@ -37,7 +37,10 @@ export function CfpCoSpeakersEditor({
   return (
     <div className="space-y-3">
       {speakers.map((speaker, index) => (
-        <fieldset key={`co-speaker-${index}`} className="space-y-3 rounded-[6px] border border-border p-3">
+        <fieldset
+          key={`co-speaker-${index}`}
+          className="space-y-3 rounded-[6px] border border-border p-3"
+        >
           <legend className="px-1 text-sm font-medium">
             {t("eventCfp.submit.coSpeaker.legend", { index: index + 1 })}
           </legend>

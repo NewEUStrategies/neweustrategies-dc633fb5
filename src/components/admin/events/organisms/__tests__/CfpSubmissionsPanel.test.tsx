@@ -30,11 +30,14 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
-vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError, info: h.toastInfo } }));
+vi.mock("sonner", () => ({
+  toast: { success: h.toastSuccess, error: h.toastError, info: h.toastInfo },
+}));
 vi.mock("@/lib/i18n-admin-event-cfp", () => ({ ensureAdminEventCfpI18n: () => undefined }));
 vi.mock("@/lib/i18n-event-cfp", () => ({ ensureEventCfpI18n: () => undefined }));
 vi.mock("@/lib/events/adminCfpErrors", () => ({
-  adminCfpErrorMessage: (error: unknown) => `odmowa:${error instanceof Error ? error.message : String(error)}`,
+  adminCfpErrorMessage: (error: unknown) =>
+    `odmowa:${error instanceof Error ? error.message : String(error)}`,
 }));
 vi.mock("@/lib/events/cfpNotify.functions", () => ({ notifyCfpDecision: h.notify }));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
@@ -47,10 +50,15 @@ vi.mock("@/components/atoms/FormSelect", async () =>
 vi.mock("@/components/ui/datetime-picker", async () =>
   (await import("@/test/events/cfpStubs")).dateTimePickerStubModule(await import("react")),
 );
-vi.mock("@/components/ui/switch", async () => (await import("@/test/reactStubs")).radixSwitchStub(await import("react")));
-vi.mock("@/components/ui/tabs", async () => (await import("@/test/reactStubs")).radixTabsStub(await import("react")));
+vi.mock("@/components/ui/switch", async () =>
+  (await import("@/test/reactStubs")).radixSwitchStub(await import("react")),
+);
+vi.mock("@/components/ui/tabs", async () =>
+  (await import("@/test/reactStubs")).radixTabsStub(await import("react")),
+);
 
-const { CfpSubmissionsPanel } = await import("@/components/admin/events/organisms/CfpSubmissionsPanel");
+const { CfpSubmissionsPanel } =
+  await import("@/components/admin/events/organisms/CfpSubmissionsPanel");
 
 function stub(): SupabaseRpcStub {
   if (h.rpc === null) throw new Error("test");
@@ -137,7 +145,12 @@ function detail(overrides: Record<string, unknown> = {}, submission: Record<stri
       ...submission,
     },
     event: { slug: "kongres", timezone: "Europe/Warsaw" },
-    person: { id: "p1", email: "anna@example.org", consent_marketing_at: "2026-09-01", consent_withdrawn_at: null },
+    person: {
+      id: "p1",
+      email: "anna@example.org",
+      consent_marketing_at: "2026-09-01",
+      consent_withdrawn_at: null,
+    },
     speakers: [
       {
         id: "sp1",
@@ -151,8 +164,24 @@ function detail(overrides: Record<string, unknown> = {}, submission: Record<stri
         company_text: "NES",
         crm: { sync_status: "error", synced_at: "2026-09-03T10:00:00+00:00" },
       },
-      { id: "sp2", person_id: null, is_primary: false, role: "panelist", first_name: "Jan", last_name: "K", crm: null },
-      { id: "sp3", person_id: "p3", is_primary: false, role: "moderator", first_name: "Ola", last_name: "M", crm: null },
+      {
+        id: "sp2",
+        person_id: null,
+        is_primary: false,
+        role: "panelist",
+        first_name: "Jan",
+        last_name: "K",
+        crm: null,
+      },
+      {
+        id: "sp3",
+        person_id: "p3",
+        is_primary: false,
+        role: "moderator",
+        first_name: "Ola",
+        last_name: "M",
+        crm: null,
+      },
       {
         id: "sp4",
         person_id: "p4",
@@ -164,7 +193,13 @@ function detail(overrides: Record<string, unknown> = {}, submission: Record<stri
       },
     ],
     fields: [
-      { key: "exp", field_type: "select", label_pl: "Doświadczenie", label_en: "Experience", options: [{ value: "a", label_pl: "Duże", label_en: "Big" }] },
+      {
+        key: "exp",
+        field_type: "select",
+        label_pl: "Doświadczenie",
+        label_en: "Experience",
+        options: [{ value: "a", label_pl: "Duże", label_en: "Big" }],
+      },
       { key: "site", field_type: "url", label_pl: "Strona", label_en: "Site" },
       { key: "ok", field_type: "checkbox", label_pl: "Zgoda", label_en: "Consent" },
     ],
@@ -183,10 +218,19 @@ function detail(overrides: Record<string, unknown> = {}, submission: Record<stri
       { id: "r2", reviewer_name: "Recenzent 2", conflict_of_interest: true },
       { id: "r3", reviewer_name: "Recenzent 3", overall: null, recommendation: null, scores: {} },
     ],
-    summary: { reviews_count: 1, conflicts_count: 1, overall_avg: 4, weighted_avg: 4.2, recommendations: { accept: 1 } },
+    summary: {
+      reviews_count: 1,
+      conflicts_count: 1,
+      overall_avg: 4,
+      weighted_avg: 4.2,
+      recommendations: { accept: 1 },
+    },
     settings: {
       score_max: 5,
-      review_criteria: [{ key: "rel", label_pl: "Trafność", label_en: "Relevance", weight: 2 }, { key: "x", label_pl: "X", label_en: "X", weight: 1 }],
+      review_criteria: [
+        { key: "rel", label_pl: "Trafność", label_en: "Relevance", weight: 2 },
+        { key: "x", label_pl: "X", label_en: "X", weight: 1 },
+      ],
       formats: [{ key: "talk", label_pl: "Wykład", label_en: "Talk", duration_min: 30 }],
       min_reviews: 2,
     },
@@ -242,13 +286,17 @@ describe("CfpSubmissionsPanel - lista", () => {
     const row = (await screen.findByText("Anna Nowak")).closest("tr");
     if (row === null) throw new Error("test");
     expect(within(row).getByText("Energia jutra")).toBeInTheDocument();
-    expect(within(row).getByText(/adminEventCfp\.submissions\.coSpeakers\(count=2\)/)).toBeInTheDocument();
+    expect(
+      within(row).getByText(/adminEventCfp\.submissions\.coSpeakers\(count=2\)/),
+    ).toBeInTheDocument();
     expect(within(row).getByText("Energia")).toBeInTheDocument();
     expect(within(row).getByText("Wykład")).toBeInTheDocument();
     expect(within(row).getByText("adminEventCfp.submissions.belowMin")).toBeInTheDocument();
     expect(within(row).getByText("4,5")).toBeInTheDocument();
     expect(within(row).getByText("eventCfp.statuses.under_review")).toBeInTheDocument();
-    expect(screen.getByText("adminEventCfp.submissions.counts.needsReviews(count=3,min=2)")).toBeInTheDocument();
+    expect(
+      screen.getByText("adminEventCfp.submissions.counts.needsReviews(count=3,min=2)"),
+    ).toBeInTheDocument();
   });
 
   it("wiersz bez ścieżki, formy i ocen; decyzja podjęta = bez znacznika minimum", async () => {
@@ -275,50 +323,101 @@ describe("CfpSubmissionsPanel - lista", () => {
   it("kafle stanów, filtry, wyszukiwanie i strony trafiają do ładunku listy", async () => {
     await renderPanel();
     await screen.findByText("Anna Nowak");
-    expect(payload("admin_event_cfp_submissions_list")).toEqual({ event_id: "e1", sort: "recent", limit: 25, offset: 0 });
+    expect(payload("admin_event_cfp_submissions_list")).toEqual({
+      event_id: "e1",
+      sort: "recent",
+      limit: 25,
+      offset: 0,
+    });
 
     fireEvent.click(screen.getByRole("button", { name: /eventCfp\.statuses\.under_review/ }));
-    await waitFor(() => expect(payload("admin_event_cfp_submissions_list")).toMatchObject({ status: "under_review" }));
+    await waitFor(() =>
+      expect(payload("admin_event_cfp_submissions_list")).toMatchObject({ status: "under_review" }),
+    );
     // Powrót do „wszystkich" czyta ten sam wpis cache, co pierwsze wczytanie.
     const total = screen.getByRole("button", { name: /adminEventCfp\.submissions\.counts\.total/ });
     fireEvent.click(total);
     await waitFor(() => expect(total).toHaveAttribute("aria-pressed", "true"));
 
-    fireEvent.change(screen.getByLabelText("adminEventCfp.submissions.filters.status"), { target: { value: "waitlisted" } });
-    await waitFor(() => expect(payload("admin_event_cfp_submissions_list")).toMatchObject({ status: "waitlisted" }));
-    fireEvent.change(screen.getByLabelText("adminEventCfp.submissions.filters.status"), { target: { value: "all" } });
-    fireEvent.change(screen.getByLabelText("adminEventCfp.submissions.filters.track"), { target: { value: "t1" } });
-    await waitFor(() => expect(payload("admin_event_cfp_submissions_list")).toMatchObject({ track_id: "t1" }));
-    fireEvent.change(screen.getByLabelText("adminEventCfp.submissions.filters.sort"), { target: { value: "score" } });
-    await waitFor(() => expect(payload("admin_event_cfp_submissions_list")).toMatchObject({ sort: "score" }));
-    fireEvent.change(screen.getByLabelText("adminEventCfp.submissions.filters.search", { selector: "input" }), {
-      target: { value: " nowak " },
+    fireEvent.change(screen.getByLabelText("adminEventCfp.submissions.filters.status"), {
+      target: { value: "waitlisted" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "adminEventCfp.submissions.filters.search" }));
-    await waitFor(() => expect(payload("admin_event_cfp_submissions_list")).toMatchObject({ q: "nowak" }));
-
-    expect(screen.getByText("adminEventCfp.submissions.pagination.range(from=1,to=25,total=30)")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "adminEventCfp.submissions.pagination.previous" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "adminEventCfp.submissions.pagination.next" }));
-    await waitFor(() => expect(payload("admin_event_cfp_submissions_list")).toMatchObject({ offset: 25 }));
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "adminEventCfp.submissions.pagination.next" })).toBeDisabled(),
+      expect(payload("admin_event_cfp_submissions_list")).toMatchObject({ status: "waitlisted" }),
     );
-    expect(screen.getByText("adminEventCfp.submissions.pagination.range(from=26,to=30,total=30)")).toBeInTheDocument();
-    // Pierwsza strona z tymi filtrami jest już w cache.
-    fireEvent.click(screen.getByRole("button", { name: "adminEventCfp.submissions.pagination.previous" }));
+    fireEvent.change(screen.getByLabelText("adminEventCfp.submissions.filters.status"), {
+      target: { value: "all" },
+    });
+    fireEvent.change(screen.getByLabelText("adminEventCfp.submissions.filters.track"), {
+      target: { value: "t1" },
+    });
     await waitFor(() =>
-      expect(screen.getByText("adminEventCfp.submissions.pagination.range(from=1,to=25,total=30)")).toBeInTheDocument(),
+      expect(payload("admin_event_cfp_submissions_list")).toMatchObject({ track_id: "t1" }),
+    );
+    fireEvent.change(screen.getByLabelText("adminEventCfp.submissions.filters.sort"), {
+      target: { value: "score" },
+    });
+    await waitFor(() =>
+      expect(payload("admin_event_cfp_submissions_list")).toMatchObject({ sort: "score" }),
+    );
+    fireEvent.change(
+      screen.getByLabelText("adminEventCfp.submissions.filters.search", { selector: "input" }),
+      {
+        target: { value: " nowak " },
+      },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "adminEventCfp.submissions.filters.search" }),
+    );
+    await waitFor(() =>
+      expect(payload("admin_event_cfp_submissions_list")).toMatchObject({ q: "nowak" }),
+    );
+
+    expect(
+      screen.getByText("adminEventCfp.submissions.pagination.range(from=1,to=25,total=30)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "adminEventCfp.submissions.pagination.previous" }),
+    ).toBeDisabled();
+    fireEvent.click(
+      screen.getByRole("button", { name: "adminEventCfp.submissions.pagination.next" }),
+    );
+    await waitFor(() =>
+      expect(payload("admin_event_cfp_submissions_list")).toMatchObject({ offset: 25 }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "adminEventCfp.submissions.pagination.next" }),
+      ).toBeDisabled(),
+    );
+    expect(
+      screen.getByText("adminEventCfp.submissions.pagination.range(from=26,to=30,total=30)"),
+    ).toBeInTheDocument();
+    // Pierwsza strona z tymi filtrami jest już w cache.
+    fireEvent.click(
+      screen.getByRole("button", { name: "adminEventCfp.submissions.pagination.previous" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByText("adminEventCfp.submissions.pagination.range(from=1,to=25,total=30)"),
+      ).toBeInTheDocument(),
     );
   });
 
   it("pusta lista mówi, czy to brak zgłoszeń, czy efekt filtrów; odmowa listy ma własne zdanie", async () => {
-    await renderPanel({ rows: [], counts: { total: 0, submitted: 0, under_review: 0, needs_reviews: 0 } });
+    await renderPanel({
+      rows: [],
+      counts: { total: 0, submitted: 0, under_review: 0, needs_reviews: 0 },
+    });
     expect(await screen.findByText("adminEventCfp.submissions.empty")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("adminEventCfp.submissions.filters.track"), { target: { value: "t1" } });
+    fireEvent.change(screen.getByLabelText("adminEventCfp.submissions.filters.track"), {
+      target: { value: "t1" },
+    });
     expect(await screen.findByText("adminEventCfp.submissions.emptyFiltered")).toBeInTheDocument();
     stub().setError("admin_event_cfp_submissions_list", "forbidden: y");
-    fireEvent.change(screen.getByLabelText("adminEventCfp.submissions.filters.sort"), { target: { value: "title" } });
+    fireEvent.change(screen.getByLabelText("adminEventCfp.submissions.filters.sort"), {
+      target: { value: "title" },
+    });
     expect(await screen.findByText("odmowa:forbidden: y")).toBeInTheDocument();
   });
 
@@ -342,19 +441,30 @@ describe("CfpSubmissionSheet - szczegół i decyzja", () => {
     expect(within(sheet).getByText("adminEventCfp.crm.none")).toBeInTheDocument();
     expect(within(sheet).getByText("adminEventCfp.crm.status.ok")).toBeInTheDocument();
     expect(within(sheet).getByText("CEO, NES")).toBeInTheDocument();
-    expect(within(sheet).getAllByRole("button", { name: "adminEventCfp.crm.retry" })).toHaveLength(2);
+    expect(within(sheet).getAllByRole("button", { name: "adminEventCfp.crm.retry" })).toHaveLength(
+      2,
+    );
     // Wystąpienie i odpowiedzi.
     expect(within(sheet).getByText("Streszczenie PL")).toBeInTheDocument();
     expect(within(sheet).getByText("Abstract EN")).toBeInTheDocument();
     expect(within(sheet).getByText("sieci")).toBeInTheDocument();
     expect(within(sheet).getByText("Duże")).toBeInTheDocument();
-    expect(within(sheet).getByRole("link", { name: "https://example.org" })).toHaveAttribute("rel", "noopener noreferrer nofollow");
+    expect(within(sheet).getByRole("link", { name: "https://example.org" })).toHaveAttribute(
+      "rel",
+      "noopener noreferrer nofollow",
+    );
     expect(within(sheet).getByText("eventCfp.answers.yes")).toBeInTheDocument();
     expect(within(sheet).getByText("eventCfp.languages.en")).toBeInTheDocument();
     // Oceny: agregaty, konflikt, brak oceny ogólnej, uwagi prywatne.
-    expect(within(sheet).getByText("adminEventCfp.detail.reviewsSummary(count=1,min=2)")).toBeInTheDocument();
-    expect(within(sheet).getByText("adminEventCfp.detail.overallAvg(value=4,0)")).toBeInTheDocument();
-    expect(within(sheet).getByText("adminEventCfp.detail.weightedAvg(value=4,2)")).toBeInTheDocument();
+    expect(
+      within(sheet).getByText("adminEventCfp.detail.reviewsSummary(count=1,min=2)"),
+    ).toBeInTheDocument();
+    expect(
+      within(sheet).getByText("adminEventCfp.detail.overallAvg(value=4,0)"),
+    ).toBeInTheDocument();
+    expect(
+      within(sheet).getByText("adminEventCfp.detail.weightedAvg(value=4,2)"),
+    ).toBeInTheDocument();
     expect(within(sheet).getByText("adminEventCfp.detail.belowMin")).toBeInTheDocument();
     expect(within(sheet).getByText("adminEventCfp.detail.conflict")).toBeInTheDocument();
     expect(within(sheet).getByText(/adminEventCfp\.detail\.noOverall/)).toBeInTheDocument();
@@ -363,7 +473,9 @@ describe("CfpSubmissionSheet - szczegół i decyzja", () => {
     expect(within(sheet).getByText("Trafność: 4")).toBeInTheDocument();
     // Mail: decyzji jeszcze nie ma, więc nie ma czego wysłać.
     expect(within(sheet).getByText("adminEventCfp.notify.notApplicable")).toBeInTheDocument();
-    expect(within(sheet).queryByRole("button", { name: "adminEventCfp.notify.send" })).not.toBeInTheDocument();
+    expect(
+      within(sheet).queryByRole("button", { name: "adminEventCfp.notify.send" }),
+    ).not.toBeInTheDocument();
   });
 
   it("ponowienie CRM dotyczy osoby", async () => {
@@ -371,11 +483,17 @@ describe("CfpSubmissionSheet - szczegół i decyzja", () => {
     const sheet = await openSheet();
     await within(sheet).findByRole("heading", { name: "Energia jutra" });
     stub().setData("admin_event_person_crm_retry", {});
-    fireEvent.click(within(sheet).getAllByRole("button", { name: "adminEventCfp.crm.retry" })[0] as HTMLElement);
-    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.crmRetried"));
+    fireEvent.click(
+      within(sheet).getAllByRole("button", { name: "adminEventCfp.crm.retry" })[0] as HTMLElement,
+    );
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.crmRetried"),
+    );
     expect(stub().lastCall("admin_event_person_crm_retry")?.arg("p_person_id")).toBe("p1");
     stub().setError("admin_event_person_crm_retry", "forbidden: z");
-    fireEvent.click(within(sheet).getAllByRole("button", { name: "adminEventCfp.crm.retry" })[1] as HTMLElement);
+    fireEvent.click(
+      within(sheet).getAllByRole("button", { name: "adminEventCfp.crm.retry" })[1] as HTMLElement,
+    );
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("odmowa:forbidden: z"));
   });
 
@@ -383,16 +501,30 @@ describe("CfpSubmissionSheet - szczegół i decyzja", () => {
     await renderPanel();
     const sheet = await openSheet();
     await within(sheet).findByRole("heading", { name: "Energia jutra" });
-    fireEvent.change(within(sheet).getByLabelText("adminEventCfp.detail.decisionStatus"), { target: { value: "rejected" } });
-    fireEvent.click(within(sheet).getByRole("button", { name: "adminEventCfp.detail.applyDecision" }));
-    expect(within(sheet).getByText("adminEventCfp.detail.validation.noteRequired")).toBeInTheDocument();
+    fireEvent.change(within(sheet).getByLabelText("adminEventCfp.detail.decisionStatus"), {
+      target: { value: "rejected" },
+    });
+    fireEvent.click(
+      within(sheet).getByRole("button", { name: "adminEventCfp.detail.applyDecision" }),
+    );
+    expect(
+      within(sheet).getByText("adminEventCfp.detail.validation.noteRequired"),
+    ).toBeInTheDocument();
     expect(stub().callsFor("admin_event_cfp_submission_decide")).toHaveLength(0);
 
-    fireEvent.change(within(sheet).getByLabelText("adminEventCfp.detail.decisionNote"), { target: { value: " Poza tematem " } });
-    fireEvent.change(within(sheet).getByLabelText("adminEventCfp.detail.feedback"), { target: { value: "Dziękujemy" } });
+    fireEvent.change(within(sheet).getByLabelText("adminEventCfp.detail.decisionNote"), {
+      target: { value: " Poza tematem " },
+    });
+    fireEvent.change(within(sheet).getByLabelText("adminEventCfp.detail.feedback"), {
+      target: { value: "Dziękujemy" },
+    });
     stub().setData("admin_event_cfp_submission_decide", {});
-    fireEvent.click(within(sheet).getByRole("button", { name: "adminEventCfp.detail.applyDecision" }));
-    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.decisionSaved"));
+    fireEvent.click(
+      within(sheet).getByRole("button", { name: "adminEventCfp.detail.applyDecision" }),
+    );
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.decisionSaved"),
+    );
     expect(payload("admin_event_cfp_submission_decide")).toEqual({
       id: "s1",
       status: "rejected",
@@ -400,13 +532,21 @@ describe("CfpSubmissionSheet - szczegół i decyzja", () => {
       feedback_to_speaker: "Dziękujemy",
     });
 
-    fireEvent.change(within(sheet).getByLabelText("adminEventCfp.detail.feedback"), { target: { value: "x".repeat(4001) } });
-    fireEvent.click(within(sheet).getByRole("button", { name: "adminEventCfp.detail.applyDecision" }));
+    fireEvent.change(within(sheet).getByLabelText("adminEventCfp.detail.feedback"), {
+      target: { value: "x".repeat(4001) },
+    });
+    fireEvent.click(
+      within(sheet).getByRole("button", { name: "adminEventCfp.detail.applyDecision" }),
+    );
     expect(within(sheet).getByText("adminEventCfp.detail.validation.tooLong")).toBeInTheDocument();
 
-    fireEvent.change(within(sheet).getByLabelText("adminEventCfp.detail.feedback"), { target: { value: "ok" } });
+    fireEvent.change(within(sheet).getByLabelText("adminEventCfp.detail.feedback"), {
+      target: { value: "ok" },
+    });
     stub().setError("admin_event_cfp_submission_decide", "invalid_transition: x");
-    fireEvent.click(within(sheet).getByRole("button", { name: "adminEventCfp.detail.applyDecision" }));
+    fireEvent.click(
+      within(sheet).getByRole("button", { name: "adminEventCfp.detail.applyDecision" }),
+    );
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("odmowa:invalid_transition: x"));
   });
 
@@ -418,13 +558,20 @@ describe("CfpSubmissionSheet - szczegół i decyzja", () => {
     const dialog = await screen.findByRole("dialog", { name: "adminEventCfp.accept.title" });
     fireEvent.click(within(dialog).getByLabelText("adminEventCfp.accept.register"));
     fireEvent.click(within(dialog).getByLabelText("adminEventCfp.accept.schedule"));
-    const roomOptions = within(within(dialog).getByLabelText("adminEventCfp.accept.room")).getAllByRole("option");
-    expect(roomOptions.map((option) => option.textContent)).toEqual(["adminEventCfp.accept.noRoom", "Sala A"]);
+    const roomOptions = within(
+      within(dialog).getByLabelText("adminEventCfp.accept.room"),
+    ).getAllByRole("option");
+    expect(roomOptions.map((option) => option.textContent)).toEqual([
+      "adminEventCfp.accept.noRoom",
+      "Sala A",
+    ]);
     // Ścieżka zgłoszenia jest podpowiedzią dla sesji.
     expect(within(dialog).getByLabelText("adminEventCfp.accept.track")).toHaveValue("t1");
 
     fireEvent.click(within(dialog).getByRole("button", { name: "adminEventCfp.accept.confirm" }));
-    expect(within(dialog).getByText("adminEventCfp.accept.validation.schedule")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText("adminEventCfp.accept.validation.schedule"),
+    ).toBeInTheDocument();
     expect(stub().callsFor("admin_event_cfp_submission_accept")).toHaveLength(0);
 
     fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.startsAt"), {
@@ -433,12 +580,20 @@ describe("CfpSubmissionSheet - szczegół i decyzja", () => {
     fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.endsAt"), {
       target: { value: "2026-10-01T09:30:00.000Z" },
     });
-    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.room"), { target: { value: "r1" } });
-    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.track"), { target: { value: "__none__" } });
-    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.format"), { target: { value: "hybrid" } });
+    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.room"), {
+      target: { value: "r1" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.track"), {
+      target: { value: "__none__" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.format"), {
+      target: { value: "hybrid" },
+    });
     stub().setData("admin_event_cfp_submission_accept", { id: "s1", speakers_enrolled: 3 });
     fireEvent.click(within(dialog).getByRole("button", { name: "adminEventCfp.accept.confirm" }));
-    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.accepted(count=3)"));
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.accepted(count=3)"),
+    );
     expect(payload("admin_event_cfp_submission_accept")).toEqual({
       id: "s1",
       decision_note: "",
@@ -458,15 +613,23 @@ describe("CfpSubmissionSheet - szczegół i decyzja", () => {
     await renderPanel();
     const sheet = await openSheet();
     await within(sheet).findByRole("heading", { name: "Energia jutra" });
-    fireEvent.change(within(sheet).getByLabelText("adminEventCfp.detail.decisionNote"), { target: { value: "x".repeat(2001) } });
+    fireEvent.change(within(sheet).getByLabelText("adminEventCfp.detail.decisionNote"), {
+      target: { value: "x".repeat(2001) },
+    });
     fireEvent.click(within(sheet).getByRole("button", { name: "adminEventCfp.detail.accept" }));
     let dialog = await screen.findByRole("dialog", { name: "adminEventCfp.accept.title" });
     fireEvent.click(within(dialog).getByRole("button", { name: "adminEventCfp.accept.confirm" }));
     expect(within(dialog).getByText("adminEventCfp.detail.validation.tooLong")).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "adminEventCfp.common.cancel" }));
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "adminEventCfp.accept.title" })).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "adminEventCfp.accept.title" }),
+      ).not.toBeInTheDocument(),
+    );
 
-    fireEvent.change(within(sheet).getByLabelText("adminEventCfp.detail.decisionNote"), { target: { value: "ok" } });
+    fireEvent.change(within(sheet).getByLabelText("adminEventCfp.detail.decisionNote"), {
+      target: { value: "ok" },
+    });
     fireEvent.click(within(sheet).getByRole("button", { name: "adminEventCfp.detail.accept" }));
     dialog = await screen.findByRole("dialog", { name: "adminEventCfp.accept.title" });
     stub().setError("admin_event_cfp_submission_accept", "room_conflict: x");
@@ -515,26 +678,33 @@ describe("CfpSubmissionSheet - szczegół i decyzja", () => {
     const sheet = await openSheet();
     await within(sheet).findByText("Sesja PL · 1 października 2026 11:00");
     expect(within(sheet).getByText("adminEventCfp.detail.notDecidable")).toBeInTheDocument();
-    expect(within(sheet).getByRole("link", { name: "adminEventCfp.detail.openAgenda" })).toHaveAttribute(
-      "href",
-      "/admin/events/e1/content/sessions",
-    );
+    expect(
+      within(sheet).getByRole("link", { name: "adminEventCfp.detail.openAgenda" }),
+    ).toHaveAttribute("href", "/admin/events/e1/content/sessions");
     expect(within(sheet).getByText("adminEventCfp.detail.noReviews")).toBeInTheDocument();
     expect(within(sheet).getByText("adminEventCfp.detail.noAnswers")).toBeInTheDocument();
     expect(within(sheet).getByText("adminEventCfp.detail.noTrack")).toBeInTheDocument();
     expect(within(sheet).getByText("adminEventCfp.detail.noFormat")).toBeInTheDocument();
     expect(within(sheet).getByText("adminEventCfp.detail.consentNo")).toBeInTheDocument();
     expect(within(sheet).getByText("adminEventCfp.notify.pending")).toBeInTheDocument();
-    expect(within(sheet).getByText(/adminEventCfp\.notify\.sentAt\(date=.*,status=eventCfp\.statuses\.rejected\)/)).toBeInTheDocument();
+    expect(
+      within(sheet).getByText(
+        /adminEventCfp\.notify\.sentAt\(date=.*,status=eventCfp\.statuses\.rejected\)/,
+      ),
+    ).toBeInTheDocument();
 
     h.notify.mockResolvedValueOnce({ ok: true });
     fireEvent.click(within(sheet).getByRole("button", { name: "adminEventCfp.notify.send" }));
-    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.notified"));
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.notified"),
+    );
     expect(h.notify).toHaveBeenCalledWith({ data: { submissionId: "s1" } });
 
     h.notify.mockResolvedValueOnce({ ok: true, skipped: "not_applicable" });
     fireEvent.click(within(sheet).getByRole("button", { name: "adminEventCfp.notify.send" }));
-    await waitFor(() => expect(h.toastInfo).toHaveBeenCalledWith("adminEventCfp.toasts.notifySkipped"));
+    await waitFor(() =>
+      expect(h.toastInfo).toHaveBeenCalledWith("adminEventCfp.toasts.notifySkipped"),
+    );
 
     h.notify.mockResolvedValueOnce({ ok: false, error: "smtp" });
     fireEvent.click(within(sheet).getByRole("button", { name: "adminEventCfp.notify.send" }));
@@ -549,19 +719,26 @@ describe("CfpSubmissionSheet - szczegół i decyzja", () => {
     await renderPanel();
     stub().setData(
       "admin_event_cfp_submission_detail",
-      detail({}, {
-        status: "rejected",
-        decided_at: "2026-09-10T10:00:00+00:00",
-        notified_status: "rejected",
-        notified_at: "2026-09-11T10:00:00+00:00",
-        notify_error: null,
-      }),
+      detail(
+        {},
+        {
+          status: "rejected",
+          decided_at: "2026-09-10T10:00:00+00:00",
+          notified_status: "rejected",
+          notified_at: "2026-09-11T10:00:00+00:00",
+          notify_error: null,
+        },
+      ),
     );
     const sheet = await openSheet();
     await within(sheet).findByText("adminEventCfp.notify.upToDate");
-    expect(within(sheet).queryByRole("button", { name: "adminEventCfp.notify.send" })).not.toBeInTheDocument();
+    expect(
+      within(sheet).queryByRole("button", { name: "adminEventCfp.notify.send" }),
+    ).not.toBeInTheDocument();
     // Odrzucone można jeszcze zmienić (np. na listę rezerwową).
-    expect(within(sheet).getByLabelText("adminEventCfp.detail.decisionStatus")).toHaveValue("rejected");
+    expect(within(sheet).getByLabelText("adminEventCfp.detail.decisionStatus")).toHaveValue(
+      "rejected",
+    );
     fireEvent.keyDown(sheet, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
@@ -578,7 +755,13 @@ describe("CfpSubmissionSheet - szczegół i decyzja", () => {
       detail(
         {
           settings: { ...base.settings, review_criteria: [] },
-          session: { id: "ses1", title_pl: "Sesja bez godziny", title_en: "", starts_at: null, status: "draft" },
+          session: {
+            id: "ses1",
+            title_pl: "Sesja bez godziny",
+            title_en: "",
+            starts_at: null,
+            status: "draft",
+          },
         },
         { title_pl: "", title_en: "", submitted_at: null },
       ),
@@ -597,19 +780,32 @@ describe("CfpSubmissionSheet - szczegół i decyzja", () => {
     fireEvent.click(within(sheet).getByRole("button", { name: "adminEventCfp.detail.accept" }));
     const dialog = await screen.findByRole("dialog", { name: "adminEventCfp.accept.title" });
     fireEvent.click(within(dialog).getByLabelText("adminEventCfp.accept.schedule"));
-    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.room"), { target: { value: "r1" } });
-    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.room"), { target: { value: "__none__" } });
-    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.track"), { target: { value: "__none__" } });
-    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.track"), { target: { value: "t1" } });
+    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.room"), {
+      target: { value: "r1" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.room"), {
+      target: { value: "__none__" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.track"), {
+      target: { value: "__none__" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.track"), {
+      target: { value: "t1" },
+    });
     fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.startsAt"), {
       target: { value: "2026-10-01T09:00:00.000Z" },
     });
     fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.endsAt"), {
       target: { value: "2026-10-01T10:00:00.000Z" },
     });
-    stub().setResponse("admin_event_cfp_submission_accept", () => new Promise(() => undefined) as never);
+    stub().setResponse(
+      "admin_event_cfp_submission_accept",
+      () => new Promise(() => undefined) as never,
+    );
     fireEvent.click(within(dialog).getByRole("button", { name: "adminEventCfp.accept.confirm" }));
-    const saving = await within(dialog).findByRole("button", { name: "adminEventCfp.common.saving" });
+    const saving = await within(dialog).findByRole("button", {
+      name: "adminEventCfp.common.saving",
+    });
     expect(saving).toBeDisabled();
     expect(payload("admin_event_cfp_submission_accept")).toMatchObject({
       schedule: { room_id: null, track_id: "t1", format: "onsite" },

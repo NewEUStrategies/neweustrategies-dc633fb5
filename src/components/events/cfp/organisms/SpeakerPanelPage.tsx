@@ -92,7 +92,11 @@ export function SpeakerPanelPage({ slug }: { slug: string }) {
         <p className="text-sm text-muted-foreground">{t("eventCfp.speaker.lead")}</p>
         {panel.isReviewer ? (
           <p className="text-sm">
-            <Link to="/events/$slug/review" params={{ slug }} className="underline underline-offset-2">
+            <Link
+              to="/events/$slug/review"
+              params={{ slug }}
+              className="underline underline-offset-2"
+            >
               {t("eventCfp.speaker.reviewerLink")}
             </Link>
           </p>
@@ -110,7 +114,9 @@ export function SpeakerPanelPage({ slug }: { slug: string }) {
         </TabsContent>
         <TabsContent value="profile">
           {panel.profile === null ? (
-            <p className="text-sm text-muted-foreground">{t("eventCfp.speaker.profile.noProfile")}</p>
+            <p className="text-sm text-muted-foreground">
+              {t("eventCfp.speaker.profile.noProfile")}
+            </p>
           ) : (
             <SpeakerProfileForm slug={slug} profile={panel.profile} />
           )}
@@ -120,7 +126,9 @@ export function SpeakerPanelPage({ slug }: { slug: string }) {
         </TabsContent>
         <TabsContent value="materials">
           {panel.profile === null ? (
-            <p className="text-sm text-muted-foreground">{t("eventCfp.speaker.profile.noProfile")}</p>
+            <p className="text-sm text-muted-foreground">
+              {t("eventCfp.speaker.profile.noProfile")}
+            </p>
           ) : (
             <SpeakerMaterials slug={slug} panel={panel} />
           )}
@@ -152,7 +160,9 @@ function SpeakerSessions({ panel }: { panel: SpeakerPanel }) {
         return (
           <li key={session.sessionId} className="space-y-1 rounded-[6px] border border-border p-4">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-base font-semibold">{localizedPair(lang, session.titlePl, session.titleEn)}</h3>
+              <h3 className="text-base font-semibold">
+                {localizedPair(lang, session.titlePl, session.titleEn)}
+              </h3>
               <Badge variant="outline">{t(CFP_SPEAKER_ROLE_LABEL_KEYS[session.role])}</Badge>
             </div>
             <p className="text-sm">
@@ -166,10 +176,14 @@ function SpeakerSessions({ panel }: { panel: SpeakerPanel }) {
               </p>
             )}
             {track === "" ? null : (
-              <p className="text-xs text-muted-foreground">{t("eventCfp.speaker.sessions.track", { track })}</p>
+              <p className="text-xs text-muted-foreground">
+                {t("eventCfp.speaker.sessions.track", { track })}
+              </p>
             )}
             {session.status === "draft" ? (
-              <p className="text-xs text-muted-foreground">{t("eventCfp.speaker.sessions.draft")}</p>
+              <p className="text-xs text-muted-foreground">
+                {t("eventCfp.speaker.sessions.draft")}
+              </p>
             ) : null}
           </li>
         );
@@ -218,7 +232,9 @@ function SpeakerMaterials({ slug, panel }: { slug: string; panel: SpeakerPanel }
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="max-w-xl text-sm text-muted-foreground">{t("eventCfp.speaker.materials.lead")}</p>
+        <p className="max-w-xl text-sm text-muted-foreground">
+          {t("eventCfp.speaker.materials.lead")}
+        </p>
         <Button type="button" size="sm" onClick={() => openDialog(null)}>
           {t("eventCfp.speaker.materials.add")}
         </Button>
@@ -233,12 +249,18 @@ function SpeakerMaterials({ slug, panel }: { slug: string; panel: SpeakerPanel }
               className="flex flex-wrap items-center justify-between gap-2 rounded-[6px] border border-border p-3"
             >
               <div className="space-y-1">
-                <p className="text-sm font-medium">{localizedPair(lang, material.titlePl, material.titleEn)}</p>
+                <p className="text-sm font-medium">
+                  {localizedPair(lang, material.titlePl, material.titleEn)}
+                </p>
                 <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                   <span>{t(SPEAKER_MATERIAL_KIND_LABEL_KEYS[material.kind])}</span>
                   <span>{t(SPEAKER_MATERIAL_VISIBILITY_LABEL_KEYS[material.visibility])}</span>
                   <Badge variant={material.isPublished ? "default" : "outline"}>
-                    {t(material.isPublished ? "eventCfp.speaker.materials.published" : "eventCfp.speaker.materials.pending")}
+                    {t(
+                      material.isPublished
+                        ? "eventCfp.speaker.materials.published"
+                        : "eventCfp.speaker.materials.pending",
+                    )}
                   </Badge>
                 </div>
               </div>
@@ -248,7 +270,12 @@ function SpeakerMaterials({ slug, panel }: { slug: string; panel: SpeakerPanel }
                     {t("eventCfp.speaker.materials.open")}
                   </a>
                 </Button>
-                <Button type="button" size="sm" variant="outline" onClick={() => openDialog(material)}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => openDialog(material)}
+                >
                   {t("eventCfp.common.edit")}
                 </Button>
                 <Button

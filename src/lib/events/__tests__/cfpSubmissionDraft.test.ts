@@ -137,7 +137,12 @@ describe("szkic zgłoszenia", () => {
             },
           ],
         },
-        { id: "s2", speakers: [{ is_primary: false, first_name: "B", last_name: "C", email: "b@c.pl", job_title: "J" }] },
+        {
+          id: "s2",
+          speakers: [
+            { is_primary: false, first_name: "B", last_name: "C", email: "b@c.pl", job_title: "J" },
+          ],
+        },
       ],
     });
     const item = mine?.items[0];
@@ -152,7 +157,14 @@ describe("szkic zgłoszenia", () => {
       talkLanguage: "en",
       answers: { yes: "true", no: "", n: "5", list: ["a"], text: "t", obj: "" },
       coSpeakers: [
-        { firstName: "Jan", lastName: "K", email: "", jobTitle: "", companyText: "X", role: "panelist" },
+        {
+          firstName: "Jan",
+          lastName: "K",
+          email: "",
+          jobTitle: "",
+          companyText: "X",
+          role: "panelist",
+        },
       ],
     });
     const second = mine?.items[1];
@@ -177,7 +189,15 @@ describe("szkic zgłoszenia", () => {
       field({ key: "m2", fieldType: "multiselect" }),
     ];
     expect(
-      cfpAnswersPayload(defs, { c: "true", m: ["a"], n: " 7 ", bad: "x", t: " hej ", e: "  ", m2: "zly" }),
+      cfpAnswersPayload(defs, {
+        c: "true",
+        m: ["a"],
+        n: " 7 ",
+        bad: "x",
+        t: " hej ",
+        e: "  ",
+        m2: "zly",
+      }),
     ).toEqual({ c: true, m: ["a"], n: 7, bad: "x", t: "hej", m2: [] });
   });
 
@@ -188,7 +208,9 @@ describe("szkic zgłoszenia", () => {
   it("zapis szkicu wymaga tylko imienia i nazwiska", () => {
     expect(validateCfpDraftSave(validDraft())).toEqual([]);
     expect(
-      validateCfpDraftSave({ ...validDraft(), firstName: " ", lastName: "" }).map((issue) => issue.messageKey),
+      validateCfpDraftSave({ ...validDraft(), firstName: " ", lastName: "" }).map(
+        (issue) => issue.messageKey,
+      ),
     ).toEqual(["eventCfp.submit.validation.firstName", "eventCfp.submit.validation.lastName"]);
   });
 
@@ -207,7 +229,9 @@ describe("szkic zgłoszenia", () => {
     });
     expect(issues(validDraft(), withLists)).toEqual(["format", "track"]);
     expect(issues({ ...validDraft(), formatKey: "talk", trackId: "t1" }, withLists)).toEqual([]);
-    expect(issues({ ...validDraft(), formatKey: "gone", trackId: "t1" }, withLists)).toEqual(["format"]);
+    expect(issues({ ...validDraft(), formatKey: "gone", trackId: "t1" }, withLists)).toEqual([
+      "format",
+    ]);
   });
 
   it("wymagane pytania organizatora", () => {
@@ -238,11 +262,23 @@ describe("szkic zgłoszenia", () => {
     ]);
     const tooMany = Array.from({ length: CFP_MAX_CO_SPEAKERS + 1 }, () => co);
     expect(issues({ ...validDraft(), coSpeakers: tooMany })).toEqual(["coSpeakers"]);
-    expect(issues({ ...validDraft(), coSpeakers: [{ ...co, lastName: " " }] })).toEqual(["coSpeakers"]);
-    expect(issues({ ...validDraft(), coSpeakers: [{ ...co, firstName: "" }] })).toEqual(["coSpeakers"]);
-    expect(issues({ ...validDraft(), coSpeakers: [{ ...co, email: "zly" }] })).toEqual(["coSpeakers"]);
+    expect(issues({ ...validDraft(), coSpeakers: [{ ...co, lastName: " " }] })).toEqual([
+      "coSpeakers",
+    ]);
+    expect(issues({ ...validDraft(), coSpeakers: [{ ...co, firstName: "" }] })).toEqual([
+      "coSpeakers",
+    ]);
+    expect(issues({ ...validDraft(), coSpeakers: [{ ...co, email: "zly" }] })).toEqual([
+      "coSpeakers",
+    ]);
     expect(
-      issues({ ...validDraft(), coSpeakers: [{ ...co, email: "a@b.pl" }, { ...co, email: "A@B.pl " }] }),
+      issues({
+        ...validDraft(),
+        coSpeakers: [
+          { ...co, email: "a@b.pl" },
+          { ...co, email: "A@B.pl " },
+        ],
+      }),
     ).toEqual(["coSpeakers"]);
     expect(issues({ ...validDraft(), coSpeakers: [{ ...co, email: "jan@x.pl" }] })).toEqual([]);
   });
@@ -256,7 +292,14 @@ describe("szkic zgłoszenia", () => {
         topics: "a, b",
         answers: { t: " x " },
         coSpeakers: [
-          { firstName: " Jan ", lastName: " K ", email: " JAN@X.PL ", jobTitle: " ", companyText: "", role: "moderator" },
+          {
+            firstName: " Jan ",
+            lastName: " K ",
+            email: " JAN@X.PL ",
+            jobTitle: " ",
+            companyText: "",
+            role: "moderator",
+          },
           { ...emptyCoSpeakerDraft(), firstName: "B", lastName: "C" },
         ],
       },
@@ -265,7 +308,13 @@ describe("szkic zgłoszenia", () => {
     expect(input).toMatchObject({
       id: undefined,
       slug: "kongres",
-      speaker: { first_name: "Anna", last_name: "Nowak", job_title: "CEO", company_text: "NES", consent_marketing: true },
+      speaker: {
+        first_name: "Anna",
+        last_name: "Nowak",
+        job_title: "CEO",
+        company_text: "NES",
+        consent_marketing: true,
+      },
       notifyLang: "en",
       formatKey: null,
       trackId: null,
@@ -273,8 +322,22 @@ describe("szkic zgłoszenia", () => {
       answers: { t: "x" },
       role: "speaker",
       coSpeakers: [
-        { first_name: "Jan", last_name: "K", email: "jan@x.pl", job_title: "", company_text: "", role: "moderator" },
-        { first_name: "B", last_name: "C", email: null, job_title: "", company_text: "", role: "speaker" },
+        {
+          first_name: "Jan",
+          last_name: "K",
+          email: "jan@x.pl",
+          job_title: "",
+          company_text: "",
+          role: "moderator",
+        },
+        {
+          first_name: "B",
+          last_name: "C",
+          email: null,
+          job_title: "",
+          company_text: "",
+          role: "speaker",
+        },
       ],
     });
     const saved = cfpSubmissionSaveInput(
@@ -369,21 +432,27 @@ describe("decyzja i przyjęcie organizatora", () => {
     expect(cfpDecisionIssue(base)).toBe("adminEventCfp.detail.validation.noteRequired");
     expect(cfpDecisionIssue({ ...base, decisionNote: "ok!" })).toBeNull();
     expect(cfpDecisionIssue({ ...base, status: "waitlisted" })).toBeNull();
-    expect(cfpDecisionIssue({ ...base, status: "waitlisted", decisionNote: "x".repeat(2001) })).toBe(
-      "adminEventCfp.detail.validation.tooLong",
-    );
-    expect(cfpDecisionIssue({ ...base, status: "waitlisted", feedbackToSpeaker: "x".repeat(4001) })).toBe(
-      "adminEventCfp.detail.validation.tooLong",
-    );
     expect(
-      cfpDecisionPayload("s1", { status: "under_review", decisionNote: " n ", feedbackToSpeaker: " f " }),
+      cfpDecisionIssue({ ...base, status: "waitlisted", decisionNote: "x".repeat(2001) }),
+    ).toBe("adminEventCfp.detail.validation.tooLong");
+    expect(
+      cfpDecisionIssue({ ...base, status: "waitlisted", feedbackToSpeaker: "x".repeat(4001) }),
+    ).toBe("adminEventCfp.detail.validation.tooLong");
+    expect(
+      cfpDecisionPayload("s1", {
+        status: "under_review",
+        decisionNote: " n ",
+        feedbackToSpeaker: " f ",
+      }),
     ).toEqual({ id: "s1", status: "under_review", decisionNote: "n", feedbackToSpeaker: "f" });
   });
 
   it("przyjęcie bez planu jest poprawne; plan wymaga poprawnego okna do 48 h", () => {
     const draft = cfpAcceptDraftFrom({ decisionNote: "n", feedbackToSpeaker: "f", trackId: null });
     expect(draft).toMatchObject({ register: true, schedule: false, trackId: "", format: "onsite" });
-    expect(cfpAcceptDraftFrom({ decisionNote: "", feedbackToSpeaker: "", trackId: "t1" }).trackId).toBe("t1");
+    expect(
+      cfpAcceptDraftFrom({ decisionNote: "", feedbackToSpeaker: "", trackId: "t1" }).trackId,
+    ).toBe("t1");
     expect(cfpAcceptIssue(draft)).toBeNull();
     expect(cfpAcceptIssue({ ...draft, decisionNote: "x".repeat(2001) })).toBe(
       "adminEventCfp.detail.validation.tooLong",
@@ -398,7 +467,9 @@ describe("decyzja i przyjęcie organizatora", () => {
       endsAt: "2026-10-01T09:30:00.000Z",
     };
     expect(cfpAcceptIssue(scheduled)).toBeNull();
-    expect(cfpAcceptIssue({ ...scheduled, endsAt: "" })).toBe("adminEventCfp.accept.validation.schedule");
+    expect(cfpAcceptIssue({ ...scheduled, endsAt: "" })).toBe(
+      "adminEventCfp.accept.validation.schedule",
+    );
     expect(cfpAcceptIssue({ ...scheduled, endsAt: scheduled.startsAt })).toBe(
       "adminEventCfp.accept.validation.schedule",
     );
@@ -412,14 +483,19 @@ describe("decyzja i przyjęcie organizatora", () => {
       register: true,
       schedule: null,
     });
-    expect(cfpAcceptPayload("s1", { ...scheduled, roomId: "r1", trackId: "", format: "hybrid" }).schedule).toEqual({
+    expect(
+      cfpAcceptPayload("s1", { ...scheduled, roomId: "r1", trackId: "", format: "hybrid" })
+        .schedule,
+    ).toEqual({
       startsAt: "2026-10-01T09:00:00.000Z",
       endsAt: "2026-10-01T09:30:00.000Z",
       roomId: "r1",
       trackId: null,
       format: "hybrid",
     });
-    expect(cfpAcceptPayload("s1", { ...scheduled, roomId: "", trackId: "t1" }).schedule).toMatchObject({
+    expect(
+      cfpAcceptPayload("s1", { ...scheduled, roomId: "", trackId: "t1" }).schedule,
+    ).toMatchObject({
       roomId: null,
       trackId: "t1",
     });
@@ -452,24 +528,32 @@ describe("panel prelegenta", () => {
     expect(speakerProfileIssue({ ...draft, cardPhotoUrl: "http://x.pl/a.jpg" })).toBe(
       "eventCfp.speaker.profile.validation.photo",
     );
-    expect(speakerProfileIssue({ ...draft, cardPhotoUrl: `https://x.pl/${"a".repeat(2050)}` })).toBe(
-      "eventCfp.speaker.profile.validation.photo",
-    );
+    expect(
+      speakerProfileIssue({ ...draft, cardPhotoUrl: `https://x.pl/${"a".repeat(2050)}` }),
+    ).toBe("eventCfp.speaker.profile.validation.photo");
     expect(speakerProfileIssue({ ...draft, cardPhotoUrl: "https://x.pl/a.jpg" })).toBeNull();
     const thirteen = Array.from({ length: 13 }, (_, i) => `t${i}`).join(",");
-    expect(speakerProfileIssue({ ...draft, topicsPl: thirteen })).toBe("eventCfp.speaker.profile.validation.topics");
-    expect(speakerProfileIssue({ ...draft, topicsEn: thirteen })).toBe("eventCfp.speaker.profile.validation.topics");
+    expect(speakerProfileIssue({ ...draft, topicsPl: thirteen })).toBe(
+      "eventCfp.speaker.profile.validation.topics",
+    );
+    expect(speakerProfileIssue({ ...draft, topicsEn: thirteen })).toBe(
+      "eventCfp.speaker.profile.validation.topics",
+    );
     expect(speakerProfileIssue({ ...draft, topicsEn: "x".repeat(61) })).toBe(
       "eventCfp.speaker.profile.validation.topics",
     );
     expect(speakerProfileIssue({ ...draft, languages: "polski" })).toBe(
       "eventCfp.speaker.profile.validation.languages",
     );
-    const eleven = Array.from({ length: 11 }, (_, i) => `a${String.fromCharCode(97 + i)}`).join(",");
+    const eleven = Array.from({ length: 11 }, (_, i) => `a${String.fromCharCode(97 + i)}`).join(
+      ",",
+    );
     expect(speakerProfileIssue({ ...draft, languages: eleven })).toBe(
       "eventCfp.speaker.profile.validation.languages",
     );
-    expect(speakerProfilePayload("kongres", { ...draft, languages: "PL, en", headlinePl: " H " })).toEqual({
+    expect(
+      speakerProfilePayload("kongres", { ...draft, languages: "PL, en", headlinePl: " H " }),
+    ).toEqual({
       slug: "kongres",
       headlinePl: "H",
       headlineEn: "",
@@ -484,14 +568,21 @@ describe("panel prelegenta", () => {
 
   it("materiał: tytuł w jednym języku, adres https; ładunek bez przepinania zgłoszenia", () => {
     const empty = emptySpeakerMaterialDraft();
-    expect(empty).toMatchObject({ id: null, kind: "slides", visibility: "organizers", sessionId: "" });
+    expect(empty).toMatchObject({
+      id: null,
+      kind: "slides",
+      visibility: "organizers",
+      sessionId: "",
+    });
     expect(speakerMaterialIssue(empty)).toBe("eventCfp.speaker.materials.validation.title");
     const draft = { ...empty, titleEn: "Slides", url: "https://x.pl/s.pdf" };
     expect(speakerMaterialIssue(draft)).toBeNull();
     expect(speakerMaterialIssue({ ...draft, titlePl: "x".repeat(201) })).toBe(
       "eventCfp.speaker.materials.validation.title",
     );
-    expect(speakerMaterialIssue({ ...draft, url: "ftp://x" })).toBe("eventCfp.speaker.materials.validation.url");
+    expect(speakerMaterialIssue({ ...draft, url: "ftp://x" })).toBe(
+      "eventCfp.speaker.materials.validation.url",
+    );
     expect(speakerMaterialIssue({ ...draft, url: `https://x.pl/${"a".repeat(2000)}` })).toBe(
       "eventCfp.speaker.materials.validation.url",
     );

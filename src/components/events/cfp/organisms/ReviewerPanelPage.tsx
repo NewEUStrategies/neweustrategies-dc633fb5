@@ -36,7 +36,13 @@ import { useCfpReview, useCfpReviewQueue, useSaveCfpReview } from "@/lib/events/
 import { uiLang } from "@/lib/i18n/format";
 import { ensureEventCfpI18n } from "@/lib/i18n-event-cfp";
 
-export function ReviewerPanelPage({ slug, submissionId }: { slug: string; submissionId: string | null }) {
+export function ReviewerPanelPage({
+  slug,
+  submissionId,
+}: {
+  slug: string;
+  submissionId: string | null;
+}) {
   ensureEventCfpI18n();
   const { t } = useTranslation();
   const { session, loading } = useAuth();
@@ -114,17 +120,25 @@ function ReviewQueue({ slug, queue }: { slug: string; queue: CfpReviewQueue }) {
               >
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{localizedPair(lang, item.titlePl, item.titleEn)}</span>
+                    <span className="font-medium">
+                      {localizedPair(lang, item.titlePl, item.titleEn)}
+                    </span>
                     <CfpStatusBadge status={item.status} />
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {[track, t(CFP_TALK_LANGUAGE_LABEL_KEYS[item.talkLanguage]), formatEventDateTime(item.submittedAt, queue.timezone, lang)]
+                    {[
+                      track,
+                      t(CFP_TALK_LANGUAGE_LABEL_KEYS[item.talkLanguage]),
+                      formatEventDateTime(item.submittedAt, queue.timezone, lang),
+                    ]
                       .filter((part) => part !== "")
                       .join(" · ")}
                   </p>
                   {item.speakers === null ? null : (
                     <p className="text-xs">
-                      {item.speakers.map((speaker) => `${speaker.firstName} ${speaker.lastName}`).join(", ")}
+                      {item.speakers
+                        .map((speaker) => `${speaker.firstName} ${speaker.lastName}`)
+                        .join(", ")}
                     </p>
                   )}
                 </div>
@@ -223,7 +237,12 @@ function ReviewDetail({
     <section className="space-y-6">
       {back}
       <ReviewSubmission detail={detail} timezone={queue.timezone} />
-      <CfpReviewForm key={detail.submission.id} detail={detail} isSaving={save.isPending} onSubmit={submit} />
+      <CfpReviewForm
+        key={detail.submission.id}
+        detail={detail}
+        isSaving={save.isPending}
+        onSubmit={submit}
+      />
     </section>
   );
 }

@@ -20,23 +20,39 @@ import { renderRoute, routeHead, routeSearchValidator } from "@/test/routeHarnes
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("@/lib/seo/request", () => ({ getRequestUrl: () => "" }));
 vi.mock("@/components/error/FriendlyErrorPage", () => ({
-  FriendlyErrorPage: ({ variant }: { variant: string }) => <div data-testid="friendly-error" data-variant={variant} />,
+  FriendlyErrorPage: ({ variant }: { variant: string }) => (
+    <div data-testid="friendly-error" data-variant={variant} />
+  ),
 }));
 
 vi.mock("@/components/events/cfp/organisms/EventCfpPage", () => ({
-  EventCfpPage: ({ slug }: { slug: string }) => <div data-testid="organism" data-slug={slug} data-kind="cfp" />,
+  EventCfpPage: ({ slug }: { slug: string }) => (
+    <div data-testid="organism" data-slug={slug} data-kind="cfp" />
+  ),
 }));
 vi.mock("@/components/events/cfp/organisms/CfpSubmitPage", () => ({
   CfpSubmitPage: ({ slug, submissionId }: { slug: string; submissionId: string | null }) => (
-    <div data-testid="organism" data-slug={slug} data-id={submissionId ?? "none"} data-kind="submit" />
+    <div
+      data-testid="organism"
+      data-slug={slug}
+      data-id={submissionId ?? "none"}
+      data-kind="submit"
+    />
   ),
 }));
 vi.mock("@/components/events/cfp/organisms/SpeakerPanelPage", () => ({
-  SpeakerPanelPage: ({ slug }: { slug: string }) => <div data-testid="organism" data-slug={slug} data-kind="speaker" />,
+  SpeakerPanelPage: ({ slug }: { slug: string }) => (
+    <div data-testid="organism" data-slug={slug} data-kind="speaker" />
+  ),
 }));
 vi.mock("@/components/events/cfp/organisms/ReviewerPanelPage", () => ({
   ReviewerPanelPage: ({ slug, submissionId }: { slug: string; submissionId: string | null }) => (
-    <div data-testid="organism" data-slug={slug} data-id={submissionId ?? "none"} data-kind="review" />
+    <div
+      data-testid="organism"
+      data-slug={slug}
+      data-id={submissionId ?? "none"}
+      data-kind="review"
+    />
   ),
 }));
 
@@ -69,12 +85,16 @@ describe("/events/$slug/cfp", () => {
     const loader: unknown = CfpRoute.options.loader;
     if (!isLoader(loader)) throw new Error("test: trasa nie ma loadera");
     const headEvent = { titlePl: "Kongres", titleEn: "Congress", cover: null };
-    expect(await loader({ parentMatchPromise: Promise.resolve({ loaderData: { headEvent } }) })).toEqual({ headEvent });
+    expect(
+      await loader({ parentMatchPromise: Promise.resolve({ loaderData: { headEvent } }) }),
+    ).toEqual({ headEvent });
     expect(await loader({ parentMatchPromise: Promise.resolve({}) })).toEqual({ headEvent: null });
 
     const head = routeHead(CfpRoute, { params: { slug: "kongres" }, loaderData: { headEvent } });
     expect(metaValue(head.meta, "og:title")).toBe("Nabór prelegentów - Kongres");
-    expect(metaValue(head.meta, "title")).toBe("Nabór prelegentów - Kongres - New European Strategies");
+    expect(metaValue(head.meta, "title")).toBe(
+      "Nabór prelegentów - Kongres - New European Strategies",
+    );
     // Bez danych powłoki tytuł jest uczciwym zastępczym, nie pustką.
     expect(metaValue(routeHead(CfpRoute, { params: { slug: "kongres" } }).meta, "og:title")).toBe(
       "Nabór prelegentów - Wydarzenie",
@@ -82,8 +102,14 @@ describe("/events/$slug/cfp", () => {
   });
 
   it("organizm dostaje slug", async () => {
-    await renderRoute({ route: CfpRoute, path: "/events/$slug/cfp", initialEntry: "/events/kongres/cfp" });
-    await waitFor(() => expect(screen.getByTestId("organism")).toHaveAttribute("data-slug", "kongres"));
+    await renderRoute({
+      route: CfpRoute,
+      path: "/events/$slug/cfp",
+      initialEntry: "/events/kongres/cfp",
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("organism")).toHaveAttribute("data-slug", "kongres"),
+    );
   });
 });
 
@@ -119,7 +145,11 @@ describe("strony prywatne naboru", () => {
     [SubmitRoute, "/events/$slug/cfp-submit", "submit"],
     [ReviewRoute, "/events/$slug/review", "review"],
   ] as const)("%#: organizm dostaje slug i identyfikator z adresu", async (route, path, kind) => {
-    await renderRoute({ route, path, initialEntry: `${path.replace("$slug", "kongres")}?id=${ID}` });
+    await renderRoute({
+      route,
+      path,
+      initialEntry: `${path.replace("$slug", "kongres")}?id=${ID}`,
+    });
     const node = await screen.findByTestId("organism");
     expect(node).toHaveAttribute("data-kind", kind);
     expect(node).toHaveAttribute("data-slug", "kongres");
@@ -130,7 +160,11 @@ describe("strony prywatne naboru", () => {
   });
 
   it("panel prelegenta dostaje slug", async () => {
-    await renderRoute({ route: SpeakerRoute, path: "/events/$slug/speaker", initialEntry: "/events/kongres/speaker" });
+    await renderRoute({
+      route: SpeakerRoute,
+      path: "/events/$slug/speaker",
+      initialEntry: "/events/kongres/speaker",
+    });
     expect(await screen.findByTestId("organism")).toHaveAttribute("data-kind", "speaker");
   });
 

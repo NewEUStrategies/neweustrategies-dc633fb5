@@ -65,7 +65,13 @@ export function SpeakerSubmissionsList({
       ) : (
         <ul className="space-y-3">
           {data.items.map((item) => (
-            <SubmissionCard key={item.id} slug={slug} item={item} timezone={data.timezone} scoreMax={data.scoreMax} />
+            <SubmissionCard
+              key={item.id}
+              slug={slug}
+              item={item}
+              timezone={data.timezone}
+              scoreMax={data.scoreMax}
+            />
           ))}
         </ul>
       )}
@@ -95,13 +101,21 @@ function SubmissionCard({
 
   const runWithdraw = async () => {
     const confirmed = await confirmDialog({
-      title: t(isDraft ? "eventCfp.speaker.submissions.deleteDraftTitle" : "eventCfp.speaker.submissions.withdrawTitle"),
+      title: t(
+        isDraft
+          ? "eventCfp.speaker.submissions.deleteDraftTitle"
+          : "eventCfp.speaker.submissions.withdrawTitle",
+      ),
       description: t(
         isDraft
           ? "eventCfp.speaker.submissions.deleteDraftDescription"
           : "eventCfp.speaker.submissions.withdrawDescription",
       ),
-      confirmLabel: t(isDraft ? "eventCfp.speaker.submissions.deleteDraft" : "eventCfp.speaker.submissions.withdraw"),
+      confirmLabel: t(
+        isDraft
+          ? "eventCfp.speaker.submissions.deleteDraft"
+          : "eventCfp.speaker.submissions.withdraw",
+      ),
       cancelLabel: t("eventCfp.common.cancel"),
       destructive: true,
     });
@@ -109,7 +123,11 @@ function SubmissionCard({
     withdraw.mutate(item.id, {
       onSuccess: (result) =>
         toast.success(
-          t(result.status === "deleted" ? "eventCfp.speaker.submissions.deleted" : "eventCfp.speaker.submissions.withdrawn"),
+          t(
+            result.status === "deleted"
+              ? "eventCfp.speaker.submissions.deleted"
+              : "eventCfp.speaker.submissions.withdrawn",
+          ),
         ),
       onError: (error) => toast.error(publicCfpErrorMessage(error)),
     });
@@ -130,7 +148,13 @@ function SubmissionCard({
       { id: item.id, confirm },
       {
         onSuccess: () =>
-          toast.success(t(confirm ? "eventCfp.speaker.submissions.confirmed" : "eventCfp.speaker.submissions.declined")),
+          toast.success(
+            t(
+              confirm
+                ? "eventCfp.speaker.submissions.confirmed"
+                : "eventCfp.speaker.submissions.declined",
+            ),
+          ),
         onError: (error) => toast.error(publicCfpErrorMessage(error)),
       },
     );
@@ -144,7 +168,9 @@ function SubmissionCard({
       </div>
       <p className="text-xs text-muted-foreground">
         {item.submittedAt === null
-          ? t("eventCfp.speaker.submissions.updatedAt", { date: formatEventDateTime(item.updatedAt, timezone, lang) })
+          ? t("eventCfp.speaker.submissions.updatedAt", {
+              date: formatEventDateTime(item.updatedAt, timezone, lang),
+            })
           : t("eventCfp.speaker.submissions.submittedAt", {
               date: formatEventDateTime(item.submittedAt, timezone, lang),
             })}
@@ -163,14 +189,22 @@ function SubmissionCard({
       )}
       {item.reviewsCount > 0 && avg !== null ? (
         <p className="text-xs text-muted-foreground">
-          {t("eventCfp.speaker.submissions.reviewsInfo", { count: item.reviewsCount, avg, max: scoreMax })}
+          {t("eventCfp.speaker.submissions.reviewsInfo", {
+            count: item.reviewsCount,
+            avg,
+            max: scoreMax,
+          })}
         </p>
       ) : null}
       <div className="flex flex-wrap gap-2 pt-1">
         {isCfpEditable(item.status) ? (
           <Button asChild size="sm" variant="outline">
             <Link to="/events/$slug/cfp-submit" params={{ slug }} search={{ id: item.id }}>
-              {t(isDraft ? "eventCfp.speaker.submissions.continueDraft" : "eventCfp.speaker.submissions.edit")}
+              {t(
+                isDraft
+                  ? "eventCfp.speaker.submissions.continueDraft"
+                  : "eventCfp.speaker.submissions.edit",
+              )}
             </Link>
           </Button>
         ) : null}
@@ -179,15 +213,31 @@ function SubmissionCard({
             <Button type="button" size="sm" disabled={busy} onClick={() => void runRespond(true)}>
               {t("eventCfp.speaker.submissions.confirm")}
             </Button>
-            <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void runRespond(false)}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={() => void runRespond(false)}
+            >
               {t("eventCfp.speaker.submissions.decline")}
             </Button>
           </>
         ) : null}
         {/* Przyjęte: odpowiedź to „rezygnuję"; potwierdzone może jeszcze wycofać. */}
         {isCfpWithdrawable(item.status) && !isCfpRespondable(item.status) ? (
-          <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => void runWithdraw()}>
-            {t(isDraft ? "eventCfp.speaker.submissions.deleteDraft" : "eventCfp.speaker.submissions.withdraw")}
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => void runWithdraw()}
+          >
+            {t(
+              isDraft
+                ? "eventCfp.speaker.submissions.deleteDraft"
+                : "eventCfp.speaker.submissions.withdraw",
+            )}
           </Button>
         ) : null}
       </div>

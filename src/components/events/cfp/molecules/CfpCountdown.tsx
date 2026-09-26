@@ -15,7 +15,13 @@ import { ensureEventCfpI18n } from "@/lib/i18n-event-cfp";
 
 const TICK_MS = 30_000;
 
-export function CfpCountdown({ target, mode }: { target: string | null; mode: "toOpen" | "toClose" }) {
+export function CfpCountdown({
+  target,
+  mode,
+}: {
+  target: string | null;
+  mode: "toOpen" | "toClose";
+}) {
   ensureEventCfpI18n();
   const { t } = useTranslation();
   const now = useNowMs(TICK_MS);
@@ -30,7 +36,9 @@ export function CfpCountdown({ target, mode }: { target: string | null; mode: "t
   });
   return (
     <p className="text-sm font-medium tabular-nums" aria-live="polite">
-      {t(mode === "toOpen" ? "eventCfp.page.countdown.toOpen" : "eventCfp.page.countdown.toClose", { value })}
+      {t(mode === "toOpen" ? "eventCfp.page.countdown.toOpen" : "eventCfp.page.countdown.toClose", {
+        value,
+      })}
     </p>
   );
 }

@@ -38,7 +38,11 @@ export function formSelectStubModule(react: ReactModule): Record<string, unknown
         onChange: (event: { target: { value: string } }) => onValueChange(event.target.value),
       },
       options.map((option) =>
-        react.createElement("option", { key: option.value, value: option.value }, option.label as never),
+        react.createElement(
+          "option",
+          { key: option.value, value: option.value },
+          option.label as never,
+        ),
       ),
     );
   return { FormSelect, default: FormSelect };
@@ -113,6 +117,10 @@ export function routerLinkWithSearchStub(react: ReactModule) {
     let href = to ?? "#";
     for (const [key, value] of Object.entries(params ?? {})) href = href.replace(`$${key}`, value);
     const query = new URLSearchParams(search ?? {}).toString();
-    return react.createElement("a", { ...rest, href: query === "" ? href : `${href}?${query}` }, children as never);
+    return react.createElement(
+      "a",
+      { ...rest, href: query === "" ? href : `${href}?${query}` },
+      children as never,
+    );
   };
 }

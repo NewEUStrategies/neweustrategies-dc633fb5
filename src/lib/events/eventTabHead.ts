@@ -86,7 +86,10 @@ const PRIVATE_TITLE_KEYS: Record<EventPrivatePage, string> = {
  * i `no-referrer`. Bez kanonika i podglądu linku - te adresy nie są do
  * udostępniania.
  */
-export function buildEventPrivateHead(input: { page: EventPrivatePage; lang: Lang }): HeadDescriptor {
+export function buildEventPrivateHead(input: {
+  page: EventPrivatePage;
+  lang: Lang;
+}): HeadDescriptor {
   const t = i18n.getFixedT(input.lang);
   return {
     meta: [

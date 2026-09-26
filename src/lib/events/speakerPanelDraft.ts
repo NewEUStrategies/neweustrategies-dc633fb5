@@ -63,7 +63,10 @@ export function speakerProfileIssue(draft: SpeakerProfileDraft): string | null {
   return null;
 }
 
-export function speakerProfilePayload(slug: string, draft: SpeakerProfileDraft): SpeakerProfileInput {
+export function speakerProfilePayload(
+  slug: string,
+  draft: SpeakerProfileDraft,
+): SpeakerProfileInput {
   return {
     slug,
     headlinePl: draft.headlinePl.trim(),
@@ -124,7 +127,10 @@ export function speakerMaterialIssue(draft: SpeakerMaterialDraft): string | null
   return null;
 }
 
-export function speakerMaterialPayload(slug: string, draft: SpeakerMaterialDraft): SpeakerMaterialInput {
+export function speakerMaterialPayload(
+  slug: string,
+  draft: SpeakerMaterialDraft,
+): SpeakerMaterialInput {
   return {
     id: draft.id ?? undefined,
     slug,

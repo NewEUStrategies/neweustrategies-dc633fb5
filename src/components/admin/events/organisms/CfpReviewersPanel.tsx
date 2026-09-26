@@ -97,7 +97,11 @@ export function CfpReviewersPanel({ eventId }: { eventId: string }) {
     removeReviewer.mutate(row.id, {
       onSuccess: (outcome) =>
         toast.success(
-          t(outcome === "deleted" ? "adminEventCfp.toasts.reviewerRemoved" : "adminEventCfp.toasts.reviewerDeactivated"),
+          t(
+            outcome === "deleted"
+              ? "adminEventCfp.toasts.reviewerRemoved"
+              : "adminEventCfp.toasts.reviewerDeactivated",
+          ),
         ),
       onError: fail,
     });
@@ -141,7 +145,9 @@ export function CfpReviewersPanel({ eventId }: { eventId: string }) {
               <TableHead>{t("adminEventCfp.reviewers.columns.identity")}</TableHead>
               <TableHead>{t("adminEventCfp.reviewers.columns.active")}</TableHead>
               <TableHead>{t("adminEventCfp.reviewers.columns.reviews")}</TableHead>
-              <TableHead className="text-right">{t("adminEventCfp.reviewers.columns.actions")}</TableHead>
+              <TableHead className="text-right">
+                {t("adminEventCfp.reviewers.columns.actions")}
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -185,12 +191,16 @@ function ReviewerRow({
       <TableCell className="font-medium">{name}</TableCell>
       <TableCell>
         {tracks.length === 0 ? (
-          <span className="text-xs text-muted-foreground">{t("adminEventCfp.reviewers.allTracks")}</span>
+          <span className="text-xs text-muted-foreground">
+            {t("adminEventCfp.reviewers.allTracks")}
+          </span>
         ) : (
           <fieldset className="space-y-1">
             <legend className="sr-only">{t("adminEventCfp.reviewers.scopeLabel", { name })}</legend>
             {scope.length === 0 ? (
-              <p className="text-xs text-muted-foreground">{t("adminEventCfp.reviewers.scopeHint")}</p>
+              <p className="text-xs text-muted-foreground">
+                {t("adminEventCfp.reviewers.scopeHint")}
+              </p>
             ) : null}
             {tracks.map((track) => (
               <label key={track.id} className="flex items-center gap-2 text-xs">

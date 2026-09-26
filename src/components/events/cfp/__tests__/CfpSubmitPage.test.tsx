@@ -37,7 +37,8 @@ vi.mock("@/hooks/useAuth", () => ({ useAuth: () => h.auth }));
 vi.mock("@/lib/i18n-event-cfp", () => ({ ensureEventCfpI18n: () => undefined }));
 vi.mock("@/lib/i18n-event-registration", () => ({ ensureEventRegistrationI18n: () => undefined }));
 vi.mock("@/lib/events/publicCfpErrors", () => ({
-  publicCfpErrorMessage: (error: unknown) => `odmowa:${error instanceof Error ? error.message : String(error)}`,
+  publicCfpErrorMessage: (error: unknown) =>
+    `odmowa:${error instanceof Error ? error.message : String(error)}`,
 }));
 vi.mock("@/lib/events/cfpNotify.functions", () => ({ confirmCfpSubmissionEmail: h.confirmEmail }));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
@@ -45,7 +46,9 @@ vi.mock("@tanstack/react-router", async () => ({
   Link: (await import("@/test/events/cfpStubs")).routerLinkWithSearchStub(await import("react")),
   useNavigate: () => h.navigate,
 }));
-vi.mock("@/components/ui/select", async () => (await import("@/test/reactStubs")).radixSelectStub(await import("react")));
+vi.mock("@/components/ui/select", async () =>
+  (await import("@/test/reactStubs")).radixSelectStub(await import("react")),
+);
 
 const { CfpSubmitPage } = await import("@/components/events/cfp/organisms/CfpSubmitPage");
 
@@ -72,7 +75,14 @@ function cfp(overrides: Record<string, unknown> = {}) {
     formats: [{ key: "talk", label_pl: "Wykład", label_en: "Talk", duration_min: 30 }],
     tracks: [{ id: "t1", key: "e", name_pl: "Energia", name_en: "Energy" }],
     fields: [
-      { id: "f1", key: "exp", field_type: "text", label_pl: "Doświadczenie", label_en: "Experience", is_required: true },
+      {
+        id: "f1",
+        key: "exp",
+        field_type: "text",
+        label_pl: "Doświadczenie",
+        label_en: "Experience",
+        is_required: true,
+      },
     ],
     allow_co_speakers: true,
     max_per_submitter: 2,
@@ -165,8 +175,14 @@ describe("CfpSubmitPage - bramki", () => {
     stub().setData("event_cfp_public", { phase: "none" });
     renderPage();
     expect(await screen.findByText("eventCfp.submit.notFound")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "eventCfp.submit.backToCall" })).toHaveAttribute("href", "/events/kongres/cfp");
-    expect(screen.getByRole("link", { name: "eventCfp.submit.toPanel" })).toHaveAttribute("href", "/events/kongres/speaker");
+    expect(screen.getByRole("link", { name: "eventCfp.submit.backToCall" })).toHaveAttribute(
+      "href",
+      "/events/kongres/cfp",
+    );
+    expect(screen.getByRole("link", { name: "eventCfp.submit.toPanel" })).toHaveAttribute(
+      "href",
+      "/events/kongres/speaker",
+    );
     cleanup();
     stub().setData("event_cfp_public", cfp());
     stub().setData("event_my_cfp_submissions", null);
@@ -223,23 +239,41 @@ describe("CfpSubmitPage - nowe zgłoszenie", () => {
   it("zapis szkicu wymaga nazwiska, zapisuje ze slugiem i przypina `?id=` do adresu", async () => {
     renderPage();
     await screen.findByText("eventCfp.submit.title");
-    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.lastName *"), { target: { value: " " } });
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.lastName *"), {
+      target: { value: " " },
+    });
     fireEvent.click(screen.getByRole("button", { name: "eventCfp.submit.saveDraft" }));
     expect(await screen.findByText("eventCfp.submit.validation.lastName")).toBeInTheDocument();
     expect(stub().callsFor("event_cfp_submission_save")).toHaveLength(0);
 
-    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.lastName *"), { target: { value: "Nowak" } });
-    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.firstName *"), { target: { value: "Anna Maria" } });
-    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.jobTitle"), { target: { value: "Prezes" } });
-    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.company"), { target: { value: "NES SA" } });
-    fireEvent.click(screen.getByRole("checkbox", { name: "eventCfp.submit.fields.marketingConsent" }));
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.lastName *"), {
+      target: { value: "Nowak" },
+    });
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.firstName *"), {
+      target: { value: "Anna Maria" },
+    });
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.jobTitle"), {
+      target: { value: "Prezes" },
+    });
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.company"), {
+      target: { value: "NES SA" },
+    });
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "eventCfp.submit.fields.marketingConsent" }),
+    );
     stub().setData("event_cfp_submission_save", { id: ID, status: "draft" });
     fireEvent.click(screen.getByRole("button", { name: "eventCfp.submit.saveDraft" }));
     await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("eventCfp.submit.saved"));
     expect(payload("event_cfp_submission_save")).toMatchObject({
       slug: "kongres",
       notify_lang: "pl",
-      speaker: { first_name: "Anna Maria", last_name: "Nowak", job_title: "Prezes", company_text: "NES SA", consent_marketing: true },
+      speaker: {
+        first_name: "Anna Maria",
+        last_name: "Nowak",
+        job_title: "Prezes",
+        company_text: "NES SA",
+        consent_marketing: true,
+      },
       talk_language: "pl",
       format_key: null,
       track_id: null,
@@ -275,34 +309,49 @@ describe("CfpSubmitPage - nowe zgłoszenie", () => {
     }
     expect(stub().callsFor("event_cfp_submission_save")).toHaveLength(0);
 
-    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.titlePl"), { target: { value: "Energia jutra" } });
-    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.titleEn"), { target: { value: "Energy" } });
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.titlePl"), {
+      target: { value: "Energia jutra" },
+    });
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.titleEn"), {
+      target: { value: "Energy" },
+    });
     fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.abstractPl"), {
       target: { value: "Streszczenie wystąpienia dłuższe niż dwadzieścia znaków" },
     });
-    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.abstractEn"), { target: { value: "EN" } });
-    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.topics"), { target: { value: "sieci, OZE" } });
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.abstractEn"), {
+      target: { value: "EN" },
+    });
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.topics"), {
+      target: { value: "sieci, OZE" },
+    });
     const selects = screen.getAllByRole("combobox");
     fireEvent.change(selects[0] as HTMLElement, { target: { value: "en" } });
     fireEvent.change(selects[1] as HTMLElement, { target: { value: "talk" } });
     fireEvent.change(selects[2] as HTMLElement, { target: { value: "t1" } });
-    expect(screen.getByRole("option", { name: "Wykład (eventCfp.page.formatDuration(count=30))" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Wykład (eventCfp.page.formatDuration(count=30))" }),
+    ).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(/Doświadczenie/), { target: { value: "10 lat" } });
 
     fireEvent.click(screen.getByRole("button", { name: "eventCfp.submit.coSpeaker.add" }));
     fireEvent.click(screen.getByRole("button", { name: "eventCfp.submit.send" }));
     expect(await screen.findByText("eventCfp.submit.validation.coSpeakers")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("eventCfp.submit.coSpeaker.firstName *"), { target: { value: "Jan" } });
-    fireEvent.change(screen.getByLabelText("eventCfp.submit.coSpeaker.lastName *"), { target: { value: "K" } });
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.coSpeaker.firstName *"), {
+      target: { value: "Jan" },
+    });
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.coSpeaker.lastName *"), {
+      target: { value: "K" },
+    });
 
     stub().setData("event_cfp_submission_save", { id: ID, status: "draft" });
     stub().setData("event_cfp_submission_submit", { id: ID, status: "submitted" });
     fireEvent.click(screen.getByRole("button", { name: "eventCfp.submit.send" }));
     await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("eventCfp.submit.submitted"));
-    expect(stub().names().filter((name) => name.startsWith("event_cfp_submission_"))).toEqual([
-      "event_cfp_submission_save",
-      "event_cfp_submission_submit",
-    ]);
+    expect(
+      stub()
+        .names()
+        .filter((name) => name.startsWith("event_cfp_submission_")),
+    ).toEqual(["event_cfp_submission_save", "event_cfp_submission_submit"]);
     expect(payload("event_cfp_submission_save")).toMatchObject({
       title_pl: "Energia jutra",
       title_en: "Energy",
@@ -311,20 +360,39 @@ describe("CfpSubmitPage - nowe zgłoszenie", () => {
       track_id: "t1",
       topics: ["sieci", "OZE"],
       answers: { exp: "10 lat" },
-      co_speakers: [{ first_name: "Jan", last_name: "K", email: null, job_title: "", company_text: "", role: "speaker" }],
+      co_speakers: [
+        {
+          first_name: "Jan",
+          last_name: "K",
+          email: null,
+          job_title: "",
+          company_text: "",
+          role: "speaker",
+        },
+      ],
     });
     expect(payload("event_cfp_submission_submit")).toEqual({ id: ID });
     expect(h.confirmEmail).toHaveBeenCalledWith({ data: { submissionId: ID } });
-    expect(h.navigate).toHaveBeenCalledWith({ to: "/events/$slug/speaker", params: { slug: "kongres" } });
+    expect(h.navigate).toHaveBeenCalledWith({
+      to: "/events/$slug/speaker",
+      params: { slug: "kongres" },
+    });
   });
 
   it("odmowa zapisu i odmowa wysłania; mail, który padł, nie cofa wysłania", async () => {
-    stub().setData("event_cfp_public", cfp({ formats: [], tracks: [], fields: [], allow_co_speakers: false }));
+    stub().setData(
+      "event_cfp_public",
+      cfp({ formats: [], tracks: [], fields: [], allow_co_speakers: false }),
+    );
     renderPage();
     await screen.findByText("eventCfp.submit.title");
     expect(screen.queryByText("eventCfp.submit.sections.coSpeakers")).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.titlePl"), { target: { value: "Tytuł" } });
-    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.abstractPl"), { target: { value: "x".repeat(30) } });
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.titlePl"), {
+      target: { value: "Tytuł" },
+    });
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.abstractPl"), {
+      target: { value: "x".repeat(30) },
+    });
 
     stub().setError("event_cfp_submission_save", "limit_reached: 2");
     fireEvent.click(screen.getByRole("button", { name: "eventCfp.submit.saveDraft" }));
@@ -351,8 +419,12 @@ describe("CfpSubmitPage - nowe zgłoszenie", () => {
     stub().setData("event_cfp_public", cfp({ formats: [], tracks: [], fields: [] }));
     renderPage();
     await screen.findByText("eventCfp.submit.title");
-    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.titlePl"), { target: { value: "Tytuł" } });
-    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.abstractPl"), { target: { value: "x".repeat(30) } });
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.titlePl"), {
+      target: { value: "Tytuł" },
+    });
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.abstractPl"), {
+      target: { value: "x".repeat(30) },
+    });
     stub().setData("event_cfp_submission_save", { id: ID, status: "draft" });
     stub().setResponse("event_cfp_submission_submit", () => new Promise(() => undefined) as never);
     fireEvent.click(screen.getByRole("button", { name: "eventCfp.submit.send" }));
@@ -363,7 +435,9 @@ describe("CfpSubmitPage - nowe zgłoszenie", () => {
   it("konto bez adresu w sesji bierze adres z karty uczestnika", async () => {
     h.auth = { session: { user: { id: "u1" } }, loading: false };
     renderPage();
-    expect(await screen.findByLabelText("eventCfp.submit.fields.email")).toHaveValue("anna@example.org");
+    expect(await screen.findByLabelText("eventCfp.submit.fields.email")).toHaveValue(
+      "anna@example.org",
+    );
     cleanup();
     stub().setData("event_my_cfp_submissions", mine([], null));
     renderPage();
@@ -376,7 +450,10 @@ describe("CfpSubmitPage - edycja", () => {
     stub().setData("event_cfp_public", cfp({ phase: "closed", is_open: false }));
     stub().setData(
       "event_my_cfp_submissions",
-      mine([item({ status: "changes_requested", feedback_to_speaker: "Prosimy skrócić." })], PERSON),
+      mine(
+        [item({ status: "changes_requested", feedback_to_speaker: "Prosimy skrócić." })],
+        PERSON,
+      ),
     );
     renderPage(ID);
     expect(await screen.findByText("eventCfp.submit.editTitle")).toBeInTheDocument();
@@ -393,7 +470,10 @@ describe("CfpSubmitPage - edycja", () => {
 
   it("prośba o zmiany bez informacji zwrotnej", async () => {
     stub().setData("event_cfp_public", cfp());
-    stub().setData("event_my_cfp_submissions", mine([item({ status: "changes_requested" })], PERSON));
+    stub().setData(
+      "event_my_cfp_submissions",
+      mine([item({ status: "changes_requested" })], PERSON),
+    );
     renderPage(ID);
     const notice = (await screen.findByText("eventCfp.submit.changesRequested")).closest("section");
     if (notice === null) throw new Error("test");

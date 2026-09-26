@@ -50,7 +50,11 @@ import {
   localizedPair,
   type CfpDecisionStatus,
 } from "@/lib/events/cfpEnums";
-import { cfpDecisionIssue, cfpDecisionPayload, type CfpDecisionDraft } from "@/lib/events/cfpReviewDraft";
+import {
+  cfpDecisionIssue,
+  cfpDecisionPayload,
+  type CfpDecisionDraft,
+} from "@/lib/events/cfpReviewDraft";
 import {
   cfpNotifyFeedback,
   cfpNotifyState,
@@ -58,7 +62,12 @@ import {
   isCfpDecidable,
   type CfpNotifyState,
 } from "@/lib/events/cfpRows";
-import type { CfpCrmLink, CfpSettings, CfpSpeakerEntry, CfpSubmissionDetail } from "@/lib/events/cfpSurface";
+import type {
+  CfpCrmLink,
+  CfpSettings,
+  CfpSpeakerEntry,
+  CfpSubmissionDetail,
+} from "@/lib/events/cfpSurface";
 import { notifyCfpDecision } from "@/lib/events/cfpNotify.functions";
 import { formatEventDateTime } from "@/lib/events/timezone";
 import {
@@ -161,7 +170,11 @@ function CfpSubmissionBody({
   const [notifying, setNotifying] = useState(false);
   const [acceptOpen, setAcceptOpen] = useState(false);
 
-  const initialStatus = asOneOf<CfpDecisionStatus>(CFP_DECISION_STATUSES, detail.status, "under_review");
+  const initialStatus = asOneOf<CfpDecisionStatus>(
+    CFP_DECISION_STATUSES,
+    detail.status,
+    "under_review",
+  );
   const [decision, setDecision] = useState<CfpDecisionDraft>({
     status: initialStatus,
     decisionNote: detail.decisionNote,
@@ -292,13 +305,17 @@ function CfpSubmissionBody({
         </dl>
         {detail.abstractPl === "" ? null : (
           <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground">{t("adminEventCfp.detail.abstractPl")}</p>
+            <p className="text-xs font-medium text-muted-foreground">
+              {t("adminEventCfp.detail.abstractPl")}
+            </p>
             <p className="whitespace-pre-line text-sm">{detail.abstractPl}</p>
           </div>
         )}
         {detail.abstractEn === "" ? null : (
           <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground">{t("adminEventCfp.detail.abstractEn")}</p>
+            <p className="text-xs font-medium text-muted-foreground">
+              {t("adminEventCfp.detail.abstractEn")}
+            </p>
             <p className="whitespace-pre-line text-sm">{detail.abstractEn}</p>
           </div>
         )}
@@ -346,10 +363,14 @@ function CfpSubmissionBody({
             </p>
           )}
           <p className="text-xs text-muted-foreground">
-            {t("adminEventCfp.detail.recommendationsSummary", { ...detail.summary.recommendations })}
+            {t("adminEventCfp.detail.recommendationsSummary", {
+              ...detail.summary.recommendations,
+            })}
           </p>
           {detail.summary.reviewsCount < detail.minReviews ? (
-            <p className="text-xs text-amber-600 dark:text-amber-400">{t("adminEventCfp.detail.belowMin")}</p>
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              {t("adminEventCfp.detail.belowMin")}
+            </p>
           ) : null}
         </div>
         {detail.reviews.length === 0 ? (
@@ -357,18 +378,25 @@ function CfpSubmissionBody({
         ) : (
           <ul className="space-y-3">
             {detail.reviews.map((review) => (
-              <li key={review.id} className="space-y-1 rounded-[6px] border border-border p-3 text-sm">
+              <li
+                key={review.id}
+                className="space-y-1 rounded-[6px] border border-border p-3 text-sm"
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-medium">{review.reviewerName}</span>
                   <span className="text-xs text-muted-foreground">{when(review.updatedAt)}</span>
                 </div>
                 {review.conflictOfInterest ? (
-                  <p className="text-xs text-amber-600 dark:text-amber-400">{t("adminEventCfp.detail.conflict")}</p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    {t("adminEventCfp.detail.conflict")}
+                  </p>
                 ) : (
                   <p>
                     {review.overall === null
                       ? t("adminEventCfp.detail.noOverall")
-                      : t("adminEventCfp.detail.overall", { value: `${review.overall}/${detail.scoreMax}` })}
+                      : t("adminEventCfp.detail.overall", {
+                          value: `${review.overall}/${detail.scoreMax}`,
+                        })}
                     {review.recommendation === null
                       ? null
                       : ` · ${t("adminEventCfp.detail.recommendation")}: ${t(CFP_RECOMMENDATION_LABEL_KEYS[review.recommendation])}`}
@@ -379,7 +407,8 @@ function CfpSubmissionBody({
                     {detail.reviewCriteria.map((criterion) =>
                       review.scores[criterion.key] === undefined ? null : (
                         <li key={criterion.key}>
-                          {localizedPair(lang, criterion.labelPl, criterion.labelEn)}: {review.scores[criterion.key]}
+                          {localizedPair(lang, criterion.labelPl, criterion.labelEn)}:{" "}
+                          {review.scores[criterion.key]}
                         </li>
                       ),
                     )}
@@ -387,13 +416,17 @@ function CfpSubmissionBody({
                 )}
                 {review.commentPrivate === "" ? null : (
                   <p className="whitespace-pre-line text-xs">
-                    <span className="font-medium">{t("adminEventCfp.detail.commentPrivate")}: </span>
+                    <span className="font-medium">
+                      {t("adminEventCfp.detail.commentPrivate")}:{" "}
+                    </span>
                     {review.commentPrivate}
                   </p>
                 )}
                 {review.commentToSpeaker === "" ? null : (
                   <p className="whitespace-pre-line text-xs">
-                    <span className="font-medium">{t("adminEventCfp.detail.commentToSpeaker")}: </span>
+                    <span className="font-medium">
+                      {t("adminEventCfp.detail.commentToSpeaker")}:{" "}
+                    </span>
                     {review.commentToSpeaker}
                   </p>
                 )}
@@ -435,8 +468,14 @@ function CfpSubmissionBody({
               value={decision.decisionNote}
               rows={3}
               maxLength={2000}
-              error={touched && decisionIssue === "adminEventCfp.detail.validation.noteRequired" ? t(decisionIssue) : null}
-              onValueChange={(decisionNote) => setDecision((previous) => ({ ...previous, decisionNote }))}
+              error={
+                touched && decisionIssue === "adminEventCfp.detail.validation.noteRequired"
+                  ? t(decisionIssue)
+                  : null
+              }
+              onValueChange={(decisionNote) =>
+                setDecision((previous) => ({ ...previous, decisionNote }))
+              }
             />
             <AdminFormTextRow
               id="cfp-decision-feedback"
@@ -445,14 +484,27 @@ function CfpSubmissionBody({
               value={decision.feedbackToSpeaker}
               rows={4}
               maxLength={4000}
-              error={touched && decisionIssue === "adminEventCfp.detail.validation.tooLong" ? t(decisionIssue) : null}
+              error={
+                touched && decisionIssue === "adminEventCfp.detail.validation.tooLong"
+                  ? t(decisionIssue)
+                  : null
+              }
               onValueChange={(feedbackToSpeaker) =>
                 setDecision((previous) => ({ ...previous, feedbackToSpeaker }))
               }
             />
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" disabled={decide.isPending} onClick={applyDecision}>
-                {t(decide.isPending ? "adminEventCfp.common.saving" : "adminEventCfp.detail.applyDecision")}
+              <Button
+                type="button"
+                variant="outline"
+                disabled={decide.isPending}
+                onClick={applyDecision}
+              >
+                {t(
+                  decide.isPending
+                    ? "adminEventCfp.common.saving"
+                    : "adminEventCfp.detail.applyDecision",
+                )}
               </Button>
               <Button type="button" onClick={() => setAcceptOpen(true)}>
                 {t("adminEventCfp.detail.accept")}
@@ -532,7 +584,11 @@ function SpeakerRow({
       {speaker.email === null ? null : <p className="text-xs">{speaker.email}</p>}
       {speaker.isPrimary ? (
         <p className="text-xs text-muted-foreground">
-          {t(detail.person.consentMarketing ? "adminEventCfp.detail.consentYes" : "adminEventCfp.detail.consentNo")}
+          {t(
+            detail.person.consentMarketing
+              ? "adminEventCfp.detail.consentYes"
+              : "adminEventCfp.detail.consentNo",
+          )}
         </p>
       ) : null}
       {personId === null ? (
@@ -540,7 +596,9 @@ function SpeakerRow({
       ) : (
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <Badge variant={speaker.crm?.syncStatus === "error" ? "destructive" : "secondary"}>
-            {speaker.crm === null ? t("adminEventCfp.crm.none") : t(CRM_STATUS_KEYS[speaker.crm.syncStatus])}
+            {speaker.crm === null
+              ? t("adminEventCfp.crm.none")
+              : t(CRM_STATUS_KEYS[speaker.crm.syncStatus])}
           </Badge>
           {speaker.crm?.syncedAt ? (
             <span className="text-muted-foreground">

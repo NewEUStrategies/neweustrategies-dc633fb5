@@ -26,7 +26,10 @@ describe("publicCfpFailure", () => {
       key: "eventCfp.errors.invalidScore",
       params: { count: 1, total: 5 },
     });
-    expect(publicCfpFailure("cfp_closed")).toEqual({ key: "eventCfp.errors.cfpClosed", params: {} });
+    expect(publicCfpFailure("cfp_closed")).toEqual({
+      key: "eventCfp.errors.cfpClosed",
+      params: {},
+    });
   });
 
   it("nieznana albo nieczytelna głowa -> `unknown`", () => {
@@ -53,21 +56,29 @@ describe("publicCfpFailure", () => {
 
 describe("adminCfpFailure", () => {
   it("przestrzeń kluczy panelu", () => {
-    expect(adminCfpFailure(new Error("score_max_below_reviews: existing reviews use scores up to 7"))).toEqual({
+    expect(
+      adminCfpFailure(new Error("score_max_below_reviews: existing reviews use scores up to 7")),
+    ).toEqual({
       key: "adminEventCfp.errors.scoreMaxBelowReviews",
       params: { count: 7 },
     });
-    expect(adminCfpFailure(new Error("room_conflict: taken")).key).toBe("adminEventCfp.errors.roomConflict");
+    expect(adminCfpFailure(new Error("room_conflict: taken")).key).toBe(
+      "adminEventCfp.errors.roomConflict",
+    );
     expect(adminCfpFailure(new Error("nope: x")).key).toBe("adminEventCfp.errors.unknown");
   });
 
   it("zdanie panelu", async () => {
     await i18n.changeLanguage("pl");
-    expect(adminCfpErrorMessage(new Error("key_taken: x"))).toBe("Inne pytanie tego naboru ma już ten klucz.");
+    expect(adminCfpErrorMessage(new Error("key_taken: x"))).toBe(
+      "Inne pytanie tego naboru ma już ten klucz.",
+    );
   });
 
   it("rdzeń mapy jest wspólny i przyjmuje dowolny prefiks", () => {
-    expect(mapCfpFailure("eventCfp.errors.", new Error("not_found: x")).key).toBe("eventCfp.errors.notFound");
+    expect(mapCfpFailure("eventCfp.errors.", new Error("not_found: x")).key).toBe(
+      "eventCfp.errors.notFound",
+    );
   });
 });
 

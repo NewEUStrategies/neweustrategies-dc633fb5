@@ -132,7 +132,11 @@ export function CfpAcceptDialog({
                   id="cfp-accept-ends"
                   label={t("adminEventCfp.accept.endsAt")}
                   value={draft.endsAt}
-                  error={touched && issue === "adminEventCfp.accept.validation.schedule" ? t(issue) : null}
+                  error={
+                    touched && issue === "adminEventCfp.accept.validation.schedule"
+                      ? t(issue)
+                      : null
+                  }
                   onValueChange={(value) => set("endsAt", value)}
                 />
               </div>
@@ -143,7 +147,8 @@ export function CfpAcceptDialog({
                   value={draft.roomId === "" ? NONE : draft.roomId}
                   options={roomOptions}
                   labelFor={(option) =>
-                    rooms.find((room) => room.id === option)?.name ?? t("adminEventCfp.accept.noRoom")
+                    rooms.find((room) => room.id === option)?.name ??
+                    t("adminEventCfp.accept.noRoom")
                   }
                   onValueChange={(value) => set("roomId", value === NONE ? "" : value)}
                 />

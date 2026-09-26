@@ -50,7 +50,11 @@ export function CfpMaterialsTable({ eventId, timezone }: { eventId: string; time
       {
         onSuccess: () =>
           toast.success(
-            t(isPublished ? "adminEventCfp.toasts.materialPublished" : "adminEventCfp.toasts.materialUnpublished"),
+            t(
+              isPublished
+                ? "adminEventCfp.toasts.materialPublished"
+                : "adminEventCfp.toasts.materialUnpublished",
+            ),
           ),
         onError: (error) => toast.error(adminCfpErrorMessage(error)),
       },
@@ -74,21 +78,29 @@ export function CfpMaterialsTable({ eventId, timezone }: { eventId: string; time
               <TableHead>{t("adminEventCfp.materials.columns.kind")}</TableHead>
               <TableHead>{t("adminEventCfp.materials.columns.visibility")}</TableHead>
               <TableHead>{t("adminEventCfp.materials.columns.status")}</TableHead>
-              <TableHead className="text-right">{t("adminEventCfp.materials.columns.actions")}</TableHead>
+              <TableHead className="text-right">
+                {t("adminEventCfp.materials.columns.actions")}
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((row) => (
               <TableRow key={row.id}>
                 <TableCell>
-                  <div className="font-medium">{localizedPair(lang, row.title_pl, row.title_en)}</div>
+                  <div className="font-medium">
+                    {localizedPair(lang, row.title_pl, row.title_en)}
+                  </div>
                   <div className="text-xs text-muted-foreground">
                     {formatEventDateTime(row.updated_at, timezone, lang)}
                   </div>
                 </TableCell>
                 <TableCell>{row.speaker_name}</TableCell>
                 <TableCell>
-                  {t(SPEAKER_MATERIAL_KIND_LABEL_KEYS[asOneOf(SPEAKER_MATERIAL_KINDS, row.kind, "link")])}
+                  {t(
+                    SPEAKER_MATERIAL_KIND_LABEL_KEYS[
+                      asOneOf(SPEAKER_MATERIAL_KINDS, row.kind, "link")
+                    ],
+                  )}
                 </TableCell>
                 <TableCell>
                   {t(
@@ -99,7 +111,11 @@ export function CfpMaterialsTable({ eventId, timezone }: { eventId: string; time
                 </TableCell>
                 <TableCell>
                   <Badge variant={row.is_published ? "default" : "outline"}>
-                    {t(row.is_published ? "adminEventCfp.materials.published" : "adminEventCfp.materials.unpublished")}
+                    {t(
+                      row.is_published
+                        ? "adminEventCfp.materials.published"
+                        : "adminEventCfp.materials.unpublished",
+                    )}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">
@@ -116,7 +132,11 @@ export function CfpMaterialsTable({ eventId, timezone }: { eventId: string; time
                       disabled={publish.isPending}
                       onClick={() => toggle(row.id, !row.is_published)}
                     >
-                      {t(row.is_published ? "adminEventCfp.materials.unpublish" : "adminEventCfp.materials.publish")}
+                      {t(
+                        row.is_published
+                          ? "adminEventCfp.materials.unpublish"
+                          : "adminEventCfp.materials.publish",
+                      )}
                     </Button>
                   </div>
                 </TableCell>

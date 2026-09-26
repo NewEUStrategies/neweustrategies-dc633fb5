@@ -138,8 +138,7 @@ export const adminEventCfpPl = {
     },
 
     form: {
-      lead:
-        "Stała część zgłoszenia (dane prelegenta, tytuł, streszczenie, forma, ścieżka i współprelegenci) wynika z ustawień naboru. Tu dodajesz własne pytania.",
+      lead: "Stała część zgłoszenia (dane prelegenta, tytuł, streszczenie, forma, ścieżka i współprelegenci) wynika z ustawień naboru. Tu dodajesz własne pytania.",
       add: "Dodaj pytanie",
       empty: "Formularz nie ma jeszcze własnych pytań.",
       columns: {
@@ -194,8 +193,7 @@ export const adminEventCfpPl = {
     },
 
     submissions: {
-      lead:
-        "Zgłoszenia wysłane w naborze. Szkiców nie widać - zgłoszenie pojawia się tu po wysłaniu przez prelegenta.",
+      lead: "Zgłoszenia wysłane w naborze. Szkiców nie widać - zgłoszenie pojawia się tu po wysłaniu przez prelegenta.",
       tabs: {
         submissions: "Zgłoszenia",
         materials: "Materiały prelegentów",
@@ -355,8 +353,7 @@ export const adminEventCfpPl = {
     },
 
     reviewers: {
-      lead:
-        "Recenzenci oceniają zgłoszenia w panelu recenzenta na stronie wydarzenia. Nikt nie ocenia własnego zgłoszenia, a przy ocenie w ciemno recenzent nie widzi danych prelegentów.",
+      lead: "Recenzenci oceniają zgłoszenia w panelu recenzenta na stronie wydarzenia. Nikt nie ocenia własnego zgłoszenia, a przy ocenie w ciemno recenzent nie widzi danych prelegentów.",
       add: "Dodaj recenzenta",
       picker: {
         placeholder: "Wybierz konto",
@@ -388,8 +385,7 @@ export const adminEventCfpPl = {
     },
 
     materials: {
-      lead:
-        "Materiały dodane przez prelegentów. Na stronie wydarzenia pojawiają się dopiero po publikacji; zmiana przez prelegenta wycofuje publikację.",
+      lead: "Materiały dodane przez prelegentów. Na stronie wydarzenia pojawiają się dopiero po publikacji; zmiana przez prelegenta wycofuje publikację.",
       empty: "Prelegenci nie dodali jeszcze materiałów.",
       columns: {
         title: "Materiał",
@@ -417,7 +413,8 @@ export const adminEventCfpPl = {
       accepted_other: "Przyjęto wystąpienie. Na liście prelegentów: {{count}} osoby.",
       crmRetried: "Ponowiono synchronizację z CRM.",
       notified: "Wysłano mail do prelegenta.",
-      notifySkipped: "Mail nie wyszedł - prelegent zna już tę decyzję albo zgłoszenie zmieniło stan.",
+      notifySkipped:
+        "Mail nie wyszedł - prelegent zna już tę decyzję albo zgłoszenie zmieniło stan.",
       reviewerAdded: "Dodano recenzenta.",
       reviewerSaved: "Zapisano recenzenta.",
       reviewerRemoved: "Usunięto recenzenta.",
@@ -454,7 +451,8 @@ export const adminEventCfpPl = {
       invalidOptions:
         "Pytanie wyboru potrzebuje od 1 do 50 opcji; każda z niepowtarzalną wartością i obiema etykietami.",
       invalidOrder: "Kolejność musi obejmować każde pytanie naboru dokładnie raz. Odśwież listę.",
-      invalidTransition: "Zgłoszenie w obecnym stanie nie przyjmuje tej decyzji. Odśwież szczegóły.",
+      invalidTransition:
+        "Zgłoszenie w obecnym stanie nie przyjmuje tej decyzji. Odśwież szczegóły.",
       noteRequired: "Przy odrzuceniu wpisz notatkę wewnętrzną (co najmniej 3 znaki).",
       invalidNote: "Notatka może mieć do 2000 znaków, a informacja zwrotna do 4000.",
       invalidSchedule: "Podaj początek i koniec sesji - koniec po początku, najwyżej 48 godzin.",
@@ -594,8 +592,7 @@ export const adminEventCfpEn = {
     },
 
     form: {
-      lead:
-        "The fixed part of the submission (speaker details, title, abstract, format, track and co-speakers) follows the call settings. Here you add your own questions.",
+      lead: "The fixed part of the submission (speaker details, title, abstract, format, track and co-speakers) follows the call settings. Here you add your own questions.",
       add: "Add question",
       empty: "The form has no custom questions yet.",
       columns: {
@@ -646,8 +643,7 @@ export const adminEventCfpEn = {
     },
 
     submissions: {
-      lead:
-        "Submissions sent to the call. Drafts are not shown - a submission appears here once the speaker sends it.",
+      lead: "Submissions sent to the call. Drafts are not shown - a submission appears here once the speaker sends it.",
       tabs: {
         submissions: "Submissions",
         materials: "Speaker materials",
@@ -785,7 +781,8 @@ export const adminEventCfpEn = {
       register: "Register the speakers for the event",
       registerHint: "An approved free registration - the QR ticket goes out automatically.",
       schedule: "Add a draft session to the programme",
-      scheduleHint: "The session is created as a draft with its speaker line-up; publish it in the agenda.",
+      scheduleHint:
+        "The session is created as a draft with its speaker line-up; publish it in the agenda.",
       startsAt: "Session start",
       endsAt: "Session end",
       room: "Room",
@@ -805,8 +802,7 @@ export const adminEventCfpEn = {
     },
 
     reviewers: {
-      lead:
-        "Reviewers score submissions in the reviewer panel on the event site. Nobody reviews their own submission, and in blind review reviewers do not see speaker details.",
+      lead: "Reviewers score submissions in the reviewer panel on the event site. Nobody reviews their own submission, and in blind review reviewers do not see speaker details.",
       add: "Add reviewer",
       picker: {
         placeholder: "Choose an account",
@@ -838,8 +834,7 @@ export const adminEventCfpEn = {
     },
 
     materials: {
-      lead:
-        "Materials added by speakers. They appear on the event site only once published; a change by the speaker withdraws the publication.",
+      lead: "Materials added by speakers. They appear on the event site only once published; a change by the speaker withdraws the publication.",
       empty: "Speakers have not added any materials yet.",
       columns: {
         title: "Material",
@@ -893,7 +888,8 @@ export const adminEventCfpEn = {
       invalidGroup: "The selected group does not belong to this event.",
       invalidTicket: "The selected ticket does not belong to this event.",
       scoreMaxBelowReviews: "Existing reviews go up to {{count}} - the scale cannot end lower.",
-      invalidKey: "Key: 2 to 49 characters starting with a letter; lowercase letters, digits and underscores.",
+      invalidKey:
+        "Key: 2 to 49 characters starting with a letter; lowercase letters, digits and underscores.",
       keyTaken: "Another question of this call already uses this key.",
       keyImmutable: "The key of a saved question cannot change - answers are stored under it.",
       invalidFieldType: "Unknown question type.",
@@ -901,12 +897,14 @@ export const adminEventCfpEn = {
       invalidHelp: "A hint may have up to 500 characters.",
       invalidOptions:
         "A choice question needs 1 to 50 options, each with a unique value and both labels.",
-      invalidOrder: "The order must list every question of the call exactly once. Refresh the list.",
+      invalidOrder:
+        "The order must list every question of the call exactly once. Refresh the list.",
       invalidTransition:
         "The submission's current status does not allow this decision. Refresh the details.",
       noteRequired: "Enter an internal note when rejecting (at least 3 characters).",
       invalidNote: "The note may have up to 2000 characters and the feedback up to 4000.",
-      invalidSchedule: "Enter the session start and end - the end after the start, at most 48 hours.",
+      invalidSchedule:
+        "Enter the session start and end - the end after the start, at most 48 hours.",
       invalidFormat: "The attendance format is on site, online or hybrid.",
       roomNotFound: "The selected room does not belong to this event.",
       trackNotFound: "The selected track does not belong to this event.",

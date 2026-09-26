@@ -4,11 +4,7 @@
 // JEDEN PLIK, BO TRZY MAŁE FORMULARZE O TEJ SAMEJ NATURZE: kilka pól, reguły
 // lustrzane do jednej funkcji SQL i ładunek. Każdy ma własny zestaw funkcji,
 // nic nie jest współdzielone przez przypadek.
-import type {
-  CfpDecisionStatus,
-  CfpRecommendation,
-  CfpSessionFormat,
-} from "@/lib/events/cfpEnums";
+import type { CfpDecisionStatus, CfpRecommendation, CfpSessionFormat } from "@/lib/events/cfpEnums";
 import type { CfpAcceptInput, CfpDecisionInput } from "@/lib/events/cfpApi";
 import type { CfpReviewInput } from "@/lib/events/cfpPublicApi";
 import type { CfpCriterion, CfpMyReview } from "@/lib/events/cfpSurface";
@@ -140,7 +136,12 @@ export function cfpAcceptIssue(draft: CfpAcceptDraft): string | null {
   if (!draft.schedule) return null;
   const starts = Date.parse(draft.startsAt);
   const ends = Date.parse(draft.endsAt);
-  if (Number.isNaN(starts) || Number.isNaN(ends) || ends <= starts || ends - starts > MAX_SESSION_MS) {
+  if (
+    Number.isNaN(starts) ||
+    Number.isNaN(ends) ||
+    ends <= starts ||
+    ends - starts > MAX_SESSION_MS
+  ) {
     return "adminEventCfp.accept.validation.schedule";
   }
   return null;

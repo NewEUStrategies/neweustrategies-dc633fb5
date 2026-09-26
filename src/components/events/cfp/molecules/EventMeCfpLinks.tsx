@@ -21,7 +21,8 @@ export function EventMeCfpLinks({ slug, signedIn }: { slug: string; signedIn: bo
   const panelQ = useSpeakerPanel(slug, signedIn);
   const panel = panelQ.data ?? null;
   if (panel === null) return null;
-  const isSpeaker = panel.submissionsCount > 0 || panel.profile !== null || panel.sessions.length > 0;
+  const isSpeaker =
+    panel.submissionsCount > 0 || panel.profile !== null || panel.sessions.length > 0;
   if (!isSpeaker && !panel.isReviewer) return null;
   return (
     <div className="flex flex-wrap gap-2">

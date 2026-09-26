@@ -30,7 +30,8 @@ function stub(): SupabaseRpcStub {
 
 function payloadOf(name: string): Record<string, unknown> {
   const value = stub().lastCall(name)?.arg("p_payload");
-  if (typeof value !== "object" || value === null) throw new Error(`test: brak p_payload w ${name}`);
+  if (typeof value !== "object" || value === null)
+    throw new Error(`test: brak p_payload w ${name}`);
   return value as Record<string, unknown>;
 }
 
@@ -149,7 +150,10 @@ describe("panel: ustawienia i pytania", () => {
 
     stub().setData("admin_event_cfp_fields_reorder", 2);
     await api.reorderCfpFields("e1", ["b", "a"]);
-    expect(payloadOf("admin_event_cfp_fields_reorder")).toEqual({ event_id: "e1", ids: ["b", "a"] });
+    expect(payloadOf("admin_event_cfp_fields_reorder")).toEqual({
+      event_id: "e1",
+      ids: ["b", "a"],
+    });
   });
 });
 
@@ -244,7 +248,11 @@ describe("panel: recenzenci i materiały", () => {
 
     stub().setData("admin_event_cfp_reviewer_set", "r2");
     expect(await api.setCfpReviewer({ eventId: "e1", userId: "u1", isActive: true })).toBe("r2");
-    expect(payloadOf("admin_event_cfp_reviewer_set")).toEqual({ event_id: "e1", user_id: "u1", is_active: true });
+    expect(payloadOf("admin_event_cfp_reviewer_set")).toEqual({
+      event_id: "e1",
+      user_id: "u1",
+      is_active: true,
+    });
 
     stub().setData("admin_event_cfp_reviewer_remove", "deleted");
     expect(await api.removeCfpReviewer("r1")).toBe("deleted");
@@ -260,7 +268,10 @@ describe("panel: recenzenci i materiały", () => {
     expect(await api.fetchCfpMaterials("e1")).toEqual([]);
     stub().setData("admin_event_cfp_material_publish", true);
     await api.publishCfpMaterial("m1", false);
-    expect(payloadOf("admin_event_cfp_material_publish")).toEqual({ id: "m1", is_published: false });
+    expect(payloadOf("admin_event_cfp_material_publish")).toEqual({
+      id: "m1",
+      is_published: false,
+    });
   });
 
   it("odmowa bazy wychodzi jako Error z komunikatem plpgsql", async () => {
@@ -278,7 +289,13 @@ describe("strona publiczna, prelegent i recenzent", () => {
     stub().setData("event_cfp_submission_save", { id: "s1", status: "draft" });
     const result = await pub.saveCfpSubmission({
       slug: "kongres",
-      speaker: { first_name: "A", last_name: "B", job_title: "", company_text: "", consent_marketing: false },
+      speaker: {
+        first_name: "A",
+        last_name: "B",
+        job_title: "",
+        company_text: "",
+        consent_marketing: false,
+      },
       titlePl: "T",
       formatKey: null,
       coSpeakers: [],
@@ -286,7 +303,13 @@ describe("strona publiczna, prelegent i recenzent", () => {
     expect(result).toEqual({ id: "s1", status: "draft" });
     expect(payloadOf("event_cfp_submission_save")).toEqual({
       slug: "kongres",
-      speaker: { first_name: "A", last_name: "B", job_title: "", company_text: "", consent_marketing: false },
+      speaker: {
+        first_name: "A",
+        last_name: "B",
+        job_title: "",
+        company_text: "",
+        consent_marketing: false,
+      },
       title_pl: "T",
       format_key: null,
       co_speakers: [],

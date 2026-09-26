@@ -57,13 +57,7 @@ export interface CfpSettingsDraft {
 }
 
 export type CfpSettingsField =
-  | "window"
-  | "texts"
-  | "formats"
-  | "maxPerSubmitter"
-  | "scoreMax"
-  | "minReviews"
-  | "criteria";
+  "window" | "texts" | "formats" | "maxPerSubmitter" | "scoreMax" | "minReviews" | "criteria";
 
 export interface CfpSettingsIssue {
   field: CfpSettingsField;
@@ -150,15 +144,22 @@ export function validateCfpSettingsDraft(draft: CfpSettingsDraft): CfpSettingsIs
         labelsOk(format.labelPl, format.labelEn) &&
         inRange(format.durationMin, 5, 480),
     );
-  if (!formatsOk) issues.push({ field: "formats", messageKey: "adminEventCfp.settings.validation.formats" });
+  if (!formatsOk)
+    issues.push({ field: "formats", messageKey: "adminEventCfp.settings.validation.formats" });
   if (!inRange(draft.maxPerSubmitter, 1, 20)) {
-    issues.push({ field: "maxPerSubmitter", messageKey: "adminEventCfp.settings.validation.maxPerSubmitter" });
+    issues.push({
+      field: "maxPerSubmitter",
+      messageKey: "adminEventCfp.settings.validation.maxPerSubmitter",
+    });
   }
   if (!inRange(draft.scoreMax, 3, 10)) {
     issues.push({ field: "scoreMax", messageKey: "adminEventCfp.settings.validation.scoreMax" });
   }
   if (!inRange(draft.minReviews, 0, 20)) {
-    issues.push({ field: "minReviews", messageKey: "adminEventCfp.settings.validation.minReviews" });
+    issues.push({
+      field: "minReviews",
+      messageKey: "adminEventCfp.settings.validation.minReviews",
+    });
   }
   const criteriaOk =
     draft.criteria.length <= CFP_MAX_CRITERIA &&
@@ -169,7 +170,8 @@ export function validateCfpSettingsDraft(draft: CfpSettingsDraft): CfpSettingsIs
         labelsOk(criterion.labelPl, criterion.labelEn) &&
         inRange(criterion.weight, 1, 10),
     );
-  if (!criteriaOk) issues.push({ field: "criteria", messageKey: "adminEventCfp.settings.validation.criteria" });
+  if (!criteriaOk)
+    issues.push({ field: "criteria", messageKey: "adminEventCfp.settings.validation.criteria" });
   return issues;
 }
 

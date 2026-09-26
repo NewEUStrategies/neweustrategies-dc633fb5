@@ -33,7 +33,9 @@ const RE =
 
 function checkEnums(): Map<string, Set<string>> {
   const out = new Map<string, Set<string>>();
-  for (const file of readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql")).sort()) {
+  for (const file of readdirSync(MIGRATIONS_DIR)
+    .filter((f) => f.endsWith(".sql"))
+    .sort()) {
     const sql = readFileSync(join(MIGRATIONS_DIR, file), "utf8");
     for (const match of sql.matchAll(RE)) {
       const values = match[2]
@@ -58,8 +60,16 @@ const EQUAL: ReadonlyArray<readonly [string, string, readonly string[]]> = [
   ["CFP_STATUSES", "event_cfp_settings_status_values", CFP_STATUSES],
   ["CFP_FIELD_TYPES", "event_cfp_fields_field_type_values", CFP_FIELD_TYPES],
   ["CFP_SUBMISSION_STATUSES", "event_cfp_submissions_status_values", CFP_SUBMISSION_STATUSES],
-  ["CFP_TALK_LANGUAGES (talk_language)", "event_cfp_submissions_talk_language_values", CFP_TALK_LANGUAGES],
-  ["CFP_TALK_LANGUAGES (notify_lang)", "event_cfp_submissions_notify_lang_values", CFP_TALK_LANGUAGES],
+  [
+    "CFP_TALK_LANGUAGES (talk_language)",
+    "event_cfp_submissions_talk_language_values",
+    CFP_TALK_LANGUAGES,
+  ],
+  [
+    "CFP_TALK_LANGUAGES (notify_lang)",
+    "event_cfp_submissions_notify_lang_values",
+    CFP_TALK_LANGUAGES,
+  ],
   ["CFP_NOTICES", "event_cfp_submissions_notified_status_values", CFP_NOTICES],
   ["CFP_SPEAKER_ROLES", "event_cfp_submission_speakers_role_values", CFP_SPEAKER_ROLES],
   ["CFP_SPEAKER_ROLES (obsada sesji)", "event_session_speakers_role_values", CFP_SPEAKER_ROLES],

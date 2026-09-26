@@ -28,12 +28,8 @@ import {
 } from "@/components/admin/events/studio/EventStudioSection";
 import { CfpLabelledListEditor } from "@/components/admin/events/molecules/CfpLabelledListEditor";
 import { adminCfpErrorMessage } from "@/lib/events/adminCfpErrors";
-import {
-  CFP_STATUSES,
-  localizedPair,
-  type CfpPhase,
-  type CfpStatus,
-} from "@/lib/events/cfpEnums";
+import { CFP_PHASE_LABEL_KEYS } from "@/lib/events/adminCfpLabels";
+import { CFP_STATUSES, localizedPair, type CfpStatus } from "@/lib/events/cfpEnums";
 import {
   CFP_MAX_CRITERIA,
   CFP_MAX_FORMATS,
@@ -69,13 +65,6 @@ const STATUS_HINT_KEYS: Record<CfpStatus, string> = {
   closed: "adminEventCfp.settings.status.closedHint",
 };
 
-export const CFP_PHASE_LABEL_KEYS: Record<CfpPhase, string> = {
-  none: "adminEventCfp.phases.none",
-  scheduled: "adminEventCfp.phases.scheduled",
-  open: "adminEventCfp.phases.open",
-  closed: "adminEventCfp.phases.closed",
-};
-
 export function CfpSettingsPanel({ eventId }: { eventId: string }) {
   ensureAdminEventCfpI18n();
   const { t } = useTranslation();
@@ -101,16 +90,16 @@ export function CfpSettingsPanel({ eventId }: { eventId: string }) {
 function CfpSettingsForm({ eventId, settings }: { eventId: string; settings: CfpSettings }) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
-  // Szkic z bazy liczony od TREŚCI ustawień: odświeżenie w tle daje nowy obiekt
-  // o tej samej treści i nie może zamieść niezapisanych zmian organizatora.
-  const signature = JSON.stringify(settings);
-  const settingsRef = useRef(settings);
-  settingsRef.current = settings;
-  const saved = useMemo(() => cfpSettingsDraftFromSettings(settingsRef.current), [signature]);
+  const saved = useMemo(() => cfpSettingsDraftFromSettings(settings), [settings]);
   const [draft, setDraft] = useState<CfpSettingsDraft>(saved);
   const [touched, setTouched] = useState(false);
-  // Stan z serwera wygrywa po zapisie i po odświeżeniu.
-  useEffect(() => setDraft(saved), [saved]);
+  // Stan z serwera wygrywa po zapisie - ale tylko ZMIANA TREŚCI. Odświeżenie
+  // w tle daje nowy obiekt o tej samej treści i nie może zamieść niezapisanych
+  // zmian organizatora.
+  const signature = JSON.stringify(saved);
+  const savedRef = useRef(saved);
+  savedRef.current = saved;
+  useEffect(() => setDraft(savedRef.current), [signature]);
 
   const save = useSaveCfpSettings(eventId);
   const issues = validateCfpSettingsDraft(draft);
@@ -154,7 +143,9 @@ function CfpSettingsForm({ eventId, settings }: { eventId: string; settings: Cfp
         hint={
           <div className="space-y-1 text-xs">
             <p className="text-muted-foreground">
-              {t("adminEventCfp.settings.phaseNow", { phase: t(CFP_PHASE_LABEL_KEYS[settings.phase]) })}
+              {t("adminEventCfp.settings.phaseNow", {
+                phase: t(CFP_PHASE_LABEL_KEYS[settings.phase]),
+              })}
             </p>
             {settings.eventStatus === "published" ? null : (
               <p className="text-amber-600 dark:text-amber-400">
@@ -266,7 +257,12 @@ function CfpSettingsForm({ eventId, settings }: { eventId: string; settings: Cfp
           emptyLabel={t("adminEventCfp.settings.noFormats")}
           newRow={() => {
             const row = emptyFormatDraft();
-            return { key: row.key, labelPl: row.labelPl, labelEn: row.labelEn, value: row.durationMin };
+            return {
+              key: row.key,
+              labelPl: row.labelPl,
+              labelEn: row.labelEn,
+              value: row.durationMin,
+            };
           }}
           max={CFP_MAX_FORMATS}
           error={errorFor("formats")}

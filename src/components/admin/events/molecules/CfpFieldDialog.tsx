@@ -21,6 +21,7 @@ import {
 import { AdminFormEnumRow } from "@/components/admin/molecules/AdminFormEnumRow";
 import { AdminFormSwitchRow } from "@/components/admin/molecules/AdminFormSwitchRow";
 import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow";
+import { CFP_FIELD_TYPE_LABEL_KEYS } from "@/lib/events/adminCfpLabels";
 import { CFP_FIELD_TYPES, type CfpFieldType } from "@/lib/events/cfpEnums";
 import type { CfpFieldInput, CfpFieldRow } from "@/lib/events/cfpApi";
 import {
@@ -36,16 +37,6 @@ import {
   type CfpFieldDraftField,
 } from "@/lib/events/cfpFieldDraft";
 import { ensureAdminEventCfpI18n } from "@/lib/i18n-admin-event-cfp";
-
-export const CFP_FIELD_TYPE_LABEL_KEYS: Record<CfpFieldType, string> = {
-  text: "adminEventCfp.fieldTypes.text",
-  textarea: "adminEventCfp.fieldTypes.textarea",
-  select: "adminEventCfp.fieldTypes.select",
-  multiselect: "adminEventCfp.fieldTypes.multiselect",
-  checkbox: "adminEventCfp.fieldTypes.checkbox",
-  url: "adminEventCfp.fieldTypes.url",
-  number: "adminEventCfp.fieldTypes.number",
-};
 
 export function CfpFieldDialog({
   open,
@@ -107,7 +98,11 @@ export function CfpFieldDialog({
       <DialogContent className="event-dialog-compact max-h-[92vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {t(isNew ? "adminEventCfp.form.dialog.createTitle" : "adminEventCfp.form.dialog.editTitle")}
+            {t(
+              isNew
+                ? "adminEventCfp.form.dialog.createTitle"
+                : "adminEventCfp.form.dialog.editTitle",
+            )}
           </DialogTitle>
           <DialogDescription>{t("adminEventCfp.form.dialog.description")}</DialogDescription>
         </DialogHeader>
@@ -188,9 +183,14 @@ export function CfpFieldDialog({
 
           {isChoiceType(draft.fieldType) ? (
             <fieldset className="space-y-2">
-              <legend className="text-sm font-medium">{t("adminEventCfp.form.dialog.options")}</legend>
+              <legend className="text-sm font-medium">
+                {t("adminEventCfp.form.dialog.options")}
+              </legend>
               {draft.options.map((option, index) => (
-                <div key={`option-${index}`} className="grid gap-2 sm:grid-cols-[8rem_1fr_1fr_auto]">
+                <div
+                  key={`option-${index}`}
+                  className="grid gap-2 sm:grid-cols-[8rem_1fr_1fr_auto]"
+                >
                   <AdminFormTextRow
                     id={`cfp-option-${index}-value`}
                     label={t("adminEventCfp.form.dialog.optionValue")}
@@ -237,7 +237,9 @@ export function CfpFieldDialog({
                 variant="outline"
                 size="sm"
                 disabled={draft.options.length >= CFP_MAX_OPTIONS}
-                onClick={() => set("options", [...draft.options, emptyOptionDraft(draft.options.length)])}
+                onClick={() =>
+                  set("options", [...draft.options, emptyOptionDraft(draft.options.length)])
+                }
               >
                 {t("adminEventCfp.form.dialog.addOption")}
               </Button>

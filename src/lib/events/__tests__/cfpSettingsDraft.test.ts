@@ -58,7 +58,8 @@ function validDraft(): CfpSettingsDraft {
   return cfpSettingsDraftFromSettings(settings());
 }
 
-const fields = (draft: CfpSettingsDraft) => validateCfpSettingsDraft(draft).map((issue) => issue.field);
+const fields = (draft: CfpSettingsDraft) =>
+  validateCfpSettingsDraft(draft).map((issue) => issue.field);
 
 describe("cfpSettingsDraftFromSettings / payload", () => {
   it("liczby stają się napisami, a ładunek wraca do liczb i `null` dla pustych dat", () => {
@@ -104,7 +105,9 @@ describe("cfpSettingsDraftFromSettings / payload", () => {
   });
 
   it("brak dat w bazie = puste pola, puste pola = `null` w ładunku", () => {
-    const draft = cfpSettingsDraftFromSettings(parseCfpSettings({ opens_at: null, closes_at: null }));
+    const draft = cfpSettingsDraftFromSettings(
+      parseCfpSettings({ opens_at: null, closes_at: null }),
+    );
     expect(draft.opensAt).toBe("");
     expect(draft.closesAt).toBe("");
     const payload = cfpSettingsPayload("e1", draft);
@@ -249,7 +252,8 @@ function fieldDraft(overrides: Partial<CfpFieldDraft> = {}): CfpFieldDraft {
   };
 }
 
-const fieldIssues = (draft: CfpFieldDraft) => validateCfpFieldDraft(draft).map((issue) => issue.field);
+const fieldIssues = (draft: CfpFieldDraft) =>
+  validateCfpFieldDraft(draft).map((issue) => issue.field);
 
 describe("cfpFieldDraft", () => {
   it("szkic z wiersza: klucz zablokowany, nieznany typ -> tekst", () => {
@@ -265,7 +269,9 @@ describe("cfpFieldDraft", () => {
   });
 
   it("etykieta PL podpowiada klucz tylko w NOWYM pytaniu i tylko przed ręczną zmianą", () => {
-    expect(withLabelPl(emptyCfpFieldDraft(), "Poziom zaawansowania").key).toBe("poziom_zaawansowania");
+    expect(withLabelPl(emptyCfpFieldDraft(), "Poziom zaawansowania").key).toBe(
+      "poziom_zaawansowania",
+    );
     const touched = { ...emptyCfpFieldDraft(), key: "moj", keyTouched: true };
     expect(withLabelPl(touched, "Inne").key).toBe("moj");
     const saved = cfpFieldDraftFromRow(row());
@@ -283,25 +289,32 @@ describe("cfpFieldDraft", () => {
     const option = { value: "a", labelPl: "A", labelEn: "A" };
     expect(fieldIssues(fieldDraft({ fieldType: "select", options: [option] }))).toEqual([]);
     expect(fieldIssues(fieldDraft({ fieldType: "select", options: [] }))).toEqual(["options"]);
-    expect(fieldIssues(fieldDraft({ fieldType: "multiselect", options: [option, option] }))).toEqual([
-      "options",
-    ]);
-    expect(fieldIssues(fieldDraft({ fieldType: "select", options: [{ ...option, value: "A!" }] }))).toEqual([
-      "options",
-    ]);
-    expect(fieldIssues(fieldDraft({ fieldType: "select", options: [{ ...option, labelEn: "" }] }))).toEqual([
-      "options",
-    ]);
     expect(
-      fieldIssues(fieldDraft({ fieldType: "select", options: [{ ...option, labelPl: "x".repeat(121) }] })),
+      fieldIssues(fieldDraft({ fieldType: "multiselect", options: [option, option] })),
     ).toEqual(["options"]);
     expect(
-      fieldIssues(fieldDraft({ fieldType: "select", options: [{ ...option, labelEn: "x".repeat(121) }] })),
+      fieldIssues(fieldDraft({ fieldType: "select", options: [{ ...option, value: "A!" }] })),
     ).toEqual(["options"]);
-    expect(fieldIssues(fieldDraft({ fieldType: "select", options: [{ ...option, labelPl: " " }] }))).toEqual([
-      "options",
-    ]);
-    const tooMany = Array.from({ length: CFP_MAX_OPTIONS + 1 }, (_, i) => ({ ...option, value: `o${i}` }));
+    expect(
+      fieldIssues(fieldDraft({ fieldType: "select", options: [{ ...option, labelEn: "" }] })),
+    ).toEqual(["options"]);
+    expect(
+      fieldIssues(
+        fieldDraft({ fieldType: "select", options: [{ ...option, labelPl: "x".repeat(121) }] }),
+      ),
+    ).toEqual(["options"]);
+    expect(
+      fieldIssues(
+        fieldDraft({ fieldType: "select", options: [{ ...option, labelEn: "x".repeat(121) }] }),
+      ),
+    ).toEqual(["options"]);
+    expect(
+      fieldIssues(fieldDraft({ fieldType: "select", options: [{ ...option, labelPl: " " }] })),
+    ).toEqual(["options"]);
+    const tooMany = Array.from({ length: CFP_MAX_OPTIONS + 1 }, (_, i) => ({
+      ...option,
+      value: `o${i}`,
+    }));
     expect(fieldIssues(fieldDraft({ fieldType: "select", options: tooMany }))).toEqual(["options"]);
     expect(fieldIssues(fieldDraft({ fieldType: "text", options: [] }))).toEqual([]);
     expect(validateCfpFieldDraft(fieldDraft({ key: "" }))[0]?.messageKey).toBe(
@@ -335,7 +348,11 @@ describe("cfpFieldDraft", () => {
     });
     const saved = cfpFieldDraftToInput(
       "e1",
-      fieldDraft({ id: "f1", fieldType: "textarea", options: [{ value: "a", labelPl: "A", labelEn: "A" }] }),
+      fieldDraft({
+        id: "f1",
+        fieldType: "textarea",
+        options: [{ value: "a", labelPl: "A", labelEn: "A" }],
+      }),
     );
     expect(saved).toMatchObject({ id: "f1", eventId: undefined, key: undefined, options: [] });
   });

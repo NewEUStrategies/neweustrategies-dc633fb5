@@ -106,7 +106,9 @@ function CfpContent({ slug, cfp }: { slug: string; cfp: CfpPublic }) {
         ) : null}
       </section>
 
-      {intro === "" ? null : <p className="whitespace-pre-line text-base leading-relaxed">{intro}</p>}
+      {intro === "" ? null : (
+        <p className="whitespace-pre-line text-base leading-relaxed">{intro}</p>
+      )}
 
       {guidelines === "" ? null : (
         <section className="space-y-2">

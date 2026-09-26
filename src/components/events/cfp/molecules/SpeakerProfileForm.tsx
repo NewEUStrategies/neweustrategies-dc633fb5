@@ -24,7 +24,13 @@ import {
 import { useSaveSpeakerProfile } from "@/lib/events/useCfpMe";
 import { ensureEventCfpI18n } from "@/lib/i18n-event-cfp";
 
-export function SpeakerProfileForm({ slug, profile }: { slug: string; profile: SpeakerPanelProfile }) {
+export function SpeakerProfileForm({
+  slug,
+  profile,
+}: {
+  slug: string;
+  profile: SpeakerPanelProfile;
+}) {
   ensureEventCfpI18n();
   const { t } = useTranslation();
   const save = useSaveSpeakerProfile(slug);

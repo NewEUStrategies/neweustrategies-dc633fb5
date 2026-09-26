@@ -36,9 +36,7 @@ import {
 type Bag = Record<string, unknown>;
 
 function bag(value: unknown): Bag {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Bag)
-    : {};
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Bag) : {};
 }
 
 function list(value: unknown): unknown[] {
@@ -952,7 +950,8 @@ export function parseCfpWriteResult(value: Json | null): CfpWriteResult {
   const row = bag(value);
   return {
     id: str(row.id),
-    status: row.status === "deleted" ? "deleted" : asOneOf(CFP_SUBMISSION_STATUSES, row.status, "draft"),
+    status:
+      row.status === "deleted" ? "deleted" : asOneOf(CFP_SUBMISSION_STATUSES, row.status, "draft"),
   };
 }
 

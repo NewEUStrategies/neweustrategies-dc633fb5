@@ -10,26 +10,9 @@
 import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
-import {
-  CFP_SUBMISSION_STATUS_LABEL_KEYS,
-  type CfpSubmissionStatus,
-} from "@/lib/events/cfpEnums";
+import { CFP_SUBMISSION_STATUS_LABEL_KEYS, type CfpSubmissionStatus } from "@/lib/events/cfpEnums";
+import { CFP_STATUS_VARIANT } from "@/lib/events/cfpRows";
 import { ensureEventCfpI18n } from "@/lib/i18n-event-cfp";
-
-type Variant = "default" | "secondary" | "destructive" | "outline";
-
-export const CFP_STATUS_VARIANT: Record<CfpSubmissionStatus, Variant> = {
-  draft: "outline",
-  submitted: "secondary",
-  under_review: "secondary",
-  changes_requested: "secondary",
-  accepted: "default",
-  waitlisted: "outline",
-  rejected: "destructive",
-  withdrawn: "outline",
-  confirmed: "default",
-  declined: "outline",
-};
 
 export function CfpStatusBadge({ status }: { status: CfpSubmissionStatus }) {
   ensureEventCfpI18n();

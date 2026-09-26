@@ -13,7 +13,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ChevronDown, ChevronUp } from "@/lib/lucide-shim";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -25,12 +25,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
-import {
-  CFP_FIELD_TYPE_LABEL_KEYS,
-  CfpFieldDialog,
-} from "@/components/admin/events/molecules/CfpFieldDialog";
+import { CfpFieldDialog } from "@/components/admin/events/molecules/CfpFieldDialog";
 import { confirmDialog } from "@/lib/appDialogs";
 import { adminCfpErrorMessage } from "@/lib/events/adminCfpErrors";
+import { CFP_FIELD_TYPE_LABEL_KEYS } from "@/lib/events/adminCfpLabels";
 import { asOneOf, CFP_FIELD_TYPES, localizedPair } from "@/lib/events/cfpEnums";
 import type { CfpFieldInput, CfpFieldRow } from "@/lib/events/cfpApi";
 import { moveItem } from "@/lib/events/cfpFieldDraft";
@@ -116,14 +114,18 @@ export function CfpFormPanel({ eventId }: { eventId: string }) {
               <TableHead>{t("adminEventCfp.form.columns.question")}</TableHead>
               <TableHead>{t("adminEventCfp.form.columns.type")}</TableHead>
               <TableHead>{t("adminEventCfp.form.columns.answers")}</TableHead>
-              <TableHead className="text-right">{t("adminEventCfp.form.columns.actions")}</TableHead>
+              <TableHead className="text-right">
+                {t("adminEventCfp.form.columns.actions")}
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((row, index) => (
               <TableRow key={row.id}>
                 <TableCell>
-                  <div className="font-medium">{localizedPair(lang, row.label_pl, row.label_en)}</div>
+                  <div className="font-medium">
+                    {localizedPair(lang, row.label_pl, row.label_en)}
+                  </div>
                   <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                     <code>{row.key}</code>
                     {row.is_required ? <span>{t("adminEventCfp.form.required")}</span> : null}
@@ -144,7 +146,7 @@ export function CfpFormPanel({ eventId }: { eventId: string }) {
                       aria-label={t("adminEventCfp.form.moveUp")}
                       onClick={() => move(index, -1)}
                     >
-                      <ArrowUp className="h-4 w-4" aria-hidden="true" />
+                      <ChevronUp className="h-4 w-4" aria-hidden="true" />
                     </Button>
                     <Button
                       type="button"
@@ -154,12 +156,22 @@ export function CfpFormPanel({ eventId }: { eventId: string }) {
                       aria-label={t("adminEventCfp.form.moveDown")}
                       onClick={() => move(index, 1)}
                     >
-                      <ArrowDown className="h-4 w-4" aria-hidden="true" />
+                      <ChevronDown className="h-4 w-4" aria-hidden="true" />
                     </Button>
-                    <Button type="button" variant="outline" size="sm" onClick={() => openDialog(row)}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openDialog(row)}
+                    >
                       {t("adminEventCfp.common.edit")}
                     </Button>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => void remove(row)}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void remove(row)}
+                    >
                       {t("adminEventCfp.common.delete")}
                     </Button>
                   </div>

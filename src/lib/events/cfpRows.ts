@@ -110,7 +110,11 @@ export type CfpAnswerDisplay =
   | { kind: "url"; value: string }
   | { kind: "list"; values: string[] };
 
-function optionLabel(options: readonly CfpChoiceOption[], value: string, lang: "pl" | "en"): string {
+function optionLabel(
+  options: readonly CfpChoiceOption[],
+  value: string,
+  lang: "pl" | "en",
+): string {
   const found = options.find((option) => option.value === value);
   if (found === undefined) return value;
   return (lang === "en" ? found.labelEn || found.labelPl : found.labelPl || found.labelEn) || value;
@@ -127,7 +131,9 @@ export function cfpAnswerDisplay(
     case "checkbox":
       return value === true || value === "true" ? { kind: "yes" } : { kind: "no" };
     case "multiselect": {
-      const values = Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
+      const values = Array.isArray(value)
+        ? value.filter((v): v is string => typeof v === "string")
+        : [];
       return values.length === 0
         ? { kind: "empty" }
         : { kind: "list", values: values.map((v) => optionLabel(field.options, v, lang)) };
@@ -154,3 +160,26 @@ export function cfpNotifyFeedback(
   if (!result.ok) return "failed";
   return result.skipped === undefined || result.skipped === "duplicate" ? "sent" : "skipped";
 }
+
+// ------------------------------------------------------ plakietka stanu
+
+/**
+ * Tonacja plakietki stanu (`CfpStatusBadge`) z tokenów wariantów `Badge`:
+ * przyjęte i potwierdzone = główny, odrzucone = destrukcyjny, w toku =
+ * drugorzędny, stany bez dalszych kroków = obrys.
+ */
+export const CFP_STATUS_VARIANT: Record<
+  CfpSubmissionStatus,
+  "default" | "secondary" | "destructive" | "outline"
+> = {
+  draft: "outline",
+  submitted: "secondary",
+  under_review: "secondary",
+  changes_requested: "secondary",
+  accepted: "default",
+  waitlisted: "outline",
+  rejected: "destructive",
+  withdrawn: "outline",
+  confirmed: "default",
+  declined: "outline",
+};

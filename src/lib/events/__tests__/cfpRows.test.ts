@@ -124,20 +124,25 @@ describe("stan maila do prelegenta", () => {
 
   it("czeka: brak wysyłki, mail o innym stanie albo sprzed nowej decyzji", () => {
     expect(cfpNotifyState(base)).toBe("pending");
-    expect(cfpNotifyState({ ...base, notifiedStatus: "rejected", notifiedAt: "2026-09-03T00:00:00Z" })).toBe(
-      "pending",
-    );
-    expect(cfpNotifyState({ ...base, notifiedStatus: "accepted", notifiedAt: "2026-09-01T00:00:00Z" })).toBe(
-      "pending",
-    );
+    expect(
+      cfpNotifyState({ ...base, notifiedStatus: "rejected", notifiedAt: "2026-09-03T00:00:00Z" }),
+    ).toBe("pending");
+    expect(
+      cfpNotifyState({ ...base, notifiedStatus: "accepted", notifiedAt: "2026-09-01T00:00:00Z" }),
+    ).toBe("pending");
   });
 
   it("aktualny: mail o obecnym stanie po ostatniej decyzji (albo bez stempla decyzji)", () => {
-    expect(cfpNotifyState({ ...base, notifiedStatus: "accepted", notifiedAt: "2026-09-03T00:00:00Z" })).toBe(
-      "upToDate",
-    );
     expect(
-      cfpNotifyState({ ...base, decidedAt: null, notifiedStatus: "accepted", notifiedAt: "2026-09-03T00:00:00Z" }),
+      cfpNotifyState({ ...base, notifiedStatus: "accepted", notifiedAt: "2026-09-03T00:00:00Z" }),
+    ).toBe("upToDate");
+    expect(
+      cfpNotifyState({
+        ...base,
+        decidedAt: null,
+        notifiedStatus: "accepted",
+        notifiedAt: "2026-09-03T00:00:00Z",
+      }),
     ).toBe("upToDate");
   });
 
@@ -159,27 +164,50 @@ describe("odpowiedzi na pytania", () => {
 
   it("pusta odpowiedź", () => {
     for (const value of [undefined, null, ""]) {
-      expect(cfpAnswerDisplay({ fieldType: "text", options: [] }, value, "pl")).toEqual({ kind: "empty" });
+      expect(cfpAnswerDisplay({ fieldType: "text", options: [] }, value, "pl")).toEqual({
+        kind: "empty",
+      });
     }
   });
 
   it("tak/nie", () => {
-    expect(cfpAnswerDisplay({ fieldType: "checkbox", options: [] }, true, "pl")).toEqual({ kind: "yes" });
-    expect(cfpAnswerDisplay({ fieldType: "checkbox", options: [] }, "true", "pl")).toEqual({ kind: "yes" });
-    expect(cfpAnswerDisplay({ fieldType: "checkbox", options: [] }, false, "pl")).toEqual({ kind: "no" });
+    expect(cfpAnswerDisplay({ fieldType: "checkbox", options: [] }, true, "pl")).toEqual({
+      kind: "yes",
+    });
+    expect(cfpAnswerDisplay({ fieldType: "checkbox", options: [] }, "true", "pl")).toEqual({
+      kind: "yes",
+    });
+    expect(cfpAnswerDisplay({ fieldType: "checkbox", options: [] }, false, "pl")).toEqual({
+      kind: "no",
+    });
   });
 
   it("wybory: etykiety w języku UI, nieznana wartość zostaje wartością", () => {
-    expect(cfpAnswerDisplay({ fieldType: "multiselect", options }, ["a", "b", "c", "z", 1], "pl")).toEqual({
+    expect(
+      cfpAnswerDisplay({ fieldType: "multiselect", options }, ["a", "b", "c", "z", 1], "pl"),
+    ).toEqual({
       kind: "list",
       values: ["Opcja A", "Only EN", "c", "z"],
     });
-    expect(cfpAnswerDisplay({ fieldType: "multiselect", options }, [], "pl")).toEqual({ kind: "empty" });
-    expect(cfpAnswerDisplay({ fieldType: "multiselect", options }, "a", "pl")).toEqual({ kind: "empty" });
-    expect(cfpAnswerDisplay({ fieldType: "select", options }, "a", "en")).toEqual({ kind: "text", value: "Option A" });
+    expect(cfpAnswerDisplay({ fieldType: "multiselect", options }, [], "pl")).toEqual({
+      kind: "empty",
+    });
+    expect(cfpAnswerDisplay({ fieldType: "multiselect", options }, "a", "pl")).toEqual({
+      kind: "empty",
+    });
+    expect(cfpAnswerDisplay({ fieldType: "select", options }, "a", "en")).toEqual({
+      kind: "text",
+      value: "Option A",
+    });
     expect(cfpAnswerDisplay({ fieldType: "select", options }, 3, "en")).toEqual({ kind: "empty" });
-    expect(cfpAnswerDisplay({ fieldType: "select", options }, "d", "en")).toEqual({ kind: "text", value: "Tylko PL" });
-    expect(cfpAnswerDisplay({ fieldType: "select", options }, "c", "en")).toEqual({ kind: "text", value: "c" });
+    expect(cfpAnswerDisplay({ fieldType: "select", options }, "d", "en")).toEqual({
+      kind: "text",
+      value: "Tylko PL",
+    });
+    expect(cfpAnswerDisplay({ fieldType: "select", options }, "c", "en")).toEqual({
+      kind: "text",
+      value: "c",
+    });
   });
 
   it("adres jest odnośnikiem tylko przy https", () => {
@@ -187,14 +215,19 @@ describe("odpowiedzi na pytania", () => {
       kind: "url",
       value: "https://x.pl",
     });
-    expect(cfpAnswerDisplay({ fieldType: "url", options: [] }, "javascript:alert(1)", "pl")).toEqual({
+    expect(
+      cfpAnswerDisplay({ fieldType: "url", options: [] }, "javascript:alert(1)", "pl"),
+    ).toEqual({
       kind: "text",
       value: "javascript:alert(1)",
     });
   });
 
   it("liczby i teksty", () => {
-    expect(cfpAnswerDisplay({ fieldType: "number", options: [] }, 12, "pl")).toEqual({ kind: "text", value: "12" });
+    expect(cfpAnswerDisplay({ fieldType: "number", options: [] }, 12, "pl")).toEqual({
+      kind: "text",
+      value: "12",
+    });
     expect(cfpAnswerDisplay({ fieldType: "textarea", options: [] }, "abc", "pl")).toEqual({
       kind: "text",
       value: "abc",

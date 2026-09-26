@@ -25,16 +25,21 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("@/lib/i18n-event-cfp", () => ({ ensureEventCfpI18n: () => undefined }));
-vi.mock("@/components/ui/select", async () => (await import("@/test/reactStubs")).radixSelectStub(await import("react")));
+vi.mock("@/components/ui/select", async () =>
+  (await import("@/test/reactStubs")).radixSelectStub(await import("react")),
+);
 vi.mock("@tanstack/react-router", async () => ({
   Link: (await import("@/test/events/cfpStubs")).routerLinkWithSearchStub(await import("react")),
 }));
 
-const { CfpStatusBadge, CFP_STATUS_VARIANT } = await import("@/components/events/cfp/atoms/CfpStatusBadge");
+const { CfpStatusBadge } = await import("@/components/events/cfp/atoms/CfpStatusBadge");
+const { CFP_STATUS_VARIANT } = await import("@/lib/events/cfpRows");
 const { CfpAnswerValue } = await import("@/components/events/cfp/atoms/CfpAnswerValue");
 const { CfpCountdown } = await import("@/components/events/cfp/molecules/CfpCountdown");
-const { CfpSelectField, CfpTextField } = await import("@/components/events/cfp/molecules/CfpFormFields");
-const { CfpCoSpeakersEditor } = await import("@/components/events/cfp/molecules/CfpCoSpeakersEditor");
+const { CfpSelectField, CfpTextField } =
+  await import("@/components/events/cfp/molecules/CfpFormFields");
+const { CfpCoSpeakersEditor } =
+  await import("@/components/events/cfp/molecules/CfpCoSpeakersEditor");
 const { EventCfpTabItem } = await import("@/components/events/cfp/molecules/EventCfpTabItem");
 const { EventMeCfpLinks } = await import("@/components/events/cfp/molecules/EventMeCfpLinks");
 
@@ -78,7 +83,11 @@ describe("CfpAnswerValue", () => {
     [FIELD, "", "eventCfp.answers.empty"],
     [FIELD, "Tekst odpowiedzi", "Tekst odpowiedzi"],
     [
-      { ...FIELD, fieldType: "multiselect" as const, options: [{ value: "a", labelPl: "Opcja A", labelEn: "A" }] },
+      {
+        ...FIELD,
+        fieldType: "multiselect" as const,
+        options: [{ value: "a", labelPl: "Opcja A", labelEn: "A" }],
+      },
       ["a", "b"],
       "Opcja A, b",
     ],
@@ -108,7 +117,9 @@ describe("CfpCountdown", () => {
   });
 
   it("do otwarcia; cel w przeszłości albo brak celu = nic", () => {
-    const { container, rerender } = render(<CfpCountdown target="2026-09-01T11:00:00Z" mode="toOpen" />);
+    const { container, rerender } = render(
+      <CfpCountdown target="2026-09-01T11:00:00Z" mode="toOpen" />,
+    );
     expect(screen.getByText(/^eventCfp\.page\.countdown\.toOpen/)).toBeInTheDocument();
     rerender(<CfpCountdown target="2026-08-01T00:00:00Z" mode="toOpen" />);
     expect(container).toBeEmptyDOMElement();
@@ -124,7 +135,14 @@ describe("CfpTextField / CfpSelectField", () => {
     const onChange = vi.fn();
     render(
       <>
-        <CfpTextField label="Imię" value="" required hint="Podpowiedź" error="Błąd" onChange={onChange} />
+        <CfpTextField
+          label="Imię"
+          value=""
+          required
+          hint="Podpowiedź"
+          error="Błąd"
+          onChange={onChange}
+        />
         <CfpTextField label="Opis" value="x" rows={3} onChange={onChange} />
         <CfpTextField label="Tylko odczyt" value="a@b.pl" readOnly />
       </>,
@@ -169,16 +187,35 @@ describe("CfpTextField / CfpSelectField", () => {
 describe("CfpCoSpeakersEditor", () => {
   it("dodaje, edytuje i usuwa współprelegentów; limit pięciu osób", () => {
     const onChange = vi.fn();
-    const speaker = { firstName: "Jan", lastName: "K", email: "", jobTitle: "", companyText: "", role: "speaker" as const };
-    const { rerender } = render(<CfpCoSpeakersEditor speakers={[speaker]} onChange={onChange} error="Błąd" />);
+    const speaker = {
+      firstName: "Jan",
+      lastName: "K",
+      email: "",
+      jobTitle: "",
+      companyText: "",
+      role: "speaker" as const,
+    };
+    const { rerender } = render(
+      <CfpCoSpeakersEditor speakers={[speaker]} onChange={onChange} error="Błąd" />,
+    );
     expect(screen.getByText("eventCfp.submit.coSpeaker.legend(index=1)")).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent("Błąd");
-    fireEvent.change(screen.getByLabelText("eventCfp.submit.coSpeaker.firstName *"), { target: { value: "Janek" } });
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.coSpeaker.firstName *"), {
+      target: { value: "Janek" },
+    });
     expect(onChange).toHaveBeenLastCalledWith([{ ...speaker, firstName: "Janek" }]);
-    fireEvent.change(screen.getByLabelText("eventCfp.submit.coSpeaker.lastName *"), { target: { value: "L" } });
-    fireEvent.change(screen.getByLabelText("eventCfp.submit.coSpeaker.email"), { target: { value: "j@x.pl" } });
-    fireEvent.change(screen.getByLabelText("eventCfp.submit.coSpeaker.jobTitle"), { target: { value: "CTO" } });
-    fireEvent.change(screen.getByLabelText("eventCfp.submit.coSpeaker.company"), { target: { value: "NES" } });
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.coSpeaker.lastName *"), {
+      target: { value: "L" },
+    });
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.coSpeaker.email"), {
+      target: { value: "j@x.pl" },
+    });
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.coSpeaker.jobTitle"), {
+      target: { value: "CTO" },
+    });
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.coSpeaker.company"), {
+      target: { value: "NES" },
+    });
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "moderator" } });
     expect(onChange).toHaveBeenLastCalledWith([{ ...speaker, role: "moderator" }]);
     fireEvent.click(screen.getByRole("button", { name: "eventCfp.submit.coSpeaker.remove" }));
@@ -189,23 +226,41 @@ describe("CfpCoSpeakersEditor", () => {
     // Edycja drugiej osoby nie rusza pierwszej.
     const other = { ...speaker, firstName: "Ola" };
     rerender(<CfpCoSpeakersEditor speakers={[speaker, other]} onChange={onChange} error={null} />);
-    fireEvent.change(screen.getAllByLabelText("eventCfp.submit.coSpeaker.lastName *")[1] as HTMLElement, {
-      target: { value: "Z" },
-    });
+    fireEvent.change(
+      screen.getAllByLabelText("eventCfp.submit.coSpeaker.lastName *")[1] as HTMLElement,
+      {
+        target: { value: "Z" },
+      },
+    );
     expect(onChange).toHaveBeenLastCalledWith([speaker, { ...other, lastName: "Z" }]);
 
-    rerender(<CfpCoSpeakersEditor speakers={Array.from({ length: 5 }, () => speaker)} onChange={onChange} error={null} />);
+    rerender(
+      <CfpCoSpeakersEditor
+        speakers={Array.from({ length: 5 }, () => speaker)}
+        onChange={onChange}
+        error={null}
+      />,
+    );
     expect(screen.getByRole("button", { name: "eventCfp.submit.coSpeaker.add" })).toBeDisabled();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
 
 describe("EventCfpTabItem", () => {
-  const props = { slug: "kongres", className: "tab", activeClassName: "on", inactiveClassName: "off" };
+  const props = {
+    slug: "kongres",
+    className: "tab",
+    activeClassName: "on",
+    inactiveClassName: "off",
+  };
 
   it("pozycja przy otwartym naborze prowadzi na stronę naboru", async () => {
     stub().setData("event_cfp_public", { phase: "open", is_open: true });
-    renderWithQueryClient(<ul><EventCfpTabItem {...props} /></ul>);
+    renderWithQueryClient(
+      <ul>
+        <EventCfpTabItem {...props} />
+      </ul>,
+    );
     const link = await screen.findByRole("link", { name: "eventCfp.tab" });
     expect(link).toHaveAttribute("href", "/events/kongres/cfp");
     expect(stub().lastCall("event_cfp_public")?.arg("p_slug")).toBe("kongres");
@@ -214,7 +269,11 @@ describe("EventCfpTabItem", () => {
   it("zamknięty, zaplanowany albo nieistniejący nabór = brak pozycji", async () => {
     for (const data of [{ phase: "closed" }, { phase: "scheduled" }, null]) {
       stub().setData("event_cfp_public", data);
-      const { container } = renderWithQueryClient(<ul><EventCfpTabItem {...props} /></ul>);
+      const { container } = renderWithQueryClient(
+        <ul>
+          <EventCfpTabItem {...props} />
+        </ul>,
+      );
       await waitFor(() => expect(stub().callsFor("event_cfp_public").length).toBeGreaterThan(0));
       expect(container.querySelector("a")).toBeNull();
       cleanup();
@@ -225,7 +284,17 @@ describe("EventCfpTabItem", () => {
 
 describe("EventMeCfpLinks", () => {
   function panel(overrides: Record<string, unknown>) {
-    return { event_id: "e1", event_slug: "kongres", timezone: "Europe/Warsaw", is_reviewer: false, submissions_count: 0, profile: null, sessions: [], materials: [], ...overrides };
+    return {
+      event_id: "e1",
+      event_slug: "kongres",
+      timezone: "Europe/Warsaw",
+      is_reviewer: false,
+      submissions_count: 0,
+      profile: null,
+      sessions: [],
+      materials: [],
+      ...overrides,
+    };
   }
 
   it("prelegent i recenzent dostają oba odnośniki", async () => {
@@ -244,25 +313,42 @@ describe("EventMeCfpLinks", () => {
   it("prelegent z rejestru (profil albo wystąpienie) bez zgłoszeń", async () => {
     stub().setData("event_my_speaker_panel", panel({ sessions: [{ session_id: "s" }] }));
     renderWithQueryClient(<EventMeCfpLinks slug="kongres" signedIn />);
-    expect(await screen.findByRole("link", { name: "eventCfp.me.speakerPanel" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "eventCfp.me.reviewerPanel" })).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: "eventCfp.me.speakerPanel" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "eventCfp.me.reviewerPanel" }),
+    ).not.toBeInTheDocument();
     cleanup();
-    stub().setData("event_my_speaker_panel", panel({ profile: { speaker_profile_id: "sp" }, is_reviewer: true }));
+    stub().setData(
+      "event_my_speaker_panel",
+      panel({ profile: { speaker_profile_id: "sp" }, is_reviewer: true }),
+    );
     renderWithQueryClient(<EventMeCfpLinks slug="kongres" signedIn />);
-    expect(await screen.findByRole("link", { name: "eventCfp.me.reviewerPanel" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: "eventCfp.me.reviewerPanel" }),
+    ).toBeInTheDocument();
   });
 
   it("sam recenzent (bez zgłoszeń i wpisu) dostaje tylko panel recenzenta", async () => {
     stub().setData("event_my_speaker_panel", panel({ is_reviewer: true }));
     renderWithQueryClient(<EventMeCfpLinks slug="kongres" signedIn />);
-    expect(await screen.findByRole("link", { name: "eventCfp.me.reviewerPanel" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "eventCfp.me.speakerPanel" })).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: "eventCfp.me.reviewerPanel" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "eventCfp.me.speakerPanel" }),
+    ).not.toBeInTheDocument();
   });
 
   it("uczestnik bez ról, gość i brak wydarzenia - nic", async () => {
     stub().setData("event_my_speaker_panel", panel({}));
     const first = renderWithQueryClient(<EventMeCfpLinks slug="kongres" signedIn />);
-    await waitFor(() => expect(first.queryClient.getQueryState(["event-cfp-me", "kongres", "panel"])?.status).toBe("success"));
+    await waitFor(() =>
+      expect(first.queryClient.getQueryState(["event-cfp-me", "kongres", "panel"])?.status).toBe(
+        "success",
+      ),
+    );
     expect(first.container.querySelector("a")).toBeNull();
     cleanup();
     const guest = renderWithQueryClient(<EventMeCfpLinks slug="kongres" signedIn={false} />);

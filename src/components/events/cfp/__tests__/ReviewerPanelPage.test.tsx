@@ -48,7 +48,9 @@ vi.mock("@tanstack/react-router", async () => ({
   Link: (await import("@/test/events/cfpStubs")).routerLinkWithSearchStub(await import("react")),
   useNavigate: () => h.navigate,
 }));
-vi.mock("@/components/ui/select", async () => (await import("@/test/reactStubs")).radixSelectStub(await import("react")));
+vi.mock("@/components/ui/select", async () =>
+  (await import("@/test/reactStubs")).radixSelectStub(await import("react")),
+);
 
 const { ReviewerPanelPage } = await import("@/components/events/cfp/organisms/ReviewerPanelPage");
 
@@ -196,7 +198,9 @@ describe("ReviewerPanelPage - kolejka", () => {
   it("postęp, ocena w ciemno, stan własnej oceny i odnośnik do oceny", async () => {
     stub().setData("event_cfp_review_queue", queue());
     renderPage();
-    expect(await screen.findByText("eventCfp.review.progress(count=2,total=3)")).toBeInTheDocument();
+    expect(
+      await screen.findByText("eventCfp.review.progress(count=2,total=3)"),
+    ).toBeInTheDocument();
     expect(screen.getByText("eventCfp.review.blind")).toBeInTheDocument();
     const row = (title: string) => {
       const li = screen.getByText(title).closest("li");
@@ -204,11 +208,12 @@ describe("ReviewerPanelPage - kolejka", () => {
       return within(li);
     };
     expect(row("Energia jutra").getByText("eventCfp.review.toReview")).toBeInTheDocument();
-    expect(row("Energia jutra").getByText(/Energia · eventCfp\.languages\.pl · 10 września 2026/)).toBeInTheDocument();
-    expect(row("Energia jutra").getByRole("link", { name: "eventCfp.review.open" })).toHaveAttribute(
-      "href",
-      "/events/kongres/review?id=s1",
-    );
+    expect(
+      row("Energia jutra").getByText(/Energia · eventCfp\.languages\.pl · 10 września 2026/),
+    ).toBeInTheDocument();
+    expect(
+      row("Energia jutra").getByRole("link", { name: "eventCfp.review.open" }),
+    ).toHaveAttribute("href", "/events/kongres/review?id=s1");
     expect(row("Sieci").getByText("eventCfp.review.reviewed")).toBeInTheDocument();
     expect(row("Sieci").getByText("Anna Nowak")).toBeInTheDocument();
     expect(row("Sieci").getByText("eventCfp.languages.en")).toBeInTheDocument();
@@ -232,13 +237,18 @@ describe("ReviewerPanelPage - ocena", () => {
     stub().setData("event_cfp_review_get", review());
     renderPage("s1");
     expect(await screen.findByRole("heading", { name: "Energia jutra" })).toBeInTheDocument();
-    expect(screen.getByText("Energia · Wykład · eventCfp.languages.pl · 10 września 2026 12:00")).toBeInTheDocument();
+    expect(
+      screen.getByText("Energia · Wykład · eventCfp.languages.pl · 10 września 2026 12:00"),
+    ).toBeInTheDocument();
     expect(screen.queryByText("eventCfp.review.speakers")).not.toBeInTheDocument();
     expect(screen.getAllByText("eventCfp.review.blind")).toHaveLength(1);
     expect(screen.getByText("Streszczenie wystąpienia")).toBeInTheDocument();
     expect(screen.getByText("sieci")).toBeInTheDocument();
     expect(screen.getByText("10 lat")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "eventCfp.review.back" })).toHaveAttribute("href", "/events/kongres/review");
+    expect(screen.getByRole("link", { name: "eventCfp.review.back" })).toHaveAttribute(
+      "href",
+      "/events/kongres/review",
+    );
     expect(stub().lastCall("event_cfp_review_get")?.arg("p_submission_id")).toBe("s1");
   });
 
@@ -248,8 +258,20 @@ describe("ReviewerPanelPage - ocena", () => {
       review({
         identity_visible: true,
         speakers: [
-          { first_name: "Anna", last_name: "Nowak", role: "speaker", job_title: "CEO", company_text: "NES" },
-          { first_name: "Jan", last_name: "K", role: "panelist", job_title: null, company_text: null },
+          {
+            first_name: "Anna",
+            last_name: "Nowak",
+            role: "speaker",
+            job_title: "CEO",
+            company_text: "NES",
+          },
+          {
+            first_name: "Jan",
+            last_name: "K",
+            role: "panelist",
+            job_title: null,
+            company_text: null,
+          },
         ],
         fields: [],
         track: null,
@@ -275,18 +297,31 @@ describe("ReviewerPanelPage - ocena", () => {
     expect(stub().callsFor("event_cfp_review_save")).toHaveLength(0);
 
     const overall = screen.getByRole("group", { name: "eventCfp.review.overall" });
-    fireEvent.click(within(overall).getByRole("button", { name: "eventCfp.review.scoreButton(label=eventCfp.review.overall,score=4)" }));
-    expect(within(overall).getByRole("button", { name: /score=4/ })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(
+      within(overall).getByRole("button", {
+        name: "eventCfp.review.scoreButton(label=eventCfp.review.overall,score=4)",
+      }),
+    );
+    expect(within(overall).getByRole("button", { name: /score=4/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
     const relevance = screen.getByRole("group", { name: "Trafność" });
     fireEvent.click(within(relevance).getByRole("button", { name: /score=5/ }));
     fireEvent.click(within(relevance).getByRole("button", { name: "eventCfp.review.clearScore" }));
     fireEvent.click(within(relevance).getByRole("button", { name: /score=3/ }));
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "maybe" } });
-    fireEvent.change(screen.getByLabelText("eventCfp.review.commentPrivate"), { target: { value: " Mocne dane " } });
-    fireEvent.change(screen.getByLabelText("eventCfp.review.commentToSpeaker"), { target: { value: "x".repeat(4001) } });
+    fireEvent.change(screen.getByLabelText("eventCfp.review.commentPrivate"), {
+      target: { value: " Mocne dane " },
+    });
+    fireEvent.change(screen.getByLabelText("eventCfp.review.commentToSpeaker"), {
+      target: { value: "x".repeat(4001) },
+    });
     fireEvent.click(screen.getByRole("button", { name: "eventCfp.review.save" }));
     expect(screen.getByText("eventCfp.review.validation.comments")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("eventCfp.review.commentToSpeaker"), { target: { value: "Skrócić wstęp" } });
+    fireEvent.change(screen.getByLabelText("eventCfp.review.commentToSpeaker"), {
+      target: { value: "Skrócić wstęp" },
+    });
 
     stub().setData("event_cfp_review_save", { id: "r1" });
     fireEvent.click(screen.getByRole("button", { name: "eventCfp.review.save" }));
@@ -300,7 +335,11 @@ describe("ReviewerPanelPage - ocena", () => {
       comment_to_speaker: "Skrócić wstęp",
       conflict_of_interest: false,
     });
-    expect(h.navigate).toHaveBeenCalledWith({ to: "/events/$slug/review", params: { slug: "kongres" }, search: {} });
+    expect(h.navigate).toHaveBeenCalledWith({
+      to: "/events/$slug/review",
+      params: { slug: "kongres" },
+      search: {},
+    });
   });
 
   it("konflikt interesów zwalnia z oceny ogólnej; zdjęcie rekomendacji; odmowa bazy", async () => {
@@ -320,7 +359,11 @@ describe("ReviewerPanelPage - ocena", () => {
     renderPage("s1");
     await screen.findByRole("heading", { name: "Energia jutra" });
     expect(screen.getByRole("combobox")).toHaveValue("reject");
-    fireEvent.click(within(screen.getByRole("group", { name: "eventCfp.review.overall" })).getByRole("button", { name: "eventCfp.review.clearScore" }));
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "eventCfp.review.overall" })).getByRole("button", {
+        name: "eventCfp.review.clearScore",
+      }),
+    );
     fireEvent.click(screen.getByRole("checkbox", { name: /eventCfp\.review\.conflict/ }));
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "__none__" } });
     stub().setError("event_cfp_review_save", "not_found: x");
@@ -344,7 +387,11 @@ describe("ReviewerPanelPage - ocena", () => {
     renderPage("s1");
     await screen.findByRole("heading", { name: "Energia jutra" });
     expect(screen.queryByText("eventCfp.review.criteria")).not.toBeInTheDocument();
-    fireEvent.click(within(screen.getByRole("group", { name: "eventCfp.review.overall" })).getByRole("button", { name: /score=1/ }));
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "eventCfp.review.overall" })).getByRole("button", {
+        name: /score=1/,
+      }),
+    );
     stub().setResponse("event_cfp_review_save", () => new Promise(() => undefined) as never);
     fireEvent.click(screen.getByRole("button", { name: "eventCfp.review.save" }));
     expect(await screen.findByRole("button", { name: "eventCfp.common.saving" })).toBeDisabled();
@@ -358,6 +405,8 @@ describe("ReviewerPanelPage - ocena", () => {
     cleanup();
     stub().setResponse("event_cfp_review_get", () => new Promise(() => undefined) as never);
     const pending = renderPage("s1");
-    await waitFor(() => expect(pending.container.querySelector('[aria-busy="true"]')).not.toBeNull());
+    await waitFor(() =>
+      expect(pending.container.querySelector('[aria-busy="true"]')).not.toBeNull(),
+    );
   });
 });

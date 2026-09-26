@@ -15,12 +15,7 @@ import type { Json } from "@/integrations/supabase/types";
 import type { RegistrationFormField } from "@/lib/events/registrationFormSurface";
 import type { CfpSpeakerRole, CfpTalkLanguage } from "@/lib/events/cfpEnums";
 import type { CfpSubmissionSaveInput } from "@/lib/events/cfpPublicApi";
-import type {
-  CfpFieldDef,
-  CfpMyPerson,
-  CfpMySubmission,
-  CfpPublic,
-} from "@/lib/events/cfpSurface";
+import type { CfpFieldDef, CfpMyPerson, CfpMySubmission, CfpPublic } from "@/lib/events/cfpSurface";
 
 export const CFP_MAX_CO_SPEAKERS = 5;
 export const CFP_MIN_ABSTRACT = 20;
@@ -181,7 +176,8 @@ export function cfpAnswersPayload(
     } else {
       const text = typeof value === "string" ? value.trim() : "";
       if (text === "") continue;
-      out[field.key] = field.fieldType === "number" && !Number.isNaN(Number(text)) ? Number(text) : text;
+      out[field.key] =
+        field.fieldType === "number" && !Number.isNaN(Number(text)) ? Number(text) : text;
     }
   }
   return out;
@@ -237,7 +233,10 @@ export function validateCfpDraftSubmit(
   }
   for (const field of cfp.fields) {
     if (field.isRequired && !isAnswered(field, draft.answers[field.key])) {
-      issues.push({ field: `answer:${field.key}`, messageKey: "eventCfp.submit.validation.answer" });
+      issues.push({
+        field: `answer:${field.key}`,
+        messageKey: "eventCfp.submit.validation.answer",
+      });
     }
   }
   if (coSpeakerIssues(draft, cfp)) {

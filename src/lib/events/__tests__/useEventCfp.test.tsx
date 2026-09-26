@@ -149,7 +149,9 @@ describe("mutacje panelu", () => {
     ["useSetCfpReviewer", "setCfpReviewer", { eventId: "e1", userId: "u1" }],
     ["useRemoveCfpReviewer", "removeCfpReviewer", "r1"],
   ] as const)("%s woła %s i unieważnia gałąź wydarzenia", async (hook, fn, input) => {
-    const useHook = admin[hook] as (eventId: string) => { mutateAsync: (input: unknown) => Promise<unknown> };
+    const useHook = admin[hook] as (eventId: string) => {
+      mutateAsync: (input: unknown) => Promise<unknown>;
+    };
     const { result, queryClient } = renderHookWithQueryClient(() => useHook("e1"));
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
     await result.current.mutateAsync(input);
@@ -167,7 +169,9 @@ describe("mutacje panelu", () => {
   });
 
   it("przyjęcie unieważnia także agendę, zapisy i rejestr prelegentów wydarzenia", async () => {
-    const { result, queryClient } = renderHookWithQueryClient(() => admin.useAcceptCfpSubmission("e1"));
+    const { result, queryClient } = renderHookWithQueryClient(() =>
+      admin.useAcceptCfpSubmission("e1"),
+    );
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
     await result.current.mutateAsync({ id: "s1", register: true, schedule: null });
     const keys = invalidate.mock.calls.map((call) => call[0]?.queryKey);
@@ -217,7 +221,9 @@ describe("zapytania i mutacje uczestnika", () => {
     ["useDeleteSpeakerMaterial", "deleteSpeakerMaterial", "m1"],
     ["useSaveCfpReview", "saveCfpReview", { submissionId: "s1" }],
   ] as const)("%s woła %s i unieważnia gałąź sluga", async (hook, fn, input) => {
-    const useHook = me[hook] as (slug: string) => { mutateAsync: (input: unknown) => Promise<unknown> };
+    const useHook = me[hook] as (slug: string) => {
+      mutateAsync: (input: unknown) => Promise<unknown>;
+    };
     const { result, queryClient } = renderHookWithQueryClient(() => useHook("kongres"));
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
     await result.current.mutateAsync(input);

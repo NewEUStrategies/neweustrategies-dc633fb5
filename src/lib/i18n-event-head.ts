@@ -19,7 +19,8 @@ export const eventHeadPl = {
     speakersTitle: "Prelegenci i moderatorzy - {{event}}",
     speakersDescription: "Prelegenci, moderatorzy i eksperci wydarzenia {{event}}.",
     cfpTitle: "Nabór prelegentów - {{event}}",
-    cfpDescription: "Zgłoś wystąpienie na {{event}}: zasady naboru, formy wystąpień, ścieżki i termin zgłoszeń.",
+    cfpDescription:
+      "Zgłoś wystąpienie na {{event}}: zasady naboru, formy wystąpień, ścieżki i termin zgłoszeń.",
     cfpSubmitTitle: "Zgłoszenie wystąpienia",
     speakerPanelTitle: "Panel prelegenta",
     reviewPanelTitle: "Panel recenzenta",
@@ -35,7 +36,8 @@ export const eventHeadEn = {
     speakersTitle: "Speakers and moderators - {{event}}",
     speakersDescription: "Speakers, moderators and experts of {{event}}.",
     cfpTitle: "Call for speakers - {{event}}",
-    cfpDescription: "Submit a talk to {{event}}: call rules, talk formats, tracks and the submission deadline.",
+    cfpDescription:
+      "Submit a talk to {{event}}: call rules, talk formats, tracks and the submission deadline.",
     cfpSubmitTitle: "Talk submission",
     speakerPanelTitle: "Speaker panel",
     reviewPanelTitle: "Reviewer panel",

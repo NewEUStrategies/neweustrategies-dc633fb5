@@ -32,12 +32,15 @@ vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError
 vi.mock("@/lib/appDialogs", () => ({ confirmDialog: h.confirm }));
 vi.mock("@/lib/i18n-admin-event-cfp", () => ({ ensureAdminEventCfpI18n: () => undefined }));
 vi.mock("@/lib/events/adminCfpErrors", () => ({
-  adminCfpErrorMessage: (error: unknown) => `odmowa:${error instanceof Error ? error.message : String(error)}`,
+  adminCfpErrorMessage: (error: unknown) =>
+    `odmowa:${error instanceof Error ? error.message : String(error)}`,
 }));
 vi.mock("@/components/admin/community/MemberPicker", async () =>
   (await import("@/test/events/cfpStubs")).memberPickerStubModule(await import("react")),
 );
-vi.mock("@/components/ui/switch", async () => (await import("@/test/reactStubs")).radixSwitchStub(await import("react")));
+vi.mock("@/components/ui/switch", async () =>
+  (await import("@/test/reactStubs")).radixSwitchStub(await import("react")),
+);
 
 const { CfpReviewersPanel } = await import("@/components/admin/events/organisms/CfpReviewersPanel");
 const { CfpMaterialsTable } = await import("@/components/admin/events/organisms/CfpMaterialsTable");
@@ -109,15 +112,25 @@ describe("CfpReviewersPanel", () => {
     expect(await screen.findByText("adminEventCfp.reviewers.empty")).toBeInTheDocument();
     const add = screen.getByRole("button", { name: "adminEventCfp.reviewers.add" });
     expect(add).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "adminEventCfp.reviewers.picker.placeholder" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "adminEventCfp.reviewers.picker.placeholder" }),
+    );
     stub().setData("admin_event_cfp_reviewer_set", "r9");
     fireEvent.click(add);
-    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.reviewerAdded"));
-    expect(payload("admin_event_cfp_reviewer_set")).toEqual({ event_id: "e1", user_id: "u-picked", is_active: true });
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.reviewerAdded"),
+    );
+    expect(payload("admin_event_cfp_reviewer_set")).toEqual({
+      event_id: "e1",
+      user_id: "u-picked",
+      is_active: true,
+    });
     await waitFor(() => expect(add).toBeDisabled());
 
     stub().setError("admin_event_cfp_reviewer_set", "reviewer_not_found: x");
-    fireEvent.click(screen.getByRole("button", { name: "adminEventCfp.reviewers.picker.placeholder" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "adminEventCfp.reviewers.picker.placeholder" }),
+    );
     fireEvent.click(add);
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("odmowa:reviewer_not_found: x"));
   });
@@ -140,10 +153,25 @@ describe("CfpReviewersPanel", () => {
     );
     expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.reviewerSaved");
 
-    fireEvent.click(within(row).getByRole("switch", { name: "adminEventCfp.reviewers.identityLabel(name=Anna Recenzentka)" }));
-    await waitFor(() => expect(payload("admin_event_cfp_reviewer_set")).toMatchObject({ can_see_identity: true, track_ids: ["t1"] }));
-    fireEvent.click(within(row).getByRole("switch", { name: "adminEventCfp.reviewers.activeLabel(name=Anna Recenzentka)" }));
-    await waitFor(() => expect(payload("admin_event_cfp_reviewer_set")).toMatchObject({ is_active: false }));
+    fireEvent.click(
+      within(row).getByRole("switch", {
+        name: "adminEventCfp.reviewers.identityLabel(name=Anna Recenzentka)",
+      }),
+    );
+    await waitFor(() =>
+      expect(payload("admin_event_cfp_reviewer_set")).toMatchObject({
+        can_see_identity: true,
+        track_ids: ["t1"],
+      }),
+    );
+    fireEvent.click(
+      within(row).getByRole("switch", {
+        name: "adminEventCfp.reviewers.activeLabel(name=Anna Recenzentka)",
+      }),
+    );
+    await waitFor(() =>
+      expect(payload("admin_event_cfp_reviewer_set")).toMatchObject({ is_active: false }),
+    );
 
     // Recenzent bez nazwy i bez zakresu ścieżek.
     const unnamed = screen.getByText("adminEventCfp.reviewers.unnamed").closest("tr");
@@ -171,19 +199,31 @@ describe("CfpReviewersPanel", () => {
     await renderReviewers();
     await screen.findByText("Anna Recenzentka");
     h.confirm.mockResolvedValueOnce(false);
-    fireEvent.click(screen.getAllByRole("button", { name: "adminEventCfp.common.delete" })[0] as HTMLElement);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "adminEventCfp.common.delete" })[0] as HTMLElement,
+    );
     await waitFor(() => expect(h.confirm).toHaveBeenCalledTimes(1));
     expect(stub().callsFor("admin_event_cfp_reviewer_remove")).toHaveLength(0);
 
     stub().setData("admin_event_cfp_reviewer_remove", "deactivated");
-    fireEvent.click(screen.getAllByRole("button", { name: "adminEventCfp.common.delete" })[0] as HTMLElement);
-    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.reviewerDeactivated"));
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "adminEventCfp.common.delete" })[0] as HTMLElement,
+    );
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.reviewerDeactivated"),
+    );
     stub().setData("admin_event_cfp_reviewer_remove", "deleted");
-    fireEvent.click(screen.getAllByRole("button", { name: "adminEventCfp.common.delete" })[1] as HTMLElement);
-    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.reviewerRemoved"));
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "adminEventCfp.common.delete" })[1] as HTMLElement,
+    );
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.reviewerRemoved"),
+    );
     expect(stub().lastCall("admin_event_cfp_reviewer_remove")?.arg("p_reviewer_id")).toBe("r2");
     stub().setError("admin_event_cfp_reviewer_remove", "forbidden: x");
-    fireEvent.click(screen.getAllByRole("button", { name: "adminEventCfp.common.delete" })[1] as HTMLElement);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "adminEventCfp.common.delete" })[1] as HTMLElement,
+    );
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("odmowa:forbidden: x"));
   });
 
@@ -250,12 +290,20 @@ describe("CfpMaterialsTable", () => {
 
     stub().setData("admin_event_cfp_material_publish", true);
     fireEvent.click(within(row).getByRole("button", { name: "adminEventCfp.materials.publish" }));
-    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.materialPublished"));
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.materialPublished"),
+    );
     expect(payload("admin_event_cfp_material_publish")).toEqual({ id: "m1", is_published: true });
-    fireEvent.click(within(second).getByRole("button", { name: "adminEventCfp.materials.unpublish" }));
-    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.materialUnpublished"));
+    fireEvent.click(
+      within(second).getByRole("button", { name: "adminEventCfp.materials.unpublish" }),
+    );
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.materialUnpublished"),
+    );
     stub().setError("admin_event_cfp_material_publish", "not_found: x");
-    fireEvent.click(within(second).getByRole("button", { name: "adminEventCfp.materials.unpublish" }));
+    fireEvent.click(
+      within(second).getByRole("button", { name: "adminEventCfp.materials.unpublish" }),
+    );
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("odmowa:not_found: x"));
   });
 

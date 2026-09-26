@@ -30,7 +30,8 @@ vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18n
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
 vi.mock("@/lib/i18n-admin-event-cfp", () => ({ ensureAdminEventCfpI18n: () => undefined }));
 vi.mock("@/lib/events/adminCfpErrors", () => ({
-  adminCfpErrorMessage: (error: unknown) => `odmowa:${error instanceof Error ? error.message : String(error)}`,
+  adminCfpErrorMessage: (error: unknown) =>
+    `odmowa:${error instanceof Error ? error.message : String(error)}`,
 }));
 vi.mock("@/components/atoms/FormSelect", async () =>
   (await import("@/test/events/cfpStubs")).formSelectStubModule(await import("react")),
@@ -38,7 +39,9 @@ vi.mock("@/components/atoms/FormSelect", async () =>
 vi.mock("@/components/ui/datetime-picker", async () =>
   (await import("@/test/events/cfpStubs")).dateTimePickerStubModule(await import("react")),
 );
-vi.mock("@/components/ui/switch", async () => (await import("@/test/reactStubs")).radixSwitchStub(await import("react")));
+vi.mock("@/components/ui/switch", async () =>
+  (await import("@/test/reactStubs")).radixSwitchStub(await import("react")),
+);
 
 const { CfpSettingsPanel } = await import("@/components/admin/events/organisms/CfpSettingsPanel");
 
@@ -133,13 +136,23 @@ describe("CfpSettingsPanel - zapis", () => {
     await renderPanel();
     expect(screen.queryByText("adminEventCfp.settings.eventNotPublished")).not.toBeInTheDocument();
     // Pasek zapisu pokazuje się dopiero po zmianie.
-    expect(screen.queryByRole("button", { name: "adminEventCfp.common.save" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "adminEventCfp.common.save" }),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText(/^adminEventCfp\.settings\.status\.open/));
-    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.introPl"), { target: { value: "Wstęp" } });
-    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.introEn"), { target: { value: "Intro" } });
-    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.guidelinesPl"), { target: { value: "Z" } });
-    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.guidelinesEn"), { target: { value: "G" } });
+    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.introPl"), {
+      target: { value: "Wstęp" },
+    });
+    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.introEn"), {
+      target: { value: "Intro" },
+    });
+    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.guidelinesPl"), {
+      target: { value: "Z" },
+    });
+    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.guidelinesEn"), {
+      target: { value: "G" },
+    });
     fireEvent.change(screen.getByLabelText("adminEventCfp.settings.opensAt"), {
       target: { value: "2026-09-02T10:00:00.000Z" },
     });
@@ -149,52 +162,88 @@ describe("CfpSettingsPanel - zapis", () => {
 
     // Forma wystąpienia: klucz podpowiedziany z etykiety PL.
     fireEvent.click(screen.getByRole("button", { name: "adminEventCfp.settings.addFormat" }));
-    fireEvent.change(screen.getByLabelText("adminEventCfp.list.labelPl", { selector: "#cfp-format-0-pl" }), {
-      target: { value: "Wykład główny" },
-    });
-    fireEvent.change(screen.getByLabelText("adminEventCfp.list.labelEn", { selector: "#cfp-format-0-en" }), {
-      target: { value: "Keynote" },
-    });
-    expect(screen.getByLabelText("adminEventCfp.list.key", { selector: "#cfp-format-0-key" })).toHaveValue(
-      "wyklad_glowny",
+    fireEvent.change(
+      screen.getByLabelText("adminEventCfp.list.labelPl", { selector: "#cfp-format-0-pl" }),
+      {
+        target: { value: "Wykład główny" },
+      },
     );
-    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.formatDuration", { selector: "#cfp-format-0-value" }), {
-      target: { value: "45" },
-    });
+    fireEvent.change(
+      screen.getByLabelText("adminEventCfp.list.labelEn", { selector: "#cfp-format-0-en" }),
+      {
+        target: { value: "Keynote" },
+      },
+    );
+    expect(
+      screen.getByLabelText("adminEventCfp.list.key", { selector: "#cfp-format-0-key" }),
+    ).toHaveValue("wyklad_glowny");
+    fireEvent.change(
+      screen.getByLabelText("adminEventCfp.settings.formatDuration", {
+        selector: "#cfp-format-0-value",
+      }),
+      {
+        target: { value: "45" },
+      },
+    );
 
     // Kryterium oceny z ręcznym kluczem - dalsza zmiana etykiety go nie nadpisze.
     fireEvent.click(screen.getByRole("button", { name: "adminEventCfp.settings.addCriterion" }));
-    fireEvent.change(screen.getByLabelText("adminEventCfp.list.key", { selector: "#cfp-criterion-0-key" }), {
-      target: { value: "depth" },
-    });
-    fireEvent.change(screen.getByLabelText("adminEventCfp.list.labelPl", { selector: "#cfp-criterion-0-pl" }), {
-      target: { value: "Głębia" },
-    });
-    fireEvent.change(screen.getByLabelText("adminEventCfp.list.labelEn", { selector: "#cfp-criterion-0-en" }), {
-      target: { value: "Depth" },
-    });
-    expect(screen.getByLabelText("adminEventCfp.list.key", { selector: "#cfp-criterion-0-key" })).toHaveValue("depth");
     fireEvent.change(
-      screen.getByLabelText("adminEventCfp.settings.criterionWeight", { selector: "#cfp-criterion-0-value" }),
+      screen.getByLabelText("adminEventCfp.list.key", { selector: "#cfp-criterion-0-key" }),
+      {
+        target: { value: "depth" },
+      },
+    );
+    fireEvent.change(
+      screen.getByLabelText("adminEventCfp.list.labelPl", { selector: "#cfp-criterion-0-pl" }),
+      {
+        target: { value: "Głębia" },
+      },
+    );
+    fireEvent.change(
+      screen.getByLabelText("adminEventCfp.list.labelEn", { selector: "#cfp-criterion-0-en" }),
+      {
+        target: { value: "Depth" },
+      },
+    );
+    expect(
+      screen.getByLabelText("adminEventCfp.list.key", { selector: "#cfp-criterion-0-key" }),
+    ).toHaveValue("depth");
+    fireEvent.change(
+      screen.getByLabelText("adminEventCfp.settings.criterionWeight", {
+        selector: "#cfp-criterion-0-value",
+      }),
       { target: { value: "2" } },
     );
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Energia" }));
     expect(screen.getByText("adminEventCfp.settings.trackInactive")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.maxPerSubmitter"), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.maxPerSubmitter"), {
+      target: { value: "2" },
+    });
     fireEvent.click(screen.getByLabelText("adminEventCfp.settings.allowCoSpeakers"));
     fireEvent.click(screen.getByLabelText("adminEventCfp.settings.reviewBlind"));
-    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.scoreMax"), { target: { value: "10" } });
-    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.minReviews"), { target: { value: "3" } });
-    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.speakerGroup"), { target: { value: "__none__" } });
-    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.speakerTicket"), { target: { value: "tk1" } });
+    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.scoreMax"), {
+      target: { value: "10" },
+    });
+    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.minReviews"), {
+      target: { value: "3" },
+    });
+    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.speakerGroup"), {
+      target: { value: "__none__" },
+    });
+    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.speakerTicket"), {
+      target: { value: "tk1" },
+    });
 
     stub().setData("admin_event_cfp_settings_save", settingsRow({ status: "open", phase: "open" }));
     // Baza po zapisie oddaje nowy stan także przy odświeżeniu.
     stub().setData("admin_event_cfp_settings_get", settingsRow({ status: "open", phase: "open" }));
     fireEvent.click(screen.getByRole("button", { name: "adminEventCfp.common.save" }));
 
-    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.settingsSaved"));
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.settingsSaved"),
+    );
     expect(payload()).toEqual({
       event_id: "e1",
       status: "open",
@@ -204,7 +253,9 @@ describe("CfpSettingsPanel - zapis", () => {
       intro_en: "Intro",
       guidelines_pl: "Z",
       guidelines_en: "G",
-      formats: [{ key: "wyklad_glowny", label_pl: "Wykład główny", label_en: "Keynote", duration_min: 45 }],
+      formats: [
+        { key: "wyklad_glowny", label_pl: "Wykład główny", label_en: "Keynote", duration_min: 45 },
+      ],
       track_ids: ["t1"],
       max_per_submitter: 2,
       allow_co_speakers: false,
@@ -217,9 +268,13 @@ describe("CfpSettingsPanel - zapis", () => {
     });
     // Odpowiedź RPC jest nowym stanem formularza - nie ma już czego zapisywać.
     await waitFor(() =>
-      expect(screen.queryByRole("button", { name: "adminEventCfp.common.save" })).not.toBeInTheDocument(),
+      expect(
+        screen.queryByRole("button", { name: "adminEventCfp.common.save" }),
+      ).not.toBeInTheDocument(),
     );
-    expect(screen.getByText("adminEventCfp.settings.phaseNow(phase=adminEventCfp.phases.open)")).toBeInTheDocument();
+    expect(
+      screen.getByText("adminEventCfp.settings.phaseNow(phase=adminEventCfp.phases.open)"),
+    ).toBeInTheDocument();
   });
 
   it("błędny szkic nie wychodzi do bazy, pokazuje błąd przy polu i blokuje zapis; „odrzuć” wraca do bazy", async () => {
@@ -233,7 +288,9 @@ describe("CfpSettingsPanel - zapis", () => {
     expect(screen.getByRole("button", { name: "adminEventCfp.common.save" })).toBeDisabled();
 
     fireEvent.click(screen.getByRole("button", { name: "adminEventCfp.common.discard" }));
-    expect(screen.getByLabelText("adminEventCfp.settings.closesAt")).toHaveValue("2026-09-30T10:00:00.000Z");
+    expect(screen.getByLabelText("adminEventCfp.settings.closesAt")).toHaveValue(
+      "2026-09-30T10:00:00.000Z",
+    );
     expect(screen.queryByText("adminEventCfp.settings.validation.window")).not.toBeInTheDocument();
   });
 
@@ -244,8 +301,12 @@ describe("CfpSettingsPanel - zapis", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "adminEventCfp.settings.addFormat" }));
     fireEvent.click(screen.getByRole("button", { name: "adminEventCfp.settings.addCriterion" }));
-    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.maxPerSubmitter"), { target: { value: "0" } });
-    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.minReviews"), { target: { value: "x" } });
+    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.maxPerSubmitter"), {
+      target: { value: "0" },
+    });
+    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.minReviews"), {
+      target: { value: "x" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "adminEventCfp.common.save" }));
     for (const key of [
       "adminEventCfp.settings.validation.texts",
@@ -260,8 +321,12 @@ describe("CfpSettingsPanel - zapis", () => {
 
   it("grupa i bilet: wybór z listy i powrót do „brak”", async () => {
     await renderPanel(settingsRow({ speaker_group_id: null, speaker_ticket_type_id: "tk1" }));
-    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.speakerGroup"), { target: { value: "g1" } });
-    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.speakerTicket"), { target: { value: "__none__" } });
+    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.speakerGroup"), {
+      target: { value: "g1" },
+    });
+    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.speakerTicket"), {
+      target: { value: "__none__" },
+    });
     stub().setData("admin_event_cfp_settings_save", settingsRow());
     fireEvent.click(screen.getByRole("button", { name: "adminEventCfp.common.save" }));
     await waitFor(() =>
@@ -271,10 +336,14 @@ describe("CfpSettingsPanel - zapis", () => {
 
   it("odmowa zapisu trafia do toasta", async () => {
     await renderPanel();
-    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.introPl"), { target: { value: "x" } });
+    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.introPl"), {
+      target: { value: "x" },
+    });
     stub().setError("admin_event_cfp_settings_save", "score_max_below_reviews: 7");
     fireEvent.click(screen.getByRole("button", { name: "adminEventCfp.common.save" }));
-    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("odmowa:score_max_below_reviews: 7"));
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith("odmowa:score_max_below_reviews: 7"),
+    );
   });
 });
 
@@ -294,13 +363,20 @@ describe("CfpLabelledListEditor - przez ekran ustawień", () => {
     const first = screen.getByText("adminEventCfp.list.rowLegend(index=1)").closest("fieldset");
     if (first === null) throw new Error("test");
     fireEvent.click(within(first).getByRole("button", { name: "adminEventCfp.list.remove" }));
-    expect(screen.getByRole("button", { name: "adminEventCfp.settings.addFormat" })).not.toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "adminEventCfp.settings.addFormat" }),
+    ).not.toBeDisabled();
     expect(screen.getByText("adminEventCfp.settings.noCriteria")).toBeInTheDocument();
     // Zmiana etykiety zapisanego wiersza z własnym kluczem nie rusza klucza.
-    fireEvent.change(screen.getByLabelText("adminEventCfp.list.labelPl", { selector: "#cfp-format-0-pl" }), {
-      target: { value: "Inna nazwa" },
-    });
-    expect(screen.getByLabelText("adminEventCfp.list.key", { selector: "#cfp-format-0-key" })).toHaveValue("f1x");
+    fireEvent.change(
+      screen.getByLabelText("adminEventCfp.list.labelPl", { selector: "#cfp-format-0-pl" }),
+      {
+        target: { value: "Inna nazwa" },
+      },
+    );
+    expect(
+      screen.getByLabelText("adminEventCfp.list.key", { selector: "#cfp-format-0-key" }),
+    ).toHaveValue("f1x");
   });
 
   it("brak ścieżek w wydarzeniu mówi, gdzie je dodać", async () => {

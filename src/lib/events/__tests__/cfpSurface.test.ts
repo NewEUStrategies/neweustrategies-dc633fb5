@@ -74,7 +74,10 @@ describe("kształty wspólne", () => {
   });
 
   it("liczba z napisu, a napis nieliczbowy = brak liczby", () => {
-    const parsed = parseCfpSubmissionDetail({ submission: { duration_min: "abc" }, summary: { overall_avg: "x" } });
+    const parsed = parseCfpSubmissionDetail({
+      submission: { duration_min: "abc" },
+      summary: { overall_avg: "x" },
+    });
     expect(parsed.durationMin).toBeNull();
     expect(parsed.summary.overallAvg).toBeNull();
   });
@@ -118,8 +121,13 @@ describe("parseCfpSettings", () => {
       speaker_ticket_type_id: null,
       updated_at: "2026-09-02T10:00:00+00:00",
       options: {
-        tracks: [{ id: "t1", key: "energy", name_pl: "Energia", name_en: "Energy", is_active: false }],
-        rooms: [{ id: "r1", name: "Sala A" }, { id: "r2", name: "Sala B", is_active: false }],
+        tracks: [
+          { id: "t1", key: "energy", name_pl: "Energia", name_en: "Energy", is_active: false },
+        ],
+        rooms: [
+          { id: "r1", name: "Sala A" },
+          { id: "r2", name: "Sala B", is_active: false },
+        ],
         groups: [{ id: "g1", key: "speakers", name_pl: "Prelegenci", name_en: "Speakers" }],
         tickets: [],
       },
@@ -172,7 +180,13 @@ describe("parseCfpSettings", () => {
 
 describe("parseCfpCounts", () => {
   it("liczniki per stan, a brakujące stany = 0", () => {
-    const counts = parseCfpCounts({ total: 4, draft: 1, submitted: 3, needs_reviews: 2, min_reviews: 3 });
+    const counts = parseCfpCounts({
+      total: 4,
+      draft: 1,
+      submitted: 3,
+      needs_reviews: 2,
+      min_reviews: 3,
+    });
     expect(counts.total).toBe(4);
     expect(counts.draft).toBe(1);
     expect(counts.byStatus.submitted).toBe(3);
@@ -227,9 +241,21 @@ describe("parseCfpSubmissionDetail", () => {
         email: "a@b.pl",
         job_title: "CEO",
         company_text: null,
-        crm: { sync_status: "error", crm_lead_id: null, last_error: "x", synced_at: "2026-09-03T10:00:00+00:00" },
+        crm: {
+          sync_status: "error",
+          crm_lead_id: null,
+          last_error: "x",
+          synced_at: "2026-09-03T10:00:00+00:00",
+        },
       },
-      { id: "sp2", person_id: null, role: "boss", first_name: "Jan", last_name: "Kowalski", crm: null },
+      {
+        id: "sp2",
+        person_id: null,
+        role: "boss",
+        first_name: "Jan",
+        last_name: "Kowalski",
+        crm: null,
+      },
     ],
     fields: [FIELD],
     reviews: [
@@ -294,7 +320,12 @@ describe("parseCfpSubmissionDetail", () => {
       lastError: "x",
       syncedAt: "2026-09-03T10:00:00+00:00",
     });
-    expect(parsed.speakers[1]).toMatchObject({ role: "speaker", isPrimary: false, crm: null, email: null });
+    expect(parsed.speakers[1]).toMatchObject({
+      role: "speaker",
+      isPrimary: false,
+      crm: null,
+      email: null,
+    });
     expect(parsed.reviews[0]?.scores).toEqual({ rel: 4 });
     expect(parsed.reviews[0]?.recommendation).toBe("accept");
     expect(parsed.reviews[1]?.recommendation).toBeNull();
@@ -413,7 +444,11 @@ describe("parseMyCfpSubmissions", () => {
       reviewsCount: 3,
       overallAvg: 4.2,
     });
-    expect(mine?.items[0]?.speakers[0]).toMatchObject({ isPrimary: true, role: "host", email: null });
+    expect(mine?.items[0]?.speakers[0]).toMatchObject({
+      isPrimary: true,
+      role: "host",
+      email: null,
+    });
     expect(parseMyCfpSubmissions({ person: null, items: [{}] })?.person).toBeNull();
     expect(parseMyCfpSubmissions({ items: [{}] })?.items[0]?.overallAvg).toBeNull();
   });
@@ -470,9 +505,23 @@ describe("parseSpeakerPanel", () => {
       ],
     });
     expect(panel).toMatchObject({ isReviewer: true, submissionsCount: 2, hasPerson: true });
-    expect(panel?.profile).toMatchObject({ speakerProfileId: "sp1", topicsPl: ["a"], languages: ["pl"] });
-    expect(panel?.sessions[0]).toMatchObject({ role: "moderator", roomName: "A", trackNameEn: null, endsAt: null });
-    expect(panel?.materials[0]).toMatchObject({ kind: "slides", visibility: "public", isPublished: true, sessionId: "ses1" });
+    expect(panel?.profile).toMatchObject({
+      speakerProfileId: "sp1",
+      topicsPl: ["a"],
+      languages: ["pl"],
+    });
+    expect(panel?.sessions[0]).toMatchObject({
+      role: "moderator",
+      roomName: "A",
+      trackNameEn: null,
+      endsAt: null,
+    });
+    expect(panel?.materials[0]).toMatchObject({
+      kind: "slides",
+      visibility: "public",
+      isPublished: true,
+      sessionId: "ses1",
+    });
     expect(panel?.materials[1]).toMatchObject({ kind: "link", visibility: "organizers" });
     const empty = parseSpeakerPanel({ person: null, profile: null });
     expect(empty?.hasPerson).toBe(false);
@@ -507,7 +556,9 @@ describe("parseCfpReviewQueue i parseCfpReviewDetail", () => {
         {
           id: "s2",
           status: "nope",
-          speakers: [{ first_name: "A", last_name: "B", role: "x", job_title: "J", company_text: null }],
+          speakers: [
+            { first_name: "A", last_name: "B", role: "x", job_title: "J", company_text: null },
+          ],
           my_review: { overall: 3, recommendation: "maybe", conflict_of_interest: true },
         },
       ],
@@ -517,7 +568,9 @@ describe("parseCfpReviewQueue i parseCfpReviewDetail", () => {
     expect(queue?.items[1]).toMatchObject({
       status: "submitted",
       talkLanguage: "pl",
-      speakers: [{ firstName: "A", lastName: "B", role: "speaker", jobTitle: "J", companyText: null }],
+      speakers: [
+        { firstName: "A", lastName: "B", role: "speaker", jobTitle: "J", companyText: null },
+      ],
       myReview: { overall: 3, recommendation: "maybe", conflictOfInterest: true },
     });
   });
@@ -562,8 +615,14 @@ describe("parseCfpReviewQueue i parseCfpReviewDetail", () => {
 
 describe("drobne wyniki zapisów", () => {
   it("wynik zapisu rozróżnia usunięty szkic", () => {
-    expect(parseCfpWriteResult({ id: "s1", status: "deleted" })).toEqual({ id: "s1", status: "deleted" });
-    expect(parseCfpWriteResult({ id: "s1", status: "submitted" })).toEqual({ id: "s1", status: "submitted" });
+    expect(parseCfpWriteResult({ id: "s1", status: "deleted" })).toEqual({
+      id: "s1",
+      status: "deleted",
+    });
+    expect(parseCfpWriteResult({ id: "s1", status: "submitted" })).toEqual({
+      id: "s1",
+      status: "submitted",
+    });
     expect(parseCfpWriteResult(null)).toEqual({ id: "", status: "draft" });
   });
 

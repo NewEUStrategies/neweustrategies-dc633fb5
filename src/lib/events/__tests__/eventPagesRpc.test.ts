@@ -422,7 +422,9 @@ describe("zalozenie podstrony", () => {
       titleEn: "Speakers",
       templateId: "event-page-speakers",
     });
-    expect(JSON.stringify(payloadOf("admin_event_page_create")["builder_data"])).not.toContain("/cfp");
+    expect(JSON.stringify(payloadOf("admin_event_page_create")["builder_data"])).not.toContain(
+      "/cfp",
+    );
   });
 
   // NIEZNANY IDENTYFIKATOR NIE JEST BLEDEM, tylko brakiem szablonu: RPC zaklada

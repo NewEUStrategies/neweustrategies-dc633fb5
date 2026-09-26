@@ -29,8 +29,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { CfpMailNotice } from "@/lib/events/cfpNotify.server";
 
 export type CfpNotifyResult =
-  | { ok: true; skipped?: "duplicate" | "not_applicable" }
-  | { ok: false; error: string };
+  { ok: true; skipped?: "duplicate" | "not_applicable" } | { ok: false; error: string };
 
 const Input = z.object({ submissionId: z.string().uuid() });
 
@@ -79,7 +78,9 @@ export const notifyCfpDecision = createServerFn({ method: "POST" })
       idempotencyKey: `event-cfp:${data.submissionId}:${notice}:${stampOf(row.decided_at)}`,
     });
 
-    const failure = result.ok ? null : (result.reason ?? result.error ?? result.skipped ?? "send_failed");
+    const failure = result.ok
+      ? null
+      : (result.reason ?? result.error ?? result.skipped ?? "send_failed");
     await context.supabase.rpc("admin_event_cfp_mark_notified", {
       p_payload:
         failure === null
