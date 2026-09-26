@@ -6372,6 +6372,530 @@ export type Database = {
           },
         ]
       }
+      event_cfp_fields: {
+        Row: {
+          created_at: string
+          event_id: string
+          field_type: string
+          help_en: string
+          help_pl: string
+          id: string
+          is_active: boolean
+          is_required: boolean
+          key: string
+          label_en: string
+          label_pl: string
+          options: Json
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          field_type: string
+          help_en?: string
+          help_pl?: string
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          key: string
+          label_en: string
+          label_pl: string
+          options?: Json
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          field_type?: string
+          help_en?: string
+          help_pl?: string
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          key?: string
+          label_en?: string
+          label_pl?: string
+          options?: Json
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_cfp_fields_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_cfp_fields_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_cfp_reviewers: {
+        Row: {
+          added_by: string | null
+          can_see_identity: boolean
+          created_at: string
+          event_id: string
+          id: string
+          is_active: boolean
+          tenant_id: string
+          track_ids: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          added_by?: string | null
+          can_see_identity?: boolean
+          created_at?: string
+          event_id: string
+          id?: string
+          is_active?: boolean
+          tenant_id: string
+          track_ids?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          added_by?: string | null
+          can_see_identity?: boolean
+          created_at?: string
+          event_id?: string
+          id?: string
+          is_active?: boolean
+          tenant_id?: string
+          track_ids?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_cfp_reviewers_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_cfp_reviewers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_cfp_reviews: {
+        Row: {
+          comment_private: string
+          comment_to_speaker: string
+          conflict_of_interest: boolean
+          created_at: string
+          event_id: string
+          id: string
+          overall: number | null
+          recommendation: string | null
+          reviewer_id: string
+          scores: Json
+          submission_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          comment_private?: string
+          comment_to_speaker?: string
+          conflict_of_interest?: boolean
+          created_at?: string
+          event_id: string
+          id?: string
+          overall?: number | null
+          recommendation?: string | null
+          reviewer_id: string
+          scores?: Json
+          submission_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          comment_private?: string
+          comment_to_speaker?: string
+          conflict_of_interest?: boolean
+          created_at?: string
+          event_id?: string
+          id?: string
+          overall?: number | null
+          recommendation?: string | null
+          reviewer_id?: string
+          scores?: Json
+          submission_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_cfp_reviews_reviewer_fk"
+            columns: ["tenant_id", "event_id", "reviewer_id"]
+            isOneToOne: false
+            referencedRelation: "event_cfp_reviewers"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_cfp_reviews_submission_fk"
+            columns: ["tenant_id", "event_id", "submission_id"]
+            isOneToOne: false
+            referencedRelation: "event_cfp_submissions"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_cfp_reviews_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_cfp_settings: {
+        Row: {
+          allow_co_speakers: boolean
+          closes_at: string | null
+          created_at: string
+          event_id: string
+          formats: Json
+          guidelines_en: string
+          guidelines_pl: string
+          id: string
+          intro_en: string
+          intro_pl: string
+          max_per_submitter: number
+          min_reviews: number
+          opens_at: string | null
+          review_blind: boolean
+          review_criteria: Json
+          score_max: number
+          speaker_group_id: string | null
+          speaker_ticket_type_id: string | null
+          status: string
+          tenant_id: string
+          track_ids: string[]
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          allow_co_speakers?: boolean
+          closes_at?: string | null
+          created_at?: string
+          event_id: string
+          formats?: Json
+          guidelines_en?: string
+          guidelines_pl?: string
+          id?: string
+          intro_en?: string
+          intro_pl?: string
+          max_per_submitter?: number
+          min_reviews?: number
+          opens_at?: string | null
+          review_blind?: boolean
+          review_criteria?: Json
+          score_max?: number
+          speaker_group_id?: string | null
+          speaker_ticket_type_id?: string | null
+          status?: string
+          tenant_id: string
+          track_ids?: string[]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          allow_co_speakers?: boolean
+          closes_at?: string | null
+          created_at?: string
+          event_id?: string
+          formats?: Json
+          guidelines_en?: string
+          guidelines_pl?: string
+          id?: string
+          intro_en?: string
+          intro_pl?: string
+          max_per_submitter?: number
+          min_reviews?: number
+          opens_at?: string | null
+          review_blind?: boolean
+          review_criteria?: Json
+          score_max?: number
+          speaker_group_id?: string | null
+          speaker_ticket_type_id?: string | null
+          status?: string
+          tenant_id?: string
+          track_ids?: string[]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_cfp_settings_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: true
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_cfp_settings_group_fk"
+            columns: ["tenant_id", "event_id", "speaker_group_id"]
+            isOneToOne: false
+            referencedRelation: "event_groups"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_cfp_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_cfp_settings_ticket_fk"
+            columns: ["tenant_id", "event_id", "speaker_ticket_type_id"]
+            isOneToOne: false
+            referencedRelation: "event_ticket_types"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+        ]
+      }
+      event_cfp_submission_speakers: {
+        Row: {
+          company_text: string | null
+          created_at: string
+          email: string | null
+          event_id: string
+          first_name: string
+          id: string
+          is_primary: boolean
+          job_title: string | null
+          last_name: string
+          person_id: string | null
+          role: string
+          sort_order: number
+          submission_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          company_text?: string | null
+          created_at?: string
+          email?: string | null
+          event_id: string
+          first_name: string
+          id?: string
+          is_primary?: boolean
+          job_title?: string | null
+          last_name: string
+          person_id?: string | null
+          role?: string
+          sort_order?: number
+          submission_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          company_text?: string | null
+          created_at?: string
+          email?: string | null
+          event_id?: string
+          first_name?: string
+          id?: string
+          is_primary?: boolean
+          job_title?: string | null
+          last_name?: string
+          person_id?: string | null
+          role?: string
+          sort_order?: number
+          submission_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_cfp_submission_speakers_person_fk"
+            columns: ["tenant_id", "person_id"]
+            isOneToOne: false
+            referencedRelation: "event_people"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_cfp_submission_speakers_submission_fk"
+            columns: ["tenant_id", "event_id", "submission_id"]
+            isOneToOne: false
+            referencedRelation: "event_cfp_submissions"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_cfp_submission_speakers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_cfp_submissions: {
+        Row: {
+          abstract_en: string
+          abstract_pl: string
+          answers: Json
+          confirmed_at: string | null
+          created_at: string
+          created_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decision_note: string | null
+          declined_at: string | null
+          duration_min: number | null
+          event_id: string
+          feedback_to_speaker: string
+          format_key: string | null
+          id: string
+          notified_at: string | null
+          notified_status: string | null
+          notify_error: string | null
+          notify_lang: string
+          person_id: string
+          session_id: string | null
+          speaker_profile_id: string | null
+          status: string
+          submitted_at: string | null
+          talk_language: string
+          tenant_id: string
+          title_en: string
+          title_pl: string
+          topics: string[]
+          track_id: string | null
+          updated_at: string
+          withdrawn_at: string | null
+        }
+        Insert: {
+          abstract_en?: string
+          abstract_pl?: string
+          answers?: Json
+          confirmed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          declined_at?: string | null
+          duration_min?: number | null
+          event_id: string
+          feedback_to_speaker?: string
+          format_key?: string | null
+          id?: string
+          notified_at?: string | null
+          notified_status?: string | null
+          notify_error?: string | null
+          notify_lang?: string
+          person_id: string
+          session_id?: string | null
+          speaker_profile_id?: string | null
+          status?: string
+          submitted_at?: string | null
+          talk_language?: string
+          tenant_id: string
+          title_en?: string
+          title_pl?: string
+          topics?: string[]
+          track_id?: string | null
+          updated_at?: string
+          withdrawn_at?: string | null
+        }
+        Update: {
+          abstract_en?: string
+          abstract_pl?: string
+          answers?: Json
+          confirmed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          declined_at?: string | null
+          duration_min?: number | null
+          event_id?: string
+          feedback_to_speaker?: string
+          format_key?: string | null
+          id?: string
+          notified_at?: string | null
+          notified_status?: string | null
+          notify_error?: string | null
+          notify_lang?: string
+          person_id?: string
+          session_id?: string | null
+          speaker_profile_id?: string | null
+          status?: string
+          submitted_at?: string | null
+          talk_language?: string
+          tenant_id?: string
+          title_en?: string
+          title_pl?: string
+          topics?: string[]
+          track_id?: string | null
+          updated_at?: string
+          withdrawn_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_cfp_submissions_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_cfp_submissions_person_fk"
+            columns: ["tenant_id", "person_id"]
+            isOneToOne: false
+            referencedRelation: "event_people"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_cfp_submissions_profile_fk"
+            columns: ["tenant_id", "speaker_profile_id"]
+            isOneToOne: false
+            referencedRelation: "speaker_profiles"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_cfp_submissions_session_fk"
+            columns: ["tenant_id", "event_id", "session_id"]
+            isOneToOne: false
+            referencedRelation: "event_sessions"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_cfp_submissions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_cfp_submissions_track_fk"
+            columns: ["tenant_id", "event_id", "track_id"]
+            isOneToOne: false
+            referencedRelation: "event_tracks"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+        ]
+      }
       event_checkins: {
         Row: {
           checkpoint_id: string
@@ -8766,6 +9290,102 @@ export type Database = {
           },
           {
             foreignKeyName: "event_speaker_entries_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_speaker_materials: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          event_id: string
+          id: string
+          is_published: boolean
+          kind: string
+          published_at: string | null
+          published_by: string | null
+          session_id: string | null
+          speaker_profile_id: string
+          submission_id: string | null
+          tenant_id: string
+          title_en: string
+          title_pl: string
+          updated_at: string
+          url: string
+          visibility: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          event_id: string
+          id?: string
+          is_published?: boolean
+          kind?: string
+          published_at?: string | null
+          published_by?: string | null
+          session_id?: string | null
+          speaker_profile_id: string
+          submission_id?: string | null
+          tenant_id: string
+          title_en?: string
+          title_pl?: string
+          updated_at?: string
+          url: string
+          visibility?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          event_id?: string
+          id?: string
+          is_published?: boolean
+          kind?: string
+          published_at?: string | null
+          published_by?: string | null
+          session_id?: string | null
+          speaker_profile_id?: string
+          submission_id?: string | null
+          tenant_id?: string
+          title_en?: string
+          title_pl?: string
+          updated_at?: string
+          url?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_speaker_materials_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_speaker_materials_profile_fk"
+            columns: ["tenant_id", "speaker_profile_id"]
+            isOneToOne: false
+            referencedRelation: "speaker_profiles"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_speaker_materials_session_fk"
+            columns: ["tenant_id", "event_id", "session_id"]
+            isOneToOne: false
+            referencedRelation: "event_sessions"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_speaker_materials_submission_fk"
+            columns: ["tenant_id", "event_id", "submission_id"]
+            isOneToOne: false
+            referencedRelation: "event_cfp_submissions"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_speaker_materials_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -19318,6 +19938,56 @@ export type Database = {
         }
         Returns: Json
       }
+      _event_cfp_audit_meta: {
+        Args: { p_status: string; p_submission_id: string; p_tenant: string }
+        Returns: Json
+      }
+      _event_cfp_clean_answers: {
+        Args: { p_answers: Json; p_event_id: string; p_tenant: string }
+        Returns: Json
+      }
+      _event_cfp_crm_status: {
+        Args: { p_status: string; p_submission_id: string; p_tenant: string }
+        Returns: string
+      }
+      _event_cfp_is_open: {
+        Args: { p_closes_at: string; p_opens_at: string; p_status: string }
+        Returns: boolean
+      }
+      _event_cfp_jsonb_int: { Args: { p_value: Json }; Returns: number }
+      _event_cfp_own_submission: {
+        Args: { p_submission_id: string; p_tenant: string; p_uid: string }
+        Returns: string
+      }
+      _event_cfp_phase: {
+        Args: { p_closes_at: string; p_opens_at: string; p_status: string }
+        Returns: string
+      }
+      _event_cfp_resolve_person: {
+        Args: { p_speaker: Json; p_tenant: string; p_uid: string }
+        Returns: string
+      }
+      _event_cfp_review_summary: {
+        Args: { p_submission_id: string; p_tenant: string }
+        Returns: Json
+      }
+      _event_cfp_reviewable: {
+        Args: {
+          p_reviewer_id: string
+          p_submission_id: string
+          p_tenant: string
+          p_uid: string
+        }
+        Returns: boolean
+      }
+      _event_cfp_settings_payload: {
+        Args: { p_event_id: string; p_tenant: string }
+        Returns: Json
+      }
+      _event_cfp_status_label: {
+        Args: { p_lang: string; p_status: string }
+        Returns: string
+      }
       _event_checkin_evaluate: {
         Args: {
           _checkpoint_id: string
@@ -19459,6 +20129,10 @@ export type Database = {
         }
         Returns: Json
       }
+      _event_my_speaker_profile: {
+        Args: { p_event_id: string; p_tenant: string; p_uid: string }
+        Returns: string
+      }
       _event_new_qr_token: { Args: never; Returns: string }
       _event_new_scanner_token: { Args: never; Returns: string }
       _event_next_waitlist_position: {
@@ -19547,6 +20221,14 @@ export type Database = {
         Returns: number
       }
       _event_slugify: { Args: { _text: string }; Returns: string }
+      _event_speaker_overlay_for_person: {
+        Args: { p_person_id: string; p_tenant: string }
+        Returns: string
+      }
+      _event_speaker_roster_add: {
+        Args: { p_event_id: string; p_profile_id: string; p_tenant: string }
+        Returns: string
+      }
       _event_speaker_text_array: { Args: { p_value: Json }; Returns: string[] }
       _event_speaker_tracks: {
         Args: {
@@ -20422,6 +21104,140 @@ export type Database = {
       admin_event_branding_save: {
         Args: { p_branding: Json; p_event_id: string }
         Returns: Json
+      }
+      admin_event_cfp_field_delete: {
+        Args: { p_field_id: string }
+        Returns: boolean
+      }
+      admin_event_cfp_field_upsert: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_cfp_fields_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          answers_count: number
+          field_type: string
+          help_en: string
+          help_pl: string
+          id: string
+          is_active: boolean
+          is_required: boolean
+          key: string
+          label_en: string
+          label_pl: string
+          options: Json
+          sort_order: number
+        }[]
+      }
+      admin_event_cfp_fields_reorder: {
+        Args: { p_payload: Json }
+        Returns: number
+      }
+      admin_event_cfp_mark_notified: {
+        Args: { p_payload: Json }
+        Returns: boolean
+      }
+      admin_event_cfp_material_publish: {
+        Args: { p_payload: Json }
+        Returns: boolean
+      }
+      admin_event_cfp_materials_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          created_at: string
+          id: string
+          is_published: boolean
+          kind: string
+          published_at: string
+          session_id: string
+          speaker_name: string
+          speaker_profile_id: string
+          submission_id: string
+          title_en: string
+          title_pl: string
+          updated_at: string
+          url: string
+          visibility: string
+        }[]
+      }
+      admin_event_cfp_notify_payload: {
+        Args: { p_submission_id: string }
+        Returns: Json
+      }
+      admin_event_cfp_reviewer_remove: {
+        Args: { p_reviewer_id: string }
+        Returns: string
+      }
+      admin_event_cfp_reviewer_set: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_cfp_reviewers_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          avatar_url: string
+          can_see_identity: boolean
+          created_at: string
+          display_name: string
+          id: string
+          is_active: boolean
+          reviews_count: number
+          track_ids: string[]
+          user_id: string
+        }[]
+      }
+      admin_event_cfp_settings_get: {
+        Args: { p_event_id: string }
+        Returns: Json
+      }
+      admin_event_cfp_settings_save: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_cfp_submission_accept: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_cfp_submission_decide: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_cfp_submission_detail: {
+        Args: { p_submission_id: string }
+        Returns: Json
+      }
+      admin_event_cfp_submissions_counts: {
+        Args: { p_event_id: string }
+        Returns: Json
+      }
+      admin_event_cfp_submissions_list: {
+        Args: { p_payload: Json }
+        Returns: {
+          decided_at: string
+          duration_min: number
+          format_key: string
+          id: string
+          notified_status: string
+          overall_avg: number
+          recommendations: Json
+          reviews_count: number
+          session_id: string
+          speaker_email: string
+          speaker_name: string
+          speakers_count: number
+          status: string
+          submitted_at: string
+          talk_language: string
+          title_en: string
+          title_pl: string
+          total_count: number
+          track_id: string
+          track_name_en: string
+          track_name_pl: string
+          updated_at: string
+          weighted_avg: number
+        }[]
       }
       admin_event_checkin_manual: { Args: { p_payload: Json }; Returns: Json }
       admin_event_checkin_search: {
@@ -24468,6 +25284,21 @@ export type Database = {
           type_name_pl: string
         }[]
       }
+      event_cfp_public: { Args: { p_slug: string }; Returns: Json }
+      event_cfp_review_get: { Args: { p_submission_id: string }; Returns: Json }
+      event_cfp_review_queue: { Args: { p_slug: string }; Returns: Json }
+      event_cfp_review_save: { Args: { p_payload: Json }; Returns: Json }
+      event_cfp_submission_notice: {
+        Args: { p_submission_id: string }
+        Returns: Json
+      }
+      event_cfp_submission_respond: { Args: { p_payload: Json }; Returns: Json }
+      event_cfp_submission_save: { Args: { p_payload: Json }; Returns: Json }
+      event_cfp_submission_submit: { Args: { p_payload: Json }; Returns: Json }
+      event_cfp_submission_withdraw: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       event_checkin_record: { Args: { p_payload: Json }; Returns: Json }
       event_checkin_resolve: { Args: { p_payload: Json }; Returns: Json }
       event_coupon_revealed_tickets: {
@@ -24565,6 +25396,7 @@ export type Database = {
         }[]
       }
       event_my_agenda: { Args: { p_payload?: Json }; Returns: Json }
+      event_my_cfp_submissions: { Args: { p_slug: string }; Returns: Json }
       event_my_event_profile: { Args: { p_payload?: Json }; Returns: Json }
       event_my_event_profile_set: { Args: { p_payload?: Json }; Returns: Json }
       event_my_event_profile_sync_account: {
@@ -24609,6 +25441,16 @@ export type Database = {
         }[]
       }
       event_my_registrations: { Args: { p_payload?: Json }; Returns: Json }
+      event_my_speaker_material_delete: {
+        Args: { p_material_id: string }
+        Returns: boolean
+      }
+      event_my_speaker_material_upsert: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      event_my_speaker_panel: { Args: { p_slug: string }; Returns: Json }
+      event_my_speaker_profile_set: { Args: { p_payload: Json }; Returns: Json }
       event_package_invite_accept: { Args: { p_payload: Json }; Returns: Json }
       event_package_purchase: { Args: { p_payload: Json }; Returns: Json }
       event_package_seat_invite: { Args: { p_payload: Json }; Returns: Json }
