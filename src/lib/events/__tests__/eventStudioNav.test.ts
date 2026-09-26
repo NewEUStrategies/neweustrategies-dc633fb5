@@ -241,6 +241,23 @@ describe("drzewo nawigacji studia", () => {
     }
   });
 
+  it("ZASADY BILETÓW stoją w grupie rejestracji tuż za wejściówkami (spec B.12)", () => {
+    const registration = GROUPS.find((group) => group.key === "registration");
+    const keys = registration?.entries.map((entry) => entry.key) ?? [];
+    expect(keys.indexOf("registrationPolicies")).toBe(keys.indexOf("registrationTickets") + 1);
+    const policies = registration?.entries.find((entry) => entry.key === "registrationPolicies");
+    expect(policies?.labelKey).toBe("adminEvents.studio.sections.registrationPolicies");
+    expect(policies?.keywordKeys).toEqual(["adminEvents.studio.keywords.registrationPolicies"]);
+    expect(EVENT_STUDIO_ROUTES.registrationPolicies).toBe(
+      "/admin/events/$eventId/registration/policies",
+    );
+  });
+
+  it("KOMUNIKACJA zostaje pozycją najwyższego poziomu, a nie dzieckiem grupy", () => {
+    const communications = EVENT_STUDIO_NAV.find((node) => node.key === "communications");
+    expect(communications?.kind).toBe("item");
+  });
+
   it("klucze wezlow najwyzszego poziomu sa unikalne", () => {
     const keys = EVENT_STUDIO_NAV.map((node) => node.key);
     expect([...new Set(keys)]).toHaveLength(keys.length);

@@ -8,6 +8,11 @@
 // `check:bundle` na największym chunku. Tu stoi wyłącznie to, czego potrzebuje
 // `buildEventTabHead` - kilka zdań.
 //
+// TYTUŁY TRAS F1-F5 (`meTitle`, `transferTitle`, `certificateTitle`,
+// `followUpTitle`) są KRÓTKIE i bez interpolacji: `head()` tych tras nie ma
+// loadera z nazwą wydarzenia (S38), a każdy bajt tego pliku jedzie w chunku
+// startowym każdej strony.
+//
 // Import efektem ubocznym:
 //   import "@/lib/i18n-event-head";
 import i18n from "./i18n";
@@ -25,6 +30,10 @@ export const eventHeadPl = {
     speakerPanelTitle: "Panel prelegenta",
     reviewPanelTitle: "Panel recenzenta",
     eventFallback: "Wydarzenie",
+    meTitle: "Mój panel wydarzenia",
+    transferTitle: "Przekazanie biletu",
+    certificateTitle: "Weryfikacja certyfikatu",
+    followUpTitle: "Po wydarzeniu",
   },
 } as const;
 
@@ -42,6 +51,10 @@ export const eventHeadEn = {
     speakerPanelTitle: "Speaker panel",
     reviewPanelTitle: "Reviewer panel",
     eventFallback: "Event",
+    meTitle: "My event panel",
+    transferTitle: "Ticket transfer",
+    certificateTitle: "Certificate check",
+    followUpTitle: "After the event",
   },
 } as const;
 

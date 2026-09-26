@@ -32,6 +32,12 @@ export const SCHEDULER_JOBS = [
   // Bilety z kodem QR dla zgłoszeń przyjętych dowolną drogą (decyzja
   // organizatora, awans z rezerwy, płatność) i ponowienia nieudanych wysyłek.
   "event-ticket-codes",
+  // Funkcje uczestnika F1-F5 (spec B.10): przypomnienia o wydarzeniu i sesjach
+  // (tor A), cykl życia biletu - oferty z listy rezerwowej, przekazania, zwroty
+  // (tor B) - i follow-up po wydarzeniu: ankieta, certyfikat (tor C).
+  "event-participant-reminders",
+  "event-ticket-lifecycle",
+  "event-follow-up",
 ] as const;
 
 export type SchedulerJob = (typeof SCHEDULER_JOBS)[number];

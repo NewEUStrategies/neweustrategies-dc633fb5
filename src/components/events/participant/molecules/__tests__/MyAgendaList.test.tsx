@@ -16,17 +16,21 @@
 //     Własne sortowanie na froncie rozjechałoby się z tym, co widzi uczestnik
 //     na innym urządzeniu po innym zapytaniu.
 //
-//  4. JĘZYK WYBIERA POLE, NIE TŁUMACZY TREŚCI. Ta sama sesja ma osobny tytuł,
-//     salę i ścieżkę po polsku i po angielsku; przełączenie interfejsu ma sięgać
+//  4. JĘZYK WYBIERA POLE, NIE TŁUMACZY TREŚCI. Ta sama sesja ma osobny tytuł
+//     i ścieżkę po polsku i po angielsku; przełączenie interfejsu ma sięgać
 //     po DRUGĄ KOLUMNĘ, a nie pokazywać polską nazwę w angielskim ekranie.
+//     Sala ma jedną nazwę (`event_rooms.name`, D0-4) - z piętrem obok.
 //
-//  5. BRAK DANYCH NIE ROBI DZIURY W WIERSZU. Sesja bez sali, bez ścieżki, bez
-//     transmisji i bez godziny nadal ma się wyświetlić - z zastępczym tytułem
-//     i zdaniem „bez godziny” zamiast pustego miejsca albo „Invalid Date”.
+//  5. BRAK DANYCH NIE ROBI DZIURY W WIERSZU. Sesja bez sali, bez ścieżki
+//     i bez godziny nadal ma się wyświetlić - z zastępczym tytułem i zdaniem
+//     „bez godziny” zamiast pustego miejsca albo „Invalid Date”.
 //
-//  6. TRANSMISJA WYCHODZI NA ZEWNĄTRZ BEZPIECZNIE. Odnośnik do streamu otwiera
-//     się w nowej karcie z `rel="noreferrer noopener"` - bez tego obca strona
-//     dostaje uchwyt `window.opener` do karty uczestnika.
+//  6. GODZINA W STREFIE WYDARZENIA (EB-912). 08:30 UTC to 10:30 w Warszawie
+//     - i tak ma stać na ekranie niezależnie od strefy przeglądarki.
+//
+//  7. STAN ZAPISU I STAN SESJI SĄ WIDOCZNE (D0-4). Lista rezerwowa i sesja
+//     odwołana dostają plakietkę; dawny `it.fails` o liście rezerwowej jest
+//     zwykłym `it`. Adresu transmisji w osobistym planie nie ma wcale (D7).
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. (1) Warstwy odczytu (`fetchMyAgenda`) - to jej
 // testy mówią, jak wiersz RPC zamienia się w `MyAgendaSession`. (2) Programu
@@ -46,6 +50,7 @@ vi.mock("react-i18next", async () =>
 );
 
 vi.mock("@/lib/i18n-cart", () => ({ ensureI18n: () => {} }));
+vi.mock("@/lib/i18n-event-participant", () => ({ ensureI18n: () => {} }));
 
 const { MyAgendaList } = await import("@/components/events/participant/molecules/MyAgendaList");
 
@@ -58,12 +63,15 @@ function sesja(over: Partial<MyAgendaSession> = {}): MyAgendaSession {
     startsAt: "2026-09-15T08:30:00.000Z",
     endsAt: "2026-09-15T09:30:00.000Z",
     format: "panel",
-    streamUrl: null,
+    roomName: "Sala Bałtycka",
+    roomFloor: null,
     roomNamePl: "Sala Bałtycka",
-    roomNameEn: "Baltic Hall",
+    roomNameEn: "Sala Bałtycka",
     trackNamePl: "Ścieżka: Energia",
     trackNameEn: "Track: Energy",
     signupStatus: "registered",
+    sessionStatus: "published",
+    timezone: "Europe/Warsaw",
     ...over,
   };
 }
@@ -105,6 +113,39 @@ describe("MyAgendaList - wiersz sesji", () => {
     // Godzina jest sformatowana, a nie zastąpiona zdaniem „bez godziny”.
     expect(within(wiersz).queryByText("eventMe.noTime")).toBeNull();
     expect(wiersz.textContent).toContain("2026");
+    // Kotwica dla odnośników z przypomnień (`#event-session-<id>`).
+    expect(wiersz.id).toBe("event-session-11111111-1111-4111-8111-111111111111");
+  });
+
+  it("godzina stoi w strefie WYDARZENIA, a nie przeglądarki", () => {
+    render(
+      <MyAgendaList
+        sessions={[sesja({ startsAt: "2026-09-15T08:30:00.000Z", timezone: "Europe/Warsaw" })]}
+        loading={false}
+      />,
+    );
+    expect(screen.getByRole("listitem").textContent).toContain("10:30");
+  });
+
+  it("ta sama chwila w innej strefie wydarzenia daje inną godzinę", () => {
+    render(
+      <MyAgendaList
+        sessions={[sesja({ startsAt: "2026-09-15T08:30:00.000Z", timezone: "America/New_York" })]}
+        loading={false}
+      />,
+    );
+    expect(screen.getByRole("listitem").textContent).toContain("04:30");
+  });
+
+  it("brak strefy w odpowiedzi to strefa domyślna serwisu (Warszawa), nie przeglądarki", () => {
+    render(<MyAgendaList sessions={[sesja({ timezone: null })]} loading={false} />);
+    expect(screen.getByRole("listitem").textContent).toContain("10:30");
+  });
+
+  it("piętro sali stoi obok jej nazwy", () => {
+    render(<MyAgendaList sessions={[sesja({ roomFloor: "2" })]} loading={false} />);
+
+    expect(screen.getByText("eventParticipant.agenda.floor(floor=2)")).toBeTruthy();
   });
 
   it("angielski interfejs sięga po DRUGĄ KOLUMNĘ, a nie tłumaczy polskiej", () => {
@@ -114,7 +155,7 @@ describe("MyAgendaList - wiersz sesji", () => {
     const wiersz = screen.getByRole("listitem");
     expect(within(wiersz).getByText("Panel: nuclear energy")).toBeTruthy();
     expect(within(wiersz).getByText("Track: Energy")).toBeTruthy();
-    expect(within(wiersz).getByText("Baltic Hall")).toBeTruthy();
+    expect(within(wiersz).getByText("Sala Bałtycka")).toBeTruthy();
     expect(within(wiersz).queryByText("Panel: energetyka jądrowa")).toBeNull();
     h.jezyk.current = "pl";
   });
@@ -130,9 +171,7 @@ describe("MyAgendaList - wiersz sesji", () => {
   it("brak sali i brak ścieżki nie rysują pustych plakietek", () => {
     render(
       <MyAgendaList
-        sessions={[
-          sesja({ roomNamePl: null, roomNameEn: null, trackNamePl: null, trackNameEn: null }),
-        ]}
+        sessions={[sesja({ roomName: null, trackNamePl: null, trackNameEn: null })]}
         loading={false}
       />,
     );
@@ -140,6 +179,7 @@ describe("MyAgendaList - wiersz sesji", () => {
     const wiersz = screen.getByRole("listitem");
     expect(within(wiersz).queryByText("Sala Bałtycka")).toBeNull();
     expect(within(wiersz).queryByText("Ścieżka: Energia")).toBeNull();
+    expect(within(wiersz).queryByText(/eventParticipant\.agenda\.floor/)).toBeNull();
     // Sam wiersz nadal istnieje - to sesja, nie błąd.
     expect(within(wiersz).getByText("Panel: energetyka jądrowa")).toBeTruthy();
   });
@@ -157,24 +197,24 @@ describe("MyAgendaList - wiersz sesji", () => {
     expect(screen.queryByText(/Invalid Date/)).toBeNull();
   });
 
-  it("transmisja online otwiera się w nowej karcie BEZ uchwytu `window.opener`", () => {
-    render(
-      <MyAgendaList
-        sessions={[sesja({ streamUrl: "https://stream.example.org/sesja-1" })]}
-        loading={false}
-      />,
-    );
-
-    const link = screen.getByRole("link", { name: "eventMe.joinStream" });
-    expect(link.getAttribute("href")).toBe("https://stream.example.org/sesja-1");
-    expect(link.getAttribute("target")).toBe("_blank");
-    expect(link.getAttribute("rel")).toBe("noreferrer noopener");
-  });
-
-  it("sesja bez transmisji nie dostaje martwego odnośnika", () => {
+  it("osobisty plan NIE ma odnośnika do transmisji - adresu nie ma w odpowiedzi (D7)", () => {
     render(<MyAgendaList sessions={[sesja()]} loading={false} />);
 
-    expect(screen.queryByRole("link", { name: "eventMe.joinStream" })).toBeNull();
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("sesja odwołana dostaje plakietkę - wygląda INACZEJ niż aktualna", () => {
+    render(<MyAgendaList sessions={[sesja({ sessionStatus: "cancelled" })]} loading={false} />);
+
+    expect(screen.getByText("eventParticipant.agenda.cancelled")).toBeTruthy();
+    expect(screen.queryByText("eventParticipant.agenda.waitlist")).toBeNull();
+  });
+
+  it("sesja opublikowana z miejscem nie ma żadnej z dwóch plakietek", () => {
+    render(<MyAgendaList sessions={[sesja()]} loading={false} />);
+
+    expect(screen.queryByText("eventParticipant.agenda.cancelled")).toBeNull();
+    expect(screen.queryByText("eventParticipant.agenda.waitlist")).toBeNull();
   });
 });
 
@@ -218,32 +258,30 @@ describe("MyAgendaList - dwie sesje w tym samym czasie", () => {
     expect(wiersze[1]?.textContent).toContain("Warsztat: sieci przesyłowe");
   });
 
-  it.fails(
-    "DEFEKT: sesja z listy rezerwowej rysuje się ZNAK W ZNAK jak sesja z miejscem - `signupStatus` nie dociera na ekran",
-    () => {
-      // `event_session_signups.status` przyjmuje `waitlist` (migracja
-      // 20260823140000), a `event_my_agenda` odsiewa wyłącznie `cancelled` -
-      // wiersz rezerwowy wraca razem z `signup_status`. Warstwa odczytu
-      // przepisuje go do `MyAgendaSession.signupStatus`, ale lista nigdzie tego
-      // pola nie czyta, więc uczestnik z listy rezerwowej widzi sesję w swoim
-      // harmonogramie tak samo jak ktoś, kto ma miejsce - i przychodzi pod
-      // salę, do której nie zostanie wpuszczony. Ekran odpowiadający na pytanie
-      // „gdzie mam być” nie ma prawa milczeć o tej różnicy.
-      const zMiejscem = render(
-        <MyAgendaList sessions={[sesja({ signupStatus: "registered" })]} loading={false} />,
-      );
-      const tekstZMiejscem = zMiejscem.getByRole("listitem").textContent;
-      zMiejscem.unmount();
+  it("sesja z listy rezerwowej rysuje się INACZEJ niż sesja z miejscem - `signupStatus` dociera na ekran", () => {
+    // `event_session_signups.status` przyjmuje `waitlist` (migracja
+    // 20260823140000), a `event_my_agenda` odsiewa wyłącznie `cancelled` -
+    // wiersz rezerwowy wraca razem z `signup_status`. Warstwa odczytu
+    // przepisuje go do `MyAgendaSession.signupStatus`, ale lista nigdzie tego
+    // pola nie czyta, więc uczestnik z listy rezerwowej widzi sesję w swoim
+    // harmonogramie tak samo jak ktoś, kto ma miejsce - i przychodzi pod
+    // salę, do której nie zostanie wpuszczony. Ekran odpowiadający na pytanie
+    // „gdzie mam być” nie ma prawa milczeć o tej różnicy.
+    const zMiejscem = render(
+      <MyAgendaList sessions={[sesja({ signupStatus: "registered" })]} loading={false} />,
+    );
+    const tekstZMiejscem = zMiejscem.getByRole("listitem").textContent;
+    zMiejscem.unmount();
 
-      const rezerwowa = render(
-        <MyAgendaList sessions={[sesja({ signupStatus: "waitlist" })]} loading={false} />,
-      );
-      const tekstRezerwowej = rezerwowa.getByRole("listitem").textContent;
+    const rezerwowa = render(
+      <MyAgendaList sessions={[sesja({ signupStatus: "waitlist" })]} loading={false} />,
+    );
+    const tekstRezerwowej = rezerwowa.getByRole("listitem").textContent;
 
-      // ASERCJA DOCELOWA: dwa różne stany zapisu muszą dać różny ekran.
-      expect(tekstRezerwowej).not.toBe(tekstZMiejscem);
-    },
-  );
+    // ASERCJA DOCELOWA: dwa różne stany zapisu muszą dać różny ekran.
+    expect(tekstRezerwowej).not.toBe(tekstZMiejscem);
+    expect(tekstRezerwowej).toContain("eventParticipant.agenda.waitlist");
+  });
 });
 
 describe("MyAgendaList - dostępność", () => {
@@ -254,9 +292,11 @@ describe("MyAgendaList - dostępność", () => {
           sesja(),
           sesja({
             sessionId: "44444444-4444-4444-8444-444444444444",
-            streamUrl: "https://stream.example.org/sesja-2",
-            roomNamePl: null,
+            roomName: null,
+            roomFloor: "1",
             trackNamePl: null,
+            sessionStatus: "cancelled",
+            signupStatus: "waitlist",
           }),
         ]}
         loading={false}

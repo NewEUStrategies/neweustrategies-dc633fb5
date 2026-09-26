@@ -87,9 +87,11 @@ const req = vi.hoisted(() => ({ current: null as Request | null }));
 vi.mock("@tanstack/react-start/server", () => ({ getRequest: () => req.current }));
 
 const db = vi.hoisted(() => ({ current: null as SupabaseFromStub | null }));
-vi.mock("@/integrations/supabase/client.server", () => ({
-  supabaseAdmin: { from: (table: string) => db.current!.from(table) },
+/** Stała tożsamość klienta service role - dowód, że zadania uczestnika dostają TEN obiekt. */
+const adminClient = vi.hoisted(() => ({
+  from: (table: string) => db.current!.from(table),
 }));
+vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: adminClient }));
 
 /**
  * Rejestr kanałów. Jedna funkcja `run` obsługuje wszystkie sześć granic, więc
@@ -152,6 +154,25 @@ vi.mock("@/lib/events/ticketRevokedNotify.server", () => ({
 }));
 vi.mock("@/lib/events/planSeatRelease.server", () => ({
   runPlanSeatRelease: (limit: number) => jobs.run("eventPlanSeatRelease", [limit], { released: 2 }),
+}));
+
+// Zadania funkcji uczestnika F1-F5 (spec B.10) - granice z własnymi testami torów.
+vi.mock("@/lib/events/jobs/reminderJob.server", () => ({
+  runEventParticipantReminders: (admin: unknown, opts: unknown) =>
+    jobs.run("eventParticipantReminders", [admin, opts], {
+      claimed: 1,
+      sent: 1,
+      skipped: 0,
+      failed: 0,
+    }),
+}));
+vi.mock("@/lib/events/jobs/ticketLifecycleJob.server", () => ({
+  runEventTicketLifecycle: (admin: unknown, opts: unknown) =>
+    jobs.run("eventTicketLifecycle", [admin, opts], { claimed: 2, sent: 1, skipped: 1, failed: 0 }),
+}));
+vi.mock("@/lib/events/jobs/followUpJob.server", () => ({
+  runEventFollowUp: (admin: unknown, opts: unknown) =>
+    jobs.run("eventFollowUp", [admin, opts], { claimed: 0, sent: 0, skipped: 0, failed: 0 }),
 }));
 
 vi.mock("@/lib/server/careerCvRetention.server", () => ({
@@ -868,6 +889,10 @@ describe("wybór kanałów: `?job=`, ciało żądania i pierwszeństwo query", (
     ["digest-weekly", "digest:weekly", "digestWeekly"],
     ["event-reminders", "eventReminders", "eventReminders"],
     ["crm-task-reminders", "crmTaskReminders", "crmTaskReminders"],
+    ["event-ticket-codes", "eventTicketCodes", "eventTicketCodes"],
+    ["event-participant-reminders", "eventParticipantReminders", "eventParticipantReminders"],
+    ["event-ticket-lifecycle", "eventTicketLifecycle", "eventTicketLifecycle"],
+    ["event-follow-up", "eventFollowUp", "eventFollowUp"],
     ["career-cv-retention", "careerCvRetention", "careerCvRetention"],
   ])("`?job=%s` uruchamia dokładnie jeden kanał", async (job, step, key) => {
     const res = await tick({ query: `?job=${job}` });
@@ -880,20 +905,15 @@ describe("wybór kanałów: `?job=`, ciało żądania i pierwszeństwo query", (
     expect(payload).not.toHaveProperty("reputationBadges");
   });
 
-  it("`?job=event-ticket-codes` wysyła bilety, zawiadomienia o odwołanych (partie po 50) i zwalnia porzucone bilety z puli", async () => {
-    const res = await tick({ query: "?job=event-ticket-codes" });
+  it("zadania uczestnika dostają klienta service role i deadline 10 s od startu", async () => {
+    const startedAt = Date.now();
+    await tick({ query: "?job=all" });
 
-    expect(jobs.calls).toEqual([
-      { step: "eventTicketCodes", args: [50] },
-      { step: "eventTicketRevocations", args: [50] },
-      { step: "eventPlanSeatRelease", args: [500] },
-    ]);
-    const payload = await body(res);
-    expect(payload).toMatchObject({ ok: true, job: "event-ticket-codes" });
-    expect(payload).toHaveProperty("eventTicketCodes");
-    expect(payload).toHaveProperty("eventTicketRevocations");
-    expect(payload).toMatchObject({ eventPlanSeatRelease: { released: 2 } });
-    expect(payload).not.toHaveProperty("reputationBadges");
+    for (const step of ["eventParticipantReminders", "eventTicketLifecycle", "eventFollowUp"]) {
+      const call = jobs.calls.find((c) => c.step === step);
+      expect(call?.args[0]).toBe(adminClient);
+      expect(call?.args[1]).toEqual({ deadlineAt: startedAt + 10_000 });
+    }
   });
 
   it("digesty dostają rozróżnialny okres i limit partii 50", async () => {
@@ -913,6 +933,9 @@ describe("wybór kanałów: `?job=`, ciało żądania i pierwszeństwo query", (
       "digest:daily",
       "digest:weekly",
       "eventReminders",
+      "eventParticipantReminders",
+      "eventTicketLifecycle",
+      "eventFollowUp",
       "crmTaskReminders",
       "eventTicketCodes",
       "eventTicketRevocations",
@@ -928,6 +951,9 @@ describe("wybór kanałów: `?job=`, ciało żądania i pierwszeństwo query", (
         "digestDaily",
         "digestWeekly",
         "eventReminders",
+        "eventParticipantReminders",
+        "eventTicketLifecycle",
+        "eventFollowUp",
         "crmTaskReminders",
         "eventTicketCodes",
         "eventTicketRevocations",
@@ -1095,7 +1121,8 @@ describe("uzbrojenie ścieżki podstawowej (`arm_job_runner`)", () => {
 
     expect(res.status).toBe(200);
     await expect(body(res)).resolves.toMatchObject({ ok: true, runnerArmed: "unavailable" });
-    expect(jobs.steps()).toHaveLength(10);
+    // 8 -> 11: trzy zadania funkcji uczestnika F1-F5 (spec B.10) jadą w "all".
+    expect(jobs.steps()).toHaveLength(11);
   });
 });
 
@@ -1115,6 +1142,9 @@ describe("izolacja kanałów: awaria jednego nie zabiera pozostałych", () => {
       "digest:daily",
       "digest:weekly",
       "eventReminders",
+      "eventParticipantReminders",
+      "eventTicketLifecycle",
+      "eventFollowUp",
       "crmTaskReminders",
       "eventTicketCodes",
       "eventTicketRevocations",
@@ -1221,6 +1251,9 @@ describe("budżet czasu (COMMUNITY_CRON_DEADLINE_MS = 25 s)", () => {
       "digestDaily",
       "digestWeekly",
       "eventReminders",
+      "eventParticipantReminders",
+      "eventTicketLifecycle",
+      "eventFollowUp",
       "crmTaskReminders",
       "eventTicketCodes",
       "eventTicketRevocations",
@@ -1259,6 +1292,9 @@ describe("budżet czasu (COMMUNITY_CRON_DEADLINE_MS = 25 s)", () => {
       "digest:daily",
       "digest:weekly",
       "eventReminders",
+      "eventParticipantReminders",
+      "eventTicketLifecycle",
+      "eventFollowUp",
       "crmTaskReminders",
       "eventTicketCodes",
       "eventTicketRevocations",

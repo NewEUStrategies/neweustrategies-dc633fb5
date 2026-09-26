@@ -14,6 +14,11 @@
 // KANAŁY SĄ PER ZGŁOSZENIE. Przełączniki piszą do
 // `event_registration_set_channels`, a wysyłka transakcyjna czyta te same
 // kolumny - to jedna prawda, nie dwie.
+//
+// GNIAZDA TORÓW F1-F5 (spec B.11). Karta ma trzy PUSTE gniazda, które
+// wypełniają tory: B pod sekcją płatności (oferta, przekazanie, zwrot),
+// A pod kanałami (przypomnienia), C nad dziennikiem płatności (ankieta,
+// certyfikat). Linie montażu gniazd są nietykalne dla torów.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -187,6 +192,7 @@ function RegistrationCard({ item }: { item: ParticipantRegistration }) {
             />
           </section>
         )}
+      <RegistrationCardActionsSlot item={item} />
 
       <section className="rounded-[6px] border border-border/60 bg-muted/30 p-3">
         <h3 className="text-sm font-semibold text-foreground">
@@ -229,6 +235,8 @@ function RegistrationCard({ item }: { item: ParticipantRegistration }) {
           </label>
         </div>
       </section>
+      <RegistrationCardRemindersSlot item={item} />
+      <RegistrationCardFollowUpSlot item={item} />
 
       <section className="space-y-2">
         <h3 className="text-sm font-semibold text-foreground">

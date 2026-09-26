@@ -11,6 +11,7 @@ import {
   pushTopic,
   sendWebPush,
   vapidFromEnv,
+  type PushSendOptions,
   type VapidConfig,
 } from "./webpush.server";
 import {
@@ -74,11 +75,26 @@ interface PushDevice {
   auth: string;
 }
 
-/** Jedna wysyłka: gotowe (zserializowane raz na zadanie) ciało + temat kolapsu. */
+/** Jedna wysyłka: gotowe (zserializowane raz na zadanie) ciało + opcje (temat kolapsu, TTL). */
 interface PushTask {
   jobId: number;
   body: Buffer;
-  topic: string;
+  options: PushSendOptions;
+}
+
+/**
+ * Push rodzaju `event` (przypomnienia o wydarzeniu i sesji, oferta miejsca):
+ * godzina życia zamiast doby i pilność `high`. Przypomnienie „sesja za 15 minut"
+ * dostarczone po trzech godzinach offline jest szkodliwe, nie pomocne - usługa
+ * push ma je raczej porzucić niż doręczyć po czasie (D8).
+ */
+const EVENT_PUSH_OPTIONS: Readonly<Pick<PushSendOptions, "ttlSec" | "urgency">> = {
+  ttlSec: 3600,
+  urgency: "high",
+};
+
+function pushOptionsForKind(kind: string | undefined): Pick<PushSendOptions, "ttlSec" | "urgency"> {
+  return kind === "event" ? EVENT_PUSH_OPTIONS : {};
 }
 
 /** Kolejka JEDNEGO urządzenia - wysyłki w niej idą po kolei, kolejki równolegle. */
@@ -151,9 +167,11 @@ function buildPushLanes(
     // urządzenie zostaje wyłącznie szyfrowanie (klucze są per subskrypcja).
     const encoded = encodePushPayload(clampPushPayload({ title, body, href, lang, tag: topic }));
 
+    const options: PushSendOptions = { topic, ...pushOptionsForKind(payload.kind) };
+
     for (const device of devices) {
       const lane = lanes.get(device.endpoint) ?? { device, tasks: [] };
-      lane.tasks.push({ jobId: job.id, body: encoded, topic });
+      lane.tasks.push({ jobId: job.id, body: encoded, options });
       lanes.set(device.endpoint, lane);
     }
   }
@@ -169,7 +187,7 @@ async function drainPushLane(lane: PushLane, vapid: VapidConfig): Promise<LaneRe
   for (let i = 0; i < lane.tasks.length; i += 1) {
     const task = lane.tasks[i];
     try {
-      const result = await sendWebPush(lane.device, task.body, vapid, { topic: task.topic });
+      const result = await sendWebPush(lane.device, task.body, vapid, task.options);
       attempts.push({
         jobId: task.jobId,
         ok: result.ok,
@@ -343,7 +361,11 @@ export async function processDigests(
 
   let sent = 0;
   for (const row of due) {
-    const items = (Array.isArray(row.items) ? row.items : []) as unknown as DigestItem[];
+    const claimedItems = (Array.isArray(row.items) ? row.items : []) as unknown as DigestItem[];
+    // Rodzaj `event` NIE trafia do digestu (D8): przypomnienie o sesji
+    // w zbiorczym mailu następnego dnia jest po czasie z definicji. Digest,
+    // w którym zostały same przypomnienia, nie wychodzi wcale.
+    const items = claimedItems.filter((item) => item.kind !== "event");
     if (items.length === 0) continue;
     const recipient = recipients.get(row.user_id);
     const lang = recipient?.lang ?? "pl";

@@ -2131,6 +2131,9 @@ export const pl = {
         contentHint: "Strumień redakcyjny, dyskusja pod materiałami i Twoje zapisane kryteria.",
         workspace: "Praca i konto",
         workspaceHint: "Follow-upy CRM, subskrypcja i ogłoszenia systemowe.",
+        events: "Wydarzenia",
+        eventsHint:
+          "Przypomnienia o wydarzeniach i sesjach, oferty miejsc z listy rezerwowej, przekazanie biletu, ankieta i certyfikat.",
       },
       kinds: {
         message: "Wiadomości na czacie",
@@ -2151,6 +2154,8 @@ export const pl = {
         meeting_booking: "Rezerwacje spotkań 1-1",
         system: "Ogłoszenia systemowe",
         security: "Alerty bezpieczeństwa (zawsze włączone)",
+        event: "Wydarzenia i przypomnienia",
+        billing: "Płatności",
       },
       channelsHeader: "Kanały doręczeń",
       channelsSubtitle: "Powiadomienia poza aplikacją: push w przeglądarce i zbiorczy e-mail.",
