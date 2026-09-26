@@ -2,7 +2,8 @@
 //
 // STAWKA (S24, MS M-9): wzorzec sporów powiadamiał administratorów WSZYSTKICH
 // najemców. Tu dwa najemcy w atrapie bazy i dowód, że dzwonek dostają
-// wyłącznie `admin`/`super_admin` z `profiles.tenant_id` = najemca zdarzenia.
+// wyłącznie `admin`/`super_admin` z rolą W NAJEMCY zdarzenia
+// (`user_roles.tenant_id`) i z `profiles.tenant_id` = najemca zdarzenia.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 interface ProfileRow {
@@ -12,7 +13,7 @@ interface ProfileRow {
 
 const db = vi.hoisted(() => {
   const state = {
-    roles: [] as { user_id: string; role: string }[],
+    roles: [] as { user_id: string; role: string; tenant_id: string }[],
     profiles: [] as ProfileRow[],
     rolesError: null as { message: string } | null,
     profilesError: null as { message: string } | null,
@@ -39,11 +40,18 @@ const db = vi.hoisted(() => {
       then: (resolve: (value: unknown) => unknown) => {
         if (table === "user_roles") {
           const roles = call.filters.find((f) => f[1] === "role")?.[2] as string[];
+          // Atrapa odwzorowuje filtr najemcy TYLKO wtedy, gdy kod go wysłał -
+          // bez `.eq("tenant_id")` wraca każda rola (tak jak zrobiłaby baza).
+          const roleTenant = call.filters.find((f) => f[1] === "tenant_id")?.[2];
           return resolve({
             data:
               state.rolesError || state.rolesNull
                 ? null
-                : state.roles.filter((r) => roles.includes(r.role)),
+                : state.roles.filter(
+                    (r) =>
+                      roles.includes(r.role) &&
+                      (roleTenant === undefined || r.tenant_id === roleTenant),
+                  ),
             error: state.rolesError,
           });
         }
@@ -88,19 +96,23 @@ beforeEach(() => {
   vi.spyOn(console, "warn").mockImplementation(() => undefined);
   vi.spyOn(console, "error").mockImplementation(() => undefined);
   db.state.roles = [
-    { user_id: "admin-a", role: "admin" },
-    { user_id: "admin-a", role: "editor" },
-    { user_id: "super-a", role: "super_admin" },
+    { user_id: "admin-a", role: "admin", tenant_id: A },
+    { user_id: "admin-a", role: "editor", tenant_id: A },
+    { user_id: "super-a", role: "super_admin", tenant_id: A },
     // Ta sama osoba z dwiema rolami administracyjnymi dostaje JEDEN dzwonek.
-    { user_id: "super-a", role: "admin" },
-    { user_id: "admin-b", role: "admin" },
-    { user_id: "editor-a", role: "editor" },
+    { user_id: "super-a", role: "admin", tenant_id: A },
+    { user_id: "admin-b", role: "admin", tenant_id: B },
+    { user_id: "editor-a", role: "editor", tenant_id: A },
+    // Profil w najemcy A, ale rola administratora wyłącznie w najemcy B:
+    // NIE jest administratorem A (has_role sprawdza rolę w najemcy).
+    { user_id: "moved-b", role: "admin", tenant_id: B },
   ];
   db.state.profiles = [
     { id: "admin-a", tenant_id: A },
     { id: "super-a", tenant_id: A },
     { id: "admin-b", tenant_id: B },
     { id: "editor-a", tenant_id: A },
+    { id: "moved-b", tenant_id: A },
   ];
   db.state.rolesError = null;
   db.state.profilesError = null;
@@ -130,6 +142,20 @@ describe("notifyTenantAdmins", () => {
     });
     const profilesCall = db.state.calls.find((c) => c.table === "profiles");
     expect(profilesCall?.filters).toContainEqual(["eq", "tenant_id", A]);
+    const rolesCall = db.state.calls.find((c) => c.table === "user_roles");
+    expect(rolesCall?.filters).toContainEqual(["eq", "tenant_id", A]);
+  });
+
+  it("rola administratora w INNYM najemcy nie wystarcza, nawet gdy profil wskazuje najemcę A", async () => {
+    await notifyTenantAdmins(INPUT);
+    const recipients = db.rpc.mock.calls.map(
+      (call) => (call[1] as { p_user_id: string }).p_user_id,
+    );
+    expect(recipients).not.toContain("moved-b");
+    // Kontrprzykład: dla najemcy B ta sama rola nie pomaga, bo profil jest w A.
+    db.rpc.mockClear();
+    await expect(notifyTenantAdmins({ ...INPUT, tenantId: B })).resolves.toBe(1);
+    expect(db.rpc.mock.calls[0][1]).toMatchObject({ p_user_id: "admin-b" });
   });
 
   it("dla najemcy B - wyłącznie admin B", async () => {
@@ -144,7 +170,7 @@ describe("notifyTenantAdmins", () => {
   });
 
   it("brak ról administracyjnych -> 0 bez zapytania o profile", async () => {
-    db.state.roles = [{ user_id: "editor-a", role: "editor" }];
+    db.state.roles = [{ user_id: "editor-a", role: "editor", tenant_id: A }];
     await expect(notifyTenantAdmins(INPUT)).resolves.toBe(0);
     expect(db.state.calls.map((c) => c.table)).toEqual(["user_roles"]);
   });

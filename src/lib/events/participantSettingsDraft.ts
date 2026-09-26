@@ -240,11 +240,18 @@ function parseInteger(value: string): number | null {
   return /^-?\d+$/.test(trimmed) ? Number(trimmed) : null;
 }
 
-/** Godziny certyfikatu: przecinek albo kropka, zaokrąglenie do setnych jak `round(x, 2)`. */
+/**
+ * Godziny certyfikatu: przecinek albo kropka, zaokrąglenie do setnych jak
+ * `round(x::numeric, 2)` - NA NAPISIE DZIESIĘTNYM (połowa w górę), nie przez
+ * `Number(x) * 100`: binarne `1.005 * 100` to `100.4999…`, więc formularz
+ * zapisałby 1.00 tam, gdzie baza policzyłaby 1.01.
+ */
 function parseHours(value: string): number | null {
-  const trimmed = value.trim().replace(",", ".");
-  if (!/^\d+(\.\d+)?$/.test(trimmed)) return null;
-  return Math.round(Number(trimmed) * 100) / 100;
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(value.trim().replace(",", "."));
+  if (match === null) return null;
+  const fraction = (match[2] ?? "").padEnd(3, "0");
+  const roundUp = Number(fraction[2]) >= 5 ? 1 : 0;
+  return (Number(match[1]) * 100 + Number(fraction.slice(0, 2)) + roundUp) / 100;
 }
 
 function inRange(value: number | null, min: number, max: number): boolean {

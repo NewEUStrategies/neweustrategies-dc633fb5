@@ -276,9 +276,17 @@ describe("GA4 w przeglądarce", () => {
     try {
       ga4PageView("/pominiete", "Przekazanie", "en");
       const odslona = znajdz("event", "page_view");
-      expect((odslona?.[2] as Record<string, unknown>).page_location).toBe(
-        `${location.origin}/en/tickets/transfer/[redacted]?token=[redacted]&x=1`,
+      const oczekiwany = `${location.origin}/en/tickets/transfer/[redacted]?token=[redacted]&x=1`;
+      expect((odslona?.[2] as Record<string, unknown>).page_location).toBe(oczekiwany);
+      // Kolejne zdarzenia (kliknięcia, konwersje) dziedziczą `page_location`
+      // z `set` - bez niego gtag.js dokleiłby surowy `document.location`.
+      const ustawienie = warstwa().find(
+        (wpis) => wpis[0] === "set" && typeof wpis[1] === "object" && wpis[1] !== null,
       );
+      expect(ustawienie?.[1]).toEqual({ page_location: oczekiwany });
+      const indeks = (wpis: ArrayLike<unknown> | undefined) =>
+        wpis === undefined ? -1 : warstwa().indexOf(wpis);
+      expect(indeks(ustawienie)).toBeLessThan(indeks(odslona));
     } finally {
       history.pushState({}, "", before);
     }
@@ -296,6 +304,15 @@ describe("GA4 w przeglądarce", () => {
     expect((odslona?.[2] as Record<string, unknown>).page_location).toBe(
       "/certificates/[redacted]?code=[redacted]",
     );
+    expect(warstwa().find((wpis) => wpis[0] === "set" && typeof wpis[1] === "object")?.[1]).toEqual(
+      { page_location: "/certificates/[redacted]?code=[redacted]" },
+    );
+  });
+
+  it("bez gotowego GA4 odsłona nie ustawia niczego (ani `set`, ani `page_view`)", () => {
+    ga4PageView("/tickets/transfer/abc", "Przekazanie", "pl");
+    expect(znajdz("event", "page_view")).toBeUndefined();
+    expect(warstwa().some((wpis) => wpis[0] === "set")).toBe(false);
   });
 
   it("snippet SSR: zgoda domyślna PRZED konfiguracją, oba miejsca docelowe, brak parametrów UA", () => {

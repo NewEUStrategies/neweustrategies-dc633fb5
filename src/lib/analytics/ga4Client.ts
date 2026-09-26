@@ -401,14 +401,19 @@ export function ga4Event(name: string, params: Ga4Params = {}): void {
  * `redactTrackedPath` (bez fragmentu, z maską tokenów w ścieżce i parametrach).
  * Surowe `location.href` wysyłało do GA4 token przekazania biletu
  * (`/tickets/transfer/<token>`) i fragment linku gościa (`#t=<token>`).
+ * Ta sama wartość idzie też przez `set`: gtag.js dokleja do KAŻDEGO kolejnego
+ * zdarzenia (kliknięcie, konwersja) `page_location` - bez nadpisania byłby to
+ * surowy `document.location` razem z tokenem.
  */
 export function ga4PageView(path: string, title?: string, language?: string): void {
   if (!isGa4Ready()) return;
+  const pageLocation =
+    typeof location === "undefined"
+      ? redactTrackedPath(path)
+      : `${location.origin}${redactTrackedPath(`${location.pathname}${location.search}`)}`;
+  gtag("set", { page_location: pageLocation });
   gtag("event", "page_view", {
-    page_location:
-      typeof location === "undefined"
-        ? redactTrackedPath(path)
-        : `${location.origin}${redactTrackedPath(`${location.pathname}${location.search}`)}`,
+    page_location: pageLocation,
     page_title: title || (typeof document === "undefined" ? undefined : document.title),
     language: language || undefined,
   });

@@ -183,8 +183,28 @@ describe("validateParticipantSettings - certyfikat", () => {
     },
   );
 
-  it.each(["", "0.01", "7,5", "999", "999.004"])("przyjmuje godziny %j", (value) => {
+  it.each(["", "0.01", "7,5", "999", "999.004", "0.005"])("przyjmuje godziny %j", (value) => {
     expect(keysOf("certificate", { certificateHours: value })).toEqual([]);
+  });
+
+  // `round(x::numeric, 2)` liczy na liczbie dziesiętnej: 1.005 -> 1.01, 0.015 -> 0.02.
+  // Binarne `Number(x) * 100` dawało tu 1.00 i 0.01 (`100.4999…`, `1.4999…`).
+  it.each([
+    ["1.005", 1.01],
+    ["0,015", 0.02],
+    ["2.675", 2.68],
+    ["7.554", 7.55],
+    ["7.5", 7.5],
+    ["12", 12],
+    ["0.0049", 0],
+    ["999.995", 1000],
+  ])("godziny %j -> %s (połowa w górę na napisie, jak numeric w SQL)", (value, want) => {
+    const payload = participantSettingsPayload(
+      EVENT,
+      draft({ certificateHours: value }),
+      "certificate",
+    );
+    expect(payload.certificate_hours).toBe(want);
   });
 
   it.each([

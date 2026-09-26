@@ -5,9 +5,14 @@
 // powiadamia administratorów WSZYSTKICH najemców - administrator najemcy B
 // dostawał identyfikatory transakcji najemcy A (MS M-9). Tu odbiorcami są
 // wyłącznie osoby z rolą `admin` albo `super_admin`, których
-// `profiles.tenant_id` jest najemcą zdarzenia (S24). Rola jest globalna
-// (`user_roles`), przynależność do najemcy rozstrzyga profil - i to drugie
-// zapytanie niesie filtr `tenant_id`.
+// `profiles.tenant_id` jest najemcą zdarzenia (S24).
+//
+// FILTR NAJEMCY W OBU ZAPYTANIACH. Wiersz `user_roles` też ma `tenant_id`
+// (`has_role` i `is_super_admin` sprawdzają rolę w najemcy żądania), więc rola
+// administratora najemcy B NIE czyni nikogo administratorem najemcy A tylko
+// dlatego, że jego profil wskazuje A. Odbiorca musi mieć rolę W TYM najemcy
+// i profil w tym najemcy - każde zapytanie `supabaseAdmin` niesie
+// `.eq("tenant_id", …)` (R-TS).
 //
 // TREŚĆ NIESIE TYLKO IDENTYFIKATORY. Żadnych adresów e-mail, nazwisk ani kwot
 // z danymi osobowymi - wołający składa tytuł i treść z identyfikatorów.
@@ -33,6 +38,7 @@ export async function notifyTenantAdmins(input: TenantAdminAlertInput): Promise<
     const { data: roles, error: rolesError } = await supabaseAdmin
       .from("user_roles")
       .select("user_id")
+      .eq("tenant_id", input.tenantId)
       .in("role", [...ADMIN_ROLES]);
     if (rolesError) throw rolesError;
     const ids = [...new Set((roles ?? []).map((row) => row.user_id))];

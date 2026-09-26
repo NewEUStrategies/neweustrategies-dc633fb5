@@ -12,6 +12,7 @@ import {
   fetchEventParticipantOptions,
   parseEventParticipantOptions,
 } from "@/lib/events/participantOptionsApi";
+import { DEFAULT_PARTICIPANT_SETTINGS } from "@/lib/events/participantSettings";
 import { makeEventParticipantOptions } from "@/test/events/participantFixtures";
 
 const RAW = {
@@ -73,6 +74,19 @@ describe("parseEventParticipantOptions", () => {
       refundMode: "none",
       refundDeadlineHours: 168,
       waitlistOfferHours: 24,
+    });
+  });
+
+  // Moduł publiczny NIE importuje wartości domyślnych panelu (bundle strony
+  // wydarzenia), więc liczby zapasowe są w nim przepisane. Ten test trzyma je
+  // w parze z `DEFAULT_PARTICIPANT_SETTINGS`, który z kolei pilnuje parytet
+  // z DDL tabeli - zmiana DEFAULT-u w migracji zapali oba testy, nie żaden.
+  it("liczby zapasowe = DEFAULT_PARTICIPANT_SETTINGS (parytet z kolumnami)", () => {
+    const parsed = parseEventParticipantOptions({ ok: true, event_id: "e1" });
+    expect(parsed).toMatchObject({
+      sessionReminderLeadMinutes: DEFAULT_PARTICIPANT_SETTINGS.sessionReminderLeadMinutes,
+      refundDeadlineHours: DEFAULT_PARTICIPANT_SETTINGS.refundDeadlineHours,
+      waitlistOfferHours: DEFAULT_PARTICIPANT_SETTINGS.waitlistOfferHours,
     });
   });
 
