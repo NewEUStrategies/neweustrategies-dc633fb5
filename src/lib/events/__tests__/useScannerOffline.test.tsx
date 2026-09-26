@@ -97,8 +97,7 @@ vi.mock("@/lib/events/scannerOfflineStorage", () => ({
     return Promise.resolve();
   },
   loadRoster: (deviceId: string) =>
-    store.rosterGate ??
-    Promise.resolve(store.roster?.deviceId === deviceId ? store.roster : null),
+    store.rosterGate ?? Promise.resolve(store.roster?.deviceId === deviceId ? store.roster : null),
   saveDecisionLog: (log: LocalDecisionLogEntry[]) => {
     store.log = [...log];
     return Promise.resolve();
@@ -437,7 +436,10 @@ describe("zimny start i sesja z pamięci urządzenia", () => {
 
   it("zegar serwera daje przesunięcie zegara urządzenia i ostrzeżenie przy dużej odchyłce", async () => {
     api.bootstrapScanner.mockResolvedValue(
-      session({ offlineRoster: false, serverNow: new Date(FIXED_NOW.getTime() + 300_000).toISOString() }),
+      session({
+        offlineRoster: false,
+        serverNow: new Date(FIXED_NOW.getTime() + 300_000).toISOString(),
+      }),
     );
     const { result } = render();
     await waitFor(() => expect(result.current.status).toBe("ready"));
@@ -474,7 +476,9 @@ describe("lista offline", () => {
   it("lista w pamięci jest bazą PRZYROSTU zamiast pełnego pobrania", async () => {
     store.roster = { deviceId: "dev-1", generatedAt: "v-stara", rows: [entry()] };
     api.bootstrapScanner.mockResolvedValue(session());
-    api.fetchScannerRoster.mockResolvedValue(page({ full: false, generatedAt: "v-nowa", rows: [] }));
+    api.fetchScannerRoster.mockResolvedValue(
+      page({ full: false, generatedAt: "v-nowa", rows: [] }),
+    );
     const { result } = render();
     await waitFor(() => expect(result.current.roster.generatedAt).toBe("v-nowa"));
     expect(api.fetchScannerRoster).toHaveBeenCalledWith({
@@ -612,9 +616,14 @@ describe("skan bez sieci z listą offline", () => {
     goOffline();
     let outcome: Awaited<ReturnType<typeof result.current.submitCheckin>> | undefined;
     await act(async () => {
-      outcome = await result.current.submitCheckin({ code: CODE, checkpointId: CP, direction: "in" });
+      outcome = await result.current.submitCheckin({
+        code: CODE,
+        checkpointId: CP,
+        direction: "in",
+      });
     });
-    if (outcome === undefined || !outcome.queued) throw new Error("test: skan nie trafił do kolejki");
+    if (outcome === undefined || !outcome.queued)
+      throw new Error("test: skan nie trafił do kolejki");
     expect(outcome.local).toMatchObject({ outcome: "granted", admit: true });
     expect(outcome.local?.entry?.firstName).toBe("Olga");
     expect(result.current.outbox[0]).toMatchObject({
@@ -633,7 +642,11 @@ describe("skan bez sieci z listą offline", () => {
     });
     let second: Awaited<ReturnType<typeof result.current.submitCheckin>> | undefined;
     await act(async () => {
-      second = await result.current.submitCheckin({ code: CODE, checkpointId: CP, direction: "in" });
+      second = await result.current.submitCheckin({
+        code: CODE,
+        checkpointId: CP,
+        direction: "in",
+      });
     });
     expect(second).toMatchObject({ queued: true, local: { outcome: "repeat", admit: true } });
     expect(store.log).toHaveLength(1);
@@ -645,12 +658,25 @@ describe("skan bez sieci z listą offline", () => {
     let known: Awaited<ReturnType<typeof result.current.submitCheckin>> | undefined;
     let unknown: Awaited<ReturnType<typeof result.current.submitCheckin>> | undefined;
     await act(async () => {
-      known = await result.current.submitCheckin({ code: `  ${CODE} `, checkpointId: CP, direction: "out" });
-      unknown = await result.current.submitCheckin({ code: "QR-OBCY", checkpointId: CP, direction: "in" });
+      known = await result.current.submitCheckin({
+        code: `  ${CODE} `,
+        checkpointId: CP,
+        direction: "out",
+      });
+      unknown = await result.current.submitCheckin({
+        code: "QR-OBCY",
+        checkpointId: CP,
+        direction: "in",
+      });
     });
     expect(known).toMatchObject({ local: { outcome: "granted" } });
-    expect(unknown).toMatchObject({ local: { outcome: "unknown_code", admit: false, entry: null } });
-    expect(result.current.outbox.at(-1)).toMatchObject({ offlineAdmitted: false, offlineOutcome: "unknown_code" });
+    expect(unknown).toMatchObject({
+      local: { outcome: "unknown_code", admit: false, entry: null },
+    });
+    expect(result.current.outbox.at(-1)).toMatchObject({
+      offlineAdmitted: false,
+      offlineOutcome: "unknown_code",
+    });
   });
 
   it("punkt spoza sesji albo brak listy - skan tylko czeka w kolejce, bez decyzji", async () => {
@@ -658,7 +684,11 @@ describe("skan bez sieci z listą offline", () => {
     goOffline();
     let outcome: Awaited<ReturnType<typeof result.current.submitCheckin>> | undefined;
     await act(async () => {
-      outcome = await result.current.submitCheckin({ code: CODE, checkpointId: "inny", direction: "in" });
+      outcome = await result.current.submitCheckin({
+        code: CODE,
+        checkpointId: "inny",
+        direction: "in",
+      });
     });
     expect(outcome).toEqual({ queued: true, local: null });
     expect(result.current.outbox[0].offlineOutcome).toBeUndefined();
@@ -667,10 +697,16 @@ describe("skan bez sieci z listą offline", () => {
   it("przekroczony termin żądania przy sieci też idzie ścieżką offline", async () => {
     const { result } = await withRoster();
     api.recordCheckinScan.mockReturnValue(new Promise(() => undefined));
-    api.withDeadline.mockImplementation(() => Promise.reject(new Error("Scanner request timed out")));
+    api.withDeadline.mockImplementation(() =>
+      Promise.reject(new Error("Scanner request timed out")),
+    );
     let outcome: Awaited<ReturnType<typeof result.current.submitCheckin>> | undefined;
     await act(async () => {
-      outcome = await result.current.submitCheckin({ code: CODE, checkpointId: CP, direction: "in" });
+      outcome = await result.current.submitCheckin({
+        code: CODE,
+        checkpointId: CP,
+        direction: "in",
+      });
     });
     expect(outcome).toMatchObject({ queued: true, local: { outcome: "granted" } });
   });
@@ -689,14 +725,20 @@ describe("skan bez sieci z listą offline", () => {
     goOffline();
     let outcome: Awaited<ReturnType<typeof result.current.submitCheckin>> | undefined;
     await act(async () => {
-      outcome = await result.current.submitCheckin({ code: CODE, checkpointId: CP, direction: "in" });
+      outcome = await result.current.submitCheckin({
+        code: CODE,
+        checkpointId: CP,
+        direction: "in",
+      });
     });
     expect(outcome).toMatchObject({ local: { outcome: "repeat" } });
   });
 
   it("odmowa online albo odpowiedź bez osoby NIE trafia do dziennika zgód", async () => {
     const { result } = await withRoster();
-    api.recordCheckinScan.mockResolvedValueOnce(scanResult({ result: "denied_capacity", admit: false }));
+    api.recordCheckinScan.mockResolvedValueOnce(
+      scanResult({ result: "denied_capacity", admit: false }),
+    );
     api.recordCheckinScan.mockResolvedValueOnce(scanResult({ person: null }));
     api.recordCheckinScan.mockResolvedValueOnce(
       scanResult({
@@ -728,7 +770,10 @@ describe("skan bez sieci z listą offline", () => {
 
   it("czas skanu jest korygowany przesunięciem zegara z bazy", async () => {
     api.bootstrapScanner.mockResolvedValue(
-      session({ offlineRoster: false, serverNow: new Date(FIXED_NOW.getTime() + 120_000).toISOString() }),
+      session({
+        offlineRoster: false,
+        serverNow: new Date(FIXED_NOW.getTime() + 120_000).toISOString(),
+      }),
     );
     api.recordCheckinScan.mockResolvedValue(scanResult());
     api.recordLeadScan.mockResolvedValue(leadResult());
@@ -765,7 +810,14 @@ function personCard() {
 }
 
 function leadResult(): LeadScanResult {
-  return { outcome: "saved", leadId: "l1", scanCount: 1, consent: false, deviceLocked: false, person: null };
+  return {
+    outcome: "saved",
+    leadId: "l1",
+    scanCount: 1,
+    consent: false,
+    deviceLocked: false,
+    person: null,
+  };
 }
 
 /* ------------------------------------------------------- synchronizacja --- */
@@ -775,7 +827,11 @@ describe("wysyłka kolejki: konflikty i odrzucone", () => {
     device.queue = [queued()];
     api.bootstrapScanner.mockResolvedValue(session({ offlineRoster: false }));
     api.recordCheckinScan.mockResolvedValue(
-      scanResult({ outcome: "denied_not_registered", admit: false, result: "denied_not_registered" }),
+      scanResult({
+        outcome: "denied_not_registered",
+        admit: false,
+        result: "denied_not_registered",
+      }),
     );
     const { result } = render();
     await waitFor(() => expect(result.current.conflicts).toHaveLength(1));
@@ -793,7 +849,10 @@ describe("wysyłka kolejki: konflikty i odrzucone", () => {
   });
 
   it("zgodna decyzja nie jest konfliktem; lead z kolejki też się wysyła", async () => {
-    device.queue = [queued(), queued({ id: "lead-1", kind: "lead", checkpointId: null, direction: null })];
+    device.queue = [
+      queued(),
+      queued({ id: "lead-1", kind: "lead", checkpointId: null, direction: null }),
+    ];
     api.bootstrapScanner.mockResolvedValue(session({ offlineRoster: false }));
     api.recordCheckinScan.mockResolvedValue(scanResult());
     api.recordLeadScan.mockResolvedValue(leadResult());
@@ -870,7 +929,9 @@ describe("wysyłka kolejki: konflikty i odrzucone", () => {
 
   it("wygasłe poświadczenie nadal wysyła kolejkę (okno 72 h po terminie)", async () => {
     device.queue = [queued()];
-    api.bootstrapScanner.mockResolvedValue(session({ offlineRoster: false, expiresAt: relativeIso(-60_000) }));
+    api.bootstrapScanner.mockResolvedValue(
+      session({ offlineRoster: false, expiresAt: relativeIso(-60_000) }),
+    );
     api.recordCheckinScan.mockResolvedValue(scanResult());
     const { result } = render();
     await waitFor(() => expect(result.current.status).toBe("expired"));

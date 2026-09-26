@@ -37,11 +37,7 @@ import type {
 import type { RosterPageInput } from "@/lib/events/scannerApi";
 import type { OutboxItem, RejectedScan } from "@/lib/events/scannerOutbox";
 import type { CachedSession } from "@/lib/events/scannerOfflineStorage";
-import type {
-  LocalDecisionLogEntry,
-  RosterPage,
-  RosterSnapshot,
-} from "@/lib/events/scannerRoster";
+import type { LocalDecisionLogEntry, RosterPage, RosterSnapshot } from "@/lib/events/scannerRoster";
 import type { ScanConflict } from "@/lib/events/scannerSyncIssues";
 import type { ScannerSession } from "@/lib/events/scannerSession";
 import type {
@@ -83,13 +79,17 @@ vi.mock("@/lib/events/scannerOfflineStorage", () => ({
     return Promise.resolve();
   },
   loadCachedSession: (hash: string) =>
-    Promise.resolve(store.session !== null && store.session.tokenHash === hash ? store.session : null),
+    Promise.resolve(
+      store.session !== null && store.session.tokenHash === hash ? store.session : null,
+    ),
   saveRoster: (snapshot: RosterSnapshot | null) => {
     store.roster = snapshot;
     return Promise.resolve();
   },
   loadRoster: (deviceId: string) =>
-    Promise.resolve(store.roster !== null && store.roster.deviceId === deviceId ? store.roster : null),
+    Promise.resolve(
+      store.roster !== null && store.roster.deviceId === deviceId ? store.roster : null,
+    ),
   saveDecisionLog: (log: LocalDecisionLogEntry[]) => {
     store.log = [...log];
     return Promise.resolve();

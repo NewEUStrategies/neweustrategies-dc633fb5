@@ -217,7 +217,11 @@ export const CLOCK_SKEW_WARNING_MS = 90_000;
  * `server_now` ze ŚRODKIEM tego odcinka. Bez `server_now` (starszy backend,
  * nieczytelna data) zakładamy zgodność - lepsze zero niż NaN w dzienniku.
  */
-export function clockOffsetMs(serverNow: string | null, sentAtMs: number, receivedAtMs: number): number {
+export function clockOffsetMs(
+  serverNow: string | null,
+  sentAtMs: number,
+  receivedAtMs: number,
+): number {
   if (serverNow === null) return 0;
   const server = Date.parse(serverNow);
   if (Number.isNaN(server)) return 0;

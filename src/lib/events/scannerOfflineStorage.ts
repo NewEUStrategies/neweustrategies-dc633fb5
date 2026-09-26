@@ -23,7 +23,11 @@
 // jedyny ślad skanów, których baza nie przyjęła - skasowanie ich razem
 // z sesją byłoby dokładnie tą cichą utratą, którą ten moduł ma zamknąć.
 // TOKENU TU NIE MA: sesję rozpoznajemy po skrócie SHA-256 tokenu.
-import { parseScannerSession, sessionToRecord, type ScannerSession } from "@/lib/events/scannerSession";
+import {
+  parseScannerSession,
+  sessionToRecord,
+  type ScannerSession,
+} from "@/lib/events/scannerSession";
 import {
   parseDecisionLog,
   parseRosterSnapshot,
@@ -175,7 +179,9 @@ export async function loadCachedSession(tokenHash: string): Promise<CachedSessio
 /* ------------------------------------------------------ lista offline --- */
 
 export async function saveRoster(snapshot: RosterSnapshot | null): Promise<void> {
-  await writeRecords([["roster", snapshot === null ? undefined : rosterSnapshotToRecord(snapshot)]]);
+  await writeRecords([
+    ["roster", snapshot === null ? undefined : rosterSnapshotToRecord(snapshot)],
+  ]);
 }
 
 /** Lista TEGO urządzenia - lista innego poświadczenia na tym telefonie to `null`. */

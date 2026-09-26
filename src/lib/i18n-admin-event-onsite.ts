@@ -310,8 +310,10 @@ export const adminEventOnsitePl = {
         revoked: "Poświadczenie unieważnione.",
         paused: "Poświadczenie wstrzymane.",
         resumed: "Poświadczenie wznowione.",
-        offlineEnabled: "Lista offline włączona - urządzenie pobierze ją przy następnym połączeniu.",
-        offlineDisabled: "Lista offline wyłączona - urządzenie usunie ją przy następnym połączeniu.",
+        offlineEnabled:
+          "Lista offline włączona - urządzenie pobierze ją przy następnym połączeniu.",
+        offlineDisabled:
+          "Lista offline wyłączona - urządzenie usunie ją przy następnym połączeniu.",
       },
     },
     badges: {

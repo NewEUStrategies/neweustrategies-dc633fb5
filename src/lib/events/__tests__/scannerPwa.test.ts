@@ -215,7 +215,11 @@ describe("rozgrzanie cache workera", () => {
     const { isScannerPrecacheUrl } = await import("@/lib/events/scannerPwa");
     const ok = ["/scanner", "/_build/a.js", "/assets/b.css", "/scanner/icon-192.png"];
     for (const path of ok) expect(isScannerPrecacheUrl(new URL(path, ORIGIN), ORIGIN)).toBe(true);
-    for (const url of [`${ORIGIN}/events/x`, `${ORIGIN}/api/public/y`, "https://obce.example/assets/a.js"]) {
+    for (const url of [
+      `${ORIGIN}/events/x`,
+      `${ORIGIN}/api/public/y`,
+      "https://obce.example/assets/a.js",
+    ]) {
       expect(isScannerPrecacheUrl(new URL(url), ORIGIN)).toBe(false);
     }
   });
@@ -231,7 +235,9 @@ describe("rozgrzanie cache workera", () => {
   });
 
   function installWorker(onPost: (message: unknown, port: MessagePort) => void) {
-    const active = { postMessage: vi.fn((message: unknown, ports: MessagePort[]) => onPost(message, ports[0])) };
+    const active = {
+      postMessage: vi.fn((message: unknown, ports: MessagePort[]) => onPost(message, ports[0])),
+    };
     vi.stubGlobal("navigator", { serviceWorker: { ready: Promise.resolve({ active }) } });
     vi.spyOn(performance, "getEntriesByType").mockReturnValue([
       { name: `${window.location.origin}/assets/a.js` } as PerformanceEntry,

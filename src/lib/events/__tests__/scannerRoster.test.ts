@@ -153,7 +153,10 @@ describe("strona listy offline", () => {
       full: true,
       total: 2,
       next_after: "r9",
-      rows: [{ r: "r1", h: H1, s: "approved" }, { r: "r2", h: "zly" }],
+      rows: [
+        { r: "r1", h: H1, s: "approved" },
+        { r: "r2", h: "zly" },
+      ],
       removed: ["r3", "", 5, null],
     });
     expect(parsed?.generatedAt).toBe("2026-09-26T09:00:00.123456+00:00");
@@ -263,7 +266,11 @@ describe("synchronizacja listy", () => {
     const fetchPage = vi
       .fn()
       .mockResolvedValue(page({ generatedAt: "v9", full: false, removed: ["r1"] }));
-    const previous = { deviceId: "d1", generatedAt: "v8", rows: [entry(), entry({ registrationId: "r2", hash: H2 })] };
+    const previous = {
+      deviceId: "d1",
+      generatedAt: "v8",
+      rows: [entry(), entry({ registrationId: "r2", hash: H2 })],
+    };
 
     const snapshot = await syncRosterSnapshot({ deviceId: "d1", previous, fetchPage });
 
@@ -370,12 +377,54 @@ const PARITY: ReadonlyArray<
   readonly [string, RosterEntry | null, Partial<ScannerCheckpoint>, "in" | "out", string, boolean]
 > = [
   ["kod spoza listy (baza: brak zapisu z tym skrótem)", null, {}, "in", "unknown_code", false],
-  ["kod spoza listy na punkcie track też odmawia", null, { accessMode: "track" }, "in", "unknown_code", false],
-  ["wejście na punkt tylko-wyjściowy", entry(), { directionMode: "out_only" }, "in", "denied_direction", false],
-  ["wyjście z punktu tylko-wejściowego", entry(), { directionMode: "in_only" }, "out", "denied_direction", false],
-  ["kierunek sprawdzany PRZED statusem", entry({ status: "pending" }), { directionMode: "out_only" }, "in", "denied_direction", false],
-  ["zapis oczekujący na punkcie control", entry({ status: "pending" }), {}, "in", "denied_registration_status", false],
-  ["zapis oczekujący na punkcie track - baza liczy i wpuszcza", entry({ status: "waitlisted" }), { accessMode: "track" }, "in", "denied_registration_status", true],
+  [
+    "kod spoza listy na punkcie track też odmawia",
+    null,
+    { accessMode: "track" },
+    "in",
+    "unknown_code",
+    false,
+  ],
+  [
+    "wejście na punkt tylko-wyjściowy",
+    entry(),
+    { directionMode: "out_only" },
+    "in",
+    "denied_direction",
+    false,
+  ],
+  [
+    "wyjście z punktu tylko-wejściowego",
+    entry(),
+    { directionMode: "in_only" },
+    "out",
+    "denied_direction",
+    false,
+  ],
+  [
+    "kierunek sprawdzany PRZED statusem",
+    entry({ status: "pending" }),
+    { directionMode: "out_only" },
+    "in",
+    "denied_direction",
+    false,
+  ],
+  [
+    "zapis oczekujący na punkcie control",
+    entry({ status: "pending" }),
+    {},
+    "in",
+    "denied_registration_status",
+    false,
+  ],
+  [
+    "zapis oczekujący na punkcie track - baza liczy i wpuszcza",
+    entry({ status: "waitlisted" }),
+    { accessMode: "track" },
+    "in",
+    "denied_registration_status",
+    true,
+  ],
   ["zapis zatwierdzony", entry({ status: "approved" }), {}, "in", "granted", true],
   ["zapis już obecny (attended)", entry({ status: "attended" }), {}, "in", "granted", true],
   ["wyjście zatwierdzonego przez punkt in_out", entry(), {}, "out", "granted", true],

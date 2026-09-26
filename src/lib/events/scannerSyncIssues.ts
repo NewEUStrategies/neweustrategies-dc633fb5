@@ -201,7 +201,7 @@ export function syncIssuesCsv(
       row.item.id,
     ]),
   ];
-  return `﻿${csvDocument(header, rows)}`;
+  return `\uFEFF${csvDocument(header, rows)}`;
 }
 
 export function syncIssuesJson(
@@ -218,7 +218,10 @@ export function syncIssuesFileName(
   nowIso: string,
   extension: "csv" | "json",
 ): string {
-  const slug = (eventSlug ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const slug = (eventSlug ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
   return `skaner-${slug === "" ? "wydarzenie" : slug}-${nowIso.slice(0, 10)}.${extension}`;
 }
 

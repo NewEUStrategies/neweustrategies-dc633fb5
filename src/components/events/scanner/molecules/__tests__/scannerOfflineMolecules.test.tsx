@@ -37,7 +37,8 @@ vi.mock("@/lib/events/scannerSyncIssues", async (importOriginal) => ({
   },
 }));
 
-const { ScannerOfflineBar } = await import("@/components/events/scanner/molecules/ScannerOfflineBar");
+const { ScannerOfflineBar } =
+  await import("@/components/events/scanner/molecules/ScannerOfflineBar");
 const { ScannerReadinessCard } =
   await import("@/components/events/scanner/molecules/ScannerReadinessCard");
 const { ScannerSyncIssuesPanel } =
@@ -189,9 +190,17 @@ describe("ScannerOfflineBar - stan listy offline w pasku sesji", () => {
 });
 
 describe("ScannerReadinessCard - gotowość do pracy bez sieci", () => {
-  function card(r: ScannerReadiness, rosterState: "fresh" | "stale" | "none" | "disabled" = "fresh", queuePersistent = true) {
+  function card(
+    r: ScannerReadiness,
+    rosterState: "fresh" | "stale" | "none" | "disabled" = "fresh",
+    queuePersistent = true,
+  ) {
     return render(
-      <ScannerReadinessCard readiness={r} rosterState={rosterState} queuePersistent={queuePersistent} />,
+      <ScannerReadinessCard
+        readiness={r}
+        rosterState={rosterState}
+        queuePersistent={queuePersistent}
+      />,
     );
   }
 
@@ -206,10 +215,14 @@ describe("ScannerReadinessCard - gotowość do pracy bez sieci", () => {
 
   it("powłoka: częściowa z liczbami, sprawdzana, brakująca", () => {
     card(readiness({ shell: "partial", precache: { cached: 3, total: 9 } }));
-    expect(screen.getByText("eventScanner.readiness.shellPartial(cached=3,total=9)")).toBeInTheDocument();
+    expect(
+      screen.getByText("eventScanner.readiness.shellPartial(cached=3,total=9)"),
+    ).toBeInTheDocument();
     cleanup();
     card(readiness({ shell: "partial", precache: null }));
-    expect(screen.getByText("eventScanner.readiness.shellPartial(cached=0,total=0)")).toBeInTheDocument();
+    expect(
+      screen.getByText("eventScanner.readiness.shellPartial(cached=0,total=0)"),
+    ).toBeInTheDocument();
     cleanup();
     card(readiness({ shell: "checking", precache: null }));
     expect(screen.getByText("eventScanner.readiness.shellChecking")).toBeInTheDocument();
@@ -252,13 +265,20 @@ describe("ScannerReadinessCard - gotowość do pracy bez sieci", () => {
   });
 
   it("karta nie ma naruszeń dostępności", async () => {
-    const { container } = card(readiness({ storagePersisted: false, shell: "missing" }), "none", false);
+    const { container } = card(
+      readiness({ storagePersisted: false, shell: "missing" }),
+      "none",
+      false,
+    );
     expect(summarize(await axeViolations(container))).toBe("");
   });
 });
 
 describe("ScannerSyncIssuesPanel - konflikty i odrzucone skany", () => {
-  function panel(conflicts: ScanConflict[] = [conflict()], rejected: RejectedScan[] = [rejectedScan()]) {
+  function panel(
+    conflicts: ScanConflict[] = [conflict()],
+    rejected: RejectedScan[] = [rejectedScan()],
+  ) {
     const onClear = vi.fn();
     const view = render(
       <ScannerSyncIssuesPanel
@@ -278,7 +298,9 @@ describe("ScannerSyncIssuesPanel - konflikty i odrzucone skany", () => {
     expect(screen.getByText("eventScanner.sync.conflicts(count=1)")).toBeInTheDocument();
     expect(screen.getByText("eventScanner.sync.kinds.admittedOffline")).toBeInTheDocument();
     expect(
-      screen.getByText(/Anna Kowalska · .* · eventScanner\.outcomes\.granted → eventScanner\.outcomes\.deniedNotRegistered/),
+      screen.getByText(
+        /Anna Kowalska · .* · eventScanner\.outcomes\.granted → eventScanner\.outcomes\.deniedNotRegistered/,
+      ),
     ).toBeInTheDocument();
   });
 
@@ -292,7 +314,9 @@ describe("ScannerSyncIssuesPanel - konflikty i odrzucone skany", () => {
   it("odrzucony skan pokazuje kod, czas i zdanie odmowy bazy", () => {
     panel([], [rejectedScan()]);
     const row = screen.getByText("QR-ODRZUCONY").closest("li") as HTMLElement;
-    expect(within(row).getByText("Poświadczenie zostało unieważnione. Poproś organizatora o nowy kod.")).toBeInTheDocument();
+    expect(
+      within(row).getByText("Poświadczenie zostało unieważnione. Poproś organizatora o nowy kod."),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/eventScanner\.sync\.conflicts/)).toBeNull();
   });
 

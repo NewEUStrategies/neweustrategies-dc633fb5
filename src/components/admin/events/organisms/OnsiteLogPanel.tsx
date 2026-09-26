@@ -180,9 +180,7 @@ export function OnsiteLogPanel({ eventId }: { eventId: string }) {
         }
         isEmpty={rows.length === 0}
         emptyLabel={
-          conflictsOnly
-            ? t("adminEventOnsite.log.conflictsEmpty")
-            : t("adminEventOnsite.log.empty")
+          conflictsOnly ? t("adminEventOnsite.log.conflictsEmpty") : t("adminEventOnsite.log.empty")
         }
       >
         <div className="overflow-hidden rounded-md border border-border/70">

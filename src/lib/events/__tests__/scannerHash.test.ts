@@ -25,7 +25,10 @@ describe("sha256Hex", () => {
 
   it("znaki spoza ASCII są liczone z UTF-8, tak jak w Postgresie", async () => {
     // sha256 UTF-8 bajtów "zażółć" - policzone niezależnie od implementacji.
-    const viaNode = (await import("node:crypto")).createHash("sha256").update("zażółć", "utf8").digest("hex");
+    const viaNode = (await import("node:crypto"))
+      .createHash("sha256")
+      .update("zażółć", "utf8")
+      .digest("hex");
     await expect(sha256Hex("zażółć")).resolves.toBe(viaNode);
   });
 

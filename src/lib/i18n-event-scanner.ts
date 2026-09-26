@@ -293,8 +293,7 @@ export const eventScannerPl = {
       title: "Gotowość do pracy bez sieci",
       shellReady: "Aplikacja zapisana na urządzeniu",
       shellPartial: "Aplikacja zapisana częściowo ({{cached}} z {{total}} plików)",
-      shellMissing:
-        "Aplikacja nie jest jeszcze zapisana - otwórz skaner raz przy dobrym zasięgu",
+      shellMissing: "Aplikacja nie jest jeszcze zapisana - otwórz skaner raz przy dobrym zasięgu",
       shellChecking: "Sprawdzam, czy aplikacja jest zapisana…",
       rosterReady: "Lista offline aktualna",
       rosterNotReady: "Brak aktualnej listy offline",
@@ -334,14 +333,20 @@ export const eventScannerPl = {
       clearDescription:
         "Konflikty i odrzucone skany znikną z tego urządzenia. Zrób to dopiero po przekazaniu pliku organizatorowi.",
       cancel: "Anuluj",
-      flushedConflicts_one: "Po wysyłce: {{count}} konflikt decyzji offline - sprawdź listę do wyjaśnienia.",
-      flushedConflicts_few: "Po wysyłce: {{count}} konflikty decyzji offline - sprawdź listę do wyjaśnienia.",
-      flushedConflicts_many: "Po wysyłce: {{count}} konfliktów decyzji offline - sprawdź listę do wyjaśnienia.",
-      flushedConflicts_other: "Po wysyłce: {{count}} konfliktów decyzji offline - sprawdź listę do wyjaśnienia.",
+      flushedConflicts_one:
+        "Po wysyłce: {{count}} konflikt decyzji offline - sprawdź listę do wyjaśnienia.",
+      flushedConflicts_few:
+        "Po wysyłce: {{count}} konflikty decyzji offline - sprawdź listę do wyjaśnienia.",
+      flushedConflicts_many:
+        "Po wysyłce: {{count}} konfliktów decyzji offline - sprawdź listę do wyjaśnienia.",
+      flushedConflicts_other:
+        "Po wysyłce: {{count}} konfliktów decyzji offline - sprawdź listę do wyjaśnienia.",
       flushedRejected_one: "{{count}} skan odrzucony przez bazę - jest na liście do wyjaśnienia.",
       flushedRejected_few: "{{count}} skany odrzucone przez bazę - są na liście do wyjaśnienia.",
-      flushedRejected_many: "{{count}} skanów odrzuconych przez bazę - są na liście do wyjaśnienia.",
-      flushedRejected_other: "{{count}} skanów odrzuconych przez bazę - są na liście do wyjaśnienia.",
+      flushedRejected_many:
+        "{{count}} skanów odrzuconych przez bazę - są na liście do wyjaśnienia.",
+      flushedRejected_other:
+        "{{count}} skanów odrzuconych przez bazę - są na liście do wyjaśnienia.",
       columns: {
         type: "Typ",
         kind: "Rodzaj",
@@ -645,10 +650,13 @@ export const eventScannerEn = {
       clearDescription:
         "Conflicts and rejected scans disappear from this device. Only do this after handing the file to the organiser.",
       cancel: "Cancel",
-      flushedConflicts_one: "After sending: {{count}} offline decision conflict - check the list to clear up.",
-      flushedConflicts_other: "After sending: {{count}} offline decision conflicts - check the list to clear up.",
+      flushedConflicts_one:
+        "After sending: {{count}} offline decision conflict - check the list to clear up.",
+      flushedConflicts_other:
+        "After sending: {{count}} offline decision conflicts - check the list to clear up.",
       flushedRejected_one: "{{count}} scan rejected by the server - it is on the list to clear up.",
-      flushedRejected_other: "{{count}} scans rejected by the server - they are on the list to clear up.",
+      flushedRejected_other:
+        "{{count}} scans rejected by the server - they are on the list to clear up.",
       columns: {
         type: "Type",
         kind: "Kind",

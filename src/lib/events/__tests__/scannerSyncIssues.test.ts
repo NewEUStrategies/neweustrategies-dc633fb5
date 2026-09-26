@@ -174,7 +174,10 @@ describe("wykrycie konfliktu po synchronizacji", () => {
 
 describe("lista konfliktów", () => {
   it("ten sam skan (replay) nie dubluje konfliktu - nowszy wypiera starszy", () => {
-    const list = appendConflict([conflict({ detectedAt: "stary" })], conflict({ detectedAt: "nowy" }));
+    const list = appendConflict(
+      [conflict({ detectedAt: "stary" })],
+      conflict({ detectedAt: "nowy" }),
+    );
     expect(list).toHaveLength(1);
     expect(list[0].detectedAt).toBe("nowy");
   });
@@ -235,7 +238,7 @@ describe("eksport dla organizatora", () => {
   it("CSV ma BOM, nagłówek w języku operatora i neutralizuje formuły", () => {
     const csv = syncIssuesCsv([conflict({ checkinId: null })], [rejected], LABELS);
     const lines = csv.slice(1).split("\n");
-    expect(csv.startsWith("﻿")).toBe(true);
+    expect(csv.startsWith("\uFEFF")).toBe(true);
     expect(lines[0]).toBe("Typ,Rodzaj,Czas,Punkt,Kierunek,Offline,Serwer,Osoba,Zgloszenie,Kod,Id");
     // Konflikt bez identyfikatora odprawy odsyła do klucza skanu.
     expect(lines[1]).toContain("konflikt,admitted_offline");
@@ -274,7 +277,9 @@ describe("eksport dla organizatora", () => {
     const create = vi.fn(() => "blob:x");
     const revoke = vi.fn();
     vi.stubGlobal("URL", Object.assign(URL, { createObjectURL: create, revokeObjectURL: revoke }));
-    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
 
     downloadTextFile("a.csv", "text/csv", "x");
 

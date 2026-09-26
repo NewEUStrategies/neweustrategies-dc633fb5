@@ -45,7 +45,9 @@ export function ScannerOfflineBar({
   let line: string;
   if (state === "disabled") line = t("eventScanner.offline.rosterDisabled");
   else if (state === "none") {
-    line = roster.syncing ? t("eventScanner.offline.rosterSyncing") : t("eventScanner.offline.rosterNone");
+    line = roster.syncing
+      ? t("eventScanner.offline.rosterSyncing")
+      : t("eventScanner.offline.rosterNone");
   } else if (state === "fresh") {
     line = t("eventScanner.offline.rosterFresh", { count: roster.count, time });
   } else {
@@ -82,7 +84,9 @@ export function ScannerOfflineBar({
         )}
       </div>
 
-      {sessionStale && <p className="text-muted-foreground">{t("eventScanner.session.staleSession")}</p>}
+      {sessionStale && (
+        <p className="text-muted-foreground">{t("eventScanner.session.staleSession")}</p>
+      )}
 
       {clockSkewed && (
         <p className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300">

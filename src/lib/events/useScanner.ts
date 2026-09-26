@@ -474,15 +474,17 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
   // Odrzucone i konflikty z poprzedniej zmiany - scalone z tym, co mogło
   // przybyć, zanim odczyt wrócił.
   useEffect(() => {
-    void Promise.all([loadRejected(), loadConflicts()]).then(([storedRejected, storedConflicts]) => {
-      const nextRejected = appendRejected(storedRejected, rejectedRef.current);
-      rejectedRef.current = nextRejected;
-      setRejected(nextRejected);
-      const nextConflicts = conflictsRef.current.reduce(appendConflict, storedConflicts);
-      conflictsRef.current = nextConflicts;
-      setConflicts(nextConflicts);
-      markOfflinePersistence();
-    });
+    void Promise.all([loadRejected(), loadConflicts()]).then(
+      ([storedRejected, storedConflicts]) => {
+        const nextRejected = appendRejected(storedRejected, rejectedRef.current);
+        rejectedRef.current = nextRejected;
+        setRejected(nextRejected);
+        const nextConflicts = conflictsRef.current.reduce(appendConflict, storedConflicts);
+        conflictsRef.current = nextConflicts;
+        setConflicts(nextConflicts);
+        markOfflinePersistence();
+      },
+    );
   }, [markOfflinePersistence]);
 
   // Sesja podniesiona z pamięci - potwierdzamy ją w bazie przy każdej okazji

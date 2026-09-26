@@ -823,7 +823,9 @@ describe("dostępność", () => {
 
 describe("lista offline na urządzeniu", () => {
   it("urządzenie ZE zgodą ma odznakę i mówi, kiedy pobrało listę", () => {
-    h.rows = [urzadzenie({ offline_roster: true, roster_downloaded_at: "2026-09-01T07:05:00.000Z" })];
+    h.rows = [
+      urzadzenie({ offline_roster: true, roster_downloaded_at: "2026-09-01T07:05:00.000Z" }),
+    ];
     panel();
 
     expect(within(wiersz()).getByText(`${T}.devices.offlineBadge`)).toBeTruthy();

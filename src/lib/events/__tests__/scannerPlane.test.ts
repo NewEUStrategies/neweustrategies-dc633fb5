@@ -484,7 +484,9 @@ describe("scannerSession - pola trybu offline", () => {
       rosterDownloadedAt: null,
       serverNow: null,
     });
-    expect(parseScannerSession({ ...BOOTSTRAP, offline_roster: "true" })?.offlineRoster).toBe(false);
+    expect(parseScannerSession({ ...BOOTSTRAP, offline_roster: "true" })?.offlineRoster).toBe(
+      false,
+    );
   });
 
   it("sesja zapisana w kształcie bazy wraca przez parser BEZ strat", () => {
@@ -578,12 +580,20 @@ describe("scannerOutbox - odrzucone i pozycje z pamięci", () => {
       offlineOutcome: "granted",
       rosterGeneratedAt: "v1",
     });
-    expect(parseOutboxItem({ ...item({}), offlineOutcome: "denied_capacity" })?.offlineOutcome).toBeNull();
+    expect(
+      parseOutboxItem({ ...item({}), offlineOutcome: "denied_capacity" })?.offlineOutcome,
+    ).toBeNull();
   });
 
   it("brakujące liczniki i terminy dostają wartości bezpieczne", () => {
     expect(
-      parseOutboxItem({ id: "i1", code: "A", kind: "checkin", direction: "out", interestRating: "5" }),
+      parseOutboxItem({
+        id: "i1",
+        code: "A",
+        kind: "checkin",
+        direction: "out",
+        interestRating: "5",
+      }),
     ).toMatchObject({
       direction: "out",
       interestRating: null,

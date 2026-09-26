@@ -440,6 +440,7 @@ function poswiadczenie(overrides: Partial<ScannerDeviceCredential> = {}): Scanne
     tokenPrefix: "tok_abc",
     scopes: ["checkin", "lead"],
     expiresAt: null,
+    offlineRoster: false,
     ...overrides,
   };
 }
@@ -588,8 +589,7 @@ describe("ScannerCredentialDialog - schowek", () => {
 });
 
 describe("ScannerDeviceDialog - lista offline na urządzeniu", () => {
-  const listaOffline = () =>
-    screen.getByRole("checkbox", { name: `${D}offlineRoster` });
+  const listaOffline = () => screen.getByRole("checkbox", { name: `${D}offlineRoster` });
 
   it("pole jest DOMYŚLNIE puste i stoi obok ostrzeżenia RODO", () => {
     renderujWydanie();

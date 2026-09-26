@@ -532,7 +532,9 @@ describe("ScannerCheckinPanel - decyzja bez sieci", () => {
     expect(await screen.findByText("eventScanner.outcomes.granted")).toBeInTheDocument();
     expect(banner().className).toContain("emerald");
     expect(
-      screen.getByText(/eventScanner\.offline\.decisionHint\(\{"time":"26 września 2026 09:12"\}\)/),
+      screen.getByText(
+        /eventScanner\.offline\.decisionHint\(\{"time":"26 września 2026 09:12"\}\)/,
+      ),
     ).toBeInTheDocument();
     expect(screen.getByText("eventScanner.offline.personFromRoster")).toBeInTheDocument();
     expect(screen.getByText("Olga Offline")).toBeInTheDocument();
