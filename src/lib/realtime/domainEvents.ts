@@ -126,6 +126,12 @@ export const DOMAIN_EVENT_TYPES = [
   // `invoice_id`, `kind`) - bez danych nabywcy.
   "event_invoice.issued.v1",
   "event_invoice.cancelled.v1",
+  // Plan sali (20260926130000): przydzial, zwolnienie (takze triggerem po
+  // zmianie statusu zgloszenia) i zmiana ukladu/rezerwacji/publikacji planu.
+  // Payload niesie `event_id`, `map_id` i liczby - bez nazwisk i firm.
+  "event_seat.assigned.v1",
+  "event_seat.released.v1",
+  "event_seat_map.changed.v1",
 ] as const;
 
 export type DomainEventType = (typeof DOMAIN_EVENT_TYPES)[number];
@@ -178,6 +184,8 @@ export const DOMAIN_AGGREGATE_TYPES = [
   "event_cfp_submission",
   "event_cfp_review",
   "event_invoice",
+  "event_seat",
+  "event_seat_map",
 ] as const;
 
 export type DomainAggregateType = (typeof DOMAIN_AGGREGATE_TYPES)[number];

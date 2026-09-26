@@ -20,6 +20,7 @@ import { cfpKeys } from "@/lib/events/useEventCfp";
 import { cfpMeKeys } from "@/lib/events/useCfpMe";
 import { eventInvoiceKeys } from "@/lib/events/useEventInvoices";
 import { myEventInvoiceKeys } from "@/lib/events/useMyEventInvoices";
+import { seatingKeys } from "@/lib/events/useEventSeating";
 
 const EVENT_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const CTX = { userId: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" };
@@ -159,5 +160,44 @@ describe("mapa inwalidacji modułu wydarzeń", () => {
       CTX,
     ) as unknown[][];
     expect(includesPrefix(keys, eventInvoiceKeys.all)).toBe(true);
+  });
+
+  it("plan sali: przydział i zwolnienie trafiają w plan I w listę zgłoszeń TEGO wydarzenia", () => {
+    for (const type of ["event_seat.assigned.v1", "event_seat.released.v1"]) {
+      const keys = invalidationKeysFor(
+        domainEvent(type, { event_id: EVENT_ID }),
+        CTX,
+      ) as unknown[][];
+      expect(includesPrefix(keys, seatingKeys.event(EVENT_ID)), type).toBe(true);
+      expect(includesPrefix(keys, registrationKeys.event(EVENT_ID)), type).toBe(true);
+      // Para: inne wydarzenie zostaje nietknięte.
+      expect(
+        includesPrefix(keys, seatingKeys.event("ffffffff-ffff-ffff-ffff-ffffffffffff")),
+        type,
+      ).toBe(false);
+    }
+  });
+
+  it("plan sali: zmiana układu odświeża wyłącznie plan, bez listy zgłoszeń", () => {
+    const keys = invalidationKeysFor(
+      domainEvent("event_seat_map.changed.v1", { event_id: EVENT_ID }),
+      CTX,
+    ) as unknown[][];
+    expect(includesPrefix(keys, seatingKeys.event(EVENT_ID))).toBe(true);
+    expect(includesPrefix(keys, registrationKeys.all)).toBe(false);
+  });
+
+  it("plan sali bez `event_id` degraduje do całych gałęzi planu i zgłoszeń", () => {
+    const released = invalidationKeysFor(
+      domainEvent("event_seat.released.v1", {}),
+      CTX,
+    ) as unknown[][];
+    expect(includesPrefix(released, seatingKeys.all)).toBe(true);
+    expect(includesPrefix(released, registrationKeys.all)).toBe(true);
+    const changed = invalidationKeysFor(
+      domainEvent("event_seat_map.changed.v1", {}),
+      CTX,
+    ) as unknown[][];
+    expect(changed).toEqual([seatingKeys.all]);
   });
 });

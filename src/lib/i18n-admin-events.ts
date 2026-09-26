@@ -1008,6 +1008,10 @@ export const adminEventsPl = {
           conflicts_other: "{{count}} kolizji w agendzie do rozwiązania",
           rooms: "Dodaj sale wydarzenia stacjonarnego",
           tickets: "Dodaj typ biletu dla płatnej rejestracji",
+          seating_one: "{{count}} uprawniona osoba bez miejsca na opublikowanym planie sali",
+          seating_few: "{{count}} uprawnione osoby bez miejsca na opublikowanym planie sali",
+          seating_many: "{{count}} uprawnionych osób bez miejsca na opublikowanym planie sali",
+          seating_other: "{{count}} uprawnionej osoby bez miejsca na opublikowanym planie sali",
         },
       },
 
@@ -2046,6 +2050,8 @@ export const adminEventsEn = {
           conflicts_other: "{{count}} agenda conflicts to resolve",
           rooms: "Add rooms for the on-site event",
           tickets: "Add a ticket type for paid registration",
+          seating_one: "{{count}} eligible attendee without a seat on a published seating plan",
+          seating_other: "{{count}} eligible attendees without a seat on a published seating plan",
         },
       },
 

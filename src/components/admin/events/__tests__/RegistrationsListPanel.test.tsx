@@ -23,6 +23,9 @@
 //      i NIE OBIECUJE KOMPLETU, którego nie ma (ostrzeżenie o ucięciu).
 //   7. KAŻDA ODMOWA kończy się zdaniem, a nie kodem błędu, i NIE kasuje stanu
 //      ekranu: okno decyzji zostaje otwarte, filtr i strona zostają.
+//   8. MIEJSCE NA SALI: lista pyta o miejsca WIDOCZNYCH wierszy, plik - o
+//      miejsca WSZYSTKICH wierszy eksportu; przy kilku planach napis niesie
+//      nazwę planu, a awaria odczytu miejsc nie wydaje pliku bez kolumny.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. (1) REGUŁ wiersza (`allowedRegistrationActions`,
 // tony, etykiety biletu i grupy, stronicowanie) - tabele przypadków są
@@ -92,6 +95,15 @@ const h = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   toastWarning: vi.fn(),
+  /** Odczyt miejsc na sali dla WIDOCZNYCH wierszy (hook planu sali). */
+  seatLookups: [] as unknown[] | undefined,
+  seatLookupCalls: [] as { eventId: string; ids: readonly string[] }[],
+  /** Odczyt miejsc przy eksporcie (`fetchSeatLookup`) - osobno od hooka. */
+  exportSeats: [] as unknown[],
+  exportSeatCalls: [] as { eventId: string; ids: readonly string[] }[],
+  exportSeatError: null as unknown,
+  /** Treść ostatniego pliku CSV złożonego przez eksport. */
+  csvParts: [] as string[],
 }));
 
 vi.mock("react-i18next", async () =>
@@ -117,6 +129,26 @@ vi.mock("@/lib/events/registrationsApi", async (importOriginal) => ({
     h.listQueries.push({ eksport: true, ...query });
     if (h.exportError !== null) return Promise.reject(h.exportError);
     return Promise.resolve(h.exportPages.shift() ?? { rows: [], total: 0 });
+  },
+}));
+
+// Plan sali ma własne testy warstwy danych (`seatingApi.test.ts`,
+// `useEventSeating.test.ts`); tu dowodzimy, że lista pyta o miejsca WIDOCZNYCH
+// wierszy, a eksport - o miejsca WSZYSTKICH wierszy pliku.
+vi.mock("@/lib/i18n-admin-event-seating", () => ({ ensureSeatingI18n: () => undefined }));
+vi.mock("@/lib/i18n-event-seating", () => ({ ensureEventSeatingI18n: () => undefined }));
+vi.mock("@/lib/events/useEventSeating", () => ({
+  useSeatLookup: (eventId: string, ids: readonly string[]) => {
+    h.seatLookupCalls.push({ eventId, ids });
+    return { data: h.seatLookups };
+  },
+}));
+vi.mock("@/lib/events/seatingApi", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/events/seatingApi")>()),
+  fetchSeatLookup: (eventId: string, ids: readonly string[]) => {
+    h.exportSeatCalls.push({ eventId, ids });
+    if (h.exportSeatError !== null) return Promise.reject(h.exportSeatError);
+    return Promise.resolve(h.exportSeats);
   },
 }));
 
@@ -272,6 +304,7 @@ import { RegistrationsListPanel } from "@/components/admin/events/organisms/Regi
 import { DEFAULT_REGISTRATIONS_QUERY } from "@/lib/events/registrationsApi";
 import { emptyRegistrationCounts } from "@/lib/events/registrationCounts";
 import { eventTicketRow } from "@/test/events/adminSalesRows";
+import { seatLookupRow } from "@/test/events/seatingFixtures";
 
 /**
  * Kolumny NULL-owalne, które generator typuje jako `string`/`number`.
@@ -436,6 +469,12 @@ beforeEach(() => {
   h.toastSuccess.mockClear();
   h.toastError.mockClear();
   h.toastWarning.mockClear();
+  h.seatLookups = [];
+  h.seatLookupCalls = [];
+  h.exportSeats = [];
+  h.exportSeatCalls = [];
+  h.exportSeatError = null;
+  h.csvParts = [];
 });
 
 describe("cztery stany listy zgłoszeń", () => {
@@ -1342,5 +1381,165 @@ describe("eksport listy uczestników", () => {
     fireEvent.click(guzik);
 
     await waitFor(() => expect(zapytaniaEksportu()).toHaveLength(1));
+  });
+});
+
+// MIEJSCE NA SALI - jeden odczyt `admin_event_seat_lookup` dla widocznych
+// wierszy i drugi, pełny, dla pliku. Napis składa ten sam formatter, co plan
+// sali (`seatLabelMessageFromRow`), więc lista i plik nie rozjadą się z kartą
+// uczestnika.
+describe("miejsce na sali w liście i w eksporcie", () => {
+  const MIEJSCE_A2 = "eventSeating.label.rows(row=A,seat=2,section=A)";
+  const STOL_3 = "eventSeating.label.table(row=,seat=3,section=Stół 1)";
+
+  function przechwycPlik(): ReturnType<typeof vi.fn> {
+    const utworzUrl = vi.fn().mockReturnValue("blob:csv");
+    vi.stubGlobal("URL", { ...URL, createObjectURL: utworzUrl, revokeObjectURL: vi.fn() });
+    vi.stubGlobal(
+      "Blob",
+      class {
+        constructor(parts: readonly unknown[]) {
+          h.csvParts.push(parts.map(String).join(""));
+        }
+      },
+    );
+    const realne = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      const el = realne(tag);
+      if (tag === "a") (el as HTMLAnchorElement).click = vi.fn();
+      return el;
+    });
+    return utworzUrl;
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  /** Komórki kolumny `seat` (ostatniej) - po wierszu na zgłoszenie. */
+  function kolumnaMiejsca(): string[] {
+    const plik = h.csvParts.at(-1) ?? "";
+    const wiersze: string[][] = [[]];
+    let pole = "";
+    let wCudzyslowie = false;
+    for (let i = 0; i < plik.length; i += 1) {
+      const znak = plik[i];
+      if (wCudzyslowie) {
+        if (znak === '"' && plik[i + 1] === '"') {
+          pole += '"';
+          i += 1;
+        } else if (znak === '"') wCudzyslowie = false;
+        else pole += znak;
+      } else if (znak === '"') wCudzyslowie = true;
+      else if (znak === ",") {
+        wiersze.at(-1)?.push(pole);
+        pole = "";
+      } else if (znak === "\n") {
+        wiersze.at(-1)?.push(pole);
+        wiersze.push([]);
+        pole = "";
+      } else pole += znak;
+    }
+    wiersze.at(-1)?.push(pole);
+    return wiersze.map((wiersz) => wiersz.at(-1) ?? "");
+  }
+
+  it("pyta o miejsca WIDOCZNYCH wierszy i pokazuje plakietkę tylko przy posadzonych", () => {
+    h.rows = [registrationRow({ id: "a" }), registrationRow({ id: "b" })];
+    h.total = 2;
+    h.seatLookups = [seatLookupRow({ registration_id: "a" })];
+    panel();
+
+    expect(h.seatLookupCalls.at(-1)).toEqual({ eventId: WYDARZENIE, ids: ["a", "b"] });
+    const plakietka = `adminEventSeating.registrations.seat(label=${MIEJSCE_A2})`;
+    expect(within(wiersze()[0] as HTMLElement).getByText(plakietka)).toBeTruthy();
+    expect(within(wiersze()[1] as HTMLElement).queryByText(plakietka)).toBeNull();
+  });
+
+  // DWA PLANY (konferencja + gala) - "rząd A, miejsce 2" bez nazwy planu jest
+  // dwuznaczne, więc napis dostaje nazwę planu; przy jednym planie - nie.
+  it("przy kilku planach napis niesie nazwę planu, a stół - numer bez rzędu", () => {
+    h.rows = [registrationRow({ id: "a" })];
+    h.seatLookups = [
+      seatLookupRow({ registration_id: "a", map_id: "m1", map_name: "Konferencja" }),
+      seatLookupRow({
+        registration_id: "a",
+        map_id: "m2",
+        map_name: "Gala",
+        section_kind: "table",
+        section_label: "Stół 1",
+        row_label: null,
+        seat_number: 3,
+      }),
+    ];
+    panel();
+
+    expect(
+      screen.getByText(`adminEventSeating.registrations.seat(label=${MIEJSCE_A2} · Konferencja)`),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(`adminEventSeating.registrations.seat(label=${STOL_3} · Gala)`),
+    ).toBeTruthy();
+  });
+
+  it("brak danych o miejscach (zapytanie w locie) nie pokazuje żadnej plakietki", () => {
+    h.rows = [registrationRow({ id: "a" })];
+    h.seatLookups = undefined;
+    panel();
+
+    expect(screen.queryByText(/adminEventSeating\.registrations\.seat/)).toBeNull();
+  });
+
+  it("plik dostaje kolumnę seat dla WSZYSTKICH wierszy eksportu, a kilka miejsc łączy średnikiem", async () => {
+    h.rows = [registrationRow({ id: "a" })];
+    h.total = 3;
+    h.exportPages = [
+      {
+        rows: [
+          registrationRow({ id: "a" }),
+          registrationRow({ id: "b" }),
+          registrationRow({ id: "c" }),
+        ],
+        total: 3,
+      },
+    ];
+    h.exportSeats = [
+      seatLookupRow({ registration_id: "a", map_id: "m1", map_name: "Konferencja" }),
+      seatLookupRow({ registration_id: "a", map_id: "m2", map_name: "Gala", seat_number: 5 }),
+      seatLookupRow({ registration_id: "c", map_id: "m1", map_name: "Konferencja" }),
+    ];
+    const utworzUrl = przechwycPlik();
+    panel();
+
+    fireEvent.click(przycisk("adminEventRegistration.actions.exportCsv"));
+
+    await waitFor(() => expect(utworzUrl).toHaveBeenCalledTimes(1));
+    expect(h.exportSeatCalls).toEqual([{ eventId: WYDARZENIE, ids: ["a", "b", "c"] }]);
+    const komorki = kolumnaMiejsca();
+    expect(komorki[0]).toBe("seat");
+    expect(komorki[1]).toBe(
+      `eventSeating.label.rows(row=A,seat=2,section=A) · Konferencja; eventSeating.label.rows(row=A,seat=5,section=A) · Gala`,
+    );
+    expect(komorki[2]).toBe("");
+    expect(komorki[3]).toBe(`${MIEJSCE_A2} · Konferencja`);
+  });
+
+  it("awaria odczytu miejsc przerywa eksport zdaniem, zamiast wydać plik bez kolumny", async () => {
+    h.rows = [registrationRow({ id: "a" })];
+    h.total = 1;
+    h.exportPages = [{ rows: [registrationRow({ id: "a" })], total: 1 }];
+    h.exportSeatError = new Error("seat_lookup: sieć");
+    const utworzUrl = przechwycPlik();
+    panel();
+
+    fireEvent.click(przycisk("adminEventRegistration.actions.exportCsv"));
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("odmowa:seat_lookup: sieć"));
+    expect(utworzUrl).not.toHaveBeenCalled();
+    expect(przycisk("adminEventRegistration.actions.exportCsv")).toHaveAttribute(
+      "aria-disabled",
+      "false",
+    );
   });
 });
