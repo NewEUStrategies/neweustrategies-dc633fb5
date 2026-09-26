@@ -22,9 +22,9 @@
 //   4. SYNCHRONIZACJA KUPONÓW raportuje trzy liczby (utworzone / istniejące /
 //      nieudane) i odświeża raport.
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
-import { ok, supabaseFromStub } from "@/test/billing/fixtures";
+import { fail, ok, supabaseFromStub } from "@/test/billing/fixtures";
 
 interface DiagnosticsShape {
   environment: string;
@@ -53,6 +53,8 @@ const h = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   dialogSecrets: [] as Array<string | null>,
+  /** Ostatnie `onOpenChange` podane nakładce - test udaje nim zamknięcie ramki. */
+  dialogOpenChange: { current: null as ((open: boolean) => void) | null },
   chain: null as ReturnType<typeof import("@/test/supabaseChain").supabaseFromStub> | null,
 }));
 
@@ -85,8 +87,12 @@ vi.mock("@/hooks/useCheckout", () => ({
 // Nakładka płatności jest tu atrapą wystawiającą JEDEN fakt: czy panel podał
 // jej sekret sesji. Sama nakładka ma własne testy w `components/checkout`.
 vi.mock("@/components/checkout/LazyEmbeddedCheckoutDialog", () => ({
-  LazyEmbeddedCheckoutDialog: (props: { clientSecret: string | null }) => {
+  LazyEmbeddedCheckoutDialog: (props: {
+    clientSecret: string | null;
+    onOpenChange: (open: boolean) => void;
+  }) => {
     h.dialogSecrets.push(props.clientSecret);
+    h.dialogOpenChange.current = props.onOpenChange;
     return null;
   },
 }));
@@ -148,6 +154,7 @@ beforeEach(() => {
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
   h.dialogSecrets.length = 0;
+  h.dialogOpenChange.current = null;
   h.chain = supabaseFromStub();
   h.chain.setResponse("access_plans", () => ok(h.plans.current));
 });
@@ -319,6 +326,85 @@ describe("AdminPaymentsDiagnosticsPanel - kontrolowany test checkoutu", () => {
     );
   });
 
+  it("zamknięcie nakładki gasi sekret sesji, a „otwarta” niczego nie zmienia", async () => {
+    render();
+    await awaitReport();
+    await waitFor(() => expect(screen.getAllByRole("option").length).toBeGreaterThan(0));
+    fireEvent.change(planSelect(), { target: { value: "plan-1" } });
+    fireEvent.click(screen.getByText("adminBilling.runTest"));
+    await waitFor(() => expect(h.dialogSecrets.at(-1)).toBe("cs_secret_syntetyczny"));
+
+    act(() => h.dialogOpenChange.current?.(true));
+    expect(h.dialogSecrets.at(-1)).toBe("cs_secret_syntetyczny");
+
+    act(() => h.dialogOpenChange.current?.(false));
+    await waitFor(() => expect(h.dialogSecrets.at(-1)).toBeNull());
+  });
+
+  it("powrót z produkcji na sandbox znowu pozwala uruchomić test", async () => {
+    render();
+    await awaitReport();
+    await waitFor(() => expect(screen.getAllByRole("option").length).toBeGreaterThan(0));
+    fireEvent.change(planSelect(), { target: { value: "plan-1" } });
+
+    fireEvent.change(envSelect(), { target: { value: "live" } });
+    fireEvent.change(envSelect(), { target: { value: "sandbox" } });
+    fireEvent.click(screen.getByText("adminBilling.runTest"));
+
+    await waitFor(() => expect(h.openPlanCheckout).toHaveBeenCalledTimes(1));
+    expect(h.toastError).not.toHaveBeenCalled();
+  });
+
+  it("plan, który zniknął z listy po wyborze, nie otwiera nakładki - prośba o wybór", async () => {
+    const { queryClient } = render();
+    await awaitReport();
+    await waitFor(() => expect(screen.getAllByRole("option").length).toBeGreaterThan(0));
+    fireEvent.change(planSelect(), { target: { value: "plan-1" } });
+
+    // Lista planów liczy się od nowa i tym razem pada: wybór w stanie zostaje,
+    // a planu pod nim (ani listy) już nie ma.
+    h.chain!.setResponse("access_plans", () => fail("connection reset"));
+    await act(async () => {
+      void queryClient.resetQueries({ queryKey: ["admin", "billing", "test-plans"] });
+    });
+    await waitFor(() => expect(within(planSelect()).queryAllByRole("option")).toHaveLength(0));
+    fireEvent.click(screen.getByText("adminBilling.runTest"));
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("adminBilling.pickPlanTest"));
+    expect(h.openPlanCheckout).not.toHaveBeenCalled();
+  });
+
+  it("wyjątek, który nie jest `Error`, też trafia do komunikatu", async () => {
+    h.openPlanCheckout.mockRejectedValue("brama zamknięta");
+    render();
+    await awaitReport();
+    await waitFor(() => expect(screen.getAllByRole("option").length).toBeGreaterThan(0));
+
+    fireEvent.change(planSelect(), { target: { value: "plan-1" } });
+    fireEvent.click(screen.getByText("adminBilling.runTest"));
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("brama zamknięta"));
+  });
+
+  it("awaria listy planów zostawia pustą listę, a raport stoi dalej", async () => {
+    h.chain!.setResponse("access_plans", () => fail("permission denied"));
+    render();
+    await awaitReport();
+
+    await waitFor(() => expect(h.chain!.chainsFor("access_plans").length).toBeGreaterThan(0));
+    expect(within(planSelect()).queryAllByRole("option")).toHaveLength(0);
+    expect(screen.getByText("adminBilling.checks.gateway")).toBeTruthy();
+  });
+
+  it("pusta odpowiedź listy planów (`null`) to pusta lista, nie wyjątek", async () => {
+    h.chain!.setResponse("access_plans", () => ok(null));
+    render();
+    await awaitReport();
+
+    await waitFor(() => expect(h.chain!.chainsFor("access_plans").length).toBeGreaterThan(0));
+    expect(within(planSelect()).queryAllByRole("option")).toHaveLength(0);
+  });
+
   it("TEST NIE URUCHAMIA SIĘ NA CUDZYM ŚRODOWISKU", async () => {
     render();
     await awaitReport();
@@ -482,6 +568,7 @@ describe("AdminPaymentsDiagnosticsPanel - tabela kuponów wobec rabatów operato
     grantsTierKey: null,
     grantsDurationDays: null,
     providerDiscountId: null,
+    countedAtCheckout: false,
     ...overrides,
   });
 
@@ -535,6 +622,47 @@ describe("AdminPaymentsDiagnosticsPanel - tabela kuponów wobec rabatów operato
     expect(screen.queryByText("adminBilling.firstUse")).toBeNull();
   });
 
+  it("kod WYDARZENIA bez kopii u operatora: „liczony w naszej kasie”, a nie „przy pierwszym użyciu”", async () => {
+    // Synchronizacja takich kodów nie wypycha - „przy pierwszym użyciu"
+    // podpowiadało adminowi przycisk, który nic by z nimi nie zrobił.
+    h.diag.current = diagnostics({
+      coupons: [coupon({ code: "KONGRES-50", countedAtCheckout: true, providerDiscountId: null })],
+    });
+    render();
+
+    await awaitReport();
+    expect(screen.getByText("adminBilling.eventCodeLocal")).toBeTruthy();
+    expect(screen.queryByText("adminBilling.firstUse")).toBeNull();
+    expect(screen.getByText("adminBilling.eventCodesNotSynced")).toBeTruthy();
+  });
+
+  it("kod WYDARZENIA z aktywną kopią u operatora: ostrzeżenie „wyłącz”, a nie „zsynchronizowany”", async () => {
+    h.diag.current = diagnostics({
+      coupons: [
+        coupon({ code: "KONGRES-50", countedAtCheckout: true, providerDiscountId: "promo_9" }),
+      ],
+    });
+    render();
+
+    await awaitReport();
+    expect(screen.getByText("adminBilling.eventCodeStaleCopy")).toBeTruthy();
+    expect(screen.queryByText("adminBilling.synced")).toBeNull();
+  });
+
+  it("kupon bez procentu, kwoty i waluty pokazuje zera i PLN, a nie „null”", async () => {
+    h.diag.current = diagnostics({
+      coupons: [
+        coupon({ code: "BEZPROC", discountKind: "percent", discountPercent: null }),
+        coupon({ code: "BEZKWOTY", discountKind: "fixed", discountCents: null, currency: null }),
+      ],
+    });
+    render();
+
+    await awaitReport();
+    expect(screen.getByText("0%")).toBeTruthy();
+    expect(screen.getByText("0.00 PLN")).toBeTruthy();
+  });
+
   it("limit użyć pokazuje się jako „użyte / limit”", async () => {
     h.diag.current = diagnostics({
       coupons: [coupon({ timesRedeemed: 3, maxRedemptions: 10 })],
@@ -563,6 +691,17 @@ describe("AdminPaymentsDiagnosticsPanel - tabela kuponów wobec rabatów operato
     await awaitReport();
     expect(screen.getByText(/member/)).toBeTruthy();
     expect(screen.getByText(/90/)).toBeTruthy();
+  });
+
+  it("kupon nadający warstwę BEZ długości nadania pokazuje samą warstwę", async () => {
+    h.diag.current = diagnostics({
+      coupons: [coupon({ grantsTierKey: "member", grantsDurationDays: null })],
+    });
+    render();
+
+    await awaitReport();
+    expect(screen.getByText("member")).toBeTruthy();
+    expect(screen.queryByText(/adminBilling\.days/)).toBeNull();
   });
 
   it("kupon bez nadania warstwy pokazuje kreskę", async () => {

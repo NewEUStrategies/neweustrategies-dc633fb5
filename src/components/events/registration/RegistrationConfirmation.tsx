@@ -68,10 +68,9 @@ export function RegistrationConfirmation({
         : t("eventRegistration.result.waitlist", { position: result.waitlistPosition })
       : t(`eventRegistration.result.${result.status}`);
 
-  // KLUCZ JAKO STALA. Przycisk kopiowania zyje tylko przy kluczu, a zawezenie
-  // `!== null` na stalej przechodzi do domkniecia `onClick` - na polu
-  // `result.manageToken` TypeScript je gubi, wiec funkcja musiala sprawdzac
-  // klucz drugi raz warunkiem, ktorego zaden przebieg nie mogl spelnic.
+  // Klucz jako STAŁA: zawężenie `!== null` w JSX przechodzi wtedy do
+  // procedury obsługi kliknięcia, więc kopiowanie nie potrzebuje własnego,
+  // nieosiągalnego strażnika na brak klucza.
   const manageToken = result.manageToken;
 
   async function copyToken(token: string): Promise<void> {
@@ -97,7 +96,9 @@ export function RegistrationConfirmation({
    * zapłaty: 100 zł" przy grupie trzech osób z kodem -20 zł było trzecią
    * liczbą, niezgodną ani z regułą, ani z kasą (240 zł). Kwotę mówi molekuła
    * kasy z PODGLĄDU (`quoteEventTicketCheckout`), a ta wartość zostaje dla niej
-   * jako zapas, gdy podglądu policzyć się nie da.
+   * jako zapas tam, gdzie podglądu NIE MA: starszy backend bez identyfikatora
+   * wejściówki i gość bez konta (podgląd stoi za logowaniem). Odmowa podglądu
+   * nie cofa ekranu do tej liczby - mówi powód.
    *
    * `?? null` NIE jest ozdobą: `RegistrationResult` składa też kod wywołujący
    * (i testy), a `undefined` przechodziłoby przez porównanie z `null` prosto do

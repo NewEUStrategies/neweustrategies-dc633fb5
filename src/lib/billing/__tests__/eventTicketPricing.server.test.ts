@@ -199,11 +199,25 @@ describe("quoteEventTicketOrder - podgląd bez zgłoszenia", () => {
       discountCents: 0,
       totalCents: 10000,
       couponError: null,
+      // Bilet z podatkiem DOLICZANYM - ekran dopisuje „+ podatek" do sumy.
+      taxMode: "exclusive",
     });
     expect(rpcCalls.map((c) => c.fn)).toEqual([
       "event_ticket_checkout_quote",
       "event_ticket_public_options",
     ]);
+  });
+
+  it("bilet bez trybu podatku: `taxMode` null, a nie zgadywany tryb", async () => {
+    rpcResponses.set("event_ticket_public_options", ok(null));
+
+    const quote = await quoteEventTicketOrder(client(), {
+      eventId: EVENT_ID,
+      ticketTypeId: TICKET_ID,
+      registrationId: null,
+    });
+
+    expect(quote.taxMode).toBeNull();
   });
 
   it("kod z samych spacji jest brakiem kodu, a nie kodem `not_found`", async () => {

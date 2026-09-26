@@ -43,6 +43,8 @@ const h = vi.hoisted(() => {
     promoThrows: { current: false },
     createdCoupons: [] as Array<Record<string, unknown>>,
     createdPromos: [] as Array<Record<string, unknown>>,
+    /** Parametry każdego `promotionCodes.list` - tabela pyta o aktywne kopie. */
+    promoListCalls: [] as Array<Record<string, unknown>>,
     couponCreateThrows: { current: false },
     chains: [] as Array<{ table: string; filters: Array<[string, unknown]> }>,
   };
@@ -66,6 +68,11 @@ const h = vi.hoisted(() => {
           return link;
         };
       }
+      // `.filter(kolumna, operator, wartość)` zapisujemy w kształcie PostgREST.
+      link.filter = (column: string, operator: string, value: unknown) => {
+        entry.filters.push([column, `${operator}.${String(value)}`]);
+        return link;
+      };
       // Odczyt profilu wołającego (`resolveUserTenantId`) kończy się ogniwem
       // terminalnym, a nie `await` na łańcuchu - atrapa musi je znać.
       link.maybeSingle = () =>
@@ -116,7 +123,9 @@ const h = vi.hoisted(() => {
           : Promise.resolve({ data: state.endpoints.current }),
     },
     promotionCodes: {
-      list: ({ code }: { code: string }) => {
+      list: (params: { code: string }) => {
+        state.promoListCalls.push(params);
+        const { code } = params;
         if (state.promoThrows.current) return Promise.reject(new Error("stripe padł"));
         const id = state.promoByCode.current.get(code);
         return Promise.resolve({ data: id ? [{ id }] : [] });
@@ -229,6 +238,7 @@ beforeEach(() => {
   h.promoThrows.current = false;
   h.createdCoupons.length = 0;
   h.createdPromos.length = 0;
+  h.promoListCalls.length = 0;
   h.couponCreateThrows.current = false;
   h.chains.length = 0;
 });
@@ -663,6 +673,65 @@ describe("buildPaymentsDiagnostics - kupony B2B wobec rabatów operatora", () =>
     expect(diag.coupons).toHaveLength(1);
   });
 
+  it("tabela kuponów jest w zakresie NAJEMCY admina - klient serwisowy omija RLS", async () => {
+    h.coupons.current = [{ code: "SWOJ", active: true, discount_kind: "percent" }];
+
+    await buildPaymentsDiagnostics("sandbox", TENANT);
+
+    const chain = h.chains.find((entry) => entry.table === "b2b_coupons")!;
+    expect(chain.filters).toContainEqual(["tenant_id", TENANT]);
+  });
+
+  it("kod ogólny: `countedAtCheckout` fałsz i pytanie o KAŻDY kod promocyjny operatora", async () => {
+    h.coupons.current = [
+      {
+        code: "OGOLNY",
+        active: true,
+        discount_kind: "percent",
+        event_ids: [],
+        applies_discount: true,
+      },
+    ];
+
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
+
+    expect(diag.coupons[0].countedAtCheckout).toBe(false);
+    expect(h.promoListCalls).toEqual([{ code: "OGOLNY", limit: 1 }]);
+  });
+
+  it("kod WYDARZENIA jest liczony w naszej kasie - u operatora szukamy tylko AKTYWNEJ kopii", async () => {
+    h.coupons.current = [
+      {
+        code: "kongres-50",
+        active: true,
+        discount_kind: "fixed",
+        discount_cents: 5000,
+        event_ids: ["22222222-2222-2222-2222-222222222222"],
+      },
+    ];
+    h.promoByCode.current.set("KONGRES-50", "promo_stary");
+
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
+
+    expect(diag.coupons[0]).toMatchObject({
+      code: "KONGRES-50",
+      countedAtCheckout: true,
+      // Aktywna kopia z dawnej synchronizacji - panel każe ją wyłączyć.
+      providerDiscountId: "promo_stary",
+    });
+    expect(h.promoListCalls).toEqual([{ code: "KONGRES-50", limit: 1, active: true }]);
+  });
+
+  it("kod BEZ RABATU też jest liczony w naszej kasie", async () => {
+    h.coupons.current = [
+      { code: "ODSLON", active: true, discount_kind: "percent", applies_discount: false },
+    ];
+
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
+
+    expect(diag.coupons[0].countedAtCheckout).toBe(true);
+  });
+
   it("kupon z pustym kodem nie jest pytany u operatora", async () => {
     h.coupons.current = [{ code: "", active: true, discount_kind: "percent" }];
 
@@ -824,6 +893,16 @@ describe("syncCouponDiscounts - CO NIE JEDZIE do operatora", () => {
 
     const chain = h.chains.find((entry) => entry.table === "b2b_coupons")!;
     expect(chain.filters).toContainEqual(["tenant_id", TENANT]);
+  });
+
+  it("kody wydarzeń i kody bez rabatu odpadają W ZAPYTANIU - przed `limit(200)`", async () => {
+    // Filtr po stronie klienta liczył się PO limicie: najemca z setkami kodów
+    // wydarzeń wypychał z okna synchronizacji kody ogólne.
+    await syncCouponDiscounts("sandbox", TENANT);
+
+    const chain = h.chains.find((entry) => entry.table === "b2b_coupons")!;
+    expect(chain.filters).toContainEqual(["applies_discount", true]);
+    expect(chain.filters).toContainEqual(["event_ids", "eq.{}"]);
   });
 
   it("kod WYDARZENIA (niepuste `event_ids`) jest pomijany - bez kuponu i bez kodu promocyjnego", async () => {

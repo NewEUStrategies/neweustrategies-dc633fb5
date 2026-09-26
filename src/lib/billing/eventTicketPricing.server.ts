@@ -292,6 +292,12 @@ export interface EventTicketQuote {
   totalCents: number;
   /** Powód odmowy kodu (`validate_event_ticket_coupon`) albo `null`. */
   couponError: string | null;
+  /**
+   * Tryb podatku biletu. Przy `exclusive` Stripe DOLICZA podatek do kwoty
+   * sesji, więc „Do zapłaty" bez dopisku byłoby mniejsze niż obciążenie -
+   * ekran pokazuje wtedy „+ podatek", tak jak karta biletu w formularzu.
+   */
+  taxMode: TicketTaxMode | null;
 }
 
 /**
@@ -314,6 +320,7 @@ export async function quoteEventTicketOrder(
     discountCents: 0,
     totalCents: price.amountCents,
     couponError: null,
+    taxMode: price.taxMode,
   };
   const code = (input.couponCode ?? "").trim().toUpperCase();
   if (code === "") return base;

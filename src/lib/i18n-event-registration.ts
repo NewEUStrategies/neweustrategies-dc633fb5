@@ -188,6 +188,10 @@ export const eventRegistrationPl = {
       promoApply: "Zastosuj",
       promoRevealOnly:
         "Kod {{code}} odsłania ukryte bilety, ale nie daje rabatu - płacisz cenę biletu.",
+      // Kod z linku `?code=` wpisał ekran, nie kupujący - jego odmowa nie jest
+      // „błędnym kodem", tylko informacją, że płaci cenę bez kodu.
+      promoRememberedDropped:
+        "Kod {{code}} z linku nie obniża ceny tego biletu - zdjęliśmy go, płacisz cenę bez kodu.",
       // PODGLĄD KASY. Te same liczby policzy `createCheckoutOrder`; rozbicie
       // na miejsca jest tu po to, żeby „-20 zł od każdego biletu" było widać
       // PRZED nakładką operatora, a nie dopiero w niej.
@@ -202,6 +206,7 @@ export const eventRegistrationPl = {
       revealNone: "Ten kod nie odsłania żadnych biletów.",
       paying: "Otwieramy kasę...",
       amountDue: "Do zapłaty: {{amount}}",
+      amountDuePlusTax: "Do zapłaty: {{amount}} + podatek",
       unpaidBadge: "Czeka na opłatę",
       resume: "Dokończ płatność",
       settledTitle: "Wpłata zaksięgowana",
@@ -563,6 +568,8 @@ export const eventRegistrationEn = {
       promoApply: "Apply",
       promoRevealOnly:
         "Code {{code}} reveals hidden tickets but gives no discount - you pay the ticket price.",
+      promoRememberedDropped:
+        "Code {{code}} from your link does not lower the price of this ticket - we removed it and you pay the price without a code.",
       quoteLoading: "Calculating the amount…",
       quoteSeats: "Seats: {{count}} × {{unit}}",
       quoteCodeFixed: "Code {{code}}: -{{perSeat}} × {{count}}",
@@ -574,6 +581,7 @@ export const eventRegistrationEn = {
       revealNone: "This code does not reveal any tickets.",
       paying: "Opening checkout...",
       amountDue: "Amount due: {{amount}}",
+      amountDuePlusTax: "Amount due: {{amount}} + tax",
       unpaidBadge: "Awaiting payment",
       resume: "Complete the payment",
       settledTitle: "Payment settled",

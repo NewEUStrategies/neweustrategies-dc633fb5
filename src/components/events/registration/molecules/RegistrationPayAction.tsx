@@ -28,9 +28,15 @@
 // osoby z kodem „-20 zł" ekran mówił „100 zł", a nakładka Stripe 240 zł.
 // Właściciel czytał to jako „kod odjął się raz". Molekuła pyta więc
 // `quoteEventTicketCheckout` (ta sama funkcja, którą liczy kasa) i pokazuje
-// rozbicie: miejsca × cena, kod × miejsca, do zapłaty. Odmowa kodu pada TU,
-// przed otwarciem kasy, a kod TYLKO odsłaniający bilety (zapamiętany z linku
-// `?code=`) nie blokuje płatności - znika z pola z jednym zdaniem wyjaśnienia.
+// rozbicie: miejsca × cena, kod × miejsca, do zapłaty (z „+ podatek", gdy
+// Stripe dolicza podatek do kwoty). Odmowa kodu pada TU, przed otwarciem kasy.
+//
+// KOD Z PAMIĘCI NIE BLOKUJE PŁATNOŚCI. Kod zapamiętany z linku `?code=` wpisał
+// do pola ekran, nie kupujący - i zwykle odsłania bilet UKRYTY, a kupujący mógł
+// wybrać inny. Kasa odmówiłaby go wtedy jako `ticket_not_eligible` (albo
+// `expired`), zanim w ogóle doszłaby do „bez rabatu". Każda odmowa takiego kodu
+// zdejmuje go więc z pola z jednym zdaniem wyjaśnienia; zdanie o błędnym kodzie
+// dostaje tylko kod wpisany ręcznie.
 //
 // GOŚĆ BEZ KONTA NIE DOSTAJE MARTWEGO PRZYCISKU. `createCheckoutOrder` stoi za
 // `requireSupabaseAuth`, a księgowanie wpłaty wymaga `payment_orders.user_id`,
@@ -70,6 +76,16 @@ const QUOTE_KEY = ["events", "ticket-checkout-quote"] as const;
 
 function normalizeCode(value: string): string {
   return value.trim().toUpperCase();
+}
+
+/**
+ * Kod zdjęty z pola bez udziału kupującego i powód: `revealOnly` - kod nie daje
+ * rabatu (tylko odsłania bilety), `remembered` - kod z pamięci, którego kasa
+ * nie przyjmuje dla TEGO biletu (inny bilet, termin, limit).
+ */
+interface DroppedCode {
+  code: string;
+  reason: "revealOnly" | "remembered";
 }
 
 export interface RegistrationPayActionProps {
@@ -128,13 +144,21 @@ export function RegistrationPayAction({
   // bazy przy każdym znaku - dopiero „Zastosuj" albo „Zapłać".
   const [appliedCode, setAppliedCode] = useState("");
   const [promoRejected, setPromoRejected] = useState(false);
-  /** Kod bez rabatu zdjęty z pola - zdanie wyjaśnia, dlaczego zniknął. */
-  const [revealOnlyCode, setRevealOnlyCode] = useState<string | null>(null);
+  /**
+   * Kod wpisany do pola Z PAMIĘCI (`recallEventCode`), dopóki nie zostanie
+   * zdjęty. Kod o tej samej treści wpisany ręcznie PO zdjęciu jest już kodem
+   * kupującego - i jego odmowa dostaje zwykłe zdanie o błędnym kodzie.
+   */
+  const [memoryCode, setMemoryCode] = useState<string | null>(null);
+  /** Kod zdjęty z pola po cichu - zdanie wyjaśnia, dlaczego zniknął. */
+  const [droppedCode, setDroppedCode] = useState<DroppedCode | null>(null);
   useEffect(() => {
     if (eventId !== null) {
       const remembered = recallEventCode(eventId);
+      const normalized = normalizeCode(remembered);
       setPromo(remembered);
-      setAppliedCode(normalizeCode(remembered));
+      setAppliedCode(normalized);
+      setMemoryCode(normalized === "" ? null : normalized);
     }
   }, [eventId]);
 
@@ -157,17 +181,19 @@ export function RegistrationPayAction({
   });
   const quote = quoteQ.data ?? null;
 
-  // KOD BEZ RABATU NIE BLOKUJE PŁATNOŚCI. Kod z linku `?code=` odsłania
-  // ukryte bilety i zostaje zapamiętany (`eventCodeMemory`), ale rabatu nie
-  // daje - kasa odrzuciłaby go jako `no_discount` i kupujący nie mógłby
-  // zapłacić, dopóki sam nie wyczyści pola. Zdejmujemy go więc sami.
+  // KOD BEZ RABATU ANI KOD Z PAMIĘCI NIE BLOKUJĄ PŁATNOŚCI. Kod bez rabatu
+  // (`no_discount`) nie ma czego odjąć, a kod z linku `?code=` odsłania zwykle
+  // bilet, którego kupujący NIE wybrał - kasa odrzuciłaby go i kupujący nie
+  // mógłby zapłacić, dopóki sam nie wyczyści pola. Zdejmujemy je więc sami.
   useEffect(() => {
-    if (quote?.couponError === "no_discount" && appliedCode !== "") {
-      setRevealOnlyCode(appliedCode);
-      setAppliedCode("");
-      setPromo("");
-    }
-  }, [quote, appliedCode]);
+    if (quote === null || quote.couponError === null || appliedCode === "") return;
+    const revealOnly = quote.couponError === "no_discount";
+    if (!revealOnly && appliedCode !== memoryCode) return;
+    setDroppedCode({ code: appliedCode, reason: revealOnly ? "revealOnly" : "remembered" });
+    setMemoryCode(null);
+    setAppliedCode("");
+    setPromo("");
+  }, [quote, appliedCode, memoryCode]);
 
   // Dopisanie gości (panel ponowienia) zmienia liczbę miejsc zamówienia, ale
   // nie wie o tej molekule. Każda udana mutacja na ekranie odświeża więc
@@ -219,7 +245,7 @@ export function RegistrationPayAction({
   function applyCode(): void {
     const code = normalizeCode(promo);
     setPromoRejected(false);
-    setRevealOnlyCode(null);
+    setDroppedCode(null);
     if (code === appliedCode) {
       void quoteQ.refetch();
       return;
@@ -255,10 +281,14 @@ export function RegistrationPayAction({
       });
       if (!result.ok) {
         if (result.mode === "coupon") {
-          // Kod bez rabatu nie jest powodem, żeby nie zapłacić: zdejmujemy go
-          // i płacimy cenę biletu (to samo, co podgląd robi z kodem z linku).
-          if (result.error === "no_discount") {
-            setRevealOnlyCode(code);
+          // Kod bez rabatu albo kod z pamięci nie jest powodem, żeby nie
+          // zapłacić: zdejmujemy go i płacimy cenę biletu (to samo, co robi
+          // podgląd). Pusty kod nie wraca do kasy drugi raz - odmowa kodu,
+          // którego nie wysłaliśmy, nie może zapętlić ponowienia.
+          const revealOnly = result.error === "no_discount";
+          if (code !== "" && (revealOnly || code === memoryCode)) {
+            setDroppedCode({ code, reason: revealOnly ? "revealOnly" : "remembered" });
+            setMemoryCode(null);
             setPromo("");
             await pay("");
             return;
@@ -285,9 +315,14 @@ export function RegistrationPayAction({
   }
 
   const money = (cents: number, code: string): string => formatMoney(cents, code, i18n.language);
+  // Odmowa kodu z pamięci nie jest błędem kupującego - efekt wyżej zdejmie go
+  // z pola, więc zdanie o błędnym kodzie nie mignie nawet na jedną klatkę.
   const codeRefused =
     promoRejected ||
-    (quote !== null && quote.couponError !== null && quote.couponError !== "no_discount");
+    (quote !== null &&
+      quote.couponError !== null &&
+      quote.couponError !== "no_discount" &&
+      appliedCode !== memoryCode);
   // Odmowa podglądu (zgłoszenie, bilet, liczba miejsc) to ta sama odmowa, którą
   // dałaby kasa - mówimy ją od razu, a po kliknięciu „Zapłać" wygrywa odmowa kasy.
   const shownRefusal = refusal ?? (quoteQ.isError ? ticketCheckoutRefusal(quoteQ.error) : null);
@@ -345,9 +380,15 @@ export function RegistrationPayAction({
             </p>
           )}
           <p className="font-medium text-foreground">
-            {t("eventRegistration.payment.amountDue", {
-              amount: money(quote.totalCents, quote.currency),
-            })}
+            {/* PODATEK DOLICZANY dolicza Stripe do kwoty sesji - bez dopisku
+                „Do zapłaty" byłoby niższe niż obciążenie karty. */}
+            {quote.taxMode === "exclusive"
+              ? t("eventRegistration.payment.amountDuePlusTax", {
+                  amount: money(quote.totalCents, quote.currency),
+                })
+              : t("eventRegistration.payment.amountDue", {
+                  amount: money(quote.totalCents, quote.currency),
+                })}
           </p>
         </div>
       )}
@@ -371,9 +412,11 @@ export function RegistrationPayAction({
       <span className="block text-xs text-muted-foreground">
         {t("eventRegistration.payment.promoHint")}
       </span>
-      {revealOnlyCode !== null && (
+      {droppedCode !== null && (
         <p role="status" className="text-sm text-muted-foreground">
-          {t("eventRegistration.payment.promoRevealOnly", { code: revealOnlyCode })}
+          {droppedCode.reason === "revealOnly"
+            ? t("eventRegistration.payment.promoRevealOnly", { code: droppedCode.code })
+            : t("eventRegistration.payment.promoRememberedDropped", { code: droppedCode.code })}
         </p>
       )}
       {codeRefused && (

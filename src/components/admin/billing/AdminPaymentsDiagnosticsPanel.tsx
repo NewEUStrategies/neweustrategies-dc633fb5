@@ -298,6 +298,9 @@ export function AdminPaymentsDiagnosticsPanel() {
           <p className="text-[0.8125rem] text-muted-foreground">
             {t("adminBilling.couponsLiveDatabaseProviderDiscount")}
           </p>
+          <p className="text-[0.8125rem] text-muted-foreground">
+            {t("adminBilling.eventCodesNotSynced")}
+          </p>
           <Button
             type="button"
             variant="outline"
@@ -343,7 +346,28 @@ export function AdminPaymentsDiagnosticsPanel() {
                           : "-"}
                       </td>
                       <td className="px-3 py-2">
-                        {c.providerDiscountId ? (
+                        {/* KOD LICZONY W NASZEJ KASIE (wydarzenie albo kod bez
+                            rabatu) nie jedzie do operatora - „przy pierwszym
+                            użyciu" podpowiadało synchronizację, która go pomija.
+                            Jego AKTYWNA kopia u operatora to rabat „raz od
+                            całej sesji" z pominięciem limitów - do wyłączenia. */}
+                        {c.countedAtCheckout ? (
+                          c.providerDiscountId ? (
+                            <Badge
+                              variant="outline"
+                              className="border-0 bg-amber-500/12 text-[0.75rem] text-amber-800 dark:text-amber-300"
+                            >
+                              {t("adminBilling.eventCodeStaleCopy")}
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="border-0 bg-muted text-[0.75rem] text-muted-foreground"
+                            >
+                              {t("adminBilling.eventCodeLocal")}
+                            </Badge>
+                          )
+                        ) : c.providerDiscountId ? (
                           <Badge
                             variant="outline"
                             className="border-0 bg-emerald-500/12 text-[0.75rem] text-emerald-700 dark:text-emerald-300"

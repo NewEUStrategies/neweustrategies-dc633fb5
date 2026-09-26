@@ -69,6 +69,10 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
   const [openOrderId, setOpenOrderId] = useState<string | null>(null);
 
   const offers = offerQ.data ?? [];
+  // Do pierwszej odpowiedzi `data` jest undefined. JEDNA zamiana na pustą
+  // listę zamiast dwóch w JSX - druga była martwa, bo listę renderujemy
+  // dopiero przy niepustych danych.
+  const orders = ordersQ.data ?? [];
   const selected = useMemo(
     () => offers.find((row) => row.id === selectedId) ?? null,
     [offers, selectedId],
@@ -84,11 +88,12 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
   );
   const quote = quoteQ.data ?? null;
 
-  function buy() {
-    if (selected === null) return;
+  // Pakiet przychodzi PARAMETREM z sekcji, która renderuje się tylko przy
+  // wybranym pakiecie - bez nieosiągalnego strażnika na brak wyboru.
+  function buy(pkg: EventPackageOfferRow) {
     purchase.mutate(
       {
-        packageId: selected.id,
+        packageId: pkg.id,
         buyerName,
         buyerEmail,
         companyId: null,
@@ -215,7 +220,7 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
 
           <Button
             type="button"
-            onClick={buy}
+            onClick={() => buy(selected)}
             disabled={purchase.isPending || quote === null || quote.ok !== true}
           >
             {purchase.isPending ? t("eventPackages.buyPending") : t("eventPackages.buyAction")}
@@ -237,11 +242,11 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
           <p role="alert" className="text-sm text-destructive">
             {t("eventPackages.ordersFailed")}
           </p>
-        ) : (ordersQ.data ?? []).length === 0 ? (
+        ) : orders.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("eventPackages.ordersEmpty")}</p>
         ) : (
           <ul className="space-y-3">
-            {(ordersQ.data ?? []).map((order) => (
+            {orders.map((order) => (
               <OrderCard
                 key={order.id}
                 order={order}
@@ -432,12 +437,9 @@ function OrderCard({
         onSuccess: (result) => {
           setEmail("");
           setName("");
-          setIssued(
-            packageInviteUrl(
-              typeof window === "undefined" ? "" : window.location.origin,
-              result.inviteToken,
-            ),
-          );
+          // Wywołanie zwrotne mutacji biegnie wyłącznie w przeglądarce (klik),
+          // więc `window` jest tu zawsze - strażnik SSR byłby martwą gałęzią.
+          setIssued(packageInviteUrl(window.location.origin, result.inviteToken));
           toast.success(t("eventPackages.toasts.invited"));
         },
         onError: (failure) => setError(purchaseErrorMessage(failure, t)),

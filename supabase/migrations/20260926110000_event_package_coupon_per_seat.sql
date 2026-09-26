@@ -2,8 +2,12 @@
 -- PAKIET GRUPOWY: KOD KWOTOWY SCHODZI Z KAZDEGO MIEJSCA, A UZYCIE KODU
 -- JEST ZUZYWANE RAZEM Z ZAMOWIENIEM.
 --
--- BLIZNIAK w pasie drizzle/migrations - ten sam SQL wykonywalny (pilnuje tego
--- `src/lib/ci/migrationLaneParity.ts`).
+-- BLIZNIAKA w pasie drizzle/migrations (ten sam SQL wykonywalny, wpis
+-- w `src/lib/ci/migrationLaneParity.ts`) dopisuje integrator PO scaleniu
+-- rownoleglych galezi tej serii - numer drizzle nadaje sie w JEDNYM miejscu,
+-- zeby dwie galezie nie wziely tego samego. Bramka parytetu czyta tylko pliki
+-- drizzle, wiec brak blizniaka NIE jest dla niej czerwony: bez niego produkcja
+-- (pas Lovable/drizzle) tej poprawki po prostu nie dostanie.
 --
 -- FINDING. Kasa zapisu grupowego (createCheckoutOrder + groupOrderPricing.ts,
 -- c60df9e) zdejmuje kod kwotowy z KAZDEGO miejsca. Pakiet grupowy
@@ -24,7 +28,10 @@
 --      Studio kodow (EventCodesPanel) nie wypelnia `package_ids`, wiec kod
 --      zawezony do jednego biletu dzialal na KAZDY pakiet. Pakiet ma swoj
 --      rodzaj wejsciowki (`ticket_type_id`) - i po nim sprawdzamy zakres,
---      z ta sama odmowa co kasa biletu (`coupon_other_ticket_type`).
+--      z ta sama NAZWA odmowy, ktora ta wycena daje juz wejsciowce
+--      (`coupon_other_ticket_type`; kasa biletu, `validate_event_ticket_coupon`,
+--      mowi na to `ticket_not_eligible`). Kod, ktory WPROST wymienia pakiet
+--      w `package_ids`, ma pierwszenstwo: admin nazwal ten pakiet po imieniu.
 --   3. `event_package_purchase` NIE zuzywal kodu: ani `redemptions_count`,
 --      ani wiersza w `b2b_coupon_redemptions`. Limit „Liczba uzyc: 1" i limit
 --      na osobe nie dzialaly na pakietach wcale.
@@ -206,8 +213,14 @@ BEGIN
     -- `v_kind = 'ticket'`, wiec kod „tylko na Standard" dzialal na pakiet
     -- dowolnego rodzaju - studio kodow nie wypelnia `package_ids`, wiec nic
     -- innego go nie zawezalo.
+    --
+    -- WYJATEK: pakiet wymieniony WPROST w `package_ids`. Kod „Standard + pakiet
+    -- P5" (zapisany SQL-em - studio tego pola nie ma) odmawialby inaczej wlasnie
+    -- na P5, ktory admin nazwal. Dla wejsciowki `v_kind = 'package'` jest
+    -- falszem, wiec `v_package_id` NULL nie robi z warunku NULL-a.
     IF array_length(v_coupon.ticket_type_ids, 1) IS NOT NULL
-       AND NOT (v_scope_type = ANY (v_coupon.ticket_type_ids)) THEN
+       AND NOT (v_scope_type = ANY (v_coupon.ticket_type_ids))
+       AND NOT (v_kind = 'package' AND v_package_id = ANY (v_coupon.package_ids)) THEN
       RETURN jsonb_build_object('ok', false, 'reason', 'coupon_other_ticket_type');
     END IF;
     IF v_kind = 'package' AND array_length(v_coupon.package_ids, 1) IS NOT NULL

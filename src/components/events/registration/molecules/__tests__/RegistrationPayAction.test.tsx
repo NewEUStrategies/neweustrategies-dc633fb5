@@ -8,9 +8,12 @@
 //      240 zł" - z PODGLĄDU kasy, a nie z ceny miejsca;
 //   2. odmowa kodu pada PRZED otwarciem kasy (podgląd), a kod wpisany bez
 //      „Zastosuj" i tak trafia do podglądu przy „Zapłać";
-//   3. kod TYLKO odsłaniający bilety (zapamiętany z linku) nie blokuje
-//      płatności: znika z pola z jednym zdaniem wyjaśnienia;
-//   4. dopisanie gości (udana mutacja na ekranie) przelicza rozbicie.
+//   3. kod TYLKO odsłaniający bilety ani ŻADEN kod z pamięci (link `?code=`)
+//      nie blokuje płatności: znika z pola z jednym zdaniem wyjaśnienia - także
+//      gdy kasa odmawia go z innego powodu niż „bez rabatu" (inny bilet,
+//      termin); zdanie o błędnym kodzie dostaje tylko kod wpisany ręcznie;
+//   4. dopisanie gości (udana mutacja na ekranie) przelicza rozbicie;
+//   5. podatek doliczany przez Stripe jest dopisany do kwoty do zapłaty.
 //
 // ATRAPY TYLKO NA GRANICACH: obie server fn (tożsamość + `useServerFn`), sesja,
 // modal operatora, środowisko bramki. `useQuery` jedzie prawdziwy, w świeżym
@@ -94,6 +97,7 @@ function quoteResult(over: Record<string, unknown> = {}) {
     discountCents: 0,
     totalCents: 10000,
     couponError: null,
+    taxMode: null,
     ...over,
   };
 }
@@ -269,6 +273,26 @@ describe("RegistrationPayAction - rozbicie kwoty z podglądu kasy", () => {
     expect(screen.queryByText("eventRegistration.payment.quoteLoading")).not.toBeInTheDocument();
   });
 
+  it("podatek DOLICZANY: „do zapłaty 240 zł + podatek”, bo tyle doliczy Stripe", async () => {
+    quote.mockResolvedValue({ ...GROUP_FIXED, taxMode: "exclusive" });
+    renderAction();
+
+    expect(
+      await screen.findByText("eventRegistration.payment.amountDuePlusTax(amount=240,00 zł)"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/payment\.amountDue\(/)).not.toBeInTheDocument();
+  });
+
+  it("podatek WLICZONY: sama kwota, bez dopisku", async () => {
+    quote.mockResolvedValue(quoteResult({ taxMode: "inclusive" }));
+    renderAction();
+
+    expect(
+      await screen.findByText("eventRegistration.payment.amountDue(amount=100,00 zł)"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/amountDuePlusTax/)).not.toBeInTheDocument();
+  });
+
   it("`showAmount=false` nie pokazuje żadnej kwoty", async () => {
     quote.mockResolvedValue(GROUP_FIXED);
     renderAction({ showAmount: false });
@@ -362,6 +386,58 @@ describe("RegistrationPayAction - kod rabatowy", () => {
     expect(screen.queryByText("eventRegistration.payment.promoError")).not.toBeInTheDocument();
   });
 
+  it("kod z linku odmówiony z INNEGO powodu (inny bilet) też znika - bez zdania o błędzie", async () => {
+    // Kod odsłania ukryty bilet VIP, a kupujący zapisał się na Standard:
+    // `validate_event_ticket_coupon` odmawia `ticket_not_eligible` ZANIM
+    // sprawdzi, czy kod w ogóle daje rabat.
+    memory.code = "vip-odslon";
+    quote.mockImplementation(async ({ data }: { data: { coupon_code?: string } }) =>
+      data.coupon_code ? quoteResult({ couponError: "ticket_not_eligible" }) : quoteResult(),
+    );
+    checkout.mockResolvedValue({ ok: true, mode: "stripe", clientSecret: "cs_std" });
+    renderAction();
+
+    expect(
+      await screen.findByText("eventRegistration.payment.promoRememberedDropped(code=VIP-ODSLON)"),
+    ).toBeInTheDocument();
+    expect(promoInput().value).toBe("");
+    expect(screen.queryByText("eventRegistration.payment.promoError")).not.toBeInTheDocument();
+    expect(screen.queryByText(/promoRevealOnly/)).not.toBeInTheDocument();
+
+    click(PAY);
+    await waitFor(() => expect(checkout).toHaveBeenCalledTimes(1));
+    expect(checkout.mock.calls[0]?.[0]).not.toHaveProperty("data.coupon_code");
+  });
+
+  it("kod z linku, który wygasł, znika tak samo - nie blokuje płatności", async () => {
+    memory.code = "LATO";
+    quote.mockImplementation(async ({ data }: { data: { coupon_code?: string } }) =>
+      data.coupon_code ? quoteResult({ couponError: "expired" }) : quoteResult(),
+    );
+    renderAction();
+
+    expect(
+      await screen.findByText("eventRegistration.payment.promoRememberedDropped(code=LATO)"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("eventRegistration.payment.promoError")).not.toBeInTheDocument();
+  });
+
+  it("ten sam kod wpisany RĘCZNIE po zdjęciu to już kod kupującego - zdanie o błędzie", async () => {
+    memory.code = "VIP";
+    quote.mockImplementation(async ({ data }: { data: { coupon_code?: string } }) =>
+      data.coupon_code ? quoteResult({ couponError: "ticket_not_eligible" }) : quoteResult(),
+    );
+    renderAction();
+    await screen.findByText("eventRegistration.payment.promoRememberedDropped(code=VIP)");
+
+    type("VIP");
+    click(APPLY);
+
+    expect(await screen.findByText("eventRegistration.payment.promoError")).toBeInTheDocument();
+    expect(promoInput().value).toBe("VIP");
+    expect(screen.queryByText(/promoRememberedDropped/)).not.toBeInTheDocument();
+  });
+
   it("nowy kod po zdjęciu kodu bez rabatu chowa zdanie wyjaśnienia", async () => {
     memory.code = "ODSLON";
     quote.mockImplementation(async ({ data }: { data: { coupon_code?: string } }) =>
@@ -453,6 +529,39 @@ describe("RegistrationPayAction - klik do kasy", () => {
       screen.getByText("eventRegistration.payment.promoRevealOnly(code=ODSLON)"),
     ).toBeInTheDocument();
     expect(promoInput().value).toBe("");
+  });
+
+  it("kasa odmawia kodu z pamięci, zanim podgląd zdążył - płatność idzie dalej bez kodu", async () => {
+    // Podgląd z kodem jeszcze liczy (nigdy nie wraca), a kupujący już klika.
+    memory.code = "VIP";
+    quote.mockImplementation(({ data }: { data: { coupon_code?: string } }) =>
+      data.coupon_code ? new Promise(() => {}) : Promise.resolve(quoteResult()),
+    );
+    checkout
+      .mockResolvedValueOnce({ ok: false, mode: "coupon", error: "ticket_not_eligible" })
+      .mockResolvedValueOnce({ ok: true, mode: "stripe", clientSecret: "cs_bez_vip" });
+    renderAction();
+
+    click(PAY);
+
+    expect(await screen.findByTestId("checkout-modal")).toHaveTextContent("cs_bez_vip");
+    expect(checkout.mock.calls[0]?.[0]).toHaveProperty("data.coupon_code", "VIP");
+    expect(checkout.mock.calls[1]?.[0]).not.toHaveProperty("data.coupon_code");
+    expect(
+      screen.getByText("eventRegistration.payment.promoRememberedDropped(code=VIP)"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("eventRegistration.payment.promoError")).not.toBeInTheDocument();
+  });
+
+  it("odmowa kodu, którego NIE wysłaliśmy, nie zapętla ponowienia", async () => {
+    checkout.mockResolvedValue({ ok: false, mode: "coupon", error: "no_discount" });
+    renderAction();
+    await waitFor(() => expect(quote).toHaveBeenCalledTimes(1));
+
+    click(PAY);
+
+    expect(await screen.findByText("eventRegistration.payment.promoError")).toBeInTheDocument();
+    expect(checkout).toHaveBeenCalledTimes(1);
   });
 
   it("odmowa `ok: false` spoza kodu dostaje zdanie ze słownika odmów", async () => {
