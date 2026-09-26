@@ -36,6 +36,7 @@ export const adminEventSeatingPl = {
       empty:
         "To wydarzenie nie ma jeszcze planu sali. Dodaj pierwszy plan, żeby przydzielać miejsca.",
       open: "Otwórz plan",
+      openNamed: "Otwórz plan {{name}}",
       edit: "Edytuj plan {{name}}",
       delete: "Usuń plan {{name}}",
       deleteTitle: "Usunąć plan „{{name}}”?",
@@ -203,6 +204,7 @@ export const adminEventSeatingPl = {
       noSeat: "bez miejsca",
       seat: "miejsce: {{label}}",
       loadMore: "Pokaż więcej",
+      refine: "Pokazano {{shown}} z {{total}} - zawęź wyszukiwanie albo filtr, żeby zobaczyć resztę.",
       drag: "Przeciągnij na plan: {{name}}",
     },
     mapDialog: {
@@ -504,6 +506,7 @@ export const adminEventSeatingEn = {
       loading: "Loading seating plans…",
       empty: "This event has no seating plan yet. Add the first plan to start assigning seats.",
       open: "Open plan",
+      openNamed: "Open plan {{name}}",
       edit: "Edit plan {{name}}",
       delete: "Delete plan {{name}}",
       deleteTitle: "Delete the plan “{{name}}”?",
@@ -657,6 +660,7 @@ export const adminEventSeatingEn = {
       noSeat: "no seat",
       seat: "seat: {{label}}",
       loadMore: "Show more",
+      refine: "Showing {{shown}} of {{total}} - narrow the search or filter to see the rest.",
       drag: "Drag onto the plan: {{name}}",
     },
     mapDialog: {

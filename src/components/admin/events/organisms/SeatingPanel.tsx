@@ -164,7 +164,13 @@ export function SeatingPanel({
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <Button size="sm" onClick={() => onOpenMap(row.id)}>
+                    {/* Nazwa planu w nazwie dostepnej: przy kilku planach czytnik
+                        nie ma czytac piec razy tego samego "Otworz plan". */}
+                    <Button
+                      size="sm"
+                      aria-label={t("adminEventSeating.list.openNamed", { name: row.name })}
+                      onClick={() => onOpenMap(row.id)}
+                    >
                       {t("adminEventSeating.list.open")}
                     </Button>
                     <Button

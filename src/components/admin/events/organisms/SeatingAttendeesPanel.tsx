@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GripVertical, Search } from "@/lib/lucide-shim";
 import { adminSeatingErrorMessage } from "@/lib/events/adminSeatingErrors";
-import type { SeatingCandidateRow } from "@/lib/events/seatingApi";
+import { SEAT_CANDIDATES_PAGE, type SeatingCandidateRow } from "@/lib/events/seatingApi";
 import { useSeatingCandidates } from "@/lib/events/useEventSeating";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
@@ -225,16 +225,22 @@ export function SeatingAttendeesPanel({
             />
           ))}
         </ul>
-        {rows.length < total ? (
+        {rows.length >= total ? null : limit < SEAT_CANDIDATES_PAGE ? (
           <Button
             variant="outline"
             size="sm"
             className="w-full"
-            onClick={() => setLimit(limit + PAGE)}
+            onClick={() => setLimit(Math.min(limit + PAGE, SEAT_CANDIDATES_PAGE))}
           >
             {t("adminEventSeating.attendees.loadMore")}
           </Button>
-        ) : null}
+        ) : (
+          // Baza oddaje najwyzej 500 osob na strone - dalej prowadzi fraza
+          // albo filtr, a nie kolejne "pokaz wiecej", ktore nic by nie dalo.
+          <p className="text-xs text-muted-foreground">
+            {t("adminEventSeating.attendees.refine", { shown: rows.length, total })}
+          </p>
+        )}
       </AdminCatalogListState>
     </section>
   );

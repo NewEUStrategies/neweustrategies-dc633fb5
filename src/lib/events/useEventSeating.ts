@@ -11,6 +11,7 @@
 // baza pod blokada planu, a odmowa "miejsce zajete" musi byc widoczna od razu,
 // a nie jako cofniecie narysowanego juz przydzialu.
 import {
+  keepPreviousData,
   useMutation,
   useQuery,
   useQueryClient,
@@ -104,6 +105,9 @@ export function useSeatingCandidates(
     queryFn: () => fetchSeatingCandidates(query as SeatingCandidatesQuery),
     enabled: eventId !== "" && query !== null,
     staleTime: SEATING_LIVE_STALE_MS,
+    // "Pokaz wiecej" i zmiana filtra zostawiaja poprzednia strone na ekranie,
+    // zamiast mrugac stanem wczytywania nad lista, ktora organizator czyta.
+    placeholderData: keepPreviousData,
   });
 }
 
