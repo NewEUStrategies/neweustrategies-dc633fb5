@@ -9,6 +9,7 @@
 // aktualizacji optymistycznych (konwencja modulu): ekran pokazuje to, co
 // oddala baza.
 import {
+  skipToken,
   useMutation,
   useQuery,
   useQueryClient,
@@ -81,15 +82,14 @@ export function useEventInvoices(eventId: string): UseQueryResult<EventInvoiceLi
   });
 }
 
-/** `null` = zamkniety edytor (klucz bezczynny). */
+/** `null` = zamkniety edytor (klucz bezczynny, `skipToken` - bez zapytania). */
 export function useEventInvoice(
   eventId: string,
   invoiceId: string | null,
 ): UseQueryResult<EventInvoiceDocument> {
   return useQuery({
     queryKey: eventInvoiceKeys.detail(eventId, invoiceId ?? ""),
-    queryFn: () => fetchEventInvoice(invoiceId ?? ""),
-    enabled: eventId !== "" && invoiceId !== null,
+    queryFn: eventId === "" || invoiceId === null ? skipToken : () => fetchEventInvoice(invoiceId),
   });
 }
 

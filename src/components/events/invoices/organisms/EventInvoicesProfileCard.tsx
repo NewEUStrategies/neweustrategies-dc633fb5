@@ -113,14 +113,15 @@ export function EventInvoicesProfileCard() {
                   {documents.map((row) => (
                     <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 p-3">
                       <div className="min-w-0 space-y-0.5">
-                        <p className="text-sm font-medium">
+                        {/* div, nie p: Badge rysuje <div>, ktorego <p> nie moze zawierac. */}
+                        <div className="text-sm font-medium">
                           {t(kindKey(row.kind))} {row.number}
                           {row.status === "cancelled" ? (
                             <Badge variant="outline" className="ml-2">
                               {t("eventInvoices.statuses.cancelled")}
                             </Badge>
                           ) : null}
-                        </p>
+                        </div>
                         <p className="text-xs text-muted-foreground">
                           {titleOf(row, english)} · {row.issue_date}
                           {row.corrects_number === null
@@ -178,8 +179,8 @@ export function EventInvoicesProfileCard() {
                       english={english}
                       cancelling={cancelRequest.isPending}
                       onRequest={() => setRequesting(row)}
-                      onCancel={() =>
-                        cancelRequest.mutate(row.request_id, {
+                      onCancel={(requestId) =>
+                        cancelRequest.mutate(requestId, {
                           onSuccess: () => toast.success(t("eventInvoices.profile.requestCancelled")),
                           onError: (error) => toast.error(eventInvoiceErrorMessage(error)),
                         })
@@ -224,11 +225,13 @@ function OrderRow({
   english: boolean;
   cancelling: boolean;
   onRequest: () => void;
-  onCancel: () => void;
+  onCancel: (requestId: string) => void;
 }) {
   const { t } = useTranslation();
   const label = english && row.label_en !== "" ? row.label_en : row.label_pl;
   const pending = row.request_status === "pending";
+  // Wycofac mozna wylacznie OCZEKUJACA prosbe - i tylko wtedy znamy jej id.
+  const pendingRequestId = pending ? row.request_id : null;
   return (
     <li className="flex flex-wrap items-center justify-between gap-2 p-3">
       <div className="min-w-0 space-y-0.5">
@@ -264,11 +267,17 @@ function OrderRow({
             {pending ? t("eventInvoices.profile.editRequest") : t("eventInvoices.profile.request")}
           </Button>
         ) : null}
-        {pending ? (
-          <Button type="button" size="sm" variant="ghost" disabled={cancelling} onClick={onCancel}>
+        {pendingRequestId === null ? null : (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={cancelling}
+            onClick={() => onCancel(pendingRequestId)}
+          >
             {t("eventInvoices.profile.cancelRequest")}
           </Button>
-        ) : null}
+        )}
       </div>
     </li>
   );

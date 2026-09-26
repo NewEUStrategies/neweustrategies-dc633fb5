@@ -306,7 +306,9 @@ function CandidateRow({
           </Badge>
         ) : row.proforma_id !== null ? (
           <Badge variant="outline">
-            {t("adminEventInvoices.candidates.hasProforma", { number: row.proforma_number ?? "" })}
+            {t("adminEventInvoices.candidates.hasProforma", {
+              number: row.proforma_number ?? t("adminEventInvoices.documents.draftNumber"),
+            })}
           </Badge>
         ) : (
           <span className="text-muted-foreground">{t("adminEventInvoices.candidates.noDocument")}</span>

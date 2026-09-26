@@ -14,8 +14,34 @@ import { buyerDraftToPayload, type InvoiceBuyerDraft } from "@/lib/events/eventI
 
 type Fns = Database["public"]["Functions"];
 
-export type MyInvoiceSourceRow = Fns["event_my_invoice_sources"]["Returns"][number];
-export type MyInvoiceRow = Fns["event_my_invoices"]["Returns"][number];
+/** Kolumny oddawane jako NULL, ktore generator typuje jako wartosc (jak w `eventInvoicesApi.ts`). */
+type WithNullable<T, K extends keyof T> = Omit<T, K> & { [P in K]: T[P] | null };
+
+/** Prosba i faktura to LEFT JOIN-y; nieoplacone zamowienie nie ma daty zaplaty ani terminu prosby. */
+export type MyInvoiceSourceRow = WithNullable<
+  Fns["event_my_invoice_sources"]["Returns"][number],
+  | "paid_at"
+  | "request_deadline"
+  | "request_id"
+  | "request_status"
+  | "buyer_is_company"
+  | "buyer_name"
+  | "buyer_tax_id"
+  | "buyer_country"
+  | "buyer_address"
+  | "buyer_postal_code"
+  | "buyer_city"
+  | "buyer_email"
+  | "po_number"
+  | "invoice_id"
+  | "invoice_number"
+>;
+
+/** Wydarzenie moglo zostac usuniete (dokument zostaje); faktura nie musi byc korekta ani oplacona. */
+export type MyInvoiceRow = WithNullable<
+  Fns["event_my_invoices"]["Returns"][number],
+  "event_id" | "corrects_number" | "paid_at" | "due_date"
+>;
 
 export async function fetchMyInvoiceSources(): Promise<MyInvoiceSourceRow[]> {
   const { data, error } = await supabase.rpc("event_my_invoice_sources");

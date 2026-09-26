@@ -33,8 +33,51 @@ import { buyerDraftToPayload, type InvoiceBuyerDraft } from "@/lib/events/eventI
 
 type Fns = Database["public"]["Functions"];
 
-export type EventInvoiceCandidateRow = Fns["admin_event_invoice_candidates"]["Returns"][number];
-export type EventInvoiceListRow = Fns["admin_event_invoices_list"]["Returns"][number];
+/**
+ * Kolumny `RETURNS TABLE`, ktore baza oddaje jako NULL, a generator typow
+ * obiecuje jako wartosc (znany falsz generatora - wzorzec `EventTicketRow`
+ * w `registrationsApi.ts`). Zawezenie kontraktu: kto siegnie po taka kolumne
+ * bez sprawdzenia pustki, dostaje blad typu, a atrapy testow nie musza
+ * przemycac `null` rzutowaniem.
+ */
+export type WithNullable<T, K extends keyof T> = Omit<T, K> & { [P in K]: T[P] | null };
+
+/** LEFT JOIN-y prosby, faktury i proformy + zamowienie bez zaplaty. */
+export type EventInvoiceCandidateRow = WithNullable<
+  Fns["admin_event_invoice_candidates"]["Returns"][number],
+  | "request_id"
+  | "request_status"
+  | "buyer_is_company"
+  | "buyer_name"
+  | "buyer_tax_id"
+  | "buyer_email"
+  | "invoice_id"
+  | "invoice_number"
+  | "invoice_status"
+  | "proforma_id"
+  | "proforma_number"
+  | "tax_key"
+  | "ticket_type_id"
+  | "paid_at"
+>;
+
+/** Szkic nie ma numeru ani dat wystawienia; faktura nie ma korekty ani proformy. */
+export type EventInvoiceListRow = WithNullable<
+  Fns["admin_event_invoices_list"]["Returns"][number],
+  | "number"
+  | "issue_date"
+  | "sale_date"
+  | "due_date"
+  | "ksef_number"
+  | "paid_at"
+  | "corrects_invoice_id"
+  | "corrects_number"
+  | "correction_mode"
+  | "source_proforma_id"
+  | "converted_invoice_id"
+  | "issued_at"
+  | "cancelled_at"
+>;
 
 function payload(input: Record<string, Json | undefined>): Json {
   const out: { [key: string]: Json } = {};

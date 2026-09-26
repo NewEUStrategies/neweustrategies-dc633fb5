@@ -122,7 +122,7 @@ export function EventInvoiceDocumentsList({
     });
     if (!confirmed) return;
     issue.mutate(row.id, {
-      onSuccess: onIssued,
+      onSuccess: (issued) => onIssued(issued),
       onError: (failure) => toast.error(adminEventInvoiceErrorMessage(failure)),
     });
   }

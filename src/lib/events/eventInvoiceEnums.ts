@@ -37,9 +37,12 @@ export type EventInvoiceSourceKind = (typeof EVENT_INVOICE_SOURCE_KINDS)[number]
 export const EVENT_INVOICE_CORRECTION_MODES = ["full", "partial"] as const;
 export type EventInvoiceCorrectionMode = (typeof EVENT_INVOICE_CORRECTION_MODES)[number];
 
+/** Czy wartosc nalezy do zamknietego zbioru (straznik typu, bez rzutowania). */
+export function isEnumMember<T extends string>(values: readonly T[], value: unknown): value is T {
+  return values.some((item) => item === value);
+}
+
 /** Wartosc z bazy albo pierwsza z listy (baza pilnuje CHECK-a; klient nie zgaduje dalej). */
 export function pickEnum<T extends string>(values: readonly T[], value: unknown): T {
-  return typeof value === "string" && (values as readonly string[]).includes(value)
-    ? (value as T)
-    : values[0];
+  return isEnumMember(values, value) ? value : values[0];
 }

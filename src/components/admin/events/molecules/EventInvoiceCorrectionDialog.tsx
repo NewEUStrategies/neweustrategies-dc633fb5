@@ -24,7 +24,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { adminEventInvoiceErrorMessage } from "@/lib/events/adminEventInvoiceErrors";
 import type { EventInvoiceDocument } from "@/lib/events/eventInvoiceDocument";
-import type { EventInvoiceCorrectionMode } from "@/lib/events/eventInvoiceEnums";
+import { pickEnum, type EventInvoiceCorrectionMode } from "@/lib/events/eventInvoiceEnums";
 import { EVENT_INVOICE_VAT_RATES, type EventInvoiceVatRate } from "@/lib/events/eventInvoiceMath";
 import type { CorrectionLineChange } from "@/lib/events/eventInvoicesApi";
 import {
@@ -175,7 +175,7 @@ function CorrectionForm({
           {doc.lines.map((line) => {
             const change = changes[line.id];
             const update = (patch: Partial<LineChangeDraft>) =>
-              setChanges((current) => ({ ...current, [line.id]: { ...change, ...patch } }));
+              setChanges((current) => ({ ...current, [line.id]: { ...current[line.id], ...patch } }));
             return (
               <li key={line.id} className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-3">
                 <AdminFormTextRow
@@ -197,7 +197,7 @@ function CorrectionForm({
                   <FormSelect
                     id={`correction-rate-${line.id}`}
                     value={change.vatRate}
-                    onValueChange={(value) => update({ vatRate: value as EventInvoiceVatRate })}
+                    onValueChange={(value) => update({ vatRate: pickEnum(EVENT_INVOICE_VAT_RATES, value) })}
                     options={EVENT_INVOICE_VAT_RATES.map((rate) => ({
                       value: rate,
                       label: t(VAT_RATE_LABEL_KEYS[rate]),

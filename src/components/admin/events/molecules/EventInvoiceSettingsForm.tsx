@@ -20,7 +20,7 @@ import { EventStudioRow, EventStudioSaveBar } from "@/components/admin/events/st
 import { Label } from "@/components/ui/label";
 import { adminEventInvoiceErrorMessage } from "@/lib/events/adminEventInvoiceErrors";
 import type { EventInvoiceSettings } from "@/lib/events/eventInvoicesApi";
-import { EVENT_INVOICE_LOCALES, type EventInvoiceLocale } from "@/lib/events/eventInvoiceEnums";
+import { EVENT_INVOICE_LOCALES, pickEnum, type EventInvoiceLocale } from "@/lib/events/eventInvoiceEnums";
 import { EVENT_INVOICE_VAT_RATES, type EventInvoiceVatRate } from "@/lib/events/eventInvoiceMath";
 import {
   isSettingsDraftDirty,
@@ -61,7 +61,9 @@ export function EventInvoiceSettingsForm() {
       emptyLabel=""
     >
       {settingsQ.data === undefined ? null : (
-        <SettingsEditor key={settingsQ.data.confirmedAt ?? "new"} settings={settingsQ.data} />
+        // Bez `key` zaleznego od danych: przemontowanie w trakcie zapisu zgubiloby
+        // wywolania zwrotne `mutate` (toast i reset formularza po zapisie).
+        <SettingsEditor settings={settingsQ.data} />
       )}
     </AdminCatalogListState>
   );
@@ -85,7 +87,11 @@ function SettingsEditor({ settings }: { settings: EventInvoiceSettings }) {
     return key === undefined ? null : t(key);
   }
 
-  function text(field: Exclude<InvoiceSettingsField, "enabled" | "confirmSeller" | "defaultVatRate" | "defaultLocale">, labelKey: string, extra: { hint?: string; rows?: number; maxLength?: number } = {}) {
+  function text(
+    field: Exclude<InvoiceSettingsField, "enabled" | "confirmSeller" | "defaultVatRate" | "defaultLocale">,
+    labelKey: string,
+    extra: { hint?: string; rows?: number; maxLength: number },
+  ) {
     return (
       <AdminFormTextRow
         label={t(labelKey)}
@@ -154,7 +160,7 @@ function SettingsEditor({ settings }: { settings: EventInvoiceSettings }) {
             <FormSelect
               id="invoice-settings-vat"
               value={draft.defaultVatRate}
-              onValueChange={(value) => set("defaultVatRate", value as EventInvoiceVatRate)}
+              onValueChange={(value) => set("defaultVatRate", pickEnum(EVENT_INVOICE_VAT_RATES, value))}
               options={EVENT_INVOICE_VAT_RATES.map((rate) => ({ value: rate, label: t(VAT_RATE_LABEL_KEYS[rate]) }))}
             />
           </div>
@@ -163,7 +169,7 @@ function SettingsEditor({ settings }: { settings: EventInvoiceSettings }) {
             <FormSelect
               id="invoice-settings-locale"
               value={draft.defaultLocale}
-              onValueChange={(value) => set("defaultLocale", value as EventInvoiceLocale)}
+              onValueChange={(value) => set("defaultLocale", pickEnum(EVENT_INVOICE_LOCALES, value))}
               options={EVENT_INVOICE_LOCALES.map((locale) => ({ value: locale, label: t(LOCALE_LABEL_KEYS[locale]) }))}
             />
           </div>

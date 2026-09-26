@@ -51,10 +51,10 @@ import {
 import {
   EVENT_INVOICE_LOCALES,
   EVENT_INVOICE_PAYMENT_METHODS,
-  type EventInvoiceLocale,
+  pickEnum,
   type EventInvoicePaymentMethod,
 } from "@/lib/events/eventInvoiceEnums";
-import { EVENT_INVOICE_VAT_RATES, type EventInvoiceVatRate } from "@/lib/events/eventInvoiceMath";
+import { EVENT_INVOICE_VAT_RATES } from "@/lib/events/eventInvoiceMath";
 import { sourcesGrossCents, type IssuedInvoice } from "@/lib/events/eventInvoicesApi";
 import { downloadEventInvoicePdf } from "@/lib/events/eventInvoicePdfLabels";
 import { useEventInvoice, useIssueInvoice, useUpdateInvoiceDraft } from "@/lib/events/useEventInvoices";
@@ -234,7 +234,7 @@ function DraftEditor({
               onValueChange={(value) =>
                 setDraft((current) => ({
                   ...current,
-                  paymentMethod: value as EventInvoicePaymentMethod,
+                  paymentMethod: pickEnum(EVENT_INVOICE_PAYMENT_METHODS, value),
                 }))
               }
               options={EVENT_INVOICE_PAYMENT_METHODS.map((method) => ({
@@ -249,7 +249,7 @@ function DraftEditor({
               id={`invoice-locale-${doc.id}`}
               value={draft.locale}
               onValueChange={(value) =>
-                setDraft((current) => ({ ...current, locale: value as EventInvoiceLocale }))
+                setDraft((current) => ({ ...current, locale: pickEnum(EVENT_INVOICE_LOCALES, value) }))
               }
               options={EVENT_INVOICE_LOCALES.map((locale) => ({
                 value: locale,
@@ -442,7 +442,7 @@ function LineEditor({
             id={`${base}-rate`}
             value={line.vatRate}
             disabled={disabled}
-            onValueChange={(value) => onChange({ vatRate: value as EventInvoiceVatRate })}
+            onValueChange={(value) => onChange({ vatRate: pickEnum(EVENT_INVOICE_VAT_RATES, value) })}
             options={EVENT_INVOICE_VAT_RATES.map((rate) => ({
               value: rate,
               label: t(VAT_RATE_LABEL_KEYS[rate]),
