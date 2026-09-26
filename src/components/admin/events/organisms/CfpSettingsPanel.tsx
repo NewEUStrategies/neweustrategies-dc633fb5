@@ -129,7 +129,10 @@ function CfpSettingsForm({ eventId, settings }: { eventId: string; settings: Cfp
     setTouched(true);
     if (issues.length > 0) return;
     save.mutate(cfpSettingsPayload(eventId, draft), {
-      onSuccess: () => {
+      onSuccess: (next) => {
+        // Odpowiedź RPC jest nowym stanem formularza - wprost, bez czekania na
+        // to, czy zmiana treści w cache zdąży uruchomić efekt przed odświeżeniem.
+        setDraft(cfpSettingsDraftFromSettings(next));
         setTouched(false);
         toast.success(t("adminEventCfp.toasts.settingsSaved"));
       },

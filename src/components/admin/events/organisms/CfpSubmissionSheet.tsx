@@ -88,13 +88,13 @@ export function CfpSubmissionSheet({
   eventId,
   submissionId,
   settings,
-  onOpenChange,
+  onClose,
 }: {
   eventId: string;
   /** `null` = szuflada zamknięta. */
   submissionId: string | null;
   settings: CfpSettings;
-  onOpenChange: (open: boolean) => void;
+  onClose: () => void;
 }) {
   ensureAdminEventCfpI18n();
   const { t } = useTranslation();
@@ -102,7 +102,9 @@ export function CfpSubmissionSheet({
   const detail = detailQ.data;
 
   return (
-    <Sheet open={submissionId !== null} onOpenChange={onOpenChange}>
+    // Szuflada nie ma własnego wyzwalacza - `onOpenChange` przychodzi wyłącznie
+    // przy zamknięciu (Escape, klik poza, krzyżyk).
+    <Sheet open={submissionId !== null} onOpenChange={() => onClose()}>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl">
         <SheetHeader>
           <SheetTitle>{t("adminEventCfp.detail.title")}</SheetTitle>

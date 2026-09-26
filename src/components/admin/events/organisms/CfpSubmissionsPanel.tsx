@@ -358,9 +358,7 @@ function CfpSubmissionsList({ eventId, settings }: { eventId: string; settings: 
         eventId={eventId}
         submissionId={openId}
         settings={settings}
-        onOpenChange={(open) => {
-          if (!open) setOpenId(null);
-        }}
+        onClose={() => setOpenId(null)}
       />
     </div>
   );

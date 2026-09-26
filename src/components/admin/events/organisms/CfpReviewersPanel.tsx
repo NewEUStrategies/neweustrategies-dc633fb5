@@ -59,8 +59,8 @@ export function CfpReviewersPanel({ eventId }: { eventId: string }) {
 
   const fail = (error: unknown) => toast.error(adminCfpErrorMessage(error));
 
-  const add = () => {
-    if (picked === "") return;
+  // Przycisk jest wyłączony bez wybranego konta, więc `picked` jest tu niepusty.
+  const add = () =>
     setReviewer.mutate(
       { eventId, userId: picked, isActive: true },
       {
@@ -71,7 +71,6 @@ export function CfpReviewersPanel({ eventId }: { eventId: string }) {
         onError: fail,
       },
     );
-  };
 
   const update = (row: CfpReviewerRow, patch: Partial<CfpReviewerInput>) =>
     setReviewer.mutate(
