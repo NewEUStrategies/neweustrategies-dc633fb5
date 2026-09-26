@@ -180,6 +180,13 @@ async function runJobs(job: SchedulerJob): Promise<{ result: JobOutcome; errors:
         await import("@/lib/events/ticketRevokedNotify.server");
       return runPendingTicketRevocations(50);
     });
+    // Bilety z puli planu porzuconych kas wracają do puli - także bez pg_cron
+    // (migracja planuje przegląd w pg_cron, ale bez rozszerzenia kończy się
+    // komunikatem). Funkcja bazy jest idempotentna, więc dwa źródła nie dublują.
+    await step("eventPlanSeatRelease", async () => {
+      const { runPlanSeatRelease } = await import("@/lib/events/planSeatRelease.server");
+      return runPlanSeatRelease(500);
+    });
   }
   if (job === "all" || job === "career-cv-retention") {
     // Dane osobowe kandydatów: plik CV ląduje w buckecie przy WYBORZE, przed

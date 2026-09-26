@@ -1135,15 +1135,20 @@ REVOKE ALL ON FUNCTION public._event_plan_seat_release_lapsed(integer) FROM PUBL
 GRANT EXECUTE ON FUNCTION public._event_plan_seat_release_lapsed(integer) TO service_role;
 
 COMMENT ON FUNCTION public._event_plan_seat_release_lapsed(integer) IS
-  'Co godzine (pg_cron event-plan-seat-release): zwalnia bilety z puli trzymane przez zgloszenia, ktore ich nie potrzebuja (_event_plan_seat_needed) - porzucona kasa, kasa przerwana przed zamowieniem. Karencja godziny od zajecia. Zwraca liczbe zwolnionych.';
+  'Co godzine (pg_cron event-plan-seat-release) i z community-cron (event-ticket-codes): zwalnia bilety z puli trzymane przez zgloszenia, ktore ich nie potrzebuja (_event_plan_seat_needed) - porzucona kasa, kasa przerwana przed zamowieniem. Karencja godziny od zajecia. Zwraca liczbe zwolnionych.';
 
+-- Harmonogram w pg_cron, gdy jest. NIE jest jedynym zrodlem wywolan:
+-- `community-cron` (job `event-ticket-codes`, scheduler repo co 5 minut) woła
+-- ten sam przeglad (`runPlanSeatRelease`), wiec baza bez pg_cron - albo
+-- z nieudanym zakladaniem zadania - nie zostawia biletow porzuconych kas
+-- zajetych na zawsze. Funkcja jest idempotentna (SKIP LOCKED, karencja).
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pg_cron') THEN
     CREATE EXTENSION IF NOT EXISTS pg_cron;
     PERFORM cron.schedule('event-plan-seat-release', '17 * * * *',
       'SELECT public._event_plan_seat_release_lapsed(500)');
   ELSE
-    RAISE NOTICE 'pg_cron unavailable - lapsed plan seats released only on demand';
+    RAISE NOTICE 'pg_cron unavailable - lapsed plan seats released by community-cron (event-ticket-codes)';
   END IF;
 EXCEPTION WHEN OTHERS THEN
   RAISE NOTICE 'pg_cron setup skipped: %', SQLERRM;

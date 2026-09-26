@@ -170,6 +170,11 @@ function summarize(payload) {
         (revoked.deferred ? ` (odłożone: ${revoked.deferred})` : ""),
     );
   }
+  // Bilety z puli planu porzuconych kas - linia tylko, gdy cos wrocilo.
+  const seats = payload.eventPlanSeatRelease;
+  if (seats && typeof seats === "object" && !seats.error && seats.released > 0) {
+    parts.push(`bilety z puli zwrócone: ${seats.released}`);
+  }
   if (payload.runnerArmed === "armed") parts.push("uzbrojono pg_cron");
   if (Array.isArray(payload.errors) && payload.errors.length > 0) {
     parts.push(`błędy: ${payload.errors.join("; ")}`);

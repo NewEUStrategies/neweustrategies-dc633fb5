@@ -150,6 +150,9 @@ vi.mock("@/lib/events/ticketRevokedNotify.server", () => ({
   runPendingTicketRevocations: (limit: number) =>
     jobs.run("eventTicketRevocations", [limit], { notices: 1, sent: 1, failed: 0, deferred: 0 }),
 }));
+vi.mock("@/lib/events/planSeatRelease.server", () => ({
+  runPlanSeatRelease: (limit: number) => jobs.run("eventPlanSeatRelease", [limit], { released: 2 }),
+}));
 
 vi.mock("@/lib/server/careerCvRetention.server", () => ({
   runCareerCvRetention: () => jobs.run("careerCvRetention", [], { removed: 2, scanned: 9 }),
@@ -877,17 +880,19 @@ describe("wybór kanałów: `?job=`, ciało żądania i pierwszeństwo query", (
     expect(payload).not.toHaveProperty("reputationBadges");
   });
 
-  it("`?job=event-ticket-codes` wysyła bilety, a potem zawiadomienia o odwołanych - obie partie po 50", async () => {
+  it("`?job=event-ticket-codes` wysyła bilety, zawiadomienia o odwołanych (partie po 50) i zwalnia porzucone bilety z puli", async () => {
     const res = await tick({ query: "?job=event-ticket-codes" });
 
     expect(jobs.calls).toEqual([
       { step: "eventTicketCodes", args: [50] },
       { step: "eventTicketRevocations", args: [50] },
+      { step: "eventPlanSeatRelease", args: [500] },
     ]);
     const payload = await body(res);
     expect(payload).toMatchObject({ ok: true, job: "event-ticket-codes" });
     expect(payload).toHaveProperty("eventTicketCodes");
     expect(payload).toHaveProperty("eventTicketRevocations");
+    expect(payload).toMatchObject({ eventPlanSeatRelease: { released: 2 } });
     expect(payload).not.toHaveProperty("reputationBadges");
   });
 
@@ -911,6 +916,7 @@ describe("wybór kanałów: `?job=`, ciało żądania i pierwszeństwo query", (
       "crmTaskReminders",
       "eventTicketCodes",
       "eventTicketRevocations",
+      "eventPlanSeatRelease",
       "careerCvRetention",
       "reputationBadges",
     ]);
@@ -925,6 +931,7 @@ describe("wybór kanałów: `?job=`, ciało żądania i pierwszeństwo query", (
         "crmTaskReminders",
         "eventTicketCodes",
         "eventTicketRevocations",
+        "eventPlanSeatRelease",
         "careerCvRetention",
         "reputationBadges",
       ]),
@@ -1088,7 +1095,7 @@ describe("uzbrojenie ścieżki podstawowej (`arm_job_runner`)", () => {
 
     expect(res.status).toBe(200);
     await expect(body(res)).resolves.toMatchObject({ ok: true, runnerArmed: "unavailable" });
-    expect(jobs.steps()).toHaveLength(9);
+    expect(jobs.steps()).toHaveLength(10);
   });
 });
 
@@ -1096,7 +1103,7 @@ describe("uzbrojenie ścieżki podstawowej (`arm_job_runner`)", () => {
 // IZOLACJA KANAŁÓW - awaria jednego a reszta przebiegu
 // ===========================================================================
 describe("izolacja kanałów: awaria jednego nie zabiera pozostałych", () => {
-  it("padnięty digest tygodniowy nie zatrzymuje pozostałych siedmiu kanałów", async () => {
+  it("padnięty digest tygodniowy nie zatrzymuje pozostałych ośmiu kanałów", async () => {
     jobs.failures.set("digest:weekly", "resend api key missing");
 
     const res = await tick({ query: "?job=all" });
@@ -1111,6 +1118,7 @@ describe("izolacja kanałów: awaria jednego nie zabiera pozostałych", () => {
       "crmTaskReminders",
       "eventTicketCodes",
       "eventTicketRevocations",
+      "eventPlanSeatRelease",
       "careerCvRetention",
       "reputationBadges",
     ]);
@@ -1207,7 +1215,7 @@ describe("budżet czasu (COMMUNITY_CRON_DEADLINE_MS = 25 s)", () => {
     const res = await tick({ query: "?job=all" });
     const payload = await body(res);
 
-    // Wykonał się TYLKO push - pozostałe osiem kanałów nawet nie startowało.
+    // Wykonał się TYLKO push - pozostałe dziewięć kanałów nawet nie startowało.
     expect(jobs.steps()).toEqual(["push"]);
     for (const key of [
       "digestDaily",
@@ -1216,6 +1224,7 @@ describe("budżet czasu (COMMUNITY_CRON_DEADLINE_MS = 25 s)", () => {
       "crmTaskReminders",
       "eventTicketCodes",
       "eventTicketRevocations",
+      "eventPlanSeatRelease",
       "careerCvRetention",
       "reputationBadges",
     ]) {
@@ -1253,6 +1262,7 @@ describe("budżet czasu (COMMUNITY_CRON_DEADLINE_MS = 25 s)", () => {
       "crmTaskReminders",
       "eventTicketCodes",
       "eventTicketRevocations",
+      "eventPlanSeatRelease",
       "careerCvRetention",
       "reputationBadges",
     ]);

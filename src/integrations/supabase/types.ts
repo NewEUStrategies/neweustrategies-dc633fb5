@@ -19525,6 +19525,10 @@ export type Database = {
         Args: { _device_id: string }
         Returns: boolean
       }
+      _event_plan_seat_release_lapsed: {
+        Args: { p_limit?: number }
+        Returns: number
+      }
       _event_seats_left: {
         Args: { _event_id: string; _tenant: string; _ticket_type_id?: string }
         Returns: number
