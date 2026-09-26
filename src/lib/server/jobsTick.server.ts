@@ -55,7 +55,7 @@ export interface JobsTickResult {
    * organizatora czekał na bilet do pięciu minut - albo dłużej, gdy wcześniejsze
    * kroki zjadły budżet.
    */
-  eventTicketCodes: { registrations: number; sent: number } | { error: string };
+  eventTicketCodes: { registrations: number; sent: number; deferred: number } | { error: string };
   /**
    * `archived`/`alerted`: skaner nie tylko raportuje martwe linki, ale też
    * dobiera im migawkę Internet Archive i - po przekroczeniu progu - powiadamia
@@ -130,6 +130,15 @@ const JOBS_TICK_DEADLINE_MS = 25_000;
  */
 const EMAIL_DRAIN_DEADLINE_MS = 10_000;
 
+/**
+ * Termin wysyłki biletów z kodem QR, liczony od startu ticku - z tego samego
+ * powodu co dren poczty. Jedno zgłoszenie z kolejki bywa grupą do 50 osób,
+ * więc partia bez terminu po wdrożeniu (zaległe zapisy RSVP, naprawa backfillu
+ * 0044) zjadłaby cały budżet i zagłodziła skan linków, integracje i klub.
+ * 7 s zapasu do budżetu ticku zostaje na joby po biletach.
+ */
+const TICKET_CODES_DEADLINE_MS = 18_000;
+
 /** Uruchamia krok joba tylko w ramach budżetu czasu; błąd/pominięcie łapie w
  *  wspólnym kształcie `{ error }` (każde pole JobsTickResult go dopuszcza). */
 async function runJobStep<T>(
@@ -200,7 +209,7 @@ export async function runJobsTick(
   // więc oba ticki niczego nie dublują).
   const eventTicketCodes = await runJobStep(overBudget, async () => {
     const { runPendingTicketCodes } = await import("@/lib/events/ticketCodeNotify.server");
-    return runPendingTicketCodes(20);
+    return runPendingTicketCodes(20, startedAt + TICKET_CODES_DEADLINE_MS);
   });
   // Rotacyjny skan linków wychodzących (B7): 6 wpisów co 15 minut zamiast 3 co
   // minutę - ta sama przepustowość dzienna przy ~15x mniejszym ruchu HTTP.

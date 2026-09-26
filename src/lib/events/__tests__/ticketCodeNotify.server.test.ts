@@ -23,6 +23,8 @@ const h = vi.hoisted(() => ({
   sent: [] as TxSendInput[],
   sendResult: { ok: true } as TxSendResult,
   sendThrows: false,
+  /** Woła się przy każdym wydaniu - test terminu przesuwa w nim zegar. */
+  onIssue: null as (() => void) | null,
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -36,6 +38,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({
       if (name === "_event_ticket_codes_pending") {
         return Promise.resolve({ data: h.pending, error: h.pendingError });
       }
+      h.onIssue?.();
       if (h.rpcThrows) return Promise.reject(new Error("issue: sieć"));
       return Promise.resolve(h.rpcResult);
     },
@@ -99,6 +102,7 @@ const guestRow = {
 };
 
 beforeEach(() => {
+  h.onIssue = null;
   h.rpcResult = { data: null, error: null };
   h.rpcThrows = false;
   h.rpcCalls = [];
@@ -342,13 +346,21 @@ describe("runPendingTicketCodes", () => {
   it("domyślna partia to 50, śmieci z kolejki są pomijane", async () => {
     h.pending = ["reg-a", 7, null];
     h.rpcResult = { data: [], error: null };
-    await expect(runPendingTicketCodes()).resolves.toEqual({ registrations: 1, sent: 0 });
+    await expect(runPendingTicketCodes()).resolves.toEqual({
+      registrations: 1,
+      sent: 0,
+      deferred: 0,
+    });
     expect(h.rpcCalls[0]).toEqual({ name: "_event_ticket_codes_pending", args: { p_limit: 50 } });
   });
 
   it("odpowiedź bez listy znaczy „nic do wydania”", async () => {
     h.pending = null;
-    await expect(runPendingTicketCodes(5)).resolves.toEqual({ registrations: 0, sent: 0 });
+    await expect(runPendingTicketCodes(5)).resolves.toEqual({
+      registrations: 0,
+      sent: 0,
+      deferred: 0,
+    });
   });
 
   it("błąd kolejki RZUCA - krok crona ma zaświecić się na czerwono", async () => {
@@ -362,12 +374,74 @@ describe("runPendingTicketCodes", () => {
     h.pending = ["reg-a", "reg-b"];
     h.rpcResult = { data: [leadRow], error: null };
 
-    await expect(runPendingTicketCodes(25)).resolves.toEqual({ registrations: 2, sent: 2 });
+    await expect(runPendingTicketCodes(25)).resolves.toEqual({
+      registrations: 2,
+      sent: 2,
+      deferred: 0,
+    });
     expect(h.rpcCalls[0]).toEqual({ name: "_event_ticket_codes_pending", args: { p_limit: 25 } });
     expect(
       h.rpcCalls
         .filter((c) => c.name === "_event_issue_ticket_codes")
         .map((c) => (c.args as { p_registration_id: string }).p_registration_id),
     ).toEqual(["reg-a", "reg-b"]);
+  });
+
+  // TERMIN: jedno zgloszenie bywa grupa do 50 osob, wiec partia bez terminu
+  // potrafila przebic budzet ticku i limit CPU workera.
+  it("termin sprawdzany PRZED kolejnym zgłoszeniem - reszta czeka na następny tick", async () => {
+    h.pending = ["reg-a", "reg-b", "reg-c"];
+    h.rpcResult = { data: [leadRow], error: null };
+    const deadline = Date.now() + 60_000;
+    const now = vi.spyOn(Date, "now");
+    // Pierwsze wydanie "trwa" dluzej niz termin.
+    h.onIssue = () => {
+      now.mockReturnValue(deadline + 1);
+    };
+    try {
+      await expect(runPendingTicketCodes(20, deadline)).resolves.toEqual({
+        registrations: 1,
+        sent: 1,
+        deferred: 2,
+      });
+    } finally {
+      now.mockRestore();
+    }
+    expect(
+      h.rpcCalls
+        .filter((c) => c.name === "_event_issue_ticket_codes")
+        .map((c) => (c.args as { p_registration_id: string }).p_registration_id),
+    ).toEqual(["reg-a"]);
+  });
+
+  it("termin miniony przed startem - nic nie wydaje, cała kolejka odłożona", async () => {
+    h.pending = ["reg-a", "reg-b"];
+    await expect(runPendingTicketCodes(20, Date.now() - 1)).resolves.toEqual({
+      registrations: 0,
+      sent: 0,
+      deferred: 2,
+    });
+    expect(h.rpcCalls.filter((c) => c.name === "_event_issue_ticket_codes")).toHaveLength(0);
+  });
+
+  it("bez terminu od wołającego partia dostaje własny, 15-sekundowy budżet", async () => {
+    // `community-cron` nie podaje terminu - bez domyślnego budżetu jego partia
+    // 50 zgłoszeń nie miałaby żadnej granicy.
+    h.pending = ["reg-a", "reg-b"];
+    h.rpcResult = { data: [leadRow], error: null };
+    const start = Date.now();
+    const now = vi.spyOn(Date, "now").mockReturnValue(start);
+    h.onIssue = () => {
+      now.mockReturnValue(start + 15_001);
+    };
+    try {
+      await expect(runPendingTicketCodes()).resolves.toEqual({
+        registrations: 1,
+        sent: 1,
+        deferred: 1,
+      });
+    } finally {
+      now.mockRestore();
+    }
   });
 });

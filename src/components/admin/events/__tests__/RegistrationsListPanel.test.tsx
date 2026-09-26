@@ -87,6 +87,8 @@ const h = vi.hoisted(() => ({
   notifyResults: {} as Record<string, { ok: boolean; ticketsSent?: number } | "throw">,
   /** Powiązania grupy i stan biletu (`admin_event_registration_group_links`). */
   groupLinks: undefined as unknown[] | undefined,
+  /** Z czym panel pyta o powiązania: wydarzenie i wiersze strony. */
+  groupLinksArgs: [] as [string | null, readonly string[]][],
   refetchGroupLinks: vi.fn(),
   /** Ponowna wysyłka biletu: wywołania, wynik (liczba albo odmowa) i stan. */
   resendCalls: [] as unknown[],
@@ -303,7 +305,10 @@ vi.mock("@/lib/events/useEventRegistrations", () => ({
     isPending: h.promotePending,
   }),
   useMarkRegistrationsNotified: () => ({ reset: h.markReset }),
-  useRegistrationGroupLinks: () => ({ data: h.groupLinks, refetch: h.refetchGroupLinks }),
+  useRegistrationGroupLinks: (eventId: string | null, registrationIds: readonly string[]) => {
+    h.groupLinksArgs.push([eventId, registrationIds]);
+    return { data: h.groupLinks, refetch: h.refetchGroupLinks };
+  },
   useResendEventTicket: () => ({
     mutate: (
       input: unknown,
@@ -482,6 +487,7 @@ beforeEach(() => {
   h.notifyResults = {};
   h.notifyHang = false;
   h.groupLinks = undefined;
+  h.groupLinksArgs = [];
   h.refetchGroupLinks.mockClear();
   h.resendCalls = [];
   h.resendResult = 1;
@@ -1479,6 +1485,31 @@ describe("plakietki grupy i biletu", () => {
     const [sent, unsent] = wiersze() as [HTMLElement, HTMLElement];
     expect(within(sent).getByText(`${B}.badges.ticketSent`)).toBeTruthy();
     expect(within(unsent).getByText(`${B}.badges.ticketNotSent`)).toBeTruthy();
+  });
+
+  it("powiązania pytane TYLKO o wiersze widocznej strony, nie o całe wydarzenie", () => {
+    h.rows = [registrationRow({ id: "reg-a" }), registrationRow({ id: "reg-b" })];
+    panel();
+
+    expect(h.groupLinksArgs.at(-1)).toEqual([WYDARZENIE, ["reg-a", "reg-b"]]);
+  });
+
+  it("przyjęty, ale nieoplacony: „bilet po wpłacie”, nie „niewysłany” - to nie awaria poczty", () => {
+    h.rows = [
+      registrationRow({ id: "reg-unpaid", status: "approved" }),
+      registrationRow({ id: "reg-refunded", status: "approved" }),
+    ];
+    h.groupLinks = [
+      groupLink({ registration_id: "reg-unpaid", payment_status: "unpaid" }),
+      groupLink({ registration_id: "reg-refunded", payment_status: "refunded" }),
+    ];
+    panel();
+
+    const [unpaid, refunded] = wiersze() as [HTMLElement, HTMLElement];
+    expect(within(unpaid).getByText(`${B}.badges.ticketAwaitingPayment`)).toBeTruthy();
+    expect(within(unpaid).queryByText(`${B}.badges.ticketNotSent`)).toBeNull();
+    // Zwrot: biletu nie ma i nie bedzie - bez plakietki biletu.
+    expect(within(refunded).queryByText(/badges\.ticket/)).toBeNull();
   });
 
   it("bez odpowiedzi powiązań (zapytanie w locie) nie zgaduje plakietek ani przycisku", () => {

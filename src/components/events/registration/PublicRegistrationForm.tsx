@@ -562,6 +562,23 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
       </section>
 
       {failure !== null && <FailureNotice message={failure} />}
+      {/* DRUGA DROGA Z ZABLOKOWANEGO ZAPISU. Bez konta lista gosci stoi ukryta
+          pod prosba o logowanie, wiec wpisanych osob nie da sie usunac recznie,
+          a logowanie opuszcza strone. Ten przycisk czysci liste - kolejne
+          „Zapisz sie" zapisze samego prowadzacego, swiadomie. */}
+      {failure !== null && guestsLostWithSession && (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            setGuests([]);
+            setGuestErrors([]);
+            setFailure(null);
+          }}
+        >
+          {t("eventRegistration.group.removeLostGuests")}
+        </Button>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" disabled={submit.isPending || paidTicketNeedsAccount}>

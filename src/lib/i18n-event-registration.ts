@@ -126,8 +126,11 @@ export const eventRegistrationPl = {
       signIn: "Zaloguj się",
       // Sesja zgasła po wpisaniu gości - bez konta baza gości nie dopisze,
       // a cichy zapis samego prowadzącego wyglądałby jak sukces całej grupy.
+      // Zdanie nazywa OBIE drogi, a przycisk obok daje drugą: lista gości jest
+      // wtedy ukryta pod prośbą o logowanie i nie da się jej wyczyścić ręcznie.
       sessionLost:
-        "Sesja wygasła. Zaloguj się ponownie, żeby zapisać gości - bez tego zapiszesz tylko siebie.",
+        "Sesja wygasła, a zapis gości wymaga konta. Zaloguj się ponownie albo usuń wpisanych gości i zapisz tylko siebie.",
+      removeLostGuests: "Usuń wpisanych gości",
       // Ekran potwierdzenia: kiedy goście dostaną WŁASNE bilety z kodem QR.
       ticketsAfterApproval:
         "Każdy gość dostanie bilet z kodem QR mailem, gdy zgłoszenie zostanie przyjęte.",
@@ -488,7 +491,8 @@ export const eventRegistrationEn = {
       accountRequired: "Sign in to register several people at once.",
       signIn: "Sign in",
       sessionLost:
-        "Your session has expired. Sign in again to register your guests - otherwise only you will be registered.",
+        "Your session has expired and registering guests requires an account. Sign in again, or remove the entered guests and register only yourself.",
+      removeLostGuests: "Remove the entered guests",
       ticketsAfterApproval:
         "Each guest will receive their own QR ticket by e-mail once the registration is accepted.",
       ticketsAfterPayment:

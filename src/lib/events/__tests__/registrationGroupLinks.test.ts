@@ -24,7 +24,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 const { fetchRegistrationGroupLinks } = await import("@/lib/events/registrationsApi");
-const { canResendTicket, groupLeadName, holdsTicket } =
+const { canResendTicket, groupLeadName, holdsTicket, ticketBadge } =
   await import("@/lib/events/registrationRows");
 
 const EVENT = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
@@ -47,22 +47,31 @@ beforeEach(() => {
   h.rpc = supabaseRpcStub();
 });
 
+const PAGE = ["cccccccc-cccc-cccc-cccc-cccccccccccc", LEAD] as const;
+
 describe("fetchRegistrationGroupLinks", () => {
-  it("woła RPC panelu z identyfikatorem wydarzenia i oddaje wiersze", async () => {
+  it("woła RPC panelu z wydarzeniem i wierszami strony, oddaje wiersze", async () => {
     const rows = [link({ group_lead_registration_id: LEAD, lead_first_name: "Anna" })];
     h.rpc?.setData("admin_event_registration_group_links", rows);
-    await expect(fetchRegistrationGroupLinks(EVENT)).resolves.toEqual(rows);
-    expect(h.rpc?.lastCall("admin_event_registration_group_links")?.arg("p_event_id")).toBe(EVENT);
+    await expect(fetchRegistrationGroupLinks(EVENT, PAGE)).resolves.toEqual(rows);
+    const call = h.rpc?.lastCall("admin_event_registration_group_links");
+    expect(call?.arg("p_event_id")).toBe(EVENT);
+    expect(call?.arg("p_registration_ids")).toEqual([...PAGE]);
+  });
+
+  it("pusta strona nie pyta bazy wcale - i nie ciągnie całego wydarzenia", async () => {
+    await expect(fetchRegistrationGroupLinks(EVENT, [])).resolves.toEqual([]);
+    expect(h.rpc?.lastCall("admin_event_registration_group_links")).toBeUndefined();
   });
 
   it("pusta odpowiedź to pusta lista, nie `null`", async () => {
     h.rpc?.setData("admin_event_registration_group_links", null);
-    await expect(fetchRegistrationGroupLinks(EVENT)).resolves.toEqual([]);
+    await expect(fetchRegistrationGroupLinks(EVENT, PAGE)).resolves.toEqual([]);
   });
 
   it("odmowa bazy (bramka roli) rzuca - panel pokaże ją zdaniem", async () => {
     h.rpc?.setError("admin_event_registration_group_links", "forbidden: admin role required");
-    await expect(fetchRegistrationGroupLinks(EVENT)).rejects.toMatchObject({
+    await expect(fetchRegistrationGroupLinks(EVENT, PAGE)).rejects.toMatchObject({
       message: "forbidden: admin role required",
     });
   });
@@ -100,6 +109,45 @@ describe("canResendTicket - lustro `ticket_not_issuable`", () => {
 
   it("bez wiersza powiązań (zapytanie w locie) rozliczenia nie znamy - przycisku nie ma", () => {
     expect(canResendTicket("approved", null)).toBe(false);
+  });
+});
+
+describe("ticketBadge - plakietka biletu", () => {
+  it("przyjęty i rozliczony: wysłany albo niewysłany - wg znacznika wysyłki", () => {
+    expect(ticketBadge("approved", link())).toBe("notSent");
+    expect(ticketBadge("attended", link({ payment_status: "paid" }))).toBe("notSent");
+    expect(ticketBadge("approved", link({ ticket_code_sent_at: "2026-09-26T10:00:00Z" }))).toBe(
+      "sent",
+    );
+  });
+
+  it("przyjęty, ale nieoplacony: bilet po wpłacie - nie „niewysłany”", () => {
+    expect(ticketBadge("approved", link({ payment_status: "unpaid" }))).toBe("awaitingPayment");
+  });
+
+  it.each(["refunded", "partially_refunded"])(
+    "przyjęty, ale %s: bez plakietki - biletu nie ma i nie będzie",
+    (payment) => {
+      expect(ticketBadge("approved", link({ payment_status: payment }))).toBeNull();
+    },
+  );
+
+  it("nieprzyjęty albo bez wiersza powiązań: bez plakietki", () => {
+    expect(ticketBadge("pending", link())).toBeNull();
+    expect(ticketBadge("pending", link({ payment_status: "unpaid" }))).toBeNull();
+    expect(ticketBadge("approved", null)).toBeNull();
+  });
+
+  it("plakietka „niewysłany” stoi dokładnie tam, gdzie przycisk ponownej wysyłki", () => {
+    for (const status of ["approved", "attended", "pending", "cancelled"]) {
+      for (const payment of ["paid", "not_required", "unpaid", "refunded"]) {
+        for (const sent of [null, "2026-09-26T10:00:00Z"]) {
+          const row = link({ payment_status: payment, ticket_code_sent_at: sent });
+          const badge = ticketBadge(status, row);
+          expect(badge === "notSent" || badge === "sent").toBe(canResendTicket(status, row));
+        }
+      }
+    }
   });
 });
 

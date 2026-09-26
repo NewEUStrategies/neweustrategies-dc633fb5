@@ -48,7 +48,6 @@ import {
   canResendTicket,
   groupLeadName,
   hasMissingRequiredTerms,
-  holdsTicket,
   isAwaitingWaitlistNotice,
   registrationGroupLabel,
   registrationOffsetForPage,
@@ -57,7 +56,9 @@ import {
   registrationPersonName,
   registrationStatusTone,
   registrationTicketLabel,
+  ticketBadge,
   type StatusTone,
+  type TicketBadge,
 } from "@/lib/events/registrationRows";
 import {
   fetchRegistrations,
@@ -94,6 +95,13 @@ const TONE_VARIANT: Record<StatusTone, "default" | "secondary" | "destructive" |
   danger: "destructive",
   info: "secondary",
   neutral: "outline",
+};
+
+/** Plakietka biletu -> klucz slownika (`...registrations.badges.*`). */
+const TICKET_BADGE_KEYS: Record<TicketBadge, string> = {
+  sent: "ticketSent",
+  notSent: "ticketNotSent",
+  awaitingPayment: "ticketAwaitingPayment",
 };
 
 const TOAST_KEYS: Record<RegistrationAction, string> = {
@@ -135,7 +143,10 @@ export function RegistrationsListPanel({
   const listQ = useRegistrationsList({ ...filters, status, limit, offset });
   const countsQ = useRegistrationCounts(filters);
   const ticketsQ = useEventTickets(eventId);
-  const groupLinksQ = useRegistrationGroupLinks(eventId);
+  // Powiazania tylko dla wierszy widocznej strony - zapytanie o cale wydarzenie
+  // ciagneloby przy duzym kongresie tysiace wierszy po kazdej decyzji.
+  const pageIds = useMemo(() => (listQ.data?.rows ?? []).map((row) => row.id), [listQ.data]);
+  const groupLinksQ = useRegistrationGroupLinks(eventId, pageIds);
   const links = useMemo(
     () =>
       new Map<string, RegistrationGroupLink>(
@@ -516,6 +527,7 @@ export function RegistrationsListPanel({
             const leadName = groupLeadName(link);
             const guests = link?.guest_count ?? 0;
             const resendable = canResendTicket(row.status, link);
+            const ticketState = ticketBadge(row.status, link);
             return (
               <li key={row.id} className="flex flex-wrap items-start gap-3 p-4">
                 <div className="min-w-[14rem] flex-1 space-y-1">
@@ -546,15 +558,13 @@ export function RegistrationsListPanel({
                         {t(`${base}.badges.groupLead`, { count: guests })}
                       </Badge>
                     ) : null}
-                    {/* Tylko wiersz przyjety trzyma bilet - u oczekujacego „niewyslany"
-                        bylby prawda, ktora nic nie mowi. */}
-                    {link !== null && holdsTicket(row.status) ? (
-                      link.ticket_code_sent_at === null ? (
-                        <Badge variant="secondary">{t(`${base}.badges.ticketNotSent`)}</Badge>
-                      ) : (
-                        <Badge variant="outline">{t(`${base}.badges.ticketSent`)}</Badge>
-                      )
-                    ) : null}
+                    {/* Plakietka biletu tylko tam, gdzie bilet sie nalezy - u oczekujacego
+                        albo nieoplaconego „niewyslany" wygladalby jak awaria poczty. */}
+                    {ticketState === null ? null : (
+                      <Badge variant={ticketState === "notSent" ? "secondary" : "outline"}>
+                        {t(`${base}.badges.${TICKET_BADGE_KEYS[ticketState]}`)}
+                      </Badge>
+                    )}
                     {row.status === "waitlist" && row.waitlist_position !== null ? (
                       <Badge variant="outline">
                         {t("adminEventRegistration.waitlist.position", {

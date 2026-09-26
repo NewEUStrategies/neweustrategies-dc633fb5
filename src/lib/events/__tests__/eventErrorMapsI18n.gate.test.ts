@@ -101,6 +101,10 @@ const KODY_REJESTRACJI = [
   "invalid_audience",
   "invalid_evidence",
   "invalid_subject",
+  // admin_event_ticket_resend (server fn `ticketResend.functions` - panel tlumaczy
+  // jej odmowe ta sama mapa, co decyzje)
+  "ticket_not_issuable",
+  "ticket_send_in_progress",
   STRAZNIK_TENANTA,
 ] as const;
 
@@ -267,7 +271,7 @@ const MAPY: readonly BramkowanaMapa[] = [
     nakladka: "src/lib/i18n-admin-event-registration.ts",
     pl: adminEventRegistrationPl,
     en: adminEventRegistrationEn,
-    moduly: ["registrationsApi", "packagesApi", "audienceGrantsApi"],
+    moduly: ["registrationsApi", "packagesApi", "audienceGrantsApi", "ticketResend.functions"],
     interpoluje: true,
   },
   {

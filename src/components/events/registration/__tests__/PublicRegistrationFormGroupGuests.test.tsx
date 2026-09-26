@@ -504,6 +504,33 @@ describe("zapis grupowy - lista gości, która przestała mieć sens", () => {
     );
   });
 
+  it("po zatrzymaniu zapisu można świadomie usunąć ukrytych gości i zapisać samego siebie", async () => {
+    // Bez tego przycisku zablokowany zapis był ślepą uliczką: lista gości
+    // stoi ukryta pod prośbą o logowanie, a logowanie opuszcza stronę.
+    h.user = LEAD;
+    const { rerender } = renderForm();
+    await screen.findByText(`${G}.title`);
+    fireEvent.click(addButton());
+    fillGuest(2, "Ewa", "Nowak", "ewa.nowak@example.org");
+
+    h.user = null;
+    rerender();
+    expect(screen.queryByRole("button", { name: `${G}.removeLostGuests` })).not.toBeInTheDocument();
+    acceptDataProcessing();
+    submitForm();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(`${G}.sessionLost`);
+    fireEvent.click(screen.getByRole("button", { name: `${G}.removeLostGuests` }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: `${G}.removeLostGuests` })).not.toBeInTheDocument();
+    expect(stub().callsFor(REGISTER_RPC)).toHaveLength(0);
+
+    submitForm();
+    expect(await screen.findByText(MANAGE_TOKEN)).toBeInTheDocument();
+    expect(stub().callsFor(REGISTER_RPC)).toHaveLength(1);
+    expect(stub().callsFor(GUESTS_RPC)).toHaveLength(0);
+  });
+
   it("pusty wiersz gościa po wylogowaniu nie blokuje zapisu - nie ma czego zgubić", async () => {
     h.user = LEAD;
     const { rerender } = renderForm();

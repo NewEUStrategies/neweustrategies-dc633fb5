@@ -104,7 +104,7 @@ const fixtures = vi.hoisted(() => ({
   digestWeekly: { claimed: 2, sent: 2 },
   eventReminders: 7,
   crmTaskReminders: 5,
-  eventTicketCodes: { registrations: 4, sent: 3 },
+  eventTicketCodes: { registrations: 4, sent: 3, deferred: 0 },
   linkCheck: { postsScanned: 6, linksChecked: 41, broken: 2, archived: 1, alerted: 1 },
   integrations: { claimed: 7, delivered: 6, failed: 1 },
   semanticIndex: { scanned: 24, embedded: 20 },
@@ -220,8 +220,8 @@ vi.mock("@/lib/integrations/dispatch.functions", () => ({
 }));
 
 vi.mock("@/lib/events/ticketCodeNotify.server", () => ({
-  runPendingTicketCodes: (limit: number) =>
-    jobs.run("eventTicketCodes", [limit], fixtures.eventTicketCodes),
+  runPendingTicketCodes: (limit: number, deadlineAt: number) =>
+    jobs.run("eventTicketCodes", [limit, deadlineAt], fixtures.eventTicketCodes),
 }));
 
 vi.mock("@/lib/server/embeddings.server", () => ({
@@ -493,7 +493,7 @@ describe("kolejność jobów jest kontraktem, nie kosmetyką", () => {
     expect(jobs.argsOf("linkCheck")?.[1]).toBe(6);
     expect(jobs.argsOf("integrations")).toEqual([20]);
     // Bilety: partia 20 co minutę (community-cron bierze 50 co pięć minut).
-    expect(jobs.argsOf("eventTicketCodes")).toEqual([20]);
+    expect(jobs.argsOf("eventTicketCodes")?.[0]).toBe(20);
     expect(jobs.argsOf("semanticIndex")?.[1]).toBe(24);
     expect(jobs.argsOf("profileIndex")?.[1]).toBe(16);
     expect(jobs.argsOf("clubThreadIndex")?.[1]).toBe(16);
@@ -659,6 +659,22 @@ describe("budżet czasu jednego ticku", () => {
     await tickAt(0);
 
     expect(lastRun()).toMatchObject({ ok: true, error: null, durationMs: 25_001 });
+  });
+});
+
+// ===========================================================================
+// BILETY Z KODEM QR: WŁASNY TERMIN
+// ===========================================================================
+describe("bilety z kodem QR mają własny termin (TICKET_CODES_DEADLINE_MS = 18 s)", () => {
+  it("dostają termin ABSOLUTNY, 18 s od startu ticku - 7 s zapasu dla jobów po nich", async () => {
+    // Jedno zgłoszenie z kolejki bywa grupą do 50 osób. Bez terminu partia po
+    // wdrożeniu (zaległe zapisy RSVP, naprawa backfillu 0044) zjadłaby cały
+    // budżet 25 s i zagłodziła skan linków, integracje i klub.
+    await tickAt(0);
+
+    const deadlineAt = jobs.argsOf("eventTicketCodes")?.[1];
+    expect(Number(deadlineAt) - at(0).getTime()).toBe(18_000);
+    expect(25_000 - (Number(deadlineAt) - at(0).getTime())).toBe(7_000);
   });
 });
 

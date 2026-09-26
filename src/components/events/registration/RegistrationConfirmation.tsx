@@ -69,10 +69,15 @@ export function RegistrationConfirmation({
         : t("eventRegistration.result.waitlist", { position: result.waitlistPosition })
       : t(`eventRegistration.result.${result.status}`);
 
-  async function copyToken(): Promise<void> {
-    if (result.manageToken === null) return;
+  // KLUCZ JAKO STALA. Przycisk kopiowania zyje tylko przy kluczu, a zawezenie
+  // `!== null` na stalej przechodzi do domkniecia `onClick` - na polu
+  // `result.manageToken` TypeScript je gubi, wiec funkcja musiala sprawdzac
+  // klucz drugi raz warunkiem, ktorego zaden przebieg nie mogl spelnic.
+  const manageToken = result.manageToken;
+
+  async function copyToken(token: string): Promise<void> {
     try {
-      await navigator.clipboard.writeText(result.manageToken);
+      await navigator.clipboard.writeText(token);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -155,7 +160,7 @@ export function RegistrationConfirmation({
         </div>
       )}
 
-      {result.manageToken !== null && !cancelled && (
+      {manageToken !== null && !cancelled && (
         <div className="space-y-3 rounded-[6px] border border-border bg-card p-4">
           <h2 className="text-sm font-semibold text-foreground">
             {t("eventRegistration.result.manageTokenTitle")}
@@ -165,9 +170,14 @@ export function RegistrationConfirmation({
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <code className="min-w-0 flex-1 break-all rounded-[6px] bg-muted px-3 py-2 text-xs text-foreground">
-              {result.manageToken}
+              {manageToken}
             </code>
-            <Button type="button" variant="secondary" size="sm" onClick={() => void copyToken()}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => void copyToken(manageToken)}
+            >
               {copied ? (
                 <Check className="mr-2 h-4 w-4" aria-hidden="true" />
               ) : (
@@ -179,7 +189,7 @@ export function RegistrationConfirmation({
 
           <div className="border-t border-border pt-3">
             <a
-              href={manageLinkPath(slug, result.manageToken)}
+              href={manageLinkPath(slug, manageToken)}
               rel="nofollow"
               className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
             >

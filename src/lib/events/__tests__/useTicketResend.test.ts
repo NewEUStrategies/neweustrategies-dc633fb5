@@ -51,23 +51,29 @@ beforeEach(() => {
 
 describe("registrationKeys.groupLinks", () => {
   it("siedzi pod gałęzią wydarzenia - decyzja organizatora je unieważnia", () => {
-    const key = registrationKeys.groupLinks(EVENT);
+    const key = registrationKeys.groupLinks(EVENT, [REG]);
     expect(key.slice(0, 2)).toEqual([...registrationKeys.event(EVENT)]);
-    expect(key).toEqual(["event-registrations", EVENT, "group-links"]);
+    expect(key).toEqual(["event-registrations", EVENT, "group-links", [REG]]);
+  });
+
+  it("strona listy jest częścią klucza - inna strona to inne zapytanie", () => {
+    expect(registrationKeys.groupLinks(EVENT, [REG])).not.toEqual(
+      registrationKeys.groupLinks(EVENT, ["zgl-inny"]),
+    );
   });
 });
 
 describe("useRegistrationGroupLinks", () => {
-  it("czyta powiązania wskazanego wydarzenia", async () => {
+  it("czyta powiązania wierszy widocznej strony wskazanego wydarzenia", async () => {
     h.fetchRegistrationGroupLinks.mockResolvedValue([{ registration_id: REG }]);
-    const { result } = renderHook(() => useRegistrationGroupLinks(EVENT), { wrapper });
+    const { result } = renderHook(() => useRegistrationGroupLinks(EVENT, [REG]), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(h.fetchRegistrationGroupLinks).toHaveBeenCalledWith(EVENT);
+    expect(h.fetchRegistrationGroupLinks).toHaveBeenCalledWith(EVENT, [REG]);
     expect(result.current.data).toEqual([{ registration_id: REG }]);
   });
 
   it("bez wydarzenia nie pyta bazy", () => {
-    const { result } = renderHook(() => useRegistrationGroupLinks(null), { wrapper });
+    const { result } = renderHook(() => useRegistrationGroupLinks(null, [REG]), { wrapper });
     expect(result.current.fetchStatus).toBe("idle");
     expect(h.fetchRegistrationGroupLinks).not.toHaveBeenCalled();
   });

@@ -265,6 +265,9 @@ export const adminEventRegistrationPl = {
         groupLead: "Grupa: +{{count}}",
         ticketSent: "Bilet wysłany",
         ticketNotSent: "Bilet niewysłany",
+        // Przyjety, ale nieoplacony: bilet sie jeszcze NIE nalezy, wiec nie
+        // „niewyslany" (to wygladaloby na awarie poczty), tylko na co czeka.
+        ticketAwaitingPayment: "Bilet po wpłacie",
       },
 
       entryCode: {
@@ -297,8 +300,10 @@ export const adminEventRegistrationPl = {
 
       decideDialog: {
         approveTitle: "Zatwierdzić to zgłoszenie?",
+        // Bilet z kodem QR wychodzi mailem sam (wydanie po decyzji i cron) -
+        // dawna prosba o przekazanie kodu recznie przeczylaby podpowiedzi grupy.
         approveBody:
-          "Zgłoszenie zajmie miejsce w puli i otrzyma kod wejściowy. Kod przekaż uczestnikowi wiadomością.",
+          "Zgłoszenie zajmie miejsce w puli, a uczestnik dostanie mailem bilet z kodem QR - od razu albo po zaksięgowaniu płatności.",
         approveGroupHint:
           "Goście z tego zgłoszenia ({{count}}) zostaną przyjęci razem z prowadzącym - jeśli są rozliczeni i jest dla nich miejsce - i każdy dostanie własny bilet mailem.",
         rejectTitle: "Odrzucić to zgłoszenie?",
@@ -1192,6 +1197,7 @@ export const adminEventRegistrationPl = {
       invalidConsentUrl: "Adres dokumentu zgody musi zaczynać się od https:// (do 500 znaków).",
       notFound: "Rekord nie istnieje w tej organizacji.",
       ticketNotIssuable: "Bilet dostaje tylko zgłoszenie przyjęte i rozliczone.",
+      ticketSendInProgress: "Bilet jest właśnie wysyłany - spróbuj ponownie za kilka minut.",
       packageSoldOut: "Pula pakietów tego rodzaju została wyczerpana.",
       packageInUse: "Pakiet ma {{count}} zamówień - wyłącz go zamiast usuwać.",
       seatTaken: "To miejsce jest już zajęte przez uczestnika.",
@@ -1438,6 +1444,7 @@ export const adminEventRegistrationEn = {
         groupLead: "Group: +{{count}}",
         ticketSent: "Ticket sent",
         ticketNotSent: "Ticket not sent",
+        ticketAwaitingPayment: "Ticket after payment",
       },
 
       entryCode: {
@@ -1471,7 +1478,7 @@ export const adminEventRegistrationEn = {
       decideDialog: {
         approveTitle: "Approve this application?",
         approveBody:
-          "The application will take a seat from the pool and receive an entry code. Pass the code to the participant in a message.",
+          "The application will take a seat from the pool and the participant will receive a QR ticket by e-mail - right away or once the payment is booked.",
         approveGroupHint:
           "This registration's guests ({{count}}) will be admitted together with the lead - if they are settled and there is a seat for them - and each gets their own ticket by e-mail.",
         rejectTitle: "Reject this application?",
@@ -2340,6 +2347,7 @@ export const adminEventRegistrationEn = {
         "The consent document address must start with https:// (up to 500 characters).",
       notFound: "The record does not exist in this organisation.",
       ticketNotIssuable: "Only an approved and settled registration gets a ticket.",
+      ticketSendInProgress: "The ticket is being sent right now - try again in a few minutes.",
       packageSoldOut: "The pool of packages of this kind is exhausted.",
       packageInUse: "The package has {{count}} orders - disable it instead of deleting.",
       seatTaken: "This seat is already taken by a participant.",

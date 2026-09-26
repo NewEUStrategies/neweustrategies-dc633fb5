@@ -194,14 +194,37 @@ export async function issueAndSendTicketCodes(registrationId: string): Promise<n
 }
 
 /**
+ * Budżet jednej partii crona, gdy wołający nie poda własnego terminu
+ * (`community-cron`). Każdy identyfikator z kolejki bywa prowadzącym grupy do
+ * 50 osób - dwa rendery maila, kolejka i potwierdzenie na KAŻDĄ z nich - więc
+ * partia bez terminu potrafiła wysłać setki maili w jednym ticku, przebić jego
+ * budżet i limit CPU workera, a przy zabiciu w połowie zostawić zajęte wiersze
+ * z już zrotowanym kodem za 15-minutową dzierżawą.
+ */
+const TICKET_CODES_BUDGET_MS = 15_000;
+
+/** Wynik partii: `deferred` = zgłoszenia z kolejki odłożone do następnego ticku. */
+export interface PendingTicketCodesResult {
+  registrations: number;
+  sent: number;
+  deferred: number;
+}
+
+/**
  * Cron: bilety dla zgłoszeń przyjętych DOWOLNĄ drogą (płatność, decyzja
  * organizatora, awans z rezerwy, zapis bezpłatny) i dla ponowień po nieudanej
  * wysyłce. Ścieżki natychmiastowe (webhook, zapis grupowy) zostają - cron
  * domyka to, czego one nie złapały.
+ *
+ * TERMIN SPRAWDZAMY PRZED KAŻDYM ZGŁOSZENIEM, nie w jego środku: wydanie
+ * zajmuje całą grupę naraz, a przerwana w połowie grupa zostawiłaby zajęte
+ * wiersze bez maila. Odłożone zgłoszenia nie są niczym zajęte - kolejka odda
+ * je następnemu tickowi.
  */
 export async function runPendingTicketCodes(
   limit = 50,
-): Promise<{ registrations: number; sent: number }> {
+  deadlineAt: number = Date.now() + TICKET_CODES_BUDGET_MS,
+): Promise<PendingTicketCodesResult> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin.rpc("_event_ticket_codes_pending", {
     p_limit: limit,
@@ -211,6 +234,11 @@ export async function runPendingTicketCodes(
     (id): id is string => typeof id === "string",
   );
   let sent = 0;
-  for (const id of ids) sent += await issueAndSendTicketCodes(id);
-  return { registrations: ids.length, sent };
+  let issued = 0;
+  for (const id of ids) {
+    if (Date.now() > deadlineAt) break;
+    sent += await issueAndSendTicketCodes(id);
+    issued += 1;
+  }
+  return { registrations: issued, sent, deferred: ids.length - issued };
 }

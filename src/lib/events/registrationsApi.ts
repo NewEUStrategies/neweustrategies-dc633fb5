@@ -427,11 +427,20 @@ export type RegistrationGroupLink = Omit<
   ticket_code_sent_at: string | null;
 };
 
+/**
+ * TYLKO WIERSZE WIDOCZNEJ STRONY. Panel odswieza powiazania po kazdej decyzji,
+ * powiadomieniu i ponownej wysylce, a lista stronicuje po stronie serwera -
+ * pytanie o cale wydarzenie ciagneloby przy duzym kongresie tysiace wierszy na
+ * klikniecie. Pusta strona nie potrzebuje zapytania wcale.
+ */
 export async function fetchRegistrationGroupLinks(
   eventId: string,
+  registrationIds: readonly string[],
 ): Promise<RegistrationGroupLink[]> {
+  if (registrationIds.length === 0) return [];
   const { data, error } = await supabase.rpc("admin_event_registration_group_links", {
     p_event_id: eventId,
+    p_registration_ids: [...registrationIds],
   });
   if (error) throw error;
   return data ?? [];

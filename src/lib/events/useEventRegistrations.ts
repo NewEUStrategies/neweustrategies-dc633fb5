@@ -72,7 +72,9 @@ export const registrationKeys = {
   event: (eventId: string) => [...registrationKeys.all, eventId] as const,
   tickets: (eventId: string) => [...registrationKeys.event(eventId), "tickets"] as const,
   fields: (eventId: string) => [...registrationKeys.event(eventId), "fields"] as const,
-  groupLinks: (eventId: string) => [...registrationKeys.event(eventId), "group-links"] as const,
+  // Strona listy jest czescia klucza: inna strona = inne wiersze powiazan.
+  groupLinks: (eventId: string, registrationIds: readonly string[]) =>
+    [...registrationKeys.event(eventId), "group-links", registrationIds] as const,
   // OBA KLUCZE PRZYJMUJA `null` - patrz uzasadnienie przy `agendaKeys.sessions`.
   // Atrapa `{ eventId: "none" }` wymagala rzutowania `as unknown as`, bo nie
   // miala pozostalych pol zapytania; `null` opisuje stan wylaczenia wprost.
@@ -136,16 +138,18 @@ export function useRegistrationCounts(
 }
 
 /**
- * Kto jest gosciem kogo i czy bilet wyszedl. Okno swiezosci jak lista: znacznik
- * wysylki zmienia sie w sekundy po decyzji organizatora (bilety wychodza zaraz
- * po niej) i w dniu wydarzenia organizator patrzy na niego co chwila.
+ * Kto jest gosciem kogo i czy bilet wyszedl - dla wierszy widocznej strony.
+ * Okno swiezosci jak lista: znacznik wysylki zmienia sie w sekundy po decyzji
+ * organizatora (bilety wychodza zaraz po niej) i w dniu wydarzenia organizator
+ * patrzy na niego co chwila.
  */
 export function useRegistrationGroupLinks(
   eventId: string | null,
+  registrationIds: readonly string[],
 ): UseQueryResult<RegistrationGroupLink[]> {
   return useQuery({
-    queryKey: registrationKeys.groupLinks(eventId ?? "none"),
-    queryFn: () => fetchRegistrationGroupLinks(eventId as string),
+    queryKey: registrationKeys.groupLinks(eventId ?? "none", registrationIds),
+    queryFn: () => fetchRegistrationGroupLinks(eventId as string, registrationIds),
     enabled: eventId !== null,
     staleTime: LIVE_STALE_MS,
   });

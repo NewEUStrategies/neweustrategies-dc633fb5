@@ -20874,7 +20874,7 @@ export type Database = {
         }[]
       }
       admin_event_registration_group_links: {
-        Args: { p_event_id: string }
+        Args: { p_event_id: string; p_registration_ids: string[] }
         Returns: {
           group_lead_registration_id: string
           guest_count: number

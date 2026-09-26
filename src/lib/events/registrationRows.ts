@@ -131,6 +131,30 @@ export function canResendTicket(status: string, link: RegistrationGroupLink | nu
   return link !== null && holdsTicket(status) && TICKET_PAYMENTS.includes(link.payment_status);
 }
 
+/** Plakietka biletu wiersza; `null` = plakietki nie ma. */
+export type TicketBadge = "sent" | "notSent" | "awaitingPayment";
+
+/**
+ * Ktora plakietka biletu stoi przy wierszu.
+ *
+ * „NIEWYSLANY" TYLKO TAM, GDZIE BILET SIE NALEZY - ten sam warunek, co przycisk
+ * ponownej wysylki. Przyjety, ale nieoplacony wiersz (organizator zatwierdzil
+ * bilet platny przed wplata) biletu jeszcze nie dostaje; „bilet niewyslany"
+ * wygladalby przy nim jak awaria poczty, ktorej organizator nie ma jak
+ * naprawic - wiec plakietka mowi, na co wiersz czeka. Zwrot nie ma plakietki:
+ * biletu nie ma i nie bedzie.
+ */
+export function ticketBadge(
+  status: string,
+  link: RegistrationGroupLink | null,
+): TicketBadge | null {
+  if (link === null || !holdsTicket(status)) return null;
+  if (TICKET_PAYMENTS.includes(link.payment_status)) {
+    return link.ticket_code_sent_at === null ? "notSent" : "sent";
+  }
+  return link.payment_status === "unpaid" ? "awaitingPayment" : null;
+}
+
 /** Imie i nazwisko prowadzacego dla plakietki goscia; `null` = to nie gosc. */
 export function groupLeadName(link: RegistrationGroupLink | null): string | null {
   if (link === null || link.group_lead_registration_id === null) return null;
