@@ -903,6 +903,175 @@ BEGIN
     '72/granty: dopiecia nie wola ani authenticated, ani anon');
 END $do$;
 
+-- ---------------------------------------------------------------------------
+-- Q. ZWYKLE ANULOWANIE: DOKLADNIE JEDNA REALIZACJA, DOKLADNIE -1, NIGDY < 0
+--
+-- Dwa zamowienia tym samym kodem - anulowanie jednego nie moze dotknac
+-- realizacji drugiego. Potem licznik poprawiony recznie na 0 (ponizej liczby
+-- realizacji): GREATEST trzyma go na 0, a zatrzask i tak staje, bo wiersz
+-- realizacji zostal skasowany.
+-- ---------------------------------------------------------------------------
+DO $do$
+DECLARE
+  v_total integer;
+  v_o public.event_package_orders;
+BEGIN
+  PERFORM pg_temp.buy72('o13', '72a00000-0000-0000-0000-0000000000a2', 'PAK72-DOKLADNIE');
+  PERFORM pg_temp.buy72('o14', '72a00000-0000-0000-0000-0000000000a3', 'PAK72-DOKLADNIE');
+  PERFORM pg_temp.assert(pg_temp.cnt72('72c00000-0000-0000-0000-000000000010') = 2
+    AND pg_temp.rows72('72c00000-0000-0000-0000-000000000010') = 2,
+    '72/anulowanie dokladnie: dwa zakupy - licznik 2, dwie realizacje');
+  v_total := (SELECT count(*) FROM public.b2b_coupon_redemptions);
+
+  PERFORM pg_temp.st72('o13', 'cancelled');
+  v_o := pg_temp.ord72('o13');
+  PERFORM pg_temp.assert((SELECT count(*) FROM public.b2b_coupon_redemptions) = v_total - 1
+    AND pg_temp.linked72('o13') = 0 AND pg_temp.linked72('o14') = 1,
+    '72/anulowanie dokladnie: znika dokladnie jeden wiersz realizacji - tego zamowienia');
+  PERFORM pg_temp.assert(pg_temp.cnt72('72c00000-0000-0000-0000-000000000010') = 1,
+    '72/anulowanie dokladnie: licznik 2 -> 1 (dokladnie jedno uzycie)');
+  PERFORM pg_temp.assert(v_o.status = 'cancelled' AND v_o.coupon_released_at IS NOT NULL,
+    '72/anulowanie dokladnie: zatrzask ustawiony');
+
+  UPDATE public.b2b_coupons SET redemptions_count = 0
+  WHERE id = '72c00000-0000-0000-0000-000000000010';
+  PERFORM pg_temp.st72('o14', 'cancelled');
+  v_o := pg_temp.ord72('o14');
+  PERFORM pg_temp.assert(pg_temp.cnt72('72c00000-0000-0000-0000-000000000010') = 0,
+    '72/licznik zero: anulowanie przy liczniku 0 zostawia 0 (GREATEST), nie -1');
+  PERFORM pg_temp.assert(pg_temp.linked72('o14') = 0
+    AND pg_temp.rows72('72c00000-0000-0000-0000-000000000010') = 0
+    AND (SELECT count(*) FROM public.b2b_coupon_redemptions) = v_total - 2
+    AND v_o.coupon_released_at IS NOT NULL,
+    '72/licznik zero: realizacja skasowana i zatrzask ustawiony mimo licznika 0');
+END $do$;
+
+-- ---------------------------------------------------------------------------
+-- R. KOLEJNOSC BLOKAD: KOD PRZED ZAMOWIENIEM (20260926150000)
+--
+-- Zakleszczenia z kasowaniem kodu jedna sesja nie odtworzy, ale KOLEJNOSC
+-- blokad jednej zmiany statusu da sie odczytac z `xmax`. Transakcja glowna
+-- trzyma slaba blokade na kodzie (FOR KEY SHARE) i na zamowieniu (FOR SHARE),
+-- a zmiana statusu idzie w podtransakcji (blok z EXCEPTION). Jej FOR UPDATE
+-- na wierszu trzymanym juz przez inny xid tej samej transakcji zaklada NOWY
+-- MultiXactId {glowna, podtransakcja}, a MultiXactId-y sa nadawane rosnaco:
+-- mniejszy = wiersz zablokowany wczesniej. Kolejne wersje wiersza (UPDATE
+-- licznika, UPDATE statusu) dziedzicza ten MultiXactId jako `xmax`.
+--
+-- Tryby slabych blokad sa ROZNE celowo: dla identycznego zestawu czlonkow
+-- PostgreSQL oddaje ten sam MultiXactId z pamieci podrecznej sesji i obu
+-- wierszy nie daloby sie rozroznic. Kazda galaz ma wlasny kod i zamowienie,
+-- bo odziedziczony MultiXactId drugi pomiar czytalby z pierwszego.
+--
+-- Cialo sprzed 20260926150000 na tych samych krokach (sprawdzone recznie):
+-- w galezi A kod nie dostaje MultiXactId wcale (pierwsza blokada kodu to
+-- UPDATE licznika, a nowa wersja niesie zwykly xid), w galezi B MultiXactId
+-- zamowienia jest MNIEJSZY niz kodu. Obie asercje ponizej bylyby czerwone.
+--
+-- To jest zachowanie heapam PostgreSQL (sprawdzone na 16), a nie kontrakt SQL:
+-- jesli po zmianie wersji serwera `mx72` zwroci NULL przy poprawnej funkcji,
+-- winny jest odczyt, nie migracja.
+-- ---------------------------------------------------------------------------
+
+-- Slabe blokady transakcji glownej. Zwraca, czy oba wiersze trzyma wtedy
+-- tylko ona (xmax = wlasny xid, zaden MultiXactId) - warunek pomiaru.
+CREATE FUNCTION pg_temp.weak72(_k text, _coupon uuid) RETURNS boolean
+LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM 1 FROM public.b2b_coupons c WHERE c.id = _coupon FOR KEY SHARE;
+  PERFORM 1 FROM public.event_package_orders o WHERE o.id = pg_temp.o72(_k) FOR SHARE;
+  RETURN (SELECT c.xmax FROM public.b2b_coupons c WHERE c.id = _coupon)
+           = pg_current_xact_id()::xid
+     AND (SELECT o.xmax FROM public.event_package_orders o WHERE o.id = pg_temp.o72(_k))
+           = pg_current_xact_id()::xid;
+END $$;
+
+-- Zmiana statusu w podtransakcji: blok z EXCEPTION ja otwiera, blad leci dalej.
+CREATE FUNCTION pg_temp.st72_sub(_k text, _status text) RETURNS boolean
+LANGUAGE plpgsql AS $$
+DECLARE v_ok boolean;
+BEGIN
+  BEGIN
+    v_ok := pg_temp.st72(_k, _status);
+  EXCEPTION WHEN OTHERS THEN
+    RAISE;
+  END;
+  RETURN v_ok;
+END $$;
+
+-- MultiXactId z `xmax`, gdy wiersz trzymaja DOKLADNIE: transakcja glowna
+-- trybem `_weak` i jedna podtransakcja trybem FOR UPDATE. Inaczej NULL - takze
+-- dla zwyklego xid, ktorego pg_get_multixact_members nie odczyta.
+CREATE FUNCTION pg_temp.mx72(_xmax xid, _weak text) RETURNS bigint
+LANGUAGE plpgsql AS $$
+DECLARE
+  v_top xid := pg_current_xact_id()::xid;
+  v_ok boolean;
+BEGIN
+  SELECT count(*) = 2
+     AND count(*) FILTER (WHERE m.xid = v_top AND m.mode = _weak) = 1
+     AND count(*) FILTER (WHERE m.xid <> v_top AND m.mode = 'forupd') = 1
+  INTO v_ok
+  FROM pg_get_multixact_members(_xmax) m;
+  RETURN CASE WHEN v_ok THEN _xmax::text::bigint END;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NULL;
+END $$;
+
+DO $do$
+DECLARE
+  v_mc bigint;
+  v_mo bigint;
+  v_o public.event_package_orders;
+BEGIN
+  -- Galaz A: anulowanie (blokada kodu, blokada zamowienia, UPDATE licznika).
+  PERFORM pg_temp.buy72('blok_a', '72a00000-0000-0000-0000-0000000000a2', 'PAK72-BLOK-A');
+  PERFORM pg_temp.assert(pg_temp.weak72('blok_a', '72c00000-0000-0000-0000-000000000012'),
+    '72/blokady: przed anulowaniem kod i zamowienie trzyma tylko transakcja glowna');
+  PERFORM pg_temp.assert(pg_temp.st72_sub('blok_a', 'cancelled'),
+    '72/blokady: anulowanie w podtransakcji zwraca true');
+  v_o := pg_temp.ord72('blok_a');
+  PERFORM pg_temp.assert(v_o.coupon_released_at IS NOT NULL
+    AND pg_temp.cnt72('72c00000-0000-0000-0000-000000000012') = 0
+    AND pg_temp.linked72('blok_a') = 0,
+    '72/blokady: anulowanie w podtransakcji oddalo uzycie jak zwykle');
+  v_mc := pg_temp.mx72((SELECT c.xmax FROM public.b2b_coupons c
+                         WHERE c.id = '72c00000-0000-0000-0000-000000000012'), 'keysh');
+  v_mo := pg_temp.mx72((SELECT o.xmax FROM public.event_package_orders o
+                         WHERE o.id = v_o.id), 'sh');
+  PERFORM pg_temp.assert(v_mc IS NOT NULL AND v_mo IS NOT NULL,
+    format('72/blokady: anulowanie blokuje FOR UPDATE i kod, i zamowienie (kod %s, zamowienie %s)',
+           v_mc, v_mo));
+  PERFORM pg_temp.assert(v_mc < v_mo,
+    format('72/blokady: anulowanie blokuje kod PRZED zamowieniem (MultiXactId %s < %s)',
+           v_mc, v_mo));
+
+  -- Galaz B: powrot z anulowania (blokada kodu, blokada zamowienia, ponowna
+  -- blokada kodu w galezi - juz trzymana, UPDATE licznika, nowa realizacja).
+  -- Anulowanie w transakcji glownej: po nim xmax obu wierszy to wlasny xid.
+  PERFORM pg_temp.buy72('blok_b', '72a00000-0000-0000-0000-0000000000a2', 'PAK72-BLOK-B');
+  PERFORM pg_temp.st72('blok_b', 'cancelled');
+  PERFORM pg_temp.assert(pg_temp.weak72('blok_b', '72c00000-0000-0000-0000-000000000013'),
+    '72/blokady: przed powrotem kod i zamowienie trzyma tylko transakcja glowna');
+  PERFORM pg_temp.assert(pg_temp.st72_sub('blok_b', 'paid'),
+    '72/blokady: powrot w podtransakcji zwraca true');
+  v_o := pg_temp.ord72('blok_b');
+  PERFORM pg_temp.assert(v_o.status = 'paid' AND v_o.coupon_released_at IS NULL
+    AND pg_temp.cnt72('72c00000-0000-0000-0000-000000000013') = 1
+    AND pg_temp.linked72('blok_b') = 1,
+    '72/blokady: powrot w podtransakcji zuzyl kod z powrotem jak zwykle');
+  v_mc := pg_temp.mx72((SELECT c.xmax FROM public.b2b_coupons c
+                         WHERE c.id = '72c00000-0000-0000-0000-000000000013'), 'keysh');
+  v_mo := pg_temp.mx72((SELECT o.xmax FROM public.event_package_orders o
+                         WHERE o.id = v_o.id), 'sh');
+  PERFORM pg_temp.assert(v_mc IS NOT NULL AND v_mo IS NOT NULL,
+    format('72/blokady: powrot blokuje FOR UPDATE i kod, i zamowienie (kod %s, zamowienie %s)',
+           v_mc, v_mo));
+  PERFORM pg_temp.assert(v_mc < v_mo,
+    format('72/blokady: powrot blokuje kod PRZED zamowieniem (MultiXactId %s < %s)',
+           v_mc, v_mo));
+END $do$;
+
 ROLLBACK;
 
 \echo '== 72 anulowanie zamowienia pakietu oddaje uzycie kodu: koniec =='
