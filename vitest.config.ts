@@ -6488,6 +6488,29 @@ export default defineConfig({
           branches: 98,
         },
 
+        // Druga runda tej samej pracy (poprawki po końcowym przeglądzie: ponowna
+        // wysyłka biletu z pominięciem adresów z listy wykluczeń, stronicowanie
+        // partnerów w podglądzie, pole kodu w bezpośrednim zakupie biletu).
+        // ZMIERZONE 2026-09-26: 100 / 100 / 100 / 100 (878 plików testowych).
+        "src/components/community/EventTicketPurchase.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/ticketResend.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/useEventSponsors.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+
         // ══ MODUŁ 14: REKLAMY, KUPONY, PODARUNKI, DAROWIZNY (2026-08-31) ══════
         //
         // DO DZIŚ TEN MODUŁ NIE MIAŁ ANI JEDNEGO PROGU PER-ŚCIEŻKA - jako
