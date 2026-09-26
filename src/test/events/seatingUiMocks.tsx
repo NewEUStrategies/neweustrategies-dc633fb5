@@ -4,7 +4,8 @@
 // API (ten sam powód, co w `RegistrationsListPanel.test.tsx`). Atrapy są
 // natywne i zachowują KONTRAKT, na którym stoją asercje:
 //   - `FormSelect` -> `<select>` z tym samym `id`, `aria-label` i `disabled`,
-//     więc `<label htmlFor>` i `getByRole("combobox", { name })` działają;
+//     więc `<label htmlFor>` i `getByRole("combobox", { name })` działają,
+//     a błąd pola (`error`) staje pod listą jako `role="alert"`;
 //   - `Dialog` -> treść istnieje TYLKO przy `open` (portal nie jest montowany),
 //     a przycisk `okno-zamknij` woła `onOpenChange(false)` jak Escape;
 //   - `Popover` -> treść zawsze w drzewie (menu eksportu to lista przycisków).
@@ -19,6 +20,7 @@ export interface FormSelectStubProps {
   onValueChange: (next: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  error?: string | null;
   "aria-label"?: string;
 }
 
@@ -31,9 +33,11 @@ export function formSelectModule(): { FormSelect: (props: FormSelectStubProps) =
       onValueChange,
       disabled,
       placeholder,
+      error,
       "aria-label": ariaLabel,
     }: FormSelectStubProps) => (
-      <select
+      <>
+        <select
         id={id}
         aria-label={ariaLabel}
         value={value}
@@ -46,7 +50,9 @@ export function formSelectModule(): { FormSelect: (props: FormSelectStubProps) =
             {option.label}
           </option>
         ))}
-      </select>
+        </select>
+        {error === null || error === undefined ? null : <p role="alert">{error}</p>}
+      </>
     ),
   };
 }

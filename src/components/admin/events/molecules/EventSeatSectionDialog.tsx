@@ -190,7 +190,8 @@ export function EventSeatSectionDialog({
   };
 
   const layout = sectionDraftLayout(draft);
-  const rotation = Number(draft.rotationDeg.replace(",", "."));
+  // Obrot z tej samej konwersji, co zapis (przecinek dziesietny, pusta wartosc).
+  const rotation = sectionDraftToInput(draft, mapId).rotationDeg;
   const title =
     draft.id !== null
       ? "adminEventSeating.sectionDialog.editTitle"

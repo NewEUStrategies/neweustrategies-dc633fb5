@@ -198,6 +198,16 @@ describe("szkic sekcji", () => {
     expect(fields(validateSectionDraft({ ...table, originY: "" }))).toEqual(["origin"]);
     expect(fields(validateSectionDraft({ ...table, rotationDeg: "400" }))).toEqual(["rotationDeg"]);
     expect(sectionDraftLayout({ ...table, tableSeats: "0" })).toBeNull();
+    expect(sectionDraftLayout({ ...table, rotationDeg: "400" })).toBeNull();
+  });
+
+  // Podglad zalezy WYLACZNIE od parametrow ukladu: nowa sekcja bez nazwy
+  // i sekcja przesunieta poza plan nadal pokazuja, jak beda wygladac.
+  it("brak etykiety i polozenie poza planem nie gasza podgladu", () => {
+    const fresh = emptySectionDraft("rows");
+    expect(fields(validateSectionDraft(fresh))).toEqual(["label"]);
+    expect(sectionDraftLayout(fresh)).toMatchObject({ kind: "rows", rowsCount: 5, seatsPerRow: 10 });
+    expect(sectionDraftLayout({ ...fresh, originX: "50000" })).not.toBeNull();
   });
 
   it("wejście z pustymi liczbami dostaje wartości domyślne (baza nie dostaje NaN)", () => {

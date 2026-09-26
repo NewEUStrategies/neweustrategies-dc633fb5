@@ -118,13 +118,17 @@ export function SeatExportMenu({
           {t("adminEventSeating.export.seats")}
         </Button>
         <div className="space-y-1.5 border-t border-border pt-3">
-          <Label htmlFor="seat-export-company">{t("adminEventSeating.export.company")}</Label>
           {companies.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {t("adminEventSeating.export.noCompanies")}
-            </p>
+            <>
+              {/* Bez listy nie ma pola, wiec podpis nie jest etykieta niczego. */}
+              <p className="text-sm font-medium">{t("adminEventSeating.export.company")}</p>
+              <p className="text-sm text-muted-foreground">
+                {t("adminEventSeating.export.noCompanies")}
+              </p>
+            </>
           ) : (
             <>
+              <Label htmlFor="seat-export-company">{t("adminEventSeating.export.company")}</Label>
               <FormSelect
                 id="seat-export-company"
                 value={companyId}

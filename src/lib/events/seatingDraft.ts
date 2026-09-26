@@ -343,9 +343,19 @@ export function validateSectionDraft(draft: SectionDraft): FieldError<SectionFie
 export type SectionDraftInput = Required<Omit<SeatSectionInput, "id" | "mapId" | "sortOrder">> &
   Pick<SeatSectionInput, "id" | "mapId">;
 
-/** Parametry podgladu na zywo - `null`, dopoki szkic nie przechodzi walidacji. */
+/**
+ * Pola, ktore NIE zmieniaja ukladu miejsc: etykieta sekcji i jej polozenie na
+ * planie. Nowa sekcja bez nazwy ma juz pokazywac podglad - inaczej organizator
+ * widzi "bledne parametry", zanim cokolwiek wpisal.
+ */
+const LAYOUT_NEUTRAL_FIELDS: ReadonlySet<SectionField> = new Set<SectionField>(["label", "origin"]);
+
+/** Parametry podgladu na zywo - `null`, dopoki PARAMETRY UKLADU sa bledne. */
 export function sectionDraftLayout(draft: SectionDraft): SectionLayoutParams | null {
-  if (validateSectionDraft(draft).length > 0) return null;
+  const layoutErrors = validateSectionDraft(draft).filter(
+    (error) => !LAYOUT_NEUTRAL_FIELDS.has(error.field),
+  );
+  if (layoutErrors.length > 0) return null;
   // Te same liczby, ktore pojda do bazy - podglad nie ma wlasnej konwersji.
   const input = sectionDraftToInput(draft, "");
   return {
