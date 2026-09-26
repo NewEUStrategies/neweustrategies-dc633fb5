@@ -170,6 +170,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
 // Każdy z nich ma własny plik testowy. `FriendlyErrorPage` jest tu JEDYNYM
 // wyjątkiem i stoi PRAWDZIWY: to on jest treścią granicy błędu, a dowód brzmi
 // „uczestnik dostaje zdanie", więc atrapa unieważniłaby cały ten dowód.
+vi.mock("@/components/admin/events/organisms/EventAdsFunnelPanel", () => h.pustyModul());
 vi.mock("@/components/admin/events/organisms/EventAnalyticsPanel", () => h.pustyModul());
 vi.mock("@/components/admin/events/organisms/EventBrandingPanel", () => h.pustyModul());
 vi.mock("@/components/admin/events/organisms/EventCreateForm", () => h.pustyModul());
@@ -195,6 +196,7 @@ vi.mock("@/components/events/EventSpeakersSection", () => h.pustyModul());
 vi.mock("@/components/events/SpeakerProfileDialog", () => h.pustyModul());
 vi.mock("@/components/events/molecules/EventRegistrationSurface", () => h.pustyModul());
 vi.mock("@/components/events/participant/organisms/EventMePanel", () => h.pustyModul());
+vi.mock("@/components/events/public/atoms/AdAttributionCapture", () => h.pustyModul());
 vi.mock("@/components/events/public/molecules/EventBookmarkButton", () => h.pustyModul());
 vi.mock("@/components/events/public/molecules/EventMetaCard", () => h.pustyModul());
 vi.mock("@/components/events/public/molecules/EventModulePage", () => h.pustyModul());

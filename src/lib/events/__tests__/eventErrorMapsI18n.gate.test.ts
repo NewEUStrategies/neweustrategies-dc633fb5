@@ -41,6 +41,7 @@ import { adminTermsFailure } from "@/lib/events/adminTermsErrors";
 import { adminOnsiteFailure } from "@/lib/events/adminOnsiteErrors";
 import { publicEventErrorKey } from "@/lib/events/publicEventErrors";
 import { adminEventStudioErrorKey } from "@/lib/events/adminEventStudioErrors";
+import { adminAdsFunnelFailure } from "@/lib/events/adminAdsFunnelErrors";
 import {
   adminEventRegistrationEn,
   adminEventRegistrationPl,
@@ -49,6 +50,7 @@ import { adminEventTermsEn, adminEventTermsPl } from "@/lib/i18n-admin-event-ter
 import { adminEventOnsiteEn, adminEventOnsitePl } from "@/lib/i18n-admin-event-onsite";
 import { eventFrontEn, eventFrontPl } from "@/lib/i18n-event-front";
 import { adminEventsEn, adminEventsPl } from "@/lib/i18n-admin-events";
+import { adminEventAdsFunnelEn, adminEventAdsFunnelPl } from "@/lib/i18n-admin-event-ads-funnel";
 
 /** Klucz ma tekst, gdy w słowniku stoi pod nim NIEPUSTY napis (nie gałąź). */
 function maTekst(slownik: ResourceTree, klucz: string): boolean {
@@ -174,6 +176,26 @@ const KODY_ONSITE = [
   STRAZNIK_TENANTA,
 ] as const;
 
+/** Lejek Google Ads - `adsFunnelApi` (kampanie, koszty, raport, eksport konwersji). */
+const KODY_LEJKA_REKLAM = [
+  // admin_event_ad_campaigns_list / _save / _delete
+  "invalid_payload",
+  "not_found",
+  "invalid_match_kind",
+  "invalid_match_value",
+  "invalid_label",
+  "invalid_conversion_name",
+  "campaign_exists",
+  // admin_event_ad_costs_list / _save / admin_event_ad_cost_delete
+  "invalid_source",
+  "invalid_rows",
+  "invalid_cost_row",
+  "duplicate_cost_day",
+  // admin_event_ads_funnel / admin_event_ads_conversions_export
+  "invalid_window",
+  STRAZNIK_TENANTA,
+] as const;
+
 /** Powierzchnia uczestnika - `publicEventApi` (agenda, zakładki, lista osób). */
 const KODY_UCZESTNIKA = [
   // event_session_signup
@@ -290,6 +312,17 @@ const MAPY: readonly BramkowanaMapa[] = [
     pl: adminEventOnsitePl,
     en: adminEventOnsiteEn,
     moduly: ["onsiteApi"],
+    interpoluje: true,
+  },
+  {
+    nazwa: "adminAdsFunnelErrors",
+    prefix: "adminEventAdsFunnel.errors.",
+    klucz: (error) => adminAdsFunnelFailure(error).key,
+    kody: KODY_LEJKA_REKLAM,
+    nakladka: "src/lib/i18n-admin-event-ads-funnel.ts",
+    pl: adminEventAdsFunnelPl,
+    en: adminEventAdsFunnelEn,
+    moduly: ["adsFunnelApi"],
     interpoluje: true,
   },
   {

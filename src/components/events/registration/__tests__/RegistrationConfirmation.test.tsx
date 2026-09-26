@@ -69,6 +69,12 @@ vi.mock("@/lib/billing/checkout.functions", () => ({
 }));
 
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ session: auth.session }) }));
+// Lejek Google Ads: klik w kase to krok "rozpoczecie platnosci" (bramka zgody
+// i deduplikacja mieszkaja w beaconie - tu tylko, ze i z czym jest wolany).
+const funnel = vi.hoisted(() => ({ send: vi.fn() }));
+vi.mock("@/lib/events/eventFunnelBeacon", () => ({
+  sendEventFunnelStep: (step: string, target: unknown) => funnel.send(step, target),
+}));
 
 vi.mock("@/lib/stripe", () => ({ getStripeEnvironment: () => stripe.environment() }));
 
@@ -182,6 +188,8 @@ describe("RegistrationConfirmation - klik do kasy", () => {
     // `toEqual` wyżej jest asercją o CAŁYM ładunku, ale kwota jest tu na tyle
     // ważna, że dostaje własne, czytelne zdanie w raporcie z testów.
     expect(payload.data).not.toHaveProperty("amount_cents");
+    // Krok lejka „rozpoczęta płatność” dla TEGO wydarzenia (po identyfikatorze).
+    expect(funnel.send).toHaveBeenCalledWith("checkout_start", { eventId: EVENT_ID });
   });
 
   it("sesja operatora trafia do modala kasy", async () => {

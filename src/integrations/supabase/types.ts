@@ -19296,6 +19296,14 @@ export type Database = {
         Args: { p_source_type: string }
         Returns: number
       }
+      _event_ads_clean: {
+        Args: { p_max: number; p_value: string }
+        Returns: string
+      }
+      _event_ads_touch: {
+        Args: { p_ad_consent: boolean; p_now: string; p_touch: Json }
+        Returns: Json
+      }
       _event_answer_matches: {
         Args: { _answer: Json; _expected: Json; _operator: string }
         Returns: boolean
@@ -20283,6 +20291,52 @@ export type Database = {
       admin_delete_verification_domain: {
         Args: { p_id: string }
         Returns: undefined
+      }
+      admin_event_ad_campaign_delete: {
+        Args: { p_id: string }
+        Returns: boolean
+      }
+      admin_event_ad_campaign_save: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_ad_campaigns_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          conversion_action_name: string
+          costs: Json
+          created_at: string
+          id: string
+          label: string
+          match_kind: string
+          match_value: string
+          updated_at: string
+        }[]
+      }
+      admin_event_ad_cost_delete: {
+        Args: { p_campaign_id: string; p_day: string }
+        Returns: boolean
+      }
+      admin_event_ad_costs_list: {
+        Args: { p_campaign_id: string }
+        Returns: {
+          clicks: number
+          cost_micros: number
+          currency: string
+          day: string
+          impressions: number
+          source: string
+          updated_at: string
+        }[]
+      }
+      admin_event_ad_costs_save: { Args: { p_payload: Json }; Returns: number }
+      admin_event_ads_conversions_export: {
+        Args: { p_event_id: string; p_from?: string; p_to?: string }
+        Returns: Json
+      }
+      admin_event_ads_funnel: {
+        Args: { p_event_id: string; p_from?: string; p_to?: string }
+        Returns: Json
       }
       admin_event_agenda_conflicts: {
         Args: { p_event_id: string }
@@ -24389,6 +24443,7 @@ export type Database = {
         Returns: string
       }
       event_admission_quote: { Args: { p_payload: Json }; Returns: Json }
+      event_ads_retention_prune: { Args: never; Returns: Json }
       event_agenda: {
         Args: { p_slug: string }
         Returns: {
@@ -24475,6 +24530,10 @@ export type Database = {
         Returns: string[]
       }
       event_discussions: { Args: { p_slug: string }; Returns: Json }
+      event_funnel_track: {
+        Args: { p_payload: Json; p_tenant: string }
+        Returns: boolean
+      }
       event_home_ad_track: {
         Args: { p_ad_id: string; p_kind: string; p_session: string }
         Returns: boolean
@@ -24693,6 +24752,10 @@ export type Database = {
       event_register: { Args: { p_payload: Json }; Returns: Json }
       event_register_group_guests: {
         Args: { p_guests: Json; p_lead_registration_id: string }
+        Returns: Json
+      }
+      event_registration_attribution_attach: {
+        Args: { p_payload: Json }
         Returns: Json
       }
       event_registration_cancel: { Args: { p_payload: Json }; Returns: Json }

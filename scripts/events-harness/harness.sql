@@ -1574,3 +1574,14 @@ CREATE TABLE IF NOT EXISTS public.crm_consent_log (
 ALTER TABLE public.crm_consent_log ENABLE ROW LEVEL SECURITY;
 GRANT ALL ON public.crm_consent_log TO service_role;
 -- === /f0 ===
+-- === f3: lejek Google Ads - kolumny rozliczenia zamowienia ===
+-- PO CO. Raport lejka i eksport konwersji offline (migracja 20260926120000)
+-- licza przychod NETTO zamowienia i czas konwersji: `payment_orders.paid_at`
+-- (20260624172041) i `payment_orders.refunded_amount_cents`
+-- (20260828055725). Atrapa wyzej ich nie ma, bo do dzis zaden RPC modulu nie
+-- czytal ich na sciezce, ktora asercje wykonuja. Ksztalt przepisany
+-- z oryginalow; IF NOT EXISTS, bo inne bloki moga dolozyc to samo.
+ALTER TABLE public.payment_orders
+  ADD COLUMN IF NOT EXISTS paid_at timestamptz,
+  ADD COLUMN IF NOT EXISTS refunded_amount_cents integer NOT NULL DEFAULT 0;
+-- === /f3 ===

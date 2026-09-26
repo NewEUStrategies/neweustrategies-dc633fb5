@@ -37,6 +37,7 @@ import {
   usePackagesOffer,
 } from "@/lib/events/useEventPackagePurchase";
 import { usePurchasePackage } from "@/lib/events/useEventPackagePurchase";
+import { sendEventFunnelStep } from "@/lib/events/eventFunnelBeacon";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -85,6 +86,9 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
 
   function buy() {
     if (selected === null) return;
+    // Lejek: zakup pakietu to "rozpoczecie platnosci" (raz na sesje, bramka
+    // zgody w beaconie). Autorytetem jest zamowienie pakietu w bazie.
+    sendEventFunnelStep("checkout_start", { slug });
     purchase.mutate(
       {
         packageId: selected.id,

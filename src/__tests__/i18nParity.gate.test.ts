@@ -101,6 +101,10 @@ const GATED_PREFIXES = [
   "adminEventTerms",
   "adminEventOnsite",
   "adminEventMeetings",
+  // Lejek Google Ads: odmowy zapisu kampanii i kosztow mowia, KTORY wiersz
+  // wsadu jest zly - surowy klucz zostawilby organizatora z odrzuconym
+  // importem i bez numeru wiersza.
+  "adminEventAdsFunnel",
   "eventRegistration",
   "eventMeetings",
   "eventFront",
@@ -185,6 +189,12 @@ const IDENTICAL_ALLOWLIST: readonly string[] = [
   "adminEvents.list.filters.formatLabel",
   "adminEvents.list.row.chathamHouse",
   "adminEvents.types.dialog.formatLabel",
+  // Skroty i nazwy parametrow Google Ads/GA - te same w obu jezykach.
+  "adminEventAdsFunnel.matchKinds.utm_campaign",
+  "adminEventAdsFunnel.summary.roas",
+  "adminEventAdsFunnel.table.kinds.utm_campaign",
+  "adminEventAdsFunnel.table.medium",
+  "adminEventAdsFunnel.table.roas",
   "adminEventAgenda.formats.online",
   "adminEventAgenda.nav.sectionTitle",
   "adminEventAgenda.roles.moderator",

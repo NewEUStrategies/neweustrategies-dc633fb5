@@ -45,6 +45,7 @@ import {
 } from "@/lib/events/admissionApi";
 import { RegistrationAmountDue } from "@/components/events/registration/atoms/RegistrationAmountDue";
 import { recallEventCode } from "@/lib/events/eventCodeMemory";
+import { sendEventFunnelStep } from "@/lib/events/eventFunnelBeacon";
 import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
 
 ensureEventRegistrationI18n();
@@ -143,6 +144,9 @@ export function RegistrationPayAction({
 
   async function pay(): Promise<void> {
     if (!ready) return;
+    // Lejek: "rozpoczecie platnosci" to klik w kase (raz na sesje, bramka
+    // zgody w beaconie). Autorytetem platnosci jest zamowienie w bazie.
+    sendEventFunnelStep("checkout_start", { eventId });
     setBusy(true);
     setRefusal(null);
     setPromoRejected(false);

@@ -66,7 +66,11 @@ function randomId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function readSession(): string {
+// Eksportowane dla beaconu lejka wydarzenia (`src/lib/events/eventFunnelBeacon.ts`):
+// ta sama sesja i ten sam identyfikator przegladarki co w `track()`, pod ta
+// sama bramka zgody analytics - drugi zestaw identyfikatorow liczylby te sama
+// osobe dwa razy.
+export function readSession(): string {
   if (typeof sessionStorage === "undefined") return randomId();
   try {
     const raw = sessionStorage.getItem(SESSION_KEY);
@@ -86,7 +90,7 @@ function readSession(): string {
   }
 }
 
-function readAnonId(): string {
+export function readAnonId(): string {
   if (typeof localStorage === "undefined") return "";
   try {
     const existing = localStorage.getItem(ANON_KEY);
