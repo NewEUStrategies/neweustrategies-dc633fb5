@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Zamowienia do zafakturowania pogrupowane po NIP-ie. Pilnujemy: grupa =
 // faktura zbiorcza (pozycje wg rodzaju biletu), pojedyncze zamowienie =
 // pozycja na zamowienie, proforma dla dowolnego zaznaczenia, filtr "tylko bez

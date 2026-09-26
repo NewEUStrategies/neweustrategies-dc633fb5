@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Ustawienia wystawcy faktur (wspolne dla najemcy). Pilnujemy: jawny zapis
 // (pasek "Zapisz" tylko przy zmianach), pierwsze wlaczenie wymaga
 // potwierdzenia "jestesmy sprzedawca", walidacja przy polu PRZED wyslaniem,

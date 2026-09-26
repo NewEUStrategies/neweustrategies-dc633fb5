@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Tworzenie szkicu KOREKTY: pelna (odwrocenie wszystkich pozycji) albo
 // czesciowa (tylko zmienione pozycje jako para przed/po liczona w bazie).
 // Okno wysyla wylacznie ZMIENIONE pozycje, nieczytelne pole zatrzymuje

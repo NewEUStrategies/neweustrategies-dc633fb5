@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Haki ekranu faktur: klucze i uniewaznienia. Wystawienie zmienia naraz
 // kandydatow, liste i szczegoly dokumentu, a takze pakiety wydarzenia (firma
 // CRM dopieta do zamowienia) - wiec mutacja uniewaznia CALA galaz wydarzenia

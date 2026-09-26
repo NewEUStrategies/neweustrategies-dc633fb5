@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // "Faktury za wydarzenia" w profilu kupujacego: dokumenty z PDF w jezyku
 // faktury, zamowienia bez faktury z prosba do konca terminu, wycofanie
 // prosby. Dane prywatne - bez sesji zadnego zapytania.

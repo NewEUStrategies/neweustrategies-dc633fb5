@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Etykiety PDF w JEZYKU DOKUMENTU (nie panelu) i pobranie pliku w przegladarce.
 // Faktura angielska pobrana z polskiego ekranu ma byc angielska - dlatego
 // `getFixedT(doc.locale)`, a nie globalny jezyk.

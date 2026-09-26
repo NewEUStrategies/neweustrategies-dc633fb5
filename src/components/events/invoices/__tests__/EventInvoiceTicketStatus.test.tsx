@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Stan faktury przy bilecie w "Moich zgloszeniach": jedno zdanie z odnosnikiem
 // do profilu faktur, albo nic (brak danych, brak platnosci, po terminie).
 import { render, screen, waitFor } from "@testing-library/react";

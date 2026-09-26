@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Funkcja serwerowa powiadomien: transport, nie granica bezpieczenstwa.
 // Pilnujemy walidatora wejscia (1-200 identyfikatorow UUID), bramki
 // sesji w middleware i tego, ze handler oddaje KLIENTA UZYTKOWNIKA

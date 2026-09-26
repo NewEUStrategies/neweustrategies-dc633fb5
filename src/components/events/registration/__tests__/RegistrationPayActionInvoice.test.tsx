@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Krok platnosci zapisu z FAKTURA NA FIRME: dane nabywcy zapisujemy jako
 // prosbe o fakture do TEGO zgloszenia ZANIM otworzy sie kasa. Niepoprawne dane
 // albo odmowa bazy zatrzymuja przejscie do kasy (kupujacy poprawia, zamiast

@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Edytor szkicu dokumentu: stan formularza, walidacja pozycji (lustro
 // `_event_invoice_replace_lines`), podglad sum (lustro `_event_invoice_recalc`)
 // i ladunek zapisu. Nieczytelna pozycja nie liczy sie jako zero - blokuje zapis.

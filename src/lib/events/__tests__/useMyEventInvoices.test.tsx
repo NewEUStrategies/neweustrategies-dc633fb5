@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Haki kupujacego: korzen "event-invoices-me", zapytania tylko z sesja,
 // kazda mutacja uniewaznia cala galaz kupujacego (i tylko ja).
 import { act, waitFor } from "@testing-library/react";

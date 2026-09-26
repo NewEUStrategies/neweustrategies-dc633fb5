@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // "Potrzebuje faktury na firme" przy zakupie. Organizm tylko rysuje stan
 // kontrolera (logike zapisu testuje useInvoiceRequestController.test.tsx):
 // wystawiona faktura zamiast formularza, przelacznik, podpowiedz z profilu,

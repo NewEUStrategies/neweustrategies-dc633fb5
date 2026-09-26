@@ -99,7 +99,7 @@ describe("tx-preview.server - lista typów podglądu", () => {
     const unikalne = new Set(TX_EMAIL_TYPES);
 
     expect(unikalne.size).toBe(TX_EMAIL_TYPES.length);
-    expect(unikalne.size).toBe(31);
+    expect(unikalne.size).toBe(32);
   });
 });
 
@@ -139,8 +139,8 @@ describe("tx-preview.server - komplet podglądów w obu językach", () => {
       .map((p) => `${p.type}/${p.lang}`);
 
     expect(skazone).toEqual([]);
-    // 31 typów razy dwa języki.
-    expect(wszystkie).toHaveLength(62);
+    // 32 typy razy dwa języki.
+    expect(wszystkie).toHaveLength(64);
   });
 
   it("każdy podgląd niesie preheader ze słownika - inaczej lista maili jest ślepa", async () => {

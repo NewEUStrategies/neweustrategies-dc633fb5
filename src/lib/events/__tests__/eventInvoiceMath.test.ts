@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Lustro arytmetyki faktur wydarzen. Autorytetem jest baza
 // (`_event_invoice_net_from_gross`, `_event_invoice_recalc`), a edytor szkicu
 // liczy podglad tym modulem - wiec kazdy grosz rozjazdu to podglad inny niz

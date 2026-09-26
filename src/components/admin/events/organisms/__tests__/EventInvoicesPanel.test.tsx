@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Ekran faktur studia: piec zakladek, dwa ostrzezenia nad nimi (fakturowanie
 // wylaczone, kasa operatora = MoR) i powiadomienie kupujacych po wystawieniu
 // (ile maili poszlo). Molekuly maja wlasne testy - tu sa zastapione atrapami,

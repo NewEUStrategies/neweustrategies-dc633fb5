@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Mail do kupujacego o wystawionym dokumencie. Granica autoryzacji jest
 // w bazie (`admin_event_invoice_notify_payload` wolane KLIENTEM uzytkownika),
 // wiec test pilnuje, ze serwer: czyta ladunek wylacznie ta funkcja, milczy

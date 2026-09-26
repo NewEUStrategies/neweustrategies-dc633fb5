@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Odczyt dokumentu faktury wydarzenia (panel i kupujacy czytaja ten sam JSON
 // z `_event_invoice_document`). Typ generowany widzi tam wylacznie `Json`, wiec
 // odczyt jest pole po polu - a zly ksztalt to `null`, nie pol faktury.

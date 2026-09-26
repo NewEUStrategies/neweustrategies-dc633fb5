@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Edytor szkicu dokumentu w oknie. Pilnujemy: stany odczytu (ladowanie,
 // odmowa, dokument juz wystawiony), podglad sum na zywo (lustro bazy),
 // ostrzezenie o rozjezdzie z zamowieniami, jawny zapis calego formularza,

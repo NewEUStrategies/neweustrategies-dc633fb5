@@ -248,8 +248,8 @@ describe("tx-copy - temat wiadomości", () => {
     );
 
     expect(braki).toEqual([]);
-    // 31 typów razy dwa języki.
-    expect(TX_EMAIL_TYPES.length * LANGS.length).toBe(62);
+    // 32 typy razy dwa języki.
+    expect(TX_EMAIL_TYPES.length * LANGS.length).toBe(64);
   });
 
   it("temat nie przekracza długości, po której klient pocztowy go urywa", () => {

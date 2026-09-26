@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Formularz ustawien wystawcy - lustro `admin_event_invoice_settings_save`
 // (harness 27, sekcja 2): kazdy kod odmowy bazy ma tu blad przy polu, a
 // wlaczenie wymaga kompletu danych i JEDNORAZOWEGO potwierdzenia sprzedawcy.

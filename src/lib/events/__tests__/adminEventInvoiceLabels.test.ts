@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Slowniki etykiet ekranu faktur: kazdy stan, rodzaj, stawka, jezyk i sposob
 // platnosci ma zdanie w OBU jezykach. Brakujacy klucz to surowa sciezka
 // i18n w odznace dokumentu - tego nie zobaczy kompilator (klucz to napis).

@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Dane nabywcy faktury wydarzenia: formularz kupujacego (kasa, pakiet,
 // profil) i organizatora (szkic). Reguly sa lustrem `_event_invoice_buyer_clean`
 // - kazdy kod odmowy bazy ma tu swoj blad przy polu (harness 27, sekcja 3),

@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Reczny stan KSeF wystawionego dokumentu (bez klienta API w tej wersji):
 // stan i numer z wiersza listy, zapis przez RPC, odmowa bazy jako toast.
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";

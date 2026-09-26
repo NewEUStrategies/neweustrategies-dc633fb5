@@ -1,5 +1,6 @@
-// Odmowy bazy przy fakturach -> zdanie po ludzku (studio i kupujacy).
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
 //
+// Odmowy bazy przy fakturach -> zdanie po ludzku (studio i kupujacy).
 // Klucz musi ISTNIEC w slowniku (inaczej ekran pokazuje surowa sciezke i18n),
 // wyscig na indeksie unikalnym to ta sama odmowa co `already_invoiced`, a
 // komunikat spoza kontraktu bazy nie udaje znanego bledu. Kompletnosc map

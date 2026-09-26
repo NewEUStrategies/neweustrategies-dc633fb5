@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Dokumenty wydarzenia w zakladkach. Akcje wynikaja ze STANU dokumentu:
 // szkic - edycja, wystawienie, porzucenie; wystawiona faktura - PDF, korekta,
 // KSeF, zaplata, anulowanie z powodem; proforma - faktura koncowa; korekta -

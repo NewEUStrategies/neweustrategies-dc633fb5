@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Trasa `/profile/invoices`: rejestr dokumentow platnosci i - od funkcji faktur
 // wydarzen - karta "Faktury za wydarzenia" (dokumenty ORGANIZATOROW, nie
 // operatora platnosci). Karty maja wlasne testy; tu dowodzimy, ze trasa je

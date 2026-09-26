@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Plaszczyzna KUPUJACEGO: prosba o fakture i wlasne dokumenty. Najemca i
 // wlasciciel biora sie z bazy (`public_tenant_id()` + `auth.uid()`) - klient
 // NIE podaje ani najemcy, ani uzytkownika; kontraktem jest nazwa funkcji

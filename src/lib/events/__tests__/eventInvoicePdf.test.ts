@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Renderer PDF faktury wydarzenia. Czysty modul (etykiety podaje wolajacy),
 // wiec test czyta WYGENEROWANE BAJTY: struktura PDF, tresc strumieni w
 // kodowaniu glifow modulu rozliczen, wiele stron z powtorzonym naglowkiem

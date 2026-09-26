@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Pola nabywcy faktury (sterowane). Pilnujemy: kazda zmiana wraca do
 // wolajacego jako CALY szkic, bledy widac dopiero po probie wyslania
 // (i sa podpiete do pola przez aria-describedby), przelacznik odbiorcy

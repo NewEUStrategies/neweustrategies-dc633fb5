@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Zakup pakietu z FAKTURA NA FIRME: dane nabywcy sa strukturalne, walidowane
 // PRZED zamowieniem, a po zamowieniu zapisane jako prosba o fakture do TEGO
 // zamowienia (`packageOrderId` z odpowiedzi bazy). Sekcja zakupu znika po

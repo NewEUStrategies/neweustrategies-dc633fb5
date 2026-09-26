@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Okno "Dane do faktury" z profilu: walidacja przed wyslaniem, zapis prosby
 // dla wskazanego zamowienia, odmowa bazy zdaniem kupujacego.
 import { fireEvent, screen, waitFor } from "@testing-library/react";

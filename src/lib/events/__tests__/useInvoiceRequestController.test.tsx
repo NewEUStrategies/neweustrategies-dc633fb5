@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Stan prosby o fakture przy zakupie. Najwazniejsze kontrakty:
 //   * NIC nie jest pobierane, dopoki kupujacy nie zaznaczy "potrzebuje faktury"
 //     (krok platnosci bez faktury nie robi dodatkowych zapytan);

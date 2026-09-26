@@ -1,3 +1,5 @@
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//
 // Warstwa danych faktur w studiu: NAZWA funkcji i NAZWY kluczy ladunku to
 // jedyny kontrakt po stronie klienta (obiekt argumentow `rpc` jest luzny, wiec
 // literowka przechodzi przez `tsc` i konczy sie funkcja, ktorej PostgREST nie

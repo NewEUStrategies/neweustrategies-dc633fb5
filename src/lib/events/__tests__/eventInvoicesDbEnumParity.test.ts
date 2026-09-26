@@ -1,5 +1,6 @@
-// BRAMKA: zamkniete zbiory modulu faktur wydarzen (TS) = CHECK-i migracji.
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
 //
+// BRAMKA: zamkniete zbiory modulu faktur wydarzen (TS) = CHECK-i migracji.
 // Kolumny slownikowe sa `text` + `CHECK (kolumna IN (...))`, wiec typ
 // generowany to `string` - kompilator nie zobaczy, ze panel oferuje rodzaj,
 // stan KSeF albo stawke, ktorej baza nie przyjmie, ani ze pomija wartosc,
