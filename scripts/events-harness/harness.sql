@@ -1306,3 +1306,225 @@ CREATE TABLE IF NOT EXISTS public.audit_log (
 CREATE INDEX IF NOT EXISTS audit_log_tenant_idx
   ON public.audit_log (tenant_id, created_at DESC);
 GRANT SELECT, INSERT ON public.audit_log TO authenticated;
+
+-- ============================================================================
+-- FUNKCJE UCZESTNIKA F1-F5 (Foundation, spec B.4.1) - ATRAPY PLATFORMY
+--
+-- PO CO. Migracje uczestnika (`20260926100000_event_participant_foundation`,
+-- `20260926100100_event_participant_defect_fixes` i migracje torow A/B/C)
+-- dotykaja powierzchni platformy, ktorej ten harness dotad nie stawial:
+-- potwierdzenia adresu konta, licznika limitow, skrzynki powiadomien
+-- z bramka preferencji, starszych rezerwacji RSVP w ksztalcie koncowym,
+-- pol operatora na zamowieniu i dziennika webhookow. Kazda atrapa ponizej
+-- ma w komentarzu zrodlo produkcyjne. Tory NIE edytuja tego pliku (C.0.2) -
+-- brak atrapy zglaszaja jako `PF-<X>-needs:`.
+--
+-- CZEGO TE ATRAPY NIE UDAJA. Zachowanie bramki preferencji (tlumienie
+-- `event`, doreczanie `billing`, odrzucenie 'canceled') jest DOWODZONE
+-- WYLACZNIE w pgTAP (`supabase/tests/event_participant_foundation_test.sql`,
+-- `notification_preferences_gating_test.sql`) na PRAWDZIWEJ funkcji
+-- z `20260926100200`. Harness tylko stoi na atrapie i sprawdza jej
+-- tozsamosc (`obj_description` zaczyna sie od `events-harness stub`).
+-- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- auth.users.email_confirmed_at - kolumna platformy Supabase (GoTrue).
+-- Czyta ja regula wiazania konta z osoba (R-9: `event_register` wiaze konto
+-- tylko przy POTWIERDZONYM adresie) i akceptacja przekazania biletu (S8).
+-- DEFAULT now(): istniejace fixture'y harnessu wstawiaja `(id, email)` i maja
+-- zachowac sie jak konta potwierdzone; przypadek niepotwierdzony test ustawia
+-- jawnie `email_confirmed_at = NULL`.
+-- ----------------------------------------------------------------------------
+ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email_confirmed_at timestamptz DEFAULT now();
+
+-- ----------------------------------------------------------------------------
+-- public.rate_limits + public.rate_limit_hit - licznik okienkowy.
+-- Zrodlo: 20260720071845 (tabela) i 20260724221149 (cialo funkcji). Kopia
+-- atrapy liczacej z `runtime_test.d/20_registration.sql` (tamten plik stawia
+-- ja tylko wtedy, gdy jej brak - po tej sekcji juz jej nie stawia i jej nie
+-- sprzata). Atrapa LICZY naprawde: bramka, ktora zawsze przepuszcza, nie jest
+-- bramka. ACL jak po `20260926100200` (S30): wylacznie service_role - kazdy
+-- wolajacy SQL jest SECURITY DEFINER.
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.rate_limits (
+  scope        text NOT NULL,
+  subject_id   text NOT NULL,
+  window_start timestamptz NOT NULL,
+  count        integer NOT NULL DEFAULT 0,
+  PRIMARY KEY (scope, subject_id, window_start)
+);
+
+CREATE OR REPLACE FUNCTION public.rate_limit_hit(
+  _scope text, _subject text, _max integer, _window_minutes integer DEFAULT 1
+) RETURNS TABLE(allowed boolean, hits integer, bucket_start timestamptz)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $rl$
+DECLARE
+  v_win integer := GREATEST(1, COALESCE(_window_minutes, 1));
+  v_sec integer := v_win * 60;
+  v_start timestamptz := to_timestamp(
+    (floor(extract(epoch FROM now()) / v_sec) * v_sec)::double precision);
+  v_count integer;
+BEGIN
+  IF _scope IS NULL OR length(_scope) = 0 OR _subject IS NULL OR length(_subject) = 0 THEN
+    RAISE EXCEPTION 'rate_limit_hit: scope/subject required';
+  END IF;
+  INSERT INTO public.rate_limits AS rl (scope, subject_id, window_start, count)
+  VALUES (_scope, _subject, v_start, 1)
+  ON CONFLICT (scope, subject_id, window_start) DO UPDATE SET count = rl.count + 1
+  RETURNING rl.count INTO v_count;
+  RETURN QUERY SELECT (v_count <= GREATEST(1, _max)), v_count, v_start;
+END $rl$;
+REVOKE ALL ON FUNCTION public.rate_limit_hit(text, text, integer, integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.rate_limit_hit(text, text, integer, integer) TO service_role;
+
+-- ----------------------------------------------------------------------------
+-- public.notifications - skrzynka powiadomien (ksztalt z rdzenia platformy,
+-- kolumny czytane i pisane przez `enqueue_notification`). Katalog rodzajow
+-- `notifications_kind_check` = lista produkcyjna po `20260926100200`
+-- (18 rodzajow z `20260812091000` + `event` + `billing`).
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.notifications (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  tenant_id  uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  kind       text NOT NULL,
+  title_pl   text NOT NULL,
+  title_en   text,
+  body_pl    text,
+  body_en    text,
+  href       text,
+  icon       text,
+  read_at    timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT notifications_kind_check CHECK (kind IN (
+    'system','comment','follow','subscription','content',
+    'security','message','tracker','connection','saved_search',
+    'crm_task','expert_request',
+    'introduction','recommendation','endorsement',
+    'profile_view','meeting_booking',
+    'club','event','billing'))
+);
+GRANT ALL ON public.notifications TO service_role;
+
+-- ----------------------------------------------------------------------------
+-- public.notification_preferences - WYLACZNIE przelaczniki, ktore czytaja
+-- producenci modulu Wydarzen (`event` z `20260926100200`, `content`, `system`)
+-- oraz `push_enabled`. Pozostale kolumny produkcji sa poza atrapa.
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.notification_preferences (
+  user_id         uuid PRIMARY KEY,
+  tenant_id       uuid,
+  enabled_content boolean NOT NULL DEFAULT true,
+  enabled_event   boolean NOT NULL DEFAULT true,
+  enabled_system  boolean NOT NULL DEFAULT true,
+  push_enabled    boolean NOT NULL DEFAULT false
+);
+GRANT ALL ON public.notification_preferences TO service_role;
+
+-- ----------------------------------------------------------------------------
+-- public.enqueue_notification - BEHAWIORALNE LUSTRO producenta
+-- (20260812091000 + gałąź `event` i always-on `security`/`billing`
+-- z 20260926100200). Bramka czyta preferencje ODBIORCY, tenant z jego profilu,
+-- deduplikacja 5 minut po (user, kind, href), a kazdy blad zwraca NULL
+-- (wywolanie z triggera nie moze wywrocic transakcji uzytkownika).
+-- Tozsamosc atrapy jest asercja w `13_participant_foundation.sql`: gdyby replay
+-- kiedys zlapal prawdziwa migracje platformy, test o tym powie.
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.enqueue_notification(
+  p_user_id uuid, p_kind text, p_title_pl text, p_title_en text,
+  p_body_pl text DEFAULT NULL::text, p_body_en text DEFAULT NULL::text,
+  p_href text DEFAULT NULL::text, p_icon text DEFAULT NULL::text
+) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'pg_temp' AS $fn$
+DECLARE v_tenant uuid; v_id uuid; v_enabled boolean;
+BEGIN
+  IF p_user_id IS NULL OR p_kind IS NULL OR btrim(p_kind) = '' THEN RETURN NULL; END IF;
+  IF p_kind NOT IN ('security', 'billing') THEN
+    SELECT CASE p_kind
+             WHEN 'content' THEN np.enabled_content
+             WHEN 'system'  THEN np.enabled_system
+             WHEN 'event'   THEN np.enabled_event
+             ELSE true END
+      INTO v_enabled FROM public.notification_preferences np WHERE np.user_id = p_user_id;
+    IF v_enabled IS FALSE THEN RETURN NULL; END IF;
+  END IF;
+  SELECT tenant_id INTO v_tenant FROM public.profiles WHERE id = p_user_id;
+  IF v_tenant IS NULL THEN
+    v_tenant := COALESCE(public.public_tenant_id(), public.current_tenant_id());
+  END IF;
+  IF v_tenant IS NULL THEN RETURN NULL; END IF;
+  IF EXISTS (SELECT 1 FROM public.notifications n
+    WHERE n.user_id = p_user_id AND n.kind = p_kind
+      AND COALESCE(n.href, '') = COALESCE(p_href, '')
+      AND n.created_at > now() - interval '5 minutes') THEN RETURN NULL; END IF;
+  INSERT INTO public.notifications (
+    user_id, tenant_id, kind, title_pl, title_en, body_pl, body_en, href, icon
+  ) VALUES (
+    p_user_id, v_tenant, p_kind,
+    COALESCE(NULLIF(btrim(p_title_pl), ''), NULLIF(btrim(p_title_en), ''), p_kind),
+    NULLIF(btrim(p_title_en), ''),
+    NULLIF(btrim(p_body_pl), ''),
+    NULLIF(btrim(p_body_en), ''),
+    NULLIF(btrim(p_href), ''),
+    NULLIF(btrim(p_icon), '')
+  ) RETURNING id INTO v_id;
+  RETURN v_id;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NULL;
+END $fn$;
+COMMENT ON FUNCTION public.enqueue_notification(uuid, text, text, text, text, text, text, text) IS
+  'events-harness stub: enqueue_notification (source 20260812091000 + 20260926100200)';
+REVOKE ALL ON FUNCTION public.enqueue_notification(uuid, text, text, text, text, text, text, text)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.enqueue_notification(uuid, text, text, text, text, text, text, text)
+  TO service_role;
+
+-- ----------------------------------------------------------------------------
+-- event_rsvps - KSZTALT KONCOWY domeny statusow (20260721150000:38-48):
+-- `waitlist` w katalogu i znacznik kolejki `waitlisted_at`. Zwolnienie
+-- starszej rezerwacji (`_event_legacy_rsvp_release`) pisze 'cancelled' -
+-- literowka 'canceled' (D0-1) musi sie tu wywracac na CHECK-u.
+-- ----------------------------------------------------------------------------
+ALTER TABLE public.event_rsvps ADD COLUMN IF NOT EXISTS waitlisted_at timestamptz;
+ALTER TABLE public.event_rsvps DROP CONSTRAINT IF EXISTS event_rsvps_status_check;
+ALTER TABLE public.event_rsvps
+  ADD CONSTRAINT event_rsvps_status_check
+  CHECK (status IN ('going', 'interested', 'cancelled', 'waitlist'));
+ALTER TABLE public.event_rsvps DROP CONSTRAINT IF EXISTS event_rsvps_waitlist_marker_check;
+ALTER TABLE public.event_rsvps
+  ADD CONSTRAINT event_rsvps_waitlist_marker_check
+  CHECK (status <> 'waitlist' OR waitlisted_at IS NOT NULL);
+
+-- ----------------------------------------------------------------------------
+-- payment_orders - pola operatora i cyklu zycia czytane przez tor B
+-- (kontekst zwrotu, klasyfikacja zamowien). Zrodlo: 20260624172041 i latki
+-- rozliczen (provider*, environment, paid_at, kind). UWAGA: kolumne
+-- `refunded_amount_cents` dostarcza REPLAYOWANA migracja modulu
+-- `20260830090000:89-90` - atrapa jej NIE dodaje (nikt jej nie dodaje drugi raz).
+-- ----------------------------------------------------------------------------
+ALTER TABLE public.payment_orders
+  ADD COLUMN IF NOT EXISTS provider text NOT NULL DEFAULT 'stripe',
+  ADD COLUMN IF NOT EXISTS provider_session_id text,
+  ADD COLUMN IF NOT EXISTS provider_payment_intent_id text,
+  ADD COLUMN IF NOT EXISTS provider_intent_id text,
+  ADD COLUMN IF NOT EXISTS provider_customer_id text,
+  ADD COLUMN IF NOT EXISTS environment text NOT NULL DEFAULT 'live',
+  ADD COLUMN IF NOT EXISTS paid_at timestamptz,
+  ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'one_time';
+
+-- ----------------------------------------------------------------------------
+-- public.payment_webhook_events - dziennik webhookow operatora (ksztalt
+-- z rdzenia rozliczen; kolumny czytane przez widoki zamowien modulu
+-- `20260828063423` i `20260830090000`).
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.payment_webhook_events (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id    uuid,
+  user_id      uuid,
+  customer_id  text,
+  event_type   text NOT NULL,
+  status       text NOT NULL DEFAULT 'processed',
+  occurred_at  timestamptz NOT NULL DEFAULT now(),
+  processed_at timestamptz,
+  retry_count  integer NOT NULL DEFAULT 0
+);
+GRANT ALL ON public.payment_webhook_events TO service_role;

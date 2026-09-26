@@ -3,8 +3,11 @@
 -- Blokuje regresję "martwych przełączników": enqueue_notification (wspólny
 -- producent wołany przez WSZYSTKIE 22 funkcje-producentów: message/comment/
 -- follow/subscription/content/system/tracker/connection/saved_search/crm_task)
--- musi pominąć wstawienie, gdy odbiorca wyłączył dany rodzaj, a 'security' ma
--- docierać ZAWSZE (przełącznik always-on).
+-- musi pominąć wstawienie, gdy odbiorca wyłączył dany rodzaj, a rodzaje
+-- always-on {'security','billing'} mają docierać ZAWSZE. 'billing' (rozliczenia,
+-- 20260926100200) nie ma nawet kolumny przełącznika - informacja o własnych
+-- pieniądzach nie jest opcjonalna (S15). 'event' (wydarzenia i przypomnienia)
+-- ma pełny rytuał: katalog + enabled_event + gałąź bramki.
 --
 -- Zakres (po rozszerzeniu katalogu rodzajów do 11):
 --   1. Komplet rodzajów jawnie - dla KAŻDEGO z 10 przełączalnych: włączony =>
@@ -40,7 +43,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(44);
+SELECT plan(49);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -200,17 +203,41 @@ SELECT is(
     't', 't', 'b', 'b', '/ct-task-off', 'i'),
   NULL, 'crm_task wyłączony: pominięte');
 
--- ── 2. security: always-on ──────────────────────────────────────────────────
+-- event (producenci: przypomnienia, oferty listy rezerwowej, przekazanie
+-- biletu, certyfikat i ankieta - 20260926100200)
+SELECT isnt(
+  public.enqueue_notification('c0000000-0000-0000-0000-0000000000ff', 'event',
+    't', 't', 'b', 'b', '/ev-on', 'calendar-clock'),
+  NULL, 'event włączony: wstawione');
+UPDATE public.notification_preferences SET enabled_event = false
+  WHERE user_id = 'c0000000-0000-0000-0000-0000000000ff';
+SELECT is(
+  public.enqueue_notification('c0000000-0000-0000-0000-0000000000ff', 'event',
+    't', 't', 'b', 'b', '/ev-off', 'calendar-clock'),
+  NULL, 'event wyłączony: pominięte');
+
+-- ── 2. security i billing: always-on ────────────────────────────────────────
 UPDATE public.notification_preferences SET enabled_security = false
   WHERE user_id = 'c0000000-0000-0000-0000-0000000000ff';
 SELECT isnt(
   public.enqueue_notification('c0000000-0000-0000-0000-0000000000ff', 'security',
     't', 't', 'b', 'b', '/sec', 'i'),
   NULL, 'security dociera ZAWSZE, nawet przy wyłączonym przełączniku');
+-- W tym miejscu odbiorca 'c...ff' ma WYŁĄCZONE wszystkie przełączniki
+-- sprawdzone wyżej (wraz z event) - billing i tak musi dotrzeć.
+SELECT isnt(
+  public.enqueue_notification('c0000000-0000-0000-0000-0000000000ff', 'billing',
+    't', 't', 'b', 'b', '/billing', 'credit-card'),
+  NULL, 'billing dociera ZAWSZE, także przy wyłączonych przełącznikach');
 
 -- ── 3. Parytet strukturalny: katalog rodzajów <-> kolumny-flagi ─────────────
 -- Źródłem prawdy dla obu stron jest schemat, nie lista w teście - dzięki temu
 -- dorzucenie 11. rodzaju bez kolumny (albo kolumny bez rodzaju) jest czerwone.
+
+-- Rodzaje always-on: bramka ich NIE czyta (brak gałęzi CASE); 'billing' nie ma
+-- też kolumny przełącznika. Jedyne miejsce, w którym ta lista jest wpisana.
+CREATE FUNCTION pg_temp.always_on() RETURNS text[]
+LANGUAGE sql IMMUTABLE AS $fn$ SELECT ARRAY['billing', 'security']::text[] $fn$;
 
 CREATE FUNCTION pg_temp.allowed_kinds() RETURNS text[]
 LANGUAGE sql STABLE AS $fn$
@@ -233,9 +260,14 @@ $fn$;
 
 SELECT is(
   ARRAY(SELECT k FROM unnest(pg_temp.allowed_kinds()) AS k
-         WHERE k <> 'security' AND NOT (k = ANY (pg_temp.flag_kinds())) ORDER BY k),
+         WHERE NOT (k = ANY (pg_temp.always_on())) AND NOT (k = ANY (pg_temp.flag_kinds())) ORDER BY k),
   ARRAY[]::text[],
-  'każdy rodzaj z notifications_kind_check (poza security) ma kolumnę enabled_<rodzaj>');
+  'każdy rodzaj z notifications_kind_check (poza always-on security/billing) ma kolumnę enabled_<rodzaj>');
+
+SELECT ok(
+  'billing' = ANY (pg_temp.allowed_kinds()) AND 'event' = ANY (pg_temp.allowed_kinds())
+  AND NOT ('billing' = ANY (pg_temp.flag_kinds())) AND 'event' = ANY (pg_temp.flag_kinds()),
+  'billing i event są w katalogu; event ma kolumnę enabled_event, billing celowo nie ma przełącznika');
 
 SELECT is(
   ARRAY(SELECT k FROM unnest(pg_temp.flag_kinds()) AS k
@@ -282,12 +314,19 @@ $fn$;
 
 SELECT is(
   ARRAY(SELECT k FROM unnest(pg_temp.allowed_kinds()) AS k
-         WHERE k <> 'security'
+         WHERE NOT (k = ANY (pg_temp.always_on()))
            AND NOT EXISTS (SELECT 1 FROM pg_temp.case_branches() b
                             WHERE b.kind = k AND b.col = k)
          ORDER BY k),
   ARRAY[]::text[],
-  'każdy rodzaj z katalogu ma w bramce gałąź czytającą WŁASNĄ kolumnę enabled_<rodzaj>');
+  'każdy rodzaj z katalogu (poza always-on) ma w bramce gałąź czytającą WŁASNĄ kolumnę enabled_<rodzaj>');
+
+SELECT is(
+  ARRAY(SELECT k FROM unnest(pg_temp.allowed_kinds()) AS k
+         WHERE NOT EXISTS (SELECT 1 FROM pg_temp.case_branches() b WHERE b.kind = k)
+         ORDER BY k),
+  pg_temp.always_on(),
+  'rodzaje bez gałęzi bramki to DOKŁADNIE zbiór always-on {billing, security}');
 
 SELECT is(
   ARRAY(SELECT DISTINCT b.kind || ' -> enabled_' || b.col FROM pg_temp.case_branches() b
@@ -314,7 +353,7 @@ SELECT is(
   'porzucony alias rodzaju spotkań nie wraca ani do katalogu, ani do kolumn preferencji');
 
 -- ── 4. Sweep behawioralny sterowany katalogiem ──────────────────────────────
--- Dla KAŻDEGO rodzaju z CHECK-a (poza security) ustawia flagę i sprawdza, czy
+-- Dla KAŻDEGO rodzaju z CHECK-a (poza always-on) ustawia flagę i sprawdza, czy
 -- producent zachował się zgodnie z kontraktem. Zwraca rodzaje, które kontrakt
 -- ŁAMIĄ - pusta tablica to jedyny poprawny wynik.
 
@@ -326,7 +365,7 @@ DECLARE
   v_bad text[] := '{}'::text[];
 BEGIN
   FOREACH v_kind IN ARRAY pg_temp.allowed_kinds() LOOP
-    CONTINUE WHEN v_kind = 'security';
+    CONTINUE WHEN v_kind = ANY (pg_temp.always_on());
     -- Rodzaj bez kolumny-flagi raportuje asercja parytetu wyżej; tutaj tylko
     -- go omijamy, żeby dynamiczny UPDATE nie wywrócił całego pliku.
     CONTINUE WHEN NOT (v_kind = ANY (pg_temp.flag_kinds()));

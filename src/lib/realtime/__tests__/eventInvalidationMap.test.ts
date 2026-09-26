@@ -44,6 +44,25 @@ describe("eventInvalidationMap", () => {
     expect(keys).toContainEqual(["comments", "p1"]);
   });
 
+  it("routes participant settings updates to the event's admin panel and public options", () => {
+    const event = {
+      ...eventOf("event.participant_settings.updated.v1"),
+      payload: { event_id: "e1", keys: ["refund_mode"] },
+    };
+    expect(invalidationKeysFor(event, { userId: "u1" })).toEqual([
+      ["admin-event-participant-settings", "e1"],
+      ["event-participant-options"],
+    ]);
+  });
+
+  it("degrades participant settings updates without event_id to the whole panel prefix", () => {
+    const event = { ...eventOf("event.participant_settings.updated.v1"), payload: { keys: [] } };
+    expect(invalidationKeysFor(event, { userId: "u1" })).toEqual([
+      ["admin-event-participant-settings"],
+      ["event-participant-options"],
+    ]);
+  });
+
   it("invalidates public, admin and reputation caches for badge grants", () => {
     const keys = invalidationKeysFor(eventOf("profile_badge.granted.v1"), { userId: "u1" });
     expect(keys).toContainEqual(["profile-badges"]);

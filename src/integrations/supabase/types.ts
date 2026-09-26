@@ -6372,6 +6372,156 @@ export type Database = {
           },
         ]
       }
+      event_calendar_feeds: {
+        Row: {
+          created_at: string
+          event_id: string | null
+          expires_at: string
+          id: string
+          lang: string
+          last_used_at: string | null
+          revoked_at: string | null
+          tenant_id: string
+          token_hash: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id?: string | null
+          expires_at?: string
+          id?: string
+          lang?: string
+          last_used_at?: string | null
+          revoked_at?: string | null
+          tenant_id: string
+          token_hash: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string | null
+          expires_at?: string
+          id?: string
+          lang?: string
+          last_used_at?: string | null
+          revoked_at?: string | null
+          tenant_id?: string
+          token_hash?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_calendar_feeds_event_fkey"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_calendar_feeds_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_certificates: {
+        Row: {
+          body_en: string | null
+          body_pl: string | null
+          code: string
+          event_ends_at: string | null
+          event_id: string
+          event_starts_at: string
+          event_timezone: string
+          event_title_en: string
+          event_title_pl: string
+          full_name: string
+          hours: number | null
+          id: string
+          issued_at: string
+          issuer_name: string | null
+          person_id: string
+          registration_id: string
+          revoked_at: string | null
+          revoked_by: string | null
+          revoked_reason: string | null
+          sessions_attended: number | null
+          signatory_name: string | null
+          signatory_title_en: string | null
+          signatory_title_pl: string | null
+          tenant_id: string
+        }
+        Insert: {
+          body_en?: string | null
+          body_pl?: string | null
+          code: string
+          event_ends_at?: string | null
+          event_id: string
+          event_starts_at: string
+          event_timezone: string
+          event_title_en: string
+          event_title_pl: string
+          full_name: string
+          hours?: number | null
+          id?: string
+          issued_at?: string
+          issuer_name?: string | null
+          person_id: string
+          registration_id: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          revoked_reason?: string | null
+          sessions_attended?: number | null
+          signatory_name?: string | null
+          signatory_title_en?: string | null
+          signatory_title_pl?: string | null
+          tenant_id: string
+        }
+        Update: {
+          body_en?: string | null
+          body_pl?: string | null
+          code?: string
+          event_ends_at?: string | null
+          event_id?: string
+          event_starts_at?: string
+          event_timezone?: string
+          event_title_en?: string
+          event_title_pl?: string
+          full_name?: string
+          hours?: number | null
+          id?: string
+          issued_at?: string
+          issuer_name?: string | null
+          person_id?: string
+          registration_id?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          revoked_reason?: string | null
+          sessions_attended?: number | null
+          signatory_name?: string | null
+          signatory_title_en?: string | null
+          signatory_title_pl?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_certificates_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "event_people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_certificates_registration_fkey"
+            columns: ["tenant_id", "event_id", "registration_id"]
+            isOneToOne: true
+            referencedRelation: "event_registrations"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+        ]
+      }
       event_checkins: {
         Row: {
           checkpoint_id: string
@@ -6577,6 +6727,47 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_follow_up_tokens: {
+        Row: {
+          created_at: string
+          event_id: string
+          expires_at: string
+          id: string
+          registration_id: string
+          revoked_at: string | null
+          tenant_id: string
+          token_hash: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          expires_at: string
+          id?: string
+          registration_id: string
+          revoked_at?: string | null
+          tenant_id: string
+          token_hash: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          expires_at?: string
+          id?: string
+          registration_id?: string
+          revoked_at?: string | null
+          tenant_id?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_follow_up_tokens_registration_fkey"
+            columns: ["tenant_id", "event_id", "registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["tenant_id", "event_id", "id"]
           },
         ]
       }
@@ -7432,6 +7623,101 @@ export type Database = {
           },
         ]
       }
+      event_message_deliveries: {
+        Row: {
+          attempts: number
+          channel: string
+          claimed_at: string
+          created_at: string
+          dedupe_key: string
+          detail: string | null
+          event_id: string
+          id: string
+          kind: string
+          lead_minutes: number | null
+          person_id: string | null
+          registration_id: string | null
+          sent_at: string | null
+          session_id: string | null
+          starts_at_snapshot: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          attempts?: number
+          channel: string
+          claimed_at?: string
+          created_at?: string
+          dedupe_key: string
+          detail?: string | null
+          event_id: string
+          id?: string
+          kind: string
+          lead_minutes?: number | null
+          person_id?: string | null
+          registration_id?: string | null
+          sent_at?: string | null
+          session_id?: string | null
+          starts_at_snapshot?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          attempts?: number
+          channel?: string
+          claimed_at?: string
+          created_at?: string
+          dedupe_key?: string
+          detail?: string | null
+          event_id?: string
+          id?: string
+          kind?: string
+          lead_minutes?: number | null
+          person_id?: string | null
+          registration_id?: string | null
+          sent_at?: string | null
+          session_id?: string | null
+          starts_at_snapshot?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_message_deliveries_event_fkey"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_message_deliveries_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "event_people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_message_deliveries_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_message_deliveries_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "event_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_package_orders: {
         Row: {
           amount_cents: number
@@ -7779,6 +8065,128 @@ export type Database = {
           },
         ]
       }
+      event_participant_settings: {
+        Row: {
+          calendar_export_enabled: boolean
+          certificate_body_en: string | null
+          certificate_body_pl: string | null
+          certificate_eligibility: string
+          certificate_enabled: boolean
+          certificate_hours: number | null
+          certificate_issuer_name: string | null
+          certificate_min_sessions: number | null
+          certificate_require_survey: boolean
+          certificate_signatory_name: string | null
+          certificate_signatory_title_en: string | null
+          certificate_signatory_title_pl: string | null
+          created_at: string
+          event_id: string
+          id: string
+          refund_deadline_hours: number
+          refund_mode: string
+          reminder_event_leads_minutes: number[]
+          reminder_sms_enabled: boolean
+          reminders_enabled: boolean
+          session_reminder_lead_minutes: number
+          session_reminders_enabled: boolean
+          survey_anonymous: boolean
+          survey_close_after_days: number
+          survey_enabled: boolean
+          survey_intro_en: string | null
+          survey_intro_pl: string | null
+          survey_invite_enabled: boolean
+          survey_min_results: number
+          tenant_id: string
+          transfer_deadline_hours: number
+          transfer_enabled: boolean
+          updated_at: string
+          updated_by: string | null
+          waitlist_offer_hours: number
+        }
+        Insert: {
+          calendar_export_enabled?: boolean
+          certificate_body_en?: string | null
+          certificate_body_pl?: string | null
+          certificate_eligibility?: string
+          certificate_enabled?: boolean
+          certificate_hours?: number | null
+          certificate_issuer_name?: string | null
+          certificate_min_sessions?: number | null
+          certificate_require_survey?: boolean
+          certificate_signatory_name?: string | null
+          certificate_signatory_title_en?: string | null
+          certificate_signatory_title_pl?: string | null
+          created_at?: string
+          event_id: string
+          id?: string
+          refund_deadline_hours?: number
+          refund_mode?: string
+          reminder_event_leads_minutes?: number[]
+          reminder_sms_enabled?: boolean
+          reminders_enabled?: boolean
+          session_reminder_lead_minutes?: number
+          session_reminders_enabled?: boolean
+          survey_anonymous?: boolean
+          survey_close_after_days?: number
+          survey_enabled?: boolean
+          survey_intro_en?: string | null
+          survey_intro_pl?: string | null
+          survey_invite_enabled?: boolean
+          survey_min_results?: number
+          tenant_id: string
+          transfer_deadline_hours?: number
+          transfer_enabled?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          waitlist_offer_hours?: number
+        }
+        Update: {
+          calendar_export_enabled?: boolean
+          certificate_body_en?: string | null
+          certificate_body_pl?: string | null
+          certificate_eligibility?: string
+          certificate_enabled?: boolean
+          certificate_hours?: number | null
+          certificate_issuer_name?: string | null
+          certificate_min_sessions?: number | null
+          certificate_require_survey?: boolean
+          certificate_signatory_name?: string | null
+          certificate_signatory_title_en?: string | null
+          certificate_signatory_title_pl?: string | null
+          created_at?: string
+          event_id?: string
+          id?: string
+          refund_deadline_hours?: number
+          refund_mode?: string
+          reminder_event_leads_minutes?: number[]
+          reminder_sms_enabled?: boolean
+          reminders_enabled?: boolean
+          session_reminder_lead_minutes?: number
+          session_reminders_enabled?: boolean
+          survey_anonymous?: boolean
+          survey_close_after_days?: number
+          survey_enabled?: boolean
+          survey_intro_en?: string | null
+          survey_intro_pl?: string | null
+          survey_invite_enabled?: boolean
+          survey_min_results?: number
+          tenant_id?: string
+          transfer_deadline_hours?: number
+          transfer_enabled?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          waitlist_offer_hours?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_participant_settings_event_fkey"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: true
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
       event_people: {
         Row: {
           bio_en: string | null
@@ -7992,6 +8400,174 @@ export type Database = {
           },
         ]
       }
+      event_registration_refund_requests: {
+        Row: {
+          amount_cents: number
+          claimed_at: string | null
+          created_at: string
+          currency: string
+          error: string | null
+          event_id: string
+          finished_at: string | null
+          id: string
+          payment_order_id: string
+          provider: string
+          provider_refund_id: string | null
+          provider_status: string | null
+          registration_id: string
+          requested_by: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount_cents: number
+          claimed_at?: string | null
+          created_at?: string
+          currency: string
+          error?: string | null
+          event_id: string
+          finished_at?: string | null
+          id?: string
+          payment_order_id: string
+          provider: string
+          provider_refund_id?: string | null
+          provider_status?: string | null
+          registration_id: string
+          requested_by?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          claimed_at?: string | null
+          created_at?: string
+          currency?: string
+          error?: string | null
+          event_id?: string
+          finished_at?: string | null
+          id?: string
+          payment_order_id?: string
+          provider?: string
+          provider_refund_id?: string | null
+          provider_status?: string | null
+          registration_id?: string
+          requested_by?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_registration_refund_requests_payment_order_id_fkey"
+            columns: ["payment_order_id"]
+            isOneToOne: false
+            referencedRelation: "payment_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_registration_refund_requests_registration_fkey"
+            columns: ["tenant_id", "event_id", "registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+        ]
+      }
+      event_registration_transfers: {
+        Row: {
+          accepted_at: string | null
+          cancel_reason: string | null
+          cancelled_at: string | null
+          created_at: string
+          created_by: string | null
+          event_id: string
+          expires_at: string
+          from_person_id: string
+          from_user_id: string | null
+          id: string
+          kind: string
+          lang: string | null
+          registration_id: string
+          scrubbed_at: string | null
+          status: string
+          tenant_id: string
+          to_email: string
+          to_email_norm: string | null
+          to_first_name: string
+          to_last_name: string
+          to_person_id: string | null
+          token_hash: string | null
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          event_id: string
+          expires_at: string
+          from_person_id: string
+          from_user_id?: string | null
+          id?: string
+          kind?: string
+          lang?: string | null
+          registration_id: string
+          scrubbed_at?: string | null
+          status?: string
+          tenant_id: string
+          to_email: string
+          to_email_norm?: never
+          to_first_name: string
+          to_last_name: string
+          to_person_id?: string | null
+          token_hash?: string | null
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          event_id?: string
+          expires_at?: string
+          from_person_id?: string
+          from_user_id?: string | null
+          id?: string
+          kind?: string
+          lang?: string | null
+          registration_id?: string
+          scrubbed_at?: string | null
+          status?: string
+          tenant_id?: string
+          to_email?: string
+          to_email_norm?: never
+          to_first_name?: string
+          to_last_name?: string
+          to_person_id?: string | null
+          token_hash?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_registration_transfers_registration_fkey"
+            columns: ["tenant_id", "event_id", "registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_registration_transfers_to_person_id_fkey"
+            columns: ["to_person_id"]
+            isOneToOne: false
+            referencedRelation: "event_people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_registrations: {
         Row: {
           answers: Json
@@ -8009,6 +8585,7 @@ export type Database = {
           group_id: string | null
           group_lead_registration_id: string | null
           id: string
+          lang: string | null
           manage_token_hash: string | null
           notify_email: boolean
           notify_sms: boolean
@@ -8019,7 +8596,15 @@ export type Database = {
           promoted_at: string | null
           qr_issued_at: string | null
           qr_token_hash: string | null
+          refund_deadline_at: string | null
+          refund_policy_mode: string | null
           registration_mode: string
+          remind_email: boolean
+          remind_push: boolean
+          remind_sessions: boolean
+          remind_sms: boolean
+          remind_sms_consent_at: string | null
+          remind_sms_consent_via: string | null
           source: string
           status: string
           tenant_id: string
@@ -8046,6 +8631,7 @@ export type Database = {
           group_id?: string | null
           group_lead_registration_id?: string | null
           id?: string
+          lang?: string | null
           manage_token_hash?: string | null
           notify_email?: boolean
           notify_sms?: boolean
@@ -8056,7 +8642,15 @@ export type Database = {
           promoted_at?: string | null
           qr_issued_at?: string | null
           qr_token_hash?: string | null
+          refund_deadline_at?: string | null
+          refund_policy_mode?: string | null
           registration_mode: string
+          remind_email?: boolean
+          remind_push?: boolean
+          remind_sessions?: boolean
+          remind_sms?: boolean
+          remind_sms_consent_at?: string | null
+          remind_sms_consent_via?: string | null
           source?: string
           status?: string
           tenant_id: string
@@ -8083,6 +8677,7 @@ export type Database = {
           group_id?: string | null
           group_lead_registration_id?: string | null
           id?: string
+          lang?: string | null
           manage_token_hash?: string | null
           notify_email?: boolean
           notify_sms?: boolean
@@ -8093,7 +8688,15 @@ export type Database = {
           promoted_at?: string | null
           qr_issued_at?: string | null
           qr_token_hash?: string | null
+          refund_deadline_at?: string | null
+          refund_policy_mode?: string | null
           registration_mode?: string
+          remind_email?: boolean
+          remind_push?: boolean
+          remind_sessions?: boolean
+          remind_sms?: boolean
+          remind_sms_consent_at?: string | null
+          remind_sms_consent_via?: string | null
           source?: string
           status?: string
           tenant_id?: string
@@ -8368,6 +8971,48 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_session_saves: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          session_id: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          session_id: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          session_id?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_session_saves_event_fkey"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_session_saves_session_fkey"
+            columns: ["tenant_id", "event_id", "session_id"]
+            isOneToOne: false
+            referencedRelation: "event_sessions"
+            referencedColumns: ["tenant_id", "event_id", "id"]
           },
         ]
       }
@@ -9114,6 +9759,139 @@ export type Database = {
           },
         ]
       }
+      event_survey_questions: {
+        Row: {
+          created_at: string
+          event_id: string
+          help_en: string | null
+          help_pl: string | null
+          id: string
+          is_active: boolean
+          is_required: boolean
+          key: string
+          label_en: string
+          label_pl: string
+          options: Json
+          question_type: string
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          help_en?: string | null
+          help_pl?: string | null
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          key: string
+          label_en: string
+          label_pl: string
+          options?: Json
+          question_type: string
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          help_en?: string | null
+          help_pl?: string | null
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          key?: string
+          label_en?: string
+          label_pl?: string
+          options?: Json
+          question_type?: string
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_survey_questions_event_fkey"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      event_survey_respondents: {
+        Row: {
+          event_id: string
+          registration_id: string
+          tenant_id: string
+        }
+        Insert: {
+          event_id: string
+          registration_id: string
+          tenant_id: string
+        }
+        Update: {
+          event_id?: string
+          registration_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_survey_respondents_registration_fkey"
+            columns: ["tenant_id", "event_id", "registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+        ]
+      }
+      event_survey_responses: {
+        Row: {
+          answers: Json
+          event_id: string
+          id: string
+          lang: string | null
+          registration_id: string | null
+          submitted_on: string | null
+          tenant_id: string
+        }
+        Insert: {
+          answers: Json
+          event_id: string
+          id?: string
+          lang?: string | null
+          registration_id?: string | null
+          submitted_on?: string | null
+          tenant_id: string
+        }
+        Update: {
+          answers?: Json
+          event_id?: string
+          id?: string
+          lang?: string | null
+          registration_id?: string | null
+          submitted_on?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_survey_responses_event_fkey"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_survey_responses_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_term_acceptances: {
         Row: {
           accepted_at: string
@@ -9680,6 +10458,75 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_waitlist_offers: {
+        Row: {
+          closed_at: string | null
+          created_at: string
+          created_by: string | null
+          event_id: string
+          expires_at: string
+          extended_count: number
+          id: string
+          offered_at: string
+          payment_order_id: string | null
+          registration_id: string
+          source: string
+          status: string
+          tenant_id: string
+          ticket_type_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          event_id: string
+          expires_at: string
+          extended_count?: number
+          id?: string
+          offered_at?: string
+          payment_order_id?: string | null
+          registration_id: string
+          source?: string
+          status?: string
+          tenant_id: string
+          ticket_type_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          event_id?: string
+          expires_at?: string
+          extended_count?: number
+          id?: string
+          offered_at?: string
+          payment_order_id?: string | null
+          registration_id?: string
+          source?: string
+          status?: string
+          tenant_id?: string
+          ticket_type_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_waitlist_offers_payment_order_id_fkey"
+            columns: ["payment_order_id"]
+            isOneToOne: false
+            referencedRelation: "payment_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_waitlist_offers_registration_fkey"
+            columns: ["tenant_id", "event_id", "registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["tenant_id", "event_id", "id"]
           },
         ]
       }
@@ -12538,6 +13385,7 @@ export type Database = {
           enabled_content: boolean
           enabled_crm_task: boolean
           enabled_endorsement: boolean
+          enabled_event: boolean
           enabled_expert_request: boolean
           enabled_follow: boolean
           enabled_introduction: boolean
@@ -12573,6 +13421,7 @@ export type Database = {
           enabled_content?: boolean
           enabled_crm_task?: boolean
           enabled_endorsement?: boolean
+          enabled_event?: boolean
           enabled_expert_request?: boolean
           enabled_follow?: boolean
           enabled_introduction?: boolean
@@ -12608,6 +13457,7 @@ export type Database = {
           enabled_content?: boolean
           enabled_crm_task?: boolean
           enabled_endorsement?: boolean
+          enabled_event?: boolean
           enabled_expert_request?: boolean
           enabled_follow?: boolean
           enabled_introduction?: boolean
@@ -19244,6 +20094,7 @@ export type Database = {
         }
         Returns: Json
       }
+      _event_calendar_feed_items: { Args: { p_token: string }; Returns: Json }
       _event_checkin_evaluate: {
         Args: {
           _checkpoint_id: string
@@ -19299,10 +20150,18 @@ export type Database = {
           visibility: string
         }[]
       }
+      _event_delivery_claim: { Args: { p_payload: Json }; Returns: string }
+      _event_delivery_confirm: {
+        Args: { p_detail?: string; p_id: string; p_status: string }
+        Returns: boolean
+      }
+      _event_follow_up_claim: { Args: { p_limit?: number }; Returns: Json }
+      _event_follow_up_token_issue: { Args: { p_registration_id: string }; Returns: Json }
       _event_issue_ticket_codes: {
         Args: { p_registration_id: string }
         Returns: Json
       }
+      _event_lifecycle_due: { Args: { p_limit?: number }; Returns: Json }
       _event_meeting_available: {
         Args: {
           _ends: string
@@ -19391,6 +20250,8 @@ export type Database = {
         Args: { _event_id: string; _tenant: string }
         Returns: number
       }
+      _event_offer_expire: { Args: { p_offer_id: string }; Returns: Json }
+      _event_offer_void: { Args: { p_offer_id: string }; Returns: Json }
       _event_onsite_person_card: {
         Args: { _event_id: string; _person_id: string; _tenant: string }
         Returns: Json
@@ -19404,10 +20265,22 @@ export type Database = {
         Args: { _event_id: string; _tenant: string }
         Returns: number
       }
+      _event_refund_requests_stale: { Args: { p_limit?: number }; Returns: Json }
+      _event_registration_refund_finish: {
+        Args: {
+          p_error?: string
+          p_provider_refund_id?: string
+          p_request_id: string
+          p_status: string
+        }
+        Returns: Json
+      }
+      _event_registration_transfer_token_issue: { Args: { p_transfer_id: string }; Returns: Json }
       _event_registration_verdict: {
         Args: { _answers: Json; _event_id: string; _tenant: string }
         Returns: string
       }
+      _event_reminders_claim: { Args: { p_email_limit?: number; p_limit?: number }; Returns: Json }
       _event_scanner_device_auth: {
         Args: { _scope: string; _token: string }
         Returns: {
@@ -19509,10 +20382,14 @@ export type Database = {
         }
         Returns: number
       }
+      _event_transfer_expire: { Args: { p_transfer_id: string }; Returns: Json }
+      _event_transfer_notice_payload: { Args: { p_transfer_id: string }; Returns: Json }
+      _event_transfer_scrub: { Args: { p_limit?: number }; Returns: number }
       _event_unique_page_slug: {
         Args: { _base: string; _tenant: string }
         Returns: string
       }
+      _event_waitlist_offer_notices_claim: { Args: { p_limit?: number }; Returns: Json }
       _event_waitlist_promote: {
         Args: {
           _event_id: string
@@ -19520,6 +20397,10 @@ export type Database = {
           _tenant: string
           _ticket_type_id?: string
         }
+        Returns: Json
+      }
+      _event_waitlist_reconcile: {
+        Args: { p_event_id: string; p_tenant: string; p_ticket_type_id: string }
         Returns: Json
       }
       _suggest_score: {
@@ -20335,6 +21216,11 @@ export type Database = {
         Args: { p_branding: Json; p_event_id: string }
         Returns: Json
       }
+      admin_event_certificate_action: { Args: { p_payload: Json }; Returns: Json }
+      admin_event_certificates_list: {
+        Args: { p_event_id: string; p_limit?: number; p_offset?: number }
+        Returns: Json
+      }
       admin_event_checkin_manual: { Args: { p_payload: Json }; Returns: Json }
       admin_event_checkin_search: {
         Args: { p_payload: Json }
@@ -20501,6 +21387,7 @@ export type Database = {
         Args: { p_event_id: string; p_features: Json }
         Returns: Json
       }
+      admin_event_follow_up_stats: { Args: { p_event_id: string }; Returns: Json }
       admin_event_general_save: { Args: { p_payload: Json }; Returns: string }
       admin_event_group_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_group_member_set: {
@@ -20705,6 +21592,7 @@ export type Database = {
           total_count: number
         }[]
       }
+      admin_event_message_delivery_stats: { Args: { p_event_id: string }; Returns: Json }
       admin_event_onsite_live_stats: {
         Args: { p_event_id: string; p_window_minutes?: number }
         Returns: Json
@@ -20835,6 +21723,8 @@ export type Database = {
         Args: { p_event_id: string; p_ids: string[] }
         Returns: number
       }
+      admin_event_participant_settings_get: { Args: { p_event_id: string }; Returns: Json }
+      admin_event_participant_settings_save: { Args: { p_payload: Json }; Returns: Json }
       admin_event_registration_decide: {
         Args: { p_payload: Json }
         Returns: Json
@@ -20877,10 +21767,15 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: number
       }
+      admin_event_registration_money_state: {
+        Args: { p_event_id: string; p_registration_ids?: string[] }
+        Returns: Json
+      }
       admin_event_registration_notify_payload: {
         Args: { p_payload: Json }
         Returns: Json
       }
+      admin_event_registration_transfer: { Args: { p_payload: Json }; Returns: Json }
       admin_event_registration_upsert: {
         Args: { p_payload: Json }
         Returns: string
@@ -21384,6 +22279,12 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: number
       }
+      admin_event_survey_question_delete: { Args: { p_payload: Json }; Returns: Json }
+      admin_event_survey_question_upsert: { Args: { p_payload: Json }; Returns: Json }
+      admin_event_survey_questions_list: { Args: { p_event_id: string }; Returns: Json }
+      admin_event_survey_questions_reorder: { Args: { p_payload: Json }; Returns: Json }
+      admin_event_survey_responses_export: { Args: { p_event_id: string }; Returns: Json }
+      admin_event_survey_results: { Args: { p_event_id: string }; Returns: Json }
       admin_event_term_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_term_upsert: { Args: { p_payload: Json }; Returns: string }
       admin_event_terms_list: {
@@ -21574,6 +22475,7 @@ export type Database = {
           sort_order: number
         }[]
       }
+      admin_event_waitlist_offer_action: { Args: { p_payload: Json }; Returns: Json }
       admin_event_waitlist_promote: { Args: { p_payload: Json }; Returns: Json }
       admin_events_counts: {
         Args: {
@@ -24376,6 +25278,11 @@ export type Database = {
           type_name_pl: string
         }[]
       }
+      event_calendar_feed_issue: { Args: { p_payload: Json }; Returns: Json }
+      event_calendar_feed_revoke: { Args: { p_payload: Json }; Returns: Json }
+      event_calendar_feed_status: { Args: { p_payload: Json }; Returns: Json }
+      event_calendar_public: { Args: { p_session_id?: string; p_slug: string }; Returns: Json }
+      event_certificate_verify: { Args: { p_code: string }; Returns: Json }
       event_checkin_record: { Args: { p_payload: Json }; Returns: Json }
       event_checkin_resolve: { Args: { p_payload: Json }; Returns: Json }
       event_coupon_revealed_tickets: {
@@ -24473,12 +25380,15 @@ export type Database = {
         }[]
       }
       event_my_agenda: { Args: { p_payload?: Json }; Returns: Json }
+      event_my_certificate_issue: { Args: { p_payload: Json }; Returns: Json }
+      event_my_certificate_state: { Args: { p_payload: Json }; Returns: Json }
       event_my_event_profile: { Args: { p_payload?: Json }; Returns: Json }
       event_my_event_profile_set: { Args: { p_payload?: Json }; Returns: Json }
       event_my_event_profile_sync_account: {
         Args: { p_payload?: Json }
         Returns: Json
       }
+      event_my_follow_up_summary: { Args: never; Returns: Json }
       event_my_package_orders: {
         Args: never
         Returns: {
@@ -24516,7 +25426,12 @@ export type Database = {
           state: string
         }[]
       }
+      event_my_plan: { Args: { p_payload: Json }; Returns: Json }
       event_my_registrations: { Args: { p_payload?: Json }; Returns: Json }
+      event_my_reminder_prefs: { Args: { p_payload: Json }; Returns: Json }
+      event_my_session_saves: { Args: { p_slug: string }; Returns: Json }
+      event_my_survey: { Args: { p_payload: Json }; Returns: Json }
+      event_my_survey_submit: { Args: { p_payload: Json }; Returns: Json }
       event_package_invite_accept: { Args: { p_payload: Json }; Returns: Json }
       event_package_purchase: { Args: { p_payload: Json }; Returns: Json }
       event_package_seat_invite: { Args: { p_payload: Json }; Returns: Json }
@@ -24598,6 +25513,7 @@ export type Database = {
           visibility: string
         }[]
       }
+      event_participant_options: { Args: { p_slug: string }; Returns: Json }
       event_register: { Args: { p_payload: Json }; Returns: Json }
       event_register_group_guests: {
         Args: { p_guests: Json; p_lead_registration_id: string }
@@ -24609,6 +25525,7 @@ export type Database = {
         Args: { p_registration_id: string }
         Returns: number
       }
+      event_registration_join_waitlist: { Args: { p_payload: Json }; Returns: Json }
       event_registration_manage_view: {
         Args: { p_payload?: Json }
         Returns: Json
@@ -24621,10 +25538,16 @@ export type Database = {
         Args: { p_registration_id: string }
         Returns: Json
       }
+      event_registration_refund_begin: { Args: { p_payload: Json }; Returns: Json }
       event_registration_set_channels: {
         Args: { p_payload: Json }
         Returns: Json
       }
+      event_registration_set_reminders: { Args: { p_payload: Json }; Returns: Json }
+      event_registration_transfer_accept: { Args: { p_payload: Json }; Returns: Json }
+      event_registration_transfer_cancel: { Args: { p_payload: Json }; Returns: Json }
+      event_registration_transfer_preview: { Args: { p_payload: Json }; Returns: Json }
+      event_registration_transfer_start: { Args: { p_payload: Json }; Returns: Json }
       event_scanner_bootstrap: { Args: { p_payload: Json }; Returns: Json }
       event_sections: {
         Args: { p_slug: string }
@@ -24641,6 +25564,7 @@ export type Database = {
         }[]
       }
       event_session_access: { Args: { _session_id: string }; Returns: Json }
+      event_session_save_toggle: { Args: { p_payload: Json }; Returns: Json }
       event_session_signup: { Args: { p_payload: Json }; Returns: Json }
       event_speakers_public: {
         Args: { p_payload: Json }
@@ -24714,6 +25638,10 @@ export type Database = {
       }
       event_ticket_public_options: {
         Args: { p_ticket_type_id: string }
+        Returns: Json
+      }
+      event_ticket_registration_quote: {
+        Args: { p_access_code?: string; p_registration_id: string }
         Returns: Json
       }
       event_types_active: {

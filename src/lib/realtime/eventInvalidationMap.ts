@@ -210,6 +210,11 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   "event.registration.cancelled.v1": (event) => registrationEventKeys(event),
   "event.registration.promoted.v1": (event) => registrationEventKeys(event),
   "event.registration.payment.v1": (event) => registrationEventKeys(event),
+
+  // Ustawienia funkcji uczestnika (spec B.9): panel organizatora tego
+  // wydarzenia i publiczne flagi `event_participant_options` (wszystkie slugi -
+  // payload niesie id wydarzenia, nie slug).
+  "event.participant_settings.updated.v1": (event) => participantSettingsEventKeys(event),
 };
 
 // KLUCZE JAKO LITERALY, NIE IMPORT FABRYK. Fabryki (`meetingKeys`,
@@ -343,6 +348,22 @@ function registrationEventKeys(event: DomainEventRow): QueryKey[] {
     ["account-menu", "my-events"],
     ["event-rsvp-counts"],
     ["public-event"],
+  ];
+}
+
+/**
+ * Klucze ustawien uczestnika. Literaly (a nie fabryki z
+ * `useParticipantSettings`/`useEventParticipantOptions`) z tego samego powodu
+ * co wyzej: mapa nie moze wciagac hookow modulu do wspolnego chunku realtime.
+ * Brak `event_id` (uszkodzony wiersz) degraduje do calego prefiksu panelu.
+ */
+function participantSettingsEventKeys(event: DomainEventRow): QueryKey[] {
+  const eventId = eventPayloadText(event, "event_id");
+  return [
+    eventId === ""
+      ? ["admin-event-participant-settings"]
+      : ["admin-event-participant-settings", eventId],
+    ["event-participant-options"],
   ];
 }
 
