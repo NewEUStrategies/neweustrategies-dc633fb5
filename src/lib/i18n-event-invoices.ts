@@ -59,6 +59,8 @@ export const eventInvoicesPl = {
       remember: "Zapamiętaj te dane w moim profilu rozliczeniowym",
       saving: "Zapisujemy dane do faktury…",
       saved: "Dane do faktury zapisane - organizator wystawi dokument.",
+      saveFailedAfterPurchase:
+        "Pakiet jest zamówiony, ale nie udało się zapisać danych do faktury. Poproś o fakturę w profilu, w sekcji Faktury.",
       fixErrors: "Popraw dane do faktury, zanim przejdziesz dalej.",
       existing: "Masz już zapisane dane do faktury dla tego zamówienia - możesz je zmienić.",
       invoiced: "Faktura do tego zamówienia jest już wystawiona ({{number}}).",
@@ -127,7 +129,11 @@ export const eventInvoicesPl = {
       invalidRecipient: "Nazwa albo adres odbiorcy są za długie.",
     },
     pdf: {
-      titles: { invoice: "Faktura VAT", proforma: "Faktura proforma", correction: "Faktura korygująca" },
+      titles: {
+        invoice: "Faktura VAT",
+        proforma: "Faktura proforma",
+        correction: "Faktura korygująca",
+      },
       draftTitle: "Szkic dokumentu (bez mocy faktury)",
       number: "Nr",
       issueDate: "Data wystawienia",
@@ -218,6 +224,8 @@ export const eventInvoicesEn = {
       remember: "Remember these details in my billing profile",
       saving: "Saving the invoice details…",
       saved: "Invoice details saved - the organizer will issue the document.",
+      saveFailedAfterPurchase:
+        "The package is ordered, but the invoice details could not be saved. Request the invoice in your profile, under Invoices.",
       fixErrors: "Fix the invoice details before you continue.",
       existing: "Invoice details for this order are already saved - you can change them.",
       invoiced: "The invoice for this order has already been issued ({{number}}).",
@@ -241,7 +249,8 @@ export const eventInvoicesEn = {
       requestCancelled: "Invoice request withdrawn.",
       requestPending: "Request received - waiting for the organizer to issue it.",
       deadline: "You can request it until {{date}}.",
-      windowClosed: "The deadline for an invoice request passed on {{date}} - contact the organizer.",
+      windowClosed:
+        "The deadline for an invoice request passed on {{date}} - contact the organizer.",
       unpaid: "Awaiting payment",
       packageLabel: "Package: {{name}}",
       seats_one: "{{count}} seat",

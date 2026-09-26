@@ -191,8 +191,12 @@ function tableHeader(canvas: Canvas, labels: EventInvoicePdfLabels): void {
 }
 
 /** Nazwa pliku: rdzen + numer dokumentu (ukosniki na myslniki) albo "szkic". */
-export function eventInvoicePdfFileName(doc: EventInvoiceDocument, labels: EventInvoicePdfLabels): string {
-  const tail = doc.number === null ? `draft-${doc.id.slice(0, 8)}` : doc.number.replace(/[^A-Za-z0-9]+/g, "-");
+export function eventInvoicePdfFileName(
+  doc: EventInvoiceDocument,
+  labels: EventInvoicePdfLabels,
+): string {
+  const tail =
+    doc.number === null ? `draft-${doc.id.slice(0, 8)}` : doc.number.replace(/[^A-Za-z0-9]+/g, "-");
   return `${labels.fileStem}-${tail}.pdf`;
 }
 

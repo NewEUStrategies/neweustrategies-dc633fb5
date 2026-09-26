@@ -16,7 +16,9 @@ const h = vi.hoisted(() => ({
   lang: "pl",
 }));
 
-vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang));
+vi.mock("react-i18next", async () =>
+  (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang),
+);
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/appDialogs", () => ({
   confirmDialog: async (request: { description?: string }) => {
@@ -35,9 +37,9 @@ vi.mock("@/lib/events/eventInvoicesApi", async (importOriginal) => ({
 }));
 
 const { toast } = await import("sonner");
-const { EventInvoiceCandidatesList, groupCandidates } = await import(
-  "@/components/admin/events/molecules/EventInvoiceCandidatesList"
-);
+const { EventInvoiceCandidatesList } =
+  await import("@/components/admin/events/molecules/EventInvoiceCandidatesList");
+const { groupCandidates } = await import("@/lib/events/eventInvoiceViews");
 
 const ROWS = [
   invoiceCandidateRow(),
@@ -134,7 +136,9 @@ describe("EventInvoiceCandidatesList", () => {
 
   it("grupy, etykiety platnosci i dokumentow; filtr 'tylko bez faktury'", async () => {
     renderList();
-    const group = await screen.findByText(/adminEventInvoices\.candidates\.groupTaxId\(taxId=5260250274\)/);
+    const group = await screen.findByText(
+      /adminEventInvoices\.candidates\.groupTaxId\(taxId=5260250274\)/,
+    );
     expect(group.textContent).toContain("Acme Sp. z o.o. · ");
     expect(screen.getByText("adminEventInvoices.candidates.groupNoTaxId")).toBeTruthy();
     expect(screen.queryByText("Zafakturowany")).toBeNull();
@@ -146,24 +150,32 @@ describe("EventInvoiceCandidatesList", () => {
     expect(unpaid?.textContent).not.toContain("paidVia");
     expect(unpaid?.textContent).toContain("adminEventInvoices.candidates.priceList");
     expect(unpaid?.textContent).toContain("Druga Firma");
-    expect(unpaid?.textContent).toContain("adminEventInvoices.candidates.hasProforma(number=PRO/2026/09/0001)");
+    expect(unpaid?.textContent).toContain(
+      "adminEventInvoices.candidates.hasProforma(number=PRO/2026/09/0001)",
+    );
     const lead = screen.getByText("Anna Kupujaca").closest("li");
     expect(lead?.textContent).toContain("adminEventInvoices.candidates.requested");
     expect(lead?.textContent).toContain("adminEventInvoices.candidates.paidVia.card");
     expect(lead?.textContent).toContain("adminEventInvoices.candidates.noDocument");
     fireEvent.click(screen.getByLabelText("adminEventInvoices.candidates.onlyOpen"));
     const invoiced = screen.getByText("Zafakturowany").closest("li");
-    expect(invoiced?.textContent).toContain("adminEventInvoices.candidates.hasInvoice(number=FV/2026/09/0001)");
+    expect(invoiced?.textContent).toContain(
+      "adminEventInvoices.candidates.hasInvoice(number=FV/2026/09/0001)",
+    );
     expect(within(invoiced as HTMLElement).getByRole("checkbox")).toHaveProperty("disabled", true);
     const draft = screen.getByText("Ze szkicem").closest("li");
     expect(draft?.textContent).toContain("adminEventInvoices.candidates.hasDraft");
-    expect(draft?.textContent).toContain("adminEventInvoices.candidates.payment.partially_refunded");
+    expect(draft?.textContent).toContain(
+      "adminEventInvoices.candidates.payment.partially_refunded",
+    );
   });
 
   it("jedno zamowienie = faktura z pozycja na zamowienie", async () => {
     api.createInvoiceDraft.mockResolvedValue(INVOICE_IDS.draft);
     const { onDraftCreated } = renderList();
-    fireEvent.click(await screen.findByLabelText("adminEventInvoices.candidates.selectRow(name=Ewa Druga)"));
+    fireEvent.click(
+      await screen.findByLabelText("adminEventInvoices.candidates.selectRow(name=Ewa Druga)"),
+    );
     expect(screen.getByText("adminEventInvoices.candidates.selected(count=1)")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.candidates.invoice" }));
     await waitFor(() => expect(onDraftCreated).toHaveBeenCalledWith(INVOICE_IDS.draft));
@@ -183,7 +195,9 @@ describe("EventInvoiceCandidatesList", () => {
     const [groupBox] = await screen.findAllByLabelText("adminEventInvoices.candidates.selectGroup");
     fireEvent.click(groupBox);
     expect(screen.getByText("adminEventInvoices.candidates.selected(count=2)")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.candidates.collective" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "adminEventInvoices.candidates.collective" }),
+    );
     await waitFor(() => expect(api.createInvoiceDraft).toHaveBeenCalled());
     expect(api.createInvoiceDraft.mock.calls[0]?.[0]).toMatchObject({
       aggregate: "per_ticket_type",
@@ -210,8 +224,17 @@ describe("EventInvoiceCandidatesList", () => {
     h.lang = "en";
     api.fetchInvoiceCandidates.mockResolvedValue([
       ROWS[1],
-      invoiceCandidateRow({ source_id: "bez-en", person_name: "Bez EN", label_en: "", label_pl: "Tylko PL" }),
-      invoiceCandidateRow({ source_id: "pro", person_name: "Proforma", proforma_id: INVOICE_IDS.proforma }),
+      invoiceCandidateRow({
+        source_id: "bez-en",
+        person_name: "Bez EN",
+        label_en: "",
+        label_pl: "Tylko PL",
+      }),
+      invoiceCandidateRow({
+        source_id: "pro",
+        person_name: "Proforma",
+        proforma_id: INVOICE_IDS.proforma,
+      }),
     ]);
     renderList();
     expect((await screen.findByText("Anna Pakiet")).closest("li")?.textContent).toContain(
@@ -229,23 +252,31 @@ describe("EventInvoiceCandidatesList", () => {
     api.fetchInvoiceCandidates.mockResolvedValue([ROWS[3]]);
     renderList();
     fireEvent.click(await screen.findByLabelText("adminEventInvoices.candidates.onlyOpen"));
-    expect(screen.getByLabelText("adminEventInvoices.candidates.selectGroup")).toHaveProperty("disabled", true);
-  });
-
-  it("fakturowanie wylaczone: przyciski martwe", async () => {
-    renderList({ enabled: false });
-    fireEvent.click(await screen.findByLabelText("adminEventInvoices.candidates.selectRow(name=Ewa Druga)"));
-    expect(screen.getByRole("button", { name: "adminEventInvoices.candidates.invoice" })).toHaveProperty("disabled", true);
-    expect(screen.getByRole("button", { name: "adminEventInvoices.candidates.issuePending" })).toHaveProperty(
+    expect(screen.getByLabelText("adminEventInvoices.candidates.selectGroup")).toHaveProperty(
       "disabled",
       true,
     );
   });
 
+  it("fakturowanie wylaczone: przyciski martwe", async () => {
+    renderList({ enabled: false });
+    fireEvent.click(
+      await screen.findByLabelText("adminEventInvoices.candidates.selectRow(name=Ewa Druga)"),
+    );
+    expect(
+      screen.getByRole("button", { name: "adminEventInvoices.candidates.invoice" }),
+    ).toHaveProperty("disabled", true);
+    expect(
+      screen.getByRole("button", { name: "adminEventInvoices.candidates.issuePending" }),
+    ).toHaveProperty("disabled", true);
+  });
+
   it("masowo: rezygnacja w potwierdzeniu nic nie robi", async () => {
     h.confirm = false;
     renderList();
-    fireEvent.click(await screen.findByRole("button", { name: "adminEventInvoices.candidates.issuePending" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "adminEventInvoices.candidates.issuePending" }),
+    );
     await waitFor(() => expect(h.confirmCalls).toHaveLength(1));
     expect(h.confirmCalls[0]?.description).toBe("adminEventInvoices.candidates.issuePendingBody");
     expect(api.issuePendingInvoices).not.toHaveBeenCalled();
@@ -258,21 +289,35 @@ describe("EventInvoiceCandidatesList", () => {
     };
     api.issuePendingInvoices.mockResolvedValue(result);
     const { onBulkIssued } = renderList();
-    fireEvent.click(await screen.findByRole("button", { name: "adminEventInvoices.candidates.issuePendingCollective" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "adminEventInvoices.candidates.issuePendingCollective",
+      }),
+    );
     await waitFor(() => expect(onBulkIssued).toHaveBeenCalledWith(result));
-    expect(h.confirmCalls[0]?.description).toBe("adminEventInvoices.candidates.issuePendingCollectiveBody");
+    expect(h.confirmCalls[0]?.description).toBe(
+      "adminEventInvoices.candidates.issuePendingCollectiveBody",
+    );
     expect(api.issuePendingInvoices).toHaveBeenCalledWith(INVOICE_IDS.event, true);
-    expect(toast.success).toHaveBeenCalledWith("adminEventInvoices.candidates.bulkResult(failed=1,issued=1)");
+    expect(toast.success).toHaveBeenCalledWith(
+      "adminEventInvoices.candidates.bulkResult(failed=1,issued=1)",
+    );
     expect(toast.error).toHaveBeenCalledTimes(1);
   });
 
   it("masowo: nic do wystawienia = informacja; odmowa = toast", async () => {
     api.issuePendingInvoices.mockResolvedValueOnce({ issued: [], failed: [] });
     renderList();
-    fireEvent.click(await screen.findByRole("button", { name: "adminEventInvoices.candidates.issuePending" }));
-    await waitFor(() => expect(toast.info).toHaveBeenCalledWith("adminEventInvoices.candidates.bulkNothing"));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "adminEventInvoices.candidates.issuePending" }),
+    );
+    await waitFor(() =>
+      expect(toast.info).toHaveBeenCalledWith("adminEventInvoices.candidates.bulkNothing"),
+    );
     api.issuePendingInvoices.mockRejectedValueOnce(new Error("invoicing_disabled: x"));
-    fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.candidates.issuePending" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "adminEventInvoices.candidates.issuePending" }),
+    );
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
   });
 

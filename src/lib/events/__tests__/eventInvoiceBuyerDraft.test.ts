@@ -99,7 +99,9 @@ describe("validateBuyerDraft", () => {
 
   it("zagraniczny VAT ID bez polskiej sumy i bez polskiego kodu pocztowego", () => {
     expect(
-      validateBuyerDraft(company({ country: " de ", taxId: "DE 123.456.789", postalCode: "10115" })),
+      validateBuyerDraft(
+        company({ country: " de ", taxId: "DE 123.456.789", postalCode: "10115" }),
+      ),
     ).toEqual({});
     expect(validateBuyerDraft(company({ country: "DE", taxId: "X" })).taxId).toBe(
       BUYER_ERROR_KEYS.taxIdFormat,
@@ -108,7 +110,9 @@ describe("validateBuyerDraft", () => {
 
   it("kraj: pusty = PL, inny ksztalt odrzucony", () => {
     expect(validateBuyerDraft(company({ country: "" }))).toEqual({});
-    expect(validateBuyerDraft(company({ country: "POL" })).country).toBe(BUYER_ERROR_KEYS.countryInvalid);
+    expect(validateBuyerDraft(company({ country: "POL" })).country).toBe(
+      BUYER_ERROR_KEYS.countryInvalid,
+    );
   });
 
   it("polski kod pocztowy ma ksztalt 00-000", () => {
@@ -142,7 +146,9 @@ describe("validateBuyerDraft", () => {
 
   it("e-mail opcjonalny, ale jesli jest - poprawny i nie dluzszy niz 254", () => {
     expect(validateBuyerDraft(company({ email: "" })).email).toBeUndefined();
-    expect(validateBuyerDraft(company({ email: "zly@" })).email).toBe(BUYER_ERROR_KEYS.emailInvalid);
+    expect(validateBuyerDraft(company({ email: "zly@" })).email).toBe(
+      BUYER_ERROR_KEYS.emailInvalid,
+    );
     expect(validateBuyerDraft(company({ email: `${"a".repeat(250)}@x.pl` })).email).toBe(
       BUYER_ERROR_KEYS.emailInvalid,
     );
@@ -158,7 +164,12 @@ describe("buyerDraftToPayload", () => {
   it("snake_case, NIP znormalizowany, napisy przyciete, e-mail malymi", () => {
     expect(
       buyerDraftToPayload(
-        company({ name: " Acme ", email: " Ksiegowosc@Acme.EXAMPLE ", poNumber: " PO-1 ", country: "pl" }),
+        company({
+          name: " Acme ",
+          email: " Ksiegowosc@Acme.EXAMPLE ",
+          poNumber: " PO-1 ",
+          country: "pl",
+        }),
       ),
     ).toEqual({
       is_company: true,
@@ -257,11 +268,15 @@ describe("profil rozliczeniowy", () => {
         postal_code: null,
       }),
     ).toEqual({ ...emptyBuyerDraft(), isCompany: false, name: "Anna Kupujaca" });
-    expect(buyerDraftFromBillingProfile({ ...PROFILE, is_company: false, full_name: null }).name).toBe("");
+    expect(
+      buyerDraftFromBillingProfile({ ...PROFILE, is_company: false, full_name: null }).name,
+    ).toBe("");
   });
 
   it("zapamietanie danych firmy zachowuje osobe, telefon i region z profilu", () => {
-    expect(billingProfileFromBuyerDraft(company({ email: " Nowy@Acme.example " }), PROFILE)).toEqual({
+    expect(
+      billingProfileFromBuyerDraft(company({ email: " Nowy@Acme.example " }), PROFILE),
+    ).toEqual({
       full_name: "Anna Kupujaca",
       company: "Acme Sp. z o.o.",
       tax_id: "5260250274",
@@ -279,7 +294,10 @@ describe("profil rozliczeniowy", () => {
 
   it("zapamietanie danych osoby bez profilu", () => {
     expect(
-      billingProfileFromBuyerDraft(company({ isCompany: false, name: " Ewa Druga ", taxId: "" }), null),
+      billingProfileFromBuyerDraft(
+        company({ isCompany: false, name: " Ewa Druga ", taxId: "" }),
+        null,
+      ),
     ).toEqual({
       full_name: "Ewa Druga",
       company: null,

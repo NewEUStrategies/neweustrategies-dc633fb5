@@ -46,6 +46,7 @@ import {
 import { usePurchasePackage } from "@/lib/events/useEventPackagePurchase";
 import { InvoiceRequestBlock } from "@/components/events/invoices/organisms/InvoiceRequestBlock";
 import { useInvoiceRequestController } from "@/lib/events/useInvoiceRequestController";
+import { ensureEventInvoicesI18n } from "@/lib/i18n-event-invoices";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -60,6 +61,7 @@ function localized(pl: string | null, en: string | null, isEnglish: boolean): st
 
 export function EventPackagesPurchase({ slug }: { slug: string }) {
   ensureEventRegistrationI18n();
+  ensureEventInvoicesI18n();
   const { t, i18n } = useTranslation();
   const isEnglish = i18n.language.startsWith("en");
   const locale = isEnglish ? "en" : "pl";
@@ -110,7 +112,14 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
           setSelectedId(null);
           setOpenOrderId(result.orderId);
           toast.success(t("eventPackages.toasts.purchased"));
-          void invoice.commit({ packageOrderId: result.orderId });
+          // Sekcja zakupu znika po zamowieniu, wiec wynik zapisu danych do
+          // faktury mowimy toastem - inaczej odmowa bazy przepadlaby po cichu.
+          if (invoice.wanted) {
+            void invoice.commit({ packageOrderId: result.orderId }).then((saved) => {
+              if (saved) toast.success(t("eventInvoices.request.saved"));
+              else toast.error(t("eventInvoices.request.saveFailedAfterPurchase"));
+            });
+          }
         },
         onError: (error) => toast.error(purchaseErrorMessage(error, t)),
       },

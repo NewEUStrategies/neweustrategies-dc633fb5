@@ -16,18 +16,20 @@ import { toast } from "sonner";
 
 import { MoneyText } from "@/components/billing/atoms/MoneyText";
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
-import { KSEF_STATUS_LABEL_KEYS } from "@/components/admin/events/molecules/EventInvoiceKsefDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { confirmDialog, promptDialog } from "@/lib/appDialogs";
 import { adminEventInvoiceErrorMessage } from "@/lib/events/adminEventInvoiceErrors";
 import {
+  KIND_LABEL_KEYS,
+  KSEF_STATUS_LABEL_KEYS,
+  STATUS_LABEL_KEYS,
+} from "@/lib/events/adminEventInvoiceLabels";
+import {
   EVENT_INVOICE_KINDS,
   EVENT_INVOICE_KSEF_STATUSES,
   EVENT_INVOICE_STATUSES,
   pickEnum,
-  type EventInvoiceKind,
-  type EventInvoiceStatus,
 } from "@/lib/events/eventInvoiceEnums";
 import {
   fetchEventInvoice,
@@ -35,6 +37,7 @@ import {
   type IssuedInvoice,
 } from "@/lib/events/eventInvoicesApi";
 import { downloadEventInvoicePdf } from "@/lib/events/eventInvoicePdfLabels";
+import { documentsForTab, type EventInvoiceDocumentsTab } from "@/lib/events/eventInvoiceViews";
 import {
   useCancelInvoice,
   useEventInvoices,
@@ -43,32 +46,6 @@ import {
   useSetInvoicePaid,
 } from "@/lib/events/useEventInvoices";
 import { ensureAdminEventInvoicesI18n } from "@/lib/i18n-admin-event-invoices";
-
-export type EventInvoiceDocumentsTab = "issued" | "drafts" | "corrections";
-
-export const KIND_LABEL_KEYS: Record<EventInvoiceKind, string> = {
-  invoice: "adminEventInvoices.kinds.invoice",
-  proforma: "adminEventInvoices.kinds.proforma",
-  correction: "adminEventInvoices.kinds.correction",
-};
-
-export const STATUS_LABEL_KEYS: Record<EventInvoiceStatus, string> = {
-  draft: "adminEventInvoices.statuses.draft",
-  issued: "adminEventInvoices.statuses.issued",
-  cancelled: "adminEventInvoices.statuses.cancelled",
-};
-
-/** Ktore dokumenty naleza do zakladki. */
-export function documentsForTab(
-  rows: readonly EventInvoiceListRow[],
-  tab: EventInvoiceDocumentsTab,
-): EventInvoiceListRow[] {
-  return rows.filter((row) => {
-    if (tab === "corrections") return row.kind === "correction";
-    if (tab === "issued") return row.kind === "invoice" && row.status !== "draft";
-    return row.kind !== "correction" && (row.status === "draft" || row.kind === "proforma");
-  });
-}
 
 export interface EventInvoiceDocumentsListProps {
   eventId: string;
@@ -181,7 +158,11 @@ export function EventInvoiceDocumentsList({
     <div className="space-y-3">
       {tab === "drafts" ? null : (
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={ksefOnly} onChange={(event) => setKsefOnly(event.target.checked)} />
+          <input
+            type="checkbox"
+            checked={ksefOnly}
+            onChange={(event) => setKsefOnly(event.target.checked)}
+          />
           {t("adminEventInvoices.documents.ksefOnly")}
         </label>
       )}
@@ -211,20 +192,30 @@ export function EventInvoiceDocumentsList({
                     {row.issue_date === null ? null : ` · ${row.issue_date}`}
                   </p>
                 </div>
-                <MoneyText cents={row.gross_cents} currency={row.currency} className="tabular-nums" />
+                <MoneyText
+                  cents={row.gross_cents}
+                  currency={row.currency}
+                  className="tabular-nums"
+                />
                 <Badge variant={status === "cancelled" ? "outline" : "secondary"}>
                   {t(STATUS_LABEL_KEYS[status])}
                 </Badge>
                 {status === "issued" && kind !== "proforma" ? (
                   <Badge variant="outline">
-                    {t(KSEF_STATUS_LABEL_KEYS[pickEnum(EVENT_INVOICE_KSEF_STATUSES, row.ksef_status)])}
+                    {t(
+                      KSEF_STATUS_LABEL_KEYS[
+                        pickEnum(EVENT_INVOICE_KSEF_STATUSES, row.ksef_status)
+                      ],
+                    )}
                   </Badge>
                 ) : null}
                 {status === "issued" ? (
                   <span className="text-xs text-muted-foreground">
                     {row.paid_at === null
                       ? t("adminEventInvoices.documents.unpaid")
-                      : t("adminEventInvoices.documents.paidOn", { date: row.paid_at.slice(0, 10) })}
+                      : t("adminEventInvoices.documents.paidOn", {
+                          date: row.paid_at.slice(0, 10),
+                        })}
                   </span>
                 ) : null}
                 <div
@@ -234,10 +225,20 @@ export function EventInvoiceDocumentsList({
                 >
                   {status === "draft" ? (
                     <>
-                      <Button type="button" size="sm" variant="outline" onClick={() => onEdit(row.id)}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onEdit(row.id)}
+                      >
                         {t("adminEventInvoices.documents.edit")}
                       </Button>
-                      <Button type="button" size="sm" disabled={busy} onClick={() => void issueRow(row)}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => void issueRow(row)}
+                      >
                         {t("adminEventInvoices.documents.issue")}
                       </Button>
                     </>
@@ -252,12 +253,25 @@ export function EventInvoiceDocumentsList({
                     {t("adminEventInvoices.documents.pdf")}
                   </Button>
                   {status === "issued" && kind === "invoice" ? (
-                    <Button type="button" size="sm" variant="ghost" onClick={() => onCorrect(row.id)}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => onCorrect(row.id)}
+                    >
                       {t("adminEventInvoices.documents.correct")}
                     </Button>
                   ) : null}
-                  {status === "issued" && kind === "proforma" && row.converted_invoice_id === null ? (
-                    <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => convert(row)}>
+                  {status === "issued" &&
+                  kind === "proforma" &&
+                  row.converted_invoice_id === null ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() => convert(row)}
+                    >
                       {t("adminEventInvoices.documents.fromProforma")}
                     </Button>
                   ) : null}
@@ -267,7 +281,13 @@ export function EventInvoiceDocumentsList({
                     </Button>
                   ) : null}
                   {status === "issued" && kind !== "correction" ? (
-                    <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => togglePaid(row)}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() => togglePaid(row)}
+                    >
                       {row.paid_at === null
                         ? t("adminEventInvoices.documents.markPaid")
                         : t("adminEventInvoices.documents.markUnpaid")}

@@ -47,7 +47,10 @@ export function buildEventInvoiceNotice(payload: Json | null): EventInvoiceNotic
   const details: TxDetail[] = [];
   if (title !== "") details.push({ label: labels.event, value: title });
   details.push({ label: labels.documentNumber, value: text(payload.number) });
-  details.push({ label: labels.price, value: formatMoney(gross, text(payload.currency) || "PLN", lang) });
+  details.push({
+    label: labels.price,
+    value: formatMoney(gross, text(payload.currency) || "PLN", lang),
+  });
   return { invoiceId: text(payload.invoice_id), tenantId, to, lang, subjectName: title, details };
 }
 

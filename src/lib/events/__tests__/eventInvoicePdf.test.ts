@@ -73,7 +73,11 @@ function contains(text: string, value: string): boolean {
 
 describe("wrapText", () => {
   it("zawija po slowach i tnie slowa dluzsze niz wiersz", () => {
-    expect(wrapText("Bilet: Standard - Kongres 27", 12)).toEqual(["Bilet:", "Standard -", "Kongres 27"]);
+    expect(wrapText("Bilet: Standard - Kongres 27", 12)).toEqual([
+      "Bilet:",
+      "Standard -",
+      "Kongres 27",
+    ]);
     expect(wrapText("abcdefghij klm", 4)).toEqual(["abcd", "efgh", "ij", "klm"]);
     expect(wrapText("ab abcdefghij", 4)).toEqual(["ab", "abcd", "efgh", "ij"]);
     expect(wrapText("   ", 10)).toEqual([""]);
@@ -131,11 +135,16 @@ describe("renderEventInvoicePdf", () => {
 
   it("rachunek bez SWIFT; karta = bez rachunku", () => {
     const noSwift = pdfText(
-      renderEventInvoicePdf(doc({ seller: { seller_name: "Org", seller_bank_account: "PL61" } }), LABELS),
+      renderEventInvoicePdf(
+        doc({ seller: { seller_name: "Org", seller_bank_account: "PL61" } }),
+        LABELS,
+      ),
     );
     expect(contains(noSwift, "Rachunek: PL61")).toBe(true);
     expect(noSwift.includes(encodePdfText("SWIFT:"))).toBe(false);
-    const card = pdfText(renderEventInvoicePdf(doc({ invoice: { payment_method: "card" } }), LABELS));
+    const card = pdfText(
+      renderEventInvoicePdf(doc({ invoice: { payment_method: "card" } }), LABELS),
+    );
     expect(card.includes(encodePdfText("Rachunek:"))).toBe(false);
   });
 
@@ -166,13 +175,17 @@ describe("renderEventInvoicePdf", () => {
   it("korekta: naglowek i przyczyna; proforma: adnotacja; angielski tytul wydarzenia", () => {
     const correction = pdfText(
       renderEventInvoicePdf(
-        doc({ invoice: { kind: "correction", correction_mode: "full", correction_reason: "Rezygnacja" } }),
+        doc({
+          invoice: { kind: "correction", correction_mode: "full", correction_reason: "Rezygnacja" },
+        }),
         LABELS,
       ),
     );
     expect(contains(correction, "Korekta do FV/2026/09/0001")).toBe(true);
     expect(contains(correction, "Przyczyna: Rezygnacja")).toBe(true);
-    const proforma = pdfText(renderEventInvoicePdf(doc({ invoice: { kind: "proforma", locale: "en" } }), LABELS));
+    const proforma = pdfText(
+      renderEventInvoicePdf(doc({ invoice: { kind: "proforma", locale: "en" } }), LABELS),
+    );
     expect(contains(proforma, "Proforma nie jest fakturą VAT")).toBe(true);
     expect(contains(proforma, "Wydarzenie: Congress 27")).toBe(true);
   });
@@ -180,7 +193,9 @@ describe("renderEventInvoicePdf", () => {
   it("bez tytulu wydarzenia, numeru zamowienia i NIP nabywcy - wiersze pominiete", () => {
     const text = pdfText(
       renderEventInvoicePdf(
-        doc({ invoice: { event_title_pl: "", po_number: "", buyer_tax_id: "", buyer_is_company: false } }),
+        doc({
+          invoice: { event_title_pl: "", po_number: "", buyer_tax_id: "", buyer_is_company: false },
+        }),
         LABELS,
       ),
     );
@@ -211,7 +226,9 @@ describe("renderEventInvoicePdf", () => {
 
 describe("stopka dluzsza niz strona", () => {
   it("nowa strona poza tabela NIE powtarza naglowka pozycji", () => {
-    const text = pdfText(renderEventInvoicePdf(doc({ invoice: { note: "slowo ".repeat(3000) } }), LABELS));
+    const text = pdfText(
+      renderEventInvoicePdf(doc({ invoice: { note: "slowo ".repeat(3000) } }), LABELS),
+    );
     const pages = Number(/\/Count (\d+)/.exec(text)?.[1] ?? "0");
     expect(pages).toBeGreaterThan(1);
     expect(text.split(`(${encodePdfText("Cena netto")})`).length - 1).toBe(1);

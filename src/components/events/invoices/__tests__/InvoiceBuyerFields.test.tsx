@@ -16,7 +16,8 @@ import { axeViolations, summarize } from "@/test/axe";
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 
-const { InvoiceBuyerFields } = await import("@/components/events/invoices/molecules/InvoiceBuyerFields");
+const { InvoiceBuyerFields } =
+  await import("@/components/events/invoices/molecules/InvoiceBuyerFields");
 
 function Harness({
   initial,
@@ -49,13 +50,19 @@ describe("InvoiceBuyerFields", () => {
     const onChange = vi.fn();
     render(<Harness initial={emptyBuyerDraft()} onChange={onChange} />);
     expect(screen.getByText("eventInvoices.buyer.legend")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("eventInvoices.buyer.name"), { target: { value: "Acme" } });
+    fireEvent.change(screen.getByLabelText("eventInvoices.buyer.name"), {
+      target: { value: "Acme" },
+    });
     expect(onChange).toHaveBeenLastCalledWith({ ...emptyBuyerDraft(), name: "Acme" });
-    fireEvent.change(screen.getByLabelText("eventInvoices.buyer.taxId"), { target: { value: "526" } });
+    fireEvent.change(screen.getByLabelText("eventInvoices.buyer.taxId"), {
+      target: { value: "526" },
+    });
     expect(onChange).toHaveBeenLastCalledWith({ ...emptyBuyerDraft(), name: "Acme", taxId: "526" });
     const tax = screen.getByLabelText("eventInvoices.buyer.taxId");
     expect(tax.getAttribute("aria-describedby")).toMatch(/-hint$/);
-    expect(screen.getByLabelText("eventInvoices.buyer.name").getAttribute("autocomplete")).toBe("organization");
+    expect(screen.getByLabelText("eventInvoices.buyer.name").getAttribute("autocomplete")).toBe(
+      "organization",
+    );
   });
 
   it("osoba prywatna: inna etykieta nazwy, radio przelacza rodzaj", () => {
@@ -63,7 +70,9 @@ describe("InvoiceBuyerFields", () => {
     render(<Harness initial={emptyBuyerDraft()} onChange={onChange} />);
     fireEvent.click(screen.getByLabelText("eventInvoices.buyer.kindPerson"));
     expect(onChange).toHaveBeenLastCalledWith({ ...emptyBuyerDraft(), isCompany: false });
-    expect(screen.getByLabelText("eventInvoices.buyer.namePerson").getAttribute("autocomplete")).toBe("name");
+    expect(
+      screen.getByLabelText("eventInvoices.buyer.namePerson").getAttribute("autocomplete"),
+    ).toBe("name");
     fireEvent.click(screen.getByLabelText("eventInvoices.buyer.kindCompany"));
     expect(onChange).toHaveBeenLastCalledWith({ ...emptyBuyerDraft(), isCompany: true });
   });
@@ -97,7 +106,9 @@ describe("InvoiceBuyerFields", () => {
       expect.objectContaining({ recipientName: "Dzial szkolen", recipientAddress: "ul. Boczna 1" }),
     );
     fireEvent.click(toggle);
-    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ recipientName: "", recipientAddress: "" }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ recipientName: "", recipientAddress: "" }),
+    );
     expect(screen.queryByLabelText("eventInvoices.buyer.recipientName")).toBeNull();
   });
 
@@ -111,7 +122,9 @@ describe("InvoiceBuyerFields", () => {
 
   it("zablokowany formularz", () => {
     render(<Harness initial={emptyBuyerDraft()} disabled />);
-    expect((screen.getByLabelText("eventInvoices.buyer.city") as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByLabelText("eventInvoices.buyer.city") as HTMLInputElement).disabled).toBe(
+      true,
+    );
   });
 
   it("dostepnosc: brak naruszen axe (takze z bledami)", async () => {

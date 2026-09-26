@@ -133,13 +133,19 @@ describe("parseInvoiceDocument", () => {
           cancel_reason: "",
         },
         corrects: { id: INVOICE_IDS.proforma, number: "FV/2026/09/0001", issue_date: "2026-09-10" },
-        corrections: [{ id: INVOICE_IDS.correction, number: null, status: "draft", correction_mode: "full" }],
+        corrections: [
+          { id: INVOICE_IDS.correction, number: null, status: "draft", correction_mode: "full" },
+        ],
       }),
     );
     expect(doc?.kind).toBe("correction");
     expect(doc?.correctionMode).toBe("partial");
     expect(doc?.correctionReason).toBe("Zla stawka");
-    expect(doc?.corrects).toEqual({ id: INVOICE_IDS.proforma, number: "FV/2026/09/0001", issueDate: "2026-09-10" });
+    expect(doc?.corrects).toEqual({
+      id: INVOICE_IDS.proforma,
+      number: "FV/2026/09/0001",
+      issueDate: "2026-09-10",
+    });
     expect(doc?.corrections).toEqual([
       { id: INVOICE_IDS.correction, number: null, status: "draft", correctionMode: "full" },
     ]);
@@ -154,7 +160,14 @@ describe("parseInvoiceDocument", () => {
 
   it("uszkodzone pola degraduja sie do bezpiecznych wartosci", () => {
     const doc = parseInvoiceDocument({
-      invoice: { id: "x", kind: "receipt", status: 3, currency: "", buyer_country: "", locale: "de" },
+      invoice: {
+        id: "x",
+        kind: "receipt",
+        status: 3,
+        currency: "",
+        buyer_country: "",
+        locale: "de",
+      },
       lines: [{ vat_rate: "7" }, "zly"],
       sources: [{ source_kind: "ticket" }],
       corrections: [{ status: "void", correction_mode: "x" }],
@@ -174,6 +187,11 @@ describe("parseInvoiceDocument", () => {
     expect(doc?.lines.map((line) => line.vatRate)).toEqual(["23", "23"]);
     expect(doc?.lines[1].id).toBe("");
     expect(doc?.sources[0].sourceKind).toBe("registration");
-    expect(doc?.corrections[0]).toEqual({ id: "", number: null, status: "draft", correctionMode: "full" });
+    expect(doc?.corrections[0]).toEqual({
+      id: "",
+      number: null,
+      status: "draft",
+      correctionMode: "full",
+    });
   });
 });

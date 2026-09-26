@@ -67,7 +67,9 @@ beforeEach(() => {
 
 describe("useInvoiceRequestController", () => {
   it("bez zaznaczenia nic nie pobiera, a commit przepuszcza do kasy bez zapisu", async () => {
-    const view = renderHookWithQueryClient(() => useInvoiceRequestController({ target: TARGET, enabled: true }));
+    const view = renderHookWithQueryClient(() =>
+      useInvoiceRequestController({ target: TARGET, enabled: true }),
+    );
     await act(async () => {});
     expect(billing.fetchMyBillingProfile).not.toHaveBeenCalled();
     expect(api.fetchMyInvoiceSources).not.toHaveBeenCalled();
@@ -82,7 +84,9 @@ describe("useInvoiceRequestController", () => {
   });
 
   it("wylaczony (gosc) nie pobiera nawet po zaznaczeniu", async () => {
-    const view = renderHookWithQueryClient(() => useInvoiceRequestController({ target: TARGET, enabled: false }));
+    const view = renderHookWithQueryClient(() =>
+      useInvoiceRequestController({ target: TARGET, enabled: false }),
+    );
     act(() => view.result.current.setWanted(true));
     await act(async () => {});
     expect(billing.fetchMyBillingProfile).not.toHaveBeenCalled();
@@ -91,7 +95,9 @@ describe("useInvoiceRequestController", () => {
 
   it("po zaznaczeniu podpowiada dane z profilu rozliczeniowego", async () => {
     billing.fetchMyBillingProfile.mockResolvedValue(PROFILE);
-    const view = renderHookWithQueryClient(() => useInvoiceRequestController({ target: TARGET, enabled: true }));
+    const view = renderHookWithQueryClient(() =>
+      useInvoiceRequestController({ target: TARGET, enabled: true }),
+    );
     act(() => view.result.current.setWanted(true));
     await waitFor(() => expect(view.result.current.buyer.name).toBe("Profil Sp. z o.o."));
     expect(view.result.current.profile).toEqual(PROFILE);
@@ -115,7 +121,9 @@ describe("useInvoiceRequestController", () => {
         invoice_number: "FV/2026/09/0001",
       }),
     ]);
-    const view = renderHookWithQueryClient(() => useInvoiceRequestController({ target: TARGET, enabled: true }));
+    const view = renderHookWithQueryClient(() =>
+      useInvoiceRequestController({ target: TARGET, enabled: true }),
+    );
     act(() => view.result.current.setWanted(true));
     await waitFor(() => expect(view.result.current.buyer.name).toBe("Z prosby SA"));
     expect(view.result.current.hasExistingRequest).toBe(true);
@@ -130,7 +138,11 @@ describe("useInvoiceRequestController", () => {
 
   it("zamowienie pakietu dopasowuje sie po rodzaju zrodla", async () => {
     api.fetchMyInvoiceSources.mockResolvedValue([
-      myInvoiceSourceRow({ source_id: INVOICE_IDS.packageOrder, source_kind: "registration", request_id: "zly" }),
+      myInvoiceSourceRow({
+        source_id: INVOICE_IDS.packageOrder,
+        source_kind: "registration",
+        request_id: "zly",
+      }),
       myInvoiceSourceRow({
         source_id: INVOICE_IDS.packageOrder,
         source_kind: "package_order",
@@ -139,7 +151,10 @@ describe("useInvoiceRequestController", () => {
       }),
     ]);
     const view = renderHookWithQueryClient(() =>
-      useInvoiceRequestController({ target: { packageOrderId: INVOICE_IDS.packageOrder }, enabled: true }),
+      useInvoiceRequestController({
+        target: { packageOrderId: INVOICE_IDS.packageOrder },
+        enabled: true,
+      }),
     );
     act(() => view.result.current.setWanted(true));
     await waitFor(() => expect(view.result.current.buyer.name).toBe("Pakiet SA"));
@@ -147,7 +162,9 @@ describe("useInvoiceRequestController", () => {
 
   it("podpowiedz milczy po edycji; recznie wstawiony profil tez liczy sie jako edycja", async () => {
     billing.fetchMyBillingProfile.mockResolvedValue(PROFILE);
-    const view = renderHookWithQueryClient(() => useInvoiceRequestController({ target: TARGET, enabled: true }));
+    const view = renderHookWithQueryClient(() =>
+      useInvoiceRequestController({ target: TARGET, enabled: true }),
+    );
     act(() => view.result.current.setBuyer({ ...VALID, name: "Wpisane recznie" }));
     act(() => view.result.current.setWanted(true));
     await waitFor(() => expect(billing.fetchMyBillingProfile).toHaveBeenCalled());
@@ -158,7 +175,9 @@ describe("useInvoiceRequestController", () => {
   });
 
   it("commit z bledami: pokazuje bledy i zatrzymuje kase", async () => {
-    const view = renderHookWithQueryClient(() => useInvoiceRequestController({ target: TARGET, enabled: true }));
+    const view = renderHookWithQueryClient(() =>
+      useInvoiceRequestController({ target: TARGET, enabled: true }),
+    );
     act(() => view.result.current.setWanted(true));
     await act(async () => {});
     expect(view.result.current.showErrors).toBe(false);
@@ -179,7 +198,9 @@ describe("useInvoiceRequestController", () => {
 
   it("commit poprawny: zapis prosby, bez profilu gdy nie zapamietuje", async () => {
     api.saveInvoiceRequest.mockResolvedValue(INVOICE_IDS.request);
-    const view = renderHookWithQueryClient(() => useInvoiceRequestController({ target: TARGET, enabled: true }));
+    const view = renderHookWithQueryClient(() =>
+      useInvoiceRequestController({ target: TARGET, enabled: true }),
+    );
     act(() => {
       view.result.current.setWanted(true);
       view.result.current.setBuyer(VALID);
@@ -197,7 +218,9 @@ describe("useInvoiceRequestController", () => {
   it("zapamietaj: po zapisie prosby dane trafiaja do profilu; awaria profilu nie psuje prosby", async () => {
     api.saveInvoiceRequest.mockResolvedValue(INVOICE_IDS.request);
     billing.upsertMyBillingProfile.mockRejectedValue(new Error("profil"));
-    const view = renderHookWithQueryClient(() => useInvoiceRequestController({ target: null, enabled: true }));
+    const view = renderHookWithQueryClient(() =>
+      useInvoiceRequestController({ target: null, enabled: true }),
+    );
     act(() => {
       view.result.current.setWanted(true);
       view.result.current.setBuyer(VALID);
@@ -209,14 +232,23 @@ describe("useInvoiceRequestController", () => {
       result = await view.result.current.commit({ packageOrderId: INVOICE_IDS.packageOrder });
     });
     expect(result).toBe(true);
-    expect(api.saveInvoiceRequest).toHaveBeenCalledWith({ packageOrderId: INVOICE_IDS.packageOrder }, VALID);
+    expect(api.saveInvoiceRequest).toHaveBeenCalledWith(
+      { packageOrderId: INVOICE_IDS.packageOrder },
+      VALID,
+    );
     expect(billing.upsertMyBillingProfile).toHaveBeenCalledWith(
-      expect.objectContaining({ company: "Acme Sp. z o.o.", tax_id: "5260250274", is_company: true }),
+      expect.objectContaining({
+        company: "Acme Sp. z o.o.",
+        tax_id: "5260250274",
+        is_company: true,
+      }),
     );
   });
 
   it("bez celu (pakiet przed utworzeniem zamowienia) commit nic nie zapisuje", async () => {
-    const view = renderHookWithQueryClient(() => useInvoiceRequestController({ target: null, enabled: true }));
+    const view = renderHookWithQueryClient(() =>
+      useInvoiceRequestController({ target: null, enabled: true }),
+    );
     act(() => {
       view.result.current.setWanted(true);
       view.result.current.setBuyer(VALID);
@@ -232,7 +264,9 @@ describe("useInvoiceRequestController", () => {
 
   it("odmowa bazy: klucz bledu kupujacego i zatrzymana kasa", async () => {
     api.saveInvoiceRequest.mockRejectedValue(new Error("request_window_closed: too late"));
-    const view = renderHookWithQueryClient(() => useInvoiceRequestController({ target: TARGET, enabled: true }));
+    const view = renderHookWithQueryClient(() =>
+      useInvoiceRequestController({ target: TARGET, enabled: true }),
+    );
     act(() => {
       view.result.current.setWanted(true);
       view.result.current.setBuyer(VALID);

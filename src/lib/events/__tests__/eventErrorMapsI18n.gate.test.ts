@@ -51,10 +51,7 @@ import { eventFrontEn, eventFrontPl } from "@/lib/i18n-event-front";
 import { adminEventsEn, adminEventsPl } from "@/lib/i18n-admin-events";
 import { adminEventInvoiceErrorKey } from "@/lib/events/adminEventInvoiceErrors";
 import { eventInvoiceErrorKey } from "@/lib/events/eventInvoiceErrors";
-import {
-  adminEventInvoicesEn,
-  adminEventInvoicesPl,
-} from "@/lib/i18n-admin-event-invoices";
+import { adminEventInvoicesEn, adminEventInvoicesPl } from "@/lib/i18n-admin-event-invoices";
 import { eventInvoicesEn, eventInvoicesPl } from "@/lib/i18n-event-invoices";
 
 /** Klucz ma tekst, gdy w słowniku stoi pod nim NIEPUSTY napis (nie gałąź). */

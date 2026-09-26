@@ -161,8 +161,5 @@ export function useUpdateInvoiceKsef(eventId: string) {
 }
 
 export function useSetInvoicePaid(eventId: string) {
-  return useInvoiceMutation<{ id: string; paidAt: string | null }, string>(
-    eventId,
-    setInvoicePaid,
-  );
+  return useInvoiceMutation<{ id: string; paidAt: string | null }, string>(eventId, setInvoicePaid);
 }

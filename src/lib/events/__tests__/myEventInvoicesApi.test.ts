@@ -65,7 +65,9 @@ describe("odczyty kupujacego", () => {
 
   it("wlasny dokument do PDF", async () => {
     stub.setData("event_my_invoice", invoiceDocumentJson());
-    await expect(api.fetchMyInvoice(INVOICE_IDS.invoice)).resolves.toMatchObject({ number: "FV/2026/09/0001" });
+    await expect(api.fetchMyInvoice(INVOICE_IDS.invoice)).resolves.toMatchObject({
+      number: "FV/2026/09/0001",
+    });
     expect(stub.lastCall("event_my_invoice")?.args).toEqual({ p_id: INVOICE_IDS.invoice });
     stub.setData("event_my_invoice", null);
     await expect(api.fetchMyInvoice(INVOICE_IDS.invoice)).rejects.toThrow("unknown:");
@@ -77,9 +79,9 @@ describe("odczyty kupujacego", () => {
 describe("prosba o fakture", () => {
   it("do zapisu: registration_id + znormalizowany nabywca", async () => {
     stub.setData("event_invoice_request_save", INVOICE_IDS.request);
-    await expect(api.saveInvoiceRequest({ registrationId: INVOICE_IDS.registration }, BUYER)).resolves.toBe(
-      INVOICE_IDS.request,
-    );
+    await expect(
+      api.saveInvoiceRequest({ registrationId: INVOICE_IDS.registration }, BUYER),
+    ).resolves.toBe(INVOICE_IDS.request);
     const call = stub.lastCall("event_invoice_request_save");
     expect(call?.keys()).toEqual(["p_payload"]);
     expect(call?.arg("p_payload")).toEqual({
@@ -95,13 +97,17 @@ describe("prosba o fakture", () => {
     expect(payload).toMatchObject({ package_order_id: INVOICE_IDS.packageOrder });
     expect(payload).not.toHaveProperty("registration_id");
     stub.setError("event_invoice_request_save", "request_window_closed: x");
-    await expect(api.saveInvoiceRequest({ packageOrderId: "p" }, BUYER)).rejects.toThrow("request_window_closed");
+    await expect(api.saveInvoiceRequest({ packageOrderId: "p" }, BUYER)).rejects.toThrow(
+      "request_window_closed",
+    );
   });
 
   it("wycofanie prosby", async () => {
     stub.setData("event_invoice_request_cancel", INVOICE_IDS.request);
     await expect(api.cancelInvoiceRequest(INVOICE_IDS.request)).resolves.toBe(INVOICE_IDS.request);
-    expect(stub.lastCall("event_invoice_request_cancel")?.args).toEqual({ p_request_id: INVOICE_IDS.request });
+    expect(stub.lastCall("event_invoice_request_cancel")?.args).toEqual({
+      p_request_id: INVOICE_IDS.request,
+    });
     stub.setError("event_invoice_request_cancel", "not_found: x");
     await expect(api.cancelInvoiceRequest("x")).rejects.toThrow("not_found");
   });

@@ -26,7 +26,10 @@ const SUPABASE = readFileSync(
   join(process.cwd(), "supabase", "migrations", "20260926110000_event_invoices.sql"),
   "utf8",
 );
-const DRIZZLE = readFileSync(join(process.cwd(), "drizzle", "migrations", "0058_event_invoices.sql"), "utf8");
+const DRIZZLE = readFileSync(
+  join(process.cwd(), "drizzle", "migrations", "0058_event_invoices.sql"),
+  "utf8",
+);
 
 /** Wartosci z `CONSTRAINT <nazwa> CHECK (... IN ('a', 'b'))` - wycinek po indeksie. */
 function checkValues(sql: string, constraint: string): string[] {

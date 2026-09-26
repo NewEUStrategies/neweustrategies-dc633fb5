@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { adminEventInvoiceErrorMessage } from "@/lib/events/adminEventInvoiceErrors";
+import { KSEF_STATUS_LABEL_KEYS } from "@/lib/events/adminEventInvoiceLabels";
 import {
   EVENT_INVOICE_KSEF_STATUSES,
   pickEnum,
@@ -29,14 +30,6 @@ import {
 import type { EventInvoiceListRow } from "@/lib/events/eventInvoicesApi";
 import { useUpdateInvoiceKsef } from "@/lib/events/useEventInvoices";
 import { ensureAdminEventInvoicesI18n } from "@/lib/i18n-admin-event-invoices";
-
-export const KSEF_STATUS_LABEL_KEYS: Record<EventInvoiceKsefStatus, string> = {
-  not_applicable: "adminEventInvoices.ksefStatuses.not_applicable",
-  pending: "adminEventInvoices.ksefStatuses.pending",
-  sent: "adminEventInvoices.ksefStatuses.sent",
-  accepted: "adminEventInvoices.ksefStatuses.accepted",
-  rejected: "adminEventInvoices.ksefStatuses.rejected",
-};
 
 export function EventInvoiceKsefDialog({
   eventId,
@@ -53,10 +46,14 @@ export function EventInvoiceKsefDialog({
     <Dialog open={row !== null} onOpenChange={onClose}>
       <DialogContent className="event-dialog-compact max-w-lg">
         <DialogHeader>
-          <DialogTitle>{t("adminEventInvoices.ksef.title", { number: row?.number ?? "" })}</DialogTitle>
+          <DialogTitle>
+            {t("adminEventInvoices.ksef.title", { number: row?.number ?? "" })}
+          </DialogTitle>
           <DialogDescription>{t("adminEventInvoices.ksef.hint")}</DialogDescription>
         </DialogHeader>
-        {row === null ? null : <KsefForm key={row.id} eventId={eventId} row={row} onClose={onClose} />}
+        {row === null ? null : (
+          <KsefForm key={row.id} eventId={eventId} row={row} onClose={onClose} />
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -62,13 +62,15 @@ export function EventInvoicesPanel({ eventId }: { eventId: string }) {
   const [ksefRow, setKsefRow] = useState<EventInvoiceListRow | null>(null);
 
   const enabled = settingsQ.data?.enabled === true;
-  const managed = checkoutQ.data !== undefined && checkoutBillingPlane(checkoutQ.data) === "managed";
+  const managed =
+    checkoutQ.data !== undefined && checkoutBillingPlane(checkoutQ.data) === "managed";
 
   async function sendNotices(invoiceIds: readonly string[]): Promise<void> {
     if (invoiceIds.length === 0) return;
     try {
       const result = await notify({ data: { invoiceIds: [...invoiceIds] } });
-      if (result.sent > 0) toast.success(t("adminEventInvoices.toasts.notified", { count: result.sent }));
+      if (result.sent > 0)
+        toast.success(t("adminEventInvoices.toasts.notified", { count: result.sent }));
       if (result.failed > 0) toast.error(t("adminEventInvoices.toasts.notifyFailed"));
     } catch {
       toast.error(t("adminEventInvoices.toasts.notifyFailed"));
@@ -84,7 +86,10 @@ export function EventInvoicesPanel({ eventId }: { eventId: string }) {
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">{t("adminEventInvoices.description")}</p>
       {settingsQ.data !== undefined && !enabled ? (
-        <div role="status" className="space-y-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-3">
+        <div
+          role="status"
+          className="space-y-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-3"
+        >
           <p className="text-sm font-semibold">{t("adminEventInvoices.disabled.title")}</p>
           <p className="text-sm">{t("adminEventInvoices.disabled.body")}</p>
           <Button type="button" size="sm" variant="outline" onClick={() => setTab("settings")}>
@@ -93,7 +98,10 @@ export function EventInvoicesPanel({ eventId }: { eventId: string }) {
         </div>
       ) : null}
       {managed ? (
-        <div role="note" className="space-y-1 rounded-md border border-destructive/40 bg-destructive/5 p-3">
+        <div
+          role="note"
+          className="space-y-1 rounded-md border border-destructive/40 bg-destructive/5 p-3"
+        >
           <p className="text-sm font-semibold">{t("adminEventInvoices.mor.title")}</p>
           <p className="text-sm">{t("adminEventInvoices.mor.body")}</p>
         </div>

@@ -22,13 +22,20 @@ import {
 import { INVOICE_IDS, invoiceDocumentJson } from "@/test/events/invoiceFixtures";
 
 function doc(): EventInvoiceDocument {
-  const parsed = parseInvoiceDocument(invoiceDocumentJson({ invoice: { status: "draft", number: null } }));
+  const parsed = parseInvoiceDocument(
+    invoiceDocumentJson({ invoice: { status: "draft", number: null } }),
+  );
   if (parsed === null) throw new Error("fixture");
   return parsed;
 }
 
 function line(overrides: Partial<InvoiceLineDraft> = {}): InvoiceLineDraft {
-  return { ...newLineDraft(1, "23", "pl"), description: "Bilet", unitGross: "123,00", ...overrides };
+  return {
+    ...newLineDraft(1, "23", "pl"),
+    description: "Bilet",
+    unitGross: "123,00",
+    ...overrides,
+  };
 }
 
 function draft(overrides: Partial<InvoiceDocumentDraft> = {}): InvoiceDocumentDraft {
@@ -59,7 +66,9 @@ describe("documentDraftFromDocument", () => {
   });
 
   it("brak dat = pusty napis", () => {
-    const parsed = parseInvoiceDocument(invoiceDocumentJson({ invoice: { sale_date: null, due_date: null } }));
+    const parsed = parseInvoiceDocument(
+      invoiceDocumentJson({ invoice: { sale_date: null, due_date: null } }),
+    );
     if (parsed === null) throw new Error("fixture");
     expect(documentDraftFromDocument(parsed)).toMatchObject({ saleDate: "", dueDate: "" });
   });
@@ -103,7 +112,10 @@ describe("validateDocumentDraft", () => {
       [{ unitGross: "1000000.01" }, LINE_ERROR_KEYS.price],
     ];
     for (const [patch, key] of cases) {
-      const errors = validateDocumentDraft(draft({ lines: [line({ key: "k", ...patch })] }), "invoice");
+      const errors = validateDocumentDraft(
+        draft({ lines: [line({ key: "k", ...patch })] }),
+        "invoice",
+      );
       expect(errors.lines).toEqual({ k: key });
       expect(hasDocumentErrors(errors)).toBe(true);
     }
@@ -116,7 +128,9 @@ describe("validateDocumentDraft", () => {
   });
 
   it("bledy dokumentu: brak pozycji, za dluga uwaga, korekta bez przyczyny", () => {
-    expect(validateDocumentDraft(draft({ lines: [] }), "invoice").document).toBe(DOCUMENT_ERROR_KEYS.noLines);
+    expect(validateDocumentDraft(draft({ lines: [] }), "invoice").document).toBe(
+      DOCUMENT_ERROR_KEYS.noLines,
+    );
     expect(validateDocumentDraft(draft({ note: "n".repeat(1001) }), "invoice").document).toBe(
       DOCUMENT_ERROR_KEYS.noteTooLong,
     );
@@ -160,7 +174,12 @@ describe("documentDraftToUpdate", () => {
   it("pelny zapis szkicu faktury: daty puste = null, bez przyczyny korekty", () => {
     const update = documentDraftToUpdate(
       "d",
-      draft({ saleDate: "", dueDate: "2026-10-01", note: " Uwaga ", lines: [line({ unitGross: "1 250,5" })] }),
+      draft({
+        saleDate: "",
+        dueDate: "2026-10-01",
+        note: " Uwaga ",
+        lines: [line({ unitGross: "1 250,5" })],
+      }),
       "invoice",
     );
     expect(update).toEqual({

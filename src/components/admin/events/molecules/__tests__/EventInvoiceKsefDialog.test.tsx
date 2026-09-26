@@ -8,7 +8,9 @@ import { INVOICE_IDS, invoiceListRow } from "@/test/events/invoiceFixtures";
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("@/components/ui/select", async () => (await import("@/test/reactStubs")).radixSelectStub(await import("react")));
+vi.mock("@/components/ui/select", async () =>
+  (await import("@/test/reactStubs")).radixSelectStub(await import("react")),
+);
 const api = vi.hoisted(() => ({ updateInvoiceKsef: vi.fn() }));
 vi.mock("@/lib/events/eventInvoicesApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/events/eventInvoicesApi")>()),
@@ -16,7 +18,8 @@ vi.mock("@/lib/events/eventInvoicesApi", async (importOriginal) => ({
 }));
 
 const { toast } = await import("sonner");
-const { EventInvoiceKsefDialog } = await import("@/components/admin/events/molecules/EventInvoiceKsefDialog");
+const { EventInvoiceKsefDialog } =
+  await import("@/components/admin/events/molecules/EventInvoiceKsefDialog");
 
 beforeEach(() => {
   api.updateInvoiceKsef.mockReset();
@@ -34,13 +37,19 @@ describe("EventInvoiceKsefDialog", () => {
     api.updateInvoiceKsef.mockResolvedValue(INVOICE_IDS.invoice);
     const onClose = vi.fn();
     renderWithQueryClient(
-      <EventInvoiceKsefDialog eventId={INVOICE_IDS.event} row={invoiceListRow({ ksef_status: "sent" })} onClose={onClose} />,
+      <EventInvoiceKsefDialog
+        eventId={INVOICE_IDS.event}
+        row={invoiceListRow({ ksef_status: "sent" })}
+        onClose={onClose}
+      />,
     );
     expect(screen.getByText("adminEventInvoices.ksef.title(number=FV/2026/09/0001)")).toBeTruthy();
     const status = screen.getByLabelText("adminEventInvoices.ksef.status") as HTMLSelectElement;
     expect(status.value).toBe("sent");
     fireEvent.change(status, { target: { value: "accepted" } });
-    fireEvent.change(screen.getByLabelText("adminEventInvoices.ksef.number"), { target: { value: " KSEF-1 " } });
+    fireEvent.change(screen.getByLabelText("adminEventInvoices.ksef.number"), {
+      target: { value: " KSEF-1 " },
+    });
     fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.ksef.save" }));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(toast.success).toHaveBeenCalledWith("adminEventInvoices.toasts.ksefSaved");
@@ -61,8 +70,12 @@ describe("EventInvoiceKsefDialog", () => {
         onClose={onClose}
       />,
     );
-    expect((screen.getByLabelText("adminEventInvoices.ksef.number") as HTMLInputElement).value).toBe("K-9");
-    expect((screen.getByLabelText("adminEventInvoices.ksef.status") as HTMLSelectElement).value).toBe("not_applicable");
+    expect(
+      (screen.getByLabelText("adminEventInvoices.ksef.number") as HTMLInputElement).value,
+    ).toBe("K-9");
+    expect(
+      (screen.getByLabelText("adminEventInvoices.ksef.status") as HTMLSelectElement).value,
+    ).toBe("not_applicable");
     fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.ksef.save" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
     expect(onClose).not.toHaveBeenCalled();

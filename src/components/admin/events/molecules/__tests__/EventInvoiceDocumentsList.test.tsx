@@ -43,12 +43,17 @@ vi.mock("@/lib/events/eventInvoicesApi", async (importOriginal) => ({
 }));
 
 const { toast } = await import("sonner");
-const { EventInvoiceDocumentsList, documentsForTab } = await import(
-  "@/components/admin/events/molecules/EventInvoiceDocumentsList"
-);
+const { EventInvoiceDocumentsList } =
+  await import("@/components/admin/events/molecules/EventInvoiceDocumentsList");
+const { documentsForTab } = await import("@/lib/events/eventInvoiceViews");
 
 const ISSUED = invoiceListRow({ paid_at: null });
-const PAID = invoiceListRow({ id: "paid", number: "FV/2026/09/0002", ksef_status: "accepted", buyer_tax_id: "" });
+const PAID = invoiceListRow({
+  id: "paid",
+  number: "FV/2026/09/0002",
+  ksef_status: "accepted",
+  buyer_tax_id: "",
+});
 const DRAFT = invoiceListRow({
   id: INVOICE_IDS.draft,
   status: "draft",
@@ -57,7 +62,12 @@ const DRAFT = invoiceListRow({
   issued_at: null,
   ksef_status: "not_applicable",
 });
-const PROFORMA = invoiceListRow({ id: INVOICE_IDS.proforma, kind: "proforma", number: "PRO/2026/09/0001", ksef_status: "not_applicable" });
+const PROFORMA = invoiceListRow({
+  id: INVOICE_IDS.proforma,
+  kind: "proforma",
+  number: "PRO/2026/09/0001",
+  ksef_status: "not_applicable",
+});
 const CONVERTED = invoiceListRow({
   id: "pro2",
   kind: "proforma",
@@ -71,12 +81,19 @@ const CORRECTION = invoiceListRow({
   corrects_number: "FV/2026/09/0001",
   correction_mode: "full",
 });
-const CANCELLED = invoiceListRow({ id: "cancelled", status: "cancelled", number: null, cancelled_at: "2026-09-21T10:00:00Z" });
+const CANCELLED = invoiceListRow({
+  id: "cancelled",
+  status: "cancelled",
+  number: null,
+  cancelled_at: "2026-09-21T10:00:00Z",
+});
 const ROWS = [ISSUED, PAID, DRAFT, PROFORMA, CONVERTED, CORRECTION, CANCELLED];
 
 function renderTab(tab: "issued" | "drafts" | "corrections") {
   const handlers = { onEdit: vi.fn(), onCorrect: vi.fn(), onKsef: vi.fn(), onIssued: vi.fn() };
-  const view = renderWithQueryClient(<EventInvoiceDocumentsList eventId={INVOICE_IDS.event} tab={tab} {...handlers} />);
+  const view = renderWithQueryClient(
+    <EventInvoiceDocumentsList eventId={INVOICE_IDS.event} tab={tab} {...handlers} />,
+  );
   return { ...view, ...handlers };
 }
 
@@ -98,8 +115,16 @@ beforeEach(() => {
 
 describe("documentsForTab", () => {
   it("wystawione faktury, szkice z proformami, korekty", () => {
-    expect(documentsForTab(ROWS, "issued").map((row) => row.id)).toEqual([ISSUED.id, "paid", "cancelled"]);
-    expect(documentsForTab(ROWS, "drafts").map((row) => row.id)).toEqual([DRAFT.id, PROFORMA.id, "pro2"]);
+    expect(documentsForTab(ROWS, "issued").map((row) => row.id)).toEqual([
+      ISSUED.id,
+      "paid",
+      "cancelled",
+    ]);
+    expect(documentsForTab(ROWS, "drafts").map((row) => row.id)).toEqual([
+      DRAFT.id,
+      PROFORMA.id,
+      "pro2",
+    ]);
     expect(documentsForTab(ROWS, "corrections").map((row) => row.id)).toEqual([CORRECTION.id]);
   });
 });
@@ -131,10 +156,16 @@ describe("EventInvoiceDocumentsList", () => {
     expect(paid.textContent).toContain("adminEventInvoices.documents.paidOn(date=2026-09-20)");
     expect(paid.textContent).not.toContain("· 5260250274");
     const cancelled = rowFor("adminEventInvoices.documents.draftNumber");
-    expect(within(cancelled).queryByRole("button", { name: "adminEventInvoices.documents.cancel" })).toBeNull();
-    fireEvent.click(within(issued).getByRole("button", { name: "adminEventInvoices.documents.correct" }));
+    expect(
+      within(cancelled).queryByRole("button", { name: "adminEventInvoices.documents.cancel" }),
+    ).toBeNull();
+    fireEvent.click(
+      within(issued).getByRole("button", { name: "adminEventInvoices.documents.correct" }),
+    );
     expect(onCorrect).toHaveBeenCalledWith(ISSUED.id);
-    fireEvent.click(within(issued).getByRole("button", { name: "adminEventInvoices.documents.ksef" }));
+    fireEvent.click(
+      within(issued).getByRole("button", { name: "adminEventInvoices.documents.ksef" }),
+    );
     expect(onKsef).toHaveBeenCalledWith(ISSUED);
     fireEvent.click(screen.getByLabelText("adminEventInvoices.documents.ksefOnly"));
     expect(screen.queryByText("FV/2026/09/0002", { exact: false })).toBeNull();
@@ -145,14 +176,29 @@ describe("EventInvoiceDocumentsList", () => {
     api.setInvoicePaid.mockResolvedValue("x");
     renderTab("issued");
     const issued = await waitFor(() => rowFor("FV/2026/09/0001"));
-    fireEvent.click(within(issued).getByRole("button", { name: "adminEventInvoices.documents.markPaid" }));
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("adminEventInvoices.toasts.paidSaved"));
-    expect(api.setInvoicePaid.mock.calls[0]?.[0]).toEqual({ id: ISSUED.id, paidAt: "2026-09-26T10:00:00.000Z" });
-    fireEvent.click(within(rowFor("FV/2026/09/0002")).getByRole("button", { name: "adminEventInvoices.documents.markUnpaid" }));
+    fireEvent.click(
+      within(issued).getByRole("button", { name: "adminEventInvoices.documents.markPaid" }),
+    );
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("adminEventInvoices.toasts.paidSaved"),
+    );
+    expect(api.setInvoicePaid.mock.calls[0]?.[0]).toEqual({
+      id: ISSUED.id,
+      paidAt: "2026-09-26T10:00:00.000Z",
+    });
+    fireEvent.click(
+      within(rowFor("FV/2026/09/0002")).getByRole("button", {
+        name: "adminEventInvoices.documents.markUnpaid",
+      }),
+    );
     await waitFor(() => expect(api.setInvoicePaid).toHaveBeenCalledTimes(2));
     expect(api.setInvoicePaid.mock.calls[1]?.[0]).toEqual({ id: "paid", paidAt: null });
     api.setInvoicePaid.mockRejectedValueOnce(new Error("not_found: x"));
-    fireEvent.click(within(rowFor("FV/2026/09/0001")).getByRole("button", { name: "adminEventInvoices.documents.markPaid" }));
+    fireEvent.click(
+      within(rowFor("FV/2026/09/0001")).getByRole("button", {
+        name: "adminEventInvoices.documents.markPaid",
+      }),
+    );
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
   });
 
@@ -160,16 +206,28 @@ describe("EventInvoiceDocumentsList", () => {
     api.cancelInvoice.mockResolvedValueOnce(ISSUED.id);
     renderTab("issued");
     const issued = await waitFor(() => rowFor("FV/2026/09/0001"));
-    fireEvent.click(within(issued).getByRole("button", { name: "adminEventInvoices.documents.cancel" }));
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("adminEventInvoices.toasts.cancelled"));
+    fireEvent.click(
+      within(issued).getByRole("button", { name: "adminEventInvoices.documents.cancel" }),
+    );
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("adminEventInvoices.toasts.cancelled"),
+    );
     expect(api.cancelInvoice).toHaveBeenCalledWith(ISSUED.id, "Pomylka");
     h.prompt = null;
-    fireEvent.click(within(rowFor("FV/2026/09/0001")).getByRole("button", { name: "adminEventInvoices.documents.cancel" }));
+    fireEvent.click(
+      within(rowFor("FV/2026/09/0001")).getByRole("button", {
+        name: "adminEventInvoices.documents.cancel",
+      }),
+    );
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(api.cancelInvoice).toHaveBeenCalledTimes(1);
     h.prompt = "Pomylka";
     api.cancelInvoice.mockRejectedValueOnce(new Error("ksef_locked: x"));
-    fireEvent.click(within(rowFor("FV/2026/09/0002")).getByRole("button", { name: "adminEventInvoices.documents.cancel" }));
+    fireEvent.click(
+      within(rowFor("FV/2026/09/0002")).getByRole("button", {
+        name: "adminEventInvoices.documents.cancel",
+      }),
+    );
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
   });
 
@@ -178,11 +236,17 @@ describe("EventInvoiceDocumentsList", () => {
     api.fetchEventInvoice.mockResolvedValueOnce(doc);
     renderTab("issued");
     const issued = await waitFor(() => rowFor("FV/2026/09/0001"));
-    fireEvent.click(within(issued).getByRole("button", { name: "adminEventInvoices.documents.pdf" }));
+    fireEvent.click(
+      within(issued).getByRole("button", { name: "adminEventInvoices.documents.pdf" }),
+    );
     await waitFor(() => expect(pdf.downloadEventInvoicePdf).toHaveBeenCalledWith(doc));
     api.fetchEventInvoice.mockRejectedValueOnce(new Error("boom"));
-    fireEvent.click(within(issued).getByRole("button", { name: "adminEventInvoices.documents.pdf" }));
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("adminEventInvoices.toasts.pdfFailed"));
+    fireEvent.click(
+      within(issued).getByRole("button", { name: "adminEventInvoices.documents.pdf" }),
+    );
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("adminEventInvoices.toasts.pdfFailed"),
+    );
   });
 
   it("szkice: edycja, wystawienie z potwierdzeniem, porzucenie szkicu bez powodu", async () => {
@@ -191,11 +255,19 @@ describe("EventInvoiceDocumentsList", () => {
     const { onEdit, onIssued } = renderTab("drafts");
     const draft = await waitFor(() => rowFor("adminEventInvoices.documents.draftNumber"));
     expect(screen.queryByLabelText("adminEventInvoices.documents.ksefOnly")).toBeNull();
-    fireEvent.click(within(draft).getByRole("button", { name: "adminEventInvoices.documents.edit" }));
+    fireEvent.click(
+      within(draft).getByRole("button", { name: "adminEventInvoices.documents.edit" }),
+    );
     expect(onEdit).toHaveBeenCalledWith(DRAFT.id);
-    fireEvent.click(within(draft).getByRole("button", { name: "adminEventInvoices.documents.issue" }));
-    await waitFor(() => expect(onIssued).toHaveBeenCalledWith({ id: DRAFT.id, number: "FV/2026/09/0003" }));
-    fireEvent.click(within(draft).getByRole("button", { name: "adminEventInvoices.documents.cancel" }));
+    fireEvent.click(
+      within(draft).getByRole("button", { name: "adminEventInvoices.documents.issue" }),
+    );
+    await waitFor(() =>
+      expect(onIssued).toHaveBeenCalledWith({ id: DRAFT.id, number: "FV/2026/09/0003" }),
+    );
+    fireEvent.click(
+      within(draft).getByRole("button", { name: "adminEventInvoices.documents.cancel" }),
+    );
     await waitFor(() => expect(api.cancelInvoice).toHaveBeenCalledWith(DRAFT.id, ""));
     expect(h.confirmCalls.map((call) => call.description)).toEqual([
       "adminEventInvoices.documents.issueBody",
@@ -207,14 +279,20 @@ describe("EventInvoiceDocumentsList", () => {
     h.confirm = false;
     renderTab("drafts");
     const draft = await waitFor(() => rowFor("adminEventInvoices.documents.draftNumber"));
-    fireEvent.click(within(draft).getByRole("button", { name: "adminEventInvoices.documents.issue" }));
-    fireEvent.click(within(draft).getByRole("button", { name: "adminEventInvoices.documents.cancel" }));
+    fireEvent.click(
+      within(draft).getByRole("button", { name: "adminEventInvoices.documents.issue" }),
+    );
+    fireEvent.click(
+      within(draft).getByRole("button", { name: "adminEventInvoices.documents.cancel" }),
+    );
     await waitFor(() => expect(h.confirmCalls).toHaveLength(2));
     expect(api.issueInvoice).not.toHaveBeenCalled();
     expect(api.cancelInvoice).not.toHaveBeenCalled();
     h.confirm = true;
     api.issueInvoice.mockRejectedValue(new Error("invalid_buyer_address: x"));
-    fireEvent.click(within(draft).getByRole("button", { name: "adminEventInvoices.documents.issue" }));
+    fireEvent.click(
+      within(draft).getByRole("button", { name: "adminEventInvoices.documents.issue" }),
+    );
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
   });
 
@@ -222,23 +300,41 @@ describe("EventInvoiceDocumentsList", () => {
     api.invoiceFromProforma.mockResolvedValueOnce(INVOICE_IDS.draft);
     const { onEdit } = renderTab("drafts");
     const proforma = await waitFor(() => rowFor("PRO/2026/09/0001"));
-    expect(within(proforma).queryByRole("button", { name: "adminEventInvoices.documents.ksef" })).toBeNull();
-    expect(within(rowFor("PRO/2026/09/0002")).queryByRole("button", { name: "adminEventInvoices.documents.fromProforma" })).toBeNull();
-    fireEvent.click(within(proforma).getByRole("button", { name: "adminEventInvoices.documents.fromProforma" }));
+    expect(
+      within(proforma).queryByRole("button", { name: "adminEventInvoices.documents.ksef" }),
+    ).toBeNull();
+    expect(
+      within(rowFor("PRO/2026/09/0002")).queryByRole("button", {
+        name: "adminEventInvoices.documents.fromProforma",
+      }),
+    ).toBeNull();
+    fireEvent.click(
+      within(proforma).getByRole("button", { name: "adminEventInvoices.documents.fromProforma" }),
+    );
     await waitFor(() => expect(onEdit).toHaveBeenCalledWith(INVOICE_IDS.draft));
     expect(toast.success).toHaveBeenCalledWith("adminEventInvoices.toasts.draftCreated");
     api.invoiceFromProforma.mockRejectedValueOnce(new Error("proforma_already_converted: x"));
-    fireEvent.click(within(proforma).getByRole("button", { name: "adminEventInvoices.documents.fromProforma" }));
+    fireEvent.click(
+      within(proforma).getByRole("button", { name: "adminEventInvoices.documents.fromProforma" }),
+    );
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
   });
 
   it("korekty: numer korygowanej faktury, KSeF, bez zaplaty i bez korekty korekty", async () => {
     renderTab("corrections");
     const correction = await waitFor(() => rowFor("KOR/2026/09/0001"));
-    expect(correction.textContent).toContain("adminEventInvoices.documents.corrects(number=FV/2026/09/0001)");
-    expect(within(correction).getByRole("button", { name: "adminEventInvoices.documents.ksef" })).toBeTruthy();
-    expect(within(correction).queryByRole("button", { name: "adminEventInvoices.documents.markPaid" })).toBeNull();
-    expect(within(correction).queryByRole("button", { name: "adminEventInvoices.documents.correct" })).toBeNull();
+    expect(correction.textContent).toContain(
+      "adminEventInvoices.documents.corrects(number=FV/2026/09/0001)",
+    );
+    expect(
+      within(correction).getByRole("button", { name: "adminEventInvoices.documents.ksef" }),
+    ).toBeTruthy();
+    expect(
+      within(correction).queryByRole("button", { name: "adminEventInvoices.documents.markPaid" }),
+    ).toBeNull();
+    expect(
+      within(correction).queryByRole("button", { name: "adminEventInvoices.documents.correct" }),
+    ).toBeNull();
     expect(within(correction).getByRole("group").getAttribute("aria-label")).toBe(
       "adminEventInvoices.documents.actionsFor(number=KOR/2026/09/0001)",
     );

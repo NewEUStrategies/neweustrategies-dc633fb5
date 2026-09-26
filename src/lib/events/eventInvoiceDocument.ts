@@ -244,7 +244,8 @@ export function parseInvoiceDocument(value: Json | null): EventInvoiceDocument |
     note: jsonText(invoice.note),
     ksefStatus: pickEnum(EVENT_INVOICE_KSEF_STATUSES, invoice.ksef_status),
     ksefNumber: jsonTextOrNull(invoice.ksef_number),
-    correctionMode: typeof mode === "string" ? pickEnum(EVENT_INVOICE_CORRECTION_MODES, mode) : null,
+    correctionMode:
+      typeof mode === "string" ? pickEnum(EVENT_INVOICE_CORRECTION_MODES, mode) : null,
     correctionReason: jsonText(invoice.correction_reason),
     cancelReason: jsonText(invoice.cancel_reason),
     correctsInvoiceId: jsonTextOrNull(invoice.corrects_invoice_id),

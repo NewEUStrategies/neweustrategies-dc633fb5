@@ -129,7 +129,14 @@ export const adminEventInvoicesPl = {
       rejected: "Odrzucona",
     },
     methods: { card: "Karta płatnicza", transfer: "Przelew", other: "Inny" },
-    vatRates: { "23": "23%", "8": "8%", "5": "5%", "0": "0%", zw: "zw (zwolniona)", np: "np (nie podlega)" },
+    vatRates: {
+      "23": "23%",
+      "8": "8%",
+      "5": "5%",
+      "0": "0%",
+      zw: "zw (zwolniona)",
+      np: "np (nie podlega)",
+    },
     locales: { pl: "Polski", en: "Angielski" },
     draft: {
       title: "Szkic dokumentu",
@@ -139,7 +146,8 @@ export const adminEventInvoicesPl = {
       linesSection: "Pozycje",
       saleDate: "Data sprzedaży",
       dueDate: "Termin płatności",
-      dueDateHint: "Puste = data wystawienia + termin z ustawień (dla opłaconych: dzień wystawienia).",
+      dueDateHint:
+        "Puste = data wystawienia + termin z ustawień (dla opłaconych: dzień wystawienia).",
       issueDateHint: "Datę wystawienia i numer nadaje baza w chwili wystawienia.",
       paymentMethod: "Sposób płatności",
       locale: "Język dokumentu",
@@ -215,7 +223,8 @@ export const adminEventInvoicesPl = {
       bankAccount: "Rachunek bankowy (IBAN)",
       bankSwift: "SWIFT/BIC",
       numberingSection: "Numeracja",
-      numberingHint: "Numer: PREFIKS/RRRR/MM/NNNN, bez luk w miesiącu, nadawany dopiero przy wystawieniu.",
+      numberingHint:
+        "Numer: PREFIKS/RRRR/MM/NNNN, bez luk w miesiącu, nadawany dopiero przy wystawieniu.",
       seriesInvoice: "Prefiks faktur",
       seriesProforma: "Prefiks proform",
       seriesCorrection: "Prefiks korekt",
@@ -223,7 +232,8 @@ export const adminEventInvoicesPl = {
       paymentDays: "Termin płatności (dni)",
       defaultVatRate: "Domyślna stawka VAT",
       vatExemptBasis: "Podstawa zwolnienia z VAT",
-      vatExemptBasisHint: "Wymagana, gdy którakolwiek pozycja ma stawkę „zw” (np. art. 43 ust. 1 pkt 29 ustawy o VAT).",
+      vatExemptBasisHint:
+        "Wymagana, gdy którakolwiek pozycja ma stawkę „zw” (np. art. 43 ust. 1 pkt 29 ustawy o VAT).",
       footerNote: "Stopka dokumentu",
       defaultLocale: "Domyślny język dokumentów",
       enabledSection: "Fakturowanie",
@@ -447,7 +457,14 @@ export const adminEventInvoicesEn = {
       rejected: "Rejected",
     },
     methods: { card: "Payment card", transfer: "Bank transfer", other: "Other" },
-    vatRates: { "23": "23%", "8": "8%", "5": "5%", "0": "0%", zw: "exempt (zw)", np: "not subject (np)" },
+    vatRates: {
+      "23": "23%",
+      "8": "8%",
+      "5": "5%",
+      "0": "0%",
+      zw: "exempt (zw)",
+      np: "not subject (np)",
+    },
     locales: { pl: "Polish", en: "English" },
     draft: {
       title: "Document draft",
@@ -533,7 +550,8 @@ export const adminEventInvoicesEn = {
       bankAccount: "Bank account (IBAN)",
       bankSwift: "SWIFT/BIC",
       numberingSection: "Numbering",
-      numberingHint: "Number: PREFIX/YYYY/MM/NNNN, gapless within a month, assigned only when issued.",
+      numberingHint:
+        "Number: PREFIX/YYYY/MM/NNNN, gapless within a month, assigned only when issued.",
       seriesInvoice: "Invoice prefix",
       seriesProforma: "Pro forma prefix",
       seriesCorrection: "Credit note prefix",
@@ -541,7 +559,8 @@ export const adminEventInvoicesEn = {
       paymentDays: "Payment term (days)",
       defaultVatRate: "Default VAT rate",
       vatExemptBasis: "Legal basis of the VAT exemption",
-      vatExemptBasisHint: "Required when any line uses the “zw” rate (e.g. art. 43(1)(29) of the Polish VAT Act).",
+      vatExemptBasisHint:
+        "Required when any line uses the “zw” rate (e.g. art. 43(1)(29) of the Polish VAT Act).",
       footerNote: "Document footer",
       defaultLocale: "Default document language",
       enabledSection: "Invoicing",

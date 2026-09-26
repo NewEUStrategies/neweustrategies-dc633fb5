@@ -15,7 +15,10 @@ import {
 import { invoiceSettingsJson } from "@/test/events/invoiceFixtures";
 
 function draft(overrides: Partial<InvoiceSettingsDraft> = {}): InvoiceSettingsDraft {
-  return { ...settingsDraftFromSettings(parseInvoiceSettings(invoiceSettingsJson())), ...overrides };
+  return {
+    ...settingsDraftFromSettings(parseInvoiceSettings(invoiceSettingsJson())),
+    ...overrides,
+  };
 }
 
 const CONFIRMED = "2026-09-01T08:00:00.000Z";
@@ -53,14 +56,22 @@ describe("validateSettingsDraft", () => {
   });
 
   it("pierwsze wlaczenie wymaga potwierdzenia sprzedawcy", () => {
-    expect(validateSettingsDraft(draft(), null)).toEqual({ confirmSeller: SETTINGS_ERROR_KEYS.confirm });
+    expect(validateSettingsDraft(draft(), null)).toEqual({
+      confirmSeller: SETTINGS_ERROR_KEYS.confirm,
+    });
     expect(validateSettingsDraft(draft({ confirmSeller: true }), null)).toEqual({});
   });
 
   it("wylaczone: puste dane sprzedawcy wolno zapisac", () => {
     expect(
       validateSettingsDraft(
-        draft({ enabled: false, sellerName: "", sellerTaxId: "", sellerAddress: "", sellerCity: "" }),
+        draft({
+          enabled: false,
+          sellerName: "",
+          sellerTaxId: "",
+          sellerAddress: "",
+          sellerCity: "",
+        }),
         null,
       ),
     ).toEqual({});
@@ -69,7 +80,13 @@ describe("validateSettingsDraft", () => {
   it("wlaczone: nazwa, adres, kod, miasto i NIP wymagane", () => {
     expect(
       validateSettingsDraft(
-        draft({ sellerName: " ", sellerAddress: "", sellerPostalCode: "", sellerCity: "", sellerTaxId: "" }),
+        draft({
+          sellerName: " ",
+          sellerAddress: "",
+          sellerPostalCode: "",
+          sellerCity: "",
+          sellerTaxId: "",
+        }),
         CONFIRMED,
       ),
     ).toEqual({

@@ -66,7 +66,12 @@ describe("eventInvoiceKeys", () => {
     expect(eventInvoiceKeys.event(EVENT)).toEqual(["event-invoices", EVENT]);
     expect(eventInvoiceKeys.candidates(EVENT)).toEqual(["event-invoices", EVENT, "candidates"]);
     expect(eventInvoiceKeys.list(EVENT)).toEqual(["event-invoices", EVENT, "list"]);
-    expect(eventInvoiceKeys.detail(EVENT, "inv")).toEqual(["event-invoices", EVENT, "detail", "inv"]);
+    expect(eventInvoiceKeys.detail(EVENT, "inv")).toEqual([
+      "event-invoices",
+      EVENT,
+      "detail",
+      "inv",
+    ]);
   });
 });
 
@@ -103,7 +108,9 @@ describe("zapytania", () => {
     expect(api.fetchInvoiceCandidates).not.toHaveBeenCalled();
     expect(api.fetchEventInvoices).not.toHaveBeenCalled();
     expect(api.fetchEventInvoice).not.toHaveBeenCalled();
-    expect(closed.queryClient.getQueryCache().find({ queryKey: eventInvoiceKeys.detail(EVENT, "") })).toBeDefined();
+    expect(
+      closed.queryClient.getQueryCache().find({ queryKey: eventInvoiceKeys.detail(EVENT, "") }),
+    ).toBeDefined();
   });
 });
 

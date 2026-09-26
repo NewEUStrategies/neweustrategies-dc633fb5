@@ -34,7 +34,12 @@ export interface InvoiceRequestDialogProps {
   onSaved: () => void;
 }
 
-export function InvoiceRequestDialog({ target, initial, onClose, onSaved }: InvoiceRequestDialogProps) {
+export function InvoiceRequestDialog({
+  target,
+  initial,
+  onClose,
+  onSaved,
+}: InvoiceRequestDialogProps) {
   ensureEventInvoicesI18n();
   const { t } = useTranslation();
   const save = useSaveInvoiceRequest();

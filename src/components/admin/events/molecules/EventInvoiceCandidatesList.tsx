@@ -27,6 +27,7 @@ import type {
   InvoiceSourceRef,
 } from "@/lib/events/eventInvoicesApi";
 import { pickEnum, EVENT_INVOICE_SOURCE_KINDS } from "@/lib/events/eventInvoiceEnums";
+import { groupCandidates } from "@/lib/events/eventInvoiceViews";
 import {
   useCreateInvoiceDraft,
   useInvoiceCandidates,
@@ -46,25 +47,6 @@ const PAID_VIA_LABEL_KEYS: Record<"card" | "transfer", string> = {
   card: "adminEventInvoices.candidates.paidVia.card",
   transfer: "adminEventInvoices.candidates.paidVia.transfer",
 };
-
-interface CandidateGroup {
-  key: string;
-  taxKey: string | null;
-  buyerName: string;
-  rows: EventInvoiceCandidateRow[];
-}
-
-/** Grupy po NIP-ie w kolejnosci bazy (NIP rosnaco, potem zamowienia bez NIP-u). */
-export function groupCandidates(rows: readonly EventInvoiceCandidateRow[]): CandidateGroup[] {
-  const groups = new Map<string, CandidateGroup>();
-  for (const row of rows) {
-    const key = row.tax_key === null ? "none" : `tax:${row.tax_key}`;
-    const group = groups.get(key) ?? { key, taxKey: row.tax_key, buyerName: row.buyer_name ?? "", rows: [] };
-    group.rows.push(row);
-    groups.set(key, group);
-  }
-  return [...groups.values()];
-}
 
 function paymentState(value: string): PaymentState {
   return value === "paid" || value === "partially_refunded" ? value : "unpaid";
@@ -176,10 +158,22 @@ export function EventInvoiceCandidatesList({
           {t("adminEventInvoices.candidates.onlyOpen")}
         </label>
         <span className="ml-auto flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" disabled={!enabled || busy} onClick={() => void bulk(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!enabled || busy}
+            onClick={() => void bulk(false)}
+          >
             {t("adminEventInvoices.candidates.issuePending")}
           </Button>
-          <Button type="button" variant="outline" size="sm" disabled={!enabled || busy} onClick={() => void bulk(true)}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!enabled || busy}
+            onClick={() => void bulk(true)}
+          >
             {t("adminEventInvoices.candidates.issuePendingCollective")}
           </Button>
         </span>
@@ -193,7 +187,9 @@ export function EventInvoiceCandidatesList({
       >
         <div className="space-y-4">
           {groups.map((group) => {
-            const selectable = group.rows.filter((row) => row.invoice_id === null).map((row) => row.source_id);
+            const selectable = group.rows
+              .filter((row) => row.invoice_id === null)
+              .map((row) => row.source_id);
             const allSelected = selectable.length > 0 && selectable.every((id) => selected.has(id));
             return (
               <section key={group.key} className="rounded-md border border-border">
@@ -231,7 +227,12 @@ export function EventInvoiceCandidatesList({
           <span className="mr-auto text-sm">
             {t("adminEventInvoices.candidates.selected", { count: selectedRows.length })}
           </span>
-          <Button type="button" variant="outline" disabled={!enabled || busy} onClick={() => draft("proforma")}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!enabled || busy}
+            onClick={() => draft("proforma")}
+          >
             {t("adminEventInvoices.candidates.proforma")}
           </Button>
           <Button type="button" disabled={!enabled || busy} onClick={() => draft("invoice")}>
@@ -291,7 +292,9 @@ function CandidateRow({
         <MoneyText cents={row.gross_cents} currency={row.currency} />
         <p className="text-xs text-muted-foreground">
           {t(PAYMENT_LABEL_KEYS[state])}
-          {state === "unpaid" ? null : ` · ${t(PAID_VIA_LABEL_KEYS[row.paid_via === "card" ? "card" : "transfer"])}`}
+          {state === "unpaid"
+            ? null
+            : ` · ${t(PAID_VIA_LABEL_KEYS[row.paid_via === "card" ? "card" : "transfer"])}`}
         </p>
         {row.amount_source === "price_list" ? (
           <p className="text-xs text-amber-700">{t("adminEventInvoices.candidates.priceList")}</p>
@@ -311,7 +314,9 @@ function CandidateRow({
             })}
           </Badge>
         ) : (
-          <span className="text-muted-foreground">{t("adminEventInvoices.candidates.noDocument")}</span>
+          <span className="text-muted-foreground">
+            {t("adminEventInvoices.candidates.noDocument")}
+          </span>
         )}
       </div>
     </li>

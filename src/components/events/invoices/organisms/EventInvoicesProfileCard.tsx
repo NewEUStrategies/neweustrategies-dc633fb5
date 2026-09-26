@@ -44,10 +44,15 @@ const KIND_LABEL_KEYS: Record<EventInvoiceKind, string> = {
 };
 
 function kindKey(kind: string): string {
-  return kind === "proforma" || kind === "correction" ? KIND_LABEL_KEYS[kind] : KIND_LABEL_KEYS.invoice;
+  return kind === "proforma" || kind === "correction"
+    ? KIND_LABEL_KEYS[kind]
+    : KIND_LABEL_KEYS.invoice;
 }
 
-function titleOf(row: { event_title_pl: string; event_title_en: string }, english: boolean): string {
+function titleOf(
+  row: { event_title_pl: string; event_title_en: string },
+  english: boolean,
+): string {
   return english && row.event_title_en !== "" ? row.event_title_en : row.event_title_pl;
 }
 
@@ -111,7 +116,10 @@ export function EventInvoicesProfileCard() {
               ) : (
                 <ul className="divide-y divide-border rounded-md border border-border">
                   {documents.map((row) => (
-                    <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 p-3">
+                    <li
+                      key={row.id}
+                      className="flex flex-wrap items-center justify-between gap-2 p-3"
+                    >
                       <div className="min-w-0 space-y-0.5">
                         {/* div, nie p: Badge rysuje <div>, ktorego <p> nie moze zawierac. */}
                         <div className="text-sm font-medium">
@@ -128,7 +136,9 @@ export function EventInvoicesProfileCard() {
                             ? null
                             : ` · ${t("eventInvoices.profile.correctionOf", { number: row.corrects_number })}`}
                         </p>
-                        {row.paid_at === null && row.status === "issued" && row.due_date !== null ? (
+                        {row.paid_at === null &&
+                        row.status === "issued" &&
+                        row.due_date !== null ? (
                           <p className="text-xs text-muted-foreground">
                             {t("eventInvoices.profile.dueDate", { date: row.due_date })}
                           </p>
@@ -181,7 +191,8 @@ export function EventInvoicesProfileCard() {
                       onRequest={() => setRequesting(row)}
                       onCancel={(requestId) =>
                         cancelRequest.mutate(requestId, {
-                          onSuccess: () => toast.success(t("eventInvoices.profile.requestCancelled")),
+                          onSuccess: () =>
+                            toast.success(t("eventInvoices.profile.requestCancelled")),
                           onError: (error) => toast.error(eventInvoiceErrorMessage(error)),
                         })
                       }
@@ -248,7 +259,9 @@ function OrderRow({
           <p className="text-xs text-muted-foreground">{t("eventInvoices.profile.unpaid")}</p>
         ) : null}
         {pending ? (
-          <p className="text-xs text-muted-foreground">{t("eventInvoices.profile.requestPending")}</p>
+          <p className="text-xs text-muted-foreground">
+            {t("eventInvoices.profile.requestPending")}
+          </p>
         ) : null}
         {row.request_deadline === null ? null : row.can_request ? (
           <p className="text-xs text-muted-foreground">
@@ -261,7 +274,11 @@ function OrderRow({
         )}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <MoneyText cents={row.gross_cents} currency={row.currency} className="text-sm tabular-nums" />
+        <MoneyText
+          cents={row.gross_cents}
+          currency={row.currency}
+          className="text-sm tabular-nums"
+        />
         {row.can_request ? (
           <Button type="button" size="sm" variant="outline" onClick={onRequest}>
             {pending ? t("eventInvoices.profile.editRequest") : t("eventInvoices.profile.request")}

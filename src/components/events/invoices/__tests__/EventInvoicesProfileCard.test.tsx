@@ -10,7 +10,9 @@ import { INVOICE_IDS, myInvoiceRow, myInvoiceSourceRow } from "@/test/events/inv
 
 const h = vi.hoisted(() => ({ session: null as { user: { id: string } } | null, lang: "pl" }));
 
-vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang));
+vi.mock("react-i18next", async () =>
+  (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang),
+);
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ session: h.session }) }));
 
@@ -26,9 +28,8 @@ const pdf = vi.hoisted(() => ({ downloadEventInvoicePdf: vi.fn() }));
 vi.mock("@/lib/events/eventInvoicePdfLabels", () => pdf);
 
 const { toast } = await import("sonner");
-const { EventInvoicesProfileCard } = await import(
-  "@/components/events/invoices/organisms/EventInvoicesProfileCard"
-);
+const { EventInvoicesProfileCard } =
+  await import("@/components/events/invoices/organisms/EventInvoicesProfileCard");
 
 beforeEach(() => {
   h.session = { user: { id: "u" } };
@@ -63,7 +64,12 @@ describe("EventInvoicesProfileCard", () => {
   it("dokumenty: rodzaj, numer, anulowanie, korekta, termin, pobranie PDF", async () => {
     api.fetchMyInvoices.mockResolvedValue([
       myInvoiceRow({ paid_at: null, due_date: "2026-10-04" }),
-      myInvoiceRow({ id: INVOICE_IDS.proforma, kind: "proforma", number: "PRO/2026/09/0001", status: "cancelled" }),
+      myInvoiceRow({
+        id: INVOICE_IDS.proforma,
+        kind: "proforma",
+        number: "PRO/2026/09/0001",
+        status: "cancelled",
+      }),
       myInvoiceRow({
         id: INVOICE_IDS.correction,
         kind: "correction",
@@ -83,9 +89,13 @@ describe("EventInvoicesProfileCard", () => {
     expect(items[0].textContent).toContain("Kongres 27 · 2026-09-20");
     expect(items[1].textContent).toContain("eventInvoices.kinds.proforma PRO/2026/09/0001");
     expect(items[1].textContent).toContain("eventInvoices.statuses.cancelled");
-    expect(items[2].textContent).toContain("eventInvoices.profile.correctionOf(number=FV/2026/09/0001)");
+    expect(items[2].textContent).toContain(
+      "eventInvoices.profile.correctionOf(number=FV/2026/09/0001)",
+    );
     expect(items[2].querySelector("data")?.getAttribute("value")).toBe("-24601:PLN");
-    fireEvent.click(within(items[0]).getByRole("button", { name: "eventInvoices.profile.download" }));
+    fireEvent.click(
+      within(items[0]).getByRole("button", { name: "eventInvoices.profile.download" }),
+    );
     await waitFor(() => expect(pdf.downloadEventInvoicePdf).toHaveBeenCalledWith(doc));
     expect(api.fetchMyInvoice).toHaveBeenCalledWith(INVOICE_IDS.invoice);
   });
@@ -99,7 +109,9 @@ describe("EventInvoicesProfileCard", () => {
     expect(list.textContent).toContain("Congress 27");
     expect(list.textContent).toContain("eventInvoices.kinds.invoice");
     fireEvent.click(screen.getByRole("button", { name: "eventInvoices.profile.download" }));
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("eventInvoices.profile.downloadFailed"));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("eventInvoices.profile.downloadFailed"),
+    );
     expect(pdf.downloadEventInvoicePdf).not.toHaveBeenCalled();
   });
 
@@ -107,7 +119,12 @@ describe("EventInvoicesProfileCard", () => {
     h.lang = "en";
     api.fetchMyInvoiceSources.mockResolvedValue([
       myInvoiceSourceRow({ label_en: "Standard EN" }),
-      myInvoiceSourceRow({ source_id: "bez-en", label_en: "", label_pl: "Tylko PL", event_title_en: "" }),
+      myInvoiceSourceRow({
+        source_id: "bez-en",
+        label_en: "",
+        label_pl: "Tylko PL",
+        event_title_en: "",
+      }),
     ]);
     renderWithQueryClient(<EventInvoicesProfileCard />);
     const items = await screen.findAllByRole("listitem");
@@ -137,8 +154,16 @@ describe("EventInvoicesProfileCard", () => {
         paid_at: null,
         request_deadline: null,
       }),
-      myInvoiceSourceRow({ source_id: "stary", can_request: false, request_deadline: "2026-05-31" }),
-      myInvoiceSourceRow({ source_id: "wystawiony", invoice_id: INVOICE_IDS.invoice, invoice_number: "FV/1" }),
+      myInvoiceSourceRow({
+        source_id: "stary",
+        can_request: false,
+        request_deadline: "2026-05-31",
+      }),
+      myInvoiceSourceRow({
+        source_id: "wystawiony",
+        invoice_id: INVOICE_IDS.invoice,
+        invoice_number: "FV/1",
+      }),
     ]);
     renderWithQueryClient(<EventInvoicesProfileCard />);
     const lists = await screen.findAllByRole("list");
@@ -176,7 +201,9 @@ describe("EventInvoicesProfileCard", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(screen.getByText("eventInvoices.profile.requestPending")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "eventInvoices.profile.editRequest" }));
-    expect((screen.getByLabelText("eventInvoices.buyer.name") as HTMLInputElement).value).toBe("Acme");
+    expect((screen.getByLabelText("eventInvoices.buyer.name") as HTMLInputElement).value).toBe(
+      "Acme",
+    );
     fireEvent.click(screen.getByRole("button", { name: "eventInvoices.profile.submit" }));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("eventInvoices.request.saved"));
     expect(api.saveInvoiceRequest).toHaveBeenCalledWith(
@@ -201,7 +228,9 @@ describe("EventInvoicesProfileCard", () => {
     ]);
     api.saveInvoiceRequest.mockResolvedValue(INVOICE_IDS.request);
     renderWithQueryClient(<EventInvoicesProfileCard />);
-    fireEvent.click(await screen.findByRole("button", { name: "eventInvoices.profile.editRequest" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "eventInvoices.profile.editRequest" }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "eventInvoices.profile.submit" }));
     await waitFor(() =>
       expect(api.saveInvoiceRequest).toHaveBeenCalledWith(
@@ -217,11 +246,17 @@ describe("EventInvoicesProfileCard", () => {
     ]);
     api.cancelInvoiceRequest.mockResolvedValueOnce(INVOICE_IDS.request);
     renderWithQueryClient(<EventInvoicesProfileCard />);
-    fireEvent.click(await screen.findByRole("button", { name: "eventInvoices.profile.cancelRequest" }));
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("eventInvoices.profile.requestCancelled"));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "eventInvoices.profile.cancelRequest" }),
+    );
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("eventInvoices.profile.requestCancelled"),
+    );
     expect(api.cancelInvoiceRequest.mock.calls[0]?.[0]).toBe(INVOICE_IDS.request);
     api.cancelInvoiceRequest.mockRejectedValueOnce(new Error("not_found: x"));
-    fireEvent.click(await screen.findByRole("button", { name: "eventInvoices.profile.cancelRequest" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "eventInvoices.profile.cancelRequest" }),
+    );
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
   });
 

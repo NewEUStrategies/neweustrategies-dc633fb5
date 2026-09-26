@@ -61,7 +61,10 @@ const SETTINGS_INPUT = {
 
 describe("ustawienia wystawcy", () => {
   it("odczyt: mapowanie pol i domyslne wartosci dla brakow", async () => {
-    stub.setData("admin_event_invoice_settings_get", invoiceSettingsJson({ seller_phone: "+48 1" }));
+    stub.setData(
+      "admin_event_invoice_settings_get",
+      invoiceSettingsJson({ seller_phone: "+48 1" }),
+    );
     const settings = await api.fetchInvoiceSettings();
     expect(settings).toMatchObject({
       enabled: true,
@@ -137,7 +140,9 @@ describe("ustawienia wystawcy", () => {
 
   it("odmowa bazy wraca jako Error z glowa komunikatu", async () => {
     stub.setError("admin_event_invoice_settings_save", "seller_incomplete: issuer name");
-    await expect(api.saveInvoiceSettings(SETTINGS_INPUT)).rejects.toThrow("seller_incomplete: issuer name");
+    await expect(api.saveInvoiceSettings(SETTINGS_INPUT)).rejects.toThrow(
+      "seller_incomplete: issuer name",
+    );
     stub.setError("admin_event_invoice_settings_get", "forbidden: admin role required");
     await expect(api.fetchInvoiceSettings()).rejects.toThrow("forbidden");
   });
@@ -149,8 +154,12 @@ describe("listy wydarzenia", () => {
     stub.setData("admin_event_invoices_list", [invoiceListRow()]);
     await expect(api.fetchInvoiceCandidates(INVOICE_IDS.event)).resolves.toHaveLength(1);
     await expect(api.fetchEventInvoices(INVOICE_IDS.event)).resolves.toHaveLength(1);
-    expect(stub.lastCall("admin_event_invoice_candidates")?.args).toEqual({ p_event_id: INVOICE_IDS.event });
-    expect(stub.lastCall("admin_event_invoices_list")?.args).toEqual({ p_event_id: INVOICE_IDS.event });
+    expect(stub.lastCall("admin_event_invoice_candidates")?.args).toEqual({
+      p_event_id: INVOICE_IDS.event,
+    });
+    expect(stub.lastCall("admin_event_invoices_list")?.args).toEqual({
+      p_event_id: INVOICE_IDS.event,
+    });
   });
 
   it("null z PostgREST = pusta lista; blad = wyjatek", async () => {
@@ -219,7 +228,9 @@ describe("szkic", () => {
       sources: [],
     });
     expect(stub.lastCall("admin_event_invoice_draft_create")?.has("p_payload")).toBe(true);
-    expect(stub.lastCall("admin_event_invoice_draft_create")?.arg("p_payload")).not.toHaveProperty("request_id");
+    expect(stub.lastCall("admin_event_invoice_draft_create")?.arg("p_payload")).not.toHaveProperty(
+      "request_id",
+    );
   });
 
   it("edycja: klucz pominiety = bez zmian, jawny null = wyczysc, pozycje w snake_case", async () => {
@@ -275,28 +286,41 @@ describe("szkic", () => {
     await expect(api.updateInvoiceDraft({ id: INVOICE_IDS.draft })).rejects.toThrow("not_draft");
     stub.setError("admin_event_invoice_draft_create", "already_invoiced: x");
     await expect(
-      api.createInvoiceDraft({ eventId: "e", kind: "invoice", aggregate: "per_source", sources: [] }),
+      api.createInvoiceDraft({
+        eventId: "e",
+        kind: "invoice",
+        aggregate: "per_source",
+        sources: [],
+      }),
     ).rejects.toThrow("already_invoiced");
   });
 });
 
 describe("wystawienie, masowe wystawienie, anulowanie", () => {
   it("wystawienie oddaje numer; brak id w odpowiedzi = id wolajacego", async () => {
-    stub.setData("admin_event_invoice_issue", { id: INVOICE_IDS.invoice, number: "FV/2026/09/0002" });
+    stub.setData("admin_event_invoice_issue", {
+      id: INVOICE_IDS.invoice,
+      number: "FV/2026/09/0002",
+    });
     await expect(api.issueInvoice(INVOICE_IDS.invoice)).resolves.toEqual({
       id: INVOICE_IDS.invoice,
       number: "FV/2026/09/0002",
     });
     expect(stub.lastCall("admin_event_invoice_issue")?.args).toEqual({ p_id: INVOICE_IDS.invoice });
     stub.setData("admin_event_invoice_issue", null);
-    await expect(api.issueInvoice(INVOICE_IDS.draft)).resolves.toEqual({ id: INVOICE_IDS.draft, number: "" });
+    await expect(api.issueInvoice(INVOICE_IDS.draft)).resolves.toEqual({
+      id: INVOICE_IDS.draft,
+      number: "",
+    });
     stub.setError("admin_event_invoice_issue", "mor_seller_conflict: card orders");
     await expect(api.issueInvoice(INVOICE_IDS.draft)).rejects.toThrow("mor_seller_conflict");
   });
 
   it("masowo: wystawione i odmowy per grupa prosb", async () => {
     stub.setData("admin_event_invoice_issue_pending", {
-      issued: [{ invoice_id: INVOICE_IDS.invoice, number: "FV/2026/09/0003", request_ids: ["r1", "r2"] }],
+      issued: [
+        { invoice_id: INVOICE_IDS.invoice, number: "FV/2026/09/0003", request_ids: ["r1", "r2"] },
+      ],
       failed: [{ request_ids: ["r3", 7], code: "invalid_buyer_address" }],
     });
     await expect(api.issuePendingInvoices(INVOICE_IDS.event, true)).resolves.toEqual({
@@ -308,14 +332,21 @@ describe("wystawienie, masowe wystawienie, anulowanie", () => {
       collective: true,
     });
     stub.setData("admin_event_invoice_issue_pending", null);
-    await expect(api.issuePendingInvoices(INVOICE_IDS.event, false)).resolves.toEqual({ issued: [], failed: [] });
+    await expect(api.issuePendingInvoices(INVOICE_IDS.event, false)).resolves.toEqual({
+      issued: [],
+      failed: [],
+    });
     stub.setError("admin_event_invoice_issue_pending", "invoicing_disabled: x");
-    await expect(api.issuePendingInvoices(INVOICE_IDS.event, false)).rejects.toThrow("invoicing_disabled");
+    await expect(api.issuePendingInvoices(INVOICE_IDS.event, false)).rejects.toThrow(
+      "invoicing_disabled",
+    );
   });
 
   it("anulowanie z powodem", async () => {
     stub.setData("admin_event_invoice_cancel", INVOICE_IDS.invoice);
-    await expect(api.cancelInvoice(INVOICE_IDS.invoice, "Pomylka")).resolves.toBe(INVOICE_IDS.invoice);
+    await expect(api.cancelInvoice(INVOICE_IDS.invoice, "Pomylka")).resolves.toBe(
+      INVOICE_IDS.invoice,
+    );
     expect(stub.lastCall("admin_event_invoice_cancel")?.arg("p_payload")).toEqual({
       id: INVOICE_IDS.invoice,
       reason: "Pomylka",
@@ -328,7 +359,11 @@ describe("wystawienie, masowe wystawienie, anulowanie", () => {
 describe("korekta, proforma, KSeF, zaplata", () => {
   it("korekta pelna bez pozycji, czesciowa z para zmian", async () => {
     stub.setData("admin_event_invoice_correction_create", INVOICE_IDS.correction);
-    await api.createInvoiceCorrection({ invoiceId: INVOICE_IDS.invoice, mode: "full", reason: "Rezygnacja" });
+    await api.createInvoiceCorrection({
+      invoiceId: INVOICE_IDS.invoice,
+      mode: "full",
+      reason: "Rezygnacja",
+    });
     expect(stub.lastCall("admin_event_invoice_correction_create")?.arg("p_payload")).toEqual({
       invoice_id: INVOICE_IDS.invoice,
       mode: "full",
@@ -354,9 +389,13 @@ describe("korekta, proforma, KSeF, zaplata", () => {
   it("faktura z proformy", async () => {
     stub.setData("admin_event_invoice_from_proforma", INVOICE_IDS.draft);
     await expect(api.invoiceFromProforma(INVOICE_IDS.proforma)).resolves.toBe(INVOICE_IDS.draft);
-    expect(stub.lastCall("admin_event_invoice_from_proforma")?.args).toEqual({ p_id: INVOICE_IDS.proforma });
+    expect(stub.lastCall("admin_event_invoice_from_proforma")?.args).toEqual({
+      p_id: INVOICE_IDS.proforma,
+    });
     stub.setError("admin_event_invoice_from_proforma", "proforma_already_converted: x");
-    await expect(api.invoiceFromProforma(INVOICE_IDS.proforma)).rejects.toThrow("proforma_already_converted");
+    await expect(api.invoiceFromProforma(INVOICE_IDS.proforma)).rejects.toThrow(
+      "proforma_already_converted",
+    );
   });
 
   it("KSeF i data zaplaty", async () => {
@@ -375,9 +414,9 @@ describe("korekta, proforma, KSeF, zaplata", () => {
     });
     stub.setError("admin_event_invoice_ksef_update", "ksef_number_required: x");
     stub.setError("admin_event_invoice_set_paid", "not_found: x");
-    await expect(api.updateInvoiceKsef({ id: "x", status: "accepted", number: "" })).rejects.toThrow(
-      "ksef_number_required",
-    );
+    await expect(
+      api.updateInvoiceKsef({ id: "x", status: "accepted", number: "" }),
+    ).rejects.toThrow("ksef_number_required");
     await expect(api.setInvoicePaid({ id: "x", paidAt: null })).rejects.toThrow("not_found");
   });
 

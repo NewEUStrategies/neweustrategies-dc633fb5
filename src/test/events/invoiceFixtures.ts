@@ -103,7 +103,9 @@ export function invoiceListRow(overrides: Partial<EventInvoiceListRow> = {}): Ev
   };
 }
 
-export function myInvoiceSourceRow(overrides: Partial<MyInvoiceSourceRow> = {}): MyInvoiceSourceRow {
+export function myInvoiceSourceRow(
+  overrides: Partial<MyInvoiceSourceRow> = {},
+): MyInvoiceSourceRow {
   return {
     buyer_address: NULLOWALNY_NAPIS,
     buyer_city: NULLOWALNY_NAPIS,
@@ -243,7 +245,9 @@ export const SELLER_JSON: JsonObject = {
 };
 
 /** Pelna odpowiedz `admin_event_invoice_get` (dwie pozycje, jedno zrodlo). */
-export function invoiceDocumentJson(overrides: { invoice?: JsonObject } & JsonObject = {}): JsonObject {
+export function invoiceDocumentJson(
+  overrides: { invoice?: JsonObject } & JsonObject = {},
+): JsonObject {
   const { invoice, ...rest } = overrides;
   return {
     invoice: invoiceJson(invoice ?? {}),

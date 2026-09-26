@@ -16,12 +16,16 @@ import { FormSelect } from "@/components/atoms/FormSelect";
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
 import { AdminFormSwitchRow } from "@/components/admin/molecules/AdminFormSwitchRow";
 import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow";
-import { EventStudioRow, EventStudioSaveBar } from "@/components/admin/events/studio/EventStudioSection";
+import {
+  EventStudioRow,
+  EventStudioSaveBar,
+} from "@/components/admin/events/studio/EventStudioSection";
 import { Label } from "@/components/ui/label";
 import { adminEventInvoiceErrorMessage } from "@/lib/events/adminEventInvoiceErrors";
+import { LOCALE_LABEL_KEYS, VAT_RATE_LABEL_KEYS } from "@/lib/events/adminEventInvoiceLabels";
 import type { EventInvoiceSettings } from "@/lib/events/eventInvoicesApi";
-import { EVENT_INVOICE_LOCALES, pickEnum, type EventInvoiceLocale } from "@/lib/events/eventInvoiceEnums";
-import { EVENT_INVOICE_VAT_RATES, type EventInvoiceVatRate } from "@/lib/events/eventInvoiceMath";
+import { EVENT_INVOICE_LOCALES, pickEnum } from "@/lib/events/eventInvoiceEnums";
+import { EVENT_INVOICE_VAT_RATES } from "@/lib/events/eventInvoiceMath";
 import {
   isSettingsDraftDirty,
   settingsDraftFromSettings,
@@ -33,20 +37,6 @@ import {
 } from "@/lib/events/eventInvoiceSettingsDraft";
 import { useInvoiceSettings, useSaveInvoiceSettings } from "@/lib/events/useEventInvoices";
 import { ensureAdminEventInvoicesI18n } from "@/lib/i18n-admin-event-invoices";
-
-export const VAT_RATE_LABEL_KEYS: Record<EventInvoiceVatRate, string> = {
-  "23": "adminEventInvoices.vatRates.23",
-  "8": "adminEventInvoices.vatRates.8",
-  "5": "adminEventInvoices.vatRates.5",
-  "0": "adminEventInvoices.vatRates.0",
-  zw: "adminEventInvoices.vatRates.zw",
-  np: "adminEventInvoices.vatRates.np",
-};
-
-export const LOCALE_LABEL_KEYS: Record<EventInvoiceLocale, string> = {
-  pl: "adminEventInvoices.locales.pl",
-  en: "adminEventInvoices.locales.en",
-};
 
 export function EventInvoiceSettingsForm() {
   ensureAdminEventInvoicesI18n();
@@ -88,7 +78,10 @@ function SettingsEditor({ settings }: { settings: EventInvoiceSettings }) {
   }
 
   function text(
-    field: Exclude<InvoiceSettingsField, "enabled" | "confirmSeller" | "defaultVatRate" | "defaultLocale">,
+    field: Exclude<
+      InvoiceSettingsField,
+      "enabled" | "confirmSeller" | "defaultVatRate" | "defaultLocale"
+    >,
     labelKey: string,
     extra: { hint?: string; rows?: number; maxLength: number },
   ) {
@@ -133,7 +126,9 @@ function SettingsEditor({ settings }: { settings: EventInvoiceSettings }) {
           {text("sellerName", "adminEventInvoices.settings.sellerName", { maxLength: 200 })}
           {text("sellerTaxId", "adminEventInvoices.settings.sellerTaxId", { maxLength: 24 })}
           {text("sellerAddress", "adminEventInvoices.settings.sellerAddress", { maxLength: 200 })}
-          {text("sellerPostalCode", "adminEventInvoices.settings.sellerPostalCode", { maxLength: 20 })}
+          {text("sellerPostalCode", "adminEventInvoices.settings.sellerPostalCode", {
+            maxLength: 20,
+          })}
           {text("sellerCity", "adminEventInvoices.settings.sellerCity", { maxLength: 100 })}
           {text("sellerCountry", "adminEventInvoices.settings.sellerCountry", { maxLength: 2 })}
           {text("sellerEmail", "adminEventInvoices.settings.sellerEmail", { maxLength: 254 })}
@@ -149,35 +144,54 @@ function SettingsEditor({ settings }: { settings: EventInvoiceSettings }) {
         <div className="grid gap-3 sm:grid-cols-3">
           {text("seriesInvoice", "adminEventInvoices.settings.seriesInvoice", { maxLength: 10 })}
           {text("seriesProforma", "adminEventInvoices.settings.seriesProforma", { maxLength: 10 })}
-          {text("seriesCorrection", "adminEventInvoices.settings.seriesCorrection", { maxLength: 10 })}
+          {text("seriesCorrection", "adminEventInvoices.settings.seriesCorrection", {
+            maxLength: 10,
+          })}
         </div>
       </EventStudioRow>
       <EventStudioRow label={t("adminEventInvoices.settings.defaultsSection")}>
         <div className="grid gap-3 sm:grid-cols-2">
           {text("paymentDays", "adminEventInvoices.settings.paymentDays", { maxLength: 3 })}
           <div className="space-y-1.5">
-            <Label htmlFor="invoice-settings-vat">{t("adminEventInvoices.settings.defaultVatRate")}</Label>
+            <Label htmlFor="invoice-settings-vat">
+              {t("adminEventInvoices.settings.defaultVatRate")}
+            </Label>
             <FormSelect
               id="invoice-settings-vat"
               value={draft.defaultVatRate}
-              onValueChange={(value) => set("defaultVatRate", pickEnum(EVENT_INVOICE_VAT_RATES, value))}
-              options={EVENT_INVOICE_VAT_RATES.map((rate) => ({ value: rate, label: t(VAT_RATE_LABEL_KEYS[rate]) }))}
+              onValueChange={(value) =>
+                set("defaultVatRate", pickEnum(EVENT_INVOICE_VAT_RATES, value))
+              }
+              options={EVENT_INVOICE_VAT_RATES.map((rate) => ({
+                value: rate,
+                label: t(VAT_RATE_LABEL_KEYS[rate]),
+              }))}
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="invoice-settings-locale">{t("adminEventInvoices.settings.defaultLocale")}</Label>
+            <Label htmlFor="invoice-settings-locale">
+              {t("adminEventInvoices.settings.defaultLocale")}
+            </Label>
             <FormSelect
               id="invoice-settings-locale"
               value={draft.defaultLocale}
-              onValueChange={(value) => set("defaultLocale", pickEnum(EVENT_INVOICE_LOCALES, value))}
-              options={EVENT_INVOICE_LOCALES.map((locale) => ({ value: locale, label: t(LOCALE_LABEL_KEYS[locale]) }))}
+              onValueChange={(value) =>
+                set("defaultLocale", pickEnum(EVENT_INVOICE_LOCALES, value))
+              }
+              options={EVENT_INVOICE_LOCALES.map((locale) => ({
+                value: locale,
+                label: t(LOCALE_LABEL_KEYS[locale]),
+              }))}
             />
           </div>
           {text("vatExemptBasis", "adminEventInvoices.settings.vatExemptBasis", {
             hint: t("adminEventInvoices.settings.vatExemptBasisHint"),
             maxLength: 300,
           })}
-          {text("footerNote", "adminEventInvoices.settings.footerNote", { rows: 2, maxLength: 500 })}
+          {text("footerNote", "adminEventInvoices.settings.footerNote", {
+            rows: 2,
+            maxLength: 500,
+          })}
         </div>
       </EventStudioRow>
       <EventStudioRow label={t("adminEventInvoices.settings.enabledSection")}>
@@ -198,7 +212,9 @@ function SettingsEditor({ settings }: { settings: EventInvoiceSettings }) {
                   onChange={(event) => set("confirmSeller", event.target.checked)}
                 />
                 <span>
-                  <span className="font-medium">{t("adminEventInvoices.settings.confirmSeller")}</span>
+                  <span className="font-medium">
+                    {t("adminEventInvoices.settings.confirmSeller")}
+                  </span>
                   <span className="block text-xs text-muted-foreground">
                     {t("adminEventInvoices.settings.confirmSellerHint")}
                   </span>
@@ -210,7 +226,9 @@ function SettingsEditor({ settings }: { settings: EventInvoiceSettings }) {
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">
-              {t("adminEventInvoices.settings.confirmedAt", { date: settings.confirmedAt.slice(0, 10) })}
+              {t("adminEventInvoices.settings.confirmedAt", {
+                date: settings.confirmedAt.slice(0, 10),
+              })}
             </p>
           )}
         </div>

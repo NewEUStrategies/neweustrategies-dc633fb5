@@ -12,7 +12,8 @@ import { axeViolations, summarize } from "@/test/axe";
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 
-const { InvoiceRequestBlock } = await import("@/components/events/invoices/organisms/InvoiceRequestBlock");
+const { InvoiceRequestBlock } =
+  await import("@/components/events/invoices/organisms/InvoiceRequestBlock");
 
 const PROFILE: BillingProfile = {
   id: "bp",
@@ -60,7 +61,9 @@ function controller(overrides: Partial<InvoiceRequestController> = {}): InvoiceR
 describe("InvoiceRequestBlock", () => {
   it("faktura juz wystawiona: sam komunikat z numerem, bez formularza", () => {
     render(<InvoiceRequestBlock controller={controller({ invoicedNumber: "FV/2026/09/0001" })} />);
-    expect(screen.getByRole("status").textContent).toBe("eventInvoices.request.invoiced(number=FV/2026/09/0001)");
+    expect(screen.getByRole("status").textContent).toBe(
+      "eventInvoices.request.invoiced(number=FV/2026/09/0001)",
+    );
     expect(screen.queryByRole("checkbox")).toBeNull();
   });
 
@@ -82,7 +85,9 @@ describe("InvoiceRequestBlock", () => {
     expect(value.prefillFromProfile).toHaveBeenCalledWith(PROFILE);
     fireEvent.click(screen.getByLabelText("eventInvoices.request.remember"));
     expect(value.setRemember).toHaveBeenCalledWith(true);
-    fireEvent.change(screen.getByLabelText("eventInvoices.buyer.city"), { target: { value: "Gdansk" } });
+    fireEvent.change(screen.getByLabelText("eventInvoices.buyer.city"), {
+      target: { value: "Gdansk" },
+    });
     expect(value.setBuyer).toHaveBeenCalledWith(expect.objectContaining({ city: "Gdansk" }));
   });
 
@@ -90,7 +95,9 @@ describe("InvoiceRequestBlock", () => {
     render(<InvoiceRequestBlock controller={controller({ wanted: true, saving: true })} />);
     expect(screen.queryByRole("button", { name: "eventInvoices.request.prefill" })).toBeNull();
     expect(screen.getByText("eventInvoices.request.saving")).toBeTruthy();
-    expect((screen.getByLabelText("eventInvoices.buyer.city") as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByLabelText("eventInvoices.buyer.city") as HTMLInputElement).disabled).toBe(
+      true,
+    );
   });
 
   it("bledy po probie i odmowa bazy jako alerty", () => {
@@ -104,7 +111,10 @@ describe("InvoiceRequestBlock", () => {
       />,
     );
     const alerts = screen.getAllByRole("alert").map((node) => node.textContent);
-    expect(alerts).toEqual(["eventInvoices.request.fixErrors", "eventInvoices.errors.requestWindowClosed"]);
+    expect(alerts).toEqual([
+      "eventInvoices.request.fixErrors",
+      "eventInvoices.errors.requestWindowClosed",
+    ]);
   });
 
   it("poprawne dane po probie: bez alertu o bledach", () => {
@@ -118,7 +128,12 @@ describe("InvoiceRequestBlock", () => {
     };
     render(
       <InvoiceRequestBlock
-        controller={controller({ wanted: true, showErrors: true, buyer, errors: validateBuyerDraft(buyer) })}
+        controller={controller({
+          wanted: true,
+          showErrors: true,
+          buyer,
+          errors: validateBuyerDraft(buyer),
+        })}
       />,
     );
     expect(screen.queryByRole("alert")).toBeNull();
@@ -126,7 +141,9 @@ describe("InvoiceRequestBlock", () => {
 
   it("dostepnosc: brak naruszen axe", async () => {
     const { container } = render(
-      <InvoiceRequestBlock controller={controller({ wanted: true, profile: PROFILE, showErrors: true })} />,
+      <InvoiceRequestBlock
+        controller={controller({ wanted: true, profile: PROFILE, showErrors: true })}
+      />,
     );
     const violations = await axeViolations(container);
     expect(violations, summarize(violations)).toEqual([]);

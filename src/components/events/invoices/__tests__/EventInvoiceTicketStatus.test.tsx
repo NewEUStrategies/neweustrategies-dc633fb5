@@ -22,7 +22,8 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/events/myEventInvoicesApi", () => api);
 
-const { EventInvoiceTicketStatus } = await import("@/components/events/invoices/atoms/EventInvoiceTicketStatus");
+const { EventInvoiceTicketStatus } =
+  await import("@/components/events/invoices/atoms/EventInvoiceTicketStatus");
 
 function renderTwo(ids: string[]) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

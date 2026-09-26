@@ -53,7 +53,8 @@ export const SETTINGS_ERROR_KEYS = {
   tooLong: "adminEventInvoices.settings.errors.tooLong",
 } as const;
 
-export type InvoiceSettingsErrorKey = (typeof SETTINGS_ERROR_KEYS)[keyof typeof SETTINGS_ERROR_KEYS];
+export type InvoiceSettingsErrorKey =
+  (typeof SETTINGS_ERROR_KEYS)[keyof typeof SETTINGS_ERROR_KEYS];
 export type InvoiceSettingsErrors = Partial<Record<InvoiceSettingsField, InvoiceSettingsErrorKey>>;
 
 const SERIES_PATTERN = /^[A-Z0-9]{1,10}$/;

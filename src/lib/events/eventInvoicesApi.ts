@@ -411,7 +411,10 @@ export async function updateInvoiceKsef(input: {
   return String(data);
 }
 
-export async function setInvoicePaid(input: { id: string; paidAt: string | null }): Promise<string> {
+export async function setInvoicePaid(input: {
+  id: string;
+  paidAt: string | null;
+}): Promise<string> {
   const { data, error } = await supabase.rpc("admin_event_invoice_set_paid", {
     p_payload: { id: input.id, paid_at: input.paidAt },
   });

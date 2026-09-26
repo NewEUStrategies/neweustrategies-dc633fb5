@@ -108,7 +108,10 @@ export function buildEventInvoicePdf(doc: EventInvoiceDocument): {
   bytes: Uint8Array<ArrayBuffer>;
 } {
   const labels = eventInvoicePdfLabels(doc);
-  return { fileName: eventInvoicePdfFileName(doc, labels), bytes: renderEventInvoicePdf(doc, labels) };
+  return {
+    fileName: eventInvoicePdfFileName(doc, labels),
+    bytes: renderEventInvoicePdf(doc, labels),
+  };
 }
 
 /** Pobranie w przegladarce (obsluga klikniecia). */

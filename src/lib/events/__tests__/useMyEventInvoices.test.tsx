@@ -76,7 +76,9 @@ describe("mutacje", () => {
       await view.result.current.mutateAsync("req");
     });
     expect(api.cancelInvoiceRequest.mock.calls[0]?.[0]).toBe("req");
-    expect(view.queryClient.getQueryState(myEventInvoiceKeys.documents())?.isInvalidated).toBe(true);
+    expect(view.queryClient.getQueryState(myEventInvoiceKeys.documents())?.isInvalidated).toBe(
+      true,
+    );
   });
 
   it("odmowa bazy nie uniewaznia", async () => {
@@ -86,6 +88,8 @@ describe("mutacje", () => {
     await act(async () => {
       await expect(view.result.current.mutateAsync("req")).rejects.toThrow("not_found");
     });
-    expect(view.queryClient.getQueryState(myEventInvoiceKeys.documents())?.isInvalidated).toBe(false);
+    expect(view.queryClient.getQueryState(myEventInvoiceKeys.documents())?.isInvalidated).toBe(
+      false,
+    );
   });
 });

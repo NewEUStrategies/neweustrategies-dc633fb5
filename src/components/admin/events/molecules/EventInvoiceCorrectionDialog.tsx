@@ -12,7 +12,6 @@ import { toast } from "sonner";
 
 import { FormSelect } from "@/components/atoms/FormSelect";
 import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow";
-import { VAT_RATE_LABEL_KEYS } from "@/components/admin/events/molecules/EventInvoiceSettingsForm";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { adminEventInvoiceErrorMessage } from "@/lib/events/adminEventInvoiceErrors";
+import { VAT_RATE_LABEL_KEYS } from "@/lib/events/adminEventInvoiceLabels";
 import type { EventInvoiceDocument } from "@/lib/events/eventInvoiceDocument";
 import { pickEnum, type EventInvoiceCorrectionMode } from "@/lib/events/eventInvoiceEnums";
 import { EVENT_INVOICE_VAT_RATES, type EventInvoiceVatRate } from "@/lib/events/eventInvoiceMath";
@@ -67,7 +67,13 @@ export function EventInvoiceCorrectionDialog({
             {t("adminEventInvoices.loading")}
           </p>
         ) : (
-          <CorrectionForm key={docQ.data.id} eventId={eventId} doc={docQ.data} onClose={onClose} onCreated={onCreated} />
+          <CorrectionForm
+            key={docQ.data.id}
+            eventId={eventId}
+            doc={docQ.data}
+            onClose={onClose}
+            onCreated={onCreated}
+          />
         )}
       </DialogContent>
     </Dialog>
@@ -108,7 +114,11 @@ function CorrectionForm({
       const change = changes[line.id];
       const quantity = Number(change.quantity.trim());
       const unitGross = registrationPriceCents(change.unitGross);
-      if (!/^\d{1,5}$/.test(change.quantity.trim()) || unitGross === null || Number.isNaN(unitGross)) {
+      if (
+        !/^\d{1,5}$/.test(change.quantity.trim()) ||
+        unitGross === null ||
+        Number.isNaN(unitGross)
+      ) {
         return null;
       }
       if (
@@ -175,29 +185,43 @@ function CorrectionForm({
           {doc.lines.map((line) => {
             const change = changes[line.id];
             const update = (patch: Partial<LineChangeDraft>) =>
-              setChanges((current) => ({ ...current, [line.id]: { ...current[line.id], ...patch } }));
+              setChanges((current) => ({
+                ...current,
+                [line.id]: { ...current[line.id], ...patch },
+              }));
             return (
-              <li key={line.id} className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-3">
+              <li
+                key={line.id}
+                className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-3"
+              >
                 <AdminFormTextRow
-                  label={t("adminEventInvoices.correction.lineQuantity", { description: line.description })}
+                  label={t("adminEventInvoices.correction.lineQuantity", {
+                    description: line.description,
+                  })}
                   value={change.quantity}
                   inputMode="numeric"
                   onValueChange={(quantity) => update({ quantity })}
                 />
                 <AdminFormTextRow
-                  label={t("adminEventInvoices.correction.lineUnitGross", { description: line.description })}
+                  label={t("adminEventInvoices.correction.lineUnitGross", {
+                    description: line.description,
+                  })}
                   value={change.unitGross}
                   inputMode="decimal"
                   onValueChange={(unitGross) => update({ unitGross })}
                 />
                 <div className="space-y-1.5">
                   <Label htmlFor={`correction-rate-${line.id}`}>
-                    {t("adminEventInvoices.correction.lineVatRate", { description: line.description })}
+                    {t("adminEventInvoices.correction.lineVatRate", {
+                      description: line.description,
+                    })}
                   </Label>
                   <FormSelect
                     id={`correction-rate-${line.id}`}
                     value={change.vatRate}
-                    onValueChange={(value) => update({ vatRate: pickEnum(EVENT_INVOICE_VAT_RATES, value) })}
+                    onValueChange={(value) =>
+                      update({ vatRate: pickEnum(EVENT_INVOICE_VAT_RATES, value) })
+                    }
                     options={EVENT_INVOICE_VAT_RATES.map((rate) => ({
                       value: rate,
                       label: t(VAT_RATE_LABEL_KEYS[rate]),

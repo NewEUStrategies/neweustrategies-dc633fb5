@@ -4,7 +4,11 @@
 // (z kontekstu middleware) - autoryzuje baza, nie serwer.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { callServerFn, serverFnMiddlewareNames, validateServerFnInput } from "@/test/serverFnHarness";
+import {
+  callServerFn,
+  serverFnMiddlewareNames,
+  validateServerFnInput,
+} from "@/test/serverFnHarness";
 
 const { notifyIssuedInvoices } = vi.hoisted(() => ({ notifyIssuedInvoices: vi.fn() }));
 
@@ -31,7 +35,9 @@ describe("notifyEventInvoicesIssued", () => {
   });
 
   it("walidator: 1-200 identyfikatorow UUID", () => {
-    expect(validateServerFnInput(notifyEventInvoicesIssued, { invoiceIds: [ID] })).toEqual({ invoiceIds: [ID] });
+    expect(validateServerFnInput(notifyEventInvoicesIssued, { invoiceIds: [ID] })).toEqual({
+      invoiceIds: [ID],
+    });
     for (const input of [
       {},
       { invoiceIds: [] },
@@ -46,7 +52,10 @@ describe("notifyEventInvoicesIssued", () => {
     const supabase = { rpc: vi.fn() };
     notifyIssuedInvoices.mockResolvedValue({ sent: 1, skipped: 0, failed: 0 });
     await expect(
-      callServerFn(notifyEventInvoicesIssued, { data: { invoiceIds: [ID] }, context: { supabase } }),
+      callServerFn(notifyEventInvoicesIssued, {
+        data: { invoiceIds: [ID] },
+        context: { supabase },
+      }),
     ).resolves.toEqual({ sent: 1, skipped: 0, failed: 0 });
     expect(notifyIssuedInvoices).toHaveBeenCalledWith(supabase, [ID]);
   });

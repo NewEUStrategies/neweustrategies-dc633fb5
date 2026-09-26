@@ -16,10 +16,6 @@ import { Plus, Trash2 } from "lucide-react";
 
 import { FormSelect } from "@/components/atoms/FormSelect";
 import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow";
-import {
-  LOCALE_LABEL_KEYS,
-  VAT_RATE_LABEL_KEYS,
-} from "@/components/admin/events/molecules/EventInvoiceSettingsForm";
 import { InvoiceBuyerFields } from "@/components/events/invoices/molecules/InvoiceBuyerFields";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,6 +31,11 @@ import { Label } from "@/components/ui/label";
 import { confirmDialog } from "@/lib/appDialogs";
 import { formatMoney } from "@/lib/billing/types";
 import { adminEventInvoiceErrorMessage } from "@/lib/events/adminEventInvoiceErrors";
+import {
+  LOCALE_LABEL_KEYS,
+  PAYMENT_METHOD_LABEL_KEYS,
+  VAT_RATE_LABEL_KEYS,
+} from "@/lib/events/adminEventInvoiceLabels";
 import type { EventInvoiceDocument } from "@/lib/events/eventInvoiceDocument";
 import {
   documentDraftFromDocument,
@@ -52,20 +53,17 @@ import {
   EVENT_INVOICE_LOCALES,
   EVENT_INVOICE_PAYMENT_METHODS,
   pickEnum,
-  type EventInvoicePaymentMethod,
 } from "@/lib/events/eventInvoiceEnums";
 import { EVENT_INVOICE_VAT_RATES } from "@/lib/events/eventInvoiceMath";
 import { sourcesGrossCents, type IssuedInvoice } from "@/lib/events/eventInvoicesApi";
 import { downloadEventInvoicePdf } from "@/lib/events/eventInvoicePdfLabels";
-import { useEventInvoice, useIssueInvoice, useUpdateInvoiceDraft } from "@/lib/events/useEventInvoices";
+import {
+  useEventInvoice,
+  useIssueInvoice,
+  useUpdateInvoiceDraft,
+} from "@/lib/events/useEventInvoices";
 import { ensureAdminEventInvoicesI18n } from "@/lib/i18n-admin-event-invoices";
 import { ensureEventInvoicesI18n } from "@/lib/i18n-event-invoices";
-
-export const PAYMENT_METHOD_LABEL_KEYS: Record<EventInvoicePaymentMethod, string> = {
-  card: "adminEventInvoices.methods.card",
-  transfer: "adminEventInvoices.methods.transfer",
-  other: "adminEventInvoices.methods.other",
-};
 
 export interface EventInvoiceDraftDialogProps {
   eventId: string;
@@ -145,7 +143,9 @@ function DraftEditor({
   const money = (cents: number) => formatMoney(cents, doc.currency, i18n.language);
   const sourcesGross = sourcesGrossCents(doc);
   const mismatch =
-    doc.kind !== "correction" && doc.sources.length > 0 && preview.totals.grossCents !== sourcesGross;
+    doc.kind !== "correction" &&
+    doc.sources.length > 0 &&
+    preview.totals.grossCents !== sourcesGross;
   const busy = update.isPending || issue.isPending;
 
   function setLine(key: string, patch: Partial<InvoiceLineDraft>): void {
@@ -244,12 +244,17 @@ function DraftEditor({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor={`invoice-locale-${doc.id}`}>{t("adminEventInvoices.draft.locale")}</Label>
+            <Label htmlFor={`invoice-locale-${doc.id}`}>
+              {t("adminEventInvoices.draft.locale")}
+            </Label>
             <FormSelect
               id={`invoice-locale-${doc.id}`}
               value={draft.locale}
               onValueChange={(value) =>
-                setDraft((current) => ({ ...current, locale: pickEnum(EVENT_INVOICE_LOCALES, value) }))
+                setDraft((current) => ({
+                  ...current,
+                  locale: pickEnum(EVENT_INVOICE_LOCALES, value),
+                }))
               }
               options={EVENT_INVOICE_LOCALES.map((locale) => ({
                 value: locale,
@@ -307,7 +312,10 @@ function DraftEditor({
           onClick={() => {
             setDraft((current) => ({
               ...current,
-              lines: [...current.lines, newLineDraft(ordinal, current.lines[0]?.vatRate ?? "23", current.locale)],
+              lines: [
+                ...current.lines,
+                newLineDraft(ordinal, current.lines[0]?.vatRate ?? "23", current.locale),
+              ],
             }));
             setOrdinal((value) => value + 1);
           }}
@@ -346,7 +354,10 @@ function DraftEditor({
         </dl>
       </section>
       {mismatch ? (
-        <p role="status" className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
+        <p
+          role="status"
+          className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm"
+        >
           {t("adminEventInvoices.draft.sourcesMismatch", {
             lines: money(preview.totals.grossCents),
             sources: money(sourcesGross),
@@ -362,10 +373,14 @@ function DraftEditor({
           {t("adminEventInvoices.draft.close")}
         </Button>
         <Button type="button" variant="outline" disabled={busy} onClick={() => void save()}>
-          {update.isPending ? t("adminEventInvoices.draft.saving") : t("adminEventInvoices.draft.save")}
+          {update.isPending
+            ? t("adminEventInvoices.draft.saving")
+            : t("adminEventInvoices.draft.save")}
         </Button>
         <Button type="button" disabled={busy} onClick={() => void issueNow()}>
-          {issue.isPending ? t("adminEventInvoices.draft.issuing") : t("adminEventInvoices.draft.issue")}
+          {issue.isPending
+            ? t("adminEventInvoices.draft.issuing")
+            : t("adminEventInvoices.draft.issue")}
         </Button>
       </DialogFooter>
     </div>
@@ -397,7 +412,9 @@ function LineEditor({
     <li className="space-y-2 rounded-md border border-border p-3">
       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_5rem_5rem_7rem_8rem_auto] sm:items-end">
         <div className="space-y-1">
-          <Label htmlFor={`${base}-description`}>{t("adminEventInvoices.draft.line.description")}</Label>
+          <Label htmlFor={`${base}-description`}>
+            {t("adminEventInvoices.draft.line.description")}
+          </Label>
           <Input
             id={`${base}-description`}
             value={line.description}
@@ -442,7 +459,9 @@ function LineEditor({
             id={`${base}-rate`}
             value={line.vatRate}
             disabled={disabled}
-            onValueChange={(value) => onChange({ vatRate: pickEnum(EVENT_INVOICE_VAT_RATES, value) })}
+            onValueChange={(value) =>
+              onChange({ vatRate: pickEnum(EVENT_INVOICE_VAT_RATES, value) })
+            }
             options={EVENT_INVOICE_VAT_RATES.map((rate) => ({
               value: rate,
               label: t(VAT_RATE_LABEL_KEYS[rate]),

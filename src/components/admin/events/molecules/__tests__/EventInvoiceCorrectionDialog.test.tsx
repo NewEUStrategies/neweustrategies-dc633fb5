@@ -11,7 +11,9 @@ import { INVOICE_IDS, invoiceDocumentJson } from "@/test/events/invoiceFixtures"
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("@/components/ui/select", async () => (await import("@/test/reactStubs")).radixSelectStub(await import("react")));
+vi.mock("@/components/ui/select", async () =>
+  (await import("@/test/reactStubs")).radixSelectStub(await import("react")),
+);
 const api = vi.hoisted(() => ({ fetchEventInvoice: vi.fn(), createInvoiceCorrection: vi.fn() }));
 vi.mock("@/lib/events/eventInvoicesApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/events/eventInvoicesApi")>()),
@@ -19,9 +21,8 @@ vi.mock("@/lib/events/eventInvoicesApi", async (importOriginal) => ({
 }));
 
 const { toast } = await import("sonner");
-const { EventInvoiceCorrectionDialog } = await import(
-  "@/components/admin/events/molecules/EventInvoiceCorrectionDialog"
-);
+const { EventInvoiceCorrectionDialog } =
+  await import("@/components/admin/events/molecules/EventInvoiceCorrectionDialog");
 
 function issued(): EventInvoiceDocument {
   const parsed = parseInvoiceDocument(invoiceDocumentJson());
@@ -44,7 +45,8 @@ function open() {
 }
 
 const QTY = "adminEventInvoices.correction.lineQuantity(description=Bilet: Standard - Kongres 27)";
-const PRICE = "adminEventInvoices.correction.lineUnitGross(description=Bilet: Standard - Kongres 27)";
+const PRICE =
+  "adminEventInvoices.correction.lineUnitGross(description=Bilet: Standard - Kongres 27)";
 const RATE = "adminEventInvoices.correction.lineVatRate(description=Bilet: Standard - Kongres 27)";
 
 beforeEach(() => {
@@ -57,7 +59,12 @@ beforeEach(() => {
 describe("EventInvoiceCorrectionDialog", () => {
   it("zamkniete okno nic nie pobiera; ladowanie", () => {
     const view = renderWithQueryClient(
-      <EventInvoiceCorrectionDialog eventId={INVOICE_IDS.event} invoiceId={null} onClose={vi.fn()} onCreated={vi.fn()} />,
+      <EventInvoiceCorrectionDialog
+        eventId={INVOICE_IDS.event}
+        invoiceId={null}
+        onClose={vi.fn()}
+        onCreated={vi.fn()}
+      />,
     );
     expect(api.fetchEventInvoice).not.toHaveBeenCalled();
     view.unmount();
@@ -70,7 +77,9 @@ describe("EventInvoiceCorrectionDialog", () => {
     api.fetchEventInvoice.mockResolvedValue(issued());
     api.createInvoiceCorrection.mockResolvedValue(INVOICE_IDS.correction);
     const { onCreated } = open();
-    expect(await screen.findByText("adminEventInvoices.correction.title(number=FV/2026/09/0001)")).toBeTruthy();
+    expect(
+      await screen.findByText("adminEventInvoices.correction.title(number=FV/2026/09/0001)"),
+    ).toBeTruthy();
     expect(screen.queryByLabelText(QTY, { exact: false })).toBeNull();
     fireEvent.change(screen.getByLabelText("adminEventInvoices.correction.reason"), {
       target: { value: " Rezygnacja " },
@@ -97,7 +106,9 @@ describe("EventInvoiceCorrectionDialog", () => {
     fireEvent.change(quantities[0], { target: { value: "0" } });
     fireEvent.change(prices[0], { target: { value: "100,00" } });
     fireEvent.change(rates[0], { target: { value: "8" } });
-    fireEvent.change(screen.getByLabelText("adminEventInvoices.correction.reason"), { target: { value: "Zwrot" } });
+    fireEvent.change(screen.getByLabelText("adminEventInvoices.correction.reason"), {
+      target: { value: "Zwrot" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.correction.create" }));
     await waitFor(() => expect(api.createInvoiceCorrection).toHaveBeenCalled());
     expect(api.createInvoiceCorrection.mock.calls[0]?.[0]).toEqual({
@@ -131,18 +142,21 @@ describe("EventInvoiceCorrectionDialog", () => {
     api.fetchEventInvoice.mockResolvedValue(issued());
     api.createInvoiceCorrection.mockReturnValue(new Promise(() => {}));
     open();
-    fireEvent.click(await screen.findByRole("button", { name: "adminEventInvoices.correction.create" }));
-    expect(await screen.findByRole("button", { name: "adminEventInvoices.correction.creating" })).toHaveProperty(
-      "disabled",
-      true,
+    fireEvent.click(
+      await screen.findByRole("button", { name: "adminEventInvoices.correction.create" }),
     );
+    expect(
+      await screen.findByRole("button", { name: "adminEventInvoices.correction.creating" }),
+    ).toHaveProperty("disabled", true);
   });
 
   it("odmowa bazy = toast; anuluj zamyka", async () => {
     api.fetchEventInvoice.mockResolvedValue(issued());
     api.createInvoiceCorrection.mockRejectedValue(new Error("reason_required: x"));
     const { onClose, onCreated } = open();
-    fireEvent.click(await screen.findByRole("button", { name: "adminEventInvoices.correction.create" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "adminEventInvoices.correction.create" }),
+    );
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
     expect(onCreated).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.correction.cancel" }));

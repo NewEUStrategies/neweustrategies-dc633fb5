@@ -17,7 +17,9 @@ const h = vi.hoisted(() => ({
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("@/components/ui/tabs", async () => (await import("@/test/reactStubs")).radixTabsStub(await import("react")));
+vi.mock("@/components/ui/tabs", async () =>
+  (await import("@/test/reactStubs")).radixTabsStub(await import("react")),
+);
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
   useServerFn: () => h.notify,
@@ -61,7 +63,8 @@ vi.mock("@/components/admin/events/molecules/EventInvoiceKsefDialog", () => ({
 }));
 
 const { toast } = await import("sonner");
-const { EventInvoicesPanel } = await import("@/components/admin/events/organisms/EventInvoicesPanel");
+const { EventInvoicesPanel } =
+  await import("@/components/admin/events/organisms/EventInvoicesPanel");
 
 function call<T>(name: string, prop: string, value: T): void {
   const handler = h.props[name]?.[prop];
@@ -127,9 +130,15 @@ describe("EventInvoicesPanel", () => {
     fireEvent.click(screen.getByRole("tab", { name: "adminEventInvoices.tabs.drafts" }));
     const issued: IssuedInvoice = { id: INVOICE_IDS.invoice, number: "FV/2026/09/0001" };
     call("documents-drafts", "onIssued", issued);
-    expect(toast.success).toHaveBeenCalledWith("adminEventInvoices.toasts.issued(number=FV/2026/09/0001)");
-    await waitFor(() => expect(h.notify).toHaveBeenCalledWith({ data: { invoiceIds: [INVOICE_IDS.invoice] } }));
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("adminEventInvoices.toasts.notified(count=1)"));
+    expect(toast.success).toHaveBeenCalledWith(
+      "adminEventInvoices.toasts.issued(number=FV/2026/09/0001)",
+    );
+    await waitFor(() =>
+      expect(h.notify).toHaveBeenCalledWith({ data: { invoiceIds: [INVOICE_IDS.invoice] } }),
+    );
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("adminEventInvoices.toasts.notified(count=1)"),
+    );
   });
 
   it("masowe wystawienie: jedno powiadomienie na wszystkie; nieudane maile i awaria = toast", async () => {
@@ -143,7 +152,9 @@ describe("EventInvoicesPanel", () => {
       failed: [],
     };
     call("candidates", "onBulkIssued", result);
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("adminEventInvoices.toasts.notifyFailed"));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("adminEventInvoices.toasts.notifyFailed"),
+    );
     expect(h.notify).toHaveBeenCalledWith({ data: { invoiceIds: ["a", "b"] } });
     expect(toast.success).not.toHaveBeenCalled();
     h.notify.mockRejectedValueOnce(new Error("network"));

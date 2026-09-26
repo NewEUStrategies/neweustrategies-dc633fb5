@@ -67,7 +67,9 @@ export function InvoiceBuyerFields({
           maxLength={options.maxLength}
           autoComplete={options.autoComplete}
           aria-invalid={error === undefined ? undefined : true}
-          aria-describedby={[errorId, hintId].filter((part) => part !== undefined).join(" ") || undefined}
+          aria-describedby={
+            [errorId, hintId].filter((part) => part !== undefined).join(" ") || undefined
+          }
           onChange={(event) => set(name, event.target.value)}
         />
         {options.hint === undefined ? null : (
@@ -151,7 +153,8 @@ export function InvoiceBuyerFields({
           checked={recipientOpen}
           onChange={(event) => {
             setRecipientForced(event.target.checked);
-            if (!event.target.checked) onChange({ ...value, recipientName: "", recipientAddress: "" });
+            if (!event.target.checked)
+              onChange({ ...value, recipientName: "", recipientAddress: "" });
           }}
         />
         {t("eventInvoices.buyer.recipientToggle")}

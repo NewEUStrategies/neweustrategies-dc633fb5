@@ -12,8 +12,12 @@ import { invoiceSettingsJson } from "@/test/events/invoiceFixtures";
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("@/components/ui/select", async () => (await import("@/test/reactStubs")).radixSelectStub(await import("react")));
-vi.mock("@/components/ui/switch", async () => (await import("@/test/reactStubs")).radixSwitchStub(await import("react")));
+vi.mock("@/components/ui/select", async () =>
+  (await import("@/test/reactStubs")).radixSelectStub(await import("react")),
+);
+vi.mock("@/components/ui/switch", async () =>
+  (await import("@/test/reactStubs")).radixSwitchStub(await import("react")),
+);
 
 const api = vi.hoisted(() => ({ fetchInvoiceSettings: vi.fn(), saveInvoiceSettings: vi.fn() }));
 vi.mock("@/lib/events/eventInvoicesApi", async (importOriginal) => ({
@@ -22,7 +26,8 @@ vi.mock("@/lib/events/eventInvoicesApi", async (importOriginal) => ({
 }));
 
 const { toast } = await import("sonner");
-const { EventInvoiceSettingsForm } = await import("@/components/admin/events/molecules/EventInvoiceSettingsForm");
+const { EventInvoiceSettingsForm } =
+  await import("@/components/admin/events/molecules/EventInvoiceSettingsForm");
 
 const FRESH = parseInvoiceSettings(invoiceSettingsJson({ enabled: false, confirmed_at: null }));
 const CONFIRMED = parseInvoiceSettings(invoiceSettingsJson());
@@ -62,11 +67,19 @@ describe("EventInvoiceSettingsForm", () => {
     renderWithQueryClient(<EventInvoiceSettingsForm />);
     await screen.findByText("adminEventInvoices.settings.sharedNotice");
     fireEvent.click(screen.getByRole("switch"));
-    fireEvent.click(screen.getByRole("checkbox", { name: /^adminEventInvoices\.settings\.confirmSeller / }));
-    fireEvent.change(screen.getByLabelText("adminEventInvoices.settings.seriesInvoice"), { target: { value: " fa " } });
-    fireEvent.change(screen.getByLabelText("adminEventInvoices.settings.defaultLocale"), { target: { value: "en" } });
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /^adminEventInvoices\.settings\.confirmSeller / }),
+    );
+    fireEvent.change(screen.getByLabelText("adminEventInvoices.settings.seriesInvoice"), {
+      target: { value: " fa " },
+    });
+    fireEvent.change(screen.getByLabelText("adminEventInvoices.settings.defaultLocale"), {
+      target: { value: "en" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.settings.save" }));
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("adminEventInvoices.toasts.settingsSaved"));
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("adminEventInvoices.toasts.settingsSaved"),
+    );
     expect(api.saveInvoiceSettings.mock.calls[0]?.[0]).toMatchObject({
       enabled: true,
       confirmSeller: true,
@@ -77,7 +90,9 @@ describe("EventInvoiceSettingsForm", () => {
     await waitFor(() =>
       expect(screen.queryByRole("button", { name: "adminEventInvoices.settings.save" })).toBeNull(),
     );
-    expect(screen.getByText("adminEventInvoices.settings.confirmedAt(date=2026-09-01)")).toBeTruthy();
+    expect(
+      screen.getByText("adminEventInvoices.settings.confirmedAt(date=2026-09-01)"),
+    ).toBeTruthy();
   });
 
   it("walidacja przy polu: zw bez podstawy, zly NIP; odrzucenie zmian", async () => {
@@ -85,16 +100,20 @@ describe("EventInvoiceSettingsForm", () => {
     renderWithQueryClient(<EventInvoiceSettingsForm />);
     await screen.findByText("adminEventInvoices.settings.confirmedAt(date=2026-09-01)");
     expect(screen.queryByLabelText(/confirmSeller/)).toBeNull();
-    fireEvent.change(screen.getByLabelText("adminEventInvoices.settings.defaultVatRate"), { target: { value: "zw" } });
-    fireEvent.change(screen.getByLabelText("adminEventInvoices.settings.sellerTaxId"), { target: { value: "123" } });
+    fireEvent.change(screen.getByLabelText("adminEventInvoices.settings.defaultVatRate"), {
+      target: { value: "zw" },
+    });
+    fireEvent.change(screen.getByLabelText("adminEventInvoices.settings.sellerTaxId"), {
+      target: { value: "123" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.settings.save" }));
     expect(screen.getByText("adminEventInvoices.settings.errors.exemptBasis")).toBeTruthy();
     expect(screen.getByText("adminEventInvoices.settings.errors.taxId")).toBeTruthy();
     expect(api.saveInvoiceSettings).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.settings.discard" }));
-    expect((screen.getByLabelText("adminEventInvoices.settings.sellerTaxId") as HTMLInputElement).value).toBe(
-      "7011278375",
-    );
+    expect(
+      (screen.getByLabelText("adminEventInvoices.settings.sellerTaxId") as HTMLInputElement).value,
+    ).toBe("7011278375");
     expect(screen.queryByText("adminEventInvoices.settings.errors.taxId")).toBeNull();
   });
 
@@ -103,10 +122,14 @@ describe("EventInvoiceSettingsForm", () => {
     api.saveInvoiceSettings.mockRejectedValue(new Error("series_not_distinct: x"));
     renderWithQueryClient(<EventInvoiceSettingsForm />);
     await screen.findByText("adminEventInvoices.settings.sharedNotice");
-    fireEvent.change(screen.getByLabelText("adminEventInvoices.settings.footerNote"), { target: { value: "Stopka" } });
+    fireEvent.change(screen.getByLabelText("adminEventInvoices.settings.footerNote"), {
+      target: { value: "Stopka" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.settings.save" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
-    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).not.toBe("adminEventInvoices.errors.seriesNotDistinct");
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).not.toBe(
+      "adminEventInvoices.errors.seriesNotDistinct",
+    );
   });
 
   it("dostepnosc: brak naruszen axe", async () => {

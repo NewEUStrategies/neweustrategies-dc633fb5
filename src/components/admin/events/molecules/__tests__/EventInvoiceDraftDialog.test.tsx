@@ -13,7 +13,9 @@ const h = vi.hoisted(() => ({ confirm: true, confirmCalls: 0 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("@/components/ui/select", async () => (await import("@/test/reactStubs")).radixSelectStub(await import("react")));
+vi.mock("@/components/ui/select", async () =>
+  (await import("@/test/reactStubs")).radixSelectStub(await import("react")),
+);
 vi.mock("@/lib/appDialogs", () => ({
   confirmDialog: async () => {
     h.confirmCalls += 1;
@@ -22,18 +24,26 @@ vi.mock("@/lib/appDialogs", () => ({
 }));
 const pdf = vi.hoisted(() => ({ downloadEventInvoicePdf: vi.fn() }));
 vi.mock("@/lib/events/eventInvoicePdfLabels", () => pdf);
-const api = vi.hoisted(() => ({ fetchEventInvoice: vi.fn(), updateInvoiceDraft: vi.fn(), issueInvoice: vi.fn() }));
+const api = vi.hoisted(() => ({
+  fetchEventInvoice: vi.fn(),
+  updateInvoiceDraft: vi.fn(),
+  issueInvoice: vi.fn(),
+}));
 vi.mock("@/lib/events/eventInvoicesApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/events/eventInvoicesApi")>()),
   ...api,
 }));
 
 const { toast } = await import("sonner");
-const { EventInvoiceDraftDialog } = await import("@/components/admin/events/molecules/EventInvoiceDraftDialog");
+const { EventInvoiceDraftDialog } =
+  await import("@/components/admin/events/molecules/EventInvoiceDraftDialog");
 
 function draftDoc(json: Parameters<typeof invoiceDocumentJson>[0] = {}): EventInvoiceDocument {
   const parsed = parseInvoiceDocument(
-    invoiceDocumentJson({ ...json, invoice: { status: "draft", number: null, ...(json.invoice ?? {}) } }),
+    invoiceDocumentJson({
+      ...json,
+      invoice: { status: "draft", number: null, ...(json.invoice ?? {}) },
+    }),
   );
   if (parsed === null) throw new Error("fixture");
   return parsed;
@@ -43,7 +53,12 @@ function open(props: Partial<{ onClose: () => void; onIssued: (value: unknown) =
   const onClose = props.onClose ?? vi.fn();
   const onIssued = props.onIssued ?? vi.fn();
   renderWithQueryClient(
-    <EventInvoiceDraftDialog eventId={INVOICE_IDS.event} invoiceId={INVOICE_IDS.draft} onClose={onClose} onIssued={onIssued} />,
+    <EventInvoiceDraftDialog
+      eventId={INVOICE_IDS.event}
+      invoiceId={INVOICE_IDS.draft}
+      onClose={onClose}
+      onIssued={onIssued}
+    />,
   );
   return { onClose, onIssued };
 }
@@ -59,7 +74,12 @@ beforeEach(() => {
 describe("EventInvoiceDraftDialog", () => {
   it("zamkniete okno nie pyta o dokument", () => {
     renderWithQueryClient(
-      <EventInvoiceDraftDialog eventId={INVOICE_IDS.event} invoiceId={null} onClose={vi.fn()} onIssued={vi.fn()} />,
+      <EventInvoiceDraftDialog
+        eventId={INVOICE_IDS.event}
+        invoiceId={null}
+        onClose={vi.fn()}
+        onIssued={vi.fn()}
+      />,
     );
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(api.fetchEventInvoice).not.toHaveBeenCalled();
@@ -78,7 +98,9 @@ describe("EventInvoiceDraftDialog", () => {
   });
 
   it("wystawiony dokument jest tylko do odczytu; korekta ma wlasny tytul", async () => {
-    api.fetchEventInvoice.mockResolvedValue(draftDoc({ invoice: { status: "issued", kind: "correction", number: "KOR/1" } }));
+    api.fetchEventInvoice.mockResolvedValue(
+      draftDoc({ invoice: { status: "issued", kind: "correction", number: "KOR/1" } }),
+    );
     open();
     expect(await screen.findByText("adminEventInvoices.draft.readOnly")).toBeTruthy();
     expect(screen.getByText("adminEventInvoices.draft.titleCorrection")).toBeTruthy();
@@ -94,7 +116,9 @@ describe("EventInvoiceDraftDialog", () => {
     fireEvent.change(price, { target: { value: "100" } });
     expect(await screen.findByText(/adminEventInvoices\.draft\.sourcesMismatch/)).toBeTruthy();
     fireEvent.change(
-      screen.getByLabelText("adminEventInvoices.draft.line.vatRate", { selector: `#invoice-line-${INVOICE_IDS.line1}-rate` }),
+      screen.getByLabelText("adminEventInvoices.draft.line.vatRate", {
+        selector: `#invoice-line-${INVOICE_IDS.line1}-rate`,
+      }),
       { target: { value: "8" } },
     );
     const summary = screen.getByText("adminEventInvoices.draft.vatSummary").parentElement;
@@ -105,13 +129,16 @@ describe("EventInvoiceDraftDialog", () => {
   it("dodanie i usuniecie pozycji; nieczytelna kwota pozycji = kreska", async () => {
     api.fetchEventInvoice.mockResolvedValue(draftDoc());
     open();
-    const section = (await screen.findByText("adminEventInvoices.draft.linesSection")).parentElement;
+    const section = (await screen.findByText("adminEventInvoices.draft.linesSection"))
+      .parentElement;
     if (section === null) throw new Error("brak sekcji pozycji");
     fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.draft.addLine" }));
     const lines = within(section).getAllByRole("listitem");
     expect(lines).toHaveLength(3);
     expect(lines[2].textContent).toContain("adminEventInvoices.draft.line.gross: -");
-    fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.draft.removeLine(position=1)" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "adminEventInvoices.draft.removeLine(position=1)" }),
+    );
     expect(within(section).getAllByRole("listitem")).toHaveLength(2);
   });
 
@@ -119,10 +146,16 @@ describe("EventInvoiceDraftDialog", () => {
     api.fetchEventInvoice.mockResolvedValue(draftDoc());
     open();
     await screen.findByText("adminEventInvoices.draft.linesSection");
-    fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.draft.removeLine(position=1)" }));
-    fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.draft.removeLine(position=1)" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "adminEventInvoices.draft.removeLine(position=1)" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "adminEventInvoices.draft.removeLine(position=1)" }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.draft.save" }));
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("adminEventInvoices.draft.errors.fix"));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("adminEventInvoices.draft.errors.fix"),
+    );
     expect(screen.getByText("adminEventInvoices.draft.errors.noLines")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.draft.addLine" }));
     fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.draft.save" }));
@@ -134,12 +167,24 @@ describe("EventInvoiceDraftDialog", () => {
     api.fetchEventInvoice.mockResolvedValue(draftDoc());
     api.updateInvoiceDraft.mockResolvedValueOnce(INVOICE_IDS.draft);
     open();
-    fireEvent.change(await screen.findByLabelText("adminEventInvoices.draft.note"), { target: { value: " Uwaga " } });
-    fireEvent.change(screen.getByLabelText("adminEventInvoices.draft.paymentMethod"), { target: { value: "card" } });
-    fireEvent.change(screen.getByLabelText("adminEventInvoices.draft.locale"), { target: { value: "en" } });
-    fireEvent.change(screen.getByLabelText("adminEventInvoices.draft.saleDate"), { target: { value: "2026-09-21" } });
-    fireEvent.change(screen.getByLabelText("adminEventInvoices.draft.dueDate"), { target: { value: "" } });
-    fireEvent.change(screen.getByLabelText("eventInvoices.buyer.city"), { target: { value: "Sopot" } });
+    fireEvent.change(await screen.findByLabelText("adminEventInvoices.draft.note"), {
+      target: { value: " Uwaga " },
+    });
+    fireEvent.change(screen.getByLabelText("adminEventInvoices.draft.paymentMethod"), {
+      target: { value: "card" },
+    });
+    fireEvent.change(screen.getByLabelText("adminEventInvoices.draft.locale"), {
+      target: { value: "en" },
+    });
+    fireEvent.change(screen.getByLabelText("adminEventInvoices.draft.saleDate"), {
+      target: { value: "2026-09-21" },
+    });
+    fireEvent.change(screen.getByLabelText("adminEventInvoices.draft.dueDate"), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByLabelText("eventInvoices.buyer.city"), {
+      target: { value: "Sopot" },
+    });
     fireEvent.change(
       screen.getByLabelText("adminEventInvoices.draft.line.description", {
         selector: `#invoice-line-${INVOICE_IDS.line1}-description`,
@@ -147,7 +192,9 @@ describe("EventInvoiceDraftDialog", () => {
       { target: { value: "Bilet VIP" } },
     );
     fireEvent.change(
-      screen.getByLabelText("adminEventInvoices.draft.line.unit", { selector: `#invoice-line-${INVOICE_IDS.line1}-unit` }),
+      screen.getByLabelText("adminEventInvoices.draft.line.unit", {
+        selector: `#invoice-line-${INVOICE_IDS.line1}-unit`,
+      }),
       { target: { value: "os." } },
     );
     fireEvent.change(
@@ -157,7 +204,9 @@ describe("EventInvoiceDraftDialog", () => {
       { target: { value: "2" } },
     );
     fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.draft.save" }));
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("adminEventInvoices.toasts.saved"));
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("adminEventInvoices.toasts.saved"),
+    );
     const input = api.updateInvoiceDraft.mock.calls[0]?.[0];
     expect(input).toMatchObject({
       id: INVOICE_IDS.invoice,
@@ -168,7 +217,12 @@ describe("EventInvoiceDraftDialog", () => {
       dueDate: null,
       buyer: expect.objectContaining({ city: "Sopot" }),
     });
-    expect(input.lines[0]).toMatchObject({ description: "Bilet VIP", unit: "os.", quantity: 2, unitGrossCents: 12300 });
+    expect(input.lines[0]).toMatchObject({
+      description: "Bilet VIP",
+      unit: "os.",
+      quantity: 2,
+      unitGrossCents: 12300,
+    });
     api.updateInvoiceDraft.mockRejectedValueOnce(new Error("not_draft: x"));
     fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.draft.save" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
@@ -176,7 +230,10 @@ describe("EventInvoiceDraftDialog", () => {
 
   it("korekta: pole przyczyny wymagane", async () => {
     api.fetchEventInvoice.mockResolvedValue(
-      draftDoc({ invoice: { kind: "correction", correction_mode: "full", correction_reason: "" }, sources: [] }),
+      draftDoc({
+        invoice: { kind: "correction", correction_mode: "full", correction_reason: "" },
+        sources: [],
+      }),
     );
     open();
     const reason = await screen.findByLabelText("adminEventInvoices.draft.correctionReason");
@@ -194,7 +251,9 @@ describe("EventInvoiceDraftDialog", () => {
     api.issueInvoice.mockResolvedValue({ id: INVOICE_IDS.invoice, number: "FV/2026/09/0001" });
     const { onClose, onIssued } = open();
     fireEvent.click(await screen.findByRole("button", { name: "adminEventInvoices.draft.issue" }));
-    await waitFor(() => expect(onIssued).toHaveBeenCalledWith({ id: INVOICE_IDS.invoice, number: "FV/2026/09/0001" }));
+    await waitFor(() =>
+      expect(onIssued).toHaveBeenCalledWith({ id: INVOICE_IDS.invoice, number: "FV/2026/09/0001" }),
+    );
     expect(onClose).toHaveBeenCalled();
     expect(h.confirmCalls).toBe(1);
     expect(api.updateInvoiceDraft).not.toHaveBeenCalled();
@@ -206,7 +265,9 @@ describe("EventInvoiceDraftDialog", () => {
     api.updateInvoiceDraft.mockResolvedValue(INVOICE_IDS.draft);
     h.confirm = false;
     open();
-    fireEvent.change(await screen.findByLabelText("adminEventInvoices.draft.note"), { target: { value: "x" } });
+    fireEvent.change(await screen.findByLabelText("adminEventInvoices.draft.note"), {
+      target: { value: "x" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.draft.issue" }));
     await waitFor(() => expect(h.confirmCalls).toBe(1));
     expect(api.updateInvoiceDraft).toHaveBeenCalledTimes(1);
@@ -217,7 +278,9 @@ describe("EventInvoiceDraftDialog", () => {
     api.fetchEventInvoice.mockResolvedValue(draftDoc());
     api.updateInvoiceDraft.mockRejectedValue(new Error("invalid_tax_id: x"));
     open();
-    fireEvent.change(await screen.findByLabelText("adminEventInvoices.draft.note"), { target: { value: "x" } });
+    fireEvent.change(await screen.findByLabelText("adminEventInvoices.draft.note"), {
+      target: { value: "x" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.draft.issue" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
     expect(h.confirmCalls).toBe(0);
@@ -245,8 +308,12 @@ describe("EventInvoiceDraftDialog", () => {
     api.fetchEventInvoice.mockResolvedValue(draftDoc());
     const { onClose } = open();
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(await within(dialog).findByRole("button", { name: "adminEventInvoices.draft.preview" }));
-    expect(pdf.downloadEventInvoicePdf).toHaveBeenCalledWith(expect.objectContaining({ id: INVOICE_IDS.invoice }));
+    fireEvent.click(
+      await within(dialog).findByRole("button", { name: "adminEventInvoices.draft.preview" }),
+    );
+    expect(pdf.downloadEventInvoicePdf).toHaveBeenCalledWith(
+      expect.objectContaining({ id: INVOICE_IDS.invoice }),
+    );
     fireEvent.click(within(dialog).getByRole("button", { name: "adminEventInvoices.draft.close" }));
     expect(onClose).toHaveBeenCalled();
   });

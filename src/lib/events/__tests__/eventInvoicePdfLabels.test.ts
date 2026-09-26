@@ -29,7 +29,14 @@ describe("eventInvoicePdfLabels", () => {
     expect(labels.title).toBe("Faktura VAT");
     expect(labels.paymentMethodValue).toBe("przelew");
     expect(labels.columns.unitNet).toBe("Cena netto");
-    expect(labels.rates).toEqual({ "23": "23%", "8": "8%", "5": "5%", "0": "0%", zw: "zw", np: "np" });
+    expect(labels.rates).toEqual({
+      "23": "23%",
+      "8": "8%",
+      "5": "5%",
+      "0": "0%",
+      zw: "zw",
+      np: "np",
+    });
     expect(labels.page(2, 3)).toBe("Strona 2 z 3");
     expect(labels.fileStem).toBe("faktura");
     await i18n.changeLanguage("pl");
@@ -38,7 +45,12 @@ describe("eventInvoicePdfLabels", () => {
   it("angielska korekta: tytul, naglowek korekty z numerem i data, rdzen pliku", () => {
     const labels = eventInvoicePdfLabels(
       doc({
-        invoice: { kind: "correction", locale: "en", payment_method: "card", correction_mode: "full" },
+        invoice: {
+          kind: "correction",
+          locale: "en",
+          payment_method: "card",
+          correction_mode: "full",
+        },
         corrects: { id: "x", number: "FV/2026/09/0001", issue_date: "2026-09-10" },
       }),
     );
@@ -50,7 +62,9 @@ describe("eventInvoicePdfLabels", () => {
   });
 
   it("proforma i sposob 'inny'; brak faktury korygowanej = puste miejsca w zdaniu", () => {
-    const labels = eventInvoicePdfLabels(doc({ invoice: { kind: "proforma", payment_method: "other" } }));
+    const labels = eventInvoicePdfLabels(
+      doc({ invoice: { kind: "proforma", payment_method: "other" } }),
+    );
     expect(labels.title).toBe("Faktura proforma");
     expect(labels.paymentMethodValue).toBe("inny");
     expect(labels.correctsLine).toBe("Korekta do faktury  z dnia ");

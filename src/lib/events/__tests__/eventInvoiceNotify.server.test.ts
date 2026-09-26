@@ -12,9 +12,8 @@ const { sendTxEmail } = vi.hoisted(() => ({ sendTxEmail: vi.fn() }));
 
 vi.mock("@/lib/email/transactional.server", () => ({ sendTxEmail }));
 
-const { buildEventInvoiceNotice, notifyIssuedInvoices } = await import(
-  "@/lib/events/eventInvoiceNotify.server"
-);
+const { buildEventInvoiceNotice, notifyIssuedInvoices } =
+  await import("@/lib/events/eventInvoiceNotify.server");
 
 const PAYLOAD: { [key: string]: Json } = {
   tenant_id: "tenant-1",
@@ -33,7 +32,10 @@ const PAYLOAD: { [key: string]: Json } = {
   recipient: " ksiegowosc@acme.example.com ",
 };
 
-type Rpc = (name: string, args: { p_id: string }) => Promise<{ data: Json | null; error: { message: string } | null }>;
+type Rpc = (
+  name: string,
+  args: { p_id: string },
+) => Promise<{ data: Json | null; error: { message: string } | null }>;
 
 interface RpcSurface {
   rpc: Rpc;
@@ -64,17 +66,35 @@ describe("buildEventInvoiceNotice", () => {
       lang: "pl",
       subjectName: "Kongres 27",
     });
-    expect(notice?.details.map((detail) => detail.label)).toEqual(["Wydarzenie", "Numer dokumentu", "Kwota"]);
+    expect(notice?.details.map((detail) => detail.label)).toEqual([
+      "Wydarzenie",
+      "Numer dokumentu",
+      "Kwota",
+    ]);
     expect(notice?.details[1].value).toBe("FV/2026/09/0001");
     expect(notice?.details[2].value).toMatch(/246,01/);
   });
 
   it("angielski dokument: angielski tytul i etykiety; bez tytulu - bez wiersza wydarzenia", () => {
-    const en = buildEventInvoiceNotice({ ...PAYLOAD, locale: "en", currency: "EUR", gross_cents: 5000 });
+    const en = buildEventInvoiceNotice({
+      ...PAYLOAD,
+      locale: "en",
+      currency: "EUR",
+      gross_cents: 5000,
+    });
     expect(en?.lang).toBe("en");
     expect(en?.subjectName).toBe("Congress 27");
-    expect(en?.details.map((detail) => detail.label)).toEqual(["Event", "Document number", "Amount"]);
-    const untitled = buildEventInvoiceNotice({ ...PAYLOAD, event_title_pl: "", gross_cents: "x", currency: "" });
+    expect(en?.details.map((detail) => detail.label)).toEqual([
+      "Event",
+      "Document number",
+      "Amount",
+    ]);
+    const untitled = buildEventInvoiceNotice({
+      ...PAYLOAD,
+      event_title_pl: "",
+      gross_cents: "x",
+      currency: "",
+    });
     expect(untitled?.details.map((detail) => detail.label)).toEqual(["Numer dokumentu", "Kwota"]);
     expect(untitled?.details[1].value).toMatch(/0,00/);
   });
@@ -113,7 +133,9 @@ describe("notifyIssuedInvoices", () => {
     const result = await notifyIssuedInvoices(client(rpc), ["a", "b", "c", "d", "e"]);
     expect(result).toEqual({ sent: 1, skipped: 2, failed: 2 });
     expect(rpc).toHaveBeenCalledTimes(5);
-    expect(rpc.mock.calls.every(([name]) => name === "admin_event_invoice_notify_payload")).toBe(true);
+    expect(rpc.mock.calls.every(([name]) => name === "admin_event_invoice_notify_payload")).toBe(
+      true,
+    );
     expect(sendTxEmail).toHaveBeenCalledTimes(3);
     expect(sendTxEmail.mock.calls[0]?.[0]).toMatchObject({
       type: "event_invoice_issued",
@@ -124,12 +146,18 @@ describe("notifyIssuedInvoices", () => {
       tenantId: "tenant-1",
       idempotencyKey: "event-invoice:a:issued",
     });
-    expect(sendTxEmail.mock.calls[1]?.[0]).toMatchObject({ idempotencyKey: "event-invoice:d:issued" });
+    expect(sendTxEmail.mock.calls[1]?.[0]).toMatchObject({
+      idempotencyKey: "event-invoice:d:issued",
+    });
   });
 
   it("pusta lista = nic", async () => {
     const rpc = vi.fn<Rpc>();
-    await expect(notifyIssuedInvoices(client(rpc), [])).resolves.toEqual({ sent: 0, skipped: 0, failed: 0 });
+    await expect(notifyIssuedInvoices(client(rpc), [])).resolves.toEqual({
+      sent: 0,
+      skipped: 0,
+      failed: 0,
+    });
     expect(rpc).not.toHaveBeenCalled();
   });
 });

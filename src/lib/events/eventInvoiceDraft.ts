@@ -74,7 +74,8 @@ export const DOCUMENT_ERROR_KEYS = {
   reasonRequired: "adminEventInvoices.draft.errors.reasonRequired",
 } as const;
 
-export type InvoiceDocumentErrorKey = (typeof DOCUMENT_ERROR_KEYS)[keyof typeof DOCUMENT_ERROR_KEYS];
+export type InvoiceDocumentErrorKey =
+  (typeof DOCUMENT_ERROR_KEYS)[keyof typeof DOCUMENT_ERROR_KEYS];
 
 export interface InvoiceDocumentErrors {
   buyer: InvoiceBuyerErrors;
