@@ -25,6 +25,7 @@ import type {
   SeatsUpdateInput,
 } from "@/lib/events/seatingApi";
 import type { SectionLayoutParams } from "@/lib/events/seatingGeometry";
+import { CHART_PLATE, contrastRatio } from "@/lib/charts/palette";
 
 export const SEAT_MAP_NAME_MAX = 120;
 export const SEAT_MAP_SIZE_MIN = 200;
@@ -46,6 +47,13 @@ export const SEAT_CATEGORY_KEY_PATTERN = /^[a-z][a-z0-9_]{1,48}$/;
 export const SEAT_CATEGORY_NAME_MAX = 80;
 export const SEAT_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 export const SEAT_NOTE_MAX = 200;
+
+/** Stan miejsca -> klucz napisu (tabela, szczegol, opis na plotnie, dialog stanu). */
+export const SEAT_STATUS_LABEL_KEYS = {
+  available: "adminEventSeating.seatStatus.available",
+  blocked: "adminEventSeating.seatStatus.blocked",
+  held: "adminEventSeating.seatStatus.held",
+} as const satisfies Record<SeatStatus, string>;
 
 function numberOrNull(value: string): number | null {
   const trimmed = value.trim().replace(",", ".");
@@ -401,6 +409,23 @@ export function sectionDraftToInput(draft: SectionDraft, mapId: string): Section
 // ---------------------------------------------------------------------------
 // KATEGORIA
 // ---------------------------------------------------------------------------
+
+/** Kolor startowy nowej kategorii - czytelny na plycie jasnej i ciemnej. */
+export const DEFAULT_CATEGORY_COLOR = "#2563EB";
+
+/** Minimalny kontrast obiektu graficznego z tlem (WCAG 1.4.11). */
+export const CATEGORY_MIN_CONTRAST = 3;
+
+/**
+ * Najslabszy kontrast koloru z obiema plytami planu albo `null` dla zlego
+ * formatu. Kategoria rysuje obrys i wypelnienie miejsca, wiec kolor zlewajacy
+ * sie z plyta jasna albo ciemna robi z miejsca niewidzialne kolko. Ten sam
+ * wspolczynnik, ktorego uzywa silnik wykresow (`lib/charts/palette`).
+ */
+export function weakestPlateContrast(color: string): number | null {
+  if (!SEAT_COLOR_PATTERN.test(color)) return null;
+  return Math.min(contrastRatio(color, CHART_PLATE.light), contrastRatio(color, CHART_PLATE.dark));
+}
 
 export interface CategoryDraft {
   id: string | null;

@@ -430,6 +430,31 @@ function fail(error: { message: string } | null): void {
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Wiersz listy planow -> ksztalt dialogu edycji. Lista niesie KOMPLET pol
+ * planu, razem ze scena - bez niej zapis z listy czyscilby scene narysowana
+ * w planie. Scena jest tylko wtedy, gdy baza oddala wszystkie cztery wymiary.
+ */
+export function mapInfoFromRow(row: SeatMapRow): SeatMapInfo {
+  const stage =
+    row.stage_x === null || row.stage_y === null || row.stage_w === null || row.stage_h === null
+      ? null
+      : { x: row.stage_x, y: row.stage_y, w: row.stage_w, h: row.stage_h };
+  return {
+    id: row.id,
+    eventId: row.event_id,
+    name: row.name,
+    roomId: row.room_id,
+    sessionId: row.session_id,
+    status: row.status === "published" ? "published" : "draft",
+    width: row.width,
+    height: row.height,
+    stage,
+    sortOrder: row.sort_order,
+    publishedAt: row.published_at,
+  };
+}
+
 export async function fetchSeatMaps(eventId: string): Promise<SeatMapRow[]> {
   const { data, error } = await supabase.rpc("admin_event_seat_maps_list", { p_event_id: eventId });
   fail(error);
@@ -736,6 +761,11 @@ export async function releaseSeats(input: SeatReleaseInput): Promise<number> {
   });
   fail(error);
   return Number(data ?? 0);
+}
+
+/** Imie i nazwisko kandydata do rozsadzenia - jedna definicja dla listy i przydzialu. */
+export function candidateName(row: SeatingCandidateRow): string {
+  return `${row.first_name} ${row.last_name}`.trim();
 }
 
 export interface SeatingCandidatesQuery {

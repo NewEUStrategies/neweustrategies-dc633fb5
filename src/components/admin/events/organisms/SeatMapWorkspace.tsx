@@ -33,14 +33,8 @@ import {
   type SeatExportCompany,
 } from "@/components/admin/events/molecules/SeatExportMenu";
 import { SeatHoldDialog } from "@/components/admin/events/molecules/SeatHoldDialog";
-import {
-  SEAT_STATUS_LABEL_KEYS,
-  SeatMapTable,
-} from "@/components/admin/events/molecules/SeatMapTable";
-import {
-  SeatingAttendeesPanel,
-  candidateName,
-} from "@/components/admin/events/organisms/SeatingAttendeesPanel";
+import { SeatMapTable } from "@/components/admin/events/molecules/SeatMapTable";
+import { SeatingAttendeesPanel } from "@/components/admin/events/organisms/SeatingAttendeesPanel";
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,6 +52,7 @@ import {
 } from "@/lib/lucide-shim";
 import { adminSeatingErrorMessage, adminSeatingFailure } from "@/lib/events/adminSeatingErrors";
 import {
+  candidateName,
   fetchSeatingExport,
   type Seat,
   type SeatCategory,
@@ -67,6 +62,7 @@ import {
   type SeatStatus,
 } from "@/lib/events/seatingApi";
 import { seatingCsvRows, seatingPersonName } from "@/lib/events/seatingCsv";
+import { SEAT_STATUS_LABEL_KEYS } from "@/lib/events/seatingDraft";
 import { seatDropTarget } from "@/lib/events/seatingDnd";
 import { seatLabelMessage, seatLabelMessageFromRow } from "@/lib/events/seatLabel";
 import { seatPlanPrintHtml } from "@/lib/events/seatPlanPrintDocument";

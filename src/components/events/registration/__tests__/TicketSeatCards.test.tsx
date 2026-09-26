@@ -1,6 +1,6 @@
 // Molekuła „miejsce na sali" na stronie biletu.
 //
-// CO TEN PLIK DOWODZI.
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - każdy punkt to gwarancja, która znika.
 //   1. Kod biletu idzie do hooka w CAŁOŚCI (fragment), a nie w kluczu - klucz
 //      i sama warstwa danych mają testy w `mySeatsApi.test.ts`.
 //   2. PUSTO = NIC: bilet bez miejsca (brak planu, plan w szkicu, obcy kod)

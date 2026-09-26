@@ -1,6 +1,6 @@
 // Organizm „plan sali” w studiu - lista planów albo jeden plan.
 //
-// CO TEN PLIK DOWODZI.
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - każdy punkt to gwarancja, która znika.
 //   1. OTWARTY PLAN Z ADRESU: `mapId` podany przez trasę pokazuje przestrzeń
 //      roboczą, a „wstecz” prosi trasę o listę (`onOpenMap(null)`).
 //   2. LICZNIKI Z BAZY: kafelki pokazują liczby z `admin_event_seat_maps_list`,
@@ -110,7 +110,7 @@ vi.mock("@/components/admin/events/molecules/EventSeatMapDialog", () => ({
   },
 }));
 
-import { SeatingPanel, mapInfoFromRow } from "@/components/admin/events/organisms/SeatingPanel";
+import { SeatingPanel } from "@/components/admin/events/organisms/SeatingPanel";
 import { SEAT_EVENT_ID, SEAT_MAP_ID, seatMapRow } from "@/test/events/seatingFixtures";
 
 const L = "adminEventSeating.list";
@@ -147,18 +147,6 @@ function panel(mapId: string | null = null) {
 
 const klik = (name: string) => fireEvent.click(screen.getByRole("button", { name }));
 
-describe("mapInfoFromRow", () => {
-  it("niesie scenę tylko wtedy, gdy wszystkie cztery wymiary są w wierszu", () => {
-    expect(mapInfoFromRow(seatMapRow()).stage).toBeNull();
-    expect(
-      mapInfoFromRow(seatMapRow({ stage_x: 1, stage_y: 2, stage_w: 3, stage_h: 4 })).stage,
-    ).toEqual({ x: 1, y: 2, w: 3, h: 4 });
-    expect(mapInfoFromRow(seatMapRow({ stage_x: 1, stage_y: 2, stage_w: 3 })).stage).toBeNull();
-    expect(mapInfoFromRow(seatMapRow({ status: "cokolwiek" })).status).toBe("draft");
-    expect(mapInfoFromRow(seatMapRow({ status: "published" })).status).toBe("published");
-  });
-});
-
 describe("SeatingPanel - otwarty plan", () => {
   it("identyfikator z adresu pokazuje przestrzeń roboczą, a „wstecz” prosi o listę", () => {
     const { onOpenMap } = panel("m-1");
@@ -177,7 +165,9 @@ describe("SeatingPanel - lista planów", () => {
 
     const plan = screen.getAllByRole("listitem")[0] as HTMLElement;
     expect(within(plan).getByRole("heading", { name: "Gala" })).toBeTruthy();
-    expect(within(plan).getByText(`${L}.room(name=Sala A) · ${L}.session(title=Gala)`)).toBeTruthy();
+    expect(
+      within(plan).getByText(`${L}.room(name=Sala A) · ${L}.session(title=Gala)`),
+    ).toBeTruthy();
     expect(within(plan).getByText("20")).toBeTruthy();
     expect(within(plan).getByText("6")).toBeTruthy();
     expect(within(plan).getByText("adminEventSeating.status.draft")).toBeTruthy();
@@ -247,9 +237,7 @@ describe("SeatingPanel - lista planów", () => {
 
     h.deleteError = new Error("map_has_assignments: 4");
     klik(`${L}.delete(name=Gala)`);
-    await waitFor(() =>
-      expect(h.toastError).toHaveBeenCalledWith("odmowa:map_has_assignments: 4"),
-    );
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("odmowa:map_has_assignments: 4"));
   });
 });
 

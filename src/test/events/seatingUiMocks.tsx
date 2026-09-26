@@ -38,18 +38,18 @@ export function formSelectModule(): { FormSelect: (props: FormSelectStubProps) =
     }: FormSelectStubProps) => (
       <>
         <select
-        id={id}
-        aria-label={ariaLabel}
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onValueChange(event.target.value)}
-      >
-        {placeholder === undefined ? null : <option value="">{placeholder}</option>}
-        {options.map((option) => (
-          <option key={option.value} value={option.value} disabled={option.disabled}>
-            {option.label}
-          </option>
-        ))}
+          id={id}
+          aria-label={ariaLabel}
+          value={value}
+          disabled={disabled}
+          onChange={(event) => onValueChange(event.target.value)}
+        >
+          {placeholder === undefined ? null : <option value="">{placeholder}</option>}
+          {options.map((option) => (
+            <option key={option.value} value={option.value} disabled={option.disabled}>
+              {option.label}
+            </option>
+          ))}
         </select>
         {error === null || error === undefined ? null : <p role="alert">{error}</p>}
       </>

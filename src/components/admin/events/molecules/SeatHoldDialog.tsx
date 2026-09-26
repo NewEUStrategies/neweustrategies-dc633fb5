@@ -35,6 +35,7 @@ import { SEAT_STATUSES, type SeatStatus, type SeatsUpdateInput } from "@/lib/eve
 import {
   HOLD_TARGETS,
   SEAT_NOTE_MAX,
+  SEAT_STATUS_LABEL_KEYS,
   emptyHoldDraft,
   holdDraftToInput,
   validateHoldDraft,
@@ -49,12 +50,6 @@ import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { ensureSeatingI18n } from "@/lib/i18n-admin-event-seating";
 
 ensureSeatingI18n();
-
-const STATUS_LABEL_KEYS: Record<SeatStatus, string> = {
-  available: "adminEventSeating.seatStatus.available",
-  blocked: "adminEventSeating.seatStatus.blocked",
-  held: "adminEventSeating.seatStatus.held",
-};
 
 const TARGET_LABEL_KEYS: Record<HoldTarget, string> = {
   company: "adminEventSeating.holdDialog.targets.company",
@@ -256,7 +251,7 @@ export function SeatHoldDialog({
               value={draft.status}
               options={SEAT_STATUSES.map((value) => ({
                 value,
-                label: t(STATUS_LABEL_KEYS[value]),
+                label: t(SEAT_STATUS_LABEL_KEYS[value]),
               }))}
               onValueChange={(value) => set("status", value as SeatStatus)}
             />

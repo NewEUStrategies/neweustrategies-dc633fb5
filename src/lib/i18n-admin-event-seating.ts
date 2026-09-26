@@ -204,7 +204,8 @@ export const adminEventSeatingPl = {
       noSeat: "bez miejsca",
       seat: "miejsce: {{label}}",
       loadMore: "Pokaż więcej",
-      refine: "Pokazano {{shown}} z {{total}} - zawęź wyszukiwanie albo filtr, żeby zobaczyć resztę.",
+      refine:
+        "Pokazano {{shown}} z {{total}} - zawęź wyszukiwanie albo filtr, żeby zobaczyć resztę.",
       drag: "Przeciągnij na plan: {{name}}",
     },
     mapDialog: {

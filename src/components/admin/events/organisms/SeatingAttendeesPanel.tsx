@@ -22,7 +22,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GripVertical, Search } from "@/lib/lucide-shim";
 import { adminSeatingErrorMessage } from "@/lib/events/adminSeatingErrors";
-import { SEAT_CANDIDATES_PAGE, type SeatingCandidateRow } from "@/lib/events/seatingApi";
+import {
+  SEAT_CANDIDATES_PAGE,
+  candidateName,
+  type SeatingCandidateRow,
+} from "@/lib/events/seatingApi";
 import { useSeatingCandidates } from "@/lib/events/useEventSeating";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
@@ -40,10 +44,6 @@ export const CANDIDATE_DRAG_PREFIX = "seat-candidate:";
 export interface SeatingTicketOption {
   id: string;
   label: string;
-}
-
-export function candidateName(row: SeatingCandidateRow): string {
-  return `${row.first_name} ${row.last_name}`.trim();
 }
 
 function CandidateItem({

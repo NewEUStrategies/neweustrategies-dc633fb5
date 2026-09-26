@@ -20,7 +20,11 @@ import {
   type PlannerOptions,
   type PlannerSeat,
 } from "@/lib/events/seatingPlanner";
-import { seatingCandidate, seatMapDetail, seat as seatFixture } from "@/test/events/seatingFixtures";
+import {
+  seatingCandidate,
+  seatMapDetail,
+  seat as seatFixture,
+} from "@/test/events/seatingFixtures";
 
 function seat(id: string, sortKey: number, overrides: Partial<PlannerSeat> = {}): PlannerSeat {
   return {
@@ -121,8 +125,17 @@ describe("planer: kategorie i bilety", () => {
     ];
     const result = planSeating(
       seats,
-      [person("std"), person("vip", { ticketTypeId: "t-vip" }), person("nul", { ticketTypeId: null }), person("x")],
-      { ...OPTIONS, keepTogether: false, categoryTickets: { "cat-vip": ["t-vip"], "cat-open": [] } },
+      [
+        person("std"),
+        person("vip", { ticketTypeId: "t-vip" }),
+        person("nul", { ticketTypeId: null }),
+        person("x"),
+      ],
+      {
+        ...OPTIONS,
+        keepTogether: false,
+        categoryTickets: { "cat-vip": ["t-vip"], "cat-open": [] },
+      },
     );
     expect(result.proposals).toEqual([
       { seatId: "open", registrationId: "nul" },
@@ -174,7 +187,11 @@ describe("planer: rezerwacje i zespoły", () => {
       seat("r1p1", 1001),
       seat("r1p2", 1002),
     ];
-    const party = [person("lead"), person("guest1", { partyKey: "lead" }), person("guest2", { partyKey: "lead" })];
+    const party = [
+      person("lead"),
+      person("guest1", { partyKey: "lead" }),
+      person("guest2", { partyKey: "lead" }),
+    ];
     const result = planSeating(seats, party, OPTIONS);
     expect(result.proposals.map((entry) => entry.seatId)).toEqual(["r1p0", "r1p1", "r1p2"]);
   });
@@ -187,7 +204,10 @@ describe("planer: rezerwacje i zespoły", () => {
       seat("r1p0", 1000),
     ];
     const party = [person("lead"), person("g", { partyKey: "lead" })];
-    const result = planSeating(seats, party, { ...OPTIONS, categoryTickets: { "cat-vip": ["t-vip"] } });
+    const result = planSeating(seats, party, {
+      ...OPTIONS,
+      categoryTickets: { "cat-vip": ["t-vip"] },
+    });
     // Brak odcinka dla dwóch osób - siadają pojedynczo od przodu.
     expect(result.proposals).toEqual([
       { seatId: "r0p0", registrationId: "lead" },
@@ -220,16 +240,36 @@ describe("wejście planera z danych panelu", () => {
   it("miejsca: kategoria efektywna, firma sponsora, zajętość z przydziałów", () => {
     const detail = seatMapDetail();
     detail.seats.push(
-      seatFixture({ id: "seat-sp", sectionId: "sec-t", sortKey: 2, status: "held", holdSponsorId: "sp-1" }),
-      seatFixture({ id: "seat-sp2", sectionId: "sec-t", sortKey: 3, status: "held", holdSponsorId: "sp-x" }),
+      seatFixture({
+        id: "seat-sp",
+        sectionId: "sec-t",
+        sortKey: 2,
+        status: "held",
+        holdSponsorId: "sp-1",
+      }),
+      seatFixture({
+        id: "seat-sp2",
+        sectionId: "sec-t",
+        sortKey: 3,
+        status: "held",
+        holdSponsorId: "sp-x",
+      }),
       seatFixture({ id: "seat-orphan", sectionId: "sec-brak", sortKey: 0 }),
     );
     detail.seats[0] = { ...detail.seats[0], categoryId: "cat-own" };
     const seats = plannerSeatsFromDetail(detail, new Map([["sp-1", "co-sponsor"]]));
     const byId = new Map(seats.map((entry) => [entry.id, entry]));
     expect(byId.get("seat-a1")?.categoryId).toBe("cat-own");
-    expect(byId.get("seat-a2")).toMatchObject({ categoryId: "cat-vip", occupied: true, sectionOrder: 0 });
-    expect(byId.get("seat-t1")).toMatchObject({ holdCompanyId: "co-1", sectionOrder: 1, categoryId: null });
+    expect(byId.get("seat-a2")).toMatchObject({
+      categoryId: "cat-vip",
+      occupied: true,
+      sectionOrder: 0,
+    });
+    expect(byId.get("seat-t1")).toMatchObject({
+      holdCompanyId: "co-1",
+      sectionOrder: 1,
+      categoryId: null,
+    });
     expect(byId.get("seat-sp")?.holdCompanyId).toBe("co-sponsor");
     expect(byId.get("seat-sp2")?.holdCompanyId).toBeNull();
     // Miejsce bez sekcji w planie nie trafia do planera.

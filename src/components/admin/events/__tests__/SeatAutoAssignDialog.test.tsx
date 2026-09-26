@@ -1,6 +1,6 @@
 // Molekuła „auto-przydział miejsc" - propozycja, podgląd, zatwierdzenie.
 //
-// CO TEN PLIK DOWODZI.
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - każdy punkt to gwarancja, która znika.
 //   1. ZAMKNIĘTE OKNO NIE PYTA o kandydatów, sponsorów ani bilety.
 //   2. Podgląd pokazuje liczbę propozycji i osoby bez miejsca Z POWODEM, zanim
 //      cokolwiek trafi do bazy; przełączniki (rezerwacje najpierw, razem)
@@ -12,10 +12,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type {
-  SeatAssignBatchInput,
   SeatBatchResult,
   SeatingCandidateRow,
+  assignSeatsBatch,
 } from "@/lib/events/seatingApi";
+
+/** Ładunek jednej paczki - kształt wejścia `assignSeatsBatch`. */
+type SeatAssignBatchInput = Parameters<typeof assignSeatsBatch>[0];
 
 const h = vi.hoisted(() => ({
   candidateCalls: [] as { eventId: string; mapId: string; enabled: boolean }[],
@@ -324,7 +327,10 @@ describe("SeatAutoAssignDialog - zapis", () => {
 
   it("ponowne otwarcie czyści listę odrzuconych", async () => {
     h.results = [
-      { applied: 0, rejected: [{ seatId: "seat-t2", registrationId: "reg-3", code: "seat_taken" }] },
+      {
+        applied: 0,
+        rejected: [{ seatId: "seat-t2", registrationId: "reg-3", code: "seat_taken" }],
+      },
     ];
     const { props, rerender } = okno();
     fireEvent.click(zastosuj());

@@ -1,6 +1,6 @@
 // Molekuła „widok tabeli planu sali" - równorzędna droga do każdego miejsca.
 //
-// CO TEN PLIK DOWODZI.
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - każdy punkt to gwarancja, która znika.
 //   1. Wiersze idą w kolejności planu: sekcja po sekcji, w sekcji po `sort_key`
 //      (nie w kolejności, w jakiej baza oddała miejsca).
 //   2. Kategoria to nadpisanie miejsca albo kategoria sekcji, w języku
@@ -87,17 +87,19 @@ describe("SeatMapTable", () => {
     const { wiersz } = tabela({ detail });
 
     expect(within(wiersz("seat-a1")).getByText("VIP zone")).toBeTruthy();
-    expect(
-      within(wiersz("seat-a2")).getByText("adminEventSeating.table.noCategory"),
-    ).toBeTruthy();
+    expect(within(wiersz("seat-a2")).getByText("adminEventSeating.table.noCategory")).toBeTruthy();
   });
 
   it("zajęte - zwolnij; wolne przy wybranej osobie - posadź; zablokowane - nic", () => {
     h.lang = "pl";
     const { wiersz, props } = tabela({ canAssign: true });
 
-    fireEvent.click(within(wiersz("seat-a2")).getByRole("button", { name: "adminEventSeating.table.release" }));
-    fireEvent.click(within(wiersz("seat-a1")).getByRole("button", { name: "adminEventSeating.table.assign" }));
+    fireEvent.click(
+      within(wiersz("seat-a2")).getByRole("button", { name: "adminEventSeating.table.release" }),
+    );
+    fireEvent.click(
+      within(wiersz("seat-a1")).getByRole("button", { name: "adminEventSeating.table.assign" }),
+    );
     expect(within(wiersz("seat-a3")).queryByRole("button")).toBeNull();
     expect(props.onRelease).toHaveBeenCalledWith("seat-a2");
     expect(props.onAssign).toHaveBeenCalledWith("seat-a1");
@@ -118,7 +120,9 @@ describe("SeatMapTable", () => {
     expect(wiersz("seat-a1").getAttribute("data-state")).toBe("selected");
     expect(wiersz("seat-a2").getAttribute("data-state")).toBeNull();
     fireEvent.click(
-      screen.getByRole("checkbox", { name: "adminEventSeating.table.select(seat=miejsce seat-a2)" }),
+      screen.getByRole("checkbox", {
+        name: "adminEventSeating.table.select(seat=miejsce seat-a2)",
+      }),
     );
     expect(props.onToggle).toHaveBeenCalledWith("seat-a2");
   });

@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Download } from "@/lib/lucide-shim";
+import { downloadTextFile } from "@/lib/billing/exportHistory";
 import { adminSeatingErrorMessage } from "@/lib/events/adminSeatingErrors";
 import { fetchSeatingExport, type SeatExportRow } from "@/lib/events/seatingApi";
 import {
@@ -30,19 +31,6 @@ import { ensureSeatingI18n } from "@/lib/i18n-admin-event-seating";
 ensureSeatingI18n();
 
 const NONE = "__none__";
-
-/** Pobranie tekstu jako pliku - adres zwalniamy w nastepnej klatce (Safari). */
-export function downloadTextFile(fileName: string, content: string, mime: string): void {
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 0);
-}
 
 export interface SeatExportCompany {
   id: string;
@@ -74,15 +62,17 @@ export function SeatExportMenu({
     try {
       const rows = await fetchSeatingExport(mapId, company);
       const csv = seatingExportToCsv(rows, { mode, lang, seatText });
+      // Wspolny helper pobierania (dokleja `charset=utf-8`, zwalnia adres
+      // w nastepnej klatce - Safari przerywa pobieranie przy synchronicznym).
       downloadTextFile(
+        csv,
         seatingCsvFileName(
           eventSlug,
           mapName,
           company === null ? mode : "company",
           new Date().toISOString(),
         ),
-        csv,
-        "text/csv;charset=utf-8",
+        "text/csv",
       );
       toast.success(t("adminEventSeating.toasts.exported"));
     } catch (error: unknown) {

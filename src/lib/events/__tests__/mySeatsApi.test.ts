@@ -15,7 +15,8 @@ const h = vi.hoisted(() => ({ rpc: null as SupabaseRpcStub | null }));
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    rpc: (name: string, args?: Record<string, unknown>) => (h.rpc as SupabaseRpcStub).rpc(name, args),
+    rpc: (name: string, args?: Record<string, unknown>) =>
+      (h.rpc as SupabaseRpcStub).rpc(name, args),
   },
 }));
 
@@ -40,7 +41,15 @@ const CARD = {
     width: 1600,
     height: 900,
     stage: { x: 1, y: 2, w: 3, h: 4 },
-    section: { kind: "table", table_shape: "rect", origin_x: 5, origin_y: 6, rotation_deg: 7, seat_pitch: 40, row_pitch: 70 },
+    section: {
+      kind: "table",
+      table_shape: "rect",
+      origin_x: 5,
+      origin_y: 6,
+      rotation_deg: 7,
+      seat_pitch: 40,
+      row_pitch: 70,
+    },
     seats: [{ x: 1, y: 2, mine: true }, { x: 3, y: 4 }, { x: "a" }, null],
   },
 };
@@ -70,7 +79,15 @@ describe("parser kart miejsca", () => {
           width: 1600,
           height: 900,
           stage: { x: 1, y: 2, w: 3, h: 4 },
-          section: { kind: "table", tableShape: "rect", originX: 5, originY: 6, rotationDeg: 7, seatPitch: 40, rowPitch: 70 },
+          section: {
+            kind: "table",
+            tableShape: "rect",
+            originX: 5,
+            originY: 6,
+            rotationDeg: 7,
+            seatPitch: 40,
+            rowPitch: 70,
+          },
           seats: [
             { x: 1, y: 2, mine: true },
             { x: 3, y: 4, mine: false },
@@ -83,7 +100,12 @@ describe("parser kart miejsca", () => {
   it("braki: wartości domyślne, karta bez planu albo numeru pominięta", () => {
     const cards = api.parseMySeatCards({
       seats: [
-        { map_id: "m2", seat_number: 1, category: { color: null }, geometry: { stage: { x: 1 }, section: { table_shape: "oval" } } },
+        {
+          map_id: "m2",
+          seat_number: 1,
+          category: { color: null },
+          geometry: { stage: { x: 1 }, section: { table_shape: "oval" } },
+        },
         { map_id: "m3", seat_number: 2, section_kind: "rows" },
         { map_id: "bez-numeru" },
         "śmieć",
@@ -98,15 +120,24 @@ describe("parser kart miejsca", () => {
         width: 1200,
         height: 800,
         stage: null,
-        section: { kind: "rows", tableShape: null, originX: 0, originY: 0, rotationDeg: 0, seatPitch: 50, rowPitch: 60 },
+        section: {
+          kind: "rows",
+          tableShape: null,
+          originX: 0,
+          originY: 0,
+          rotationDeg: 0,
+          seatPitch: 50,
+          rowPitch: 60,
+        },
         seats: [],
       },
     });
     expect(cards[1]).toMatchObject({ category: null, geometry: { section: { tableShape: null } } });
     expect(api.parseMySeatCards(null)).toEqual([]);
     expect(
-      api.parseMySeatCards({ seats: [{ map_id: "m", seat_number: 1, geometry: { section: { table_shape: "round" } } }] })[0]
-        .geometry.section.tableShape,
+      api.parseMySeatCards({
+        seats: [{ map_id: "m", seat_number: 1, geometry: { section: { table_shape: "round" } } }],
+      })[0].geometry.section.tableShape,
     ).toBe("round");
   });
 });
@@ -123,7 +154,10 @@ describe("odczyty", () => {
   it("event_ticket_seats: kod QR zawsze, klucz samoobsługi tylko gdy jest", async () => {
     h.rpc?.setData("event_ticket_seats", { seats: [] });
     await api.fetchTicketSeats("gala", { qrToken: "q".repeat(32), manageToken: null });
-    expect(h.rpc?.lastCall("event_ticket_seats")?.arg("p_payload")).toEqual({ slug: "gala", qr_token: "q".repeat(32) });
+    expect(h.rpc?.lastCall("event_ticket_seats")?.arg("p_payload")).toEqual({
+      slug: "gala",
+      qr_token: "q".repeat(32),
+    });
     await api.fetchTicketSeats("gala", { qrToken: "q".repeat(32), manageToken: "m".repeat(32) });
     expect(h.rpc?.lastCall("event_ticket_seats")?.arg("p_payload")).toEqual({
       slug: "gala",
@@ -131,7 +165,9 @@ describe("odczyty", () => {
       manage_token: "m".repeat(32),
     });
     h.rpc?.setError("event_ticket_seats", "boom");
-    await expect(api.fetchTicketSeats("gala", { qrToken: "q", manageToken: null })).rejects.toThrow("boom");
+    await expect(api.fetchTicketSeats("gala", { qrToken: "q", manageToken: null })).rejects.toThrow(
+      "boom",
+    );
   });
 });
 

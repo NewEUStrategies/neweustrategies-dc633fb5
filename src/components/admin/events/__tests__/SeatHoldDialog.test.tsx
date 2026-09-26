@@ -1,6 +1,6 @@
 // Molekuła „stan wybranych miejsc" - wolne, blokada albo rezerwacja (CRM).
 //
-// CO TEN PLIK DOWODZI.
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - każdy punkt to gwarancja, która znika.
 //   1. Okno startuje ze stanem podanym przez organizm i czyści pracę przy
 //      każdym otwarciu.
 //   2. BLOKADA: powód opcjonalny; przełącznik „zwolnij osoby” TYLKO wtedy, gdy

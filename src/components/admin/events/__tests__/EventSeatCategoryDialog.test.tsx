@@ -1,6 +1,6 @@
 // Molekuła „formularz kategorii miejsc" - klucz, nazwy, kolor i bilety.
 //
-// CO TEN PLIK DOWODZI.
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - każdy punkt to gwarancja, która znika.
 //   1. Zamknięte okno nie pyta o bilety. Nowa kategoria startuje z kolorem
 //      czytelnym na obu płytach planu, bez ostrzeżenia o kontraście.
 //   2. Kolor zlewający się z płytą jasną albo ciemną dostaje OSTRZEŻENIE
@@ -34,12 +34,10 @@ vi.mock("@/lib/events/useEventRegistrations", () => ({
 }));
 
 import {
-  CATEGORY_MIN_CONTRAST,
-  DEFAULT_CATEGORY_COLOR,
   EventSeatCategoryDialog,
-  weakestPlateContrast,
   type EventSeatCategoryDialogProps,
 } from "@/components/admin/events/molecules/EventSeatCategoryDialog";
+import { DEFAULT_CATEGORY_COLOR } from "@/lib/events/seatingDraft";
 import { SEAT_EVENT_ID, seatCategory } from "@/test/events/seatingFixtures";
 
 const C = "adminEventSeating.categoryDialog";
@@ -71,17 +69,6 @@ const pole = (klucz: string) => screen.getByLabelText(`${C}.${klucz}`) as HTMLIn
 const wpisz = (klucz: string, value: string) =>
   fireEvent.change(pole(klucz), { target: { value } });
 const zapisz = () => fireEvent.click(screen.getByRole("button", { name: `${C}.save` }));
-
-describe("weakestPlateContrast", () => {
-  it("bierze SŁABSZY z dwóch kontrastów, a zły format daje null", () => {
-    expect(weakestPlateContrast(DEFAULT_CATEGORY_COLOR)).toBeGreaterThanOrEqual(
-      CATEGORY_MIN_CONTRAST,
-    );
-    expect(weakestPlateContrast("#FFFF00")).toBeLessThan(CATEGORY_MIN_CONTRAST);
-    expect(weakestPlateContrast("#111111")).toBeLessThan(CATEGORY_MIN_CONTRAST);
-    expect(weakestPlateContrast("niebieski")).toBeNull();
-  });
-});
 
 describe("EventSeatCategoryDialog", () => {
   it("zamknięte okno nie pyta o bilety i nic nie rysuje", () => {

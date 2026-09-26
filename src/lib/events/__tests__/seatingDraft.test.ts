@@ -20,6 +20,10 @@ import {
   mapDraftToInput,
   parseAisles,
   sectionDraftFromSection,
+  CATEGORY_MIN_CONTRAST,
+  DEFAULT_CATEGORY_COLOR,
+  SEAT_STATUS_LABEL_KEYS,
+  weakestPlateContrast,
   sectionDraftLayout,
   sectionDraftToInput,
   validateCategoryDraft,
@@ -52,11 +56,19 @@ describe("szkic planu", () => {
     expect(draft.stageEnabled).toBe(false);
     expect(draft.stageX).toBe(emptyMapDraft().stageX);
     const input = mapDraftToInput({ ...draft, width: "x", height: "" }, "ev-1");
-    expect(input).toMatchObject({ id: draft.id, roomId: "room-1", width: 1200, height: 800, stage: null });
+    expect(input).toMatchObject({
+      id: draft.id,
+      roomId: "room-1",
+      width: 1200,
+      height: 800,
+      stage: null,
+    });
     expect(input).not.toHaveProperty("eventId");
     const withStage = mapDraftFromMap(seatMapDetail().map);
     expect(withStage.stageW).toBe("400");
-    expect(mapDraftToInput({ ...withStage, stageX: "", stageY: "", stageW: "", stageH: "" }, "e").stage).toEqual({
+    expect(
+      mapDraftToInput({ ...withStage, stageX: "", stageY: "", stageW: "", stageH: "" }, "e").stage,
+    ).toEqual({
       x: 0,
       y: 0,
       w: 0,
@@ -82,7 +94,10 @@ describe("szkic planu", () => {
     expect(fields(validateMapDraft({ ...base, stageY: "" }))).toEqual(["stage"]);
     expect(fields(validateMapDraft({ ...base, stageEnabled: false, stageX: "zzz" }))).toEqual([]);
     // Szerokość nieczytelna - scena nie jest sprawdzana względem niej (błąd pola szerokości wystarcza).
-    expect(fields(validateMapDraft({ ...base, width: "", height: "" }))).toEqual(["width", "height"]);
+    expect(fields(validateMapDraft({ ...base, width: "", height: "" }))).toEqual([
+      "width",
+      "height",
+    ]);
   });
 });
 
@@ -123,12 +138,22 @@ describe("szkic sekcji", () => {
       tableShape: null,
       tableSeats: null,
     });
-    expect(sectionDraftLayout(draft)).toMatchObject({ kind: "rows", aisleAfter: [5], tableSeats: null });
+    expect(sectionDraftLayout(draft)).toMatchObject({
+      kind: "rows",
+      aisleAfter: [5],
+      tableSeats: null,
+    });
   });
 
   it("stół: wejście bez parametrów rzędów; edycja wysyła `id`", () => {
     const table = sectionDraftFromSection(
-      seatSection({ kind: "table", tableShape: "rect", tableSeats: 6, rowsCount: null, seatsPerRow: null }),
+      seatSection({
+        kind: "table",
+        tableShape: "rect",
+        tableSeats: 6,
+        rowsCount: null,
+        seatsPerRow: null,
+      }),
     );
     expect(table.rowsCount).toBe(emptySectionDraft("table").rowsCount);
     expect(validateSectionDraft(table)).toEqual([]);
@@ -145,7 +170,11 @@ describe("szkic sekcji", () => {
       tableSeats: 6,
     });
     expect(input).not.toHaveProperty("mapId");
-    expect(sectionDraftLayout(table)).toMatchObject({ kind: "table", rowsCount: null, tableShape: "rect" });
+    expect(sectionDraftLayout(table)).toMatchObject({
+      kind: "table",
+      rowsCount: null,
+      tableShape: "rect",
+    });
   });
 
   it("z sekcji z brakami: wartości domyślne zamiast null w polach formularza", () => {
@@ -171,7 +200,9 @@ describe("szkic sekcji", () => {
     expect(fields(validateSectionDraft(rows({ label: " " })))).toEqual(["label"]);
     expect(fields(validateSectionDraft(rows({ label: "x".repeat(61) })))).toEqual(["label"]);
     expect(fields(validateSectionDraft(rows({ rowsCount: "0" })))).toEqual(["rowsCount"]);
-    expect(fields(validateSectionDraft(rows({ seatsPerRow: "201", aisles: "" })))).toEqual(["seatsPerRow"]);
+    expect(fields(validateSectionDraft(rows({ seatsPerRow: "201", aisles: "" })))).toEqual([
+      "seatsPerRow",
+    ]);
     expect(fields(validateSectionDraft(rows({ rowsCount: "100", seatsPerRow: "30" })))).toEqual([
       "seatsPerRow",
     ]);
@@ -179,17 +210,28 @@ describe("szkic sekcji", () => {
     expect(fields(validateSectionDraft(rows({ aisles: "0" })))).toEqual(["aisles"]);
     expect(fields(validateSectionDraft(rows({ aisles: "x" })))).toEqual(["aisles"]);
     expect(
-      fields(validateSectionDraft(rows({ seatsPerRow: "100", aisles: Array.from({ length: 21 }, (_, i) => i + 1).join(",") }))),
+      fields(
+        validateSectionDraft(
+          rows({
+            seatsPerRow: "100",
+            aisles: Array.from({ length: 21 }, (_, i) => i + 1).join(","),
+          }),
+        ),
+      ),
     ).toEqual(["aisles"]);
     // Nieczytelna liczba miejsc - przejścia sprawdzamy tylko od dołu.
-    expect(fields(validateSectionDraft(rows({ seatsPerRow: "", aisles: "50" })))).toEqual(["seatsPerRow"]);
+    expect(fields(validateSectionDraft(rows({ seatsPerRow: "", aisles: "50" })))).toEqual([
+      "seatsPerRow",
+    ]);
     expect(fields(validateSectionDraft(rows({ rowLabelStart: "0" })))).toEqual(["rowLabelStart"]);
   });
 
   it("walidacja wspólna i stołu", () => {
     const table = { ...emptySectionDraft("table"), label: "5" };
     expect(fields(validateSectionDraft({ ...table, tableSeats: "25" }))).toEqual(["tableSeats"]);
-    expect(fields(validateSectionDraft({ ...table, seatNumberStart: "0" }))).toEqual(["seatNumberStart"]);
+    expect(fields(validateSectionDraft({ ...table, seatNumberStart: "0" }))).toEqual([
+      "seatNumberStart",
+    ]);
     expect(fields(validateSectionDraft({ ...table, seatPitch: "5", rowPitch: "501" }))).toEqual([
       "seatPitch",
       "rowPitch",
@@ -206,13 +248,26 @@ describe("szkic sekcji", () => {
   it("brak etykiety i polozenie poza planem nie gasza podgladu", () => {
     const fresh = emptySectionDraft("rows");
     expect(fields(validateSectionDraft(fresh))).toEqual(["label"]);
-    expect(sectionDraftLayout(fresh)).toMatchObject({ kind: "rows", rowsCount: 5, seatsPerRow: 10 });
+    expect(sectionDraftLayout(fresh)).toMatchObject({
+      kind: "rows",
+      rowsCount: 5,
+      seatsPerRow: 10,
+    });
     expect(sectionDraftLayout({ ...fresh, originX: "50000" })).not.toBeNull();
   });
 
   it("wejście z pustymi liczbami dostaje wartości domyślne (baza nie dostaje NaN)", () => {
     const input = sectionDraftToInput(
-      rows({ originX: "", originY: "", rotationDeg: "", rowLabelStart: "", seatNumberStart: "", seatPitch: "", rowPitch: "", aisles: "x" }),
+      rows({
+        originX: "",
+        originY: "",
+        rotationDeg: "",
+        rowLabelStart: "",
+        seatNumberStart: "",
+        seatPitch: "",
+        rowPitch: "",
+        aisles: "x",
+      }),
       "map-1",
     );
     expect(input).toMatchObject({
@@ -234,7 +289,13 @@ describe("szkic sekcji", () => {
 
 describe("szkic kategorii", () => {
   it("nowa: klucz sprawdzany i wysyłany, kolor wielkimi literami", () => {
-    const draft = { ...emptyCategoryDraft("#2563eb"), key: " vip ", namePl: "VIP", nameEn: "VIP", ticketTypeIds: ["t1"] };
+    const draft = {
+      ...emptyCategoryDraft("#2563eb"),
+      key: " vip ",
+      namePl: "VIP",
+      nameEn: "VIP",
+      ticketTypeIds: ["t1"],
+    };
     expect(validateCategoryDraft(draft)).toEqual([]);
     expect(categoryDraftToInput(draft, "ev-1")).toEqual({
       eventId: "ev-1",
@@ -257,17 +318,36 @@ describe("szkic kategorii", () => {
 
   it("walidacja: klucz, nazwy, kolor", () => {
     expect(
-      fields(validateCategoryDraft({ ...emptyCategoryDraft("red"), key: "V", namePl: "", nameEn: "x".repeat(81) })),
+      fields(
+        validateCategoryDraft({
+          ...emptyCategoryDraft("red"),
+          key: "V",
+          namePl: "",
+          nameEn: "x".repeat(81),
+        }),
+      ),
     ).toEqual(["key", "namePl", "nameEn", "color"]);
     expect(
-      fields(validateCategoryDraft({ ...emptyCategoryDraft("#000000"), key: "ok_1", namePl: "x".repeat(81), nameEn: " " })),
+      fields(
+        validateCategoryDraft({
+          ...emptyCategoryDraft("#000000"),
+          key: "ok_1",
+          namePl: "x".repeat(81),
+          nameEn: " ",
+        }),
+      ),
     ).toEqual(["namePl", "nameEn"]);
   });
 });
 
 describe("szkic stanu miejsc", () => {
   it("blokada: powód i zwolnienie; bez pól rezerwacji", () => {
-    const draft = { ...emptyHoldDraft("blocked"), blockReason: " Filar ", release: true, companyId: "co-1" };
+    const draft = {
+      ...emptyHoldDraft("blocked"),
+      blockReason: " Filar ",
+      release: true,
+      companyId: "co-1",
+    };
     expect(validateHoldDraft(draft)).toEqual([]);
     expect(holdDraftToInput(draft, "map-1", ["s1", "s2"])).toEqual({
       mapId: "map-1",
@@ -280,12 +360,20 @@ describe("szkic stanu miejsc", () => {
       holdNote: null,
       release: true,
     });
-    expect(fields(validateHoldDraft({ ...draft, blockReason: "x".repeat(201) }))).toEqual(["blockReason"]);
+    expect(fields(validateHoldDraft({ ...draft, blockReason: "x".repeat(201) }))).toEqual([
+      "blockReason",
+    ]);
     expect(holdDraftToInput({ ...draft, blockReason: " " }, "m", []).blockReason).toBeNull();
   });
 
   it("rezerwacja: wysyła WYŁĄCZNIE wybrany cel", () => {
-    const base = { ...emptyHoldDraft("held"), companyId: "co-1", sponsorId: "sp-1", packageOrderId: "po-1", note: " Prasa " };
+    const base = {
+      ...emptyHoldDraft("held"),
+      companyId: "co-1",
+      sponsorId: "sp-1",
+      packageOrderId: "po-1",
+      note: " Prasa ",
+    };
     expect(holdDraftToInput(base, "m", ["s"])).toMatchObject({
       holdCompanyId: "co-1",
       holdSponsorId: null,
@@ -311,7 +399,9 @@ describe("szkic stanu miejsc", () => {
   });
 
   it("wolne: wszystko wyczyszczone", () => {
-    expect(holdDraftToInput({ ...emptyHoldDraft("available"), note: "x", companyId: "c" }, "m", ["s"])).toMatchObject({
+    expect(
+      holdDraftToInput({ ...emptyHoldDraft("available"), note: "x", companyId: "c" }, "m", ["s"]),
+    ).toMatchObject({
       status: "available",
       holdCompanyId: null,
       holdNote: null,
@@ -326,7 +416,30 @@ describe("szkic stanu miejsc", () => {
     expect(fields(validateHoldDraft({ ...held, target: "sponsor" }))).toEqual(["target"]);
     expect(fields(validateHoldDraft({ ...held, target: "package" }))).toEqual(["target"]);
     expect(fields(validateHoldDraft({ ...held, target: "note" }))).toEqual(["note"]);
-    expect(fields(validateHoldDraft({ ...held, target: "note", note: "x".repeat(201) }))).toEqual(["note"]);
+    expect(fields(validateHoldDraft({ ...held, target: "note", note: "x".repeat(201) }))).toEqual([
+      "note",
+    ]);
     expect(validateHoldDraft({ ...held, companyId: "co-1" })).toEqual([]);
+  });
+});
+
+describe("kontrast koloru kategorii (weakestPlateContrast)", () => {
+  it("bierze SŁABSZY z dwóch kontrastów, a zły format daje null", () => {
+    expect(weakestPlateContrast(DEFAULT_CATEGORY_COLOR)).toBeGreaterThanOrEqual(
+      CATEGORY_MIN_CONTRAST,
+    );
+    expect(weakestPlateContrast("#FFFF00")).toBeLessThan(CATEGORY_MIN_CONTRAST);
+    expect(weakestPlateContrast("#111111")).toBeLessThan(CATEGORY_MIN_CONTRAST);
+    expect(weakestPlateContrast("niebieski")).toBeNull();
+  });
+});
+
+describe("klucze stanów miejsca", () => {
+  it("każdy stan z bazy ma własny napis w gałęzi seatStatus", () => {
+    expect(SEAT_STATUS_LABEL_KEYS).toEqual({
+      available: "adminEventSeating.seatStatus.available",
+      blocked: "adminEventSeating.seatStatus.blocked",
+      held: "adminEventSeating.seatStatus.held",
+    });
   });
 });

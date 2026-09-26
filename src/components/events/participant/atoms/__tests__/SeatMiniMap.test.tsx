@@ -1,6 +1,6 @@
 // Atom „mini-mapa miejsca uczestnika" - rysuje TYLKO to, co oddała baza.
 //
-// CO TEN PLIK DOWODZI.
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - każdy punkt to gwarancja, która znika.
 //   1. Kadr (viewBox) obejmuje miejsca własnej sekcji i scenę z marginesem
 //      jednej podziałki; bez sceny kadr zamyka się na samych miejscach.
 //   2. „Moje” miejsce jest wyróżnione większym promieniem i znacznikiem, a

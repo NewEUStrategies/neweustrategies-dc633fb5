@@ -1,7 +1,7 @@
 // Organizm „przestrzeń robocza planu sali" - SKLEJENIE płótna, tabeli,
 // szczegółu, uczestników, okien i pięciu mutacji.
 //
-// CO TEN PLIK DOWODZI.
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - każdy punkt to gwarancja, która znika.
 //   1. STANY: wczytywanie, odmowa i dopiero potem plan - z powrotem do listy
 //      w każdym z nich.
 //   2. PRZYDZIAŁ ROZSTRZYGA BAZA. Kliknięcie miejsca z wybraną osobą (albo
@@ -548,9 +548,9 @@ describe("SeatMapWorkspace - zaznaczenie", () => {
   it("widok tabeli dzieli zaznaczenie z płótnem i ma opis miejsca bez stanu", () => {
     przestrzen();
     klik(`${W}.viewTable`);
-    expect(screen.getByRole("button", { name: `${W}.viewTable` }).getAttribute("aria-pressed")).toBe(
-      "true",
-    );
+    expect(
+      screen.getByRole("button", { name: `${W}.viewTable` }).getAttribute("aria-pressed"),
+    ).toBe("true");
     expect(screen.getByText("eventSeating.label.rows(row=A,seat=1,section=A)")).toBeTruthy();
     klik("tabela:przelacz");
     expect(screen.getByText("zaznaczone:seat-a1")).toBeTruthy();
@@ -652,7 +652,10 @@ describe("SeatMapWorkspace - przydział", () => {
     const detail = seatMapDetail();
     h.detail = {
       ...detail,
-      assignments: [...detail.assignments, seatAssignment({ id: "as-7", seatId: "seat-t2", registrationId: "reg-7" })],
+      assignments: [
+        ...detail.assignments,
+        seatAssignment({ id: "as-7", seatId: "seat-t2", registrationId: "reg-7" }),
+      ],
     };
     h.results.assign = [new Error("seat_taken: x")];
     h.confirms = [true];
@@ -669,7 +672,10 @@ describe("SeatMapWorkspace - przydział", () => {
     const detail = seatMapDetail();
     h.detail = {
       ...detail,
-      assignments: [...detail.assignments, seatAssignment({ id: "as-7", seatId: "seat-t2", registrationId: "reg-7" })],
+      assignments: [
+        ...detail.assignments,
+        seatAssignment({ id: "as-7", seatId: "seat-t2", registrationId: "reg-7" }),
+      ],
     };
     h.results.assign = [new Error("seat_taken: x")];
     h.confirms = [false];
@@ -701,9 +707,14 @@ describe("SeatMapWorkspace - przydział", () => {
     h.dropTarget = { seatId: "seat-a1", registrationId: "reg-5", name: "Ewa Lis" };
     await act(async () => h.onDragEnd?.({}));
     await waitFor(() =>
-      expect(h.toastSuccess).toHaveBeenCalledWith("adminEventSeating.toasts.assigned(name=Ewa Lis)"),
+      expect(h.toastSuccess).toHaveBeenCalledWith(
+        "adminEventSeating.toasts.assigned(name=Ewa Lis)",
+      ),
     );
-    expect(wywolania("assign")[0]?.input).toMatchObject({ seatId: "seat-a1", registrationId: "reg-5" });
+    expect(wywolania("assign")[0]?.input).toMatchObject({
+      seatId: "seat-a1",
+      registrationId: "reg-5",
+    });
   });
 });
 

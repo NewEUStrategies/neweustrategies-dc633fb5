@@ -1,6 +1,6 @@
 // Molekuła „szczegół zaznaczonych miejsc" - kto siedzi i co można zrobić.
 //
-// CO TEN PLIK DOWODZI.
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - każdy punkt to gwarancja, która znika.
 //   1. Bez zaznaczenia - podpowiedź; kilka miejsc - liczba i akcje zbiorcze
 //      (zwolnienie TYLKO zajętych, bez przycisku, gdy żadne nie jest zajęte).
 //   2. Jedno miejsce: stan, rezerwacja (firma, potem sponsor, potem zamówienie),
@@ -89,10 +89,7 @@ describe("SeatDetailsCard - jedno miejsce", () => {
     karta({
       seats: [po("seat-a2")],
       occupantBySeat: new Map([
-        [
-          "seat-a2",
-          seatAssignment({ company: null, ticketNamePl: null, ticketNameEn: null }),
-        ],
+        ["seat-a2", seatAssignment({ company: null, ticketNamePl: null, ticketNameEn: null })],
       ]),
     });
     expect(screen.getByText("Anna Kowalska").parentElement?.childElementCount).toBe(1);
@@ -163,7 +160,9 @@ describe("SeatDetailsCard - jedno miejsce", () => {
   it("dostępność idzie przełącznikiem, a zmiana stanu - osobnym oknem", () => {
     const { props } = karta({ seats: [po("seat-t2")] });
 
-    const przelacznik = screen.getByRole("switch", { name: "adminEventSeating.details.accessible" });
+    const przelacznik = screen.getByRole("switch", {
+      name: "adminEventSeating.details.accessible",
+    });
     expect(przelacznik.getAttribute("aria-checked")).toBe("true");
     fireEvent.click(przelacznik);
     fireEvent.click(guzik("adminEventSeating.details.changeStatus"));

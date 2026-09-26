@@ -81,9 +81,9 @@ describe("generacja miejsc sekcji - braki w parametrach", () => {
     expect(
       generateSectionSeats({ ...ROWS, kind: "table", tableShape: "round", tableSeats: null }),
     ).toEqual([]);
-    expect(generateSectionSeats({ ...ROWS, kind: "table", tableShape: "rect", tableSeats: null })).toEqual(
-      [],
-    );
+    expect(
+      generateSectionSeats({ ...ROWS, kind: "table", tableShape: "rect", tableSeats: null }),
+    ).toEqual([]);
   });
 
   it("stół bez kształtu rysuje się jako okrągły", () => {
@@ -105,13 +105,23 @@ describe("przeniesienie na plan i obrys", () => {
   });
 
   it("boundsOf: obrys z marginesem; pusto = pudełko wokół zera", () => {
-    expect(boundsOf([{ x: 1, y: 5 }, { x: -3, y: 2 }], 1)).toEqual({ minX: -4, minY: 1, maxX: 2, maxY: 6 });
+    expect(
+      boundsOf(
+        [
+          { x: 1, y: 5 },
+          { x: -3, y: 2 },
+        ],
+        1,
+      ),
+    ).toEqual({ minX: -4, minY: 1, maxX: 2, maxY: 6 });
     expect(boundsOf([])).toEqual({ minX: -0, minY: -0, maxX: 0, maxY: 0 });
     expect(boundsOf([], 5)).toEqual({ minX: -5, minY: -5, maxX: 5, maxY: 5 });
   });
 
   it("planViewBox obejmuje plan i to, co z niego wystaje", () => {
-    expect(planViewBox(1000, 500, { minX: 10, minY: 10, maxX: 900, maxY: 400 })).toBe("0 0 1000 500");
+    expect(planViewBox(1000, 500, { minX: 10, minY: 10, maxX: 900, maxY: 400 })).toBe(
+      "0 0 1000 500",
+    );
     expect(planViewBox(1000, 500, { minX: -20, minY: -10, maxX: 1100, maxY: 600 })).toBe(
       "-20 -10 1120 610",
     );

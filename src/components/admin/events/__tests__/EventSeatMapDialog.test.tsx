@@ -1,6 +1,6 @@
 // Molekuła „formularz planu sali" - nazwa, sala, sesja, rozmiar i scena.
 //
-// CO TEN PLIK DOWODZI.
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - każdy punkt to gwarancja, która znika.
 //   1. ZAMKNIĘTE OKNO NIE PYTA o sale i sesje (zapytania dostają `null`).
 //   2. Nowy plan startuje z domyślnym rozmiarem i sceną; edycja - z danych
 //      planu, a odświeżenie listy w tle (nowa referencja tego samego planu)
@@ -96,7 +96,9 @@ describe("EventSeatMapDialog", () => {
   it("nowy plan: domyślny rozmiar i scena, błąd nazwy dopiero po próbie zapisu", () => {
     const { props } = okno();
 
-    expect(screen.getByRole("heading", { name: "adminEventSeating.mapDialog.createTitle" })).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "adminEventSeating.mapDialog.createTitle" }),
+    ).toBeTruthy();
     expect(pole("adminEventSeating.mapDialog.width").value).toBe("1200");
     expect(pole("adminEventSeating.mapDialog.stageX").value).toBe("400");
     expect(screen.queryByText("adminEventSeating.mapDialog.validation.nameRequired")).toBeNull();
@@ -156,7 +158,9 @@ describe("EventSeatMapDialog", () => {
   it("edycja startuje z danych planu, a „bez sali” i wyłączona scena to null", () => {
     const { props } = okno({ map: PLAN });
 
-    expect(screen.getByRole("heading", { name: "adminEventSeating.mapDialog.editTitle" })).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "adminEventSeating.mapDialog.editTitle" }),
+    ).toBeTruthy();
     expect(pole("adminEventSeating.mapDialog.name").value).toBe("Gala");
     expect(screen.queryByLabelText("adminEventSeating.mapDialog.stageX")).toBeNull();
     fireEvent.change(pole("adminEventSeating.mapDialog.room"), { target: { value: "__none__" } });
@@ -200,6 +204,8 @@ describe("EventSeatMapDialog", () => {
 
     rerender(<EventSeatMapDialog {...props} isSaving />);
     expect(screen.getByRole("button", { name: "adminEventSeating.mapDialog.save" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "adminEventSeating.mapDialog.cancel" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "adminEventSeating.mapDialog.cancel" }),
+    ).toBeDisabled();
   });
 });

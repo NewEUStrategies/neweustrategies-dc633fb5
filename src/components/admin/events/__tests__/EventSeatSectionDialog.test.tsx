@@ -1,6 +1,6 @@
 // Molekuła „formularz sekcji" z PODGLĄDEM NA ŻYWO.
 //
-// CO TEN PLIK DOWODZI.
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - każdy punkt to gwarancja, która znika.
 //   1. Nowa sekcja rzędów i nowy stół mają różne tytuły i różne pola (rzędy:
 //      liczba rzędów, miejsc, schemat, numeracja, przejścia; stół: kształt
 //      i liczba krzeseł). Przełączenie rodzaju w oknie przełącza pola.

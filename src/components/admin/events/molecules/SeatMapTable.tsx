@@ -18,18 +18,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { Seat, SeatAssignment, SeatMapDetail, SeatStatus } from "@/lib/events/seatingApi";
+import type { Seat, SeatAssignment, SeatMapDetail } from "@/lib/events/seatingApi";
+import { SEAT_STATUS_LABEL_KEYS } from "@/lib/events/seatingDraft";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { ensureSeatingI18n } from "@/lib/i18n-admin-event-seating";
 
 ensureSeatingI18n();
-
-export const SEAT_STATUS_LABEL_KEYS: Record<SeatStatus, string> = {
-  available: "adminEventSeating.seatStatus.available",
-  blocked: "adminEventSeating.seatStatus.blocked",
-  held: "adminEventSeating.seatStatus.held",
-};
 
 export interface SeatMapTableProps {
   detail: SeatMapDetail;

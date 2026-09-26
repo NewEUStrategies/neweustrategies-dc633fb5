@@ -24,15 +24,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { CHART_PLATE, contrastRatio } from "@/lib/charts/palette";
 import type { SeatCategory, SeatCategoryInput } from "@/lib/events/seatingApi";
 import {
+  CATEGORY_MIN_CONTRAST,
+  DEFAULT_CATEGORY_COLOR,
   SEAT_CATEGORY_NAME_MAX,
-  SEAT_COLOR_PATTERN,
   categoryDraftFromCategory,
   categoryDraftToInput,
   emptyCategoryDraft,
   validateCategoryDraft,
+  weakestPlateContrast,
   type CategoryDraft,
   type CategoryField,
 } from "@/lib/events/seatingDraft";
@@ -42,18 +43,6 @@ import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { ensureSeatingI18n } from "@/lib/i18n-admin-event-seating";
 
 ensureSeatingI18n();
-
-/** Kolor startowy nowej kategorii - czytelny na plycie jasnej i ciemnej. */
-export const DEFAULT_CATEGORY_COLOR = "#2563EB";
-
-/** Minimalny kontrast obiektu graficznego z tlem (WCAG 1.4.11). */
-export const CATEGORY_MIN_CONTRAST = 3;
-
-/** Najslabszy kontrast koloru z obiema plytami planu albo `null` dla zlego formatu. */
-export function weakestPlateContrast(color: string): number | null {
-  if (!SEAT_COLOR_PATTERN.test(color)) return null;
-  return Math.min(contrastRatio(color, CHART_PLATE.light), contrastRatio(color, CHART_PLATE.dark));
-}
 
 export interface EventSeatCategoryDialogProps {
   open: boolean;

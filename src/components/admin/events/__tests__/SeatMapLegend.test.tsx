@@ -1,8 +1,9 @@
 // Atom „legenda planu sali" - każdy znak stanu jest OPISANY SŁOWEM.
 //
-// CO TEN PLIK DOWODZI. Sześć znaków (wolne, zajęte, rezerwacja, blokada,
-// dostępność, zaznaczenie) ma po jednym podpisie, kategorie dochodzą po nich
-// z kolorem, a sekcja jest nazwana własnym nagłówkiem.
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW. Sześć znaków (wolne, zajęte,
+// rezerwacja, blokada, dostępność, zaznaczenie) ma po jednym podpisie,
+// kategorie dochodzą po nich z kolorem, a sekcja jest nazwana własnym
+// nagłówkiem - bez tego stan miejsca niesie sam kształt, bez słowa.
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 

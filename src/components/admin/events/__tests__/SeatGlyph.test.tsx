@@ -1,6 +1,6 @@
 // Atom „miejsce na płótnie" - STAN NIESIONY KSZTAŁTEM, NIE SAMYM KOLOREM.
 //
-// CO TEN PLIK DOWODZI.
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - każdy punkt to gwarancja, która znika.
 //   1. Każdy z czterech stanów ma WŁASNY znak niezależny od koloru kategorii:
 //      zajęte = pełne koło, wolne = sam obrys, rezerwacja = obrys przerywany,
 //      blokada = kreskowanie. Miejsce bez kategorii dostaje neutralny token.

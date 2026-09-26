@@ -137,7 +137,14 @@ export function seatMapDetail(overrides: Partial<SeatMapDetail> = {}): SeatMapDe
     seats: [
       seat(),
       seat({ id: "seat-a2", seatNumber: 2, x: 50, sortKey: 1 }),
-      seat({ id: "seat-a3", seatNumber: 3, x: 100, sortKey: 2, status: "blocked", blockReason: "Filar" }),
+      seat({
+        id: "seat-a3",
+        seatNumber: 3,
+        x: 100,
+        sortKey: 2,
+        status: "blocked",
+        blockReason: "Filar",
+      }),
       seat({
         id: "seat-t1",
         sectionId: "sec-t",
@@ -199,7 +206,9 @@ export function seatMapRow(overrides: Partial<SeatMapRow> = {}): SeatMapRow {
   };
 }
 
-export function seatingCandidate(overrides: Partial<SeatingCandidateRow> = {}): SeatingCandidateRow {
+export function seatingCandidate(
+  overrides: Partial<SeatingCandidateRow> = {},
+): SeatingCandidateRow {
   return {
     company: "Firma Jeden",
     company_id: "co-1",

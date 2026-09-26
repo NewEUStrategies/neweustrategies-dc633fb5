@@ -11,7 +11,8 @@ import { adminSeatingErrorMessage, adminSeatingFailure } from "@/lib/events/admi
 import { adminEventSeatingEn, adminEventSeatingPl } from "@/lib/i18n-admin-event-seating";
 
 function flatten(node: unknown, prefix = ""): string[] {
-  if (node === null || typeof node !== "object") return [prefix.replace(/_(one|few|many|other)$/, "")];
+  if (node === null || typeof node !== "object")
+    return [prefix.replace(/_(one|few|many|other)$/, "")];
   return Object.entries(node as Record<string, unknown>).flatMap(([key, value]) =>
     flatten(value, prefix === "" ? key : `${prefix}.${key}`),
   );
@@ -19,7 +20,9 @@ function flatten(node: unknown, prefix = ""): string[] {
 
 describe("adminSeatingFailure", () => {
   it("rozpoznaje głowę komunikatu i wyciąga liczby z ogona", () => {
-    expect(adminSeatingFailure(new Error("map_too_large: plan would have 5200 seats, limit is 5000"))).toEqual({
+    expect(
+      adminSeatingFailure(new Error("map_too_large: plan would have 5200 seats, limit is 5000")),
+    ).toEqual({
       key: "adminEventSeating.errors.mapTooLarge",
       params: { count: 5200, total: 5000 },
     });
@@ -29,17 +32,24 @@ describe("adminSeatingFailure", () => {
 
   it("czyta napis, obiekt z `message` i komunikat bez ogona", () => {
     expect(adminSeatingFailure("seat_blocked").key).toBe("adminEventSeating.errors.seatBlocked");
-    expect(adminSeatingFailure({ message: "label_taken: x" }).key).toBe("adminEventSeating.errors.labelTaken");
+    expect(adminSeatingFailure({ message: "label_taken: x" }).key).toBe(
+      "adminEventSeating.errors.labelTaken",
+    );
   });
 
   it("nieznane, sieciowe i puste błędy spadają do zdania zapasowego", () => {
     for (const error of [new Error("Failed to fetch"), new Error("brand_new: x"), null, 42, {}]) {
-      expect(adminSeatingFailure(error)).toEqual({ key: "adminEventSeating.errors.unknown", params: {} });
+      expect(adminSeatingFailure(error)).toEqual({
+        key: "adminEventSeating.errors.unknown",
+        params: {},
+      });
     }
   });
 
   it("oddaje gotowe zdanie z liczbą, nie klucz", () => {
-    const message = adminSeatingErrorMessage(new Error("seats_in_use: 3 assigned seat(s) would be removed"));
+    const message = adminSeatingErrorMessage(
+      new Error("seats_in_use: 3 assigned seat(s) would be removed"),
+    );
     expect(message).not.toContain("adminEventSeating.");
     expect(message).toContain("3");
   });

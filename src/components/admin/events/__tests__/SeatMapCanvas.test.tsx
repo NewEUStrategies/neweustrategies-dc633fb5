@@ -1,6 +1,6 @@
 // Molekuła „płótno planu sali" - parametry sekcji zamienione na obraz.
 //
-// CO TEN PLIK DOWODZI.
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - każdy punkt to gwarancja, która znika.
 //   1. Miejsca są PRZENIESIONE na plan (`toMapPoint`: początek i obrót sekcji),
 //      a kolor idzie z kategorii miejsca, potem sekcji, a bez kategorii -
 //      neutralny token. Stan zajęcia bierze się z przydziałów, nie z miejsca.

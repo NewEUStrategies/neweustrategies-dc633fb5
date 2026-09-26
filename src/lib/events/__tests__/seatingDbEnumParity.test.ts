@@ -113,7 +113,9 @@ describe("statusy zgłoszeń zajmujące miejsce na sali", () => {
       expect(functionBody(fn), fn).toContain(expected);
     }
     const trigger = SQL.slice(SQL.lastIndexOf("CREATE TRIGGER event_registrations_release_seats"));
-    expect(trigger.slice(0, 400)).toContain(`NOT IN ('${SEATABLE_REGISTRATION_STATUSES.join("', '")}')`);
+    expect(trigger.slice(0, 400)).toContain(
+      `NOT IN ('${SEATABLE_REGISTRATION_STATUSES.join("', '")}')`,
+    );
   });
 });
 
@@ -139,15 +141,23 @@ describe("limity formularzy == limity bazy", () => {
     expect(starts).toContain(`seat_number_start BETWEEN 1 AND ${SEAT_NUMBER_START_MAX}`);
     const position = constraint("event_seat_sections_position_range");
     expect(position).toContain(`origin_x BETWEEN ${SEAT_POSITION_MIN} AND ${SEAT_POSITION_MAX}`);
-    expect(position).toContain(`rotation_deg BETWEEN -${SEAT_ROTATION_MAX} AND ${SEAT_ROTATION_MAX}`);
+    expect(position).toContain(
+      `rotation_deg BETWEEN -${SEAT_ROTATION_MAX} AND ${SEAT_ROTATION_MAX}`,
+    );
     expect(constraint("event_seat_sections_aisles_len")).toContain(`<= ${SEAT_AISLES_MAX}`);
-    expect(constraint("event_seat_sections_label_len")).toContain(`BETWEEN 1 AND ${SEAT_SECTION_LABEL_MAX}`);
+    expect(constraint("event_seat_sections_label_len")).toContain(
+      `BETWEEN 1 AND ${SEAT_SECTION_LABEL_MAX}`,
+    );
   });
 
   it("kategoria i notatki", () => {
-    expect(constraint("event_seat_categories_key_format")).toContain(SEAT_CATEGORY_KEY_PATTERN.source);
+    expect(constraint("event_seat_categories_key_format")).toContain(
+      SEAT_CATEGORY_KEY_PATTERN.source,
+    );
     expect(constraint("event_seat_categories_color_hex")).toContain(SEAT_COLOR_PATTERN.source);
-    expect(constraint("event_seat_categories_names_len")).toContain(`BETWEEN 1 AND ${SEAT_CATEGORY_NAME_MAX}`);
+    expect(constraint("event_seat_categories_names_len")).toContain(
+      `BETWEEN 1 AND ${SEAT_CATEGORY_NAME_MAX}`,
+    );
     expect(constraint("event_seats_notes_len")).toContain(`<= ${SEAT_NOTE_MAX}`);
   });
 
@@ -155,6 +165,8 @@ describe("limity formularzy == limity bazy", () => {
     expect(functionBody("admin_event_seat_assign_batch")).toContain(`> ${SEAT_BATCH_LIMIT} THEN`);
     expect(functionBody("admin_event_seat_lookup")).toContain(`> ${SEAT_LOOKUP_LIMIT} THEN`);
     expect(functionBody("admin_event_seats_update")).toContain(`> ${SEAT_UPDATE_LIMIT} THEN`);
-    expect(functionBody("admin_event_seating_candidates")).toContain(`, 1), ${SEAT_CANDIDATES_PAGE})`);
+    expect(functionBody("admin_event_seating_candidates")).toContain(
+      `, 1), ${SEAT_CANDIDATES_PAGE})`,
+    );
   });
 });

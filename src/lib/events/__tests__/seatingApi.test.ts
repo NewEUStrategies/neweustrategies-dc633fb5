@@ -10,6 +10,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { supabaseRpcStub, type SupabaseRpcStub } from "@/test/supabase/rpc";
+import { seatMapRow, seatingCandidate } from "@/test/events/seatingFixtures";
 
 const h = vi.hoisted(() => ({ rpc: null as SupabaseRpcStub | null }));
 
@@ -51,7 +52,15 @@ const RAW_DETAIL = {
     published_at: "2099-01-01T00:00:00Z",
   },
   categories: [
-    { id: "c1", key: "vip", name_pl: "VIP", name_en: "VIP", color: "#112233", sort_order: 1, ticket_type_ids: ["t1", 3] },
+    {
+      id: "c1",
+      key: "vip",
+      name_pl: "VIP",
+      name_en: "VIP",
+      color: "#112233",
+      sort_order: 1,
+      ticket_type_ids: ["t1", 3],
+    },
     { key: "bez-id" },
     "śmieć",
   ],
@@ -105,7 +114,14 @@ const RAW_DETAIL = {
     [],
   ],
   assignments: [
-    { id: "a1", seat_id: "x1", registration_id: "r1", first_name: "Anna", last_name: "K", source: "auto" },
+    {
+      id: "a1",
+      seat_id: "x1",
+      registration_id: "r1",
+      first_name: "Anna",
+      last_name: "K",
+      source: "auto",
+    },
     { id: "a2", registration_id: "r2" },
     { id: "a3", seat_id: "x2" },
     { seat_id: "x2", registration_id: "r3" },
@@ -131,10 +147,22 @@ describe("szczegół planu (jsonb)", () => {
       publishedAt: "2099-01-01T00:00:00Z",
     });
     expect(detail?.categories).toEqual([
-      { id: "c1", key: "vip", namePl: "VIP", nameEn: "VIP", color: "#112233", sortOrder: 1, ticketTypeIds: ["t1"] },
+      {
+        id: "c1",
+        key: "vip",
+        namePl: "VIP",
+        nameEn: "VIP",
+        color: "#112233",
+        sortOrder: 1,
+        ticketTypeIds: ["t1"],
+      },
     ]);
     expect(detail?.sections.map((section) => section.id)).toEqual(["sa", "st"]);
-    expect(detail?.sections[0]).toMatchObject({ seatNumbering: "odd_even", aisleAfter: [1], rotationDeg: 15 });
+    expect(detail?.sections[0]).toMatchObject({
+      seatNumbering: "odd_even",
+      aisleAfter: [1],
+      rotationDeg: 15,
+    });
     // Wartości spoza słownika degradują do bezpiecznych domyślnych.
     expect(detail?.sections[1]).toMatchObject({
       kind: "rows",
@@ -157,7 +185,13 @@ describe("szczegół planu (jsonb)", () => {
       holdCompanyName: "Firma",
       isAccessible: true,
     });
-    expect(detail?.seats[1]).toMatchObject({ status: "available", x: 0, y: 0, sortKey: 0, isAccessible: false });
+    expect(detail?.seats[1]).toMatchObject({
+      status: "available",
+      x: 0,
+      y: 0,
+      sortKey: 0,
+      isAccessible: false,
+    });
     expect(detail?.assignments).toEqual([
       {
         id: "a1",
@@ -202,8 +236,17 @@ describe("szczegół planu (jsonb)", () => {
       assignments: [],
     });
     expect(
-      api.parseSeatMapDetail({ map: { id: "m", event_id: "e" }, categories: [{ id: "c" }] })?.categories[0],
-    ).toEqual({ id: "c", key: "", namePl: "", nameEn: "", color: "#888888", sortOrder: 100, ticketTypeIds: [] });
+      api.parseSeatMapDetail({ map: { id: "m", event_id: "e" }, categories: [{ id: "c" }] })
+        ?.categories[0],
+    ).toEqual({
+      id: "c",
+      key: "",
+      namePl: "",
+      nameEn: "",
+      color: "#888888",
+      sortOrder: 100,
+      ticketTypeIds: [],
+    });
   });
 
   it("fetchSeatMapDetail: pusta odpowiedź to odmowa not_found, błąd bazy przechodzi dalej", async () => {
@@ -264,23 +307,36 @@ describe("odczyty listowe", () => {
     await api.fetchSeatingCandidates({ mapId: "m1", ticketTypeId: null, onlyUnassigned: false });
     expect(payloadOf("admin_event_seating_candidates")).toEqual({ map_id: "m1" });
     stub().setData("admin_event_seating_candidates", null);
-    await expect(api.fetchSeatingCandidates({ mapId: "m1" })).resolves.toEqual({ rows: [], total: 0 });
+    await expect(api.fetchSeatingCandidates({ mapId: "m1" })).resolves.toEqual({
+      rows: [],
+      total: 0,
+    });
     stub().setError("admin_event_seating_candidates", "not_found: x");
     await expect(api.fetchSeatingCandidates({ mapId: "m1" })).rejects.toThrow("not_found");
   });
 
   it("wszyscy kandydaci: chodzi po stronach do licznika całości", async () => {
     const page = (offset: number, size: number) =>
-      Array.from({ length: size }, (_, index) => ({ registration_id: `r${offset + index}`, total_count: 1100 }));
+      Array.from({ length: size }, (_, index) => ({
+        registration_id: `r${offset + index}`,
+        total_count: 1100,
+      }));
     stub().setResponse("admin_event_seating_candidates", (call) => {
       const offset = Number((call.arg("p_payload") as { offset: number }).offset);
       return { data: page(offset, offset >= 1000 ? 100 : 500), error: null };
     });
     const rows = await api.fetchAllSeatingCandidates("m1");
     expect(rows).toHaveLength(1100);
-    expect(stub().callsFor("admin_event_seating_candidates").map((call) => (call.arg("p_payload") as { offset: number }).offset)).toEqual([0, 500, 1000]);
+    expect(
+      stub()
+        .callsFor("admin_event_seating_candidates")
+        .map((call) => (call.arg("p_payload") as { offset: number }).offset),
+    ).toEqual([0, 500, 1000]);
     // Pełna strona, ale licznik już osiągnięty - bez dodatkowego zapytania.
-    stub().setData("admin_event_seating_candidates", page(0, 500).map((row) => ({ ...row, total_count: 500 })));
+    stub().setData(
+      "admin_event_seating_candidates",
+      page(0, 500).map((row) => ({ ...row, total_count: 500 })),
+    );
     stub().calls.length = 0;
     await expect(api.fetchAllSeatingCandidates("m1")).resolves.toHaveLength(500);
     expect(stub().callsFor("admin_event_seating_candidates")).toHaveLength(1);
@@ -299,13 +355,20 @@ describe("odczyty listowe", () => {
     await expect(api.fetchSeatLookup("e1", [])).resolves.toEqual([]);
     expect(stub().calls).toHaveLength(0);
     stub().setResponse("admin_event_seat_lookup", (call) => ({
-      data: (call.arg("p_payload") as { registration_ids: string[] }).registration_ids.length === 200 ? [{ registration_id: "a" }] : null,
+      data:
+        (call.arg("p_payload") as { registration_ids: string[] }).registration_ids.length === 200
+          ? [{ registration_id: "a" }]
+          : null,
       error: null,
     }));
     const ids = Array.from({ length: 250 }, (_, index) => `r${index}`);
     await expect(api.fetchSeatLookup("e1", ids)).resolves.toEqual([{ registration_id: "a" }]);
     const calls = stub().callsFor("admin_event_seat_lookup");
-    expect(calls.map((call) => (call.arg("p_payload") as { registration_ids: string[] }).registration_ids.length)).toEqual([200, 50]);
+    expect(
+      calls.map(
+        (call) => (call.arg("p_payload") as { registration_ids: string[] }).registration_ids.length,
+      ),
+    ).toEqual([200, 50]);
     expect((calls[0].arg("p_payload") as { event_id: string }).event_id).toBe("e1");
     stub().setError("admin_event_seat_lookup", "too_many_ids: x");
     await expect(api.fetchSeatLookup("e1", ["r"])).rejects.toThrow("too_many_ids");
@@ -315,9 +378,24 @@ describe("odczyty listowe", () => {
 describe("zapisy - kontrakt kluczy", () => {
   it("plan: nowy (event_id), edycja (id), null czyści, brak klucza zostawia", async () => {
     stub().setData("admin_event_seat_map_save", "m-new");
-    await expect(api.saveSeatMap({ eventId: "e1", name: "Gala", stage: { x: 1, y: 2, w: 3, h: 4 } })).resolves.toBe("m-new");
-    expect(payloadOf("admin_event_seat_map_save")).toEqual({ event_id: "e1", name: "Gala", stage: { x: 1, y: 2, w: 3, h: 4 } });
-    await api.saveSeatMap({ id: "m1", roomId: null, stage: null, status: "published", width: 1, height: 2, sessionId: "s", sortOrder: 3 });
+    await expect(
+      api.saveSeatMap({ eventId: "e1", name: "Gala", stage: { x: 1, y: 2, w: 3, h: 4 } }),
+    ).resolves.toBe("m-new");
+    expect(payloadOf("admin_event_seat_map_save")).toEqual({
+      event_id: "e1",
+      name: "Gala",
+      stage: { x: 1, y: 2, w: 3, h: 4 },
+    });
+    await api.saveSeatMap({
+      id: "m1",
+      roomId: null,
+      stage: null,
+      status: "published",
+      width: 1,
+      height: 2,
+      sessionId: "s",
+      sortOrder: 3,
+    });
     expect(payloadOf("admin_event_seat_map_save")).toEqual({
       id: "m1",
       room_id: null,
@@ -356,7 +434,15 @@ describe("zapisy - kontrakt kluczy", () => {
 
   it("kategoria: pełny zbiór biletów", async () => {
     stub().setData("admin_event_seat_category_save", "c1");
-    await api.saveSeatCategory({ eventId: "e1", key: "vip", namePl: "VIP", nameEn: "VIP", color: "#000000", sortOrder: 1, ticketTypeIds: [] });
+    await api.saveSeatCategory({
+      eventId: "e1",
+      key: "vip",
+      namePl: "VIP",
+      nameEn: "VIP",
+      color: "#000000",
+      sortOrder: 1,
+      ticketTypeIds: [],
+    });
     expect(payloadOf("admin_event_seat_category_save")).toEqual({
       event_id: "e1",
       key: "vip",
@@ -371,7 +457,12 @@ describe("zapisy - kontrakt kluczy", () => {
   });
 
   it("sekcja: wszystkie parametry i wynik regeneracji", async () => {
-    stub().setData("admin_event_seat_section_save", { section_id: "s1", seats_created: 3, seats_removed: 1, seats_kept: 2 });
+    stub().setData("admin_event_seat_section_save", {
+      section_id: "s1",
+      seats_created: 3,
+      seats_removed: 1,
+      seats_kept: 2,
+    });
     await expect(
       api.saveSeatSection({
         mapId: "m1",
@@ -418,7 +509,12 @@ describe("zapisy - kontrakt kluczy", () => {
         "table_shape",
       ].sort(),
     );
-    expect(api.parseSectionSaveResult(null)).toEqual({ sectionId: "", seatsCreated: 0, seatsRemoved: 0, seatsKept: 0 });
+    expect(api.parseSectionSaveResult(null)).toEqual({
+      sectionId: "",
+      seatsCreated: 0,
+      seatsRemoved: 0,
+      seatsKept: 0,
+    });
     stub().setError("admin_event_seat_section_save", "seats_in_use: 2");
     await expect(api.saveSeatSection({ id: "s1" })).rejects.toThrow("seats_in_use");
   });
@@ -454,22 +550,47 @@ describe("zapisy - kontrakt kluczy", () => {
       category_id: null,
     });
     stub().setData("admin_event_seats_update", null);
-    await expect(api.updateSeats({ mapId: "m1", seatIds: ["a"], isAccessible: false })).resolves.toBe(0);
-    expect(payloadOf("admin_event_seats_update")).toEqual({ map_id: "m1", seat_ids: ["a"], is_accessible: false });
+    await expect(
+      api.updateSeats({ mapId: "m1", seatIds: ["a"], isAccessible: false }),
+    ).resolves.toBe(0);
+    expect(payloadOf("admin_event_seats_update")).toEqual({
+      map_id: "m1",
+      seat_ids: ["a"],
+      is_accessible: false,
+    });
     stub().setError("admin_event_seats_update", "seat_assigned: 1");
     await expect(api.updateSeats({ mapId: "m1", seatIds: ["a"] })).rejects.toThrow("seat_assigned");
   });
 
   it("przydział: flagi tylko gdy podane; wynik z jsonb", async () => {
-    stub().setData("admin_event_seat_assign", { assignment_id: "as1", moved_from_seat_id: "old", swapped_registration_id: null });
-    await expect(api.assignSeat({ mapId: "m", seatId: "s", registrationId: "r" })).resolves.toEqual({
-      assignmentId: "as1",
-      movedFromSeatId: "old",
-      swappedRegistrationId: null,
+    stub().setData("admin_event_seat_assign", {
+      assignment_id: "as1",
+      moved_from_seat_id: "old",
+      swapped_registration_id: null,
     });
-    expect(payloadOf("admin_event_seat_assign")).toEqual({ map_id: "m", seat_id: "s", registration_id: "r" });
+    await expect(api.assignSeat({ mapId: "m", seatId: "s", registrationId: "r" })).resolves.toEqual(
+      {
+        assignmentId: "as1",
+        movedFromSeatId: "old",
+        swappedRegistrationId: null,
+      },
+    );
+    expect(payloadOf("admin_event_seat_assign")).toEqual({
+      map_id: "m",
+      seat_id: "s",
+      registration_id: "r",
+    });
     stub().setData("admin_event_seat_assign", null);
-    await expect(api.assignSeat({ mapId: "m", seatId: "s", registrationId: "r", swap: true, force: false, note: null })).resolves.toEqual({
+    await expect(
+      api.assignSeat({
+        mapId: "m",
+        seatId: "s",
+        registrationId: "r",
+        swap: true,
+        force: false,
+        note: null,
+      }),
+    ).resolves.toEqual({
       assignmentId: null,
       movedFromSeatId: null,
       swappedRegistrationId: null,
@@ -483,7 +604,9 @@ describe("zapisy - kontrakt kluczy", () => {
       note: null,
     });
     stub().setError("admin_event_seat_assign", "seat_taken: x");
-    await expect(api.assignSeat({ mapId: "m", seatId: "s", registrationId: "r" })).rejects.toThrow("seat_taken");
+    await expect(api.assignSeat({ mapId: "m", seatId: "s", registrationId: "r" })).rejects.toThrow(
+      "seat_taken",
+    );
   });
 
   it("przydział zbiorczy: pozycje w kształcie SQL, odrzuty z kodem", async () => {
@@ -492,7 +615,11 @@ describe("zapisy - kontrakt kluczy", () => {
       rejected: [{ seat_id: "s3", registration_id: "r3", code: "seat_taken" }, "śmieć", {}],
     });
     await expect(
-      api.assignSeatsBatch({ mapId: "m", source: "auto", items: [{ seatId: "s1", registrationId: "r1" }] }),
+      api.assignSeatsBatch({
+        mapId: "m",
+        source: "auto",
+        items: [{ seatId: "s1", registrationId: "r1" }],
+      }),
     ).resolves.toEqual({
       applied: 2,
       rejected: [
@@ -507,7 +634,9 @@ describe("zapisy - kontrakt kluczy", () => {
     });
     expect(api.parseBatchResult(null)).toEqual({ applied: 0, rejected: [] });
     stub().setError("admin_event_seat_assign_batch", "too_many_items: 501");
-    await expect(api.assignSeatsBatch({ mapId: "m", source: "auto", items: [] })).rejects.toThrow("too_many_items");
+    await expect(api.assignSeatsBatch({ mapId: "m", source: "auto", items: [] })).rejects.toThrow(
+      "too_many_items",
+    );
   });
 
   it("zwolnienie: po miejscach, zgłoszeniach albo wszystko", async () => {
@@ -515,9 +644,36 @@ describe("zapisy - kontrakt kluczy", () => {
     await expect(api.releaseSeats({ mapId: "m", seatIds: ["s"] })).resolves.toBe(2);
     expect(payloadOf("admin_event_seat_release")).toEqual({ map_id: "m", seat_ids: ["s"] });
     stub().setData("admin_event_seat_release", null);
-    await expect(api.releaseSeats({ mapId: "m", registrationIds: ["r"], all: true })).resolves.toBe(0);
-    expect(payloadOf("admin_event_seat_release")).toEqual({ map_id: "m", registration_ids: ["r"], all: true });
+    await expect(api.releaseSeats({ mapId: "m", registrationIds: ["r"], all: true })).resolves.toBe(
+      0,
+    );
+    expect(payloadOf("admin_event_seat_release")).toEqual({
+      map_id: "m",
+      registration_ids: ["r"],
+      all: true,
+    });
     stub().setError("admin_event_seat_release", "invalid_payload: x");
     await expect(api.releaseSeats({ mapId: "m" })).rejects.toThrow("invalid_payload");
+  });
+});
+
+describe("mapInfoFromRow", () => {
+  it("niesie scenę tylko wtedy, gdy wszystkie cztery wymiary są w wierszu", () => {
+    expect(api.mapInfoFromRow(seatMapRow()).stage).toBeNull();
+    expect(
+      api.mapInfoFromRow(seatMapRow({ stage_x: 1, stage_y: 2, stage_w: 3, stage_h: 4 })).stage,
+    ).toEqual({ x: 1, y: 2, w: 3, h: 4 });
+    expect(api.mapInfoFromRow(seatMapRow({ stage_x: 1, stage_y: 2, stage_w: 3 })).stage).toBeNull();
+    expect(api.mapInfoFromRow(seatMapRow({ status: "cokolwiek" })).status).toBe("draft");
+    expect(api.mapInfoFromRow(seatMapRow({ status: "published" })).status).toBe("published");
+  });
+});
+
+describe("candidateName", () => {
+  it("skleja imię i nazwisko bez wiszących spacji", () => {
+    expect(api.candidateName(seatingCandidate({ first_name: "Ewa", last_name: "Lis" }))).toBe(
+      "Ewa Lis",
+    );
+    expect(api.candidateName(seatingCandidate({ first_name: "", last_name: "Lis" }))).toBe("Lis");
   });
 });

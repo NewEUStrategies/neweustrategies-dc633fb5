@@ -1,6 +1,6 @@
 // Molekuła „Twoje miejsce na sali" w panelu uczestnika.
 //
-// CO TEN PLIK DOWODZI.
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - każdy punkt to gwarancja, która znika.
 //   1. CZTERY STANY MAJĄ CZTERY WIDOKI: wczytywanie, awaria z ponowieniem,
 //      pustka („miejsce pojawi się tutaj" - to nie błąd) i karty.
 //   2. Panel pyta o miejsca WŁASNEGO wydarzenia (slug) i zawsze jest włączony -

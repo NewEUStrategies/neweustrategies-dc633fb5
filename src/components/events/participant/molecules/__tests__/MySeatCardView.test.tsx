@@ -1,14 +1,18 @@
 // Molekuła „karta Twojego miejsca" - czysta prezentacja karty z bazy.
 //
-// CO TEN PLIK DOWODZI.
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - każdy punkt to gwarancja, która znika.
 //   1. Nagłówek to TO SAMO zdanie miejsca, co w panelu organizatora
 //      (`seatLabelMessage`), a pod nim nazwa planu.
 //   2. Sala, piętro, uwaga, sesja, kategoria i dostępność pojawiają się
 //      WYŁĄCZNIE, gdy baza je oddała - karta bez sali nie pokazuje „Sala: null".
 //   3. Kategoria i sesja idą w języku interfejsu, z polskim zapasem.
 //   4. Karta nie ma naruszeń dostępności.
-import { describe, expect, it, vi } from "vitest";
+//   5. Render serwerowy karty (z mini-mapą) hydratuje się bez rozjazdu.
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { act } from "react";
 import { render, screen } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
+import { hydrateRoot } from "react-dom/client";
 
 const h = vi.hoisted(() => ({ lang: "pl" }));
 
@@ -24,9 +28,7 @@ import { axeViolations, summarize } from "@/test/axe";
 describe("MySeatCardView", () => {
   it("pokazuje zdanie miejsca, plan i wszystko, co oddała baza", async () => {
     h.lang = "pl";
-    const { container } = render(
-      <MySeatCardView card={mySeatCard({ isAccessible: true })} />,
-    );
+    const { container } = render(<MySeatCardView card={mySeatCard({ isAccessible: true })} />);
 
     expect(
       screen.getByRole("heading", { name: "eventSeating.label.rows(row=A,seat=2,section=A)" }),
@@ -81,5 +83,32 @@ describe("MySeatCardView", () => {
       screen.getByRole("heading", { name: "eventSeating.label.table(row=,seat=7,section=Stół 4)" }),
     ).toBeTruthy();
     expect(screen.queryAllByRole("listitem")).toEqual([]);
+  });
+});
+
+describe("MySeatCardView - render serwerowy", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    document.body.innerHTML = "";
+  });
+
+  it("hydratuje serwerowy HTML bez rozjazdu", async () => {
+    h.lang = "pl";
+    const drzewo = () => <MySeatCardView card={mySeatCard({ isAccessible: true })} />;
+    const errors: unknown[] = [];
+    vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+      errors.push(args[0]);
+    });
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(drzewo());
+    document.body.appendChild(container);
+    const serwerowy = container.innerHTML;
+
+    await act(async () => {
+      hydrateRoot(container, drzewo());
+    });
+
+    expect(errors, errors.map(String).join(" | ")).toEqual([]);
+    expect(container.innerHTML).toBe(serwerowy);
   });
 });

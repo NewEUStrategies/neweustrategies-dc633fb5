@@ -50,7 +50,12 @@ describe("klucze planu sali", () => {
     expect(seatingKeys.maps(EVENT)).toEqual(["event-seating", EVENT, "maps"]);
     expect(seatingKeys.map(EVENT, "m")).toEqual(["event-seating", EVENT, "map", "m"]);
     expect(seatingKeys.planner(EVENT, "m")).toEqual(["event-seating", EVENT, "planner", "m"]);
-    expect(seatingKeys.candidates(EVENT, { mapId: "m" })).toEqual(["event-seating", EVENT, "candidates", { mapId: "m" }]);
+    expect(seatingKeys.candidates(EVENT, { mapId: "m" })).toEqual([
+      "event-seating",
+      EVENT,
+      "candidates",
+      { mapId: "m" },
+    ]);
     expect(seatingKeys.lookup(EVENT, ["r"])).toEqual(["event-seating", EVENT, "lookup", ["r"]]);
   });
 });
@@ -95,7 +100,11 @@ describe("odczyty i bramy enabled", () => {
     await Promise.resolve();
     for (const query of Object.values(result.current)) expect(query.fetchStatus).toBe("idle");
     for (const fn of Object.values(api)) expect(fn).not.toHaveBeenCalled();
-    expect(queryClient.getQueryCache().find({ queryKey: [...seatingKeys.event(EVENT), "candidates", "idle"] })).toBeDefined();
+    expect(
+      queryClient
+        .getQueryCache()
+        .find({ queryKey: [...seatingKeys.event(EVENT), "candidates", "idle"] }),
+    ).toBeDefined();
   });
 });
 
@@ -127,7 +136,9 @@ describe.each(MUTATIONS)("mutacja: %s", (_label, useHook, fn) => {
     seed(queryClient);
     await result.current.mutateAsync({} as never);
     expect(api[fn]).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(queryClient.getQueryState(seatingKeys.maps(EVENT))?.isInvalidated).toBe(true));
+    await waitFor(() =>
+      expect(queryClient.getQueryState(seatingKeys.maps(EVENT))?.isInvalidated).toBe(true),
+    );
     expect(queryClient.getQueryState(seatingKeys.map(EVENT, "m"))?.isInvalidated).toBe(true);
     expect(queryClient.getQueryState(seatingKeys.maps(OTHER))?.isInvalidated).toBe(false);
   });

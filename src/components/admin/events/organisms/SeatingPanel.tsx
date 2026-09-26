@@ -22,39 +22,13 @@ import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/lib/appDialogs";
 import { Pencil, Plus, Trash2, Users } from "@/lib/lucide-shim";
 import { adminSeatingErrorMessage } from "@/lib/events/adminSeatingErrors";
-import type { SeatMapInfo, SeatMapRow } from "@/lib/events/seatingApi";
+import { mapInfoFromRow, type SeatMapInfo, type SeatMapRow } from "@/lib/events/seatingApi";
 import { useDeleteSeatMap, useSaveSeatMap, useSeatMaps } from "@/lib/events/useEventSeating";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { ensureSeatingI18n } from "@/lib/i18n-admin-event-seating";
 
 ensureSeatingI18n();
-
-/**
- * Wiersz listy -> ksztalt dialogu edycji. Lista niesie KOMPLET pol planu,
- * razem ze scena - bez niej zapis z listy czyscilby scene narysowana w planie.
- * Generator typow opisuje kolumny `numeric` sceny jako `number`, choc baza
- * oddaje w nich NULL (plan bez sceny).
- */
-export function mapInfoFromRow(row: SeatMapRow): SeatMapInfo {
-  const stage =
-    row.stage_x === null || row.stage_y === null || row.stage_w === null || row.stage_h === null
-      ? null
-      : { x: row.stage_x, y: row.stage_y, w: row.stage_w, h: row.stage_h };
-  return {
-    id: row.id,
-    eventId: row.event_id,
-    name: row.name,
-    roomId: row.room_id,
-    sessionId: row.session_id,
-    status: row.status === "published" ? "published" : "draft",
-    width: row.width,
-    height: row.height,
-    stage,
-    sortOrder: row.sort_order,
-    publishedAt: row.published_at,
-  };
-}
 
 export interface SeatingPanelProps {
   eventId: string;

@@ -1,11 +1,12 @@
 // Molekuła „eksport planu sali" - lista przy drzwiach, wszystkie miejsca,
 // goście jednej firmy (CRM).
 //
-// CO TEN PLIK DOWODZI.
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - każdy punkt to gwarancja, która znika.
 //   1. Dane idą Z BAZY w chwili kliknięcia (`fetchSeatingExport`), a nie
 //      z cache ekranu; lista firmy pyta z identyfikatorem firmy.
 //   2. Plik ma nazwę z planem i trybem, treść CSV z napisem miejsca
-//      podanym przez organizm; pobranie zwalnia adres w następnej klatce.
+//      podanym przez organizm (pobranie to wspólny `downloadTextFile`
+//      z `lib/billing/exportHistory` - ma własne testy).
 //   3. Bez wybranej firmy przycisk „pobierz” jest zgaszony; plan bez firm
 //      mówi to zdaniem (bez etykiety wskazującej w próżnię).
 //   4. Awaria mówi to wprost; w trakcie pobierania przyciski są zgaszone.
@@ -47,7 +48,6 @@ vi.mock("@/lib/events/seatingApi", async (importOriginal) => ({
 
 import {
   SeatExportMenu,
-  downloadTextFile,
   type SeatExportMenuProps,
 } from "@/components/admin/events/molecules/SeatExportMenu";
 import { SEAT_MAP_ID, seatExportRow } from "@/test/events/seatingFixtures";
@@ -117,7 +117,9 @@ describe("SeatExportMenu", () => {
     menu();
     fireEvent.click(guzik("door"));
 
-    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("adminEventSeating.toasts.exported"));
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith("adminEventSeating.toasts.exported"),
+    );
     expect(h.calls).toEqual([{ mapId: SEAT_MAP_ID, companyId: null }]);
     expect(h.files[0]?.name).toMatch(/^plan-sali-kongres-gala-lodz-door-\d{4}-\d{2}-\d{2}\.csv$/);
     expect(h.files[0]?.content).toContain("miejsce 2");
@@ -164,19 +166,5 @@ describe("SeatExportMenu", () => {
     fireEvent.click(guzik("door"));
     await waitFor(() => expect(guzik("seats")).toBeDisabled());
     expect(guzik("door")).toBeDisabled();
-  });
-});
-
-describe("downloadTextFile", () => {
-  it("zwalnia adres pliku dopiero w następnej klatce", () => {
-    vi.useFakeTimers();
-    const revoke = vi.fn();
-    vi.stubGlobal("URL", { ...URL, createObjectURL: () => "blob:x", revokeObjectURL: revoke });
-
-    downloadTextFile("a.csv", "x", "text/csv");
-    expect(revoke).not.toHaveBeenCalled();
-    vi.runAllTimers();
-    expect(revoke).toHaveBeenCalledWith("blob:x");
-    expect(document.querySelector('a[download="a.csv"]')).toBeNull();
   });
 });

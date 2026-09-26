@@ -1,6 +1,6 @@
 // Organizm „uczestnicy do rozsadzenia" - filtry w bazie, dwie drogi do miejsca.
 //
-// CO TEN PLIK DOWODZI.
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - każdy punkt to gwarancja, która znika.
 //   1. FILTRY IDĄ DO ZAPYTANIA, nie do stanu wierszy: fraza (po Enter albo
 //      lupie, przycięta), bilet, „tylko bez miejsca” (domyślnie włączone).
 //      Każda zmiana filtra wraca do pierwszej strony.
@@ -13,10 +13,7 @@
 //      własne zdania.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import type {
-  SeatingCandidateRow,
-  SeatingCandidatesQuery,
-} from "@/lib/events/seatingApi";
+import type { SeatingCandidateRow, SeatingCandidatesQuery } from "@/lib/events/seatingApi";
 
 const h = vi.hoisted(() => ({
   queries: [] as SeatingCandidatesQuery[],
@@ -62,7 +59,6 @@ vi.mock("@/lib/events/useEventSeating", () => ({
 import {
   CANDIDATE_DRAG_PREFIX,
   SeatingAttendeesPanel,
-  candidateName,
   type SeatingAttendeesPanelProps,
 } from "@/components/admin/events/organisms/SeatingAttendeesPanel";
 import { SEAT_EVENT_ID, SEAT_MAP_ID, seatingCandidate } from "@/test/events/seatingFixtures";
@@ -198,9 +194,9 @@ describe("SeatingAttendeesPanel - osoby", () => {
     ]);
     expect(h.drags[0]?.data).toEqual({ registrationId: "reg-1", name: "Anna Kowalska" });
     expect(
-      screen.getByRole("button", { name: `${P}.drag(name=Anna Kowalska)` }).getAttribute(
-        "aria-roledescription",
-      ),
+      screen
+        .getByRole("button", { name: `${P}.drag(name=Anna Kowalska)` })
+        .getAttribute("aria-roledescription"),
     ).toBe("draggable");
   });
 
@@ -221,12 +217,6 @@ describe("SeatingAttendeesPanel - osoby", () => {
     h.dragging = true;
     panel();
     expect(screen.getAllByRole("listitem")[0]?.className).toContain("opacity-60");
-  });
-
-  it("candidateName skleja imię i nazwisko", () => {
-    expect(candidateName(seatingCandidate({ first_name: "Ewa", last_name: "Lis" }))).toBe(
-      "Ewa Lis",
-    );
   });
 });
 

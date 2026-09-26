@@ -45,16 +45,25 @@ describe("eksport CSV planu sali", () => {
       seatExportRow({ last_name: "Adamska", first_name: "Zofia", seat_id: "s2" }),
       seatExportRow({ last_name: "Adamska", first_name: "Anna", seat_id: "s3" }),
     ];
-    expect(seatingCsvRows(rows, "door", "pl").map((row) => row.seat_id)).toEqual(["s3", "s2", "s1"]);
-    expect(seatingCsvRows(rows, "door", "en").map((row) => row.seat_id)).toEqual(["s3", "s2", "s1"]);
+    expect(seatingCsvRows(rows, "door", "pl").map((row) => row.seat_id)).toEqual([
+      "s3",
+      "s2",
+      "s1",
+    ]);
+    expect(seatingCsvRows(rows, "door", "en").map((row) => row.seat_id)).toEqual([
+      "s3",
+      "s2",
+      "s1",
+    ]);
     expect(seatingCsvRows(rows, "seats", "pl")).toHaveLength(4);
   });
 
   it("kolumny w stałej kolejności, formuły zneutralizowane, język etykiet", () => {
-    const csv = seatingExportToCsv(
-      [seatExportRow({ company: '=HYPERLINK("http://zlo")' }), FREE],
-      { mode: "seats", lang: "en", seatText: (row) => `seat ${row.seat_number}` },
-    );
+    const csv = seatingExportToCsv([seatExportRow({ company: '=HYPERLINK("http://zlo")' }), FREE], {
+      mode: "seats",
+      lang: "en",
+      seatText: (row) => `seat ${row.seat_number}`,
+    });
     const [header, first, second] = csv.split("\n");
     expect(header).toBe(SEATING_CSV_COLUMNS.join(","));
     expect(first).toContain("'=HYPERLINK");
