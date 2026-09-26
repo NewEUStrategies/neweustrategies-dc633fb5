@@ -11,7 +11,9 @@
 // jest na osobnej stronie zarządzania (dla gościa grupy link stoi niżej).
 //
 // NAGŁÓWEK Z PUBLICZNEGO `event_page_header` po slugu, jak w samoobsłudze
-// zgłoszenia: kod nie wyjeżdża do żadnego zapytania.
+// zgłoszenia. Kod wyjeżdża z przeglądarki DOKŁADNIE RAZ: w ciele POST odczytu
+// miejsca na sali (`TicketSeatCards` -> `event_ticket_seats`, porównanie
+// skrótu SHA-256) - nigdy w adresie, w kluczu cache ani w nagłówku.
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -23,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchEventPageHeader } from "@/lib/community/publicQueries";
 import { formatEventDateTime } from "@/lib/events/timezone";
+import { TicketSeatCards } from "@/components/events/registration/TicketSeatCards";
 import { manageLinkPath, readTicketFragment, type TicketFragment } from "@/lib/events/manageToken";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
@@ -124,6 +127,8 @@ export function EventTicketCodePanel({ slug }: { slug: string }) {
           </p>
         </div>
       )}
+
+      {ticket === null ? null : <TicketSeatCards slug={slug} ticket={ticket} />}
 
       <div className="flex flex-wrap gap-2">
         {ticket?.manageToken ? (

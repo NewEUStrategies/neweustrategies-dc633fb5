@@ -181,6 +181,7 @@ vi.mock("@/components/admin/events/organisms/EventPagesMenuPanel", () => h.pusty
 vi.mock("@/components/admin/events/organisms/EventRegistrationSettingsPanel", () => h.pustyModul());
 vi.mock("@/components/admin/events/organisms/EventTypesManager", () => h.pustyModul());
 vi.mock("@/components/admin/events/organisms/EventsListManager", () => h.pustyModul());
+vi.mock("@/components/admin/events/organisms/SeatingPanel", () => h.pustyModul());
 vi.mock("@/components/admin/events/studio/EventStudioCreateShell", () => h.pustyModul());
 vi.mock("@/components/admin/events/studio/EventStudioExternalSection", () => h.pustyModul());
 vi.mock("@/components/admin/events/studio/EventStudioModuleSections", () => h.pustyModul());

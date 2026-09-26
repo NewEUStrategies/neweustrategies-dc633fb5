@@ -210,6 +210,13 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   "event.registration.cancelled.v1": (event) => registrationEventKeys(event),
   "event.registration.promoted.v1": (event) => registrationEventKeys(event),
   "event.registration.payment.v1": (event) => registrationEventKeys(event),
+
+  // Plan sali: przydzial i zwolnienie zmieniaja obsade planu ORAZ plakietke
+  // miejsca na liscie zgloszen; zmiana ukladu planu - tylko sam plan (lookup
+  // miejsc listy zgloszen siedzi w tej samej galezi `event-seating`).
+  "event_seat.assigned.v1": (event) => seatingEventKeys(event, true),
+  "event_seat.released.v1": (event) => seatingEventKeys(event, true),
+  "event_seat_map.changed.v1": (event) => seatingEventKeys(event, false),
 };
 
 // KLUCZE JAKO LITERALY, NIE IMPORT FABRYK. Fabryki (`meetingKeys`,
@@ -246,6 +253,19 @@ function onsiteEventKeys(event: DomainEventRow): QueryKey[] {
 function sponsorEventKeys(event: DomainEventRow): QueryKey[] {
   const eventId = eventPayloadText(event, "event_id");
   return [eventId === "" ? ["event-sponsors"] : ["event-sponsors", eventId], ["public-event"]];
+}
+
+/**
+ * Plan sali klucza po `event_id` (panel organizatora). Bez identyfikatora
+ * w payloadzie uniewazniamy caly korzen - lepiej odswiezyc za duzo niz
+ * zostawic stary plan.
+ */
+function seatingEventKeys(event: DomainEventRow, registrations: boolean): QueryKey[] {
+  const eventId = eventPayloadText(event, "event_id");
+  const branch = (root: string): QueryKey => (eventId === "" ? [root] : [root, eventId]);
+  return registrations
+    ? [branch("event-seating"), branch("event-registrations")]
+    : [branch("event-seating")];
 }
 
 function billingDocumentKeys(): QueryKey[] {

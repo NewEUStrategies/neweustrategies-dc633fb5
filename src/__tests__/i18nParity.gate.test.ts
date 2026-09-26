@@ -109,6 +109,10 @@ const GATED_PREFIXES = [
   // wpuścić człowieka - goły klucz zamiast "Kod z innego wydarzenia" zatrzymuje
   // kolejkę. Bramka od pierwszego dnia, nie po pierwszym incydencie.
   "eventScanner",
+  // Plan sali: edytor organizatora i karta „Twoje miejsce” uczestnika. Surowy
+  // klucz na karcie miejsca to uczestnik bez informacji, gdzie usiąść.
+  "adminEventSeating",
+  "eventSeating",
   // Siatka zespołu: napisy okna osoby (rola w NES, afiliacja, przynależność
   // projektowa, kontakt) są PUBLICZNE i jadą za językiem treści, nie panelu.
   // Brak klucza po jednej stronie dałby surowe `teamGrid.dialog.affiliation`
@@ -205,6 +209,11 @@ const IDENTICAL_ALLOWLIST: readonly string[] = [
   "eventFront.formats.online",
   "eventFront.list.formatLabel",
   "eventMeetings.fields.sponsor",
+  // Plan sali: „Plan” to to samo słowo w obu językach, a opcja zamówienia
+  // pakietowego składa się wyłącznie z nazw własnych (kupujący, pakiet).
+  "adminEventSeating.workspace.viewCanvas",
+  "adminEventSeating.holdDialog.packageOption",
+  "eventSeating.card.plan",
 ];
 
 function loadOverlays(): void {

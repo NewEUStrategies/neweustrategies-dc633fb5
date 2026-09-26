@@ -31,6 +31,7 @@ import { ParticipantTicketsPanel } from "@/components/profile/ParticipantTickets
 import { MyEventProfileForm } from "@/components/events/participant/molecules/MyEventProfileForm";
 import { MyEventPublicPreview } from "@/components/events/participant/molecules/MyEventPublicPreview";
 import { MyAgendaList } from "@/components/events/participant/molecules/MyAgendaList";
+import { MySeatsPanel } from "@/components/events/participant/molecules/MySeatsPanel";
 import { useMyAgenda, useMyEventProfile } from "@/lib/events/useMyEventPanel";
 import { useMyConnections } from "@/lib/network/useConnections";
 import { ensureI18n } from "@/lib/i18n-cart";
@@ -211,7 +212,9 @@ export function EventMePanel({ slug }: { slug: string }) {
           <MeetingExchangeBoard slug={slug} />
         </TabsContent>
 
-        <TabsContent value="registration">
+        <TabsContent value="registration" className="space-y-6">
+          {/* Miejsce na sali NAD biletem - przy wejściu to pierwsze pytanie. */}
+          <MySeatsPanel slug={slug} />
           <ParticipantTicketsPanel slugFilter={slug} hideHeader />
         </TabsContent>
       </Tabs>

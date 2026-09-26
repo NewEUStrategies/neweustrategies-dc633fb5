@@ -41,6 +41,7 @@ import { adminTermsFailure } from "@/lib/events/adminTermsErrors";
 import { adminOnsiteFailure } from "@/lib/events/adminOnsiteErrors";
 import { publicEventErrorKey } from "@/lib/events/publicEventErrors";
 import { adminEventStudioErrorKey } from "@/lib/events/adminEventStudioErrors";
+import { adminSeatingFailure } from "@/lib/events/adminSeatingErrors";
 import {
   adminEventRegistrationEn,
   adminEventRegistrationPl,
@@ -49,6 +50,7 @@ import { adminEventTermsEn, adminEventTermsPl } from "@/lib/i18n-admin-event-ter
 import { adminEventOnsiteEn, adminEventOnsitePl } from "@/lib/i18n-admin-event-onsite";
 import { eventFrontEn, eventFrontPl } from "@/lib/i18n-event-front";
 import { adminEventsEn, adminEventsPl } from "@/lib/i18n-admin-events";
+import { adminEventSeatingEn, adminEventSeatingPl } from "@/lib/i18n-admin-event-seating";
 
 /** Klucz ma tekst, gdy w słowniku stoi pod nim NIEPUSTY napis (nie gałąź). */
 function maTekst(slownik: ResourceTree, klucz: string): boolean {
@@ -236,6 +238,60 @@ const KODY_STUDIA = [
   STRAZNIK_TENANTA,
 ] as const;
 
+/**
+ * Plan sali - `seatingApi` (migracja 20260926130000). Te same glowy wracaja
+ * tez jako kody odrzutow przydzialu zbiorczego (`rejected[].code`).
+ */
+const KODY_PLANU_SALI = [
+  // admin_event_seat_map_save / _delete / _detail, admin_event_seat_maps_list
+  "invalid_event",
+  "invalid_name",
+  "name_taken",
+  "invalid_status",
+  "invalid_size",
+  "room_not_found",
+  "session_not_found",
+  "invalid_stage",
+  "map_has_assignments",
+  "not_found",
+  // admin_event_seat_category_save / _delete
+  "invalid_key",
+  "key_taken",
+  "invalid_names",
+  "invalid_color",
+  "invalid_payload",
+  "ticket_not_found",
+  "category_in_use",
+  // admin_event_seat_section_save / _delete
+  "invalid_label",
+  "label_taken",
+  "category_not_found",
+  "invalid_shape",
+  "map_too_large",
+  "seats_in_use",
+  "section_has_assignments",
+  // admin_event_seats_update
+  "too_many_seats",
+  "seat_not_found",
+  "invalid_note",
+  "seat_assigned",
+  "company_not_found",
+  "sponsor_not_found",
+  "package_not_found",
+  // admin_event_seat_assign / _assign_batch / _release
+  "seat_blocked",
+  "registration_not_found",
+  "registration_not_seatable",
+  "seat_held_for_other",
+  "category_ticket_mismatch",
+  "seat_taken",
+  "swap_not_allowed",
+  "too_many_items",
+  // admin_event_seat_lookup
+  "too_many_ids",
+  STRAZNIK_TENANTA,
+] as const;
+
 interface BramkowanaMapa {
   nazwa: string;
   prefix: string;
@@ -313,6 +369,17 @@ const MAPY: readonly BramkowanaMapa[] = [
     en: adminEventsEn,
     moduly: ["eventDetailApi", "eventPagesApi"],
     interpoluje: false,
+  },
+  {
+    nazwa: "adminSeatingErrors",
+    prefix: "adminEventSeating.errors.",
+    klucz: (error) => adminSeatingFailure(error).key,
+    kody: KODY_PLANU_SALI,
+    nakladka: "src/lib/i18n-admin-event-seating.ts",
+    pl: adminEventSeatingPl,
+    en: adminEventSeatingEn,
+    moduly: ["seatingApi"],
+    interpoluje: true,
   },
 ];
 
