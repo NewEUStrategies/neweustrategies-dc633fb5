@@ -13,6 +13,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { CheckinScanResult } from "@/lib/events/scannerApi";
 import type { ScannerSession } from "@/lib/events/scannerSession";
 import type { ScannerRuntime } from "@/lib/events/useScanner";
+import type { OfflineDecision, RosterEntry } from "@/lib/events/scannerRoster";
+import { freezeClock } from "@/test/time";
+
+freezeClock();
 
 // `istniejaceKlucze` jest sterowalne, bo panel wybiera podpowiedz pod wynikiem
 // po ISTNIENIU klucza w slowniku - wynik bez wlasnej podpowiedzi ma pokazac
@@ -473,5 +477,97 @@ describe("ScannerCheckinPanel - wybor punktu i kierunku", () => {
 
     expect(screen.getByText("eventScanner.checkpoint.none")).toBeInTheDocument();
     expect(screen.getByLabelText("eventScanner.manual.label")).toBeDisabled();
+  });
+});
+
+/* ------------------------------------------------ decyzja z listy offline --- */
+//
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW: skan bez sieci z listą offline
+// pokazuje neutralne „Zapisano" (czyli „zgaduj") zamiast prawdziwego koloru,
+// albo pokazuje kolor BEZ dopisku, że to decyzja tymczasowa z listy - a serwer
+// po powrocie sieci może się nie zgodzić.
+function rosterEntry(over: Partial<RosterEntry> = {}): RosterEntry {
+  return {
+    registrationId: "r1",
+    hash: "a".repeat(64),
+    status: "approved",
+    firstName: "Olga",
+    lastName: "Offline",
+    company: "Alfa",
+    ticketNamePl: "Standard",
+    ticketNameEn: "Standard",
+    groupNamePl: null,
+    groupNameEn: null,
+    groupColor: null,
+    badgePrinted: false,
+    ...over,
+  };
+}
+
+function local(over: Partial<OfflineDecision> = {}): OfflineDecision {
+  return {
+    outcome: "granted",
+    admit: true,
+    entry: rosterEntry(),
+    rosterGeneratedAt: "2026-09-26T07:12:00.000Z",
+    approximateCapacity: false,
+    ...over,
+  };
+}
+
+function offlinePanel(decision: OfflineDecision) {
+  const runtime = runtimeStub({
+    online: false,
+    submitCheckin: vi.fn().mockResolvedValue({ queued: true, local: decision }),
+  });
+  render(<ScannerCheckinPanel runtime={runtime} session={SESSION} />);
+  scan("QR-OFF");
+}
+
+const banner = () => screen.getByRole("status");
+
+describe("ScannerCheckinPanel - decyzja bez sieci", () => {
+  it("zgoda z listy jest ZIELONA, podpisana wersją listy i z kartą osoby z listy", async () => {
+    offlinePanel(local());
+    expect(await screen.findByText("eventScanner.outcomes.granted")).toBeInTheDocument();
+    expect(banner().className).toContain("emerald");
+    expect(
+      screen.getByText(/eventScanner\.offline\.decisionHint\(\{"time":"26 września 2026 09:12"\}\)/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("eventScanner.offline.personFromRoster")).toBeInTheDocument();
+    expect(screen.getByText("Olga Offline")).toBeInTheDocument();
+    expect(screen.queryByText("eventScanner.outcomes.saved")).toBeNull();
+    expect(screen.queryByText("eventScanner.offline.approximateCapacity")).toBeNull();
+  });
+
+  it("limit, którego nie da się sprawdzić bez sieci, jest powiedziany wprost", async () => {
+    offlinePanel(local({ approximateCapacity: true }));
+    expect(await screen.findByText("eventScanner.offline.approximateCapacity")).toBeInTheDocument();
+  });
+
+  it("powtórzenie z listy jest BURSZTYNOWE, ale nadal wpuszcza", async () => {
+    offlinePanel(local({ outcome: "repeat" }));
+    await screen.findByText("eventScanner.outcomes.repeat");
+    expect(banner().className).toContain("amber");
+  });
+
+  it("kod spoza listy jest ostrzeżeniem bez karty osoby", async () => {
+    offlinePanel(local({ outcome: "unknown_code", admit: false, entry: null }));
+    await screen.findByText("eventScanner.outcomes.unknownCode");
+    expect(banner().className).toContain("amber");
+    expect(screen.queryByText("eventScanner.offline.personFromRoster")).toBeNull();
+  });
+
+  it("odmowa z listy jest CZERWONA", async () => {
+    offlinePanel(local({ outcome: "denied_direction", admit: false }));
+    await screen.findByText("eventScanner.outcomes.deniedDirection");
+    expect(banner().className).toContain("destructive");
+  });
+
+  it("skan bez listy nadal mówi „w kolejce” z powiadomieniem, a z listą - bez", async () => {
+    const { toast } = await import("sonner");
+    offlinePanel(local());
+    await screen.findByText("eventScanner.outcomes.granted");
+    expect(toast.info).not.toHaveBeenCalled();
   });
 });
