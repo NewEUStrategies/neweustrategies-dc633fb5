@@ -11,7 +11,7 @@
 //
 // ZAPIS JEST JAWNY (pasek zapisu), jak w całym studiu - studio nie zapisuje
 // samo. Po zapisie odpowiedź RPC staje się nowym stanem formularza.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -101,7 +101,12 @@ export function CfpSettingsPanel({ eventId }: { eventId: string }) {
 function CfpSettingsForm({ eventId, settings }: { eventId: string; settings: CfpSettings }) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
-  const saved = useMemo(() => cfpSettingsDraftFromSettings(settings), [settings]);
+  // Szkic z bazy liczony od TREŚCI ustawień: odświeżenie w tle daje nowy obiekt
+  // o tej samej treści i nie może zamieść niezapisanych zmian organizatora.
+  const signature = JSON.stringify(settings);
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const saved = useMemo(() => cfpSettingsDraftFromSettings(settingsRef.current), [signature]);
   const [draft, setDraft] = useState<CfpSettingsDraft>(saved);
   const [touched, setTouched] = useState(false);
   // Stan z serwera wygrywa po zapisie i po odświeżeniu.

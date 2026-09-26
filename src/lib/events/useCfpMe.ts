@@ -68,11 +68,18 @@ export const cfpMeKeys = {
  */
 const PUBLIC_STALE_MS = 60_000;
 
-export function useCfpPublic(slug: string): UseQueryResult<CfpPublic | null, Error> {
+/**
+ * `enabled` = `false` do montażu: strona i zakładka naboru czytają fazę
+ * WYŁĄCZNIE po stronie klienta (SSR i pierwszy render są identyczne).
+ */
+export function useCfpPublic(
+  slug: string,
+  enabled = true,
+): UseQueryResult<CfpPublic | null, Error> {
   return useQuery({
     queryKey: cfpPublicKeys.slug(slug),
     queryFn: () => fetchCfpPublic(slug),
-    enabled: slug !== "",
+    enabled: enabled && slug !== "",
     staleTime: PUBLIC_STALE_MS,
   });
 }

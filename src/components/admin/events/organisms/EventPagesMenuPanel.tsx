@@ -244,7 +244,8 @@ export function EventPagesMenuPanel({ row }: { row: AdminEventDetailRow }) {
   // niczym, co uczestnik moze otworzyc. Slug znamy dopiero z odswiezonej listy,
   // bo RPC oddaje identyfikator POZYCJI, a edytor stron adresuje slugiem.
   const create = (input: Parameters<typeof createPage.mutate>[0]) => {
-    createPage.mutate(input, {
+    // Slug wydarzenia wchodzi do szablonu (przycisk „Zgłoś prelekcję" -> nabór).
+    createPage.mutate({ ...input, eventSlug: row.slug }, {
       onSuccess: async (entryId) => {
         setCreateOpen(false);
         const refreshed = await pagesQ.refetch();
