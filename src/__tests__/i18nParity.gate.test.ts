@@ -136,6 +136,10 @@ const GATED_PREFIXES = [
   // dokument ksiegowy. Bramka od pierwszego dnia.
   "adminEventInvoices",
   "eventInvoices",
+  // Bilet w portfelu (f7b): przyciski Apple Wallet / Google Wallet na stronie
+  // biletu i podpowiedź w profilu. Surowy klucz zamiast „nie da się dodać -
+  // bilet anulowany” zostawia uczestnika bez wyjaśnienia tuż przed wejściem.
+  "eventWallet",
 ] as const;
 
 // Klucze, dla których identyczny tekst PL i EN jest poprawny (nazwy własne,
@@ -261,6 +265,9 @@ const IDENTICAL_ALLOWLIST: readonly string[] = [
   "adminEventSponsorReport.homeAds.colSponsor",
   "eventSponsorReport.kpi.ctr",
   "eventSponsorReport.table.ctr",
+  // Nazwy własne usług na przyciskach portfela - tłumaczenie byłoby błędem.
+  "eventWallet.apple.name",
+  "eventWallet.google.name",
 ];
 
 function loadOverlays(): void {

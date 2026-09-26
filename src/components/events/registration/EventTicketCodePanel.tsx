@@ -11,9 +11,13 @@
 // jest na osobnej stronie zarządzania (dla gościa grupy link stoi niżej).
 //
 // NAGŁÓWEK Z PUBLICZNEGO `event_page_header` po slugu, jak w samoobsłudze
-// zgłoszenia. Kod wyjeżdża z przeglądarki DOKŁADNIE RAZ: w ciele POST odczytu
+// zgłoszenia. Kod wyjeżdża z przeglądarki WYŁĄCZNIE w ciele POST: odczytu
 // miejsca na sali (`TicketSeatCards` -> `event_ticket_seats`, porównanie
-// skrótu SHA-256) - nigdy w adresie, w kluczu cache ani w nagłówku.
+// skrótu SHA-256) oraz - dopiero po kliknięciu uczestnika - tras portfela
+// (`TicketWalletButtons`) - nigdy w adresie, w kluczu cache ani w nagłówku.
+//
+// PORTFEL POD KODEM. `TicketWalletButtons` dodaje ten sam kod do Apple Wallet
+// albo Google Wallet.
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -21,6 +25,7 @@ import { AlertTriangle, QrCode } from "lucide-react";
 import QRCode from "qrcode";
 import { useTranslation } from "react-i18next";
 
+import { TicketWalletButtons } from "@/components/events/registration/molecules/TicketWalletButtons";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchEventPageHeader } from "@/lib/community/publicQueries";
@@ -125,6 +130,7 @@ export function EventTicketCodePanel({ slug }: { slug: string }) {
           <p className="text-xs text-muted-foreground">
             {t("eventRegistration.ticketPage.private")}
           </p>
+          <TicketWalletButtons qrToken={ticket.qrToken} />
         </div>
       )}
 

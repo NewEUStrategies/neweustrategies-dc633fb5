@@ -37,7 +37,8 @@
     "eventSeating",
     "teamGrid",
     "adminEventInvoices",
-    "eventInvoices"
+    "eventInvoices",
+    "eventWallet"
   ],
   "missing": [],
   "missingEn": [],

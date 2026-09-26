@@ -52,6 +52,8 @@ const SCANNED_ROUTE_PREFIXES = ["admin.events.", "admin.events_."] as const;
  * `adminEventSponsorReport` / `eventSponsorReport`: mapy miejsc i ról raportu
  * sponsora (`sponsorReportLabels.ts`) trzymają klucze jako LITERAŁY - bez tego
  * wpisu bramka nie widziałaby literału spoza `t("...")`.
+ * `eventWallet` (f7b): mapa kodów błędów tras portfela na pełne klucze
+ * (`lib/events/ticketWallet.ts`) - literały poza `t()` też muszą istnieć.
  */
 const REFERENCE_PREFIXES = [
   "adminEvents",
@@ -61,6 +63,7 @@ const REFERENCE_PREFIXES = [
   "eventInvoices",
   "adminEventSponsorReport",
   "eventSponsorReport",
+  "eventWallet",
 ] as const;
 
 function isTree(value: unknown): value is ResourceTree {
