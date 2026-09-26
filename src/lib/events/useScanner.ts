@@ -485,22 +485,23 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
     });
   }, [markOfflinePersistence]);
 
-  // Sesja podniesiona z pamięci - potwierdzamy ją w bazie przy każdej okazji.
+  // Sesja podniesiona z pamięci - potwierdzamy ją w bazie przy każdej okazji
+  // (powrót sieci i tykający odstęp). Nieudana próba w trybie `refresh` nic
+  // nie psuje: sesja z pamięci zostaje do następnej.
+  const staleToken = sessionStale ? token : null;
   useEffect(() => {
-    if (!sessionStale || !online) return;
-    const retry = () => {
-      const current = tokenRef.current;
-      if (current !== null && !isOffline()) void runBootstrap(current, "refresh");
-    };
+    if (staleToken === null || !online) return;
+    const retry = () => void runBootstrap(staleToken, "refresh");
     retry();
     const timer = window.setInterval(retry, FLUSH_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [sessionStale, online, runBootstrap]);
+  }, [staleToken, online, runBootstrap]);
 
   /* -------------------------------------------------------------- sieć --- */
 
+  // Efekty biegną wyłącznie w przeglądarce (trasa ma `ssr: false`), więc
+  // `window` jest tu zawsze.
   useEffect(() => {
-    if (typeof window === "undefined") return;
     setOnline(!isOffline());
     const goOnline = () => setOnline(true);
     const goOffline = () => setOnline(false);
@@ -535,10 +536,8 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
     void Promise.all([loadRoster(sessionDeviceId), loadDecisionLog()]).then(([snapshot, log]) => {
       if (cancelled) return;
       logRef.current = log;
-      if (rosterRef.current?.deviceId !== sessionDeviceId) {
-        rosterRef.current = snapshot;
-        setRoster(snapshot);
-      }
+      rosterRef.current = snapshot;
+      setRoster(snapshot);
       setRosterLoadedFor(sessionDeviceId);
       markOfflinePersistence();
     });
@@ -564,12 +563,14 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         if (sessionRef.current?.deviceId === current.deviceId) commitRoster(snapshot);
       })
       .catch((error: unknown) => {
+        // Odpowiedź dla urządzenia, które w międzyczasie odłączono albo
+        // zamieniono na inne, nie dotyczy już tego ekranu.
+        const latest = sessionRef.current;
+        if (latest?.deviceId !== current.deviceId) return;
         if (scannerErrorHead(error) === "roster_disabled") {
           // Administrator cofnął zgodę: lista znika z telefonu od razu.
           forgetRoster();
-          setSession((previous) =>
-            previous === null ? previous : { ...previous, offlineRoster: false },
-          );
+          setSession({ ...latest, offlineRoster: false });
           return;
         }
         if (invalidatesSession(error)) credentialFailed(error);
@@ -585,9 +586,8 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
     if (status !== "ready" || !online || !sessionOffline) return;
     if (sessionDeviceId === null || rosterLoadedFor !== sessionDeviceId) return;
     syncRoster();
-    const timer = window.setInterval(() => {
-      if (!isOffline()) syncRoster();
-    }, ROSTER_SYNC_INTERVAL_MS);
+    // `syncRoster` sam sprawdza sieć - odstęp nie musi tego powtarzać.
+    const timer = window.setInterval(syncRoster, ROSTER_SYNC_INTERVAL_MS);
     return () => window.clearInterval(timer);
   }, [status, online, sessionOffline, sessionDeviceId, rosterLoadedFor, syncRoster]);
 
@@ -821,7 +821,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
           logGrant({
             checkpointId: result.checkpoint.id,
             registrationId,
-            direction: result.direction ?? input.direction,
+            direction: input.direction,
             at: scannedAt,
           });
         }
