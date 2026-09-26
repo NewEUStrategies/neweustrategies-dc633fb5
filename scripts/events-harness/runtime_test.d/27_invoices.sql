@@ -32,6 +32,13 @@
 --  11. Masowe wystawienie zbiorcze z oczekujacych prosb.
 --  12. Odczyty panelu i kupujacego (anulowany SZKIC nie jest dokumentem).
 --  13. RLS: tylko admin/super_admin najemcy czyta tabele, zapis wylacznie RPC.
+--  14. Poprawki po przegladzie: korekta od STANU PO KOREKTACH (czesciowa ->
+--      pelna, czesciowa -> czesciowa, kolejnosc anulowania, spojnosc szkicu),
+--      zrodla sprawdzane przy wystawieniu (proforma -> faktura, stary szkic,
+--      zaplata karta po szkicu), bilet z cena netto, wlasnosc zamowienia
+--      (zapis wpisany przez pracownika, cudza prosba), jeden nabywca faktury
+--      zbiorczej, firma CRM po NIP-ie, stopka z migawki, blok faktury
+--      u kupujacego (organizator nie fakturuje, fakture wystawia operator).
 --
 -- SPRZATANIE: caly plik siedzi w BEGIN ... ROLLBACK.
 -- ============================================================================
@@ -217,6 +224,12 @@ VALUES
    '27e00000-0000-0000-0000-0000000000e1', '27800000-0000-0000-0000-000000000001',
    '27a00000-0000-0000-0000-0000000000a3', '27300000-0000-0000-0000-000000000003',
    'kupujacy@acme.example', 'Anna Kupujaca', 5, 'paid', 50000, 'PLN', now());
+
+-- Kasa najemcy A: wlasne konto (Stripe Tax), BEZ faktur Stripe, ustawienia
+-- sprzed zamowien - organizator moze fakturowac zamowienia z karty. Sekcja 7
+-- przelacza plaszczyzne, zeby pokazac kazda odmowe.
+INSERT INTO public.checkout_settings (tenant_id, automatic_tax, invoice_creation, updated_at)
+VALUES ('27000000-0000-0000-0000-0000000000a0', true, false, now() - interval '1 day');
 
 SELECT set_config('nes.public_tenant', '27000000-0000-0000-0000-0000000000a0', false);
 
@@ -764,12 +777,30 @@ SELECT pg_temp.assert_raises_like($q$SELECT public.admin_event_invoice_get(pg_te
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a1', '27000000-0000-0000-0000-0000000000a0');
 
--- Kasa bez wiersza checkout_settings = operator jest sprzedawca (MoR).
+-- Kasa w trybie operatora (automatic_tax falsz; brak wiersza dziala tak samo)
+-- = operator jest sprzedawca (MoR).
+UPDATE public.checkout_settings SET automatic_tax = false
+ WHERE tenant_id = '27000000-0000-0000-0000-0000000000a0';
 SELECT pg_temp.assert_raises_like($q$SELECT public.admin_event_invoice_issue(pg_temp.t27('collective'))$q$,
   'mor_seller_conflict', '27/MoR: zamowienia z karty w trybie operatora - wlasnej faktury VAT nie wolno');
+DELETE FROM public.checkout_settings WHERE tenant_id = '27000000-0000-0000-0000-0000000000a0';
+SELECT pg_temp.assert_raises_like($q$SELECT public.admin_event_invoice_issue(pg_temp.t27('collective'))$q$,
+  'mor_seller_conflict', '27/MoR: brak ustawien kasy = tryb operatora');
+-- Wlasne konto, ale Stripe sam wystawia fakture za platnosc jednorazowa.
+INSERT INTO public.checkout_settings (tenant_id, automatic_tax, invoice_creation, updated_at)
+VALUES ('27000000-0000-0000-0000-0000000000a0', true, true, now() - interval '1 day');
+SELECT pg_temp.assert_raises_like($q$SELECT public.admin_event_invoice_issue(pg_temp.t27('collective'))$q$,
+  'operator_invoice_enabled', '27/MoR: faktury Stripe wlaczone - druga faktura za te sama sprzedaz nie');
+-- Ustawienia zmienione PO zamowieniu: nie wiadomo, kto je sprzedal.
+UPDATE public.checkout_settings SET invoice_creation = false, updated_at = clock_timestamp()
+ WHERE tenant_id = '27000000-0000-0000-0000-0000000000a0';
+SELECT pg_temp.assert_raises_like($q$SELECT public.admin_event_invoice_issue(pg_temp.t27('collective'))$q$,
+  'billing_plane_unknown', '27/MoR: ustawienia kasy zmienione po zamowieniu z karty - odmowa');
 SELECT pg_temp.assert(
   (SELECT count(*) FROM public.event_invoice_counters WHERE tenant_id = '27000000-0000-0000-0000-0000000000a0') = 0,
   '27/MoR: odmowa nie zuzyla numeru');
+UPDATE public.checkout_settings SET updated_at = now() - interval '1 day'
+ WHERE tenant_id = '27000000-0000-0000-0000-0000000000a0';
 
 DO $$
 DECLARE v jsonb; i public.event_invoices; v_prefix text := to_char(pg_temp.t27_today(), 'YYYY/MM');
@@ -789,9 +820,6 @@ BEGIN
     AND NOT (i.seller ? 'series_invoice') AND NOT (i.seller ? 'enabled'),
     '27/wystawienie: migawka sprzedawcy bez ustawien technicznych');
 END $$;
-
-INSERT INTO public.checkout_settings (tenant_id, automatic_tax)
-VALUES ('27000000-0000-0000-0000-0000000000a0', true);
 
 DO $$
 DECLARE v jsonb; i public.event_invoices; c public.crm_companies; n integer; k record; d record;
@@ -1317,6 +1345,512 @@ SELECT pg_temp.assert(
                        AND roles = '{authenticated}')
          FROM pg_policies WHERE schemaname = 'public' AND tablename LIKE 'event_invoice%'),
   '27/RLS: wylacznie polityki ODCZYTU admin/super_admin dla zalogowanych, licznik bez polityki');
+
+-- ---------------------------------------------------------------------------
+-- 14) POPRAWKI PO PRZEGLADZIE: stan po korektach, zrodla w chwili wystawienia,
+--     cena netto, wlasnosc zamowienia, jeden nabywca, operator platnosci,
+--     firma CRM po NIP-ie, stopka z migawki.
+-- ---------------------------------------------------------------------------
+SELECT pg_temp.act_as(NULL, NULL);
+
+CREATE FUNCTION pg_temp.t27_lines(_id uuid) RETURNS text
+LANGUAGE sql STABLE AS $f$
+  SELECT string_agg(l.quantity || 'x' || l.unit_gross_cents || '@' || l.vat_rate, ';' ORDER BY l.position)
+    FROM public.event_invoice_lines l WHERE l.invoice_id = _id
+$f$;
+-- Suma faktury i jej WYSTAWIONYCH korekt: "ile faktura znaczy po korektach".
+CREATE FUNCTION pg_temp.t27_family(_id uuid) RETURNS text
+LANGUAGE sql STABLE AS $f$
+  SELECT sum(i.gross_cents) || '/' || sum(i.net_cents) || '/' || sum(i.vat_cents)
+    FROM public.event_invoices i
+   WHERE (i.id = _id OR i.corrects_invoice_id = _id) AND i.status = 'issued'
+$f$;
+CREATE FUNCTION pg_temp.t27_line1(_id uuid) RETURNS uuid
+LANGUAGE sql STABLE AS $f$ SELECT l.id FROM public.event_invoice_lines l WHERE l.invoice_id = _id AND l.position = 1 $f$;
+-- Szkic faktury (albo proformy) za jeden zapis z danymi firmy i wystawienie.
+CREATE FUNCTION pg_temp.t27_draft_reg(_reg uuid, _kind text) RETURNS uuid
+LANGUAGE plpgsql AS $f$
+DECLARE v uuid;
+BEGIN
+  v := public.admin_event_invoice_draft_create(jsonb_build_object(
+    'event_id', '27e00000-0000-0000-0000-0000000000e1', 'kind', _kind,
+    'sources', jsonb_build_array(jsonb_build_object('kind', 'registration', 'id', _reg))));
+  PERFORM public.admin_event_invoice_draft_update(jsonb_build_object('id', v,
+    'buyer', '{"is_company":true,"name":"Firma Czternasta SA","tax_id":"1132853869","address":"ul. Polna 14","postal_code":"00-014","city":"Warszawa"}'::jsonb));
+  RETURN v;
+END $f$;
+CREATE FUNCTION pg_temp.t27_correct(_inv uuid, _unit bigint, _qty integer) RETURNS uuid
+LANGUAGE sql AS $f$
+  SELECT public.admin_event_invoice_correction_create(jsonb_build_object(
+    'invoice_id', _inv, 'mode', 'partial', 'reason', 'Zmiana ceny',
+    'lines', jsonb_build_array(jsonb_build_object(
+      'line_id', pg_temp.t27_line1(_inv), 'unit_gross_cents', _unit, 'quantity', _qty))))
+$f$;
+
+INSERT INTO auth.users (id, email) VALUES
+  ('27a00000-0000-0000-0000-0000000000a6', 'platnik6@example.org'),
+  ('27a00000-0000-0000-0000-0000000000a7', 'uczestnik7@example.org'),
+  ('27a00000-0000-0000-0000-0000000000a8', 'globex8@example.org')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.profiles (id, tenant_id) VALUES
+  ('27a00000-0000-0000-0000-0000000000a6', '27000000-0000-0000-0000-0000000000a0'),
+  ('27a00000-0000-0000-0000-0000000000a7', '27000000-0000-0000-0000-0000000000a0'),
+  ('27a00000-0000-0000-0000-0000000000a8', '27000000-0000-0000-0000-0000000000a0')
+ON CONFLICT (id) DO NOTHING;
+
+-- Bilet z cena NETTO: 1000,00 zl + VAT (VAT doliczany do ceny).
+INSERT INTO public.event_ticket_types
+  (id, tenant_id, event_id, key, name_pl, name_en, price_cents, currency,
+   quota, min_tier_rank, requires_approval, is_active, sort_order,
+   group_registration_enabled, group_max_size, tax_mode)
+VALUES
+  ('27100000-0000-0000-0000-000000000003', '27000000-0000-0000-0000-0000000000a0',
+   '27e00000-0000-0000-0000-0000000000e1', 'netto', 'Firmowy netto', 'Business net', 100000, 'PLN',
+   NULL, 0, false, true, 30, false, 10, 'exclusive');
+
+INSERT INTO public.event_people (id, tenant_id, user_id, email, first_name, last_name) VALUES
+  ('27300000-0000-0000-0000-000000000020', '27000000-0000-0000-0000-0000000000a0',
+   '27a00000-0000-0000-0000-0000000000a6', 'platnik6@example.org', 'Pawel', 'Platnik'),
+  ('27300000-0000-0000-0000-000000000021', '27000000-0000-0000-0000-0000000000a0', NULL, 'p21@example.org', 'Piotr', 'Dwadziesciajeden'),
+  ('27300000-0000-0000-0000-000000000022', '27000000-0000-0000-0000-0000000000a0', NULL, 'p22@example.org', 'Piotr', 'Proforma'),
+  ('27300000-0000-0000-0000-000000000023', '27000000-0000-0000-0000-0000000000a0', NULL, 'p23@example.org', 'Piotr', 'Stary Szkic'),
+  ('27300000-0000-0000-0000-000000000024', '27000000-0000-0000-0000-0000000000a0', NULL, 'p24@example.org', 'Piotr', 'Netto'),
+  ('27300000-0000-0000-0000-000000000025', '27000000-0000-0000-0000-0000000000a0', NULL, 'p25@example.org', 'Olga', 'Organizatorska'),
+  ('27300000-0000-0000-0000-000000000125', '27000000-0000-0000-0000-0000000000a0', NULL, 'p125@example.org', 'Rena', 'Redaktorska'),
+  ('27300000-0000-0000-0000-000000000026', '27000000-0000-0000-0000-0000000000a0',
+   '27a00000-0000-0000-0000-0000000000a7', 'uczestnik7@example.org', 'Ula', 'Uczestniczka'),
+  ('27300000-0000-0000-0000-000000000027', '27000000-0000-0000-0000-0000000000a0',
+   '27a00000-0000-0000-0000-0000000000a8', 'globex8@example.org', 'Gerard', 'Globex'),
+  ('27300000-0000-0000-0000-000000000028', '27000000-0000-0000-0000-0000000000a0', NULL, 'p28@example.org', 'Adam', 'Acme');
+
+INSERT INTO public.event_registrations
+  (id, tenant_id, event_id, person_id, ticket_type_id, status, registration_mode,
+   payment_status, payment_order_id, paid_at, created_by, source)
+VALUES
+  -- R20, R21: oplacone przelewem (korekty). R22, R23: NIEOPLACONE (proforma,
+  -- stary szkic; potem zaplata karta). R24: bilet netto. R25/R125: wpisane
+  -- przez PRACOWNIKA (admin, redaktor). R26: platnik a6, uczestnik a7.
+  -- R27/R28: dwaj nabywcy z roznymi NIP-ami.
+  ('27400000-0000-0000-0000-000000000020', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000020', '27100000-0000-0000-0000-000000000001', 'approved', 'form', 'paid',
+   NULL, now(), '27a00000-0000-0000-0000-0000000000a6', 'self_registration'),
+  ('27400000-0000-0000-0000-000000000021', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000021', '27100000-0000-0000-0000-000000000001', 'approved', 'form', 'paid',
+   NULL, now(), '27a00000-0000-0000-0000-0000000000a6', 'self_registration'),
+  ('27400000-0000-0000-0000-000000000022', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000022', '27100000-0000-0000-0000-000000000001', 'pending', 'form', 'unpaid',
+   NULL, NULL, '27a00000-0000-0000-0000-0000000000a6', 'self_registration'),
+  ('27400000-0000-0000-0000-000000000023', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000023', '27100000-0000-0000-0000-000000000001', 'pending', 'form', 'unpaid',
+   NULL, NULL, '27a00000-0000-0000-0000-0000000000a6', 'self_registration'),
+  ('27400000-0000-0000-0000-000000000024', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000024', '27100000-0000-0000-0000-000000000003', 'approved', 'form', 'paid',
+   NULL, now(), '27a00000-0000-0000-0000-0000000000a6', 'self_registration'),
+  ('27400000-0000-0000-0000-000000000025', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000025', '27100000-0000-0000-0000-000000000001', 'approved', 'rsvp', 'paid',
+   NULL, now(), '27a00000-0000-0000-0000-0000000000a1', 'organizer'),
+  ('27400000-0000-0000-0000-000000000125', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000125', '27100000-0000-0000-0000-000000000001', 'approved', 'rsvp', 'paid',
+   NULL, now(), '27a00000-0000-0000-0000-0000000000a2', 'organizer'),
+  ('27400000-0000-0000-0000-000000000026', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000026', '27100000-0000-0000-0000-000000000001', 'approved', 'form', 'paid',
+   NULL, now(), '27a00000-0000-0000-0000-0000000000a6', 'self_registration'),
+  ('27400000-0000-0000-0000-000000000027', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000027', '27100000-0000-0000-0000-000000000001', 'approved', 'form', 'paid',
+   NULL, now(), '27a00000-0000-0000-0000-0000000000a8', 'self_registration'),
+  ('27400000-0000-0000-0000-000000000028', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000028', '27100000-0000-0000-0000-000000000001', 'approved', 'form', 'paid',
+   NULL, now(), '27a00000-0000-0000-0000-0000000000a6', 'self_registration');
+
+-- Kartoteka: "Globex Sp. z o.o." z INNYM NIP-em niz nabywca "Globex".
+INSERT INTO public.crm_companies (id, tenant_id, name, tax_id, created_at) VALUES
+  ('27c00000-0000-0000-0000-000000000009', '27000000-0000-0000-0000-0000000000a0',
+   'Globex Sp. z o.o.', '7011278375', now() - interval '3 years');
+
+-- 14a) KOREKTY OD STANU PO KOREKTACH -----------------------------------------
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a1', '27000000-0000-0000-0000-0000000000a0');
+
+DO $$
+DECLARE v_inv uuid; v_c1 uuid; v_c2 uuid; d jsonb;
+BEGIN
+  -- S1: faktura 123,00 -> korekta ceny do 100,00 -> korekta PELNA.
+  v_inv := pg_temp.t27_draft_reg('27400000-0000-0000-0000-000000000020', 'invoice');
+  PERFORM public.admin_event_invoice_issue(v_inv);
+  PERFORM pg_temp.t27_set('s1', v_inv);
+  v_c1 := pg_temp.t27_correct(v_inv, 10000, 1);
+  PERFORM pg_temp.assert(pg_temp.t27_lines(v_c1) = '-1x12300@23;1x10000@23',
+    '27/stan: pierwsza korekta czesciowa = para przed/po od pozycji faktury');
+  PERFORM public.admin_event_invoice_issue(v_c1);
+  d := public.admin_event_invoice_get(v_inv);
+  PERFORM pg_temp.assert(jsonb_array_length(d->'current_lines') = 1
+    AND d->'current_lines'->0->>'line_id' = pg_temp.t27_line1(v_inv)::text
+    AND (d->'current_lines'->0->>'quantity')::integer = 1
+    AND (d->'current_lines'->0->>'unit_gross_cents')::bigint = 10000
+    AND d->'current_lines'->0->>'vat_rate' = '23',
+    '27/stan: panel dostaje pozycje PO korekcie (1 x 100,00), nie pierwotne 123,00');
+
+  v_c2 := public.admin_event_invoice_correction_create(jsonb_build_object(
+    'invoice_id', v_inv, 'mode', 'full', 'reason', 'Rezygnacja'));
+  PERFORM pg_temp.assert(pg_temp.t27_lines(v_c2) = '-1x10000@23',
+    '27/stan: pelna korekta po czesciowej odwraca BIEZACY stan (100,00), nie pierwotne 123,00');
+  PERFORM public.admin_event_invoice_issue(v_c2);
+  PERFORM pg_temp.assert(pg_temp.t27_family(v_inv) = '0/0/0',
+    '27/stan: faktura + obie korekty = zero brutto, netto i VAT (nic nie zwrocono ponad faktura)');
+  PERFORM pg_temp.assert(NOT EXISTS (SELECT 1 FROM public.event_invoice_sources
+      WHERE invoice_id = v_inv AND released_at IS NULL),
+    '27/stan: pelna korekta zeruje stan i dopiero wtedy zwalnia zamowienie');
+  PERFORM pg_temp.assert(
+    jsonb_array_length((public.admin_event_invoice_get(v_c2))->'current_lines') = 0,
+    '27/stan: korekta nie ma wlasnej podstawy korekty');
+END $$;
+
+DO $$
+DECLARE v_inv uuid; v_p1 uuid; v_p2 uuid;
+BEGIN
+  -- S2: 123,00 -> 100,00 -> 80,00 dwiema korektami czesciowymi.
+  v_inv := pg_temp.t27_draft_reg('27400000-0000-0000-0000-000000000021', 'invoice');
+  PERFORM public.admin_event_invoice_issue(v_inv);
+  PERFORM pg_temp.t27_set('s2', v_inv);
+  v_p1 := pg_temp.t27_correct(v_inv, 10000, 1);
+  PERFORM public.admin_event_invoice_issue(v_p1);
+  PERFORM pg_temp.t27_set('s2p1', v_p1);
+  v_p2 := pg_temp.t27_correct(v_inv, 8000, 1);
+  PERFORM pg_temp.assert(pg_temp.t27_lines(v_p2) = '-1x10000@23;1x8000@23',
+    '27/stan: druga korekta czesciowa odwraca 100,00 (stan po pierwszej), nie 123,00');
+  PERFORM public.admin_event_invoice_issue(v_p2);
+  PERFORM pg_temp.t27_set('s2p2', v_p2);
+  PERFORM pg_temp.assert(pg_temp.t27_family(v_inv) = '8000/6504/1496',
+    '27/stan: po dwoch korektach faktura znaczy 80,00 (netto 65,04 + VAT 14,96)');
+END $$;
+
+SELECT pg_temp.assert_raises_like($q$SELECT public.admin_event_invoice_cancel(jsonb_build_object('id', pg_temp.t27('s2p1'), 'reason', 'Pomylka'))$q$,
+  'correction_not_latest', '27/stan: wczesniejszej korekty nie anulujesz, gdy jest pozniejsza (rozjechalby sie stan)');
+SELECT pg_temp.assert_raises_like($q$SELECT pg_temp.t27_correct(pg_temp.t27('s2'), 8000, 0)$q$,
+  'correction_use_full', '27/stan: korekta czesciowa zerujaca fakture musi byc pelna (inaczej zamowienie utknie)');
+SELECT pg_temp.assert_raises_like($q$SELECT pg_temp.t27_correct(pg_temp.t27('s2'), 8000, 1)$q$,
+  'correction_empty', '27/stan: zmiana na stan, ktory juz obowiazuje, niczego nie koryguje');
+
+DO $$
+DECLARE v_p3 uuid;
+BEGIN
+  -- Recznie przerobiony szkic korekty: zostaje tylko pozycja "po" - stan
+  -- mialby dwie ceny dla jednej pozycji (80,00 i 70,00).
+  v_p3 := pg_temp.t27_correct(pg_temp.t27('s2'), 7000, 1);
+  PERFORM pg_temp.t27_set('s2p3', v_p3);
+  PERFORM public.admin_event_invoice_draft_update(jsonb_build_object('id', v_p3,
+    'lines', jsonb_build_array(jsonb_build_object('description', 'Bilet', 'unit', 'szt.', 'quantity', 1,
+      'unit_gross_cents', 7000, 'vat_rate', '23', 'corrects_line_id', pg_temp.t27_line1(pg_temp.t27('s2'))))));
+END $$;
+SELECT pg_temp.assert_raises_like($q$SELECT public.admin_event_invoice_issue(pg_temp.t27('s2p3'))$q$,
+  'correction_inconsistent', '27/stan: korekta niezgodna ze stanem faktury nie wyjdzie');
+SELECT pg_temp.assert_raises_like(
+  $q$SELECT public.admin_event_invoice_draft_update(jsonb_build_object('id', pg_temp.t27('s2p3'),
+       'lines', jsonb_build_array(jsonb_build_object('description', 'Bilet', 'unit', 'szt.', 'quantity', -1,
+         'unit_gross_cents', 8000, 'vat_rate', '23', 'corrects_line_id', pg_temp.t27_line1(pg_temp.t27('s1'))))))$q$,
+  'invalid_line', '27/stan: pozycja korekty nie wskaze pozycji INNEJ faktury');
+DO $$
+BEGIN
+  PERFORM public.admin_event_invoice_draft_update(jsonb_build_object('id', pg_temp.t27('s2p3'),
+    'lines', jsonb_build_array(jsonb_build_object('description', 'Bilet', 'unit', 'szt.', 'quantity', -1,
+      'unit_gross_cents', 8000, 'vat_rate', '23', 'corrects_line_id', pg_temp.t27_line1(pg_temp.t27('s2'))))));
+  PERFORM pg_temp.assert(
+    (SELECT corrects_line_id FROM public.event_invoice_lines WHERE invoice_id = pg_temp.t27('s2p3'))
+      = pg_temp.t27_line1(pg_temp.t27('s2')),
+    '27/stan: odwolanie do pozycji faktury korygowanej zostaje');
+  PERFORM public.admin_event_invoice_cancel(jsonb_build_object('id', pg_temp.t27('s2p3')));
+END $$;
+SELECT pg_temp.assert_raises_like(
+  $q$SELECT public.admin_event_invoice_draft_update(jsonb_build_object('id', pg_temp.t27('s2p3'), 'note', 'x'))$q$,
+  'not_draft', '27/stan: anulowany szkic korekty jest zamkniety');
+
+DO $$
+DECLARE v_full uuid; v_pro uuid;
+BEGIN
+  -- Faktura 'single' (2 pozycje; korekta czesciowa zmienila stawke biletu na
+  -- 23%): pelna korekta odwraca stawke PO korekcie, nie pierwotne 8%.
+  v_full := public.admin_event_invoice_correction_create(jsonb_build_object(
+    'invoice_id', pg_temp.t27('single'), 'mode', 'full', 'reason', 'Zwrot'));
+  PERFORM pg_temp.assert(pg_temp.t27_lines(v_full) = '-1x12300@23;-2x1050@5',
+    '27/stan: pelna korekta odwraca pozycje ze stawka po korekcie czesciowej');
+  -- Szkic pelnej korekty przerobiony tak, ze nie zeruje faktury.
+  PERFORM public.admin_event_invoice_draft_update(jsonb_build_object('id', v_full,
+    'lines', jsonb_build_array(jsonb_build_object('description', 'Parking', 'unit', 'szt.', 'quantity', -2,
+      'unit_gross_cents', 1050, 'vat_rate', '5', 'corrects_line_id',
+      (SELECT id FROM public.event_invoice_lines WHERE invoice_id = pg_temp.t27('single') AND position = 2)))));
+  PERFORM pg_temp.t27_set('single_full', v_full);
+  -- Proforma korygowana nie jest; szkic proformy nie niesie odwolan do pozycji.
+  v_pro := public.admin_event_invoice_draft_create(jsonb_build_object(
+    'event_id', '27e00000-0000-0000-0000-0000000000e1', 'kind', 'proforma',
+    'sources', jsonb_build_array(jsonb_build_object('kind', 'registration', 'id', '27400000-0000-0000-0000-000000000028'))));
+  PERFORM public.admin_event_invoice_draft_update(jsonb_build_object('id', v_pro,
+    'lines', jsonb_build_array(jsonb_build_object('description', 'Bilet', 'unit', 'szt.', 'quantity', 1,
+      'unit_gross_cents', 12300, 'vat_rate', '23', 'corrects_line_id', pg_temp.t27_line1(pg_temp.t27('s1'))))));
+  PERFORM pg_temp.assert(
+    (SELECT corrects_line_id FROM public.event_invoice_lines WHERE invoice_id = v_pro) IS NULL,
+    '27/stan: poza korekta odwolanie do pozycji jest pomijane');
+  PERFORM public.admin_event_invoice_cancel(jsonb_build_object('id', v_pro));
+END $$;
+SELECT pg_temp.assert_raises_like($q$SELECT public.admin_event_invoice_issue(pg_temp.t27('single_full'))$q$,
+  'correction_inconsistent', '27/stan: pelna korekta, ktora nie zeruje faktury, nie wyjdzie (nie zwolni zamowien)');
+DO $$
+BEGIN
+  PERFORM public.admin_event_invoice_cancel(jsonb_build_object('id', pg_temp.t27('single_full')));
+END $$;
+
+-- 14b) ZRODLA W CHWILI WYSTAWIENIA (proforma -> faktura, stary szkic) --------
+DO $$
+DECLARE v_pro uuid;
+BEGIN
+  v_pro := pg_temp.t27_draft_reg('27400000-0000-0000-0000-000000000022', 'proforma');
+  PERFORM public.admin_event_invoice_issue(v_pro);
+  PERFORM pg_temp.t27_set('s3pro', v_pro);
+  PERFORM pg_temp.t27_set('s4draft', pg_temp.t27_draft_reg('27400000-0000-0000-0000-000000000023', 'invoice'));
+END $$;
+
+-- Kupujacy placi karta PO proformie / szkicu (z kuponem: 99,00 zamiast 123,00).
+SELECT pg_temp.act_as(NULL, NULL);
+INSERT INTO public.payment_orders (id, tenant_id, user_id, status, amount_cents, currency, paid_at) VALUES
+  ('27600000-0000-0000-0000-000000000022', '27000000-0000-0000-0000-0000000000a0',
+   '27a00000-0000-0000-0000-0000000000a6', 'paid', 9900, 'PLN', now()),
+  ('27600000-0000-0000-0000-000000000023', '27000000-0000-0000-0000-0000000000a0',
+   '27a00000-0000-0000-0000-0000000000a6', 'paid', 12300, 'PLN', now());
+UPDATE public.event_registrations
+   SET payment_status = 'paid', status = 'approved', paid_at = now(),
+       payment_order_id = '27600000-0000-0000-0000-000000000022'
+ WHERE id = '27400000-0000-0000-0000-000000000022';
+UPDATE public.event_registrations
+   SET payment_status = 'paid', status = 'approved', paid_at = now(),
+       payment_order_id = '27600000-0000-0000-0000-000000000023'
+ WHERE id = '27400000-0000-0000-0000-000000000023';
+-- Kasa w trybie operatora.
+UPDATE public.checkout_settings SET automatic_tax = false
+ WHERE tenant_id = '27000000-0000-0000-0000-0000000000a0';
+
+-- Kupujacy: zamowienie z karty w trybie operatora - prosby o fakture nie ma.
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a6', '27000000-0000-0000-0000-0000000000a0');
+SELECT pg_temp.assert_raises_like(
+  $q$SELECT public.event_invoice_request_save('{"registration_id":"27400000-0000-0000-0000-000000000022","buyer":{"is_company":false,"name":"Piotr Proforma","address":"ul. Krotka 2","postal_code":"00-022","city":"Warszawa"}}')$q$,
+  'operator_invoice', '27/kupujacy: zamowienie z karty w trybie operatora - fakture wystawia operator');
+SELECT pg_temp.assert(
+  (SELECT request_block || '|' || can_request::text FROM public.event_my_invoice_sources()
+    WHERE source_id = '27400000-0000-0000-0000-000000000022') = 'operator_invoice|false',
+  '27/kupujacy: profil mowi, ze fakture za karte wystawia operator (nie "po terminie")');
+SELECT pg_temp.assert((public.event_invoice_public_options()) = '{"enabled": true, "card_invoiceable": false, "card_operator_invoice": true}'::jsonb,
+  '27/kupujacy: w trybie operatora blok faktury przy platnosci karta znika');
+
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a1', '27000000-0000-0000-0000-0000000000a0');
+DO $$
+DECLARE v_final uuid; s record;
+BEGIN
+  v_final := public.admin_event_invoice_from_proforma(pg_temp.t27('s3pro'));
+  PERFORM pg_temp.t27_set('s3final', v_final);
+  SELECT * INTO s FROM public.event_invoice_sources WHERE invoice_id = v_final;
+  PERFORM pg_temp.assert(s.payment_order_id = '27600000-0000-0000-0000-000000000022' AND s.gross_cents = 9900
+    AND s.covers AND s.paid_at IS NOT NULL,
+    '27/proforma -> faktura: zrodlo w BIEZACYM stanie (zamowienie z karty, zaplacone 99,00), nie kopia proformy');
+  PERFORM pg_temp.assert(
+    (SELECT payment_method || '|' || (paid_at IS NOT NULL)::text FROM public.event_invoices WHERE id = v_final) = 'card|true'
+    AND pg_temp.t27_lines(v_final) = '1x12300@23',
+    '27/proforma -> faktura: platnosc karta i data zaplaty; pozycje z proformy (edytor pokaze rozjazd 123,00 vs 99,00)');
+END $$;
+SELECT pg_temp.assert_raises_like($q$SELECT public.admin_event_invoice_issue(pg_temp.t27('s3final'))$q$,
+  'mor_seller_conflict', '27/proforma -> faktura: zaplata karta w trybie operatora - wlasnej faktury VAT nie wolno');
+SELECT pg_temp.assert_raises_like($q$SELECT public.admin_event_invoice_issue(pg_temp.t27('s4draft'))$q$,
+  'mor_seller_conflict', '27/stary szkic: zaplata karta po szkicu w trybie operatora - odmowa przy wystawieniu');
+
+UPDATE public.checkout_settings SET automatic_tax = true
+ WHERE tenant_id = '27000000-0000-0000-0000-0000000000a0';
+SELECT pg_temp.assert_raises_like($q$SELECT public.admin_event_invoice_issue(pg_temp.t27('s4draft'))$q$,
+  'source_changed', '27/stary szkic: zamowienie zmienilo sie po szkicu (zaplata karta) - szkic od nowa');
+DO $$
+DECLARE v jsonb; v_again uuid;
+BEGIN
+  v := public.admin_event_invoice_issue(pg_temp.t27('s3final'));
+  PERFORM pg_temp.assert(v->>'number' LIKE 'FV/%',
+    '27/proforma -> faktura: na wlasnym koncie bez faktur Stripe zamowienie z karty mozna zafakturowac');
+  PERFORM public.admin_event_invoice_cancel(jsonb_build_object('id', pg_temp.t27('s4draft')));
+  v_again := public.admin_event_invoice_draft_create(jsonb_build_object(
+    'event_id', '27e00000-0000-0000-0000-0000000000e1',
+    'sources', jsonb_build_array(jsonb_build_object('kind', 'registration', 'id', '27400000-0000-0000-0000-000000000023'))));
+  PERFORM pg_temp.assert(
+    (SELECT payment_order_id FROM public.event_invoice_sources WHERE invoice_id = v_again)
+      = '27600000-0000-0000-0000-000000000023'
+    AND (SELECT payment_method FROM public.event_invoices WHERE id = v_again) = 'card',
+    '27/stary szkic: nowy szkic zna zamowienie z karty');
+  PERFORM public.admin_event_invoice_cancel(jsonb_build_object('id', v_again));
+END $$;
+
+-- 14c) BILET Z CENA NETTO -----------------------------------------------------
+DO $$
+DECLARE r record; v_inv uuid; v_pro uuid;
+BEGIN
+  SELECT * INTO r FROM public.admin_event_invoice_candidates('27e00000-0000-0000-0000-0000000000e1')
+   WHERE source_id = '27400000-0000-0000-0000-000000000024';
+  PERFORM pg_temp.assert(r.gross_cents = 123000 AND r.amount_source = 'price_list_net',
+    '27/netto: kandydat "1000 zl + VAT" = 1230,00 brutto, podstawa "cennik netto"');
+  v_pro := public.admin_event_invoice_draft_create(jsonb_build_object(
+    'event_id', '27e00000-0000-0000-0000-0000000000e1', 'kind', 'proforma', 'vat_rate', '8',
+    'sources', jsonb_build_array(jsonb_build_object('kind', 'registration', 'id', '27400000-0000-0000-0000-000000000024'))));
+  PERFORM pg_temp.assert(pg_temp.t27_lines(v_pro) = '1x108000@8'
+    AND (SELECT net_cents FROM public.event_invoices WHERE id = v_pro) = 100000,
+    '27/netto: VAT doliczany wg stawki dokumentu (8%) - netto zostaje 1000,00');
+  v_inv := public.admin_event_invoice_draft_create(jsonb_build_object(
+    'event_id', '27e00000-0000-0000-0000-0000000000e1',
+    'sources', jsonb_build_array(jsonb_build_object('kind', 'registration', 'id', '27400000-0000-0000-0000-000000000024'))));
+  PERFORM pg_temp.assert(pg_temp.t27_lines(v_inv) = '1x123000@23'
+    AND (SELECT net_cents || '/' || vat_cents FROM public.event_invoices WHERE id = v_inv) = '100000/23000'
+    AND (SELECT gross_cents FROM public.event_invoice_sources WHERE invoice_id = v_inv) = 123000,
+    '27/netto: faktura 1000,00 netto + 230,00 VAT (nie 813,01 + 186,99)');
+  PERFORM pg_temp.assert(
+    public._event_invoice_gross_from_net(100000, '23') = 123000 AND public._event_invoice_gross_from_net(50, '23') = 62
+    AND public._event_invoice_gross_from_net(999, '23') = 1229 AND public._event_invoice_gross_from_net(-50, '23') = -62
+    AND public._event_invoice_gross_from_net(777, 'zw') = 777 AND public._event_invoice_gross_from_net(0, '8') = 0,
+    '27/netto: brutto z netto - polowka od zera, symetrycznie, zw bez VAT');
+  PERFORM public.admin_event_invoice_cancel(jsonb_build_object('id', v_inv));
+  PERFORM public.admin_event_invoice_cancel(jsonb_build_object('id', v_pro));
+END $$;
+
+-- 14d) WLASNOSC ZAMOWIENIA NA PLASZCZYZNIE KUPUJACEGO -------------------------
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a1', '27000000-0000-0000-0000-0000000000a0');
+SELECT pg_temp.assert(NOT EXISTS (SELECT 1 FROM public.event_my_invoice_sources()
+    WHERE source_id = '27400000-0000-0000-0000-000000000025'),
+  '27/wlasnosc: zapis wpisany przez admina nie jest "zamowieniem" admina w profilu');
+SELECT pg_temp.assert_raises_like(
+  $q$SELECT public.event_invoice_request_save('{"registration_id":"27400000-0000-0000-0000-000000000025","buyer":{"is_company":true,"name":"Obca Firma","tax_id":"5260250274","address":"ul. Obca 1","postal_code":"00-001","city":"Warszawa"}}')$q$,
+  'not_found', '27/wlasnosc: admin nie poprosi o fakture za zapis uczestnika wpisany recznie');
+-- Redaktor (tu: jakby po odebraniu roli) nie czyta ani nie nadpisuje.
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a2', '27000000-0000-0000-0000-0000000000a0');
+SELECT pg_temp.assert((SELECT count(*) FROM public.event_my_invoice_sources()) = 0,
+  '27/wlasnosc: pracownik, ktory wpisal zapis, nie widzi danych uczestnika');
+SELECT pg_temp.assert_raises_like(
+  $q$SELECT public.event_invoice_request_save('{"registration_id":"27400000-0000-0000-0000-000000000125","buyer":{"is_company":true,"name":"Obca Firma","tax_id":"5260250274","address":"ul. Obca 1","postal_code":"00-001","city":"Warszawa"}}')$q$,
+  'not_found', '27/wlasnosc: pracownik nie nadpisze prosby uczestnika');
+
+-- Platnik (a6, zalozyl zapis) i uczestnik (a7, osoba zapisu) - dwa konta.
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a6', '27000000-0000-0000-0000-0000000000a0');
+DO $$
+BEGIN
+  PERFORM pg_temp.t27_set('req26', public.event_invoice_request_save(
+    '{"registration_id":"27400000-0000-0000-0000-000000000026","buyer":{"is_company":true,"name":"Platnik SA","tax_id":"5260250274","address":"ul. Tajna 7","postal_code":"00-007","city":"Warszawa","email":"ksiegowosc@platnik.example"}}'));
+END $$;
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a7', '27000000-0000-0000-0000-0000000000a0');
+DO $$
+DECLARE r record;
+BEGIN
+  SELECT * INTO r FROM public.event_my_invoice_sources() WHERE source_id = '27400000-0000-0000-0000-000000000026';
+  PERFORM pg_temp.assert(r.request_block = 'other_requester' AND NOT r.can_request AND r.request_id IS NULL
+    AND r.buyer_name IS NULL AND r.buyer_tax_id IS NULL AND r.buyer_address IS NULL AND r.buyer_email IS NULL,
+    '27/wlasnosc: drugi wlasciciel widzi, ze prosba jest, ale nie widzi cudzych danych firmy');
+END $$;
+SELECT pg_temp.assert_raises_like(
+  $q$SELECT public.event_invoice_request_save('{"registration_id":"27400000-0000-0000-0000-000000000026","buyer":{"is_company":true,"name":"Obca Firma","tax_id":"1234563218","address":"ul. Obca 1","postal_code":"00-001","city":"Warszawa"}}')$q$,
+  'request_foreign', '27/wlasnosc: cudzej prosby nie przejmiesz (faktura trafilaby do innego profilu)');
+SELECT pg_temp.assert(
+  (SELECT requested_by FROM public.event_invoice_requests WHERE id = pg_temp.t27('req26')) = '27a00000-0000-0000-0000-0000000000a6'
+  AND (SELECT buyer_name FROM public.event_invoice_requests WHERE id = pg_temp.t27('req26')) = 'Platnik SA',
+  '27/wlasnosc: prosba platnika nietknieta');
+
+-- 14e) FAKTURA ZBIORCZA TYLKO DLA JEDNEGO NABYWCY ------------------------------
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a8', '27000000-0000-0000-0000-0000000000a0');
+DO $$
+BEGIN
+  PERFORM public.event_invoice_request_save(
+    '{"registration_id":"27400000-0000-0000-0000-000000000027","buyer":{"is_company":true,"name":"Globex","tax_id":"1234563218","address":"ul. Globalna 1","postal_code":"00-027","city":"Warszawa"}}');
+END $$;
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a6', '27000000-0000-0000-0000-0000000000a0');
+DO $$
+BEGIN
+  PERFORM public.event_invoice_request_save(
+    '{"registration_id":"27400000-0000-0000-0000-000000000028","buyer":{"is_company":true,"name":"Acme SA","tax_id":"5260250274","address":"ul. Morska 5","postal_code":"80-001","city":"Gdansk"}}');
+END $$;
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a1', '27000000-0000-0000-0000-0000000000a0');
+SELECT pg_temp.assert_raises_like(
+  $q$SELECT public.admin_event_invoice_draft_create('{"event_id":"27e00000-0000-0000-0000-0000000000e1","aggregate":"per_ticket_type","sources":[{"kind":"registration","id":"27400000-0000-0000-0000-000000000027"},{"kind":"registration","id":"27400000-0000-0000-0000-000000000028"}]}')$q$,
+  'buyer_mismatch', '27/zbiorcza: prosby dwoch roznych nabywcow (NIP) nie trafia na jedna fakture');
+SELECT pg_temp.assert_raises_like(
+  $q$SELECT public.admin_event_invoice_draft_create('{"event_id":"27e00000-0000-0000-0000-0000000000e1","kind":"proforma","sources":[{"kind":"registration","id":"27400000-0000-0000-0000-000000000027"},{"kind":"registration","id":"27400000-0000-0000-0000-000000000028"}]}')$q$,
+  'buyer_mismatch', '27/zbiorcza: takze proforma (z niej powstaje faktura)');
+
+-- 14f) FIRMA CRM: dopasowanie po nazwie z INNYM NIP-em to inny podmiot ---------
+DO $$
+DECLARE v_inv uuid; i public.event_invoices;
+BEGIN
+  v_inv := public.admin_event_invoice_draft_create(
+    '{"event_id":"27e00000-0000-0000-0000-0000000000e1","sources":[{"kind":"registration","id":"27400000-0000-0000-0000-000000000027"}]}');
+  PERFORM public.admin_event_invoice_issue(v_inv);
+  SELECT * INTO i FROM public.event_invoices WHERE id = v_inv;
+  PERFORM pg_temp.assert(i.buyer_name = 'Globex' AND i.crm_company_id IS NOT NULL
+    AND i.crm_company_id <> '27c00000-0000-0000-0000-000000000009',
+    '27/CRM: "Globex" z NIP-em 1234563218 NIE trafia do "Globex Sp. z o.o." z innym NIP-em');
+  PERFORM pg_temp.assert(
+    (SELECT name || '|' || tax_id FROM public.crm_companies WHERE id = i.crm_company_id) = 'Globex|1234563218'
+    AND (SELECT tax_id FROM public.crm_companies WHERE id = '27c00000-0000-0000-0000-000000000009') = '7011278375'
+    AND NOT EXISTS (SELECT 1 FROM public.audit_log WHERE entity_type = 'crm_company'
+                     AND entity_id = '27c00000-0000-0000-0000-000000000009'),
+    '27/CRM: nowa firma z nazwa i NIP-em nabywcy; obca firma bez wpisu osi czasu');
+END $$;
+
+-- 14g) STOPKA WYSTAWIONEGO DOKUMENTU Z MIGAWKI ---------------------------------
+DO $$
+DECLARE v_draft uuid;
+BEGIN
+  PERFORM public.admin_event_invoice_settings_save('{"footer_note":"Nowa stopka"}');
+  PERFORM pg_temp.assert(
+    (public.admin_event_invoice_get(pg_temp.t27('s1')))->>'footer_note' = 'Dziekujemy za udzial',
+    '27/stopka: wystawiona faktura drukuje stopke z chwili wystawienia');
+  PERFORM pg_temp.assert(
+    (public.admin_event_invoice_get(pg_temp.t27('corr_cancelled')))->>'footer_note' = 'Nowa stopka',
+    '27/stopka: szkic (bez migawki sprzedawcy) - biezace ustawienia');
+END $$;
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a3', '27000000-0000-0000-0000-0000000000a0');
+SELECT pg_temp.assert((public.event_my_invoice(pg_temp.t27('collective')))->>'footer_note' = 'Dziekujemy za udzial',
+  '27/stopka: kupujacy pobiera ten sam dokument, co wystawiono');
+
+-- 14h) BLOK FAKTURY U KUPUJACEGO: organizator nie fakturuje / operator --------
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a6', '27000000-0000-0000-0000-0000000000a0');
+SELECT pg_temp.assert((public.event_invoice_public_options()) = '{"enabled": true, "card_invoiceable": true, "card_operator_invoice": false}'::jsonb,
+  '27/opcje: wlasne konto bez faktur Stripe - organizator fakturuje takze karte');
+UPDATE public.checkout_settings SET invoice_creation = true
+ WHERE tenant_id = '27000000-0000-0000-0000-0000000000a0';
+SELECT pg_temp.assert((public.event_invoice_public_options()) = '{"enabled": true, "card_invoiceable": false, "card_operator_invoice": true}'::jsonb,
+  '27/opcje: faktury Stripe wlaczone - za karte dokument wystawia Stripe');
+UPDATE public.checkout_settings SET invoice_creation = false
+ WHERE tenant_id = '27000000-0000-0000-0000-0000000000a0';
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a1', '27000000-0000-0000-0000-0000000000a0');
+DO $$ BEGIN PERFORM public.admin_event_invoice_settings_save('{"enabled":false}'); END $$;
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a6', '27000000-0000-0000-0000-0000000000a0');
+SELECT pg_temp.assert((public.event_invoice_public_options())->>'enabled' = 'false'
+  AND (public.event_invoice_public_options())->>'card_invoiceable' = 'false',
+  '27/opcje: organizator nie fakturuje - bloku faktury nie ma');
+SELECT pg_temp.assert_raises_like(
+  $q$SELECT public.event_invoice_request_save('{"registration_id":"27400000-0000-0000-0000-000000000021","buyer":{"is_company":false,"name":"Piotr","address":"ul. A 1","postal_code":"00-001","city":"Warszawa"}}')$q$,
+  'invoicing_disabled', '27/kupujacy: organizator nie fakturuje - prosba bez pokrycia odrzucona');
+SELECT pg_temp.assert(
+  (SELECT bool_and(NOT can_request AND request_block IN ('disabled', 'invoiced'))
+     FROM public.event_my_invoice_sources())
+  AND (SELECT request_block FROM public.event_my_invoice_sources()
+        WHERE source_id = '27400000-0000-0000-0000-000000000024') = 'disabled',
+  '27/kupujacy: profil nie oferuje prosby, gdy organizator nie fakturuje');
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a1', '27000000-0000-0000-0000-0000000000a0');
+DO $$ BEGIN PERFORM public.admin_event_invoice_settings_save('{"enabled":true}'); END $$;
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a6', '27000000-0000-0000-0000-0000000000a0');
+SELECT pg_temp.assert(
+  (SELECT gross_cents FROM public.event_my_invoice_sources()
+    WHERE source_id = '27400000-0000-0000-0000-000000000024') = 123000
+  AND (SELECT can_request AND request_block IS NULL FROM public.event_my_invoice_sources()
+        WHERE source_id = '27400000-0000-0000-0000-000000000024'),
+  '27/kupujacy: bilet netto w profilu w brutto (1230,00), prosba znow mozliwa');
+SELECT set_config('nes.public_tenant', '27000000-0000-0000-0000-0000000000b0', false);
+SELECT pg_temp.assert((public.event_invoice_public_options()) = '{"enabled": false, "card_invoiceable": false, "card_operator_invoice": true}'::jsonb,
+  '27/opcje: najemca B (bez wystawcy i bez ustawien kasy) - nic nie fakturuje, karta u operatora');
+SELECT set_config('nes.public_tenant', '27000000-0000-0000-0000-0000000000a0', false);
+SELECT pg_temp.assert(
+  NOT has_function_privilege('anon', 'public.event_invoice_public_options()', 'EXECUTE')
+  AND has_function_privilege('authenticated', 'public.event_invoice_public_options()', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public._event_invoice_card_block(uuid, uuid)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public._event_invoice_state(uuid, uuid, uuid)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public._event_invoice_resolve_source(uuid, uuid, text, uuid, text, text)', 'EXECUTE'),
+  '27/granty: opcje dla zalogowanych, nowe funkcje wewnetrzne tylko service_role');
 
 SELECT pg_temp.act_as(NULL, NULL);
 ROLLBACK;
