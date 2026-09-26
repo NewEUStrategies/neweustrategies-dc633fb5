@@ -11158,6 +11158,7 @@ export type Database = {
           min_tier_rank: number
           pages_display_mode: string
           postal_code: string | null
+          previous_edition_id: string | null
           program_id: string | null
           published_at: string | null
           recording_url: string | null
@@ -11216,6 +11217,7 @@ export type Database = {
           min_tier_rank?: number
           pages_display_mode?: string
           postal_code?: string | null
+          previous_edition_id?: string | null
           program_id?: string | null
           published_at?: string | null
           recording_url?: string | null
@@ -11274,6 +11276,7 @@ export type Database = {
           min_tier_rank?: number
           pages_display_mode?: string
           postal_code?: string | null
+          previous_edition_id?: string | null
           program_id?: string | null
           published_at?: string | null
           recording_url?: string | null
@@ -11328,6 +11331,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "event_types"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_previous_edition_fk"
+            columns: ["tenant_id", "previous_edition_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "events_program_id_fkey"
@@ -22254,6 +22264,8 @@ export type Database = {
           updated_at: string
         }[]
       }
+      admin_event_clone: { Args: { p_payload: Json }; Returns: Json }
+      admin_event_clone_preview: { Args: { p_payload: Json }; Returns: Json }
       admin_event_company_sponsorships: {
         Args: { p_company_id: string }
         Returns: {
@@ -22336,6 +22348,20 @@ export type Database = {
           video_header_id: string
           video_header_platform: string
           visibility: string
+        }[]
+      }
+      admin_event_editions: {
+        Args: { p_event_id: string }
+        Returns: {
+          depth: number
+          id: string
+          relation: string
+          slug: string
+          starts_at: string
+          status: string
+          timezone: string
+          title_en: string
+          title_pl: string
         }[]
       }
       admin_event_features_save: {

@@ -20,6 +20,8 @@ import {
   EventStudioRow,
 } from "@/components/admin/events/studio/EventStudioSection";
 import { EventReadinessPanel } from "@/components/admin/events/organisms/EventReadinessPanel";
+import { EventCloneResultCard } from "@/components/admin/events/molecules/EventCloneResultCard";
+import { EventEditionsCard } from "@/components/admin/events/molecules/EventEditionsCard";
 import { EVENT_STUDIO_ROUTES, type EventStudioSection } from "@/lib/events/eventStudioNav";
 import { DEFAULT_SESSIONS_QUERY } from "@/lib/events/sessionsApi";
 import { useEventSessions } from "@/lib/events/useEventSessions";
@@ -34,6 +36,7 @@ import { ensureAgendaI18n } from "@/lib/i18n-admin-event-agenda";
 import { ensureI18n as ensureRegistrationI18n } from "@/lib/i18n-admin-event-registration";
 import { ensureSponsorsI18n } from "@/lib/i18n-admin-event-sponsors";
 import { ensureTermsI18n } from "@/lib/i18n-admin-event-terms";
+import { ensureCloneI18n } from "@/lib/i18n-admin-event-clone";
 
 interface NextStep {
   key: string;
@@ -47,6 +50,7 @@ export function EventOverviewPanel({ row }: { row: AdminEventDetailRow }) {
   ensureAgendaI18n();
   ensureSponsorsI18n();
   ensureTermsI18n();
+  ensureCloneI18n();
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const eventId = row.id;
@@ -87,6 +91,9 @@ export function EventOverviewPanel({ row }: { row: AdminEventDetailRow }) {
 
   return (
     <EventStudioPage title={t("adminEvents.studio.sections.overview")}>
+      {/* Podsumowanie klonu stoi NAD wszystkim: to pierwsze, co organizator
+          widzi po utworzeniu edycji z kopii (zob. `EventCloneResultCard`). */}
+      <EventCloneResultCard eventId={eventId} />
       <EventReadinessPanel row={row} />
       <EventStudioRow
         label={t("adminEvents.studio.overview.summary")}
@@ -151,6 +158,15 @@ export function EventOverviewPanel({ row }: { row: AdminEventDetailRow }) {
             </li>
           ))}
         </ul>
+      </EventStudioRow>
+
+      {/* Edycje i wejście do klonu: kolejna edycja to decyzja o TYM wydarzeniu,
+          więc zaczyna się z jego pulpitu. */}
+      <EventStudioRow
+        label={t("adminEventClone.editions.title")}
+        description={t("adminEventClone.editions.description")}
+      >
+        <EventEditionsCard eventId={eventId} />
       </EventStudioRow>
     </EventStudioPage>
   );

@@ -140,6 +140,9 @@ export const DOMAIN_EVENT_TYPES = [
   // (migracja 20260926140000). Payload: event_id, sponsor_id, link_id.
   "event_sponsor_report_link.issued.v1",
   "event_sponsor_report_link.revoked.v1",
+  // Klon edycji (migracja 20260926170000): nowe wydarzenie z konfiguracji
+  // poprzedniej edycji. Payload: event_id (kopia) i source_event_id (zrodlo).
+  "event.cloned.v1",
 ] as const;
 
 export type DomainEventType = (typeof DOMAIN_EVENT_TYPES)[number];

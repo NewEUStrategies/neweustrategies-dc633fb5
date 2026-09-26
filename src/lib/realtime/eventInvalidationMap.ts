@@ -234,6 +234,9 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   "event_seat.assigned.v1": (event) => seatingEventKeys(event, true),
   "event_seat.released.v1": (event) => seatingEventKeys(event, true),
   "event_seat_map.changed.v1": (event) => seatingEventKeys(event, false),
+  // Klon edycji: nowy wiersz na liscie wydarzen i nowa pozycja na liscie
+  // edycji zrodla.
+  "event.cloned.v1": (event) => cloneEventKeys(event),
 };
 
 // KLUCZE JAKO LITERALY, NIE IMPORT FABRYK. Fabryki (`meetingKeys`,
@@ -416,6 +419,21 @@ function registrationEventKeys(event: DomainEventRow): QueryKey[] {
 function cfpEventKeys(event: DomainEventRow): QueryKey[] {
   const eventId = eventPayloadText(event, "event_id");
   return [eventId === "" ? ["event-cfp"] : ["event-cfp", eventId], ["event-cfp-me"]];
+}
+
+/**
+ * Klucze klonu edycji. Lista wydarzen modulu i stara lista spolecznosci
+ * dostaja nowy wiersz; galaz zrodla (`["event-clone", source_event_id]`,
+ * literal zgodny z `eventCloneKeys.event`) - nowa pozycje na liscie edycji.
+ * Brak zrodla w payloadzie degraduje do calego korzenia klonu.
+ */
+function cloneEventKeys(event: DomainEventRow): QueryKey[] {
+  const sourceId = eventPayloadText(event, "source_event_id");
+  return [
+    ["admin-module-events"],
+    ["admin-community-events"],
+    sourceId === "" ? ["event-clone"] : ["event-clone", sourceId],
+  ];
 }
 
 const eventKeysList: QueryKey[] = [

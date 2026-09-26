@@ -73,7 +73,7 @@ function AdminEventsListPage() {
   // sekcji wydarzenia nie przeskakuje ukladem.
   return (
     <div className="w-full p-4 sm:p-6">
-      <EventsListManager params={params} now={now} />
+      <EventsListManager params={params} now={now} canClone={isAdmin} />
     </div>
   );
 }
