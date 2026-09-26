@@ -1326,9 +1326,10 @@ describe("trackChipsFromAdminRows", () => {
 });
 
 describe("publishedSponsorIdSet", () => {
-  it("lista krotsza od limitu jest pelna - daje zbior do filtra", () => {
-    expect(publishedSponsorIdSet([{ id: "a" }, { id: "b" }], 200)).toEqual(new Set(["a", "b"]));
-    expect(publishedSponsorIdSet([], 200)).toEqual(new Set());
+  it("lista bez `total_count` i pusta lista sa pelne - daja zbior do filtra", () => {
+    expect(publishedSponsorIdSet([{ id: "a" }, { id: "b" }])).toEqual(new Set(["a", "b"]));
+    expect(publishedSponsorIdSet([{ id: "a", total_count: null }])).toEqual(new Set(["a"]));
+    expect(publishedSponsorIdSet([])).toEqual(new Set());
   });
 
   // Nakladka pyta dzis o WSZYSTKIE przypiecia (pas i sekcja „Partnerzy" rysuja
@@ -1336,29 +1337,55 @@ describe("publishedSponsorIdSet", () => {
   // TYLKO z ogloszonego - wiec filtr odsiewa nieogloszone sam.
   it("z pelnej listy do zbioru wchodza tylko przypiecia OGLOSZONE", () => {
     expect(
-      publishedSponsorIdSet(
-        [
-          { id: "a", is_published: true },
-          { id: "b", is_published: false },
-        ],
-        200,
-      ),
+      publishedSponsorIdSet([
+        { id: "a", is_published: true, total_count: 2 },
+        { id: "b", is_published: false, total_count: 2 },
+      ]),
     ).toEqual(new Set(["a"]));
   });
 
-  // Pelna strona moze byc ucieta: brak przypiecia na niej nie dowodzi, ze jest
-  // nieogloszone, wiec podglad nie moze zdjac sponsora widocznego na stronie.
-  it("pelna strona albo brak odpowiedzi to brak filtra", () => {
-    const full = Array.from({ length: 200 }, (_, i) => ({ id: `s${i}` }));
-    expect(publishedSponsorIdSet(full, 200)).toBeUndefined();
-    expect(publishedSponsorIdSet(undefined, 200)).toBeUndefined();
+  // ZMIANA: dawniej PELNA strona (200 wierszy) wylaczala filtr, bo mogla byc
+  // ucieta. Limit liczy jednak cala liste, wiec 180 ogloszonych i 30
+  // nieogloszonych przypiec (210, czytane dzis strona po stronie) albo
+  // dokladnie 200 wierszy kompletnej listy wylaczaly go bez powodu. O uciecie
+  // pyta sie teraz `total_count` z RPC.
+  it("KOMPLETNA lista ponad 200 wierszy zostaje filtrem - rozmiar strony o niczym nie swiadczy", () => {
+    const rows = Array.from({ length: 210 }, (_, i) => ({
+      id: `s${i}`,
+      is_published: i < 180,
+      total_count: 210,
+    }));
+    const set = publishedSponsorIdSet(rows);
+    expect(set?.size).toBe(180);
+    expect(set?.has("s179")).toBe(true);
+    expect(set?.has("s180")).toBe(false);
+
+    const exact = Array.from({ length: 200 }, (_, i) => ({ id: `e${i}`, total_count: 200 }));
+    expect(publishedSponsorIdSet(exact)?.size).toBe(200);
   });
 
-  it("limit liczy CALA liste, a nie same ogloszone - to ona moze byc ucieta", () => {
-    const mixed = Array.from({ length: 200 }, (_, i) => ({
+  // Ucieta lista (twardy stop stronicowania, lista zmieniona miedzy stronami):
+  // brak przypiecia na niej nie dowodzi, ze jest nieogloszone, wiec podglad nie
+  // moze zdjac sponsora widocznego na stronie publicznej.
+  it("`total_count` wiekszy od liczby wierszy albo brak odpowiedzi to brak filtra", () => {
+    const cut = Array.from({ length: 2000 }, (_, i) => ({
       id: `s${i}`,
       is_published: i % 2 === 0,
+      total_count: 2100,
     }));
-    expect(publishedSponsorIdSet(mixed, 200)).toBeUndefined();
+    expect(publishedSponsorIdSet(cut)).toBeUndefined();
+    expect(publishedSponsorIdSet([{ id: "a", total_count: 2 }])).toBeUndefined();
+    expect(publishedSponsorIdSet(undefined)).toBeUndefined();
+  });
+
+  // Lista urosla miedzy stronami: pierwsza strona mowi 201, druga - 202, a
+  // wierszy jest 201. Brakujace przypiecie moze byc ogloszone, wiec o uciecie
+  // decyduje NAJWIEKSZY `total_count`, nie ten z pierwszego wiersza.
+  it("wiekszy `total_count` z POZNIEJSZEJ strony tez znaczy liste niepelna", () => {
+    const rows = [
+      ...Array.from({ length: 200 }, (_, i) => ({ id: `s${i}`, total_count: 201 })),
+      { id: "s200", total_count: 202 },
+    ];
+    expect(publishedSponsorIdSet(rows)).toBeUndefined();
   });
 });

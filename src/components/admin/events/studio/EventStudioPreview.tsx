@@ -41,7 +41,7 @@ import {
   type EventPreviewModel,
 } from "@/components/admin/events/studio/EventStudioPreviewContext";
 import { useEventPageDocument } from "@/lib/events/useAdminEventPages";
-import { useSponsorTiers, useSponsors } from "@/lib/events/useEventSponsors";
+import { useAllSponsors, useSponsorTiers } from "@/lib/events/useEventSponsors";
 import { previewSponsorsStatus, sponsorTiersFromAdminRows } from "@/lib/events/sponsorsPreview";
 import { adminSponsorLoadErrorMessage } from "@/lib/events/adminSponsorErrors";
 import { useViewerCardFacts } from "@/lib/profile/useViewerCard";
@@ -71,9 +71,6 @@ type PreviewNavTarget = {
   /** Znacznik pozycji modulowej - decyduje, czy podstrona dostaje zywe dane. */
   module: string | null;
 };
-
-/** Górna granica listy przypięć w podglądzie (zaciskana w RPC do 1..200). */
-const PREVIEW_SPONSORS_LIMIT = 200;
 
 export function EventStudioPreview({
   open,
@@ -154,7 +151,13 @@ export function EventStudioPreview({
   // PRZYGASZONE, z plakietka „Nieogloszony" - tak jak szkice sesji i sciezek
   // w programie podgladu. Program i sciezki biora sponsora dalej TYLKO
   // z przypiecia ogloszonego (`publishedSponsorIdSet` nizej).
-  const sponsorsQ = useSponsors({ eventId, limit: PREVIEW_SPONSORS_LIMIT }, open);
+  //
+  // CALA LISTA, NIE JEDNA STRONA. RPC oddaje najwyzej 200 wierszy na strone,
+  // posortowanych ranga poziomu - a nieogloszone przypiecia licza sie do tej
+  // samej strony. 180 ogloszonych i 30 nieogloszonych wypychalo wiec z podgladu
+  // ogloszonych partnerow z konca listy i wylaczalo filtr programu.
+  // `useAllSponsors` czyta liste strona po stronie az do `total_count`.
+  const sponsorsQ = useAllSponsors({ eventId }, open);
   // Opis, korzysci i `sort_order` poziomu - lista przypiec ich nie niesie,
   // a sekcja „Partnerzy" je rysuje. Ten sam klucz cache, co ekran poziomow.
   const sponsorTiersQ = useSponsorTiers(eventId, open);
@@ -210,7 +213,7 @@ export function EventStudioPreview({
   // juz pobrana wyzej (`sponsorsQ`, ze WSZYSTKIMI przypieciami), wiec to nie
   // jest drugie zapytanie - nieogloszone odsiewa sam zbior.
   const publishedSponsorIds = useMemo(
-    () => publishedSponsorIdSet(sponsorsQ.data, PREVIEW_SPONSORS_LIMIT),
+    () => publishedSponsorIdSet(sponsorsQ.data),
     [sponsorsQ.data],
   );
   const live: EventPreviewLiveData = useMemo(

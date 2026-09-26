@@ -28,6 +28,11 @@
 //      STATUS listy: wczytywanie, awaria (zdaniem o ODCZYCIE, nie „nie
 //      zapisano zmian") albo odpowiedz - a wylaczone zapytanie (brak
 //      wydarzenia) nie wczytuje sie w nieskonczonosc.
+//   7. NIEOGLOSZONE PRZYPIECIA WYPYCHAJA OGLOSZONE. Jedna strona RPC to
+//      najwyzej 200 wierszy, posortowanych ranga poziomu - 180 ogloszonych
+//      i 30 nieogloszonych gubilo wtedy ogloszonych z konca listy i wylaczalo
+//      filtr sponsora przy pasmach. Nakladka czyta liste strona po stronie az do
+//      `total_count`, a filtr wylacza dopiero PRAWDZIWE uciecie (twardy stop).
 //
 // CZEGO SWIADOMIE NIE DUBLUJE. (1) Rysunku strony - `EventPreviewCanvas` ma
 // wlasna bramke parytetu (`eventPreviewPublicParity.gate.test.tsx`); tutaj stoi
@@ -48,6 +53,8 @@ import {
   type EventPreviewModel,
 } from "@/components/admin/events/studio/EventStudioPreviewContext";
 import type { EventPreviewLiveData } from "@/components/admin/events/studio/EventPreviewLiveModule";
+import type { EventSponsorRow } from "@/lib/events/sponsorsApi";
+import type { EventTrackRow } from "@/lib/events/sessionsApi";
 
 const h = vi.hoisted(() => ({
   rpc: null as SupabaseRpcStub | null,
@@ -246,6 +253,9 @@ describe("EventStudioPreview - zamkniety podglad nie kosztuje nic", () => {
     await waitFor(() => expect(stub().lastCall("admin_event_sponsors_list")).toBeDefined());
     expect(stub().lastCall("admin_event_sponsors_list")?.has("p_published")).toBe(false);
     expect(stub().lastCall("admin_event_sponsors_list")?.arg("p_limit")).toBe(200);
+    // Krotka lista to jedna strona od zera - bez dopytywania o nastepna.
+    expect(stub().lastCall("admin_event_sponsors_list")?.arg("p_offset")).toBe(0);
+    expect(stub().callsFor("admin_event_sponsors_list")).toHaveLength(1);
   });
 
   it("poziomy partnerow ida osobnym zapytaniem - opis i korzysci poziomu nie leza na liscie przypiec", async () => {
@@ -299,6 +309,159 @@ describe("EventStudioPreview - stan listy partnerow", () => {
 
     expect(ostatniStatus()).toEqual({ state: "ready" });
     expect(stub().callsFor("admin_event_sponsors_list")).toHaveLength(0);
+  });
+});
+
+describe("EventStudioPreview - partnerzy ponad jedna strone RPC", () => {
+  /** Wiersz listy przypiec; ranga poziomu ustala kolejnosc jak `ORDER BY` RPC. */
+  function przypiecie(
+    id: string,
+    patch: Partial<EventSponsorRow> & Pick<EventSponsorRow, "total_count">,
+  ): EventSponsorRow {
+    return {
+      booth_label: "",
+      company_id: `firma-${id}`,
+      contacts_count: 0,
+      created_at: "2026-09-01T10:00:00.000Z",
+      crm_city: "",
+      crm_country: "",
+      crm_drift: false,
+      crm_drift_fields: [],
+      crm_logo_url: "",
+      crm_name: "",
+      crm_website: "",
+      event_id: STUDIO_EVENT_ID,
+      id,
+      is_published: true,
+      materials_count: 0,
+      published_materials_count: 0,
+      role: "sponsor",
+      snapshot_country: "",
+      snapshot_description_en: "",
+      snapshot_description_pl: "",
+      snapshot_logo_url: "",
+      snapshot_name: `Firma ${id}`,
+      snapshot_source: "crm",
+      snapshot_taken_at: "2026-09-01T10:00:00.000Z",
+      snapshot_website: "",
+      sort_order: 10,
+      tier_accent_color: "",
+      tier_id: "t-silver",
+      tier_key: "silver",
+      tier_logo_size: "md",
+      tier_name_en: "Silver",
+      tier_name_pl: "Srebrni",
+      tier_rank: 10,
+      updated_at: "2026-09-01T10:00:00.000Z",
+      ...patch,
+    };
+  }
+
+  /** Pasmo ze sponsorem - wiersz `admin_event_tracks_list` w zakresie chipa. */
+  function pasmo(id: string, sponsorId: string): EventTrackRow {
+    return {
+      id,
+      name_pl: `Pasmo ${id}`,
+      name_en: `Track ${id}`,
+      accent_color: "#FA9346",
+      sponsor_id: sponsorId,
+      sponsor_name: `Firma ${sponsorId}`,
+      sponsor_logo_url: null,
+      sponsor_role: "sponsor",
+      sessions_count: 1,
+      draft_count: 0,
+      is_active: true,
+      is_public: true,
+    } as unknown as EventTrackRow;
+  }
+
+  /** RPC oddaje strone wedlug `p_offset` / `p_limit` - jak prawdziwa funkcja. */
+  function listaStronami(rows: EventSponsorRow[]): void {
+    stub().setResponse("admin_event_sponsors_list", (call) => {
+      const offset = Number(call.arg("p_offset"));
+      return { data: rows.slice(offset, offset + Number(call.arg("p_limit"))), error: null };
+    });
+  }
+
+  function ostatnieDane(): EventPreviewLiveData {
+    const rysunek = h.rysunki.at(-1);
+    if (rysunek === undefined) throw new Error("test: kanwa nie zostala narysowana");
+    return rysunek.live;
+  }
+
+  const partnerzyPodgladu = () =>
+    ostatnieDane().sponsorTiers.flatMap((tier) => tier.sponsors.map((sponsor) => sponsor));
+
+  it("180 ogloszonych + 30 nieogloszonych: DWIE strony, komplet ogloszonych i filtr pasm DZIALA", async () => {
+    // Kolejnosc RPC: ranga malejaco - nieogloszeni ze Zlotego (ranga 30) stoja
+    // PRZED ogloszonymi ze Srebrnego, wiec na drugiej stronie laduje 10
+    // ogloszonych z konca listy. Jedna strona by ich zgubila.
+    const TOTAL = 210;
+    const nieogloszone = Array.from({ length: 30 }, (_, i) =>
+      przypiecie(`draft-${i}`, {
+        is_published: false,
+        tier_id: "t-gold",
+        tier_key: "gold",
+        tier_rank: 30,
+        total_count: TOTAL,
+      }),
+    );
+    const ogloszone = Array.from({ length: 180 }, (_, i) =>
+      przypiecie(`ann-${i}`, { sort_order: i, total_count: TOTAL }),
+    );
+    listaStronami([...nieogloszone, ...ogloszone]);
+    stub().setData("admin_event_tracks_list", [
+      pasmo("szkic", "draft-0"),
+      pasmo("koniec", "ann-179"),
+    ]);
+
+    nakladka({ open: true });
+
+    await waitFor(() => expect(partnerzyPodgladu()).toHaveLength(TOTAL));
+    expect(
+      stub()
+        .callsFor("admin_event_sponsors_list")
+        .map((call) => [call.arg("p_offset"), call.arg("p_limit")]),
+    ).toEqual([
+      [0, 200],
+      [200, 200],
+    ]);
+    const idki = new Set(partnerzyPodgladu().map((sponsor) => sponsor.id));
+    for (const sponsor of ogloszone) expect(idki.has(sponsor.id)).toBe(true);
+    expect(partnerzyPodgladu().filter((sponsor) => sponsor.isDraft === true)).toHaveLength(30);
+
+    // Filtr ogloszen przy pasmach zostaje WLACZONY: sponsor z nieogloszonego
+    // przypiecia znika z chipa, a ogloszony z DRUGIEJ strony zostaje.
+    await waitFor(() => expect(ostatnieDane().tracks).toHaveLength(2));
+    const chipy = new Map(ostatnieDane().tracks.map((chip) => [chip.id, chip.sponsorName]));
+    expect(chipy.get("szkic")).toBeNull();
+    expect(chipy.get("koniec")).toBe("Firma ann-179");
+  });
+
+  it("uciecie ZA twardym stopem (10 stron): lista z ostrzezeniem, a filtr pasm WYLACZONY jak dawniej", async () => {
+    // 2100 przypiec to 11 stron - petla staje po 10. `total_count` mowi, ze
+    // lista jest niepelna, wiec brak przypiecia nie dowodzi „nieogloszone":
+    // podglad nie filtruje, zeby nie zdjac sponsora, ktorego pokaze strona.
+    const TOTAL = 2100;
+    const wiersze = Array.from({ length: TOTAL }, (_, i) =>
+      przypiecie(`p-${i}`, { is_published: i !== 0, total_count: TOTAL }),
+    );
+    listaStronami(wiersze);
+    stub().setData("admin_event_tracks_list", [pasmo("szkic", "p-0")]);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    nakladka({ open: true });
+
+    await waitFor(() => expect(partnerzyPodgladu()).toHaveLength(2000));
+    expect(stub().callsFor("admin_event_sponsors_list")).toHaveLength(10);
+    expect(stub().lastCall("admin_event_sponsors_list")?.arg("p_offset")).toBe(1800);
+    expect(warn).toHaveBeenCalledWith(
+      "[events] sponsor list stopped at page cap",
+      expect.objectContaining({ eventId: STUDIO_EVENT_ID, loaded: 2000 }),
+    );
+    await waitFor(() => expect(ostatnieDane().tracks).toHaveLength(1));
+    expect(ostatnieDane().tracks[0]?.sponsorName).toBe("Firma p-0");
+    warn.mockRestore();
   });
 });
 

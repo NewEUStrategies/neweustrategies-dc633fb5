@@ -41,6 +41,7 @@ import type { QueryClient, UseMutationResult } from "@tanstack/react-query";
 import { renderHookWithQueryClient } from "@/test/renderWithQueryClient";
 
 const api = vi.hoisted(() => ({
+  fetchAllSponsors: vi.fn(),
   fetchSponsors: vi.fn(),
   fetchSponsorTiers: vi.fn(),
   fetchSponsorDetail: vi.fn(),
@@ -73,6 +74,7 @@ import {
   useReorderSponsors,
   useSaveSponsor,
   useSaveSponsorMaterial,
+  useAllSponsors,
   useSaveSponsorTier,
   useSetSponsorContacts,
   useSetSponsorsPublished,
@@ -82,6 +84,7 @@ import {
   useSponsors,
 } from "@/lib/events/useEventSponsors";
 import type {
+  AllSponsorsQuery,
   EventSponsorDetailRow,
   EventSponsorRow,
   EventSponsorTierRow,
@@ -179,6 +182,7 @@ beforeEach(() => {
   vi.restoreAllMocks();
   vi.clearAllMocks();
   api.fetchSponsors.mockResolvedValue(LISTA_SPONSOROW);
+  api.fetchAllSponsors.mockResolvedValue(LISTA_SPONSOROW);
   api.fetchSponsorTiers.mockResolvedValue(LISTA_POZIOMOW);
   api.fetchSponsorDetail.mockResolvedValue(null);
   api.searchSponsorCompanies.mockResolvedValue(LISTA_FIRM);
@@ -221,6 +225,25 @@ describe("fabryka kluczy pamieci podrecznej", () => {
     expect(sponsorKeys.list(filtr)).toEqual(["event-sponsors", WYDARZENIE, "list", filtr]);
     expect(sponsorKeys.list(filtr)).not.toEqual(
       sponsorKeys.list({ eventId: WYDARZENIE, role: "all", limit: 25 }),
+    );
+  });
+
+  // CALA LISTA TO INNA ODPOWIEDZ NIZ JEDNA STRONA. Pod `list` ten sam obiekt
+  // zapytania oddaje najwyzej 200 wierszy (zacisk RPC), a podglad studia czyta
+  // WSZYSTKIE strony - wspolna szuflada nadpisywalaby komplet strona albo
+  // odwrotnie. Ta szuflada lezy jednak w galezi wydarzenia, jak lista.
+  it("cala lista ma WLASNA szuflade w galezi wydarzenia - obok listy, nie w niej", () => {
+    const zapytanie: AllSponsorsQuery = { eventId: WYDARZENIE };
+    expect(sponsorKeys.allPages(zapytanie)).toEqual([
+      "event-sponsors",
+      WYDARZENIE,
+      "list-all",
+      zapytanie,
+    ]);
+    expect(sponsorKeys.allPages(zapytanie)).not.toEqual(sponsorKeys.list(zapytanie));
+    expect(sponsorKeys.allPages(zapytanie).slice(0, 2)).toEqual(sponsorKeys.event(WYDARZENIE));
+    expect(sponsorKeys.allPages(zapytanie)).not.toEqual(
+      sponsorKeys.allPages({ eventId: INNE_WYDARZENIE }),
     );
   });
 
@@ -282,6 +305,33 @@ describe("brama `enabled` - para „pyta / nie pyta”", () => {
     await waitFor(() => expect(result.current.fetchStatus).toBe("idle"));
 
     expect(api.fetchSponsors).not.toHaveBeenCalled();
+  });
+
+  it("CALA lista z identyfikatorem wydarzenia IDZIE do bazy - strona po stronie", async () => {
+    const zapytanie: AllSponsorsQuery = { eventId: WYDARZENIE };
+    const { result, queryClient } = renderHookWithQueryClient(() => useAllSponsors(zapytanie));
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(api.fetchAllSponsors).toHaveBeenCalledExactlyOnceWith(zapytanie);
+    expect(api.fetchSponsors).not.toHaveBeenCalled();
+    expect(queryClient.getQueryData(sponsorKeys.allPages(zapytanie))).toBe(LISTA_SPONSOROW);
+  });
+
+  it("CALA lista BEZ identyfikatora wydarzenia nie rusza do bazy", async () => {
+    const { result } = renderHookWithQueryClient(() => useAllSponsors({ eventId: "" }));
+    await waitFor(() => expect(result.current.fetchStatus).toBe("idle"));
+
+    expect(api.fetchAllSponsors).not.toHaveBeenCalled();
+  });
+
+  // Zamkniety podglad studia nie czyta partnerow - to jego brama `open`.
+  it("jawne wylaczenie wstrzymuje CALA liste mimo poprawnego wydarzenia", async () => {
+    const { result } = renderHookWithQueryClient(() =>
+      useAllSponsors({ eventId: WYDARZENIE }, false),
+    );
+    await waitFor(() => expect(result.current.fetchStatus).toBe("idle"));
+
+    expect(api.fetchAllSponsors).not.toHaveBeenCalled();
   });
 
   it("poziomy z identyfikatorem wydarzenia IDA do bazy", async () => {
@@ -381,6 +431,15 @@ describe("odmowa bazy w odczycie", () => {
   it("odmowa listy wychodzi z hakiem jako blad, a nie jako pusta lista", async () => {
     api.fetchSponsors.mockRejectedValue(ODMOWA);
     const { result } = renderHookWithQueryClient(() => useSponsors({ eventId: WYDARZENIE }));
+    await waitFor(() => expect(result.current.isError).toBe(true));
+
+    expect(result.current.data).toBeUndefined();
+    expect(result.current.error?.message).toBe(ODMOWA.message);
+  });
+
+  it("odmowa CALEJ listy (na ktorejkolwiek stronie) wychodzi jako blad, nie polowa listy", async () => {
+    api.fetchAllSponsors.mockRejectedValue(ODMOWA);
+    const { result } = renderHookWithQueryClient(() => useAllSponsors({ eventId: WYDARZENIE }));
     await waitFor(() => expect(result.current.isError).toBe(true));
 
     expect(result.current.data).toBeUndefined();
@@ -719,10 +778,12 @@ describe("mutacje - zasieg uniewaznienia", () => {
   /** Sadzi wartownika w kazdej galezi, ktorej dotyczy asercja pary. */
   function posiej(client: QueryClient): void {
     client.setQueryData(sponsorKeys.list({ eventId: WYDARZENIE }), LISTA_SPONSOROW);
+    client.setQueryData(sponsorKeys.allPages({ eventId: WYDARZENIE }), LISTA_SPONSOROW);
     client.setQueryData(sponsorKeys.tiers(WYDARZENIE), LISTA_POZIOMOW);
     client.setQueryData(sponsorKeys.companies(WYDARZENIE, "alfa"), LISTA_FIRM);
     client.setQueryData(sponsorKeys.detail(PRZYPIECIE), null);
     client.setQueryData(sponsorKeys.list({ eventId: INNE_WYDARZENIE }), LISTA_SPONSOROW);
+    client.setQueryData(sponsorKeys.allPages({ eventId: INNE_WYDARZENIE }), LISTA_SPONSOROW);
     client.setQueryData(sponsorKeys.tiers(INNE_WYDARZENIE), LISTA_POZIOMOW);
     client.setQueryData(sponsorKeys.companies(INNE_WYDARZENIE, "alfa"), LISTA_FIRM);
   }
@@ -740,6 +801,8 @@ describe("mutacje - zasieg uniewaznienia", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(zwietrzal(queryClient, sponsorKeys.list({ eventId: WYDARZENIE }))).toBe(true);
+    // Podglad studia czyta CALA liste - zapis na tablicy ma go odswiezyc tak samo.
+    expect(zwietrzal(queryClient, sponsorKeys.allPages({ eventId: WYDARZENIE }))).toBe(true);
     expect(zwietrzal(queryClient, sponsorKeys.tiers(WYDARZENIE))).toBe(true);
     expect(zwietrzal(queryClient, sponsorKeys.companies(WYDARZENIE, "alfa"))).toBe(true);
     expect(zwietrzal(queryClient, sponsorKeys.detail(PRZYPIECIE))).toBe(true);
@@ -751,6 +814,7 @@ describe("mutacje - zasieg uniewaznienia", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(zwietrzal(queryClient, sponsorKeys.list({ eventId: INNE_WYDARZENIE }))).toBe(false);
+    expect(zwietrzal(queryClient, sponsorKeys.allPages({ eventId: INNE_WYDARZENIE }))).toBe(false);
     expect(zwietrzal(queryClient, sponsorKeys.tiers(INNE_WYDARZENIE))).toBe(false);
     expect(zwietrzal(queryClient, sponsorKeys.companies(INNE_WYDARZENIE, "alfa"))).toBe(false);
   });
