@@ -48,7 +48,8 @@ INSERT INTO auth.users (id, email) VALUES
   ('13000000-0000-0000-0000-000000000005', 'rsvp.13@example.org'),
   ('13000000-0000-0000-0000-000000000006', 'prof.13@example.org'),
   ('13000000-0000-0000-0000-000000000007', 'prof.other.13@example.org'),
-  ('13000000-0000-0000-0000-000000000008', 'prof.lang.13@example.org')
+  ('13000000-0000-0000-0000-000000000008', 'prof.lang.13@example.org'),
+  ('13000000-0000-0000-0000-0000000000f1', 'super.13@example.org')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.profiles (id, tenant_id, display_name, prefs) VALUES
@@ -58,13 +59,19 @@ INSERT INTO public.profiles (id, tenant_id, display_name, prefs) VALUES
   ('13000000-0000-0000-0000-000000000006', '13131313-1313-1313-1313-131313131313', 'Prof EN', '{"language":"en"}'),
   -- profil w INNYM najemcy: jezyk z niego NIE moze trafic do zgloszenia najemcy A
   ('13000000-0000-0000-0000-000000000007', '13131313-1313-1313-1313-13131313131b', 'Prof B', '{"language":"en"}'),
-  ('13000000-0000-0000-0000-000000000008', '13131313-1313-1313-1313-131313131313', 'Prof lang', '{"lang":"EN"}')
+  ('13000000-0000-0000-0000-000000000008', '13131313-1313-1313-1313-131313131313', 'Prof lang', '{"lang":"EN"}'),
+  ('13000000-0000-0000-0000-0000000000f1', '13131313-1313-1313-1313-131313131313', 'Super 13A', '{}')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.user_roles (user_id, role) VALUES
   ('13000000-0000-0000-0000-0000000000a1', 'admin'),
   ('13000000-0000-0000-0000-0000000000e1', 'editor'),
   ('13000000-0000-0000-0000-0000000000b1', 'admin')
+ON CONFLICT DO NOTHING;
+-- super administrator BEZ roli admin: galaz `OR is_super_admin(...)` polityk
+-- i bramki panelu (A.6: admin zawsze w parze z super adminem).
+INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
+  ('13000000-0000-0000-0000-0000000000f1', 'super_admin', '13131313-1313-1313-1313-131313131313')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO public.events
@@ -95,7 +102,11 @@ VALUES
    '2030-06-10 11:00+00', '2030-06-10 12:00+00', 'published', true, 1),
   ('13200000-0000-0000-0000-000000000003', '13131313-1313-1313-1313-131313131313',
    '13100000-0000-0000-0000-000000000002', 'Sesja szkicu', 'Draft session',
-   '2030-06-11 09:00+00', '2030-06-11 10:00+00', 'published', true, NULL);
+   '2030-06-11 09:00+00', '2030-06-11 10:00+00', 'published', true, NULL),
+  -- S4: zapis posiadacza BEZ kolejki (galaz: odwolany zapis, nikogo do awansu)
+  ('13200000-0000-0000-0000-000000000004', '13131313-1313-1313-1313-131313131313',
+   '13100000-0000-0000-0000-000000000001', 'Sesja cztery', 'Session four',
+   '2030-06-10 13:00+00', '2030-06-10 14:00+00', 'published', true, 5);
 
 INSERT INTO public.event_people (id, tenant_id, user_id, email, first_name, last_name) VALUES
   ('13300000-0000-0000-0000-000000000001', '13131313-1313-1313-1313-131313131313',
@@ -315,6 +326,11 @@ BEGIN
   PERFORM pg_temp.assert((v->>'exists')::boolean AND (v->>'via_token')::boolean
       AND (v->>'is_holder')::boolean AND v->>'registration_id' = r1::text,
     '13/aktor: posiadacz po kluczu samoobslugi (via_token)');
+
+  v := public._event_registration_actor(a, r1, NULL, '  tok13-holder-abcdefghijklmnopqrstuv  ');
+  PERFORM pg_temp.assert((v->>'via_token')::boolean AND (v->>'is_holder')::boolean
+      AND NOT (v->>'is_registrant')::boolean AND NOT (v->>'is_payer')::boolean,
+    '13/aktor: znane id + wlasciwy klucz (z bialymi znakami) -> via_token i is_holder');
 
   v := public._event_registration_actor(a, r1, NULL, 'tok13-zly-klucz');
   PERFORM pg_temp.assert((v->>'exists')::boolean AND NOT (v->>'via_token')::boolean
@@ -762,6 +778,26 @@ SELECT pg_temp.assert(
   AND (SELECT count(*) FROM public.event_message_deliveries
     WHERE tenant_id = '13131313-1313-1313-1313-13131313131b') = 1,
   '13/rls: administrator najemcy B nie widzi wierszy A, widzi swoj (kontrapunkt)');
+RESET ROLE;
+
+-- super administrator (bez roli admin) - galaz `OR is_super_admin` polityki i bramki
+SELECT pg_temp.act_as('13000000-0000-0000-0000-0000000000f1', '13131313-1313-1313-1313-131313131313');
+SET ROLE authenticated;
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.event_participant_settings
+    WHERE event_id = '13100000-0000-0000-0000-000000000001') = 1
+  AND (SELECT count(*) FROM public.event_message_deliveries
+    WHERE event_id = '13100000-0000-0000-0000-000000000001') >= 4
+  AND (SELECT count(*) FROM public.event_message_deliveries
+    WHERE tenant_id = '13131313-1313-1313-1313-13131313131b') = 0,
+  '13/rls: super administrator najemcy A widzi ustawienia i dziennik A, nie widzi B');
+RESET ROLE;
+SELECT pg_temp.assert(
+  public.admin_event_participant_settings_get('13100000-0000-0000-0000-000000000001')->>'refund_mode' = 'none',
+  '13/ustawienia: super administrator przechodzi bramke panelu (get)');
+
+SELECT pg_temp.act_as('13000000-0000-0000-0000-0000000000b1', '13131313-1313-1313-1313-13131313131b');
+SET ROLE authenticated;
 SELECT pg_temp.assert_raises(
   $$INSERT INTO public.event_participant_settings (tenant_id, event_id)
     VALUES ('13131313-1313-1313-1313-13131313131b', '13100000-0000-0000-0000-00000000000b')$$,
@@ -858,6 +894,27 @@ BEGIN
     '13/zwolnienie: _event_legacy_rsvp_release(NULL) = 0');
 END $$;
 
+-- Filtr najemcy w UPDATE: wiersz RSVP zapisany pod najemca B (przy wydarzeniu
+-- EA3) nie jest zwalniany przez wywolanie z najemca A - i JEST zwalniany przez
+-- wywolanie z najemca B (kontrapunkt: filtr dziala po najemcy, nie blokuje wszystkiego).
+INSERT INTO public.event_rsvps (tenant_id, event_id, user_id, status) VALUES
+  ('13131313-1313-1313-1313-13131313131b', '13100000-0000-0000-0000-000000000003',
+   '13000000-0000-0000-0000-000000000004', 'going');
+DO $$
+DECLARE n integer;
+BEGIN
+  n := public._event_legacy_rsvp_release('13131313-1313-1313-1313-131313131313',
+    '13100000-0000-0000-0000-000000000003', '13000000-0000-0000-0000-000000000004');
+  PERFORM pg_temp.assert(n = 0 AND (SELECT status FROM public.event_rsvps
+      WHERE user_id = '13000000-0000-0000-0000-000000000004'
+        AND event_id = '13100000-0000-0000-0000-000000000003') = 'going',
+    '13/zwolnienie: _event_legacy_rsvp_release nie zwalnia RSVP obcego najemcy (filtr tenant_id)');
+  n := public._event_legacy_rsvp_release('13131313-1313-1313-1313-13131313131b',
+    '13100000-0000-0000-0000-000000000003', '13000000-0000-0000-0000-000000000004');
+  PERFORM pg_temp.assert(n = 1,
+    '13/zwolnienie: ten sam wiersz zwalniany przy zgodnym najemcy (kontrapunkt)');
+END $$;
+
 -- zapisy na sesje, kolejka i zakladki
 INSERT INTO public.event_session_signups (tenant_id, event_id, session_id, user_id, status, registered_at) VALUES
   ('13131313-1313-1313-1313-131313131313', '13100000-0000-0000-0000-000000000001',
@@ -867,7 +924,9 @@ INSERT INTO public.event_session_signups (tenant_id, event_id, session_id, user_
   ('13131313-1313-1313-1313-131313131313', '13100000-0000-0000-0000-000000000001',
    '13200000-0000-0000-0000-000000000002', '13000000-0000-0000-0000-000000000001', 'waitlist', now() - interval '1 hour'),
   ('13131313-1313-1313-1313-131313131313', '13100000-0000-0000-0000-000000000002',
-   '13200000-0000-0000-0000-000000000003', '13000000-0000-0000-0000-000000000001', 'registered', now());
+   '13200000-0000-0000-0000-000000000003', '13000000-0000-0000-0000-000000000001', 'registered', now()),
+  ('13131313-1313-1313-1313-131313131313', '13100000-0000-0000-0000-000000000001',
+   '13200000-0000-0000-0000-000000000004', '13000000-0000-0000-0000-000000000001', 'registered', now() - interval '3 hours');
 INSERT INTO public.event_session_saves (tenant_id, event_id, session_id, user_id) VALUES
   ('13131313-1313-1313-1313-131313131313', '13100000-0000-0000-0000-000000000001',
    '13200000-0000-0000-0000-000000000001', '13000000-0000-0000-0000-000000000001'),
@@ -920,9 +979,17 @@ BEGIN
    WHERE id = '13500000-0000-0000-0000-000000000001';
   v := public._event_participant_release(a, '13100000-0000-0000-0000-000000000001',
                                           '13000000-0000-0000-0000-000000000001', 'refunded');
+  -- S1 registered + kolejka (awans), S2 waitlist (bez awansu), S4 registered bez kolejki (bez awansu)
   PERFORM pg_temp.assert(
-    v = '{"signups_cancelled":2,"signups_promoted":1,"saves_removed":1,"rsvp_cancelled":1}'::jsonb,
+    v = '{"signups_cancelled":3,"signups_promoted":1,"saves_removed":1,"rsvp_cancelled":1}'::jsonb,
     '13/zwolnienie: _event_participant_release liczy odwolane zapisy, awans, zakladki i RSVP');
+  PERFORM pg_temp.assert(
+    (SELECT status = 'cancelled' AND cancelled_at IS NOT NULL FROM public.event_session_signups
+      WHERE session_id = '13200000-0000-0000-0000-000000000004'
+        AND user_id = '13000000-0000-0000-0000-000000000001')
+    AND (SELECT count(*) FROM public.event_session_signups
+      WHERE session_id = '13200000-0000-0000-0000-000000000004' AND status = 'registered') = 0,
+    '13/zwolnienie: zapis registered bez kolejki odwolany, nikt nie awansuje');
   PERFORM pg_temp.assert(
     (SELECT status FROM public.event_session_signups
       WHERE session_id = '13200000-0000-0000-0000-000000000001'
@@ -930,7 +997,7 @@ BEGIN
     AND (SELECT count(*) FROM public.event_session_signups
       WHERE event_id = '13100000-0000-0000-0000-000000000001'
         AND user_id = '13000000-0000-0000-0000-000000000001'
-        AND status = 'cancelled' AND cancelled_at IS NOT NULL) = 2,
+        AND status = 'cancelled' AND cancelled_at IS NOT NULL) = 3,
     '13/zwolnienie: zapisy posiadacza odwolane, pierwszy z kolejki sesji awansowany');
   PERFORM pg_temp.assert(
     (SELECT status FROM public.event_session_signups
@@ -944,6 +1011,52 @@ BEGIN
     '13/zwolnienie: inne wydarzenie i cudze zakladki nietkniete; RSVP posiadacza anulowane');
 END $$;
 
+-- Zapis, ktorego status zmienil sie miedzy odczytem petli a blokada sesji
+-- (rownolegle `event_session_signup` odwolalo go i samo awansowalo kolejke),
+-- nie jest liczony ani nie wywoluje DRUGIEGO awansu. Jedna sesja nie odtworzy
+-- wyscigu, wiec UPDATE, ktory nie trafia w wiersz, symuluje trigger BEFORE
+-- UPDATE zwracajacy NULL (w punkcie zapisu, wycofywany).
+INSERT INTO public.event_session_signups (tenant_id, event_id, session_id, user_id, status, registered_at) VALUES
+  ('13131313-1313-1313-1313-131313131313', '13100000-0000-0000-0000-000000000001',
+   '13200000-0000-0000-0000-000000000004', '13000000-0000-0000-0000-000000000002', 'registered', now() - interval '2 hours'),
+  ('13131313-1313-1313-1313-131313131313', '13100000-0000-0000-0000-000000000001',
+   '13200000-0000-0000-0000-000000000004', '13000000-0000-0000-0000-000000000005', 'waitlist', now() - interval '1 hour');
+SAVEPOINT t13_stale_signup;
+CREATE FUNCTION public.t13_skip_signup_cancel() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF OLD.user_id = '13000000-0000-0000-0000-000000000002' AND NEW.status = 'cancelled' THEN
+    RETURN NULL;
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER t13_skip_signup_cancel BEFORE UPDATE ON public.event_session_signups
+  FOR EACH ROW EXECUTE FUNCTION public.t13_skip_signup_cancel();
+DO $$
+DECLARE v jsonb;
+BEGIN
+  v := public._event_participant_release('13131313-1313-1313-1313-131313131313',
+    '13100000-0000-0000-0000-000000000001', '13000000-0000-0000-0000-000000000002', 'stale');
+  PERFORM pg_temp.assert(
+    v = '{"signups_cancelled":0,"signups_promoted":0,"saves_removed":0,"rsvp_cancelled":0}'::jsonb
+    AND (SELECT status FROM public.event_session_signups
+          WHERE session_id = '13200000-0000-0000-0000-000000000004'
+            AND user_id = '13000000-0000-0000-0000-000000000005') = 'waitlist',
+    '13/zwolnienie: zapis, ktory nie mial juz widzianego statusu, nie jest liczony i nie awansuje kolejki');
+END $$;
+ROLLBACK TO SAVEPOINT t13_stale_signup;
+DO $$
+DECLARE v jsonb;
+BEGIN
+  v := public._event_participant_release('13131313-1313-1313-1313-131313131313',
+    '13100000-0000-0000-0000-000000000001', '13000000-0000-0000-0000-000000000002', 'plain');
+  PERFORM pg_temp.assert(
+    v->>'signups_cancelled' = '1' AND v->>'signups_promoted' = '1'
+    AND (SELECT status FROM public.event_session_signups
+          WHERE session_id = '13200000-0000-0000-0000-000000000004'
+            AND user_id = '13000000-0000-0000-0000-000000000005') = 'registered',
+    '13/zwolnienie: bez zmiany statusu ten sam zapis jest odwolany, a kolejka awansuje (kontrapunkt)');
+END $$;
+
 -- ---------------------------------------------------------------------------
 -- 11. Uprawnienia funkcji i tozsamosc atrapy platformy
 -- ---------------------------------------------------------------------------
@@ -955,6 +1068,14 @@ SELECT pg_temp.assert(
   AND NOT has_function_privilege('authenticated', 'public._event_registration_actor(uuid,uuid,uuid,text)', 'EXECUTE')
   AND NOT has_function_privilege('authenticated', 'public._event_participant_release(uuid,uuid,uuid,text)', 'EXECUTE')
   AND has_function_privilege('authenticated', 'public._event_safe_timezone(text)', 'EXECUTE')
+  AND has_function_privilege('authenticated', 'public._event_effective_end(timestamptz,timestamptz)', 'EXECUTE')
+  AND NOT has_function_privilege('anon', 'public._event_effective_end(timestamptz,timestamptz)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public._event_local_quiet(text,timestamptz)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public._event_legacy_rsvp_release(uuid,uuid,uuid)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public._event_registration_lang(uuid,uuid)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public._event_participant_settings_effective(uuid,uuid)', 'EXECUTE')
+  AND NOT has_function_privilege('anon', 'public.admin_event_message_delivery_stats(uuid)', 'EXECUTE')
+  AND NOT has_function_privilege('anon', 'public.admin_event_participant_settings_save(jsonb)', 'EXECUTE')
   AND has_function_privilege('service_role', 'public._event_delivery_confirm(uuid,text,text)', 'EXECUTE'),
   '13/acl: publiczne opcje dla anon, panel dla authenticated, pomocnicy tylko service_role');
 

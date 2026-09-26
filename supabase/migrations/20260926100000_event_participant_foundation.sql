@@ -484,7 +484,8 @@ BEGIN
   END IF;
 
   v_group := r.group_lead_registration_id IS NOT NULL
-    OR EXISTS (SELECT 1 FROM public.event_registrations g WHERE g.group_lead_registration_id = r.id);
+    OR EXISTS (SELECT 1 FROM public.event_registrations g
+                WHERE g.tenant_id = r.tenant_id AND g.group_lead_registration_id = r.id);
 
   RETURN jsonb_build_object(
     'exists', true,
@@ -591,9 +592,12 @@ BEGIN
     RETURN 0;
   END IF;
 
+  -- Filtr najemcy takze tutaj (nie tylko w EXISTS wyzej): wolajacy z blednym
+  -- najemca przy poprawnym id wydarzenia nie moze zwolnic cudzej rezerwacji.
   UPDATE public.event_rsvps
      SET status = 'cancelled', updated_at = now()
-   WHERE event_id = _event_id
+   WHERE tenant_id = _tenant
+     AND event_id = _event_id
      AND user_id = _user_id
      AND status IN ('going', 'waitlist');
   GET DIAGNOSTICS v_n = ROW_COUNT;
@@ -619,6 +623,7 @@ AS $function$
 DECLARE
   g record;
   v_promoted uuid;
+  v_n integer;
   v_cancelled integer := 0;
   v_promoted_n integer := 0;
   v_saves integer := 0;
@@ -642,14 +647,20 @@ BEGIN
      WHERE es.id = g.session_id AND es.tenant_id = _tenant
        FOR UPDATE;
 
+    -- Status sprawdzany PONOWNIE, juz pod blokada sesji. Petla czyta zapisy
+    -- BEZ blokady, a `event_session_signup` (ta sama blokada sesji) moglo
+    -- w tym czasie samo odwolac ten zapis i awansowac kolejke - drugi awans
+    -- za to samo zwolnione miejsce przepelnilby sesje. Wiersz, ktory nie ma
+    -- juz statusu widzianego w petli, nie jest ani liczony, ani zwalniany.
     UPDATE public.event_session_signups
        SET status = 'cancelled', cancelled_at = now()
-     WHERE id = g.id;
-    v_cancelled := v_cancelled + 1;
+     WHERE id = g.id AND status = g.status;
+    GET DIAGNOSTICS v_n = ROW_COUNT;
+    v_cancelled := v_cancelled + v_n;
 
     -- Zwolnione miejsce przechodzi na pierwszego z kolejki sesji (FIFO jak
     -- w event_session_signup).
-    IF g.status = 'registered' THEN
+    IF v_n = 1 AND g.status = 'registered' THEN
       v_promoted := NULL;
       SELECT w.id INTO v_promoted
         FROM public.event_session_signups w
