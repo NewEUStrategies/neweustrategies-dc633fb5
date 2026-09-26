@@ -114,7 +114,6 @@ export const I18N_OVERLAY_IMPORT_BASELINE: readonly (readonly [string, number])[
   ["src/components/admin/events/organisms/SponsorMaterialsPanel.tsx", 12],
   ["src/components/admin/events/organisms/SponsorsListPanel.tsx", 28],
   ["src/components/admin/events/organisms/SponsorTiersPanel.tsx", 15],
-  ["src/components/admin/events/studio/EventPreviewLiveModule.tsx", 6],
   ["src/components/admin/media/hooks/useMediaMutations.ts", 5],
   ["src/components/admin/media/molecules/FolderTreeRow.tsx", 1],
   ["src/components/admin/media/molecules/MediaBreadcrumbs.tsx", 2],

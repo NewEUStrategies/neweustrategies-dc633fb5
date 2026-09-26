@@ -41,7 +41,7 @@ import {
   type EventPreviewModel,
 } from "@/components/admin/events/studio/EventStudioPreviewContext";
 import { useEventPageDocument } from "@/lib/events/useAdminEventPages";
-import { useSponsors } from "@/lib/events/useEventSponsors";
+import { useSponsorTiers, useSponsors } from "@/lib/events/useEventSponsors";
 import { sponsorTiersFromAdminRows } from "@/lib/events/sponsorsPreview";
 import { useViewerCardFacts } from "@/lib/profile/useViewerCard";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
@@ -71,7 +71,7 @@ type PreviewNavTarget = {
   module: string | null;
 };
 
-/** Górna granica listy ogłoszonych przypięć w podglądzie (zaciskana w RPC do 1..200). */
+/** Górna granica listy przypięć w podglądzie (zaciskana w RPC do 1..200). */
 const PREVIEW_SPONSORS_LIMIT = 200;
 
 export function EventStudioPreview({
@@ -85,7 +85,8 @@ export function EventStudioPreview({
   /** Adres strony publicznej albo `null` dla szkicu - nie ma czego otwierac. */
   publicHref: string | null;
   /**
-   * Wydarzenie, ktorego partnerow ma pokazac pas w podgladzie.
+   * Wydarzenie, ktorego partnerow, program, prelegentow i uczestnikow ma
+   * pokazac podglad.
    *
    * ZAPYTANIE STOI TUTAJ, NIE W KANWIE - kanwa rysuje szkic i nie odpala
    * zapytan (patrz `viewer`). Zapytanie chodzi TYLKO przy otwartej nakladce,
@@ -145,13 +146,25 @@ export function EventStudioPreview({
   // WIDZ JEST WLASNOSCIA SESJI, NIE SZKICU - dlatego czyta go nakladka, a nie
   // kanwa.
   const viewer = useViewerCardFacts();
-  // Tylko przypiecia OGLOSZONE - ten sam filtr, ktory stosuje publiczne
-  // `event_sponsors_public`.
-  const sponsorsQ = useSponsors(
-    { eventId, published: "published", limit: PREVIEW_SPONSORS_LIMIT },
-    open,
+  // WSZYSTKIE PRZYPIECIA, TAKZE NIEOGLOSZONE. Tablica „Sponsorzy i reklama"
+  // zapisuje nowe logo jako nieogloszone, a podglad z filtrem „published"
+  // pokazywal wtedy pustke w miejscu logotypow, ktore organizator widzial na
+  // tablicy - bez slowa, dlaczego. Pas i sekcja „Partnerzy" rysuja je wiec
+  // PRZYGASZONE, z plakietka „Nieogloszony" - tak jak szkice sesji i sciezek
+  // w programie podgladu. Program i sciezki biora sponsora dalej TYLKO
+  // z przypiecia ogloszonego (`publishedSponsorIdSet` nizej).
+  const sponsorsQ = useSponsors({ eventId, limit: PREVIEW_SPONSORS_LIMIT }, open);
+  // Opis, korzysci i `sort_order` poziomu - lista przypiec ich nie niesie,
+  // a sekcja „Partnerzy" je rysuje. Ten sam klucz cache, co ekran poziomow.
+  const sponsorTiersQ = useSponsorTiers(eventId, open);
+  const sponsorTiers = useMemo(
+    () =>
+      sponsorTiersFromAdminRows(sponsorsQ.data, {
+        tiers: sponsorTiersQ.data,
+        includeDrafts: true,
+      }),
+    [sponsorsQ.data, sponsorTiersQ.data],
   );
-  const sponsorTiers = useMemo(() => sponsorTiersFromAdminRows(sponsorsQ.data), [sponsorsQ.data]);
 
   // ZYWE DANE PODSTRON MODULOWYCH. Projekcje publiczne (`event_agenda`,
   // `get_public_speakers`, `event_attendees`) maja bramke `published` albo
@@ -174,7 +187,8 @@ export function EventStudioPreview({
   );
   // Program i pasma pokazuja sponsora TYLKO z ogloszonego przypiecia - ta sama
   // bramka `is_published`, ktora stosuje publiczne `event_agenda`. Lista jest
-  // juz pobrana wyzej (`sponsorsQ`), wiec to nie jest drugie zapytanie.
+  // juz pobrana wyzej (`sponsorsQ`, ze WSZYSTKIMI przypieciami), wiec to nie
+  // jest drugie zapytanie - nieogloszone odsiewa sam zbior.
   const publishedSponsorIds = useMemo(
     () => publishedSponsorIdSet(sponsorsQ.data, PREVIEW_SPONSORS_LIMIT),
     [sponsorsQ.data],
@@ -191,6 +205,7 @@ export function EventStudioPreview({
       tracks: trackChipsFromAdminRows(tracksQ.data, publishedSponsorIds),
       speakers: speakerRowsFromAdminEntries(speakersQ.data, sessionsQ.data),
       attendees: attendeeEntriesFromRegistrationRows(registrationsQ.data?.rows),
+      sponsorTiers,
     }),
     [
       sessionsQ.data,
@@ -199,6 +214,7 @@ export function EventStudioPreview({
       registrationsQ.data,
       base.timezone,
       publishedSponsorIds,
+      sponsorTiers,
     ],
   );
 
@@ -349,7 +365,6 @@ export function EventStudioPreview({
               model={model}
               device={device}
               viewer={viewer}
-              sponsorTiers={sponsorTiers}
               onNavigate={handleNavigate}
               onBack={handleBack}
               live={live}

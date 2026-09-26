@@ -69,17 +69,25 @@ function previewSponsor(
  * Zbior ogloszonych przypiec do filtra `previewSponsor` - albo `undefined`,
  * gdy wywolujacy NIE MA pewnosci, ze zna je wszystkie.
  *
+ * LISTA JEST PELNA, FILTR JEST TUTAJ. Nakladka pyta o WSZYSTKIE przypiecia
+ * (pas i sekcja „Partnerzy" pokazuja tez nieogloszone, znaczone plakietka),
+ * a program i sciezki maja dalej pokazywac sponsora TYLKO z przypiecia
+ * ogloszonego - wiec wiersz `is_published = false` do zbioru nie wchodzi.
+ * Wiersz bez tego pola (wywolujacy, ktory pyta juz z filtrem „published")
+ * liczy sie jako ogloszony, jak przed ta zmiana.
+ *
  * Lista panelu ma limit. Pelna strona (`rows.length >= limit`) moze byc
  * ucieta, a wtedy brak przypiecia na liscie nie dowodzi, ze jest nieogloszone:
  * podglad zdejmowalby sponsora, ktorego strona publiczna pokaze. Przy
  * niepewnosci wolimy nie filtrowac (tak jak przed wprowadzeniem filtra).
+ * Limit liczy CALA liste, a nie same ogloszone - to ona moze byc ucieta.
  */
 export function publishedSponsorIdSet(
-  rows: readonly { id: string }[] | undefined,
+  rows: readonly { id: string; is_published?: boolean | null }[] | undefined,
   limit: number,
 ): ReadonlySet<string> | undefined {
   if (rows === undefined || rows.length >= limit) return undefined;
-  return new Set(rows.map((row) => row.id));
+  return new Set(rows.filter((row) => row.is_published !== false).map((row) => row.id));
 }
 
 /** Kontekst, ktorego lista sesji panelu sama nie niesie. */

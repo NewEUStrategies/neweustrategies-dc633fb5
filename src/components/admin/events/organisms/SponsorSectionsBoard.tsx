@@ -1,5 +1,12 @@
 // Organizm: tablica „Sponsorzy i reklama" (wzór: Swapcard Studio) - karty sekcji
 // sponsorów z kolejnością i edycją w bocznym panelu, pod nimi reklamy strony głównej.
+//
+// KOLEJNOŚĆ TABLICY TO KOLEJNOŚĆ STRONY. Strona wydarzenia i podgląd studia
+// stawiają poziomy rangą MALEJĄCO (`event_sponsors_public`: `ORDER BY t.rank
+// DESC, t.sort_order, t.key`), a tablica sortowała po samym `sort_order`
+// i przy przestawianiu dawała GÓRNEJ karcie NAJNIŻSZĄ rangę. Sekcja ułożona
+// na górze tablicy lądowała więc na dole strony. Dziś tablica sortuje tym
+// samym porządkiem, a przestawienie daje górnej karcie rangę najwyższą.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -19,7 +26,7 @@ import { SponsorSectionDrawer } from "@/components/admin/events/organisms/Sponso
 import { adminSponsorErrorMessage } from "@/lib/events/adminSponsorErrors";
 import { slugifyEventTypeKey } from "@/lib/events/eventTypes";
 import { SPONSOR_KEY_PATTERN } from "@/lib/events/sponsorDraft";
-import type { EventSponsorRow } from "@/lib/events/sponsorsApi";
+import type { EventSponsorRow, EventSponsorTierRow } from "@/lib/events/sponsorsApi";
 import { setTierLayout, useSponsorLinks, useTierLayouts } from "@/lib/events/sponsorBoardApi";
 import {
   useReorderSponsorTiers,
@@ -35,7 +42,13 @@ function logoOf(row: EventSponsorRow): SponsorLogo {
     id: row.id,
     name: row.snapshot_name || row.crm_name,
     logoUrl: row.snapshot_logo_url || row.crm_logo_url,
+    isPublished: row.is_published === true,
   };
+}
+
+/** Porządek poziomów strony publicznej - patrz nagłówek pliku. */
+function byPublicOrder(a: EventSponsorTierRow, b: EventSponsorTierRow): number {
+  return b.rank - a.rank || a.sort_order - b.sort_order || a.key.localeCompare(b.key);
 }
 
 /** Górna granica rangi w bazie (`event_sponsor_tiers_rank_range`). */
@@ -46,6 +59,10 @@ const RANK_MAX = 1000;
 // trafiało wtedy w `sort_order` (i rangę) istniejącego wiersza albo stawiało
 // nowy element PRZED ostatnim. Nowy element dostaje więc miejsce za
 // największą wartością: kolejność +10, ranga +1.
+//
+// NOWA SEKCJA STAJE NA GÓRZE - wszędzie tak samo. Największa ranga +1 to przy
+// porządku rangą malejąco PIERWSZE miejsce: na tablicy, w podglądzie i na
+// stronie wydarzenia. Organizator przesuwa ją niżej strzałką, jeśli trzeba.
 function nextSortOrder(rows: ReadonlyArray<{ sort_order: number }>): number {
   return rows.reduce((max, row) => Math.max(max, row.sort_order), 0) + 10;
 }
@@ -87,10 +104,7 @@ export function SponsorSectionsBoard({ eventId }: { eventId: string }) {
     sponsor: EventSponsorRow | null;
   } | null>(null);
 
-  const tiers = useMemo(
-    () => [...(tiersQ.data ?? [])].sort((a, b) => a.sort_order - b.sort_order),
-    [tiersQ.data],
-  );
+  const tiers = useMemo(() => [...(tiersQ.data ?? [])].sort(byPublicOrder), [tiersQ.data]);
   const sponsors = sponsorsQ.data ?? [];
   const byTier = useMemo(() => {
     const map = new Map<string, EventSponsorRow[]>();
@@ -112,8 +126,15 @@ export function SponsorSectionsBoard({ eventId }: { eventId: string }) {
     const target = index + dir;
     if (target < 0 || target >= next.length) return;
     [next[index], next[target]] = [next[target], next[index]];
+    // GÓRNA KARTA DOSTAJE NAJWYŻSZĄ RANGĘ, bo strona czyta rangę malejąco.
+    // `sort_order` rośnie w dół, więc oba pola mówią to samo - remis rangi
+    // (ręcznie wpisany na ekranie poziomów) rozstrzyga się tak samo.
     reorder.mutate(
-      next.map((tier, i) => ({ id: tier.id, sortOrder: (i + 1) * 10, rank: i + 1 })),
+      next.map((tier, i) => ({
+        id: tier.id,
+        sortOrder: (i + 1) * 10,
+        rank: Math.min(RANK_MAX, next.length - i),
+      })),
       { onError: fail },
     );
   };

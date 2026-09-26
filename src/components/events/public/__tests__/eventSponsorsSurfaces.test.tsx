@@ -63,8 +63,11 @@ vi.mock("react-i18next", () => ({
 // z dala od dostawcy sesji.
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: null }) }));
 
-const { EventSponsorsSection } =
+const { EventSponsorsSection, EventSponsorsSectionView } =
   await import("@/components/events/public/organisms/EventSponsorsSection");
+const { parseSponsorTiers } = await import("@/lib/events/sponsorsSurface");
+const { EventPageSections } =
+  await import("@/components/events/public/organisms/EventPageSections");
 const { EventSponsorTiers, EventSponsorTiersView } =
   await import("@/components/events/public/organisms/EventSponsorTiers");
 const { SponsorLogo } = await import("@/components/events/public/atoms/SponsorLogo");
@@ -351,6 +354,142 @@ describe("EventSponsorsSection - sekcja „Partnerzy”", () => {
   });
 });
 
+// ── ROZDZIELENIE ZAPYTANIA I RYSUNKU (podgląd studia) ──────────────────────
+//
+// Podgląd w studiu rysuje sekcję „Partnerzy" z wierszy RPC panelu, bo publiczne
+// `event_sponsors_public` odmawia szkicowi. Rysunek MA BYĆ TEN SAM - inaczej
+// podgląd znowu staje się drugim rendererem strony. A plakietka partnera
+// nieogłoszonego nie może wyciec na stronę publiczną: rysuje się tylko wtedy,
+// gdy wywołujący poda napis, a strona go nie podaje.
+
+/** Poziom z jednym partnerem nieogłoszonym i jednym ogłoszonym, ze stroną WWW. */
+function tiersWithDraft() {
+  const [tier] = parseSponsorTiers([
+    tierWire({
+      sponsors: [
+        sponsorWire(),
+        sponsorWire({
+          id: "sp-baltic",
+          name: "Baltic Print",
+          logo: null,
+          url: "https://baltic.example.com",
+          sort_order: 1,
+        }),
+      ],
+    }) as never,
+  ]);
+  return [
+    {
+      ...tier,
+      sponsors: tier.sponsors.map((sponsor) => ({
+        ...sponsor,
+        isDraft: sponsor.id === "sp-baltic",
+      })),
+    },
+  ];
+}
+
+describe("EventSponsorsSectionView - rysunek sekcji bez zapytania", () => {
+  it("strona publiczna i widok bez zapytania rysują IDENTYCZNE znaczniki", async () => {
+    const wire = [
+      tierWire({
+        benefits: [{ id: "b1", label_pl: "Stoisko 12 m2", label_en: "12 sqm booth" }],
+        sponsors: [sponsorWire({ booth_label: "A12", url: "https://nordwind.example.com" })],
+      }),
+      tierWire({
+        tier_id: "tier-bronze",
+        tier_key: "bronze",
+        tier_name_pl: "Brązowy Partner",
+        tier_rank: 10,
+        sponsors: [sponsorWire({ id: "sp-baltic", name: "Baltic Print", logo: null })],
+      }),
+    ];
+    h.rpc?.setData("event_sponsors_public", wire);
+    const route = withClient(<EventSponsorsSection slug="kongres-strategii" />);
+    await screen.findByText("Nordwind Analytics");
+    const publicMarkup = route.container.innerHTML;
+    route.unmount();
+
+    // Te same wiersze sieci przez ten sam parser - różnić może się wyłącznie
+    // miejsce, z którego przyszły.
+    const view = render(<EventSponsorsSectionView tiers={parseSponsorTiers(wire as never)} />);
+    expect(view.container.innerHTML).toBe(publicMarkup);
+  });
+
+  it("pusta lista w widoku mówi to samo zdanie, co pusta odpowiedź publiczna", () => {
+    render(<EventSponsorsSectionView tiers={[]} draftLabel="Nieogłoszony" />);
+    expect(screen.getByText("eventFront.sections.sponsors.empty")).toBeInTheDocument();
+  });
+
+  it("partner nieogłoszony dostaje plakietkę i przygaszony logotyp - TYLKO z napisem", () => {
+    const { container } = render(
+      <EventSponsorsSectionView tiers={tiersWithDraft()} draftLabel="Nieogłoszony" />,
+    );
+    const [ogloszony, szkic] = screen.getAllByRole("listitem");
+    expect(within(szkic).getByText("Nieogłoszony")).toBeInTheDocument();
+    expect(within(ogloszony).queryByText("Nieogłoszony")).toBeNull();
+    // Plakietka jest TEKSTEM kafla (poza `aria-hidden`), więc czytnik ekranu ją
+    // słyszy - a logotyp partnera jest przygaszony, nie ukryty.
+    expect(within(szkic).getByText("Nieogłoszony").closest("[aria-hidden='true']")).toBeNull();
+    expect(within(szkic).getAllByText("Baltic Print")[0]?.className).toContain("opacity-60");
+    expect(container.querySelector("img")?.className).not.toContain("opacity-60");
+  });
+
+  it("znacznik szkicu BEZ napisu nie rysuje niczego - tak wygląda strona publiczna", () => {
+    const bezNapisu = render(<EventSponsorsSectionView tiers={tiersWithDraft()} />);
+    expect(bezNapisu.container.innerHTML).not.toContain("opacity-60");
+    const bare = bezNapisu.container.innerHTML;
+    bezNapisu.unmount();
+
+    // Ten sam poziom bez znacznika szkicu daje DOKŁADNIE te same znaczniki.
+    const plain = tiersWithDraft().map((tier) => ({
+      ...tier,
+      sponsors: tier.sponsors.map((sponsor) => ({ ...sponsor, isDraft: undefined })),
+    }));
+    expect(render(<EventSponsorsSectionView tiers={plain} />).container.innerHTML).toBe(bare);
+  });
+});
+
+describe("EventPageSections - sekcja „Partnerzy” z zapytaniem albo z wierszami podanymi z zewnątrz", () => {
+  const sponsorsSection = {
+    key: "sponsors" as const,
+    sortOrder: 4,
+    headingPl: null,
+    headingEn: null,
+    visibility: "public" as const,
+    minTierRank: 0,
+    isLocked: false,
+    lockReason: "none" as const,
+    hasContent: true,
+  };
+
+  it("strona publiczna (bez `sponsorTiers`) pyta `event_sponsors_public` jak dotąd", async () => {
+    h.rpc?.setData("event_sponsors_public", [tierWire()]);
+    const { container } = withClient(
+      <EventPageSections slug="kongres-strategii" sections={[sponsorsSection]} />,
+    );
+
+    await screen.findByText("Nordwind Analytics");
+    expect(h.rpc?.names()).toEqual(["event_sponsors_public"]);
+    expect(container.querySelector("#event-sponsors")).not.toBeNull();
+  });
+
+  it("podgląd (z `sponsorTiers`) NIE pyta bazy i rysuje podane wiersze z plakietką", () => {
+    render(
+      <EventPageSections
+        slug="kongres-strategii"
+        sections={[sponsorsSection]}
+        sponsorTiers={tiersWithDraft()}
+        sponsorDraftLabel="Nieogłoszony"
+      />,
+    );
+
+    expect(h.rpc?.names()).toEqual([]);
+    expect(screen.getByText("Nieogłoszony")).toBeInTheDocument();
+    expect(screen.getAllByText("Baltic Print").length).toBeGreaterThan(0);
+  });
+});
+
 describe("EventSponsorTiers - pas logotypów na stronie głównej", () => {
   it("brak partnerów nie zostawia ani jednego węzła (pas nie ma własnego nagłówka)", () => {
     const { container } = render(<EventSponsorTiersView tiers={[]} />);
@@ -401,6 +540,50 @@ describe("EventSponsorTiers - pas logotypów na stronie głównej", () => {
     expect(
       screen.getByText('eventFront.sponsorTiers.partnerSite:{"name":"Nordwind Analytics"}'),
     ).toBeInTheDocument();
+  });
+
+  it("pas w podglądzie: nieogłoszony partner przygaszony, z plakietką w nazwie pozycji", () => {
+    const { container } = render(
+      <EventSponsorTiersView tiers={tiersWithDraft()} draftLabel="Nieogłoszony" />,
+    );
+    // Partner ze stroną WWW jest odnośnikiem - plakietka wchodzi do jego nazwy,
+    // więc czytnik ekranu słyszy stan tak samo, jak widzi go oko.
+    const link = screen.getByRole("link");
+    expect(link.textContent).toContain("Nieogłoszony");
+    expect(link.className).toContain("flex-col");
+    expect(within(link).getByText("Baltic Print").className).toContain("opacity-60");
+    // Ogłoszony partner bez strony zostaje dokładnie taki, jak na stronie.
+    const [ogloszony] = screen.getAllByRole("listitem");
+    expect(ogloszony.textContent).not.toContain("Nieogłoszony");
+    expect(ogloszony.firstElementChild?.className).toBe("flex items-center justify-center px-2");
+    expect(container.querySelector("img")?.className).not.toContain("opacity-60");
+  });
+
+  it("pas w podglądzie: nieogłoszony partner BEZ strony też dostaje plakietkę", () => {
+    const tiers = tiersWithDraft().map((tier) => ({
+      ...tier,
+      sponsors: tier.sponsors.map((sponsor) => ({ ...sponsor, websiteUrl: null, isDraft: true })),
+    }));
+    render(<EventSponsorTiersView tiers={tiers} draftLabel="Nieogłoszony" />);
+    const pozycje = screen.getAllByRole("listitem");
+    for (const pozycja of pozycje) {
+      expect(pozycja.textContent).toContain("Nieogłoszony");
+      expect(pozycja.firstElementChild?.className).toContain("flex-col");
+    }
+  });
+
+  it("publiczny pas i publiczna sekcja nie znają plakietki - nawet przy znaczniku z sieci", async () => {
+    h.rpc?.setData("event_sponsors_public", [
+      tierWire({ sponsors: [sponsorWire({ is_draft: true, isDraft: true })] }),
+    ]);
+    const { container } = withClient(
+      <>
+        <EventSponsorTiers slug="kongres-strategii" />
+        <EventSponsorsSection slug="kongres-strategii" />
+      </>,
+    );
+    await screen.findAllByText("Nordwind Analytics");
+    expect(container.innerHTML).not.toContain("opacity-60");
   });
 
   it("pas nie maluje nagłówka akcentem poziomu, choć kolumna go niesie", () => {

@@ -15,6 +15,10 @@ export const sponsorBoardPl = {
       noLogos: "Brak logotypów w tej sekcji.",
       banner: "Baner",
       grid: "Siatka logo",
+      // Logo dodane z tablicy jest NIEOGŁOSZONE - strona wydarzenia i podgląd
+      // (bez plakietki) go nie pokazują, więc tablica musi to powiedzieć.
+      draftBadge: "Nieogłoszony",
+      draftCount: "Nieogłoszone: {{count}}",
     },
     add: {
       title: "Dodaj sekcję",
@@ -50,6 +54,7 @@ export const sponsorBoardPl = {
       editLogo: "Edytuj logotyp",
       deleteLogo: "Usuń logotyp",
       layout: "Układ sekcji",
+      published: "Widoczny na stronie wydarzenia",
     },
     redirect: {
       label: "Przekierowanie",
@@ -104,6 +109,8 @@ export const sponsorBoardPl = {
       sectionSaved: "Sekcja zapisana.",
       sectionDeleted: "Sekcja usunięta.",
       linkSaved: "Przekierowanie zapisane.",
+      announced: "Partner ogłoszony - widać go na stronie wydarzenia.",
+      withdrawn: "Partner wycofany ze strony wydarzenia.",
       error: "Nie udało się zapisać zmian.",
     },
     public: {
@@ -127,6 +134,8 @@ export const sponsorBoardEn = {
       noLogos: "No logos in this section.",
       banner: "Banner",
       grid: "Grid of logos",
+      draftBadge: "Not announced",
+      draftCount: "Not announced: {{count}}",
     },
     add: {
       title: "Add a section",
@@ -162,6 +171,7 @@ export const sponsorBoardEn = {
       editLogo: "Edit logo",
       deleteLogo: "Remove logo",
       layout: "Section layout",
+      published: "Visible on the event page",
     },
     redirect: {
       label: "Redirection",
@@ -216,6 +226,8 @@ export const sponsorBoardEn = {
       sectionSaved: "Section saved.",
       sectionDeleted: "Section deleted.",
       linkSaved: "Redirection saved.",
+      announced: "Partner announced - now visible on the event page.",
+      withdrawn: "Partner withdrawn from the event page.",
       error: "Could not save changes.",
     },
     public: {

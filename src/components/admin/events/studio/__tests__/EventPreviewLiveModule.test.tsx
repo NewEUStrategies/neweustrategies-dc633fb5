@@ -1,4 +1,5 @@
-// PODSTRONY MODULOWE W PODGLADZIE STUDIA - program, prelegenci, uczestnicy.
+// PODSTRONY MODULOWE W PODGLADZIE STUDIA - program, prelegenci, uczestnicy,
+// partnerzy.
 //
 // PO CO TEN PLIK ISTNIEJE. To jest jedyne miejsce, w ktorym redaktor widzi
 // SZKIC swojego wydarzenia narysowany komponentami PRODUKCYJNYMI. Publiczne
@@ -17,15 +18,19 @@
 //   3. PASMO ZE SZKICAMI PRZESTAJE BYC OZNACZONE. Redaktor musi widziec, ze
 //      pasmo ma sesje NIEOPUBLIKOWANE i ze samo nie jest publiczne - inaczej
 //      podglad obiecuje program, ktorego uczestnik nie zobaczy.
-//   4. NIEZNANY MODUL RYSUJE COS. Materialy, dyskusje i partnerzy rysuja sie
-//      gdzie indziej; ten modul ma wtedy oddac `null`, a nie pusta ramke pod
-//      naglowkiem podstrony.
+//   4. NIEZNANY MODUL RYSUJE COS. Materialy i dyskusje nie maja w podgladzie
+//      wlasnej powierzchni danych; ten modul ma wtedy oddac `null`, a nie pusta
+//      ramke pod naglowkiem podstrony.
+//   5. ZAKLADKA „PARTNERZY" ZNOWU JEST PUSTA. Publiczna `/partners` rysuje pod
+//      dokumentem CMS sekcje partnerow, a zasiany dokument ma tylko naglowek -
+//      bez galezi `partners` redaktor nie widzial tam nikogo, nawet partnerow
+//      ogloszonych. Plakietka „nieogloszony" jedzie napisem ze slownika PANELU.
 //
 // CZEGO SWIADOMIE NIE DUBLUJE. (1) Mapowan `previewLiveData` (RPC -> ksztalt
 // powierzchni publicznej) - maja wlasny plik testowy. (2) Wygladu kart
-// produkcyjnych - `AgendaSessionCard`, `EventSpeakersGridView`
-// i `EventAttendeesGridView` maja swoje testy i stoja tu atrapami, ktore
-// ZAPISUJA otrzymane wlasciwosci. Przedmiotem dowodu jest ROZDZIELNIK: ktory
+// produkcyjnych - `AgendaSessionCard`, `EventSpeakersGridView`,
+// `EventAttendeesGridView` i `EventSponsorsSectionView` maja swoje testy i stoja
+// tu atrapami, ktore ZAPISUJA otrzymane wlasciwosci. Przedmiotem dowodu jest ROZDZIELNIK: ktory
 // modul dostaje ktore fakty i z jakimi ograniczeniami.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
@@ -35,6 +40,7 @@ import type { AgendaSession } from "@/lib/events/agendaSurface";
 import type { PreviewTrackChip } from "@/lib/events/previewLiveData";
 import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 import type { AttendeeEntry } from "@/lib/events/publicEventApi";
+import type { PublicSponsorTier } from "@/lib/events/sponsorsSurface";
 
 const h = vi.hoisted(() => ({
   /** Karty sesji: identyfikator i to, czy przycisk zapisu jest zywy. */
@@ -42,9 +48,14 @@ const h = vi.hoisted(() => ({
   /** Prelegenci i uczestnicy przekazani widokom produkcyjnym. */
   prelegenci: [] as { ilu: number; lang: string }[],
   uczestnicy: [] as { ilu: number; lang: string }[],
+  /** Poziomy partnerow i napis plakietki przekazane widokowi sekcji. */
+  partnerzy: [] as { ilu: number; draftLabel: string | undefined }[],
+  lang: "pl",
 }));
 
-vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
+vi.mock("react-i18next", async () =>
+  (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang),
+);
 vi.mock("@/lib/i18n-event-front", () => ({ ensureI18n: () => undefined }));
 
 vi.mock("@/components/events/public/molecules/AgendaSessionCard", () => ({
@@ -65,6 +76,16 @@ vi.mock("@/components/events/public/organisms/EventAttendeesList", () => ({
   EventAttendeesGridView: (props: { entries: readonly AttendeeEntry[]; lang: string }) => {
     h.uczestnicy.push({ ilu: props.entries.length, lang: props.lang });
     return <div data-testid="uczestnicy" />;
+  },
+}));
+
+vi.mock("@/components/events/public/organisms/EventSponsorsSection", () => ({
+  EventSponsorsSectionView: (props: {
+    tiers: readonly PublicSponsorTier[];
+    draftLabel?: string;
+  }) => {
+    h.partnerzy.push({ ilu: props.tiers.length, draftLabel: props.draftLabel });
+    return <div data-testid="partnerzy" />;
   },
 }));
 
@@ -173,6 +194,22 @@ function uczestnik(id: string): AttendeeEntry {
   };
 }
 
+function poziom(tierId: string): PublicSponsorTier {
+  return {
+    tierId,
+    key: tierId,
+    namePl: "Zloty",
+    nameEn: "Gold",
+    descriptionPl: null,
+    descriptionEn: null,
+    rank: 10,
+    accentColor: null,
+    logoSize: "md",
+    benefits: [],
+    sponsors: [],
+  };
+}
+
 function modul(module: string, dane: Partial<typeof EMPTY_PREVIEW_LIVE_DATA> = {}) {
   return render(
     <EventPreviewLiveModule module={module} data={{ ...EMPTY_PREVIEW_LIVE_DATA, ...dane }} />,
@@ -184,6 +221,8 @@ afterEach(() => {
   h.karty = [];
   h.prelegenci = [];
   h.uczestnicy = [];
+  h.partnerzy = [];
+  h.lang = "pl";
 });
 
 describe("EventPreviewLiveModule - program", () => {
@@ -241,6 +280,35 @@ describe("EventPreviewLiveModule - program", () => {
     expect(screen.getByText(`${P}trackPrivateBadge`)).toBeInTheDocument();
   });
 
+  it("pasmo ze SPONSOREM pokazuje jego logo i nazwe, pasmo bez akcentu - kolor neutralny", () => {
+    const { container } = modul("agenda", {
+      tracks: [
+        pasmo({
+          accentColor: null,
+          sponsorName: "Orlen Energia",
+          sponsorLogoUrl: "https://cdn.example.org/orlen.png",
+        }),
+      ],
+    });
+
+    expect(screen.getByText("Orlen Energia")).toBeInTheDocument();
+    expect(container.querySelector("img")?.getAttribute("src")).toContain("orlen.png");
+    // Bez akcentu nie ma wlasnego koloru - zostaje klasa neutralna z motywu.
+    expect(container.querySelector("li")?.getAttribute("style")).toBeNull();
+  });
+
+  it.each<[string, Partial<PreviewTrackChip>, string]>([
+    ["en", {}, "Energy"],
+    ["en", { nameEn: null }, "Energetyka"],
+    ["pl", { namePl: null }, "Energy"],
+    ["pl", { namePl: null, nameEn: null }, ""],
+  ])("nazwa pasma w jezyku %s (%o) to „%s”", (lang, patch, nazwa) => {
+    h.lang = lang;
+    const { container } = modul("agenda", { tracks: [pasmo(patch)] });
+
+    expect(container.querySelector("li .font-medium")?.textContent).toBe(nazwa);
+  });
+
   it("BEZ PASM pasek pasm w ogole sie nie rysuje", () => {
     modul("agenda", { sessions: [sesja()] });
 
@@ -272,8 +340,24 @@ describe("EventPreviewLiveModule - prelegenci i uczestnicy", () => {
   });
 });
 
+describe("EventPreviewLiveModule - partnerzy", () => {
+  it("BEZ PARTNEROW zdanie z drogą do tablicy, a nie pusta zakladka", () => {
+    modul("partners");
+
+    expect(screen.getByText(`${P}moduleEmptyPartners`)).toBeInTheDocument();
+    expect(h.partnerzy).toHaveLength(0);
+  });
+
+  it("Z PARTNERAMI produkcyjna sekcja „Partnerzy” z napisem plakietki ze slownika PANELU", () => {
+    modul("partners", { sponsorTiers: [poziom("t-1"), poziom("t-2")] });
+
+    expect(screen.getByTestId("partnerzy")).toBeInTheDocument();
+    expect(h.partnerzy.at(-1)).toEqual({ ilu: 2, draftLabel: `${P}sponsorDraftBadge` });
+  });
+});
+
 describe("EventPreviewLiveModule - granice rozdzielnika", () => {
-  it("NIEZNANY modul oddaje NIC - materialy i partnerzy rysuja sie gdzie indziej", () => {
+  it("NIEZNANY modul oddaje NIC - materialy i dyskusje nie maja wlasnej powierzchni", () => {
     const { container } = modul("materials", { sessions: [sesja()] });
 
     expect(container.innerHTML).toBe("");
@@ -285,10 +369,19 @@ describe("EventPreviewLiveModule - granice rozdzielnika", () => {
       sessions: [sesja()],
       speakers: [prelegent("p-1")],
       attendees: [uczestnik("u-1")],
+      sponsorTiers: [poziom("t-1")],
     });
 
     expect(h.prelegenci).toHaveLength(0);
     expect(h.uczestnicy).toHaveLength(0);
+    expect(h.partnerzy).toHaveLength(0);
+  });
+
+  it("dyskusje nie rysuja partnerow, choc fakty ich nie brakuje", () => {
+    const { container } = modul("discussions", { sponsorTiers: [poziom("t-1")] });
+
+    expect(container.innerHTML).toBe("");
+    expect(h.partnerzy).toHaveLength(0);
   });
 
   it("pusty komplet faktow jest STALA - nie nowym obiektem przy kazdym renderze", () => {
@@ -299,6 +392,7 @@ describe("EventPreviewLiveModule - granice rozdzielnika", () => {
       tracks: [],
       speakers: [],
       attendees: [],
+      sponsorTiers: [],
     });
   });
 });

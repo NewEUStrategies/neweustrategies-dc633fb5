@@ -1958,6 +1958,137 @@ END
 $do$;
 
 -- ---------------------------------------------------------------------------
+-- SEKCJA 14A: KONTRAKT PODGLADU STUDIA - PARTNERZY SZKICU Z RPC PANELU
+--
+-- Podglad w studiu rysuje pas logotypow, sekcje „Partnerzy" i zakladke
+-- „Partnerzy" z DWOCH funkcji panelu, a nie z `event_sponsors_public`:
+--   * `admin_event_sponsors_list` BEZ filtra ogloszen (`p_published` NULL) -
+--     wszystkie przypiecia, takze nieogloszone, ktore podglad znaczy plakietka;
+--   * `admin_event_sponsor_tiers_list` - opis i korzysci poziomu, ktorych lista
+--     przypiec nie niesie.
+-- Front (`sponsorTiersFromAdminRows`) opiera sie na czterech faktach i kazdy
+-- ma tu asercje, bo zmiana ktoregokolwiek po stronie SQL zostawia podglad
+-- pusty albo klamliwy, a zadna bramka tekstowa tego nie zobaczy:
+--   (a) publiczne RPC oddaje SZKICOWI pustke, nawet z ogloszonym partnerem -
+--       dlatego podglad go nie uzywa;
+--   (b) lista panelu bez filtra oddaje przypiecie ogloszone I nieogloszone,
+--       z flaga `is_published` i kolumnami poziomu (`tier_*`), z ktorych
+--       podglad sklada grupy - a filtr „published" nieogloszone odcina (to jest
+--       dokladnie ten filtr, przez ktory podglad byl pusty);
+--   (c) lista poziomow oddaje opis i korzysci w ksztalcie `[{id, label_pl,
+--       label_en}]`, ktory czyta `parseSponsorTierBenefits`, oraz `sort_order`
+--       poziomu - drugie kryterium kolejnosci po randze, jak w publicznym RPC;
+--   (d) KONTRAPUNKT: po publikacji wydarzenia publiczne RPC oddaje TEN SAM
+--       poziom, ale tylko z partnerem ogloszonym - czyli podglad (dwa logotypy,
+--       jeden z plakietka) mowi prawde o tym, co zobaczy uczestnik.
+-- Scenografia to wlasne przypiecia wydarzenia roboczego A2 - poprzednie sekcje
+-- zostawiaja je puste (sekcja 6 sprzata swoj wiersz), wiec liczby sa dokladne.
+-- ---------------------------------------------------------------------------
+DO $do$
+DECLARE
+  v_tier uuid;
+  v_pub uuid;
+  v_draft uuid;
+  v_rec record;
+  v_n integer;
+BEGIN
+  v_tier := public.admin_event_sponsor_tier_save(jsonb_build_object(
+    'event_id', '30e00000-0000-0000-0000-0000000000a2',
+    'key', 'podglad_gold', 'name_pl', 'Zloty podgladu', 'name_en', 'Preview gold',
+    'description_pl', 'Pakiet glowny gali.', 'description_en', 'Main gala package.',
+    'rank', 70, 'sort_order', 15,
+    'benefits', jsonb_build_array(
+      jsonb_build_object('label_pl', 'Logotyp na scenie', 'label_en', 'Logo on stage'))));
+
+  -- Ogloszony partner i partner dodany „z tablicy" - bez `is_published`,
+  -- czyli z domyslnym `false` z bazy.
+  v_pub := public.admin_event_sponsor_save(jsonb_build_object(
+    'event_id', '30e00000-0000-0000-0000-0000000000a2',
+    'company_id', '30c00000-0000-0000-0000-0000000000a1',
+    'tier_id', v_tier, 'role', 'sponsor', 'sort_order', 10, 'is_published', true));
+  v_draft := public.admin_event_sponsor_save(jsonb_build_object(
+    'event_id', '30e00000-0000-0000-0000-0000000000a2',
+    'company_id', '30c00000-0000-0000-0000-0000000000a2',
+    'tier_id', v_tier, 'role', 'sponsor', 'sort_order', 20));
+  PERFORM pg_temp.assert(
+    (SELECT s.is_published FROM public.event_sponsors s WHERE s.id = v_draft) = false,
+    '30/podglad: przypiecie bez is_published startuje NIEOGLOSZONE (stan tablicy)');
+
+  -- (a) szkic nie ma partnerow publicznych - takze z ogloszonym przypieciem.
+  PERFORM pg_temp.assert(
+    (SELECT count(*)::integer FROM public.event_sponsors_public('sponsors-gala-a')) = 0,
+    '30/podglad: szkic z ogloszonym partnerem nadal nie oddaje publicznie ANI JEDNEJ grupy');
+
+  -- (b) lista panelu bez filtra: oba przypiecia, z flaga i kolumnami poziomu.
+  SELECT count(*)::integer INTO v_n
+  FROM public.admin_event_sponsors_list('30e00000-0000-0000-0000-0000000000a2');
+  PERFORM pg_temp.assert(v_n = 2, format(
+    '30/podglad: lista panelu BEZ filtra oddaje ogloszone i nieogloszone (bylo %s)', v_n));
+
+  SELECT * INTO STRICT v_rec
+  FROM public.admin_event_sponsors_list('30e00000-0000-0000-0000-0000000000a2', p_published => NULL) l
+  WHERE l.id = v_draft;
+  PERFORM pg_temp.assert(v_rec.is_published = false,
+    '30/podglad: wiersz nieogloszony niesie is_published = false (z tego jest plakietka)');
+  PERFORM pg_temp.assert(
+    v_rec.tier_id = v_tier AND v_rec.tier_key = 'podglad_gold' AND v_rec.tier_rank = 70
+    AND v_rec.tier_name_pl = 'Zloty podgladu' AND v_rec.tier_name_en = 'Preview gold',
+    '30/podglad: wiersz nieogloszony niesie kolumny poziomu - grupa w podgladzie bez drugiego zapytania');
+  -- Nazwa to MIGAWKA z chwili przypiecia - czyli biezaca nazwa kartoteki
+  -- (sekcja 4 przemianowala te firme wczesniej).
+  PERFORM pg_temp.assert(
+    v_rec.snapshot_name = (SELECT c.name FROM public.crm_companies c
+                            WHERE c.id = '30c00000-0000-0000-0000-0000000000a2')
+    AND v_rec.total_count = 2,
+    '30/podglad: nazwa z migawki i licznik calej listy (straz uciecia listy w podgladzie)');
+
+  SELECT * INTO STRICT v_rec
+  FROM public.admin_event_sponsors_list('30e00000-0000-0000-0000-0000000000a2') l
+  WHERE l.id = v_pub;
+  PERFORM pg_temp.assert(v_rec.is_published AND v_rec.tier_id = v_tier,
+    '30/podglad: wiersz ogloszony niesie is_published = true i ten sam poziom');
+
+  -- Filtr „published" odcina nieogloszone - przez ten filtr podglad byl pusty.
+  PERFORM pg_temp.assert(
+    (SELECT array_agg(l.id) FROM public.admin_event_sponsors_list(
+       '30e00000-0000-0000-0000-0000000000a2', p_published => 'published') l) = ARRAY[v_pub],
+    '30/podglad: filtr published oddaje wylacznie ogloszone przypiecie');
+
+  -- (c) lista poziomow: opis, korzysci w ksztalcie parsera i sort_order.
+  SELECT * INTO STRICT v_rec
+  FROM public.admin_event_sponsor_tiers_list('30e00000-0000-0000-0000-0000000000a2') t
+  WHERE t.id = v_tier;
+  PERFORM pg_temp.assert(
+    v_rec.description_pl = 'Pakiet glowny gali.' AND v_rec.description_en = 'Main gala package.',
+    '30/podglad: lista poziomow oddaje opis poziomu w obu jezykach (sekcja „Partnerzy")');
+  PERFORM pg_temp.assert(
+    jsonb_array_length(v_rec.benefits) = 1
+    AND ((v_rec.benefits->0) ? 'id')
+    AND v_rec.benefits->0->>'label_pl' = 'Logotyp na scenie'
+    AND v_rec.benefits->0->>'label_en' = 'Logo on stage',
+    '30/podglad: korzysci poziomu jada jako [{id, label_pl, label_en}] - ksztalt parsera frontu');
+  PERFORM pg_temp.assert(v_rec.sort_order = 15 AND v_rec.rank = 70,
+    '30/podglad: lista poziomow oddaje range i sort_order (kolejnosc jak w publicznym RPC)');
+  PERFORM pg_temp.assert(v_rec.sponsors_count = 2 AND v_rec.published_sponsors_count = 1,
+    '30/podglad: liczniki poziomu odrozniaja wszystkie przypiecia od ogloszonych');
+
+  -- (d) kontrapunkt: opublikowane wydarzenie pokazuje TYLKO ogloszonego.
+  UPDATE public.events SET status = 'published'
+  WHERE id = '30e00000-0000-0000-0000-0000000000a2';
+  SELECT * INTO STRICT v_rec FROM public.event_sponsors_public('sponsors-gala-a');
+  PERFORM pg_temp.assert(
+    v_rec.tier_key = 'podglad_gold'
+    AND jsonb_array_length(v_rec.sponsors) = 1
+    AND v_rec.sponsors->0->>'id' = v_pub::text
+    AND v_rec.tier_description_pl = 'Pakiet glowny gali.'
+    AND jsonb_array_length(v_rec.benefits) = 1,
+    '30/podglad: po publikacji strona ma ten sam poziom i opis, ale tylko partnera OGLOSZONEGO');
+  UPDATE public.events SET status = 'draft'
+  WHERE id = '30e00000-0000-0000-0000-0000000000a2';
+END
+$do$;
+
+-- ---------------------------------------------------------------------------
 -- SEKCJA 15: STRUKTURA - to, co musi byc prawda niezaleznie od danych
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.assert(

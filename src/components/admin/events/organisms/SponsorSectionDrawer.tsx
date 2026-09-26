@@ -1,9 +1,16 @@
 // Organizm: boczny panel edycji sekcji sponsorów - tytuł PL/EN, układ, logotypy
-// z przekierowaniem, dodawanie firmy z CRM i usunięcie sekcji.
+// z przekierowaniem i ogłoszeniem, dodawanie firmy z CRM i usunięcie sekcji.
+//
+// OGŁOSZENIE JEST PRZEŁĄCZNIKIEM PRZY LOGO. Firma dodana z tablicy zapisuje
+// się jako nieogłoszona, a jedyne sterowanie siedziało głęboko w oknie
+// sponsora albo w masowej akcji na osobnej liście. Przełącznik przy każdym
+// logo woła `admin_event_sponsors_set_published` dla TEJ JEDNEJ firmy, a odmowa
+// bazy mówi zdaniem z mapy odmów sponsorów, nie ogólnym „nie udało się".
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import {
   Sheet,
   SheetContent,
@@ -12,7 +19,10 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { SponsorRedirectField } from "@/components/admin/events/molecules/SponsorRedirectField";
-import type { SponsorLogo } from "@/components/admin/events/molecules/SponsorSectionCard";
+import {
+  SponsorDraftBadge,
+  type SponsorLogo,
+} from "@/components/admin/events/molecules/SponsorSectionCard";
 import { SponsorSectionTitleForm } from "@/components/admin/events/molecules/SponsorSectionTitleForm";
 import { confirmDialog } from "@/lib/appDialogs";
 import { adminSponsorErrorMessage } from "@/lib/events/adminSponsorErrors";
@@ -28,6 +38,7 @@ import {
   useDeleteSponsor,
   useDeleteSponsorTier,
   useSaveSponsorTier,
+  useSetSponsorsPublished,
 } from "@/lib/events/useEventSponsors";
 import "@/lib/i18n-admin-event-sponsor-board";
 
@@ -58,6 +69,7 @@ export function SponsorSectionDrawer({
   const setLayout = useSetTierLayout(eventId);
   const setLink = useSetSponsorLink(eventId);
   const deleteSponsor = useDeleteSponsor(eventId);
+  const setPublished = useSetSponsorsPublished(eventId);
 
   const fail = () => toast.error(t("sponsorBoard.toasts.error"));
   const title =
@@ -146,7 +158,10 @@ export function SponsorSectionDrawer({
                         />
                       )}
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{logo.name}</span>
+                    <span className="flex min-w-0 flex-1 flex-col items-start gap-1">
+                      <span className="max-w-full truncate text-sm font-medium">{logo.name}</span>
+                      {logo.isPublished ? null : <SponsorDraftBadge />}
+                    </span>
                     <Button
                       type="button"
                       variant="ghost"
@@ -165,6 +180,32 @@ export function SponsorSectionDrawer({
                     >
                       <Trash2 className="h-4 w-4" aria-hidden />
                     </Button>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <label htmlFor={`published-${logo.id}`} className="text-sm">
+                      {t("sponsorBoard.drawer.published")}
+                    </label>
+                    <Switch
+                      id={`published-${logo.id}`}
+                      checked={logo.isPublished}
+                      disabled={setPublished.isPending}
+                      onCheckedChange={(isPublished) =>
+                        setPublished.mutate(
+                          { ids: [logo.id], isPublished },
+                          {
+                            onSuccess: () =>
+                              toast.success(
+                                t(
+                                  isPublished
+                                    ? "sponsorBoard.toasts.announced"
+                                    : "sponsorBoard.toasts.withdrawn",
+                                ),
+                              ),
+                            onError: (error) => toast.error(adminSponsorErrorMessage(error)),
+                          },
+                        )
+                      }
+                    />
                   </div>
                   <div className="mt-3">
                     <SponsorRedirectField

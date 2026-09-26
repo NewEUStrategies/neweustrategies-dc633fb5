@@ -27,6 +27,12 @@
 //      wpisanego adresu; zwykły przerender panelu (np. pisanie tytułu) też nie.
 //   6. BANER MA JEDEN OBRAZ. Przy układzie baneru z logotypem dodanie kolejnej
 //      firmy jest zgaszone i panel mówi dlaczego; siatka i pusty baner przyjmują.
+//   8. OGŁOSZENIE TO PRZEŁĄCZNIK PRZY LOGO. Firma dodana z tablicy jest
+//      nieogłoszona (plakietka przy nazwie), a przełącznik woła
+//      `admin_event_sponsors_set_published` dla TEJ JEDNEJ firmy - z identyfikatorem
+//      i nowym stanem. Wynik to zdanie o skutku (ogłoszony / wycofany), odmowa
+//      bazy idzie przez mapę odmów sponsorów, a w trakcie zapisu przełącznik
+//      jest zgaszony.
 //   7. USUNIĘCIE SEKCJI TYLKO PUSTEJ I TYLKO PO POTWIERDZENIU. Z firmami przycisk
 //      jest zgaszony z wyjaśnieniem; pusta sekcja pyta (okno niszczące), odmowa
 //      niczego nie usuwa, a udane usunięcie zamyka panel. Okno potwierdzenia
@@ -58,7 +64,8 @@ import type { SponsorLink } from "@/lib/events/sponsorBoardApi";
 import type { EventSponsorTierRow } from "@/lib/events/sponsorsApi";
 
 type Wynik = { onSuccess?: () => void; onError?: (error: unknown) => void };
-type Mutacja = "saveTier" | "deleteTier" | "setLayout" | "setLink" | "deleteSponsor";
+type Mutacja =
+  "saveTier" | "deleteTier" | "setLayout" | "setLink" | "deleteSponsor" | "setPublished";
 type AtrapaMutacji = { mutate: (input: unknown, wynik?: Wynik) => void; isPending: boolean };
 
 const h = vi.hoisted(() => {
@@ -125,6 +132,7 @@ vi.mock("@/lib/events/useEventSponsors", async (importOriginal) => {
     useSaveSponsorTier: (eventId: string) => h.mutacja("saveTier", eventId),
     useDeleteSponsorTier: (eventId: string) => h.mutacja("deleteTier", eventId),
     useDeleteSponsor: (eventId: string) => h.mutacja("deleteSponsor", eventId),
+    useSetSponsorsPublished: (eventId: string) => h.mutacja("setPublished", eventId),
   };
 });
 
@@ -162,8 +170,25 @@ function sekcja(patch: Partial<EventSponsorTierRow> = {}): EventSponsorTierRow {
   };
 }
 
-const ACME: SponsorLogo = { id: "s1", name: "Acme", logoUrl: LOGO_Z_MAGAZYNU };
-const BEZ_LOGO: SponsorLogo = { id: "s2", name: "Bez Logo sp. z o.o.", logoUrl: "" };
+const ACME: SponsorLogo = {
+  id: "s1",
+  name: "Acme",
+  logoUrl: LOGO_Z_MAGAZYNU,
+  isPublished: true,
+};
+const BEZ_LOGO: SponsorLogo = {
+  id: "s2",
+  name: "Bez Logo sp. z o.o.",
+  logoUrl: "",
+  isPublished: true,
+};
+/** Firma dopiero co dodana z tablicy - nieogłoszona. */
+const NOWA: SponsorLogo = {
+  id: "s3",
+  name: "Nowa Firma",
+  logoUrl: LOGO_Z_MAGAZYNU,
+  isPublished: false,
+};
 
 function szuflada(patch: Partial<Props> = {}) {
   const props = (p: Partial<Props>): Props => ({
@@ -471,6 +496,68 @@ describe("logotypy", () => {
     szuflada({ logos: [ACME] });
     kliknij(przycisk(`${B}.drawer.deleteLogo`, logotyp("Acme")));
     expect(h.toastError).toHaveBeenCalledWith(`${B}.toasts.error`);
+  });
+});
+
+describe("ogłoszenie logotypu", () => {
+  const przelacznik = (nazwa: string): HTMLElement =>
+    within(logotyp(nazwa)).getByRole("switch", { name: `${B}.drawer.published` });
+
+  it("przełącznik pokazuje stan TEJ firmy, a nieogłoszona ma plakietkę przy nazwie", () => {
+    szuflada({ logos: [ACME, NOWA] });
+    expect(przelacznik("Acme").getAttribute("aria-checked")).toBe("true");
+    expect(przelacznik("Nowa Firma").getAttribute("aria-checked")).toBe("false");
+    expect(within(logotyp("Nowa Firma")).getByText(`${B}.sponsors.draftBadge`)).toBeTruthy();
+    expect(within(logotyp("Acme")).queryByText(`${B}.sponsors.draftBadge`)).toBeNull();
+  });
+
+  it("ogłoszenie wysyła identyfikator TEJ firmy i nowy stan, a potem mówi o skutku", () => {
+    szuflada({ logos: [ACME, NOWA] });
+    kliknij(przelacznik("Nowa Firma"));
+    expect(wywolania("setPublished")).toEqual([{ ids: ["s3"], isPublished: true }]);
+    expect(h.toastSuccess).toHaveBeenCalledWith(`${B}.toasts.announced`);
+  });
+
+  it("wycofanie ogłoszonej firmy wysyła `false` i mówi, że zniknęła ze strony", () => {
+    szuflada({ logos: [ACME] });
+    kliknij(przelacznik("Acme"));
+    expect(wywolania("setPublished")).toEqual([{ ids: ["s1"], isPublished: false }]);
+    expect(h.toastSuccess).toHaveBeenCalledWith(`${B}.toasts.withdrawn`);
+  });
+
+  it("odmowa bazy mówi zdaniem z mapy odmów sponsorów, nie ogólnym błędem", () => {
+    h.errors.setPublished = new Error(
+      "sponsor_tier_required: 1 sponsor(s) in the selection have no tier",
+    );
+    szuflada({ logos: [NOWA] });
+    kliknij(przelacznik("Nowa Firma"));
+    expect(h.toastError).toHaveBeenCalledWith(
+      "odmowa:sponsor_tier_required: 1 sponsor(s) in the selection have no tier",
+    );
+    expect(h.toastError).not.toHaveBeenCalledWith(`${B}.toasts.error`);
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("w trakcie zapisu ogłoszenia przełączniki są zgaszone", () => {
+    h.pending.setPublished = true;
+    szuflada({ logos: [ACME, NOWA] });
+    expect(przelacznik("Acme").hasAttribute("disabled")).toBe(true);
+    expect(przelacznik("Nowa Firma").hasAttribute("disabled")).toBe(true);
+  });
+
+  it("napisy ogłoszenia mają PL i EN, różne od siebie", () => {
+    const pl = sponsorBoardPl.sponsorBoard;
+    const en = sponsorBoardEn.sponsorBoard;
+    for (const [a, b] of [
+      [pl.drawer.published, en.drawer.published],
+      [pl.toasts.announced, en.toasts.announced],
+      [pl.toasts.withdrawn, en.toasts.withdrawn],
+      [pl.sponsors.draftBadge, en.sponsors.draftBadge],
+    ]) {
+      expect(a).not.toBe("");
+      expect(b).not.toBe("");
+      expect(a).not.toBe(b);
+    }
   });
 });
 

@@ -33,6 +33,7 @@ import {
 import {
   groupSponsorMaterials,
   parseSponsorMaterials,
+  parseSponsorTierBenefits,
   parseSponsorTiers,
   sponsorLogoClass,
   sponsorMaterialKindKey,
@@ -425,8 +426,70 @@ describe("sponsorsSurface - poziomy, rozmiary i materialy", () => {
     expect(tiers.map((tier) => tier.key)).toEqual(["gold", "silver", null]);
   });
 
+  // REMIS RANGI ROZSTRZYGA `ORDER BY t.sort_order` W RPC, a wiersz sieci tej
+  // kolumny nie niesie. Klucz jako drugie kryterium przestawial wiec poziomy
+  // ulozone przez organizatora na tablicy - strona rozjezdzala sie z tablica
+  // i z podgladem studia.
+  it("przy rownej randze zostaje kolejnosc z RPC, a nie alfabet kluczy", () => {
+    const tiers = parseSponsorTiers([
+      tierRow({ tier_id: "t-z", tier_key: "zloty", tier_rank: 10 }),
+      tierRow({ tier_id: "t-a", tier_key: "animatorzy", tier_rank: 10 }),
+      tierRow({ tier_id: "t-top", tier_key: "top", tier_rank: 50 }),
+    ]);
+    expect(tiers.map((tier) => tier.key)).toEqual(["top", "zloty", "animatorzy"]);
+  });
+
+  it("korzysci poziomu: pozycja bez identyfikatora i nie-obiekt wypadaja", () => {
+    expect(
+      parseSponsorTierBenefits([
+        { id: "b1", label_pl: "Stoisko", label_en: "Booth" },
+        { label_pl: "Bez id" },
+        "napis",
+        null,
+        ["tablica"],
+      ]),
+    ).toEqual([{ id: "b1", labelPl: "Stoisko", labelEn: "Booth" }]);
+    expect(parseSponsorTierBenefits(null)).toEqual([]);
+    expect(parseSponsorTierBenefits({ id: "b1" })).toEqual([]);
+  });
+
   it("poziom bez opublikowanych partnerow nie wraca na strone", () => {
     expect(parseSponsorTiers([tierRow({ sponsors: [] })])).toHaveLength(0);
+  });
+
+  it("grupa bez poziomu jest na koncu takze wtedy, gdy przyjdzie z sieci na koncu", () => {
+    // Komparator dostaje pary w obu ukladach - grupa bez poziomu po lewej
+    // i po prawej stronie musi dac ten sam wynik.
+    const tiers = parseSponsorTiers([
+      tierRow({ tier_id: "t1", tier_key: "gold", tier_rank: 30 }),
+      tierRow({ tier_id: null as unknown as string, tier_key: null as unknown as string }),
+    ]);
+    expect(tiers.map((tier) => tier.key)).toEqual(["gold", null]);
+  });
+
+  it("braki w wierszu sieci nie wywracaja parsera - wypadaja albo dostaja wartosc domyslna", () => {
+    expect(parseSponsorTiers(null)).toEqual([]);
+    // `sponsors` spoza tablicy i pozycja nie-obiekt nie daja partnera.
+    expect(parseSponsorTiers([tierRow({ sponsors: null })])).toEqual([]);
+    const [tier] = parseSponsorTiers([
+      tierRow({
+        tier_logo_size: "xxl",
+        sponsors: [
+          "napis",
+          null,
+          ["tablica"],
+          { id: "s2", name: "Beta", sort_order: 1 },
+          {
+            id: "s1",
+            name: "Alfa",
+            sort_order: 1,
+          },
+        ],
+      }),
+    ]);
+    expect(tier.logoSize).toBe("md");
+    // Remis `sort_order` rozstrzyga nazwa.
+    expect(tier.sponsors.map((sponsor) => sponsor.name)).toEqual(["Alfa", "Beta"]);
   });
 
   it("partner bez nazwy wypada - samo logo jest obrazkiem bez tresci", () => {
@@ -444,6 +507,19 @@ describe("sponsorsSurface - poziomy, rozmiary i materialy", () => {
   it("rozmiar logotypu wynika z poziomu, a nie z liczby partnerow", () => {
     expect(sponsorLogoClass("lg")).not.toBe(sponsorLogoClass("sm"));
     expect(sponsorRoleKey("media_partner")).toBe("eventFront.sponsors.roles.mediaPartner");
+    expect(sponsorRoleKey("exhibitor")).toBe("eventFront.sponsors.roles.exhibitor");
+  });
+
+  it("rola partnera z wiersza przechodzi, nieznana czyta sie jako sponsor", () => {
+    const [tier] = parseSponsorTiers([
+      tierRow({
+        sponsors: [
+          { id: "s1", name: "Wystawca", role: "exhibitor", sort_order: 1 },
+          { id: "s2", name: "Mecenas", role: "mecenas", sort_order: 2 },
+        ],
+      }),
+    ]);
+    expect(tier.sponsors.map((sponsor) => sponsor.role)).toEqual(["exhibitor", "sponsor"]);
   });
 
   it("material bez adresu nie staje sie przyciskiem donikad", () => {
@@ -465,6 +541,20 @@ describe("sponsorsSurface - poziomy, rozmiary i materialy", () => {
       } as EventSponsorMaterialRow,
     ];
     expect(parseSponsorMaterials(rows)).toHaveLength(0);
+  });
+
+  it("material bez partnera w wierszu dostaje puste pola partnera, a brak odpowiedzi to pusta lista", () => {
+    expect(parseSponsorMaterials(null)).toEqual([]);
+    const [material] = parseSponsorMaterials([
+      {
+        id: "m1",
+        sponsor_id: null,
+        sponsor_name: null,
+        url: "https://example.test/a",
+      } as unknown as EventSponsorMaterialRow,
+    ]);
+    expect(material.sponsorId).toBe("");
+    expect(material.sponsorName).toBe("");
   });
 
   it("materialy grupuja sie po partnerze, a nieznany rodzaj czyta sie jako odnosnik", () => {

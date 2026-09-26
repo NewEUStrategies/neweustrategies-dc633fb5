@@ -24,6 +24,7 @@
 // `anon`, a migawka partnerów nie zależy od tego, kto patrzy.
 import { useTranslation } from "react-i18next";
 
+import { Badge } from "@/components/ui/badge";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { usePublicEventSponsors } from "@/lib/events/usePublicEvent";
@@ -47,8 +48,18 @@ export function EventSponsorTiers({ slug, enabled = true }: { slug: string; enab
  * bierze więc wiersze z RPC panelu i wnosi je TUTAJ. Drugi rysunek pasa
  * znaczyłby dwa układy tej samej sekcji, czyli dokładnie ten defekt, który
  * kosztował już zgłoszenie o „starym layoucie" w podglądzie.
+ *
+ * `draftLabel` = napis plakietki przy przypięciu NIEOGŁOSZONYM (`isDraft`).
+ * Podaje go wyłącznie podgląd studia (słownik panelu nie wchodzi do paczki
+ * strony publicznej); bez napisu pas wygląda dokładnie tak, jak na stronie.
  */
-export function EventSponsorTiersView({ tiers }: { tiers: readonly PublicSponsorTier[] }) {
+export function EventSponsorTiersView({
+  tiers,
+  draftLabel,
+}: {
+  tiers: readonly PublicSponsorTier[];
+  draftLabel?: string;
+}) {
   const { i18n } = useTranslation();
   const lang = uiLang(i18n.language);
 
@@ -62,13 +73,26 @@ export function EventSponsorTiersView({ tiers }: { tiers: readonly PublicSponsor
   return (
     <div className="mt-8 space-y-8">
       {tiers.map((tier) => (
-        <SponsorTierRow key={tier.tierId ?? "no-tier"} tier={tier} lang={lang} />
+        <SponsorTierRow
+          key={tier.tierId ?? "no-tier"}
+          tier={tier}
+          lang={lang}
+          draftLabel={draftLabel}
+        />
       ))}
     </div>
   );
 }
 
-function SponsorTierRow({ tier, lang }: { tier: PublicSponsorTier; lang: "pl" | "en" }) {
+function SponsorTierRow({
+  tier,
+  lang,
+  draftLabel,
+}: {
+  tier: PublicSponsorTier;
+  lang: "pl" | "en";
+  draftLabel: string | undefined;
+}) {
   const { t } = useTranslation();
   const tierName = pickLocalized(
     { name_pl: tier.namePl, name_en: tier.nameEn },
@@ -88,7 +112,7 @@ function SponsorTierRow({ tier, lang }: { tier: PublicSponsorTier; lang: "pl" | 
       <ul className="flex flex-wrap items-center justify-around gap-x-8 gap-y-6">
         {tier.sponsors.map((sponsor) => (
           <li key={sponsor.id} className="flex items-center justify-center">
-            <SponsorTierLogo sponsor={sponsor} tier={tier} />
+            <SponsorTierLogo sponsor={sponsor} tier={tier} draftLabel={draftLabel} />
           </li>
         ))}
       </ul>
@@ -96,8 +120,26 @@ function SponsorTierRow({ tier, lang }: { tier: PublicSponsorTier; lang: "pl" | 
   );
 }
 
-function SponsorTierLogo({ sponsor, tier }: { sponsor: PublicSponsor; tier: PublicSponsorTier }) {
+function SponsorTierLogo({
+  sponsor,
+  tier,
+  draftLabel,
+}: {
+  sponsor: PublicSponsor;
+  tier: PublicSponsorTier;
+  draftLabel: string | undefined;
+}) {
   const { t } = useTranslation();
+  // NIEOGŁOSZONY PARTNER W PODGLĄDZIE: logotyp przygaszony, pod nim plakietka.
+  // Plakietka NIE jest pod `aria-hidden`, więc wchodzi do nazwy pozycji
+  // (i odnośnika) - czytnik ekranu dowiaduje się o stanie tak samo jak oko.
+  // Strona publiczna napisu nie podaje, więc jej znaczniki się nie zmieniają.
+  const draft = sponsor.isDraft === true && draftLabel !== undefined;
+  const badge = draft ? (
+    <Badge variant="outline" className="mt-1 text-[11px] font-medium text-muted-foreground">
+      {draftLabel}
+    </Badge>
+  ) : null;
 
   // NAZWA FIRMY WCHODZI OSOBNO, BO W RZĘDZIE JEJ NIE WIDAĆ. `SponsorLogo`
   // celowo daje obrazkowi pusty `alt` (w kaflu nazwa stoi obok w tekście), więc
@@ -107,15 +149,24 @@ function SponsorTierLogo({ sponsor, tier }: { sponsor: PublicSponsor; tier: Publ
   // Bez tego pozycja bez logotypu przeczytałaby nazwę dwa razy.
   const logo = (
     <span aria-hidden="true" className="flex items-center justify-center">
-      <SponsorLogo name={sponsor.name} logoUrl={sponsor.logoUrl} size={tier.logoSize} />
+      <SponsorLogo
+        name={sponsor.name}
+        logoUrl={sponsor.logoUrl}
+        size={tier.logoSize}
+        className={draft ? "opacity-60" : undefined}
+      />
     </span>
   );
+  // Plakietka stoi POD logotypem, więc pozycja z plakietką układa się w kolumnę;
+  // bez niej klasy są dokładnie te z opublikowanej strony.
+  const column = draft ? " flex-col" : "";
 
   if (sponsor.websiteUrl === null) {
     return (
-      <span className="flex items-center justify-center px-2">
+      <span className={`flex items-center justify-center px-2${column}`}>
         {logo}
         <span className="sr-only">{sponsor.name}</span>
+        {badge}
       </span>
     );
   }
@@ -125,7 +176,7 @@ function SponsorTierLogo({ sponsor, tier }: { sponsor: PublicSponsor; tier: Publ
       href={sponsor.websiteUrl}
       target="_blank"
       rel="noopener noreferrer nofollow"
-      className="flex items-center justify-center rounded-[6px] px-2 py-1 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className={`flex items-center justify-center rounded-[6px] px-2 py-1 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring${column}`}
     >
       {logo}
       {/* Nazwa odnośnika mówi, GDZIE prowadzi - „New European Strategies” bez
@@ -133,6 +184,7 @@ function SponsorTierLogo({ sponsor, tier }: { sponsor: PublicSponsor; tier: Publ
       <span className="sr-only">
         {t("eventFront.sponsorTiers.partnerSite", { name: sponsor.name })}
       </span>
+      {badge}
     </a>
   );
 }

@@ -1331,11 +1331,34 @@ describe("publishedSponsorIdSet", () => {
     expect(publishedSponsorIdSet([], 200)).toEqual(new Set());
   });
 
+  // Nakladka pyta dzis o WSZYSTKIE przypiecia (pas i sekcja „Partnerzy" rysuja
+  // tez nieogloszone, z plakietka). Program i sciezki maja dalej brac sponsora
+  // TYLKO z ogloszonego - wiec filtr odsiewa nieogloszone sam.
+  it("z pelnej listy do zbioru wchodza tylko przypiecia OGLOSZONE", () => {
+    expect(
+      publishedSponsorIdSet(
+        [
+          { id: "a", is_published: true },
+          { id: "b", is_published: false },
+        ],
+        200,
+      ),
+    ).toEqual(new Set(["a"]));
+  });
+
   // Pelna strona moze byc ucieta: brak przypiecia na niej nie dowodzi, ze jest
   // nieogloszone, wiec podglad nie moze zdjac sponsora widocznego na stronie.
   it("pelna strona albo brak odpowiedzi to brak filtra", () => {
     const full = Array.from({ length: 200 }, (_, i) => ({ id: `s${i}` }));
     expect(publishedSponsorIdSet(full, 200)).toBeUndefined();
     expect(publishedSponsorIdSet(undefined, 200)).toBeUndefined();
+  });
+
+  it("limit liczy CALA liste, a nie same ogloszone - to ona moze byc ucieta", () => {
+    const mixed = Array.from({ length: 200 }, (_, i) => ({
+      id: `s${i}`,
+      is_published: i % 2 === 0,
+    }));
+    expect(publishedSponsorIdSet(mixed, 200)).toBeUndefined();
   });
 });

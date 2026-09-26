@@ -3,17 +3,22 @@
 // przypięcia sponsora i pod spodem reklamy strony głównej.
 //
 // CO TEN PLIK DOWODZI.
-//   1. KOLEJNOŚĆ NA TABLICY TO `sort_order`, NIE KOLEJNOŚĆ Z BAZY - dotyczy
-//      zarówno sekcji, jak i logotypów w sekcji. Logotyp trafia do SWOJEJ
-//      sekcji, a obraz i nazwa biorą najpierw migawkę przypięcia, potem CRM.
+//   1. KOLEJNOŚĆ SEKCJI NA TABLICY TO KOLEJNOŚĆ STRONY WYDARZENIA: ranga
+//      malejąco, przy remisie `sort_order`, potem klucz - dokładnie `ORDER BY`
+//      z `event_sponsors_public`, a nie kolejność z bazy. Logotypy w sekcji
+//      stoją po `sort_order`. Logotyp trafia do SWOJEJ sekcji, a obraz i nazwa
+//      biorą najpierw migawkę przypięcia, potem CRM; logotyp nieogłoszony
+//      (`is_published = false`) karta podpisuje, a panel sekcji dostaje jego stan.
 //   2. TYTUŁ SEKCJI JEST W JĘZYKU PANELU, a pusta nazwa w tym języku spada na
 //      drugą, zamiast rysować kartę bez tytułu.
 //   3. UKŁAD SEKCJI POCHODZI Z OSOBNEGO ZAPYTANIA; sekcja, której tam nie ma
 //      (albo zapytanie jeszcze w locie), jest siatką.
-//   4. ZMIANA KOLEJNOŚCI WYSYŁA CAŁĄ LISTĘ na nowo ponumerowaną (co 10, ranga
-//      od 1), bo RPC przestawia wszystkie wiersze naraz; odmowa kończy się
-//      komunikatem. Ruch poza krawędź listy nie wysyła niczego.
-//   5. NOWA SEKCJA DOSTAJE MIEJSCE NA KOŃCU i wielkość logo z układu (baner =
+//   4. ZMIANA KOLEJNOŚCI WYSYŁA CAŁĄ LISTĘ na nowo ponumerowaną (co 10 od góry,
+//      a ranga OD NAJWYŻSZEJ na górze - strona czyta rangę malejąco), bo RPC
+//      przestawia wszystkie wiersze naraz; odmowa kończy się komunikatem. Ruch
+//      poza krawędź listy nie wysyła niczego.
+//   5. NOWA SEKCJA DOSTAJE NAJWYŻSZĄ RANGĘ (czyli staje NA GÓRZE tablicy, podglądu
+//      i strony) i wielkość logo z układu (baner =
 //      duże, siatka = średnie). Limitu firm tablica NIE wysyła (w obu układach
 //      „bez limitu"): limit 1 banera ustawia baza przy zapisie układu, więc awaria
 //      tego zapisu zostawia spójną siatkę, a nie siatkę z ukrytym limitem 1.
@@ -286,6 +291,7 @@ vi.mock("@/components/admin/events/organisms/SponsorSectionDrawer", () => ({
       data-sekcja={tier === null ? "brak" : tier.id}
       data-uklad={layout}
       data-logotypy={logos.map((l) => `${l.id}=${l.name}=${l.logoUrl}`).join("|")}
+      data-ogloszone={logos.map((l) => `${l.id}=${String(l.isPublished)}`).join("|")}
       data-przekierowania={[...links.keys()].join("|")}
     >
       <button type="button" onClick={() => onOpenChange(false)}>
@@ -566,11 +572,49 @@ describe("lista sekcji", () => {
     expect(panel().getAttribute("data-przekierowania")).toBe("");
   });
 
-  it("sekcje stoją w kolejności `sort_order`, a nie w kolejności z bazy", () => {
+  it("przy równej randze sekcje stoją w kolejności `sort_order`, a nie w kolejności z bazy", () => {
     h.sekcje = trzySekcje();
     tablica();
     expect(screen.queryByText(`${S}.empty`)).toBeNull();
     expect(tytulyKart()).toEqual(["Złoci partnerzy", "Srebrni partnerzy", "Patroni medialni"]);
+  });
+
+  // REGRESJA: tablica sortowała po samym `sort_order`, a strona wydarzenia
+  // i podgląd rangą MALEJĄCO - sekcja z góry tablicy lądowała na dole strony.
+  it("sekcje stoją w porządku strony: ranga malejąco, potem `sort_order`, potem klucz", () => {
+    h.sekcje = [
+      sekcja({ id: "t-dol", key: "dol", name_pl: "Najniższa ranga", rank: 1, sort_order: 10 }),
+      sekcja({ id: "t-b", key: "b_klucz", name_pl: "Remis B", rank: 5, sort_order: 30 }),
+      sekcja({ id: "t-a", key: "a_klucz", name_pl: "Remis A", rank: 5, sort_order: 30 }),
+      sekcja({
+        id: "t-srodek",
+        key: "srodek",
+        name_pl: "Remis, niższa kolejność",
+        rank: 5,
+        sort_order: 20,
+      }),
+      sekcja({ id: "t-gora", key: "gora", name_pl: "Najwyższa ranga", rank: 9, sort_order: 90 }),
+    ];
+    tablica();
+    expect(tytulyKart()).toEqual([
+      "Najwyższa ranga",
+      "Remis, niższa kolejność",
+      "Remis A",
+      "Remis B",
+      "Najniższa ranga",
+    ]);
+  });
+
+  it("logotyp nieogłoszony jest na karcie podpisany, a ogłoszony - nie", () => {
+    h.sponsorzy = [
+      sponsor(),
+      sponsor({ id: "s-nowy", snapshot_name: "Nowy Partner", is_published: false, sort_order: 20 }),
+    ];
+    tablica();
+    const kafle = within(karta("Złoci partnerzy")).getAllByRole("listitem");
+    expect(within(kafle[0]).queryByText(`${S}.draftBadge`)).toBeNull();
+    expect(within(kafle[1]).getByText(`${S}.draftBadge`)).toBeTruthy();
+    expect(within(karta("Złoci partnerzy")).getByText(`${S}.draftCount(count=1)`)).toBeTruthy();
   });
 
   it("po angielsku tytuły sekcji są angielskie", () => {
@@ -670,15 +714,18 @@ describe("lista sekcji", () => {
 });
 
 describe("zmiana kolejności sekcji", () => {
-  it("zjazd pierwszej sekcji wysyła CAŁĄ listę na nowo ponumerowaną", () => {
+  // ZMIANA: rangi szły od 1 na górze (1, 2, 3), a strona i podgląd czytają rangę
+  // MALEJĄCO - górna karta tablicy lądowała na dole strony. Dziś górna karta
+  // dostaje rangę NAJWYŻSZĄ (3, 2, 1), a `sort_order` rośnie w dół jak dotąd.
+  it("zjazd pierwszej sekcji wysyła CAŁĄ listę na nowo ponumerowaną - górna karta z najwyższą rangą", () => {
     h.sekcje = trzySekcje();
     tablica();
     kliknij(przycisk(`${S}.moveDown`, karta("Złoci partnerzy")));
     expect(h.kolejnosci).toEqual([
       [
-        { id: "t-srebro", sortOrder: 10, rank: 1 },
+        { id: "t-srebro", sortOrder: 10, rank: 3 },
         { id: "t-zloto", sortOrder: 20, rank: 2 },
-        { id: "t-media", sortOrder: 30, rank: 3 },
+        { id: "t-media", sortOrder: 30, rank: 1 },
       ],
     ]);
     expect(h.toastError).not.toHaveBeenCalled();
@@ -690,11 +737,26 @@ describe("zmiana kolejności sekcji", () => {
     kliknij(przycisk(`${S}.moveUp`, karta("Patroni medialni")));
     expect(h.kolejnosci).toEqual([
       [
-        { id: "t-zloto", sortOrder: 10, rank: 1 },
+        { id: "t-zloto", sortOrder: 10, rank: 3 },
         { id: "t-media", sortOrder: 20, rank: 2 },
-        { id: "t-srebro", sortOrder: 30, rank: 3 },
+        { id: "t-srebro", sortOrder: 30, rank: 1 },
       ],
     ]);
+  });
+
+  it("po przestawieniu kolejność tablicy jest kolejnością strony (ranga malejąco)", () => {
+    h.sekcje = trzySekcje();
+    const widok = tablica();
+    kliknij(przycisk(`${S}.moveDown`, karta("Złoci partnerzy")));
+    // Baza przyjmuje przestawienie - lista sekcji wraca z nowymi rangami.
+    const zapis = new Map(h.kolejnosci[0]?.map((item) => [item.id, item]));
+    h.sekcje = trzySekcje().map((tier) => ({
+      ...tier,
+      rank: zapis.get(tier.id)?.rank ?? tier.rank,
+      sort_order: zapis.get(tier.id)?.sortOrder ?? tier.sort_order,
+    }));
+    widok.rerender(<SponsorSectionsBoard eventId={WYDARZENIE} />);
+    expect(tytulyKart()).toEqual(["Srebrni partnerzy", "Złoci partnerzy", "Patroni medialni"]);
   });
 
   it("odmowa zmiany kolejności kończy się komunikatem błędu", () => {
@@ -734,7 +796,7 @@ describe("dodawanie sekcji", () => {
     expect(h.zapisySekcji).toEqual([]);
   });
 
-  it("siatka ląduje na końcu listy ze średnim logo i bez limitu firm", async () => {
+  it("siatka dostaje najwyższą rangę (góra tablicy i strony), średnie logo i brak limitu firm", async () => {
     tablica();
     kliknij(przycisk(`${S}.create`));
     await utworzSekcje();
@@ -988,6 +1050,16 @@ describe("panel sekcji", () => {
     expect(panel().getAttribute("data-uklad")).toBe("grid");
     expect(panel().getAttribute("data-logotypy")).toBe("");
     expect(panel().getAttribute("data-przekierowania")).toBe("s-alfa|s-beta");
+  });
+
+  it("panel sekcji dostaje stan ogłoszenia KAŻDEGO logotypu", () => {
+    h.sponsorzy = [
+      sponsor({ id: "s-alfa", tier_id: "t-srebro", sort_order: 10 }),
+      sponsor({ id: "s-beta", tier_id: "t-srebro", is_published: false, sort_order: 20 }),
+    ];
+    tablica();
+    otworzPanel("Srebrni partnerzy");
+    expect(panel().getAttribute("data-ogloszone")).toBe("s-alfa=true|s-beta=false");
   });
 
   it("edycja karty otwiera panel z TĄ sekcją, jej układem i logotypami w kolejności", () => {

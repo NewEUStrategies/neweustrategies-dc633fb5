@@ -3,26 +3,39 @@
 // PO CO TO ISTNIEJE. Publiczne `event_sponsors_public` ma w ciele
 // `AND e.status = 'published'`, więc szkicowi wydarzenia oddaje pustkę -
 // a podgląd w studiu ma pokazać partnerów, których organizator WŁAŚNIE
-// przypiął. Wiersze `admin_event_sponsors_list` niosą już komplet pól poziomu
-// (`tier_*`), więc grupowanie liczy się z jednej odpowiedzi, bez drugiego
-// zapytania o poziomy.
+// przypiął. Wiersze `admin_event_sponsors_list` niosą komplet pól poziomu
+// potrzebny pasowi (`tier_*`); sekcja „Partnerzy" rysuje dodatkowo opis
+// i korzyści poziomu, a tych lista przypięć nie niesie - dokłada je
+// `admin_event_sponsor_tiers_list` (opcja `tiers`), zapytanie, które studio
+// i tak trzyma w cache pod kluczem poziomów.
 //
-// KOLEJNOŚĆ JEST LUSTREM PUBLICZNEJ: ranga malejąco, grupa bez poziomu na
-// końcu, w grupie `sort_order`, a przy remisie nazwa. Dwie różne kolejności
+// KOLEJNOŚĆ JEST LUSTREM PUBLICZNEJ: ranga malejąco, przy remisie `sort_order`
+// poziomu, dopiero potem klucz - dokładnie `ORDER BY` z
+// `event_sponsors_public` (20260824094504). Grupa bez poziomu na końcu, w grupie
+// `sort_order` przypięcia, a przy remisie nazwa. Dwie różne kolejności
 // znaczyłyby, że redaktor układa pas w podglądzie inaczej, niż zobaczy go
 // uczestnik.
 //
-// NIEOPUBLIKOWANE PRZYPIĘCIA WYPADAJĄ. `is_published = false` to partner
-// jeszcze nieogłoszony - podgląd strony publicznej nie może go pokazać, bo
-// obiecywałby ekran, którego po publikacji nie będzie.
-import type { EventSponsorRow } from "@/lib/events/sponsorsApi";
+// NIEOGŁOSZONE PRZYPIĘCIA WYPADAJĄ - CHYBA ŻE WOŁAJĄCY PROSI O NIE WPROST.
+// `is_published = false` to partner jeszcze nieogłoszony. Domyślnie mapper go
+// odsiewa, bo tak liczy się sponsor przy sesji i ścieżce programu (tam podgląd
+// ma obiecywać tylko to, co zobaczy uczestnik). Podgląd strony głównej
+// i zakładki „Partnerzy" prosi o nie opcją `includeDrafts` i dostaje je
+// ZNACZONE (`isDraft`) - tablica „Sponsorzy i reklama" zapisuje nowe logo jako
+// nieogłoszone, więc bez tego organizator widział logotypy na tablicy
+// i pustkę w podglądzie, bez słowa wyjaśnienia.
+import type { EventSponsorRow, EventSponsorTierRow } from "@/lib/events/sponsorsApi";
 import type {
   PublicSponsor,
   PublicSponsorTier,
   SponsorLogoSize,
   SponsorRole,
 } from "@/lib/events/sponsorsSurface";
-import { SPONSOR_LOGO_SIZES, SPONSOR_ROLES } from "@/lib/events/sponsorsSurface";
+import {
+  SPONSOR_LOGO_SIZES,
+  SPONSOR_ROLES,
+  parseSponsorTierBenefits,
+} from "@/lib/events/sponsorsSurface";
 
 function text(value: unknown): string | null {
   return typeof value === "string" && value.trim() !== "" ? value : null;
@@ -42,15 +55,29 @@ function logoSizeOf(value: unknown): SponsorLogoSize {
     : "md";
 }
 
+export interface SponsorTiersFromAdminRowsOptions {
+  /**
+   * Wiersze `admin_event_sponsor_tiers_list`: opis, korzyści i `sort_order`
+   * poziomu. Brak (zapytanie w locie) = pas bez opisów, a remis rangi
+   * rozstrzyga klucz - pas nie czeka na drugie zapytanie, żeby się narysować.
+   */
+  tiers?: readonly EventSponsorTierRow[] | null;
+  /** `true` = także przypięcia nieogłoszone, oznaczone `isDraft: true`. */
+  includeDrafts?: boolean;
+}
+
 export function sponsorTiersFromAdminRows(
   rows: readonly EventSponsorRow[] | null | undefined,
+  opts: SponsorTiersFromAdminRowsOptions = {},
 ): PublicSponsorTier[] {
   if (rows === null || rows === undefined) return [];
 
+  const tierById = new Map((opts.tiers ?? []).map((tier) => [tier.id, tier]));
   const groups = new Map<string, PublicSponsorTier>();
 
   for (const row of rows) {
-    if (row.is_published !== true) continue;
+    const isDraft = row.is_published !== true;
+    if (isDraft && opts.includeDrafts !== true) continue;
     // Nazwa jest jedyną treścią pozycji dla czytnika ekranu - migawka bez niej
     // wypada tak samo, jak w publicznym parserze.
     const name = text(row.snapshot_name) ?? text(row.crm_name);
@@ -59,19 +86,20 @@ export function sponsorTiersFromAdminRows(
 
     const tierId = text(row.tier_id);
     const key = tierId ?? "__no_tier__";
+    const details = tierId === null ? undefined : tierById.get(tierId);
     const tier = groups.get(key) ?? {
       tierId,
       key: text(row.tier_key),
       namePl: text(row.tier_name_pl),
       nameEn: text(row.tier_name_en),
-      descriptionPl: null,
-      descriptionEn: null,
+      // Opis i korzyści poziomu rysuje sekcja „Partnerzy", nie pas logotypów.
+      // Bez wiersza poziomu zostają puste, zamiast być zgadywane z przypięć.
+      descriptionPl: text(details?.description_pl),
+      descriptionEn: text(details?.description_en),
       rank: typeof row.tier_rank === "number" ? row.tier_rank : 0,
       accentColor: text(row.tier_accent_color),
       logoSize: logoSizeOf(row.tier_logo_size),
-      // Korzyści poziomu rysuje sekcja „Partnerzy", nie pas logotypów - pas
-      // ich nie czyta, więc podgląd nie zgaduje ich z listy przypięć.
-      benefits: [],
+      benefits: parseSponsorTierBenefits(details?.benefits ?? null),
       sponsors: [],
     };
 
@@ -86,11 +114,17 @@ export function sponsorTiersFromAdminRows(
       role: roleOf(row.role),
       boothLabel: text(row.booth_label),
       sortOrder: typeof row.sort_order === "number" ? row.sort_order : tier.sponsors.length,
+      isDraft,
     };
 
     tier.sponsors = [...tier.sponsors, sponsor];
     groups.set(key, tier);
   }
+
+  // `sort_order` poziomu spoza listy poziomów idzie na koniec remisu - tak jak
+  // `NULLS LAST` w `ORDER BY` publicznej funkcji.
+  const tierSortOrder = (tierId: string): number =>
+    tierById.get(tierId)?.sort_order ?? Number.MAX_SAFE_INTEGER;
 
   return [...groups.values()]
     .map((tier) => ({
@@ -100,8 +134,13 @@ export function sponsorTiersFromAdminRows(
       ),
     }))
     .sort((a, b) => {
-      if (a.tierId === null && b.tierId !== null) return 1;
-      if (b.tierId === null && a.tierId !== null) return -1;
-      return b.rank - a.rank || (a.key ?? "").localeCompare(b.key ?? "");
+      // Grupa bez poziomu jest JEDNA (klucz `__no_tier__`), więc po tej linii
+      // oba poziomy mają identyfikator.
+      if (a.tierId === null || b.tierId === null) return a.tierId === null ? 1 : -1;
+      return (
+        b.rank - a.rank ||
+        tierSortOrder(a.tierId) - tierSortOrder(b.tierId) ||
+        (a.key ?? "").localeCompare(b.key ?? "")
+      );
     });
 }

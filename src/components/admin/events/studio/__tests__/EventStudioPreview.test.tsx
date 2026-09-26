@@ -8,7 +8,7 @@
 // publicznej.
 //
 // CO KONKRETNIE PSUJE SIE BEZ TYCH TESTOW.
-//   1. ZAMKNIETA NAKLADKA ZACZYNA PYTAC. `enabled: open` w pieciu zapytaniach
+//   1. ZAMKNIETA NAKLADKA ZACZYNA PYTAC. `enabled: open` w szesciu zapytaniach
 //      to piec miejsc na literowke. Skutek jest niewidoczny na ekranie: kazde
 //      wejscie na dowolna sekcje studia ciagnie liste zgloszen i partnerow,
 //      ktorych nikt nie oglada.
@@ -54,7 +54,6 @@ const h = vi.hoisted(() => ({
     device: string;
     model: EventPreviewModel;
     live: EventPreviewLiveData;
-    tiery: number;
   }[],
   /** Ostatnie `onNavigate` / `onBack` przekazane kanwie. */
   nawiguj: null as ((target: { key: string; pageId: string } | null) => void) | null,
@@ -99,7 +98,6 @@ vi.mock("@/components/admin/events/studio/EventPreviewCanvas", () => ({
     device: string;
     model: EventPreviewModel;
     live: EventPreviewLiveData;
-    sponsorTiers: unknown[];
     onNavigate: (target: { key: string; pageId: string } | null) => void;
     onBack: () => void;
   }) => {
@@ -107,7 +105,6 @@ vi.mock("@/components/admin/events/studio/EventPreviewCanvas", () => ({
       device: props.device,
       model: props.model,
       live: props.live,
-      tiery: props.sponsorTiers.length,
     });
     h.nawiguj = props.onNavigate;
     h.wroc = props.onBack;
@@ -188,6 +185,7 @@ beforeEach(() => {
   h.nawiguj = null;
   h.wroc = null;
   stub().setData("admin_event_sponsors_list", []);
+  stub().setData("admin_event_sponsor_tiers_list", []);
   stub().setData("admin_event_sessions_list", []);
   stub().setData("admin_event_tracks_list", []);
   stub().setData("admin_event_registrations_list", []);
@@ -211,17 +209,18 @@ describe("EventStudioPreview - zamkniety podglad nie kosztuje nic", () => {
     expect(h.rysunki).toHaveLength(0);
   });
 
-  it("OTWARTY: pyta o partnerow, program, pasma i uczestnikow - po TO wydarzenie", async () => {
+  it("OTWARTY: pyta o partnerow i ich poziomy, program, pasma i uczestnikow - po TO wydarzenie", async () => {
     // Druga polowa pary. Sam „nie pyta, gdy zamkniety" przechodzilby takze
     // wtedy, gdyby nakladka nie pytala NIGDY - a wtedy podglad szkicu byłby
     // pusty, czyli dokladnie tym, co ten modul mial naprawic.
     nakladka({ open: true });
 
-    await waitFor(() => expect(stub().names().length).toBeGreaterThanOrEqual(4));
+    await waitFor(() => expect(new Set(stub().names()).size).toBeGreaterThanOrEqual(5));
     const nazwy = [...new Set(stub().names())].sort();
     expect(nazwy).toEqual([
       "admin_event_registrations_list",
       "admin_event_sessions_list",
+      "admin_event_sponsor_tiers_list",
       "admin_event_sponsors_list",
       "admin_event_tracks_list",
     ]);
@@ -230,11 +229,25 @@ describe("EventStudioPreview - zamkniety podglad nie kosztuje nic", () => {
     }
   });
 
-  it("partnerzy ida z filtrem OGLOSZONYCH - podglad nie moze pokazac przypiec roboczych", async () => {
+  // ZMIANA: ta asercja twierdzila, ze partnerzy ida z filtrem „published".
+  // Tablica „Sponsorzy i reklama" zapisuje nowe logo jako NIEOGLOSZONE, wiec
+  // taki podglad pokazywal pustke w miejscu logotypow, ktore organizator widzial
+  // na tablicy. Dzis nakladka bierze WSZYSTKIE przypiecia (nieogloszone rysuje
+  // przygaszone, z plakietka), a sponsor przy sesji dalej odsiewa sie po
+  // `is_published` - dowod w `EventStudioPreviewSponsors.test.tsx`.
+  it("partnerzy ida BEZ filtra ogloszen - nieogloszonych podglad pokazuje, znaczonych", async () => {
     nakladka({ open: true });
 
     await waitFor(() => expect(stub().lastCall("admin_event_sponsors_list")).toBeDefined());
-    expect(stub().lastCall("admin_event_sponsors_list")?.arg("p_published")).toBe("published");
+    expect(stub().lastCall("admin_event_sponsors_list")?.has("p_published")).toBe(false);
+    expect(stub().lastCall("admin_event_sponsors_list")?.arg("p_limit")).toBe(200);
+  });
+
+  it("poziomy partnerow ida osobnym zapytaniem - opis i korzysci poziomu nie leza na liscie przypiec", async () => {
+    nakladka({ open: true });
+
+    await waitFor(() => expect(stub().lastCall("admin_event_sponsor_tiers_list")).toBeDefined());
+    expect(stub().lastCall("admin_event_sponsor_tiers_list")?.keys()).toEqual(["p_event_id"]);
   });
 });
 
@@ -337,6 +350,84 @@ describe("EventStudioPreview - przelacznik urzadzenia", () => {
   });
 });
 
+describe("EventStudioPreview - skala z ZMIERZONEJ szerokosci ramy", () => {
+  /** Atrapa `ResizeObserver` - happy-dom go nie ma, a nakladka bez niego nie mierzy. */
+  class Obserwator {
+    static ostatni: Obserwator | null = null;
+    readonly obserwowane: Element[] = [];
+    rozlaczony = false;
+    constructor(readonly zawiadom: () => void) {
+      Obserwator.ostatni = this;
+    }
+    observe(element: Element) {
+      this.obserwowane.push(element);
+    }
+    disconnect() {
+      this.rozlaczony = true;
+    }
+  }
+
+  beforeEach(() => {
+    Obserwator.ostatni = null;
+    vi.stubGlobal("ResizeObserver", Obserwator);
+    // Rama 620 px i kanwa wysoka na 1000 px - happy-dom nie liczy ukladu,
+    // wiec wymiary podaje test.
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(620);
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(1000);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("pulpit 1240 px w ramie 620 px rysuje sie w skali 0,5 - z wysokoscia wnetrza", async () => {
+    const { container } = nakladka({ open: true });
+    await screen.findByTestId("kanwa");
+
+    // Kartka zajmuje zmierzona szerokosc, a wysokosc to wysokosc kanwy w skali.
+    await waitFor(() => expect(container.querySelector('[style*="width: 620px"]')).not.toBeNull());
+    expect(container.querySelector('[style*="height: 500px"]')).not.toBeNull();
+    expect(container.querySelector('[style*="scale(0.5)"]')).not.toBeNull();
+    // Obserwator patrzy na rame i na kanwe - zmiana ktorejkolwiek przelicza skale.
+    expect(Obserwator.ostatni?.obserwowane).toHaveLength(2);
+  });
+
+  it("zmiana rozmiaru przelicza skale, a zamkniecie odlacza obserwatora", async () => {
+    const { unmount, container } = nakladka({ open: true });
+    await screen.findByTestId("kanwa");
+    const obserwator = Obserwator.ostatni;
+
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(310);
+    act(() => obserwator?.zawiadom());
+    await waitFor(() => expect(container.querySelector('[style*="scale(0.25)"]')).not.toBeNull());
+
+    unmount();
+    expect(obserwator?.rozlaczony).toBe(true);
+    // Spozniony sygnal po zamknieciu nie ma czego mierzyc - i nie moze sie wywrocic.
+    expect(() => obserwator?.zawiadom()).not.toThrow();
+  });
+
+  it("przegladarka bez `ResizeObserver` dostaje jeden pomiar przy otwarciu - i nie pada", async () => {
+    vi.stubGlobal("ResizeObserver", undefined);
+    const { container } = nakladka({ open: true });
+    await screen.findByTestId("kanwa");
+
+    await waitFor(() => expect(container.querySelector('[style*="scale(0.5)"]')).not.toBeNull());
+    expect(Obserwator.ostatni).toBeNull();
+  });
+
+  it("powrot z telefonu na pulpit przywraca szerokosc pulpitu", async () => {
+    nakladka({ open: true });
+    await screen.findByTestId("kanwa");
+
+    fireEvent.click(screen.getByRole("button", { name: `${P}mobile` }));
+    fireEvent.click(screen.getByRole("button", { name: `${P}desktop` }));
+
+    expect(screen.getByTestId("kanwa").getAttribute("data-device")).toBe("desktop");
+  });
+});
+
 describe("EventStudioPreview - nawigacja po podstronach", () => {
   it("wybor pozycji menu przenosi ETYKIETE, SCIEZKE i ZNACZNIK MODULU do modelu", async () => {
     nakladka({ open: true });
@@ -406,7 +497,7 @@ describe("EventStudioPreview - dostepnosc", () => {
     await screen.findByTestId("kanwa");
     // Czekamy, az wszystkie zapytania nakladki dojada - axe ma ogladac ekran
     // po ustaniu przerysowan, a nie w polowie wczytywania.
-    await waitFor(() => expect(stub().names().length).toBeGreaterThanOrEqual(4));
+    await waitFor(() => expect(new Set(stub().names()).size).toBeGreaterThanOrEqual(5));
 
     const naruszenia = await axeViolations(container);
     expect(naruszenia, summarize(naruszenia)).toEqual([]);
