@@ -710,6 +710,54 @@ describe("karta firmy", () => {
     expect(screen.getByText(/Spotkanie w Brukseli/)).toBeInTheDocument();
   });
 
+  it("wpis z modułu Wydarzeń mówi zdaniem w języku panelu, wskazuje osobę i prowadzi do studia", async () => {
+    // Bez tego sponsoring i faktury zbiorcze stały w feedzie firmy jako surowy
+    // kod akcji - bez zdania, bez osoby i bez drogi do wydarzenia.
+    const eventId = "3f1a0c8e-0000-4000-8000-000000000042";
+    h.company = { company: company(), profiles: [], leads: [] };
+    h.activity = [
+      {
+        id: "a:e1",
+        kind: "event",
+        action: "event.cfp.submitted",
+        created_at: new Date(Date.UTC(2026, 7, 7, 10)).toISOString(),
+        actor_id: null,
+        lead_id: "l1",
+        lead_label: "Anna Kowalska",
+        metadata: {
+          event_id: eventId,
+          summary_pl: "Zgłoszenie wystąpienia",
+          summary_en: "Talk submitted",
+        },
+      },
+      {
+        id: "a:e2",
+        kind: "event",
+        action: "event.invoice.collective_issued",
+        created_at: new Date(Date.UTC(2026, 7, 6, 10)).toISOString(),
+        actor_id: "u1",
+        lead_id: null,
+        lead_label: null,
+        metadata: null,
+      },
+    ];
+    await mountCard("?tab=activity");
+    expect(await screen.findByText("Zgłoszenie wystąpienia · Anna Kowalska")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Otwórz w studiu wydarzenia" })).toHaveAttribute(
+      "href",
+      `/admin/events/${eventId}/overview`,
+    );
+    // Wpis bez metadanych spada na kod akcji i nie dostaje odnośnika donikąd.
+    expect(screen.getByText("event.invoice.collective_issued")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Otwórz w studiu wydarzenia" })).toHaveLength(1);
+
+    cleanup();
+    h.lang = "en";
+    await mountCard("?tab=activity");
+    expect(await screen.findByText("Talk submitted · Anna Kowalska")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open in the event studio" })).toBeInTheDocument();
+  });
+
   it("notatka firmowa idzie na serwer z treścią i identyfikatorem firmy", async () => {
     h.company = { company: company(), profiles: [], leads: [] };
     // Notatka mieszka w zakładce „Aktywność” - wchodzimy tam z adresu, bo
