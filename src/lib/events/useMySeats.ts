@@ -7,7 +7,9 @@
 // STRONA BILETU TRZYMA KOD POZA KLUCZEM. Kod z fragmentu adresu jest
 // poswiadczeniem przy bramce: w kluczu zapytania trafilby do narzedzi
 // deweloperskich i do kazdego zrzutu cache. Klucz niesie sam slug, a `gcTime: 0`
-// usuwa odpowiedz z pamieci, gdy tylko karta zniknie z ekranu.
+// usuwa odpowiedz z pamieci, gdy tylko karta zniknie z ekranu. Jeden klucz na
+// montaz wystarcza: `EventTicketCodePanel` czyta fragment RAZ, przy montazu,
+// wiec inny bilet to inny montaz, a stara odpowiedz nie przezywa odmontowania.
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 
 import type { TicketFragment } from "@/lib/events/manageToken";

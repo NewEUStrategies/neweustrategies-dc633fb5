@@ -14,6 +14,7 @@ import type {
   SeatExportRow,
   SeatLookupRow,
 } from "@/lib/events/seatingApi";
+import type { MySeatCard } from "@/lib/events/mySeatsApi";
 
 export const SEAT_EVENT_ID = "e0000000-0000-4000-8000-000000000001";
 export const SEAT_MAP_ID = "m0000000-0000-4000-8000-000000000001";
@@ -268,6 +269,45 @@ export function seatExportRow(overrides: Partial<SeatExportRow> = {}): SeatExpor
     sort_key: 1,
     ticket_name_en: "VIP pass",
     ticket_name_pl: "VIP",
+    ...overrides,
+  };
+}
+
+/** Karta `event_my_seats` / `event_ticket_seats` po parserze - rząd A, miejsce 2. */
+export function mySeatCard(overrides: Partial<MySeatCard> = {}): MySeatCard {
+  return {
+    mapId: SEAT_MAP_ID,
+    mapName: "Gala",
+    roomName: "Sala Kryształowa",
+    roomFloor: "2",
+    roomNote: "Wejście od dziedzińca",
+    sessionTitlePl: "Gala wieczorna",
+    sessionTitleEn: "Evening gala",
+    sectionLabel: "A",
+    sectionKind: "rows",
+    rowLabel: "A",
+    seatNumber: 2,
+    isAccessible: false,
+    category: { namePl: "Strefa VIP", nameEn: "VIP zone", color: "#112233" },
+    geometry: {
+      width: 1200,
+      height: 800,
+      stage: { x: 100, y: 20, w: 400, h: 60 },
+      section: {
+        kind: "rows",
+        tableShape: null,
+        originX: 100,
+        originY: 200,
+        rotationDeg: 0,
+        seatPitch: 50,
+        rowPitch: 60,
+      },
+      seats: [
+        { x: 0, y: 0, mine: false },
+        { x: 50, y: 0, mine: true },
+        { x: 100, y: 0, mine: false },
+      ],
+    },
     ...overrides,
   };
 }

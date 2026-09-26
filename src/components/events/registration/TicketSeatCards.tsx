@@ -10,6 +10,7 @@
 // PUSTO = NIC NIE RYSUJEMY. Bilet bez miejsca (wydarzenie bez planu sali albo
 // plan nieopublikowany) to normalny bilet; zdanie "miejsca brak" myliloby
 // uczestnika wydarzenia bez numerowanych miejsc.
+import { useId } from "react";
 import { useTranslation } from "react-i18next";
 
 import { MySeatCardView } from "@/components/events/participant/molecules/MySeatCardView";
@@ -21,12 +22,13 @@ ensureEventSeatingI18n();
 
 export function TicketSeatCards({ slug, ticket }: { slug: string; ticket: TicketFragment }) {
   const { t } = useTranslation();
+  const titleId = useId();
   const seats = useTicketSeats(slug, ticket);
   const cards = seats.data ?? [];
   if (cards.length === 0) return null;
   return (
-    <section aria-labelledby="ticket-seat-title" className="space-y-2">
-      <h2 id="ticket-seat-title" className="text-base font-semibold text-foreground">
+    <section aria-labelledby={titleId} className="space-y-2">
+      <h2 id={titleId} className="text-base font-semibold text-foreground">
         {t("eventSeating.card.title")}
       </h2>
       {cards.map((card) => (

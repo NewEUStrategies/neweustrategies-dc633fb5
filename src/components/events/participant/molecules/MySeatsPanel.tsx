@@ -4,6 +4,7 @@
 // z sesja, wiec pod SSR (zawsze anonimowym) nie powstaje ani jedno zapytanie.
 // Pusty wynik to nie blad: organizator moze jeszcze nie opublikowac planu,
 // a uczestnik ma wiedziec, ze miejsce "pojawi sie tutaj".
+import { useId } from "react";
 import { useTranslation } from "react-i18next";
 
 import { MySeatCardView } from "@/components/events/participant/molecules/MySeatCardView";
@@ -16,11 +17,12 @@ ensureEventSeatingI18n();
 
 export function MySeatsPanel({ slug }: { slug: string }) {
   const { t } = useTranslation();
+  const titleId = useId();
   const seats = useMySeats(slug, true);
 
   return (
-    <section className="space-y-3" aria-labelledby="my-seat-title">
-      <h2 id="my-seat-title" className="text-base font-semibold text-foreground">
+    <section className="space-y-3" aria-labelledby={titleId}>
+      <h2 id={titleId} className="text-base font-semibold text-foreground">
         {t("eventSeating.card.title")}
       </h2>
       {seats.isLoading ? (

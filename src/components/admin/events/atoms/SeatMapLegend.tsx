@@ -3,6 +3,7 @@
 // Legenda powtarza te same znaki co `SeatGlyph` (pelne kolo, obrys, obrys
 // przerywany, kreskowanie, kwadracik dostepnosci), wiec kazdy stan jest
 // opisany slowem, a nie tylko pokazany.
+import { useId } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ensureSeatingI18n } from "@/lib/i18n-admin-event-seating";
@@ -60,10 +61,13 @@ function MarkIcon({ mark }: { mark: Mark }) {
 
 export function SeatMapLegend({ categories }: { categories: readonly SeatLegendCategory[] }) {
   const { t } = useTranslation();
+  // `useId` zamiast stalego id: dwie legendy na jednej stronie (plan + druk
+  // podgladu) nie moga dzielic jednego `aria-labelledby`.
+  const titleId = useId();
   return (
-    <section aria-labelledby="seat-legend-title" className="space-y-2">
+    <section aria-labelledby={titleId} className="space-y-2">
       <h3
-        id="seat-legend-title"
+        id={titleId}
         className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
       >
         {t("adminEventSeating.legend.title")}
