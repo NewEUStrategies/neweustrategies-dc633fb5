@@ -38,6 +38,16 @@
 // zdejmuje go więc z pola z jednym zdaniem wyjaśnienia; zdanie o błędnym kodzie
 // dostaje tylko kod wpisany ręcznie.
 //
+// KOD DOSTĘPU WEJŚCIÓWKI JEDZIE DO PODGLĄDU I DO KASY. Bilet za kodem
+// (`event_ticket_types.access_code_hash`) sprawdza go nie tylko przy zapisie,
+// ale i w `event_ticket_checkout_quote` - bez `access_code` kasa odmawiała
+// (`ticket_access_code_invalid`) zgłoszenia, które baza CHWILĘ WCZEŚNIEJ
+// przyjęła z kodem. Kod bierzemy z pamięci karty (`recallAccessCodeHint`: ten,
+// z którym przyjęto zapis, albo kod z linku zaproszenia); bilet bez kodu go
+// pomija. To INNY kod niż rabatowy - zdjęcie kuponu z pola nie zdejmuje kodu
+// dostępu. Z innej karty (link samoobsługi, profil) pamięci nie ma - odmowa
+// podglądu albo kasy odsłania wtedy pole kodu dostępu.
+//
 // GOŚĆ BEZ KONTA NIE DOSTAJE MARTWEGO PRZYCISKU. `createCheckoutOrder` stoi za
 // `requireSupabaseAuth`, a księgowanie wpłaty wymaga `payment_orders.user_id`,
 // więc gość zobaczy zdanie z prawdziwym powodem (paragon i droga zwrotu należą
@@ -62,7 +72,11 @@ import {
   type TicketCheckoutRefusal,
 } from "@/lib/events/admissionApi";
 import { RegistrationAmountDue } from "@/components/events/registration/atoms/RegistrationAmountDue";
-import { recallEventCode } from "@/lib/events/eventCodeMemory";
+import {
+  recallAccessCodeHint,
+  recallEventCode,
+  rememberTicketAccessCode,
+} from "@/lib/events/eventCodeMemory";
 import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
 
 ensureEventRegistrationI18n();
@@ -161,10 +175,21 @@ export function RegistrationPayAction({
       setMemoryCode(normalized === "" ? null : normalized);
     }
   }, [eventId]);
+  /** Kod dostępu wejściówki - osobny od kuponu, patrz nagłówek. */
+  const [accessCode, setAccessCode] = useState("");
+  const [accessInput, setAccessInput] = useState("");
+  useEffect(() => {
+    if (eventId !== null && ticketTypeId !== null) {
+      const remembered = recallAccessCodeHint(eventId, ticketTypeId);
+      setAccessCode(remembered);
+      setAccessInput(remembered);
+    }
+  }, [eventId, ticketTypeId]);
+  const accessPart = accessCode === "" ? {} : { access_code: accessCode };
 
   const ready = eventId !== null && ticketTypeId !== null;
   const quoteQ = useQuery({
-    queryKey: [...QUOTE_KEY, registrationId, eventId, ticketTypeId, appliedCode],
+    queryKey: [...QUOTE_KEY, registrationId, eventId, ticketTypeId, appliedCode, accessCode],
     queryFn: () =>
       quoteFn({
         data: {
@@ -172,6 +197,7 @@ export function RegistrationPayAction({
           ticket_type_id: ticketTypeId as string,
           registration_id: registrationId,
           ...(appliedCode.length > 0 ? { coupon_code: appliedCode } : {}),
+          ...accessPart,
         },
       }),
     // Podgląd stoi za `requireSupabaseAuth` i czyta zgłoszenie WOŁAJĄCEGO -
@@ -180,6 +206,9 @@ export function RegistrationPayAction({
     retry: false,
   });
   const quote = quoteQ.data ?? null;
+  // Podgląd sprzed benefitu na miejscu członka (starszy serwer) pola nie ma -
+  // wtedy wszystkie miejsca są po tej samej cenie.
+  const quoteBenefit = quote?.planBenefit ?? null;
 
   // KOD BEZ RABATU ANI KOD Z PAMIĘCI NIE BLOKUJĄ PŁATNOŚCI. Kod bez rabatu
   // (`no_discount`) nie ma czego odjąć, a kod z linku `?code=` odsłania zwykle
@@ -254,6 +283,22 @@ export function RegistrationPayAction({
   }
 
   /**
+   * Kod dostępu wpisany po odmowie. Pole stoi tylko przy odmowie podglądu albo
+   * kasy, a obie wymagają kompletu identyfikatorów (`ready`). Zapamiętujemy
+   * go od razu - następne otwarcie kasy w tej karcie nie zapyta drugi raz.
+   */
+  function applyAccessCode(): void {
+    const code = normalizeCode(accessInput);
+    setRefusal(null);
+    rememberTicketAccessCode(eventId as string, ticketTypeId as string, code);
+    if (code === accessCode) {
+      void quoteQ.refetch();
+      return;
+    }
+    setAccessCode(code);
+  }
+
+  /**
    * `override` = kod wymuszony (pusty przy ponowieniu bez kodu bez rabatu).
    * Bramką „bez kompletu identyfikatorów nie ma kasy" jest `disabled` przycisku
    * (`!ready`) - to jedyne miejsce, z którego ta funkcja rusza.
@@ -277,6 +322,7 @@ export function RegistrationPayAction({
           cancel_path: returnPath,
           environment: getStripeEnvironment(),
           ...(code.length > 0 ? { coupon_code: code } : {}),
+          ...accessPart,
         },
       });
       if (!result.ok) {
@@ -347,13 +393,33 @@ export function RegistrationPayAction({
       )}
       {showAmount && quote !== null && (
         <div className="space-y-0.5 text-sm">
-          {quote.seats > 1 && (
+          {/* BENEFIT PLANU MA JEDNO MIEJSCE: członka. Grupa z benefitem mówi
+              więc osobno „Twoje miejsce" i „Goście: N × cena z cennika" -
+              jedno „3 × cena" byłoby nieprawdą dla któregoś z miejsc. */}
+          {quote.seats > 1 && quoteBenefit === null && (
             <p className="text-muted-foreground">
               {t("eventRegistration.payment.quoteSeats", {
                 count: quote.seats,
                 unit: money(quote.unitCents, quote.currency),
               })}
             </p>
+          )}
+          {quote.seats > 1 && quoteBenefit !== null && (
+            <>
+              <p className="text-muted-foreground">
+                {quoteBenefit === "included"
+                  ? t("eventRegistration.payment.quoteLeadIncluded")
+                  : t("eventRegistration.payment.quoteLeadSeat", {
+                      unit: money(quote.leadUnitCents, quote.currency),
+                    })}
+              </p>
+              <p className="text-muted-foreground">
+                {t("eventRegistration.payment.quoteGuestSeats", {
+                  count: quote.seats - 1,
+                  unit: money(quote.unitCents, quote.currency),
+                })}
+              </p>
+            </>
           )}
           {quote.coupon !== null && (
             <p className="text-muted-foreground">
@@ -440,6 +506,27 @@ export function RegistrationPayAction({
         <p role="status" className="text-sm text-destructive">
           {t(admissionQuoteMessageKey(shownRefusal))}
         </p>
+      )}
+      {/* Kod dostępu nie dotarł z pamięci karty (inna karta, inny kod) albo
+          baza go nie przyjęła - kupujący wpisuje go tutaj, bez wracania do
+          formularza zapisu. */}
+      {shownRefusal === "access_code_invalid" && (
+        <div className="flex max-w-md flex-wrap items-end gap-2">
+          <label className="block min-w-0 flex-1 space-y-1 text-sm">
+            <span className="font-medium">{t("eventRegistration.payment.accessCodeLabel")}</span>
+            <input
+              value={accessInput}
+              maxLength={64}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(event) => setAccessInput(event.target.value.toUpperCase())}
+              className="h-10 w-full rounded-[6px] border border-input bg-background px-3 text-sm uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </label>
+          <Button type="button" variant="outline" disabled={busy} onClick={applyAccessCode}>
+            {t("eventRegistration.payment.accessCodeApply")}
+          </Button>
+        </div>
       )}
     </div>
   );

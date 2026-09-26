@@ -387,6 +387,102 @@ describe("createCheckoutOrder - kod kwotowy na zamówieniu grupowym", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// BENEFIT PLANU CZŁONKA NA ZAMÓWIENIU GRUPOWYM (20260926140000). Kasa mnożyła
+// cenę członka przez wszystkie miejsca: -50% schodziło z każdego gościa, a
+// bilet z puli zerował całe zamówienie i kończył się odmową. Pula jedzie tu
+// PRAWDZIWYM `ticketPriceForCaller` - atrapą jest tylko `my_ticket_allowance`.
+// ---------------------------------------------------------------------------
+describe("createCheckoutOrder - benefit planu tylko na miejscu członka", () => {
+  it("stawka ulgowa -50% na 3 × 100 zł: 250 zł (50 + 2 × 100), ceny miejsc w metadanych", async () => {
+    rpcResponses.set("my_ticket_allowance", ok({ granted: 0, used: 0, discount_pct: 50 }));
+
+    await call();
+
+    expect(orderInsert().amount_cents).toBe(25000);
+    expect(metadata()).toMatchObject({
+      quantity: 3,
+      plan_benefit: "discount",
+      lead_unit_cents: 5000,
+      guest_unit_cents: 10000,
+    });
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("event_registration_claim_plan_seat");
+    // Pozycja „3 × 100 zł", a różnicę (benefit) zdejmuje jeden nazwany kupon.
+    expect(stripeCoupons()).toEqual([
+      expect.objectContaining({ amount_off: 5000, name: "Kupon Benefit planu" }),
+    ]);
+    expect(session().line_items[0]).toMatchObject({
+      quantity: 3,
+      price_data: { unit_amount: 10000 },
+    });
+  });
+
+  it("bilet z puli: kasa zajmuje go dla prowadzącego, zamówienie to sami goście (200 zł)", async () => {
+    rpcResponses.set("my_ticket_allowance", ok({ granted: 1, used: 0 }));
+    rpcResponses.set("event_registration_claim_plan_seat", ok({ claimed: true, reused: false }));
+
+    const result = await call();
+
+    expect(result).toMatchObject({ ok: true, mode: "stripe" });
+    // Kasa ZAJMUJE bilet (nie pyta na sucho, jak podgląd).
+    expect(rpcArgs("event_registration_claim_plan_seat")).toEqual({
+      p_registration_id: REGISTRATION_ID,
+      p_dry_run: false,
+    });
+    expect(orderInsert().amount_cents).toBe(20000);
+    expect(metadata()).toMatchObject({
+      plan_benefit: "included",
+      lead_unit_cents: 0,
+      guest_unit_cents: 10000,
+    });
+  });
+
+  it("pula nie oddała biletu (wyścig): prowadzący płaci jak gość, bez metadanych benefitu", async () => {
+    rpcResponses.set("my_ticket_allowance", ok({ granted: 1, used: 0 }));
+    rpcResponses.set(
+      "event_registration_claim_plan_seat",
+      ok({ claimed: false, reason: "pool_empty" }),
+    );
+
+    await call();
+
+    expect(orderInsert().amount_cents).toBe(30000);
+    expect(metadata()).not.toHaveProperty("plan_benefit");
+    expect(stripeCoupons()).toEqual([]);
+  });
+
+  it("bilet z puli i kod -80 zł: kod schodzi z gości, miejsce prowadzącego już jest za zero", async () => {
+    rpcResponses.set("my_ticket_allowance", ok({ granted: 1, used: 0 }));
+    rpcResponses.set("event_registration_claim_plan_seat", ok({ claimed: true, reused: true }));
+    rpcResponses.set("validate_event_ticket_coupon", fixedCode(8000));
+
+    await call({ coupon_code: "MINUS80" });
+
+    // 2 × (100 - 80) zł; średnia „66,67 zł na miejsce" dawałaby odmowę.
+    expect(orderInsert().amount_cents).toBe(4000);
+    expect(metadata()).toMatchObject({ coupon_discount_cents: 16000, plan_benefit: "included" });
+    expect(metadata()).not.toHaveProperty("coupon_discount_per_seat_cents");
+    expect(stripeCoupons()).toEqual([
+      expect.objectContaining({ amount_off: 26000, name: "Kupon Benefit planu + MINUS80" }),
+    ]);
+  });
+
+  it("zgłoszenie GOŚCIA opłacane przez prowadzącego - bez jego benefitu", async () => {
+    rpcResponses.set("my_ticket_allowance", ok({ granted: 0, used: 0, discount_pct: 50 }));
+    rpcResponses.set(
+      "event_registration_payment_context",
+      ok({ ok: true, event_id: EVENT_ID, ticket_type_id: TICKET_ID, holder_is_caller: false }),
+    );
+    rpcResponses.set("event_registration_group_seats", ok(1));
+
+    await call();
+
+    expect(orderInsert().amount_cents).toBe(10000);
+    expect(metadata()).not.toHaveProperty("plan_benefit");
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("my_ticket_allowance");
+  });
+});
+
 describe("createCheckoutOrder - liczba miejsc jest fail-closed", () => {
   it("BŁĄD `event_registration_group_seats` to odmowa `seats_unavailable`, a nie jedno miejsce", async () => {
     rpcResponses.set("event_registration_group_seats", fail("function does not exist"));

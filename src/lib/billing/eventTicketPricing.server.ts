@@ -8,8 +8,24 @@
 // liczba na ekranie i liczba na paragonie nie mogą się rozjechać.
 //
 // KOLEJNOŚĆ WYWOŁAŃ JEST KONTRAKTEM: kontekst zgłoszenia (własność), wycena
-// bazy, pula planu, opcje biletu (podatek), liczba miejsc, kod. Zgłoszenie
-// sprawdzamy PRZED cennikiem, żeby błędne wskazanie nie dotykało wyceny.
+// bazy, pula planu, opcje biletu (podatek), liczba miejsc, bilet z puli
+// (tylko kasa), kod. Zgłoszenie sprawdzamy PRZED cennikiem, żeby błędne
+// wskazanie nie dotykało wyceny.
+//
+// BENEFIT PLANU MA JEDNO MIEJSCE: CZŁONKA. Cena miejsca po benefitach
+// (`ticketPriceForCaller`: zniżka stawki ulgowej albo bilet z puli) dotyczy
+// wyłącznie miejsca, którego osobą jest wołający - goście płacą cenę
+// z cennika (faza sprzedaży). Do 20260926140000 kasa mnożyła cenę członka
+// przez liczbę miejsc: zniżka -50% schodziła z każdego gościa, a bilet z puli
+// zerował całe zamówienie i kończył się odmową `ticket_included_in_plan` -
+// członek nie mógł zapłacić za swoich gości wcale. Zgłoszenie GOŚCIA
+// opłacane przez prowadzącego (`holder_is_caller = false`) benefitu nie ma.
+//
+// BILET Z PULI SCHODZI Z PULI. Miejsce prowadzącego pokryte biletem z planu
+// kasa zajmuje w puli (`event_registration_claim_plan_seat`) PRZED
+// założeniem zamówienia; gdy pula go nie odda (pusta, wyścig dwóch kas),
+// prowadzący płaci jak gość. Podgląd kasy puli NIE rusza - pokazuje stan
+// z `my_ticket_allowance`.
 //
 // LICZBA MIEJSC JEST FAIL-CLOSED. Błąd `event_registration_group_seats` dawał
 // dotąd po cichu JEDNO miejsce - grupa płaciła za prowadzącego, kod schodził
@@ -22,6 +38,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/integrations/supabase/types";
 import { groupCouponDiscount } from "@/lib/events/groupOrderPricing";
+import { ticketAmountCents } from "@/lib/events/ticketAllowance";
 import type { TicketTaxMode } from "@/lib/events/ticketTaxGroup";
 
 type Client = SupabaseClient<Database>;
@@ -41,16 +58,34 @@ export interface EventTicketPriceInput {
   registrationId: string | null;
   /** Kod z zaproszenia; pusty napis znaczy „brak klucza". */
   accessCode?: string;
+  /**
+   * Zajmij w puli planu bilet pokrywający miejsce prowadzącego. Wyłącznie kasa
+   * (`createCheckoutOrder`) - podgląd pyta bazę na sucho, niczego nie zużywa.
+   */
+  claimPlanSeat?: boolean;
 }
+
+/** Benefit planu na miejscu wołającego: bilet z puli albo zniżka ceny. */
+export type EventTicketPlanBenefit = "included" | "discount";
 
 export interface EventTicketPrice {
   /** Miejsca opłacane jednym zamówieniem (prowadzący + goście), co najmniej 1. */
   seats: number;
-  /** Cena JEDNEGO miejsca po fazie sprzedaży i benefitach planu. */
+  /**
+   * Cena JEDNEGO miejsca gościa: cennik po fazie sprzedaży, BEZ benefitu planu
+   * (ten należy wyłącznie do członka - `leadUnitCents`).
+   */
   unitCents: number;
+  /**
+   * Cena miejsca prowadzącego (osoby zgłoszenia): z benefitem planu, gdy tą
+   * osobą jest wołający; inaczej równa `unitCents`. Przy bilecie z puli - 0.
+   */
+  leadUnitCents: number;
+  /** Benefit na miejscu prowadzącego albo `null` (brak, miejsce nie wołającego). */
+  planBenefit: EventTicketPlanBenefit | null;
   /** Cena regularna jednego miejsca (0, gdy baza jej nie podała). */
   unitListCents: number;
-  /** Kwota całego zamówienia przed kodem: `unitCents × seats`. */
+  /** Kwota całego zamówienia przed kodem: `leadUnitCents + unitCents × (seats − 1)`. */
   amountCents: number;
   /** Cena regularna całego zamówienia: `unitListCents × seats`. */
   listCents: number;
@@ -84,6 +119,8 @@ export async function priceEventTicket(
   supabase: Client,
   input: EventTicketPriceInput,
 ): Promise<EventTicketPrice> {
+  // Kasa bez zgłoszenia kupuje miejsce WOŁAJĄCEGO - benefit mu przysługuje.
+  let holderIsCaller = true;
   // ZGŁOSZENIE, ZA KTÓRE PŁACIMY. Autorytetem jest baza: RLS
   // `event_registrations` jest zamknięte dla uczestnika, a rzutowanie odczytu
   // na `service_role` oddałoby serwerowi aplikacji prawo czytania CUDZYCH
@@ -110,6 +147,9 @@ export async function priceEventTicket(
     ) {
       throw new Error("registration_not_payable:ticket_mismatch");
     }
+    // Tylko jawne `false` odbiera benefit: baza sprzed 20260926140000 pola nie
+    // zna, a jej odpowiedź nadal dotyczy zwykle miejsca samego wołającego.
+    holderIsCaller = parsedCtx.holder_is_caller !== false;
   }
 
   // CENNIK WYDARZENIA. Kwotę, okno sprzedaży, miejsca, rangę członkostwa i kod
@@ -130,12 +170,25 @@ export async function priceEventTicket(
   }
   const quotedAmount =
     typeof parsed.amount_cents === "number" ? Math.trunc(parsed.amount_cents) : 0;
-  // Pula wliczona w plan zjada także wejściówki z cennika - ścieżka „za
-  // darmo" jest jedna (`rsvp_event`), więc kasa odsyła, zamiast zakładać
-  // zamówienie na zero złotych.
-  const { ticketPriceForCaller } = await import("@/lib/events/ticketAllowance.server");
-  const ticketPrice = await ticketPriceForCaller(supabase, quotedAmount);
-  if (ticketPrice.amountCents <= 0) throw new Error("ticket_included_in_plan");
+  // BENEFIT PLANU - tylko na miejscu wołającego (patrz nagłówek). Cena gościa
+  // to cena z cennika.
+  let leadUnitCents = quotedAmount;
+  // Cena członka BEZ biletu z puli (sama zniżka stawki) - obowiązuje, gdy
+  // pula nie pokryje miejsca prowadzącego w zamówieniu z gośćmi.
+  let leadPaidCents = quotedAmount;
+  // Plan z pulą biletów (przyznane > 0). O tym, czy pula pokryje miejsce
+  // prowadzącego, rozstrzyga baza niżej - sam stan puli tego nie wie: po
+  // pierwszej kasie bilet jest ZUŻYTY dla tego wydarzenia, a ponowna kasa
+  // zobaczyłaby pustą pulę.
+  let poolPlan = false;
+  if (holderIsCaller) {
+    const { ticketPriceForCaller } = await import("@/lib/events/ticketAllowance.server");
+    const leadPrice = await ticketPriceForCaller(supabase, quotedAmount);
+    leadUnitCents = leadPrice.amountCents;
+    leadPaidCents = ticketAmountCents(quotedAmount, { ...leadPrice.allowance, remaining: 0 });
+    poolPlan = quotedAmount > 0 && leadPrice.allowance.granted > 0;
+  }
+  let leadFromPool = false;
 
   const eventTitle = firstText(parsed.event_title_pl, parsed.event_title_en);
   const ticketName = firstText(parsed.name_pl, parsed.name_en);
@@ -176,15 +229,46 @@ export async function priceEventTicket(
       throw new Error(SEATS_UNAVAILABLE);
     }
     seats = seatsRaw;
+
+    // BILET Z PULI dla miejsca prowadzącego w zamówieniu z gośćmi. Kasa go
+    // zajmuje, podgląd pyta tę samą funkcję na sucho - obie widzą bilet już
+    // zajęty dla tego wydarzenia (ponowna kasa) i bilet wolny w puli. Odmowa
+    // puli (albo awaria RPC) nie przerywa zakupu gości: prowadzący płaci wtedy
+    // cenę miejsca, a nie dostaje go za darmo bez zdjęcia biletu z puli.
+    if (poolPlan && seats > 1) {
+      const { data: claim, error: claimErr } = await supabase.rpc(
+        "event_registration_claim_plan_seat",
+        { p_registration_id: input.registrationId, p_dry_run: input.claimPlanSeat !== true },
+      );
+      if (claimErr) {
+        console.error("[checkout] plan seat claim failed", input.registrationId, claimErr.message);
+      }
+      const claimRow = objectOf(claim);
+      leadFromPool = !claimErr && claimRow !== null && claimRow.claimed === true;
+      leadUnitCents = leadFromPool ? 0 : leadPaidCents;
+    }
   }
+
+  // Pojedyncze miejsce pokryte pulą (albo bilet za zero) - nie ma czego
+  // obciążyć. Ścieżka „za darmo" to `rsvp_event`, więc kasa odsyła, zamiast
+  // zakładać zamówienie na zero złotych.
+  const amountCents = leadUnitCents + quotedAmount * (seats - 1);
+  if (amountCents <= 0) throw new Error("ticket_included_in_plan");
+  const planBenefit: EventTicketPlanBenefit | null = leadFromPool
+    ? "included"
+    : leadUnitCents < quotedAmount
+      ? "discount"
+      : null;
 
   const unitListCents =
     typeof parsed.list_price_cents === "number" ? Math.trunc(parsed.list_price_cents) : 0;
   return {
     seats,
-    unitCents: ticketPrice.amountCents,
+    unitCents: quotedAmount,
+    leadUnitCents,
+    planBenefit,
     unitListCents,
-    amountCents: ticketPrice.amountCents * seats,
+    amountCents,
     listCents: unitListCents * seats,
     currency: typeof parsed.currency === "string" ? parsed.currency : "PLN",
     label: ticketName === "" ? eventTitle : `${eventTitle} - ${ticketName}`,
@@ -203,6 +287,11 @@ export interface EventTicketCouponInput {
   amountCents: number;
   currency: string;
   seats: number;
+  /**
+   * Cena miejsca prowadzącego przed kodem, gdy różni się od miejsc gości
+   * (benefit planu). Brak = wszystkie miejsca po tej samej cenie.
+   */
+  leadCents?: number;
 }
 
 export type EventTicketCouponResult =
@@ -216,7 +305,10 @@ export type EventTicketCouponResult =
       discountCents: number;
       /** Kwota do zapłaty po kodzie. */
       finalCents: number;
-      /** Rabat na jedno miejsce - tylko dla kodu kwotowego. */
+      /**
+       * Rabat na jedno miejsce - tylko dla kodu kwotowego, gdy KAŻDE miejsce
+       * dostało ten sam (miejsce prowadzącego tańsze od kodu - `null`).
+       */
       perSeatCents: number | null;
     }
   | { ok: false; error: string };
@@ -249,6 +341,7 @@ export async function applyEventTicketCoupon(
     finalCents: row.final_cents,
     totalCents: input.amountCents,
     seats: input.seats,
+    leadCents: input.leadCents,
   });
   // Bezpiecznik: rabat 100% (final=0) traktujemy jak darmowy przydział - i tak
   // nie przejdzie minimalnej kwoty transakcji, więc odrzucamy < 50 gr.
@@ -263,8 +356,7 @@ export async function applyEventTicketCoupon(
       kind === "percent" && typeof row.discount_percent === "number" ? row.discount_percent : null,
     discountCents: split.discountCents,
     finalCents: split.finalCents,
-    perSeatCents:
-      kind === "fixed" ? Math.floor(split.discountCents / Math.max(1, input.seats)) : null,
+    perSeatCents: split.perSeatCents,
   };
 }
 
@@ -275,9 +367,13 @@ export interface EventTicketQuoteInput extends EventTicketPriceInput {
 /** Podgląd kasy: to samo, co zobaczy nakładka Stripe, zanim się otworzy. */
 export interface EventTicketQuote {
   seats: number;
-  /** Cena jednego miejsca przed kodem. */
+  /** Cena jednego miejsca gościa przed kodem (cennik, bez benefitu planu). */
   unitCents: number;
-  /** Suma przed kodem: `unitCents × seats`. */
+  /** Cena miejsca prowadzącego przed kodem - z benefitem planu wołającego. */
+  leadUnitCents: number;
+  /** Benefit planu na miejscu prowadzącego (`null` = brak). */
+  planBenefit: EventTicketPlanBenefit | null;
+  /** Suma przed kodem: `leadUnitCents + unitCents × (seats − 1)`. */
   subtotalCents: number;
   currency: string;
   /** Kod przyjęty przez bazę albo `null` (brak kodu albo odmowa). */
@@ -314,6 +410,8 @@ export async function quoteEventTicketOrder(
   const base: EventTicketQuote = {
     seats: price.seats,
     unitCents: price.unitCents,
+    leadUnitCents: price.leadUnitCents,
+    planBenefit: price.planBenefit,
     subtotalCents: price.amountCents,
     currency: price.currency,
     coupon: null,
@@ -331,6 +429,7 @@ export async function quoteEventTicketOrder(
     amountCents: price.amountCents,
     currency: price.currency,
     seats: price.seats,
+    leadCents: price.leadUnitCents,
   });
   if (!applied.ok) return { ...base, couponError: applied.error };
   return {

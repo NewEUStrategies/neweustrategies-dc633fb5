@@ -9,6 +9,12 @@
 // KOD PROCENTOWY ZOSTAJE BEZ ZMIAN. Procent od sumy to procent od każdego
 // miejsca, więc wynik bazy jest już poprawny.
 //
+// MIEJSCE PROWADZĄCEGO BYWA TAŃSZE. Benefit planu członka (zniżka albo bilet
+// z puli) obniża tylko JEGO miejsce, więc goście płacą więcej niż on. Kod
+// kwotowy schodzi wtedy z każdego miejsca do jego własnej ceny: z gościa
+// `min(kod, cena gościa)`, z prowadzącego `min(kod, cena prowadzącego)` -
+// średnia ceny miejsca zaniżałaby rabat gości (lub zawyżała prowadzącego).
+//
 // Moduł czysty: bez klienta bazy, bez Reacta - importuje go funkcja serwerowa
 // kasy, a testy liczą na nim bez atrap.
 
@@ -23,24 +29,53 @@ export interface GroupCouponInput {
   totalCents: number;
   /** Liczba miejsc opłacanych tym zamówieniem (prowadzący + goście). */
   seats: number;
+  /**
+   * Cena miejsca prowadzącego przed rabatem, gdy różni się od miejsc gości.
+   * Brak = wszystkie miejsca po tej samej cenie (`totalCents / seats`).
+   */
+  leadCents?: number;
 }
 
 export interface GroupCouponResult {
   discountCents: number;
   finalCents: number;
+  /**
+   * Rabat kodu kwotowego na jedno miejsce - gdy KAŻDE miejsce dostało ten sam
+   * (ekran pokazuje „-20 zł × 3"); `null` dla procentu i dla miejsc, które
+   * zeszły różnie (prowadzący tańszy od kodu).
+   */
+  perSeatCents: number | null;
 }
 
 export function groupCouponDiscount(input: GroupCouponInput): GroupCouponResult {
   const seats = Math.max(1, Math.trunc(input.seats));
-  if (input.kind !== "fixed" || seats === 1) {
-    return { discountCents: input.discountCents, finalCents: input.finalCents };
+  if (input.kind !== "fixed") {
+    return { discountCents: input.discountCents, finalCents: input.finalCents, perSeatCents: null };
+  }
+  if (seats === 1) {
+    return {
+      discountCents: input.discountCents,
+      finalCents: input.finalCents,
+      perSeatCents: input.discountCents,
+    };
   }
   const total = Math.max(0, Math.round(input.totalCents));
-  const unit = Math.floor(total / seats);
+  const lead =
+    input.leadCents === undefined
+      ? null
+      : Math.min(Math.max(0, Math.round(input.leadCents)), total);
+  const guestUnit =
+    lead === null ? Math.floor(total / seats) : Math.floor((total - lead) / (seats - 1));
   // Baza zwraca LEAST(kwota_kodu, suma), więc przy sumie >= cenie miejsca
   // `min(rabat, cena miejsca)` to dokładnie `min(kwota_kodu, cena miejsca)` -
   // kod większy niż cena biletu nie schodzi poniżej zera na żadnym miejscu.
-  const perSeat = Math.max(0, Math.min(Math.round(input.discountCents), unit));
-  const discountCents = Math.min(perSeat * seats, total);
-  return { discountCents, finalCents: total - discountCents };
+  const code = Math.max(0, Math.round(input.discountCents));
+  const perGuest = Math.min(code, guestUnit);
+  const perLead = lead === null ? perGuest : Math.min(code, lead);
+  const discountCents = Math.min(perLead + perGuest * (seats - 1), total);
+  return {
+    discountCents,
+    finalCents: total - discountCents,
+    perSeatCents: perLead === perGuest ? perGuest : null,
+  };
 }

@@ -7,8 +7,10 @@ import { describe, expect, it } from "vitest";
 import {
   draftAnswers,
   draftOptionalText,
+  draftAccessCode,
   emptyRegistrationDraft,
   validateRegistrationDraft,
+  withRememberedAccessCode,
   type RegistrationDraft,
 } from "@/lib/events/registrationSubmitDraft";
 import type { RegistrationForm } from "@/lib/events/registrationFormSurface";
@@ -128,6 +130,10 @@ describe("emptyRegistrationDraft", () => {
     expect(emptyRegistrationDraft(two).ticketTypeId).toBeNull();
   });
 
+  it("wydarzenie bez biletów nie zaznacza niczego", () => {
+    expect(emptyRegistrationDraft({ ...form, tickets: [] }).ticketTypeId).toBeNull();
+  });
+
   it("sam bilet zablokowany rangą nie zostaje zaznaczony", () => {
     const locked = { ...form, tickets: [ticket({ tierLocked: true })] };
     expect(emptyRegistrationDraft(locked).ticketTypeId).toBeNull();
@@ -161,6 +167,29 @@ describe("validateRegistrationDraft", () => {
 
   it("bilet spoza sprzedaży nie jest poprawnym wyborem", () => {
     const closed: RegistrationForm = { ...form, tickets: [ticket({ availability: "sold_out" })] };
+    expect(validateRegistrationDraft(filled(), closed).map((e) => e.errorKey)).toEqual(["ticket"]);
+  });
+
+  it("wejściówka za kodem wymaga kodu dostępu - pole wskazane po nazwie", () => {
+    const gated: RegistrationForm = {
+      ...form,
+      tickets: [ticket({ requiresAccessCode: true, accessCodeHint: "Kod z zaproszenia" })],
+    };
+    const errors = validateRegistrationDraft(filled({ accessCode: "   " }), gated);
+    expect(errors).toEqual([{ field: "accessCode", errorKey: "accessCode" }]);
+    expect(validateRegistrationDraft(filled({ accessCode: "PARTNER" }), gated)).toEqual([]);
+  });
+
+  it("bilet bez kodu nie pyta o kod, a pusty szkic zaczyna z pustym kodem", () => {
+    expect(emptyRegistrationDraft(form).accessCode).toBe("");
+    expect(keys(filled({ accessCode: "" }))).toEqual([]);
+  });
+
+  it("wejściówka za kodem, ale spoza sprzedaży - mówimy o bilecie, nie o kodzie", () => {
+    const closed: RegistrationForm = {
+      ...form,
+      tickets: [ticket({ requiresAccessCode: true, availability: "sold_out" })],
+    };
     expect(validateRegistrationDraft(filled(), closed).map((e) => e.errorKey)).toEqual(["ticket"]);
   });
 
@@ -224,5 +253,104 @@ describe("draftOptionalText", () => {
   it("puste pole pomijamy, wypełnione przycinamy", () => {
     expect(draftOptionalText("  ")).toBeUndefined();
     expect(draftOptionalText(" NES ")).toBe("NES");
+  });
+});
+
+describe("draftAccessCode", () => {
+  const gated: RegistrationForm = {
+    ...form,
+    tickets: [ticket({ requiresAccessCode: true })],
+  };
+
+  it("wejściówka za kodem: kod znormalizowany z wydarzeniem i biletem", () => {
+    expect(draftAccessCode(filled({ accessCode: " partner " }), gated)).toEqual({
+      eventId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      ticketTypeId: TICKET,
+      code: "PARTNER",
+    });
+  });
+
+  it("bilet bez kodu, pusty kod, brak biletu albo wydarzenia - nic nie jedzie", () => {
+    expect(draftAccessCode(filled({ accessCode: "PARTNER" }), form)).toBeNull();
+    expect(draftAccessCode(filled({ accessCode: "  " }), gated)).toBeNull();
+    expect(
+      draftAccessCode(filled({ accessCode: "PARTNER", ticketTypeId: null }), gated),
+    ).toBeNull();
+    expect(
+      draftAccessCode(filled({ accessCode: "PARTNER" }), { ...gated, event: null }),
+    ).toBeNull();
+  });
+});
+
+describe("withRememberedAccessCode", () => {
+  it("uzupełnia puste pole kodem z pamięci", () => {
+    expect(withRememberedAccessCode(filled(), "PARTNER")?.accessCode).toBe("PARTNER");
+  });
+
+  it("wpisany kod wygrywa, pusta pamięć i brak szkicu niczego nie zmieniają", () => {
+    const typed = filled({ accessCode: "WPISANY" });
+    expect(withRememberedAccessCode(typed, "PARTNER")).toBe(typed);
+    const empty = filled();
+    expect(withRememberedAccessCode(empty, "")).toBe(empty);
+    expect(withRememberedAccessCode(null, "PARTNER")).toBeNull();
+  });
+});
+
+describe("odpowiedzi listowe i liczbowe", () => {
+  const listForm: RegistrationForm = {
+    ...form,
+    fields: [
+      field({ key: "topics", fieldType: "multiselect", isRequired: true }),
+      field({ id: "f-2", key: "seats", fieldType: "number" }),
+    ],
+  };
+
+  it("obowiązkowy wybór wielokrotny: pusta lista blokuje, niepusta przechodzi", () => {
+    expect(
+      validateRegistrationDraft(filled({ answers: { topics: [] } }), listForm).map((e) => e.field),
+    ).toEqual(["answer:topics"]);
+    expect(validateRegistrationDraft(filled({ answers: { topics: ["ai"] } }), listForm)).toEqual(
+      [],
+    );
+  });
+
+  it("liczba podana jako lista to nie liczba - zdanie przy polu", () => {
+    const errors = validateRegistrationDraft(
+      filled({ answers: { topics: ["ai"], seats: ["1", "2"] } }),
+      listForm,
+    );
+    expect(errors).toEqual([{ field: "answer:seats", errorKey: "number" }]);
+  });
+
+  it("pusta lista i nieliczbowa liczba nie jadą do bazy", () => {
+    expect(draftAnswers(filled({ answers: { topics: [], seats: "dwa" } }), listForm)).toEqual([]);
+  });
+});
+
+describe("zgody organizatora", () => {
+  const consentForm: RegistrationForm = {
+    ...form,
+    consents: [field({ id: "c-1", key: "photo_ok", fieldType: "consent", isRequired: true })],
+  };
+
+  it("niezaznaczona zgoda obowiązkowa wskazuje swoje pole, zaznaczona przechodzi", () => {
+    expect(
+      validateRegistrationDraft(
+        filled({ answers: { diet: "wege", photo_ok: "false" } }),
+        consentForm,
+      ),
+    ).toEqual([{ field: "answer:photo_ok", errorKey: "requiredConsent" }]);
+    expect(
+      validateRegistrationDraft(
+        filled({ answers: { diet: "wege", photo_ok: "true" } }),
+        consentForm,
+      ),
+    ).toEqual([]);
+  });
+
+  it("formularz bez listy zgód (starszy wołający) nie wywraca walidacji ani odpowiedzi", () => {
+    const legacy = { ...form, consents: undefined } as unknown as RegistrationForm;
+    expect(validateRegistrationDraft(filled(), legacy)).toEqual([]);
+    expect(draftAnswers(filled(), legacy)).toEqual([{ key: "diet", value: "wege" }]);
   });
 });
