@@ -559,12 +559,12 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
               ...(registrationId ? { registration_id: registrationId } : {}),
             }
           : {},
-        // BILET NIE DOSTAJE POLA KODU STRIPE. Kod wpisany w nakładce operatora
-        // omijał WSZYSTKO, co wie baza: zakres wydarzenia i biletu, rozbicie na
-        // miejsca, limit użyć i wiersz realizacji - `amount_off` schodził raz
-        // z całej sesji, a webhook przyjmował niższą kwotę bez pytania. Kody
-        // biletów przyjmuje wyłącznie nasze pole (`validate_event_ticket_coupon`).
-        settings: eventId ? { ...settings, allow_promotion_codes: false } : settings,
+        // BILET NIE DOSTAJE POLA KODU STRIPE - ale tej reguły NIE egzekwujemy
+        // tutaj. Wyłącza je sam `createAdhocCheckoutSession` dla KAŻDEGO
+        // `purpose: "event_ticket"` (patrz `adhocSessionSettings`), bo sesję
+        // biletu buduje też server fn ad-hoc; ustawienia tenantu idą więc
+        // bez zmian, a odblokowanie treści zachowuje z nich pole kodu.
+        settings,
       });
       if (!created.ok) {
         await (

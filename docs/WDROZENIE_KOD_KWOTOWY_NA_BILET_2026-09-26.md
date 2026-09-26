@@ -26,10 +26,13 @@ a podgląd kasy w zapisie działa, ale kasa pakietu - nie.
 **Dlaczego.** Przycisk „Zsynchronizuj kupony" wypychał dotąd do Stripe KAŻDY
 aktywny kupon, także kody ze studia wydarzenia. Ich kopia w Stripe to kupon
 `amount_off` zdejmowany RAZ z całej sesji, z pominięciem zakresu biletu,
-limitu użyć i wiersza `b2b_coupon_redemptions`. Kasa biletów ma już
-`allow_promotion_codes: false`, ale sesje planu i odblokowania treści NADAL
-mają pole kodu (jeśli włączono je w ustawieniach kasy) - więc taka kopia
-działa tam dalej jako rabat, którego baza nie widzi.
+limitu użyć i wiersza `b2b_coupon_redemptions`. KAŻDA sesja biletu ma już
+`allow_promotion_codes: false` - wymusza je wspólny budowniczy sesji
+(`createAdhocCheckoutSession` dla `purpose: "event_ticket"`), więc dotyczy to
+zarówno kasy biletów (`createCheckoutOrder`), jak i server fn ad-hoc
+(`stripeCheckout.functions.ts`), niezależnie od ustawień kasy. Sesje planu
+i odblokowania treści NADAL mają pole kodu (jeśli włączono je w ustawieniach
+kasy) - więc taka kopia działa tam dalej jako rabat, którego baza nie widzi.
 
 Synchronizacja tych kopii NIE wyłącza sama: Stripe ma jedną przestrzeń kodów
 dla wszystkich najemców, a kod o tej samej treści może być u innego najemcy

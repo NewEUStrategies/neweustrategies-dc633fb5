@@ -19,6 +19,7 @@
 // audytu kuponu. Oba są naprawione 31.08.2026 - opis „co było złe i jak
 // zostało naprawione" stoi przy testach, które je pilnują.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DZIEN } from "@/test/time";
 
 import type { Database, Tables } from "@/integrations/supabase/types";
 import {
@@ -137,6 +138,7 @@ interface SessionParams {
     price_data?: { currency: string; unit_amount: number; product_data: { name: string } };
   }[];
   discounts?: { coupon?: string }[];
+  allow_promotion_codes?: boolean;
 }
 
 function planQuote(over: Partial<PlanQuote> = {}): PlanQuote {
@@ -781,6 +783,61 @@ describe("createAdhocCheckoutSession - cienki wrapper nad zamówieniem ad-hoc", 
     });
 
     expect(result).toEqual({ ok: false, error: "ticket_not_available" });
+  });
+
+  it("BILET przez ten wrapper NIE dostaje pola kodu Stripe, choć tenant je włącza", async () => {
+    // Ręcznie złożone żądanie `purpose: "event_ticket"` omija `createCheckoutOrder`,
+    // a `buildAdhocOrder` podaje ustawienia tenantu (tu: pole kodu WŁĄCZONE) bez
+    // zmian. Kod wpisany w nakładce operatora zszedłby wtedy z sesji bez zakresu
+    // biletu, limitu użyć i wiersza realizacji - a webhook potwierdziłby miejsce
+    // po niższej kwocie. Pole wyłącza sam budowniczy sesji.
+    chain.setResponse("events", (recorded) =>
+      String(recorded.argsOf("select")?.[0] ?? "").includes("capacity")
+        ? ok({ capacity: null })
+        : ok({
+            id: EVENT_ID,
+            title_pl: "Kongres CEE",
+            title_en: "CEE Congress",
+            ticket_price_cents: 12000,
+            ticket_currency: "PLN",
+            status: "published",
+            // Za miesiąc WZGLĘDEM prawdziwego „teraz" - produkcja porównuje
+            // `starts_at` z `Date.now()`, więc stała odległość, a nie literał
+            // kalendarzowy, trzyma ten przypadek po właściwej stronie okna.
+            starts_at: new Date(Date.now() + 30 * DZIEN).toISOString(),
+          }),
+    );
+    chain.setResponse("event_rsvps", ok(null));
+    rpcResponses.set("get_event_rsvp_counts", ok([{ going: 0, waitlist: 0 }]));
+    rpcResponses.set(
+      "my_ticket_allowance",
+      ok({ granted: 0, used: 0, discount_pct: 0, scope: "none" }),
+    );
+
+    const result = await adhocCall({
+      purpose: "event_ticket",
+      entityType: undefined,
+      entityId: undefined,
+      eventId: EVENT_ID,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(lastSession()?.metadata).toMatchObject({ purpose: "event_ticket", event_id: EVENT_ID });
+    expect(lastSession()?.line_items[0]?.price_data?.unit_amount).toBe(12000);
+    expect(lastSession()?.allow_promotion_codes).toBeUndefined();
+  });
+
+  it("odblokowanie treści i darowizna ZOSTAJĄ przy polu kodu Stripe z ustawień tenantu", async () => {
+    await adhocCall();
+    expect(lastSession()?.allow_promotion_codes).toBe(true);
+
+    await adhocCall({
+      purpose: "donation",
+      entityType: undefined,
+      entityId: undefined,
+      amountCents: 5000,
+    });
+    expect(lastSession()?.allow_promotion_codes).toBe(true);
   });
 
   it("darowizna poniżej minimum operatora jest odrzucana", async () => {

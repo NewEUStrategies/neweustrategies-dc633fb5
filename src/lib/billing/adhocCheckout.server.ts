@@ -299,6 +299,29 @@ export interface AdhocCheckoutSessionInput {
 }
 
 /**
+ * Flagi tenantu dla sesji ad-hoc - z jedną regułą, której ustawienia NIE
+ * nadpiszą: BILET NIE DOSTAJE POLA KODU STRIPE.
+ *
+ * Kod wpisany w nakładce operatora omija WSZYSTKO, co wie baza: zakres
+ * wydarzenia i biletu (`validate_event_ticket_coupon`), rozbicie na miejsca,
+ * limit użyć i wiersz realizacji - `amount_off` schodzi raz z całej sesji,
+ * a webhook potwierdza miejsce po niższej kwocie bez pytania. Kody biletów
+ * przyjmuje wyłącznie nasze pole.
+ *
+ * REGUŁA STOI TUTAJ, A NIE U WOŁAJĄCEGO. Sesję biletu budują DWIE ścieżki: kasa
+ * biletów (`createCheckoutOrder`) i server fn ad-hoc
+ * (`stripeCheckout.functions.ts` -> `buildAdhocOrder`), która przyjmuje
+ * `purpose: "event_ticket"` prosto z żądania. Wyłączenie tylko w pierwszej
+ * zostawiało drugą z polem kodu z ustawień tenantu - a do obejścia
+ * wystarczało ręcznie złożone żądanie. Treść, darowizna i plany zostają przy
+ * ustawieniach tenantu bez zmian.
+ */
+function adhocSessionSettings(input: AdhocCheckoutSessionInput): CheckoutSettings | undefined {
+  if (input.purpose !== "event_ticket") return input.settings;
+  return { ...(input.settings ?? DEFAULT_CHECKOUT_SETTINGS), allow_promotion_codes: false };
+}
+
+/**
  * Tworzy Embedded Checkout Session z ceną osadzoną w pozycji (`price_data`) -
  * jedyny sposób na kwotę wyliczoną dynamicznie serwerowo (kupon, waluta
  * prezentacji, cena wydarzenia). Odrzuca kwoty poniżej minimum operatora.
@@ -358,7 +381,7 @@ export async function createAdhocCheckoutSession(
       // darowizna), więc `customer_creation=always` dojedzie wtedy, gdy sesja
       // musi zapisać NIP, policzyć podatek albo wystawić fakturę.
       ...(input.discount ? { discounts: [{ coupon: input.discount.coupon }] } : {}),
-      ...sessionFlags(input.settings, {
+      ...sessionFlags(adhocSessionSettings(input), {
         mode: "payment",
         hasCustomer: !!customerId,
         hasDiscount: !!input.discount,
