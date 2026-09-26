@@ -253,7 +253,7 @@ export const adminEventOnsitePl = {
       loading: "Wczytuję dziennik…",
       empty: "Nie zapisano jeszcze żadnej odprawy.",
       conflictsEmpty: "Brak konfliktów decyzji offline.",
-      offlineBadge: "offline",
+      offlineBadge: "bez sieci",
       conflictBadge: "konflikt",
       conflictHint:
         "Urządzenie wpuściło tę osobę bez sieci, a baza odmawia. Obecność nie została zapisana - zdecyduj ręcznie (odprawa w recepcji).",
