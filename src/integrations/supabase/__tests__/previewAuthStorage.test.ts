@@ -112,8 +112,8 @@ type OdpowiedzEdytora = {
 
 type Broker = {
   getItem: (key: string) => Promise<string | null>;
-  setItem: (key: string, value: string) => Promise<undefined>;
-  removeItem: (key: string) => Promise<undefined>;
+  setItem: (key: string, value: string) => Promise<void>;
+  removeItem: (key: string) => Promise<void | undefined>;
 };
 
 // --- instrumenty pomiarowe --------------------------------------------------
