@@ -11,15 +11,15 @@ rzeczy kod NIE zrobi sam - obie są krokami operacyjnymi poniżej.
 
 ---
 
-## 1. Bliźniak migracji w pasie drizzle (integrator, PRZED wdrożeniem)
+## 1. Zastosowanie migracji na produkcji (PRZED wdrożeniem frontu)
 
 Produkcja jest aplikowana z pasa Lovable/drizzle; plik w `supabase/migrations`
-sam się tam nie wykona. Bliźniaka (`drizzle/migrations/00NN_event_package_coupon_per_seat.sql`,
-`meta/00NN_snapshot.json`, wpis w `_journal.json` i w `MIGRATION_LANES`
-w `src/lib/ci/migrationLaneParity.ts`) dopisuje integrator PO scaleniu gałęzi
-tej serii - numer nadaje się w jednym miejscu, żeby dwie gałęzie nie wzięły
-tego samego. Bramka parytetu czyta tylko pliki drizzle, więc brak bliźniaka
-NIE jest dla niej czerwony.
+sam się tam nie wykona. Bliźniak jest już w repozytorium:
+`drizzle/migrations/0056_event_package_coupon_per_seat.sql` (wpis w `_journal.json`,
+`meta/0056_snapshot.json` i w `MIGRATION_LANES`). Trzeba go zastosować z panelu
+Lovable RAZEM z `0055_event_group_guests_follow_lead.sql` z tej samej serii
+(kolejność: 0055, potem 0056). Bez tego pakiet grupowy nadal zdejmuje kod raz,
+a podgląd kasy w zapisie działa, ale kasa pakietu - nie.
 
 ## 2. Wyłączenie kopii kodów wydarzeń u operatora (sandbox I live)
 
