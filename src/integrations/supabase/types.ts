@@ -8025,6 +8025,7 @@ export type Database = {
           tenant_id: string
           ticket_code_claimed_at: string | null
           ticket_code_sent_at: string | null
+          ticket_code_undeliverable_at: string | null
           ticket_type_id: string | null
           updated_at: string
           waitlist_notified_at: string | null
@@ -8062,6 +8063,7 @@ export type Database = {
           tenant_id: string
           ticket_code_claimed_at?: string | null
           ticket_code_sent_at?: string | null
+          ticket_code_undeliverable_at?: string | null
           ticket_type_id?: string | null
           updated_at?: string
           waitlist_notified_at?: string | null
@@ -8099,6 +8101,7 @@ export type Database = {
           tenant_id?: string
           ticket_code_claimed_at?: string | null
           ticket_code_sent_at?: string | null
+          ticket_code_undeliverable_at?: string | null
           ticket_type_id?: string | null
           updated_at?: string
           waitlist_notified_at?: string | null
@@ -19230,6 +19233,7 @@ export type Database = {
         Args: { p_lead_id: string; p_order_id: string; p_outcome: string }
         Returns: number
       }
+      _event_assert_ticket_codes_schema: { Args: never; Returns: undefined }
       _event_badge_print_write: {
         Args: {
           _copies: number
@@ -19298,6 +19302,31 @@ export type Database = {
           sort_order: number
           visibility: string
         }[]
+      }
+      _event_group_admit_guest: {
+        Args: {
+          p_guest: Database["public"]["Tables"]["event_registrations"]["Row"]
+          p_lead: Database["public"]["Tables"]["event_registrations"]["Row"]
+        }
+        Returns: undefined
+      }
+      _event_group_admit_guests: {
+        Args: {
+          p_lead: Database["public"]["Tables"]["event_registrations"]["Row"]
+          p_prev: Database["public"]["Tables"]["event_registrations"]["Row"]
+        }
+        Returns: undefined
+      }
+      _event_group_repair_stranded_guests: {
+        Args: { p_limit?: number }
+        Returns: number
+      }
+      _event_guest_closed_with_lead: {
+        Args: {
+          p_guest: Database["public"]["Tables"]["event_registrations"]["Row"]
+          p_lead: Database["public"]["Tables"]["event_registrations"]["Row"]
+        }
+        Returns: boolean
       }
       _event_issue_ticket_codes: {
         Args: { p_registration_id: string }
@@ -19470,14 +19499,24 @@ export type Database = {
         Returns: Json
       }
       _event_sponsor_web_url: { Args: { p_raw: string }; Returns: string }
-      _event_ticket_code_confirm: {
-        Args: {
-          p_claimed_at: string
-          p_registration_id: string
-          p_sent: boolean
-        }
-        Returns: boolean
-      }
+      _event_ticket_code_confirm:
+        | {
+            Args: {
+              p_claimed_at: string
+              p_registration_id: string
+              p_sent: boolean
+            }
+            Returns: boolean
+          }
+        | {
+            Args: {
+              p_claimed_at: string
+              p_registration_id: string
+              p_sent: boolean
+              p_undeliverable: boolean
+            }
+            Returns: boolean
+          }
       _event_ticket_codes_pending: {
         Args: { p_limit?: number }
         Returns: string[]
@@ -20873,6 +20912,19 @@ export type Database = {
           updated_at: string
         }[]
       }
+      admin_event_registration_group_links: {
+        Args: { p_event_id: string; p_registration_ids: string[] }
+        Returns: {
+          group_lead_registration_id: string
+          guest_count: number
+          lead_first_name: string
+          lead_last_name: string
+          payment_status: string
+          registration_id: string
+          ticket_code_sent_at: string
+          ticket_code_undeliverable_at: string
+        }[]
+      }
       admin_event_registration_mark_notified: {
         Args: { p_payload: Json }
         Returns: number
@@ -21419,6 +21471,22 @@ export type Database = {
           price_label_en: string
           price_label_pl: string
           show_price_label: boolean
+        }[]
+      }
+      admin_event_ticket_resend: {
+        Args: {
+          p_exclude_ids?: string[]
+          p_include_group?: boolean
+          p_registration_id: string
+        }
+        Returns: string
+      }
+      admin_event_ticket_resend_scope: {
+        Args: { p_include_group?: boolean; p_registration_id: string }
+        Returns: {
+          email: string
+          registration_id: string
+          tenant_id: string
         }[]
       }
       admin_event_ticket_set_presentation: {

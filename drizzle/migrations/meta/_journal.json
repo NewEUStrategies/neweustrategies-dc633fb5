@@ -400,6 +400,13 @@
       "when": 1790413200000,
       "tag": "0056_event_package_coupon_per_seat",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1790434430503,
+      "tag": "0057_event_group_guests_follow_lead",
+      "breakpoints": true
     }
   ]
 }
