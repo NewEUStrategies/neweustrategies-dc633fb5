@@ -1,0 +1,1 @@
+ALTER TYPE public.crm_source_type ADD VALUE IF NOT EXISTS 'event';

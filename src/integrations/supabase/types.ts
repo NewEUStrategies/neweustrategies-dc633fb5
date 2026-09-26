@@ -27059,6 +27059,7 @@ export type Database = {
         | "webinar"
         | "import"
         | "other"
+        | "event"
       crm_stage:
         | "new"
         | "contacted"
@@ -27260,6 +27261,7 @@ export const Constants = {
         "webinar",
         "import",
         "other",
+        "event",
       ],
       crm_stage: [
         "new",
