@@ -81,6 +81,8 @@ const POLA_ETYKIET = [
   "transaction",
   "ticketCode",
   "donorMessage",
+  "talk",
+  "organizerMessage",
 ] as const satisfies readonly (keyof TxCopy["labels"])[];
 
 /**
@@ -123,7 +125,9 @@ describe("tx-copy - kompletność słownika obu języków", () => {
     // 22 -> 26: cztery maile cyklu życia zgłoszenia formularzowego
     // (`event_registration_received/_approved/_rejected`, `event_waitlist_promoted`).
     // 30 -> 31: bilet z kodem QR dla każdej osoby z grupy (`event_ticket_issued`).
-    expect(zeSlownika).toHaveLength(31);
+    // 31 -> 35: nabór prelegentów (`event_cfp_submission_received/_accepted/
+    // _rejected/_changes_requested`).
+    expect(zeSlownika).toHaveLength(35);
   });
 
   it.each(TX_EMAIL_TYPES)("%s ma komplet treści w PL i w EN", (type) => {
@@ -247,8 +251,8 @@ describe("tx-copy - temat wiadomości", () => {
     );
 
     expect(braki).toEqual([]);
-    // 31 typów razy dwa języki.
-    expect(TX_EMAIL_TYPES.length * LANGS.length).toBe(62);
+    // 35 typów razy dwa języki.
+    expect(TX_EMAIL_TYPES.length * LANGS.length).toBe(70);
   });
 
   it("temat nie przekracza długości, po której klient pocztowy go urywa", () => {

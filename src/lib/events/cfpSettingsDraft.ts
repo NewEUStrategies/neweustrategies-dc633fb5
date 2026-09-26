@@ -125,7 +125,13 @@ function uniqueKeys(keys: readonly string[]): boolean {
 
 export function validateCfpSettingsDraft(draft: CfpSettingsDraft): CfpSettingsIssue[] {
   const issues: CfpSettingsIssue[] = [];
-  if (draft.opensAt !== "" && draft.closesAt !== "" && draft.closesAt <= draft.opensAt) {
+  // Porównanie CHWIL, nie napisów: baza oddaje `+00:00`, kalendarz `.000Z`,
+  // a porządek leksykalny dwóch zapisów tej samej chwili bywa odwrotny.
+  if (
+    draft.opensAt !== "" &&
+    draft.closesAt !== "" &&
+    !(Date.parse(draft.closesAt) > Date.parse(draft.opensAt))
+  ) {
     issues.push({ field: "window", messageKey: "adminEventCfp.settings.validation.window" });
   }
   if (

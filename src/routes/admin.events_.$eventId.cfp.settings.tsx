@@ -1,11 +1,8 @@
 // /admin/events/<id>/cfp/settings - ekran „Ustawienia naboru" studia wydarzenia.
 //
-// ZAŚLEPKA FUNDAMENTU. Trasa, pozycja w sidebarze (`EVENT_STUDIO_NAV`), klucz
-// sekcji (`cfpSettings`) i etykieta (`adminEvents.studio.sections.cfpSettings`) są
-// założone z góry, żeby siedem funkcji organizatora powstających równolegle
-// nie kolidowało na drzewie tras ani na nawigacji. Właściciel ekranu - agent
-// f1 (nabor prelegentow) - zastępuje CIAŁO komponentu swoim organizmem, zostawiając
-// `EventStudioPage` z tym samym tytułem (ten sam klucz co etykieta w sidebarze).
+// CIAŁO EKRANU TO ORGANIZM `CfpSettingsPanel` (agent f1, nabór prelegentów). Trasa,
+// pozycja w sidebarze (`EVENT_STUDIO_NAV`), klucz sekcji (`cfpSettings`) i tytuł
+// (`adminEvents.studio.sections.cfpSettings`) pochodzą z fundamentu i się nie zmieniają.
 //
 // TRASA JEST CIENKA. Wiersz wydarzenia wczytuje RAMA studia i to ona pokazuje
 // spinner oraz zdanie „nie znaleziono"; ekran, który powtórzyłby jedno i
@@ -15,6 +12,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { EventStudioPage } from "@/components/admin/events/studio/EventStudioSection";
+import { CfpSettingsPanel } from "@/components/admin/events/organisms/CfpSettingsPanel";
 import { useAdminEventDetail } from "@/lib/events/useAdminEventDetail";
 import { ensureI18n } from "@/lib/i18n-admin-events";
 
@@ -42,6 +40,8 @@ function EventStudioCfpSettingsPage() {
   const row = detailQ.data ?? null;
   if (row === null) return null;
   return (
-    <EventStudioPage title={t("adminEvents.studio.sections.cfpSettings")}>{null}</EventStudioPage>
+    <EventStudioPage title={t("adminEvents.studio.sections.cfpSettings")}>
+      <CfpSettingsPanel eventId={eventId} />
+    </EventStudioPage>
   );
 }

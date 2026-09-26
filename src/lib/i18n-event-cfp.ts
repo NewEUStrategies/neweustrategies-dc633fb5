@@ -54,6 +54,11 @@ export const eventCfpPl = {
       registered: "Zarejestrowani uczestnicy",
       public: "Wszyscy",
     },
+    answers: {
+      yes: "Tak",
+      no: "Nie",
+      empty: "Bez odpowiedzi",
+    },
 
     // Zakładka nawigacji wydarzenia i odnośniki z panelu „Mój udział".
     tab: "Nabór prelegentów",
@@ -293,8 +298,6 @@ export const eventCfpPl = {
       abstract: "Streszczenie",
       answers: "Odpowiedzi na pytania",
       noAnswers: "Brak odpowiedzi.",
-      answerYes: "Tak",
-      answerNo: "Nie",
       overall: "Ocena ogólna",
       overallScore: "Ocena ogólna: {{value}}",
       criteria: "Kryteria",
@@ -408,6 +411,11 @@ export const eventCfpEn = {
       organizers: "Organisers only",
       registered: "Registered attendees",
       public: "Everyone",
+    },
+    answers: {
+      yes: "Yes",
+      no: "No",
+      empty: "No answer",
     },
 
     tab: "Call for speakers",
@@ -645,8 +653,6 @@ export const eventCfpEn = {
       abstract: "Abstract",
       answers: "Answers to questions",
       noAnswers: "No answers.",
-      answerYes: "Yes",
-      answerNo: "No",
       overall: "Overall score",
       overallScore: "Overall score: {{value}}",
       criteria: "Criteria",

@@ -13,6 +13,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { ArrowDown, ArrowUp } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -143,7 +144,7 @@ export function CfpFormPanel({ eventId }: { eventId: string }) {
                       aria-label={t("adminEventCfp.form.moveUp")}
                       onClick={() => move(index, -1)}
                     >
-                      ↑
+                      <ArrowUp className="h-4 w-4" aria-hidden="true" />
                     </Button>
                     <Button
                       type="button"
@@ -153,7 +154,7 @@ export function CfpFormPanel({ eventId }: { eventId: string }) {
                       aria-label={t("adminEventCfp.form.moveDown")}
                       onClick={() => move(index, 1)}
                     >
-                      ↓
+                      <ArrowDown className="h-4 w-4" aria-hidden="true" />
                     </Button>
                     <Button type="button" variant="outline" size="sm" onClick={() => openDialog(row)}>
                       {t("adminEventCfp.common.edit")}
