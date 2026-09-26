@@ -154,6 +154,8 @@ export const adminEventOnsitePl = {
         "W tym punkcie zapisano już {{count}} odpraw - zamiast usuwać, wyłącz punkt.",
       checkpointHasDevices: "Do tego punktu przypisano {{count}} urządzeń skanujących.",
       invalidDirection: "Kierunek musi być wejściem albo wyjściem.",
+      deviceTimeOutOfRange:
+        "Czas skanu jest starszy niż tydzień - dziennik go nie przyjmie. Zapisz odprawę ręcznie z bieżącym czasem.",
       invalidSource: "Panel może zapisać tylko wpis ręczny lub szukanie po nazwisku.",
       personNotFound: "Ta osoba nie istnieje w tej organizacji.",
       queryTooShort: "Wpisz co najmniej 2 znaki.",
@@ -573,6 +575,8 @@ export const adminEventOnsiteEn = {
         "{{count}} check-in(s) were recorded at this checkpoint - deactivate it instead.",
       checkpointHasDevices: "{{count}} scanner credential(s) still point at this checkpoint.",
       invalidDirection: "Direction must be entry or exit.",
+      deviceTimeOutOfRange:
+        "The scan time is more than a week old - the log will not accept it. Record the check-in manually with the current time.",
       invalidSource: "The panel can only record a manual entry or a name search.",
       personNotFound: "This person does not exist in this organisation.",
       queryTooShort: "Type at least 2 characters.",

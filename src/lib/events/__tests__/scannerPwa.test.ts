@@ -242,6 +242,7 @@ describe("rozgrzanie cache workera", () => {
   it("worker odpowiada na kanale - strona dostaje liczbę zapisanych plików", async () => {
     const { requestScannerPrecache } = await import("@/lib/events/scannerPwa");
     const active = installWorker((_message, port) => {
+      port.postMessage(null);
       port.postMessage({ type: "inne" });
       port.postMessage({ type: "precache-done", cached: 2, total: 2 });
     });

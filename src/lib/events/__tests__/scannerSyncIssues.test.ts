@@ -204,6 +204,8 @@ describe("lista konfliktów", () => {
       ]),
     ).toEqual([ok, { ...conflict(), direction: null }, { ...conflict(), direction: null }]);
     expect(parseConflicts("nie-lista")).toEqual([]);
+    // Pełny konflikt wraca w całości, z kierunkiem.
+    expect(parseConflicts([conflict()])).toEqual([conflict()]);
   });
 });
 
