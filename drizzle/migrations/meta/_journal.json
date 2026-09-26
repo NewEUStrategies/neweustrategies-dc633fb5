@@ -386,6 +386,20 @@
       "when": 1790327813979,
       "tag": "0054_member_slug_non_author_visibility",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1790409600000,
+      "tag": "0055_event_group_guests_follow_lead",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1790413200000,
+      "tag": "0056_event_package_coupon_per_seat",
+      "breakpoints": true
     }
   ]
 }
