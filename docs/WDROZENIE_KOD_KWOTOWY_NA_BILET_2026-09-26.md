@@ -88,13 +88,13 @@ Oba punkty zrobione w tej serii (`docs/WDROZENIE_BRAKI_WYDARZEN_CZ2_2026-09-26.m
 - ~~**Benefit planu członka liczony na miejsce, a nie na członka.**~~ Benefit
   (zniżka albo bilet z puli) obejmuje tylko miejsce członka, goście płacą
   cennik; bilet z puli dla miejsca prowadzącego schodzi z puli w kasie
-  (`20260926140000_event_group_lead_plan_seat.sql`, 0059).
+  (`20260926140000_event_group_lead_plan_seat.sql`, drizzle 0061).
 
 ## 4. Zrobione później w tej serii
 
 - **Anulowanie zamówienia pakietu zwraca użycie kodu** - migracja
   `supabase/migrations/20260926130000_event_package_order_cancel_returns_coupon.sql`
-  (bliźniak `drizzle/migrations/0058_event_package_order_cancel_returns_coupon.sql`,
+  (bliźniak `drizzle/migrations/0060_event_package_order_cancel_returns_coupon.sql`,
   zastosować PO 0056), harness `72_package_order_cancel_coupon.sql`. Wiersz
   `b2b_coupon_redemptions` wskazuje teraz zamówienie (`package_order_id`),
   a `admin_event_package_order_set_status` przy wejściu w „anulowane” kasuje go

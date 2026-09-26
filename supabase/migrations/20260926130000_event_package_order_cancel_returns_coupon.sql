@@ -4,7 +4,7 @@
 -- events-harness: include
 --
 -- BLIZNIAK w pasie drizzle:
--- `drizzle/migrations/0058_event_package_order_cancel_returns_coupon.sql`
+-- `drizzle/migrations/0060_event_package_order_cancel_returns_coupon.sql`
 -- (ten sam SQL wykonywalny, wpis w `src/lib/ci/migrationLaneParity.ts`).
 -- Produkcja dostaje te poprawke dopiero po zastosowaniu go z panelu Lovable -
 -- PO `0056_event_package_coupon_per_seat.sql`, bo ta migracja przepisuje

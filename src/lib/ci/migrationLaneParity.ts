@@ -339,22 +339,32 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0056_event_package_coupon_per_seat",
     twin: "20260926110000_event_package_coupon_per_seat.sql",
   },
+  {
+    tag: "0057_event_group_guests_follow_lead",
+    drizzleOnly:
+      "Zastosowanie SQL-u 0055 z panelu Lovable (0055 bylo w repozytorium, ale nie na bazie). SQL identyczny bajt w bajt i idempotentny; blizniak supabase to juz 20260926100000.",
+  },
+  {
+    tag: "0058_event_package_coupon_per_seat",
+    drizzleOnly:
+      "Zastosowanie SQL-u 0056 z panelu Lovable (0056 bylo w repozytorium, ale nie na bazie). SQL identyczny bajt w bajt i idempotentny; blizniak supabase to juz 20260926110000.",
+  },
   // Odrzucenie i anulowanie prowadzacego zamyka takze przyjetych gosci (kod QR
   // przestaje wpuszczac), a platnosc Stripe przyjmuje gosci z kontrola miejsc.
   {
-    tag: "0057_event_group_lead_closes_admitted_guests",
+    tag: "0059_event_group_lead_closes_admitted_guests",
     twin: "20260926120000_event_group_lead_closes_admitted_guests.sql",
   },
   // Anulowanie zamowienia pakietu zwraca uzycie kodu, powrot z anulowania
   // zuzywa je ponownie.
   {
-    tag: "0058_event_package_order_cancel_returns_coupon",
+    tag: "0060_event_package_order_cancel_returns_coupon",
     twin: "20260926130000_event_package_order_cancel_returns_coupon.sql",
   },
   // Benefit planu czlonka tylko na jego miejscu; bilet z puli dla miejsca
   // prowadzacego schodzi z puli.
   {
-    tag: "0059_event_group_lead_plan_seat",
+    tag: "0061_event_group_lead_plan_seat",
     twin: "20260926140000_event_group_lead_plan_seat.sql",
   },
 ];

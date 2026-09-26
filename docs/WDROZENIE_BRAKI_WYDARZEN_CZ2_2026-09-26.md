@@ -5,21 +5,28 @@ zmiany frontu i jeden test.
 
 ## 1. Zastosowanie migracji na produkcji (PRZED wdrożeniem frontu)
 
-W panelu Lovable, **w tej kolejności**, po 0055 i 0056 z części 1:
+W panelu Lovable, **w tej kolejności**, po 0055 i 0056 z części 1 (na bazie
+od `a7f9e6b` - Lovable zapisał ich zastosowanie jako drizzle 0057 i 0058,
+wpisy `drizzleOnly` w `MIGRATION_LANES`):
 
 1. `supabase/migrations/20260926120000_event_group_lead_closes_admitted_guests.sql`
-   (bliźniak `drizzle/migrations/0057_event_group_lead_closes_admitted_guests.sql`)
+   (bliźniak `drizzle/migrations/0059_event_group_lead_closes_admitted_guests.sql`)
 2. `supabase/migrations/20260926130000_event_package_order_cancel_returns_coupon.sql`
-   (bliźniak `drizzle/migrations/0058_event_package_order_cancel_returns_coupon.sql`)
+   (bliźniak `drizzle/migrations/0060_event_package_order_cancel_returns_coupon.sql`)
 3. `supabase/migrations/20260926140000_event_group_lead_plan_seat.sql`
-   (bliźniak `drizzle/migrations/0059_event_group_lead_plan_seat.sql`)
+   (bliźniak `drizzle/migrations/0061_event_group_lead_plan_seat.sql`)
 
-Migracja 0058 woła RAZ `_event_package_coupon_link_backfill()`: wiąże
+Jeśli Lovable znów zapisze zastosowanie jako kolejne pliki drizzle (jak 0057 i
+0058 dla części 1), trzeba je dopisać do `MIGRATION_LANES` jako `drizzleOnly`
+z bliźniakiem wskazanym w opisie - inaczej bramka pasów migracji zgłosi
+`brak-wpisu`.
+
+Migracja 20260926130000 (0060) woła RAZ `_event_package_coupon_link_backfill()`: wiąże
 jednoznaczne (1:1) użycia kodów z zamówieniami pakietów złożonymi od 0056
 i oddaje użycie kodu zamówieniom JUŻ anulowanym. Funkcja nie wysyła żadnej
 poczty; drugie wywołanie niczego nie zmienia.
 
-Front bez 0059 działa, ale do jej zastosowania prowadzący opłacający zgłoszenie
+Front bez 20260926140000 (0061) działa, ale do jej zastosowania prowadzący opłacający zgłoszenie
 GOŚCIA nadal dostaje przy nim swój benefit (kasa nie zna `holder_is_caller`),
 a bilet z puli planu w zamówieniu grupowym kończy się odmową puli - prowadzący
 płaci wtedy za swoje miejsce jak gość.

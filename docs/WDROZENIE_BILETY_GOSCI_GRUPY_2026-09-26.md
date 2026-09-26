@@ -146,7 +146,7 @@ Cron wyśle tym osobom bilety w ciągu minuty. Alternatywa bez SQL: przycisk
 ## 5. Poza zakresem tej zmiany
 
 Oba punkty, które tu stały, domknęła migracja
-`20260926120000_event_group_lead_closes_admitted_guests.sql` (0057) - patrz
+`20260926120000_event_group_lead_closes_admitted_guests.sql` (drizzle 0059) - patrz
 `docs/WDROZENIE_BRAKI_WYDARZEN_CZ2_2026-09-26.md`:
 
 - ~~Goście JUŻ przyjęci zostają przyjęci, gdy prowadzący zostaje odrzucony albo
