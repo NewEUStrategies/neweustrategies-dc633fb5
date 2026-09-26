@@ -145,6 +145,8 @@ const EMITTERS = [
   "clubSection(",
   // Sieć kontaktów: RPC stronicujące, sklejane do sufitu.
   "fetchNetworkPages(",
+  // Nabór prelegentów: jedno RPC rozbite na cztery zadeklarowane sekcje.
+  "cfpSection(",
 ] as const;
 
 /**
@@ -158,6 +160,10 @@ const EXCLUSION_FORBIDDEN_TOKENS: Readonly<Record<string, readonly string[]>> = 
   // obietnica wobec członków komisji przestałaby obowiązywać bez ani jednego
   // czerwonego testu.
   club_admin_notes: ["admin_note"],
+  // Nabór prelegentów: cudze oceny i notatka decyzji zostają w bazie
+  // (`event_cfp_export_my_data` ich nie oddaje). Emiter nie może sięgnąć po
+  // tabelę ocen ani po kolumnę notatki bokiem RPC.
+  event_cfp_assessments: ['.from("event_cfp_reviews")', "decision_note", "comment_private"],
   // Logi bezpieczeństwa i ślad audytowy - art. 17 ust. 3 lit. e.
   security_and_audit_logs: [
     "auth_attempts",

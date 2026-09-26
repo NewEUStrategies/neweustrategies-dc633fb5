@@ -210,6 +210,16 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   "event.registration.cancelled.v1": (event) => registrationEventKeys(event),
   "event.registration.promoted.v1": (event) => registrationEventKeys(event),
   "event.registration.payment.v1": (event) => registrationEventKeys(event),
+
+  // Nabor prelegentow: lista, liczniki i szczegol w panelu organizatora
+  // (galaz `["event-cfp", eventId]`) oraz "moje zgloszenia", panel prelegenta
+  // i kolejka recenzenta (`["event-cfp-me"]` - klucz uczestnika jest po slugu,
+  // ktorego payload nie niesie, wiec uniewazniamy cala galez).
+  "event_cfp_submission.submitted.v1": (event) => cfpEventKeys(event),
+  "event_cfp_submission.decided.v1": (event) => cfpEventKeys(event),
+  "event_cfp_submission.withdrawn.v1": (event) => cfpEventKeys(event),
+  "event_cfp_submission.confirmed.v1": (event) => cfpEventKeys(event),
+  "event_cfp_review.saved.v1": (event) => cfpEventKeys(event),
 };
 
 // KLUCZE JAKO LITERALY, NIE IMPORT FABRYK. Fabryki (`meetingKeys`,
@@ -344,6 +354,17 @@ function registrationEventKeys(event: DomainEventRow): QueryKey[] {
     ["event-rsvp-counts"],
     ["public-event"],
   ];
+}
+
+/**
+ * Klucze naboru prelegentow. `event_id` w payloadzie zaweza panel do galezi
+ * jednego wydarzenia; jego brak degraduje do calego korzenia modulu (szersza
+ * inwalidacja jest tansza niz nieaktualna lista zgloszen). Literaly zgodne
+ * z `cfpKeys` i `cfpMeKeys` - pilnuje tego `eventRealtimeKeys.test.ts`.
+ */
+function cfpEventKeys(event: DomainEventRow): QueryKey[] {
+  const eventId = eventPayloadText(event, "event_id");
+  return [eventId === "" ? ["event-cfp"] : ["event-cfp", eventId], ["event-cfp-me"]];
 }
 
 const eventKeysList: QueryKey[] = [

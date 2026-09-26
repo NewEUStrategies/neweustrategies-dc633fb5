@@ -129,6 +129,12 @@ export const TX_EMAIL_CATEGORY: Readonly<Record<TxEmailType, EmailCategory>> = {
   event_registration_approved: "transactional",
   event_registration_rejected: "transactional",
   event_waitlist_promoted: "transactional",
+  // Nabór prelegentów: potwierdzenie wysłania zgłoszenia i decyzja organizatora
+  // o NIM - odpowiedź na własne działanie odbiorcy, nie wysyłka marketingowa.
+  event_cfp_submission_received: "transactional",
+  event_cfp_submission_accepted: "transactional",
+  event_cfp_submission_rejected: "transactional",
+  event_cfp_submission_changes_requested: "transactional",
   // Skutek platnosci za bilet - dowod rozliczenia, nie wysylka marketingowa.
   event_ticket_paid: "transactional",
   event_ticket_refunded: "transactional",

@@ -109,6 +109,11 @@ const GATED_PREFIXES = [
   // wpuścić człowieka - goły klucz zamiast "Kod z innego wydarzenia" zatrzymuje
   // kolejkę. Bramka od pierwszego dnia, nie po pierwszym incydencie.
   "eventScanner",
+  // Nabór prelegentów (f1): panel organizatora i powierzchnia prelegenta
+  // i recenzenta. Odmowa bazy mówi prelegentowi, co poprawić w zgłoszeniu -
+  // surowy klucz w tym miejscu zostawiłby go bez następnego kroku.
+  "adminEventCfp",
+  "eventCfp",
   // Siatka zespołu: napisy okna osoby (rola w NES, afiliacja, przynależność
   // projektowa, kontakt) są PUBLICZNE i jadą za językiem treści, nie panelu.
   // Brak klucza po jednej stronie dałby surowe `teamGrid.dialog.affiliation`
@@ -205,6 +210,16 @@ const IDENTICAL_ALLOWLIST: readonly string[] = [
   "eventFront.formats.online",
   "eventFront.list.formatLabel",
   "eventMeetings.fields.sponsor",
+  // Nabór prelegentów (f1): nazwy i jednostki identyczne w obu językach
+  // („Online", „Moderator", „E-mail", „min") oraz szablony złożone z samych
+  // miejsc interpolacji.
+  "adminEventCfp.accept.formats.online",
+  "adminEventCfp.detail.duration",
+  "eventCfp.page.countdown.value",
+  "eventCfp.page.formatDuration",
+  "eventCfp.review.scoreButton",
+  "eventCfp.roles.moderator",
+  "eventCfp.submit.coSpeaker.email",
 ];
 
 function loadOverlays(): void {
