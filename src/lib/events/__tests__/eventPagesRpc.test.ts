@@ -401,6 +401,30 @@ describe("zalozenie podstrony", () => {
     expect(sections.length).toBeGreaterThan(0);
   });
 
+  // Szablon strony prelegentow ma przycisk „Zglos prelekcje" - dostaje adres
+  // naboru prelegentow TEGO wydarzenia ze sluga, a bez sluga zostaje `#`.
+  it("slug wydarzenia trafia do przycisku naboru w szablonie strony prelegentow", async () => {
+    rpc().setData("admin_event_page_create", ENTRY_ID);
+    await api.createEventPage({
+      eventId: EVENT_ID,
+      titlePl: "Prelegenci",
+      titleEn: "Speakers",
+      templateId: "event-page-speakers",
+      eventSlug: "kongres-2026",
+    });
+    expect(JSON.stringify(payloadOf("admin_event_page_create")["builder_data"])).toContain(
+      '"href":"/events/kongres-2026/cfp"',
+    );
+
+    await api.createEventPage({
+      eventId: EVENT_ID,
+      titlePl: "Prelegenci",
+      titleEn: "Speakers",
+      templateId: "event-page-speakers",
+    });
+    expect(JSON.stringify(payloadOf("admin_event_page_create")["builder_data"])).not.toContain("/cfp");
+  });
+
   // NIEZNANY IDENTYFIKATOR NIE JEST BLEDEM, tylko brakiem szablonu: RPC zaklada
   // wtedy pusta strone robocza, dokladnie jak przed wprowadzeniem szablonow.
   it("nieznany i pominiety szablon NIE dokladaja klucza `builder_data`", async () => {

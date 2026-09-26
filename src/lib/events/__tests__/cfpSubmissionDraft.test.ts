@@ -1,6 +1,7 @@
 // Szkice po stronie uczestnika: zgłoszenie, ocena recenzenta, decyzja
 // i przyjęcie organizatora, profil prelegenta i materiał.
 //
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - pilnowane niżej:
 // Każda reguła jest lustrem odmowy bazy (`missing_title`, `score_required`,
 // `note_required`, `invalid_schedule`, `invalid_profile`, `invalid_url`).
 import { describe, expect, it } from "vitest";

@@ -1,5 +1,6 @@
 // Ekrany „Recenzenci" i „Materiały prelegentów".
 //
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - pilnowane niżej:
 // DOWODZIMY: (1) dodanie recenzenta wysyła konto z wyszukiwarki członków,
 // (2) każda zmiana w wierszu wysyła KOMPLET pól recenzenta (upsert), więc
 // przełączenie jednej flagi nie gubi zakresu ścieżek, (3) usunięcie recenzenta

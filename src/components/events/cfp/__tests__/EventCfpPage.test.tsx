@@ -1,6 +1,9 @@
 // Strona naboru prelegentów: faza z bazy, termin w strefie wydarzenia,
 // przycisk zgłoszenia tylko przy otwartym naborze - i ZERO rozjazdu
 // hydratacji (SSR i pierwszy render klienta rysują ten sam szkielet).
+//
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW: każda z tych reguł, zgubiona, daje
+// uczestnikowi albo organizatorowi zły ekran bez jednego błędu w konsoli.
 import { renderToString } from "react-dom/server";
 import { hydrateRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";

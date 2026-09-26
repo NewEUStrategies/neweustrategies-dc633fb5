@@ -1,6 +1,7 @@
 // Funkcje serwerowe maili naboru: CO wolno wysłać, pod JAKIM kluczem
 // idempotencji i jaki ślad zostaje w bazie.
 //
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - pilnowane niżej:
 //   1. RODZAJ MAILA Z BAZY. Panel mówi „wyślij", ładunek mówi „o czym"
 //      (`notice`). Stan bez maila = `not_applicable`, zero wysyłki.
 //   2. KLUCZ ZE STEMPLEM PRZEJŚCIA (`decided_at` / `submitted_at`) - nowa

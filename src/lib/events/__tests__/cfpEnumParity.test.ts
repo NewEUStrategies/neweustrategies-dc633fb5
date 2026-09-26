@@ -1,5 +1,6 @@
 // BRAMKA NABORU PRELEGENTÓW: zbiory z `cfpEnums.ts` = ograniczenia CHECK w bazie.
 //
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - pilnowane niżej:
 // Kolumny wyliczeniowe naboru są typu `text` z `CHECK (kolumna IN (...))`, więc
 // typ generowany to `string` i kompilator nie zobaczy, że panel oferuje wartość,
 // której baza nie przyjmie (albo nie zna wartości, którą baza oddaje). Ta sama

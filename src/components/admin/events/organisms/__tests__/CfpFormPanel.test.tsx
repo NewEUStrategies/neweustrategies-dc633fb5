@@ -1,5 +1,6 @@
 // Ekran „Formularz zgłoszenia" (własne pytania naboru) i okno pytania.
 //
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - pilnowane niżej:
 // DOWODZIMY: (1) kolejność strzałkami zapisuje PEŁNĄ listę identyfikatorów,
 // (2) usunięcie pytania z odpowiedziami mówi, ile zgłoszeń odpowiedziało,
 // i wymaga potwierdzenia, (3) okno nowego pytania podpowiada klucz, a okno

@@ -1,5 +1,6 @@
 // Parsery odpowiedzi `jsonb` naboru prelegentów.
 //
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - pilnowane niżej:
 // Kontrakt, którego pilnujemy: (1) nazwy kluczy SQL -> pola klienta jeden do
 // jednego, (2) brak albo śmieć w danych degraduje do stanu BEZPIECZNEGO (faza
 // `none`, stan `draft`, pusta lista), nigdy do wyjątku przy renderze.

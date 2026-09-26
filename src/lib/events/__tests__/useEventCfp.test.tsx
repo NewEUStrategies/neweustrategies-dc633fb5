@@ -1,5 +1,6 @@
 // Hooki naboru: klucze cache, wyłączanie zapytań i ZASIĘG unieważnień.
 //
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - pilnowane niżej:
 // Najważniejsze zobowiązania: (1) każda mutacja panelu unieważnia CAŁĄ gałąź
 // `["event-cfp", eventId]` (a przyjęcie także agendę, zapisy i rejestr
 // prelegentów tego wydarzenia); (2) mutacje uczestnika unieważniają jego gałąź

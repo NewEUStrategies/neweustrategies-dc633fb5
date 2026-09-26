@@ -1,5 +1,6 @@
 // Szkice panelu naboru: ustawienia i pytanie formularza.
 //
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - pilnowane niżej:
 // Reguły są lustrem odmów bazy (`invalid_window`, `invalid_formats`,
 // `invalid_criteria`, `key_immutable`...). Każda gałąź walidacji ma tu przypadek,
 // bo zdanie przy polu jest jedyną informacją, jaką organizator dostaje PRZED

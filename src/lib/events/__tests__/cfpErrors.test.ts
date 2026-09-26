@@ -1,6 +1,9 @@
 // Mapy odmów naboru: głowa komunikatu plpgsql -> klucz i18n, liczby z ogona
 // -> parametry. Nieznana głowa (albo śmieć) -> `unknown`, nigdy surowy tekst
 // bazy przed uczestnikiem.
+//
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW: każda z tych reguł, zgubiona, daje
+// uczestnikowi albo organizatorowi zły ekran bez jednego błędu w konsoli.
 import { describe, expect, it } from "vitest";
 
 import i18n from "@/lib/i18n";

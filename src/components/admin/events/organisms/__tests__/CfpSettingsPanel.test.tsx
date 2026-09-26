@@ -1,6 +1,7 @@
 // Ekran „Ustawienia naboru": stan, okno, teksty, formy, ścieżki, zasady, ocena
 // i przyjęty prelegent - oraz jawny zapis (pasek zapisu).
 //
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - pilnowane niżej:
 // DOWODZIMY: (1) ładunek zapisu niesie KOMPLET pól w kształcie SQL-a
 // (`admin_event_cfp_settings_save`), (2) błędny szkic nie wychodzi do bazy
 // i mówi, które pole poprawić, (3) odmowa bazy trafia do toasta, (4) edytor

@@ -1,5 +1,6 @@
 // Formularz zgłoszenia wystąpienia.
 //
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - pilnowane niżej:
 // DOWODZIMY: (1) bez konta nie ma formularza, tylko zaproszenie do logowania,
 // (2) `?id=` otwiera wyłącznie własne i edytowalne zgłoszenie, (3) nowy szkic
 // i szkic wymagają otwartego naboru, prośba o zmiany - nie, (4) „Wyślij"

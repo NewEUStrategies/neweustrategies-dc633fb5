@@ -1,5 +1,6 @@
 // Treść maili naboru: język zgłoszenia, wiersze szczegółów i cel przycisku.
 //
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - pilnowane niżej:
 // Najważniejsze: informacja zwrotna idzie WYŁĄCZNIE z `feedback_to_speaker`
 // (nie z notatki wewnętrznej), odmowa prowadzi na stronę wydarzenia, prośba
 // o zmiany - do formularza tego zgłoszenia.

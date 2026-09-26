@@ -1,6 +1,7 @@
 // Nagłówki stron naboru i przycisk „Zgłoś prelekcję" w szablonie strony
 // prelegentów.
 //
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - pilnowane niżej:
 // Strona naboru jest publiczna (tytuł z nazwą wydarzenia, jak Program), a trzy
 // strony prywatne (formularz, panel prelegenta, panel recenzenta) mają tytuł
 // w języku adresu i `noindex`.

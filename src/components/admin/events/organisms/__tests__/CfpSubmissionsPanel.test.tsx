@@ -2,6 +2,7 @@
 // szuflada decyzji (prelegenci z CRM, oceny, decyzja, przyjęcie z planem,
 // mail o decyzji) i zakładka materiałów.
 //
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - pilnowane niżej:
 // DOWODZIMY ładunków RPC po nazwie (filtr „wszystkie" nie wychodzi, strona
 // -> offset, decyzja i przyjęcie w kształcie SQL-a), tego, że mail wychodzi
 // tylko na żądanie i tylko dla stanów, o których się pisze, oraz że ponowienie

@@ -1,5 +1,6 @@
 // Warstwa danych naboru: NAZWY funkcji i NAZWY argumentów RPC.
 //
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - pilnowane niżej:
 // Obiekt argumentów jest luźny dla `tsc`, więc przemianowany klucz (`event_id`
 // -> `eventId`) przechodzi kompilację i kończy się odmową bazy albo - gorzej -
 // pominięciem pola w PATCH-u. Każda funkcja ma tu przypadek, który czyta

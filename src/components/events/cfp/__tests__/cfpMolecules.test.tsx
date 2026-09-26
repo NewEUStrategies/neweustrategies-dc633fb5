@@ -2,6 +2,7 @@
 // odliczanie, pola formularza, współprelegenci, pozycja w pasku zakładek
 // i odnośniki w panelu „Moje".
 //
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - pilnowane niżej:
 // Najważniejsze zobowiązania: (1) odliczanie i zakładka NIE rysują niczego
 // przed montażem (SSR = pierwszy render), (2) zakładka jest tylko przy
 // otwartym naborze (faza z bazy), (3) odnośniki paneli widzi tylko osoba z rolą.

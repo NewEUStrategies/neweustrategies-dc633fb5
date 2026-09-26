@@ -1,5 +1,8 @@
 // Reguły ekranów naboru (strony listy, średnie, przyciski, stan maila,
 // odpowiedzi) oraz zbiory i etykiety z `cfpEnums`.
+//
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW: każda z tych reguł, zgubiona, daje
+// uczestnikowi albo organizatorowi zły ekran bez jednego błędu w konsoli.
 import { describe, expect, it } from "vitest";
 
 import {
