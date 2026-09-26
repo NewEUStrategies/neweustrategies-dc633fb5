@@ -1,5 +1,6 @@
 -- ===========================================================================
--- 72 ANULOWANIE ZAMOWIENIA PAKIETU ODDAJE UZYCIE KODU (migracja 20260926130000)
+-- 72 ANULOWANIE ZAMOWIENIA PAKIETU ODDAJE UZYCIE KODU (migracja 20260926130000,
+--    cialo zmiany statusu z 20260926150000, sekcja 11)
 --
 -- PO CO TEN PLIK ISTNIEJE. Od 20260926110000 zakup pakietu zuzywa kod rabatowy
 -- (licznik + wiersz realizacji), ale zmiana statusu zamowienia nie oddawala go
@@ -30,15 +31,27 @@
 --   M. realizacja NIEPOWIAZANA (stare dane): anulowanie nic nie oddaje,
 --      zatrzask zostaje pusty, powrot niczego nie zuzywa;
 --   N. kod skasowany (i kod spoza najemcy) w czasie anulowania: powrot czysci
---      zatrzask bez bledu i bez realizacji;
+--      zatrzask bez bledu i bez realizacji; LUSTRO (20260926150000): kod
+--      przeniesiony do obcego najemcy PRZED anulowaniem - realizacja zostaje,
+--      licznik bez zmian, zatrzask pusty, powrot niczego nie zuzywa; kod
+--      skasowany PRZED anulowaniem (`coupon_id` NULL) - anulowanie i powrot
+--      bez bledu i bez zatrzasku;
 --   O. dopiecie starych danych `_event_package_coupon_link_backfill()`: para
 --      jednoznaczna, para niejednoznaczna, prawie-para, anulowana para;
 --      dwa wywolania - wynik dokladnie raz; potem zachowanie jak nowe dane;
---   P. CHECK zatrzasku i granty obu funkcji.
+--   P. CHECK zatrzasku i granty obu funkcji;
+--   Q. zwykle anulowanie kasuje DOKLADNIE jedna realizacje i zdejmuje
+--      DOKLADNIE 1 z licznika; licznik poprawiony recznie na 0 zostaje 0
+--      (GREATEST), a zatrzask i tak staje;
+--   R. kolejnosc blokad z 20260926150000 (kod PRZED zamowieniem) w galezi A
+--      i B - odczytana w jednej sesji z MultiXactId w `xmax` (opis w sekcji).
 --
--- CZEGO NIE SPRAWDZA: rownoleglych transakcji (harness ma jedna sesje - kolejnosc
--- blokad opisuje migracja), ekranu panelu (vitest packagesApiMutations) ani
--- zwrotu puli zestawow i miejsc przy anulowaniu - tego migracja nie robi.
+-- CZEGO NIE SPRAWDZA: rownoleglych transakcji. Harness ma jedna sesje, wiec
+-- zakleszczenia 40P01 zmiany statusu z kasowaniem kodu (klucze obce: kod ->
+-- realizacja -> zamowienie) nie odtworzy - sekcja R dowodzi tylko KOLEJNOSCI
+-- blokad jednej zmiany statusu, nie braku cyklu miedzy dwiema sesjami. Nie
+-- sprawdza tez ekranu panelu (vitest packagesApiMutations) ani zwrotu puli
+-- zestawow i miejsc przy anulowaniu - tego migracja nie robi.
 --
 -- `now()` jest czasem poczatku transakcji, wiec KAZDY znacznik w tym pliku ma
 -- te sama wartosc. Tam, gdzie asercja mowi „znacznik bez zmian", znacznik jest
@@ -137,6 +150,26 @@ VALUES
   -- 08: zamowienie skasowane (ON DELETE SET NULL).
   ('72c00000-0000-0000-0000-000000000008', '11111111-1111-1111-1111-111111111111',
    'PAK72-KASUJ', 'fixed', NULL, 5000, 'PLN',
+   ARRAY['72e00000-0000-0000-0000-0000000000a1']::uuid[], ARRAY[]::uuid[], NULL, NULL, true, false),
+  -- 09: przeniesiony do obcego najemcy PRZED anulowaniem.
+  ('72c00000-0000-0000-0000-000000000009', '11111111-1111-1111-1111-111111111111',
+   'PAK72-OBCY-PRZED', 'fixed', NULL, 5000, 'PLN',
+   ARRAY['72e00000-0000-0000-0000-0000000000a1']::uuid[], ARRAY[]::uuid[], NULL, NULL, true, false),
+  -- 10: zwykle anulowanie - dokladnie jedno uzycie, licznik nie schodzi ponizej 0.
+  ('72c00000-0000-0000-0000-000000000010', '11111111-1111-1111-1111-111111111111',
+   'PAK72-DOKLADNIE', 'fixed', NULL, 5000, 'PLN',
+   ARRAY['72e00000-0000-0000-0000-0000000000a1']::uuid[], ARRAY[]::uuid[], NULL, NULL, true, false),
+  -- 11: skasowany PRZED anulowaniem.
+  ('72c00000-0000-0000-0000-000000000011', '11111111-1111-1111-1111-111111111111',
+   'PAK72-USUN-PRZED', 'fixed', NULL, 5000, 'PLN',
+   ARRAY['72e00000-0000-0000-0000-0000000000a1']::uuid[], ARRAY[]::uuid[], NULL, NULL, true, false),
+  -- 12: kolejnosc blokad przy anulowaniu (galaz A).
+  ('72c00000-0000-0000-0000-000000000012', '11111111-1111-1111-1111-111111111111',
+   'PAK72-BLOK-A', 'fixed', NULL, 5000, 'PLN',
+   ARRAY['72e00000-0000-0000-0000-0000000000a1']::uuid[], ARRAY[]::uuid[], NULL, NULL, true, false),
+  -- 13: kolejnosc blokad przy powrocie z anulowania (galaz B).
+  ('72c00000-0000-0000-0000-000000000013', '11111111-1111-1111-1111-111111111111',
+   'PAK72-BLOK-B', 'fixed', NULL, 5000, 'PLN',
    ARRAY['72e00000-0000-0000-0000-0000000000a1']::uuid[], ARRAY[]::uuid[], NULL, NULL, true, false);
 
 -- Zamowienia po kluczu z sekcji - identyfikatory nadaje zakup.
@@ -630,6 +663,84 @@ BEGIN
     AND pg_temp.linked72('o10') = 0
     AND pg_temp.cnt72('72c00000-0000-0000-0000-000000000007') = 0,
     '72/kod obcy: kod innego najemcy nie jest zuzywany, zatrzask wyczyszczony');
+END $do$;
+
+-- ---------------------------------------------------------------------------
+-- N (LUSTRO). KOD SPOZA NAJEMCY ALBO SKASOWANY JUZ PRZED ANULOWANIEM
+--
+-- Do 20260926150000 galaz A kasowala realizacje zamowienia bez wzgledu na to,
+-- w czyim najemcy jest jej kod: UPDATE licznika z filtrem najemcy nie trafial
+-- w nic, wiersz realizacji znikal, a zatrzask stawal mimo to - i powrot nie
+-- mial juz czego odtworzyc (licznik o jeden wyzej niz rejestr, na zawsze).
+-- Teraz realizacja zostaje razem z uzyciem, zatrzask jest pusty, a powrot nie
+-- ma czego zuzywac. Kod skasowany: klucze obce skasowaly realizacje (CASCADE)
+-- i wyzerowaly `coupon_id` (SET NULL) - anulowanie i powrot bez zatrzasku.
+--
+-- Oba zamowienia koncza jako OPLACONE: dopiecie z sekcji O (krok 2) bierze
+-- anulowane zamowienie z powiazana realizacja i pustym zatrzaskiem, wiec
+-- zamowienie z kodem obcym zostawione w anulowaniu zmieniloby jej wynik.
+-- ---------------------------------------------------------------------------
+DO $do$
+DECLARE
+  v_o public.event_package_orders;
+  v_red uuid;
+  v_total integer;
+BEGIN
+  PERFORM pg_temp.buy72('o11', '72a00000-0000-0000-0000-0000000000a2', 'PAK72-OBCY-PRZED');
+  SELECT r.id INTO v_red FROM public.b2b_coupon_redemptions r
+  WHERE r.package_order_id = pg_temp.o72('o11');
+  PERFORM pg_temp.assert(v_red IS NOT NULL
+    AND pg_temp.cnt72('72c00000-0000-0000-0000-000000000009') = 1,
+    '72/kod obcy przed anulowaniem: zakup zuzyl kod (licznik 1, realizacja powiazana)');
+  UPDATE public.b2b_coupons SET tenant_id = '72000000-0000-0000-0000-0000000000b0'
+  WHERE id = '72c00000-0000-0000-0000-000000000009';
+
+  PERFORM pg_temp.assert(pg_temp.st72('o11', 'cancelled'),
+    '72/kod obcy przed anulowaniem: anulowanie przechodzi bez bledu');
+  v_o := pg_temp.ord72('o11');
+  PERFORM pg_temp.assert(v_o.status = 'cancelled' AND v_o.cancelled_at IS NOT NULL,
+    '72/kod obcy przed anulowaniem: zamowienie anulowane');
+  PERFORM pg_temp.assert(
+    EXISTS (SELECT 1 FROM public.b2b_coupon_redemptions r
+             WHERE r.id = v_red AND r.package_order_id = v_o.id)
+    AND pg_temp.rows72('72c00000-0000-0000-0000-000000000009') = 1,
+    '72/kod obcy przed anulowaniem: wiersz realizacji zostaje (nie ma uzycia do zdjecia z licznika najemcy)');
+  PERFORM pg_temp.assert(pg_temp.cnt72('72c00000-0000-0000-0000-000000000009') = 1,
+    '72/kod obcy przed anulowaniem: licznik kodu obcego najemcy bez zmian');
+  PERFORM pg_temp.assert(v_o.coupon_released_at IS NULL,
+    '72/kod obcy przed anulowaniem: zatrzask NIE stoi - nic nie oddano');
+
+  PERFORM pg_temp.assert(pg_temp.st72('o11', 'paid'),
+    '72/kod obcy przed anulowaniem: powrot do oplaconego przechodzi bez bledu');
+  v_o := pg_temp.ord72('o11');
+  PERFORM pg_temp.assert(v_o.status = 'paid' AND v_o.coupon_released_at IS NULL,
+    '72/kod obcy przed anulowaniem: po powrocie zamowienie oplacone, zatrzask pusty');
+  PERFORM pg_temp.assert(pg_temp.linked72('o11') = 1
+    AND EXISTS (SELECT 1 FROM public.b2b_coupon_redemptions r WHERE r.id = v_red)
+    AND pg_temp.rows72('72c00000-0000-0000-0000-000000000009') = 1
+    AND pg_temp.cnt72('72c00000-0000-0000-0000-000000000009') = 1,
+    '72/kod obcy przed anulowaniem: powrot nie tworzy nowej realizacji i nie rusza licznika');
+
+  -- Kod skasowany, zanim ktokolwiek anulowal zamowienie.
+  PERFORM pg_temp.buy72('o12', '72a00000-0000-0000-0000-0000000000a3', 'PAK72-USUN-PRZED');
+  DELETE FROM public.b2b_coupons WHERE id = '72c00000-0000-0000-0000-000000000011';
+  v_total := (SELECT count(*) FROM public.b2b_coupon_redemptions);
+  v_o := pg_temp.ord72('o12');
+  PERFORM pg_temp.assert(v_o.coupon_id IS NULL AND pg_temp.linked72('o12') = 0,
+    '72/kod skasowany przed anulowaniem: klucze obce wyzerowaly coupon_id i skasowaly realizacje');
+  PERFORM pg_temp.assert(pg_temp.st72('o12', 'cancelled'),
+    '72/kod skasowany przed anulowaniem: anulowanie przechodzi bez bledu');
+  v_o := pg_temp.ord72('o12');
+  PERFORM pg_temp.assert(v_o.status = 'cancelled' AND v_o.coupon_released_at IS NULL
+    AND (SELECT count(*) FROM public.b2b_coupon_redemptions) = v_total,
+    '72/kod skasowany przed anulowaniem: anulowanie bez zatrzasku i bez ruszania realizacji');
+  PERFORM pg_temp.assert(pg_temp.st72('o12', 'paid'),
+    '72/kod skasowany przed anulowaniem: powrot przechodzi bez bledu');
+  v_o := pg_temp.ord72('o12');
+  PERFORM pg_temp.assert(v_o.status = 'paid' AND v_o.coupon_released_at IS NULL
+    AND pg_temp.linked72('o12') = 0
+    AND (SELECT count(*) FROM public.b2b_coupon_redemptions) = v_total,
+    '72/kod skasowany przed anulowaniem: powrot bez realizacji i bez zatrzasku');
 END $do$;
 
 -- ---------------------------------------------------------------------------
