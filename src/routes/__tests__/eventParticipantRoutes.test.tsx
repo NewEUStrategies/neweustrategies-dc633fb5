@@ -385,6 +385,39 @@ describe("Montowanie tras - co ekran dostaje z adresu", () => {
     await waitFor(() => expect(h.zakladkaMoje.at(-1)).toBe("follow-up"));
   });
 
+  it("zmiana zakładki PODMIENIA wpis historii i NIE przewija strony (MIN-3)", async () => {
+    // Nowy wpis historii na każdy klik zamieniałby „Wstecz" w przewijanie
+    // zakładek, a reset przewijania zrzucałby uczestnika na górę strony przy
+    // każdej zmianie. Sprawdzamy opcje nawigacji, z którymi trasa woła router.
+    const opcje: unknown[] = [];
+    const oryginal = MeRoute.useNavigate;
+    const szpieg = vi.spyOn(MeRoute, "useNavigate").mockImplementation(() => {
+      const navigate = oryginal();
+      const nagrywaj: typeof navigate = (options) => {
+        opcje.push(options);
+        return navigate(options);
+      };
+      return nagrywaj;
+    });
+    try {
+      const { search } = await renderRoute({
+        route: MeRoute,
+        path: "/events/$slug/me",
+        initialEntry: `/events/${SLUG}/me?tab=profile`,
+      });
+
+      await waitFor(() => expect(h.zmienZakladke).not.toBeNull());
+      await act(async () => {
+        h.zmienZakladke?.("schedule");
+      });
+
+      await waitFor(() => expect(search()).toEqual({ tab: "schedule" }));
+      expect(opcje).toEqual([{ search: { tab: "schedule" }, replace: true, resetScroll: false }]);
+    } finally {
+      szpieg.mockRestore();
+    }
+  });
+
   it("samoobsługa zgłoszenia dostaje slug ORAZ klucz z adresu", async () => {
     await renderRoute({
       route: ManageRoute,

@@ -1,10 +1,10 @@
 // Sekcje studia, ktore NIE MAJA jeszcze wlasnej powierzchni per wydarzenie.
 //
-// PUSTA POZYCJA W SIDEBARZE JEST GORSZA NIZ SUCHY EKRAN. Dwie sekcje
-// (`communications`, `integrations`) stoja w `EVENT_STUDIO_NAV`, bo naleza do
-// mapy studia i redaktor ma je zobaczyc od razu, a nie odkrywac w kolejnym
-// wydaniu. Klikniecie w nie nie moze jednak konczyc sie bialym ekranem: kazda
-// mowi WPROST, gdzie ta praca dzis mieszka.
+// PUSTA POZYCJA W SIDEBARZE JEST GORSZA NIZ SUCHY EKRAN. Sekcja
+// `integrations` stoi w `EVENT_STUDIO_NAV`, bo nalezy do mapy studia i redaktor
+// ma ja zobaczyc od razu, a nie odkrywac w kolejnym wydaniu. Klikniecie w nia
+// nie moze jednak konczyc sie bialym ekranem: mowi WPROST, gdzie ta praca dzis
+// mieszka.
 //
 // ODNOSNIK PROWADZI DO MODULU GLOBALNEGO, a nie do jego kopii w studiu.
 // Kampanie, integracje i analityka sa wspolne dla calego serwisu; zduplikowanie
@@ -17,9 +17,15 @@
 // galaz klamalaby o zakresie tego komponentu - i przy nastepnej zmianie ktos
 // szukalby, ktory z dwoch ekranow „Funkcji" widzi redaktor.
 //
-// JEDEN KOMPONENT NA DWIE SEKCJE. Prawie identyczne pliki rozjechalyby sie
-// na pierwszej zmianie ukladu; roznica miedzy nimi to dwa klucze i18n
-// i adres docelowy, czyli DANE, a nie kod.
+// „KOMUNIKACJI" TEZ JUZ NIE MA (F1-F5, spec B.12) - z tego samego powodu.
+// Przypomnienia, eksport do kalendarza i dziennik doreczen sa ustawieniami PER
+// WYDARZENIE, wiec trasa `communications` rysuje `EventCommunicationsPanel`
+// (z wierszem-drogowskazem do kampanii). Nieuzywana galaz tutaj pokazywalaby
+// zdanie „przypomnienia sa na tym ekranie" na ekranie, na ktorym ich nie ma.
+//
+// KOPIA JAKO DANE, NIE KOD. Nazwa sekcji, naglowek i zdanie to klucze i18n
+// w tabeli; kolejna sekcja bez powierzchni dopisuje wiersz tabeli i galaz
+// przycisku, a nie drugi, prawie identyczny plik.
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ExternalLink } from "@/lib/lucide-shim";
@@ -31,7 +37,7 @@ import {
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
 /** Podzbior `EVENT_STUDIO_SECTIONS` bez wlasnej powierzchni w studiu. */
-export type EventStudioExternalKey = "communications" | "integrations";
+export type EventStudioExternalKey = "integrations";
 
 interface ExternalCopy {
   /** Naglowek ekranu - TA SAMA etykieta, co pozycja w sidebarze. */
@@ -43,11 +49,6 @@ interface ExternalCopy {
 }
 
 const EXTERNAL_COPY: Record<EventStudioExternalKey, ExternalCopy> = {
-  communications: {
-    sectionKey: "adminEvents.studio.sections.communications",
-    titleKey: "adminEvents.studio.external.communicationsTitle",
-    descriptionKey: "adminEvents.studio.external.communicationsDescription",
-  },
   integrations: {
     sectionKey: "adminEvents.studio.sections.integrations",
     titleKey: "adminEvents.studio.external.integrationsTitle",
@@ -70,15 +71,6 @@ function ExternalModuleButton({
   label: string;
 }) {
   switch (section) {
-    case "communications":
-      return (
-        <Button asChild size="sm">
-          <Link to="/admin/newsletter/campaigns">
-            <ExternalLink className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-            {label}
-          </Link>
-        </Button>
-      );
     case "integrations":
       return (
         <Button asChild size="sm">

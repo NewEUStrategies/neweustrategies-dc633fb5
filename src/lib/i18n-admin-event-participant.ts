@@ -36,7 +36,7 @@ export const adminEventParticipantPl = {
         enabled: "Wysyłaj przypomnienia",
         enabledHint: "Wyłączenie wstrzymuje też przypomnienia o sesjach.",
         leadsLegend: "Kiedy przypominać",
-        leadsHint: "Wybierz od 1 do 4 terminów przed startem.",
+        leadsHint: "Wybierz do 4 terminów przed startem.",
         leadsLimit: "Wybrano 4 terminy - odznacz jeden, aby zmienić.",
         sessionEnabled: "Przypomnienia o sesjach z planu",
         sessionEnabledHint: "Dla sesji zapisanych lub oznaczonych przez osoby z kontem.",
@@ -46,7 +46,8 @@ export const adminEventParticipantPl = {
         sms: "Przypomnienia SMS",
         smsHint:
           "Tylko dla uczestników, którzy sami włączyli SMS i podali numer. Dzienny limit na organizację.",
-        smsUnavailable: "SMS-y nie są włączone na platformie (brak operatora SMS).",
+        smsUnavailable:
+          "SMS-y są wyłączone na platformie: brak operatora SMS i jego wpisu w polityce prywatności.",
       },
       leads: {
         p10080: "7 dni przed",
@@ -174,7 +175,7 @@ export const adminEventParticipantEn = {
         enabled: "Send reminders",
         enabledHint: "Turning this off also pauses session reminders.",
         leadsLegend: "When to remind",
-        leadsHint: "Pick 1 to 4 moments before the start.",
+        leadsHint: "Pick up to 4 moments before the start.",
         leadsLimit: "4 moments picked - untick one to change.",
         sessionEnabled: "Reminders for sessions in the plan",
         sessionEnabledHint: "For sessions joined or starred by signed-in attendees.",
@@ -184,7 +185,8 @@ export const adminEventParticipantEn = {
         sms: "SMS reminders",
         smsHint:
           "Only for attendees who switched SMS on and gave a number. Daily cap per organisation.",
-        smsUnavailable: "Text messages are not enabled on the platform (no SMS provider).",
+        smsUnavailable:
+          "Text messages are off on the platform: no SMS provider, and none listed in the privacy policy.",
       },
       leads: {
         p10080: "7 days before",

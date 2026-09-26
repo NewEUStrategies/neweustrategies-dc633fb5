@@ -6,6 +6,12 @@
 //     z prototypu obiektu) nie ma tonu.
 //  2. Mapa etykiet ma PEŁNE literały kluczy (bramka `eventsI18nKeys` widzi
 //     każdy liść; prawdziwe zdania sprawdza `participantEnumMapsI18n.test.tsx`).
+//  3. PARYTET Z BAZĄ (R-SQL): klucze mapy tonów to DOKŁADNIE wartości
+//     nazwanego CHECK-u `event_registrations_status_values` w stanie po całym
+//     łańcuchu migracji (ostatnia definicja wygrywa). Nowy status w bazie bez
+//     tonu znaczyłby plakietkę, która po cichu znika.
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -53,5 +59,33 @@ describe("registrationStatusTone", () => {
       waitlist: "eventParticipant.status.waitlist",
       closed: "eventParticipant.status.closed",
     });
+  });
+});
+
+/** Wartości ostatniej definicji nazwanego CHECK-u `event_registrations_status_values`. */
+function registrationStatusCheckValues(): string[] {
+  const dir = join(process.cwd(), "supabase", "migrations");
+  const re =
+    /CONSTRAINT\s+event_registrations_status_values\s+CHECK\s*\(\s*status\s+IN\s*\(([^)]*)\)/gi;
+  let last: string[] = [];
+  for (const file of readdirSync(dir)
+    .filter((name) => name.endsWith(".sql"))
+    .sort()) {
+    for (const match of readFileSync(join(dir, file), "utf8").matchAll(re)) {
+      last = match[1]
+        .split(",")
+        .map((value) => value.trim().replace(/^'|'$/g, ""))
+        .filter((value) => value.length > 0);
+    }
+  }
+  return last;
+}
+
+describe("parytet mapy tonów z CHECK-iem bazy", () => {
+  it("klucze `REGISTRATION_STATUS_TONE` = wartości `event_registrations_status_values`", () => {
+    const db = registrationStatusCheckValues();
+    // Skan musi coś znaleźć - pusta lista dałaby zieloną, pustą równość.
+    expect(db.length).toBeGreaterThan(0);
+    expect(Object.keys(REGISTRATION_STATUS_TONE).sort()).toEqual([...db].sort());
   });
 });

@@ -6,11 +6,11 @@
 //      (przypomnienia, kalendarz, dziennik doreczen) zamiast drogowskazu,
 //   `/admin/events/<id>/registration/policies` - zasady biletow.
 //
-// PO CO TEN PLIK ISTNIEJE. Dwie z tych trzech trasy nie renderuja zadnej
-// funkcji produktowej - i to jest DECYZJA, nie brak. Sidebar studia wymienia
-// „Komunikacje" i „Integracje", bo naleza do mapy modulu; klikniecie w nie ma
-// jednak konczyc sie ZDANIEM O TYM, GDZIE TA PRACA DZIS MIESZKA, a nie bialym
-// ekranem. Test, ktory tylko „renderuje komponent", nie odroznia tych dwoch
+// PO CO TEN PLIK ISTNIEJE. Trasa integracji nie renderuje zadnej funkcji
+// produktowej - i to jest DECYZJA, nie brak. Sidebar studia wymienia
+// „Integracje", bo naleza do mapy modulu; klikniecie w nie ma jednak konczyc
+// sie ZDANIEM O TYM, GDZIE TA PRACA DZIS MIESZKA, a nie bialym ekranem
+// („Komunikacja" byla takim drogowskazem do F1-F5; dzis ma panel). Test, ktory tylko „renderuje komponent", nie odroznia tych dwoch
 // rzeczy - a dla redaktora to jest cala roznica miedzy „jeszcze tego nie ma"
 // a „znowu sie nie wczytalo".
 //
@@ -18,16 +18,16 @@
 //   1. DROGOWSKAZ ZAMIENIA SIE W PUSTKE. Ktos usuwa zdanie opisowe albo
 //      przycisk (bo „i tak nic tu nie ma") i sekcja zostaje sama nazwa nad
 //      pusta ramka - nieodrozniallna od ekranu, ktoremu padlo zapytanie.
-//   2. DROGOWSKAZ PROWADZI NIE TAM. Jeden komponent obsluguje OBIE sekcje,
-//      a roznica miedzy nimi to dwa klucze i adres; podmieniona galaz `switch`
-//      wysyla redaktora z komunikacji do integracji i odwrotnie. Na ekranie
-//      wyglada to poprawnie, bo napis przycisku jest ten sam.
+//   2. DROGOWSKAZ PROWADZI NIE TAM. Adres modulu globalnego stoi w galezi
+//      `switch`; podmieniony wysyla redaktora pod cudzy modul, a na ekranie
+//      wyglada to poprawnie, bo napis przycisku jest ten sam. Trasa komunikacji
+//      nie moze tez wrocic do drogowskazu - rysuje panel F1-F5.
 //   3. TRASA DROGOWSKAZU ZACZYNA PYTAC O DANE. Ekran nie renderuje wiersza
 //      wydarzenia, wiec kazde zapytanie o niego jest wylacznie kosztem - i
 //      wprowadza stan bledu tam, gdzie nie ma czego zepsuc.
 //   4. STUDIO WCHODZI DO WYSZUKIWARKI. Adres z identyfikatorem wydarzenia
 //      w indeksie Google to wyciek mapy panelu; `noindex, nofollow` musi stac
-//      na KAZDEJ z trzech trasy.
+//      na KAZDEJ z tych trasy.
 //   5. ANALITYKA GUBI PARAMETR. Trasa czyta `$eventId` ze sciezki i podaje go
 //      panelowi; zgubiony parametr nie wywraca ekranu, tylko pokazuje liczby
 //      CUDZEGO wydarzenia.
@@ -37,9 +37,9 @@
 // zapisuje otrzymany wiersz. (2) Bramki dostepu do panelu - egzekwuje ja
 // wspolny uklad `/admin` i `adminRouteAuthority.gate.test.ts`. (3) Spinnera
 // i zdania „nie znaleziono" - nalezą do ramy studia (`EventStudioShell`),
-// a nie do tych trzech trasy; tutaj dowodzimy tylko, ze trasa ich NIE DUBLUJE.
+// a nie do tych trasy; tutaj dowodzimy tylko, ze trasa ich NIE DUBLUJE.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
 
 import { axeViolations, summarize } from "@/test/axe";
 import { supabaseRpcStub, type SupabaseRpcStub } from "@/test/supabase/rpc";
@@ -102,8 +102,6 @@ const { Route: CommunicationsRoute } =
 const { Route: IntegrationsRoute } = await import("@/routes/admin.events_.$eventId.integrations");
 const { Route: PoliciesRoute } =
   await import("@/routes/admin.events_.$eventId.registration.policies");
-const { EventStudioExternalSection } =
-  await import("@/components/admin/events/studio/EventStudioExternalSection");
 
 const EVENT_ID = "3f1a0c8e-0000-4000-8000-000000000042";
 const SEKCJE = "adminEvents.studio.sections.";
@@ -245,7 +243,7 @@ describe.each(DROGOWSKAZY)(
     });
 
     it("odsyla do modulu GLOBALNEGO, a nie do jego kopii w studiu", async () => {
-      // Jeden komponent obsluguje obie sekcje; podmieniona galaz `switch`
+      // Adres modulu stoi w galezi `switch`; podmieniona galaz
       // wysyla redaktora pod cudzy adres, a napis przycisku jest ten sam,
       // wiec na ekranie nic nie wyglada podejrzanie.
       await pokaz();
@@ -282,27 +280,22 @@ describe.each(DROGOWSKAZY)(
   },
 );
 
-describe("drogowskazy studia - dwie sekcje, nie jedna", () => {
-  it("komunikacja i integracje maja ROZNE zdanie i ROZNY adres docelowy", async () => {
-    // Komponent jest jeden i nadal zna obie sekcje, wiec najtansza regresja tego
-    // obszaru to sekcja, ktora po refaktorze pokazuje tresc siostry. Trasa
-    // komunikacji rysuje dzis panel, wiec wariant `communications` renderujemy
-    // wprost - kontrakt komponentu zostaje przypiety.
-    const komunikacja = render(<EventStudioExternalSection section="communications" />);
-    const tekstKomunikacji = komunikacja.container.textContent ?? "";
-    const celKomunikacji = komunikacja.container.querySelector("a")?.getAttribute("href");
-    komunikacja.unmount();
+describe("komunikacja - od F1-F5 panel, a nie drogowskaz", () => {
+  it("trasa komunikacji NIE rysuje drogowskazu: bez zdania „gdzie ta praca mieszka” i bez przycisku modulu", async () => {
+    // Drogowskaz zna dzis wylacznie integracje (`EventStudioExternalKey`).
+    // Powrot trasy komunikacji do drogowskazu pokazalby redaktorowi zdanie
+    // o kampaniach zamiast przypomnien i dziennika doreczen TEGO wydarzenia.
+    stub().setData("admin_event_detail", [detailRow()]);
 
-    const integracje = await renderRoute({
-      route: IntegrationsRoute,
-      path: "/admin/events/$eventId/integrations",
-      initialEntry: `/admin/events/${EVENT_ID}/integrations`,
+    await renderRoute({
+      route: CommunicationsRoute,
+      path: "/admin/events/$eventId/communications",
+      initialEntry: `/admin/events/${EVENT_ID}/communications`,
     });
 
-    expect(tekstKomunikacji).toContain(`${EXTERNAL}communicationsTitle`);
-    expect(celKomunikacji).toBe("/admin/newsletter/campaigns");
-    expect(integracje.container.textContent ?? "").not.toBe(tekstKomunikacji);
-    expect(integracje.container.querySelector("a")?.getAttribute("href")).not.toBe(celKomunikacji);
+    await waitFor(() => expect(screen.getByTestId("panel-komunikacji")).toBeInTheDocument());
+    expect(screen.queryByText(`${EXTERNAL}communicationsDescription`)).toBeNull();
+    expect(screen.queryByRole("link", { name: `${EXTERNAL}openModule` })).toBeNull();
   });
 });
 
