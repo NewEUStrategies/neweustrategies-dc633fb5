@@ -34,7 +34,15 @@ import type {
   LeadScanInput,
   LeadScanResult,
 } from "@/lib/events/scannerApi";
-import type { OutboxItem } from "@/lib/events/scannerOutbox";
+import type { RosterPageInput } from "@/lib/events/scannerApi";
+import type { OutboxItem, RejectedScan } from "@/lib/events/scannerOutbox";
+import type { CachedSession } from "@/lib/events/scannerOfflineStorage";
+import type {
+  LocalDecisionLogEntry,
+  RosterPage,
+  RosterSnapshot,
+} from "@/lib/events/scannerRoster";
+import type { ScanConflict } from "@/lib/events/scannerSyncIssues";
 import type { ScannerSession } from "@/lib/events/scannerSession";
 import type {
   QueuedScanOutcome,
@@ -48,9 +56,75 @@ const api = vi.hoisted(() => ({
   bootstrapScanner: vi.fn<(token: string) => Promise<ScannerSession>>(),
   recordCheckinScan: vi.fn<(input: CheckinScanInput) => Promise<CheckinScanResult>>(),
   recordLeadScan: vi.fn<(input: LeadScanInput) => Promise<LeadScanResult>>(),
+  fetchScannerRoster: vi.fn<(input: RosterPageInput) => Promise<RosterPage>>(),
+  /** Termin żądania: domyślnie przezroczysty; test terminu podmienia implementację. */
+  withDeadline: vi.fn(<T,>(promise: Promise<T>, _ms: number): Promise<T> => promise),
 }));
 
 vi.mock("@/lib/events/scannerApi", () => api);
+
+/** Pamięć trybu offline (sesja, lista, dziennik, odrzucone, konflikty) w RAM. */
+const store = vi.hoisted(() => ({
+  session: null as CachedSession | null,
+  roster: null as RosterSnapshot | null,
+  log: [] as LocalDecisionLogEntry[],
+  rejected: [] as RejectedScan[],
+  conflicts: [] as ScanConflict[],
+  persistent: true,
+  wipes: 0,
+  rosterWipes: 0,
+  clears: 0,
+}));
+
+vi.mock("@/lib/events/scannerOfflineStorage", () => ({
+  isOfflineStoragePersistent: () => store.persistent,
+  saveCachedSession: (value: CachedSession) => {
+    store.session = value;
+    return Promise.resolve();
+  },
+  loadCachedSession: (hash: string) =>
+    Promise.resolve(store.session !== null && store.session.tokenHash === hash ? store.session : null),
+  saveRoster: (snapshot: RosterSnapshot | null) => {
+    store.roster = snapshot;
+    return Promise.resolve();
+  },
+  loadRoster: (deviceId: string) =>
+    Promise.resolve(store.roster !== null && store.roster.deviceId === deviceId ? store.roster : null),
+  saveDecisionLog: (log: LocalDecisionLogEntry[]) => {
+    store.log = [...log];
+    return Promise.resolve();
+  },
+  loadDecisionLog: () => Promise.resolve([...store.log]),
+  saveRejected: (list: RejectedScan[]) => {
+    store.rejected = [...list];
+    return Promise.resolve();
+  },
+  loadRejected: () => Promise.resolve([...store.rejected]),
+  saveConflicts: (list: ScanConflict[]) => {
+    store.conflicts = [...list];
+    return Promise.resolve();
+  },
+  loadConflicts: () => Promise.resolve([...store.conflicts]),
+  wipeOfflineSession: () => {
+    store.session = null;
+    store.roster = null;
+    store.log = [];
+    store.wipes += 1;
+    return Promise.resolve();
+  },
+  wipeRoster: () => {
+    store.roster = null;
+    store.log = [];
+    store.rosterWipes += 1;
+    return Promise.resolve();
+  },
+  clearSyncIssues: () => {
+    store.rejected = [];
+    store.conflicts = [];
+    store.clears += 1;
+    return Promise.resolve();
+  },
+}));
 
 /** Pamiec urzadzenia w RAM - bez localStorage i bez IndexedDB. */
 const device = vi.hoisted(() => ({
@@ -91,6 +165,9 @@ const SESSION: ScannerSession = {
   expiresAt: null,
   pinnedCheckpointId: CHECKPOINT_ID,
   sponsorId: null,
+  offlineRoster: false,
+  rosterDownloadedAt: null,
+  serverNow: null,
   event: {
     id: "33333333-3333-4333-8333-333333333333",
     slug: "kongres",
@@ -231,9 +308,19 @@ async function connected(initialToken: string | null = TOKEN) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  api.withDeadline.mockImplementation(<T,>(promise: Promise<T>) => promise);
   device.token = null;
   device.queue = [];
   device.persistent = true;
+  store.session = null;
+  store.roster = null;
+  store.log = [];
+  store.rejected = [];
+  store.conflicts = [];
+  store.persistent = true;
+  store.wipes = 0;
+  store.rosterWipes = 0;
+  store.clears = 0;
   offline = false;
   Object.defineProperty(window.navigator, "onLine", {
     configurable: true,
@@ -534,7 +621,7 @@ describe("useScannerRuntime - utrata polaczenia i powrot sieci", () => {
       });
     });
 
-    expect(outcome).toEqual({ queued: true });
+    expect(outcome).toEqual({ queued: true, local: null });
     expect(api.recordCheckinScan).not.toHaveBeenCalled();
     await waitFor(() => expect(result.current.outbox).toHaveLength(1));
     expect(result.current.outbox[0]).toMatchObject({
@@ -566,7 +653,7 @@ describe("useScannerRuntime - utrata polaczenia i powrot sieci", () => {
       });
     });
 
-    expect(outcome).toEqual({ queued: true });
+    expect(outcome).toEqual({ queued: true, local: null });
     await waitFor(() => expect(result.current.outbox).toHaveLength(1));
     expect(result.current.outbox[0].code).toBe("QR-ZERWANE-LACZE");
   });
@@ -670,13 +757,22 @@ describe("useScannerRuntime - utrata polaczenia i powrot sieci", () => {
       queuedItem({ id: "b", code: "QR-B", deviceScannedAt: "2026-08-01T07:01:00.000Z" }),
       queuedItem({ id: "c", code: "QR-C", deviceScannedAt: "2026-08-01T07:02:00.000Z" }),
     ];
-    const { result } = await connected();
+    api.bootstrapScanner.mockResolvedValue(SESSION);
+    const { result } = render(TOKEN);
 
-    // Pozycja z odmowa trwala znika z kolejki (nie ma czego ponawiac),
-    // a przebieg sie urywa - reszta czeka na nowe poswiadczenie.
-    await waitFor(() => expect(result.current.outbox).toHaveLength(2));
-    expect(result.current.outbox.map((item) => item.code)).toEqual(["QR-B", "QR-C"]);
+    // Odmowa poswiadczenia dotyczy CALEJ kolejki: jedno wywolanie, a wszystkie
+    // trzy pozycje ida na liste ODRZUCONYCH (z eksportem) - zadna nie ginie po
+    // cichu, jak dawniej, gdy `withFailure` tylko je kasowalo.
+    await waitFor(() => expect(result.current.rejected).toHaveLength(3));
+    expect(result.current.outbox).toEqual([]);
+    expect(result.current.rejected.map((row) => row.item.code)).toEqual(["QR-A", "QR-B", "QR-C"]);
+    expect(result.current.rejected.every((row) => row.error.startsWith("device_expired"))).toBe(
+      true,
+    );
     expect(api.recordCheckinScan).toHaveBeenCalledTimes(1);
+    // Wygasle poswiadczenie zostaje na ekranie „wygaslo”, zamiast wyrzucac do parowania.
+    expect(result.current.status).toBe("expired");
+    expect(store.rejected).toHaveLength(3);
   });
 
   it("kolejka z poprzedniej zmiany wraca z pamieci urzadzenia, zanim ktokolwiek zeskanuje", async () => {
@@ -756,6 +852,9 @@ describe("useScannerRuntime - skan leadu", () => {
       code: "QR-LEAD-1",
       note: "chce oferte na Q1",
       interestRating: 4,
+      // Chwila skanu jedzie TEZ online - baza przyjmuje skan sprzed terminu
+      // poswiadczenia w oknie 72 h.
+      deviceScannedAt: expect.any(String),
     });
     if (outcome === undefined || outcome.queued) throw new Error("test: lead nie doszedl do bazy");
     expect(outcome.result.consent).toBe(true);
@@ -816,6 +915,9 @@ describe("useScannerRuntime - oproznianie kolejki w szczegolach", () => {
       code: "QR-LEAD-Z-KOLEJKI",
       note: "rozmowa o wdrozeniu",
       interestRating: 4,
+      deviceScannedAt: "2026-08-01T07:00:00.000Z",
+      // Pozycja z kolejki: nieznany kod nie liczy sie do okna blokady.
+      queued: true,
     });
     // Lead NIE idzie sciezka odprawy - to sa dwie rozne funkcje bazy.
     expect(api.recordCheckinScan).not.toHaveBeenCalled();
@@ -871,7 +973,7 @@ describe("useScannerRuntime - oproznianie kolejki w szczegolach", () => {
       });
     });
 
-    expect(outcome).toEqual({ queued: true });
+    expect(outcome).toEqual({ queued: true, local: null });
     await waitFor(() => expect(result.current.outbox).toHaveLength(1));
     expect(result.current.outbox[0]).toMatchObject({
       kind: "lead",
@@ -1020,7 +1122,7 @@ describe("useScannerRuntime - znane defekty", () => {
         });
       });
 
-      expect(outcome).toEqual({ queued: true });
+      expect(outcome).toEqual({ queued: true, local: null });
       await waitFor(() => expect(result.current.outbox).toHaveLength(1));
     },
   );

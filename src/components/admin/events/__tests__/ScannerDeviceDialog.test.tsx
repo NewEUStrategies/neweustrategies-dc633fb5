@@ -330,6 +330,9 @@ describe("ScannerDeviceDialog - walidacja i ładunek", () => {
       checkpointId: null,
       sponsorId: null,
       expiresAt: undefined,
+      // Lista offline NIE jest domyślna - dane osób jadą na telefon tylko
+      // po świadomym zaznaczeniu.
+      offlineRoster: false,
     });
   });
 
@@ -581,5 +584,52 @@ describe("ScannerCredentialDialog - schowek", () => {
     fireEvent.click(kopiujOdnosnik());
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith(`${BLAD}unknown`));
     expect(h.toastSuccess).not.toHaveBeenCalled();
+  });
+});
+
+describe("ScannerDeviceDialog - lista offline na urządzeniu", () => {
+  const listaOffline = () =>
+    screen.getByRole("checkbox", { name: `${D}offlineRoster` });
+
+  it("pole jest DOMYŚLNIE puste i stoi obok ostrzeżenia RODO", () => {
+    renderujWydanie();
+
+    expect(listaOffline()).not.toBeChecked();
+    expect(screen.getByText(`${D}offlineRosterWarning`)).toBeInTheDocument();
+    expect(screen.getByText(`${D}offlineRosterHint`)).toBeInTheDocument();
+  });
+
+  it("zaznaczenie wysyła zgodę na listę offline razem z odprawą", () => {
+    const { onSubmit } = renderujWydanie();
+    fireEvent.change(etykieta(), { target: { value: "Telefon Ani" } });
+    fireEvent.click(listaOffline());
+    fireEvent.click(wydaj());
+
+    expect(onSubmit.mock.calls[0][0].offlineRoster).toBe(true);
+  });
+
+  it("bez uprawnienia do odprawy pole jest wyłączone, wyjaśnione i NIE wysyła zgody", () => {
+    const { onSubmit } = renderujWydanie();
+    fireEvent.change(etykieta(), { target: { value: "Drukarka" } });
+    fireEvent.click(listaOffline());
+    fireEvent.click(zakres("badge_print"));
+    fireEvent.click(zakres("checkin"));
+
+    expect(listaOffline()).toBeDisabled();
+    expect(listaOffline()).not.toBeChecked();
+    expect(screen.getByText(`${D}offlineRosterNeedsCheckin`)).toBeInTheDocument();
+
+    fireEvent.click(wydaj());
+    expect(onSubmit.mock.calls[0][0].offlineRoster).toBe(false);
+  });
+
+  it("odznaczenie po zaznaczeniu cofa zgodę", () => {
+    const { onSubmit } = renderujWydanie();
+    fireEvent.change(etykieta(), { target: { value: "Telefon Ani" } });
+    fireEvent.click(listaOffline());
+    fireEvent.click(listaOffline());
+    fireEvent.click(wydaj());
+
+    expect(onSubmit.mock.calls[0][0].offlineRoster).toBe(false);
   });
 });

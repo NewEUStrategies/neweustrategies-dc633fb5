@@ -69,6 +69,10 @@ const h = vi.hoisted(() => ({
   przelaczenia: [] as unknown[],
   przelaczenieBlad: null as unknown,
   przelaczeniePending: false,
+  offlineZmiany: [] as unknown[],
+  offlineBlad: null as unknown,
+  offlinePending: false,
+  potwierdzenie: vi.fn(async (_opts: unknown) => true),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
 }));
@@ -77,6 +81,7 @@ vi.mock("react-i18next", async () =>
   (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang),
 );
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
+vi.mock("@/lib/appDialogs", () => ({ confirmDialog: h.potwierdzenie }));
 
 vi.mock("@/lib/events/adminOnsiteErrors", () => ({
   adminOnsiteErrorMessage: (error: unknown) =>
@@ -219,6 +224,14 @@ vi.mock("@/lib/events/useEventOnsite", () => ({
     },
     isPending: false,
   }),
+  useSetScannerDeviceOffline: () => ({
+    mutate: (input: { deviceId: string; offlineRoster: boolean }, wynik: Wynik<boolean>) => {
+      h.offlineZmiany.push(input);
+      if (h.offlineBlad === null) wynik.onSuccess?.(true);
+      else wynik.onError?.(h.offlineBlad);
+    },
+    isPending: h.offlinePending,
+  }),
   useSetScannerDeviceActive: () => ({
     mutate: (input: { deviceId: string; isActive: boolean }, wynik: Wynik<boolean>) => {
       h.przelaczenia.push(input);
@@ -268,7 +281,10 @@ function urzadzenie(overrides: Partial<ScannerDeviceRow> = {}): ScannerDeviceRow
     last_seen_at: "2026-09-01T08:20:00.000Z",
     lead_scans_count: 0,
     locked_until: BRAK,
+    offline_roster: false,
     revoked_at: BRAK,
+    roster_download_count: 0,
+    roster_downloaded_at: BRAK,
     scan_count: 12,
     scopes: ["checkin"],
     sponsor_id: BRAK,
@@ -287,6 +303,7 @@ function poswiadczenie(overrides: Partial<ScannerDeviceCredential> = {}): Scanne
     tokenPrefix: "sk_a1b2",
     scopes: ["checkin"],
     expiresAt: null,
+    offlineRoster: false,
     ...overrides,
   };
 }
@@ -335,6 +352,11 @@ beforeEach(() => {
   h.przelaczenia = [];
   h.przelaczenieBlad = null;
   h.przelaczeniePending = false;
+  h.offlineZmiany = [];
+  h.offlineBlad = null;
+  h.offlinePending = false;
+  h.potwierdzenie.mockReset();
+  h.potwierdzenie.mockResolvedValue(true);
   h.toastSuccess.mockClear();
   h.toastError.mockClear();
 });
@@ -796,5 +818,91 @@ describe("dostępność", () => {
 
     const violations = await axeViolations(container);
     expect(violations, summarize(violations)).toEqual([]);
+  });
+});
+
+describe("lista offline na urządzeniu", () => {
+  it("urządzenie ZE zgodą ma odznakę i mówi, kiedy pobrało listę", () => {
+    h.rows = [urzadzenie({ offline_roster: true, roster_downloaded_at: "2026-09-01T07:05:00.000Z" })];
+    panel();
+
+    expect(within(wiersz()).getByText(`${T}.devices.offlineBadge`)).toBeTruthy();
+    // Data pobrania w strefie serwisu (07:05 UTC = 09:05 w Warszawie), nie surowy ISO.
+    expect(
+      within(wiersz()).getByText(`${T}.devices.rosterDownloaded(when=1 września 2026 09:05)`),
+    ).toBeTruthy();
+  });
+
+  it("zgoda bez pobrania mówi „jeszcze niepobrana”, a nie pokazuje pustej daty", () => {
+    h.rows = [urzadzenie({ offline_roster: true })];
+    panel();
+
+    expect(within(wiersz()).getByText(`${T}.devices.rosterNever`)).toBeTruthy();
+    expect(within(wiersz()).queryByText(/rosterDownloaded/)).toBeNull();
+  });
+
+  it("urządzenie BEZ zgody nie ma odznaki ani linii pobrania", () => {
+    panel();
+
+    expect(within(wiersz()).queryByText(`${T}.devices.offlineBadge`)).toBeNull();
+    expect(within(wiersz()).queryByText(`${T}.devices.rosterNever`)).toBeNull();
+  });
+
+  it("WŁĄCZENIE pyta z ostrzeżeniem RODO i dopiero po zgodzie wysyła zmianę", async () => {
+    panel();
+
+    fireEvent.click(przycisk(`${T}.actions.enableOffline`));
+    await vi.waitFor(() => expect(h.offlineZmiany).toHaveLength(1));
+
+    expect(h.potwierdzenie).toHaveBeenCalledWith(
+      expect.objectContaining({ description: `${T}.devices.dialog.offlineRosterWarning` }),
+    );
+    expect(h.offlineZmiany).toEqual([{ deviceId: URZADZENIE, offlineRoster: true }]);
+    expect(h.toastSuccess).toHaveBeenCalledWith(`${T}.devices.toasts.offlineEnabled`);
+  });
+
+  it("odmowa w pytaniu NIE wysyła niczego do bazy", async () => {
+    h.potwierdzenie.mockResolvedValue(false);
+    panel();
+
+    fireEvent.click(przycisk(`${T}.actions.enableOffline`));
+    await vi.waitFor(() => expect(h.potwierdzenie).toHaveBeenCalledTimes(1));
+
+    expect(h.offlineZmiany).toEqual([]);
+  });
+
+  it("WYŁĄCZENIE działa od razu, bez pytania - dane mają zniknąć z telefonu", async () => {
+    h.rows = [urzadzenie({ offline_roster: true })];
+    panel();
+
+    fireEvent.click(przycisk(`${T}.actions.disableOffline`));
+    await vi.waitFor(() => expect(h.offlineZmiany).toHaveLength(1));
+
+    expect(h.potwierdzenie).not.toHaveBeenCalled();
+    expect(h.offlineZmiany).toEqual([{ deviceId: URZADZENIE, offlineRoster: false }]);
+    expect(h.toastSuccess).toHaveBeenCalledWith(`${T}.devices.toasts.offlineDisabled`);
+  });
+
+  it("odmowa bazy przy zmianie zgody kończy się zdaniem, a nie ciszą", async () => {
+    h.rows = [urzadzenie({ offline_roster: true })];
+    h.offlineBlad = new Error("invalid_scopes: the offline roster requires the checkin scope");
+    panel();
+
+    fireEvent.click(przycisk(`${T}.actions.disableOffline`));
+    await vi.waitFor(() => expect(h.toastError).toHaveBeenCalledTimes(1));
+  });
+
+  it("stoisko sponsora (bez odprawy) nie ma przełącznika listy offline", () => {
+    h.rows = [urzadzenie({ scopes: ["lead"] })];
+    panel();
+
+    expect(screen.queryByRole("button", { name: `${T}.actions.enableOffline` })).toBeNull();
+  });
+
+  it("zmiana w locie gasi przełącznik - dwa kliknięcia to dwie zmiany", () => {
+    h.offlinePending = true;
+    panel();
+
+    expect(przycisk(`${T}.actions.enableOffline`)).toBeDisabled();
   });
 });

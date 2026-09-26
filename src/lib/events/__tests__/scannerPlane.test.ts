@@ -197,12 +197,18 @@ describe("scannerOutbox - kolejka bez sieci", () => {
 
   it("odmowa POSWIADCZENIA zdejmuje pozycje z kolejki, awaria sieci ja odklada", () => {
     const queue = [item({ id: "i1" })];
-    expect(withFailure(queue, "i1", "device_revoked: gone", "2026-09-01T08:00:00Z")).toHaveLength(
-      0,
-    );
+    const revoked = withFailure(queue, "i1", "device_revoked: gone", "2026-09-01T08:00:00Z");
+    expect(revoked.queue).toHaveLength(0);
+    // Zdjeta z kolejki NIE ZNIKA - wraca jako odrzucona, z bledem i chwila.
+    expect(revoked.rejected).toEqual({
+      item: queue[0],
+      error: "device_revoked: gone",
+      rejectedAt: "2026-09-01T08:00:00Z",
+    });
     const retried = withFailure(queue, "i1", "TypeError: Failed to fetch", "2026-09-01T08:00:00Z");
-    expect(retried[0].attempts).toBe(1);
-    expect(retried[0].nextAttemptAt).toBe("2026-09-01T08:00:04.000Z");
+    expect(retried.rejected).toBeNull();
+    expect(retried.queue[0].attempts).toBe(1);
+    expect(retried.queue[0].nextAttemptAt).toBe("2026-09-01T08:00:04.000Z");
     expect(isPermanentFailure("invalid_payload: code is required")).toBe(true);
     expect(errorHead("checkpoint_not_found: nope")).toBe("checkpoint_not_found");
   });
@@ -361,7 +367,7 @@ describe("scannerOutbox - brzegi kolejki", () => {
   it("NIECZYTELNA chwila „teraz” nie psuje terminu ponowienia", () => {
     // Zegar urzadzenia bywa przestawiony; termin i tak ma byc data, a nie
     // `Invalid Date`, bo inaczej pozycja nie wyszlaby z kolejki nigdy.
-    const [po] = withFailure([item({ id: "i1" })], "i1", "Failed to fetch", "nie-data");
+    const [po] = withFailure([item({ id: "i1" })], "i1", "Failed to fetch", "nie-data").queue;
 
     expect(Number.isNaN(Date.parse(po.nextAttemptAt))).toBe(false);
     expect(po.attempts).toBe(1);
@@ -376,7 +382,7 @@ describe("scannerOutbox - brzegi kolejki", () => {
   it("nieudana proba dotyka WYLACZNIE swojej pozycji", () => {
     const kolejka = [item({ id: "i1" }), item({ id: "i2", code: "BBB" })];
 
-    const po = withFailure(kolejka, "i1", "Failed to fetch", "2026-09-01T08:00:00Z");
+    const po = withFailure(kolejka, "i1", "Failed to fetch", "2026-09-01T08:00:00Z").queue;
 
     expect(po[0].attempts).toBe(1);
     expect(po[1].attempts).toBe(0);

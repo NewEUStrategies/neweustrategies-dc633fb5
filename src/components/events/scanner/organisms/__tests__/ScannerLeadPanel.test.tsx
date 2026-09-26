@@ -86,6 +86,16 @@ function runtimeStub(over: Partial<ScannerRuntime> = {}): ScannerRuntime {
     flushing: false,
     flush: vi.fn(),
     discard: vi.fn(),
+    sessionStale: false,
+    clockOffsetMs: 0,
+    clockSkewed: false,
+    roster: { enabled: false, generatedAt: null, count: 0, syncing: false },
+    syncRoster: vi.fn(),
+    rejected: [],
+    conflicts: [],
+    clearSyncIssues: vi.fn(),
+    offlineStoragePersistent: true,
+    lastFlush: null,
     submitCheckin: vi.fn(),
     submitLead: vi.fn().mockResolvedValue({ queued: false, result: leadResult() }),
     ...over,
@@ -192,7 +202,7 @@ describe("ScannerLeadPanel", () => {
       <ScannerLeadPanel
         runtime={runtimeStub({
           online: false,
-          submitLead: vi.fn().mockResolvedValue({ queued: true }),
+          submitLead: vi.fn().mockResolvedValue({ queued: true, local: null }),
         })}
       />,
     );

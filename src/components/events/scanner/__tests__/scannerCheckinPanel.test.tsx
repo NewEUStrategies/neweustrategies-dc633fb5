@@ -62,6 +62,9 @@ const SESSION: ScannerSession = {
   expiresAt: null,
   pinnedCheckpointId: null,
   sponsorId: null,
+  offlineRoster: false,
+  rosterDownloadedAt: null,
+  serverNow: null,
   event: {
     id: "e1",
     slug: "kongres",
@@ -140,6 +143,16 @@ function runtimeStub(over: Partial<ScannerRuntime>): ScannerRuntime {
     flushing: false,
     flush: vi.fn(),
     discard: vi.fn(),
+    sessionStale: false,
+    clockOffsetMs: 0,
+    clockSkewed: false,
+    roster: { enabled: false, generatedAt: null, count: 0, syncing: false },
+    syncRoster: vi.fn(),
+    rejected: [],
+    conflicts: [],
+    clearSyncIssues: vi.fn(),
+    offlineStoragePersistent: true,
+    lastFlush: null,
     submitCheckin: vi.fn().mockResolvedValue({ queued: false, result: outcome({}) }),
     submitLead: vi.fn(),
     ...over,
@@ -193,7 +206,7 @@ describe("ScannerCheckinPanel", () => {
   it("brak sieci mowi „w kolejce”, a nie „blad”", async () => {
     const runtime = runtimeStub({
       online: false,
-      submitCheckin: vi.fn().mockResolvedValue({ queued: true }),
+      submitCheckin: vi.fn().mockResolvedValue({ queued: true, local: null }),
     });
     render(<ScannerCheckinPanel runtime={runtime} session={SESSION} />);
     scan("QR-3");
