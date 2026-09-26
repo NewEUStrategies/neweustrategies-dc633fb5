@@ -19330,6 +19330,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      _event_group_promote_freed: {
+        Args: { p_event_id: string; p_tenant: string; p_ticket_types: string[] }
+        Returns: number
+      }
       _event_group_repair_stranded_guests: {
         Args: { p_limit?: number }
         Returns: number
