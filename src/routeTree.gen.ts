@@ -233,6 +233,7 @@ import { Route as NetworkMutualUserIdRouteImport } from './routes/network.mutual
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as EventsInviteTokenRouteImport } from './routes/events_.invite.$token'
 import { Route as EventsSlugTicketRouteImport } from './routes/events.$slug_.ticket'
+import { Route as EventsSlugSponsorReportRouteImport } from './routes/events.$slug_.sponsor-report'
 import { Route as EventsSlugReviewRouteImport } from './routes/events.$slug_.review'
 import { Route as EventsSlugRegisterRouteImport } from './routes/events.$slug_.register'
 import { Route as EventsSlugPackagesRouteImport } from './routes/events.$slug_.packages'
@@ -263,6 +264,7 @@ import { Route as CategorySlugRssDotxmlRouteImport } from './routes/category.$sl
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
 import { Route as ApiPublicVersionRouteImport } from './routes/api/public/version'
 import { Route as ApiPublicTrackRouteImport } from './routes/api/public/track'
+import { Route as ApiPublicSponsorEventRouteImport } from './routes/api/public/sponsor-event'
 import { Route as ApiPublicRelatedClickRouteImport } from './routes/api/public/related-click'
 import { Route as ApiPublicPostTtsRouteImport } from './routes/api/public/post-tts'
 import { Route as ApiPublicPopupEventRouteImport } from './routes/api/public/popup-event'
@@ -1549,6 +1551,11 @@ const EventsSlugTicketRoute = EventsSlugTicketRouteImport.update({
   path: '/$slug/ticket',
   getParentRoute: () => EventsRoute,
 } as any)
+const EventsSlugSponsorReportRoute = EventsSlugSponsorReportRouteImport.update({
+  id: '/$slug_/sponsor-report',
+  path: '/$slug/sponsor-report',
+  getParentRoute: () => EventsRoute,
+} as any)
 const EventsSlugReviewRoute = EventsSlugReviewRouteImport.update({
   id: '/$slug_/review',
   path: '/$slug/review',
@@ -1697,6 +1704,11 @@ const ApiPublicVersionRoute = ApiPublicVersionRouteImport.update({
 const ApiPublicTrackRoute = ApiPublicTrackRouteImport.update({
   id: '/api/public/track',
   path: '/api/public/track',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicSponsorEventRoute = ApiPublicSponsorEventRouteImport.update({
+  id: '/api/public/sponsor-event',
+  path: '/api/public/sponsor-event',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicRelatedClickRoute = ApiPublicRelatedClickRouteImport.update({
@@ -2853,6 +2865,7 @@ export interface FileRoutesByFullPath {
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/related-click': typeof ApiPublicRelatedClickRoute
+  '/api/public/sponsor-event': typeof ApiPublicSponsorEventRoute
   '/api/public/track': typeof ApiPublicTrackRoute
   '/api/public/version': typeof ApiPublicVersionRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
@@ -2883,6 +2896,7 @@ export interface FileRoutesByFullPath {
   '/events/$slug/packages': typeof EventsSlugPackagesRoute
   '/events/$slug/register': typeof EventsSlugRegisterRoute
   '/events/$slug/review': typeof EventsSlugReviewRoute
+  '/events/$slug/sponsor-report': typeof EventsSlugSponsorReportRoute
   '/events/$slug/ticket': typeof EventsSlugTicketRoute
   '/events/invite/$token': typeof EventsInviteTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -3246,6 +3260,7 @@ export interface FileRoutesByTo {
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/related-click': typeof ApiPublicRelatedClickRoute
+  '/api/public/sponsor-event': typeof ApiPublicSponsorEventRoute
   '/api/public/track': typeof ApiPublicTrackRoute
   '/api/public/version': typeof ApiPublicVersionRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
@@ -3276,6 +3291,7 @@ export interface FileRoutesByTo {
   '/events/$slug/packages': typeof EventsSlugPackagesRoute
   '/events/$slug/register': typeof EventsSlugRegisterRoute
   '/events/$slug/review': typeof EventsSlugReviewRoute
+  '/events/$slug/sponsor-report': typeof EventsSlugSponsorReportRoute
   '/events/$slug/ticket': typeof EventsSlugTicketRoute
   '/events/invite/$token': typeof EventsInviteTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -3659,6 +3675,7 @@ export interface FileRoutesById {
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/related-click': typeof ApiPublicRelatedClickRoute
+  '/api/public/sponsor-event': typeof ApiPublicSponsorEventRoute
   '/api/public/track': typeof ApiPublicTrackRoute
   '/api/public/version': typeof ApiPublicVersionRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
@@ -3689,6 +3706,7 @@ export interface FileRoutesById {
   '/events/$slug_/packages': typeof EventsSlugPackagesRoute
   '/events/$slug_/register': typeof EventsSlugRegisterRoute
   '/events/$slug_/review': typeof EventsSlugReviewRoute
+  '/events/$slug_/sponsor-report': typeof EventsSlugSponsorReportRoute
   '/events/$slug_/ticket': typeof EventsSlugTicketRoute
   '/events_/invite/$token': typeof EventsInviteTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -4073,6 +4091,7 @@ export interface FileRouteTypes {
     | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/related-click'
+    | '/api/public/sponsor-event'
     | '/api/public/track'
     | '/api/public/version'
     | '/api/public/vitals'
@@ -4103,6 +4122,7 @@ export interface FileRouteTypes {
     | '/events/$slug/packages'
     | '/events/$slug/register'
     | '/events/$slug/review'
+    | '/events/$slug/sponsor-report'
     | '/events/$slug/ticket'
     | '/events/invite/$token'
     | '/lovable/email/suppression'
@@ -4466,6 +4486,7 @@ export interface FileRouteTypes {
     | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/related-click'
+    | '/api/public/sponsor-event'
     | '/api/public/track'
     | '/api/public/version'
     | '/api/public/vitals'
@@ -4496,6 +4517,7 @@ export interface FileRouteTypes {
     | '/events/$slug/packages'
     | '/events/$slug/register'
     | '/events/$slug/review'
+    | '/events/$slug/sponsor-report'
     | '/events/$slug/ticket'
     | '/events/invite/$token'
     | '/lovable/email/suppression'
@@ -4878,6 +4900,7 @@ export interface FileRouteTypes {
     | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/related-click'
+    | '/api/public/sponsor-event'
     | '/api/public/track'
     | '/api/public/version'
     | '/api/public/vitals'
@@ -4908,6 +4931,7 @@ export interface FileRouteTypes {
     | '/events/$slug_/packages'
     | '/events/$slug_/register'
     | '/events/$slug_/review'
+    | '/events/$slug_/sponsor-report'
     | '/events/$slug_/ticket'
     | '/events_/invite/$token'
     | '/lovable/email/suppression'
@@ -5113,6 +5137,7 @@ export interface RootRouteChildren {
   ApiPublicPopupEventRoute: typeof ApiPublicPopupEventRoute
   ApiPublicPostTtsRoute: typeof ApiPublicPostTtsRoute
   ApiPublicRelatedClickRoute: typeof ApiPublicRelatedClickRoute
+  ApiPublicSponsorEventRoute: typeof ApiPublicSponsorEventRoute
   ApiPublicTrackRoute: typeof ApiPublicTrackRoute
   ApiPublicVersionRoute: typeof ApiPublicVersionRoute
   ApiPublicVitalsRoute: typeof ApiPublicVitalsRoute
@@ -6705,6 +6730,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EventsSlugTicketRouteImport
       parentRoute: typeof EventsRoute
     }
+    '/events/$slug_/sponsor-report': {
+      id: '/events/$slug_/sponsor-report'
+      path: '/$slug/sponsor-report'
+      fullPath: '/events/$slug/sponsor-report'
+      preLoaderRoute: typeof EventsSlugSponsorReportRouteImport
+      parentRoute: typeof EventsRoute
+    }
     '/events/$slug_/review': {
       id: '/events/$slug_/review'
       path: '/$slug/review'
@@ -6913,6 +6945,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/track'
       fullPath: '/api/public/track'
       preLoaderRoute: typeof ApiPublicTrackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/sponsor-event': {
+      id: '/api/public/sponsor-event'
+      path: '/api/public/sponsor-event'
+      fullPath: '/api/public/sponsor-event'
+      preLoaderRoute: typeof ApiPublicSponsorEventRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/related-click': {
@@ -8720,6 +8759,7 @@ interface EventsRouteChildren {
   EventsSlugPackagesRoute: typeof EventsSlugPackagesRoute
   EventsSlugRegisterRoute: typeof EventsSlugRegisterRoute
   EventsSlugReviewRoute: typeof EventsSlugReviewRoute
+  EventsSlugSponsorReportRoute: typeof EventsSlugSponsorReportRoute
   EventsSlugTicketRoute: typeof EventsSlugTicketRoute
 }
 
@@ -8732,6 +8772,7 @@ const EventsRouteChildren: EventsRouteChildren = {
   EventsSlugPackagesRoute: EventsSlugPackagesRoute,
   EventsSlugRegisterRoute: EventsSlugRegisterRoute,
   EventsSlugReviewRoute: EventsSlugReviewRoute,
+  EventsSlugSponsorReportRoute: EventsSlugSponsorReportRoute,
   EventsSlugTicketRoute: EventsSlugTicketRoute,
 }
 
@@ -8998,6 +9039,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicPopupEventRoute: ApiPublicPopupEventRoute,
   ApiPublicPostTtsRoute: ApiPublicPostTtsRoute,
   ApiPublicRelatedClickRoute: ApiPublicRelatedClickRoute,
+  ApiPublicSponsorEventRoute: ApiPublicSponsorEventRoute,
   ApiPublicTrackRoute: ApiPublicTrackRoute,
   ApiPublicVersionRoute: ApiPublicVersionRoute,
   ApiPublicVitalsRoute: ApiPublicVitalsRoute,

@@ -49,6 +49,9 @@ const SCANNED_ROUTE_PREFIXES = ["admin.events.", "admin.events_."] as const;
  * prelegentów (f1).
  * `adminEventInvoices` i `eventInvoices` - mapy etykiet i klucze bledow
  * faktur wydarzen (`Record<Enum, "pelny.klucz">` w `src/lib/events` i studiu).
+ * `adminEventSponsorReport` / `eventSponsorReport`: mapy miejsc i ról raportu
+ * sponsora (`sponsorReportLabels.ts`) trzymają klucze jako LITERAŁY - bez tego
+ * wpisu bramka nie widziałaby literału spoza `t("...")`.
  */
 const REFERENCE_PREFIXES = [
   "adminEvents",
@@ -56,6 +59,8 @@ const REFERENCE_PREFIXES = [
   "eventCfp",
   "adminEventInvoices",
   "eventInvoices",
+  "adminEventSponsorReport",
+  "eventSponsorReport",
 ] as const;
 
 function isTree(value: unknown): value is ResourceTree {

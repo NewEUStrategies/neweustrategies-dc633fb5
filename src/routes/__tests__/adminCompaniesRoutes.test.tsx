@@ -126,6 +126,14 @@ vi.mock("sonner", () => ({
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ i18n: { language: h.lang }, t: (k: string) => k }),
 }));
+// Karta „Sponsoring wydarzeń” czyta moduł Wydarzeń (własne RPC, własny test
+// `CompanySponsorshipsCard.test.tsx`). Tutaj liczy się tylko sklejenie: karta
+// firmy montuje ją z identyfikatorem TEJ firmy.
+vi.mock("@/components/admin/crm/CompanySponsorshipsCard", () => ({
+  CompanySponsorshipsCard: ({ companyId }: { companyId: string }) => (
+    <div data-testid="company-sponsorships" data-company-id={companyId} />
+  ),
+}));
 
 import { Route as CompaniesRoute } from "@/routes/admin.companies.index";
 import { Route as CompanyRoute } from "@/routes/admin.companies.$id";
@@ -668,6 +676,13 @@ describe("karta firmy", () => {
   it("brak firmy pokazuje komunikat zamiast pustego ekranu", async () => {
     await mountCard();
     expect(await screen.findByText("Firma nieznaleziona.")).toBeInTheDocument();
+  });
+
+  it("montuje historię sponsoringu wydarzeń dla TEJ firmy", async () => {
+    h.company = { company: company(), profiles: [], leads: [] };
+    await mountCard();
+    const card = await screen.findByTestId("company-sponsorships");
+    expect(card.getAttribute("data-company-id")).toBe(COMPANY_ID);
   });
 
   it("pokazuje dane firmy, kontakty i feed aktywności", async () => {

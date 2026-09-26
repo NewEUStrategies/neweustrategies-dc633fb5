@@ -175,6 +175,23 @@ export const DATA_ELEMENT_REGISTRY: readonly RegistryEntry[] = [
     ttl_pl: "180 dni",
     ttl_en: "180 days",
   },
+  {
+    // Pomiar ekspozycji sponsorów na stronach wydarzeń (raport dla sponsora):
+    // identyfikator sesji powstaje dopiero po zgodzie marketingowej, a do bazy
+    // trafia wyłącznie jego skrót z dniem (bez IP, UA i konta).
+    name: "sponsor_event",
+    category: "marketing",
+    kind: "sessionStorage",
+    match: ["nes-sponsor-session"],
+    party_pl: PLATFORM_PL,
+    party_en: PLATFORM_EN,
+    purpose_pl:
+      "Pomiar wyświetleń i kliknięć logotypów, materiałów i reklam sponsorów wydarzeń (raport dla sponsora)",
+    purpose_en:
+      "Measurement of event sponsor logo, material and ad impressions and clicks (sponsor report)",
+    ttl_pl: "Sesja przeglądarki",
+    ttl_en: "Browser session",
+  },
 ];
 
 /** Znane trackery zewnętrzne - rozpoznawane po kluczu i po skrypcie na stronie. */

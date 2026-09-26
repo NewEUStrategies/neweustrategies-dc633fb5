@@ -4,6 +4,12 @@
 // Sekcja = poziom sponsorski (`event_sponsor_tiers`); logotyp = przypięta firma
 // z CRM (`event_sponsors`). Nowe kolumny czytamy osobnymi, wąskimi RPC, żeby nie
 // przepisywać sygnatur istniejących list.
+//
+// POMIAR REKLAM NIE MIESZKA JUŻ TUTAJ. Wyświetlenia i kliknięcia reklamy
+// strony głównej idą przez wspólny pomiar ekspozycji sponsorów
+// (`sponsorTracking.ts` -> `/api/public/sponsor-event`), po zgodzie
+// marketingowej; stare RPC `event_home_ad_track` zostaje w bazie tylko dla
+// klientów z pamięci podręcznej. Lista panelu sumuje oba źródła.
 import {
   useMutation,
   useQuery,
@@ -101,6 +107,8 @@ export interface HomeAdInput {
   startsAt: string;
   endsAt: string;
   isActive: boolean;
+  /** Sponsor TEGO wydarzenia, któremu reklama liczy się w raporcie; "" = bez sponsora. */
+  sponsorId: string;
 }
 
 export type HomeAdField = "imageUrl" | "imageMobileUrl" | "linkUrl" | "endsAt";
@@ -135,6 +143,8 @@ export async function saveHomeAd(input: HomeAdInput): Promise<string> {
       starts_at: input.startsAt,
       ends_at: input.endsAt,
       is_active: input.isActive,
+      // Klucz jedzie ZAWSZE: `null` odpina sponsora, uuid przypina.
+      sponsor_id: input.sponsorId === "" ? null : input.sponsorId,
     },
   });
   if (error) throw new Error(error.message);
@@ -151,10 +161,6 @@ export async function fetchPublicHomeAds(slug: string): Promise<PublicHomeAdRow[
   const { data, error } = await supabase.rpc("event_home_ads_for_viewer", { p_slug: slug });
   if (error) throw new Error(error.message);
   return data ?? [];
-}
-
-export async function trackHomeAd(adId: string, kind: "view" | "click", session: string) {
-  await supabase.rpc("event_home_ad_track", { p_ad_id: adId, p_kind: kind, p_session: session });
 }
 
 /* --------------------------------------------------------------- hooki --- */

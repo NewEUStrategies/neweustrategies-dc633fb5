@@ -198,6 +198,8 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   "event_scanner_device.revoked.v1": (event) => onsiteEventKeys(event),
   "event_sponsor.published.v1": (event) => sponsorEventKeys(event),
   "event_sponsor.snapshot_refreshed.v1": (event) => sponsorEventKeys(event),
+  "event_sponsor_report_link.issued.v1": (event) => sponsorReportLinkKeys(event),
+  "event_sponsor_report_link.revoked.v1": (event) => sponsorReportLinkKeys(event),
 
   // Zgloszenia na wydarzenie. Kazde z tych zdarzen zmienia TRZY powierzchnie
   // naraz: liste i liczniki w panelu organizatora, "moje zgloszenia" w profilu
@@ -289,6 +291,20 @@ function seatingEventKeys(event: DomainEventRow, registrations: boolean): QueryK
   return registrations
     ? [branch("event-seating"), branch("event-registrations")]
     : [branch("event-seating")];
+}
+
+/**
+ * Link raportu sponsora zmienia WYŁĄCZNIE panel: liste linkow i licznik
+ * aktywnych linkow w raporcie (galaz `["event-sponsors", eventId]`) oraz
+ * historie sponsoringu na karcie firmy (`["event-sponsors", "company"]`).
+ * Strona publiczna wydarzenia sie nie zmienia, wiec jej nie ruszamy.
+ */
+function sponsorReportLinkKeys(event: DomainEventRow): QueryKey[] {
+  const eventId = eventPayloadText(event, "event_id");
+  return [
+    eventId === "" ? ["event-sponsors"] : ["event-sponsors", eventId],
+    ["event-sponsors", "company"],
+  ];
 }
 
 function billingDocumentKeys(): QueryKey[] {

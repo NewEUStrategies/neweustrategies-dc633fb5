@@ -31,7 +31,9 @@
 // `key={eventId}` NA KAZDYM PANELU: zmiana wydarzenia resetuje szkice
 // formularzy, zamiast przepisywac stan poprzedniego wydarzenia na nowe.
 import type { ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EventStudioPage } from "@/components/admin/events/studio/EventStudioSection";
 import { EventSpeakersManager } from "@/components/admin/community/EventSpeakersManager";
@@ -71,6 +73,7 @@ import { ensureI18n as ensureMeetingsI18n } from "@/lib/i18n-admin-event-meeting
 import { ensureOnsiteI18n } from "@/lib/i18n-admin-event-onsite";
 import { ensureI18n as ensureRegistrationI18n } from "@/lib/i18n-admin-event-registration";
 import { ensureSponsorsI18n } from "@/lib/i18n-admin-event-sponsors";
+import { ensureSponsorReportI18n } from "@/lib/i18n-admin-event-sponsor-report";
 import { ensureTermsI18n } from "@/lib/i18n-admin-event-terms";
 import "@/lib/i18n-admin-event-sponsor-board";
 
@@ -343,10 +346,20 @@ export function EventOnsiteLeadsSection({ row }: { row: AdminEventDetailRow }) {
 export function EventSponsorsSection({ row }: { row: AdminEventDetailRow }) {
   ensureAdminEventsI18n();
   ensureSponsorsI18n();
+  ensureSponsorReportI18n();
   const { t } = useTranslation();
   const eventId = row.id;
   return (
     <EventStudioPage title={t("adminEvents.studio.sections.sponsors")}>
+      {/* Raport dla sponsorów (wyświetlenia, kliknięcia, kontakty, link dla
+          sponsora) ma własną pozycję studia - stąd prowadzi do niej odnośnik. */}
+      <div className="flex justify-end">
+        <Button asChild variant="outline" size="sm">
+          <Link to="/admin/events/$eventId/sponsor-report" params={{ eventId }}>
+            {t("adminEventSponsorReport.navLink.open")}
+          </Link>
+        </Button>
+      </div>
       <Tabs defaultValue="board" className="space-y-4 py-6">
         <TabsList className="tabs-scroller">
           <TabsTrigger value="board">{t("sponsorBoard.tab")}</TabsTrigger>

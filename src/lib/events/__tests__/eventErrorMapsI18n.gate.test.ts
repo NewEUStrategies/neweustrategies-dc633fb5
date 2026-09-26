@@ -59,6 +59,11 @@ import { eventInvoiceErrorKey } from "@/lib/events/eventInvoiceErrors";
 import { adminEventInvoicesEn, adminEventInvoicesPl } from "@/lib/i18n-admin-event-invoices";
 import { eventInvoicesEn, eventInvoicesPl } from "@/lib/i18n-event-invoices";
 import { adminEventSeatingEn, adminEventSeatingPl } from "@/lib/i18n-admin-event-seating";
+import { adminSponsorReportFailure } from "@/lib/events/adminSponsorReportErrors";
+import {
+  adminEventSponsorReportEn,
+  adminEventSponsorReportPl,
+} from "@/lib/i18n-admin-event-sponsor-report";
 
 /** Klucz ma tekst, gdy w słowniku stoi pod nim NIEPUSTY napis (nie gałąź). */
 function maTekst(slownik: ResourceTree, klucz: string): boolean {
@@ -181,6 +186,24 @@ const KODY_ONSITE = [
   "invalid_element_text",
   "invalid_element_url",
   "invalid_element_width",
+  STRAZNIK_TENANTA,
+] as const;
+
+/** Raport dla sponsorów - `sponsorReportApi` (studio, link dla sponsora, karta firmy, CRM). */
+const KODY_RAPORTU_SPONSORA = [
+  // _event_sponsor_report_assert_filters (summary / series / leads_series)
+  "invalid_range",
+  "invalid_placement",
+  "not_found",
+  // admin_event_sponsor_report_link_issue / _link_revoke
+  "invalid_payload",
+  "sponsor_not_found",
+  "invalid_label",
+  "invalid_expiry",
+  "too_many_links",
+  // admin_event_lead_scans_push_to_crm -> _event_person_crm_sync (most CRM
+  // lapie ten wyjatek u siebie, ale skan widzi go w ciele funkcji)
+  "invalid_audit_action",
   STRAZNIK_TENANTA,
 ] as const;
 
@@ -554,6 +577,17 @@ const MAPY: readonly BramkowanaMapa[] = [
     en: eventFrontEn,
     moduly: ["publicEventApi"],
     interpoluje: false,
+  },
+  {
+    nazwa: "adminSponsorReportErrors",
+    prefix: "adminEventSponsorReport.errors.",
+    klucz: (error) => adminSponsorReportFailure(error).key,
+    kody: KODY_RAPORTU_SPONSORA,
+    nakladka: "src/lib/i18n-admin-event-sponsor-report.ts",
+    pl: adminEventSponsorReportPl,
+    en: adminEventSponsorReportEn,
+    moduly: ["sponsorReportApi"],
+    interpoluje: true,
   },
   {
     nazwa: "adminEventStudioErrors",

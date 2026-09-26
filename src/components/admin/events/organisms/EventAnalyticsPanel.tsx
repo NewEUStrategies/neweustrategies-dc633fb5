@@ -17,6 +17,10 @@
 // „nikt jeszcze nie odznaczyl obecnosci", a nie „nikt nie przyszedl" - stad
 // osobny stan, a nie zero procent.
 //
+// RAPORT DLA SPONSORÓW MA WŁASNY EKRAN (`sponsor-report`) - tutaj stoi tylko
+// odnośnik, bo wyświetlenia i kliknięcia sponsorów to inny odbiorca (sponsor),
+// inne filtry i własny eksport.
+//
 // TO NIE JEST ZAMIENNIK `/admin/analytics`. Tam mieszka ruch serwisu (odslony,
 // zrodla, konwersje); tutaj wylacznie to, co da sie policzyc DLA TEGO
 // wydarzenia. Odnosnik do modulu globalnego zostaje, zeby nikt nie szukal
@@ -41,6 +45,7 @@ import { ensureAgendaI18n } from "@/lib/i18n-admin-event-agenda";
 import { ensureI18n as ensureMeetingsI18n } from "@/lib/i18n-admin-event-meetings";
 import { ensureOnsiteI18n } from "@/lib/i18n-admin-event-onsite";
 import { ensureI18n as ensureRegistrationI18n } from "@/lib/i18n-admin-event-registration";
+import { ensureSponsorReportI18n } from "@/lib/i18n-admin-event-sponsor-report";
 
 /** Procent do wyswietlenia albo `null` - bez zaokraglania w gore do zera. */
 function percent(value: number | null | undefined): string | null {
@@ -54,6 +59,7 @@ export function EventAnalyticsPanel({ row }: { row: AdminEventDetailRow }) {
   ensureAgendaI18n();
   ensureMeetingsI18n();
   ensureOnsiteI18n();
+  ensureSponsorReportI18n();
   const { t } = useTranslation();
   const eventId = row.id;
 
@@ -169,6 +175,17 @@ export function EventAnalyticsPanel({ row }: { row: AdminEventDetailRow }) {
             }
           />
         </div>
+      </EventStudioRow>
+
+      <EventStudioRow
+        label={t("adminEventSponsorReport.navLink.analyticsLabel")}
+        description={t("adminEventSponsorReport.navLink.analyticsDescription")}
+      >
+        <Button asChild variant="outline" size="sm" className="w-fit">
+          <Link to="/admin/events/$eventId/sponsor-report" params={{ eventId }}>
+            {t("adminEventSponsorReport.navLink.open")}
+          </Link>
+        </Button>
       </EventStudioRow>
 
       <EventStudioRow

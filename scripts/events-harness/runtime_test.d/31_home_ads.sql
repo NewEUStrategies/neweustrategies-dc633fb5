@@ -228,11 +228,16 @@ SELECT pg_temp.assert(
                WHERE v.id = (SELECT u FROM ads_q WHERE k = 'vip')),
   '31/gosc/kontrapunkt: zalogowany spoza grupy NIE widzi reklamy grupowej');
 
--- Kontekst najemcy B: ten sam slug A nie zwraca niczego.
-SELECT pg_temp.act_as(NULL, '31000000-0000-0000-0000-0000000000b0');
+-- Kontekst najemcy B: ten sam slug A nie zwraca niczego. Od migracji
+-- 20260926140000 funkcja skaluje po NAGLOWKU HOSTA (`public_tenant_id()`,
+-- w harnessie GUC `nes.public_tenant`), a nie po profilu zalogowanego - wiec
+-- "wejscie na strone najemcy B" to wlasnie ten GUC.
+SELECT pg_temp.act_as(NULL, NULL);
+SELECT set_config('nes.public_tenant', '31000000-0000-0000-0000-0000000000b0', false);
 SELECT pg_temp.assert(
   (SELECT count(*) FROM public.event_home_ads_for_viewer('ads-forum')) = 0,
-  '31/gosc/izolacja: w kontekscie najemcy B reklamy wydarzenia A nie istnieja');
+  '31/gosc/izolacja: na hoscie najemcy B reklamy wydarzenia A nie istnieja');
+SELECT set_config('nes.public_tenant', '', false);
 
 -- ---------------------------------------------------------------------------
 -- SEKCJA 5: LICZNIKI WYSWIETLEN I KLIKNIEC
@@ -261,10 +266,11 @@ SELECT pg_temp.assert(
     WHERE e.ad_id = (SELECT u FROM ads_q WHERE k = 'open') AND e.kind = 'view'),
   '31/licznik: identyfikator sesji zapisany wylacznie jako skrot');
 
-SELECT pg_temp.act_as(NULL, '31000000-0000-0000-0000-0000000000b0');
+SELECT set_config('nes.public_tenant', '31000000-0000-0000-0000-0000000000b0', false);
 SELECT pg_temp.assert(
   NOT public.event_home_ad_track((SELECT u FROM ads_q WHERE k = 'open'), 'view', 'sesja-000003'),
-  '31/licznik/izolacja: w kontekscie najemcy B reklama A nie zbiera wyswietlen');
+  '31/licznik/izolacja: na hoscie najemcy B reklama A nie zbiera wyswietlen');
+SELECT set_config('nes.public_tenant', '', false);
 
 SELECT pg_temp.act_as('31a00000-0000-0000-0000-0000000000a1',
                       '11111111-1111-1111-1111-111111111111');
