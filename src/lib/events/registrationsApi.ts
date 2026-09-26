@@ -404,6 +404,39 @@ export async function fetchRegistrations(query: RegistrationsQuery): Promise<Reg
   return { rows, total };
 }
 
+/**
+ * Powiazania grupy i stan biletu wiersza (`admin_event_registration_group_links`).
+ *
+ * OSOBNE RPC, NIE KOLUMNY LISTY. `admin_event_registrations_list` powstala przed
+ * rejestracja grupowa i nie oddaje ani prowadzacego, ani rozliczenia, ani
+ * znacznika wysylki biletu - a jej `has_qr` jest prawda dla goscia bezplatnego
+ * od chwili dopisania, zanim jakikolwiek mail wyjdzie. Zmiana ksztaltu listy
+ * rozsypalaby atrapy jej wiersza w kilkunastu testach.
+ *
+ * KOLUMNY NULL-OWALNE POPRAWIONE, jak w `EventTicketRow`: generator opisuje
+ * `RETURNS TABLE` jako niepuste, a prowadzacy nie ma prowadzacego, a bilet
+ * niewyslany nie ma daty wysylki.
+ */
+export type RegistrationGroupLink = Omit<
+  Fns["admin_event_registration_group_links"]["Returns"][number],
+  "group_lead_registration_id" | "lead_first_name" | "lead_last_name" | "ticket_code_sent_at"
+> & {
+  group_lead_registration_id: string | null;
+  lead_first_name: string | null;
+  lead_last_name: string | null;
+  ticket_code_sent_at: string | null;
+};
+
+export async function fetchRegistrationGroupLinks(
+  eventId: string,
+): Promise<RegistrationGroupLink[]> {
+  const { data, error } = await supabase.rpc("admin_event_registration_group_links", {
+    p_event_id: eventId,
+  });
+  if (error) throw error;
+  return data ?? [];
+}
+
 export interface RegistrationCountsQuery {
   eventId: string;
   ticketTypeId: string | null;

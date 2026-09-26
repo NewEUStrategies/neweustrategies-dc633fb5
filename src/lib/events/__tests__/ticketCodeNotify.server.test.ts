@@ -12,21 +12,31 @@ import { DZIEN, relativeIso } from "@/test/time";
 
 const h = vi.hoisted(() => ({
   rpcResult: { data: null as unknown, error: null as { message: string } | null },
-  pending: [] as string[],
+  /** Wydanie rzuca (np. sieć padła przed odpowiedzią PostgREST). */
+  rpcThrows: false,
+  pending: [] as unknown,
+  pendingError: null as { message: string } | null,
+  /** Odpowiedź potwierdzenia: błąd bazy albo wyjątek transportu. */
+  confirmError: null as { message: string } | null,
+  confirmThrows: false,
   rpcCalls: [] as Array<{ name: string; args: unknown }>,
   sent: [] as TxSendInput[],
   sendResult: { ok: true } as TxSendResult,
+  sendThrows: false,
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: {
     rpc: (name: string, args: unknown) => {
       h.rpcCalls.push({ name, args });
-      if (name === "_event_ticket_code_confirm")
-        return Promise.resolve({ data: true, error: null });
-      if (name === "_event_ticket_codes_pending") {
-        return Promise.resolve({ data: h.pending, error: null });
+      if (name === "_event_ticket_code_confirm") {
+        if (h.confirmThrows) return Promise.reject(new Error("confirm: sieć"));
+        return Promise.resolve({ data: h.confirmError === null, error: h.confirmError });
       }
+      if (name === "_event_ticket_codes_pending") {
+        return Promise.resolve({ data: h.pending, error: h.pendingError });
+      }
+      if (h.rpcThrows) return Promise.reject(new Error("issue: sieć"));
       return Promise.resolve(h.rpcResult);
     },
   },
@@ -35,6 +45,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({
 vi.mock("@/lib/email/transactional.server", () => ({
   sendTxEmail: (input: TxSendInput) => {
     h.sent.push(input);
+    if (h.sendThrows) return Promise.reject(new Error("resend: 500"));
     return Promise.resolve(h.sendResult);
   },
 }));
@@ -89,10 +100,15 @@ const guestRow = {
 
 beforeEach(() => {
   h.rpcResult = { data: null, error: null };
+  h.rpcThrows = false;
   h.rpcCalls = [];
   h.pending = [];
+  h.pendingError = null;
+  h.confirmError = null;
+  h.confirmThrows = false;
   h.sent = [];
   h.sendResult = { ok: true };
+  h.sendThrows = false;
 });
 
 describe("buildTicketCodeNotice", () => {
@@ -127,6 +143,36 @@ describe("buildTicketCodeNotice", () => {
     expect(buildTicketCodeNotice({ ...guestRow, email: "" })).toBeNull();
     expect(buildTicketCodeNotice({ ...guestRow, qr_token: null })).toBeNull();
     expect(buildTicketCodeNotice({ ...guestRow, event_slug: null })).toBeNull();
+    expect(buildTicketCodeNotice({ ...guestRow, registration_id: "  " })).toBeNull();
+  });
+
+  it("tytuł z drugiego języka, gdy brakuje własnego - i pusty, gdy brakuje obu", () => {
+    // Mail w języku odbiorcy, ale bez tytułu w tym języku lepiej podać tytuł
+    // obcy niż wysłać wiersz „Wydarzenie” bez treści.
+    expect(buildTicketCodeNotice({ ...guestRow, event_title_en: null })?.eventTitle).toBe(
+      "Kongres",
+    );
+    expect(buildTicketCodeNotice({ ...leadRow, event_title_pl: " " })?.eventTitle).toBe("Congress");
+    const bare = buildTicketCodeNotice({
+      ...leadRow,
+      event_title_pl: null,
+      event_title_en: null,
+      event_starts_at: null,
+      event_location: null,
+      ticket_name_pl: null,
+    });
+    expect(bare?.eventTitle).toBe("");
+    // Bez tytułu, terminu, miejsca i nazwy biletu zostaje wyłącznie kod.
+    expect(bare?.details).toEqual([{ label: "Kod wejścia", value: QR_LEAD }]);
+  });
+
+  it("gość bez danych prowadzącego nie dostaje pustego wiersza „zgłoszenie od”", () => {
+    const notice = buildTicketCodeNotice({
+      ...guestRow,
+      lead_first_name: null,
+      lead_last_name: null,
+    });
+    expect(notice?.details.map((d) => d.label)).not.toContain("Registered by");
   });
 });
 
@@ -188,18 +234,130 @@ describe("issueAndSendTicketCodes", () => {
     errors.mockRestore();
   });
 
-  it("adres wypisany zamyka zgłoszenie - bez rotowania kodu co minutę", async () => {
+  it("adres wypisany zamyka zgłoszenie - bez rotowania kodu przy każdym ticku", async () => {
+    // KSZTAŁT Z `sendTxEmail`: lista wykluczeń to `ok: false` z powodem, a nie
+    // sukces. Atrapa `{ ok: true, skipped: "suppressed" }` (sprzed poprawki)
+    // zieleniła się, choć produkcja zwalniała zgłoszenie do ponowienia.
     h.rpcResult = { data: [guestRow, { ...leadRow, email: "" }], error: null };
-    h.sendResult = { ok: true, skipped: "suppressed" };
+    h.sendResult = { ok: false, skipped: "suppressed", reason: "suppressed:hard_bounce" };
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await issueAndSendTicketCodes("reg-lead")).toBe(0);
     expect(confirms()).toEqual([
       ["reg-guest", true],
       ["reg-lead", true],
     ]);
+    // Wypisany adres to stan, nie awaria - log błędów zostaje czysty.
+    expect(errors).not.toHaveBeenCalled();
+    errors.mockRestore();
+  });
+
+  it("pusty adresat po stronie poczty też zamyka zgłoszenie", async () => {
+    h.rpcResult = { data: [guestRow], error: null };
+    h.sendResult = { ok: false, skipped: "no_recipient" };
+    expect(await issueAndSendTicketCodes("reg-lead")).toBe(0);
+    expect(confirms()).toEqual([["reg-guest", true]]);
+  });
+
+  it("duplikat w dzienniku poczty liczy się jako wysłany", async () => {
+    h.rpcResult = { data: [guestRow], error: null };
+    h.sendResult = { ok: true, skipped: "duplicate" };
+    expect(await issueAndSendTicketCodes("reg-lead")).toBe(1);
+    expect(confirms()).toEqual([["reg-guest", true]]);
+  });
+
+  it("awaria dostawcy z powodem zwalnia zgłoszenie do ponowienia", async () => {
+    h.rpcResult = { data: [guestRow], error: null };
+    h.sendResult = { ok: false, reason: "resend:429" };
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await issueAndSendTicketCodes("reg-lead")).toBe(0);
+    expect(confirms()).toEqual([["reg-guest", false]]);
+    expect(errors).toHaveBeenCalledWith(
+      "[events] ticket code email failed",
+      "reg-guest",
+      "resend:429",
+    );
+    errors.mockRestore();
+  });
+
+  it("wyjątek wysyłki nie przerywa grupy - każde zgłoszenie wraca do ponowienia", async () => {
+    h.rpcResult = { data: [guestRow, leadRow], error: null };
+    h.sendThrows = true;
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await issueAndSendTicketCodes("reg-lead")).toBe(0);
+    expect(confirms()).toEqual([
+      ["reg-guest", false],
+      ["reg-lead", false],
+    ]);
+    errors.mockRestore();
+  });
+
+  it("wyjątek wydania (transport) nie rzuca dalej", async () => {
+    h.rpcThrows = true;
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(issueAndSendTicketCodes("reg-lead")).resolves.toBe(0);
+    expect(h.sent).toHaveLength(0);
+    errors.mockRestore();
+  });
+
+  it("odpowiedź, która nie jest listą wierszy, nie wysyła nic", async () => {
+    h.rpcResult = { data: { registration_id: "reg-lead" }, error: null };
+    expect(await issueAndSendTicketCodes("reg-lead")).toBe(0);
+    h.rpcResult = { data: [null, "tekst", ["zagnieżdżona"], guestRow], error: null };
+    expect(await issueAndSendTicketCodes("reg-lead")).toBe(1);
+    expect(h.sent.map((m) => m.to)).toEqual(["guest@example.com"]);
+  });
+
+  it("wiersz bez zajęcia wysyła mail, ale nie ma czego potwierdzać", async () => {
+    h.rpcResult = { data: [{ ...guestRow, claimed_at: null }], error: null };
+    expect(await issueAndSendTicketCodes("reg-lead")).toBe(1);
+    // Bez stempla zajęcia klucz nie ma czym się różnić - zostaje pusty ogon.
+    expect(h.sent[0]?.idempotencyKey).toBe("event-ticket-code:reg-guest:");
+    expect(h.rpcCalls.map((c) => c.name)).not.toContain("_event_ticket_code_confirm");
+  });
+
+  it("błąd albo wyjątek potwierdzenia nie przerywa wysyłki reszcie grupy", async () => {
+    h.rpcResult = { data: [leadRow, guestRow], error: null };
+    h.confirmError = { message: "deadlock" };
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await issueAndSendTicketCodes("reg-lead")).toBe(2);
+    expect(errors).toHaveBeenCalledWith(
+      "[events] ticket code confirm failed",
+      "reg-guest",
+      "deadlock",
+    );
+
+    h.confirmError = null;
+    h.confirmThrows = true;
+    expect(await issueAndSendTicketCodes("reg-lead")).toBe(2);
+    expect(errors).toHaveBeenCalledWith(
+      "[events] ticket code confirm failed",
+      "reg-guest",
+      expect.any(Error),
+    );
+    errors.mockRestore();
   });
 });
 
 describe("runPendingTicketCodes", () => {
+  it("domyślna partia to 50, śmieci z kolejki są pomijane", async () => {
+    h.pending = ["reg-a", 7, null];
+    h.rpcResult = { data: [], error: null };
+    await expect(runPendingTicketCodes()).resolves.toEqual({ registrations: 1, sent: 0 });
+    expect(h.rpcCalls[0]).toEqual({ name: "_event_ticket_codes_pending", args: { p_limit: 50 } });
+  });
+
+  it("odpowiedź bez listy znaczy „nic do wydania”", async () => {
+    h.pending = null;
+    await expect(runPendingTicketCodes(5)).resolves.toEqual({ registrations: 0, sent: 0 });
+  });
+
+  it("błąd kolejki RZUCA - krok crona ma zaświecić się na czerwono", async () => {
+    h.pendingError = { message: "function _event_ticket_codes_pending does not exist" };
+    await expect(runPendingTicketCodes(5)).rejects.toThrow(
+      "function _event_ticket_codes_pending does not exist",
+    );
+  });
+
   it("wydaje bilety każdemu zgłoszeniu czekającemu w bazie", async () => {
     h.pending = ["reg-a", "reg-b"];
     h.rpcResult = { data: [leadRow], error: null };

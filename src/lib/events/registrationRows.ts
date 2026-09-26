@@ -13,6 +13,7 @@
 import type {
   EventRegistrationRow,
   RegistrationAction,
+  RegistrationGroupLink,
   RegistrationStatus,
 } from "@/lib/events/registrationsApi";
 
@@ -104,6 +105,36 @@ export function hasMissingRequiredTerms(row: EventRegistrationRow): boolean {
 
 export function areConsentsWithdrawn(row: EventRegistrationRow): boolean {
   return (row.consent_withdrawn_at ?? null) !== null;
+}
+
+// ---------------------------------------------------------------------------
+// GRUPA I BILET Z KODEM QR
+// ---------------------------------------------------------------------------
+
+/** Statusy, w ktorych wiersz trzyma bilet - lustro `_event_issue_ticket_codes`. */
+const TICKET_STATUSES: readonly string[] = ["approved", "attended"];
+/** Rozliczenia, przy ktorych bilet sie nalezy - lustro tej samej funkcji. */
+const TICKET_PAYMENTS: readonly string[] = ["paid", "not_required"];
+
+/** Wiersz w stanie, w ktorym plakietka biletu (wyslany / niewyslany) cos znaczy. */
+export function holdsTicket(status: string): boolean {
+  return TICKET_STATUSES.includes(status);
+}
+
+/**
+ * Czy organizator moze wyslac bilet ponownie. TEN SAM warunek, co odmowa
+ * `ticket_not_issuable` w `admin_event_ticket_resend` - przycisk, ktory baza
+ * odrzuci, jest gorszy niz brak przycisku. Bez wiersza powiazan (zapytanie
+ * jeszcze nie wrocilo) rozliczenia nie znamy, wiec przycisku nie ma.
+ */
+export function canResendTicket(status: string, link: RegistrationGroupLink | null): boolean {
+  return link !== null && holdsTicket(status) && TICKET_PAYMENTS.includes(link.payment_status);
+}
+
+/** Imie i nazwisko prowadzacego dla plakietki goscia; `null` = to nie gosc. */
+export function groupLeadName(link: RegistrationGroupLink | null): string | null {
+  if (link === null || link.group_lead_registration_id === null) return null;
+  return `${link.lead_first_name ?? ""} ${link.lead_last_name ?? ""}`.trim();
 }
 
 // ---------------------------------------------------------------------------

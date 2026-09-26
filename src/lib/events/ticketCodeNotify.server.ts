@@ -8,6 +8,15 @@
 // zwalnia zgłoszenie i kolejna próba (cron) wyda nowy kod. Wysłanego biletu
 // nic już nie rotuje: powtórzony webhook nie dostaje wierszy.
 //
+// KIEDY BIEGNIE CRON. `runPendingTicketCodes` woła minutowy tick zadań
+// (`runJobsTick`: pg_cron co minutę i przycisk „uruchom teraz" w panelu,
+// partia 20) ORAZ `community-cron` co 5 minut (partia 50, krok po
+// przypomnieniach - pomijany, gdy wcześniejsze kroki zjedzą budżet). Do
+// 20260926100000 był TYLKO ten drugi, więc bilet po decyzji organizatora
+// czekał do pięciu minut albo dłużej, a komentarz migracji 0044 obiecywał
+// minutę. Decyzja organizatora i ponowna wysyłka z panelu wydają bilet od
+// razu; cron domyka resztę.
+//
 // KOD JEDZIE WE FRAGMENCIE ADRESU (`ticketLinkPath`), nie w zapytaniu: strona
 // biletu rysuje QR w przeglądarce, a fragment nie trafia do logów serwera.
 // W treści maila stoi też sam kod - obsługa wpisze go ręcznie, gdy skaner
@@ -89,8 +98,16 @@ type SendOutcome = "sent" | "undeliverable" | "retry";
 /**
  * Wynik wysyłki -> decyzja o kodzie. `retry` zwalnia zgłoszenie (kolejne
  * zajęcie wyda NOWY kod), a `undeliverable` zamyka je jak wysłane: adres
- * wypisany albo pusty nie ożyje przy następnym ticku, a rotowanie kodu co
- * minutę tylko zapełniałoby dziennik poczty.
+ * wypisany albo pusty nie ożyje przy następnym ticku, a rotowanie kodu przy
+ * każdym ticku tylko zapełniałoby dziennik poczty.
+ *
+ * POMINIĘCIE SPRAWDZAMY PRZED `ok`. `sendTxEmail` oddaje blokadę listy
+ * wykluczeń jako `{ ok: false, skipped: "suppressed" }`, a nie jako sukces.
+ * Poprzednia wersja pytała o `skipped` tylko wewnątrz `if (result.ok)`, więc
+ * wypisany adres wracał jako `retry`: każdy tick zajmował wiersz od nowa,
+ * rotował kod i klucz gościa, dopisywał wpis „suppressed" do dziennika - a te
+ * najstarsze wiersze zapychały partię crona (`ORDER BY created_at LIMIT`)
+ * i głodziły nowe przyjęcia.
  */
 async function deliver(row: Record<string, unknown>): Promise<SendOutcome> {
   const notice = buildTicketCodeNotice(row);
@@ -110,11 +127,10 @@ async function deliver(row: Record<string, unknown>): Promise<SendOutcome> {
       // więc bramka duplikatów nie może go zatrzymać jako „już wysłany".
       idempotencyKey: `event-ticket-code:${notice.registrationId}:${text(row.claimed_at) ?? ""}`,
     });
-    if (result.ok) {
-      return result.skipped === "suppressed" || result.skipped === "no_recipient"
-        ? "undeliverable"
-        : "sent";
+    if (result.skipped === "suppressed" || result.skipped === "no_recipient") {
+      return "undeliverable";
     }
+    if (result.ok) return "sent";
     console.error(
       "[events] ticket code email failed",
       notice.registrationId,

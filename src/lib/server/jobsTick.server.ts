@@ -48,6 +48,15 @@ export interface JobsTickResult {
   eventReminders: number | { error: string };
   crmTaskReminders: number | { error: string };
   /**
+   * Bilety z kodem QR dla zgłoszeń przyjętych DOWOLNĄ drogą (decyzja
+   * organizatora, kaskada grupy, awans z rezerwy, płatność) i ponowienia po
+   * nieudanej wysyłce. Do 20260926100000 krok stał wyłącznie w `community-cron`
+   * (co 5 minut, szósty pod wspólnym budżetem), więc gość przyjęty przez
+   * organizatora czekał na bilet do pięciu minut - albo dłużej, gdy wcześniejsze
+   * kroki zjadły budżet.
+   */
+  eventTicketCodes: { registrations: number; sent: number } | { error: string };
+  /**
    * `archived`/`alerted`: skaner nie tylko raportuje martwe linki, ale też
    * dobiera im migawkę Internet Archive i - po przekroczeniu progu - powiadamia
    * redakcję. Oba licznikami w logu przebiegów, żeby dało się odróżnić "brak
@@ -183,6 +192,16 @@ export async function runJobsTick(
   // notyfikacje kind 'crm_task' + emituje crm_task.due.v1 na szynę.
   const eventReminders = await runJobStep(overBudget, () => runEventReminders());
   const crmTaskReminders = await runJobStep(overBudget, () => runCrmTaskReminders());
+  // Bilety z kodem QR: to też wysyłka 1:1, więc stoi razem z przypomnieniami,
+  // PRZED jobami kosztownymi sieciowo. Partia 20, nie 50 jak w community-cron:
+  // każdy bilet to dwa rendery maila i kilka zapytań, a tick biegnie co minutę -
+  // mniejsza partia co minutę daje większą przepustowość niż duża co pięć.
+  // `community-cron` zostaje siatką bezpieczeństwa (zajęcia są dzierżawione,
+  // więc oba ticki niczego nie dublują).
+  const eventTicketCodes = await runJobStep(overBudget, async () => {
+    const { runPendingTicketCodes } = await import("@/lib/events/ticketCodeNotify.server");
+    return runPendingTicketCodes(20);
+  });
   // Rotacyjny skan linków wychodzących (B7): 6 wpisów co 15 minut zamiast 3 co
   // minutę - ta sama przepustowość dzienna przy ~15x mniejszym ruchu HTTP.
   const linkCheck = everyNthMinute(15, tickTime)
@@ -254,6 +273,7 @@ export async function runJobsTick(
     digestWeekly,
     eventReminders,
     crmTaskReminders,
+    eventTicketCodes,
     linkCheck,
     integrations,
     semanticIndex,

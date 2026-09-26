@@ -187,6 +187,9 @@ export const adminEventRegistrationPl = {
       promote: "Awansuj z rezerwy",
       markNotified: "Oznacz jako powiadomionych",
       exportCsv: "Eksport CSV",
+      // Ponowna wysylka biletu z kodem QR (`admin_event_ticket_resend`).
+      resendTicket: "Wyślij bilet ponownie",
+      resendGroupTickets: "Wyślij bilety całej grupie",
     },
 
     registrations: {
@@ -253,6 +256,17 @@ export const adminEventRegistrationPl = {
         ofCapacity: "{{left}} z {{capacity}}",
       },
 
+      // Rejestracja grupowa i bilet z kodem QR (`admin_event_registration_group_links`).
+      // `has_qr` z listy nie mowi, czy mail wyszedl - mowi o tym dopiero znacznik
+      // wysylki, wiec plakietki biletu stoja osobno od „kodu wejsciowego".
+      badges: {
+        guestOf: "Gość: {{name}}",
+        guest: "Gość grupy",
+        groupLead: "Grupa: +{{count}}",
+        ticketSent: "Bilet wysłany",
+        ticketNotSent: "Bilet niewysłany",
+      },
+
       entryCode: {
         issued: "Wydany",
         notIssued: "Niewydany",
@@ -285,6 +299,8 @@ export const adminEventRegistrationPl = {
         approveTitle: "Zatwierdzić to zgłoszenie?",
         approveBody:
           "Zgłoszenie zajmie miejsce w puli i otrzyma kod wejściowy. Kod przekaż uczestnikowi wiadomością.",
+        approveGroupHint:
+          "Goście z tego zgłoszenia ({{count}}) zostaną przyjęci razem z prowadzącym - jeśli są rozliczeni i jest dla nich miejsce - i każdy dostanie własny bilet mailem.",
         rejectTitle: "Odrzucić to zgłoszenie?",
         rejectBody:
           "Powód jest wymagany i zostaje w historii zgłoszenia. Osoba może złożyć nowe zgłoszenie.",
@@ -358,6 +374,11 @@ export const adminEventRegistrationPl = {
         exported: "Wyeksportowano zgłoszenia: {{count}}",
         exportTruncated:
           "Plik nie zawiera wszystkich zgłoszeń - zawęź filtr i wyeksportuj resztę osobno.",
+        // Bilety z kodem QR po decyzji i po ponownej wysylce - ta sama konstrukcja
+        // „rzeczownik: liczba", bez sufiksow liczby mnogiej (patrz wyzej).
+        ticketsSent: "Wysłano bilety: {{count}}",
+        ticketResent: "Bilety wysłane ponownie: {{count}}",
+        ticketResendFailed: "Nie udało się wysłać biletu.",
       },
     },
 
@@ -1170,6 +1191,7 @@ export const adminEventRegistrationPl = {
         "Każdy próg cennika potrzebuje ceny i okna, które kończy się po tym, jak się zaczyna.",
       invalidConsentUrl: "Adres dokumentu zgody musi zaczynać się od https:// (do 500 znaków).",
       notFound: "Rekord nie istnieje w tej organizacji.",
+      ticketNotIssuable: "Bilet dostaje tylko zgłoszenie przyjęte i rozliczone.",
       packageSoldOut: "Pula pakietów tego rodzaju została wyczerpana.",
       packageInUse: "Pakiet ma {{count}} zamówień - wyłącz go zamiast usuwać.",
       seatTaken: "To miejsce jest już zajęte przez uczestnika.",
@@ -1341,6 +1363,8 @@ export const adminEventRegistrationEn = {
       promote: "Promote from the waiting list",
       markNotified: "Mark as notified",
       exportCsv: "Export CSV",
+      resendTicket: "Resend ticket",
+      resendGroupTickets: "Resend tickets to the whole group",
     },
 
     registrations: {
@@ -1408,6 +1432,14 @@ export const adminEventRegistrationEn = {
         ofCapacity: "{{left}} of {{capacity}}",
       },
 
+      badges: {
+        guestOf: "Guest of {{name}}",
+        guest: "Group guest",
+        groupLead: "Group: +{{count}}",
+        ticketSent: "Ticket sent",
+        ticketNotSent: "Ticket not sent",
+      },
+
       entryCode: {
         issued: "Issued",
         notIssued: "Not issued",
@@ -1440,6 +1472,8 @@ export const adminEventRegistrationEn = {
         approveTitle: "Approve this application?",
         approveBody:
           "The application will take a seat from the pool and receive an entry code. Pass the code to the participant in a message.",
+        approveGroupHint:
+          "This registration's guests ({{count}}) will be admitted together with the lead - if they are settled and there is a seat for them - and each gets their own ticket by e-mail.",
         rejectTitle: "Reject this application?",
         rejectBody:
           "A reason is required and stays in the application history. The person may submit a new application.",
@@ -1508,6 +1542,9 @@ export const adminEventRegistrationEn = {
         exported: "Exported registrations: {{count}}",
         exportTruncated:
           "The file does not contain every registration - narrow the filter and export the rest separately.",
+        ticketsSent: "Tickets sent: {{count}}",
+        ticketResent: "Tickets resent: {{count}}",
+        ticketResendFailed: "The ticket could not be sent.",
       },
     },
 
@@ -2302,6 +2339,7 @@ export const adminEventRegistrationEn = {
       invalidConsentUrl:
         "The consent document address must start with https:// (up to 500 characters).",
       notFound: "The record does not exist in this organisation.",
+      ticketNotIssuable: "Only an approved and settled registration gets a ticket.",
       packageSoldOut: "The pool of packages of this kind is exhausted.",
       packageInUse: "The package has {{count}} orders - disable it instead of deleting.",
       seatTaken: "This seat is already taken by a participant.",

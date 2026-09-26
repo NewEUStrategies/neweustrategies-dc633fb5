@@ -21,7 +21,8 @@
  *   SCHEDULER_SECRET          wymagane (COMMUNITY_CRON_SECRET albo sekret runnera)
  *   SCHEDULER_ENDPOINT        domyślnie /api/public/community-cron
  *   SCHEDULER_JOB             all | push | digest-daily | digest-weekly |
- *                             event-reminders | crm-task-reminders
+ *                             event-reminders | crm-task-reminders |
+ *                             event-ticket-codes
  *   SCHEDULER_SOURCE          domyślnie github_actions (ląduje w logu przebiegów)
  *   SCHEDULER_TICKS           liczba ticków w jednym przebiegu (domyślnie 1)
  *   SCHEDULER_INTERVAL_MS     odstęp między tickami (domyślnie 60000)

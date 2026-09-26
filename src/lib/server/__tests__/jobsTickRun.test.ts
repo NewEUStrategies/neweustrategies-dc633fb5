@@ -19,7 +19,7 @@
 //   * zamiana `skipped_duty_cycle` / `skipped_time_budget` na zwykły błąd -
 //     scheduler alarmuje przy KAŻDYM ticku, więc operator uczy się ignorować
 //     alarm i przestaje widzieć realną awarię,
-//   * ucieczka wyjątku z jednego joba - jeden padnięty kanał zabiera dwanaście
+//   * ucieczka wyjątku z jednego joba - jeden padnięty kanał zabiera trzynaście
 //     pozostałych, choć komentarz :7 obiecuje niezależność,
 //   * brak wpisu heartbeatu albo wpis z `ok:true` przy awarii - pg_net jest
 //     fire-and-forget, więc `public.job_runner_runs` to JEDYNY sposób, żeby
@@ -48,13 +48,15 @@
 // liście wywołań, bo kolejność jest tu treścią, nie kosmetyką.
 //
 // GRANICE, KTÓRE ATRAPUJEMY, I DLACZEGO (granica atrapy = moduł z własnym
-// dowodem). Siedem modułów - cztery z importów GÓRNYCH i trzy wciągane
+// dowodem). Osiem modułów - cztery z importów GÓRNYCH i cztery wciągane
 // `await import(...)` w środku ticku:
 //   * `@/lib/newsletter-campaigns.functions`, `@/lib/email/queueDrain.server`,
 //     `@/lib/notifications/dispatch.server` - realna poczta, Resend i VAPID;
 //   * `@/lib/server/linkCheck.server`, `@/lib/integrations/dispatch.functions`,
 //     `@/lib/server/embeddings.server` - realna sieć wychodząca i model
 //     embeddingów (każdy ma własny plik testowy obok);
+//   * `@/lib/events/ticketCodeNotify.server` - bilety z kodem QR: klucz
+//     serwisowy i poczta (własny test w `lib/events/__tests__`);
 //   * `@/lib/server/jobScheduler.server` - log przebiegów; atrapa jest tu
 //     INSTRUMENTEM POMIAROWYM, bo dowodzimy TREŚCI raportu i TOŻSAMOŚCI
 //     przekazanego klienta, czego z prawdziwym RPC nie dałoby się odczytać.
@@ -102,6 +104,7 @@ const fixtures = vi.hoisted(() => ({
   digestWeekly: { claimed: 2, sent: 2 },
   eventReminders: 7,
   crmTaskReminders: 5,
+  eventTicketCodes: { registrations: 4, sent: 3 },
   linkCheck: { postsScanned: 6, linksChecked: 41, broken: 2, archived: 1, alerted: 1 },
   integrations: { claimed: 7, delivered: 6, failed: 1 },
   semanticIndex: { scanned: 24, embedded: 20 },
@@ -117,7 +120,7 @@ const fixtures = vi.hoisted(() => ({
  * `note` jest wejściem dla jobów, które nie mają własnej granicy modułowej:
  * harmonogram klubów woła `admin.rpc("club_scheduler_tick")` wprost, więc
  * ląduje w tej samej liście przez odpowiedź atrapy RPC. Bez tego kolejność
- * dałoby się przypiąć tylko dla dwunastu z trzynastu jobów.
+ * dałoby się przypiąć tylko dla trzynastu z czternastu jobów.
  */
 const jobs = vi.hoisted(() => {
   const state = {
@@ -201,9 +204,9 @@ vi.mock("@/lib/server/jobScheduler.server", () => ({
   },
 }));
 
-// --- atrapy granic: trzy importy DYNAMICZNE ---------------------------------
+// --- atrapy granic: cztery importy DYNAMICZNE -------------------------------
 // `vi.mock` podstawia moduł niezależnie od tego, czy wchodzi górnym importem,
-// czy `await import(...)` w środku funkcji - te trzy są wciągane dopiero
+// czy `await import(...)` w środku funkcji - te cztery są wciągane dopiero
 // w ticku, żeby nie weszły do bundla trasy.
 
 vi.mock("@/lib/server/linkCheck.server", () => ({
@@ -214,6 +217,11 @@ vi.mock("@/lib/server/linkCheck.server", () => ({
 vi.mock("@/lib/integrations/dispatch.functions", () => ({
   runIntegrationDispatch: (limit: number) =>
     jobs.run("integrations", [limit], fixtures.integrations),
+}));
+
+vi.mock("@/lib/events/ticketCodeNotify.server", () => ({
+  runPendingTicketCodes: (limit: number) =>
+    jobs.run("eventTicketCodes", [limit], fixtures.eventTicketCodes),
 }));
 
 vi.mock("@/lib/server/embeddings.server", () => ({
@@ -266,6 +274,7 @@ const FULL_ORDER = [
   "digestWeekly",
   "eventReminders",
   "crmTaskReminders",
+  "eventTicketCodes",
   "linkCheck",
   "integrations",
   "semanticIndex",
@@ -283,6 +292,7 @@ const CRITICAL_SENDS = [
   "digestWeekly",
   "eventReminders",
   "crmTaskReminders",
+  "eventTicketCodes",
 ] as const;
 
 /** Joby kosztowne sieciowo - kandydaci do pominięcia jako PIERWSI. */
@@ -305,6 +315,7 @@ const EVERY_MINUTE_JOBS = [
   "push",
   "eventReminders",
   "crmTaskReminders",
+  "eventTicketCodes",
   "integrations",
 ] as const;
 
@@ -388,7 +399,7 @@ beforeEach(() => {
   rpc = supabaseRpcStub();
   clubTick = ok(CLUB_ROW);
   // Odpowiedź RPC dopisuje harmonogram klubów do TEJ SAMEJ listy wywołań, co
-  // pozostałe dwanaście jobów - inaczej kolejność ostatniego joba byłaby
+  // pozostałe trzynaście jobów - inaczej kolejność ostatniego joba byłaby
   // niemierzalna, a to właśnie on jest pomijany pierwszy.
   rpc.setResponse("club_scheduler_tick", (call) => {
     jobs.note("clubScheduler", [call.name]);
@@ -405,7 +416,7 @@ afterEach(() => {
 // KOLEJNOŚĆ JOBÓW
 // ===========================================================================
 describe("kolejność jobów jest kontraktem, nie kosmetyką", () => {
-  it("pełny tick (minuta 0) wykonuje trzynaście jobów w przypiętej kolejności", async () => {
+  it("pełny tick (minuta 0) wykonuje czternaście jobów w przypiętej kolejności", async () => {
     // Minuta 0 otwiera WSZYSTKIE bramki (0 % 5 = 0 % 15 = 0 % 60 = 0), więc
     // to jedyny moment, w którym kolejność da się przypiąć w całości.
     await tickAt(0);
@@ -432,7 +443,7 @@ describe("kolejność jobów jest kontraktem, nie kosmetyką", () => {
   });
 
   it("wynik każdego joba ląduje w SWOIM polu wyniku", async () => {
-    // Trzynaście pól i trzynaście różnych treści: gdyby dwa joby wpisywały się
+    // Czternaście pól i czternaście różnych treści: gdyby dwa joby wpisywały się
     // w to samo pole (albo pole zostało przestawione przy dopisywaniu nowego
     // joba), panel admina raportowałby cudzy licznik jako swój.
     const result = await tickAt(0);
@@ -445,6 +456,7 @@ describe("kolejność jobów jest kontraktem, nie kosmetyką", () => {
       digestWeekly: fixtures.digestWeekly,
       eventReminders: fixtures.eventReminders,
       crmTaskReminders: fixtures.crmTaskReminders,
+      eventTicketCodes: fixtures.eventTicketCodes,
       linkCheck: fixtures.linkCheck,
       integrations: fixtures.integrations,
       semanticIndex: fixtures.semanticIndex,
@@ -480,6 +492,8 @@ describe("kolejność jobów jest kontraktem, nie kosmetyką", () => {
     expect(jobs.argsOf("digestWeekly")).toEqual(["weekly", 50]);
     expect(jobs.argsOf("linkCheck")?.[1]).toBe(6);
     expect(jobs.argsOf("integrations")).toEqual([20]);
+    // Bilety: partia 20 co minutę (community-cron bierze 50 co pięć minut).
+    expect(jobs.argsOf("eventTicketCodes")).toEqual([20]);
     expect(jobs.argsOf("semanticIndex")?.[1]).toBe(24);
     expect(jobs.argsOf("profileIndex")?.[1]).toBe(16);
     expect(jobs.argsOf("clubThreadIndex")?.[1]).toBe(16);
@@ -612,7 +626,22 @@ describe("budżet czasu jednego ticku", () => {
     expect(jobError(result.digestDaily)).toBe("skipped_time_budget");
   });
 
-  it("wyczerpanie budżetu na PIERWSZYM jobie pomija dwanaście pozostałych", async () => {
+  it("bilety z kodem QR biegną zaraz po przypomnieniach - i są pomijane po budżecie", async () => {
+    // Krok biletów wszedł do minutowego ticku w 20260926100000. Stoi wśród
+    // wysyłek, więc przy pełnym budżecie biegnie co minutę, a po jego
+    // wyczerpaniu NIE jest wołany - cron społeczności odbierze partię.
+    await tickAt(3);
+    expect(jobs.steps()).toContain("eventTicketCodes");
+    expect(orderOf("eventTicketCodes")).toBe(orderOf("crmTaskReminders") + 1);
+
+    jobs.reset();
+    slowJob("crmTaskReminders", 25_001);
+    const result = await tickAt(3);
+    expect(jobs.steps()).not.toContain("eventTicketCodes");
+    expect(result.eventTicketCodes).toEqual({ error: "skipped_time_budget" });
+  });
+
+  it("wyczerpanie budżetu na PIERWSZYM jobie pomija trzynaście pozostałych", async () => {
     slowJob("newsletter", 30_000);
 
     const result = await tickAt(0);
@@ -686,7 +715,7 @@ describe("dren kolejek pocztowych ma własny budżet (EMAIL_DRAIN_DEADLINE_MS = 
 describe("runJobStep: awaria jednego joba nie zabiera pozostałych", () => {
   it("rzut `Error` staje się `{ error: komunikat }`, a tick jedzie dalej", async () => {
     // Obietnica z komentarza :7 („błąd jednego nie blokuje pozostałych") jest
-    // tu dowodzona przez LISTĘ WYWOŁAŃ: wszystkie trzynaście jobów startuje,
+    // tu dowodzona przez LISTĘ WYWOŁAŃ: wszystkie czternaście jobów startuje,
     // choć trzeci z nich rzucił.
     jobs.failures.set("push", "web-push: 503 od dostawcy");
 

@@ -20873,6 +20873,18 @@ export type Database = {
           updated_at: string
         }[]
       }
+      admin_event_registration_group_links: {
+        Args: { p_event_id: string }
+        Returns: {
+          group_lead_registration_id: string
+          guest_count: number
+          lead_first_name: string
+          lead_last_name: string
+          payment_status: string
+          registration_id: string
+          ticket_code_sent_at: string
+        }[]
+      }
       admin_event_registration_mark_notified: {
         Args: { p_payload: Json }
         Returns: number
@@ -21420,6 +21432,10 @@ export type Database = {
           price_label_pl: string
           show_price_label: boolean
         }[]
+      }
+      admin_event_ticket_resend: {
+        Args: { p_include_group?: boolean; p_registration_id: string }
+        Returns: string
       }
       admin_event_ticket_set_presentation: {
         Args: {

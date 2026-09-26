@@ -24,6 +24,11 @@
 // Po odmowie `group_too_large` panel czyta limit biletu od nowa - osobnym
 // wywolaniem `fetchRegistrationForm`, a nie przez `formQuery`: porazka tego
 // odczytu nie moze przelaczyc strony w „zapisy niedostepne".
+//
+// SESJA ZGASLA, GOSCIE WPISANI - ZATRZYMUJEMY ZAPIS. Bez konta
+// `event_register_group_guests` odmawia (`account_required`), wiec formularz
+// wysylal pusta liste gosci i pokazywal sukces samego prowadzacego. Goscie nie
+// istnieli w bazie, a kupujacy byl przekonany, ze zapisal cala grupe.
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -70,6 +75,9 @@ import { RegistrationAnswerField } from "./RegistrationAnswerField";
 import { RegistrationConfirmation } from "./RegistrationConfirmation";
 import { RegistrationTermsList } from "./RegistrationTermsList";
 import { RegistrationTicketPicker } from "./RegistrationTicketPicker";
+import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
+
+ensureEventRegistrationI18n();
 
 /** Goście, których baza nie dopisała - wracają do edycji na ekranie potwierdzenia. */
 interface GuestRetry {
@@ -101,6 +109,8 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
   const [guests, setGuests] = useState<GroupGuest[]>([]);
   const [guestErrors, setGuestErrors] = useState<(GuestIssue | null)[]>([]);
   const [guestRetry, setGuestRetry] = useState<GuestRetry | null>(null);
+  // Ilu gości baza dopisała - ekran potwierdzenia mówi, kiedy dostaną bilety.
+  const [guestsAdded, setGuestsAdded] = useState(0);
 
   // Szkic powstaje dopiero, gdy znamy bilety - domyslny wybor zalezy od tego,
   // ile pozycji jest naprawde w sprzedazy.
@@ -194,7 +204,7 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
       // wszystkie miejsca jednym zamówieniem, a każdy dostanie własny kod QR.
       if (groupGuests.length > 0) {
         try {
-          await registerGroupGuests(registered.registrationId, groupGuests);
+          setGuestsAdded(await registerGroupGuests(registered.registrationId, groupGuests));
           sendGuestTickets(registered.manageToken);
         } catch (error) {
           // Zgłoszenie prowadzącego już stoi, więc potwierdzenie i tak się
@@ -281,13 +291,17 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
             initialGuests={guestRetry.guests}
             initialError={guestRetry.error}
             paymentRequired={result.paymentRequired}
-            onAdded={() => sendGuestTickets(result.manageToken)}
+            onAdded={(added) => {
+              setGuestsAdded(added);
+              sendGuestTickets(result.manageToken);
+            }}
           />
         )}
         <RegistrationConfirmation
           result={result}
           slug={slug}
           eventId={form.event.id}
+          guestsAdded={guestsAdded}
           cancelled={cancelled}
           cancelling={cancel.isPending}
           onCancel={() => cancel.mutate(result)}
@@ -331,6 +345,15 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
   // odrzuciłaby całą listę jako `group_too_large`.
   const groupMaxSize = selectedTicket?.groupMaxSize ?? GROUP_SIZE_DEFAULT;
   const groupGuests = groupEnabled && user !== null ? guests.slice(0, groupMaxSize - 1) : [];
+  // Goscie wpisani, gdy sesja jeszcze byla - `groupGuests` jest wtedy puste,
+  // choc lista w stanie nie. Liczy sie wiersz z czymkolwiek wpisanym: pusty
+  // wiersz „Dodaj osobe" nie jest gosciem, ktorego by zgubil zapis.
+  const guestsLostWithSession =
+    groupEnabled &&
+    user === null &&
+    guests
+      .slice(0, groupMaxSize - 1)
+      .some((g) => `${g.firstName}${g.lastName}${g.email}`.trim() !== "");
 
   return (
     <form
@@ -344,6 +367,10 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
         setGuestErrors(guestFound);
         if (found.length > 0 || guestFound.some((issue) => issue !== null)) {
           setFailure(null);
+          return;
+        }
+        if (guestsLostWithSession) {
+          setFailure(t("eventRegistration.group.sessionLost"));
           return;
         }
         setFailure(null);

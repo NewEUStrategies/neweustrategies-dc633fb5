@@ -26,8 +26,11 @@ import { formatAmountDue } from "@/lib/events/amountDue";
 import { Button } from "@/components/ui/button";
 import { RegistrationPayAction } from "@/components/events/registration/molecules/RegistrationPayAction";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
+import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
 
 ensureEventFrontI18n();
+// Zdanie o biletach gosci grupy (`eventRegistration.group.*`).
+ensureEventRegistrationI18n();
 
 export function RegistrationConfirmation({
   result,
@@ -36,6 +39,7 @@ export function RegistrationConfirmation({
   cancelled,
   cancelling,
   onCancel,
+  guestsAdded = 0,
 }: {
   result: RegistrationResult;
   /** Slug wydarzenia - buduje adres strony zarzadzania zgloszeniem. */
@@ -52,6 +56,8 @@ export function RegistrationConfirmation({
   cancelled: boolean;
   cancelling: boolean;
   onCancel: () => void;
+  /** Ilu gosci baza dopisala do tego zgloszenia (zapis grupowy); 0 = bez grupy. */
+  guestsAdded?: number;
 }) {
   const { t, i18n } = useTranslation();
   const [copied, setCopied] = useState(false);
@@ -101,6 +107,19 @@ export function RegistrationConfirmation({
       <p className="rounded-[6px] border border-primary/40 bg-primary/5 p-4 text-sm text-foreground">
         {cancelled ? t("eventRegistration.result.cancelled") : statusMessage}
       </p>
+
+      {/* BILETY GOSCI GRUPY. Kazdy gosc dostaje WLASNY mail z kodem QR - ale
+          nie zawsze teraz. Bez tego zdania kupujacy nie wiedzial, czy goscie
+          maja juz bilety, czy czekaja na organizatora albo na platnosc. */}
+      {guestsAdded > 0 && !cancelled && (
+        <p className="text-sm text-muted-foreground">
+          {result.paymentRequired
+            ? t("eventRegistration.group.ticketsAfterPayment")
+            : result.status === "approved"
+              ? t("eventRegistration.group.ticketsSent", { count: guestsAdded })
+              : t("eventRegistration.group.ticketsAfterApproval")}
+        </p>
+      )}
 
       {/* ZGŁOSZENIE CZEKA NA ZAPŁATĘ - i uczestnik musi to zobaczyć PRZED
           kluczem samoobsługi, bo inaczej wyjdzie z ekranu przekonany, że ma

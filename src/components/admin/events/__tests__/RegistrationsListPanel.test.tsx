@@ -84,7 +84,14 @@ const h = vi.hoisted(() => ({
   /** Wywołania server fn poczty, w kolejności - dowód SZEREGOWOŚCI. */
   notifyCalls: [] as { registrationId: string; notice: string }[],
   /** Odpowiedź poczty per identyfikator; brak wpisu = `{ ok: true }`. */
-  notifyResults: {} as Record<string, { ok: boolean } | "throw">,
+  notifyResults: {} as Record<string, { ok: boolean; ticketsSent?: number } | "throw">,
+  /** Powiązania grupy i stan biletu (`admin_event_registration_group_links`). */
+  groupLinks: undefined as unknown[] | undefined,
+  refetchGroupLinks: vi.fn(),
+  /** Ponowna wysyłka biletu: wywołania, wynik (liczba albo odmowa) i stan. */
+  resendCalls: [] as unknown[],
+  resendResult: 1 as number | Error,
+  resendPending: false,
   notifyHang: false,
   /** Kolejne strony eksportu - `shift()` przy każdym wywołaniu. */
   exportPages: [] as { rows: unknown[]; total: number }[],
@@ -102,6 +109,10 @@ vi.mock("sonner", () => ({
 }));
 // Słownik odmów bazy ma własny plik testowy; tutaj potrzebny jest wyłącznie
 // dowód, że odmowa DOCHODZI do organizatora zdaniem, a nie kodem `23514`.
+// Nakładka słownika rejestruje klucze w PRAWDZIWYM i18next (a ten ciągnie
+// środowisko TanStack Start). Tu klucze i tak idą przez atrapę `t`, więc
+// wystarcza, że organizm WOŁA rejestrację.
+vi.mock("@/lib/i18n-admin-event-registration", () => ({ ensureI18n: () => undefined }));
 vi.mock("@/lib/events/adminRegistrationErrors", () => ({
   adminRegistrationErrorMessage: (error: unknown) =>
     `odmowa:${error instanceof Error ? error.message : String(error)}`,
@@ -234,6 +245,32 @@ vi.mock("@/components/ui/dialog", () => {
   };
 });
 
+// Okno decyzji zostaje PRAWDZIWE; obok niego stoi JEDEN dodatkowy przycisk,
+// który woła `onConfirm` bez względu na stan okna. Tylko tak da się dowieść
+// strażnika w `confirmDecision` (`decided`/`action` puste = nic nie leci) -
+// prawdziwe okno pokazuje potwierdzenie wyłącznie przy wybranej czynności.
+vi.mock("@/components/admin/events/molecules/RegistrationDecideDialog", async (importOriginal) => {
+  const real =
+    await importOriginal<
+      typeof import("@/components/admin/events/molecules/RegistrationDecideDialog")
+    >();
+  return {
+    ...real,
+    RegistrationDecideDialog: (
+      props: Parameters<typeof real.RegistrationDecideDialog>[0],
+    ): ReactNode => (
+      <>
+        <real.RegistrationDecideDialog {...props} />
+        <button
+          type="button"
+          data-testid="okno-potwierdz-na-slepo"
+          onClick={() => props.onConfirm(null)}
+        />
+      </>
+    ),
+  };
+});
+
 vi.mock("@/lib/events/useEventRegistrations", () => ({
   useRegistrationsList: (query: unknown) => {
     h.listQueries.push(query);
@@ -266,12 +303,25 @@ vi.mock("@/lib/events/useEventRegistrations", () => ({
     isPending: h.promotePending,
   }),
   useMarkRegistrationsNotified: () => ({ reset: h.markReset }),
+  useRegistrationGroupLinks: () => ({ data: h.groupLinks, refetch: h.refetchGroupLinks }),
+  useResendEventTicket: () => ({
+    mutate: (
+      input: unknown,
+      wynik: { onSuccess?: (count: number) => void; onError?: (error: unknown) => void },
+    ) => {
+      h.resendCalls.push(input);
+      if (h.resendResult instanceof Error) wynik.onError?.(h.resendResult);
+      else wynik.onSuccess?.(h.resendResult);
+    },
+    isPending: h.resendPending,
+  }),
 }));
 
 import { RegistrationsListPanel } from "@/components/admin/events/organisms/RegistrationsListPanel";
 import { DEFAULT_REGISTRATIONS_QUERY } from "@/lib/events/registrationsApi";
 import { emptyRegistrationCounts } from "@/lib/events/registrationCounts";
 import { eventTicketRow } from "@/test/events/adminSalesRows";
+import { FIXED_NOW_ISO } from "@/test/time";
 
 /**
  * Kolumny NULL-owalne, które generator typuje jako `string`/`number`.
@@ -431,6 +481,11 @@ beforeEach(() => {
   h.notifyCalls = [];
   h.notifyResults = {};
   h.notifyHang = false;
+  h.groupLinks = undefined;
+  h.refetchGroupLinks.mockClear();
+  h.resendCalls = [];
+  h.resendResult = 1;
+  h.resendPending = false;
   h.exportPages = [];
   h.exportError = null;
   h.toastSuccess.mockClear();
@@ -977,6 +1032,18 @@ describe("decyzja organizatora", () => {
     expect(h.notifyCalls).toEqual([]);
   });
 
+  it("potwierdzenie bez wybranej czynności niczego nie zapisuje (strażnik)", () => {
+    // Stan „okno zamknięte" to `decided === null` i `action === null`. Gdyby
+    // `onConfirm` doszedł tu mimo to (np. spóźnione kliknięcie po zamknięciu),
+    // decyzja poleciałaby dla nieznanego wiersza - strażnik ma ją zatrzymać.
+    panel();
+    fireEvent.click(screen.getByTestId("okno-potwierdz-na-slepo"));
+
+    expect(h.decideCalls).toEqual([]);
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+    expect(h.notifyCalls).toEqual([]);
+  });
+
   it("zamknięcie okna bez potwierdzenia niczego nie zapisuje", () => {
     panel();
     otworzDecyzje("adminEventRegistration.actions.approve");
@@ -1342,5 +1409,240 @@ describe("eksport listy uczestników", () => {
     fireEvent.click(guzik);
 
     await waitFor(() => expect(zapytaniaEksportu()).toHaveLength(1));
+  });
+});
+
+// ===========================================================================
+// REJESTRACJA GRUPOWA I BILET Z KODEM QR (20260926100000)
+//
+// Lista sama nie wie, kto jest gościem czyjej grupy ani czy bilet wyszedł -
+// wie o tym `admin_event_registration_group_links`. Bez plakietek organizator
+// zatwierdzał prowadzącego, nie wiedząc, że przyjmuje całą grupę, a gościa bez
+// maila nie miał jak poratować.
+// ===========================================================================
+/** Wiersz powiązań - domyślnie wiersz bez grupy, bez biletu, rozliczony. */
+function groupLink(over: Record<string, unknown> = {}) {
+  return {
+    registration_id: "reg-1",
+    group_lead_registration_id: null,
+    lead_first_name: null,
+    lead_last_name: null,
+    guest_count: 0,
+    payment_status: "not_required",
+    ticket_code_sent_at: null,
+    ...over,
+  };
+}
+
+describe("plakietki grupy i biletu", () => {
+  it("gość nosi nazwisko prowadzącego, prowadzący liczbę gości", () => {
+    h.rows = [
+      registrationRow({ id: "reg-lead", status: "pending" }),
+      registrationRow({ id: "reg-guest", status: "pending", first_name: "Ewa" }),
+    ];
+    h.groupLinks = [
+      groupLink({ registration_id: "reg-lead", guest_count: 2 }),
+      groupLink({
+        registration_id: "reg-guest",
+        group_lead_registration_id: "reg-lead",
+        lead_first_name: "Anna",
+        lead_last_name: "Nowak",
+      }),
+    ];
+    panel();
+
+    const [lead, guest] = wiersze() as [HTMLElement, HTMLElement];
+    expect(within(lead).getByText(`${B}.badges.groupLead(count=2)`)).toBeTruthy();
+    expect(within(guest).getByText(`${B}.badges.guestOf(name=Anna Nowak)`)).toBeTruthy();
+    // Oczekujący nie trzyma biletu - plakietka „niewysłany" nic by nie mówiła.
+    expect(within(guest).queryByText(`${B}.badges.ticketNotSent`)).toBeNull();
+  });
+
+  it("gość bez danych prowadzącego dostaje ogólną plakietkę, nie „Gość: ”", () => {
+    h.groupLinks = [groupLink({ group_lead_registration_id: "reg-lead" })];
+    panel();
+
+    expect(within(wiersze()[0] as HTMLElement).getByText(`${B}.badges.guest`)).toBeTruthy();
+  });
+
+  it("przyjęty wiersz mówi, czy bilet wyszedł mailem", () => {
+    h.rows = [
+      registrationRow({ id: "reg-sent", status: "approved" }),
+      registrationRow({ id: "reg-unsent", status: "attended" }),
+    ];
+    h.groupLinks = [
+      groupLink({ registration_id: "reg-sent", ticket_code_sent_at: FIXED_NOW_ISO }),
+      groupLink({ registration_id: "reg-unsent" }),
+    ];
+    panel();
+
+    const [sent, unsent] = wiersze() as [HTMLElement, HTMLElement];
+    expect(within(sent).getByText(`${B}.badges.ticketSent`)).toBeTruthy();
+    expect(within(unsent).getByText(`${B}.badges.ticketNotSent`)).toBeTruthy();
+  });
+
+  it("bez odpowiedzi powiązań (zapytanie w locie) nie zgaduje plakietek ani przycisku", () => {
+    h.rows = [registrationRow({ status: "approved" })];
+    panel();
+
+    expect(screen.queryByText(/badges\./)).toBeNull();
+    expect(screen.queryByRole("button", { name: /resendTicket/ })).toBeNull();
+  });
+});
+
+describe("zatwierdzenie prowadzącego grupy", () => {
+  const potwierdz = () =>
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: `${B}.decideDialog.confirmAction`,
+      }),
+    );
+
+  it("okno zatwierdzenia mówi, że goście wchodzą razem z prowadzącym", () => {
+    h.groupLinks = [groupLink({ guest_count: 2 })];
+    panel();
+
+    fireEvent.click(przycisk("adminEventRegistration.actions.approve"));
+
+    expect(
+      within(screen.getByRole("dialog")).getByText(`${B}.decideDialog.approveGroupHint(count=2)`),
+    ).toBeTruthy();
+  });
+
+  it("odrzucenie prowadzącego nie niesie tej podpowiedzi", () => {
+    h.groupLinks = [groupLink({ guest_count: 2 })];
+    panel();
+    fireEvent.click(przycisk("adminEventRegistration.actions.reject"));
+    expect(within(screen.getByRole("dialog")).queryByText(/approveGroupHint/)).toBeNull();
+  });
+
+  it("zatwierdzenie wiersza bez gości nie niesie tej podpowiedzi", () => {
+    h.groupLinks = [groupLink()];
+    panel();
+    fireEvent.click(przycisk("adminEventRegistration.actions.approve"));
+    expect(within(screen.getByRole("dialog")).queryByText(/approveGroupHint/)).toBeNull();
+  });
+
+  it("po zatwierdzeniu organizator widzi liczbę wysłanych biletów i świeże plakietki", async () => {
+    h.notifyResults = { "reg-1": { ok: true, ticketsSent: 3 } };
+    panel();
+    fireEvent.click(przycisk("adminEventRegistration.actions.approve"));
+    potwierdz();
+
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith(`${B}.toasts.ticketsSent(count=3)`),
+    );
+    expect(h.refetchGroupLinks).toHaveBeenCalled();
+  });
+
+  it("nieudany mail o decyzji nie chowa wysłanych biletów", async () => {
+    h.notifyResults = { "reg-1": { ok: false, ticketsSent: 2 } };
+    panel();
+    fireEvent.click(przycisk("adminEventRegistration.actions.approve"));
+    potwierdz();
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith(`${B}.toasts.notifyFailed`));
+    expect(h.toastSuccess).toHaveBeenCalledWith(`${B}.toasts.ticketsSent(count=2)`);
+  });
+
+  it("zero biletów (np. odrzucenie) nie daje komunikatu o biletach", async () => {
+    panel();
+    fireEvent.click(przycisk("adminEventRegistration.actions.approve"));
+    potwierdz();
+
+    await waitFor(() => expect(h.refetchGroupLinks).toHaveBeenCalled());
+    expect(h.toastSuccess).not.toHaveBeenCalledWith(expect.stringContaining("ticketsSent"));
+  });
+});
+
+describe("powiadomienie awansowanych wysyła też bilety", () => {
+  it("liczy bilety ze wszystkich awansów i odświeża plakietki", async () => {
+    h.rows = [
+      registrationRow({ id: "reg-1", status: "approved", promoted_at: FIXED_NOW_ISO }),
+      registrationRow({ id: "reg-2", status: "approved", promoted_at: FIXED_NOW_ISO }),
+    ];
+    h.notifyResults = { "reg-1": { ok: true, ticketsSent: 2 }, "reg-2": { ok: true } };
+    panel();
+
+    fireEvent.click(przycisk("adminEventRegistration.actions.markNotified"));
+
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith(`${B}.toasts.ticketsSent(count=2)`),
+    );
+    expect(h.refetchGroupLinks).toHaveBeenCalled();
+  });
+});
+
+describe("ponowna wysyłka biletu", () => {
+  const RESEND = "adminEventRegistration.actions.resendTicket";
+  const RESEND_GROUP = "adminEventRegistration.actions.resendGroupTickets";
+
+  it("przyjęty i rozliczony wiersz ma przycisk - wysyła TYLKO tę osobę", () => {
+    h.rows = [registrationRow({ status: "approved" })];
+    h.groupLinks = [groupLink()];
+    panel();
+
+    fireEvent.click(przycisk(RESEND));
+
+    expect(h.resendCalls).toEqual([{ registrationId: "reg-1", includeGroup: false }]);
+    expect(h.toastSuccess).toHaveBeenCalledWith(`${B}.toasts.ticketResent(count=1)`);
+    // Pojedynczy wiersz bez gości nie ma przycisku „cała grupa".
+    expect(screen.queryByRole("button", { name: RESEND_GROUP })).toBeNull();
+  });
+
+  it("prowadzący z gośćmi ma też wysyłkę dla całej grupy", () => {
+    h.rows = [registrationRow({ status: "approved" })];
+    h.groupLinks = [groupLink({ guest_count: 2, payment_status: "paid" })];
+    h.resendResult = 3;
+    panel();
+
+    fireEvent.click(przycisk(RESEND_GROUP));
+
+    expect(h.resendCalls).toEqual([{ registrationId: "reg-1", includeGroup: true }]);
+    expect(h.toastSuccess).toHaveBeenCalledWith(`${B}.toasts.ticketResent(count=3)`);
+  });
+
+  it("zero wysłanych (lista wykluczeń, awaria poczty) to błąd, nie „wysłano”", () => {
+    h.rows = [registrationRow({ status: "approved" })];
+    h.groupLinks = [groupLink()];
+    h.resendResult = 0;
+    panel();
+
+    fireEvent.click(przycisk(RESEND));
+
+    expect(h.toastError).toHaveBeenCalledWith(`${B}.toasts.ticketResendFailed`);
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("odmowa bazy dochodzi zdaniem", () => {
+    h.rows = [registrationRow({ status: "approved" })];
+    h.groupLinks = [groupLink()];
+    h.resendResult = new Error("ticket_not_issuable: nope");
+    panel();
+
+    fireEvent.click(przycisk(RESEND));
+
+    expect(h.toastError).toHaveBeenCalledWith("odmowa:ticket_not_issuable: nope");
+  });
+
+  it("trwająca wysyłka gasi przyciski", () => {
+    h.rows = [registrationRow({ status: "approved" })];
+    h.groupLinks = [groupLink({ guest_count: 1 })];
+    h.resendPending = true;
+    panel();
+
+    expect(przycisk(RESEND)).toHaveAttribute("aria-disabled", "true");
+    expect(przycisk(RESEND_GROUP)).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it.each([
+    ["nieoplacony", "approved", "unpaid"],
+    ["oczekujacy", "pending", "not_required"],
+  ])("wiersz %s nie ma przycisku - baza i tak by odmówiła", (_opis, status, payment) => {
+    h.rows = [registrationRow({ status })];
+    h.groupLinks = [groupLink({ payment_status: payment })];
+    panel();
+
+    expect(screen.queryByRole("button", { name: RESEND })).toBeNull();
   });
 });

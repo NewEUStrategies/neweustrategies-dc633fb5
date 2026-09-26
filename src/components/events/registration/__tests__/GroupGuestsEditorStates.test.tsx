@@ -24,6 +24,9 @@ import type { GroupGuest, GuestIssue } from "@/lib/events/ticketTaxGroup";
 import { axeViolations, summarize } from "@/test/axe";
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
+vi.mock("@tanstack/react-router", async () => ({
+  Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
+}));
 
 const { GroupGuestsEditor } = await import("@/components/events/registration/GroupGuestsEditor");
 

@@ -123,6 +123,17 @@ export const eventRegistrationPl = {
       title: "Uczestnicy grupy",
       lead: "Dodaj dane każdej osoby, za którą płacisz. Ty zajmujesz pierwsze miejsce, łącznie do {{max}} osób. Każdy dostanie własny bilet z kodem QR.",
       accountRequired: "Zaloguj się, aby zapisać kilka osób naraz.",
+      signIn: "Zaloguj się",
+      // Sesja zgasła po wpisaniu gości - bez konta baza gości nie dopisze,
+      // a cichy zapis samego prowadzącego wyglądałby jak sukces całej grupy.
+      sessionLost:
+        "Sesja wygasła. Zaloguj się ponownie, żeby zapisać gości - bez tego zapiszesz tylko siebie.",
+      // Ekran potwierdzenia: kiedy goście dostaną WŁASNE bilety z kodem QR.
+      ticketsAfterApproval:
+        "Każdy gość dostanie bilet z kodem QR mailem, gdy zgłoszenie zostanie przyjęte.",
+      ticketsAfterPayment:
+        "Każdy gość dostanie bilet z kodem QR mailem po zaksięgowaniu płatności.",
+      ticketsSent: "Wysyłamy bilety z kodem QR - każdy gość dostaje własny mail. Gości: {{count}}.",
       person: "Osoba {{n}}",
       add: "Dodaj osobę",
       remove: "Usuń osobę",
@@ -475,6 +486,15 @@ export const eventRegistrationEn = {
       title: "Group attendees",
       lead: "Add details of every person you are paying for. You take the first seat, up to {{max}} people in total. Everyone gets their own ticket with a QR code.",
       accountRequired: "Sign in to register several people at once.",
+      signIn: "Sign in",
+      sessionLost:
+        "Your session has expired. Sign in again to register your guests - otherwise only you will be registered.",
+      ticketsAfterApproval:
+        "Each guest will receive their own QR ticket by e-mail once the registration is accepted.",
+      ticketsAfterPayment:
+        "Each guest will receive their own QR ticket by e-mail once the payment is booked.",
+      ticketsSent:
+        "We are e-mailing the QR tickets - each guest gets their own e-mail. Guests: {{count}}.",
       person: "Person {{n}}",
       add: "Add person",
       remove: "Remove person",

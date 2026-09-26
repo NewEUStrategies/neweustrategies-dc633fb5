@@ -10,6 +10,11 @@
 // modulu potrafi ruszyc wiecej niz jedna lise (promocja z rezerwy rusza
 // wszystkie trzy), wiec kasowanie `registrationKeys.event(eventId)` jest zarazem
 // najprostsze i najbezpieczniejsze; zapytania innych wydarzen zostaja nietkniete.
+//
+// PONOWNA WYSYLKA BILETU TEZ UNIEWAZNIA GALAZ. Zmienia znacznik wysylki, ktory
+// panel czyta z `admin_event_registration_group_links` - a to zapytanie siedzi
+// pod `registrationKeys.event(eventId)`, wiec decyzja organizatora odswieza je
+// razem z lista.
 import {
   useMutation,
   useQuery,
@@ -17,6 +22,7 @@ import {
   type UseMutationResult,
   type UseQueryResult,
 } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import {
   decideRegistration,
   deleteEventTicket,
@@ -24,6 +30,7 @@ import {
   fetchEventTickets,
   fetchRegistrationCounts,
   fetchRegistrationFields,
+  fetchRegistrationGroupLinks,
   fetchRegistrations,
   markRegistrationsNotified,
   promoteFromWaitlist,
@@ -36,12 +43,14 @@ import {
   type RegistrationCountsQuery,
   type RegistrationDecisionInput,
   type RegistrationFieldInput,
+  type RegistrationGroupLink,
   type RegistrationUpsertInput,
   type RegistrationsPage,
   type RegistrationsQuery,
   type WaitlistPromoteInput,
 } from "@/lib/events/registrationsApi";
 import { parseRegistrationCounts, type RegistrationCounts } from "@/lib/events/registrationCounts";
+import { resendEventTicket } from "@/lib/events/ticketResend.functions";
 import type { Json } from "@/integrations/supabase/types";
 
 /**
@@ -63,6 +72,7 @@ export const registrationKeys = {
   event: (eventId: string) => [...registrationKeys.all, eventId] as const,
   tickets: (eventId: string) => [...registrationKeys.event(eventId), "tickets"] as const,
   fields: (eventId: string) => [...registrationKeys.event(eventId), "fields"] as const,
+  groupLinks: (eventId: string) => [...registrationKeys.event(eventId), "group-links"] as const,
   // OBA KLUCZE PRZYJMUJA `null` - patrz uzasadnienie przy `agendaKeys.sessions`.
   // Atrapa `{ eventId: "none" }` wymagala rzutowania `as unknown as`, bo nie
   // miala pozostalych pol zapytania; `null` opisuje stan wylaczenia wprost.
@@ -121,6 +131,22 @@ export function useRegistrationCounts(
     queryFn: async () =>
       parseRegistrationCounts(await fetchRegistrationCounts(query as RegistrationCountsQuery)),
     enabled: query !== null,
+    staleTime: LIVE_STALE_MS,
+  });
+}
+
+/**
+ * Kto jest gosciem kogo i czy bilet wyszedl. Okno swiezosci jak lista: znacznik
+ * wysylki zmienia sie w sekundy po decyzji organizatora (bilety wychodza zaraz
+ * po niej) i w dniu wydarzenia organizator patrzy na niego co chwila.
+ */
+export function useRegistrationGroupLinks(
+  eventId: string | null,
+): UseQueryResult<RegistrationGroupLink[]> {
+  return useQuery({
+    queryKey: registrationKeys.groupLinks(eventId ?? "none"),
+    queryFn: () => fetchRegistrationGroupLinks(eventId as string),
+    enabled: eventId !== null,
     staleTime: LIVE_STALE_MS,
   });
 }
@@ -207,6 +233,32 @@ export function useMarkRegistrationsNotified(
   const invalidate = useInvalidateEvent();
   return useMutation({
     mutationFn: markRegistrationsNotified,
+    onSuccess: () => invalidate(eventId),
+  });
+}
+
+export interface TicketResendInput {
+  registrationId: string;
+  /** `true` = bilety calej przyjetej grupy (od prowadzacego), `false` = tylko ten wiersz. */
+  includeGroup: boolean;
+}
+
+/**
+ * Ponowna wysylka biletu z kodem QR. Zwraca liczbe wyslanych maili; odmowa bazy
+ * (`ticket_not_issuable`, `not_found`, `forbidden`) staje sie WYJATKIEM, zeby
+ * panel pokazal ja tym samym slownikiem odmow, co reszte decyzji.
+ */
+export function useResendEventTicket(
+  eventId: string,
+): UseMutationResult<number, Error, TicketResendInput> {
+  const invalidate = useInvalidateEvent();
+  const resend = useServerFn(resendEventTicket);
+  return useMutation({
+    mutationFn: async (input: TicketResendInput) => {
+      const result = await resend({ data: input });
+      if (!result.ok) throw new Error(result.error);
+      return result.sent;
+    },
     onSuccess: () => invalidate(eventId),
   });
 }

@@ -6,7 +6,13 @@
 // potwierdzenia wysyła listę z chwili kliknięcia; poprawka wpisana w trakcie
 // żądania zniknęłaby razem z edytorem po sukcesie, więc pola są wtedy
 // zablokowane, a nie tylko przycisk.
-import { Plus, Trash2 } from "lucide-react";
+//
+// BEZ KONTA - ZDANIE I DROGA DO LOGOWANIA. `event_register_group_guests`
+// odmawia anonimowi (`account_required`), więc gość bez konta zapisałby tylko
+// siebie. Samo szare zdanie nie mówiło, co z tym zrobić; odnośnik jest ten sam,
+// co przy płatnej wejściówce (`PaidTicketAccountNotice`).
+import { Link } from "@tanstack/react-router";
+import { LogIn, Plus, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,9 +56,19 @@ export function GroupGuestsEditor({
         </p>
       </div>
       {requiresAccount ? (
-        <p className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
-          {t("eventRegistration.group.accountRequired")}
-        </p>
+        <div className="space-y-2 rounded-md border border-border bg-muted/40 p-3">
+          <p className="text-sm text-muted-foreground">
+            {t("eventRegistration.group.accountRequired")}
+          </p>
+          <Link
+            to="/login"
+            search={{ mode: "signin" }}
+            className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+          >
+            <LogIn className="h-4 w-4" aria-hidden="true" />
+            {t("eventRegistration.group.signIn")}
+          </Link>
+        </div>
       ) : (
         <>
           {guests.map((guest, index) => {
