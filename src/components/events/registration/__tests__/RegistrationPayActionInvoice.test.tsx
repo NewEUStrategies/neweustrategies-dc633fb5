@@ -5,12 +5,17 @@
 // albo odmowa bazy zatrzymuja przejscie do kasy (kupujacy poprawia, zamiast
 // wracac z platnosci z dokumentem na zle dane). Bez zaznaczenia faktury kasa
 // otwiera sie jak dotad - reszte kroku platnosci testuja pliki potwierdzenia.
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 
-const h = vi.hoisted(() => ({ checkout: vi.fn(), navigate: vi.fn() }));
+const h = vi.hoisted(() => ({
+  checkout: vi.fn(),
+  navigate: vi.fn(),
+  session: { user: { id: "u-1" } } as { user: { id: string } } | null,
+  dialog: null as { clientSecret: string | null; onOpenChange: (open: boolean) => void } | null,
+}));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
@@ -22,11 +27,19 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
   Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
   useNavigate: () => h.navigate,
 }));
-vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ session: { user: { id: "u-1" } } }) }));
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ session: h.session }) }));
 vi.mock("@/lib/billing/checkout.functions", () => ({ createCheckoutOrder: {} }));
 vi.mock("@/lib/stripe", () => ({ getStripeEnvironment: () => "sandbox" }));
 vi.mock("@/components/checkout/LazyEmbeddedCheckoutDialog", () => ({
-  LazyEmbeddedCheckoutDialog: () => null,
+  LazyEmbeddedCheckoutDialog: (props: {
+    clientSecret: string | null;
+    onOpenChange: (open: boolean) => void;
+  }) => {
+    h.dialog = props;
+    return props.clientSecret === null ? null : (
+      <div data-testid="checkout">{props.clientSecret}</div>
+    );
+  },
 }));
 vi.mock("@/lib/events/eventCodeMemory", () => ({ recallEventCode: () => "" }));
 const invoices = vi.hoisted(() => ({
@@ -45,9 +58,10 @@ vi.mock("@/lib/billing/queries", () => billing);
 const { RegistrationPayAction } =
   await import("@/components/events/registration/molecules/RegistrationPayAction");
 
-function renderPay() {
+function renderPay(ownedByCaller?: boolean) {
   return renderWithQueryClient(
     <RegistrationPayAction
+      ownedByCaller={ownedByCaller}
       registrationId="reg-1"
       eventId="ev-1"
       ticketTypeId="tt-1"
@@ -80,6 +94,8 @@ const PAY = "eventRegistration.payment.payNow";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  h.session = { user: { id: "u-1" } };
+  h.dialog = null;
   billing.fetchMyBillingProfile.mockResolvedValue(null);
   invoices.fetchMyInvoiceSources.mockResolvedValue([]);
   h.checkout.mockResolvedValue({ ok: true, mode: "mock", orderId: "ord-1" });
@@ -126,5 +142,55 @@ describe("RegistrationPayAction + faktura na firme", () => {
     fireEvent.click(screen.getByRole("button", { name: PAY }));
     expect(await screen.findByText("eventInvoices.errors.requestWindowClosed")).toBeTruthy();
     expect(h.checkout).not.toHaveBeenCalled();
+  });
+});
+
+describe("RegistrationPayAction - zapis prosby w toku i galezie kasy", () => {
+  it("zapis danych do faktury w toku blokuje przycisk platnosci", async () => {
+    invoices.saveInvoiceRequest.mockReturnValue(new Promise(() => {}));
+    renderPay();
+    fireEvent.click(screen.getByLabelText("eventInvoices.request.toggle"));
+    fillBuyer();
+    fireEvent.click(screen.getByRole("button", { name: PAY }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: PAY })).toHaveProperty("disabled", true),
+    );
+    expect(screen.getByText("eventInvoices.request.saving")).toBeTruthy();
+    expect(h.checkout).not.toHaveBeenCalled();
+  });
+
+  it("gosc i cudze zgloszenie: bez bloku faktury i bez zapytan o dane nabywcy", async () => {
+    h.session = null;
+    const guest = renderPay();
+    expect(screen.queryByLabelText("eventInvoices.request.toggle")).toBeNull();
+    expect(screen.getByText("eventRegistration.payment.accountRequiredTitle")).toBeTruthy();
+    guest.unmount();
+    h.session = { user: { id: "u-1" } };
+    renderPay(false);
+    expect(screen.getByText("eventRegistration.payment.notOwnerBody")).toBeTruthy();
+    expect(screen.queryByLabelText("eventInvoices.request.toggle")).toBeNull();
+    expect(invoices.fetchMyInvoiceSources).not.toHaveBeenCalled();
+  });
+
+  it("odrzucony kod rabatowy: komunikat przy kodzie, kasa zamknieta", async () => {
+    h.checkout.mockResolvedValue({ ok: false, mode: "coupon", error: "coupon_invalid" });
+    renderPay();
+    fireEvent.change(screen.getByPlaceholderText("eventRegistration.payment.promoPlaceholder"), {
+      target: { value: "zly" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: PAY }));
+    expect(await screen.findByText("eventRegistration.payment.promoError")).toBeTruthy();
+    expect(h.checkout.mock.calls[0]?.[0]).toMatchObject({ data: { coupon_code: "ZLY" } });
+  });
+
+  it("kasa operatora: okno platnosci z sekretem, zamkniecie je czysci", async () => {
+    h.checkout.mockResolvedValue({ ok: true, mode: "stripe", clientSecret: "cs_test" });
+    renderPay();
+    fireEvent.click(screen.getByRole("button", { name: PAY }));
+    expect((await screen.findByTestId("checkout")).textContent).toBe("cs_test");
+    act(() => h.dialog?.onOpenChange(true));
+    expect(screen.getByTestId("checkout")).toBeTruthy();
+    act(() => h.dialog?.onOpenChange(false));
+    await waitFor(() => expect(screen.queryByTestId("checkout")).toBeNull());
   });
 });
