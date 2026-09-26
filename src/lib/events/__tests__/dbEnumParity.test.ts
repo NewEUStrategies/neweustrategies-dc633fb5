@@ -34,6 +34,7 @@ import {
   CHECKIN_DIRECTIONS,
   CHECKIN_SOURCES,
   CHECKPOINT_ACCESS_MODES,
+  OFFLINE_OUTCOMES,
   CHECKPOINT_DIRECTION_MODES,
 } from "@/lib/events/onsiteEnums";
 import { ARRANGEABLE_STATUSES } from "@/lib/events/meetingParticipants";
@@ -89,6 +90,7 @@ const EQUAL: ReadonlyArray<readonly [string, string, readonly string[]]> = [
   ["BADGE_ORIENTATIONS", "event_badge_templates_orientation_values", BADGE_ORIENTATIONS],
   ["CHECKIN_DIRECTIONS", "event_checkins_direction_values", CHECKIN_DIRECTIONS],
   ["CHECKIN_SOURCES", "event_checkins_source_values", CHECKIN_SOURCES],
+  ["OFFLINE_OUTCOMES", "event_checkins_offline_outcome_values", OFFLINE_OUTCOMES],
   ["CHECKPOINT_ACCESS_MODES", "event_checkpoints_access_mode_values", CHECKPOINT_ACCESS_MODES],
   [
     "CHECKPOINT_DIRECTION_MODES",

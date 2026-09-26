@@ -253,6 +253,29 @@ describe("onsiteApi - kontrakt wywolan bazy", () => {
       device_id: DEVICE_ID,
       is_active: false,
     });
+
+    rpc().setData("admin_event_scanner_device_set_offline", true);
+    await expect(api.setScannerDeviceOffline(DEVICE_ID, true)).resolves.toBe(true);
+    expect(payloadOf("admin_event_scanner_device_set_offline")).toEqual({
+      device_id: DEVICE_ID,
+      offline_roster: true,
+    });
+    rpc().setData("admin_event_scanner_device_set_offline", "t");
+    await expect(api.setScannerDeviceOffline(DEVICE_ID, false)).resolves.toBe(false);
+  });
+
+  it("zmiana zgody na liste offline przekazuje odmowe bazy dalej", async () => {
+    rpc().setError("admin_event_scanner_device_set_offline", "not_found: brak urzadzenia");
+    await expect(api.setScannerDeviceOffline(DEVICE_ID, true)).rejects.toThrow("not_found");
+  });
+
+  it("filtr konfliktow offline jedzie do dziennika, a jego brak nie wysyla argumentu", async () => {
+    rpc().setData("admin_event_checkins_list", []);
+    await api.fetchCheckins({ eventId: EVENT_ID, conflictsOnly: true });
+    expect(lastArgs("admin_event_checkins_list")).toMatchObject({ p_conflicts_only: true });
+
+    await api.fetchCheckins({ eventId: EVENT_ID });
+    expect(Object.keys(lastArgs("admin_event_checkins_list"))).not.toContain("p_conflicts_only");
   });
 
   it("formaty papieru sa lustrem CHECK-a bazy - `cr80` juz tam nie ma", () => {
@@ -447,6 +470,28 @@ describe("onsiteApi - poswiadczenie urzadzenia", () => {
     ]);
   });
 
+  it("zgoda na liste offline jedzie przy wydaniu i wraca w poswiadczeniu", async () => {
+    rpc().setData("admin_event_scanner_device_issue", {
+      device_id: DEVICE_ID,
+      label: "Brama offline",
+      token: "Xy7-abcdefghijklmnopqrstuvwx",
+      token_prefix: "Xy7-abcd",
+      scopes: ["checkin"],
+      expires_at: null,
+      offline_roster: true,
+    });
+
+    const credential = await api.issueScannerDevice({
+      eventId: EVENT_ID,
+      label: "Brama offline",
+      scopes: ["checkin"],
+      offlineRoster: true,
+    });
+
+    expect(payloadOf("admin_event_scanner_device_issue").offline_roster).toBe(true);
+    expect(credential.offlineRoster).toBe(true);
+  });
+
   it("nieczytelne poswiadczenie nie udaje tokenu - puste napisy zamiast `undefined`", () => {
     const credential = api.parseScannerCredential(null);
     expect(credential).toEqual({
@@ -456,6 +501,7 @@ describe("onsiteApi - poswiadczenie urzadzenia", () => {
       tokenPrefix: "",
       scopes: [],
       expiresAt: null,
+      offlineRoster: false,
     });
   });
 });

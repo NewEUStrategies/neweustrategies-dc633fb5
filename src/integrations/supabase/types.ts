@@ -6909,11 +6909,14 @@ export type Database = {
           last_repeat_at: string | null
           note: string | null
           occurred_at: string | null
+          offline_admitted: boolean | null
+          offline_outcome: string | null
           operator_user_id: string | null
           person_id: string
           registration_id: string | null
           repeat_count: number
           result: string
+          roster_generated_at: string | null
           scanned_at: string
           source: string
           tenant_id: string
@@ -6930,11 +6933,14 @@ export type Database = {
           last_repeat_at?: string | null
           note?: string | null
           occurred_at?: string | null
+          offline_admitted?: boolean | null
+          offline_outcome?: string | null
           operator_user_id?: string | null
           person_id: string
           registration_id?: string | null
           repeat_count?: number
           result?: string
+          roster_generated_at?: string | null
           scanned_at?: string
           source?: string
           tenant_id: string
@@ -6951,11 +6957,14 @@ export type Database = {
           last_repeat_at?: string | null
           note?: string | null
           occurred_at?: string | null
+          offline_admitted?: boolean | null
+          offline_outcome?: string | null
           operator_user_id?: string | null
           person_id?: string
           registration_id?: string | null
           repeat_count?: number
           result?: string
+          roster_generated_at?: string | null
           scanned_at?: string
           source?: string
           tenant_id?: string
@@ -8884,8 +8893,11 @@ export type Database = {
           last_failed_scan_at: string | null
           last_seen_at: string | null
           locked_until: string | null
+          offline_roster: boolean
           revoked_at: string | null
           revoked_by: string | null
+          roster_download_count: number
+          roster_downloaded_at: string | null
           scan_count: number
           scopes: string[]
           sponsor_id: string | null
@@ -8909,8 +8921,11 @@ export type Database = {
           last_failed_scan_at?: string | null
           last_seen_at?: string | null
           locked_until?: string | null
+          offline_roster?: boolean
           revoked_at?: string | null
           revoked_by?: string | null
+          roster_download_count?: number
+          roster_downloaded_at?: string | null
           scan_count?: number
           scopes?: string[]
           sponsor_id?: string | null
@@ -8934,8 +8949,11 @@ export type Database = {
           last_failed_scan_at?: string | null
           last_seen_at?: string | null
           locked_until?: string | null
+          offline_roster?: boolean
           revoked_at?: string | null
           revoked_by?: string | null
+          roster_download_count?: number
+          roster_downloaded_at?: string | null
           scan_count?: number
           scopes?: string[]
           sponsor_id?: string | null
@@ -20929,8 +20947,48 @@ export type Database = {
           last_failed_scan_at: string | null
           last_seen_at: string | null
           locked_until: string | null
+          offline_roster: boolean
           revoked_at: string | null
           revoked_by: string | null
+          roster_download_count: number
+          roster_downloaded_at: string | null
+          scan_count: number
+          scopes: string[]
+          sponsor_id: string | null
+          tenant_id: string
+          token_hash: string
+          token_prefix: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "event_scanner_devices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      _event_scanner_device_auth_sync: {
+        Args: { _device_at: string; _scope: string; _token: string }
+        Returns: {
+          checkpoint_id: string | null
+          created_at: string
+          created_by: string | null
+          event_id: string
+          expires_at: string
+          fail_window_count: number
+          fail_window_started_at: string | null
+          failed_scan_count: number
+          id: string
+          is_active: boolean
+          label: string
+          last_failed_scan_at: string | null
+          last_seen_at: string | null
+          locked_until: string | null
+          offline_roster: boolean
+          revoked_at: string | null
+          revoked_by: string | null
+          roster_download_count: number
+          roster_downloaded_at: string | null
           scan_count: number
           scopes: string[]
           sponsor_id: string | null
@@ -22113,6 +22171,7 @@ export type Database = {
       admin_event_checkins_list: {
         Args: {
           p_checkpoint_id?: string
+          p_conflicts_only?: boolean
           p_direction?: string
           p_event_id: string
           p_from?: string
@@ -22129,6 +22188,7 @@ export type Database = {
           checkpoint_name_en: string
           checkpoint_name_pl: string
           company: string
+          conflict: boolean
           device_id: string
           device_label: string
           device_scanned_at: string
@@ -22141,6 +22201,8 @@ export type Database = {
           last_name: string
           note: string
           occurred_at: string
+          offline_admitted: boolean
+          offline_outcome: string
           operator_name: string
           operator_user_id: string
           person_id: string
@@ -22148,6 +22210,7 @@ export type Database = {
           registration_status: string
           repeat_count: number
           result: string
+          roster_generated_at: string
           scanned_at: string
           source: string
           ticket_name_en: string
@@ -22883,6 +22946,10 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: boolean
       }
+      admin_event_scanner_device_set_offline: {
+        Args: { p_payload: Json }
+        Returns: boolean
+      }
       admin_event_scanner_devices_list: {
         Args: { p_event_id: string }
         Returns: {
@@ -22902,7 +22969,10 @@ export type Database = {
           last_seen_at: string
           lead_scans_count: number
           locked_until: string
+          offline_roster: boolean
           revoked_at: string
+          roster_download_count: number
+          roster_downloaded_at: string
           scan_count: number
           scopes: string[]
           sponsor_id: string
@@ -26827,6 +26897,7 @@ export type Database = {
         Returns: Json
       }
       event_scanner_bootstrap: { Args: { p_payload: Json }; Returns: Json }
+      event_scanner_roster: { Args: { p_payload: Json }; Returns: Json }
       event_sections: {
         Args: { p_slug: string }
         Returns: {

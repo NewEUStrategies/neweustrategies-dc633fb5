@@ -59,6 +59,15 @@ export interface ScannerSession {
   sponsorId: string | null;
   event: ScannerEvent;
   checkpoints: ScannerCheckpoint[];
+  /**
+   * Zgoda administratora na listę offline NA TYM URZĄDZENIU. Bez niej skaner
+   * nie pobiera listy osób i przy braku sieci tylko kolejkuje skany.
+   */
+  offlineRoster: boolean;
+  /** Start ostatniego PEŁNEGO pobrania listy offline (informacyjnie). */
+  rosterDownloadedAt: string | null;
+  /** Zegar serwera w chwili odpowiedzi - z niego liczymy przesunięcie zegara. */
+  serverNow: string | null;
 }
 
 /** Tryby ekranu - jeden na zakres poświadczenia. */
@@ -150,7 +159,77 @@ export function parseScannerSession(value: unknown): ScannerSession | null {
       timezone: text(event.timezone),
     },
     checkpoints: parseCheckpoints(row.checkpoints),
+    offlineRoster: row.offline_roster === true,
+    rosterDownloadedAt: text(row.roster_downloaded_at),
+    serverNow: text(row.server_now),
   };
+}
+
+/**
+ * Sesja -> kształt odpowiedzi `event_scanner_bootstrap`.
+ *
+ * Pamięć podręczna sesji (zimny start bez sieci) trzyma SUROWY kształt bazy,
+ * a nie obiekt aplikacji: odczyt przechodzi potem przez TEN SAM parser co
+ * odpowiedź serwera, więc uszkodzony albo przestarzały rekord kończy się
+ * `null` (ekran parowania), a nie sesją z dziurami. Tokenu tu nie ma.
+ */
+export function sessionToRecord(session: ScannerSession): Record<string, unknown> {
+  return {
+    device_id: session.deviceId,
+    label: session.label,
+    scopes: [...session.scopes],
+    expires_at: session.expiresAt,
+    pinned_checkpoint_id: session.pinnedCheckpointId,
+    sponsor_id: session.sponsorId,
+    offline_roster: session.offlineRoster,
+    roster_downloaded_at: session.rosterDownloadedAt,
+    server_now: session.serverNow,
+    event: {
+      id: session.event.id,
+      slug: session.event.slug,
+      title_pl: session.event.titlePl,
+      title_en: session.event.titleEn,
+      starts_at: session.event.startsAt,
+      ends_at: session.event.endsAt,
+      timezone: session.event.timezone,
+    },
+    checkpoints: session.checkpoints.map((checkpoint) => ({
+      id: checkpoint.id,
+      name_pl: checkpoint.namePl,
+      name_en: checkpoint.nameEn,
+      kind: checkpoint.kind,
+      direction_mode: checkpoint.directionMode,
+      access_mode: checkpoint.accessMode,
+      capacity: checkpoint.capacity,
+      dedupe_window_seconds: checkpoint.dedupeWindowSeconds,
+      sort_order: checkpoint.sortOrder,
+    })),
+  };
+}
+
+/** Od tego przesunięcia zegara urządzenia ekran ostrzega operatora. */
+export const CLOCK_SKEW_WARNING_MS = 90_000;
+
+/**
+ * Przesunięcie zegara urządzenia względem serwera (serwer − urządzenie, ms).
+ *
+ * Odpowiedź przyszła gdzieś między wysłaniem a odbiorem, więc porównujemy
+ * `server_now` ze ŚRODKIEM tego odcinka. Bez `server_now` (starszy backend,
+ * nieczytelna data) zakładamy zgodność - lepsze zero niż NaN w dzienniku.
+ */
+export function clockOffsetMs(
+  serverNow: string | null,
+  sentAtMs: number,
+  receivedAtMs: number,
+): number {
+  if (serverNow === null) return 0;
+  const server = Date.parse(serverNow);
+  if (Number.isNaN(server)) return 0;
+  return Math.round(server - (sentAtMs + receivedAtMs) / 2);
+}
+
+export function isClockSkewed(offsetMs: number): boolean {
+  return Math.abs(offsetMs) > CLOCK_SKEW_WARNING_MS;
 }
 
 export function hasScope(session: ScannerSession, scope: ScannerScope): boolean {

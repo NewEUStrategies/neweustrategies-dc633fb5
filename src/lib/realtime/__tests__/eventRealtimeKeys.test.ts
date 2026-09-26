@@ -62,6 +62,20 @@ describe("mapa inwalidacji modułu wydarzeń", () => {
     expect(includesPrefix(keys, onsiteKeys.event(EVENT_ID))).toBe(true);
   });
 
+  it.each(["event_scanner_device.roster_downloaded.v1", "event_scanner_device.offline_changed.v1"])(
+    "lista offline skanera (%s) odświeża urządzenia TEGO wydarzenia, nie cudzego",
+    (type) => {
+      const keys = invalidationKeysFor(
+        domainEvent(type, { event_id: EVENT_ID }),
+        CTX,
+      ) as unknown[][];
+      // Unieważniony klucz jest PRZEDROSTKIEM klucza listy urządzeń tego wydarzenia.
+      const devices: readonly unknown[] = onsiteKeys.devices(EVENT_ID);
+      expect(keys.some((key) => key.every((part, i) => Object.is(devices[i], part)))).toBe(true);
+      expect(includesPrefix(keys, onsiteKeys.event("inne-wydarzenie"))).toBe(false);
+    },
+  );
+
   it("sponsorzy trafiają w panel I w stronę publiczną wydarzenia", () => {
     const keys = invalidationKeysFor(
       domainEvent("event_sponsor.published.v1", { event_id: EVENT_ID }),

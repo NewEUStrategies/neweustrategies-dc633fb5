@@ -162,6 +162,8 @@ const KODY_ONSITE = [
   "person_not_found",
   "checkpoint_not_found",
   "invalid_direction",
+  // `_event_checkin_write` od 20260926150000: skan starszy niz 7 dni
+  "device_time_out_of_range",
   // admin_event_badge_template_save / _delete
   "custom_dimensions_required",
   "invalid_background_color",

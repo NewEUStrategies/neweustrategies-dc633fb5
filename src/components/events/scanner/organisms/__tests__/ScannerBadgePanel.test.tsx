@@ -73,6 +73,9 @@ const SESSION: ScannerSession = {
   expiresAt: null,
   pinnedCheckpointId: null,
   sponsorId: null,
+  offlineRoster: false,
+  rosterDownloadedAt: null,
+  serverNow: null,
   event: {
     id: "e1",
     slug: "kongres",
