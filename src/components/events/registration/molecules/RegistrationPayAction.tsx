@@ -178,13 +178,23 @@ export function RegistrationPayAction({
   /** Kod dostępu wejściówki - osobny od kuponu, patrz nagłówek. */
   const [accessCode, setAccessCode] = useState("");
   const [accessInput, setAccessInput] = useState("");
+  /**
+   * Pamięć kodów (kuponu i dostępu) już odczytana. Podgląd czeka na nią:
+   * bez tego pierwsze zapytanie szło z pustymi kodami (efekty pamięci biegną
+   * po pierwszym renderze), a drugie - z kodami - zaraz po nim. Przy
+   * wejściówce za kodem pierwsze było zawsze odmową.
+   */
+  const [recalled, setRecalled] = useState(false);
   useEffect(() => {
     if (eventId !== null && ticketTypeId !== null) {
       const remembered = recallAccessCodeHint(eventId, ticketTypeId);
       setAccessCode(remembered);
       setAccessInput(remembered);
+      setRecalled(true);
     }
   }, [eventId, ticketTypeId]);
+  /** Nowy kod dostępu w sprawdzaniu - pole zostaje na ekranie (fokus). */
+  const [accessChecking, setAccessChecking] = useState(false);
   const accessPart = accessCode === "" ? {} : { access_code: accessCode };
 
   const ready = eventId !== null && ticketTypeId !== null;
@@ -202,10 +212,16 @@ export function RegistrationPayAction({
       }),
     // Podgląd stoi za `requireSupabaseAuth` i czyta zgłoszenie WOŁAJĄCEGO -
     // bez sesji albo z cudzym zgłoszeniem nie ma czego liczyć.
-    enabled: ready && session !== null && ownedByCaller !== false,
+    enabled: ready && recalled && session !== null && ownedByCaller !== false,
     retry: false,
   });
   const quote = quoteQ.data ?? null;
+  const quoteFetching = quoteQ.isFetching;
+  // Sprawdzanie kodu dostępu kończy się z odpowiedzią podglądu - odmowa
+  // znów pokaże pole sama, zgoda je schowa.
+  useEffect(() => {
+    if (!quoteFetching) setAccessChecking(false);
+  }, [quoteFetching]);
   // Podgląd sprzed benefitu na miejscu członka (starszy serwer) pola nie ma -
   // wtedy wszystkie miejsca są po tej samej cenie.
   const quoteBenefit = quote?.planBenefit ?? null;
@@ -290,6 +306,7 @@ export function RegistrationPayAction({
   function applyAccessCode(): void {
     const code = normalizeCode(accessInput);
     setRefusal(null);
+    setAccessChecking(true);
     rememberTicketAccessCode(eventId as string, ticketTypeId as string, code);
     if (code === accessCode) {
       void quoteQ.refetch();
@@ -311,6 +328,14 @@ export function RegistrationPayAction({
     // Kod wpisany bez „Zastosuj" też trafia do podglądu - rozbicie pod
     // przyciskiem ma mówić o tym samym kodzie, który dostaje kasa.
     setAppliedCode(code);
+    // Tak samo kod dostępu: wpisany po odmowie i zatwierdzony „Zapłać" zamiast
+    // „Sprawdź kod" jedzie do kasy, a nie stary kod z pamięci. Pole trzyma
+    // kod z pamięci, dopóki kupujący go nie zmieni - zwykła ścieżka bez zmian.
+    const access = normalizeCode(accessInput);
+    if (access !== accessCode) {
+      setAccessCode(access);
+      rememberTicketAccessCode(eventId as string, ticketTypeId as string, access);
+    }
     try {
       const result = await checkout({
         data: {
@@ -322,7 +347,7 @@ export function RegistrationPayAction({
           cancel_path: returnPath,
           environment: getStripeEnvironment(),
           ...(code.length > 0 ? { coupon_code: code } : {}),
-          ...accessPart,
+          ...(access === "" ? {} : { access_code: access }),
         },
       });
       if (!result.ok) {
@@ -510,7 +535,7 @@ export function RegistrationPayAction({
       {/* Kod dostępu nie dotarł z pamięci karty (inna karta, inny kod) albo
           baza go nie przyjęła - kupujący wpisuje go tutaj, bez wracania do
           formularza zapisu. */}
-      {shownRefusal === "access_code_invalid" && (
+      {(shownRefusal === "access_code_invalid" || (accessChecking && quoteFetching)) && (
         <div className="flex max-w-md flex-wrap items-end gap-2">
           <label className="block min-w-0 flex-1 space-y-1 text-sm">
             <span className="font-medium">{t("eventRegistration.payment.accessCodeLabel")}</span>

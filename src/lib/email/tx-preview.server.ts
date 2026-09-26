@@ -50,6 +50,7 @@ export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "event_ticket_refunded",
   "event_ticket_partially_refunded",
   "event_ticket_issued",
+  "event_ticket_revoked",
   "donation_received",
   "newsletter_confirmed",
   "customer_portal_link",
@@ -314,6 +315,19 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
           { label: l.entryCode, value: DEMO_ENTRY_CODE },
         ],
         ctaUrl: `${SITE_URL}${ticketLinkPath("demo", DEMO_ENTRY_CODE)}`,
+      };
+    // Bilet odwolany razem z grupa: bez kodu wejscia (juz nie wpuszcza),
+    // z tym, kto zapisal goscia - to jego zgloszenie odwolano.
+    case "event_ticket_revoked":
+      return {
+        subjectName: eventTitle,
+        details: [
+          { label: l.event, value: eventTitle },
+          { label: l.date, value: eventDate },
+          { label: l.ticketType, value: DEMO_TICKET_TYPE[lang] },
+          { label: l.registeredBy, value: "Anna Nowak" },
+        ],
+        ctaUrl: `${SITE_URL}/events`,
       };
     case "donation_received":
       return {

@@ -308,7 +308,7 @@ async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
   if (eventId && order.user_id) {
     const { error: rsvpErr } = await supabase
       .from("event_rsvps")
-      .update({ status: "canceled", updated_at: nowIso })
+      .update({ status: "cancelled", updated_at: nowIso })
       .eq("event_id", eventId)
       .eq("user_id", order.user_id);
     if (rsvpErr) throw new Error(`refund: rsvp cancel failed: ${rsvpErr.message}`);

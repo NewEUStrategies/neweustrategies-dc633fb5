@@ -781,17 +781,86 @@ describe("RegistrationPayAction - kod dostępu wejściówki", () => {
       },
     });
     expect(memory.remembered).toEqual([[EVENT_ID, TICKET_ID, "PARTNER"]]);
-    expect(screen.queryByText(ACCESS_LABEL)).not.toBeInTheDocument();
+    // Pole znika dopiero z ODPOWIEDZIĄ podglądu - w trakcie sprawdzania stoi.
+    await waitFor(() => expect(screen.queryByText(ACCESS_LABEL)).not.toBeInTheDocument());
+  });
+
+  it("pole i przycisk zostają na ekranie, póki nowy kod się sprawdza - fokus nie ucieka", async () => {
+    let settle: (value: unknown) => void = () => undefined;
+    quote.mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+      data.access_code === "ZLY2"
+        ? new Promise((_resolve, reject) => {
+            settle = () => reject(new Error("ticket_access_code_invalid"));
+          })
+        : Promise.reject(new Error("ticket_access_code_invalid")),
+    );
+    renderAction();
+
+    expect(await screen.findByText(REFUSED)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(ACCESS_LABEL), { target: { value: "zly2" } });
+    const apply = screen.getByRole("button", { name: ACCESS_APPLY });
+    apply.focus();
+    click(ACCESS_APPLY);
+
+    await waitFor(() =>
+      expect(quote.mock.calls.at(-1)?.[0].data).toMatchObject({ access_code: "ZLY2" }),
+    );
+    // W trakcie: odmowy nie ma (nowy kod), ale pole i przycisk stoją.
+    expect(screen.queryByText(REFUSED)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(ACCESS_LABEL)).toHaveValue("ZLY2");
+    expect(document.activeElement).toBe(apply);
+
+    settle(undefined);
+    expect(await screen.findByText(REFUSED)).toBeInTheDocument();
+    expect(screen.getByLabelText(ACCESS_LABEL)).toHaveValue("ZLY2");
+    expect(document.activeElement).toBe(apply);
+  });
+
+  it("kod wpisany po odmowie i zatwierdzony „Zapłać” (bez „Sprawdź kod”) jedzie do kasy", async () => {
+    quote.mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+      data.access_code === "PARTNER"
+        ? Promise.resolve(quoteResult())
+        : Promise.reject(new Error("ticket_access_code_invalid")),
+    );
+    checkout.mockResolvedValue({ ok: true, mode: "stripe", clientSecret: "cs_1", orderId: "o-1" });
+    renderAction();
+
+    expect(await screen.findByText(REFUSED)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(ACCESS_LABEL), { target: { value: " partner " } });
+    click(PAY);
+
+    await waitFor(() => expect(checkout).toHaveBeenCalledTimes(1));
+    expect(checkout.mock.calls[0]?.[0].data).toMatchObject({ access_code: "PARTNER" });
+    // Kod trafia też do pamięci karty i do podglądu - rozbicie mówi o tym samym.
+    expect(memory.remembered).toEqual([[EVENT_ID, TICKET_ID, "PARTNER"]]);
+    await waitFor(() =>
+      expect(quote.mock.calls.at(-1)?.[0].data).toMatchObject({ access_code: "PARTNER" }),
+    );
+  });
+
+  it("jedno zapytanie podglądu na montaż - od razu z kodami z pamięci", async () => {
+    memory.code = "ODSLON";
+    memory.access = "PARTNER";
+    renderAction();
+
+    await waitFor(() => expect(quote).toHaveBeenCalled());
+    await screen.findByText(/amountDue/);
+    expect(quote).toHaveBeenCalledTimes(1);
+    expect(quote.mock.calls[0]?.[0].data).toMatchObject({
+      coupon_code: "ODSLON",
+      access_code: "PARTNER",
+    });
   });
 
   it("odmowa kasy za zły kod pokazuje pole wypełnione kodem z pamięci; ten sam kod ponawia podgląd", async () => {
     memory.access = "STARY";
     checkout.mockRejectedValue(new Error("ticket_access_code_invalid"));
     renderAction();
-    // Pierwszy podgląd rusza przed odczytem pamięci - liczymy od stanu z kodem.
+    // Podgląd czeka na pamięć - pierwsze zapytanie niesie już kod.
     await waitFor(() =>
       expect(quote.mock.calls.at(-1)?.[0].data).toMatchObject({ access_code: "STARY" }),
     );
+    expect(quote).toHaveBeenCalledTimes(1);
     const settled = quote.mock.calls.length;
 
     click(PAY);

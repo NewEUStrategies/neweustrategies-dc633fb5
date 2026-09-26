@@ -43,6 +43,10 @@ export type TxEmailType =
   // zapisanych przez prowadzacego grupy). Jawny kod istnieje tylko w chwili
   // wydania, wiec ten mail jest jedyna jego kopia u uczestnika.
   | "event_ticket_issued"
+  // Bilet odwolany razem z grupa (odrzucenie lub anulowanie prowadzacego,
+  // zwrot) - tylko do goscia, do ktorego bilet dotarl. Bez niego gosc
+  // dowiadywal sie o odwolaniu dopiero przy bramce.
+  | "event_ticket_revoked"
   | "donation_received"
   | "newsletter_confirmed"
   | "customer_portal_link"
@@ -491,6 +495,20 @@ const PL: Dict = {
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
+  event_ticket_revoked: {
+    subject: (v) =>
+      `Bilet unieważniony${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Kod QR z wcześniejszej wiadomości nie wpuści Cię już na wydarzenie.",
+    eyebrow: "Wydarzenie",
+    heading: "Twój bilet stracił ważność",
+    intro:
+      "Zgłoszenie grupowe, w którym zapisano Cię na to wydarzenie, zostało odwołane albo nie zostało przyjęte przez organizatora. Kod QR z wcześniejszej wiadomości nie wpuści Cię już na wydarzenie.",
+    cta: "Szczegóły wydarzenia",
+    note: "Jeśli to pomyłka, skontaktuj się z osobą, która Cię zapisała, albo z organizatorem. Gdy zgłoszenie zostanie przywrócone albo zwolni się miejsce, wyślemy nowy bilet w osobnej wiadomości.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
   event_ticket_refunded: {
     subject: (v) => `Zwrot za bilet${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "info",
@@ -923,6 +941,20 @@ const EN: Dict = {
       "Your seat at the event is confirmed. The button below opens your ticket with the QR code - show it at the entrance. The code belongs to you, please do not pass it on.",
     cta: "Show my ticket with the QR code",
     note: "Keep this email - it is the only copy of your code. If the scanner cannot read the QR, staff can type in the entry code by hand.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_ticket_revoked: {
+    subject: (v) =>
+      `Ticket no longer valid${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "The QR code from our earlier message will no longer get you in.",
+    eyebrow: "Event",
+    heading: "Your ticket is no longer valid",
+    intro:
+      "The group registration that signed you up for this event was cancelled or not accepted by the organiser. The QR code from our earlier message will no longer get you in.",
+    cta: "Event details",
+    note: "If this looks like a mistake, contact the person who registered you or the organiser. If the registration is restored or a seat frees up, we will send you a new ticket in a separate email.",
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },

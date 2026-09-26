@@ -2070,12 +2070,13 @@ export default defineConfig({
         // na koniec opłaconego okresu. Cicha awaria oznacza albo dostęp po
         // oddaniu pieniędzy, albo odebranie dostępu komuś, kto zapłacił -
         // dlatego próg jest wyraźnie wyższy niż średnia katalogu.
-        // ZMIERZONE 2026-08-31: 98,14 / 95,03 / 100 / 100.
+        // ZMIERZONE 2026-09-26: 100 / 100 / 100 / 100 (po naprawie statusu
+        // anulowanego udziału `cancelled` - literówka łamała CHECK tabeli).
         "src/lib/billing/refunds.server.ts": {
-          statements: 94,
-          functions: 96,
-          lines: 96,
-          branches: 91,
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
         },
         // Adres powrotu od operatora płatności. ORIGIN tego adresu pochodzi z
         // nagłówków żądania, czyli z wartości, które klient podaje dowolnie -
@@ -6542,6 +6543,44 @@ export default defineConfig({
           branches: 98,
         },
         "src/lib/events/registrationSubmitDraft.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ══ WYDARZENIA: BRAKI CZ. 3 Z 2026-09-26 (zawiadomienie o odwołanym ══
+        // ══ bilecie, bilet z puli planu, wpłata przy wyczerpanej puli) ═══════
+        //
+        // ZMIERZONE 2026-09-26: każdy zmieniony plik 100 / 100 / 100 / 100.
+        // Niżej pliki, które progu per plik jeszcze nie miały; reszta
+        // (checkout.functions, RegistrationPayAction, registrationRows,
+        // refunds.server) stoi już na 98. `jobsTick.server` zostaje przy swoim
+        // (99 / 100 / 99 / 98).
+        "src/lib/events/ticketRevokedNotify.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/email-templates/tx-copy.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/email/tx-preview.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/email/suppressionPolicy.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/routes/api/public/community-cron.ts": {
           statements: 98,
           functions: 98,
           lines: 98,

@@ -811,6 +811,34 @@ ALTER TABLE public.event_rsvps ENABLE ROW LEVEL SECURITY;
 GRANT SELECT ON public.event_rsvps TO authenticated;
 GRANT ALL ON public.event_rsvps TO service_role;
 
+-- ----------------------------------------------------------------------------
+-- `plan_ticket_claims` - ATRAPA (ksztalt z 20260822091000 / 20260822171037)
+-- Pula biletow wliczonych w plan. Modul dopisuje do niej `registration_id`
+-- (20260926150000), wiec replay potrzebuje TABELI - atrapa w transakcji
+-- pliku asercji juz nie wystarcza. Kolumny, CHECK-i i unikat (user_id,
+-- event_id) jak na produkcji; `org_id` bez klucza obcego, bo
+-- `member_organizations` nie ma w atrapach (modul jej nie czyta).
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.plan_ticket_claims (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  event_id uuid NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
+  org_id uuid,
+  tier_key text NOT NULL,
+  period_start date NOT NULL,
+  period_end date NOT NULL,
+  face_value_cents integer NOT NULL DEFAULT 0 CHECK (face_value_cents >= 0),
+  currency text NOT NULL DEFAULT 'PLN',
+  claimed_at timestamptz NOT NULL DEFAULT now(),
+  released_at timestamptz,
+  CONSTRAINT plan_ticket_claims_period_check CHECK (period_end > period_start),
+  CONSTRAINT plan_ticket_claims_user_event_uniq UNIQUE (user_id, event_id)
+);
+ALTER TABLE public.plan_ticket_claims ENABLE ROW LEVEL SECURITY;
+GRANT SELECT ON public.plan_ticket_claims TO authenticated;
+GRANT ALL ON public.plan_ticket_claims TO service_role;
+
 -- Polityki z 20260713093000. Ten sam powod, co przy `events`: modul czyta
 -- `event_rsvps` z widokow frontu (zgodnosc wsteczna zapisow), wiec deny-all
 -- na tej tabeli zamienialby asercje o zapisach w asercje o niczym.

@@ -162,6 +162,14 @@ function summarize(payload) {
         (tickets.deferred ? ` (odłożone: ${tickets.deferred})` : ""),
     );
   }
+  // Zawiadomienia gosci o bilecie odwolanym razem z grupa - ten sam job.
+  const revoked = payload.eventTicketRevocations;
+  if (revoked && typeof revoked === "object" && !revoked.error && !revoked.skipped) {
+    parts.push(
+      `odwołane bilety (zawiadomienia): ${revoked.sent ?? 0}/${revoked.notices ?? 0}` +
+        (revoked.deferred ? ` (odłożone: ${revoked.deferred})` : ""),
+    );
+  }
   if (payload.runnerArmed === "armed") parts.push("uzbrojono pg_cron");
   if (Array.isArray(payload.errors) && payload.errors.length > 0) {
     parts.push(`błędy: ${payload.errors.join("; ")}`);

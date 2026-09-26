@@ -382,6 +382,13 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     drizzleOnly:
       "Zastosowanie SQL-u 0061 z panelu Lovable (bez komentarzy, instrukcje identyczne i idempotentne); blizniak supabase to juz 20260926140000.",
   },
+  // Braki modulu Wydarzen, czesc 3: zawiadomienie gosci o odwolanym bilecie,
+  // awans za gosci zwroconych, bilet z puli wraca do puli i pokrywa
+  // pojedyncze zgloszenie, wplata Stripe przy wyczerpanej puli.
+  {
+    tag: "0065_event_registration_gaps_part3",
+    twin: "20260926150000_event_registration_gaps_part3.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";

@@ -278,6 +278,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
 
 describe("createCheckoutOrder - kod kwotowy na zamówieniu grupowym", () => {
@@ -463,7 +464,8 @@ describe("createCheckoutOrder - benefit planu tylko na miejscu członka", () => 
     expect(metadata()).toMatchObject({ coupon_discount_cents: 16000, plan_benefit: "included" });
     expect(metadata()).not.toHaveProperty("coupon_discount_per_seat_cents");
     expect(stripeCoupons()).toEqual([
-      expect.objectContaining({ amount_off: 26000, name: "Kupon Benefit planu + MINUS80" }),
+      // Kod PRZED benefitem: przy limicie 40 znaków ucina się benefit, nie kod.
+      expect.objectContaining({ amount_off: 26000, name: "Kupon MINUS80 + Benefit planu" }),
     ]);
   });
 
@@ -480,6 +482,86 @@ describe("createCheckoutOrder - benefit planu tylko na miejscu członka", () => 
     expect(orderInsert().amount_cents).toBe(10000);
     expect(metadata()).not.toHaveProperty("plan_benefit");
     expect(rpcCalls.map((c) => c.fn)).not.toContain("my_ticket_allowance");
+  });
+});
+
+/** Kurs NBP to jedyne wyjście na zewnątrz konwersji - zaślepione na `fetch`. */
+function stubNbpRate(mid: number): void {
+  vi.stubGlobal("fetch", () =>
+    Promise.resolve({
+      ok: true,
+      status: 200,
+      // Data notowania z dzisiejszego zegara - literał daty zestarzałby się.
+      json: () =>
+        Promise.resolve({ rates: [{ mid, effectiveDate: new Date().toISOString().slice(0, 10) }] }),
+    }),
+  );
+}
+
+describe("createCheckoutOrder - benefit planu w pozycji Stripe i w walucie zamówienia", () => {
+  it("benefit bez kuponu Stripe (awaria operatora): jedna linia za całość, nie „3 × średnia”", async () => {
+    // 50 + 2 × 100 = 250 zł dzieli się przez 3 miejsca bez reszty? Nie - ale
+    // 5 miejsc (50 + 4 × 100 = 450 zł) już tak: „5 × 90 zł" byłoby ceną, której
+    // nie płaci nikt.
+    rpcResponses.set("my_ticket_allowance", ok({ granted: 0, used: 0, discount_pct: 50 }));
+    rpcResponses.set("event_registration_group_seats", ok(5));
+    h.state.couponError = new Error("stripe: coupons unavailable");
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await call();
+
+    expect(orderInsert().amount_cents).toBe(45000);
+    expect(session().line_items).toHaveLength(1);
+    expect(session().line_items[0]).toMatchObject({
+      quantity: 1,
+      price_data: { unit_amount: 45000 },
+    });
+    expect(session().discounts ?? []).toEqual([]);
+    logged.mockRestore();
+  });
+
+  it("waluta prezentacji EUR: ceny miejsc i rabat na miejsce w walucie ZAMÓWIENIA", async () => {
+    stubNbpRate(4);
+    rpcResponses.set("my_ticket_allowance", ok({ granted: 0, used: 0, discount_pct: 50 }));
+
+    await call({ coupon_code: "MINUS20", display_currency: "EUR" });
+
+    expect(orderInsert()).toMatchObject({ currency: "EUR" });
+    const perSeat = Number(metadata().coupon_discount_per_seat_cents);
+    expect(metadata()).toMatchObject({
+      plan_benefit: "discount",
+      // 50 zł i 100 zł po kursie 4 - osobno, bez proporcji.
+      lead_unit_cents: 1250,
+      guest_unit_cents: 2500,
+    });
+    // Rabat na miejsce z PRZELICZONEGO rabatu (60 zł -> 15 EUR, 3 miejsca).
+    expect(perSeat).toBe(Math.floor(Number(metadata().coupon_discount_cents) / 3));
+    expect(perSeat).toBe(500);
+  });
+
+  it("waluta prezentacji EUR bez benefitu i z kodem procentowym: nic do przeliczenia na miejscu", async () => {
+    stubNbpRate(4);
+    rpcResponses.set("validate_event_ticket_coupon", percentCode(10));
+
+    await call({ coupon_code: "PROC10", display_currency: "EUR" });
+
+    expect(orderInsert()).toMatchObject({ currency: "EUR" });
+    expect(metadata()).not.toHaveProperty("plan_benefit");
+    expect(metadata()).not.toHaveProperty("coupon_discount_per_seat_cents");
+  });
+
+  it("waluta prezentacji równa walucie ceny: metadane miejsc bez zmian", async () => {
+    stubNbpRate(4);
+    rpcResponses.set("my_ticket_allowance", ok({ granted: 0, used: 0, discount_pct: 50 }));
+
+    await call({ coupon_code: "MINUS20", display_currency: "PLN" });
+
+    expect(orderInsert()).toMatchObject({ currency: "PLN" });
+    expect(metadata()).toMatchObject({
+      lead_unit_cents: 5000,
+      guest_unit_cents: 10000,
+      coupon_discount_per_seat_cents: 2000,
+    });
   });
 });
 

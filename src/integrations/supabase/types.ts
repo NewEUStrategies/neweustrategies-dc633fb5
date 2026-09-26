@@ -8039,6 +8039,8 @@ export type Database = {
           ticket_code_claimed_at: string | null
           ticket_code_sent_at: string | null
           ticket_code_undeliverable_at: string | null
+          ticket_revoked_at: string | null
+          ticket_revoked_notice_claimed_at: string | null
           ticket_type_id: string | null
           updated_at: string
           waitlist_notified_at: string | null
@@ -8077,6 +8079,8 @@ export type Database = {
           ticket_code_claimed_at?: string | null
           ticket_code_sent_at?: string | null
           ticket_code_undeliverable_at?: string | null
+          ticket_revoked_at?: string | null
+          ticket_revoked_notice_claimed_at?: string | null
           ticket_type_id?: string | null
           updated_at?: string
           waitlist_notified_at?: string | null
@@ -8115,6 +8119,8 @@ export type Database = {
           ticket_code_claimed_at?: string | null
           ticket_code_sent_at?: string | null
           ticket_code_undeliverable_at?: string | null
+          ticket_revoked_at?: string | null
+          ticket_revoked_notice_claimed_at?: string | null
           ticket_type_id?: string | null
           updated_at?: string
           waitlist_notified_at?: string | null
@@ -13399,6 +13405,7 @@ export type Database = {
           org_id: string | null
           period_end: string
           period_start: string
+          registration_id: string | null
           released_at: string | null
           tenant_id: string
           tier_key: string
@@ -13413,6 +13420,7 @@ export type Database = {
           org_id?: string | null
           period_end: string
           period_start: string
+          registration_id?: string | null
           released_at?: string | null
           tenant_id: string
           tier_key: string
@@ -13427,6 +13435,7 @@ export type Database = {
           org_id?: string | null
           period_end?: string
           period_start?: string
+          registration_id?: string | null
           released_at?: string | null
           tenant_id?: string
           tier_key?: string
@@ -13445,6 +13454,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "member_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plan_ticket_claims_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
             referencedColumns: ["id"]
           },
           {
@@ -19330,10 +19346,20 @@ export type Database = {
         }
         Returns: undefined
       }
-      _event_group_promote_freed: {
-        Args: { p_event_id: string; p_tenant: string; p_ticket_types: string[] }
-        Returns: number
-      }
+      _event_group_promote_freed:
+        | {
+            Args: { p_event_id: string; p_tenant: string; p_ticket_types: string[] }
+            Returns: number
+          }
+        | {
+            Args: {
+              p_event_id: string
+              p_skip_group: string
+              p_tenant: string
+              p_ticket_types: string[]
+            }
+            Returns: number
+          }
       _event_group_repair_stranded_guests: {
         Args: { p_limit?: number }
         Returns: number
@@ -19342,6 +19368,12 @@ export type Database = {
         Args: {
           p_guest: Database["public"]["Tables"]["event_registrations"]["Row"]
           p_lead: Database["public"]["Tables"]["event_registrations"]["Row"]
+        }
+        Returns: boolean
+      }
+      _event_guest_ticket_reached: {
+        Args: {
+          p_reg: Database["public"]["Tables"]["event_registrations"]["Row"]
         }
         Returns: boolean
       }
@@ -19566,19 +19598,38 @@ export type Database = {
         }
         Returns: number
       }
+      _event_ticket_revoked_notices_claim: {
+        Args: { p_limit?: number }
+        Returns: Json
+      }
+      _event_ticket_revoked_notices_settle: {
+        Args: { p_claimed_at: string; p_done: string[]; p_retry: string[] }
+        Returns: number
+      }
       _event_unique_page_slug: {
         Args: { _base: string; _tenant: string }
         Returns: string
       }
-      _event_waitlist_promote: {
-        Args: {
-          _event_id: string
-          _limit?: number
-          _tenant: string
-          _ticket_type_id?: string
-        }
-        Returns: Json
-      }
+      _event_waitlist_promote:
+        | {
+            Args: {
+              _event_id: string
+              _limit?: number
+              _tenant: string
+              _ticket_type_id?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              _event_id: string
+              _limit: number
+              _skip_group: string
+              _tenant: string
+              _ticket_type_id: string
+            }
+            Returns: Json
+          }
       _suggest_score: {
         Args: { _a: string; _b: string; _q: string }
         Returns: number

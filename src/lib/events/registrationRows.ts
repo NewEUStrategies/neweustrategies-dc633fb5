@@ -113,8 +113,11 @@ export function areConsentsWithdrawn(row: EventRegistrationRow): boolean {
 
 /** Statusy, w ktorych wiersz trzyma bilet - lustro `_event_issue_ticket_codes`. */
 const TICKET_STATUSES: readonly string[] = ["approved", "attended"];
-/** Rozliczenia, przy ktorych bilet sie nalezy - lustro tej samej funkcji. */
-const TICKET_PAYMENTS: readonly string[] = ["paid", "not_required"];
+/**
+ * Rozliczenia, przy ktorych bilet sie nalezy - lustro tej samej funkcji.
+ * Zwrot czesciowy to korekta ceny: miejsce i bilet zostaja (20260926150000).
+ */
+const TICKET_PAYMENTS: readonly string[] = ["paid", "partially_refunded", "not_required"];
 
 /** Wiersz w stanie, w ktorym plakietka biletu (wyslany / niewyslany) cos znaczy. */
 export function holdsTicket(status: string): boolean {
