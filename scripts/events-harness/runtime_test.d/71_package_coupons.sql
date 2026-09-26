@@ -17,8 +17,9 @@
 --      kod zawezony do innego rodzaju wejsciowki (`coupon_other_ticket_type`)
 --      i kontrapunkt - kod zawezony do rodzaju pakietu dziala;
 --   C. zakup: kwoty w zamowieniu, zuzycie kodu RAZ (licznik + jeden wiersz
---      realizacji z user_id i order_id NULL), sama wycena niczego nie zuzywa,
---      zakup bez kodu nie dotyka licznikow;
+--      realizacji z user_id, order_id NULL i package_order_id = zamowienie -
+--      od 20260926130000), sama wycena niczego nie zuzywa, zakup bez kodu nie
+--      dotyka licznikow;
 --   D. limity: wyczerpany kod odmawia drugiego zakupu, limit na osobe odmawia
 --      tej samej osobie, a nie innej;
 --   E. wyscig: kod wyczerpany, uzyty przez te sama osobe, WYLACZONY albo
@@ -33,7 +34,8 @@
 --
 -- CZEGO NIE SPRAWDZA: ekranu zakupu (vitest EventPackagesPurchase), kasy zapisu
 -- grupowego (vitest checkoutGroupCoupon) ani zwrotu uzycia przy anulowaniu
--- zamowienia - tego ta migracja nie zmienia. Ani `sold_out` ZAKUPU: to ten sam
+-- zamowienia - to robi 20260926130000 i sprawdza
+-- `72_package_order_cancel_coupon.sql`. Ani `sold_out` ZAKUPU: to ten sam
 -- warunek, ktory wycena sprawdza tuz przed nim na tym samym wierszu, wiec
 -- w jednej sesji zawsze wygrywa odmowa wyceny (`refused_sold_out`, sekcja F).
 -- Straznik zakupu istnieje dla drugiej transakcji, ktora sprzeda ostatni
@@ -371,6 +373,9 @@ BEGIN
     AND v_red.applied_cents = 25000 AND v_red.original_cents = 320000
     AND v_red.currency = 'PLN',
     '71/zuzycie: wiersz realizacji - kupujacy, rabat, cena przed rabatem, bez payment_orders');
+  -- Wskazanie zamowienia pakietu (20260926130000) - po nim anulowanie oddaje uzycie.
+  PERFORM pg_temp.assert(v_red.package_order_id = v_order.id,
+    '71/zuzycie: wiersz realizacji wskazuje zamowienie pakietu (package_order_id)');
 
   -- Zakup BEZ kodu nie dotyka zadnego licznika kodow.
   v_res := public.event_package_purchase(jsonb_build_object(

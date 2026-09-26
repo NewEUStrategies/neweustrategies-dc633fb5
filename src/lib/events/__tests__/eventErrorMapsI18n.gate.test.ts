@@ -93,6 +93,10 @@ const KODY_REJESTRACJI = [
   "package_in_use",
   "package_sold_out",
   "invalid_email",
+  // admin_event_package_order_set_status - powrót z anulowania, które oddało
+  // użycie kodu rabatowego (20260926130000)
+  "coupon_restore_exhausted",
+  "coupon_restore_used_by_buyer",
   // admin_event_package_seat_invite / _revoke
   "order_cancelled",
   "seat_revoked",
