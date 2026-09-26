@@ -28,6 +28,8 @@
     "eventMeetings",
     "eventFront",
     "eventScanner",
+    "adminEventCfp",
+    "eventCfp",
     "teamGrid"
   ],
   "missing": [],
