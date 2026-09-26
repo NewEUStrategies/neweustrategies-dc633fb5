@@ -26,6 +26,7 @@ import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
 import { packageInviteUrl } from "@/lib/events/packagesApi";
 import {
   admissionQuoteMessageKey,
+  packagePurchaseRefusal,
   type EventPackageOfferRow,
   type MyPackageOrderRow,
 } from "@/lib/events/admissionApi";
@@ -258,8 +259,13 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
 }
 
 function purchaseErrorMessage(error: unknown, t: (key: string) => string): string {
+  // Odmowa WYCENY powtorzona przy zakupie (np. kod wyczerpany przez rownolegly
+  // zakup miedzy wycena a kliknieciem) ma zdanie ze slownika wyceny.
+  const refusal = packagePurchaseRefusal(error);
+  if (refusal !== null) return t(admissionQuoteMessageKey(refusal));
   const message = error instanceof Error ? error.message : String(error);
-  const head = message.split(":")[0]?.trim() ?? "";
+  // Glowa komunikatu = wszystko przed PIERWSZYM dwukropkiem.
+  const head = message.replace(/:[\s\S]*$/, "").trim();
   const known = [
     "forbidden",
     "no_free_seat",
@@ -363,7 +369,19 @@ function QuoteSummary({
       </div>
       {quote.discountCents > 0 ? (
         <div className="flex justify-between gap-4">
-          <dt className="text-muted-foreground">{t("eventPackages.discountLabel")}</dt>
+          <dt className="text-muted-foreground">
+            {/* KOD KWOTOWY SCHODZI Z KAZDEGO MIEJSCA - etykieta mowi to wprost
+                („Rabat (5 × 50 zl)"), inaczej sama suma rabatu czytala sie jak
+                „kod odjal sie raz od calego pakietu". */}
+            {quote.discountKind === "fixed" &&
+            quote.discountPerSeatCents !== null &&
+            quote.seats > 1
+              ? t("eventPackages.discountPerSeat", {
+                  seats: quote.seats,
+                  perSeat: money(quote.discountPerSeatCents, currency, locale),
+                })
+              : t("eventPackages.discountLabel")}
+          </dt>
           <dd>-{money(quote.discountCents, currency, locale)}</dd>
         </div>
       ) : null}

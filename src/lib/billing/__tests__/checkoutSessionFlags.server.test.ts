@@ -112,6 +112,25 @@ describe("createAdhocCheckoutSession - flagi tenantu w sesji", () => {
     expect(payload.tax_id_collection).toBeUndefined();
   });
 
+  it("bilet z wyłączonym polem kodu (tak woła kasa) NIE dostaje pola kodu Stripe", async () => {
+    // Kasa biletu podaje ustawienia tenantu z `allow_promotion_codes: false`:
+    // kod wpisany w nakładce operatora schodziłby RAZ z całej sesji, z pominięciem
+    // zakresu wydarzenia, rozbicia na miejsca i limitu użyć.
+    const { createAdhocCheckoutSession } = await import("../adhocCheckout.server");
+    await createAdhocCheckoutSession({
+      ...base,
+      purpose: "event_ticket",
+      quantity: 3,
+      amountCents: 10000,
+      settings: { ...SETTINGS.managed, allow_promotion_codes: false },
+    });
+    expect(lastSessionPayload().allow_promotion_codes).toBeUndefined();
+
+    // Odblokowanie treści z tym samym tenantem zostaje przy polu kodu.
+    await createAdhocCheckoutSession({ ...base, settings: SETTINGS.managed });
+    expect(lastSessionPayload().allow_promotion_codes).toBe(true);
+  });
+
   it("darowizna anonimowa na płaszczyźnie MoR nie tworzy klienta sprzedawcy", async () => {
     const { createAdhocCheckoutSession } = await import("../adhocCheckout.server");
     await createAdhocCheckoutSession({

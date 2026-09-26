@@ -88,8 +88,6 @@ export const eventRegistrationPl = {
       waitlistNoPosition: "Jesteś na liście oczekujących.",
       paymentTitle: "Zgłoszenie czeka na opłatę",
       paymentHint: "Wejściówka zostanie wydana po zaksięgowaniu wpłaty.",
-      paymentHintAmount:
-        "Do zapłaty: {{amount}}. Wejściówka zostanie wydana po zaksięgowaniu wpłaty.",
       paymentNoTicketYet:
         "Kod wstępu nie został jeszcze wygenerowany - dostaniesz go razem z potwierdzeniem płatności.",
       manageTokenTitle: "Klucz do zarządzania zapisem",
@@ -184,8 +182,20 @@ export const eventRegistrationPl = {
       payNow: "Zapłać",
       promoLabel: "Kod rabatowy",
       promoPlaceholder: "Wpisz kod",
-      promoHint: "Rabat naliczymy w kasie, jeśli kod obejmuje ten bilet.",
+      promoHint:
+        "Kod kwotowy schodzi z każdego miejsca w zamówieniu - kwotę po rabacie pokażemy przed płatnością.",
       promoError: "Ten kod nie obejmuje tego biletu albo jest już nieważny.",
+      promoApply: "Zastosuj",
+      promoRevealOnly:
+        "Kod {{code}} odsłania ukryte bilety, ale nie daje rabatu - płacisz cenę biletu.",
+      // PODGLĄD KASY. Te same liczby policzy `createCheckoutOrder`; rozbicie
+      // na miejsca jest tu po to, żeby „-20 zł od każdego biletu" było widać
+      // PRZED nakładką operatora, a nie dopiero w niej.
+      quoteLoading: "Liczymy kwotę…",
+      quoteSeats: "Miejsca: {{count}} × {{unit}}",
+      quoteCodeFixed: "Kod {{code}}: -{{perSeat}} × {{count}}",
+      quoteCodeAmount: "Kod {{code}}: -{{amount}}",
+      quoteCodePercent: "Kod {{code}}: -{{percent}}% (-{{amount}})",
       revealLabel: "Masz kod dostępu?",
       revealApply: "Pokaż bilety",
       revealFound: "Odsłonięto bilety: {{count}}.",
@@ -301,6 +311,9 @@ export const eventRegistrationPl = {
     notQualified: "Stawka wymaga potwierdzenia przez organizatora",
     priceLabel: "Cena pakietu",
     discountLabel: "Rabat",
+    // Kod kwotowy schodzi z KAŻDEGO miejsca pakietu - etykieta pokazuje to
+    // rozbicie, a kwota obok jest sumą rabatu.
+    discountPerSeat: "Rabat ({{seats}} × {{perSeat}})",
     totalLabel: "Do zapłaty",
     couponLabel: "Kod rabatowy",
     couponPlaceholder: "np. PARTNER2026",
@@ -364,6 +377,7 @@ export const eventRegistrationPl = {
       coupon_other_ticket_type: "Kod dotyczy innego rodzaju wejściówki.",
       coupon_other_package: "Kod dotyczy innego pakietu.",
       coupon_other_currency: "Kod obowiązuje w innej walucie.",
+      coupon_no_discount: "Ten kod nie daje rabatu - odsłania tylko ukryte bilety.",
       ticket_included_in_plan:
         "Ta wejściówka jest już wliczona w Twój plan - nie ma czego płacić. Odbierz ją z puli członkowskiej.",
       event_finished: "Wydarzenie już się odbyło.",
@@ -371,6 +385,8 @@ export const eventRegistrationPl = {
       account_required: "Zaloguj się, żeby dokończyć płatność.",
       registration_not_payable:
         "Tego zgłoszenia nie da się już opłacić - jest odwołane albo rozliczone.",
+      group_seats_unavailable:
+        "Nie udało się policzyć miejsc w zamówieniu grupowym. Spróbuj ponownie za chwilę.",
       payments_unavailable: "Płatności są chwilowo niedostępne. Spróbuj później.",
       unknown: "Nie udało się wycenić. Spróbuj ponownie.",
     },
@@ -463,7 +479,6 @@ export const eventRegistrationEn = {
       waitlistNoPosition: "You are on the waiting list.",
       paymentTitle: "Your registration awaits payment",
       paymentHint: "The admission is issued once the payment clears.",
-      paymentHintAmount: "Amount due: {{amount}}. The admission is issued once the payment clears.",
       paymentNoTicketYet:
         "Your entry code has not been generated yet - you will get it together with the payment confirmation.",
       manageTokenTitle: "Registration management key",
@@ -542,8 +557,17 @@ export const eventRegistrationEn = {
       payNow: "Pay",
       promoLabel: "Discount code",
       promoPlaceholder: "Enter code",
-      promoHint: "We apply the discount at checkout if the code covers this ticket.",
+      promoHint:
+        "A fixed-amount code comes off every seat in the order - we show the discounted total before you pay.",
       promoError: "This code does not cover this ticket or is no longer valid.",
+      promoApply: "Apply",
+      promoRevealOnly:
+        "Code {{code}} reveals hidden tickets but gives no discount - you pay the ticket price.",
+      quoteLoading: "Calculating the amount…",
+      quoteSeats: "Seats: {{count}} × {{unit}}",
+      quoteCodeFixed: "Code {{code}}: -{{perSeat}} × {{count}}",
+      quoteCodeAmount: "Code {{code}}: -{{amount}}",
+      quoteCodePercent: "Code {{code}}: -{{percent}}% (-{{amount}})",
       revealLabel: "Have an access code?",
       revealApply: "Show tickets",
       revealFound: "Tickets revealed: {{count}}.",
@@ -654,6 +678,7 @@ export const eventRegistrationEn = {
     notQualified: "This rate needs organiser approval",
     priceLabel: "Package price",
     discountLabel: "Discount",
+    discountPerSeat: "Discount ({{seats}} × {{perSeat}})",
     totalLabel: "Total",
     couponLabel: "Discount code",
     couponPlaceholder: "e.g. PARTNER2026",
@@ -712,6 +737,7 @@ export const eventRegistrationEn = {
       coupon_other_ticket_type: "The code applies to another ticket type.",
       coupon_other_package: "The code applies to another package.",
       coupon_other_currency: "The code applies to another currency.",
+      coupon_no_discount: "This code gives no discount - it only reveals hidden tickets.",
       ticket_included_in_plan:
         "This admission is already included in your plan - there is nothing to pay. Claim it from your membership pool.",
       event_finished: "The event has already taken place.",
@@ -719,6 +745,8 @@ export const eventRegistrationEn = {
       account_required: "Sign in to complete the payment.",
       registration_not_payable:
         "This registration can no longer be paid - it is cancelled or already settled.",
+      group_seats_unavailable:
+        "We could not count the seats in this group order. Please try again in a moment.",
       payments_unavailable: "Payments are temporarily unavailable. Please try again later.",
       unknown: "We could not price this. Please try again.",
     },

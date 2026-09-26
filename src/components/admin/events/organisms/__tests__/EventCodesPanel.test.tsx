@@ -18,6 +18,9 @@
 //   6. FORMULARZ POKAZUJE TYLKO TO, CO MA SENS. Waluta tylko przy rabacie
 //      kwotowym, pola rabatu tylko przy włączonym rabacie, lista biletów tylko
 //      przy zakresie „wybrane".
+//   7. KOD KWOTOWY JEST „OD BILETU". Kasa zapisu grupowego i pakiet zdejmują
+//      kwotę z KAŻDEGO miejsca - kolumna działania mówi „/ bilet", a pod kwotą
+//      stoi podpowiedź. Samo „-50.00 PLN" czytało się jak rabat na zamówienie.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. Reguł szkicu (`eventCodeDraftIssue`,
 // `eventCodeDraftToPayload`, `eventCodeStatus`) - mają tabele przypadków
@@ -38,7 +41,7 @@ type Wynik = { onSuccess?: () => void; onError?: (error: unknown) => void };
 const h = vi.hoisted(() => ({
   lang: "pl" as string,
   rows: [] as EventCodeRow[] | undefined,
-  tickets: [] as { id: string; name_pl: string; name_en: string; currency: string }[],
+  tickets: [] as { id: string; name_pl: string; name_en: string; currency: string }[] | undefined,
   saveCalls: [] as { id: string | null; draft: EventCodeDraft }[],
   saveError: null as Error | null,
   savePending: false,
@@ -49,6 +52,8 @@ const h = vi.hoisted(() => ({
   clipboard: [] as string[],
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
+  ticketsQueryFn: null as (() => unknown) | null,
+  fetchEventTickets: vi.fn(),
 }));
 
 vi.mock("react-i18next", async () =>
@@ -56,8 +61,13 @@ vi.mock("react-i18next", async () =>
 );
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
 vi.mock("@/lib/http/host", () => ({ browserPublicOrigin: () => "https://nes.example" }));
-vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: h.tickets }) }));
-vi.mock("@/lib/events/registrationsApi", () => ({ fetchEventTickets: vi.fn() }));
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: (options: { queryFn: () => unknown }) => {
+    h.ticketsQueryFn = options.queryFn;
+    return { data: h.tickets };
+  },
+}));
+vi.mock("@/lib/events/registrationsApi", () => ({ fetchEventTickets: h.fetchEventTickets }));
 
 vi.mock("@/components/ui/switch", () => ({
   Switch: ({
@@ -245,14 +255,14 @@ describe("opis efektu kodu", () => {
   it.each<[string, Partial<EventCodeRow>, string]>([
     ["rabat procentowy na wszystkie bilety", {}, `-10% · ${C}.effect.all`],
     [
-      "rabat kwotowy z walutą",
+      "rabat kwotowy z walutą jest OD BILETU",
       { discountKind: "fixed", discountCents: 1999, currency: "PLN", discountPercent: null },
-      `-19.99 PLN · ${C}.effect.all`,
+      `${C}.effect.perTicket(amount=-19.99 PLN) · ${C}.effect.all`,
     ],
     [
       "rabat kwotowy bez waluty nie zostawia spacji na końcu",
       { discountKind: "fixed", discountCents: 500, currency: null, discountPercent: null },
-      `-5.00 · ${C}.effect.all`,
+      `${C}.effect.perTicket(amount=-5.00) · ${C}.effect.all`,
     ],
     [
       "rabat procentowy bez wartości liczy się jako zero",
@@ -262,7 +272,7 @@ describe("opis efektu kodu", () => {
     [
       "rabat kwotowy bez kwoty liczy się jako zero",
       { discountKind: "fixed", discountCents: null, currency: "EUR", discountPercent: null },
-      `-0.00 EUR · ${C}.effect.all`,
+      `${C}.effect.perTicket(amount=-0.00 EUR) · ${C}.effect.all`,
     ],
     [
       "samo odsłonięcie ukrytych biletów nie obiecuje rabatu",
@@ -382,6 +392,22 @@ describe("operacje w wierszu", () => {
     kliknij(within(wiersz()).getByRole("button", { name: `${C}.actions.delete` }));
     expect(h.toastError).toHaveBeenCalledWith(`${C}.toasts.error`);
     expect(h.toastSuccess).not.toHaveBeenCalled();
+  });
+});
+
+describe("bilety do zakresu kodu", () => {
+  it("lista biletów w oknie pochodzi z biletów TEGO wydarzenia", () => {
+    panel();
+    void h.ticketsQueryFn?.();
+    expect(h.fetchEventTickets).toHaveBeenCalledWith("ev1");
+  });
+
+  it("biletów jeszcze nie ma (zapytanie w toku) - okno i tak się otwiera, z walutą PLN", () => {
+    h.tickets = undefined;
+    panel();
+    kliknij(screen.getByRole("button", { name: `${C}.create` }));
+    kliknij(within(okno()).getByRole("button", { name: `${C}.form.amountOff` }));
+    expect(within(okno()).getByLabelText(`${C}.form.currency`)).toHaveProperty("value", "PLN");
   });
 });
 
@@ -523,6 +549,22 @@ describe("okno kodu", () => {
 });
 
 describe("pola rabatu w oknie", () => {
+  it("podpowiedź „od każdego biletu” stoi pod kwotą TYLKO przy rabacie kwotowym", () => {
+    panel();
+    kliknij(screen.getByRole("button", { name: `${C}.create` }));
+    expect(within(okno()).queryByText(`${C}.form.amountPerTicketHint`)).toBeNull();
+    kliknij(within(okno()).getByRole("button", { name: `${C}.form.amountOff` }));
+    expect(within(okno()).getByText(`${C}.form.amountPerTicketHint`)).toBeTruthy();
+    kliknij(within(okno()).getByRole("button", { name: `${C}.form.percentOff` }));
+    expect(within(okno()).queryByText(`${C}.form.amountPerTicketHint`)).toBeNull();
+  });
+
+  it("podpowiedź liczby użyć mówi, że zamówienie zużywa jedno użycie", () => {
+    panel();
+    kliknij(screen.getByRole("button", { name: `${C}.create` }));
+    expect(within(okno()).getByText(`${C}.form.quantityHint`)).toBeTruthy();
+  });
+
   it("waluta jest tylko przy rabacie kwotowym i przyjmuje wielkie litery", () => {
     panel();
     kliknij(screen.getByRole("button", { name: `${C}.create` }));

@@ -78,6 +78,7 @@ const h = vi.hoisted(() => ({
   sendConfirmation: vi.fn(),
   sendTicketCodes: vi.fn(),
   checkout: vi.fn(),
+  quote: vi.fn(),
 }));
 
 /** Zapora przed odpowiedzia RPC - test trzyma zadanie „w trakcie". */
@@ -117,6 +118,10 @@ vi.mock("@/lib/billing/checkout.functions", () => ({
   createCheckoutOrder: { name: "createCheckoutOrder" },
 }));
 
+vi.mock("@/lib/billing/eventTicketQuote.functions", () => ({
+  quoteEventTicketCheckout: { name: "quoteEventTicketCheckout" },
+}));
+
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
   useServerFn: (fn: { name?: string }) =>
@@ -124,7 +129,9 @@ vi.mock("@tanstack/react-start", async (importOriginal) => ({
       ? h.sendConfirmation
       : fn.name === "sendGroupTicketCodes"
         ? h.sendTicketCodes
-        : h.checkout,
+        : fn.name === "quoteEventTicketCheckout"
+          ? h.quote
+          : h.checkout,
 }));
 
 vi.mock("@/hooks/useAuth", () => ({
@@ -326,6 +333,17 @@ beforeEach(() => {
   h.sendTicketCodes.mockReset();
   h.sendTicketCodes.mockResolvedValue({ ok: true, sent: 2 });
   h.checkout.mockReset();
+  h.quote.mockReset();
+  h.quote.mockResolvedValue({
+    seats: 1,
+    unitCents: 10000,
+    subtotalCents: 10000,
+    currency: "PLN",
+    coupon: null,
+    discountCents: 0,
+    totalCents: 10000,
+    couponError: null,
+  });
   rpcGate.current = null;
 });
 
@@ -1386,9 +1404,17 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
     });
     expect(screen.getByText("eventRegistration.group.retry.beforePayment")).toBeInTheDocument();
 
+    // Podgląd kasy przed dopisaniem gości: jedno miejsce.
+    await waitFor(() => expect(h.quote).toHaveBeenCalledTimes(1));
+    h.quote.mockResolvedValue({ ...(await h.quote.mock.results[0]?.value), seats: 2 });
     stub().setData(GROUP_RPC, { added: 1, registration_ids: [] });
     fireEvent.click(retryButton());
     await screen.findByText("eventRegistration.group.retry.added(count=1)");
+    // Dopisanie gości zmienia liczbę miejsc - rozbicie pod przyciskiem musi się
+    // przeliczyć, zanim kupujący kliknie „Zapłać".
+    expect(
+      await screen.findByText("eventRegistration.payment.quoteSeats(count=2,unit=100,00 zł)"),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "eventRegistration.payment.payNow" }));
 
     // Liczbę miejsc liczy `event_registration_group_seats` w funkcji kasy po

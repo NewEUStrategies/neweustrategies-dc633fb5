@@ -34,6 +34,8 @@ import { axeViolations, summarize } from "@/test/axe";
 const fetchRegistrations = vi.fn<() => Promise<ParticipantRegistration[]>>();
 const setChannels = vi.fn();
 const checkout = vi.fn();
+// Podgląd kasy (`quoteEventTicketCheckout`) - molekuła kasy pyta go o kwotę.
+const quote = vi.fn();
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 
@@ -46,11 +48,16 @@ vi.mock("@tanstack/react-router", async () => ({
 
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
-  useServerFn: () => checkout,
+  useServerFn: (fn: { name?: string }) =>
+    fn.name === "quoteEventTicketCheckout" ? quote : checkout,
 }));
 
 vi.mock("@/lib/billing/checkout.functions", () => ({
   createCheckoutOrder: { name: "createCheckoutOrder" },
+}));
+
+vi.mock("@/lib/billing/eventTicketQuote.functions", () => ({
+  quoteEventTicketCheckout: { name: "quoteEventTicketCheckout" },
 }));
 
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ session: { user: { id: "u-1" } } }) }));
@@ -109,6 +116,16 @@ function registration(over: Partial<ParticipantRegistration> = {}): ParticipantR
 
 beforeEach(() => {
   vi.clearAllMocks();
+  quote.mockResolvedValue({
+    seats: 1,
+    unitCents: 15000,
+    subtotalCents: 15000,
+    currency: "PLN",
+    coupon: null,
+    discountCents: 0,
+    totalCents: 15000,
+    couponError: null,
+  });
   fetchRegistrations.mockResolvedValue([registration()]);
   setChannels.mockResolvedValue({
     registrationId: REGISTRATION_ID,
@@ -125,8 +142,32 @@ describe("ParticipantTicketsPanel - powrót do kasy", () => {
       await screen.findByRole("button", { name: "eventRegistration.payment.resume" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("eventRegistration.payment.amountDue(amount=150,00 zł)"),
+      await screen.findByText("eventRegistration.payment.amountDue(amount=150,00 zł)"),
     ).toBeInTheDocument();
+  });
+
+  it("zamówienie grupowe pokazuje to samo rozbicie co kasa, a nie cenę jednego miejsca", async () => {
+    quote.mockResolvedValue({
+      seats: 3,
+      unitCents: 15000,
+      subtotalCents: 45000,
+      currency: "PLN",
+      coupon: { code: "MINUS20", kind: "fixed", percent: null, perSeatCents: 2000 },
+      discountCents: 6000,
+      totalCents: 39000,
+      couponError: null,
+    });
+    renderWithQueryClient(<ParticipantTicketsPanel />);
+
+    expect(
+      await screen.findByText("eventRegistration.payment.amountDue(amount=390,00 zł)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("eventRegistration.payment.quoteSeats(count=3,unit=150,00 zł)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("eventRegistration.payment.amountDue(amount=150,00 zł)"),
+    ).not.toBeInTheDocument();
   });
 
   it("klik niesie KOMPLET identyfikatorów z wiersza karty", async () => {
@@ -257,6 +298,8 @@ describe("ParticipantTicketsPanel - kanały powiadomień", () => {
   it("nie ma naruszeń dostępności", async () => {
     const { container } = renderWithQueryClient(<ParticipantTicketsPanel />);
     await screen.findByText("Kongres CEE 2026");
+    // Rozbicie kwoty z podglądu kasy też jest częścią karty.
+    await screen.findByText(/eventRegistration\.payment\.amountDue/);
     const violations = await axeViolations(container);
     expect(violations, summarize(violations)).toEqual([]);
   });

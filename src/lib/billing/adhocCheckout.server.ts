@@ -53,6 +53,26 @@ export type { StripeEnv };
 /** Minimalna kwota dopuszczana przez Stripe dla obciążeń kartą (50 groszy/centów). */
 export const MIN_ADHOC_AMOUNT_CENTS = 50;
 
+/**
+ * Górny limit ilości na pozycji sesji. Wołający, który rozbija sumę na
+ * „N × cena", MUSI go znać - ilość ucięta tutaj po cichu dałaby w nakładce
+ * inną kwotę niż zamówienie.
+ */
+export const MAX_LINE_QUANTITY = 100;
+
+/**
+ * Stripe przyjmuje nazwę kuponu do 40 znaków i ODRZUCA dłuższą. Nazwa fazy
+ * sprzedaży sklejona z kodem („Pierwsza fala sprzedaży + PARTNER2026CEE")
+ * potrafi ją przekroczyć - a odrzucony kupon to rabat, którego kupujący nie
+ * zobaczy w nakładce.
+ */
+export const STRIPE_COUPON_NAME_MAX = 40;
+
+/** Nazwa kuponu operatora dla kodu, przycięta do limitu Stripe. */
+export function stripeCouponName(code: string): string {
+  return `Kupon ${code}`.slice(0, STRIPE_COUPON_NAME_MAX).trimEnd();
+}
+
 export type CheckoutSessionResult =
   { ok: true; clientSecret: string; sessionId: string } | { ok: false; error: string };
 
@@ -122,7 +142,7 @@ export async function createAdhocDiscountForCoupon(
     amount_off: Math.round(input.discountCents),
     currency: input.currency.toLowerCase(),
     duration: "once",
-    name: `Kupon ${input.code}`,
+    name: stripeCouponName(input.code),
     metadata: { source: "b2b_coupon", code: input.code },
   });
   return coupon.id;
@@ -181,7 +201,7 @@ export async function createPlanCheckoutSession(
     const mode: "payment" | "subscription" =
       price.type === "recurring" ? "subscription" : "payment";
 
-    const quantity = Math.min(Math.max(Math.trunc(input.quantity ?? 1), 1), 100);
+    const quantity = Math.min(Math.max(Math.trunc(input.quantity ?? 1), 1), MAX_LINE_QUANTITY);
 
     const productName =
       typeof price.product === "object" && price.product && "name" in price.product
@@ -291,7 +311,7 @@ export async function createAdhocCheckoutSession(
   }
   try {
     const stripe = await getStripeClient(input.environment);
-    const quantity = Math.min(Math.max(Math.trunc(input.quantity ?? 1), 1), 100);
+    const quantity = Math.min(Math.max(Math.trunc(input.quantity ?? 1), 1), MAX_LINE_QUANTITY);
 
     let customerId: string | undefined;
     if (input.userId) {

@@ -45,13 +45,16 @@ vi.mock("@/lib/stripe.server", () => ({
 }));
 
 import {
+  MAX_LINE_QUANTITY,
   MIN_ADHOC_AMOUNT_CENTS,
+  STRIPE_COUPON_NAME_MAX,
   createAdhocCheckoutSession,
   createAdhocDiscountForCoupon,
   createPlanCheckoutSession,
   resolveOrCreateCustomer,
   resolvePricesByLookupKeys,
   reuseOpenSession,
+  stripeCouponName,
   type AdhocCheckoutSessionInput,
   type PlanCheckoutSessionInput,
 } from "@/lib/billing/adhocCheckout.server";
@@ -602,6 +605,49 @@ describe("createAdhocDiscountForCoupon", () => {
       name: "Kupon B2B10",
       metadata: { source: "b2b_coupon", code: "B2B10" },
     });
+  });
+});
+
+describe("nazwa kuponu operatora - limit Stripe", () => {
+  // Stripe ODRZUCA nazwę kuponu dłuższą niż 40 znaków. Faza sprzedaży sklejona
+  // z kodem potrafi ją przekroczyć, a odrzucony kupon to rabat, którego
+  // kupujący nie zobaczy w nakładce.
+  it("krótki kod zostaje bez zmian", () => {
+    expect(stripeCouponName("MINUS20")).toBe("Kupon MINUS20");
+  });
+
+  it("długa nazwa jest przycinana do limitu i bez spacji na końcu", () => {
+    const name = stripeCouponName("Pierwsza fala sprzedaży + PARTNER-STRATEGICZNY-2026");
+    expect(STRIPE_COUPON_NAME_MAX).toBe(40);
+    expect(name.length).toBeLessThanOrEqual(STRIPE_COUPON_NAME_MAX);
+    expect(name).toBe("Kupon Pierwsza fala sprzedaży + PARTNER-");
+
+    // Cięcie wypadające na spacji nie zostawia jej na końcu nazwy.
+    expect(stripeCouponName("123456789012345678901234567890123 X")).toBe(
+      "Kupon 123456789012345678901234567890123",
+    );
+  });
+
+  it("kupon operatora dostaje przyciętą nazwę, a kod w metadanych zostaje pełny", async () => {
+    await createAdhocDiscountForCoupon(asStripe(), {
+      code: "Pierwsza fala sprzedaży + PARTNER-STRATEGICZNY-2026",
+      discountCents: 1000,
+      currency: "PLN",
+    });
+
+    expect(h.fns.couponsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Kupon Pierwsza fala sprzedaży + PARTNER-",
+        metadata: {
+          source: "b2b_coupon",
+          code: "Pierwsza fala sprzedaży + PARTNER-STRATEGICZNY-2026",
+        },
+      }),
+    );
+  });
+
+  it("limit ilości pozycji jest tym, którym przycinają obie sesje", () => {
+    expect(MAX_LINE_QUANTITY).toBe(100);
   });
 });
 

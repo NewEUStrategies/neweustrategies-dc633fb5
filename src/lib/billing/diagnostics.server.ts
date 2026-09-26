@@ -309,20 +309,34 @@ export async function buildPaymentsDiagnostics(
  * Wypycha aktywne kupony B2B do operatora, żeby rabat istniał zanim ktoś
  * pierwszy raz wpisze kod w nakładce płatności. Operacja jest idempotentna -
  * kod jest kluczem naturalnym po obu stronach.
+ *
+ * TYLKO KUPONY NAJEMCY ADMINA. Klient serwisowy omija RLS, więc bez filtra
+ * admin najemcy A wypychał do operatora kody WSZYSTKICH najemców.
+ *
+ * KODY WYDARZEŃ NIE JADĄ DO OPERATORA. Kod ze studia wydarzenia (`event_ids`)
+ * liczy nasza kasa: zakres wydarzenia i biletu, rabat kwotowy od KAŻDEGO
+ * miejsca, limit użyć i wiersz realizacji. Jego kopia w Stripe była
+ * rabatem `amount_off` zdejmowanym RAZ z całej sesji - dokładnie „kod
+ * odejmuje się raz od całego zamówienia" - i bez śladu w bazie. Kod bez
+ * rabatu (`applies_discount = false`, tylko odsłania bilety) nie ma czego
+ * wypychać: jego kopia byłaby rabatem zero albo - przy braku kwot - 100%.
  */
 export async function syncCouponDiscounts(
   env: StripeEnv,
+  tenantId: string,
 ): Promise<{ created: number; existing: number; failed: number }> {
   const supabase = await admin();
   const { data } = await supabase
     .from("b2b_coupons")
     .select(
-      "code, discount_kind, discount_percent, discount_cents, currency, valid_until, max_redemptions",
+      "code, discount_kind, discount_percent, discount_cents, currency, valid_until, max_redemptions, event_ids, applies_discount",
     )
+    .eq("tenant_id", tenantId)
     .eq("active", true)
     .limit(200);
 
   const { getStripeClient } = await import("@/lib/stripe.server");
+  const { stripeCouponName } = await import("@/lib/billing/adhocCheckout.server");
   const stripe = await getStripeClient(env);
 
   let created = 0;
@@ -331,6 +345,7 @@ export async function syncCouponDiscounts(
   for (const row of data ?? []) {
     const code = String(row.code ?? "").toUpperCase();
     if (!code) continue;
+    if ((row.event_ids ?? []).length > 0 || row.applies_discount === false) continue;
     try {
       const found = await findPromotionCodeByCode(env, code);
       if (found) {
@@ -339,7 +354,7 @@ export async function syncCouponDiscounts(
       }
       const isPercent = row.discount_kind !== "fixed";
       const coupon = await stripe.coupons.create({
-        name: `Kupon ${code}`,
+        name: stripeCouponName(code),
         duration: "once",
         ...(isPercent
           ? { percent_off: row.discount_percent ?? 0 }

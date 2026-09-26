@@ -61,6 +61,7 @@ const h = vi.hoisted(() => ({
   formOverride: null as RegistrationForm | null,
   sendConfirmation: vi.fn(),
   checkout: vi.fn(),
+  quote: vi.fn(),
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -91,10 +92,18 @@ vi.mock("@/lib/billing/checkout.functions", () => ({
   createCheckoutOrder: { name: "createCheckoutOrder" },
 }));
 
+vi.mock("@/lib/billing/eventTicketQuote.functions", () => ({
+  quoteEventTicketCheckout: { name: "quoteEventTicketCheckout" },
+}));
+
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
   useServerFn: (fn: { name?: string }) =>
-    fn.name === "confirmEventRegistrationEmail" ? h.sendConfirmation : h.checkout,
+    fn.name === "confirmEventRegistrationEmail"
+      ? h.sendConfirmation
+      : fn.name === "quoteEventTicketCheckout"
+        ? h.quote
+        : h.checkout,
 }));
 
 vi.mock("@/hooks/useAuth", () => ({
@@ -299,6 +308,17 @@ beforeEach(() => {
   h.sendConfirmation.mockReset();
   h.sendConfirmation.mockResolvedValue({ ok: true });
   h.checkout.mockReset();
+  h.quote.mockReset();
+  h.quote.mockResolvedValue({
+    seats: 1,
+    unitCents: 10000,
+    subtotalCents: 10000,
+    currency: "PLN",
+    coupon: null,
+    discountCents: 0,
+    totalCents: 10000,
+    couponError: null,
+  });
 });
 
 afterEach(cleanup);

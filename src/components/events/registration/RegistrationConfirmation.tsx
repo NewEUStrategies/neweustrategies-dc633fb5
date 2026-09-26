@@ -22,7 +22,6 @@ import { toast } from "sonner";
 
 import type { RegistrationResult } from "@/lib/events/publicRegistrationApi";
 import { manageLinkPath } from "@/lib/events/manageToken";
-import { formatAmountDue } from "@/lib/events/amountDue";
 import { Button } from "@/components/ui/button";
 import { RegistrationPayAction } from "@/components/events/registration/molecules/RegistrationPayAction";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
@@ -59,7 +58,7 @@ export function RegistrationConfirmation({
   /** Ilu gosci baza dopisala do tego zgloszenia (zapis grupowy); 0 = bez grupy. */
   guestsAdded?: number;
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
 
   const statusMessage =
@@ -91,21 +90,21 @@ export function RegistrationConfirmation({
   }
 
   /**
-   * Kwota w groszach -> napis w walucie odpowiedzi, w języku interfejsu.
+   * Kwota z `event_register` to cena JEDNEGO miejsca, bez kodu rabatowego.
    *
-   * Formatowanie mieszka w atomie (`formatAmountDue`), bo tę samą kwotę
-   * pokazują trzy powierzchnie - ten ekran, panel „Moje zgłoszenia" i strona
-   * samoobsługi. Trzy kopie jednego `Intl.NumberFormat` to trzy okazje do
-   * rozjazdu o grosz albo o walutę.
+   * Dlatego NIE stoi już w zdaniu nagłówkowym: po dopisaniu gości zamówienie
+   * obejmuje kilka miejsc, a kod kwotowy schodzi z każdego z nich - „Do
+   * zapłaty: 100 zł" przy grupie trzech osób z kodem -20 zł było trzecią
+   * liczbą, niezgodną ani z regułą, ani z kasą (240 zł). Kwotę mówi molekuła
+   * kasy z PODGLĄDU (`quoteEventTicketCheckout`), a ta wartość zostaje dla niej
+   * jako zapas, gdy podglądu policzyć się nie da.
    *
    * `?? null` NIE jest ozdobą: `RegistrationResult` składa też kod wywołujący
    * (i testy), a `undefined` przechodziłoby przez porównanie z `null` prosto do
-   * `Intl.NumberFormat({ currency: undefined })`, które RZUCA - i wywracało cały
-   * ekran potwierdzenia zamiast pominąć kwotę.
+   * `Intl.NumberFormat({ currency: undefined })`, które RZUCA.
    */
   const amountCents = result.amountCents ?? null;
   const currency = result.currency ?? null;
-  const amountLabel = formatAmountDue(amountCents, currency, i18n.language);
 
   return (
     <section className="space-y-6" aria-live="polite">
@@ -135,11 +134,7 @@ export function RegistrationConfirmation({
           <h2 className="text-sm font-semibold text-foreground">
             {t("eventRegistration.result.paymentTitle")}
           </h2>
-          <p className="text-sm text-foreground">
-            {amountLabel === null
-              ? t("eventRegistration.result.paymentHint")
-              : t("eventRegistration.result.paymentHintAmount", { amount: amountLabel })}
-          </p>
+          <p className="text-sm text-foreground">{t("eventRegistration.result.paymentHint")}</p>
           <p className="text-xs text-muted-foreground">
             {t("eventRegistration.result.paymentNoTicketYet")}
           </p>
@@ -153,9 +148,6 @@ export function RegistrationConfirmation({
             amountCents={amountCents}
             currency={currency}
             returnPath={`/events/${slug}`}
-            /* Kwotę mówi już zdanie wyżej - powtórzona tuż pod spodem czyta się
-               jak dwie różne należności. */
-            showAmount={false}
           />
         </div>
       )}
