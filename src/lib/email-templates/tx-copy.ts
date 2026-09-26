@@ -33,6 +33,13 @@ export type TxEmailType =
   | "event_registration_approved"
   | "event_registration_rejected"
   | "event_waitlist_promoted"
+  // NABOR PRELEGENTOW (f1): potwierdzenie wyslania zgloszenia (samoobsluga) i
+  // trzy decyzje organizatora (przyjecie, odmowa, prosba o zmiany). Osobne
+  // typy, bo kazda decyzja mowi prelegentowi co innego o tym, co ma zrobic.
+  | "event_cfp_submission_received"
+  | "event_cfp_submission_accepted"
+  | "event_cfp_submission_rejected"
+  | "event_cfp_submission_changes_requested"
   // Wynik platnosci za bilet przeniesiony z webhooka operatora: zaksiegowanie,
   // zwrot calkowity (miejsce wraca do puli) i zwrot czesciowy (korekta ceny,
   // miejsce zostaje). Osobne typy, bo kazdy z nich mowi co innego o miejscu.
@@ -43,6 +50,10 @@ export type TxEmailType =
   // zapisanych przez prowadzacego grupy). Jawny kod istnieje tylko w chwili
   // wydania, wiec ten mail jest jedyna jego kopia u uczestnika.
   | "event_ticket_issued"
+  // Faktura organizatora wydarzenia (faktura, proforma, korekta) wystawiona
+  // w studiu - powiadomienie z odnosnikiem do profilu, BEZ zalacznika (plik
+  // PDF skladany jest z migawki dokumentu w profilu kupujacego).
+  | "event_invoice_issued"
   | "donation_received"
   | "newsletter_confirmed"
   | "customer_portal_link"
@@ -107,6 +118,12 @@ export interface TxCopy {
      * dwoma różnymi adresami byłby wprowadzaniem w błąd.
      */
     manageCta: string;
+    /** Tytuł zgłoszonego wystąpienia - maile naboru prelegentów. */
+    talk: string;
+    /** Informacja zwrotna organizatora dla prelegenta - maile decyzji naboru. */
+    organizerMessage: string;
+    /** Numer dokumentu organizatora (faktura, proforma, korekta). */
+    documentNumber: string;
   };
   footerHelp: string;
 }
@@ -136,6 +153,9 @@ const LABELS_PL: TxCopy["labels"] = {
   entryCode: "Kod wejścia",
   registeredBy: "Zgłoszenie od",
   manageCta: "Zarządzaj zgłoszeniem",
+  talk: "Wystąpienie",
+  organizerMessage: "Wiadomość od organizatora",
+  documentNumber: "Numer dokumentu",
 };
 
 const LABELS_EN: TxCopy["labels"] = {
@@ -161,6 +181,9 @@ const LABELS_EN: TxCopy["labels"] = {
   entryCode: "Entry code",
   registeredBy: "Registered by",
   manageCta: "Manage your registration",
+  talk: "Talk",
+  organizerMessage: "Message from the organiser",
+  documentNumber: "Document number",
 };
 
 const HELP_PL =
@@ -464,6 +487,62 @@ const PL: Dict = {
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
+  event_cfp_submission_received: {
+    subject: (v) =>
+      `📝 Zgłoszenie wystąpienia wysłane${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "Mamy Twoje zgłoszenie - trafi do recenzentów naboru.",
+    eyebrow: "Nabór prelegentów",
+    heading: "Zgłoszenie wystąpienia wysłane",
+    intro:
+      "Dziękujemy za zgłoszenie. Recenzenci ocenią je po zamknięciu naboru, a decyzję organizatora wyślemy na ten adres.",
+    cta: "Panel prelegenta",
+    note: "Co dalej: stan zgłoszenia widzisz w panelu prelegenta. Do czasu oceny możesz je stamtąd wycofać.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_cfp_submission_accepted: {
+    subject: (v) =>
+      `🎤 Wystąpienie przyjęte${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "Organizator przyjął Twoje wystąpienie - potwierdź udział.",
+    eyebrow: "Nabór prelegentów",
+    heading: "Twoje wystąpienie zostało przyjęte",
+    intro:
+      "Gratulacje! Organizator przyjął Twoje zgłoszenie do programu wydarzenia. Potwierdź udział w panelu prelegenta, żeby wystąpienie mogło zostać ogłoszone.",
+    cta: "Potwierdź udział",
+    note: "W panelu prelegenta uzupełnisz biogram i zdjęcie oraz dodasz materiały. Szczegóły sesji ogłosimy w programie.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_cfp_submission_rejected: {
+    subject: (v) =>
+      `Decyzja w sprawie zgłoszenia wystąpienia${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Organizator rozpatrzył Twoje zgłoszenie wystąpienia.",
+    eyebrow: "Nabór prelegentów",
+    heading: "Tym razem bez wystąpienia",
+    intro:
+      "Dziękujemy za zgłoszenie. Organizator nie mógł włączyć go do programu tego wydarzenia. Jeśli dołączył informację zwrotną, znajdziesz ją poniżej.",
+    cta: "Zobacz wydarzenie",
+    note: "Twoje konto pozostaje bez zmian. Zapraszamy do udziału w wydarzeniu i do kolejnych naborów.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_cfp_submission_changes_requested: {
+    subject: (v) =>
+      `✏️ Prośba o zmiany w zgłoszeniu${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Organizator prosi o poprawki w Twoim zgłoszeniu wystąpienia.",
+    eyebrow: "Nabór prelegentów",
+    heading: "Organizator prosi o zmiany",
+    intro:
+      "Organizator przeczytał Twoje zgłoszenie i prosi o kilka zmian, zanim podejmie decyzję. Wiadomość od organizatora znajdziesz poniżej.",
+    cta: "Popraw zgłoszenie",
+    note: "Po wprowadzeniu zmian wyślij zgłoszenie ponownie z panelu prelegenta - wróci wtedy do oceny.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
   event_ticket_paid: {
     subject: (v) =>
       `\u{1F39F}\uFE0F Bilet op\u0142acony${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
@@ -488,6 +567,20 @@ const PL: Dict = {
       "Masz potwierdzone miejsce na wydarzeniu. Przycisk poniżej otwiera bilet z kodem QR - pokaż go przy wejściu. Kod jest przypisany do Ciebie, nie przekazuj go dalej.",
     cta: "Pokaż bilet z kodem QR",
     note: "Zachowaj tę wiadomość - to jedyna kopia kodu. Gdy skaner nie odczyta QR, obsługa wpisze kod wejścia ręcznie.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_invoice_issued: {
+    subject: (v) =>
+      `Dokument od organizatora${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-mail",
+    preview: "Organizator wystawił dokument do Twojego zamówienia - pobierzesz go z profilu.",
+    eyebrow: "Wydarzenie",
+    heading: "Twój dokument jest gotowy",
+    intro:
+      "Organizator wydarzenia wystawił dokument na dane nabywcy podane przy zamówieniu. Plik PDF pobierzesz w profilu, w sekcji faktur za wydarzenia.",
+    cta: "Przejdź do faktur",
+    note: "Jeśli dane na dokumencie wymagają poprawki, odpowiedz organizatorowi - zmiany po wystawieniu wprowadza się fakturą korygującą.",
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
@@ -899,6 +992,62 @@ const EN: Dict = {
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },
+  event_cfp_submission_received: {
+    subject: (v) =>
+      `📝 Talk submission sent${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "We have your submission - it goes to the call's reviewers.",
+    eyebrow: "Call for speakers",
+    heading: "Talk submission sent",
+    intro:
+      "Thank you for your submission. The reviewers will score it after the call closes, and we will send the organiser's decision to this address.",
+    cta: "Speaker panel",
+    note: "What next: you can follow the status in the speaker panel and withdraw the submission there until it is reviewed.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_cfp_submission_accepted: {
+    subject: (v) =>
+      `🎤 Talk accepted${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "The organiser accepted your talk - please confirm your participation.",
+    eyebrow: "Call for speakers",
+    heading: "Your talk has been accepted",
+    intro:
+      "Congratulations! The organiser accepted your submission into the event programme. Confirm your participation in the speaker panel so the talk can be announced.",
+    cta: "Confirm participation",
+    note: "In the speaker panel you can complete your bio and photo and add materials. Session details will be announced in the programme.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_cfp_submission_rejected: {
+    subject: (v) =>
+      `Decision on your talk submission${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "The organiser has reviewed your talk submission.",
+    eyebrow: "Call for speakers",
+    heading: "No talk this time",
+    intro:
+      "Thank you for your submission. The organiser could not include it in this event's programme. If they added feedback, you will find it below.",
+    cta: "See the event",
+    note: "Your account stays unchanged. You are welcome to attend the event and to submit to future calls.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_cfp_submission_changes_requested: {
+    subject: (v) =>
+      `✏️ Changes requested to your submission${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "The organiser asks for changes to your talk submission.",
+    eyebrow: "Call for speakers",
+    heading: "The organiser asks for changes",
+    intro:
+      "The organiser has read your submission and asks for a few changes before deciding. You will find the organiser's message below.",
+    cta: "Update the submission",
+    note: "Once you have made the changes, send the submission again from the speaker panel - it then goes back to review.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
   event_ticket_paid: {
     subject: (v) =>
       `\u{1F39F}\uFE0F Ticket paid${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
@@ -923,6 +1072,20 @@ const EN: Dict = {
       "Your seat at the event is confirmed. The button below opens your ticket with the QR code - show it at the entrance. The code belongs to you, please do not pass it on.",
     cta: "Show my ticket with the QR code",
     note: "Keep this email - it is the only copy of your code. If the scanner cannot read the QR, staff can type in the entry code by hand.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_invoice_issued: {
+    subject: (v) =>
+      `A document from the organizer${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-mail",
+    preview: "The organizer has issued a document for your order - download it from your profile.",
+    eyebrow: "Event",
+    heading: "Your document is ready",
+    intro:
+      "The event organizer has issued a document for the buyer details given with your order. Download the PDF in your profile, under event invoices.",
+    cta: "Go to invoices",
+    note: "If the details on the document need a change, reply to the organizer - after issue, changes are made with a credit note.",
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },

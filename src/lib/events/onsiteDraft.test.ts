@@ -118,6 +118,26 @@ describe("poswiadczenie urzadzenia", () => {
     ).toEqual([]);
   });
 
+  it("lista offline jedzie WYLACZNIE zaznaczona i razem z odprawa", () => {
+    expect(emptyScannerDeviceDraft().offlineRoster).toBe(false);
+    const withCheckin = scannerDeviceDraftToInput(
+      { ...emptyScannerDeviceDraft(), label: "Brama", offlineRoster: true },
+      EVENT,
+    );
+    expect(withCheckin.offlineRoster).toBe(true);
+    const leadOnly = scannerDeviceDraftToInput(
+      {
+        ...emptyScannerDeviceDraft(),
+        label: "Stoisko",
+        scopes: ["lead"],
+        sponsorId: "s1",
+        offlineRoster: true,
+      },
+      EVENT,
+    );
+    expect(leadOnly.offlineRoster).toBe(false);
+  });
+
   it("pusty termin nie jedzie do bazy - domyslny liczy migracja", () => {
     const input = scannerDeviceDraftToInput(
       { ...emptyScannerDeviceDraft(), label: "Brama" },

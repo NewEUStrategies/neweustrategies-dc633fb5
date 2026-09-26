@@ -283,6 +283,8 @@ const COMPONENT_EXCEPTIONS: Record<string, string> = {
     "ZAPYTANIE, nie rysunek: ten sam `event_sponsors_public`, co pas poziomow - pustka na szkicu. SAMA SEKCJA „Partnerzy” jest w podgladzie na stronie glownej (`EventPageSections` z `sponsorTiers`) i na zakladce „Partnerzy” (`EventPreviewLiveModule`) - rysuje ja `EventSponsorsSectionView` z wierszami RPC panelu, tym samym widokiem, ktorego uzywa ten organizm",
   EventAgendaSection:
     "poza bramka statusu (`event_agenda`) niesie ZAPIS NA SESJE (`event_session_signup`) - zywy przycisk zapisu w podgladzie panelu pozwolilby organizatorowi zapisac sie na sesje z ekranu, ktory mial tylko pokazywac",
+  AdAttributionCapture:
+    "NIE RYSUJE NICZEGO (renderuje `null`): przechwytuje atrybucje kampanii z adresu i wysyla krok lejka `visit` - w podgladzie studia wizyta redaktora zawyzalaby lejek Google Ads wlasnego wydarzenia",
   EventDiscussionsList:
     "`event_discussions` liczy dostep przez `club_capabilities` grupy klubu PRZYPIETEJ do wydarzenia, a ekran studia do wyboru klubu jest odlozony - dzis ten komponent nie ma w podgladzie zadnego stanu poza `not_configured`",
 };

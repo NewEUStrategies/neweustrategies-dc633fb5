@@ -164,6 +164,32 @@ export const DATA_ELEMENT_REGISTRY: readonly RegistryEntry[] = [
     ttl_en: "365 days",
   },
   {
+    name: "nes.attribution.v1",
+    category: "marketing",
+    kind: "localStorage",
+    match: ["nes.attribution.*"],
+    party_pl: PLATFORM_PL,
+    party_en: PLATFORM_EN,
+    purpose_pl:
+      "Atrybucja kampanii wydarzeń (UTM, identyfikator kliknięcia Google Ads - wyłącznie przy zgodzie marketingowej; przy samej zgodzie analitycznej bez identyfikatora kliknięcia)",
+    purpose_en:
+      "Event campaign attribution (UTM, Google Ads click ID - only with marketing consent; with analytics consent alone, without the click ID)",
+    ttl_pl: "90 dni",
+    ttl_en: "90 days",
+  },
+  {
+    name: "nes.event-funnel.sent",
+    category: "analytics",
+    kind: "sessionStorage",
+    match: ["nes.event-funnel.*"],
+    party_pl: PLATFORM_PL,
+    party_en: PLATFORM_EN,
+    purpose_pl: "Liczenie kroku lejka wydarzenia raz na sesję (wizyta, zapis, płatność)",
+    purpose_en: "Counting each event funnel step once per session (visit, registration, checkout)",
+    ttl_pl: "Sesja",
+    ttl_en: "Session",
+  },
+  {
     name: "ad_event",
     category: "marketing",
     kind: "server",
@@ -174,6 +200,23 @@ export const DATA_ELEMENT_REGISTRY: readonly RegistryEntry[] = [
     purpose_en: "Own-ad impression/click measurement, campaign attribution",
     ttl_pl: "180 dni",
     ttl_en: "180 days",
+  },
+  {
+    // Pomiar ekspozycji sponsorów na stronach wydarzeń (raport dla sponsora):
+    // identyfikator sesji powstaje dopiero po zgodzie marketingowej, a do bazy
+    // trafia wyłącznie jego skrót z dniem (bez IP, UA i konta).
+    name: "sponsor_event",
+    category: "marketing",
+    kind: "sessionStorage",
+    match: ["nes-sponsor-session"],
+    party_pl: PLATFORM_PL,
+    party_en: PLATFORM_EN,
+    purpose_pl:
+      "Pomiar wyświetleń i kliknięć logotypów, materiałów i reklam sponsorów wydarzeń (raport dla sponsora)",
+    purpose_en:
+      "Measurement of event sponsor logo, material and ad impressions and clicks (sponsor report)",
+    ttl_pl: "Sesja przeglądarki",
+    ttl_en: "Browser session",
   },
 ];
 

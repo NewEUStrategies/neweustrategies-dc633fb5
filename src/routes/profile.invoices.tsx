@@ -3,12 +3,15 @@
 // Dokumenty przeniosły się tu z /profile/payments celowo: tamta strona
 // odpowiada na pytanie „ile i kiedy zapłaciłem", ta na „gdzie jest moja
 // faktura". Rozdzielenie zamyka temat zgadywania, która zakładka ma plik.
+// Faktury za bilety i pakiety wydarzeń wystawia ORGANIZATOR (nie operator
+// płatności) - dlatego mają osobną kartę z własnym PDF.
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { InvoiceLedgerCard } from "@/components/billing/organisms/InvoiceLedgerCard";
 import { InvoiceCrmSyncCard } from "@/components/billing/organisms/InvoiceCrmSyncCard";
 import { InvoiceLookupCard } from "@/components/billing/molecules/InvoiceLookupCard";
+import { EventInvoicesProfileCard } from "@/components/events/invoices/organisms/EventInvoicesProfileCard";
 import { ensureI18n } from "@/lib/i18n-invoices";
 
 export const Route = createFileRoute("/profile/invoices")({
@@ -43,6 +46,8 @@ function InvoicesPage() {
         <p className="text-sm text-muted-foreground">{t("invoices.pageHint")}</p>
       </header>
       <InvoiceLedgerCard />
+      {/* Dokumenty organizatorow wydarzen (faktury na firme, proformy, korekty). */}
+      <EventInvoicesProfileCard />
       <InvoiceCrmSyncCard />
       {/* Odzyskanie faktury po numerze transakcji (np. płatność bez konta). */}
       <InvoiceLookupCard />

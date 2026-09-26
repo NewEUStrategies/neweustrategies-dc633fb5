@@ -7,8 +7,10 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  auditTimelineEventType,
   buildLeadTimelineHtml,
   leadTimelineDisplayName,
+  leadTimelineEventFromAudit,
   parseLeadTimelinePayload,
   type LeadTimelineEvent,
 } from "../leadTimeline";
@@ -95,6 +97,60 @@ describe("parseLeadTimelinePayload - kontrakt getCrmLeadTimeline", () => {
   it("zwraca pustą listę zdarzeń, gdy handler nie odda tablicy", () => {
     expect(parseLeadTimelinePayload(JSON.stringify({ lead: null })).events).toEqual([]);
     expect(parseLeadTimelinePayload("null").events).toEqual([]);
+  });
+});
+
+describe("wiersz audytu na osi czasu - typ i tytuł", () => {
+  // CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW: aktywność z modułu Wydarzeń
+  // (`event.*`) wraca do worka „Zmiana etapu", a jej tytułem staje się surowy
+  // kod akcji zamiast zdania z metadanych.
+  // Data z fabryki `event()` wyżej - bez nowego literału daty w pliku.
+  const AT = event().at;
+  const row = (action: string, metadata: Record<string, unknown> | null = null) => ({
+    id: "a1",
+    action,
+    actor_id: null,
+    metadata,
+    created_at: AT,
+  });
+
+  it("akcja `event.*` to typ „event” - także gdy w nazwie stoi „webhook”", () => {
+    expect(auditTimelineEventType("event.cfp.submitted")).toBe("event");
+    expect(auditTimelineEventType("event.integration.webhook_sent")).toBe("event");
+    expect(auditTimelineEventType("crm.lead.webhook_push")).toBe("webhook");
+    expect(auditTimelineEventType("crm_lead.stage_change")).toBe("stage_change");
+    // Prefiks, nie fragment: `crm.event.x` nie należy do modułu Wydarzeń.
+    expect(auditTimelineEventType("crm.event.imported")).toBe("stage_change");
+  });
+
+  it("wpis „event” bierze tytuł z `summary_pl` i zachowuje cały kontrakt w `meta`", () => {
+    const meta = { summary_pl: "Zgłoszenie wystąpienia", summary_en: "Talk submitted" };
+    expect(leadTimelineEventFromAudit(row("event.cfp.submitted", meta))).toEqual({
+      id: "au:a1",
+      type: "event",
+      at: AT,
+      title: "Zgłoszenie wystąpienia",
+      detail: null,
+      meta,
+    });
+  });
+
+  it("wpis „event” bez zdania spada na kod akcji, a nie na pusty tytuł", () => {
+    expect(leadTimelineEventFromAudit(row("event.cfp.submitted")).title).toBe(
+      "event.cfp.submitted",
+    );
+    expect(leadTimelineEventFromAudit(row("event.cfp.submitted")).meta).toBeNull();
+  });
+
+  it("pozostałe wpisy zachowują dotychczasowy kształt (tytuł = akcja)", () => {
+    expect(leadTimelineEventFromAudit(row("crm.lead.webhook_push", { a: 1 }))).toEqual({
+      id: "au:a1",
+      type: "webhook",
+      at: AT,
+      title: "crm.lead.webhook_push",
+      detail: null,
+      meta: { a: 1 },
+    });
   });
 });
 

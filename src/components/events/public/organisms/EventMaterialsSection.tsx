@@ -19,9 +19,15 @@
 // Dokładnie tak samo, i z tego samego powodu, zostało zdanie o pustce
 // w `EventSponsorsSection`.
 //
+// POMIAR DLA RAPORTU SPONSORA (miejsce `materials`): wyświetlenie grupy
+// materiałów partnera i OTWARCIE konkretnego materiału (`material_open`,
+// także środkowym przyciskiem) liczą haki z `sponsorTrackingReact` - pod
+// dostawcą publicznej powłoki, po zgodzie marketingowej, w efektach.
+//
 // KAŻDY ODNOŚNIK WYCHODZI Z SERWISU. `rel="noopener noreferrer nofollow"` jest
 // tu wymogiem, a nie ostrożnością: adresy pochodzą od partnerów, więc nie
 // przekazujemy im ani uchwytu do okna, ani rankingu.
+import { useRef } from "react";
 import { ExternalLink, FileText, Image, Link2, Presentation, Video } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -32,8 +38,11 @@ import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import {
   groupSponsorMaterials,
   sponsorMaterialKindKey,
+  type PublicSponsorMaterial,
+  type SponsorMaterialGroup,
   type SponsorMaterialKind,
 } from "@/lib/events/sponsorsSurface";
+import { useSponsorClickHandlers, useSponsorImpression } from "@/lib/events/sponsorTrackingReact";
 import { usePublicEventMaterials } from "@/lib/events/usePublicEvent";
 import { publicEventErrorMessage } from "@/lib/events/publicEventErrors";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
@@ -86,39 +95,57 @@ export function EventMaterialsSection({
   return (
     <div className="space-y-6">
       {groups.map((group) => (
-        <section key={group.sponsorId} className="space-y-2">
-          <h3 className="text-sm font-semibold text-foreground">{group.sponsorName}</h3>
-          <ul className="divide-y divide-border overflow-hidden rounded-[6px] border border-border bg-card">
-            {group.materials.map((material) => {
-              const Icon = KIND_ICON[material.kind];
-              const title = pickLocalized(
-                { title_pl: material.titlePl, title_en: material.titleEn },
-                "title",
-                lang,
-                material.sponsorName,
-              );
-              return (
-                <li key={material.id}>
-                  <a
-                    href={material.url}
-                    target="_blank"
-                    rel="noopener noreferrer nofollow"
-                    className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-muted/50"
-                  >
-                    <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                    <span className="min-w-0 flex-1 font-medium text-foreground">{title}</span>
-                    <Badge variant="outline">{t(sponsorMaterialKindKey(material.kind))}</Badge>
-                    <span className="inline-flex items-center gap-1 text-xs text-primary">
-                      <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                      {t("eventFront.materials.open")}
-                    </span>
-                  </a>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
+        <MaterialGroup key={group.sponsorId} group={group} lang={lang} />
       ))}
     </div>
+  );
+}
+
+function MaterialGroup({ group, lang }: { group: SponsorMaterialGroup; lang: "pl" | "en" }) {
+  const ref = useRef<HTMLElement | null>(null);
+  useSponsorImpression(ref, { sponsorId: group.sponsorId, placement: "materials" });
+  return (
+    <section ref={ref} className="space-y-2">
+      <h3 className="text-sm font-semibold text-foreground">{group.sponsorName}</h3>
+      <ul className="divide-y divide-border overflow-hidden rounded-[6px] border border-border bg-card">
+        {group.materials.map((material) => (
+          <MaterialLink key={material.id} material={material} lang={lang} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function MaterialLink({ material, lang }: { material: PublicSponsorMaterial; lang: "pl" | "en" }) {
+  const { t } = useTranslation();
+  const clickHandlers = useSponsorClickHandlers(
+    { sponsorId: material.sponsorId, placement: "materials", materialId: material.id },
+    "material_open",
+  );
+  const Icon = KIND_ICON[material.kind];
+  const title = pickLocalized(
+    { title_pl: material.titlePl, title_en: material.titleEn },
+    "title",
+    lang,
+    material.sponsorName,
+  );
+  return (
+    <li>
+      <a
+        href={material.url}
+        target="_blank"
+        rel="noopener noreferrer nofollow"
+        className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-muted/50"
+        {...clickHandlers}
+      >
+        <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <span className="min-w-0 flex-1 font-medium text-foreground">{title}</span>
+        <Badge variant="outline">{t(sponsorMaterialKindKey(material.kind))}</Badge>
+        <span className="inline-flex items-center gap-1 text-xs text-primary">
+          <ExternalLink className="h-3 w-3" aria-hidden="true" />
+          {t("eventFront.materials.open")}
+        </span>
+      </a>
+    </li>
   );
 }

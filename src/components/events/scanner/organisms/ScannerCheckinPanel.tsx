@@ -14,6 +14,12 @@
 // z trybem punktu (`control` odmawia, `track` tylko liczy) - ekran go nie
 // przelicza, bo dwa różne rachunki dałyby dwie różne odpowiedzi w tej samej
 // sekundzie.
+//
+// WYJĄTEK: BRAK SIECI Z LISTĄ OFFLINE. Wtedy decyzję podejmuje urządzenie
+// (`decideOffline`, lustro reguły bazy) i ekran pokazuje ją z PRAWDZIWYM
+// kolorem - ale zawsze z dopiskiem, że to decyzja z listy offline z danej
+// chwili i że serwer potwierdzi ją po powrocie sieci. Bez listy skan tylko
+// czeka w kolejce, jak dotąd.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -26,6 +32,7 @@ import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { formatEventDateTime } from "@/lib/events/timezone";
 import type { CheckinDirection } from "@/lib/events/onsiteEnums";
 import type { CheckinScanResult } from "@/lib/events/scannerApi";
+import { rosterEntryToPerson, type OfflineDecision } from "@/lib/events/scannerRoster";
 import {
   checkpointDirections,
   findCheckpoint,
@@ -47,6 +54,14 @@ function toneOf(result: CheckinScanResult): ScanTone {
   if (result.admit && result.outcome === "repeat") return "warning";
   if (result.admit) return "granted";
   if (result.outcome === "unknown_code" || result.outcome === "wrong_event") return "warning";
+  return "denied";
+}
+
+/** Ten sam kolor, co dla wyniku bazy - decyzja offline mówi tym samym językiem. */
+function toneOfLocal(decision: OfflineDecision): ScanTone {
+  if (decision.admit && decision.outcome === "repeat") return "warning";
+  if (decision.admit) return "granted";
+  if (decision.outcome === "unknown_code") return "warning";
   return "denied";
 }
 
@@ -74,6 +89,7 @@ export function ScannerCheckinPanel({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<CheckinScanResult | null>(null);
   const [queued, setQueued] = useState(false);
+  const [local, setLocal] = useState<OfflineDecision | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
   const activeDirection = directions.includes(direction) ? direction : directions[0];
@@ -88,10 +104,12 @@ export function ScannerCheckinPanel({
         if (outcome.queued) {
           setResult(null);
           setQueued(true);
-          toast.info(t("eventScanner.outbox.queuedToast"));
+          setLocal(outcome.local);
+          if (outcome.local === null) toast.info(t("eventScanner.outbox.queuedToast"));
           return;
         }
         setQueued(false);
+        setLocal(null);
         setResult(outcome.result);
         if (outcome.result.deviceLocked) {
           toast.error(scannerErrorMessage("device_locked: too many unknown codes"));
@@ -101,6 +119,7 @@ export function ScannerCheckinPanel({
         setBusy(false);
         setResult(null);
         setQueued(false);
+        setLocal(null);
         setFailure(scannerErrorMessage(error));
       });
   };
@@ -209,12 +228,40 @@ export function ScannerCheckinPanel({
         />
       )}
 
-      {queued && (
+      {queued && local === null && (
         <ScanOutcomeBanner
           tone="neutral"
           title={t("eventScanner.outcomes.saved")}
           hint={t("eventScanner.errors.offline")}
         />
+      )}
+
+      {queued && local !== null && (
+        <div className="space-y-3">
+          <ScanOutcomeBanner
+            tone={toneOfLocal(local)}
+            title={t(scanOutcomeKey(local.outcome))}
+            hint={t("eventScanner.offline.decisionHint", {
+              time: formatEventDateTime(local.rosterGeneratedAt, session.event.timezone, lang),
+            })}
+          />
+          {local.approximateCapacity && (
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              {t("eventScanner.offline.approximateCapacity")}
+            </p>
+          )}
+          {local.entry !== null && (
+            <div className="space-y-1">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                {t("eventScanner.offline.personFromRoster")}
+              </p>
+              <ScanPersonCard
+                person={rosterEntryToPerson(local.entry)}
+                timezone={session.event.timezone}
+              />
+            </div>
+          )}
+        </div>
       )}
 
       {result !== null && (

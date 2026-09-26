@@ -38,9 +38,20 @@ const GROUPS: readonly EventStudioNavGroup[] = EVENT_STUDIO_NAV.filter(
  * `registrationTickets` moze stac WYLACZNIE pod `registration/tickets`. Test
  * liczy to sam, zamiast powtarzac tablice adresow - inaczej sprawdzalby, czy
  * kopia zgadza sie z kopia.
+ *
+ * GRANICA SLOWA TO `/` ALBO `-`, a rozstrzyga ja MIEJSCE W DRZEWIE: pierwszy
+ * wyraz podpozycji grupy o wlasnym adresie (`registration`, `cfp`, ...) jest
+ * segmentem grupy i konczy sie ukosnikiem, a kazda inna granica wyrazu jest
+ * lacznikiem w obrebie segmentu. Pozycja samodzielna `adsFunnel` stoi wiec
+ * pod `ads-funnel`, a nie pod `ads/funnel` - ten drugi adres udawalby grupe
+ * `ads`, ktorej nie ma.
  */
 function expectedTail(section: string): string {
-  return section.replace(/[A-Z]/g, (letter) => `/${letter.toLowerCase()}`);
+  const words = section.split(/(?=[A-Z])/).map((word) => word.toLowerCase());
+  const nested = GROUPS.some(
+    (group) => group.key === words[0] && group.entries.some((entry) => entry.key === section),
+  );
+  return nested ? `${words[0]}/${words.slice(1).join("-")}` : words.join("-");
 }
 
 describe("rozpoznanie sekcji studia po adresie", () => {
@@ -71,6 +82,26 @@ describe("rozpoznanie sekcji studia po adresie", () => {
     expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/meetings/list`)).toBe(
       "meetingsList",
     );
+    expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/cfp/submissions`)).toBe(
+      "cfpSubmissions",
+    );
+    expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/registration/invoices`)).toBe(
+      "registrationInvoices",
+    );
+    expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/registration/seating`)).toBe(
+      "registrationSeating",
+    );
+  });
+
+  it("czyta pozycje samodzielna z LACZNIKIEM w jednym segmencie", () => {
+    // `ads-funnel` i `sponsor-report` sa jednym segmentem - rozbior po
+    // ukosniku nie moze ich pomylic z grupa `ads` albo `sponsor`.
+    expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/ads-funnel`)).toBe("adsFunnel");
+    expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/sponsor-report`)).toBe(
+      "sponsorReport",
+    );
+    expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/ads/funnel`)).toBeNull();
+    expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/sponsor/report`)).toBeNull();
   });
 
   it("rozpoznaje ADRES GRUPY i wskazuje jej pozycje domyslna", () => {
@@ -83,6 +114,7 @@ describe("rozpoznanie sekcji studia po adresie", () => {
     expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/content`)).toBe("contentTracks");
     expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/meetings`)).toBe("meetingsTables");
     expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/onsite`)).toBe("onsiteDesk");
+    expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/cfp`)).toBe("cfpSettings");
   });
 
   it("nie podswietla sekcji `pages` na adresie zaczynajacym sie tak samo", () => {
@@ -212,6 +244,79 @@ describe("drzewo nawigacji studia", () => {
   it("klucze wezlow najwyzszego poziomu sa unikalne", () => {
     const keys = EVENT_STUDIO_NAV.map((node) => node.key);
     expect([...new Set(keys)]).toHaveLength(keys.length);
+  });
+});
+
+describe("sekcje funkcji organizatora - umowa z agentami funkcji", () => {
+  // Siedem funkcji organizatora powstaje rownolegle i kazda wypelnia WLASNY,
+  // z gory zalozony ekran. Miejsce w drzewie jest wiec kontraktem: przesuniecie
+  // pozycji albo zmiana klucza odcina gotowy ekran od sidebara, a nikt tego nie
+  // zauwazy, bo sam ekran nadal sie renderuje pod swoim adresem.
+  const topKeys = EVENT_STUDIO_NAV.map((node) => node.key);
+
+  function group(key: string): EventStudioNavGroup {
+    const found = GROUPS.find((candidate) => candidate.key === key);
+    if (found === undefined) throw new Error(`test: brak grupy ${key}`);
+    return found;
+  }
+
+  it("grupa `cfp` stoi TUZ ZA grupa `content`, z ikona mikrofonu", () => {
+    expect(topKeys.indexOf("cfp")).toBe(topKeys.indexOf("content") + 1);
+    const cfp = group("cfp");
+    expect(cfp.icon).toBe("mic");
+    expect(cfp.labelKey).toBe("adminEvents.studio.groups.cfp");
+    expect(cfp.keywordKeys).toEqual(["adminEvents.studio.keywords.cfp"]);
+    expect(cfp.defaultSection).toBe("cfpSettings");
+    expect(cfp.entries.map((entry) => entry.key)).toEqual([
+      "cfpSettings",
+      "cfpForm",
+      "cfpSubmissions",
+      "cfpReviewers",
+    ]);
+  });
+
+  it("faktury stoja za pakietami, a plan sali zamyka grupe rejestracji", () => {
+    const keys = group("registration").entries.map((entry) => entry.key);
+    expect(keys.indexOf("registrationInvoices")).toBe(keys.indexOf("registrationPackages") + 1);
+    expect(keys.at(-1)).toBe("registrationSeating");
+  });
+
+  it("lejek reklam i raport sponsora stoja TUZ ZA analityka jako pozycje samodzielne", () => {
+    const analytics = topKeys.indexOf("analytics");
+    expect(topKeys.slice(analytics, analytics + 3)).toEqual([
+      "analytics",
+      "adsFunnel",
+      "sponsorReport",
+    ]);
+    const icons = Object.fromEntries(
+      EVENT_STUDIO_NAV.filter((node) => node.kind === "item").map((node) => [node.key, node.icon]),
+    );
+    expect(icons.adsFunnel).toBe("target");
+    expect(icons.sponsorReport).toBe("pie-chart");
+  });
+
+  it("etykieta i slowa kazdej nowej sekcji stoja w `adminEvents.studio`", () => {
+    // Sidebar laduje wylacznie slownik `adminEvents` - etykieta z nakladki
+    // funkcji renderowalaby sie jako surowy klucz, dopoki trasa nie doczyta
+    // swojego slownika.
+    const nowe = [
+      "cfpSettings",
+      "cfpForm",
+      "cfpSubmissions",
+      "cfpReviewers",
+      "registrationInvoices",
+      "registrationSeating",
+      "adsFunnel",
+      "sponsorReport",
+    ];
+    const entries = EVENT_STUDIO_NAV.flatMap((node) =>
+      node.kind === "item" ? [node] : [...node.entries],
+    );
+    for (const key of nowe) {
+      const entry = entries.find((candidate) => candidate.key === key);
+      expect(entry?.labelKey, key).toBe(`adminEvents.studio.sections.${key}`);
+      expect(entry?.keywordKeys, key).toEqual([`adminEvents.studio.keywords.${key}`]);
+    }
   });
 });
 

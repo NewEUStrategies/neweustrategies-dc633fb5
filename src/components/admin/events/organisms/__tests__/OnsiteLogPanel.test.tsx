@@ -139,6 +139,8 @@ const PUNKT = "22222222-2222-4222-8222-222222222222";
  * nigdy by nie padła.
  */
 const BRAK = null as unknown as string;
+/** Ta sama kłamiąca kolumna dla `offline_admitted` (NULL = decyzja online). */
+const BRAK_BOOL = null as unknown as boolean;
 
 /** Wpuszczenie przez bramkę główną - najczęstszy wiersz dziennika. */
 function wpis(overrides: Partial<EventCheckinRow> = {}): EventCheckinRow {
@@ -148,6 +150,7 @@ function wpis(overrides: Partial<EventCheckinRow> = {}): EventCheckinRow {
     checkpoint_name_en: "Main entrance",
     checkpoint_name_pl: "Wejście główne",
     company: "Instytut Analiz",
+    conflict: false,
     device_id: "33333333-3333-4333-8333-333333333333",
     device_label: "Skaner bramka A",
     device_scanned_at: "2026-09-01T08:30:00.000Z",
@@ -160,6 +163,8 @@ function wpis(overrides: Partial<EventCheckinRow> = {}): EventCheckinRow {
     last_name: "Kowalska",
     note: BRAK,
     occurred_at: "2026-09-01T08:30:05.000Z",
+    offline_admitted: BRAK_BOOL,
+    offline_outcome: BRAK,
     operator_name: "Obsługa bramki",
     operator_user_id: "55555555-5555-4555-8555-555555555555",
     person_id: "66666666-6666-4666-8666-666666666666",
@@ -167,6 +172,7 @@ function wpis(overrides: Partial<EventCheckinRow> = {}): EventCheckinRow {
     registration_status: "approved",
     repeat_count: 1,
     result: "granted",
+    roster_generated_at: BRAK,
     scanned_at: "2026-09-01T08:30:00.000Z",
     source: "qr_code",
     ticket_name_en: "Standard",
@@ -256,6 +262,7 @@ describe("filtry jadą do bazy", () => {
       direction: undefined,
       result: undefined,
       q: "",
+      conflictsOnly: false,
       limit: 50,
       offset: 0,
     });
@@ -538,5 +545,79 @@ describe("dostępność", () => {
 
     const violations = await axeViolations(container);
     expect(violations, summarize(violations)).toEqual([]);
+  });
+});
+
+describe("decyzje skanera bez sieci", () => {
+  it("odprawa ONLINE nie ma odznaki offline ani konfliktu", () => {
+    panel();
+
+    expect(within(wiersz()).queryByText(`${T}.log.offlineBadge`)).toBeNull();
+    expect(within(wiersz()).queryByText(`${T}.log.conflictBadge`)).toBeNull();
+  });
+
+  it("odprawa z listy offline ma odznakę z decyzją urządzenia w podpowiedzi", () => {
+    h.rows = [wpis({ offline_admitted: true, offline_outcome: "granted" })];
+    panel();
+
+    const odznaka = within(wiersz()).getByText(`${T}.log.offlineBadge`);
+    expect(odznaka.getAttribute("title")).toBe(
+      `${T}.log.offlineOutcome(outcome=${T}.offlineOutcomes.granted)`,
+    );
+    expect(within(wiersz()).queryByText(`${T}.log.conflictBadge`)).toBeNull();
+  });
+
+  it("nieznany wynik offline (nowszy backend) nie wymyśla podpowiedzi", () => {
+    h.rows = [wpis({ offline_admitted: false, offline_outcome: "z_przyszlosci" })];
+    panel();
+
+    expect(within(wiersz()).getByText(`${T}.log.offlineBadge`).getAttribute("title")).toBeNull();
+  });
+
+  it("KONFLIKT (wpuszczony bez sieci, baza odmawia) ma czerwoną odznakę z wyjaśnieniem", () => {
+    h.rows = [
+      wpis({
+        offline_admitted: true,
+        offline_outcome: "granted",
+        result: "denied_not_registered",
+        conflict: true,
+      }),
+    ];
+    panel();
+
+    const konflikt = within(wiersz()).getByText(`${T}.log.conflictBadge`);
+    expect(konflikt.getAttribute("title")).toBe(`${T}.log.conflictHint`);
+  });
+
+  it("filtr „tylko konflikty” jedzie do bazy i wraca na pierwszą stronę", () => {
+    h.rows = [wpis({ total_count: 120 })];
+    panel();
+    fireEvent.change(screen.getByRole("combobox", { name: "admin.pagination.page" }), {
+      target: { value: "3" },
+    });
+    expect(ostatnieZapytanie().offset).toBe(100);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: `${T}.filters.conflictsOnly` }));
+
+    expect(ostatnieZapytanie().conflictsOnly).toBe(true);
+    expect(ostatnieZapytanie().offset).toBe(0);
+  });
+
+  it("pusty wynik filtra konfliktów mówi „brak konfliktów”, a nie „brak odpraw”", () => {
+    h.rows = [];
+    panel();
+    fireEvent.click(screen.getByRole("checkbox", { name: `${T}.filters.conflictsOnly` }));
+
+    expect(screen.getByText(`${T}.log.conflictsEmpty`)).toBeTruthy();
+    expect(screen.queryByText(`${T}.log.empty`)).toBeNull();
+  });
+
+  it("odznaczenie filtra zdejmuje warunek konfliktów", () => {
+    panel();
+    const pole = screen.getByRole("checkbox", { name: `${T}.filters.conflictsOnly` });
+    fireEvent.click(pole);
+    fireEvent.click(pole);
+
+    expect(ostatnieZapytanie().conflictsOnly).toBe(false);
   });
 });

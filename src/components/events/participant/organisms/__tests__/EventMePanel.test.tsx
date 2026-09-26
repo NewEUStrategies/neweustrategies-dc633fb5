@@ -25,9 +25,16 @@
 //  5. KONTAKTY BEZ KONTAKTÓW MAJĄ NASTĘPNY KROK. Puste „nie masz jeszcze
 //     kontaktów” z odnośnikiem do sieci to co innego niż pusty prostokąt.
 //
+//  6. NABÓR PRELEGENTÓW I PLAN SALI DOKŁADAJĄ SIĘ DO PANELU, NIE GO ZASTĘPUJĄ.
+//     Odnośniki „Panel prelegenta / recenzenta” (f1) stoją w nagłówku i dostają
+//     slug TEGO wydarzenia; karta „Twoje miejsce” (f4) stoi NAD biletami na
+//     zakładce rejestracji. Zgubiony slug albo zła kolejność to prelegent
+//     wysłany do cudzego naboru i uczestnik szukający miejsca pod biletem.
+//
 // CZEGO ŚWIADOMIE NIE DUBLUJE. Formularza kartoteki (`MyEventProfileForm`),
 // karty katalogowej (`MyEventPublicPreview`), giełdy spotkań
-// (`MeetingExchangeBoard`) i panelu biletów (`ParticipantTicketsPanel`) - każdy
+// (`MeetingExchangeBoard`), panelu biletów (`ParticipantTicketsPanel`),
+// odnośników naboru (`EventMeCfpLinks`) i karty miejsca (`MySeatsPanel`) - każdy
 // ma WŁASNY plik testowy, więc tutaj stoją atrapy zapisujące otrzymane
 // właściwości. Przedmiotem dowodu jest KOMPOZYCJA, nie ich wnętrze.
 // `MyAgendaList` jedzie prawdziwy, bo to on rozstrzyga o różnicy między
@@ -80,6 +87,8 @@ const h = vi.hoisted(() => ({
   podglad: [] as { self: boolean }[],
   gielda: [] as string[],
   bilety: [] as { slugFilter: string | undefined; hideHeader: boolean }[],
+  naborLinki: [] as { slug: string; signedIn: boolean }[],
+  miejsca: [] as string[],
 }));
 
 vi.mock("react-i18next", async () =>
@@ -194,6 +203,20 @@ vi.mock("@/components/profile/ParticipantTicketsPanel", () => ({
   },
 }));
 
+vi.mock("@/components/events/cfp/molecules/EventMeCfpLinks", () => ({
+  EventMeCfpLinks: (props: { slug: string; signedIn: boolean }) => {
+    h.naborLinki.push({ slug: props.slug, signedIn: props.signedIn });
+    return <div data-testid="odnosniki-naboru" data-slug={props.slug} />;
+  },
+}));
+
+vi.mock("@/components/events/participant/molecules/MySeatsPanel", () => ({
+  MySeatsPanel: ({ slug }: { slug: string }) => {
+    h.miejsca.push(slug);
+    return <div data-testid="karta-miejsca" data-slug={slug} />;
+  },
+}));
+
 // Warstwa odczytu jest atrapą; hooki `useMyEventProfile` / `useMyAgenda` jadą
 // PRAWDZIWE, bo to one decydują o `enabled` (gość nie pyta bazy) i o stanach
 // „wczytywanie” / „błąd” widocznych na ekranie.
@@ -295,6 +318,8 @@ beforeEach(() => {
   h.podglad.length = 0;
   h.gielda.length = 0;
   h.bilety.length = 0;
+  h.naborLinki.length = 0;
+  h.miejsca.length = 0;
   h.pobierzProfil.mockResolvedValue(stan());
   h.pobierzAgende.mockResolvedValue([sesjaAgendy()]);
 });
@@ -579,6 +604,50 @@ describe("EventMePanel - networking i bilety", () => {
     // Panel osadzony pod cudzym `h1` nie może wnosić drugiego.
     expect(h.bilety.at(-1)?.hideHeader).toBe(true);
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+  });
+});
+
+describe("EventMePanel - nabór prelegentów i plan sali", () => {
+  it("odnośniki naboru stoją w NAGŁÓWKU i dostają slug TEGO wydarzenia oraz sesję", async () => {
+    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+
+    const odnosniki = await screen.findByTestId("odnosniki-naboru");
+    expect(odnosniki.closest("header")).not.toBeNull();
+    expect(h.naborLinki.at(-1)).toEqual({ slug: SLUG, signedIn: true });
+  });
+
+  it("gość NIE dostaje odnośników naboru ani karty miejsca", () => {
+    h.sesja.current = null;
+    h.wizytowka.current = null;
+    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+
+    expect(screen.queryByTestId("odnosniki-naboru")).toBeNull();
+    expect(screen.queryByTestId("karta-miejsca")).toBeNull();
+    expect(h.naborLinki).toEqual([]);
+    expect(h.miejsca).toEqual([]);
+  });
+
+  it("karta miejsca NIE montuje się poza zakładką rejestracji", async () => {
+    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+
+    await screen.findByTestId("formularz-kartoteki");
+    expect(screen.queryByTestId("karta-miejsca")).toBeNull();
+    expect(h.miejsca).toEqual([]);
+  });
+
+  it("karta miejsca stoi NAD panelem biletów i obie są dla TEGO wydarzenia", async () => {
+    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+
+    await screen.findByTestId("zakladki");
+    zakladka("registration");
+
+    const miejsce = await screen.findByTestId("karta-miejsca");
+    const bilety = screen.getByTestId("panel-biletow");
+    expect(miejsce.compareDocumentPosition(bilety) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(h.miejsca.at(-1)).toBe(SLUG);
+    expect(h.bilety.at(-1)?.slugFilter).toBe(SLUG);
   });
 });
 

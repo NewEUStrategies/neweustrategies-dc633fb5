@@ -21,6 +21,10 @@
 // 6. KANAŁY SĄ PER ZGŁOSZENIE i zapisują się do RPC z identyfikatorem TEGO
 //    wiersza - przełącznik piszący do cudzego zgłoszenia wyciszyłby komuś
 //    innemu potwierdzenie wejścia.
+// 7. KARTA NIESIE OBA DOPISKI OBOK SIEBIE: stan faktury za bilet (f2,
+//    `EventInvoiceTicketStatus`, własny test) i podpowiedź portfela (f7b).
+//    Każdy dotyczy SWOJEGO zgłoszenia - faktura cudzego biletu na karcie
+//    to dokument księgowy pokazany nie temu człowiekowi.
 //
 // ATRAPA OBEJMUJE WYŁĄCZNIE SIEĆ i granice kasy. Haki `useQuery`/`useMutation`
 // jadą prawdziwe, bo to one decydują o stanach „wczytywanie", „błąd" i „pusto".
@@ -70,6 +74,14 @@ vi.mock("@/components/checkout/LazyEmbeddedCheckoutDialog", () => ({
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: vi.fn() } }));
+
+// Stan faktury ma własny test; tu liczy się, że atom dostaje identyfikator
+// TEGO zgłoszenia i stoi w nagłówku jego karty.
+vi.mock("@/components/events/invoices/atoms/EventInvoiceTicketStatus", () => ({
+  EventInvoiceTicketStatus: ({ registrationId }: { registrationId: string }) => (
+    <span data-testid="invoice-status" data-registration={registrationId} />
+  ),
+}));
 
 vi.mock("@/lib/events/participantTicketsApi", () => ({
   fetchMyRegistrations: () => fetchRegistrations(),
@@ -236,6 +248,41 @@ describe("ParticipantTicketsPanel - stan i pieniądze", () => {
     expect(await screen.findByText("participantTickets.reason.refunded")).toBeInTheDocument();
     expect(screen.getByText("participantTickets.reason.partial")).toBeInTheDocument();
     expect(screen.getAllByText(/participantTickets\.reason\.cancelled/)).toHaveLength(1);
+  });
+
+  it("ważny bilet mówi, skąd dodać przepustkę do portfela; nieważny - nie", async () => {
+    fetchRegistrations.mockResolvedValue([
+      registration({ registrationId: "r-paid", status: "approved", paymentStatus: "paid" }),
+      registration({ registrationId: "r-free", status: "attended", paymentStatus: "not_required" }),
+      registration({ registrationId: "r-unpaid", status: "approved", paymentStatus: "unpaid" }),
+      registration({ registrationId: "r-null", status: "approved", paymentStatus: null }),
+      registration({ registrationId: "r-cancel", status: "cancelled", paymentStatus: "paid" }),
+    ]);
+    renderWithQueryClient(<ParticipantTicketsPanel />);
+
+    await screen.findAllByText("participantTickets.openEvent");
+    // Dwa ważne bilety (opłacony przyjęty, bezpłatny obecny) - dwie podpowiedzi.
+    expect(screen.getAllByText("eventWallet.profileHint")).toHaveLength(2);
+  });
+
+  it("karta ma stan faktury SWOJEGO zgłoszenia obok podpowiedzi portfela", async () => {
+    fetchRegistrations.mockResolvedValue([
+      registration({ registrationId: "r-paid", status: "approved", paymentStatus: "paid" }),
+      registration({ registrationId: "r-unpaid", status: "approved", paymentStatus: "unpaid" }),
+    ]);
+    renderWithQueryClient(<ParticipantTicketsPanel />);
+
+    const atomy = await screen.findAllByTestId("invoice-status");
+    expect(atomy.map((atom) => atom.getAttribute("data-registration"))).toEqual([
+      "r-paid",
+      "r-unpaid",
+    ]);
+    const [oplacona, nieoplacona] = atomy.map((atom) => atom.closest("article"));
+    // Opłacony przyjęty bilet: faktura I portfel na tej samej karcie.
+    expect(oplacona?.textContent).toContain("eventWallet.profileHint");
+    // Nieopłacony: atom faktury jest (sam rozstrzyga, czy coś powiedzieć),
+    // podpowiedzi portfela - nie.
+    expect(nieoplacona?.textContent).not.toContain("eventWallet.profileHint");
   });
 
   it("pusta lista nazywa pustkę, a nie pokazuje pustej ramki", async () => {
