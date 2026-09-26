@@ -435,6 +435,13 @@
       "when": 1790445369087,
       "tag": "0061_event_group_lead_plan_seat",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1790445120329,
+      "tag": "0062_event_group_lead_closes_admitted_guests",
+      "breakpoints": true
     }
   ]
 }
