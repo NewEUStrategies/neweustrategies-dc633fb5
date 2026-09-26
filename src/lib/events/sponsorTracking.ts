@@ -12,7 +12,9 @@
 // ZGODA JEST SPRAWDZANA DWA RAZY. Przy dodaniu do kolejki (bez zgody nie ma
 // pomiaru) i PRZY WYSYŁCE - użytkownik mógł cofnąć zgodę między jednym
 // a drugim, a deklaracja banera (`sponsor_event`, kategoria marketing) mówi,
-// że bez zgody nic nie wychodzi. Cofnięta zgoda czyści też identyfikator sesji.
+// że bez zgody nic nie wychodzi. Cofnięta zgoda czyści też identyfikator sesji
+// i kolejkę - od razu, w chwili zmiany zgody (`onConsentChange` ->
+// `syncConsent`), a nie dopiero przy następnej wysyłce, której może nie być.
 //
 // IDENTYFIKATOR SESJI POWSTAJE DOPIERO PO ZGODZIE, w sessionStorage (umiera
 // z kartą). Baza dostaje wyłącznie sha256(najemca:wydarzenie:sesja:dzień).
@@ -22,7 +24,7 @@
 // ZALEŻNOŚCI SĄ WSTRZYKIWANE (`SponsorTrackerDeps`), bo zgoda, beacon, zegar
 // bezczynności i magazyn to cztery granice przeglądarki - testy podmieniają je
 // wprost, zamiast udawać cały `window`.
-import { hasCategoryConsent } from "@/lib/ads/consent";
+import { hasCategoryConsent, subscribeConsentChange } from "@/lib/ads/consent";
 import { whenIdle, type CancelIdle } from "@/lib/ads/idle";
 import { sendBeaconPayload } from "@/lib/observability/report";
 import { SPONSOR_SESSION_STORAGE_KEY } from "@/lib/storageKeys";
@@ -43,6 +45,8 @@ export interface SponsorTrackerDeps {
   storage: () => Storage | null;
   /** Nowy identyfikator sesji (32 znaki szesnastkowe). */
   randomId: () => string;
+  /** Nasłuch zmiany zgody; zwraca wyrejestrowanie. Brak = bez nasłuchu. */
+  onConsentChange?: (listener: () => void) => () => void;
 }
 
 export const defaultSponsorTrackerDeps: SponsorTrackerDeps = {
@@ -51,6 +55,7 @@ export const defaultSponsorTrackerDeps: SponsorTrackerDeps = {
   schedule: (run) => whenIdle(run),
   storage: () => window.sessionStorage,
   randomId: () => crypto.randomUUID().replace(/-/g, ""),
+  onConsentChange: subscribeConsentChange,
 };
 
 const SESSION_KEY = SPONSOR_SESSION_STORAGE_KEY.key;
@@ -95,6 +100,8 @@ export interface SponsorTracker {
   track: (item: SponsorExposureItem) => void;
   /** Wysyła kolejkę teraz (ukrycie karty, opuszczenie strony, kliknięcie). */
   flush: () => void;
+  /** Zgoda zmieniona: bez niej - pusta kolejka i usunięty identyfikator sesji. */
+  syncConsent: () => void;
   /** Ostatnia wysyłka i koniec przyjmowania pozycji. */
   dispose: () => void;
 }
@@ -131,6 +138,17 @@ export function createSponsorTracker(
     }
   }
 
+  function syncConsent(): void {
+    if (deps.hasConsent()) return;
+    if (cancel !== null) {
+      cancel();
+      cancel = null;
+    }
+    queue = [];
+    session = null;
+    clearSponsorSession(deps);
+  }
+
   function track(item: SponsorExposureItem): void {
     if (disposed || !isAcceptableExposure(item) || !deps.hasConsent()) return;
     queue.push(item);
@@ -146,5 +164,5 @@ export function createSponsorTracker(
     disposed = true;
   }
 
-  return { track, flush, dispose };
+  return { track, flush, syncConsent, dispose };
 }

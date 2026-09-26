@@ -324,6 +324,41 @@ describe("dostawca", () => {
     expect(d.sent).toHaveLength(1);
   });
 
+  it("zmiana zgody trafia do trackera; odmontowanie wyrejestrowuje nasłuch zgody", () => {
+    const d = deps();
+    let consent = true;
+    const listeners: (() => void)[] = [];
+    const off = vi.fn();
+    const removed: string[] = [];
+    const storage = {
+      removeItem: (key: string) => void removed.push(key),
+    } as unknown as Storage;
+    const value: SponsorTrackerDeps = {
+      ...d.value,
+      hasConsent: () => consent,
+      storage: () => storage,
+      onConsentChange: (listener) => {
+        listeners.push(listener);
+        return off;
+      },
+    };
+    const { unmount } = render(
+      <SponsorTrackingProvider eventSlug="kongres" deps={value}>
+        <Probe target={TARGET} />
+      </SponsorTrackingProvider>,
+    );
+    expect(listeners).toHaveLength(1);
+    act(() => FakeObserver.instances[0].fire(1));
+    act(() => vi.advanceTimersByTime(1000));
+    consent = false;
+    listeners[0]();
+    expect(removed).toEqual(["nes-sponsor-session"]);
+    unmount();
+    expect(off).toHaveBeenCalledTimes(1);
+    // Kolejka wyczyszczona w chwili cofnięcia zgody - odmontowanie nic nie wysyła.
+    expect(d.sent).toEqual([]);
+  });
+
   it("bez jawnych zależności używa domyślnych granic przeglądarki", () => {
     const { unmount } = render(
       <SponsorTrackingProvider eventSlug="kongres">

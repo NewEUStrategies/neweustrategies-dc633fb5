@@ -233,5 +233,7 @@ export function downloadTextFile(fileName: string, mimeType: string, data: strin
   link.href = url;
   link.download = fileName;
   link.click();
-  URL.revokeObjectURL(url);
+  // Zwolnienie w następnym takcie - Safari przerywa pobieranie, gdy URL
+  // znika synchronicznie po kliknięciu.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }

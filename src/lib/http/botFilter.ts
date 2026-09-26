@@ -15,8 +15,18 @@
 //
 // CZYSTA FUNKCJA: żadnego I/O, więc testy podają nagłówki wprost.
 
+// JEDNA LISTA dla wszystkich beaconów (raport sponsora, lejek sprzedaży).
+// Bez "telegram": wbudowana przeglądarka Telegrama na Androidzie dopisuje
+// `Telegram-Android/...` do zwykłego agenta człowieka, a jego podgląd linków
+// (`TelegramBot`) łapie już "bot".
 const BOT_USER_AGENT =
-  /bot|crawl|spider|slurp|headless|lighthouse|prerender|preview|facebookexternalhit|embedly|pingdom|uptime|monitor|curl|wget|python-requests|python-urllib|go-http|node-fetch|axios|httpclient|java\/|okhttp|scrapy|phantomjs|selenium|puppeteer|playwright/i;
+  /bot|crawl|spider|slurp|headless|lighthouse|pagespeed|prerender|preview|facebookexternalhit|embedly|quora link|whatsapp|pingdom|uptime|monitor|curl|wget|python-requests|python-urllib|go-http|node-fetch|axios|httpclient|java\/|okhttp|scrapy|phantomjs|selenium|puppeteer|playwright/i;
+
+/** Czy user-agent wygląda na automat (brak nagłówka też jest automatem). */
+export function isBotUserAgent(userAgent: string | null | undefined): boolean {
+  const value = userAgent?.trim() ?? "";
+  return value === "" || BOT_USER_AGENT.test(value);
+}
 
 function hostOf(value: string): string | null {
   try {
@@ -31,8 +41,7 @@ function hostOf(value: string): string | null {
  * żądanie (z adresu żądania) - `Origin` z innym hostem to cudza strona.
  */
 export function isLikelyBotRequest(headers: Headers, requestHost: string | null): boolean {
-  const userAgent = headers.get("user-agent")?.trim() ?? "";
-  if (userAgent === "" || BOT_USER_AGENT.test(userAgent)) return true;
+  if (isBotUserAgent(headers.get("user-agent"))) return true;
 
   const purpose =
     `${headers.get("sec-purpose") ?? ""} ${headers.get("purpose") ?? ""}`.toLowerCase();

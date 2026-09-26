@@ -7,7 +7,7 @@
 // przeglądarka (także bez `Origin`), która MUSI przejść.
 import { describe, expect, it } from "vitest";
 
-import { isLikelyBotRequest } from "@/lib/http/botFilter";
+import { isBotUserAgent, isLikelyBotRequest } from "@/lib/http/botFilter";
 
 const CHROME =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36";
@@ -81,5 +81,39 @@ describe("isLikelyBotRequest", () => {
       ),
     ).toBe(true);
     expect(isLikelyBotRequest(headers({ "user-agent": CHROME, origin: "null" }), HOST)).toBe(true);
+  });
+});
+
+describe("isBotUserAgent", () => {
+  it("roboty, podglądy linków i brak nagłówka to automat", () => {
+    for (const ua of [
+      null,
+      undefined,
+      "  ",
+      "Mozilla/5.0 (compatible; Googlebot/2.1)",
+      "Slackbot-LinkExpanding 1.0",
+      "TelegramBot (like TwitterBot)",
+      "WhatsApp/2.23.20.0 A",
+      "Quora Link Preview/1.0",
+      "facebookexternalhit/1.1",
+      "Mozilla/5.0 HeadlessChrome/120",
+      "Mozilla/5.0 Chrome-Lighthouse PageSpeed",
+      "curl/8.0",
+    ]) {
+      expect(isBotUserAgent(ua), String(ua)).toBe(true);
+    }
+  });
+
+  it("zwykła przeglądarka, także wbudowana w Telegrama, to człowiek", () => {
+    expect(
+      isBotUserAgent(
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile Safari/604.1",
+      ),
+    ).toBe(false);
+    expect(
+      isBotUserAgent(
+        "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36 Telegram-Android/11.2.0",
+      ),
+    ).toBe(false);
   });
 });

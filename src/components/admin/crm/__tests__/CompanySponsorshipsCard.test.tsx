@@ -14,6 +14,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CompanySponsorshipRow } from "@/lib/events/sponsorReportApi";
+import { formatEventDate } from "@/lib/events/timezone";
 
 const h = vi.hoisted(() => ({
   lang: "pl",
@@ -72,6 +73,7 @@ function row(patch: Partial<CompanySponsorshipRow>): CompanySponsorshipRow {
     event_slug: "kongres-2099",
     event_starts_at: "2099-06-20T08:00:00Z",
     event_status: "published",
+    event_timezone: "Europe/Warsaw",
     event_title_en: "Energy Congress",
     event_title_pl: "Kongres Energii",
     is_published: true,
@@ -174,6 +176,17 @@ describe("CompanySponsorshipsCard", () => {
     expect(second.getByText(`${C}.unpublished`)).toBeTruthy();
     expect(second.queryByText("Złoty")).toBeNull();
     expect(screen.getByText("2")).toBeTruthy();
+  });
+
+  it("data wydarzenia idzie w JEGO strefie, nie w strefie domyślnej", () => {
+    // 23:30 UTC to już następny dzień w Warszawie, a wciąż ten sam w Nowym Jorku.
+    const at = "2099-06-20T23:30:00Z";
+    h.query.data = [row({ event_starts_at: at, event_timezone: "America/New_York" })];
+    card();
+    const item = within(screen.getByRole("listitem"));
+    const inEventZone = formatEventDate(at, "America/New_York", "pl");
+    expect(inEventZone).not.toBe(formatEventDate(at, "Europe/Warsaw", "pl"));
+    expect(item.getByText(inEventZone)).toBeTruthy();
   });
 
   it("po angielsku tytuł i poziom są angielskie", () => {

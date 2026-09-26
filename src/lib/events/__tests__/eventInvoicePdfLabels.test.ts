@@ -87,7 +87,12 @@ describe("buildEventInvoicePdf / downloadEventInvoicePdf", () => {
     Object.defineProperty(URL, "createObjectURL", { configurable: true, value: create });
     Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revoke });
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    vi.useFakeTimers();
     downloadEventInvoicePdf(doc());
+    // Safari: adres zwalniany dopiero w nastepnym takcie, nie synchronicznie.
+    expect(revoke).not.toHaveBeenCalled();
+    vi.runAllTimers();
+    vi.useRealTimers();
     expect(create).toHaveBeenCalledTimes(1);
     const blob = create.mock.calls[0]?.[0];
     expect(blob).toBeInstanceOf(Blob);

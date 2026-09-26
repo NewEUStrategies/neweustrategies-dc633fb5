@@ -125,5 +125,7 @@ export function downloadEventInvoicePdf(doc: EventInvoiceDocument): void {
   document.body.appendChild(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(url);
+  // Zwolnienie w nastepnym takcie - Safari przerywa pobieranie, gdy URL
+  // znika synchronicznie po kliknieciu (jak downloadTextFile w billingu).
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }

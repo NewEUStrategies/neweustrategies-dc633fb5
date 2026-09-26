@@ -16,9 +16,14 @@ const h = vi.hoisted(() => ({
   consent: true,
   beacons: [] as unknown[],
   idle: [] as (() => void)[],
+  consentListeners: [] as (() => void)[],
 }));
 vi.mock("@/lib/ads/consent", () => ({
   hasCategoryConsent: (cat: string) => cat === "marketing" && h.consent,
+  subscribeConsentChange: (listener: () => void) => {
+    h.consentListeners.push(listener);
+    return () => undefined;
+  },
 }));
 vi.mock("@/lib/observability/report", () => ({
   sendBeaconPayload: (endpoint: string, payload: unknown) => {
@@ -85,6 +90,41 @@ function harness(patch: Partial<SponsorTrackerDeps> = {}) {
   };
   return { deps, sent, scheduled, cancelled, state };
 }
+
+describe("syncConsent (zmiana zgody)", () => {
+  it("cofnięta zgoda od razu czyści kolejkę, zegar i identyfikator sesji", () => {
+    const t = harness();
+    const tracker = createSponsorTracker("kongres", t.deps);
+    tracker.track(CLICK);
+    expect(t.state.storage?.getItem(KEY)).toBe("a".repeat(32));
+    tracker.track(VIEW);
+    expect(t.scheduled).toHaveLength(1);
+    t.state.consent = false;
+    tracker.syncConsent();
+    expect(t.cancelled).toEqual([1]);
+    expect(t.state.storage?.getItem(KEY)).toBeNull();
+    // Kolejka pusta: późniejsza wysyłka (po ponownej zgodzie) nie niesie starych pozycji.
+    t.state.consent = true;
+    tracker.flush();
+    expect(t.sent).toHaveLength(1);
+    // Nowa zgoda = nowa sesja, bez wznowienia starego identyfikatora.
+    tracker.track(CLICK);
+    expect(t.sent).toHaveLength(2);
+    expect(t.state.storage?.getItem(KEY)).toBe("a".repeat(32));
+  });
+
+  it("bez zaplanowanej wysyłki też czyści; przy zgodzie nic nie rusza", () => {
+    const t = harness();
+    const tracker = createSponsorTracker("kongres", t.deps);
+    tracker.track(CLICK);
+    tracker.syncConsent();
+    expect(t.state.storage?.getItem(KEY)).toBe("a".repeat(32));
+    t.state.consent = false;
+    tracker.syncConsent();
+    expect(t.cancelled).toEqual([]);
+    expect(t.state.storage?.getItem(KEY)).toBeNull();
+  });
+});
 
 describe("createSponsorTracker", () => {
   it("wyświetlenia czekają na bezczynność i wychodzą JEDNĄ paczką", () => {
@@ -245,6 +285,9 @@ describe("domyślne granice przeglądarki", () => {
     expect(h.idle).toEqual([run]);
     expect(defaultSponsorTrackerDeps.storage()).toBe(window.sessionStorage);
     expect(defaultSponsorTrackerDeps.randomId()).toMatch(/^[0-9a-f]{32}$/);
+    const listener = vi.fn();
+    defaultSponsorTrackerDeps.onConsentChange?.(listener);
+    expect(h.consentListeners).toContain(listener);
   });
 });
 

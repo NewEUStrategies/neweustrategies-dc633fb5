@@ -273,7 +273,7 @@ describe("eksport dla organizatora", () => {
     expect(syncIssuesFileName("!!!", NOW, "json")).toBe("skaner-wydarzenie-2026-09-26.json");
   });
 
-  it("pobranie tworzy odnośnik do Bloba, klika go i zwalnia adres", () => {
+  it("pobranie tworzy odnośnik do Bloba, klika go i zwalnia adres", async () => {
     const create = vi.fn(() => "blob:x");
     const revoke = vi.fn();
     vi.stubGlobal("URL", Object.assign(URL, { createObjectURL: create, revokeObjectURL: revoke }));
@@ -282,6 +282,10 @@ describe("eksport dla organizatora", () => {
       .mockImplementation(() => undefined);
 
     downloadTextFile("a.csv", "text/csv", "x");
+    // Safari: adres zwalniany dopiero w następnym takcie, nie synchronicznie
+    // (freezeClock zamraża tu tylko Date, więc setTimeout jest prawdziwy).
+    expect(revoke).not.toHaveBeenCalled();
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(create).toHaveBeenCalledTimes(1);
     expect(click).toHaveBeenCalledTimes(1);

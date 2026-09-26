@@ -545,7 +545,7 @@ export const adminEventInvoicesEn = {
       sellerPostalCode: "Postal code",
       sellerCity: "City",
       sellerCountry: "Country (ISO code)",
-      sellerEmail: "E-mail",
+      sellerEmail: "Email",
       sellerPhone: "Phone",
       bankAccount: "Bank account (IBAN)",
       bankSwift: "SWIFT/BIC",

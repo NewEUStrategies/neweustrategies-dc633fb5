@@ -26,6 +26,7 @@ import {
   ga4RemoveFromCart,
 } from "@/lib/analytics/ga4Ecommerce";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
+import { sendEventFunnelStep } from "@/lib/events/eventFunnelBeacon";
 import { getStripeEnvironment } from "@/lib/stripe";
 import { LazyEmbeddedCheckoutDialog } from "@/components/checkout/LazyEmbeddedCheckoutDialog";
 import { CartLine } from "@/components/cart/molecules/CartLine";
@@ -60,6 +61,9 @@ export function CartPanel() {
     // GA4: rozpoczęcie kasy liczymy w chwili kliknięcia „Zapłać" - to jedyny
     // moment, w którym znamy koszyk i wybraną pozycję.
     ga4BeginCheckout([cartItemToGa4Item(item, lang)]);
+    // Lejek Google Ads wydarzenia tej pozycji: ten sam krok "rozpoczęcie
+    // płatności" co w kasie strony wydarzenia (raz na sesję, bramka zgody).
+    sendEventFunnelStep("checkout_start", { eventId: item.eventId });
     const code = promo.trim().toUpperCase();
     try {
       const res = await checkout({

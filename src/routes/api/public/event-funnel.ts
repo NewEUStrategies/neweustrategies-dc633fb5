@@ -21,11 +21,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 
 import { countryFromHeaders } from "@/lib/analytics/geoHeaders";
-import {
-  EVENT_FUNNEL_MAX_BODY,
-  isBotUserAgent,
-  parseEventFunnelBeacon,
-} from "@/lib/events/eventFunnelWire";
+import { EVENT_FUNNEL_MAX_BODY, parseEventFunnelBeacon } from "@/lib/events/eventFunnelWire";
+import { isBotUserAgent } from "@/lib/http/botFilter";
 import { clientIpFromHeaders, createRateLimiter } from "@/lib/http/rateLimit";
 import { currentTenantHost } from "@/lib/http/requestHost";
 import { resolveTenantIdForHost } from "@/lib/server/tenant.server";

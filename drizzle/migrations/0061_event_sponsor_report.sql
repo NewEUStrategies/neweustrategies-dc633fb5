@@ -1302,6 +1302,7 @@ RETURNS TABLE (
   event_title_pl text,
   event_title_en text,
   event_starts_at timestamptz,
+  event_timezone text,
   event_status text,
   sponsor_id uuid,
   role text,
@@ -1325,7 +1326,7 @@ DECLARE
   v_tenant uuid := public.assert_event_admin_tenant();
 BEGIN
   RETURN QUERY
-  SELECT e.id, e.slug, e.title_pl, e.title_en, e.starts_at, e.status,
+  SELECT e.id, e.slug, e.title_pl, e.title_en, e.starts_at, e.timezone, e.status,
          s.id, s.role, t.name_pl, t.name_en, s.is_published,
          (SELECT count(*) FROM public.event_sponsor_exposures x
            WHERE x.tenant_id = v_tenant AND x.sponsor_id = s.id AND x.kind = 'view')::integer,

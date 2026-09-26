@@ -104,14 +104,3 @@ export function parseEventFunnelBeacon(raw: unknown): EventFunnelBeacon | null {
   if (raw.lang === "pl" || raw.lang === "en") beacon.lang = raw.lang;
   return beacon;
 }
-
-// Roboty, podglady linkow i przegladarki bez glowy - nie sa odwiedzajacymi,
-// a sendBeacon z prerendera podgladu (Slack, LinkedIn) zawyzalby wizyty.
-const BOT_UA_RE =
-  /bot|crawl|spider|slurp|headless|lighthouse|pagespeed|preview|facebookexternalhit|embedly|quora link|whatsapp|telegram|curl|wget|python-requests|httpclient/i;
-
-/** Czy user-agent wyglada na automat (brak naglowka tez jest automatem). */
-export function isBotUserAgent(userAgent: string | null): boolean {
-  if (userAgent === null || userAgent.trim() === "") return true;
-  return BOT_UA_RE.test(userAgent);
-}

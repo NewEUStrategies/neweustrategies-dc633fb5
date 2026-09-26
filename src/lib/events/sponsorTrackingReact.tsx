@@ -75,7 +75,9 @@ export function SponsorTrackingProvider({
     const onPageHide = () => tracker.flush();
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pagehide", onPageHide);
+    const offConsent = deps.onConsentChange?.(() => tracker.syncConsent());
     return () => {
+      offConsent?.();
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", onPageHide);
       trackerRef.current = null;

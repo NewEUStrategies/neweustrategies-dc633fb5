@@ -21,6 +21,7 @@ import { cfpMeKeys } from "@/lib/events/useCfpMe";
 import { eventInvoiceKeys } from "@/lib/events/useEventInvoices";
 import { myEventInvoiceKeys } from "@/lib/events/useMyEventInvoices";
 import { seatingKeys } from "@/lib/events/useEventSeating";
+import { mySeatsKey, ticketSeatsKey } from "@/lib/events/useMySeats";
 import { sponsorReportKeys } from "@/lib/events/useSponsorReport";
 
 const EVENT_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
@@ -42,6 +43,11 @@ function domainEvent(type: string, payload: Record<string, unknown>): DomainEven
 /** Odwzorowanie dopasowania TanStack Query: klucz pasuje po PRZEDROSTKU. */
 function includesPrefix(keys: readonly unknown[][], prefix: readonly unknown[]): boolean {
   return keys.some((key) => prefix.every((part, index) => Object.is(key[index], part)));
+}
+
+/** Czy któryś klucz inwalidacji jest przedrostkiem (gałęzią) podanego klucza zapytania. */
+function coversKey(keys: readonly unknown[][], queryKey: readonly unknown[]): boolean {
+  return keys.some((key) => key.every((part, index) => Object.is(queryKey[index], part)));
 }
 
 describe("mapa inwalidacji modułu wydarzeń", () => {
@@ -238,6 +244,22 @@ describe("mapa inwalidacji modułu wydarzeń", () => {
       domainEvent("event_seat_map.changed.v1", {}),
       CTX,
     ) as unknown[][];
-    expect(changed).toEqual([seatingKeys.all]);
+    expect(changed).toEqual([seatingKeys.all, ["event-me"], ["event-ticket-seats"]]);
+  });
+
+  it("plan sali: każda zmiana odświeża karty miejsc uczestnika (panel „Moje” i bilet)", () => {
+    for (const type of [
+      "event_seat.assigned.v1",
+      "event_seat.released.v1",
+      "event_seat_map.changed.v1",
+    ]) {
+      const keys = invalidationKeysFor(
+        domainEvent(type, { event_id: EVENT_ID }),
+        CTX,
+      ) as unknown[][];
+      // Payload nie niesie sluga - literał gałęzi musi być prefiksem kluczy z fabryk.
+      expect(coversKey(keys, mySeatsKey("kongres")), type).toBe(true);
+      expect(coversKey(keys, ticketSeatsKey("kongres")), type).toBe(true);
+    }
   });
 });

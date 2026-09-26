@@ -90,7 +90,7 @@ export function CompanySponsorshipsCard({ companyId }: { companyId: string }) {
                   {title}
                 </Link>
                 <div className="flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
-                  <span>{formatEventDate(row.event_starts_at, null, lang)}</span>
+                  <span>{formatEventDate(row.event_starts_at, row.event_timezone, lang)}</span>
                   <span aria-hidden>·</span>
                   <span>{t(adminSponsorRoleLabelKey(row.role))}</span>
                   {tier === "" ? null : (

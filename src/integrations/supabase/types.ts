@@ -22263,6 +22263,7 @@ export type Database = {
           event_slug: string
           event_starts_at: string
           event_status: string
+          event_timezone: string
           event_title_en: string
           event_title_pl: string
           is_published: boolean

@@ -8,11 +8,7 @@
 //   4. PODGLADY LINKOW (Slack, LinkedIn) i roboty licza sie jako wizyty.
 import { describe, expect, it } from "vitest";
 
-import {
-  EVENT_FUNNEL_STEPS,
-  isBotUserAgent,
-  parseEventFunnelBeacon,
-} from "@/lib/events/eventFunnelWire";
+import { EVENT_FUNNEL_STEPS, parseEventFunnelBeacon } from "@/lib/events/eventFunnelWire";
 
 const SESSION = "0f3c2a4e-1111-4222-8333-444455556666";
 const VISITOR = "a1b2c3d4-aaaa-4bbb-8ccc-ddddeeeeffff";
@@ -106,29 +102,5 @@ describe("parseEventFunnelBeacon", () => {
     expect(parseEventFunnelBeacon(base({ slug: 5, event_id: "nie-uuid" }))).toBeNull();
     expect(parseEventFunnelBeacon(base({ session: "krotka" }))).toBeNull();
     expect(parseEventFunnelBeacon(base({ session: undefined }))).toBeNull();
-  });
-});
-
-describe("isBotUserAgent", () => {
-  it("roboty, podglady linkow i brak naglowka to automat", () => {
-    for (const ua of [
-      null,
-      "  ",
-      "Mozilla/5.0 (compatible; Googlebot/2.1)",
-      "Slackbot-LinkExpanding 1.0",
-      "facebookexternalhit/1.1",
-      "Mozilla/5.0 HeadlessChrome/120",
-      "curl/8.0",
-    ]) {
-      expect(isBotUserAgent(ua)).toBe(true);
-    }
-  });
-
-  it("zwykla przegladarka to czlowiek", () => {
-    expect(
-      isBotUserAgent(
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile Safari/604.1",
-      ),
-    ).toBe(false);
   });
 });

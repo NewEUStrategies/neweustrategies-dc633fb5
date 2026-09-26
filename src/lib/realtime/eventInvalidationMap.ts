@@ -230,7 +230,8 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   "event_invoice.cancelled.v1": (event) => invoiceEventKeys(event),
   // Plan sali: przydzial i zwolnienie zmieniaja obsade planu ORAZ plakietke
   // miejsca na liscie zgloszen; zmiana ukladu planu - tylko sam plan (lookup
-  // miejsc listy zgloszen siedzi w tej samej galezi `event-seating`).
+  // miejsc listy zgloszen siedzi w tej samej galezi `event-seating`). Kazda z
+  // trzech zmian moze tez zmienic karte miejsca uczestnika (numer, sektor).
   "event_seat.assigned.v1": (event) => seatingEventKeys(event, true),
   "event_seat.released.v1": (event) => seatingEventKeys(event, true),
   "event_seat_map.changed.v1": (event) => seatingEventKeys(event, false),
@@ -285,14 +286,18 @@ function invoiceEventKeys(event: DomainEventRow): QueryKey[] {
 /**
  * Plan sali klucza po `event_id` (panel organizatora). Bez identyfikatora
  * w payloadzie uniewazniamy caly korzen - lepiej odswiezyc za duzo niz
- * zostawic stary plan.
+ * zostawic stary plan. Karty miejsc uczestnika (`["event-me", slug, "seats"]`
+ * w panelu "Moje" i `["event-ticket-seats", slug]` na bilecie) klucza SLUG,
+ * ktorego payload nie niesie - jak przy gieldzie spotkan uniewazniamy cale
+ * galezie uczestnika (odswiezaja sie tylko zamontowane zapytania).
  */
 function seatingEventKeys(event: DomainEventRow, registrations: boolean): QueryKey[] {
   const eventId = eventPayloadText(event, "event_id");
   const branch = (root: string): QueryKey => (eventId === "" ? [root] : [root, eventId]);
+  const participant: QueryKey[] = [["event-me"], ["event-ticket-seats"]];
   return registrations
-    ? [branch("event-seating"), branch("event-registrations")]
-    : [branch("event-seating")];
+    ? [branch("event-seating"), branch("event-registrations"), ...participant]
+    : [branch("event-seating"), ...participant];
 }
 
 /**

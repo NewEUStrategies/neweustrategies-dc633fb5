@@ -832,6 +832,8 @@ SELECT pg_temp.assert(
   (SELECT count(*) FROM public.admin_event_company_sponsorships('32c00000-0000-0000-0000-0000000000c1')) = 2
   AND (SELECT r.views_unique = 7 AND r.leads_total = 4 AND r.leads_consented = 2 AND r.meetings_held = 1
               AND r.active_links = 2 AND r.tier_name_pl = 'Zloty' AND r.event_slug = 'spr-forum'
+              AND r.event_timezone IS NOT DISTINCT FROM (SELECT e.timezone FROM public.events e
+                                                         WHERE e.id = r.event_id)
          FROM public.admin_event_company_sponsorships('32c00000-0000-0000-0000-0000000000c1') r
         WHERE r.event_id = '32e00000-0000-0000-0000-0000000000e1'),
   '32/CRM: historia sponsoringu firmy (dwa wydarzenia) z metrykami raportu');
