@@ -173,6 +173,14 @@ export const PREVIEW_SECTION_KEYS: readonly EventSectionKey[] = EVENT_SECTION_KE
  * wydarzenie ma przypiecia): bez tego pusty podglad dostalby samotny naglowek
  * „Partnerzy". Dojazd i kontakt maja `NULL`, jak w bazie - ich pustke liczy
  * `EventPageSections`.
+ *
+ * AWARIA LISTY TEZ „MA TRESC". Po awarii nie wiadomo, czy partnerzy sa, a na
+ * stronie publicznej sekcja z przypieciami pokazuje wtedy naglowek i zdanie
+ * o awarii. Ukrycie sekcji w podgladzie mowiloby „partnerow nie ma" - czyli
+ * dokladnie objaw ze zgloszenia, tylko bez slowa o przyczynie. W TRAKCIE
+ * wczytywania sekcji nie ma: zanim lista dojedzie, nie wiadomo, czy
+ * wydarzenie w ogole ma partnerow, a samotny naglowek ze szkieletem migalby
+ * na kazdym wydarzeniu bez nich.
  */
 function previewSection(key: EventSectionKey, hasSponsors: boolean): EventSection {
   return {
@@ -267,6 +275,8 @@ export function EventPreviewCanvas({
   const zoneLabel = eventTimeZoneLabel(model.startsAt, model.timezone, lang);
   const isGrid = model.pagesDisplayMode === "grid";
   const sponsorTiers = live.sponsorTiers;
+  const sponsorsStatus = live.sponsorsStatus;
+  const hasSponsors = sponsorsStatus.state === "error" || sponsorTiers.length > 0;
   // Napis plakietki wchodzi do komponentow publicznych PROPEM - slownik panelu
   // nie trafia do paczki strony publicznej.
   const sponsorDraftLabel = t("adminEvents.studio.preview.sponsorDraftBadge");
@@ -469,12 +479,13 @@ export function EventPreviewCanvas({
                   sekcji odmawia szkicowi. */}
               <EventPageSections
                 slug={model.slug}
-                sections={PREVIEW_SECTION_KEYS.map((key) =>
-                  previewSection(key, sponsorTiers.length > 0),
-                )}
+                sections={PREVIEW_SECTION_KEYS.map((key) => previewSection(key, hasSponsors))}
                 practical={practical}
                 sponsorTiers={sponsorTiers}
                 sponsorDraftLabel={sponsorDraftLabel}
+                sponsorErrorMessage={
+                  sponsorsStatus.state === "error" ? sponsorsStatus.message : undefined
+                }
               />
             </>
           }

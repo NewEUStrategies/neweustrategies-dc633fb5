@@ -9,7 +9,7 @@
 //
 // CO KONKRETNIE PSUJE SIE BEZ TYCH TESTOW.
 //   1. ZAMKNIETA NAKLADKA ZACZYNA PYTAC. `enabled: open` w szesciu zapytaniach
-//      to piec miejsc na literowke. Skutek jest niewidoczny na ekranie: kazde
+//      to szesc miejsc na literowke. Skutek jest niewidoczny na ekranie: kazde
 //      wejscie na dowolna sekcje studia ciagnie liste zgloszen i partnerow,
 //      ktorych nikt nie oglada.
 //   2. NAKLADKA PRZESTAJE BYC STANEM I STAJE SIE TRASA. Wyjscie z podgladu
@@ -24,6 +24,10 @@
 //      z zapytan; kazde ponowne pobranie na moment oddaje pustke, a podglad,
 //      ktory czytalby tylko `base.menu`, wracalby na strone glowna „sam
 //      z siebie". Dlatego cel nawigacji nosi WLASNA kopie etykiety i sciezki.
+//   6. PUSTA LISTA PARTNEROW UDAJE „BRAK PARTNEROW". Kanwa dostaje obok wierszy
+//      STATUS listy: wczytywanie, awaria (zdaniem o ODCZYCIE, nie „nie
+//      zapisano zmian") albo odpowiedz - a wylaczone zapytanie (brak
+//      wydarzenia) nie wczytuje sie w nieskonczonosc.
 //
 // CZEGO SWIADOMIE NIE DUBLUJE. (1) Rysunku strony - `EventPreviewCanvas` ma
 // wlasna bramke parytetu (`eventPreviewPublicParity.gate.test.tsx`); tutaj stoi
@@ -147,6 +151,7 @@ function nakladka(
     publicHref?: string | null;
     onOpenChange?: (open: boolean) => void;
     base?: Partial<EventPreviewModel>;
+    eventId?: string;
   } = {},
 ) {
   const model: EventPreviewModel = {
@@ -163,7 +168,7 @@ function nakladka(
           open={options.open ?? true}
           onOpenChange={options.onOpenChange ?? (() => undefined)}
           publicHref={options.publicHref ?? null}
-          eventId={STUDIO_EVENT_ID}
+          eventId={options.eventId ?? STUDIO_EVENT_ID}
         />
       </EventStudioPreviewProvider>
     </Provider>,
@@ -248,6 +253,52 @@ describe("EventStudioPreview - zamkniety podglad nie kosztuje nic", () => {
 
     await waitFor(() => expect(stub().lastCall("admin_event_sponsor_tiers_list")).toBeDefined());
     expect(stub().lastCall("admin_event_sponsor_tiers_list")?.keys()).toEqual(["p_event_id"]);
+  });
+});
+
+describe("EventStudioPreview - stan listy partnerow", () => {
+  /** Status partnerow w ostatnim rysunku kanwy. */
+  function ostatniStatus() {
+    const rysunek = h.rysunki.at(-1);
+    if (rysunek === undefined) throw new Error("test: kanwa nie zostala narysowana");
+    return rysunek.live.sponsorsStatus;
+  }
+
+  it("zanim lista dojedzie, kanwa wie, ze to WCZYTYWANIE - a po odpowiedzi, ze gotowe", async () => {
+    nakladka({ open: true });
+
+    expect(h.rysunki[0]?.live.sponsorsStatus).toEqual({ state: "pending" });
+    await waitFor(() => expect(ostatniStatus()).toEqual({ state: "ready" }));
+  });
+
+  it("awaria bez znanego klucza to zdanie o ODCZYCIE, nie „nie udalo sie zapisac zmian”", async () => {
+    stub().setError("admin_event_sponsors_list", "Failed to fetch");
+    nakladka({ open: true });
+
+    await waitFor(() =>
+      expect(ostatniStatus()).toEqual({ state: "error", message: `${P}sponsorsLoadFailed` }),
+    );
+  });
+
+  it("znana odmowa bazy mowi swoim zdaniem z mapy odmow sponsorow", async () => {
+    stub().setError("admin_event_sponsors_list", "forbidden: event admins only", "42501");
+    nakladka({ open: true });
+
+    const { adminSponsorErrorMessage } = await import("@/lib/events/adminSponsorErrors");
+    await waitFor(() =>
+      expect(ostatniStatus()).toEqual({
+        state: "error",
+        message: adminSponsorErrorMessage(new Error("forbidden")),
+      }),
+    );
+  });
+
+  it("bez wydarzenia lista jest WYLACZONA - to odpowiedz „brak partnerow”, nie wieczne wczytywanie", async () => {
+    nakladka({ open: true, eventId: "" });
+    await screen.findByTestId("kanwa");
+
+    expect(ostatniStatus()).toEqual({ state: "ready" });
+    expect(stub().callsFor("admin_event_sponsors_list")).toHaveLength(0);
   });
 });
 

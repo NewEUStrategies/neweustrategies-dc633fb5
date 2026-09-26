@@ -1012,6 +1012,10 @@ export const adminEventsPl = {
         moduleEmptySpeakers: "Nie ma jeszcze prelegentów - dodaj ich w Treści wydarzenia.",
         moduleEmptyAttendees: "Brak potwierdzonych zgłoszeń - lista wypełni się po rejestracjach.",
         moduleEmptyPartners: "Nie ma jeszcze partnerów - dodaj ich w zakładce Sponsorzy i reklama.",
+        // Awaria ODCZYTU listy partnerów - nie „nie udało się zapisać zmian",
+        // bo organizator w podglądzie niczego nie zapisuje.
+        sponsorsLoadFailed:
+          "Nie udało się wczytać partnerów. Zamknij podgląd i otwórz go ponownie.",
         // Podgląd pokazuje TAKŻE partnerów nieogłoszonych (tablica zapisuje nowe
         // logo jako nieogłoszone) - plakietka mówi, że uczestnik ich nie zobaczy,
         // dopóki organizator ich nie ogłosi.
@@ -2024,6 +2028,7 @@ export const adminEventsEn = {
         moduleEmptyAttendees:
           "No confirmed registrations yet - the list fills up as people register.",
         moduleEmptyPartners: "No partners yet - add them under Sponsors and advertising.",
+        sponsorsLoadFailed: "Partners could not be loaded. Close the preview and open it again.",
         sponsorDraftBadge: "Not announced",
         tracksLabel: "Tracks",
         trackDraftBadge: "drafts: {{count}}",

@@ -4,9 +4,16 @@
 // kolejnosci, co strona publiczna (`ORDER BY t.rank DESC, t.sort_order, t.key`)
 // - a przypiecia nieogloszone albo odsiac (domyslnie: sponsor przy sesji
 // i sciezce), albo pokazac ZNACZONE (`includeDrafts`: pas i sekcja
-// „Partnerzy" w podgladzie), nigdy nieoznaczone.
+// „Partnerzy" w podgladzie), nigdy nieoznaczone. Do tego STATUS listy:
+// pusta lista w trakcie wczytywania albo po awarii to nie „brak partnerow".
 import { describe, expect, it } from "vitest";
-import { sponsorTiersFromAdminRows } from "@/lib/events/sponsorsPreview";
+import {
+  PREVIEW_SPONSORS_PENDING,
+  PREVIEW_SPONSORS_READY,
+  previewSponsorsStatus,
+  sponsorTiersFromAdminRows,
+  type PreviewSponsorsQueryState,
+} from "@/lib/events/sponsorsPreview";
 import type { EventSponsorRow, EventSponsorTierRow } from "@/lib/events/sponsorsApi";
 
 function row(overrides: Partial<EventSponsorRow>): EventSponsorRow {
@@ -211,5 +218,47 @@ describe("sponsorTiersFromAdminRows", () => {
     expect(sponsorTiersFromAdminRows([])).toEqual([]);
     expect(sponsorTiersFromAdminRows(null)).toEqual([]);
     expect(sponsorTiersFromAdminRows(undefined, { includeDrafts: true })).toEqual([]);
+  });
+});
+
+describe("previewSponsorsStatus - pusta lista to jeszcze nie „brak partnerow”", () => {
+  const zapytanie = (patch: Partial<PreviewSponsorsQueryState>): PreviewSponsorsQueryState => ({
+    isPending: false,
+    isError: false,
+    error: null,
+    fetchStatus: "idle",
+    ...patch,
+  });
+  const opisz = (error: unknown) => `awaria:${String(error)}`;
+
+  it("awaria wygrywa i niesie zdanie z mapy odmow wolajacego", () => {
+    expect(previewSponsorsStatus(zapytanie({ isError: true, error: "forbidden" }), opisz)).toEqual({
+      state: "error",
+      message: "awaria:forbidden",
+    });
+  });
+
+  it("pierwsze pobranie (takze wstrzymane bez sieci) to wczytywanie", () => {
+    expect(
+      previewSponsorsStatus(zapytanie({ isPending: true, fetchStatus: "fetching" }), opisz),
+    ).toBe(PREVIEW_SPONSORS_PENDING);
+    expect(
+      previewSponsorsStatus(zapytanie({ isPending: true, fetchStatus: "paused" }), opisz),
+    ).toBe(PREVIEW_SPONSORS_PENDING);
+  });
+
+  it("zapytanie WYLACZONE (brak wydarzenia) nie wczytuje sie w nieskonczonosc", () => {
+    // `pending` + `idle` to stan na zawsze - liczony jako wczytywanie dalby
+    // szkielet, ktory nigdy nie znika.
+    expect(previewSponsorsStatus(zapytanie({ isPending: true, fetchStatus: "idle" }), opisz)).toBe(
+      PREVIEW_SPONSORS_READY,
+    );
+  });
+
+  it("odpowiedz (takze odswiezana w tle) to gotowosc - ta sama stala, nie nowy obiekt", () => {
+    expect(previewSponsorsStatus(zapytanie({}), opisz)).toBe(PREVIEW_SPONSORS_READY);
+    expect(previewSponsorsStatus(zapytanie({ fetchStatus: "fetching" }), opisz)).toBe(
+      PREVIEW_SPONSORS_READY,
+    );
   });
 });

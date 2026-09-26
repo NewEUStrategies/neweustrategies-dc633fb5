@@ -42,7 +42,8 @@ import {
 } from "@/components/admin/events/studio/EventStudioPreviewContext";
 import { useEventPageDocument } from "@/lib/events/useAdminEventPages";
 import { useSponsorTiers, useSponsors } from "@/lib/events/useEventSponsors";
-import { sponsorTiersFromAdminRows } from "@/lib/events/sponsorsPreview";
+import { previewSponsorsStatus, sponsorTiersFromAdminRows } from "@/lib/events/sponsorsPreview";
+import { adminSponsorLoadErrorMessage } from "@/lib/events/adminSponsorErrors";
 import { useViewerCardFacts } from "@/lib/profile/useViewerCard";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import type { BuilderDocument } from "@/lib/builder/types";
@@ -165,6 +166,25 @@ export function EventStudioPreview({
       }),
     [sponsorsQ.data, sponsorTiersQ.data],
   );
+  // PUSTA LISTA TO JESZCZE NIE „BRAK PARTNEROW". Zakladka „Partnerzy" otwiera
+  // sie zanim lista dojedzie, a RPC potrafi pasc - bez statusu podglad mowil
+  // w obu chwilach „dodaj ich na tablicy", takze wydarzeniu z partnerami.
+  // Odmowe mowi mapa odmow sponsorow, ale nieznana (zerwana siec) dostaje
+  // zdanie o ODCZYCIE, a nie „nie udalo sie zapisac zmian".
+  const sponsorsStatus = useMemo(
+    () =>
+      previewSponsorsStatus(
+        {
+          isPending: sponsorsQ.isPending,
+          isError: sponsorsQ.isError,
+          error: sponsorsQ.error,
+          fetchStatus: sponsorsQ.fetchStatus,
+        },
+        (error) =>
+          adminSponsorLoadErrorMessage(error, t("adminEvents.studio.preview.sponsorsLoadFailed")),
+      ),
+    [sponsorsQ.isPending, sponsorsQ.isError, sponsorsQ.error, sponsorsQ.fetchStatus, t],
+  );
 
   // ZYWE DANE PODSTRON MODULOWYCH. Projekcje publiczne (`event_agenda`,
   // `get_public_speakers`, `event_attendees`) maja bramke `published` albo
@@ -206,6 +226,7 @@ export function EventStudioPreview({
       speakers: speakerRowsFromAdminEntries(speakersQ.data, sessionsQ.data),
       attendees: attendeeEntriesFromRegistrationRows(registrationsQ.data?.rows),
       sponsorTiers,
+      sponsorsStatus,
     }),
     [
       sessionsQ.data,
@@ -215,6 +236,7 @@ export function EventStudioPreview({
       base.timezone,
       publishedSponsorIds,
       sponsorTiers,
+      sponsorsStatus,
     ],
   );
 
@@ -249,22 +271,28 @@ export function EventStudioPreview({
   const frameRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
+  // RAMA I KANWA SA ALBO OBIE, ALBO ZADNA. Montuje je ten sam commit, wiec
+  // jedyna chwila bez nich to spozniony ResizeObserver po zamknieciu nakladki -
+  // wtedy nie ma czego mierzyc. Jeden warunek zamiast osobnego dla kazdej
+  // z nich: osobne obiecywaly stan „rama bez kanwy", ktorego React nie wytwarza.
   const measure = useCallback(() => {
     const frame = frameRef.current;
     const canvas = canvasRef.current;
-    if (frame === null) return;
+    if (frame === null || canvas === null) return;
     const available = frame.clientWidth;
     if (available > 0) setScale(Math.min(1, available / PREVIEW_WIDTHS[device]));
-    if (canvas !== null) setContentHeight(canvas.scrollHeight);
+    setContentHeight(canvas.scrollHeight);
   }, [device]);
 
   useEffect(() => {
     if (!open) return;
     measure();
-    if (typeof ResizeObserver === "undefined") return;
+    const frame = frameRef.current;
+    const canvas = canvasRef.current;
+    if (typeof ResizeObserver === "undefined" || frame === null || canvas === null) return;
     const observer = new ResizeObserver(() => measure());
-    if (frameRef.current !== null) observer.observe(frameRef.current);
-    if (canvasRef.current !== null) observer.observe(canvasRef.current);
+    observer.observe(frame);
+    observer.observe(canvas);
     return () => observer.disconnect();
   }, [open, measure, model]);
 

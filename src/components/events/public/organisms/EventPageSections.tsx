@@ -42,7 +42,9 @@
 // Podgląd szkicu tego zapytania użyć nie może (bramka `status = 'published'`),
 // więc wnosi wiersze RPC panelu i dostaje TEN SAM rysunek
 // (`EventSponsorsSectionView`) - razem z napisem plakietki nieogłoszonego
-// partnera, bo słownik panelu nie należy do tego organizmu.
+// partnera, bo słownik panelu nie należy do tego organizmu. Awaria tamtego
+// zapytania też przychodzi propem (`sponsorErrorMessage`) i rysuje się TYM
+// SAMYM zdaniem o awarii, co tutaj - pusta lista udawałaby „brak partnerów".
 import { useTranslation } from "react-i18next";
 
 import { uiLang } from "@/lib/i18n/format";
@@ -63,6 +65,7 @@ import {
 import { EventAgendaSection } from "@/components/events/public/organisms/EventAgendaSection";
 import {
   EventSponsorsSection,
+  EventSponsorsSectionError,
   EventSponsorsSectionView,
 } from "@/components/events/public/organisms/EventSponsorsSection";
 import { EventMaterialsSection } from "@/components/events/public/organisms/EventMaterialsSection";
@@ -85,6 +88,7 @@ export function EventPageSections({
   practical = null,
   sponsorTiers,
   sponsorDraftLabel,
+  sponsorErrorMessage,
 }: {
   slug: string;
   sections: readonly EventSection[];
@@ -97,6 +101,11 @@ export function EventPageSections({
   sponsorTiers?: readonly PublicSponsorTier[];
   /** Napis plakietki partnera nieogłoszonego - tylko razem z `sponsorTiers`. */
   sponsorDraftLabel?: string;
+  /**
+   * Zdanie o awarii zapytania, z którego przyszły `sponsorTiers` - tylko razem
+   * z nimi. Wygrywa z wierszami, jak `isError` w `EventSponsorsSection`.
+   */
+  sponsorErrorMessage?: string;
 }) {
   const owned = sections.filter((section) => {
     if (!OWNED.includes(section.key) || !shouldRenderSection(section)) return false;
@@ -117,6 +126,7 @@ export function EventPageSections({
           practical={practical}
           sponsorTiers={sponsorTiers}
           sponsorDraftLabel={sponsorDraftLabel}
+          sponsorErrorMessage={sponsorErrorMessage}
         />
       ))}
     </>
@@ -129,12 +139,14 @@ function EventPageSection({
   practical,
   sponsorTiers,
   sponsorDraftLabel,
+  sponsorErrorMessage,
 }: {
   slug: string;
   section: EventSection;
   practical: EventPracticalInfo | null;
   sponsorTiers: readonly PublicSponsorTier[] | undefined;
   sponsorDraftLabel: string | undefined;
+  sponsorErrorMessage: string | undefined;
 }) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
@@ -156,6 +168,8 @@ function EventPageSection({
         ) : section.key === "sponsors" ? (
           sponsorTiers === undefined ? (
             <EventSponsorsSection slug={slug} />
+          ) : sponsorErrorMessage !== undefined ? (
+            <EventSponsorsSectionError message={sponsorErrorMessage} />
           ) : (
             <EventSponsorsSectionView tiers={sponsorTiers} draftLabel={sponsorDraftLabel} />
           )

@@ -12,6 +12,10 @@
 // Ten plik idzie CALYM lancuchem: atrapa RPC -> `sponsorTiersFromAdminRows`
 // -> `live.sponsorTiers` -> prawdziwa kanwa -> prawdziwe komponenty publiczne.
 //
+// AWARIA LISTY NIE UDAJE „BRAK PARTNEROW" - ani na stronie glownej (sekcja
+// zostaje ze zdaniem o awarii), ani na zakladce „Partnerzy" (zamiast „dodaj ich
+// na tablicy"), bo inaczej padniete RPC wracaloby jako objaw ze zgloszenia.
+//
 // I JEDNA RZECZ, KTORA SIE NIE MOZE ZMIENIC. Sponsor przy SESJI programu nadal
 // idzie tylko z przypiecia ogloszonego (tak jak w publicznym `event_agenda`) -
 // pokazanie nieogloszonych partnerow w pasie nie moze przy okazji obiecac
@@ -340,5 +344,24 @@ describe("podglad studia - podstrony", () => {
     // Sesja ogloszonego partnera ma jego nazwe, sesja nieogloszonego - zadnej.
     expect(within(strona).getByText(NORDWIND)).toBeInTheDocument();
     expect(within(strona).queryByText(BALTIC)).toBeNull();
+  });
+});
+
+describe("podglad studia - awaria listy partnerow", () => {
+  it("padniete RPC: sekcja i zakladka mowia o awarii, a nie „nie ma jeszcze partnerow”", async () => {
+    h.rpc?.setError("admin_event_sponsors_list", "Failed to fetch");
+    nakladka();
+
+    // Strona glowna: sekcja „Partnerzy" zostaje - z tym samym zdaniem o awarii.
+    const sekcja = await sekcjaPartnerow();
+    await waitFor(() =>
+      expect(within(sekcja).getByText(`${P}sponsorsLoadFailed`)).toBeInTheDocument(),
+    );
+
+    otworzZakladke("Partnerzy");
+
+    const strona = await screen.findByTestId("event-preview-page");
+    expect(within(strona).getByText(`${P}sponsorsLoadFailed`)).toBeInTheDocument();
+    expect(within(strona).queryByText(`${P}moduleEmptyPartners`)).toBeNull();
   });
 });

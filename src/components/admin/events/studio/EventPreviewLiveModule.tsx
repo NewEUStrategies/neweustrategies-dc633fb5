@@ -17,11 +17,16 @@ import { useTranslation } from "react-i18next";
 import { EventAgendaBoardView } from "@/components/events/public/organisms/EventAgendaBoardView";
 import { EventSpeakersGridView } from "@/components/events/public/organisms/EventSpeakersGrid";
 import { EventAttendeesGridView } from "@/components/events/public/organisms/EventAttendeesList";
-import { EventSponsorsSectionView } from "@/components/events/public/organisms/EventSponsorsSection";
+import {
+  EventSponsorsSectionError,
+  EventSponsorsSectionPending,
+  EventSponsorsSectionView,
+} from "@/components/events/public/organisms/EventSponsorsSection";
 import { type AgendaSession } from "@/lib/events/agendaSurface";
 import type { AttendeeEntry } from "@/lib/events/publicEventApi";
 import type { PreviewTrackChip } from "@/lib/events/previewLiveData";
 import type { PublicSponsorTier } from "@/lib/events/sponsorsSurface";
+import { PREVIEW_SPONSORS_READY, type PreviewSponsorsStatus } from "@/lib/events/sponsorsPreview";
 import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 import { uiLang } from "@/lib/i18n/format";
 import { mediaRenderUrl } from "@/lib/media/publicUrl";
@@ -45,6 +50,12 @@ export interface EventPreviewLiveData {
    * Jedno zrodlo dla pasa, sekcji „Partnerzy" i zakladki modulowej.
    */
   sponsorTiers: readonly PublicSponsorTier[];
+  /**
+   * Czy `sponsorTiers` to odpowiedz, czy dopiero jej brak. Pusta lista w trakcie
+   * wczytywania albo po awarii to NIE „brak partnerow" - patrz
+   * `PreviewSponsorsStatus`.
+   */
+  sponsorsStatus: PreviewSponsorsStatus;
 }
 
 export const EMPTY_PREVIEW_LIVE_DATA: EventPreviewLiveData = {
@@ -53,6 +64,7 @@ export const EMPTY_PREVIEW_LIVE_DATA: EventPreviewLiveData = {
   speakers: [],
   attendees: [],
   sponsorTiers: [],
+  sponsorsStatus: PREVIEW_SPONSORS_READY,
 };
 
 function EmptyNote({ text }: { text: string }) {
@@ -147,6 +159,12 @@ function PreviewAgenda({ sessions }: { sessions: readonly AgendaSession[] }) {
  * dokumentem CMS sekcje partnerow z bazy, a dokument zasiany migracja niesie
  * tylko naglowek i zdanie wstepu - bez tej galezi zakladka w podgladzie byla
  * pusta nawet dla partnerow OGLOSZONYCH.
+ *
+ * ZDANIE „NIE MA PARTNEROW" PADA TYLKO PO ODPOWIEDZI. Wczytywanie i awaria
+ * rysuja sie tak, jak na stronie publicznej (szkielet i zdanie o awarii z tego
+ * samego organizmu), bo zakladka otwiera sie zanim lista dojedzie - a wtedy
+ * „dodaj ich na tablicy" mignelo przy kazdym otwarciu, takze wydarzeniu
+ * z partnerami, i zostawalo na stale, gdy RPC padlo.
  */
 export function EventPreviewLiveModule({
   module,
@@ -180,6 +198,9 @@ export function EventPreviewLiveModule({
   }
 
   if (module === "partners") {
+    if (data.sponsorsStatus.state === "pending") return <EventSponsorsSectionPending />;
+    if (data.sponsorsStatus.state === "error")
+      return <EventSponsorsSectionError message={data.sponsorsStatus.message} />;
     if (data.sponsorTiers.length === 0)
       return <EmptyNote text={t("adminEvents.studio.preview.moduleEmptyPartners")} />;
     return (

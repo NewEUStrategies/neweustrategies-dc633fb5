@@ -14,6 +14,9 @@
 //      identyfikator strony.
 //   5. PODSTRONA Z DOKUMENTEM rysuje go publicznym rendererem, a nie zdaniem
 //      o pustej stronie.
+//   6. STAN LISTY PARTNEROW RZADZI SEKCJA „PARTNERZY". Awaria zostawia sekcje
+//      ze zdaniem o awarii (jak strona publiczna z przypieciami), a nie ukrywa
+//      jej po cichu; wczytywanie nie rysuje samotnego naglowka.
 //
 // CZEGO SWIADOMIE NIE DUBLUJE. Ukladu i parytetu ze strona (bramka), partnerow
 // z bazy (`EventStudioPreviewSponsors.test.tsx`) i podstron modulowych
@@ -27,6 +30,7 @@ import {
   type EventPreviewModel,
 } from "@/components/admin/events/studio/EventStudioPreviewContext";
 import type { BuilderDocument } from "@/lib/builder/types";
+import type { PublicSponsorTier } from "@/lib/events/sponsorsSurface";
 
 const h = vi.hoisted(() => ({
   lang: "pl",
@@ -62,6 +66,8 @@ vi.mock("@/components/admin/events/studio/PreviewMePanel", () => ({
 }));
 
 const { EventPreviewCanvas } = await import("@/components/admin/events/studio/EventPreviewCanvas");
+const { EMPTY_PREVIEW_LIVE_DATA } =
+  await import("@/components/admin/events/studio/EventPreviewLiveModule");
 
 const P = "adminEvents.studio.preview.";
 
@@ -225,5 +231,87 @@ describe("kanwa - podstrona", () => {
     expect(h.dokumenty).toEqual([doc]);
     expect(screen.queryByText(`${P}pageEmpty`)).toBeNull();
     expect(screen.getByText("/o-nas")).toBeInTheDocument();
+  });
+});
+
+describe("kanwa - stan listy partnerow na stronie glownej", () => {
+  /** Poziom z jednym ogloszonym partnerem - w pamieci sprzed awarii odswiezenia. */
+  const poziom: PublicSponsorTier = {
+    tierId: "t-gold",
+    key: "gold",
+    namePl: "Zloci partnerzy",
+    nameEn: "Gold partners",
+    descriptionPl: null,
+    descriptionEn: null,
+    rank: 10,
+    accentColor: null,
+    logoSize: "md",
+    benefits: [],
+    sponsors: [
+      {
+        id: "sp-nordwind",
+        name: "Nordwind Analytics",
+        logoUrl: null,
+        websiteUrl: null,
+        descriptionPl: null,
+        descriptionEn: null,
+        country: null,
+        role: "sponsor",
+        boothLabel: null,
+        sortOrder: 0,
+      },
+    ],
+  };
+
+  it("AWARIA listy: sekcja „Partnerzy” zostaje ze zdaniem o awarii zamiast znikac", () => {
+    const { container } = render(
+      <EventPreviewCanvas
+        model={model()}
+        device="desktop"
+        live={{
+          ...EMPTY_PREVIEW_LIVE_DATA,
+          sponsorsStatus: { state: "error", message: "Nie udalo sie wczytac partnerow." },
+        }}
+      />,
+    );
+
+    const sekcja = container.querySelector<HTMLElement>("#event-sponsors");
+    expect(sekcja).not.toBeNull();
+    expect(sekcja?.textContent).toContain("Nie udalo sie wczytac partnerow.");
+    expect(sekcja?.textContent).not.toContain("eventFront.sections.sponsors.empty");
+  });
+
+  it("AWARIA odswiezenia: pas zostaje z wierszami z pamieci, sekcja mowi o awarii - jak strona", () => {
+    // Strona publiczna: pas czyta `data ?? []`, sekcja sprawdza `isError`
+    // przed `data`. Podglad ma ten sam podzial, nie wlasny.
+    const { container } = render(
+      <EventPreviewCanvas
+        model={model()}
+        device="desktop"
+        live={{
+          ...EMPTY_PREVIEW_LIVE_DATA,
+          sponsorTiers: [poziom],
+          sponsorsStatus: { state: "error", message: "Nie udalo sie wczytac partnerow." },
+        }}
+      />,
+    );
+
+    const sekcja = container.querySelector<HTMLElement>("#event-sponsors") as HTMLElement;
+    expect(sekcja.textContent).toContain("Nie udalo sie wczytac partnerow.");
+    expect(sekcja.textContent).not.toContain("Nordwind Analytics");
+    const poza = screen.getAllByText("Nordwind Analytics").filter((node) => !sekcja.contains(node));
+    expect(poza.length).toBeGreaterThan(0);
+  });
+
+  it("WCZYTYWANIE: ani pasa, ani samotnego naglowka „Partnerzy”", () => {
+    const { container } = render(
+      <EventPreviewCanvas
+        model={model()}
+        device="desktop"
+        live={{ ...EMPTY_PREVIEW_LIVE_DATA, sponsorsStatus: { state: "pending" } }}
+      />,
+    );
+
+    expect(container.querySelector("#event-sponsors")).toBeNull();
   });
 });

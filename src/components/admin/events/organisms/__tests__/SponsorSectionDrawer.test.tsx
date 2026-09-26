@@ -32,7 +32,9 @@
 //      `admin_event_sponsors_set_published` dla TEJ JEDNEJ firmy - z identyfikatorem
 //      i nowym stanem. Wynik to zdanie o skutku (ogłoszony / wycofany), odmowa
 //      bazy idzie przez mapę odmów sponsorów, a w trakcie zapisu przełącznik
-//      jest zgaszony.
+//      jest zgaszony. Nazwa przełącznika mówi, KTÓREJ firmy dotyczy. Do końca
+//      zapisu I odświeżenia listy przełącznik stoi w położeniu ŻĄDANYM - lista
+//      sprzed zapisu nie cofa go, a drugi klik nie wysyła tego samego żądania.
 //   7. USUNIĘCIE SEKCJI TYLKO PUSTEJ I TYLKO PO POTWIERDZENIU. Z firmami przycisk
 //      jest zgaszony z wyjaśnieniem; pusta sekcja pyta (okno niszczące), odmowa
 //      niczego nie usuwa, a udane usunięcie zamyka panel. Okno potwierdzenia
@@ -66,7 +68,12 @@ import type { EventSponsorTierRow } from "@/lib/events/sponsorsApi";
 type Wynik = { onSuccess?: () => void; onError?: (error: unknown) => void };
 type Mutacja =
   "saveTier" | "deleteTier" | "setLayout" | "setLink" | "deleteSponsor" | "setPublished";
-type AtrapaMutacji = { mutate: (input: unknown, wynik?: Wynik) => void; isPending: boolean };
+type AtrapaMutacji = {
+  mutate: (input: unknown, wynik?: Wynik) => void;
+  isPending: boolean;
+  isSuccess: boolean;
+  variables: unknown;
+};
 
 const h = vi.hoisted(() => {
   const stan = {
@@ -75,6 +82,9 @@ const h = vi.hoisted(() => {
     calls: {} as Record<string, unknown[]>,
     errors: {} as Record<string, Error | null>,
     pending: {} as Record<string, boolean>,
+    /** Stan mutacji po zakończonym zapisie - `isSuccess` i jej `variables`. */
+    success: {} as Record<string, boolean>,
+    variables: {} as Record<string, unknown>,
     confirmAnswer: true,
     confirmCalls: [] as Array<Omit<ConfirmDialogRequest, "kind">>,
     toastSuccess: vi.fn(),
@@ -93,6 +103,8 @@ const h = vi.hoisted(() => {
           else wynik?.onError?.(blad);
         },
         isPending: stan.pending[nazwa] === true,
+        isSuccess: stan.success[nazwa] === true,
+        variables: stan.variables[nazwa],
       };
     },
   };
@@ -261,6 +273,8 @@ beforeEach(() => {
   h.calls = {};
   h.errors = {};
   h.pending = {};
+  h.success = {};
+  h.variables = {};
   h.confirmAnswer = true;
   h.confirmCalls = [];
   h.toastSuccess.mockClear();
@@ -501,7 +515,22 @@ describe("logotypy", () => {
 
 describe("ogłoszenie logotypu", () => {
   const przelacznik = (nazwa: string): HTMLElement =>
-    within(logotyp(nazwa)).getByRole("switch", { name: `${B}.drawer.published` });
+    within(logotyp(nazwa)).getByRole("switch", { name: `${B}.drawer.publishedFor(name=${nazwa})` });
+  const plakietka = (nazwa: string) =>
+    within(logotyp(nazwa)).queryByText(`${B}.sponsors.draftBadge`);
+
+  it("każdy przełącznik ma w nazwie SWOJĄ firmę - czytnik odróżnia je od siebie", () => {
+    szuflada({ logos: [ACME, NOWA] });
+    const nazwy = within(panel())
+      .getAllByRole("switch")
+      .map((el) => el.getAttribute("aria-label"));
+    expect(nazwy).toEqual([
+      `${B}.drawer.publishedFor(name=Acme)`,
+      `${B}.drawer.publishedFor(name=Nowa Firma)`,
+    ]);
+    // Widoczny napis zostaje wspólny - nazwa tylko go uzupełnia.
+    expect(within(logotyp("Acme")).getByText(`${B}.drawer.published`)).toBeTruthy();
+  });
 
   it("przełącznik pokazuje stan TEJ firmy, a nieogłoszona ma plakietkę przy nazwie", () => {
     szuflada({ logos: [ACME, NOWA] });
@@ -545,11 +574,52 @@ describe("ogłoszenie logotypu", () => {
     expect(przelacznik("Nowa Firma").hasAttribute("disabled")).toBe(true);
   });
 
+  it("w trakcie zapisu przełącznik (i plakietka) stoi w położeniu ŻĄDANYM - tylko dla tej firmy", () => {
+    h.pending.setPublished = true;
+    h.variables.setPublished = { ids: ["s3"], isPublished: true };
+    szuflada({ logos: [ACME, NOWA] });
+    expect(przelacznik("Nowa Firma").getAttribute("aria-checked")).toBe("true");
+    expect(plakietka("Nowa Firma")).toBeNull();
+    // Firma spoza żądania zostaje w swoim położeniu z listy.
+    expect(przelacznik("Acme").getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("po zapisie, do końca odświeżenia listy, żądanie trzyma się - a drugi klik nie idzie do bazy", () => {
+    // Lista wciąż niesie stan sprzed zapisu (`isPublished: false`), bo odświeża
+    // się dopiero po nim. Bez tego przełącznik wracał na chwilę do starego
+    // położenia, był aktywny, a drugi klik wysyłał TO SAMO i drugi raz ogłaszał.
+    h.success.setPublished = true;
+    h.variables.setPublished = { ids: ["s3"], isPublished: true };
+    szuflada({ logos: [NOWA], isRefreshing: true });
+    expect(przelacznik("Nowa Firma").getAttribute("aria-checked")).toBe("true");
+    expect(przelacznik("Nowa Firma").hasAttribute("disabled")).toBe(true);
+    expect(plakietka("Nowa Firma")).toBeNull();
+    kliknij(przelacznik("Nowa Firma"));
+    expect(wywolania("setPublished")).toEqual([]);
+  });
+
+  it("po odświeżeniu mówi lista - stare żądanie nie przykrywa stanu z bazy", () => {
+    h.success.setPublished = true;
+    h.variables.setPublished = { ids: ["s3"], isPublished: true };
+    szuflada({ logos: [NOWA], isRefreshing: false });
+    expect(przelacznik("Nowa Firma").getAttribute("aria-checked")).toBe("false");
+    expect(przelacznik("Nowa Firma").hasAttribute("disabled")).toBe(false);
+    expect(plakietka("Nowa Firma")).not.toBeNull();
+  });
+
+  it("odświeżenie listy BEZ udanego zapisu (np. po odmowie) nie gasi przełącznika", () => {
+    h.variables.setPublished = { ids: ["s3"], isPublished: true };
+    szuflada({ logos: [NOWA], isRefreshing: true });
+    expect(przelacznik("Nowa Firma").getAttribute("aria-checked")).toBe("false");
+    expect(przelacznik("Nowa Firma").hasAttribute("disabled")).toBe(false);
+  });
+
   it("napisy ogłoszenia mają PL i EN, różne od siebie", () => {
     const pl = sponsorBoardPl.sponsorBoard;
     const en = sponsorBoardEn.sponsorBoard;
     for (const [a, b] of [
       [pl.drawer.published, en.drawer.published],
+      [pl.drawer.publishedFor, en.drawer.publishedFor],
       [pl.toasts.announced, en.toasts.announced],
       [pl.toasts.withdrawn, en.toasts.withdrawn],
       [pl.sponsors.draftBadge, en.sponsors.draftBadge],
@@ -557,6 +627,12 @@ describe("ogłoszenie logotypu", () => {
       expect(a).not.toBe("");
       expect(b).not.toBe("");
       expect(a).not.toBe(b);
+    }
+    // Nazwa przełącznika ZACZYNA SIĘ napisem widocznym (sterowanie głosem
+    // „kliknij Widoczny na stronie…" trafia w przełącznik) i niesie firmę.
+    for (const slownik of [pl, en]) {
+      expect(slownik.drawer.publishedFor.startsWith(slownik.drawer.published)).toBe(true);
+      expect(slownik.drawer.publishedFor).toContain("{{name}}");
     }
   });
 });

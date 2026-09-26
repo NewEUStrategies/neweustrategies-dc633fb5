@@ -25,6 +25,10 @@
 //      dokumentem CMS sekcje partnerow, a zasiany dokument ma tylko naglowek -
 //      bez galezi `partners` redaktor nie widzial tam nikogo, nawet partnerow
 //      ogloszonych. Plakietka „nieogloszony" jedzie napisem ze slownika PANELU.
+//   6. WCZYTYWANIE I AWARIA UDAJA „BRAK PARTNEROW". Zakladka otwiera sie,
+//      zanim lista dojedzie, a RPC potrafi pasc - zdanie „dodaj ich na
+//      tablicy" pada TYLKO po odpowiedzi; wczesniej szkielet, po awarii zdanie
+//      o awarii (oba z organizmu strony publicznej).
 //
 // CZEGO SWIADOMIE NIE DUBLUJE. (1) Mapowan `previewLiveData` (RPC -> ksztalt
 // powierzchni publicznej) - maja wlasny plik testowy. (2) Wygladu kart
@@ -80,6 +84,10 @@ vi.mock("@/components/events/public/organisms/EventAttendeesList", () => ({
 }));
 
 vi.mock("@/components/events/public/organisms/EventSponsorsSection", () => ({
+  EventSponsorsSectionPending: () => <div data-testid="partnerzy-wczytywanie" />,
+  EventSponsorsSectionError: (props: { message: string }) => (
+    <p data-testid="partnerzy-awaria">{props.message}</p>
+  ),
   EventSponsorsSectionView: (props: {
     tiers: readonly PublicSponsorTier[];
     draftLabel?: string;
@@ -354,6 +362,29 @@ describe("EventPreviewLiveModule - partnerzy", () => {
     expect(screen.getByTestId("partnerzy")).toBeInTheDocument();
     expect(h.partnerzy.at(-1)).toEqual({ ilu: 2, draftLabel: `${P}sponsorDraftBadge` });
   });
+
+  it("W TRAKCIE WCZYTYWANIA szkielet strony publicznej - nie „nie ma jeszcze partnerow”", () => {
+    modul("partners", { sponsorsStatus: { state: "pending" } });
+
+    expect(screen.getByTestId("partnerzy-wczytywanie")).toBeInTheDocument();
+    expect(screen.queryByText(`${P}moduleEmptyPartners`)).toBeNull();
+    expect(h.partnerzy).toHaveLength(0);
+  });
+
+  it("PO AWARII zdanie o awarii - nawet gdy w pamieci zostaly wiersze sprzed niej", () => {
+    // Kolejnosc jak `isError` przed `data` w `EventSponsorsSection`: awaria
+    // odswiezenia nie moze wygladac ani jak pustka, ani jak aktualna lista.
+    modul("partners", {
+      sponsorTiers: [poziom("t-1")],
+      sponsorsStatus: { state: "error", message: "Nie udalo sie wczytac partnerow." },
+    });
+
+    expect(screen.getByTestId("partnerzy-awaria")).toHaveTextContent(
+      "Nie udalo sie wczytac partnerow.",
+    );
+    expect(screen.queryByText(`${P}moduleEmptyPartners`)).toBeNull();
+    expect(h.partnerzy).toHaveLength(0);
+  });
 });
 
 describe("EventPreviewLiveModule - granice rozdzielnika", () => {
@@ -393,6 +424,9 @@ describe("EventPreviewLiveModule - granice rozdzielnika", () => {
       speakers: [],
       attendees: [],
       sponsorTiers: [],
+      // Pusty komplet to ODPOWIEDZ bez partnerow (kanwa bez nakladki), nie
+      // wczytywanie - inaczej bramka parytetu rysowalaby szkielet.
+      sponsorsStatus: { state: "ready" },
     });
   });
 });

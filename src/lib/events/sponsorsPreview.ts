@@ -144,3 +144,46 @@ export function sponsorTiersFromAdminRows(
       );
     });
 }
+
+/**
+ * STAN LISTY PRZYPIĘĆ W PODGLĄDZIE. Pusta lista partnerów znaczy trzy różne
+ * rzeczy: „jeszcze pytam", „zapytanie padło" i „partnerów nie ma" - a tylko
+ * ostatnia może powiedzieć organizatorowi „dodaj ich na tablicy". Bez tego
+ * rozróżnienia awaria RPC wracała jako objaw ze zgłoszenia (partnerów
+ * w podglądzie nie widać), tyle że z fałszywym wyjaśnieniem.
+ */
+export type PreviewSponsorsStatus =
+  { state: "pending" } | { state: "error"; message: string } | { state: "ready" };
+
+/** Stałe, a nie nowe obiekty - status wchodzi do tablic zależności nakładki. */
+export const PREVIEW_SPONSORS_PENDING: PreviewSponsorsStatus = { state: "pending" };
+export const PREVIEW_SPONSORS_READY: PreviewSponsorsStatus = { state: "ready" };
+
+/** Tyle stanu zapytania, ile potrzeba do statusu - bez wiązania z react-query. */
+export interface PreviewSponsorsQueryState {
+  isPending: boolean;
+  isError: boolean;
+  error: unknown;
+  fetchStatus: "fetching" | "paused" | "idle";
+}
+
+/**
+ * Status listy przypięć z samego zapytania `admin_event_sponsors_list`.
+ *
+ * LISTA POZIOMÓW NIE WCHODZI DO STATUSU. Kto jest partnerem, mówi lista
+ * przypięć; poziomy wnoszą tylko opis, korzyści i remis `sort_order` - bez nich
+ * pas i sekcja rysują się dalej (patrz `SponsorTiersFromAdminRowsOptions.tiers`).
+ *
+ * WYŁĄCZONE ZAPYTANIE NIE JEST WCZYTYWANIEM. Bez wydarzenia (`eventId` puste)
+ * zapytanie zostaje `pending` NA ZAWSZE przy `fetchStatus = "idle"` - licząc je
+ * jako wczytywanie, podgląd pokazywałby szkielet, który nigdy nie zniknie.
+ * Wstrzymane (`"paused"`, brak sieci) nadal czeka, więc dalej jest wczytywaniem.
+ */
+export function previewSponsorsStatus(
+  query: PreviewSponsorsQueryState,
+  describeError: (error: unknown) => string,
+): PreviewSponsorsStatus {
+  if (query.isError) return { state: "error", message: describeError(query.error) };
+  if (query.isPending && query.fetchStatus !== "idle") return PREVIEW_SPONSORS_PENDING;
+  return PREVIEW_SPONSORS_READY;
+}

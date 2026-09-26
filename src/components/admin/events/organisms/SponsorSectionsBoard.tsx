@@ -242,6 +242,9 @@ export function SponsorSectionsBoard({ eventId }: { eventId: string }) {
             sponsor: sponsors.find((s) => s.id === id) ?? null,
           })
         }
+        // Odświeżenie listy po ogłoszeniu logo - do jego końca przełącznik
+        // w panelu trzyma położenie żądane (patrz `SponsorSectionDrawer`).
+        isRefreshing={sponsorsQ.isFetching}
       />
 
       <EventSponsorDialog

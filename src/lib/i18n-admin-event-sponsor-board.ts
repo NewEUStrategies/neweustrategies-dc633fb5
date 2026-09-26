@@ -15,8 +15,9 @@ export const sponsorBoardPl = {
       noLogos: "Brak logotypów w tej sekcji.",
       banner: "Baner",
       grid: "Siatka logo",
-      // Logo dodane z tablicy jest NIEOGŁOSZONE - strona wydarzenia i podgląd
-      // (bez plakietki) go nie pokazują, więc tablica musi to powiedzieć.
+      // Logo dodane z tablicy jest NIEOGŁOSZONE - strona wydarzenia go nie
+      // pokazuje (podgląd rysuje je przygaszone, z plakietką), więc tablica musi
+      // to powiedzieć.
       draftBadge: "Nieogłoszony",
       draftCount: "Nieogłoszone: {{count}}",
     },
@@ -55,6 +56,10 @@ export const sponsorBoardPl = {
       deleteLogo: "Usuń logotyp",
       layout: "Układ sekcji",
       published: "Widoczny na stronie wydarzenia",
+      // Nazwa przełącznika dla czytnika ekranu: przy kilku logotypach sam napis
+      // „Widoczny na stronie wydarzenia" nie mówi, KTÓREJ firmy dotyczy.
+      // Zaczyna się napisem widocznym, żeby sterowanie głosem trafiało w niego.
+      publishedFor: "Widoczny na stronie wydarzenia: {{name}}",
     },
     redirect: {
       label: "Przekierowanie",
@@ -109,7 +114,9 @@ export const sponsorBoardPl = {
       sectionSaved: "Sekcja zapisana.",
       sectionDeleted: "Sekcja usunięta.",
       linkSaved: "Przekierowanie zapisane.",
-      announced: "Partner ogłoszony - widać go na stronie wydarzenia.",
+      // „ZOBACZĄ", nie „widać": wydarzenie w szkicu nie ma jeszcze strony
+      // publicznej, więc zdanie w czasie teraźniejszym byłoby tam nieprawdą.
+      announced: "Partner ogłoszony - uczestnicy zobaczą go na stronie wydarzenia.",
       withdrawn: "Partner wycofany ze strony wydarzenia.",
       error: "Nie udało się zapisać zmian.",
     },
@@ -172,6 +179,7 @@ export const sponsorBoardEn = {
       deleteLogo: "Remove logo",
       layout: "Section layout",
       published: "Visible on the event page",
+      publishedFor: "Visible on the event page: {{name}}",
     },
     redirect: {
       label: "Redirection",
@@ -226,7 +234,7 @@ export const sponsorBoardEn = {
       sectionSaved: "Section saved.",
       sectionDeleted: "Section deleted.",
       linkSaved: "Redirection saved.",
-      announced: "Partner announced - now visible on the event page.",
+      announced: "Partner announced - attendees will see it on the event page.",
       withdrawn: "Partner withdrawn from the event page.",
       error: "Could not save changes.",
     },

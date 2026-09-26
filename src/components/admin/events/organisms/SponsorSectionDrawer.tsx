@@ -6,6 +6,13 @@
 // sponsora albo w masowej akcji na osobnej liście. Przełącznik przy każdym
 // logo woła `admin_event_sponsors_set_published` dla TEJ JEDNEJ firmy, a odmowa
 // bazy mówi zdaniem z mapy odmów sponsorów, nie ogólnym „nie udało się".
+//
+// PRZEŁĄCZNIK POKAZUJE ŻĄDANIE, DOPÓKI LISTA GO NIE POTWIERDZI. Stan logo
+// przychodzi z listy przypięć, a ta odświeża się dopiero PO zapisie. Przez tę
+// chwilę przełącznik stał w starym położeniu i był już aktywny, więc drugi klik
+// wysyłał TO SAMO żądanie (baza zmienia zero wierszy - `IS DISTINCT FROM`)
+// i drugi raz ogłaszał sukces. Do końca zapisu I odświeżenia listy przełącznik
+// stoi więc w położeniu żądanym (razem z plakietką) i jest zgaszony.
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Pencil, Plus, Trash2 } from "lucide-react";
@@ -53,6 +60,7 @@ export function SponsorSectionDrawer({
   onOpenChange,
   onAddSponsor,
   onEditSponsor,
+  isRefreshing = false,
 }: {
   eventId: string;
   tier: EventSponsorTierRow | null;
@@ -62,6 +70,8 @@ export function SponsorSectionDrawer({
   onOpenChange: (open: boolean) => void;
   onAddSponsor: (tierId: string) => void;
   onEditSponsor: (sponsorId: string) => void;
+  /** Lista przypięć właśnie się odświeża - `logos` może jeszcze nieść stan sprzed zapisu. */
+  isRefreshing?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const saveTier = useSaveSponsorTier(eventId);
@@ -82,6 +92,13 @@ export function SponsorSectionDrawer({
   // Baza odmówi banera przy więcej niż jednej firmie (`banner_single_image`),
   // więc przycisk gaśnie wcześniej i mówi, co trzeba zrobić.
   const bannerBlocked = logos.length > 1;
+  // Patrz nagłówek pliku: żądanie „w drodze" to zapis ALBO odświeżenie po nim.
+  const publishSettling = setPublished.isPending || (setPublished.isSuccess && isRefreshing);
+  const requested = publishSettling ? setPublished.variables : undefined;
+  const shownPublished = (logo: SponsorLogo) =>
+    requested !== undefined && requested.ids.includes(logo.id)
+      ? requested.isPublished
+      : logo.isPublished;
 
   return (
     <Sheet open={tier !== null} onOpenChange={onOpenChange}>
@@ -160,7 +177,7 @@ export function SponsorSectionDrawer({
                     </span>
                     <span className="flex min-w-0 flex-1 flex-col items-start gap-1">
                       <span className="max-w-full truncate text-sm font-medium">{logo.name}</span>
-                      {logo.isPublished ? null : <SponsorDraftBadge />}
+                      {shownPublished(logo) ? null : <SponsorDraftBadge />}
                     </span>
                     <Button
                       type="button"
@@ -187,8 +204,9 @@ export function SponsorSectionDrawer({
                     </label>
                     <Switch
                       id={`published-${logo.id}`}
-                      checked={logo.isPublished}
-                      disabled={setPublished.isPending}
+                      aria-label={t("sponsorBoard.drawer.publishedFor", { name: logo.name })}
+                      checked={shownPublished(logo)}
+                      disabled={publishSettling}
                       onCheckedChange={(isPublished) =>
                         setPublished.mutate(
                           { ids: [logo.id], isPublished },

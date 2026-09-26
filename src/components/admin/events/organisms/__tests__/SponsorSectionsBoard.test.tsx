@@ -35,7 +35,8 @@
 //      układu kończy się panelem nowej sekcji i zdaniem „utworzona, układu nie
 //      zapisano" - ponowne wysłanie okna tworzyło DRUGĄ sekcję o tym tytule.
 //   6. PANEL SEKCJI DOSTAJE DANE TEJ SEKCJI: wiersz, układ, logotypy i mapę
-//      przekierowań (pustą, gdy zapytanie w locie).
+//      przekierowań (pustą, gdy zapytanie w locie) - oraz to, czy lista
+//      przypięć właśnie się odświeża (przełącznik ogłoszenia trzyma wtedy żądanie).
 //   7. OKNO SPONSORA WIE, DLA KTÓREJ SEKCJI JEST: domyślna sekcja z panelu,
 //      kolejność na końcu tej sekcji (za NAJWIĘKSZĄ kolejnością logotypów, nie
 //      za ich liczbą), edytowany wiersz albo „nowy". Zapis zamyka okno, odmowa
@@ -82,6 +83,8 @@ const h = vi.hoisted(() => ({
   zapytaniaSponsorow: [] as SponsorsQuery[],
   sekcje: [] as EventSponsorTierRow[] | undefined,
   sponsorzy: [] as EventSponsorRow[] | undefined,
+  /** Lista przypięć właśnie się odświeża (`isFetching`). */
+  sponsorzyOdswiezanie: false,
   uklady: undefined as Map<string, SponsorSectionLayout> | undefined,
   przekierowania: undefined as Map<string, SponsorLink> | undefined,
   /** Kolejność kroków tworzenia sekcji - zapis, układ, odświeżenia. */
@@ -135,7 +138,7 @@ vi.mock("@/lib/events/useEventSponsors", () => ({
   },
   useSponsors: (query: SponsorsQuery) => {
     h.zapytaniaSponsorow.push(query);
-    return { data: h.sponsorzy };
+    return { data: h.sponsorzy, isFetching: h.sponsorzyOdswiezanie };
   },
   useSaveSponsorTier: (eventId: string) => {
     h.hooki.push(`zapisSekcji:${eventId}`);
@@ -275,6 +278,7 @@ vi.mock("@/components/admin/events/organisms/SponsorSectionDrawer", () => ({
     onOpenChange,
     onAddSponsor,
     onEditSponsor,
+    isRefreshing,
   }: {
     eventId: string;
     tier: EventSponsorTierRow | null;
@@ -284,6 +288,7 @@ vi.mock("@/components/admin/events/organisms/SponsorSectionDrawer", () => ({
     onOpenChange: (open: boolean) => void;
     onAddSponsor: (tierId: string) => void;
     onEditSponsor: (sponsorId: string) => void;
+    isRefreshing?: boolean;
   }) => (
     <aside
       aria-label="panel-sekcji"
@@ -293,6 +298,7 @@ vi.mock("@/components/admin/events/organisms/SponsorSectionDrawer", () => ({
       data-logotypy={logos.map((l) => `${l.id}=${l.name}=${l.logoUrl}`).join("|")}
       data-ogloszone={logos.map((l) => `${l.id}=${String(l.isPublished)}`).join("|")}
       data-przekierowania={[...links.keys()].join("|")}
+      data-odswiezanie={String(isRefreshing)}
     >
       <button type="button" onClick={() => onOpenChange(false)}>
         panel-zamknij
@@ -507,6 +513,7 @@ beforeEach(() => {
   h.zapytaniaSponsorow = [];
   h.sekcje = [sekcja()];
   h.sponsorzy = [];
+  h.sponsorzyOdswiezanie = false;
   h.uklady = new Map();
   h.przekierowania = new Map();
   h.dziennik = [];
@@ -1060,6 +1067,16 @@ describe("panel sekcji", () => {
     tablica();
     otworzPanel("Srebrni partnerzy");
     expect(panel().getAttribute("data-ogloszone")).toBe("s-alfa=true|s-beta=false");
+  });
+
+  it("panel sekcji wie, że lista przypięć się ODŚWIEŻA - przełącznik ogłoszenia trzyma wtedy żądanie", () => {
+    const spoczynek = tablica();
+    expect(panel().getAttribute("data-odswiezanie")).toBe("false");
+    spoczynek.unmount();
+
+    h.sponsorzyOdswiezanie = true;
+    tablica();
+    expect(panel().getAttribute("data-odswiezanie")).toBe("true");
   });
 
   it("edycja karty otwiera panel z TĄ sekcją, jej układem i logotypami w kolejności", () => {

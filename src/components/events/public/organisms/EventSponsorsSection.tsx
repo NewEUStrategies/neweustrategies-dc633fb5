@@ -12,7 +12,8 @@
 // KARTOTEKA NIE WCHODZI NA STRONĘ. Wszystko poniżej to migawka z chwili
 // przypięcia (`snapshot_*`) - dlatego nie ma tu ani jednego pola z `crm_companies`.
 //
-// ZAPYTANIE I RYSUNEK SĄ ROZDZIELONE (`EventSponsorsSectionView`), tak jak
+// ZAPYTANIE I RYSUNEK SĄ ROZDZIELONE (`EventSponsorsSectionView`, a dla
+// wczytywania i awarii `EventSponsorsSectionPending` / `...Error`), tak jak
 // w pasie poziomów (`EventSponsorTiersView`). Publiczne `event_sponsors_public`
 // odmawia szkicowi (`AND e.status = 'published'`), a podgląd w studiu ma
 // narysować sekcję „Partnerzy" z wierszy RPC panelu - TYM SAMYM rysunkiem,
@@ -53,28 +54,48 @@ export function EventSponsorsSection({
   slug: string;
   enabled?: boolean;
 }) {
-  const { t } = useTranslation();
   const sponsorsQuery = usePublicEventSponsors(slug, enabled);
 
-  if (sponsorsQuery.isPending) {
-    return (
-      <div className="space-y-3" aria-busy="true" aria-label={t("eventFront.sponsors.loading")}>
-        <Skeleton className="h-6 w-40" />
-        <Skeleton className="h-24 w-full" />
-      </div>
-    );
-  }
+  if (sponsorsQuery.isPending) return <EventSponsorsSectionPending />;
 
   if (sponsorsQuery.isError) {
-    return (
-      <p className="rounded-[6px] border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-        {publicEventErrorMessage(sponsorsQuery.error)}
-      </p>
-    );
+    return <EventSponsorsSectionError message={publicEventErrorMessage(sponsorsQuery.error)} />;
   }
 
   // Po odsianiu wczytywania i błędu zostaje sukces - `data` jest już listą.
   return <EventSponsorsSectionView tiers={sponsorsQuery.data} />;
+}
+
+/**
+ * Szkielet sekcji na czas wczytywania - bez zapytania.
+ *
+ * WYDZIELONY DLA PODGLĄDU STUDIA. Podgląd czeka na INNE zapytanie (RPC panelu),
+ * a ma pokazać TEN SAM szkielet: własny zastępnik w panelu byłby drugim
+ * rysunkiem tej samej chwili, a zdanie „nie ma partnerów" na czas wczytywania -
+ * nieprawdą.
+ */
+export function EventSponsorsSectionPending() {
+  const { t } = useTranslation();
+  return (
+    <div className="space-y-3" aria-busy="true" aria-label={t("eventFront.sponsors.loading")}>
+      <Skeleton className="h-6 w-40" />
+      <Skeleton className="h-24 w-full" />
+    </div>
+  );
+}
+
+/**
+ * Zdanie o awarii zapytania - bez zapytania. NAPIS PODAJE WOŁAJĄCY, bo każde
+ * źródło ma swoją mapę odmów: strona - `publicEventErrorMessage`, podgląd
+ * studia - odmowy RPC panelu. Awaria NIE MOŻE wyglądać jak „ten kongres nie ma
+ * partnerów", więc ma własny rysunek, a nie pustą listę.
+ */
+export function EventSponsorsSectionError({ message }: { message: string }) {
+  return (
+    <p className="rounded-[6px] border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+      {message}
+    </p>
+  );
 }
 
 /**

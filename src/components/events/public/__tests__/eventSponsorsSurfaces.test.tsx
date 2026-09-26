@@ -450,6 +450,345 @@ describe("EventSponsorsSectionView - rysunek sekcji bez zapytania", () => {
   });
 });
 
+// ── ZNACZNIKI STRONY PUBLICZNEJ: WZORZEC SPRZED ROZDZIELENIA ───────────────
+//
+// Porównanie „trasa == widok" wyżej NIE MOŻE się czerwienić: po rozdzieleniu
+// `EventSponsorsSection` po prostu oddaje `EventSponsorsSectionView`, więc
+// każda zmiana rysunku (klasa dopisana bez warunku, nowy wrapper, plakietka,
+// która wyciekła na stronę) zmienia OBIE strony równania naraz. Ten blok
+// porównuje więc trasę ze STAŁYM wzorcem. Wzorce zostały wyrenderowane z kodu
+// sprzed rozdzielenia (110686b) i porównane bajt w bajt z tym, co rysuje kod
+// po nim - zmiana któregokolwiek z nich jest zmianą STRONY PUBLICZNEJ, a nie
+// podglądu, i ma przejść przez przegląd jako taka.
+
+/** Stała fikstura wzorca: akcent, opis i korzyści poziomu, stoisko, opis i adres partnera, partner bez logotypu. */
+function goldenWire(): Wire[] {
+  return [
+    tierWire({
+      tier_accent_color: "#b8860b",
+      tier_description_pl: "Najwyższy pakiet",
+      benefits: [{ id: "b1", label_pl: "Stoisko 12 m2", label_en: "12 sqm booth" }],
+      sponsors: [
+        sponsorWire({
+          booth_label: "A12",
+          url: "https://nordwind.example.com",
+          description_pl: "Analityka energetyczna",
+        }),
+      ],
+    }),
+    tierWire({
+      tier_id: "tier-bronze",
+      tier_key: "bronze",
+      tier_name_pl: "Brązowy Partner",
+      tier_rank: 10,
+      tier_logo_size: "sm",
+      sponsors: [
+        sponsorWire({ id: "sp-baltic", name: "Baltic Print", logo: null, role: "partner" }),
+      ],
+    }),
+  ];
+}
+
+describe("strona publiczna - znaczniki partnerów zgodne ze wzorcem sprzed rozdzielenia", () => {
+  it("sekcja „Partnerzy” (dane) rysuje dokładnie wzorzec", async () => {
+    h.rpc?.setData("event_sponsors_public", goldenWire());
+    const { container } = withClient(<EventSponsorsSection slug="kongres-strategii" />);
+    await screen.findByText("Nordwind Analytics");
+
+    expect(container.firstElementChild).toMatchInlineSnapshot(`
+      <div
+        class="space-y-8"
+      >
+        <section
+          class="space-y-4"
+        >
+          <header
+            class="space-y-1"
+          >
+            <h3
+              class="text-sm font-semibold uppercase tracking-wide text-foreground"
+              style="color: #b8860b;"
+            >
+              Złoty Partner
+            </h3>
+            <p
+              class="text-sm text-muted-foreground"
+            >
+              Najwyższy pakiet
+            </p>
+            <ul
+              class="flex flex-wrap gap-2 pt-1"
+            >
+              <li
+                class="sr-only"
+              >
+                eventFront.sponsors.benefitsLabel
+              </li>
+              <li>
+                <div
+                  class="inline-flex items-center rounded-[6px] border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-foreground"
+                >
+                  Stoisko 12 m2
+                </div>
+              </li>
+            </ul>
+          </header>
+          <ul
+            class="grid gap-4"
+            style="grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));"
+          >
+            <li>
+              <a
+                class="flex h-full flex-col items-center rounded-[6px] border border-border bg-card p-4 text-center transition-colors hover:border-primary/50"
+                href="https://nordwind.example.com"
+                rel="noopener noreferrer nofollow"
+                target="_blank"
+              >
+                <span
+                  aria-hidden="true"
+                  class="contents"
+                >
+                  <img
+                    alt=""
+                    class="w-auto max-w-full object-contain h-20 sm:h-24"
+                    decoding="async"
+                    loading="lazy"
+                    src="https://cdn.example.org/nordwind.svg"
+                  />
+                </span>
+                <span
+                  class="mt-3 block text-sm font-medium text-foreground"
+                >
+                  Nordwind Analytics
+                </span>
+                <span
+                  class="mt-1 flex flex-wrap items-center justify-center gap-1.5"
+                >
+                  <div
+                    class="inline-flex items-center rounded-[6px] border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                  >
+                    eventFront.sponsors.roles.sponsor
+                  </div>
+                  <div
+                    class="inline-flex items-center rounded-[6px] border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-foreground"
+                  >
+                    eventFront.sponsors.boothLabel:{"label":"A12"}
+                  </div>
+                </span>
+                <span
+                  class="mt-2 block text-xs text-muted-foreground"
+                >
+                  Analityka energetyczna
+                </span>
+                <span
+                  class="mt-2 inline-flex items-center gap-1 text-xs text-primary"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-external-link h-3 w-3"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M15 3h6v6"
+                    />
+                    <path
+                      d="M10 14 21 3"
+                    />
+                    <path
+                      d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
+                    />
+                  </svg>
+                  eventFront.sponsors.visitSite
+                </span>
+              </a>
+            </li>
+          </ul>
+        </section>
+        <section
+          class="space-y-4"
+        >
+          <header
+            class="space-y-1"
+          >
+            <h3
+              class="text-sm font-semibold uppercase tracking-wide text-foreground"
+            >
+              Brązowy Partner
+            </h3>
+          </header>
+          <ul
+            class="grid gap-4"
+            style="grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));"
+          >
+            <li>
+              <div
+                class="flex h-full flex-col items-center rounded-[6px] border border-border bg-card p-4 text-center"
+              >
+                <span
+                  aria-hidden="true"
+                  class="contents"
+                >
+                  <span
+                    class="flex items-center justify-center px-2 text-center text-sm font-semibold text-foreground h-10 sm:h-12"
+                  >
+                    Baltic Print
+                  </span>
+                </span>
+                <span
+                  class="mt-3 block text-sm font-medium text-foreground"
+                >
+                  Baltic Print
+                </span>
+                <span
+                  class="mt-1 flex flex-wrap items-center justify-center gap-1.5"
+                >
+                  <div
+                    class="inline-flex items-center rounded-[6px] border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                  >
+                    eventFront.sponsors.roles.partner
+                  </div>
+                </span>
+              </div>
+            </li>
+          </ul>
+        </section>
+      </div>
+    `);
+  });
+
+  it("sekcja „Partnerzy” (wczytywanie) rysuje dokładnie wzorzec", () => {
+    h.rpc?.setData("event_sponsors_public", goldenWire());
+    const { container } = withClient(<EventSponsorsSection slug="kongres-strategii" />);
+
+    expect(container.firstElementChild).toMatchInlineSnapshot(`
+      <div
+        aria-busy="true"
+        aria-label="eventFront.sponsors.loading"
+        class="space-y-3"
+      >
+        <div
+          class="animate-pulse rounded-md bg-muted h-6 w-40"
+        />
+        <div
+          class="animate-pulse rounded-md bg-muted h-24 w-full"
+        />
+      </div>
+    `);
+  });
+
+  it("sekcja „Partnerzy” (awaria) rysuje dokładnie wzorzec - zdanie w tym samym akapicie", async () => {
+    h.rpc?.setError("event_sponsors_public", "not_found: no such event", "P0002");
+    const { container } = withClient(<EventSponsorsSection slug="kongres-strategii" />);
+    await waitFor(() => expect(container.querySelector("p")).not.toBeNull());
+
+    // Brzmienie zdania należy do `publicEventErrors` (ma własny test); wzorcem
+    // jest ZNACZNIK wokół niego.
+    const message = container.querySelector("p")?.textContent ?? "";
+    expect(message.trim()).not.toBe("");
+    expect(container.innerHTML).toBe(
+      `<p class="rounded-[6px] border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">${message}</p>`,
+    );
+  });
+
+  it("pas logotypów (odnośnik i pozycja bez adresu) rysuje dokładnie wzorzec", async () => {
+    h.rpc?.setData("event_sponsors_public", goldenWire());
+    const { container } = withClient(<EventSponsorTiers slug="kongres-strategii" />);
+    await screen.findByRole("link");
+
+    expect(container.firstElementChild).toMatchInlineSnapshot(`
+      <div
+        class="mt-8 space-y-8"
+      >
+        <section
+          class="space-y-4"
+        >
+          <h3
+            class="text-sm font-semibold text-foreground"
+          >
+            Złoty Partner
+          </h3>
+          <ul
+            class="flex flex-wrap items-center justify-around gap-x-8 gap-y-6"
+          >
+            <li
+              class="flex items-center justify-center"
+            >
+              <a
+                class="flex items-center justify-center rounded-[6px] px-2 py-1 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                href="https://nordwind.example.com"
+                rel="noopener noreferrer nofollow"
+                target="_blank"
+              >
+                <span
+                  aria-hidden="true"
+                  class="flex items-center justify-center"
+                >
+                  <img
+                    alt=""
+                    class="w-auto max-w-full object-contain h-20 sm:h-24"
+                    decoding="async"
+                    loading="lazy"
+                    src="https://cdn.example.org/nordwind.svg"
+                  />
+                </span>
+                <span
+                  class="sr-only"
+                >
+                  eventFront.sponsorTiers.partnerSite:{"name":"Nordwind Analytics"}
+                </span>
+              </a>
+            </li>
+          </ul>
+        </section>
+        <section
+          class="space-y-4"
+        >
+          <h3
+            class="text-sm font-semibold text-foreground"
+          >
+            Brązowy Partner
+          </h3>
+          <ul
+            class="flex flex-wrap items-center justify-around gap-x-8 gap-y-6"
+          >
+            <li
+              class="flex items-center justify-center"
+            >
+              <span
+                class="flex items-center justify-center px-2"
+              >
+                <span
+                  aria-hidden="true"
+                  class="flex items-center justify-center"
+                >
+                  <span
+                    class="flex items-center justify-center px-2 text-center text-sm font-semibold text-foreground h-10 sm:h-12"
+                  >
+                    Baltic Print
+                  </span>
+                </span>
+                <span
+                  class="sr-only"
+                >
+                  Baltic Print
+                </span>
+              </span>
+            </li>
+          </ul>
+        </section>
+      </div>
+    `);
+  });
+});
+
 describe("EventPageSections - sekcja „Partnerzy” z zapytaniem albo z wierszami podanymi z zewnątrz", () => {
   const sponsorsSection = {
     key: "sponsors" as const,
@@ -487,6 +826,29 @@ describe("EventPageSections - sekcja „Partnerzy” z zapytaniem albo z wiersza
     expect(h.rpc?.names()).toEqual([]);
     expect(screen.getByText("Nieogłoszony")).toBeInTheDocument();
     expect(screen.getAllByText("Baltic Print").length).toBeGreaterThan(0);
+  });
+
+  it("podgląd z awarią listy panelu: sekcja zostaje ze ZDANIEM o awarii, nie z pustką", () => {
+    const { container } = render(
+      <EventPageSections
+        slug="kongres-strategii"
+        sections={[sponsorsSection]}
+        sponsorTiers={tiersWithDraft()}
+        sponsorDraftLabel="Nieogłoszony"
+        sponsorErrorMessage="Nie udało się wczytać partnerów."
+      />,
+    );
+
+    // Awaria wygrywa z wierszami (jak `isError` przed `data` w sekcji
+    // publicznej) i nie udaje „brak partnerów" - a baza nadal nie jest pytana.
+    const sekcja = container.querySelector<HTMLElement>("#event-sponsors") as HTMLElement;
+    const zdanie = within(sekcja).getByText("Nie udało się wczytać partnerów.");
+    expect(zdanie.className).toBe(
+      "rounded-[6px] border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground",
+    );
+    expect(within(sekcja).queryByText("Baltic Print")).toBeNull();
+    expect(within(sekcja).queryByText("eventFront.sections.sponsors.empty")).toBeNull();
+    expect(h.rpc?.names()).toEqual([]);
   });
 });
 
