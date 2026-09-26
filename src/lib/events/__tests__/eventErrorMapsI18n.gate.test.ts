@@ -49,6 +49,13 @@ import { adminEventTermsEn, adminEventTermsPl } from "@/lib/i18n-admin-event-ter
 import { adminEventOnsiteEn, adminEventOnsitePl } from "@/lib/i18n-admin-event-onsite";
 import { eventFrontEn, eventFrontPl } from "@/lib/i18n-event-front";
 import { adminEventsEn, adminEventsPl } from "@/lib/i18n-admin-events";
+import { adminEventInvoiceErrorKey } from "@/lib/events/adminEventInvoiceErrors";
+import { eventInvoiceErrorKey } from "@/lib/events/eventInvoiceErrors";
+import {
+  adminEventInvoicesEn,
+  adminEventInvoicesPl,
+} from "@/lib/i18n-admin-event-invoices";
+import { eventInvoicesEn, eventInvoicesPl } from "@/lib/i18n-event-invoices";
 
 /** Klucz ma tekst, gdy w słowniku stoi pod nim NIEPUSTY napis (nie gałąź). */
 function maTekst(slownik: ResourceTree, klucz: string): boolean {
@@ -236,6 +243,94 @@ const KODY_STUDIA = [
   STRAZNIK_TENANTA,
 ] as const;
 
+/** Dane nabywcy - wspolne dla prosby kupujacego i szkicu w studiu (`_event_invoice_buyer_clean`). */
+const KODY_NABYWCY = [
+  "invalid_buyer_name",
+  "invalid_country",
+  "invalid_tax_id",
+  "tax_id_required",
+  "invalid_buyer_address",
+  "invalid_postal_code",
+  "invalid_email",
+  "invalid_po_number",
+  "invalid_recipient",
+] as const;
+
+/** Faktury wydarzenia w studiu - `eventInvoicesApi` (migracja 20260926110000). */
+const KODY_FAKTUR = [
+  ...KODY_NABYWCY,
+  // _event_invoice_draft_build / admin_event_invoice_draft_create / _update
+  "invoicing_disabled",
+  "invalid_kind",
+  "invalid_aggregate",
+  "invalid_locale",
+  "invalid_vat_rate",
+  "invalid_note",
+  "not_found",
+  "no_sources",
+  "too_many_sources",
+  "invalid_source",
+  "duplicate_source",
+  "source_not_found",
+  "source_not_lead",
+  "source_not_invoiceable",
+  "already_invoiced",
+  "currency_mismatch",
+  "request_not_found",
+  "invalid_payment_method",
+  "not_draft",
+  "no_lines",
+  "too_many_lines",
+  "invalid_quantity",
+  "invalid_price",
+  "invalid_line",
+  // _event_invoice_issue_core
+  "vat_exempt_basis_required",
+  "negative_total",
+  "mor_seller_conflict",
+  "correction_target_invalid",
+  "invalid_due_date",
+  // admin_event_invoice_settings_save
+  "invalid_settings",
+  "invalid_series",
+  "series_not_distinct",
+  "invalid_payment_days",
+  "seller_incomplete",
+  "seller_confirmation_required",
+  // admin_event_invoice_cancel / _correction_create / _from_proforma / _ksef_update
+  "already_cancelled",
+  "reason_required",
+  "ksef_locked",
+  "has_corrections",
+  "correction_locked",
+  "invalid_correction_mode",
+  "correction_exists",
+  "correction_empty",
+  "not_proforma",
+  "proforma_already_converted",
+  "ksef_not_applicable",
+  "invalid_ksef_status",
+  "ksef_number_required",
+  "invalid_ksef_number",
+  // Osiagalne przez most CRM (`crm_ensure_member_company`, `_event_person_crm_sync`);
+  // oba sa wolane w bloku, ktory ich blad polyka, ale skan ich nie odroznia.
+  "crm",
+  "invalid_audit_action",
+  STRAZNIK_TENANTA,
+] as const;
+
+/** Prosba kupujacego o fakture - `myEventInvoicesApi` (plaszczyzna publiczna). */
+const KODY_PROSBY_O_FAKTURE = [
+  ...KODY_NABYWCY,
+  "auth_required",
+  "invalid_source",
+  "rate_limited",
+  "rate_limit_hit",
+  "not_found",
+  "request_window_closed",
+  "already_invoiced",
+] as const;
+
 interface BramkowanaMapa {
   nazwa: string;
   prefix: string;
@@ -312,6 +407,28 @@ const MAPY: readonly BramkowanaMapa[] = [
     pl: adminEventsPl,
     en: adminEventsEn,
     moduly: ["eventDetailApi", "eventPagesApi"],
+    interpoluje: false,
+  },
+  {
+    nazwa: "adminEventInvoiceErrors",
+    prefix: "adminEventInvoices.errors.",
+    klucz: adminEventInvoiceErrorKey,
+    kody: KODY_FAKTUR,
+    nakladka: "src/lib/i18n-admin-event-invoices.ts",
+    pl: adminEventInvoicesPl,
+    en: adminEventInvoicesEn,
+    moduly: ["eventInvoicesApi"],
+    interpoluje: false,
+  },
+  {
+    nazwa: "eventInvoiceErrors",
+    prefix: "eventInvoices.errors.",
+    klucz: eventInvoiceErrorKey,
+    kody: KODY_PROSBY_O_FAKTURE,
+    nakladka: "src/lib/i18n-event-invoices.ts",
+    pl: eventInvoicesPl,
+    en: eventInvoicesEn,
+    moduly: ["myEventInvoicesApi"],
     interpoluje: false,
   },
 ];
@@ -398,6 +515,8 @@ describe("zdania bez interpolacji", () => {
     expect(BEZ_INTERPOLACJI.map((mapa) => mapa.nazwa)).toEqual([
       "publicEventErrors",
       "adminEventStudioErrors",
+      "adminEventInvoiceErrors",
+      "eventInvoiceErrors",
     ]);
   });
 });

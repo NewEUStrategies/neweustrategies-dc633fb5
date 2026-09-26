@@ -23,6 +23,7 @@ import {
   type ParticipantRegistration,
 } from "@/lib/events/participantTicketsApi";
 import { RegistrationPayAction } from "@/components/events/registration/molecules/RegistrationPayAction";
+import { EventInvoiceTicketStatus } from "@/components/events/invoices/atoms/EventInvoiceTicketStatus";
 import { ensureI18n } from "@/lib/i18n-participant-tickets";
 
 ensureI18n();
@@ -111,6 +112,8 @@ function RegistrationCard({ item }: { item: ParticipantRegistration }) {
           >
             {t("participantTickets.openEvent")}
           </Link>
+          {/* Faktura na firme za ten bilet: numer, prosba albo mozliwosc prosby. */}
+          <EventInvoiceTicketStatus registrationId={item.registrationId} />
         </div>
       </header>
 

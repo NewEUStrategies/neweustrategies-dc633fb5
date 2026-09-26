@@ -20644,6 +20644,112 @@ export type Database = {
           views: number
         }[]
       }
+      admin_event_invoice_cancel: { Args: { p_payload: Json }; Returns: string }
+      admin_event_invoice_candidates: {
+        Args: { p_event_id: string }
+        Returns: {
+          amount_source: string
+          buyer_email: string
+          buyer_is_company: boolean
+          buyer_name: string
+          buyer_tax_id: string
+          company_text: string
+          created_at: string
+          currency: string
+          gross_cents: number
+          invoice_id: string
+          invoice_number: string
+          invoice_status: string
+          label_en: string
+          label_pl: string
+          paid_at: string
+          paid_via: string
+          payment_state: string
+          person_email: string
+          person_name: string
+          proforma_id: string
+          proforma_number: string
+          request_id: string
+          request_status: string
+          seats: number
+          source_id: string
+          source_kind: string
+          tax_key: string
+          ticket_type_id: string
+        }[]
+      }
+      admin_event_invoice_correction_create: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_invoice_draft_create: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_invoice_draft_update: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_invoice_from_proforma: {
+        Args: { p_id: string }
+        Returns: string
+      }
+      admin_event_invoice_get: { Args: { p_id: string }; Returns: Json }
+      admin_event_invoice_issue: { Args: { p_id: string }; Returns: Json }
+      admin_event_invoice_issue_pending: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_invoice_ksef_update: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_invoice_notify_payload: {
+        Args: { p_id: string }
+        Returns: Json
+      }
+      admin_event_invoice_set_paid: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_invoice_settings_get: { Args: never; Returns: Json }
+      admin_event_invoice_settings_save: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_invoices_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          buyer_email: string
+          buyer_is_company: boolean
+          buyer_name: string
+          buyer_tax_id: string
+          cancelled_at: string
+          converted_invoice_id: string
+          correction_mode: string
+          corrects_invoice_id: string
+          corrects_number: string
+          created_at: string
+          currency: string
+          due_date: string
+          gross_cents: number
+          id: string
+          issue_date: string
+          issued_at: string
+          kind: string
+          ksef_number: string
+          ksef_status: string
+          locale: string
+          net_cents: number
+          number: string
+          paid_at: string
+          sale_date: string
+          source_count: number
+          source_proforma_id: string
+          status: string
+          vat_cents: number
+        }[]
+      }
       admin_event_lead_scans_export: {
         Args: { p_event_id: string; p_sponsor_id?: string }
         Returns: {
@@ -24489,6 +24595,11 @@ export type Database = {
           link_url: string
         }[]
       }
+      event_invoice_request_cancel: {
+        Args: { p_request_id: string }
+        Returns: string
+      }
+      event_invoice_request_save: { Args: { p_payload: Json }; Returns: string }
       event_lead_scan_record: { Args: { p_payload: Json }; Returns: Json }
       event_lead_scans_list: { Args: { p_payload: Json }; Returns: Json }
       event_meeting_availability_delete: {
@@ -24570,6 +24681,61 @@ export type Database = {
       event_my_event_profile_sync_account: {
         Args: { p_payload?: Json }
         Returns: Json
+      }
+      event_my_invoice: { Args: { p_id: string }; Returns: Json }
+      event_my_invoice_sources: {
+        Args: never
+        Returns: {
+          buyer_address: string
+          buyer_city: string
+          buyer_country: string
+          buyer_email: string
+          buyer_is_company: boolean
+          buyer_name: string
+          buyer_postal_code: string
+          buyer_tax_id: string
+          can_request: boolean
+          created_at: string
+          currency: string
+          event_id: string
+          event_slug: string
+          event_title_en: string
+          event_title_pl: string
+          gross_cents: number
+          invoice_id: string
+          invoice_number: string
+          label_en: string
+          label_pl: string
+          paid_at: string
+          payment_state: string
+          po_number: string
+          request_deadline: string
+          request_id: string
+          request_status: string
+          seats: number
+          source_id: string
+          source_kind: string
+        }[]
+      }
+      event_my_invoices: {
+        Args: never
+        Returns: {
+          buyer_name: string
+          corrects_number: string
+          currency: string
+          due_date: string
+          event_id: string
+          event_slug: string
+          event_title_en: string
+          event_title_pl: string
+          gross_cents: number
+          id: string
+          issue_date: string
+          kind: string
+          number: string
+          paid_at: string
+          status: string
+        }[]
       }
       event_my_package_orders: {
         Args: never

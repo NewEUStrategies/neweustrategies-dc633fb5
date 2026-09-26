@@ -10,6 +10,13 @@
 // `event_package_purchase` przelicza ja u siebie po raz drugi - kwota z
 // przegladarki nigdy nie jest przyjmowana na slowo.
 //
+// FAKTURA NA FIRME = DANE STRUKTURALNE. Wolny tekst "dane do faktury" nie
+// nadawal sie do wystawienia dokumentu (NIP bez sumy kontrolnej, adres w
+// jednym zdaniu). Dane nabywcy zbiera `InvoiceRequestBlock` i zapisuje jako
+// prosbe o fakture do TEGO zamowienia zaraz po jego zlozeniu; pole notatki
+// zostaje na numer zamowienia (PO) i uwagi dla organizatora - te same
+// `invoice_note` co dotad, wiec panel zamowien czyta je bez zmian.
+//
 // TOKEN ZAPROSZENIA POKAZUJEMY RAZ. Baza trzyma tylko jego skrot, wiec
 // odnosnik zostaje na ekranie do skopiowania i mowi to wprost.
 import { useMemo, useState } from "react";
@@ -37,6 +44,8 @@ import {
   usePackagesOffer,
 } from "@/lib/events/useEventPackagePurchase";
 import { usePurchasePackage } from "@/lib/events/useEventPackagePurchase";
+import { InvoiceRequestBlock } from "@/components/events/invoices/organisms/InvoiceRequestBlock";
+import { useInvoiceRequestController } from "@/lib/events/useInvoiceRequestController";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -66,6 +75,7 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
   const [buyerEmail, setBuyerEmail] = useState("");
   const [invoiceNote, setInvoiceNote] = useState("");
   const [openOrderId, setOpenOrderId] = useState<string | null>(null);
+  const invoice = useInvoiceRequestController({ target: null, enabled: true });
 
   const offers = offerQ.data ?? [];
   const selected = useMemo(
@@ -85,6 +95,7 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
 
   function buy() {
     if (selected === null) return;
+    if (invoice.wanted && !invoice.validate()) return;
     purchase.mutate(
       {
         packageId: selected.id,
@@ -99,6 +110,7 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
           setSelectedId(null);
           setOpenOrderId(result.orderId);
           toast.success(t("eventPackages.toasts.purchased"));
+          void invoice.commit({ packageOrderId: result.orderId });
         },
         onError: (error) => toast.error(purchaseErrorMessage(error, t)),
       },
@@ -178,6 +190,8 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
               />
             </div>
           </div>
+
+          <InvoiceRequestBlock controller={invoice} />
 
           <div className="space-y-1.5">
             <Label htmlFor="pkg-invoice-note">{t("eventPackages.invoiceNote")}</Label>

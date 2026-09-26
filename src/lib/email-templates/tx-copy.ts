@@ -43,6 +43,10 @@ export type TxEmailType =
   // zapisanych przez prowadzacego grupy). Jawny kod istnieje tylko w chwili
   // wydania, wiec ten mail jest jedyna jego kopia u uczestnika.
   | "event_ticket_issued"
+  // Faktura organizatora wydarzenia (faktura, proforma, korekta) wystawiona
+  // w studiu - powiadomienie z odnosnikiem do profilu, BEZ zalacznika (plik
+  // PDF skladany jest z migawki dokumentu w profilu kupujacego).
+  | "event_invoice_issued"
   | "donation_received"
   | "newsletter_confirmed"
   | "customer_portal_link"
@@ -107,6 +111,8 @@ export interface TxCopy {
      * dwoma różnymi adresami byłby wprowadzaniem w błąd.
      */
     manageCta: string;
+    /** Numer dokumentu organizatora (faktura, proforma, korekta). */
+    documentNumber: string;
   };
   footerHelp: string;
 }
@@ -136,6 +142,7 @@ const LABELS_PL: TxCopy["labels"] = {
   entryCode: "Kod wejścia",
   registeredBy: "Zgłoszenie od",
   manageCta: "Zarządzaj zgłoszeniem",
+  documentNumber: "Numer dokumentu",
 };
 
 const LABELS_EN: TxCopy["labels"] = {
@@ -161,6 +168,7 @@ const LABELS_EN: TxCopy["labels"] = {
   entryCode: "Entry code",
   registeredBy: "Registered by",
   manageCta: "Manage your registration",
+  documentNumber: "Document number",
 };
 
 const HELP_PL =
@@ -488,6 +496,20 @@ const PL: Dict = {
       "Masz potwierdzone miejsce na wydarzeniu. Przycisk poniżej otwiera bilet z kodem QR - pokaż go przy wejściu. Kod jest przypisany do Ciebie, nie przekazuj go dalej.",
     cta: "Pokaż bilet z kodem QR",
     note: "Zachowaj tę wiadomość - to jedyna kopia kodu. Gdy skaner nie odczyta QR, obsługa wpisze kod wejścia ręcznie.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_invoice_issued: {
+    subject: (v) =>
+      `Dokument od organizatora${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-mail",
+    preview: "Organizator wystawił dokument do Twojego zamówienia - pobierzesz go z profilu.",
+    eyebrow: "Wydarzenie",
+    heading: "Twój dokument jest gotowy",
+    intro:
+      "Organizator wydarzenia wystawił dokument na dane nabywcy podane przy zamówieniu. Plik PDF pobierzesz w profilu, w sekcji faktur za wydarzenia.",
+    cta: "Przejdź do faktur",
+    note: "Jeśli dane na dokumencie wymagają poprawki, odpowiedz organizatorowi - zmiany po wystawieniu wprowadza się fakturą korygującą.",
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
@@ -923,6 +945,20 @@ const EN: Dict = {
       "Your seat at the event is confirmed. The button below opens your ticket with the QR code - show it at the entrance. The code belongs to you, please do not pass it on.",
     cta: "Show my ticket with the QR code",
     note: "Keep this email - it is the only copy of your code. If the scanner cannot read the QR, staff can type in the entry code by hand.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_invoice_issued: {
+    subject: (v) =>
+      `A document from the organizer${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-mail",
+    preview: "The organizer has issued a document for your order - download it from your profile.",
+    eyebrow: "Event",
+    heading: "Your document is ready",
+    intro:
+      "The event organizer has issued a document for the buyer details given with your order. Download the PDF in your profile, under event invoices.",
+    cta: "Go to invoices",
+    note: "If the details on the document need a change, reply to the organizer - after issue, changes are made with a credit note.",
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },

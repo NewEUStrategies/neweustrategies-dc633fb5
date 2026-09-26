@@ -45,8 +45,10 @@ const SCANNED_ROUTE_PREFIXES = ["admin.events.", "admin.events_."] as const;
  * Korzenie, w których goły literał w kodzie jest referencją do klucza.
  * `adminEvents` obejmuje zarówno mapy etykiet enumów, jak i klucze reguł
  * katalogu zwracane przez `eventTypeDraftIssue` i `eventType*Failure`.
+ * `adminEventInvoices` i `eventInvoices` - mapy etykiet i klucze bledow
+ * faktur wydarzen (`Record<Enum, "pelny.klucz">` w `src/lib/events` i studiu).
  */
-const REFERENCE_PREFIXES = ["adminEvents"] as const;
+const REFERENCE_PREFIXES = ["adminEvents", "adminEventInvoices", "eventInvoices"] as const;
 
 function isTree(value: unknown): value is ResourceTree {
   return value !== null && typeof value === "object" && !Array.isArray(value);

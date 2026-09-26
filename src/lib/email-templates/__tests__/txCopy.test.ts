@@ -123,7 +123,8 @@ describe("tx-copy - kompletność słownika obu języków", () => {
     // 22 -> 26: cztery maile cyklu życia zgłoszenia formularzowego
     // (`event_registration_received/_approved/_rejected`, `event_waitlist_promoted`).
     // 30 -> 31: bilet z kodem QR dla każdej osoby z grupy (`event_ticket_issued`).
-    expect(zeSlownika).toHaveLength(31);
+    // 31 -> 32: powiadomienie o fakturze organizatora wydarzenia (`event_invoice_issued`).
+    expect(zeSlownika).toHaveLength(32);
   });
 
   it.each(TX_EMAIL_TYPES)("%s ma komplet treści w PL i w EN", (type) => {

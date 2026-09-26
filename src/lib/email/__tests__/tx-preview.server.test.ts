@@ -91,7 +91,8 @@ describe("tx-preview.server - lista typów podglądu", () => {
     // 22 -> 26: cztery maile cyklu życia zgłoszenia formularzowego
     // (`event_registration_received/_approved/_rejected`, `event_waitlist_promoted`).
     // 30 -> 31: bilet z kodem QR dla każdej osoby z grupy (`event_ticket_issued`).
-    expect(TX_EMAIL_TYPES).toHaveLength(31);
+    // 31 -> 32: powiadomienie o fakturze organizatora wydarzenia (`event_invoice_issued`).
+    expect(TX_EMAIL_TYPES).toHaveLength(32);
   });
 
   it("lista podglądu nie ma duplikatów - każdy mail jest w panelu raz", () => {
