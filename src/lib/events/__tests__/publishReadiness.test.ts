@@ -119,6 +119,25 @@ describe("buildPublishReadiness", () => {
   });
 });
 
+describe("buildPublishReadiness - braki w danych wejsciowych", () => {
+  it("brak poczatku blokuje, brak konca nie; sesja bez licznika prelegentow liczy sie jako bez prelegenta", () => {
+    const bezPoczatku = buildPublishReadiness(
+      input({ event: { ...completeEvent, startsAt: null } }),
+    );
+    expect(bezPoczatku.blockers.map((item) => item.key)).toContain("schedule");
+
+    const bezKonca = buildPublishReadiness(input({ event: { ...completeEvent, endsAt: null } }));
+    expect(failedKeys(bezKonca)).not.toContain("schedule");
+
+    const bezLicznika = buildPublishReadiness(
+      input({
+        sessions: [{ status: "published", speakers_count: null, room_id: "r", format: "onsite" }],
+      }),
+    );
+    expect(bezLicznika.warnings.find((item) => item.key === "sessionSpeakers")?.count).toBe(1);
+  });
+});
+
 // PLAN SALI (f4). Pozycja istnieje TYLKO wtedy, gdy wydarzenie ma opublikowany
 // plan przy wlaczonym module - wydarzenie bez numerowanych miejsc nie dostaje
 // ani ostrzezenia, ani darmowego „spelnione" w liczniku postepu.
