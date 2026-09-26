@@ -83,4 +83,29 @@ describe("słownik zapisów wydarzenia", () => {
       expect(valueAt(bundle, "adminEventRegistration.errors.unknown")).toBeTruthy();
     }
   });
+
+  it("plakietki wpłaty bez miejsca mówią „opłacone” i na co pieniądze czekają", () => {
+    // Trzy stany z 20260926150000: kolejka opłacona, oczekiwanie na decyzję,
+    // wpłata na zgłoszeniu zamkniętym. Plakietka, która nie zaczyna się od
+    // „opłacone", wyglądałaby jak zwykły wiersz rezerwowy albo oczekujący.
+    const badges = "adminEventRegistration.registrations.badges";
+    expect(valueAt(adminEventRegistrationPl, `${badges}.ticketPaidWaitlisted`)).toBe(
+      "Opłacone - czeka na miejsce",
+    );
+    expect(valueAt(adminEventRegistrationPl, `${badges}.ticketPaidAwaitingDecision`)).toBe(
+      "Opłacone - czeka na decyzję",
+    );
+    expect(valueAt(adminEventRegistrationPl, `${badges}.ticketPaidClosed`)).toBe(
+      "Opłacone - zgłoszenie zamknięte",
+    );
+    expect(valueAt(adminEventRegistrationEn, `${badges}.ticketPaidWaitlisted`)).toBe(
+      "Paid - waiting for a seat",
+    );
+    expect(valueAt(adminEventRegistrationEn, `${badges}.ticketPaidAwaitingDecision`)).toBe(
+      "Paid - awaiting decision",
+    );
+    expect(valueAt(adminEventRegistrationEn, `${badges}.ticketPaidClosed`)).toBe(
+      "Paid - registration closed",
+    );
+  });
 });

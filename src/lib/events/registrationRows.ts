@@ -118,6 +118,11 @@ const TICKET_STATUSES: readonly string[] = ["approved", "attended"];
  * Zwrot czesciowy to korekta ceny: miejsce i bilet zostaja (20260926150000).
  */
 const TICKET_PAYMENTS: readonly string[] = ["paid", "partially_refunded", "not_required"];
+/**
+ * Rozliczenia, przy ktorych PIENIADZE SA U ORGANIZATORA. Bez `not_required`:
+ * bezplatny wiersz w kolejce nie jest „oplacony", tylko zwyczajnie czeka.
+ */
+const PAID_PAYMENTS: readonly string[] = ["paid", "partially_refunded"];
 
 /** Wiersz w stanie, w ktorym plakietka biletu (wyslany / niewyslany) cos znaczy. */
 export function holdsTicket(status: string): boolean {
@@ -135,7 +140,38 @@ export function canResendTicket(status: string, link: RegistrationGroupLink | nu
 }
 
 /** Plakietka biletu wiersza; `null` = plakietki nie ma. */
-export type TicketBadge = "sent" | "notSent" | "awaitingPayment" | "undeliverable";
+export type TicketBadge =
+  | "sent"
+  | "notSent"
+  | "awaitingPayment"
+  | "undeliverable"
+  | "paidWaitlisted"
+  | "paidAwaitingDecision"
+  | "paidClosed";
+
+/**
+ * Oplacony wiersz BEZ miejsca (20260926150000): wplata przyszla po wyczerpaniu
+ * puli (kolejka oplacona), bilet wymaga akceptacji (wplata nie jest decyzja)
+ * albo pieniadze trafily na zgloszenie odwolane lub odrzucone (do zwrotu).
+ * W kazdym z tych stanow ruch ma organizator - bez plakietki wiersz wygladal
+ * jak zwykle oczekujace zgloszenie, a pieniadze lezaly bez decyzji.
+ * `no_show` nie ma plakietki: miejsce bylo, wplata jest rozliczona.
+ */
+function paidWithoutSeat(status: string, paymentStatus: string): TicketBadge | null {
+  if (!PAID_PAYMENTS.includes(paymentStatus)) return null;
+  switch (status) {
+    case "waitlist":
+      return "paidWaitlisted";
+    case "pending":
+    case "draft":
+      return "paidAwaitingDecision";
+    case "cancelled":
+    case "rejected":
+      return "paidClosed";
+    default:
+      return null;
+  }
+}
 
 /**
  * Ktora plakietka biletu stoi przy wierszu.
@@ -151,12 +187,16 @@ export type TicketBadge = "sent" | "notSent" | "awaitingPayment" | "undeliverabl
  * wyslana (`ticket_code_sent_at` stoi, zeby cron nie rotowal kodu co tick),
  * wiec bez tej kolejnosci organizator czytal „Bilet wyslany" przy bilecie,
  * ktory nigdy nie wyszedl - i nie wiedzial, ze trzeba go przekazac inaczej.
+ *
+ * WIERSZ BEZ MIEJSCA mowi, ze jest oplacony (`paidWithoutSeat`) - to jedyna
+ * plakietka „biletu" poza statusami z miejscem.
  */
 export function ticketBadge(
   status: string,
   link: RegistrationGroupLink | null,
 ): TicketBadge | null {
-  if (link === null || !holdsTicket(status)) return null;
+  if (link === null) return null;
+  if (!holdsTicket(status)) return paidWithoutSeat(status, link.payment_status);
   if (TICKET_PAYMENTS.includes(link.payment_status)) {
     if (link.ticket_code_undeliverable_at !== null) return "undeliverable";
     return link.ticket_code_sent_at === null ? "notSent" : "sent";

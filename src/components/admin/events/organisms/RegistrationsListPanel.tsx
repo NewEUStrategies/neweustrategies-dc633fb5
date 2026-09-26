@@ -105,17 +105,24 @@ const TICKET_BADGE_KEYS: Record<TicketBadge, string> = {
   notSent: "ticketNotSent",
   awaitingPayment: "ticketAwaitingPayment",
   undeliverable: "ticketUndeliverable",
+  paidWaitlisted: "ticketPaidWaitlisted",
+  paidAwaitingDecision: "ticketPaidAwaitingDecision",
+  paidClosed: "ticketPaidClosed",
 };
 
 /**
  * Wariant plakietki biletu. „Nie dotarl" jest czerwony: organizator musi
- * przekazac bilet inna droga, a sama ponowna wysylka tego nie naprawi.
+ * przekazac bilet inna droga, a sama ponowna wysylka tego nie naprawi. Tak
+ * samo wplata na zgloszenie zamkniete - pieniadze trzeba zwrocic.
  */
 const TICKET_BADGE_VARIANT: Record<TicketBadge, BadgeVariant> = {
   sent: "outline",
   notSent: "secondary",
   awaitingPayment: "outline",
   undeliverable: "destructive",
+  paidWaitlisted: "secondary",
+  paidAwaitingDecision: "secondary",
+  paidClosed: "destructive",
 };
 
 const TOAST_KEYS: Record<RegistrationAction, string> = {
@@ -594,7 +601,9 @@ export function RegistrationsListPanel({
                       </Badge>
                     ) : null}
                     {/* Plakietka biletu tylko tam, gdzie bilet sie nalezy - u oczekujacego
-                        albo nieoplaconego „niewyslany" wygladalby jak awaria poczty. */}
+                        albo nieoplaconego „niewyslany" wygladalby jak awaria poczty.
+                        Wyjatek: oplacony wiersz BEZ miejsca (kolejka, decyzja,
+                        zgloszenie zamkniete) mowi, ze pieniadze czekaja na ruch. */}
                     {ticketState === null ? null : (
                       <Badge variant={TICKET_BADGE_VARIANT[ticketState]}>
                         {t(`${base}.badges.${TICKET_BADGE_KEYS[ticketState]}`)}

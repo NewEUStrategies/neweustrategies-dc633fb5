@@ -47,6 +47,8 @@ export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "event_registration_rejected",
   "event_waitlist_promoted",
   "event_ticket_paid",
+  "event_ticket_paid_waitlisted",
+  "event_ticket_paid_pending",
   "event_ticket_refunded",
   "event_ticket_partially_refunded",
   "event_ticket_issued",
@@ -297,6 +299,23 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
                       : DEMO_PARTIAL_REFUND[lang],
                 },
               ]),
+        ],
+        ctaUrl: `${SITE_URL}/events`,
+      };
+    // Wpłata bez miejsca: bez kwoty zwrotu (nikt niczego nie zwracał), a przy
+    // kolejce z pozycją - ten sam wiersz, który dokłada powiadomienie z webhooka.
+    case "event_ticket_paid_waitlisted":
+    case "event_ticket_paid_pending":
+      return {
+        subjectName: eventTitle,
+        details: [
+          { label: l.event, value: eventTitle },
+          { label: l.date, value: eventDate },
+          { label: l.ticketType, value: DEMO_TICKET_TYPE[lang] },
+          { label: l.price, value: DEMO_TICKET_PRICE[lang] },
+          ...(type === "event_ticket_paid_waitlisted"
+            ? [{ label: l.waitlistPosition, value: "3" }]
+            : []),
         ],
         ctaUrl: `${SITE_URL}/events`,
       };

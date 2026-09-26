@@ -162,6 +162,36 @@ describe("ticketBadge - plakietka biletu", () => {
     expect(ticketBadge("pending", link())).toBeNull();
     expect(ticketBadge("pending", link({ payment_status: "unpaid" }))).toBeNull();
     expect(ticketBadge("approved", null)).toBeNull();
+    expect(ticketBadge("waitlist", null)).toBeNull();
+  });
+
+  it("opłacony wiersz w kolejce: „opłacone - czeka na miejsce”, także po korekcie ceny", () => {
+    // Wpłata przyszła po wyczerpaniu puli (20260926150000). Bez plakietki
+    // wiersz wyglądał jak zwykły rezerwowy, a pieniądze leżały bez ruchu.
+    expect(ticketBadge("waitlist", link({ payment_status: "paid" }))).toBe("paidWaitlisted");
+    expect(ticketBadge("waitlist", link({ payment_status: "partially_refunded" }))).toBe(
+      "paidWaitlisted",
+    );
+  });
+
+  it("opłacony wiersz bez decyzji: „opłacone - czeka na decyzję” (wpłata nie jest akceptacją)", () => {
+    expect(ticketBadge("pending", link({ payment_status: "paid" }))).toBe("paidAwaitingDecision");
+    expect(ticketBadge("draft", link({ payment_status: "paid" }))).toBe("paidAwaitingDecision");
+  });
+
+  it("wpłata na zgłoszeniu zamkniętym: „opłacone - zgłoszenie zamknięte” - do zwrotu", () => {
+    expect(ticketBadge("cancelled", link({ payment_status: "paid" }))).toBe("paidClosed");
+    expect(ticketBadge("rejected", link({ payment_status: "paid" }))).toBe("paidClosed");
+  });
+
+  it("bez pieniędzy u organizatora wiersz bez miejsca nie ma plakietki „opłacone”", () => {
+    // Bezpłatny (`not_required`) albo nieopłacony wiersz w kolejce po prostu
+    // czeka - „opłacone" byłoby nieprawdą. `no_show` miał miejsce i jest
+    // rozliczony, więc nic na organizatora nie czeka.
+    expect(ticketBadge("waitlist", link({ payment_status: "unpaid" }))).toBeNull();
+    expect(ticketBadge("waitlist", link({ payment_status: "not_required" }))).toBeNull();
+    expect(ticketBadge("cancelled", link({ payment_status: "refunded" }))).toBeNull();
+    expect(ticketBadge("no_show", link({ payment_status: "paid" }))).toBeNull();
   });
 
   it("plakietka „niewysłany” stoi dokładnie tam, gdzie przycisk ponownej wysyłki", () => {

@@ -5936,13 +5936,13 @@ export default defineConfig({
         // włączane w tym miejscu - to decyzja na całe repozytorium, a nie na
         // jeden moduł, i podjęta na 29 plikach modułu 22 przesądziłaby ją dla
         // wszystkich pozostałych.
-        // ZMIERZONE 2026-09-04: 99.06 / 99.23 / 100 / 100
-        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        // ZMIERZONE 2026-09-26: 100 / 100 / 100 / 100 (wczesniej 99.06 / 99.23 /
+        // 100 / 100; odpadla nieosiagalna galaz `readChannels`).
         "src/lib/events/registrationOutcomeNotify.server.ts": {
-          statements: 97,
+          statements: 98,
           functions: 98,
           lines: 98,
-          branches: 97,
+          branches: 98,
         },
         // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
         // (przed: 3.4 / 1.12 / 11.11 / 4.41) - instrukcje / galezie / funkcje / linie.
@@ -6563,6 +6563,27 @@ export default defineConfig({
           branches: 98,
         },
         "src/lib/billing/eventTicketPlanRedeem.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // Wpłata biletu: RSVP i „miejsce zarezerwowane" dopiero przy
+        // potwierdzonym miejscu, jedno ponowienie po zakleszczeniu (pozycja 5).
+        // Przed tą pracą 81,72 / 68,47 / 100 / 85,88 - bez progu per plik.
+        "src/lib/billing/oneTimeFulfilment.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/paidAdmission.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n-admin-event-registration.ts": {
           statements: 98,
           functions: 98,
           lines: 98,

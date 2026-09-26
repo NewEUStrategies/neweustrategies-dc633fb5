@@ -37,6 +37,12 @@ export type TxEmailType =
   // zwrot calkowity (miejsce wraca do puli) i zwrot czesciowy (korekta ceny,
   // miejsce zostaje). Osobne typy, bo kazdy z nich mowi co innego o miejscu.
   | "event_ticket_paid"
+  // Wpłata bez miejsca (20260926150000): pula wyczerpała się między kasą
+  // a webhookiem (kolejka OPŁACONA) albo bilet wymaga akceptacji organizatora
+  // (wpłata nie jest akceptacją). „Bilet opłacony - miejsce jest Twoje"
+  // obiecywałby w obu przypadkach miejsce, którego jeszcze nie ma.
+  | "event_ticket_paid_waitlisted"
+  | "event_ticket_paid_pending"
   | "event_ticket_refunded"
   | "event_ticket_partially_refunded"
   // Bilet z kodem QR - osobny mail do KAZDEJ osoby z miejscem (takze gosci
@@ -479,6 +485,34 @@ const PL: Dict = {
       "Zaksi\u0119gowali\u015bmy p\u0142atno\u015b\u0107 za wej\u015bci\u00f3wk\u0119. Twoje zg\u0142oszenie ma status potwierdzonego, a bilet z kodem QR wysy\u0142amy w osobnej wiadomo\u015bci.",
     cta: "Szczeg\u00f3\u0142y wydarzenia",
     note: "Faktur\u0119 i potwierdzenie p\u0142atno\u015bci znajdziesz w profilu, w sekcji p\u0142atno\u015bci.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_ticket_paid_waitlisted: {
+    subject: (v) =>
+      `⏳ Płatność przyjęta - lista rezerwowa${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "clock",
+    preview: "Płatność za bilet dotarła po wyczerpaniu miejsc - czekasz na liście rezerwowej.",
+    eyebrow: "Wydarzenie",
+    heading: "Płatność przyjęta - jesteś na liście rezerwowej",
+    intro:
+      "Zaksięgowaliśmy płatność za wejściówkę, ale ostatnie miejsce zajęto, zanim płatność do nas dotarła. Twoje zgłoszenie czeka opłacone na liście rezerwowej - gdy zwolni się miejsce, przyjmiemy Cię automatycznie i wyślemy bilet z kodem QR w osobnej wiadomości.",
+    cta: "Szczegóły wydarzenia",
+    note: "Nie musisz nic robić. Jeśli miejsce się nie zwolni, organizator zwróci płatność. Możesz też wycofać zgłoszenie odnośnikiem z potwierdzenia zapisu - wtedy płatność zostanie zwrócona.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_ticket_paid_pending: {
+    subject: (v) =>
+      `📝 Płatność przyjęta - czeka na decyzję${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "clock",
+    preview: "Płatność za bilet zaksięgowana - zgłoszenie czeka na decyzję organizatora.",
+    eyebrow: "Wydarzenie",
+    heading: "Płatność przyjęta - czekamy na decyzję organizatora",
+    intro:
+      "Zaksięgowaliśmy płatność za wejściówkę. Ten bilet wymaga akceptacji organizatora, więc miejsce nie jest jeszcze zarezerwowane - napiszemy do Ciebie z decyzją, a po akceptacji wyślemy bilet z kodem QR.",
+    cta: "Szczegóły wydarzenia",
+    note: "W razie odmowy organizator zwróci płatność.",
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
@@ -928,6 +962,36 @@ const EN: Dict = {
       "We have recorded your ticket payment. Your registration is confirmed and your ticket with the QR code follows in a separate email.",
     cta: "Event details",
     note: "The invoice and payment receipt are available in your profile, under payments.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_ticket_paid_waitlisted: {
+    subject: (v) =>
+      `⏳ Payment received - waiting list${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "clock",
+    preview: "Your ticket payment arrived after seats ran out - you are on the waiting list.",
+    eyebrow: "Event",
+    heading: "Payment received - you are on the waiting list",
+    intro:
+      "We have recorded your ticket payment, but the last seat was taken before it reached us. Your registration waits, paid, on the waiting list - when a seat frees up we admit you automatically and send your ticket with the QR code in a separate email.",
+    cta: "Event details",
+    note: "Nothing to do on your side. If no seat frees up, the organiser will refund your payment. You can also withdraw with the link from your registration confirmation - the payment will then be refunded.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_ticket_paid_pending: {
+    subject: (v) =>
+      `📝 Payment received - awaiting decision${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "clock",
+    preview: "Ticket payment recorded - your registration awaits the organiser's decision.",
+    eyebrow: "Event",
+    // Nagłówek BEZ apostrofu: React Email zamienia go na `&#x27;`, a nagłówek
+    // jest jedynym zdaniem, które podgląd porównuje z treścią słownika 1:1.
+    heading: "Payment received - awaiting a decision from the organiser",
+    intro:
+      "We have recorded your ticket payment. This ticket needs the organiser's approval, so your seat is not reserved yet - we will write to you with the decision and send your ticket with the QR code once you are accepted.",
+    cta: "Event details",
+    note: "If the registration is declined, the organiser will refund your payment.",
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },

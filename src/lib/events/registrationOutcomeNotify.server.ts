@@ -16,10 +16,18 @@
 // niedogodność, a wyjątek tutaj skazywałby webhook na wieczne ponowienia -
 // czyli na wysyłanie tego samego maila w kółko.
 //
+// WPŁATA BEZ MIEJSCA (20260926150000). Opłacenie nie zawsze znaczy już
+// „miejsce jest Twoje": baza może zostawić wpłatę w kolejce (pula wyczerpana
+// między kasą a webhookiem), w oczekiwaniu na decyzję organizatora (bilet
+// wymaga akceptacji) albo na zgłoszeniu zamkniętym (pieniądze do zwrotu).
+// Szablon, SMS i dzwonek czytają to z `registration_status` - a organizator
+// dostaje własny dzwonek, bo w każdym z tych trzech stanów to on ma ruch.
+//
 // Moduł server-only (klient service_role, token SMS).
 import type { EmailLang } from "@/lib/email-templates/nes-layout";
 import type { TxDetail } from "@/lib/email-templates/transactional";
 import type { TxEmailType } from "@/lib/email-templates/tx-copy";
+import { paidAdmission, type PaidAdmission } from "@/lib/events/paidAdmission";
 
 /** Wyniki płatności, o których piszemy do uczestnika. */
 export type TicketOutcome = "paid" | "unpaid" | "refunded" | "partial_refund";
@@ -34,22 +42,161 @@ export type TicketOutcome = "paid" | "unpaid" | "refunded" | "partial_refund";
  * w bramkę `!type`, a nie w szablon wybrany na chybił trafił.
  */
 const TYPE_BY_OUTCOME: Readonly<Partial<Record<TicketOutcome, TxEmailType>>> = {
-  paid: "event_ticket_paid",
   unpaid: "payment_failed",
   refunded: "event_ticket_refunded",
   partial_refund: "event_ticket_partially_refunded",
 };
 
 /**
- * Tytuły dzwonka per wynik, w obu językach - wiersz w bazie jest jeden, a czyta
- * go interfejs w języku sesji. Tabela zamiast czterech ramion ternary'ego:
- * przy czwartym wyniku zagnieżdżenie przestawało być czytelne.
+ * Szablon wpłaty per skutek dla miejsca. `paid` celowo NIE stoi w
+ * `TYPE_BY_OUTCOME`: jedno źródło prawdy, bo mail „bilet opłacony - miejsce
+ * jest Twoje" do kogoś w kolejce to obietnica miejsca, którego nie ma.
+ *
+ * `closed` (wpłata na zgłoszenie odwołane albo odrzucone) NIE MA szablonu dla
+ * kupującego - każdy istniejący mówiłby nieprawdę. Sprawę ma organizator:
+ * dostaje dzwonek „do zwrotu".
  */
-const BELL_TITLES: Readonly<Record<TicketOutcome, { pl: string; en: string }>> = {
+const PAID_TYPE: Readonly<Record<PaidAdmission, TxEmailType | null>> = {
+  seated: "event_ticket_paid",
+  waitlisted: "event_ticket_paid_waitlisted",
+  awaitingDecision: "event_ticket_paid_pending",
+  closed: null,
+};
+
+/**
+ * Rodzaj wiadomości do uczestnika: wynik płatności, a dla wpłaty bez miejsca -
+ * jej osobny wariant. Klucze idempotencji zostają przy samym WYNIKU
+ * (`...:paid:0`), więc ponowiony webhook po awansie z kolejki nie dokłada
+ * drugiej wiadomości o wpłacie.
+ */
+type NoticeKind = TicketOutcome | "paid_waitlisted" | "paid_pending";
+
+function noticeKind(outcome: TicketOutcome, admission: PaidAdmission): NoticeKind {
+  if (admission === "waitlisted") return "paid_waitlisted";
+  if (admission === "awaitingDecision") return "paid_pending";
+  return outcome;
+}
+
+/**
+ * Tytuły dzwonka per rodzaj wiadomości, w obu językach - wiersz w bazie jest
+ * jeden, a czyta go interfejs w języku sesji. Tabela zamiast ramion
+ * ternary'ego: przy czwartym wyniku zagnieżdżenie przestawało być czytelne.
+ */
+const BELL_TITLES: Readonly<Record<NoticeKind, { pl: string; en: string }>> = {
   paid: { pl: "Bilet opłacony", en: "Ticket paid" },
+  paid_waitlisted: {
+    pl: "Opłacone - jesteś na liście rezerwowej",
+    en: "Paid - you are on the waiting list",
+  },
+  paid_pending: {
+    pl: "Opłacone - zgłoszenie czeka na decyzję",
+    en: "Paid - awaiting the organiser's decision",
+  },
   unpaid: { pl: "Płatność odrzucona - bilet nieopłacony", en: "Payment declined - ticket unpaid" },
   refunded: { pl: "Bilet anulowany - zwrot płatności", en: "Ticket cancelled - payment refunded" },
   partial_refund: { pl: "Częściowy zwrot za bilet", en: "Partial ticket refund" },
+};
+
+/** Treść SMS-a: tytuł wydarzenia i (dla kolejki) pozycja, gdy baza ją podała. */
+interface SmsVars {
+  title: string;
+  position: number | null;
+}
+
+/**
+ * Treści SMS-ów per rodzaj i język. BEZ OGONKÓW CELOWO: jeden znak spoza
+ * GSM-7 przełącza całą wiadomość na UCS-2, połowi długość segmentu i podwaja
+ * koszt wysyłki.
+ */
+const SMS_BODIES: Readonly<Record<NoticeKind, Record<EmailLang, (v: SmsVars) => string>>> = {
+  paid: {
+    pl: (v) => `Bilet oplacony: ${v.title}. Szczegoly wyslalismy mailem.`,
+    en: (v) => `Ticket paid: ${v.title}. Details are in your inbox.`,
+  },
+  paid_waitlisted: {
+    pl: (v) =>
+      `Platnosc za ${v.title} przyjeta - brak wolnych miejsc, jestes na liscie rezerwowej${v.position === null ? "" : ` (miejsce ${v.position})`}. Bilet wyslemy, gdy zwolni sie miejsce.`,
+    en: (v) =>
+      `Payment for ${v.title} received - no seat is free yet, you are on the waiting list${v.position === null ? "" : ` (position ${v.position})`}. We will send your ticket when a seat opens up.`,
+  },
+  paid_pending: {
+    pl: (v) =>
+      `Platnosc za ${v.title} przyjeta - zgloszenie czeka na decyzje organizatora. Szczegoly w mailu.`,
+    en: (v) =>
+      `Payment for ${v.title} received - your registration awaits the organiser's decision. Details are in your inbox.`,
+  },
+  unpaid: {
+    pl: (v) =>
+      `Platnosc za bilet na ${v.title} nie przeszla - miejsce nie jest potwierdzone. Szczegoly w mailu.`,
+    en: (v) =>
+      `Payment for ${v.title} was declined - your seat is not confirmed. Details are in your inbox.`,
+  },
+  refunded: {
+    pl: (v) => `Bilet na ${v.title} zostal anulowany, platnosc zwrocona. Szczegoly w mailu.`,
+    en: (v) => `Your ticket for ${v.title} was cancelled and refunded. Details are in your inbox.`,
+  },
+  partial_refund: {
+    pl: (v) => `Czesciowy zwrot za bilet na ${v.title}. Miejsce pozostaje zarezerwowane.`,
+    en: (v) => `Partial refund issued for ${v.title}. Your seat stays reserved.`,
+  },
+};
+
+/** Wpłata bez miejsca - stany, w których ruch ma organizator. */
+type OrganizerAlertKind = Exclude<PaidAdmission, "seated">;
+
+/** Treść dzwonka organizatora: tytuł wydarzenia i pozycja w kolejce. */
+interface AlertVars {
+  /** Tytuł z dwukropkiem albo pusty napis - wpis nie zaczyna się od „: ". */
+  lead: string;
+  position: number | null;
+}
+
+/**
+ * Dzwonek organizatora per stan wpłaty bez miejsca. Oba języki w jednym
+ * wierszu, jak dzwonek uczestnika.
+ */
+const ORGANIZER_ALERTS: Readonly<
+  Record<
+    OrganizerAlertKind,
+    { title: { pl: string; en: string }; body: Record<EmailLang, (v: AlertVars) => string> }
+  >
+> = {
+  waitlisted: {
+    title: {
+      pl: "Opłacone zgłoszenie na liście rezerwowej",
+      en: "Paid registration on the waiting list",
+    },
+    body: {
+      pl: (v) =>
+        `${v.lead}wpłata przyszła po wyczerpaniu miejsc - zgłoszenie czeka opłacone${v.position === null ? "" : ` (pozycja ${v.position})`} i awansuje samo, gdy zwolni się miejsce. Możesz dostawić miejsce albo zwrócić płatność.`,
+      en: (v) =>
+        `${v.lead}the payment arrived after seats ran out - the registration waits paid${v.position === null ? "" : ` (position ${v.position})`} and moves up automatically when a seat frees up. You can add a seat or refund the payment.`,
+    },
+  },
+  awaitingDecision: {
+    title: {
+      pl: "Opłacone zgłoszenie czeka na akceptację",
+      en: "Paid registration awaits approval",
+    },
+    body: {
+      pl: (v) =>
+        `${v.lead}uczestnik zapłacił za bilet wymagający akceptacji - przyjmij albo odrzuć zgłoszenie (odmowa wymaga zwrotu płatności).`,
+      en: (v) =>
+        `${v.lead}the attendee paid for a ticket that needs approval - approve or decline (declining requires a refund).`,
+    },
+  },
+  closed: {
+    title: {
+      pl: "Wpłata za zamknięte zgłoszenie - do zwrotu",
+      en: "Payment for a closed registration - refund due",
+    },
+    body: {
+      pl: (v) =>
+        `${v.lead}wpłata dotarła do zgłoszenia odwołanego albo odrzuconego. Zwróć płatność w panelu płatności.`,
+      en: (v) =>
+        `${v.lead}a payment reached a cancelled or rejected registration. Refund it in the payments panel.`,
+    },
+  },
 };
 
 interface Contact {
@@ -74,6 +221,20 @@ export interface TicketOutcomePayload {
   event_title_en?: string | null;
   contact?: Record<string, unknown> | null;
   waitlist?: { promoted?: number; registrations?: Array<Record<string, unknown>> } | null;
+  /**
+   * Status zgłoszenia PO zapisie (20260926150000). Dla `paid` mówi, czy wpłata
+   * dała miejsce (`approved`), kolejkę (`waitlist`), oczekiwanie na decyzję
+   * (`pending`/`draft`), czy trafiła na zgłoszenie zamknięte. Brak pola
+   * (baza sprzed migracji) = dotychczasowe „miejsce jest Twoje".
+   */
+  registration_status?: string | null;
+  /** Pozycja w kolejce, gdy zgłoszenie czeka na liście rezerwowej. */
+  waitlist_position?: number | null;
+  /**
+   * `true` tylko przy PIERWSZYM zaksięgowaniu wpłaty na tym zgłoszeniu.
+   * Ponowiony webhook dostaje `false` - i nie dokłada dzwonków.
+   */
+  newly_settled?: boolean;
 }
 
 function str(source: Record<string, unknown> | null | undefined, key: string): string | null {
@@ -118,11 +279,12 @@ function eventTitle(payload: TicketOutcomePayload, lang: EmailLang): string {
   return (lang === "en" ? (en ?? pl) : (pl ?? en)) ?? "";
 }
 
-function detailsFor(
-  payload: TicketOutcomePayload,
-  outcome: TicketOutcome,
-  lang: EmailLang,
-): TxDetail[] {
+/** Pozycja w kolejce z ładunku - wyłącznie liczba, nigdy „null" w treści. */
+function waitlistPosition(payload: TicketOutcomePayload): number | null {
+  return typeof payload.waitlist_position === "number" ? payload.waitlist_position : null;
+}
+
+function detailsFor(payload: TicketOutcomePayload, kind: NoticeKind, lang: EmailLang): TxDetail[] {
   const details: TxDetail[] = [];
   const title = eventTitle(payload, lang);
   if (title) details.push({ label: lang === "en" ? "Event" : "Wydarzenie", value: title });
@@ -130,10 +292,20 @@ function detailsFor(
   const paid = money(payload.amount_cents, payload.currency ?? null, lang);
   if (paid) details.push({ label: lang === "en" ? "Amount" : "Kwota", value: paid });
 
+  // Kolejka: pozycja mówi kupującemu, ile osób jest przed nim - bez niej
+  // „czekasz na liście rezerwowej" nie daje żadnej miary szansy.
+  const position = kind === "paid_waitlisted" ? waitlistPosition(payload) : null;
+  if (position !== null) {
+    details.push({
+      label: lang === "en" ? "Waiting list position" : "Miejsce w kolejce",
+      value: String(position),
+    });
+  }
+
   // Wiersz zwrotu tylko tam, gdzie zwrot NAPRAWDĘ był. W mailu o opłaceniu
   // sugerowałby anulowanie, a w mailu o odrzuconej płatności byłby zdaniem
   // „zwrócono 0,00 zł" o pieniądzach, których nikt nie pobrał.
-  if (outcome === "refunded" || outcome === "partial_refund") {
+  if (kind === "refunded" || kind === "partial_refund") {
     const refunded = money(payload.refunded_cents ?? null, payload.currency ?? null, lang);
     if (refunded) {
       details.push({ label: lang === "en" ? "Refunded amount" : "Kwota zwrotu", value: refunded });
@@ -142,37 +314,22 @@ function detailsFor(
   return details;
 }
 
-function smsBody(payload: TicketOutcomePayload, outcome: TicketOutcome, lang: EmailLang): string {
-  const title = eventTitle(payload, lang);
-  if (lang === "en") {
-    if (outcome === "paid") return `Ticket paid: ${title}. Details are in your inbox.`;
-    if (outcome === "unpaid") {
-      return `Payment for ${title} was declined - your seat is not confirmed. Details are in your inbox.`;
-    }
-    if (outcome === "refunded") {
-      return `Your ticket for ${title} was cancelled and refunded. Details are in your inbox.`;
-    }
-    return `Partial refund issued for ${title}. Your seat stays reserved.`;
-  }
-  if (outcome === "paid") return `Bilet oplacony: ${title}. Szczegoly wyslalismy mailem.`;
-  if (outcome === "unpaid") {
-    return `Platnosc za bilet na ${title} nie przeszla - miejsce nie jest potwierdzone. Szczegoly w mailu.`;
-  }
-  if (outcome === "refunded") {
-    return `Bilet na ${title} zostal anulowany, platnosc zwrocona. Szczegoly w mailu.`;
-  }
-  return `Czesciowy zwrot za bilet na ${title}. Miejsce pozostaje zarezerwowane.`;
+function smsBody(payload: TicketOutcomePayload, kind: NoticeKind, lang: EmailLang): string {
+  return SMS_BODIES[kind][lang]({
+    title: eventTitle(payload, lang),
+    position: waitlistPosition(payload),
+  });
 }
 
 /** Dzwonek w aplikacji - tylko dla zalogowanego uczestnika. Nigdy nie rzuca. */
 async function pushBell(
   payload: TicketOutcomePayload,
-  outcome: TicketOutcome,
+  kind: NoticeKind,
   contact: Contact,
 ): Promise<void> {
   const tenantId = payload.tenant_id ?? null;
   if (!contact.userId || !tenantId) return;
-  const titles = BELL_TITLES[outcome];
+  const titles = BELL_TITLES[kind];
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await supabaseAdmin.from("notifications").insert({
@@ -244,10 +401,65 @@ async function notifyPromoted(payload: TicketOutcomePayload): Promise<number> {
   return sent;
 }
 
+/**
+ * Dzwonek do organizatorów najemcy (admin i super_admin z `user_roles` - ta
+ * sama bramka co `assert_event_admin_tenant`) o wpłacie bez miejsca. Poczty
+ * organizatora nie ma w systemie, więc dzwonek jest jedynym kanałem; prowadzi
+ * wprost na listę zgłoszeń, gdzie plakietka pokazuje wiersz. Jeden `insert`
+ * na wszystkich odbiorców. Nigdy nie rzuca - zwraca liczbę WSTAWIONYCH wpisów.
+ */
+async function alertOrganizers(
+  payload: TicketOutcomePayload,
+  kind: OrganizerAlertKind,
+): Promise<number> {
+  const tenantId = payload.tenant_id ?? null;
+  const eventId = payload.event_id ?? null;
+  if (!tenantId || !eventId) return 0;
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: admins, error: rolesError } = await supabaseAdmin
+      .from("user_roles")
+      .select("user_id")
+      .eq("tenant_id", tenantId)
+      .in("role", ["admin", "super_admin"]);
+    if (rolesError) throw rolesError;
+    // Ta sama osoba może mieć obie role - jeden wpis, nie dwa.
+    const ids = [...new Set((admins ?? []).map((row) => row.user_id))];
+    if (ids.length === 0) return 0;
+
+    const copy = ORGANIZER_ALERTS[kind];
+    const position = waitlistPosition(payload);
+    const lead = (lang: EmailLang): string => {
+      const title = eventTitle(payload, lang);
+      return title ? `${title}: ` : "";
+    };
+    const { error: insertError } = await supabaseAdmin.from("notifications").insert(
+      ids.map((userId) => ({
+        user_id: userId,
+        tenant_id: tenantId,
+        kind: "billing",
+        title_pl: copy.title.pl,
+        title_en: copy.title.en,
+        body_pl: copy.body.pl({ lead: lead("pl"), position }),
+        body_en: copy.body.en({ lead: lead("en"), position }),
+        href: `/admin/events/${eventId}/registration/list`,
+        icon: "receipt",
+      })),
+    );
+    if (insertError) throw insertError;
+    return ids.length;
+  } catch (err) {
+    console.error("[events] organizer alert failed", err);
+    return 0;
+  }
+}
+
 export interface OutcomeNotifyResult {
   emailed: boolean;
   smsSent: boolean;
   promotedNotified: number;
+  /** Ilu organizatorów dostało dzwonek o wpłacie bez miejsca. */
+  organizerAlerted: number;
 }
 
 /** Kanały wybrane przez uczestnika na TYM zgłoszeniu (domyślnie oba włączone). */
@@ -262,8 +474,7 @@ interface Channels {
  * SMS-a o kongresie i ciszy o webinarze. Odczyt jest fail-soft - brak wiersza
  * albo błąd bazy nie może wyciszyć powiadomienia o pieniądzach.
  */
-async function readChannels(registrationId: string | null): Promise<Channels> {
-  if (!registrationId) return { email: true, sms: true };
+async function readChannels(registrationId: string): Promise<Channels> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data } = await supabaseAdmin
@@ -299,11 +510,21 @@ export async function notifyTicketOutcome(
   payload: TicketOutcomePayload,
   options: NotifyOptions = {},
 ): Promise<OutcomeNotifyResult> {
-  const result: OutcomeNotifyResult = { emailed: false, smsSent: false, promotedNotified: 0 };
+  const result: OutcomeNotifyResult = {
+    emailed: false,
+    smsSent: false,
+    promotedNotified: 0,
+    organizerAlerted: 0,
+  };
   if (payload.applied !== true) return result;
 
   const outcome = (payload.outcome ?? "") as TicketOutcome;
-  const type = TYPE_BY_OUTCOME[outcome];
+  // Skutek dla miejsca liczy się tylko przy wpłacie - zwrot i odrzucona karta
+  // mają swoje szablony niezależnie od statusu zgłoszenia.
+  const admission: PaidAdmission =
+    outcome === "paid" ? paidAdmission(payload.registration_status) : "seated";
+  const type = outcome === "paid" ? PAID_TYPE[admission] : TYPE_BY_OUTCOME[outcome];
+  const kind = noticeKind(outcome, admission);
   const registrationId = payload.registration_id ?? null;
   const contact = readContact(payload);
 
@@ -314,6 +535,15 @@ export async function notifyTicketOutcome(
     return 0;
   });
 
+  // Wpłata bez miejsca: ruch ma organizator. RAZ na wpłatę - ponowiony webhook
+  // (`newly_settled: false`) i ładunek bez pola (panel, stara baza) nie
+  // dokładają dzwonka.
+  if (outcome === "paid" && admission !== "seated" && payload.newly_settled === true) {
+    result.organizerAlerted = await alertOrganizers(payload, admission);
+  }
+
+  // `closed` nie ma szablonu (PAID_TYPE) - kupujący nie dostaje ani maila,
+  // ani SMS-a, ani dzwonka, bo każdy z nich mówiłby nieprawdę.
   if (!type || !registrationId) return result;
 
   const lang = await resolveLang(contact.userId);
@@ -328,7 +558,7 @@ export async function notifyTicketOutcome(
         to: contact.email,
         lang,
         subjectName: eventTitle(payload, lang),
-        details: detailsFor(payload, outcome, lang),
+        details: detailsFor(payload, kind, lang),
         ctaPath: payload.event_slug ? `/events/${payload.event_slug}` : "/events",
         metaName: contact.firstName,
         tenantId: payload.tenant_id ?? null,
@@ -347,7 +577,7 @@ export async function notifyTicketOutcome(
       const { sendSms } = await import("@/lib/notify/sms.server");
       const sms = await sendSms({
         to: contact.phone,
-        body: smsBody(payload, outcome, lang),
+        body: smsBody(payload, kind, lang),
         // Klucz zbudowany tak samo jak pocztowy - z samego zdarzenia, więc
         // ponowiony webhook nie wysyła drugiego SMS-a, a dopisek z panelu
         // świadomie omija bramkę.
@@ -359,6 +589,11 @@ export async function notifyTicketOutcome(
     }
   }
 
-  await pushBell(payload, outcome, contact);
+  // Dzwonek nie ma klucza idempotencji jak poczta i SMS, więc ponowiony
+  // webhook wpłaty (`newly_settled: false`) dokładałby kolejny wpis. Zwroty
+  // dzwonią jak dotąd - każda transza to nowa informacja.
+  if (!(outcome === "paid" && payload.newly_settled === false)) {
+    await pushBell(payload, kind, contact);
+  }
   return result;
 }

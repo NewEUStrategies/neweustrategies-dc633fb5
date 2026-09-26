@@ -1538,6 +1538,36 @@ describe("plakietki grupy i biletu", () => {
     expect(within(refunded).queryByText(/badges\.ticket/)).toBeNull();
   });
 
+  it("opłacony wiersz bez miejsca mówi, na co czekają pieniądze - zamknięty na czerwono", () => {
+    // Wpłata po wyczerpaniu puli, bilet wymagający akceptacji i wpłata na
+    // zgłoszenie zamknięte (20260926150000). W każdym z trzech ruch ma
+    // organizator; przy zamkniętym to zwrot, więc plakietka jest czerwona.
+    h.rows = [
+      registrationRow({ id: "reg-queued", status: "waitlist" }),
+      registrationRow({ id: "reg-pending", status: "pending" }),
+      registrationRow({ id: "reg-closed", status: "cancelled" }),
+    ];
+    h.groupLinks = [
+      groupLink({ registration_id: "reg-queued", payment_status: "paid" }),
+      groupLink({ registration_id: "reg-pending", payment_status: "paid" }),
+      groupLink({ registration_id: "reg-closed", payment_status: "paid" }),
+    ];
+    panel();
+
+    const [queued, pending, closed] = wiersze() as [HTMLElement, HTMLElement, HTMLElement];
+    const naMiejsce = within(queued).getByText(`${B}.badges.ticketPaidWaitlisted`);
+    const naDecyzje = within(pending).getByText(`${B}.badges.ticketPaidAwaitingDecision`);
+    const doZwrotu = within(closed).getByText(`${B}.badges.ticketPaidClosed`);
+    expect(naMiejsce.className).toContain("bg-secondary");
+    expect(naDecyzje.className).toContain("bg-secondary");
+    expect(doZwrotu.className).toContain("destructive");
+    // Wiersz bez miejsca nie udaje biletu: ani „wysłany", ani „niewysłany".
+    for (const row of [queued, pending, closed]) {
+      expect(within(row).queryByText(`${B}.badges.ticketNotSent`)).toBeNull();
+      expect(within(row).queryByText(`${B}.badges.ticketSent`)).toBeNull();
+    }
+  });
+
   it("bez odpowiedzi powiązań (zapytanie w locie) nie zgaduje plakietek ani przycisku", () => {
     h.rows = [registrationRow({ status: "approved" })];
     panel();
