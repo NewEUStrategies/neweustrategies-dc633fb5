@@ -22,6 +22,7 @@
  *   SCHEDULER_ENDPOINT        domyślnie /api/public/community-cron
  *   SCHEDULER_JOB             all | push | digest-daily | digest-weekly |
  *                             event-reminders | crm-task-reminders |
+ *                             event-ticket-codes |
  *                             event-participant-reminders | event-ticket-lifecycle |
  *                             event-follow-up
  *   SCHEDULER_SOURCE          domyślnie github_actions (ląduje w logu przebiegów)
@@ -127,7 +128,7 @@ async function tick(index) {
   return { ok: false, status: 0, payload: null, detail: "unreachable" };
 }
 
-/** Zwięzła linia wyniku: ile zadań push/digestów/przypomnień poszło. */
+/** Zwięzła linia wyniku: ile zadań push/digestów/przypomnień/biletów poszło. */
 function summarize(payload) {
   if (!payload || typeof payload !== "object") return "brak treści";
   const parts = [];
@@ -153,6 +154,15 @@ function summarize(payload) {
   }
   if (typeof payload.crmTaskReminders === "number") {
     parts.push(`follow-upy CRM: ${payload.crmTaskReminders}`);
+  }
+  // Bilety z kodem QR: bez tej linii reczne `event-ticket-codes` meldowalo
+  // „brak pracy w kolejce", choc bilety wyszly.
+  const tickets = payload.eventTicketCodes;
+  if (tickets && typeof tickets === "object" && !tickets.error) {
+    parts.push(
+      `bilety QR: ${tickets.sent ?? 0}/${tickets.registrations ?? 0}` +
+        (tickets.deferred ? ` (odłożone: ${tickets.deferred})` : ""),
+    );
   }
   if (payload.runnerArmed === "armed") parts.push("uzbrojono pg_cron");
   if (Array.isArray(payload.errors) && payload.errors.length > 0) {

@@ -16,6 +16,9 @@
 // 5. ODNOŚNIK ZAPROSZENIA NIESIE TOKEN Z ODPOWIEDZI BAZY. Baza trzyma tylko
 //    jego skrót - odnośnik zmyślony po stronie przeglądarki nie otworzy
 //    nikomu miejsca, a pokazujemy go dokładnie raz.
+// 6. KOD KWOTOWY JEST OD MIEJSCA. Wiersz rabatu mówi „Rabat (5 × 50 zł)", bo
+//    sama suma rabatu czytała się jak „kod odjął się raz od pakietu" - dokładnie
+//    zgłoszenie właściciela.
 //
 // ATRAPA OBEJMUJE WYŁĄCZNIE SIEĆ (`admissionApi`), a nie haki: `useQuery`
 // i `useMutation` jadą prawdziwe, w prawdziwym `QueryClientProvider`, bo to
@@ -116,6 +119,8 @@ function quoteOk(over: Partial<AdmissionQuoteOk> = {}): AdmissionQuoteOk {
     discountCents: 0,
     totalCents: 129900,
     couponCode: null,
+    discountKind: null,
+    discountPerSeatCents: null,
     seatsLeft: 3,
     ...over,
   };
@@ -520,6 +525,60 @@ describe("EventPackagesPurchase - wycena i zamówienie", () => {
     await waitFor(() => expect(api.fetchMyPackageSeats).toHaveBeenCalledWith("ord-1"));
     expect(screen.queryByLabelText("eventPackages.buyerName")).toBeNull();
     expect(screen.getByText("eventPackages.seatsTitle")).toBeInTheDocument();
+  });
+
+  it("kod kwotowy na pakiet: wiersz „Rabat (5 × 50 zł)” i do zapłaty 2950 zł", async () => {
+    api.quoteAdmission.mockResolvedValue(
+      quoteOk({
+        priceCents: 320000,
+        discountCents: 25000,
+        totalCents: 295000,
+        couponCode: "PAK-MINUS50",
+        discountKind: "fixed",
+        discountPerSeatCents: 5000,
+      }),
+    );
+    renderPurchase();
+    await pick(/Pakiet firmowy/);
+
+    expect(
+      await screen.findByText("eventPackages.discountPerSeat(perSeat=50,00 zł,seats=5)"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("-250,00 zł")).toBeInTheDocument();
+    expect(screen.getByText("2950,00 zł")).toBeInTheDocument();
+    expect(screen.queryByText("eventPackages.discountLabel")).toBeNull();
+  });
+
+  it.each<[string, Partial<AdmissionQuoteOk>]>([
+    ["kod procentowy", { discountKind: "percent", discountPerSeatCents: null }],
+    ["kod kwotowy bez kwoty na miejsce", { discountKind: "fixed", discountPerSeatCents: null }],
+    [
+      "kod kwotowy na jedno miejsce",
+      { discountKind: "fixed", discountPerSeatCents: 5000, seats: 1 },
+    ],
+  ])("%s: wiersz rabatu bez rozbicia na miejsca", async (_nazwa, over) => {
+    api.quoteAdmission.mockResolvedValue(
+      quoteOk({ priceCents: 129900, discountCents: 5000, totalCents: 124900, ...over }),
+    );
+    renderPurchase();
+    await pick(/Pakiet firmowy/);
+
+    expect(await screen.findByText("eventPackages.discountLabel")).toBeInTheDocument();
+    expect(screen.queryByText(/eventPackages\.discountPerSeat/)).toBeNull();
+  });
+
+  it("kod zabrany przez równoległy zakup mówi zdaniem wyceny, a nie „operacja się nie udała”", async () => {
+    api.purchasePackage.mockRejectedValueOnce(
+      new Error("refused_coupon_exhausted: last use taken by a concurrent order"),
+    );
+    renderPurchase();
+    await pick(/Pakiet firmowy/);
+    await waitFor(() => expect(buyButton()).toBeEnabled());
+    fireEvent.click(buyButton());
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("eventPackages.quoteReasons.coupon_exhausted"),
+    );
   });
 
   it("odmowa zakupu mówi zdaniem ze słownika, a nieznana - zdaniem ogólnym", async () => {

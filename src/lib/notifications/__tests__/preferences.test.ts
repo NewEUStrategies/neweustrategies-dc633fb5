@@ -128,7 +128,7 @@ describe("NOTIFICATION_KINDS", () => {
       "meeting_booking",
       // 20260808094000 (etap A4 Klubu dyskusyjnego): rodzaj 'club'.
       "club",
-      // 20260926100200 (funkcje uczestnika F1-F5): 'event' (przełączalny)
+      // 20260926153300 (funkcje uczestnika F1-F5): 'event' (przełączalny)
       // i 'billing' (zawsze doręczany).
       "event",
       "billing",

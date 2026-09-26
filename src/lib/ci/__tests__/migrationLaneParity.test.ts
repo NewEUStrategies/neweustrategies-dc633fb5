@@ -125,6 +125,15 @@ describe("analyzeMigrationLanes", () => {
     expect(report.violations.map((v) => v.kind)).toEqual(["rozjazd-sql"]);
   });
 
+  it("komentarz na samym końcu pliku (bez nowej linii) i niedomknięty /* też są prozą", () => {
+    expect(executableSql("ALTER TABLE a ADD COLUMN b int; -- ostatnia linia")).toBe(
+      executableSql("ALTER TABLE a ADD COLUMN b int;"),
+    );
+    expect(executableSql("ALTER TABLE a ADD COLUMN b int; /* niedomknięty")).toBe(
+      executableSql("ALTER TABLE a ADD COLUMN b int;"),
+    );
+  });
+
   it("executableSql zostawia DDL, a wycina samą prozę", () => {
     const sql = executableSql(
       "-- nagłówek\nALTER TABLE a ADD COLUMN b int;\nCOMMENT ON COLUMN a.b IS 'TRESC-DOKUMENTACJI';",

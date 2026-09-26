@@ -23,6 +23,9 @@
 //    stany świata, cztery różne komunikaty, a nie jedno „spróbuj ponownie".
 // 6. ZGŁOSZENIE ZAPŁACONE NIE POKAZUJE KASY. `paymentRequired === false` nie
 //    ma prawa wyrenderować przycisku „Zapłać".
+// 7. KWOTA POCHODZI Z PODGLĄDU KASY, NIE Z CENY MIEJSCA. `amountCents` zapisu to
+//    cena JEDNEGO miejsca bez kodu; zamówienie grupowe na trzy osoby pokazywało
+//    ją jako „Do zapłaty" i kupujący widział trzecią liczbę, niezgodną z kasą.
 //
 // ATRAPA OBEJMUJE WYŁĄCZNIE GRANICE: wywołanie server fn, sesję, modal
 // operatora i środowisko bramki. Mapper odmów (`ticketCheckoutRefusal` ->
@@ -38,6 +41,7 @@ import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { axeViolations, summarize } from "@/test/axe";
 
 const checkout = vi.fn();
+const quote = vi.fn();
 const navigate = vi.fn();
 const auth = vi.hoisted(() => ({ session: null as { user: { id: string } } | null }));
 const stripe = vi.hoisted(() => ({
@@ -58,7 +62,8 @@ vi.mock("@tanstack/react-router", async () => ({
 // inaczej pol modulu i18n nie da sie zaimportowac.
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
-  useServerFn: () => checkout,
+  useServerFn: (fn: { name?: string }) =>
+    fn.name === "quoteEventTicketCheckout" ? quote : checkout,
 }));
 
 // Moduł server fn ciągnie middleware Supabase i `@/lib/stripe.server` - w teście
@@ -66,6 +71,10 @@ vi.mock("@tanstack/react-start", async (importOriginal) => ({
 // zamienia na wywołanie.
 vi.mock("@/lib/billing/checkout.functions", () => ({
   createCheckoutOrder: { name: "createCheckoutOrder" },
+}));
+
+vi.mock("@/lib/billing/eventTicketQuote.functions", () => ({
+  quoteEventTicketCheckout: { name: "quoteEventTicketCheckout" },
 }));
 
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ session: auth.session }) }));
@@ -119,21 +128,77 @@ function renderConfirmation(over: Partial<RegistrationResult> = {}, eventId?: st
   );
 }
 
+/** Podgląd kasy w kształcie `EventTicketQuote` - domyślnie jedno miejsce. */
+function quoteResult(over: Record<string, unknown> = {}) {
+  return {
+    seats: 1,
+    unitCents: 15000,
+    subtotalCents: 15000,
+    currency: "PLN",
+    coupon: null,
+    discountCents: 0,
+    totalCents: 15000,
+    couponError: null,
+    ...over,
+  };
+}
+
 beforeEach(() => {
   checkout.mockReset();
+  quote.mockReset();
+  quote.mockResolvedValue(quoteResult());
   navigate.mockReset();
   auth.session = { user: { id: "u-1" } };
   stripe.environment = () => "sandbox";
 });
 
 describe("RegistrationConfirmation - stan oczekiwania na wpłatę", () => {
-  it("pokazuje kwotę i ZOSTAWIA zdanie o braku wejściówki", () => {
+  it("pokazuje kwotę z podglądu kasy i ZOSTAWIA zdanie o braku wejściówki", async () => {
     renderConfirmation();
 
     // Kwota liczona przez `Intl`, nie przez słownik - stąd dosłowna asercja.
-    // Pada DOKŁADNIE RAZ: molekuła kasy jej nie powtarza.
+    // Pada DOKŁADNIE RAZ: zdanie nagłówkowe jej już nie mówi.
+    expect(
+      await screen.findByText("eventRegistration.payment.amountDue(amount=150,00 zł)"),
+    ).toBeInTheDocument();
     expect(screen.getAllByText(/150,00/)).toHaveLength(1);
+    expect(screen.getByText("eventRegistration.result.paymentHint")).toBeInTheDocument();
     expect(screen.getByText("eventRegistration.result.paymentNoTicketYet")).toBeInTheDocument();
+  });
+
+  it("zamówienie GRUPOWE nie mówi ceny jednego miejsca jako „do zapłaty”", async () => {
+    // Trzy osoby po 150 zł z kodem -20 zł od miejsca: 390 zł. Stare zdanie
+    // nagłówkowe mówiło „Do zapłaty: 150,00 zł" - ani reguła, ani kasa.
+    quote.mockResolvedValue(
+      quoteResult({
+        seats: 3,
+        subtotalCents: 45000,
+        coupon: { code: "MINUS20", kind: "fixed", percent: null, perSeatCents: 2000 },
+        discountCents: 6000,
+        totalCents: 39000,
+      }),
+    );
+    renderConfirmation();
+
+    expect(
+      await screen.findByText("eventRegistration.payment.amountDue(amount=390,00 zł)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("eventRegistration.payment.amountDue(amount=150,00 zł)"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/paymentHintAmount/)).not.toBeInTheDocument();
+    expect(
+      screen.getByText("eventRegistration.payment.quoteSeats(count=3,unit=150,00 zł)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "eventRegistration.payment.quoteCodeFixed(code=MINUS20,count=3,perSeat=20,00 zł)",
+      ),
+    ).toBeInTheDocument();
+    // Podgląd liczy grupę po ZGŁOSZENIU - to samo, po czym liczy kasa.
+    expect(quote.mock.calls[0]?.[0]).toEqual({
+      data: { event_id: EVENT_ID, ticket_type_id: TICKET_ID, registration_id: REGISTRATION_ID },
+    });
   });
 
   it("bez kwoty mówi ogólnie, a nie „0,00 zł”", () => {
@@ -156,6 +221,8 @@ describe("RegistrationConfirmation - stan oczekiwania na wpłatę", () => {
 
   it("nie ma naruszeń dostępności", async () => {
     const { container } = renderConfirmation();
+    // Rozbicie z podglądu kasy jest częścią ekranu - audyt po jego pojawieniu się.
+    await screen.findByText(/eventRegistration\.payment\.amountDue/);
     const violations = await axeViolations(container);
     expect(violations, summarize(violations)).toEqual([]);
   });
@@ -296,11 +363,13 @@ describe("RegistrationConfirmation - gość bez konta", () => {
 
   it("widzi kwotę, o którą chodzi - żeby wiedział, po co się loguje", () => {
     renderConfirmation();
-    // Kwota pada RAZ, w zdaniu nagłówkowym: molekuła kasy jej nie powtarza,
-    // bo dwie kwoty pod sobą czytają się jak dwie różne należności.
+    // Bez sesji podglądu kasy nie ma (stoi za uwierzytelnieniem), więc kwota
+    // pada RAZ - z odpowiedzi zapisu, w molekule kasy.
     expect(
-      screen.getByText("eventRegistration.result.paymentHintAmount(amount=150,00 zł)"),
+      screen.getByText("eventRegistration.payment.amountDue(amount=150,00 zł)"),
     ).toBeInTheDocument();
+    expect(screen.getAllByText(/150,00/)).toHaveLength(1);
+    expect(quote).not.toHaveBeenCalled();
   });
 
   it("nie ma naruszeń dostępności", async () => {

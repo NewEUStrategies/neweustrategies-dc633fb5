@@ -2,7 +2,7 @@
 -- 13_participant_foundation - FUNDAMENT FUNKCJI UCZESTNIKA F1-F5
 --
 -- PO CO TEN PLIK ISTNIEJE
--- `20260926100000_event_participant_foundation.sql` zaklada podloge, na ktorej
+-- `20260926153100_event_participant_foundation.sql` zaklada podloge, na ktorej
 -- staja trzy tory: ustawienia organizatora (get/save z regula „brak klucza =
 -- bez zmian"), publiczne flagi `event_participant_options`, dziennik doreczen
 -- z UNIKALNYM kluczem, rozpoznanie aktora zgloszenia, jezyk odbiorcy,
@@ -14,7 +14,7 @@
 -- CZEGO TEN PLIK NIE SPRAWDZA
 --   * zachowania bramki preferencji powiadomien (`event` tlumione, `billing`
 --     doreczane, 'canceled' odrzucone) - to wylacznie pgTAP na prawdziwej
---     funkcji z `20260926100200`; tutaj stoi atrapa i sprawdzamy jej TOZSAMOSC;
+--     funkcji z `20260926153300`; tutaj stoi atrapa i sprawdzamy jej TOZSAMOSC;
 --   * RPC torow A/B/C (pliki 15_-19_, 27_-34_, 91_-94_);
 --   * D0 (`event_my_agenda`, zwrot w `payments_apply_event_ticket_outcome`) -
 --     plik 14_.

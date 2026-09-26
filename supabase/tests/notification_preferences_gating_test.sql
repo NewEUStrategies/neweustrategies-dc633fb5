@@ -5,7 +5,7 @@
 -- follow/subscription/content/system/tracker/connection/saved_search/crm_task)
 -- musi pominąć wstawienie, gdy odbiorca wyłączył dany rodzaj, a rodzaje
 -- always-on {'security','billing'} mają docierać ZAWSZE. 'billing' (rozliczenia,
--- 20260926100200) nie ma nawet kolumny przełącznika - informacja o własnych
+-- 20260926153300) nie ma nawet kolumny przełącznika - informacja o własnych
 -- pieniądzach nie jest opcjonalna (S15). 'event' (wydarzenia i przypomnienia)
 -- ma pełny rytuał: katalog + enabled_event + gałąź bramki.
 --
@@ -204,7 +204,7 @@ SELECT is(
   NULL, 'crm_task wyłączony: pominięte');
 
 -- event (producenci: przypomnienia, oferty listy rezerwowej, przekazanie
--- biletu, certyfikat i ankieta - 20260926100200)
+-- biletu, certyfikat i ankieta - 20260926153300)
 SELECT isnt(
   public.enqueue_notification('c0000000-0000-0000-0000-0000000000ff', 'event',
     't', 't', 'b', 'b', '/ev-on', 'calendar-clock'),

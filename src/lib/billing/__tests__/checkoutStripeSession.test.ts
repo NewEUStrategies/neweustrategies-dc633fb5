@@ -333,6 +333,9 @@ beforeEach(() => {
     "event_registration_payment_context",
     ok({ ok: true, event_id: EVENT_ID, ticket_type_id: TICKET_ID }),
   );
+  // Zgłoszenie bez gości to w bazie jedno miejsce. Brak odpowiedzi byłby
+  // odmową `seats_unavailable` - liczba miejsc jest fail-closed.
+  rpcResponses.set("event_registration_group_seats", ok(1));
   rpcResponses.set("validate_b2b_coupon", ok([couponOk()]));
   rpcResponses.set("redeem_b2b_coupon", ok(true));
   rpcResponses.set("release_b2b_coupon", ok(true));

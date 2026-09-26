@@ -67,12 +67,15 @@ vi.mock("@/lib/http/resolveReturnUrl", () => ({
 
 vi.mock("@/lib/stripe.server", () => ({ resolveEnvironment: () => "sandbox" }));
 
-vi.mock("@/lib/events/ticketAllowance.server", () => ({
-  ticketPriceForCaller: async (_client: unknown, amountCents: number) => ({
-    amountCents,
-    kind: "full" as const,
-  }),
-}));
+vi.mock("@/lib/events/ticketAllowance.server", async () => {
+  const { EMPTY_TICKET_ALLOWANCE } = await import("@/lib/events/ticketAllowance");
+  return {
+    ticketPriceForCaller: async (_client: unknown, amountCents: number) => ({
+      amountCents,
+      allowance: EMPTY_TICKET_ALLOWANCE,
+    }),
+  };
+});
 
 const { callServerFn } = await import("@/test/serverFn");
 const { createCheckoutOrder } = await import("@/lib/billing/checkout.functions");
@@ -87,6 +90,12 @@ function client() {
       }
       if (fn === "event_ticket_checkout_quote") {
         return { data: state.quote, error: null };
+      }
+      // Liczba miejsc jest fail-closed: `null` z tej funkcji to odmowa
+      // `seats_unavailable`, a nie ciche jedno miejsce - zgłoszenie bez gości
+      // to w bazie `1`.
+      if (fn === "event_registration_group_seats") {
+        return { data: 1, error: null };
       }
       return { data: null, error: null };
     },

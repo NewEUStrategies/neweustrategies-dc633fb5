@@ -50,8 +50,19 @@ export interface CouponDiscountStatus {
   /** Warstwa nadawana kuponem i długość nadania (dni) - „na jaki okres". */
   grantsTierKey: string | null;
   grantsDurationDays: number | null;
-  /** Rabat u operatora - `null` oznacza "powstanie przy pierwszym użyciu". */
+  /**
+   * Rabat u operatora - `null` oznacza "powstanie przy pierwszym użyciu".
+   * Dla kodu liczonego w naszej kasie (`countedAtCheckout`) to AKTYWNA kopia,
+   * która nie powinna istnieć - panel każe ją wyłączyć.
+   */
   providerDiscountId: string | null;
+  /**
+   * Kod wydarzenia (`event_ids`) albo kod bez rabatu: liczy go wyłącznie nasza
+   * kasa (zakres biletu, rabat od KAŻDEGO miejsca, limit użyć), a synchronizacja
+   * go pomija. Bez tej flagi panel obiecywał mu „przy pierwszym użyciu"
+   * i podpowiadał synchronizację, która tego kodu nigdy nie wypchnie.
+   */
+  countedAtCheckout: boolean;
 }
 
 export interface WebhookHealth {
@@ -171,28 +182,60 @@ async function readCatalog(env: StripeEnv): Promise<CatalogPriceStatus[]> {
   return results;
 }
 
-async function findPromotionCodeByCode(env: StripeEnv, code: string): Promise<string | null> {
+/**
+ * Kod promocyjny operatora o danej treści. `activeOnly` pyta wyłącznie
+ * o AKTYWNE - tak szukamy kopii kodu, który do operatora trafiać nie powinien:
+ * kopia już wyłączona nie jest problemem i nie może świecić na czerwono.
+ */
+async function findPromotionCodeByCode(
+  env: StripeEnv,
+  code: string,
+  activeOnly = false,
+): Promise<string | null> {
   const { getStripeClient } = await import("@/lib/stripe.server");
   const stripe = await getStripeClient(env);
-  const result = await stripe.promotionCodes.list({ code, limit: 1 });
+  const result = await stripe.promotionCodes.list({
+    code,
+    limit: 1,
+    ...(activeOnly ? { active: true } : {}),
+  });
   return result.data[0]?.id ?? null;
 }
 
-async function readCoupons(env: StripeEnv): Promise<CouponDiscountStatus[]> {
+/**
+ * Kod liczony wyłącznie w naszej kasie: kod wydarzenia albo kod bez rabatu.
+ * Jedna reguła dla tabeli diagnostyki i dla synchronizacji - dwie kopie tego
+ * warunku to tabela, która mówi „zsynchronizuj", i przycisk, który pomija.
+ */
+function countedAtCheckout(row: {
+  event_ids?: string[] | null;
+  applies_discount?: boolean | null;
+}): boolean {
+  return (row.event_ids ?? []).length > 0 || row.applies_discount === false;
+}
+
+/**
+ * Tabela kuponów - ZAWSZE w zakresie najemcy admina. Klient serwisowy omija
+ * RLS, więc bez `.eq("tenant_id", ...)` admin najemcy A oglądał kody
+ * wszystkich najemców (i pytał o nie operatora).
+ */
+async function readCoupons(env: StripeEnv, tenantId: string): Promise<CouponDiscountStatus[]> {
   const supabase = await admin();
   const { data } = await supabase
     .from("b2b_coupons")
     .select(
-      "code, active, discount_kind, discount_percent, discount_cents, currency, valid_from, valid_until, max_redemptions, redemptions_count, grants_tier_key, grants_duration_days",
+      "code, active, discount_kind, discount_percent, discount_cents, currency, valid_from, valid_until, max_redemptions, redemptions_count, grants_tier_key, grants_duration_days, event_ids, applies_discount",
     )
+    .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false })
     .limit(50);
 
   const rows: CouponDiscountStatus[] = [];
   for (const c of data ?? []) {
     const code = String(c.code ?? "").toUpperCase();
+    const local = countedAtCheckout(c);
     const providerDiscountId = code
-      ? await findPromotionCodeByCode(env, code).catch(() => null)
+      ? await findPromotionCodeByCode(env, code, local).catch(() => null)
       : null;
     rows.push({
       code,
@@ -208,6 +251,7 @@ async function readCoupons(env: StripeEnv): Promise<CouponDiscountStatus[]> {
       grantsTierKey: c.grants_tier_key ?? null,
       grantsDurationDays: c.grants_duration_days ?? null,
       providerDiscountId,
+      countedAtCheckout: local,
     });
   }
   return rows;
@@ -267,7 +311,7 @@ export async function buildPaymentsDiagnostics(
   const [destinations, catalog, coupons, webhooks] = await Promise.all([
     configured ? readDestinations(env) : Promise.resolve([]),
     configured ? readCatalog(env) : Promise.resolve([]),
-    readCoupons(env),
+    readCoupons(env, tenantId),
     readWebhookHealth(env, tenantId),
   ]);
 
@@ -309,20 +353,48 @@ export async function buildPaymentsDiagnostics(
  * Wypycha aktywne kupony B2B do operatora, żeby rabat istniał zanim ktoś
  * pierwszy raz wpisze kod w nakładce płatności. Operacja jest idempotentna -
  * kod jest kluczem naturalnym po obu stronach.
+ *
+ * TYLKO KUPONY NAJEMCY ADMINA. Klient serwisowy omija RLS, więc bez filtra
+ * admin najemcy A wypychał do operatora kody WSZYSTKICH najemców.
+ *
+ * KODY WYDARZEŃ NIE JADĄ DO OPERATORA. Kod ze studia wydarzenia (`event_ids`)
+ * liczy nasza kasa: zakres wydarzenia i biletu, rabat kwotowy od KAŻDEGO
+ * miejsca, limit użyć i wiersz realizacji. Jego kopia w Stripe była
+ * rabatem `amount_off` zdejmowanym RAZ z całej sesji - dokładnie „kod
+ * odejmuje się raz od całego zamówienia" - i bez śladu w bazie. Kod bez
+ * rabatu (`applies_discount = false`, tylko odsłania bilety) nie ma czego
+ * wypychać: jego kopia byłaby rabatem zero albo - przy braku kwot - 100%.
+ *
+ * FILTR SIEDZI W ZAPYTANIU, nie tylko w pętli: `limit(200)` liczy się PO nim,
+ * więc najemca z setką kodów wydarzeń nie wypycha już kodów ogólnych poza
+ * okno synchronizacji. Pętla powtarza tę samą regułę (`countedAtCheckout`)
+ * jako bezpiecznik - kopia kodu wydarzenia u operatora to dokładnie ten błąd.
+ *
+ * KOPII WYPCHNIĘTYCH WCZEŚNIEJ ta funkcja NIE wyłącza: operator trzyma jedną
+ * przestrzeń kodów dla wszystkich najemców, a kod o tej samej treści może być
+ * u innego najemcy kodem ogólnym. Tabela diagnostyki pokazuje aktywną kopię,
+ * a wyłączenie opisuje notatka operacyjna
+ * (`docs/WDROZENIE_KOD_KWOTOWY_NA_BILET_2026-09-26.md`).
  */
 export async function syncCouponDiscounts(
   env: StripeEnv,
+  tenantId: string,
 ): Promise<{ created: number; existing: number; failed: number }> {
   const supabase = await admin();
   const { data } = await supabase
     .from("b2b_coupons")
     .select(
-      "code, discount_kind, discount_percent, discount_cents, currency, valid_until, max_redemptions",
+      "code, discount_kind, discount_percent, discount_cents, currency, valid_until, max_redemptions, event_ids, applies_discount",
     )
+    .eq("tenant_id", tenantId)
     .eq("active", true)
+    .eq("applies_discount", true)
+    // `event_ids` jest NOT NULL z domyślną pustą tablicą - kod ogólny to `{}`.
+    .filter("event_ids", "eq", "{}")
     .limit(200);
 
   const { getStripeClient } = await import("@/lib/stripe.server");
+  const { stripeCouponName } = await import("@/lib/billing/adhocCheckout.server");
   const stripe = await getStripeClient(env);
 
   let created = 0;
@@ -331,6 +403,7 @@ export async function syncCouponDiscounts(
   for (const row of data ?? []) {
     const code = String(row.code ?? "").toUpperCase();
     if (!code) continue;
+    if (countedAtCheckout(row)) continue;
     try {
       const found = await findPromotionCodeByCode(env, code);
       if (found) {
@@ -339,7 +412,7 @@ export async function syncCouponDiscounts(
       }
       const isPercent = row.discount_kind !== "fixed";
       const coupon = await stripe.coupons.create({
-        name: `Kupon ${code}`,
+        name: stripeCouponName(code),
         duration: "once",
         ...(isPercent
           ? { percent_off: row.discount_percent ?? 0 }

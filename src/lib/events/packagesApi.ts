@@ -221,6 +221,13 @@ export async function createPackageOrder(input: PackageOrderInput): Promise<stri
   return String(data);
 }
 
+/**
+ * Zmiana statusu zamowienia pakietu. Od 20260926130000 wejscie w `cancelled`
+ * ODDAJE uzycie kodu rabatowego, a powrot z anulowania zuzywa je z powrotem -
+ * albo odmawia (`coupon_restore_exhausted`, `coupon_restore_used_by_buyer`)
+ * i wtedy baza nie zmienia niczego. Odmowa leci wyjatkiem; panel tlumaczy ja
+ * przez `adminRegistrationErrors`.
+ */
 export async function setPackageOrderStatus(
   id: string,
   status: PackageOrderStatus,

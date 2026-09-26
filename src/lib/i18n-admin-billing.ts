@@ -107,6 +107,13 @@ const pl = {
     days: "dni",
     synced: "zsynchronizowany",
     firstUse: "przy pierwszym użyciu",
+    // Kod wydarzenia i kod bez rabatu liczy wyłącznie nasza kasa - synchronizacja
+    // go pomija, a jego aktywna kopia u operatora omija limity i rozbicie na
+    // miejsca, więc trzeba ją wyłączyć.
+    eventCodeLocal: "liczony w naszej kasie",
+    eventCodeStaleCopy: "aktywna kopia u operatora - wyłącz",
+    eventCodesNotSynced:
+      "Kody wydarzeń i kody odsłaniające bilety liczy nasza kasa (rabat od każdego miejsca, limit użyć) - nie trafiają do operatora. Aktywną kopię takiego kodu u operatora wyłącz w jego panelu.",
     inactive: "nieaktywny",
     orderCreated: "Zamówienie utworzone",
     paymentSettled: "Płatność zaksięgowana",
@@ -276,6 +283,10 @@ const en = {
     days: "days",
     synced: "synced",
     firstUse: "on first use",
+    eventCodeLocal: "counted at our checkout",
+    eventCodeStaleCopy: "active copy at provider - deactivate",
+    eventCodesNotSynced:
+      "Event codes and codes that reveal tickets are counted at our checkout (discount off every seat, usage limit) - they are not sent to the provider. Deactivate any active copy of such a code in the provider's dashboard.",
     inactive: "inactive",
     orderCreated: "Order created",
     paymentSettled: "Payment settled",

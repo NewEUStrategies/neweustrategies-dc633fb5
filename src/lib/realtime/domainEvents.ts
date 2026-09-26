@@ -112,7 +112,7 @@ export const DOMAIN_EVENT_TYPES = [
   "event_sponsor.published.v1",
   "event_sponsor.snapshot_refreshed.v1",
   // Funkcje uczestnika F1-F5 (spec B.9): zapis ustawien organizatora
-  // (`admin_event_participant_settings_save`, 20260926100000). Agregatem jest
+  // (`admin_event_participant_settings_save`, 20260926153100). Agregatem jest
   // `event_participant_settings`, identyfikatorem - id wydarzenia; payload
   // `{event_id, keys}` niesie wylacznie identyfikator i nazwy zmienionych pol.
   "event.participant_settings.updated.v1",

@@ -110,6 +110,10 @@ const KODY_REJESTRACJI = [
   "package_in_use",
   "package_sold_out",
   "invalid_email",
+  // admin_event_package_order_set_status - powrót z anulowania, które oddało
+  // użycie kodu rabatowego (20260926130000)
+  "coupon_restore_exhausted",
+  "coupon_restore_used_by_buyer",
   // admin_event_package_seat_invite / _revoke
   "order_cancelled",
   "seat_revoked",
@@ -118,6 +122,14 @@ const KODY_REJESTRACJI = [
   "invalid_audience",
   "invalid_evidence",
   "invalid_subject",
+  // admin_event_ticket_resend (server fn `ticketResend.functions` - panel tlumaczy
+  // jej odmowe ta sama mapa, co decyzje)
+  "ticket_not_issuable",
+  "ticket_send_in_progress",
+  // Odmowa SERWERA tej samej server fn (adres z listy wykluczen) - nie pada
+  // w SQL-u, wiec skan migracji jej nie zobaczy; stoi tu, zeby bramka pilnowala
+  // jej zdania w obu jezykach.
+  "ticket_address_suppressed",
   STRAZNIK_TENANTA,
 ] as const;
 
@@ -332,7 +344,7 @@ const MAPY: readonly BramkowanaMapa[] = [
     nakladka: "src/lib/i18n-admin-event-registration.ts",
     pl: adminEventRegistrationPl,
     en: adminEventRegistrationEn,
-    moduly: ["registrationsApi", "packagesApi", "audienceGrantsApi"],
+    moduly: ["registrationsApi", "packagesApi", "audienceGrantsApi", "ticketResend.functions"],
     interpoluje: true,
   },
   {

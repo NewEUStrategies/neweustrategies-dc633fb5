@@ -22,9 +22,10 @@
 // i PRAWDZIWY handler, a nie własną imitację.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { buildRegistrationNotice, sendTxEmail } = vi.hoisted(() => ({
+const { buildRegistrationNotice, sendTxEmail, issueAndSendTicketCodes } = vi.hoisted(() => ({
   buildRegistrationNotice: vi.fn(),
   sendTxEmail: vi.fn(),
+  issueAndSendTicketCodes: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-start", () => ({
@@ -48,11 +49,13 @@ vi.mock("@/lib/events/registrationNotify.server", () => ({ buildRegistrationNoti
 
 vi.mock("@/lib/email/transactional.server", () => ({ sendTxEmail }));
 
+vi.mock("@/lib/events/ticketCodeNotify.server", () => ({ issueAndSendTicketCodes }));
+
 const { notifyEventRegistrationDecision, registrationNoticeType, REGISTRATION_NOTICES } =
   await import("@/lib/events/registrationNotify.functions");
 import type { RegistrationNotice } from "@/lib/events/registrationNotify.functions";
 
-type Result = { ok: boolean; error?: string; skipped?: string };
+type Result = { ok: boolean; error?: string; skipped?: string; ticketsSent?: number };
 type Callable = (input: {
   data: { registrationId: string; notice: string };
   context: { supabase: { rpc: ReturnType<typeof vi.fn> } };
@@ -103,7 +106,13 @@ beforeEach(() => {
   buildRegistrationNotice.mockReturnValue(CONTENT);
   sendTxEmail.mockReset();
   sendTxEmail.mockResolvedValue({ ok: true });
+  issueAndSendTicketCodes.mockReset();
+  issueAndSendTicketCodes.mockResolvedValue(0);
 });
+
+/** Po przyjęciu i awansie wynik niesie liczbę biletów - po reszcie NIE. */
+const withTickets = (notice: string, result: Result, sent = 0): Result =>
+  notice === "approved" || notice === "promoted" ? { ...result, ticketsSent: sent } : result;
 
 describe("registrationNoticeType - rodzaj maila dla każdego momentu", () => {
   it("mapuje każdy moment cyklu życia na własny szablon", () => {
@@ -234,7 +243,7 @@ describe("bramka statusu - mail nie może zaprzeczać aktualnej decyzji", () => 
 
   it.each(allowed)('„%s" wychodzi przy statusie „%s"', async (notice, status) => {
     const { result } = await run({ email: "a@b.pl", status }, notice);
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual(withTickets(notice, { ok: true }));
     expect(sendTxEmail).toHaveBeenCalledTimes(1);
   });
 
@@ -398,13 +407,13 @@ describe("wynik wysyłki", () => {
   it("oddaje `duplicate`, gdy potok rozpoznał już wysłany mail", async () => {
     sendTxEmail.mockResolvedValue({ ok: true, skipped: "duplicate" });
     const { result } = await run({ email: "a@b.pl", status: "approved" }, "approved");
-    expect(result).toEqual({ ok: true, skipped: "duplicate" });
+    expect(result).toEqual({ ok: true, skipped: "duplicate", ticketsSent: 0 });
   });
 
   it("oddaje czyste `ok`, gdy potok przyjął mail bez pominięcia", async () => {
     sendTxEmail.mockResolvedValue({ ok: true });
     const { result } = await run({ email: "a@b.pl", status: "approved" }, "approved");
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, ticketsSent: 0 });
   });
 
   it("przy porażce woli powód od surowego błędu", async () => {
@@ -415,19 +424,19 @@ describe("wynik wysyłki", () => {
       error: "ignored",
     });
     const { result } = await run({ email: "a@b.pl", status: "approved" }, "approved");
-    expect(result).toEqual({ ok: false, error: "suppressed:complaint" });
+    expect(result).toEqual({ ok: false, error: "suppressed:complaint", ticketsSent: 0 });
   });
 
   it("bez powodu oddaje surowy błąd potoku", async () => {
     sendTxEmail.mockResolvedValue({ ok: false, error: "supabase_unavailable" });
     const { result } = await run({ email: "a@b.pl", status: "approved" }, "approved");
-    expect(result).toEqual({ ok: false, error: "supabase_unavailable" });
+    expect(result).toEqual({ ok: false, error: "supabase_unavailable", ticketsSent: 0 });
   });
 
   it("bez powodu i bez błędu oddaje `send_failed`", async () => {
     sendTxEmail.mockResolvedValue({ ok: false, skipped: "no_recipient" });
     const { result } = await run({ email: "a@b.pl", status: "approved" }, "approved");
-    expect(result).toEqual({ ok: false, error: "send_failed" });
+    expect(result).toEqual({ ok: false, error: "send_failed", ticketsSent: 0 });
   });
 });
 
@@ -452,7 +461,7 @@ describe('pieczęć „powiadomiono" - wyłącznie dla awansu z rezerwy', () => 
     // Pieczęć znaczy „osoba wie". Po nieudanej wysyłce nie wie.
     sendTxEmail.mockResolvedValue({ ok: false, error: "boom" });
     const { rpc, result } = await run({ email: "a@b.pl", status: "approved" }, "promoted");
-    expect(result).toEqual({ ok: false, error: "boom" });
+    expect(result).toEqual({ ok: false, error: "boom", ticketsSent: 0 });
     expect(callsTo(rpc, MARK)).toHaveLength(0);
   });
 
@@ -479,6 +488,78 @@ describe('pieczęć „powiadomiono" - wyłącznie dla awansu z rezerwy', () => 
     sendTxEmail.mockResolvedValue({ ok: true, skipped: "duplicate" });
     const { rpc, result } = await run({ email: "a@b.pl", status: "approved" }, "promoted");
     expect(callsTo(rpc, MARK)).toHaveLength(1);
-    expect(result).toEqual({ ok: true, skipped: "duplicate" });
+    expect(result).toEqual({ ok: true, skipped: "duplicate", ticketsSent: 0 });
+  });
+});
+
+// BILETY PO DECYZJI. Mail „zatwierdzono" nie niesie kodu QR. Bez tego kroku
+// prowadzący i goście przyjęci kaskadą w bazie czekali na crona - a przed
+// 20260926100000 tylko na ten, który biegnie co pięć minut.
+describe("bilety z kodem QR zaraz po przyjęciu i awansie", () => {
+  it.each(["approved", "promoted"] as const)(
+    '„%s" wydaje bilety od zgłoszenia i oddaje ich liczbę',
+    async (notice) => {
+      issueAndSendTicketCodes.mockResolvedValue(3);
+      const { result } = await run({ email: "a@b.pl", status: "approved" }, notice);
+      expect(issueAndSendTicketCodes).toHaveBeenCalledWith(REG);
+      expect(result).toEqual({ ok: true, ticketsSent: 3 });
+    },
+  );
+
+  it.each([
+    ["received", "pending"],
+    ["rejected", "rejected"],
+  ] as const)('„%s" nie wydaje biletów', async (notice, status) => {
+    const { result } = await run({ email: "a@b.pl", status }, notice);
+    expect(issueAndSendTicketCodes).not.toHaveBeenCalled();
+    expect(result).not.toHaveProperty("ticketsSent");
+  });
+
+  it("zmieniony status nie wydaje biletów - przyjęcie zostało cofnięte", async () => {
+    const { result } = await run({ email: "a@b.pl", status: "rejected" }, "approved");
+    expect(result).toEqual({ ok: true, skipped: "status_changed" });
+    expect(issueAndSendTicketCodes).not.toHaveBeenCalled();
+  });
+
+  it("nieudany mail o decyzji NIE zatrzymuje biletów", async () => {
+    // Uczestnik bez „zatwierdzono" to kłopot; grupa bez wejściówek to
+    // kolejka przy bramce. Bilety mają własny potok i własne ponowienia.
+    sendTxEmail.mockResolvedValue({ ok: false, error: "queue_down" });
+    issueAndSendTicketCodes.mockResolvedValue(2);
+    const { result } = await run({ email: "a@b.pl", status: "approved" }, "approved");
+    expect(issueAndSendTicketCodes).toHaveBeenCalledWith(REG);
+    expect(result).toEqual({ ok: false, error: "queue_down", ticketsSent: 2 });
+  });
+
+  it("WYJĄTEK wysyłki maila też nie zatrzymuje biletów - wraca jako `send_failed`", async () => {
+    // `sendTxEmail` jest fail-soft, ale import modułu albo render potrafi
+    // rzucić. Rzut przed krokiem biletów zabrałby grupie wejściówki.
+    sendTxEmail.mockRejectedValue(new Error("render: brak szablonu"));
+    issueAndSendTicketCodes.mockResolvedValue(3);
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { rpc, result } = await run({ email: "a@b.pl", status: "approved" }, "promoted");
+    expect(issueAndSendTicketCodes).toHaveBeenCalledWith(REG);
+    expect(result).toEqual({ ok: false, error: "send_failed", ticketsSent: 3 });
+    expect(errors).toHaveBeenCalledWith(
+      "[events] registration notice failed",
+      REG,
+      expect.any(Error),
+    );
+    // Osoba nie dostała maila o awansie - pieczęci „powiadomiono" nie ma.
+    expect(callsTo(rpc, "admin_event_registration_mark_notified")).toHaveLength(0);
+    errors.mockRestore();
+  });
+
+  it("awaria wydania nie rzuca - wynik maila wraca, bilety liczą się jako zero", async () => {
+    issueAndSendTicketCodes.mockRejectedValue(new Error("module load failed"));
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { result } = await run({ email: "a@b.pl", status: "approved" }, "approved");
+    expect(result).toEqual({ ok: true, ticketsSent: 0 });
+    expect(errors).toHaveBeenCalledWith(
+      "[events] ticket codes after decision failed",
+      REG,
+      expect.any(Error),
+    );
+    errors.mockRestore();
   });
 });

@@ -386,6 +386,76 @@
       "when": 1790327813979,
       "tag": "0054_member_slug_non_author_visibility",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1790409600000,
+      "tag": "0055_event_group_guests_follow_lead",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1790413200000,
+      "tag": "0056_event_package_coupon_per_seat",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1790434430503,
+      "tag": "0057_event_group_guests_follow_lead",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1790434569087,
+      "tag": "0058_event_package_coupon_per_seat",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1790438169087,
+      "tag": "0059_event_group_lead_closes_admitted_guests",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1790441769087,
+      "tag": "0060_event_package_order_cancel_returns_coupon",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1790445369087,
+      "tag": "0061_event_group_lead_plan_seat",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1790445120329,
+      "tag": "0062_event_group_lead_closes_admitted_guests",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1790445299491,
+      "tag": "0063_event_package_order_cancel_returns_coupon",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1790445338422,
+      "tag": "0064_event_group_lead_plan_seat",
+      "breakpoints": true
     }
   ]
 }

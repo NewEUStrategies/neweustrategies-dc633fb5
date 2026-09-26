@@ -427,6 +427,73 @@ describe("adres kasy pochodzi z odpowiedzi serwera", () => {
   });
 });
 
+describe("kod rabatowy: nasze pole, nie pole operatora", () => {
+  // Kasa biletów nie pokazuje pola kodów Stripe (tam kod omijałby zakres
+  // wydarzenia i limit użyć), więc ta ścieżka musi mieć własne pole - inaczej
+  // kupujący na wydarzeniu bez rodzajów wejściówek traci KAŻDY kod.
+  function codeInput(): HTMLInputElement {
+    return screen.getByLabelText(realT("pl")("eventRegistration.payment.promoLabel"));
+  }
+
+  it("wpisany kod jedzie do kasy WIELKIMI literami", async () => {
+    renderPurchase();
+    const button = await buyButton();
+    fireEvent.change(codeInput(), { target: { value: "partner-50" } });
+    expect(codeInput().value).toBe("PARTNER-50");
+    fireEvent.click(button);
+    await waitFor(() =>
+      expect(h.checkout).toHaveBeenCalledWith({
+        data: expect.objectContaining({ event_id: EVENT_IDS.event, coupon_code: "PARTNER-50" }),
+      }),
+    );
+  });
+
+  it("same spacje to brak kodu - zamówienie nie niesie pustego `coupon_code`", async () => {
+    renderPurchase();
+    const button = await buyButton();
+    fireEvent.change(codeInput(), { target: { value: "   " } });
+    fireEvent.click(button);
+    await waitFor(() => expect(h.checkout).toHaveBeenCalledTimes(1));
+    expect(h.checkout.mock.calls[0]?.[0]?.data).not.toHaveProperty("coupon_code");
+  });
+
+  it("odmowa KODU mówi przy polu, bez komunikatu o awarii płatności", async () => {
+    h.checkout.mockResolvedValue({ ok: false, mode: "coupon", error: "not_found" });
+    renderPurchase();
+    const button = await buyButton();
+    fireEvent.change(codeInput(), { target: { value: "ZLY" } });
+    fireEvent.click(button);
+    expect(
+      await screen.findByText(realT("pl")("eventRegistration.payment.promoError")),
+    ).toBeInTheDocument();
+    expect(h.toastError).not.toHaveBeenCalled();
+    expect(h.navigate).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("checkout-dialog")).toBeNull();
+    // Poprawienie kodu zdejmuje odmowę - to już nie ten kod.
+    fireEvent.change(codeInput(), { target: { value: "DOBRY" } });
+    expect(screen.queryByText(realT("pl")("eventRegistration.payment.promoError"))).toBeNull();
+  });
+
+  it("pole mówi po angielsku na angielskiej stronie", async () => {
+    h.lang = "en";
+    renderPurchase({ lang: "en" });
+    await buyButton();
+    expect(
+      screen.getByLabelText(realT("en")("eventRegistration.payment.promoLabel")),
+    ).toBeInTheDocument();
+  });
+
+  it("wyprzedane wydarzenie i bilet bezpłatny nie mają pola kodu", async () => {
+    const { unmount } = renderPurchase({ isFull: true });
+    await buyButton();
+    expect(screen.queryByLabelText(realT("pl")("eventRegistration.payment.promoLabel"))).toBeNull();
+    unmount();
+    renderPurchase({ priceCents: 0 });
+    await buyButton();
+    expect(screen.queryByLabelText(realT("pl")("eventRegistration.payment.promoLabel"))).toBeNull();
+  });
+});
+
 describe("brak miejsc zamyka obie ścieżki", () => {
   it("wyprzedane wydarzenie ma przycisk zablokowany i bez ceny", async () => {
     renderPurchase({ isFull: true });

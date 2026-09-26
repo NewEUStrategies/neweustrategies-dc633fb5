@@ -13,6 +13,7 @@
 import type {
   EventRegistrationRow,
   RegistrationAction,
+  RegistrationGroupLink,
   RegistrationStatus,
 } from "@/lib/events/registrationsApi";
 
@@ -104,6 +105,66 @@ export function hasMissingRequiredTerms(row: EventRegistrationRow): boolean {
 
 export function areConsentsWithdrawn(row: EventRegistrationRow): boolean {
   return (row.consent_withdrawn_at ?? null) !== null;
+}
+
+// ---------------------------------------------------------------------------
+// GRUPA I BILET Z KODEM QR
+// ---------------------------------------------------------------------------
+
+/** Statusy, w ktorych wiersz trzyma bilet - lustro `_event_issue_ticket_codes`. */
+const TICKET_STATUSES: readonly string[] = ["approved", "attended"];
+/** Rozliczenia, przy ktorych bilet sie nalezy - lustro tej samej funkcji. */
+const TICKET_PAYMENTS: readonly string[] = ["paid", "not_required"];
+
+/** Wiersz w stanie, w ktorym plakietka biletu (wyslany / niewyslany) cos znaczy. */
+export function holdsTicket(status: string): boolean {
+  return TICKET_STATUSES.includes(status);
+}
+
+/**
+ * Czy organizator moze wyslac bilet ponownie. TEN SAM warunek, co odmowa
+ * `ticket_not_issuable` w `admin_event_ticket_resend` - przycisk, ktory baza
+ * odrzuci, jest gorszy niz brak przycisku. Bez wiersza powiazan (zapytanie
+ * jeszcze nie wrocilo) rozliczenia nie znamy, wiec przycisku nie ma.
+ */
+export function canResendTicket(status: string, link: RegistrationGroupLink | null): boolean {
+  return link !== null && holdsTicket(status) && TICKET_PAYMENTS.includes(link.payment_status);
+}
+
+/** Plakietka biletu wiersza; `null` = plakietki nie ma. */
+export type TicketBadge = "sent" | "notSent" | "awaitingPayment" | "undeliverable";
+
+/**
+ * Ktora plakietka biletu stoi przy wierszu.
+ *
+ * „NIEWYSLANY" TYLKO TAM, GDZIE BILET SIE NALEZY - ten sam warunek, co przycisk
+ * ponownej wysylki. Przyjety, ale nieoplacony wiersz (organizator zatwierdzil
+ * bilet platny przed wplata) biletu jeszcze nie dostaje; „bilet niewyslany"
+ * wygladalby przy nim jak awaria poczty, ktorej organizator nie ma jak
+ * naprawic - wiec plakietka mowi, na co wiersz czeka. Zwrot nie ma plakietki:
+ * biletu nie ma i nie bedzie.
+ *
+ * „NIE DOTARL" PRZED „WYSLANY". Adres z listy wykluczen zamyka wysylke jak
+ * wyslana (`ticket_code_sent_at` stoi, zeby cron nie rotowal kodu co tick),
+ * wiec bez tej kolejnosci organizator czytal „Bilet wyslany" przy bilecie,
+ * ktory nigdy nie wyszedl - i nie wiedzial, ze trzeba go przekazac inaczej.
+ */
+export function ticketBadge(
+  status: string,
+  link: RegistrationGroupLink | null,
+): TicketBadge | null {
+  if (link === null || !holdsTicket(status)) return null;
+  if (TICKET_PAYMENTS.includes(link.payment_status)) {
+    if (link.ticket_code_undeliverable_at !== null) return "undeliverable";
+    return link.ticket_code_sent_at === null ? "notSent" : "sent";
+  }
+  return link.payment_status === "unpaid" ? "awaitingPayment" : null;
+}
+
+/** Imie i nazwisko prowadzacego dla plakietki goscia; `null` = to nie gosc. */
+export function groupLeadName(link: RegistrationGroupLink | null): string | null {
+  if (link === null || link.group_lead_registration_id === null) return null;
+  return `${link.lead_first_name ?? ""} ${link.lead_last_name ?? ""}`.trim();
 }
 
 // ---------------------------------------------------------------------------

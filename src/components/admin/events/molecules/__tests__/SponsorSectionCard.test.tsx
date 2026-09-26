@@ -23,6 +23,11 @@
 //      języku (zna tylko klucze), więc dowodem dwujęzyczności jest to, że każdy
 //      klucz, który rysuje, rozwiązuje się w PRAWDZIWYM słowniku w obu językach.
 //   8. Karta z logotypami nie ma naruszeń dostępności (axe).
+//   9. LOGO NIEOGŁOSZONE JEST WIDAĆ JAKO NIEOGŁOSZONE. Tablica zapisuje nowe
+//      logo jako nieogłoszone, a strona wydarzenia pokazuje tylko ogłoszonych -
+//      karta przygasza takie logo, podpisuje je plakietką i mówi w nagłówku,
+//      ile logotypów sekcji czeka na ogłoszenie (także tych, których baner nie
+//      rysuje).
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. (1) Reguł `brandedMediaUrl` - mają tabele
 // w `lib/media/__tests__/publicUrl.test.ts`; tutaj funkcja jest PRAWDZIWA, liczy
@@ -58,6 +63,7 @@ function logo(patch: Partial<SponsorLogo> = {}): SponsorLogo {
     id: "s1",
     name: "Alfa Energia",
     logoUrl: `${MAGAZYN}/sponsorzy/alfa.png`,
+    isPublished: true,
     ...patch,
   };
 }
@@ -172,6 +178,65 @@ describe("logotypy", () => {
   });
 });
 
+describe("stan ogłoszenia", () => {
+  it("ogłoszone logotypy nie mają plakietki ani licznika w nagłówku", () => {
+    karta({ layout: "grid", logos: [logo(), logo({ id: "s2", name: "Beta Logistyka" })] });
+    expect(screen.queryByText(`${S}.draftBadge`)).toBeNull();
+    expect(screen.queryByText(/draftCount/)).toBeNull();
+    expect(obrazy().every((el) => !el.closest(".opacity-60"))).toBe(true);
+  });
+
+  it("siatka: logo nieogłoszone jest przygaszone i podpisane, nagłówek liczy nieogłoszone", () => {
+    karta({
+      layout: "grid",
+      logos: [
+        logo(),
+        logo({ id: "s2", name: "Beta Logistyka", isPublished: false }),
+        logo({ id: "s3", name: "Gamma Consulting", logoUrl: "", isPublished: false }),
+      ],
+    });
+    const [alfa, beta, gamma] = within(screen.getByRole("list")).getAllByRole("listitem");
+    expect(within(alfa).queryByText(`${S}.draftBadge`)).toBeNull();
+    expect(within(beta).getByText(`${S}.draftBadge`)).toBeTruthy();
+    expect(within(gamma).getByText(`${S}.draftBadge`)).toBeTruthy();
+    expect(within(beta).getByRole("img").closest(".opacity-60")).not.toBeNull();
+    expect(within(alfa).getByRole("img").closest(".opacity-60")).toBeNull();
+    // Licznik jedzie PARAMETREM klucza - a liczy obie nieogłoszone firmy.
+    expect(screen.getByText(`${S}.draftCount(count=2)`)).toBeTruthy();
+    // Podpowiedź kafla dalej niesie nazwę firmy - plakietka jej nie zastępuje.
+    expect(beta.getAttribute("title")).toBe("Beta Logistyka");
+  });
+
+  it("baner: nieogłoszona pierwsza firma dostaje plakietkę pod obrazem", () => {
+    karta({ layout: "banner", logos: [logo({ isPublished: false })] });
+    expect(screen.getByText(`${S}.draftBadge`)).toBeTruthy();
+    expect(obrazy()[0]?.className).toContain("opacity-60");
+    expect(screen.getByText(`${S}.draftCount(count=1)`)).toBeTruthy();
+  });
+
+  it("baner: nieogłoszona DRUGA firma liczy się w nagłówku, choć baner jej nie rysuje", () => {
+    karta({
+      layout: "banner",
+      logos: [logo(), logo({ id: "s2", name: "Beta Logistyka", isPublished: false })],
+    });
+    expect(screen.queryByText(`${S}.draftBadge`)).toBeNull();
+    expect(obrazy()[0]?.className).not.toContain("opacity-60");
+    expect(screen.getByText(`${S}.draftCount(count=1)`)).toBeTruthy();
+  });
+
+  it("plakietka i licznik mają tłumaczenie PL i EN, a licznik wstawia liczbę", () => {
+    const pl = realT("pl");
+    const en = realT("en");
+    for (const klucz of [`${S}.draftBadge`, `${S}.draftCount`]) {
+      expect(pl(klucz), `PL: ${klucz}`).not.toBe(klucz);
+      expect(en(klucz), `EN: ${klucz}`).not.toBe(klucz);
+      expect(en(klucz)).not.toBe(pl(klucz));
+    }
+    expect(pl(`${S}.draftCount`, { count: 3 })).toContain("3");
+    expect(en(`${S}.draftCount`, { count: 3 })).toContain("3");
+  });
+});
+
 describe("przyciski karty", () => {
   it("edycja ma w nazwie tytuł sekcji i woła edycję tej karty", () => {
     karta({ title: "Patroni medialni" });
@@ -244,7 +309,10 @@ describe("słownik i dostępność", () => {
     async (layout) => {
       const { container } = karta({
         layout,
-        logos: [logo(), logo({ id: "s3", name: "Gamma Consulting", logoUrl: "" })],
+        logos: [
+          logo({ isPublished: false }),
+          logo({ id: "s3", name: "Gamma Consulting", logoUrl: "", isPublished: false }),
+        ],
       });
       const naruszenia = await axeViolations(container);
       expect(naruszenia, summarize(naruszenia)).toEqual([]);

@@ -2,7 +2,7 @@
 -- 14_participant_defect_fixes - NAPRAWY D0 (spec B.3.2)
 --
 -- PO CO TEN PLIK ISTNIEJE
--- `20260926100100_event_participant_defect_fixes.sql` redefiniuje trzy funkcje
+-- `20260926153200_event_participant_defect_fixes.sql` redefiniuje trzy funkcje
 -- i oznacza kazda zmiane `-- ZMIANA (PF-F): <slug>`. Kazdy slug ma tu
 -- asercje z etykieta `PF-F ZMIANA <slug>` (sprawdza to `sql-cov.mjs`):
 --   * `event_my_agenda` - sala z `event_rooms.name/floor`, odwolane sesje
@@ -362,7 +362,10 @@ SELECT pg_temp.assert(
   obj_description('public._event_apply_outcome_to_group(uuid,uuid,text)'::regprocedure, 'pg_proc') LIKE '%D0-2%',
   '14/grupa: PF-F ZMIANA group-comment - komentarz funkcji opisuje D0-2');
 
--- zwrot czesciowy i powrot do nieoplaconego dla grupy (galezie bez zmian).
+-- zwrot czesciowy i powrot do nieoplaconego dla grupy (galezie z main,
+-- bez zmian D0). Od 20260926100000 zwrot i zwrot czesciowy dotycza WYLACZNIE
+-- gosci, ktorzy zaplacili (paid/partially_refunded) - goscie juz zwroceni sa
+-- pomijani i nie wchodza do licznika.
 -- Wywolanie i odczyt w OSOBNYCH instrukcjach: podzapytanie w tym samym
 -- wyrazeniu widzi migawke sprzed wywolania funkcji.
 DO $$
@@ -370,11 +373,22 @@ DECLARE n integer;
 BEGIN
   n := public._event_apply_outcome_to_group('14500000-0000-0000-0000-000000000005',
     '14400000-0000-0000-0000-000000000002', 'partial_refund');
-  PERFORM pg_temp.assert(n = 2
+  PERFORM pg_temp.assert(n = 0
     AND (SELECT count(*) FROM public.event_registrations
           WHERE group_lead_registration_id = '14500000-0000-0000-0000-000000000005'
-            AND payment_status = 'partially_refunded') = 2,
-    '14/grupa: _event_apply_outcome_to_group(partial_refund) - goscie partially_refunded');
+            AND payment_status = 'refunded') = 2,
+    '14/grupa: _event_apply_outcome_to_group(partial_refund) pomija gosci juz zwroconych (zwrot tylko dla placacych, 20260926100000)');
+  -- kontrapunkt: gosc, ktory zaplacil, dostaje zwrot czesciowy
+  UPDATE public.event_registrations SET payment_status = 'paid'
+   WHERE id = '14500000-0000-0000-0000-000000000006';
+  n := public._event_apply_outcome_to_group('14500000-0000-0000-0000-000000000005',
+    '14400000-0000-0000-0000-000000000002', 'partial_refund');
+  PERFORM pg_temp.assert(n = 1
+    AND (SELECT payment_status FROM public.event_registrations
+          WHERE id = '14500000-0000-0000-0000-000000000006') = 'partially_refunded'
+    AND (SELECT payment_status FROM public.event_registrations
+          WHERE id = '14500000-0000-0000-0000-000000000008') = 'refunded',
+    '14/grupa: _event_apply_outcome_to_group(partial_refund) - oplacony gosc partially_refunded, zwrocony nietkniety (kontrapunkt)');
   n := public._event_apply_outcome_to_group('14500000-0000-0000-0000-000000000005',
     '14400000-0000-0000-0000-000000000002', 'unpaid');
   PERFORM pg_temp.assert(n = 2

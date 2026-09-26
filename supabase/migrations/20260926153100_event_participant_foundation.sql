@@ -28,8 +28,8 @@
 --     i stempel zgody SMS (D8, R-6).
 --
 -- CZEGO TA MIGRACJA NIE ROBI. Nie dotyka katalogu rodzajow powiadomien ani
--- ACL `rate_limit_hit` (to `20260926100200`, bez znacznika harnessu), nie
--- redefiniuje RPC zapisow ani platnosci (D0 w `20260926100100`, reszta tor B),
+-- ACL `rate_limit_hit` (to `20260926153300`, bez znacznika harnessu), nie
+-- redefiniuje RPC zapisow ani platnosci (D0 w `20260926153200`, reszta tor B),
 -- nie zaklada triggerow na nowych tabelach poza stemplem `updated_at`
 -- (straznik anonimowosci ankiety na ustawieniach zaklada tor C).
 --

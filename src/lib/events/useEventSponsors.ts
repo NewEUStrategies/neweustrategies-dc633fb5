@@ -18,6 +18,7 @@ import {
   deleteSponsorMaterial,
   deleteSponsorTier,
   fetchSponsorDetail,
+  fetchAllSponsors,
   fetchSponsorTiers,
   fetchSponsors,
   refreshSponsorSnapshots,
@@ -30,6 +31,7 @@ import {
   searchSponsorCompanies,
   setSponsorContacts,
   setSponsorsPublished,
+  type AllSponsorsQuery,
   type EventSponsorDetailRow,
   type EventSponsorRow,
   type EventSponsorTierRow,
@@ -47,6 +49,14 @@ export const sponsorKeys = {
   all: ["event-sponsors"] as const,
   event: (eventId: string) => [...sponsorKeys.all, eventId] as const,
   list: (query: SponsorsQuery) => [...sponsorKeys.event(query.eventId), "list", query] as const,
+  /**
+   * CALA lista (wszystkie strony) - osobny segment, nie `list`: ten sam obiekt
+   * zapytania pod `list` oddaje JEDNA strone, a dwa ksztalty danych pod jednym
+   * kluczem nadpisywalyby sie nawzajem. Siedzi w galezi wydarzenia, wiec kazda
+   * mutacja modulu uniewaznia ja razem z lista.
+   */
+  allPages: (query: AllSponsorsQuery) =>
+    [...sponsorKeys.event(query.eventId), "list-all", query] as const,
   tiers: (eventId: string) => [...sponsorKeys.event(eventId), "tiers"] as const,
   companies: (eventId: string, q: string) =>
     [...sponsorKeys.event(eventId), "companies", q] as const,
@@ -60,6 +70,21 @@ export function useSponsors(
   return useQuery({
     queryKey: sponsorKeys.list(query),
     queryFn: () => fetchSponsors(query),
+    enabled: enabled && query.eventId !== "",
+  });
+}
+
+/**
+ * Wszystkie przypiecia wydarzenia, strona po stronie (`fetchAllSponsors`) - dla
+ * widokow, ktore musza znac KOMPLET (podglad studia), a nie strone tabeli.
+ */
+export function useAllSponsors(
+  query: AllSponsorsQuery,
+  enabled = true,
+): UseQueryResult<EventSponsorRow[]> {
+  return useQuery({
+    queryKey: sponsorKeys.allPages(query),
+    queryFn: () => fetchAllSponsors(query),
     enabled: enabled && query.eventId !== "",
   });
 }

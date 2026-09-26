@@ -1,5 +1,5 @@
 -- pgTAP: FUNDAMENT FUNKCJI UCZESTNIKA F1-F5 NA PELNYM LANCUCHU MIGRACJI
--- (spec B.5; migracje 20260926100000 / 100100 / 100200).
+-- (spec B.5; migracje 20260926153100 / 153200 / 153300).
 --
 -- Po co osobny plik obok harnessu Wydarzen. Harness stawia powierzchnie
 -- platformy jako ATRAPY (skrzynka powiadomien, bramka preferencji, licznik

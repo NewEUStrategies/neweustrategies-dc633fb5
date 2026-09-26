@@ -18,8 +18,10 @@
 --      sprawdza statusu. Zwrocony bilet wpuszczal przy bramce. Konto
 --      posiadacza zostawalo tez zapisane na sesje (miejsca nie wracaly do
 --      kolejki), z zakladkami planu i ze starsza rezerwacja RSVP 'going'.
---   3. `_event_apply_outcome_to_group` (20260922230000): ta sama luka dla
---      gosci grupy przy zwrocie zamowienia prowadzacego.
+--   3. `_event_apply_outcome_to_group` (20260922230000, przepisana potem
+--      w 20260926100000 i 20260926120000): ta sama luka dla gosci grupy przy
+--      zwrocie zamowienia prowadzacego. Cialo bazowe = 20260926120000 (patrz
+--      sekcja 3).
 --
 -- ZASADA REDEFINICJI (A.6 R-SQL). Kazde cialo jest SKOPIOWANE W CALOSCI
 -- z ostatniej definicji, a kazda zmiana jest oznaczona `-- ZMIANA (PF-F): <slug>`.
@@ -453,8 +455,23 @@ REVOKE ALL ON FUNCTION public.payments_apply_event_ticket_outcome(uuid, text, in
 GRANT EXECUTE ON FUNCTION public.payments_apply_event_ticket_outcome(uuid, text, integer) TO service_role;
 
 -- ----------------------------------------------------------------------------
--- 3) _event_apply_outcome_to_group (D0-2) - cialo z 20260922230000
--- LOCKS: event_registrations gosci (FOR UPDATE) -> event_sessions (release).
+-- 3) _event_apply_outcome_to_group (D0-2) - cialo z 20260926120000
+--
+-- BAZA CIALA. Pierwotnie (spec B.3.2) cialo z 20260922230000. Po scaleniu
+-- origin/main ta migracja biegnie PO 20260926100000_event_group_guests_follow_lead
+-- i 20260926120000_event_group_lead_closes_admitted_guests, ktore redefiniuja
+-- te funkcje (zwrot i zwrot czesciowy tylko dla gosci, ktorzy zaplacili;
+-- `COALESCE(p_order_id, r.payment_order_id)`; zawezenie do najemcy
+-- prowadzacego; stala kolejnosc gosci; galaz `paid` rozlicza czekajacych,
+-- przelicza pule i przyjmuje przez `_event_group_admit_guest` - miejsce albo
+-- kolejka). Ostatnia definicja wygrywa, wiec cialo jest SKOPIOWANE W CALOSCI
+-- z 20260926120000, a zmiany D0 sa naniesione na nie ponownie. Zadne
+-- zachowanie main nie ginie.
+--
+-- LOCKS: event_registrations prowadzacego (odczyt) -> event_registrations gosci
+--        (FOR UPDATE, `created_at, id`) -> [paid: event_ticket_types
+--        przez przeliczenie puli i `_event_group_admit_guest`]
+--        -> event_sessions (release, ostatni szczebel).
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public._event_apply_outcome_to_group(p_lead_id uuid, p_order_id uuid, p_outcome text)
 RETURNS integer
@@ -462,62 +479,104 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public','extensions','pg_t
 AS $$
 DECLARE
   g public.event_registrations;
+  v_lead public.event_registrations;
+  v_tenant uuid;
   v_token text;
   v_n integer := 0;
   v_guest_user uuid;
 BEGIN
+  SELECT * INTO v_lead FROM public.event_registrations l WHERE l.id = p_lead_id;
+  v_tenant := v_lead.tenant_id;
+
   FOR g IN SELECT * FROM public.event_registrations r
-    WHERE r.group_lead_registration_id = p_lead_id FOR UPDATE LOOP
+    WHERE r.group_lead_registration_id = p_lead_id AND r.tenant_id = v_tenant
+    ORDER BY r.created_at, r.id
+    FOR UPDATE LOOP
+    IF p_outcome IN ('refunded', 'partial_refund')
+       AND g.payment_status NOT IN ('paid', 'partially_refunded') THEN
+      CONTINUE;
+    END IF;
     IF p_outcome = 'paid' THEN
       IF g.status IN ('cancelled','rejected') THEN CONTINUE; END IF;
-      v_token := public._event_new_qr_token();
-      UPDATE public.event_registrations r SET
-        payment_order_id = p_order_id, payment_status = 'paid',
-        paid_at = COALESCE(r.paid_at, now()),
-        status = CASE WHEN r.status IN ('draft','pending','waitlist') THEN 'approved' ELSE r.status END,
-        waitlist_position = NULL,
-        decided_at = COALESCE(r.decided_at, now()),
-        decision_source = COALESCE(r.decision_source, 'system'),
-        qr_token_hash = COALESCE(r.qr_token_hash, encode(digest(v_token,'sha256'),'hex')),
-        qr_issued_at = COALESCE(r.qr_issued_at, now()),
-        updated_at = now()
-      WHERE r.id = g.id;
+      IF g.status IN ('draft','pending','waitlist') THEN
+        UPDATE public.event_registrations r SET
+          payment_order_id = COALESCE(p_order_id, r.payment_order_id), payment_status = 'paid',
+          paid_at = COALESCE(r.paid_at, now()),
+          updated_at = now()
+        WHERE r.id = g.id AND r.tenant_id = v_tenant;
+        UPDATE public.event_ticket_types t SET sold_count = c.cnt
+        FROM (
+          SELECT count(*)::integer AS cnt
+          FROM public.event_registrations x
+          WHERE x.tenant_id = v_tenant
+            AND x.ticket_type_id = g.ticket_type_id
+            AND x.status IN ('approved', 'attended', 'no_show')
+        ) c
+        WHERE t.id = g.ticket_type_id AND t.tenant_id = v_tenant AND t.sold_count <> c.cnt;
+        PERFORM public._event_group_admit_guest(v_lead, g);
+      ELSE
+        -- Gosc juz przyjety albo obecny: tylko rozliczenie. Kod zostaje (albo
+        -- powstaje, gdy przyjecie przyszlo bez niego).
+        v_token := public._event_new_qr_token();
+        UPDATE public.event_registrations r SET
+          payment_order_id = COALESCE(p_order_id, r.payment_order_id), payment_status = 'paid',
+          paid_at = COALESCE(r.paid_at, now()),
+          waitlist_position = NULL,
+          decided_at = COALESCE(r.decided_at, now()),
+          decision_source = COALESCE(r.decision_source, 'system'),
+          qr_token_hash = COALESCE(r.qr_token_hash, encode(digest(v_token,'sha256'),'hex')),
+          qr_issued_at = COALESCE(r.qr_issued_at, now()),
+          updated_at = now()
+        WHERE r.id = g.id AND r.tenant_id = v_tenant;
+      END IF;
     ELSIF p_outcome = 'refunded' THEN
       UPDATE public.event_registrations r SET
-        payment_order_id = p_order_id, payment_status = 'refunded', paid_at = NULL,
+        payment_order_id = COALESCE(p_order_id, r.payment_order_id),
+        payment_status = 'refunded', paid_at = NULL,
         status = 'cancelled', cancelled_at = COALESCE(r.cancelled_at, now()),
         waitlist_position = NULL,
         decided_at = COALESCE(r.decided_at, now()),
         decision_source = COALESCE(r.decision_source, 'system'),
         -- ZMIANA (PF-F): group-refund-clears-qr - kod wejscia goscia traci
-        -- waznosc razem z biletem prowadzacego (D0-2).
+        -- waznosc razem z biletem prowadzacego (D0-2). Kaskada statusu
+        -- (`event_registrations_zz_group_follow_lead_status`, 20260926120000)
+        -- NIE obejmuje tego goscia: biegnie po tym triggerze i zamyka tylko
+        -- wiersze draft/pending/waitlist/approved, a ten jest juz `cancelled`.
+        -- Znacznik wysylki biletu kasuje trigger `event_registrations_ticket_code_reset`
+        -- (wyjscie z approved/attended).
         qr_token_hash = NULL,
         qr_issued_at = NULL,
         updated_at = now()
-      WHERE r.id = g.id;
+      WHERE r.id = g.id AND r.tenant_id = v_tenant;
       -- ZMIANA (PF-F): group-refund-releases-guests - konto goscia (jesli jest)
-      -- traci zapisy na sesje, zakladki i starsza rezerwacje RSVP.
+      -- traci zapisy na sesje, zakladki i starsza rezerwacje RSVP. Tylko gosc,
+      -- ktory zaplacil (warunek na poczatku petli, 20260926100000), wiec
+      -- zwalniamy dokladnie tych, ktorych zwrot odwolal.
       SELECT p.user_id INTO v_guest_user
         FROM public.event_people p
-       WHERE p.id = g.person_id AND p.tenant_id = g.tenant_id;
+       WHERE p.id = g.person_id AND p.tenant_id = v_tenant;
       IF v_guest_user IS NOT NULL THEN
-        PERFORM public._event_participant_release(g.tenant_id, g.event_id, v_guest_user, 'refunded');
+        PERFORM public._event_participant_release(v_tenant, g.event_id, v_guest_user, 'refunded');
       END IF;
     ELSIF p_outcome = 'partial_refund' THEN
-      UPDATE public.event_registrations r SET payment_order_id = p_order_id,
-        payment_status = 'partially_refunded', updated_at = now() WHERE r.id = g.id;
+      UPDATE public.event_registrations r SET
+        payment_order_id = COALESCE(p_order_id, r.payment_order_id),
+        payment_status = 'partially_refunded', updated_at = now()
+      WHERE r.id = g.id AND r.tenant_id = v_tenant;
     ELSE
-      UPDATE public.event_registrations r SET payment_order_id = p_order_id,
+      UPDATE public.event_registrations r SET
+        payment_order_id = COALESCE(p_order_id, r.payment_order_id),
         payment_status = 'unpaid', updated_at = now()
-      WHERE r.id = g.id AND r.payment_status <> 'paid';
+      WHERE r.id = g.id AND r.tenant_id = v_tenant AND r.payment_status <> 'paid';
     END IF;
     v_n := v_n + 1;
   END LOOP;
   RETURN v_n;
 END $$;
--- ZMIANA (PF-F): group-comment - komentarz funkcji (wczesniej brak).
+-- ZMIANA (PF-F): group-comment - komentarz z 20260926120000 uzupelniony o skutki
+-- pelnego zwrotu (D0-2).
 COMMENT ON FUNCTION public._event_apply_outcome_to_group(uuid, uuid, text) IS
-  'Przenosi wynik platnosci prowadzacego na gosci grupy (trigger event_registrations_group_follow_lead). Zwrot czysci kody QR gosci i zwalnia ich zapisy na sesje, zakladki i starsza rezerwacje RSVP (D0-2).';
+  'Wynik platnosci prowadzacego na gosciach grupy (trigger event_registrations_group_follow_lead): paid rozlicza czekajacych i przyjmuje ich z kontrola miejsc (_event_group_admit_guest - miejsce albo kolejka, takze na sciezce Stripe), przyjetym tylko rozlicza; refunded anuluje oplaconych, czysci ich kody QR i zwalnia zapisy na sesje, zakladki i starsza rezerwacje RSVP (D0-2); partial_refund i unpaid tylko rozliczaja. Zamowienie trafia do goscia tylko, gdy wynik je przyniosl.';
 REVOKE ALL ON FUNCTION public._event_apply_outcome_to_group(uuid, uuid, text) FROM PUBLIC, anon, authenticated;
 -- ZMIANA (PF-F): group-grant-service-role - jawny GRANT (A.6 R-SQL); wolajacy
 -- trigger jest SECURITY DEFINER, wiec zachowanie sie nie zmienia.

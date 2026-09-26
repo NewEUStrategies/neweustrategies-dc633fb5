@@ -47,6 +47,16 @@ export interface PublicSponsor {
   role: SponsorRole;
   boothLabel: string | null;
   sortOrder: number;
+  /**
+   * Przypięcie NIEOGŁOSZONE (`is_published = false`) - wyłącznie w podglądzie
+   * studia, który pokazuje organizatorowi także partnerów przed ogłoszeniem.
+   *
+   * PUBLICZNY PARSER GO NIE USTAWIA I NIE MA SKĄD: `event_sponsors_public`
+   * oddaje tylko przypięcia ogłoszone. Znacznik rysuje się dopiero wtedy, gdy
+   * wywołujący poda też napis plakietki (`draftLabel`) - strona publiczna go
+   * nie podaje, więc jej rysunek zostaje bajt w bajt ten sam.
+   */
+  isDraft?: boolean;
 }
 
 export interface SponsorTierBenefit {
@@ -142,7 +152,13 @@ function parseSponsors(value: Json | null): PublicSponsor[] {
   return out.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
 }
 
-function parseBenefits(value: Json | null): SponsorTierBenefit[] {
+/**
+ * Korzyści poziomu z `jsonb` (`[{id, label_pl, label_en}]`) - JEDEN parser dla
+ * `event_sponsors_public` i `admin_event_sponsor_tiers_list`, bo obie funkcje
+ * składają listę tym samym `jsonb_build_object`. Pozycja bez `id` wypada:
+ * bez klucza React nie odróżni dwóch korzyści o tej samej nazwie.
+ */
+export function parseSponsorTierBenefits(value: Json | null): SponsorTierBenefit[] {
   if (!Array.isArray(value)) return [];
   const out: SponsorTierBenefit[] = [];
   for (const item of value) {
@@ -174,16 +190,23 @@ export function parseSponsorTiers(
       rank: int(row.tier_rank, 0),
       accentColor: text(row.tier_accent_color),
       logoSize: logoSizeOf(row.tier_logo_size),
-      benefits: parseBenefits(row.benefits),
+      benefits: parseSponsorTierBenefits(row.benefits),
       sponsors,
     });
   }
   // Ranga malejąco, grupa bez poziomu na końcu - lustro `ORDER BY` z RPC,
   // domknięte tutaj, żeby widok nie zależał od porządku z sieci.
+  //
+  // REMIS RANGI ROZSTRZYGA BAZA, NIE ALFABET. `ORDER BY` stawia przy równej
+  // randze `t.sort_order`, a wiersz sieci tej kolumny nie niesie - więc klucz
+  // jako drugie kryterium PRZESTAWIAŁ poziomy ułożone przez organizatora.
+  // Sortowanie jest stabilne, a komparator oddaje 0 przy remisie, więc
+  // zostaje kolejność z RPC. Ten sam porządek liczą podgląd studia
+  // (`sponsorTiersFromAdminRows`) i tablica „Sponsorzy i reklama".
   return out.sort((a, b) => {
     if (a.tierId === null && b.tierId !== null) return 1;
     if (b.tierId === null && a.tierId !== null) return -1;
-    return b.rank - a.rank || (a.key ?? "").localeCompare(b.key ?? "");
+    return b.rank - a.rank;
   });
 }
 

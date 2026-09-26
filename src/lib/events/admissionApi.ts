@@ -39,6 +39,9 @@ export const ADMISSION_QUOTE_REASONS = [
   "coupon_other_ticket_type",
   "coupon_other_package",
   "coupon_other_currency",
+  // Kod TYLKO odslaniajacy ukryte bilety (20260926110000). Wczesniej jego
+  // puste kwoty dawaly pakiet za zero zlotych.
+  "coupon_no_discount",
 ] as const;
 export type AdmissionQuoteReason = (typeof ADMISSION_QUOTE_REASONS)[number];
 
@@ -53,6 +56,14 @@ export interface AdmissionQuoteOk {
   discountCents: number;
   totalCents: number;
   couponCode: string | null;
+  /**
+   * Rodzaj przyjetego kodu. Kod KWOTOWY schodzi z kazdego miejsca pakietu,
+   * wiec ekran pisze „Rabat (5 × 50 zl)" - bez tego pola musialby zgadywac
+   * rodzaj z proporcji kwot. `null` = bez kodu.
+   */
+  discountKind: "fixed" | "percent" | null;
+  /** Rabat na jedno miejsce - tylko dla kodu kwotowego. */
+  discountPerSeatCents: number | null;
   /** `null` = bez limitu zestawow. */
   seatsLeft: number | null;
 }
@@ -104,6 +115,8 @@ export function parseAdmissionQuote(value: Json | null): AdmissionQuote {
     return { ok: false, reason: reasonOf(row.reason), detail };
   }
   const seatsLeft = row.seats_left;
+  const kind = text(row.discount_kind);
+  const perSeat = row.discount_per_seat_cents;
   return {
     ok: true,
     kind: text(row.kind) === "package" ? "package" : "ticket",
@@ -115,6 +128,8 @@ export function parseAdmissionQuote(value: Json | null): AdmissionQuote {
     discountCents: num(row.discount_cents),
     totalCents: num(row.total_cents),
     couponCode: typeof row.coupon_code === "string" ? row.coupon_code : null,
+    discountKind: kind === "fixed" || kind === "percent" ? kind : null,
+    discountPerSeatCents: typeof perSeat === "number" && Number.isFinite(perSeat) ? perSeat : null,
     seatsLeft: seatsLeft === null || seatsLeft === undefined ? null : num(seatsLeft),
   };
 }
@@ -135,6 +150,10 @@ export const TICKET_CHECKOUT_ONLY_REASONS = [
   "access_code_invalid",
   "account_required",
   "registration_not_payable",
+  // Baza nie policzyla miejsc zamowienia grupowego (`event_registration_group_
+  // seats`). Kasa ODMAWIA zamiast brac jedno miejsce - a zdanie o zgloszeniu
+  // „odwolanym albo rozliczonym" byloby tu nieprawda.
+  "group_seats_unavailable",
   "payments_unavailable",
 ] as const;
 export type TicketCheckoutOnlyReason = (typeof TICKET_CHECKOUT_ONLY_REASONS)[number];
@@ -154,6 +173,8 @@ export type TicketCheckoutRefusal = AdmissionQuoteReason | TicketCheckoutOnlyRea
  */
 const TICKET_CHECKOUT_REFUSALS: ReadonlyArray<readonly [string, TicketCheckoutRefusal]> = [
   ["ticket_included_in_plan", "ticket_included_in_plan"],
+  // PRZED ogolnym `registration_not_payable` - to jego wlasciwy prefiks.
+  ["registration_not_payable:seats_unavailable", "group_seats_unavailable"],
   ["registration_not_payable", "registration_not_payable"],
   ["ticket_sales_not_open", "sales_not_open"],
   ["ticket_sales_closed", "sales_closed"],
@@ -186,6 +207,23 @@ export function ticketCheckoutRefusal(error: unknown): TicketCheckoutRefusal {
     }
   }
   return "unknown";
+}
+
+/**
+ * Odmowa ZAKUPU pakietu przeniesiona z wyceny.
+ *
+ * `event_package_purchase` liczy wycene ponownie i odmowe rzuca jako
+ * `refused_<powod>: ...` - takze wtedy, gdy kod zuzyl rownolegly zakup miedzy
+ * wycena na ekranie a kliknieciem „Kup". Bez tego odczytu kupujacy widzial
+ * ogolne „operacja sie nie udala" zamiast „kod zostal wyczerpany".
+ * `null` = to nie jest odmowa wyceny (inne bledy maja wlasny slownik).
+ */
+export function packagePurchaseRefusal(error: unknown): AdmissionQuoteReason | null {
+  const message = error instanceof Error ? error.message : String(error);
+  const match = /^refused_([a-z_]+)/.exec(message.trim());
+  if (match === null) return null;
+  const reason = reasonOf(match[1]);
+  return reason === "unknown" ? null : reason;
 }
 
 /** Klucz i18n zdania dla odmowy - jeden zbior nazw po obu stronach. */

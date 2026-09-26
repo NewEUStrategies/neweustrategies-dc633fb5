@@ -1310,8 +1310,8 @@ GRANT SELECT, INSERT ON public.audit_log TO authenticated;
 -- ============================================================================
 -- FUNKCJE UCZESTNIKA F1-F5 (Foundation, spec B.4.1) - ATRAPY PLATFORMY
 --
--- PO CO. Migracje uczestnika (`20260926100000_event_participant_foundation`,
--- `20260926100100_event_participant_defect_fixes` i migracje torow A/B/C)
+-- PO CO. Migracje uczestnika (`20260926153100_event_participant_foundation`,
+-- `20260926153200_event_participant_defect_fixes` i migracje torow A/B/C)
 -- dotykaja powierzchni platformy, ktorej ten harness dotad nie stawial:
 -- potwierdzenia adresu konta, licznika limitow, skrzynki powiadomien
 -- z bramka preferencji, starszych rezerwacji RSVP w ksztalcie koncowym,
@@ -1323,7 +1323,7 @@ GRANT SELECT, INSERT ON public.audit_log TO authenticated;
 -- `event`, doreczanie `billing`, odrzucenie 'canceled') jest DOWODZONE
 -- WYLACZNIE w pgTAP (`supabase/tests/event_participant_foundation_test.sql`,
 -- `notification_preferences_gating_test.sql`) na PRAWDZIWEJ funkcji
--- z `20260926100200`. Harness tylko stoi na atrapie i sprawdza jej
+-- z `20260926153300`. Harness tylko stoi na atrapie i sprawdza jej
 -- tozsamosc (`obj_description` zaczyna sie od `events-harness stub`).
 -- ============================================================================
 
@@ -1343,7 +1343,7 @@ ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email_confirmed_at timestamptz D
 -- atrapy liczacej z `runtime_test.d/20_registration.sql` (tamten plik stawia
 -- ja tylko wtedy, gdy jej brak - po tej sekcji juz jej nie stawia i jej nie
 -- sprzata). Atrapa LICZY naprawde: bramka, ktora zawsze przepuszcza, nie jest
--- bramka. ACL jak po `20260926100200` (S30): wylacznie service_role - kazdy
+-- bramka. ACL jak po `20260926153300` (S30): wylacznie service_role - kazdy
 -- wolajacy SQL jest SECURITY DEFINER.
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.rate_limits (
@@ -1380,7 +1380,7 @@ GRANT EXECUTE ON FUNCTION public.rate_limit_hit(text, text, integer, integer) TO
 -- ----------------------------------------------------------------------------
 -- public.notifications - skrzynka powiadomien (ksztalt z rdzenia platformy,
 -- kolumny czytane i pisane przez `enqueue_notification`). Katalog rodzajow
--- `notifications_kind_check` = lista produkcyjna po `20260926100200`
+-- `notifications_kind_check` = lista produkcyjna po `20260926153300`
 -- (18 rodzajow z `20260812091000` + `event` + `billing`).
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.notifications (
@@ -1408,7 +1408,7 @@ GRANT ALL ON public.notifications TO service_role;
 
 -- ----------------------------------------------------------------------------
 -- public.notification_preferences - WYLACZNIE przelaczniki, ktore czytaja
--- producenci modulu Wydarzen (`event` z `20260926100200`, `content`, `system`)
+-- producenci modulu Wydarzen (`event` z `20260926153300`, `content`, `system`)
 -- oraz `push_enabled`. Pozostale kolumny produkcji sa poza atrapa.
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.notification_preferences (
@@ -1424,7 +1424,7 @@ GRANT ALL ON public.notification_preferences TO service_role;
 -- ----------------------------------------------------------------------------
 -- public.enqueue_notification - BEHAWIORALNE LUSTRO producenta
 -- (20260812091000 + gałąź `event` i always-on `security`/`billing`
--- z 20260926100200). Bramka czyta preferencje ODBIORCY, tenant z jego profilu,
+-- z 20260926153300). Bramka czyta preferencje ODBIORCY, tenant z jego profilu,
 -- deduplikacja 5 minut po (user, kind, href), a kazdy blad zwraca NULL
 -- (wywolanie z triggera nie moze wywrocic transakcji uzytkownika).
 -- Tozsamosc atrapy jest asercja w `13_participant_foundation.sql`: gdyby replay
@@ -1472,7 +1472,7 @@ EXCEPTION WHEN OTHERS THEN
   RETURN NULL;
 END $fn$;
 COMMENT ON FUNCTION public.enqueue_notification(uuid, text, text, text, text, text, text, text) IS
-  'events-harness stub: enqueue_notification (source 20260812091000 + 20260926100200)';
+  'events-harness stub: enqueue_notification (source 20260812091000 + 20260926153300)';
 REVOKE ALL ON FUNCTION public.enqueue_notification(uuid, text, text, text, text, text, text, text)
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.enqueue_notification(uuid, text, text, text, text, text, text, text)

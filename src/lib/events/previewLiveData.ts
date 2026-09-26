@@ -69,17 +69,36 @@ function previewSponsor(
  * Zbior ogloszonych przypiec do filtra `previewSponsor` - albo `undefined`,
  * gdy wywolujacy NIE MA pewnosci, ze zna je wszystkie.
  *
- * Lista panelu ma limit. Pelna strona (`rows.length >= limit`) moze byc
- * ucieta, a wtedy brak przypiecia na liscie nie dowodzi, ze jest nieogloszone:
- * podglad zdejmowalby sponsora, ktorego strona publiczna pokaze. Przy
- * niepewnosci wolimy nie filtrowac (tak jak przed wprowadzeniem filtra).
+ * LISTA JEST PELNA, FILTR JEST TUTAJ. Nakladka pyta o WSZYSTKIE przypiecia
+ * (pas i sekcja „Partnerzy" pokazuja tez nieogloszone, znaczone plakietka),
+ * a program i sciezki maja dalej pokazywac sponsora TYLKO z przypiecia
+ * ogloszonego - wiec wiersz `is_published = false` do zbioru nie wchodzi.
+ * Wiersz bez tego pola (wywolujacy, ktory pyta juz z filtrem „published")
+ * liczy sie jako ogloszony, jak przed ta zmiana.
+ *
+ * UCIECIE MOWI `total_count`, NIE ROZMIAR STRONY. Ucieta lista nie dowodzi, ze
+ * brakujace przypiecie jest nieogloszone: podglad zdejmowalby sponsora, ktorego
+ * strona publiczna pokaze - wiec przy niepewnosci wolimy nie filtrowac (tak jak
+ * przed wprowadzeniem filtra). Dawniej niepewnoscia byla PELNA strona
+ * (`rows.length >= limit`), ale limit liczy cala liste: 180 ogloszonych i 30
+ * nieogloszonych przypiec dawalo dokladnie 200 wierszy i wylaczalo filtr,
+ * choc lista byla kompletna. Dzis nakladka czyta liste strona po stronie
+ * (`fetchAllSponsors`), a kazdy wiersz RPC niesie `total_count` (`count(*)
+ * OVER ()` calej listy) - lista jest ucieta dokladnie wtedy, gdy ta liczba
+ * przekracza liczbe wierszy (twardy stop stronicowania). Bierzemy NAJWIEKSZA
+ * z wierszy, a nie z pierwszego: strony czytane w roznych chwilach moga ja
+ * roznic, a przypiecie dodane miedzy stronami (lista urosla) znaczy liste
+ * niepelna. Wiersz bez `total_count` o uciecie nie swiadczy.
  */
 export function publishedSponsorIdSet(
-  rows: readonly { id: string }[] | undefined,
-  limit: number,
+  rows:
+    | readonly { id: string; is_published?: boolean | null; total_count?: number | null }[]
+    | undefined,
 ): ReadonlySet<string> | undefined {
-  if (rows === undefined || rows.length >= limit) return undefined;
-  return new Set(rows.map((row) => row.id));
+  if (rows === undefined) return undefined;
+  const total = rows.reduce((max, row) => Math.max(max, Number(row.total_count ?? 0)), 0);
+  if (total > rows.length) return undefined;
+  return new Set(rows.filter((row) => row.is_published !== false).map((row) => row.id));
 }
 
 /** Kontekst, ktorego lista sesji panelu sama nie niesie. */

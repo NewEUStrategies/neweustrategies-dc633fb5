@@ -71,6 +71,8 @@ const cancel = vi.fn<(input: CancelRegistrationInput) => Promise<RegistrationCan
 const manageView =
   vi.fn<(input: { manageToken?: string }) => Promise<RegistrationManageView | null>>();
 const checkout = vi.fn();
+// Podgląd kasy (`quoteEventTicketCheckout`) - molekuła kasy pyta go o kwotę.
+const quote = vi.fn();
 const writeText = vi.fn<(value: string) => Promise<void>>();
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
@@ -88,11 +90,16 @@ vi.mock("@tanstack/react-router", async () => ({
 // powrotnej do płatności. Podmieniamy wyłącznie jej granice.
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
-  useServerFn: () => checkout,
+  useServerFn: (fn: { name?: string }) =>
+    fn.name === "quoteEventTicketCheckout" ? quote : checkout,
 }));
 
 vi.mock("@/lib/billing/checkout.functions", () => ({
   createCheckoutOrder: { name: "createCheckoutOrder" },
+}));
+
+vi.mock("@/lib/billing/eventTicketQuote.functions", () => ({
+  quoteEventTicketCheckout: { name: "quoteEventTicketCheckout" },
 }));
 
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ session: { user: { id: "u-1" } } }) }));
@@ -173,6 +180,16 @@ beforeEach(() => {
   gniazda.akcje.length = 0;
   gniazda.kalendarz.length = 0;
   gniazda.poWydarzeniu.length = 0;
+  quote.mockResolvedValue({
+    seats: 1,
+    unitCents: 15000,
+    subtotalCents: 15000,
+    currency: "PLN",
+    coupon: null,
+    discountCents: 0,
+    totalCents: 15000,
+    couponError: null,
+  });
   fetchHeader.mockResolvedValue(header());
   manageView.mockResolvedValue(null);
   cancel.mockResolvedValue({ registrationId: "r1", promotedFromWaitlist: 0 });
@@ -430,7 +447,7 @@ describe("RegistrationManagePanel - stan zgłoszenia i powrót do kasy", () => {
     expect(await screen.findByText("eventFront.manage.stateTitle")).toBeInTheDocument();
     expect(screen.getByText("eventFront.manage.statePending")).toBeInTheDocument();
     expect(screen.getByText("eventFront.manage.paymentUnpaid")).toBeInTheDocument();
-    expect(screen.getByText(/150,00/)).toBeInTheDocument();
+    expect(await screen.findByText(/150,00/)).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "eventRegistration.payment.resume" }),
     ).toBeInTheDocument();
