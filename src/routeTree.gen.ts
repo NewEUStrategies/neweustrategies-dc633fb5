@@ -366,6 +366,7 @@ import { Route as ApiPublicHooksRefreshOgImageRouteImport } from './routes/api/p
 import { Route as AdminNewsletterCampaignsIdRouteImport } from './routes/admin.newsletter.campaigns.$id'
 import { Route as AdminEventsEventIdTermsRouteImport } from './routes/admin.events_.$eventId.terms'
 import { Route as AdminEventsEventIdSponsorsRouteImport } from './routes/admin.events_.$eventId.sponsors'
+import { Route as AdminEventsEventIdSponsorReportRouteImport } from './routes/admin.events_.$eventId.sponsor-report'
 import { Route as AdminEventsEventIdPagesRouteImport } from './routes/admin.events_.$eventId.pages'
 import { Route as AdminEventsEventIdOverviewRouteImport } from './routes/admin.events_.$eventId.overview'
 import { Route as AdminEventsEventIdIntegrationsRouteImport } from './routes/admin.events_.$eventId.integrations'
@@ -375,6 +376,7 @@ import { Route as AdminEventsEventIdFeaturesRouteImport } from './routes/admin.e
 import { Route as AdminEventsEventIdCommunicationsRouteImport } from './routes/admin.events_.$eventId.communications'
 import { Route as AdminEventsEventIdBrandingRouteImport } from './routes/admin.events_.$eventId.branding'
 import { Route as AdminEventsEventIdAnalyticsRouteImport } from './routes/admin.events_.$eventId.analytics'
+import { Route as AdminEventsEventIdAdsFunnelRouteImport } from './routes/admin.events_.$eventId.ads-funnel'
 import { Route as AdminCommunityClubsTopicsRouteImport } from './routes/admin.community.clubs.topics'
 import { Route as AdminCommunityClubsSpecializationsRouteImport } from './routes/admin.community.clubs.specializations'
 import { Route as AdminCommunityClubsElementsRouteImport } from './routes/admin.community.clubs.elements'
@@ -384,10 +386,13 @@ import { Route as AdminEventsEventIdRegistrationIndexRouteImport } from './route
 import { Route as AdminEventsEventIdOnsiteIndexRouteImport } from './routes/admin.events_.$eventId.onsite.index'
 import { Route as AdminEventsEventIdMeetingsIndexRouteImport } from './routes/admin.events_.$eventId.meetings.index'
 import { Route as AdminEventsEventIdContentIndexRouteImport } from './routes/admin.events_.$eventId.content.index'
+import { Route as AdminEventsEventIdCfpIndexRouteImport } from './routes/admin.events_.$eventId.cfp.index'
 import { Route as AdminEventsEventIdRegistrationTicketsRouteImport } from './routes/admin.events_.$eventId.registration.tickets'
 import { Route as AdminEventsEventIdRegistrationSettingsRouteImport } from './routes/admin.events_.$eventId.registration.settings'
+import { Route as AdminEventsEventIdRegistrationSeatingRouteImport } from './routes/admin.events_.$eventId.registration.seating'
 import { Route as AdminEventsEventIdRegistrationPackagesRouteImport } from './routes/admin.events_.$eventId.registration.packages'
 import { Route as AdminEventsEventIdRegistrationListRouteImport } from './routes/admin.events_.$eventId.registration.list'
+import { Route as AdminEventsEventIdRegistrationInvoicesRouteImport } from './routes/admin.events_.$eventId.registration.invoices'
 import { Route as AdminEventsEventIdRegistrationFormRouteImport } from './routes/admin.events_.$eventId.registration.form'
 import { Route as AdminEventsEventIdRegistrationAudiencesRouteImport } from './routes/admin.events_.$eventId.registration.audiences'
 import { Route as AdminEventsEventIdOnsiteStatsRouteImport } from './routes/admin.events_.$eventId.onsite.stats'
@@ -406,6 +411,10 @@ import { Route as AdminEventsEventIdContentSpeakersRouteImport } from './routes/
 import { Route as AdminEventsEventIdContentSessionsRouteImport } from './routes/admin.events_.$eventId.content.sessions'
 import { Route as AdminEventsEventIdContentRoomsRouteImport } from './routes/admin.events_.$eventId.content.rooms'
 import { Route as AdminEventsEventIdContentConflictsRouteImport } from './routes/admin.events_.$eventId.content.conflicts'
+import { Route as AdminEventsEventIdCfpSubmissionsRouteImport } from './routes/admin.events_.$eventId.cfp.submissions'
+import { Route as AdminEventsEventIdCfpSettingsRouteImport } from './routes/admin.events_.$eventId.cfp.settings'
+import { Route as AdminEventsEventIdCfpReviewersRouteImport } from './routes/admin.events_.$eventId.cfp.reviewers'
+import { Route as AdminEventsEventIdCfpFormRouteImport } from './routes/admin.events_.$eventId.cfp.form'
 
 const ZwrotyIReklamacjeRoute = ZwrotyIReklamacjeRouteImport.update({
   id: '/zwroty-i-reklamacje',
@@ -2238,6 +2247,12 @@ const AdminEventsEventIdSponsorsRoute =
     path: '/sponsors',
     getParentRoute: () => AdminEventsEventIdRoute,
   } as any)
+const AdminEventsEventIdSponsorReportRoute =
+  AdminEventsEventIdSponsorReportRouteImport.update({
+    id: '/sponsor-report',
+    path: '/sponsor-report',
+    getParentRoute: () => AdminEventsEventIdRoute,
+  } as any)
 const AdminEventsEventIdPagesRoute = AdminEventsEventIdPagesRouteImport.update({
   id: '/pages',
   path: '/pages',
@@ -2289,6 +2304,12 @@ const AdminEventsEventIdAnalyticsRoute =
   AdminEventsEventIdAnalyticsRouteImport.update({
     id: '/analytics',
     path: '/analytics',
+    getParentRoute: () => AdminEventsEventIdRoute,
+  } as any)
+const AdminEventsEventIdAdsFunnelRoute =
+  AdminEventsEventIdAdsFunnelRouteImport.update({
+    id: '/ads-funnel',
+    path: '/ads-funnel',
     getParentRoute: () => AdminEventsEventIdRoute,
   } as any)
 const AdminCommunityClubsTopicsRoute =
@@ -2345,6 +2366,12 @@ const AdminEventsEventIdContentIndexRoute =
     path: '/content/',
     getParentRoute: () => AdminEventsEventIdRoute,
   } as any)
+const AdminEventsEventIdCfpIndexRoute =
+  AdminEventsEventIdCfpIndexRouteImport.update({
+    id: '/cfp/',
+    path: '/cfp/',
+    getParentRoute: () => AdminEventsEventIdRoute,
+  } as any)
 const AdminEventsEventIdRegistrationTicketsRoute =
   AdminEventsEventIdRegistrationTicketsRouteImport.update({
     id: '/registration/tickets',
@@ -2357,6 +2384,12 @@ const AdminEventsEventIdRegistrationSettingsRoute =
     path: '/registration/settings',
     getParentRoute: () => AdminEventsEventIdRoute,
   } as any)
+const AdminEventsEventIdRegistrationSeatingRoute =
+  AdminEventsEventIdRegistrationSeatingRouteImport.update({
+    id: '/registration/seating',
+    path: '/registration/seating',
+    getParentRoute: () => AdminEventsEventIdRoute,
+  } as any)
 const AdminEventsEventIdRegistrationPackagesRoute =
   AdminEventsEventIdRegistrationPackagesRouteImport.update({
     id: '/registration/packages',
@@ -2367,6 +2400,12 @@ const AdminEventsEventIdRegistrationListRoute =
   AdminEventsEventIdRegistrationListRouteImport.update({
     id: '/registration/list',
     path: '/registration/list',
+    getParentRoute: () => AdminEventsEventIdRoute,
+  } as any)
+const AdminEventsEventIdRegistrationInvoicesRoute =
+  AdminEventsEventIdRegistrationInvoicesRouteImport.update({
+    id: '/registration/invoices',
+    path: '/registration/invoices',
     getParentRoute: () => AdminEventsEventIdRoute,
   } as any)
 const AdminEventsEventIdRegistrationFormRoute =
@@ -2475,6 +2514,30 @@ const AdminEventsEventIdContentConflictsRoute =
   AdminEventsEventIdContentConflictsRouteImport.update({
     id: '/content/conflicts',
     path: '/content/conflicts',
+    getParentRoute: () => AdminEventsEventIdRoute,
+  } as any)
+const AdminEventsEventIdCfpSubmissionsRoute =
+  AdminEventsEventIdCfpSubmissionsRouteImport.update({
+    id: '/cfp/submissions',
+    path: '/cfp/submissions',
+    getParentRoute: () => AdminEventsEventIdRoute,
+  } as any)
+const AdminEventsEventIdCfpSettingsRoute =
+  AdminEventsEventIdCfpSettingsRouteImport.update({
+    id: '/cfp/settings',
+    path: '/cfp/settings',
+    getParentRoute: () => AdminEventsEventIdRoute,
+  } as any)
+const AdminEventsEventIdCfpReviewersRoute =
+  AdminEventsEventIdCfpReviewersRouteImport.update({
+    id: '/cfp/reviewers',
+    path: '/cfp/reviewers',
+    getParentRoute: () => AdminEventsEventIdRoute,
+  } as any)
+const AdminEventsEventIdCfpFormRoute =
+  AdminEventsEventIdCfpFormRouteImport.update({
+    id: '/cfp/form',
+    path: '/cfp/form',
     getParentRoute: () => AdminEventsEventIdRoute,
   } as any)
 
@@ -2818,6 +2881,7 @@ export interface FileRoutesByFullPath {
   '/admin/community/clubs/elements': typeof AdminCommunityClubsElementsRoute
   '/admin/community/clubs/specializations': typeof AdminCommunityClubsSpecializationsRoute
   '/admin/community/clubs/topics': typeof AdminCommunityClubsTopicsRoute
+  '/admin/events/$eventId/ads-funnel': typeof AdminEventsEventIdAdsFunnelRoute
   '/admin/events/$eventId/analytics': typeof AdminEventsEventIdAnalyticsRoute
   '/admin/events/$eventId/branding': typeof AdminEventsEventIdBrandingRoute
   '/admin/events/$eventId/communications': typeof AdminEventsEventIdCommunicationsRoute
@@ -2827,6 +2891,7 @@ export interface FileRoutesByFullPath {
   '/admin/events/$eventId/integrations': typeof AdminEventsEventIdIntegrationsRoute
   '/admin/events/$eventId/overview': typeof AdminEventsEventIdOverviewRoute
   '/admin/events/$eventId/pages': typeof AdminEventsEventIdPagesRoute
+  '/admin/events/$eventId/sponsor-report': typeof AdminEventsEventIdSponsorReportRoute
   '/admin/events/$eventId/sponsors': typeof AdminEventsEventIdSponsorsRoute
   '/admin/events/$eventId/terms': typeof AdminEventsEventIdTermsRoute
   '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
@@ -2850,6 +2915,10 @@ export interface FileRoutesByFullPath {
   '/admin/crm/funnel/': typeof AdminCrmFunnelIndexRoute
   '/admin/events/$eventId/': typeof AdminEventsEventIdIndexRoute
   '/admin/newsletter/campaigns/': typeof AdminNewsletterCampaignsIndexRoute
+  '/admin/events/$eventId/cfp/form': typeof AdminEventsEventIdCfpFormRoute
+  '/admin/events/$eventId/cfp/reviewers': typeof AdminEventsEventIdCfpReviewersRoute
+  '/admin/events/$eventId/cfp/settings': typeof AdminEventsEventIdCfpSettingsRoute
+  '/admin/events/$eventId/cfp/submissions': typeof AdminEventsEventIdCfpSubmissionsRoute
   '/admin/events/$eventId/content/conflicts': typeof AdminEventsEventIdContentConflictsRoute
   '/admin/events/$eventId/content/rooms': typeof AdminEventsEventIdContentRoomsRoute
   '/admin/events/$eventId/content/sessions': typeof AdminEventsEventIdContentSessionsRoute
@@ -2868,10 +2937,13 @@ export interface FileRoutesByFullPath {
   '/admin/events/$eventId/onsite/stats': typeof AdminEventsEventIdOnsiteStatsRoute
   '/admin/events/$eventId/registration/audiences': typeof AdminEventsEventIdRegistrationAudiencesRoute
   '/admin/events/$eventId/registration/form': typeof AdminEventsEventIdRegistrationFormRoute
+  '/admin/events/$eventId/registration/invoices': typeof AdminEventsEventIdRegistrationInvoicesRoute
   '/admin/events/$eventId/registration/list': typeof AdminEventsEventIdRegistrationListRoute
   '/admin/events/$eventId/registration/packages': typeof AdminEventsEventIdRegistrationPackagesRoute
+  '/admin/events/$eventId/registration/seating': typeof AdminEventsEventIdRegistrationSeatingRoute
   '/admin/events/$eventId/registration/settings': typeof AdminEventsEventIdRegistrationSettingsRoute
   '/admin/events/$eventId/registration/tickets': typeof AdminEventsEventIdRegistrationTicketsRoute
+  '/admin/events/$eventId/cfp/': typeof AdminEventsEventIdCfpIndexRoute
   '/admin/events/$eventId/content/': typeof AdminEventsEventIdContentIndexRoute
   '/admin/events/$eventId/meetings/': typeof AdminEventsEventIdMeetingsIndexRoute
   '/admin/events/$eventId/onsite/': typeof AdminEventsEventIdOnsiteIndexRoute
@@ -3198,6 +3270,7 @@ export interface FileRoutesByTo {
   '/admin/community/clubs/elements': typeof AdminCommunityClubsElementsRoute
   '/admin/community/clubs/specializations': typeof AdminCommunityClubsSpecializationsRoute
   '/admin/community/clubs/topics': typeof AdminCommunityClubsTopicsRoute
+  '/admin/events/$eventId/ads-funnel': typeof AdminEventsEventIdAdsFunnelRoute
   '/admin/events/$eventId/analytics': typeof AdminEventsEventIdAnalyticsRoute
   '/admin/events/$eventId/branding': typeof AdminEventsEventIdBrandingRoute
   '/admin/events/$eventId/communications': typeof AdminEventsEventIdCommunicationsRoute
@@ -3207,6 +3280,7 @@ export interface FileRoutesByTo {
   '/admin/events/$eventId/integrations': typeof AdminEventsEventIdIntegrationsRoute
   '/admin/events/$eventId/overview': typeof AdminEventsEventIdOverviewRoute
   '/admin/events/$eventId/pages': typeof AdminEventsEventIdPagesRoute
+  '/admin/events/$eventId/sponsor-report': typeof AdminEventsEventIdSponsorReportRoute
   '/admin/events/$eventId/sponsors': typeof AdminEventsEventIdSponsorsRoute
   '/admin/events/$eventId/terms': typeof AdminEventsEventIdTermsRoute
   '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
@@ -3230,6 +3304,10 @@ export interface FileRoutesByTo {
   '/admin/crm/funnel': typeof AdminCrmFunnelIndexRoute
   '/admin/events/$eventId': typeof AdminEventsEventIdIndexRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsIndexRoute
+  '/admin/events/$eventId/cfp/form': typeof AdminEventsEventIdCfpFormRoute
+  '/admin/events/$eventId/cfp/reviewers': typeof AdminEventsEventIdCfpReviewersRoute
+  '/admin/events/$eventId/cfp/settings': typeof AdminEventsEventIdCfpSettingsRoute
+  '/admin/events/$eventId/cfp/submissions': typeof AdminEventsEventIdCfpSubmissionsRoute
   '/admin/events/$eventId/content/conflicts': typeof AdminEventsEventIdContentConflictsRoute
   '/admin/events/$eventId/content/rooms': typeof AdminEventsEventIdContentRoomsRoute
   '/admin/events/$eventId/content/sessions': typeof AdminEventsEventIdContentSessionsRoute
@@ -3248,10 +3326,13 @@ export interface FileRoutesByTo {
   '/admin/events/$eventId/onsite/stats': typeof AdminEventsEventIdOnsiteStatsRoute
   '/admin/events/$eventId/registration/audiences': typeof AdminEventsEventIdRegistrationAudiencesRoute
   '/admin/events/$eventId/registration/form': typeof AdminEventsEventIdRegistrationFormRoute
+  '/admin/events/$eventId/registration/invoices': typeof AdminEventsEventIdRegistrationInvoicesRoute
   '/admin/events/$eventId/registration/list': typeof AdminEventsEventIdRegistrationListRoute
   '/admin/events/$eventId/registration/packages': typeof AdminEventsEventIdRegistrationPackagesRoute
+  '/admin/events/$eventId/registration/seating': typeof AdminEventsEventIdRegistrationSeatingRoute
   '/admin/events/$eventId/registration/settings': typeof AdminEventsEventIdRegistrationSettingsRoute
   '/admin/events/$eventId/registration/tickets': typeof AdminEventsEventIdRegistrationTicketsRoute
+  '/admin/events/$eventId/cfp': typeof AdminEventsEventIdCfpIndexRoute
   '/admin/events/$eventId/content': typeof AdminEventsEventIdContentIndexRoute
   '/admin/events/$eventId/meetings': typeof AdminEventsEventIdMeetingsIndexRoute
   '/admin/events/$eventId/onsite': typeof AdminEventsEventIdOnsiteIndexRoute
@@ -3598,6 +3679,7 @@ export interface FileRoutesById {
   '/admin/community/clubs/elements': typeof AdminCommunityClubsElementsRoute
   '/admin/community/clubs/specializations': typeof AdminCommunityClubsSpecializationsRoute
   '/admin/community/clubs/topics': typeof AdminCommunityClubsTopicsRoute
+  '/admin/events_/$eventId/ads-funnel': typeof AdminEventsEventIdAdsFunnelRoute
   '/admin/events_/$eventId/analytics': typeof AdminEventsEventIdAnalyticsRoute
   '/admin/events_/$eventId/branding': typeof AdminEventsEventIdBrandingRoute
   '/admin/events_/$eventId/communications': typeof AdminEventsEventIdCommunicationsRoute
@@ -3607,6 +3689,7 @@ export interface FileRoutesById {
   '/admin/events_/$eventId/integrations': typeof AdminEventsEventIdIntegrationsRoute
   '/admin/events_/$eventId/overview': typeof AdminEventsEventIdOverviewRoute
   '/admin/events_/$eventId/pages': typeof AdminEventsEventIdPagesRoute
+  '/admin/events_/$eventId/sponsor-report': typeof AdminEventsEventIdSponsorReportRoute
   '/admin/events_/$eventId/sponsors': typeof AdminEventsEventIdSponsorsRoute
   '/admin/events_/$eventId/terms': typeof AdminEventsEventIdTermsRoute
   '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
@@ -3630,6 +3713,10 @@ export interface FileRoutesById {
   '/admin/crm/funnel/': typeof AdminCrmFunnelIndexRoute
   '/admin/events_/$eventId/': typeof AdminEventsEventIdIndexRoute
   '/admin/newsletter/campaigns/': typeof AdminNewsletterCampaignsIndexRoute
+  '/admin/events_/$eventId/cfp/form': typeof AdminEventsEventIdCfpFormRoute
+  '/admin/events_/$eventId/cfp/reviewers': typeof AdminEventsEventIdCfpReviewersRoute
+  '/admin/events_/$eventId/cfp/settings': typeof AdminEventsEventIdCfpSettingsRoute
+  '/admin/events_/$eventId/cfp/submissions': typeof AdminEventsEventIdCfpSubmissionsRoute
   '/admin/events_/$eventId/content/conflicts': typeof AdminEventsEventIdContentConflictsRoute
   '/admin/events_/$eventId/content/rooms': typeof AdminEventsEventIdContentRoomsRoute
   '/admin/events_/$eventId/content/sessions': typeof AdminEventsEventIdContentSessionsRoute
@@ -3648,10 +3735,13 @@ export interface FileRoutesById {
   '/admin/events_/$eventId/onsite/stats': typeof AdminEventsEventIdOnsiteStatsRoute
   '/admin/events_/$eventId/registration/audiences': typeof AdminEventsEventIdRegistrationAudiencesRoute
   '/admin/events_/$eventId/registration/form': typeof AdminEventsEventIdRegistrationFormRoute
+  '/admin/events_/$eventId/registration/invoices': typeof AdminEventsEventIdRegistrationInvoicesRoute
   '/admin/events_/$eventId/registration/list': typeof AdminEventsEventIdRegistrationListRoute
   '/admin/events_/$eventId/registration/packages': typeof AdminEventsEventIdRegistrationPackagesRoute
+  '/admin/events_/$eventId/registration/seating': typeof AdminEventsEventIdRegistrationSeatingRoute
   '/admin/events_/$eventId/registration/settings': typeof AdminEventsEventIdRegistrationSettingsRoute
   '/admin/events_/$eventId/registration/tickets': typeof AdminEventsEventIdRegistrationTicketsRoute
+  '/admin/events_/$eventId/cfp/': typeof AdminEventsEventIdCfpIndexRoute
   '/admin/events_/$eventId/content/': typeof AdminEventsEventIdContentIndexRoute
   '/admin/events_/$eventId/meetings/': typeof AdminEventsEventIdMeetingsIndexRoute
   '/admin/events_/$eventId/onsite/': typeof AdminEventsEventIdOnsiteIndexRoute
@@ -3999,6 +4089,7 @@ export interface FileRouteTypes {
     | '/admin/community/clubs/elements'
     | '/admin/community/clubs/specializations'
     | '/admin/community/clubs/topics'
+    | '/admin/events/$eventId/ads-funnel'
     | '/admin/events/$eventId/analytics'
     | '/admin/events/$eventId/branding'
     | '/admin/events/$eventId/communications'
@@ -4008,6 +4099,7 @@ export interface FileRouteTypes {
     | '/admin/events/$eventId/integrations'
     | '/admin/events/$eventId/overview'
     | '/admin/events/$eventId/pages'
+    | '/admin/events/$eventId/sponsor-report'
     | '/admin/events/$eventId/sponsors'
     | '/admin/events/$eventId/terms'
     | '/admin/newsletter/campaigns/$id'
@@ -4031,6 +4123,10 @@ export interface FileRouteTypes {
     | '/admin/crm/funnel/'
     | '/admin/events/$eventId/'
     | '/admin/newsletter/campaigns/'
+    | '/admin/events/$eventId/cfp/form'
+    | '/admin/events/$eventId/cfp/reviewers'
+    | '/admin/events/$eventId/cfp/settings'
+    | '/admin/events/$eventId/cfp/submissions'
     | '/admin/events/$eventId/content/conflicts'
     | '/admin/events/$eventId/content/rooms'
     | '/admin/events/$eventId/content/sessions'
@@ -4049,10 +4145,13 @@ export interface FileRouteTypes {
     | '/admin/events/$eventId/onsite/stats'
     | '/admin/events/$eventId/registration/audiences'
     | '/admin/events/$eventId/registration/form'
+    | '/admin/events/$eventId/registration/invoices'
     | '/admin/events/$eventId/registration/list'
     | '/admin/events/$eventId/registration/packages'
+    | '/admin/events/$eventId/registration/seating'
     | '/admin/events/$eventId/registration/settings'
     | '/admin/events/$eventId/registration/tickets'
+    | '/admin/events/$eventId/cfp/'
     | '/admin/events/$eventId/content/'
     | '/admin/events/$eventId/meetings/'
     | '/admin/events/$eventId/onsite/'
@@ -4379,6 +4478,7 @@ export interface FileRouteTypes {
     | '/admin/community/clubs/elements'
     | '/admin/community/clubs/specializations'
     | '/admin/community/clubs/topics'
+    | '/admin/events/$eventId/ads-funnel'
     | '/admin/events/$eventId/analytics'
     | '/admin/events/$eventId/branding'
     | '/admin/events/$eventId/communications'
@@ -4388,6 +4488,7 @@ export interface FileRouteTypes {
     | '/admin/events/$eventId/integrations'
     | '/admin/events/$eventId/overview'
     | '/admin/events/$eventId/pages'
+    | '/admin/events/$eventId/sponsor-report'
     | '/admin/events/$eventId/sponsors'
     | '/admin/events/$eventId/terms'
     | '/admin/newsletter/campaigns/$id'
@@ -4411,6 +4512,10 @@ export interface FileRouteTypes {
     | '/admin/crm/funnel'
     | '/admin/events/$eventId'
     | '/admin/newsletter/campaigns'
+    | '/admin/events/$eventId/cfp/form'
+    | '/admin/events/$eventId/cfp/reviewers'
+    | '/admin/events/$eventId/cfp/settings'
+    | '/admin/events/$eventId/cfp/submissions'
     | '/admin/events/$eventId/content/conflicts'
     | '/admin/events/$eventId/content/rooms'
     | '/admin/events/$eventId/content/sessions'
@@ -4429,10 +4534,13 @@ export interface FileRouteTypes {
     | '/admin/events/$eventId/onsite/stats'
     | '/admin/events/$eventId/registration/audiences'
     | '/admin/events/$eventId/registration/form'
+    | '/admin/events/$eventId/registration/invoices'
     | '/admin/events/$eventId/registration/list'
     | '/admin/events/$eventId/registration/packages'
+    | '/admin/events/$eventId/registration/seating'
     | '/admin/events/$eventId/registration/settings'
     | '/admin/events/$eventId/registration/tickets'
+    | '/admin/events/$eventId/cfp'
     | '/admin/events/$eventId/content'
     | '/admin/events/$eventId/meetings'
     | '/admin/events/$eventId/onsite'
@@ -4778,6 +4886,7 @@ export interface FileRouteTypes {
     | '/admin/community/clubs/elements'
     | '/admin/community/clubs/specializations'
     | '/admin/community/clubs/topics'
+    | '/admin/events_/$eventId/ads-funnel'
     | '/admin/events_/$eventId/analytics'
     | '/admin/events_/$eventId/branding'
     | '/admin/events_/$eventId/communications'
@@ -4787,6 +4896,7 @@ export interface FileRouteTypes {
     | '/admin/events_/$eventId/integrations'
     | '/admin/events_/$eventId/overview'
     | '/admin/events_/$eventId/pages'
+    | '/admin/events_/$eventId/sponsor-report'
     | '/admin/events_/$eventId/sponsors'
     | '/admin/events_/$eventId/terms'
     | '/admin/newsletter/campaigns/$id'
@@ -4810,6 +4920,10 @@ export interface FileRouteTypes {
     | '/admin/crm/funnel/'
     | '/admin/events_/$eventId/'
     | '/admin/newsletter/campaigns/'
+    | '/admin/events_/$eventId/cfp/form'
+    | '/admin/events_/$eventId/cfp/reviewers'
+    | '/admin/events_/$eventId/cfp/settings'
+    | '/admin/events_/$eventId/cfp/submissions'
     | '/admin/events_/$eventId/content/conflicts'
     | '/admin/events_/$eventId/content/rooms'
     | '/admin/events_/$eventId/content/sessions'
@@ -4828,10 +4942,13 @@ export interface FileRouteTypes {
     | '/admin/events_/$eventId/onsite/stats'
     | '/admin/events_/$eventId/registration/audiences'
     | '/admin/events_/$eventId/registration/form'
+    | '/admin/events_/$eventId/registration/invoices'
     | '/admin/events_/$eventId/registration/list'
     | '/admin/events_/$eventId/registration/packages'
+    | '/admin/events_/$eventId/registration/seating'
     | '/admin/events_/$eventId/registration/settings'
     | '/admin/events_/$eventId/registration/tickets'
+    | '/admin/events_/$eventId/cfp/'
     | '/admin/events_/$eventId/content/'
     | '/admin/events_/$eventId/meetings/'
     | '/admin/events_/$eventId/onsite/'
@@ -7471,6 +7588,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminEventsEventIdSponsorsRouteImport
       parentRoute: typeof AdminEventsEventIdRoute
     }
+    '/admin/events_/$eventId/sponsor-report': {
+      id: '/admin/events_/$eventId/sponsor-report'
+      path: '/sponsor-report'
+      fullPath: '/admin/events/$eventId/sponsor-report'
+      preLoaderRoute: typeof AdminEventsEventIdSponsorReportRouteImport
+      parentRoute: typeof AdminEventsEventIdRoute
+    }
     '/admin/events_/$eventId/pages': {
       id: '/admin/events_/$eventId/pages'
       path: '/pages'
@@ -7532,6 +7656,13 @@ declare module '@tanstack/react-router' {
       path: '/analytics'
       fullPath: '/admin/events/$eventId/analytics'
       preLoaderRoute: typeof AdminEventsEventIdAnalyticsRouteImport
+      parentRoute: typeof AdminEventsEventIdRoute
+    }
+    '/admin/events_/$eventId/ads-funnel': {
+      id: '/admin/events_/$eventId/ads-funnel'
+      path: '/ads-funnel'
+      fullPath: '/admin/events/$eventId/ads-funnel'
+      preLoaderRoute: typeof AdminEventsEventIdAdsFunnelRouteImport
       parentRoute: typeof AdminEventsEventIdRoute
     }
     '/admin/community/clubs/topics': {
@@ -7597,6 +7728,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminEventsEventIdContentIndexRouteImport
       parentRoute: typeof AdminEventsEventIdRoute
     }
+    '/admin/events_/$eventId/cfp/': {
+      id: '/admin/events_/$eventId/cfp/'
+      path: '/cfp'
+      fullPath: '/admin/events/$eventId/cfp/'
+      preLoaderRoute: typeof AdminEventsEventIdCfpIndexRouteImport
+      parentRoute: typeof AdminEventsEventIdRoute
+    }
     '/admin/events_/$eventId/registration/tickets': {
       id: '/admin/events_/$eventId/registration/tickets'
       path: '/registration/tickets'
@@ -7611,6 +7749,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminEventsEventIdRegistrationSettingsRouteImport
       parentRoute: typeof AdminEventsEventIdRoute
     }
+    '/admin/events_/$eventId/registration/seating': {
+      id: '/admin/events_/$eventId/registration/seating'
+      path: '/registration/seating'
+      fullPath: '/admin/events/$eventId/registration/seating'
+      preLoaderRoute: typeof AdminEventsEventIdRegistrationSeatingRouteImport
+      parentRoute: typeof AdminEventsEventIdRoute
+    }
     '/admin/events_/$eventId/registration/packages': {
       id: '/admin/events_/$eventId/registration/packages'
       path: '/registration/packages'
@@ -7623,6 +7768,13 @@ declare module '@tanstack/react-router' {
       path: '/registration/list'
       fullPath: '/admin/events/$eventId/registration/list'
       preLoaderRoute: typeof AdminEventsEventIdRegistrationListRouteImport
+      parentRoute: typeof AdminEventsEventIdRoute
+    }
+    '/admin/events_/$eventId/registration/invoices': {
+      id: '/admin/events_/$eventId/registration/invoices'
+      path: '/registration/invoices'
+      fullPath: '/admin/events/$eventId/registration/invoices'
+      preLoaderRoute: typeof AdminEventsEventIdRegistrationInvoicesRouteImport
       parentRoute: typeof AdminEventsEventIdRoute
     }
     '/admin/events_/$eventId/registration/form': {
@@ -7749,6 +7901,34 @@ declare module '@tanstack/react-router' {
       path: '/content/conflicts'
       fullPath: '/admin/events/$eventId/content/conflicts'
       preLoaderRoute: typeof AdminEventsEventIdContentConflictsRouteImport
+      parentRoute: typeof AdminEventsEventIdRoute
+    }
+    '/admin/events_/$eventId/cfp/submissions': {
+      id: '/admin/events_/$eventId/cfp/submissions'
+      path: '/cfp/submissions'
+      fullPath: '/admin/events/$eventId/cfp/submissions'
+      preLoaderRoute: typeof AdminEventsEventIdCfpSubmissionsRouteImport
+      parentRoute: typeof AdminEventsEventIdRoute
+    }
+    '/admin/events_/$eventId/cfp/settings': {
+      id: '/admin/events_/$eventId/cfp/settings'
+      path: '/cfp/settings'
+      fullPath: '/admin/events/$eventId/cfp/settings'
+      preLoaderRoute: typeof AdminEventsEventIdCfpSettingsRouteImport
+      parentRoute: typeof AdminEventsEventIdRoute
+    }
+    '/admin/events_/$eventId/cfp/reviewers': {
+      id: '/admin/events_/$eventId/cfp/reviewers'
+      path: '/cfp/reviewers'
+      fullPath: '/admin/events/$eventId/cfp/reviewers'
+      preLoaderRoute: typeof AdminEventsEventIdCfpReviewersRouteImport
+      parentRoute: typeof AdminEventsEventIdRoute
+    }
+    '/admin/events_/$eventId/cfp/form': {
+      id: '/admin/events_/$eventId/cfp/form'
+      path: '/cfp/form'
+      fullPath: '/admin/events/$eventId/cfp/form'
+      preLoaderRoute: typeof AdminEventsEventIdCfpFormRouteImport
       parentRoute: typeof AdminEventsEventIdRoute
     }
   }
@@ -8091,6 +8271,7 @@ const AdminUsersRouteWithChildren = AdminUsersRoute._addFileChildren(
 )
 
 interface AdminEventsEventIdRouteChildren {
+  AdminEventsEventIdAdsFunnelRoute: typeof AdminEventsEventIdAdsFunnelRoute
   AdminEventsEventIdAnalyticsRoute: typeof AdminEventsEventIdAnalyticsRoute
   AdminEventsEventIdBrandingRoute: typeof AdminEventsEventIdBrandingRoute
   AdminEventsEventIdCommunicationsRoute: typeof AdminEventsEventIdCommunicationsRoute
@@ -8100,9 +8281,14 @@ interface AdminEventsEventIdRouteChildren {
   AdminEventsEventIdIntegrationsRoute: typeof AdminEventsEventIdIntegrationsRoute
   AdminEventsEventIdOverviewRoute: typeof AdminEventsEventIdOverviewRoute
   AdminEventsEventIdPagesRoute: typeof AdminEventsEventIdPagesRoute
+  AdminEventsEventIdSponsorReportRoute: typeof AdminEventsEventIdSponsorReportRoute
   AdminEventsEventIdSponsorsRoute: typeof AdminEventsEventIdSponsorsRoute
   AdminEventsEventIdTermsRoute: typeof AdminEventsEventIdTermsRoute
   AdminEventsEventIdIndexRoute: typeof AdminEventsEventIdIndexRoute
+  AdminEventsEventIdCfpFormRoute: typeof AdminEventsEventIdCfpFormRoute
+  AdminEventsEventIdCfpReviewersRoute: typeof AdminEventsEventIdCfpReviewersRoute
+  AdminEventsEventIdCfpSettingsRoute: typeof AdminEventsEventIdCfpSettingsRoute
+  AdminEventsEventIdCfpSubmissionsRoute: typeof AdminEventsEventIdCfpSubmissionsRoute
   AdminEventsEventIdContentConflictsRoute: typeof AdminEventsEventIdContentConflictsRoute
   AdminEventsEventIdContentRoomsRoute: typeof AdminEventsEventIdContentRoomsRoute
   AdminEventsEventIdContentSessionsRoute: typeof AdminEventsEventIdContentSessionsRoute
@@ -8121,10 +8307,13 @@ interface AdminEventsEventIdRouteChildren {
   AdminEventsEventIdOnsiteStatsRoute: typeof AdminEventsEventIdOnsiteStatsRoute
   AdminEventsEventIdRegistrationAudiencesRoute: typeof AdminEventsEventIdRegistrationAudiencesRoute
   AdminEventsEventIdRegistrationFormRoute: typeof AdminEventsEventIdRegistrationFormRoute
+  AdminEventsEventIdRegistrationInvoicesRoute: typeof AdminEventsEventIdRegistrationInvoicesRoute
   AdminEventsEventIdRegistrationListRoute: typeof AdminEventsEventIdRegistrationListRoute
   AdminEventsEventIdRegistrationPackagesRoute: typeof AdminEventsEventIdRegistrationPackagesRoute
+  AdminEventsEventIdRegistrationSeatingRoute: typeof AdminEventsEventIdRegistrationSeatingRoute
   AdminEventsEventIdRegistrationSettingsRoute: typeof AdminEventsEventIdRegistrationSettingsRoute
   AdminEventsEventIdRegistrationTicketsRoute: typeof AdminEventsEventIdRegistrationTicketsRoute
+  AdminEventsEventIdCfpIndexRoute: typeof AdminEventsEventIdCfpIndexRoute
   AdminEventsEventIdContentIndexRoute: typeof AdminEventsEventIdContentIndexRoute
   AdminEventsEventIdMeetingsIndexRoute: typeof AdminEventsEventIdMeetingsIndexRoute
   AdminEventsEventIdOnsiteIndexRoute: typeof AdminEventsEventIdOnsiteIndexRoute
@@ -8132,6 +8321,7 @@ interface AdminEventsEventIdRouteChildren {
 }
 
 const AdminEventsEventIdRouteChildren: AdminEventsEventIdRouteChildren = {
+  AdminEventsEventIdAdsFunnelRoute: AdminEventsEventIdAdsFunnelRoute,
   AdminEventsEventIdAnalyticsRoute: AdminEventsEventIdAnalyticsRoute,
   AdminEventsEventIdBrandingRoute: AdminEventsEventIdBrandingRoute,
   AdminEventsEventIdCommunicationsRoute: AdminEventsEventIdCommunicationsRoute,
@@ -8141,9 +8331,14 @@ const AdminEventsEventIdRouteChildren: AdminEventsEventIdRouteChildren = {
   AdminEventsEventIdIntegrationsRoute: AdminEventsEventIdIntegrationsRoute,
   AdminEventsEventIdOverviewRoute: AdminEventsEventIdOverviewRoute,
   AdminEventsEventIdPagesRoute: AdminEventsEventIdPagesRoute,
+  AdminEventsEventIdSponsorReportRoute: AdminEventsEventIdSponsorReportRoute,
   AdminEventsEventIdSponsorsRoute: AdminEventsEventIdSponsorsRoute,
   AdminEventsEventIdTermsRoute: AdminEventsEventIdTermsRoute,
   AdminEventsEventIdIndexRoute: AdminEventsEventIdIndexRoute,
+  AdminEventsEventIdCfpFormRoute: AdminEventsEventIdCfpFormRoute,
+  AdminEventsEventIdCfpReviewersRoute: AdminEventsEventIdCfpReviewersRoute,
+  AdminEventsEventIdCfpSettingsRoute: AdminEventsEventIdCfpSettingsRoute,
+  AdminEventsEventIdCfpSubmissionsRoute: AdminEventsEventIdCfpSubmissionsRoute,
   AdminEventsEventIdContentConflictsRoute:
     AdminEventsEventIdContentConflictsRoute,
   AdminEventsEventIdContentRoomsRoute: AdminEventsEventIdContentRoomsRoute,
@@ -8169,14 +8364,19 @@ const AdminEventsEventIdRouteChildren: AdminEventsEventIdRouteChildren = {
     AdminEventsEventIdRegistrationAudiencesRoute,
   AdminEventsEventIdRegistrationFormRoute:
     AdminEventsEventIdRegistrationFormRoute,
+  AdminEventsEventIdRegistrationInvoicesRoute:
+    AdminEventsEventIdRegistrationInvoicesRoute,
   AdminEventsEventIdRegistrationListRoute:
     AdminEventsEventIdRegistrationListRoute,
   AdminEventsEventIdRegistrationPackagesRoute:
     AdminEventsEventIdRegistrationPackagesRoute,
+  AdminEventsEventIdRegistrationSeatingRoute:
+    AdminEventsEventIdRegistrationSeatingRoute,
   AdminEventsEventIdRegistrationSettingsRoute:
     AdminEventsEventIdRegistrationSettingsRoute,
   AdminEventsEventIdRegistrationTicketsRoute:
     AdminEventsEventIdRegistrationTicketsRoute,
+  AdminEventsEventIdCfpIndexRoute: AdminEventsEventIdCfpIndexRoute,
   AdminEventsEventIdContentIndexRoute: AdminEventsEventIdContentIndexRoute,
   AdminEventsEventIdMeetingsIndexRoute: AdminEventsEventIdMeetingsIndexRoute,
   AdminEventsEventIdOnsiteIndexRoute: AdminEventsEventIdOnsiteIndexRoute,
