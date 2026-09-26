@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CfpSignInButton } from "@/components/events/cfp/atoms/CfpSignInButton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SpeakerMaterialDialog } from "@/components/events/cfp/molecules/SpeakerMaterialDialog";
 import { SpeakerProfileForm } from "@/components/events/cfp/molecules/SpeakerProfileForm";
@@ -65,9 +66,11 @@ export function SpeakerPanelPage({ slug }: { slug: string }) {
       <section className="space-y-3 rounded-[6px] border border-border bg-muted/30 p-6">
         <h1 className="text-lg font-bold">{t("eventCfp.speaker.signInTitle")}</h1>
         <p className="text-sm text-muted-foreground">{t("eventCfp.speaker.signInBody")}</p>
-        <Button asChild size="sm">
-          <Link to="/login">{t("eventCfp.common.signIn")}</Link>
-        </Button>
+        <CfpSignInButton
+          label={t("eventCfp.common.signIn")}
+          title={t("eventCfp.speaker.signInTitle")}
+          description={t("eventCfp.speaker.signInBody")}
+        />
       </section>
     );
   }

@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CfpSignInButton } from "@/components/events/cfp/atoms/CfpSignInButton";
 import { CfpCountdown } from "@/components/events/cfp/molecules/CfpCountdown";
 import { useAuth } from "@/hooks/useAuth";
 import { localizedPair } from "@/lib/events/cfpEnums";
@@ -95,9 +96,11 @@ function CfpContent({ slug, cfp }: { slug: string; cfp: CfpPublic }) {
                 </Button>
               </>
             ) : (
-              <Button asChild size="sm">
-                <Link to="/login">{t("eventCfp.page.signInToSubmit")}</Link>
-              </Button>
+              <CfpSignInButton
+                label={t("eventCfp.page.signInToSubmit")}
+                title={t("eventCfp.submit.signInTitle")}
+                description={t("eventCfp.submit.signInBody")}
+              />
             )}
           </div>
         ) : null}

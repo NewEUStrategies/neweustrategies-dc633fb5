@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CfpSignInButton } from "@/components/events/cfp/atoms/CfpSignInButton";
 import { CfpAnswerValue } from "@/components/events/cfp/atoms/CfpAnswerValue";
 import { CfpStatusBadge } from "@/components/events/cfp/atoms/CfpStatusBadge";
 import { CfpReviewForm } from "@/components/events/cfp/molecules/CfpReviewForm";
@@ -48,9 +49,11 @@ export function ReviewerPanelPage({ slug, submissionId }: { slug: string; submis
       <section className="space-y-3 rounded-[6px] border border-border bg-muted/30 p-6">
         <h1 className="text-lg font-bold">{t("eventCfp.review.signInTitle")}</h1>
         <p className="text-sm text-muted-foreground">{t("eventCfp.review.signInBody")}</p>
-        <Button asChild size="sm">
-          <Link to="/login">{t("eventCfp.common.signIn")}</Link>
-        </Button>
+        <CfpSignInButton
+          label={t("eventCfp.common.signIn")}
+          title={t("eventCfp.review.signInTitle")}
+          description={t("eventCfp.review.signInBody")}
+        />
       </section>
     );
   }

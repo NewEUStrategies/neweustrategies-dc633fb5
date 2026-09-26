@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CfpSignInButton } from "@/components/events/cfp/atoms/CfpSignInButton";
 import { CfpCoSpeakersEditor } from "@/components/events/cfp/molecules/CfpCoSpeakersEditor";
 import { CfpSelectField, CfpTextField } from "@/components/events/cfp/molecules/CfpFormFields";
 import { RegistrationAnswerField } from "@/components/events/registration/RegistrationAnswerField";
@@ -63,7 +64,8 @@ export function CfpSubmitPage({ slug, submissionId }: { slug: string; submission
   const { t } = useTranslation();
   const { session, loading } = useAuth();
   const signedIn = session !== null;
-  const cfpQ = useCfpPublic(slug);
+  // Gość nie widzi formularza, więc nie ma po co pytać o nabór.
+  const cfpQ = useCfpPublic(slug, signedIn);
   const mineQ = useMyCfpSubmissions(slug, signedIn);
 
   if (loading) return <FormSkeleton />;
@@ -72,9 +74,11 @@ export function CfpSubmitPage({ slug, submissionId }: { slug: string; submission
       <section className="space-y-3 rounded-[6px] border border-border bg-muted/30 p-6">
         <h1 className="text-lg font-bold">{t("eventCfp.submit.signInTitle")}</h1>
         <p className="text-sm text-muted-foreground">{t("eventCfp.submit.signInBody")}</p>
-        <Button asChild size="sm">
-          <Link to="/login">{t("eventCfp.common.signIn")}</Link>
-        </Button>
+        <CfpSignInButton
+          label={t("eventCfp.common.signIn")}
+          title={t("eventCfp.submit.signInTitle")}
+          description={t("eventCfp.submit.signInBody")}
+        />
       </section>
     );
   }

@@ -47,6 +47,7 @@ describe("buildEventPrivateHead", () => {
     const head = buildEventPrivateHead({ page, lang });
     expect(metaOf(head.meta, "title")).toBe(title);
     expect(metaOf(head.meta, "robots")).toBe("noindex, nofollow");
+    expect(metaOf(head.meta, "referrer")).toBe("no-referrer");
     expect(head.links).toEqual([]);
   });
 });

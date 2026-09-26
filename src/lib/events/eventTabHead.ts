@@ -82,8 +82,9 @@ const PRIVATE_TITLE_KEYS: Record<EventPrivatePage, string> = {
 };
 
 /**
- * Nagłówek strony prywatnej: tytuł karty w języku adresu i `noindex`. Bez
- * kanonika i podglądu linku - te adresy nie są do udostępniania.
+ * Nagłówek strony prywatnej: tytuł karty w języku adresu, `noindex`
+ * i `no-referrer`. Bez kanonika i podglądu linku - te adresy nie są do
+ * udostępniania.
  */
 export function buildEventPrivateHead(input: { page: EventPrivatePage; lang: Lang }): HeadDescriptor {
   const t = i18n.getFixedT(input.lang);
@@ -91,6 +92,10 @@ export function buildEventPrivateHead(input: { page: EventPrivatePage; lang: Lan
     meta: [
       { title: `${t(PRIVATE_TITLE_KEYS[input.page])} - ${SITE_NAME}` },
       { name: "robots", content: "noindex, nofollow" },
+      // Adres niesie identyfikator szkicu albo zgłoszenia (`?id=`) - nie
+      // wychodzi w nagłówku `Referer` do linków zewnętrznych (materiały, adresy
+      // z odpowiedzi).
+      { name: "referrer", content: "no-referrer" },
     ],
     links: [],
   };
