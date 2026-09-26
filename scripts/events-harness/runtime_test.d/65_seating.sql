@@ -154,31 +154,32 @@ INSERT INTO public.event_people (id, tenant_id, email, first_name, last_name, co
   ('65f00000-0000-0000-0000-0000000000b1', '65000000-0000-0000-0000-0000000000b0', 'obcy@example.org', 'Obcy', 'Najemca', NULL, NULL, NULL, 'self_registration')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.event_registrations (id, tenant_id, event_id, person_id, ticket_type_id, status, registration_mode, group_lead_registration_id) VALUES
-  ('65900000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e1', '65f00000-0000-0000-0000-000000000001', '65300000-0000-0000-0000-0000000000a1', 'approved', 'rsvp', NULL),
-  ('65900000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e1', '65f00000-0000-0000-0000-000000000002', '65300000-0000-0000-0000-0000000000a1', 'approved', 'rsvp', '65900000-0000-0000-0000-000000000001'),
-  ('65900000-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e1', '65f00000-0000-0000-0000-000000000003', '65300000-0000-0000-0000-0000000000a2', 'approved', 'rsvp', NULL),
-  ('65900000-0000-0000-0000-000000000004', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e1', '65f00000-0000-0000-0000-000000000004', '65300000-0000-0000-0000-0000000000a1', 'pending', 'rsvp', NULL),
-  ('65900000-0000-0000-0000-000000000005', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e1', '65f00000-0000-0000-0000-000000000005', '65300000-0000-0000-0000-0000000000a1', 'approved', 'rsvp', NULL),
-  ('65900000-0000-0000-0000-000000000006', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e1', '65f00000-0000-0000-0000-000000000006', '65300000-0000-0000-0000-0000000000a2', 'attended', 'rsvp', NULL),
-  ('65900000-0000-0000-0000-000000000007', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e1', '65f00000-0000-0000-0000-000000000007', '65300000-0000-0000-0000-0000000000a1', 'cancelled', 'rsvp', NULL),
-  ('65900000-0000-0000-0000-000000000008', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e1', '65f00000-0000-0000-0000-000000000008', '65300000-0000-0000-0000-0000000000a1', 'approved', 'rsvp', NULL),
-  ('65900000-0000-0000-0000-000000000009', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e2', '65f00000-0000-0000-0000-000000000009', '65300000-0000-0000-0000-0000000000a3', 'approved', 'rsvp', NULL),
-  ('65900000-0000-0000-0000-000000000010', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e1', '65f00000-0000-0000-0000-000000000010', '65300000-0000-0000-0000-0000000000a1', 'approved', 'rsvp', NULL),
-  ('65900000-0000-0000-0000-000000000011', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e1', '65f00000-0000-0000-0000-000000000011', '65300000-0000-0000-0000-0000000000a1', 'approved', 'rsvp', NULL),
-  ('65900000-0000-0000-0000-000000000012', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e3', '65f00000-0000-0000-0000-000000000012', NULL, 'approved', 'rsvp', NULL),
-  ('65900000-0000-0000-0000-0000000000b1', '65000000-0000-0000-0000-0000000000b0', '65e00000-0000-0000-0000-0000000000eb', '65f00000-0000-0000-0000-0000000000b1', NULL, 'approved', 'rsvp', NULL)
+INSERT INTO public.event_registrations (id, tenant_id, event_id, person_id, ticket_type_id, status, registration_mode, group_lead_registration_id, attended_at, cancelled_at) VALUES
+  ('65900000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e1', '65f00000-0000-0000-0000-000000000001', '65300000-0000-0000-0000-0000000000a1', 'approved', 'rsvp', NULL, NULL, NULL),
+  ('65900000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e1', '65f00000-0000-0000-0000-000000000002', '65300000-0000-0000-0000-0000000000a1', 'approved', 'rsvp', '65900000-0000-0000-0000-000000000001', NULL, NULL),
+  ('65900000-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e1', '65f00000-0000-0000-0000-000000000003', '65300000-0000-0000-0000-0000000000a2', 'approved', 'rsvp', NULL, NULL, NULL),
+  ('65900000-0000-0000-0000-000000000004', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e1', '65f00000-0000-0000-0000-000000000004', '65300000-0000-0000-0000-0000000000a1', 'pending', 'rsvp', NULL, NULL, NULL),
+  ('65900000-0000-0000-0000-000000000005', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e1', '65f00000-0000-0000-0000-000000000005', '65300000-0000-0000-0000-0000000000a1', 'approved', 'rsvp', NULL, NULL, NULL),
+  ('65900000-0000-0000-0000-000000000006', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e1', '65f00000-0000-0000-0000-000000000006', '65300000-0000-0000-0000-0000000000a2', 'attended', 'rsvp', NULL, now(), NULL),
+  ('65900000-0000-0000-0000-000000000007', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e1', '65f00000-0000-0000-0000-000000000007', '65300000-0000-0000-0000-0000000000a1', 'cancelled', 'rsvp', NULL, NULL, now()),
+  ('65900000-0000-0000-0000-000000000008', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e1', '65f00000-0000-0000-0000-000000000008', '65300000-0000-0000-0000-0000000000a1', 'approved', 'rsvp', NULL, NULL, NULL),
+  ('65900000-0000-0000-0000-000000000009', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e2', '65f00000-0000-0000-0000-000000000009', '65300000-0000-0000-0000-0000000000a3', 'approved', 'rsvp', NULL, NULL, NULL),
+  ('65900000-0000-0000-0000-000000000010', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e1', '65f00000-0000-0000-0000-000000000010', '65300000-0000-0000-0000-0000000000a1', 'approved', 'rsvp', NULL, NULL, NULL),
+  ('65900000-0000-0000-0000-000000000011', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e1', '65f00000-0000-0000-0000-000000000011', '65300000-0000-0000-0000-0000000000a1', 'approved', 'rsvp', NULL, NULL, NULL),
+  ('65900000-0000-0000-0000-000000000012', '11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e3', '65f00000-0000-0000-0000-000000000012', NULL, 'approved', 'rsvp', NULL, NULL, NULL),
+  ('65900000-0000-0000-0000-0000000000b1', '65000000-0000-0000-0000-0000000000b0', '65e00000-0000-0000-0000-0000000000eb', '65f00000-0000-0000-0000-0000000000b1', NULL, 'approved', 'rsvp', NULL, NULL, NULL)
 ON CONFLICT (id) DO NOTHING;
 
 -- Klucz samoobslugi i kod QR uczestniczki - baza trzyma wylacznie skroty.
 UPDATE public.event_registrations
    SET manage_token_hash = encode(digest('mg65mg65mg65mg65mg65mg65mg65mg65', 'sha256'), 'hex'),
-       qr_token_hash = encode(digest('qr65qr65qr65qr65qr65qr65qr65qr65', 'sha256'), 'hex')
+       qr_token_hash = encode(digest('qr65qr65qr65qr65qr65qr65qr65qr65', 'sha256'), 'hex'),
+       qr_issued_at = now()
  WHERE id = '65900000-0000-0000-0000-000000000008';
 
-INSERT INTO public.event_package_seats (tenant_id, event_id, package_order_id, registration_id) VALUES
+INSERT INTO public.event_package_seats (tenant_id, event_id, package_order_id, registration_id, assigned_at) VALUES
   ('11111111-1111-1111-1111-111111111111', '65e00000-0000-0000-0000-0000000000e1',
-   '65600000-0000-0000-0000-0000000000a1', '65900000-0000-0000-0000-000000000005');
+   '65600000-0000-0000-0000-0000000000a1', '65900000-0000-0000-0000-000000000005', now());
 
 -- Pomocnicy pliku: zapisane identyfikatory, SQL wywolania RPC z payloadem
 -- i odszukanie miejsca po kluczu naturalnym.
@@ -648,8 +649,8 @@ BEGIN
   PERFORM public.admin_event_seat_assign(jsonb_build_object('map_id', v_m1, 'seat_id', pg_temp.v65('B1'),
     'registration_id', '65900000-0000-0000-0000-000000000002'));
   PERFORM pg_temp.assert_raises_like(pg_temp.q65('admin_event_seat_assign', jsonb_build_object('map_id', v_m1,
-    'seat_id', pg_temp.v65('A5'), 'registration_id', '65900000-0000-0000-0000-000000000010', 'swap', true)),
-    'seat_taken', '65/przydzial: zamiana wymaga, zeby przesiadajacy sie mial miejsce');
+    'seat_id', pg_temp.v65('A5'), 'registration_id', '65900000-0000-0000-0000-000000000010', 'swap', true, 'force', true)),
+    'seat_taken', '65/przydzial: zamiana wymaga, zeby przesiadajacy sie mial miejsce (force nie pomaga)');
   v_res := public.admin_event_seat_assign(jsonb_build_object('map_id', v_m1, 'seat_id', pg_temp.v65('A5'),
     'registration_id', '65900000-0000-0000-0000-000000000002', 'swap', true));
   PERFORM pg_temp.assert(
@@ -789,9 +790,14 @@ $do$;
 -- ---------------------------------------------------------------------------
 -- SEKCJA 10: ZWOLNIENIE, BLOKADA ZAJETEGO, STRAZNIK MIEJSCA
 -- ---------------------------------------------------------------------------
+-- UWAGA: wywolanie zmieniajace stan i jego sprawdzenie w OSOBNYCH instrukcjach -
+-- jedna instrukcja SQL widzi jedna migawke (i planista moze policzyc podzapytanie
+-- przed funkcja), wiec sprawdzenie w tej samej instrukcji widzialoby stan sprzed zmiany.
 SELECT pg_temp.assert(
-  public.admin_event_seat_release(jsonb_build_object('map_id', pg_temp.v65('m1'), 'seat_ids', jsonb_build_array(pg_temp.v65('B3')))) = 1
-  AND (SELECT a.release_reason = 'manual' AND a.released_by = '65a00000-0000-0000-0000-0000000000a1'
+  public.admin_event_seat_release(jsonb_build_object('map_id', pg_temp.v65('m1'), 'seat_ids', jsonb_build_array(pg_temp.v65('B3')))) = 1,
+  '65/zwolnienie: po miejscu zwalnia dokladnie jedno');
+SELECT pg_temp.assert(
+  (SELECT a.release_reason = 'manual' AND a.released_by = '65a00000-0000-0000-0000-0000000000a1'
          FROM public.event_seat_assignments a
         WHERE a.registration_id = '65900000-0000-0000-0000-000000000010' AND a.seat_id = pg_temp.v65('B3')),
   '65/zwolnienie: po miejscu, powod manual, kto zwolnil');
@@ -913,7 +919,7 @@ SELECT pg_temp.assert(
   AND (SELECT count(*) FROM public.admin_event_seat_lookup(jsonb_build_object('event_id', '65e00000-0000-0000-0000-0000000000e1'))) = 0,
   '65/lookup: tylko aktywne miejsca podanych zgloszen, kategoria z sekcji, brak listy = pusto');
 SELECT pg_temp.assert_raises_like(pg_temp.q65('admin_event_seat_lookup', jsonb_build_object('event_id', '65e00000-0000-0000-0000-0000000000e1',
-  'registration_ids', (SELECT jsonb_agg(gen_random_uuid()) FROM generate_series(1, 201))))), 'too_many_ids', '65/lookup: ponad 200 zgloszen');
+  'registration_ids', (SELECT jsonb_agg(gen_random_uuid()) FROM generate_series(1, 201)))), 'too_many_ids', '65/lookup: ponad 200 zgloszen');
 
 SELECT pg_temp.assert(
   (SELECT count(*) FROM public.admin_event_seating_export(jsonb_build_object('map_id', pg_temp.v65('m1')))) = 22
@@ -971,8 +977,10 @@ BEGIN
   PERFORM pg_temp.assert_raises_like(format('SELECT public.admin_event_seat_section_delete(%L)', pg_temp.v65('st')),
     'section_has_assignments', '65/sekcja: usuniecie sekcji z osoba');
   PERFORM public.admin_event_seat_release(jsonb_build_object('map_id', pg_temp.v65('m1'), 'seat_ids', jsonb_build_array(pg_temp.v65('T1'))));
-  PERFORM pg_temp.assert(public.admin_event_seat_section_delete(pg_temp.v65('st'))
-    AND NOT EXISTS (SELECT 1 FROM public.event_seats s WHERE s.section_id = pg_temp.v65('st'))
+  PERFORM pg_temp.assert(public.admin_event_seat_section_delete(pg_temp.v65('st')),
+    '65/sekcja: usuniecie wolnej sekcji zwraca true');
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.event_seats s WHERE s.section_id = pg_temp.v65('st'))
     AND EXISTS (SELECT 1 FROM public.event_seat_assignments a
                  WHERE a.registration_id = '65900000-0000-0000-0000-000000000011' AND a.seat_id IS NULL),
     '65/sekcja: usuniecie wolnej sekcji zabiera miejsca, historia zostaje');
@@ -992,8 +1000,8 @@ $do$;
 -- ---------------------------------------------------------------------------
 -- SEKCJA 13: ZMIANA STATUSU ZGLOSZENIA ZWALNIA MIEJSCE
 -- ---------------------------------------------------------------------------
-UPDATE public.event_registrations SET status = 'cancelled' WHERE id = '65900000-0000-0000-0000-000000000003';
-UPDATE public.event_registrations SET status = 'attended' WHERE id = '65900000-0000-0000-0000-000000000005';
+UPDATE public.event_registrations SET status = 'cancelled', cancelled_at = now() WHERE id = '65900000-0000-0000-0000-000000000003';
+UPDATE public.event_registrations SET status = 'attended', attended_at = now() WHERE id = '65900000-0000-0000-0000-000000000005';
 SELECT pg_temp.assert(
   pg_temp.active65('65900000-0000-0000-0000-000000000003', pg_temp.v65('m1')) IS NULL
   AND (SELECT a.release_reason FROM public.event_seat_assignments a
@@ -1262,9 +1270,11 @@ SELECT pg_temp.assert_raises_like(format('SELECT public.admin_event_seat_map_del
 SELECT pg_temp.assert_raises_like($q$SELECT public.admin_event_seat_map_delete('65000000-0000-0000-0000-00000000dead')$q$,
   'not_found', '65/plan: usuniecie nieistniejacego');
 SELECT pg_temp.assert(
-  public.admin_event_seat_release(jsonb_build_object('map_id', pg_temp.v65('m2'), 'all', true)) = 1
-  AND public.admin_event_seat_map_delete(pg_temp.v65('m2'))
-  AND NOT EXISTS (SELECT 1 FROM public.event_seat_sections s WHERE s.map_id = pg_temp.v65('m2'))
+  public.admin_event_seat_release(jsonb_build_object('map_id', pg_temp.v65('m2'), 'all', true)) = 1,
+  '65/zwolnienie: all=true zwalnia jedyna osobe planu M2');
+SELECT pg_temp.assert(public.admin_event_seat_map_delete(pg_temp.v65('m2')), '65/plan: usuniety po zwolnieniu');
+SELECT pg_temp.assert(
+  NOT EXISTS (SELECT 1 FROM public.event_seat_sections s WHERE s.map_id = pg_temp.v65('m2'))
   AND NOT EXISTS (SELECT 1 FROM public.event_seats s WHERE s.map_id = pg_temp.v65('m2'))
   AND NOT EXISTS (SELECT 1 FROM public.event_seat_assignments a WHERE a.map_id = pg_temp.v65('m2')),
   '65/plan: po zwolnieniu usuniecie planu zabiera sekcje, miejsca i historie');
