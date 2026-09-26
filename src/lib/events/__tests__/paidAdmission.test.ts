@@ -1,6 +1,6 @@
 // SKUTEK WPŁATY DLA MIEJSCA (`src/lib/events/paidAdmission.ts`).
 //
-// PO CO TEN TEST. Od 20260926150000 opłacenie biletu nie zawsze daje miejsce:
+// PO CO TEN TEST. Od 20260926180000 opłacenie biletu nie zawsze daje miejsce:
 // baza może zostawić wpłatę w kolejce, w oczekiwaniu na decyzję organizatora
 // albo na zgłoszeniu zamkniętym. Webhook czyta z tej klasyfikacji, czy wolno
 // potwierdzić RSVP 'going' i wysłać „miejsce zarezerwowane", a moduł

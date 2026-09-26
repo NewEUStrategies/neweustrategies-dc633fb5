@@ -381,6 +381,8 @@ describe("zwrot PEŁNY zamówienia - dostęp znika natychmiast", () => {
       tenant_id: BILLING_IDS.tenant,
       kind: "billing",
       title_pl: "Zwrot płatności",
+      // Spec B.7: ikona z listy kuratorskiej (`receipt` ładował rejestr 109 KB).
+      icon: "credit-card",
     });
   });
 
@@ -597,7 +599,9 @@ describe("BILET na wydarzenie - zwrot cofa udział", () => {
     const outcome = await applyRefundEffects(refundEvent());
 
     expect(outcome).toBe("order_refunded");
+    // D0-1: pisownia z CHECK `event_rsvps.status` - `canceled` łamało ograniczenie.
     expect(patches("event_rsvps")[0]).toMatchObject({ status: "cancelled" });
+    expect(patches("event_rsvps")[0]).not.toMatchObject({ status: "canceled" });
     expect(filters("event_rsvps", "eq")).toEqual([
       ["event_id", EVENT_ID],
       ["user_id", BILLING_IDS.me],
@@ -630,6 +634,32 @@ describe("BILET na wydarzenie - zwrot cofa udział", () => {
     await applyRefundEffects(refundEvent());
 
     expect(allowed).toContain(patches("event_rsvps")[0].status);
+  });
+
+  it("zamówienie związane ze zgłoszeniem nie anuluje RSVP samo - robi to baza po zastosowaniu zwrotu", async () => {
+    // Zwrot nadliczbowej wpłaty (`refund_for_other_order`) zostawia ważny
+    // bilet opłacony innym zamówieniem. Anulowanie RSVP przed decyzją bazy
+    // rozjechałoby się z tym biletem.
+    scene.order = orderRow({
+      metadata: { event_id: EVENT_ID, registration_id: "reg-bound-1" },
+    });
+
+    const outcome = await applyRefundEffects(refundEvent());
+
+    expect(outcome).toBe("order_refunded");
+    expect(db.chainsFor("event_rsvps")).toHaveLength(0);
+    expect(h.rpc.calls[0]).toMatchObject({
+      fn: "payments_apply_event_ticket_outcome",
+      args: { p_outcome: "refunded" },
+    });
+  });
+
+  it("pusty `registration_id` traktujemy jak zamówienie starszej ścieżki", async () => {
+    scene.order = orderRow({ metadata: { event_id: EVENT_ID, registration_id: "" } });
+
+    await applyRefundEffects(refundEvent());
+
+    expect(patches("event_rsvps")[0]).toMatchObject({ status: "cancelled" });
   });
 
   it("bilet zanonimizowanego konta zwalnia miejsce, ale nie rusza cudzych zgłoszeń", async () => {

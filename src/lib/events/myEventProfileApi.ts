@@ -278,6 +278,12 @@ export async function syncMyEventProfileFromAccount(slug: string): Promise<MyEve
   return parsePanel(data);
 }
 
+/**
+ * Sesja z `event_my_agenda` (po D0-4: sala z `event_rooms.name/floor`, status
+ * sesji, strefa wydarzenia, BEZ adresu transmisji - osobisty plan nigdy nie
+ * oddaje `stream_url`, D7). `roomNamePl/En` zostają dla zgodności wstecz
+ * (RPC oddaje w obu to samo `r.name`).
+ */
 export interface MyAgendaSession {
   sessionId: string;
   titlePl: string | null;
@@ -285,12 +291,17 @@ export interface MyAgendaSession {
   startsAt: string | null;
   endsAt: string | null;
   format: string | null;
-  streamUrl: string | null;
+  roomName: string | null;
+  roomFloor: string | null;
   roomNamePl: string | null;
   roomNameEn: string | null;
   trackNamePl: string | null;
   trackNameEn: string | null;
   signupStatus: string | null;
+  /** `published` | `cancelled` - szkice RPC ukrywa. */
+  sessionStatus: string | null;
+  /** Strefa wydarzenia, już bezpieczna (`_event_safe_timezone`). */
+  timezone: string | null;
 }
 
 export async function fetchMyAgenda(slug: string): Promise<MyAgendaSession[]> {
@@ -311,12 +322,15 @@ export async function fetchMyAgenda(slug: string): Promise<MyAgendaSession[]> {
       startsAt: text(entry, "starts_at"),
       endsAt: text(entry, "ends_at"),
       format: text(entry, "format"),
-      streamUrl: text(entry, "stream_url"),
+      roomName: text(entry, "room_name"),
+      roomFloor: text(entry, "room_floor"),
       roomNamePl: text(entry, "room_name_pl"),
       roomNameEn: text(entry, "room_name_en"),
       trackNamePl: text(entry, "track_name_pl"),
       trackNameEn: text(entry, "track_name_en"),
       signupStatus: text(entry, "signup_status"),
+      sessionStatus: text(entry, "session_status"),
+      timezone: text(entry, "timezone"),
     });
   }
   return out;

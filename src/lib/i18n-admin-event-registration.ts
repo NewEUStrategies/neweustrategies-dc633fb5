@@ -272,7 +272,7 @@ export const adminEventRegistrationPl = {
         // bez tej plakietki wiersz udawal „wyslany", a bilet trzeba przekazac
         // inna droga.
         ticketUndeliverable: "Bilet nie dotarł - adres zablokowany",
-        // Opłacony wiersz BEZ miejsca (20260926150000): wpłata po wyczerpaniu
+        // Opłacony wiersz BEZ miejsca (20260926180000): wpłata po wyczerpaniu
         // puli, bilet wymagający akceptacji albo zgłoszenie zamknięte - w każdym
         // z tych stanów ruch ma organizator (miejsce, decyzja albo zwrot).
         ticketPaidWaitlisted: "Opłacone - czeka na miejsce",

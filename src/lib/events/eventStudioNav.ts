@@ -58,13 +58,20 @@ export const EVENT_STUDIO_SECTIONS = [
   "registrationSettings",
   "registrationList",
   "registrationTickets",
+  "registrationPolicies",
   "registrationPackages",
+  "registrationInvoices",
   "registrationAudiences",
   "registrationForm",
+  "registrationSeating",
   "contentSpeakers",
   "contentTracks",
   "contentRooms",
   "contentConflicts",
+  "cfpSettings",
+  "cfpForm",
+  "cfpSubmissions",
+  "cfpReviewers",
   "meetingsTables",
   "meetingsSettings",
   "meetingsList",
@@ -79,6 +86,8 @@ export const EVENT_STUDIO_SECTIONS = [
   "communications",
   "integrations",
   "analytics",
+  "adsFunnel",
+  "sponsorReport",
   "features",
 ] as const;
 
@@ -103,13 +112,20 @@ export const EVENT_STUDIO_ROUTES = {
   registrationSettings: "/admin/events/$eventId/registration/settings",
   registrationList: "/admin/events/$eventId/registration/list",
   registrationTickets: "/admin/events/$eventId/registration/tickets",
+  registrationPolicies: "/admin/events/$eventId/registration/policies",
   registrationPackages: "/admin/events/$eventId/registration/packages",
+  registrationInvoices: "/admin/events/$eventId/registration/invoices",
   registrationAudiences: "/admin/events/$eventId/registration/audiences",
   registrationForm: "/admin/events/$eventId/registration/form",
+  registrationSeating: "/admin/events/$eventId/registration/seating",
   contentSpeakers: "/admin/events/$eventId/content/speakers",
   contentTracks: "/admin/events/$eventId/content/tracks",
   contentRooms: "/admin/events/$eventId/content/rooms",
   contentConflicts: "/admin/events/$eventId/content/conflicts",
+  cfpSettings: "/admin/events/$eventId/cfp/settings",
+  cfpForm: "/admin/events/$eventId/cfp/form",
+  cfpSubmissions: "/admin/events/$eventId/cfp/submissions",
+  cfpReviewers: "/admin/events/$eventId/cfp/reviewers",
   meetingsTables: "/admin/events/$eventId/meetings/tables",
   meetingsSettings: "/admin/events/$eventId/meetings/settings",
   meetingsList: "/admin/events/$eventId/meetings/list",
@@ -124,6 +140,8 @@ export const EVENT_STUDIO_ROUTES = {
   communications: "/admin/events/$eventId/communications",
   integrations: "/admin/events/$eventId/integrations",
   analytics: "/admin/events/$eventId/analytics",
+  adsFunnel: "/admin/events/$eventId/ads-funnel",
+  sponsorReport: "/admin/events/$eventId/sponsor-report",
   features: "/admin/events/$eventId/features",
 } as const satisfies Record<EventStudioSection, `/admin/events/$eventId/${string}`>;
 
@@ -252,12 +270,27 @@ export const EVENT_STUDIO_NAV: readonly EventStudioNavNode[] = [
         labelKey: "adminEventRegistration.nav.tickets",
         keywordKeys: ["adminEvents.studio.keywords.registrationTickets"],
       },
+      // ZASADY BILETÓW (F1-F5): przekazanie, samodzielny zwrot i czas na
+      // opłacenie oferty z listy rezerwowej. Stoją tuż za wejściówkami, bo
+      // dotyczą tego, co uczestnik może zrobić z kupionym biletem.
+      {
+        key: "registrationPolicies",
+        labelKey: "adminEvents.studio.sections.registrationPolicies",
+        keywordKeys: ["adminEvents.studio.keywords.registrationPolicies"],
+      },
       {
         // PAKIETY STOJĄ ZA BILETAMI, bo pakiet sprzedaje bilet w hurcie -
         // bez zdefiniowanej wejściówki nie ma czego zapakować.
         key: "registrationPackages",
         labelKey: "adminEventRegistration.packages.title",
         keywordKeys: ["adminEvents.studio.keywords.registrationPackages"],
+      },
+      {
+        // FAKTURY STOJĄ ZA PAKIETAMI, bo faktura zbiorcza rozlicza właśnie
+        // zakup hurtowy - pakiet albo kilka biletów jednej firmy naraz.
+        key: "registrationInvoices",
+        labelKey: "adminEvents.studio.sections.registrationInvoices",
+        keywordKeys: ["adminEvents.studio.keywords.registrationInvoices"],
       },
       {
         // UPRAWNIENIA STOJĄ ZA PAKIETAMI, bo dopiero pakiet ze stawką zawężoną
@@ -270,6 +303,13 @@ export const EVENT_STUDIO_NAV: readonly EventStudioNavNode[] = [
         key: "registrationForm",
         labelKey: "adminEventRegistration.nav.form",
         keywordKeys: ["adminEvents.studio.keywords.registrationForm"],
+      },
+      {
+        // PLAN SALI NA KOŃCU GRUPY: miejsca przydziela się ludziom, którzy już
+        // się zapisali - bez listy zgłoszeń nie ma kogo sadzać.
+        key: "registrationSeating",
+        labelKey: "adminEvents.studio.sections.registrationSeating",
+        keywordKeys: ["adminEvents.studio.keywords.registrationSeating"],
       },
     ],
   },
@@ -309,6 +349,40 @@ export const EVENT_STUDIO_NAV: readonly EventStudioNavNode[] = [
         key: "contentConflicts",
         labelKey: "adminEventAgenda.nav.conflicts",
         keywordKeys: ["adminEvents.studio.keywords.contentConflicts"],
+      },
+    ],
+  },
+  {
+    // NABÓR PRELEGENTÓW TUŻ ZA TREŚCIĄ, bo jest jej źródłem: przyjęte
+    // zgłoszenie staje się prelegentem i sesją w programie. Osobna grupa, a nie
+    // podpozycje „Treści", bo nabór ma własny cykl (otwarcie, recenzje,
+    // decyzje) i własny przełącznik modułu (`cfp`).
+    kind: "group",
+    key: "cfp",
+    labelKey: "adminEvents.studio.groups.cfp",
+    icon: "mic",
+    defaultSection: "cfpSettings",
+    keywordKeys: ["adminEvents.studio.keywords.cfp"],
+    entries: [
+      {
+        key: "cfpSettings",
+        labelKey: "adminEvents.studio.sections.cfpSettings",
+        keywordKeys: ["adminEvents.studio.keywords.cfpSettings"],
+      },
+      {
+        key: "cfpForm",
+        labelKey: "adminEvents.studio.sections.cfpForm",
+        keywordKeys: ["adminEvents.studio.keywords.cfpForm"],
+      },
+      {
+        key: "cfpSubmissions",
+        labelKey: "adminEvents.studio.sections.cfpSubmissions",
+        keywordKeys: ["adminEvents.studio.keywords.cfpSubmissions"],
+      },
+      {
+        key: "cfpReviewers",
+        labelKey: "adminEvents.studio.sections.cfpReviewers",
+        keywordKeys: ["adminEvents.studio.keywords.cfpReviewers"],
       },
     ],
   },
@@ -407,6 +481,23 @@ export const EVENT_STUDIO_NAV: readonly EventStudioNavNode[] = [
     labelKey: "adminEvents.studio.sections.analytics",
     icon: "bar-chart-3",
     keywordKeys: ["adminEvents.studio.keywords.analytics"],
+  },
+  {
+    // DWA RAPORTY ZA ANALITYKĄ, a nie jej zakładki: lejek reklam i raport
+    // sponsora mają innego odbiorcę (marketing, dział partnerstw) i adres,
+    // który wysyła się dalej - zakładka nie ma własnego adresu.
+    kind: "item",
+    key: "adsFunnel",
+    labelKey: "adminEvents.studio.sections.adsFunnel",
+    icon: "target",
+    keywordKeys: ["adminEvents.studio.keywords.adsFunnel"],
+  },
+  {
+    kind: "item",
+    key: "sponsorReport",
+    labelKey: "adminEvents.studio.sections.sponsorReport",
+    icon: "pie-chart",
+    keywordKeys: ["adminEvents.studio.keywords.sponsorReport"],
   },
   {
     kind: "item",

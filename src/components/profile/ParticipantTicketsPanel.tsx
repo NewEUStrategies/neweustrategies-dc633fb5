@@ -6,9 +6,19 @@
 // nazywa zdarzenie zdaniem (kto, kiedy, ile wróciło) i dopiero pod spodem
 // pokazuje surowy ślad zdarzeń operatora dla tych, którzy chcą dowodu.
 //
+// PORTFEL TYLKO ZE STRONY BILETU. Baza trzyma wyłącznie skrót kodu QR, więc
+// ta lista nie ma z czego złożyć przepustki Apple/Google Wallet. Przy bilecie
+// ważnym (przyjęty albo obecny, opłacony albo bezpłatny) karta mówi więc,
+// skąd ją dodać - z linku do strony biletu w mailu.
+//
 // KANAŁY SĄ PER ZGŁOSZENIE. Przełączniki piszą do
 // `event_registration_set_channels`, a wysyłka transakcyjna czyta te same
 // kolumny - to jedna prawda, nie dwie.
+//
+// GNIAZDA TORÓW F1-F5 (spec B.11). Karta ma trzy PUSTE gniazda, które
+// wypełniają tory: B pod sekcją płatności (oferta, przekazanie, zwrot),
+// A pod kanałami (przypomnienia), C nad dziennikiem płatności (ankieta,
+// certyfikat). Linie montażu gniazd są nietykalne dla torów.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -23,11 +33,18 @@ import {
   type ParticipantRegistration,
 } from "@/lib/events/participantTicketsApi";
 import { RegistrationPayAction } from "@/components/events/registration/molecules/RegistrationPayAction";
+import { EventInvoiceTicketStatus } from "@/components/events/invoices/atoms/EventInvoiceTicketStatus";
 import { ensureI18n } from "@/lib/i18n-participant-tickets";
+import { ensureEventWalletI18n } from "@/lib/i18n-event-wallet";
 
 ensureI18n();
+ensureEventWalletI18n();
 
 const QUERY_KEY = ["profile", "event-registrations"] as const;
+
+/** Stany, w których bilet działa przy bramce (jak `event_ticket_wallet_payload`). */
+const WALLET_STATUSES: ReadonlySet<string> = new Set(["approved", "attended"]);
+const WALLET_PAYMENTS: ReadonlySet<string> = new Set(["paid", "not_required"]);
 
 function statusKey(status: string): string {
   if (status === "approved" || status === "confirmed") return "approved";
@@ -111,6 +128,8 @@ function RegistrationCard({ item }: { item: ParticipantRegistration }) {
           >
             {t("participantTickets.openEvent")}
           </Link>
+          {/* Faktura na firme za ten bilet: numer, prosba albo mozliwosc prosby. */}
+          <EventInvoiceTicketStatus registrationId={item.registrationId} />
         </div>
       </header>
 
@@ -145,6 +164,10 @@ function RegistrationCard({ item }: { item: ParticipantRegistration }) {
         )}
       </dl>
 
+      {WALLET_STATUSES.has(item.status) && WALLET_PAYMENTS.has(item.paymentStatus ?? "") && (
+        <p className="text-xs text-muted-foreground">{t("eventWallet.profileHint")}</p>
+      )}
+
       {/* DROGA POWROTNA DO KASY. Karta pokazywala „nieopłacone" i nie dawała
           z tym NIC zrobić: jedyną drogą do zapłaty był ekran potwierdzenia,
           który uczestnik dawno zamknął, więc płacił, zapisując się DRUGI RAZ -
@@ -169,6 +192,7 @@ function RegistrationCard({ item }: { item: ParticipantRegistration }) {
             />
           </section>
         )}
+      <RegistrationCardActionsSlot item={item} />
 
       <section className="rounded-[6px] border border-border/60 bg-muted/30 p-3">
         <h3 className="text-sm font-semibold text-foreground">
@@ -211,6 +235,8 @@ function RegistrationCard({ item }: { item: ParticipantRegistration }) {
           </label>
         </div>
       </section>
+      <RegistrationCardRemindersSlot item={item} />
+      <RegistrationCardFollowUpSlot item={item} />
 
       <section className="space-y-2">
         <h3 className="text-sm font-semibold text-foreground">

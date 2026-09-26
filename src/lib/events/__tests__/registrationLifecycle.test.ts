@@ -177,6 +177,20 @@ describe("registrationsCsv - dane, ktore opuszczaja system", () => {
     expect(csv).toContain("'=HYPERLINK");
   });
 
+  // Kolumna miejsca na sali jest OSTATNIA (starsze arkusze sie nie przesuwaja),
+  // a zgloszenie bez miejsca dostaje pusta komorke, nie "undefined".
+  it("miejsce na sali trafia do ostatniej kolumny, brak miejsca to pusta komorka", () => {
+    expect(REGISTRATION_CSV_COLUMNS.at(-1)).toBe("seat");
+    const [, posadzony, bezMiejsca] = registrationsToCsv(
+      [row({ id: "a" }), row({ id: "b" })],
+      "pl",
+      new Map([["a", "Rzad A, miejsce 2"]]),
+    ).split("\n");
+    expect(posadzony?.endsWith(',"Rzad A, miejsce 2"')).toBe(true);
+    expect(bezMiejsca?.endsWith(",")).toBe(true);
+    expect(registrationsToCsv([row({ id: "a" })], "pl")).not.toContain("undefined");
+  });
+
   it("firma z kartoteki wygrywa nad wpisana recznie", () => {
     const csv = registrationsToCsv([row({ company_name: "Firma SA" })], "pl");
     expect(csv).toContain("Firma SA");

@@ -1,6 +1,6 @@
 -- ===========================================================================
 -- 72 ANULOWANIE ZAMOWIENIA PAKIETU ODDAJE UZYCIE KODU (migracja 20260926130000,
---    cialo zmiany statusu z 20260926150000, sekcja 11)
+--    cialo zmiany statusu z 20260926180000, sekcja 11)
 --
 -- PO CO TEN PLIK ISTNIEJE. Od 20260926110000 zakup pakietu zuzywa kod rabatowy
 -- (licznik + wiersz realizacji), ale zmiana statusu zamowienia nie oddawala go
@@ -31,7 +31,7 @@
 --   M. realizacja NIEPOWIAZANA (stare dane): anulowanie nic nie oddaje,
 --      zatrzask zostaje pusty, powrot niczego nie zuzywa;
 --   N. kod skasowany (i kod spoza najemcy) w czasie anulowania: powrot czysci
---      zatrzask bez bledu i bez realizacji; LUSTRO (20260926150000): kod
+--      zatrzask bez bledu i bez realizacji; LUSTRO (20260926180000): kod
 --      przeniesiony do obcego najemcy PRZED anulowaniem - realizacja zostaje,
 --      licznik bez zmian, zatrzask pusty, powrot niczego nie zuzywa; kod
 --      skasowany PRZED anulowaniem (`coupon_id` NULL) - anulowanie i powrot
@@ -43,7 +43,7 @@
 --   Q. zwykle anulowanie kasuje DOKLADNIE jedna realizacje i zdejmuje
 --      DOKLADNIE 1 z licznika; licznik poprawiony recznie na 0 zostaje 0
 --      (GREATEST), a zatrzask i tak staje;
---   R. kolejnosc blokad z 20260926150000 (kod PRZED zamowieniem) w galezi A
+--   R. kolejnosc blokad z 20260926180000 (kod PRZED zamowieniem) w galezi A
 --      i B - odczytana w jednej sesji z MultiXactId w `xmax` (opis w sekcji).
 --
 -- CZEGO NIE SPRAWDZA: rownoleglych transakcji. Harness ma jedna sesje, wiec
@@ -668,7 +668,7 @@ END $do$;
 -- ---------------------------------------------------------------------------
 -- N (LUSTRO). KOD SPOZA NAJEMCY ALBO SKASOWANY JUZ PRZED ANULOWANIEM
 --
--- Do 20260926150000 galaz A kasowala realizacje zamowienia bez wzgledu na to,
+-- Do 20260926180000 galaz A kasowala realizacje zamowienia bez wzgledu na to,
 -- w czyim najemcy jest jej kod: UPDATE licznika z filtrem najemcy nie trafial
 -- w nic, wiersz realizacji znikal, a zatrzask stawal mimo to - i powrot nie
 -- mial juz czego odtworzyc (licznik o jeden wyzej niz rejestr, na zawsze).
@@ -947,7 +947,7 @@ BEGIN
 END $do$;
 
 -- ---------------------------------------------------------------------------
--- R. KOLEJNOSC BLOKAD: KOD PRZED ZAMOWIENIEM (20260926150000)
+-- R. KOLEJNOSC BLOKAD: KOD PRZED ZAMOWIENIEM (20260926180000)
 --
 -- Zakleszczenia z kasowaniem kodu jedna sesja nie odtworzy, ale KOLEJNOSC
 -- blokad jednej zmiany statusu da sie odczytac z `xmax`. Transakcja glowna
@@ -963,7 +963,7 @@ END $do$;
 -- wierszy nie daloby sie rozroznic. Kazda galaz ma wlasny kod i zamowienie,
 -- bo odziedziczony MultiXactId drugi pomiar czytalby z pierwszego.
 --
--- Cialo sprzed 20260926150000 na tych samych krokach (sprawdzone recznie):
+-- Cialo sprzed 20260926180000 na tych samych krokach (sprawdzone recznie):
 -- w galezi A kod nie dostaje MultiXactId wcale (pierwsza blokada kodu to
 -- UPDATE licznika, a nowa wersja niesie zwykly xid), w galezi B MultiXactId
 -- zamowienia jest MNIEJSZY niz kodu. Obie asercje ponizej bylyby czerwone.

@@ -197,3 +197,125 @@ describe("straznik zdarzenia instalacji", () => {
     expect((event as InstallPromptEvent).userChoice).toBeUndefined();
   });
 });
+
+/* ------------------------------------------------ gotowość do pracy offline --- */
+//
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//   * strona prosi workera o zapisanie cudzych adresów albo API - worker
+//     staje się pośrednikiem cachującym odpowiedzi bazy (nieaktualne dane
+//     wyglądające na prawdziwe);
+//   * brak workera albo milczący worker zawiesza kartę gotowości na zawsze
+//     zamiast powiedzieć „aplikacja nie jest zapisana";
+//   * przeglądarka bez `navigator.storage` wywraca ekran zamiast odpowiedzieć
+//     „nie wiadomo".
+describe("rozgrzanie cache workera", () => {
+  const ORIGIN = "https://nes.example";
+
+  it("do rozgrzania nadaje się tylko powłoka i zasoby budowania z tego samego źródła", async () => {
+    const { isScannerPrecacheUrl } = await import("@/lib/events/scannerPwa");
+    const ok = ["/scanner", "/_build/a.js", "/assets/b.css", "/scanner/icon-192.png"];
+    for (const path of ok) expect(isScannerPrecacheUrl(new URL(path, ORIGIN), ORIGIN)).toBe(true);
+    for (const url of [
+      `${ORIGIN}/events/x`,
+      `${ORIGIN}/api/public/y`,
+      "https://obce.example/assets/a.js",
+    ]) {
+      expect(isScannerPrecacheUrl(new URL(url), ORIGIN)).toBe(false);
+    }
+  });
+
+  it("lista kandydatów zaczyna się od powłoki, bez powtórzeń i bez nieczytelnych adresów", async () => {
+    const { precacheCandidates } = await import("@/lib/events/scannerPwa");
+    expect(
+      precacheCandidates(
+        [`${ORIGIN}/assets/a.js`, `${ORIGIN}/assets/a.js`, "http://[zly", `${ORIGIN}/rest/v1/x`],
+        ORIGIN,
+      ),
+    ).toEqual([`${ORIGIN}/scanner`, `${ORIGIN}/assets/a.js`]);
+  });
+
+  function installWorker(onPost: (message: unknown, port: MessagePort) => void) {
+    const active = {
+      postMessage: vi.fn((message: unknown, ports: MessagePort[]) => onPost(message, ports[0])),
+    };
+    vi.stubGlobal("navigator", { serviceWorker: { ready: Promise.resolve({ active }) } });
+    vi.spyOn(performance, "getEntriesByType").mockReturnValue([
+      { name: `${window.location.origin}/assets/a.js` } as PerformanceEntry,
+    ]);
+    return active;
+  }
+
+  it("worker odpowiada na kanale - strona dostaje liczbę zapisanych plików", async () => {
+    const { requestScannerPrecache } = await import("@/lib/events/scannerPwa");
+    const active = installWorker((_message, port) => {
+      port.postMessage(null);
+      port.postMessage({ type: "inne" });
+      port.postMessage({ type: "precache-done", cached: 2, total: 2 });
+    });
+
+    await expect(requestScannerPrecache(1000)).resolves.toEqual({ cached: 2, total: 2 });
+    expect(active.postMessage.mock.calls[0][0]).toEqual({
+      type: "precache",
+      urls: [`${window.location.origin}/scanner`, `${window.location.origin}/assets/a.js`],
+    });
+  });
+
+  it("milczący worker kończy się `null` po terminie, a nie wiecznym czekaniem", async () => {
+    const { requestScannerPrecache } = await import("@/lib/events/scannerPwa");
+    installWorker(() => undefined);
+
+    await expect(requestScannerPrecache(20)).resolves.toBeNull();
+  });
+
+  it("brak aktywnego workera i brak gotowości w terminie to `null`", async () => {
+    const { requestScannerPrecache } = await import("@/lib/events/scannerPwa");
+    vi.stubGlobal("navigator", { serviceWorker: { ready: Promise.resolve({ active: null }) } });
+    await expect(requestScannerPrecache(20)).resolves.toBeNull();
+
+    vi.stubGlobal("navigator", { serviceWorker: { ready: new Promise(() => undefined) } });
+    await expect(requestScannerPrecache(20)).resolves.toBeNull();
+
+    vi.stubGlobal("navigator", { serviceWorker: { ready: Promise.reject(new Error("x")) } });
+    await expect(requestScannerPrecache(20)).resolves.toBeNull();
+  });
+
+  it("przeglądarka bez Service Workera albo bez `window` to `null`", async () => {
+    const { requestScannerPrecache } = await import("@/lib/events/scannerPwa");
+    vi.stubGlobal("navigator", {});
+    await expect(requestScannerPrecache()).resolves.toBeNull();
+    vi.stubGlobal("window", undefined);
+    await expect(requestScannerPrecache()).resolves.toBeNull();
+  });
+});
+
+describe("trwałe przechowywanie", () => {
+  it("odczyt i prośba zwracają odpowiedź przeglądarki", async () => {
+    const { requestPersistentStorage, storagePersisted } = await import("@/lib/events/scannerPwa");
+    vi.stubGlobal("navigator", {
+      storage: { persisted: () => Promise.resolve(false), persist: () => Promise.resolve(true) },
+    });
+
+    await expect(storagePersisted()).resolves.toBe(false);
+    await expect(requestPersistentStorage()).resolves.toBe(true);
+  });
+
+  it("brak API albo odmowa z wyjątkiem to `null`, nie wywrotka ekranu", async () => {
+    const { requestPersistentStorage, storagePersisted } = await import("@/lib/events/scannerPwa");
+    vi.stubGlobal("navigator", {});
+    await expect(storagePersisted()).resolves.toBeNull();
+    await expect(requestPersistentStorage()).resolves.toBeNull();
+
+    vi.stubGlobal("navigator", {
+      storage: {
+        persisted: () => Promise.reject(new Error("SecurityError")),
+        persist: () => Promise.reject(new Error("SecurityError")),
+      },
+    });
+    await expect(storagePersisted()).resolves.toBeNull();
+    await expect(requestPersistentStorage()).resolves.toBeNull();
+
+    vi.stubGlobal("navigator", undefined);
+    await expect(storagePersisted()).resolves.toBeNull();
+    await expect(requestPersistentStorage()).resolves.toBeNull();
+  });
+});

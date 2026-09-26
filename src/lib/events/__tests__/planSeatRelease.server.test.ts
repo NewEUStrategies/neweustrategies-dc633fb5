@@ -1,6 +1,6 @@
 // Przegląd biletów z puli planu wołany z crona aplikacji.
 //
-// DLACZEGO TEN TEST ISTNIEJE. Bez pg_cron migracja 20260926150000 nie planuje
+// DLACZEGO TEN TEST ISTNIEJE. Bez pg_cron migracja 20260926180000 nie planuje
 // przeglądu - bilety porzuconych kas zostawałyby zajęte na zawsze. Test
 // pilnuje, że krok crona woła funkcję bazy z limitem, oddaje liczbę
 // zwróconych biletów, na bazie bez migracji milczy, a inny błąd zgłasza.

@@ -26,7 +26,7 @@
 --      (kasa spolecznosci ich nie ustawia).
 --   5. `refunded` zwalnia miejsce i promuje pierwszego z listy rezerwowej.
 --   6. Pula wyczerpana miedzy kasa a webhookiem: wplata zaksiegowana,
---      zgloszenie w kolejce OPLACONE (20260926150000) - patrz sekcja 6.
+--      zgloszenie w kolejce OPLACONE (20260926180000) - patrz sekcja 6.
 --
 -- SPRZATANIE: caly plik siedzi w BEGIN ... ROLLBACK. Zadna asercja nie
 -- potrzebuje drugiej sesji, wiec nic nie musi byc zacommitowane.
@@ -479,7 +479,7 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- 6) PULA WYCZERPANA MIEDZY KASA A WEBHOOKIEM - KOLEJKA OPLACONA
 --
--- Do migracji 20260926150000 byl to DEFEKT ZAREJESTROWANY: CHECK
+-- Do migracji 20260926180000 byl to DEFEKT ZAREJESTROWANY: CHECK
 -- `event_ticket_types_sold_within_quota` wywracal cale ksiegowanie, a
 -- `applyTicketOutcome` logowal blad i oddawal 200 - pieniadze pobrane,
 -- zgloszenie `pending/unpaid`, bez kodu, bez informacji. Rozstrzygniecie

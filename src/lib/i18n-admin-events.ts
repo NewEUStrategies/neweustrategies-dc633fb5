@@ -349,9 +349,21 @@ export const adminEventsPl = {
         // z ktorym moglyby sie rozjechac, wiec stoja tam, gdzie etykiety
         // pozostalych ekranow studia.
         registrationSettings: "Ustawienia rejestracji",
+        // EKRANY FUNKCJI ORGANIZATORA. Etykiety stoją TUTAJ, a nie w nakładkach
+        // funkcji: sidebar ładuje wyłącznie ten słownik, więc etykieta
+        // z nakładki funkcji rysowałaby się jako surowy klucz, dopóki trasa nie
+        // doczyta swojego słownika. Ten sam klucz jest tytułem ekranu.
+        registrationInvoices: "Faktury",
+        registrationSeating: "Plan sali",
+        cfpSettings: "Ustawienia naboru",
+        cfpForm: "Formularz zgłoszenia",
+        cfpSubmissions: "Zgłoszenia",
+        cfpReviewers: "Recenzenci",
         communications: "Komunikacja",
         integrations: "Integracje",
         analytics: "Analityka",
+        adsFunnel: "Lejek Google Ads",
+        sponsorReport: "Raport dla sponsorów",
         features: "Funkcje dodatkowe",
       },
 
@@ -364,8 +376,10 @@ export const adminEventsPl = {
         builder: "Kreator wydarzenia",
         registration: "Rejestracja w aplikacji",
         content: "Treść",
+        cfp: "Nabór prelegentów",
         meetings: "Spotkania",
         onsite: "Na miejscu",
+        followUp: "Po wydarzeniu",
       },
 
       // SŁOWA, KTÓRYCH REDAKTOR SZUKA, A NIE ETYKIETY, KTÓRE JUŻ WIDZI.
@@ -382,11 +396,16 @@ export const adminEventsPl = {
         terms: "regulamin, zgody, RODO, polityka prywatności, oświadczenia",
         registration: "bilety, wejściówki, zapisy, formularz zgłoszenia, lista oczekujących",
         content: "agenda, sesje, program, prelegenci, ścieżki, sale",
+        cfp: "call for papers, CFP, nabór, zgłoszenia prelegentów, abstrakty, recenzje, ocena, panel prelegenta",
         meetings: "networking, matchmaking, stoliki, rozmowy 1:1, kalendarz",
         communications: "e-maile, powiadomienia, przypomnienia, wysyłki, newsletter",
         onsite: "QR, skaner, check-in, badge, identyfikator, odprawa",
         integrations: "API, webhooki, CRM, eksport, synchronizacja",
         analytics: "statystyki, raporty, frekwencja, wykresy, dane",
+        adsFunnel:
+          "Google Ads, lejek, lejek sprzedaży, kampanie, UTM, gclid, konwersje, ROI, ROAS, atrybucja",
+        sponsorReport:
+          "raport sponsora, sponsorzy, wyświetlenia, kliknięcia, CTR, leady, kontakty, zebrane kontakty, ROI",
         features: "moduły, rozszerzenia, opcje, ustawienia dodatkowe",
 
         // Słowa PODPOZYCJI. Klucze wyżej opisują całe grupy („networking"
@@ -397,13 +416,21 @@ export const adminEventsPl = {
         registrationList: "zgłoszenia, uczestnicy, lista zapisów, eksport, statusy",
         registrationTickets: "bilety, wejściówki, pule, cennik, limity miejsc",
         registrationPackages: "pakiety, grupy, delegacje, zamówienia zbiorowe, miejsca",
+        registrationInvoices:
+          "faktury, faktura na firmę, NIP, faktura zbiorcza, proforma, korekta, KSeF, VAT, dane nabywcy",
         registrationAudiences:
           "stawka akademicka, ngo, uprawnienia, zniżki grupowe, weryfikacja, podstawa nadania",
         registrationForm: "formularz, pola zgłoszenia, pytania, zgody w zapisie",
+        registrationSeating:
+          "plan sali, rozsadzenie, miejsca na sali, przydział miejsc, rzędy, stoły, gala, numerowane miejsca",
         contentSessions: "sesje, agenda, program, prelegenci, harmonogram",
         contentTracks: "ścieżki, bloki tematyczne, tory programu",
         contentRooms: "sale, miejsca sesji, audytoria, pokoje",
         contentConflicts: "kolizje, nakładające się sesje, ta sama sala, ten sam prelegent",
+        cfpSettings: "otwarcie naboru, termin zgłoszeń, zasady, kategorie, zamknięcie naboru",
+        cfpForm: "formularz, pola zgłoszenia, abstrakt, biogram, pytania do prelegenta",
+        cfpSubmissions: "zgłoszenia, abstrakty, decyzje, przyjęte, odrzucone, lista oczekujących",
+        cfpReviewers: "recenzenci, oceny, punktacja, komisja programowa, przydział recenzji",
         meetingsTables: "stoliki, miejsca spotkań, strefa networkingu",
         meetingsSettings: "siatka, reguły, dostępność, długość spotkania, matchmaking",
         meetingsList: "spotkania 1:1, rozmowy, kalendarz spotkań, wnioski",
@@ -415,6 +442,11 @@ export const adminEventsPl = {
         onsiteDevices: "urządzenia, terminale, skanery, tokeny dostępu",
         onsiteBadges: "identyfikatory, plakietki, druk, szablony badge",
         onsiteLeads: "leady, wizytówki sponsorów, kontakty ze stoiska",
+        registrationPolicies:
+          "przekazanie biletu, zwrot, refundacja, termin zwrotu, oferta z listy rezerwowej, czas na płatność",
+        followUpCertificate: "certyfikat, zaświadczenie, dyplom, PDF, uczestnictwo, godziny",
+        followUpSurvey: "ankieta, pytania, opinie, ocena, NPS, anonimowość",
+        followUpResults: "wyniki ankiety, odpowiedzi, średnia, NPS, eksport CSV",
       },
 
       nav: {
@@ -553,6 +585,25 @@ export const adminEventsPl = {
           "Treść strony ma nieznany kształt. Odśwież ekran i załóż podstronę jeszcze raz.",
         invalidFeature:
           "Moduł może być tylko włączony albo wyłączony. Odśwież ekran i przełącz go jeszcze raz.",
+        // ODMOWY USTAWIEŃ UCZESTNIKA (`admin_event_participant_settings_save`) -
+        // formularze sprawdzają to samo przed zapisem, więc te zdania są dla
+        // bazy ostrzejszej od ekranu (inna karta, import).
+        invalidRequest: "Brakuje wydarzenia. Odśwież ekran i zapisz ponownie.",
+        invalidBoolean: "Przełącznik może być tylko włączony albo wyłączony.",
+        invalidReminderLeads: "Najwyżej 4 różne terminy, od 15 minut do 7 dni przed startem.",
+        invalidSessionLead: "Przypomnienie o sesji: od 5 do 240 minut.",
+        invalidTransferDeadline: "Termin przekazania: od 0 do 720 godzin przed startem.",
+        invalidRefundMode: "Zasada zwrotu: do terminu albo bez samodzielnego zwrotu.",
+        invalidRefundDeadline: "Termin zwrotu: od 0 do 2160 godzin przed startem.",
+        invalidOfferHours: "Czas na opłacenie oferty: od 2 do 168 godzin.",
+        invalidCertificateEligibility:
+          "Certyfikat: po odprawie, po minimum sesji albo po potwierdzeniu.",
+        invalidCertificateMinSessions: "Tryb „minimum sesji” wymaga liczby od 1 do 100.",
+        invalidCertificateHours: "Godziny certyfikatu: więcej niż 0, najwyżej 999.",
+        invalidTextLength: "Jeden z tekstów jest za długi.",
+        invalidSurveyCloseDays: "Ankieta może być otwarta od 1 do 90 dni.",
+        invalidSurveyMinResults: "Próg anonimowości: od 5 do 50 odpowiedzi.",
+        surveyLocked: "Ankieta ma już odpowiedzi - jej anonimowości nie można zmienić.",
         forbidden:
           "Twoje konto nie ma uprawnień redaktora w tej organizacji. Poproś administratora o dostęp.",
         unknown:
@@ -982,6 +1033,10 @@ export const adminEventsPl = {
           conflicts_other: "{{count}} kolizji w agendzie do rozwiązania",
           rooms: "Dodaj sale wydarzenia stacjonarnego",
           tickets: "Dodaj typ biletu dla płatnej rejestracji",
+          seating_one: "{{count}} uprawniona osoba bez miejsca na opublikowanym planie sali",
+          seating_few: "{{count}} uprawnione osoby bez miejsca na opublikowanym planie sali",
+          seating_many: "{{count}} uprawnionych osób bez miejsca na opublikowanym planie sali",
+          seating_other: "{{count}} uprawnionej osoby bez miejsca na opublikowanym planie sali",
         },
       },
 
@@ -1025,7 +1080,7 @@ export const adminEventsPl = {
         trackPrivateBadge: "niepubliczna",
       },
 
-      // EKRAN „FUNKCJE DODATKOWE" - siedem przełączników modułów wydarzenia.
+      // EKRAN „FUNKCJE DODATKOWE" - przełączniki modułów wydarzenia.
       // OPIS MUSI POWIEDZIEĆ, CZEGO PRZEŁĄCZNIK NIE ROBI: „wyłącz" czyta się jak
       // „usuń dane" albo jak „ukryj przed uczestnikiem", a nie robi ani jednego,
       // ani drugiego - chowa POZYCJĘ W TYM PANELU. Dwa zdania w opisie sekcji są
@@ -1047,6 +1102,8 @@ export const adminEventsPl = {
           meetings: "Spotkania 1:1",
           onsite: "Odprawa na miejscu",
           sponsors: "Sponsorzy i reklama",
+          cfp: "Nabór prelegentów",
+          seating: "Plan sali",
         },
 
         // ZDANIE MOWI, CO ZNIKNIE PO WYŁĄCZENIU. Sama etykieta „Spotkania" nie
@@ -1066,13 +1123,16 @@ export const adminEventsPl = {
           onsite:
             "Znikają odprawa, skanery, punkty kontrolne, urządzenia i identyfikatory - webinar nie ma wejścia na miejscu.",
           sponsors:
-            "Znika lista sponsorów i pakietów wraz z materiałami reklamowymi tego wydarzenia.",
+            "Znika lista sponsorów i pakietów wraz z materiałami reklamowymi tego wydarzenia oraz raport dla sponsorów.",
+          cfp: "Znikają ustawienia naboru, formularz zgłoszenia, lista zgłoszeń i recenzenci - wydarzenie z programem ułożonym bez naboru.",
+          seating:
+            "Znika plan sali z przydziałem miejsc - wydarzenie bez numerowanych miejsc, a zapisy działają dalej.",
         },
 
         // EKRAN SEKCJI, KTÓREJ MODUŁ JEST WYŁĄCZONY. Adres działa dalej, więc
         // zdanie musi powiedzieć dwie rzeczy: dlaczego pozycji nie ma w pasie
         // i że dane są na miejscu. Nazwa modułu wchodzi interpolacją - „ten
-        // moduł" kazałoby zgadywać, który z siedmiu przełączników odkręcić.
+        // moduł" kazałoby zgadywać, który z przełączników odkręcić.
         disabled: {
           title: "Moduł wyłączony dla tego wydarzenia",
           description:
@@ -1086,9 +1146,9 @@ export const adminEventsPl = {
       // pusty ekran z napisem „wkrótce" nie mówi ani jednego, ani drugiego,
       // więc redaktor szuka wysyłki po całym panelu.
       external: {
-        communicationsTitle: "Komunikacja",
+        communicationsTitle: "Kampanie i newsletter",
         communicationsDescription:
-          "Wysyłki do uczestników prowadzi dziś moduł komunikacji całego panelu - tam stoją szablony, listy odbiorców i historia wysyłek. Per wydarzenie przyjdą tu sekwencje przypomnień i podsumowanie wysyłek tego wydarzenia.",
+          "Kampanie e-mailowe i newsletter o wydarzeniu przygotowujesz w module komunikacji całego panelu - tam są szablony, listy odbiorców i historia wysyłek. Przypomnienia i dziennik doręczeń tego wydarzenia są na tym ekranie.",
         integrationsTitle: "Integracje",
         integrationsDescription:
           "Klucze API, webhooki i połączenia z systemami zewnętrznymi ustawia się dziś raz dla całej organizacji. Per wydarzenie przyjdą tu mapowania pól i wybór, które integracje obsługują to wydarzenie.",
@@ -1469,9 +1529,17 @@ export const adminEventsEn = {
         sponsors: "Sponsors and advertising",
         terms: "Terms",
         registrationSettings: "Registration settings",
+        registrationInvoices: "Invoices",
+        registrationSeating: "Seating plan",
+        cfpSettings: "Call settings",
+        cfpForm: "Submission form",
+        cfpSubmissions: "Submissions",
+        cfpReviewers: "Reviewers",
         communications: "Communications",
         integrations: "Integrations",
         analytics: "Analytics",
+        adsFunnel: "Google Ads funnel",
+        sponsorReport: "Sponsor report",
         features: "Extra features",
       },
 
@@ -1479,8 +1547,10 @@ export const adminEventsEn = {
         builder: "Event builder",
         registration: "In-app registration",
         content: "Content",
+        cfp: "Call for speakers",
         meetings: "Meetings",
         onsite: "On site",
+        followUp: "After the event",
       },
 
       keywords: {
@@ -1492,11 +1562,16 @@ export const adminEventsEn = {
         terms: "terms, consents, GDPR, privacy policy, declarations",
         registration: "tickets, passes, sign-ups, application form, waiting list",
         content: "agenda, sessions, programme, speakers, tracks, rooms",
+        cfp: "call for papers, CFP, call for speakers, speaker applications, abstracts, reviews, scoring, speaker portal",
         meetings: "networking, matchmaking, tables, one-to-one, calendar",
         communications: "e-mails, notifications, reminders, campaigns, newsletter",
         onsite: "QR, scanner, check-in, badge, front desk, door",
         integrations: "API, webhooks, CRM, export, sync",
         analytics: "statistics, reports, attendance, charts, data",
+        adsFunnel:
+          "Google Ads, funnel, sales funnel, campaigns, UTM, gclid, conversions, ROI, ROAS, attribution",
+        sponsorReport:
+          "sponsor report, sponsors, impressions, views, clicks, CTR, leads, contacts, collected contacts, ROI",
         features: "modules, extensions, options, extra settings",
 
         registrationSettings:
@@ -1504,13 +1579,21 @@ export const adminEventsEn = {
         registrationList: "applications, attendees, sign-up list, export, statuses",
         registrationTickets: "tickets, passes, pools, pricing, seat limits",
         registrationPackages: "packages, groups, delegations, bulk orders, seats",
+        registrationInvoices:
+          "invoices, company invoice, VAT ID, tax ID, collective invoice, pro forma, credit note, e-invoicing, billing details",
         registrationAudiences:
           "academic rate, ngo, eligibility, group discounts, verification, evidence",
         registrationForm: "form, application fields, questions, sign-up consents",
+        registrationSeating:
+          "seating plan, seat assignment, floor plan, rows, tables, gala dinner, numbered seats",
         contentSessions: "sessions, agenda, programme, speakers, schedule",
         contentTracks: "tracks, thematic blocks, programme streams",
         contentRooms: "rooms, session venues, auditoriums",
         contentConflicts: "conflicts, overlapping sessions, same room, same speaker",
+        cfpSettings: "opening the call, submission deadline, rules, categories, closing the call",
+        cfpForm: "form, submission fields, abstract, speaker bio, questions for speakers",
+        cfpSubmissions: "submissions, abstracts, decisions, accepted, rejected, waiting list",
+        cfpReviewers: "reviewers, reviews, scores, programme committee, review assignment",
         meetingsTables: "tables, meeting places, networking area",
         meetingsSettings: "grid, rules, availability, meeting length, matchmaking",
         meetingsList: "one-to-one meetings, calls, meeting calendar, requests",
@@ -1522,6 +1605,11 @@ export const adminEventsEn = {
         onsiteDevices: "devices, terminals, scanners, access tokens",
         onsiteBadges: "badges, name tags, printing, badge templates",
         onsiteLeads: "leads, sponsor business cards, booth contacts",
+        registrationPolicies:
+          "ticket transfer, refund, refund deadline, waitlist offer, time to pay",
+        followUpCertificate: "certificate, attendance, diploma, PDF, participation, hours",
+        followUpSurvey: "survey, questions, feedback, rating, NPS, anonymity",
+        followUpResults: "survey results, responses, average, NPS, CSV export",
       },
 
       nav: {
@@ -1626,6 +1714,23 @@ export const adminEventsEn = {
         invalidBuilderData:
           "The page content has an unknown shape. Refresh the screen and create the subpage again.",
         invalidFeature: "A module can only be on or off. Refresh the screen and switch it again.",
+        invalidRequest: "The event is missing. Refresh and save again.",
+        invalidBoolean: "A switch can only be on or off.",
+        invalidReminderLeads:
+          "At most 4 different moments, from 15 minutes to 7 days before the start.",
+        invalidSessionLead: "Session reminder: 5 to 240 minutes.",
+        invalidTransferDeadline: "Transfer deadline: 0 to 720 hours before the start.",
+        invalidRefundMode: "Refund rule: until the deadline or no self-service refund.",
+        invalidRefundDeadline: "Refund deadline: 0 to 2160 hours before the start.",
+        invalidOfferHours: "Time to pay for an offer: 2 to 168 hours.",
+        invalidCertificateEligibility:
+          "Certificate: after check-in, after minimum sessions or on confirmation.",
+        invalidCertificateMinSessions: "The “minimum sessions” mode needs a number from 1 to 100.",
+        invalidCertificateHours: "Certificate hours: above 0, at most 999.",
+        invalidTextLength: "One of the texts is too long.",
+        invalidSurveyCloseDays: "The survey can stay open 1 to 90 days.",
+        invalidSurveyMinResults: "Anonymity threshold: 5 to 50 responses.",
+        surveyLocked: "The survey already has responses - its anonymity cannot change.",
         forbidden:
           "Your account is not an editor in this organisation. Ask an administrator for access.",
         unknown:
@@ -2002,6 +2107,8 @@ export const adminEventsEn = {
           conflicts_other: "{{count}} agenda conflicts to resolve",
           rooms: "Add rooms for the on-site event",
           tickets: "Add a ticket type for paid registration",
+          seating_one: "{{count}} eligible attendee without a seat on a published seating plan",
+          seating_other: "{{count}} eligible attendees without a seat on a published seating plan",
         },
       },
 
@@ -2052,6 +2159,8 @@ export const adminEventsEn = {
           meetings: "One-to-one meetings",
           onsite: "On-site check-in",
           sponsors: "Sponsors and advertising",
+          cfp: "Call for speakers",
+          seating: "Seating plan",
         },
 
         hints: {
@@ -2068,7 +2177,10 @@ export const adminEventsEn = {
           onsite:
             "Check-in, scanners, checkpoints, devices and badges go away - a webinar has no door to walk through.",
           sponsors:
-            "The list of sponsors and packages goes away together with the advertising materials of this event.",
+            "The list of sponsors and packages goes away together with the advertising materials of this event and the sponsor report.",
+          cfp: "Call settings, the submission form, the submission list and reviewers go away - a programme put together without an open call.",
+          seating:
+            "The seating plan with seat assignment goes away - an event without numbered seats, while registration keeps working.",
         },
 
         disabled: {
@@ -2080,9 +2192,9 @@ export const adminEventsEn = {
       },
 
       external: {
-        communicationsTitle: "Communications",
+        communicationsTitle: "Campaigns and newsletter",
         communicationsDescription:
-          "Mailings to attendees run today in the panel-wide communications module - templates, recipient lists and the send history all live there. Per event, this screen will gain reminder sequences and the send summary of this event.",
+          "You prepare e-mail campaigns and the newsletter about the event in the panel-wide communications module - templates, recipient lists and the send history live there. Reminders and the delivery log of this event are on this screen.",
         integrationsTitle: "Integrations",
         integrationsDescription:
           "API keys, webhooks and connections to outside systems are set today once for the whole organisation. Per event, this screen will gain field mappings and the choice of which integrations serve this event.",

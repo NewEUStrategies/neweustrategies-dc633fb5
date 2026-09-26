@@ -1,12 +1,12 @@
 -- ============================================================================
 -- 73_group_ticket_revoked_notice - ZAWIADOMIENIE O ODWOLANYM BILECIE GOSCIA
--- GRUPY (20260926150000)
+-- GRUPY (20260926180000)
 --
 -- PO CO TEN PLIK ISTNIEJE
 -- Od 20260926120000 odrzucenie, anulowanie i zwrot prowadzacego zamykaja takze
 -- gosci JUZ przyjetych: skrot kodu QR znika, a bilet w skrzynce goscia
 -- przestaje wpuszczac. Gosc nie dostawal o tym ani slowa - dowiadywal sie przy
--- bramce. 20260926150000 stempluje `ticket_revoked_at` TA SAMA instrukcja,
+-- bramce. 20260926180000 stempluje `ticket_revoked_at` TA SAMA instrukcja,
 -- ktora zamyka goscia (kaskada statusu i galaz zwrotu), wylacznie gosciowi, do
 -- ktorego bilet dotarl albo byl w drodze, a partie zawiadomien zajmuje
 -- i rozlicza para funkcji service_role. Ten plik pilnuje kazdej galezi tych

@@ -36,7 +36,11 @@ export type NotificationKind =
   | "endorsement"
   | "profile_view"
   | "meeting_booking"
-  | "club";
+  | "club"
+  /** Wydarzenia i przypomnienia uczestnika (przełączalny, `enabled_event`). */
+  | "event"
+  /** Płatności i zwroty - ZAWSZE doręczane (jak `security`), bez przełącznika. */
+  | "billing";
 
 /**
  * Kto może ZACZĄĆ nowy wątek z użytkownikiem - rozmowę bezpośrednią albo krąg
@@ -128,6 +132,13 @@ export interface NotificationPreferences {
    * przez opuszczenie klubu.
    */
   enabled_club: boolean;
+  /**
+   * Wydarzenia i przypomnienia uczestnika (producenci: przypomnienia o
+   * wydarzeniu i sesjach, oferty z listy rezerwowej, przekazanie biletu,
+   * ankieta i certyfikat po wydarzeniu). Rodzaj `billing` NIE ma flagi -
+   * wiadomość o pieniądzach dociera zawsze.
+   */
+  enabled_event: boolean;
   auto_mark_on_open: boolean;
   group_by_conversation: boolean;
   /**
@@ -184,6 +195,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   enabled_profile_view: true,
   enabled_meeting_booking: true,
   enabled_club: true,
+  enabled_event: true,
   auto_mark_on_open: true,
   group_by_conversation: true,
   read_receipts_enabled: true,
@@ -197,7 +209,8 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
 };
 
 /** Identyfikatory grup przełączników w ustawieniach (klucze i18n). */
-export type NotificationKindGroupId = "conversations" | "network" | "content" | "workspace";
+export type NotificationKindGroupId =
+  "conversations" | "network" | "content" | "workspace" | "events";
 
 export interface NotificationKindGroup {
   readonly id: NotificationKindGroupId;
@@ -247,6 +260,11 @@ export const NOTIFICATION_KIND_GROUPS = [
     icon: "Briefcase",
     kinds: ["crm_task", "subscription", "system"],
   },
+  {
+    id: "events",
+    icon: "CalendarClock",
+    kinds: ["event"],
+  },
 ] as const satisfies readonly NotificationKindGroup[];
 
 /**
@@ -256,23 +274,27 @@ export const NOTIFICATION_KIND_GROUPS = [
  * żadnej grupy po prostu nie istnieje w ustawieniach (a pgTAP i test parytetu
  * poniżej zapalają się, gdy zniknie z katalogu bazy).
  *
- * `security` jest celowo pominięty: alerty bezpieczeństwa docierają zawsze
- * (baza wprost omija dla nich bramkę) i renderujemy je jako przełącznik
- * always-on.
+ * `security` i `billing` są celowo pominięte: alerty bezpieczeństwa
+ * i wiadomości o płatnościach docierają zawsze (baza wprost omija dla nich
+ * bramkę), a `security` renderujemy jako przełącznik always-on.
  */
 export const TOGGLEABLE_NOTIFICATION_KINDS: readonly NotificationKind[] =
   NOTIFICATION_KIND_GROUPS.flatMap((group) => [...group.kinds]);
 
 /**
  * Pełny katalog rodzajów w kolejności prezentacji - przełączalne + always-on
- * `security`. Filtry skrzynki jadą z tej listy, żeby żaden rodzaj realnie
- * lądujący w skrzynce (tracker, connection, security) nie był poza zasięgiem
- * filtra.
+ * `security` i `billing`. Filtry skrzynki jadą z tej listy, żeby żaden rodzaj
+ * realnie lądujący w skrzynce (tracker, connection, security, billing) nie był
+ * poza zasięgiem filtra.
  */
 export const NOTIFICATION_KINDS: readonly NotificationKind[] = [
   ...TOGGLEABLE_NOTIFICATION_KINDS,
   "security",
+  "billing",
 ];
+
+/** Rodzaje doręczane zawsze - baza omija dla nich bramkę preferencji. */
+export const ALWAYS_ON_NOTIFICATION_KINDS: readonly NotificationKind[] = ["security", "billing"];
 
 /**
  * Kolumny wiersza preferencji - wprost z kluczy wartości domyślnych, więc nowe
@@ -287,16 +309,17 @@ export const NOTIFICATION_PREFERENCE_COLUMNS = Object.keys(
 export const NOTIFICATION_PREFERENCE_SELECT = NOTIFICATION_PREFERENCE_COLUMNS.join(", ");
 
 /**
- * Czy dany rodzaj powiadomień jest włączony. `security` jest włączony zawsze,
- * niezależnie od zapisanej flagi; pozostałe rodzaje czytają swoje
- * `enabled_<kind>`. Brakująca flaga oznacza "włączone" (fail-open) - tak samo
- * zachowuje się `enqueue_notification` przy braku wiersza preferencji.
+ * Czy dany rodzaj powiadomień jest włączony. `security` i `billing` są
+ * włączone zawsze, niezależnie od zapisanej flagi (`billing` flagi nie ma
+ * wcale); pozostałe rodzaje czytają swoje `enabled_<kind>`. Brakująca flaga
+ * oznacza "włączone" (fail-open) - tak samo zachowuje się
+ * `enqueue_notification` przy braku wiersza preferencji.
  */
 export function isNotificationKindEnabled(
   prefs: NotificationPreferences,
   kind: NotificationKind,
 ): boolean {
-  if (kind === "security") return true;
+  if (ALWAYS_ON_NOTIFICATION_KINDS.includes(kind)) return true;
   const value = prefs[`enabled_${kind}` as keyof NotificationPreferences];
   return typeof value === "boolean" ? value : true;
 }

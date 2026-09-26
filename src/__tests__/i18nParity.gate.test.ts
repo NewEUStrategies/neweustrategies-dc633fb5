@@ -101,20 +101,49 @@ const GATED_PREFIXES = [
   "adminEventTerms",
   "adminEventOnsite",
   "adminEventMeetings",
+  // Lejek Google Ads: odmowy zapisu kampanii i kosztow mowia, KTORY wiersz
+  // wsadu jest zly - surowy klucz zostawilby organizatora z odrzuconym
+  // importem i bez numeru wiersza.
+  "adminEventAdsFunnel",
   "eventRegistration",
   "eventMeetings",
   "eventFront",
+  // Raport dla sponsorów: panel (studio + karta firmy), strona dla sponsora bez
+  // konta i nagłówek dokumentu tej strony. Liczby czyta PARTNER, który za nie
+  // płaci - surowy klucz obok liczby wyświetleń podważa cały raport.
+  "adminEventSponsorReport",
+  "eventSponsorReport",
+  "eventSponsorReportHead",
   // Aplikacja skanera na bramce. Rozjazd PL/EN kosztuje tu najwięcej z całego
   // modułu: napis czyta wolontariusz, który ma pięć sekund na decyzję, czy
   // wpuścić człowieka - goły klucz zamiast "Kod z innego wydarzenia" zatrzymuje
   // kolejkę. Bramka od pierwszego dnia, nie po pierwszym incydencie.
   "eventScanner",
+  // Nabór prelegentów (f1): panel organizatora i powierzchnia prelegenta
+  // i recenzenta. Odmowa bazy mówi prelegentowi, co poprawić w zgłoszeniu -
+  // surowy klucz w tym miejscu zostawiłby go bez następnego kroku.
+  "adminEventCfp",
+  "eventCfp",
+  // Plan sali: edytor organizatora i karta „Twoje miejsce” uczestnika. Surowy
+  // klucz na karcie miejsca to uczestnik bez informacji, gdzie usiąść.
+  "adminEventSeating",
+  "eventSeating",
   // Siatka zespołu: napisy okna osoby (rola w NES, afiliacja, przynależność
   // projektowa, kontakt) są PUBLICZNE i jadą za językiem treści, nie panelu.
   // Brak klucza po jednej stronie dałby surowe `teamGrid.dialog.affiliation`
   // na karcie człowieka - dlatego bramka od pierwszego dnia, a nie po
   // pierwszym rozjeździe (ta sama lekcja co przy "network" i "club").
   "teamGrid",
+  // Faktury wydarzen: studio organizatora i strona kupujacego. Klucze odmow
+  // bazy mowia, co poprawic w danych nabywcy albo wystawcy, a etykiety PDF
+  // drukuja sie w jezyku faktury - brak klucza po jednej stronie trafia na
+  // dokument ksiegowy. Bramka od pierwszego dnia.
+  "adminEventInvoices",
+  "eventInvoices",
+  // Bilet w portfelu (f7b): przyciski Apple Wallet / Google Wallet na stronie
+  // biletu i podpowiedź w profilu. Surowy klucz zamiast „nie da się dodać -
+  // bilet anulowany” zostawia uczestnika bez wyjaśnienia tuż przed wejściem.
+  "eventWallet",
 ] as const;
 
 // Klucze, dla których identyczny tekst PL i EN jest poprawny (nazwy własne,
@@ -185,6 +214,12 @@ const IDENTICAL_ALLOWLIST: readonly string[] = [
   "adminEvents.list.filters.formatLabel",
   "adminEvents.list.row.chathamHouse",
   "adminEvents.types.dialog.formatLabel",
+  // Skroty i nazwy parametrow Google Ads/GA - te same w obu jezykach.
+  "adminEventAdsFunnel.matchKinds.utm_campaign",
+  "adminEventAdsFunnel.summary.roas",
+  "adminEventAdsFunnel.table.kinds.utm_campaign",
+  "adminEventAdsFunnel.table.medium",
+  "adminEventAdsFunnel.table.roas",
   "adminEventAgenda.formats.online",
   "adminEventAgenda.nav.sectionTitle",
   "adminEventAgenda.roles.moderator",
@@ -205,6 +240,44 @@ const IDENTICAL_ALLOWLIST: readonly string[] = [
   "eventFront.formats.online",
   "eventFront.list.formatLabel",
   "eventMeetings.fields.sponsor",
+  // Nabór prelegentów (f1): nazwy i jednostki identyczne w obu językach
+  // („Online", „Moderator", „E-mail", „min") oraz szablony złożone z samych
+  // miejsc interpolacji.
+  "adminEventCfp.accept.formats.online",
+  "adminEventCfp.detail.duration",
+  "eventCfp.page.countdown.value",
+  "eventCfp.page.formatDuration",
+  "eventCfp.review.scoreButton",
+  "eventCfp.roles.moderator",
+  "eventCfp.submit.coSpeaker.email",
+  // Faktury wydarzen: "SWIFT/BIC" to nazwa wlasna kodu banku, a rdzen nazwy
+  // pliku proformy ("proforma") jest ten sam w obu jezykach.
+  "adminEventInvoices.settings.bankSwift",
+  "eventInvoices.pdf.swift",
+  "eventInvoices.pdf.fileStems.proforma",
+  // Plan sali: „Plan” to to samo słowo w obu językach, a opcja zamówienia
+  // pakietowego składa się wyłącznie z nazw własnych (kupujący, pakiet).
+  "adminEventSeating.workspace.viewCanvas",
+  "adminEventSeating.holdDialog.packageOption",
+  "eventSeating.card.plan",
+  // Raport dla sponsorów: rola i skrót miary są tym samym słowem po obu stronach.
+  "adminEventSponsorReport.filters.sponsor",
+  "adminEventSponsorReport.kpi.ctr",
+  "adminEventSponsorReport.links.sponsor",
+  "adminEventSponsorReport.placementTable.ctr",
+  "adminEventSponsorReport.placementTable.sponsor",
+  "adminEventSponsorReport.roles.partner",
+  "adminEventSponsorReport.roles.sponsor",
+  "adminEventSponsorReport.share.sponsor",
+  "adminEventSponsorReport.table.ctr",
+  "adminEventSponsorReport.table.sponsor",
+  "adminEventSponsorReport.export.columns.sponsor",
+  "adminEventSponsorReport.homeAds.colSponsor",
+  "eventSponsorReport.kpi.ctr",
+  "eventSponsorReport.table.ctr",
+  // Nazwy własne usług na przyciskach portfela - tłumaczenie byłoby błędem.
+  "eventWallet.apple.name",
+  "eventWallet.google.name",
 ];
 
 function loadOverlays(): void {

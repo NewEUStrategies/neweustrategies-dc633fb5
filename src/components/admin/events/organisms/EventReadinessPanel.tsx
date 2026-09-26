@@ -18,6 +18,9 @@ import { DEFAULT_SESSIONS_QUERY } from "@/lib/events/sessionsApi";
 import { useAgendaConflicts, useEventRooms, useEventSessions } from "@/lib/events/useEventSessions";
 import { useEventTickets } from "@/lib/events/useEventRegistrations";
 import { buildPublishReadiness, type ReadinessCheck } from "@/lib/events/publishReadiness";
+import { eventFeaturesFromJson } from "@/lib/events/eventFeatures";
+import { unseatedOnPublishedMaps } from "@/lib/events/seatingApi";
+import { useSeatMaps } from "@/lib/events/useEventSeating";
 import type { AdminEventDetailRow } from "@/lib/events/eventDetailApi";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
@@ -34,6 +37,10 @@ export function EventReadinessPanel({ row }: EventReadinessPanelProps) {
   const roomsQ = useEventRooms(eventId);
   const conflictsQ = useAgendaConflicts(eventId);
   const ticketsQ = useEventTickets(eventId);
+  // Plan sali tylko przy WLACZONYM module - wylaczony nie pyta bazy wcale
+  // (pusty identyfikator gasi zapytanie), a pozycja znika z rachunku.
+  const seatingOn = eventFeaturesFromJson(row.features).seating;
+  const seatMapsQ = useSeatMaps(seatingOn ? eventId : "");
 
   const report = useMemo(
     () =>
@@ -58,8 +65,9 @@ export function EventReadinessPanel({ row }: EventReadinessPanelProps) {
         conflictCount: conflictsQ.data?.length ?? 0,
         roomCount: roomsQ.data?.length ?? 0,
         ticketTypeCount: ticketsQ.data?.length ?? 0,
+        seatingUnseated: seatingOn ? unseatedOnPublishedMaps(seatMapsQ.data ?? []) : null,
       }),
-    [row, sessionsQ.data, conflictsQ.data, roomsQ.data, ticketsQ.data],
+    [row, sessionsQ.data, conflictsQ.data, roomsQ.data, ticketsQ.data, seatingOn, seatMapsQ.data],
   );
 
   const published = row.status === "published";

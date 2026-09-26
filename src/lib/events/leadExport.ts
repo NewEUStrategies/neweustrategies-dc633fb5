@@ -16,6 +16,13 @@ import { toCsv } from "@/lib/csv/formatCsv";
 import type { LeadExportRow } from "@/lib/events/onsiteApi";
 import { writeSpreadsheetInWorker } from "@/lib/files/spreadsheetWorker";
 
+/**
+ * Wiersz eksportu z polami, które MOGĄ być puste. Wiersze z RPC panelu
+ * (`LeadExportRow`) pasują tu bez zmian; wiersze z raportu dla sponsora
+ * przychodzą z jsonb i puste pola mają jawnie jako `null`.
+ */
+export type LeadExportCellsRow = { [K in keyof LeadExportRow]: LeadExportRow[K] | null };
+
 export interface LeadExportFile {
   fileName: string;
   mimeType: string;
@@ -73,7 +80,7 @@ function redactedContact(value: string | null): string | null {
 
 /** Jeden wiersz eksportu w kolejności kolumn. */
 export function leadExportCells(
-  row: LeadExportRow,
+  row: LeadExportCellsRow,
   lang: string,
 ): ReadonlyArray<string | number | null> {
   const yes = lang === "en" ? "yes" : "tak";
@@ -112,7 +119,7 @@ export function leadExportFileName(prefix: string, nowIso: string, extension: st
 
 /** Buduje plik eksportu w żądanym formacie (XLSX zapisuje proces arkuszy). */
 export async function buildLeadExport(
-  rows: readonly LeadExportRow[],
+  rows: readonly LeadExportCellsRow[],
   options: { format: "csv" | "xlsx"; lang: string; prefix: string; nowIso: string },
 ): Promise<LeadExportFile> {
   const columns = leadExportColumns(options.lang);

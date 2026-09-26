@@ -115,7 +115,7 @@ export function areConsentsWithdrawn(row: EventRegistrationRow): boolean {
 const TICKET_STATUSES: readonly string[] = ["approved", "attended"];
 /**
  * Rozliczenia, przy ktorych bilet sie nalezy - lustro tej samej funkcji.
- * Zwrot czesciowy to korekta ceny: miejsce i bilet zostaja (20260926150000).
+ * Zwrot czesciowy to korekta ceny: miejsce i bilet zostaja (20260926180000).
  */
 const TICKET_PAYMENTS: readonly string[] = ["paid", "partially_refunded", "not_required"];
 /**
@@ -150,7 +150,7 @@ export type TicketBadge =
   | "paidClosed";
 
 /**
- * Oplacony wiersz BEZ miejsca (20260926150000): wplata przyszla po wyczerpaniu
+ * Oplacony wiersz BEZ miejsca (20260926180000): wplata przyszla po wyczerpaniu
  * puli (kolejka oplacona), bilet wymaga akceptacji (wplata nie jest decyzja)
  * albo pieniadze trafily na zgloszenie odwolane lub odrzucone (do zwrotu).
  * W kazdym z tych stanow ruch ma organizator - bez plakietki wiersz wygladal

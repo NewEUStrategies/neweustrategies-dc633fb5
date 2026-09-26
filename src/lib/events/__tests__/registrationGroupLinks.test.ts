@@ -166,7 +166,7 @@ describe("ticketBadge - plakietka biletu", () => {
   });
 
   it("opłacony wiersz w kolejce: „opłacone - czeka na miejsce”, także po korekcie ceny", () => {
-    // Wpłata przyszła po wyczerpaniu puli (20260926150000). Bez plakietki
+    // Wpłata przyszła po wyczerpaniu puli (20260926180000). Bez plakietki
     // wiersz wyglądał jak zwykły rezerwowy, a pieniądze leżały bez ruchu.
     expect(ticketBadge("waitlist", link({ payment_status: "paid" }))).toBe("paidWaitlisted");
     expect(ticketBadge("waitlist", link({ payment_status: "partially_refunded" }))).toBe(

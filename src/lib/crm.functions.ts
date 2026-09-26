@@ -12,6 +12,11 @@ import {
   consentExcerpt,
   type ConsentLogTimelineRow,
 } from "@/lib/crm/consentLog";
+import {
+  leadTimelineEventFromAudit,
+  type LeadTimelineAuditRow,
+  type LeadTimelineEvent,
+} from "@/lib/crm/leadTimeline";
 import { z } from "zod";
 import { looseClient, looseTable, rowsOf, fetchRows } from "@/lib/supabase/looseQuery";
 import {
@@ -616,14 +621,8 @@ export const pushLeadToPartners = createServerFn({ method: "POST" })
 
 // ============ Timeline & exports ============
 
-export type TimelineEvent = {
-  id: string;
-  type: "submit" | "consent" | "note" | "stage_change" | "webhook" | "newsletter";
-  at: string;
-  title: string;
-  detail: string | null;
-  meta: Record<string, unknown> | null;
-};
+// Jeden typ z `leadTimeline.ts` - unia typów wpisów nie ma drugiej kopii.
+export type TimelineEvent = LeadTimelineEvent;
 
 async function buildLeadTimeline(
   context: { supabase: unknown },
@@ -693,13 +692,7 @@ async function buildLeadTimeline(
         .eq("entity_id", L.id)
         .order("created_at", { ascending: false })
         .limit(500)
-        .returns<{
-          id: string;
-          action: string;
-          actor_id: string | null;
-          metadata: Record<string, unknown> | null;
-          created_at: string;
-        }>(),
+        .returns<LeadTimelineAuditRow>(),
     ),
   ]);
 
@@ -750,17 +743,8 @@ async function buildLeadTimeline(
       detail: n.body,
       meta: { author_id: n.author_id },
     });
-  for (const a of audits) {
-    const t: TimelineEvent["type"] = a.action.includes("webhook") ? "webhook" : "stage_change";
-    ev.push({
-      id: `au:${a.id}`,
-      type: t,
-      at: a.created_at,
-      title: a.action,
-      detail: null,
-      meta: a.metadata ?? null,
-    });
-  }
+  // Aktywność z Wydarzeń (`event.*`) dostaje własny typ i zdanie z metadanych.
+  for (const a of audits) ev.push(leadTimelineEventFromAudit(a));
   ev.sort((a, b) => (a.at < b.at ? 1 : -1));
   return { lead: lead as Record<string, unknown>, events: ev };
 }

@@ -136,11 +136,15 @@ describe("EventStudioSidebar - pozycje wylaczonych modulow", () => {
     // Domyslnym dzieckiem grupy rejestracji sa „Ustawienia rejestracji"; gdy
     // przelacznik schowa cala grupe poza jednym ekranem, naglowek ma prowadzic
     // na TEN ekran, a nie na zdanie o wylaczonym module.
+    // `registrationPolicies` (F1-F5) stoi w grupie tuż za wejściówkami, więc
+    // też musi być ukryte, żeby jedynym widocznym dzieckiem został formularz.
     const bezUstawien = new Set<EventStudioSection>([
       "registrationSettings",
       "registrationList",
       "registrationTickets",
+      "registrationPolicies",
       "registrationPackages",
+      "registrationInvoices",
       "registrationAudiences",
     ]);
     pas({ hiddenSections: bezUstawien });
@@ -161,12 +165,18 @@ describe("EventStudioSidebar - pozycje wylaczonych modulow", () => {
         meetings: false,
         onsite: false,
         sponsors: false,
+        cfp: false,
+        seating: false,
       }),
     });
 
     expect(href("adminEvents.studio.sections.features")).toBe(sciezka("features"));
     expect(href("adminEvents.studio.sections.overview")).toBe(sciezka("overview"));
     expect(href("adminEvents.studio.sections.analytics")).toBe(sciezka("analytics"));
+    // Lejek reklam nie ma przelacznika; raport sponsora znika razem ze sponsoringiem.
+    expect(href("adminEvents.studio.sections.adsFunnel")).toBe(sciezka("ads-funnel"));
+    expect(href("adminEvents.studio.sections.sponsorReport")).toBeNull();
+    expect(href("adminEvents.studio.groups.cfp")).toBeNull();
   });
 });
 
@@ -236,8 +246,9 @@ describe("EventStudioSidebar - stan grup i aktywny ekran", () => {
     const strzalki = screen.getAllByRole("button", {
       name: "adminEvents.studio.nav.expandGroup",
     });
-    // Grupy w kolejnosci modelu: kreator, rejestracja, tresc, spotkania, na miejscu.
-    fireEvent.click(strzalki[3]);
+    // Grupy w kolejnosci modelu: kreator, rejestracja, tresc, nabor prelegentow,
+    // spotkania, na miejscu.
+    fireEvent.click(strzalki[4]);
     expect(href("adminEventMeetings.nav.tables")).toBe(sciezka("meetings/tables"));
 
     fireEvent.click(screen.getByRole("button", { name: "adminEvents.studio.nav.collapseGroup" }));

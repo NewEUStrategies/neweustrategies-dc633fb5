@@ -345,6 +345,57 @@ describe("karta osoby CRM", () => {
     expect(screen.getByText("zmiana ręczna")).toBeInTheDocument();
   });
 
+  it("wpis z modułu Wydarzeń mówi zdaniem w języku panelu i prowadzi do studia wydarzenia", async () => {
+    // Bez tego wpis „zgłosił wystąpienie" stał jako surowy kod akcji, a panel
+    // angielski pokazywał zdanie polskie mimo obecnego angielskiego.
+    const eventId = "3f1a0c8e-0000-4000-8000-000000000042";
+    h.timeline = {
+      lead: { email: "anna@example.test" },
+      events: [
+        {
+          id: "au:a1",
+          type: "event",
+          at: new Date(Date.UTC(2026, 7, 9, 10)).toISOString(),
+          title: "Zgłoszenie wystąpienia",
+          detail: null,
+          meta: {
+            event_id: eventId,
+            summary_pl: "Zgłoszenie wystąpienia",
+            summary_en: "Talk submitted",
+          },
+        },
+        {
+          // Wpis bez tytułu (np. surowy audyt) pokazuje swój typ, a nie pustkę -
+          // i nie dostaje odnośnika do studia.
+          id: "au:a2",
+          type: "webhook",
+          at: new Date(Date.UTC(2026, 7, 8, 10)).toISOString(),
+          title: "",
+          detail: null,
+          meta: null,
+        },
+      ],
+    };
+    h.lang = "en";
+    await mount();
+    fireEvent.click(await screen.findByRole("button", { name: /Activity/ }));
+    expect(await screen.findByText("Talk submitted")).toBeInTheDocument();
+    expect(screen.queryByText("Zgłoszenie wystąpienia")).toBeNull();
+    expect(screen.getByText("webhook")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Open in the event studio" })).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "Open in the event studio" })).toHaveAttribute(
+      "href",
+      `/admin/events/${eventId}/overview`,
+    );
+
+    cleanup();
+    h.lang = "pl";
+    await mount();
+    fireEvent.click(await screen.findByRole("button", { name: /Aktywność/ }));
+    expect(await screen.findByText("Zgłoszenie wystąpienia")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Otwórz w studiu wydarzenia" })).toBeInTheDocument();
+  });
+
   it("zakładka analityki liczy wiadomości, subskrypcje i notatki", async () => {
     h.detail = detail({
       messages: [

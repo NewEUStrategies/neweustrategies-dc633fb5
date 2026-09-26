@@ -1,6 +1,6 @@
 -- ============================================================================
 -- 24_group_refund_promotes_waitlist - ZWROT ZA GRUPE AWANSUJE KOLEJKE TAKZE
--- ZA MIEJSCA GOSCI (20260926150000)
+-- ZA MIEJSCA GOSCI (20260926180000)
 --
 -- CO SPRAWDZA
 --   1. Pelny zwrot Stripe (prowadzacy anulowany): za kazdego OPLACONEGO

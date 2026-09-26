@@ -51,6 +51,7 @@ import {
   hasCategoryConsent,
   isGpcCurrentlyHonored,
   setConsentPreview,
+  subscribeConsentChange,
   useConsent,
   useEffectiveConsent,
   useMarketingConsent,
@@ -469,5 +470,36 @@ describe("stare API marketingowe (useMarketingConsent) - JEDYNE wejscie bramki A
     };
     expect(stored.categories.functional).toBe(true);
     expect(stored.categories.analytics).toBe(true);
+  });
+});
+
+describe("subscribeConsentChange - sygnal zmiany bez hooka useConsent", () => {
+  it("decyzja w banerze, podglad, inna karta i GPC wolaja sluchacza; odpiecie konczy nasluch", async () => {
+    const listener = vi.fn();
+    const off = subscribeConsentChange(listener);
+
+    const { result } = renderHook(() => useConsent());
+    await waitFor(() => expect(result.current.mounted).toBe(true));
+    act(() => result.current.acceptAll());
+    expect(listener).toHaveBeenCalled();
+    expect(hasCategoryConsent("marketing")).toBe(true);
+
+    listener.mockClear();
+    setConsentPreview({ marketing: false });
+    expect(listener).toHaveBeenCalled();
+    clearConsentPreview();
+
+    listener.mockClear();
+    // `storage` sluchaja i zgoda, i GPC - przegladarka dedupuje ten sam
+    // sluchacz na tym samym zdarzeniu, wiec jedno wywolanie, plus `focus` (GPC).
+    window.dispatchEvent(new Event("storage"));
+    window.dispatchEvent(new Event("focus"));
+    expect(listener).toHaveBeenCalledTimes(2);
+
+    off();
+    listener.mockClear();
+    act(() => result.current.rejectAll());
+    window.dispatchEvent(new Event("storage"));
+    expect(listener).not.toHaveBeenCalled();
   });
 });

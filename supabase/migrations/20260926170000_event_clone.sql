@@ -1,0 +1,14 @@
+-- ============================================================================
+-- ZAREZERWOWANE MIEJSCE NA MIGRACJE FUNKCJI: klon-edycji (wlasciciel: f5).
+--
+-- BLIZNIAK drizzle/migrations/0064_event_clone.sql - ten sam SQL wykonywalny
+-- (pilnuje tego `src/lib/ci/migrationLaneParity.ts`).
+-- events-harness: include
+--
+-- Numeracja obu torow jest przydzielona z gory, zeby siedem funkcji
+-- organizatora powstajacych rownolegle nie kolidowalo na numerach, dzienniku
+-- drizzle ani rejestrze blizniakow. Wlasciciel ZASTEPUJE tresc obu plikow
+-- wlasciwym SQL-em; do tego czasu plik jest bezczynny (zapytanie bez wierszy),
+-- a jego jedyny literal odroznia go od pozostalych rezerwacji.
+-- ============================================================================
+SELECT 'placeholder:0064_event_clone'::text AS event_migration_placeholder FROM public.events WHERE false;

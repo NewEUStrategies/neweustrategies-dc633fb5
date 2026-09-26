@@ -4,7 +4,7 @@
 // na atrapie, która zawsze odpowiada tak samo (zamówienie z wydarzeniem, RPC
 // bez ładunku) - dowodzi szczęśliwej ścieżki i zwrotu przy wyczerpanej sali.
 // Tutaj atrapa jest KONFIGUROWANA PER WYWOŁANIE i prowadzi wspólny dziennik
-// kolejności, bo od 20260926150000 kolejność jest treścią kontraktu:
+// kolejności, bo od 20260926180000 kolejność jest treścią kontraktu:
 //
 //   1. RPC `payments_apply_event_ticket_outcome` idzie PRZED RSVP 'going'.
 //      Baza rozstrzyga przyjęcie pod blokadą i może zostawić wpłatę w kolejce

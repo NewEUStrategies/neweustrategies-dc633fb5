@@ -1,6 +1,6 @@
 -- ============================================================================
 -- 76_plan_ticket_redeem - BILET Z PULI DLA POJEDYNCZEGO ZGLOSZENIA ETAPU 4
--- (20260926150000, sekcja 9 i delty 8c/8e: znacznik `redeemed_at`)
+-- (20260926180000, sekcja 9 i delty 8c/8e: znacznik `redeemed_at`)
 --
 -- PO CO TEN PLIK ISTNIEJE
 -- Pojedyncze zgloszenie etapu 4 czlonka z pula konczylo sie w kasie odmowa

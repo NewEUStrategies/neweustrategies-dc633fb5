@@ -4,6 +4,7 @@
 // Te funkcje decydują, czy operator zobaczy „zastój" zamiast „kolejka pusta",
 // więc mają test jednostkowy - regresja tutaj wycisza alarm, którego brak był
 // pierwotną przyczyną martwego harmonogramu na produkcji.
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   countTickFailures,
@@ -70,6 +71,30 @@ describe("parseSchedulerJob", () => {
     for (const job of SCHEDULER_JOBS) {
       expect(parseSchedulerJob(job)).toBe(job);
       expect(parseSchedulerJob(` ${job.toUpperCase()} `)).toBe(job);
+    }
+  });
+
+  it("zna trzy zadania funkcji uczestnika F1-F5 (spec B.10)", () => {
+    for (const job of [
+      "event-participant-reminders",
+      "event-ticket-lifecycle",
+      "event-follow-up",
+    ]) {
+      expect(SCHEDULER_JOBS).toContain(job);
+      expect(parseSchedulerJob(job)).toBe(job);
+    }
+  });
+
+  it("opcje ręcznego uruchomienia w workflow obejmują zadania uczestnika", () => {
+    // `workflow_dispatch.inputs.job.options` to jedyna lista, z której operator
+    // wybiera job w GitHubie - job spoza niej jest nieosiągalny z panelu Actions.
+    const workflow = readFileSync(".github/workflows/scheduler.yml", "utf8");
+    for (const job of [
+      "event-participant-reminders",
+      "event-ticket-lifecycle",
+      "event-follow-up",
+    ]) {
+      expect(workflow).toMatch(new RegExp(`\\n\\s+- ${job}\\n`));
     }
   });
 

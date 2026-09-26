@@ -13,7 +13,16 @@ import * as React from "react";
 
 import type { EmailLang } from "@/lib/email-templates/nes-layout";
 import type { TxDetail } from "@/lib/email-templates/transactional";
-import { txCopy, txSubject, type TxEmailType } from "@/lib/email-templates/tx-copy";
+import {
+  PARTICIPANT_TX_DETAIL_LABELS,
+  PARTICIPANT_TX_EMAIL_TYPES,
+  isParticipantTxEmailType,
+  txCopy,
+  txSubject,
+  type ParticipantTxDetailLabel,
+  type ParticipantTxEmailType,
+  type TxEmailType,
+} from "@/lib/email-templates/tx-copy";
 import type { PolishGender } from "@/lib/i18n/polishVocative";
 import { txBody } from "@/lib/email-templates/tx-body";
 import {
@@ -46,6 +55,10 @@ export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "event_registration_approved",
   "event_registration_rejected",
   "event_waitlist_promoted",
+  "event_cfp_submission_received",
+  "event_cfp_submission_accepted",
+  "event_cfp_submission_rejected",
+  "event_cfp_submission_changes_requested",
   "event_ticket_paid",
   "event_ticket_paid_waitlisted",
   "event_ticket_paid_pending",
@@ -53,6 +66,7 @@ export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "event_ticket_partially_refunded",
   "event_ticket_issued",
   "event_ticket_revoked",
+  "event_invoice_issued",
   "donation_received",
   "newsletter_confirmed",
   "customer_portal_link",
@@ -60,6 +74,8 @@ export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "club_application_rejected",
   "club_application_more_info",
   "user_invitation",
+  // Funkcje uczestnika F1-F5 (spec B.8) - kolejność jak w `PARTICIPANT_TX_EMAIL_TYPES`.
+  ...PARTICIPANT_TX_EMAIL_TYPES,
 ] as const;
 
 export interface TxEmailPreview {
@@ -107,13 +123,93 @@ const DEMO_REFUND_LABEL: Record<EmailLang, string> = {
   en: "Refunded amount",
 };
 
+/** Przykładowe wystąpienie i informacja zwrotna w podglądzie maili naboru prelegentów. */
+const DEMO_CFP_TALK: Record<EmailLang, string> = {
+  pl: "Bezpieczeństwo energetyczne Europy Środkowej po 2030 roku",
+  en: "Central European energy security after 2030",
+};
+const DEMO_CFP_FEEDBACK: Record<EmailLang, string> = {
+  pl: "Prosimy o skrócenie streszczenia i dopisanie dwóch przykładów z regionu.",
+  en: "Please shorten the abstract and add two examples from the region.",
+};
+
 interface DemoData {
   subjectName: string | null;
   details: TxDetail[];
   ctaUrl: string;
 }
 
+/**
+ * Dane demonstracyjne maili uczestnika F1-F5 - JEDNA wartość na etykietę
+ * z kontraktu `PARTICIPANT_TX_DETAIL_LABELS`, w obu językach mapą (nie
+ * ternarym, patrz `DEMO_DECISION_NOTE`). Wiersze budujemy z kontraktu, więc
+ * podgląd nie może pokazać innego zestawu wierszy niż ten, który wysyłają tory.
+ */
+const DEMO_PARTICIPANT_VALUES: Record<EmailLang, Record<ParticipantTxDetailLabel, string>> = {
+  pl: {
+    event: "Europejski Briefing Strategiczny",
+    date: "29 lipca 2026, 18:00 (czas warszawski)",
+    place: "Warszawa / online",
+    session: "Panel: bezpieczeństwo energetyczne",
+    room: "Sala A, piętro 2",
+    ticketType: "Wejściówka standard",
+    waitlistPosition: "3",
+    price: "450,00 PLN",
+    deadline: "28 lipca 2026, 18:00 (czas warszawski)",
+    transaction: "pi_demo0participant0refund",
+    sender: "Anna",
+    recipient: "Jan",
+  },
+  en: {
+    event: "European Strategic Briefing",
+    date: "29 July 2026, 18:00 (Warsaw time)",
+    place: "Warsaw / online",
+    session: "Panel: energy security",
+    room: "Room A, 2nd floor",
+    ticketType: "Standard pass",
+    waitlistPosition: "3",
+    price: "PLN 450.00",
+    deadline: "28 July 2026, 18:00 (Warsaw time)",
+    transaction: "pi_demo0participant0refund",
+    sender: "Anna",
+    recipient: "Jan",
+  },
+};
+
+/** Token przekazania w kształcie `_event_new_qr_token()` - wyłącznie do podglądu. */
+const DEMO_TRANSFER_TOKEN = "Nes2026DemoTransferToken01234567";
+
+/** Ścieżki przycisków maili uczestnika (kontrakt z komentarza `PARTICIPANT_TX_DETAIL_LABELS`). */
+const DEMO_PARTICIPANT_PATHS: Record<ParticipantTxEmailType, string> = {
+  event_reminder: "/events/demo",
+  event_session_reminder: "/events/demo/me?tab=schedule#event-session-demo",
+  event_waitlist_joined: "/profile/tickets",
+  event_waitlist_offer: "/profile/tickets",
+  event_waitlist_offer_expired: "/events/demo/register",
+  event_waitlist_offer_refunded: "/events/demo",
+  event_ticket_transfer_offer: `/tickets/transfer/${DEMO_TRANSFER_TOKEN}`,
+  event_ticket_transfer_completed: "/events/demo",
+  event_ticket_transfer_revoked: "/events/demo",
+  event_survey_invite: "/events/demo/me?tab=follow-up",
+  event_certificate_ready: "/events/demo/me?tab=follow-up",
+};
+
+/** Podgląd maila uczestnika: wiersze wprost z kontraktu etykiet. */
+export function participantDemoData(type: ParticipantTxEmailType, lang: EmailLang): DemoData {
+  const labels = txCopy(type, lang).labels;
+  const values = DEMO_PARTICIPANT_VALUES[lang];
+  return {
+    subjectName: values.event,
+    details: PARTICIPANT_TX_DETAIL_LABELS[type].map((key) => ({
+      label: labels[key],
+      value: values[key],
+    })),
+    ctaUrl: `${SITE_URL}${DEMO_PARTICIPANT_PATHS[type]}`,
+  };
+}
+
 function demoData(type: TxEmailType, lang: EmailLang): DemoData {
+  if (isParticipantTxEmailType(type)) return participantDemoData(type, lang);
   const c = txCopy(type, lang);
   const l = c.labels;
   const plan = "Professional";
@@ -276,6 +372,31 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
         ],
         ctaUrl: `${SITE_URL}/events`,
       };
+    // Nabór prelegentów: potwierdzenie wysłania i trzy decyzje organizatora.
+    // Decyzje niosą informację zwrotną organizatora; przycisk prowadzi do
+    // panelu prelegenta, w którym prelegent odpowiada na decyzję.
+    case "event_cfp_submission_received":
+    case "event_cfp_submission_accepted":
+      return {
+        subjectName: eventTitle,
+        details: [
+          { label: l.event, value: eventTitle },
+          { label: l.talk, value: DEMO_CFP_TALK[lang] },
+          { label: l.date, value: eventDate },
+        ],
+        ctaUrl: `${SITE_URL}/events/demo/speaker`,
+      };
+    case "event_cfp_submission_rejected":
+    case "event_cfp_submission_changes_requested":
+      return {
+        subjectName: eventTitle,
+        details: [
+          { label: l.event, value: eventTitle },
+          { label: l.talk, value: DEMO_CFP_TALK[lang] },
+          { label: l.organizerMessage, value: DEMO_CFP_FEEDBACK[lang] },
+        ],
+        ctaUrl: `${SITE_URL}/events/demo/speaker`,
+      };
     // Skutek platnosci za bilet: kwota w temacie, a w szczegolach zawsze
     // widac, czego dotyczy zwrot i ile faktycznie wrocilo do kupujacego.
     case "event_ticket_paid":
@@ -347,6 +468,18 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
           { label: l.registeredBy, value: "Anna Nowak" },
         ],
         ctaUrl: `${SITE_URL}/events`,
+      };
+    // Faktura organizatora: numer z serii FV, kwota brutto, odnosnik do
+    // profilu (mail nie niesie zalacznika - PDF sklada profil).
+    case "event_invoice_issued":
+      return {
+        subjectName: eventTitle,
+        details: [
+          { label: l.event, value: eventTitle },
+          { label: l.documentNumber, value: "FV/2026/09/0007" },
+          { label: l.price, value: DEMO_TICKET_PRICE[lang] },
+        ],
+        ctaUrl: `${SITE_URL}/profile/invoices`,
       };
     case "donation_received":
       return {

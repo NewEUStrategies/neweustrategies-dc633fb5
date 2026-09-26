@@ -12,6 +12,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { FriendlyErrorPage } from "@/components/error/FriendlyErrorPage";
 import { EventPackagesPurchase } from "@/components/events/packages/EventPackagesPurchase";
+import { AdAttributionCapture } from "@/components/events/public/atoms/AdAttributionCapture";
 
 export const Route = createFileRoute("/events/$slug_/packages")({
   ssr: false,
@@ -41,6 +42,8 @@ function PackagesRoute() {
   const { slug } = Route.useParams();
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
+      {/* Wejscie z reklamy prosto na pakiety tez niesie kampanie i liczy sie jako wizyta. */}
+      <AdAttributionCapture eventSlug={slug} />
       <EventPackagesPurchase slug={slug} />
     </main>
   );

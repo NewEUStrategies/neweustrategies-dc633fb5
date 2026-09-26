@@ -272,6 +272,8 @@ export interface EventPageCreateInput {
    * baza tylko wtedy, gdy dokument JEST, ale ma zly kształt.
    */
   templateId?: string | null;
+  /** Slug wydarzenia - szablon z przyciskiem do trasy wydarzenia (np. nabór prelegentów). */
+  eventSlug?: string | null;
 }
 
 /**
@@ -286,7 +288,9 @@ export interface EventPageCreateInput {
  * pozycje w menu, ktora niczego nie pokazuje.
  */
 export async function createEventPage(input: EventPageCreateInput): Promise<string> {
-  const document = eventPageTemplateDocument(input.templateId);
+  const document = eventPageTemplateDocument(input.templateId, {
+    eventSlug: input.eventSlug ?? null,
+  });
   const { data, error } = await supabase.rpc("admin_event_page_create", {
     p_payload: payload({
       event_id: input.eventId,

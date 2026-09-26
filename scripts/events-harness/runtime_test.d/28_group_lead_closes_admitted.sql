@@ -29,7 +29,7 @@
 --   5. `_event_group_promote_freed` wprost: NULL i pusta tablica, grupowanie
 --      po bilecie, limit puli, zapis bez cennika (awans po wydarzeniu).
 --   6. Uprawnienia: funkcja awansu bez EXECUTE dla anon/authenticated.
---   7. Zwrot czesciowy (20260926150000): grupa oplacona przez Stripe
+--   7. Zwrot czesciowy (20260926180000): grupa oplacona przez Stripe
 --      i zwrocona czesciowo, odrzucona przez pomylke i przyjeta ponownie -
 --      goscie zwroceni czesciowo wracaja z NOWYM kodem, trafiaja do crona,
 --      do wydania biletow i do ponownej wysylki z panelu (bez
@@ -564,10 +564,10 @@ SELECT pg_temp.assert(
 
 -- ---------------------------------------------------------------------------
 -- 7) ZWROT CZESCIOWY: GOSCIE WRACAJA Z PROWADZACYM I DOSTAJA BILET
---    (20260926150000)
+--    (20260926180000)
 -- ---------------------------------------------------------------------------
 -- Zwrot czesciowy prowadzacego to korekta ceny: oplaceni goscie przechodza na
--- `partially_refunded` i zachowuja miejsce oraz kod. Do 20260926150000
+-- `partially_refunded` i zachowuja miejsce oraz kod. Do 20260926180000
 -- predykat stempla (`_event_guest_closed_with_lead`) dopuszczal tylko
 -- not_required/paid/unpaid, wiec pomylkowe odrzucenie prowadzacego i ponowne
 -- przyjecie przywracalo SAMEGO prowadzacego - goscie zostawali odrzuceni

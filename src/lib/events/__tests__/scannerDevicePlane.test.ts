@@ -570,3 +570,151 @@ describe("scannerApi - wydruk identyfikatora z płaszczyzny urządzenia", () => 
     expect(wynik.deviceLocked).toBe(true);
   });
 });
+
+/* ------------------------------------------------------ tryb offline --- */
+//
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW (20260926150000):
+//   * decyzja urządzenia bez sieci nie jedzie do bazy - konfliktu nie da się
+//     potem policzyć w panelu;
+//   * skan z kolejki nie niesie `queued` - seria starych nieznanych kodów
+//     blokuje urządzenie w chwili powrotu zasięgu;
+//   * lista offline bez wersji (`generated_at`) nakłada pustkę na listę;
+//   * termin żądania nie działa albo zostawia wiszący zegar.
+
+describe("scannerApi - pola trybu offline przy zapisie", () => {
+  it("skan z kolejki niesie decyzję offline, wersję listy i znacznik kolejki", async () => {
+    rpc().setData("event_checkin_record", { outcome: "granted", admit: true });
+
+    await api.recordCheckinScan({
+      deviceToken: TOKEN_BRAMKI,
+      code: KOD,
+      clientScanUid: "scan-1",
+      deviceScannedAt: "2026-09-01T08:00:00.000Z",
+      queued: true,
+      offlineAdmitted: true,
+      offlineOutcome: "granted",
+      rosterGeneratedAt: "2026-09-01T07:00:00.123456+00:00",
+    });
+
+    expect(payloadOf("event_checkin_record")).toEqual({
+      device_token: TOKEN_BRAMKI,
+      code: KOD,
+      client_scan_uid: "scan-1",
+      device_scanned_at: "2026-09-01T08:00:00.000Z",
+      queued: true,
+      offline_admitted: true,
+      offline_outcome: "granted",
+      roster_generated_at: "2026-09-01T07:00:00.123456+00:00",
+    });
+  });
+
+  it("odmowa urządzenia offline (`false`) NIE wypada z ładunku - to też decyzja", async () => {
+    rpc().setData("event_checkin_record", { outcome: "granted", admit: true });
+
+    await api.recordCheckinScan({
+      deviceToken: TOKEN_BRAMKI,
+      code: KOD,
+      offlineAdmitted: false,
+      offlineOutcome: "unknown_code",
+    });
+
+    expect(payloadOf("event_checkin_record").offline_admitted).toBe(false);
+  });
+
+  it("lead z kolejki niesie chwilę skanu (okno 72 h) i znacznik kolejki", async () => {
+    rpc().setData("event_lead_scan_record", { outcome: "saved" });
+
+    await api.recordLeadScan({
+      deviceToken: TOKEN_STOISKA,
+      code: KOD,
+      deviceScannedAt: "2026-09-01T08:00:00.000Z",
+      queued: true,
+    });
+
+    expect(payloadOf("event_lead_scan_record")).toEqual({
+      device_token: TOKEN_STOISKA,
+      code: KOD,
+      device_scanned_at: "2026-09-01T08:00:00.000Z",
+      queued: true,
+    });
+  });
+});
+
+describe("scannerApi - lista offline", () => {
+  it("strona listy: token w ciele, kursory przekazane, wersja zachowana dosłownie", async () => {
+    rpc().setData("event_scanner_roster", {
+      generated_at: "2026-09-01T07:00:00.123456+00:00",
+      full: false,
+      next_after: null,
+      rows: [{ r: "r1", h: "a".repeat(64), s: "approved" }],
+      removed: ["r2"],
+    });
+
+    const page = await api.fetchScannerRoster({
+      deviceToken: TOKEN_BRAMKI,
+      since: "2026-09-01T06:00:00Z",
+      after: "r0",
+      limit: 500,
+    });
+
+    expect(payloadOf("event_scanner_roster")).toEqual({
+      device_token: TOKEN_BRAMKI,
+      since: "2026-09-01T06:00:00Z",
+      after: "r0",
+      limit: 500,
+    });
+    expect(page.generatedAt).toBe("2026-09-01T07:00:00.123456+00:00");
+    expect(page.rows).toHaveLength(1);
+    expect(page.removed).toEqual(["r2"]);
+  });
+
+  it("pełne pobranie nie wysyła pustych kursorów", async () => {
+    rpc().setData("event_scanner_roster", { generated_at: "v1", full: true, rows: [] });
+
+    await api.fetchScannerRoster({ deviceToken: TOKEN_BRAMKI });
+
+    expect(payloadOf("event_scanner_roster")).toEqual({ device_token: TOKEN_BRAMKI });
+  });
+
+  it("odpowiedź bez wersji to błąd, a nie pusta lista", async () => {
+    rpc().setData("event_scanner_roster", { rows: [] });
+
+    await expect(api.fetchScannerRoster({ deviceToken: TOKEN_BRAMKI })).rejects.toThrow(
+      "roster_unreadable",
+    );
+  });
+
+  it.each(["roster_disabled: off", "roster_throttled: wait", "device_revoked: x"])(
+    "odmowa „%s” wychodzi z zachowanym kluczem bazy",
+    async (komunikat) => {
+      rpc().setError("event_scanner_roster", komunikat);
+
+      await expect(api.fetchScannerRoster({ deviceToken: TOKEN_BRAMKI })).rejects.toThrow(
+        komunikat.split(":")[0],
+      );
+    },
+  );
+});
+
+describe("scannerApi - termin żądania", () => {
+  it("odpowiedź przed terminem przechodzi bez zmian", async () => {
+    await expect(api.withDeadline(Promise.resolve(7), 1000)).resolves.toBe(7);
+  });
+
+  it("odmowa przed terminem przechodzi bez zmian", async () => {
+    await expect(api.withDeadline(Promise.reject(new Error("x: y")), 1000)).rejects.toThrow("x: y");
+  });
+
+  it("brak odpowiedzi w terminie kończy się błędem BEZ głowy bazy (ścieżka offline)", async () => {
+    vi.useFakeTimers();
+    try {
+      const pending = api.withDeadline(new Promise<never>(() => undefined), 3500);
+      const assertion = expect(pending).rejects.toBeInstanceOf(api.ScannerTimeoutError);
+      await vi.advanceTimersByTimeAsync(3500);
+      await assertion;
+      await expect(pending).rejects.toThrow("Scanner request timed out");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

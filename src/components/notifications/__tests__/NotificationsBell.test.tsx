@@ -346,6 +346,25 @@ describe("NotificationsBell - sesja i licznik", () => {
   });
 });
 
+// Rytuał rodzajów F1-F5 (spec B.7): `event` i `billing` bez ikony z bazy
+// dostają ikonę zapasową z KOMPLETNEJ mapy (`Record<NotificationKind, …>`),
+// a nie neutralne kółko.
+describe("NotificationsBell - ikony zapasowe rodzajów event i billing", () => {
+  it.each([
+    ["event", "lucide-calendar-clock"],
+    ["billing", "lucide-credit-card"],
+  ])("rodzaj %s bez ikony z bazy -> %s", async (kind, iconClass) => {
+    rows = [notif({ id: `n-${kind}`, kind, title_pl: `Wiersz ${kind}`, icon: null })];
+    unreadCount = 1;
+    await mountBell();
+    await openBell();
+    const row = (await screen.findByText(`Wiersz ${kind}`)).closest("li");
+    expect(row).not.toBeNull();
+    expect(row?.querySelector(`svg.${iconClass}`)).not.toBeNull();
+    expect(row?.querySelector("svg.lucide-circle")).toBeNull();
+  });
+});
+
 describe("NotificationsBell - nawigacja z wiersza", () => {
   it("klik w odnośnik WEWNĘTRZNY nawiguje przez router i ZACHOWUJE query string", async () => {
     unreadCount = 2;

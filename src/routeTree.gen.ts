@@ -233,14 +233,19 @@ import { Route as NetworkMutualUserIdRouteImport } from './routes/network.mutual
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as EventsInviteTokenRouteImport } from './routes/events_.invite.$token'
 import { Route as EventsSlugTicketRouteImport } from './routes/events.$slug_.ticket'
+import { Route as EventsSlugSponsorReportRouteImport } from './routes/events.$slug_.sponsor-report'
+import { Route as EventsSlugReviewRouteImport } from './routes/events.$slug_.review'
 import { Route as EventsSlugRegisterRouteImport } from './routes/events.$slug_.register'
 import { Route as EventsSlugPackagesRouteImport } from './routes/events.$slug_.packages'
 import { Route as EventsSlugManageRouteImport } from './routes/events.$slug_.manage'
+import { Route as EventsSlugCfpSubmitRouteImport } from './routes/events.$slug_.cfp-submit'
 import { Route as EventsSlugSpeakersRouteImport } from './routes/events.$slug.speakers'
+import { Route as EventsSlugSpeakerRouteImport } from './routes/events.$slug.speaker'
 import { Route as EventsSlugPartnersRouteImport } from './routes/events.$slug.partners'
 import { Route as EventsSlugParticipantsRouteImport } from './routes/events.$slug.participants'
 import { Route as EventsSlugMeRouteImport } from './routes/events.$slug.me'
 import { Route as EventsSlugDiscussionsRouteImport } from './routes/events.$slug.discussions'
+import { Route as EventsSlugCfpRouteImport } from './routes/events.$slug.cfp'
 import { Route as EventsSlugAgendaRouteImport } from './routes/events.$slug.agenda'
 import { Route as ClubSpecializationSlugRouteImport } from './routes/club.specialization.$slug'
 import { Route as ClubJoinTokenRouteImport } from './routes/club.join.$token'
@@ -259,6 +264,7 @@ import { Route as CategorySlugRssDotxmlRouteImport } from './routes/category.$sl
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
 import { Route as ApiPublicVersionRouteImport } from './routes/api/public/version'
 import { Route as ApiPublicTrackRouteImport } from './routes/api/public/track'
+import { Route as ApiPublicSponsorEventRouteImport } from './routes/api/public/sponsor-event'
 import { Route as ApiPublicRelatedClickRouteImport } from './routes/api/public/related-click'
 import { Route as ApiPublicPostTtsRouteImport } from './routes/api/public/post-tts'
 import { Route as ApiPublicPopupEventRouteImport } from './routes/api/public/popup-event'
@@ -267,6 +273,7 @@ import { Route as ApiPublicNlClickRouteImport } from './routes/api/public/nl-cli
 import { Route as ApiPublicJobsTickRouteImport } from './routes/api/public/jobs-tick'
 import { Route as ApiPublicFxRateRouteImport } from './routes/api/public/fx-rate'
 import { Route as ApiPublicExperimentEventRouteImport } from './routes/api/public/experiment-event'
+import { Route as ApiPublicEventFunnelRouteImport } from './routes/api/public/event-funnel'
 import { Route as ApiPublicCommunityCronRouteImport } from './routes/api/public/community-cron'
 import { Route as ApiPublicClientErrorsRouteImport } from './routes/api/public/client-errors'
 import { Route as ApiPublicBillingCronRouteImport } from './routes/api/public/billing-cron'
@@ -366,6 +373,7 @@ import { Route as ApiPublicHooksRefreshOgImageRouteImport } from './routes/api/p
 import { Route as AdminNewsletterCampaignsIdRouteImport } from './routes/admin.newsletter.campaigns.$id'
 import { Route as AdminEventsEventIdTermsRouteImport } from './routes/admin.events_.$eventId.terms'
 import { Route as AdminEventsEventIdSponsorsRouteImport } from './routes/admin.events_.$eventId.sponsors'
+import { Route as AdminEventsEventIdSponsorReportRouteImport } from './routes/admin.events_.$eventId.sponsor-report'
 import { Route as AdminEventsEventIdPagesRouteImport } from './routes/admin.events_.$eventId.pages'
 import { Route as AdminEventsEventIdOverviewRouteImport } from './routes/admin.events_.$eventId.overview'
 import { Route as AdminEventsEventIdIntegrationsRouteImport } from './routes/admin.events_.$eventId.integrations'
@@ -375,6 +383,7 @@ import { Route as AdminEventsEventIdFeaturesRouteImport } from './routes/admin.e
 import { Route as AdminEventsEventIdCommunicationsRouteImport } from './routes/admin.events_.$eventId.communications'
 import { Route as AdminEventsEventIdBrandingRouteImport } from './routes/admin.events_.$eventId.branding'
 import { Route as AdminEventsEventIdAnalyticsRouteImport } from './routes/admin.events_.$eventId.analytics'
+import { Route as AdminEventsEventIdAdsFunnelRouteImport } from './routes/admin.events_.$eventId.ads-funnel'
 import { Route as AdminCommunityClubsTopicsRouteImport } from './routes/admin.community.clubs.topics'
 import { Route as AdminCommunityClubsSpecializationsRouteImport } from './routes/admin.community.clubs.specializations'
 import { Route as AdminCommunityClubsElementsRouteImport } from './routes/admin.community.clubs.elements'
@@ -384,10 +393,17 @@ import { Route as AdminEventsEventIdRegistrationIndexRouteImport } from './route
 import { Route as AdminEventsEventIdOnsiteIndexRouteImport } from './routes/admin.events_.$eventId.onsite.index'
 import { Route as AdminEventsEventIdMeetingsIndexRouteImport } from './routes/admin.events_.$eventId.meetings.index'
 import { Route as AdminEventsEventIdContentIndexRouteImport } from './routes/admin.events_.$eventId.content.index'
+import { Route as AdminEventsEventIdCfpIndexRouteImport } from './routes/admin.events_.$eventId.cfp.index'
+import { Route as ApiPublicEventsWalletGoogleRouteImport } from './routes/api/public/events.wallet.google'
+import { Route as ApiPublicEventsWalletAvailabilityRouteImport } from './routes/api/public/events.wallet.availability'
+import { Route as ApiPublicEventsWalletAppleRouteImport } from './routes/api/public/events.wallet.apple'
 import { Route as AdminEventsEventIdRegistrationTicketsRouteImport } from './routes/admin.events_.$eventId.registration.tickets'
 import { Route as AdminEventsEventIdRegistrationSettingsRouteImport } from './routes/admin.events_.$eventId.registration.settings'
+import { Route as AdminEventsEventIdRegistrationSeatingRouteImport } from './routes/admin.events_.$eventId.registration.seating'
+import { Route as AdminEventsEventIdRegistrationPoliciesRouteImport } from './routes/admin.events_.$eventId.registration.policies'
 import { Route as AdminEventsEventIdRegistrationPackagesRouteImport } from './routes/admin.events_.$eventId.registration.packages'
 import { Route as AdminEventsEventIdRegistrationListRouteImport } from './routes/admin.events_.$eventId.registration.list'
+import { Route as AdminEventsEventIdRegistrationInvoicesRouteImport } from './routes/admin.events_.$eventId.registration.invoices'
 import { Route as AdminEventsEventIdRegistrationFormRouteImport } from './routes/admin.events_.$eventId.registration.form'
 import { Route as AdminEventsEventIdRegistrationAudiencesRouteImport } from './routes/admin.events_.$eventId.registration.audiences'
 import { Route as AdminEventsEventIdOnsiteStatsRouteImport } from './routes/admin.events_.$eventId.onsite.stats'
@@ -406,6 +422,10 @@ import { Route as AdminEventsEventIdContentSpeakersRouteImport } from './routes/
 import { Route as AdminEventsEventIdContentSessionsRouteImport } from './routes/admin.events_.$eventId.content.sessions'
 import { Route as AdminEventsEventIdContentRoomsRouteImport } from './routes/admin.events_.$eventId.content.rooms'
 import { Route as AdminEventsEventIdContentConflictsRouteImport } from './routes/admin.events_.$eventId.content.conflicts'
+import { Route as AdminEventsEventIdCfpSubmissionsRouteImport } from './routes/admin.events_.$eventId.cfp.submissions'
+import { Route as AdminEventsEventIdCfpSettingsRouteImport } from './routes/admin.events_.$eventId.cfp.settings'
+import { Route as AdminEventsEventIdCfpReviewersRouteImport } from './routes/admin.events_.$eventId.cfp.reviewers'
+import { Route as AdminEventsEventIdCfpFormRouteImport } from './routes/admin.events_.$eventId.cfp.form'
 
 const ZwrotyIReklamacjeRoute = ZwrotyIReklamacjeRouteImport.update({
   id: '/zwroty-i-reklamacje',
@@ -1536,6 +1556,16 @@ const EventsSlugTicketRoute = EventsSlugTicketRouteImport.update({
   path: '/$slug/ticket',
   getParentRoute: () => EventsRoute,
 } as any)
+const EventsSlugSponsorReportRoute = EventsSlugSponsorReportRouteImport.update({
+  id: '/$slug_/sponsor-report',
+  path: '/$slug/sponsor-report',
+  getParentRoute: () => EventsRoute,
+} as any)
+const EventsSlugReviewRoute = EventsSlugReviewRouteImport.update({
+  id: '/$slug_/review',
+  path: '/$slug/review',
+  getParentRoute: () => EventsRoute,
+} as any)
 const EventsSlugRegisterRoute = EventsSlugRegisterRouteImport.update({
   id: '/$slug_/register',
   path: '/$slug/register',
@@ -1551,9 +1581,19 @@ const EventsSlugManageRoute = EventsSlugManageRouteImport.update({
   path: '/$slug/manage',
   getParentRoute: () => EventsRoute,
 } as any)
+const EventsSlugCfpSubmitRoute = EventsSlugCfpSubmitRouteImport.update({
+  id: '/$slug_/cfp-submit',
+  path: '/$slug/cfp-submit',
+  getParentRoute: () => EventsRoute,
+} as any)
 const EventsSlugSpeakersRoute = EventsSlugSpeakersRouteImport.update({
   id: '/speakers',
   path: '/speakers',
+  getParentRoute: () => EventsSlugRoute,
+} as any)
+const EventsSlugSpeakerRoute = EventsSlugSpeakerRouteImport.update({
+  id: '/speaker',
+  path: '/speaker',
   getParentRoute: () => EventsSlugRoute,
 } as any)
 const EventsSlugPartnersRoute = EventsSlugPartnersRouteImport.update({
@@ -1574,6 +1614,11 @@ const EventsSlugMeRoute = EventsSlugMeRouteImport.update({
 const EventsSlugDiscussionsRoute = EventsSlugDiscussionsRouteImport.update({
   id: '/discussions',
   path: '/discussions',
+  getParentRoute: () => EventsSlugRoute,
+} as any)
+const EventsSlugCfpRoute = EventsSlugCfpRouteImport.update({
+  id: '/cfp',
+  path: '/cfp',
   getParentRoute: () => EventsSlugRoute,
 } as any)
 const EventsSlugAgendaRoute = EventsSlugAgendaRouteImport.update({
@@ -1666,6 +1711,11 @@ const ApiPublicTrackRoute = ApiPublicTrackRouteImport.update({
   path: '/api/public/track',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicSponsorEventRoute = ApiPublicSponsorEventRouteImport.update({
+  id: '/api/public/sponsor-event',
+  path: '/api/public/sponsor-event',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicRelatedClickRoute = ApiPublicRelatedClickRouteImport.update({
   id: '/api/public/related-click',
   path: '/api/public/related-click',
@@ -1707,6 +1757,11 @@ const ApiPublicExperimentEventRoute =
     path: '/api/public/experiment-event',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicEventFunnelRoute = ApiPublicEventFunnelRouteImport.update({
+  id: '/api/public/event-funnel',
+  path: '/api/public/event-funnel',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicCommunityCronRoute = ApiPublicCommunityCronRouteImport.update({
   id: '/api/public/community-cron',
   path: '/api/public/community-cron',
@@ -2238,6 +2293,12 @@ const AdminEventsEventIdSponsorsRoute =
     path: '/sponsors',
     getParentRoute: () => AdminEventsEventIdRoute,
   } as any)
+const AdminEventsEventIdSponsorReportRoute =
+  AdminEventsEventIdSponsorReportRouteImport.update({
+    id: '/sponsor-report',
+    path: '/sponsor-report',
+    getParentRoute: () => AdminEventsEventIdRoute,
+  } as any)
 const AdminEventsEventIdPagesRoute = AdminEventsEventIdPagesRouteImport.update({
   id: '/pages',
   path: '/pages',
@@ -2289,6 +2350,12 @@ const AdminEventsEventIdAnalyticsRoute =
   AdminEventsEventIdAnalyticsRouteImport.update({
     id: '/analytics',
     path: '/analytics',
+    getParentRoute: () => AdminEventsEventIdRoute,
+  } as any)
+const AdminEventsEventIdAdsFunnelRoute =
+  AdminEventsEventIdAdsFunnelRouteImport.update({
+    id: '/ads-funnel',
+    path: '/ads-funnel',
     getParentRoute: () => AdminEventsEventIdRoute,
   } as any)
 const AdminCommunityClubsTopicsRoute =
@@ -2345,6 +2412,30 @@ const AdminEventsEventIdContentIndexRoute =
     path: '/content/',
     getParentRoute: () => AdminEventsEventIdRoute,
   } as any)
+const AdminEventsEventIdCfpIndexRoute =
+  AdminEventsEventIdCfpIndexRouteImport.update({
+    id: '/cfp/',
+    path: '/cfp/',
+    getParentRoute: () => AdminEventsEventIdRoute,
+  } as any)
+const ApiPublicEventsWalletGoogleRoute =
+  ApiPublicEventsWalletGoogleRouteImport.update({
+    id: '/api/public/events/wallet/google',
+    path: '/api/public/events/wallet/google',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicEventsWalletAvailabilityRoute =
+  ApiPublicEventsWalletAvailabilityRouteImport.update({
+    id: '/api/public/events/wallet/availability',
+    path: '/api/public/events/wallet/availability',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicEventsWalletAppleRoute =
+  ApiPublicEventsWalletAppleRouteImport.update({
+    id: '/api/public/events/wallet/apple',
+    path: '/api/public/events/wallet/apple',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AdminEventsEventIdRegistrationTicketsRoute =
   AdminEventsEventIdRegistrationTicketsRouteImport.update({
     id: '/registration/tickets',
@@ -2357,6 +2448,18 @@ const AdminEventsEventIdRegistrationSettingsRoute =
     path: '/registration/settings',
     getParentRoute: () => AdminEventsEventIdRoute,
   } as any)
+const AdminEventsEventIdRegistrationSeatingRoute =
+  AdminEventsEventIdRegistrationSeatingRouteImport.update({
+    id: '/registration/seating',
+    path: '/registration/seating',
+    getParentRoute: () => AdminEventsEventIdRoute,
+  } as any)
+const AdminEventsEventIdRegistrationPoliciesRoute =
+  AdminEventsEventIdRegistrationPoliciesRouteImport.update({
+    id: '/registration/policies',
+    path: '/registration/policies',
+    getParentRoute: () => AdminEventsEventIdRoute,
+  } as any)
 const AdminEventsEventIdRegistrationPackagesRoute =
   AdminEventsEventIdRegistrationPackagesRouteImport.update({
     id: '/registration/packages',
@@ -2367,6 +2470,12 @@ const AdminEventsEventIdRegistrationListRoute =
   AdminEventsEventIdRegistrationListRouteImport.update({
     id: '/registration/list',
     path: '/registration/list',
+    getParentRoute: () => AdminEventsEventIdRoute,
+  } as any)
+const AdminEventsEventIdRegistrationInvoicesRoute =
+  AdminEventsEventIdRegistrationInvoicesRouteImport.update({
+    id: '/registration/invoices',
+    path: '/registration/invoices',
     getParentRoute: () => AdminEventsEventIdRoute,
   } as any)
 const AdminEventsEventIdRegistrationFormRoute =
@@ -2475,6 +2584,30 @@ const AdminEventsEventIdContentConflictsRoute =
   AdminEventsEventIdContentConflictsRouteImport.update({
     id: '/content/conflicts',
     path: '/content/conflicts',
+    getParentRoute: () => AdminEventsEventIdRoute,
+  } as any)
+const AdminEventsEventIdCfpSubmissionsRoute =
+  AdminEventsEventIdCfpSubmissionsRouteImport.update({
+    id: '/cfp/submissions',
+    path: '/cfp/submissions',
+    getParentRoute: () => AdminEventsEventIdRoute,
+  } as any)
+const AdminEventsEventIdCfpSettingsRoute =
+  AdminEventsEventIdCfpSettingsRouteImport.update({
+    id: '/cfp/settings',
+    path: '/cfp/settings',
+    getParentRoute: () => AdminEventsEventIdRoute,
+  } as any)
+const AdminEventsEventIdCfpReviewersRoute =
+  AdminEventsEventIdCfpReviewersRouteImport.update({
+    id: '/cfp/reviewers',
+    path: '/cfp/reviewers',
+    getParentRoute: () => AdminEventsEventIdRoute,
+  } as any)
+const AdminEventsEventIdCfpFormRoute =
+  AdminEventsEventIdCfpFormRouteImport.update({
+    id: '/cfp/form',
+    path: '/cfp/form',
     getParentRoute: () => AdminEventsEventIdRoute,
   } as any)
 
@@ -2758,6 +2891,7 @@ export interface FileRoutesByFullPath {
   '/api/public/billing-cron': typeof ApiPublicBillingCronRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
+  '/api/public/event-funnel': typeof ApiPublicEventFunnelRoute
   '/api/public/experiment-event': typeof ApiPublicExperimentEventRoute
   '/api/public/fx-rate': typeof ApiPublicFxRateRoute
   '/api/public/jobs-tick': typeof ApiPublicJobsTickRoute
@@ -2766,6 +2900,7 @@ export interface FileRoutesByFullPath {
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/related-click': typeof ApiPublicRelatedClickRoute
+  '/api/public/sponsor-event': typeof ApiPublicSponsorEventRoute
   '/api/public/track': typeof ApiPublicTrackRoute
   '/api/public/version': typeof ApiPublicVersionRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
@@ -2784,14 +2919,19 @@ export interface FileRoutesByFullPath {
   '/club/join/$token': typeof ClubJoinTokenRoute
   '/club/specialization/$slug': typeof ClubSpecializationSlugRoute
   '/events/$slug/agenda': typeof EventsSlugAgendaRoute
+  '/events/$slug/cfp': typeof EventsSlugCfpRoute
   '/events/$slug/discussions': typeof EventsSlugDiscussionsRoute
   '/events/$slug/me': typeof EventsSlugMeRoute
   '/events/$slug/participants': typeof EventsSlugParticipantsRoute
   '/events/$slug/partners': typeof EventsSlugPartnersRoute
+  '/events/$slug/speaker': typeof EventsSlugSpeakerRoute
   '/events/$slug/speakers': typeof EventsSlugSpeakersRoute
+  '/events/$slug/cfp-submit': typeof EventsSlugCfpSubmitRoute
   '/events/$slug/manage': typeof EventsSlugManageRoute
   '/events/$slug/packages': typeof EventsSlugPackagesRoute
   '/events/$slug/register': typeof EventsSlugRegisterRoute
+  '/events/$slug/review': typeof EventsSlugReviewRoute
+  '/events/$slug/sponsor-report': typeof EventsSlugSponsorReportRoute
   '/events/$slug/ticket': typeof EventsSlugTicketRoute
   '/events/invite/$token': typeof EventsInviteTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -2818,6 +2958,7 @@ export interface FileRoutesByFullPath {
   '/admin/community/clubs/elements': typeof AdminCommunityClubsElementsRoute
   '/admin/community/clubs/specializations': typeof AdminCommunityClubsSpecializationsRoute
   '/admin/community/clubs/topics': typeof AdminCommunityClubsTopicsRoute
+  '/admin/events/$eventId/ads-funnel': typeof AdminEventsEventIdAdsFunnelRoute
   '/admin/events/$eventId/analytics': typeof AdminEventsEventIdAnalyticsRoute
   '/admin/events/$eventId/branding': typeof AdminEventsEventIdBrandingRoute
   '/admin/events/$eventId/communications': typeof AdminEventsEventIdCommunicationsRoute
@@ -2827,6 +2968,7 @@ export interface FileRoutesByFullPath {
   '/admin/events/$eventId/integrations': typeof AdminEventsEventIdIntegrationsRoute
   '/admin/events/$eventId/overview': typeof AdminEventsEventIdOverviewRoute
   '/admin/events/$eventId/pages': typeof AdminEventsEventIdPagesRoute
+  '/admin/events/$eventId/sponsor-report': typeof AdminEventsEventIdSponsorReportRoute
   '/admin/events/$eventId/sponsors': typeof AdminEventsEventIdSponsorsRoute
   '/admin/events/$eventId/terms': typeof AdminEventsEventIdTermsRoute
   '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
@@ -2850,6 +2992,10 @@ export interface FileRoutesByFullPath {
   '/admin/crm/funnel/': typeof AdminCrmFunnelIndexRoute
   '/admin/events/$eventId/': typeof AdminEventsEventIdIndexRoute
   '/admin/newsletter/campaigns/': typeof AdminNewsletterCampaignsIndexRoute
+  '/admin/events/$eventId/cfp/form': typeof AdminEventsEventIdCfpFormRoute
+  '/admin/events/$eventId/cfp/reviewers': typeof AdminEventsEventIdCfpReviewersRoute
+  '/admin/events/$eventId/cfp/settings': typeof AdminEventsEventIdCfpSettingsRoute
+  '/admin/events/$eventId/cfp/submissions': typeof AdminEventsEventIdCfpSubmissionsRoute
   '/admin/events/$eventId/content/conflicts': typeof AdminEventsEventIdContentConflictsRoute
   '/admin/events/$eventId/content/rooms': typeof AdminEventsEventIdContentRoomsRoute
   '/admin/events/$eventId/content/sessions': typeof AdminEventsEventIdContentSessionsRoute
@@ -2868,10 +3014,17 @@ export interface FileRoutesByFullPath {
   '/admin/events/$eventId/onsite/stats': typeof AdminEventsEventIdOnsiteStatsRoute
   '/admin/events/$eventId/registration/audiences': typeof AdminEventsEventIdRegistrationAudiencesRoute
   '/admin/events/$eventId/registration/form': typeof AdminEventsEventIdRegistrationFormRoute
+  '/admin/events/$eventId/registration/invoices': typeof AdminEventsEventIdRegistrationInvoicesRoute
   '/admin/events/$eventId/registration/list': typeof AdminEventsEventIdRegistrationListRoute
   '/admin/events/$eventId/registration/packages': typeof AdminEventsEventIdRegistrationPackagesRoute
+  '/admin/events/$eventId/registration/policies': typeof AdminEventsEventIdRegistrationPoliciesRoute
+  '/admin/events/$eventId/registration/seating': typeof AdminEventsEventIdRegistrationSeatingRoute
   '/admin/events/$eventId/registration/settings': typeof AdminEventsEventIdRegistrationSettingsRoute
   '/admin/events/$eventId/registration/tickets': typeof AdminEventsEventIdRegistrationTicketsRoute
+  '/api/public/events/wallet/apple': typeof ApiPublicEventsWalletAppleRoute
+  '/api/public/events/wallet/availability': typeof ApiPublicEventsWalletAvailabilityRoute
+  '/api/public/events/wallet/google': typeof ApiPublicEventsWalletGoogleRoute
+  '/admin/events/$eventId/cfp/': typeof AdminEventsEventIdCfpIndexRoute
   '/admin/events/$eventId/content/': typeof AdminEventsEventIdContentIndexRoute
   '/admin/events/$eventId/meetings/': typeof AdminEventsEventIdMeetingsIndexRoute
   '/admin/events/$eventId/onsite/': typeof AdminEventsEventIdOnsiteIndexRoute
@@ -3138,6 +3291,7 @@ export interface FileRoutesByTo {
   '/api/public/billing-cron': typeof ApiPublicBillingCronRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
+  '/api/public/event-funnel': typeof ApiPublicEventFunnelRoute
   '/api/public/experiment-event': typeof ApiPublicExperimentEventRoute
   '/api/public/fx-rate': typeof ApiPublicFxRateRoute
   '/api/public/jobs-tick': typeof ApiPublicJobsTickRoute
@@ -3146,6 +3300,7 @@ export interface FileRoutesByTo {
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/related-click': typeof ApiPublicRelatedClickRoute
+  '/api/public/sponsor-event': typeof ApiPublicSponsorEventRoute
   '/api/public/track': typeof ApiPublicTrackRoute
   '/api/public/version': typeof ApiPublicVersionRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
@@ -3164,14 +3319,19 @@ export interface FileRoutesByTo {
   '/club/join/$token': typeof ClubJoinTokenRoute
   '/club/specialization/$slug': typeof ClubSpecializationSlugRoute
   '/events/$slug/agenda': typeof EventsSlugAgendaRoute
+  '/events/$slug/cfp': typeof EventsSlugCfpRoute
   '/events/$slug/discussions': typeof EventsSlugDiscussionsRoute
   '/events/$slug/me': typeof EventsSlugMeRoute
   '/events/$slug/participants': typeof EventsSlugParticipantsRoute
   '/events/$slug/partners': typeof EventsSlugPartnersRoute
+  '/events/$slug/speaker': typeof EventsSlugSpeakerRoute
   '/events/$slug/speakers': typeof EventsSlugSpeakersRoute
+  '/events/$slug/cfp-submit': typeof EventsSlugCfpSubmitRoute
   '/events/$slug/manage': typeof EventsSlugManageRoute
   '/events/$slug/packages': typeof EventsSlugPackagesRoute
   '/events/$slug/register': typeof EventsSlugRegisterRoute
+  '/events/$slug/review': typeof EventsSlugReviewRoute
+  '/events/$slug/sponsor-report': typeof EventsSlugSponsorReportRoute
   '/events/$slug/ticket': typeof EventsSlugTicketRoute
   '/events/invite/$token': typeof EventsInviteTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -3198,6 +3358,7 @@ export interface FileRoutesByTo {
   '/admin/community/clubs/elements': typeof AdminCommunityClubsElementsRoute
   '/admin/community/clubs/specializations': typeof AdminCommunityClubsSpecializationsRoute
   '/admin/community/clubs/topics': typeof AdminCommunityClubsTopicsRoute
+  '/admin/events/$eventId/ads-funnel': typeof AdminEventsEventIdAdsFunnelRoute
   '/admin/events/$eventId/analytics': typeof AdminEventsEventIdAnalyticsRoute
   '/admin/events/$eventId/branding': typeof AdminEventsEventIdBrandingRoute
   '/admin/events/$eventId/communications': typeof AdminEventsEventIdCommunicationsRoute
@@ -3207,6 +3368,7 @@ export interface FileRoutesByTo {
   '/admin/events/$eventId/integrations': typeof AdminEventsEventIdIntegrationsRoute
   '/admin/events/$eventId/overview': typeof AdminEventsEventIdOverviewRoute
   '/admin/events/$eventId/pages': typeof AdminEventsEventIdPagesRoute
+  '/admin/events/$eventId/sponsor-report': typeof AdminEventsEventIdSponsorReportRoute
   '/admin/events/$eventId/sponsors': typeof AdminEventsEventIdSponsorsRoute
   '/admin/events/$eventId/terms': typeof AdminEventsEventIdTermsRoute
   '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
@@ -3230,6 +3392,10 @@ export interface FileRoutesByTo {
   '/admin/crm/funnel': typeof AdminCrmFunnelIndexRoute
   '/admin/events/$eventId': typeof AdminEventsEventIdIndexRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsIndexRoute
+  '/admin/events/$eventId/cfp/form': typeof AdminEventsEventIdCfpFormRoute
+  '/admin/events/$eventId/cfp/reviewers': typeof AdminEventsEventIdCfpReviewersRoute
+  '/admin/events/$eventId/cfp/settings': typeof AdminEventsEventIdCfpSettingsRoute
+  '/admin/events/$eventId/cfp/submissions': typeof AdminEventsEventIdCfpSubmissionsRoute
   '/admin/events/$eventId/content/conflicts': typeof AdminEventsEventIdContentConflictsRoute
   '/admin/events/$eventId/content/rooms': typeof AdminEventsEventIdContentRoomsRoute
   '/admin/events/$eventId/content/sessions': typeof AdminEventsEventIdContentSessionsRoute
@@ -3248,10 +3414,17 @@ export interface FileRoutesByTo {
   '/admin/events/$eventId/onsite/stats': typeof AdminEventsEventIdOnsiteStatsRoute
   '/admin/events/$eventId/registration/audiences': typeof AdminEventsEventIdRegistrationAudiencesRoute
   '/admin/events/$eventId/registration/form': typeof AdminEventsEventIdRegistrationFormRoute
+  '/admin/events/$eventId/registration/invoices': typeof AdminEventsEventIdRegistrationInvoicesRoute
   '/admin/events/$eventId/registration/list': typeof AdminEventsEventIdRegistrationListRoute
   '/admin/events/$eventId/registration/packages': typeof AdminEventsEventIdRegistrationPackagesRoute
+  '/admin/events/$eventId/registration/policies': typeof AdminEventsEventIdRegistrationPoliciesRoute
+  '/admin/events/$eventId/registration/seating': typeof AdminEventsEventIdRegistrationSeatingRoute
   '/admin/events/$eventId/registration/settings': typeof AdminEventsEventIdRegistrationSettingsRoute
   '/admin/events/$eventId/registration/tickets': typeof AdminEventsEventIdRegistrationTicketsRoute
+  '/api/public/events/wallet/apple': typeof ApiPublicEventsWalletAppleRoute
+  '/api/public/events/wallet/availability': typeof ApiPublicEventsWalletAvailabilityRoute
+  '/api/public/events/wallet/google': typeof ApiPublicEventsWalletGoogleRoute
+  '/admin/events/$eventId/cfp': typeof AdminEventsEventIdCfpIndexRoute
   '/admin/events/$eventId/content': typeof AdminEventsEventIdContentIndexRoute
   '/admin/events/$eventId/meetings': typeof AdminEventsEventIdMeetingsIndexRoute
   '/admin/events/$eventId/onsite': typeof AdminEventsEventIdOnsiteIndexRoute
@@ -3538,6 +3711,7 @@ export interface FileRoutesById {
   '/api/public/billing-cron': typeof ApiPublicBillingCronRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
+  '/api/public/event-funnel': typeof ApiPublicEventFunnelRoute
   '/api/public/experiment-event': typeof ApiPublicExperimentEventRoute
   '/api/public/fx-rate': typeof ApiPublicFxRateRoute
   '/api/public/jobs-tick': typeof ApiPublicJobsTickRoute
@@ -3546,6 +3720,7 @@ export interface FileRoutesById {
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/related-click': typeof ApiPublicRelatedClickRoute
+  '/api/public/sponsor-event': typeof ApiPublicSponsorEventRoute
   '/api/public/track': typeof ApiPublicTrackRoute
   '/api/public/version': typeof ApiPublicVersionRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
@@ -3564,14 +3739,19 @@ export interface FileRoutesById {
   '/club/join/$token': typeof ClubJoinTokenRoute
   '/club/specialization/$slug': typeof ClubSpecializationSlugRoute
   '/events/$slug/agenda': typeof EventsSlugAgendaRoute
+  '/events/$slug/cfp': typeof EventsSlugCfpRoute
   '/events/$slug/discussions': typeof EventsSlugDiscussionsRoute
   '/events/$slug/me': typeof EventsSlugMeRoute
   '/events/$slug/participants': typeof EventsSlugParticipantsRoute
   '/events/$slug/partners': typeof EventsSlugPartnersRoute
+  '/events/$slug/speaker': typeof EventsSlugSpeakerRoute
   '/events/$slug/speakers': typeof EventsSlugSpeakersRoute
+  '/events/$slug_/cfp-submit': typeof EventsSlugCfpSubmitRoute
   '/events/$slug_/manage': typeof EventsSlugManageRoute
   '/events/$slug_/packages': typeof EventsSlugPackagesRoute
   '/events/$slug_/register': typeof EventsSlugRegisterRoute
+  '/events/$slug_/review': typeof EventsSlugReviewRoute
+  '/events/$slug_/sponsor-report': typeof EventsSlugSponsorReportRoute
   '/events/$slug_/ticket': typeof EventsSlugTicketRoute
   '/events_/invite/$token': typeof EventsInviteTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -3598,6 +3778,7 @@ export interface FileRoutesById {
   '/admin/community/clubs/elements': typeof AdminCommunityClubsElementsRoute
   '/admin/community/clubs/specializations': typeof AdminCommunityClubsSpecializationsRoute
   '/admin/community/clubs/topics': typeof AdminCommunityClubsTopicsRoute
+  '/admin/events_/$eventId/ads-funnel': typeof AdminEventsEventIdAdsFunnelRoute
   '/admin/events_/$eventId/analytics': typeof AdminEventsEventIdAnalyticsRoute
   '/admin/events_/$eventId/branding': typeof AdminEventsEventIdBrandingRoute
   '/admin/events_/$eventId/communications': typeof AdminEventsEventIdCommunicationsRoute
@@ -3607,6 +3788,7 @@ export interface FileRoutesById {
   '/admin/events_/$eventId/integrations': typeof AdminEventsEventIdIntegrationsRoute
   '/admin/events_/$eventId/overview': typeof AdminEventsEventIdOverviewRoute
   '/admin/events_/$eventId/pages': typeof AdminEventsEventIdPagesRoute
+  '/admin/events_/$eventId/sponsor-report': typeof AdminEventsEventIdSponsorReportRoute
   '/admin/events_/$eventId/sponsors': typeof AdminEventsEventIdSponsorsRoute
   '/admin/events_/$eventId/terms': typeof AdminEventsEventIdTermsRoute
   '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
@@ -3630,6 +3812,10 @@ export interface FileRoutesById {
   '/admin/crm/funnel/': typeof AdminCrmFunnelIndexRoute
   '/admin/events_/$eventId/': typeof AdminEventsEventIdIndexRoute
   '/admin/newsletter/campaigns/': typeof AdminNewsletterCampaignsIndexRoute
+  '/admin/events_/$eventId/cfp/form': typeof AdminEventsEventIdCfpFormRoute
+  '/admin/events_/$eventId/cfp/reviewers': typeof AdminEventsEventIdCfpReviewersRoute
+  '/admin/events_/$eventId/cfp/settings': typeof AdminEventsEventIdCfpSettingsRoute
+  '/admin/events_/$eventId/cfp/submissions': typeof AdminEventsEventIdCfpSubmissionsRoute
   '/admin/events_/$eventId/content/conflicts': typeof AdminEventsEventIdContentConflictsRoute
   '/admin/events_/$eventId/content/rooms': typeof AdminEventsEventIdContentRoomsRoute
   '/admin/events_/$eventId/content/sessions': typeof AdminEventsEventIdContentSessionsRoute
@@ -3648,10 +3834,17 @@ export interface FileRoutesById {
   '/admin/events_/$eventId/onsite/stats': typeof AdminEventsEventIdOnsiteStatsRoute
   '/admin/events_/$eventId/registration/audiences': typeof AdminEventsEventIdRegistrationAudiencesRoute
   '/admin/events_/$eventId/registration/form': typeof AdminEventsEventIdRegistrationFormRoute
+  '/admin/events_/$eventId/registration/invoices': typeof AdminEventsEventIdRegistrationInvoicesRoute
   '/admin/events_/$eventId/registration/list': typeof AdminEventsEventIdRegistrationListRoute
   '/admin/events_/$eventId/registration/packages': typeof AdminEventsEventIdRegistrationPackagesRoute
+  '/admin/events_/$eventId/registration/policies': typeof AdminEventsEventIdRegistrationPoliciesRoute
+  '/admin/events_/$eventId/registration/seating': typeof AdminEventsEventIdRegistrationSeatingRoute
   '/admin/events_/$eventId/registration/settings': typeof AdminEventsEventIdRegistrationSettingsRoute
   '/admin/events_/$eventId/registration/tickets': typeof AdminEventsEventIdRegistrationTicketsRoute
+  '/api/public/events/wallet/apple': typeof ApiPublicEventsWalletAppleRoute
+  '/api/public/events/wallet/availability': typeof ApiPublicEventsWalletAvailabilityRoute
+  '/api/public/events/wallet/google': typeof ApiPublicEventsWalletGoogleRoute
+  '/admin/events_/$eventId/cfp/': typeof AdminEventsEventIdCfpIndexRoute
   '/admin/events_/$eventId/content/': typeof AdminEventsEventIdContentIndexRoute
   '/admin/events_/$eventId/meetings/': typeof AdminEventsEventIdMeetingsIndexRoute
   '/admin/events_/$eventId/onsite/': typeof AdminEventsEventIdOnsiteIndexRoute
@@ -3939,6 +4132,7 @@ export interface FileRouteTypes {
     | '/api/public/billing-cron'
     | '/api/public/client-errors'
     | '/api/public/community-cron'
+    | '/api/public/event-funnel'
     | '/api/public/experiment-event'
     | '/api/public/fx-rate'
     | '/api/public/jobs-tick'
@@ -3947,6 +4141,7 @@ export interface FileRouteTypes {
     | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/related-click'
+    | '/api/public/sponsor-event'
     | '/api/public/track'
     | '/api/public/version'
     | '/api/public/vitals'
@@ -3965,14 +4160,19 @@ export interface FileRouteTypes {
     | '/club/join/$token'
     | '/club/specialization/$slug'
     | '/events/$slug/agenda'
+    | '/events/$slug/cfp'
     | '/events/$slug/discussions'
     | '/events/$slug/me'
     | '/events/$slug/participants'
     | '/events/$slug/partners'
+    | '/events/$slug/speaker'
     | '/events/$slug/speakers'
+    | '/events/$slug/cfp-submit'
     | '/events/$slug/manage'
     | '/events/$slug/packages'
     | '/events/$slug/register'
+    | '/events/$slug/review'
+    | '/events/$slug/sponsor-report'
     | '/events/$slug/ticket'
     | '/events/invite/$token'
     | '/lovable/email/suppression'
@@ -3999,6 +4199,7 @@ export interface FileRouteTypes {
     | '/admin/community/clubs/elements'
     | '/admin/community/clubs/specializations'
     | '/admin/community/clubs/topics'
+    | '/admin/events/$eventId/ads-funnel'
     | '/admin/events/$eventId/analytics'
     | '/admin/events/$eventId/branding'
     | '/admin/events/$eventId/communications'
@@ -4008,6 +4209,7 @@ export interface FileRouteTypes {
     | '/admin/events/$eventId/integrations'
     | '/admin/events/$eventId/overview'
     | '/admin/events/$eventId/pages'
+    | '/admin/events/$eventId/sponsor-report'
     | '/admin/events/$eventId/sponsors'
     | '/admin/events/$eventId/terms'
     | '/admin/newsletter/campaigns/$id'
@@ -4031,6 +4233,10 @@ export interface FileRouteTypes {
     | '/admin/crm/funnel/'
     | '/admin/events/$eventId/'
     | '/admin/newsletter/campaigns/'
+    | '/admin/events/$eventId/cfp/form'
+    | '/admin/events/$eventId/cfp/reviewers'
+    | '/admin/events/$eventId/cfp/settings'
+    | '/admin/events/$eventId/cfp/submissions'
     | '/admin/events/$eventId/content/conflicts'
     | '/admin/events/$eventId/content/rooms'
     | '/admin/events/$eventId/content/sessions'
@@ -4049,10 +4255,17 @@ export interface FileRouteTypes {
     | '/admin/events/$eventId/onsite/stats'
     | '/admin/events/$eventId/registration/audiences'
     | '/admin/events/$eventId/registration/form'
+    | '/admin/events/$eventId/registration/invoices'
     | '/admin/events/$eventId/registration/list'
     | '/admin/events/$eventId/registration/packages'
+    | '/admin/events/$eventId/registration/policies'
+    | '/admin/events/$eventId/registration/seating'
     | '/admin/events/$eventId/registration/settings'
     | '/admin/events/$eventId/registration/tickets'
+    | '/api/public/events/wallet/apple'
+    | '/api/public/events/wallet/availability'
+    | '/api/public/events/wallet/google'
+    | '/admin/events/$eventId/cfp/'
     | '/admin/events/$eventId/content/'
     | '/admin/events/$eventId/meetings/'
     | '/admin/events/$eventId/onsite/'
@@ -4319,6 +4532,7 @@ export interface FileRouteTypes {
     | '/api/public/billing-cron'
     | '/api/public/client-errors'
     | '/api/public/community-cron'
+    | '/api/public/event-funnel'
     | '/api/public/experiment-event'
     | '/api/public/fx-rate'
     | '/api/public/jobs-tick'
@@ -4327,6 +4541,7 @@ export interface FileRouteTypes {
     | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/related-click'
+    | '/api/public/sponsor-event'
     | '/api/public/track'
     | '/api/public/version'
     | '/api/public/vitals'
@@ -4345,14 +4560,19 @@ export interface FileRouteTypes {
     | '/club/join/$token'
     | '/club/specialization/$slug'
     | '/events/$slug/agenda'
+    | '/events/$slug/cfp'
     | '/events/$slug/discussions'
     | '/events/$slug/me'
     | '/events/$slug/participants'
     | '/events/$slug/partners'
+    | '/events/$slug/speaker'
     | '/events/$slug/speakers'
+    | '/events/$slug/cfp-submit'
     | '/events/$slug/manage'
     | '/events/$slug/packages'
     | '/events/$slug/register'
+    | '/events/$slug/review'
+    | '/events/$slug/sponsor-report'
     | '/events/$slug/ticket'
     | '/events/invite/$token'
     | '/lovable/email/suppression'
@@ -4379,6 +4599,7 @@ export interface FileRouteTypes {
     | '/admin/community/clubs/elements'
     | '/admin/community/clubs/specializations'
     | '/admin/community/clubs/topics'
+    | '/admin/events/$eventId/ads-funnel'
     | '/admin/events/$eventId/analytics'
     | '/admin/events/$eventId/branding'
     | '/admin/events/$eventId/communications'
@@ -4388,6 +4609,7 @@ export interface FileRouteTypes {
     | '/admin/events/$eventId/integrations'
     | '/admin/events/$eventId/overview'
     | '/admin/events/$eventId/pages'
+    | '/admin/events/$eventId/sponsor-report'
     | '/admin/events/$eventId/sponsors'
     | '/admin/events/$eventId/terms'
     | '/admin/newsletter/campaigns/$id'
@@ -4411,6 +4633,10 @@ export interface FileRouteTypes {
     | '/admin/crm/funnel'
     | '/admin/events/$eventId'
     | '/admin/newsletter/campaigns'
+    | '/admin/events/$eventId/cfp/form'
+    | '/admin/events/$eventId/cfp/reviewers'
+    | '/admin/events/$eventId/cfp/settings'
+    | '/admin/events/$eventId/cfp/submissions'
     | '/admin/events/$eventId/content/conflicts'
     | '/admin/events/$eventId/content/rooms'
     | '/admin/events/$eventId/content/sessions'
@@ -4429,10 +4655,17 @@ export interface FileRouteTypes {
     | '/admin/events/$eventId/onsite/stats'
     | '/admin/events/$eventId/registration/audiences'
     | '/admin/events/$eventId/registration/form'
+    | '/admin/events/$eventId/registration/invoices'
     | '/admin/events/$eventId/registration/list'
     | '/admin/events/$eventId/registration/packages'
+    | '/admin/events/$eventId/registration/policies'
+    | '/admin/events/$eventId/registration/seating'
     | '/admin/events/$eventId/registration/settings'
     | '/admin/events/$eventId/registration/tickets'
+    | '/api/public/events/wallet/apple'
+    | '/api/public/events/wallet/availability'
+    | '/api/public/events/wallet/google'
+    | '/admin/events/$eventId/cfp'
     | '/admin/events/$eventId/content'
     | '/admin/events/$eventId/meetings'
     | '/admin/events/$eventId/onsite'
@@ -4718,6 +4951,7 @@ export interface FileRouteTypes {
     | '/api/public/billing-cron'
     | '/api/public/client-errors'
     | '/api/public/community-cron'
+    | '/api/public/event-funnel'
     | '/api/public/experiment-event'
     | '/api/public/fx-rate'
     | '/api/public/jobs-tick'
@@ -4726,6 +4960,7 @@ export interface FileRouteTypes {
     | '/api/public/popup-event'
     | '/api/public/post-tts'
     | '/api/public/related-click'
+    | '/api/public/sponsor-event'
     | '/api/public/track'
     | '/api/public/version'
     | '/api/public/vitals'
@@ -4744,14 +4979,19 @@ export interface FileRouteTypes {
     | '/club/join/$token'
     | '/club/specialization/$slug'
     | '/events/$slug/agenda'
+    | '/events/$slug/cfp'
     | '/events/$slug/discussions'
     | '/events/$slug/me'
     | '/events/$slug/participants'
     | '/events/$slug/partners'
+    | '/events/$slug/speaker'
     | '/events/$slug/speakers'
+    | '/events/$slug_/cfp-submit'
     | '/events/$slug_/manage'
     | '/events/$slug_/packages'
     | '/events/$slug_/register'
+    | '/events/$slug_/review'
+    | '/events/$slug_/sponsor-report'
     | '/events/$slug_/ticket'
     | '/events_/invite/$token'
     | '/lovable/email/suppression'
@@ -4778,6 +5018,7 @@ export interface FileRouteTypes {
     | '/admin/community/clubs/elements'
     | '/admin/community/clubs/specializations'
     | '/admin/community/clubs/topics'
+    | '/admin/events_/$eventId/ads-funnel'
     | '/admin/events_/$eventId/analytics'
     | '/admin/events_/$eventId/branding'
     | '/admin/events_/$eventId/communications'
@@ -4787,6 +5028,7 @@ export interface FileRouteTypes {
     | '/admin/events_/$eventId/integrations'
     | '/admin/events_/$eventId/overview'
     | '/admin/events_/$eventId/pages'
+    | '/admin/events_/$eventId/sponsor-report'
     | '/admin/events_/$eventId/sponsors'
     | '/admin/events_/$eventId/terms'
     | '/admin/newsletter/campaigns/$id'
@@ -4810,6 +5052,10 @@ export interface FileRouteTypes {
     | '/admin/crm/funnel/'
     | '/admin/events_/$eventId/'
     | '/admin/newsletter/campaigns/'
+    | '/admin/events_/$eventId/cfp/form'
+    | '/admin/events_/$eventId/cfp/reviewers'
+    | '/admin/events_/$eventId/cfp/settings'
+    | '/admin/events_/$eventId/cfp/submissions'
     | '/admin/events_/$eventId/content/conflicts'
     | '/admin/events_/$eventId/content/rooms'
     | '/admin/events_/$eventId/content/sessions'
@@ -4828,10 +5074,17 @@ export interface FileRouteTypes {
     | '/admin/events_/$eventId/onsite/stats'
     | '/admin/events_/$eventId/registration/audiences'
     | '/admin/events_/$eventId/registration/form'
+    | '/admin/events_/$eventId/registration/invoices'
     | '/admin/events_/$eventId/registration/list'
     | '/admin/events_/$eventId/registration/packages'
+    | '/admin/events_/$eventId/registration/policies'
+    | '/admin/events_/$eventId/registration/seating'
     | '/admin/events_/$eventId/registration/settings'
     | '/admin/events_/$eventId/registration/tickets'
+    | '/api/public/events/wallet/apple'
+    | '/api/public/events/wallet/availability'
+    | '/api/public/events/wallet/google'
+    | '/admin/events_/$eventId/cfp/'
     | '/admin/events_/$eventId/content/'
     | '/admin/events_/$eventId/meetings/'
     | '/admin/events_/$eventId/onsite/'
@@ -4940,6 +5193,7 @@ export interface RootRouteChildren {
   ApiPublicBillingCronRoute: typeof ApiPublicBillingCronRoute
   ApiPublicClientErrorsRoute: typeof ApiPublicClientErrorsRoute
   ApiPublicCommunityCronRoute: typeof ApiPublicCommunityCronRoute
+  ApiPublicEventFunnelRoute: typeof ApiPublicEventFunnelRoute
   ApiPublicExperimentEventRoute: typeof ApiPublicExperimentEventRoute
   ApiPublicFxRateRoute: typeof ApiPublicFxRateRoute
   ApiPublicJobsTickRoute: typeof ApiPublicJobsTickRoute
@@ -4948,6 +5202,7 @@ export interface RootRouteChildren {
   ApiPublicPopupEventRoute: typeof ApiPublicPopupEventRoute
   ApiPublicPostTtsRoute: typeof ApiPublicPostTtsRoute
   ApiPublicRelatedClickRoute: typeof ApiPublicRelatedClickRoute
+  ApiPublicSponsorEventRoute: typeof ApiPublicSponsorEventRoute
   ApiPublicTrackRoute: typeof ApiPublicTrackRoute
   ApiPublicVersionRoute: typeof ApiPublicVersionRoute
   ApiPublicVitalsRoute: typeof ApiPublicVitalsRoute
@@ -4968,6 +5223,9 @@ export interface RootRouteChildren {
   PlatformEmailQueueProcessRoute: typeof PlatformEmailQueueProcessRoute
   PlatformEmailTransactionalPreviewRoute: typeof PlatformEmailTransactionalPreviewRoute
   PlatformEmailTransactionalSendRoute: typeof PlatformEmailTransactionalSendRoute
+  ApiPublicEventsWalletAppleRoute: typeof ApiPublicEventsWalletAppleRoute
+  ApiPublicEventsWalletAvailabilityRoute: typeof ApiPublicEventsWalletAvailabilityRoute
+  ApiPublicEventsWalletGoogleRoute: typeof ApiPublicEventsWalletGoogleRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -6540,6 +6798,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EventsSlugTicketRouteImport
       parentRoute: typeof EventsRoute
     }
+    '/events/$slug_/sponsor-report': {
+      id: '/events/$slug_/sponsor-report'
+      path: '/$slug/sponsor-report'
+      fullPath: '/events/$slug/sponsor-report'
+      preLoaderRoute: typeof EventsSlugSponsorReportRouteImport
+      parentRoute: typeof EventsRoute
+    }
+    '/events/$slug_/review': {
+      id: '/events/$slug_/review'
+      path: '/$slug/review'
+      fullPath: '/events/$slug/review'
+      preLoaderRoute: typeof EventsSlugReviewRouteImport
+      parentRoute: typeof EventsRoute
+    }
     '/events/$slug_/register': {
       id: '/events/$slug_/register'
       path: '/$slug/register'
@@ -6561,11 +6833,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EventsSlugManageRouteImport
       parentRoute: typeof EventsRoute
     }
+    '/events/$slug_/cfp-submit': {
+      id: '/events/$slug_/cfp-submit'
+      path: '/$slug/cfp-submit'
+      fullPath: '/events/$slug/cfp-submit'
+      preLoaderRoute: typeof EventsSlugCfpSubmitRouteImport
+      parentRoute: typeof EventsRoute
+    }
     '/events/$slug/speakers': {
       id: '/events/$slug/speakers'
       path: '/speakers'
       fullPath: '/events/$slug/speakers'
       preLoaderRoute: typeof EventsSlugSpeakersRouteImport
+      parentRoute: typeof EventsSlugRoute
+    }
+    '/events/$slug/speaker': {
+      id: '/events/$slug/speaker'
+      path: '/speaker'
+      fullPath: '/events/$slug/speaker'
+      preLoaderRoute: typeof EventsSlugSpeakerRouteImport
       parentRoute: typeof EventsSlugRoute
     }
     '/events/$slug/partners': {
@@ -6594,6 +6880,13 @@ declare module '@tanstack/react-router' {
       path: '/discussions'
       fullPath: '/events/$slug/discussions'
       preLoaderRoute: typeof EventsSlugDiscussionsRouteImport
+      parentRoute: typeof EventsSlugRoute
+    }
+    '/events/$slug/cfp': {
+      id: '/events/$slug/cfp'
+      path: '/cfp'
+      fullPath: '/events/$slug/cfp'
+      preLoaderRoute: typeof EventsSlugCfpRouteImport
       parentRoute: typeof EventsSlugRoute
     }
     '/events/$slug/agenda': {
@@ -6722,6 +7015,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicTrackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/sponsor-event': {
+      id: '/api/public/sponsor-event'
+      path: '/api/public/sponsor-event'
+      fullPath: '/api/public/sponsor-event'
+      preLoaderRoute: typeof ApiPublicSponsorEventRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/related-click': {
       id: '/api/public/related-click'
       path: '/api/public/related-click'
@@ -6776,6 +7076,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/experiment-event'
       fullPath: '/api/public/experiment-event'
       preLoaderRoute: typeof ApiPublicExperimentEventRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/event-funnel': {
+      id: '/api/public/event-funnel'
+      path: '/api/public/event-funnel'
+      fullPath: '/api/public/event-funnel'
+      preLoaderRoute: typeof ApiPublicEventFunnelRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/community-cron': {
@@ -7471,6 +7778,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminEventsEventIdSponsorsRouteImport
       parentRoute: typeof AdminEventsEventIdRoute
     }
+    '/admin/events_/$eventId/sponsor-report': {
+      id: '/admin/events_/$eventId/sponsor-report'
+      path: '/sponsor-report'
+      fullPath: '/admin/events/$eventId/sponsor-report'
+      preLoaderRoute: typeof AdminEventsEventIdSponsorReportRouteImport
+      parentRoute: typeof AdminEventsEventIdRoute
+    }
     '/admin/events_/$eventId/pages': {
       id: '/admin/events_/$eventId/pages'
       path: '/pages'
@@ -7532,6 +7846,13 @@ declare module '@tanstack/react-router' {
       path: '/analytics'
       fullPath: '/admin/events/$eventId/analytics'
       preLoaderRoute: typeof AdminEventsEventIdAnalyticsRouteImport
+      parentRoute: typeof AdminEventsEventIdRoute
+    }
+    '/admin/events_/$eventId/ads-funnel': {
+      id: '/admin/events_/$eventId/ads-funnel'
+      path: '/ads-funnel'
+      fullPath: '/admin/events/$eventId/ads-funnel'
+      preLoaderRoute: typeof AdminEventsEventIdAdsFunnelRouteImport
       parentRoute: typeof AdminEventsEventIdRoute
     }
     '/admin/community/clubs/topics': {
@@ -7597,6 +7918,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminEventsEventIdContentIndexRouteImport
       parentRoute: typeof AdminEventsEventIdRoute
     }
+    '/admin/events_/$eventId/cfp/': {
+      id: '/admin/events_/$eventId/cfp/'
+      path: '/cfp'
+      fullPath: '/admin/events/$eventId/cfp/'
+      preLoaderRoute: typeof AdminEventsEventIdCfpIndexRouteImport
+      parentRoute: typeof AdminEventsEventIdRoute
+    }
+    '/api/public/events/wallet/google': {
+      id: '/api/public/events/wallet/google'
+      path: '/api/public/events/wallet/google'
+      fullPath: '/api/public/events/wallet/google'
+      preLoaderRoute: typeof ApiPublicEventsWalletGoogleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/events/wallet/availability': {
+      id: '/api/public/events/wallet/availability'
+      path: '/api/public/events/wallet/availability'
+      fullPath: '/api/public/events/wallet/availability'
+      preLoaderRoute: typeof ApiPublicEventsWalletAvailabilityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/events/wallet/apple': {
+      id: '/api/public/events/wallet/apple'
+      path: '/api/public/events/wallet/apple'
+      fullPath: '/api/public/events/wallet/apple'
+      preLoaderRoute: typeof ApiPublicEventsWalletAppleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/events_/$eventId/registration/tickets': {
       id: '/admin/events_/$eventId/registration/tickets'
       path: '/registration/tickets'
@@ -7611,6 +7960,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminEventsEventIdRegistrationSettingsRouteImport
       parentRoute: typeof AdminEventsEventIdRoute
     }
+    '/admin/events_/$eventId/registration/seating': {
+      id: '/admin/events_/$eventId/registration/seating'
+      path: '/registration/seating'
+      fullPath: '/admin/events/$eventId/registration/seating'
+      preLoaderRoute: typeof AdminEventsEventIdRegistrationSeatingRouteImport
+      parentRoute: typeof AdminEventsEventIdRoute
+    }
+    '/admin/events_/$eventId/registration/policies': {
+      id: '/admin/events_/$eventId/registration/policies'
+      path: '/registration/policies'
+      fullPath: '/admin/events/$eventId/registration/policies'
+      preLoaderRoute: typeof AdminEventsEventIdRegistrationPoliciesRouteImport
+      parentRoute: typeof AdminEventsEventIdRoute
+    }
     '/admin/events_/$eventId/registration/packages': {
       id: '/admin/events_/$eventId/registration/packages'
       path: '/registration/packages'
@@ -7623,6 +7986,13 @@ declare module '@tanstack/react-router' {
       path: '/registration/list'
       fullPath: '/admin/events/$eventId/registration/list'
       preLoaderRoute: typeof AdminEventsEventIdRegistrationListRouteImport
+      parentRoute: typeof AdminEventsEventIdRoute
+    }
+    '/admin/events_/$eventId/registration/invoices': {
+      id: '/admin/events_/$eventId/registration/invoices'
+      path: '/registration/invoices'
+      fullPath: '/admin/events/$eventId/registration/invoices'
+      preLoaderRoute: typeof AdminEventsEventIdRegistrationInvoicesRouteImport
       parentRoute: typeof AdminEventsEventIdRoute
     }
     '/admin/events_/$eventId/registration/form': {
@@ -7749,6 +8119,34 @@ declare module '@tanstack/react-router' {
       path: '/content/conflicts'
       fullPath: '/admin/events/$eventId/content/conflicts'
       preLoaderRoute: typeof AdminEventsEventIdContentConflictsRouteImport
+      parentRoute: typeof AdminEventsEventIdRoute
+    }
+    '/admin/events_/$eventId/cfp/submissions': {
+      id: '/admin/events_/$eventId/cfp/submissions'
+      path: '/cfp/submissions'
+      fullPath: '/admin/events/$eventId/cfp/submissions'
+      preLoaderRoute: typeof AdminEventsEventIdCfpSubmissionsRouteImport
+      parentRoute: typeof AdminEventsEventIdRoute
+    }
+    '/admin/events_/$eventId/cfp/settings': {
+      id: '/admin/events_/$eventId/cfp/settings'
+      path: '/cfp/settings'
+      fullPath: '/admin/events/$eventId/cfp/settings'
+      preLoaderRoute: typeof AdminEventsEventIdCfpSettingsRouteImport
+      parentRoute: typeof AdminEventsEventIdRoute
+    }
+    '/admin/events_/$eventId/cfp/reviewers': {
+      id: '/admin/events_/$eventId/cfp/reviewers'
+      path: '/cfp/reviewers'
+      fullPath: '/admin/events/$eventId/cfp/reviewers'
+      preLoaderRoute: typeof AdminEventsEventIdCfpReviewersRouteImport
+      parentRoute: typeof AdminEventsEventIdRoute
+    }
+    '/admin/events_/$eventId/cfp/form': {
+      id: '/admin/events_/$eventId/cfp/form'
+      path: '/cfp/form'
+      fullPath: '/admin/events/$eventId/cfp/form'
+      preLoaderRoute: typeof AdminEventsEventIdCfpFormRouteImport
       parentRoute: typeof AdminEventsEventIdRoute
     }
   }
@@ -8091,6 +8489,7 @@ const AdminUsersRouteWithChildren = AdminUsersRoute._addFileChildren(
 )
 
 interface AdminEventsEventIdRouteChildren {
+  AdminEventsEventIdAdsFunnelRoute: typeof AdminEventsEventIdAdsFunnelRoute
   AdminEventsEventIdAnalyticsRoute: typeof AdminEventsEventIdAnalyticsRoute
   AdminEventsEventIdBrandingRoute: typeof AdminEventsEventIdBrandingRoute
   AdminEventsEventIdCommunicationsRoute: typeof AdminEventsEventIdCommunicationsRoute
@@ -8100,9 +8499,14 @@ interface AdminEventsEventIdRouteChildren {
   AdminEventsEventIdIntegrationsRoute: typeof AdminEventsEventIdIntegrationsRoute
   AdminEventsEventIdOverviewRoute: typeof AdminEventsEventIdOverviewRoute
   AdminEventsEventIdPagesRoute: typeof AdminEventsEventIdPagesRoute
+  AdminEventsEventIdSponsorReportRoute: typeof AdminEventsEventIdSponsorReportRoute
   AdminEventsEventIdSponsorsRoute: typeof AdminEventsEventIdSponsorsRoute
   AdminEventsEventIdTermsRoute: typeof AdminEventsEventIdTermsRoute
   AdminEventsEventIdIndexRoute: typeof AdminEventsEventIdIndexRoute
+  AdminEventsEventIdCfpFormRoute: typeof AdminEventsEventIdCfpFormRoute
+  AdminEventsEventIdCfpReviewersRoute: typeof AdminEventsEventIdCfpReviewersRoute
+  AdminEventsEventIdCfpSettingsRoute: typeof AdminEventsEventIdCfpSettingsRoute
+  AdminEventsEventIdCfpSubmissionsRoute: typeof AdminEventsEventIdCfpSubmissionsRoute
   AdminEventsEventIdContentConflictsRoute: typeof AdminEventsEventIdContentConflictsRoute
   AdminEventsEventIdContentRoomsRoute: typeof AdminEventsEventIdContentRoomsRoute
   AdminEventsEventIdContentSessionsRoute: typeof AdminEventsEventIdContentSessionsRoute
@@ -8121,10 +8525,14 @@ interface AdminEventsEventIdRouteChildren {
   AdminEventsEventIdOnsiteStatsRoute: typeof AdminEventsEventIdOnsiteStatsRoute
   AdminEventsEventIdRegistrationAudiencesRoute: typeof AdminEventsEventIdRegistrationAudiencesRoute
   AdminEventsEventIdRegistrationFormRoute: typeof AdminEventsEventIdRegistrationFormRoute
+  AdminEventsEventIdRegistrationInvoicesRoute: typeof AdminEventsEventIdRegistrationInvoicesRoute
   AdminEventsEventIdRegistrationListRoute: typeof AdminEventsEventIdRegistrationListRoute
   AdminEventsEventIdRegistrationPackagesRoute: typeof AdminEventsEventIdRegistrationPackagesRoute
+  AdminEventsEventIdRegistrationPoliciesRoute: typeof AdminEventsEventIdRegistrationPoliciesRoute
+  AdminEventsEventIdRegistrationSeatingRoute: typeof AdminEventsEventIdRegistrationSeatingRoute
   AdminEventsEventIdRegistrationSettingsRoute: typeof AdminEventsEventIdRegistrationSettingsRoute
   AdminEventsEventIdRegistrationTicketsRoute: typeof AdminEventsEventIdRegistrationTicketsRoute
+  AdminEventsEventIdCfpIndexRoute: typeof AdminEventsEventIdCfpIndexRoute
   AdminEventsEventIdContentIndexRoute: typeof AdminEventsEventIdContentIndexRoute
   AdminEventsEventIdMeetingsIndexRoute: typeof AdminEventsEventIdMeetingsIndexRoute
   AdminEventsEventIdOnsiteIndexRoute: typeof AdminEventsEventIdOnsiteIndexRoute
@@ -8132,6 +8540,7 @@ interface AdminEventsEventIdRouteChildren {
 }
 
 const AdminEventsEventIdRouteChildren: AdminEventsEventIdRouteChildren = {
+  AdminEventsEventIdAdsFunnelRoute: AdminEventsEventIdAdsFunnelRoute,
   AdminEventsEventIdAnalyticsRoute: AdminEventsEventIdAnalyticsRoute,
   AdminEventsEventIdBrandingRoute: AdminEventsEventIdBrandingRoute,
   AdminEventsEventIdCommunicationsRoute: AdminEventsEventIdCommunicationsRoute,
@@ -8141,9 +8550,14 @@ const AdminEventsEventIdRouteChildren: AdminEventsEventIdRouteChildren = {
   AdminEventsEventIdIntegrationsRoute: AdminEventsEventIdIntegrationsRoute,
   AdminEventsEventIdOverviewRoute: AdminEventsEventIdOverviewRoute,
   AdminEventsEventIdPagesRoute: AdminEventsEventIdPagesRoute,
+  AdminEventsEventIdSponsorReportRoute: AdminEventsEventIdSponsorReportRoute,
   AdminEventsEventIdSponsorsRoute: AdminEventsEventIdSponsorsRoute,
   AdminEventsEventIdTermsRoute: AdminEventsEventIdTermsRoute,
   AdminEventsEventIdIndexRoute: AdminEventsEventIdIndexRoute,
+  AdminEventsEventIdCfpFormRoute: AdminEventsEventIdCfpFormRoute,
+  AdminEventsEventIdCfpReviewersRoute: AdminEventsEventIdCfpReviewersRoute,
+  AdminEventsEventIdCfpSettingsRoute: AdminEventsEventIdCfpSettingsRoute,
+  AdminEventsEventIdCfpSubmissionsRoute: AdminEventsEventIdCfpSubmissionsRoute,
   AdminEventsEventIdContentConflictsRoute:
     AdminEventsEventIdContentConflictsRoute,
   AdminEventsEventIdContentRoomsRoute: AdminEventsEventIdContentRoomsRoute,
@@ -8169,14 +8583,21 @@ const AdminEventsEventIdRouteChildren: AdminEventsEventIdRouteChildren = {
     AdminEventsEventIdRegistrationAudiencesRoute,
   AdminEventsEventIdRegistrationFormRoute:
     AdminEventsEventIdRegistrationFormRoute,
+  AdminEventsEventIdRegistrationInvoicesRoute:
+    AdminEventsEventIdRegistrationInvoicesRoute,
   AdminEventsEventIdRegistrationListRoute:
     AdminEventsEventIdRegistrationListRoute,
   AdminEventsEventIdRegistrationPackagesRoute:
     AdminEventsEventIdRegistrationPackagesRoute,
+  AdminEventsEventIdRegistrationPoliciesRoute:
+    AdminEventsEventIdRegistrationPoliciesRoute,
+  AdminEventsEventIdRegistrationSeatingRoute:
+    AdminEventsEventIdRegistrationSeatingRoute,
   AdminEventsEventIdRegistrationSettingsRoute:
     AdminEventsEventIdRegistrationSettingsRoute,
   AdminEventsEventIdRegistrationTicketsRoute:
     AdminEventsEventIdRegistrationTicketsRoute,
+  AdminEventsEventIdCfpIndexRoute: AdminEventsEventIdCfpIndexRoute,
   AdminEventsEventIdContentIndexRoute: AdminEventsEventIdContentIndexRoute,
   AdminEventsEventIdMeetingsIndexRoute: AdminEventsEventIdMeetingsIndexRoute,
   AdminEventsEventIdOnsiteIndexRoute: AdminEventsEventIdOnsiteIndexRoute,
@@ -8409,20 +8830,24 @@ const ClubRouteWithChildren = ClubRoute._addFileChildren(ClubRouteChildren)
 
 interface EventsSlugRouteChildren {
   EventsSlugAgendaRoute: typeof EventsSlugAgendaRoute
+  EventsSlugCfpRoute: typeof EventsSlugCfpRoute
   EventsSlugDiscussionsRoute: typeof EventsSlugDiscussionsRoute
   EventsSlugMeRoute: typeof EventsSlugMeRoute
   EventsSlugParticipantsRoute: typeof EventsSlugParticipantsRoute
   EventsSlugPartnersRoute: typeof EventsSlugPartnersRoute
+  EventsSlugSpeakerRoute: typeof EventsSlugSpeakerRoute
   EventsSlugSpeakersRoute: typeof EventsSlugSpeakersRoute
   EventsSlugIndexRoute: typeof EventsSlugIndexRoute
 }
 
 const EventsSlugRouteChildren: EventsSlugRouteChildren = {
   EventsSlugAgendaRoute: EventsSlugAgendaRoute,
+  EventsSlugCfpRoute: EventsSlugCfpRoute,
   EventsSlugDiscussionsRoute: EventsSlugDiscussionsRoute,
   EventsSlugMeRoute: EventsSlugMeRoute,
   EventsSlugParticipantsRoute: EventsSlugParticipantsRoute,
   EventsSlugPartnersRoute: EventsSlugPartnersRoute,
+  EventsSlugSpeakerRoute: EventsSlugSpeakerRoute,
   EventsSlugSpeakersRoute: EventsSlugSpeakersRoute,
   EventsSlugIndexRoute: EventsSlugIndexRoute,
 }
@@ -8435,9 +8860,12 @@ interface EventsRouteChildren {
   EventsSlugRoute: typeof EventsSlugRouteWithChildren
   EventsSavedRoute: typeof EventsSavedRoute
   EventsIndexRoute: typeof EventsIndexRoute
+  EventsSlugCfpSubmitRoute: typeof EventsSlugCfpSubmitRoute
   EventsSlugManageRoute: typeof EventsSlugManageRoute
   EventsSlugPackagesRoute: typeof EventsSlugPackagesRoute
   EventsSlugRegisterRoute: typeof EventsSlugRegisterRoute
+  EventsSlugReviewRoute: typeof EventsSlugReviewRoute
+  EventsSlugSponsorReportRoute: typeof EventsSlugSponsorReportRoute
   EventsSlugTicketRoute: typeof EventsSlugTicketRoute
 }
 
@@ -8445,9 +8873,12 @@ const EventsRouteChildren: EventsRouteChildren = {
   EventsSlugRoute: EventsSlugRouteWithChildren,
   EventsSavedRoute: EventsSavedRoute,
   EventsIndexRoute: EventsIndexRoute,
+  EventsSlugCfpSubmitRoute: EventsSlugCfpSubmitRoute,
   EventsSlugManageRoute: EventsSlugManageRoute,
   EventsSlugPackagesRoute: EventsSlugPackagesRoute,
   EventsSlugRegisterRoute: EventsSlugRegisterRoute,
+  EventsSlugReviewRoute: EventsSlugReviewRoute,
+  EventsSlugSponsorReportRoute: EventsSlugSponsorReportRoute,
   EventsSlugTicketRoute: EventsSlugTicketRoute,
 }
 
@@ -8706,6 +9137,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicBillingCronRoute: ApiPublicBillingCronRoute,
   ApiPublicClientErrorsRoute: ApiPublicClientErrorsRoute,
   ApiPublicCommunityCronRoute: ApiPublicCommunityCronRoute,
+  ApiPublicEventFunnelRoute: ApiPublicEventFunnelRoute,
   ApiPublicExperimentEventRoute: ApiPublicExperimentEventRoute,
   ApiPublicFxRateRoute: ApiPublicFxRateRoute,
   ApiPublicJobsTickRoute: ApiPublicJobsTickRoute,
@@ -8714,6 +9146,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicPopupEventRoute: ApiPublicPopupEventRoute,
   ApiPublicPostTtsRoute: ApiPublicPostTtsRoute,
   ApiPublicRelatedClickRoute: ApiPublicRelatedClickRoute,
+  ApiPublicSponsorEventRoute: ApiPublicSponsorEventRoute,
   ApiPublicTrackRoute: ApiPublicTrackRoute,
   ApiPublicVersionRoute: ApiPublicVersionRoute,
   ApiPublicVitalsRoute: ApiPublicVitalsRoute,
@@ -8735,6 +9168,10 @@ const rootRouteChildren: RootRouteChildren = {
   PlatformEmailTransactionalPreviewRoute:
     PlatformEmailTransactionalPreviewRoute,
   PlatformEmailTransactionalSendRoute: PlatformEmailTransactionalSendRoute,
+  ApiPublicEventsWalletAppleRoute: ApiPublicEventsWalletAppleRoute,
+  ApiPublicEventsWalletAvailabilityRoute:
+    ApiPublicEventsWalletAvailabilityRoute,
+  ApiPublicEventsWalletGoogleRoute: ApiPublicEventsWalletGoogleRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

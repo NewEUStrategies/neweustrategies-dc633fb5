@@ -137,12 +137,88 @@ describe("planDocumentCache", () => {
     expect(clean.kind).toBe("lookup");
   });
 
+  it("strips every Google Ads click parameter (gbraid/wbraid/gad_*/gclsrc/dclid/_gl/srsltid)", () => {
+    // Bez tego kliknięcie z iOS (gbraid) albo autotag `gad_source` omijało
+    // cache i płaciło pełnym zimnym renderem SSR.
+    const clean = planDocumentCache(req("https://example.org/events/kongres"), host);
+    for (const query of [
+      "gbraid=0AAAAA",
+      "wbraid=CjkKAAA",
+      "gad_source=1",
+      "gad_campaignid=123456789",
+      "gclsrc=aw.ds",
+      "dclid=CJ1",
+      "_gl=1*abc*_ga*MTE",
+      "srsltid=AfmBOo",
+      "GBRAID=upper&gclid=x&utm_campaign=wiosna",
+    ]) {
+      expect(planDocumentCache(req(`https://example.org/events/kongres?${query}`), host)).toEqual(
+        clean,
+      );
+    }
+    // Kontrapunkt: parametr podobny z nazwy, ale nieznany - dalej BYPASS.
+    expect(planDocumentCache(req("https://example.org/events/kongres?gad_other=1"), host)).toEqual({
+      kind: "bypass",
+      reason: "query",
+    });
+  });
+
   it("keys pagination/sort params deterministically and bypasses unknown ones", () => {
     const a = planDocumentCache(req("https://example.org/blog?sort=popular&page=2"), host);
     const b = planDocumentCache(req("https://example.org/blog?page=2&sort=popular"), host);
     expect(a).toEqual(b);
     expect(a).toEqual({ kind: "lookup", key: "example.org::/blog?page=2&sort=popular" });
     expect(planDocumentCache(req("https://example.org/blog?weird=1"), host)).toEqual({
+      kind: "bypass",
+      reason: "query",
+    });
+  });
+
+  // S26: dokumenty z POŚWIADCZENIEM w ścieżce nigdy nie wchodzą do cache'u.
+  it.each([
+    "/tickets/transfer/AbCdEfGhIjKlMnOpQrStUvWxYz012345",
+    "/en/tickets/transfer/AbCdEfGhIjKlMnOpQrStUvWxYz012345",
+    "/tickets",
+    "/certificates/ABCD-EFGH-JKMN-PQRS",
+    "/en/certificates/ABCD-EFGH-JKMN-PQRS",
+  ])("bypasses the credential surface %s", (path) => {
+    expect(planDocumentCache(req(`https://example.org${path}`), host)).toEqual({
+      kind: "bypass",
+      reason: "path",
+    });
+  });
+
+  it("keeps look-alike public paths cacheable (prefix match on whole segments)", () => {
+    expect(planDocumentCache(req("https://example.org/tickets-guide"), host).kind).toBe("lookup");
+    expect(planDocumentCache(req("https://example.org/certificatesx"), host).kind).toBe("lookup");
+  });
+
+  // MIN-2: `/events/<slug>/me` renderuje na serwerze ten sam szkielet dla każdej
+  // zakładki, więc `?tab=` wypada z klucza zamiast wymuszać BYPASS.
+  it("drops `tab` from the key of the participant panel route only", () => {
+    const bare = planDocumentCache(req("https://example.org/events/forum/me"), host);
+    expect(bare).toEqual({ kind: "lookup", key: "example.org::/events/forum/me" });
+    expect(
+      planDocumentCache(req("https://example.org/events/forum/me?tab=schedule"), host),
+    ).toEqual(bare);
+    expect(
+      planDocumentCache(req("https://example.org/events/forum/me?TAB=profile&utm_source=x"), host),
+    ).toEqual(bare);
+    expect(
+      planDocumentCache(req("https://example.org/en/events/forum/me?tab=follow-up"), host),
+    ).toEqual({ kind: "lookup", key: "example.org::/en/events/forum/me" });
+  });
+
+  it("does not drop `tab` elsewhere, nor other params on the panel route", () => {
+    expect(planDocumentCache(req("https://example.org/events/forum?tab=schedule"), host)).toEqual({
+      kind: "bypass",
+      reason: "query",
+    });
+    expect(planDocumentCache(req("https://example.org/events/forum/me/x?tab=a"), host)).toEqual({
+      kind: "bypass",
+      reason: "query",
+    });
+    expect(planDocumentCache(req("https://example.org/events/forum/me?token=a"), host)).toEqual({
       kind: "bypass",
       reason: "query",
     });

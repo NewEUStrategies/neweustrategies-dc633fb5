@@ -1,7 +1,7 @@
 // Przegląd biletów z puli planu, których zgłoszenie już nie potrzebuje
 // (porzucona kasa, kasa przerwana przed zamówieniem, zamówienie failed/canceled).
 //
-// DLACZEGO TAKŻE Z CRONA APLIKACJI. Migracja 20260926150000 planuje przegląd
+// DLACZEGO TAKŻE Z CRONA APLIKACJI. Migracja 20260926180000 planuje przegląd
 // w pg_cron (`event-plan-seat-release`, co godzinę), ale bez pg_cron - albo gdy
 // zakładanie zadania się nie uda - kończy się komunikatem NOTICE. Wtedy bilet
 // porzuconej kasy zostawałby zajęty na zawsze i z czasem wyczerpywałby pulę

@@ -85,7 +85,7 @@ describe("słownik zapisów wydarzenia", () => {
   });
 
   it("plakietki wpłaty bez miejsca mówią „opłacone” i na co pieniądze czekają", () => {
-    // Trzy stany z 20260926150000: kolejka opłacona, oczekiwanie na decyzję,
+    // Trzy stany z 20260926180000: kolejka opłacona, oczekiwanie na decyzję,
     // wpłata na zgłoszeniu zamkniętym. Plakietka, która nie zaczyna się od
     // „opłacone", wyglądałaby jak zwykły wiersz rezerwowy albo oczekujący.
     const badges = "adminEventRegistration.registrations.badges";

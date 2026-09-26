@@ -16,7 +16,7 @@
 // niedogodność, a wyjątek tutaj skazywałby webhook na wieczne ponowienia -
 // czyli na wysyłanie tego samego maila w kółko.
 //
-// WPŁATA BEZ MIEJSCA (20260926150000). Opłacenie nie zawsze znaczy już
+// WPŁATA BEZ MIEJSCA (20260926180000). Opłacenie nie zawsze znaczy już
 // „miejsce jest Twoje": baza może zostawić wpłatę w kolejce (pula wyczerpana
 // między kasą a webhookiem), w oczekiwaniu na decyzję organizatora (bilet
 // wymaga akceptacji) albo na zgłoszeniu zamkniętym (pieniądze do zwrotu).
@@ -222,7 +222,7 @@ export interface TicketOutcomePayload {
   contact?: Record<string, unknown> | null;
   waitlist?: { promoted?: number; registrations?: Array<Record<string, unknown>> } | null;
   /**
-   * Status zgłoszenia PO zapisie (20260926150000). Dla `paid` mówi, czy wpłata
+   * Status zgłoszenia PO zapisie (20260926180000). Dla `paid` mówi, czy wpłata
    * dała miejsce (`approved`), kolejkę (`waitlist`), oczekiwanie na decyzję
    * (`pending`/`draft`), czy trafiła na zgłoszenie zamknięte. Brak pola
    * (baza sprzed migracji) = dotychczasowe „miejsce jest Twoje".
@@ -331,18 +331,22 @@ async function pushBell(
   if (!contact.userId || !tenantId) return;
   const titles = BELL_TITLES[kind];
   try {
+    // Przez `enqueue_notification`, nie surowym INSERT-em (D0-3): funkcja
+    // bazowa bierze najemcę z PROFILU odbiorcy (nie z wydarzenia), pilnuje
+    // deduplikacji i wysyła push. Rodzaj `billing` jest zawsze doręczany.
+    // Ikona z listy kuratorskiej - `receipt` jej nie ma (leniwy rejestr 109 KB).
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await supabaseAdmin.from("notifications").insert({
-      user_id: contact.userId,
-      tenant_id: tenantId,
-      kind: "billing",
-      title_pl: titles.pl,
-      title_en: titles.en,
-      body_pl: eventTitle(payload, "pl"),
-      body_en: eventTitle(payload, "en"),
-      href: payload.event_slug ? `/events/${payload.event_slug}` : "/profile/tickets",
-      icon: "receipt",
+    const { error } = await supabaseAdmin.rpc("enqueue_notification", {
+      p_user_id: contact.userId,
+      p_kind: "billing",
+      p_title_pl: titles.pl,
+      p_title_en: titles.en,
+      p_body_pl: eventTitle(payload, "pl"),
+      p_body_en: eventTitle(payload, "en"),
+      p_href: payload.event_slug ? `/events/${payload.event_slug}` : "/profile/tickets",
+      p_icon: "credit-card",
     });
+    if (error) console.error("[events] ticket outcome bell failed", { error });
   } catch (err) {
     console.error("[events] ticket outcome bell failed", err);
   }

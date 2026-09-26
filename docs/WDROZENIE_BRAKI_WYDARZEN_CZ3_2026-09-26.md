@@ -6,11 +6,21 @@ na każdą gałąź SQL.
 
 ## 1. Zastosowanie migracji na produkcji (PRZED wdrożeniem kodu)
 
-W panelu Lovable, po 0059–0061 z części 2 (Lovable zapisał ich zastosowanie
-jako drizzle 0062–0064, wpisy `drizzleOnly` w `MIGRATION_LANES`):
+W panelu Lovable, PO migracjach modułu organizatora (PR #404, do
+`20260926170000_event_clone`) i funkcji uczestnika (PR #406,
+`20260926153100`–`20260926153300`):
 
-- `supabase/migrations/20260926150000_event_registration_gaps_part3.sql`
-  (bliźniak `drizzle/migrations/0065_event_registration_gaps_part3.sql`)
+- `supabase/migrations/20260926180000_event_registration_gaps_part3.sql`
+  (bliźniak `drizzle/migrations/0067_event_registration_gaps_part3.sql`;
+  drizzle 0065–0066 to zapis zastosowania z Lovable po PR #404)
+
+Numer `20260926180000` jest celowo PÓŹNIEJSZY niż `20260926153200`
+(naprawy D0-2 funkcji uczestnika): obie migracje redefiniują
+`payments_apply_event_ticket_outcome` i `_event_apply_outcome_to_group`,
+a ostatnia definicja wygrywa. Ciała w części 3 niosą więc także naprawy
+D0-2 (pełny zwrot czyści kod QR i zwalnia zapisy na sesje, zakładki i starszą
+rezerwację RSVP - na tym polega `refunds.server.ts` od PR #406). Zastosowanie
+części 3 PRZED `20260926153200` cofnęłoby część 3 w tych dwóch funkcjach.
 
 Jeśli Lovable znów zapisze zastosowanie jako kolejny plik drizzle, trzeba go
 dopisać do `MIGRATION_LANES` jako `drizzleOnly` z bliźniakiem wskazanym

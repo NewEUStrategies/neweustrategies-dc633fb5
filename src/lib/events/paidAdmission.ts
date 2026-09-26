@@ -1,7 +1,7 @@
 // Co opłacenie biletu zrobiło z miejscem - odczyt statusu zgłoszenia, który
 // `payments_apply_event_ticket_outcome` odsyła po zaksięgowaniu wpłaty.
 //
-// DLACZEGO TO NIE JEST JUŻ OCZYWISTE. Do 20260926150000 opłacenie zawsze
+// DLACZEGO TO NIE JEST JUŻ OCZYWISTE. Do 20260926180000 opłacenie zawsze
 // znaczyło „miejsce jest Twoje". Teraz baza rozstrzyga przyjęcie pod blokadą
 // (wydarzenie -> pula -> zgłoszenie) i wpłata może wylądować:
 //   - na liście rezerwowej, gdy ostatnie miejsce zajęto między kasą a webhookiem;

@@ -53,6 +53,11 @@
 // więc gość zobaczy zdanie z prawdziwym powodem (paragon i droga zwrotu należą
 // do konta) i odnośnik do logowania - a nie kontrolkę, która go wyrzuci.
 //
+// FAKTURA NA FIRMĘ PRZED KASĄ. Dane nabywcy (`InvoiceRequestBlock`) zapisujemy
+// jako prośbę do TEGO zgłoszenia, zanim otworzy się kasa operatora - po
+// powrocie z płatności kupujący nie musi już nic uzupełniać, a organizator
+// widzi prośbę w studiu. Niepoprawne dane zatrzymują przejście do kasy.
+//
 // BILET Z PLANU ZAMIAST KASY. Pojedyncze zgłoszenie członka, którego miejsce
 // pokrywa bilet z puli planu, nie ma czego płacić - kasa odmawia
 // (`ticket_included_in_plan`), a podgląd oddaje `planRedemption`. Molekuła
@@ -88,6 +93,9 @@ import {
   rememberTicketAccessCode,
 } from "@/lib/events/eventCodeMemory";
 import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
+import { InvoiceRequestBlock } from "@/components/events/invoices/organisms/InvoiceRequestBlock";
+import { sendEventFunnelStep } from "@/lib/events/eventFunnelBeacon";
+import { useInvoiceRequestController } from "@/lib/events/useInvoiceRequestController";
 
 ensureEventRegistrationI18n();
 
@@ -214,6 +222,11 @@ export function RegistrationPayAction({
   const accessPart = accessCode === "" ? {} : { access_code: accessCode };
 
   const ready = eventId !== null && ticketTypeId !== null;
+  // Prośba o fakturę do TEGO zgłoszenia - zapis przed otwarciem kasy (`pay`).
+  const invoice = useInvoiceRequestController({
+    target: { registrationId },
+    enabled: session !== null && ownedByCaller !== false,
+  });
   const quoteQ = useQuery({
     queryKey: [...QUOTE_KEY, registrationId, eventId, ticketTypeId, appliedCode, accessCode],
     queryFn: () =>
@@ -357,6 +370,14 @@ export function RegistrationPayAction({
    * (`!ready`) - to jedyne miejsce, z którego ta funkcja rusza.
    */
   async function pay(override?: string): Promise<void> {
+    // Pierwsze kliknięcie (bez `override`): najpierw prośba o fakturę - odmowa
+    // zapisu zatrzymuje kasę. Lejek liczy „rozpoczęcie płatności" DOPIERO po
+    // zapisie (raz na sesję, bramka zgody w beaconie). Ponowienie bez kodu
+    // (`override`) to ta sama płatność - bez drugiego zapisu i kroku lejka.
+    if (override === undefined) {
+      if (!(await invoice.commit())) return;
+      sendEventFunnelStep("checkout_start", { eventId: eventId as string });
+    }
     setBusy(true);
     setRefusal(null);
     setPromoRejected(false);
@@ -607,18 +628,26 @@ export function RegistrationPayAction({
             : t("eventRegistration.payment.redeemPlan")}
         </Button>
       ) : (
-        <Button type="button" disabled={busy || !ready} onClick={() => void pay()}>
-          {busy ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-          ) : (
-            <CreditCard className="mr-2 h-4 w-4" aria-hidden="true" />
-          )}
-          {busy
-            ? t("eventRegistration.payment.paying")
-            : intent === "resume"
-              ? t("eventRegistration.payment.resume")
-              : t("eventRegistration.payment.payNow")}
-        </Button>
+        <>
+          {/* Faktura dotyczy płatności - bilet z planu nie ma kwoty do faktury. */}
+          <InvoiceRequestBlock controller={invoice} />
+          <Button
+            type="button"
+            disabled={busy || invoice.saving || !ready}
+            onClick={() => void pay()}
+          >
+            {busy ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <CreditCard className="mr-2 h-4 w-4" aria-hidden="true" />
+            )}
+            {busy
+              ? t("eventRegistration.payment.paying")
+              : intent === "resume"
+                ? t("eventRegistration.payment.resume")
+                : t("eventRegistration.payment.payNow")}
+          </Button>
+        </>
       )}
       {shownRefusal !== null && (
         <p role="status" className="text-sm text-destructive">

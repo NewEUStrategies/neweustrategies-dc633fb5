@@ -386,8 +386,8 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
   // awans za gosci zwroconych, bilet z puli wraca do puli i pokrywa
   // pojedyncze zgloszenie, wplata Stripe przy wyczerpanej puli.
   {
-    tag: "0065_event_registration_gaps_part3",
-    twin: "20260926150000_event_registration_gaps_part3.sql",
+    tag: "0067_event_registration_gaps_part3",
+    twin: "20260926180000_event_registration_gaps_part3.sql",
   },
 ];
 

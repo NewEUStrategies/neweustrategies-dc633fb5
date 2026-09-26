@@ -319,9 +319,10 @@ describe("ladunek zapisu jest plaski i zawiera tylko to, co podano", () => {
 });
 
 describe("moja agenda", () => {
-  it("czyta komplet pol wiersza sesji", async () => {
-    // Sala, sciezka i odnosnik do transmisji sa jedynym, co uczestnik ma
-    // w reku na miejscu; brak ktoregokolwiek znaczy „szukaj sam".
+  it("czyta komplet pol wiersza sesji (ksztalt `event_my_agenda` po D0-4)", async () => {
+    // Sala (z pietrem), sciezka, stan zapisu i stan sesji sa jedynym, co
+    // uczestnik ma w reku na miejscu. Strefa wydarzenia przychodzi przy KAZDEJ
+    // sesji, bo lista liczy godzine w niej, a nie w strefie przegladarki.
     rpc.mockResolvedValue({
       data: {
         sessions: [
@@ -332,12 +333,16 @@ describe("moja agenda", () => {
             starts_at: "2026-09-01T08:00:00Z",
             ends_at: "2026-09-01T09:00:00Z",
             format: "panel",
-            stream_url: "https://example.com/stream",
+            room_name: "Sala A",
+            room_floor: "1",
             room_name_pl: "Sala A",
-            room_name_en: "Room A",
+            room_name_en: "Sala A",
             track_name_pl: "Energia",
             track_name_en: "Energy",
-            signup_status: "confirmed",
+            signup_status: "waitlist",
+            session_status: "cancelled",
+            cancelled_at: "2026-08-30T10:00:00Z",
+            timezone: "Europe/Warsaw",
           },
         ],
       },
@@ -353,13 +358,30 @@ describe("moja agenda", () => {
       startsAt: "2026-09-01T08:00:00Z",
       endsAt: "2026-09-01T09:00:00Z",
       format: "panel",
-      streamUrl: "https://example.com/stream",
+      roomName: "Sala A",
+      roomFloor: "1",
       roomNamePl: "Sala A",
-      roomNameEn: "Room A",
+      roomNameEn: "Sala A",
       trackNamePl: "Energia",
       trackNameEn: "Energy",
-      signupStatus: "confirmed",
+      signupStatus: "waitlist",
+      sessionStatus: "cancelled",
+      timezone: "Europe/Warsaw",
     });
+  });
+
+  it("adresu transmisji NIE ma w wyniku, nawet gdy stara odpowiedz go niesie (D7)", async () => {
+    rpc.mockResolvedValue({
+      data: { sessions: [{ session_id: "s1", stream_url: "https://example.com/stream" }] },
+      error: null,
+    });
+
+    const [session] = await fetchMyAgenda("summit");
+
+    expect(session).not.toHaveProperty("streamUrl");
+    expect(JSON.stringify(session)).not.toContain("example.com/stream");
+    expect(session?.roomName).toBeNull();
+    expect(session?.timezone).toBeNull();
   });
 
   it("wpis nie bedacy obiektem odpada razem z wpisem bez identyfikatora", async () => {

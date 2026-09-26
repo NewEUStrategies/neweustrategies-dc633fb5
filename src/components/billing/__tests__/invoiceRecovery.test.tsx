@@ -112,7 +112,11 @@ describe("invoice ledger recovery", () => {
     fireEvent.click(button);
     await waitFor(() => expect(h.success).toHaveBeenCalledWith("invoices.ledger.ready"));
     expect(h.pdf).toHaveBeenCalledWith({ data: { documentId: "doc-1", locale: language } });
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:invoice");
+    // Adres `blob:` zwalniany z opóźnieniem (`lib/files/downloadBlob`) - inaczej
+    // Safari gubi plik; tu czekamy na zwolnienie zamiast zakładać je od razu.
+    await waitFor(() => expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:invoice"), {
+      timeout: 3000,
+    });
     expect(globalThis.document.querySelector("a[download]")).toBeNull();
   });
   it.each(["business", "transport"])("reports %s errors and permits retry", async (failure) => {

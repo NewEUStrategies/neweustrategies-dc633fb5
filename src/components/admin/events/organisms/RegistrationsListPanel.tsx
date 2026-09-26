@@ -40,6 +40,11 @@ import { RegistrationDecideDialog } from "@/components/admin/events/molecules/Re
 import { adminRegistrationErrorMessage } from "@/lib/events/adminRegistrationErrors";
 import { notifyEventRegistrationDecision } from "@/lib/events/registrationNotify.functions";
 import { registrationsCsvFileName, registrationsToCsv } from "@/lib/events/registrationsCsv";
+import { fetchSeatLookup, type SeatLookupRow } from "@/lib/events/seatingApi";
+import { seatLabelMessageFromRow } from "@/lib/events/seatLabel";
+import { useSeatLookup } from "@/lib/events/useEventSeating";
+import { ensureSeatingI18n } from "@/lib/i18n-admin-event-seating";
+import { ensureEventSeatingI18n } from "@/lib/i18n-event-seating";
 import { formatDateTime, uiLang } from "@/lib/i18n/format";
 import { ensureI18n as ensureAdminEventRegistrationI18n } from "@/lib/i18n-admin-event-registration";
 import {
@@ -187,8 +192,27 @@ export function RegistrationsListPanel({
   const [notifying, setNotifying] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  const rows = listQ.data?.rows ?? [];
+  const rows = useMemo(() => listQ.data?.rows ?? [], [listQ.data]);
   const total = listQ.data?.total ?? 0;
+  const rowIds = useMemo(() => rows.map((row) => row.id), [rows]);
+  const seatsQ = useSeatLookup(eventId, rowIds);
+
+  /**
+   * Zgloszenie -> napisy miejsc. Przy kilku planach (konferencja + gala) napis
+   * dostaje nazwe planu, zeby "rzad A, miejsce 3" nie bylo dwuznaczne.
+   */
+  const seatTexts = (lookups: readonly SeatLookupRow[]): Map<string, string[]> => {
+    const multipleMaps = new Set(lookups.map((lookup) => lookup.map_id)).size > 1;
+    const out = new Map<string, string[]>();
+    for (const lookup of lookups) {
+      const message = seatLabelMessageFromRow(lookup);
+      const text = t(message.key, message.params);
+      const label = multipleMaps ? `${text} · ${lookup.map_name}` : text;
+      out.set(lookup.registration_id, [...(out.get(lookup.registration_id) ?? []), label]);
+    }
+    return out;
+  };
+  const seatsByRegistration = seatTexts(seatsQ.data ?? []);
   const counts = countsQ.data ?? null;
   const pageCount = registrationPageCount(total, limit);
   const page = registrationPageIndex(offset, limit);
@@ -378,7 +402,17 @@ export function RegistrationsListPanel({
         // Nie obiecujemy kompletu, ktorego nie mamy - liczba w komunikacie
         // jest liczba WIERSZY W PLIKU, a nie liczba zgloszen w bazie.
         if (total > rows.length) toast.warning(t(`${base}.toasts.exportTruncated`));
-        const csv = registrationsToCsv(rows, lang);
+        const seatCells = new Map(
+          [
+            ...seatTexts(
+              await fetchSeatLookup(
+                eventId,
+                rows.map((row) => row.id),
+              ),
+            ),
+          ].map(([registrationId, labels]) => [registrationId, labels.join("; ")]),
+        );
+        const csv = registrationsToCsv(rows, lang, seatCells);
         const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");

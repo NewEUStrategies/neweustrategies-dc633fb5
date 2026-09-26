@@ -1,10 +1,10 @@
 -- ============================================================================
 -- 74_plan_seat_release - BILET Z PULI WRACA, GDY ZGLOSZENIE GO NIE POTRZEBUJE
--- (20260926150000)
+-- (20260926180000)
 --
 -- PO CO TEN PLIK ISTNIEJE
 -- `event_registration_claim_plan_seat` (20260926140000) zajmowal bilet z puli
--- planu dla miejsca prowadzacego i nic go nie oddawalo. Od 20260926150000
+-- planu dla miejsca prowadzacego i nic go nie oddawalo. Od 20260926180000
 -- bilet trzyma zgloszenie (`plan_ticket_claims.registration_id`), a oddaje
 -- go jego cykl: trigger statusu/platnosci, wynik `unpaid`, przeglad
 -- porzuconych kas. Plik sprawdza KAZDA galaz kazdej zmienionej funkcji.

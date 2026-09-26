@@ -39,6 +39,10 @@
 //      (oba obrazy, link, koniec emisji) jest opisem SWOJEGO pola
 //      (`aria-describedby`), a pole ma `aria-invalid`; pole bez błędu nie ma
 //      ani jednego, ani drugiego.
+//  10. REKLAMA MOŻE NALEŻEĆ DO SPONSORA WYDARZENIA (F6). Kolumna tabeli
+//      pokazuje nazwę sponsora albo „bez sponsora", selektor okna wymienia
+//      sponsorów TEGO wydarzenia, wybór idzie do zapisu jako `sponsorId`,
+//      a „bez sponsora" - jako pusty napis (odpięcie).
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. Tabeli reguł `validateHomeAd`/`isHttpsUrl` - ma
 // ją `src/lib/events/sponsorBoardApi.test.ts`. Tutaj walidacja zostaje
@@ -53,6 +57,7 @@
 // Switch (nie przełącza się pod happy-dom bez pełnego pointer API - atrapa
 // z `@/test/reactStubs`) i `confirmDialog` (okno potwierdzenia rysuje
 // `AppDialogHost` z korzenia aplikacji, którego tu nie ma).
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
@@ -68,6 +73,8 @@ const h = vi.hoisted(() => ({
   lang: "pl" as string,
   ads: [] as EventHomeAdRow[] | undefined,
   groups: [] as EventGroupRow[] | undefined,
+  sponsors: [] as { id: string; snapshot_name: string }[] | undefined,
+  sponsorQueries: [] as { eventId: string; limit?: number }[],
   hookEventIds: { ads: [] as string[], groups: [] as string[], save: [] as string[] },
   removeEventIds: [] as string[],
   saveCalls: [] as HomeAdInput[],
@@ -95,6 +102,36 @@ vi.mock("@/components/admin/media/MediaPickerDialog", () => ({ MediaPickerDialog
 vi.mock("@/components/ui/switch", async () =>
   (await import("@/test/reactStubs")).radixSwitchStub(await import("react")),
 );
+// Radix Select nie renderuje opcji pod happy-dom bez pointer API - selektor
+// sponsora jest natywnym polem z tą samą drogą wartości (`onValueChange`).
+vi.mock("@/components/atoms/FormSelect", () => ({
+  FormSelect: ({
+    id,
+    value,
+    options,
+    onValueChange,
+  }: {
+    id?: string;
+    value: string;
+    options: readonly { value: string; label: ReactNode }[];
+    onValueChange: (next: string) => void;
+  }) => (
+    <select id={id} value={value} onChange={(event) => onValueChange(event.target.value)}>
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {String(option.label)}
+        </option>
+      ))}
+    </select>
+  ),
+}));
+vi.mock("@/lib/events/useEventSponsors", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/events/useEventSponsors")>()),
+  useSponsors: (query: { eventId: string; limit?: number }) => {
+    h.sponsorQueries.push(query);
+    return { data: h.sponsors };
+  },
+}));
 vi.mock("@/lib/events/useEventTermsGroups", () => ({
   useEventGroups: (eventId: string) => {
     h.hookEventIds.groups.push(eventId);
@@ -165,6 +202,8 @@ function reklama(patch: Partial<EventHomeAdRow> = {}): EventHomeAdRow {
     views: 120,
     clicks: 7,
     sort_order: 0,
+    sponsor_id: "",
+    sponsor_name: "",
     ...patch,
   };
 }
@@ -282,6 +321,11 @@ beforeEach(() => {
     grupa("g2", "", "Press"),
     grupa("g3", "Wolontariusze", ""),
   ];
+  h.sponsors = [
+    { id: "sp1", snapshot_name: "Acme S.A." },
+    { id: "sp2", snapshot_name: "Beta sp. z o.o." },
+  ];
+  h.sponsorQueries = [];
   h.hookEventIds = { ads: [], groups: [], save: [] };
   h.removeEventIds = [];
   h.saveCalls = [];
@@ -366,6 +410,67 @@ describe("lista reklam", () => {
     expect(new Set(h.hookEventIds.groups)).toEqual(new Set(["ev1"]));
     expect(new Set(h.hookEventIds.save)).toEqual(new Set(["ev1"]));
     expect(new Set(h.removeEventIds)).toEqual(new Set(["ev1"]));
+    expect(h.sponsorQueries.every((q) => q.eventId === "ev1" && q.limit === 200)).toBe(true);
+    expect(h.sponsorQueries.length).toBeGreaterThan(0);
+  });
+});
+
+describe("sponsor reklamy (raport sponsora)", () => {
+  const S = "adminEventSponsorReport.homeAds";
+  const selektor = (): HTMLSelectElement =>
+    within(okno()).getByLabelText<HTMLSelectElement>(`${S}.sponsor`);
+
+  it("kolumna sponsora pokazuje nazwę przypięcia albo „bez sponsora”", () => {
+    h.ads = [reklama(), reklama({ id: "ad2", sponsor_id: "sp1", sponsor_name: "Acme S.A." })];
+    panel();
+    expect(screen.getByRole("columnheader", { name: `${S}.colSponsor` })).toBeTruthy();
+    expect(within(wiersz(0)).getByText(`${S}.sponsorNone`)).toBeTruthy();
+    expect(within(wiersz(1)).getByText("Acme S.A.")).toBeTruthy();
+  });
+
+  it("pusta lista rozciąga komunikat na wszystkie siedem kolumn", () => {
+    h.ads = [];
+    panel();
+    expect(within(wiersz()).getByText(`${A}.empty`).getAttribute("colspan")).toBe("7");
+  });
+
+  it("selektor wymienia „bez sponsora” i sponsorów wydarzenia, a nowa reklama startuje bez sponsora", () => {
+    panel();
+    otworzNowa();
+    const opcje = Array.from(selektor().options).map((o) => [o.value, o.textContent]);
+    expect(opcje).toEqual([
+      ["none", `${S}.sponsorNone`],
+      ["sp1", "Acme S.A."],
+      ["sp2", "Beta sp. z o.o."],
+    ]);
+    expect(selektor().value).toBe("none");
+    expect(within(okno()).getByText(`${S}.sponsorHint`)).toBeTruthy();
+  });
+
+  it("sponsorzy jeszcze w locie: selektor ma tylko „bez sponsora”", () => {
+    h.sponsors = undefined;
+    panel();
+    otworzNowa();
+    expect(Array.from(selektor().options).map((o) => o.value)).toEqual(["none"]);
+  });
+
+  it("wybrany sponsor idzie do zapisu jako `sponsorId`", () => {
+    panel();
+    otworzNowa();
+    wpisz(poleObrazu(0), OBRAZ);
+    wpisz(selektor(), "sp2");
+    zapisz();
+    expect(h.saveCalls[0]).toMatchObject({ sponsorId: "sp2" });
+  });
+
+  it("edycja startuje od sponsora wiersza, a „bez sponsora” odpina go pustym napisem", () => {
+    h.ads = [reklama({ sponsor_id: "sp1", sponsor_name: "Acme S.A." })];
+    panel();
+    otworzEdycje();
+    expect(selektor().value).toBe("sp1");
+    wpisz(selektor(), "none");
+    zapisz();
+    expect(h.saveCalls[0]).toMatchObject({ id: "ad1", sponsorId: "" });
   });
 });
 
@@ -573,6 +678,7 @@ describe("okno nowej reklamy", () => {
         startsAt: relativeIso(0),
         endsAt: relativeIso(DZIEN),
         isActive: false,
+        sponsorId: "",
       },
     ]);
     expect(h.toastSuccess).toHaveBeenCalledWith(`${A}.saved`);
@@ -708,6 +814,7 @@ describe("okno edycji reklamy", () => {
         startsAt: relativeIso(-DZIEN),
         endsAt: relativeIso(5 * DZIEN),
         isActive: false,
+        sponsorId: "",
       },
     ]);
     expect(screen.queryByRole("dialog")).toBeNull();

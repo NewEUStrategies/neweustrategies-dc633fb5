@@ -25,16 +25,36 @@ import type { ScannerSession } from "@/lib/events/scannerSession";
 import type { ScannerRuntime } from "@/lib/events/useScanner";
 import type { OutboxItem } from "@/lib/events/scannerOutbox";
 import { axeViolations, summarize } from "@/test/axe";
+import { freezeClock } from "@/test/time";
+
+freezeClock();
 
 const h = vi.hoisted(() => ({
   /** Wartości `initialToken`, z jakimi organizm wołał środowisko. */
   initialTokens: [] as (string | null)[],
+  readinessActive: [] as boolean[],
+  toastSuccess: vi.fn(),
+  toastError: vi.fn(),
+  toastWarning: vi.fn(),
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 
 vi.mock("sonner", () => ({
-  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+  toast: { success: h.toastSuccess, error: h.toastError, info: vi.fn(), warning: h.toastWarning },
+}));
+
+vi.mock("@/lib/events/useScannerReadiness", () => ({
+  useScannerReadiness: (active: boolean) => {
+    h.readinessActive.push(active);
+    return {
+      shell: "ready",
+      precache: { cached: 1, total: 1 },
+      storagePersisted: true,
+      persistRequest: null,
+      requestPersist: vi.fn(),
+    };
+  },
 }));
 
 // Bramka wydruku jest wołana wprost z panelu identyfikatora; prawdziwy moduł
@@ -80,6 +100,9 @@ function session(over: Partial<ScannerSession> = {}): ScannerSession {
     expiresAt: null,
     pinnedCheckpointId: null,
     sponsorId: null,
+    offlineRoster: false,
+    rosterDownloadedAt: null,
+    serverNow: null,
     event: {
       id: "e1",
       slug: "kongres-testowy",
@@ -138,6 +161,16 @@ function runtimeStub(over: Partial<ScannerRuntime> = {}): ScannerRuntime {
     flushing: false,
     flush: vi.fn(),
     discard: vi.fn(),
+    sessionStale: false,
+    clockOffsetMs: 0,
+    clockSkewed: false,
+    roster: { enabled: false, generatedAt: null, count: 0, syncing: false },
+    syncRoster: vi.fn(),
+    rejected: [],
+    conflicts: [],
+    clearSyncIssues: vi.fn(),
+    offlineStoragePersistent: true,
+    lastFlush: null,
     submitCheckin: vi.fn(),
     submitLead: vi.fn(),
     ...over,
@@ -167,6 +200,7 @@ beforeEach(() => {
   cleanup();
   vi.clearAllMocks();
   h.initialTokens = [];
+  h.readinessActive = [];
 });
 
 describe("ScannerApp - stan bez poświadczenia", () => {
@@ -413,5 +447,114 @@ describe("ScannerApp - defekty", () => {
 
     const slug = screen.getByText("kongres-testowy");
     expect(slug.closest("p")).toBeNull();
+  });
+});
+
+/* ------------------------------------------------------ tryb offline --- */
+//
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
+//   * lista do wyjaśnienia (konflikty, odrzucone) znika razem z sesją - po
+//     unieważnieniu poświadczenia operator nie ma jak oddać pliku;
+//   * wygasłe poświadczenie z kolejką nie mówi, że skany jeszcze się wysyłają
+//     (okno 72 h), więc wolontariusz odłącza urządzenie i traci kolejkę;
+//   * brak sieci z listą offline świeci się na czerwono;
+//   * wynik wysyłki kolejki (konflikty, odrzucone) nie dociera do operatora.
+describe("ScannerApp - tryb offline", () => {
+  const conflict = {
+    id: "scan-1",
+    kind: "admitted_offline" as const,
+    checkinId: "k1",
+    checkpointId: "c1",
+    direction: "in" as const,
+    deviceScannedAt: "2026-09-26T08:00:00.000Z",
+    offlineOutcome: "granted" as const,
+    serverOutcome: "denied_not_registered",
+    personName: "Anna",
+    registrationId: "r1",
+    detectedAt: "2026-09-26T09:00:00.000Z",
+  };
+
+  it("pasek sesji mówi o liście offline, a bez sieci z listą pigułka NIE jest alarmem", () => {
+    mount({
+      online: false,
+      roster: { enabled: true, generatedAt: new Date().toISOString(), count: 12, syncing: false },
+    });
+    expect(screen.getByText("eventScanner.session.offlineReady")).toBeInTheDocument();
+    expect(screen.getByText(/eventScanner\.offline\.rosterFresh\(count=12/)).toBeInTheDocument();
+  });
+
+  it("odświeżenie listy z paska woła synchronizację środowiska", () => {
+    const view = mount({
+      roster: { enabled: true, generatedAt: null, count: 0, syncing: false },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "eventScanner.offline.refresh" }));
+    expect(view.runtime.syncRoster).toHaveBeenCalledTimes(1);
+  });
+
+  it("karta gotowości stoi przy ODPRAWIE i sprawdza gotowość tylko przy potwierdzonej sesji", () => {
+    mount();
+    expect(screen.getByText("eventScanner.readiness.title")).toBeInTheDocument();
+    expect(h.readinessActive.at(-1)).toBe(true);
+    cleanup();
+    mount({ sessionStale: true });
+    expect(h.readinessActive.at(-1)).toBe(false);
+    cleanup();
+    mount({ session: session({ scopes: ["lead"] }) });
+    expect(screen.queryByText("eventScanner.readiness.title")).toBeNull();
+  });
+
+  it("lista do wyjaśnienia widać przy działającej sesji", () => {
+    mount({ conflicts: [conflict] });
+    expect(screen.getByText("eventScanner.sync.title")).toBeInTheDocument();
+  });
+
+  it("lista do wyjaśnienia ZOSTAJE na ekranie parowania po utracie poświadczenia", () => {
+    mount({
+      status: "idle",
+      session: null,
+      token: null,
+      rejected: [
+        {
+          item: outboxItem(),
+          error: "device_revoked: revoked",
+          rejectedAt: "2026-09-26T09:00:00.000Z",
+        },
+      ],
+    });
+    expect(screen.getByRole("heading", { name: "eventScanner.pairing.title" })).toBeInTheDocument();
+    expect(screen.getByText("eventScanner.sync.title")).toBeInTheDocument();
+  });
+
+  it("wygasłe poświadczenie z kolejką mówi, że skany jeszcze się wysyłają, i pokazuje kolejkę", () => {
+    mount({
+      status: "expired",
+      session: session({ expiresAt: inHours(-1) }),
+      outbox: [outboxItem()],
+      outboxCounts: { pending: 1, stuck: 0 },
+      conflicts: [conflict],
+    });
+    expect(screen.getByText("eventScanner.session.expiredSyncing")).toBeInTheDocument();
+    expect(screen.getByText("eventScanner.outbox.title")).toBeInTheDocument();
+    expect(screen.getByText("eventScanner.sync.title")).toBeInTheDocument();
+  });
+
+  it("wygasłe poświadczenie bez kolejki nie obiecuje wysyłki", () => {
+    mount({ status: "expired", session: session({ expiresAt: inHours(-1) }) });
+    expect(screen.queryByText("eventScanner.session.expiredSyncing")).toBeNull();
+    expect(screen.queryByText("eventScanner.sync.title")).toBeNull();
+  });
+
+  it("wynik wysyłki kolejki: wysłane, konflikty i odrzucone mają osobne komunikaty", () => {
+    mount({ lastFlush: { sent: 3, conflicts: 1, rejected: 2, seq: 1 } });
+    expect(h.toastSuccess).toHaveBeenCalledWith("eventScanner.outbox.flushedToast(count=3)");
+    expect(h.toastWarning).toHaveBeenCalledWith("eventScanner.sync.flushedConflicts(count=1)");
+    expect(h.toastError).toHaveBeenCalledWith("eventScanner.sync.flushedRejected(count=2)");
+  });
+
+  it("wysyłka bez sukcesów i bez problemów nie hałasuje", () => {
+    mount({ lastFlush: { sent: 0, conflicts: 0, rejected: 0, seq: 1 } });
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+    expect(h.toastWarning).not.toHaveBeenCalled();
+    expect(h.toastError).not.toHaveBeenCalled();
   });
 });

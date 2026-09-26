@@ -61,6 +61,7 @@ const h = vi.hoisted(() => ({
   navigate: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
+  funnel: vi.fn(),
 }));
 
 // FABRYKA NIC NIE IMPORTUJE - skrót przez `reactI18nextMock` zakleszcza plik
@@ -83,6 +84,7 @@ vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ session: h.session }) }));
 vi.mock("@/lib/stripe", () => ({ getStripeEnvironment: () => h.stripeEnv }));
 vi.mock("@/lib/billing/checkout.functions", () => ({ createCheckoutOrder: h.checkout }));
+vi.mock("@/lib/events/eventFunnelBeacon", () => ({ sendEventFunnelStep: h.funnel }));
 // Atrapa modala WYSTAWIA sekret w atrybucie - to jedyny sposób, żeby dowieść,
 // że do kasy poszła wartość z odpowiedzi serwera, a nie sklejona na kliencie.
 vi.mock("@/components/checkout/LazyEmbeddedCheckoutDialog", () => ({
@@ -392,6 +394,9 @@ describe("do kasy jedzie WSKAZANIE POZYCJI, nie kwota z przeglądarki", () => {
     expect(h.checkout).toHaveBeenCalledWith({
       data: expect.objectContaining({ event_id: OTHER_EVENT_ID, ticket_type_id: null }),
     });
+    // Lejek Google Ads liczy krok płatności dla wydarzenia KLIKNIĘTEJ pozycji.
+    expect(h.funnel).toHaveBeenCalledTimes(1);
+    expect(h.funnel).toHaveBeenCalledWith("checkout_start", { eventId: OTHER_EVENT_ID });
   });
 
   it("pusty kod rabatowy NIE dokłada pola do ładunku", async () => {
@@ -496,6 +501,7 @@ describe("nieudana próba płatności nie zostawia kupującego w zawieszeniu", (
 
     expect(h.checkout).not.toHaveBeenCalled();
     expect(h.toastError).toHaveBeenCalledWith(realT("pl")("cart.signInToPay"));
+    expect(h.funnel).not.toHaveBeenCalled();
   });
 
   it("prośba o logowanie mówi po angielsku na angielskiej stronie", () => {

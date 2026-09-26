@@ -1,4 +1,4 @@
-// Organizm: „Funkcje dodatkowe" wydarzenia - siedem przelacznikow modulow.
+// Organizm: „Funkcje dodatkowe" wydarzenia - przelaczniki modulow (EVENT_FEATURE_KEYS).
 //
 // TEN EKRAN COS ROBI. Do tej zmiany byl drogowskazem („per wydarzenie przyjdzie
 // tu wybor…"), a kolumna `events.features` nie bramkowala niczego. Przelacznik,

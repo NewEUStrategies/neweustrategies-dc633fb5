@@ -1,13 +1,13 @@
 -- ============================================================================
 -- 75_paid_no_seat_waitlist - WPLATA BEZ MIEJSCA CZEKA W KOLEJCE OPLACONA
--- (20260926150000)
+-- (20260926180000)
 --
 -- PO CO TEN PLIK ISTNIEJE
 -- `payments_apply_event_ticket_outcome` przyjmowala zgloszenie `pending ->
 -- approved` bez sprawdzenia miejsc. Pula biletu wyczerpana miedzy kasa
 -- a webhookiem wywracala cale ksiegowanie (CHECK
 -- `event_ticket_types_sold_within_quota`), a pelna sala wydarzenia
--- przepelniala sie po cichu. Od 20260926150000 o przyjeciu decyduje
+-- przepelniala sie po cichu. Od 20260926180000 o przyjeciu decyduje
 -- `_event_registration_paid_admission` pod blokada wydarzenia i biletu:
 -- miejsce -> przyjete, brak miejsca -> kolejka OPLACONA (`capacity`),
 -- bilet/przeplyw z akceptacja -> czeka na decyzje organizatora (oplacone),

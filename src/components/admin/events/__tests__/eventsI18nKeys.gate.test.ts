@@ -29,7 +29,21 @@ import {
   type KeyUsage,
 } from "@/lib/ci/i18nKeyUsage";
 
-const SCANNED_DIRS = ["src/components/admin/events", "src/lib/events"] as const;
+/**
+ * Katalogi skanu. Od F1-F5 (spec B.14) także powierzchnia UCZESTNIKA: panel
+ * „Moje", jego gniazda, molekuły i organizmy zapisu, molekuły strony
+ * publicznej i „Moje wydarzenia" w profilu - to tam tory dopisują mapy
+ * `Record<Enum, "pełny.klucz">` pod nowymi korzeniami.
+ */
+const SCANNED_DIRS = [
+  "src/components/admin/events",
+  "src/lib/events",
+  "src/components/events/participant",
+  "src/components/events/registration/molecules",
+  "src/components/events/registration/organisms",
+  "src/components/events/public/molecules",
+  "src/components/profile/events",
+] as const;
 
 /**
  * Trasy modułu leżą wśród setek innych, więc bierzemy je po nazwie.
@@ -45,8 +59,26 @@ const SCANNED_ROUTE_PREFIXES = ["admin.events.", "admin.events_."] as const;
  * Korzenie, w których goły literał w kodzie jest referencją do klucza.
  * `adminEvents` obejmuje zarówno mapy etykiet enumów, jak i klucze reguł
  * katalogu zwracane przez `eventTypeDraftIssue` i `eventType*Failure`.
+ * `adminEventCfp` i `eventCfp` - mapy etykiet i klucze błędów naboru
+ * prelegentów (f1).
+ * `adminEventInvoices` i `eventInvoices` - mapy etykiet i klucze bledow
+ * faktur wydarzen (`Record<Enum, "pelny.klucz">` w `src/lib/events` i studiu).
+ * `adminEventSponsorReport` / `eventSponsorReport`: mapy miejsc i ról raportu
+ * sponsora (`sponsorReportLabels.ts`) trzymają klucze jako LITERAŁY - bez tego
+ * wpisu bramka nie widziałaby literału spoza `t("...")`.
+ * `eventWallet` (f7b): mapa kodów błędów tras portfela na pełne klucze
+ * (`lib/events/ticketWallet.ts`) - literały poza `t()` też muszą istnieć.
  */
-const REFERENCE_PREFIXES = ["adminEvents"] as const;
+const REFERENCE_PREFIXES = [
+  "adminEvents",
+  "adminEventCfp",
+  "eventCfp",
+  "adminEventInvoices",
+  "eventInvoices",
+  "adminEventSponsorReport",
+  "eventSponsorReport",
+  "eventWallet",
+] as const;
 
 function isTree(value: unknown): value is ResourceTree {
   return value !== null && typeof value === "object" && !Array.isArray(value);

@@ -170,17 +170,22 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
 // Każdy z nich ma własny plik testowy. `FriendlyErrorPage` jest tu JEDYNYM
 // wyjątkiem i stoi PRAWDZIWY: to on jest treścią granicy błędu, a dowód brzmi
 // „uczestnik dostaje zdanie", więc atrapa unieważniłaby cały ten dowód.
+vi.mock("@/components/admin/events/organisms/EventAdsFunnelPanel", () => h.pustyModul());
 vi.mock("@/components/admin/events/organisms/EventAnalyticsPanel", () => h.pustyModul());
 vi.mock("@/components/admin/events/organisms/EventBrandingPanel", () => h.pustyModul());
 vi.mock("@/components/admin/events/organisms/EventCreateForm", () => h.pustyModul());
 vi.mock("@/components/admin/events/organisms/EventFeaturesPanel", () => h.pustyModul());
 vi.mock("@/components/admin/events/organisms/EventGeneralPanel", () => h.pustyModul());
 vi.mock("@/components/admin/events/organisms/EventGroupsPermissionsPanel", () => h.pustyModul());
+vi.mock("@/components/admin/events/organisms/EventInvoicesPanel", () => h.pustyModul());
 vi.mock("@/components/admin/events/organisms/EventOverviewPanel", () => h.pustyModul());
 vi.mock("@/components/admin/events/organisms/EventPagesMenuPanel", () => h.pustyModul());
 vi.mock("@/components/admin/events/organisms/EventRegistrationSettingsPanel", () => h.pustyModul());
 vi.mock("@/components/admin/events/organisms/EventTypesManager", () => h.pustyModul());
 vi.mock("@/components/admin/events/organisms/EventsListManager", () => h.pustyModul());
+vi.mock("@/components/admin/events/organisms/SeatingPanel", () => h.pustyModul());
+vi.mock("@/components/admin/events/organisms/SponsorReportPanel", () => h.pustyModul());
+vi.mock("@/components/events/sponsor-report/SponsorReportPublicPanel", () => h.pustyModul());
 vi.mock("@/components/admin/events/studio/EventStudioCreateShell", () => h.pustyModul());
 vi.mock("@/components/admin/events/studio/EventStudioExternalSection", () => h.pustyModul());
 vi.mock("@/components/admin/events/studio/EventStudioModuleSections", () => h.pustyModul());
@@ -195,6 +200,7 @@ vi.mock("@/components/events/EventSpeakersSection", () => h.pustyModul());
 vi.mock("@/components/events/SpeakerProfileDialog", () => h.pustyModul());
 vi.mock("@/components/events/molecules/EventRegistrationSurface", () => h.pustyModul());
 vi.mock("@/components/events/participant/organisms/EventMePanel", () => h.pustyModul());
+vi.mock("@/components/events/public/atoms/AdAttributionCapture", () => h.pustyModul());
 vi.mock("@/components/events/public/molecules/EventBookmarkButton", () => h.pustyModul());
 vi.mock("@/components/events/public/molecules/EventMetaCard", () => h.pustyModul());
 vi.mock("@/components/events/public/molecules/EventModulePage", () => h.pustyModul());
@@ -216,6 +222,15 @@ vi.mock("@/components/events/public/organisms/EventViewerProfile", () => h.pusty
 vi.mock("@/components/events/public/organisms/SavedEventsList", () => h.pustyModul());
 vi.mock("@/components/events/registration/PackageInviteAccept", () => h.pustyModul());
 vi.mock("@/components/events/registration/RegistrationManagePanel", () => h.pustyModul());
+// Nabór prelegentów (f1): cztery ekrany studia i cztery powierzchnie uczestnika.
+vi.mock("@/components/admin/events/organisms/CfpSettingsPanel", () => h.pustyModul());
+vi.mock("@/components/admin/events/organisms/CfpFormPanel", () => h.pustyModul());
+vi.mock("@/components/admin/events/organisms/CfpSubmissionsPanel", () => h.pustyModul());
+vi.mock("@/components/admin/events/organisms/CfpReviewersPanel", () => h.pustyModul());
+vi.mock("@/components/events/cfp/organisms/EventCfpPage", () => h.pustyModul());
+vi.mock("@/components/events/cfp/organisms/CfpSubmitPage", () => h.pustyModul());
+vi.mock("@/components/events/cfp/organisms/SpeakerPanelPage", () => h.pustyModul());
+vi.mock("@/components/events/cfp/organisms/ReviewerPanelPage", () => h.pustyModul());
 vi.mock("@/components/molecules/DegradedDataNotice", () => h.pustyModul());
 // NIE `pustyModul()`, i to jest warunek dowodu niżej: ekran błędu rysujący
 // NIC jest w tabeli montażu nieodróżnialny od trasy, która wstała poprawnie.

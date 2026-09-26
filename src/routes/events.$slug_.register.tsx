@@ -20,6 +20,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { FriendlyErrorPage } from "@/components/error/FriendlyErrorPage";
 import { PublicRegistrationForm } from "@/components/events/registration/PublicRegistrationForm";
+import { AdAttributionCapture } from "@/components/events/public/atoms/AdAttributionCapture";
 
 export const Route = createFileRoute("/events/$slug_/register")({
   ssr: false,
@@ -50,6 +51,8 @@ function RegisterRoute() {
   const { slug } = Route.useParams();
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
+      {/* Wejscie z reklamy prosto na formularz tez niesie kampanie i liczy sie jako wizyta. */}
+      <AdAttributionCapture eventSlug={slug} />
       <PublicRegistrationForm slug={slug} />
     </main>
   );

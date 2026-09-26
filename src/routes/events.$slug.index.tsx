@@ -610,8 +610,10 @@ function EventOverview() {
         }
         right={
           <>
-            <EventHomeAd slug={slug} variant="desktop" />
-            <EventHomeAd slug={slug} variant="mobile" />
+            {/* JEDEN egzemplarz reklamy - wariant (baner / plansza) wybiera
+              sam komponent po hydratacji, więc niewidoczny wariant nie
+              losuje drugiej reklamy i nie liczy się jako wyświetlenie. */}
+            <EventHomeAd slug={slug} />
             {tierBlocked && (
               <div className="rounded-lg border border-primary/40 bg-primary/5 p-5">
                 <p className="text-sm font-medium">
