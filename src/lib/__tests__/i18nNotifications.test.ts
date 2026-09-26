@@ -191,6 +191,35 @@ describe("i18n powiadomien - SLOWNIK EFEKTYWNY (rdzen + nakladka)", () => {
   });
 });
 
+// Rytual rodzajow F1-F5 (spec B.7): `event` (przelaczalny, grupa `events`)
+// i `billing` (zawsze doreczany). Dokladne brzmienie przypiete, bo etykieta
+// `billing` stoi w filtrze skrzynki, a grupa `events` jest nowa sekcja ustawien.
+describe("rodzaje event i billing - etykiety PL/EN", () => {
+  it.each([
+    ["notifications.settings.kinds.event", "Wydarzenia i przypomnienia", "Events and reminders"],
+    ["notifications.settings.kinds.billing", "Płatności", "Payments"],
+    ["notifications.settings.kindGroups.events", "Wydarzenia", "Events"],
+  ])("%s", (key, plText, enText) => {
+    expect(realT("pl")(key)).toBe(plText);
+    expect(realT("en")(key)).toBe(enText);
+  });
+
+  it("podpis grupy events jest w obu jezykach i rozny", () => {
+    const key = "notifications.settings.kindGroups.eventsHint";
+    expect(realT("pl")(key)).not.toBe(key);
+    expect(realT("en")(key)).not.toBe(key);
+    expect(realT("pl")(key)).not.toBe(realT("en")(key));
+  });
+
+  it("katalog zawiera oba rodzaje, a grupa events tylko event", () => {
+    expect(NOTIFICATION_KINDS).toContain("event");
+    expect(NOTIFICATION_KINDS).toContain("billing");
+    expect(NOTIFICATION_KIND_GROUPS.find((group) => group.id === "events")?.kinds).toEqual([
+      "event",
+    ]);
+  });
+});
+
 describe("nakladka notifications - WARSTWA, nie caly slownik", () => {
   const plOverlay = asTree(notificationsResources.pl, "notificationsPl");
   const enOverlay = asTree(notificationsResources.en, "notificationsEn");

@@ -41,6 +41,7 @@
 // SSR: każda funkcja no-op-uje bez `window`.
 
 import type { ConsentCategory } from "@/lib/ads/consent";
+import { redactTrackedPath } from "./redactTrackedUrl";
 import { GA4_MEASUREMENT_ID, asGa4MeasurementId } from "./tagIds";
 
 export { GA4_MEASUREMENT_ID, GOOGLE_ADS_ID, asGa4MeasurementId, asGoogleAdsId } from "./tagIds";
@@ -395,10 +396,19 @@ export function ga4Event(name: string, params: Ga4Params = {}): void {
   gtag("event", name, params);
 }
 
+/**
+ * `page_location` jest SKŁADANE od nowa: origin + ścieżka po
+ * `redactTrackedPath` (bez fragmentu, z maską tokenów w ścieżce i parametrach).
+ * Surowe `location.href` wysyłało do GA4 token przekazania biletu
+ * (`/tickets/transfer/<token>`) i fragment linku gościa (`#t=<token>`).
+ */
 export function ga4PageView(path: string, title?: string, language?: string): void {
   if (!isGa4Ready()) return;
   gtag("event", "page_view", {
-    page_location: typeof location === "undefined" ? path : location.href,
+    page_location:
+      typeof location === "undefined"
+        ? redactTrackedPath(path)
+        : `${location.origin}${redactTrackedPath(`${location.pathname}${location.search}`)}`,
     page_title: title || (typeof document === "undefined" ? undefined : document.title),
     language: language || undefined,
   });

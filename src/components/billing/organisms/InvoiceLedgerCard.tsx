@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { billingKeys } from "@/lib/billing/keys";
 import { fetchMyBillingDocuments } from "@/lib/billing/queries";
 import { generateMyInvoicePdf } from "@/lib/billing/invoices.functions";
+import { downloadBase64Pdf } from "@/lib/files/downloadBlob";
 import { BillingDate } from "@/components/billing/atoms/BillingDate";
 import { BillingEmptyState } from "@/components/billing/atoms/BillingEmptyState";
 import { MoneyText } from "@/components/billing/atoms/MoneyText";
@@ -29,20 +30,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-/** base64 -> plik na dysku użytkownika (bez wychodzenia ze strony). */
-export function downloadBase64Pdf(base64: string, fileName: string): void {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = fileName;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
-}
+/**
+ * base64 -> plik na dysku użytkownika (bez wychodzenia ze strony). Nazwa
+ * publiczna zostaje tutaj dla dotychczasowych importów; implementacja
+ * (z odroczonym zwolnieniem adresu `blob:`) mieszka w `lib/files/downloadBlob`,
+ * wspólna z certyfikatem uczestnika.
+ */
+export { downloadBase64Pdf };
 
 export function InvoiceLedgerCard() {
   const { t, i18n } = useTranslation();

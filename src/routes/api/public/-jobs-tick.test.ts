@@ -245,6 +245,10 @@ const CAPACITY = 10;
 function tickResult(): JobsTickResult {
   return {
     newsletter: { fired: 1, continued: 0, sent: 12 },
+    // Zadania uczestnika F1-F5 (spec B.10): do wymiany przez tory - zaślepki.
+    eventParticipantReminders: { claimed: 0, sent: 0, skipped: 0, failed: 0, note: "stub" },
+    eventTicketLifecycle: { claimed: 0, sent: 0, skipped: 0, failed: 0, note: "stub" },
+    eventFollowUp: { error: "skipped_time_budget" },
     emailQueue: { sent: 3, failed: 0, suppressed: 1, dlq: 0, duplicates: 0, stopped: null },
     push: { claimed: 4, sent: 4 },
     digestDaily: { claimed: 2, sent: 2 },
@@ -807,6 +811,8 @@ describe("odpowiedź ticku", () => {
       ...tickResult(),
       push: { error: "vapid_not_configured" },
       emailQueue: { error: "resend_500" },
+      // Awaria zadania uczestnika to też `{ error }` w wyniku, nie 5xx.
+      eventTicketLifecycle: { error: "lifecycle: brak grantu" },
     };
     jobs.result = zPorazkami;
 
@@ -900,5 +906,39 @@ describe("wierność atrapy `secretsEqual` (premisa dowodu o bramce sekretu)", (
     expect(cialo).toContain('await import("node:crypto")');
     expect(cialo).toContain("Buffer.from(a)");
     expect(cialo).not.toMatch(/return\s+a\s*===\s*b/);
+  });
+});
+
+// Spec B.10: zadania funkcji uczestnika F1-F5 w dyspozytorze. Zachowanie
+// (kolejność, deadline, izolacja awarii) dowodzi `jobsTickRun.test.ts`;
+// tutaj - granica bundla: moduły zadań wchodzą WYŁĄCZNIE leniwie (tory A/B/C
+// wymieniają ich treść i nie mogą przez to rozdmuchać trasy ticku).
+describe("dyspozytor: zadania uczestnika wchodzą leniwie, przed drenem poczty", () => {
+  const helper = readFileSync(TICK_MODULE_FILE, "utf8");
+  const MODULES = [
+    "@/lib/events/jobs/reminderJob.server",
+    "@/lib/events/jobs/ticketLifecycleJob.server",
+    "@/lib/events/jobs/followUpJob.server",
+  ];
+
+  it.each(MODULES)("`%s` tylko przez `await import(...)`", (modul) => {
+    expect(helper).toContain(`await import("${modul}")`);
+    expect(importyGorne(helper)).not.toContain(modul);
+  });
+
+  it("kolejność w źródle: przypomnienia -> cykl biletu -> follow-up -> dren poczty", () => {
+    const positions = [
+      ...MODULES.map((modul) => helper.indexOf(`await import("${modul}")`)),
+      helper.indexOf("drainEmailQueues(admin"),
+    ];
+    expect(positions.every((p) => p > 0)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+  });
+
+  it("dren poczty dostaje co najmniej 4 s od teraz (Math.max z deadline'em absolutnym)", () => {
+    expect(helper).toContain("const EMAIL_DRAIN_MIN_WINDOW_MS = 4_000;");
+    expect(helper).toMatch(
+      /deadlineAt: Math\.max\(\s*startedAt \+ EMAIL_DRAIN_DEADLINE_MS,\s*Date\.now\(\) \+ EMAIL_DRAIN_MIN_WINDOW_MS,?\s*\)/,
+    );
   });
 });

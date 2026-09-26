@@ -2097,6 +2097,9 @@ export const en = {
         contentHint: "The editorial stream, discussion under articles and your saved criteria.",
         workspace: "Work & account",
         workspaceHint: "CRM follow-ups, subscription and system announcements.",
+        events: "Events",
+        eventsHint:
+          "Event and session reminders, waitlist seat offers, ticket transfers, surveys and certificates.",
       },
       kinds: {
         message: "Chat messages",
@@ -2117,6 +2120,8 @@ export const en = {
         meeting_booking: "1-1 meeting bookings",
         system: "System announcements",
         security: "Security alerts (always on)",
+        event: "Events and reminders",
+        billing: "Payments",
       },
       channelsHeader: "Delivery channels",
       channelsSubtitle: "Notifications outside the app: browser push and a digest e-mail.",

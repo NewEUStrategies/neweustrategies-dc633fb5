@@ -148,6 +148,56 @@ describe("planDocumentCache", () => {
     });
   });
 
+  // S26: dokumenty z POŚWIADCZENIEM w ścieżce nigdy nie wchodzą do cache'u.
+  it.each([
+    "/tickets/transfer/AbCdEfGhIjKlMnOpQrStUvWxYz012345",
+    "/en/tickets/transfer/AbCdEfGhIjKlMnOpQrStUvWxYz012345",
+    "/tickets",
+    "/certificates/ABCD-EFGH-JKMN-PQRS",
+    "/en/certificates/ABCD-EFGH-JKMN-PQRS",
+  ])("bypasses the credential surface %s", (path) => {
+    expect(planDocumentCache(req(`https://example.org${path}`), host)).toEqual({
+      kind: "bypass",
+      reason: "path",
+    });
+  });
+
+  it("keeps look-alike public paths cacheable (prefix match on whole segments)", () => {
+    expect(planDocumentCache(req("https://example.org/tickets-guide"), host).kind).toBe("lookup");
+    expect(planDocumentCache(req("https://example.org/certificatesx"), host).kind).toBe("lookup");
+  });
+
+  // MIN-2: `/events/<slug>/me` renderuje na serwerze ten sam szkielet dla każdej
+  // zakładki, więc `?tab=` wypada z klucza zamiast wymuszać BYPASS.
+  it("drops `tab` from the key of the participant panel route only", () => {
+    const bare = planDocumentCache(req("https://example.org/events/forum/me"), host);
+    expect(bare).toEqual({ kind: "lookup", key: "example.org::/events/forum/me" });
+    expect(
+      planDocumentCache(req("https://example.org/events/forum/me?tab=schedule"), host),
+    ).toEqual(bare);
+    expect(
+      planDocumentCache(req("https://example.org/events/forum/me?TAB=profile&utm_source=x"), host),
+    ).toEqual(bare);
+    expect(
+      planDocumentCache(req("https://example.org/en/events/forum/me?tab=follow-up"), host),
+    ).toEqual({ kind: "lookup", key: "example.org::/en/events/forum/me" });
+  });
+
+  it("does not drop `tab` elsewhere, nor other params on the panel route", () => {
+    expect(planDocumentCache(req("https://example.org/events/forum?tab=schedule"), host)).toEqual({
+      kind: "bypass",
+      reason: "query",
+    });
+    expect(planDocumentCache(req("https://example.org/events/forum/me/x?tab=a"), host)).toEqual({
+      kind: "bypass",
+      reason: "query",
+    });
+    expect(planDocumentCache(req("https://example.org/events/forum/me?token=a"), host)).toEqual({
+      kind: "bypass",
+      reason: "query",
+    });
+  });
+
   it("scopes keys by tenant host, with a no-host fallback scope", () => {
     const a = planDocumentCache(req("https://x/post"), "tenant-a.eu");
     const b = planDocumentCache(req("https://x/post"), "tenant-b.eu");

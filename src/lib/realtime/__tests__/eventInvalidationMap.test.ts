@@ -63,6 +63,85 @@ describe("eventInvalidationMap", () => {
     ]);
   });
 
+  // Spec B.9 - zdarzenia torów B i C: DOKŁADNE listy kluczy (literały są
+  // kontraktem z fabrykami kluczy torów; każdy tor przypina je w swoim teście).
+  const REGISTRATION_KEYS = (eventId: string | null) => [
+    eventId === null ? ["event-registrations"] : ["event-registrations", eventId],
+    ["profile", "event-registrations"],
+    ["account-menu", "my-events"],
+    ["event-rsvp-counts"],
+    ["public-event"],
+    eventId === null
+      ? ["admin-event-registration-money"]
+      : ["admin-event-registration-money", eventId],
+  ];
+
+  it.each([
+    "event.registration.offered.v1",
+    "event.registration.offer_closed.v1",
+    "event.registration.transfer_requested.v1",
+    "event.registration.transfer_cancelled.v1",
+    "event.registration.refund_requested.v1",
+    "event.registration.refund_failed.v1",
+  ])("%s: zgłoszenie + znaczniki pieniędzy wydarzenia", (type) => {
+    const event = { ...eventOf(type), payload: { event_id: "e1", offer_id: "o1" } };
+    expect(invalidationKeysFor(event, { userId: "u1" })).toEqual(REGISTRATION_KEYS("e1"));
+    const bare = { ...eventOf(type), payload: {} };
+    expect(invalidationKeysFor(bare, { userId: "u1" })).toEqual(REGISTRATION_KEYS(null));
+  });
+
+  it("transferred: to samo + panel „moje wydarzenie” (klucz po slugu - cała gałąź)", () => {
+    const event = {
+      ...eventOf("event.registration.transferred.v1"),
+      payload: { event_id: "e1", transfer_id: "t1", kind: "participant" },
+    };
+    expect(invalidationKeysFor(event, { userId: "u1" })).toEqual([
+      ...REGISTRATION_KEYS("e1"),
+      ["event-me"],
+    ]);
+  });
+
+  it.each(["event.certificate.issued.v1", "event.certificate.revoked.v1"])(
+    "%s: lista certyfikatów wydarzenia i panel follow-up",
+    (type) => {
+      const event = { ...eventOf(type), payload: { event_id: "e1", registration_id: "r1" } };
+      expect(invalidationKeysFor(event, { userId: "u1" })).toEqual([
+        ["admin-event-certificates", "e1"],
+        ["event-follow-up"],
+      ]);
+      expect(invalidationKeysFor({ ...eventOf(type), payload: {} }, { userId: "u1" })).toEqual([
+        ["admin-event-certificates"],
+        ["event-follow-up"],
+      ]);
+    },
+  );
+
+  it("survey.submitted: wyniki i statystyki follow-up wydarzenia", () => {
+    const event = { ...eventOf("event.survey.submitted.v1"), payload: { event_id: "e1" } };
+    expect(invalidationKeysFor(event, { userId: "u1" })).toEqual([
+      ["admin-event-survey-results", "e1"],
+      ["admin-event-follow-up-stats", "e1"],
+    ]);
+    const bare = { ...eventOf("event.survey.submitted.v1"), payload: {} };
+    expect(invalidationKeysFor(bare, { userId: "u1" })).toEqual([
+      ["admin-event-survey-results"],
+      ["admin-event-follow-up-stats"],
+    ]);
+  });
+
+  it("survey.questions_changed: pytania wydarzenia i panel follow-up", () => {
+    const event = { ...eventOf("event.survey.questions_changed.v1"), payload: { event_id: "e1" } };
+    expect(invalidationKeysFor(event, { userId: "u1" })).toEqual([
+      ["admin-event-survey-questions", "e1"],
+      ["event-follow-up"],
+    ]);
+    const bare = { ...eventOf("event.survey.questions_changed.v1"), payload: {} };
+    expect(invalidationKeysFor(bare, { userId: "u1" })).toEqual([
+      ["admin-event-survey-questions"],
+      ["event-follow-up"],
+    ]);
+  });
+
   it("invalidates public, admin and reputation caches for badge grants", () => {
     const keys = invalidationKeysFor(eventOf("profile_badge.granted.v1"), { userId: "u1" });
     expect(keys).toContainEqual(["profile-badges"]);

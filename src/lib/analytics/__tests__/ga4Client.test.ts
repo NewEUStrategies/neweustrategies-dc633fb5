@@ -1,7 +1,7 @@
 // GA4 w przeglądarce: tryb domyślnej odmowy Google, konfiguracja strumienia,
 // aktualizacja zgody, przejęcie tagu ze snippetu SSR, kształt poleceń w
 // `dataLayer` i czytanie identyfikatora klienta z cookie.
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   asGa4MeasurementId,
@@ -263,6 +263,39 @@ describe("GA4 w przeglądarce", () => {
     expect(odslona?.[2]).toMatchObject({ page_title: "Analizy", language: "pl" });
     expect((odslona?.[2] as Record<string, unknown>).page_location).toEqual(expect.any(String));
     expect(odslona?.[2]).not.toHaveProperty("page_path");
+  });
+
+  it("page_location bez poświadczeń: token w ścieżce i parametrach zamaskowany, fragment odcięty", () => {
+    uruchomSnippetSsr();
+    const before = `${location.pathname}${location.search}${location.hash}`;
+    history.pushState(
+      {},
+      "",
+      "/en/tickets/transfer/AbCdEfGhIjKlMnOpQrStUvWxYz012345?token=abc&x=1#t=sekret",
+    );
+    try {
+      ga4PageView("/pominiete", "Przekazanie", "en");
+      const odslona = znajdz("event", "page_view");
+      expect((odslona?.[2] as Record<string, unknown>).page_location).toBe(
+        `${location.origin}/en/tickets/transfer/[redacted]?token=[redacted]&x=1`,
+      );
+    } finally {
+      history.pushState({}, "", before);
+    }
+  });
+
+  it("page_location bez `location` (SSR) = maskowana ścieżka wołającego", () => {
+    uruchomSnippetSsr();
+    vi.stubGlobal("location", undefined);
+    try {
+      ga4PageView("/certificates/ABCD-EFGH-JKMN-PQRS?code=x#frag", "Certyfikat", "pl");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    const odslona = znajdz("event", "page_view");
+    expect((odslona?.[2] as Record<string, unknown>).page_location).toBe(
+      "/certificates/[redacted]?code=[redacted]",
+    );
   });
 
   it("snippet SSR: zgoda domyślna PRZED konfiguracją, oba miejsca docelowe, brak parametrów UA", () => {

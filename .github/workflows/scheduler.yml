@@ -48,6 +48,9 @@ on:
           - digest-weekly
           - event-reminders
           - crm-task-reminders
+          - event-participant-reminders
+          - event-ticket-lifecycle
+          - event-follow-up
           - billing
       ticks:
         description: Liczba ticków w przebiegu (1-10)

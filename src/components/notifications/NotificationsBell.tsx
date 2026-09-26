@@ -17,6 +17,7 @@ import {
   CalendarClock,
   Check,
   Circle,
+  CreditCard,
   Crown,
   Eye,
   Handshake,
@@ -86,6 +87,8 @@ const KIND_ICONS: Record<NotificationKind, React.ComponentType<{ className?: str
   profile_view: Eye,
   meeting_booking: CalendarClock,
   club: MessagesSquare,
+  event: CalendarClock,
+  billing: CreditCard,
 };
 
 // `notifications.kind` przychodzi z bazy jako `string`, więc odczyt idzie przez

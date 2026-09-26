@@ -130,6 +130,14 @@ type JobOutcome = Record<string, unknown>;
 const COMMUNITY_CRON_DEADLINE_MS = 25_000;
 
 /**
+ * Wspólny deadline zadań funkcji uczestnika F1-F5 w tej ścieżce (spec B.10):
+ * 10 s od startu wywołania. Siatka bezpieczeństwa nie ma drenu poczty, który
+ * trzeba by osłaniać, więc dostaje więcej niż tick (6 s) - ale nie cały
+ * budżet: po nich biegną jeszcze przypomnienia CRM, bilety i retencja CV.
+ */
+const PARTICIPANT_JOBS_DEADLINE_MS = 10_000;
+
+/**
  * Każdy krok osobno: awaria jednego kanału (np. brak klucza Resend) nie może
  * zabrać pozostałych. Błędy lądują w odpowiedzi ORAZ w logu przebiegów, więc
  * scheduler repo świeci czerwono z konkretną przyczyną.
@@ -164,6 +172,31 @@ async function runJobs(job: SchedulerJob): Promise<{ result: JobOutcome; errors:
   }
   if (job === "all" || job === "event-reminders") {
     await step("eventReminders", () => runEventReminders());
+  }
+  // Zadania funkcji uczestnika F1-F5 (spec B.10) - te same moduły, co w ticku,
+  // ładowane leniwie; tory A/B/C wymieniają ich treść, nie ten plik.
+  const participantDeadlineAt = startedAt + PARTICIPANT_JOBS_DEADLINE_MS;
+  if (job === "all" || job === "event-participant-reminders") {
+    await step("eventParticipantReminders", async () => {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { runEventParticipantReminders } = await import("@/lib/events/jobs/reminderJob.server");
+      return runEventParticipantReminders(supabaseAdmin, { deadlineAt: participantDeadlineAt });
+    });
+  }
+  if (job === "all" || job === "event-ticket-lifecycle") {
+    await step("eventTicketLifecycle", async () => {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { runEventTicketLifecycle } =
+        await import("@/lib/events/jobs/ticketLifecycleJob.server");
+      return runEventTicketLifecycle(supabaseAdmin, { deadlineAt: participantDeadlineAt });
+    });
+  }
+  if (job === "all" || job === "event-follow-up") {
+    await step("eventFollowUp", async () => {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { runEventFollowUp } = await import("@/lib/events/jobs/followUpJob.server");
+      return runEventFollowUp(supabaseAdmin, { deadlineAt: participantDeadlineAt });
+    });
   }
   if (job === "all" || job === "crm-task-reminders") {
     await step("crmTaskReminders", () => runCrmTaskReminders());

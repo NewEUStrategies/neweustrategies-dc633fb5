@@ -357,6 +357,8 @@ describe("zwrot PEŁNY zamówienia - dostęp znika natychmiast", () => {
       tenant_id: BILLING_IDS.tenant,
       kind: "billing",
       title_pl: "Zwrot płatności",
+      // Spec B.7: ikona z listy kuratorskiej (`receipt` ładował rejestr 109 KB).
+      icon: "credit-card",
     });
   });
 

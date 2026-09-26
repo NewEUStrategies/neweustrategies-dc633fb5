@@ -60,6 +60,27 @@ describe("redactUrl", () => {
   it("passes through null", () => {
     expect(redactUrl(null)).toBeNull();
   });
+
+  // Tokeny w ŚCIEŻCE mają 32 znaki - LONG_B64 (>= 40) ich nie łapie, więc
+  // `redactUrl` maskuje znane segmenty sekretu wspólną regułą z analityką.
+  it.each([
+    [
+      "https://site.example/tickets/transfer/AbCdEfGhIjKlMnOpQrStUvWxYz012345",
+      "https://site.example/tickets/transfer/[redacted]",
+    ],
+    ["/en/certificates/ABCD-EFGH-JKMN-PQRS", "/en/certificates/[redacted]"],
+    [
+      "/api/public/calendar/AbCdEfGhIjKlMnOpQrStUvWxYz012345/plan.ics?x=1",
+      "/api/public/calendar/[redacted]/plan.ics?[redacted]",
+    ],
+  ])("masks the credential segment of %s", (input, output) => {
+    expect(redactUrl(input)).toBe(output);
+  });
+
+  it("falls back to text redaction for an unparseable url", () => {
+    expect(redactUrl("http://[bad/tickets/x?token=abc")).toBe("http://[bad/tickets/x?[redacted]");
+    expect(redactUrl("http://[bad/plain")).toBe("http://[bad/plain");
+  });
 });
 
 describe("redactMeta", () => {

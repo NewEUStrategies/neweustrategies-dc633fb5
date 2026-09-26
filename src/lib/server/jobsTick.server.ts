@@ -24,6 +24,7 @@ import {
   runEventReminders,
 } from "@/lib/notifications/dispatch.server";
 import { countTickFailures, type SchedulerSource } from "@/lib/jobs/scheduler";
+import type { ParticipantJobResult } from "@/lib/events/jobs/types";
 import { recordJobRun } from "@/lib/server/jobScheduler.server";
 
 type DbClient = SupabaseClient<Database>;
@@ -37,6 +38,16 @@ export interface JobsTickResult {
    * wysyła kampanie - jeden harmonogram dla całej poczty wychodzącej.
    */
   emailQueue: DrainResult | { error: string };
+  /**
+   * Zadania funkcji uczestnika F1-F5 (spec B.10): przypomnienia (tor A),
+   * cykl życia biletu - oferty z listy rezerwowej, przekazania, zwroty (tor B)
+   * i follow-up po wydarzeniu - ankieta, certyfikat (tor C). Biegną PRZED
+   * drenem poczty, bo to one kolejkują maile, które dren ma wysłać w tym samym
+   * ticku; wspólny budżet 6 s (`PARTICIPANT_JOBS_DEADLINE_MS`).
+   */
+  eventParticipantReminders: ParticipantJobResult | { error: string };
+  eventTicketLifecycle: ParticipantJobResult | { error: string };
+  eventFollowUp: ParticipantJobResult | { error: string };
   /**
    * `skipped: "vapid_not_configured"` zamiast cichego zera: brak kluczy VAPID
    * wygląda w logu identycznie jak pusta kolejka, a to najczęstsza przyczyna
@@ -121,6 +132,21 @@ const JOBS_TICK_DEADLINE_MS = 25_000;
  */
 const EMAIL_DRAIN_DEADLINE_MS = 10_000;
 
+/**
+ * Wspólny budżet trzech zadań uczestnika (liczony od startu ticku). Każde
+ * zadanie ma też własne sufity porcji (A <= 60 rezerwacji, B <= 20 pozycji,
+ * C <= 30) - deadline chroni dren poczty, sufity chronią bazę.
+ */
+export const PARTICIPANT_JOBS_DEADLINE_MS = 6_000;
+
+/**
+ * Minimum czasu, które dren poczty dostaje NAWET po zadaniach uczestnika.
+ * Zadania mogą zjeść swoje 6 s; bez tego minimum dren startowałby z deadline'em
+ * już w przeszłości i nie wysłał nic - także maili, które te zadania właśnie
+ * zakolejkowały.
+ */
+const EMAIL_DRAIN_MIN_WINDOW_MS = 4_000;
+
 /** Uruchamia krok joba tylko w ramach budżetu czasu; błąd/pominięcie łapie w
  *  wspólnym kształcie `{ error }` (każde pole JobsTickResult go dopuszcza). */
 async function runJobStep<T>(
@@ -159,14 +185,34 @@ export async function runJobsTick(
   // integracje, embeddingi) na końcu - to one są pomijane pierwsze przy
   // wyczerpaniu budżetu, a nie krytyczne wysyłki/przypomnienia.
   const newsletter = await runJobStep(overBudget, () => tickNewsletterCampaigns(admin, {}));
-  // Poczta 1:1 (autoryzacja, transakcyjne, digesty) idzie zaraz po kampaniach:
-  // link do logowania i ostrzeżenie o nieudanej płatności starzeją się szybciej
-  // niż cokolwiek innego w ticku. Dren dostaje własny, krótszy deadline, żeby
-  // duża kolejka nie zjadła budżetu przypomnieniom i przypisaniom.
+  // Zadania uczestnika F1-F5 PRZED drenem poczty: kolejkują przypomnienia,
+  // oferty miejsc i zaproszenia do ankiety, które dren wyśle w tym samym
+  // ticku. Moduły są ładowane leniwie (każdy tor wymienia treść swojego).
+  const participantDeadlineAt = startedAt + PARTICIPANT_JOBS_DEADLINE_MS;
+  const eventParticipantReminders = await runJobStep(overBudget, async () => {
+    const { runEventParticipantReminders } = await import("@/lib/events/jobs/reminderJob.server");
+    return runEventParticipantReminders(admin, { deadlineAt: participantDeadlineAt });
+  });
+  const eventTicketLifecycle = await runJobStep(overBudget, async () => {
+    const { runEventTicketLifecycle } = await import("@/lib/events/jobs/ticketLifecycleJob.server");
+    return runEventTicketLifecycle(admin, { deadlineAt: participantDeadlineAt });
+  });
+  const eventFollowUp = await runJobStep(overBudget, async () => {
+    const { runEventFollowUp } = await import("@/lib/events/jobs/followUpJob.server");
+    return runEventFollowUp(admin, { deadlineAt: participantDeadlineAt });
+  });
+  // Poczta 1:1 (autoryzacja, transakcyjne, digesty) idzie zaraz po kampaniach
+  // i zadaniach uczestnika: link do logowania i ostrzeżenie o nieudanej
+  // płatności starzeją się szybciej niż cokolwiek innego w ticku. Dren dostaje
+  // własny, krótszy deadline, żeby duża kolejka nie zjadła budżetu
+  // przypomnieniom i przypisaniom - ale nigdy mniej niż 4 s od teraz.
   const emailQueue = await runJobStep(overBudget, () =>
     drainEmailQueues(admin, {
       maxMessages: 60,
-      deadlineAt: startedAt + EMAIL_DRAIN_DEADLINE_MS,
+      deadlineAt: Math.max(
+        startedAt + EMAIL_DRAIN_DEADLINE_MS,
+        Date.now() + EMAIL_DRAIN_MIN_WINDOW_MS,
+      ),
     }),
   );
   const push = await runJobStep(overBudget, () => processPushJobs(100));
@@ -248,6 +294,9 @@ export async function runJobsTick(
 
   const result: JobsTickResult = {
     newsletter,
+    eventParticipantReminders,
+    eventTicketLifecycle,
+    eventFollowUp,
     emailQueue,
     push,
     digestDaily,

@@ -50,7 +50,11 @@ const db = vi.hoisted(() => {
   const state: {
     stub: { from: (table: string) => unknown } | null;
     throwing: Set<string>;
-  } = { stub: null, throwing: new Set<string>() };
+    /** Wywołania RPC (dzwonek idzie przez `enqueue_notification`). */
+    rpcCalls: { name: string; args: Record<string, unknown> }[];
+    /** `throw` = awaria klienta, `error` = odmowa PostgREST bez rzutu. */
+    rpcFailure: "throw" | "error" | null;
+  } = { stub: null, throwing: new Set<string>(), rpcCalls: [], rpcFailure: null };
   return {
     use(next: { from: (table: string) => unknown }): void {
       state.stub = next;
@@ -58,9 +62,24 @@ const db = vi.hoisted(() => {
     breakTable(table: string): void {
       state.throwing.add(table);
     },
+    breakRpc(mode: "throw" | "error"): void {
+      state.rpcFailure = mode;
+    },
+    rpcCalls(name: string): Record<string, unknown>[] {
+      return state.rpcCalls.filter((call) => call.name === name).map((call) => call.args);
+    },
+    async rpc(name: string, args: Record<string, unknown>): Promise<unknown> {
+      if (state.rpcFailure === "throw")
+        throw new Error(`test: klient Supabase padł na RPC ${name}`);
+      state.rpcCalls.push({ name, args });
+      if (state.rpcFailure === "error") return { data: null, error: { message: "boom" } };
+      return { data: "notification-id", error: null };
+    },
     reset(): void {
       state.stub = null;
       state.throwing.clear();
+      state.rpcCalls = [];
+      state.rpcFailure = null;
     },
     from(table: string): unknown {
       if (state.throwing.has(table)) {
@@ -73,7 +92,10 @@ const db = vi.hoisted(() => {
 });
 
 vi.mock("@/integrations/supabase/client.server", () => ({
-  supabaseAdmin: { from: (table: string) => db.from(table) },
+  supabaseAdmin: {
+    from: (table: string) => db.from(table),
+    rpc: (name: string, args: Record<string, unknown>) => db.rpc(name, args),
+  },
 }));
 
 /**
@@ -316,10 +338,13 @@ function detailLabels(): string[] {
   return (mail.attempts[0]?.details ?? []).map((detail) => detail.label);
 }
 
+/** Argumenty OSTATNIEGO dzwonka (`enqueue_notification`, spec B.7 / D0-3). */
 function bellRow(): Record<string, unknown> | undefined {
-  const args = stub.lastChain("notifications")?.argsOf("insert");
-  const row = args?.[0];
-  return typeof row === "object" && row !== null ? (row as Record<string, unknown>) : undefined;
+  return db.rpcCalls("enqueue_notification").at(-1);
+}
+
+function bellCount(): number {
+  return db.rpcCalls("enqueue_notification").length;
 }
 
 beforeEach(() => {
@@ -447,7 +472,7 @@ describe("wynik bez szablonu i zgłoszenie bez zapisu", () => {
     expect(result).toEqual({ emailed: false, smsSent: false, promotedNotified: 0 });
     expect(mail.attempts).toHaveLength(0);
     expect(sms.sent).toHaveLength(0);
-    expect(stub.chainsFor("notifications")).toHaveLength(0);
+    expect(bellCount()).toBe(0);
   });
 
   it("brak pola `applied` traktujemy jak brak zapisu", async () => {
@@ -458,7 +483,7 @@ describe("wynik bez szablonu i zgłoszenie bez zapisu", () => {
     expect(result).toEqual({ emailed: false, smsSent: false, promotedNotified: 0 });
     expect(mail.attempts).toHaveLength(0);
     expect(sms.sent).toHaveLength(0);
-    expect(stub.chainsFor("notifications")).toHaveLength(0);
+    expect(bellCount()).toBe(0);
   });
 
   it("ładunek bez pola `outcome` też nie wysyła płacącemu niczego", async () => {
@@ -491,9 +516,9 @@ describe("wynik bez szablonu i zgłoszenie bez zapisu", () => {
     expect(attemptsOfType("payment_failed")[0]?.to).toBe("uczestnik@example.com");
     expect(sms.sent.map((entry) => entry.to)).toContain("+48500100200");
     expect(bellRow()).toMatchObject({
-      user_id: USER,
-      title_pl: "Płatność odrzucona - bilet nieopłacony",
-      title_en: "Payment declined - ticket unpaid",
+      p_user_id: USER,
+      p_title_pl: "Płatność odrzucona - bilet nieopłacony",
+      p_title_en: "Payment declined - ticket unpaid",
     });
   });
 
@@ -913,7 +938,7 @@ describe("język odbiorcy", () => {
     expect(result).toEqual({ emailed: false, smsSent: false, promotedNotified: 0 });
     expect(mail.attempts).toHaveLength(0);
     expect(sms.sent).toHaveLength(0);
-    expect(stub.chainsFor("notifications")).toHaveLength(0);
+    expect(bellCount()).toBe(0);
   });
 
   it("brak sekcji kontaktu w ładunku nie wywraca funkcji", async () => {
@@ -927,43 +952,43 @@ describe("język odbiorcy", () => {
 // --- 6. dzwonek w aplikacji -------------------------------------------------
 
 describe("dzwonek w aplikacji", () => {
-  it("wiersz powiadomienia niesie właściciela, najemcę, oba języki i adres", async () => {
+  it("dzwonek idzie przez enqueue_notification: rodzaj billing, oba języki, adres, ikona kuratorska", async () => {
     await notifyTicketOutcome(payload());
 
-    const row = bellRow();
-    // `tenant_id` jest tu WARUNKIEM, nie ozdobą: wpis bez najemcy albo
-    // wyświetlałby się wszystkim, albo nikomu.
-    expect(row).toMatchObject({
-      user_id: USER,
-      tenant_id: TENANT,
-      kind: "billing",
-      title_pl: "Bilet opłacony",
-      title_en: "Ticket paid",
-      body_pl: TITLE_PL,
-      body_en: TITLE_EN,
-      href: "/events/kongres-gospodarczy-2026",
-      icon: "receipt",
+    // Najemcy NIE podajemy: `enqueue_notification` bierze go z profilu
+    // odbiorcy (D0-3). Surowy INSERT do `notifications` zniknął.
+    expect(bellRow()).toEqual({
+      p_user_id: USER,
+      p_kind: "billing",
+      p_title_pl: "Bilet opłacony",
+      p_title_en: "Ticket paid",
+      p_body_pl: TITLE_PL,
+      p_body_en: TITLE_EN,
+      p_href: "/events/kongres-gospodarczy-2026",
+      p_icon: "credit-card",
     });
+    expect(bellCount()).toBe(1);
+    expect(stub.chainsFor("notifications")).toHaveLength(0);
   });
 
   it("tytuł dzwonka mówi o anulowaniu przy zwrocie i o korekcie przy częściowym", async () => {
     await notifyTicketOutcome(payload({ outcome: "refunded", refunded_cents: 24_900 }));
     expect(bellRow()).toMatchObject({
-      title_pl: "Bilet anulowany - zwrot płatności",
-      title_en: "Ticket cancelled - payment refunded",
+      p_title_pl: "Bilet anulowany - zwrot płatności",
+      p_title_en: "Ticket cancelled - payment refunded",
     });
 
     await notifyTicketOutcome(payload({ outcome: "partial_refund", refunded_cents: 5_000 }));
     expect(bellRow()).toMatchObject({
-      title_pl: "Częściowy zwrot za bilet",
-      title_en: "Partial ticket refund",
+      p_title_pl: "Częściowy zwrot za bilet",
+      p_title_en: "Partial ticket refund",
     });
   });
 
   it("bez sluga wydarzenia dzwonek prowadzi do biletów w profilu", async () => {
     await notifyTicketOutcome(payload({ event_slug: null }));
 
-    expect(bellRow()?.["href"]).toBe("/profile/tickets");
+    expect(bellRow()?.["p_href"]).toBe("/profile/tickets");
   });
 
   it("dzwonek niesie oba tytuły niezależnie od języka maila", async () => {
@@ -972,7 +997,7 @@ describe("dzwonek w aplikacji", () => {
     givenProfileLang(USER, "en");
     await notifyTicketOutcome(payload());
 
-    expect(bellRow()).toMatchObject({ body_pl: TITLE_PL, body_en: TITLE_EN });
+    expect(bellRow()).toMatchObject({ p_body_pl: TITLE_PL, p_body_en: TITLE_EN });
   });
 
   it("gość bez konta nie dostaje wpisu - nie ma gdzie go pokazać", async () => {
@@ -982,26 +1007,32 @@ describe("dzwonek w aplikacji", () => {
       }),
     );
 
-    expect(stub.chainsFor("notifications")).toHaveLength(0);
+    expect(bellCount()).toBe(0);
   });
 
   it("ładunek bez najemcy NIE tworzy wpisu bez najemcy", async () => {
     const result = await notifyTicketOutcome(payload({ tenant_id: null }));
 
-    expect(stub.chainsFor("notifications")).toHaveLength(0);
+    expect(bellCount()).toBe(0);
     // Mail nadal idzie: brak dzwonka to nie powód, żeby wyciszyć pocztę.
     expect(result.emailed).toBe(true);
   });
 
-  it("awaria wpisu dzwonka nie unieważnia wysłanego maila ani SMS-a", async () => {
-    db.breakTable("notifications");
-    const result = await notifyTicketOutcome(payload());
+  it.each([
+    ["rzut klienta", "throw"],
+    ["odmowa RPC bez rzutu", "error"],
+  ] as const)(
+    "awaria dzwonka (%s) nie unieważnia wysłanego maila ani SMS-a",
+    async (_label, mode) => {
+      db.breakRpc(mode);
+      const result = await notifyTicketOutcome(payload());
 
-    expect(result).toEqual({ emailed: true, smsSent: true, promotedNotified: 0 });
-    expect(errorSpy.mock.calls.map((call) => String(call[0]))).toContain(
-      "[events] ticket outcome bell failed",
-    );
-  });
+      expect(result).toEqual({ emailed: true, smsSent: true, promotedNotified: 0 });
+      expect(errorSpy.mock.calls.map((call) => String(call[0]))).toContain(
+        "[events] ticket outcome bell failed",
+      );
+    },
+  );
 });
 
 // --- 7. fail-soft całości i kolejka rezerwowa -------------------------------
@@ -1013,7 +1044,7 @@ describe("fail-soft: webhook nie może wpaść w wieczne ponowienia", () => {
 
     expect(result.emailed).toBe(false);
     expect(result.smsSent).toBe(true);
-    expect(bellRow()?.["user_id"]).toBe(USER);
+    expect(bellRow()?.["p_user_id"]).toBe(USER);
     expect(errorSpy.mock.calls.map((call) => String(call[0]))).toContain(
       "[events] ticket outcome email failed",
     );
@@ -1025,7 +1056,7 @@ describe("fail-soft: webhook nie może wpaść w wieczne ponowienia", () => {
 
     expect(result.emailed).toBe(true);
     expect(result.smsSent).toBe(false);
-    expect(bellRow()?.["user_id"]).toBe(USER);
+    expect(bellRow()?.["p_user_id"]).toBe(USER);
     expect(errorSpy.mock.calls.map((call) => String(call[0]))).toContain(
       "[events] ticket outcome sms failed",
     );
@@ -1165,7 +1196,7 @@ describe("kolejka rezerwowa", () => {
 
     expect(attemptsOfType("event_waitlist_promoted")[0]?.tenantId).toBeNull();
     // Bez najemcy nie ma też wpisu dzwonka - to ten sam warunek co przy płacącym.
-    expect(stub.chainsFor("notifications")).toHaveLength(0);
+    expect(bellCount()).toBe(0);
   });
 
   it("liczba awansów jest MIERZONA, a nie przepisana z ładunku", async () => {

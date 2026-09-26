@@ -19,6 +19,8 @@ interface SendCall {
   endpoint: string;
   payload: Record<string, unknown>;
   topic?: string;
+  ttlSec?: number;
+  urgency?: string;
 }
 
 const h = vi.hoisted(() => {
@@ -29,7 +31,13 @@ const h = vi.hoisted(() => {
     rpcCalls: [] as { name: string; args: Record<string, unknown> }[],
     /** endpoint -> kolejne odpowiedzi usługi push (ostatnia się powtarza). */
     responses: new Map<string, Partial<PushSendResult>[]>(),
-    sends: [] as { endpoint: string; payload: Record<string, unknown>; topic?: string }[],
+    sends: [] as {
+      endpoint: string;
+      payload: Record<string, unknown>;
+      topic?: string;
+      ttlSec?: number;
+      urgency?: string;
+    }[],
     tableFilters: [] as { table: string; column: string; values: unknown }[],
   };
   return { state };
@@ -88,12 +96,14 @@ vi.mock("@/lib/notifications/webpush.server", async (importOriginal) => {
         sub: PushSubscriptionKeys,
         payload: Buffer,
         _vapid: unknown,
-        options?: { topic?: string },
+        options?: { topic?: string; ttlSec?: number; urgency?: string },
       ): Promise<PushSendResult> => {
         h.state.sends.push({
           endpoint: sub.endpoint,
           payload: JSON.parse(payload.toString("utf8")) as Record<string, unknown>,
           topic: options?.topic,
+          ttlSec: options?.ttlSec,
+          urgency: options?.urgency,
         });
         const queue = h.state.responses.get(sub.endpoint);
         const next = queue && queue.length > 1 ? queue.shift() : queue?.[0];
@@ -220,6 +230,32 @@ describe("processPushJobs", () => {
     });
     expect(sent.payload.tag).toBe(sent.topic);
     expect(String(sent.payload.tag)).toMatch(/^[A-Za-z0-9_-]{32}$/);
+  });
+
+  // D8 / spec B.7: push rodzaju `event` (przypomnienie o sesji, oferta miejsca)
+  // żyje godzinę i ma pilność `high`; każdy inny rodzaj zostaje na domyślnych
+  // (doba, `normal`) - opcji w ogóle nie podajemy.
+  it("rodzaj event: TTL 3600 s i pilność high; inne rodzaje bez nadpisania", async () => {
+    h.state.jobs = [
+      job(1, {
+        payload: {
+          kind: "event",
+          title_pl: "Sesja za 15 minut",
+          title_en: "Session in 15 minutes",
+          href: "/events/forum/me?tab=schedule#event-session-1",
+        },
+      }),
+      job(2),
+    ];
+    h.state.subscriptions = [device("https://fcm.example/a")];
+
+    await processPushJobs();
+
+    const [eventSend, messageSend] = sends();
+    expect(eventSend).toMatchObject({ ttlSec: 3600, urgency: "high" });
+    expect(eventSend.topic).toEqual(expect.any(String));
+    expect(messageSend.ttlSec).toBeUndefined();
+    expect(messageSend.urgency).toBeUndefined();
   });
 
   it("dwa zadania na jedno urządzenie idą jednym torem, a temat kolapsuje wątek", async () => {

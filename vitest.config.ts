@@ -6312,6 +6312,171 @@ export default defineConfig({
           branches: 98,
         },
 
+        // ══ FUNKCJE UCZESTNIKA F1-F5: PROGI PER-PLIK (spec B.11-1, R-TEST) ═══
+        //
+        // CZTERY BLOKI, CZTERECH WŁAŚCICIELI. Foundation i tory A/B/C edytują
+        // WYŁĄCZNIE swój blok (znaczniki `PF-<X> thresholds`), a bloki dzieli co
+        // najmniej dwie linie, których nikt nie zmienia - dzięki temu scalanie
+        // torów nie konfliktuje na tym pliku. Wpisy plików PRZEKAZANYCH torom
+        // (zaślepki zadań, później sloty i nakładki) stoją w bloku WŁAŚCICIELA;
+        // właściciel może je zmienić (reguła „tylko w górę" nie dotyczy wpisów
+        // z epoki zaślepki). Pliki czysto typowe (`jobs/types.ts`,
+        // `slots/slotTypes.ts`) nie dostają wpisu.
+        //
+        // REGUŁA: zmierzone minus 2 pp, podłoga 95/95/95/90.
+        // >>> PF-FOUNDATION thresholds (begin)
+        // ZMIERZONE 2026-09-26 (F-b, przebieg `--coverage` testów etapu, 174
+        // pliki / 4 320 przypadków): każdy plik niżej 100 / 100 / 100 / 100
+        // (instrukcje / gałęzie / funkcje / linie), więc próg 98 w każdej mierze.
+        "src/lib/analytics/redactTrackedUrl.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/callerClient.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/effectiveEnd.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/eventMeTabs.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/gsm7.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/participantDelivery.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/participantDeliveryKinds.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/participantNotify.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/participantOptionsApi.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/participantSettings.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/participantSettingsApi.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/participantSettingsDraft.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/smsAvailability.functions.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/smsAvailability.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/tenantAdminAlert.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/tenantPublicOrigin.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/useEventParticipantOptions.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/useParticipantSettings.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/files/downloadBlob.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // <<< PF-FOUNDATION thresholds (end)
+        //
+        // (separator bloków - tych dwóch linii nie edytuje żaden tor)
+        // >>> PF-A thresholds (begin)
+        // ZMIERZONE 2026-09-26 (Foundation, zaślepka): 100 / 100 / 100 / 100.
+        "src/lib/events/jobs/reminderJob.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // <<< PF-A thresholds (end)
+        //
+        // (separator bloków - tych dwóch linii nie edytuje żaden tor)
+        // >>> PF-B thresholds (begin)
+        // ZMIERZONE 2026-09-26 (Foundation, zaślepka): 100 / 100 / 100 / 100.
+        "src/lib/events/jobs/ticketLifecycleJob.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // <<< PF-B thresholds (end)
+        //
+        // (separator bloków - tych dwóch linii nie edytuje żaden tor)
+        // >>> PF-C thresholds (begin)
+        // ZMIERZONE 2026-09-26 (Foundation, zaślepka): 100 / 100 / 100 / 100.
+        "src/lib/events/jobs/followUpJob.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // <<< PF-C thresholds (end)
+
         // ══ MODUŁ 14: REKLAMY, KUPONY, PODARUNKI, DAROWIZNY (2026-08-31) ══════
         //
         // DO DZIŚ TEN MODUŁ NIE MIAŁ ANI JEDNEGO PROGU PER-ŚCIEŻKA - jako

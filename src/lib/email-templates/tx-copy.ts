@@ -52,7 +52,28 @@ export type TxEmailType =
   // Zaproszenie do konta wysyłane z panelu administratora: link aktywacyjny albo
   // dane logowania z hasłem tymczasowym. Poczta 1:1 - bez niej odbiorca nie
   // wejdzie na przygotowane dla niego konto.
-  | "user_invitation";
+  | "user_invitation"
+  // FUNKCJE UCZESTNIKA F1-F5 (Foundation dodaje wszystkie jedenaście naraz,
+  // tory A/B/C tylko je wysyłają - rejestr zamrożony, spec B.8). Treść jest
+  // STATYCZNA: zmienne dane jadą wyłącznie w temacie (`{subject}` = tytuł
+  // wydarzenia) i w wierszach szczegółów (`PARTICIPANT_TX_DETAIL_LABELS`).
+  | ParticipantTxEmailType;
+
+/** Jedenaście maili funkcji uczestnika F1-F5 - kolejność = kolejność w panelu podglądu. */
+export const PARTICIPANT_TX_EMAIL_TYPES = [
+  "event_reminder",
+  "event_session_reminder",
+  "event_waitlist_joined",
+  "event_waitlist_offer",
+  "event_waitlist_offer_expired",
+  "event_waitlist_offer_refunded",
+  "event_ticket_transfer_offer",
+  "event_ticket_transfer_completed",
+  "event_ticket_transfer_revoked",
+  "event_survey_invite",
+  "event_certificate_ready",
+] as const;
+export type ParticipantTxEmailType = (typeof PARTICIPANT_TX_EMAIL_TYPES)[number];
 
 export interface TxSubjectVars {
   /** Nazwa planu subskrypcji lub tytuł wydarzenia. */
@@ -107,6 +128,16 @@ export interface TxCopy {
      * dwoma różnymi adresami byłby wprowadzaniem w błąd.
      */
     manageCta: string;
+    /** Termin decyzji odbiorcy: płatność oferty, akceptacja przekazania, zamknięcie ankiety. */
+    deadline: string;
+    /** Tytuł sesji z planu uczestnika - tylko przypomnienie o sesji. */
+    session: string;
+    /** Sala sesji (wiersz pomijany, gdy sesja nie ma sali). */
+    room: string;
+    /** Imię nowego posiadacza biletu - mail „bilet przekazany". */
+    recipient: string;
+    /** Imię osoby przekazującej bilet - mail z zaproszeniem do przyjęcia. */
+    sender: string;
   };
   footerHelp: string;
 }
@@ -136,6 +167,14 @@ const LABELS_PL: TxCopy["labels"] = {
   entryCode: "Kod wejścia",
   registeredBy: "Zgłoszenie od",
   manageCta: "Zarządzaj zgłoszeniem",
+  // „Ostateczny termin", nie samo „Termin": etykieta `date` jest już „Termin",
+  // a mail o przekazaniu biletu niesie OBA wiersze naraz (termin wydarzenia
+  // i termin akceptacji) - dwa jednakowe napisy byłyby nieczytelne.
+  deadline: "Ostateczny termin",
+  session: "Sesja",
+  room: "Sala",
+  recipient: "Odbiorca",
+  sender: "Nadawca",
 };
 
 const LABELS_EN: TxCopy["labels"] = {
@@ -161,6 +200,11 @@ const LABELS_EN: TxCopy["labels"] = {
   entryCode: "Entry code",
   registeredBy: "Registered by",
   manageCta: "Manage your registration",
+  deadline: "Deadline",
+  session: "Session",
+  room: "Room",
+  recipient: "Recipient",
+  sender: "From",
 };
 
 const HELP_PL =
@@ -404,7 +448,7 @@ const PL: Dict = {
     intro:
       "Dziękujemy za rejestrację. Twoje miejsce jest zarezerwowane - poniżej znajdziesz najważniejsze szczegóły wydarzenia.",
     cta: "Szczegóły wydarzenia",
-    note: "Przypomnienie z linkiem lub instrukcją wejścia wyślemy przed rozpoczęciem wydarzenia.",
+    note: "Jeśli organizator włączył przypomnienia, przed rozpoczęciem wydarzenia wyślemy wiadomość z linkiem lub instrukcją wejścia.",
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
@@ -598,6 +642,159 @@ const PL: Dict = {
       "Przygotowaliśmy dla Ciebie konto na platformie New European Strategies. Aktywuj je, aby korzystać z analiz, klubów dyskusyjnych i wydarzeń.",
     cta: "Aktywuj konto",
     note: "Jeśli nie spodziewasz się tej wiadomości, po prostu ją zignoruj - konto pozostanie nieaktywne.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_reminder: {
+    subject: (v) =>
+      `⏰ Wydarzenie już wkrótce${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "clock",
+    preview: "Przypominamy o wydarzeniu - sprawdź termin i sposób dołączenia.",
+    eyebrow: "Przypomnienie",
+    heading: "Wydarzenie zaczyna się wkrótce",
+    intro:
+      "Przypominamy o wydarzeniu, na które masz potwierdzone miejsce. Informacje o tym, jak dołączyć albo dotrzeć na miejsce, znajdziesz na stronie wydarzenia.",
+    cta: "Otwórz stronę wydarzenia",
+    note: "Ustawienia przypomnień zmienisz w swoich biletach - w profilu albo pod linkiem z potwierdzenia zgłoszenia.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_session_reminder: {
+    subject: (v) =>
+      `⏰ Sesja już wkrótce${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "clock",
+    preview: "Sesja z Twojego planu wydarzenia zaczyna się niedługo.",
+    eyebrow: "Przypomnienie",
+    heading: "Sesja z Twojego planu zaczyna się wkrótce",
+    intro:
+      "Sesja, którą masz w swoim planie wydarzenia, zaczyna się niedługo. Szczegóły, salę i pozostałe punkty planu znajdziesz w zakładce z planem.",
+    cta: "Otwórz mój plan",
+    note: "Przypomnienia o sesjach wyłączysz w ustawieniach biletu. Obejmują sesje zapisane albo oznaczone w Twoim koncie.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_waitlist_joined: {
+    subject: (v) =>
+      `🕒 Lista rezerwowa${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Twoje zgłoszenie jest na liście rezerwowej - teraz nic nie płacisz.",
+    eyebrow: "Lista rezerwowa",
+    heading: "Zgłoszenie na liście rezerwowej",
+    intro:
+      "Zgłoszenie na płatną wejściówkę trafiło na listę rezerwową. Teraz niczego nie pobieramy. Gdy zwolni się miejsce, wyślemy ofertę z terminem płatności.",
+    cta: "Moje bilety",
+    note: "Miejsce w kolejce sprawdzisz w swoich biletach. Jeśli plany się zmienią, zgłoszenie można wycofać w każdej chwili.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_waitlist_offer: {
+    subject: (v) =>
+      `🎟️ Miejsce czeka na Ciebie${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-key",
+    preview: "Zwolniło się miejsce - opłać bilet przed terminem, aby je potwierdzić.",
+    eyebrow: "Oferta z listy rezerwowej",
+    heading: "Miejsce jest zarezerwowane dla Ciebie",
+    intro:
+      "Zwolniło się miejsce i trzymamy je dla Ciebie. Opłać bilet przed terminem podanym poniżej, aby potwierdzić udział.",
+    cta: "Opłać bilet",
+    note: "Po upływie terminu miejsce trafi do kolejnej osoby z listy rezerwowej. Obowiązuje aktualna cena wejściówki.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_waitlist_offer_expired: {
+    subject: (v) =>
+      `Oferta miejsca wygasła${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Termin płatności minął - wpis na liście rezerwowej został anulowany.",
+    eyebrow: "Lista rezerwowa",
+    heading: "Oferta miejsca wygasła",
+    intro:
+      "Termin płatności za zarezerwowane miejsce minął, więc wpis na liście rezerwowej został anulowany, a miejsce przeszło do kolejnej osoby.",
+    cta: "Zapisz się ponownie",
+    note: "Nadal można dołączyć do listy rezerwowej - wystarczy zapisać się ponownie na stronie rejestracji wydarzenia.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_waitlist_offer_refunded: {
+    subject: (v) =>
+      `💳 Zwrot płatności za bilet${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Płatność dotarła po zajęciu miejsca - zwróciliśmy całą kwotę.",
+    eyebrow: "Płatność",
+    heading: "Zwróciliśmy Twoją płatność",
+    intro:
+      "Płatność za bilet dotarła, gdy miejsce nie było już dostępne. Zwróciliśmy całą kwotę na tę samą metodę płatności.",
+    cta: "Strona wydarzenia",
+    note: "Zwrot może potrwać kilka dni roboczych, zależnie od banku. Jeśli udział nadal wchodzi w grę, sprawdź dostępność na stronie wydarzenia.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_ticket_transfer_offer: {
+    subject: (v) =>
+      `🎟️ Przekazano Ci bilet${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-mail",
+    preview: "Ktoś przekazuje Ci bilet - przyjmij go przed terminem.",
+    eyebrow: "Przekazanie biletu",
+    heading: "Otrzymujesz bilet na wydarzenie",
+    intro:
+      "Uczestnik przekazuje Ci swój bilet. Aby go przyjąć, podaj swoje dane i zaakceptuj warunki przed terminem podanym poniżej.",
+    cta: "Przyjmij bilet",
+    note: "Jeśli nie spodziewasz się tej wiadomości, po prostu ją zignoruj - bez akceptacji bilet zostaje u obecnego posiadacza.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_ticket_transfer_completed: {
+    subject: (v) =>
+      `Bilet przekazany${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "Bilet należy teraz do innej osoby - poprzedni kod już nie działa.",
+    eyebrow: "Przekazanie biletu",
+    heading: "Bilet został przekazany",
+    intro:
+      "Przekazanie biletu zostało zakończone. Bilet należy teraz do innej osoby, a poprzedni kod QR i link do zarządzania zgłoszeniem przestały działać.",
+    cta: "Strona wydarzenia",
+    note: "Jeśli przekazanie wygląda na pomyłkę, skontaktuj się z organizatorem - dane kontaktowe są na stronie wydarzenia.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_ticket_transfer_revoked: {
+    subject: (v) =>
+      `Przekazanie biletu anulowane${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Przekazanie biletu zostało wycofane albo wygasło.",
+    eyebrow: "Przekazanie biletu",
+    heading: "Przekazanie biletu nie doszło do skutku",
+    intro:
+      "Przekazanie biletu zostało wycofane przez nadawcę albo wygasło przed akceptacją. Link z poprzedniej wiadomości przestał działać.",
+    cta: "Strona wydarzenia",
+    note: "Jeśli udział w wydarzeniu nadal wchodzi w grę, sprawdź dostępne wejściówki na stronie wydarzenia.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_survey_invite: {
+    subject: (v) => `📋 Jak było?${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-mail",
+    preview: "Podziel się opinią o wydarzeniu - ankieta jest otwarta do terminu.",
+    eyebrow: "Ankieta",
+    heading: "Powiedz nam, jak było",
+    intro:
+      "Dziękujemy za udział. Twoja opinia pomoże organizatorowi przygotować kolejne wydarzenia - ankieta zajmie kilka minut i jest otwarta do terminu podanego poniżej.",
+    cta: "Wypełnij ankietę",
+    note: "Odpowiedzi mogą być anonimowe - organizator widzi wtedy wyłącznie zbiorcze wyniki. Ankietę można wypełnić tylko raz.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_certificate_ready: {
+    subject: (v) =>
+      `🏅 Certyfikat uczestnictwa${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "Twój certyfikat uczestnictwa jest gotowy do pobrania.",
+    eyebrow: "Certyfikat",
+    heading: "Certyfikat uczestnictwa jest gotowy",
+    intro:
+      "Dziękujemy za udział w wydarzeniu. Certyfikat uczestnictwa pobierzesz jako plik PDF - przycisk poniżej prowadzi prosto do niego.",
+    cta: "Pobierz certyfikat",
+    note: "Certyfikat ma kod weryfikacyjny, dzięki któremu każdy może potwierdzić jego ważność. Pobierzesz go ponownie w każdej chwili.",
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
@@ -839,7 +1036,7 @@ const EN: Dict = {
     intro:
       "Thank you for registering. Your seat is reserved - the key details of the event are below.",
     cta: "Event details",
-    note: "We will send a reminder with the joining link or entry instructions before the event starts.",
+    note: "If the organiser enabled reminders, we will send a message with the joining link or entry instructions before the event starts.",
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },
@@ -1037,6 +1234,159 @@ const EN: Dict = {
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },
+  event_reminder: {
+    subject: (v) =>
+      `⏰ Your event starts soon${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "clock",
+    preview: "A reminder about your event - check the time and how to join.",
+    eyebrow: "Reminder",
+    heading: "Your event starts soon",
+    intro:
+      "This is a reminder about an event you have a confirmed place at. How to join or get to the venue is described on the event page.",
+    cta: "Open the event page",
+    note: "You can change your reminder settings in your tickets - in your profile or via the link in your registration confirmation.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_session_reminder: {
+    subject: (v) =>
+      `⏰ Your session starts soon${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "clock",
+    preview: "A session from your event plan starts shortly.",
+    eyebrow: "Reminder",
+    heading: "A session from your plan starts soon",
+    intro:
+      "A session in your event plan starts shortly. The details, the room and the rest of your plan are in the plan tab.",
+    cta: "Open my plan",
+    note: "You can turn off session reminders in your ticket settings. They cover sessions you signed up for or saved in your account.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_waitlist_joined: {
+    subject: (v) =>
+      `🕒 Waiting list${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Your registration is on the waiting list - no charge now.",
+    eyebrow: "Waiting list",
+    heading: "Your registration is on the waiting list",
+    intro:
+      "Your registration for a paid ticket is on the waiting list. We are not charging anything now. When a seat frees up, we will e-mail you an offer with a payment deadline.",
+    cta: "My tickets",
+    note: "You can check your place in the queue in your tickets. If your plans change, you can withdraw the registration at any time.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_waitlist_offer: {
+    subject: (v) =>
+      `🎟️ A seat is waiting for you${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-key",
+    preview: "A seat has freed up - pay before the deadline to confirm it.",
+    eyebrow: "Waiting list offer",
+    heading: "A seat is held for you",
+    intro:
+      "A seat has freed up and we are holding it for you. Pay for the ticket before the deadline below to confirm your place.",
+    cta: "Pay for the ticket",
+    note: "After the deadline the seat goes to the next person on the waiting list. The current ticket price applies.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_waitlist_offer_expired: {
+    subject: (v) =>
+      `Your seat offer has expired${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "The payment deadline has passed - your waiting list entry was cancelled.",
+    eyebrow: "Waiting list",
+    heading: "Your seat offer has expired",
+    intro:
+      "The payment deadline for the seat held for you has passed, so your waiting list entry was cancelled and the seat went to the next person.",
+    cta: "Register again",
+    note: "You can still join the waiting list - simply register again on the event registration page.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_waitlist_offer_refunded: {
+    subject: (v) =>
+      `💳 Ticket payment refunded${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Your payment arrived after the seat was taken - we refunded it in full.",
+    eyebrow: "Payment",
+    heading: "We refunded your payment",
+    intro:
+      "Your ticket payment arrived after the seat was no longer available. We refunded the full amount to the same payment method.",
+    cta: "Event page",
+    note: "The refund may take a few business days depending on your bank. If you still want to attend, check availability on the event page.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_ticket_transfer_offer: {
+    subject: (v) =>
+      `🎟️ A ticket is being passed to you${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-mail",
+    preview: "Someone is passing a ticket to you - accept it before the deadline.",
+    eyebrow: "Ticket transfer",
+    heading: "You are receiving an event ticket",
+    intro:
+      "A participant is passing their ticket to you. To accept it, enter your details and accept the terms before the deadline below.",
+    cta: "Accept the ticket",
+    note: "If you did not expect this e-mail, simply ignore it - without acceptance the ticket stays with its current holder.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_ticket_transfer_completed: {
+    subject: (v) =>
+      `Your ticket has been transferred${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "The ticket now belongs to someone else - your old code no longer works.",
+    eyebrow: "Ticket transfer",
+    heading: "Your ticket has been transferred",
+    intro:
+      "The ticket transfer is complete. The ticket now belongs to someone else, and the previous QR code and registration management link no longer work.",
+    cta: "Event page",
+    note: "If this transfer looks like a mistake, contact the organiser - contact details are on the event page.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_ticket_transfer_revoked: {
+    subject: (v) =>
+      `Ticket transfer cancelled${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "The ticket transfer was withdrawn or has expired.",
+    eyebrow: "Ticket transfer",
+    heading: "The ticket transfer did not go through",
+    intro:
+      "The ticket transfer was withdrawn by the sender or expired before it was accepted. The link from the previous e-mail no longer works.",
+    cta: "Event page",
+    note: "If you still want to attend the event, check the available tickets on the event page.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_survey_invite: {
+    subject: (v) => `📋 How was it?${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-mail",
+    preview: "Share your feedback on the event - the survey is open until the deadline.",
+    eyebrow: "Survey",
+    heading: "Tell us how it went",
+    intro:
+      "Thank you for taking part. Your feedback helps the organiser prepare future events - the survey takes a few minutes and is open until the deadline below.",
+    cta: "Take the survey",
+    note: "Answers may be anonymous - the organiser then sees aggregate results only. The survey can be completed only once.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_certificate_ready: {
+    subject: (v) =>
+      `🏅 Certificate of participation${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "Your certificate of participation is ready to download.",
+    eyebrow: "Certificate",
+    heading: "Your certificate of participation is ready",
+    intro:
+      "Thank you for attending the event. You can download your certificate of participation as a PDF - the button below takes you straight to it.",
+    cta: "Download certificate",
+    note: "The certificate carries a verification code so anyone can confirm it is valid. You can download it again at any time.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
 };
 
 const DICTS: Record<EmailLang, Dict> = { pl: PL, en: EN };
@@ -1047,6 +1397,45 @@ const DICTS: Record<EmailLang, Dict> = { pl: PL, en: EN };
  * polityka listy wykluczeń (kategoria per typ) i testy pokrycia.
  */
 export const TX_EMAIL_TYPES = Object.keys(PL) as readonly TxEmailType[];
+
+/**
+ * KONTRAKT WIERSZY SZCZEGÓŁÓW maili uczestnika (spec B.8, S34). Każdy mail
+ * pokazuje dokładnie te etykiety, w tej kolejności - wartości składa nadawca
+ * (tory A/B/C). Zmienne dane NIE wchodzą do akapitów (treść jest statyczna),
+ * więc wszystko, co odbiorca ma zobaczyć „o sobie", jedzie tutaj:
+ *   - `date` / `deadline`: `formatEventMoment` w strefie wydarzenia + etykieta strefy,
+ *   - `place`: lokalizacja albo „Online",
+ *   - `room`: pomijany, gdy sesja nie ma sali (jedyny wiersz opcjonalny),
+ *   - `sender` / `recipient`: WYŁĄCZNIE imię (nigdy e-mail ani nazwisko),
+ *   - `waitlistPosition`: pozycja liczona w chwili wysyłki.
+ * Adresy przycisków (z `tenantPublicUrl`): przypomnienie -> `/events/<slug>`,
+ * sesja -> `/events/<slug>/me?tab=schedule#event-session-<id>`, lista rezerwowa
+ * i oferta -> `/profile/tickets`, oferta wygasła -> `/events/<slug>/register`,
+ * zwrot / przekazanie zakończone / anulowane -> `/events/<slug>`, przekazanie ->
+ * `/tickets/transfer/<token>`, ankieta i certyfikat -> zakładka follow-up albo
+ * link gościa z tokenem we fragmencie.
+ */
+export const PARTICIPANT_TX_DETAIL_LABELS = {
+  event_reminder: ["event", "date", "place"],
+  event_session_reminder: ["event", "session", "date", "room"],
+  event_waitlist_joined: ["event", "ticketType", "waitlistPosition"],
+  event_waitlist_offer: ["event", "ticketType", "price", "deadline"],
+  event_waitlist_offer_expired: ["event", "ticketType"],
+  event_waitlist_offer_refunded: ["event", "price", "transaction"],
+  event_ticket_transfer_offer: ["event", "date", "ticketType", "sender", "deadline"],
+  event_ticket_transfer_completed: ["event", "recipient"],
+  event_ticket_transfer_revoked: ["event"],
+  event_survey_invite: ["event", "deadline"],
+  event_certificate_ready: ["event", "date"],
+} as const satisfies Record<ParticipantTxEmailType, readonly (keyof TxCopy["labels"])[]>;
+
+/** Etykieta wiersza szczegółów używana przez maile uczestnika. */
+export type ParticipantTxDetailLabel =
+  (typeof PARTICIPANT_TX_DETAIL_LABELS)[ParticipantTxEmailType][number];
+
+export function isParticipantTxEmailType(type: TxEmailType): type is ParticipantTxEmailType {
+  return (PARTICIPANT_TX_EMAIL_TYPES as readonly string[]).includes(type);
+}
 
 export function txCopy(type: TxEmailType, lang: EmailLang): TxCopy {
   return DICTS[lang][type];

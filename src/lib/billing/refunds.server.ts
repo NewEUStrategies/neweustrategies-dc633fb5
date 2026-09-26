@@ -378,7 +378,9 @@ async function pushRefundNotification(
       body_pl: "Dostęp powiązany ze zwróconą płatnością został zakończony.",
       body_en: "Access linked to the refunded payment has ended.",
       href: PROFILE_PLAN_PATH,
-      icon: "receipt",
+      // Ikona z listy kuratorskiej (`CURATED_ICON_NAMES`): `receipt` jej nie ma
+      // i ładował w przeglądarce leniwy rejestr ikon (109 KB) - spec B.7.
+      icon: "credit-card",
     });
   } catch (err) {
     console.error("[payments] refund notification failed", err);

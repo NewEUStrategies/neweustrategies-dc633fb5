@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   ALLOW_MESSAGES_FROM_LEVELS,
+  ALWAYS_ON_NOTIFICATION_KINDS,
   DEFAULT_NOTIFICATION_PREFERENCES,
   NOTIFICATION_KINDS,
   NOTIFICATION_KIND_GROUPS,
@@ -33,10 +34,18 @@ describe("NOTIFICATION_KIND_GROUPS", () => {
     expect(flat).toHaveLength(new Set(flat).size);
   });
 
-  it("nie wciąga rodzaju always-on (security) do przełączników", () => {
+  it("nie wciąga rodzajów always-on (security, billing) do przełączników", () => {
     for (const group of NOTIFICATION_KIND_GROUPS) {
-      expect(group.kinds).not.toContain("security");
+      for (const kind of ALWAYS_ON_NOTIFICATION_KINDS) expect(group.kinds).not.toContain(kind);
     }
+  });
+
+  it("grupa events (F1-F5) z ikoną kalendarza i jednym rodzajem event", () => {
+    expect(NOTIFICATION_KIND_GROUPS.at(-1)).toEqual({
+      id: "events",
+      icon: "CalendarClock",
+      kinds: ["event"],
+    });
   });
 
   it("każda grupa ma ikonę nagłówka i co najmniej jeden rodzaj", () => {
@@ -67,8 +76,10 @@ describe("TOGGLEABLE_NOTIFICATION_KINDS", () => {
       "crm_task",
       "subscription",
       "system",
+      "event",
     ]);
     expect(TOGGLEABLE_NOTIFICATION_KINDS).not.toContain("security");
+    expect(TOGGLEABLE_NOTIFICATION_KINDS).not.toContain("billing");
   });
 
   // Lista przełączników jest SPŁASZCZENIEM grup, nie drugą listą - inaczej
@@ -81,8 +92,13 @@ describe("TOGGLEABLE_NOTIFICATION_KINDS", () => {
 });
 
 describe("NOTIFICATION_KINDS", () => {
-  it("is the toggleable catalogue plus the always-on security kind", () => {
-    expect([...NOTIFICATION_KINDS]).toEqual([...TOGGLEABLE_NOTIFICATION_KINDS, "security"]);
+  it("is the toggleable catalogue plus the always-on security and billing kinds", () => {
+    expect([...NOTIFICATION_KINDS]).toEqual([
+      ...TOGGLEABLE_NOTIFICATION_KINDS,
+      "security",
+      "billing",
+    ]);
+    expect([...ALWAYS_ON_NOTIFICATION_KINDS]).toEqual(["security", "billing"]);
   });
 
   // Katalog UI musi pokrywać się z CHECK-iem `notifications_kind_check`
@@ -112,6 +128,10 @@ describe("NOTIFICATION_KINDS", () => {
       "meeting_booking",
       // 20260808094000 (etap A4 Klubu dyskusyjnego): rodzaj 'club'.
       "club",
+      // 20260926100200 (funkcje uczestnika F1-F5): 'event' (przełączalny)
+      // i 'billing' (zawsze doręczany).
+      "event",
+      "billing",
     ];
     expect([...NOTIFICATION_KINDS].sort()).toEqual([...dbKinds].sort());
   });
@@ -173,6 +193,17 @@ describe("isNotificationKindEnabled", () => {
     expect(isNotificationKindEnabled(prefs, "security")).toBe(true);
     const off = { ...prefs, enabled_security: false };
     expect(isNotificationKindEnabled(off, "security")).toBe(true);
+  });
+
+  it("always reports billing as enabled - it has no flag at all", () => {
+    expect(DEFAULT_NOTIFICATION_PREFERENCES).not.toHaveProperty("enabled_billing");
+    expect(isNotificationKindEnabled(prefs, "billing")).toBe(true);
+  });
+
+  it("gates event on enabled_event (default true)", () => {
+    expect(DEFAULT_NOTIFICATION_PREFERENCES.enabled_event).toBe(true);
+    expect(isNotificationKindEnabled({ ...prefs, enabled_event: false }, "event")).toBe(false);
+    expect(isNotificationKindEnabled(prefs, "event")).toBe(true);
   });
 });
 

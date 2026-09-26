@@ -101,6 +101,12 @@ export const PUBLIC_DOCUMENT_DENY_PREFIXES = [
   "/mcp",
   "/.well-known",
   "/_",
+  // Powierzchnie z POŚWIADCZENIEM w ścieżce (S26): link przekazania biletu
+  // (`/tickets/transfer/<token>`) i weryfikacja certyfikatu
+  // (`/certificates/<kod>`). Obie trasy są `ssr: false`, a ich dokument nie
+  // może trafić do wspólnego cache'u pod kluczem zawierającym sekret.
+  "/tickets",
+  "/certificates",
 ] as const;
 
 // Parametry trackingowe kampanii: nie wpływają na render SSR (loadery tras
@@ -113,6 +119,20 @@ const TRACKING_PARAMS = new Set(["fbclid", "gclid", "msclkid", "ref", "mc_cid", 
 // i dlatego wchodzą do klucza. Każdy inny nieznany parametr = BYPASS, żeby
 // śmieciowe query-stringi nie zaśmiecały przestrzeni kluczy (eviction-DoS).
 const KEYED_PARAMS = new Set(["page", "sort"]);
+
+// Parametry IGNOROWANE na konkretnych trasach: nie zmieniają dokumentu SSR,
+// więc wypadają z klucza zamiast wymuszać BYPASS. Panel „moje wydarzenie"
+// (`/events/<slug>/me?tab=…`) renderuje na serwerze ten sam szkielet dla
+// każdej zakładki - zakładkę wybiera klient po hydratacji, a dane osobowe
+// nigdy nie są w HTML-u (MIN-2). Bez tej reguły każde `?tab=` omijało cache.
+const ROUTE_IGNORED_PARAMS: ReadonlyArray<{ pattern: RegExp; params: ReadonlySet<string> }> = [
+  { pattern: /^\/(?:en\/)?events\/[^/]+\/me$/, params: new Set(["tab"]) },
+];
+
+function isRouteIgnoredParam(pathname: string, name: string): boolean {
+  const lower = name.toLowerCase();
+  return ROUTE_IGNORED_PARAMS.some((rule) => rule.pattern.test(pathname) && rule.params.has(lower));
+}
 
 /** Usuwa prefiks języka - PL żyje na gołej ścieżce, EN pod `/en`. */
 export function stripLangPrefix(pathname: string): string {
@@ -170,7 +190,7 @@ export function planDocumentCache(
 
   const kept: Array<[string, string]> = [];
   for (const [name, value] of url.searchParams.entries()) {
-    if (isTrackingParam(name)) continue;
+    if (isTrackingParam(name) || isRouteIgnoredParam(pathname, name)) continue;
     if (!KEYED_PARAMS.has(name.toLowerCase())) return { kind: "bypass", reason: "query" };
     kept.push([name.toLowerCase(), value]);
   }

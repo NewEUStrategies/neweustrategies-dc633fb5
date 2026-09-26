@@ -13,7 +13,16 @@ import * as React from "react";
 
 import type { EmailLang } from "@/lib/email-templates/nes-layout";
 import type { TxDetail } from "@/lib/email-templates/transactional";
-import { txCopy, txSubject, type TxEmailType } from "@/lib/email-templates/tx-copy";
+import {
+  PARTICIPANT_TX_DETAIL_LABELS,
+  PARTICIPANT_TX_EMAIL_TYPES,
+  isParticipantTxEmailType,
+  txCopy,
+  txSubject,
+  type ParticipantTxDetailLabel,
+  type ParticipantTxEmailType,
+  type TxEmailType,
+} from "@/lib/email-templates/tx-copy";
 import type { PolishGender } from "@/lib/i18n/polishVocative";
 import { txBody } from "@/lib/email-templates/tx-body";
 import {
@@ -57,6 +66,8 @@ export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "club_application_rejected",
   "club_application_more_info",
   "user_invitation",
+  // Funkcje uczestnika F1-F5 (spec B.8) - kolejność jak w `PARTICIPANT_TX_EMAIL_TYPES`.
+  ...PARTICIPANT_TX_EMAIL_TYPES,
 ] as const;
 
 export interface TxEmailPreview {
@@ -110,7 +121,77 @@ interface DemoData {
   ctaUrl: string;
 }
 
+/**
+ * Dane demonstracyjne maili uczestnika F1-F5 - JEDNA wartość na etykietę
+ * z kontraktu `PARTICIPANT_TX_DETAIL_LABELS`, w obu językach mapą (nie
+ * ternarym, patrz `DEMO_DECISION_NOTE`). Wiersze budujemy z kontraktu, więc
+ * podgląd nie może pokazać innego zestawu wierszy niż ten, który wysyłają tory.
+ */
+const DEMO_PARTICIPANT_VALUES: Record<EmailLang, Record<ParticipantTxDetailLabel, string>> = {
+  pl: {
+    event: "Europejski Briefing Strategiczny",
+    date: "29 lipca 2026, 18:00 (czas warszawski)",
+    place: "Warszawa / online",
+    session: "Panel: bezpieczeństwo energetyczne",
+    room: "Sala A, piętro 2",
+    ticketType: "Wejściówka standard",
+    waitlistPosition: "3",
+    price: "450,00 PLN",
+    deadline: "28 lipca 2026, 18:00 (czas warszawski)",
+    transaction: "pi_demo0participant0refund",
+    sender: "Anna",
+    recipient: "Jan",
+  },
+  en: {
+    event: "European Strategic Briefing",
+    date: "29 July 2026, 18:00 (Warsaw time)",
+    place: "Warsaw / online",
+    session: "Panel: energy security",
+    room: "Room A, 2nd floor",
+    ticketType: "Standard pass",
+    waitlistPosition: "3",
+    price: "PLN 450.00",
+    deadline: "28 July 2026, 18:00 (Warsaw time)",
+    transaction: "pi_demo0participant0refund",
+    sender: "Anna",
+    recipient: "Jan",
+  },
+};
+
+/** Token przekazania w kształcie `_event_new_qr_token()` - wyłącznie do podglądu. */
+const DEMO_TRANSFER_TOKEN = "Nes2026DemoTransferToken01234567";
+
+/** Ścieżki przycisków maili uczestnika (kontrakt z komentarza `PARTICIPANT_TX_DETAIL_LABELS`). */
+const DEMO_PARTICIPANT_PATHS: Record<ParticipantTxEmailType, string> = {
+  event_reminder: "/events/demo",
+  event_session_reminder: "/events/demo/me?tab=schedule#event-session-demo",
+  event_waitlist_joined: "/profile/tickets",
+  event_waitlist_offer: "/profile/tickets",
+  event_waitlist_offer_expired: "/events/demo/register",
+  event_waitlist_offer_refunded: "/events/demo",
+  event_ticket_transfer_offer: `/tickets/transfer/${DEMO_TRANSFER_TOKEN}`,
+  event_ticket_transfer_completed: "/events/demo",
+  event_ticket_transfer_revoked: "/events/demo",
+  event_survey_invite: "/events/demo/me?tab=follow-up",
+  event_certificate_ready: "/events/demo/me?tab=follow-up",
+};
+
+/** Podgląd maila uczestnika: wiersze wprost z kontraktu etykiet. */
+export function participantDemoData(type: ParticipantTxEmailType, lang: EmailLang): DemoData {
+  const labels = txCopy(type, lang).labels;
+  const values = DEMO_PARTICIPANT_VALUES[lang];
+  return {
+    subjectName: values.event,
+    details: PARTICIPANT_TX_DETAIL_LABELS[type].map((key) => ({
+      label: labels[key],
+      value: values[key],
+    })),
+    ctaUrl: `${SITE_URL}${DEMO_PARTICIPANT_PATHS[type]}`,
+  };
+}
+
 function demoData(type: TxEmailType, lang: EmailLang): DemoData {
+  if (isParticipantTxEmailType(type)) return participantDemoData(type, lang);
   const c = txCopy(type, lang);
   const l = c.labels;
   const plan = "Professional";

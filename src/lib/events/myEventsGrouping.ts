@@ -7,6 +7,7 @@
 //
 // BRAK DATY = NADCHODZĄCE. Wydarzenie bez ustalonego terminu jeszcze się nie
 // odbyło; wrzucenie go do archiwum ukryłoby aktywny zapis.
+import { eventEffectiveEndMs } from "@/lib/events/effectiveEnd";
 import type { ParticipantRegistration } from "@/lib/events/participantTicketsApi";
 
 export type MyEventsBucket = "upcoming" | "current" | "past";
@@ -14,17 +15,15 @@ export type MyEventsBucket = "upcoming" | "current" | "past";
 /**
  * TRWA = start już minął, a koniec jeszcze nie. Wydarzenie bez daty końca
  * traktujemy jak jednodniowe (doba od startu) - inaczej każdy miniony wpis bez
- * `ends_at` zostałby na zawsze „w trakcie".
+ * `ends_at` zostałby na zawsze „w trakcie". Reguła końca jest wspólna z SQL
+ * (`_event_effective_end`) i mieszka w `effectiveEnd.ts`.
  */
-const DEFAULT_DURATION_MS = 24 * 60 * 60 * 1000;
-
 export function bucketOf(item: ParticipantRegistration, now: Date): MyEventsBucket {
   if (item.eventStartsAt === null) return "upcoming";
   const start = Date.parse(item.eventStartsAt);
   if (Number.isNaN(start)) return "upcoming";
   if (start >= now.getTime()) return "upcoming";
-  const endRaw = item.eventEndsAt === null ? Number.NaN : Date.parse(item.eventEndsAt);
-  const end = Number.isNaN(endRaw) ? start + DEFAULT_DURATION_MS : endRaw;
+  const end = eventEffectiveEndMs(start, item.eventEndsAt);
   return end >= now.getTime() ? "current" : "past";
 }
 

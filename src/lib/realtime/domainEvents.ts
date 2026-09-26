@@ -116,6 +116,25 @@ export const DOMAIN_EVENT_TYPES = [
   // `event_participant_settings`, identyfikatorem - id wydarzenia; payload
   // `{event_id, keys}` niesie wylacznie identyfikator i nazwy zmienionych pol.
   "event.participant_settings.updated.v1",
+  // Tor B (F4 oferty z listy rezerwowej, F3 przekazanie i zwrot samoobslugowy).
+  // Agregatem jest ZGLOSZENIE (`event_registration`), payload niesie
+  // `event_id` i identyfikatory oferty/przekazania/prosby o zwrot - nigdy
+  // adresu e-mail, imienia ani tokenu przekazania.
+  "event.registration.offered.v1",
+  "event.registration.offer_closed.v1",
+  "event.registration.transfer_requested.v1",
+  "event.registration.transfer_cancelled.v1",
+  "event.registration.transferred.v1",
+  "event.registration.refund_requested.v1",
+  "event.registration.refund_failed.v1",
+  // Tor C (F5): certyfikat (agregat `event_certificate`, id certyfikatu)
+  // i ankieta (agregat `event_survey`, id = ID WYDARZENIA - zawsze, takze
+  // przy odpowiedzi imiennej, zeby strumien nie zdradzal, kto odpowiedzial;
+  // aktor NULL przy ankiecie anonimowej).
+  "event.certificate.issued.v1",
+  "event.certificate.revoked.v1",
+  "event.survey.submitted.v1",
+  "event.survey.questions_changed.v1",
 ] as const;
 
 export type DomainEventType = (typeof DOMAIN_EVENT_TYPES)[number];
@@ -166,6 +185,8 @@ export const DOMAIN_AGGREGATE_TYPES = [
   "event_sponsor",
   "event_registration",
   "event_participant_settings",
+  "event_certificate",
+  "event_survey",
 ] as const;
 
 export type DomainAggregateType = (typeof DOMAIN_AGGREGATE_TYPES)[number];

@@ -147,6 +147,24 @@ export const TX_EMAIL_CATEGORY: Readonly<Record<TxEmailType, EmailCategory>> = {
   club_application_rejected: "transactional",
   club_application_more_info: "transactional",
   newsletter_confirmed: "bulk",
+  // Funkcje uczestnika F1-F5 (spec B.8). Przypomnienia, oferty miejsc z listy
+  // rezerwowej, przekazanie biletu, zwrot po zajęciu miejsca i gotowy
+  // certyfikat są skutkiem WŁASNEGO działania odbiorcy (zapis, płatność,
+  // przekazanie) i niosą termin albo informację o pieniądzach - poczta 1:1.
+  event_reminder: "transactional",
+  event_session_reminder: "transactional",
+  event_waitlist_joined: "transactional",
+  event_waitlist_offer: "transactional",
+  event_waitlist_offer_expired: "transactional",
+  event_waitlist_offer_refunded: "transactional",
+  event_ticket_transfer_offer: "transactional",
+  event_ticket_transfer_completed: "transactional",
+  event_ticket_transfer_revoked: "transactional",
+  // Zaproszenie do ankiety to prośba o opinię, nie informacja o dostępie -
+  // wypis z wysyłek masowych MA je zatrzymać (bulk), a tor C sprawdza listę
+  // wykluczeń PRZED wydaniem tokenu gościa.
+  event_survey_invite: "bulk",
+  event_certificate_ready: "transactional",
 };
 
 export function txEmailCategory(type: TxEmailType): EmailCategory {

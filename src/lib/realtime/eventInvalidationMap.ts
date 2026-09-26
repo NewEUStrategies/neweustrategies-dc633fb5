@@ -215,6 +215,34 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   // wydarzenia i publiczne flagi `event_participant_options` (wszystkie slugi -
   // payload niesie id wydarzenia, nie slug).
   "event.participant_settings.updated.v1": (event) => participantSettingsEventKeys(event),
+
+  // Tor B: oferty z listy rezerwowej, przekazanie biletu, zwrot samoobsługowy.
+  // Te same trzy powierzchnie co zwykłe zgłoszenie + znaczniki pieniędzy
+  // w panelu organizatora. Przekazanie zmienia też panel „moje wydarzenie"
+  // (plan, zapisy na sesje, certyfikat) - dotychczasowy posiadacz traci go,
+  // nowy zyskuje, a klucz uczestnika jest po slugu, którego payload nie niesie.
+  "event.registration.offered.v1": (event) => registrationMoneyEventKeys(event),
+  "event.registration.offer_closed.v1": (event) => registrationMoneyEventKeys(event),
+  "event.registration.transfer_requested.v1": (event) => registrationMoneyEventKeys(event),
+  "event.registration.transfer_cancelled.v1": (event) => registrationMoneyEventKeys(event),
+  "event.registration.transferred.v1": (event) => [
+    ...registrationMoneyEventKeys(event),
+    ["event-me"],
+  ],
+  "event.registration.refund_requested.v1": (event) => registrationMoneyEventKeys(event),
+  "event.registration.refund_failed.v1": (event) => registrationMoneyEventKeys(event),
+
+  // Tor C: certyfikaty i ankieta po wydarzeniu.
+  "event.certificate.issued.v1": (event) => certificateEventKeys(event),
+  "event.certificate.revoked.v1": (event) => certificateEventKeys(event),
+  "event.survey.submitted.v1": (event) => [
+    eventScopedKey("admin-event-survey-results", event),
+    eventScopedKey("admin-event-follow-up-stats", event),
+  ],
+  "event.survey.questions_changed.v1": (event) => [
+    eventScopedKey("admin-event-survey-questions", event),
+    ["event-follow-up"],
+  ],
 };
 
 // KLUCZE JAKO LITERALY, NIE IMPORT FABRYK. Fabryki (`meetingKeys`,
@@ -365,6 +393,26 @@ function participantSettingsEventKeys(event: DomainEventRow): QueryKey[] {
       : ["admin-event-participant-settings", eventId],
     ["event-participant-options"],
   ];
+}
+
+/**
+ * Klucz panelu jednego wydarzenia (`[prefiks, event_id]`); brak `event_id`
+ * w payloadzie (uszkodzony wiersz, starszy backend) degraduje do CAŁEGO
+ * prefiksu - szersza inwalidacja jest tańsza niż nieaktualny panel.
+ */
+function eventScopedKey(prefix: string, event: DomainEventRow): QueryKey {
+  const eventId = eventPayloadText(event, "event_id");
+  return eventId === "" ? [prefix] : [prefix, eventId];
+}
+
+/** Zgłoszenie + znaczniki pieniędzy (oferta, przekazanie, zwrot) w panelu organizatora. */
+function registrationMoneyEventKeys(event: DomainEventRow): QueryKey[] {
+  return [...registrationEventKeys(event), eventScopedKey("admin-event-registration-money", event)];
+}
+
+/** Certyfikat: lista w panelu organizatora i panel follow-up uczestnika (po slugu - cała gałąź). */
+function certificateEventKeys(event: DomainEventRow): QueryKey[] {
+  return [eventScopedKey("admin-event-certificates", event), ["event-follow-up"]];
 }
 
 const eventKeysList: QueryKey[] = [

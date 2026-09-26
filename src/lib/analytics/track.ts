@@ -15,6 +15,7 @@
 import { sendBeaconPayload } from "@/lib/observability/report";
 import { hasAnalyticsConsent } from "@/lib/ads/consent";
 import { ga4Event, ga4PageView } from "./ga4Client";
+import { redactTrackedHref, redactTrackedPath } from "./redactTrackedUrl";
 import { ga4EventName, ga4EventParams } from "./ga4EventMap";
 
 export interface AnalyticsEventInput {
@@ -99,9 +100,14 @@ function readAnonId(): string {
   }
 }
 
+/**
+ * Bieżąca ścieżka BEZ poświadczeń: segment tokenu przekazania biletu,
+ * certyfikatu czy kalendarza oraz parametry `token`/`t`/`code` są maskowane
+ * (`redactTrackedPath`) - ta sama wartość idzie do naszej tabeli i do GA4.
+ */
 function currentPath(): string {
   if (typeof location === "undefined") return "";
-  return `${location.pathname}${location.search || ""}`;
+  return redactTrackedPath(`${location.pathname}${location.search || ""}`);
 }
 
 function currentLang(): string {
@@ -190,7 +196,10 @@ export function track(input: AnalyticsEventInput): void {
     entity_id: input.entityId ?? null,
     meta: input.meta ?? {},
     path: input.path ?? currentPath(),
-    referrer: typeof document !== "undefined" ? document.referrer || "" : "",
+    referrer:
+      typeof document !== "undefined" && document.referrer
+        ? redactTrackedHref(document.referrer)
+        : "",
     session_id: readSession(),
     anon_id: readAnonId(),
     lang: currentLang(),

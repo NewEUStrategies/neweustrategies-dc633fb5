@@ -174,18 +174,22 @@ async function pushBell(
   if (!contact.userId || !tenantId) return;
   const titles = BELL_TITLES[outcome];
   try {
+    // Przez `enqueue_notification`, nie surowym INSERT-em (D0-3): funkcja
+    // bazowa bierze najemcę z PROFILU odbiorcy (nie z wydarzenia), pilnuje
+    // deduplikacji i wysyła push. Rodzaj `billing` jest zawsze doręczany.
+    // Ikona z listy kuratorskiej - `receipt` jej nie ma (leniwy rejestr 109 KB).
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await supabaseAdmin.from("notifications").insert({
-      user_id: contact.userId,
-      tenant_id: tenantId,
-      kind: "billing",
-      title_pl: titles.pl,
-      title_en: titles.en,
-      body_pl: eventTitle(payload, "pl"),
-      body_en: eventTitle(payload, "en"),
-      href: payload.event_slug ? `/events/${payload.event_slug}` : "/profile/tickets",
-      icon: "receipt",
+    const { error } = await supabaseAdmin.rpc("enqueue_notification", {
+      p_user_id: contact.userId,
+      p_kind: "billing",
+      p_title_pl: titles.pl,
+      p_title_en: titles.en,
+      p_body_pl: eventTitle(payload, "pl"),
+      p_body_en: eventTitle(payload, "en"),
+      p_href: payload.event_slug ? `/events/${payload.event_slug}` : "/profile/tickets",
+      p_icon: "credit-card",
     });
+    if (error) console.error("[events] ticket outcome bell failed", { error });
   } catch (err) {
     console.error("[events] ticket outcome bell failed", err);
   }

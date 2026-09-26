@@ -96,6 +96,9 @@ import type { SupabaseFromStub, SupabaseResult, SupabaseRpcStub } from "@/test/s
 // wylądował w polu X" jest dowodem, a nie zgadywaniem po kształcie.
 const fixtures = vi.hoisted(() => ({
   newsletter: { fired: 1, continued: 2, sent: 3 },
+  eventParticipantReminders: { claimed: 3, sent: 2, skipped: 1, failed: 0, note: "a" },
+  eventTicketLifecycle: { claimed: 4, sent: 3, skipped: 0, failed: 1, note: "b" },
+  eventFollowUp: { claimed: 5, sent: 5, skipped: 0, failed: 0, note: "c" },
   drain: { sent: 11, failed: 1, suppressed: 2, dlq: 0, duplicates: 3, stopped: null },
   push: { claimed: 9, sent: 8 },
   digestDaily: { claimed: 4, sent: 4 },
@@ -216,6 +219,22 @@ vi.mock("@/lib/integrations/dispatch.functions", () => ({
     jobs.run("integrations", [limit], fixtures.integrations),
 }));
 
+// Zadania funkcji uczestnika F1-F5 (spec B.10) - też `await import(...)`.
+// Każde ma własny test w swoim torze (A/B/C); tu dowodzimy wyłącznie tego,
+// że dyspozytor woła je w swoim miejscu, z klientem i wspólnym deadline'em.
+vi.mock("@/lib/events/jobs/reminderJob.server", () => ({
+  runEventParticipantReminders: (admin: unknown, opts: unknown) =>
+    jobs.run("eventParticipantReminders", [admin, opts], fixtures.eventParticipantReminders),
+}));
+vi.mock("@/lib/events/jobs/ticketLifecycleJob.server", () => ({
+  runEventTicketLifecycle: (admin: unknown, opts: unknown) =>
+    jobs.run("eventTicketLifecycle", [admin, opts], fixtures.eventTicketLifecycle),
+}));
+vi.mock("@/lib/events/jobs/followUpJob.server", () => ({
+  runEventFollowUp: (admin: unknown, opts: unknown) =>
+    jobs.run("eventFollowUp", [admin, opts], fixtures.eventFollowUp),
+}));
+
 vi.mock("@/lib/server/embeddings.server", () => ({
   runSemanticIndexBatch: (admin: unknown, batch: number) =>
     jobs.run("semanticIndex", [admin, batch], fixtures.semanticIndex),
@@ -226,7 +245,12 @@ vi.mock("@/lib/server/embeddings.server", () => ({
 }));
 
 import { fail, ok, supabaseFromStub, supabaseRpcStub } from "@/test/supabase";
-import { runJobsTick, type JobsTickMeta, type JobsTickResult } from "../jobsTick.server";
+import {
+  PARTICIPANT_JOBS_DEADLINE_MS,
+  runJobsTick,
+  type JobsTickMeta,
+  type JobsTickResult,
+} from "../jobsTick.server";
 
 // --- atrapa klienta service role --------------------------------------------
 
@@ -260,6 +284,11 @@ function adminClient(from: SupabaseFromStub, rpc: SupabaseRpcStub): SupabaseClie
  */
 const FULL_ORDER = [
   "newsletter",
+  // Zadania uczestnika F1-F5 PRZED drenem poczty: kolejkują maile, które dren
+  // wysyła w tym samym ticku (spec B.10).
+  "eventParticipantReminders",
+  "eventTicketLifecycle",
+  "eventFollowUp",
   "emailQueue",
   "push",
   "digestDaily",
@@ -277,6 +306,9 @@ const FULL_ORDER = [
 /** Joby, które MUSZĄ się wykonać, dopóki tick ma budżet: poczta i przypomnienia. */
 const CRITICAL_SENDS = [
   "newsletter",
+  "eventParticipantReminders",
+  "eventTicketLifecycle",
+  "eventFollowUp",
   "emailQueue",
   "push",
   "digestDaily",
@@ -301,6 +333,9 @@ const FIFTEEN_MINUTE_JOBS = ["linkCheck", "profileIndex", "clubThreadIndex"] as 
 /** Joby biegnące w KAŻDYM ticku - bez bramki cyklu pracy. */
 const EVERY_MINUTE_JOBS = [
   "newsletter",
+  "eventParticipantReminders",
+  "eventTicketLifecycle",
+  "eventFollowUp",
   "emailQueue",
   "push",
   "eventReminders",
@@ -365,6 +400,11 @@ function slot(result: JobsTickResult, key: string): unknown {
   return (result as unknown as Record<string, unknown>)[key];
 }
 
+/** Joby po `push` w pełnej kolejności - te, które pomija budżet wyczerpany na push. */
+const AFTER_PUSH = FULL_ORDER.slice(FULL_ORDER.indexOf("push") + 1);
+/** Joby do `push` włącznie - te, które zdążą przed wyczerpaniem budżetu na push. */
+const UP_TO_PUSH = FULL_ORDER.slice(0, FULL_ORDER.indexOf("push") + 1);
+
 /** Pozycja joba w liście wywołań (-1, gdy nie był wołany). */
 function orderOf(step: string): number {
   return jobs.steps().indexOf(step);
@@ -405,7 +445,7 @@ afterEach(() => {
 // KOLEJNOŚĆ JOBÓW
 // ===========================================================================
 describe("kolejność jobów jest kontraktem, nie kosmetyką", () => {
-  it("pełny tick (minuta 0) wykonuje trzynaście jobów w przypiętej kolejności", async () => {
+  it("pełny tick (minuta 0) wykonuje szesnaście jobów w przypiętej kolejności", async () => {
     // Minuta 0 otwiera WSZYSTKIE bramki (0 % 5 = 0 % 15 = 0 % 60 = 0), więc
     // to jedyny moment, w którym kolejność da się przypiąć w całości.
     await tickAt(0);
@@ -425,10 +465,27 @@ describe("kolejność jobów jest kontraktem, nie kosmetyką", () => {
     expect(lastSend).toBeLessThan(firstCostly);
   });
 
-  it("newsletter i dren poczty są PIERWSZE - link do logowania starzeje się najszybciej", async () => {
+  it("newsletter, zadania uczestnika i dren poczty są PIERWSZE - link do logowania starzeje się najszybciej", async () => {
     await tickAt(0);
 
-    expect(jobs.steps().slice(0, 3)).toEqual(["newsletter", "emailQueue", "push"]);
+    expect(jobs.steps().slice(0, 6)).toEqual([
+      "newsletter",
+      "eventParticipantReminders",
+      "eventTicketLifecycle",
+      "eventFollowUp",
+      "emailQueue",
+      "push",
+    ]);
+  });
+
+  it("zadania uczestnika dostają klienta i WSPÓLNY deadline 6 s od startu ticku", async () => {
+    await tickAt(0);
+
+    expect(PARTICIPANT_JOBS_DEADLINE_MS).toBe(6_000);
+    for (const step of ["eventParticipantReminders", "eventTicketLifecycle", "eventFollowUp"]) {
+      expect(jobs.argsOf(step)).toEqual([admin, { deadlineAt: at(0).getTime() + 6_000 }]);
+      expect(jobs.argsOf(step)?.[0]).toBe(admin);
+    }
   });
 
   it("wynik każdego joba ląduje w SWOIM polu wyniku", async () => {
@@ -439,6 +496,9 @@ describe("kolejność jobów jest kontraktem, nie kosmetyką", () => {
 
     expect(result).toEqual({
       newsletter: fixtures.newsletter,
+      eventParticipantReminders: fixtures.eventParticipantReminders,
+      eventTicketLifecycle: fixtures.eventTicketLifecycle,
+      eventFollowUp: fixtures.eventFollowUp,
       emailQueue: fixtures.drain,
       push: fixtures.push,
       digestDaily: fixtures.digestDaily,
@@ -462,6 +522,9 @@ describe("kolejność jobów jest kontraktem, nie kosmetyką", () => {
 
     for (const step of [
       "newsletter",
+      "eventParticipantReminders",
+      "eventTicketLifecycle",
+      "eventFollowUp",
       "emailQueue",
       "linkCheck",
       "semanticIndex",
@@ -570,8 +633,8 @@ describe("budżet czasu jednego ticku", () => {
 
     const result = await tickAt(0);
 
-    expect(jobs.steps()).toEqual(["newsletter", "emailQueue", "push"]);
-    for (const key of FULL_ORDER.slice(3)) {
+    expect(jobs.steps()).toEqual([...UP_TO_PUSH]);
+    for (const key of AFTER_PUSH) {
       expect(slot(result, key)).toEqual({ error: "skipped_time_budget" });
     }
   });
@@ -587,7 +650,7 @@ describe("budżet czasu jednego ticku", () => {
 
     // Minuta 0 otwiera wszystkie bramki, więc KAŻDE pominięcie tutaj musi być
     // budżetowe - żadne nie może udawać rytmu.
-    for (const key of FULL_ORDER.slice(3)) {
+    for (const key of AFTER_PUSH) {
       expect(jobError(slot(result, key))).toBe("skipped_time_budget");
     }
   });
@@ -612,7 +675,7 @@ describe("budżet czasu jednego ticku", () => {
     expect(jobError(result.digestDaily)).toBe("skipped_time_budget");
   });
 
-  it("wyczerpanie budżetu na PIERWSZYM jobie pomija dwanaście pozostałych", async () => {
+  it("wyczerpanie budżetu na PIERWSZYM jobie pomija piętnaście pozostałych", async () => {
     slowJob("newsletter", 30_000);
 
     const result = await tickAt(0);
@@ -665,6 +728,48 @@ describe("dren kolejek pocztowych ma własny budżet (EMAIL_DRAIN_DEADLINE_MS = 
     // przez zachowanie, nie przez odczyt stałej), a dren kończy na 10 000.
     expect(Number(deadlineAt) - at(0).getTime()).toBe(10_000);
     expect(25_000 - (Number(deadlineAt) - at(0).getTime())).toBe(15_000);
+  });
+
+  // Spec B.10: zadania uczestnika biegną PRZED drenem i mogą zjeść swoje 6 s.
+  // Dren i tak dostaje co najmniej 4 s OD TERAZ - inaczej startowałby
+  // z deadline'em w przeszłości i nie wysłał nawet maili, które te zadania
+  // właśnie zakolejkowały.
+  it("po wolnych zadaniach uczestnika dren dostaje co najmniej 4 s od teraz", async () => {
+    slowJob("eventFollowUp", 8_000);
+
+    await tickAt(0);
+
+    expect(jobs.argsOf("emailQueue")?.[1]).toEqual({
+      maxMessages: 60,
+      deadlineAt: at(0).getTime() + 8_000 + 4_000,
+    });
+  });
+
+  it("GRANICA: dopóki teraz + 4 s mieści się w 10 s, obowiązuje deadline absolutny", async () => {
+    slowJob("eventFollowUp", 6_000);
+
+    await tickAt(0);
+
+    expect(jobs.argsOf("emailQueue")?.[1]).toEqual({
+      maxMessages: 60,
+      deadlineAt: at(0).getTime() + 10_000,
+    });
+  });
+
+  it("awaria zadania uczestnika nie zabiera pozostałych ani drenu poczty", async () => {
+    jobs.failures.set("eventTicketLifecycle", "lifecycle: brak grantu");
+
+    const result = await tickAt(0);
+
+    expect(result.eventTicketLifecycle).toEqual({ error: "lifecycle: brak grantu" });
+    expect(result.eventParticipantReminders).toEqual(fixtures.eventParticipantReminders);
+    expect(result.eventFollowUp).toEqual(fixtures.eventFollowUp);
+    expect(result.emailQueue).toEqual(fixtures.drain);
+    expect(jobs.steps()).toEqual([...FULL_ORDER]);
+    expect(lastRun()).toMatchObject({
+      ok: false,
+      error: "eventTicketLifecycle: lifecycle: brak grantu",
+    });
   });
 
   it("GRANICA DOWODU: honorowanie deadline'u należy do drenu, nie do dyspozytora", async () => {
