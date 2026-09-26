@@ -47,6 +47,7 @@ import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { eventModuleLabelKey, eventModuleOf } from "@/lib/events/eventModules";
 import { useEventMenu } from "@/lib/events/usePublicEvent";
 import { EventPageLink } from "@/components/events/public/atoms/EventPageLink";
+import { EventCfpTabItem } from "@/components/events/cfp/molecules/EventCfpTabItem";
 import {
   EventTabsBar,
   EVENT_TAB_ACTIVE_CLASS,
@@ -105,6 +106,16 @@ export function EventTabsNav({ slug, enabled = true }: { slug: string; enabled?:
           </EventPageLink>
         </li>
       ))}
+      {/* Nabór prelegentów: pozycja tylko przy otwartym naborze i tylko po
+          montażu (faza z bazy, bez rozjazdu hydratacji) - `EventCfpTabItem`. */}
+      {enabled && (
+        <EventCfpTabItem
+          slug={slug}
+          className={EVENT_TAB_CLASS}
+          activeClassName={EVENT_TAB_ACTIVE_CLASS}
+          inactiveClassName={EVENT_TAB_INACTIVE_CLASS}
+        />
+      )}
       {/* „Moje" NIE JEST podstroną organizatora, więc nie ma jej w `event_menu`
           i nie może mieć: to prywatna płaszczyzna wołającego (profil,
           networking, rejestracja). Gość jej nie widzi, bo nie miałby w niej

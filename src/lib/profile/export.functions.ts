@@ -84,6 +84,26 @@ export const exportMyData = createServerFn({ method: "POST" })
         return { data: rows, error: null };
       });
 
+    // Nabór prelegentów wydarzeń: tabele naboru mają wyłącznie polityki odczytu
+    // dla administratora, więc `.from("event_cfp_*")` oddałoby tu pustkę
+    // wyglądającą jak „nie korzystam". Ten sam wzorzec co kluby: jedno
+    // SECURITY DEFINER RPC wołającego, rozbite na zadeklarowane sekcje.
+    // Notatka decyzji i cudze oceny zostają po stronie bazy
+    // (manifest.excluded.event_cfp_assessments).
+    const cfpExport = Promise.resolve(
+      supabase.rpc("event_cfp_export_my_data", { p_limit: ROW_LIMIT }),
+    );
+    const cfpSection = (key: string): PromiseLike<SectionResult> =>
+      cfpExport.then((result) => {
+        if (result.error) return { data: null, error: result.error };
+        const payload = result.data;
+        const rows =
+          payload !== null && typeof payload === "object" && !Array.isArray(payload)
+            ? (payload[key] ?? [])
+            : [];
+        return { data: rows, error: null };
+      });
+
     // Kolumny jawnie, bez "*": eksport ma być stabilnym kontraktem, nie
     // przypadkowym zrzutem schematu (i nie może się wywrócić na kolumnie
     // odciętej grantem).
@@ -324,6 +344,16 @@ export const exportMyData = createServerFn({ method: "POST" })
       club_reactions: clubSection("club_reactions"),
       club_thread_subscriptions: clubSection("club_thread_subscriptions"),
       club_invitations_received: clubSection("club_invitations_received"),
+
+      // ── Nabór prelegentów wydarzeń ───────────────────────────────────────
+      // Zgłoszenia (własne i te, w których osoba jest wpisana jako prelegent),
+      // materiały prelegenta, role recenzenta i WŁASNE oceny recenzenta.
+      // Współprelegenci tylko imieniem, nazwiskiem i rolą - patrz
+      // manifest.excluded.event_cfp_assessments.
+      event_cfp_submissions: cfpSection("event_cfp_submissions"),
+      event_speaker_materials: cfpSection("event_speaker_materials"),
+      event_cfp_reviewer_roles: cfpSection("event_cfp_reviewer_roles"),
+      event_cfp_reviews_written: cfpSection("event_cfp_reviews_written"),
 
       // ── Płatności i uprawnienia zakupowe ─────────────────────────────────
       orders: supabase

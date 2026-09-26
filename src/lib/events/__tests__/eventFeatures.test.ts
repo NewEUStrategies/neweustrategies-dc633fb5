@@ -75,6 +75,16 @@ describe("odczyt przelacznikow z kolumny jsonb", () => {
     expect(eventFeaturesFromJson(null).meetings).toBe(true);
   });
 
+  it("nowe moduly `cfp` i `seating` czytaja sie z kolumny jak pozostale", () => {
+    // Wydarzenie zapisane przed ich powstaniem nie ma tych kluczy - i ma je
+    // widziec WLACZONE.
+    expect(eventFeaturesFromJson({ meetings: false }).cfp).toBe(true);
+    expect(eventFeaturesFromJson({ meetings: false }).seating).toBe(true);
+    expect(eventFeaturesFromJson({ cfp: false, seating: false })).toEqual(
+      features(["cfp", "seating"]),
+    );
+  });
+
   it("klucz spoza bialej listy jest ignorowany, tak jak w RPC", () => {
     const draft = eventFeaturesFromJson({ meetings: false, wystawcy: false });
     expect(Object.keys(draft).sort()).toEqual([...EVENT_FEATURE_KEYS].sort());
@@ -91,7 +101,7 @@ describe("payload i to, co z niego trafia do kolumny", () => {
     expect(eventFeaturesStored(features())).toEqual({});
   });
 
-  it("PAYLOAD niesie komplet siedmiu kluczy, zeby dalo sie modul WLACZYC", () => {
+  it("PAYLOAD niesie komplet kluczy, zeby dalo sie modul WLACZYC", () => {
     // Klucz pominiety w payloadzie zachowuje dzisiejszy stan (tak stanowi RPC),
     // wiec payload z samych `false` nie odkrecilby zadnego wylaczenia: zapis
     // wyslalby `{}`, baza nie zmienilaby niczego, a przelacznik wracalby na
@@ -114,7 +124,7 @@ describe("payload i to, co z niego trafia do kolumny", () => {
 });
 
 describe("wykrywanie zmiany", () => {
-  it("reaguje na przelaczenie kazdego z siedmiu modulow", () => {
+  it("reaguje na przelaczenie kazdego modulu", () => {
     for (const key of EVENT_FEATURE_KEYS) {
       expect(eventFeaturesDirty(features(), features([key]))).toBe(true);
     }
@@ -182,9 +192,34 @@ describe("mapowanie funkcji na sekcje studia", () => {
     expect(hiddenStudioSections(features(["sessions"])).has("contentSpeakers")).toBe(true);
     expect(hiddenStudioSections(features(["meetings"])).has("meetingsStats")).toBe(true);
     expect(hiddenStudioSections(features(["onsite"])).has("onsiteBadges")).toBe(true);
-    // A „Strony i menu" oraz „Sponsorzy" sa pozycjami samodzielnymi.
+    // A „Strony i menu" sa pozycja samodzielna.
     expect([...hiddenStudioSections(features(["pages"]))]).toEqual(["pages"]);
-    expect([...hiddenStudioSections(features(["sponsors"]))]).toEqual(["sponsors"]);
+  });
+
+  it("„Sponsorzy” chowaja pozycje w kreatorze ORAZ raport sponsora - i nic poza nimi", () => {
+    // Dwa miejsca w sidebarze bez wspolnej grupy. Wylaczony sponsoring, ktory
+    // zostawia raport o sponsorach, klamie tak samo jak przelacznik bez skutku.
+    expect([...hiddenStudioSections(features(["sponsors"]))]).toEqual([
+      "sponsors",
+      "sponsorReport",
+    ]);
+    expect(eventFeatureHidingSection(features(["sponsors"]), "sponsorReport")).toBe("sponsors");
+    // Lejek reklam stoi obok, ale sponsoringiem nie jest.
+    expect(hiddenStudioSections(features(["sponsors"])).has("adsFunnel")).toBe(false);
+  });
+
+  it("„Nabór prelegentów” chowa CALA grupe `cfp`, a „Plan sali” jeden ekran rejestracji", () => {
+    expect([...hiddenStudioSections(features(["cfp"]))]).toEqual([
+      "cfpSettings",
+      "cfpForm",
+      "cfpSubmissions",
+      "cfpReviewers",
+    ]);
+    // Plan sali wylaczony, zapisy dalej dzialaja - wydarzenie bez numerowanych miejsc.
+    expect([...hiddenStudioSections(features(["seating"]))]).toEqual(["registrationSeating"]);
+    // Wylaczona rejestracja zabiera plan sali razem z cala grupa.
+    expect(hiddenStudioSections(features(["registration"])).has("registrationSeating")).toBe(true);
+    expect(hiddenStudioSections(features(["registration"])).has("registrationInvoices")).toBe(true);
   });
 
   it("ekran ukrytej sekcji wie, KTORY modul go chowa", () => {
@@ -201,6 +236,10 @@ describe("mapowanie funkcji na sekcje studia", () => {
     // cala „Rejestracja" jest wylaczona - i to ten modul ma byc nazwany.
     const draft = features(["registration", "tickets"]);
     expect(eventFeatureHidingSection(draft, "registrationTickets")).toBe("registration");
+    // To samo dla planu sali: kolejnosc kluczy jest priorytetem wyjasnienia.
+    const seatingDraft = features(["seating", "registration"]);
+    expect(eventFeatureHidingSection(seatingDraft, "registrationSeating")).toBe("registration");
+    expect(eventFeatureHidingSection(features(["seating"]), "registrationSeating")).toBe("seating");
   });
 
   it("zbior ukrytych sekcji jest typowany kluczami sekcji studia", () => {

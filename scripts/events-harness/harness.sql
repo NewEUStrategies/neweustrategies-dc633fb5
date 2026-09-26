@@ -1306,3 +1306,338 @@ CREATE TABLE IF NOT EXISTS public.audit_log (
 CREATE INDEX IF NOT EXISTS audit_log_tenant_idx
   ON public.audit_log (tenant_id, created_at DESC);
 GRANT SELECT, INSERT ON public.audit_log TO authenticated;
+
+-- === f0: most osoba wydarzenia -> kontakt CRM (_event_person_crm_sync) ===
+-- PO CO. Migracja 20260926090000 stawia JEDYNE wejscie modulu Wydarzen do
+-- `crm_leads`: most wola `crm_upsert_from_form`, pisze `crm_consent_log`
+-- i `audit_log`, a jego asercje (runtime_test.d/14_crm_bridge.sql) mierza
+-- zachowanie na PRAWDZIWYM ksztalcie kartoteki. Atrapa `crm_leads` wyzej ma
+-- tylko `id/tenant_id/email` - wystarczala replayowi, ale most na takim
+-- ksztalcie nie wykonalby ani jednego zapisu. Ponizej wchodzi dokladnie to,
+-- czego most dotyka, PRZEPISANE Z ORYGINALOW:
+--   * enumy `crm_stage` i `crm_source_type` (20260630053403) - w PIERWOTNYM
+--     skladzie, bo wartosc `event` dopisuje migracja 20260926085900 i replay ma
+--     to pokazac, a nie zastac gotowe;
+--   * kolumny `crm_leads` (20260630053403, 20260630060254, 20260706201356,
+--     20260722094744) z unikalnym `(tenant_id, email_norm)`, czesciowo
+--     unikalnym `(tenant_id, phone_norm)` i CHECK-iem segmentu w ostatnim
+--     skladzie SPRZED modulu (20260814122512) - 20260926090000 go podmienia;
+--   * trigger normalizacji `crm_normalize_lead` (20260725182103), bo to on
+--     wylicza `email_norm`, po ktorym most i `crm_upsert_from_form` dopasowuja;
+--   * `jsonb_append_distinct` (20260706201356) i `crm_upsert_from_form`
+--     11-argumentowa (20260706215313) ZNAK W ZNAK, z ACL z 20260708120000;
+--   * `crm_consent_log` (20260630053403) - bez polityk rdzenia, RLS wlaczony.
+-- CZEGO NIE UDAJE: triggerow zdarzen domenowych i scoringu `crm_leads`
+-- (`trg_crm_leads_emit_events`, `trg_score_on_lead_change`) - to zachowanie
+-- CRM, nie mostu. Wszystko `IF NOT EXISTS`/`OR REPLACE`, bo 30_sponsors.sql
+-- doklada czesc tych kolumn sam (tez `IF NOT EXISTS`).
+DO $$ BEGIN
+  CREATE TYPE public.crm_stage AS ENUM ('new','contacted','qualified','proposal','won','lost','archived');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE TYPE public.crm_source_type AS ENUM ('contact_form','newsletter','comment','webinar','import','other');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+ALTER TABLE public.crm_leads
+  ADD COLUMN IF NOT EXISTS email_norm        text NOT NULL,
+  ADD COLUMN IF NOT EXISTS first_name        text,
+  ADD COLUMN IF NOT EXISTS last_name         text,
+  ADD COLUMN IF NOT EXISTS phone             text,
+  ADD COLUMN IF NOT EXISTS company           text,
+  ADD COLUMN IF NOT EXISTS stage             public.crm_stage NOT NULL DEFAULT 'new',
+  ADD COLUMN IF NOT EXISTS owner_id          uuid,
+  ADD COLUMN IF NOT EXISTS tags              text[] NOT NULL DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS follow_up_at      timestamptz,
+  ADD COLUMN IF NOT EXISTS last_activity_at  timestamptz NOT NULL DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS source_count      int NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS newsletter_status text,
+  ADD COLUMN IF NOT EXISTS marketing_consent boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS phone_norm        text,
+  ADD COLUMN IF NOT EXISTS aliases           jsonb NOT NULL DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS company_id        uuid,
+  ADD COLUMN IF NOT EXISTS position          text,
+  ADD COLUMN IF NOT EXISTS linkedin_url      text,
+  ADD COLUMN IF NOT EXISTS country           text,
+  ADD COLUMN IF NOT EXISTS source_type       text NOT NULL DEFAULT 'manual';
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conrelid = 'public.crm_leads'::regclass
+       AND conname = 'crm_leads_tenant_id_email_norm_key'
+  ) THEN
+    ALTER TABLE public.crm_leads
+      ADD CONSTRAINT crm_leads_tenant_id_email_norm_key UNIQUE (tenant_id, email_norm);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conrelid = 'public.crm_leads'::regclass
+       AND conname = 'crm_leads_source_type_check'
+  ) THEN
+    ALTER TABLE public.crm_leads ADD CONSTRAINT crm_leads_source_type_check
+      CHECK (source_type IN ('registered','paid_subscriber','event_participant',
+        'speaker','expert','contact_form','newsletter','manual','club_application',
+        'careers'));
+  END IF;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS crm_leads_tenant_phone_norm_uniq
+  ON public.crm_leads (tenant_id, phone_norm)
+  WHERE phone_norm IS NOT NULL;
+
+CREATE OR REPLACE FUNCTION public.crm_normalize_lead()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  NEW.email_norm := lower(trim(NEW.email));
+  IF NEW.phone IS NOT NULL AND length(trim(NEW.phone)) > 0 THEN
+    NEW.phone_norm := lower(regexp_replace(trim(NEW.phone), '[^0-9+]', '', 'g'));
+  ELSE
+    NEW.phone_norm := NULL;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS crm_leads_normalize_trg ON public.crm_leads;
+CREATE TRIGGER crm_leads_normalize_trg
+  BEFORE INSERT OR UPDATE ON public.crm_leads
+  FOR EACH ROW
+  EXECUTE FUNCTION public.crm_normalize_lead();
+
+CREATE OR REPLACE FUNCTION public.jsonb_append_distinct(_obj jsonb, _key text, _val text)
+RETURNS jsonb LANGUAGE sql IMMUTABLE AS $$
+  SELECT CASE
+    WHEN _val IS NULL OR btrim(_val) = '' THEN _obj
+    WHEN _obj ? _key AND EXISTS (
+      SELECT 1 FROM jsonb_array_elements_text(_obj->_key) x WHERE x = _val
+    ) THEN _obj
+    ELSE jsonb_set(_obj, ARRAY[_key],
+      COALESCE(_obj->_key, '[]'::jsonb) || to_jsonb(_val), true)
+  END
+$$;
+
+CREATE OR REPLACE FUNCTION public.crm_upsert_from_form(
+  _tenant uuid,
+  _email text,
+  _first_name text,
+  _last_name text,
+  _phone text,
+  _company text,
+  _position text,
+  _linkedin text,
+  _country text,
+  _source text,
+  _custom jsonb DEFAULT '{}'::jsonb
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_email_norm text := lower(btrim(coalesce(_email, '')));
+  v_phone_norm text := regexp_replace(coalesce(_phone,''), '[^0-9+]', '', 'g');
+  v_company_id uuid;
+  v_lead_id uuid;
+  v_existing public.crm_leads%ROWTYPE;
+  v_key text;
+  v_val text;
+  v_aliases jsonb;
+BEGIN
+  IF v_email_norm = '' THEN RETURN NULL; END IF;
+  IF v_phone_norm = '' THEN v_phone_norm := NULL; END IF;
+
+  IF _company IS NOT NULL AND btrim(_company) <> '' THEN
+    INSERT INTO public.crm_companies (tenant_id, name)
+    VALUES (_tenant, btrim(_company))
+    ON CONFLICT (tenant_id, name_norm) DO UPDATE SET updated_at = now()
+    RETURNING id INTO v_company_id;
+  END IF;
+
+  SELECT * INTO v_existing FROM public.crm_leads
+   WHERE tenant_id = _tenant AND email_norm = v_email_norm LIMIT 1;
+
+  IF v_existing.id IS NULL AND _first_name IS NOT NULL AND _last_name IS NOT NULL
+     AND btrim(_first_name) <> '' AND btrim(_last_name) <> '' THEN
+    SELECT * INTO v_existing FROM public.crm_leads
+     WHERE tenant_id = _tenant
+       AND lower(btrim(coalesce(first_name,''))) = lower(btrim(_first_name))
+       AND lower(btrim(coalesce(last_name,'')))  = lower(btrim(_last_name))
+       AND (v_company_id IS NULL OR company_id IS NULL OR company_id = v_company_id)
+     LIMIT 1;
+  END IF;
+
+  IF v_existing.id IS NOT NULL THEN
+    UPDATE public.crm_leads SET
+      first_name    = COALESCE(NULLIF(first_name,''), _first_name),
+      last_name     = COALESCE(NULLIF(last_name,''),  _last_name),
+      phone         = COALESCE(NULLIF(phone,''),      _phone),
+      phone_norm    = COALESCE(phone_norm,            v_phone_norm),
+      company       = COALESCE(NULLIF(company,''),    _company),
+      position      = COALESCE(NULLIF(position,''),   _position),
+      linkedin_url  = COALESCE(NULLIF(linkedin_url,''), _linkedin),
+      country       = COALESCE(NULLIF(country,''),    _country),
+      company_id    = COALESCE(company_id,            v_company_id),
+      aliases = public.jsonb_append_distinct(
+                  public.jsonb_append_distinct(
+                    public.jsonb_append_distinct(
+                      public.jsonb_append_distinct(
+                        public.jsonb_append_distinct(
+                          public.jsonb_append_distinct(
+                            public.jsonb_append_distinct(aliases, 'emails',
+                              CASE WHEN v_email_norm <> lower(btrim(coalesce(v_existing.email,''))) THEN v_email_norm END),
+                            'phones', CASE WHEN _phone IS NOT NULL AND v_existing.phone IS DISTINCT FROM _phone THEN _phone END),
+                          'companies', CASE WHEN _company IS NOT NULL AND v_existing.company IS DISTINCT FROM _company THEN _company END),
+                        'positions', CASE WHEN _position IS NOT NULL AND v_existing.position IS DISTINCT FROM _position THEN _position END),
+                      'linkedins', CASE WHEN _linkedin IS NOT NULL AND v_existing.linkedin_url IS DISTINCT FROM _linkedin THEN _linkedin END),
+                    'countries', CASE WHEN _country IS NOT NULL AND v_existing.country IS DISTINCT FROM _country THEN _country END),
+                  'sources', _source),
+      source_count = source_count + 1,
+      last_activity_at = now(),
+      updated_at = now()
+    WHERE id = v_existing.id
+    RETURNING id, aliases INTO v_lead_id, v_aliases;
+  ELSE
+    INSERT INTO public.crm_leads (
+      tenant_id, email_norm, email, first_name, last_name,
+      phone, phone_norm, company, company_id, position, linkedin_url, country,
+      stage, tags, aliases, newsletter_status, marketing_consent, source_count, last_activity_at
+    ) VALUES (
+      _tenant, v_email_norm, _email, NULLIF(btrim(coalesce(_first_name,'')),''), NULLIF(btrim(coalesce(_last_name,'')),''),
+      _phone, v_phone_norm, _company, v_company_id, _position, _linkedin, _country,
+      'new', ARRAY[]::text[],
+      CASE WHEN _source IS NOT NULL THEN jsonb_build_object('sources', jsonb_build_array(_source)) ELSE '{}'::jsonb END,
+      'pending', false, 1, now()
+    ) RETURNING id, aliases INTO v_lead_id, v_aliases;
+  END IF;
+
+  -- Append custom field values (append-only history under aliases.custom.<field>)
+  IF _custom IS NOT NULL AND jsonb_typeof(_custom) = 'object' THEN
+    FOR v_key, v_val IN
+      SELECT key, value::text FROM jsonb_each_text(_custom)
+    LOOP
+      IF v_val IS NULL OR btrim(v_val) = '' THEN CONTINUE; END IF;
+      -- Ensure aliases.custom is an object
+      IF v_aliases IS NULL OR NOT (v_aliases ? 'custom') OR jsonb_typeof(v_aliases->'custom') <> 'object' THEN
+        v_aliases := jsonb_set(COALESCE(v_aliases, '{}'::jsonb), '{custom}', '{}'::jsonb, true);
+      END IF;
+      -- Append distinct into aliases.custom.<key> array
+      IF NOT EXISTS (
+        SELECT 1 FROM jsonb_array_elements_text(
+          COALESCE(v_aliases#>ARRAY['custom', v_key], '[]'::jsonb)
+        ) x WHERE x = v_val
+      ) THEN
+        v_aliases := jsonb_set(
+          v_aliases,
+          ARRAY['custom', v_key],
+          COALESCE(v_aliases#>ARRAY['custom', v_key], '[]'::jsonb) || to_jsonb(v_val),
+          true
+        );
+      END IF;
+    END LOOP;
+
+    UPDATE public.crm_leads SET aliases = v_aliases, updated_at = now()
+     WHERE id = v_lead_id;
+  END IF;
+
+  RETURN v_lead_id;
+END $function$;
+
+REVOKE ALL ON FUNCTION public.crm_upsert_from_form(
+  uuid, text, text, text, text, text, text, text, text, text, jsonb
+) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.crm_upsert_from_form(
+  uuid, text, text, text, text, text, text, text, text, text, jsonb
+) TO service_role;
+
+CREATE TABLE IF NOT EXISTS public.crm_consent_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL DEFAULT public.public_tenant_id(),
+  email text NOT NULL,
+  source_type public.crm_source_type NOT NULL,
+  source_id uuid,
+  form_id text,
+  form_name text,
+  consent_key text NOT NULL,
+  consent_text text NOT NULL,
+  consent_version text,
+  given boolean NOT NULL,
+  ip text,
+  user_agent text,
+  lang text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.crm_consent_log ENABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.crm_consent_log TO service_role;
+-- === /f0 ===
+
+-- === f2: faktury wydarzen (20260926110000) - kartoteka firm, kasa, plaszczyzna rozliczen ===
+-- PO CO. Migracja faktur wydarzen czyta i uzupelnia trzy powierzchnie spoza
+-- modulu, ktorych atrapy wyzej nie znaja. Wchodzi dokladnie to, czego dotyka
+-- replay i asercje runtime_test.d/27_invoices.sql, PRZEPISANE Z ORYGINALOW:
+--   * `crm_companies`: `tax_id` (20260907145450), `address`, `postal_code`,
+--     `phone`, `created_by` (20260721200229) - resolver firmy nabywcy dopasowuje
+--     po NIP-ie i uzupelnia WYLACZNIE puste pola;
+--   * `crm_member_company_key` + `crm_ensure_member_company` (20260912100000)
+--     ZNAK W ZNAK - zakladanie firmy po nazwie z blokada doradcza;
+--   * `payment_orders.paid_at`, `refunded_amount_cents` (20260624172041,
+--     20260814221337) - kwota brutto zamowienia z karty po zwrotach;
+--   * `checkout_settings` (20260721063638) - wylacznie `tenant_id`
+--     i `automatic_tax`, bo tylko z niego plaszczyzna rozliczen wynika
+--     (`checkoutBillingPlane()`: brak wiersza = operator jest sprzedawca).
+ALTER TABLE public.crm_companies
+  ADD COLUMN IF NOT EXISTS tax_id      text,
+  ADD COLUMN IF NOT EXISTS address     text,
+  ADD COLUMN IF NOT EXISTS postal_code text,
+  ADD COLUMN IF NOT EXISTS phone       text,
+  ADD COLUMN IF NOT EXISTS created_by  uuid;
+
+CREATE OR REPLACE FUNCTION public.crm_member_company_key(p_name text)
+RETURNS text LANGUAGE sql IMMUTABLE SET search_path = public, pg_temp AS $$
+  SELECT btrim(regexp_replace(
+    regexp_replace(regexp_replace(lower(btrim(p_name)), '[[:space:]]+', ' ', 'g'), '[.,]', '', 'g'),
+    '\m(sp ?z ?o ?o|sa|ltd|llc|inc|gmbh)\M', '', 'g'));
+$$;
+
+CREATE OR REPLACE FUNCTION public.crm_ensure_member_company(
+  p_tenant_id uuid, p_name text, p_actor_id uuid DEFAULT NULL
+)
+RETURNS TABLE(id uuid, created boolean) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+  v_key text := public.crm_member_company_key(p_name);
+  v_id uuid;
+  v_created boolean := false;
+BEGIN
+  IF p_tenant_id IS NULL THEN RAISE EXCEPTION 'crm: tenant required'; END IF;
+  IF v_key IS NULL OR v_key = '' THEN RETURN; END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || ':company:' || v_key, 0));
+  SELECT c.id INTO v_id FROM public.crm_companies AS c
+    WHERE c.tenant_id = p_tenant_id AND public.crm_member_company_key(c.name) = v_key
+    ORDER BY c.created_at, c.id LIMIT 1;
+  IF v_id IS NULL THEN
+    INSERT INTO public.crm_companies (tenant_id, name, created_by)
+      VALUES (p_tenant_id, btrim(p_name), p_actor_id) RETURNING crm_companies.id INTO v_id;
+    v_created := true;
+  END IF;
+  RETURN QUERY SELECT v_id, v_created;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.crm_ensure_member_company(uuid, text, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.crm_ensure_member_company(uuid, text, uuid) TO service_role;
+
+ALTER TABLE public.payment_orders
+  ADD COLUMN IF NOT EXISTS paid_at               timestamptz,
+  ADD COLUMN IF NOT EXISTS refunded_amount_cents integer NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS public.checkout_settings (
+  tenant_id     uuid PRIMARY KEY REFERENCES public.tenants(id) ON DELETE CASCADE,
+  automatic_tax boolean NOT NULL DEFAULT false
+);
+ALTER TABLE public.checkout_settings ENABLE ROW LEVEL SECURITY;
+GRANT SELECT ON public.checkout_settings TO anon, authenticated;
+GRANT ALL ON public.checkout_settings TO service_role;
+-- === /f2 ===

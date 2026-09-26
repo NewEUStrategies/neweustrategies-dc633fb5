@@ -244,27 +244,31 @@ export function EventPagesMenuPanel({ row }: { row: AdminEventDetailRow }) {
   // niczym, co uczestnik moze otworzyc. Slug znamy dopiero z odswiezonej listy,
   // bo RPC oddaje identyfikator POZYCJI, a edytor stron adresuje slugiem.
   const create = (input: Parameters<typeof createPage.mutate>[0]) => {
-    createPage.mutate(input, {
-      onSuccess: async (entryId) => {
-        setCreateOpen(false);
-        const refreshed = await pagesQ.refetch();
-        const slug = refreshed.data?.find((page) => page.id === entryId)?.page_slug ?? null;
-        toast.success(
-          t("adminEvents.studio.toasts.pageCreated"),
-          slug === null
-            ? undefined
-            : {
-                action: {
-                  label: t("adminEvents.studio.pages.rowActions.editContent"),
-                  onClick: () => {
-                    void navigate({ to: "/admin/pages/$slug", params: { slug } });
+    // Slug wydarzenia wchodzi do szablonu (przycisk „Zgłoś prelekcję" -> nabór).
+    createPage.mutate(
+      { ...input, eventSlug: row.slug },
+      {
+        onSuccess: async (entryId) => {
+          setCreateOpen(false);
+          const refreshed = await pagesQ.refetch();
+          const slug = refreshed.data?.find((page) => page.id === entryId)?.page_slug ?? null;
+          toast.success(
+            t("adminEvents.studio.toasts.pageCreated"),
+            slug === null
+              ? undefined
+              : {
+                  action: {
+                    label: t("adminEvents.studio.pages.rowActions.editContent"),
+                    onClick: () => {
+                      void navigate({ to: "/admin/pages/$slug", params: { slug } });
+                    },
                   },
                 },
-              },
-        );
+          );
+        },
+        onError: failed,
       },
-      onError: failed,
-    });
+    );
   };
 
   const listBusy =

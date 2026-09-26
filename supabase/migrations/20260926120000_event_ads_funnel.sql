@@ -1,0 +1,14 @@
+-- ============================================================================
+-- ZAREZERWOWANE MIEJSCE NA MIGRACJE FUNKCJI: lejek-google-ads (wlasciciel: f3).
+--
+-- BLIZNIAK drizzle/migrations/0059_event_ads_funnel.sql - ten sam SQL wykonywalny
+-- (pilnuje tego `src/lib/ci/migrationLaneParity.ts`).
+-- events-harness: include
+--
+-- Numeracja obu torow jest przydzielona z gory, zeby siedem funkcji
+-- organizatora powstajacych rownolegle nie kolidowalo na numerach, dzienniku
+-- drizzle ani rejestrze blizniakow. Wlasciciel ZASTEPUJE tresc obu plikow
+-- wlasciwym SQL-em; do tego czasu plik jest bezczynny (zapytanie bez wierszy),
+-- a jego jedyny literal odroznia go od pozostalych rezerwacji.
+-- ============================================================================
+SELECT 'placeholder:0059_event_ads_funnel'::text AS event_migration_placeholder FROM public.events WHERE false;

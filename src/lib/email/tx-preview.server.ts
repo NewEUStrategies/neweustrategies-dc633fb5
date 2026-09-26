@@ -46,10 +46,15 @@ export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "event_registration_approved",
   "event_registration_rejected",
   "event_waitlist_promoted",
+  "event_cfp_submission_received",
+  "event_cfp_submission_accepted",
+  "event_cfp_submission_rejected",
+  "event_cfp_submission_changes_requested",
   "event_ticket_paid",
   "event_ticket_refunded",
   "event_ticket_partially_refunded",
   "event_ticket_issued",
+  "event_invoice_issued",
   "donation_received",
   "newsletter_confirmed",
   "customer_portal_link",
@@ -102,6 +107,16 @@ const DEMO_ENTRY_CODE = "Nes2026DemoTicketCode0123456789A";
 const DEMO_REFUND_LABEL: Record<EmailLang, string> = {
   pl: "Kwota zwrotu",
   en: "Refunded amount",
+};
+
+/** Przykładowe wystąpienie i informacja zwrotna w podglądzie maili naboru prelegentów. */
+const DEMO_CFP_TALK: Record<EmailLang, string> = {
+  pl: "Bezpieczeństwo energetyczne Europy Środkowej po 2030 roku",
+  en: "Central European energy security after 2030",
+};
+const DEMO_CFP_FEEDBACK: Record<EmailLang, string> = {
+  pl: "Prosimy o skrócenie streszczenia i dopisanie dwóch przykładów z regionu.",
+  en: "Please shorten the abstract and add two examples from the region.",
 };
 
 interface DemoData {
@@ -273,6 +288,31 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
         ],
         ctaUrl: `${SITE_URL}/events`,
       };
+    // Nabór prelegentów: potwierdzenie wysłania i trzy decyzje organizatora.
+    // Decyzje niosą informację zwrotną organizatora; przycisk prowadzi do
+    // panelu prelegenta, w którym prelegent odpowiada na decyzję.
+    case "event_cfp_submission_received":
+    case "event_cfp_submission_accepted":
+      return {
+        subjectName: eventTitle,
+        details: [
+          { label: l.event, value: eventTitle },
+          { label: l.talk, value: DEMO_CFP_TALK[lang] },
+          { label: l.date, value: eventDate },
+        ],
+        ctaUrl: `${SITE_URL}/events/demo/speaker`,
+      };
+    case "event_cfp_submission_rejected":
+    case "event_cfp_submission_changes_requested":
+      return {
+        subjectName: eventTitle,
+        details: [
+          { label: l.event, value: eventTitle },
+          { label: l.talk, value: DEMO_CFP_TALK[lang] },
+          { label: l.organizerMessage, value: DEMO_CFP_FEEDBACK[lang] },
+        ],
+        ctaUrl: `${SITE_URL}/events/demo/speaker`,
+      };
     // Skutek platnosci za bilet: kwota w temacie, a w szczegolach zawsze
     // widac, czego dotyczy zwrot i ile faktycznie wrocilo do kupujacego.
     case "event_ticket_paid":
@@ -314,6 +354,18 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
           { label: l.entryCode, value: DEMO_ENTRY_CODE },
         ],
         ctaUrl: `${SITE_URL}${ticketLinkPath("demo", DEMO_ENTRY_CODE)}`,
+      };
+    // Faktura organizatora: numer z serii FV, kwota brutto, odnosnik do
+    // profilu (mail nie niesie zalacznika - PDF sklada profil).
+    case "event_invoice_issued":
+      return {
+        subjectName: eventTitle,
+        details: [
+          { label: l.event, value: eventTitle },
+          { label: l.documentNumber, value: "FV/2026/09/0007" },
+          { label: l.price, value: DEMO_TICKET_PRICE[lang] },
+        ],
+        ctaUrl: `${SITE_URL}/profile/invoices`,
       };
     case "donation_received":
       return {

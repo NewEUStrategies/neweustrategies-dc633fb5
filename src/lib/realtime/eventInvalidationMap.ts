@@ -210,6 +210,26 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   "event.registration.cancelled.v1": (event) => registrationEventKeys(event),
   "event.registration.promoted.v1": (event) => registrationEventKeys(event),
   "event.registration.payment.v1": (event) => registrationEventKeys(event),
+
+  // Nabor prelegentow: lista, liczniki i szczegol w panelu organizatora
+  // (galaz `["event-cfp", eventId]`) oraz "moje zgloszenia", panel prelegenta
+  // i kolejka recenzenta (`["event-cfp-me"]` - klucz uczestnika jest po slugu,
+  // ktorego payload nie niesie, wiec uniewazniamy cala galez).
+  "event_cfp_submission.submitted.v1": (event) => cfpEventKeys(event),
+  "event_cfp_submission.decided.v1": (event) => cfpEventKeys(event),
+  "event_cfp_submission.withdrawn.v1": (event) => cfpEventKeys(event),
+  "event_cfp_submission.confirmed.v1": (event) => cfpEventKeys(event),
+  "event_cfp_review.saved.v1": (event) => cfpEventKeys(event),
+  // Faktury organizatora: ekran faktur studia (galaz wydarzenia) i karta
+  // "Faktury za wydarzenia" w profilu kupujacego.
+  "event_invoice.issued.v1": (event) => invoiceEventKeys(event),
+  "event_invoice.cancelled.v1": (event) => invoiceEventKeys(event),
+  // Plan sali: przydzial i zwolnienie zmieniaja obsade planu ORAZ plakietke
+  // miejsca na liscie zgloszen; zmiana ukladu planu - tylko sam plan (lookup
+  // miejsc listy zgloszen siedzi w tej samej galezi `event-seating`).
+  "event_seat.assigned.v1": (event) => seatingEventKeys(event, true),
+  "event_seat.released.v1": (event) => seatingEventKeys(event, true),
+  "event_seat_map.changed.v1": (event) => seatingEventKeys(event, false),
 };
 
 // KLUCZE JAKO LITERALY, NIE IMPORT FABRYK. Fabryki (`meetingKeys`,
@@ -246,6 +266,29 @@ function onsiteEventKeys(event: DomainEventRow): QueryKey[] {
 function sponsorEventKeys(event: DomainEventRow): QueryKey[] {
   const eventId = eventPayloadText(event, "event_id");
   return [eventId === "" ? ["event-sponsors"] : ["event-sponsors", eventId], ["public-event"]];
+}
+
+/**
+ * Wystawienie albo anulowanie dokumentu zmienia liste kandydatow, liste
+ * dokumentow i szczegoly w galezi wydarzenia oraz to, co widzi kupujacy
+ * w profilu (`event-invoices-me` nie zna wydarzenia - cala galaz).
+ */
+function invoiceEventKeys(event: DomainEventRow): QueryKey[] {
+  const eventId = eventPayloadText(event, "event_id");
+  return [eventId === "" ? ["event-invoices"] : ["event-invoices", eventId], ["event-invoices-me"]];
+}
+
+/**
+ * Plan sali klucza po `event_id` (panel organizatora). Bez identyfikatora
+ * w payloadzie uniewazniamy caly korzen - lepiej odswiezyc za duzo niz
+ * zostawic stary plan.
+ */
+function seatingEventKeys(event: DomainEventRow, registrations: boolean): QueryKey[] {
+  const eventId = eventPayloadText(event, "event_id");
+  const branch = (root: string): QueryKey => (eventId === "" ? [root] : [root, eventId]);
+  return registrations
+    ? [branch("event-seating"), branch("event-registrations")]
+    : [branch("event-seating")];
 }
 
 function billingDocumentKeys(): QueryKey[] {
@@ -344,6 +387,17 @@ function registrationEventKeys(event: DomainEventRow): QueryKey[] {
     ["event-rsvp-counts"],
     ["public-event"],
   ];
+}
+
+/**
+ * Klucze naboru prelegentow. `event_id` w payloadzie zaweza panel do galezi
+ * jednego wydarzenia; jego brak degraduje do calego korzenia modulu (szersza
+ * inwalidacja jest tansza niz nieaktualna lista zgloszen). Literaly zgodne
+ * z `cfpKeys` i `cfpMeKeys` - pilnuje tego `eventRealtimeKeys.test.ts`.
+ */
+function cfpEventKeys(event: DomainEventRow): QueryKey[] {
+  const eventId = eventPayloadText(event, "event_id");
+  return [eventId === "" ? ["event-cfp"] : ["event-cfp", eventId], ["event-cfp-me"]];
 }
 
 const eventKeysList: QueryKey[] = [

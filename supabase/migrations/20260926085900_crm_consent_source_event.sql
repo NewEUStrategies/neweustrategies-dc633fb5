@@ -1,0 +1,43 @@
+-- ============================================================================
+-- REJESTR ZGOD CRM ZNA ZRODLO "WYDARZENIE" (crm_source_type += 'event').
+--
+-- BLIZNIAK drizzle/migrations/0055_crm_consent_source_event.sql - ten sam SQL
+-- wykonywalny (pilnuje tego `src/lib/ci/migrationLaneParity.ts`).
+-- events-harness: include
+--
+-- PO CO
+--   Most "osoba wydarzenia -> kontakt CRM" (`_event_person_crm_sync`, migracja
+--   20260926090000) przepisuje do CRM zgode marketingowa organizatora, ktora
+--   uczestnik dal na formularzu wydarzenia (`event_people.consent_marketing_at`).
+--   Zgoda jest DOWODEM (RODO art. 7 ust. 1), wiec musi zostawic slad w rejestrze
+--   `crm_consent_log` - a jego kolumna `source_type` jest ENUM-em
+--   `crm_source_type` (contact_form, newsletter, comment, webinar, import,
+--   other). Zadna z tych wartosci nie mowi prawdy o pochodzeniu zgody:
+--   `webinar` myli sie z rodzajem wydarzenia, `other` gubi zrodlo dowodu.
+--   Stad nowa wartosc `event`.
+--
+-- DLACZEGO OSOBNY PLIK
+--   Nowej wartosci enuma NIE WOLNO uzyc w tej samej transakcji, w ktorej ja
+--   dodano (PostgreSQL: `unsafe use of new value`). Wdrozenie aplikuje kazdy
+--   plik migracji w osobnej transakcji, wiec wartosc musi byc ZATWIERDZONA,
+--   zanim 20260926090000 zacznie ja wpisywac (w ciele funkcji - literal
+--   `'event'::crm_source_type` jest rozwiazywany dopiero przy wykonaniu, ale
+--   harness i pgTAP wykonuja ja zaraz po replayu).
+--
+-- CO ROBI
+--   `ALTER TYPE public.crm_source_type ADD VALUE IF NOT EXISTS 'event';`
+--
+-- CZEGO NIE ZMIENIA
+--   * `crm_leads.source_type` - to osobne pojecie (tekst + CHECK
+--     `crm_leads_source_type_check`, segment kontaktu), rozszerzane w 20260926090000;
+--   * istniejacych wierszy rejestru zgod ani polityk RLS.
+--
+-- IDEMPOTENCJA
+--   `IF NOT EXISTS` - ponowne wykonanie niczego nie zmienia. Wartosci enuma nie
+--   da sie usunac, wiec migracja jest z natury jednokierunkowa.
+--
+-- Testy: scripts/events-harness/runtime_test.d/14_crm_bridge.sql (wiersz
+-- rejestru zgod ze zrodlem `event`).
+-- ============================================================================
+
+ALTER TYPE public.crm_source_type ADD VALUE IF NOT EXISTS 'event';

@@ -1,4 +1,4 @@
-// „FUNKCJE DODATKOWE" - siedem przelacznikow, ktore CHOWAJA polowe studia.
+// „FUNKCJE DODATKOWE" - przelaczniki modulow, ktore CHOWAJA polowe studia.
 //
 // PO CO TEN PLIK ISTNIEJE. To jedyny ekran w module wydarzen, ktorego zapis
 // zmienia NAWIGACJE innych ekranow: rama studia czyta te sama kolumne
@@ -13,7 +13,7 @@
 //      wysyla `{}` i baza nie zmienia niczego - przelacznik wraca na
 //      „wylaczony" przy pierwszym odswiezeniu. Przelacznik, ktorego nie da sie
 //      WLACZYC, klamie tak samo jak ten, ktory nie wylacza. Dowodem jest
-//      KOMPLET SIEDMIU KLUCZY w ladunku.
+//      KOMPLET KLUCZY (`EVENT_FEATURE_KEYS`) w ladunku.
 //   2. ZAPIS OD RAZU PRZY KLIKNIECIU. Bez paska zapisu przypadkowy klik chowa
 //      polowe sidebara i nie ma kroku „odrzuc zmiany".
 //   3. PASEK ZAPISU ZOSTAJE PO ZAPISIE. Szkic musi wrocic do stanu z bazy,
@@ -102,7 +102,7 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
-describe("EventFeaturesPanel - siedem przelacznikow", () => {
+describe("EventFeaturesPanel - komplet przelacznikow", () => {
   it("rysuje KOMPLET modulow, kazdy ze zdaniem „co zniknie”", () => {
     // Sama etykieta („Spotkania") nie mowi, czy wylaczenie zabiera stoliki,
     // wnioski o rozmowe, czy jedno i drugie - a to jest dokladnie ta
@@ -168,7 +168,7 @@ describe("EventFeaturesPanel - zapis jest JAWNY", () => {
 });
 
 describe("EventFeaturesPanel - ladunek zapisu", () => {
-  it("wysyla KOMPLET SIEDMIU KLUCZY, a nie same wylaczenia", async () => {
+  it("wysyla KOMPLET KLUCZY, a nie same wylaczenia", async () => {
     // To jest cala roznica miedzy przelacznikiem, ktory da sie wlaczyc,
     // a takim, ktory umie tylko wylaczac: klucz pominiety w ladunku zachowuje
     // dzisiejszy stan po stronie bazy.
@@ -184,7 +184,9 @@ describe("EventFeaturesPanel - ladunek zapisu", () => {
       pages: true,
       registration: true,
       tickets: true,
+      seating: true,
       sessions: true,
+      cfp: true,
       meetings: true,
       onsite: true,
       sponsors: true,
@@ -204,7 +206,9 @@ describe("EventFeaturesPanel - ladunek zapisu", () => {
       pages: true,
       registration: true,
       tickets: true,
+      seating: true,
       sessions: true,
+      cfp: true,
       meetings: true,
       onsite: false,
       sponsors: true,

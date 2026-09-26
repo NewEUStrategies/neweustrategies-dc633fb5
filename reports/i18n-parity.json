@@ -28,7 +28,13 @@
     "eventMeetings",
     "eventFront",
     "eventScanner",
-    "teamGrid"
+    "adminEventCfp",
+    "eventCfp",
+    "adminEventSeating",
+    "eventSeating",
+    "teamGrid",
+    "adminEventInvoices",
+    "eventInvoices"
   ],
   "missing": [],
   "missingEn": [],
@@ -41,11 +47,16 @@
     "adminDashboard.crm.source.webinar",
     "adminDashboard.marketing.title",
     "adminEventAgenda.tracks.workspace.minutes",
+    "adminEventInvoices.documents.columns.ksef",
+    "adminEventInvoices.settings.sellerEmail",
     "adminEventRegistration.audienceGrantHistory.summary",
     "adminEventRegistration.tickets.studio.columns.status",
     "adminEventRegistration.tickets.studio.duplicateSuffixEn",
     "adminEventRegistration.tickets.studio.duplicateSuffixPl",
     "adminEventRegistration.tickets.studio.usesLimited",
+    "adminEventSeating.autoDialog.rejectedItem",
+    "adminEventSeating.autoDialog.unplacedItem",
+    "adminEventSeating.holdDialog.sponsor",
     "adminEvents.general.videoPlatforms.vimeo",
     "adminEvents.general.videoPlatforms.youtube",
     "adminEvents.list.create.formatLabel",
@@ -222,6 +233,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 568
+    "untranslated": 573
   }
 }

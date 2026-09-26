@@ -16,6 +16,11 @@ import { myMeetingKeys } from "@/lib/events/useMyMeetings";
 import { onsiteKeys } from "@/lib/events/useEventOnsite";
 import { sponsorKeys } from "@/lib/events/useEventSponsors";
 import { registrationKeys } from "@/lib/events/useEventRegistrations";
+import { cfpKeys } from "@/lib/events/useEventCfp";
+import { cfpMeKeys } from "@/lib/events/useCfpMe";
+import { eventInvoiceKeys } from "@/lib/events/useEventInvoices";
+import { myEventInvoiceKeys } from "@/lib/events/useMyEventInvoices";
+import { seatingKeys } from "@/lib/events/useEventSeating";
 
 const EVENT_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const CTX = { userId: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" };
@@ -104,5 +109,95 @@ describe("mapa inwalidacji modułu wydarzeń", () => {
       CTX,
     ) as unknown[][];
     expect(includesPrefix(keys, registrationKeys.all)).toBe(true);
+  });
+
+  it("nabór prelegentów trafia w gałąź wydarzenia w panelu I w gałąź uczestnika", () => {
+    // Pięć zdarzeń naboru (wysłanie, decyzja, wycofanie, odpowiedź prelegenta,
+    // ocena recenzenta) zmienia listę i liczniki organizatora ORAZ „moje
+    // zgłoszenia", panel prelegenta i kolejkę recenzenta.
+    for (const type of [
+      "event_cfp_submission.submitted.v1",
+      "event_cfp_submission.decided.v1",
+      "event_cfp_submission.withdrawn.v1",
+      "event_cfp_submission.confirmed.v1",
+      "event_cfp_review.saved.v1",
+    ]) {
+      const keys = invalidationKeysFor(
+        domainEvent(type, { event_id: EVENT_ID, submission_id: "s-1" }),
+        CTX,
+      ) as unknown[][];
+      expect(includesPrefix(keys, cfpKeys.event(EVENT_ID)), type).toBe(true);
+      expect(includesPrefix(keys, cfpMeKeys.all), type).toBe(true);
+    }
+  });
+
+  it("zdarzenie naboru bez `event_id` degraduje do całego korzenia panelu", () => {
+    const keys = invalidationKeysFor(
+      domainEvent("event_cfp_submission.submitted.v1", {}),
+      CTX,
+    ) as unknown[][];
+    expect(includesPrefix(keys, cfpKeys.all)).toBe(true);
+    expect(includesPrefix(keys, cfpMeKeys.all)).toBe(true);
+  });
+
+  it("faktury trafiają w gałąź wydarzenia w studiu I w profil kupującego", () => {
+    // Wystawienie zmienia jednocześnie listę zamówień do zafakturowania,
+    // listę dokumentów i kartę "Faktury za wydarzenia" kupującego.
+    for (const type of ["event_invoice.issued.v1", "event_invoice.cancelled.v1"]) {
+      const keys = invalidationKeysFor(
+        domainEvent(type, { event_id: EVENT_ID, invoice_id: EVENT_ID }),
+        CTX,
+      ) as unknown[][];
+      expect(includesPrefix(keys, eventInvoiceKeys.event(EVENT_ID)), type).toBe(true);
+      expect(includesPrefix(keys, myEventInvoiceKeys.all), type).toBe(true);
+      expect(includesPrefix(keys, eventInvoiceKeys.event("inne-wydarzenie")), type).toBe(false);
+    }
+  });
+
+  it("faktura bez `event_id` degraduje do całej gałęzi faktur", () => {
+    const keys = invalidationKeysFor(
+      domainEvent("event_invoice.issued.v1", {}),
+      CTX,
+    ) as unknown[][];
+    expect(includesPrefix(keys, eventInvoiceKeys.all)).toBe(true);
+  });
+
+  it("plan sali: przydział i zwolnienie trafiają w plan I w listę zgłoszeń TEGO wydarzenia", () => {
+    for (const type of ["event_seat.assigned.v1", "event_seat.released.v1"]) {
+      const keys = invalidationKeysFor(
+        domainEvent(type, { event_id: EVENT_ID }),
+        CTX,
+      ) as unknown[][];
+      expect(includesPrefix(keys, seatingKeys.event(EVENT_ID)), type).toBe(true);
+      expect(includesPrefix(keys, registrationKeys.event(EVENT_ID)), type).toBe(true);
+      // Para: inne wydarzenie zostaje nietknięte.
+      expect(
+        includesPrefix(keys, seatingKeys.event("ffffffff-ffff-ffff-ffff-ffffffffffff")),
+        type,
+      ).toBe(false);
+    }
+  });
+
+  it("plan sali: zmiana układu odświeża wyłącznie plan, bez listy zgłoszeń", () => {
+    const keys = invalidationKeysFor(
+      domainEvent("event_seat_map.changed.v1", { event_id: EVENT_ID }),
+      CTX,
+    ) as unknown[][];
+    expect(includesPrefix(keys, seatingKeys.event(EVENT_ID))).toBe(true);
+    expect(includesPrefix(keys, registrationKeys.all)).toBe(false);
+  });
+
+  it("plan sali bez `event_id` degraduje do całych gałęzi planu i zgłoszeń", () => {
+    const released = invalidationKeysFor(
+      domainEvent("event_seat.released.v1", {}),
+      CTX,
+    ) as unknown[][];
+    expect(includesPrefix(released, seatingKeys.all)).toBe(true);
+    expect(includesPrefix(released, registrationKeys.all)).toBe(true);
+    const changed = invalidationKeysFor(
+      domainEvent("event_seat_map.changed.v1", {}),
+      CTX,
+    ) as unknown[][];
+    expect(changed).toEqual([seatingKeys.all]);
   });
 });

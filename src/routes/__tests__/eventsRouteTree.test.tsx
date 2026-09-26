@@ -176,11 +176,13 @@ vi.mock("@/components/admin/events/organisms/EventCreateForm", () => h.pustyModu
 vi.mock("@/components/admin/events/organisms/EventFeaturesPanel", () => h.pustyModul());
 vi.mock("@/components/admin/events/organisms/EventGeneralPanel", () => h.pustyModul());
 vi.mock("@/components/admin/events/organisms/EventGroupsPermissionsPanel", () => h.pustyModul());
+vi.mock("@/components/admin/events/organisms/EventInvoicesPanel", () => h.pustyModul());
 vi.mock("@/components/admin/events/organisms/EventOverviewPanel", () => h.pustyModul());
 vi.mock("@/components/admin/events/organisms/EventPagesMenuPanel", () => h.pustyModul());
 vi.mock("@/components/admin/events/organisms/EventRegistrationSettingsPanel", () => h.pustyModul());
 vi.mock("@/components/admin/events/organisms/EventTypesManager", () => h.pustyModul());
 vi.mock("@/components/admin/events/organisms/EventsListManager", () => h.pustyModul());
+vi.mock("@/components/admin/events/organisms/SeatingPanel", () => h.pustyModul());
 vi.mock("@/components/admin/events/studio/EventStudioCreateShell", () => h.pustyModul());
 vi.mock("@/components/admin/events/studio/EventStudioExternalSection", () => h.pustyModul());
 vi.mock("@/components/admin/events/studio/EventStudioModuleSections", () => h.pustyModul());
@@ -216,6 +218,15 @@ vi.mock("@/components/events/public/organisms/EventViewerProfile", () => h.pusty
 vi.mock("@/components/events/public/organisms/SavedEventsList", () => h.pustyModul());
 vi.mock("@/components/events/registration/PackageInviteAccept", () => h.pustyModul());
 vi.mock("@/components/events/registration/RegistrationManagePanel", () => h.pustyModul());
+// Nabór prelegentów (f1): cztery ekrany studia i cztery powierzchnie uczestnika.
+vi.mock("@/components/admin/events/organisms/CfpSettingsPanel", () => h.pustyModul());
+vi.mock("@/components/admin/events/organisms/CfpFormPanel", () => h.pustyModul());
+vi.mock("@/components/admin/events/organisms/CfpSubmissionsPanel", () => h.pustyModul());
+vi.mock("@/components/admin/events/organisms/CfpReviewersPanel", () => h.pustyModul());
+vi.mock("@/components/events/cfp/organisms/EventCfpPage", () => h.pustyModul());
+vi.mock("@/components/events/cfp/organisms/CfpSubmitPage", () => h.pustyModul());
+vi.mock("@/components/events/cfp/organisms/SpeakerPanelPage", () => h.pustyModul());
+vi.mock("@/components/events/cfp/organisms/ReviewerPanelPage", () => h.pustyModul());
 vi.mock("@/components/molecules/DegradedDataNotice", () => h.pustyModul());
 // NIE `pustyModul()`, i to jest warunek dowodu niżej: ekran błędu rysujący
 // NIC jest w tabeli montażu nieodróżnialny od trasy, która wstała poprawnie.

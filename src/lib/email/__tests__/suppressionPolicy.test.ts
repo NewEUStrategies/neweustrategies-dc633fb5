@@ -67,7 +67,9 @@ describe("TX_EMAIL_CATEGORY", () => {
     // Regresja, którą naprawia ta zmiana: suppression działała dla 1 z 19 typów.
     // Ten test pilnuje, że każdy typ ze słownika treści ma jawnie przypisaną
     // kategorię i że obie listy nie rozjadą się przy dodaniu nowego maila.
-    expect(TX_EMAIL_TYPES.length).toBe(31);
+    // 31 -> 35: cztery maile naboru prelegentów (`event_cfp_submission_*`).
+    // 35 -> 36: powiadomienie o fakturze organizatora wydarzenia (`event_invoice_issued`).
+    expect(TX_EMAIL_TYPES.length).toBe(36);
     expect(Object.keys(TX_EMAIL_CATEGORY).sort()).toEqual([...TX_EMAIL_TYPES].sort());
     for (const type of TX_EMAIL_TYPES) {
       expect(TX_EMAIL_CATEGORY[type]).toMatch(/^(transactional|bulk)$/);

@@ -9,9 +9,14 @@
 // treści zdarzeń pochodzą z PUBLICZNYCH formularzy, więc KAŻDA interpolacja
 // danych musi przejść przez `escapeHtml` - inaczej lead wstrzykuje skrypt
 // wykonywany z uprawnieniami admina.
+//
+// TYP „event" to aktywność z modułu Wydarzeń (wiersze `audit_log` z akcją
+// `event.*`, kontrakt metadanych w `./eventActivity`). Jedyne źródło unii typów:
+// `TimelineEvent` serwera (`crm.functions.ts`) jest tym samym typem.
+import { eventActivitySummary, isEventActivityAction } from "@/lib/crm/eventActivity";
 
 export type LeadTimelineEventType =
-  "submit" | "consent" | "note" | "stage_change" | "webhook" | "newsletter";
+  "submit" | "consent" | "note" | "stage_change" | "webhook" | "newsletter" | "event";
 
 export type LeadTimelineEvent = {
   id: string;
@@ -32,6 +37,42 @@ export type LeadTimelinePayload = {
   lead: LeadTimelineLead;
   events: LeadTimelineEvent[];
 };
+
+/** Wiersz `audit_log` w kształcie, który czyta oś czasu leada. */
+export type LeadTimelineAuditRow = {
+  id: string;
+  action: string;
+  actor_id: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+};
+
+/**
+ * Typ wpisu osi czasu dla wiersza audytu. Aktywność z Wydarzeń ma PIERWSZEŃSTWO
+ * przed heurystyką „webhook" - akcja `event.integration.webhook_sent` jest
+ * zdarzeniem wydarzenia, a nie dostawą webhooka CRM.
+ */
+export function auditTimelineEventType(action: string): LeadTimelineEventType {
+  if (isEventActivityAction(action)) return "event";
+  return action.includes("webhook") ? "webhook" : "stage_change";
+}
+
+/**
+ * Wiersz audytu -> wpis osi czasu. Dla typu „event" tytułem jest polskie zdanie
+ * z metadanych (druk i CSV), a `meta` niesie cały kontrakt (`summary_en`,
+ * `event_id`), z którego widok bierze zdanie w swoim języku i odnośnik do studia.
+ */
+export function leadTimelineEventFromAudit(row: LeadTimelineAuditRow): LeadTimelineEvent {
+  const type = auditTimelineEventType(row.action);
+  return {
+    id: `au:${row.id}`,
+    type,
+    at: row.created_at,
+    title: type === "event" ? eventActivitySummary(row.metadata, "pl", row.action) : row.action,
+    detail: null,
+    meta: row.metadata ?? null,
+  };
+}
 
 export function parseLeadTimelinePayload(json: string): LeadTimelinePayload {
   const raw = JSON.parse(json) as Partial<LeadTimelinePayload> | null;

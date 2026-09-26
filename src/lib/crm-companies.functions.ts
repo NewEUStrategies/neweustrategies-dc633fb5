@@ -7,6 +7,7 @@ import { requireCrmStaff } from "@/integrations/supabase/require-staff";
 import { z } from "zod";
 import { looseClient, looseTable, rowsOf, type LooseQuery } from "@/lib/supabase/looseQuery";
 import { nullIfBlank } from "@/lib/crm/text";
+import { isEventActivityAction } from "@/lib/crm/eventActivity";
 
 const j = (v: unknown): string => JSON.stringify(v ?? null);
 
@@ -448,7 +449,7 @@ export const getCrmCompanyActivity = createServerFn({ method: "POST" })
 
     type Event = {
       id: string;
-      kind: "audit" | "note" | "lead_created";
+      kind: "audit" | "note" | "lead_created" | "event";
       action: string;
       created_at: string;
       actor_id: string | null;
@@ -464,9 +465,12 @@ export const getCrmCompanyActivity = createServerFn({ method: "POST" })
       const action = String(a.action ?? "unknown");
       const meta = (a.metadata as Record<string, unknown> | null) ?? null;
       const isCompanyNote = action === "crm.company.note";
+      // Aktywność z modułu Wydarzeń (`event.*`, kontrakt w `crm/eventActivity`)
+      // - zarówno wpisy firmy (sponsoring, faktura zbiorcza), jak i jej ludzi.
+      const kind = isCompanyNote ? "note" : isEventActivityAction(action) ? "event" : "audit";
       events.push({
         id: `a:${a.id as string}`,
-        kind: isCompanyNote ? "note" : "audit",
+        kind,
         action,
         created_at: String(a.created_at ?? ""),
         actor_id: (a.actor_id as string | null) ?? null,

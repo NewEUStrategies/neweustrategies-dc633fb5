@@ -1,0 +1,14 @@
+-- ============================================================================
+-- ZAREZERWOWANE MIEJSCE NA MIGRACJE FUNKCJI: bilet-w-portfelu (wlasciciel: f7b).
+--
+-- BLIZNIAK drizzle/migrations/0063_event_ticket_wallet.sql - ten sam SQL wykonywalny
+-- (pilnuje tego `src/lib/ci/migrationLaneParity.ts`).
+-- events-harness: include
+--
+-- Numeracja obu torow jest przydzielona z gory, zeby siedem funkcji
+-- organizatora powstajacych rownolegle nie kolidowalo na numerach, dzienniku
+-- drizzle ani rejestrze blizniakow. Wlasciciel ZASTEPUJE tresc obu plikow
+-- wlasciwym SQL-em; do tego czasu plik jest bezczynny (zapytanie bez wierszy),
+-- a jego jedyny literal odroznia go od pozostalych rezerwacji.
+-- ============================================================================
+SELECT 'placeholder:0063_event_ticket_wallet'::text AS event_migration_placeholder FROM public.events WHERE false;

@@ -35,6 +35,8 @@ import { getCrmLead, updateCrmLead, getCrmLeadTimeline } from "@/lib/crm.functio
 import { useLeadNoteMutations, usePartnerPush } from "@/lib/crm/leadMutations";
 import type { ConsentLogRow } from "@/lib/crm/consentLog";
 import { parseLeadTimelinePayload } from "@/lib/crm/leadTimeline";
+import { eventActivitySummary } from "@/lib/crm/eventActivity";
+import { CrmEventActivityLink } from "@/components/admin/crm/CrmEventActivityLink";
 import { nullIfBlank } from "@/lib/crm/text";
 import { LeadScoreBadge } from "@/components/admin/crm/LeadScoreBadge";
 import { ScoreBreakdownCard } from "@/components/admin/crm/ScoreBreakdownCard";
@@ -654,7 +656,11 @@ function AdminCrmDetailPage() {
                       <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-primary/60" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-[12px] font-medium">{e.title || e.type}</span>
+                          <span className="text-[12px] font-medium">
+                            {e.type === "event"
+                              ? eventActivitySummary(e.meta, lang, e.title)
+                              : e.title || e.type}
+                          </span>
                           <span className="text-[10px] text-muted-foreground">
                             {new Date(e.at).toLocaleString()}
                           </span>
@@ -663,6 +669,12 @@ function AdminCrmDetailPage() {
                           <p className="mt-0.5 whitespace-pre-wrap text-[11px] text-muted-foreground">
                             {e.detail}
                           </p>
+                        )}
+                        {e.type === "event" && (
+                          <CrmEventActivityLink
+                            meta={e.meta}
+                            label={t("Otwórz w studiu wydarzenia", "Open in the event studio")}
+                          />
                         )}
                       </div>
                     </li>

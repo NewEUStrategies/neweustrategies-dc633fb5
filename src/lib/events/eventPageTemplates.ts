@@ -32,6 +32,15 @@ export interface TemplateText {
   en: string;
 }
 
+/**
+ * Kontekst wydarzenia przy zakładaniu strony. Szablon zna adres wydarzenia
+ * tylko wtedy, gdy przycisk ma prowadzić do jego trasy (zaproszenie do naboru
+ * prelegentów -> `/events/<slug>/cfp`); bez sluga przycisk zostaje `#`.
+ */
+export interface EventPageTemplateContext {
+  eventSlug: string | null;
+}
+
 export interface EventPageTemplate {
   /** Stabilny identyfikator - zapisywany w telemetrii i w testach. */
   id: string;
@@ -42,7 +51,7 @@ export interface EventPageTemplate {
   /** Sklad strony - to, co redaktor widzi przed wyborem. */
   elements: readonly TemplateText[];
   /** Swieze sekcje (nowe `id` przy kazdym wywolaniu). */
-  build: () => SectionNode[];
+  build: (context?: EventPageTemplateContext) => SectionNode[];
 }
 
 export function templateText(text: TemplateText, lang: UiLang): string {
@@ -60,8 +69,14 @@ const paragraph = (pl: string, en: string) =>
 const label = (pl: string, en: string) =>
   widget("section-label", { label_pl: pl, label_en: en, action_pl: "", action_en: "", href: "" });
 
-const cta = (pl: string, en: string, buttonPl: string, buttonEn: string) =>
-  widget("cta", { title_pl: pl, title_en: en, cta_pl: buttonPl, cta_en: buttonEn, href: "#" });
+const cta = (pl: string, en: string, buttonPl: string, buttonEn: string, href = "#") =>
+  widget("cta", { title_pl: pl, title_en: en, cta_pl: buttonPl, cta_en: buttonEn, href });
+
+/** Strona naboru prelegentów wydarzenia (`events.$slug.cfp.tsx`); bez sluga `#`. */
+export function eventCfpHref(context: EventPageTemplateContext | undefined): string {
+  const slug = context?.eventSlug?.trim() ?? "";
+  return slug === "" ? "#" : `/events/${encodeURIComponent(slug)}/cfp`;
+}
 
 const faqItems = () =>
   toJson([
@@ -164,7 +179,7 @@ export const EVENT_PAGE_TEMPLATES: readonly EventPageTemplate[] = [
       { pl: "Siatka prelegentów", en: "Speakers grid" },
       { pl: "Zaproszenie do zgłoszenia prelekcji", en: "Call for proposals" },
     ],
-    build: () => [
+    build: (context) => [
       oneColumn(
         [
           heading("Prelegenci", "Speakers", "h1"),
@@ -177,7 +192,14 @@ export const EVENT_PAGE_TEMPLATES: readonly EventPageTemplate[] = [
       ),
       oneColumn([widget("speakers", { heading_pl: "", heading_en: "" })]),
       oneColumn([
-        cta("Chcesz wystąpić?", "Would you like to speak?", "Zgłoś prelekcję", "Submit a talk"),
+        // Przycisk prowadzi do strony naboru prelegentów tego wydarzenia.
+        cta(
+          "Chcesz wystąpić?",
+          "Would you like to speak?",
+          "Zgłoś prelekcję",
+          "Submit a talk",
+          eventCfpHref(context),
+        ),
       ]),
     ],
   },
@@ -437,8 +459,11 @@ export function findEventPageTemplate(id: string | null | undefined): EventPageT
  * szablonu" i „szablon jest pusty" to dwie rozne odpowiedzi, a wolajacy ma
  * prawo na pierwsza zareagowac inaczej niz na druga.
  */
-export function eventPageTemplateDocument(id: string | null | undefined): BuilderDocument | null {
+export function eventPageTemplateDocument(
+  id: string | null | undefined,
+  context?: EventPageTemplateContext,
+): BuilderDocument | null {
   const template = findEventPageTemplate(id);
   if (template === null) return null;
-  return { version: 1, sections: template.build() };
+  return { version: 1, sections: template.build(context) };
 }

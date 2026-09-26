@@ -109,12 +109,27 @@ const GATED_PREFIXES = [
   // wpuścić człowieka - goły klucz zamiast "Kod z innego wydarzenia" zatrzymuje
   // kolejkę. Bramka od pierwszego dnia, nie po pierwszym incydencie.
   "eventScanner",
+  // Nabór prelegentów (f1): panel organizatora i powierzchnia prelegenta
+  // i recenzenta. Odmowa bazy mówi prelegentowi, co poprawić w zgłoszeniu -
+  // surowy klucz w tym miejscu zostawiłby go bez następnego kroku.
+  "adminEventCfp",
+  "eventCfp",
+  // Plan sali: edytor organizatora i karta „Twoje miejsce” uczestnika. Surowy
+  // klucz na karcie miejsca to uczestnik bez informacji, gdzie usiąść.
+  "adminEventSeating",
+  "eventSeating",
   // Siatka zespołu: napisy okna osoby (rola w NES, afiliacja, przynależność
   // projektowa, kontakt) są PUBLICZNE i jadą za językiem treści, nie panelu.
   // Brak klucza po jednej stronie dałby surowe `teamGrid.dialog.affiliation`
   // na karcie człowieka - dlatego bramka od pierwszego dnia, a nie po
   // pierwszym rozjeździe (ta sama lekcja co przy "network" i "club").
   "teamGrid",
+  // Faktury wydarzen: studio organizatora i strona kupujacego. Klucze odmow
+  // bazy mowia, co poprawic w danych nabywcy albo wystawcy, a etykiety PDF
+  // drukuja sie w jezyku faktury - brak klucza po jednej stronie trafia na
+  // dokument ksiegowy. Bramka od pierwszego dnia.
+  "adminEventInvoices",
+  "eventInvoices",
 ] as const;
 
 // Klucze, dla których identyczny tekst PL i EN jest poprawny (nazwy własne,
@@ -205,6 +220,26 @@ const IDENTICAL_ALLOWLIST: readonly string[] = [
   "eventFront.formats.online",
   "eventFront.list.formatLabel",
   "eventMeetings.fields.sponsor",
+  // Nabór prelegentów (f1): nazwy i jednostki identyczne w obu językach
+  // („Online", „Moderator", „E-mail", „min") oraz szablony złożone z samych
+  // miejsc interpolacji.
+  "adminEventCfp.accept.formats.online",
+  "adminEventCfp.detail.duration",
+  "eventCfp.page.countdown.value",
+  "eventCfp.page.formatDuration",
+  "eventCfp.review.scoreButton",
+  "eventCfp.roles.moderator",
+  "eventCfp.submit.coSpeaker.email",
+  // Faktury wydarzen: "SWIFT/BIC" to nazwa wlasna kodu banku, a rdzen nazwy
+  // pliku proformy ("proforma") jest ten sam w obu jezykach.
+  "adminEventInvoices.settings.bankSwift",
+  "eventInvoices.pdf.swift",
+  "eventInvoices.pdf.fileStems.proforma",
+  // Plan sali: „Plan” to to samo słowo w obu językach, a opcja zamówienia
+  // pakietowego składa się wyłącznie z nazw własnych (kupujący, pakiet).
+  "adminEventSeating.workspace.viewCanvas",
+  "adminEventSeating.holdDialog.packageOption",
+  "eventSeating.card.plan",
 ];
 
 function loadOverlays(): void {

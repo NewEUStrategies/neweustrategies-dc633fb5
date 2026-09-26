@@ -45,6 +45,7 @@ import {
   Users,
   Loader2,
   Landmark,
+  CalendarDays,
 } from "lucide-react";
 
 import {
@@ -55,6 +56,8 @@ import {
   getCrmCompanyActivity,
   addCrmCompanyNote,
 } from "@/lib/crm-companies.functions";
+import { eventActivitySummary } from "@/lib/crm/eventActivity";
+import { CrmEventActivityLink } from "@/components/admin/crm/CrmEventActivityLink";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -123,7 +126,7 @@ type LinkedLead = {
 };
 type ActivityEvent = {
   id: string;
-  kind: "audit" | "note" | "lead_created";
+  kind: "audit" | "note" | "lead_created" | "event";
   action: string;
   created_at: string;
   actor_id: string | null;
@@ -711,6 +714,7 @@ function AdminCompanyDetailPage() {
                   fmt={fmt}
                   lang={lang}
                   emptyLabel={t("Brak aktywności.", "No activity yet.")}
+                  openEventLabel={t("Otwórz w studiu wydarzenia", "Open in the event studio")}
                 />
                 <button
                   type="button"
@@ -811,6 +815,7 @@ function AdminCompanyDetailPage() {
                     fmt={fmt}
                     lang={lang}
                     emptyLabel={t("Brak aktywności.", "No activity yet.")}
+                    openEventLabel={t("Otwórz w studiu wydarzenia", "Open in the event studio")}
                   />
                 )}
               </section>
@@ -1320,11 +1325,14 @@ function ActivityList({
   fmt,
   lang,
   emptyLabel,
+  openEventLabel,
 }: {
   events: ActivityEvent[];
   fmt: Intl.DateTimeFormat;
   lang: "pl" | "en";
   emptyLabel: string;
+  /** Napis odnośnika do studia przy wpisie z modułu Wydarzeń. */
+  openEventLabel: string;
 }) {
   if (!events || events.length === 0) {
     return <p className="text-[12px] text-muted-foreground">{emptyLabel}</p>;
@@ -1332,12 +1340,17 @@ function ActivityList({
   const iconFor = (e: ActivityEvent) => {
     if (e.kind === "note") return <StickyNote className="h-3.5 w-3.5" aria-hidden />;
     if (e.kind === "lead_created") return <Target className="h-3.5 w-3.5" aria-hidden />;
+    if (e.kind === "event") return <CalendarDays className="h-3.5 w-3.5" aria-hidden />;
     return <Activity className="h-3.5 w-3.5" aria-hidden />;
   };
   const labelFor = (e: ActivityEvent) => {
     if (e.kind === "note") return lang === "pl" ? "Notatka" : "Note";
     if (e.kind === "lead_created")
       return `${lang === "pl" ? "Nowy lead" : "New lead"}${e.lead_label ? ` · ${e.lead_label}` : ""}`;
+    // Wpis z modułu Wydarzeń: zdanie z metadanych w języku panelu, a przy
+    // wpisie osoby - kto (wpis samej firmy nie ma osoby).
+    if (e.kind === "event")
+      return `${eventActivitySummary(e.metadata, lang, e.action)}${e.lead_label ? ` · ${e.lead_label}` : ""}`;
     return e.action;
   };
   return (
@@ -1358,6 +1371,9 @@ function ActivityList({
               <p className="mt-0.5 whitespace-pre-wrap text-[11px] text-muted-foreground">
                 {e.body}
               </p>
+            )}
+            {e.kind === "event" && (
+              <CrmEventActivityLink meta={e.metadata} label={openEventLabel} />
             )}
           </div>
         </li>

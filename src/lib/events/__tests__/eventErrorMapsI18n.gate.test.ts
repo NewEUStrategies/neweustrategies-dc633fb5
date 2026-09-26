@@ -41,6 +41,7 @@ import { adminTermsFailure } from "@/lib/events/adminTermsErrors";
 import { adminOnsiteFailure } from "@/lib/events/adminOnsiteErrors";
 import { publicEventErrorKey } from "@/lib/events/publicEventErrors";
 import { adminEventStudioErrorKey } from "@/lib/events/adminEventStudioErrors";
+import { adminSeatingFailure } from "@/lib/events/adminSeatingErrors";
 import {
   adminEventRegistrationEn,
   adminEventRegistrationPl,
@@ -49,6 +50,15 @@ import { adminEventTermsEn, adminEventTermsPl } from "@/lib/i18n-admin-event-ter
 import { adminEventOnsiteEn, adminEventOnsitePl } from "@/lib/i18n-admin-event-onsite";
 import { eventFrontEn, eventFrontPl } from "@/lib/i18n-event-front";
 import { adminEventsEn, adminEventsPl } from "@/lib/i18n-admin-events";
+import { adminCfpFailure } from "@/lib/events/adminCfpErrors";
+import { publicCfpFailure } from "@/lib/events/publicCfpErrors";
+import { adminEventCfpEn, adminEventCfpPl } from "@/lib/i18n-admin-event-cfp";
+import { eventCfpEn, eventCfpPl } from "@/lib/i18n-event-cfp";
+import { adminEventInvoiceErrorKey } from "@/lib/events/adminEventInvoiceErrors";
+import { eventInvoiceErrorKey } from "@/lib/events/eventInvoiceErrors";
+import { adminEventInvoicesEn, adminEventInvoicesPl } from "@/lib/i18n-admin-event-invoices";
+import { eventInvoicesEn, eventInvoicesPl } from "@/lib/i18n-event-invoices";
+import { adminEventSeatingEn, adminEventSeatingPl } from "@/lib/i18n-admin-event-seating";
 
 /** Klucz ma tekst, gdy w słowniku stoi pod nim NIEPUSTY napis (nie gałąź). */
 function maTekst(slownik: ResourceTree, klucz: string): boolean {
@@ -236,6 +246,248 @@ const KODY_STUDIA = [
   STRAZNIK_TENANTA,
 ] as const;
 
+/** Nabór prelegentów, panel organizatora - `cfpApi` (f1). */
+const KODY_NABORU_PANEL = [
+  // ustawienia (`admin_event_cfp_settings_save`)
+  "invalid_status",
+  "invalid_window",
+  "invalid_texts",
+  "invalid_formats",
+  "invalid_tracks",
+  "invalid_limit",
+  "invalid_score_max",
+  "invalid_min_reviews",
+  "invalid_criteria",
+  "invalid_group",
+  "invalid_ticket",
+  "score_max_below_reviews",
+  // pytania formularza (`admin_event_cfp_field_upsert` / `_fields_reorder`)
+  "invalid_key",
+  "key_taken",
+  "key_immutable",
+  "invalid_field_type",
+  "invalid_labels",
+  "invalid_help",
+  "invalid_options",
+  "invalid_order",
+  // decyzja i przyjęcie (`admin_event_cfp_submission_decide` / `_accept`)
+  "invalid_transition",
+  "note_required",
+  "invalid_note",
+  "invalid_schedule",
+  "invalid_format",
+  "room_not_found",
+  "track_not_found",
+  "room_conflict",
+  // szkic sesji z przyjęcia przechodzi przez wyzwalacze sesji
+  // (20260823140000_event_sessions.sql) - skan nie schodzi w wyzwalacze.
+  "session_before_event",
+  "session_after_event",
+  "speaker_overlap",
+  // recenzenci i materiały
+  "reviewer_not_found",
+  // wspólne
+  "invalid_payload",
+  "not_found",
+  // most CRM (`_event_person_crm_sync` -> wpis historii)
+  "invalid_audit_action",
+  STRAZNIK_TENANTA,
+] as const;
+
+/** Nabór prelegentów, strona zgłoszenia i panele prelegenta/recenzenta - `cfpPublicApi` (f1). */
+const KODY_NABORU_UCZESTNIK = [
+  "auth_required",
+  "rate_limited",
+  "rate_limit_hit",
+  "not_found",
+  "invalid_payload",
+  "invalid_transition",
+  // szkic i wysłanie (`event_cfp_submission_save` / `_submit`)
+  "cfp_closed",
+  "limit_reached",
+  "not_editable",
+  "email_required",
+  "email_in_use",
+  "invalid_name",
+  "invalid_speaker",
+  "invalid_title",
+  "invalid_abstract",
+  "invalid_language",
+  "invalid_format",
+  "invalid_track",
+  "invalid_topics",
+  "invalid_answers",
+  "invalid_role",
+  "invalid_speakers",
+  "co_speakers_disabled",
+  "too_many_speakers",
+  "missing_title",
+  "missing_abstract",
+  "missing_format",
+  "missing_track",
+  "missing_required_fields",
+  // panel prelegenta (profil, materiały)
+  "not_speaker",
+  "invalid_profile",
+  "invalid_kind",
+  "invalid_url",
+  "invalid_visibility",
+  "invalid_session",
+  "invalid_submission",
+  "too_many_materials",
+  // panel recenzenta
+  "not_reviewer",
+  "invalid_recommendation",
+  "invalid_scores",
+  "invalid_score",
+  "score_required",
+  "invalid_comment",
+  // most CRM przy wysłaniu zgłoszenia
+  "invalid_audit_action",
+] as const;
+
+/** Dane nabywcy - wspolne dla prosby kupujacego i szkicu w studiu (`_event_invoice_buyer_clean`). */
+const KODY_NABYWCY = [
+  "invalid_buyer_name",
+  "invalid_country",
+  "invalid_tax_id",
+  "tax_id_required",
+  "invalid_buyer_address",
+  "invalid_postal_code",
+  "invalid_email",
+  "invalid_po_number",
+  "invalid_recipient",
+] as const;
+
+/** Faktury wydarzenia w studiu - `eventInvoicesApi` (migracja 20260926110000). */
+const KODY_FAKTUR = [
+  ...KODY_NABYWCY,
+  // _event_invoice_draft_build / admin_event_invoice_draft_create / _update
+  "invoicing_disabled",
+  "invalid_kind",
+  "invalid_aggregate",
+  "invalid_locale",
+  "invalid_vat_rate",
+  "invalid_note",
+  "not_found",
+  "no_sources",
+  "too_many_sources",
+  "invalid_source",
+  "duplicate_source",
+  "source_not_found",
+  "source_not_lead",
+  "source_not_invoiceable",
+  "already_invoiced",
+  "currency_mismatch",
+  "request_not_found",
+  "invalid_payment_method",
+  "not_draft",
+  "no_lines",
+  "too_many_lines",
+  "invalid_quantity",
+  "invalid_price",
+  "invalid_line",
+  // _event_invoice_issue_core
+  "vat_exempt_basis_required",
+  "negative_total",
+  "mor_seller_conflict",
+  "correction_target_invalid",
+  "invalid_due_date",
+  // admin_event_invoice_settings_save
+  "invalid_settings",
+  "invalid_series",
+  "series_not_distinct",
+  "invalid_payment_days",
+  "seller_incomplete",
+  "seller_confirmation_required",
+  // admin_event_invoice_cancel / _correction_create / _from_proforma / _ksef_update
+  "already_cancelled",
+  "reason_required",
+  "ksef_locked",
+  "has_corrections",
+  "correction_locked",
+  "invalid_correction_mode",
+  "correction_exists",
+  "correction_empty",
+  "not_proforma",
+  "proforma_already_converted",
+  "ksef_not_applicable",
+  "invalid_ksef_status",
+  "ksef_number_required",
+  "invalid_ksef_number",
+  // Osiagalne przez most CRM (`crm_ensure_member_company`, `_event_person_crm_sync`);
+  // oba sa wolane w bloku, ktory ich blad polyka, ale skan ich nie odroznia.
+  "crm",
+  "invalid_audit_action",
+  STRAZNIK_TENANTA,
+] as const;
+
+/** Prosba kupujacego o fakture - `myEventInvoicesApi` (plaszczyzna publiczna). */
+const KODY_PROSBY_O_FAKTURE = [
+  ...KODY_NABYWCY,
+  "auth_required",
+  "invalid_source",
+  "rate_limited",
+  "rate_limit_hit",
+  "not_found",
+  "request_window_closed",
+  "already_invoiced",
+] as const;
+
+/**
+ * Plan sali - `seatingApi` (migracja 20260926130000). Te same glowy wracaja
+ * tez jako kody odrzutow przydzialu zbiorczego (`rejected[].code`).
+ */
+const KODY_PLANU_SALI = [
+  // admin_event_seat_map_save / _delete / _detail, admin_event_seat_maps_list
+  "invalid_event",
+  "invalid_name",
+  "name_taken",
+  "invalid_status",
+  "invalid_size",
+  "room_not_found",
+  "session_not_found",
+  "invalid_stage",
+  "map_has_assignments",
+  "not_found",
+  // admin_event_seat_category_save / _delete
+  "invalid_key",
+  "key_taken",
+  "invalid_names",
+  "invalid_color",
+  "invalid_payload",
+  "ticket_not_found",
+  "category_in_use",
+  // admin_event_seat_section_save / _delete
+  "invalid_label",
+  "label_taken",
+  "category_not_found",
+  "invalid_shape",
+  "map_too_large",
+  "seats_in_use",
+  "section_has_assignments",
+  // admin_event_seats_update
+  "too_many_seats",
+  "seat_not_found",
+  "invalid_note",
+  "seat_assigned",
+  "company_not_found",
+  "sponsor_not_found",
+  "package_not_found",
+  // admin_event_seat_assign / _assign_batch / _release
+  "seat_blocked",
+  "registration_not_found",
+  "registration_not_seatable",
+  "seat_held_for_other",
+  "category_ticket_mismatch",
+  "seat_taken",
+  "swap_not_allowed",
+  "too_many_items",
+  // admin_event_seat_lookup
+  "too_many_ids",
+  STRAZNIK_TENANTA,
+] as const;
+
 interface BramkowanaMapa {
   nazwa: string;
   prefix: string;
@@ -313,6 +565,61 @@ const MAPY: readonly BramkowanaMapa[] = [
     en: adminEventsEn,
     moduly: ["eventDetailApi", "eventPagesApi"],
     interpoluje: false,
+  },
+  {
+    nazwa: "adminCfpErrors",
+    prefix: "adminEventCfp.errors.",
+    klucz: (error) => adminCfpFailure(error).key,
+    kody: KODY_NABORU_PANEL,
+    nakladka: "src/lib/i18n-admin-event-cfp.ts",
+    pl: adminEventCfpPl,
+    en: adminEventCfpEn,
+    moduly: ["cfpApi"],
+    interpoluje: true,
+  },
+  {
+    nazwa: "publicCfpErrors",
+    prefix: "eventCfp.errors.",
+    klucz: (error) => publicCfpFailure(error).key,
+    kody: KODY_NABORU_UCZESTNIK,
+    nakladka: "src/lib/i18n-event-cfp.ts",
+    pl: eventCfpPl,
+    en: eventCfpEn,
+    moduly: ["cfpPublicApi"],
+    interpoluje: true,
+  },
+  {
+    nazwa: "adminEventInvoiceErrors",
+    prefix: "adminEventInvoices.errors.",
+    klucz: adminEventInvoiceErrorKey,
+    kody: KODY_FAKTUR,
+    nakladka: "src/lib/i18n-admin-event-invoices.ts",
+    pl: adminEventInvoicesPl,
+    en: adminEventInvoicesEn,
+    moduly: ["eventInvoicesApi"],
+    interpoluje: false,
+  },
+  {
+    nazwa: "eventInvoiceErrors",
+    prefix: "eventInvoices.errors.",
+    klucz: eventInvoiceErrorKey,
+    kody: KODY_PROSBY_O_FAKTURE,
+    nakladka: "src/lib/i18n-event-invoices.ts",
+    pl: eventInvoicesPl,
+    en: eventInvoicesEn,
+    moduly: ["myEventInvoicesApi"],
+    interpoluje: false,
+  },
+  {
+    nazwa: "adminSeatingErrors",
+    prefix: "adminEventSeating.errors.",
+    klucz: (error) => adminSeatingFailure(error).key,
+    kody: KODY_PLANU_SALI,
+    nakladka: "src/lib/i18n-admin-event-seating.ts",
+    pl: adminEventSeatingPl,
+    en: adminEventSeatingEn,
+    moduly: ["seatingApi"],
+    interpoluje: true,
   },
 ];
 
@@ -398,6 +705,8 @@ describe("zdania bez interpolacji", () => {
     expect(BEZ_INTERPOLACJI.map((mapa) => mapa.nazwa)).toEqual([
       "publicEventErrors",
       "adminEventStudioErrors",
+      "adminEventInvoiceErrors",
+      "eventInvoiceErrors",
     ]);
   });
 });

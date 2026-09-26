@@ -577,6 +577,50 @@ describe("skrzynka CRM - karta kontaktu (drawer)", () => {
     expect(screen.getByRole("button", { name: /Eksport PDF/ })).toBeDisabled();
   });
 
+  it("wpis z modułu Wydarzeń ma WŁASNY typ, zdanie w języku panelu i odnośnik do studia", async () => {
+    // Bez tego wpis „zgłosił wystąpienie" stał pod etykietą „Zmiana etapu",
+    // a panel angielski pokazywał zdanie polskie.
+    const eventId = "3f1a0c8e-0000-4000-8000-000000000042";
+    const timeline = {
+      lead: { id: LEAD_ID, email: "anna@example.test" },
+      events: [
+        {
+          id: "au:a1",
+          type: "event",
+          at: new Date(Date.UTC(2026, 7, 5, 10)).toISOString(),
+          title: "Zgłoszenie wystąpienia",
+          detail: null,
+          meta: {
+            event_id: eventId,
+            summary_pl: "Zgłoszenie wystąpienia",
+            summary_en: "Talk submitted",
+          },
+        },
+      ],
+    };
+    h.timeline = timeline;
+    await mount();
+    fireEvent.click(await screen.findByLabelText("Szybki podgląd"));
+    await openTab(/Oś czasu/);
+    expect(await screen.findByText("Zgłoszenie wystąpienia")).toBeInTheDocument();
+    expect(screen.getByText("Wydarzenie")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Otwórz w studiu wydarzenia" })).toHaveAttribute(
+      "href",
+      `/admin/events/${eventId}/overview`,
+    );
+
+    cleanup();
+    h.lang = "en";
+    h.timeline = timeline;
+    await mount();
+    fireEvent.click(await screen.findByLabelText("Quick preview"));
+    await openTab(/Timeline/);
+    expect(await screen.findByText("Talk submitted")).toBeInTheDocument();
+    expect(screen.queryByText("Zgłoszenie wystąpienia")).toBeNull();
+    expect(screen.getByText("Event")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open in the event studio" })).toBeInTheDocument();
+  });
+
   it("oś czasu ze zdarzeniami eksportuje się do CSV dla tego leada", async () => {
     Object.assign(URL, { createObjectURL: vi.fn(() => "blob:x"), revokeObjectURL: vi.fn() });
     h.timeline = {

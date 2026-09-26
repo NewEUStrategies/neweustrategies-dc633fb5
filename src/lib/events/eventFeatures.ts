@@ -4,7 +4,7 @@
 // KLUCZ NIEOBECNY = MODUL WLACZONY. Kolumna `events.features` trzyma WYLACZNIE
 // wylaczenia (`admin_event_features_save` wyrzuca `true` z zapisu), wiec brak
 // klucza nie znaczy „nie wiem", tylko „wlaczony". Gdyby bylo odwrotnie - gdyby
-// zapisywac komplet siedmiu flag - modul dodany w przyszlosci ZNIKALBY kazdemu
+// zapisywac komplet flag - modul dodany w przyszlosci ZNIKALBY kazdemu
 // wydarzeniu zapisanemu przed jego powstaniem: jego klucz nie stalby w kolumnie,
 // a odczyt czytalby brak jako „wylaczony".
 //
@@ -31,15 +31,23 @@ import {
 } from "@/lib/events/eventStudioNav";
 
 /**
- * Biala lista kluczy - DOKLADNIE ta, ktora zna `admin_event_features_save`.
+ * Biala lista kluczy - DOKLADNIE ta, ktora zna `admin_event_features_save`
+ * (ostatnia definicja: 20260926090000_event_organizer_foundation.sql).
  * Kolejnosc jest kolejnoscia przelacznikow na ekranie: najpierw to, co dotyka
- * strony wydarzenia, potem zapisy, na koncu moduly dnia wydarzenia.
+ * strony wydarzenia, potem zapisy (z planem sali), program (z naborem
+ * prelegentow), na koncu moduly dnia wydarzenia.
+ *
+ * KOLEJNOSC JEST TEZ PRIORYTETEM wyjasnienia ukrytej sekcji (patrz
+ * `hiddenSectionMap`): „Rejestracja" stoi przed „Biletami" i „Planem sali",
+ * wiec przy obu wylaczonych ekran tlumaczy sie SZERSZYM modulem.
  */
 export const EVENT_FEATURE_KEYS = [
   "pages",
   "registration",
   "tickets",
+  "seating",
   "sessions",
+  "cfp",
   "meetings",
   "onsite",
   "sponsors",
@@ -47,14 +55,16 @@ export const EVENT_FEATURE_KEYS = [
 
 export type EventFeatureKey = (typeof EVENT_FEATURE_KEYS)[number];
 
-/** Stan siedmiu przelacznikow. `true` = modul wlaczony dla tego wydarzenia. */
+/** Stan przelacznikow. `true` = modul wlaczony dla tego wydarzenia. */
 export type EventFeaturesDraft = Record<EventFeatureKey, boolean>;
 
 export const EVENT_FEATURE_LABEL_KEYS: Record<EventFeatureKey, string> = {
   pages: "adminEvents.studio.features.labels.pages",
   registration: "adminEvents.studio.features.labels.registration",
   tickets: "adminEvents.studio.features.labels.tickets",
+  seating: "adminEvents.studio.features.labels.seating",
   sessions: "adminEvents.studio.features.labels.sessions",
+  cfp: "adminEvents.studio.features.labels.cfp",
   meetings: "adminEvents.studio.features.labels.meetings",
   onsite: "adminEvents.studio.features.labels.onsite",
   sponsors: "adminEvents.studio.features.labels.sponsors",
@@ -65,7 +75,9 @@ export const EVENT_FEATURE_HINT_KEYS: Record<EventFeatureKey, string> = {
   pages: "adminEvents.studio.features.hints.pages",
   registration: "adminEvents.studio.features.hints.registration",
   tickets: "adminEvents.studio.features.hints.tickets",
+  seating: "adminEvents.studio.features.hints.seating",
   sessions: "adminEvents.studio.features.hints.sessions",
+  cfp: "adminEvents.studio.features.hints.cfp",
   meetings: "adminEvents.studio.features.hints.meetings",
   onsite: "adminEvents.studio.features.hints.onsite",
   sponsors: "adminEvents.studio.features.hints.sponsors",
@@ -76,7 +88,9 @@ export const ALL_EVENT_FEATURES_ENABLED: EventFeaturesDraft = {
   pages: true,
   registration: true,
   tickets: true,
+  seating: true,
   sessions: true,
+  cfp: true,
   meetings: true,
   onsite: true,
   sponsors: true,
@@ -108,11 +122,11 @@ export function eventFeaturesFromJson(value: unknown): EventFeaturesDraft {
 /**
  * Payload dla `admin_event_features_save`.
  *
- * KOMPLET SIEDMIU KLUCZY, A NIE SAME WYLACZENIA - i to jest tu jedyna
+ * KOMPLET KLUCZY, A NIE SAME WYLACZENIA - i to jest tu jedyna
  * nieoczywista decyzja. Kolumna trzyma tylko wylaczenia (RPC wyrzuca `true`
  * z zapisu, patrz naglowek pliku), ale KLUCZ POMINIETY W PAYLOADZIE ZACHOWUJE
  * DZISIEJSZY STAN - taka jest umowa RPC, zeby dalo sie wyslac jeden przelacznik
- * bez wlaczania przy okazji szesciu pozostalych. Payload zlozony z samych
+ * bez wlaczania przy okazji pozostalych. Payload zlozony z samych
  * `false` umialby wiec tylko WYLACZAC: ponowne wlaczenie modulu wysylaloby
  * `{}` i baza nie zmienilaby niczego, a przelacznik wracalby na „wylaczony"
  * przy pierwszym odswiezeniu. Przelacznik, ktorego nie da sie wlaczyc, klamie
@@ -148,15 +162,22 @@ export function eventFeaturesDirty(a: EventFeaturesDraft, b: EventFeaturesDraft)
 }
 
 /**
- * Co chowa jedna funkcja: pojedyncza sekcje albo CALA grupe sidebara.
+ * Co chowa jedna funkcja: pojedyncza sekcje, KILKA wskazanych sekcji albo
+ * CALA grupe sidebara.
  *
  * Sekcja jest typowana zbiorem sekcji studia, wiec literowka w niej nie
  * kompiluje sie. Klucz grupy jest w modelu nawigacji zwyklym napisem - jego
  * literowke lapie test (grupa nieistniejaca oddaje ZERO sekcji, czyli
  * przelacznik przestaje chowac cokolwiek).
+ *
+ * WARIANT `sections` ISTNIEJE DLA SEKCJI ROZSIANYCH PO DRZEWIE. „Sponsorzy"
+ * to pozycja w kreatorze ORAZ raport sponsora obok analityki - dwa miejsca
+ * w sidebarze, zadna wspolna grupa. Wylaczenie sponsoringu, ktore zostawia
+ * raport o sponsorach, klamie tak samo jak przelacznik, ktory niczego nie chowa.
  */
 type EventFeatureTarget =
   | { readonly kind: "section"; readonly section: EventStudioSection }
+  | { readonly kind: "sections"; readonly sections: readonly EventStudioSection[] }
   | { readonly kind: "group"; readonly group: string };
 
 /**
@@ -169,21 +190,29 @@ const EVENT_FEATURE_TARGETS: Record<EventFeatureKey, EventFeatureTarget> = {
   pages: { kind: "section", section: "pages" },
   registration: { kind: "group", group: "registration" },
   tickets: { kind: "section", section: "registrationTickets" },
+  seating: { kind: "section", section: "registrationSeating" },
   sessions: { kind: "group", group: "content" },
+  cfp: { kind: "group", group: "cfp" },
   meetings: { kind: "group", group: "meetings" },
   onsite: { kind: "group", group: "onsite" },
-  sponsors: { kind: "section", section: "sponsors" },
+  sponsors: { kind: "sections", sections: ["sponsors", "sponsorReport"] },
 };
 
-/** Klucz grupy -> jej dzieci. Liczone z modelu nawigacji, nie przepisane. */
-const SECTIONS_BY_GROUP: ReadonlyMap<string, readonly EventStudioSection[]> = new Map(
-  EVENT_STUDIO_NAV.filter((node): node is EventStudioNavGroup => node.kind === "group").map(
-    (group): [string, readonly EventStudioSection[]] => [group.key, eventStudioNodeSections(group)],
-  ),
-);
+/**
+ * Klucz grupy -> jej dzieci. Liczone z modelu nawigacji, nie przepisane.
+ * Grupa nieistniejaca (literowka) oddaje pusty zbior - i to wlasnie lapie test
+ * „kazda funkcja chowa co najmniej jedna prawdziwa sekcje".
+ */
+function groupSections(groupKey: string): readonly EventStudioSection[] {
+  return EVENT_STUDIO_NAV.filter(
+    (node): node is EventStudioNavGroup => node.kind === "group" && node.key === groupKey,
+  ).flatMap((group) => eventStudioNodeSections(group));
+}
 
 function targetSections(target: EventFeatureTarget): readonly EventStudioSection[] {
-  return target.kind === "section" ? [target.section] : (SECTIONS_BY_GROUP.get(target.group) ?? []);
+  if (target.kind === "section") return [target.section];
+  if (target.kind === "sections") return target.sections;
+  return groupSections(target.group);
 }
 
 /**
@@ -214,7 +243,7 @@ export function hiddenStudioSections(draft: EventFeaturesDraft): ReadonlySet<Eve
  *
  * Sluzy ekranowi wylaczonej sekcji: „Moduł X jest wyłączony" mowi, czego
  * szukac w „Funkcjach dodatkowych", a samo „ten moduł" kaze zgadywac, ktory
- * z siedmiu przelacznikow odpowiada za pusty ekran.
+ * z przelacznikow odpowiada za pusty ekran.
  */
 export function eventFeatureHidingSection(
   draft: EventFeaturesDraft,
