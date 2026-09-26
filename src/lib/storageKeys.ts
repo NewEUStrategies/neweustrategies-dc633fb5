@@ -56,6 +56,20 @@ export const RECENT_COLORS_STORAGE_KEY = storageKey(
 export const SPONSOR_SESSION_STORAGE_KEY = storageKey("nes-sponsor-session");
 
 /**
+ * Atrybucja kampanii (pierwsze + ostatnie dotkniecie, 90 dni) - localStorage.
+ * Zapis WYLACZNIE przy zgodzie: marketing = z identyfikatorem klikniecia,
+ * sama analityka = kopia bez niego; cofniecie zgody kasuje klucz
+ * (`src/lib/analytics/adAttributionStore.ts`). Deklaracja w rejestrze cookies.
+ */
+export const AD_ATTRIBUTION_STORAGE_KEY = storageKey("nes.attribution.v1");
+
+/**
+ * Kroki lejka wydarzenia juz wyslane w tej sesji karty - sessionStorage.
+ * Jeden krok liczy sie raz na sesje (`src/lib/events/eventFunnelBeacon.ts`).
+ */
+export const EVENT_FUNNEL_SENT_STORAGE_KEY = storageKey("nes.event-funnel.sent");
+
+/**
  * Odczyt z migracją: nazwa kanoniczna, a w jej braku kolejne nazwy historyczne.
  * Wartość znaleziona pod starą nazwą jest przepisywana pod nową (i stara
  * usuwana), więc migracja dzieje się raz, przy pierwszym dotknięciu, bez

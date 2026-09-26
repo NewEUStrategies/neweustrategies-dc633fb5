@@ -50,6 +50,7 @@ import {
 } from "@/lib/events/admissionApi";
 import { RegistrationAmountDue } from "@/components/events/registration/atoms/RegistrationAmountDue";
 import { recallEventCode } from "@/lib/events/eventCodeMemory";
+import { sendEventFunnelStep } from "@/lib/events/eventFunnelBeacon";
 import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
 import { InvoiceRequestBlock } from "@/components/events/invoices/organisms/InvoiceRequestBlock";
 import { useInvoiceRequestController } from "@/lib/events/useInvoiceRequestController";
@@ -155,6 +156,11 @@ export function RegistrationPayAction({
   async function pay(): Promise<void> {
     if (!ready) return;
     if (!(await invoice.commit())) return;
+    // Lejek: "rozpoczecie platnosci" to klik w kase (raz na sesje, bramka
+    // zgody w beaconie). Autorytetem platnosci jest zamowienie w bazie. Krok
+    // liczymy DOPIERO po zapisie prosby o fakture - odmowa zapisu zatrzymuje
+    // kase, wiec platnosc sie nie rozpoczela.
+    sendEventFunnelStep("checkout_start", { eventId });
     setBusy(true);
     setRefusal(null);
     setPromoRejected(false);

@@ -62,6 +62,13 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: vi.fn() } }));
 
+// Lejek Google Ads: zakup pakietu to krok "rozpoczecie platnosci" (bramka zgody
+// i deduplikacja mieszkaja w beaconie - tu tylko, ze i z czym jest wolany).
+const funnel = vi.hoisted(() => ({ send: vi.fn() }));
+vi.mock("@/lib/events/eventFunnelBeacon", () => ({
+  sendEventFunnelStep: (step: string, target: unknown) => funnel.send(step, target),
+}));
+
 // Podmieniamy SAME wywołania sieciowe; mappery odmów (`admissionQuoteMessageKey`)
 // zostają prawdziwe, bo to one wiążą powód z bazy ze zdaniem na ekranie.
 vi.mock("@/lib/events/admissionApi", async (importOriginal) => ({
@@ -473,6 +480,8 @@ describe("EventPackagesPurchase - wycena i zamówienie", () => {
       // React Query dokłada mutacji własny kontekst jako drugi argument.
       expect.anything(),
     );
+    // Krok lejka „rozpoczęta płatność” dla sluga wydarzenia.
+    expect(funnel.send).toHaveBeenCalledWith("checkout_start", { slug: SLUG });
   });
 
   it("podwójne kliknięcie NIE składa dwóch zamówień", async () => {

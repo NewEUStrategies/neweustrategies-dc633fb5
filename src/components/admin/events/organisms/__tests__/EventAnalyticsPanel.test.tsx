@@ -67,6 +67,7 @@ vi.mock("@/lib/i18n-admin-event-agenda", () => ({ ensureAgendaI18n: () => undefi
 vi.mock("@/lib/i18n-admin-event-meetings", () => ({ ensureI18n: () => undefined }));
 vi.mock("@/lib/i18n-admin-event-onsite", () => ({ ensureOnsiteI18n: () => undefined }));
 vi.mock("@/lib/i18n-admin-event-registration", () => ({ ensureI18n: () => undefined }));
+vi.mock("@/lib/i18n-admin-event-ads-funnel", () => ({ ensureAdsFunnelI18n: () => undefined }));
 
 // `<Link>` czyta kontekst routera i bez `<RouterProvider>` rzuca. Panel nie jest
 // tu montowany trasa - drogowskaz do modulu globalnego ma byc zwyklym adresem.
@@ -490,6 +491,32 @@ describe("EventAnalyticsPanel - drogowskaz do ruchu na stronie", () => {
     const link = screen.getByRole("link", { name: "adminEventSponsorReport.navLink.open" });
     expect(link.getAttribute("href")).toBe(`/admin/events/${EVENT_ID}/sponsor-report`);
     expect(screen.getByText("adminEventSponsorReport.navLink.analyticsDescription")).toBeTruthy();
+  });
+
+  it("odsyla do lejka Google Ads TEGO wydarzenia (wlasny ekran studia), a nie do cudzego", async () => {
+    // Lejek kampanii ma osobny ekran - odsylacz musi niesc identyfikator
+    // wydarzenia ze sciezki, inaczej organizator trafilby w lejek innej edycji.
+    planujKomplet(stub());
+    panel();
+
+    await poczekajNaKomplet();
+    const link = screen.getByRole("link", { name: "adminEventAdsFunnel.analyticsLink.open" });
+    expect(link.getAttribute("href")).toBe(`/admin/events/${EVENT_ID}/ads-funnel`);
+    expect(screen.getByText("adminEventAdsFunnel.analyticsLink.description")).toBeInTheDocument();
+  });
+
+  it("oba odsylacze stoja obok siebie w kolejnosci sidebara: lejek, potem raport sponsorow", async () => {
+    // Sidebar studia ma `adsFunnel` zaraz po `analytics`, a `sponsorReport`
+    // po `adsFunnel` - pulpit analityki nie moze mowic innej kolejnosci.
+    planujKomplet(stub());
+    panel();
+
+    await poczekajNaKomplet();
+    const lejek = screen.getByRole("link", { name: "adminEventAdsFunnel.analyticsLink.open" });
+    const raport = screen.getByRole("link", { name: "adminEventSponsorReport.navLink.open" });
+    expect(lejek.compareDocumentPosition(raport) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
   });
 
   it("naglowek ekranu to ETYKIETA SEKCJI ze sidebara, nie wlasny napis", async () => {

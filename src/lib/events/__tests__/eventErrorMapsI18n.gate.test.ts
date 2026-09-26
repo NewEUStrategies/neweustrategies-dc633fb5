@@ -42,6 +42,7 @@ import { adminOnsiteFailure } from "@/lib/events/adminOnsiteErrors";
 import { publicEventErrorKey } from "@/lib/events/publicEventErrors";
 import { adminEventStudioErrorKey } from "@/lib/events/adminEventStudioErrors";
 import { adminSeatingFailure } from "@/lib/events/adminSeatingErrors";
+import { adminAdsFunnelFailure } from "@/lib/events/adminAdsFunnelErrors";
 import {
   adminEventRegistrationEn,
   adminEventRegistrationPl,
@@ -64,6 +65,7 @@ import {
   adminEventSponsorReportEn,
   adminEventSponsorReportPl,
 } from "@/lib/i18n-admin-event-sponsor-report";
+import { adminEventAdsFunnelEn, adminEventAdsFunnelPl } from "@/lib/i18n-admin-event-ads-funnel";
 
 /** Klucz ma tekst, gdy w słowniku stoi pod nim NIEPUSTY napis (nie gałąź). */
 function maTekst(slownik: ResourceTree, klucz: string): boolean {
@@ -204,6 +206,26 @@ const KODY_RAPORTU_SPONSORA = [
   // admin_event_lead_scans_push_to_crm -> _event_person_crm_sync (most CRM
   // lapie ten wyjatek u siebie, ale skan widzi go w ciele funkcji)
   "invalid_audit_action",
+  STRAZNIK_TENANTA,
+] as const;
+
+/** Lejek Google Ads - `adsFunnelApi` (kampanie, koszty, raport, eksport konwersji). */
+const KODY_LEJKA_REKLAM = [
+  // admin_event_ad_campaigns_list / _save / _delete
+  "invalid_payload",
+  "not_found",
+  "invalid_match_kind",
+  "invalid_match_value",
+  "invalid_label",
+  "invalid_conversion_name",
+  "campaign_exists",
+  // admin_event_ad_costs_list / _save / admin_event_ad_cost_delete
+  "invalid_source",
+  "invalid_rows",
+  "invalid_cost_row",
+  "duplicate_cost_day",
+  // admin_event_ads_funnel / admin_event_ads_conversions_export
+  "invalid_window",
   STRAZNIK_TENANTA,
 ] as const;
 
@@ -565,6 +587,17 @@ const MAPY: readonly BramkowanaMapa[] = [
     pl: adminEventOnsitePl,
     en: adminEventOnsiteEn,
     moduly: ["onsiteApi"],
+    interpoluje: true,
+  },
+  {
+    nazwa: "adminAdsFunnelErrors",
+    prefix: "adminEventAdsFunnel.errors.",
+    klucz: (error) => adminAdsFunnelFailure(error).key,
+    kody: KODY_LEJKA_REKLAM,
+    nakladka: "src/lib/i18n-admin-event-ads-funnel.ts",
+    pl: adminEventAdsFunnelPl,
+    en: adminEventAdsFunnelEn,
+    moduly: ["adsFunnelApi"],
     interpoluje: true,
   },
   {

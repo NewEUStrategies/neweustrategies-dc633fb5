@@ -273,6 +273,7 @@ import { Route as ApiPublicNlClickRouteImport } from './routes/api/public/nl-cli
 import { Route as ApiPublicJobsTickRouteImport } from './routes/api/public/jobs-tick'
 import { Route as ApiPublicFxRateRouteImport } from './routes/api/public/fx-rate'
 import { Route as ApiPublicExperimentEventRouteImport } from './routes/api/public/experiment-event'
+import { Route as ApiPublicEventFunnelRouteImport } from './routes/api/public/event-funnel'
 import { Route as ApiPublicCommunityCronRouteImport } from './routes/api/public/community-cron'
 import { Route as ApiPublicClientErrorsRouteImport } from './routes/api/public/client-errors'
 import { Route as ApiPublicBillingCronRouteImport } from './routes/api/public/billing-cron'
@@ -1755,6 +1756,11 @@ const ApiPublicExperimentEventRoute =
     path: '/api/public/experiment-event',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicEventFunnelRoute = ApiPublicEventFunnelRouteImport.update({
+  id: '/api/public/event-funnel',
+  path: '/api/public/event-funnel',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicCommunityCronRoute = ApiPublicCommunityCronRouteImport.update({
   id: '/api/public/community-cron',
   path: '/api/public/community-cron',
@@ -2878,6 +2884,7 @@ export interface FileRoutesByFullPath {
   '/api/public/billing-cron': typeof ApiPublicBillingCronRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
+  '/api/public/event-funnel': typeof ApiPublicEventFunnelRoute
   '/api/public/experiment-event': typeof ApiPublicExperimentEventRoute
   '/api/public/fx-rate': typeof ApiPublicFxRateRoute
   '/api/public/jobs-tick': typeof ApiPublicJobsTickRoute
@@ -3276,6 +3283,7 @@ export interface FileRoutesByTo {
   '/api/public/billing-cron': typeof ApiPublicBillingCronRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
+  '/api/public/event-funnel': typeof ApiPublicEventFunnelRoute
   '/api/public/experiment-event': typeof ApiPublicExperimentEventRoute
   '/api/public/fx-rate': typeof ApiPublicFxRateRoute
   '/api/public/jobs-tick': typeof ApiPublicJobsTickRoute
@@ -3694,6 +3702,7 @@ export interface FileRoutesById {
   '/api/public/billing-cron': typeof ApiPublicBillingCronRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/community-cron': typeof ApiPublicCommunityCronRoute
+  '/api/public/event-funnel': typeof ApiPublicEventFunnelRoute
   '/api/public/experiment-event': typeof ApiPublicExperimentEventRoute
   '/api/public/fx-rate': typeof ApiPublicFxRateRoute
   '/api/public/jobs-tick': typeof ApiPublicJobsTickRoute
@@ -4113,6 +4122,7 @@ export interface FileRouteTypes {
     | '/api/public/billing-cron'
     | '/api/public/client-errors'
     | '/api/public/community-cron'
+    | '/api/public/event-funnel'
     | '/api/public/experiment-event'
     | '/api/public/fx-rate'
     | '/api/public/jobs-tick'
@@ -4511,6 +4521,7 @@ export interface FileRouteTypes {
     | '/api/public/billing-cron'
     | '/api/public/client-errors'
     | '/api/public/community-cron'
+    | '/api/public/event-funnel'
     | '/api/public/experiment-event'
     | '/api/public/fx-rate'
     | '/api/public/jobs-tick'
@@ -4928,6 +4939,7 @@ export interface FileRouteTypes {
     | '/api/public/billing-cron'
     | '/api/public/client-errors'
     | '/api/public/community-cron'
+    | '/api/public/event-funnel'
     | '/api/public/experiment-event'
     | '/api/public/fx-rate'
     | '/api/public/jobs-tick'
@@ -5168,6 +5180,7 @@ export interface RootRouteChildren {
   ApiPublicBillingCronRoute: typeof ApiPublicBillingCronRoute
   ApiPublicClientErrorsRoute: typeof ApiPublicClientErrorsRoute
   ApiPublicCommunityCronRoute: typeof ApiPublicCommunityCronRoute
+  ApiPublicEventFunnelRoute: typeof ApiPublicEventFunnelRoute
   ApiPublicExperimentEventRoute: typeof ApiPublicExperimentEventRoute
   ApiPublicFxRateRoute: typeof ApiPublicFxRateRoute
   ApiPublicJobsTickRoute: typeof ApiPublicJobsTickRoute
@@ -7050,6 +7063,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/experiment-event'
       fullPath: '/api/public/experiment-event'
       preLoaderRoute: typeof ApiPublicExperimentEventRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/event-funnel': {
+      id: '/api/public/event-funnel'
+      path: '/api/public/event-funnel'
+      fullPath: '/api/public/event-funnel'
+      preLoaderRoute: typeof ApiPublicEventFunnelRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/community-cron': {
@@ -9094,6 +9114,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicBillingCronRoute: ApiPublicBillingCronRoute,
   ApiPublicClientErrorsRoute: ApiPublicClientErrorsRoute,
   ApiPublicCommunityCronRoute: ApiPublicCommunityCronRoute,
+  ApiPublicEventFunnelRoute: ApiPublicEventFunnelRoute,
   ApiPublicExperimentEventRoute: ApiPublicExperimentEventRoute,
   ApiPublicFxRateRoute: ApiPublicFxRateRoute,
   ApiPublicJobsTickRoute: ApiPublicJobsTickRoute,

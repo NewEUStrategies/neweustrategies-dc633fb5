@@ -5,6 +5,10 @@
 // zamowienia (`packageOrderId` z odpowiedzi bazy). Sekcja zakupu znika po
 // zamowieniu, wiec wynik zapisu mowi toast - odmowa nie przepada po cichu.
 // Bez zaznaczenia faktury zakup dziala jak dotad (osobny plik testow zakupu).
+//
+// KROK LEJKA "checkout_start" (Google Ads, f3) pada DOPIERO po bramce danych
+// nabywcy: odrzucony formularz nie sklada zamowienia, wiec nie rozpoczyna
+// platnosci - policzony krok zawyzalby lejek kampanii.
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -38,6 +42,10 @@ const billing = vi.hoisted(() => ({
   upsertMyBillingProfile: vi.fn(),
 }));
 vi.mock("@/lib/billing/queries", () => billing);
+const funnel = vi.hoisted(() => ({ send: vi.fn() }));
+vi.mock("@/lib/events/eventFunnelBeacon", () => ({
+  sendEventFunnelStep: (step: string, target: unknown) => funnel.send(step, target),
+}));
 
 const { toast } = await import("sonner");
 const { EventPackagesPurchase } =
@@ -132,6 +140,7 @@ describe("EventPackagesPurchase + faktura na firme", () => {
     fireEvent.click(buy);
     expect(await screen.findByText("eventInvoices.request.fixErrors")).toBeTruthy();
     expect(admission.purchasePackage).not.toHaveBeenCalled();
+    expect(funnel.send).not.toHaveBeenCalled();
   });
 
   it("po zamowieniu prosba o fakture trafia do TEGO zamowienia", async () => {
@@ -141,6 +150,12 @@ describe("EventPackagesPurchase + faktura na firme", () => {
     fireEvent.click(buy);
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("eventInvoices.request.saved"));
     expect(admission.purchasePackage).toHaveBeenCalledTimes(1);
+    // Poprawne dane nabywcy: krok lejka liczy sie raz, PRZED zamowieniem.
+    expect(funnel.send).toHaveBeenCalledTimes(1);
+    expect(funnel.send).toHaveBeenCalledWith("checkout_start", { slug: "kongres-27" });
+    expect(funnel.send.mock.invocationCallOrder[0]).toBeLessThan(
+      admission.purchasePackage.mock.invocationCallOrder[0],
+    );
     expect(invoices.saveInvoiceRequest).toHaveBeenCalledWith(
       { packageOrderId: "ord-9" },
       expect.objectContaining({ name: "Acme Sp. z o.o.", taxId: "526-025-02-74", city: "Gdansk" }),

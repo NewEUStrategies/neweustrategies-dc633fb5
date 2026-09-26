@@ -61,6 +61,8 @@ import { EMPTY_REGISTRATION_FORM } from "@/lib/events/registrationFormSurface";
 import { confirmEventRegistrationEmail } from "@/lib/events/registrationSelfNotify.functions";
 import { sendGroupTicketCodes } from "@/lib/events/groupTicketCodes.functions";
 import { GroupGuestsRetryPanel } from "@/components/events/registration/organisms/GroupGuestsRetryPanel";
+import { sendEventFunnelStep } from "@/lib/events/eventFunnelBeacon";
+import { attachRegistrationAttribution } from "@/lib/events/registrationAttribution";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FieldBox } from "@/components/ui/field-box";
@@ -135,6 +137,14 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
       };
     });
   }, [user, hasDraft]);
+
+  // LEJEK: "rozpoczecie zapisu" liczy sie, gdy OTWARTY formularz naprawde
+  // stanal przed uczestnikiem (jest szkic, zapis jeszcze nie przeszedl) - raz
+  // na sesje; bramka zgody analytics i deduplikacja siedza w beaconie.
+  const formOpenForVisitor = form.isOpen && hasDraft && result === null;
+  useEffect(() => {
+    if (formOpenForVisitor) sendEventFunnelStep("registration_start", { slug });
+  }, [formOpenForVisitor, slug]);
 
   const errorOf = useMemo(() => {
     const map = new Map<string, string>();
@@ -217,6 +227,10 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
         void sendConfirmation({ data: { manageToken: data.manageToken } }).catch(() => {
           /* mail jest dodatkiem - brak potwierdzenia nie uniewaznia zapisu */
         });
+        // Atrybucja kampanii do zgloszenia (lejek Google Ads). Bez czekania
+        // i bez komunikatu: funkcja nigdy nie rzuca, a brak zgody albo blad
+        // znaczy tylko "zgloszenie bez atrybucji" w raporcie organizatora.
+        void attachRegistrationAttribution(data.manageToken);
       }
     },
     onError: (error: unknown) => setFailure(registrationErrorMessage(error)),

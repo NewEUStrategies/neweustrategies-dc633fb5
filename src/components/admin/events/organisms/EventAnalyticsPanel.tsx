@@ -46,6 +46,7 @@ import { ensureI18n as ensureMeetingsI18n } from "@/lib/i18n-admin-event-meeting
 import { ensureOnsiteI18n } from "@/lib/i18n-admin-event-onsite";
 import { ensureI18n as ensureRegistrationI18n } from "@/lib/i18n-admin-event-registration";
 import { ensureSponsorReportI18n } from "@/lib/i18n-admin-event-sponsor-report";
+import { ensureAdsFunnelI18n } from "@/lib/i18n-admin-event-ads-funnel";
 
 /** Procent do wyswietlenia albo `null` - bez zaokraglania w gore do zera. */
 function percent(value: number | null | undefined): string | null {
@@ -60,6 +61,7 @@ export function EventAnalyticsPanel({ row }: { row: AdminEventDetailRow }) {
   ensureMeetingsI18n();
   ensureOnsiteI18n();
   ensureSponsorReportI18n();
+  ensureAdsFunnelI18n();
   const { t } = useTranslation();
   const eventId = row.id;
 
@@ -175,6 +177,19 @@ export function EventAnalyticsPanel({ row }: { row: AdminEventDetailRow }) {
             }
           />
         </div>
+      </EventStudioRow>
+
+      {/* Lejek kampanii Google Ads TEGO wydarzenia ma wlasny ekran (wizyty,
+          zapisy, platnosci, koszt i ROAS per kampania) - tu tylko odsylacz. */}
+      <EventStudioRow
+        label={t("adminEventAdsFunnel.analyticsLink.label")}
+        description={t("adminEventAdsFunnel.analyticsLink.description")}
+      >
+        <Button asChild variant="outline" size="sm" className="w-fit">
+          <Link to="/admin/events/$eventId/ads-funnel" params={{ eventId }}>
+            {t("adminEventAdsFunnel.analyticsLink.open")}
+          </Link>
+        </Button>
       </EventStudioRow>
 
       <EventStudioRow

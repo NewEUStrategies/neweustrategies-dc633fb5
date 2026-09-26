@@ -164,6 +164,32 @@ export const DATA_ELEMENT_REGISTRY: readonly RegistryEntry[] = [
     ttl_en: "365 days",
   },
   {
+    name: "nes.attribution.v1",
+    category: "marketing",
+    kind: "localStorage",
+    match: ["nes.attribution.*"],
+    party_pl: PLATFORM_PL,
+    party_en: PLATFORM_EN,
+    purpose_pl:
+      "Atrybucja kampanii wydarzeń (UTM, identyfikator kliknięcia Google Ads - wyłącznie przy zgodzie marketingowej; przy samej zgodzie analitycznej bez identyfikatora kliknięcia)",
+    purpose_en:
+      "Event campaign attribution (UTM, Google Ads click ID - only with marketing consent; with analytics consent alone, without the click ID)",
+    ttl_pl: "90 dni",
+    ttl_en: "90 days",
+  },
+  {
+    name: "nes.event-funnel.sent",
+    category: "analytics",
+    kind: "sessionStorage",
+    match: ["nes.event-funnel.*"],
+    party_pl: PLATFORM_PL,
+    party_en: PLATFORM_EN,
+    purpose_pl: "Liczenie kroku lejka wydarzenia raz na sesję (wizyta, zapis, płatność)",
+    purpose_en: "Counting each event funnel step once per session (visit, registration, checkout)",
+    ttl_pl: "Sesja",
+    ttl_en: "Session",
+  },
+  {
     name: "ad_event",
     category: "marketing",
     kind: "server",

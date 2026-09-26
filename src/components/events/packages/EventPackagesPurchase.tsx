@@ -47,6 +47,7 @@ import { usePurchasePackage } from "@/lib/events/useEventPackagePurchase";
 import { InvoiceRequestBlock } from "@/components/events/invoices/organisms/InvoiceRequestBlock";
 import { useInvoiceRequestController } from "@/lib/events/useInvoiceRequestController";
 import { ensureEventInvoicesI18n } from "@/lib/i18n-event-invoices";
+import { sendEventFunnelStep } from "@/lib/events/eventFunnelBeacon";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -98,6 +99,11 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
   function buy() {
     if (selected === null) return;
     if (invoice.wanted && !invoice.validate()) return;
+    // Lejek: zakup pakietu to "rozpoczecie platnosci" (raz na sesje, bramka
+    // zgody w beaconie). Autorytetem jest zamowienie pakietu w bazie. Krok
+    // liczymy DOPIERO po bramce danych do faktury - odrzucony formularz
+    // nabywcy nie rozpoczyna zadnej platnosci.
+    sendEventFunnelStep("checkout_start", { slug });
     purchase.mutate(
       {
         packageId: selected.id,

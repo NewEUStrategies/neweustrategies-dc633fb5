@@ -5,6 +5,10 @@
 // albo odmowa bazy zatrzymuja przejscie do kasy (kupujacy poprawia, zamiast
 // wracac z platnosci z dokumentem na zle dane). Bez zaznaczenia faktury kasa
 // otwiera sie jak dotad - reszte kroku platnosci testuja pliki potwierdzenia.
+//
+// KROK LEJKA "checkout_start" (Google Ads, f3) liczy sie DOPIERO po bramce
+// faktury: odrzucone dane nabywcy albo odmowa zapisu prosby zatrzymuja kase,
+// wiec platnosc sie nie rozpoczela - policzony krok zawyzalby lejek kampanii.
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -42,6 +46,10 @@ vi.mock("@/components/checkout/LazyEmbeddedCheckoutDialog", () => ({
   },
 }));
 vi.mock("@/lib/events/eventCodeMemory", () => ({ recallEventCode: () => "" }));
+const funnel = vi.hoisted(() => ({ send: vi.fn() }));
+vi.mock("@/lib/events/eventFunnelBeacon", () => ({
+  sendEventFunnelStep: (step: string, target: unknown) => funnel.send(step, target),
+}));
 const invoices = vi.hoisted(() => ({
   fetchMyInvoiceSources: vi.fn(),
   fetchMyInvoices: vi.fn(),
@@ -108,6 +116,7 @@ describe("RegistrationPayAction + faktura na firme", () => {
     await waitFor(() => expect(h.checkout).toHaveBeenCalledTimes(1));
     expect(invoices.saveInvoiceRequest).not.toHaveBeenCalled();
     expect(invoices.fetchMyInvoiceSources).not.toHaveBeenCalled();
+    expect(funnel.send).toHaveBeenCalledWith("checkout_start", { eventId: "ev-1" });
   });
 
   it("niepoprawne dane nabywcy zatrzymuja kase", async () => {
@@ -116,6 +125,7 @@ describe("RegistrationPayAction + faktura na firme", () => {
     fireEvent.click(screen.getByRole("button", { name: PAY }));
     expect(await screen.findByText("eventInvoices.request.fixErrors")).toBeTruthy();
     expect(h.checkout).not.toHaveBeenCalled();
+    expect(funnel.send).not.toHaveBeenCalled();
   });
 
   it("poprawne dane: najpierw prosba do tego zgloszenia, potem kasa", async () => {
@@ -132,6 +142,14 @@ describe("RegistrationPayAction + faktura na firme", () => {
     expect(invoices.saveInvoiceRequest.mock.invocationCallOrder[0]).toBeLessThan(
       h.checkout.mock.invocationCallOrder[0],
     );
+    // Krok lejka pada PO zapisie prosby i PRZED kasa.
+    expect(funnel.send).toHaveBeenCalledWith("checkout_start", { eventId: "ev-1" });
+    expect(invoices.saveInvoiceRequest.mock.invocationCallOrder[0]).toBeLessThan(
+      funnel.send.mock.invocationCallOrder[0],
+    );
+    expect(funnel.send.mock.invocationCallOrder[0]).toBeLessThan(
+      h.checkout.mock.invocationCallOrder[0],
+    );
   });
 
   it("odmowa zapisu prosby: zdanie kupujacego, kasa zamknieta", async () => {
@@ -142,6 +160,7 @@ describe("RegistrationPayAction + faktura na firme", () => {
     fireEvent.click(screen.getByRole("button", { name: PAY }));
     expect(await screen.findByText("eventInvoices.errors.requestWindowClosed")).toBeTruthy();
     expect(h.checkout).not.toHaveBeenCalled();
+    expect(funnel.send).not.toHaveBeenCalled();
   });
 });
 

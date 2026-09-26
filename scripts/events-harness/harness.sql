@@ -1641,3 +1641,16 @@ ALTER TABLE public.checkout_settings ENABLE ROW LEVEL SECURITY;
 GRANT SELECT ON public.checkout_settings TO anon, authenticated;
 GRANT ALL ON public.checkout_settings TO service_role;
 -- === /f2 ===
+
+-- === f3: lejek Google Ads - kolumny rozliczenia zamowienia ===
+-- PO CO. Raport lejka i eksport konwersji offline (migracja 20260926120000)
+-- licza przychod NETTO zamowienia i czas konwersji: `payment_orders.paid_at`
+-- (20260624172041) i `payment_orders.refunded_amount_cents`
+-- (20260828055725). Ksztalt przepisany z oryginalow. Blok f2 wyzej dodaje
+-- DOKLADNIE te same dwie kolumny (ten sam typ i DEFAULT) - IF NOT EXISTS
+-- czyni powtorzenie no-opem, a blok zostaje, zeby lejek nie zalezal od
+-- obecnosci ani kolejnosci bloku faktur (integracja f2 + f3).
+ALTER TABLE public.payment_orders
+  ADD COLUMN IF NOT EXISTS paid_at timestamptz,
+  ADD COLUMN IF NOT EXISTS refunded_amount_cents integer NOT NULL DEFAULT 0;
+-- === /f3 ===

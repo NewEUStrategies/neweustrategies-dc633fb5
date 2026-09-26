@@ -24,6 +24,7 @@
     "adminEventTerms",
     "adminEventOnsite",
     "adminEventMeetings",
+    "adminEventAdsFunnel",
     "eventRegistration",
     "eventMeetings",
     "eventFront",
@@ -50,6 +51,7 @@
     "adminDashboard.crm.source.newsletter",
     "adminDashboard.crm.source.webinar",
     "adminDashboard.marketing.title",
+    "adminEventAdsFunnel.costSources.csv",
     "adminEventAgenda.tracks.workspace.minutes",
     "adminEventInvoices.documents.columns.ksef",
     "adminEventInvoices.settings.sellerEmail",
@@ -237,6 +239,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 573
+    "untranslated": 574
   }
 }
