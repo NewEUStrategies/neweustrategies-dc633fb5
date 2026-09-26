@@ -387,6 +387,9 @@ import { Route as AdminEventsEventIdOnsiteIndexRouteImport } from './routes/admi
 import { Route as AdminEventsEventIdMeetingsIndexRouteImport } from './routes/admin.events_.$eventId.meetings.index'
 import { Route as AdminEventsEventIdContentIndexRouteImport } from './routes/admin.events_.$eventId.content.index'
 import { Route as AdminEventsEventIdCfpIndexRouteImport } from './routes/admin.events_.$eventId.cfp.index'
+import { Route as ApiPublicEventsWalletGoogleRouteImport } from './routes/api/public/events.wallet.google'
+import { Route as ApiPublicEventsWalletAvailabilityRouteImport } from './routes/api/public/events.wallet.availability'
+import { Route as ApiPublicEventsWalletAppleRouteImport } from './routes/api/public/events.wallet.apple'
 import { Route as AdminEventsEventIdRegistrationTicketsRouteImport } from './routes/admin.events_.$eventId.registration.tickets'
 import { Route as AdminEventsEventIdRegistrationSettingsRouteImport } from './routes/admin.events_.$eventId.registration.settings'
 import { Route as AdminEventsEventIdRegistrationSeatingRouteImport } from './routes/admin.events_.$eventId.registration.seating'
@@ -2372,6 +2375,24 @@ const AdminEventsEventIdCfpIndexRoute =
     path: '/cfp/',
     getParentRoute: () => AdminEventsEventIdRoute,
   } as any)
+const ApiPublicEventsWalletGoogleRoute =
+  ApiPublicEventsWalletGoogleRouteImport.update({
+    id: '/api/public/events/wallet/google',
+    path: '/api/public/events/wallet/google',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicEventsWalletAvailabilityRoute =
+  ApiPublicEventsWalletAvailabilityRouteImport.update({
+    id: '/api/public/events/wallet/availability',
+    path: '/api/public/events/wallet/availability',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicEventsWalletAppleRoute =
+  ApiPublicEventsWalletAppleRouteImport.update({
+    id: '/api/public/events/wallet/apple',
+    path: '/api/public/events/wallet/apple',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AdminEventsEventIdRegistrationTicketsRoute =
   AdminEventsEventIdRegistrationTicketsRouteImport.update({
     id: '/registration/tickets',
@@ -2943,6 +2964,9 @@ export interface FileRoutesByFullPath {
   '/admin/events/$eventId/registration/seating': typeof AdminEventsEventIdRegistrationSeatingRoute
   '/admin/events/$eventId/registration/settings': typeof AdminEventsEventIdRegistrationSettingsRoute
   '/admin/events/$eventId/registration/tickets': typeof AdminEventsEventIdRegistrationTicketsRoute
+  '/api/public/events/wallet/apple': typeof ApiPublicEventsWalletAppleRoute
+  '/api/public/events/wallet/availability': typeof ApiPublicEventsWalletAvailabilityRoute
+  '/api/public/events/wallet/google': typeof ApiPublicEventsWalletGoogleRoute
   '/admin/events/$eventId/cfp/': typeof AdminEventsEventIdCfpIndexRoute
   '/admin/events/$eventId/content/': typeof AdminEventsEventIdContentIndexRoute
   '/admin/events/$eventId/meetings/': typeof AdminEventsEventIdMeetingsIndexRoute
@@ -3332,6 +3356,9 @@ export interface FileRoutesByTo {
   '/admin/events/$eventId/registration/seating': typeof AdminEventsEventIdRegistrationSeatingRoute
   '/admin/events/$eventId/registration/settings': typeof AdminEventsEventIdRegistrationSettingsRoute
   '/admin/events/$eventId/registration/tickets': typeof AdminEventsEventIdRegistrationTicketsRoute
+  '/api/public/events/wallet/apple': typeof ApiPublicEventsWalletAppleRoute
+  '/api/public/events/wallet/availability': typeof ApiPublicEventsWalletAvailabilityRoute
+  '/api/public/events/wallet/google': typeof ApiPublicEventsWalletGoogleRoute
   '/admin/events/$eventId/cfp': typeof AdminEventsEventIdCfpIndexRoute
   '/admin/events/$eventId/content': typeof AdminEventsEventIdContentIndexRoute
   '/admin/events/$eventId/meetings': typeof AdminEventsEventIdMeetingsIndexRoute
@@ -3741,6 +3768,9 @@ export interface FileRoutesById {
   '/admin/events_/$eventId/registration/seating': typeof AdminEventsEventIdRegistrationSeatingRoute
   '/admin/events_/$eventId/registration/settings': typeof AdminEventsEventIdRegistrationSettingsRoute
   '/admin/events_/$eventId/registration/tickets': typeof AdminEventsEventIdRegistrationTicketsRoute
+  '/api/public/events/wallet/apple': typeof ApiPublicEventsWalletAppleRoute
+  '/api/public/events/wallet/availability': typeof ApiPublicEventsWalletAvailabilityRoute
+  '/api/public/events/wallet/google': typeof ApiPublicEventsWalletGoogleRoute
   '/admin/events_/$eventId/cfp/': typeof AdminEventsEventIdCfpIndexRoute
   '/admin/events_/$eventId/content/': typeof AdminEventsEventIdContentIndexRoute
   '/admin/events_/$eventId/meetings/': typeof AdminEventsEventIdMeetingsIndexRoute
@@ -4151,6 +4181,9 @@ export interface FileRouteTypes {
     | '/admin/events/$eventId/registration/seating'
     | '/admin/events/$eventId/registration/settings'
     | '/admin/events/$eventId/registration/tickets'
+    | '/api/public/events/wallet/apple'
+    | '/api/public/events/wallet/availability'
+    | '/api/public/events/wallet/google'
     | '/admin/events/$eventId/cfp/'
     | '/admin/events/$eventId/content/'
     | '/admin/events/$eventId/meetings/'
@@ -4540,6 +4573,9 @@ export interface FileRouteTypes {
     | '/admin/events/$eventId/registration/seating'
     | '/admin/events/$eventId/registration/settings'
     | '/admin/events/$eventId/registration/tickets'
+    | '/api/public/events/wallet/apple'
+    | '/api/public/events/wallet/availability'
+    | '/api/public/events/wallet/google'
     | '/admin/events/$eventId/cfp'
     | '/admin/events/$eventId/content'
     | '/admin/events/$eventId/meetings'
@@ -4948,6 +4984,9 @@ export interface FileRouteTypes {
     | '/admin/events_/$eventId/registration/seating'
     | '/admin/events_/$eventId/registration/settings'
     | '/admin/events_/$eventId/registration/tickets'
+    | '/api/public/events/wallet/apple'
+    | '/api/public/events/wallet/availability'
+    | '/api/public/events/wallet/google'
     | '/admin/events_/$eventId/cfp/'
     | '/admin/events_/$eventId/content/'
     | '/admin/events_/$eventId/meetings/'
@@ -5085,6 +5124,9 @@ export interface RootRouteChildren {
   PlatformEmailQueueProcessRoute: typeof PlatformEmailQueueProcessRoute
   PlatformEmailTransactionalPreviewRoute: typeof PlatformEmailTransactionalPreviewRoute
   PlatformEmailTransactionalSendRoute: typeof PlatformEmailTransactionalSendRoute
+  ApiPublicEventsWalletAppleRoute: typeof ApiPublicEventsWalletAppleRoute
+  ApiPublicEventsWalletAvailabilityRoute: typeof ApiPublicEventsWalletAvailabilityRoute
+  ApiPublicEventsWalletGoogleRoute: typeof ApiPublicEventsWalletGoogleRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -7735,6 +7777,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminEventsEventIdCfpIndexRouteImport
       parentRoute: typeof AdminEventsEventIdRoute
     }
+    '/api/public/events/wallet/google': {
+      id: '/api/public/events/wallet/google'
+      path: '/api/public/events/wallet/google'
+      fullPath: '/api/public/events/wallet/google'
+      preLoaderRoute: typeof ApiPublicEventsWalletGoogleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/events/wallet/availability': {
+      id: '/api/public/events/wallet/availability'
+      path: '/api/public/events/wallet/availability'
+      fullPath: '/api/public/events/wallet/availability'
+      preLoaderRoute: typeof ApiPublicEventsWalletAvailabilityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/events/wallet/apple': {
+      id: '/api/public/events/wallet/apple'
+      path: '/api/public/events/wallet/apple'
+      fullPath: '/api/public/events/wallet/apple'
+      preLoaderRoute: typeof ApiPublicEventsWalletAppleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/events_/$eventId/registration/tickets': {
       id: '/admin/events_/$eventId/registration/tickets'
       path: '/registration/tickets'
@@ -8935,6 +8998,10 @@ const rootRouteChildren: RootRouteChildren = {
   PlatformEmailTransactionalPreviewRoute:
     PlatformEmailTransactionalPreviewRoute,
   PlatformEmailTransactionalSendRoute: PlatformEmailTransactionalSendRoute,
+  ApiPublicEventsWalletAppleRoute: ApiPublicEventsWalletAppleRoute,
+  ApiPublicEventsWalletAvailabilityRoute:
+    ApiPublicEventsWalletAvailabilityRoute,
+  ApiPublicEventsWalletGoogleRoute: ApiPublicEventsWalletGoogleRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
