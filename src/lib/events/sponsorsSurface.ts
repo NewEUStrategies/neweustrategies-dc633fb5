@@ -11,6 +11,14 @@
 // Sponsorzy BEZ poziomu (grupa `tierId === null`) idą na koniec - baza już ich
 // tak ustawia, my tylko tego nie psujemy.
 //
+// DOKĄD PROWADZI LOGOTYP DECYDUJE ORGANIZATOR (`link_mode` przypięcia):
+// `external` - adres przekierowania (`link_url`), `none` - logotyp bez
+// odnośnika, `exhibitor` (domyślne) - strona firmy z migawki. Profil
+// wystawcy to druga fala, więc `exhibitor` do czasu jego powstania wychodzi
+// na stronę firmy - to jest ten sam cel, który strona pokazywała dotąd.
+// Liczymy to TUTAJ, raz, bo pas partnerów i sekcja „Partnerzy" muszą
+// prowadzić w to samo miejsce (inaczej raport kliknięć mierzyłby dwa cele).
+//
 // LOGOTYP MA TRZY ROZMIARY, A NIE JEDEN. `logo_size` jest kolumną poziomu,
 // więc „złoty" jest większy od „brązowego" wszędzie tam, gdzie się pojawia -
 // bez tego różnica pakietów przestaje być widoczna.
@@ -36,11 +44,18 @@ export const SPONSOR_MATERIAL_KINDS = [
 ] as const;
 export type SponsorMaterialKind = (typeof SPONSOR_MATERIAL_KINDS)[number];
 
+export const SPONSOR_LINK_MODES = ["exhibitor", "external", "none"] as const;
+export type SponsorLinkMode = (typeof SPONSOR_LINK_MODES)[number];
+
 export interface PublicSponsor {
   id: string;
   name: string;
   logoUrl: string | null;
   websiteUrl: string | null;
+  /** Ustawienie organizatora: dokąd prowadzi logotyp. */
+  linkMode: SponsorLinkMode;
+  /** Cel odnośnika logotypu/kafla albo `null` = bez odnośnika. */
+  href: string | null;
   descriptionPl: string | null;
   descriptionEn: string | null;
   country: string | null;
@@ -108,6 +123,28 @@ function logoSizeOf(value: unknown): SponsorLogoSize {
     : "md";
 }
 
+function linkModeOf(value: unknown): SponsorLinkMode {
+  const raw = text(value);
+  return raw !== null && (SPONSOR_LINK_MODES as readonly string[]).includes(raw)
+    ? (raw as SponsorLinkMode)
+    : "exhibitor";
+}
+
+/**
+ * Cel odnośnika sponsora wg ustawienia organizatora. `external` bez adresu
+ * (stary wiersz sprzed walidacji) degraduje do braku odnośnika - lepiej logo
+ * bez linku niż link w nieznane miejsce.
+ */
+export function sponsorHref(
+  mode: SponsorLinkMode,
+  linkUrl: string | null,
+  websiteUrl: string | null,
+): string | null {
+  if (mode === "none") return null;
+  if (mode === "external") return linkUrl;
+  return websiteUrl;
+}
+
 function materialKindOf(value: unknown): SponsorMaterialKind {
   const raw = text(value);
   return raw !== null && (SPONSOR_MATERIAL_KINDS as readonly string[]).includes(raw)
@@ -126,11 +163,15 @@ function parseSponsors(value: Json | null): PublicSponsor[] {
     // Bez nazwy nie ma czego pokazać ani czego przeczytać czytnikowi ekranu -
     // samo logo jest obrazkiem bez treści, więc taki wiersz wypada.
     if (id === null || name === null) return;
+    const websiteUrl = text(row.url);
+    const linkMode = linkModeOf(row.link_mode);
     out.push({
       id,
       name,
       logoUrl: text(row.logo),
-      websiteUrl: text(row.url),
+      websiteUrl,
+      linkMode,
+      href: sponsorHref(linkMode, text(row.link_url), websiteUrl),
       descriptionPl: text(row.description_pl),
       descriptionEn: text(row.description_en),
       country: text(row.country),

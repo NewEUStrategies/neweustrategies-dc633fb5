@@ -104,6 +104,12 @@ const GATED_PREFIXES = [
   "eventRegistration",
   "eventMeetings",
   "eventFront",
+  // Raport dla sponsorów: panel (studio + karta firmy), strona dla sponsora bez
+  // konta i nagłówek dokumentu tej strony. Liczby czyta PARTNER, który za nie
+  // płaci - surowy klucz obok liczby wyświetleń podważa cały raport.
+  "adminEventSponsorReport",
+  "eventSponsorReport",
+  "eventSponsorReportHead",
   // Aplikacja skanera na bramce. Rozjazd PL/EN kosztuje tu najwięcej z całego
   // modułu: napis czyta wolontariusz, który ma pięć sekund na decyzję, czy
   // wpuścić człowieka - goły klucz zamiast "Kod z innego wydarzenia" zatrzymuje
@@ -205,6 +211,21 @@ const IDENTICAL_ALLOWLIST: readonly string[] = [
   "eventFront.formats.online",
   "eventFront.list.formatLabel",
   "eventMeetings.fields.sponsor",
+  // Raport dla sponsorów: rola i skrót miary są tym samym słowem po obu stronach.
+  "adminEventSponsorReport.filters.sponsor",
+  "adminEventSponsorReport.kpi.ctr",
+  "adminEventSponsorReport.links.sponsor",
+  "adminEventSponsorReport.placementTable.ctr",
+  "adminEventSponsorReport.placementTable.sponsor",
+  "adminEventSponsorReport.roles.partner",
+  "adminEventSponsorReport.roles.sponsor",
+  "adminEventSponsorReport.share.sponsor",
+  "adminEventSponsorReport.table.ctr",
+  "adminEventSponsorReport.table.sponsor",
+  "adminEventSponsorReport.export.columns.sponsor",
+  "adminEventSponsorReport.homeAds.colSponsor",
+  "eventSponsorReport.kpi.ctr",
+  "eventSponsorReport.table.ctr",
 ];
 
 function loadOverlays(): void {

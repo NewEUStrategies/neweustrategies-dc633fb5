@@ -20,8 +20,15 @@
 // „Partnerzy”, nie pas na stronie głównej, więc żaden z nich nie zastępuje
 // drugiego i żaden nie kopiuje kodu drugiego.
 //
+// POMIAR DLA RAPORTU SPONSORA (miejsce `home_strip`): wyświetlenie logotypu
+// i kliknięcie odnośnika liczą haki z `sponsorTrackingReact` - wyłącznie pod
+// dostawcą z publicznej powłoki wydarzenia, po zgodzie marketingowej, w
+// efektach (znaczniki SSR bez zmian). Podgląd w studiu rysuje ten sam widok
+// bez dostawcy, więc nie nabija wyświetleń.
+//
 // KOMPONENT NIE ZAKŁADA ZALOGOWANEGO: `event_sponsors_public` ma GRANT dla
 // `anon`, a migawka partnerów nie zależy od tego, kto patrzy.
+import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { uiLang } from "@/lib/i18n/format";
@@ -30,6 +37,7 @@ import { usePublicEventSponsors } from "@/lib/events/usePublicEvent";
 import { SponsorLogo } from "@/components/events/public/atoms/SponsorLogo";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 import type { PublicSponsor, PublicSponsorTier } from "@/lib/events/sponsorsSurface";
+import { useSponsorClickHandlers, useSponsorImpression } from "@/lib/events/sponsorTrackingReact";
 
 ensureEventFrontI18n();
 
@@ -98,6 +106,13 @@ function SponsorTierRow({ tier, lang }: { tier: PublicSponsorTier; lang: "pl" | 
 
 function SponsorTierLogo({ sponsor, tier }: { sponsor: PublicSponsor; tier: PublicSponsorTier }) {
   const { t } = useTranslation();
+  const ref = useRef<HTMLElement | null>(null);
+  const target = { sponsorId: sponsor.id, placement: "home_strip" as const };
+  useSponsorImpression(ref, target);
+  const clickHandlers = useSponsorClickHandlers(target);
+  const setRef = (node: HTMLElement | null) => {
+    ref.current = node;
+  };
 
   // NAZWA FIRMY WCHODZI OSOBNO, BO W RZĘDZIE JEJ NIE WIDAĆ. `SponsorLogo`
   // celowo daje obrazkowi pusty `alt` (w kaflu nazwa stoi obok w tekście), więc
@@ -111,9 +126,9 @@ function SponsorTierLogo({ sponsor, tier }: { sponsor: PublicSponsor; tier: Publ
     </span>
   );
 
-  if (sponsor.websiteUrl === null) {
+  if (sponsor.href === null) {
     return (
-      <span className="flex items-center justify-center px-2">
+      <span ref={setRef} className="flex items-center justify-center px-2">
         {logo}
         <span className="sr-only">{sponsor.name}</span>
       </span>
@@ -122,10 +137,12 @@ function SponsorTierLogo({ sponsor, tier }: { sponsor: PublicSponsor; tier: Publ
 
   return (
     <a
-      href={sponsor.websiteUrl}
+      ref={setRef}
+      href={sponsor.href}
       target="_blank"
       rel="noopener noreferrer nofollow"
       className="flex items-center justify-center rounded-[6px] px-2 py-1 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      {...clickHandlers}
     >
       {logo}
       {/* Nazwa odnośnika mówi, GDZIE prowadzi - „New European Strategies” bez

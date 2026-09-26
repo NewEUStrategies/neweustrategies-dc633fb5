@@ -48,6 +48,14 @@ export const RECENT_COLORS_STORAGE_KEY = storageKey(
 );
 
 /**
+ * Identyfikator sesji POMIARU EKSPOZYCJI SPONSORÓW na stronie wydarzenia -
+ * sessionStorage, zapisywany WYŁĄCZNIE po zgodzie marketingowej (kategoria
+ * `marketing`, wpis `sponsor_event` w rejestrze banera zgód). Baza dostaje
+ * tylko skrót sha256 z dniem, nigdy tę wartość.
+ */
+export const SPONSOR_SESSION_STORAGE_KEY = storageKey("nes-sponsor-session");
+
+/**
  * Odczyt z migracją: nazwa kanoniczna, a w jej braku kolejne nazwy historyczne.
  * Wartość znaleziona pod starą nazwą jest przepisywana pod nową (i stara
  * usuwana), więc migracja dzieje się raz, przy pierwszym dotknięciu, bez

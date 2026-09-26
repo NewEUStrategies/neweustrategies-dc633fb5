@@ -1,0 +1,85 @@
+// Filtr ruchu nieludzkiego dla beaconów pomiaru (`botFilter.ts`).
+//
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW. Każde przepuszczone trafienie
+// robota to fałszywe wyświetlenie w raporcie, za które sponsor płaci; każde
+// odrzucone trafienie człowieka to wyświetlenie, którego raport nie pokaże.
+// Stąd dwie strony tabeli: agenci i nagłówki, które MUSZĄ odpaść, i zwykła
+// przeglądarka (także bez `Origin`), która MUSI przejść.
+import { describe, expect, it } from "vitest";
+
+import { isLikelyBotRequest } from "@/lib/http/botFilter";
+
+const CHROME =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36";
+const HOST = "nes.example";
+
+function headers(init: Record<string, string>): Headers {
+  return new Headers(init);
+}
+
+describe("isLikelyBotRequest", () => {
+  it("zwykła przeglądarka z własnym Origin albo bez niego przechodzi", () => {
+    expect(isLikelyBotRequest(headers({ "user-agent": CHROME }), HOST)).toBe(false);
+    expect(
+      isLikelyBotRequest(headers({ "user-agent": CHROME, origin: "https://NES.example" }), HOST),
+    ).toBe(false);
+    expect(isLikelyBotRequest(headers({ "user-agent": CHROME, origin: "" }), HOST)).toBe(false);
+    expect(
+      isLikelyBotRequest(headers({ "user-agent": CHROME, origin: "https://obca.example" }), null),
+    ).toBe(false);
+  });
+
+  it("pusty albo brakujący agent to robot", () => {
+    expect(isLikelyBotRequest(headers({}), HOST)).toBe(true);
+    expect(isLikelyBotRequest(headers({ "user-agent": "   " }), HOST)).toBe(true);
+  });
+
+  it.each([
+    "Googlebot/2.1 (+http://www.google.com/bot.html)",
+    "Mozilla/5.0 (compatible; bingbot/2.0)",
+    "Mozilla/5.0 HeadlessChrome/140.0",
+    "Mozilla/5.0 Chrome-Lighthouse",
+    "facebookexternalhit/1.1",
+    "curl/8.5.0",
+    "Wget/1.21",
+    "python-requests/2.31",
+    "Go-http-client/2.0",
+    "node-fetch/1.0",
+    "axios/1.7",
+    "okhttp/4.12",
+    "Java/21",
+    "Scrapy/2.11",
+    "Mozilla/5.0 (X11) Playwright/1.45",
+    "UptimeRobot/2.0",
+  ])("agent „%s” to robot", (userAgent) => {
+    expect(isLikelyBotRequest(headers({ "user-agent": userAgent }), HOST)).toBe(true);
+  });
+
+  it("prefetch i prerender spekulacyjny to nie wyświetlenie", () => {
+    expect(
+      isLikelyBotRequest(headers({ "user-agent": CHROME, "sec-purpose": "prefetch" }), HOST),
+    ).toBe(true);
+    expect(
+      isLikelyBotRequest(
+        headers({ "user-agent": CHROME, "sec-purpose": "prefetch;prerender" }),
+        HOST,
+      ),
+    ).toBe(true);
+    expect(isLikelyBotRequest(headers({ "user-agent": CHROME, purpose: "Prefetch" }), HOST)).toBe(
+      true,
+    );
+  });
+
+  it("Origin cudzej strony albo niepoprawny Origin to odrzucenie", () => {
+    expect(
+      isLikelyBotRequest(headers({ "user-agent": CHROME, origin: "https://obca.example" }), HOST),
+    ).toBe(true);
+    expect(
+      isLikelyBotRequest(
+        headers({ "user-agent": CHROME, origin: "https://nes.example:8443" }),
+        HOST,
+      ),
+    ).toBe(true);
+    expect(isLikelyBotRequest(headers({ "user-agent": CHROME, origin: "null" }), HOST)).toBe(true);
+  });
+});

@@ -58,6 +58,7 @@ import {
 } from "@/lib/crm-companies.functions";
 import { eventActivitySummary } from "@/lib/crm/eventActivity";
 import { CrmEventActivityLink } from "@/components/admin/crm/CrmEventActivityLink";
+import { CompanySponsorshipsCard } from "@/components/admin/crm/CompanySponsorshipsCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -930,6 +931,8 @@ function AdminCompanyDetailPage() {
               </ul>
             )}
           </SidebarCard>
+
+          <CompanySponsorshipsCard companyId={id} />
 
           <SidebarCard
             title={t("Kontakty", "Contacts")}

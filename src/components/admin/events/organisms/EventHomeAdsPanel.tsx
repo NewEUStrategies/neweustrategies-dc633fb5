@@ -1,6 +1,11 @@
 // Organizm: reklamy strony głównej wydarzenia - tabela (obraz, grupy, wyświetlenia,
 // kliknięcia, status) i okno dodawania/edycji z grupami docelowymi i harmonogramem.
 //
+// REKLAMA MOŻE NALEŻEĆ DO SPONSORA wydarzenia (`sponsor_id`): wtedy jej
+// wyświetlenia i kliknięcia trafiają do raportu tego sponsora. Lista
+// sponsorów to przypięcia TEGO wydarzenia (`useSponsors`), a kolumna tabeli
+// pokazuje nazwę z migawki przypięcia.
+//
 // FORMULARZ WALIDUJE APLIKACJA, NIE PRZEGLĄDARKA (`noValidate`). Pole linku ma
 // `type="url"` dla klawiatury ekranowej z „/" i „.com", ale natywna walidacja
 // tego typu zatrzymywała wysłanie dymkiem w języku PRZEGLĄDARKI, zanim
@@ -30,6 +35,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ImageUrlField } from "@/components/admin/auth/organisms/ImageUrlField";
+import { FormSelect } from "@/components/atoms/FormSelect";
 import { confirmDialog } from "@/lib/appDialogs";
 import { brandedMediaUrl } from "@/lib/media/publicUrl";
 import {
@@ -42,7 +48,12 @@ import {
   type HomeAdInput,
 } from "@/lib/events/sponsorBoardApi";
 import { useEventGroups } from "@/lib/events/useEventTermsGroups";
+import { useSponsors } from "@/lib/events/useEventSponsors";
 import "@/lib/i18n-admin-event-sponsor-board";
+import { ensureSponsorReportI18n } from "@/lib/i18n-admin-event-sponsor-report";
+
+/** Wartość selektora „bez sponsora" - Radix nie przyjmuje pustego napisu. */
+const NO_SPONSOR = "none";
 
 function draftFrom(eventId: string, row: EventHomeAdRow | null): HomeAdInput {
   return {
@@ -56,14 +67,17 @@ function draftFrom(eventId: string, row: EventHomeAdRow | null): HomeAdInput {
     startsAt: row?.starts_at ?? "",
     endsAt: row?.ends_at ?? "",
     isActive: row?.is_active ?? true,
+    sponsorId: row?.sponsor_id ?? "",
   };
 }
 
 export function EventHomeAdsPanel({ eventId }: { eventId: string }) {
+  ensureSponsorReportI18n();
   const { t, i18n } = useTranslation();
   const lang = i18n.language.startsWith("en") ? "en" : "pl";
   const adsQ = useHomeAds(eventId);
   const groupsQ = useEventGroups(eventId);
+  const sponsorsQ = useSponsors({ eventId, limit: 200 });
   const save = useSaveHomeAd(eventId);
   const remove = useDeleteHomeAd(eventId);
   const [editing, setEditing] = useState<EventHomeAdRow | null | undefined>(undefined);
@@ -110,6 +124,7 @@ export function EventHomeAdsPanel({ eventId }: { eventId: string }) {
             <tr>
               <th className="p-3 font-medium">{t("sponsorBoard.ads.colImage")}</th>
               <th className="p-3 font-medium">{t("sponsorBoard.ads.colGroups")}</th>
+              <th className="p-3 font-medium">{t("adminEventSponsorReport.homeAds.colSponsor")}</th>
               <th className="p-3 font-medium">{t("sponsorBoard.ads.colViews")}</th>
               <th className="p-3 font-medium">{t("sponsorBoard.ads.colClicks")}</th>
               <th className="p-3 font-medium">{t("sponsorBoard.ads.colStatus")}</th>
@@ -119,7 +134,7 @@ export function EventHomeAdsPanel({ eventId }: { eventId: string }) {
           <tbody>
             {ads.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-6 text-center text-muted-foreground">
+                <td colSpan={7} className="p-6 text-center text-muted-foreground">
                   {t("sponsorBoard.ads.empty")}
                 </td>
               </tr>
@@ -141,6 +156,9 @@ export function EventHomeAdsPanel({ eventId }: { eventId: string }) {
                           .map(groupName)
                           .filter((n) => n !== "")
                           .join(", ")}
+                  </td>
+                  <td className="p-3">
+                    {ad.sponsor_name || t("adminEventSponsorReport.homeAds.sponsorNone")}
                   </td>
                   <td className="p-3 tabular-nums">{ad.views}</td>
                   <td className="p-3 tabular-nums">{ad.clicks}</td>
@@ -251,6 +269,26 @@ export function EventHomeAdsPanel({ eventId }: { eventId: string }) {
                 maxLength={300}
                 onChange={(e) => setDraft({ ...draft, altText: e.target.value })}
               />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="ad-sponsor">{t("adminEventSponsorReport.homeAds.sponsor")}</Label>
+              <FormSelect
+                id="ad-sponsor"
+                value={draft.sponsorId === "" ? NO_SPONSOR : draft.sponsorId}
+                onValueChange={(value) =>
+                  setDraft({ ...draft, sponsorId: value === NO_SPONSOR ? "" : value })
+                }
+                options={[
+                  { value: NO_SPONSOR, label: t("adminEventSponsorReport.homeAds.sponsorNone") },
+                  ...(sponsorsQ.data ?? []).map((sponsor) => ({
+                    value: sponsor.id,
+                    label: sponsor.snapshot_name,
+                  })),
+                ]}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("adminEventSponsorReport.homeAds.sponsorHint")}
+              </p>
             </div>
             <fieldset className="space-y-2">
               <legend className="text-sm font-medium">{t("sponsorBoard.ads.groups")}</legend>

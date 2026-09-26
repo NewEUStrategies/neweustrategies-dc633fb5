@@ -424,6 +424,8 @@ describe("EventSponsorTiers - pas logotypów na stronie głównej", () => {
                 name: "Vistula Consulting",
                 logoUrl: null,
                 websiteUrl: null,
+                linkMode: "exhibitor",
+                href: null,
                 descriptionPl: null,
                 descriptionEn: null,
                 country: null,

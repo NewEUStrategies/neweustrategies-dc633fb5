@@ -6771,6 +6771,7 @@ export type Database = {
           is_active: boolean
           link_url: string | null
           sort_order: number
+          sponsor_id: string | null
           starts_at: string | null
           tenant_id: string
           updated_at: string
@@ -6788,6 +6789,7 @@ export type Database = {
           is_active?: boolean
           link_url?: string | null
           sort_order?: number
+          sponsor_id?: string | null
           starts_at?: string | null
           tenant_id: string
           updated_at?: string
@@ -6805,6 +6807,7 @@ export type Database = {
           is_active?: boolean
           link_url?: string | null
           sort_order?: number
+          sponsor_id?: string | null
           starts_at?: string | null
           tenant_id?: string
           updated_at?: string
@@ -6816,6 +6819,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "events"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_home_ads_sponsor_fk"
+            columns: ["tenant_id", "event_id", "sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "event_sponsors"
+            referencedColumns: ["tenant_id", "event_id", "id"]
           },
           {
             foreignKeyName: "event_home_ads_tenant_id_fkey"
@@ -8874,6 +8884,90 @@ export type Database = {
           },
         ]
       }
+      event_sponsor_exposures: {
+        Row: {
+          day: string
+          event_id: string
+          first_at: string
+          hits: number
+          home_ad_id: string | null
+          id: number
+          kind: string
+          last_at: string
+          material_id: string | null
+          placement: string
+          session_hash: string
+          sponsor_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          day: string
+          event_id: string
+          first_at?: string
+          hits?: number
+          home_ad_id?: string | null
+          id?: never
+          kind: string
+          last_at?: string
+          material_id?: string | null
+          placement: string
+          session_hash: string
+          sponsor_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          day?: string
+          event_id?: string
+          first_at?: string
+          hits?: number
+          home_ad_id?: string | null
+          id?: never
+          kind?: string
+          last_at?: string
+          material_id?: string | null
+          placement?: string
+          session_hash?: string
+          sponsor_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_sponsor_exposures_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sponsor_exposures_home_ad_fk"
+            columns: ["tenant_id", "home_ad_id"]
+            isOneToOne: false
+            referencedRelation: "event_home_ads"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sponsor_exposures_material_fk"
+            columns: ["tenant_id", "material_id"]
+            isOneToOne: false
+            referencedRelation: "event_sponsor_materials"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sponsor_exposures_sponsor_fk"
+            columns: ["tenant_id", "event_id", "sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "event_sponsors"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sponsor_exposures_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_sponsor_materials: {
         Row: {
           created_at: string
@@ -8937,6 +9031,85 @@ export type Database = {
           },
           {
             foreignKeyName: "event_sponsor_materials_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_sponsor_report_links: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          event_id: string
+          expires_at: string
+          id: string
+          include_leads: boolean
+          label: string
+          last_seen_at: string | null
+          revoked_at: string | null
+          revoked_by: string | null
+          sponsor_id: string
+          tenant_id: string
+          token_hash: string
+          token_prefix: string
+          updated_at: string
+          view_count: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          event_id: string
+          expires_at: string
+          id?: string
+          include_leads?: boolean
+          label: string
+          last_seen_at?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          sponsor_id: string
+          tenant_id: string
+          token_hash: string
+          token_prefix: string
+          updated_at?: string
+          view_count?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          event_id?: string
+          expires_at?: string
+          id?: string
+          include_leads?: boolean
+          label?: string
+          last_seen_at?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          sponsor_id?: string
+          tenant_id?: string
+          token_hash?: string
+          token_prefix?: string
+          updated_at?: string
+          view_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_sponsor_report_links_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sponsor_report_links_sponsor_fk"
+            columns: ["tenant_id", "event_id", "sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "event_sponsors"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sponsor_report_links_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -19557,6 +19730,10 @@ export type Database = {
         }
         Returns: Json
       }
+      _event_sponsor_report_assert_filters: {
+        Args: { p_from: string; p_placement: string; p_to: string }
+        Returns: undefined
+      }
       _event_sponsor_web_url: { Args: { p_raw: string }; Returns: string }
       _event_ticket_code_confirm: {
         Args: {
@@ -20524,6 +20701,29 @@ export type Database = {
           updated_at: string
         }[]
       }
+      admin_event_company_sponsorships: {
+        Args: { p_company_id: string }
+        Returns: {
+          active_links: number
+          clicks_unique: number
+          event_id: string
+          event_slug: string
+          event_starts_at: string
+          event_status: string
+          event_title_en: string
+          event_title_pl: string
+          is_published: boolean
+          leads_consented: number
+          leads_total: number
+          material_opens: number
+          meetings_held: number
+          role: string
+          sponsor_id: string
+          tier_name_en: string
+          tier_name_pl: string
+          views_unique: number
+        }[]
+      }
       admin_event_create: { Args: { p_payload: Json }; Returns: string }
       admin_event_detail: {
         Args: { p_event_id: string }
@@ -20640,6 +20840,8 @@ export type Database = {
           is_active: boolean
           link_url: string
           sort_order: number
+          sponsor_id: string
+          sponsor_name: string
           starts_at: string
           views: number
         }[]
@@ -20663,6 +20865,10 @@ export type Database = {
           scan_count: number
           sponsor_name: string
         }[]
+      }
+      admin_event_lead_scans_push_to_crm: {
+        Args: { p_payload: Json }
+        Returns: Json
       }
       admin_event_lead_scans_list: {
         Args: {
@@ -21363,6 +21569,97 @@ export type Database = {
       admin_event_sponsor_materials_reorder: {
         Args: { p_payload: Json }
         Returns: number
+      }
+      admin_event_sponsor_report_leads_series: {
+        Args: {
+          p_event_id: string
+          p_from?: string
+          p_sponsor_id?: string
+          p_to?: string
+        }
+        Returns: {
+          day: string
+          leads_new: number
+          leads_new_consented: number
+          sponsor_id: string
+        }[]
+      }
+      admin_event_sponsor_report_link_issue: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_sponsor_report_link_revoke: {
+        Args: { p_link_id: string }
+        Returns: boolean
+      }
+      admin_event_sponsor_report_links_list: {
+        Args: { p_event_id: string; p_sponsor_id?: string }
+        Returns: {
+          created_at: string
+          expires_at: string
+          id: string
+          include_leads: boolean
+          is_active: boolean
+          label: string
+          last_seen_at: string
+          revoked_at: string
+          sponsor_id: string
+          sponsor_name: string
+          token_prefix: string
+          view_count: number
+        }[]
+      }
+      admin_event_sponsor_report_series: {
+        Args: {
+          p_event_id: string
+          p_from?: string
+          p_placement?: string
+          p_sponsor_id?: string
+          p_to?: string
+        }
+        Returns: {
+          clicks_total: number
+          clicks_unique: number
+          day: string
+          material_opens: number
+          placement: string
+          sponsor_id: string
+          views_total: number
+          views_unique: number
+        }[]
+      }
+      admin_event_sponsor_report_summary: {
+        Args: {
+          p_event_id: string
+          p_from?: string
+          p_placement?: string
+          p_to?: string
+        }
+        Returns: {
+          active_links: number
+          clicks_total: number
+          clicks_unique: number
+          company_id: string
+          is_published: boolean
+          lead_scans_total: number
+          leads_avg_rating: number
+          leads_consented: number
+          leads_total: number
+          material_opens: number
+          meetings_accepted: number
+          meetings_held: number
+          meetings_total: number
+          role: string
+          sponsor_id: string
+          sponsor_logo_url: string
+          sponsor_name: string
+          tier_id: string
+          tier_name_en: string
+          tier_name_pl: string
+          tier_rank: number
+          views_total: number
+          views_unique: number
+        }[]
       }
       admin_event_sponsor_save: { Args: { p_payload: Json }; Returns: string }
       admin_event_sponsor_set_link: {
@@ -24487,6 +24784,7 @@ export type Database = {
           image_mobile_url: string
           image_url: string
           link_url: string
+          sponsor_id: string
         }[]
       }
       event_lead_scan_record: { Args: { p_payload: Json }; Returns: Json }
@@ -24766,6 +25064,14 @@ export type Database = {
           user_id: string
         }[]
       }
+      event_sponsor_exposure_ingest: {
+        Args: { p_payload: Json; p_tenant: string }
+        Returns: number
+      }
+      event_sponsor_exposures_prune: {
+        Args: { p_keep_days?: number }
+        Returns: number
+      }
       event_sponsor_materials_public: {
         Args: { p_slug: string }
         Returns: {
@@ -24783,6 +25089,10 @@ export type Database = {
           title_pl: string
           url: string
         }[]
+      }
+      event_sponsor_report_for_token: {
+        Args: { p_tenant: string; p_token: string }
+        Returns: Json
       }
       event_sponsors_public: {
         Args: { p_slug: string }

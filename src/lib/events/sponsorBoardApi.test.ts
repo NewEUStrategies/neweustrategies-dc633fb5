@@ -25,6 +25,7 @@ const base: HomeAdInput = {
   startsAt: "",
   endsAt: "",
   isActive: true,
+  sponsorId: "",
 };
 
 describe("sponsorBoardApi", () => {

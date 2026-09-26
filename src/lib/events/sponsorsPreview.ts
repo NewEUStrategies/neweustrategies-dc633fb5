@@ -75,11 +75,16 @@ export function sponsorTiersFromAdminRows(
       sponsors: [],
     };
 
+    const websiteUrl = text(row.snapshot_website) ?? text(row.crm_website);
     const sponsor: PublicSponsor = {
       id,
       name,
       logoUrl: text(row.snapshot_logo_url) ?? text(row.crm_logo_url),
-      websiteUrl: text(row.snapshot_website) ?? text(row.crm_website),
+      websiteUrl,
+      // Lista panelu nie niesie ustawienia linku logotypu, a podgląd i tak
+      // nie wychodzi ze studia - rysuje cel domyślny (strona firmy).
+      linkMode: "exhibitor",
+      href: websiteUrl,
       descriptionPl: text(row.snapshot_description_pl),
       descriptionEn: text(row.snapshot_description_en),
       country: text(row.snapshot_country) ?? text(row.crm_country),

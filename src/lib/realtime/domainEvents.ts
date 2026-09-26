@@ -111,6 +111,10 @@ export const DOMAIN_EVENT_TYPES = [
   // Sponsorzy: publikacja karty i odswiezenie migawki z CRM firm.
   "event_sponsor.published.v1",
   "event_sponsor.snapshot_refreshed.v1",
+  // Raport dla sponsora: wydanie i odwolanie linku bez logowania
+  // (migracja 20260926140000). Payload: event_id, sponsor_id, link_id.
+  "event_sponsor_report_link.issued.v1",
+  "event_sponsor_report_link.revoked.v1",
 ] as const;
 
 export type DomainEventType = (typeof DOMAIN_EVENT_TYPES)[number];
@@ -160,6 +164,7 @@ export const DOMAIN_AGGREGATE_TYPES = [
   "event_scanner_device",
   "event_sponsor",
   "event_registration",
+  "event_sponsor_report_link",
 ] as const;
 
 export type DomainAggregateType = (typeof DOMAIN_AGGREGATE_TYPES)[number];

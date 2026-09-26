@@ -46,7 +46,14 @@ const SCANNED_ROUTE_PREFIXES = ["admin.events.", "admin.events_."] as const;
  * `adminEvents` obejmuje zarówno mapy etykiet enumów, jak i klucze reguł
  * katalogu zwracane przez `eventTypeDraftIssue` i `eventType*Failure`.
  */
-const REFERENCE_PREFIXES = ["adminEvents"] as const;
+// `adminEventSponsorReport` / `eventSponsorReport`: mapy miejsc i ról raportu
+// sponsora (`sponsorReportLabels.ts`) trzymają klucze jako LITERAŁY - bez tego
+// wpisu bramka nie widziałaby literału spoza `t("...")`.
+const REFERENCE_PREFIXES = [
+  "adminEvents",
+  "adminEventSponsorReport",
+  "eventSponsorReport",
+] as const;
 
 function isTree(value: unknown): value is ResourceTree {
   return value !== null && typeof value === "object" && !Array.isArray(value);

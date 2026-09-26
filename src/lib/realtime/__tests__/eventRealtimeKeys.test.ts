@@ -16,6 +16,7 @@ import { myMeetingKeys } from "@/lib/events/useMyMeetings";
 import { onsiteKeys } from "@/lib/events/useEventOnsite";
 import { sponsorKeys } from "@/lib/events/useEventSponsors";
 import { registrationKeys } from "@/lib/events/useEventRegistrations";
+import { sponsorReportKeys } from "@/lib/events/useSponsorReport";
 
 const EVENT_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const CTX = { userId: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" };
@@ -96,6 +97,31 @@ describe("mapa inwalidacji modułu wydarzeń", () => {
       expect(includesPrefix(keys, ["profile", "event-registrations"]), type).toBe(true);
       expect(includesPrefix(keys, ["account-menu", "my-events"]), type).toBe(true);
     }
+  });
+
+  it("link raportu sponsora trafia w raport TEGO wydarzenia i w karty firm, nie w stronę publiczną", () => {
+    // Dopasowanie TanStack Query: unieważniony klucz jest PRZEDROSTKIEM klucza
+    // zapytania - więc sprawdzamy klucze zapytań z fabryki raportu.
+    const hitsQuery = (keys: readonly unknown[][], queryKey: readonly unknown[]) =>
+      keys.some((key) => key.every((part, index) => Object.is(queryKey[index], part)));
+    for (const type of [
+      "event_sponsor_report_link.issued.v1",
+      "event_sponsor_report_link.revoked.v1",
+    ]) {
+      const keys = invalidationKeysFor(
+        domainEvent(type, { event_id: EVENT_ID, sponsor_id: "s", link_id: "l" }),
+        CTX,
+      ) as unknown[][];
+      expect(hitsQuery(keys, sponsorReportKeys.links(EVENT_ID)), type).toBe(true);
+      expect(hitsQuery(keys, sponsorReportKeys.company("firma")), type).toBe(true);
+      expect(hitsQuery(keys, sponsorReportKeys.links("inne-wydarzenie")), type).toBe(false);
+      expect(includesPrefix(keys, ["public-event"]), type).toBe(false);
+    }
+    const bezWydarzenia = invalidationKeysFor(
+      domainEvent("event_sponsor_report_link.revoked.v1", {}),
+      CTX,
+    ) as unknown[][];
+    expect(hitsQuery(bezWydarzenia, sponsorReportKeys.links("dowolne"))).toBe(true);
   });
 
   it("zgłoszenie bez `event_id` degraduje do całej gałęzi zgłoszeń", () => {
