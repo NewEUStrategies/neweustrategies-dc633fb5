@@ -1,11 +1,8 @@
 // /admin/events/<id>/registration/invoices - ekran „Faktury" studia wydarzenia.
 //
-// ZAŚLEPKA FUNDAMENTU. Trasa, pozycja w sidebarze (`EVENT_STUDIO_NAV`), klucz
-// sekcji (`registrationInvoices`) i etykieta (`adminEvents.studio.sections.registrationInvoices`) są
-// założone z góry, żeby siedem funkcji organizatora powstających równolegle
-// nie kolidowało na drzewie tras ani na nawigacji. Właściciel ekranu - agent
-// f2 (faktury firmowe) - zastępuje CIAŁO komponentu swoim organizmem, zostawiając
-// `EventStudioPage` z tym samym tytułem (ten sam klucz co etykieta w sidebarze).
+// Faktury na firmę za bilety i pakiety (także zbiorcze), proformy, korekty,
+// stan KSeF i ustawienia wystawcy - organizm `EventInvoicesPanel`. Tytuł to
+// TEN SAM klucz co etykieta w sidebarze (`adminEvents.studio.sections.registrationInvoices`).
 //
 // TRASA JEST CIENKA. Wiersz wydarzenia wczytuje RAMA studia i to ona pokazuje
 // spinner oraz zdanie „nie znaleziono"; ekran, który powtórzyłby jedno i
@@ -14,6 +11,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
+import { EventInvoicesPanel } from "@/components/admin/events/organisms/EventInvoicesPanel";
 import { EventStudioPage } from "@/components/admin/events/studio/EventStudioSection";
 import { useAdminEventDetail } from "@/lib/events/useAdminEventDetail";
 import { ensureI18n } from "@/lib/i18n-admin-events";
@@ -43,7 +41,7 @@ function EventStudioRegistrationInvoicesPage() {
   if (row === null) return null;
   return (
     <EventStudioPage title={t("adminEvents.studio.sections.registrationInvoices")}>
-      {null}
+      <EventInvoicesPanel key={row.id} eventId={row.id} />
     </EventStudioPage>
   );
 }

@@ -27,6 +27,11 @@
 // `requireSupabaseAuth`, a księgowanie wpłaty wymaga `payment_orders.user_id`,
 // więc gość zobaczy zdanie z prawdziwym powodem (paragon i droga zwrotu należą
 // do konta) i odnośnik do logowania - a nie kontrolkę, która go wyrzuci.
+//
+// FAKTURA NA FIRMĘ PRZED KASĄ. Dane nabywcy (`InvoiceRequestBlock`) zapisujemy
+// jako prośbę do TEGO zgłoszenia, zanim otworzy się kasa operatora - po
+// powrocie z płatności kupujący nie musi już nic uzupełniać, a organizator
+// widzi prośbę w studiu. Niepoprawne dane zatrzymują przejście do kasy.
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -46,6 +51,8 @@ import {
 import { RegistrationAmountDue } from "@/components/events/registration/atoms/RegistrationAmountDue";
 import { recallEventCode } from "@/lib/events/eventCodeMemory";
 import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
+import { InvoiceRequestBlock } from "@/components/events/invoices/organisms/InvoiceRequestBlock";
+import { useInvoiceRequestController } from "@/lib/events/useInvoiceRequestController";
 
 ensureEventRegistrationI18n();
 
@@ -101,6 +108,10 @@ export function RegistrationPayAction({
   // w `createCheckoutOrder`, a Stripe dostaje go jako kupon na różnicę ceny.
   const [promo, setPromo] = useState("");
   const [promoRejected, setPromoRejected] = useState(false);
+  const invoice = useInvoiceRequestController({
+    target: { registrationId },
+    enabled: session !== null && ownedByCaller !== false,
+  });
   useEffect(() => {
     if (eventId !== null) setPromo(recallEventCode(eventId));
   }, [eventId]);
@@ -143,6 +154,7 @@ export function RegistrationPayAction({
 
   async function pay(): Promise<void> {
     if (!ready) return;
+    if (!(await invoice.commit())) return;
     setBusy(true);
     setRefusal(null);
     setPromoRejected(false);
@@ -212,7 +224,8 @@ export function RegistrationPayAction({
           {t("eventRegistration.payment.promoError")}
         </p>
       )}
-      <Button type="button" disabled={busy || !ready} onClick={() => void pay()}>
+      <InvoiceRequestBlock controller={invoice} />
+      <Button type="button" disabled={busy || invoice.saving || !ready} onClick={() => void pay()}>
         {busy ? (
           <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
         ) : (

@@ -220,6 +220,10 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   "event_cfp_submission.withdrawn.v1": (event) => cfpEventKeys(event),
   "event_cfp_submission.confirmed.v1": (event) => cfpEventKeys(event),
   "event_cfp_review.saved.v1": (event) => cfpEventKeys(event),
+  // Faktury organizatora: ekran faktur studia (galaz wydarzenia) i karta
+  // "Faktury za wydarzenia" w profilu kupujacego.
+  "event_invoice.issued.v1": (event) => invoiceEventKeys(event),
+  "event_invoice.cancelled.v1": (event) => invoiceEventKeys(event),
 };
 
 // KLUCZE JAKO LITERALY, NIE IMPORT FABRYK. Fabryki (`meetingKeys`,
@@ -256,6 +260,16 @@ function onsiteEventKeys(event: DomainEventRow): QueryKey[] {
 function sponsorEventKeys(event: DomainEventRow): QueryKey[] {
   const eventId = eventPayloadText(event, "event_id");
   return [eventId === "" ? ["event-sponsors"] : ["event-sponsors", eventId], ["public-event"]];
+}
+
+/**
+ * Wystawienie albo anulowanie dokumentu zmienia liste kandydatow, liste
+ * dokumentow i szczegoly w galezi wydarzenia oraz to, co widzi kupujacy
+ * w profilu (`event-invoices-me` nie zna wydarzenia - cala galaz).
+ */
+function invoiceEventKeys(event: DomainEventRow): QueryKey[] {
+  const eventId = eventPayloadText(event, "event_id");
+  return [eventId === "" ? ["event-invoices"] : ["event-invoices", eventId], ["event-invoices-me"]];
 }
 
 function billingDocumentKeys(): QueryKey[] {

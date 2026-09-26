@@ -30,7 +30,9 @@
     "eventScanner",
     "adminEventCfp",
     "eventCfp",
-    "teamGrid"
+    "teamGrid",
+    "adminEventInvoices",
+    "eventInvoices"
   ],
   "missing": [],
   "missingEn": [],
@@ -43,6 +45,8 @@
     "adminDashboard.crm.source.webinar",
     "adminDashboard.marketing.title",
     "adminEventAgenda.tracks.workspace.minutes",
+    "adminEventInvoices.documents.columns.ksef",
+    "adminEventInvoices.settings.sellerEmail",
     "adminEventRegistration.audienceGrantHistory.summary",
     "adminEventRegistration.tickets.studio.columns.status",
     "adminEventRegistration.tickets.studio.duplicateSuffixEn",
@@ -224,6 +228,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 568
+    "untranslated": 570
   }
 }

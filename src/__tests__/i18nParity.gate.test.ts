@@ -120,6 +120,12 @@ const GATED_PREFIXES = [
   // na karcie człowieka - dlatego bramka od pierwszego dnia, a nie po
   // pierwszym rozjeździe (ta sama lekcja co przy "network" i "club").
   "teamGrid",
+  // Faktury wydarzen: studio organizatora i strona kupujacego. Klucze odmow
+  // bazy mowia, co poprawic w danych nabywcy albo wystawcy, a etykiety PDF
+  // drukuja sie w jezyku faktury - brak klucza po jednej stronie trafia na
+  // dokument ksiegowy. Bramka od pierwszego dnia.
+  "adminEventInvoices",
+  "eventInvoices",
 ] as const;
 
 // Klucze, dla których identyczny tekst PL i EN jest poprawny (nazwy własne,
@@ -220,6 +226,11 @@ const IDENTICAL_ALLOWLIST: readonly string[] = [
   "eventCfp.review.scoreButton",
   "eventCfp.roles.moderator",
   "eventCfp.submit.coSpeaker.email",
+  // Faktury wydarzen: "SWIFT/BIC" to nazwa wlasna kodu banku, a rdzen nazwy
+  // pliku proformy ("proforma") jest ten sam w obu jezykach.
+  "adminEventInvoices.settings.bankSwift",
+  "eventInvoices.pdf.swift",
+  "eventInvoices.pdf.fileStems.proforma",
 ];
 
 function loadOverlays(): void {

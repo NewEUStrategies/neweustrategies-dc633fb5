@@ -127,7 +127,8 @@ describe("tx-copy - kompletność słownika obu języków", () => {
     // 30 -> 31: bilet z kodem QR dla każdej osoby z grupy (`event_ticket_issued`).
     // 31 -> 35: nabór prelegentów (`event_cfp_submission_received/_accepted/
     // _rejected/_changes_requested`).
-    expect(zeSlownika).toHaveLength(35);
+    // 35 -> 36: powiadomienie o fakturze organizatora wydarzenia (`event_invoice_issued`).
+    expect(zeSlownika).toHaveLength(36);
   });
 
   it.each(TX_EMAIL_TYPES)("%s ma komplet treści w PL i w EN", (type) => {
@@ -251,8 +252,8 @@ describe("tx-copy - temat wiadomości", () => {
     );
 
     expect(braki).toEqual([]);
-    // 35 typów razy dwa języki.
-    expect(TX_EMAIL_TYPES.length * LANGS.length).toBe(70);
+    // 36 typów razy dwa języki.
+    expect(TX_EMAIL_TYPES.length * LANGS.length).toBe(72);
   });
 
   it("temat nie przekracza długości, po której klient pocztowy go urywa", () => {

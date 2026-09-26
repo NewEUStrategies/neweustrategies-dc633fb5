@@ -54,6 +54,7 @@ export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "event_ticket_refunded",
   "event_ticket_partially_refunded",
   "event_ticket_issued",
+  "event_invoice_issued",
   "donation_received",
   "newsletter_confirmed",
   "customer_portal_link",
@@ -353,6 +354,18 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
           { label: l.entryCode, value: DEMO_ENTRY_CODE },
         ],
         ctaUrl: `${SITE_URL}${ticketLinkPath("demo", DEMO_ENTRY_CODE)}`,
+      };
+    // Faktura organizatora: numer z serii FV, kwota brutto, odnosnik do
+    // profilu (mail nie niesie zalacznika - PDF sklada profil).
+    case "event_invoice_issued":
+      return {
+        subjectName: eventTitle,
+        details: [
+          { label: l.event, value: eventTitle },
+          { label: l.documentNumber, value: "FV/2026/09/0007" },
+          { label: l.price, value: DEMO_TICKET_PRICE[lang] },
+        ],
+        ctaUrl: `${SITE_URL}/profile/invoices`,
       };
     case "donation_received":
       return {

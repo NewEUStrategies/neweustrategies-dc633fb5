@@ -141,6 +141,9 @@ export const TX_EMAIL_CATEGORY: Readonly<Record<TxEmailType, EmailCategory>> = {
   event_ticket_partially_refunded: "transactional",
   // Bilet z kodem QR - jedyna kopia kodu wejścia, dowód uczestnictwa.
   event_ticket_issued: "transactional",
+  // Powiadomienie o wystawionej fakturze organizatora - dokument rozliczenia
+  // zamowienia kupujacego, nie wysylka marketingowa.
+  event_invoice_issued: "transactional",
   // Potwierdzenie darowizny - dokument dla darczyńcy.
   donation_received: "transactional",
   // Jednorazowy link do portalu operatora płatności, wywołany kliknięciem

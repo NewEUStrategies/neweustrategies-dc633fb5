@@ -18,6 +18,8 @@ import { sponsorKeys } from "@/lib/events/useEventSponsors";
 import { registrationKeys } from "@/lib/events/useEventRegistrations";
 import { cfpKeys } from "@/lib/events/useEventCfp";
 import { cfpMeKeys } from "@/lib/events/useCfpMe";
+import { eventInvoiceKeys } from "@/lib/events/useEventInvoices";
+import { myEventInvoiceKeys } from "@/lib/events/useMyEventInvoices";
 
 const EVENT_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const CTX = { userId: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" };
@@ -135,5 +137,27 @@ describe("mapa inwalidacji modułu wydarzeń", () => {
     ) as unknown[][];
     expect(includesPrefix(keys, cfpKeys.all)).toBe(true);
     expect(includesPrefix(keys, cfpMeKeys.all)).toBe(true);
+  });
+
+  it("faktury trafiają w gałąź wydarzenia w studiu I w profil kupującego", () => {
+    // Wystawienie zmienia jednocześnie listę zamówień do zafakturowania,
+    // listę dokumentów i kartę "Faktury za wydarzenia" kupującego.
+    for (const type of ["event_invoice.issued.v1", "event_invoice.cancelled.v1"]) {
+      const keys = invalidationKeysFor(
+        domainEvent(type, { event_id: EVENT_ID, invoice_id: EVENT_ID }),
+        CTX,
+      ) as unknown[][];
+      expect(includesPrefix(keys, eventInvoiceKeys.event(EVENT_ID)), type).toBe(true);
+      expect(includesPrefix(keys, myEventInvoiceKeys.all), type).toBe(true);
+      expect(includesPrefix(keys, eventInvoiceKeys.event("inne-wydarzenie")), type).toBe(false);
+    }
+  });
+
+  it("faktura bez `event_id` degraduje do całej gałęzi faktur", () => {
+    const keys = invalidationKeysFor(
+      domainEvent("event_invoice.issued.v1", {}),
+      CTX,
+    ) as unknown[][];
+    expect(includesPrefix(keys, eventInvoiceKeys.all)).toBe(true);
   });
 });

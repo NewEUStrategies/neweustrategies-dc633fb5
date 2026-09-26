@@ -1574,3 +1574,70 @@ CREATE TABLE IF NOT EXISTS public.crm_consent_log (
 ALTER TABLE public.crm_consent_log ENABLE ROW LEVEL SECURITY;
 GRANT ALL ON public.crm_consent_log TO service_role;
 -- === /f0 ===
+
+-- === f2: faktury wydarzen (20260926110000) - kartoteka firm, kasa, plaszczyzna rozliczen ===
+-- PO CO. Migracja faktur wydarzen czyta i uzupelnia trzy powierzchnie spoza
+-- modulu, ktorych atrapy wyzej nie znaja. Wchodzi dokladnie to, czego dotyka
+-- replay i asercje runtime_test.d/27_invoices.sql, PRZEPISANE Z ORYGINALOW:
+--   * `crm_companies`: `tax_id` (20260907145450), `address`, `postal_code`,
+--     `phone`, `created_by` (20260721200229) - resolver firmy nabywcy dopasowuje
+--     po NIP-ie i uzupelnia WYLACZNIE puste pola;
+--   * `crm_member_company_key` + `crm_ensure_member_company` (20260912100000)
+--     ZNAK W ZNAK - zakladanie firmy po nazwie z blokada doradcza;
+--   * `payment_orders.paid_at`, `refunded_amount_cents` (20260624172041,
+--     20260814221337) - kwota brutto zamowienia z karty po zwrotach;
+--   * `checkout_settings` (20260721063638) - wylacznie `tenant_id`
+--     i `automatic_tax`, bo tylko z niego plaszczyzna rozliczen wynika
+--     (`checkoutBillingPlane()`: brak wiersza = operator jest sprzedawca).
+ALTER TABLE public.crm_companies
+  ADD COLUMN IF NOT EXISTS tax_id      text,
+  ADD COLUMN IF NOT EXISTS address     text,
+  ADD COLUMN IF NOT EXISTS postal_code text,
+  ADD COLUMN IF NOT EXISTS phone       text,
+  ADD COLUMN IF NOT EXISTS created_by  uuid;
+
+CREATE OR REPLACE FUNCTION public.crm_member_company_key(p_name text)
+RETURNS text LANGUAGE sql IMMUTABLE SET search_path = public, pg_temp AS $$
+  SELECT btrim(regexp_replace(
+    regexp_replace(regexp_replace(lower(btrim(p_name)), '[[:space:]]+', ' ', 'g'), '[.,]', '', 'g'),
+    '\m(sp ?z ?o ?o|sa|ltd|llc|inc|gmbh)\M', '', 'g'));
+$$;
+
+CREATE OR REPLACE FUNCTION public.crm_ensure_member_company(
+  p_tenant_id uuid, p_name text, p_actor_id uuid DEFAULT NULL
+)
+RETURNS TABLE(id uuid, created boolean) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+  v_key text := public.crm_member_company_key(p_name);
+  v_id uuid;
+  v_created boolean := false;
+BEGIN
+  IF p_tenant_id IS NULL THEN RAISE EXCEPTION 'crm: tenant required'; END IF;
+  IF v_key IS NULL OR v_key = '' THEN RETURN; END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || ':company:' || v_key, 0));
+  SELECT c.id INTO v_id FROM public.crm_companies AS c
+    WHERE c.tenant_id = p_tenant_id AND public.crm_member_company_key(c.name) = v_key
+    ORDER BY c.created_at, c.id LIMIT 1;
+  IF v_id IS NULL THEN
+    INSERT INTO public.crm_companies (tenant_id, name, created_by)
+      VALUES (p_tenant_id, btrim(p_name), p_actor_id) RETURNING crm_companies.id INTO v_id;
+    v_created := true;
+  END IF;
+  RETURN QUERY SELECT v_id, v_created;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.crm_ensure_member_company(uuid, text, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.crm_ensure_member_company(uuid, text, uuid) TO service_role;
+
+ALTER TABLE public.payment_orders
+  ADD COLUMN IF NOT EXISTS paid_at               timestamptz,
+  ADD COLUMN IF NOT EXISTS refunded_amount_cents integer NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS public.checkout_settings (
+  tenant_id     uuid PRIMARY KEY REFERENCES public.tenants(id) ON DELETE CASCADE,
+  automatic_tax boolean NOT NULL DEFAULT false
+);
+ALTER TABLE public.checkout_settings ENABLE ROW LEVEL SECURITY;
+GRANT SELECT ON public.checkout_settings TO anon, authenticated;
+GRANT ALL ON public.checkout_settings TO service_role;
+-- === /f2 ===
