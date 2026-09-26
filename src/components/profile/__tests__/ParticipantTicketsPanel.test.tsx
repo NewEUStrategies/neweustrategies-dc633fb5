@@ -197,6 +197,21 @@ describe("ParticipantTicketsPanel - stan i pieniądze", () => {
     expect(screen.getAllByText(/participantTickets\.reason\.cancelled/)).toHaveLength(1);
   });
 
+  it("ważny bilet mówi, skąd dodać przepustkę do portfela; nieważny - nie", async () => {
+    fetchRegistrations.mockResolvedValue([
+      registration({ registrationId: "r-paid", status: "approved", paymentStatus: "paid" }),
+      registration({ registrationId: "r-free", status: "attended", paymentStatus: "not_required" }),
+      registration({ registrationId: "r-unpaid", status: "approved", paymentStatus: "unpaid" }),
+      registration({ registrationId: "r-null", status: "approved", paymentStatus: null }),
+      registration({ registrationId: "r-cancel", status: "cancelled", paymentStatus: "paid" }),
+    ]);
+    renderWithQueryClient(<ParticipantTicketsPanel />);
+
+    await screen.findAllByText("participantTickets.openEvent");
+    // Dwa ważne bilety (opłacony przyjęty, bezpłatny obecny) - dwie podpowiedzi.
+    expect(screen.getAllByText("eventWallet.profileHint")).toHaveLength(2);
+  });
+
   it("pusta lista nazywa pustkę, a nie pokazuje pustej ramki", async () => {
     fetchRegistrations.mockResolvedValue([]);
     renderWithQueryClient(<ParticipantTicketsPanel />);

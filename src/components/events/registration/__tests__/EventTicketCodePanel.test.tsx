@@ -24,6 +24,13 @@ vi.mock("@/lib/community/publicQueries", () => ({
   fetchEventPageHeader: () => Promise.resolve(h.header),
 }));
 
+// Przyciski portfela mają własne testy; tu liczy się tylko to, że dostają kod.
+vi.mock("@/components/events/registration/molecules/TicketWalletButtons", () => ({
+  TicketWalletButtons: ({ qrToken }: { qrToken: string }) => (
+    <div data-testid="wallet-buttons" data-token={qrToken} />
+  ),
+}));
+
 vi.mock("qrcode", () => ({
   default: {
     toDataURL: (text: string) => {
@@ -77,6 +84,8 @@ describe("EventTicketCodePanel", () => {
     expect(await screen.findByText("Kongres")).toBeInTheDocument();
     // Prowadzący nie ma klucza w bilecie - link samoobsługi się nie pojawia.
     expect(screen.queryByText("eventRegistration.ticketPage.manage")).toBeNull();
+    // Portfel dostaje TEN SAM kod, który koduje QR.
+    expect(screen.getByTestId("wallet-buttons")).toHaveAttribute("data-token", QR);
   });
 
   it("gość z kluczem samoobsługi dostaje link do zarządzania zgłoszeniem", async () => {
@@ -94,5 +103,7 @@ describe("EventTicketCodePanel", () => {
     ).toBeInTheDocument();
     expect(h.qrInputs).toEqual([]);
     expect(screen.queryByAltText("eventRegistration.ticketPage.qrAlt")).toBeNull();
+    // Bez kodu nie ma czego dodać do portfela.
+    expect(screen.queryByTestId("wallet-buttons")).toBeNull();
   });
 });

@@ -46,7 +46,9 @@ const SCANNED_ROUTE_PREFIXES = ["admin.events.", "admin.events_."] as const;
  * `adminEvents` obejmuje zarówno mapy etykiet enumów, jak i klucze reguł
  * katalogu zwracane przez `eventTypeDraftIssue` i `eventType*Failure`.
  */
-const REFERENCE_PREFIXES = ["adminEvents"] as const;
+// `eventWallet` (f7b): mapa kodów błędów tras portfela na pełne klucze
+// (`lib/events/ticketWallet.ts`) - literały poza `t()` też muszą istnieć.
+const REFERENCE_PREFIXES = ["adminEvents", "eventWallet"] as const;
 
 function isTree(value: unknown): value is ResourceTree {
   return value !== null && typeof value === "object" && !Array.isArray(value);

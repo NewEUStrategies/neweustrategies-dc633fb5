@@ -12,6 +12,10 @@
 //
 // NAGŁÓWEK Z PUBLICZNEGO `event_page_header` po slugu, jak w samoobsłudze
 // zgłoszenia: kod nie wyjeżdża do żadnego zapytania.
+//
+// PORTFEL POD KODEM. `TicketWalletButtons` dodaje ten sam kod do Apple Wallet
+// albo Google Wallet - kod jedzie wyłącznie w ciele POST do tras portfela,
+// dopiero po kliknięciu uczestnika.
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -19,6 +23,7 @@ import { AlertTriangle, QrCode } from "lucide-react";
 import QRCode from "qrcode";
 import { useTranslation } from "react-i18next";
 
+import { TicketWalletButtons } from "@/components/events/registration/molecules/TicketWalletButtons";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchEventPageHeader } from "@/lib/community/publicQueries";
@@ -122,6 +127,7 @@ export function EventTicketCodePanel({ slug }: { slug: string }) {
           <p className="text-xs text-muted-foreground">
             {t("eventRegistration.ticketPage.private")}
           </p>
+          <TicketWalletButtons qrToken={ticket.qrToken} />
         </div>
       )}
 

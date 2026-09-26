@@ -115,6 +115,10 @@ const GATED_PREFIXES = [
   // na karcie człowieka - dlatego bramka od pierwszego dnia, a nie po
   // pierwszym rozjeździe (ta sama lekcja co przy "network" i "club").
   "teamGrid",
+  // Bilet w portfelu (f7b): przyciski Apple Wallet / Google Wallet na stronie
+  // biletu i podpowiedź w profilu. Surowy klucz zamiast „nie da się dodać -
+  // bilet anulowany” zostawia uczestnika bez wyjaśnienia tuż przed wejściem.
+  "eventWallet",
 ] as const;
 
 // Klucze, dla których identyczny tekst PL i EN jest poprawny (nazwy własne,
@@ -205,6 +209,9 @@ const IDENTICAL_ALLOWLIST: readonly string[] = [
   "eventFront.formats.online",
   "eventFront.list.formatLabel",
   "eventMeetings.fields.sponsor",
+  // Nazwy własne usług na przyciskach portfela - tłumaczenie byłoby błędem.
+  "eventWallet.apple.name",
+  "eventWallet.google.name",
 ];
 
 function loadOverlays(): void {
