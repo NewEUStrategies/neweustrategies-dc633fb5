@@ -810,6 +810,23 @@ describe("`setItem` / `removeItem`: kopia lokalna PRZED powiadomieniem brokera",
     await expect(p).resolves.toBeUndefined();
   });
 
+  it("`setItem` przyjmuje kanoniczną wartość brokera, a nagrobek `''` czyści kopię lokalną", async () => {
+    // Broker jest źródłem prawdy sesji podglądu: odpowiedź `:set` niesie wartość,
+    // którą ZAPISAŁ. Inna wartość nadpisuje kopię lokalną, a nagrobek wylogowania
+    // (`''`) ją usuwa - inaczej wylogowana sesja wracałaby z `localStorage`.
+    const b = broker();
+
+    const p1 = b.setItem(KLUCZ, TOKEN);
+    odpowiedzNa(0, LOVABLE, { value: TOKEN_LOKALNY });
+    await expect(p1).resolves.toBeUndefined();
+    expect(localStorage.getItem(KLUCZ)).toBe(TOKEN_LOKALNY);
+
+    const p2 = b.setItem(KLUCZ, TOKEN);
+    odpowiedzNa(1, LOVABLE, { value: "" });
+    await expect(p2).resolves.toBeUndefined();
+    expect(localStorage.getItem(KLUCZ)).toBeNull();
+  });
+
   it("`setItem` kończy się `undefined` także wtedy, gdy edytor MILCZY", async () => {
     // Supabase czeka na tę obietnicę przy każdym odświeżeniu tokenu - gdyby
     // nie kończyła się bez odpowiedzi edytora, logowanie by zawisło.
