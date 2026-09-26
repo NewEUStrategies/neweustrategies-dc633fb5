@@ -13,9 +13,16 @@
 // PASEK SESJI ZOSTAJE ZAWSZE NA WIERZCHU. Wolontariusz musi widzieć bez
 // przewijania: czy jest sieć, ile skanów czeka i ile godzin ważności zostało.
 // To są trzy rzeczy, które decydują o tym, czy wolno mu odejść od bramki.
-import { useMemo, useState } from "react";
+// Tryb offline dokłada do paska stan listy offline (ile osób, z kiedy),
+// sesję z pamięci urządzenia i ostrzeżenie o rozjechanym zegarze.
+//
+// LISTA DO WYJAŚNIENIA WIDAĆ W KAŻDYM STANIE. Konflikty i odrzucone skany
+// zostają po unieważnieniu poświadczenia - dlatego panel stoi także na ekranie
+// parowania i na ekranie „wygasło", a nie tylko przy działającej sesji.
+import { useEffect, useMemo, useState } from "react";
 import { LogOut, Signal } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,10 +30,16 @@ import { cn } from "@/lib/utils";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { availableModes, hoursUntilExpiry, type ScannerMode } from "@/lib/events/scannerSession";
+import { rosterState } from "@/lib/events/scannerRoster";
 import { useScannerRuntime } from "@/lib/events/useScanner";
+import { useScannerReadiness } from "@/lib/events/useScannerReadiness";
+import { useNowMs } from "@/lib/time/useNowMs";
 import { ScannerStatusPill } from "@/components/events/scanner/atoms/ScannerStatusPill";
 import { ScannerPairingCard } from "@/components/events/scanner/molecules/ScannerPairingCard";
 import { ScannerOutboxPanel } from "@/components/events/scanner/molecules/ScannerOutboxPanel";
+import { ScannerOfflineBar } from "@/components/events/scanner/molecules/ScannerOfflineBar";
+import { ScannerReadinessCard } from "@/components/events/scanner/molecules/ScannerReadinessCard";
+import { ScannerSyncIssuesPanel } from "@/components/events/scanner/molecules/ScannerSyncIssuesPanel";
 import { ScannerCheckinPanel } from "@/components/events/scanner/organisms/ScannerCheckinPanel";
 import { ScannerLeadPanel } from "@/components/events/scanner/organisms/ScannerLeadPanel";
 import { ScannerBadgePanel } from "@/components/events/scanner/organisms/ScannerBadgePanel";
@@ -48,6 +61,41 @@ export function ScannerApp({ initialToken }: { initialToken: string | null }) {
   const session = runtime.session;
   const modes = useMemo(() => (session === null ? [] : availableModes(session)), [session]);
   const activeMode = mode !== null && modes.includes(mode) ? mode : (modes[0] ?? null);
+  const nowMs = useNowMs(30_000);
+  const listState = rosterState({
+    enabled: runtime.roster.enabled,
+    generatedAt: runtime.roster.generatedAt,
+    nowMs,
+  });
+  const readiness = useScannerReadiness(runtime.status === "ready" && !runtime.sessionStale);
+
+  // Wynik wysyłki kolejki - jedno zdanie o tym, co wyszło, i osobne o tym,
+  // co wymaga uwagi (konflikty, odrzucone).
+  const lastFlush = runtime.lastFlush;
+  useEffect(() => {
+    if (lastFlush === null) return;
+    if (lastFlush.sent > 0) {
+      toast.success(t("eventScanner.outbox.flushedToast", { count: lastFlush.sent }));
+    }
+    if (lastFlush.conflicts > 0) {
+      toast.warning(t("eventScanner.sync.flushedConflicts", { count: lastFlush.conflicts }));
+    }
+    if (lastFlush.rejected > 0) {
+      toast.error(t("eventScanner.sync.flushedRejected", { count: lastFlush.rejected }));
+    }
+  }, [lastFlush, t]);
+
+  const syncIssues =
+    runtime.conflicts.length > 0 || runtime.rejected.length > 0 ? (
+      <ScannerSyncIssuesPanel
+        conflicts={runtime.conflicts}
+        rejected={runtime.rejected}
+        timezone={session?.event.timezone ?? null}
+        deviceLabel={session?.label ?? ""}
+        eventSlug={session?.event.slug ?? null}
+        onClear={runtime.clearSyncIssues}
+      />
+    ) : null;
 
   if (session === null || runtime.status !== "ready") {
     if (runtime.status === "expired" && session !== null) {
@@ -57,6 +105,24 @@ export function ScannerApp({ initialToken }: { initialToken: string | null }) {
           <p className="rounded-[6px] border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
             {t("eventScanner.session.expired")}
           </p>
+          {runtime.outbox.length > 0 && (
+            <>
+              <p className="text-sm text-muted-foreground">
+                {t("eventScanner.session.expiredSyncing")}
+              </p>
+              <div className="text-left">
+                <ScannerOutboxPanel
+                  outbox={runtime.outbox}
+                  timezone={session.event.timezone}
+                  flushing={runtime.flushing}
+                  persistent={runtime.outboxPersistent}
+                  onFlush={runtime.flush}
+                  onDiscard={runtime.discard}
+                />
+              </div>
+            </>
+          )}
+          {syncIssues !== null && <div className="text-left">{syncIssues}</div>}
           <Button type="button" variant="secondary" onClick={runtime.disconnect}>
             <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
             {t("eventScanner.session.disconnect")}
@@ -65,12 +131,15 @@ export function ScannerApp({ initialToken }: { initialToken: string | null }) {
       );
     }
     return (
-      <ScannerPairingCard
-        onConnect={runtime.connect}
-        connecting={runtime.status === "connecting"}
-        error={runtime.connectError}
-        online={runtime.online}
-      />
+      <div className="space-y-6">
+        <ScannerPairingCard
+          onConnect={runtime.connect}
+          connecting={runtime.status === "connecting"}
+          error={runtime.connectError}
+          online={runtime.online}
+        />
+        {syncIssues !== null && <div className="mx-auto w-full max-w-md">{syncIssues}</div>}
+      </div>
     );
   }
 
@@ -97,6 +166,8 @@ export function ScannerApp({ initialToken }: { initialToken: string | null }) {
               online={runtime.online}
               pending={runtime.outboxCounts.pending}
               syncing={runtime.flushing}
+              offlineReady={listState === "fresh" || listState === "stale"}
+              sessionStale={runtime.sessionStale}
             />
             <Button type="button" size="sm" variant="ghost" onClick={runtime.disconnect}>
               <LogOut className="h-4 w-4" aria-hidden="true" />
@@ -104,6 +175,17 @@ export function ScannerApp({ initialToken }: { initialToken: string | null }) {
             </Button>
           </div>
         </div>
+
+        <ScannerOfflineBar
+          roster={runtime.roster}
+          state={listState}
+          timezone={session.event.timezone}
+          online={runtime.online}
+          sessionStale={runtime.sessionStale}
+          clockOffsetMs={runtime.clockOffsetMs}
+          clockSkewed={runtime.clockSkewed}
+          onRefresh={runtime.syncRoster}
+        />
 
         {hoursLeft !== null && hoursLeft <= EXPIRY_WARNING_HOURS && (
           <p className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300">
@@ -155,6 +237,16 @@ export function ScannerApp({ initialToken }: { initialToken: string | null }) {
           persistent={runtime.outboxPersistent}
           onFlush={runtime.flush}
           onDiscard={runtime.discard}
+        />
+      )}
+
+      {syncIssues}
+
+      {modes.includes("checkin") && (
+        <ScannerReadinessCard
+          readiness={readiness}
+          rosterState={listState}
+          queuePersistent={runtime.outboxPersistent && runtime.offlineStoragePersistent}
         />
       )}
 

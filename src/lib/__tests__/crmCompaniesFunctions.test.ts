@@ -494,6 +494,67 @@ describe("getCrmCompanyActivity", () => {
     expect(events[1].lead_label).toBe("Anna Kowalska");
   });
 
+  it("aktywność z modułu Wydarzeń (`event.*`) ma własny rodzaj - i dla firmy, i dla jej ludzi", async () => {
+    // Bez tego sponsoring albo faktura zbiorcza stały w feedzie jako surowy
+    // wpis audytu, bez zdania i bez odnośnika do wydarzenia.
+    db.setResponse("crm_leads", () =>
+      ok([
+        {
+          id: OTHER_ID,
+          email: "anna@example.test",
+          first_name: "Anna",
+          last_name: "Kowalska",
+          created_at: new Date(Date.UTC(2026, 7, 1, 10)).toISOString(),
+          last_activity_at: null,
+          stage: "new",
+        },
+      ]),
+    );
+    db.setResponse("audit_log", (chain) =>
+      chain.has("in")
+        ? ok([
+            {
+              id: "a2",
+              action: "event.cfp.submitted",
+              entity_type: "crm_lead",
+              entity_id: OTHER_ID,
+              metadata: { summary_pl: "Zgłoszenie wystąpienia" },
+              actor_id: null,
+              created_at: new Date(Date.UTC(2026, 7, 4, 10)).toISOString(),
+            },
+          ])
+        : ok([
+            {
+              id: "a1",
+              action: "event.invoice.collective_issued",
+              entity_type: "crm_company",
+              entity_id: COMPANY_ID,
+              metadata: { summary_pl: "Faktura zbiorcza" },
+              actor_id: USER_ID,
+              created_at: new Date(Date.UTC(2026, 7, 6, 10)).toISOString(),
+            },
+          ]),
+    );
+    db.setResponse("crm_lead_notes", () => ok([]));
+
+    const result = await callServerFn(companies.getCrmCompanyActivity, {
+      data: { id: COMPANY_ID },
+      context: context(),
+    });
+    const events = parsed(result) as Array<{
+      kind: string;
+      lead_label: string | null;
+      metadata?: Record<string, unknown> | null;
+    }>;
+    expect(events.map((e) => e.kind)).toEqual(["event", "event", "lead_created"]);
+    // Wpis firmy nie ma osoby, wpis kontaktu - ma; metadane jadą do widoku całe.
+    expect(events[0]).toMatchObject({
+      lead_label: null,
+      metadata: { summary_pl: "Faktura zbiorcza" },
+    });
+    expect(events[1].lead_label).toBe("Anna Kowalska");
+  });
+
   it("firma bez kontaktów nie pyta o notatki ani o audyt leadów", async () => {
     db.setResponse("crm_leads", () => ok([]));
     db.setResponse("audit_log", () => ok([]));

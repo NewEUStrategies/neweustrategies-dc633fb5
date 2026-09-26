@@ -258,6 +258,8 @@ export interface CheckinsQuery {
   q?: string;
   limit?: number;
   offset?: number;
+  /** Tylko wpuszczeni bez sieci, którym baza odmawia (tryb offline skanera). */
+  conflictsOnly?: boolean;
 }
 
 export async function fetchCheckins(query: CheckinsQuery): Promise<EventCheckinRow[]> {
@@ -274,6 +276,7 @@ export async function fetchCheckins(query: CheckinsQuery): Promise<EventCheckinR
       p_q: query.q?.trim() === "" ? undefined : query.q,
       p_limit: query.limit,
       p_offset: query.offset,
+      p_conflicts_only: query.conflictsOnly,
     }),
   );
   return unwrap<EventCheckinRow[]>(data, error);
@@ -514,6 +517,8 @@ export interface ScannerDeviceIssueInput {
   checkpointId?: string | null;
   sponsorId?: string | null;
   expiresAt?: string;
+  /** Zgoda na liste offline na urzadzeniu (baza przyjmuje ja tylko z zakresem checkin). */
+  offlineRoster?: boolean;
 }
 
 /** Jawny token zyje tylko w tej odpowiedzi - nie ma funkcji, ktora go powtorzy. */
@@ -524,6 +529,7 @@ export interface ScannerDeviceCredential {
   tokenPrefix: string;
   scopes: string[];
   expiresAt: string | null;
+  offlineRoster: boolean;
 }
 
 export function parseScannerCredential(value: unknown): ScannerDeviceCredential {
@@ -538,6 +544,7 @@ export function parseScannerCredential(value: unknown): ScannerDeviceCredential 
     tokenPrefix: str(row.token_prefix),
     scopes,
     expiresAt: typeof row.expires_at === "string" ? row.expires_at : null,
+    offlineRoster: row.offline_roster === true,
   };
 }
 
@@ -559,6 +566,7 @@ export async function issueScannerDevice(
       checkpoint_id: input.checkpointId,
       sponsor_id: input.sponsorId,
       expires_at: input.expiresAt,
+      offline_roster: input.offlineRoster,
     }),
   });
   if (error !== null) throw new Error(error.message);
@@ -579,6 +587,22 @@ export async function setScannerDeviceActive(
 ): Promise<boolean> {
   const { data, error } = await supabase.rpc("admin_event_scanner_device_set_active", {
     p_payload: payload({ device_id: deviceId, is_active: isActive }),
+  });
+  if (error !== null) throw new Error(error.message);
+  return data === true;
+}
+
+/**
+ * Zgoda na liste offline na urzadzeniu. Wylaczenie dziala przy nastepnym
+ * kontakcie urzadzenia z baza (pobranie listy konczy sie `roster_disabled`,
+ * a klient kasuje swoja kopie).
+ */
+export async function setScannerDeviceOffline(
+  deviceId: string,
+  offlineRoster: boolean,
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc("admin_event_scanner_device_set_offline", {
+    p_payload: payload({ device_id: deviceId, offline_roster: offlineRoster }),
   });
   if (error !== null) throw new Error(error.message);
   return data === true;

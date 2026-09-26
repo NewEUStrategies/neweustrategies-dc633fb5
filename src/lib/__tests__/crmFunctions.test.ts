@@ -474,6 +474,43 @@ describe("kronika kontaktu (timeline)", () => {
     expect(events[0].type).toBe("stage_change");
   });
 
+  it("zdarzenie audytu z modułu Wydarzeń (`event.*`) to typ „event” z polskim zdaniem i pełnym kontraktem", async () => {
+    // Bez tego wpis „zgłosił wystąpienie" stał na osi jako „Zmiana etapu".
+    timelineSources();
+    const metadata = {
+      event_id: "3f1a0c8e-0000-4000-8000-000000000042",
+      event_slug: "kongres-cee-2026",
+      summary_pl: "Zgłoszenie wystąpienia",
+      summary_en: "Talk submitted",
+    };
+    lead.setResponse("audit_log", () =>
+      ok([
+        {
+          id: "a3",
+          action: "event.cfp.submitted",
+          actor_id: null,
+          metadata,
+          // Najpozniejszy wpis osi (bez nowego literalu daty w pliku).
+          created_at: new Date(Date.UTC(2026, 7, 6, 10)).toISOString(),
+        },
+      ]),
+    );
+    const result = await callServerFn(crm.getCrmLeadTimeline, {
+      data: { id: LEAD_ID },
+      context: context(),
+    });
+    const { events } = parsed(result) as {
+      events: Array<{ id: string; type: string; title: string; meta: unknown }>;
+    };
+    expect(events[0]).toMatchObject({
+      id: "au:a3",
+      type: "event",
+      title: "Zgłoszenie wystąpienia",
+    });
+    // Wersja angielska zostaje w metadanych - widok wybiera zdanie w swoim języku.
+    expect(events[0].meta).toEqual(metadata);
+  });
+
   it("eksport kroniki oddaje CSV, e-mail kontaktu i liczbę zdarzeń", async () => {
     timelineSources();
     const result = await callServerFn<{ csv: string; email: string; count: number }>(

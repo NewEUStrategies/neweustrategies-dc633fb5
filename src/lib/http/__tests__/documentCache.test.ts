@@ -137,6 +137,32 @@ describe("planDocumentCache", () => {
     expect(clean.kind).toBe("lookup");
   });
 
+  it("strips every Google Ads click parameter (gbraid/wbraid/gad_*/gclsrc/dclid/_gl/srsltid)", () => {
+    // Bez tego kliknięcie z iOS (gbraid) albo autotag `gad_source` omijało
+    // cache i płaciło pełnym zimnym renderem SSR.
+    const clean = planDocumentCache(req("https://example.org/events/kongres"), host);
+    for (const query of [
+      "gbraid=0AAAAA",
+      "wbraid=CjkKAAA",
+      "gad_source=1",
+      "gad_campaignid=123456789",
+      "gclsrc=aw.ds",
+      "dclid=CJ1",
+      "_gl=1*abc*_ga*MTE",
+      "srsltid=AfmBOo",
+      "GBRAID=upper&gclid=x&utm_campaign=wiosna",
+    ]) {
+      expect(planDocumentCache(req(`https://example.org/events/kongres?${query}`), host)).toEqual(
+        clean,
+      );
+    }
+    // Kontrapunkt: parametr podobny z nazwy, ale nieznany - dalej BYPASS.
+    expect(planDocumentCache(req("https://example.org/events/kongres?gad_other=1"), host)).toEqual({
+      kind: "bypass",
+      reason: "query",
+    });
+  });
+
   it("keys pagination/sort params deterministically and bypasses unknown ones", () => {
     const a = planDocumentCache(req("https://example.org/blog?sort=popular&page=2"), host);
     const b = planDocumentCache(req("https://example.org/blog?page=2&sort=popular"), host);

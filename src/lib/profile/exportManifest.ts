@@ -76,6 +76,11 @@ export const EXPORT_SECTION_LIMITS: Readonly<Record<string, number>> = Object.fr
   club_reactions: EXPORT_ROW_LIMIT,
   club_thread_subscriptions: EXPORT_ROW_LIMIT,
   club_invitations_received: EXPORT_ROW_LIMIT,
+  // Nabór prelegentów: sufit w RPC (`event_cfp_export_my_data`, p_limit).
+  event_cfp_submissions: EXPORT_ROW_LIMIT,
+  event_speaker_materials: EXPORT_ROW_LIMIT,
+  event_cfp_reviewer_roles: EXPORT_ROW_LIMIT,
+  event_cfp_reviews_written: EXPORT_ROW_LIMIT,
 });
 
 /**
@@ -153,6 +158,18 @@ export const EXPORT_SECTION_GROUPS = {
     "club_thread_subscriptions",
     "club_invitations_received",
   ],
+  /**
+   * Nabór prelegentów wydarzeń (2026-09-26): zgłoszenia wystąpień - dane, które
+   * osoba sama o sobie i swoim wystąpieniu napisała (art. 20 RODO) - materiały
+   * prelegenta oraz rola i WŁASNE oceny recenzenta. Notatka decyzji i cudze
+   * oceny NIE wchodzą - patrz `EXPORT_EXCLUSIONS.event_cfp_assessments`.
+   */
+  event_cfp: [
+    "event_cfp_submissions",
+    "event_speaker_materials",
+    "event_cfp_reviewer_roles",
+    "event_cfp_reviews_written",
+  ],
   /** Płatności i uprawnienia zakupowe. */
   commerce: ["orders", "subscriptions", "purchases"],
   /** Preferencje i kanały doręczeń. */
@@ -212,6 +229,13 @@ export const EXPORT_EXCLUSIONS: readonly ExportExclusion[] = [
       "Notatki komisji naboru o kandydacie (pole admin_note w zgłoszeniu do klubu). To wewnętrzna ocena pisana przez członków komisji, a nie dana, którą dostarczyłeś o sobie; w automatycznym pliku jej nie ma, żeby eksport nie zamienił oceny w kanał komunikacji z kandydatem. Sama decyzja i jej data SĄ w eksporcie - bez nich plik nie mówiłby, co się ze zgłoszeniem stało. Notatkę udostępniamy na wniosek skierowany do inspektora ochrony danych.",
     reason_en:
       "Admissions committee notes about the candidate (the admin_note field of a club application). It is an internal assessment written by committee members rather than data you provided about yourself; keeping it out of the automated file stops the export from turning an internal assessment into a channel for talking to the candidate. The decision itself and its date ARE exported - without them the file would not say what happened to the application. The note is provided on request to the data protection officer.",
+  },
+  {
+    id: "event_cfp_assessments",
+    reason_pl:
+      "Oceny i uwagi recenzentów o Twoim zgłoszeniu wystąpienia, wewnętrzna notatka organizatora do decyzji oraz dane kontaktowe współprelegentów (adres e-mail, stanowisko, firma). To ocena pisana przez inne osoby i dane innych osób - art. 15 ust. 4 RODO. Decyzja, jej data, informacja zwrotna od organizatora i ocena zbiorcza po decyzji SĄ w eksporcie. Pojedyncze oceny udostępniamy na wniosek skierowany do inspektora ochrony danych.",
+    reason_en:
+      "Reviewers' scores and comments about your talk submission, the organiser's internal decision note and your co-speakers' contact details (e-mail address, job title, company). They are assessments written by other people and data of other people - GDPR art. 15(4). The decision, its date, the organiser's feedback and the aggregated score after the decision ARE exported. Individual reviews are provided on request to the data protection officer.",
   },
   {
     id: "attachment_binaries",

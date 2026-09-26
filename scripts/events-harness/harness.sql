@@ -1307,224 +1307,350 @@ CREATE INDEX IF NOT EXISTS audit_log_tenant_idx
   ON public.audit_log (tenant_id, created_at DESC);
 GRANT SELECT, INSERT ON public.audit_log TO authenticated;
 
--- ============================================================================
--- FUNKCJE UCZESTNIKA F1-F5 (Foundation, spec B.4.1) - ATRAPY PLATFORMY
---
--- PO CO. Migracje uczestnika (`20260926153100_event_participant_foundation`,
--- `20260926153200_event_participant_defect_fixes` i migracje torow A/B/C)
--- dotykaja powierzchni platformy, ktorej ten harness dotad nie stawial:
--- potwierdzenia adresu konta, licznika limitow, skrzynki powiadomien
--- z bramka preferencji, starszych rezerwacji RSVP w ksztalcie koncowym,
--- pol operatora na zamowieniu i dziennika webhookow. Kazda atrapa ponizej
--- ma w komentarzu zrodlo produkcyjne. Tory NIE edytuja tego pliku (C.0.2) -
--- brak atrapy zglaszaja jako `PF-<X>-needs:`.
---
--- CZEGO TE ATRAPY NIE UDAJA. Zachowanie bramki preferencji (tlumienie
--- `event`, doreczanie `billing`, odrzucenie 'canceled') jest DOWODZONE
--- WYLACZNIE w pgTAP (`supabase/tests/event_participant_foundation_test.sql`,
--- `notification_preferences_gating_test.sql`) na PRAWDZIWEJ funkcji
--- z `20260926153300`. Harness tylko stoi na atrapie i sprawdza jej
--- tozsamosc (`obj_description` zaczyna sie od `events-harness stub`).
--- ============================================================================
+-- === f0: most osoba wydarzenia -> kontakt CRM (_event_person_crm_sync) ===
+-- PO CO. Migracja 20260926090000 stawia JEDYNE wejscie modulu Wydarzen do
+-- `crm_leads`: most wola `crm_upsert_from_form`, pisze `crm_consent_log`
+-- i `audit_log`, a jego asercje (runtime_test.d/14_crm_bridge.sql) mierza
+-- zachowanie na PRAWDZIWYM ksztalcie kartoteki. Atrapa `crm_leads` wyzej ma
+-- tylko `id/tenant_id/email` - wystarczala replayowi, ale most na takim
+-- ksztalcie nie wykonalby ani jednego zapisu. Ponizej wchodzi dokladnie to,
+-- czego most dotyka, PRZEPISANE Z ORYGINALOW:
+--   * enumy `crm_stage` i `crm_source_type` (20260630053403) - w PIERWOTNYM
+--     skladzie, bo wartosc `event` dopisuje migracja 20260926085900 i replay ma
+--     to pokazac, a nie zastac gotowe;
+--   * kolumny `crm_leads` (20260630053403, 20260630060254, 20260706201356,
+--     20260722094744) z unikalnym `(tenant_id, email_norm)`, czesciowo
+--     unikalnym `(tenant_id, phone_norm)` i CHECK-iem segmentu w ostatnim
+--     skladzie SPRZED modulu (20260814122512) - 20260926090000 go podmienia;
+--   * trigger normalizacji `crm_normalize_lead` (20260725182103), bo to on
+--     wylicza `email_norm`, po ktorym most i `crm_upsert_from_form` dopasowuja;
+--   * `jsonb_append_distinct` (20260706201356) i `crm_upsert_from_form`
+--     11-argumentowa (20260706215313) ZNAK W ZNAK, z ACL z 20260708120000;
+--   * `crm_consent_log` (20260630053403) - bez polityk rdzenia, RLS wlaczony.
+-- CZEGO NIE UDAJE: triggerow zdarzen domenowych i scoringu `crm_leads`
+-- (`trg_crm_leads_emit_events`, `trg_score_on_lead_change`) - to zachowanie
+-- CRM, nie mostu. Wszystko `IF NOT EXISTS`/`OR REPLACE`, bo 30_sponsors.sql
+-- doklada czesc tych kolumn sam (tez `IF NOT EXISTS`).
+DO $$ BEGIN
+  CREATE TYPE public.crm_stage AS ENUM ('new','contacted','qualified','proposal','won','lost','archived');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE TYPE public.crm_source_type AS ENUM ('contact_form','newsletter','comment','webinar','import','other');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- ----------------------------------------------------------------------------
--- auth.users.email_confirmed_at - kolumna platformy Supabase (GoTrue).
--- Czyta ja regula wiazania konta z osoba (R-9: `event_register` wiaze konto
--- tylko przy POTWIERDZONYM adresie) i akceptacja przekazania biletu (S8).
--- DEFAULT now(): istniejace fixture'y harnessu wstawiaja `(id, email)` i maja
--- zachowac sie jak konta potwierdzone; przypadek niepotwierdzony test ustawia
--- jawnie `email_confirmed_at = NULL`.
--- ----------------------------------------------------------------------------
-ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email_confirmed_at timestamptz DEFAULT now();
+ALTER TABLE public.crm_leads
+  ADD COLUMN IF NOT EXISTS email_norm        text NOT NULL,
+  ADD COLUMN IF NOT EXISTS first_name        text,
+  ADD COLUMN IF NOT EXISTS last_name         text,
+  ADD COLUMN IF NOT EXISTS phone             text,
+  ADD COLUMN IF NOT EXISTS company           text,
+  ADD COLUMN IF NOT EXISTS stage             public.crm_stage NOT NULL DEFAULT 'new',
+  ADD COLUMN IF NOT EXISTS owner_id          uuid,
+  ADD COLUMN IF NOT EXISTS tags              text[] NOT NULL DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS follow_up_at      timestamptz,
+  ADD COLUMN IF NOT EXISTS last_activity_at  timestamptz NOT NULL DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS source_count      int NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS newsletter_status text,
+  ADD COLUMN IF NOT EXISTS marketing_consent boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS phone_norm        text,
+  ADD COLUMN IF NOT EXISTS aliases           jsonb NOT NULL DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS company_id        uuid,
+  ADD COLUMN IF NOT EXISTS position          text,
+  ADD COLUMN IF NOT EXISTS linkedin_url      text,
+  ADD COLUMN IF NOT EXISTS country           text,
+  ADD COLUMN IF NOT EXISTS source_type       text NOT NULL DEFAULT 'manual';
 
--- ----------------------------------------------------------------------------
--- public.rate_limits + public.rate_limit_hit - licznik okienkowy.
--- Zrodlo: 20260720071845 (tabela) i 20260724221149 (cialo funkcji). Kopia
--- atrapy liczacej z `runtime_test.d/20_registration.sql` (tamten plik stawia
--- ja tylko wtedy, gdy jej brak - po tej sekcji juz jej nie stawia i jej nie
--- sprzata). Atrapa LICZY naprawde: bramka, ktora zawsze przepuszcza, nie jest
--- bramka. ACL jak po `20260926153300` (S30): wylacznie service_role - kazdy
--- wolajacy SQL jest SECURITY DEFINER.
--- ----------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.rate_limits (
-  scope        text NOT NULL,
-  subject_id   text NOT NULL,
-  window_start timestamptz NOT NULL,
-  count        integer NOT NULL DEFAULT 0,
-  PRIMARY KEY (scope, subject_id, window_start)
-);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conrelid = 'public.crm_leads'::regclass
+       AND conname = 'crm_leads_tenant_id_email_norm_key'
+  ) THEN
+    ALTER TABLE public.crm_leads
+      ADD CONSTRAINT crm_leads_tenant_id_email_norm_key UNIQUE (tenant_id, email_norm);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conrelid = 'public.crm_leads'::regclass
+       AND conname = 'crm_leads_source_type_check'
+  ) THEN
+    ALTER TABLE public.crm_leads ADD CONSTRAINT crm_leads_source_type_check
+      CHECK (source_type IN ('registered','paid_subscriber','event_participant',
+        'speaker','expert','contact_form','newsletter','manual','club_application',
+        'careers'));
+  END IF;
+END $$;
 
-CREATE OR REPLACE FUNCTION public.rate_limit_hit(
-  _scope text, _subject text, _max integer, _window_minutes integer DEFAULT 1
-) RETURNS TABLE(allowed boolean, hits integer, bucket_start timestamptz)
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $rl$
+CREATE UNIQUE INDEX IF NOT EXISTS crm_leads_tenant_phone_norm_uniq
+  ON public.crm_leads (tenant_id, phone_norm)
+  WHERE phone_norm IS NOT NULL;
+
+CREATE OR REPLACE FUNCTION public.crm_normalize_lead()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  NEW.email_norm := lower(trim(NEW.email));
+  IF NEW.phone IS NOT NULL AND length(trim(NEW.phone)) > 0 THEN
+    NEW.phone_norm := lower(regexp_replace(trim(NEW.phone), '[^0-9+]', '', 'g'));
+  ELSE
+    NEW.phone_norm := NULL;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS crm_leads_normalize_trg ON public.crm_leads;
+CREATE TRIGGER crm_leads_normalize_trg
+  BEFORE INSERT OR UPDATE ON public.crm_leads
+  FOR EACH ROW
+  EXECUTE FUNCTION public.crm_normalize_lead();
+
+CREATE OR REPLACE FUNCTION public.jsonb_append_distinct(_obj jsonb, _key text, _val text)
+RETURNS jsonb LANGUAGE sql IMMUTABLE AS $$
+  SELECT CASE
+    WHEN _val IS NULL OR btrim(_val) = '' THEN _obj
+    WHEN _obj ? _key AND EXISTS (
+      SELECT 1 FROM jsonb_array_elements_text(_obj->_key) x WHERE x = _val
+    ) THEN _obj
+    ELSE jsonb_set(_obj, ARRAY[_key],
+      COALESCE(_obj->_key, '[]'::jsonb) || to_jsonb(_val), true)
+  END
+$$;
+
+CREATE OR REPLACE FUNCTION public.crm_upsert_from_form(
+  _tenant uuid,
+  _email text,
+  _first_name text,
+  _last_name text,
+  _phone text,
+  _company text,
+  _position text,
+  _linkedin text,
+  _country text,
+  _source text,
+  _custom jsonb DEFAULT '{}'::jsonb
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
 DECLARE
-  v_win integer := GREATEST(1, COALESCE(_window_minutes, 1));
-  v_sec integer := v_win * 60;
-  v_start timestamptz := to_timestamp(
-    (floor(extract(epoch FROM now()) / v_sec) * v_sec)::double precision);
-  v_count integer;
+  v_email_norm text := lower(btrim(coalesce(_email, '')));
+  v_phone_norm text := regexp_replace(coalesce(_phone,''), '[^0-9+]', '', 'g');
+  v_company_id uuid;
+  v_lead_id uuid;
+  v_existing public.crm_leads%ROWTYPE;
+  v_key text;
+  v_val text;
+  v_aliases jsonb;
 BEGIN
-  IF _scope IS NULL OR length(_scope) = 0 OR _subject IS NULL OR length(_subject) = 0 THEN
-    RAISE EXCEPTION 'rate_limit_hit: scope/subject required';
+  IF v_email_norm = '' THEN RETURN NULL; END IF;
+  IF v_phone_norm = '' THEN v_phone_norm := NULL; END IF;
+
+  IF _company IS NOT NULL AND btrim(_company) <> '' THEN
+    INSERT INTO public.crm_companies (tenant_id, name)
+    VALUES (_tenant, btrim(_company))
+    ON CONFLICT (tenant_id, name_norm) DO UPDATE SET updated_at = now()
+    RETURNING id INTO v_company_id;
   END IF;
-  INSERT INTO public.rate_limits AS rl (scope, subject_id, window_start, count)
-  VALUES (_scope, _subject, v_start, 1)
-  ON CONFLICT (scope, subject_id, window_start) DO UPDATE SET count = rl.count + 1
-  RETURNING rl.count INTO v_count;
-  RETURN QUERY SELECT (v_count <= GREATEST(1, _max)), v_count, v_start;
-END $rl$;
-REVOKE ALL ON FUNCTION public.rate_limit_hit(text, text, integer, integer) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.rate_limit_hit(text, text, integer, integer) TO service_role;
 
--- ----------------------------------------------------------------------------
--- public.notifications - skrzynka powiadomien (ksztalt z rdzenia platformy,
--- kolumny czytane i pisane przez `enqueue_notification`). Katalog rodzajow
--- `notifications_kind_check` = lista produkcyjna po `20260926153300`
--- (18 rodzajow z `20260812091000` + `event` + `billing`).
--- ----------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.notifications (
-  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id    uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  tenant_id  uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-  kind       text NOT NULL,
-  title_pl   text NOT NULL,
-  title_en   text,
-  body_pl    text,
-  body_en    text,
-  href       text,
-  icon       text,
-  read_at    timestamptz,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT notifications_kind_check CHECK (kind IN (
-    'system','comment','follow','subscription','content',
-    'security','message','tracker','connection','saved_search',
-    'crm_task','expert_request',
-    'introduction','recommendation','endorsement',
-    'profile_view','meeting_booking',
-    'club','event','billing'))
+  SELECT * INTO v_existing FROM public.crm_leads
+   WHERE tenant_id = _tenant AND email_norm = v_email_norm LIMIT 1;
+
+  IF v_existing.id IS NULL AND _first_name IS NOT NULL AND _last_name IS NOT NULL
+     AND btrim(_first_name) <> '' AND btrim(_last_name) <> '' THEN
+    SELECT * INTO v_existing FROM public.crm_leads
+     WHERE tenant_id = _tenant
+       AND lower(btrim(coalesce(first_name,''))) = lower(btrim(_first_name))
+       AND lower(btrim(coalesce(last_name,'')))  = lower(btrim(_last_name))
+       AND (v_company_id IS NULL OR company_id IS NULL OR company_id = v_company_id)
+     LIMIT 1;
+  END IF;
+
+  IF v_existing.id IS NOT NULL THEN
+    UPDATE public.crm_leads SET
+      first_name    = COALESCE(NULLIF(first_name,''), _first_name),
+      last_name     = COALESCE(NULLIF(last_name,''),  _last_name),
+      phone         = COALESCE(NULLIF(phone,''),      _phone),
+      phone_norm    = COALESCE(phone_norm,            v_phone_norm),
+      company       = COALESCE(NULLIF(company,''),    _company),
+      position      = COALESCE(NULLIF(position,''),   _position),
+      linkedin_url  = COALESCE(NULLIF(linkedin_url,''), _linkedin),
+      country       = COALESCE(NULLIF(country,''),    _country),
+      company_id    = COALESCE(company_id,            v_company_id),
+      aliases = public.jsonb_append_distinct(
+                  public.jsonb_append_distinct(
+                    public.jsonb_append_distinct(
+                      public.jsonb_append_distinct(
+                        public.jsonb_append_distinct(
+                          public.jsonb_append_distinct(
+                            public.jsonb_append_distinct(aliases, 'emails',
+                              CASE WHEN v_email_norm <> lower(btrim(coalesce(v_existing.email,''))) THEN v_email_norm END),
+                            'phones', CASE WHEN _phone IS NOT NULL AND v_existing.phone IS DISTINCT FROM _phone THEN _phone END),
+                          'companies', CASE WHEN _company IS NOT NULL AND v_existing.company IS DISTINCT FROM _company THEN _company END),
+                        'positions', CASE WHEN _position IS NOT NULL AND v_existing.position IS DISTINCT FROM _position THEN _position END),
+                      'linkedins', CASE WHEN _linkedin IS NOT NULL AND v_existing.linkedin_url IS DISTINCT FROM _linkedin THEN _linkedin END),
+                    'countries', CASE WHEN _country IS NOT NULL AND v_existing.country IS DISTINCT FROM _country THEN _country END),
+                  'sources', _source),
+      source_count = source_count + 1,
+      last_activity_at = now(),
+      updated_at = now()
+    WHERE id = v_existing.id
+    RETURNING id, aliases INTO v_lead_id, v_aliases;
+  ELSE
+    INSERT INTO public.crm_leads (
+      tenant_id, email_norm, email, first_name, last_name,
+      phone, phone_norm, company, company_id, position, linkedin_url, country,
+      stage, tags, aliases, newsletter_status, marketing_consent, source_count, last_activity_at
+    ) VALUES (
+      _tenant, v_email_norm, _email, NULLIF(btrim(coalesce(_first_name,'')),''), NULLIF(btrim(coalesce(_last_name,'')),''),
+      _phone, v_phone_norm, _company, v_company_id, _position, _linkedin, _country,
+      'new', ARRAY[]::text[],
+      CASE WHEN _source IS NOT NULL THEN jsonb_build_object('sources', jsonb_build_array(_source)) ELSE '{}'::jsonb END,
+      'pending', false, 1, now()
+    ) RETURNING id, aliases INTO v_lead_id, v_aliases;
+  END IF;
+
+  -- Append custom field values (append-only history under aliases.custom.<field>)
+  IF _custom IS NOT NULL AND jsonb_typeof(_custom) = 'object' THEN
+    FOR v_key, v_val IN
+      SELECT key, value::text FROM jsonb_each_text(_custom)
+    LOOP
+      IF v_val IS NULL OR btrim(v_val) = '' THEN CONTINUE; END IF;
+      -- Ensure aliases.custom is an object
+      IF v_aliases IS NULL OR NOT (v_aliases ? 'custom') OR jsonb_typeof(v_aliases->'custom') <> 'object' THEN
+        v_aliases := jsonb_set(COALESCE(v_aliases, '{}'::jsonb), '{custom}', '{}'::jsonb, true);
+      END IF;
+      -- Append distinct into aliases.custom.<key> array
+      IF NOT EXISTS (
+        SELECT 1 FROM jsonb_array_elements_text(
+          COALESCE(v_aliases#>ARRAY['custom', v_key], '[]'::jsonb)
+        ) x WHERE x = v_val
+      ) THEN
+        v_aliases := jsonb_set(
+          v_aliases,
+          ARRAY['custom', v_key],
+          COALESCE(v_aliases#>ARRAY['custom', v_key], '[]'::jsonb) || to_jsonb(v_val),
+          true
+        );
+      END IF;
+    END LOOP;
+
+    UPDATE public.crm_leads SET aliases = v_aliases, updated_at = now()
+     WHERE id = v_lead_id;
+  END IF;
+
+  RETURN v_lead_id;
+END $function$;
+
+REVOKE ALL ON FUNCTION public.crm_upsert_from_form(
+  uuid, text, text, text, text, text, text, text, text, text, jsonb
+) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.crm_upsert_from_form(
+  uuid, text, text, text, text, text, text, text, text, text, jsonb
+) TO service_role;
+
+CREATE TABLE IF NOT EXISTS public.crm_consent_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL DEFAULT public.public_tenant_id(),
+  email text NOT NULL,
+  source_type public.crm_source_type NOT NULL,
+  source_id uuid,
+  form_id text,
+  form_name text,
+  consent_key text NOT NULL,
+  consent_text text NOT NULL,
+  consent_version text,
+  given boolean NOT NULL,
+  ip text,
+  user_agent text,
+  lang text,
+  created_at timestamptz NOT NULL DEFAULT now()
 );
-GRANT ALL ON public.notifications TO service_role;
+ALTER TABLE public.crm_consent_log ENABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.crm_consent_log TO service_role;
+-- === /f0 ===
 
--- ----------------------------------------------------------------------------
--- public.notification_preferences - WYLACZNIE przelaczniki, ktore czytaja
--- producenci modulu Wydarzen (`event` z `20260926153300`, `content`, `system`)
--- oraz `push_enabled`. Pozostale kolumny produkcji sa poza atrapa.
--- ----------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.notification_preferences (
-  user_id         uuid PRIMARY KEY,
-  tenant_id       uuid,
-  enabled_content boolean NOT NULL DEFAULT true,
-  enabled_event   boolean NOT NULL DEFAULT true,
-  enabled_system  boolean NOT NULL DEFAULT true,
-  push_enabled    boolean NOT NULL DEFAULT false
-);
-GRANT ALL ON public.notification_preferences TO service_role;
+-- === f2: faktury wydarzen (20260926110000) - kartoteka firm, kasa, plaszczyzna rozliczen ===
+-- PO CO. Migracja faktur wydarzen czyta i uzupelnia trzy powierzchnie spoza
+-- modulu, ktorych atrapy wyzej nie znaja. Wchodzi dokladnie to, czego dotyka
+-- replay i asercje runtime_test.d/27_invoices.sql, PRZEPISANE Z ORYGINALOW:
+--   * `crm_companies`: `tax_id` (20260907145450), `address`, `postal_code`,
+--     `phone`, `created_by` (20260721200229) - resolver firmy nabywcy dopasowuje
+--     po NIP-ie i uzupelnia WYLACZNIE puste pola;
+--   * `crm_member_company_key` + `crm_ensure_member_company` (20260912100000)
+--     ZNAK W ZNAK - zakladanie firmy po nazwie z blokada doradcza;
+--   * `payment_orders.paid_at`, `refunded_amount_cents` (20260624172041,
+--     20260814221337) - kwota brutto zamowienia z karty po zwrotach;
+--   * `checkout_settings` (20260721063638) - wylacznie `tenant_id`
+--     i `automatic_tax`, bo tylko z niego plaszczyzna rozliczen wynika
+--     (`checkoutBillingPlane()`: brak wiersza = operator jest sprzedawca).
+ALTER TABLE public.crm_companies
+  ADD COLUMN IF NOT EXISTS tax_id      text,
+  ADD COLUMN IF NOT EXISTS address     text,
+  ADD COLUMN IF NOT EXISTS postal_code text,
+  ADD COLUMN IF NOT EXISTS phone       text,
+  ADD COLUMN IF NOT EXISTS created_by  uuid;
 
--- ----------------------------------------------------------------------------
--- public.enqueue_notification - BEHAWIORALNE LUSTRO producenta
--- (20260812091000 + gałąź `event` i always-on `security`/`billing`
--- z 20260926153300). Bramka czyta preferencje ODBIORCY, tenant z jego profilu,
--- deduplikacja 5 minut po (user, kind, href), a kazdy blad zwraca NULL
--- (wywolanie z triggera nie moze wywrocic transakcji uzytkownika).
--- Tozsamosc atrapy jest asercja w `13_participant_foundation.sql`: gdyby replay
--- kiedys zlapal prawdziwa migracje platformy, test o tym powie.
--- ----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.enqueue_notification(
-  p_user_id uuid, p_kind text, p_title_pl text, p_title_en text,
-  p_body_pl text DEFAULT NULL::text, p_body_en text DEFAULT NULL::text,
-  p_href text DEFAULT NULL::text, p_icon text DEFAULT NULL::text
-) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'pg_temp' AS $fn$
-DECLARE v_tenant uuid; v_id uuid; v_enabled boolean;
+CREATE OR REPLACE FUNCTION public.crm_member_company_key(p_name text)
+RETURNS text LANGUAGE sql IMMUTABLE SET search_path = public, pg_temp AS $$
+  SELECT btrim(regexp_replace(
+    regexp_replace(regexp_replace(lower(btrim(p_name)), '[[:space:]]+', ' ', 'g'), '[.,]', '', 'g'),
+    '\m(sp ?z ?o ?o|sa|ltd|llc|inc|gmbh)\M', '', 'g'));
+$$;
+
+CREATE OR REPLACE FUNCTION public.crm_ensure_member_company(
+  p_tenant_id uuid, p_name text, p_actor_id uuid DEFAULT NULL
+)
+RETURNS TABLE(id uuid, created boolean) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+  v_key text := public.crm_member_company_key(p_name);
+  v_id uuid;
+  v_created boolean := false;
 BEGIN
-  IF p_user_id IS NULL OR p_kind IS NULL OR btrim(p_kind) = '' THEN RETURN NULL; END IF;
-  IF p_kind NOT IN ('security', 'billing') THEN
-    SELECT CASE p_kind
-             WHEN 'content' THEN np.enabled_content
-             WHEN 'system'  THEN np.enabled_system
-             WHEN 'event'   THEN np.enabled_event
-             ELSE true END
-      INTO v_enabled FROM public.notification_preferences np WHERE np.user_id = p_user_id;
-    IF v_enabled IS FALSE THEN RETURN NULL; END IF;
+  IF p_tenant_id IS NULL THEN RAISE EXCEPTION 'crm: tenant required'; END IF;
+  IF v_key IS NULL OR v_key = '' THEN RETURN; END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || ':company:' || v_key, 0));
+  SELECT c.id INTO v_id FROM public.crm_companies AS c
+    WHERE c.tenant_id = p_tenant_id AND public.crm_member_company_key(c.name) = v_key
+    ORDER BY c.created_at, c.id LIMIT 1;
+  IF v_id IS NULL THEN
+    INSERT INTO public.crm_companies (tenant_id, name, created_by)
+      VALUES (p_tenant_id, btrim(p_name), p_actor_id) RETURNING crm_companies.id INTO v_id;
+    v_created := true;
   END IF;
-  SELECT tenant_id INTO v_tenant FROM public.profiles WHERE id = p_user_id;
-  IF v_tenant IS NULL THEN
-    v_tenant := COALESCE(public.public_tenant_id(), public.current_tenant_id());
-  END IF;
-  IF v_tenant IS NULL THEN RETURN NULL; END IF;
-  IF EXISTS (SELECT 1 FROM public.notifications n
-    WHERE n.user_id = p_user_id AND n.kind = p_kind
-      AND COALESCE(n.href, '') = COALESCE(p_href, '')
-      AND n.created_at > now() - interval '5 minutes') THEN RETURN NULL; END IF;
-  INSERT INTO public.notifications (
-    user_id, tenant_id, kind, title_pl, title_en, body_pl, body_en, href, icon
-  ) VALUES (
-    p_user_id, v_tenant, p_kind,
-    COALESCE(NULLIF(btrim(p_title_pl), ''), NULLIF(btrim(p_title_en), ''), p_kind),
-    NULLIF(btrim(p_title_en), ''),
-    NULLIF(btrim(p_body_pl), ''),
-    NULLIF(btrim(p_body_en), ''),
-    NULLIF(btrim(p_href), ''),
-    NULLIF(btrim(p_icon), '')
-  ) RETURNING id INTO v_id;
-  RETURN v_id;
-EXCEPTION WHEN OTHERS THEN
-  RETURN NULL;
-END $fn$;
-COMMENT ON FUNCTION public.enqueue_notification(uuid, text, text, text, text, text, text, text) IS
-  'events-harness stub: enqueue_notification (source 20260812091000 + 20260926153300)';
-REVOKE ALL ON FUNCTION public.enqueue_notification(uuid, text, text, text, text, text, text, text)
-  FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.enqueue_notification(uuid, text, text, text, text, text, text, text)
-  TO service_role;
+  RETURN QUERY SELECT v_id, v_created;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.crm_ensure_member_company(uuid, text, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.crm_ensure_member_company(uuid, text, uuid) TO service_role;
 
--- ----------------------------------------------------------------------------
--- event_rsvps - KSZTALT KONCOWY domeny statusow (20260721150000:38-48):
--- `waitlist` w katalogu i znacznik kolejki `waitlisted_at`. Zwolnienie
--- starszej rezerwacji (`_event_legacy_rsvp_release`) pisze 'cancelled' -
--- literowka 'canceled' (D0-1) musi sie tu wywracac na CHECK-u.
--- ----------------------------------------------------------------------------
-ALTER TABLE public.event_rsvps ADD COLUMN IF NOT EXISTS waitlisted_at timestamptz;
-ALTER TABLE public.event_rsvps DROP CONSTRAINT IF EXISTS event_rsvps_status_check;
-ALTER TABLE public.event_rsvps
-  ADD CONSTRAINT event_rsvps_status_check
-  CHECK (status IN ('going', 'interested', 'cancelled', 'waitlist'));
-ALTER TABLE public.event_rsvps DROP CONSTRAINT IF EXISTS event_rsvps_waitlist_marker_check;
-ALTER TABLE public.event_rsvps
-  ADD CONSTRAINT event_rsvps_waitlist_marker_check
-  CHECK (status <> 'waitlist' OR waitlisted_at IS NOT NULL);
-
--- ----------------------------------------------------------------------------
--- payment_orders - pola operatora i cyklu zycia czytane przez tor B
--- (kontekst zwrotu, klasyfikacja zamowien). Zrodlo: 20260624172041 i latki
--- rozliczen (provider*, environment, paid_at, kind). UWAGA: kolumne
--- `refunded_amount_cents` dostarcza REPLAYOWANA migracja modulu
--- `20260830090000:89-90` - atrapa jej NIE dodaje (nikt jej nie dodaje drugi raz).
--- ----------------------------------------------------------------------------
 ALTER TABLE public.payment_orders
-  ADD COLUMN IF NOT EXISTS provider text NOT NULL DEFAULT 'stripe',
-  ADD COLUMN IF NOT EXISTS provider_session_id text,
-  ADD COLUMN IF NOT EXISTS provider_payment_intent_id text,
-  ADD COLUMN IF NOT EXISTS provider_intent_id text,
-  ADD COLUMN IF NOT EXISTS provider_customer_id text,
-  ADD COLUMN IF NOT EXISTS environment text NOT NULL DEFAULT 'live',
-  ADD COLUMN IF NOT EXISTS paid_at timestamptz,
-  ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'one_time';
+  ADD COLUMN IF NOT EXISTS paid_at               timestamptz,
+  ADD COLUMN IF NOT EXISTS refunded_amount_cents integer NOT NULL DEFAULT 0;
 
--- ----------------------------------------------------------------------------
--- public.payment_webhook_events - dziennik webhookow operatora (ksztalt
--- z rdzenia rozliczen; kolumny czytane przez widoki zamowien modulu
--- `20260828063423` i `20260830090000`).
--- ----------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.payment_webhook_events (
-  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id    uuid,
-  user_id      uuid,
-  customer_id  text,
-  event_type   text NOT NULL,
-  status       text NOT NULL DEFAULT 'processed',
-  occurred_at  timestamptz NOT NULL DEFAULT now(),
-  processed_at timestamptz,
-  retry_count  integer NOT NULL DEFAULT 0
+CREATE TABLE IF NOT EXISTS public.checkout_settings (
+  tenant_id     uuid PRIMARY KEY REFERENCES public.tenants(id) ON DELETE CASCADE,
+  automatic_tax boolean NOT NULL DEFAULT false
 );
-GRANT ALL ON public.payment_webhook_events TO service_role;
+ALTER TABLE public.checkout_settings ENABLE ROW LEVEL SECURITY;
+GRANT SELECT ON public.checkout_settings TO anon, authenticated;
+GRANT ALL ON public.checkout_settings TO service_role;
+-- === /f2 ===
+
+-- === f3: lejek Google Ads - kolumny rozliczenia zamowienia ===
+-- PO CO. Raport lejka i eksport konwersji offline (migracja 20260926120000)
+-- licza przychod NETTO zamowienia i czas konwersji: `payment_orders.paid_at`
+-- (20260624172041) i `payment_orders.refunded_amount_cents`
+-- (20260828055725). Ksztalt przepisany z oryginalow. Blok f2 wyzej dodaje
+-- DOKLADNIE te same dwie kolumny (ten sam typ i DEFAULT) - IF NOT EXISTS
+-- czyni powtorzenie no-opem, a blok zostaje, zeby lejek nie zalezal od
+-- obecnosci ani kolejnosci bloku faktur (integracja f2 + f3).
+ALTER TABLE public.payment_orders
+  ADD COLUMN IF NOT EXISTS paid_at timestamptz,
+  ADD COLUMN IF NOT EXISTS refunded_amount_cents integer NOT NULL DEFAULT 0;
+-- === /f3 ===

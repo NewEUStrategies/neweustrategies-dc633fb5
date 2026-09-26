@@ -59,19 +59,25 @@ const SCANNED_ROUTE_PREFIXES = ["admin.events.", "admin.events_."] as const;
  * Korzenie, w których goły literał w kodzie jest referencją do klucza.
  * `adminEvents` obejmuje zarówno mapy etykiet enumów, jak i klucze reguł
  * katalogu zwracane przez `eventTypeDraftIssue` i `eventType*Failure`.
+ * `adminEventCfp` i `eventCfp` - mapy etykiet i klucze błędów naboru
+ * prelegentów (f1).
+ * `adminEventInvoices` i `eventInvoices` - mapy etykiet i klucze bledow
+ * faktur wydarzen (`Record<Enum, "pelny.klucz">` w `src/lib/events` i studiu).
+ * `adminEventSponsorReport` / `eventSponsorReport`: mapy miejsc i ról raportu
+ * sponsora (`sponsorReportLabels.ts`) trzymają klucze jako LITERAŁY - bez tego
+ * wpisu bramka nie widziałaby literału spoza `t("...")`.
+ * `eventWallet` (f7b): mapa kodów błędów tras portfela na pełne klucze
+ * (`lib/events/ticketWallet.ts`) - literały poza `t()` też muszą istnieć.
  */
 const REFERENCE_PREFIXES = [
   "adminEvents",
-  // Korzenie ośmiu nakładek F1-F5 (spec B.14): literał `eventPlan.x` w mapie
-  // etykiet jest referencją do klucza, nawet jeśli nie stoi w `t()`.
-  "eventParticipant",
-  "adminEventParticipant",
-  "eventCalendar",
-  "eventPlan",
-  "eventTicketActions",
-  "adminEventOffers",
-  "eventFollowUp",
-  "adminEventFollowUp",
+  "adminEventCfp",
+  "eventCfp",
+  "adminEventInvoices",
+  "eventInvoices",
+  "adminEventSponsorReport",
+  "eventSponsorReport",
+  "eventWallet",
 ] as const;
 
 function isTree(value: unknown): value is ResourceTree {

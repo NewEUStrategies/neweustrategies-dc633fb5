@@ -129,12 +129,21 @@ export const TX_EMAIL_CATEGORY: Readonly<Record<TxEmailType, EmailCategory>> = {
   event_registration_approved: "transactional",
   event_registration_rejected: "transactional",
   event_waitlist_promoted: "transactional",
+  // Nabór prelegentów: potwierdzenie wysłania zgłoszenia i decyzja organizatora
+  // o NIM - odpowiedź na własne działanie odbiorcy, nie wysyłka marketingowa.
+  event_cfp_submission_received: "transactional",
+  event_cfp_submission_accepted: "transactional",
+  event_cfp_submission_rejected: "transactional",
+  event_cfp_submission_changes_requested: "transactional",
   // Skutek platnosci za bilet - dowod rozliczenia, nie wysylka marketingowa.
   event_ticket_paid: "transactional",
   event_ticket_refunded: "transactional",
   event_ticket_partially_refunded: "transactional",
   // Bilet z kodem QR - jedyna kopia kodu wejścia, dowód uczestnictwa.
   event_ticket_issued: "transactional",
+  // Powiadomienie o wystawionej fakturze organizatora - dokument rozliczenia
+  // zamowienia kupujacego, nie wysylka marketingowa.
+  event_invoice_issued: "transactional",
   // Potwierdzenie darowizny - dokument dla darczyńcy.
   donation_received: "transactional",
   // Jednorazowy link do portalu operatora płatności, wywołany kliknięciem

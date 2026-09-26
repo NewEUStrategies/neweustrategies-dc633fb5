@@ -539,6 +539,28 @@ export function hasAnalyticsConsent(): boolean {
   return hasCategoryConsent("analytics");
 }
 
+/**
+ * Subskrypcja zmian AKTYWNEJ zgody (decyzja w banerze, tryb podgladu, inna
+ * karta, sygnal GPC) BEZ hooka `useConsent`. Kazda instancja `useConsent`
+ * zaklada wlasny nasluch sesji Supabase i przy zalogowaniu czyta profil - atom
+ * bez wygladu (np. przechwycenie atrybucji kampanii na stronie wydarzenia)
+ * dokladalby przez to drugi odczyt profilu na kazda strone. Sluchacz dostaje
+ * tylko sygnal "cos sie zmienilo"; stan czyta przez `hasCategoryConsent`.
+ */
+export function subscribeConsentChange(listener: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(EVENT, listener);
+  window.addEventListener(PREVIEW_EVENT, listener);
+  window.addEventListener("storage", listener);
+  const offGpc = subscribeGpc(listener);
+  return () => {
+    window.removeEventListener(EVENT, listener);
+    window.removeEventListener(PREVIEW_EVENT, listener);
+    window.removeEventListener("storage", listener);
+    offGpc();
+  };
+}
+
 // -------- Backward compat (marketing-only API) --------
 
 export function useMarketingConsent() {

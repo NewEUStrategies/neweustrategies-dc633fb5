@@ -41,6 +41,8 @@ import { adminTermsFailure } from "@/lib/events/adminTermsErrors";
 import { adminOnsiteFailure } from "@/lib/events/adminOnsiteErrors";
 import { publicEventErrorKey } from "@/lib/events/publicEventErrors";
 import { adminEventStudioErrorKey } from "@/lib/events/adminEventStudioErrors";
+import { adminSeatingFailure } from "@/lib/events/adminSeatingErrors";
+import { adminAdsFunnelFailure } from "@/lib/events/adminAdsFunnelErrors";
 import {
   adminEventRegistrationEn,
   adminEventRegistrationPl,
@@ -49,6 +51,21 @@ import { adminEventTermsEn, adminEventTermsPl } from "@/lib/i18n-admin-event-ter
 import { adminEventOnsiteEn, adminEventOnsitePl } from "@/lib/i18n-admin-event-onsite";
 import { eventFrontEn, eventFrontPl } from "@/lib/i18n-event-front";
 import { adminEventsEn, adminEventsPl } from "@/lib/i18n-admin-events";
+import { adminCfpFailure } from "@/lib/events/adminCfpErrors";
+import { publicCfpFailure } from "@/lib/events/publicCfpErrors";
+import { adminEventCfpEn, adminEventCfpPl } from "@/lib/i18n-admin-event-cfp";
+import { eventCfpEn, eventCfpPl } from "@/lib/i18n-event-cfp";
+import { adminEventInvoiceErrorKey } from "@/lib/events/adminEventInvoiceErrors";
+import { eventInvoiceErrorKey } from "@/lib/events/eventInvoiceErrors";
+import { adminEventInvoicesEn, adminEventInvoicesPl } from "@/lib/i18n-admin-event-invoices";
+import { eventInvoicesEn, eventInvoicesPl } from "@/lib/i18n-event-invoices";
+import { adminEventSeatingEn, adminEventSeatingPl } from "@/lib/i18n-admin-event-seating";
+import { adminSponsorReportFailure } from "@/lib/events/adminSponsorReportErrors";
+import {
+  adminEventSponsorReportEn,
+  adminEventSponsorReportPl,
+} from "@/lib/i18n-admin-event-sponsor-report";
+import { adminEventAdsFunnelEn, adminEventAdsFunnelPl } from "@/lib/i18n-admin-event-ads-funnel";
 
 // ══ FUNKCJE UCZESTNIKA F1-F5: BLOKI TORÓW (spec B.11-2) ══════════════════════
 // Tory A/B/C dopisują importy swoich map i nakładek WYŁĄCZNIE do własnego bloku
@@ -174,6 +191,8 @@ const KODY_ONSITE = [
   "person_not_found",
   "checkpoint_not_found",
   "invalid_direction",
+  // `_event_checkin_write` od 20260926150000: skan starszy niz 7 dni
+  "device_time_out_of_range",
   // admin_event_badge_template_save / _delete
   "custom_dimensions_required",
   "invalid_background_color",
@@ -200,6 +219,44 @@ const KODY_ONSITE = [
   "invalid_element_text",
   "invalid_element_url",
   "invalid_element_width",
+  STRAZNIK_TENANTA,
+] as const;
+
+/** Raport dla sponsorów - `sponsorReportApi` (studio, link dla sponsora, karta firmy, CRM). */
+const KODY_RAPORTU_SPONSORA = [
+  // _event_sponsor_report_assert_filters (summary / series / leads_series)
+  "invalid_range",
+  "invalid_placement",
+  "not_found",
+  // admin_event_sponsor_report_link_issue / _link_revoke
+  "invalid_payload",
+  "sponsor_not_found",
+  "invalid_label",
+  "invalid_expiry",
+  "too_many_links",
+  // admin_event_lead_scans_push_to_crm -> _event_person_crm_sync (most CRM
+  // lapie ten wyjatek u siebie, ale skan widzi go w ciele funkcji)
+  "invalid_audit_action",
+  STRAZNIK_TENANTA,
+] as const;
+
+/** Lejek Google Ads - `adsFunnelApi` (kampanie, koszty, raport, eksport konwersji). */
+const KODY_LEJKA_REKLAM = [
+  // admin_event_ad_campaigns_list / _save / _delete
+  "invalid_payload",
+  "not_found",
+  "invalid_match_kind",
+  "invalid_match_value",
+  "invalid_label",
+  "invalid_conversion_name",
+  "campaign_exists",
+  // admin_event_ad_costs_list / _save / admin_event_ad_cost_delete
+  "invalid_source",
+  "invalid_rows",
+  "invalid_cost_row",
+  "duplicate_cost_day",
+  // admin_event_ads_funnel / admin_event_ads_conversions_export
+  "invalid_window",
   STRAZNIK_TENANTA,
 ] as const;
 
@@ -282,36 +339,247 @@ const KODY_STUDIA = [
   STRAZNIK_TENANTA,
 ] as const;
 
+/** Nabór prelegentów, panel organizatora - `cfpApi` (f1). */
+const KODY_NABORU_PANEL = [
+  // ustawienia (`admin_event_cfp_settings_save`)
+  "invalid_status",
+  "invalid_window",
+  "invalid_texts",
+  "invalid_formats",
+  "invalid_tracks",
+  "invalid_limit",
+  "invalid_score_max",
+  "invalid_min_reviews",
+  "invalid_criteria",
+  "invalid_group",
+  "invalid_ticket",
+  "score_max_below_reviews",
+  // pytania formularza (`admin_event_cfp_field_upsert` / `_fields_reorder`)
+  "invalid_key",
+  "key_taken",
+  "key_immutable",
+  "invalid_field_type",
+  "invalid_labels",
+  "invalid_help",
+  "invalid_options",
+  "invalid_order",
+  // decyzja i przyjęcie (`admin_event_cfp_submission_decide` / `_accept`)
+  "invalid_transition",
+  "note_required",
+  "invalid_note",
+  "invalid_schedule",
+  "invalid_format",
+  "room_not_found",
+  "track_not_found",
+  "room_conflict",
+  // szkic sesji z przyjęcia przechodzi przez wyzwalacze sesji
+  // (20260823140000_event_sessions.sql) - skan nie schodzi w wyzwalacze.
+  "session_before_event",
+  "session_after_event",
+  "speaker_overlap",
+  // recenzenci i materiały
+  "reviewer_not_found",
+  // wspólne
+  "invalid_payload",
+  "not_found",
+  // most CRM (`_event_person_crm_sync` -> wpis historii)
+  "invalid_audit_action",
+  STRAZNIK_TENANTA,
+] as const;
+
+/** Nabór prelegentów, strona zgłoszenia i panele prelegenta/recenzenta - `cfpPublicApi` (f1). */
+const KODY_NABORU_UCZESTNIK = [
+  "auth_required",
+  "rate_limited",
+  "rate_limit_hit",
+  "not_found",
+  "invalid_payload",
+  "invalid_transition",
+  // szkic i wysłanie (`event_cfp_submission_save` / `_submit`)
+  "cfp_closed",
+  "limit_reached",
+  "not_editable",
+  "email_required",
+  "email_in_use",
+  "invalid_name",
+  "invalid_speaker",
+  "invalid_title",
+  "invalid_abstract",
+  "invalid_language",
+  "invalid_format",
+  "invalid_track",
+  "invalid_topics",
+  "invalid_answers",
+  "invalid_role",
+  "invalid_speakers",
+  "co_speakers_disabled",
+  "too_many_speakers",
+  "missing_title",
+  "missing_abstract",
+  "missing_format",
+  "missing_track",
+  "missing_required_fields",
+  // panel prelegenta (profil, materiały)
+  "not_speaker",
+  "invalid_profile",
+  "invalid_kind",
+  "invalid_url",
+  "invalid_visibility",
+  "invalid_session",
+  "invalid_submission",
+  "too_many_materials",
+  // panel recenzenta
+  "not_reviewer",
+  "invalid_recommendation",
+  "invalid_scores",
+  "invalid_score",
+  "score_required",
+  "invalid_comment",
+  // most CRM przy wysłaniu zgłoszenia
+  "invalid_audit_action",
+] as const;
+
+/** Dane nabywcy - wspolne dla prosby kupujacego i szkicu w studiu (`_event_invoice_buyer_clean`). */
+const KODY_NABYWCY = [
+  "invalid_buyer_name",
+  "invalid_country",
+  "invalid_tax_id",
+  "tax_id_required",
+  "invalid_buyer_address",
+  "invalid_postal_code",
+  "invalid_email",
+  "invalid_po_number",
+  "invalid_recipient",
+] as const;
+
+/** Faktury wydarzenia w studiu - `eventInvoicesApi` (migracja 20260926110000). */
+const KODY_FAKTUR = [
+  ...KODY_NABYWCY,
+  // _event_invoice_draft_build / admin_event_invoice_draft_create / _update
+  "invoicing_disabled",
+  "invalid_kind",
+  "invalid_aggregate",
+  "invalid_locale",
+  "invalid_vat_rate",
+  "invalid_note",
+  "not_found",
+  "no_sources",
+  "too_many_sources",
+  "invalid_source",
+  "duplicate_source",
+  "source_not_found",
+  "source_not_lead",
+  "source_not_invoiceable",
+  "already_invoiced",
+  "currency_mismatch",
+  "request_not_found",
+  "invalid_payment_method",
+  "not_draft",
+  "no_lines",
+  "too_many_lines",
+  "invalid_quantity",
+  "invalid_price",
+  "invalid_line",
+  // _event_invoice_issue_core
+  "vat_exempt_basis_required",
+  "negative_total",
+  "mor_seller_conflict",
+  "correction_target_invalid",
+  "invalid_due_date",
+  // admin_event_invoice_settings_save
+  "invalid_settings",
+  "invalid_series",
+  "series_not_distinct",
+  "invalid_payment_days",
+  "seller_incomplete",
+  "seller_confirmation_required",
+  // admin_event_invoice_cancel / _correction_create / _from_proforma / _ksef_update
+  "already_cancelled",
+  "reason_required",
+  "ksef_locked",
+  "has_corrections",
+  "correction_locked",
+  "invalid_correction_mode",
+  "correction_exists",
+  "correction_empty",
+  "not_proforma",
+  "proforma_already_converted",
+  "ksef_not_applicable",
+  "invalid_ksef_status",
+  "ksef_number_required",
+  "invalid_ksef_number",
+  // Osiagalne przez most CRM (`crm_ensure_member_company`, `_event_person_crm_sync`);
+  // oba sa wolane w bloku, ktory ich blad polyka, ale skan ich nie odroznia.
+  "crm",
+  "invalid_audit_action",
+  STRAZNIK_TENANTA,
+] as const;
+
+/** Prosba kupujacego o fakture - `myEventInvoicesApi` (plaszczyzna publiczna). */
+const KODY_PROSBY_O_FAKTURE = [
+  ...KODY_NABYWCY,
+  "auth_required",
+  "invalid_source",
+  "rate_limited",
+  "rate_limit_hit",
+  "not_found",
+  "request_window_closed",
+  "already_invoiced",
+] as const;
+
 /**
- * Kod dopisany przez tor do ISTNIEJĄCEJ mapy: `[nazwa mapy, kod]`.
- * `PF_<X>_BEZ_INTERPOLACJI` - nazwy NOWYCH map toru, które wołają `t()`
- * bez parametrów (sprawdzenie „zdania bez interpolacji" niżej).
+ * Plan sali - `seatingApi` (migracja 20260926130000). Te same glowy wracaja
+ * tez jako kody odrzutow przydzialu zbiorczego (`rejected[].code`).
  */
-type PfExtraCode = readonly [mapName: string, code: string];
-
-// >>> PF-A codes (begin)
-const PF_A_EXTRA_CODES: readonly PfExtraCode[] = [];
-const PF_A_BEZ_INTERPOLACJI: readonly string[] = [];
-// <<< PF-A codes (end)
-//
-// (separator bloków - tych dwóch linii nie edytuje żaden tor)
-// >>> PF-B codes (begin)
-const PF_B_EXTRA_CODES: readonly PfExtraCode[] = [];
-const PF_B_BEZ_INTERPOLACJI: readonly string[] = [];
-// <<< PF-B codes (end)
-//
-// (separator bloków - tych dwóch linii nie edytuje żaden tor)
-// >>> PF-C codes (begin)
-const PF_C_EXTRA_CODES: readonly PfExtraCode[] = [];
-const PF_C_BEZ_INTERPOLACJI: readonly string[] = [];
-// <<< PF-C codes (end)
-
-/** Kody dopisane przez tory A/B/C do mapy o danej nazwie. */
-function pfExtraCodes(nazwa: string): string[] {
-  return [...PF_A_EXTRA_CODES, ...PF_B_EXTRA_CODES, ...PF_C_EXTRA_CODES]
-    .filter(([mapName]) => mapName === nazwa)
-    .map(([, code]) => code);
-}
+const KODY_PLANU_SALI = [
+  // admin_event_seat_map_save / _delete / _detail, admin_event_seat_maps_list
+  "invalid_event",
+  "invalid_name",
+  "name_taken",
+  "invalid_status",
+  "invalid_size",
+  "room_not_found",
+  "session_not_found",
+  "invalid_stage",
+  "map_has_assignments",
+  "not_found",
+  // admin_event_seat_category_save / _delete
+  "invalid_key",
+  "key_taken",
+  "invalid_names",
+  "invalid_color",
+  "invalid_payload",
+  "ticket_not_found",
+  "category_in_use",
+  // admin_event_seat_section_save / _delete
+  "invalid_label",
+  "label_taken",
+  "category_not_found",
+  "invalid_shape",
+  "map_too_large",
+  "seats_in_use",
+  "section_has_assignments",
+  // admin_event_seats_update
+  "too_many_seats",
+  "seat_not_found",
+  "invalid_note",
+  "seat_assigned",
+  "company_not_found",
+  "sponsor_not_found",
+  "package_not_found",
+  // admin_event_seat_assign / _assign_batch / _release
+  "seat_blocked",
+  "registration_not_found",
+  "registration_not_seatable",
+  "seat_held_for_other",
+  "category_ticket_mismatch",
+  "seat_taken",
+  "swap_not_allowed",
+  "too_many_items",
+  // admin_event_seat_lookup
+  "too_many_ids",
+  STRAZNIK_TENANTA,
+] as const;
 
 interface BramkowanaMapa {
   nazwa: string;
@@ -370,6 +638,17 @@ const MAPY: readonly BramkowanaMapa[] = [
     interpoluje: true,
   },
   {
+    nazwa: "adminAdsFunnelErrors",
+    prefix: "adminEventAdsFunnel.errors.",
+    klucz: (error) => adminAdsFunnelFailure(error).key,
+    kody: KODY_LEJKA_REKLAM,
+    nakladka: "src/lib/i18n-admin-event-ads-funnel.ts",
+    pl: adminEventAdsFunnelPl,
+    en: adminEventAdsFunnelEn,
+    moduly: ["adsFunnelApi"],
+    interpoluje: true,
+  },
+  {
     nazwa: "publicEventErrors",
     prefix: "eventFront.errors.",
     klucz: publicEventErrorKey,
@@ -379,6 +658,17 @@ const MAPY: readonly BramkowanaMapa[] = [
     en: eventFrontEn,
     moduly: ["publicEventApi"],
     interpoluje: false,
+  },
+  {
+    nazwa: "adminSponsorReportErrors",
+    prefix: "adminEventSponsorReport.errors.",
+    klucz: (error) => adminSponsorReportFailure(error).key,
+    kody: KODY_RAPORTU_SPONSORA,
+    nakladka: "src/lib/i18n-admin-event-sponsor-report.ts",
+    pl: adminEventSponsorReportPl,
+    en: adminEventSponsorReportEn,
+    moduly: ["sponsorReportApi"],
+    interpoluje: true,
   },
   {
     nazwa: "adminEventStudioErrors",
@@ -391,16 +681,61 @@ const MAPY: readonly BramkowanaMapa[] = [
     moduly: ["eventDetailApi", "eventPagesApi", "participantSettingsApi"],
     interpoluje: false,
   },
-  // >>> PF-A maps (begin)
-  // <<< PF-A maps (end)
-  //
-  // (separator bloków - tych dwóch linii nie edytuje żaden tor)
-  // >>> PF-B maps (begin)
-  // <<< PF-B maps (end)
-  //
-  // (separator bloków - tych dwóch linii nie edytuje żaden tor)
-  // >>> PF-C maps (begin)
-  // <<< PF-C maps (end)
+  {
+    nazwa: "adminCfpErrors",
+    prefix: "adminEventCfp.errors.",
+    klucz: (error) => adminCfpFailure(error).key,
+    kody: KODY_NABORU_PANEL,
+    nakladka: "src/lib/i18n-admin-event-cfp.ts",
+    pl: adminEventCfpPl,
+    en: adminEventCfpEn,
+    moduly: ["cfpApi"],
+    interpoluje: true,
+  },
+  {
+    nazwa: "publicCfpErrors",
+    prefix: "eventCfp.errors.",
+    klucz: (error) => publicCfpFailure(error).key,
+    kody: KODY_NABORU_UCZESTNIK,
+    nakladka: "src/lib/i18n-event-cfp.ts",
+    pl: eventCfpPl,
+    en: eventCfpEn,
+    moduly: ["cfpPublicApi"],
+    interpoluje: true,
+  },
+  {
+    nazwa: "adminEventInvoiceErrors",
+    prefix: "adminEventInvoices.errors.",
+    klucz: adminEventInvoiceErrorKey,
+    kody: KODY_FAKTUR,
+    nakladka: "src/lib/i18n-admin-event-invoices.ts",
+    pl: adminEventInvoicesPl,
+    en: adminEventInvoicesEn,
+    moduly: ["eventInvoicesApi"],
+    interpoluje: false,
+  },
+  {
+    nazwa: "eventInvoiceErrors",
+    prefix: "eventInvoices.errors.",
+    klucz: eventInvoiceErrorKey,
+    kody: KODY_PROSBY_O_FAKTURE,
+    nakladka: "src/lib/i18n-event-invoices.ts",
+    pl: eventInvoicesPl,
+    en: eventInvoicesEn,
+    moduly: ["myEventInvoicesApi"],
+    interpoluje: false,
+  },
+  {
+    nazwa: "adminSeatingErrors",
+    prefix: "adminEventSeating.errors.",
+    klucz: (error) => adminSeatingFailure(error).key,
+    kody: KODY_PLANU_SALI,
+    nakladka: "src/lib/i18n-admin-event-seating.ts",
+    pl: adminEventSeatingPl,
+    en: adminEventSeatingEn,
+    moduly: ["seatingApi"],
+    interpoluje: true,
+  },
 ];
 
 describe.each(MAPY)("bramka kluczy i18n: $nazwa", (mapa) => {
@@ -487,9 +822,8 @@ describe("zdania bez interpolacji", () => {
     expect(BEZ_INTERPOLACJI.map((mapa) => mapa.nazwa)).toEqual([
       "publicEventErrors",
       "adminEventStudioErrors",
-      ...PF_A_BEZ_INTERPOLACJI,
-      ...PF_B_BEZ_INTERPOLACJI,
-      ...PF_C_BEZ_INTERPOLACJI,
+      "adminEventInvoiceErrors",
+      "eventInvoiceErrors",
     ]);
   });
 });

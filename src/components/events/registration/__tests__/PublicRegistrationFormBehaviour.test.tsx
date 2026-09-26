@@ -139,6 +139,15 @@ vi.mock("@/hooks/useAuth", () => ({
 }));
 
 vi.mock("@/lib/i18n/useLang", () => ({ useLang: () => h.lang }));
+// Lejek Google Ads - beacon kroku i przypiecie atrybucji (ich bramki zgody
+// maja wlasne testy; tu: KIEDY i Z CZYM formularz je wola).
+const funnel = vi.hoisted(() => ({ send: vi.fn(), attach: vi.fn() }));
+vi.mock("@/lib/events/eventFunnelBeacon", () => ({
+  sendEventFunnelStep: (step: string, target: unknown) => funnel.send(step, target),
+}));
+vi.mock("@/lib/events/registrationAttribution", () => ({
+  attachRegistrationAttribution: (token: string) => funnel.attach(token),
+}));
 
 vi.mock("@/lib/stripe", () => ({ getStripeEnvironment: () => "sandbox" }));
 
@@ -345,6 +354,9 @@ beforeEach(() => {
     couponError: null,
   });
   rpcGate.current = null;
+  funnel.send.mockReset();
+  funnel.attach.mockReset();
+  funnel.attach.mockResolvedValue(true);
 });
 
 afterEach(cleanup);
@@ -352,6 +364,45 @@ afterEach(cleanup);
 // ---------------------------------------------------------------------------
 // ZANIM POJAWI SIE FORMULARZ.
 // ---------------------------------------------------------------------------
+describe("PublicRegistrationForm - lejek Google Ads", () => {
+  it("OTWARTY formularz liczy 'rozpoczecie zapisu' raz, dla sluga wydarzenia", async () => {
+    renderForm();
+    await screen.findByLabelText(label("firstName"));
+    expect(funnel.send).toHaveBeenCalledTimes(1);
+    expect(funnel.send).toHaveBeenCalledWith("registration_start", { slug: SLUG });
+    fireEvent.change(screen.getByLabelText(label("firstName")), { target: { value: "Anna" } });
+    expect(funnel.send).toHaveBeenCalledTimes(1);
+  });
+
+  it("zamkniete zapisy NIE sa rozpoczeciem zapisu", async () => {
+    stub().setData(
+      FORM_RPC,
+      formPayload({ is_open: false, closed_reason: "registration_not_open" }),
+    );
+    renderForm();
+    await screen.findByText("eventRegistration.closed.registration_not_open");
+    expect(funnel.send).not.toHaveBeenCalled();
+  });
+
+  it("udany zapis przypina atrybucje KLUCZEM samoobslugi; bez klucza - nic", async () => {
+    renderForm();
+    await fillPerson();
+    acceptDataProcessing();
+    submitForm();
+    await waitFor(() => expect(funnel.attach).toHaveBeenCalledWith(MANAGE_TOKEN));
+    cleanup();
+
+    funnel.attach.mockReset();
+    stub().setData(REGISTER_RPC, registerPayload({ manage_token: null }));
+    renderForm();
+    await fillPerson();
+    acceptDataProcessing();
+    submitForm();
+    await waitFor(() => expect(stub().callsFor(REGISTER_RPC)).toHaveLength(2));
+    expect(funnel.attach).not.toHaveBeenCalled();
+  });
+});
+
 describe("PublicRegistrationForm - stany przed formularzem", () => {
   it("do czasu odczytu pokazuje szkielet oznaczony jako zajety, a nie pusty ekran", () => {
     const { container } = renderForm();

@@ -22,6 +22,9 @@
 //   5. LICZNIK POSTEPU KLAMIE. `passed/total` idzie parametrami do tlumaczenia;
 //      policzony z samej listy braków pokazywalby postep wzgledem czegos
 //      innego niz komplet warunkow.
+//   6. PLAN SALI PYTA BAZE PRZY WYLACZONYM MODULE albo ostrzega o planie, ktory
+//      nie jest opublikowany. Pozycja istnieje tylko przy wlaczonym module
+//      i opublikowanym planie z uprawnionymi bez miejsca.
 //
 // CZEGO SWIADOMIE NIE DUBLUJE. Tabeli warunkow - `publishReadiness.test.ts` ma
 // ja w calosci i idzie tu PRAWDZIWA. Przedmiotem dowodu jest droga „cztery RPC
@@ -68,6 +71,7 @@ const R = "adminEvents.studio.readiness.";
 const RPC_GOTOWOSCI = [
   "admin_event_agenda_conflicts",
   "admin_event_rooms_list",
+  "admin_event_seat_maps_list",
   "admin_event_sessions_list",
   "admin_event_tickets_list",
 ];
@@ -94,6 +98,7 @@ function planuj(
     sale?: number;
     kolizje?: number;
     wejsciowki?: number;
+    plany?: Record<string, unknown>[];
   } = {},
 ): void {
   const puste = (ile: number): Record<string, string>[] =>
@@ -102,6 +107,7 @@ function planuj(
   stub().setData("admin_event_rooms_list", puste(options.sale ?? 0));
   stub().setData("admin_event_agenda_conflicts", puste(options.kolizje ?? 0));
   stub().setData("admin_event_tickets_list", puste(options.wejsciowki ?? 0));
+  stub().setData("admin_event_seat_maps_list", options.plany ?? []);
 }
 
 function panel(overrides: Partial<AdminEventDetailRow> = {}) {
@@ -120,9 +126,9 @@ function skrot(klucz: string, count: number): string | null {
   return link === null ? null : link.getAttribute("href");
 }
 
-/** Czeka, az wszystkie cztery zapytania dojada - inaczej raport liczy sie z pustki. */
-async function poczekaj(): Promise<void> {
-  await waitFor(() => expect(stub().names().length).toBeGreaterThanOrEqual(4));
+/** Czeka, az wszystkie zapytania dojada - inaczej raport liczy sie z pustki. */
+async function poczekaj(ile = RPC_GOTOWOSCI.length): Promise<void> {
+  await waitFor(() => expect(new Set(stub().names()).size).toBeGreaterThanOrEqual(ile));
 }
 
 beforeEach(() => {
@@ -132,7 +138,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("EventReadinessPanel - komplet zrodel", () => {
-  it("sklada raport z CZTERECH zywych RPC, kazde po TO wydarzenie", async () => {
+  it("sklada raport z PIECIU zywych RPC, kazde po TO wydarzenie", async () => {
     planuj();
     panel();
 
@@ -254,5 +260,45 @@ describe("EventReadinessPanel - dostepnosc", () => {
     await screen.findByText(`${R}allDone`);
     const drugie = await axeViolations(gotowe.container);
     expect(drugie, summarize(drugie)).toEqual([]);
+  });
+});
+
+describe("EventReadinessPanel - plan sali", () => {
+  function plan(over: Record<string, unknown>): Record<string, unknown> {
+    return {
+      id: "plan-1",
+      event_id: STUDIO_EVENT_ID,
+      name: "Gala",
+      status: "published",
+      seatable_registrations: 10,
+      seats_assigned: 7,
+      ...over,
+    };
+  }
+
+  it("opublikowany plan z uprawnionymi bez miejsca daje ostrzezenie ze skrotem", async () => {
+    planuj({ sesje: [adminEventSessionRow()], sale: 1, plany: [plan({})] });
+    panel();
+
+    await screen.findByText(`${R}checks.seating(count=3)`);
+    expect(skrot("seating", 3)).toBe(`/admin/events/${STUDIO_EVENT_ID}/registration/seating`);
+    expect(screen.getByText(`${R}progress(passed=14,total=15)`)).toBeInTheDocument();
+  });
+
+  it("plan w szkicu nie ostrzega i nie wchodzi do licznika", async () => {
+    planuj({ sesje: [adminEventSessionRow()], sale: 1, plany: [plan({ status: "draft" })] });
+    panel();
+
+    expect(await screen.findByText(`${R}allDone`)).toBeInTheDocument();
+    expect(screen.getByText(`${R}progress(passed=14,total=14)`)).toBeInTheDocument();
+  });
+
+  it("WYLACZONY modul planu sali nie pyta bazy o plany", async () => {
+    planuj({ sesje: [adminEventSessionRow()], sale: 1, plany: [plan({})] });
+    panel({ features: { seating: false } });
+
+    await poczekaj(4);
+    expect(await screen.findByText(`${R}allDone`)).toBeInTheDocument();
+    expect(stub().names()).not.toContain("admin_event_seat_maps_list");
   });
 });

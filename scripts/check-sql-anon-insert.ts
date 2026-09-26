@@ -59,6 +59,14 @@ const PROTECTED_INTAKE_TABLES: ReadonlySet<string> = new Set([
   // SECURITY DEFINER set_user_consent (sama ustala user_id/tenant_id/czas).
   "user_consents",
   "user_consent_events",
+  // Pomiar ekspozycji sponsorow wydarzen: zapis WYLACZNIE przez
+  // event_sponsor_exposure_ingest (service_role, endpoint po zgodzie).
+  "event_sponsor_exposures",
+  // Lejek sprzedazy wydarzenia: kroki pisze wylacznie event_funnel_track
+  // (service_role za /api/public/event-funnel), atrybucje - wylacznie
+  // event_registration_attribution_attach (SECURITY DEFINER, manage_token).
+  "event_funnel_events",
+  "event_registration_attributions",
 ]);
 
 function render(policy: PolicyDef): string {

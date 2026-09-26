@@ -61,6 +61,15 @@ vi.mock("@/lib/i18n-admin-event-onsite", () => ({ ensureOnsiteI18n: () => undefi
 vi.mock("@/lib/i18n-admin-event-registration", () => ({ ensureI18n: () => undefined }));
 vi.mock("@/lib/i18n-admin-event-sponsors", () => ({ ensureSponsorsI18n: () => undefined }));
 vi.mock("@/lib/i18n-admin-event-terms", () => ({ ensureTermsI18n: () => undefined }));
+vi.mock("@/lib/i18n-admin-event-sponsor-report", () => ({
+  ensureSponsorReportI18n: () => undefined,
+}));
+// Ekran sponsorów prowadzi odnośnikiem do raportu dla sponsorów - `<Link>`
+// bez routera rzuca, więc stoi atrapa zwykłego `<a>` z prawdziwym adresem.
+vi.mock("@tanstack/react-router", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+  Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
+}));
 
 vi.mock("@/components/admin/community/EventSpeakersManager", () => ({
   EventSpeakersManager: atrapa("speakers"),
@@ -370,6 +379,14 @@ describe("EventStudioModuleSections - dwa ekrany z zakladkami", () => {
     expect(screen.getByTestId("panel-sponsorTiers").getAttribute("data-event-id")).toBe(
       STUDIO_EVENT_ID,
     );
+
+    // Raport dla sponsorów ma własny ekran studia - stąd prowadzi do niego
+    // odnośnik z identyfikatorem TEGO wydarzenia.
+    expect(
+      screen
+        .getByRole("link", { name: "adminEventSponsorReport.navLink.open" })
+        .getAttribute("href"),
+    ).toBe(`/admin/events/${STUDIO_EVENT_ID}/sponsor-report`);
   });
 
   it("„Regulaminy”: zgody domyslnie, czlonkostwa pod druga zakladka", () => {

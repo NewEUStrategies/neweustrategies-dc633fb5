@@ -35,6 +35,8 @@ export const READINESS_CHECK_KEYS = [
   "conflicts",
   "rooms",
   "tickets",
+  // Plan sali (f4): opublikowany plan, na ktorym uprawnieni nie maja miejsca.
+  "seating",
 ] as const;
 export type ReadinessCheckKey = (typeof READINESS_CHECK_KEYS)[number];
 
@@ -94,6 +96,14 @@ export interface ReadinessInput {
   conflictCount: number;
   roomCount: number;
   ticketTypeCount: number;
+  /**
+   * Uprawnieni do miejsca, ktorzy nie maja go na OPUBLIKOWANYCH planach sali.
+   * `null` albo brak = pozycja nie dotyczy tego wydarzenia (modul planu sali
+   * wylaczony albo zaden plan nie jest opublikowany) i NIE wchodzi do rachunku -
+   * wydarzenie bez numerowanych miejsc nie dostaje ani ostrzezenia, ani
+   * darmowego „spelnione" w liczniku postepu.
+   */
+  seatingUnseated?: number | null;
 }
 
 function filled(value: string | null | undefined): boolean {
@@ -120,6 +130,7 @@ function check(
  */
 export function buildPublishReadiness(input: ReadinessInput): ReadinessReport {
   const { event, sessions, conflictCount, roomCount, ticketTypeCount } = input;
+  const seatingUnseated = input.seatingUnseated ?? null;
   const format = readinessFormat(event.format);
   const onsite = format !== "online";
   const online = format !== "onsite";
@@ -134,6 +145,19 @@ export function buildPublishReadiness(input: ReadinessInput): ReadinessReport {
   const withoutRoom = liveSessions.filter(
     (session) => session.format !== "online" && !filled(session.room_id),
   );
+
+  const seatingChecks: ReadinessCheck[] =
+    seatingUnseated === null
+      ? []
+      : [
+          check(
+            "seating",
+            "warning",
+            "registrationSeating",
+            seatingUnseated === 0,
+            seatingUnseated,
+          ),
+        ];
 
   const checks: readonly ReadinessCheck[] = [
     check("title", "blocker", "general", filled(event.titlePl) && filled(event.titleEn)),
@@ -178,6 +202,7 @@ export function buildPublishReadiness(input: ReadinessInput): ReadinessReport {
       event.registrationMode !== "paid" || ticketTypeCount > 0,
       ticketTypeCount,
     ),
+    ...seatingChecks,
   ];
 
   const failed = checks.filter((item) => !item.passed);

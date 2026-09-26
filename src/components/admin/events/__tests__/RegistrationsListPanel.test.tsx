@@ -23,6 +23,9 @@
 //      i NIE OBIECUJE KOMPLETU, którego nie ma (ostrzeżenie o ucięciu).
 //   7. KAŻDA ODMOWA kończy się zdaniem, a nie kodem błędu, i NIE kasuje stanu
 //      ekranu: okno decyzji zostaje otwarte, filtr i strona zostają.
+//   8. MIEJSCE NA SALI: lista pyta o miejsca WIDOCZNYCH wierszy, plik - o
+//      miejsca WSZYSTKICH wierszy eksportu; przy kilku planach napis niesie
+//      nazwę planu, a awaria odczytu miejsc nie wydaje pliku bez kolumny.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. (1) REGUŁ wiersza (`allowedRegistrationActions`,
 // tony, etykiety biletu i grupy, stronicowanie) - tabele przypadków są
@@ -102,6 +105,15 @@ const h = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   toastWarning: vi.fn(),
+  /** Odczyt miejsc na sali dla WIDOCZNYCH wierszy (hook planu sali). */
+  seatLookups: [] as unknown[] | undefined,
+  seatLookupCalls: [] as { eventId: string; ids: readonly string[] }[],
+  /** Odczyt miejsc przy eksporcie (`fetchSeatLookup`) - osobno od hooka. */
+  exportSeats: [] as unknown[],
+  exportSeatCalls: [] as { eventId: string; ids: readonly string[] }[],
+  exportSeatError: null as unknown,
+  /** Treść ostatniego pliku CSV złożonego przez eksport. */
+  csvParts: [] as string[],
 }));
 
 vi.mock("react-i18next", async () =>
@@ -131,6 +143,26 @@ vi.mock("@/lib/events/registrationsApi", async (importOriginal) => ({
     h.listQueries.push({ eksport: true, ...query });
     if (h.exportError !== null) return Promise.reject(h.exportError);
     return Promise.resolve(h.exportPages.shift() ?? { rows: [], total: 0 });
+  },
+}));
+
+// Plan sali ma własne testy warstwy danych (`seatingApi.test.ts`,
+// `useEventSeating.test.ts`); tu dowodzimy, że lista pyta o miejsca WIDOCZNYCH
+// wierszy, a eksport - o miejsca WSZYSTKICH wierszy pliku.
+vi.mock("@/lib/i18n-admin-event-seating", () => ({ ensureSeatingI18n: () => undefined }));
+vi.mock("@/lib/i18n-event-seating", () => ({ ensureEventSeatingI18n: () => undefined }));
+vi.mock("@/lib/events/useEventSeating", () => ({
+  useSeatLookup: (eventId: string, ids: readonly string[]) => {
+    h.seatLookupCalls.push({ eventId, ids });
+    return { data: h.seatLookups };
+  },
+}));
+vi.mock("@/lib/events/seatingApi", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/events/seatingApi")>()),
+  fetchSeatLookup: (eventId: string, ids: readonly string[]) => {
+    h.exportSeatCalls.push({ eventId, ids });
+    if (h.exportSeatError !== null) return Promise.reject(h.exportSeatError);
+    return Promise.resolve(h.exportSeats);
   },
 }));
 
@@ -505,6 +537,12 @@ beforeEach(() => {
   h.toastSuccess.mockClear();
   h.toastError.mockClear();
   h.toastWarning.mockClear();
+  h.seatLookups = [];
+  h.seatLookupCalls = [];
+  h.exportSeats = [];
+  h.exportSeatCalls = [];
+  h.exportSeatError = null;
+  h.csvParts = [];
 });
 
 describe("cztery stany listy zgłoszeń", () => {

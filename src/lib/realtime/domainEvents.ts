@@ -98,6 +98,10 @@ export const DOMAIN_EVENT_TYPES = [
   "event_scanner_device.issued.v1",
   "event_scanner_device.locked.v1",
   "event_scanner_device.revoked.v1",
+  // Lista offline skanera (20260926150000): pobranie pelnej listy (audyt,
+  // aktor NULL - plaszczyzna urzadzenia) i zmiana zgody administratora.
+  "event_scanner_device.roster_downloaded.v1",
+  "event_scanner_device.offline_changed.v1",
   // Zgloszenia na wydarzenie (migracje 20260823150000 i pozniejsze). NAZWA
   // JEST TRZYCZLONOWA (`event.registration.<czasownik>.v1`) - agregatem jest
   // zgloszenie, a payload niesie `event_id`, wiec inwalidacja schodzi do
@@ -111,30 +115,31 @@ export const DOMAIN_EVENT_TYPES = [
   // Sponsorzy: publikacja karty i odswiezenie migawki z CRM firm.
   "event_sponsor.published.v1",
   "event_sponsor.snapshot_refreshed.v1",
-  // Funkcje uczestnika F1-F5 (spec B.9): zapis ustawien organizatora
-  // (`admin_event_participant_settings_save`, 20260926153100). Agregatem jest
-  // `event_participant_settings`, identyfikatorem - id wydarzenia; payload
-  // `{event_id, keys}` niesie wylacznie identyfikator i nazwy zmienionych pol.
-  "event.participant_settings.updated.v1",
-  // Tor B (F4 oferty z listy rezerwowej, F3 przekazanie i zwrot samoobslugowy).
-  // Agregatem jest ZGLOSZENIE (`event_registration`), payload niesie
-  // `event_id` i identyfikatory oferty/przekazania/prosby o zwrot - nigdy
-  // adresu e-mail, imienia ani tokenu przekazania.
-  "event.registration.offered.v1",
-  "event.registration.offer_closed.v1",
-  "event.registration.transfer_requested.v1",
-  "event.registration.transfer_cancelled.v1",
-  "event.registration.transferred.v1",
-  "event.registration.refund_requested.v1",
-  "event.registration.refund_failed.v1",
-  // Tor C (F5): certyfikat (agregat `event_certificate`, id certyfikatu)
-  // i ankieta (agregat `event_survey`, id = ID WYDARZENIA - zawsze, takze
-  // przy odpowiedzi imiennej, zeby strumien nie zdradzal, kto odpowiedzial;
-  // aktor NULL przy ankiecie anonimowej).
-  "event.certificate.issued.v1",
-  "event.certificate.revoked.v1",
-  "event.survey.submitted.v1",
-  "event.survey.questions_changed.v1",
+  // Nabor prelegentow (20260926100000_event_cfp.sql, f1). Wyslanie, decyzja
+  // organizatora (takze przyjecie), wycofanie i odpowiedz prelegenta na
+  // przyjecie (`confirmed.v1` niesie `status`: confirmed albo declined) oraz
+  // zapis oceny recenzenta. Payload WYLACZNIE z identyfikatorami i `event_id`
+  // - tytul i ocena to tresc, a `domain_events` czyta caly staff tenantu.
+  "event_cfp_submission.submitted.v1",
+  "event_cfp_submission.decided.v1",
+  "event_cfp_submission.withdrawn.v1",
+  "event_cfp_submission.confirmed.v1",
+  "event_cfp_review.saved.v1",
+  // Faktury organizatora (migracja 20260926110000): wystawienie i anulowanie
+  // dokumentu. Payload niesie wylacznie identyfikatory (`event_id`,
+  // `invoice_id`, `kind`) - bez danych nabywcy.
+  "event_invoice.issued.v1",
+  "event_invoice.cancelled.v1",
+  // Plan sali (20260926130000): przydzial, zwolnienie (takze triggerem po
+  // zmianie statusu zgloszenia) i zmiana ukladu/rezerwacji/publikacji planu.
+  // Payload niesie `event_id`, `map_id` i liczby - bez nazwisk i firm.
+  "event_seat.assigned.v1",
+  "event_seat.released.v1",
+  "event_seat_map.changed.v1",
+  // Raport dla sponsora: wydanie i odwolanie linku bez logowania
+  // (migracja 20260926140000). Payload: event_id, sponsor_id, link_id.
+  "event_sponsor_report_link.issued.v1",
+  "event_sponsor_report_link.revoked.v1",
 ] as const;
 
 export type DomainEventType = (typeof DOMAIN_EVENT_TYPES)[number];
@@ -184,9 +189,12 @@ export const DOMAIN_AGGREGATE_TYPES = [
   "event_scanner_device",
   "event_sponsor",
   "event_registration",
-  "event_participant_settings",
-  "event_certificate",
-  "event_survey",
+  "event_cfp_submission",
+  "event_cfp_review",
+  "event_invoice",
+  "event_seat",
+  "event_seat_map",
+  "event_sponsor_report_link",
 ] as const;
 
 export type DomainAggregateType = (typeof DOMAIN_AGGREGATE_TYPES)[number];

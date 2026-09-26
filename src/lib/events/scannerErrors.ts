@@ -62,6 +62,30 @@ export function invalidatesSession(error: unknown): boolean {
   );
 }
 
+/**
+ * Czy warto ponowić ten błąd - i czy skan może pójść ścieżką offline.
+ *
+ * Odmowa z bazy niesie ROZPOZNAWALNY prefiks (`invalid_payload:`,
+ * `checkpoint_not_found:` …). Awaria sieci nie niesie żadnego - `fetch` rzuca
+ * `TypeError: Failed to fetch`, a przekroczenie terminu `ScannerTimeoutError`
+ * bez prefiksu. Dlatego ponawiamy dokładnie to, czego baza nie nazwała po
+ * imieniu.
+ */
+export function isRetryableScanError(error: unknown): boolean {
+  const message = scannerErrorText(error);
+  const separator = message.indexOf(":");
+  if (separator === -1) return true;
+  const head = message.slice(0, separator).trim();
+  return !/^[a-z][a-z0-9_]*$/.test(head);
+}
+
+/** Głowa komunikatu (`kod` z `kod: szczegóły`) - pusta, gdy jej nie ma. */
+export function scannerErrorHead(error: unknown): string {
+  const message = scannerErrorText(error);
+  const separator = message.indexOf(":");
+  return (separator === -1 ? message : message.slice(0, separator)).trim();
+}
+
 /** Wynik skanu -> klucz nagłówka wyniku (wielki napis na ekranie). */
 export function scanOutcomeKey(outcome: string): string {
   const candidate = `eventScanner.outcomes.${camel(outcome)}`;

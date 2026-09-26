@@ -2102,10 +2102,16 @@ SELECT pg_temp.assert(
 -- 19 -> 23: 20260922200000 (sekcje sponsorow) dolozyla cztery funkcje panelu -
 -- `admin_event_sponsor_links`, `admin_event_sponsor_set_link`,
 -- `admin_event_sponsor_tier_layouts` i `admin_event_sponsor_tier_set_layout`.
+-- 23 -> 34: 20260926140000 (raport dla sponsorow) dolozyla jedenascie -
+-- panel: `admin_event_sponsor_report_summary`, `_series`, `_leads_series`,
+-- `_link_issue`, `_links_list`, `_link_revoke`, `admin_event_company_sponsorships`;
+-- service_role: `event_sponsor_exposure_ingest`, `event_sponsor_exposures_prune`,
+-- `event_sponsor_report_for_token`; pomocnik `_event_sponsor_report_assert_filters`.
+-- Asercje tych funkcji sa w 32_sponsor_report.sql.
 SELECT pg_temp.assert(
   (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-    WHERE n.nspname = 'public' AND p.proname LIKE '%sponsor%') = 23,
-  '30/struktura: migracje zostawily 23 funkcje (20 panelu, 2 publiczne, 1 pomocnik)');
+    WHERE n.nspname = 'public' AND p.proname LIKE '%sponsor%') = 34,
+  '30/struktura: migracje zostawily 34 funkcje (27 panelu, 5 publicznych/serwisowych, 2 pomocnikow)');
 
 SELECT pg_temp.assert(
   (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace

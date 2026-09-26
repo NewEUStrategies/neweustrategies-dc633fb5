@@ -78,6 +78,49 @@ describe("leadExportCells", () => {
     expect(leadExportCells(withConsent, "en")[7]).toBe("yes");
     expect(leadExportCells(withConsent, "pl")[7]).toBe("tak");
   });
+
+  it("wiersz z raportu dla sponsora (jawne null, zgoda nieznana) ma puste komorki i 'nie'", () => {
+    // Link sponsora zeruje w bazie WSZYSTKIE dane osoby bez zgody, a parser
+    // odpowiedzi daje `null` zamiast pustych napisow. Zgoda `null` (starsza
+    // odpowiedz) liczy sie jak brak zgody.
+    const cells = leadExportCells(
+      {
+        sponsor_name: "Acme",
+        first_name: null,
+        last_name: null,
+        company: null,
+        job_title: null,
+        email: "wyciek@example.org",
+        phone: null,
+        consent: null,
+        consent_snapshot_at: null,
+        interest_rating: 3,
+        note: "Stoisko",
+        scan_count: 1,
+        first_scanned_at: null,
+        last_scanned_at: null,
+        device_label: null,
+      },
+      "en",
+    );
+    expect(cells).toEqual([
+      "Acme",
+      null,
+      null,
+      null,
+      null,
+      "",
+      null,
+      "no",
+      null,
+      3,
+      "Stoisko",
+      1,
+      null,
+      null,
+      null,
+    ]);
+  });
 });
 
 describe("leadExportFileName", () => {

@@ -12,9 +12,13 @@
 //
 // PROFIL POJEDYNCZEGO WYSTAWCY (zrzut 41) TO DRUGA FALA i tej trasy jeszcze nie
 // ma. Dlatego wiersz partnera NIE UDAJE, że gdzieś prowadzi: klikalny jest
-// wyłącznie ten, który ma własny adres strony w migawce (`website_url`),
-// i wychodzi wtedy na zewnątrz. Reszta jest zwykłym tekstem - kursor łapki nad
+// wyłącznie ten, który ma cel odnośnika (`PublicSponsor.href`: strona firmy
+// z migawki albo adres przekierowania wg `link_mode` organizatora), i wychodzi
+// wtedy na zewnątrz. Reszta jest zwykłym tekstem - kursor łapki nad
 // elementem, który nic nie robi, jest gorszy od braku odnośnika.
+//
+// RAPORT SPONSORA ODRÓŻNIA TĘ ZAKŁADKĘ OD SEKCJI NA PRZEGLĄDZIE: kafle liczą
+// się tu pod miejscem `partners_tab`, a nie `partners_section`.
 import { createFileRoute, useParams } from "@tanstack/react-router";
 
 import { EventModulePage } from "@/components/events/public/molecules/EventModulePage";
@@ -28,7 +32,7 @@ function EventPartnersTab() {
   const { slug } = useParams({ from: "/events/$slug/partners" });
   return (
     <EventModulePage slug={slug} module="partners">
-      <EventSponsorsSection slug={slug} />
+      <EventSponsorsSection slug={slug} placement="partners_tab" />
     </EventModulePage>
   );
 }

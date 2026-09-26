@@ -1,4 +1,4 @@
-// Płaszczyzna URZĄDZENIA: pięć RPC bramki i jedna lista leadów.
+// Płaszczyzna URZĄDZENIA: pięć RPC bramki, lista leadów i lista offline.
 //
 // TE FUNKCJE MAJĄ GRANT DLA `anon` I TO NIE JEST PRZEOCZENIE. Skaner na
 // bramce nie ma konta - ma poświadczenie urządzenia. Dlatego każde wywołanie
@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import type { CheckinDirection } from "@/lib/events/onsiteEnums";
 import { parseScannerSession, type ScannerSession } from "@/lib/events/scannerSession";
+import { parseRosterPage, type RosterPage } from "@/lib/events/scannerRoster";
 
 function record(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -41,6 +42,42 @@ function payload(input: Record<string, unknown>): Json {
     if (value !== undefined && value !== null) out[key] = value;
   }
   return out as Json;
+}
+
+/* ------------------------------------------------------ termin żądania --- */
+
+/**
+ * Żądanie, na które nie przyszła odpowiedź w terminie.
+ *
+ * W przeglądarce `fetch` do bazy nie ma własnego terminu, a Wi-Fi z portalem
+ * logowania albo zasięg „jedna kreska" potrafi trzymać żądanie minutami - przy
+ * bramce to kręcące się kółko i kolejka ludzi. Po terminie skan idzie ścieżką
+ * offline (kolejka + decyzja z listy), a spóźniona odpowiedź nic nie psuje:
+ * ponowienie z kolejki niesie ten sam `client_scan_uid` i baza oddaje `replay`.
+ * Komunikat NIE MA głowy `kod:` - dla klasyfikacji to błąd sieci (ponawiamy).
+ */
+export class ScannerTimeoutError extends Error {
+  constructor() {
+    super("Scanner request timed out");
+    this.name = "ScannerTimeoutError";
+  }
+}
+
+/** Obietnica z terminem: po `ms` odrzucenie `ScannerTimeoutError`. */
+export function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new ScannerTimeoutError()), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
 }
 
 /* ----------------------------------------------------------- tożsamość --- */
@@ -176,6 +213,12 @@ export interface CheckinScanInput {
   clientScanUid?: string;
   /** Chwila SKANU, nie wysyłki - dziennik ma pokazać, kiedy ktoś stanął w bramce. */
   deviceScannedAt?: string;
+  /** Skan z kolejki: nieznany kod nie liczy się do okna blokady urządzenia. */
+  queued?: boolean;
+  /** Decyzja urządzenia bez sieci (z listy offline) - baza ją utrwala. */
+  offlineAdmitted?: boolean | null;
+  offlineOutcome?: string | null;
+  rosterGeneratedAt?: string | null;
 }
 
 /**
@@ -208,6 +251,10 @@ export async function recordCheckinScan(input: CheckinScanInput): Promise<Checki
       direction: input.direction,
       client_scan_uid: input.clientScanUid,
       device_scanned_at: input.deviceScannedAt,
+      queued: input.queued,
+      offline_admitted: input.offlineAdmitted,
+      offline_outcome: input.offlineOutcome,
+      roster_generated_at: input.rosterGeneratedAt,
     }),
   });
   if (error !== null) throw new Error(error.message);
@@ -256,6 +303,9 @@ export interface LeadScanInput {
   note?: string | null;
   /** 1-5; baza odrzuca wartości spoza zakresu. */
   interestRating?: number | null;
+  /** Chwila skanu - baza przyjmuje skan sprzed terminu poświadczenia przez 72 h. */
+  deviceScannedAt?: string;
+  queued?: boolean;
 }
 
 export async function recordLeadScan(input: LeadScanInput): Promise<LeadScanResult> {
@@ -265,6 +315,8 @@ export async function recordLeadScan(input: LeadScanInput): Promise<LeadScanResu
       code: input.code,
       note: input.note,
       interest_rating: input.interestRating,
+      device_scanned_at: input.deviceScannedAt,
+      queued: input.queued,
     }),
   });
   if (error !== null) throw new Error(error.message);
@@ -336,6 +388,37 @@ export async function fetchDeviceLeads(input: {
       ];
     }),
   };
+}
+
+/* ------------------------------------------------------- lista offline --- */
+
+export interface RosterPageInput {
+  deviceToken: string;
+  /** `generated_at` poprzedniej synchronizacji - DOSŁOWNIE, jak przyszło. */
+  since?: string;
+  /** Kursor strony: identyfikator ostatniego zapisu poprzedniej strony. */
+  after?: string;
+  limit?: number;
+}
+
+/**
+ * Strona listy offline (`event_scanner_roster`). Odpowiedź bez wersji
+ * (`generated_at`) jest nieczytelna - lepiej zostać przy starej liście niż
+ * nałożyć na nią pustkę.
+ */
+export async function fetchScannerRoster(input: RosterPageInput): Promise<RosterPage> {
+  const { data, error } = await supabase.rpc("event_scanner_roster", {
+    p_payload: payload({
+      device_token: input.deviceToken,
+      since: input.since,
+      after: input.after,
+      limit: input.limit,
+    }),
+  });
+  if (error !== null) throw new Error(error.message);
+  const page = parseRosterPage(data);
+  if (page === null) throw new Error("roster_unreadable: roster response has no version");
+  return page;
 }
 
 /* ------------------------------------------------------ identyfikator --- */

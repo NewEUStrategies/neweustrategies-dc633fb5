@@ -112,8 +112,32 @@ export const PUBLIC_DOCUMENT_DENY_PREFIXES = [
 // Parametry trackingowe kampanii: nie wpływają na render SSR (loadery tras
 // publicznych czytają wyłącznie ścieżkę), więc są USUWANE z klucza - wizyta
 // z `?utm_source=...` trafia w ten sam wpis co wizyta czysta.
+//
+// Google Ads dokleja więcej niż `gclid`: kliknięcia z iOS/aplikacji niosą
+// `gbraid`/`wbraid` zamiast `gclid`, autotagowanie dodaje `gad_source` i
+// `gad_campaignid`, Search Ads 360 - `gclsrc`/`dclid`, łączenie domen GA4 -
+// `_gl`, a wyniki organiczne Google Merchant - `srsltid`. Bez nich na liście
+// KAŻDE takie kliknięcie było „nieznanym parametrem" = BYPASS = zimny render
+// SSR dla ruchu, za który płacimy. Klient i tak czyta je dopiero po
+// hydratacji (`src/lib/analytics/adAttribution.ts`), więc HTML od nich nie
+// zależy.
 const TRACKING_PARAM_PREFIXES = ["utm_"] as const;
-const TRACKING_PARAMS = new Set(["fbclid", "gclid", "msclkid", "ref", "mc_cid", "mc_eid"]);
+const TRACKING_PARAMS = new Set([
+  "fbclid",
+  "gclid",
+  "gbraid",
+  "wbraid",
+  "gad_source",
+  "gad_campaignid",
+  "gclsrc",
+  "dclid",
+  "_gl",
+  "srsltid",
+  "msclkid",
+  "ref",
+  "mc_cid",
+  "mc_eid",
+]);
 
 // Parametry, które REALNIE różnicują dokument (paginacja/sortowanie archiwów)
 // i dlatego wchodzą do klucza. Każdy inny nieznany parametr = BYPASS, żeby

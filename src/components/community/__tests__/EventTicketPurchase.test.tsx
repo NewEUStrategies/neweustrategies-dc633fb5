@@ -62,6 +62,7 @@ const h = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   claimed: vi.fn(),
+  funnel: vi.fn(),
 }));
 
 // FABRYKA NIC NIE IMPORTUJE - udokumentowany skrót
@@ -92,6 +93,7 @@ vi.mock("@/lib/events/ticketAllowance.functions", () => ({
   getMyTicketAllowance: h.loadAllowance,
 }));
 vi.mock("@/lib/community/publicQueries", () => ({ rsvpEvent: h.rsvp }));
+vi.mock("@/lib/events/eventFunnelBeacon", () => ({ sendEventFunnelStep: h.funnel }));
 // Atrapa modala WYSTAWIA sekret w atrybucie - to jedyny sposób, żeby udowodnić,
 // że do kasy poszła wartość z odpowiedzi serwera, a nie sklejona na kliencie.
 vi.mock("@/components/checkout/LazyEmbeddedCheckoutDialog", () => ({
@@ -350,6 +352,8 @@ describe("awaria tworzenia sesji nie przenosi nigdzie kupującego", () => {
     expect(h.checkout).not.toHaveBeenCalled();
     expect(h.toastError).toHaveBeenCalledWith("Zaloguj się, aby kupić bilet.");
     expect(h.loadAllowance).not.toHaveBeenCalled();
+    // Bez logowania płatność się nie rozpoczęła - lejek nie liczy kroku.
+    expect(h.funnel).not.toHaveBeenCalled();
   });
 
   it("prośba o logowanie mówi po angielsku na angielskiej stronie", async () => {
@@ -424,6 +428,9 @@ describe("adres kasy pochodzi z odpowiedzi serwera", () => {
         },
       }),
     );
+    // Lejek Google Ads: krok "rozpoczęcie płatności" tego wydarzenia, raz.
+    expect(h.funnel).toHaveBeenCalledTimes(1);
+    expect(h.funnel).toHaveBeenCalledWith("checkout_start", { eventId: EVENT_IDS.event });
   });
 });
 

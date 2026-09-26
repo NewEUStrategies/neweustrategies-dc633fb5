@@ -25,7 +25,20 @@
 // zablokowany token nie zacznie działać po dziesiątej próbie - takie pozycje
 // zdejmujemy z kolejki i pokazujemy operatorowi, zamiast dobijać się do bazy
 // aż do końca baterii.
-import type { CheckinDirection } from "@/lib/events/onsiteEnums";
+//
+// ZDJĘTE Z KOLEJKI NIE ZNIKA. Wcześniej `withFailure` po prostu usuwało pozycję
+// z trwałą odmową - a obietnica „pokazujemy operatorowi" nie miała pokrycia:
+// skan zapisany offline przed unieważnieniem poświadczenia ginął bez śladu.
+// Teraz odmowa zwraca pozycję jako ODRZUCONĄ (`rejected`), którą środowisko
+// uruchomieniowe dopisuje do trwałej listy odrzuconych z eksportem dla
+// organizatora.
+//
+// DECYZJA OFFLINE JEDZIE Z POZYCJĄ. `offlineAdmitted`, `offlineOutcome`
+// i `rosterGeneratedAt` są opcjonalne, bo kolejki zapisane przed tą zmianą
+// (i skany bez listy offline) ich nie mają - baza przyjmuje wtedy skan jak
+// dotąd.
+import type { CheckinDirection, OfflineOutcome } from "@/lib/events/onsiteEnums";
+import { isOfflineOutcome } from "@/lib/events/onsiteEnums";
 
 export const OUTBOX_KINDS = ["checkin", "lead"] as const;
 export type OutboxKind = (typeof OUTBOX_KINDS)[number];
@@ -45,6 +58,60 @@ export interface OutboxItem {
   /** Nie ponawiamy przed tą chwilą (wykładnicze wycofanie). */
   nextAttemptAt: string;
   lastError: string | null;
+  /** Co urządzenie zdecydowało bez sieci (z listy offline); brak = bez decyzji. */
+  offlineAdmitted?: boolean | null;
+  offlineOutcome?: OfflineOutcome | null;
+  /** Wersja listy offline, z której zapadła decyzja. */
+  rosterGeneratedAt?: string | null;
+}
+
+/** Pozycja zdjęta z kolejki trwałą odmową - czeka na organizatora. */
+export interface RejectedScan {
+  item: OutboxItem;
+  /** Komunikat bazy (z głową `kod:`), z którym pozycja została odrzucona. */
+  error: string;
+  rejectedAt: string;
+}
+
+/** Więcej odrzuconych nie zmieści się na ekranie ani w głowie organizatora. */
+export const REJECTED_CAPACITY = 500;
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function numberOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+/**
+ * Rekord z pamięci urządzenia -> pozycja kolejki. Pozycja bez identyfikatora,
+ * kodu albo znanego rodzaju nie nadaje się do wysłania i wypada; brakujące
+ * pola opcjonalne (kolejki sprzed decyzji offline) dostają wartości puste.
+ */
+export function parseOutboxItem(value: unknown): OutboxItem | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if (typeof row.id !== "string" || typeof row.code !== "string") return null;
+  if (row.kind !== "checkin" && row.kind !== "lead") return null;
+  const deviceScannedAt = stringOrNull(row.deviceScannedAt) ?? "";
+  const outcome = stringOrNull(row.offlineOutcome);
+  return {
+    id: row.id,
+    kind: row.kind,
+    code: row.code,
+    checkpointId: stringOrNull(row.checkpointId),
+    direction: row.direction === "in" || row.direction === "out" ? row.direction : null,
+    note: stringOrNull(row.note),
+    interestRating: numberOrNull(row.interestRating),
+    deviceScannedAt,
+    attempts: numberOrNull(row.attempts) ?? 0,
+    nextAttemptAt: stringOrNull(row.nextAttemptAt) ?? deviceScannedAt,
+    lastError: stringOrNull(row.lastError),
+    offlineAdmitted: typeof row.offlineAdmitted === "boolean" ? row.offlineAdmitted : null,
+    offlineOutcome: outcome !== null && isOfflineOutcome(outcome) ? outcome : null,
+    rosterGeneratedAt: stringOrNull(row.rosterGeneratedAt),
+  };
 }
 
 /** Po tylu nieudanych próbach pozycja idzie do „wymaga uwagi", nie w nieskończoność. */
@@ -64,6 +131,8 @@ const PERMANENT_HEADS: readonly string[] = [
   "checkpoint_not_found",
   "invalid_payload",
   "invalid_direction",
+  // Skan sprzed ponad 7 dni - baza odrzuca go trwale (20260926150000).
+  "device_time_out_of_range",
 ];
 
 export function errorHead(message: string): string {
@@ -143,24 +212,60 @@ export function withoutItem(queue: readonly OutboxItem[], id: string): OutboxIte
   return queue.filter((item) => item.id !== id);
 }
 
-/** Nieudana próba: licznik w górę, następny termin wg wycofania. */
+export interface OutboxFailure {
+  queue: OutboxItem[];
+  /** Pozycja zdjęta trwałą odmową - `null`, gdy zostaje w kolejce do ponowienia. */
+  rejected: RejectedScan | null;
+}
+
+/**
+ * Nieudana próba: licznik w górę, następny termin wg wycofania. Trwała odmowa
+ * zdejmuje pozycję z kolejki i ODDAJE ją jako odrzuconą - nigdy w próżnię.
+ */
 export function withFailure(
   queue: readonly OutboxItem[],
   id: string,
   message: string,
   nowIso: string,
-): OutboxItem[] {
-  if (isPermanentFailure(message)) return withoutItem(queue, id);
-  return queue.map((item) => {
-    if (item.id !== id) return item;
-    const attempts = item.attempts + 1;
+): OutboxFailure {
+  if (isPermanentFailure(message)) {
+    const item = queue.find((row) => row.id === id);
     return {
-      ...item,
-      attempts,
-      lastError: message,
-      nextAttemptAt: withDelay(nowIso, backoffDelayMs(attempts)),
+      queue: withoutItem(queue, id),
+      rejected: item === undefined ? null : { item, error: message, rejectedAt: nowIso },
     };
-  });
+  }
+  return {
+    queue: queue.map((item) => {
+      if (item.id !== id) return item;
+      const attempts = item.attempts + 1;
+      return {
+        ...item,
+        attempts,
+        lastError: message,
+        nextAttemptAt: withDelay(nowIso, backoffDelayMs(attempts)),
+      };
+    }),
+    rejected: null,
+  };
+}
+
+/** Wszystkie pozycje naraz jako odrzucone - poświadczenie przestało działać. */
+export function rejectAll(
+  queue: readonly OutboxItem[],
+  message: string,
+  nowIso: string,
+): RejectedScan[] {
+  return queue.map((item) => ({ item, error: message, rejectedAt: nowIso }));
+}
+
+/** Dopisuje odrzucone na koniec listy; przepełnienie zjada najstarsze. */
+export function appendRejected(
+  list: readonly RejectedScan[],
+  added: readonly RejectedScan[],
+): RejectedScan[] {
+  const next = [...list, ...added];
+  return next.length > REJECTED_CAPACITY ? next.slice(next.length - REJECTED_CAPACITY) : next;
 }
 
 export interface OutboxCounts {
