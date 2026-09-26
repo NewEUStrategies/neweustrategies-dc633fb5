@@ -941,7 +941,9 @@ DECLARE
   v_description text;
   v_unit text;
 BEGIN
-  IF jsonb_typeof(p_lines) IS DISTINCT FROM 'array' OR jsonb_array_length(p_lines) = 0 THEN
+  -- CASE, nie OR: kolejnosc wyliczania OR nie jest gwarantowana, a dlugosc
+  -- obiektu JSON rzuca wyjatek zamiast kodu odmowy.
+  IF COALESCE(CASE WHEN jsonb_typeof(p_lines) = 'array' THEN jsonb_array_length(p_lines) END, 0) = 0 THEN
     RAISE EXCEPTION 'no_lines: a document needs at least one line' USING ERRCODE = '22023';
   END IF;
   IF jsonb_array_length(p_lines) > 200 THEN
@@ -1050,7 +1052,7 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'not_found: event does not exist in this tenant' USING ERRCODE = '42501';
   END IF;
-  IF jsonb_typeof(v_sources) IS DISTINCT FROM 'array' OR jsonb_array_length(v_sources) = 0 THEN
+  IF COALESCE(CASE WHEN jsonb_typeof(v_sources) = 'array' THEN jsonb_array_length(v_sources) END, 0) = 0 THEN
     RAISE EXCEPTION 'no_sources: pick at least one order' USING ERRCODE = '22023';
   END IF;
   IF jsonb_array_length(v_sources) > 200 THEN
@@ -2820,7 +2822,8 @@ BEGIN
          i.event_slug, i.event_title_pl, i.event_title_en, i.buyer_name, c.number, i.paid_at, i.due_date
     FROM public.event_invoices i
     LEFT JOIN public.event_invoices c ON c.id = i.corrects_invoice_id AND c.tenant_id = i.tenant_id
-   WHERE i.tenant_id = v_tenant AND i.buyer_user_id = v_uid AND i.status IN ('issued', 'cancelled')
+   WHERE i.tenant_id = v_tenant AND i.buyer_user_id = v_uid
+     AND (i.status = 'issued' OR (i.status = 'cancelled' AND i.number IS NOT NULL))
    ORDER BY i.issued_at DESC NULLS LAST, i.id;
 END;
 $$;
@@ -2844,7 +2847,7 @@ BEGIN
   IF v_uid IS NULL OR NOT EXISTS (
     SELECT 1 FROM public.event_invoices i
      WHERE i.id = p_id AND i.tenant_id = v_tenant AND i.buyer_user_id = v_uid
-       AND i.status IN ('issued', 'cancelled')
+       AND (i.status = 'issued' OR (i.status = 'cancelled' AND i.number IS NOT NULL))
   ) THEN
     RAISE EXCEPTION 'not_found: document does not exist or is not yours' USING ERRCODE = '42501';
   END IF;
