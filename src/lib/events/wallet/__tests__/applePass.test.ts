@@ -52,6 +52,7 @@ describe("buildPassJson", () => {
       backgroundColor: "rgb(17, 34, 51)",
       foregroundColor: "rgb(255, 255, 255)",
       labelColor: "rgb(255, 102, 0)",
+      sharingProhibited: true,
       relevantDate: "2026-10-16T07:00:00Z",
       // Koniec + 1 dzień: przepustka wyszarza się dzień po wydarzeniu.
       expirationDate: "2026-10-17T15:00:00Z",

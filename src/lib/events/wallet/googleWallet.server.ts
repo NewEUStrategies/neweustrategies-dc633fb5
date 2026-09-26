@@ -145,8 +145,11 @@ interface LocalizedString {
   translatedValues: { language: WalletLang; value: string }[];
 }
 
+/** Drugi język przepustki - wartość tłumaczenia obok domyślnej. */
+const OTHER_LANG: Record<WalletLang, WalletLang> = { pl: "en", en: "pl" };
+
 function localized(value: WalletText, lang: WalletLang): LocalizedString {
-  const other: WalletLang = lang === "pl" ? "en" : "pl";
+  const other = OTHER_LANG[lang];
   return {
     defaultValue: { language: lang, value: value[lang] },
     translatedValues: [{ language: other, value: value[other] }],

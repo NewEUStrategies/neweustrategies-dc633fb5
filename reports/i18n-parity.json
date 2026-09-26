@@ -28,7 +28,8 @@
     "eventMeetings",
     "eventFront",
     "eventScanner",
-    "teamGrid"
+    "teamGrid",
+    "eventWallet"
   ],
   "missing": [],
   "missingEn": [],

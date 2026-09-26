@@ -33,7 +33,9 @@ import { createGoogleWalletSave } from "./googleWallet.server";
 import { appleWalletConfig, googleWalletConfig, walletAvailability } from "./walletConfig.server";
 import { walletTicketFromPayload, type WalletTicket } from "./walletTicket";
 
-export type WalletPlatform = "apple" | "google";
+/** Platformy dziennika wydań - lustro CHECK `event_wallet_passes_platform_values`. */
+export const WALLET_PLATFORMS = ["apple", "google"] as const;
+export type WalletPlatform = (typeof WALLET_PLATFORMS)[number];
 
 /** Kody błędów odpowiedzi - klient mapuje je na komunikaty (`eventWallet.errors.*`). */
 export type WalletErrorCode =

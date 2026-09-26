@@ -118,6 +118,9 @@ export function buildPassJson(
     backgroundColor: passColor(ticket.colors.background),
     foregroundColor: passColor(ticket.colors.foreground),
     labelColor: passColor(ticket.colors.label),
+    // Bilet jest imienny - iOS nie proponuje wysłania przepustki dalej
+    // (AirDrop, Wiadomości). Kod i tak jest poświadczeniem jednej osoby.
+    sharingProhibited: true,
     relevantDate: passDate(start),
     expirationDate: passDate(new Date(end.getTime() + DAY_MS)),
     barcodes: [barcode],
