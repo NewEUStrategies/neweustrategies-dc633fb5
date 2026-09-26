@@ -13,7 +13,11 @@
 // Właściciel ekranów (funkcja naboru prelegentów) rozszerza ten plik o treść
 // swoich organizmów; wspólny kontrakt trasy mieszka w
 // `src/test/events/studioSectionRouteCases.tsx`.
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, screen, waitFor } from "@testing-library/react";
+import type { AnyRoute } from "@tanstack/react-router";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { renderRoute } from "@/test/routeHarness";
 
 import { supabaseRpcStub, type SupabaseRpcStub } from "@/test/supabase/rpc";
 import {
@@ -35,6 +39,29 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("@/lib/i18n-admin-events", () => ({ ensureI18n: () => undefined }));
+
+// Organizmy ekranów mają własne pliki testów; tu dowodzimy SKLEJENIA trasy:
+// ekran dostaje identyfikator wydarzenia ze ścieżki.
+vi.mock("@/components/admin/events/organisms/CfpSettingsPanel", () => ({
+  CfpSettingsPanel: ({ eventId }: { eventId: string }) => (
+    <div data-testid="cfp-organism" data-organism="settings" data-event-id={eventId} />
+  ),
+}));
+vi.mock("@/components/admin/events/organisms/CfpFormPanel", () => ({
+  CfpFormPanel: ({ eventId }: { eventId: string }) => (
+    <div data-testid="cfp-organism" data-organism="form" data-event-id={eventId} />
+  ),
+}));
+vi.mock("@/components/admin/events/organisms/CfpSubmissionsPanel", () => ({
+  CfpSubmissionsPanel: ({ eventId }: { eventId: string }) => (
+    <div data-testid="cfp-organism" data-organism="submissions" data-event-id={eventId} />
+  ),
+}));
+vi.mock("@/components/admin/events/organisms/CfpReviewersPanel", () => ({
+  CfpReviewersPanel: ({ eventId }: { eventId: string }) => (
+    <div data-testid="cfp-organism" data-organism="reviewers" data-event-id={eventId} />
+  ),
+}));
 
 function stub(): SupabaseRpcStub {
   if (h.rpc === null) throw new Error("test: atrapa RPC nie zostala ustawiona");
@@ -113,4 +140,24 @@ describeStudioSectionRoute({
   sectionKey: "cfpReviewers",
   documentTitle: "Call for speakers · Reviewers · Event · Admin",
   rpc: stub,
+});
+
+describe("ekrany naboru dostają wydarzenie ze ścieżki", () => {
+  afterEach(cleanup);
+
+  it.each([
+    ["settings", CfpSettingsRoute, "/admin/events/$eventId/cfp/settings"],
+    ["form", CfpFormRoute, "/admin/events/$eventId/cfp/form"],
+    ["submissions", CfpSubmissionsRoute, "/admin/events/$eventId/cfp/submissions"],
+    ["reviewers", CfpReviewersRoute, "/admin/events/$eventId/cfp/reviewers"],
+  ] as Array<[string, AnyRoute, string]>)("%s", async (organism, route, path) => {
+    stub().setData("admin_event_detail", [
+      { id: STUDIO_ROUTE_EVENT_ID, title_pl: "Kongres", title_en: "Congress" },
+    ]);
+    await renderRoute({ route, path, initialEntry: path.replace("$eventId", STUDIO_ROUTE_EVENT_ID) });
+    await waitFor(() => expect(screen.getByTestId("cfp-organism")).toBeInTheDocument());
+    const node = screen.getByTestId("cfp-organism");
+    expect(node.getAttribute("data-organism")).toBe(organism);
+    expect(node.getAttribute("data-event-id")).toBe(STUDIO_ROUTE_EVENT_ID);
+  });
 });

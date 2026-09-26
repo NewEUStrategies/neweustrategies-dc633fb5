@@ -111,6 +111,16 @@ export const DOMAIN_EVENT_TYPES = [
   // Sponsorzy: publikacja karty i odswiezenie migawki z CRM firm.
   "event_sponsor.published.v1",
   "event_sponsor.snapshot_refreshed.v1",
+  // Nabor prelegentow (20260926100000_event_cfp.sql, f1). Wyslanie, decyzja
+  // organizatora (takze przyjecie), wycofanie i odpowiedz prelegenta na
+  // przyjecie (`confirmed.v1` niesie `status`: confirmed albo declined) oraz
+  // zapis oceny recenzenta. Payload WYLACZNIE z identyfikatorami i `event_id`
+  // - tytul i ocena to tresc, a `domain_events` czyta caly staff tenantu.
+  "event_cfp_submission.submitted.v1",
+  "event_cfp_submission.decided.v1",
+  "event_cfp_submission.withdrawn.v1",
+  "event_cfp_submission.confirmed.v1",
+  "event_cfp_review.saved.v1",
 ] as const;
 
 export type DomainEventType = (typeof DOMAIN_EVENT_TYPES)[number];
@@ -160,6 +170,8 @@ export const DOMAIN_AGGREGATE_TYPES = [
   "event_scanner_device",
   "event_sponsor",
   "event_registration",
+  "event_cfp_submission",
+  "event_cfp_review",
 ] as const;
 
 export type DomainAggregateType = (typeof DOMAIN_AGGREGATE_TYPES)[number];

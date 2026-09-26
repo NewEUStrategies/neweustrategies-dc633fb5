@@ -49,6 +49,10 @@ import { adminEventTermsEn, adminEventTermsPl } from "@/lib/i18n-admin-event-ter
 import { adminEventOnsiteEn, adminEventOnsitePl } from "@/lib/i18n-admin-event-onsite";
 import { eventFrontEn, eventFrontPl } from "@/lib/i18n-event-front";
 import { adminEventsEn, adminEventsPl } from "@/lib/i18n-admin-events";
+import { adminCfpFailure } from "@/lib/events/adminCfpErrors";
+import { publicCfpFailure } from "@/lib/events/publicCfpErrors";
+import { adminEventCfpEn, adminEventCfpPl } from "@/lib/i18n-admin-event-cfp";
+import { eventCfpEn, eventCfpPl } from "@/lib/i18n-event-cfp";
 
 /** Klucz ma tekst, gdy w słowniku stoi pod nim NIEPUSTY napis (nie gałąź). */
 function maTekst(slownik: ResourceTree, klucz: string): boolean {
@@ -236,6 +240,106 @@ const KODY_STUDIA = [
   STRAZNIK_TENANTA,
 ] as const;
 
+/** Nabór prelegentów, panel organizatora - `cfpApi` (f1). */
+const KODY_NABORU_PANEL = [
+  // ustawienia (`admin_event_cfp_settings_save`)
+  "invalid_status",
+  "invalid_window",
+  "invalid_texts",
+  "invalid_formats",
+  "invalid_tracks",
+  "invalid_limit",
+  "invalid_score_max",
+  "invalid_min_reviews",
+  "invalid_criteria",
+  "invalid_group",
+  "invalid_ticket",
+  "score_max_below_reviews",
+  // pytania formularza (`admin_event_cfp_field_upsert` / `_fields_reorder`)
+  "invalid_key",
+  "key_taken",
+  "key_immutable",
+  "invalid_field_type",
+  "invalid_labels",
+  "invalid_help",
+  "invalid_options",
+  "invalid_order",
+  // decyzja i przyjęcie (`admin_event_cfp_submission_decide` / `_accept`)
+  "invalid_transition",
+  "note_required",
+  "invalid_note",
+  "invalid_schedule",
+  "invalid_format",
+  "room_not_found",
+  "track_not_found",
+  "room_conflict",
+  // szkic sesji z przyjęcia przechodzi przez wyzwalacze sesji
+  // (20260823140000_event_sessions.sql) - skan nie schodzi w wyzwalacze.
+  "session_before_event",
+  "session_after_event",
+  "speaker_overlap",
+  // recenzenci i materiały
+  "reviewer_not_found",
+  // wspólne
+  "invalid_payload",
+  "not_found",
+  // most CRM (`_event_person_crm_sync` -> wpis historii)
+  "invalid_audit_action",
+  STRAZNIK_TENANTA,
+] as const;
+
+/** Nabór prelegentów, strona zgłoszenia i panele prelegenta/recenzenta - `cfpPublicApi` (f1). */
+const KODY_NABORU_UCZESTNIK = [
+  "auth_required",
+  "rate_limited",
+  "rate_limit_hit",
+  "not_found",
+  "invalid_payload",
+  "invalid_transition",
+  // szkic i wysłanie (`event_cfp_submission_save` / `_submit`)
+  "cfp_closed",
+  "limit_reached",
+  "not_editable",
+  "email_required",
+  "email_in_use",
+  "invalid_name",
+  "invalid_speaker",
+  "invalid_title",
+  "invalid_abstract",
+  "invalid_language",
+  "invalid_format",
+  "invalid_track",
+  "invalid_topics",
+  "invalid_answers",
+  "invalid_role",
+  "invalid_speakers",
+  "co_speakers_disabled",
+  "too_many_speakers",
+  "missing_title",
+  "missing_abstract",
+  "missing_format",
+  "missing_track",
+  "missing_required_fields",
+  // panel prelegenta (profil, materiały)
+  "not_speaker",
+  "invalid_profile",
+  "invalid_kind",
+  "invalid_url",
+  "invalid_visibility",
+  "invalid_session",
+  "invalid_submission",
+  "too_many_materials",
+  // panel recenzenta
+  "not_reviewer",
+  "invalid_recommendation",
+  "invalid_scores",
+  "invalid_score",
+  "score_required",
+  "invalid_comment",
+  // most CRM przy wysłaniu zgłoszenia
+  "invalid_audit_action",
+] as const;
+
 interface BramkowanaMapa {
   nazwa: string;
   prefix: string;
@@ -313,6 +417,28 @@ const MAPY: readonly BramkowanaMapa[] = [
     en: adminEventsEn,
     moduly: ["eventDetailApi", "eventPagesApi"],
     interpoluje: false,
+  },
+  {
+    nazwa: "adminCfpErrors",
+    prefix: "adminEventCfp.errors.",
+    klucz: (error) => adminCfpFailure(error).key,
+    kody: KODY_NABORU_PANEL,
+    nakladka: "src/lib/i18n-admin-event-cfp.ts",
+    pl: adminEventCfpPl,
+    en: adminEventCfpEn,
+    moduly: ["cfpApi"],
+    interpoluje: true,
+  },
+  {
+    nazwa: "publicCfpErrors",
+    prefix: "eventCfp.errors.",
+    klucz: (error) => publicCfpFailure(error).key,
+    kody: KODY_NABORU_UCZESTNIK,
+    nakladka: "src/lib/i18n-event-cfp.ts",
+    pl: eventCfpPl,
+    en: eventCfpEn,
+    moduly: ["cfpPublicApi"],
+    interpoluje: true,
   },
 ];
 
