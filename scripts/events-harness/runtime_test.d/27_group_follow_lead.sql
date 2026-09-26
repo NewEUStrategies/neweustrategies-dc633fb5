@@ -28,7 +28,8 @@
 --      wydarzenia, gosc juz w kolejce zostaje na pozycji, prowadzacy
 --      z nieudanym zamowieniem Stripe placi recznie (bez galezi Stripe).
 --   5. Odrzucenie i anulowanie prowadzacego zamyka czekajacych gosci (powod,
---      data, pozycja), przyjetych nie rusza.
+--      data, pozycja) - a od 20260926120000 takze przyjetych (kod QR
+--      przestaje wpuszczac; pelne galezie w 28_group_lead_closes_admitted).
 --      5b. Ponowne przyjecie prowadzacego z odrzucenia i z anulowania przywraca
 --      gosci zamknietych RAZEM z nim (rozliczonych do przyjecia albo kolejki,
 --      nieoplaconych do `pending`), a gosci zamknietych osobno i osoby
@@ -774,7 +775,8 @@ SELECT pg_temp.gfl_group('c', 'c7000000-0000-0000-0000-000000000005',
 DO $$
 DECLARE v jsonb;
 BEGIN
-  -- Jeden gosc przyjety osobno - odrzucenie prowadzacego go NIE rusza.
+  -- Jeden gosc przyjety osobno - od 20260926120000 odrzucenie prowadzacego
+  -- zamyka i jego (przedtem zostawal przyjety z dzialajacym kodem QR).
   v := pg_temp.gfl_decide(pg_temp.gfl('r_g1'), 'approve');
   v := pg_temp.gfl_decide(pg_temp.gfl('r'), 'reject', 'Zgloszenie niekompletne');
   PERFORM pg_temp.assert(
@@ -785,9 +787,10 @@ BEGIN
        FROM public.event_registrations WHERE id = pg_temp.gfl('r_g2')),
     '27/odrzucenie: czekajacy gosc odrzucony z powodem prowadzacego');
   PERFORM pg_temp.assert(
-    (SELECT status = 'approved' AND qr_token_hash IS NOT NULL
+    (SELECT status = 'rejected' AND qr_token_hash IS NULL AND qr_issued_at IS NULL
+            AND decision_note = 'Zgloszenie niekompletne'
        FROM public.event_registrations WHERE id = pg_temp.gfl('r_g1')),
-    '27/odrzucenie: gosc JUZ przyjety zostaje nietkniety');
+    '27/odrzucenie: gosc JUZ przyjety odrzucony razem z prowadzacym - kod QR przestaje wpuszczac');
 
   -- Anulowanie bez powodu: gosc w kolejce traci pozycje, gosc z wlasna
   -- notatka ja zachowuje.
@@ -942,8 +945,9 @@ BEGIN
   PERFORM pg_temp.assert(
     (SELECT status = 'rejected' AND waitlist_position IS NULL
        FROM public.event_registrations WHERE id = v_out)
-    AND (SELECT status = 'approved' FROM public.event_registrations WHERE id = v_in),
-    '27/przywrocenie: odrzucenie prowadzacego zamyka goscia z kolejki, przyjetego nie rusza');
+    AND (SELECT status = 'rejected' AND qr_token_hash IS NULL
+           FROM public.event_registrations WHERE id = v_in),
+    '27/przywrocenie: odrzucenie prowadzacego zamyka goscia z kolejki i przyjetego');
 
   v := pg_temp.gfl_decide(pg_temp.gfl('k'), 'approve');
   PERFORM pg_temp.assert(v->>'status' = 'approved'

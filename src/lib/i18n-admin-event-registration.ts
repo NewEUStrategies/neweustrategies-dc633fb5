@@ -313,11 +313,15 @@ export const adminEventRegistrationPl = {
         rejectTitle: "Odrzucić to zgłoszenie?",
         rejectBody:
           "Powód jest wymagany i zostaje w historii zgłoszenia. Osoba może złożyć nowe zgłoszenie.",
+        rejectGroupHint:
+          "Goście z tego zgłoszenia ({{count}}) zostaną odrzuceni razem z prowadzącym - także ci już przyjęci: ich bilety przestaną wpuszczać. Obecność już odnotowana zostaje. Ponowne zatwierdzenie prowadzącego przywróci gości z nowymi biletami.",
         waitlistTitle: "Przenieść na listę rezerwową?",
         waitlistBody:
           "Zgłoszenie trafi na koniec kolejki i zwolni zajmowane miejsce, jeśli je zajmowało.",
         cancelTitle: "Anulować ten zapis?",
         cancelBody: "Miejsce wróci do puli, a pierwsza osoba z kolejki rezerwowej awansuje.",
+        cancelGroupHint:
+          "Goście z tego zgłoszenia ({{count}}) zostaną anulowani razem z prowadzącym - także ci już przyjęci: ich bilety przestaną wpuszczać, a zwolnione miejsca awansują kolejkę rezerwową. Obecność już odnotowana zostaje.",
         attendedTitle: "Oznaczyć obecność?",
         attendedBody: "Obecność jest faktem osobnym od zapisu i zasila raport frekwencji.",
         noShowTitle: "Oznaczyć nieobecność?",
@@ -1216,6 +1220,13 @@ export const adminEventRegistrationPl = {
       seatTaken: "To miejsce jest już zajęte przez uczestnika.",
       seatRevoked: "To miejsce zostało wycofane.",
       orderCancelled: "Zamówienie stojące za tym miejscem jest anulowane.",
+      // POWRÓT Z ANULOWANIA (`admin_event_package_order_set_status`, 20260926130000).
+      // Anulowanie oddało użycie kodu rabatowego; powrót musi je zużyć z powrotem,
+      // a baza odmawia, gdy kodu nie da się już zużyć - zamówienie zostaje anulowane.
+      couponRestoreExhausted:
+        "Nie można przywrócić zamówienia: jego kod rabatowy wykorzystano do limitu, gdy zamówienie było anulowane. Zwiększ limit użyć kodu i spróbuj ponownie.",
+      couponRestoreUsedByBuyer:
+        "Nie można przywrócić zamówienia: kupujący wykorzystał już ten kod rabatowy w innym zamówieniu (limit na osobę). Zwiększ limit na osobę albo anuluj tamto zamówienie.",
       invitationExpired: "Zaproszenie wygasło - wyślij je ponownie.",
       invalidToken: "Odnośnik zaproszenia jest nieprawidłowy.",
       // ODMOWY EKRANU „STAWKI I UPRAWNIENIA" (`admin_event_audience_grant_save`).
@@ -1498,11 +1509,15 @@ export const adminEventRegistrationEn = {
         rejectTitle: "Reject this application?",
         rejectBody:
           "A reason is required and stays in the application history. The person may submit a new application.",
+        rejectGroupHint:
+          "This registration's guests ({{count}}) will be rejected together with the lead - including those already admitted: their tickets will stop working. Attendance already recorded stays. Approving the lead again restores the guests with new tickets.",
         waitlistTitle: "Move to the waiting list?",
         waitlistBody:
           "The application goes to the end of the queue and frees the seat it held, if it held one.",
         cancelTitle: "Cancel this registration?",
         cancelBody: "The seat returns to the pool and the first person in the queue is promoted.",
+        cancelGroupHint:
+          "This registration's guests ({{count}}) will be cancelled together with the lead - including those already admitted: their tickets will stop working and the freed seats promote the waiting list. Attendance already recorded stays.",
         attendedTitle: "Mark attendance?",
         attendedBody:
           "Attendance is a separate fact from registration and feeds the turnout report.",
@@ -2371,6 +2386,10 @@ export const adminEventRegistrationEn = {
       seatTaken: "This seat is already taken by a participant.",
       seatRevoked: "This seat has been withdrawn.",
       orderCancelled: "The order behind this seat is cancelled.",
+      couponRestoreExhausted:
+        "The order cannot be restored: its discount code ran out of uses while the order was cancelled. Raise the code's usage limit and try again.",
+      couponRestoreUsedByBuyer:
+        "The order cannot be restored: the buyer has already used this discount code in another order (per-person limit). Raise the per-person limit or cancel that order.",
       invitationExpired: "The invitation has expired - send it again.",
       invalidToken: "The invitation link is invalid.",
       invalidAudience: "The audience is academic, NGO or company.",

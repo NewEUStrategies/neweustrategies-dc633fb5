@@ -392,12 +392,14 @@ export function RegistrationsListPanel({
     })();
   };
 
-  // Zatwierdzenie prowadzacego z goscmi przyjmuje ich razem z nim (kaskada
-  // w bazie) - organizator ma to przeczytac PRZED kliknieciem „Potwierdz".
+  // Decyzja o prowadzacym z goscmi obejmuje ich razem z nim (kaskada w bazie):
+  // zatwierdzenie ich przyjmuje, a odrzucenie i anulowanie zamyka - takze
+  // przyjetych, ktorych bilety przestaja wpuszczac (20260926120000).
+  // Organizator ma to przeczytac PRZED kliknieciem „Potwierdz".
   const decidedGuests = decided === null ? 0 : (linkOf(decided.id)?.guest_count ?? 0);
-  const approveHint =
-    action === "approve" && decidedGuests > 0
-      ? t(`${base}.decideDialog.approveGroupHint`, { count: decidedGuests })
+  const groupHint =
+    decidedGuests > 0 && (action === "approve" || action === "reject" || action === "cancel")
+      ? t(`${base}.decideDialog.${action}GroupHint`, { count: decidedGuests })
       : null;
 
   const seatsLabel = (): string => {
@@ -707,7 +709,7 @@ export function RegistrationsListPanel({
         open={action !== null}
         action={action}
         personName={decided === null ? "" : registrationPersonName(decided)}
-        hint={approveHint}
+        hint={groupHint}
         isPending={decide.isPending}
         onOpenChange={(open) => {
           if (!open) {
