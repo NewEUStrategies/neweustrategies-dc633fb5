@@ -367,6 +367,21 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0061_event_group_lead_plan_seat",
     twin: "20260926140000_event_group_lead_plan_seat.sql",
   },
+  {
+    tag: "0062_event_group_lead_closes_admitted_guests",
+    drizzleOnly:
+      "Zastosowanie SQL-u 0059 z panelu Lovable (bez komentarzy, instrukcje identyczne i idempotentne); blizniak supabase to juz 20260926120000.",
+  },
+  {
+    tag: "0063_event_package_order_cancel_returns_coupon",
+    drizzleOnly:
+      "Zastosowanie SQL-u 0060 z panelu Lovable (bez komentarzy, instrukcje identyczne i idempotentne); blizniak supabase to juz 20260926130000.",
+  },
+  {
+    tag: "0064_event_group_lead_plan_seat",
+    drizzleOnly:
+      "Zastosowanie SQL-u 0061 z panelu Lovable (bez komentarzy, instrukcje identyczne i idempotentne); blizniak supabase to juz 20260926140000.",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";
