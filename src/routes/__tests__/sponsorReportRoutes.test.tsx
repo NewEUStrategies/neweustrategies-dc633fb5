@@ -13,7 +13,7 @@
 //      dociera do zapytania raportu.
 //   5. EKRAN STUDIA RYSUJE SIĘ BEZ WIERSZA WYDARZENIA (drugi spinner pod
 //      spinnerem ramy) albo gubi filtr sponsora z adresu.
-import { cleanup, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@/test/i18nReal";
 
@@ -108,12 +108,12 @@ describe("strona raportu dla sponsora", () => {
     expect(screen.getByTestId("public-panel")).toBeTruthy();
   });
 
-  it("błąd i brak strony mają zwięzłą stronę błędu", async () => {
-    const Error = PublicRoute.options.errorComponent as () => JSX.Element;
-    const NotFound = PublicRoute.options.notFoundComponent as () => JSX.Element;
-    const { render } = await import("@testing-library/react");
-    render(<Error />);
-    render(<NotFound />);
+  it("błąd i brak strony mają zwięzłą stronę błędu", () => {
+    const ErrorScreen = PublicRoute.options.errorComponent;
+    const NotFoundScreen = PublicRoute.options.notFoundComponent;
+    if (!ErrorScreen || !NotFoundScreen) throw new Error("trasa bez ekranów błędu");
+    render(<ErrorScreen error={new Error("padło")} reset={() => undefined} />);
+    render(<NotFoundScreen isNotFound routeId="/events/$slug_/sponsor-report" />);
     expect(screen.getAllByTestId("error-page").map((node) => node.textContent)).toEqual([
       "compact",
       "compact",

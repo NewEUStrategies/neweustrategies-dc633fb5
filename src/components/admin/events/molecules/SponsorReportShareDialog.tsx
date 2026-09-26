@@ -84,12 +84,13 @@ export function SponsorReportShareDialog({
   const invalid = (field: SponsorLinkField) => errors.includes(field);
   const errorId = (field: SponsorLinkField) => `${baseId}-${field}-error`;
 
-  const submit = () => {
-    if (draft === null || nowMs === null) return;
-    const found = validateSponsorLinkDraft(draft, nowMs);
+  // Formularz istnieje tylko z gotowym szkicem i zegarem, więc oba jadą jako
+  // argumenty z miejsca, w którym są już zawężone.
+  const submit = (current: SponsorLinkDraft, now: number) => {
+    const found = validateSponsorLinkDraft(current, now);
     setErrors(found);
     if (found.length > 0) return;
-    issue.mutate(sponsorLinkInput(draft, nowMs), {
+    issue.mutate(sponsorLinkInput(current, now), {
       onSuccess: (issued) => {
         setLink(sponsorReportLinkUrl(window.location.origin, eventSlug, issued.token));
         toast.success(t("adminEventSponsorReport.share.created"));
@@ -98,9 +99,9 @@ export function SponsorReportShareDialog({
     });
   };
 
-  const copy = async () => {
+  const copy = async (value: string) => {
     try {
-      await navigator.clipboard.writeText(link ?? "");
+      await navigator.clipboard.writeText(value);
       toast.success(t("adminEventSponsorReport.share.copied"));
     } catch {
       toast.error(t("adminEventSponsorReport.share.copyFailed"));
@@ -132,7 +133,7 @@ export function SponsorReportShareDialog({
               />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => void copy()}>
+              <Button type="button" variant="outline" onClick={() => void copy(link)}>
                 {t("adminEventSponsorReport.share.copy")}
               </Button>
               <Button type="button" onClick={close}>
@@ -140,13 +141,13 @@ export function SponsorReportShareDialog({
               </Button>
             </DialogFooter>
           </div>
-        ) : draft === null || bounds === null ? null : (
+        ) : draft === null || nowMs === null || bounds === null ? null : (
           <form
             className="space-y-4"
             noValidate
             onSubmit={(event) => {
               event.preventDefault();
-              submit();
+              submit(draft, nowMs);
             }}
           >
             <div className="space-y-1">

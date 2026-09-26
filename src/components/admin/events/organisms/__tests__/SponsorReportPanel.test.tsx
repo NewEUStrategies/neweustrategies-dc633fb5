@@ -520,6 +520,25 @@ describe("eksport", () => {
     expect(h.downloads[0].fileName.endsWith(".xlsx")).toBe(true);
   });
 
+  it("sponsor spoza podsumowania i miejsce spoza listy nie wywracają pliku", async () => {
+    // Szereg może wyprzedzić podsumowanie (sponsor odpięty między zapytaniami),
+    // a starsza baza może oddać miejsce, którego front jeszcze nie zna.
+    h.summary = ready(SUMMARY);
+    h.series = ready([series({ sponsor_id: "odpiety", placement: "billboard", views_unique: 1 })]);
+    panel();
+    await click("metricsCsv");
+    const csv = String(h.downloads[0].data).slice(1).split("\n");
+    expect(csv[1]).toBe("2099-06-15,,billboard,1,0,0,0,0,0");
+  });
+
+  it("szereg jeszcze w locie: eksport metryk mówi, że nie ma czego zapisać", async () => {
+    h.summary = ready(SUMMARY);
+    panel();
+    await click("metricsXlsx");
+    expect(h.downloads).toEqual([]);
+    expect(h.toast.info).toHaveBeenCalledWith(`${R}.export.empty`);
+  });
+
   it("brak pomiarów: zamiast pustego pliku komunikat", async () => {
     h.summary = ready(SUMMARY);
     h.series = ready([]);

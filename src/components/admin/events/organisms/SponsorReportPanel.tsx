@@ -91,11 +91,11 @@ type ExportKind = "metrics" | "leads";
 
 export function SponsorReportPanel({
   row,
-  initialSponsorId = null,
+  initialSponsorId,
 }: {
   row: AdminEventDetailRow;
-  /** Sponsor z adresu (`?sponsor=`) - np. z karty firmy w CRM. */
-  initialSponsorId?: string | null;
+  /** Sponsor z adresu (`?sponsor=`) - np. z karty firmy w CRM; `null` = wszyscy. */
+  initialSponsorId: string | null;
 }) {
   ensureAdminEventsI18n();
   ensureSponsorReportI18n();
