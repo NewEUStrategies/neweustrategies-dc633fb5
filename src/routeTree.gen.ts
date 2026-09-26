@@ -400,6 +400,7 @@ import { Route as ApiPublicEventsWalletAppleRouteImport } from './routes/api/pub
 import { Route as AdminEventsEventIdRegistrationTicketsRouteImport } from './routes/admin.events_.$eventId.registration.tickets'
 import { Route as AdminEventsEventIdRegistrationSettingsRouteImport } from './routes/admin.events_.$eventId.registration.settings'
 import { Route as AdminEventsEventIdRegistrationSeatingRouteImport } from './routes/admin.events_.$eventId.registration.seating'
+import { Route as AdminEventsEventIdRegistrationPoliciesRouteImport } from './routes/admin.events_.$eventId.registration.policies'
 import { Route as AdminEventsEventIdRegistrationPackagesRouteImport } from './routes/admin.events_.$eventId.registration.packages'
 import { Route as AdminEventsEventIdRegistrationListRouteImport } from './routes/admin.events_.$eventId.registration.list'
 import { Route as AdminEventsEventIdRegistrationInvoicesRouteImport } from './routes/admin.events_.$eventId.registration.invoices'
@@ -2453,6 +2454,12 @@ const AdminEventsEventIdRegistrationSeatingRoute =
     path: '/registration/seating',
     getParentRoute: () => AdminEventsEventIdRoute,
   } as any)
+const AdminEventsEventIdRegistrationPoliciesRoute =
+  AdminEventsEventIdRegistrationPoliciesRouteImport.update({
+    id: '/registration/policies',
+    path: '/registration/policies',
+    getParentRoute: () => AdminEventsEventIdRoute,
+  } as any)
 const AdminEventsEventIdRegistrationPackagesRoute =
   AdminEventsEventIdRegistrationPackagesRouteImport.update({
     id: '/registration/packages',
@@ -3010,6 +3017,7 @@ export interface FileRoutesByFullPath {
   '/admin/events/$eventId/registration/invoices': typeof AdminEventsEventIdRegistrationInvoicesRoute
   '/admin/events/$eventId/registration/list': typeof AdminEventsEventIdRegistrationListRoute
   '/admin/events/$eventId/registration/packages': typeof AdminEventsEventIdRegistrationPackagesRoute
+  '/admin/events/$eventId/registration/policies': typeof AdminEventsEventIdRegistrationPoliciesRoute
   '/admin/events/$eventId/registration/seating': typeof AdminEventsEventIdRegistrationSeatingRoute
   '/admin/events/$eventId/registration/settings': typeof AdminEventsEventIdRegistrationSettingsRoute
   '/admin/events/$eventId/registration/tickets': typeof AdminEventsEventIdRegistrationTicketsRoute
@@ -3409,6 +3417,7 @@ export interface FileRoutesByTo {
   '/admin/events/$eventId/registration/invoices': typeof AdminEventsEventIdRegistrationInvoicesRoute
   '/admin/events/$eventId/registration/list': typeof AdminEventsEventIdRegistrationListRoute
   '/admin/events/$eventId/registration/packages': typeof AdminEventsEventIdRegistrationPackagesRoute
+  '/admin/events/$eventId/registration/policies': typeof AdminEventsEventIdRegistrationPoliciesRoute
   '/admin/events/$eventId/registration/seating': typeof AdminEventsEventIdRegistrationSeatingRoute
   '/admin/events/$eventId/registration/settings': typeof AdminEventsEventIdRegistrationSettingsRoute
   '/admin/events/$eventId/registration/tickets': typeof AdminEventsEventIdRegistrationTicketsRoute
@@ -3828,6 +3837,7 @@ export interface FileRoutesById {
   '/admin/events_/$eventId/registration/invoices': typeof AdminEventsEventIdRegistrationInvoicesRoute
   '/admin/events_/$eventId/registration/list': typeof AdminEventsEventIdRegistrationListRoute
   '/admin/events_/$eventId/registration/packages': typeof AdminEventsEventIdRegistrationPackagesRoute
+  '/admin/events_/$eventId/registration/policies': typeof AdminEventsEventIdRegistrationPoliciesRoute
   '/admin/events_/$eventId/registration/seating': typeof AdminEventsEventIdRegistrationSeatingRoute
   '/admin/events_/$eventId/registration/settings': typeof AdminEventsEventIdRegistrationSettingsRoute
   '/admin/events_/$eventId/registration/tickets': typeof AdminEventsEventIdRegistrationTicketsRoute
@@ -4248,6 +4258,7 @@ export interface FileRouteTypes {
     | '/admin/events/$eventId/registration/invoices'
     | '/admin/events/$eventId/registration/list'
     | '/admin/events/$eventId/registration/packages'
+    | '/admin/events/$eventId/registration/policies'
     | '/admin/events/$eventId/registration/seating'
     | '/admin/events/$eventId/registration/settings'
     | '/admin/events/$eventId/registration/tickets'
@@ -4647,6 +4658,7 @@ export interface FileRouteTypes {
     | '/admin/events/$eventId/registration/invoices'
     | '/admin/events/$eventId/registration/list'
     | '/admin/events/$eventId/registration/packages'
+    | '/admin/events/$eventId/registration/policies'
     | '/admin/events/$eventId/registration/seating'
     | '/admin/events/$eventId/registration/settings'
     | '/admin/events/$eventId/registration/tickets'
@@ -5065,6 +5077,7 @@ export interface FileRouteTypes {
     | '/admin/events_/$eventId/registration/invoices'
     | '/admin/events_/$eventId/registration/list'
     | '/admin/events_/$eventId/registration/packages'
+    | '/admin/events_/$eventId/registration/policies'
     | '/admin/events_/$eventId/registration/seating'
     | '/admin/events_/$eventId/registration/settings'
     | '/admin/events_/$eventId/registration/tickets'
@@ -7954,6 +7967,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminEventsEventIdRegistrationSeatingRouteImport
       parentRoute: typeof AdminEventsEventIdRoute
     }
+    '/admin/events_/$eventId/registration/policies': {
+      id: '/admin/events_/$eventId/registration/policies'
+      path: '/registration/policies'
+      fullPath: '/admin/events/$eventId/registration/policies'
+      preLoaderRoute: typeof AdminEventsEventIdRegistrationPoliciesRouteImport
+      parentRoute: typeof AdminEventsEventIdRoute
+    }
     '/admin/events_/$eventId/registration/packages': {
       id: '/admin/events_/$eventId/registration/packages'
       path: '/registration/packages'
@@ -8508,6 +8528,7 @@ interface AdminEventsEventIdRouteChildren {
   AdminEventsEventIdRegistrationInvoicesRoute: typeof AdminEventsEventIdRegistrationInvoicesRoute
   AdminEventsEventIdRegistrationListRoute: typeof AdminEventsEventIdRegistrationListRoute
   AdminEventsEventIdRegistrationPackagesRoute: typeof AdminEventsEventIdRegistrationPackagesRoute
+  AdminEventsEventIdRegistrationPoliciesRoute: typeof AdminEventsEventIdRegistrationPoliciesRoute
   AdminEventsEventIdRegistrationSeatingRoute: typeof AdminEventsEventIdRegistrationSeatingRoute
   AdminEventsEventIdRegistrationSettingsRoute: typeof AdminEventsEventIdRegistrationSettingsRoute
   AdminEventsEventIdRegistrationTicketsRoute: typeof AdminEventsEventIdRegistrationTicketsRoute
@@ -8568,6 +8589,8 @@ const AdminEventsEventIdRouteChildren: AdminEventsEventIdRouteChildren = {
     AdminEventsEventIdRegistrationListRoute,
   AdminEventsEventIdRegistrationPackagesRoute:
     AdminEventsEventIdRegistrationPackagesRoute,
+  AdminEventsEventIdRegistrationPoliciesRoute:
+    AdminEventsEventIdRegistrationPoliciesRoute,
   AdminEventsEventIdRegistrationSeatingRoute:
     AdminEventsEventIdRegistrationSeatingRoute,
   AdminEventsEventIdRegistrationSettingsRoute:
