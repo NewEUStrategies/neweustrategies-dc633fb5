@@ -6511,6 +6511,42 @@ export default defineConfig({
           branches: 98,
         },
 
+        // ══ WYDARZENIA: BRAKI CZ. 2 Z 2026-09-26 (odwołana grupa, kod dostępu ══
+        // ══ wejściówki, benefit planu członka) - PROGI PER PLIK ══════════════
+        //
+        // ZMIERZONE 2026-09-26 jednym przebiegiem `--coverage` w zakresie
+        // src/lib/billing, src/lib/events, src/components/events,
+        // src/components/admin/events, src/components/profile, src/lib/ci:
+        // KAŻDY zmieniony plik ma 100 / 100 / 100 / 100 - instrukcje / gałęzie /
+        // funkcje / linie. Niżej tylko pliki, które progu per plik jeszcze nie
+        // miały (RegistrationPayAction, PublicRegistrationForm,
+        // RegistrationsListPanel, checkout.functions, eventTicketPricing.server,
+        // publicRegistrationApi i packagesApi stoją już na 98). Reguła bez
+        // zmian: „zmierzone minus ~2 pp", wolno wyłącznie podnosić.
+        "src/lib/ci/migrationLaneParity.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/eventCodeMemory.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/groupOrderPricing.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/registrationSubmitDraft.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
         // ══ MODUŁ 14: REKLAMY, KUPONY, PODARUNKI, DAROWIZNY (2026-08-31) ══════
         //
         // DO DZIŚ TEN MODUŁ NIE MIAŁ ANI JEDNEGO PROGU PER-ŚCIEŻKA - jako
