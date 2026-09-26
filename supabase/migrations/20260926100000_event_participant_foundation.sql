@@ -634,6 +634,25 @@ BEGIN
                               'saves_removed', 0, 'rsvp_cancelled', 0);
   END IF;
 
+  -- Konto nadal trzyma INNE aktywne zgloszenie na to wydarzenie (ponowna
+  -- rejestracja po odwolaniu, a spozniony zwrot dotyczy starego zamowienia;
+  -- drugi bilet). Zapisy na sesje, zakladki i RSVP naleza wtedy do zywego
+  -- udzialu - zwolnienie odebraloby miejsca na sesjach i awansowalo kolejke
+  -- kosztem osoby, ktora nadal ma bilet. Wolac PO odwolaniu/przepieciu
+  -- zgloszenia tracacego miejsce: ono samo nie liczy sie juz jako aktywne.
+  IF EXISTS (
+    SELECT 1
+      FROM public.event_registrations r
+      JOIN public.event_people p ON p.id = r.person_id AND p.tenant_id = r.tenant_id
+     WHERE r.tenant_id = _tenant
+       AND r.event_id = _event_id
+       AND p.user_id = _user_id
+       AND r.status NOT IN ('cancelled', 'rejected')
+  ) THEN
+    RETURN jsonb_build_object('signups_cancelled', 0, 'signups_promoted', 0,
+                              'saves_removed', 0, 'rsvp_cancelled', 0);
+  END IF;
+
   FOR g IN
     SELECT s.id, s.session_id, s.status
       FROM public.event_session_signups s
@@ -694,7 +713,7 @@ BEGIN
 END;
 $function$;
 COMMENT ON FUNCTION public._event_participant_release(uuid, uuid, uuid, text) IS
-  'Sprzatanie po utracie biletu (zwrot, przekazanie): odwoluje zapisy konta na sesje wydarzenia (z awansem z kolejki), kasuje zakladki planu i zwalnia starsza rezerwacje RSVP. Powod trafia wylacznie do NOTICE.';
+  'Sprzatanie po utracie biletu (zwrot, przekazanie): odwoluje zapisy konta na sesje wydarzenia (z awansem z kolejki), kasuje zakladki planu i zwalnia starsza rezerwacje RSVP - chyba ze konto trzyma inne aktywne zgloszenie na to wydarzenie (wtedy nic nie rusza). Wolac PO odwolaniu/przepieciu zgloszenia. Powod trafia wylacznie do NOTICE.';
 REVOKE ALL ON FUNCTION public._event_participant_release(uuid, uuid, uuid, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public._event_participant_release(uuid, uuid, uuid, text) TO service_role;
 

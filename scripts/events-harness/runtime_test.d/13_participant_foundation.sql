@@ -1057,6 +1057,44 @@ BEGIN
     '13/zwolnienie: bez zmiany statusu ten sam zapis jest odwolany, a kolejka awansuje (kontrapunkt)');
 END $$;
 
+-- Ponowna rejestracja po odwolaniu: spozniony zwrot STAREGO zamowienia nie
+-- moze zabrac zywemu zgloszeniu zapisow na sesje, zakladek ani RSVP.
+DO $$
+DECLARE
+  a constant uuid := '13131313-1313-1313-1313-131313131313';
+  u1 constant uuid := '13000000-0000-0000-0000-000000000001';
+  e1 constant uuid := '13100000-0000-0000-0000-000000000001';
+  v jsonb;
+BEGIN
+  INSERT INTO public.event_registrations
+    (id, tenant_id, event_id, person_id, status, registration_mode, payment_status, decided_at, decision_source)
+  VALUES ('13500000-0000-0000-0000-00000000000a', a, e1, '13300000-0000-0000-0000-000000000001',
+          'approved', 'form', 'not_required', now(), 'system');
+  UPDATE public.event_session_signups SET status = 'registered', cancelled_at = NULL
+   WHERE tenant_id = a AND session_id = '13200000-0000-0000-0000-000000000004' AND user_id = u1;
+  INSERT INTO public.event_session_saves (tenant_id, event_id, session_id, user_id)
+  VALUES (a, e1, '13200000-0000-0000-0000-000000000001', u1);
+  UPDATE public.event_rsvps SET status = 'going' WHERE tenant_id = a AND event_id = e1 AND user_id = u1;
+
+  v := public._event_participant_release(a, e1, u1, 'late-refund');
+  PERFORM pg_temp.assert(
+    v = '{"signups_cancelled":0,"signups_promoted":0,"saves_removed":0,"rsvp_cancelled":0}'::jsonb
+    AND (SELECT status FROM public.event_session_signups
+          WHERE session_id = '13200000-0000-0000-0000-000000000004' AND user_id = u1) = 'registered'
+    AND (SELECT count(*) FROM public.event_session_saves WHERE event_id = e1 AND user_id = u1) = 1
+    AND (SELECT status FROM public.event_rsvps WHERE event_id = e1 AND user_id = u1) = 'going',
+    '13/zwolnienie: konto z innym aktywnym zgloszeniem zachowuje zapisy, zakladki i RSVP (spozniony zwrot starego zamowienia)');
+
+  UPDATE public.event_registrations SET status = 'cancelled', cancelled_at = now()
+   WHERE id = '13500000-0000-0000-0000-00000000000a';
+  v := public._event_participant_release(a, e1, u1, 'refunded');
+  PERFORM pg_temp.assert(
+    v = '{"signups_cancelled":1,"signups_promoted":0,"saves_removed":1,"rsvp_cancelled":1}'::jsonb
+    AND (SELECT status FROM public.event_session_signups
+          WHERE session_id = '13200000-0000-0000-0000-000000000004' AND user_id = u1) = 'cancelled',
+    '13/zwolnienie: po odwolaniu takze drugiego zgloszenia sprzatanie rusza jak zwykle (kontrapunkt)');
+END $$;
+
 -- ---------------------------------------------------------------------------
 -- 11. Uprawnienia funkcji i tozsamosc atrapy platformy
 -- ---------------------------------------------------------------------------

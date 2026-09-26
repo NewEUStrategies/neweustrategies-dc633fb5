@@ -307,7 +307,13 @@ async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
   // Bilet na wydarzenie: zwrot cofa potwierdzony udział. Wartość `cancelled`
   // (D0-1): CHECK `event_rsvps.status` zna wyłącznie tę pisownię - dawne
   // `canceled` łamało ograniczenie i zwrot wywracał się na tej linii.
-  if (eventId && order.user_id) {
+  // Tylko zamówienie BEZ `registration_id` (starsza ścieżka RSVP) anulujemy
+  // tutaj. Zamówienie związane ze zgłoszeniem zwalnia RSVP w bazie, i to
+  // dopiero gdy zwrot faktycznie odwoła zgłoszenie: zwrot nadliczbowej wpłaty
+  // (`refund_for_other_order`) zostawia ważny bilet, a więc i jego RSVP.
+  const boundToRegistration =
+    typeof metadata.registration_id === "string" && metadata.registration_id.length > 0;
+  if (eventId && order.user_id && !boundToRegistration) {
     const { error: rsvpErr } = await supabase
       .from("event_rsvps")
       .update({ status: "cancelled", updated_at: nowIso })

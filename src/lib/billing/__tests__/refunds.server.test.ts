@@ -551,6 +551,32 @@ describe("BILET na wydarzenie - zwrot cofa udział", () => {
     });
   });
 
+  it("zamówienie związane ze zgłoszeniem nie anuluje RSVP samo - robi to baza po zastosowaniu zwrotu", async () => {
+    // Zwrot nadliczbowej wpłaty (`refund_for_other_order`) zostawia ważny
+    // bilet opłacony innym zamówieniem. Anulowanie RSVP przed decyzją bazy
+    // rozjechałoby się z tym biletem.
+    scene.order = orderRow({
+      metadata: { event_id: EVENT_ID, registration_id: "reg-bound-1" },
+    });
+
+    const outcome = await applyRefundEffects(refundEvent());
+
+    expect(outcome).toBe("order_refunded");
+    expect(db.chainsFor("event_rsvps")).toHaveLength(0);
+    expect(h.rpc.calls[0]).toMatchObject({
+      fn: "payments_apply_event_ticket_outcome",
+      args: { p_outcome: "refunded" },
+    });
+  });
+
+  it("pusty `registration_id` traktujemy jak zamówienie starszej ścieżki", async () => {
+    scene.order = orderRow({ metadata: { event_id: EVENT_ID, registration_id: "" } });
+
+    await applyRefundEffects(refundEvent());
+
+    expect(patches("event_rsvps")[0]).toMatchObject({ status: "cancelled" });
+  });
+
   it("bilet zanonimizowanego konta zwalnia miejsce, ale nie rusza cudzych zgłoszeń", async () => {
     // Bez `user_id` filtr `event_rsvps` obejmowałby WSZYSTKIE zgłoszenia na
     // wydarzenie. Miejsce i tak musi wrócić do puli - i wraca, przez bazę.
