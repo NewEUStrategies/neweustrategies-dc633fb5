@@ -88,8 +88,10 @@ const ALL_TICKETS = "__all__";
 /** Gorna granica jednej strony `admin_event_registrations_list` - lustro SQL. */
 const EXPORT_PAGE_SIZE = 200;
 
+type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
+
 /** Tonacja stanu -> wariant plakietki. Kolory pochodza wylacznie z tokenow. */
-const TONE_VARIANT: Record<StatusTone, "default" | "secondary" | "destructive" | "outline"> = {
+const TONE_VARIANT: Record<StatusTone, BadgeVariant> = {
   success: "default",
   warning: "secondary",
   danger: "destructive",
@@ -102,6 +104,18 @@ const TICKET_BADGE_KEYS: Record<TicketBadge, string> = {
   sent: "ticketSent",
   notSent: "ticketNotSent",
   awaitingPayment: "ticketAwaitingPayment",
+  undeliverable: "ticketUndeliverable",
+};
+
+/**
+ * Wariant plakietki biletu. „Nie dotarl" jest czerwony: organizator musi
+ * przekazac bilet inna droga, a sama ponowna wysylka tego nie naprawi.
+ */
+const TICKET_BADGE_VARIANT: Record<TicketBadge, BadgeVariant> = {
+  sent: "outline",
+  notSent: "secondary",
+  awaitingPayment: "outline",
+  undeliverable: "destructive",
 };
 
 const TOAST_KEYS: Record<RegistrationAction, string> = {
@@ -284,16 +298,35 @@ export function RegistrationsListPanel({
    * calej grupie" (tylko u prowadzacego) to naprawa hurtowa, np. grupy
    * ostemplowanej jako wyslana przez backfill 0044.
    *
-   * ZERO WYSLANYCH TO NIE SUKCES. Adres na liscie wykluczen albo awaria poczty
-   * koncza sie `sent: 0` - organizator dostaje wtedy blad, nie „wyslano".
+   * ZERO WYSLANYCH TO NIE SUKCES. Awaria poczty konczy sie `sent: 0` -
+   * organizator dostaje wtedy blad, nie „wyslano".
+   *
+   * ...ALE TEZ NIE ZAWSZE AWARIA. Gdy CALA grupa jest na liscie wykluczen,
+   * serwer nie przekazal do wysylki nikogo (`attempted: 0`) - nic nie
+   * zawiodlo, wiec zostaje sam komunikat o pominieciu, bez „Nie udalo sie
+   * wyslac biletu". Rozstrzyga `attempted`, a nie `skippedSuppressed`: grupa
+   * z pominietymi ORAZ gosciem, ktorego mail padl, nadal pokazuje blad.
+   *
+   * POMINIECI MAJA POWOD. Serwer nie rotuje kodu osobom z listy wykluczen
+   * (nowy bilet by nie dotarl, a stary przestalby dzialac) i oddaje ich
+   * liczbe - bez osobnego komunikatu organizator bralby „wyslano 2 z 3" za
+   * awarie poczty albo nie zauwazylby wcale, ze ktos biletu nie dostal.
+   * Pojedynczy wiersz z takim adresem wraca odmowa `ticket_address_suppressed`.
    */
   const runResend = (row: EventRegistrationRow, includeGroup: boolean) => {
     resend.mutate(
       { registrationId: row.id, includeGroup },
       {
-        onSuccess: (count) => {
-          if (count > 0) toast.success(t(`${base}.toasts.ticketResent`, { count }));
-          else toast.error(t(`${base}.toasts.ticketResendFailed`));
+        onSuccess: ({ sent, attempted, skippedSuppressed }) => {
+          if (sent > 0) toast.success(t(`${base}.toasts.ticketResent`, { count: sent }));
+          else if (attempted > 0 || skippedSuppressed === 0) {
+            toast.error(t(`${base}.toasts.ticketResendFailed`));
+          }
+          if (skippedSuppressed > 0) {
+            toast.warning(
+              t(`${base}.toasts.ticketResendSkippedSuppressed`, { count: skippedSuppressed }),
+            );
+          }
         },
         onError: fail,
       },
@@ -561,7 +594,7 @@ export function RegistrationsListPanel({
                     {/* Plakietka biletu tylko tam, gdzie bilet sie nalezy - u oczekujacego
                         albo nieoplaconego „niewyslany" wygladalby jak awaria poczty. */}
                     {ticketState === null ? null : (
-                      <Badge variant={ticketState === "notSent" ? "secondary" : "outline"}>
+                      <Badge variant={TICKET_BADGE_VARIANT[ticketState]}>
                         {t(`${base}.badges.${TICKET_BADGE_KEYS[ticketState]}`)}
                       </Badge>
                     )}

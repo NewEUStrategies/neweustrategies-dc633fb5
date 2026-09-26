@@ -80,14 +80,14 @@ describe("useRegistrationGroupLinks", () => {
 });
 
 describe("useResendEventTicket", () => {
-  it("oddaje liczbę wysłanych i unieważnia gałąź wydarzenia", async () => {
-    h.resend.mockResolvedValue({ ok: true, sent: 2 });
+  it("oddaje liczbę wysłanych, przekazanych i pominiętych, unieważnia gałąź wydarzenia", async () => {
+    h.resend.mockResolvedValue({ ok: true, sent: 2, attempted: 2, skippedSuppressed: 1 });
     const spy = vi.spyOn(client, "invalidateQueries");
     const { result } = renderHook(() => useResendEventTicket(EVENT), { wrapper });
 
     await expect(
       result.current.mutateAsync({ registrationId: REG, includeGroup: false }),
-    ).resolves.toBe(2);
+    ).resolves.toEqual({ sent: 2, attempted: 2, skippedSuppressed: 1 });
     expect(h.resend).toHaveBeenCalledWith({ data: { registrationId: REG, includeGroup: false } });
     expect(spy).toHaveBeenCalledWith({ queryKey: registrationKeys.event(EVENT) });
   });

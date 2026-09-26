@@ -145,8 +145,9 @@ async function deliver(row: Record<string, unknown>): Promise<SendOutcome> {
 
 /**
  * Wydaje bilety zgłoszeniu i jego gościom, wysyła każdemu osobny mail i dopiero
- * wtedy odnotowuje wysyłkę (`_event_ticket_code_confirm`). Zwraca liczbę
- * wysłanych wiadomości. Nigdy nie rzuca.
+ * wtedy odnotowuje wysyłkę (`_event_ticket_code_confirm`, z `p_undeliverable`
+ * dla adresu, na który poczta nie wyśle). Zwraca liczbę wysłanych wiadomości.
+ * Nigdy nie rzuca.
  */
 export async function issueAndSendTicketCodes(registrationId: string): Promise<number> {
   let rows: Record<string, unknown>[] = [];
@@ -182,6 +183,11 @@ export async function issueAndSendTicketCodes(registrationId: string): Promise<n
         p_registration_id: id,
         p_claimed_at: claimedAt,
         p_sent: outcome !== "retry",
+        // FLAGA TYLKO GDY PRAWDZIWA. Czteroargumentowy wariant z tą flagą
+        // przynosi migracja 20260926100000; wysyłka i ponowienie idą starym,
+        // trójargumentowym, więc działają także na bazie bez niej. Bez flagi
+        // panel pokazywał „Bilet wysłany” przy adresie z listy wykluczeń.
+        ...(outcome === "undeliverable" ? { p_undeliverable: true } : {}),
       });
       // Nieodnotowane zajęcie wygaśnie samo (dzierżawa w bazie) - wtedy cron
       // wyda nowy kod. Gorzej byłoby rzucić i przerwać wysyłkę reszcie grupy.

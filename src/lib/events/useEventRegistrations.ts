@@ -248,20 +248,38 @@ export interface TicketResendInput {
 }
 
 /**
- * Ponowna wysylka biletu z kodem QR. Zwraca liczbe wyslanych maili; odmowa bazy
- * (`ticket_not_issuable`, `not_found`, `forbidden`) staje sie WYJATKIEM, zeby
- * panel pokazal ja tym samym slownikiem odmow, co reszte decyzji.
+ * Wynik ponownej wysylki: `sent` - wyslane maile, `attempted` - wiersze
+ * przekazane do wysylki (0 = nie bylo komu wyslac, wiec `sent: 0` to nie
+ * awaria), `skippedSuppressed` - osoby z grupy pominiete, bo ich adres jest na
+ * liscie wykluczen (ich dotychczasowy bilet nadal dziala, a nowy i tak by nie
+ * dotarl).
+ */
+export interface TicketResendOutcome {
+  sent: number;
+  attempted: number;
+  skippedSuppressed: number;
+}
+
+/**
+ * Ponowna wysylka biletu z kodem QR. Odmowa bazy (`ticket_not_issuable`,
+ * `not_found`, `forbidden`) i serwera (`ticket_address_suppressed`) staje sie
+ * WYJATKIEM, zeby panel pokazal ja tym samym slownikiem odmow, co reszte
+ * decyzji.
  */
 export function useResendEventTicket(
   eventId: string,
-): UseMutationResult<number, Error, TicketResendInput> {
+): UseMutationResult<TicketResendOutcome, Error, TicketResendInput> {
   const invalidate = useInvalidateEvent();
   const resend = useServerFn(resendEventTicket);
   return useMutation({
     mutationFn: async (input: TicketResendInput) => {
       const result = await resend({ data: input });
       if (!result.ok) throw new Error(result.error);
-      return result.sent;
+      return {
+        sent: result.sent,
+        attempted: result.attempted,
+        skippedSuppressed: result.skippedSuppressed,
+      };
     },
     onSuccess: () => invalidate(eventId),
   });

@@ -180,14 +180,26 @@ describe("buildTicketCodeNotice", () => {
   });
 });
 
-/** Wywołania potwierdzenia: [zgłoszenie, wysłane?]. */
+/**
+ * Wywołania potwierdzenia: [zgłoszenie, wysłane?] - i trzeci element, gdy serwer
+ * podał `p_undeliverable`. Dwuelementowy wpis DOWODZI, że klucza nie było:
+ * wysyłka i ponowienie muszą iść trójargumentowym wariantem, który zna też baza
+ * sprzed migracji 20260926100000.
+ */
 const confirms = () =>
   h.rpcCalls
     .filter((c) => c.name === "_event_ticket_code_confirm")
     .map((c) => {
-      const a = c.args as { p_registration_id: string; p_claimed_at: string; p_sent: boolean };
+      const a = c.args as {
+        p_registration_id: string;
+        p_claimed_at: string;
+        p_sent: boolean;
+        p_undeliverable?: boolean;
+      };
       expect(a.p_claimed_at).toBe(CLAIM);
-      return [a.p_registration_id, a.p_sent];
+      return "p_undeliverable" in a
+        ? [a.p_registration_id, a.p_sent, a.p_undeliverable]
+        : [a.p_registration_id, a.p_sent];
     });
 
 describe("issueAndSendTicketCodes", () => {
@@ -246,9 +258,10 @@ describe("issueAndSendTicketCodes", () => {
     h.sendResult = { ok: false, skipped: "suppressed", reason: "suppressed:hard_bounce" };
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await issueAndSendTicketCodes("reg-lead")).toBe(0);
+    // Zamknięte ZE znacznikiem niedoręczenia - panel nie pokaże „Bilet wysłany”.
     expect(confirms()).toEqual([
-      ["reg-guest", true],
-      ["reg-lead", true],
+      ["reg-guest", true, true],
+      ["reg-lead", true, true],
     ]);
     // Wypisany adres to stan, nie awaria - log błędów zostaje czysty.
     expect(errors).not.toHaveBeenCalled();
@@ -259,7 +272,7 @@ describe("issueAndSendTicketCodes", () => {
     h.rpcResult = { data: [guestRow], error: null };
     h.sendResult = { ok: false, skipped: "no_recipient" };
     expect(await issueAndSendTicketCodes("reg-lead")).toBe(0);
-    expect(confirms()).toEqual([["reg-guest", true]]);
+    expect(confirms()).toEqual([["reg-guest", true, true]]);
   });
 
   it("duplikat w dzienniku poczty liczy się jako wysłany", async () => {

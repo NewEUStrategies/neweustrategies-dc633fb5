@@ -22,12 +22,20 @@
 --      przeliczniku stawia goscia w kolejce, kaskada PRZED nim (kontrola
 --      ujemna z przemianowanym triggerem) wywraca zatwierdzenie CHECK-iem puli.
 --      4b. Ta sama kaskada przy POJEMNOSCI WYDARZENIA (bez puli biletu).
+--      4c. Reczna wplata organizatora przyjmuje gosci Z KONTROLA MIEJSC: ciasna
+--      pula (nadmiarowy gosc w kolejce oplacony; ostatnie miejsce prowadzacego -
+--      kontrola przeliczenia puli w triggerze platnosci), sama pojemnosc
+--      wydarzenia, gosc juz w kolejce zostaje na pozycji, prowadzacy
+--      z nieudanym zamowieniem Stripe placi recznie (bez galezi Stripe).
 --   5. Odrzucenie i anulowanie prowadzacego zamyka czekajacych gosci (powod,
 --      data, pozycja), przyjetych nie rusza.
 --      5b. Ponowne przyjecie prowadzacego z odrzucenia i z anulowania przywraca
 --      gosci zamknietych RAZEM z nim (rozliczonych do przyjecia albo kolejki,
 --      nieoplaconych do `pending`), a gosci zamknietych osobno i osoby
 --      z innym aktywnym zapisem - nie; predykat stempla po kazdym czlonie.
+--      5c. Samodzielne wycofanie prowadzacego zamyka gosci BEZ autora
+--      (`system`), z ich wlasna notatka; przywrocenie nadal dziala; anulowanie
+--      przez organizatora z nowym stemplem decyzji niesie jego slad.
 --   6. Nieoplaceni goscie czekaja mimo zatwierdzenia prowadzacego - przyjmuje
 --      ich dopiero wplata; bilety dostaje cala trojka.
 --   7. Reczne `paid`/`refund` organizatora (bez zamowienia) dociera do gosci,
@@ -40,6 +48,14 @@
 --      granica strony, bramka.
 --  10. `admin_event_ticket_resend`: grupa, sam wiersz, odmowy, zywa dzierzawa
 --      (odmowa dla wskazanego wiersza, pominiecie w grupie), bramka.
+--      10b. `p_exclude_ids` (wykluczony gosc zachowuje bilet i kod) i zakres
+--      `admin_event_ticket_resend_scope` (kolejnosc, adres, pominiecia, bramka).
+--      10c. Bilet niedoreczony: czteroargumentowe `_event_ticket_code_confirm`,
+--      znacznik w panelu, kasowanie przy ponownej wysylce i wyjsciu z przyjecia.
+--      10d. `_event_group_repair_stranded_guests`: grupy uwiezione przed
+--      migracja (bezplatne, recznie oplacone, `attended`), miejsca, zakonczone
+--      wydarzenie, nieoplacony prowadzacy, `p_limit`, drugie wywolanie bez
+--      zmian, tylko service_role.
 --  11. Funkcje wewnetrzne bez EXECUTE dla anon/authenticated.
 --
 -- JEDNA TRANSAKCJA = JEDNO `now()`. Caly plik biegnie w jednej transakcji, wiec
@@ -92,7 +108,12 @@ INSERT INTO auth.users (id, email) VALUES
   ('c7000000-0000-0000-0000-000000000008', 'lead.v@example.org'),
   ('c7000000-0000-0000-0000-000000000009', 'lead.x@example.org'),
   ('c7000000-0000-0000-0000-00000000000a', 'lead.y@example.org'),
-  ('c7000000-0000-0000-0000-00000000000b', 'lead.k@example.org')
+  ('c7000000-0000-0000-0000-00000000000b', 'lead.k@example.org'),
+  ('c7000000-0000-0000-0000-00000000000c', 'lead.s@example.org'),
+  ('c7000000-0000-0000-0000-00000000000d', 'lead.t@example.org'),
+  ('c7000000-0000-0000-0000-00000000000e', 'lead.t2@example.org'),
+  ('c7000000-0000-0000-0000-00000000000f', 'lead.m@example.org'),
+  ('c7000000-0000-0000-0000-000000000010', 'lead.f@example.org')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.profiles (id, tenant_id)
@@ -112,6 +133,19 @@ ON CONFLICT DO NOTHING;
 -- E1: formularz, przeplyw natychmiastowy - akceptacje wymusza BILET.
 -- E2: tryb RSVP z przeplywem akceptacji - `event_register` pisze `rsvp`.
 -- E3: pojemnosc 2 i bilet BEZ puli - druga polowa `_event_seats_left`.
+-- E4: pojemnosc 3 i bilet PLATNY bez puli - reczna wplata przy samej
+--     pojemnosci wydarzenia.
+-- E5: wydarzenie, ktore sie JUZ SKONCZYLO - naprawa gosci go omija.
+INSERT INTO public.events
+  (id, tenant_id, slug, title_pl, title_en, starts_at, ends_at, status,
+   registration_mode, registration_flow, capacity)
+VALUES
+  ('c7100000-0000-0000-0000-000000000004', 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7',
+   'gfl-capacity-paid', 'Warsztat platny na trzy osoby', 'Paid three-seat workshop',
+   now() + interval '30 days', NULL, 'published', 'form', 'instant', 3),
+  ('c7100000-0000-0000-0000-000000000005', 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7',
+   'gfl-ended', 'Spotkanie zakonczone', 'Finished meeting',
+   now() - interval '3 days', now() - interval '2 days', 'published', 'form', 'instant', NULL);
 INSERT INTO public.events
   (id, tenant_id, slug, title_pl, title_en, starts_at, status,
    registration_mode, registration_flow, capacity)
@@ -151,7 +185,29 @@ VALUES
    0, 'PLN', NULL, 0, false, true, 10, true, 5),
   ('c7200000-0000-0000-0000-000000000006', 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7',
    'c7100000-0000-0000-0000-000000000003', 'capacity_free', 'Seminarium', 'Seminar',
-   0, 'PLN', NULL, 0, true, true, 10, true, 5);
+   0, 'PLN', NULL, 0, true, true, 10, true, 5),
+  -- K7/K8 platne z pula (3 i 2) - reczna wplata przy ciasnej puli; K9 platny
+  -- bez puli na E4; K10 bezplatny z akceptacja, pula 2 - naprawa przy pelnej
+  -- puli; K11 bezplatny na zakonczonym E5; K12 platny, pula 3 - reczna wplata
+  -- prowadzacego z nieudanym zamowieniem Stripe.
+  ('c7200000-0000-0000-0000-000000000007', 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7',
+   'c7100000-0000-0000-0000-000000000001', 'paid_quota_three', 'Platny, pula trzy', 'Paid, quota three',
+   10000, 'PLN', 3, 0, false, true, 50, true, 5),
+  ('c7200000-0000-0000-0000-000000000008', 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7',
+   'c7100000-0000-0000-0000-000000000001', 'paid_quota_two', 'Platny, pula dwa', 'Paid, quota two',
+   10000, 'PLN', 2, 0, false, true, 60, true, 5),
+  ('c7200000-0000-0000-0000-000000000009', 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7',
+   'c7100000-0000-0000-0000-000000000004', 'capacity_paid', 'Warsztat', 'Workshop',
+   10000, 'PLN', NULL, 0, false, true, 10, true, 5),
+  ('c7200000-0000-0000-0000-00000000000a', 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7',
+   'c7100000-0000-0000-0000-000000000001', 'repair_quota_two', 'Naprawa, pula dwa', 'Repair, quota two',
+   0, 'PLN', 2, 0, true, true, 70, true, 5),
+  ('c7200000-0000-0000-0000-00000000000b', 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7',
+   'c7100000-0000-0000-0000-000000000005', 'ended_free', 'Zakonczone', 'Finished',
+   0, 'PLN', NULL, 0, true, true, 10, true, 5),
+  ('c7200000-0000-0000-0000-00000000000c', 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7',
+   'c7100000-0000-0000-0000-000000000001', 'paid_quota_three_stale', 'Platny, pula trzy (F)',
+   'Paid, quota three (F)', 10000, 'PLN', 3, 0, false, true, 80, true, 5);
 
 -- Dwa wiersze bez grupy: oczekujacy i przyjety (panel i ponowna wysylka).
 INSERT INTO public.event_people (id, tenant_id, email, first_name, last_name) VALUES
@@ -512,6 +568,200 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
+-- 4c) RECZNA WPLATA PRZYJMUJE GOSCI Z KONTROLA MIEJSC
+-- ---------------------------------------------------------------------------
+-- Nieoplacony gosc nie trzyma miejsca, wiec po dopisaniu gosci pula moze sie
+-- zapelnic, a 'paid' w `admin_event_registration_decide` sprawdza miejsce
+-- TYLKO dla prowadzacego. Przyjecie wszystkich naraz wywracalo zaksiegowanie
+-- przelewu CHECK-iem puli (albo po cichu przepelnialo wydarzenie). Teraz
+-- nadmiarowy gosc czeka w kolejce OPLACONY.
+--   T:  pula 3, zajete 1 - prowadzacy i jeden gosc wchodza, drugi w kolejce.
+--   T2: pula 2, zajete 1 - wchodzi SAM prowadzacy. Bez przeliczenia puli
+--       w triggerze platnosci (biegnie PRZED przelicznikiem) pierwszy gosc
+--       widzialby miejsce prowadzacego i CHECK wywracalby decyzje - ten
+--       przypadek jest jego kontrola. Gosc juz w kolejce zostaje na pozycji.
+--   M:  pojemnosc wydarzenia 3 (bilet bez puli), zajete 1 - jak T.
+--   F:  jak T, ale prowadzacy NOSI zamowienie Stripe, ktorego platnosc
+--       odroczona przepadla (wynik `unpaid`). 'paid' organizatora kolumny nie
+--       rusza - wplata jest reczna mimo zamowienia: bez tego szla galezia
+--       Stripe i CHECK puli wywracal przelew. Goscie nie dostaja nieudanego
+--       zamowienia.
+SELECT pg_temp.gfl_group('t', 'c7000000-0000-0000-0000-00000000000d',
+  'c7200000-0000-0000-0000-000000000007', 'gfl-approval',
+  ARRAY['guest.t1@example.org', 'guest.t2@example.org']);
+SELECT pg_temp.gfl_group('t2', 'c7000000-0000-0000-0000-00000000000e',
+  'c7200000-0000-0000-0000-000000000008', 'gfl-approval',
+  ARRAY['guest.tt1@example.org', 'guest.tt2@example.org']);
+SELECT pg_temp.gfl_group('m', 'c7000000-0000-0000-0000-00000000000f',
+  'c7200000-0000-0000-0000-000000000009', 'gfl-capacity-paid',
+  ARRAY['guest.m1@example.org', 'guest.m2@example.org']);
+
+-- Po jednym miejscu zajetym przez kogos spoza grupy - juz PO dopisaniu gosci.
+INSERT INTO public.event_people (id, tenant_id, email, first_name, last_name) VALUES
+  ('c7300000-0000-0000-0000-000000000003', 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7',
+   'solo.k7@example.org', 'Sam', 'Pula trzy'),
+  ('c7300000-0000-0000-0000-000000000004', 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7',
+   'solo.k8@example.org', 'Sam', 'Pula dwa'),
+  ('c7300000-0000-0000-0000-000000000005', 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7',
+   'solo.e4@example.org', 'Sam', 'Warsztat');
+INSERT INTO public.event_registrations
+  (id, tenant_id, event_id, person_id, ticket_type_id, status, registration_mode,
+   payment_status, decided_at, decision_source)
+VALUES
+  ('c7400000-0000-0000-0000-000000000003', 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7',
+   'c7100000-0000-0000-0000-000000000001', 'c7300000-0000-0000-0000-000000000003',
+   'c7200000-0000-0000-0000-000000000007', 'approved', 'form', 'not_required', now(), 'system'),
+  ('c7400000-0000-0000-0000-000000000004', 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7',
+   'c7100000-0000-0000-0000-000000000001', 'c7300000-0000-0000-0000-000000000004',
+   'c7200000-0000-0000-0000-000000000008', 'approved', 'form', 'not_required', now(), 'system'),
+  ('c7400000-0000-0000-0000-000000000005', 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7',
+   'c7100000-0000-0000-0000-000000000004', 'c7300000-0000-0000-0000-000000000005',
+   'c7200000-0000-0000-0000-000000000009', 'approved', 'form', 'not_required', now(), 'system');
+
+DO $$
+DECLARE v jsonb; v_in uuid; v_out uuid;
+BEGIN
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.event_registrations r
+      WHERE r.group_lead_registration_id IN (pg_temp.gfl('t'), pg_temp.gfl('t2'), pg_temp.gfl('m'))
+        AND r.status = 'pending' AND r.payment_status = 'unpaid') = 6
+    AND (SELECT sold_count FROM public.event_ticket_types
+          WHERE id = 'c7200000-0000-0000-0000-000000000007') = 1,
+    '27/wplata-miejsca: punkt wyjscia - goscie czekaja nieoplaceni, pula T zajeta w jednej trzeciej');
+
+  v := pg_temp.gfl_decide(pg_temp.gfl('t'), 'paid');
+  PERFORM pg_temp.assert(v->>'status' = 'approved'
+    AND (SELECT status = 'approved' AND payment_status = 'paid'
+           FROM public.event_registrations WHERE id = pg_temp.gfl('t')),
+    '27/wplata-miejsca: przelew prowadzacego zaksiegowany mimo ciasnej puli');
+  SELECT r.id INTO v_in FROM public.event_registrations r
+  WHERE r.group_lead_registration_id = pg_temp.gfl('t') AND r.status = 'approved';
+  SELECT r.id INTO v_out FROM public.event_registrations r
+  WHERE r.group_lead_registration_id = pg_temp.gfl('t') AND r.status = 'waitlist';
+  PERFORM pg_temp.assert(
+    (SELECT payment_status = 'paid' AND qr_token_hash IS NOT NULL AND paid_at IS NOT NULL
+            AND decided_by = 'c7000000-0000-0000-0000-0000000000a1'
+            AND decision_source = 'organizer' AND ticket_code_sent_at IS NULL
+       FROM public.event_registrations WHERE id = v_in)
+    AND (SELECT payment_status = 'paid' AND paid_at IS NOT NULL AND waitlist_position > 0
+                AND decision_source = 'capacity' AND decided_by IS NULL AND qr_token_hash IS NULL
+           FROM public.event_registrations WHERE id = v_out),
+    '27/wplata-miejsca: jeden gosc przyjety na ostatnie miejsce, nadmiarowy czeka w kolejce OPLACONY');
+  PERFORM pg_temp.assert(
+    (SELECT sold_count = 3 AND sold_count <= quota FROM public.event_ticket_types
+      WHERE id = 'c7200000-0000-0000-0000-000000000007'),
+    '27/wplata-miejsca: sprzedane = pula (3), bez przekroczenia');
+END $$;
+
+DO $$
+DECLARE v jsonb; v_wait uuid; v_pos integer; v_other uuid;
+BEGIN
+  -- Jeden gosc T2 juz stoi w kolejce - po wplacie zostaje na SWOJEJ pozycji.
+  SELECT r.id INTO v_wait FROM public.event_registrations r
+  WHERE r.group_lead_registration_id = pg_temp.gfl('t2') ORDER BY r.id LIMIT 1;
+  UPDATE public.event_registrations SET status = 'waitlist',
+    waitlist_position = public._event_next_waitlist_position(
+      'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7', 'c7100000-0000-0000-0000-000000000001')
+  WHERE id = v_wait
+  RETURNING waitlist_position INTO v_pos;
+  SELECT r.id INTO v_other FROM public.event_registrations r
+  WHERE r.group_lead_registration_id = pg_temp.gfl('t2') AND r.id <> v_wait;
+
+  v := pg_temp.gfl_decide(pg_temp.gfl('t2'), 'paid');
+  PERFORM pg_temp.assert(v->>'status' = 'approved'
+    AND (SELECT sold_count FROM public.event_ticket_types
+          WHERE id = 'c7200000-0000-0000-0000-000000000008') = 2,
+    '27/wplata-miejsca: ostatnie miejsce bierze prowadzacy - przelew przechodzi, pula cala (kontrola przeliczenia)');
+  PERFORM pg_temp.assert(
+    (SELECT status = 'waitlist' AND payment_status = 'paid' AND waitlist_position = v_pos
+       FROM public.event_registrations WHERE id = v_wait)
+    AND (SELECT status = 'waitlist' AND payment_status = 'paid' AND waitlist_position > v_pos
+                AND decision_source = 'capacity'
+           FROM public.event_registrations WHERE id = v_other),
+    '27/wplata-miejsca: gosc juz w kolejce zostaje na pozycji, drugi staje za nim - obaj oplaceni');
+END $$;
+
+DO $$
+DECLARE v jsonb;
+BEGIN
+  v := pg_temp.gfl_decide(pg_temp.gfl('m'), 'paid');
+  PERFORM pg_temp.assert(v->>'status' = 'approved'
+    AND (SELECT count(*) FROM public.event_registrations r
+          WHERE r.event_id = 'c7100000-0000-0000-0000-000000000004'
+            AND r.status IN ('approved', 'attended', 'no_show')) = 3
+    AND (SELECT count(*) FROM public.event_registrations r
+          WHERE r.group_lead_registration_id = pg_temp.gfl('m')
+            AND r.status = 'approved' AND r.payment_status = 'paid') = 1
+    AND (SELECT count(*) FROM public.event_registrations r
+          WHERE r.group_lead_registration_id = pg_temp.gfl('m')
+            AND r.status = 'waitlist' AND r.payment_status = 'paid'
+            AND r.decision_source = 'capacity') = 1,
+    '27/wplata-miejsca: pojemnosc wydarzenia - przyjetych tylu, ile miejsc (3), nadmiarowy gosc w kolejce');
+END $$;
+
+SELECT pg_temp.gfl_group('f', 'c7000000-0000-0000-0000-000000000010',
+  'c7200000-0000-0000-0000-00000000000c', 'gfl-approval',
+  ARRAY['guest.f1@example.org', 'guest.f2@example.org']);
+INSERT INTO public.event_people (id, tenant_id, email, first_name, last_name) VALUES
+  ('c7300000-0000-0000-0000-000000000006', 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7',
+   'solo.k12@example.org', 'Sam', 'Pula trzy F');
+INSERT INTO public.event_registrations
+  (id, tenant_id, event_id, person_id, ticket_type_id, status, registration_mode,
+   payment_status, decided_at, decision_source)
+VALUES
+  ('c7400000-0000-0000-0000-000000000006', 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7',
+   'c7100000-0000-0000-0000-000000000001', 'c7300000-0000-0000-0000-000000000006',
+   'c7200000-0000-0000-0000-00000000000c', 'approved', 'form', 'not_required', now(), 'system');
+INSERT INTO public.payment_orders (id, tenant_id, user_id, status, amount_cents, currency, metadata)
+SELECT 'c7600000-0000-0000-0000-000000000003', 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7',
+  'c7000000-0000-0000-0000-000000000010', 'pending', 30000, 'PLN',
+  jsonb_build_object('event_id', 'c7100000-0000-0000-0000-000000000001',
+                     'ticket_type_id', 'c7200000-0000-0000-0000-00000000000c',
+                     'registration_id', pg_temp.gfl('f'));
+
+DO $$
+DECLARE v jsonb; v_in uuid; v_out uuid;
+BEGIN
+  -- Ta sama droga, co `markOneTimePaymentFailed`: wynik `unpaid` przypina
+  -- zamowienie do nieoplaconego prowadzacego.
+  v := public.payments_apply_event_ticket_outcome('c7600000-0000-0000-0000-000000000003', 'unpaid');
+  PERFORM pg_temp.assert(
+    (SELECT payment_status = 'unpaid' AND status = 'pending'
+            AND payment_order_id = 'c7600000-0000-0000-0000-000000000003'
+       FROM public.event_registrations WHERE id = pg_temp.gfl('f'))
+    AND (SELECT count(*) FROM public.event_registrations r
+          WHERE r.group_lead_registration_id = pg_temp.gfl('f')
+            AND r.status = 'pending' AND r.payment_status = 'unpaid'
+            AND r.payment_order_id IS NULL) = 2
+    AND (SELECT sold_count FROM public.event_ticket_types
+          WHERE id = 'c7200000-0000-0000-0000-00000000000c') = 1,
+    '27/wplata-miejsca: punkt wyjscia F - prowadzacy nosi nieudane zamowienie, goscie czekaja, pula zajeta w jednej trzeciej');
+
+  v := pg_temp.gfl_decide(pg_temp.gfl('f'), 'paid');
+  PERFORM pg_temp.assert(v->>'status' = 'approved'
+    AND (SELECT status = 'approved' AND payment_status = 'paid'
+                AND payment_order_id = 'c7600000-0000-0000-0000-000000000003'
+           FROM public.event_registrations WHERE id = pg_temp.gfl('f')),
+    '27/wplata-miejsca: przelew prowadzacego z nieudanym zamowieniem zaksiegowany mimo ciasnej puli (zamowienie zostaje przy nim)');
+  SELECT r.id INTO v_in FROM public.event_registrations r
+  WHERE r.group_lead_registration_id = pg_temp.gfl('f') AND r.status = 'approved';
+  SELECT r.id INTO v_out FROM public.event_registrations r
+  WHERE r.group_lead_registration_id = pg_temp.gfl('f') AND r.status = 'waitlist';
+  PERFORM pg_temp.assert(
+    (SELECT payment_status = 'paid' AND qr_token_hash IS NOT NULL
+            AND decision_source = 'organizer' AND payment_order_id IS NULL
+       FROM public.event_registrations WHERE id = v_in)
+    AND (SELECT payment_status = 'paid' AND waitlist_position > 0
+                AND decision_source = 'capacity' AND payment_order_id IS NULL
+           FROM public.event_registrations WHERE id = v_out),
+    '27/wplata-miejsca: reczna wplata mimo zamowienia - gosc na ostatnie miejsce, nadmiarowy w kolejce oplacony, zaden bez nieudanego zamowienia');
+  PERFORM pg_temp.assert(
+    (SELECT sold_count = 3 AND sold_count <= quota FROM public.event_ticket_types
+      WHERE id = 'c7200000-0000-0000-0000-00000000000c'),
+    '27/wplata-miejsca: F - sprzedane = pula (3), bez przekroczenia');
+END $$;
+
+-- ---------------------------------------------------------------------------
 -- 5) ODRZUCENIE I ANULOWANIE PROWADZACEGO
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.gfl_group('r', 'c7000000-0000-0000-0000-000000000004',
@@ -744,6 +994,70 @@ BEGIN
   c := g; c.cancelled_at := g.cancelled_at - interval '1 minute';
   PERFORM pg_temp.assert(NOT public._event_guest_closed_with_lead(c, l),
     '27/predykat: inna data anulowania - wycofal sie osobno');
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- 5c) KTO ZAMKNAL GOSCIA: SAMODZIELNE ANULOWANIE PROWADZACEGO
+-- ---------------------------------------------------------------------------
+-- Organizator zatwierdza nieoplaconego prowadzacego (goscie czekaja na
+-- wplate), a potem prowadzacy SAM sie wycofuje (`event_registration_cancel`).
+-- Wycofanie nie rusza `decided_*` prowadzacego - bez warunku stempla kaskada
+-- zapisalaby gosciom „anulowal organizator" za dawne zatwierdzenie. Gosc
+-- dostaje `system` bez autora i zachowuje wlasna notatke, a przywrocenie po
+-- ponownym zatwierdzeniu nadal dziala (idzie po `cancelled_at`). Na koniec
+-- kontrola dodatnia: anulowanie PRZEZ ORGANIZATORA prowadzacego przyjetego
+-- WCZESNIEJ (stempel decyzji sie zmienia) - slad organizatora wraca.
+SELECT pg_temp.gfl_group('s', 'c7000000-0000-0000-0000-00000000000c',
+  'c7200000-0000-0000-0000-000000000003', 'gfl-approval',
+  ARRAY['guest.s1@example.org']);
+
+DO $$
+DECLARE v jsonb; v_lead uuid := pg_temp.gfl('s'); s1 uuid := pg_temp.gfl('s_g1');
+BEGIN
+  v := pg_temp.gfl_decide(v_lead, 'approve');
+  UPDATE public.event_registrations SET decision_note = 'Notatka goscia S' WHERE id = s1;
+  PERFORM pg_temp.assert(
+    (SELECT status = 'approved' AND payment_status = 'unpaid'
+            AND decided_by = 'c7000000-0000-0000-0000-0000000000a1'
+       FROM public.event_registrations WHERE id = v_lead)
+    AND (SELECT status = 'pending' FROM public.event_registrations WHERE id = s1),
+    '27/samoanulowanie: punkt wyjscia - prowadzacy zatwierdzony przez organizatora, gosc czeka na wplate');
+
+  PERFORM pg_temp.act_as('c7000000-0000-0000-0000-00000000000c', 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7');
+  v := public.event_registration_cancel(jsonb_build_object('registration_id', v_lead));
+  PERFORM pg_temp.act_as();
+  PERFORM pg_temp.assert(v->>'status' = 'cancelled'
+    AND (SELECT decided_by = 'c7000000-0000-0000-0000-0000000000a1' AND decision_source = 'organizer'
+           FROM public.event_registrations WHERE id = v_lead),
+    '27/samoanulowanie: prowadzacy wycofal sie sam - jego wlasny slad decyzji zostaje nietkniety');
+  PERFORM pg_temp.assert(
+    (SELECT r.status = 'cancelled' AND r.cancelled_at = l.cancelled_at
+            AND r.decided_by IS NULL AND r.decision_source = 'system' AND r.decided_at IS NOT NULL
+            AND r.decision_note = 'Notatka goscia S'
+       FROM public.event_registrations r, public.event_registrations l
+      WHERE r.id = s1 AND l.id = v_lead),
+    '27/samoanulowanie: gosc zamkniety BEZ autora (system), z data prowadzacego i wlasna notatka');
+  PERFORM pg_temp.assert(
+    public._event_guest_closed_with_lead(
+      (SELECT r FROM public.event_registrations r WHERE r.id = s1),
+      (SELECT l FROM public.event_registrations l WHERE l.id = v_lead)),
+    '27/samoanulowanie: predykat stempla nadal rozpoznaje goscia zamknietego razem z prowadzacym');
+
+  v := pg_temp.gfl_decide(v_lead, 'approve');
+  PERFORM pg_temp.assert(
+    (SELECT status = 'pending' AND payment_status = 'unpaid' AND cancelled_at IS NULL
+            AND decided_by IS NULL AND decided_at IS NULL AND decision_source IS NULL
+       FROM public.event_registrations WHERE id = s1),
+    '27/samoanulowanie: ponowne zatwierdzenie prowadzacego przywraca goscia do oczekiwania na wplate');
+
+  -- Kontrola dodatnia: przyjety GODZINE wczesniej, anulowany przez organizatora.
+  UPDATE public.event_registrations SET decided_at = now() - interval '1 hour' WHERE id = v_lead;
+  v := pg_temp.gfl_decide(v_lead, 'cancel', 'Organizator odwoluje grupe');
+  PERFORM pg_temp.assert(
+    (SELECT status = 'cancelled' AND decided_by = 'c7000000-0000-0000-0000-0000000000a1'
+            AND decision_source = 'organizer' AND decision_note = 'Organizator odwoluje grupe'
+       FROM public.event_registrations WHERE id = s1),
+    '27/samoanulowanie: anulowanie przez organizatora (nowy stempel decyzji) niesie jego slad i powod');
 END $$;
 
 -- ---------------------------------------------------------------------------
@@ -1154,9 +1468,338 @@ SELECT pg_temp.assert_raises_like(
   format('SELECT public.admin_event_ticket_resend(%L::uuid)', pg_temp.gfl('a_g1')),
   'forbidden: authentication required', '27/ponowna: anonim odbity');
 SELECT pg_temp.assert(
-  NOT has_function_privilege('anon', 'public.admin_event_ticket_resend(uuid, boolean)', 'EXECUTE')
-  AND has_function_privilege('authenticated', 'public.admin_event_ticket_resend(uuid, boolean)', 'EXECUTE'),
-  '27/ponowna: EXECUTE dla authenticated, nie dla anon');
+  NOT has_function_privilege('anon', 'public.admin_event_ticket_resend(uuid, boolean, uuid[])', 'EXECUTE')
+  AND has_function_privilege('authenticated', 'public.admin_event_ticket_resend(uuid, boolean, uuid[])', 'EXECUTE')
+  AND to_regprocedure('public.admin_event_ticket_resend(uuid, boolean)') IS NULL,
+  '27/ponowna: EXECUTE dla authenticated, nie dla anon; stara sygnatura bez przeciazenia');
+
+-- ---------------------------------------------------------------------------
+-- 10b) ADRES Z LISTY WYKLUCZEN NIE TRACI BILETU (`p_exclude_ids`, zakres)
+-- ---------------------------------------------------------------------------
+-- Liste wykluczen zna serwer: czyta zakres (`admin_event_ticket_resend_scope`),
+-- sprawdza adresy i podaje zablokowane wiersze w `p_exclude_ids`. Pominiety
+-- wiersz ZACHOWUJE znacznik wysylki - wydanie od korzenia go nie rotuje.
+DO $$
+DECLARE
+  v_root uuid;
+  v_lead uuid := pg_temp.gfl('a');
+  g1 uuid := pg_temp.gfl('a_g1');
+  v_hash text;
+  v_scope uuid[];
+BEGIN
+  -- Punkt wyjscia: obaj przyjeci z grupy maja wyslany bilet.
+  UPDATE public.event_registrations SET ticket_code_claimed_at = NULL
+  WHERE id IN (v_lead, g1);
+  PERFORM pg_temp.gfl_issue_all(v_lead);
+  SELECT qr_token_hash INTO v_hash FROM public.event_registrations WHERE id = g1;
+
+  PERFORM pg_temp.gfl_admin();
+  SELECT array_agg(sc.registration_id ORDER BY sc.ord) INTO v_scope
+  FROM (SELECT x.*, row_number() OVER () AS ord
+        FROM public.admin_event_ticket_resend_scope(g1) x) sc;
+  PERFORM pg_temp.assert(v_scope = ARRAY[v_lead, g1],
+    '27/zakres: z grupa - prowadzacy (korzen) pierwszy, potem przyjety gosc; wycofany gosc poza zakresem');
+  PERFORM pg_temp.assert(
+    (SELECT email = 'guest.a1@example.org' AND tenant_id = 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7'
+       FROM public.admin_event_ticket_resend_scope(g1) WHERE registration_id = g1),
+    '27/zakres: wiersz niesie adres i najemce - dla bramki listy wykluczen');
+  PERFORM pg_temp.assert(
+    (SELECT array_agg(registration_id) FROM public.admin_event_ticket_resend_scope(g1, false)) = ARRAY[g1]
+    AND (SELECT array_agg(registration_id) FROM public.admin_event_ticket_resend_scope(g1, NULL))
+        = ARRAY[v_lead, g1],
+    '27/zakres: bez grupy - sam wiersz; NULL znaczy domyslne "z grupa"');
+
+  v_root := public.admin_event_ticket_resend(g1, true, ARRAY[g1]);
+  PERFORM pg_temp.act_as();
+  PERFORM pg_temp.assert(v_root = v_lead
+    AND (SELECT ticket_code_sent_at IS NULL FROM public.event_registrations WHERE id = v_lead)
+    AND (SELECT ticket_code_sent_at IS NOT NULL FROM public.event_registrations WHERE id = g1),
+    '27/wykluczenia: prowadzacy do ponowienia, wykluczony gosc zachowuje znacznik wysylki');
+  PERFORM pg_temp.assert(pg_temp.gfl_issue_all(v_root) = 1
+    AND (SELECT qr_token_hash = v_hash FROM public.event_registrations WHERE id = g1),
+    '27/wykluczenia: wydanie od korzenia NIE rotuje kodu wykluczonego goscia - jego bilet dziala');
+
+  -- Zakres pomija wiersz w trakcie wysylki i wiersz nieprzyjety.
+  UPDATE public.event_registrations SET ticket_code_sent_at = NULL, ticket_code_claimed_at = now()
+  WHERE id = g1;
+  PERFORM pg_temp.gfl_admin();
+  PERFORM pg_temp.assert(
+    (SELECT array_agg(registration_id) FROM public.admin_event_ticket_resend_scope(v_lead)) = ARRAY[v_lead]
+    AND NOT EXISTS (SELECT 1 FROM public.admin_event_ticket_resend_scope(
+      'c7400000-0000-0000-0000-000000000001'))
+    AND NOT EXISTS (SELECT 1 FROM public.admin_event_ticket_resend_scope(
+      'c7400000-0000-0000-0000-0000000000ff')),
+    '27/zakres: gosc w trakcie wysylki, wiersz oczekujacy i nieznany - poza zakresem (pusty wynik, nie wyjatek)');
+  PERFORM pg_temp.act_as();
+  UPDATE public.event_registrations SET ticket_code_claimed_at = NULL WHERE id = g1;
+END $$;
+
+SELECT pg_temp.act_as('c8000000-0000-0000-0000-0000000000a1', 'c8c8c8c8-c8c8-c8c8-c8c8-c8c8c8c8c8c8');
+SELECT pg_temp.assert(
+  NOT EXISTS (SELECT 1 FROM public.admin_event_ticket_resend_scope(pg_temp.gfl('a_g1'))),
+  '27/zakres: administrator OBCEGO najemcy nie widzi cudzych adresow');
+SELECT pg_temp.act_as('c7000000-0000-0000-0000-0000000000b1', 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7');
+SELECT pg_temp.assert_raises_like(
+  format('SELECT * FROM public.admin_event_ticket_resend_scope(%L::uuid)', pg_temp.gfl('a_g1')),
+  'forbidden', '27/zakres: zwykle konto odbite');
+SELECT pg_temp.act_as();
+SELECT pg_temp.assert_raises_like(
+  format('SELECT * FROM public.admin_event_ticket_resend_scope(%L::uuid)', pg_temp.gfl('a_g1')),
+  'forbidden: authentication required', '27/zakres: anonim odbity');
+SELECT pg_temp.assert(
+  NOT has_function_privilege('anon', 'public.admin_event_ticket_resend_scope(uuid, boolean)', 'EXECUTE')
+  AND has_function_privilege('authenticated', 'public.admin_event_ticket_resend_scope(uuid, boolean)', 'EXECUTE'),
+  '27/zakres: EXECUTE dla authenticated, nie dla anon');
+
+-- ---------------------------------------------------------------------------
+-- 10c) BILET NIEDORECZONY NIE UDAJE WYSLANEGO
+-- ---------------------------------------------------------------------------
+-- Czteroargumentowe `_event_ticket_code_confirm` z `p_undeliverable`; panel
+-- czyta `ticket_code_undeliverable_at` z powiazan. Kazda droga, ktora kasuje
+-- znacznik wysylki, kasuje tez ten.
+DO $$
+DECLARE
+  v jsonb;
+  v_root uuid;
+  g1 uuid := pg_temp.gfl('a_g1');
+  v_claim timestamptz;
+  v_ok boolean;
+  v_links record;
+BEGIN
+  PERFORM pg_temp.gfl_admin();
+  v_root := public.admin_event_ticket_resend(g1, false);
+  PERFORM pg_temp.act_as();
+
+  v := public._event_issue_ticket_codes(g1);
+  v_claim := (v->0->>'claimed_at')::timestamptz;
+  PERFORM pg_temp.assert(
+    NOT public._event_ticket_code_confirm(g1, v_claim - interval '1 minute', true, true),
+    '27/niedoreczony: potwierdzenie cudzego zajecia niczego nie odnotowuje');
+  -- Wywolanie w OSOBNEJ instrukcji: podzapytanie w tej samej instrukcji co
+  -- funkcja zmieniajaca wiersz czyta migawke sprzed jej UPDATE.
+  v_ok := public._event_ticket_code_confirm(g1, v_claim, true, true);
+  PERFORM pg_temp.assert(v_ok
+    AND (SELECT ticket_code_sent_at IS NOT NULL AND ticket_code_undeliverable_at IS NOT NULL
+           FROM public.event_registrations WHERE id = g1),
+    '27/niedoreczony: adres niedoreczalny zamyka zajecie ZE znacznikiem niedoreczenia');
+  PERFORM pg_temp.assert(NOT (g1 = ANY(public._event_ticket_codes_pending(500))),
+    '27/niedoreczony: zamkniety wiersz nie wraca do crona (kod nie rotuje co tick)');
+
+  PERFORM pg_temp.gfl_admin();
+  SELECT * INTO v_links FROM public.admin_event_registration_group_links(
+    'c7100000-0000-0000-0000-000000000001', ARRAY[g1]);
+  PERFORM pg_temp.assert(v_links.ticket_code_undeliverable_at IS NOT NULL
+    AND v_links.ticket_code_sent_at IS NOT NULL,
+    '27/niedoreczony: panel dostaje znacznik niedoreczenia obok znacznika wysylki');
+
+  -- Ponowna wysylka kasuje oba znaczniki.
+  v_root := public.admin_event_ticket_resend(g1, false);
+  PERFORM pg_temp.act_as();
+  PERFORM pg_temp.assert(
+    (SELECT ticket_code_sent_at IS NULL AND ticket_code_undeliverable_at IS NULL
+       FROM public.event_registrations WHERE id = g1),
+    '27/niedoreczony: ponowna wysylka kasuje znacznik niedoreczenia');
+
+  -- Flaga `false` i NULL - zwykla wysylka, bez znacznika niedoreczenia.
+  v := public._event_issue_ticket_codes(g1);
+  v_ok := public._event_ticket_code_confirm(g1, (v->0->>'claimed_at')::timestamptz, true, false);
+  PERFORM pg_temp.assert(v_ok
+    AND (SELECT ticket_code_sent_at IS NOT NULL AND ticket_code_undeliverable_at IS NULL
+           FROM public.event_registrations WHERE id = g1),
+    '27/niedoreczony: p_undeliverable = false to zwykla wysylka');
+  UPDATE public.event_registrations SET ticket_code_sent_at = NULL, ticket_code_claimed_at = NULL
+  WHERE id = g1;
+  v := public._event_issue_ticket_codes(g1);
+  v_ok := public._event_ticket_code_confirm(g1, (v->0->>'claimed_at')::timestamptz, true, NULL);
+  PERFORM pg_temp.assert(v_ok
+    AND (SELECT ticket_code_undeliverable_at IS NULL FROM public.event_registrations WHERE id = g1),
+    '27/niedoreczony: p_undeliverable = NULL nie udaje niedoreczenia');
+
+  -- Nieudana wysylka zwalnia zajecie i nie zostawia znacznika mimo flagi.
+  UPDATE public.event_registrations SET ticket_code_sent_at = NULL, ticket_code_claimed_at = NULL
+  WHERE id = g1;
+  v := public._event_issue_ticket_codes(g1);
+  v_ok := public._event_ticket_code_confirm(g1, (v->0->>'claimed_at')::timestamptz, false, true);
+  PERFORM pg_temp.assert(v_ok
+    AND (SELECT ticket_code_sent_at IS NULL AND ticket_code_claimed_at IS NULL
+                AND ticket_code_undeliverable_at IS NULL
+           FROM public.event_registrations WHERE id = g1),
+    '27/niedoreczony: nieudana wysylka zwalnia zajecie bez znacznika niedoreczenia');
+
+  -- Wyjscie z przyjecia (trigger resetu) kasuje znacznik niedoreczenia.
+  v := public._event_issue_ticket_codes(g1);
+  PERFORM public._event_ticket_code_confirm(g1, (v->0->>'claimed_at')::timestamptz, true, true);
+  v := pg_temp.gfl_decide(g1, 'reject', 'Adres zablokowany');
+  PERFORM pg_temp.assert(
+    (SELECT ticket_code_sent_at IS NULL AND ticket_code_undeliverable_at IS NULL
+       FROM public.event_registrations WHERE id = g1),
+    '27/niedoreczony: wyjscie z przyjecia kasuje znacznik niedoreczenia');
+  v := pg_temp.gfl_decide(g1, 'approve');
+  PERFORM pg_temp.assert(
+    (SELECT status = 'approved' AND ticket_code_undeliverable_at IS NULL
+       FROM public.event_registrations WHERE id = g1)
+    AND g1 = ANY(public._event_ticket_codes_pending(500)),
+    '27/niedoreczony: ponownie przyjety wraca do crona bez znacznika niedoreczenia');
+END $$;
+
+SELECT pg_temp.assert(
+  NOT has_function_privilege('authenticated',
+    'public._event_ticket_code_confirm(uuid, timestamptz, boolean, boolean)', 'EXECUTE')
+  AND NOT has_function_privilege('anon',
+    'public._event_ticket_code_confirm(uuid, timestamptz, boolean, boolean)', 'EXECUTE')
+  AND has_function_privilege('service_role',
+    'public._event_ticket_code_confirm(uuid, timestamptz, boolean, boolean)', 'EXECUTE')
+  AND has_function_privilege('service_role',
+    'public._event_ticket_code_confirm(uuid, timestamptz, boolean)', 'EXECUTE'),
+  '27/niedoreczony: potwierdzenie z flaga tylko dla service_role, trojargumentowe z 0044 nadal dziala');
+
+-- ---------------------------------------------------------------------------
+-- 10d) NAPRAWA GOSCI UWIEZIONYCH PRZED MIGRACJA
+-- ---------------------------------------------------------------------------
+-- Stan sprzed migracji odtwarzamy INSERT-em (nie odpala kaskady statusu):
+--   W1: bezplatny prowadzacy przyjety, dwoch gosci `pending`, pula 2 - jeden
+--       gosc wchodzi, drugi do kolejki;
+--   W2: prowadzacy oplacony RECZNIE (bez zamowienia), gosc `pending`
+--       nieoplacony i gosc przyjety, ale nieoplacony (dopisany po
+--       zatwierdzeniu, przed przelewem) - obaj rozliczeni i z biletem;
+--   W3: prowadzacy `attended`, gosc `pending` - wchodzi;
+--   W4: to samo co W3 na wydarzeniu, ktore sie skonczylo - nietkniete;
+--   W5: prowadzacy przyjety, ale NIEOPLACONY - gosc czeka na wplate dalej.
+-- `created_at` sprzed kilku dni: grupy W sa najstarsze, wiec `p_limit`
+-- wybiera je deterministycznie przed grupami reszty pliku.
+INSERT INTO public.event_people (id, tenant_id, email, first_name, last_name)
+SELECT ('c7300000-0000-0000-0000-0000000000' || k)::uuid, 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7',
+       'repair.' || k || '@example.org', 'Naprawa', upper(k)
+FROM unnest(ARRAY['10','11','12','20','21','22','30','31','40','41','50','51']) AS k;
+
+INSERT INTO public.event_registrations
+  (id, tenant_id, event_id, person_id, ticket_type_id, status, registration_mode, source,
+   payment_status, paid_at, decided_by, decided_at, decision_source, attended_at,
+   group_lead_registration_id, created_at)
+SELECT ('c7a00000-0000-0000-0000-0000000000' || w.k)::uuid, 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7',
+       w.event_id::uuid, ('c7300000-0000-0000-0000-0000000000' || w.k)::uuid, w.ticket::uuid,
+       w.status, 'form', 'self_registration', w.payment, w.paid_at,
+       CASE WHEN w.status IN ('approved', 'attended') THEN 'c7000000-0000-0000-0000-0000000000a1'::uuid END,
+       CASE WHEN w.status IN ('approved', 'attended') THEN now() - w.age END,
+       CASE WHEN w.status IN ('approved', 'attended') THEN 'organizer' END,
+       CASE WHEN w.status = 'attended' THEN now() - w.age END,
+       CASE WHEN w.lead IS NOT NULL THEN ('c7a00000-0000-0000-0000-0000000000' || w.lead)::uuid END,
+       now() - w.age + w.shift
+FROM (VALUES
+  ('10', NULL, 'c7100000-0000-0000-0000-000000000001', 'c7200000-0000-0000-0000-00000000000a',
+   'approved', 'not_required', NULL::timestamptz, interval '10 days', interval '0 seconds'),
+  ('11', '10', 'c7100000-0000-0000-0000-000000000001', 'c7200000-0000-0000-0000-00000000000a',
+   'pending', 'not_required', NULL, interval '10 days', interval '1 second'),
+  ('12', '10', 'c7100000-0000-0000-0000-000000000001', 'c7200000-0000-0000-0000-00000000000a',
+   'pending', 'not_required', NULL, interval '10 days', interval '2 seconds'),
+  ('20', NULL, 'c7100000-0000-0000-0000-000000000001', 'c7200000-0000-0000-0000-000000000003',
+   'approved', 'paid', now() - interval '9 days', interval '9 days', interval '0 seconds'),
+  ('21', '20', 'c7100000-0000-0000-0000-000000000001', 'c7200000-0000-0000-0000-000000000003',
+   'pending', 'unpaid', NULL, interval '9 days', interval '1 second'),
+  ('22', '20', 'c7100000-0000-0000-0000-000000000001', 'c7200000-0000-0000-0000-000000000003',
+   'approved', 'unpaid', NULL, interval '9 days', interval '2 seconds'),
+  ('30', NULL, 'c7100000-0000-0000-0000-000000000001', 'c7200000-0000-0000-0000-000000000001',
+   'attended', 'not_required', NULL, interval '8 days', interval '0 seconds'),
+  ('31', '30', 'c7100000-0000-0000-0000-000000000001', 'c7200000-0000-0000-0000-000000000001',
+   'pending', 'not_required', NULL, interval '8 days', interval '1 second'),
+  ('40', NULL, 'c7100000-0000-0000-0000-000000000005', 'c7200000-0000-0000-0000-00000000000b',
+   'approved', 'not_required', NULL, interval '7 days', interval '0 seconds'),
+  ('41', '40', 'c7100000-0000-0000-0000-000000000005', 'c7200000-0000-0000-0000-00000000000b',
+   'pending', 'not_required', NULL, interval '7 days', interval '1 second'),
+  ('50', NULL, 'c7100000-0000-0000-0000-000000000001', 'c7200000-0000-0000-0000-000000000003',
+   'approved', 'unpaid', NULL, interval '6 days', interval '0 seconds'),
+  ('51', '50', 'c7100000-0000-0000-0000-000000000001', 'c7200000-0000-0000-0000-000000000003',
+   'pending', 'unpaid', NULL, interval '6 days', interval '1 second')
+) AS w(k, lead, event_id, ticket, status, payment, paid_at, age, shift)
+ORDER BY w.lead NULLS FIRST, w.k;
+
+-- Uprawnienia sprawdzamy PRZED wywolaniem: funkcja idzie po wszystkich
+-- najemcach, wiec klient nie moze jej nawet dotknac.
+SELECT pg_temp.assert(
+  NOT has_function_privilege('anon', 'public._event_group_repair_stranded_guests(integer)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public._event_group_repair_stranded_guests(integer)', 'EXECUTE')
+  AND has_function_privilege('service_role', 'public._event_group_repair_stranded_guests(integer)', 'EXECUTE'),
+  '27/naprawa: tylko service_role - anon i authenticated bez EXECUTE');
+SELECT pg_temp.act_as('c7000000-0000-0000-0000-0000000000a1', 'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7');
+SELECT pg_temp.assert_raises_like($sql$DO $d$ BEGIN
+  SET LOCAL ROLE authenticated;
+  PERFORM public._event_group_repair_stranded_guests();
+END $d$$sql$, 'permission denied', '27/naprawa: administrator najemcy (rola authenticated) odbity');
+SELECT pg_temp.act_as();
+
+DO $$
+DECLARE
+  n integer;
+  v_before jsonb;
+  v_after jsonb;
+  v_in uuid;
+  v_out uuid;
+BEGIN
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.event_registrations
+      WHERE id::text LIKE 'c7a00000-%' AND group_lead_registration_id IS NOT NULL
+        AND status = 'pending') = 6
+    AND (SELECT sold_count FROM public.event_ticket_types
+          WHERE id = 'c7200000-0000-0000-0000-00000000000a') = 1,
+    '27/naprawa: punkt wyjscia - szesciu gosci uwiezionych za przyjetymi prowadzacymi');
+
+  -- p_limit = 1: tylko najstarsza grupa (W1).
+  n := public._event_group_repair_stranded_guests(1);
+  SELECT id INTO v_in FROM public.event_registrations
+  WHERE group_lead_registration_id = 'c7a00000-0000-0000-0000-000000000010' AND status = 'approved';
+  SELECT id INTO v_out FROM public.event_registrations
+  WHERE group_lead_registration_id = 'c7a00000-0000-0000-0000-000000000010' AND status = 'waitlist';
+  PERFORM pg_temp.assert(n = 1
+    AND v_in = 'c7a00000-0000-0000-0000-000000000011'
+    AND v_out = 'c7a00000-0000-0000-0000-000000000012'
+    AND (SELECT qr_token_hash IS NOT NULL AND ticket_code_sent_at IS NULL
+                AND decision_source = 'organizer'
+           FROM public.event_registrations WHERE id = v_in)
+    AND (SELECT waitlist_position > 0 AND decision_source = 'capacity'
+           FROM public.event_registrations WHERE id = v_out)
+    AND (SELECT sold_count FROM public.event_ticket_types
+          WHERE id = 'c7200000-0000-0000-0000-00000000000a') = 2
+    AND (SELECT status FROM public.event_registrations
+          WHERE id = 'c7a00000-0000-0000-0000-000000000031') = 'pending',
+    '27/naprawa: p_limit 1 - tylko najstarsza grupa; pierwszy gosc na ostatnie miejsce, drugi do kolejki');
+  PERFORM pg_temp.assert(v_in = ANY(public._event_ticket_codes_pending(500)),
+    '27/naprawa: przyjety gosc czeka w cronie na bilet (mail wysle cron)');
+
+  n := public._event_group_repair_stranded_guests();
+  PERFORM pg_temp.assert(n = 3,
+    '27/naprawa: reszta grup - bilet dostaje trzech gosci (W2 x2, W3), nikt spoza uwiezionych');
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.event_registrations
+      WHERE id IN ('c7a00000-0000-0000-0000-000000000021', 'c7a00000-0000-0000-0000-000000000022')
+        AND status = 'approved' AND payment_status = 'paid' AND paid_at IS NOT NULL
+        AND payment_order_id IS NULL AND qr_token_hash IS NOT NULL) = 2,
+    '27/naprawa: goscie recznie oplaconego prowadzacego rozliczeni i przyjeci (takze przyjety bez wplaty)');
+  PERFORM pg_temp.assert(
+    (SELECT status = 'approved' AND qr_token_hash IS NOT NULL
+       FROM public.event_registrations WHERE id = 'c7a00000-0000-0000-0000-000000000031'),
+    '27/naprawa: gosc prowadzacego obecnego na wydarzeniu przyjety');
+  PERFORM pg_temp.assert(
+    (SELECT status = 'pending' AND qr_token_hash IS NULL
+       FROM public.event_registrations WHERE id = 'c7a00000-0000-0000-0000-000000000041')
+    AND (SELECT status = 'pending' AND payment_status = 'unpaid'
+           FROM public.event_registrations WHERE id = 'c7a00000-0000-0000-0000-000000000051'),
+    '27/naprawa: zakonczone wydarzenie nietkniete, gosc nieoplaconego prowadzacego czeka na wplate');
+  PERFORM pg_temp.assert(
+    (SELECT status = 'waitlist' FROM public.event_registrations
+      WHERE id = 'c7a00000-0000-0000-0000-000000000012'),
+    '27/naprawa: brak miejsca nadal szanowany - gosc W1 zostaje w kolejce');
+
+  -- Drugie wywolanie niczego nie zmienia.
+  SELECT jsonb_agg(jsonb_build_array(id, status, payment_status, waitlist_position,
+                                     qr_token_hash, decided_at, ticket_code_sent_at) ORDER BY id)
+  INTO v_before FROM public.event_registrations WHERE group_lead_registration_id IS NOT NULL;
+  n := public._event_group_repair_stranded_guests(NULL);
+  SELECT jsonb_agg(jsonb_build_array(id, status, payment_status, waitlist_position,
+                                     qr_token_hash, decided_at, ticket_code_sent_at) ORDER BY id)
+  INTO v_after FROM public.event_registrations WHERE group_lead_registration_id IS NOT NULL;
+  PERFORM pg_temp.assert(n = 0 AND v_after = v_before,
+    '27/naprawa: drugie wywolanie (p_limit NULL = domyslny) oddaje 0 i nie zmienia zadnego goscia');
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- 11) FUNKCJE WEWNETRZNE: BEZ EXECUTE DLA KLIENTA
@@ -1173,8 +1816,16 @@ SELECT pg_temp.assert(
     'public._event_guest_closed_with_lead(public.event_registrations, public.event_registrations)', 'EXECUTE')
   AND NOT has_function_privilege('authenticated',
     'public._event_apply_outcome_to_group(uuid, uuid, text)', 'EXECUTE')
-  AND NOT has_function_privilege('authenticated', 'public._tg_event_group_follow_lead()', 'EXECUTE'),
-  '27/uprawnienia: triggery, straznik, predykat stempla i kaskada platnosci bez EXECUTE dla anon/authenticated');
+  AND NOT has_function_privilege('authenticated', 'public._tg_event_group_follow_lead()', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated',
+    'public._event_group_admit_guest(public.event_registrations, public.event_registrations)', 'EXECUTE')
+  AND NOT has_function_privilege('anon',
+    'public._event_group_admit_guest(public.event_registrations, public.event_registrations)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated',
+    'public._event_group_admit_guests(public.event_registrations, public.event_registrations)', 'EXECUTE')
+  AND NOT has_function_privilege('anon',
+    'public._event_group_admit_guests(public.event_registrations, public.event_registrations)', 'EXECUTE'),
+  '27/uprawnienia: triggery, straznik, predykat stempla, przyjecie gosci i kaskada platnosci bez EXECUTE dla anon/authenticated');
 SELECT pg_temp.assert(
   NOT has_function_privilege('authenticated', 'public._event_ticket_codes_pending(integer)', 'EXECUTE')
   AND has_function_privilege('service_role', 'public._event_ticket_codes_pending(integer)', 'EXECUTE'),

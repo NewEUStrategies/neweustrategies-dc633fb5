@@ -105,6 +105,10 @@ const KODY_REJESTRACJI = [
   // jej odmowe ta sama mapa, co decyzje)
   "ticket_not_issuable",
   "ticket_send_in_progress",
+  // Odmowa SERWERA tej samej server fn (adres z listy wykluczen) - nie pada
+  // w SQL-u, wiec skan migracji jej nie zobaczy; stoi tu, zeby bramka pilnowala
+  // jej zdania w obu jezykach.
+  "ticket_address_suppressed",
   STRAZNIK_TENANTA,
 ] as const;
 

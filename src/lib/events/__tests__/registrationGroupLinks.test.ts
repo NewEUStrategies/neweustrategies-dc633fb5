@@ -39,6 +39,7 @@ function link(over: Partial<RegistrationGroupLink> = {}): RegistrationGroupLink 
     guest_count: 0,
     payment_status: "not_required",
     ticket_code_sent_at: null,
+    ticket_code_undeliverable_at: null,
     ...over,
   };
 }
@@ -121,6 +122,24 @@ describe("ticketBadge - plakietka biletu", () => {
     );
   });
 
+  it("adres z listy wykluczeń: „nie dotarł” ma pierwszeństwo przed „wysłany”", () => {
+    // Niedoręczalny adres zamyka wysyłkę JAK wysłaną (znacznik stoi, żeby cron
+    // nie rotował kodu co tick) - bez pierwszeństwa panel kłamałby „wysłany”.
+    const stamp = "2026-09-26T10:00:00Z";
+    expect(
+      ticketBadge(
+        "approved",
+        link({ ticket_code_sent_at: stamp, ticket_code_undeliverable_at: stamp }),
+      ),
+    ).toBe("undeliverable");
+    expect(
+      ticketBadge(
+        "attended",
+        link({ payment_status: "paid", ticket_code_undeliverable_at: stamp }),
+      ),
+    ).toBe("undeliverable");
+  });
+
   it("przyjęty, ale nieoplacony: bilet po wpłacie - nie „niewysłany”", () => {
     expect(ticketBadge("approved", link({ payment_status: "unpaid" }))).toBe("awaitingPayment");
   });
@@ -142,9 +161,17 @@ describe("ticketBadge - plakietka biletu", () => {
     for (const status of ["approved", "attended", "pending", "cancelled"]) {
       for (const payment of ["paid", "not_required", "unpaid", "refunded"]) {
         for (const sent of [null, "2026-09-26T10:00:00Z"]) {
-          const row = link({ payment_status: payment, ticket_code_sent_at: sent });
-          const badge = ticketBadge(status, row);
-          expect(badge === "notSent" || badge === "sent").toBe(canResendTicket(status, row));
+          for (const undeliverable of [null, "2026-09-26T10:00:00Z"]) {
+            const row = link({
+              payment_status: payment,
+              ticket_code_sent_at: sent,
+              ticket_code_undeliverable_at: undeliverable,
+            });
+            const badge = ticketBadge(status, row);
+            expect(badge === "notSent" || badge === "sent" || badge === "undeliverable").toBe(
+              canResendTicket(status, row),
+            );
+          }
         }
       }
     }

@@ -268,6 +268,10 @@ export const adminEventRegistrationPl = {
         // Przyjety, ale nieoplacony: bilet sie jeszcze NIE nalezy, wiec nie
         // „niewyslany" (to wygladaloby na awarie poczty), tylko na co czeka.
         ticketAwaitingPayment: "Bilet po wpłacie",
+        // Poczta nie przyjela maila (adres na liscie wykluczen albo pusty):
+        // bez tej plakietki wiersz udawal „wyslany", a bilet trzeba przekazac
+        // inna droga.
+        ticketUndeliverable: "Bilet nie dotarł - adres zablokowany",
       },
 
       entryCode: {
@@ -384,6 +388,11 @@ export const adminEventRegistrationPl = {
         ticketsSent: "Wysłano bilety: {{count}}",
         ticketResent: "Bilety wysłane ponownie: {{count}}",
         ticketResendFailed: "Nie udało się wysłać biletu.",
+        // Osoby z grupy pominiete przy ponownej wysylce - ich stary bilet
+        // dziala dalej, a nowy i tak by nie dotarl (ta sama konstrukcja
+        // „rzeczownik: liczba", bez sufiksow liczby mnogiej).
+        ticketResendSkippedSuppressed:
+          "Pominięto adresy z listy wykluczeń poczty: {{count}} - ich dotychczasowe bilety nadal działają.",
       },
     },
 
@@ -1198,6 +1207,10 @@ export const adminEventRegistrationPl = {
       notFound: "Rekord nie istnieje w tej organizacji.",
       ticketNotIssuable: "Bilet dostaje tylko zgłoszenie przyjęte i rozliczone.",
       ticketSendInProgress: "Bilet jest właśnie wysyłany - spróbuj ponownie za kilka minut.",
+      // Odmowa SERWERA, nie bazy (`ticketResend.functions.ts`): nowy bilet by
+      // nie dotarl, a wydanie uniewazniloby stary - wiec nic sie nie dzieje.
+      ticketAddressSuppressed:
+        "Na ten adres poczta nie wyśle biletu (lista wykluczeń) - dotychczasowy bilet nadal działa. Przekaż go inną drogą.",
       packageSoldOut: "Pula pakietów tego rodzaju została wyczerpana.",
       packageInUse: "Pakiet ma {{count}} zamówień - wyłącz go zamiast usuwać.",
       seatTaken: "To miejsce jest już zajęte przez uczestnika.",
@@ -1445,6 +1458,7 @@ export const adminEventRegistrationEn = {
         ticketSent: "Ticket sent",
         ticketNotSent: "Ticket not sent",
         ticketAwaitingPayment: "Ticket after payment",
+        ticketUndeliverable: "Ticket not delivered - address blocked",
       },
 
       entryCode: {
@@ -1552,6 +1566,8 @@ export const adminEventRegistrationEn = {
         ticketsSent: "Tickets sent: {{count}}",
         ticketResent: "Tickets resent: {{count}}",
         ticketResendFailed: "The ticket could not be sent.",
+        ticketResendSkippedSuppressed:
+          "Skipped addresses on the e-mail suppression list: {{count}} - their existing tickets still work.",
       },
     },
 
@@ -2348,6 +2364,8 @@ export const adminEventRegistrationEn = {
       notFound: "The record does not exist in this organisation.",
       ticketNotIssuable: "Only an approved and settled registration gets a ticket.",
       ticketSendInProgress: "The ticket is being sent right now - try again in a few minutes.",
+      ticketAddressSuppressed:
+        "E-mail will not deliver a ticket to this address (suppression list) - the existing ticket still works. Hand it over another way.",
       packageSoldOut: "The pool of packages of this kind is exhausted.",
       packageInUse: "The package has {{count}} orders - disable it instead of deleting.",
       seatTaken: "This seat is already taken by a participant.",

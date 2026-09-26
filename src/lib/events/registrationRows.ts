@@ -132,7 +132,7 @@ export function canResendTicket(status: string, link: RegistrationGroupLink | nu
 }
 
 /** Plakietka biletu wiersza; `null` = plakietki nie ma. */
-export type TicketBadge = "sent" | "notSent" | "awaitingPayment";
+export type TicketBadge = "sent" | "notSent" | "awaitingPayment" | "undeliverable";
 
 /**
  * Ktora plakietka biletu stoi przy wierszu.
@@ -143,6 +143,11 @@ export type TicketBadge = "sent" | "notSent" | "awaitingPayment";
  * wygladalby przy nim jak awaria poczty, ktorej organizator nie ma jak
  * naprawic - wiec plakietka mowi, na co wiersz czeka. Zwrot nie ma plakietki:
  * biletu nie ma i nie bedzie.
+ *
+ * „NIE DOTARL" PRZED „WYSLANY". Adres z listy wykluczen zamyka wysylke jak
+ * wyslana (`ticket_code_sent_at` stoi, zeby cron nie rotowal kodu co tick),
+ * wiec bez tej kolejnosci organizator czytal „Bilet wyslany" przy bilecie,
+ * ktory nigdy nie wyszedl - i nie wiedzial, ze trzeba go przekazac inaczej.
  */
 export function ticketBadge(
   status: string,
@@ -150,6 +155,7 @@ export function ticketBadge(
 ): TicketBadge | null {
   if (link === null || !holdsTicket(status)) return null;
   if (TICKET_PAYMENTS.includes(link.payment_status)) {
+    if (link.ticket_code_undeliverable_at !== null) return "undeliverable";
     return link.ticket_code_sent_at === null ? "notSent" : "sent";
   }
   return link.payment_status === "unpaid" ? "awaitingPayment" : null;

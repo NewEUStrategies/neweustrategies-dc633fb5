@@ -90,9 +90,10 @@ const h = vi.hoisted(() => ({
   /** Z czym panel pyta o powiązania: wydarzenie i wiersze strony. */
   groupLinksArgs: [] as [string | null, readonly string[]][],
   refetchGroupLinks: vi.fn(),
-  /** Ponowna wysyłka biletu: wywołania, wynik (liczba albo odmowa) i stan. */
+  /** Ponowna wysyłka biletu: wywołania, wynik (wysłane, przekazane i pominięte albo odmowa) i stan. */
   resendCalls: [] as unknown[],
-  resendResult: 1 as number | Error,
+  resendResult: { sent: 1, attempted: 1, skippedSuppressed: 0 } as
+    { sent: number; attempted: number; skippedSuppressed: number } | Error,
   resendPending: false,
   notifyHang: false,
   /** Kolejne strony eksportu - `shift()` przy każdym wywołaniu. */
@@ -312,7 +313,14 @@ vi.mock("@/lib/events/useEventRegistrations", () => ({
   useResendEventTicket: () => ({
     mutate: (
       input: unknown,
-      wynik: { onSuccess?: (count: number) => void; onError?: (error: unknown) => void },
+      wynik: {
+        onSuccess?: (outcome: {
+          sent: number;
+          attempted: number;
+          skippedSuppressed: number;
+        }) => void;
+        onError?: (error: unknown) => void;
+      },
     ) => {
       h.resendCalls.push(input);
       if (h.resendResult instanceof Error) wynik.onError?.(h.resendResult);
@@ -490,7 +498,7 @@ beforeEach(() => {
   h.groupLinksArgs = [];
   h.refetchGroupLinks.mockClear();
   h.resendCalls = [];
-  h.resendResult = 1;
+  h.resendResult = { sent: 1, attempted: 1, skippedSuppressed: 0 };
   h.resendPending = false;
   h.exportPages = [];
   h.exportError = null;
@@ -1436,6 +1444,7 @@ function groupLink(over: Record<string, unknown> = {}) {
     guest_count: 0,
     payment_status: "not_required",
     ticket_code_sent_at: null,
+    ticket_code_undeliverable_at: null,
     ...over,
   };
 }
@@ -1485,6 +1494,23 @@ describe("plakietki grupy i biletu", () => {
     const [sent, unsent] = wiersze() as [HTMLElement, HTMLElement];
     expect(within(sent).getByText(`${B}.badges.ticketSent`)).toBeTruthy();
     expect(within(unsent).getByText(`${B}.badges.ticketNotSent`)).toBeTruthy();
+  });
+
+  it("adres z listy wykluczeń: „bilet nie dotarł”, nie „wysłany” - czerwona plakietka", () => {
+    h.rows = [registrationRow({ id: "reg-blocked", status: "approved" })];
+    h.groupLinks = [
+      groupLink({
+        registration_id: "reg-blocked",
+        ticket_code_sent_at: FIXED_NOW_ISO,
+        ticket_code_undeliverable_at: FIXED_NOW_ISO,
+      }),
+    ];
+    panel();
+
+    const [blocked] = wiersze() as [HTMLElement];
+    const badge = within(blocked).getByText(`${B}.badges.ticketUndeliverable`);
+    expect(badge.className).toContain("destructive");
+    expect(within(blocked).queryByText(`${B}.badges.ticketSent`)).toBeNull();
   });
 
   it("powiązania pytane TYLKO o wiersze widocznej strony, nie o całe wydarzenie", () => {
@@ -1624,25 +1650,85 @@ describe("ponowna wysyłka biletu", () => {
   it("prowadzący z gośćmi ma też wysyłkę dla całej grupy", () => {
     h.rows = [registrationRow({ status: "approved" })];
     h.groupLinks = [groupLink({ guest_count: 2, payment_status: "paid" })];
-    h.resendResult = 3;
+    h.resendResult = { sent: 3, attempted: 3, skippedSuppressed: 0 };
     panel();
 
     fireEvent.click(przycisk(RESEND_GROUP));
 
     expect(h.resendCalls).toEqual([{ registrationId: "reg-1", includeGroup: true }]);
     expect(h.toastSuccess).toHaveBeenCalledWith(`${B}.toasts.ticketResent(count=3)`);
+    expect(h.toastWarning).not.toHaveBeenCalled();
   });
 
-  it("zero wysłanych (lista wykluczeń, awaria poczty) to błąd, nie „wysłano”", () => {
+  it("zero wysłanych (awaria poczty) to błąd, nie „wysłano”", () => {
     h.rows = [registrationRow({ status: "approved" })];
     h.groupLinks = [groupLink()];
-    h.resendResult = 0;
+    h.resendResult = { sent: 0, attempted: 1, skippedSuppressed: 0 };
     panel();
 
     fireEvent.click(przycisk(RESEND));
 
     expect(h.toastError).toHaveBeenCalledWith(`${B}.toasts.ticketResendFailed`);
     expect(h.toastSuccess).not.toHaveBeenCalled();
+    expect(h.toastWarning).not.toHaveBeenCalled();
+  });
+
+  it("grupa z adresami z listy wykluczeń: ile wysłano i ilu pominięto - z powodem", () => {
+    h.rows = [registrationRow({ status: "approved" })];
+    h.groupLinks = [groupLink({ guest_count: 2 })];
+    h.resendResult = { sent: 2, attempted: 2, skippedSuppressed: 1 };
+    panel();
+
+    fireEvent.click(przycisk(RESEND_GROUP));
+
+    expect(h.toastSuccess).toHaveBeenCalledWith(`${B}.toasts.ticketResent(count=2)`);
+    expect(h.toastWarning).toHaveBeenCalledWith(
+      `${B}.toasts.ticketResendSkippedSuppressed(count=1)`,
+    );
+  });
+
+  it("cała grupa na liście wykluczeń: sam powód pominięcia, bez „nie udało się”", () => {
+    h.rows = [registrationRow({ status: "approved" })];
+    h.groupLinks = [groupLink({ guest_count: 1 })];
+    h.resendResult = { sent: 0, attempted: 0, skippedSuppressed: 2 };
+    panel();
+
+    fireEvent.click(przycisk(RESEND_GROUP));
+
+    // Nic nie zawiodło - serwer nikogo nie przekazał do wysyłki, bo chronił
+    // działające bilety.
+    expect(h.toastError).not.toHaveBeenCalled();
+    expect(h.toastWarning).toHaveBeenCalledWith(
+      `${B}.toasts.ticketResendSkippedSuppressed(count=2)`,
+    );
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("pominięci ORAZ gość, którego mail padł: błąd wysyłki i powód pominięcia", () => {
+    h.rows = [registrationRow({ status: "approved" })];
+    h.groupLinks = [groupLink({ guest_count: 2 })];
+    h.resendResult = { sent: 0, attempted: 1, skippedSuppressed: 2 };
+    panel();
+
+    fireEvent.click(przycisk(RESEND_GROUP));
+
+    expect(h.toastError).toHaveBeenCalledWith(`${B}.toasts.ticketResendFailed`);
+    expect(h.toastWarning).toHaveBeenCalledWith(
+      `${B}.toasts.ticketResendSkippedSuppressed(count=2)`,
+    );
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("nikogo nie przekazano i nikogo nie pominięto: nic nie wyszło - błąd", () => {
+    h.rows = [registrationRow({ status: "approved" })];
+    h.groupLinks = [groupLink()];
+    h.resendResult = { sent: 0, attempted: 0, skippedSuppressed: 0 };
+    panel();
+
+    fireEvent.click(przycisk(RESEND));
+
+    expect(h.toastError).toHaveBeenCalledWith(`${B}.toasts.ticketResendFailed`);
+    expect(h.toastWarning).not.toHaveBeenCalled();
   });
 
   it("odmowa bazy dochodzi zdaniem", () => {
