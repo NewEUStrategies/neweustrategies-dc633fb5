@@ -63,6 +63,12 @@ export interface EventTicketPriceInput {
    * (`createCheckoutOrder`) - podgląd pyta bazę na sucho, niczego nie zużywa.
    */
   claimPlanSeat?: boolean;
+  /**
+   * Pojedyncze miejsce pokryte biletem z puli oddaje cenę ZERO zamiast odmowy
+   * `ticket_included_in_plan` - podgląd kasy i odbiór biletu z planu
+   * (`redeemPlanTicket`). Kasa tego nie ustawia: zamówienia na zero nie ma.
+   */
+  allowPlanRedemption?: boolean;
 }
 
 /** Benefit planu na miejscu wołającego: bilet z puli albo zniżka ceny. */
@@ -230,30 +236,40 @@ export async function priceEventTicket(
     }
     seats = seatsRaw;
 
-    // BILET Z PULI dla miejsca prowadzącego w zamówieniu z gośćmi. Kasa go
-    // zajmuje, podgląd pyta tę samą funkcję na sucho - obie widzą bilet już
-    // zajęty dla tego wydarzenia (ponowna kasa) i bilet wolny w puli. Odmowa
-    // puli (albo awaria RPC) nie przerywa zakupu gości: prowadzący płaci wtedy
-    // cenę miejsca, a nie dostaje go za darmo bez zdjęcia biletu z puli.
-    if (poolPlan && seats > 1) {
+    // BILET Z PULI dla miejsca prowadzącego. O tym, czy pula go pokryje,
+    // rozstrzyga baza - także przy JEDNYM miejscu: bilet już zajęty dla tego
+    // wydarzenia (pula pusta) nadal je pokrywa, a pula, która biletu nie odda,
+    // każe zapłacić. Zajmuje go wyłącznie kasa zamówienia Z GOŚĆMI; pojedyncze
+    // miejsce kasa tylko sprawdza (na sucho) - zajmie je odbiór z planu
+    // (`event_registration_redeem_plan_ticket`) razem z przyjęciem zgłoszenia.
+    // Odmowa puli (albo awaria RPC) nie przerywa zakupu gości: prowadzący
+    // płaci wtedy cenę miejsca, a nie dostaje go za darmo bez zdjęcia biletu.
+    if (poolPlan) {
+      const consume = input.claimPlanSeat === true && seats > 1;
       const { data: claim, error: claimErr } = await supabase.rpc(
         "event_registration_claim_plan_seat",
-        { p_registration_id: input.registrationId, p_dry_run: input.claimPlanSeat !== true },
+        { p_registration_id: input.registrationId, p_dry_run: !consume },
       );
       if (claimErr) {
         console.error("[checkout] plan seat claim failed", input.registrationId, claimErr.message);
       }
       const claimRow = objectOf(claim);
       leadFromPool = !claimErr && claimRow !== null && claimRow.claimed === true;
-      leadUnitCents = leadFromPool ? 0 : leadPaidCents;
+      // Awaria bazy przy JEDNYM miejscu zostawia cenę z pamięci puli (bilet
+      // z puli = odmowa `ticket_included_in_plan`, jak przed odbiorem z planu):
+      // nieznana odpowiedź bazy nie może kazać członkowi zapłacić za miejsce,
+      // które pula mu daje.
+      if (!claimErr || seats > 1) leadUnitCents = leadFromPool ? 0 : leadPaidCents;
     }
   }
 
-  // Pojedyncze miejsce pokryte pulą (albo bilet za zero) - nie ma czego
-  // obciążyć. Ścieżka „za darmo" to `rsvp_event`, więc kasa odsyła, zamiast
+  // Zero do obciążenia. Pojedyncze miejsce pokryte biletem z puli podgląd
+  // oddaje jako „odbierz z planu" (`allowPlanRedemption`); kasa - i każdy
+  // inny przypadek zera (bilet za zero, zniżka 100%) - odmawia, zamiast
   // zakładać zamówienie na zero złotych.
   const amountCents = leadUnitCents + quotedAmount * (seats - 1);
-  if (amountCents <= 0) throw new Error("ticket_included_in_plan");
+  const planRedemption = leadFromPool && seats === 1 && input.allowPlanRedemption === true;
+  if (amountCents <= 0 && !planRedemption) throw new Error("ticket_included_in_plan");
   const planBenefit: EventTicketPlanBenefit | null = leadFromPool
     ? "included"
     : leadUnitCents < quotedAmount
@@ -394,6 +410,11 @@ export interface EventTicketQuote {
    * ekran pokazuje wtedy „+ podatek", tak jak karta biletu w formularzu.
    */
   taxMode: TicketTaxMode | null;
+  /**
+   * Pojedyncze miejsce pokryte biletem z puli planu: nie ma czego płacić,
+   * ekran zamiast „Zapłać" daje „Odbierz bilet z planu" (suma zero, bez kodu).
+   */
+  planRedemption: boolean;
 }
 
 /**
@@ -406,7 +427,7 @@ export async function quoteEventTicketOrder(
   supabase: Client,
   input: EventTicketQuoteInput,
 ): Promise<EventTicketQuote> {
-  const price = await priceEventTicket(supabase, input);
+  const price = await priceEventTicket(supabase, { ...input, allowPlanRedemption: true });
   const base: EventTicketQuote = {
     seats: price.seats,
     unitCents: price.unitCents,
@@ -419,9 +440,13 @@ export async function quoteEventTicketOrder(
     totalCents: price.amountCents,
     couponError: null,
     taxMode: price.taxMode,
+    // Cena zero przechodzi przez wycenę WYŁĄCZNIE jako bilet z puli.
+    planRedemption: price.amountCents === 0,
   };
   const code = (input.couponCode ?? "").trim().toUpperCase();
-  if (code === "") return base;
+  // Bilet z planu nie ma kwoty, z której kod mógłby zejść - kodu nie
+  // sprawdzamy (ani nie przyjmujemy, ani nie odrzucamy).
+  if (code === "" || base.planRedemption) return base;
   const applied = await applyEventTicketCoupon(supabase, {
     code,
     eventId: input.eventId,

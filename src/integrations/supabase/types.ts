@@ -13405,6 +13405,7 @@ export type Database = {
           org_id: string | null
           period_end: string
           period_start: string
+          redeemed_at: string | null
           registration_id: string | null
           released_at: string | null
           tenant_id: string
@@ -13420,6 +13421,7 @@ export type Database = {
           org_id?: string | null
           period_end: string
           period_start: string
+          redeemed_at?: string | null
           registration_id?: string | null
           released_at?: string | null
           tenant_id: string
@@ -13435,6 +13437,7 @@ export type Database = {
           org_id?: string | null
           period_end?: string
           period_start?: string
+          redeemed_at?: string | null
           registration_id?: string | null
           released_at?: string | null
           tenant_id?: string
@@ -19483,6 +19486,13 @@ export type Database = {
         Args: { _event_id: string; _tenant: string }
         Returns: number
       }
+      _event_registration_paid_admission: {
+        Args: {
+          p_reg: Database["public"]["Tables"]["event_registrations"]["Row"]
+          p_ticket_type_id: string
+        }
+        Returns: string
+      }
       _event_registration_verdict: {
         Args: { _answers: Json; _event_id: string; _tenant: string }
         Returns: string
@@ -24763,6 +24773,10 @@ export type Database = {
         Returns: Json
       }
       event_registration_payment_context: {
+        Args: { p_registration_id: string }
+        Returns: Json
+      }
+      event_registration_redeem_plan_ticket: {
         Args: { p_registration_id: string }
         Returns: Json
       }

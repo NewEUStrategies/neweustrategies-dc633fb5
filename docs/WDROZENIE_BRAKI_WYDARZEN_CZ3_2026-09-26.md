@@ -25,8 +25,9 @@ Migracja przy zastosowaniu (jednorazowo, bez żadnej poczty):
   częściowo, które go nigdy nie miały (ta sama reguła, co w 20260923110000) -
   cron nie wyśle biletu i nie zrotuje kodu komuś, kto swój kod już ma;
 - zakłada zadanie pg_cron `event-plan-seat-release` (co godzinę, minuta 17).
-  Bez pg_cron migracja kończy się komunikatem NOTICE, a bilety porzuconych kas
-  wracają do puli tylko przy zmianie zgłoszenia.
+  Ten sam przegląd woła też `community-cron` (job `event-ticket-codes`,
+  scheduler repo co 5 minut), więc baza bez pg_cron nie zostawia biletów
+  porzuconych kas zajętych - migracja kończy się wtedy komunikatem NOTICE.
 
 Kod bez migracji działa: krok crona zawiadomień odpowiada
 `skipped: "migration_pending"` (bez czerwonego ticku), a bez migracji nie ma
@@ -61,8 +62,8 @@ też znaczników do wysłania.
    trzyma zgłoszenie (to zamykało nadużycie z części 2: zwolnienie po
    opłaceniu dawało darmowe miejsce i pełną pulę); administrator zwalnia
    i odpina bilet od zgłoszenia.
-4. **Pojedyncze zgłoszenie z biletem z puli** - patrz sekcja 4 niżej.
-5. **Wpłata Stripe przy wyczerpanej puli** - patrz sekcja 4 niżej.
+4. **Pojedyncze zgłoszenie z biletem z puli** i 5. **wpłata Stripe przy
+   wyczerpanej puli** - sekcja 4 niżej.
 
 ## 3. Poprawki z przeglądu części 2
 
@@ -83,6 +84,67 @@ też znaczników do wysłania.
   kliknięciu „Zapłać"; pole kodu nie znika w trakcie sprawdzania (fokus
   zostaje); podgląd pyta bazę raz na montaż, od razu z kodami z pamięci karty.
 
+## 4. Bilet z puli dla pojedynczego zgłoszenia i wpłata przy wyczerpanej puli
+
+**Odbiór biletu z planu (pozycja 4).** Pojedyncze zgłoszenie członka z biletem
+w puli dostaje w kasie „Odbierz bilet z planu" zamiast płatności. Baza
+sprawdza zgłoszenie, termin, okno sprzedaży, akceptację i wolne miejsce, zdejmuje
+bilet z puli tą samą regułą, co kasa grupowa, i przyjmuje zgłoszenie (`paid` bez
+zamówienia, `approved`). Bilet z kodem QR wychodzi od razu; cron domyka nieudaną
+wysyłkę. Brak miejsca to odmowa bez zużycia biletu. Zgłoszenie, które wymaga
+akceptacji organizatora, czeka na nią (odmowa „czeka na akceptację") - po
+przyjęciu przez organizatora odbiór przechodzi. Odwołanie oddaje bilet do puli,
+a ponowne przyjęcie go przywraca (`plan_ticket_claims.redeemed_at`). Pojedyncze
+miejsce, któremu pula biletu nie odda, płaci teraz cenę (ze zniżką stawki, jeśli
+jest), zamiast kończyć się odmową.
+
+**Wpłata przy wyczerpanej puli (pozycja 5).** Wpłata Stripe liczy miejsce pod
+blokadą wydarzenia i wejściówki (koniec wyścigu dwóch webhooków o ostatnie
+miejsce):
+
+- miejsce jest - zgłoszenie przyjęte, bilet z kodem QR jak dotąd;
+- miejsca nie ma - wpłata zaksięgowana, zgłoszenie czeka **opłacone** na liście
+  rezerwowej i awansuje samo, gdy miejsce się zwolni (bilet przychodzi wtedy
+  z crona). Kupujący dostaje „Płatność przyjęta - lista rezerwowa" (bez
+  potwierdzenia „miejsce zarezerwowane" i bez RSVP), organizator - dzwonek
+  w panelu i plakietkę „Opłacone - czeka na miejsce";
+- bilet albo przepływ z akceptacją - wpłata nie jest już akceptacją: zgłoszenie
+  zostaje `pending` opłacone („Płatność przyjęta - czeka na decyzję"), organizator
+  dostaje dzwonek i plakietkę „Opłacone - czeka na decyzję". **Zmiana
+  zachowania:** do tej pory wpłata Stripe przyjmowała takie zgłoszenie bez
+  organizatora;
+- wpłata na zgłoszenie odwołane albo odrzucone - kupujący nie dostaje już
+  fałszywego „Bilet opłacony"; organizator dostaje dzwonek „do zwrotu";
+- goście prowadzącego bez miejsca są tylko rozliczani, a przyjmuje ich kaskada,
+  gdy prowadzący wejdzie na miejsce.
+
+Webhook ponawia księgowanie raz przy zakleszczeniu (SQLSTATE `40P01`, `40001`).
+Zamówienia etapu 4 (z `registration_id`) nie przechodzą już przez
+`refundIfOversold` - o miejscu decyduje baza, a tamta ścieżka liczyła RSVP
+zamiast zgłoszeń.
+
+**Ofiary sprzed poprawki.** Wpłaty, które wywróciły się na pełnej puli przed tą
+migracją, zostawiły zgłoszenie `unpaid` przy opłaconym zamówieniu. Do wglądu
+(NIE uruchamiać automatycznie - naprawa wysyła maile):
+
+```sql
+SELECT o.id, o.tenant_id, o.paid_at, r.id AS registration_id, r.status
+FROM payment_orders o
+JOIN event_registrations r
+  ON r.id = (o.metadata->>'registration_id')::uuid AND r.tenant_id = o.tenant_id
+WHERE o.status = 'paid'
+  AND o.metadata->>'registration_id' ~ '^[0-9a-fA-F-]{36}$'
+  AND r.payment_status = 'unpaid';
+```
+
+Zalecana naprawa: ponowne wysłanie zdarzenia z panelu Stripe - przejdzie wtedy
+cała ścieżka z właściwymi mailami. Decyzja właściciela.
+
+**Kolejność wdrożenia.** Migracja i kod w jednym oknie (najpierw migracja).
+Kod na starej bazie działa (brak nowych pól w odpowiedzi = zachowanie
+dotychczasowe; brak funkcji odbioru = czytelna odmowa), stara baza z nowym
+kodem - również.
+
 ## 5. Poza zakresem
 
 - Zamknięcia pojedynczego gościa (organizator odrzuca albo anuluje jednego
@@ -90,6 +152,10 @@ też znaczników do wysłania.
   zawiadomienia - to decyzja o jednym wierszu, a nie o grupie.
 - Brak zawiadomień wstecz dla grup odwołanych przed tą migracją (znacznik
   wysłanego biletu został już skasowany).
+- Zwrot przy odrzuceniu opłaconego zgłoszenia czekającego na akceptację nie
+  jest automatyczny - organizator zwraca płatność sam (mail to zapowiada).
+- Kupujący awansowany z kolejki opłaconej nie dostaje RSVP „going" (dotyczy
+  tylko linku dołączenia do wydarzeń online w warstwie społeczności).
 - Wydarzenia mieszane (stara cena w wierszu wydarzenia i cennik etapu 4):
   ponowne zajęcie zwolnionego biletu ścieżką RSVP zostawia go przypiętym do
   zgłoszenia.

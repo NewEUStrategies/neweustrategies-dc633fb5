@@ -224,6 +224,7 @@ describe("quoteEventTicketOrder - podgląd bez zgłoszenia", () => {
       couponError: null,
       // Bilet z podatkiem DOLICZANYM - ekran dopisuje „+ podatek" do sumy.
       taxMode: "exclusive",
+      planRedemption: false,
     });
     expect(rpcCalls.map((c) => c.fn)).toEqual([
       "event_ticket_checkout_quote",
@@ -253,6 +254,24 @@ describe("quoteEventTicketOrder - podgląd bez zgłoszenia", () => {
 
     expect(quote.couponError).toBeNull();
     expect(rpcCalls.map((c) => c.fn)).not.toContain("validate_event_ticket_coupon");
+  });
+
+  it("kod odrzucony przez bazę: podgląd bez rabatu, z powodem odmowy kodu", async () => {
+    rpcResponses.set(
+      "validate_event_ticket_coupon",
+      ok([{ ok: false, error: "expired", coupon_id: null, discount_cents: 0, final_cents: 0 }]),
+    );
+
+    const quote = await quoteEventTicketOrder(client(), {
+      eventId: EVENT_ID,
+      ticketTypeId: TICKET_ID,
+      registrationId: null,
+      couponCode: "stary",
+    });
+
+    expect(quote.couponError).toBe("expired");
+    expect(quote.coupon).toBeNull();
+    expect(quote.totalCents).toBe(quote.subtotalCents);
   });
 
   it("kod procentowy: rabat od sumy, procent w odpowiedzi, bez kwoty na miejsce", async () => {
@@ -390,17 +409,99 @@ describe("benefit planu - tylko na miejscu wołającego", () => {
     });
   });
 
-  it("pojedyncze miejsce z puli - nie ma czego obciążyć, także ze zgłoszeniem", async () => {
+  it("pojedyncze miejsce z puli: kasa pyta bazę NA SUCHO i odmawia - bilet nie schodzi z puli", async () => {
     plan.allowance = POOL;
     await expect(priceEventTicket(client(), input({ registrationId: null }))).rejects.toThrow(
       "ticket_included_in_plan",
     );
+    expect(claimArgs()).toEqual([]);
 
     group(1);
+    rpcResponses.set(
+      "event_registration_claim_plan_seat",
+      ok({ claimed: true, reused: false, dry_run: true }),
+    );
     await expect(priceEventTicket(client(), input({ claimPlanSeat: true }))).rejects.toThrow(
       "ticket_included_in_plan",
     );
-    expect(claimArgs()).toEqual([]);
+    expect(claimArgs()).toEqual([{ p_registration_id: REGISTRATION_ID, p_dry_run: true }]);
+  });
+
+  it("podgląd pojedynczego miejsca z puli: suma zero i odbiór z planu, kodu nie sprawdza", async () => {
+    plan.allowance = POOL;
+    group(1);
+    rpcResponses.set(
+      "event_registration_claim_plan_seat",
+      ok({ claimed: true, reused: false, dry_run: true }),
+    );
+
+    const quote = await quoteEventTicketOrder(client(), input({ couponCode: "minus30" }));
+
+    expect(quote).toMatchObject({
+      seats: 1,
+      leadUnitCents: 0,
+      planBenefit: "included",
+      subtotalCents: 0,
+      totalCents: 0,
+      coupon: null,
+      couponError: null,
+      planRedemption: true,
+    });
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("validate_event_ticket_coupon");
+    expect(claimArgs()).toEqual([{ p_registration_id: REGISTRATION_ID, p_dry_run: true }]);
+  });
+
+  it("bilet ZUŻYTY dla wydarzenia (pula pusta) nadal pokrywa pojedyncze miejsce", async () => {
+    plan.allowance = { granted: 1, remaining: 0 };
+    group(1);
+    rpcResponses.set("event_registration_claim_plan_seat", ok({ claimed: true, reused: true }));
+
+    const quote = await quoteEventTicketOrder(client(), input());
+
+    expect(quote).toMatchObject({ leadUnitCents: 0, totalCents: 0, planRedemption: true });
+  });
+
+  it("pula nie odda biletu pojedynczemu miejscu - członek płaci, ze zniżką, gdy ją ma", async () => {
+    plan.allowance = { granted: 1, remaining: 1, discountPct: 50 };
+    group(1);
+    rpcResponses.set(
+      "event_registration_claim_plan_seat",
+      ok({ claimed: false, reason: "pool_empty" }),
+    );
+
+    const quote = await quoteEventTicketOrder(client(), input());
+
+    expect(quote).toMatchObject({
+      leadUnitCents: 5000,
+      planBenefit: "discount",
+      totalCents: 5000,
+      planRedemption: false,
+    });
+  });
+
+  it("awaria bazy przy pojedynczym miejscu nie każe płacić - odmowa jak przed odbiorem z planu", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    plan.allowance = POOL;
+    group(1);
+    rpcResponses.set("event_registration_claim_plan_seat", fail("deadlock detected"));
+
+    await expect(quoteEventTicketOrder(client(), input())).rejects.toThrow(
+      "ticket_included_in_plan",
+    );
+    logged.mockRestore();
+  });
+
+  it("grupa z biletem z puli w podglądzie to nadal kasa - odbiór z planu ma jedno miejsce", async () => {
+    plan.allowance = POOL;
+    group(2);
+    rpcResponses.set(
+      "event_registration_claim_plan_seat",
+      ok({ claimed: true, reused: false, dry_run: true }),
+    );
+
+    const quote = await quoteEventTicketOrder(client(), input());
+
+    expect(quote).toMatchObject({ totalCents: 10000, planRedemption: false });
   });
 
   it("zniżka 100% bez puli to zniżka, a nie bilet z puli - kasa nie sięga do puli", async () => {

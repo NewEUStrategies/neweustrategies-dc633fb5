@@ -6556,6 +6556,18 @@ export default defineConfig({
         // (checkout.functions, RegistrationPayAction, registrationRows,
         // refunds.server) stoi już na 98. `jobsTick.server` zostaje przy swoim
         // (99 / 100 / 99 / 98).
+        "src/lib/billing/eventTicketPlanRedeem.functions.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/billing/eventTicketPlanRedeem.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
         "src/lib/events/planSeatRelease.server.ts": {
           statements: 98,
           functions: 98,

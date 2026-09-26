@@ -60,13 +60,20 @@ export function RegistrationConfirmation({
 }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
+  /**
+   * Bilet odebrany z puli planu na TYM ekranie (`RegistrationPayAction`).
+   * Wynik zapisu jest migawką sprzed odbioru, więc bez tego ekran mówiłby
+   * dalej „czeka na opłatę" pod zdaniem „bilet odebrany".
+   */
+  const [planSettled, setPlanSettled] = useState(false);
+  const status = planSettled ? "approved" : result.status;
 
   const statusMessage =
-    result.status === "waitlist"
+    status === "waitlist"
       ? result.waitlistPosition === null
         ? t("eventRegistration.result.waitlistNoPosition")
         : t("eventRegistration.result.waitlist", { position: result.waitlistPosition })
-      : t(`eventRegistration.result.${result.status}`);
+      : t(`eventRegistration.result.${status}`);
 
   // Klucz jako STAŁA: zawężenie `!== null` w JSX przechodzi wtedy do
   // procedury obsługi kliknięcia, więc kopiowanie nie potrzebuje własnego,
@@ -132,13 +139,17 @@ export function RegistrationConfirmation({
           istniał: płatny bilet był wydawany za darmo, z działającym kodem QR. */}
       {result.paymentRequired && !cancelled && (
         <div className="space-y-2 rounded-[6px] border border-amber-500/50 bg-amber-500/5 p-4">
-          <h2 className="text-sm font-semibold text-foreground">
-            {t("eventRegistration.result.paymentTitle")}
-          </h2>
-          <p className="text-sm text-foreground">{t("eventRegistration.result.paymentHint")}</p>
-          <p className="text-xs text-muted-foreground">
-            {t("eventRegistration.result.paymentNoTicketYet")}
-          </p>
+          {!planSettled && (
+            <>
+              <h2 className="text-sm font-semibold text-foreground">
+                {t("eventRegistration.result.paymentTitle")}
+              </h2>
+              <p className="text-sm text-foreground">{t("eventRegistration.result.paymentHint")}</p>
+              <p className="text-xs text-muted-foreground">
+                {t("eventRegistration.result.paymentNoTicketYet")}
+              </p>
+            </>
+          )}
           {/* DROGA DO KASY. Zdanie o braku wejsciowki ZOSTAJE - czlowiek ma
               wiedziec, ze przed zaplata biletu nie ma. Zmienia sie to, ze ma
               teraz co z tym zrobic. */}
@@ -149,6 +160,7 @@ export function RegistrationConfirmation({
             amountCents={amountCents}
             currency={currency}
             returnPath={`/events/${slug}`}
+            onSettled={() => setPlanSettled(true)}
           />
         </div>
       )}

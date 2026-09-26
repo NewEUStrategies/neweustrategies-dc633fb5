@@ -227,6 +227,14 @@ export const eventRegistrationPl = {
       notOwnerBody:
         "To zgłoszenie powstało z innego konta. Zaloguj się na tamto konto, żeby dokończyć płatność.",
       failed: "Nie udało się otworzyć kasy. Spróbuj ponownie.",
+      // ODBIOR BILETU Z PULI PLANU - pojedyncze zgloszenie czlonka, bez kasy.
+      planIncludedBody:
+        "Ta wejściówka jest wliczona w Twój plan członkowski - nic nie płacisz. Odbierz bilet z puli, a kod QR wyślemy Ci e-mailem.",
+      redeemPlan: "Odbierz bilet z planu",
+      redeeming: "Odbieramy bilet...",
+      planRedeemedTitle: "Bilet odebrany z planu",
+      planRedeemedBody:
+        "Wejściówka jest wydana - kod QR wysyłamy e-mailem. Znajdziesz go też w „Moich zgłoszeniach”.",
     },
     invite: {
       title: "Zaproszenie na miejsce z pakietu",
@@ -396,6 +404,10 @@ export const eventRegistrationPl = {
       coupon_no_discount: "Ten kod nie daje rabatu - odsłania tylko ukryte bilety.",
       ticket_included_in_plan:
         "Ta wejściówka jest już wliczona w Twój plan - nie ma czego płacić. Odbierz ją z puli członkowskiej.",
+      plan_ticket_unavailable:
+        "Bilet z planu nie obejmuje już tego zgłoszenia (pula jest wykorzystana albo zgłoszenie obejmuje gości) - wejściówkę trzeba opłacić.",
+      plan_ticket_awaiting_approval:
+        "To zgłoszenie czeka na akceptację organizatora. Bilet z planu odbierzesz, gdy organizator je przyjmie - napiszemy do Ciebie z decyzją.",
       event_finished: "Wydarzenie już się odbyło.",
       access_code_invalid: "Ta wejściówka wymaga poprawnego kodu z zaproszenia.",
       account_required: "Zaloguj się, żeby dokończyć płatność.",
@@ -610,6 +622,13 @@ export const eventRegistrationEn = {
       notOwnerBody:
         "This registration was created from another account. Sign in to that account to complete the payment.",
       failed: "We could not open the checkout. Please try again.",
+      planIncludedBody:
+        "This admission is included in your membership plan - there is nothing to pay. Claim the ticket from your pool and we will e-mail you the QR code.",
+      redeemPlan: "Claim the ticket from your plan",
+      redeeming: "Claiming your ticket...",
+      planRedeemedTitle: "Ticket claimed from your plan",
+      planRedeemedBody:
+        "Your admission is issued - we are e-mailing you the QR code. You will also find it under “My registrations”.",
     },
     invite: {
       title: "Invitation to a package seat",
@@ -767,6 +786,10 @@ export const eventRegistrationEn = {
       coupon_no_discount: "This code gives no discount - it only reveals hidden tickets.",
       ticket_included_in_plan:
         "This admission is already included in your plan - there is nothing to pay. Claim it from your membership pool.",
+      plan_ticket_unavailable:
+        "A plan ticket no longer covers this registration (the pool is used up or the registration includes guests) - the admission needs to be paid.",
+      plan_ticket_awaiting_approval:
+        "This registration is awaiting the organiser's approval. You can claim the plan ticket once the organiser accepts it - we will write to you with the decision.",
       event_finished: "The event has already taken place.",
       access_code_invalid: "This admission requires a valid invitation code.",
       account_required: "Sign in to complete the payment.",

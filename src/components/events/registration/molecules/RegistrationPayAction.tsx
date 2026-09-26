@@ -52,17 +52,27 @@
 // `requireSupabaseAuth`, a księgowanie wpłaty wymaga `payment_orders.user_id`,
 // więc gość zobaczy zdanie z prawdziwym powodem (paragon i droga zwrotu należą
 // do konta) i odnośnik do logowania - a nie kontrolkę, która go wyrzuci.
+//
+// BILET Z PLANU ZAMIAST KASY. Pojedyncze zgłoszenie członka, którego miejsce
+// pokrywa bilet z puli planu, nie ma czego płacić - kasa odmawia
+// (`ticket_included_in_plan`), a podgląd oddaje `planRedemption`. Molekuła
+// pokazuje wtedy „Odbierz bilet z planu" (`redeemEventTicketFromPlan`) zamiast
+// kodu rabatowego i „Zapłać". Po odbiorze zgłoszenie jest przyjęte na KAŻDEJ
+// powierzchni, która je pokazuje - molekuła unieważnia zapytania i mówi o tym
+// rodzicowi (`onSettled`), bo ekran potwierdzenia nie ma zapytania do
+// odświeżenia.
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { CreditCard, Loader2, LogIn } from "lucide-react";
+import { BadgeCheck, CreditCard, Loader2, LogIn } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
 import { quoteEventTicketCheckout } from "@/lib/billing/eventTicketQuote.functions";
+import { redeemEventTicketFromPlan } from "@/lib/billing/eventTicketPlanRedeem.functions";
 import { formatMoney } from "@/lib/billing/types";
 import { getStripeEnvironment } from "@/lib/stripe";
 import { LazyEmbeddedCheckoutDialog } from "@/components/checkout/LazyEmbeddedCheckoutDialog";
@@ -128,6 +138,8 @@ export interface RegistrationPayActionProps {
    * autorytetem i tak jest baza (`event_registration_payment_context`).
    */
   ownedByCaller?: boolean;
+  /** Zgłoszenie rozliczone BEZ kasy (bilet z puli planu) - przyjęte. */
+  onSettled?: () => void;
 }
 
 export function RegistrationPayAction({
@@ -140,6 +152,7 @@ export function RegistrationPayAction({
   intent = "pay",
   showAmount = true,
   ownedByCaller,
+  onSettled,
 }: RegistrationPayActionProps) {
   const { t, i18n } = useTranslation();
   const { session } = useAuth();
@@ -147,10 +160,13 @@ export function RegistrationPayAction({
   const queryClient = useQueryClient();
   const checkout = useServerFn(createCheckoutOrder);
   const quoteFn = useServerFn(quoteEventTicketCheckout);
+  const redeemFn = useServerFn(redeemEventTicketFromPlan);
 
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState<TicketCheckoutRefusal | null>(null);
+  /** Bilet odebrany z planu w tej molekule - zostaje tylko zdanie o tym. */
+  const [redeemed, setRedeemed] = useState(false);
   // Kod rabatowy to tylko napis - rabat liczy validate_event_ticket_coupon
   // w `createCheckoutOrder`, a Stripe dostaje go jako kupon na różnicę ceny.
   const [promo, setPromo] = useState("");
@@ -225,6 +241,8 @@ export function RegistrationPayAction({
   // Podgląd sprzed benefitu na miejscu członka (starszy serwer) pola nie ma -
   // wtedy wszystkie miejsca są po tej samej cenie.
   const quoteBenefit = quote?.planBenefit ?? null;
+  // Starszy serwer pola nie zna - wtedy nie ma odbioru z planu, jest kasa.
+  const planRedemption = quote?.planRedemption === true;
 
   // KOD BEZ RABATU ANI KOD Z PAMIĘCI NIE BLOKUJĄ PŁATNOŚCI. Kod bez rabatu
   // (`no_discount`) nie ma czego odjąć, a kod z linku `?code=` odsłania zwykle
@@ -284,6 +302,24 @@ export function RegistrationPayAction({
       <p role="status" className="text-sm text-muted-foreground">
         {t("eventRegistration.payment.notOwnerBody")}
       </p>
+    );
+  }
+
+  // PO ODBIORZE zostaje samo zdanie. Rodzic z zapytaniem schowa molekułę po
+  // odświeżeniu (zgłoszenie jest już `paid`); ekran potwierdzenia - nie.
+  if (redeemed) {
+    return (
+      <div
+        role="status"
+        className="space-y-1 rounded-[6px] border border-primary/40 bg-primary/5 p-3"
+      >
+        <p className="text-sm font-semibold text-foreground">
+          {t("eventRegistration.payment.planRedeemedTitle")}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          {t("eventRegistration.payment.planRedeemedBody")}
+        </p>
+      </div>
     );
   }
 
@@ -385,6 +421,42 @@ export function RegistrationPayAction({
     }
   }
 
+  /**
+   * Odbiór biletu z puli. Przycisk stoi tylko przy podglądzie `planRedemption`,
+   * a ten istnieje wyłącznie z kompletem identyfikatorów i kodem dostępu,
+   * który podgląd właśnie przyjął (`accessPart`).
+   */
+  async function redeem(): Promise<void> {
+    setBusy(true);
+    setRefusal(null);
+    try {
+      const result = await redeemFn({
+        data: {
+          event_id: eventId as string,
+          ticket_type_id: ticketTypeId as string,
+          registration_id: registrationId,
+          ...accessPart,
+        },
+      });
+      if (!result.ok) {
+        setRefusal(ticketCheckoutRefusal(result.error));
+        // Pula mogła się zmienić (inna karta, grupa) - podgląd pokaże kasę.
+        void quoteQ.refetch();
+        return;
+      }
+      setRedeemed(true);
+      // Status zgłoszenia zmienia się na każdej powierzchni, która je pokazuje
+      // (panel biletów, strona samoobsługi, nagłówek wydarzenia) - molekuła nie
+      // zna ich kluczy, a odbiór zdarza się raz.
+      void queryClient.invalidateQueries();
+      onSettled?.();
+    } catch (error: unknown) {
+      setRefusal(ticketCheckoutRefusal(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const money = (cents: number, code: string): string => formatMoney(cents, code, i18n.language);
   // Odmowa kodu z pamięci nie jest błędem kupującego - efekt wyżej zdejmie go
   // z pola, więc zdanie o błędnym kodzie nie mignie nawet na jedną klatkę.
@@ -416,7 +488,10 @@ export function RegistrationPayAction({
           {t("eventRegistration.payment.quoteLoading")}
         </p>
       )}
-      {showAmount && quote !== null && (
+      {showAmount && quote !== null && planRedemption && (
+        <p className="text-sm text-foreground">{t("eventRegistration.payment.planIncludedBody")}</p>
+      )}
+      {showAmount && quote !== null && !planRedemption && (
         <div className="space-y-0.5 text-sm">
           {/* BENEFIT PLANU MA JEDNO MIEJSCE: członka. Grupa z benefitem mówi
               więc osobno „Twoje miejsce" i „Goście: N × cena z cennika" -
@@ -483,50 +558,68 @@ export function RegistrationPayAction({
           </p>
         </div>
       )}
-      <div className="flex max-w-md flex-wrap items-end gap-2">
-        <label className="block min-w-0 flex-1 space-y-1 text-sm">
-          <span className="font-medium">{t("eventRegistration.payment.promoLabel")}</span>
-          <input
-            value={promo}
-            maxLength={64}
-            autoComplete="off"
-            spellCheck={false}
-            onChange={(event) => setPromo(event.target.value.toUpperCase())}
-            placeholder={t("eventRegistration.payment.promoPlaceholder")}
-            className="h-10 w-full rounded-[6px] border border-input bg-background px-3 text-sm uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-        </label>
-        <Button type="button" variant="outline" disabled={busy || !ready} onClick={applyCode}>
-          {t("eventRegistration.payment.promoApply")}
+      {/* Bilet z planu nie ma kwoty, z której kod mógłby zejść. */}
+      {!planRedemption && (
+        <>
+          <div className="flex max-w-md flex-wrap items-end gap-2">
+            <label className="block min-w-0 flex-1 space-y-1 text-sm">
+              <span className="font-medium">{t("eventRegistration.payment.promoLabel")}</span>
+              <input
+                value={promo}
+                maxLength={64}
+                autoComplete="off"
+                spellCheck={false}
+                onChange={(event) => setPromo(event.target.value.toUpperCase())}
+                placeholder={t("eventRegistration.payment.promoPlaceholder")}
+                className="h-10 w-full rounded-[6px] border border-input bg-background px-3 text-sm uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </label>
+            <Button type="button" variant="outline" disabled={busy || !ready} onClick={applyCode}>
+              {t("eventRegistration.payment.promoApply")}
+            </Button>
+          </div>
+          <span className="block text-xs text-muted-foreground">
+            {t("eventRegistration.payment.promoHint")}
+          </span>
+          {droppedCode !== null && (
+            <p role="status" className="text-sm text-muted-foreground">
+              {droppedCode.reason === "revealOnly"
+                ? t("eventRegistration.payment.promoRevealOnly", { code: droppedCode.code })
+                : t("eventRegistration.payment.promoRememberedDropped", { code: droppedCode.code })}
+            </p>
+          )}
+          {codeRefused && (
+            <p role="status" className="text-sm text-destructive">
+              {t("eventRegistration.payment.promoError")}
+            </p>
+          )}
+        </>
+      )}
+      {planRedemption ? (
+        <Button type="button" disabled={busy} onClick={() => void redeem()}>
+          {busy ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <BadgeCheck className="mr-2 h-4 w-4" aria-hidden="true" />
+          )}
+          {busy
+            ? t("eventRegistration.payment.redeeming")
+            : t("eventRegistration.payment.redeemPlan")}
         </Button>
-      </div>
-      <span className="block text-xs text-muted-foreground">
-        {t("eventRegistration.payment.promoHint")}
-      </span>
-      {droppedCode !== null && (
-        <p role="status" className="text-sm text-muted-foreground">
-          {droppedCode.reason === "revealOnly"
-            ? t("eventRegistration.payment.promoRevealOnly", { code: droppedCode.code })
-            : t("eventRegistration.payment.promoRememberedDropped", { code: droppedCode.code })}
-        </p>
+      ) : (
+        <Button type="button" disabled={busy || !ready} onClick={() => void pay()}>
+          {busy ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <CreditCard className="mr-2 h-4 w-4" aria-hidden="true" />
+          )}
+          {busy
+            ? t("eventRegistration.payment.paying")
+            : intent === "resume"
+              ? t("eventRegistration.payment.resume")
+              : t("eventRegistration.payment.payNow")}
+        </Button>
       )}
-      {codeRefused && (
-        <p role="status" className="text-sm text-destructive">
-          {t("eventRegistration.payment.promoError")}
-        </p>
-      )}
-      <Button type="button" disabled={busy || !ready} onClick={() => void pay()}>
-        {busy ? (
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-        ) : (
-          <CreditCard className="mr-2 h-4 w-4" aria-hidden="true" />
-        )}
-        {busy
-          ? t("eventRegistration.payment.paying")
-          : intent === "resume"
-            ? t("eventRegistration.payment.resume")
-            : t("eventRegistration.payment.payNow")}
-      </Button>
       {shownRefusal !== null && (
         <p role="status" className="text-sm text-destructive">
           {t(admissionQuoteMessageKey(shownRefusal))}

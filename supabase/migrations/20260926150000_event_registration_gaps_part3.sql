@@ -1,5 +1,43 @@
--- Braki modulu Wydarzen, czesc 3 (PROTOTYP ZLOZENIA).
+-- Braki modulu Wydarzen, czesc 3: zawiadomienie gosci o odwolanym bilecie,
+-- awans kolejki za gosci zwroconych, bilet z puli planu idzie za zgloszeniem
+-- (zwrot do puli i odbior dla pojedynczego zgloszenia), wplata Stripe przy
+-- wyczerpanej puli, poprawki przegladu czesci 2.
 -- events-harness: include
+--
+-- CO ROBI TA MIGRACJA (sekcje nizej, kazda z wlasna PRZYCZYNA i opisem):
+--   1) `ticket_revoked_at` - znacznik zawiadomienia gosci, do ktorych bilet
+--      dotarl, gdy grupe odwolano (odrzucenie/anulowanie prowadzacego, zwrot).
+--   2) `_event_waitlist_promote(..., _skip_group)` i
+--      `_event_group_promote_freed(..., p_skip_group)` - awans z pominieciem
+--      wlasnej grupy; kazdy awans kasuje `waitlist_notified_at`.
+--   3) Gosc zwrocony czesciowo wraca z prowadzacym przy ponownym przyjeciu
+--      (zwrot czesciowy to korekta ceny - miejsce i kod zostaja).
+--   4) Kaskada statusu prowadzacego stempluje zawiadomienie.
+--   5) Wynik platnosci na gosciach: zwrot awansuje kolejke za zwolnione
+--      miejsca gosci (po petli, bez wlasnej grupy) i stempluje zawiadomienie;
+--      wplata nie przyjmuje gosci, dopoki prowadzacy nie ma miejsca.
+--   6) Zajecie i rozliczenie partii zawiadomien (cron: `jobs-tick`,
+--      `community-cron` -> `event_ticket_revoked` przez `sendTxEmail`).
+--   7) Wydanie biletu takze dla zgloszen zwroconych czesciowo.
+--   8) Bilet z puli planu nalezy do zgloszenia (`registration_id`) i wraca do
+--      puli, gdy zgloszenie go nie potrzebuje (trigger, wynik `unpaid`,
+--      przeglad porzuconych kas); czlonek nie zwalnia biletu zgloszenia sam.
+--      f2/g: wplata Stripe liczy miejsce pod blokada wydarzenia i biletu -
+--      brak miejsca to kolejka OPLACONA zamiast wywroconego ksiegowania,
+--      bilet z akceptacja zostaje `pending` oplacony.
+--   9) `event_registration_redeem_plan_ticket` - odbior biletu z puli dla
+--      pojedynczego zgloszenia (bez Stripe), ta sama regula przyjecia.
+--  10) Zamowienie pakietu: kod blokowany przed zamowieniem, zatrzask tylko
+--      z naprawde oddanym uzyciem.
+--
+-- MIGRACJA NIKOGO NIE POWIADAMIA. Jednorazowo (bez poczty): dopiecie biletow
+-- z puli do zgloszen i zwolnienie biletow porzuconych kas, znacznik
+-- wyslanego biletu dla zgloszen zwroconych czesciowo, ktore go nie mialy,
+-- zadanie pg_cron `event-plan-seat-release` (gdy rozszerzenie jest).
+--
+-- KOLEJNOSC TRIGGEROW `event_registrations` (AFTER, po nazwie): platnosc
+-- (`group_follow_lead`) -> bilet z puli (`plan_seat_follow`) -> przelicznik
+-- `sold_count` -> kaskada statusu (`zz_group_follow_lead_status`).
 
 -- ============================================================================
 -- 1) ZNACZNIK ODWOLANEGO BILETU GOSCIA (zawiadomienie event_ticket_revoked)
@@ -445,7 +483,7 @@ COMMENT ON FUNCTION public._tg_event_group_follow_lead_status() IS
   'Kaskada statusu prowadzacego grupy na gosci: zatwierdzenie przyjmuje gosci rozliczonych (albo stawia ich w kolejce, gdy brak miejsca) i przywraca gosci zamknietych razem z prowadzacym (_event_group_admit_guests), odrzucenie i anulowanie zamyka gosci czekajacych i przyjetych (kod QR przestaje wpuszczac; attended/no_show zostaja) - ze sladem decydujacego tylko wtedy, gdy ta instrukcja stemplowala decyzje prowadzacego - i promuje kolejke za zwolnione miejsca. Gosciom, do ktorych bilet dotarl, stempluje zawiadomienie o odwolanym bilecie (ticket_revoked_at). Nieoplaconych gosci przyjmuje trigger platnosci.';
 
 -- ============================================================================
--- 7) WYNIK PLATNOSCI NA GOSCIACH: ZWROT AWANSUJE KOLEJKE I ZAWIADAMIA
+-- 5) WYNIK PLATNOSCI NA GOSCIACH: ZWROT AWANSUJE KOLEJKE I ZAWIADAMIA
 -- ============================================================================
 -- Cialo z 20260926120000. Zmiany w galezi `refunded`: miejsce goscia liczone
 -- ze statusu SPRZED zwrotu, skrot kodu QR znika, znacznik zawiadomienia dla
@@ -464,9 +502,15 @@ DECLARE
   v_token text;
   v_n integer := 0;
   v_freed uuid[] := ARRAY[]::uuid[];
+  v_seated boolean;
 BEGIN
   SELECT * INTO v_lead FROM public.event_registrations l WHERE l.id = p_lead_id;
   v_tenant := v_lead.tenant_id;
+  -- GOSCIE NIE WCHODZA PRZED PROWADZACYM (pozycja 5). Wplata bez miejsca stawia
+  -- prowadzacego w kolejce, a bilet z akceptacja - w oczekiwaniu na decyzje.
+  -- Goscie sa wtedy tylko rozliczani; przyjmie ich kaskada statusu, gdy
+  -- prowadzacy wejdzie na miejsce (awans z kolejki albo decyzja organizatora).
+  v_seated := v_lead.status IN ('approved', 'attended', 'no_show');
 
   FOR g IN SELECT * FROM public.event_registrations r
     WHERE r.group_lead_registration_id = p_lead_id AND r.tenant_id = v_tenant
@@ -484,16 +528,18 @@ BEGIN
           paid_at = COALESCE(r.paid_at, now()),
           updated_at = now()
         WHERE r.id = g.id AND r.tenant_id = v_tenant;
-        UPDATE public.event_ticket_types t SET sold_count = c.cnt
-        FROM (
-          SELECT count(*)::integer AS cnt
-          FROM public.event_registrations x
-          WHERE x.tenant_id = v_tenant
-            AND x.ticket_type_id = g.ticket_type_id
-            AND x.status IN ('approved', 'attended', 'no_show')
-        ) c
-        WHERE t.id = g.ticket_type_id AND t.tenant_id = v_tenant AND t.sold_count <> c.cnt;
-        PERFORM public._event_group_admit_guest(v_lead, g);
+        IF v_seated THEN
+          UPDATE public.event_ticket_types t SET sold_count = c.cnt
+          FROM (
+            SELECT count(*)::integer AS cnt
+            FROM public.event_registrations x
+            WHERE x.tenant_id = v_tenant
+              AND x.ticket_type_id = g.ticket_type_id
+              AND x.status IN ('approved', 'attended', 'no_show')
+          ) c
+          WHERE t.id = g.ticket_type_id AND t.tenant_id = v_tenant AND t.sold_count <> c.cnt;
+          PERFORM public._event_group_admit_guest(v_lead, g);
+        END IF;
       ELSE
         -- Gosc juz przyjety albo obecny: tylko rozliczenie. Kod zostaje (albo
         -- powstaje, gdy przyjecie przyszlo bez niego).
@@ -561,14 +607,14 @@ END $$;
 REVOKE ALL ON FUNCTION public._event_apply_outcome_to_group(uuid, uuid, text) FROM PUBLIC, anon, authenticated;
 
 COMMENT ON FUNCTION public._event_apply_outcome_to_group(uuid, uuid, text) IS
-  'Wynik platnosci prowadzacego na gosciach grupy: paid rozlicza czekajacych i przyjmuje ich z kontrola miejsc (_event_group_admit_guest - miejsce albo kolejka, takze na sciezce Stripe), przyjetym tylko rozlicza; refunded anuluje oplaconych (bez kodu QR, ze znacznikiem zawiadomienia dla tych, do ktorych bilet dotarl) i awansuje kolejke za miejsca, ktore zajmowali, z pominieciem wlasnej grupy; partial_refund i unpaid tylko rozliczaja. Zamowienie trafia do goscia tylko, gdy wynik je przyniosl.';
+  'Wynik platnosci prowadzacego na gosciach grupy: paid rozlicza czekajacych i - gdy prowadzacy jest na miejscu - przyjmuje ich z kontrola miejsc (_event_group_admit_guest - miejsce albo kolejka, takze na sciezce Stripe), przyjetym tylko rozlicza; refunded anuluje oplaconych (bez kodu QR, ze znacznikiem zawiadomienia dla tych, do ktorych bilet dotarl) i awansuje kolejke za miejsca, ktore zajmowali, z pominieciem wlasnej grupy; partial_refund i unpaid tylko rozliczaja. Zamowienie trafia do goscia tylko, gdy wynik je przyniosl.';
 
 -- ============================================================================
--- 5) ZAWIADOMIENIA O ODWOLANYM BILECIE: ZAJECIE I ROZLICZENIE PARTII
+-- 6) ZAWIADOMIENIA O ODWOLANYM BILECIE: ZAJECIE I ROZLICZENIE PARTII
 -- ============================================================================
 -- Wzor jak bilety (`_event_issue_ticket_codes` + `_event_ticket_code_confirm`):
 -- dzierzawa 15 minut i SKIP LOCKED - minutowy tick i `community-cron` niczego
--- nie dublują. Jedno zajecie i jedno rozliczenie na partie: dwa RPC zamiast
+-- nie dubluja. Jedno zajecie i jedno rozliczenie na partie: dwa RPC zamiast
 -- jednego plus dwoch na kazdego goscia.
 --
 -- Zajecie POMIJA wiersz, ktory znow jest przyjety (przywrocony gosc czeka na
@@ -690,7 +736,7 @@ COMMENT ON FUNCTION public._event_ticket_revoked_notices_settle(timestamptz, uui
   'Rozliczenie partii zawiadomien jednym UPDATE, wylacznie dla TEGO zajecia (p_claimed_at): p_done zamyka znacznik, p_retry zwalnia dzierzawe i zostawia znacznik do ponowienia. Obce albo przeterminowane zajecie niczego nie zmienia. Zwraca liczbe wierszy. Wylacznie service_role.';
 
 -- ============================================================================
--- 6) BILET DLA ZGLOSZENIA ZWROCONEGO CZESCIOWO
+-- 7) BILET DLA ZGLOSZENIA ZWROCONEGO CZESCIOWO
 -- ============================================================================
 -- Zwrot czesciowy zachowuje miejsce i kod QR (korekta ceny). Wydanie biletu
 -- przyjmowalo jednak tylko `paid`/`not_required`, wiec gosc przywrocony
@@ -979,6 +1025,17 @@ CREATE INDEX IF NOT EXISTS idx_plan_ticket_claims_registration
   ON public.plan_ticket_claims (registration_id)
   WHERE registration_id IS NOT NULL;
 
+-- Niepusty `redeemed_at` = bilet z puli JEST rozliczeniem zgloszenia (odbior
+-- z planu, sekcja 9, bez zamowienia). `_event_plan_seat_settle` (c) przywraca
+-- go przy ponownym przyjeciu tak samo, jak bilet oplaconej kasy; wplata reczna
+-- bez zamowienia znacznika nie ma i biletu nie przywraca. Kasa, ktora zajmuje
+-- albo przepina bilet (e), znacznik kasuje.
+ALTER TABLE public.plan_ticket_claims
+  ADD COLUMN IF NOT EXISTS redeemed_at timestamptz;
+
+COMMENT ON COLUMN public.plan_ticket_claims.redeemed_at IS
+  'Bilet z puli rozliczyl zgloszenie registration_id sam - odbior z planu (event_registration_redeem_plan_ticket), bez zamowienia. Ponowne przyjecie zgloszenia przywraca go jak bilet oplaconej kasy; kasa, ktora zajmuje albo przepina bilet, znacznik kasuje.';
+
 COMMENT ON COLUMN public.plan_ticket_claims.registration_id IS
   'Zgloszenie etapu 4, ktorego miejsce prowadzacego pokrywa ten bilet (event_registration_claim_plan_seat). Pusta: bilet sciezki RSVP. Bilet ze zgloszeniem zwalnia cykl zgloszenia (_event_plan_seat_settle), nie czlonek.';
 
@@ -1064,12 +1121,16 @@ BEGIN
    WHERE c.registration_id = v_reg.id
      AND c.user_id = v_user
      AND c.released_at IS NOT NULL
-     AND EXISTS (
-       SELECT 1 FROM public.payment_orders o
-        WHERE o.id = v_reg.payment_order_id
-          AND o.user_id = v_user
-          AND o.status::text = 'paid'
-          AND o.metadata->>'plan_benefit' = 'included'
+     AND (
+       -- Bilet rozliczyl zgloszenie sam (odbior z planu, sekcja 9).
+       c.redeemed_at IS NOT NULL
+       OR EXISTS (
+         SELECT 1 FROM public.payment_orders o
+          WHERE o.id = v_reg.payment_order_id
+            AND o.user_id = v_user
+            AND o.status::text = 'paid'
+            AND o.metadata->>'plan_benefit' = 'included'
+       )
      );
   GET DIAGNOSTICS v_n = ROW_COUNT;
   RETURN CASE WHEN v_n > 0 THEN 'reheld' ELSE 'kept' END;
@@ -1077,7 +1138,7 @@ END $$;
 REVOKE ALL ON FUNCTION public._event_plan_seat_settle(uuid, uuid) FROM PUBLIC, anon, authenticated;
 
 COMMENT ON FUNCTION public._event_plan_seat_settle(uuid, uuid) IS
-  'Uzgadnia bilet z puli planu ze stanem zgloszenia (_event_plan_seat_needed): zwalnia, gdy niepotrzebny; przywraca bez sprawdzania puli, gdy zgloszenie oplacilo zamowienie z miejscem z puli. Zwraca none | released | reheld | kept.';
+  'Uzgadnia bilet z puli planu ze stanem zgloszenia (_event_plan_seat_needed): zwalnia, gdy niepotrzebny; przywraca bez sprawdzania puli, gdy zgloszenie oplacilo zamowienie z miejscem z puli albo bilet rozliczyl zgloszenie sam (redeemed_at). Zwraca none | released | reheld | kept.';
 
 CREATE OR REPLACE FUNCTION public._tg_event_plan_seat_follow()
 RETURNS trigger
@@ -1138,7 +1199,7 @@ COMMENT ON FUNCTION public._event_plan_seat_release_lapsed(integer) IS
   'Co godzine (pg_cron event-plan-seat-release) i z community-cron (event-ticket-codes): zwalnia bilety z puli trzymane przez zgloszenia, ktore ich nie potrzebuja (_event_plan_seat_needed) - porzucona kasa, kasa przerwana przed zamowieniem. Karencja godziny od zajecia. Zwraca liczbe zwolnionych.';
 
 -- Harmonogram w pg_cron, gdy jest. NIE jest jedynym zrodlem wywolan:
--- `community-cron` (job `event-ticket-codes`, scheduler repo co 5 minut) woła
+-- `community-cron` (job `event-ticket-codes`, scheduler repo co 5 minut) wola
 -- ten sam przeglad (`runPlanSeatRelease`), wiec baza bez pg_cron - albo
 -- z nieudanym zakladaniem zadania - nie zostawia biletow porzuconych kas
 -- zajetych na zawsze. Funkcja jest idempotentna (SKIP LOCKED, karencja).
@@ -1230,7 +1291,8 @@ BEGIN
     -- jego cykl (odwolanie, porzucona kasa) go oddal. Bilet sciezki RSVP
     -- (bez zgloszenia) zostaje jej. Podglad niczego nie zapisuje.
     IF v_holder IS NOT NULL AND v_holder <> v_reg.id AND NOT COALESCE(p_dry_run, false) THEN
-      UPDATE public.plan_ticket_claims SET registration_id = v_reg.id WHERE id = v_claim_id;
+      UPDATE public.plan_ticket_claims SET registration_id = v_reg.id, redeemed_at = NULL
+       WHERE id = v_claim_id;
     END IF;
     RETURN jsonb_build_object('claimed', true, 'reused', true);
   END IF;
@@ -1302,6 +1364,7 @@ BEGIN
         face_value_cents = EXCLUDED.face_value_cents,
         currency         = EXCLUDED.currency,
         registration_id  = EXCLUDED.registration_id,
+        redeemed_at      = NULL,
         claimed_at       = now();
   RETURN jsonb_build_object('claimed', true, 'reused', false);
 END;
@@ -1355,11 +1418,80 @@ COMMENT ON FUNCTION public.release_included_event_ticket(uuid, uuid) IS
   'Zwraca bilet do puli po rezygnacji z udzialu. Wiersz zostaje ze stemplem released_at jako slad audytowy. Bilet trzymany przez zgloszenie etapu 4 (registration_id) zwraca cykl zgloszenia - czlonek go nie zwolni; administrator albo rola serwisowa zwalnia i odpina go od zgloszenia.';
 
 -- ----------------------------------------------------------------------------
--- g) WYNIK `unpaid` ODDAJE BILET Z PULI
+-- f2) REGULA PRZYJECIA OPLACONEGO ZGLOSZENIA (pozycje 4 i 5)
 -- ----------------------------------------------------------------------------
--- Cialo z 20260830110000 [SCALIC z pozycja 5 - galaz `paid`]. Zmiana: galaz
--- `unpaid` nie zmienia payment_status (unpaid -> unpaid), wiec trigger b) jej
--- nie widzi - wola `_event_plan_seat_settle` z wylaczeniem tego zamowienia.
+-- Status zgloszenia po rozliczeniu. Jedna regula dla wyniku Stripe (g)
+-- i odbioru biletu z planu (sekcja 9). Wolajacy trzyma blokade wydarzenia
+-- i biletu (`_event_seats_left` liczy, nie rezerwuje). Akceptacja: ta sama
+-- regula, co w `event_register` (bilet `requires_approval`, przeplyw
+-- `approval` bez reguly `auto_approve`, werdykt `approval` albo `reject` -
+-- regula zmieniona po zapisie zostaje organizatorowi, platnosc nikogo nie
+-- odrzuca). Wiersz juz w kolejce akceptacje pomija - kolejka to juz decyzja.
+CREATE OR REPLACE FUNCTION public._event_registration_paid_admission(
+  p_reg public.event_registrations,
+  p_ticket_type_id uuid
+)
+RETURNS text
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public', 'pg_temp'
+AS $$
+DECLARE
+  v_left integer;
+  v_needs boolean;
+BEGIN
+  -- Przyjete, obecne, nieobecne, odwolane, odrzucone - wplata nie zmienia statusu.
+  IF p_reg.status NOT IN ('draft', 'pending', 'waitlist') THEN
+    RETURN p_reg.status;
+  END IF;
+
+  IF p_reg.group_lead_registration_id IS NOT NULL THEN
+    -- Gosc idzie za prowadzacym: bez prowadzacego na miejscu tylko rozliczenie.
+    IF NOT EXISTS (
+      SELECT 1 FROM public.event_registrations l
+      WHERE l.id = p_reg.group_lead_registration_id
+        AND l.tenant_id = p_reg.tenant_id
+        AND l.status IN ('approved', 'attended', 'no_show')
+    ) THEN
+      RETURN p_reg.status;
+    END IF;
+  ELSIF p_reg.status <> 'waitlist' THEN
+    -- Wplata nie jest akceptacja. Ta sama regula, co w `event_register`.
+    SELECT COALESCE(t.requires_approval, false)
+        OR CASE public._event_registration_verdict(p_reg.tenant_id, p_reg.event_id, p_reg.answers)
+             WHEN 'auto_approve' THEN false
+             WHEN 'none' THEN e.registration_flow = 'approval'
+             ELSE true
+           END
+      INTO v_needs
+    FROM public.events e
+    LEFT JOIN public.event_ticket_types t
+      ON t.id = p_ticket_type_id AND t.tenant_id = e.tenant_id AND t.event_id = e.id
+    WHERE e.id = p_reg.event_id AND e.tenant_id = p_reg.tenant_id;
+
+    IF COALESCE(v_needs, false) THEN
+      RETURN 'pending';
+    END IF;
+  END IF;
+
+  v_left := public._event_seats_left(p_reg.tenant_id, p_reg.event_id, p_ticket_type_id);
+  RETURN CASE WHEN v_left IS NULL OR v_left > 0 THEN 'approved' ELSE 'waitlist' END;
+END $$;
+REVOKE ALL ON FUNCTION public._event_registration_paid_admission(public.event_registrations, uuid)
+  FROM PUBLIC, anon, authenticated;
+
+COMMENT ON FUNCTION public._event_registration_paid_admission(public.event_registrations, uuid) IS
+  'Status oplaconego zgloszenia po wplacie: przyjete/obecne/nieobecne/odwolane/odrzucone bez zmian; gosc bez prowadzacego na miejscu bez zmian; zgloszenie wymagajace akceptacji (bilet requires_approval, przeplyw approval bez reguly auto_approve, regula approval albo reject) -> pending; poza tym miejsce (_event_seats_left) -> approved, brak -> waitlist. Zgloszenie juz w kolejce pomija akceptacje. Wolajacy trzyma blokade wydarzenia i biletu.';
+
+-- ----------------------------------------------------------------------------
+-- g) WYNIK PLATNOSCI: MIEJSCE Z KONTROLA (pozycja 5), `unpaid` ODDAJE BILET
+-- ----------------------------------------------------------------------------
+-- Cialo z 20260830110000. Zmiany: blokady wydarzenie -> bilet -> zgloszenie,
+-- galaz `paid` z kontrola miejsc (f2), odpowiedz z registration_status /
+-- waitlist_position / newly_settled; galaz `unpaid` nie zmienia payment_status
+-- (unpaid -> unpaid), wiec trigger b) jej nie widzi - wola
+-- `_event_plan_seat_settle` z wylaczeniem tego zamowienia.
 CREATE OR REPLACE FUNCTION public.payments_apply_event_ticket_outcome(
   p_order_id uuid,
   p_outcome text,
@@ -1377,6 +1509,8 @@ DECLARE
   v_registration_hint uuid;
   v_person_id uuid;
   v_reg public.event_registrations;
+  v_reg_id uuid;
+  v_seat_ticket uuid;
   v_token text;
   v_promoted jsonb := jsonb_build_object('promoted', 0, 'registrations', '[]'::jsonb);
   v_effective text;
@@ -1385,6 +1519,10 @@ DECLARE
   v_event public.events;
   v_next_status text;
   v_admitted boolean;
+  v_queued boolean;
+  v_position integer;
+  v_newly_settled boolean := false;
+  v_final public.event_registrations;
 BEGIN
   IF p_outcome NOT IN ('paid','unpaid','refunded','partial_refund') THEN
     RAISE EXCEPTION 'invalid_outcome';
@@ -1453,16 +1591,22 @@ BEGIN
   -- Dopasowanie po osobie ZOSTAJE dla zamowien BEZ tego klucza: kasa
   -- spolecznosci (`EventTicketPurchase` -> cena z wiersza wydarzenia) nie zna
   -- zgloszen etapu 4, a zamowienia zalozone przed ta migracja juz leza w bazie.
+  --
+  -- DOPASOWANIE BEZ BLOKADY, BLOKADY W KOLEJNOSCI wydarzenie -> bilet ->
+  -- zgloszenie (20260926150000). Cialo z 20260830110000 blokowalo najpierw
+  -- zgloszenie, a wydarzenia i puli biletu nie blokowalo wcale: dwie wplaty za
+  -- ostatnie miejsce liczyly je obie jako wolne (nadsprzedaz albo CHECK puli
+  -- wywracajacy cale ksiegowanie), a kolejnosc byla odwrotna niz w
+  -- `event_register` i `admin_event_registration_decide` (zakleszczenie).
   -- ==========================================================================
   IF v_registration_hint IS NOT NULL THEN
-    SELECT r.* INTO v_reg
+    SELECT r.id, r.ticket_type_id INTO v_reg_id, v_seat_ticket
     FROM public.event_registrations r
     WHERE r.id = v_registration_hint
       AND r.tenant_id = v_order.tenant_id
-      AND r.event_id = v_event_id
-    FOR UPDATE;
+      AND r.event_id = v_event_id;
 
-    IF v_reg.id IS NULL THEN
+    IF v_reg_id IS NULL THEN
       RETURN jsonb_build_object('applied', false, 'reason', 'registration_mismatch',
                                 'registration_id', v_registration_hint,
                                 'outcome', v_effective, 'refunded_cents', v_refunded);
@@ -1473,7 +1617,7 @@ BEGIN
     WHERE p.tenant_id = v_order.tenant_id AND p.user_id = v_order.user_id
     LIMIT 1;
 
-    SELECT r.* INTO v_reg
+    SELECT r.id, r.ticket_type_id INTO v_reg_id, v_seat_ticket
     FROM public.event_registrations r
     WHERE r.tenant_id = v_order.tenant_id
       AND r.event_id = v_event_id
@@ -1482,14 +1626,30 @@ BEGIN
         OR (v_person_id IS NOT NULL AND r.person_id = v_person_id)
       )
     ORDER BY (r.payment_order_id = v_order.id) DESC, r.created_at DESC
-    LIMIT 1
-    FOR UPDATE;
+    LIMIT 1;
   END IF;
 
-  IF v_reg.id IS NULL THEN
+  IF v_reg_id IS NULL THEN
     RETURN jsonb_build_object('applied', false, 'reason', 'registration_not_found',
                               'outcome', v_effective, 'refunded_cents', v_refunded);
   END IF;
+
+  -- Wplata liczy miejsce: pula wydarzenia i biletu pod blokada PRZED wierszem
+  -- zgloszenia. Zwroty i nieudana platnosc miejsca nie zajmuja - awans za
+  -- zwolnione miejsce blokuje pule sam (`_event_waitlist_promote`).
+  IF v_effective = 'paid' THEN
+    PERFORM 1 FROM public.events e
+    WHERE e.id = v_event_id AND e.tenant_id = v_order.tenant_id
+    FOR UPDATE;
+    PERFORM 1 FROM public.event_ticket_types t
+    WHERE t.id = COALESCE(v_ticket_type_id, v_seat_ticket) AND t.tenant_id = v_order.tenant_id
+    FOR UPDATE;
+  END IF;
+
+  SELECT r.* INTO v_reg
+  FROM public.event_registrations r
+  WHERE r.id = v_reg_id AND r.tenant_id = v_order.tenant_id
+  FOR UPDATE;
 
   IF v_effective = 'paid' THEN
     -- ========================================================================
@@ -1522,28 +1682,52 @@ BEGIN
     -- ========================================================================
     -- KOD QR TYLKO DLA WIERSZA, KTORY NAPRAWDE BEDZIE WPUSZCZONY.
     --
-    -- Status flipuje sie wylacznie z `draft/pending/waitlist`; wplata na
-    -- zgloszenie ODWOLANE zostawiala je `cancelled` - i mimo to wydawala mu kod
-    -- QR. To nie jest kosmetyka: `event_checkin_record` odszukuje zgloszenie
-    -- WYLACZNIE po `qr_token_hash` i NIE SPRAWDZA statusu, wiec taki kod
-    -- WPUSZCZALBY przy bramce kogos, kto sam odwolal udzial. Sciezka jest realna
-    -- i po dowiazaniu po `registration_id` trafia sie czesciej, bo wplata idzie
-    -- dokladnie tam, gdzie wskazano.
+    -- Wplata na zgloszenie ODWOLANE zostawia je `cancelled` i nie wydaje mu
+    -- kodu: `event_checkin_record` odszukuje zgloszenie WYLACZNIE po
+    -- `qr_token_hash` i NIE SPRAWDZA statusu, wiec taki kod wpuszczalby przy
+    -- bramce kogos, kto sam odwolal udzial.
+    --
+    -- MIEJSCE Z KONTROLA (20260926150000). Cialo sprzed tej migracji flipowalo
+    -- `draft/pending/waitlist -> approved` bez liczenia miejsc: przy wyczerpanej
+    -- puli biletu CHECK `event_ticket_types_sold_within_quota` wywracal CALE
+    -- ksiegowanie (pieniadze pobrane, zgloszenie nietkniete, bez biletu - defekt
+    -- przybity w 25_payment_binding), a przy samej pojemnosci wydarzenia
+    -- nadsprzedaz przechodzila po cichu. Teraz `_event_registration_paid_admission`:
+    -- miejsce -> przyjete z kodem; brak miejsca -> kolejka OPLACONA
+    -- (`capacity`, awans przy zwolnieniu miejsca); bilet albo przeplyw
+    -- z akceptacja -> `pending` oplacone (wplata nie jest akceptacja).
+    -- Wiersz juz w kolejce zachowuje swoja pozycje (nie przeskakuje nikogo).
     -- ========================================================================
-    v_next_status := CASE
-      WHEN v_reg.status IN ('draft','pending','waitlist') THEN 'approved'
-      ELSE v_reg.status
+    -- Bilet mogl sie zmienic miedzy odczytem a blokada wiersza: blokujemy pule
+    -- biletu, ktory naprawde liczymy (ten sam wiersz - blokada nic nie kosztuje).
+    v_seat_ticket := COALESCE(v_ticket_type_id, v_reg.ticket_type_id);
+    PERFORM 1 FROM public.event_ticket_types t
+    WHERE t.id = v_seat_ticket AND t.tenant_id = v_order.tenant_id
+    FOR UPDATE;
+
+    v_newly_settled := v_reg.payment_status <> 'paid';
+    v_next_status := public._event_registration_paid_admission(v_reg, v_seat_ticket);
+    v_admitted := v_next_status IN ('approved', 'attended');
+    v_queued := v_next_status = 'waitlist' AND v_reg.status <> 'waitlist';
+    v_position := CASE
+      WHEN v_next_status <> 'waitlist' THEN NULL
+      WHEN v_reg.status = 'waitlist' THEN v_reg.waitlist_position
+      ELSE public._event_next_waitlist_position(v_order.tenant_id, v_event_id)
     END;
-    v_admitted := v_next_status IN ('approved','attended');
     v_token := CASE WHEN v_admitted THEN public._event_new_qr_token() END;
 
     UPDATE public.event_registrations r
     SET payment_order_id = v_order.id,
         payment_status = 'paid',
         paid_at = COALESCE(r.paid_at, now()),
-        ticket_type_id = COALESCE(v_ticket_type_id, r.ticket_type_id),
+        -- Wiersz na miejscu zostaje przy SWOIM bilecie: zamowienie wskazujace
+        -- inny (pelny) bilet nie moze przeniesc go ponad pule.
+        ticket_type_id = CASE
+          WHEN r.status IN ('approved', 'attended', 'no_show') THEN r.ticket_type_id
+          ELSE v_seat_ticket
+        END,
         status = v_next_status,
-        waitlist_position = NULL,
+        waitlist_position = v_position,
         -- `cancelled_at` CZYSCIMY WYLACZNIE RAZEM ZE STATUSEM (naprawa 2026-08-30).
         --
         -- Bylo tu bezwarunkowe `cancelled_at = NULL`, a status flipuje sie
@@ -1560,14 +1744,28 @@ BEGIN
           WHEN r.status IN ('draft','pending','waitlist') THEN NULL
           ELSE r.cancelled_at
         END,
-        decided_at = COALESCE(r.decided_at, now()),
-        decision_source = COALESCE(r.decision_source, 'system'),
+        -- Nowy wiersz w kolejce: slad decyzji pojemnosci. Wiersz nadal czekajacy
+        -- (akceptacja, kolejka) nie dostaje stempla `system` - decyzja jest
+        -- jeszcze przed organizatorem.
+        decided_by = CASE WHEN v_queued THEN NULL ELSE r.decided_by END,
+        decided_at = CASE
+          WHEN v_queued THEN now()
+          WHEN v_next_status IN ('draft', 'pending', 'waitlist') THEN r.decided_at
+          ELSE COALESCE(r.decided_at, now())
+        END,
+        decision_source = CASE
+          WHEN v_queued THEN 'capacity'
+          WHEN v_next_status IN ('draft', 'pending', 'waitlist') THEN r.decision_source
+          ELSE COALESCE(r.decision_source, 'system')
+        END,
         qr_token_hash = CASE
           WHEN v_admitted THEN COALESCE(r.qr_token_hash, encode(digest(v_token,'sha256'),'hex'))
+          WHEN v_next_status IN ('draft', 'pending', 'waitlist') THEN NULL
           ELSE r.qr_token_hash
         END,
         qr_issued_at = CASE
           WHEN v_admitted THEN COALESCE(r.qr_issued_at, now())
+          WHEN v_next_status IN ('draft', 'pending', 'waitlist') THEN NULL
           ELSE r.qr_issued_at
         END,
         updated_at = now()
@@ -1621,6 +1819,10 @@ BEGIN
       v_order.tenant_id, v_event_id, COALESCE(v_ticket_type_id, v_reg.ticket_type_id), 1);
   END IF;
 
+  -- Stan PO ksiegowaniu (triggery gosci nie zmieniaja wiersza prowadzacego).
+  SELECT r.* INTO v_final FROM public.event_registrations r
+  WHERE r.id = v_reg.id AND r.tenant_id = v_order.tenant_id;
+
   SELECT * INTO v_person FROM public.event_people p WHERE p.id = v_reg.person_id;
   SELECT * INTO v_event FROM public.events e WHERE e.id = v_event_id;
 
@@ -1637,6 +1839,9 @@ BEGIN
   RETURN jsonb_build_object(
     'applied', true,
     'registration_id', v_reg.id,
+    'registration_status', v_final.status,
+    'waitlist_position', v_final.waitlist_position,
+    'newly_settled', v_newly_settled,
     'outcome', v_effective,
     'refunded_cents', v_refunded,
     'amount_cents', v_order.amount_cents,
@@ -1659,7 +1864,7 @@ BEGIN
 END;
 $function$;
 COMMENT ON FUNCTION public.payments_apply_event_ticket_outcome(uuid, text, integer) IS
-  'Przenosi wynik platnosci na zgloszenie. Dopasowanie po metadata.registration_id, gdy jest obecne. Kod QR powstaje TYLKO dla wiersza, ktory bedzie wpuszczany (event_checkin_record nie sprawdza statusu). Druga wplata na to samo zgloszenie i zwrot z cudzego zamowienia sa jawnie odrzucane.';
+  'Przenosi wynik platnosci na zgloszenie. Dopasowanie po metadata.registration_id, gdy jest obecne. Wplata przyjmuje z kontrola miejsc pod blokada wydarzenia i biletu (_event_registration_paid_admission): miejsce -> approved z kodem QR, brak miejsca -> kolejka OPLACONA (capacity), bilet albo przeplyw z akceptacja -> pending (oplacone), gosc bez przyjetego prowadzacego -> tylko rozliczenie. Wynik unpaid oddaje bilet z puli planu (_event_plan_seat_settle). Odpowiedz niesie registration_status, waitlist_position i newly_settled. Druga wplata na to samo zgloszenie i zwrot z cudzego zamowienia sa jawnie odrzucane.';
 
 REVOKE ALL ON FUNCTION public.payments_apply_event_ticket_outcome(uuid, text, integer) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.payments_apply_event_ticket_outcome(uuid, text, integer) TO service_role;
@@ -1719,7 +1924,189 @@ COMMENT ON FUNCTION public._event_plan_seat_link_backfill() IS
 SELECT public._event_plan_seat_link_backfill();
 
 -- ============================================================================
--- 11) ZAMOWIENIE PAKIETU: KOLEJNOSC BLOKAD I ZATRZASK TYLKO Z ODDANYM UZYCIEM
+-- 9) BILET Z PULI DLA POJEDYNCZEGO ZGLOSZENIA ETAPU 4 (pozycja 4, bez Stripe)
+-- ============================================================================
+-- PRZYCZYNA. Pojedyncze zgloszenie etapu 4 czlonka z biletem w puli konczylo
+-- sie w kasie odmowa `ticket_included_in_plan` („odbierz z puli
+-- czlonkowskiej"), a drogi odbioru dla zgloszenia z formularza nie bylo:
+-- `claim_included_event_ticket` zna wylacznie `rsvp_event`. Zgloszenie stalo
+-- `pending/unpaid` bez wejsciowki.
+--
+-- Odpowiedz: `{ok: true, registration_id, event_id, status: 'approved',
+-- payment_status: 'paid', reused}` albo `{ok: false, reason}`, gdzie `reason`
+-- to `account_required` | `not_found` | `not_eligible` | `registration_closed` |
+-- `already_settled` | `group_order` | `ticket_not_available` |
+-- `event_finished` | `sales_not_open` | `sales_closed` | `approval_required` |
+-- `sold_out` | `pool_empty`. Odmowa NIE rzuca i NICZEGO nie zapisuje: bilet
+-- z puli schodzi dopiero po wszystkich sprawdzeniach, w tej samej transakcji
+-- co przyjecie.
+--
+-- TA SAMA REGULA PRZYJECIA, CO WPLATA STRIPE (f2). Zgloszenie wymagajace
+-- akceptacji czeka na organizatora (`approval_required`) - po przyjeciu przez
+-- organizatora (`approved/unpaid`) odbior przechodzi bez liczenia miejsc,
+-- bo miejsce juz jest. Brak miejsca to `sold_out` BEZ zdjecia biletu z puli:
+-- nie ma pieniedzy, ktore trzeba by zaksiegowac, wiec nie ma powodu stawiac
+-- czlonka w kolejce ze zuzytym benefitem (inaczej niz przy wplacie Stripe).
+--
+-- BLOKADY jak ksiegowanie wplaty: wydarzenie -> bilet -> zgloszenie (odczyt
+-- wlasnosci bez blokady, potem wiersz ponownie pod blokada).
+CREATE OR REPLACE FUNCTION public.event_registration_redeem_plan_ticket(p_registration_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_tenant uuid := public.public_tenant_id();
+  v_reg_id uuid;
+  v_event_id uuid;
+  v_ticket_id uuid;
+  v_reg public.event_registrations;
+  v_event public.events;
+  v_ticket public.event_ticket_types;
+  v_next text;
+  v_claim jsonb;
+BEGIN
+  IF v_uid IS NULL THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'account_required');
+  END IF;
+
+  -- ZGLOSZENIE WOLAJACEGO. Benefit nalezy do osoby zgloszenia, nie do tego,
+  -- kto je zalozyl - ta sama regula co `event_registration_claim_plan_seat`.
+  SELECT r.id, r.event_id, r.ticket_type_id INTO v_reg_id, v_event_id, v_ticket_id
+  FROM public.event_registrations r
+  JOIN public.event_people p ON p.id = r.person_id AND p.tenant_id = r.tenant_id
+  WHERE r.id = p_registration_id
+    AND r.tenant_id = v_tenant
+    AND p.user_id = v_uid;
+
+  IF v_reg_id IS NULL THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'not_found');
+  END IF;
+
+  -- Pula miejsc: wydarzenie, potem bilet, potem wiersz zgloszenia.
+  SELECT e.* INTO v_event FROM public.events e
+  WHERE e.id = v_event_id AND e.tenant_id = v_tenant
+  FOR UPDATE;
+  SELECT t.* INTO v_ticket FROM public.event_ticket_types t
+  WHERE t.id = v_ticket_id AND t.tenant_id = v_tenant
+  FOR UPDATE;
+  SELECT r.* INTO v_reg FROM public.event_registrations r
+  WHERE r.id = v_reg_id AND r.tenant_id = v_tenant
+  FOR UPDATE;
+
+  -- Pula pokrywa wylacznie wlasne miejsce czlonka - nie miejsce goscia.
+  IF v_reg.group_lead_registration_id IS NOT NULL THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'not_eligible');
+  END IF;
+  -- Te same stany, z ktorych organizator moze zaksiegowac wplate (akcja `paid`).
+  IF v_reg.status NOT IN ('draft', 'pending', 'waitlist', 'approved') THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'registration_closed');
+  END IF;
+  IF v_reg.payment_status <> 'unpaid' THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'already_settled');
+  END IF;
+  -- Nieoplaceni goscie: jedno zamowienie za cala grupe (kasa + bilet z puli
+  -- na miejscu prowadzacego). Pula nie oplaca gosci - patrz 20260926140000.
+  IF EXISTS (
+    SELECT 1 FROM public.event_registrations g
+    WHERE g.group_lead_registration_id = v_reg.id
+      AND g.tenant_id = v_tenant
+      AND g.status NOT IN ('cancelled', 'rejected')
+      AND g.payment_status = 'unpaid'
+  ) THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'group_order');
+  END IF;
+
+  -- Te same odmowy co kasa (`event_ticket_checkout_quote`), poza kodem dostepu
+  -- i ranga: te sprawdzil zapis, ktory to zgloszenie zalozyl.
+  IF v_event.status IS DISTINCT FROM 'published' OR v_event.cancelled_at IS NOT NULL
+     OR v_ticket.id IS NULL OR NOT v_ticket.is_active THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'ticket_not_available');
+  END IF;
+  IF v_event.starts_at IS NOT NULL AND v_event.starts_at < now() THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'event_finished');
+  END IF;
+  IF v_ticket.sales_from IS NOT NULL AND now() < v_ticket.sales_from THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'sales_not_open');
+  END IF;
+  IF v_ticket.sales_to IS NOT NULL AND now() > v_ticket.sales_to THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'sales_closed');
+  END IF;
+
+  -- PRZYJECIE PRZED PULA (f2). `approved` zostaje `approved` - organizator
+  -- juz przyjal i miejsce jest liczone.
+  v_next := public._event_registration_paid_admission(v_reg, v_reg.ticket_type_id);
+  IF v_next = 'pending' THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'approval_required');
+  END IF;
+  IF v_next <> 'approved' THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'sold_out');
+  END IF;
+
+  -- BILET Z PULI - ta sama funkcja i ta sama regula co miejsce prowadzacego
+  -- w zamowieniu grupowym (blokady puli, okno roku, jeden bilet na wydarzenie;
+  -- bilet juz zajety dla tego wydarzenia wraca jako `reused`).
+  v_claim := public.event_registration_claim_plan_seat(v_reg.id, false);
+  IF (v_claim ->> 'claimed')::boolean IS NOT TRUE THEN
+    RETURN jsonb_build_object('ok', false, 'reason', v_claim ->> 'reason');
+  END IF;
+
+  -- ROZLICZENIE = PRZYJECIE, jak wynik `paid` z kasy. `paid`, nie
+  -- `not_required`: `event_register_group_guests` przyjmuje gosci do
+  -- prowadzacego `not_required` z JEGO statusem platnosci i kodem QR - czyli
+  -- za darmo. Kod QR jest zastepczy: jawny wyda `_event_issue_ticket_codes`
+  -- razem z mailem.
+  UPDATE public.event_registrations r SET
+    payment_status = 'paid',
+    paid_at = COALESCE(r.paid_at, now()),
+    status = 'approved',
+    waitlist_position = NULL,
+    decided_at = COALESCE(r.decided_at, now()),
+    decision_source = COALESCE(r.decision_source, 'system'),
+    qr_token_hash = COALESCE(r.qr_token_hash,
+                             encode(digest(public._event_new_qr_token(), 'sha256'), 'hex')),
+    qr_issued_at = COALESCE(r.qr_issued_at, now()),
+    updated_at = now()
+  WHERE r.id = v_reg.id AND r.tenant_id = v_tenant;
+
+  -- Bilet z puli ROZLICZYL to zgloszenie (bez zamowienia) - ponowne
+  -- przyjecie po odwolaniu przywraca go jak bilet oplaconej kasy
+  -- (`_event_plan_seat_settle`). Bilet sciezki RSVP (bez zgloszenia) nie.
+  UPDATE public.plan_ticket_claims c SET redeemed_at = now()
+   WHERE c.registration_id = v_reg.id AND c.released_at IS NULL;
+
+  PERFORM public.emit_domain_event(
+    v_tenant,
+    'event_registration',
+    v_reg.id::text,
+    'event.registration.payment.v1',
+    jsonb_build_object('event_id', v_reg.event_id, 'order_id', NULL, 'outcome', 'paid',
+                       'refunded_cents', 0, 'settled_by', 'plan_ticket',
+                       'plan_ticket_reused', (v_claim ->> 'reused')::boolean),
+    v_uid
+  );
+
+  RETURN jsonb_build_object(
+    'ok', true,
+    'registration_id', v_reg.id,
+    'event_id', v_reg.event_id,
+    'status', 'approved',
+    'payment_status', 'paid',
+    'reused', (v_claim ->> 'reused')::boolean
+  );
+END;
+$$;
+REVOKE ALL ON FUNCTION public.event_registration_redeem_plan_ticket(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.event_registration_redeem_plan_ticket(uuid) TO authenticated, service_role;
+
+COMMENT ON FUNCTION public.event_registration_redeem_plan_ticket(uuid) IS
+  'Bilet z puli planu dla POJEDYNCZEGO zgloszenia etapu 4 (bez gosci do oplacenia), bez Stripe: zgloszenie osoby wolajacej, otwarte i nieoplacone; te same odmowy co kasa (bilet, termin, okno sprzedazy) i ta sama regula przyjecia co wplata (_event_registration_paid_admission: akceptacja -> approval_required, brak miejsca -> sold_out, bez zdjecia biletu z puli); pula przez event_registration_claim_plan_seat. Blokady: wydarzenie, bilet, zgloszenie. Sukces: payment_status paid, status approved, zastepczy kod QR, redeemed_at na bilecie, zdarzenie event.registration.payment.v1 (settled_by plan_ticket). Odmowa nie rzuca i niczego nie zapisuje: {ok:false, reason}.';
+
+-- ============================================================================
+-- 10) ZAMOWIENIE PAKIETU: KOLEJNOSC BLOKAD I ZATRZASK TYLKO Z ODDANYM UZYCIEM
 -- ============================================================================
 -- Cialo z 20260926130000. Zmiany: (1) kod blokowany PRZED zamowieniem - ta
 -- sama kolejnosc, co kasowanie kodu z panelu (cykl blokad 40P01 znika);
