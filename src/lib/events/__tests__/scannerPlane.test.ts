@@ -5,6 +5,7 @@
 // bazy do konca baterii, a zakresy bez sprawdzenia otworzylyby wolontariuszowi
 // z bramki liste leadow partnera. Kazda z tych rzeczy ma tu wlasny przypadek.
 import { describe, expect, it } from "vitest";
+import { freezeClock } from "@/test/time";
 
 import {
   availableModes,
@@ -50,6 +51,8 @@ import {
   scannerErrorHead,
 } from "@/lib/events/scannerErrors";
 import { isCheckinDirection, isCheckinResult, isOfflineOutcome } from "@/lib/events/onsiteEnums";
+
+freezeClock();
 
 const BOOTSTRAP = {
   device_id: "d1",

@@ -55,6 +55,9 @@ import type {
   ScannerDeviceIssueInput,
   ScannerDeviceRow,
 } from "@/lib/events/onsiteApi";
+import { ensureOnsiteI18n } from "@/lib/i18n-admin-event-onsite";
+
+ensureOnsiteI18n();
 
 export function OnsiteDevicesPanel({ eventId }: { eventId: string }) {
   const { t, i18n } = useTranslation();

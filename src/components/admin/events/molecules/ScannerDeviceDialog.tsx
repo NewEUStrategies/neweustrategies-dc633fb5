@@ -50,6 +50,9 @@ import {
   validateScannerDeviceDraft,
   type ScannerDeviceDraft,
 } from "@/lib/events/onsiteDraft";
+import { ensureOnsiteI18n } from "@/lib/i18n-admin-event-onsite";
+
+ensureOnsiteI18n();
 
 const NONE = "__none__";
 

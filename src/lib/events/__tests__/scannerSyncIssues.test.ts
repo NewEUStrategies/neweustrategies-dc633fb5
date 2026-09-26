@@ -13,6 +13,7 @@
 //   5. EKSPORT Z WSTRZYKNIĘCIEM FORMUŁY. Kod biletu albo nazwisko zaczynające
 //      się od `=` wykonałoby się w arkuszu organizatora.
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { freezeClock } from "@/test/time";
 
 import type { CheckinScanResult } from "@/lib/events/scannerApi";
 import type { OutboxItem, RejectedScan } from "@/lib/events/scannerOutbox";
@@ -29,6 +30,8 @@ import {
   type ScanConflict,
   type SyncIssuesCsvLabels,
 } from "@/lib/events/scannerSyncIssues";
+
+freezeClock();
 
 const NOW = "2026-09-26T10:00:00.000Z";
 

@@ -33,6 +33,9 @@ import type { OfflineOutcome } from "@/lib/events/onsiteEnums";
 import { isOfflineOutcome } from "@/lib/events/onsiteEnums";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { uiLang } from "@/lib/i18n/format";
+import { ensureOnsiteI18n } from "@/lib/i18n-admin-event-onsite";
+
+ensureOnsiteI18n();
 
 const ALL = "__all__";
 
