@@ -58,6 +58,7 @@ export const EVENT_STUDIO_SECTIONS = [
   "registrationSettings",
   "registrationList",
   "registrationTickets",
+  "registrationPolicies",
   "registrationPackages",
   "registrationAudiences",
   "registrationForm",
@@ -103,6 +104,7 @@ export const EVENT_STUDIO_ROUTES = {
   registrationSettings: "/admin/events/$eventId/registration/settings",
   registrationList: "/admin/events/$eventId/registration/list",
   registrationTickets: "/admin/events/$eventId/registration/tickets",
+  registrationPolicies: "/admin/events/$eventId/registration/policies",
   registrationPackages: "/admin/events/$eventId/registration/packages",
   registrationAudiences: "/admin/events/$eventId/registration/audiences",
   registrationForm: "/admin/events/$eventId/registration/form",
@@ -251,6 +253,14 @@ export const EVENT_STUDIO_NAV: readonly EventStudioNavNode[] = [
         key: "registrationTickets",
         labelKey: "adminEventRegistration.nav.tickets",
         keywordKeys: ["adminEvents.studio.keywords.registrationTickets"],
+      },
+      // ZASADY BILETÓW (F1-F5): przekazanie, samodzielny zwrot i czas na
+      // opłacenie oferty z listy rezerwowej. Stoją tuż za wejściówkami, bo
+      // dotyczą tego, co uczestnik może zrobić z kupionym biletem.
+      {
+        key: "registrationPolicies",
+        labelKey: "adminEvents.studio.sections.registrationPolicies",
+        keywordKeys: ["adminEvents.studio.keywords.registrationPolicies"],
       },
       {
         // PAKIETY STOJĄ ZA BILETAMI, bo pakiet sprzedaje bilet w hurcie -

@@ -55,6 +55,19 @@ export const CARVE_OUTS = [
   // w module 16, ani jako funkcjonalność, bo wiersze modułu 7 mówią o typach
   // treści, a nie o panelu społeczności.
   { module: 16, pattern: /^src\/routes\/admin\.community\.(qa|polls)/ },
+  // FUNKCJE UCZESTNIKA F1-F5 (spec B.11-4): tory A/B/C dopisują wyjątki
+  // WYŁĄCZNIE do swojego bloku `carve-outs` i WYŁĄCZNIE razem z plikiem, który
+  // czyni regułę żywą (martwa reguła oblewa `check:feature-taxonomy`).
+  // >>> PF-A carve-outs (begin)
+  // <<< PF-A carve-outs (end)
+  //
+  // (separator bloków - tych dwóch linii nie edytuje żaden tor)
+  // >>> PF-B carve-outs (begin)
+  // <<< PF-B carve-outs (end)
+  //
+  // (separator bloków - tych dwóch linii nie edytuje żaden tor)
+  // >>> PF-C carve-outs (begin)
+  // <<< PF-C carve-outs (end)
 ];
 
 /** Moduły w kolejności rozstrzygania (rosnąco po numerze). */

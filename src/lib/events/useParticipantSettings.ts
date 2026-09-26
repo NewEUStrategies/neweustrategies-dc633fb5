@@ -32,6 +32,12 @@ export const participantSettingsKeys = {
   deliveries: (eventId: string) => ["admin-event-message-deliveries", eventId] as const,
 };
 
+/**
+ * Dostępność SMS (`getParticipantSmsAvailability`) - odpowiedź nie zależy od
+ * wołającego ani od wydarzenia, więc klucz jest jeden dla całego panelu.
+ */
+export const PARTICIPANT_SMS_AVAILABILITY_KEY = ["participant-sms-availability"] as const;
+
 const SETTINGS_STALE_MS = 15_000;
 
 export function useParticipantSettings(

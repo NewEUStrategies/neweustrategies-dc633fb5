@@ -28,7 +28,16 @@
     "eventMeetings",
     "eventFront",
     "eventScanner",
-    "teamGrid"
+    "teamGrid",
+    "eventParticipant",
+    "adminEventParticipant",
+    "eventCalendar",
+    "eventPlan",
+    "eventTicketActions",
+    "adminEventOffers",
+    "eventFollowUp",
+    "adminEventFollowUp",
+    "eventHead"
   ],
   "missing": [],
   "missingEn": [],

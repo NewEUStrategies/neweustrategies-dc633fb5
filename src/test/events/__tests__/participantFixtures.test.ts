@@ -12,10 +12,12 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc } }));
 import { parseParticipantSettings } from "@/lib/events/participantSettings";
 import { fetchMyRegistrations } from "@/lib/events/participantTicketsApi";
 import { fetchRegistrationManageView } from "@/lib/events/publicRegistrationApi";
+import { fetchMyEventProfile } from "@/lib/events/myEventProfileApi";
 import {
   PARTICIPANT_EVENT_SLUG,
   PARTICIPANT_IDS,
   makeEventParticipantOptions,
+  makeMyEventRegistrationSummary,
   makeParticipantRegistration,
   makeParticipantSettings,
   makeRegistrationManageView,
@@ -118,5 +120,37 @@ describe("makeEventParticipantOptions", () => {
   it("nadpisania", () => {
     expect(makeEventParticipantOptions({ certificateEnabled: true }).certificateEnabled).toBe(true);
     expect(makeEventParticipantOptions().refundMode).toBe("policy");
+  });
+});
+
+describe("makeMyEventRegistrationSummary", () => {
+  it("= `registration` z parsera event_my_event_profile dla równoważnego wiersza", async () => {
+    rpc.mockResolvedValue({
+      data: {
+        profile: null,
+        account: null,
+        registration: {
+          registration_id: PARTICIPANT_IDS.registration,
+          status: "approved",
+          payment_status: "paid",
+          directory_opt_out: false,
+          notify_email: true,
+          notify_sms: false,
+          groups: [],
+        },
+      },
+      error: null,
+    });
+    const panel = await fetchMyEventProfile(PARTICIPANT_EVENT_SLUG);
+    expect(panel.registration).toEqual(makeMyEventRegistrationSummary());
+  });
+
+  it("nadpisuje tylko podane pola i nie dzieli stanu między wywołaniami", () => {
+    const waitlist = makeMyEventRegistrationSummary({ status: "waitlist" });
+    expect(waitlist.status).toBe("waitlist");
+    expect(waitlist.paymentStatus).toBe("paid");
+    expect(makeMyEventRegistrationSummary().groups).not.toBe(
+      makeMyEventRegistrationSummary().groups,
+    );
   });
 });

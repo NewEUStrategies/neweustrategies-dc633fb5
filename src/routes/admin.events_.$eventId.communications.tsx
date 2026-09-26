@@ -1,25 +1,34 @@
-// /admin/events/<id>/communications - sekcja „Communications" studia wydarzenia.
+// /admin/events/<id>/communications - sekcja „Komunikacja" studia wydarzenia.
 //
-// SEKCJA BEZ WŁASNEJ POWIERZCHNI PER WYDARZENIE - dlaczego mimo to istnieje
-// i dokąd prowadzi, tłumaczy nagłówek `EventStudioExternalSection`.
+// OD F1-F5 TO PRAWDZIWY EKRAN, NIE DROGOWSKAZ. Przypomnienia przed wydarzeniem
+// i sesjami, eksport do kalendarza i dziennik doręczeń tego wydarzenia są
+// ustawieniami PER WYDARZENIE (`event_participant_settings`), więc mieszkają
+// tu. Kampanie i newsletter zostają w module globalnym - panel ma do nich
+// wiersz-drogowskaz.
 //
-// TRASA NIE PYTA O WIERSZ WYDARZENIA: ekran jest drogowskazem, nie formularzem,
-// więc zapytanie o dane, których nie renderuje, byłoby wyłącznie kosztem.
+// TRASA JEST CIENKA - wzorzec `registration.settings.tsx`: wiersz wydarzenia
+// wczytuje rama studia (spinner, „nie znaleziono"), a dopóki go nie ma,
+// sekcja nie rysuje niczego. Nagłówek dokumentu: sam tytuł i `robots`
+// (R-ROUTE).
 import { createFileRoute } from "@tanstack/react-router";
 
-import { EventStudioExternalSection } from "@/components/admin/events/studio/EventStudioExternalSection";
+import { EventCommunicationsPanel } from "@/components/admin/events/organisms/EventCommunicationsPanel";
+import { useAdminEventDetail } from "@/lib/events/useAdminEventDetail";
 
 export const Route = createFileRoute("/admin/events_/$eventId/communications")({
   head: () => ({
     meta: [
       { title: "Communications · Event · Admin" },
       { name: "robots", content: "noindex, nofollow" },
-      { name: "description", content: "Where campaigns announcing this event are prepared today." },
     ],
   }),
   component: EventStudioCommunicationsPage,
 });
 
 function EventStudioCommunicationsPage() {
-  return <EventStudioExternalSection section="communications" />;
+  const { eventId } = Route.useParams();
+  const detailQ = useAdminEventDetail(eventId);
+  const row = detailQ.data ?? null;
+  if (row === null) return null;
+  return <EventCommunicationsPanel row={row} />;
 }

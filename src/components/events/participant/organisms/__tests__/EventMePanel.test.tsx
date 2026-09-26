@@ -25,26 +25,38 @@
 //  5. KONTAKTY BEZ KONTAKTÓW MAJĄ NASTĘPNY KROK. Puste „nie masz jeszcze
 //     kontaktów” z odnośnikiem do sieci to co innego niż pusty prostokąt.
 //
+//  6. ZAKŁADKA JEST STEROWANA Z ADRESU (`?tab=`). Panel otwiera zakładkę
+//     z właściwości `tab`, a klik zgłasza zmianę przez `onTabChange` - trasa
+//     zapisuje ją w adresie. Dopóki sesja się rozstrzyga, panel rysuje
+//     WYŁĄCZNIE szkielet (tak samo na serwerze), więc HTML nie zależy od `tab`.
+//
+//  7. GNIAZDA TORÓW (spec B.11, BLK-5). Harmonogram i „Po wydarzeniu" to
+//     gniazda torów A i C. Ten plik zastępuje KAŻDY moduł gniazda atrapą z
+//     `data-testid`, która zapisuje właściwości - i sprawdza wyłącznie MIEJSCE
+//     montażu i właściwości. Zachowanie gniazda mieszka w jego własnym teście
+//     (`slots/__tests__/EventMeScheduleSlot.test.tsx` przejął stąd asercje
+//     harmonogramu, w tym dawny `it.fails` o odmowie agendy).
+//
 // CZEGO ŚWIADOMIE NIE DUBLUJE. Formularza kartoteki (`MyEventProfileForm`),
 // karty katalogowej (`MyEventPublicPreview`), giełdy spotkań
-// (`MeetingExchangeBoard`) i panelu biletów (`ParticipantTicketsPanel`) - każdy
-// ma WŁASNY plik testowy, więc tutaj stoją atrapy zapisujące otrzymane
-// właściwości. Przedmiotem dowodu jest KOMPOZYCJA, nie ich wnętrze.
-// `MyAgendaList` jedzie prawdziwy, bo to on rozstrzyga o różnicy między
-// „wczytujemy” a „pusto” na zakładce harmonogramu.
+// (`MeetingExchangeBoard`), panelu biletów (`ParticipantTicketsPanel`)
+// i gniazd - każdy ma WŁASNY plik testowy, więc tutaj stoją atrapy
+// zapisujące otrzymane właściwości. Przedmiotem dowodu jest KOMPOZYCJA, nie
+// ich wnętrze. Plakietka stanu (`RegistrationStatusBadge`) jedzie prawdziwa -
+// to atom, a jej zdanie jest częścią dowodu nr 3.
 //
 // Asercje idą po KLUCZACH i18n oraz po właściwościach przekazanych dzieciom.
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 
-import type {
-  MyAgendaSession,
-  MyEventPanelState,
-  MyEventProfile,
-} from "@/lib/events/myEventProfileApi";
+import type { EventMeSlotProps } from "@/components/events/participant/slots/slotTypes";
+import type { EventMeTab } from "@/lib/events/eventMeTabs";
+import type { MyEventPanelState, MyEventProfile } from "@/lib/events/myEventProfileApi";
+import type { EventParticipantOptions } from "@/lib/events/participantOptionsApi";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { axeViolations, summarize } from "@/test/axe";
+import { makeEventParticipantOptions } from "@/test/events/participantFixtures";
 
 /**
  * Wiersz `my_connections` W ZAKRESIE, KTÓREGO DOTYKA TEN EKRAN. RPC oddaje
@@ -64,6 +76,8 @@ interface KontaktWiersz {
 const h = vi.hoisted(() => ({
   jezyk: { current: "pl" },
   sesja: { current: null as { user: { id: string } } | null },
+  /** `useAuth().loading` - sesja jeszcze się nie rozstrzygnęła. */
+  laduje: { current: false },
   wizytowka: {
     current: null as {
       name: string;
@@ -74,12 +88,17 @@ const h = vi.hoisted(() => ({
   },
   kontakty: { rows: [] as KontaktWiersz[], loading: false },
   pobierzProfil: vi.fn<(slug: string) => Promise<MyEventPanelState>>(),
-  pobierzAgende: vi.fn<(slug: string) => Promise<MyAgendaSession[]>>(),
+  pobierzOpcje: vi.fn<(slug: string) => Promise<EventParticipantOptions | null>>(),
   /** Właściwości, które panel podał swoim dzieciom - w kolejności renderu. */
   formularz: [] as { slug: string; maProfil: boolean; maKonto: boolean; loading: boolean }[],
   podglad: [] as { self: boolean }[],
   gielda: [] as string[],
   bilety: [] as { slugFilter: string | undefined; hideHeader: boolean }[],
+  /** Właściwości gniazd - kontrakt BLK-5: host sprawdza tylko montaż i właściwości. */
+  gniazdoHarmonogramu: [] as EventMeSlotProps[],
+  gniazdoPoWydarzeniu: [] as EventMeSlotProps[],
+  /** Zakładki zgłoszone przez `onTabChange`. */
+  zmianyZakladki: [] as EventMeTab[],
 }));
 
 vi.mock("react-i18next", async () =>
@@ -87,6 +106,7 @@ vi.mock("react-i18next", async () =>
 );
 
 vi.mock("@/lib/i18n-cart", () => ({ ensureI18n: () => {} }));
+vi.mock("@/lib/i18n-event-participant", () => ({ ensureI18n: () => {} }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-router")>()),
@@ -94,7 +114,11 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
 }));
 
 vi.mock("@/hooks/useAuth", () => ({
-  useAuth: () => ({ session: h.sesja.current, user: h.sesja.current?.user ?? null }),
+  useAuth: () => ({
+    session: h.sesja.current,
+    user: h.sesja.current?.user ?? null,
+    loading: h.laduje.current,
+  }),
 }));
 
 vi.mock("@/lib/profile/useViewerCard", () => ({
@@ -109,24 +133,34 @@ vi.mock("@/lib/network/useConnections", () => ({
 }));
 
 // ZAKŁADKI JAKO ATRAPA. Radix montuje tylko aktywną zawartość i nie wystawia
-// „która jest domyślna” inaczej niż tym, co narysował. Atrapa zachowuje tę samą
-// semantykę, a dodatkowo pozwala przełączyć zakładkę jednym kliknięciem.
+// „która jest wybrana” inaczej niż tym, co narysował. Atrapa zachowuje tę samą
+// semantykę STEROWANĄ (`value` + `onValueChange`), a dodatkowo wystawia jeden
+// przycisk testowy, który zgłasza wartość spoza listy zakładek - tak dowodzimy,
+// że panel nie przekaże trasie zakładki, której adres nie zna.
 const Ctx = createContext<{ value: string; set: (next: string) => void }>({
   value: "",
   set: () => {},
 });
 
 vi.mock("@/components/ui/tabs", () => ({
-  Tabs: ({ defaultValue, children }: { defaultValue: string; children?: ReactNode }) => {
-    const [value, setValue] = useState(defaultValue);
-    return (
-      <Ctx.Provider value={{ value, set: setValue }}>
-        <div data-testid="zakladki" data-domyslna={defaultValue} data-wybrana={value}>
-          {children}
-        </div>
-      </Ctx.Provider>
-    );
-  },
+  Tabs: ({
+    value,
+    onValueChange,
+    children,
+  }: {
+    value: string;
+    onValueChange: (next: string) => void;
+    children?: ReactNode;
+  }) => (
+    <Ctx.Provider value={{ value, set: onValueChange }}>
+      <div data-testid="zakladki" data-wybrana={value}>
+        {children}
+        <button type="button" data-testid="obca-zakladka" onClick={() => onValueChange("obca")}>
+          obca
+        </button>
+      </div>
+    </Ctx.Provider>
+  ),
   TabsList: ({ children }: { children?: ReactNode }) => <div role="tablist">{children}</div>,
   TabsTrigger: ({ value, children }: { value: string; children?: ReactNode }) => {
     const ctx = useContext(Ctx);
@@ -144,6 +178,21 @@ vi.mock("@/components/ui/tabs", () => ({
   TabsContent: ({ value, children }: { value: string; children?: ReactNode }) => {
     const ctx = useContext(Ctx);
     return ctx.value === value ? <div data-zakladka={value}>{children}</div> : null;
+  },
+}));
+
+// GNIAZDA TORÓW - atrapy zapisujące właściwości (BLK-5).
+vi.mock("@/components/events/participant/slots/EventMeScheduleSlot", () => ({
+  EventMeScheduleSlot: (props: EventMeSlotProps) => {
+    h.gniazdoHarmonogramu.push(props);
+    return <div data-testid="gniazdo-harmonogram" data-slug={props.slug} />;
+  },
+}));
+
+vi.mock("@/components/events/participant/slots/EventMeFollowUpSlot", () => ({
+  EventMeFollowUpSlot: (props: EventMeSlotProps) => {
+    h.gniazdoPoWydarzeniu.push(props);
+    return <div data-testid="gniazdo-po-wydarzeniu" data-slug={props.slug} />;
   },
 }));
 
@@ -194,16 +243,42 @@ vi.mock("@/components/profile/ParticipantTicketsPanel", () => ({
   },
 }));
 
-// Warstwa odczytu jest atrapą; hooki `useMyEventProfile` / `useMyAgenda` jadą
-// PRAWDZIWE, bo to one decydują o `enabled` (gość nie pyta bazy) i o stanach
-// „wczytywanie” / „błąd” widocznych na ekranie.
+// Warstwa odczytu jest atrapą; hooki `useMyEventProfile` /
+// `useEventParticipantOptions` jadą PRAWDZIWE, bo to one decydują o `enabled`
+// (gość nie pyta bazy) i o stanach „wczytywanie” / „błąd” widocznych na ekranie.
 vi.mock("@/lib/events/myEventProfileApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/events/myEventProfileApi")>()),
   fetchMyEventProfile: (slug: string) => h.pobierzProfil(slug),
-  fetchMyAgenda: (slug: string) => h.pobierzAgende(slug),
+}));
+
+vi.mock("@/lib/events/participantOptionsApi", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/events/participantOptionsApi")>()),
+  fetchEventParticipantOptions: (slug: string) => h.pobierzOpcje(slug),
 }));
 
 const { EventMePanel } = await import("@/components/events/participant/organisms/EventMePanel");
+
+/**
+ * Panel z zakładką trzymaną tak, jak trzyma ją trasa: `tab` z „adresu”,
+ * `onTabChange` zapisuje nową wartość (i zapamiętuje ją do asercji).
+ */
+function PanelZAdresem({ poczatkowa }: { poczatkowa?: EventMeTab }) {
+  const [tab, setTab] = useState<EventMeTab | undefined>(poczatkowa);
+  return (
+    <EventMePanel
+      slug={SLUG}
+      tab={tab}
+      onTabChange={(next) => {
+        h.zmianyZakladki.push(next);
+        setTab(next);
+      }}
+    />
+  );
+}
+
+function pokaz(poczatkowa?: EventMeTab) {
+  return renderWithQueryClient(<PanelZAdresem poczatkowa={poczatkowa} />);
+}
 
 const SLUG = "kongres-cee-2026";
 
@@ -240,31 +315,13 @@ function stan(over: Partial<MyEventPanelState> = {}): MyEventPanelState {
     account: null,
     registration: {
       registrationId: "22222222-2222-4222-8222-222222222222",
-      status: "confirmed",
+      status: "approved",
       paymentStatus: "paid",
       directoryOptOut: false,
       notifyEmail: true,
       notifySms: false,
       groups: [],
     },
-    ...over,
-  };
-}
-
-function sesjaAgendy(over: Partial<MyAgendaSession> = {}): MyAgendaSession {
-  return {
-    sessionId: "33333333-3333-4333-8333-333333333333",
-    titlePl: "Panel: sieci przesyłowe",
-    titleEn: "Panel: transmission grids",
-    startsAt: "2026-09-15T08:30:00.000Z",
-    endsAt: "2026-09-15T09:30:00.000Z",
-    format: "panel",
-    streamUrl: null,
-    roomNamePl: "Sala Bałtycka",
-    roomNameEn: "Baltic Hall",
-    trackNamePl: null,
-    trackNameEn: null,
-    signupStatus: "registered",
     ...over,
   };
 }
@@ -284,6 +341,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.jezyk.current = "pl";
   h.sesja.current = { user: { id: "u-1" } };
+  h.laduje.current = false;
   h.wizytowka.current = {
     name: "Anna Kowalska",
     jobTitle: "Dyrektorka ds. energii",
@@ -295,8 +353,11 @@ beforeEach(() => {
   h.podglad.length = 0;
   h.gielda.length = 0;
   h.bilety.length = 0;
+  h.gniazdoHarmonogramu.length = 0;
+  h.gniazdoPoWydarzeniu.length = 0;
+  h.zmianyZakladki.length = 0;
   h.pobierzProfil.mockResolvedValue(stan());
-  h.pobierzAgende.mockResolvedValue([sesjaAgendy()]);
+  h.pobierzOpcje.mockResolvedValue(makeEventParticipantOptions());
 });
 
 /** Przełącza zakładkę panelu po kluczu i18n na przycisku. */
@@ -311,7 +372,7 @@ describe("EventMePanel - gość", () => {
   });
 
   it("dostaje zaproszenie do logowania z odnośnikiem, a nie pusty ekran", () => {
-    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+    pokaz();
 
     expect(screen.getByText("eventMe.signedOut")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "eventMe.title" })).toBeTruthy();
@@ -320,33 +381,94 @@ describe("EventMePanel - gość", () => {
     );
   });
 
-  it("NIE pyta bazy o kartotekę ani o agendę - RPC i tak odmówiłoby", () => {
-    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+  it("NIE pyta bazy o kartotekę ani o flagi wydarzenia - RPC i tak odmówiłoby", () => {
+    pokaz();
 
     expect(h.pobierzProfil).not.toHaveBeenCalled();
-    expect(h.pobierzAgende).not.toHaveBeenCalled();
+    expect(h.pobierzOpcje).not.toHaveBeenCalled();
   });
 
   it("nie pokazuje ANI JEDNEJ zakładki - nie ma czego pokazać bez tożsamości", () => {
-    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+    pokaz();
 
     expect(screen.queryByRole("tablist")).toBeNull();
     expect(screen.queryByTestId("panel-biletow")).toBeNull();
   });
 
   it("ekran gościa nie ma naruszeń axe", async () => {
-    const { container } = renderWithQueryClient(<EventMePanel slug={SLUG} />);
+    const { container } = pokaz();
 
     const violations = await axeViolations(container);
     expect(violations, summarize(violations)).toEqual([]);
   });
 });
 
-describe("EventMePanel - plakietka stanu zgłoszenia", () => {
-  it("zgłoszenie potwierdzone dostaje plakietkę stanu aktywnego", async () => {
-    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+describe("EventMePanel - sesja w trakcie rozstrzygania (i render serwerowy)", () => {
+  beforeEach(() => {
+    h.laduje.current = true;
+  });
 
-    expect(await screen.findByText("eventMe.statusActive")).toBeTruthy();
+  it("rysuje WYŁĄCZNIE szkielet z ogłoszeniem stanu - bez zakładek i bez zaproszenia do logowania", () => {
+    const { container } = pokaz("schedule");
+
+    expect(screen.getByRole("status").textContent).toBe("eventParticipant.loading");
+    expect(container.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(screen.queryByText("eventMe.signedOut")).toBeNull();
+    expect(screen.queryByTestId("gniazdo-harmonogram")).toBeNull();
+  });
+
+  it("NIE pyta bazy, dopóki nie wiadomo, czyja to sesja", () => {
+    pokaz();
+
+    expect(h.pobierzProfil).not.toHaveBeenCalled();
+    expect(h.pobierzOpcje).not.toHaveBeenCalled();
+  });
+
+  it("szkielet jest taki sam dla każdej zakładki z adresu", () => {
+    const html = (["profile", "schedule", "follow-up"] as const).map((tab) => {
+      const { container, unmount } = pokaz(tab);
+      const out = container.innerHTML;
+      unmount();
+      return out;
+    });
+
+    expect(new Set(html).size).toBe(1);
+  });
+
+  it("szkielet nie ma naruszeń axe", async () => {
+    const { container } = pokaz();
+
+    const violations = await axeViolations(container);
+    expect(violations, summarize(violations)).toEqual([]);
+  });
+});
+
+describe("EventMePanel - plakietka stanu zgłoszenia (D0-5)", () => {
+  it("zgłoszenie zaakceptowane (`approved`) dostaje plakietkę stanu AKTYWNEGO", async () => {
+    pokaz();
+
+    expect(await screen.findByText("eventParticipant.status.active")).toBeTruthy();
+  });
+
+  it("obecność odnotowana na bramce (`attended`) też jest stanem aktywnym", async () => {
+    h.pobierzProfil.mockResolvedValue(
+      stan({
+        registration: {
+          registrationId: "22222222-2222-4222-8222-222222222222",
+          status: "attended",
+          paymentStatus: "paid",
+          directoryOptOut: false,
+          notifyEmail: true,
+          notifySms: false,
+          groups: [],
+        },
+      }),
+    );
+    pokaz();
+
+    expect(await screen.findByText("eventParticipant.status.active")).toBeTruthy();
+    expect(screen.queryByText("eventParticipant.status.pending")).toBeNull();
   });
 
   it("zgłoszenie oczekujące ma INNE zdanie niż potwierdzone", async () => {
@@ -363,25 +485,25 @@ describe("EventMePanel - plakietka stanu zgłoszenia", () => {
         },
       }),
     );
-    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+    pokaz();
 
-    expect(await screen.findByText("eventMe.statusPending")).toBeTruthy();
-    expect(screen.queryByText("eventMe.statusActive")).toBeNull();
+    expect(await screen.findByText("eventParticipant.status.pending")).toBeTruthy();
+    expect(screen.queryByText("eventParticipant.status.active")).toBeNull();
   });
 
   it("brak zgłoszenia to BRAK plakietki, a nie „oczekujące”", async () => {
     h.pobierzProfil.mockResolvedValue(stan({ registration: null }));
-    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+    pokaz();
 
     await screen.findByTestId("zakladki");
-    expect(screen.queryByText("eventMe.statusPending")).toBeNull();
-    expect(screen.queryByText("eventMe.statusActive")).toBeNull();
+    await waitFor(() => expect(h.formularz.at(-1)?.loading).toBe(false));
+    expect(screen.queryByText(/eventParticipant\.status\./)).toBeNull();
   });
 });
 
 describe("EventMePanel - zakładka kartoteki", () => {
   it("pokazuje wizytówkę widza z odnośnikiem do edycji profilu platformy", async () => {
-    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+    pokaz();
 
     const wizytowka = await screen.findByTestId("wizytowka");
     expect(within(wizytowka).getByText("Anna Kowalska")).toBeTruthy();
@@ -392,14 +514,14 @@ describe("EventMePanel - zakładka kartoteki", () => {
 
   it("bez danych wizytówki karta się NIE rysuje - pusta karta to gorsze niż jej brak", async () => {
     h.wizytowka.current = null;
-    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+    pokaz();
 
     await screen.findByTestId("formularz-kartoteki");
     expect(screen.queryByTestId("wizytowka")).toBeNull();
   });
 
   it("formularz kartoteki dostaje SLUG TEGO wydarzenia i wczytany profil", async () => {
-    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+    pokaz();
 
     await waitFor(() => expect(h.pobierzProfil).toHaveBeenCalledWith(SLUG));
     await waitFor(() => expect(h.formularz.at(-1)?.maProfil).toBe(true));
@@ -409,7 +531,7 @@ describe("EventMePanel - zakładka kartoteki", () => {
 
   it("dopóki kartoteka się wczytuje, formularz DOSTAJE `loading` - nie udaje pustej kartoteki", () => {
     h.pobierzProfil.mockReturnValue(new Promise<MyEventPanelState>(() => {}));
-    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+    pokaz();
 
     expect(h.formularz.at(-1)?.loading).toBe(true);
     expect(h.formularz.at(-1)?.maProfil).toBe(false);
@@ -417,14 +539,14 @@ describe("EventMePanel - zakładka kartoteki", () => {
 
   it("podgląd publiczny pojawia się TYLKO wtedy, gdy jest co pokazać", async () => {
     h.pobierzProfil.mockResolvedValue(stan({ profile: null }));
-    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+    pokaz();
 
     await screen.findByTestId("formularz-kartoteki");
     expect(screen.queryByRole("button", { name: /eventMe\.publicPreview\.open/ })).toBeNull();
   });
 
   it("przełącznik podglądu zamienia formularz na kartę katalogową i z powrotem", async () => {
-    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+    pokaz();
 
     const otworz = await screen.findByRole("button", {
       name: /eventMe\.publicPreview\.open/,
@@ -443,71 +565,129 @@ describe("EventMePanel - zakładka kartoteki", () => {
   });
 });
 
-describe("EventMePanel - zakładka harmonogramu", () => {
-  it("pokazuje sesje z `event_my_agenda` dla TEGO sluga", async () => {
-    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+describe("EventMePanel - zakładki sterowane adresem", () => {
+  it("bez `tab` w adresie otwiera kartotekę", async () => {
+    pokaz();
 
-    await screen.findByTestId("zakladki");
-    zakladka("schedule");
-
-    expect(await screen.findByText("Panel: sieci przesyłowe")).toBeTruthy();
-    expect(h.pobierzAgende).toHaveBeenCalledWith(SLUG);
+    expect((await screen.findByTestId("zakladki")).getAttribute("data-wybrana")).toBe("profile");
+    expect(screen.getByTestId("formularz-kartoteki")).toBeTruthy();
   });
 
-  it("pusta agenda to zdanie o braku zapisów, a nie awaria", async () => {
-    h.pobierzAgende.mockResolvedValue([]);
-    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+  it("`tab` z adresu otwiera WSKAZANĄ zakładkę od pierwszego renderu", async () => {
+    pokaz("networking");
 
-    await screen.findByTestId("zakladki");
-    zakladka("schedule");
-
-    expect(await screen.findByText("eventMe.agendaEmpty")).toBeTruthy();
+    expect((await screen.findByTestId("zakladki")).getAttribute("data-wybrana")).toBe("networking");
+    expect(screen.getByTestId("gielda-spotkan")).toBeTruthy();
   });
 
-  it("dopóki agenda się wczytuje, stoją szkielety - a NIE zdanie o pustce", async () => {
-    h.pobierzAgende.mockReturnValue(new Promise<MyAgendaSession[]>(() => {}));
-    const { container } = renderWithQueryClient(<EventMePanel slug={SLUG} />);
+  it("klik w zakładkę zgłasza ją trasie przez `onTabChange`", async () => {
+    pokaz();
 
     await screen.findByTestId("zakladki");
-    zakladka("schedule");
+    zakladka("contacts");
 
-    await waitFor(() =>
-      expect(container.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0),
-    );
-    expect(screen.queryByText("eventMe.agendaEmpty")).toBeNull();
+    expect(h.zmianyZakladki).toEqual(["contacts"]);
+    expect(await screen.findByText("eventMe.contactsEmpty")).toBeTruthy();
   });
 
-  it.fails(
-    "DEFEKT: odmowa `event_my_agenda` wygląda jak pusta agenda - panel nie ma ANI JEDNEJ gałęzi błędu",
-    async () => {
-      // `useMyAgenda` to zwykłe `useQuery`; przy odrzuconej obietnicy `data`
-      // jest `undefined`, a panel podaje `sessions={agenda.data ?? []}`
-      // i `loading={agenda.isLoading}` (fałsz po błędzie). Uczestnik czyta więc
-      // „nie masz jeszcze żadnych zapisów” w chwili, w której baza odmówiła
-      // odpowiedzi - i zapisuje się na sesje, na których już jest, albo uznaje,
-      // że jego wybory przepadły. „Nie wiem” i „nie wolno” muszą być różnymi
-      // odpowiedziami; panel nie ma gałęzi `agenda.isError`.
-      h.pobierzAgende.mockRejectedValue(new Error("auth_required: sign in to see your agenda"));
-      const { container } = renderWithQueryClient(<EventMePanel slug={SLUG} />);
+  it("wartość spoza listy zakładek NIE trafia do adresu", async () => {
+    pokaz();
 
-      await screen.findByTestId("zakladki");
-      zakladka("schedule");
+    fireEvent.click(await screen.findByTestId("obca-zakladka"));
 
-      // Czekamy WYŁĄCZNIE na ustanie stanu oczekiwania (szkielety znikają
-      // zarówno po odmowie, jak i po naprawie) - dzięki temu ten wpis padnie na
-      // asercji docelowej, a po dołożeniu gałęzi błędu przestanie padać w ogóle.
-      await waitFor(() => expect(h.pobierzAgende).toHaveBeenCalled());
-      await waitFor(() => expect(container.querySelectorAll(".animate-pulse")).toHaveLength(0));
+    expect(h.zmianyZakladki).toEqual([]);
+    expect(screen.getByTestId("zakladki").getAttribute("data-wybrana")).toBe("profile");
+  });
+});
 
-      // ASERCJA DOCELOWA: po odmowie ekran NIE MOŻE twierdzić, że agenda jest pusta.
-      expect(screen.queryByText("eventMe.agendaEmpty")).toBeNull();
-    },
-  );
+describe("EventMePanel - gniazdo harmonogramu (tor A)", () => {
+  it("zakładka harmonogramu montuje gniazdo z SLUGIEM, zgłoszeniem i flagami wydarzenia", async () => {
+    pokaz("schedule");
+
+    await screen.findByTestId("gniazdo-harmonogram");
+    await waitFor(() => expect(h.gniazdoHarmonogramu.at(-1)?.options).not.toBeNull());
+    const props = h.gniazdoHarmonogramu.at(-1);
+    expect(props?.slug).toBe(SLUG);
+    expect(props?.registration?.registrationId).toBe("22222222-2222-4222-8222-222222222222");
+    expect(props?.options).toEqual(makeEventParticipantOptions());
+    expect(h.pobierzOpcje).toHaveBeenCalledWith(SLUG);
+  });
+
+  it("zanim flagi i zgłoszenie przyjdą, gniazdo dostaje `null`, a nie zgadnięte wartości", () => {
+    h.pobierzProfil.mockReturnValue(new Promise<MyEventPanelState>(() => {}));
+    h.pobierzOpcje.mockReturnValue(new Promise<EventParticipantOptions | null>(() => {}));
+    pokaz("schedule");
+
+    expect(h.gniazdoHarmonogramu.at(-1)).toEqual({ slug: SLUG, registration: null, options: null });
+  });
+
+  it("gniazdo stoi TYLKO na zakładce harmonogramu", async () => {
+    pokaz();
+
+    await screen.findByTestId("formularz-kartoteki");
+    expect(screen.queryByTestId("gniazdo-harmonogram")).toBeNull();
+  });
+});
+
+describe("EventMePanel - zakładka „Po wydarzeniu” (tor C)", () => {
+  it("przycisk zakładki pojawia się, gdy organizator włączył certyfikat", async () => {
+    h.pobierzOpcje.mockResolvedValue(makeEventParticipantOptions({ certificateEnabled: true }));
+    pokaz();
+
+    expect(await screen.findByRole("tab", { name: "eventParticipant.tabs.followUp" })).toBeTruthy();
+  });
+
+  it("przycisk zakładki pojawia się, gdy organizator włączył ankietę", async () => {
+    h.pobierzOpcje.mockResolvedValue(makeEventParticipantOptions({ surveyEnabled: true }));
+    pokaz();
+
+    expect(await screen.findByRole("tab", { name: "eventParticipant.tabs.followUp" })).toBeTruthy();
+  });
+
+  it("bez certyfikatu i ankiety przycisku NIE ma - pusta zakładka to gorsze niż jej brak", async () => {
+    pokaz();
+
+    await waitFor(() => expect(h.pobierzOpcje).toHaveBeenCalled());
+    await screen.findByTestId("formularz-kartoteki");
+    expect(screen.queryByRole("tab", { name: "eventParticipant.tabs.followUp" })).toBeNull();
+  });
+
+  it("klik w przycisk otwiera gniazdo z flagami wydarzenia", async () => {
+    const flagi = makeEventParticipantOptions({ surveyEnabled: true });
+    h.pobierzOpcje.mockResolvedValue(flagi);
+    pokaz();
+
+    fireEvent.click(await screen.findByRole("tab", { name: "eventParticipant.tabs.followUp" }));
+
+    expect(h.zmianyZakladki).toEqual(["follow-up"]);
+    await screen.findByTestId("gniazdo-po-wydarzeniu");
+    expect(h.gniazdoPoWydarzeniu.at(-1)?.options).toEqual(flagi);
+    expect(h.gniazdoPoWydarzeniu.at(-1)?.slug).toBe(SLUG);
+  });
+
+  it("`?tab=follow-up` renderuje TREŚĆ zakładki, zanim flagi przyjdą (MIN-16)", () => {
+    h.pobierzOpcje.mockReturnValue(new Promise<EventParticipantOptions | null>(() => {}));
+    pokaz("follow-up");
+
+    expect(screen.getByTestId("gniazdo-po-wydarzeniu")).toBeTruthy();
+    expect(h.gniazdoPoWydarzeniu.at(-1)?.options).toBeNull();
+    // Przycisk czeka na flagi - ale treść już stoi.
+    expect(screen.queryByRole("tab", { name: "eventParticipant.tabs.followUp" })).toBeNull();
+  });
+
+  it("odmowa flag mówi o tym zdaniem, a gniazdo i tak dostaje miejsce (z `options: null`)", async () => {
+    h.pobierzOpcje.mockRejectedValue(new Error("network: offline"));
+    pokaz("follow-up");
+
+    expect(await screen.findByText("eventParticipant.options.loadError")).toBeTruthy();
+    expect(screen.getByTestId("gniazdo-po-wydarzeniu")).toBeTruthy();
+    expect(h.gniazdoPoWydarzeniu.at(-1)?.options).toBeNull();
+  });
 });
 
 describe("EventMePanel - zakładka kontaktów", () => {
   it("brak kontaktów ma NASTĘPNY KROK, a nie pusty prostokąt", async () => {
-    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+    pokaz();
 
     await screen.findByTestId("zakladki");
     zakladka("contacts");
@@ -520,7 +700,7 @@ describe("EventMePanel - zakładka kontaktów", () => {
 
   it("wczytywanie kontaktów pokazuje szkielet, a nie zdanie o pustce", async () => {
     h.kontakty = { rows: [], loading: true };
-    const { container } = renderWithQueryClient(<EventMePanel slug={SLUG} />);
+    const { container } = pokaz();
 
     await screen.findByTestId("zakladki");
     zakladka("contacts");
@@ -533,7 +713,7 @@ describe("EventMePanel - zakładka kontaktów", () => {
 
   it("kontakt z profilem publicznym dostaje odnośnik do SWOJEJ wizytówki", async () => {
     h.kontakty = { rows: [kontakt()], loading: false };
-    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+    pokaz();
 
     await screen.findByTestId("zakladki");
     zakladka("contacts");
@@ -546,7 +726,7 @@ describe("EventMePanel - zakładka kontaktów", () => {
 
   it("kontakt bez publicznego profilu nie dostaje martwego odnośnika", async () => {
     h.kontakty = { rows: [kontakt({ slug: null })], loading: false };
-    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+    pokaz();
 
     await screen.findByTestId("zakladki");
     zakladka("contacts");
@@ -558,7 +738,7 @@ describe("EventMePanel - zakładka kontaktów", () => {
 
 describe("EventMePanel - networking i bilety", () => {
   it("giełda spotkań dostaje SLUG TEGO wydarzenia", async () => {
-    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+    pokaz();
 
     await screen.findByTestId("zakladki");
     zakladka("networking");
@@ -569,7 +749,7 @@ describe("EventMePanel - networking i bilety", () => {
   });
 
   it("panel biletów jest ZAWĘŻONY do tego wydarzenia i NIE powtarza nagłówka", async () => {
-    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+    pokaz();
 
     await screen.findByTestId("zakladki");
     zakladka("registration");
@@ -585,7 +765,7 @@ describe("EventMePanel - networking i bilety", () => {
 describe("EventMePanel - dostępność", () => {
   it("panel zalogowanego uczestnika nie ma naruszeń axe", async () => {
     h.kontakty = { rows: [kontakt()], loading: false };
-    const { container, queryClient } = renderWithQueryClient(<EventMePanel slug={SLUG} />);
+    const { container, queryClient } = pokaz();
 
     await screen.findByTestId("formularz-kartoteki");
     // OBA zapytania panelu (kartoteka i agenda) muszą się ustabilizować przed

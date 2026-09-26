@@ -10,15 +10,20 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_PARTICIPANT_SETTINGS,
+  REFUND_MODES,
   REMINDER_LEAD_PRESETS_MINUTES,
 } from "@/lib/events/participantSettings";
 import {
   LEAD_PRESET_LABEL_KEYS,
   PARTICIPANT_SETTINGS_ERROR_KEYS,
+  REFUND_MODE_HINT_KEYS,
+  REFUND_MODE_LABEL_KEYS,
   SCREEN_FIELDS,
   participantSettingsDirty,
   participantSettingsDraftFromSettings,
   participantSettingsPayload,
+  reminderLeadOptions,
+  sessionLeadOptions,
   validateParticipantSettings,
   type ParticipantSettingsDraft,
   type ParticipantSettingsScreen,
@@ -405,6 +410,46 @@ describe("klucze komunikatów i etykiet", () => {
     );
     for (const key of PARTICIPANT_SETTINGS_ERROR_KEYS) {
       expect(key).toMatch(/^adminEventParticipant\.errors\.[a-z][A-Za-z]+$/);
+    }
+  });
+});
+
+// ── Opcje wyprzedzeń i etykiety trybu zwrotu (ekrany F-c) ───────────────────
+// Lista rozwijana i grupa pól wyboru nigdy nie gubią wartości zapisanej spoza
+// gotowych; mapy trybu zwrotu mają pełne literały kluczy.
+
+describe("reminderLeadOptions", () => {
+  it("to osiem gotowych wyprzedzeń, malejąco", () => {
+    expect(reminderLeadOptions([])).toEqual([10080, 4320, 1440, 720, 180, 60, 30, 15]);
+  });
+
+  it("dokłada wartości spoza listy i nie dubluje gotowych ani powtórzeń", () => {
+    expect(reminderLeadOptions([1440, 90, 90])).toEqual([
+      10080, 4320, 1440, 720, 180, 90, 60, 30, 15,
+    ]);
+  });
+});
+
+describe("sessionLeadOptions", () => {
+  it("to gotowe wyprzedzenia sesji rosnąco, gdy bieżąca wartość jest gotowa", () => {
+    expect(sessionLeadOptions("15")).toEqual(["5", "10", "15", "30", "60"]);
+  });
+
+  it("zapisana wartość spoza listy dostaje własną opcję na właściwym miejscu", () => {
+    expect(sessionLeadOptions("20")).toEqual(["5", "10", "15", "20", "30", "60"]);
+    expect(sessionLeadOptions("240")).toEqual(["5", "10", "15", "30", "60", "240"]);
+  });
+});
+
+describe("REFUND_MODE_LABEL_KEYS / REFUND_MODE_HINT_KEYS", () => {
+  it("każdy tryb zwrotu ma pełny literał etykiety i podpowiedzi", () => {
+    for (const mode of REFUND_MODES) {
+      expect(REFUND_MODE_LABEL_KEYS[mode]).toBe(
+        `adminEventParticipant.policies.refund.modes.${mode}`,
+      );
+      expect(REFUND_MODE_HINT_KEYS[mode]).toBe(
+        `adminEventParticipant.policies.refund.modes.${mode}Hint`,
+      );
     }
   });
 });

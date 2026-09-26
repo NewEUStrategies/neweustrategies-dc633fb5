@@ -46,12 +46,18 @@
 // trasa im podała.
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 
 import { axeViolations, summarize } from "@/test/axe";
 
 const h = vi.hoisted(() => ({
   panelMoje: [] as string[],
+  /** Zakładka, którą trasa podała panelowi „Moje” (z `?tab=`). */
+  zakladkaMoje: [] as (string | undefined)[],
+  /** `onTabChange` z ostatniego renderu panelu - do wywołania w teście. */
+  zmienZakladke: null as null | ((tab: "schedule" | "follow-up") => void),
+  /** Język, który zwraca `activeLang()` nagłówków (null = prawdziwa reguła). */
+  jezykNaglowka: null as null | "pl" | "en",
   panelZgloszenia: [] as { slug: string; token: string | null }[],
   zaproszenie: [] as (string | null)[],
   stronaModulu: [] as { slug: string; module: string }[],
@@ -61,10 +67,30 @@ const h = vi.hoisted(() => ({
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 
+// Język nagłówka ustala `activeLang()` z adresu żądania (prefiks `/en/`); w teście
+// nie ma żądania, więc przypadek o tytule EN podaje język wprost.
+vi.mock("@/lib/seo/head", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/seo/head")>();
+  return {
+    ...actual,
+    activeLang: (url?: string) => h.jezykNaglowka ?? actual.activeLang(url),
+  };
+});
+
 vi.mock("@/components/events/participant/organisms/EventMePanel", () => ({
-  EventMePanel: ({ slug }: { slug: string }) => {
+  EventMePanel: ({
+    slug,
+    tab,
+    onTabChange,
+  }: {
+    slug: string;
+    tab?: string;
+    onTabChange: (tab: "schedule" | "follow-up") => void;
+  }) => {
     h.panelMoje.push(slug);
-    return <section data-testid="panel-moje" data-slug={slug} />;
+    h.zakladkaMoje.push(tab);
+    h.zmienZakladke = onTabChange;
+    return <section data-testid="panel-moje" data-slug={slug} data-tab={tab ?? ""} />;
   },
 }));
 
@@ -164,6 +190,8 @@ function ssrTrasy(route: { options: { ssr?: unknown } }): unknown {
 beforeEach(() => {
   vi.clearAllMocks();
   h.panelMoje.length = 0;
+  h.zakladkaMoje.length = 0;
+  h.zmienZakladke = null;
   h.panelZgloszenia.length = 0;
   h.zaproszenie.length = 0;
   h.stronaModulu.length = 0;
@@ -230,6 +258,20 @@ describe("Prywatny panel uczestnika a publiczna zakładka - dwie różne decyzje
     expect(tytul(wpisy)).toBeTruthy();
   });
 
+  it("tytuł dokumentu „Moje” idzie ze słownika `eventHead.meTitle` w języku adresu", async () => {
+    // Nagłówek jedzie w chunku startowym, więc czyta WYŁĄCZNIE `i18n-event-head`
+    // (R-ROUTE); dawny polski literał w kodzie trasy dawał polski tytuł karty
+    // także w wersji angielskiej.
+    try {
+      h.jezykNaglowka = "pl";
+      expect(tytul(await routeMeta(MeRoute))).toBe("Mój panel wydarzenia");
+      h.jezykNaglowka = "en";
+      expect(tytul(await routeMeta(MeRoute))).toBe("My event panel");
+    } finally {
+      h.jezykNaglowka = null;
+    }
+  });
+
   it("katalog uczestników NIE dostaje `noindex` - to treść organizatora, ma być znajdowana", async () => {
     const wpisy = await routeMeta(ParticipantsRoute);
 
@@ -277,6 +319,31 @@ describe("Kontrakt adresu samoobsługi zgłoszenia (`validateSearch`)", () => {
   });
 });
 
+describe("Kontrakt adresu panelu „Moje” (`validateSearch` - `?tab=`)", () => {
+  const waliduj = routeSearchValidator(MeRoute);
+
+  it.each(["profile", "schedule", "contacts", "networking", "registration", "follow-up"])(
+    "znana zakładka `%s` przechodzi bez zmian",
+    (tab) => {
+      expect(waliduj({ tab })).toEqual({ tab });
+    },
+  );
+
+  it("nieznana zakładka, brak i nie-napis dają BRAK zakładki (panel otworzy profil)", () => {
+    expect(waliduj({ tab: "admin" })).toEqual({});
+    expect(waliduj({ tab: "Schedule" })).toEqual({});
+    expect(waliduj({})).toEqual({});
+    expect(waliduj({ tab: 3 })).toEqual({});
+    expect(waliduj({ tab: ["schedule"] })).toEqual({});
+  });
+
+  it("obce parametry adresu NIE przeciekają dalej - trasa zna wyłącznie `tab`", () => {
+    expect(waliduj({ tab: "schedule", utm_source: "mail", token: "x" })).toEqual({
+      tab: "schedule",
+    });
+  });
+});
+
 describe("Montowanie tras - co ekran dostaje z adresu", () => {
   it("panel „Moje” dostaje slug ze ścieżki", async () => {
     await renderRoute({
@@ -287,6 +354,35 @@ describe("Montowanie tras - co ekran dostaje z adresu", () => {
 
     await waitFor(() => expect(screen.getByTestId("panel-moje")).toBeTruthy());
     expect(h.panelMoje).toContain(SLUG);
+    expect(h.zakladkaMoje.at(-1)).toBeUndefined();
+  });
+
+  it("panel „Moje” dostaje zakładkę z `?tab=` - odnośnik z e-maila otwiera harmonogram", async () => {
+    await renderRoute({
+      route: MeRoute,
+      path: "/events/$slug/me",
+      initialEntry: `/events/${SLUG}/me?tab=schedule`,
+    });
+
+    await waitFor(() => expect(screen.getByTestId("panel-moje")).toBeTruthy());
+    expect(h.zakladkaMoje.at(-1)).toBe("schedule");
+  });
+
+  it("zmiana zakładki w panelu trafia do ADRESU (bez nowej trasy) i wraca do panelu", async () => {
+    const { search, currentPath } = await renderRoute({
+      route: MeRoute,
+      path: "/events/$slug/me",
+      initialEntry: `/events/${SLUG}/me`,
+    });
+
+    await waitFor(() => expect(h.zmienZakladke).not.toBeNull());
+    await act(async () => {
+      h.zmienZakladke?.("follow-up");
+    });
+
+    await waitFor(() => expect(search()).toEqual({ tab: "follow-up" }));
+    expect(currentPath()).toBe(`/events/${SLUG}/me`);
+    await waitFor(() => expect(h.zakladkaMoje.at(-1)).toBe("follow-up"));
   });
 
   it("samoobsługa zgłoszenia dostaje slug ORAZ klucz z adresu", async () => {

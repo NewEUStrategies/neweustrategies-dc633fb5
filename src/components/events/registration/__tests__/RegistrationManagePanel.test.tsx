@@ -18,6 +18,12 @@
 // 7. PO ODWOŁANIU nie ma już czego odwoływać: przycisk znika, a jego miejsce
 //    zajmuje potwierdzenie (z informacją o osobie z listy rezerwowej).
 //
+// 8. GNIAZDA TORÓW F1-F5 (spec B.11, BLK-5). Pod kartą stanu zgłoszenia (gdy
+//    stan jest znany) stoją gniazda B (akcje biletu), A (przypomnienia
+//    i kalendarz) i C (po wydarzeniu). KAŻDY moduł gniazda stoi tu na atrapie
+//    z `data-testid`, która zapisuje właściwości; ten plik sprawdza wyłącznie
+//    miejsce montażu i właściwości. Tor B, przepisując panel, zostawia atrapy.
+//
 // i18n jest zamockowane kluczami (parytetu PL/EN pilnuje osobna bramka
 // słowników). Wyjątkiem są zdania odmowy: `registrationErrorMessage` liczy je
 // POZA Reactem, na prawdziwej instancji i18next, więc tam asercja czyta to,
@@ -31,7 +37,34 @@ import type {
   RegistrationCancelResult,
   RegistrationManageView,
 } from "@/lib/events/publicRegistrationApi";
+import type { ManagePanelSlotProps } from "@/components/events/participant/slots/slotTypes";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
+
+/** Właściwości przekazane gniazdom torów - kontrakt BLK-5 (montaż + właściwości). */
+const gniazda = vi.hoisted(() => ({
+  akcje: [] as ManagePanelSlotProps[],
+  kalendarz: [] as ManagePanelSlotProps[],
+  poWydarzeniu: [] as ManagePanelSlotProps[],
+}));
+
+vi.mock("@/components/events/participant/slots/ManageTicketActionsSlot", () => ({
+  ManageTicketActionsSlot: (props: ManagePanelSlotProps) => {
+    gniazda.akcje.push(props);
+    return <div data-testid="gniazdo-akcje-biletu" />;
+  },
+}));
+vi.mock("@/components/events/participant/slots/ManageCalendarRemindersSlot", () => ({
+  ManageCalendarRemindersSlot: (props: ManagePanelSlotProps) => {
+    gniazda.kalendarz.push(props);
+    return <div data-testid="gniazdo-kalendarz-przypomnienia" />;
+  },
+}));
+vi.mock("@/components/events/participant/slots/ManageFollowUpSlot", () => ({
+  ManageFollowUpSlot: (props: ManagePanelSlotProps) => {
+    gniazda.poWydarzeniu.push(props);
+    return <div data-testid="gniazdo-po-wydarzeniu" />;
+  },
+}));
 
 const fetchHeader = vi.fn<(slug: string) => Promise<EventPageHeader | null>>();
 const cancel = vi.fn<(input: CancelRegistrationInput) => Promise<RegistrationCancelResult>>();
@@ -137,6 +170,9 @@ function manageState(over: Partial<RegistrationManageView> = {}): RegistrationMa
 
 beforeEach(() => {
   vi.clearAllMocks();
+  gniazda.akcje.length = 0;
+  gniazda.kalendarz.length = 0;
+  gniazda.poWydarzeniu.length = 0;
   fetchHeader.mockResolvedValue(header());
   manageView.mockResolvedValue(null);
   cancel.mockResolvedValue({ registrationId: "r1", promotedFromWaitlist: 0 });
@@ -469,5 +505,54 @@ describe("RegistrationManagePanel - stan zgłoszenia i powrót do kasy", () => {
     // `not_required` to NIE jest „nieopłacone" - bezpłatna wejściówka nie ma
     // czego czekać, więc zdanie o płatności w ogóle nie pada.
     expect(screen.queryByText("eventFront.manage.paymentUnpaid")).toBeNull();
+  });
+});
+
+describe("RegistrationManagePanel - gniazda torów F1-F5 (kontrakt BLK-5)", () => {
+  it("pod kartą stanu stoją trzy gniazda w kolejności B, A, C - z kluczem, slugiem i stanem", async () => {
+    const view = manageState({ status: "approved", paymentStatus: "paid" });
+    manageView.mockResolvedValue(view);
+    const { container } = renderPanel();
+
+    await screen.findByTestId("gniazdo-akcje-biletu");
+    const order = Array.from(container.querySelectorAll("[data-testid^='gniazdo-'], h2")).map(
+      (node) => node.getAttribute("data-testid") ?? node.textContent,
+    );
+    expect(order).toEqual([
+      "eventFront.manage.stateTitle",
+      "gniazdo-akcje-biletu",
+      "gniazdo-kalendarz-przypomnienia",
+      "gniazdo-po-wydarzeniu",
+      "eventFront.manage.confirmTitle",
+    ]);
+    for (const props of [
+      gniazda.akcje.at(-1),
+      gniazda.kalendarz.at(-1),
+      gniazda.poWydarzeniu.at(-1),
+    ]) {
+      expect(props).toEqual({ slug: SLUG, token: TOKEN, view });
+    }
+  });
+
+  it("klucz wklejony ręcznie (adres bez klucza) jedzie do gniazd jako aktywny klucz", async () => {
+    manageView.mockResolvedValue(manageState());
+    renderPanel(null);
+
+    fireEvent.change(await screen.findByLabelText("eventFront.manage.tokenLabel"), {
+      target: { value: TOKEN },
+    });
+
+    await screen.findByTestId("gniazdo-akcje-biletu");
+    expect(gniazda.akcje.at(-1)?.token).toBe(TOKEN);
+  });
+
+  it("dopóki stanu zgłoszenia nie ma (nieznany klucz), gniazd NIE ma", async () => {
+    manageView.mockResolvedValue(null);
+    renderPanel();
+
+    expect(await screen.findByText("eventFront.manage.notFound")).toBeInTheDocument();
+    expect(screen.queryByTestId("gniazdo-akcje-biletu")).toBeNull();
+    expect(screen.queryByTestId("gniazdo-kalendarz-przypomnienia")).toBeNull();
+    expect(screen.queryByTestId("gniazdo-po-wydarzeniu")).toBeNull();
   });
 });

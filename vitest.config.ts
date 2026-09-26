@@ -6442,12 +6442,100 @@ export default defineConfig({
           lines: 98,
           branches: 98,
         },
+        // ZMIERZONE 2026-09-26 (F-c, przebieg `--coverage` testów etapu, 208 plików /
+        // 4 960 przypadków): każdy plik niżej 100 / 100 / 100 / 100 - próg 98.
+        "src/components/events/participant/atoms/RegistrationStatusBadge.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/admin/events/molecules/ReminderLeadsField.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/admin/events/molecules/MessageDeliveryStatsTable.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/admin/events/organisms/EventCommunicationsPanel.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/admin/events/organisms/EventRegistrationPoliciesPanel.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/routes/admin.events_.$eventId.registration.policies.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n-event-participant.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n-admin-event-participant.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/participantSurface.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
         // <<< PF-FOUNDATION thresholds (end)
         //
         // (separator bloków - tych dwóch linii nie edytuje żaden tor)
         // >>> PF-A thresholds (begin)
         // ZMIERZONE 2026-09-26 (Foundation, zaślepka): 100 / 100 / 100 / 100.
         "src/lib/events/jobs/reminderJob.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-26 (Foundation F-c, zaślepki gniazd i nakładka-zasiew):
+        // 100 / 100 / 100 / 100. Wpisy z epoki zaślepki - właściciel może je zmienić.
+        "src/components/events/participant/slots/EventMeScheduleSlot.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/events/participant/slots/RegistrationCardRemindersSlot.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/events/participant/slots/ManageCalendarRemindersSlot.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n-event-calendar.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n-event-plan.ts": {
           statements: 98,
           functions: 98,
           lines: 98,
@@ -6464,12 +6552,70 @@ export default defineConfig({
           lines: 98,
           branches: 98,
         },
+        // ZMIERZONE 2026-09-26 (Foundation F-c, zaślepki gniazd i nakładka-zasiew):
+        // 100 / 100 / 100 / 100. Wpisy z epoki zaślepki - właściciel może je zmienić.
+        "src/components/events/participant/slots/RegistrationCardActionsSlot.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/events/participant/slots/ManageTicketActionsSlot.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n-event-ticket-actions.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n-admin-event-offers.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
         // <<< PF-B thresholds (end)
         //
         // (separator bloków - tych dwóch linii nie edytuje żaden tor)
         // >>> PF-C thresholds (begin)
         // ZMIERZONE 2026-09-26 (Foundation, zaślepka): 100 / 100 / 100 / 100.
         "src/lib/events/jobs/followUpJob.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ZMIERZONE 2026-09-26 (Foundation F-c, zaślepki gniazd i nakładka-zasiew):
+        // 100 / 100 / 100 / 100. Wpisy z epoki zaślepki - właściciel może je zmienić.
+        "src/components/events/participant/slots/EventMeFollowUpSlot.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/events/participant/slots/RegistrationCardFollowUpSlot.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/events/participant/slots/ManageFollowUpSlot.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n-event-follow-up.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n-admin-event-follow-up.ts": {
           statements: 98,
           functions: 98,
           lines: 98,

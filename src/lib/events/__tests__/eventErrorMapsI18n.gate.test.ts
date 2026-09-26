@@ -50,6 +50,23 @@ import { adminEventOnsiteEn, adminEventOnsitePl } from "@/lib/i18n-admin-event-o
 import { eventFrontEn, eventFrontPl } from "@/lib/i18n-event-front";
 import { adminEventsEn, adminEventsPl } from "@/lib/i18n-admin-events";
 
+// ══ FUNKCJE UCZESTNIKA F1-F5: BLOKI TORÓW (spec B.11-2) ══════════════════════
+// Tory A/B/C dopisują importy swoich map i nakładek WYŁĄCZNIE do własnego bloku
+// `imports`, kody do istniejących map przez `PF_<X>_EXTRA_CODES` w bloku
+// `codes`, a własne mapy do bloku `maps` na końcu `MAPY`. Bloki dzieli co
+// najmniej dwie linie, których nikt nie zmienia - scalanie torów nie
+// konfliktuje na tym pliku.
+// >>> PF-A imports (begin)
+// <<< PF-A imports (end)
+//
+// (separator bloków - tych dwóch linii nie edytuje żaden tor)
+// >>> PF-B imports (begin)
+// <<< PF-B imports (end)
+//
+// (separator bloków - tych dwóch linii nie edytuje żaden tor)
+// >>> PF-C imports (begin)
+// <<< PF-C imports (end)
+
 /** Klucz ma tekst, gdy w słowniku stoi pod nim NIEPUSTY napis (nie gałąź). */
 function maTekst(slownik: ResourceTree, klucz: string): boolean {
   const wartosc = readKey(slownik, klucz);
@@ -233,8 +250,56 @@ const KODY_STUDIA = [
   "invalid_builder_data",
   // admin_event_features_save
   "invalid_feature",
+  // admin_event_participant_settings_get / _save (F1-F5, `participantSettingsApi`).
+  // `survey_locked` (wyzwalacz toru C na tym samym RPC) dopisuje tor C przez
+  // `PF_C_EXTRA_CODES`, gdy jego migracja wyląduje - klucz i18n już jest.
+  "invalid_request",
+  "invalid_boolean",
+  "invalid_reminder_leads",
+  "invalid_session_lead",
+  "invalid_transfer_deadline",
+  "invalid_refund_mode",
+  "invalid_refund_deadline",
+  "invalid_offer_hours",
+  "invalid_certificate_eligibility",
+  "invalid_certificate_min_sessions",
+  "invalid_certificate_hours",
+  "invalid_text_length",
+  "invalid_survey_close_days",
+  "invalid_survey_min_results",
   STRAZNIK_TENANTA,
 ] as const;
+
+/**
+ * Kod dopisany przez tor do ISTNIEJĄCEJ mapy: `[nazwa mapy, kod]`.
+ * `PF_<X>_BEZ_INTERPOLACJI` - nazwy NOWYCH map toru, które wołają `t()`
+ * bez parametrów (sprawdzenie „zdania bez interpolacji" niżej).
+ */
+type PfExtraCode = readonly [mapName: string, code: string];
+
+// >>> PF-A codes (begin)
+const PF_A_EXTRA_CODES: readonly PfExtraCode[] = [];
+const PF_A_BEZ_INTERPOLACJI: readonly string[] = [];
+// <<< PF-A codes (end)
+//
+// (separator bloków - tych dwóch linii nie edytuje żaden tor)
+// >>> PF-B codes (begin)
+const PF_B_EXTRA_CODES: readonly PfExtraCode[] = [];
+const PF_B_BEZ_INTERPOLACJI: readonly string[] = [];
+// <<< PF-B codes (end)
+//
+// (separator bloków - tych dwóch linii nie edytuje żaden tor)
+// >>> PF-C codes (begin)
+const PF_C_EXTRA_CODES: readonly PfExtraCode[] = [];
+const PF_C_BEZ_INTERPOLACJI: readonly string[] = [];
+// <<< PF-C codes (end)
+
+/** Kody dopisane przez tory A/B/C do mapy o danej nazwie. */
+function pfExtraCodes(nazwa: string): string[] {
+  return [...PF_A_EXTRA_CODES, ...PF_B_EXTRA_CODES, ...PF_C_EXTRA_CODES]
+    .filter(([mapName]) => mapName === nazwa)
+    .map(([, code]) => code);
+}
 
 interface BramkowanaMapa {
   nazwa: string;
@@ -263,7 +328,7 @@ const MAPY: readonly BramkowanaMapa[] = [
     nazwa: "adminRegistrationErrors",
     prefix: "adminEventRegistration.errors.",
     klucz: (error) => adminRegistrationFailure(error).key,
-    kody: KODY_REJESTRACJI,
+    kody: [...KODY_REJESTRACJI, ...pfExtraCodes("adminRegistrationErrors")],
     nakladka: "src/lib/i18n-admin-event-registration.ts",
     pl: adminEventRegistrationPl,
     en: adminEventRegistrationEn,
@@ -274,7 +339,7 @@ const MAPY: readonly BramkowanaMapa[] = [
     nazwa: "adminTermsErrors",
     prefix: "adminEventTerms.errors.",
     klucz: (error) => adminTermsFailure(error).key,
-    kody: KODY_GRUP_I_ZGOD,
+    kody: [...KODY_GRUP_I_ZGOD, ...pfExtraCodes("adminTermsErrors")],
     nakladka: "src/lib/i18n-admin-event-terms.ts",
     pl: adminEventTermsPl,
     en: adminEventTermsEn,
@@ -285,7 +350,7 @@ const MAPY: readonly BramkowanaMapa[] = [
     nazwa: "adminOnsiteErrors",
     prefix: "adminEventOnsite.errors.",
     klucz: (error) => adminOnsiteFailure(error).key,
-    kody: KODY_ONSITE,
+    kody: [...KODY_ONSITE, ...pfExtraCodes("adminOnsiteErrors")],
     nakladka: "src/lib/i18n-admin-event-onsite.ts",
     pl: adminEventOnsitePl,
     en: adminEventOnsiteEn,
@@ -296,7 +361,7 @@ const MAPY: readonly BramkowanaMapa[] = [
     nazwa: "publicEventErrors",
     prefix: "eventFront.errors.",
     klucz: publicEventErrorKey,
-    kody: KODY_UCZESTNIKA,
+    kody: [...KODY_UCZESTNIKA, ...pfExtraCodes("publicEventErrors")],
     nakladka: "src/lib/i18n-event-front.ts",
     pl: eventFrontPl,
     en: eventFrontEn,
@@ -307,13 +372,23 @@ const MAPY: readonly BramkowanaMapa[] = [
     nazwa: "adminEventStudioErrors",
     prefix: "adminEvents.studio.errors.",
     klucz: adminEventStudioErrorKey,
-    kody: KODY_STUDIA,
+    kody: [...KODY_STUDIA, ...pfExtraCodes("adminEventStudioErrors")],
     nakladka: "src/lib/i18n-admin-events.ts",
     pl: adminEventsPl,
     en: adminEventsEn,
-    moduly: ["eventDetailApi", "eventPagesApi"],
+    moduly: ["eventDetailApi", "eventPagesApi", "participantSettingsApi"],
     interpoluje: false,
   },
+  // >>> PF-A maps (begin)
+  // <<< PF-A maps (end)
+  //
+  // (separator bloków - tych dwóch linii nie edytuje żaden tor)
+  // >>> PF-B maps (begin)
+  // <<< PF-B maps (end)
+  //
+  // (separator bloków - tych dwóch linii nie edytuje żaden tor)
+  // >>> PF-C maps (begin)
+  // <<< PF-C maps (end)
 ];
 
 describe.each(MAPY)("bramka kluczy i18n: $nazwa", (mapa) => {
@@ -395,9 +470,14 @@ describe("zdania bez interpolacji", () => {
     // w ZIELONĄ pustkę (`describe.each([])` nie zgłasza nic). Wymieniamy oba
     // moduły z nazwy także po to, żeby dołożenie `paramsOf()` do którejś z tych
     // map było świadomą zmianą TU, a nie cichym wyłączeniem sprawdzenia.
+    // Mapy torów F1-F5 stoją w blokach `maps` w kolejności A, B, C, więc
+    // lista dokłada ich nazwy w tej samej kolejności.
     expect(BEZ_INTERPOLACJI.map((mapa) => mapa.nazwa)).toEqual([
       "publicEventErrors",
       "adminEventStudioErrors",
+      ...PF_A_BEZ_INTERPOLACJI,
+      ...PF_B_BEZ_INTERPOLACJI,
+      ...PF_C_BEZ_INTERPOLACJI,
     ]);
   });
 });

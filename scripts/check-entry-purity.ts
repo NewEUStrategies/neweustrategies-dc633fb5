@@ -157,6 +157,74 @@ const HEAVY_DICTIONARIES: readonly HeavyDictionary[] = [
       "(`AdminSession` w routes/admin.tsx) - nigdy z `beforeLoad`/`loader`/`head`, " +
       "bo te jadą w chunku wejściowym",
   },
+  // 2026-09-26: FUNKCJE UCZESTNIKA F1-F5 (spec B.11-5, B.14). Osiem nowych
+  // nakładek, po jednym znaczniku na każdą - znacznikiem jest zdanie PL
+  // z zasiewu nakładki (wartość przeżywa minifikację). Właściciel nakładki
+  // MUSI zostawić to zdanie w swoim pliku; tory edytują wyłącznie swój blok.
+  // >>> PF-FOUNDATION heavy-dictionaries (begin)
+  {
+    label: "i18n-event-participant (panel uczestnika F1-F5)",
+    markers: ["Nie udało się wczytać ustawień uczestnika tego wydarzenia."],
+    remedy:
+      "nakładka funkcji uczestnika F1-F5 importowana wyłącznie z leniwych chunków swojej powierzchni (panel uczestnika albo studio) - nigdy z `head()`, `beforeLoad`, powłoki ani modułu trasy",
+  },
+  {
+    label: "i18n-admin-event-participant (studio: komunikacja i zasady biletów)",
+    markers: [
+      "Termin zwrotu to wcześniejsza chwila: start minus te godziny albo 30 dni od zapłaty.",
+    ],
+    remedy:
+      "nakładka funkcji uczestnika F1-F5 importowana wyłącznie z leniwych chunków swojej powierzchni (panel uczestnika albo studio) - nigdy z `head()`, `beforeLoad`, powłoki ani modułu trasy",
+  },
+  // <<< PF-FOUNDATION heavy-dictionaries (end)
+  //
+  // (separator bloków - tych dwóch linii nie edytuje żaden tor)
+  // >>> PF-A heavy-dictionaries (begin)
+  {
+    label: "i18n-event-calendar (menu kalendarza, tor A)",
+    markers: ["Dodaj termin do kalendarza"],
+    remedy:
+      "nakładka funkcji uczestnika F1-F5 importowana wyłącznie z leniwych chunków swojej powierzchni (panel uczestnika albo studio) - nigdy z `head()`, `beforeLoad`, powłoki ani modułu trasy",
+  },
+  {
+    label: "i18n-event-plan (plan uczestnika, tor A)",
+    markers: ["Mój plan wydarzenia"],
+    remedy:
+      "nakładka funkcji uczestnika F1-F5 importowana wyłącznie z leniwych chunków swojej powierzchni (panel uczestnika albo studio) - nigdy z `head()`, `beforeLoad`, powłoki ani modułu trasy",
+  },
+  // <<< PF-A heavy-dictionaries (end)
+  //
+  // (separator bloków - tych dwóch linii nie edytuje żaden tor)
+  // >>> PF-B heavy-dictionaries (begin)
+  {
+    label: "i18n-event-ticket-actions (oferta, przekazanie, zwrot, tor B)",
+    markers: ["Działania na bilecie"],
+    remedy:
+      "nakładka funkcji uczestnika F1-F5 importowana wyłącznie z leniwych chunków swojej powierzchni (panel uczestnika albo studio) - nigdy z `head()`, `beforeLoad`, powłoki ani modułu trasy",
+  },
+  {
+    label: "i18n-admin-event-offers (oferty w studiu, tor B)",
+    markers: ["Oferty i przekazania biletów"],
+    remedy:
+      "nakładka funkcji uczestnika F1-F5 importowana wyłącznie z leniwych chunków swojej powierzchni (panel uczestnika albo studio) - nigdy z `head()`, `beforeLoad`, powłoki ani modułu trasy",
+  },
+  // <<< PF-B heavy-dictionaries (end)
+  //
+  // (separator bloków - tych dwóch linii nie edytuje żaden tor)
+  // >>> PF-C heavy-dictionaries (begin)
+  {
+    label: "i18n-event-follow-up (ankieta i certyfikat, tor C)",
+    markers: ["Certyfikat i ankieta po wydarzeniu"],
+    remedy:
+      "nakładka funkcji uczestnika F1-F5 importowana wyłącznie z leniwych chunków swojej powierzchni (panel uczestnika albo studio) - nigdy z `head()`, `beforeLoad`, powłoki ani modułu trasy",
+  },
+  {
+    label: "i18n-admin-event-follow-up (studio: po wydarzeniu, tor C)",
+    markers: ["Certyfikaty i ankieta uczestników"],
+    remedy:
+      "nakładka funkcji uczestnika F1-F5 importowana wyłącznie z leniwych chunków swojej powierzchni (panel uczestnika albo studio) - nigdy z `head()`, `beforeLoad`, powłoki ani modułu trasy",
+  },
+  // <<< PF-C heavy-dictionaries (end)
 ];
 
 /**

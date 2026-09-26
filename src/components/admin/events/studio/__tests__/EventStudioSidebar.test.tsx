@@ -136,10 +136,13 @@ describe("EventStudioSidebar - pozycje wylaczonych modulow", () => {
     // Domyslnym dzieckiem grupy rejestracji sa „Ustawienia rejestracji"; gdy
     // przelacznik schowa cala grupe poza jednym ekranem, naglowek ma prowadzic
     // na TEN ekran, a nie na zdanie o wylaczonym module.
+    // `registrationPolicies` (F1-F5) stoi w grupie tuż za wejściówkami, więc
+    // też musi być ukryte, żeby jedynym widocznym dzieckiem został formularz.
     const bezUstawien = new Set<EventStudioSection>([
       "registrationSettings",
       "registrationList",
       "registrationTickets",
+      "registrationPolicies",
       "registrationPackages",
       "registrationAudiences",
     ]);

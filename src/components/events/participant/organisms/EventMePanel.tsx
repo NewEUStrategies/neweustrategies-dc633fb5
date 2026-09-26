@@ -14,13 +14,29 @@
 // FILTR ZGŁOSZEŃ JEST PREZENTACYJNY, NIE OCHRONNY. RPC `event_my_registrations`
 // i tak oddaje wyłącznie zapisy `auth.uid()`; slug zawęża listę do TEGO
 // wydarzenia.
+//
+// ZAKŁADKA JEST W ADRESIE (`?tab=`, spec B.13). Trasa waliduje ją
+// (`parseEventMeTab`) i podaje tu `tab` + `onTabChange`; przełączenie
+// zakładki podmienia adres bez nowego wpisu w historii. Odnośnik z e-maila
+// (`?tab=schedule#event-session-<id>`) otwiera więc właściwą zakładkę.
+//
+// SERWER RYSUJE WYŁĄCZNIE SZKIELET. Dopóki `useAuth().loading` (a na serwerze
+// jest ono zawsze prawdą), panel nie renderuje ani zakładek, ani danych - HTML
+// z serwera jest więc taki sam dla każdego `?tab=` i dla każdego widza. Na tym
+// stoi reguła pamięci podręcznej dokumentu, która pomija `tab` w kluczu tej
+// trasy (`documentCache.ts`, MIN-2), i zero danych osobowych w SSR (R-UI/SSR).
+//
+// GNIAZDA TORÓW (spec B.11). Harmonogram i „Po wydarzeniu" renderują gniazda
+// (`EventMeScheduleSlot`, `EventMeFollowUpSlot`), które przepisują tory A i C.
+// Przycisk zakładki „Po wydarzeniu" pokazuje się dopiero, gdy organizator
+// włączył certyfikat albo ankietę; TREŚĆ tej zakładki renderuje się jednak dla
+// `?tab=follow-up` także wtedy, gdy flagi jeszcze się wczytują (MIN-16).
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import { Eye } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
@@ -30,21 +46,31 @@ import { MeetingExchangeBoard } from "@/components/events/meetings/MeetingExchan
 import { ParticipantTicketsPanel } from "@/components/profile/ParticipantTicketsPanel";
 import { MyEventProfileForm } from "@/components/events/participant/molecules/MyEventProfileForm";
 import { MyEventPublicPreview } from "@/components/events/participant/molecules/MyEventPublicPreview";
-import { MyAgendaList } from "@/components/events/participant/molecules/MyAgendaList";
-import { useMyAgenda, useMyEventProfile } from "@/lib/events/useMyEventPanel";
+import { RegistrationStatusBadge } from "@/components/events/participant/atoms/RegistrationStatusBadge";
+import { EventMeFollowUpSlot } from "@/components/events/participant/slots/EventMeFollowUpSlot";
+import { EventMeScheduleSlot } from "@/components/events/participant/slots/EventMeScheduleSlot";
+import { parseEventMeTab, type EventMeTab } from "@/lib/events/eventMeTabs";
+import { useEventParticipantOptions } from "@/lib/events/useEventParticipantOptions";
+import { useMyEventProfile } from "@/lib/events/useMyEventPanel";
 import { useMyConnections } from "@/lib/network/useConnections";
 import { ensureI18n } from "@/lib/i18n-cart";
+import { ensureI18n as ensureEventParticipantI18n } from "@/lib/i18n-event-participant";
 
 ensureI18n();
+ensureEventParticipantI18n();
 
-function RegistrationStatusBadge({ status }: { status: string | null }) {
+/** Szkielet na czas rozstrzygania sesji - jedyne, co widzi serwer. */
+function EventMePanelSkeleton() {
   const { t } = useTranslation();
-  if (status === null) return null;
-  const active = status === "confirmed" || status === "registered" || status === "paid";
   return (
-    <Badge variant={active ? "default" : "secondary"} className="rounded-[6px]">
-      {active ? t("eventMe.statusActive") : t("eventMe.statusPending")}
-    </Badge>
+    <section className="space-y-4" aria-busy="true">
+      <p role="status" className="sr-only">
+        {t("eventParticipant.loading")}
+      </p>
+      <Skeleton className="h-7 w-48" />
+      <Skeleton className="h-10 w-full" />
+      <Skeleton className="h-40 w-full" />
+    </section>
   );
 }
 
@@ -100,18 +126,30 @@ function MyContacts() {
   );
 }
 
-export function EventMePanel({ slug }: { slug: string }) {
+export function EventMePanel({
+  slug,
+  tab,
+  onTabChange,
+}: {
+  slug: string;
+  /** Zakładka z adresu; brak = `profile`. */
+  tab?: EventMeTab;
+  /** Zmiana zakładki - trasa zapisuje ją w adresie (`replace`, bez przewijania). */
+  onTabChange: (tab: EventMeTab) => void;
+}) {
   const { t } = useTranslation();
-  const { session } = useAuth();
+  const { session, loading } = useAuth();
   const viewer = useViewerCardFacts();
-  const signedIn = Boolean(session);
+  const signedIn = session !== null && !loading;
   const panel = useMyEventProfile(slug, signedIn);
-  const agenda = useMyAgenda(slug, signedIn);
+  const options = useEventParticipantOptions(slug, signedIn);
   // „Zobacz, jak widzą Cię inni" - ten sam rekord, tylko w kształcie karty
   // katalogowej. Stan jest lokalny, bo to sposób patrzenia, nie dane.
   const [publicView, setPublicView] = useState(false);
 
-  if (!session) {
+  if (loading) return <EventMePanelSkeleton />;
+
+  if (session === null) {
     return (
       <section className="space-y-3 rounded-[6px] border border-border bg-muted/30 p-6">
         <h1 className="text-lg font-bold">{t("eventMe.title")}</h1>
@@ -124,6 +162,8 @@ export function EventMePanel({ slug }: { slug: string }) {
   }
 
   const registration = panel.data?.registration ?? null;
+  const flags = options.data ?? null;
+  const followUpOffered = flags !== null && (flags.certificateEnabled || flags.surveyEnabled);
 
   return (
     <section className="space-y-6">
@@ -135,13 +175,23 @@ export function EventMePanel({ slug }: { slug: string }) {
         <p className="text-sm text-muted-foreground">{t("eventMe.lead")}</p>
       </header>
 
-      <Tabs defaultValue="profile" className="space-y-4">
+      <Tabs
+        value={tab ?? "profile"}
+        onValueChange={(value) => {
+          const next = parseEventMeTab(value);
+          if (next !== undefined) onTabChange(next);
+        }}
+        className="space-y-4"
+      >
         <TabsList className="flex w-full flex-wrap justify-start gap-1">
           <TabsTrigger value="profile">{t("eventMe.tabs.profile")}</TabsTrigger>
           <TabsTrigger value="schedule">{t("eventMe.tabs.schedule")}</TabsTrigger>
           <TabsTrigger value="contacts">{t("eventMe.tabs.contacts")}</TabsTrigger>
           <TabsTrigger value="networking">{t("eventMe.tabs.networking")}</TabsTrigger>
           <TabsTrigger value="registration">{t("eventMe.tabs.registration")}</TabsTrigger>
+          {followUpOffered && (
+            <TabsTrigger value="follow-up">{t("eventParticipant.tabs.followUp")}</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="profile" className="space-y-4">
@@ -198,7 +248,7 @@ export function EventMePanel({ slug }: { slug: string }) {
         </TabsContent>
 
         <TabsContent value="schedule">
-          <MyAgendaList sessions={agenda.data ?? []} loading={agenda.isLoading} />
+          <EventMeScheduleSlot slug={slug} registration={registration} options={flags} />
         </TabsContent>
 
         <TabsContent value="contacts">
@@ -213,6 +263,15 @@ export function EventMePanel({ slug }: { slug: string }) {
 
         <TabsContent value="registration">
           <ParticipantTicketsPanel slugFilter={slug} hideHeader />
+        </TabsContent>
+
+        <TabsContent value="follow-up" className="space-y-4">
+          {options.isError && (
+            <p role="status" className="text-sm text-muted-foreground">
+              {t("eventParticipant.options.loadError")}
+            </p>
+          )}
+          <EventMeFollowUpSlot slug={slug} registration={registration} options={flags} />
         </TabsContent>
       </Tabs>
     </section>

@@ -71,6 +71,10 @@ describe("rozpoznanie sekcji studia po adresie", () => {
     expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/meetings/list`)).toBe(
       "meetingsList",
     );
+    // Zasady biletów (F1-F5): przekazanie, zwrot, oferty z listy rezerwowej.
+    expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/registration/policies`)).toBe(
+      "registrationPolicies",
+    );
   });
 
   it("rozpoznaje ADRES GRUPY i wskazuje jej pozycje domyslna", () => {
@@ -207,6 +211,23 @@ describe("drzewo nawigacji studia", () => {
         }
       }
     }
+  });
+
+  it("ZASADY BILETÓW stoją w grupie rejestracji tuż za wejściówkami (spec B.12)", () => {
+    const registration = GROUPS.find((group) => group.key === "registration");
+    const keys = registration?.entries.map((entry) => entry.key) ?? [];
+    expect(keys.indexOf("registrationPolicies")).toBe(keys.indexOf("registrationTickets") + 1);
+    const policies = registration?.entries.find((entry) => entry.key === "registrationPolicies");
+    expect(policies?.labelKey).toBe("adminEvents.studio.sections.registrationPolicies");
+    expect(policies?.keywordKeys).toEqual(["adminEvents.studio.keywords.registrationPolicies"]);
+    expect(EVENT_STUDIO_ROUTES.registrationPolicies).toBe(
+      "/admin/events/$eventId/registration/policies",
+    );
+  });
+
+  it("KOMUNIKACJA zostaje pozycją najwyższego poziomu, a nie dzieckiem grupy", () => {
+    const communications = EVENT_STUDIO_NAV.find((node) => node.key === "communications");
+    expect(communications?.kind).toBe("item");
   });
 
   it("klucze wezlow najwyzszego poziomu sa unikalne", () => {

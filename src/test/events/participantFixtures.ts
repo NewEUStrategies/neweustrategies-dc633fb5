@@ -9,6 +9,7 @@
 // nie usuwa i nie zmienia wartości domyślnych.
 //
 // DANE SYNTETYCZNE: identyfikatory w kształcie UUID, adresy `example.org`.
+import type { MyEventRegistrationSummary } from "@/components/events/participant/slots/slotTypes";
 import type { EventParticipantOptions } from "@/lib/events/participantOptionsApi";
 import {
   DEFAULT_PARTICIPANT_SETTINGS,
@@ -114,6 +115,25 @@ export function makeParticipantSettings(
     hasRow: false,
     hasSessionCheckpoints: false,
     updatedAt: null,
+    ...overrides,
+  };
+}
+
+/**
+ * Zgłoszenie wołającego w kształcie panelu „Moje" (`event_my_event_profile`
+ * -> `registration`) - właściwość `registration` gniazd `EventMeSlotProps`.
+ */
+export function makeMyEventRegistrationSummary(
+  overrides: Partial<MyEventRegistrationSummary> = {},
+): MyEventRegistrationSummary {
+  return {
+    registrationId: PARTICIPANT_IDS.registration,
+    status: "approved",
+    paymentStatus: "paid",
+    directoryOptOut: false,
+    notifyEmail: true,
+    notifySms: false,
+    groups: [],
     ...overrides,
   };
 }

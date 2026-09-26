@@ -22,16 +22,50 @@
 //    wiersza - przełącznik piszący do cudzego zgłoszenia wyciszyłby komuś
 //    innemu potwierdzenie wejścia.
 //
-// ATRAPA OBEJMUJE WYŁĄCZNIE SIEĆ i granice kasy. Haki `useQuery`/`useMutation`
-// jadą prawdziwe, bo to one decydują o stanach „wczytywanie", „błąd" i „pusto".
+// 7. GNIAZDA TORÓW F1-F5 (spec B.11, BLK-5). Karta montuje trzy gniazda:
+//    B (akcje biletu) pod płatnością, A (przypomnienia) pod kanałami, C (po
+//    wydarzeniu) nad dziennikiem płatności. KAŻDY moduł gniazda stoi tu na
+//    atrapie z `data-testid`, która zapisuje właściwości - ten plik sprawdza
+//    WYŁĄCZNIE miejsce montażu i właściwości, a zachowanie gniazd mieszka
+//    w ich własnych testach. Tor B, przepisując ten panel, zostawia te atrapy.
+//
+// ATRAPA OBEJMUJE WYŁĄCZNIE SIEĆ, granice kasy i gniazda torów. Haki
+// `useQuery`/`useMutation` jadą prawdziwe, bo to one decydują o stanach
+// „wczytywanie", „błąd" i „pusto".
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 
+import type { RegistrationCardSlotProps } from "@/components/events/participant/slots/slotTypes";
 import type { ParticipantRegistration } from "@/lib/events/participantTicketsApi";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { axeViolations, summarize } from "@/test/axe";
 
 const fetchRegistrations = vi.fn<() => Promise<ParticipantRegistration[]>>();
+/** Właściwości przekazane gniazdom torów - kontrakt BLK-5 (montaż + właściwości). */
+const gniazda = vi.hoisted(() => ({
+  akcje: [] as RegistrationCardSlotProps[],
+  przypomnienia: [] as RegistrationCardSlotProps[],
+  poWydarzeniu: [] as RegistrationCardSlotProps[],
+}));
+
+vi.mock("@/components/events/participant/slots/RegistrationCardActionsSlot", () => ({
+  RegistrationCardActionsSlot: (props: RegistrationCardSlotProps) => {
+    gniazda.akcje.push(props);
+    return <div data-testid="gniazdo-akcje-biletu" data-id={props.item.registrationId} />;
+  },
+}));
+vi.mock("@/components/events/participant/slots/RegistrationCardRemindersSlot", () => ({
+  RegistrationCardRemindersSlot: (props: RegistrationCardSlotProps) => {
+    gniazda.przypomnienia.push(props);
+    return <div data-testid="gniazdo-przypomnienia" data-id={props.item.registrationId} />;
+  },
+}));
+vi.mock("@/components/events/participant/slots/RegistrationCardFollowUpSlot", () => ({
+  RegistrationCardFollowUpSlot: (props: RegistrationCardSlotProps) => {
+    gniazda.poWydarzeniu.push(props);
+    return <div data-testid="gniazdo-po-wydarzeniu" data-id={props.item.registrationId} />;
+  },
+}));
 const setChannels = vi.fn();
 const checkout = vi.fn();
 
@@ -109,6 +143,9 @@ function registration(over: Partial<ParticipantRegistration> = {}): ParticipantR
 
 beforeEach(() => {
   vi.clearAllMocks();
+  gniazda.akcje.length = 0;
+  gniazda.przypomnienia.length = 0;
+  gniazda.poWydarzeniu.length = 0;
   fetchRegistrations.mockResolvedValue([registration()]);
   setChannels.mockResolvedValue({
     registrationId: REGISTRATION_ID,
@@ -259,5 +296,57 @@ describe("ParticipantTicketsPanel - kanały powiadomień", () => {
     await screen.findByText("Kongres CEE 2026");
     const violations = await axeViolations(container);
     expect(violations, summarize(violations)).toEqual([]);
+  });
+});
+
+describe("ParticipantTicketsPanel - gniazda torów F1-F5 (kontrakt BLK-5)", () => {
+  it("każda karta montuje trzy gniazda z WŁASNYM zgłoszeniem", async () => {
+    const first = registration({ registrationId: "r-1" });
+    const second = registration({ registrationId: "r-2", eventTitlePl: "Drugie" });
+    fetchRegistrations.mockResolvedValue([first, second]);
+    renderWithQueryClient(<ParticipantTicketsPanel />);
+
+    await screen.findByText("Drugie");
+    for (const testId of [
+      "gniazdo-akcje-biletu",
+      "gniazdo-przypomnienia",
+      "gniazdo-po-wydarzeniu",
+    ]) {
+      expect(screen.getAllByTestId(testId).map((node) => node.getAttribute("data-id"))).toEqual([
+        "r-1",
+        "r-2",
+      ]);
+    }
+    expect(gniazda.akcje.at(-1)?.item).toEqual(second);
+    expect(gniazda.przypomnienia.at(-1)?.item).toEqual(second);
+    expect(gniazda.poWydarzeniu.at(-1)?.item).toEqual(second);
+  });
+
+  it("gniazda stoją we właściwych miejscach karty: płatność -> B -> powód -> kanały -> A -> C -> dziennik", async () => {
+    renderWithQueryClient(<ParticipantTicketsPanel />);
+
+    const card = (await screen.findByText("Kongres CEE 2026")).closest("article") as HTMLElement;
+    const order = Array.from(card.querySelectorAll("[data-testid], h3")).map(
+      (node) => node.getAttribute("data-testid") ?? node.textContent,
+    );
+    expect(order).toEqual([
+      "participantTickets.payment.unpaid",
+      "gniazdo-akcje-biletu",
+      "participantTickets.reason.title",
+      "participantTickets.channels.title",
+      "gniazdo-przypomnienia",
+      "gniazdo-po-wydarzeniu",
+      "participantTickets.webhooks.title",
+    ]);
+  });
+
+  it("gniazdo toru B stoi także wtedy, gdy kasy NIE ma (zgłoszenie opłacone)", async () => {
+    fetchRegistrations.mockResolvedValue([
+      registration({ paymentStatus: "paid", status: "approved" }),
+    ]);
+    renderWithQueryClient(<ParticipantTicketsPanel />);
+
+    expect(await screen.findByTestId("gniazdo-akcje-biletu")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "eventRegistration.payment.resume" })).toBeNull();
   });
 });

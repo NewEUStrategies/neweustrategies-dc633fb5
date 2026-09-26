@@ -349,6 +349,14 @@ export const adminEventsPl = {
         // z ktorym moglyby sie rozjechac, wiec stoja tam, gdzie etykiety
         // pozostalych ekranow studia.
         registrationSettings: "Ustawienia rejestracji",
+        // PODSTRONY F1-F5. „Zasady biletów" (przekazanie, zwrot, oferty z listy
+        // rezerwowej) to ekran Foundation; trzy pozycje grupy „Po wydarzeniu"
+        // są dopisane z wyprzedzeniem dla toru C (spec B.12), żeby tor nie
+        // edytował tego pliku.
+        registrationPolicies: "Zasady biletów",
+        followUpCertificate: "Certyfikat",
+        followUpSurvey: "Ankieta",
+        followUpResults: "Wyniki ankiety",
         communications: "Komunikacja",
         integrations: "Integracje",
         analytics: "Analityka",
@@ -366,6 +374,7 @@ export const adminEventsPl = {
         content: "Treść",
         meetings: "Spotkania",
         onsite: "Na miejscu",
+        followUp: "Po wydarzeniu",
       },
 
       // SŁOWA, KTÓRYCH REDAKTOR SZUKA, A NIE ETYKIETY, KTÓRE JUŻ WIDZI.
@@ -415,6 +424,11 @@ export const adminEventsPl = {
         onsiteDevices: "urządzenia, terminale, skanery, tokeny dostępu",
         onsiteBadges: "identyfikatory, plakietki, druk, szablony badge",
         onsiteLeads: "leady, wizytówki sponsorów, kontakty ze stoiska",
+        registrationPolicies:
+          "przekazanie biletu, zwrot, refundacja, termin zwrotu, oferta z listy rezerwowej, czas na płatność",
+        followUpCertificate: "certyfikat, zaświadczenie, dyplom, PDF, uczestnictwo, godziny",
+        followUpSurvey: "ankieta, pytania, opinie, ocena, NPS, anonimowość",
+        followUpResults: "wyniki ankiety, odpowiedzi, średnia, NPS, eksport CSV",
       },
 
       nav: {
@@ -553,6 +567,25 @@ export const adminEventsPl = {
           "Treść strony ma nieznany kształt. Odśwież ekran i załóż podstronę jeszcze raz.",
         invalidFeature:
           "Moduł może być tylko włączony albo wyłączony. Odśwież ekran i przełącz go jeszcze raz.",
+        // ODMOWY USTAWIEŃ UCZESTNIKA (`admin_event_participant_settings_save`) -
+        // formularze sprawdzają to samo przed zapisem, więc te zdania są dla
+        // bazy ostrzejszej od ekranu (inna karta, import).
+        invalidRequest: "Brakuje wydarzenia. Odśwież ekran i zapisz ponownie.",
+        invalidBoolean: "Przełącznik może być tylko włączony albo wyłączony.",
+        invalidReminderLeads: "Najwyżej 4 różne terminy, od 15 minut do 7 dni przed startem.",
+        invalidSessionLead: "Przypomnienie o sesji: od 5 do 240 minut.",
+        invalidTransferDeadline: "Termin przekazania: od 0 do 720 godzin przed startem.",
+        invalidRefundMode: "Zasada zwrotu: do terminu albo bez samodzielnego zwrotu.",
+        invalidRefundDeadline: "Termin zwrotu: od 0 do 2160 godzin przed startem.",
+        invalidOfferHours: "Czas na opłacenie oferty: od 2 do 168 godzin.",
+        invalidCertificateEligibility:
+          "Certyfikat: po odprawie, po minimum sesji albo po potwierdzeniu.",
+        invalidCertificateMinSessions: "Tryb „minimum sesji” wymaga liczby od 1 do 100.",
+        invalidCertificateHours: "Godziny certyfikatu: więcej niż 0, najwyżej 999.",
+        invalidTextLength: "Jeden z tekstów jest za długi.",
+        invalidSurveyCloseDays: "Ankieta może być otwarta od 1 do 90 dni.",
+        invalidSurveyMinResults: "Próg anonimowości: od 5 do 50 odpowiedzi.",
+        surveyLocked: "Ankieta ma już odpowiedzi - jej anonimowości nie można zmienić.",
         forbidden:
           "Twoje konto nie ma uprawnień redaktora w tej organizacji. Poproś administratora o dostęp.",
         unknown:
@@ -1077,9 +1110,9 @@ export const adminEventsPl = {
       // pusty ekran z napisem „wkrótce" nie mówi ani jednego, ani drugiego,
       // więc redaktor szuka wysyłki po całym panelu.
       external: {
-        communicationsTitle: "Komunikacja",
+        communicationsTitle: "Kampanie i newsletter",
         communicationsDescription:
-          "Wysyłki do uczestników prowadzi dziś moduł komunikacji całego panelu - tam stoją szablony, listy odbiorców i historia wysyłek. Per wydarzenie przyjdą tu sekwencje przypomnień i podsumowanie wysyłek tego wydarzenia.",
+          "Kampanie e-mailowe i newsletter o wydarzeniu przygotowujesz w module komunikacji całego panelu - tam są szablony, listy odbiorców i historia wysyłek. Przypomnienia i dziennik doręczeń tego wydarzenia są na tym ekranie.",
         integrationsTitle: "Integracje",
         integrationsDescription:
           "Klucze API, webhooki i połączenia z systemami zewnętrznymi ustawia się dziś raz dla całej organizacji. Per wydarzenie przyjdą tu mapowania pól i wybór, które integracje obsługują to wydarzenie.",
@@ -1460,6 +1493,10 @@ export const adminEventsEn = {
         sponsors: "Sponsors and advertising",
         terms: "Terms",
         registrationSettings: "Registration settings",
+        registrationPolicies: "Ticket policies",
+        followUpCertificate: "Certificate",
+        followUpSurvey: "Survey",
+        followUpResults: "Survey results",
         communications: "Communications",
         integrations: "Integrations",
         analytics: "Analytics",
@@ -1472,6 +1509,7 @@ export const adminEventsEn = {
         content: "Content",
         meetings: "Meetings",
         onsite: "On site",
+        followUp: "After the event",
       },
 
       keywords: {
@@ -1513,6 +1551,11 @@ export const adminEventsEn = {
         onsiteDevices: "devices, terminals, scanners, access tokens",
         onsiteBadges: "badges, name tags, printing, badge templates",
         onsiteLeads: "leads, sponsor business cards, booth contacts",
+        registrationPolicies:
+          "ticket transfer, refund, refund deadline, waitlist offer, time to pay",
+        followUpCertificate: "certificate, attendance, diploma, PDF, participation, hours",
+        followUpSurvey: "survey, questions, feedback, rating, NPS, anonymity",
+        followUpResults: "survey results, responses, average, NPS, CSV export",
       },
 
       nav: {
@@ -1617,6 +1660,23 @@ export const adminEventsEn = {
         invalidBuilderData:
           "The page content has an unknown shape. Refresh the screen and create the subpage again.",
         invalidFeature: "A module can only be on or off. Refresh the screen and switch it again.",
+        invalidRequest: "The event is missing. Refresh and save again.",
+        invalidBoolean: "A switch can only be on or off.",
+        invalidReminderLeads:
+          "At most 4 different moments, from 15 minutes to 7 days before the start.",
+        invalidSessionLead: "Session reminder: 5 to 240 minutes.",
+        invalidTransferDeadline: "Transfer deadline: 0 to 720 hours before the start.",
+        invalidRefundMode: "Refund rule: until the deadline or no self-service refund.",
+        invalidRefundDeadline: "Refund deadline: 0 to 2160 hours before the start.",
+        invalidOfferHours: "Time to pay for an offer: 2 to 168 hours.",
+        invalidCertificateEligibility:
+          "Certificate: after check-in, after minimum sessions or on confirmation.",
+        invalidCertificateMinSessions: "The “minimum sessions” mode needs a number from 1 to 100.",
+        invalidCertificateHours: "Certificate hours: above 0, at most 999.",
+        invalidTextLength: "One of the texts is too long.",
+        invalidSurveyCloseDays: "The survey can stay open 1 to 90 days.",
+        invalidSurveyMinResults: "Anonymity threshold: 5 to 50 responses.",
+        surveyLocked: "The survey already has responses - its anonymity cannot change.",
         forbidden:
           "Your account is not an editor in this organisation. Ask an administrator for access.",
         unknown:
@@ -2068,9 +2128,9 @@ export const adminEventsEn = {
       },
 
       external: {
-        communicationsTitle: "Communications",
+        communicationsTitle: "Campaigns and newsletter",
         communicationsDescription:
-          "Mailings to attendees run today in the panel-wide communications module - templates, recipient lists and the send history all live there. Per event, this screen will gain reminder sequences and the send summary of this event.",
+          "You prepare e-mail campaigns and the newsletter about the event in the panel-wide communications module - templates, recipient lists and the send history live there. Reminders and the delivery log of this event are on this screen.",
         integrationsTitle: "Integrations",
         integrationsDescription:
           "API keys, webhooks and connections to outside systems are set today once for the whole organisation. Per event, this screen will gain field mappings and the choice of which integrations serve this event.",

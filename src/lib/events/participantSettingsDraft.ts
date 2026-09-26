@@ -22,6 +22,8 @@
 import type { Json } from "@/integrations/supabase/types";
 import {
   PARTICIPANT_SETTINGS_LIMITS as L,
+  REMINDER_LEAD_PRESETS_MINUTES,
+  SESSION_REMINDER_LEAD_PRESETS,
   type CertificateEligibility,
   type LeadPreset,
   type ParticipantSettingsValues,
@@ -148,6 +150,42 @@ export const LEAD_PRESET_LABEL_KEYS: Record<
   60: "adminEventParticipant.communications.leads.p60",
   30: "adminEventParticipant.communications.leads.p30",
   15: "adminEventParticipant.communications.leads.p15",
+};
+
+/** Gotowe wyprzedzenia wydarzenia + zapisane spoza listy, malejąco, bez powtórzeń. */
+export function reminderLeadOptions(value: readonly number[]): number[] {
+  return [...new Set([...REMINDER_LEAD_PRESETS_MINUTES, ...value])].sort((a, b) => b - a);
+}
+
+/**
+ * Gotowe wyprzedzenia sesji + bieżąca wartość szkicu, rosnąco (napisy, jak
+ * w szkicu). Wartość zapisana spoza listy (np. 20 min) dostaje własną opcję,
+ * inaczej lista rozwijana pokazałaby pusty wybór.
+ */
+export function sessionLeadOptions(current: string): string[] {
+  return [...new Set([...SESSION_REMINDER_LEAD_PRESETS.map(String), current])].sort(
+    (a, b) => Number(a) - Number(b),
+  );
+}
+
+/** Etykiety trybu zwrotu (ekran „Zasady biletów") - pełne klucze. */
+export const REFUND_MODE_LABEL_KEYS: Record<
+  RefundMode,
+  | "adminEventParticipant.policies.refund.modes.policy"
+  | "adminEventParticipant.policies.refund.modes.none"
+> = {
+  policy: "adminEventParticipant.policies.refund.modes.policy",
+  none: "adminEventParticipant.policies.refund.modes.none",
+};
+
+/** Zdania wyjaśniające tryb zwrotu - pełne klucze. */
+export const REFUND_MODE_HINT_KEYS: Record<
+  RefundMode,
+  | "adminEventParticipant.policies.refund.modes.policyHint"
+  | "adminEventParticipant.policies.refund.modes.noneHint"
+> = {
+  policy: "adminEventParticipant.policies.refund.modes.policyHint",
+  none: "adminEventParticipant.policies.refund.modes.noneHint",
 };
 
 /** Pola tekstowe (puste = `null` w bazie) i ich limity (znaki, jak `char_length`). */

@@ -1,7 +1,10 @@
-// Trzy sekcje studia wydarzenia, ktore stały na 0% funkcji:
+// Sekcje studia wydarzenia, ktore stały na 0% funkcji:
 //   `/admin/events/<id>/analytics`      - trasa CIENKA nad panelem analityki,
-//   `/admin/events/<id>/communications` - DROGOWSKAZ, sekcja bez powierzchni,
-//   `/admin/events/<id>/integrations`   - DROGOWSKAZ, sekcja bez powierzchni.
+//   `/admin/events/<id>/integrations`   - DROGOWSKAZ, sekcja bez powierzchni,
+// oraz dwie trasy CIENKIE F1-F5 (spec B.12):
+//   `/admin/events/<id>/communications` - od F1-F5 prawdziwy panel
+//      (przypomnienia, kalendarz, dziennik doreczen) zamiast drogowskazu,
+//   `/admin/events/<id>/registration/policies` - zasady biletow.
 //
 // PO CO TEN PLIK ISTNIEJE. Dwie z tych trzech trasy nie renderuja zadnej
 // funkcji produktowej - i to jest DECYZJA, nie brak. Sidebar studia wymienia
@@ -36,7 +39,7 @@
 // i zdania „nie znaleziono" - nalezą do ramy studia (`EventStudioShell`),
 // a nie do tych trzech trasy; tutaj dowodzimy tylko, ze trasa ich NIE DUBLUJE.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 
 import { axeViolations, summarize } from "@/test/axe";
 import { supabaseRpcStub, type SupabaseRpcStub } from "@/test/supabase/rpc";
@@ -77,11 +80,30 @@ vi.mock("@/components/admin/events/organisms/EventAnalyticsPanel", () => ({
   },
 }));
 
+// Panele F1-F5 maja wlasne pliki testowe (formularze, zapis, dziennik); tutaj
+// przedmiotem dowodu jest to, ze CIENKA trasa podaje im wiersz TEGO wydarzenia.
+vi.mock("@/components/admin/events/organisms/EventCommunicationsPanel", () => ({
+  EventCommunicationsPanel: ({ row }: { row: AdminEventDetailRow }) => {
+    h.wiersze.push({ id: row.id, title_pl: row.title_pl });
+    return <div data-testid="panel-komunikacji" data-event-id={row.id} />;
+  },
+}));
+vi.mock("@/components/admin/events/organisms/EventRegistrationPoliciesPanel", () => ({
+  EventRegistrationPoliciesPanel: ({ row }: { row: AdminEventDetailRow }) => {
+    h.wiersze.push({ id: row.id, title_pl: row.title_pl });
+    return <div data-testid="panel-zasad-biletow" data-event-id={row.id} />;
+  },
+}));
+
 const { renderRoute, routeHead } = await import("@/test/routeHarness");
 const { Route: AnalyticsRoute } = await import("@/routes/admin.events_.$eventId.analytics");
 const { Route: CommunicationsRoute } =
   await import("@/routes/admin.events_.$eventId.communications");
 const { Route: IntegrationsRoute } = await import("@/routes/admin.events_.$eventId.integrations");
+const { Route: PoliciesRoute } =
+  await import("@/routes/admin.events_.$eventId.registration.policies");
+const { EventStudioExternalSection } =
+  await import("@/components/admin/events/studio/EventStudioExternalSection");
 
 const EVENT_ID = "3f1a0c8e-0000-4000-8000-000000000042";
 const SEKCJE = "adminEvents.studio.sections.";
@@ -180,20 +202,11 @@ describe("/admin/events/$eventId/analytics - trasa CIENKA nad pulpitem", () => {
 });
 
 /**
- * Obie sekcje bez wlasnej powierzchni, opisane DANYMI - dokladnie tak, jak
- * rozni je komponent: dwa klucze i adres docelowy.
+ * Sekcje bez wlasnej powierzchni, opisane DANYMI - dokladnie tak, jak rozni je
+ * komponent: dwa klucze i adres docelowy. „Komunikacja" byla tu do F1-F5; dzis
+ * ma prawdziwy panel (patrz blok „trasy cienkie F1-F5" nizej).
  */
 const DROGOWSKAZY = [
-  {
-    nazwa: "communications",
-    route: CommunicationsRoute,
-    sciezka: "/admin/events/$eventId/communications",
-    tytulDokumentu: "Communications · Event · Admin",
-    sekcjaKey: `${SEKCJE}communications`,
-    tytulKey: `${EXTERNAL}communicationsTitle`,
-    opisKey: `${EXTERNAL}communicationsDescription`,
-    cel: "/admin/newsletter/campaigns",
-  },
   {
     nazwa: "integrations",
     route: IntegrationsRoute,
@@ -271,14 +284,11 @@ describe.each(DROGOWSKAZY)(
 
 describe("drogowskazy studia - dwie sekcje, nie jedna", () => {
   it("komunikacja i integracje maja ROZNE zdanie i ROZNY adres docelowy", async () => {
-    // Komponent jest jeden, wiec najtansza regresja tego obszaru to sekcja,
-    // ktora po refaktorze pokazuje tresc siostry. Ten test porownuje oba
-    // ekrany wprost, zamiast sprawdzac kazdy z osobna przeciw literałowi.
-    const komunikacja = await renderRoute({
-      route: CommunicationsRoute,
-      path: "/admin/events/$eventId/communications",
-      initialEntry: `/admin/events/${EVENT_ID}/communications`,
-    });
+    // Komponent jest jeden i nadal zna obie sekcje, wiec najtansza regresja tego
+    // obszaru to sekcja, ktora po refaktorze pokazuje tresc siostry. Trasa
+    // komunikacji rysuje dzis panel, wiec wariant `communications` renderujemy
+    // wprost - kontrakt komponentu zostaje przypiety.
+    const komunikacja = render(<EventStudioExternalSection section="communications" />);
     const tekstKomunikacji = komunikacja.container.textContent ?? "";
     const celKomunikacji = komunikacja.container.querySelector("a")?.getAttribute("href");
     komunikacja.unmount();
@@ -289,7 +299,63 @@ describe("drogowskazy studia - dwie sekcje, nie jedna", () => {
       initialEntry: `/admin/events/${EVENT_ID}/integrations`,
     });
 
+    expect(tekstKomunikacji).toContain(`${EXTERNAL}communicationsTitle`);
+    expect(celKomunikacji).toBe("/admin/newsletter/campaigns");
     expect(integracje.container.textContent ?? "").not.toBe(tekstKomunikacji);
     expect(integracje.container.querySelector("a")?.getAttribute("href")).not.toBe(celKomunikacji);
   });
 });
+
+/** Trasy CIENKIE F1-F5 nad panelami ustawien uczestnika (spec B.12). */
+const TRASY_F1_F5 = [
+  {
+    nazwa: "communications",
+    route: CommunicationsRoute,
+    sciezka: "/admin/events/$eventId/communications",
+    adres: `/admin/events/${EVENT_ID}/communications`,
+    tytulDokumentu: "Communications · Event · Admin",
+    panel: "panel-komunikacji",
+  },
+  {
+    nazwa: "registration/policies",
+    route: PoliciesRoute,
+    sciezka: "/admin/events/$eventId/registration/policies",
+    adres: `/admin/events/${EVENT_ID}/registration/policies`,
+    tytulDokumentu: "Ticket policies · Event · Admin",
+    panel: "panel-zasad-biletow",
+  },
+] as const;
+
+describe.each(TRASY_F1_F5)(
+  "/admin/events/<id>/$nazwa - trasa CIENKA nad panelem F1-F5",
+  ({ route, sciezka, adres, tytulDokumentu, panel }) => {
+    it("podaje panelowi wiersz TEGO wydarzenia, wziety z parametru sciezki", async () => {
+      stub().setData("admin_event_detail", [detailRow()]);
+
+      await renderRoute({ route, path: sciezka, initialEntry: adres });
+
+      await waitFor(() => expect(screen.getByTestId(panel)).toBeInTheDocument());
+      expect(stub().lastCall("admin_event_detail")?.arg("p_event_id")).toBe(EVENT_ID);
+      expect(h.wiersze.at(-1)).toEqual({ id: EVENT_ID, title_pl: "Kongres Energetyczny" });
+    });
+
+    it("dopoki wiersz nie przyszedl albo go nie ma, trasa MILCZY", async () => {
+      stub().setData("admin_event_detail", []);
+
+      const { container } = await renderRoute({ route, path: sciezka, initialEntry: adres });
+
+      expect(container.textContent).toBe("");
+      await waitFor(() => expect(stub().callsFor("admin_event_detail")).toHaveLength(1));
+      expect(screen.queryByTestId(panel)).toBeNull();
+      expect(container.textContent).toBe("");
+    });
+
+    it("naglowek dokumentu: sam tytul i `noindex, nofollow` - BEZ opisu (R-ROUTE)", () => {
+      const entries = meta(route);
+      expect(tytul(entries)).toBe(tytulDokumentu);
+      expect(metaTresc(entries, "robots")).toBe("noindex, nofollow");
+      expect(metaTresc(entries, "description")).toBeUndefined();
+      expect(entries).toHaveLength(2);
+    });
+  },
+);

@@ -538,7 +538,9 @@ describe("BILET na wydarzenie - zwrot cofa udział", () => {
     const outcome = await applyRefundEffects(refundEvent());
 
     expect(outcome).toBe("order_refunded");
-    expect(patches("event_rsvps")[0]).toMatchObject({ status: "canceled" });
+    // D0-1: pisownia z CHECK `event_rsvps.status` - `canceled` łamało ograniczenie.
+    expect(patches("event_rsvps")[0]).toMatchObject({ status: "cancelled" });
+    expect(patches("event_rsvps")[0]).not.toMatchObject({ status: "canceled" });
     expect(filters("event_rsvps", "eq")).toEqual([
       ["event_id", EVENT_ID],
       ["user_id", BILLING_IDS.me],

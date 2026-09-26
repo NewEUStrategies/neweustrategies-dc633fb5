@@ -22,6 +22,7 @@ import {
   useMessageDeliveryStats,
   useParticipantSettings,
   useSaveParticipantSettings,
+  PARTICIPANT_SMS_AVAILABILITY_KEY,
 } from "@/lib/events/useParticipantSettings";
 import { participantOptionsKeys } from "@/lib/events/useEventParticipantOptions";
 import { makeParticipantSettings } from "@/test/events/participantFixtures";
@@ -110,5 +111,11 @@ describe("useMessageDeliveryStats", () => {
   it("bez identyfikatora nie pyta", () => {
     renderHook(() => useMessageDeliveryStats(""), { wrapper });
     expect(api.fetchMessageDeliveryStats).not.toHaveBeenCalled();
+  });
+});
+
+describe("PARTICIPANT_SMS_AVAILABILITY_KEY", () => {
+  it("jeden klucz dla całego panelu - odpowiedź nie zależy od wydarzenia", () => {
+    expect(PARTICIPANT_SMS_AVAILABILITY_KEY).toEqual(["participant-sms-availability"]);
   });
 });
