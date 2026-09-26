@@ -8,6 +8,15 @@
 // zwalnia zgłoszenie i kolejna próba (cron) wyda nowy kod. Wysłanego biletu
 // nic już nie rotuje: powtórzony webhook nie dostaje wierszy.
 //
+// KIEDY BIEGNIE CRON. `runPendingTicketCodes` woła minutowy tick zadań
+// (`runJobsTick`: pg_cron co minutę i przycisk „uruchom teraz" w panelu,
+// partia 20) ORAZ `community-cron` co 5 minut (partia 50, krok po
+// przypomnieniach - pomijany, gdy wcześniejsze kroki zjedzą budżet). Do
+// 20260926100000 był TYLKO ten drugi, więc bilet po decyzji organizatora
+// czekał do pięciu minut albo dłużej, a komentarz migracji 0044 obiecywał
+// minutę. Decyzja organizatora i ponowna wysyłka z panelu wydają bilet od
+// razu; cron domyka resztę.
+//
 // KOD JEDZIE WE FRAGMENCIE ADRESU (`ticketLinkPath`), nie w zapytaniu: strona
 // biletu rysuje QR w przeglądarce, a fragment nie trafia do logów serwera.
 // W treści maila stoi też sam kod - obsługa wpisze go ręcznie, gdy skaner
@@ -89,8 +98,16 @@ type SendOutcome = "sent" | "undeliverable" | "retry";
 /**
  * Wynik wysyłki -> decyzja o kodzie. `retry` zwalnia zgłoszenie (kolejne
  * zajęcie wyda NOWY kod), a `undeliverable` zamyka je jak wysłane: adres
- * wypisany albo pusty nie ożyje przy następnym ticku, a rotowanie kodu co
- * minutę tylko zapełniałoby dziennik poczty.
+ * wypisany albo pusty nie ożyje przy następnym ticku, a rotowanie kodu przy
+ * każdym ticku tylko zapełniałoby dziennik poczty.
+ *
+ * POMINIĘCIE SPRAWDZAMY PRZED `ok`. `sendTxEmail` oddaje blokadę listy
+ * wykluczeń jako `{ ok: false, skipped: "suppressed" }`, a nie jako sukces.
+ * Poprzednia wersja pytała o `skipped` tylko wewnątrz `if (result.ok)`, więc
+ * wypisany adres wracał jako `retry`: każdy tick zajmował wiersz od nowa,
+ * rotował kod i klucz gościa, dopisywał wpis „suppressed" do dziennika - a te
+ * najstarsze wiersze zapychały partię crona (`ORDER BY created_at LIMIT`)
+ * i głodziły nowe przyjęcia.
  */
 async function deliver(row: Record<string, unknown>): Promise<SendOutcome> {
   const notice = buildTicketCodeNotice(row);
@@ -110,11 +127,10 @@ async function deliver(row: Record<string, unknown>): Promise<SendOutcome> {
       // więc bramka duplikatów nie może go zatrzymać jako „już wysłany".
       idempotencyKey: `event-ticket-code:${notice.registrationId}:${text(row.claimed_at) ?? ""}`,
     });
-    if (result.ok) {
-      return result.skipped === "suppressed" || result.skipped === "no_recipient"
-        ? "undeliverable"
-        : "sent";
+    if (result.skipped === "suppressed" || result.skipped === "no_recipient") {
+      return "undeliverable";
     }
+    if (result.ok) return "sent";
     console.error(
       "[events] ticket code email failed",
       notice.registrationId,
@@ -129,8 +145,9 @@ async function deliver(row: Record<string, unknown>): Promise<SendOutcome> {
 
 /**
  * Wydaje bilety zgłoszeniu i jego gościom, wysyła każdemu osobny mail i dopiero
- * wtedy odnotowuje wysyłkę (`_event_ticket_code_confirm`). Zwraca liczbę
- * wysłanych wiadomości. Nigdy nie rzuca.
+ * wtedy odnotowuje wysyłkę (`_event_ticket_code_confirm`, z `p_undeliverable`
+ * dla adresu, na który poczta nie wyśle). Zwraca liczbę wysłanych wiadomości.
+ * Nigdy nie rzuca.
  */
 export async function issueAndSendTicketCodes(registrationId: string): Promise<number> {
   let rows: Record<string, unknown>[] = [];
@@ -166,6 +183,11 @@ export async function issueAndSendTicketCodes(registrationId: string): Promise<n
         p_registration_id: id,
         p_claimed_at: claimedAt,
         p_sent: outcome !== "retry",
+        // FLAGA TYLKO GDY PRAWDZIWA. Czteroargumentowy wariant z tą flagą
+        // przynosi migracja 20260926100000; wysyłka i ponowienie idą starym,
+        // trójargumentowym, więc działają także na bazie bez niej. Bez flagi
+        // panel pokazywał „Bilet wysłany” przy adresie z listy wykluczeń.
+        ...(outcome === "undeliverable" ? { p_undeliverable: true } : {}),
       });
       // Nieodnotowane zajęcie wygaśnie samo (dzierżawa w bazie) - wtedy cron
       // wyda nowy kod. Gorzej byłoby rzucić i przerwać wysyłkę reszcie grupy.
@@ -178,14 +200,37 @@ export async function issueAndSendTicketCodes(registrationId: string): Promise<n
 }
 
 /**
+ * Budżet jednej partii crona, gdy wołający nie poda własnego terminu
+ * (`community-cron`). Każdy identyfikator z kolejki bywa prowadzącym grupy do
+ * 50 osób - dwa rendery maila, kolejka i potwierdzenie na KAŻDĄ z nich - więc
+ * partia bez terminu potrafiła wysłać setki maili w jednym ticku, przebić jego
+ * budżet i limit CPU workera, a przy zabiciu w połowie zostawić zajęte wiersze
+ * z już zrotowanym kodem za 15-minutową dzierżawą.
+ */
+const TICKET_CODES_BUDGET_MS = 15_000;
+
+/** Wynik partii: `deferred` = zgłoszenia z kolejki odłożone do następnego ticku. */
+export interface PendingTicketCodesResult {
+  registrations: number;
+  sent: number;
+  deferred: number;
+}
+
+/**
  * Cron: bilety dla zgłoszeń przyjętych DOWOLNĄ drogą (płatność, decyzja
  * organizatora, awans z rezerwy, zapis bezpłatny) i dla ponowień po nieudanej
  * wysyłce. Ścieżki natychmiastowe (webhook, zapis grupowy) zostają - cron
  * domyka to, czego one nie złapały.
+ *
+ * TERMIN SPRAWDZAMY PRZED KAŻDYM ZGŁOSZENIEM, nie w jego środku: wydanie
+ * zajmuje całą grupę naraz, a przerwana w połowie grupa zostawiłaby zajęte
+ * wiersze bez maila. Odłożone zgłoszenia nie są niczym zajęte - kolejka odda
+ * je następnemu tickowi.
  */
 export async function runPendingTicketCodes(
   limit = 50,
-): Promise<{ registrations: number; sent: number }> {
+  deadlineAt: number = Date.now() + TICKET_CODES_BUDGET_MS,
+): Promise<PendingTicketCodesResult> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin.rpc("_event_ticket_codes_pending", {
     p_limit: limit,
@@ -195,6 +240,11 @@ export async function runPendingTicketCodes(
     (id): id is string => typeof id === "string",
   );
   let sent = 0;
-  for (const id of ids) sent += await issueAndSendTicketCodes(id);
-  return { registrations: ids.length, sent };
+  let issued = 0;
+  for (const id of ids) {
+    if (Date.now() > deadlineAt) break;
+    sent += await issueAndSendTicketCodes(id);
+    issued += 1;
+  }
+  return { registrations: issued, sent, deferred: ids.length - issued };
 }

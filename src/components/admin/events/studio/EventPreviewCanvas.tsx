@@ -66,7 +66,8 @@
 // (`COMPONENT_EXCEPTIONS`), bo tam jest egzekwowana. W skrocie: powierzchnie,
 // ktore same wolaja baze albo tozsamosc wolajacego, na szkicu nie maja z czego
 // sie wyrenderowac. Lista sekcji przekazywanych do `EventPageSections` konczy
-// sie wiec na tych, ktorych tresc niesie szkic - `PREVIEW_SECTION_KEYS`.
+// sie wiec na tych, ktorych tresc niesie szkic albo RPC panelu -
+// `PREVIEW_SECTION_KEYS`.
 //
 // KANWA MA STALA SZEROKOSC WIRTUALNA, a skaluje ja rodzic (`transform: scale`).
 // Dzieki temu proporcje typografii i odstepow sa takie jak na prawdziwym
@@ -91,10 +92,9 @@ import {
   type EventSection,
   type EventSectionKey,
 } from "@/lib/events/eventSections";
-import { EVENT_PRACTICAL_SECTIONS, type EventPracticalInfo } from "@/lib/events/eventPractical";
+import { isEventPracticalSection, type EventPracticalInfo } from "@/lib/events/eventPractical";
 import { formatEventDateTime, eventTimeZoneLabel } from "@/lib/events/timezone";
 import { uiLang } from "@/lib/i18n/format";
-import type { PublicSponsorTier } from "@/lib/events/sponsorsSurface";
 import { EventPortalContent } from "@/components/events/public/atoms/EventPortalContent";
 import { EventMetaCard, EventMetaRow } from "@/components/events/public/molecules/EventMetaCard";
 import {
@@ -146,11 +146,19 @@ export type PreviewDevice = keyof typeof PREVIEW_WIDTHS;
  *
  * LISTA NIE JEST PISANA RECZNIE. Sekcje praktyczne (`map`, `contact`) sa
  * dokladnie tymi, ktorych tresc siedzi w kolumnach wydarzenia, czyli i w szkicu
- * formularza - reszta wola baze. Wskazanie na `EVENT_PRACTICAL_SECTIONS` znaczy,
- * ze trzecia taka sekcja wejdzie do podgladu razem z dodaniem jej do reguly,
- * a nie po zauwazeniu braku na publikacji.
+ * formularza. Wskazanie na regule praktycznosci znaczy, ze trzecia taka sekcja
+ * wejdzie do podgladu razem z dodaniem jej do reguly, a nie po zauwazeniu
+ * braku na publikacji.
+ *
+ * PARTNERZY SA JEDYNA SEKCJA Z BAZY, KTORA PODGLAD RYSUJE - bo tylko ich
+ * wiersze nakladka i tak juz ma (RPC panelu, `live.sponsorTiers`), a sekcja ma
+ * rysunek bez zapytania (`EventSponsorsSectionView`). Kolejnosc bierze sie ze
+ * slownika sekcji, wiec „Partnerzy" stoja przed dojazdem i kontaktem - jak
+ * w `_event_default_sections()`.
  */
-export const PREVIEW_SECTION_KEYS: readonly EventSectionKey[] = EVENT_PRACTICAL_SECTIONS;
+export const PREVIEW_SECTION_KEYS: readonly EventSectionKey[] = EVENT_SECTION_KEYS.filter(
+  (key) => key === "sponsors" || isEventPracticalSection(key),
+);
 
 /**
  * Sekcja podgladu w kszalcie modelu strony publicznej.
@@ -159,8 +167,22 @@ export const PREVIEW_SECTION_KEYS: readonly EventSectionKey[] = EVENT_PRACTICAL_
  * bierze sie wiec ze slownika (`headingPl/En = null`), a sekcja jest otwarta.
  * `sortOrder` liczy sie z kolejnosci slownika sekcji, zeby podglad ustawil je
  * tak, jak ustawia je `_event_default_sections()`.
+ *
+ * `hasContent` dostaje TYLKO sekcja partnerow - z tych samych wierszy, ktore
+ * ja rysuja. To jest lustro `event_sections.has_content` (baza liczy tam, czy
+ * wydarzenie ma przypiecia): bez tego pusty podglad dostalby samotny naglowek
+ * „Partnerzy". Dojazd i kontakt maja `NULL`, jak w bazie - ich pustke liczy
+ * `EventPageSections`.
+ *
+ * AWARIA LISTY TEZ „MA TRESC". Po awarii nie wiadomo, czy partnerzy sa, a na
+ * stronie publicznej sekcja z przypieciami pokazuje wtedy naglowek i zdanie
+ * o awarii. Ukrycie sekcji w podgladzie mowiloby „partnerow nie ma" - czyli
+ * dokladnie objaw ze zgloszenia, tylko bez slowa o przyczynie. W TRAKCIE
+ * wczytywania sekcji nie ma: zanim lista dojedzie, nie wiadomo, czy
+ * wydarzenie w ogole ma partnerow, a samotny naglowek ze szkieletem migalby
+ * na kazdym wydarzeniu bez nich.
  */
-function previewSection(key: EventSectionKey): EventSection {
+function previewSection(key: EventSectionKey, hasSponsors: boolean): EventSection {
   return {
     key,
     sortOrder: (EVENT_SECTION_KEYS as readonly string[]).indexOf(key),
@@ -170,7 +192,7 @@ function previewSection(key: EventSectionKey): EventSection {
     minTierRank: 0,
     isLocked: false,
     lockReason: "none",
-    hasContent: null,
+    hasContent: key === "sponsors" ? hasSponsors : null,
   };
 }
 
@@ -178,7 +200,6 @@ export function EventPreviewCanvas({
   model,
   device,
   viewer = null,
-  sponsorTiers = [],
   onNavigate,
   onBack,
   live = EMPTY_PREVIEW_LIVE_DATA,
@@ -194,17 +215,6 @@ export function EventPreviewCanvas({
    * (bramka parytetu), dokładnie jak przy `onNavigate`.
    */
   onBack?: () => void;
-  /**
-   * PARTNERZY WYDARZENIA, poziomami, w kolejnosci strony publicznej.
-   *
-   * OSOBNY PROP, JAK `viewer`: to nie jest szkic formularza, tylko stan bazy -
-   * przypiecia partnerow zapisuje osobny ekran studia. Publiczne
-   * `event_sponsors_public` bramkuje `status = 'published'`, wiec szkic
-   * dostalby pustke; nakladka wnosi wiec wiersze z RPC panelu przez
-   * `sponsorTiersFromAdminRows`. Pusta lista = pas nie wchodzi do DOM,
-   * dokladnie jak na stronie bez partnerow.
-   */
-  sponsorTiers?: readonly PublicSponsorTier[];
   /**
    * Fakty o ZALOGOWANYM REDAKTORZE do karty profilu w lewej kolumnie.
    *
@@ -229,12 +239,15 @@ export function EventPreviewCanvas({
    */
   onNavigate?: (target: { key: string; pageId: string } | null) => void;
   /**
-   * PRAWDZIWE DANE PODSTRON MODULOWYCH - program, prelegenci, uczestnicy.
+   * PRAWDZIWE DANE Z BAZY - program, prelegenci, uczestnicy i partnerzy.
    *
-   * OSOBNY PROP, JAK `sponsorTiers`: to nie jest szkic formularza, tylko stan
-   * bazy, ktorego publiczne projekcje odmawiaja szkicowi (`AND e.status =
-   * 'published'`). Wnosi je nakladka RPC panelu, a rysuje `EventPreviewLiveModule`
-   * TYMI SAMYMI kartami, co strona publiczna.
+   * OSOBNY PROP, JAK `viewer`: to nie jest szkic formularza, tylko stan bazy,
+   * ktorego publiczne projekcje odmawiaja szkicowi (`AND e.status =
+   * 'published'`). Wnosi je nakladka RPC panelu. Podstrony modulowe rysuje
+   * `EventPreviewLiveModule`, a partnerow strony glownej (pas i sekcja
+   * „Partnerzy") - `live.sponsorTiers` w tej kanwie, TYMI SAMYMI rysunkami,
+   * co strona publiczna. Partner nieogloszony stoi tu przygaszony, z plakietka
+   * - organizator ma go widziec, ale wiedziec, ze uczestnik jeszcze nie.
    */
   live?: EventPreviewLiveData;
 }) {
@@ -261,6 +274,12 @@ export function EventPreviewCanvas({
     model.endsAt === "" ? "" : formatEventDateTime(model.endsAt, model.timezone, lang);
   const zoneLabel = eventTimeZoneLabel(model.startsAt, model.timezone, lang);
   const isGrid = model.pagesDisplayMode === "grid";
+  const sponsorTiers = live.sponsorTiers;
+  const sponsorsStatus = live.sponsorsStatus;
+  const hasSponsors = sponsorsStatus.state === "error" || sponsorTiers.length > 0;
+  // Napis plakietki wchodzi do komponentow publicznych PROPEM - slownik panelu
+  // nie trafia do paczki strony publicznej.
+  const sponsorDraftLabel = t("adminEvents.studio.preview.sponsorDraftBadge");
 
   // Adres wchodzi JEDNYM CZLONEM, bo szkic niesie go juz zlozonego - sklada go
   // `eventAddressLine`, ta sama funkcja, ktora sklada adres strony publicznej.
@@ -446,18 +465,28 @@ export function EventPreviewCanvas({
                 </EventSectionLinks>
               )}
 
-              {/* Dojazd i kontakt rysuje TEN SAM organizm, co strona publiczna -
-                  razem z naglowkami, kolejnoscia i odsiewaniem pustych sekcji. */}
+              {/* PAS PARTNEROW - ten sam rysunek, co na stronie publicznej,
+                  tylko zrodlem wierszy jest RPC panelu (`live.sponsorTiers`).
+                  Stoi TAM, GDZIE NA STRONIE: zaraz pod spisem podstron, przed
+                  sekcjami (`events.$slug.index.tsx`). Pod mapa i kontaktem
+                  spadal poza pierwszy ekran przeskalowanego podgladu i czytal
+                  sie jak „partnerow nie ma". */}
+              <EventSponsorTiersView tiers={sponsorTiers} draftLabel={sponsorDraftLabel} />
+
+              {/* Partnerzy, dojazd i kontakt rysuje TEN SAM organizm, co strona
+                  publiczna - razem z naglowkami, kolejnoscia i odsiewaniem
+                  pustych sekcji. Partnerow wnosi propem, bo publiczne zapytanie
+                  sekcji odmawia szkicowi. */}
               <EventPageSections
                 slug={model.slug}
-                sections={PREVIEW_SECTION_KEYS.map(previewSection)}
+                sections={PREVIEW_SECTION_KEYS.map((key) => previewSection(key, hasSponsors))}
                 practical={practical}
+                sponsorTiers={sponsorTiers}
+                sponsorDraftLabel={sponsorDraftLabel}
+                sponsorErrorMessage={
+                  sponsorsStatus.state === "error" ? sponsorsStatus.message : undefined
+                }
               />
-
-              {/* PAS PARTNEROW - ten sam rysunek, co na stronie publicznej,
-                  tylko zrodlem wierszy jest RPC panelu (patrz `sponsorTiers`).
-                  Bez tego redaktor ustawial poziomy i logotypy „na slepo". */}
-              <EventSponsorTiersView tiers={sponsorTiers} />
             </>
           }
           left={

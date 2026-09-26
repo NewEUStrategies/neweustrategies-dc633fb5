@@ -11,6 +11,16 @@
 //
 // KARTOTEKA NIE WCHODZI NA STRONĘ. Wszystko poniżej to migawka z chwili
 // przypięcia (`snapshot_*`) - dlatego nie ma tu ani jednego pola z `crm_companies`.
+//
+// ZAPYTANIE I RYSUNEK SĄ ROZDZIELONE (`EventSponsorsSectionView`, a dla
+// wczytywania i awarii `EventSponsorsSectionPending` / `...Error`), tak jak
+// w pasie poziomów (`EventSponsorTiersView`). Publiczne `event_sponsors_public`
+// odmawia szkicowi (`AND e.status = 'published'`), a podgląd w studiu ma
+// narysować sekcję „Partnerzy" z wierszy RPC panelu - TYM SAMYM rysunkiem,
+// nie kopią. Plakietka „nieogłoszony" wchodzi WYŁĄCZNIE napisem od
+// wywołującego (`draftLabel`): słownik panelu nie trafia do paczki strony
+// publicznej, a strona, która napisu nie podaje, rysuje się bajt w bajt tak
+// samo jak przed rozdzieleniem.
 import { ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -44,28 +54,67 @@ export function EventSponsorsSection({
   slug: string;
   enabled?: boolean;
 }) {
-  const { t, i18n } = useTranslation();
-  const lang = uiLang(i18n.language);
   const sponsorsQuery = usePublicEventSponsors(slug, enabled);
 
-  if (sponsorsQuery.isPending) {
-    return (
-      <div className="space-y-3" aria-busy="true" aria-label={t("eventFront.sponsors.loading")}>
-        <Skeleton className="h-6 w-40" />
-        <Skeleton className="h-24 w-full" />
-      </div>
-    );
-  }
+  if (sponsorsQuery.isPending) return <EventSponsorsSectionPending />;
 
   if (sponsorsQuery.isError) {
-    return (
-      <p className="rounded-[6px] border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-        {publicEventErrorMessage(sponsorsQuery.error)}
-      </p>
-    );
+    return <EventSponsorsSectionError message={publicEventErrorMessage(sponsorsQuery.error)} />;
   }
 
-  const tiers = sponsorsQuery.data ?? [];
+  // Po odsianiu wczytywania i błędu zostaje sukces - `data` jest już listą.
+  return <EventSponsorsSectionView tiers={sponsorsQuery.data} />;
+}
+
+/**
+ * Szkielet sekcji na czas wczytywania - bez zapytania.
+ *
+ * WYDZIELONY DLA PODGLĄDU STUDIA. Podgląd czeka na INNE zapytanie (RPC panelu),
+ * a ma pokazać TEN SAM szkielet: własny zastępnik w panelu byłby drugim
+ * rysunkiem tej samej chwili, a zdanie „nie ma partnerów" na czas wczytywania -
+ * nieprawdą.
+ */
+export function EventSponsorsSectionPending() {
+  const { t } = useTranslation();
+  return (
+    <div className="space-y-3" aria-busy="true" aria-label={t("eventFront.sponsors.loading")}>
+      <Skeleton className="h-6 w-40" />
+      <Skeleton className="h-24 w-full" />
+    </div>
+  );
+}
+
+/**
+ * Zdanie o awarii zapytania - bez zapytania. NAPIS PODAJE WOŁAJĄCY, bo każde
+ * źródło ma swoją mapę odmów: strona - `publicEventErrorMessage`, podgląd
+ * studia - odmowy RPC panelu. Awaria NIE MOŻE wyglądać jak „ten kongres nie ma
+ * partnerów", więc ma własny rysunek, a nie pustą listę.
+ */
+export function EventSponsorsSectionError({ message }: { message: string }) {
+  return (
+    <p className="rounded-[6px] border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+      {message}
+    </p>
+  );
+}
+
+/**
+ * SAM RYSUNEK sekcji „Partnerzy" - bez zapytania.
+ *
+ * `draftLabel` = napis plakietki przy przypięciu nieogłoszonym (`isDraft`).
+ * Podaje go tylko podgląd studia; bez napisu plakietki nie ma, nawet gdyby
+ * wiersz niósł znacznik.
+ */
+export function EventSponsorsSectionView({
+  tiers,
+  draftLabel,
+}: {
+  tiers: readonly PublicSponsorTier[];
+  draftLabel?: string;
+}) {
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
+
   if (tiers.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">{t("eventFront.sections.sponsors.empty")}</p>
@@ -75,13 +124,26 @@ export function EventSponsorsSection({
   return (
     <div className="space-y-8">
       {tiers.map((tier) => (
-        <SponsorTierGroup key={tier.tierId ?? "no-tier"} tier={tier} lang={lang} />
+        <SponsorTierGroup
+          key={tier.tierId ?? "no-tier"}
+          tier={tier}
+          lang={lang}
+          draftLabel={draftLabel}
+        />
       ))}
     </div>
   );
 }
 
-function SponsorTierGroup({ tier, lang }: { tier: PublicSponsorTier; lang: "pl" | "en" }) {
+function SponsorTierGroup({
+  tier,
+  lang,
+  draftLabel,
+}: {
+  tier: PublicSponsorTier;
+  lang: "pl" | "en";
+  draftLabel: string | undefined;
+}) {
   const { t } = useTranslation();
   const tierName = pickLocalized(
     { name_pl: tier.namePl, name_en: tier.nameEn },
@@ -135,6 +197,10 @@ function SponsorTierGroup({ tier, lang }: { tier: PublicSponsorTier; lang: "pl" 
             "description",
             lang,
           );
+          // Plakietka tylko przy OBU warunkach: wiersz jest nieogłoszony i ktoś
+          // podał napis. Strona publiczna napisu nie podaje - jej kafel się nie
+          // zmienia, nawet gdyby znacznik kiedyś przyjechał z sieci.
+          const draft = sponsor.isDraft === true && draftLabel !== undefined;
           const body = (
             <>
               {/* LOGOTYP JEST OZDOBĄ, PODPIS JEST TREŚCIĄ. `SponsorLogo` bez adresu
@@ -142,7 +208,12 @@ function SponsorTierGroup({ tier, lang }: { tier: PublicSponsorTier; lang: "pl" 
                   `aria-hidden` partner bez logotypu byłby czytany dwa razy pod rząd.
                   Ta sama reguła co w pasie na stronie głównej (`SponsorTierLogo`). */}
               <span aria-hidden="true" className="contents">
-                <SponsorLogo name={sponsor.name} logoUrl={sponsor.logoUrl} size={tier.logoSize} />
+                <SponsorLogo
+                  name={sponsor.name}
+                  logoUrl={sponsor.logoUrl}
+                  size={tier.logoSize}
+                  className={draft ? "opacity-60" : undefined}
+                />
               </span>
               <span className="mt-3 block text-sm font-medium text-foreground">{sponsor.name}</span>
               <span className="mt-1 flex flex-wrap items-center justify-center gap-1.5">
@@ -152,6 +223,9 @@ function SponsorTierGroup({ tier, lang }: { tier: PublicSponsorTier; lang: "pl" 
                     {t("eventFront.sponsors.boothLabel", { label: sponsor.boothLabel })}
                   </Badge>
                 )}
+                {/* Napis plakietki jest TEKSTEM kafla, nie `aria-label` - czytnik
+                    ekranu słyszy „nieogłoszony" tak samo, jak widzący go widzi. */}
+                {draft && <Badge variant="outline">{draftLabel}</Badge>}
               </span>
               {description !== "" && (
                 <span className="mt-2 block text-xs text-muted-foreground">{description}</span>

@@ -181,6 +181,66 @@ export async function fetchSponsors(query: SponsorsQuery): Promise<EventSponsorR
   return unwrap<EventSponsorRow[]>(data, error);
 }
 
+/**
+ * Gorna granica strony `admin_event_sponsors_list` - RPC zaciska `p_limit` do
+ * 1..200 (`v_limit := LEAST(GREATEST(COALESCE(p_limit, 50), 1), 200)`), wiec
+ * wieksza strona i tak wrocilaby jako 200 wierszy.
+ */
+export const SPONSORS_LIST_PAGE_MAX = 200;
+
+/**
+ * Twardy stop stronicowania CALEJ listy: 10 stron = 2000 przypiec. Wydarzenie
+ * z wieksza liczba partnerow nie istnieje, a petla bez stopu przy zepsutym
+ * `total_count` (albo liscie rosnacej w trakcie odczytu) pytalaby baze bez
+ * konca.
+ */
+export const SPONSORS_ALL_PAGES_MAX = 10;
+
+/** Zapytanie o CALA liste - strone i przesuniecie ustala `fetchAllSponsors`. */
+export type AllSponsorsQuery = Omit<SponsorsQuery, "limit" | "offset">;
+
+/**
+ * CALA lista przypiec, strona po stronie, az do `total_count`.
+ *
+ * PO CO. Jedna strona to najwyzej 200 wierszy (zacisk RPC), a lista jest
+ * posortowana ranga poziomu malejaco - wiec 30 NIEOGLOSZONYCH przypiec wysoko
+ * w rankingu wypychalo z jedynej strony ogloszonych partnerow z konca listy.
+ * Podglad gubil wtedy logotypy, ktore strona publiczna (`event_sponsors_public`,
+ * bez limitu) pokazuje. `p_offset` idzie krokami po 200, a petla konczy sie na
+ * krotszej stronie albo gdy pobrane wiersze siegna `total_count` strony.
+ *
+ * TWARDY STOP NIE UDAJE PELNEJ LISTY. Po `SPONSORS_ALL_PAGES_MAX` stronach
+ * zwracamy to, co jest, z ostrzezeniem w konsoli - a wiersze niosa
+ * `total_count` wiekszy od ich liczby, wiec `publishedSponsorIdSet` widzi
+ * uciecie i wylacza filtr ogloszen (tak jak przed stronicowaniem).
+ *
+ * DUPLIKAT PO `id` NIE PODWAJA PARTNERA. Kolejnosc RPC nie jest calkowita
+ * (remis rangi, `sort_order` i nazwy), a lista moze sie zmienic miedzy
+ * stronami - ten sam wiersz na dwoch stronach zostaje raz (z nowszej strony,
+ * na pierwotnym miejscu). Lista krotsza od `total_count` liczy sie wtedy jako
+ * niepelna, czyli znow bezpiecznie: bez filtra.
+ */
+export async function fetchAllSponsors(query: AllSponsorsQuery): Promise<EventSponsorRow[]> {
+  const byId = new Map<string, EventSponsorRow>();
+  for (let page = 0; page < SPONSORS_ALL_PAGES_MAX; page += 1) {
+    const offset = page * SPONSORS_LIST_PAGE_MAX;
+    const rows = await fetchSponsors({ ...query, limit: SPONSORS_LIST_PAGE_MAX, offset });
+    for (const row of rows) byId.set(row.id, row);
+    if (rows.length < SPONSORS_LIST_PAGE_MAX) return [...byId.values()];
+    // Pelna strona ma pierwszy wiersz. Wiersz bez `total_count` (NULL mimo
+    // typu generatora) NIE konczy petli - `Number(null)` to 0, wiec bez `??`
+    // pierwsza pelna strona udawalaby komplet. Konczy ja wtedy krotsza strona.
+    const total = Number(rows[0].total_count ?? Number.NaN);
+    if (offset + rows.length >= total) return [...byId.values()];
+  }
+  console.warn("[events] sponsor list stopped at page cap", {
+    eventId: query.eventId,
+    pages: SPONSORS_ALL_PAGES_MAX,
+    loaded: byId.size,
+  });
+  return [...byId.values()];
+}
+
 export async function fetchSponsorDetail(id: string): Promise<EventSponsorDetailRow | null> {
   const { data, error } = await supabase.rpc("admin_event_sponsor_detail", { _id: id });
   if (error) throw new Error(error.message);

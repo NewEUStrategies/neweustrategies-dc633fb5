@@ -8,6 +8,11 @@
 // anulowanie bez uzasadnienia wracaja z bledem `reason_required`, wiec lepiej
 // zatrzymac je tutaj niz pokazac organizatorowi blad serwera. Przy pozostalych
 // czynnosciach to samo pole jest notatka wewnetrzna - nieobowiazkowa.
+//
+// PODPOWIEDZ ZALEZY OD WIERSZA, NIE OD CZYNNOSCI. Zatwierdzenie prowadzacego
+// grupy przyjmuje tez jego gosci (kaskada w bazie, 20260926100000) - organizator
+// ma to wiedziec PRZED kliknieciem, a wie o tym tylko organizm znajacy
+// powiazania grupy. Dlatego zdanie przychodzi gotowe, z zewnatrz.
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -46,6 +51,8 @@ export interface RegistrationDecideDialogProps {
   open: boolean;
   action: RegistrationAction | null;
   personName: string;
+  /** Dodatkowe zdanie o skutkach decyzji dla TEGO wiersza (np. goscie grupy). */
+  hint?: string | null;
   isPending: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: (note: string | null) => void;
@@ -55,6 +62,7 @@ export function RegistrationDecideDialog({
   open,
   action,
   personName,
+  hint = null,
   isPending,
   onOpenChange,
   onConfirm,
@@ -84,6 +92,7 @@ export function RegistrationDecideDialog({
         </DialogHeader>
 
         <p className="text-sm font-medium">{personName}</p>
+        {hint === null ? null : <p className="text-sm text-muted-foreground">{hint}</p>}
 
         <div className="space-y-1.5">
           <Label htmlFor="registration-decision-note">

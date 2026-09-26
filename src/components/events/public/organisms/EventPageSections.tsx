@@ -36,6 +36,15 @@
 // ZAMKNIĘTA SEKCJA NIE POBIERA DANYCH. `enabled` schodzi do zapytań, więc
 // gość nie wysyła zapytania o program, którego i tak nie zobaczy - a serwer
 // nie liczy go dla nikogo, kto nie ma prawa go zobaczyć.
+//
+// PARTNERZY MOGĄ PRZYJŚĆ PROPEM - TYLKO Z PODGLĄDU STUDIA. Strona publiczna
+// `sponsorTiers` nie podaje, więc sekcja dalej pyta `event_sponsors_public`.
+// Podgląd szkicu tego zapytania użyć nie może (bramka `status = 'published'`),
+// więc wnosi wiersze RPC panelu i dostaje TEN SAM rysunek
+// (`EventSponsorsSectionView`) - razem z napisem plakietki nieogłoszonego
+// partnera, bo słownik panelu nie należy do tego organizmu. Awaria tamtego
+// zapytania też przychodzi propem (`sponsorErrorMessage`) i rysuje się TYM
+// SAMYM zdaniem o awarii, co tutaj - pusta lista udawałaby „brak partnerów".
 import { useTranslation } from "react-i18next";
 
 import { uiLang } from "@/lib/i18n/format";
@@ -52,13 +61,30 @@ import {
   hasPracticalContent,
   isEventPracticalSection,
   type EventPracticalInfo,
+  type EventPracticalSectionKey,
 } from "@/lib/events/eventPractical";
 import { EventAgendaSection } from "@/components/events/public/organisms/EventAgendaSection";
-import { EventSponsorsSection } from "@/components/events/public/organisms/EventSponsorsSection";
+import {
+  EventSponsorsSection,
+  EventSponsorsSectionError,
+  EventSponsorsSectionView,
+} from "@/components/events/public/organisms/EventSponsorsSection";
 import { EventMaterialsSection } from "@/components/events/public/organisms/EventMaterialsSection";
+import type { PublicSponsorTier } from "@/lib/events/sponsorsSurface";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
 ensureEventFrontI18n();
+
+/** Dane otwartej sekcji praktycznej z treścią - razem z jej kluczem. */
+interface PracticalBody {
+  info: EventPracticalInfo;
+  key: EventPracticalSectionKey;
+}
+
+interface OwnedSection {
+  section: EventSection;
+  practical: PracticalBody | null;
+}
 
 /** Sekcje, które ten organizm umie narysować. Reszta należy do trasy. */
 const OWNED: readonly EventSectionKey[] = [
@@ -72,25 +98,55 @@ export function EventPageSections({
   slug,
   sections,
   practical = null,
+  sponsorTiers,
+  sponsorDraftLabel,
+  sponsorErrorMessage,
 }: {
   slug: string;
   sections: readonly EventSection[];
   /** Kolumny wydarzenia dla sekcji `map` i `contact`; `null` = nie rysuj ich. */
   practical?: EventPracticalInfo | null;
+  /**
+   * Partnerzy podani z zewnątrz (podgląd studia); `undefined` = sekcja sama
+   * pyta `event_sponsors_public`, jak na stronie publicznej.
+   */
+  sponsorTiers?: readonly PublicSponsorTier[];
+  /** Napis plakietki partnera nieogłoszonego - tylko razem z `sponsorTiers`. */
+  sponsorDraftLabel?: string;
+  /**
+   * Zdanie o awarii zapytania, z którego przyszły `sponsorTiers` - tylko razem
+   * z nimi. Wygrywa z wierszami, jak `isError` w `EventSponsorsSection`.
+   */
+  sponsorErrorMessage?: string;
 }) {
-  const owned = sections.filter((section) => {
-    if (!OWNED.includes(section.key) || !shouldRenderSection(section)) return false;
+  // Filtr i zawężenie `practical` w JEDNYM przejściu: sekcja dostaje dane
+  // praktyczne tylko wtedy, gdy jest otwartą sekcją praktyczną z treścią.
+  // Osobny filtr zostawiał w sekcji strażnik `practical === null`, do którego
+  // żadna ścieżka nie mogła dojść.
+  const owned = sections.flatMap((section): OwnedSection[] => {
+    if (!OWNED.includes(section.key) || !shouldRenderSection(section)) return [];
     // Zamek zostaje ZAWSZE (karta zaproszenia jest treścią sekcji), więc
     // pustkę praktyczną sprawdzamy dopiero dla sekcji otwartej.
-    if (!isEventPracticalSection(section.key) || section.isLocked) return true;
-    return practical !== null && hasPracticalContent(practical, section.key);
+    if (!isEventPracticalSection(section.key) || section.isLocked) {
+      return [{ section, practical: null }];
+    }
+    if (practical === null || !hasPracticalContent(practical, section.key)) return [];
+    return [{ section, practical: { info: practical, key: section.key } }];
   });
   if (owned.length === 0) return null;
 
   return (
     <>
-      {owned.map((section) => (
-        <EventPageSection key={section.key} slug={slug} section={section} practical={practical} />
+      {owned.map(({ section, practical: sectionPractical }) => (
+        <EventPageSection
+          key={section.key}
+          slug={slug}
+          section={section}
+          practical={sectionPractical}
+          sponsorTiers={sponsorTiers}
+          sponsorDraftLabel={sponsorDraftLabel}
+          sponsorErrorMessage={sponsorErrorMessage}
+        />
       ))}
     </>
   );
@@ -100,10 +156,16 @@ function EventPageSection({
   slug,
   section,
   practical,
+  sponsorTiers,
+  sponsorDraftLabel,
+  sponsorErrorMessage,
 }: {
   slug: string;
   section: EventSection;
-  practical: EventPracticalInfo | null;
+  practical: PracticalBody | null;
+  sponsorTiers: readonly PublicSponsorTier[] | undefined;
+  sponsorDraftLabel: string | undefined;
+  sponsorErrorMessage: string | undefined;
 }) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
@@ -123,13 +185,17 @@ function EventPageSection({
         ) : section.key === "agenda" ? (
           <EventAgendaSection slug={slug} />
         ) : section.key === "sponsors" ? (
-          <EventSponsorsSection slug={slug} />
-        ) : isEventPracticalSection(section.key) ? (
-          // `practical !== null` jest już rozstrzygnięte przez filtr wyżej -
-          // pozycja bez danych nie doszłaby do nagłówka.
-          practical === null ? null : (
-            <EventPracticalSection info={practical} section={section.key} />
+          sponsorTiers === undefined ? (
+            <EventSponsorsSection slug={slug} />
+          ) : sponsorErrorMessage !== undefined ? (
+            <EventSponsorsSectionError message={sponsorErrorMessage} />
+          ) : (
+            <EventSponsorsSectionView tiers={sponsorTiers} draftLabel={sponsorDraftLabel} />
           )
+        ) : practical !== null ? (
+          // Dane praktyczne ma WYŁĄCZNIE otwarta sekcja praktyczna z treścią
+          // (rozstrzyga to `EventPageSections`), więc to jest mapa albo kontakt.
+          <EventPracticalSection info={practical.info} section={practical.key} />
         ) : (
           <EventMaterialsSection slug={slug} />
         )}

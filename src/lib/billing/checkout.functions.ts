@@ -5,7 +5,6 @@ import { periodEndFor } from "@/lib/billing/entitlement";
 import { mockCheckoutAllowed } from "@/lib/billing/mockMode.server";
 import { resolveReturnUrl } from "@/lib/http/resolveReturnUrl";
 import type { TicketTaxMode } from "@/lib/events/ticketTaxGroup";
-import { groupCouponDiscount } from "@/lib/events/groupOrderPricing";
 
 // Zamówienie płatnicze (server-side, RLS jako użytkownik).
 // Kwota jest zawsze wyliczana serwerowo (plan / reguła dostępu / bilet /
@@ -70,6 +69,11 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     let ticketTaxMode: TicketTaxMode | null = null;
     /** Miejsca opłacane jednym zamówieniem (rejestracja grupowa), domyślnie 1. */
     let ticketSeats = 1;
+    /**
+     * Nazwa pozycji JEDNEGO miejsca. Pozycja w Stripe idzie jako „N × cena
+     * miejsca" pod tą nazwą, a etykieta zamówienia niesie sufiks „× N".
+     */
+    let ticketLineName = "";
     let trialDays = 0;
     /** Czytelny identyfikator ceny katalogowej dla subskrypcji (cykl + trial). */
     let catalogPriceId: string | null = null;
@@ -130,129 +134,34 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         amountCents = unitCents * catalogQuantity;
       }
     } else if (isEventTicket && data.ticket_type_id) {
-      // ZGŁOSZENIE, ZA KTÓRE PŁACIMY. Sprawdzamy je PRZED wyceną, żeby błędne
-      // wskazanie nie zakładało zamówienia u operatora. Autorytetem jest baza:
-      // RLS `event_registrations` jest zamknięte dla uczestnika, więc odczyt
-      // tabeli z tego pliku i tak nic by nie zwrócił, a rzutowanie tego na
-      // `service_role` oddałoby serwerowi aplikacji prawo czytania CUDZYCH
-      // zgłoszeń.
-      if (registrationId !== null) {
-        const { data: ctx, error: ctxErr } = await supabase.rpc(
-          "event_registration_payment_context",
-          { p_registration_id: registrationId },
-        );
-        if (ctxErr) throw new Error(ctxErr.message);
-        const parsedCtx =
-          ctx !== null && typeof ctx === "object" && !Array.isArray(ctx)
-            ? (ctx as Record<string, unknown>)
-            : null;
-        if (parsedCtx === null || parsedCtx.ok !== true) {
-          const reason =
-            parsedCtx !== null && typeof parsedCtx.reason === "string"
-              ? parsedCtx.reason
-              : "not_found";
-          throw new Error(`registration_not_payable:${reason}`);
-        }
-        // Zgłoszenie MUSI dotyczyć wydarzenia i wejściówki z żądania - inaczej
-        // wpłata dowiązałaby się do wiersza, którego kupujący nie wskazał.
-        if (parsedCtx.event_id !== data.event_id) {
-          throw new Error("registration_not_payable:event_mismatch");
-        }
-        if (
-          typeof parsedCtx.ticket_type_id === "string" &&
-          parsedCtx.ticket_type_id !== data.ticket_type_id
-        ) {
-          throw new Error("registration_not_payable:ticket_mismatch");
-        }
-      }
-      // CENNIK WYDARZENIA. Kwotę, okno sprzedaży, miejsca, rangę członkostwa
-      // i kod dostępu rozstrzyga JEDNA funkcja bazy - ta sama, z której czyta
-      // publiczna karta biletu. Dwie implementacje progu czasowego znaczyłyby
-      // dwie różne kwoty: jedną na karcie, drugą na paragonie.
-      const { data: quote, error: quoteErr } = await supabase.rpc("event_ticket_checkout_quote", {
-        p_ticket_type_id: data.ticket_type_id,
-        // `undefined` = brak klucza w żądaniu; RPC ma wtedy własny default.
-        p_access_code: data.access_code === "" ? undefined : data.access_code,
+      // WYCENA WEJŚCIÓWKI Z CENNIKA żyje w `eventTicketPricing.server.ts`, bo
+      // tę samą liczbę pokazuje podgląd kasy (`quoteEventTicketCheckout`) -
+      // dwie kopie tej reguły to dwie różne kwoty: jedna na ekranie, druga na
+      // paragonie. Kolejność sprawdzeń (zgłoszenie PRZED cennikiem, liczba
+      // miejsc fail-closed) opisuje tamten moduł.
+      const { priceEventTicket } = await import("@/lib/billing/eventTicketPricing.server");
+      const price = await priceEventTicket(supabase, {
+        eventId: data.event_id as string,
+        ticketTypeId: data.ticket_type_id,
+        registrationId,
+        accessCode: data.access_code,
       });
-      if (quoteErr) throw new Error(quoteErr.message);
-      const parsed =
-        quote !== null && typeof quote === "object" && !Array.isArray(quote)
-          ? (quote as Record<string, unknown>)
-          : null;
-      if (parsed === null) throw new Error("ticket_not_available");
-      const quotedEventId = typeof parsed.event_id === "string" ? parsed.event_id : null;
-      // Bilet MUSI należeć do wydarzenia wskazanego przez klienta - inaczej
-      // webhook potwierdziłby RSVP na innym wydarzeniu niż opłacone.
-      if (quotedEventId === null || quotedEventId !== data.event_id) {
-        throw new Error("ticket_not_available");
-      }
-      const quotedAmount =
-        typeof parsed.amount_cents === "number" ? Math.trunc(parsed.amount_cents) : 0;
-      // Pula wliczona w plan zjada także wejściówki z cennika - tak samo jak
-      // przy cenie z wiersza wydarzenia, więc ścieżka „za darmo" jest jedna.
-      const { ticketPriceForCaller } = await import("@/lib/events/ticketAllowance.server");
-      const ticketPrice = await ticketPriceForCaller(supabase, quotedAmount);
-      if (ticketPrice.amountCents <= 0) throw new Error("ticket_included_in_plan");
-      amountCents = ticketPrice.amountCents;
-      currency = typeof parsed.currency === "string" ? parsed.currency : "PLN";
-      const eventTitle =
-        (typeof parsed.event_title_pl === "string" && parsed.event_title_pl) ||
-        (typeof parsed.event_title_en === "string" && parsed.event_title_en) ||
-        "";
-      const ticketName =
-        (typeof parsed.name_pl === "string" && parsed.name_pl) ||
-        (typeof parsed.name_en === "string" && parsed.name_en) ||
-        "";
-      label = ticketName === "" ? eventTitle : `${eventTitle} - ${ticketName}`;
-      ticketListPriceCents =
-        typeof parsed.list_price_cents === "number" ? Math.trunc(parsed.list_price_cents) : 0;
-      const phase =
-        parsed.phase !== null && typeof parsed.phase === "object" && !Array.isArray(parsed.phase)
-          ? (parsed.phase as Record<string, unknown>)
-          : null;
-      const phaseSource = typeof phase?.source === "string" ? phase.source : "";
-      const phaseName =
-        (typeof phase?.label_pl === "string" && phase.label_pl) ||
-        (typeof phase?.label_en === "string" && phase.label_en) ||
-        "";
-      ticketPhaseLabel =
-        phaseName ||
-        (phaseSource === "early_bird"
-          ? "Early bird"
-          : phaseSource === "last_minute"
-            ? "Last minute"
-            : phaseSource === "phase"
-              ? "Faza sprzedaży"
-              : "");
-      // PODATEK I GRUPA. Tryb podatku (wliczony/doliczany) pochodzi z biletu;
-      // stawkę liczy Stripe. Rejestracja grupowa płaci jednym zamówieniem za
-      // prowadzącego i wszystkich dopisanych gości - liczbę miejsc zna baza.
-      const { data: opts } = await supabase.rpc("event_ticket_public_options", {
-        p_ticket_type_id: data.ticket_type_id,
-      });
-      if (opts !== null && typeof opts === "object" && !Array.isArray(opts)) {
-        const mode = (opts as Record<string, unknown>).tax_mode;
-        ticketTaxMode = mode === "inclusive" || mode === "exclusive" ? mode : null;
-      }
-      if (registrationId !== null) {
-        const { data: seatsRaw } = await supabase.rpc("event_registration_group_seats", {
-          p_registration_id: registrationId,
-        });
-        const seats = typeof seatsRaw === "number" ? Math.max(1, Math.trunc(seatsRaw)) : 1;
-        if (seats > 1) {
-          ticketSeats = seats;
-          amountCents *= seats;
-          ticketListPriceCents *= seats;
-          label = `${label} × ${seats}`;
-        }
-      }
+      amountCents = price.amountCents;
+      currency = price.currency;
+      ticketListPriceCents = price.listCents;
+      ticketPhaseLabel = price.phaseLabel;
+      ticketTaxMode = price.taxMode;
+      ticketSeats = price.seats;
+      ticketLineName = price.label;
+      label = price.seats > 1 ? `${price.label} × ${price.seats}` : price.label;
     } else if (isEventTicket) {
       // Cena biletu pochodzi z wiersza wydarzenia (RLS jako użytkownik), więc
       // klient przekazuje wyłącznie identyfikator wydarzenia.
       const { data: ev, error: evErr } = await supabase
         .from("events")
         .select("id, title_pl, title_en, ticket_price_cents, ticket_currency, status, starts_at")
-        .eq("id", data.event_id ?? "")
+        // `isEventTicket` gwarantuje niepusty identyfikator - bez martwej gałęzi `?? ""`.
+        .eq("id", String(data.event_id))
         .maybeSingle();
       if (evErr) throw evErr;
       if (!ev || !ev.ticket_price_cents || ev.ticket_price_cents <= 0) {
@@ -315,55 +224,62 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     let couponId: string | null = null;
     let couponCode: string | null = null;
     let couponDiscountCents = 0;
+    /** Rodzaj kodu biletu wydarzenia - kod kwotowy dostaje kwotę na miejsce. */
+    let couponKind: "fixed" | "percent" | null = null;
     if (data.coupon_code && data.coupon_code.trim().length > 0) {
       const normalizedCode = data.coupon_code.trim().toUpperCase();
-      // Bilet wydarzenia: kod sprawdzany z zakresem wydarzenia i biletu
-      // (kody tworzone w studiu wydarzenia). Pozostałe zakupy: kod ogólny.
-      const { data: rows, error: validateErr } = data.event_id
-        ? await supabase.rpc("validate_event_ticket_coupon", {
-            _code: normalizedCode,
-            _event_id: data.event_id,
-            _ticket_type_id: data.ticket_type_id ?? "00000000-0000-0000-0000-000000000000",
-            _amount_cents: amountCents,
-            _currency: currency,
-          })
-        : await supabase.rpc("validate_b2b_coupon", {
-            _code: normalizedCode,
-            _plan_id: data.plan_id ?? "00000000-0000-0000-0000-000000000000",
-            _amount_cents: amountCents,
-            _currency: currency,
-          });
-      if (validateErr) throw validateErr;
-      const row = (rows ?? [])[0];
-      if (!row || !row.ok) {
-        return {
-          ok: false as const,
-          mode: "coupon" as const,
-          error: (row?.error ?? "not_found") as string,
-        };
+      if (data.event_id) {
+        // Bilet wydarzenia: kod sprawdzany z zakresem wydarzenia i biletu
+        // (kody tworzone w studiu wydarzenia), a kod kwotowy schodzi z KAŻDEGO
+        // miejsca - ta sama funkcja liczy podgląd kasy.
+        const { applyEventTicketCoupon } = await import("@/lib/billing/eventTicketPricing.server");
+        const applied = await applyEventTicketCoupon(supabase, {
+          code: normalizedCode,
+          eventId: data.event_id,
+          ticketTypeId: data.ticket_type_id ?? null,
+          amountCents,
+          currency,
+          seats: ticketSeats,
+        });
+        if (!applied.ok) {
+          return { ok: false as const, mode: "coupon" as const, error: applied.error };
+        }
+        couponId = applied.couponId;
+        couponKind = applied.kind;
+        couponDiscountCents = applied.discountCents;
+        amountCents = applied.finalCents;
+      } else {
+        // Pozostałe zakupy: kod ogólny (plan, odblokowanie treści).
+        const { data: rows, error: validateErr } = await supabase.rpc("validate_b2b_coupon", {
+          _code: normalizedCode,
+          _plan_id: data.plan_id ?? "00000000-0000-0000-0000-000000000000",
+          _amount_cents: amountCents,
+          _currency: currency,
+        });
+        if (validateErr) throw validateErr;
+        const row = (rows ?? [])[0];
+        if (!row || !row.ok) {
+          return {
+            ok: false as const,
+            mode: "coupon" as const,
+            error: (row?.error ?? "not_found") as string,
+          };
+        }
+        couponId = row.coupon_id;
+        couponDiscountCents = row.discount_cents;
+        amountCents = row.final_cents;
+        // Bezpiecznik: rabat 100% (final=0) traktujemy jak darmowy przydział -
+        // i tak nie przejdzie minimalnej kwoty transakcji, więc odrzucamy < 50 gr.
+        // Bilet wydarzenia ma ten sam bezpiecznik w `applyEventTicketCoupon`.
+        if (amountCents < 50) {
+          return {
+            ok: false as const,
+            mode: "coupon" as const,
+            error: "final_amount_too_low" as const,
+          };
+        }
       }
-      couponId = row.coupon_id;
       couponCode = normalizedCode;
-      // Zamówienie grupowe: kod kwotowy zdejmuje swoją kwotę z KAŻDEGO miejsca
-      // (baza policzyła ją raz, od sumy). Procentowy przechodzi bez zmian.
-      const split = groupCouponDiscount({
-        kind: row.discount_kind,
-        discountCents: row.discount_cents,
-        finalCents: row.final_cents,
-        totalCents: amountCents,
-        seats: ticketSeats,
-      });
-      couponDiscountCents = split.discountCents;
-      amountCents = split.finalCents;
-      // Bezpiecznik: rabat 100% (final=0) traktujemy jak darmowy przydział -
-      // i tak nie przejdzie minimalnej kwoty transakcji, więc odrzucamy < 50 gr.
-      if (amountCents < 50) {
-        return {
-          ok: false as const,
-          mode: "coupon" as const,
-          error: "final_amount_too_low" as const,
-        };
-      }
     }
 
     // Konwersja waluty prezentacji (EN → EUR) PO wyliczeniu kuponu, żeby
@@ -446,7 +362,10 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         environment,
         metadata: {
           label,
-          ...(eventId ? { event_id: eventId } : {}),
+          // `quantity` = miejsca opłacone TYM zamówieniem. Panel zamówień
+          // biletowych (`ticketOrders.server.ts`) czyta z niego liczbę biletów;
+          // bez klucza zamówienie grupowe na trzy osoby wyglądało jak „1 bilet".
+          ...(eventId ? { event_id: eventId, quantity: ticketSeats } : {}),
           ...(ticketTypeId ? { ticket_type_id: ticketTypeId } : {}),
           // `registration_id` jest KLUCZEM DOWIĄZANIA wpłaty do zgłoszenia
           // (`payments_apply_event_ticket_outcome`). Bez niego zostaje
@@ -458,6 +377,13 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
                 coupon_id: couponId,
                 coupon_discount_cents: couponDiscountCents,
                 original_amount_cents: originalCents,
+                // Kod kwotowy na bilet: ile zeszło z JEDNEGO miejsca - po to,
+                // żeby „-60 zł" na zamówieniu dało się sprawdzić jako 3 × 20 zł.
+                ...(couponKind === "fixed"
+                  ? {
+                      coupon_discount_per_seat_cents: Math.floor(couponDiscountCents / ticketSeats),
+                    }
+                  : {}),
               }
             : {}),
         },
@@ -570,7 +496,8 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       // Kwota jest wyliczona serwerowo (plan / reguła dostępu / kupon /
       // waluta prezentacji), więc zamiast ceny katalogowej tworzymy sesję z
       // ceną osadzoną (`price_data`) i zwracamy `clientSecret` do nakładki.
-      const { createAdhocCheckoutSession } = await import("@/lib/billing/adhocCheckout.server");
+      const { createAdhocCheckoutSession, MAX_LINE_QUANTITY, MIN_ADHOC_AMOUNT_CENTS } =
+        await import("@/lib/billing/adhocCheckout.server");
 
       // Rabat fazy sprzedaży (early bird / last minute) i benefit planu widoczne
       // w nakładce: pozycja idzie w cenie regularnej, różnicę zdejmuje kupon
@@ -599,10 +526,24 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         }
       }
 
+      // POZYCJA „N × CENA MIEJSCA". Zamówienie grupowe szło dotąd jedną linią
+      // „Tytuł × 3" za sumę, z jednym rabatem pod spodem - nakładka nie
+      // pokazywała, że kod zszedł z każdego miejsca. Linia `quantity = N` po
+      // cenie miejsca mówi to wprost. Tylko gdy suma dzieli się przez N bez
+      // reszty (inaczej Stripe policzyłby inną kwotę niż zamówienie), mieści się
+      // w limicie ilości sesji i cena miejsca przechodzi minimum operatora -
+      // w pozostałych przypadkach zostaje jedna linia za sumę.
+      const perSeatLine =
+        ticketSeats > 1 &&
+        ticketSeats <= MAX_LINE_QUANTITY &&
+        lineAmountCents % ticketSeats === 0 &&
+        lineAmountCents / ticketSeats >= MIN_ADHOC_AMOUNT_CENTS;
+
       const created = await createAdhocCheckoutSession({
         environment,
-        name: label || "Zamówienie",
-        amountCents: lineAmountCents,
+        name: (perSeatLine ? ticketLineName : label) || "Zamówienie",
+        amountCents: perSeatLine ? lineAmountCents / ticketSeats : lineAmountCents,
+        ...(perSeatLine ? { quantity: ticketSeats } : {}),
         discount: ticketDiscount,
         ...(ticketTaxMode ? { taxBehavior: ticketTaxMode } : {}),
         currency,
@@ -618,6 +559,11 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
               ...(registrationId ? { registration_id: registrationId } : {}),
             }
           : {},
+        // BILET NIE DOSTAJE POLA KODU STRIPE - ale tej reguły NIE egzekwujemy
+        // tutaj. Wyłącza je sam `createAdhocCheckoutSession` dla KAŻDEGO
+        // `purpose: "event_ticket"` (patrz `adhocSessionSettings`), bo sesję
+        // biletu buduje też server fn ad-hoc; ustawienia tenantu idą więc
+        // bez zmian, a odblokowanie treści zachowuje z nich pole kodu.
         settings,
       });
       if (!created.ok) {

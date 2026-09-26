@@ -2015,7 +2015,7 @@ export default defineConfig({
           statements: 98,
           functions: 100,
           lines: 100,
-          branches: 96,
+          branches: 98,
         },
         // Jednorazowy link do portalu operatora - jedyne miejsce, w którym
         // klient zmienia metodę płatności i pobiera faktury u operatora.
@@ -5978,10 +5978,10 @@ export default defineConfig({
         // ZMIERZONE 2026-09-04: 91.3 / 78.57 / 100 / 100
         // (przed: 72.46 / 66.66 / 81.25 / 83.63) - instrukcje / galezie / funkcje / linie.
         "src/lib/events/registrationsApi.ts": {
-          statements: 89,
+          statements: 98,
           functions: 98,
           lines: 98,
-          branches: 76,
+          branches: 98,
         },
         // ZMIERZONE 2026-09-04: 78.26 / 64.77 / 91.3 / 91.66
         // (przed: 65.21 / 57.95 / 78.26 / 79.16) - instrukcje / galezie / funkcje / linie.
@@ -6173,7 +6173,7 @@ export default defineConfig({
           statements: 98,
           functions: 98,
           lines: 98,
-          branches: 93,
+          branches: 98,
         },
         // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
         // (przed: 38.88 / 44.44 / 33.33 / 35.29) - instrukcje / galezie / funkcje / linie.
@@ -6245,7 +6245,7 @@ export default defineConfig({
           statements: 98,
           functions: 98,
           lines: 98,
-          branches: 92,
+          branches: 98,
         },
         // ZMIERZONE 2026-09-04: 100 / 98.5 / 100 / 100
         // (przed: 55 / 26.86 / 27.27 / 57.89) - instrukcje / galezie / funkcje / linie.
@@ -6258,10 +6258,10 @@ export default defineConfig({
         // ZMIERZONE 2026-09-04: 94.11 / 96.55 / 100 / 100
         // (przed: 47.05 / 72.41 / 25 / 53.33) - instrukcje / galezie / funkcje / linie.
         "src/components/events/registration/RegistrationConfirmation.tsx": {
-          statements: 92,
+          statements: 98,
           functions: 98,
           lines: 98,
-          branches: 94,
+          branches: 98,
         },
         // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
         // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
@@ -6306,6 +6306,205 @@ export default defineConfig({
         // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
         // (przed: 0 / 100 / 0 / 0) - instrukcje / galezie / funkcje / linie.
         "src/routes/events.$slug_.packages.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+
+        // ══ WYDARZENIA: BRAKI Z 2026-09-26 (bilety QR gości, kod kwotowy na ══════
+        // ══ bilet, sponsorzy w podglądzie panelu) - PROGI PER PLIK ═══════════
+        //
+        // Właściciel produktu zażądał testów na KAŻDY element (gałęzie, linie,
+        // funkcje). ZMIERZONE 2026-09-26 na scalonej gałęzi, jeden przebieg
+        // `--coverage` w zakresie src/lib/events, src/lib/billing,
+        // src/components/events, src/components/admin/events,
+        // src/components/admin/billing, src/components/profile, src/lib/server,
+        // src/routes, src/lib/__tests__, src/lib/ci, src/__tests__ (874 pliki
+        // testowe): KAŻDY plik niżej ma 100 / 100 / 100 / 100 - instrukcje /
+        // gałęzie / funkcje / linie. Reguła bez zmian: „zmierzone minus ~2 pp",
+        // wolno wyłącznie podnosić. Wpisy wcześniejsze dla tych samych plików
+        // (moduł 22, 2026-09-04) podniesiono do tej samej podłogi.
+        "src/components/admin/billing/AdminPaymentsDiagnosticsPanel.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/admin/events/molecules/RegistrationDecideDialog.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/admin/events/molecules/SponsorSectionCard.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/admin/events/organisms/EventCodesPanel.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/admin/events/organisms/RegistrationsListPanel.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/admin/events/organisms/SponsorSectionDrawer.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/admin/events/organisms/SponsorSectionsBoard.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/admin/events/studio/EventPreviewCanvas.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/admin/events/studio/EventPreviewLiveModule.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/admin/events/studio/EventStudioPreview.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/events/packages/EventPackagesPurchase.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/events/public/organisms/EventPageSections.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/events/registration/GroupGuestsEditor.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/events/registration/molecules/RegistrationPayAction.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/billing/adhocCheckout.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/billing/checkout.functions.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/billing/diagnostics.functions.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/billing/eventTicketPricing.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/billing/eventTicketQuote.functions.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/adminSponsorErrors.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/previewLiveData.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/registrationNotify.functions.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/registrationRows.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/sponsorsPreview.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/sponsorsSurface.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/ticketCodeNotify.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/ticketResend.functions.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+
+        // Druga runda tej samej pracy (poprawki po końcowym przeglądzie: ponowna
+        // wysyłka biletu z pominięciem adresów z listy wykluczeń, stronicowanie
+        // partnerów w podglądzie, pole kodu w bezpośrednim zakupie biletu).
+        // ZMIERZONE 2026-09-26: 100 / 100 / 100 / 100 (878 plików testowych).
+        "src/components/community/EventTicketPurchase.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/ticketResend.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/useEventSponsors.ts": {
           statements: 98,
           functions: 98,
           lines: 98,

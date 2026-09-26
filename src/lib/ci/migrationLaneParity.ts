@@ -327,6 +327,18 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     drizzleOnly:
       "Zastosowanie ciala 0053 z panelu Lovable (0053 bylo w repozytorium, ale nie na bazie). Bez REVOKE is_platform_author z authenticated - narzedzie wdrozeniowe go blokuje; blizniak supabase to juz 20260925100000.",
   },
+  // Goscie grupy ida za decyzja o prowadzacym (zatwierdzenie, odrzucenie,
+  // anulowanie) i dostaja wlasny bilet z kodem QR; ponowna wysylka z panelu.
+  {
+    tag: "0055_event_group_guests_follow_lead",
+    twin: "20260926100000_event_group_guests_follow_lead.sql",
+  },
+  // Kod kwotowy schodzi z kazdego miejsca pakietu grupowego, a uzycie kodu
+  // jest zuzywane razem z zamowieniem pakietu.
+  {
+    tag: "0056_event_package_coupon_per_seat",
+    twin: "20260926110000_event_package_coupon_per_seat.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";

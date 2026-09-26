@@ -6,30 +6,56 @@
 // redaktor widzial sam dokument CMS bez ani jednej sesji, ktora wlasnie wpisal.
 //
 // CZEGO TU NIE MA. WLASNEGO UKLADU. Karty rysuja komponenty produkcyjne:
-// `AgendaSessionCard`, `EventSpeakersGridView`, `EventAttendeesGridView` - te
-// same, ktorych uzywaja `EventAgendaSection`, `EventSpeakersGrid`
-// i `EventAttendeesList`. Ten plik wnosi wylacznie ZRODLO DANYCH (RPC panelu
-// zamiast projekcji publicznej) i martwe przyciski zapisu: organizator ma
-// zobaczyc program, a nie zapisac sie na sesje z ekranu panelu.
+// `AgendaSessionCard`, `EventSpeakersGridView`, `EventAttendeesGridView`,
+// `EventSponsorsSectionView` - te same, ktorych uzywaja `EventAgendaSection`,
+// `EventSpeakersGrid`, `EventAttendeesList` i `EventSponsorsSection`. Ten plik
+// wnosi wylacznie ZRODLO DANYCH (RPC panelu zamiast projekcji publicznej)
+// i martwe przyciski zapisu: organizator ma zobaczyc program, a nie zapisac
+// sie na sesje z ekranu panelu.
 import { useTranslation } from "react-i18next";
 
 import { EventAgendaBoardView } from "@/components/events/public/organisms/EventAgendaBoardView";
 import { EventSpeakersGridView } from "@/components/events/public/organisms/EventSpeakersGrid";
 import { EventAttendeesGridView } from "@/components/events/public/organisms/EventAttendeesList";
+import {
+  EventSponsorsSectionError,
+  EventSponsorsSectionPending,
+  EventSponsorsSectionView,
+} from "@/components/events/public/organisms/EventSponsorsSection";
 import { type AgendaSession } from "@/lib/events/agendaSurface";
 import type { AttendeeEntry } from "@/lib/events/publicEventApi";
 import type { PreviewTrackChip } from "@/lib/events/previewLiveData";
+import type { PublicSponsorTier } from "@/lib/events/sponsorsSurface";
+import { PREVIEW_SPONSORS_READY, type PreviewSponsorsStatus } from "@/lib/events/sponsorsPreview";
 import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 import { uiLang } from "@/lib/i18n/format";
 import { mediaRenderUrl } from "@/lib/media/publicUrl";
+// Slownik panelu wprost, a nie „przy okazji" kanwy: ten plik sam czyta klucze
+// `adminEvents.studio.preview.*` (puste zdania, plakietka partnera).
+import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
-/** Fakty modulowe, ktore nakladka podgladu dociaga RPC panelu. */
+/**
+ * Fakty z bazy, ktore nakladka podgladu dociaga RPC panelu - dla podstron
+ * modulowych i dla partnerow strony glownej.
+ */
 export interface EventPreviewLiveData {
   sessions: AgendaSession[];
   /** Pasma programu - takze te ze szkicami, zeby redaktor je widzial. */
   tracks: PreviewTrackChip[];
   speakers: PublicSpeakerRow[];
   attendees: AttendeeEntry[];
+  /**
+   * Partnerzy poziomami, w kolejnosci strony publicznej - takze NIEOGLOSZENI,
+   * znaczeni `isDraft` (plakietke rysuje kanwa i zakladka „Partnerzy").
+   * Jedno zrodlo dla pasa, sekcji „Partnerzy" i zakladki modulowej.
+   */
+  sponsorTiers: readonly PublicSponsorTier[];
+  /**
+   * Czy `sponsorTiers` to odpowiedz, czy dopiero jej brak. Pusta lista w trakcie
+   * wczytywania albo po awarii to NIE „brak partnerow" - patrz
+   * `PreviewSponsorsStatus`.
+   */
+  sponsorsStatus: PreviewSponsorsStatus;
 }
 
 export const EMPTY_PREVIEW_LIVE_DATA: EventPreviewLiveData = {
@@ -37,6 +63,8 @@ export const EMPTY_PREVIEW_LIVE_DATA: EventPreviewLiveData = {
   tracks: [],
   speakers: [],
   attendees: [],
+  sponsorTiers: [],
+  sponsorsStatus: PREVIEW_SPONSORS_READY,
 };
 
 function EmptyNote({ text }: { text: string }) {
@@ -125,8 +153,18 @@ function PreviewAgenda({ sessions }: { sessions: readonly AgendaSession[] }) {
 
 /**
  * Tresc podstrony modulowej w podgladzie - albo `null`, gdy modul nie ma
- * wlasnej powierzchni danych (materialy, dyskusje, partnerzy rysuja sie gdzie
- * indziej).
+ * w podgladzie wlasnej powierzchni danych (materialy, dyskusje).
+ *
+ * PARTNERZY MAJA SWOJA GALAZ. Publiczna zakladka `/partners` rysuje pod
+ * dokumentem CMS sekcje partnerow z bazy, a dokument zasiany migracja niesie
+ * tylko naglowek i zdanie wstepu - bez tej galezi zakladka w podgladzie byla
+ * pusta nawet dla partnerow OGLOSZONYCH.
+ *
+ * ZDANIE „NIE MA PARTNEROW" PADA TYLKO PO ODPOWIEDZI. Wczytywanie i awaria
+ * rysuja sie tak, jak na stronie publicznej (szkielet i zdanie o awarii z tego
+ * samego organizmu), bo zakladka otwiera sie zanim lista dojedzie - a wtedy
+ * „dodaj ich na tablicy" mignelo przy kazdym otwarciu, takze wydarzeniu
+ * z partnerami, i zostawalo na stale, gdy RPC padlo.
  */
 export function EventPreviewLiveModule({
   module,
@@ -135,6 +173,7 @@ export function EventPreviewLiveModule({
   module: string;
   data: EventPreviewLiveData;
 }) {
+  ensureAdminEventsI18n();
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
 
@@ -156,6 +195,20 @@ export function EventPreviewLiveModule({
     if (data.attendees.length === 0)
       return <EmptyNote text={t("adminEvents.studio.preview.moduleEmptyAttendees")} />;
     return <EventAttendeesGridView entries={data.attendees} lang={lang} />;
+  }
+
+  if (module === "partners") {
+    if (data.sponsorsStatus.state === "pending") return <EventSponsorsSectionPending />;
+    if (data.sponsorsStatus.state === "error")
+      return <EventSponsorsSectionError message={data.sponsorsStatus.message} />;
+    if (data.sponsorTiers.length === 0)
+      return <EmptyNote text={t("adminEvents.studio.preview.moduleEmptyPartners")} />;
+    return (
+      <EventSponsorsSectionView
+        tiers={data.sponsorTiers}
+        draftLabel={t("adminEvents.studio.preview.sponsorDraftBadge")}
+      />
+    );
   }
 
   return null;

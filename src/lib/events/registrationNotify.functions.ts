@@ -22,6 +22,15 @@
 // wie, że weszła z rezerwy". Stemplowanie jej po mailu o odmowie zamieniłoby
 // tę kolumnę w bezużyteczny licznik wysyłek.
 //
+// PO PRZYJĘCIU I AWANSIE IDĄ OD RAZU BILETY. Mail o decyzji nie niesie kodu
+// QR - niesie go osobny mail `event_ticket_issued`, jeden na osobę. Wydanie
+// od zgłoszenia prowadzącego obejmuje też jego gości, których kaskada
+// w bazie (20260926100000) przyjęła razem z nim - bez tego kroku czekaliby
+// na crona. Bilety wychodzą NIEZALEŻNIE od losu maila o decyzji: nieudany
+// „zatwierdzono" nie może zostawić grupy bez wejściówek. Autoryzacją jest
+// ładunek z `admin_event_registration_notify_payload` - dotarliśmy tu tylko
+// dla zgłoszenia z najemcy organizatora, a identyfikator przeszedł walidator.
+//
 // Moduł zawiera WYŁĄCZNIE deklarację server function + importy (wymóg
 // tss-serverfn-split).
 import { createServerFn } from "@tanstack/react-start";
@@ -53,9 +62,16 @@ export function registrationNoticeType(notice: RegistrationNotice): TxEmailType 
   return TYPE_BY_NOTICE[notice];
 }
 
+/** Momenty, po których zgłoszenie (i jego goście) dostają bilet z kodem QR. */
+const TICKET_NOTICES: readonly RegistrationNotice[] = ["approved", "promoted"];
+
+/**
+ * `ticketsSent` - liczba wysłanych biletów (prowadzący + goście); tylko po
+ * przyjęciu i awansie, bo tylko wtedy panel ma o czym powiedzieć.
+ */
 export type RegistrationNotifyResult =
-  | { ok: true; skipped?: "duplicate" | "suppressed" | "status_changed" }
-  | { ok: false; error: string };
+  | { ok: true; skipped?: "duplicate" | "suppressed" | "status_changed"; ticketsSent?: number }
+  | { ok: false; error: string; ticketsSent?: number };
 
 const Input = z.object({
   registrationId: z.string().uuid(),
@@ -97,21 +113,46 @@ export const notifyEventRegistrationDecision = createServerFn({ method: "POST" }
     const stampRaw = data.notice === "promoted" ? row.promoted_at : row.decided_at;
     const stamp = typeof stampRaw === "string" && stampRaw !== "" ? stampRaw : "0";
 
-    const { sendTxEmail } = await import("@/lib/email/transactional.server");
-    const result = await sendTxEmail({
-      type: TYPE_BY_NOTICE[data.notice],
-      to: email,
-      lang: notice.lang,
-      subjectName: notice.eventTitle,
-      details: notice.details,
-      ctaPath: notice.ctaPath,
-      metaName: notice.firstName,
-      tenantId: notice.tenantId,
-      idempotencyKey: `event-registration:${data.registrationId}:${data.notice}:${stamp}`,
-    });
+    // WYJĄTEK WYSYŁKI TO TYLKO NIEUDANY MAIL. `sendTxEmail` jest fail-soft, ale
+    // import modułu albo render potrafi rzucić - a rzut stąd zabrałby ze sobą
+    // bilety poniżej. Organizator dostaje ten sam komunikat, co przy odmowie
+    // potoku (`ok: false`), a grupa i tak dostaje wejściówki.
+    const result: { ok: boolean; skipped?: string; reason?: string; error?: string } =
+      await import("@/lib/email/transactional.server")
+        .then(({ sendTxEmail }) =>
+          sendTxEmail({
+            type: TYPE_BY_NOTICE[data.notice],
+            to: email,
+            lang: notice.lang,
+            subjectName: notice.eventTitle,
+            details: notice.details,
+            ctaPath: notice.ctaPath,
+            metaName: notice.firstName,
+            tenantId: notice.tenantId,
+            idempotencyKey: `event-registration:${data.registrationId}:${data.notice}:${stamp}`,
+          }),
+        )
+        .catch((err: unknown) => {
+          console.error("[events] registration notice failed", data.registrationId, err);
+          return { ok: false, error: "send_failed" };
+        });
+
+    // Bilety PRZED rozstrzygnięciem wyniku maila - patrz nagłówek. Wydanie
+    // nigdy nie rzuca, ale import modułu tak, a wyjątek tutaj zgubiłby
+    // wynik maila, który już wyszedł.
+    let tickets: { ticketsSent: number } | Record<string, never> = {};
+    if (TICKET_NOTICES.includes(data.notice)) {
+      try {
+        const { issueAndSendTicketCodes } = await import("@/lib/events/ticketCodeNotify.server");
+        tickets = { ticketsSent: await issueAndSendTicketCodes(data.registrationId) };
+      } catch (err) {
+        console.error("[events] ticket codes after decision failed", data.registrationId, err);
+        tickets = { ticketsSent: 0 };
+      }
+    }
 
     if (!result.ok) {
-      return { ok: false, error: result.reason ?? result.error ?? "send_failed" };
+      return { ok: false, error: result.reason ?? result.error ?? "send_failed", ...tickets };
     }
 
     // Tylko awans z rezerwy ma w bazie swoją pieczęć - patrz nagłówek.
@@ -121,5 +162,7 @@ export const notifyEventRegistrationDecision = createServerFn({ method: "POST" }
       });
     }
 
-    return result.skipped === "duplicate" ? { ok: true, skipped: "duplicate" } : { ok: true };
+    return result.skipped === "duplicate"
+      ? { ok: true, skipped: "duplicate", ...tickets }
+      : { ok: true, ...tickets };
   });

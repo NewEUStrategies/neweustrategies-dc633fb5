@@ -251,6 +251,7 @@ function tickResult(): JobsTickResult {
     digestWeekly: { claimed: 0, sent: 0 },
     eventReminders: 1,
     crmTaskReminders: 0,
+    eventTicketCodes: { registrations: 2, sent: 2, deferred: 0 },
     linkCheck: { postsScanned: 5, linksChecked: 41, broken: 0, archived: 0, alerted: 0 },
     integrations: { claimed: 0, delivered: 0, failed: 0 },
     semanticIndex: { scanned: 8, embedded: 8 },

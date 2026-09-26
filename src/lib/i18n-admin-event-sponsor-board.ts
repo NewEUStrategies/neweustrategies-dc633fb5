@@ -15,6 +15,11 @@ export const sponsorBoardPl = {
       noLogos: "Brak logotypów w tej sekcji.",
       banner: "Baner",
       grid: "Siatka logo",
+      // Logo dodane z tablicy jest NIEOGŁOSZONE - strona wydarzenia go nie
+      // pokazuje (podgląd rysuje je przygaszone, z plakietką), więc tablica musi
+      // to powiedzieć.
+      draftBadge: "Nieogłoszony",
+      draftCount: "Nieogłoszone: {{count}}",
     },
     add: {
       title: "Dodaj sekcję",
@@ -50,6 +55,11 @@ export const sponsorBoardPl = {
       editLogo: "Edytuj logotyp",
       deleteLogo: "Usuń logotyp",
       layout: "Układ sekcji",
+      published: "Widoczny na stronie wydarzenia",
+      // Nazwa przełącznika dla czytnika ekranu: przy kilku logotypach sam napis
+      // „Widoczny na stronie wydarzenia" nie mówi, KTÓREJ firmy dotyczy.
+      // Zaczyna się napisem widocznym, żeby sterowanie głosem trafiało w niego.
+      publishedFor: "Widoczny na stronie wydarzenia: {{name}}",
     },
     redirect: {
       label: "Przekierowanie",
@@ -104,6 +114,10 @@ export const sponsorBoardPl = {
       sectionSaved: "Sekcja zapisana.",
       sectionDeleted: "Sekcja usunięta.",
       linkSaved: "Przekierowanie zapisane.",
+      // „ZOBACZĄ", nie „widać": wydarzenie w szkicu nie ma jeszcze strony
+      // publicznej, więc zdanie w czasie teraźniejszym byłoby tam nieprawdą.
+      announced: "Partner ogłoszony - uczestnicy zobaczą go na stronie wydarzenia.",
+      withdrawn: "Partner wycofany ze strony wydarzenia.",
       error: "Nie udało się zapisać zmian.",
     },
     public: {
@@ -127,6 +141,8 @@ export const sponsorBoardEn = {
       noLogos: "No logos in this section.",
       banner: "Banner",
       grid: "Grid of logos",
+      draftBadge: "Not announced",
+      draftCount: "Not announced: {{count}}",
     },
     add: {
       title: "Add a section",
@@ -162,6 +178,8 @@ export const sponsorBoardEn = {
       editLogo: "Edit logo",
       deleteLogo: "Remove logo",
       layout: "Section layout",
+      published: "Visible on the event page",
+      publishedFor: "Visible on the event page: {{name}}",
     },
     redirect: {
       label: "Redirection",
@@ -216,6 +234,8 @@ export const sponsorBoardEn = {
       sectionSaved: "Section saved.",
       sectionDeleted: "Section deleted.",
       linkSaved: "Redirection saved.",
+      announced: "Partner announced - attendees will see it on the event page.",
+      withdrawn: "Partner withdrawn from the event page.",
       error: "Could not save changes.",
     },
     public: {

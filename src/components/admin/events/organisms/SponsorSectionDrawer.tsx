@@ -1,9 +1,23 @@
 // Organizm: boczny panel edycji sekcji sponsorów - tytuł PL/EN, układ, logotypy
-// z przekierowaniem, dodawanie firmy z CRM i usunięcie sekcji.
+// z przekierowaniem i ogłoszeniem, dodawanie firmy z CRM i usunięcie sekcji.
+//
+// OGŁOSZENIE JEST PRZEŁĄCZNIKIEM PRZY LOGO. Firma dodana z tablicy zapisuje
+// się jako nieogłoszona, a jedyne sterowanie siedziało głęboko w oknie
+// sponsora albo w masowej akcji na osobnej liście. Przełącznik przy każdym
+// logo woła `admin_event_sponsors_set_published` dla TEJ JEDNEJ firmy, a odmowa
+// bazy mówi zdaniem z mapy odmów sponsorów, nie ogólnym „nie udało się".
+//
+// PRZEŁĄCZNIK POKAZUJE ŻĄDANIE, DOPÓKI LISTA GO NIE POTWIERDZI. Stan logo
+// przychodzi z listy przypięć, a ta odświeża się dopiero PO zapisie. Przez tę
+// chwilę przełącznik stał w starym położeniu i był już aktywny, więc drugi klik
+// wysyłał TO SAMO żądanie (baza zmienia zero wierszy - `IS DISTINCT FROM`)
+// i drugi raz ogłaszał sukces. Do końca zapisu I odświeżenia listy przełącznik
+// stoi więc w położeniu żądanym (razem z plakietką) i jest zgaszony.
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import {
   Sheet,
   SheetContent,
@@ -12,7 +26,10 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { SponsorRedirectField } from "@/components/admin/events/molecules/SponsorRedirectField";
-import type { SponsorLogo } from "@/components/admin/events/molecules/SponsorSectionCard";
+import {
+  SponsorDraftBadge,
+  type SponsorLogo,
+} from "@/components/admin/events/molecules/SponsorSectionCard";
 import { SponsorSectionTitleForm } from "@/components/admin/events/molecules/SponsorSectionTitleForm";
 import { confirmDialog } from "@/lib/appDialogs";
 import { adminSponsorErrorMessage } from "@/lib/events/adminSponsorErrors";
@@ -28,6 +45,7 @@ import {
   useDeleteSponsor,
   useDeleteSponsorTier,
   useSaveSponsorTier,
+  useSetSponsorsPublished,
 } from "@/lib/events/useEventSponsors";
 import "@/lib/i18n-admin-event-sponsor-board";
 
@@ -42,6 +60,7 @@ export function SponsorSectionDrawer({
   onOpenChange,
   onAddSponsor,
   onEditSponsor,
+  isRefreshing = false,
 }: {
   eventId: string;
   tier: EventSponsorTierRow | null;
@@ -51,6 +70,8 @@ export function SponsorSectionDrawer({
   onOpenChange: (open: boolean) => void;
   onAddSponsor: (tierId: string) => void;
   onEditSponsor: (sponsorId: string) => void;
+  /** Lista przypięć właśnie się odświeża - `logos` może jeszcze nieść stan sprzed zapisu. */
+  isRefreshing?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const saveTier = useSaveSponsorTier(eventId);
@@ -58,6 +79,7 @@ export function SponsorSectionDrawer({
   const setLayout = useSetTierLayout(eventId);
   const setLink = useSetSponsorLink(eventId);
   const deleteSponsor = useDeleteSponsor(eventId);
+  const setPublished = useSetSponsorsPublished(eventId);
 
   const fail = () => toast.error(t("sponsorBoard.toasts.error"));
   const title =
@@ -70,6 +92,13 @@ export function SponsorSectionDrawer({
   // Baza odmówi banera przy więcej niż jednej firmie (`banner_single_image`),
   // więc przycisk gaśnie wcześniej i mówi, co trzeba zrobić.
   const bannerBlocked = logos.length > 1;
+  // Patrz nagłówek pliku: żądanie „w drodze" to zapis ALBO odświeżenie po nim.
+  const publishSettling = setPublished.isPending || (setPublished.isSuccess && isRefreshing);
+  const requested = publishSettling ? setPublished.variables : undefined;
+  const shownPublished = (logo: SponsorLogo) =>
+    requested !== undefined && requested.ids.includes(logo.id)
+      ? requested.isPublished
+      : logo.isPublished;
 
   return (
     <Sheet open={tier !== null} onOpenChange={onOpenChange}>
@@ -146,7 +175,10 @@ export function SponsorSectionDrawer({
                         />
                       )}
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{logo.name}</span>
+                    <span className="flex min-w-0 flex-1 flex-col items-start gap-1">
+                      <span className="max-w-full truncate text-sm font-medium">{logo.name}</span>
+                      {shownPublished(logo) ? null : <SponsorDraftBadge />}
+                    </span>
                     <Button
                       type="button"
                       variant="ghost"
@@ -165,6 +197,33 @@ export function SponsorSectionDrawer({
                     >
                       <Trash2 className="h-4 w-4" aria-hidden />
                     </Button>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <label htmlFor={`published-${logo.id}`} className="text-sm">
+                      {t("sponsorBoard.drawer.published")}
+                    </label>
+                    <Switch
+                      id={`published-${logo.id}`}
+                      aria-label={t("sponsorBoard.drawer.publishedFor", { name: logo.name })}
+                      checked={shownPublished(logo)}
+                      disabled={publishSettling}
+                      onCheckedChange={(isPublished) =>
+                        setPublished.mutate(
+                          { ids: [logo.id], isPublished },
+                          {
+                            onSuccess: () =>
+                              toast.success(
+                                t(
+                                  isPublished
+                                    ? "sponsorBoard.toasts.announced"
+                                    : "sponsorBoard.toasts.withdrawn",
+                                ),
+                              ),
+                            onError: (error) => toast.error(adminSponsorErrorMessage(error)),
+                          },
+                        )
+                      }
+                    />
                   </div>
                   <div className="mt-3">
                     <SponsorRedirectField

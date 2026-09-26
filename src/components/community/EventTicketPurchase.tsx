@@ -13,6 +13,13 @@
 // Którą z nich widzi kupujący, rozstrzyga JEDNA czysta funkcja (`ticketOffer`)
 // - ta sama, którą serwer liczy kwotę do pobrania. Rozjazd karty i kasy co do
 // grosza jest tu niemożliwy z konstrukcji.
+//
+// KOD RABATOWY PRZYJMUJE NASZE POLE, NIE NAKŁADKA STRIPE. Kasa biletów nie
+// pokazuje pola kodów operatora (tam kod omijałby zakres wydarzenia, limit
+// użyć i wiersz `b2b_coupon_redemptions`), więc ta ścieżka - jedyna dla
+// wydarzeń bez rodzajów wejściówek - musi mieć własne. Kod sprawdza serwer
+// (`createCheckoutOrder` -> `validate_event_ticket_coupon`); odmowa wraca
+// jako `mode: "coupon"` i mówimy ją przy polu, a nie jako awarię płatności.
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
@@ -34,6 +41,10 @@ import {
   parseTicketAllowance,
   ticketOffer,
 } from "@/lib/events/ticketAllowance";
+import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
+
+// Pole kodu mówi tymi samymi zdaniami co kasa zgłoszenia (`eventRegistration.payment.*`).
+ensureEventRegistrationI18n();
 
 export interface EventTicketPurchaseProps {
   eventId: string;
@@ -68,6 +79,8 @@ export function EventTicketPurchase({
   // `clientSecret` sesji Stripe - modal osadzonego checkoutu zamiast nakładki.
   const [checkoutSecret, setCheckoutSecret] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [promo, setPromo] = useState("");
+  const [codeRefused, setCodeRefused] = useState(false);
 
   // Pula biletów wliczonych w plan. Awaria odczytu degraduje do PUSTEJ puli,
   // czyli do pełnej ceny - jedyny bezpieczny kierunek: w drugą stronę błąd
@@ -87,9 +100,10 @@ export function EventTicketPurchase({
     // ma jak przyznać sobie biletu z pominięciem tej ścieżki.
     mutationFn: () => rsvpEvent(eventId, "going"),
     onSuccess: (result) => {
-      allowanceQ.refetch().catch(() => {
-        /* licznik jest informacją, nie warunkiem - odświeży się przy kolejnym wejściu */
-      });
+      // Licznik jest informacją, nie warunkiem. `refetch()` bez `throwOnError`
+      // NIE odrzuca obietnicy - błąd odczytu ląduje w stanie zapytania - więc
+      // `.catch` byłby martwą gałęzią, której żaden przebieg nie wywoła.
+      void allowanceQ.refetch();
       onClaimed?.();
       if (result.status === "waitlist") {
         toast.success(t("community.events.toastWaitlist", { position: result.waitlist_position }));
@@ -127,6 +141,8 @@ export function EventTicketPurchase({
       return;
     }
     setBusy(true);
+    setCodeRefused(false);
+    const code = promo.trim();
     try {
       const res = await checkout({
         data: {
@@ -135,10 +151,14 @@ export function EventTicketPurchase({
           success_path: `/events/${slug}`,
           cancel_path: `/events/${slug}`,
           environment: getStripeEnvironment(),
+          ...(code.length > 0 ? { coupon_code: code } : {}),
         },
       });
       if (!res.ok) {
-        toast.error(t("checkout.paymentsNotConfigured"));
+        // Odmowa KODU to nie awaria płatności: mówimy ją przy polu, a
+        // kupujący może poprawić kod albo go usunąć i zapłacić pełną cenę.
+        if (res.mode === "coupon") setCodeRefused(true);
+        else toast.error(t("checkout.paymentsNotConfigured"));
         return;
       }
       if (res.mode === "stripe") {
@@ -214,6 +234,28 @@ export function EventTicketPurchase({
               pct: offer.discountPct,
               full: formatMoney(offer.faceValueCents, currency, lang),
             })}
+          </p>
+        )}
+        {!isFull && offer.kind !== "free" && (
+          <label className="mt-2 block w-full max-w-xs space-y-1 text-sm">
+            <span className="font-medium">{t("eventRegistration.payment.promoLabel")}</span>
+            <input
+              value={promo}
+              maxLength={64}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(event) => {
+                setPromo(event.target.value.toUpperCase());
+                setCodeRefused(false);
+              }}
+              placeholder={t("eventRegistration.payment.promoPlaceholder")}
+              className="h-9 w-full rounded-[6px] border border-input bg-background px-3 text-sm uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </label>
+        )}
+        {codeRefused && (
+          <p role="status" className="text-sm text-destructive">
+            {t("eventRegistration.payment.promoError")}
           </p>
         )}
       </div>

@@ -4,8 +4,9 @@ import { test, expect, type Page, type Route } from "@playwright/test";
 //
 // PŁASZCZYZNA DANYCH JEST ZAŚLEPIONA NA POZIOMIE SIECI, NIE MOCKA MODUŁU -
 // dokładnie jak w `scanner.spec.ts`. Formularz rozmawia z bazą przez dwa RPC
-// (`event_registration_form`, `event_register`), a kasę woła przez serwerową
-// funkcję pod `/_serverFn/*`. W CI nie ma ani bazy, ani operatora płatności,
+// (`event_registration_form`, `event_register`), a kasę woła przez serwerowe
+// funkcje pod `/_serverFn/*` - podgląd kwoty (GET, tylko odczyt) i zamówienie
+// (POST). W CI nie ma ani bazy, ani operatora płatności,
 // więc przechwytujemy dokładnie te adresy: test przechodzi przez PRAWDZIWĄ
 // trasę, prawdziwy SSR, prawdziwy formularz i prawdziwą molekułę kasy, a udaje
 // wyłącznie to, czego w CI nie ma. ŻADEN request nie wychodzi do sieci -
@@ -101,11 +102,33 @@ interface Calls {
   register: Array<Record<string, unknown>>;
   /** Każde wywołanie serwerowej funkcji - adres i ładunek, bez zgadywania. */
   serverFn: Array<{ url: string; body: string }>;
+  /** Wywołania podglądu kasy (`quoteEventTicketCheckout`) - odkodowany adres. */
+  quote: string[];
+}
+
+/**
+ * Podgląd kasy dla JEDNEGO miejsca bez kodu - kształt `EventTicketQuote`
+ * (`src/lib/billing/eventTicketPricing.server.ts`). Tę kwotę ekran
+ * potwierdzenia pokazuje jako „Do zapłaty": cena jednego miejsca z `event_register`
+ * nie stoi już w nagłówku, bo przy grupie i kodzie kwotowym byłaby nieprawdziwa.
+ */
+function quote(priceCents: number) {
+  return {
+    seats: 1,
+    unitCents: priceCents,
+    subtotalCents: priceCents,
+    currency: "PLN",
+    coupon: null,
+    discountCents: 0,
+    totalCents: priceCents,
+    couponError: null,
+    taxMode: null,
+  };
 }
 
 /** Zaślepia płaszczyznę danych zapisu i kasę; zwraca ślad wywołań. */
 async function stubRegistrationPlane(page: Page, priceCents: number): Promise<Calls> {
-  const calls: Calls = { register: [], serverFn: [] };
+  const calls: Calls = { register: [], serverFn: [], quote: [] };
 
   const json = (route: Route, body: unknown) =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
@@ -130,10 +153,20 @@ async function stubRegistrationPlane(page: Page, priceCents: number): Promise<Ca
     await json(route, REGISTERED_UNPAID);
   });
 
-  // Serwerowa funkcja kasy. NIE dotykamy operatora płatności: oddajemy tryb
-  // mock, czyli tę samą odpowiedź, którą daje środowisko bez dostawcy.
+  // Serwerowe funkcje kasy. NIE dotykamy operatora płatności.
+  // - PODGLĄD (GET, ładunek w adresie z `ticket_type_id`) dostaje wycenę -
+  //   odpowiedź w kształcie zamówienia nie ma kwoty, więc ekran nie miałby
+  //   czego pokazać;
+  // - ZAMÓWIENIE (POST) dostaje tryb mock, czyli tę samą odpowiedź, którą
+  //   daje środowisko bez dostawcy.
   await page.route("**/_serverFn/**", async (route) => {
     const request = route.request();
+    const url = decodeURIComponent(request.url());
+    if (request.method() === "GET" && url.includes("ticket_type_id")) {
+      calls.quote.push(url);
+      await json(route, { result: quote(priceCents) });
+      return;
+    }
     calls.serverFn.push({ url: request.url(), body: request.postData() ?? "" });
     await json(route, {
       result: { ok: true, mode: "mock", url: "/checkout/success", orderId: "o-1" },
@@ -244,6 +277,10 @@ test("zalogowany kończy zapis i dostaje KWOTĘ oraz drogę do kasy", async ({ p
   await expect(page.getByText(/150,00/).first()).toBeVisible();
   await expect(page.getByText(/nie został jeszcze wygenerowany/i)).toBeVisible();
   await expect(page.getByRole("button", { name: /^Zapłać$/ })).toBeVisible();
+  // Kwotę mówi PODGLĄD kasy dla TEGO zgłoszenia - ta sama wycena, którą
+  // policzy zamówienie - a nie cena jednego miejsca z odpowiedzi zapisu.
+  expect(calls.quote.length, "podgląd kasy został zapytany").toBeGreaterThan(0);
+  expect(calls.quote[0]).toContain(REGISTRATION_ID);
 });
 
 test("kasa bez skonfigurowanej bramki mówi to wprost, zamiast milczeć", async ({ page }) => {

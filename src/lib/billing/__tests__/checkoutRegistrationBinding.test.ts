@@ -88,6 +88,12 @@ function client() {
       if (fn === "event_ticket_checkout_quote") {
         return { data: state.quote, error: null };
       }
+      // Liczba miejsc jest fail-closed: `null` z tej funkcji to odmowa
+      // `seats_unavailable`, a nie ciche jedno miejsce - zgłoszenie bez gości
+      // to w bazie `1`.
+      if (fn === "event_registration_group_seats") {
+        return { data: 1, error: null };
+      }
       return { data: null, error: null };
     },
     from: (table: string) => ({

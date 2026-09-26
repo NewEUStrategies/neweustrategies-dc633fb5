@@ -13,11 +13,17 @@
 // STRONICOWANIE JEST SERWEROWE. `total_count` przychodzi w kazdym wierszu okna
 // nad zapytaniem, wiec licznik stron nie wymaga drugiego zapytania, a lista w
 // dniu wydarzenia nie ciagnie tysiaca wierszy do przegladarki.
+//
+// GRUPA I BILET Z OSOBNEGO ZAPYTANIA. Lista nie wie, kto jest gosciem czyjej
+// rejestracji grupowej ani czy bilet z kodem QR wyszedl mailem - wie o tym
+// `admin_event_registration_group_links`. Bez tego organizator widzial gosci
+// jak zwykle zgloszenia, nie wiedzial, ze zatwierdzenie prowadzacego przyjmie
+// cala grupe, i nie mial jak wyslac biletu komus, do kogo mail nie doszedl.
 import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { BellRing, ChevronLeft, ChevronRight, Download, Search } from "lucide-react";
+import { BellRing, ChevronLeft, ChevronRight, Download, MailPlus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -35,9 +41,12 @@ import { adminRegistrationErrorMessage } from "@/lib/events/adminRegistrationErr
 import { notifyEventRegistrationDecision } from "@/lib/events/registrationNotify.functions";
 import { registrationsCsvFileName, registrationsToCsv } from "@/lib/events/registrationsCsv";
 import { formatDateTime, uiLang } from "@/lib/i18n/format";
+import { ensureI18n as ensureAdminEventRegistrationI18n } from "@/lib/i18n-admin-event-registration";
 import {
   allowedRegistrationActions,
   areConsentsWithdrawn,
+  canResendTicket,
+  groupLeadName,
   hasMissingRequiredTerms,
   isAwaitingWaitlistNotice,
   registrationGroupLabel,
@@ -47,7 +56,9 @@ import {
   registrationPersonName,
   registrationStatusTone,
   registrationTicketLabel,
+  ticketBadge,
   type StatusTone,
+  type TicketBadge,
 } from "@/lib/events/registrationRows";
 import {
   fetchRegistrations,
@@ -55,6 +66,7 @@ import {
   REGISTRATION_STATUSES,
   type EventRegistrationRow,
   type RegistrationAction,
+  type RegistrationGroupLink,
   type RegistrationStatusFilter,
 } from "@/lib/events/registrationsApi";
 import {
@@ -63,21 +75,47 @@ import {
   useMarkRegistrationsNotified,
   usePromoteFromWaitlist,
   useRegistrationCounts,
+  useRegistrationGroupLinks,
   useRegistrationsList,
+  useResendEventTicket,
 } from "@/lib/events/useEventRegistrations";
+
+// Plakietki grupy i biletu oraz ich komunikaty mieszkaja w tej nakladce.
+ensureAdminEventRegistrationI18n();
 
 const ALL_TICKETS = "__all__";
 
 /** Gorna granica jednej strony `admin_event_registrations_list` - lustro SQL. */
 const EXPORT_PAGE_SIZE = 200;
 
+type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
+
 /** Tonacja stanu -> wariant plakietki. Kolory pochodza wylacznie z tokenow. */
-const TONE_VARIANT: Record<StatusTone, "default" | "secondary" | "destructive" | "outline"> = {
+const TONE_VARIANT: Record<StatusTone, BadgeVariant> = {
   success: "default",
   warning: "secondary",
   danger: "destructive",
   info: "secondary",
   neutral: "outline",
+};
+
+/** Plakietka biletu -> klucz slownika (`...registrations.badges.*`). */
+const TICKET_BADGE_KEYS: Record<TicketBadge, string> = {
+  sent: "ticketSent",
+  notSent: "ticketNotSent",
+  awaitingPayment: "ticketAwaitingPayment",
+  undeliverable: "ticketUndeliverable",
+};
+
+/**
+ * Wariant plakietki biletu. „Nie dotarl" jest czerwony: organizator musi
+ * przekazac bilet inna droga, a sama ponowna wysylka tego nie naprawi.
+ */
+const TICKET_BADGE_VARIANT: Record<TicketBadge, BadgeVariant> = {
+  sent: "outline",
+  notSent: "secondary",
+  awaitingPayment: "outline",
+  undeliverable: "destructive",
 };
 
 const TOAST_KEYS: Record<RegistrationAction, string> = {
@@ -119,10 +157,23 @@ export function RegistrationsListPanel({
   const listQ = useRegistrationsList({ ...filters, status, limit, offset });
   const countsQ = useRegistrationCounts(filters);
   const ticketsQ = useEventTickets(eventId);
+  // Powiazania tylko dla wierszy widocznej strony - zapytanie o cale wydarzenie
+  // ciagneloby przy duzym kongresie tysiace wierszy po kazdej decyzji.
+  const pageIds = useMemo(() => (listQ.data?.rows ?? []).map((row) => row.id), [listQ.data]);
+  const groupLinksQ = useRegistrationGroupLinks(eventId, pageIds);
+  const links = useMemo(
+    () =>
+      new Map<string, RegistrationGroupLink>(
+        (groupLinksQ.data ?? []).map((link) => [link.registration_id, link]),
+      ),
+    [groupLinksQ.data],
+  );
+  const linkOf = (id: string): RegistrationGroupLink | null => links.get(id) ?? null;
 
   const decide = useDecideRegistration(eventId);
   const promote = usePromoteFromWaitlist(eventId);
   const markNotified = useMarkRegistrationsNotified(eventId);
+  const resend = useResendEventTicket(eventId);
   // Wysylka maila zyje na serwerze (kolejka, idempotencja, lista wykluczen);
   // panel jest tylko wyzwalaczem i pokazuje wynik.
   const notifyDecision = useServerFn(notifyEventRegistrationDecision);
@@ -168,6 +219,12 @@ export function RegistrationsListPanel({
             })
               .then((result) => {
                 if (!result.ok) toast.error(t(`${base}.toasts.notifyFailed`));
+                // Bilety wychodza tym samym wywolaniem, takze gdy mail o decyzji
+                // padl - organizator widzi ich liczbe osobno.
+                const tickets = result.ticketsSent ?? 0;
+                if (tickets > 0) toast.success(t(`${base}.toasts.ticketsSent`, { count: tickets }));
+                // Znacznik wysylki zmienil sie PO odswiezeniu po decyzji.
+                void groupLinksQ.refetch();
               })
               .catch(() => toast.error(t(`${base}.toasts.notifyFailed`)));
           }
@@ -207,11 +264,14 @@ export function RegistrationsListPanel({
     void (async () => {
       let sent = 0;
       let failed = 0;
+      let tickets = 0;
       for (const registrationId of awaitingIds) {
         try {
           const result = await notifyDecision({ data: { registrationId, notice: "promoted" } });
           if (result.ok) sent += 1;
           else failed += 1;
+          // Awans z rezerwy to przyjecie - bilety wychodza razem z powiadomieniem.
+          tickets += result.ticketsSent ?? 0;
         } catch {
           failed += 1;
         }
@@ -219,12 +279,58 @@ export function RegistrationsListPanel({
       setNotifying(false);
       if (sent > 0) toast.success(t(`${base}.toasts.notified`, { count: sent }));
       if (failed > 0) toast.error(t(`${base}.toasts.notifyFailedCount`, { count: failed }));
+      if (tickets > 0) toast.success(t(`${base}.toasts.ticketsSent`, { count: tickets }));
       // Pieczec stawia serwer, ale to panel trzyma liste - odswiezamy ja,
       // zeby wiersze zniknely z „czeka na powiadomienie".
       markNotified.reset();
       void listQ.refetch();
       void countsQ.refetch();
+      void groupLinksQ.refetch();
     })();
+  };
+
+  /**
+   * Ponowna wysylka biletu z kodem QR.
+   *
+   * `includeGroup` ROZROZNIA DWA PRZYCISKI. „Wyslij bilet ponownie" dotyczy
+   * TEJ osoby - wydanie rotuje kod, wiec bilety reszty grupy nie moga
+   * przestac dzialac tylko dlatego, ze jeden gosc zgubil maila. „Wyslij bilety
+   * calej grupie" (tylko u prowadzacego) to naprawa hurtowa, np. grupy
+   * ostemplowanej jako wyslana przez backfill 0044.
+   *
+   * ZERO WYSLANYCH TO NIE SUKCES. Awaria poczty konczy sie `sent: 0` -
+   * organizator dostaje wtedy blad, nie „wyslano".
+   *
+   * ...ALE TEZ NIE ZAWSZE AWARIA. Gdy CALA grupa jest na liscie wykluczen,
+   * serwer nie przekazal do wysylki nikogo (`attempted: 0`) - nic nie
+   * zawiodlo, wiec zostaje sam komunikat o pominieciu, bez „Nie udalo sie
+   * wyslac biletu". Rozstrzyga `attempted`, a nie `skippedSuppressed`: grupa
+   * z pominietymi ORAZ gosciem, ktorego mail padl, nadal pokazuje blad.
+   *
+   * POMINIECI MAJA POWOD. Serwer nie rotuje kodu osobom z listy wykluczen
+   * (nowy bilet by nie dotarl, a stary przestalby dzialac) i oddaje ich
+   * liczbe - bez osobnego komunikatu organizator bralby „wyslano 2 z 3" za
+   * awarie poczty albo nie zauwazylby wcale, ze ktos biletu nie dostal.
+   * Pojedynczy wiersz z takim adresem wraca odmowa `ticket_address_suppressed`.
+   */
+  const runResend = (row: EventRegistrationRow, includeGroup: boolean) => {
+    resend.mutate(
+      { registrationId: row.id, includeGroup },
+      {
+        onSuccess: ({ sent, attempted, skippedSuppressed }) => {
+          if (sent > 0) toast.success(t(`${base}.toasts.ticketResent`, { count: sent }));
+          else if (attempted > 0 || skippedSuppressed === 0) {
+            toast.error(t(`${base}.toasts.ticketResendFailed`));
+          }
+          if (skippedSuppressed > 0) {
+            toast.warning(
+              t(`${base}.toasts.ticketResendSkippedSuppressed`, { count: skippedSuppressed }),
+            );
+          }
+        },
+        onError: fail,
+      },
+    );
   };
 
   /**
@@ -285,6 +391,14 @@ export function RegistrationsListPanel({
       }
     })();
   };
+
+  // Zatwierdzenie prowadzacego z goscmi przyjmuje ich razem z nim (kaskada
+  // w bazie) - organizator ma to przeczytac PRZED kliknieciem „Potwierdz".
+  const decidedGuests = decided === null ? 0 : (linkOf(decided.id)?.guest_count ?? 0);
+  const approveHint =
+    action === "approve" && decidedGuests > 0
+      ? t(`${base}.decideDialog.approveGroupHint`, { count: decidedGuests })
+      : null;
 
   const seatsLabel = (): string => {
     if (counts === null || counts.capacity === null) {
@@ -442,6 +556,11 @@ export function RegistrationsListPanel({
           {rows.map((row) => {
             const ticket = registrationTicketLabel(row, lang);
             const group = registrationGroupLabel(row, lang);
+            const link = linkOf(row.id);
+            const leadName = groupLeadName(link);
+            const guests = link?.guest_count ?? 0;
+            const resendable = canResendTicket(row.status, link);
+            const ticketState = ticketBadge(row.status, link);
             return (
               <li key={row.id} className="flex flex-wrap items-start gap-3 p-4">
                 <div className="min-w-[14rem] flex-1 space-y-1">
@@ -460,6 +579,25 @@ export function RegistrationsListPanel({
                     </Badge>
                     {ticket === null ? null : <Badge variant="outline">{ticket}</Badge>}
                     {group === null ? null : <Badge variant="outline">{group}</Badge>}
+                    {leadName === null ? null : (
+                      <Badge variant="outline">
+                        {leadName === ""
+                          ? t(`${base}.badges.guest`)
+                          : t(`${base}.badges.guestOf`, { name: leadName })}
+                      </Badge>
+                    )}
+                    {guests > 0 ? (
+                      <Badge variant="outline">
+                        {t(`${base}.badges.groupLead`, { count: guests })}
+                      </Badge>
+                    ) : null}
+                    {/* Plakietka biletu tylko tam, gdzie bilet sie nalezy - u oczekujacego
+                        albo nieoplaconego „niewyslany" wygladalby jak awaria poczty. */}
+                    {ticketState === null ? null : (
+                      <Badge variant={TICKET_BADGE_VARIANT[ticketState]}>
+                        {t(`${base}.badges.${TICKET_BADGE_KEYS[ticketState]}`)}
+                      </Badge>
+                    )}
                     {row.status === "waitlist" && row.waitlist_position !== null ? (
                       <Badge variant="outline">
                         {t("adminEventRegistration.waitlist.position", {
@@ -507,6 +645,27 @@ export function RegistrationsListPanel({
                       {t(`adminEventRegistration.actions.${value}`)}
                     </Button>
                   ))}
+                  {resendable ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={resend.isPending}
+                      onClick={() => runResend(row, false)}
+                    >
+                      <MailPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+                      {t("adminEventRegistration.actions.resendTicket")}
+                    </Button>
+                  ) : null}
+                  {resendable && guests > 0 ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={resend.isPending}
+                      onClick={() => runResend(row, true)}
+                    >
+                      {t("adminEventRegistration.actions.resendGroupTickets")}
+                    </Button>
+                  ) : null}
                 </div>
               </li>
             );
@@ -548,6 +707,7 @@ export function RegistrationsListPanel({
         open={action !== null}
         action={action}
         personName={decided === null ? "" : registrationPersonName(decided)}
+        hint={approveHint}
         isPending={decide.isPending}
         onOpenChange={(open) => {
           if (!open) {

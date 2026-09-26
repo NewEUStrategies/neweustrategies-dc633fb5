@@ -26,6 +26,7 @@ import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
 import { packageInviteUrl } from "@/lib/events/packagesApi";
 import {
   admissionQuoteMessageKey,
+  packagePurchaseRefusal,
   type EventPackageOfferRow,
   type MyPackageOrderRow,
 } from "@/lib/events/admissionApi";
@@ -68,6 +69,10 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
   const [openOrderId, setOpenOrderId] = useState<string | null>(null);
 
   const offers = offerQ.data ?? [];
+  // Do pierwszej odpowiedzi `data` jest undefined. JEDNA zamiana na pustą
+  // listę zamiast dwóch w JSX - druga była martwa, bo listę renderujemy
+  // dopiero przy niepustych danych.
+  const orders = ordersQ.data ?? [];
   const selected = useMemo(
     () => offers.find((row) => row.id === selectedId) ?? null,
     [offers, selectedId],
@@ -83,11 +88,12 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
   );
   const quote = quoteQ.data ?? null;
 
-  function buy() {
-    if (selected === null) return;
+  // Pakiet przychodzi PARAMETREM z sekcji, która renderuje się tylko przy
+  // wybranym pakiecie - bez nieosiągalnego strażnika na brak wyboru.
+  function buy(pkg: EventPackageOfferRow) {
     purchase.mutate(
       {
-        packageId: selected.id,
+        packageId: pkg.id,
         buyerName,
         buyerEmail,
         companyId: null,
@@ -214,7 +220,7 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
 
           <Button
             type="button"
-            onClick={buy}
+            onClick={() => buy(selected)}
             disabled={purchase.isPending || quote === null || quote.ok !== true}
           >
             {purchase.isPending ? t("eventPackages.buyPending") : t("eventPackages.buyAction")}
@@ -236,11 +242,11 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
           <p role="alert" className="text-sm text-destructive">
             {t("eventPackages.ordersFailed")}
           </p>
-        ) : (ordersQ.data ?? []).length === 0 ? (
+        ) : orders.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("eventPackages.ordersEmpty")}</p>
         ) : (
           <ul className="space-y-3">
-            {(ordersQ.data ?? []).map((order) => (
+            {orders.map((order) => (
               <OrderCard
                 key={order.id}
                 order={order}
@@ -258,8 +264,13 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
 }
 
 function purchaseErrorMessage(error: unknown, t: (key: string) => string): string {
+  // Odmowa WYCENY powtorzona przy zakupie (np. kod wyczerpany przez rownolegly
+  // zakup miedzy wycena a kliknieciem) ma zdanie ze slownika wyceny.
+  const refusal = packagePurchaseRefusal(error);
+  if (refusal !== null) return t(admissionQuoteMessageKey(refusal));
   const message = error instanceof Error ? error.message : String(error);
-  const head = message.split(":")[0]?.trim() ?? "";
+  // Glowa komunikatu = wszystko przed PIERWSZYM dwukropkiem.
+  const head = message.replace(/:[\s\S]*$/, "").trim();
   const known = [
     "forbidden",
     "no_free_seat",
@@ -363,7 +374,19 @@ function QuoteSummary({
       </div>
       {quote.discountCents > 0 ? (
         <div className="flex justify-between gap-4">
-          <dt className="text-muted-foreground">{t("eventPackages.discountLabel")}</dt>
+          <dt className="text-muted-foreground">
+            {/* KOD KWOTOWY SCHODZI Z KAZDEGO MIEJSCA - etykieta mowi to wprost
+                („Rabat (5 × 50 zl)"), inaczej sama suma rabatu czytala sie jak
+                „kod odjal sie raz od calego pakietu". */}
+            {quote.discountKind === "fixed" &&
+            quote.discountPerSeatCents !== null &&
+            quote.seats > 1
+              ? t("eventPackages.discountPerSeat", {
+                  seats: quote.seats,
+                  perSeat: money(quote.discountPerSeatCents, currency, locale),
+                })
+              : t("eventPackages.discountLabel")}
+          </dt>
           <dd>-{money(quote.discountCents, currency, locale)}</dd>
         </div>
       ) : null}
@@ -414,12 +437,9 @@ function OrderCard({
         onSuccess: (result) => {
           setEmail("");
           setName("");
-          setIssued(
-            packageInviteUrl(
-              typeof window === "undefined" ? "" : window.location.origin,
-              result.inviteToken,
-            ),
-          );
+          // Wywołanie zwrotne mutacji biegnie wyłącznie w przeglądarce (klik),
+          // więc `window` jest tu zawsze - strażnik SSR byłby martwą gałęzią.
+          setIssued(packageInviteUrl(window.location.origin, result.inviteToken));
           toast.success(t("eventPackages.toasts.invited"));
         },
         onError: (failure) => setError(purchaseErrorMessage(failure, t)),

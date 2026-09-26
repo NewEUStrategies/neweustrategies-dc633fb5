@@ -33,8 +33,15 @@
 // wyrenderowac. Kazda stoi nizej z nazwa i powodem - i bramka pilnuje TAKZE tego,
 // zeby wyjatek nie przezyl powierzchni, ktorej dotyczyl (nieuzywany wpis
 // czerwieni test tak samo jak brakujacy komponent).
+//
+// WYJATEK ORGANIZMU NIE ZNACZY „POWIERZCHNI NIE MA". Partnerzy to przyklad:
+// `EventSponsorTiers` i `EventSponsorsSection` same pytaja `event_sponsors_public`,
+// wiec podglad ich nie montuje - ale montuje ich RYSUNKI (`*View`) z wierszami
+// RPC panelu. Bramka pilnuje, ze te rysunki w podgladzie SA (sekcja 3) i ze pas
+// oraz sekcja „Partnerzy" stoja w podgladzie w tym samym miejscu, co na stronie
+// (sekcja 5).
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { readFileSync, readdirSync } from "node:fs";
 
 vi.mock("react-i18next", () => ({
@@ -142,8 +149,14 @@ vi.mock("@/components/community/AddToCalendar", () => ({ AddToCalendar: () => nu
 vi.mock("@/components/community/EventTicketCard", () => ({ EventTicketCard: () => null }));
 vi.mock("@/components/community/EventTicketPurchase", () => ({ EventTicketPurchase: () => null }));
 
-import { EVENT_SECTION_KEYS } from "@/lib/events/eventSections";
-import { fetchEventMenu } from "@/lib/events/publicEventApi";
+import { EVENT_SECTION_KEYS, type EventSection } from "@/lib/events/eventSections";
+import {
+  fetchEventMenu,
+  fetchEventSections,
+  fetchEventSponsors,
+} from "@/lib/events/publicEventApi";
+import type { PublicSponsorTier } from "@/lib/events/sponsorsSurface";
+import { EMPTY_PREVIEW_LIVE_DATA } from "@/components/admin/events/studio/EventPreviewLiveModule";
 import { fetchPublicEventBySlug } from "@/lib/community/publicQueries";
 import { publicEventRow } from "@/test/events/publicEventRow";
 import { renderRoute } from "@/test/routeHarness";
@@ -160,6 +173,20 @@ import {
 
 const ROUTES_DIR = "src/routes";
 const PREVIEW_CANVAS = "src/components/admin/events/studio/EventPreviewCanvas.tsx";
+/** Podstrony modulowe podgladu - drugie zrodlo rysunkow publicznych. */
+const PREVIEW_LIVE_MODULE = "src/components/admin/events/studio/EventPreviewLiveModule.tsx";
+/** Organizm publiczny, ktory montuje sekcje „Partnerzy" w kanwie. */
+const PAGE_SECTIONS = "src/components/events/public/organisms/EventPageSections.tsx";
+
+/**
+ * Organizmy z wyjatku, ktorych RYSUNEK podglad ma - nazwa organizmu i nazwa
+ * jego widoku bez zapytania. Wyjatek zwalnia z montowania zapytania, nie
+ * z pokazania powierzchni.
+ */
+const VIEW_OF_EXCEPTION: Record<string, string> = {
+  EventSponsorTiers: "EventSponsorTiersView",
+  EventSponsorsSection: "EventSponsorsSectionView",
+};
 
 /** Znacznik powloki portalu - `EventPortalShell`. */
 const SHELL = "[data-testid='event-portal-shell']";
@@ -245,7 +272,7 @@ const COMPONENT_EXCEPTIONS: Record<string, string> = {
   EventViewerProfile:
     "TOZSAMOSC WOLAJACEGO + NAWIGACJA: karta czyta `useAuth` oraz wiersz `profiles`, a „Edytuj” jest <Link>-iem do `/profile/edit`, czyli wyjsciem ze studia. SAMA KARTA jest w podgladzie - rysuje ja `EventViewerCard`, ten sam komponent, ktorego uzywa ten organizm, a fakty wnosi nakladka podgladu tym samym hookiem (`useViewerCardFacts`)",
   EventSponsorTiers:
-    "`event_sponsors_public` odmawia szkicowi (`AND e.status = 'published'`), a wydarzeniu opublikowanemu oddaje ZAPISANE przypiecia - podglad pokazuje stan niezapisany, wiec pas logotypow klamalby o tym, co redaktor wlasnie zmienia",
+    "ZAPYTANIE, nie rysunek: organizm pyta `event_sponsors_public`, ktore odmawia szkicowi (`AND e.status = 'published'`) i nie zna przypiec nieogloszonych. SAM PAS podglad ma - rysuje go `EventSponsorTiersView` z wierszami RPC panelu (`admin_event_sponsors_list`), tym samym widokiem, ktorego uzywa ten organizm",
   EventModulePage:
     "powierzchnia ZAKLADKI z wlasnym zapytaniem: sklada dokument strony CMS przez publiczny rezolwer sciezek, ktory wymaga strony i lancucha rodzicow w statusie `published`. MIARE kolumny tresci podglad ma wspolna - `EventPortalContent`, ten sam, ktorego uzywa ta molekula",
   EventAttendeesList:
@@ -253,7 +280,7 @@ const COMPONENT_EXCEPTIONS: Record<string, string> = {
   EventSpeakersGrid:
     "`get_public_speakers` ma `AND e.status = 'published'` - harness dowodzi, ze SZKIC oddaje zero kart mimo wpisanego prelegenta, wiec podglad szkicu pokazalby pusta siatke zamiast osob, ktore redaktor widzi w Tresci wydarzenia",
   EventSponsorsSection:
-    "ten sam `event_sponsors_public`, co pas poziomow: pustka na szkicu, zapisane przypiecia na wydarzeniu opublikowanym - w obu wypadkach co innego niz stan, ktory redaktor ma przed soba",
+    "ZAPYTANIE, nie rysunek: ten sam `event_sponsors_public`, co pas poziomow - pustka na szkicu. SAMA SEKCJA „Partnerzy” jest w podgladzie na stronie glownej (`EventPageSections` z `sponsorTiers`) i na zakladce „Partnerzy” (`EventPreviewLiveModule`) - rysuje ja `EventSponsorsSectionView` z wierszami RPC panelu, tym samym widokiem, ktorego uzywa ten organizm",
   EventAgendaSection:
     "poza bramka statusu (`event_agenda`) niesie ZAPIS NA SESJE (`event_session_signup`) - zywy przycisk zapisu w podgladzie panelu pozwolilby organizatorowi zapisac sie na sesje z ekranu, ktory mial tylko pokazywac",
   EventDiscussionsList:
@@ -272,8 +299,6 @@ const SECTION_EXCEPTIONS: Record<string, string> = {
     "wlasny naglowek na trasie oraz `get_public_speakers` z `AND e.status = 'published'` - szkic oddaje zero kart (harness `40_speakers.sql`)",
   agenda:
     "`event_agenda` odmawia szkicowi (`AND e.status = 'published'`), a na wydarzeniu opublikowanym sekcja nioslaby zywy zapis na sesje z ekranu panelu",
-  sponsors:
-    "`event_sponsors_public` odmawia szkicowi (`AND e.status = 'published'`), a opublikowanemu oddaje ZAPISANE przypiecia - podglad pokazuje stan niezapisany",
   materials:
     "`event_sponsor_materials_public` stoi na tej samej bramce statusu, co partnerzy - materialy przypina sie do przypiec partnerow, ktorych szkic nie ma",
 };
@@ -661,6 +686,17 @@ describe("podglad studia kontra strona publiczna - lista powierzchni", () => {
     expect(missing).toEqual([]);
   });
 
+  it("organizm partnerow w wyjatku ma w podgladzie SWOJ RYSUNEK bez zapytania", () => {
+    // Zrodla podgladu: kanwa, podstrony modulowe i organizm sekcji, ktory kanwa
+    // montuje z wierszami panelu. Wyjatek bez rysunku w zadnym z nich znaczy,
+    // ze powierzchnia strony po prostu w podgladzie nie istnieje.
+    const preview = publicImports(PREVIEW_CANVAS, PREVIEW_LIVE_MODULE, PAGE_SECTIONS);
+    for (const [organism, view] of Object.entries(VIEW_OF_EXCEPTION)) {
+      expect(COMPONENT_EXCEPTIONS[organism], organism).toBeDefined();
+      expect(preview.has(view), `${organism} -> ${view}`).toBe(true);
+    }
+  });
+
   it("nie trzyma wyjatku na powierzchnie, ktorej strona publiczna juz nie rysuje", () => {
     const route = publicImports(...publicRouteFamily());
     const stale = Object.keys(COMPONENT_EXCEPTIONS).filter((name) => !route.has(name));
@@ -744,5 +780,131 @@ describe("podglad studia rysuje szkic prawdziwymi komponentami", () => {
     render(<EventPreviewCanvas model={filledModel()} device="desktop" onNavigate={onNavigate} />);
     fireEvent.click(screen.getByRole("button", { name: "eventFront.header.tabs.overview" }));
     expect(onNavigate).toHaveBeenCalledWith(null);
+  });
+});
+
+// ── 5. PARTNERZY: TO SAMO MIEJSCE NA STRONIE I W PODGLADZIE ────────────────
+//
+// PO CO. Pas logotypow stal w kanwie POD dojazdem i kontaktem, a na stronie
+// zaraz pod spisem podstron - w przeskalowanym podgladzie spadal poza pierwszy
+// ekran i czytal sie jak „partnerow nie ma". Sekcji „Partnerzy" w podgladzie
+// nie bylo wcale. Asercja porownuje KOLEJNOSC w dokumencie po obu stronach:
+// pas, potem sekcja `#event-sponsors`, potem `#event-map`.
+
+describe("partnerzy stoja w podgladzie tam, gdzie na stronie publicznej", () => {
+  const tier: PublicSponsorTier = {
+    tierId: "tier-gold",
+    key: "gold",
+    namePl: "Zloty Partner",
+    nameEn: "Gold Partner",
+    descriptionPl: null,
+    descriptionEn: null,
+    rank: 30,
+    accentColor: null,
+    logoSize: "md",
+    benefits: [],
+    sponsors: [
+      {
+        id: "sp-nordwind",
+        name: "Nordwind Analytics",
+        logoUrl: null,
+        websiteUrl: null,
+        descriptionPl: null,
+        descriptionEn: null,
+        country: null,
+        role: "sponsor",
+        boothLabel: null,
+        sortOrder: 0,
+      },
+    ],
+  };
+
+  function section(key: "sponsors" | "map", sortOrder: number): EventSection {
+    return {
+      key,
+      sortOrder,
+      headingPl: null,
+      headingEn: null,
+      visibility: "public",
+      minTierRank: 0,
+      isLocked: false,
+      lockReason: "none",
+      hasContent: key === "sponsors" ? true : null,
+    };
+  }
+
+  /** Pas, sekcja partnerow, dojazd - w kolejnosci, w jakiej stoja w dokumencie. */
+  function orderOf(container: HTMLElement): string[] {
+    const strip = [...container.querySelectorAll("h3")].find(
+      (node) => node.textContent === "Zloty Partner" && node.closest("#event-sponsors") === null,
+    );
+    const marks: Array<[string, Element | null | undefined]> = [
+      ["pas", strip],
+      ["sekcja", container.querySelector("#event-sponsors")],
+      ["dojazd", container.querySelector("#event-map")],
+    ];
+    return marks
+      .filter((entry): entry is [string, Element] => entry[1] !== null && entry[1] !== undefined)
+      .sort(([, a], [, b]) =>
+        a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
+      )
+      .map(([name]) => name);
+  }
+
+  afterEach(() => {
+    vi.mocked(fetchEventSections).mockResolvedValue([]);
+    vi.mocked(fetchEventSponsors).mockResolvedValue([]);
+  });
+
+  it("strona publiczna: pas pod spisem, potem sekcja „Partnerzy”, potem dojazd", async () => {
+    vi.mocked(fetchPublicEventBySlug).mockResolvedValue(publicEventRow());
+    vi.mocked(fetchEventSections).mockResolvedValue([section("sponsors", 4), section("map", 6)]);
+    vi.mocked(fetchEventSponsors).mockResolvedValue([tier]);
+    const route = await renderRoute({
+      route: EventOverviewRoute,
+      path: "/events/$slug/",
+      initialEntry: `/events/${EVENT_SLUG}`,
+    });
+
+    await waitFor(() => expect(orderOf(route.container)).toEqual(["pas", "sekcja", "dojazd"]));
+  });
+
+  it("podglad: ta sama kolejnosc - z wierszami panelu zamiast zapytania publicznego", () => {
+    const { container } = render(
+      <EventPreviewCanvas
+        model={filledModel()}
+        device="desktop"
+        live={{ ...EMPTY_PREVIEW_LIVE_DATA, sponsorTiers: [tier] }}
+      />,
+    );
+
+    expect(orderOf(container)).toEqual(["pas", "sekcja", "dojazd"]);
+    const sponsors = container.querySelector<HTMLElement>("#event-sponsors");
+    expect(
+      within(sponsors as HTMLElement).getAllByText("Nordwind Analytics").length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("podglad bez partnerow: ani pasa, ani samotnego naglowka „Partnerzy”", () => {
+    const { container } = render(<EventPreviewCanvas model={filledModel()} device="desktop" />);
+
+    expect(orderOf(container)).toEqual(["dojazd"]);
+  });
+
+  it("partner nieogloszony stoi w podgladzie z plakietka w pasie i w sekcji", () => {
+    const draftTier: PublicSponsorTier = {
+      ...tier,
+      sponsors: tier.sponsors.map((sponsor) => ({ ...sponsor, isDraft: true })),
+    };
+    render(
+      <EventPreviewCanvas
+        model={filledModel()}
+        device="desktop"
+        live={{ ...EMPTY_PREVIEW_LIVE_DATA, sponsorTiers: [draftTier] }}
+      />,
+    );
+
+    // Pas i kafel sekcji - dwie plakietki z tego samego slownika panelu.
+    expect(screen.getAllByText("adminEvents.studio.preview.sponsorDraftBadge")).toHaveLength(2);
   });
 });
