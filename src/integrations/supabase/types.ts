@@ -25284,6 +25284,7 @@ export type Database = {
           type_name_pl: string
         }[]
       }
+      event_cfp_export_my_data: { Args: { p_limit?: number }; Returns: Json }
       event_cfp_public: { Args: { p_slug: string }; Returns: Json }
       event_cfp_review_get: { Args: { p_submission_id: string }; Returns: Json }
       event_cfp_review_queue: { Args: { p_slug: string }; Returns: Json }

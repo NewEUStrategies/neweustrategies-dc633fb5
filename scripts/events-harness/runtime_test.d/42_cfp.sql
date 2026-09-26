@@ -30,7 +30,8 @@
 --       zapis, szkic sesji z obsada, CRM speaker, kolizja sali cofa wszystko;
 --   (k) odpowiedz prelegenta, panel prelegenta, profil, materialy;
 --   (l) powiadomienia, wycofanie, recenzent z ocenami tylko dezaktywowany;
---   (m) RLS przez SET ROLE i izolacja najemcow.
+--   (m) RLS przez SET ROLE i izolacja najemcow;
+--   (n) eksport RODO wolajacego: zakres i wylaczenia.
 --
 -- CZEGO NIE SPRAWDZA: wysylki poczty (funkcje serwerowe - testy vitest).
 --
@@ -1481,6 +1482,113 @@ BEGIN
   END LOOP;
   PERFORM pg_temp.assert(v_hit LIKE 'rate_limited:%',
     '42/(m): seria zapisow szkicu zatrzymana bramka czestotliwosci (' || COALESCE(v_hit, 'brak') || ')');
+END
+$do$;
+
+-- ---------------------------------------------------------------------------
+-- (n) EKSPORT RODO WOLAJACEGO (`event_cfp_export_my_data`)
+--
+-- Paczka danych osobowych zawiera zgloszenia (wlasne i z udzialem wolajacego),
+-- materialy prelegenta, role i WLASNE oceny recenzenta - a NIE zawiera notatki
+-- decyzji, cudzych ocen o zgloszeniu ani danych kontaktowych wspolprelegentow.
+-- ---------------------------------------------------------------------------
+DO $do$
+DECLARE
+  v jsonb;
+  v_item jsonb;
+  v_sub1 uuid := (SELECT id FROM t42 WHERE name = 'sub1');
+  v_profile uuid := (SELECT id FROM t42 WHERE name = 'profile1');
+  v_co uuid;
+BEGIN
+  PERFORM pg_temp.assert(
+    NOT has_function_privilege('anon', 'public.event_cfp_export_my_data(integer)', 'EXECUTE')
+    AND has_function_privilege('authenticated', 'public.event_cfp_export_my_data(integer)', 'EXECUTE'),
+    '42/(n): eksport tylko dla zalogowanych');
+  PERFORM pg_temp.act_as();
+  PERFORM pg_temp.assert_raises_like(
+    $$SELECT public.event_cfp_export_my_data(10)$$, 'auth_required', '42/(n): anonim nie eksportuje');
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-0000000000ff');
+  PERFORM pg_temp.assert_raises_like(
+    $$SELECT public.event_cfp_export_my_data(10)$$, 'not_found', '42/(n): konto bez profilu = not_found');
+
+  INSERT INTO public.event_speaker_materials (tenant_id, event_id, speaker_profile_id, kind, title_pl, url, visibility)
+  VALUES ('11111111-1111-1111-1111-111111111111', '42e00000-0000-0000-0000-0000000000e1', v_profile,
+          'document', 'Tekst wystapienia', 'https://example.org/tekst.pdf', 'registered');
+
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000051');
+  v := public.event_cfp_export_my_data(NULL);
+  PERFORM pg_temp.assert(jsonb_array_length(v->'event_cfp_submissions') = 3,
+    '42/(n): zglaszajacy dostaje WSZYSTKIE swoje zgloszenia (przyjete, wycofane, szkic) (dostano: '
+    || jsonb_array_length(v->'event_cfp_submissions') || ')');
+  SELECT e INTO v_item FROM jsonb_array_elements(v->'event_cfp_submissions') e
+   WHERE e->>'title_pl' = 'Transformacja energetyczna';
+  PERFORM pg_temp.assert(
+    (v_item->>'is_submitter')::boolean AND v_item->>'status' = 'confirmed'
+    AND v_item->>'event_slug' = 'cfp-42' AND v_item->>'track_name_pl' = 'Energia'
+    AND v_item->>'feedback_to_speaker' = 'Gratulacje!' AND v_item->>'notify_lang' = 'en'
+    AND v_item->'my_roles' = '["speaker"]'::jsonb
+    AND (v_item->'review_summary'->>'reviews_count')::int >= 1
+    AND v_item->'review_summary'->'overall_avg' <> 'null'::jsonb,
+    '42/(n): zgloszenie z trescia, stanem, informacja zwrotna i ocena ZBIORCZA po decyzji');
+  PERFORM pg_temp.assert(
+    v_item->'co_speakers' = '[{"first_name":"Wanda","last_name":"Wspol","role":"panelist"}]'::jsonb,
+    '42/(n): wspolprelegent tylko imieniem, nazwiskiem i rola - bez adresu e-mail');
+  PERFORM pg_temp.assert(
+    position('Swietny temat' IN v::text) = 0 AND position('Mocny temat' IN v::text) = 0
+    AND position('wspolprelegent@' IN lower(v::text)) = 0 AND NOT (v_item ? 'decision_note'),
+    '42/(n): bez notatki decyzji, cudzych ocen i adresu wspolprelegenta');
+  PERFORM pg_temp.assert(
+    jsonb_array_length(v->'event_speaker_materials') = 1
+    AND v->'event_speaker_materials'->0->>'url' = 'https://example.org/tekst.pdf'
+    AND v->'event_speaker_materials'->0->>'visibility' = 'registered',
+    '42/(n): materialy nakladki scenicznej wolajacego');
+  PERFORM pg_temp.assert(
+    v->'event_cfp_reviewer_roles' = '[]'::jsonb AND v->'event_cfp_reviews_written' = '[]'::jsonb,
+    '42/(n): prelegent bez roli recenzenta ma puste sekcje recenzenta');
+  PERFORM pg_temp.assert(
+    jsonb_array_length(public.event_cfp_export_my_data(1)->'event_cfp_submissions') = 1
+    AND jsonb_array_length(public.event_cfp_export_my_data(0)->'event_cfp_submissions') = 1,
+    '42/(n): sufit wierszy dziala i nie schodzi ponizej jednego');
+
+  -- Recenzent: rola i WLASNE oceny, bez danych prelegenta.
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000061');
+  v := public.event_cfp_export_my_data(100);
+  PERFORM pg_temp.assert(
+    jsonb_array_length(v->'event_cfp_reviewer_roles') = 1
+    AND NOT (v->'event_cfp_reviewer_roles'->0->>'is_active')::boolean
+    AND v->'event_cfp_reviewer_roles'->0->>'event_slug' = 'cfp-42',
+    '42/(n): rola recenzenta (takze dezaktywowana) jest w eksporcie');
+  PERFORM pg_temp.assert(
+    jsonb_array_length(v->'event_cfp_reviews_written') = 2
+    AND EXISTS (SELECT 1 FROM jsonb_array_elements(v->'event_cfp_reviews_written') e
+                 WHERE e->>'comment_private' = 'Mocny temat.'
+                   AND e->>'submission_title_pl' = 'Transformacja energetyczna'),
+    '42/(n): wlasne oceny recenzenta z wlasnym komentarzem i tytulem zgloszenia');
+  PERFORM pg_temp.assert(position('Piotr' IN v::text) = 0 AND v->'event_cfp_submissions' = '[]'::jsonb,
+    '42/(n): eksport recenzenta nie niesie danych prelegenta');
+
+  -- Wspolprelegent z kontem, ktorego kartoteka przyjecia jest powiazana z kontem.
+  SELECT sp.person_id INTO v_co FROM public.event_cfp_submission_speakers sp
+   WHERE sp.submission_id = v_sub1 AND NOT sp.is_primary;
+  UPDATE public.event_people p SET user_id = '42a00000-0000-0000-0000-000000000063' WHERE p.id = v_co;
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000063');
+  v := public.event_cfp_export_my_data(100);
+  PERFORM pg_temp.assert(
+    jsonb_array_length(v->'event_cfp_submissions') = 1
+    AND NOT (v->'event_cfp_submissions'->0->>'is_submitter')::boolean
+    AND v->'event_cfp_submissions'->0->'my_roles' = '["panelist"]'::jsonb
+    AND v->'event_cfp_submissions'->0->'co_speakers' = '[{"first_name":"Piotr","last_name":"Prelegent","role":"speaker"}]'::jsonb
+    AND position('prelegent.jeden' IN lower(v::text)) = 0,
+    '42/(n): wspolprelegent dostaje zgloszenie ze swoja rola, zglaszajacy bez adresu');
+
+  -- Izolacja najemcow: uzytkownik najemcy B nie widzi niczego z A.
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-0000000000b2');
+  v := public.event_cfp_export_my_data(100);
+  PERFORM pg_temp.assert(
+    v->'event_cfp_submissions' = '[]'::jsonb AND v->'event_speaker_materials' = '[]'::jsonb
+    AND v->'event_cfp_reviewer_roles' = '[]'::jsonb AND v->'event_cfp_reviews_written' = '[]'::jsonb,
+    '42/(n): najemca B: pusta paczka, nic z najemcy A');
+  PERFORM pg_temp.act_as();
 END
 $do$;
 
