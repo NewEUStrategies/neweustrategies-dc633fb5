@@ -24,7 +24,9 @@ function docWith(seatId: string | null) {
     seatId === null
       ? null
       : {
-          closest: () => ({ getAttribute: (name: string) => (name === "data-seat-id" ? seatId : null) }),
+          closest: () => ({
+            getAttribute: (name: string) => (name === "data-seat-id" ? seatId : null),
+          }),
         };
   return { elementFromPoint: vi.fn(() => element as unknown as Element | null) };
 }
@@ -44,8 +46,12 @@ describe("cel upuszczenia na planie sali", () => {
     const doc = docWith("seat-9");
     expect(seatDropTarget(drop({ over: null }), "canvas", doc)).toBeNull();
     expect(seatDropTarget(drop({ over: { id: "inne" } }), "canvas", doc)).toBeNull();
-    expect(seatDropTarget(drop({ active: { data: { current: undefined } } }), "canvas", doc)).toBeNull();
-    expect(seatDropTarget(drop({ activatorEvent: new Event("keydown") }), "canvas", doc)).toBeNull();
+    expect(
+      seatDropTarget(drop({ active: { data: { current: undefined } } }), "canvas", doc),
+    ).toBeNull();
+    expect(
+      seatDropTarget(drop({ activatorEvent: new Event("keydown") }), "canvas", doc),
+    ).toBeNull();
     expect(
       seatDropTarget(
         drop({ activatorEvent: Object.assign(new Event("x"), { clientX: 1 }) }),
@@ -58,7 +64,11 @@ describe("cel upuszczenia na planie sali", () => {
 
   it("brak nazwy w danych przeciągania daje pusty napis, nie `undefined`", () => {
     expect(
-      seatDropTarget(drop({ active: { data: { current: { registrationId: "r2" } } } }), "canvas", docWith("s")),
+      seatDropTarget(
+        drop({ active: { data: { current: { registrationId: "r2" } } } }),
+        "canvas",
+        docWith("s"),
+      ),
     ).toEqual({ seatId: "s", registrationId: "r2", name: "" });
   });
 });

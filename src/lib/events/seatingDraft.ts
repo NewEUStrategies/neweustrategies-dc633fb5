@@ -132,7 +132,8 @@ export function validateMapDraft(draft: MapDraft): FieldError<MapField>[] {
   const errors: FieldError<MapField>[] = [];
   const name = draft.name.trim();
   if (name === "") errors.push({ field: "name", messageKey: `${MV}nameRequired` });
-  if (name.length > SEAT_MAP_NAME_MAX) errors.push({ field: "name", messageKey: `${MV}nameTooLong` });
+  if (name.length > SEAT_MAP_NAME_MAX)
+    errors.push({ field: "name", messageKey: `${MV}nameTooLong` });
   const width = intOrNull(draft.width);
   const height = intOrNull(draft.height);
   if (!between(width, SEAT_MAP_SIZE_MIN, SEAT_MAP_SIZE_MAX)) {
@@ -338,27 +339,32 @@ export function validateSectionDraft(draft: SectionDraft): FieldError<SectionFie
   return errors;
 }
 
+/** Wejscie zapisu sekcji - wszystkie parametry ukladu zawsze obecne. */
+export type SectionDraftInput = Required<Omit<SeatSectionInput, "id" | "mapId" | "sortOrder">> &
+  Pick<SeatSectionInput, "id" | "mapId">;
+
 /** Parametry podgladu na zywo - `null`, dopoki szkic nie przechodzi walidacji. */
 export function sectionDraftLayout(draft: SectionDraft): SectionLayoutParams | null {
   if (validateSectionDraft(draft).length > 0) return null;
-  const rows = draft.kind === "rows";
+  // Te same liczby, ktore pojda do bazy - podglad nie ma wlasnej konwersji.
+  const input = sectionDraftToInput(draft, "");
   return {
-    kind: draft.kind,
-    rowsCount: rows ? intOrNull(draft.rowsCount) : null,
-    seatsPerRow: rows ? intOrNull(draft.seatsPerRow) : null,
-    rowLabelScheme: rows ? draft.rowLabelScheme : null,
-    rowLabelStart: intOrNull(draft.rowLabelStart) ?? 1,
-    seatNumbering: rows ? draft.seatNumbering : null,
-    seatNumberStart: intOrNull(draft.seatNumberStart) ?? 1,
-    seatPitch: numberOrNull(draft.seatPitch) ?? 50,
-    rowPitch: numberOrNull(draft.rowPitch) ?? 60,
-    aisleAfter: rows ? (parseAisles(draft.aisles) ?? []) : [],
-    tableShape: rows ? null : draft.tableShape,
-    tableSeats: rows ? null : intOrNull(draft.tableSeats),
+    kind: input.kind,
+    rowsCount: input.rowsCount,
+    seatsPerRow: input.seatsPerRow,
+    rowLabelScheme: input.rowLabelScheme,
+    rowLabelStart: input.rowLabelStart,
+    seatNumbering: input.seatNumbering,
+    seatNumberStart: input.seatNumberStart,
+    seatPitch: input.seatPitch,
+    rowPitch: input.rowPitch,
+    aisleAfter: input.aisleAfter,
+    tableShape: input.tableShape,
+    tableSeats: input.tableSeats,
   };
 }
 
-export function sectionDraftToInput(draft: SectionDraft, mapId: string): SeatSectionInput {
+export function sectionDraftToInput(draft: SectionDraft, mapId: string): SectionDraftInput {
   const rows = draft.kind === "rows";
   return {
     ...(draft.id === null ? { mapId } : { id: draft.id }),

@@ -567,7 +567,8 @@ export const adminEventSeatingEn = {
       selectionCount_one: "{{count}} seat selected",
       selectionCount_other: "{{count}} seats selected",
       clearSelection: "Clear selection",
-      armedHint: "Selected: {{name}}. Click a free seat on the plan or drag the person onto the plan.",
+      armedHint:
+        "Selected: {{name}}. Click a free seat on the plan or drag the person onto the plan.",
       disarm: "Cancel selection",
     },
     toasts: {
@@ -586,7 +587,8 @@ export const adminEventSeatingEn = {
       released_one: "{{count}} seat released.",
       released_other: "{{count}} seats released.",
       exported: "CSV file downloaded.",
-      popupBlocked: "The browser blocked the print window. Allow pop-ups for this site and try again.",
+      popupBlocked:
+        "The browser blocked the print window. Allow pop-ups for this site and try again.",
     },
     canvas: {
       label: "Seating plan {{name}}",
@@ -856,9 +858,11 @@ export const adminEventSeatingEn = {
     },
     confirm: {
       heldTitle: "The seat is held for someone else",
-      heldBody: "Seat this person anyway? The hold stays, and this person sits there as an exception.",
+      heldBody:
+        "Seat this person anyway? The hold stays, and this person sits there as an exception.",
       categoryTitle: "The ticket does not match the seat category",
-      categoryBody: "Seat this person anyway? The category rule is overridden for this person only.",
+      categoryBody:
+        "Seat this person anyway? The category rule is overridden for this person only.",
       force: "Seat anyway",
       swapTitle: "The seat is taken",
       swapBody: "Swap the seats? The current occupant moves to the seat of the person being moved.",

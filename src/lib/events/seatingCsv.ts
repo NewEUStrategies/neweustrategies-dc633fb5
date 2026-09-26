@@ -52,6 +52,11 @@ function localized(pl: string | null, en: string | null, lang: "pl" | "en"): str
   return filled(first) !== "" ? filled(first) : filled(second);
 }
 
+/** "Nazwisko Imie" osoby na miejscu; wolne miejsce = pusty napis. */
+export function seatingPersonName(row: SeatExportRow): string {
+  return [filled(row.last_name), filled(row.first_name)].filter((part) => part !== "").join(" ");
+}
+
 /** Wiersze do pliku w kolejnosci trybu. */
 export function seatingCsvRows(
   rows: readonly SeatExportRow[],

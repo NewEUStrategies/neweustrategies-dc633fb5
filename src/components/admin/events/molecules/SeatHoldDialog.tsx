@@ -88,7 +88,9 @@ function CompanyPicker({
         placeholder={t("adminEventSeating.holdDialog.companySearch")}
       />
       {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t("adminEventSeating.holdDialog.companyNone")}</p>
+        <p className="text-sm text-muted-foreground">
+          {t("adminEventSeating.holdDialog.companyNone")}
+        </p>
       ) : (
         <div className="space-y-1.5">
           <Label htmlFor="seat-hold-company">{t("adminEventSeating.holdDialog.company")}</Label>
@@ -120,7 +122,11 @@ function SponsorPicker({
   const sponsors = useSponsors({ eventId });
   const rows = sponsors.data ?? [];
   if (rows.length === 0) {
-    return <p className="text-sm text-muted-foreground">{t("adminEventSeating.holdDialog.sponsorNone")}</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        {t("adminEventSeating.holdDialog.sponsorNone")}
+      </p>
+    );
   }
   return (
     <div className="space-y-1.5">
@@ -152,7 +158,11 @@ function PackagePicker({
   const orders = usePackageOrders(eventId, null);
   const rows = orders.data ?? [];
   if (rows.length === 0) {
-    return <p className="text-sm text-muted-foreground">{t("adminEventSeating.holdDialog.packageNone")}</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        {t("adminEventSeating.holdDialog.packageNone")}
+      </p>
+    );
   }
   return (
     <div className="space-y-1.5">
@@ -244,7 +254,10 @@ export function SeatHoldDialog({
             <FormSelect
               id="seat-hold-status"
               value={draft.status}
-              options={SEAT_STATUSES.map((value) => ({ value, label: t(STATUS_LABEL_KEYS[value]) }))}
+              options={SEAT_STATUSES.map((value) => ({
+                value,
+                label: t(STATUS_LABEL_KEYS[value]),
+              }))}
               onValueChange={(value) => set("status", value as SeatStatus)}
             />
           </div>
@@ -276,7 +289,10 @@ export function SeatHoldDialog({
                 <FormSelect
                   id="seat-hold-target"
                   value={draft.target}
-                  options={HOLD_TARGETS.map((value) => ({ value, label: t(TARGET_LABEL_KEYS[value]) }))}
+                  options={HOLD_TARGETS.map((value) => ({
+                    value,
+                    label: t(TARGET_LABEL_KEYS[value]),
+                  }))}
                   onValueChange={(value) => set("target", value as HoldTarget)}
                   error={errorFor("target")}
                 />

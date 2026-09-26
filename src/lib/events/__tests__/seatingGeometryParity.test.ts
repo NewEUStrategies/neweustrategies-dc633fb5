@@ -64,7 +64,8 @@ interface GoldenCase {
 function goldenCases(): GoldenCase[] {
   const block = goldenBlock();
   const out: GoldenCase[] = [];
-  const pattern = /_event_seat_section_layout\(([^)]*)\)[\s\S]*?=\s*ARRAY\[([\s\S]*?)\],\s*\n\s*'65\/geometria/g;
+  const pattern =
+    /_event_seat_section_layout\(([^)]*)\)[\s\S]*?=\s*ARRAY\[([\s\S]*?)\],\s*\n\s*'65\/geometria/g;
   for (const match of block.matchAll(pattern)) {
     const args = splitArgs(match[1]).map(value);
     out.push({

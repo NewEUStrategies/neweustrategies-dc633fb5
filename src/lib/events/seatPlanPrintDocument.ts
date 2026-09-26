@@ -41,7 +41,10 @@ function cell(value: string): string {
   return `<td>${escapeHtml(value)}</td>`;
 }
 
-export function seatPlanPrintHtml(rows: readonly SeatPrintRow[], options: SeatPrintOptions): string {
+export function seatPlanPrintHtml(
+  rows: readonly SeatPrintRow[],
+  options: SeatPrintOptions,
+): string {
   const head = [
     options.columns.name,
     options.columns.seat,

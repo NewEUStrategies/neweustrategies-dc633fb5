@@ -230,7 +230,13 @@ export function SeatMapCanvas({
         className="h-auto max-h-[70vh] w-full"
       >
         <defs>
-          <pattern id="seat-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <pattern
+            id="seat-hatch"
+            width="6"
+            height="6"
+            patternUnits="userSpaceOnUse"
+            patternTransform="rotate(45)"
+          >
             <line x1="0" y1="0" x2="0" y2="6" stroke="currentColor" strokeWidth="2" />
           </pattern>
         </defs>
@@ -244,7 +250,14 @@ export function SeatMapCanvas({
         />
         {stage === null ? null : (
           <g aria-hidden="true">
-            <rect x={stage.x} y={stage.y} width={stage.w} height={stage.h} rx={8} className="fill-muted stroke-border" />
+            <rect
+              x={stage.x}
+              y={stage.y}
+              width={stage.w}
+              height={stage.h}
+              rx={8}
+              className="fill-muted stroke-border"
+            />
             <text
               x={stage.x + stage.w / 2}
               y={stage.y + stage.h / 2}

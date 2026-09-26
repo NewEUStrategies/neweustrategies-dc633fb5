@@ -75,7 +75,9 @@ export function EventSeatCategoryDialog({
 }: EventSeatCategoryDialogProps) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
-  const [draft, setDraft] = useState<CategoryDraft>(() => emptyCategoryDraft(DEFAULT_CATEGORY_COLOR));
+  const [draft, setDraft] = useState<CategoryDraft>(() =>
+    emptyCategoryDraft(DEFAULT_CATEGORY_COLOR),
+  );
   const [touched, setTouched] = useState(false);
   const tickets = useEventTickets(open ? eventId : null);
 
@@ -87,7 +89,9 @@ export function EventSeatCategoryDialog({
     if (!open) return;
     const current = categoryRef.current;
     setDraft(
-      current === null ? emptyCategoryDraft(DEFAULT_CATEGORY_COLOR) : categoryDraftFromCategory(current),
+      current === null
+        ? emptyCategoryDraft(DEFAULT_CATEGORY_COLOR)
+        : categoryDraftFromCategory(current),
     );
     setTouched(false);
   }, [open, categoryId]);
@@ -163,7 +167,9 @@ export function EventSeatCategoryDialog({
             />
             {contrast !== null && contrast < CATEGORY_MIN_CONTRAST ? (
               <p role="status" className="text-xs text-destructive">
-                {t("adminEventSeating.categoryDialog.contrastWarning", { ratio: contrast.toFixed(1) })}
+                {t("adminEventSeating.categoryDialog.contrastWarning", {
+                  ratio: contrast.toFixed(1),
+                })}
               </p>
             ) : null}
           </div>
@@ -184,10 +190,16 @@ export function EventSeatCategoryDialog({
         </AdminFormSection>
 
         <fieldset className="space-y-2">
-          <legend className="text-sm font-semibold">{t("adminEventSeating.categoryDialog.tickets")}</legend>
-          <p className="text-xs text-muted-foreground">{t("adminEventSeating.categoryDialog.ticketsHint")}</p>
+          <legend className="text-sm font-semibold">
+            {t("adminEventSeating.categoryDialog.tickets")}
+          </legend>
+          <p className="text-xs text-muted-foreground">
+            {t("adminEventSeating.categoryDialog.ticketsHint")}
+          </p>
           {ticketRows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("adminEventSeating.categoryDialog.noTickets")}</p>
+            <p className="text-sm text-muted-foreground">
+              {t("adminEventSeating.categoryDialog.noTickets")}
+            </p>
           ) : (
             <ul className="grid gap-2 sm:grid-cols-2">
               {ticketRows.map((ticket) => {

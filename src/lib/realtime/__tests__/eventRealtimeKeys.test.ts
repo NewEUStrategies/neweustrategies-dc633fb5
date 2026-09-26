@@ -109,13 +109,17 @@ describe("mapa inwalidacji modułu wydarzeń", () => {
 
   it("plan sali: przydział i zwolnienie trafiają w plan I w listę zgłoszeń TEGO wydarzenia", () => {
     for (const type of ["event_seat.assigned.v1", "event_seat.released.v1"]) {
-      const keys = invalidationKeysFor(domainEvent(type, { event_id: EVENT_ID }), CTX) as unknown[][];
+      const keys = invalidationKeysFor(
+        domainEvent(type, { event_id: EVENT_ID }),
+        CTX,
+      ) as unknown[][];
       expect(includesPrefix(keys, seatingKeys.event(EVENT_ID)), type).toBe(true);
       expect(includesPrefix(keys, registrationKeys.event(EVENT_ID)), type).toBe(true);
       // Para: inne wydarzenie zostaje nietknięte.
-      expect(includesPrefix(keys, seatingKeys.event("ffffffff-ffff-ffff-ffff-ffffffffffff")), type).toBe(
-        false,
-      );
+      expect(
+        includesPrefix(keys, seatingKeys.event("ffffffff-ffff-ffff-ffff-ffffffffffff")),
+        type,
+      ).toBe(false);
     }
   });
 
@@ -129,10 +133,16 @@ describe("mapa inwalidacji modułu wydarzeń", () => {
   });
 
   it("plan sali bez `event_id` degraduje do całych gałęzi planu i zgłoszeń", () => {
-    const released = invalidationKeysFor(domainEvent("event_seat.released.v1", {}), CTX) as unknown[][];
+    const released = invalidationKeysFor(
+      domainEvent("event_seat.released.v1", {}),
+      CTX,
+    ) as unknown[][];
     expect(includesPrefix(released, seatingKeys.all)).toBe(true);
     expect(includesPrefix(released, registrationKeys.all)).toBe(true);
-    const changed = invalidationKeysFor(domainEvent("event_seat_map.changed.v1", {}), CTX) as unknown[][];
+    const changed = invalidationKeysFor(
+      domainEvent("event_seat_map.changed.v1", {}),
+      CTX,
+    ) as unknown[][];
     expect(changed).toEqual([seatingKeys.all]);
   });
 });

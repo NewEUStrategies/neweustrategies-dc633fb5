@@ -19,7 +19,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Download } from "@/lib/lucide-shim";
 import { adminSeatingErrorMessage } from "@/lib/events/adminSeatingErrors";
 import { fetchSeatingExport, type SeatExportRow } from "@/lib/events/seatingApi";
-import { seatingCsvFileName, seatingExportToCsv, type SeatingCsvMode } from "@/lib/events/seatingCsv";
+import {
+  seatingCsvFileName,
+  seatingExportToCsv,
+  type SeatingCsvMode,
+} from "@/lib/events/seatingCsv";
 import { uiLang } from "@/lib/i18n/format";
 import { ensureSeatingI18n } from "@/lib/i18n-admin-event-seating";
 
@@ -53,7 +57,13 @@ export interface SeatExportMenuProps {
   seatText: (row: SeatExportRow) => string;
 }
 
-export function SeatExportMenu({ eventSlug, mapId, mapName, companies, seatText }: SeatExportMenuProps) {
+export function SeatExportMenu({
+  eventSlug,
+  mapId,
+  mapName,
+  companies,
+  seatText,
+}: SeatExportMenuProps) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const [companyId, setCompanyId] = useState<string>(NONE);
@@ -65,7 +75,12 @@ export function SeatExportMenu({ eventSlug, mapId, mapName, companies, seatText 
       const rows = await fetchSeatingExport(mapId, company);
       const csv = seatingExportToCsv(rows, { mode, lang, seatText });
       downloadTextFile(
-        seatingCsvFileName(eventSlug, mapName, company === null ? mode : "company", new Date().toISOString()),
+        seatingCsvFileName(
+          eventSlug,
+          mapName,
+          company === null ? mode : "company",
+          new Date().toISOString(),
+        ),
         csv,
         "text/csv;charset=utf-8",
       );
@@ -86,16 +101,28 @@ export function SeatExportMenu({ eventSlug, mapId, mapName, companies, seatText 
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 space-y-3">
-        <Button className="w-full justify-start" variant="ghost" disabled={busy} onClick={() => void run("door", null)}>
+        <Button
+          className="w-full justify-start"
+          variant="ghost"
+          disabled={busy}
+          onClick={() => void run("door", null)}
+        >
           {t("adminEventSeating.export.door")}
         </Button>
-        <Button className="w-full justify-start" variant="ghost" disabled={busy} onClick={() => void run("seats", null)}>
+        <Button
+          className="w-full justify-start"
+          variant="ghost"
+          disabled={busy}
+          onClick={() => void run("seats", null)}
+        >
           {t("adminEventSeating.export.seats")}
         </Button>
         <div className="space-y-1.5 border-t border-border pt-3">
           <Label htmlFor="seat-export-company">{t("adminEventSeating.export.company")}</Label>
           {companies.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("adminEventSeating.export.noCompanies")}</p>
+            <p className="text-sm text-muted-foreground">
+              {t("adminEventSeating.export.noCompanies")}
+            </p>
           ) : (
             <>
               <FormSelect

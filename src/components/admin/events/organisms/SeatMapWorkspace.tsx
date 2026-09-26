@@ -23,17 +23,39 @@ import { EventSeatCategoryDialog } from "@/components/admin/events/molecules/Eve
 import { EventSeatMapDialog } from "@/components/admin/events/molecules/EventSeatMapDialog";
 import { EventSeatSectionDialog } from "@/components/admin/events/molecules/EventSeatSectionDialog";
 import { SeatAutoAssignDialog } from "@/components/admin/events/molecules/SeatAutoAssignDialog";
-import { SEAT_CANVAS_DROP_ID, SeatMapCanvas } from "@/components/admin/events/molecules/SeatMapCanvas";
+import {
+  SEAT_CANVAS_DROP_ID,
+  SeatMapCanvas,
+} from "@/components/admin/events/molecules/SeatMapCanvas";
 import { SeatDetailsCard } from "@/components/admin/events/molecules/SeatDetailsCard";
-import { SeatExportMenu, type SeatExportCompany } from "@/components/admin/events/molecules/SeatExportMenu";
+import {
+  SeatExportMenu,
+  type SeatExportCompany,
+} from "@/components/admin/events/molecules/SeatExportMenu";
 import { SeatHoldDialog } from "@/components/admin/events/molecules/SeatHoldDialog";
-import { SEAT_STATUS_LABEL_KEYS, SeatMapTable } from "@/components/admin/events/molecules/SeatMapTable";
-import { SeatingAttendeesPanel, candidateName } from "@/components/admin/events/organisms/SeatingAttendeesPanel";
+import {
+  SEAT_STATUS_LABEL_KEYS,
+  SeatMapTable,
+} from "@/components/admin/events/molecules/SeatMapTable";
+import {
+  SeatingAttendeesPanel,
+  candidateName,
+} from "@/components/admin/events/organisms/SeatingAttendeesPanel";
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/lib/appDialogs";
-import { ArrowLeft, LayoutGrid, Pencil, Plus, Printer, Rows, Trash2, Wand2, X } from "@/lib/lucide-shim";
+import {
+  ArrowLeft,
+  LayoutGrid,
+  Pencil,
+  Plus,
+  Printer,
+  Rows,
+  Trash2,
+  Wand2,
+  X,
+} from "@/lib/lucide-shim";
 import { adminSeatingErrorMessage, adminSeatingFailure } from "@/lib/events/adminSeatingErrors";
 import {
   fetchSeatingExport,
@@ -44,7 +66,7 @@ import {
   type SeatSectionKind,
   type SeatStatus,
 } from "@/lib/events/seatingApi";
-import { seatingCsvRows } from "@/lib/events/seatingCsv";
+import { seatingCsvRows, seatingPersonName } from "@/lib/events/seatingCsv";
 import { seatDropTarget } from "@/lib/events/seatingDnd";
 import { seatLabelMessage, seatLabelMessageFromRow } from "@/lib/events/seatLabel";
 import { seatPlanPrintHtml } from "@/lib/events/seatPlanPrintDocument";
@@ -85,7 +107,13 @@ export interface SeatMapWorkspaceProps {
   onBack: () => void;
 }
 
-export function SeatMapWorkspace({ eventId, eventSlug, eventTitle, mapId, onBack }: SeatMapWorkspaceProps) {
+export function SeatMapWorkspace({
+  eventId,
+  eventSlug,
+  eventTitle,
+  mapId,
+  onBack,
+}: SeatMapWorkspaceProps) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const detailQ = useSeatMapDetail(eventId, mapId);
@@ -103,10 +131,13 @@ export function SeatMapWorkspace({ eventId, eventSlug, eventTitle, mapId, onBack
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
   const [armed, setArmed] = useState<Armed | null>(null);
   const [mapOpen, setMapOpen] = useState(false);
-  const [sectionDialog, setSectionDialog] = useState<{ section: SeatSection | null; kind: SeatSectionKind } | null>(
+  const [sectionDialog, setSectionDialog] = useState<{
+    section: SeatSection | null;
+    kind: SeatSectionKind;
+  } | null>(null);
+  const [categoryDialog, setCategoryDialog] = useState<{ category: SeatCategory | null } | null>(
     null,
   );
-  const [categoryDialog, setCategoryDialog] = useState<{ category: SeatCategory | null } | null>(null);
   const [holdOpen, setHoldOpen] = useState(false);
   const [autoOpen, setAutoOpen] = useState(false);
 
@@ -118,7 +149,13 @@ export function SeatMapWorkspace({ eventId, eventSlug, eventTitle, mapId, onBack
     [detail],
   );
   const seatOfRegistration = useMemo(
-    () => new Map((detail?.assignments ?? []).map((assignment) => [assignment.registrationId, assignment.seatId])),
+    () =>
+      new Map(
+        (detail?.assignments ?? []).map((assignment) => [
+          assignment.registrationId,
+          assignment.seatId,
+        ]),
+      ),
     [detail],
   );
 
@@ -133,7 +170,8 @@ export function SeatMapWorkspace({ eventId, eventSlug, eventTitle, mapId, onBack
   const seatAria = useCallback(
     (seat: Seat): string => {
       const occupant = occupantBySeat.get(seat.id);
-      const holder = seat.holdCompanyName ?? seat.holdSponsorName ?? seat.holdPackageBuyer ?? seat.holdNote;
+      const holder =
+        seat.holdCompanyName ?? seat.holdSponsorName ?? seat.holdPackageBuyer ?? seat.holdNote;
       return [
         seatText(seat),
         t(SEAT_STATUS_LABEL_KEYS[seat.status]),
@@ -142,7 +180,9 @@ export function SeatMapWorkspace({ eventId, eventSlug, eventTitle, mapId, onBack
           : t("adminEventSeating.canvas.occupiedBy", {
               name: `${occupant.firstName} ${occupant.lastName}`.trim(),
             }),
-        seat.status === "held" && holder !== null ? t("adminEventSeating.canvas.heldFor", { name: holder }) : null,
+        seat.status === "held" && holder !== null
+          ? t("adminEventSeating.canvas.heldFor", { name: holder })
+          : null,
         seat.isAccessible ? t("adminEventSeating.canvas.accessible") : null,
       ]
         .filter((part): part is string => part !== null)
@@ -175,15 +215,27 @@ export function SeatMapWorkspace({ eventId, eventSlug, eventTitle, mapId, onBack
           const held = key === `${ERR}seatHeldForOther`;
           if (extra.force !== true && (held || key === `${ERR}categoryTicketMismatch`)) {
             const ok = await confirmDialog({
-              title: t(held ? "adminEventSeating.confirm.heldTitle" : "adminEventSeating.confirm.categoryTitle"),
-              description: t(held ? "adminEventSeating.confirm.heldBody" : "adminEventSeating.confirm.categoryBody"),
+              title: t(
+                held
+                  ? "adminEventSeating.confirm.heldTitle"
+                  : "adminEventSeating.confirm.categoryTitle",
+              ),
+              description: t(
+                held
+                  ? "adminEventSeating.confirm.heldBody"
+                  : "adminEventSeating.confirm.categoryBody",
+              ),
               confirmLabel: t("adminEventSeating.confirm.force"),
               cancelLabel: t("adminEventSeating.confirm.cancel"),
             });
             if (ok) await attempt({ ...extra, force: true });
             return;
           }
-          if (extra.swap !== true && key === `${ERR}seatTaken` && seatOfRegistration.has(registrationId)) {
+          if (
+            extra.swap !== true &&
+            key === `${ERR}seatTaken` &&
+            seatOfRegistration.has(registrationId)
+          ) {
             const ok = await confirmDialog({
               title: t("adminEventSeating.confirm.swapTitle"),
               description: t("adminEventSeating.confirm.swapBody"),
@@ -230,7 +282,8 @@ export function SeatMapWorkspace({ eventId, eventSlug, eventTitle, mapId, onBack
         return;
       }
       setSelected((previous) => {
-        if (!extend) return previous.size === 1 && previous.has(seatId) ? new Set() : new Set([seatId]);
+        if (!extend)
+          return previous.size === 1 && previous.has(seatId) ? new Set() : new Set([seatId]);
         const next = new Set(previous);
         if (next.has(seatId)) next.delete(seatId);
         else next.add(seatId);
@@ -241,7 +294,10 @@ export function SeatMapWorkspace({ eventId, eventSlug, eventTitle, mapId, onBack
   );
 
   const onToggle = useCallback((seatId: string) => onActivate(seatId, true), [onActivate]);
-  const onReleaseOne = useCallback((seatId: string) => void releaseSeatIds([seatId]), [releaseSeatIds]);
+  const onReleaseOne = useCallback(
+    (seatId: string) => void releaseSeatIds([seatId]),
+    [releaseSeatIds],
+  );
 
   const onDragEnd = (event: DragEndEvent) => {
     const target = seatDropTarget(event, SEAT_CANVAS_DROP_ID, document);
@@ -295,17 +351,33 @@ export function SeatMapWorkspace({ eventId, eventSlug, eventTitle, mapId, onBack
   const togglePublish = async () => {
     const publishing = map.status === "draft";
     const ok = await confirmDialog({
-      title: t(publishing ? "adminEventSeating.workspace.publishTitle" : "adminEventSeating.workspace.unpublishTitle"),
-      description: t(publishing ? "adminEventSeating.workspace.publishBody" : "adminEventSeating.workspace.unpublishBody"),
+      title: t(
+        publishing
+          ? "adminEventSeating.workspace.publishTitle"
+          : "adminEventSeating.workspace.unpublishTitle",
+      ),
+      description: t(
+        publishing
+          ? "adminEventSeating.workspace.publishBody"
+          : "adminEventSeating.workspace.unpublishBody",
+      ),
       confirmLabel: t(
-        publishing ? "adminEventSeating.workspace.publishConfirm" : "adminEventSeating.workspace.unpublishConfirm",
+        publishing
+          ? "adminEventSeating.workspace.publishConfirm"
+          : "adminEventSeating.workspace.unpublishConfirm",
       ),
       cancelLabel: t("adminEventSeating.workspace.cancel"),
     });
     if (!ok) return;
     try {
       await saveMap.mutateAsync({ id: map.id, status: publishing ? "published" : "draft" });
-      toast.success(t(publishing ? "adminEventSeating.toasts.published" : "adminEventSeating.toasts.unpublished"));
+      toast.success(
+        t(
+          publishing
+            ? "adminEventSeating.toasts.published"
+            : "adminEventSeating.toasts.unpublished",
+        ),
+      );
     } catch (error: unknown) {
       toast.error(adminSeatingErrorMessage(error));
     }
@@ -359,7 +431,7 @@ export function SeatMapWorkspace({ eventId, eventSlug, eventTitle, mapId, onBack
         seatPlanPrintHtml(
           rows.map((row) => ({
             seat: exportSeatText(row),
-            name: `${row.last_name} ${row.first_name}`.trim(),
+            name: seatingPersonName(row),
             company: row.company ?? "",
             ticket: pickLocalized(row, "ticket_name", lang),
             note: row.hold_note ?? "",
@@ -389,7 +461,8 @@ export function SeatMapWorkspace({ eventId, eventSlug, eventTitle, mapId, onBack
     }
   };
 
-  const holdInitialStatus: SeatStatus = selectedSeats.length === 1 ? selectedSeats[0].status : "held";
+  const holdInitialStatus: SeatStatus =
+    selectedSeats.length === 1 ? selectedSeats[0].status : "held";
 
   return (
     <DndContext sensors={sensors} onDragEnd={onDragEnd}>
@@ -405,7 +478,11 @@ export function SeatMapWorkspace({ eventId, eventSlug, eventTitle, mapId, onBack
           </Button>
           <h2 className="font-display text-lg">{map.name}</h2>
           <Badge variant={map.status === "published" ? "default" : "outline"}>
-            {t(map.status === "published" ? "adminEventSeating.status.published" : "adminEventSeating.status.draft")}
+            {t(
+              map.status === "published"
+                ? "adminEventSeating.status.published"
+                : "adminEventSeating.status.draft",
+            )}
           </Badge>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" onClick={() => setMapOpen(true)}>
@@ -428,13 +505,20 @@ export function SeatMapWorkspace({ eventId, eventSlug, eventTitle, mapId, onBack
               {t("adminEventSeating.workspace.print")}
             </Button>
             <Button size="sm" onClick={() => void togglePublish()} disabled={saveMap.isPending}>
-              {t(map.status === "draft" ? "adminEventSeating.workspace.publish" : "adminEventSeating.workspace.unpublish")}
+              {t(
+                map.status === "draft"
+                  ? "adminEventSeating.workspace.publish"
+                  : "adminEventSeating.workspace.unpublish",
+              )}
             </Button>
           </div>
         </div>
 
         {armed === null ? null : (
-          <div role="status" className="flex flex-wrap items-center gap-2 rounded-[6px] border border-brand p-2 text-sm">
+          <div
+            role="status"
+            className="flex flex-wrap items-center gap-2 rounded-[6px] border border-brand p-2 text-sm"
+          >
             <span>{t("adminEventSeating.workspace.armedHint", { name: armed.name })}</span>
             <Button size="sm" variant="ghost" onClick={() => setArmed(null)}>
               <X className="mr-1 h-4 w-4" aria-hidden="true" />
@@ -450,31 +534,48 @@ export function SeatMapWorkspace({ eventId, eventSlug, eventTitle, mapId, onBack
                 {t("adminEventSeating.workspace.sections")}
               </h3>
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" onClick={() => setSectionDialog({ section: null, kind: "rows" })}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSectionDialog({ section: null, kind: "rows" })}
+                >
                   <Rows className="mr-1 h-4 w-4" aria-hidden="true" />
                   {t("adminEventSeating.workspace.addRows")}
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => setSectionDialog({ section: null, kind: "table" })}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSectionDialog({ section: null, kind: "table" })}
+                >
                   <LayoutGrid className="mr-1 h-4 w-4" aria-hidden="true" />
                   {t("adminEventSeating.workspace.addTable")}
                 </Button>
               </div>
               {detail.sections.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{t("adminEventSeating.workspace.noSections")}</p>
+                <p className="text-sm text-muted-foreground">
+                  {t("adminEventSeating.workspace.noSections")}
+                </p>
               ) : (
                 <ul className="space-y-1">
                   {detail.sections.map((section) => (
-                    <li key={section.id} className="flex items-center gap-1 rounded-[6px] border border-border px-2 py-1">
+                    <li
+                      key={section.id}
+                      className="flex items-center gap-1 rounded-[6px] border border-border px-2 py-1"
+                    >
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{section.label}</p>
                         <p className="text-xs text-muted-foreground">
-                          {t("adminEventSeating.workspace.sectionSeats", { count: seatsBySection(section) })}
+                          {t("adminEventSeating.workspace.sectionSeats", {
+                            count: seatsBySection(section),
+                          })}
                         </p>
                       </div>
                       <Button
                         size="icon"
                         variant="ghost"
-                        aria-label={t("adminEventSeating.workspace.editSection", { label: section.label })}
+                        aria-label={t("adminEventSeating.workspace.editSection", {
+                          label: section.label,
+                        })}
                         onClick={() => setSectionDialog({ section, kind: section.kind })}
                       >
                         <Pencil className="h-4 w-4" aria-hidden="true" />
@@ -482,7 +583,9 @@ export function SeatMapWorkspace({ eventId, eventSlug, eventTitle, mapId, onBack
                       <Button
                         size="icon"
                         variant="ghost"
-                        aria-label={t("adminEventSeating.workspace.deleteSection", { label: section.label })}
+                        aria-label={t("adminEventSeating.workspace.deleteSection", {
+                          label: section.label,
+                        })}
                         onClick={() => void removeSection(section)}
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -497,12 +600,18 @@ export function SeatMapWorkspace({ eventId, eventSlug, eventTitle, mapId, onBack
               <h3 id="seat-categories-title" className="text-sm font-semibold">
                 {t("adminEventSeating.workspace.categories")}
               </h3>
-              <Button size="sm" variant="outline" onClick={() => setCategoryDialog({ category: null })}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setCategoryDialog({ category: null })}
+              >
                 <Plus className="mr-1 h-4 w-4" aria-hidden="true" />
                 {t("adminEventSeating.workspace.addCategory")}
               </Button>
               {detail.categories.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{t("adminEventSeating.workspace.noCategories")}</p>
+                <p className="text-sm text-muted-foreground">
+                  {t("adminEventSeating.workspace.noCategories")}
+                </p>
               ) : (
                 <ul className="space-y-1">
                   {detail.categories.map((category) => (
@@ -528,7 +637,9 @@ export function SeatMapWorkspace({ eventId, eventSlug, eventTitle, mapId, onBack
                       <Button
                         size="icon"
                         variant="ghost"
-                        aria-label={t("adminEventSeating.workspace.editCategory", { name: categoryName(category) })}
+                        aria-label={t("adminEventSeating.workspace.editCategory", {
+                          name: categoryName(category),
+                        })}
                         onClick={() => setCategoryDialog({ category })}
                       >
                         <Pencil className="h-4 w-4" aria-hidden="true" />
@@ -536,7 +647,9 @@ export function SeatMapWorkspace({ eventId, eventSlug, eventTitle, mapId, onBack
                       <Button
                         size="icon"
                         variant="ghost"
-                        aria-label={t("adminEventSeating.workspace.deleteCategory", { name: categoryName(category) })}
+                        aria-label={t("adminEventSeating.workspace.deleteCategory", {
+                          name: categoryName(category),
+                        })}
                         onClick={() => void removeCategory(category)}
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -557,7 +670,11 @@ export function SeatMapWorkspace({ eventId, eventSlug, eventTitle, mapId, onBack
           </aside>
 
           <div className="min-w-0 space-y-3">
-            <div role="group" aria-label={t("adminEventSeating.workspace.viewLabel")} className="flex flex-wrap gap-2">
+            <div
+              role="group"
+              aria-label={t("adminEventSeating.workspace.viewLabel")}
+              className="flex flex-wrap gap-2"
+            >
               <Button
                 size="sm"
                 variant={view === "canvas" ? "default" : "outline"}
@@ -631,7 +748,9 @@ export function SeatMapWorkspace({ eventId, eventSlug, eventTitle, mapId, onBack
             mapId={map.id}
             tickets={ticketOptions}
             armedId={armed?.id ?? null}
-            onArm={(row) => setArmed(row === null ? null : { id: row.registration_id, name: candidateName(row) })}
+            onArm={(row) =>
+              setArmed(row === null ? null : { id: row.registration_id, name: candidateName(row) })
+            }
           />
         </div>
       </div>
@@ -715,7 +834,12 @@ export function SeatMapWorkspace({ eventId, eventSlug, eventTitle, mapId, onBack
           })
         }
       />
-      <SeatAutoAssignDialog open={autoOpen} onOpenChange={setAutoOpen} eventId={eventId} detail={detail} />
+      <SeatAutoAssignDialog
+        open={autoOpen}
+        onOpenChange={setAutoOpen}
+        eventId={eventId}
+        detail={detail}
+      />
     </DndContext>
   );
 }

@@ -146,9 +146,7 @@ export function SeatDetailsCard({
         ) : (
           <div className="text-sm">
             <p className="font-medium">{`${occupant.firstName} ${occupant.lastName}`.trim()}</p>
-            {occupantMeta === "" ? null : (
-              <p className="text-muted-foreground">{occupantMeta}</p>
-            )}
+            {occupantMeta === "" ? null : <p className="text-muted-foreground">{occupantMeta}</p>}
           </div>
         )}
       </div>

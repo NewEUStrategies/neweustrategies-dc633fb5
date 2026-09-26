@@ -65,7 +65,13 @@ export interface SeatingPanelProps {
   onOpenMap: (mapId: string | null) => void;
 }
 
-export function SeatingPanel({ eventId, eventSlug, eventTitle, mapId, onOpenMap }: SeatingPanelProps) {
+export function SeatingPanel({
+  eventId,
+  eventSlug,
+  eventTitle,
+  mapId,
+  onOpenMap,
+}: SeatingPanelProps) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const maps = useSeatMaps(eventId);
@@ -109,7 +115,9 @@ export function SeatingPanel({ eventId, eventSlug, eventTitle, mapId, onOpenMap 
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">{t("adminEventSeating.list.title")}</h2>
-          <p className="max-w-2xl text-sm text-muted-foreground">{t("adminEventSeating.list.subtitle")}</p>
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            {t("adminEventSeating.list.subtitle")}
+          </p>
         </div>
         <Button onClick={() => setDialog({ map: null })}>
           <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -144,7 +152,9 @@ export function SeatingPanel({ eventId, eventSlug, eventTitle, mapId, onOpenMap 
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {[
-                        row.room_name === null ? null : t("adminEventSeating.list.room", { name: row.room_name }),
+                        row.room_name === null
+                          ? null
+                          : t("adminEventSeating.list.room", { name: row.room_name }),
                         session === ""
                           ? t("adminEventSeating.list.wholeEvent")
                           : t("adminEventSeating.list.session", { title: session }),
@@ -176,15 +186,27 @@ export function SeatingPanel({ eventId, eventSlug, eventTitle, mapId, onOpenMap 
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                  <AdminMetricTile icon={Armchair} label={t("adminEventSeating.list.metrics.seats")} value={row.seats_total} />
+                  <AdminMetricTile
+                    icon={Armchair}
+                    label={t("adminEventSeating.list.metrics.seats")}
+                    value={row.seats_total}
+                  />
                   <AdminMetricTile
                     icon={Users}
                     label={t("adminEventSeating.list.metrics.assigned")}
                     value={row.seats_assigned}
                     tone="ok"
                   />
-                  <AdminMetricTile icon={Lock} label={t("adminEventSeating.list.metrics.held")} value={row.seats_held} />
-                  <AdminMetricTile icon={Ban} label={t("adminEventSeating.list.metrics.blocked")} value={row.seats_blocked} />
+                  <AdminMetricTile
+                    icon={Lock}
+                    label={t("adminEventSeating.list.metrics.held")}
+                    value={row.seats_held}
+                  />
+                  <AdminMetricTile
+                    icon={Ban}
+                    label={t("adminEventSeating.list.metrics.blocked")}
+                    value={row.seats_blocked}
+                  />
                   <AdminMetricTile
                     icon={UserX}
                     label={t("adminEventSeating.list.metrics.unseated")}

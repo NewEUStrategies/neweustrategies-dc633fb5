@@ -22,11 +22,7 @@
 //
 // DETERMINIZM: ta sama lista wejsciowa daje ten sam wynik - bez losowania i bez
 // zaleznosci od kolejnosci obiektow w mapach (sortujemy jawnie).
-import type {
-  SeatingCandidateRow,
-  SeatMapDetail,
-  SeatStatus,
-} from "@/lib/events/seatingApi";
+import type { SeatingCandidateRow, SeatMapDetail, SeatStatus } from "@/lib/events/seatingApi";
 
 export interface PlannerSeat {
   id: string;
@@ -81,7 +77,11 @@ export function companyKeyOf(companyId: string | null, company: string | null): 
   return normalized === "" ? null : `text:${normalized}`;
 }
 
-function categoryAllows(options: PlannerOptions, seat: PlannerSeat, ticket: string | null): boolean {
+function categoryAllows(
+  options: PlannerOptions,
+  seat: PlannerSeat,
+  ticket: string | null,
+): boolean {
   if (seat.categoryId === null) return true;
   const allowed = options.categoryTickets[seat.categoryId] ?? [];
   return allowed.length === 0 || (ticket !== null && allowed.includes(ticket));
@@ -123,7 +123,8 @@ export function planSeating(
     (candidate) =>
       !candidate.seated &&
       (options.ticketTypeIds === null ||
-        (candidate.ticketTypeId !== null && options.ticketTypeIds.includes(candidate.ticketTypeId))),
+        (candidate.ticketTypeId !== null &&
+          options.ticketTypeIds.includes(candidate.ticketTypeId))),
   );
 
   // Zespoly: po `party_key` (albo pojedynczo), potem jawne sortowanie po firmie.
@@ -147,7 +148,9 @@ export function planSeating(
     free.filter(
       (seat) =>
         !taken.has(seat.id) &&
-        (held ? seat.status === "held" && holdMatches(seat, candidate) : seat.status === "available") &&
+        (held
+          ? seat.status === "held" && holdMatches(seat, candidate)
+          : seat.status === "available") &&
         categoryAllows(options, seat, candidate.ticketTypeId),
     );
 
@@ -242,7 +245,9 @@ export function plannerSeatsFromDetail(
         categoryId: seat.categoryId ?? section.categoryId,
         holdCompanyId:
           seat.holdCompanyId ??
-          (seat.holdSponsorId === null ? null : (sponsorCompanyById.get(seat.holdSponsorId) ?? null)),
+          (seat.holdSponsorId === null
+            ? null
+            : (sponsorCompanyById.get(seat.holdSponsorId) ?? null)),
         holdPackageOrderId: seat.holdPackageOrderId,
         occupied: occupied.has(seat.id),
       })),
@@ -250,7 +255,9 @@ export function plannerSeatsFromDetail(
 }
 
 /** Kandydaci z RPC w ksztalcie planera. */
-export function plannerCandidatesFromRows(rows: readonly SeatingCandidateRow[]): PlannerCandidate[] {
+export function plannerCandidatesFromRows(
+  rows: readonly SeatingCandidateRow[],
+): PlannerCandidate[] {
   return rows.map((row) => ({
     registrationId: row.registration_id,
     partyKey: row.party_key,

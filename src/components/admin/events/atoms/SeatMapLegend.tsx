@@ -17,7 +17,14 @@ export interface SeatLegendCategory {
 
 type Mark = "available" | "occupied" | "held" | "blocked" | "accessible" | "selected";
 
-const MARKS: readonly Mark[] = ["available", "occupied", "held", "blocked", "accessible", "selected"];
+const MARKS: readonly Mark[] = [
+  "available",
+  "occupied",
+  "held",
+  "blocked",
+  "accessible",
+  "selected",
+];
 
 const MARK_LABEL_KEYS: Record<Mark, string> = {
   available: "adminEventSeating.legend.available",
@@ -55,7 +62,10 @@ export function SeatMapLegend({ categories }: { categories: readonly SeatLegendC
   const { t } = useTranslation();
   return (
     <section aria-labelledby="seat-legend-title" className="space-y-2">
-      <h3 id="seat-legend-title" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <h3
+        id="seat-legend-title"
+        className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+      >
         {t("adminEventSeating.legend.title")}
       </h3>
       <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-foreground">

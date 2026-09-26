@@ -92,9 +92,7 @@ function CandidateItem({
             : t("adminEventSeating.attendees.seat", { label: row.seat_label })}
         </p>
       </div>
-      {armed ? (
-        <Badge variant="secondary">{t("adminEventSeating.attendees.armed")}</Badge>
-      ) : null}
+      {armed ? <Badge variant="secondary">{t("adminEventSeating.attendees.armed")}</Badge> : null}
       <Button
         size="sm"
         variant={armed ? "default" : "outline"}
@@ -116,7 +114,13 @@ export interface SeatingAttendeesPanelProps {
   onArm: (row: SeatingCandidateRow | null) => void;
 }
 
-export function SeatingAttendeesPanel({ eventId, mapId, tickets, armedId, onArm }: SeatingAttendeesPanelProps) {
+export function SeatingAttendeesPanel({
+  eventId,
+  mapId,
+  tickets,
+  armedId,
+  onArm,
+}: SeatingAttendeesPanelProps) {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [q, setQ] = useState("");
@@ -163,14 +167,21 @@ export function SeatingAttendeesPanel({ eventId, mapId, tickets, armedId, onArm 
               if (event.key === "Enter") submit();
             }}
           />
-          <Button variant="outline" size="sm" onClick={submit} aria-label={t("adminEventSeating.attendees.search")}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={submit}
+            aria-label={t("adminEventSeating.attendees.search")}
+          >
             <Search className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
       </div>
       {tickets.length === 0 ? null : (
         <div className="space-y-1.5">
-          <Label htmlFor="seating-attendees-ticket">{t("adminEventSeating.attendees.ticket")}</Label>
+          <Label htmlFor="seating-attendees-ticket">
+            {t("adminEventSeating.attendees.ticket")}
+          </Label>
           <FormSelect
             id="seating-attendees-ticket"
             value={ticketId}
@@ -199,7 +210,9 @@ export function SeatingAttendeesPanel({ eventId, mapId, tickets, armedId, onArm 
         errorMessage={candidates.error === null ? null : adminSeatingErrorMessage(candidates.error)}
         isEmpty={rows.length === 0}
         emptyLabel={
-          filtered ? t("adminEventSeating.attendees.emptyFiltered") : t("adminEventSeating.attendees.empty")
+          filtered
+            ? t("adminEventSeating.attendees.emptyFiltered")
+            : t("adminEventSeating.attendees.empty")
         }
       >
         <ul className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
@@ -213,7 +226,12 @@ export function SeatingAttendeesPanel({ eventId, mapId, tickets, armedId, onArm 
           ))}
         </ul>
         {rows.length < total ? (
-          <Button variant="outline" size="sm" className="w-full" onClick={() => setLimit(limit + PAGE)}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={() => setLimit(limit + PAGE)}
+          >
             {t("adminEventSeating.attendees.loadMore")}
           </Button>
         ) : null}

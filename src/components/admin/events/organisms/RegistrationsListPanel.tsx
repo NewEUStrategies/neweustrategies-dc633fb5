@@ -297,9 +297,14 @@ export function RegistrationsListPanel({
         // jest liczba WIERSZY W PLIKU, a nie liczba zgloszen w bazie.
         if (total > rows.length) toast.warning(t(`${base}.toasts.exportTruncated`));
         const seatCells = new Map(
-          [...seatTexts(await fetchSeatLookup(eventId, rows.map((row) => row.id)))].map(
-            ([registrationId, labels]) => [registrationId, labels.join("; ")],
-          ),
+          [
+            ...seatTexts(
+              await fetchSeatLookup(
+                eventId,
+                rows.map((row) => row.id),
+              ),
+            ),
+          ].map(([registrationId, labels]) => [registrationId, labels.join("; ")]),
         );
         const csv = registrationsToCsv(rows, lang, seatCells);
         const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });

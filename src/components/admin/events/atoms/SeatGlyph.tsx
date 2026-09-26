@@ -50,7 +50,11 @@ function SeatGlyphImpl({
 }: SeatGlyphProps) {
   const stroke = color ?? "currentColor";
   const fill =
-    status === "blocked" ? "url(#seat-hatch)" : occupied ? (color ?? "currentColor") : "transparent";
+    status === "blocked"
+      ? "url(#seat-hatch)"
+      : occupied
+        ? (color ?? "currentColor")
+        : "transparent";
   return (
     <g
       role="button"
@@ -65,7 +69,9 @@ function SeatGlyphImpl({
       onKeyDown={(event) => onKey(seatId, event)}
       onFocus={() => onFocusSeat(seatId)}
     >
-      {selected ? <circle cx={cx} cy={cy} r={r + 4} className="fill-none stroke-brand" strokeWidth={3} /> : null}
+      {selected ? (
+        <circle cx={cx} cy={cy} r={r + 4} className="fill-none stroke-brand" strokeWidth={3} />
+      ) : null}
       <circle
         cx={cx}
         cy={cy}

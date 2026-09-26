@@ -81,7 +81,13 @@ const SHAPE_LABEL_KEYS: Record<SeatTableShape, string> = {
 };
 
 /** Podglad sekcji w jej ukladzie lokalnym (z obrotem), bez reszty planu. */
-function SectionPreview({ params, rotationDeg }: { params: SectionLayoutParams; rotationDeg: number }) {
+function SectionPreview({
+  params,
+  rotationDeg,
+}: {
+  params: SectionLayoutParams;
+  rotationDeg: number;
+}) {
   const { t } = useTranslation();
   const seats = generateSectionSeats(params).map((seat) => ({
     ...seat,
@@ -99,7 +105,13 @@ function SectionPreview({ params, rotationDeg }: { params: SectionLayoutParams; 
       >
         {seats.map((seat) => (
           <g key={`${seat.rowLabel ?? ""}-${seat.seatNumber}`}>
-            <circle cx={seat.x} cy={seat.y} r={radius} className="fill-card stroke-muted-foreground" strokeWidth={2} />
+            <circle
+              cx={seat.x}
+              cy={seat.y}
+              r={radius}
+              className="fill-card stroke-muted-foreground"
+              strokeWidth={2}
+            />
             <text
               x={seat.x}
               y={seat.y}
@@ -156,7 +168,9 @@ export function EventSeatSectionDialog({
   useEffect(() => {
     if (!open) return;
     const current = sectionRef.current;
-    setDraft(current === null ? emptySectionDraft(kindRef.current) : sectionDraftFromSection(current));
+    setDraft(
+      current === null ? emptySectionDraft(kindRef.current) : sectionDraftFromSection(current),
+    );
     setTouched(false);
   }, [open, sectionId]);
 
@@ -259,7 +273,10 @@ export function EventSeatSectionDialog({
                   "seat-section-scheme",
                   "adminEventSeating.sectionDialog.rowLabelScheme",
                   draft.rowLabelScheme,
-                  SEAT_ROW_LABEL_SCHEMES.map((value) => ({ value, label: t(SCHEME_LABEL_KEYS[value]) })),
+                  SEAT_ROW_LABEL_SCHEMES.map((value) => ({
+                    value,
+                    label: t(SCHEME_LABEL_KEYS[value]),
+                  })),
                   (value) => set("rowLabelScheme", value as SeatRowLabelScheme),
                 )}
                 <AdminFormTextRow
@@ -274,7 +291,10 @@ export function EventSeatSectionDialog({
                   "seat-section-numbering",
                   "adminEventSeating.sectionDialog.seatNumbering",
                   draft.seatNumbering,
-                  SEAT_NUMBERINGS.map((value) => ({ value, label: t(NUMBERING_LABEL_KEYS[value]) })),
+                  SEAT_NUMBERINGS.map((value) => ({
+                    value,
+                    label: t(NUMBERING_LABEL_KEYS[value]),
+                  })),
                   (value) => set("seatNumbering", value as SeatNumbering),
                 )}
                 <AdminFormTextRow
@@ -347,7 +367,9 @@ export function EventSeatSectionDialog({
           </AdminFormSection>
 
           <section aria-label={t("adminEventSeating.sectionDialog.preview")} className="space-y-2">
-            <h3 className="text-sm font-semibold">{t("adminEventSeating.sectionDialog.preview")}</h3>
+            <h3 className="text-sm font-semibold">
+              {t("adminEventSeating.sectionDialog.preview")}
+            </h3>
             {layout === null ? (
               <p className="text-sm text-muted-foreground">
                 {t("adminEventSeating.sectionDialog.previewInvalid")}

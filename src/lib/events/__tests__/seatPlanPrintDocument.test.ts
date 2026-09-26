@@ -12,16 +12,26 @@ const OPTIONS = {
   lang: "pl" as const,
   documentTitle: "Lista <gala>",
   eventTitle: "Gala & Kongres",
-  mapName: "Sala \"A\"",
+  mapName: 'Sala "A"',
   columns: { seat: "Miejsce", name: "Uczestnik", company: "Firma", ticket: "Bilet", note: "Uwagi" },
   emptyLabel: "Nikt nie siedzi",
 };
 
 describe("dokument druku listy przy drzwiach", () => {
   it("escapuje każdy tekst wpisany ręcznie", () => {
-    expect(escapeHtml(`<a href="x">'&'</a>`)).toBe("&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;");
+    expect(escapeHtml(`<a href="x">'&'</a>`)).toBe(
+      "&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;",
+    );
     const html = seatPlanPrintHtml(
-      [{ seat: "A/1", name: "Anna", company: "<script>alert(1)</script>", ticket: "VIP", note: "" }],
+      [
+        {
+          seat: "A/1",
+          name: "Anna",
+          company: "<script>alert(1)</script>",
+          ticket: "VIP",
+          note: "",
+        },
+      ],
       OPTIONS,
     );
     expect(html).not.toContain("<script>");
@@ -29,7 +39,7 @@ describe("dokument druku listy przy drzwiach", () => {
     expect(html).toContain("<title>Lista &lt;gala&gt;</title>");
     expect(html).toContain("Gala &amp; Kongres");
     expect(html).toContain('<html lang="pl">');
-    expect(html).toContain("<th scope=\"col\">Uczestnik</th>");
+    expect(html).toContain('<th scope="col">Uczestnik</th>');
   });
 
   it("pusta lista mówi, że nikt nie siedzi; angielski dokument ma lang=en", () => {

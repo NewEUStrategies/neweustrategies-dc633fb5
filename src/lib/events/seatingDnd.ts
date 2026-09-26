@@ -34,7 +34,10 @@ export function seatDropTarget(
   if (registrationId === null) return null;
   const start = event.activatorEvent as Partial<MouseEvent>;
   if (typeof start.clientX !== "number" || typeof start.clientY !== "number") return null;
-  const element = doc.elementFromPoint(start.clientX + event.delta.x, start.clientY + event.delta.y);
+  const element = doc.elementFromPoint(
+    start.clientX + event.delta.x,
+    start.clientY + event.delta.y,
+  );
   const seatId = element?.closest("[data-seat-id]")?.getAttribute("data-seat-id") ?? null;
   if (seatId === null) return null;
   return { seatId, registrationId, name: typeof data.name === "string" ? data.name : "" };

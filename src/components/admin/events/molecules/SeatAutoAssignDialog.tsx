@@ -58,7 +58,12 @@ export interface SeatAutoAssignDialogProps {
   detail: SeatMapDetail;
 }
 
-export function SeatAutoAssignDialog({ open, onOpenChange, eventId, detail }: SeatAutoAssignDialogProps) {
+export function SeatAutoAssignDialog({
+  open,
+  onOpenChange,
+  eventId,
+  detail,
+}: SeatAutoAssignDialogProps) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const mapId = detail.map.id;
@@ -79,18 +84,24 @@ export function SeatAutoAssignDialog({ open, onOpenChange, eventId, detail }: Se
   const rows = useMemo(() => candidates.data ?? [], [candidates.data]);
   const names = useMemo(
     () =>
-      new Map(rows.map((row) => [row.registration_id, `${row.first_name} ${row.last_name}`.trim()])),
+      new Map(
+        rows.map((row) => [row.registration_id, `${row.first_name} ${row.last_name}`.trim()]),
+      ),
     [rows],
   );
 
   const plan = useMemo(() => {
     const sponsorCompany = new Map((sponsors.data ?? []).map((row) => [row.id, row.company_id]));
-    return planSeating(plannerSeatsFromDetail(detail, sponsorCompany), plannerCandidatesFromRows(rows), {
-      categoryTickets: categoryTicketsOf(detail),
-      keepTogether,
-      holdsFirst,
-      ticketTypeIds: ticketIds.length === 0 ? null : ticketIds,
-    });
+    return planSeating(
+      plannerSeatsFromDetail(detail, sponsorCompany),
+      plannerCandidatesFromRows(rows),
+      {
+        categoryTickets: categoryTicketsOf(detail),
+        keepTogether,
+        holdsFirst,
+        ticketTypeIds: ticketIds.length === 0 ? null : ticketIds,
+      },
+    );
   }, [detail, rows, sponsors.data, keepTogether, holdsFirst, ticketIds]);
 
   const toggleTicket = (ticketId: string, checked: boolean) =>
@@ -144,8 +155,12 @@ export function SeatAutoAssignDialog({ open, onOpenChange, eventId, detail }: Se
           />
           {(tickets.data ?? []).length === 0 ? null : (
             <fieldset className="space-y-2">
-              <legend className="text-sm font-semibold">{t("adminEventSeating.autoDialog.tickets")}</legend>
-              <p className="text-xs text-muted-foreground">{t("adminEventSeating.autoDialog.allTickets")}</p>
+              <legend className="text-sm font-semibold">
+                {t("adminEventSeating.autoDialog.tickets")}
+              </legend>
+              <p className="text-xs text-muted-foreground">
+                {t("adminEventSeating.autoDialog.allTickets")}
+              </p>
               <ul className="grid gap-2 sm:grid-cols-2">
                 {(tickets.data ?? []).map((ticket) => {
                   const id = `seat-auto-ticket-${ticket.id}`;
@@ -168,9 +183,13 @@ export function SeatAutoAssignDialog({ open, onOpenChange, eventId, detail }: Se
 
           <section aria-live="polite" className="space-y-2 rounded-[6px] border border-border p-3">
             {loading ? (
-              <p className="text-sm text-muted-foreground">{t("adminEventSeating.autoDialog.loading")}</p>
+              <p className="text-sm text-muted-foreground">
+                {t("adminEventSeating.autoDialog.loading")}
+              </p>
             ) : plan.proposals.length === 0 && plan.unplaced.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{t("adminEventSeating.autoDialog.nothing")}</p>
+              <p className="text-sm text-muted-foreground">
+                {t("adminEventSeating.autoDialog.nothing")}
+              </p>
             ) : (
               <>
                 <p className="text-sm font-medium">
@@ -198,7 +217,10 @@ export function SeatAutoAssignDialog({ open, onOpenChange, eventId, detail }: Se
           </section>
 
           {rejected.length === 0 ? null : (
-            <section role="alert" className="space-y-2 rounded-[6px] border border-destructive/40 p-3">
+            <section
+              role="alert"
+              className="space-y-2 rounded-[6px] border border-destructive/40 p-3"
+            >
               <p className="text-sm font-medium">
                 {t("adminEventSeating.autoDialog.rejected", { count: rejected.length })}
               </p>

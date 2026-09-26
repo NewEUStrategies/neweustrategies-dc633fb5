@@ -22,11 +22,20 @@ describe("etykieta miejsca na sali", () => {
 
   it("wiersz RPC: `table` to stół, każdy inny rodzaj - rzędy", () => {
     expect(
-      seatLabelMessageFromRow({ section_kind: "table", section_label: "S", row_label: null, seat_number: 1 })
-        .key,
+      seatLabelMessageFromRow({
+        section_kind: "table",
+        section_label: "S",
+        row_label: null,
+        seat_number: 1,
+      }).key,
     ).toBe("eventSeating.label.table");
     expect(
-      seatLabelMessageFromRow({ section_kind: "balkon", section_label: "B", row_label: "2", seat_number: 7 }),
+      seatLabelMessageFromRow({
+        section_kind: "balkon",
+        section_label: "B",
+        row_label: "2",
+        seat_number: 7,
+      }),
     ).toEqual({ key: "eventSeating.label.rows", params: { section: "B", row: "2", seat: 7 } });
   });
 });

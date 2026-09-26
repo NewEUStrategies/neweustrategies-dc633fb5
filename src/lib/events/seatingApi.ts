@@ -24,10 +24,66 @@ import { bag, flag, list, num, text, type JsonBag } from "@/lib/events/seatingJs
 
 type Fns = Database["public"]["Functions"];
 
-export type SeatMapRow = Fns["admin_event_seat_maps_list"]["Returns"][number];
-export type SeatingCandidateRow = Fns["admin_event_seating_candidates"]["Returns"][number];
-export type SeatLookupRow = Fns["admin_event_seat_lookup"]["Returns"][number];
-export type SeatExportRow = Fns["admin_event_seating_export"]["Returns"][number];
+/**
+ * Kolumny, w ktorych funkcja TABLE oddaje NULL, choc generator typow obiecuje
+ * wartosc (znane klamstwo generatora - patrz `db-row-casts`). Nadpisujemy je
+ * uczciwie jako `| null`, zeby kompilator wymusil obsluge braku: plan bez sali,
+ * wolne miejsce bez osoby, osoba bez firmy.
+ */
+type WithNulls<T, K extends keyof T> = Omit<T, K> & { [P in K]: T[P] | null };
+
+export type SeatMapRow = WithNulls<
+  Fns["admin_event_seat_maps_list"]["Returns"][number],
+  | "room_id"
+  | "room_name"
+  | "session_id"
+  | "session_title_pl"
+  | "session_title_en"
+  | "published_at"
+  | "stage_x"
+  | "stage_y"
+  | "stage_w"
+  | "stage_h"
+>;
+export type SeatingCandidateRow = WithNulls<
+  Fns["admin_event_seating_candidates"]["Returns"][number],
+  | "company"
+  | "company_id"
+  | "ticket_type_id"
+  | "ticket_name_pl"
+  | "ticket_name_en"
+  | "group_id"
+  | "group_name_pl"
+  | "group_name_en"
+  | "group_color"
+  | "package_order_id"
+  | "package_company_id"
+  | "seat_id"
+  | "seat_label"
+>;
+export type SeatLookupRow = WithNulls<
+  Fns["admin_event_seat_lookup"]["Returns"][number],
+  "row_label" | "category_key" | "category_name_pl" | "category_name_en" | "category_color"
+>;
+export type SeatExportRow = WithNulls<
+  Fns["admin_event_seating_export"]["Returns"][number],
+  | "row_label"
+  | "category_key"
+  | "category_name_pl"
+  | "category_name_en"
+  | "hold_company_id"
+  | "hold_company_name"
+  | "hold_note"
+  | "registration_id"
+  | "first_name"
+  | "last_name"
+  | "email"
+  | "company_id"
+  | "company"
+  | "ticket_name_pl"
+  | "ticket_name_en"
+  | "registration_status"
+>;
 
 /** `event_seat_maps_status_values`. */
 export const SEAT_MAP_STATUSES = ["draft", "published"] as const;
@@ -58,7 +114,12 @@ export const SEAT_ASSIGNMENT_SOURCES = ["manual", "auto", "import"] as const;
 export type SeatAssignmentSource = (typeof SEAT_ASSIGNMENT_SOURCES)[number];
 
 /** `event_seat_assignments_release_reason_values`. */
-export const SEAT_RELEASE_REASONS = ["manual", "moved", "registration_status", "seat_blocked"] as const;
+export const SEAT_RELEASE_REASONS = [
+  "manual",
+  "moved",
+  "registration_status",
+  "seat_blocked",
+] as const;
 export type SeatReleaseReason = (typeof SEAT_RELEASE_REASONS)[number];
 
 /**
@@ -219,8 +280,9 @@ function stringList(value: unknown): string[] {
 
 function parseCategory(value: unknown): SeatCategory | null {
   const raw = bag(value);
-  const id = raw === null ? null : text(raw, "id");
-  if (raw === null || id === null) return null;
+  if (raw === null) return null;
+  const id = text(raw, "id");
+  if (id === null) return null;
   return {
     id,
     key: text(raw, "key") ?? "",
@@ -234,8 +296,9 @@ function parseCategory(value: unknown): SeatCategory | null {
 
 function parseSection(value: unknown): SeatSection | null {
   const raw = bag(value);
-  const id = raw === null ? null : text(raw, "id");
-  if (raw === null || id === null) return null;
+  if (raw === null) return null;
+  const id = text(raw, "id");
+  if (id === null) return null;
   return {
     id,
     label: text(raw, "label") ?? "",
@@ -265,10 +328,11 @@ type ParsedSeat = Omit<Seat, "sectionKind" | "sectionLabel">;
 
 function parseSeat(value: unknown): ParsedSeat | null {
   const raw = bag(value);
-  const id = raw === null ? null : text(raw, "id");
-  const sectionId = raw === null ? null : text(raw, "section_id");
-  const seatNumber = raw === null ? null : num(raw, "seat_number");
-  if (raw === null || id === null || sectionId === null || seatNumber === null) return null;
+  if (raw === null) return null;
+  const id = text(raw, "id");
+  const sectionId = text(raw, "section_id");
+  const seatNumber = num(raw, "seat_number");
+  if (id === null || sectionId === null || seatNumber === null) return null;
   return {
     id,
     sectionId,
@@ -293,10 +357,11 @@ function parseSeat(value: unknown): ParsedSeat | null {
 
 function parseAssignment(value: unknown): SeatAssignment | null {
   const raw = bag(value);
-  const id = raw === null ? null : text(raw, "id");
-  const seatId = raw === null ? null : text(raw, "seat_id");
-  const registrationId = raw === null ? null : text(raw, "registration_id");
-  if (raw === null || id === null || seatId === null || registrationId === null) return null;
+  if (raw === null) return null;
+  const id = text(raw, "id");
+  const seatId = text(raw, "seat_id");
+  const registrationId = text(raw, "registration_id");
+  if (id === null || seatId === null || registrationId === null) return null;
   return {
     id,
     seatId,
