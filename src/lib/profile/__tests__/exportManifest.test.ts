@@ -153,6 +153,36 @@ describe("kompletność zakresu: kluby dyskusyjne (finding 2026-08-08)", () => {
   });
 });
 
+describe("kompletność zakresu: nabór prelegentów wydarzeń (2026-09-26)", () => {
+  // CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW: tabele naboru mają wyłącznie
+  // polityki odczytu dla administratora. Bez sekcji w rejestrze osoba, która
+  // wysłała zgłoszenia i materiały, dostawała plik „komplet danych" bez nich,
+  // a manifest milczał - brak wyglądał jak „nie korzystam".
+  const CFP_SECTIONS = [
+    "event_cfp_submissions",
+    "event_speaker_materials",
+    "event_cfp_reviewer_roles",
+    "event_cfp_reviews_written",
+  ] as const;
+
+  it.each(CFP_SECTIONS)("zakres obejmuje sekcję %s we własnej grupie", (id) => {
+    expect(EXPORT_SECTION_IDS).toContain(id);
+    expect(EXPORT_SECTION_GROUP_OF[id], id).toBe("event_cfp");
+  });
+
+  it("nazywa wyłączenie cudzych ocen, notatki decyzji i kontaktów współprelegentów", () => {
+    const exclusion = EXPORT_EXCLUSIONS.find((e) => e.id === "event_cfp_assessments");
+    expect(exclusion, "wyłączenie musi być nazwane w pliku").toBeDefined();
+    expect(exclusion?.reason_pl).toMatch(/art\. 15 ust\. 4/);
+    expect(exclusion?.reason_en).toMatch(/art\. 15\(4\)/);
+  });
+
+  it("wszystkie sekcje naboru jadą JEDNYM wywołaniem RPC", () => {
+    const source = readFileSync(SERVER_FN, "utf8");
+    expect([...source.matchAll(/supabase\.rpc\("event_cfp_export_my_data"/g)]).toHaveLength(1);
+  });
+});
+
 describe("bramka: rejestr ⇄ server fn", () => {
   it("server fn buduje DOKŁADNIE zadeklarowane sekcje", () => {
     const built = sectionKeysFromServerFn();

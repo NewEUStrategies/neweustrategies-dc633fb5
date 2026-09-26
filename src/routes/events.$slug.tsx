@@ -54,6 +54,8 @@ import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import { EventPortalShell } from "@/components/events/public/organisms/EventPortalShell";
 import { EventTabsNav } from "@/components/events/public/organisms/EventTabsNav";
+import { SponsorTrackingProvider } from "@/lib/events/sponsorTrackingReact";
+import { AdAttributionCapture } from "@/components/events/public/atoms/AdAttributionCapture";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import {
@@ -349,9 +351,19 @@ function EventShell() {
   ensureCommunityI18n();
   ensureEventFrontI18n();
   const modules = useCommunityModules();
+  const { slug } = Route.useParams();
 
   if (!modules.events_enabled) return <CommunityDisabled />;
-  return <EventShellBody />;
+  // Atrybucja kampanii i krok lejka „wizyta” - atom bez wyglądu, praca w
+  // efektach po hydratacji (HTML nie zależy od `?gclid`/`utm_*`, które są poza
+  // kluczem cache dokumentów). Obok ciała, nie w nim: ma działać także na
+  // gałęzi zdegradowanej i przy bramce warstwy.
+  return (
+    <>
+      <AdAttributionCapture eventSlug={slug} />
+      <EventShellBody />
+    </>
+  );
 }
 
 /**
@@ -448,7 +460,14 @@ function EventShellBody() {
       }
       tabsSlot={<EventTabsNav slug={slug} />}
     >
-      <Outlet />
+      {/* POMIAR EKSPOZYCJI SPONSORÓW (raport dla sponsora) obejmuje WYŁĄCZNIE
+          publiczne zakładki wydarzenia. Podgląd w studiu rysuje te same
+          komponenty bez tego dostawcy, więc nie nabija wyświetleń. Dostawca
+          nie zmienia znaczników - obserwatory rejestrują się w efektach, po
+          zgodzie marketingowej. */}
+      <SponsorTrackingProvider eventSlug={slug}>
+        <Outlet />
+      </SponsorTrackingProvider>
     </EventPortalShell>
   );
 }

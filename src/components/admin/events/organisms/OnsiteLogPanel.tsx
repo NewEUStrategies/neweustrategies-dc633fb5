@@ -11,21 +11,41 @@
 //
 // DZIENNIKA NIE EDYTUJEMY. Nie ma tu akcji zapisu ani usuwania: wiersz odprawy
 // jest dowodem wpuszczenia i zmiana go po fakcie unieważniłaby audyt.
+//
+// DECYZJA BEZ SIECI JEST WIDOCZNA. Wiersz zapisany ze skanu offline ma
+// plakietkę „offline" (z decyzją urządzenia w podpowiedzi), a gdy urządzenie
+// wpuściło, a baza odmawia - czerwoną plakietkę „konflikt". Konflikt liczy
+// baza (`admin_event_checkins_list.conflict`, według trybu punktu), a filtr
+// „tylko konflikty" idzie do bazy jak pozostałe.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { FormSelect } from "@/components/atoms/FormSelect";
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
 import { AdminPagination } from "@/components/admin/molecules/AdminPagination";
 import { adminOnsiteErrorMessage } from "@/lib/events/adminOnsiteErrors";
 import { useCheckins, useCheckpoints } from "@/lib/events/useEventOnsite";
 import { CHECKIN_DIRECTIONS, CHECKIN_RESULTS } from "@/lib/events/onsiteApi";
+import type { OfflineOutcome } from "@/lib/events/onsiteEnums";
+import { isOfflineOutcome } from "@/lib/events/onsiteEnums";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { uiLang } from "@/lib/i18n/format";
+import { ensureOnsiteI18n } from "@/lib/i18n-admin-event-onsite";
+
+ensureOnsiteI18n();
 
 const ALL = "__all__";
+
+const OFFLINE_OUTCOME_KEY: Record<OfflineOutcome, string> = {
+  granted: "adminEventOnsite.offlineOutcomes.granted",
+  denied_direction: "adminEventOnsite.offlineOutcomes.denied_direction",
+  denied_registration_status: "adminEventOnsite.offlineOutcomes.denied_registration_status",
+  unknown_code: "adminEventOnsite.offlineOutcomes.unknown_code",
+  repeat: "adminEventOnsite.offlineOutcomes.repeat",
+};
 
 export function OnsiteLogPanel({ eventId }: { eventId: string }) {
   const { t, i18n } = useTranslation();
@@ -33,6 +53,7 @@ export function OnsiteLogPanel({ eventId }: { eventId: string }) {
   const [checkpointId, setCheckpointId] = useState(ALL);
   const [direction, setDirection] = useState(ALL);
   const [result, setResult] = useState(ALL);
+  const [conflictsOnly, setConflictsOnly] = useState(false);
   const [term, setTerm] = useState("");
   const debounced = useDebouncedValue(term, 300);
   const [page, setPage] = useState(1);
@@ -45,6 +66,7 @@ export function OnsiteLogPanel({ eventId }: { eventId: string }) {
     direction: direction === ALL ? undefined : (direction as "in" | "out"),
     result: result === ALL ? undefined : result,
     q: debounced,
+    conflictsOnly,
     limit: pageSize,
     offset: (page - 1) * pageSize,
   });
@@ -124,6 +146,17 @@ export function OnsiteLogPanel({ eventId }: { eventId: string }) {
             aria-label={t("adminEventOnsite.filters.result")}
           />
         </div>
+        <div className="flex items-center gap-2 sm:col-span-2 lg:col-span-4">
+          <Checkbox
+            id="log-conflicts-only"
+            checked={conflictsOnly}
+            onCheckedChange={(next) => {
+              setConflictsOnly(next === true);
+              setPage(1);
+            }}
+          />
+          <Label htmlFor="log-conflicts-only">{t("adminEventOnsite.filters.conflictsOnly")}</Label>
+        </div>
         <div className="space-y-1.5">
           <Label htmlFor="log-search">{t("adminEventOnsite.filters.search")}</Label>
           <Input
@@ -146,7 +179,9 @@ export function OnsiteLogPanel({ eventId }: { eventId: string }) {
             : adminOnsiteErrorMessage(listQ.error)
         }
         isEmpty={rows.length === 0}
-        emptyLabel={t("adminEventOnsite.log.empty")}
+        emptyLabel={
+          conflictsOnly ? t("adminEventOnsite.log.conflictsEmpty") : t("adminEventOnsite.log.empty")
+        }
       >
         <div className="overflow-hidden rounded-md border border-border/70">
           <ul className="divide-y divide-border/70">
@@ -180,6 +215,25 @@ export function OnsiteLogPanel({ eventId }: { eventId: string }) {
                   <Badge variant="secondary">
                     {t(`adminEventOnsite.sources.${row.source}`, { defaultValue: row.source })}
                   </Badge>
+                  {row.offline_admitted === null ? null : (
+                    <Badge
+                      variant="outline"
+                      title={
+                        row.offline_outcome !== null && isOfflineOutcome(row.offline_outcome)
+                          ? t("adminEventOnsite.log.offlineOutcome", {
+                              outcome: t(OFFLINE_OUTCOME_KEY[row.offline_outcome]),
+                            })
+                          : undefined
+                      }
+                    >
+                      {t("adminEventOnsite.log.offlineBadge")}
+                    </Badge>
+                  )}
+                  {row.conflict ? (
+                    <Badge variant="destructive" title={t("adminEventOnsite.log.conflictHint")}>
+                      {t("adminEventOnsite.log.conflictBadge")}
+                    </Badge>
+                  ) : null}
                   {row.repeat_count > 1 ? (
                     <Badge variant="outline">{`${t("adminEventOnsite.labels.repeatCount")}: ${row.repeat_count}`}</Badge>
                   ) : null}

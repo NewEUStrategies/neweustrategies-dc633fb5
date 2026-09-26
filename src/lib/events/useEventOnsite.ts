@@ -37,6 +37,7 @@ import {
   saveCheckpoint,
   searchCheckinPeople,
   setScannerDeviceActive,
+  setScannerDeviceOffline,
   type BadgePrintInput,
   type BadgePrintRow,
   type BadgePrintsQuery,
@@ -233,6 +234,14 @@ export function useRevokeScannerDevice(eventId: string) {
 export function useSetScannerDeviceActive(eventId: string) {
   return useOnsiteMutation<{ deviceId: string; isActive: boolean }, boolean>(eventId, (input) =>
     setScannerDeviceActive(input.deviceId, input.isActive),
+  );
+}
+
+/** Zgoda na liste offline - ta sama galaz wydarzenia, co reszta urzadzen. */
+export function useSetScannerDeviceOffline(eventId: string) {
+  return useOnsiteMutation<{ deviceId: string; offlineRoster: boolean }, boolean>(
+    eventId,
+    (input) => setScannerDeviceOffline(input.deviceId, input.offlineRoster),
   );
 }
 

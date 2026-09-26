@@ -48,6 +48,7 @@ const onsite = vi.hoisted(() => ({
   saveCheckpoint: vi.fn(),
   searchCheckinPeople: vi.fn(),
   setScannerDeviceActive: vi.fn(),
+  setScannerDeviceOffline: vi.fn(),
 }));
 
 vi.mock("@/lib/events/onsiteApi", () => onsite);
@@ -74,6 +75,7 @@ const {
   useSaveCheckpoint,
   useScannerDevices,
   useSetScannerDeviceActive,
+  useSetScannerDeviceOffline,
 } = await import("@/lib/events/useEventOnsite");
 
 const EVENT_ID = "11111111-1111-4111-8111-111111111111";
@@ -860,4 +862,22 @@ describe("useEventOnsite - znane defekty", () => {
       expect(held).not.toContain("anna@example.org");
     },
   );
+});
+
+describe("zgoda na liste offline urzadzenia", () => {
+  it("sklada dwa argumenty i uniewaznia galaz TEGO wydarzenia, nie cudzego", async () => {
+    onsite.setScannerDeviceOffline.mockResolvedValue(true);
+    const { result, queryClient } = renderHookWithQueryClient(() =>
+      useSetScannerDeviceOffline(EVENT_ID),
+    );
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    await act(async () => {
+      await result.current.mutateAsync({ deviceId: DEVICE_ID, offlineRoster: true });
+    });
+
+    expect(onsite.setScannerDeviceOffline).toHaveBeenCalledWith(DEVICE_ID, true);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: onsiteKeys.event(EVENT_ID) });
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: onsiteKeys.event(OTHER_EVENT_ID) });
+  });
 });

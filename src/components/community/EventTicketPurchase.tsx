@@ -36,6 +36,7 @@ import { AddToCartButton } from "@/components/cart/atoms/AddToCartButton";
 import { formatMoney } from "@/lib/billing/types";
 import { rsvpEvent } from "@/lib/community/publicQueries";
 import { getMyTicketAllowance } from "@/lib/events/ticketAllowance.functions";
+import { sendEventFunnelStep } from "@/lib/events/eventFunnelBeacon";
 import {
   EMPTY_TICKET_ALLOWANCE,
   parseTicketAllowance,
@@ -140,6 +141,10 @@ export function EventTicketPurchase({
       );
       return;
     }
+    // Lejek Google Ads: "rozpoczęcie płatności" to klik zalogowanego kupującego
+    // w kasę (raz na sesję, bramka zgody w beaconie) - tak samo jak
+    // `RegistrationPayAction`. Autorytetem płatności jest zamówienie w bazie.
+    sendEventFunnelStep("checkout_start", { eventId });
     setBusy(true);
     setCodeRefused(false);
     const code = promo.trim();

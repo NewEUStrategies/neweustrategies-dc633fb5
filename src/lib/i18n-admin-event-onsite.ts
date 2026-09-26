@@ -98,6 +98,7 @@ export const adminEventOnsitePl = {
       sponsor: "Sponsor",
       granted: "Wpuszczone",
       denied: "Odmowy",
+      conflictsOnly: "Tylko konflikty offline",
     },
     labels: {
       occupancy: "Zajętość",
@@ -130,6 +131,8 @@ export const adminEventOnsitePl = {
       refresh: "Odśwież",
       copyToken: "Skopiuj token",
       copyPairingLink: "Kopiuj odnośnik parowania",
+      enableOffline: "Włącz listę offline",
+      disableOffline: "Wyłącz listę offline",
       save: "Zapisz",
       cancel: "Anuluj",
     },
@@ -151,6 +154,8 @@ export const adminEventOnsitePl = {
         "W tym punkcie zapisano już {{count}} odpraw - zamiast usuwać, wyłącz punkt.",
       checkpointHasDevices: "Do tego punktu przypisano {{count}} urządzeń skanujących.",
       invalidDirection: "Kierunek musi być wejściem albo wyjściem.",
+      deviceTimeOutOfRange:
+        "Czas skanu jest starszy niż tydzień - dziennik go nie przyjmie. Zapisz odprawę ręcznie z bieżącym czasem.",
       invalidSource: "Panel może zapisać tylko wpis ręczny lub szukanie po nazwisku.",
       personNotFound: "Ta osoba nie istnieje w tej organizacji.",
       queryTooShort: "Wpisz co najmniej 2 znaki.",
@@ -247,6 +252,19 @@ export const adminEventOnsitePl = {
         "Każdy wiersz to jedna decyzja: kto, gdzie, kiedy, z jakiego urządzenia i z jakim wynikiem. Dziennika nie da się edytować.",
       loading: "Wczytuję dziennik…",
       empty: "Nie zapisano jeszcze żadnej odprawy.",
+      conflictsEmpty: "Brak konfliktów decyzji offline.",
+      offlineBadge: "bez sieci",
+      conflictBadge: "konflikt",
+      conflictHint:
+        "Urządzenie wpuściło tę osobę bez sieci, a baza odmawia. Obecność nie została zapisana - zdecyduj ręcznie (odprawa w recepcji).",
+      offlineOutcome: "Decyzja urządzenia bez sieci: {{outcome}}",
+    },
+    offlineOutcomes: {
+      granted: "wpuszczony",
+      denied_direction: "zły kierunek",
+      denied_registration_status: "zapis niezatwierdzony",
+      unknown_code: "nieznany kod",
+      repeat: "już odprawiony",
     },
     devices: {
       title: "Urządzenia skanujące",
@@ -255,6 +273,10 @@ export const adminEventOnsitePl = {
       loading: "Wczytuję urządzenia…",
       empty: "Nie wydano jeszcze żadnego poświadczenia.",
       revokeConfirm: "Unieważnić to poświadczenie? Operacja jest nieodwracalna.",
+      offlineBadge: "Lista offline",
+      rosterDownloaded: "Lista pobrana {{when}}",
+      rosterNever: "Lista jeszcze niepobrana",
+      offlineConfirmTitle: "Włączyć listę offline na tym urządzeniu?",
       dialog: {
         createTitle: "Wydaj poświadczenie urządzenia",
         label: "Nazwa urządzenia",
@@ -267,6 +289,12 @@ export const adminEventOnsitePl = {
         sponsorNone: "Bez sponsora",
         expiresAt: "Wygasa",
         expiresHint: "Pusto = doba po zakończeniu wydarzenia.",
+        offlineRoster: "Lista offline na urządzeniu",
+        offlineRosterHint:
+          "Urządzenie pobierze listę uczestników tego wydarzenia (imię, nazwisko, firma, bilet, grupa, status i skrót kodu biletu - bez e-maili, telefonów i samych kodów), żeby decydować przy bramce bez sieci.",
+        offlineRosterWarning:
+          "RODO: dane osobowe uczestników trafią na telefon. Włączaj tylko dla urządzeń zaufanych operatorów, ustaw krótki termin ważności i unieważnij kod po wydarzeniu. Każde pobranie listy jest odnotowywane.",
+        offlineRosterNeedsCheckin: "Lista offline wymaga uprawnienia do odprawy.",
       },
       credential: {
         title: "Token wydany",
@@ -282,6 +310,10 @@ export const adminEventOnsitePl = {
         revoked: "Poświadczenie unieważnione.",
         paused: "Poświadczenie wstrzymane.",
         resumed: "Poświadczenie wznowione.",
+        offlineEnabled:
+          "Lista offline włączona - urządzenie pobierze ją przy następnym połączeniu.",
+        offlineDisabled:
+          "Lista offline wyłączona - urządzenie usunie ją przy następnym połączeniu.",
       },
     },
     badges: {
@@ -489,6 +521,7 @@ export const adminEventOnsiteEn = {
       sponsor: "Sponsor",
       granted: "Admitted",
       denied: "Denied",
+      conflictsOnly: "Offline conflicts only",
     },
     labels: {
       occupancy: "Occupancy",
@@ -521,6 +554,8 @@ export const adminEventOnsiteEn = {
       refresh: "Refresh",
       copyToken: "Copy token",
       copyPairingLink: "Copy pairing link",
+      enableOffline: "Turn on offline list",
+      disableOffline: "Turn off offline list",
       save: "Save",
       cancel: "Cancel",
     },
@@ -542,6 +577,8 @@ export const adminEventOnsiteEn = {
         "{{count}} check-in(s) were recorded at this checkpoint - deactivate it instead.",
       checkpointHasDevices: "{{count}} scanner credential(s) still point at this checkpoint.",
       invalidDirection: "Direction must be entry or exit.",
+      deviceTimeOutOfRange:
+        "The scan time is more than a week old - the log will not accept it. Record the check-in manually with the current time.",
       invalidSource: "The panel can only record a manual entry or a name search.",
       personNotFound: "This person does not exist in this organisation.",
       queryTooShort: "Type at least 2 characters.",
@@ -635,6 +672,19 @@ export const adminEventOnsiteEn = {
         "Every row is one decision: who, where, when, from which device and with which result. The log cannot be edited.",
       loading: "Loading the log…",
       empty: "No check-in has been recorded yet.",
+      conflictsEmpty: "No offline decision conflicts.",
+      offlineBadge: "offline",
+      conflictBadge: "conflict",
+      conflictHint:
+        "The device admitted this person without a network and the server refuses. Attendance was not recorded - decide manually (check-in at the desk).",
+      offlineOutcome: "Device decision without network: {{outcome}}",
+    },
+    offlineOutcomes: {
+      granted: "admitted",
+      denied_direction: "wrong direction",
+      denied_registration_status: "registration not approved",
+      unknown_code: "unknown code",
+      repeat: "already checked in",
     },
     devices: {
       title: "Scanner devices",
@@ -643,6 +693,10 @@ export const adminEventOnsiteEn = {
       loading: "Loading devices…",
       empty: "No credential has been issued yet.",
       revokeConfirm: "Revoke this credential? The action cannot be undone.",
+      offlineBadge: "Offline list",
+      rosterDownloaded: "List downloaded {{when}}",
+      rosterNever: "List not downloaded yet",
+      offlineConfirmTitle: "Turn on the offline list on this device?",
       dialog: {
         createTitle: "Issue a device credential",
         label: "Device label",
@@ -654,6 +708,12 @@ export const adminEventOnsiteEn = {
         sponsorNone: "No sponsor",
         expiresAt: "Expires",
         expiresHint: "Empty = 24 hours after the event ends.",
+        offlineRoster: "Offline list on the device",
+        offlineRosterHint:
+          "The device downloads the list of this event's attendees (first and last name, company, ticket, group, status and a hash of the ticket code - no e-mails, phone numbers or the codes themselves) to decide at the gate without a network.",
+        offlineRosterWarning:
+          "GDPR: attendees' personal data will be stored on the phone. Only turn this on for devices of trusted operators, set a short expiry and revoke the code after the event. Every download of the list is recorded.",
+        offlineRosterNeedsCheckin: "The offline list requires the check-in permission.",
       },
       credential: {
         title: "Token issued",
@@ -669,6 +729,8 @@ export const adminEventOnsiteEn = {
         revoked: "Credential revoked.",
         paused: "Credential paused.",
         resumed: "Credential resumed.",
+        offlineEnabled: "Offline list turned on - the device downloads it on its next connection.",
+        offlineDisabled: "Offline list turned off - the device deletes it on its next connection.",
       },
     },
     badges: {

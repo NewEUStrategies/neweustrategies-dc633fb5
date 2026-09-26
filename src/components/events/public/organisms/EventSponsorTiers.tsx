@@ -20,8 +20,15 @@
 // „Partnerzy”, nie pas na stronie głównej, więc żaden z nich nie zastępuje
 // drugiego i żaden nie kopiuje kodu drugiego.
 //
+// POMIAR DLA RAPORTU SPONSORA (miejsce `home_strip`): wyświetlenie logotypu
+// i kliknięcie odnośnika liczą haki z `sponsorTrackingReact` - wyłącznie pod
+// dostawcą z publicznej powłoki wydarzenia, po zgodzie marketingowej, w
+// efektach (znaczniki SSR bez zmian). Podgląd w studiu rysuje ten sam widok
+// bez dostawcy, więc nie nabija wyświetleń.
+//
 // KOMPONENT NIE ZAKŁADA ZALOGOWANEGO: `event_sponsors_public` ma GRANT dla
 // `anon`, a migawka partnerów nie zależy od tego, kto patrzy.
+import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +38,7 @@ import { usePublicEventSponsors } from "@/lib/events/usePublicEvent";
 import { SponsorLogo } from "@/components/events/public/atoms/SponsorLogo";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 import type { PublicSponsor, PublicSponsorTier } from "@/lib/events/sponsorsSurface";
+import { useSponsorClickHandlers, useSponsorImpression } from "@/lib/events/sponsorTrackingReact";
 
 ensureEventFrontI18n();
 
@@ -161,7 +169,7 @@ function SponsorTierLogo({
   // bez niej klasy są dokładnie te z opublikowanej strony.
   const column = draft ? " flex-col" : "";
 
-  if (sponsor.websiteUrl === null) {
+  if (sponsor.href === null) {
     return (
       <span className={`flex items-center justify-center px-2${column}`}>
         {logo}
@@ -173,7 +181,8 @@ function SponsorTierLogo({
 
   return (
     <a
-      href={sponsor.websiteUrl}
+      ref={setRef}
+      href={sponsor.href}
       target="_blank"
       rel="noopener noreferrer nofollow"
       className={`flex items-center justify-center rounded-[6px] px-2 py-1 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring${column}`}

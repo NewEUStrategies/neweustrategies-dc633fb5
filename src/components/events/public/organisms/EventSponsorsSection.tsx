@@ -9,6 +9,15 @@
 // dla trzech partnerów i cztery rzędy dla trzydziestu, bez czterech
 // breakpointów robiących to samo.
 //
+// DOKĄD PROWADZI KAFEL, decyduje organizator (`PublicSponsor.href`, liczony
+// z `link_mode` w `sponsorsSurface.ts`): tryb `none` rysuje kafel bez
+// odnośnika, `external` prowadzi na adres przekierowania.
+//
+// POMIAR DLA RAPORTU SPONSORA: wyświetlenie kafla i kliknięcie odnośnika
+// liczą haki z `sponsorTrackingReact` pod miejscem `placement` - sekcja
+// „Partnerzy" na przeglądzie (`partners_section`, domyślnie) albo zakładka
+// (`partners_tab`). Wyłącznie w efektach i po zgodzie marketingowej.
+//
 // KARTOTEKA NIE WCHODZI NA STRONĘ. Wszystko poniżej to migawka z chwili
 // przypięcia (`snapshot_*`) - dlatego nie ma tu ani jednego pola z `crm_companies`.
 //
@@ -30,9 +39,11 @@ import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import {
   sponsorRoleKey,
+  type PublicSponsor,
   type PublicSponsorTier,
   type SponsorLogoSize,
 } from "@/lib/events/sponsorsSurface";
+import { useSponsorClickHandlers, useSponsorImpression } from "@/lib/events/sponsorTrackingReact";
 import { usePublicEventSponsors } from "@/lib/events/usePublicEvent";
 import { publicEventErrorMessage } from "@/lib/events/publicEventErrors";
 import { SponsorLogo } from "@/components/events/public/atoms/SponsorLogo";
@@ -47,12 +58,17 @@ const MIN_TILE: Record<SponsorLogoSize, string> = {
   lg: "16rem",
 };
 
+/** Miejsce pomiaru: sekcja na przeglądzie albo osobna zakładka „Partnerzy". */
+export type SponsorsSectionPlacement = "partners_section" | "partners_tab";
+
 export function EventSponsorsSection({
   slug,
   enabled = true,
+  placement = "partners_section",
 }: {
   slug: string;
   enabled?: boolean;
+  placement?: SponsorsSectionPlacement;
 }) {
   const sponsorsQuery = usePublicEventSponsors(slug, enabled);
 
@@ -258,5 +274,75 @@ function SponsorTierGroup({
         })}
       </ul>
     </section>
+  );
+}
+
+function SponsorTile({
+  sponsor,
+  logoSize,
+  lang,
+  placement,
+}: {
+  sponsor: PublicSponsor;
+  logoSize: SponsorLogoSize;
+  lang: "pl" | "en";
+  placement: SponsorsSectionPlacement;
+}) {
+  const { t } = useTranslation();
+  const ref = useRef<HTMLLIElement | null>(null);
+  const target = { sponsorId: sponsor.id, placement };
+  useSponsorImpression(ref, target);
+  const clickHandlers = useSponsorClickHandlers(target);
+  const description = pickLocalized(
+    { description_pl: sponsor.descriptionPl, description_en: sponsor.descriptionEn },
+    "description",
+    lang,
+  );
+  const body = (
+    <>
+      {/* LOGOTYP JEST OZDOBĄ, PODPIS JEST TREŚCIĄ. `SponsorLogo` bez adresu
+          degraduje do NAZWY firmy, a nazwa stoi już w podpisie kafla - bez
+          `aria-hidden` partner bez logotypu byłby czytany dwa razy pod rząd.
+          Ta sama reguła co w pasie na stronie głównej (`SponsorTierLogo`). */}
+      <span aria-hidden="true" className="contents">
+        <SponsorLogo name={sponsor.name} logoUrl={sponsor.logoUrl} size={logoSize} />
+      </span>
+      <span className="mt-3 block text-sm font-medium text-foreground">{sponsor.name}</span>
+      <span className="mt-1 flex flex-wrap items-center justify-center gap-1.5">
+        <Badge variant="secondary">{t(sponsorRoleKey(sponsor.role))}</Badge>
+        {sponsor.boothLabel !== null && (
+          <Badge variant="outline">
+            {t("eventFront.sponsors.boothLabel", { label: sponsor.boothLabel })}
+          </Badge>
+        )}
+      </span>
+      {description !== "" && (
+        <span className="mt-2 block text-xs text-muted-foreground">{description}</span>
+      )}
+    </>
+  );
+
+  return (
+    <li ref={ref}>
+      {sponsor.href === null ? (
+        <div className="flex h-full flex-col items-center rounded-[6px] border border-border bg-card p-4 text-center">
+          {body}
+        </div>
+      ) : (
+        <a
+          href={sponsor.href}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          className="flex h-full flex-col items-center rounded-[6px] border border-border bg-card p-4 text-center transition-colors hover:border-primary/50"
+          {...clickHandlers}
+        >
+          {body}
+          <span className="mt-2 inline-flex items-center gap-1 text-xs text-primary">
+            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+            {t("eventFront.sponsors.visitSite")}
+          </span>
+        </a>
+      )}
+    </li>
   );
 }

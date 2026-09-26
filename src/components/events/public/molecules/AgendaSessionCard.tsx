@@ -37,7 +37,7 @@
 // KONTROLKA POCHODZI Z REGUŁY, NIE Z `if`-ów. `agendaSignupControl` decyduje,
 // czy przycisk jest, co na nim pisze i jak wygląda - ten sam rachunek obsługuje
 // „moją agendę", więc obie powierzchnie nie mogą się rozjechać.
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { ChevronDown, Clock, DoorOpen, Landmark, Loader2, Radio, Video } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -67,6 +67,7 @@ import { SpeakerAvatar } from "@/components/events/SpeakerAvatar";
 import { SpeakerTrackChips } from "@/components/events/SpeakerTrackChips";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 import { mediaRenderUrl } from "@/lib/media/publicUrl";
+import { useSponsorImpression } from "@/lib/events/sponsorTrackingReact";
 
 ensureEventFrontI18n();
 
@@ -143,6 +144,48 @@ function AgendaSpeakerRow({
         )}
       </span>
     </li>
+  );
+}
+
+/**
+ * Znaczek sponsora sesji albo ścieżki. Dla raportu sponsora liczy WYŁĄCZNIE
+ * wyświetlenie (znaczek nie jest odnośnikiem): pod miejscem `agenda_session`,
+ * gdy sponsor jest przypięty do sesji, a `agenda_track`, gdy dziedziczy go
+ * ze ścieżki. Pomiar działa tylko pod dostawcą publicznej powłoki - w
+ * podglądzie studia ten sam znaczek niczego nie wysyła.
+ */
+function AgendaSponsorBadge({
+  sponsorId,
+  name,
+  logoUrl,
+  roleLabel,
+  placement,
+}: {
+  sponsorId: string;
+  name: string;
+  logoUrl: string | null;
+  roleLabel: string;
+  placement: "agenda_session" | "agenda_track";
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useSponsorImpression(ref, { sponsorId, placement });
+  return (
+    <div ref={ref} className="rounded-[6px] border border-border bg-muted/30 p-3">
+      <p className="text-[10px] font-semibold uppercase text-muted-foreground">{roleLabel}</p>
+      <div className="mt-2 flex items-center gap-2">
+        {logoUrl !== null && (
+          <img
+            src={mediaRenderUrl(logoUrl)}
+            alt=""
+            loading="lazy"
+            className="h-8 w-12 rounded-[4px] object-contain"
+          />
+        )}
+        <p className="min-w-0 truncate text-sm font-semibold text-foreground" title={name}>
+          {name}
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -245,7 +288,6 @@ export function AgendaSessionCard({
     .filter((id) => id !== "")
     .join(" ");
   const sponsor = session.sponsor ?? session.track?.sponsor ?? null;
-  const sponsorLogo = sponsor?.logoUrl ?? null;
   const sponsorRole = sponsorRoleKey(sponsor?.role ?? null);
   const affiliation = pickLocalized(
     { affiliation_pl: session.affiliationPl, affiliation_en: session.affiliationEn },
@@ -306,27 +348,15 @@ export function AgendaSessionCard({
             </div>
 
             {sponsor !== null && sponsor.name !== null && sponsor.name !== "" && (
-              <div className="rounded-[6px] border border-border bg-muted/30 p-3">
-                <p className="text-[10px] font-semibold uppercase text-muted-foreground">
-                  {sponsorRole === null ? t("eventFront.agenda.sponsorLabel") : t(sponsorRole)}
-                </p>
-                <div className="mt-2 flex items-center gap-2">
-                  {sponsorLogo !== null && (
-                    <img
-                      src={mediaRenderUrl(sponsorLogo)}
-                      alt=""
-                      loading="lazy"
-                      className="h-8 w-12 rounded-[4px] object-contain"
-                    />
-                  )}
-                  <p
-                    className="min-w-0 truncate text-sm font-semibold text-foreground"
-                    title={sponsor.name}
-                  >
-                    {sponsor.name}
-                  </p>
-                </div>
-              </div>
+              <AgendaSponsorBadge
+                sponsorId={sponsor.id}
+                name={sponsor.name}
+                logoUrl={sponsor.logoUrl}
+                roleLabel={
+                  sponsorRole === null ? t("eventFront.agenda.sponsorLabel") : t(sponsorRole)
+                }
+                placement={session.sponsor ? "agenda_session" : "agenda_track"}
+              />
             )}
           </div>
 

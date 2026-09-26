@@ -43,6 +43,8 @@ import {
   parseLeadTimelinePayload,
   type LeadTimelineEvent,
 } from "@/lib/crm/leadTimeline";
+import { eventActivitySummary } from "@/lib/crm/eventActivity";
+import { CrmEventActivityLink } from "@/components/admin/crm/CrmEventActivityLink";
 import { useModuleRealtime } from "@/lib/realtime/useModuleRealtime";
 import { LinkedItemsCard } from "@/components/molecules/LinkedItemsCard";
 import { PresenceIndicator } from "@/components/molecules/PresenceIndicator";
@@ -118,7 +120,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { FaceAwareAvatar } from "@/components/admin/crm/FaceAwareAvatar";
-import { uiLocale } from "@/lib/i18n/format";
+import { uiLang, uiLocale } from "@/lib/i18n/format";
 
 interface CrmSearch {
   /** Deep-link z notyfikacji/powiązań: /admin/crm?lead=<id>&task=<id>. */
@@ -257,6 +259,7 @@ const PL = {
     tlEmpty: "Brak zdarzeń na osi czasu.",
     tlExportCsv: "Eksport CSV",
     tlExportPdf: "Eksport PDF",
+    tlOpenEvent: "Otwórz w studiu wydarzenia",
     tlTypes: {
       submit: "Zgłoszenie",
       consent: "Zgoda",
@@ -264,6 +267,7 @@ const PL = {
       stage_change: "Zmiana etapu",
       webhook: "Webhook",
       newsletter: "Newsletter",
+      event: "Wydarzenie",
     } as Record<string, string>,
   },
   integ: {
@@ -327,6 +331,7 @@ const EN = {
     tlEmpty: "No timeline events yet.",
     tlExportCsv: "Export CSV",
     tlExportPdf: "Export PDF",
+    tlOpenEvent: "Open in the event studio",
     tlTypes: {
       submit: "Submission",
       consent: "Consent",
@@ -334,6 +339,7 @@ const EN = {
       stage_change: "Stage change",
       webhook: "Webhook",
       newsletter: "Newsletter",
+      event: "Event",
     } as Record<string, string>,
   },
   integ: {
@@ -1517,6 +1523,10 @@ function LeadDrawer({
 }
 
 function LeadTimeline({ leadId, L }: { leadId: string; L: typeof PL }) {
+  // Język panelu wybiera zdanie wpisu z Wydarzeń (`summary_pl`/`summary_en`
+  // w metadanych) - tytuł z serwera jest polski, bo tak drukuje się oś czasu.
+  const { i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const q = useQuery({
     queryKey: ["crm-lead-timeline", leadId],
     queryFn: async () => {
@@ -1564,6 +1574,7 @@ function LeadTimeline({ leadId, L }: { leadId: string; L: typeof PL }) {
     stage_change: "bg-violet-500/15 text-violet-600 dark:text-violet-300",
     webhook: "bg-orange-500/15 text-orange-600 dark:text-orange-300",
     newsletter: "bg-sky-500/15 text-sky-600 dark:text-sky-300",
+    event: "bg-rose-500/15 text-rose-600 dark:text-rose-300",
   };
 
   return (
@@ -1603,11 +1614,16 @@ function LeadTimeline({ leadId, L }: { leadId: string; L: typeof PL }) {
                 <Badge variant="outline" className={`text-[10px] ${ICONS[e.type]}`}>
                   {L.detail.tlTypes[e.type] ?? e.type}
                 </Badge>
-                <span className="text-[12px] font-medium break-all">{e.title}</span>
+                <span className="text-[12px] font-medium break-all">
+                  {e.type === "event" ? eventActivitySummary(e.meta, lang, e.title) : e.title}
+                </span>
                 <time className="ml-auto text-[10px] text-muted-foreground">
                   {new Date(e.at).toLocaleString()}
                 </time>
               </div>
+              {e.type === "event" && (
+                <CrmEventActivityLink meta={e.meta} label={L.detail.tlOpenEvent} />
+              )}
               {e.detail && (
                 <p className="mt-1 text-[12px] text-muted-foreground whitespace-pre-wrap leading-snug">
                   {e.detail}

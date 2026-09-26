@@ -5,6 +5,7 @@
 // bazy do konca baterii, a zakresy bez sprawdzenia otworzylyby wolontariuszowi
 // z bramki liste leadow partnera. Kazda z tych rzeczy ma tu wlasny przypadek.
 import { describe, expect, it } from "vitest";
+import { freezeClock } from "@/test/time";
 
 import {
   availableModes,
@@ -17,6 +18,10 @@ import {
   isSessionExpired,
   modeScope,
   parseScannerSession,
+  sessionToRecord,
+  clockOffsetMs,
+  isClockSkewed,
+  CLOCK_SKEW_WARNING_MS,
 } from "@/lib/events/scannerSession";
 import {
   backoffDelayMs,
@@ -30,6 +35,10 @@ import {
   stuckItems,
   withFailure,
   withoutItem,
+  appendRejected,
+  parseOutboxItem,
+  rejectAll,
+  REJECTED_CAPACITY,
   type OutboxItem,
 } from "@/lib/events/scannerOutbox";
 import {
@@ -38,8 +47,12 @@ import {
   scannerErrorKey,
   scannerErrorMessage,
   scannerErrorText,
+  isRetryableScanError,
+  scannerErrorHead,
 } from "@/lib/events/scannerErrors";
-import { isCheckinResult } from "@/lib/events/onsiteEnums";
+import { isCheckinDirection, isCheckinResult, isOfflineOutcome } from "@/lib/events/onsiteEnums";
+
+freezeClock();
 
 const BOOTSTRAP = {
   device_id: "d1",
@@ -197,12 +210,18 @@ describe("scannerOutbox - kolejka bez sieci", () => {
 
   it("odmowa POSWIADCZENIA zdejmuje pozycje z kolejki, awaria sieci ja odklada", () => {
     const queue = [item({ id: "i1" })];
-    expect(withFailure(queue, "i1", "device_revoked: gone", "2026-09-01T08:00:00Z")).toHaveLength(
-      0,
-    );
+    const revoked = withFailure(queue, "i1", "device_revoked: gone", "2026-09-01T08:00:00Z");
+    expect(revoked.queue).toHaveLength(0);
+    // Zdjeta z kolejki NIE ZNIKA - wraca jako odrzucona, z bledem i chwila.
+    expect(revoked.rejected).toEqual({
+      item: queue[0],
+      error: "device_revoked: gone",
+      rejectedAt: "2026-09-01T08:00:00Z",
+    });
     const retried = withFailure(queue, "i1", "TypeError: Failed to fetch", "2026-09-01T08:00:00Z");
-    expect(retried[0].attempts).toBe(1);
-    expect(retried[0].nextAttemptAt).toBe("2026-09-01T08:00:04.000Z");
+    expect(retried.rejected).toBeNull();
+    expect(retried.queue[0].attempts).toBe(1);
+    expect(retried.queue[0].nextAttemptAt).toBe("2026-09-01T08:00:04.000Z");
     expect(isPermanentFailure("invalid_payload: code is required")).toBe(true);
     expect(errorHead("checkpoint_not_found: nope")).toBe("checkpoint_not_found");
   });
@@ -361,7 +380,7 @@ describe("scannerOutbox - brzegi kolejki", () => {
   it("NIECZYTELNA chwila „teraz” nie psuje terminu ponowienia", () => {
     // Zegar urzadzenia bywa przestawiony; termin i tak ma byc data, a nie
     // `Invalid Date`, bo inaczej pozycja nie wyszlaby z kolejki nigdy.
-    const [po] = withFailure([item({ id: "i1" })], "i1", "Failed to fetch", "nie-data");
+    const [po] = withFailure([item({ id: "i1" })], "i1", "Failed to fetch", "nie-data").queue;
 
     expect(Number.isNaN(Date.parse(po.nextAttemptAt))).toBe(false);
     expect(po.attempts).toBe(1);
@@ -376,7 +395,7 @@ describe("scannerOutbox - brzegi kolejki", () => {
   it("nieudana proba dotyka WYLACZNIE swojej pozycji", () => {
     const kolejka = [item({ id: "i1" }), item({ id: "i2", code: "BBB" })];
 
-    const po = withFailure(kolejka, "i1", "Failed to fetch", "2026-09-01T08:00:00Z");
+    const po = withFailure(kolejka, "i1", "Failed to fetch", "2026-09-01T08:00:00Z").queue;
 
     expect(po[0].attempts).toBe(1);
     expect(po[1].attempts).toBe(0);
@@ -430,5 +449,204 @@ describe("onsiteEnums - slownik wynikow odprawy", () => {
     expect(isCheckinResult("denied_registration_status")).toBe(true);
     expect(isCheckinResult("wpuszczony")).toBe(false);
     expect(isCheckinResult("")).toBe(false);
+  });
+});
+
+/* ------------------------------------------------------ tryb offline --- */
+//
+// CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW (tryb offline, 20260926150000):
+//   * sesja z pamięci urządzenia (zimny start bez sieci) nie wraca przez ten
+//     sam parser co odpowiedź serwera - albo wraca bez zgody na listę offline;
+//   * przesunięcie zegara liczone od chwili WYSŁANIA zamiast od środka
+//     odcinka żądania (błąd o połowę czasu odpowiedzi na słabym łączu);
+//   * pozycja kolejki sprzed zmiany (bez pól offline) nie wczytuje się albo
+//     wczytuje się z `undefined` w polach, które flush wysyła do bazy;
+//   * trwała odmowa kasuje pozycję zamiast oddać ją jako odrzuconą.
+
+describe("scannerSession - pola trybu offline", () => {
+  it("bootstrap niesie zgodę na listę offline, jej pobranie i zegar serwera", () => {
+    const session = parseScannerSession({
+      ...BOOTSTRAP,
+      offline_roster: true,
+      roster_downloaded_at: "2026-09-01T07:30:00Z",
+      server_now: "2026-09-01T08:00:00.123Z",
+    });
+    expect(session).toMatchObject({
+      offlineRoster: true,
+      rosterDownloadedAt: "2026-09-01T07:30:00Z",
+      serverNow: "2026-09-01T08:00:00.123Z",
+    });
+  });
+
+  it("starszy backend bez tych pól to BRAK zgody na listę, a nie zgoda", () => {
+    expect(parseScannerSession(BOOTSTRAP)).toMatchObject({
+      offlineRoster: false,
+      rosterDownloadedAt: null,
+      serverNow: null,
+    });
+    expect(parseScannerSession({ ...BOOTSTRAP, offline_roster: "true" })?.offlineRoster).toBe(
+      false,
+    );
+  });
+
+  it("sesja zapisana w kształcie bazy wraca przez parser BEZ strat", () => {
+    const session = parseScannerSession({ ...BOOTSTRAP, offline_roster: true, server_now: "x" });
+    if (session === null) throw new Error("test: sesja nieczytelna");
+    expect(parseScannerSession(sessionToRecord(session))).toEqual(session);
+    expect(JSON.stringify(sessionToRecord(session))).not.toContain("token");
+  });
+
+  it("przesunięcie zegara liczy się względem ŚRODKA odcinka żądania", () => {
+    const sent = Date.parse("2026-09-01T08:00:00.000Z");
+    // Serwer o 08:02:01, żądanie trwało 2 s -> środek 08:00:01 -> +120 s.
+    expect(clockOffsetMs("2026-09-01T08:02:01.000Z", sent, sent + 2000)).toBe(120_000);
+    expect(clockOffsetMs(null, sent, sent)).toBe(0);
+    expect(clockOffsetMs("nie-data", sent, sent)).toBe(0);
+  });
+
+  it("ostrzeżenie o zegarze od 90 s odchyłki w obie strony", () => {
+    expect(isClockSkewed(CLOCK_SKEW_WARNING_MS)).toBe(false);
+    expect(isClockSkewed(CLOCK_SKEW_WARNING_MS + 1)).toBe(true);
+    expect(isClockSkewed(-CLOCK_SKEW_WARNING_MS - 1)).toBe(true);
+  });
+});
+
+describe("scannerOutbox - odrzucone i pozycje z pamięci", () => {
+  it("trwała odmowa pozycji, której już nie ma (operator ją zdjął), nie wymyśla odrzuconej", () => {
+    const result = withFailure([item({ id: "i2" })], "i1", "device_revoked: x", "t");
+    expect(result.queue).toHaveLength(1);
+    expect(result.rejected).toBeNull();
+  });
+
+  it("skan sprzed tygodnia to trwała odmowa, nie awaria sieci", () => {
+    expect(isPermanentFailure("device_time_out_of_range: too old")).toBe(true);
+  });
+
+  it("odmowa poświadczenia zamienia CAŁĄ kolejkę w odrzucone z tym samym powodem", () => {
+    const queue = [item({ id: "a" }), item({ id: "b" })];
+    expect(rejectAll(queue, "device_revoked: x", "t")).toEqual([
+      { item: queue[0], error: "device_revoked: x", rejectedAt: "t" },
+      { item: queue[1], error: "device_revoked: x", rejectedAt: "t" },
+    ]);
+  });
+
+  it("lista odrzuconych dopisuje na koniec, a przepełnienie zjada najstarsze", () => {
+    const one = (id: string) => ({ item: item({ id }), error: "e", rejectedAt: "t" });
+    const full = Array.from({ length: REJECTED_CAPACITY }, (_, i) => one(`r${i}`));
+    const next = appendRejected(full, [one("nowa")]);
+    expect(next).toHaveLength(REJECTED_CAPACITY);
+    expect(next[0].item.id).toBe("r1");
+    expect(next.at(-1)?.item.id).toBe("nowa");
+    expect(appendRejected([], [one("x")])).toHaveLength(1);
+  });
+
+  it("pozycja sprzed trybu offline wczytuje się z pustymi polami decyzji", () => {
+    const legacy = {
+      id: "i1",
+      kind: "checkin",
+      code: "AAA",
+      checkpointId: "c1",
+      direction: "in",
+      note: null,
+      interestRating: null,
+      deviceScannedAt: "2026-09-01T08:00:00Z",
+      attempts: 2,
+      nextAttemptAt: "2026-09-01T08:01:00Z",
+      lastError: "Failed to fetch",
+    };
+    expect(parseOutboxItem(legacy)).toEqual({
+      ...legacy,
+      offlineAdmitted: null,
+      offlineOutcome: null,
+      rosterGeneratedAt: null,
+    });
+  });
+
+  it("pozycja z decyzją offline zachowuje ją; nieznany wynik offline wypada", () => {
+    const withDecision = parseOutboxItem({
+      ...item({}),
+      kind: "lead",
+      direction: "bok",
+      interestRating: 4,
+      offlineAdmitted: true,
+      offlineOutcome: "granted",
+      rosterGeneratedAt: "v1",
+    });
+    expect(withDecision).toMatchObject({
+      kind: "lead",
+      direction: null,
+      interestRating: 4,
+      offlineAdmitted: true,
+      offlineOutcome: "granted",
+      rosterGeneratedAt: "v1",
+    });
+    expect(
+      parseOutboxItem({ ...item({}), offlineOutcome: "denied_capacity" })?.offlineOutcome,
+    ).toBeNull();
+  });
+
+  it("brakujące liczniki i terminy dostają wartości bezpieczne", () => {
+    expect(
+      parseOutboxItem({
+        id: "i1",
+        code: "A",
+        kind: "checkin",
+        direction: "out",
+        interestRating: "5",
+      }),
+    ).toMatchObject({
+      direction: "out",
+      interestRating: null,
+      deviceScannedAt: "",
+      attempts: 0,
+      nextAttemptAt: "",
+      checkpointId: null,
+    });
+  });
+
+  it("rekord bez identyfikatora, kodu albo znanego rodzaju wypada", () => {
+    expect(parseOutboxItem(null)).toBeNull();
+    expect(parseOutboxItem([])).toBeNull();
+    expect(parseOutboxItem({ code: "A", kind: "checkin" })).toBeNull();
+    expect(parseOutboxItem({ id: "i1", kind: "checkin" })).toBeNull();
+    expect(parseOutboxItem({ id: "i1", code: "A", kind: "badge" })).toBeNull();
+  });
+});
+
+describe("scannerErrors - ponowienie i głowa odmowy", () => {
+  it("ponawiamy to, czego baza nie nazwała: sieć i przekroczenie terminu", () => {
+    expect(isRetryableScanError(new TypeError("Failed to fetch"))).toBe(true);
+    expect(isRetryableScanError(new Error("Scanner request timed out"))).toBe(true);
+    expect(isRetryableScanError(new Error("TypeError: NetworkError when attempting"))).toBe(true);
+    expect(isRetryableScanError(new Error("roster_throttled: wait"))).toBe(false);
+  });
+
+  it("głowa odmowy to kod przed dwukropkiem albo cały komunikat", () => {
+    expect(scannerErrorHead(new Error("roster_disabled: off"))).toBe("roster_disabled");
+    expect(scannerErrorHead("device_expired")).toBe("device_expired");
+  });
+
+  it("nowe odmowy trybu offline mają własne zdania, nie zdanie awaryjne", () => {
+    for (const head of [
+      "roster_disabled",
+      "roster_throttled",
+      "roster_resync_required",
+      "device_time_out_of_range",
+    ]) {
+      expect(scannerErrorKey(new Error(`${head}: x`))).not.toBe("eventScanner.errors.unknown");
+    }
+  });
+
+  it("wynik `replay` (ten sam skan wysłany ponownie) ma własny nagłówek", () => {
+    expect(scanOutcomeKey("replay")).toBe("eventScanner.outcomes.replay");
+  });
+});
+
+describe("onsiteEnums - słowniki trybu offline", () => {
+  it("rozpoznaje wyniki offline i kierunki wyłącznie ze słownika bazy", () => {
+    expect(isOfflineOutcome("unknown_code")).toBe(true);
+    expect(isOfflineOutcome("denied_capacity")).toBe(false);
+    expect(isCheckinDirection("out")).toBe(true);
+    expect(isCheckinDirection("sideways")).toBe(false);
   });
 });

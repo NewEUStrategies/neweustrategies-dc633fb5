@@ -272,10 +272,19 @@ export interface ScannerDeviceDraft {
   sponsorId: string;
   /** `datetime-local`; pusty = domyslny termin z bazy. */
   expiresAtLocal: string;
+  /** Lista offline na urzadzeniu - ma sens tylko z zakresem `checkin`. */
+  offlineRoster: boolean;
 }
 
 export function emptyScannerDeviceDraft(): ScannerDeviceDraft {
-  return { label: "", scopes: ["checkin"], checkpointId: "", sponsorId: "", expiresAtLocal: "" };
+  return {
+    label: "",
+    scopes: ["checkin"],
+    checkpointId: "",
+    sponsorId: "",
+    expiresAtLocal: "",
+    offlineRoster: false,
+  };
 }
 
 export type ScannerDeviceField = "label" | "scopes" | "sponsorId" | "expiresAtLocal";
@@ -318,6 +327,9 @@ export function scannerDeviceDraftToInput(
     checkpointId: trimOrNull(draft.checkpointId),
     sponsorId: trimOrNull(draft.sponsorId),
     expiresAt: expires === false || expires === null ? undefined : expires,
+    // Dane osob jada na urzadzenie WYLACZNIE po swiadomym zaznaczeniu i tylko
+    // razem z odprawa - baza i tak zeruje zgode bez zakresu checkin.
+    offlineRoster: draft.offlineRoster && draft.scopes.includes("checkin"),
   };
 }
 

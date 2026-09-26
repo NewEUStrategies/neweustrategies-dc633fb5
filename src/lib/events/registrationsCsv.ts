@@ -45,6 +45,9 @@ export const REGISTRATION_CSV_COLUMNS = [
   "consent_marketing_at",
   "consent_partner_sharing_at",
   "consent_withdrawn_at",
+  // Miejsce na sali (plan sali, `admin_event_seat_lookup`) - na koncu, zeby
+  // arkusze budowane na starszym ukladzie kolumn nie przesunely sie.
+  "seat",
 ] as const;
 
 /**
@@ -70,6 +73,8 @@ function localized(pl: string | null, en: string | null, lang: "pl" | "en"): str
 export function registrationsToCsv(
   rows: readonly EventRegistrationRow[],
   lang: "pl" | "en",
+  /** Zgloszenie -> napis miejsca na sali (juz przetlumaczony); brak = pusta komorka. */
+  seats: ReadonlyMap<string, string> = new Map(),
 ): string {
   return csvDocument(
     REGISTRATION_CSV_COLUMNS,
@@ -98,6 +103,7 @@ export function registrationsToCsv(
       row.consent_marketing_at,
       row.consent_partner_sharing_at,
       row.consent_withdrawn_at,
+      seats.get(row.id) ?? "",
     ]),
   );
 }

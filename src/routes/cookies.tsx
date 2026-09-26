@@ -79,8 +79,16 @@ const CATEGORIES: ReadonlyArray<CategoryCopy> = [
       en: "Collect anonymised statistics (pageviews, traffic sources, session duration) used to improve content. None of it runs before you consent.",
     },
     examples: {
-      pl: ["Google Analytics 4 (_ga, _gid)", "post_views (własna baza)"],
-      en: ["Google Analytics 4 (_ga, _gid)", "post_views (own database)"],
+      pl: [
+        "Google Analytics 4 (_ga, _gid)",
+        "post_views (własna baza)",
+        "nes.event-funnel.sent (sessionStorage, lejek wydarzenia)",
+      ],
+      en: [
+        "Google Analytics 4 (_ga, _gid)",
+        "post_views (own database)",
+        "nes.event-funnel.sent (sessionStorage, event funnel)",
+      ],
     },
   },
   {
@@ -95,8 +103,18 @@ const CATEGORIES: ReadonlyArray<CategoryCopy> = [
       en: "Enable ad personalisation and campaign measurement. Loaded only after your consent and only for the categories you approve.",
     },
     examples: {
-      pl: ["Meta pixel", "LinkedIn Insight", "Google Ads"],
-      en: ["Meta pixel", "LinkedIn Insight", "Google Ads"],
+      pl: [
+        "Meta pixel",
+        "LinkedIn Insight",
+        "Google Ads",
+        "nes.attribution.v1 (localStorage, atrybucja kampanii, 90 dni)",
+      ],
+      en: [
+        "Meta pixel",
+        "LinkedIn Insight",
+        "Google Ads",
+        "nes.attribution.v1 (localStorage, campaign attribution, 90 days)",
+      ],
     },
   },
 ];
