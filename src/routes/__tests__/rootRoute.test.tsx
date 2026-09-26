@@ -145,6 +145,26 @@ vi.mock("@/lib/menus/queries", () => ({
     };
   },
 }));
+// DRUGA ATRAPA MENU - na funkcji serwerowej POD `menus/queries`, nie zamiast
+// tamtej. Korzeń importuje `menus/queries` DYNAMICZNIE i DWA RAZY na loader
+// (`void warmMenus()` przed falą 1 i ta sama funkcja w fali chrome). Vitest
+// dzieli jedną tablicę `callstack` między wszystkie importy modułu i na czas
+// rozwiązywania atrapy z fabryką dopisuje do niej id atrapy; drugi import,
+// który trafi w to okno, jest brany za „samo-import" atrapy i dostaje
+// ORYGINALNY `queries.ts` (zmierzone: w 30 z 48 przypadków tego pliku). Jego
+// `queryFn` woła prawdziwy `createServerFn`, a ten poza runtime'em Startu rzuca
+// „No Start context found in AsyncLocalStorage". Ta atrapa sprawia, że oryginał
+// zachowuje się DOKŁADNIE jak atrapa wyżej - żadna ścieżka tego pliku nie może
+// już dotknąć prawdziwej funkcji serwerowej.
+vi.mock("@/lib/menus/menu.functions", () => ({
+  getMenuWithItems: ({ data }: { data: { key: string } }) =>
+    h.menusThrow
+      ? Promise.reject(new Error("modul menu padl"))
+      : h.menusHang
+        ? new Promise(() => {})
+        : Promise.resolve((h.menus.push(data.key), [])),
+  listMenus: () => Promise.resolve([]),
+}));
 // Placementy reklamowe: atrapa oddaje TEN SAM klucz, co produkcja (fabryka
 // `adPlacementsQueryOptions`), więc test dowodzi też, że korzeń grzeje klucz,
 // który naprawdę czyta `<AdZone>` w nagłówku.
@@ -181,10 +201,17 @@ vi.mock("@/lib/builder/prefetch", async (o) => ({
     // zapytanie zostaje `pending` + `fetchStatus: "idle"` + bez danych -
     // DOKŁADNIE ten stan, którego szuka strażnik zapytań menu w loaderze.
     if (h.cancelMenus) {
-      // Czekamy makrozadanie, żeby rozgrzewka menu zdążyła się rozstrzygnąć:
+      // Czekamy, aż OBIE rozgrzewki menu wydadzą swoje `ensureQueryData`:
       // przedmiotem dowodu jest stan PO anulowaniu, więc nie może go już
-      // nadpisać fetch startujący po dynamicznym imporcie.
-      await new Promise((r) => setTimeout(r, 20));
+      // nadpisać fetch startujący po dynamicznym imporcie. Czasu tego importu
+      // NIE WOLNO zgadywać zegarem: gdy vitest podaje oryginalny moduł (atrapa
+      // `menu.functions` wyżej), import kosztuje round-trip do procesu głównego,
+      // a na shardzie CI pod pokryciem bywa on dłuższy niż dawne `setTimeout(20)`.
+      // Wtedy spóźniona rozgrzewka startowała NOWY fetch na świeżo anulowanym
+      // wpisie, strażnik go nie ruszał (`error`/`fetching`, nie `idle`) i test
+      // padał. `dynamicImportSettled` czeka na faktyczne rozstrzygnięcie importu,
+      // a `ensureQueryData` biegnie synchronicznie zaraz po nim.
+      await vi.dynamicImportSettled();
       qcArg.removeQueries({ queryKey: ["menu-with-items"] });
       const wiszace = ["main", "footer"].map((key) =>
         qcArg
