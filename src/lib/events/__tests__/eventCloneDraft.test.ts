@@ -119,15 +119,40 @@ describe("eventCloneIssue - lustro odmów SQL", () => {
     ["tytuł PL > 200", { titlePl: "x".repeat(201) }, false, "adminEventClone.issues.titleLength"],
     ["tytuł EN > 200", { titleEn: "y".repeat(201) }, false, "adminEventClone.issues.titleLength"],
     ["brak początku", { startsAt: "" }, false, "adminEventClone.issues.startsAt"],
-    ["koniec przed początkiem", { endsAt: "2100-03-19T08:00:00.000Z" }, false, "adminEventClone.issues.endsAt"],
-    ["koniec równy początkowi", { endsAt: "2100-03-20T08:00:00.000Z" }, false, "adminEventClone.issues.endsAt"],
+    [
+      "koniec przed początkiem",
+      { endsAt: "2100-03-19T08:00:00.000Z" },
+      false,
+      "adminEventClone.issues.endsAt",
+    ],
+    [
+      "koniec równy początkowi",
+      { endsAt: "2100-03-20T08:00:00.000Z" },
+      false,
+      "adminEventClone.issues.endsAt",
+    ],
     ["koniec nie jest datą", { endsAt: "jutro" }, false, "adminEventClone.issues.endsAt"],
     ["brak strefy", { timezone: " " }, false, "adminEventClone.issues.timezone"],
     ["slug ze spacją", { slug: "zly slug" }, false, "adminEventClone.issues.slug"],
     ["slug za krótki", { slug: "ab" }, false, "adminEventClone.issues.slug"],
-    ["zapisy zewnętrzne bez adresu", { externalRegistrationUrl: "" }, true, "adminEventClone.issues.externalUrl"],
-    ["adres bez https", { externalRegistrationUrl: "http://x.example.org" }, true, "adminEventClone.issues.externalUrlInvalid"],
-    ["adres za długi", { externalRegistrationUrl: `https://${"a".repeat(2050)}` }, true, "adminEventClone.issues.externalUrlInvalid"],
+    [
+      "zapisy zewnętrzne bez adresu",
+      { externalRegistrationUrl: "" },
+      true,
+      "adminEventClone.issues.externalUrl",
+    ],
+    [
+      "adres bez https",
+      { externalRegistrationUrl: "http://x.example.org" },
+      true,
+      "adminEventClone.issues.externalUrlInvalid",
+    ],
+    [
+      "adres za długi",
+      { externalRegistrationUrl: `https://${"a".repeat(2050)}` },
+      true,
+      "adminEventClone.issues.externalUrlInvalid",
+    ],
   ])("%s", (_name, patch, external, expected) => {
     expect(eventCloneIssue(draft(patch), external)).toBe(expected);
   });
@@ -138,14 +163,18 @@ describe("eventCloneIssue - lustro odmów SQL", () => {
 
   it("adres zapisów sprawdzany TYLKO dla źródła z zapisami zewnętrznymi", () => {
     expect(eventCloneIssue(draft({ externalRegistrationUrl: "" }), false)).toBeNull();
-    expect(eventCloneIssue(draft({ externalRegistrationUrl: "https://t.example.org/x" }), true)).toBeNull();
+    expect(
+      eventCloneIssue(draft({ externalRegistrationUrl: "https://t.example.org/x" }), true),
+    ).toBeNull();
   });
 
   it("przyrostek kodów sprawdzany tylko przy kopiowaniu kodów", () => {
     const withCodes = draft({ include: { ...clonePreview().include, codes: true } });
     expect(eventCloneIssue({ ...withCodes, codeSuffix: "-2027" }, false)).toBeNull();
     expect(eventCloneIssue({ ...withCodes, codeSuffix: "vip_27" }, false)).toBeNull();
-    expect(eventCloneIssue({ ...withCodes, codeSuffix: "" }, false)).toBe("adminEventClone.issues.codeSuffix");
+    expect(eventCloneIssue({ ...withCodes, codeSuffix: "" }, false)).toBe(
+      "adminEventClone.issues.codeSuffix",
+    );
     expect(eventCloneIssue({ ...withCodes, codeSuffix: "z spacja" }, false)).toBe(
       "adminEventClone.issues.codeSuffix",
     );
@@ -169,11 +198,19 @@ describe("eventCloneIssue - lustro odmów SQL", () => {
 describe("cloneSourceContext", () => {
   it("tryb zewnętrzny i adres źródła z podglądu", () => {
     const base = clonePreview();
-    expect(cloneSourceContext(base)).toEqual({ id: CLONE_SOURCE_ID, externalMode: false, externalUrl: null });
+    expect(cloneSourceContext(base)).toEqual({
+      id: CLONE_SOURCE_ID,
+      externalMode: false,
+      externalUrl: null,
+    });
     expect(
       cloneSourceContext(
         clonePreview({
-          source: { ...base.source, registrationMode: "external", externalRegistrationUrl: "https://t/x" },
+          source: {
+            ...base.source,
+            registrationMode: "external",
+            externalRegistrationUrl: "https://t/x",
+          },
         }),
       ),
     ).toEqual({ id: CLONE_SOURCE_ID, externalMode: true, externalUrl: "https://t/x" });
@@ -182,7 +219,11 @@ describe("cloneSourceContext", () => {
 
 describe("cloneDraftToInput", () => {
   const plain = { id: CLONE_SOURCE_ID, externalMode: false, externalUrl: null };
-  const external = { id: CLONE_SOURCE_ID, externalMode: true, externalUrl: "https://tickets.example.org/2026" };
+  const external = {
+    id: CLONE_SOURCE_ID,
+    externalMode: true,
+    externalUrl: "https://tickets.example.org/2026",
+  };
 
   it("przycięte pola, slug małymi literami, przyrostek wielkimi, termin jako liczba, klucz idempotencji", () => {
     const input = cloneDraftToInput(
@@ -207,16 +248,34 @@ describe("cloneDraftToInput", () => {
       slug: "kongres-2027",
       idempotencyKey: "event.clone:k1",
     });
-    expect(input.options).toMatchObject({ codeSuffix: "-X27", crmTaskDueDays: 14, sponsorsUnpublished: true });
+    expect(input.options).toMatchObject({
+      codeSuffix: "-X27",
+      crmTaskDueDays: 14,
+      sponsorsUnpublished: true,
+    });
     expect(input.include).toEqual(clonePreview().include);
   });
 
   it("puste pola nie jadą; zły przyrostek = null, zły termin = 30 (podgląd nie odmawia)", () => {
     const input = cloneDraftToInput(
       plain,
-      draft({ startsAt: "", endsAt: " ", timezone: "", slug: "", codeSuffix: "z spacja", crmTaskDueDays: "x" }),
+      draft({
+        startsAt: "",
+        endsAt: " ",
+        timezone: "",
+        slug: "",
+        codeSuffix: "z spacja",
+        crmTaskDueDays: "x",
+      }),
     );
-    for (const key of ["startsAt", "endsAt", "timezone", "slug", "externalRegistrationUrl", "idempotencyKey"]) {
+    for (const key of [
+      "startsAt",
+      "endsAt",
+      "timezone",
+      "slug",
+      "externalRegistrationUrl",
+      "idempotencyKey",
+    ]) {
       expect(input, key).not.toHaveProperty(key);
     }
     expect(input.options).toMatchObject({ codeSuffix: null, crmTaskDueDays: 30 });
@@ -224,10 +283,16 @@ describe("cloneDraftToInput", () => {
 
   it("adres zapisów jedzie TYLKO zmieniony i tylko w trybie zewnętrznym", () => {
     expect(
-      cloneDraftToInput(external, draft({ externalRegistrationUrl: " https://tickets.example.org/2026 " })),
+      cloneDraftToInput(
+        external,
+        draft({ externalRegistrationUrl: " https://tickets.example.org/2026 " }),
+      ),
     ).not.toHaveProperty("externalRegistrationUrl");
     expect(
-      cloneDraftToInput(external, draft({ externalRegistrationUrl: "https://tickets.example.org/2027" })),
+      cloneDraftToInput(
+        external,
+        draft({ externalRegistrationUrl: "https://tickets.example.org/2027" }),
+      ),
     ).toHaveProperty("externalRegistrationUrl", "https://tickets.example.org/2027");
     expect(
       cloneDraftToInput({ ...external, externalUrl: null }, draft({ externalRegistrationUrl: "" })),

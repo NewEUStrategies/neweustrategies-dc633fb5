@@ -124,7 +124,10 @@ function parseDueDays(raw: string): number | null {
  * Klucz i18n pierwszego powodu, dla ktorego szkic nie przejdzie, albo `null`.
  * `externalMode` = zrodlo zapisuje w obcym systemie (wtedy adres jest wymagany).
  */
-export function eventCloneIssue(draft: EventCloneDraft, externalMode: boolean): EventCloneIssue | null {
+export function eventCloneIssue(
+  draft: EventCloneDraft,
+  externalMode: boolean,
+): EventCloneIssue | null {
   const titlePl = draft.titlePl.trim();
   const titleEn = draft.titleEn.trim();
   if (titlePl === "" || titleEn === "") return "adminEventClone.issues.titles";

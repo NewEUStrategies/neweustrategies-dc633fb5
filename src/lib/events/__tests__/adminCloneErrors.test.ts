@@ -16,21 +16,27 @@ import { adminCloneErrorMessage, adminCloneFailure } from "@/lib/events/adminClo
 describe("adminCloneFailure", () => {
   it("rozpoznaje głowę w Error, w obiekcie {message} i w napisie", () => {
     const expected = { key: "adminEventClone.errors.slugTaken", params: {} };
-    expect(adminCloneFailure(new Error("slug_taken: another event already uses this address"))).toEqual(expected);
+    expect(
+      adminCloneFailure(new Error("slug_taken: another event already uses this address")),
+    ).toEqual(expected);
     expect(adminCloneFailure({ message: "slug_taken: another event" })).toEqual(expected);
     expect(adminCloneFailure("slug_taken")).toEqual(expected);
   });
 
   it("liczba z ogona trafia do interpolacji", () => {
     expect(
-      adminCloneFailure(new Error("clone_sessions_outside_window: 3 session(s) would fall outside")),
+      adminCloneFailure(
+        new Error("clone_sessions_outside_window: 3 session(s) would fall outside"),
+      ),
     ).toEqual({ key: "adminEventClone.errors.cloneSessionsOutsideWindow", params: { count: 3 } });
   });
 
   it("głowa nieznana, niepoprawna albo brak wiadomości -> zdanie awaryjne", () => {
     const fallback = { key: "adminEventClone.errors.unknown", params: {} };
     expect(adminCloneFailure(new Error("nieznany_kod: cos"))).toEqual(fallback);
-    expect(adminCloneFailure(new Error('duplicate key value violates unique constraint "x"'))).toEqual(fallback);
+    expect(
+      adminCloneFailure(new Error('duplicate key value violates unique constraint "x"')),
+    ).toEqual(fallback);
     expect(adminCloneFailure(42)).toEqual(fallback);
     expect(adminCloneFailure(null)).toEqual(fallback);
   });
@@ -40,7 +46,9 @@ describe("adminCloneErrorMessage", () => {
   it("oddaje gotowe zdanie z liczbą, a nie klucz", async () => {
     ensureCloneI18n();
     await i18n.changeLanguage("pl");
-    const message = adminCloneErrorMessage(new Error("clone_sessions_outside_window: 4 session(s)"));
+    const message = adminCloneErrorMessage(
+      new Error("clone_sessions_outside_window: 4 session(s)"),
+    );
     expect(message).toContain("4");
     expect(message).not.toContain("adminEventClone");
     await i18n.changeLanguage("en");

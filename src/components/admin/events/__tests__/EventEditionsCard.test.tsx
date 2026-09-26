@@ -81,20 +81,28 @@ describe("EventEditionsCard", () => {
     h.rpc!.setData("admin_event_editions", [
       edition({}),
       edition({ id: CLONE_NEW_ID, title_pl: "Kongres 2027", relation: "next", status: "draft" }),
-      edition({ id: "5e5e5e5e-0000-4000-8000-000000000004", title_pl: "Inna", relation: "sideways" }),
+      edition({
+        id: "5e5e5e5e-0000-4000-8000-000000000004",
+        title_pl: "Inna",
+        relation: "sideways",
+      }),
     ]);
     const { container } = renderWithQueryClient(<EventEditionsCard eventId={CLONE_SOURCE_ID} />);
-    const previous = await screen.findByRole("link", { name: "adminEventClone.editions.open(title=Kongres 2025)" });
+    const previous = await screen.findByRole("link", {
+      name: "adminEventClone.editions.open(title=Kongres 2025)",
+    });
     expect(previous).toHaveAttribute("href", `/admin/events/${PREVIOUS_ID}/overview`);
     expect(previous).toHaveTextContent("adminEventClone.editions.relation.previous");
-    const next = screen.getByRole("link", { name: "adminEventClone.editions.open(title=Kongres 2027)" });
+    const next = screen.getByRole("link", {
+      name: "adminEventClone.editions.open(title=Kongres 2027)",
+    });
     expect(next).toHaveAttribute("href", `/admin/events/${CLONE_NEW_ID}/overview`);
     expect(next).toHaveTextContent("adminEventClone.editions.relation.next");
     expect(next).toHaveTextContent("adminEventClone.status.draft");
     // Relacja spoza zbioru dostaje etykietę domyślną, a nie pustkę.
-    expect(screen.getByRole("link", { name: "adminEventClone.editions.open(title=Inna)" })).toHaveTextContent(
-      "adminEventClone.editions.relation.previous",
-    );
+    expect(
+      screen.getByRole("link", { name: "adminEventClone.editions.open(title=Inna)" }),
+    ).toHaveTextContent("adminEventClone.editions.relation.previous");
     const create = screen.getByRole("link", { name: /adminEventClone.editions.createNext/ });
     expect(create).toHaveAttribute("href", "/admin/events/new");
     expect(create).toHaveAttribute("data-search", `from=${CLONE_SOURCE_ID}`);
@@ -112,7 +120,9 @@ describe("EventEditionsCard", () => {
   it("błąd odczytu jest komunikatem błędu, NIE pustką", async () => {
     h.rpc!.setError("admin_event_editions", "forbidden: admin role required");
     renderWithQueryClient(<EventEditionsCard eventId={CLONE_SOURCE_ID} />);
-    await waitFor(() => expect(screen.getByText(/forbidden: admin role required/)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/forbidden: admin role required/)).toBeInTheDocument(),
+    );
     expect(screen.queryByText("adminEventClone.editions.empty")).toBeNull();
   });
 });

@@ -69,7 +69,9 @@ describe("eventCloneKeys", () => {
 
 describe("useEventCloneSource", () => {
   it("pyta podgląd samym źródłem; pusty identyfikator nie pyta wcale", async () => {
-    h.rpc!.setData("admin_event_clone_preview", { source: { id: CLONE_SOURCE_ID, slug: "kongres" } });
+    h.rpc!.setData("admin_event_clone_preview", {
+      source: { id: CLONE_SOURCE_ID, slug: "kongres" },
+    });
     const { result } = renderHookWithQueryClient(() => hooks.useEventCloneSource(CLONE_SOURCE_ID));
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.source.slug).toBe("kongres");
@@ -81,7 +83,10 @@ describe("useEventCloneSource", () => {
   });
 
   it("odmowa bazy (not_found) jest błędem bez ponowienia", async () => {
-    h.rpc!.setError("admin_event_clone_preview", "not_found: source event does not exist in this tenant");
+    h.rpc!.setError(
+      "admin_event_clone_preview",
+      "not_found: source event does not exist in this tenant",
+    );
     const { result } = renderHookWithQueryClient(() => hooks.useEventCloneSource(CLONE_SOURCE_ID));
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.error?.message).toMatch(/^not_found/);
@@ -95,10 +100,13 @@ describe("useEventClonePreview", () => {
     const wrapper = ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
-    return renderHook(({ input }: { input: EventCloneInput | null }) => hooks.useEventClonePreview(input), {
-      wrapper,
-      initialProps: { input: initial },
-    });
+    return renderHook(
+      ({ input }: { input: EventCloneInput | null }) => hooks.useEventClonePreview(input),
+      {
+        wrapper,
+        initialProps: { input: initial },
+      },
+    );
   }
 
   it("pierwsze wejście pyta od razu; dwie szybkie zmiany = jedno zapytanie z ostatnią", async () => {
@@ -138,11 +146,17 @@ describe("useEventClonePreview", () => {
 
 describe("useCloneEvent", () => {
   it("wynik w cache NOWEJ edycji; unieważnia listę, rodzaje, społeczność i edycje ŹRÓDŁA", async () => {
-    h.rpc!.setData("admin_event_clone", { event_id: CLONE_NEW_ID, source_event_id: CLONE_SOURCE_ID });
+    h.rpc!.setData("admin_event_clone", {
+      event_id: CLONE_NEW_ID,
+      source_event_id: CLONE_SOURCE_ID,
+    });
     const { result, queryClient } = renderHookWithQueryClient(() => hooks.useCloneEvent());
     const spy = vi.spyOn(queryClient, "invalidateQueries");
     await act(async () => {
-      await result.current.mutateAsync({ sourceEventId: CLONE_SOURCE_ID, idempotencyKey: "event.clone:1" });
+      await result.current.mutateAsync({
+        sourceEventId: CLONE_SOURCE_ID,
+        idempotencyKey: "event.clone:1",
+      });
     });
     const keys = spy.mock.calls.map(([filters]) => filters?.queryKey);
     expect(keys).toContainEqual(adminEventKeys.all);
@@ -170,7 +184,9 @@ describe("useEventEditions", () => {
   it("czyta edycje wydarzenia; pusty identyfikator nie pyta", async () => {
     h.rpc!.setData("admin_event_editions", [{ id: OTHER_ID, relation: "previous" }]);
     const { result } = renderHookWithQueryClient(() => hooks.useEventEditions(CLONE_SOURCE_ID));
-    await waitFor(() => expect(result.current.data).toEqual([{ id: OTHER_ID, relation: "previous" }]));
+    await waitFor(() =>
+      expect(result.current.data).toEqual([{ id: OTHER_ID, relation: "previous" }]),
+    );
     const idle = renderHookWithQueryClient(() => hooks.useEventEditions(""));
     expect(idle.result.current.fetchStatus).toBe("idle");
     expect(h.rpc!.callsFor("admin_event_editions")).toHaveLength(1);
@@ -185,13 +201,17 @@ describe("useEventCloneResult / useDismissCloneResult", () => {
     }));
     expect(result.current.value).toBeNull();
     act(() => {
-      queryClient.setQueryData(hooks.eventCloneKeys.result(CLONE_NEW_ID), { eventId: CLONE_NEW_ID });
+      queryClient.setQueryData(hooks.eventCloneKeys.result(CLONE_NEW_ID), {
+        eventId: CLONE_NEW_ID,
+      });
       queryClient.setQueryData(hooks.eventCloneKeys.result(OTHER_ID), { eventId: OTHER_ID });
     });
     await waitFor(() => expect(result.current.value).toEqual({ eventId: CLONE_NEW_ID }));
     act(() => result.current.dismiss());
     await waitFor(() => expect(result.current.value).toBeNull());
-    expect(queryClient.getQueryData(hooks.eventCloneKeys.result(OTHER_ID))).toEqual({ eventId: OTHER_ID });
+    expect(queryClient.getQueryData(hooks.eventCloneKeys.result(OTHER_ID))).toEqual({
+      eventId: OTHER_ID,
+    });
     expect(h.rpc!.calls).toEqual([]);
   });
 });

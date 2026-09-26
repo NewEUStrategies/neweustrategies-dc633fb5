@@ -108,7 +108,10 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
-function mount(overrides: Partial<EventClonePreview> = {}, props: Partial<Parameters<typeof EventCloneForm>[0]> = {}) {
+function mount(
+  overrides: Partial<EventClonePreview> = {},
+  props: Partial<Parameters<typeof EventCloneForm>[0]> = {},
+) {
   const onSubmit = vi.fn();
   const onCancel = vi.fn();
   const onDraftChange = vi.fn();
@@ -138,10 +141,16 @@ describe("EventCloneForm - szkic startowy", () => {
     const { container, onDraftChange } = mount();
     expect(screen.getByLabelText("adminEventClone.fields.titlePl")).toHaveValue("Kongres 2027");
     expect(screen.getByLabelText("adminEventClone.fields.titleEn")).toHaveValue("Congress 2027");
-    expect(screen.getByLabelText("adminEventClone.fields.startsAt")).toHaveValue("2100-03-20T08:00:00.000Z");
+    expect(screen.getByLabelText("adminEventClone.fields.startsAt")).toHaveValue(
+      "2100-03-20T08:00:00.000Z",
+    );
     expect(screen.getByLabelText("adminEventClone.fields.timezone")).toHaveValue("Europe/Warsaw");
-    expect(screen.getByRole("switch", { name: "adminEventClone.include.labels.agenda" })).toBeChecked();
-    expect(screen.getByRole("switch", { name: "adminEventClone.include.labels.codes" })).not.toBeChecked();
+    expect(
+      screen.getByRole("switch", { name: "adminEventClone.include.labels.agenda" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("switch", { name: "adminEventClone.include.labels.codes" }),
+    ).not.toBeChecked();
     expect(screen.getByText("Kongres 2026")).toBeInTheDocument();
     expect(screen.getByText(/adminEventClone\.status\.published/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "adminEventClone.source.open" })).toHaveAttribute(
@@ -155,11 +164,15 @@ describe("EventCloneForm - szkic startowy", () => {
         /adminEventClone\.include\.hints\.agenda adminEventClone\.count\(count=2,label=adminEventClone\.items\.rooms\) · .*count=1.*tracks.* · .*count=4.*sessions/,
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText(/include\.hints\.homeAds adminEventClone\.count\(count=0/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/include\.hints\.homeAds adminEventClone\.count\(count=0/),
+    ).toBeInTheDocument();
     expect(screen.getByText("adminEventClone.crm.renewalTasksHint(count=2)")).toBeInTheDocument();
     // Podgląd na żywo z propozycją adresu z bazy.
     await waitFor(() =>
-      expect(screen.getByText("adminEventClone.fields.slugHint(slug=kongres-2027-z-bazy)")).toBeInTheDocument(),
+      expect(
+        screen.getByText("adminEventClone.fields.slugHint(slug=kongres-2027-z-bazy)"),
+      ).toBeInTheDocument(),
     );
     expect(lastPreviewPayload()).toMatchObject({
       source_event_id: CLONE_SOURCE_ID,
@@ -167,21 +180,32 @@ describe("EventCloneForm - szkic startowy", () => {
       starts_at: "2100-03-20T08:00:00.000Z",
       timezone: "Europe/Warsaw",
     });
-    expect(onDraftChange).toHaveBeenCalledWith(expect.objectContaining({ titlePl: "Kongres 2027" }));
+    expect(onDraftChange).toHaveBeenCalledWith(
+      expect.objectContaining({ titlePl: "Kongres 2027" }),
+    );
     expect(summarize(await axeViolations(container))).toBe("");
+  });
+
+  it("źródło bez licznika kontaktów do odnowienia: podpowiedź zadań mówi zero, nie pustkę", () => {
+    mount({ counts: { rooms: 2 } });
+    expect(screen.getByText("adminEventClone.crm.renewalTasksHint(count=0)")).toBeInTheDocument();
   });
 
   it("zanim przyjdzie podgląd, podpowiedź adresu bierze slug z podglądu źródła", () => {
     h.rpc!.setResponse("admin_event_clone_preview", () => new Promise(() => {}) as never);
     mount();
-    expect(screen.getByText("adminEventClone.fields.slugHint(slug=kongres-2027)")).toBeInTheDocument();
+    expect(
+      screen.getByText("adminEventClone.fields.slugHint(slug=kongres-2027)"),
+    ).toBeInTheDocument();
   });
 });
 
 describe("EventCloneForm - edycja szkicu trafia do podglądu", () => {
   it("adres, koniec i strefa jadą do podglądu; koniec ma minimum = początek", async () => {
     mount();
-    fireEvent.change(screen.getByLabelText("adminEventClone.fields.slug"), { target: { value: "Moj-Adres" } });
+    fireEvent.change(screen.getByLabelText("adminEventClone.fields.slug"), {
+      target: { value: "Moj-Adres" },
+    });
     fireEvent.change(screen.getByLabelText("adminEventClone.fields.endsAt"), {
       target: { value: "2100-03-22T17:00:00.000Z" },
     });
@@ -197,23 +221,41 @@ describe("EventCloneForm - edycja szkicu trafia do podglądu", () => {
         }),
       { timeout: 3000 },
     );
-    fireEvent.change(screen.getByLabelText("adminEventClone.fields.titleEn"), { target: { value: "C 2027" } });
-    fireEvent.change(screen.getByLabelText("adminEventClone.fields.startsAt"), { target: { value: "" } });
-    await waitFor(() => expect(lastPreviewPayload()).not.toHaveProperty("starts_at"), { timeout: 3000 });
+    fireEvent.change(screen.getByLabelText("adminEventClone.fields.titleEn"), {
+      target: { value: "C 2027" },
+    });
+    fireEvent.change(screen.getByLabelText("adminEventClone.fields.startsAt"), {
+      target: { value: "" },
+    });
+    await waitFor(() => expect(lastPreviewPayload()).not.toHaveProperty("starts_at"), {
+      timeout: 3000,
+    });
     expect(lastPreviewPayload()).toMatchObject({ title_en: "C 2027" });
   });
 
   it("wyłączona sekcja chowa swoje opcje; bez sekcji z opcjami znika cała grupa", async () => {
     mount();
-    expect(screen.getByRole("switch", { name: "adminEventClone.options.labels.sessionsAsDraft" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("switch", { name: "adminEventClone.include.labels.agenda" }));
-    expect(screen.queryByRole("switch", { name: "adminEventClone.options.labels.sessionsAsDraft" })).toBeNull();
     expect(
-      screen.queryByRole("switch", { name: "adminEventClone.options.labels.includeCancelledSessions" }),
+      screen.getByRole("switch", { name: "adminEventClone.options.labels.sessionsAsDraft" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("switch", { name: "adminEventClone.include.labels.agenda" }));
+    expect(
+      screen.queryByRole("switch", { name: "adminEventClone.options.labels.sessionsAsDraft" }),
     ).toBeNull();
-    expect(screen.getByRole("switch", { name: "adminEventClone.crm.refreshSnapshots" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("switch", { name: "adminEventClone.include.labels.sponsors" }));
-    expect(screen.queryByRole("switch", { name: "adminEventClone.crm.refreshSnapshots" })).toBeNull();
+    expect(
+      screen.queryByRole("switch", {
+        name: "adminEventClone.options.labels.includeCancelledSessions",
+      }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("switch", { name: "adminEventClone.crm.refreshSnapshots" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("switch", { name: "adminEventClone.include.labels.sponsors" }),
+    );
+    expect(
+      screen.queryByRole("switch", { name: "adminEventClone.crm.refreshSnapshots" }),
+    ).toBeNull();
     fireEvent.click(screen.getByRole("switch", { name: "adminEventClone.include.labels.tickets" }));
     expect(screen.getByText("adminEventClone.options.title")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("switch", { name: "adminEventClone.include.labels.cfp" }));
@@ -232,11 +274,15 @@ describe("EventCloneForm - edycja szkicu trafia do podglądu", () => {
 
   it("opcje i CRM: przełącznik opcji, odświeżenie migawek, zadania z terminem", async () => {
     mount();
-    fireEvent.click(screen.getByRole("switch", { name: "adminEventClone.options.labels.keepAccessCodes" }));
+    fireEvent.click(
+      screen.getByRole("switch", { name: "adminEventClone.options.labels.keepAccessCodes" }),
+    );
     fireEvent.click(screen.getByRole("switch", { name: "adminEventClone.crm.refreshSnapshots" }));
     expect(screen.queryByLabelText("adminEventClone.crm.dueDays")).toBeNull();
     fireEvent.click(screen.getByRole("switch", { name: "adminEventClone.crm.renewalTasks" }));
-    fireEvent.change(screen.getByLabelText("adminEventClone.crm.dueDays"), { target: { value: "14" } });
+    fireEvent.change(screen.getByLabelText("adminEventClone.crm.dueDays"), {
+      target: { value: "14" },
+    });
     await waitFor(
       () =>
         expect(lastPreviewPayload().options).toMatchObject({
@@ -256,19 +302,28 @@ describe("EventCloneForm - edycja szkicu trafia do podglądu", () => {
     const suffix = screen.getByLabelText("adminEventClone.options.codeSuffix");
     expect(suffix).toHaveValue("-2100");
     fireEvent.change(suffix, { target: { value: "-x27" } });
-    expect(screen.getByText("adminEventClone.options.codeSuffixHint(suffix=-X27)")).toBeInTheDocument();
+    expect(
+      screen.getByText("adminEventClone.options.codeSuffixHint(suffix=-X27)"),
+    ).toBeInTheDocument();
   });
 
   it("źródło z zapisami zewnętrznymi: pole adresu; zmieniony adres jedzie do bazy", async () => {
     const base = clonePreview();
     mount({
-      source: { ...base.source, registrationMode: "external", externalRegistrationUrl: "https://t.example.org/26" },
+      source: {
+        ...base.source,
+        registrationMode: "external",
+        externalRegistrationUrl: "https://t.example.org/26",
+      },
     });
     const url = screen.getByLabelText("adminEventClone.fields.externalUrl");
     expect(url).toHaveValue("https://t.example.org/26");
     fireEvent.change(url, { target: { value: "https://t.example.org/27" } });
     await waitFor(
-      () => expect(lastPreviewPayload()).toMatchObject({ external_registration_url: "https://t.example.org/27" }),
+      () =>
+        expect(lastPreviewPayload()).toMatchObject({
+          external_registration_url: "https://t.example.org/27",
+        }),
       { timeout: 3000 },
     );
   });
@@ -300,13 +355,19 @@ describe("EventCloneForm - zapis", () => {
 
   it("odmowa po próbie: brak tytułu, zły termin zadań - bez wywołania onSubmit", () => {
     const { onSubmit } = mount();
-    fireEvent.change(screen.getByLabelText("adminEventClone.fields.titlePl"), { target: { value: " " } });
+    fireEvent.change(screen.getByLabelText("adminEventClone.fields.titlePl"), {
+      target: { value: " " },
+    });
     expect(screen.queryByText("adminEventClone.issues.titles")).toBeNull();
     submit();
     expect(screen.getByRole("alert")).toHaveTextContent("adminEventClone.issues.titles");
-    fireEvent.change(screen.getByLabelText("adminEventClone.fields.titlePl"), { target: { value: "Kongres 2027" } });
+    fireEvent.change(screen.getByLabelText("adminEventClone.fields.titlePl"), {
+      target: { value: "Kongres 2027" },
+    });
     fireEvent.click(screen.getByRole("switch", { name: "adminEventClone.crm.renewalTasks" }));
-    fireEvent.change(screen.getByLabelText("adminEventClone.crm.dueDays"), { target: { value: "0" } });
+    fireEvent.change(screen.getByLabelText("adminEventClone.crm.dueDays"), {
+      target: { value: "0" },
+    });
     submit();
     expect(screen.getByRole("alert")).toHaveTextContent("adminEventClone.issues.dueDays");
     expect(onSubmit).not.toHaveBeenCalled();
@@ -314,14 +375,19 @@ describe("EventCloneForm - zapis", () => {
 
   it("blokada z podglądu (zajęty adres) zatrzymuje zapis zdaniem o blokadach", async () => {
     const { onSubmit } = mount();
-    fireEvent.change(screen.getByLabelText("adminEventClone.fields.slug"), { target: { value: "zajety" } });
+    fireEvent.change(screen.getByLabelText("adminEventClone.fields.slug"), {
+      target: { value: "zajety" },
+    });
     await waitFor(
-      () => expect(screen.getByText("adminEventClone.blockers.slugTaken(count=1)")).toBeInTheDocument(),
+      () =>
+        expect(screen.getByText("adminEventClone.blockers.slugTaken(count=1)")).toBeInTheDocument(),
       { timeout: 3000 },
     );
     submit();
     const alerts = screen.getAllByRole("alert");
-    expect(alerts.some((alert) => within(alert).queryByText("adminEventClone.issues.blocked"))).toBe(true);
+    expect(
+      alerts.some((alert) => within(alert).queryByText("adminEventClone.issues.blocked")),
+    ).toBe(true);
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
@@ -335,7 +401,12 @@ describe("EventCloneForm - zapis", () => {
 
   it("bez onDraftChange formularz działa (raport w górę jest opcjonalny)", () => {
     renderWithQueryClient(
-      <EventCloneForm source={clonePreview()} isSaving={false} onCancel={vi.fn()} onSubmit={vi.fn()} />,
+      <EventCloneForm
+        source={clonePreview()}
+        isSaving={false}
+        onCancel={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
     );
     expect(screen.getByLabelText("adminEventClone.fields.titlePl")).toHaveValue("Kongres 2027");
   });

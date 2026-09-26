@@ -67,7 +67,10 @@ export function EventClonePreviewPanel({
   const day = (value: string) => formatEventDate(`${value}T00:00:00.000Z`, "UTC", lang);
 
   return (
-    <section className="space-y-3 rounded-md border border-border/60 bg-muted/30 p-3" aria-live="polite">
+    <section
+      className="space-y-3 rounded-md border border-border/60 bg-muted/30 p-3"
+      aria-live="polite"
+    >
       <header className="space-y-0.5">
         <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
           <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />
@@ -109,7 +112,8 @@ export function EventClonePreviewPanel({
             {INSTANT_ROWS.filter(([key]) => preview.dates[key] !== null).map(([key, labelKey]) => (
               <PreviewRow key={key} label={t(labelKey)} value={moment(preview.dates[key])} />
             ))}
-            {preview.dates.meetingDaysFirst === null || preview.dates.meetingDaysLast === null ? null : (
+            {preview.dates.meetingDaysFirst === null ||
+            preview.dates.meetingDaysLast === null ? null : (
               <PreviewRow
                 label={t("adminEventClone.preview.rows.meetingDays")}
                 value={t("adminEventClone.preview.meetingDaysRange", {

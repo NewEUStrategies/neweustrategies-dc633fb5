@@ -82,7 +82,10 @@ export function EventCloneScreen({ sourceId, canClone }: { sourceId: string; can
                   ),
                 }),
           );
-          void navigate({ to: "/admin/events/$eventId/overview", params: { eventId: result.eventId } });
+          void navigate({
+            to: "/admin/events/$eventId/overview",
+            params: { eventId: result.eventId },
+          });
         },
         onError: (error) => toast.error(adminCloneErrorMessage(error)),
       },

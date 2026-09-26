@@ -60,7 +60,9 @@ export function EventCloneSourcePicker({ onPick }: { onPick: (eventId: string) =
           <h2 id="event-clone-picker-title" className="text-sm font-semibold">
             {t("adminEventClone.entry.pickerTitle")}
           </h2>
-          <p className="text-xs text-muted-foreground">{t("adminEventClone.entry.pickerDescription")}</p>
+          <p className="text-xs text-muted-foreground">
+            {t("adminEventClone.entry.pickerDescription")}
+          </p>
         </div>
         <Button
           variant="ghost"

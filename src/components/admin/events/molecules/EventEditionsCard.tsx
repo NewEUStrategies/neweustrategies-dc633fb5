@@ -59,10 +59,14 @@ export function EventEditionsCard({ eventId }: { eventId: string }) {
                     <span className="block truncate font-medium">{title}</span>
                     <span className="block text-xs text-muted-foreground">
                       {t(RELATION_LABEL_KEYS[row.relation] ?? RELATION_LABEL_KEYS.previous)} ·{" "}
-                      {formatEventDateTime(row.starts_at, row.timezone, lang)} · {t(cloneStatusKey(row.status))}
+                      {formatEventDateTime(row.starts_at, row.timezone, lang)} ·{" "}
+                      {t(cloneStatusKey(row.status))}
                     </span>
                   </span>
-                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <ChevronRight
+                    className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                    aria-hidden="true"
+                  />
                 </Link>
               </li>
             );
@@ -77,7 +81,9 @@ export function EventEditionsCard({ eventId }: { eventId: string }) {
         <Copy className="h-3.5 w-3.5" aria-hidden="true" />
         {t("adminEventClone.editions.createNext")}
       </Link>
-      <p className="text-xs text-muted-foreground">{t("adminEventClone.editions.createNextHint")}</p>
+      <p className="text-xs text-muted-foreground">
+        {t("adminEventClone.editions.createNextHint")}
+      </p>
     </div>
   );
 }

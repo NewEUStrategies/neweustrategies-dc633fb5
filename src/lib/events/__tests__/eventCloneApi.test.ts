@@ -19,11 +19,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { freezeClock } from "@/test/time";
 import { supabaseRpcStub, type SupabaseRpcStub } from "@/test/supabase";
-import {
-  CLONE_NEW_ID,
-  CLONE_SOURCE_ID,
-  clonePreviewJson,
-} from "@/test/events/eventCloneFixtures";
+import { CLONE_NEW_ID, CLONE_SOURCE_ID, clonePreviewJson } from "@/test/events/eventCloneFixtures";
 
 const h = vi.hoisted(() => ({ rpc: null as SupabaseRpcStub | null }));
 
@@ -271,7 +267,10 @@ describe("wywołania RPC", () => {
   });
 
   it("cloneEvent woła admin_event_clone i parsuje wynik", async () => {
-    h.rpc!.setData("admin_event_clone", { event_id: CLONE_NEW_ID, source_event_id: CLONE_SOURCE_ID });
+    h.rpc!.setData("admin_event_clone", {
+      event_id: CLONE_NEW_ID,
+      source_event_id: CLONE_SOURCE_ID,
+    });
     const result = await api.cloneEvent({ sourceEventId: CLONE_SOURCE_ID, idempotencyKey: "k:1" });
     expect(h.rpc!.lastCall("admin_event_clone")?.arg("p_payload")).toEqual({
       source_event_id: CLONE_SOURCE_ID,
@@ -282,7 +281,9 @@ describe("wywołania RPC", () => {
 
   it("odmowa bazy wychodzi jako Error z głową plpgsql", async () => {
     h.rpc!.setError("admin_event_clone", "slug_taken: another event already uses this address");
-    await expect(api.cloneEvent({ sourceEventId: CLONE_SOURCE_ID })).rejects.toThrow(/^slug_taken:/);
+    await expect(api.cloneEvent({ sourceEventId: CLONE_SOURCE_ID })).rejects.toThrow(
+      /^slug_taken:/,
+    );
     h.rpc!.setError("admin_event_clone_preview", "invalid_timezone: unknown time zone name");
     await expect(api.previewEventClone({ sourceEventId: CLONE_SOURCE_ID })).rejects.toThrow(
       "invalid_timezone: unknown time zone name",

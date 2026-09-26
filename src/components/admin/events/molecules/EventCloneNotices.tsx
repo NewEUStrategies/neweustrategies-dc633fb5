@@ -32,7 +32,9 @@ export function EventCloneNotices({
     <section
       className={
         "space-y-1.5 rounded-md border p-3 " +
-        (blocker ? "border-destructive/50 bg-destructive/5" : "border-amber-300/60 bg-amber-50/60 dark:bg-amber-950/20")
+        (blocker
+          ? "border-destructive/50 bg-destructive/5"
+          : "border-amber-300/60 bg-amber-50/60 dark:bg-amber-950/20")
       }
       role={blocker ? "alert" : undefined}
     >
@@ -43,7 +45,9 @@ export function EventCloneNotices({
       <ul className="list-disc space-y-0.5 pl-5 text-xs leading-snug">
         {notices.map((notice) => (
           <li key={notice.code}>
-            {t(blocker ? cloneBlockerKey(notice) : cloneWarningKey(notice), { count: notice.count })}
+            {t(blocker ? cloneBlockerKey(notice) : cloneWarningKey(notice), {
+              count: notice.count,
+            })}
           </li>
         ))}
       </ul>

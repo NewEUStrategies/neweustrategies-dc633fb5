@@ -147,7 +147,9 @@ function CreateFromTypePage() {
       <div className="w-full p-4 sm:p-6">
         {isAdmin ? (
           <EventCloneSourcePicker
-            onPick={(eventId) => void navigate({ to: "/admin/events/new", search: { from: eventId } })}
+            onPick={(eventId) =>
+              void navigate({ to: "/admin/events/new", search: { from: eventId } })
+            }
           />
         ) : null}
         <EventCreateForm

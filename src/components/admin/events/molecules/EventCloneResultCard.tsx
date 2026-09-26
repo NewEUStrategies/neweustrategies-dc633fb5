@@ -29,13 +29,21 @@ export function EventCloneResultCard({ eventId }: { eventId: string }) {
     >
       <div className="flex items-start justify-between gap-2">
         <div className="space-y-0.5">
-          <h2 id="event-clone-result-title" className="flex items-center gap-1.5 text-sm font-semibold">
+          <h2
+            id="event-clone-result-title"
+            className="flex items-center gap-1.5 text-sm font-semibold"
+          >
             <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
             {t("adminEventClone.result.title")}
           </h2>
           <p className="text-xs text-muted-foreground">{t("adminEventClone.result.description")}</p>
         </div>
-        <Button variant="ghost" size="sm" aria-label={t("adminEventClone.result.dismiss")} onClick={dismiss}>
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label={t("adminEventClone.result.dismiss")}
+          onClick={dismiss}
+        >
           <X className="h-4 w-4" aria-hidden="true" />
         </Button>
       </div>

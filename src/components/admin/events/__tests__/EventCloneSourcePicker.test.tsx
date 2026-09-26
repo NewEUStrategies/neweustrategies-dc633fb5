@@ -26,7 +26,8 @@ vi.mock("@/integrations/supabase/client", () => ({
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("@/lib/i18n-admin-event-clone", () => ({ ensureCloneI18n: () => undefined }));
 
-const { EventCloneSourcePicker } = await import("@/components/admin/events/molecules/EventCloneSourcePicker");
+const { EventCloneSourcePicker } =
+  await import("@/components/admin/events/molecules/EventCloneSourcePicker");
 
 freezeClock();
 
@@ -60,7 +61,10 @@ describe("EventCloneSourcePicker", () => {
   });
 
   it("pyta od dwóch znaków i oddaje identyfikator klikniętego wiersza", async () => {
-    h.rpc!.setData("admin_events_list", [listRow(), listRow({ id: "x-2", title_pl: "Forum", status: "draft" })]);
+    h.rpc!.setData("admin_events_list", [
+      listRow(),
+      listRow({ id: "x-2", title_pl: "Forum", status: "draft" }),
+    ]);
     const onPick = vi.fn();
     const { container } = renderWithQueryClient(<EventCloneSourcePicker onPick={onPick} />);
     const search = open();
@@ -88,7 +92,9 @@ describe("EventCloneSourcePicker", () => {
 
     h.rpc!.setError("admin_events_list", "forbidden: admin role required");
     fireEvent.change(search, { target: { value: "yyy" } });
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("forbidden: admin role required"));
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent("forbidden: admin role required"),
+    );
     expect(screen.queryByText("adminEventClone.entry.pickerEmpty")).toBeNull();
   });
 

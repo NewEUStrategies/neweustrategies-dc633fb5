@@ -23,11 +23,12 @@ vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18n
 vi.mock("@/lib/i18n-admin-event-clone", () => ({ ensureCloneI18n: () => undefined }));
 
 const { EventCloneNotices } = await import("@/components/admin/events/molecules/EventCloneNotices");
-const { EventCloneItemList } = await import("@/components/admin/events/molecules/EventCloneItemList");
-const { EventClonePreviewPanel } = await import(
-  "@/components/admin/events/molecules/EventClonePreviewPanel"
-);
-const { EventCloneResultCard } = await import("@/components/admin/events/molecules/EventCloneResultCard");
+const { EventCloneItemList } =
+  await import("@/components/admin/events/molecules/EventCloneItemList");
+const { EventClonePreviewPanel } =
+  await import("@/components/admin/events/molecules/EventClonePreviewPanel");
+const { EventCloneResultCard } =
+  await import("@/components/admin/events/molecules/EventCloneResultCard");
 const { eventCloneKeys } = await import("@/lib/events/useEventClone");
 
 freezeClock();
@@ -39,19 +40,30 @@ describe("EventCloneNotices", () => {
     render(
       <EventCloneNotices
         title="naglowek"
-        notices={[{ code: "sessions_outside_window", count: 3 }, { code: "nowa", count: 1 }]}
+        notices={[
+          { code: "sessions_outside_window", count: 3 },
+          { code: "nowa", count: 1 },
+        ]}
         tone="blocker"
       />,
     );
     const alert = screen.getByRole("alert");
     expect(within(alert).getByText("naglowek")).toBeInTheDocument();
-    expect(within(alert).getByText("adminEventClone.blockers.sessionsOutsideWindow(count=3)")).toBeInTheDocument();
-    expect(within(alert).getByText("adminEventClone.blockers.unknown(count=1)")).toBeInTheDocument();
+    expect(
+      within(alert).getByText("adminEventClone.blockers.sessionsOutsideWindow(count=3)"),
+    ).toBeInTheDocument();
+    expect(
+      within(alert).getByText("adminEventClone.blockers.unknown(count=1)"),
+    ).toBeInTheDocument();
   });
 
   it("ostrzeżenie NIE jest alertem; pusta lista nie rysuje niczego", () => {
     const { container, rerender } = render(
-      <EventCloneNotices title="uwagi" notices={[{ code: "sales_closed", count: 2 }]} tone="warning" />,
+      <EventCloneNotices
+        title="uwagi"
+        notices={[{ code: "sales_closed", count: 2 }]}
+        tone="warning"
+      />,
     );
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.getByText("adminEventClone.warnings.salesClosed(count=2)")).toBeInTheDocument();
@@ -81,12 +93,24 @@ describe("EventCloneItemList", () => {
 describe("EventClonePreviewPanel", () => {
   it("rysuje przesunięcie, strefę, daty z bazy, blokady, ostrzeżenia i dane nieprzenoszone", async () => {
     const preview = clonePreview({ blockers: [{ code: "slug_taken", count: 1 }] });
-    const { container } = render(<EventClonePreviewPanel preview={preview} isFetching={false} error={null} />);
+    const { container } = render(
+      <EventClonePreviewPanel preview={preview} isFetching={false} error={null} />,
+    );
     expect(screen.getByText("adminEventClone.preview.shiftDays(count=365)")).toBeInTheDocument();
-    expect(screen.getByText("adminEventClone.preview.zone(zone=Europe/Warsaw)")).toBeInTheDocument();
+    expect(
+      screen.getByText("adminEventClone.preview.zone(zone=Europe/Warsaw)"),
+    ).toBeInTheDocument();
     // Wiersze: początek, koniec, otwarcie zapisów, start sprzedaży, pierwsza
     // i ostatnia sesja - puste daty (koniec sprzedaży, nabór) NIE są wierszami.
-    for (const key of ["startsAt", "endsAt", "rsvpOpensAt", "salesFrom", "firstSession", "lastSession", "meetingDays"]) {
+    for (const key of [
+      "startsAt",
+      "endsAt",
+      "rsvpOpensAt",
+      "salesFrom",
+      "firstSession",
+      "lastSession",
+      "meetingDays",
+    ]) {
       expect(screen.getByText(`adminEventClone.preview.rows.${key}`), key).toBeInTheDocument();
     }
     for (const key of ["salesTo", "cfpOpensAt", "cfpClosesAt"]) {
@@ -96,13 +120,17 @@ describe("EventClonePreviewPanel", () => {
     const first = screen.getByText("adminEventClone.preview.rows.firstSession").nextElementSibling;
     expect(first?.textContent).toMatch(/9:30/);
     // Dni giełdy jako DNI (UTC), zakres od-do.
-    expect(screen.getByText(/adminEventClone\.preview\.meetingDaysRange\(from=.*20.*,to=.*21.*\)/)).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent("adminEventClone.blockers.slugTaken(count=1)");
-    expect(screen.getByText("adminEventClone.warnings.sponsorsUnpublished(count=2)")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "adminEventClone.count(count=12,label=adminEventClone.items.registrations)",
-      ),
+      screen.getByText(/adminEventClone\.preview\.meetingDaysRange\(from=.*20.*,to=.*21.*\)/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "adminEventClone.blockers.slugTaken(count=1)",
+    );
+    expect(
+      screen.getByText("adminEventClone.warnings.sponsorsUnpublished(count=2)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("adminEventClone.count(count=12,label=adminEventClone.items.registrations)"),
     ).toBeInTheDocument();
     expect(summarize(await axeViolations(container))).toBe("");
   });
@@ -165,8 +193,12 @@ describe("EventCloneResultCard", () => {
 
   it("pokazuje ostrzeżenia, skopiowane i pominięte (bez zer); zamknięcie czyści wpis", async () => {
     const { queryClient, container } = mount(cloneResult());
-    expect(screen.getByRole("heading", { name: "adminEventClone.result.title" })).toBeInTheDocument();
-    expect(screen.getByText("adminEventClone.warnings.cancelledSessionsSkipped(count=1)")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "adminEventClone.result.title" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("adminEventClone.warnings.cancelledSessionsSkipped(count=1)"),
+    ).toBeInTheDocument();
     expect(
       screen.getByText("adminEventClone.count(count=3,label=adminEventClone.items.sessions)"),
     ).toBeInTheDocument();
@@ -176,7 +208,9 @@ describe("EventCloneResultCard", () => {
     expect(screen.queryByText(/adminEventClone\.items\.crmTasks/)).toBeNull();
     expect(summarize(await axeViolations(container))).toBe("");
 
-    act(() => fireEvent.click(screen.getByRole("button", { name: "adminEventClone.result.dismiss" })));
+    act(() =>
+      fireEvent.click(screen.getByRole("button", { name: "adminEventClone.result.dismiss" })),
+    );
     expect(queryClient.getQueryData(eventCloneKeys.result(CLONE_NEW_ID))).toBeNull();
     await waitFor(() =>
       expect(screen.queryByRole("heading", { name: "adminEventClone.result.title" })).toBeNull(),

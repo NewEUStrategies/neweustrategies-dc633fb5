@@ -83,7 +83,10 @@ export function useEventClonePreview(
   const text = input === null ? "" : JSON.stringify(clonePayload(input));
   const debounced = useDebouncedValue(text, CLONE_PREVIEW_DEBOUNCE_MS);
   const sourceId = input === null ? "" : input.sourceEventId;
-  const payload = useMemo(() => JSON.parse(debounced === "" ? "{}" : debounced) as Json, [debounced]);
+  const payload = useMemo(
+    () => JSON.parse(debounced === "" ? "{}" : debounced) as Json,
+    [debounced],
+  );
   return useQuery({
     queryKey: eventCloneKeys.preview(sourceId, debounced),
     queryFn: () => requestClonePreview(payload),

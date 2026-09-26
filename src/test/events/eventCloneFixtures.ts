@@ -37,7 +37,12 @@ export function clonePreview(overrides: Partial<EventClonePreview> = {}): EventC
       slugValid: true,
       slugAvailable: true,
     },
-    shift: { delta: "365 days", dayShift: 365, sourceTz: "Europe/Warsaw", timezone: "Europe/Warsaw" },
+    shift: {
+      delta: "365 days",
+      dayShift: 365,
+      sourceTz: "Europe/Warsaw",
+      timezone: "Europe/Warsaw",
+    },
     include: {
       agenda: true,
       speakers: true,
@@ -91,7 +96,12 @@ export function cloneResult(overrides: Partial<EventCloneResult> = {}): EventClo
     slug: "kongres-2027",
     sourceEventId: CLONE_SOURCE_ID,
     replayed: false,
-    shift: { delta: "365 days", dayShift: 365, sourceTz: "Europe/Warsaw", timezone: "Europe/Warsaw" },
+    shift: {
+      delta: "365 days",
+      dayShift: 365,
+      sourceTz: "Europe/Warsaw",
+      timezone: "Europe/Warsaw",
+    },
     copied: { sessions: 3, rooms: 2, crm_tasks: 0 },
     skipped: { sessions: 1, registrations: 12 },
     warnings: [{ code: "cancelled_sessions_skipped", count: 1 }],
@@ -123,7 +133,12 @@ export function clonePreviewJson(): Record<string, unknown> {
       slug_valid: false,
       slug_available: true,
     },
-    shift: { delta: "365 days", day_shift: 365, source_tz: "Europe/Warsaw", timezone: "Europe/Warsaw" },
+    shift: {
+      delta: "365 days",
+      day_shift: 365,
+      source_tz: "Europe/Warsaw",
+      timezone: "Europe/Warsaw",
+    },
     include: { agenda: true, sponsor_materials: true, home_ads: "tak", codes: false },
     options: {
       include_cancelled_sessions: true,

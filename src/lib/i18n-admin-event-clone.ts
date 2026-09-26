@@ -82,17 +82,20 @@ export const adminEventClonePl = {
         codes: "Kody rejestracyjne",
       },
       hints: {
-        agenda: "Sesje odwołane domyślnie nie przechodzą. Transmisje i nagrania zawsze zostają puste.",
+        agenda:
+          "Sesje odwołane domyślnie nie przechodzą. Transmisje i nagrania zawsze zostają puste.",
         speakers: "Profile prelegentów są wspólne dla edycji - kopiujemy listę i obsadę sesji.",
         registration: "Regulaminy zachowują wersję; nowa edycja startuje bez akceptacji.",
         tickets:
           "Sprzedaż liczy się od zera, okna sprzedaży i progi cen przesuwają się razem z wydarzeniem.",
         sponsors: "Ta sama firma i ten sam kontakt w CRM - bez kopiowania danych osób.",
-        sponsorMaterials: "Materiały dotyczą poprzedniej edycji, więc wracają jako nieopublikowane.",
+        sponsorMaterials:
+          "Materiały dotyczą poprzedniej edycji, więc wracają jako nieopublikowane.",
         homeAds: "Okno emisji przesuwa się; reklamy nieopublikowanych sponsorów są wyłączone.",
         pages:
           "Strony modułów zawsze powstają. Pozostałe strony wracają jako szkice pod nowym adresem.",
-        onsite: "Punkt bez skopiowanej sesji albo sponsora jest pomijany. Urządzeń skanera nie kopiujemy.",
+        onsite:
+          "Punkt bez skopiowanej sesji albo sponsora jest pomijany. Urządzeń skanera nie kopiujemy.",
         meetings: "Dni giełdy przesuwają się o całe dni. Spotkań i dostępności nie kopiujemy.",
         cfp: "Nabór wraca jako szkic z przesuniętym oknem. Zgłoszeń i ocen nie kopiujemy.",
         seating:
@@ -112,7 +115,8 @@ export const adminEventClonePl = {
         cfpReviewers: "Kopiuj recenzentów naboru",
       },
       hints: {
-        includeCancelledSessions: "Wracają jako szkice bez sali - odwołany termin nie ma przydzielonej sali.",
+        includeCancelledSessions:
+          "Wracają jako szkice bez sali - odwołany termin nie ma przydzielonej sali.",
         sessionsAsDraft: "Agenda nowej edycji nie pokaże się, dopóki nie opublikujesz sesji.",
         sponsorsUnpublished:
           "Sponsoring nowej edycji nie jest jeszcze sprzedany - sponsorzy pojawią się po publikacji.",
@@ -121,7 +125,8 @@ export const adminEventClonePl = {
         cfpReviewers: "Recenzenci dostaną dostęp do zgłoszeń nowej edycji.",
       },
       codeSuffix: "Przyrostek kodów",
-      codeSuffixHint: "Kody są unikalne w organizacji, więc kopia dostaje przyrostek, np. VIP → VIP{{suffix}}.",
+      codeSuffixHint:
+        "Kody są unikalne w organizacji, więc kopia dostaje przyrostek, np. VIP → VIP{{suffix}}.",
     },
     crm: {
       title: "CRM",
@@ -171,7 +176,8 @@ export const adminEventClonePl = {
       rsvpOpensInPast: "Otwarcie zapisów po przesunięciu wypada w przeszłości.",
       cancelledSessionsSkipped: "Sesje odwołane (z podsesjami), które nie przejdą: {{count}}.",
       castNeedsAgenda: "Obsada sesji bez kopiowania agendy nie przejdzie. Przypisań: {{count}}.",
-      salesClosed: "Bilety i pakiety, których sprzedaż po przesunięciu jest już zamknięta: {{count}}.",
+      salesClosed:
+        "Bilety i pakiety, których sprzedaż po przesunięciu jest już zamknięta: {{count}}.",
       accessCodesDropped: "Bilety z kodem dostępu wrócą jako nieaktywne: {{count}}.",
       codesNotCopied: "Kody rejestracyjne, których nie kopiujesz: {{count}}.",
       codesNeedTickets: "Kody rejestracyjne wymagają kopiowania biletów i nie przejdą: {{count}}.",
@@ -179,7 +185,8 @@ export const adminEventClonePl = {
         "Punkty odprawy bez skopiowanej sesji albo sponsora, które zostaną pominięte: {{count}}.",
       pagesCopiedAsDraft: "Strony, które wrócą jako szkice: {{count}}.",
       sponsorsUnpublished: "Opublikowani sponsorzy, którzy wrócą jako nieopublikowani: {{count}}.",
-      seatHoldsCleared: "Rezerwacje miejsc dla sponsorów i pakietów, które zostaną zwolnione: {{count}}.",
+      seatHoldsCleared:
+        "Rezerwacje miejsc dla sponsorów i pakietów, które zostaną zwolnione: {{count}}.",
       cfpWindowInPast: "Nabór prelegentów po przesunięciu zamyka się w przeszłości.",
       cfpReviewersNotCopied: "Recenzenci naboru, których nie kopiujesz: {{count}}.",
       unknown: "Inna uwaga do kopii: {{count}}.",
@@ -251,7 +258,8 @@ export const adminEventClonePl = {
       timezone: "Wybierz strefę czasową.",
       slug: "Adres może mieć od 3 do 120 znaków: małe litery, cyfry i myślniki.",
       externalUrl: "Podaj adres zapisów na nową edycję.",
-      externalUrlInvalid: "Adres zapisów musi zaczynać się od https:// i mieć najwyżej 2048 znaków.",
+      externalUrlInvalid:
+        "Adres zapisów musi zaczynać się od https:// i mieć najwyżej 2048 znaków.",
       codeSuffix: "Przyrostek kodów: od 1 do 20 liter, cyfr, myślników albo podkreśleń.",
       dueDays: "Termin zadania: pełna liczba dni od 1 do 365.",
       blocked: "Popraw pozycje z listy „Co trzeba poprawić przed kopiowaniem”.",
@@ -277,7 +285,8 @@ export const adminEventClonePl = {
     },
     editions: {
       title: "Edycje wydarzenia",
-      description: "Poprzednie i kolejne edycje utworzone kopią. Z tego miejsca zaczniesz też kolejną edycję.",
+      description:
+        "Poprzednie i kolejne edycje utworzone kopią. Z tego miejsca zaczniesz też kolejną edycję.",
       loading: "Wczytuję edycje…",
       empty: "To wydarzenie nie ma jeszcze poprzednich ani kolejnych edycji.",
       relation: {
@@ -313,12 +322,15 @@ export const adminEventClonePl = {
       invalidSlug: "Adres może mieć od 3 do 120 znaków: małe litery, cyfry i myślniki.",
       slugTaken: "Inne wydarzenie w organizacji używa już tego adresu.",
       externalUrlRequired: "Wydarzenie przyjmuje zapisy w innym systemie - podaj adres zapisów.",
-      externalUrlInvalid: "Adres zapisów musi zaczynać się od https:// i mieć najwyżej 2048 znaków.",
-      invalidCodeSuffix: "Kopie kodów potrzebują przyrostka z liter, cyfr, myślników albo podkreśleń.",
+      externalUrlInvalid:
+        "Adres zapisów musi zaczynać się od https:// i mieć najwyżej 2048 znaków.",
+      invalidCodeSuffix:
+        "Kopie kodów potrzebują przyrostka z liter, cyfr, myślników albo podkreśleń.",
       invalidTaskDueDays: "Termin zadania w CRM musi wynosić od 1 do 365 dni.",
       invalidIdempotencyKey: "Formularz wygasł. Odśwież stronę i spróbuj ponownie.",
       idempotencyConflict: "Ten formularz został już użyty w innej operacji. Odśwież stronę.",
-      cloneInProgress: "Ta sama kopia właśnie się tworzy. Odczekaj chwilę i odśwież listę wydarzeń.",
+      cloneInProgress:
+        "Ta sama kopia właśnie się tworzy. Odczekaj chwilę i odśwież listę wydarzeń.",
       cloneSessionsOutsideWindow:
         "Liczba sesji poza nowymi datami wydarzenia: {{count}}. Wydłuż wydarzenie albo zmień jego początek.",
     },
@@ -388,18 +400,24 @@ export const adminEventCloneEn = {
         codes: "Registration codes",
       },
       hints: {
-        agenda: "Cancelled sessions are skipped by default. Streams and recordings are always left empty.",
-        speakers: "Speaker profiles are shared across editions - we copy the list and the session cast.",
+        agenda:
+          "Cancelled sessions are skipped by default. Streams and recordings are always left empty.",
+        speakers:
+          "Speaker profiles are shared across editions - we copy the list and the session cast.",
         registration: "Terms keep their version; the new edition starts without acceptances.",
         tickets: "Sales start from zero; sales windows and price phases move with the event.",
         sponsors: "The same company and the same CRM contact - no personal data is copied.",
-        sponsorMaterials: "Materials belong to the previous edition, so they come back unpublished.",
+        sponsorMaterials:
+          "Materials belong to the previous edition, so they come back unpublished.",
         homeAds: "The run window moves; ads of unpublished sponsors are switched off.",
-        pages: "Module pages are always created. Other pages come back as drafts under a new address.",
-        onsite: "A point whose session or sponsor was not copied is skipped. Scanner devices are never copied.",
+        pages:
+          "Module pages are always created. Other pages come back as drafts under a new address.",
+        onsite:
+          "A point whose session or sponsor was not copied is skipped. Scanner devices are never copied.",
         meetings: "Meeting days move by whole days. Meetings and availability are not copied.",
         cfp: "The call comes back as a draft with a moved window. Submissions and reviews are not copied.",
-        seating: "The plan comes back as a draft. Blocks and CRM company holds stay; seat assignments do not.",
+        seating:
+          "The plan comes back as a draft. Blocks and CRM company holds stay; seat assignments do not.",
         adCampaigns:
           "The same campaign linked to two editions blurs funnel attribution - enable it only for this edition's campaigns.",
         codes: "Copied codes get a suffix and a usage counter from zero. Requires copying tickets.",
@@ -415,7 +433,8 @@ export const adminEventCloneEn = {
         cfpReviewers: "Copy call-for-speakers reviewers",
       },
       hints: {
-        includeCancelledSessions: "They come back as drafts without a room - a cancelled slot has no room booked.",
+        includeCancelledSessions:
+          "They come back as drafts without a room - a cancelled slot has no room booked.",
         sessionsAsDraft: "The new edition's agenda stays hidden until you publish the sessions.",
         sponsorsUnpublished:
           "Sponsorship of the new edition is not sold yet - sponsors appear once you publish them.",
@@ -424,7 +443,8 @@ export const adminEventCloneEn = {
         cfpReviewers: "Reviewers will get access to the new edition's submissions.",
       },
       codeSuffix: "Code suffix",
-      codeSuffixHint: "Codes are unique in the organisation, so a copy gets a suffix, e.g. VIP → VIP{{suffix}}.",
+      codeSuffixHint:
+        "Codes are unique in the organisation, so a copy gets a suffix, e.g. VIP → VIP{{suffix}}.",
     },
     crm: {
       title: "CRM",
@@ -470,9 +490,11 @@ export const adminEventCloneEn = {
       externalUrlCopied: "The external registration address points to the previous edition.",
       typeInactive: "The event type is disabled in the catalogue - the copy is created anyway.",
       rsvpOpensInPast: "After the shift, registration opens in the past.",
-      cancelledSessionsSkipped: "Cancelled sessions (with sub-sessions) that will be skipped: {{count}}.",
+      cancelledSessionsSkipped:
+        "Cancelled sessions (with sub-sessions) that will be skipped: {{count}}.",
       castNeedsAgenda: "Session cast is not copied without the agenda. Assignments: {{count}}.",
-      salesClosed: "Tickets and packages whose sales are already closed after the shift: {{count}}.",
+      salesClosed:
+        "Tickets and packages whose sales are already closed after the shift: {{count}}.",
       accessCodesDropped: "Tickets with an access code that come back inactive: {{count}}.",
       codesNotCopied: "Registration codes you are not copying: {{count}}.",
       codesNeedTickets: "Registration codes need copied tickets and will be skipped: {{count}}.",
@@ -552,7 +574,8 @@ export const adminEventCloneEn = {
       timezone: "Pick a time zone.",
       slug: "The address needs 3 to 120 characters: lowercase letters, digits and dashes.",
       externalUrl: "Enter the registration address for the new edition.",
-      externalUrlInvalid: "The registration address must start with https:// and have at most 2048 characters.",
+      externalUrlInvalid:
+        "The registration address must start with https:// and have at most 2048 characters.",
       codeSuffix: "Code suffix: 1 to 20 letters, digits, dashes or underscores.",
       dueDays: "Task due date: a whole number of days from 1 to 365.",
       blocked: "Fix the items listed under “Fix before copying”.",
@@ -578,7 +601,8 @@ export const adminEventCloneEn = {
     },
     editions: {
       title: "Event editions",
-      description: "Previous and next editions created by copying. You can also start the next edition from here.",
+      description:
+        "Previous and next editions created by copying. You can also start the next edition from here.",
       loading: "Loading editions…",
       empty: "This event has no previous or next editions yet.",
       relation: {
@@ -613,13 +637,17 @@ export const adminEventCloneEn = {
       invalidTitles: "Enter both titles of the new edition (at most 200 characters).",
       invalidSlug: "The address needs 3 to 120 characters: lowercase letters, digits and dashes.",
       slugTaken: "Another event in the organisation already uses this address.",
-      externalUrlRequired: "The event takes registrations in another system - enter the registration address.",
-      externalUrlInvalid: "The registration address must start with https:// and have at most 2048 characters.",
-      invalidCodeSuffix: "Copied codes need a suffix made of letters, digits, dashes or underscores.",
+      externalUrlRequired:
+        "The event takes registrations in another system - enter the registration address.",
+      externalUrlInvalid:
+        "The registration address must start with https:// and have at most 2048 characters.",
+      invalidCodeSuffix:
+        "Copied codes need a suffix made of letters, digits, dashes or underscores.",
       invalidTaskDueDays: "The CRM task due date must be 1 to 365 days away.",
       invalidIdempotencyKey: "The form has expired. Refresh the page and try again.",
       idempotencyConflict: "This form was already used for another operation. Refresh the page.",
-      cloneInProgress: "The same copy is being created right now. Wait a moment and refresh the event list.",
+      cloneInProgress:
+        "The same copy is being created right now. Wait a moment and refresh the event list.",
       cloneSessionsOutsideWindow:
         "Sessions outside the new event dates: {{count}}. Extend the event or move its start.",
     },

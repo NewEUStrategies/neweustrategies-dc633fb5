@@ -31,7 +31,10 @@ import {
 } from "@/lib/events/eventCloneLabels";
 
 function inBothLanguages(key: string): boolean {
-  return i18n.exists(key, { lng: "pl", fallbackLng: false }) && i18n.exists(key, { lng: "en", fallbackLng: false });
+  return (
+    i18n.exists(key, { lng: "pl", fallbackLng: false }) &&
+    i18n.exists(key, { lng: "en", fallbackLng: false })
+  );
 }
 
 describe("mapy etykiet", () => {
@@ -55,7 +58,10 @@ describe("mapy etykiet", () => {
   });
 
   it("wszystkie rzeczowniki liczników i stany istnieją w obu językach", () => {
-    for (const key of [...Object.values(CLONE_ITEM_LABEL_KEYS), ...Object.values(CLONE_STATUS_LABEL_KEYS)]) {
+    for (const key of [
+      ...Object.values(CLONE_ITEM_LABEL_KEYS),
+      ...Object.values(CLONE_STATUS_LABEL_KEYS),
+    ]) {
       expect(inBothLanguages(key), key).toBe(true);
     }
   });
@@ -70,18 +76,26 @@ describe("cloneItemEntries", () => {
   });
 
   it("zawężenie do podanej listy (także z kluczem spoza mapy i brakującym licznikiem)", () => {
-    expect(cloneItemEntries({ registrations: 2, sessions: 4 }, ["registrations", "invoices", "obce"])).toEqual([
-      { id: "registrations", labelKey: "adminEventClone.items.registrations", count: 2 },
-    ]);
+    expect(
+      cloneItemEntries({ registrations: 2, sessions: 4 }, ["registrations", "invoices", "obce"]),
+    ).toEqual([{ id: "registrations", labelKey: "adminEventClone.items.registrations", count: 2 }]);
   });
 });
 
 describe("kody ostrzeżeń, blokad i stanów", () => {
   it("znany kod ma własne zdanie, nieznany - ogólne", () => {
-    expect(cloneWarningKey({ code: "sales_closed", count: 2 })).toBe("adminEventClone.warnings.salesClosed");
-    expect(cloneWarningKey({ code: "nowy_kod", count: 1 })).toBe("adminEventClone.warnings.unknown");
-    expect(cloneBlockerKey({ code: "slug_taken", count: 1 })).toBe("adminEventClone.blockers.slugTaken");
-    expect(cloneBlockerKey({ code: "nowa_blokada", count: 1 })).toBe("adminEventClone.blockers.unknown");
+    expect(cloneWarningKey({ code: "sales_closed", count: 2 })).toBe(
+      "adminEventClone.warnings.salesClosed",
+    );
+    expect(cloneWarningKey({ code: "nowy_kod", count: 1 })).toBe(
+      "adminEventClone.warnings.unknown",
+    );
+    expect(cloneBlockerKey({ code: "slug_taken", count: 1 })).toBe(
+      "adminEventClone.blockers.slugTaken",
+    );
+    expect(cloneBlockerKey({ code: "nowa_blokada", count: 1 })).toBe(
+      "adminEventClone.blockers.unknown",
+    );
     for (const key of [
       cloneWarningKey({ code: "nowy_kod", count: 1 }),
       cloneBlockerKey({ code: "nowa_blokada", count: 1 }),

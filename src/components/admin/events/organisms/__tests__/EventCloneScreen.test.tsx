@@ -36,7 +36,9 @@ const h = vi.hoisted(() => ({
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { rpc: (name: string, args?: Record<string, unknown>) => h.rpc!.rpc(name, args) },
 }));
-vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang));
+vi.mock("react-i18next", async () =>
+  (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang),
+);
 vi.mock("sonner", () => ({
   toast: {
     success: (message: string) => void h.toastOk.push(message),
@@ -99,7 +101,11 @@ vi.mock("@/components/admin/events/organisms/EventCloneForm", () => ({
         <button
           type="button"
           onClick={() =>
-            onSubmit({ sourceEventId: CLONE_SOURCE_ID, titlePl: "Kongres 2027", titleEn: "Congress 2027" })
+            onSubmit({
+              sourceEventId: CLONE_SOURCE_ID,
+              titlePl: "Kongres 2027",
+              titleEn: "Congress 2027",
+            })
           }
         >
           zapisz
@@ -128,7 +134,9 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 async function ready() {
-  h.rpc!.setData("admin_event_clone_preview", { source: { id: CLONE_SOURCE_ID, slug: "kongres-2026" } });
+  h.rpc!.setData("admin_event_clone_preview", {
+    source: { id: CLONE_SOURCE_ID, slug: "kongres-2026" },
+  });
   const utils = renderWithQueryClient(<EventCloneScreen sourceId={CLONE_SOURCE_ID} canClone />);
   await screen.findByTestId("formularz");
   return utils;
@@ -157,14 +165,16 @@ describe("EventCloneScreen", () => {
   });
 
   it("brak źródła: zdanie z mapy błędów i droga do kreatora od zera", async () => {
-    h.rpc!.setError("admin_event_clone_preview", "not_found: source event does not exist in this tenant");
+    h.rpc!.setError(
+      "admin_event_clone_preview",
+      "not_found: source event does not exist in this tenant",
+    );
     renderWithQueryClient(<EventCloneScreen sourceId={CLONE_SOURCE_ID} canClone />);
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toBe("Nie ma takiego wydarzenia w tej organizacji.");
-    expect(screen.getByRole("link", { name: "adminEventClone.screen.startFromScratch" })).toHaveAttribute(
-      "href",
-      "/admin/events/new",
-    );
+    expect(
+      screen.getByRole("link", { name: "adminEventClone.screen.startFromScratch" }),
+    ).toHaveAttribute("href", "/admin/events/new");
   });
 
   it("rail pokazuje tytuł wpisywany w formularzu w języku panelu", async () => {
@@ -180,20 +190,26 @@ describe("EventCloneScreen", () => {
   });
 
   it("zapis: ten sam klucz idempotencji przy każdym zapisie, toast, pulpit NOWEJ edycji", async () => {
-    h.rpc!.setData("admin_event_clone", { event_id: CLONE_NEW_ID, source_event_id: CLONE_SOURCE_ID });
+    h.rpc!.setData("admin_event_clone", {
+      event_id: CLONE_NEW_ID,
+      source_event_id: CLONE_SOURCE_ID,
+    });
     await ready();
     fireEvent.click(screen.getByRole("button", { name: "zapisz" }));
     await waitFor(() => expect(h.navigate).toHaveLength(1));
-    expect(h.navigate[0]).toEqual({ to: "/admin/events/$eventId/overview", params: { eventId: CLONE_NEW_ID } });
+    expect(h.navigate[0]).toEqual({
+      to: "/admin/events/$eventId/overview",
+      params: { eventId: CLONE_NEW_ID },
+    });
     expect(h.toastOk).toEqual(["adminEventClone.toasts.created(title=Kongres 2027)"]);
 
     h.rpc!.setData("admin_event_clone", { event_id: CLONE_NEW_ID, replayed: true });
     fireEvent.click(screen.getByRole("button", { name: "zapisz" }));
     await waitFor(() => expect(h.toastOk).toHaveLength(2));
     expect(h.toastOk[1]).toBe("adminEventClone.toasts.replayed");
-    const keys = h.rpc!.callsFor("admin_event_clone").map(
-      (call) => (call.arg("p_payload") as { idempotency_key: string }).idempotency_key,
-    );
+    const keys = h
+      .rpc!.callsFor("admin_event_clone")
+      .map((call) => (call.arg("p_payload") as { idempotency_key: string }).idempotency_key);
     expect(keys).toHaveLength(2);
     expect(keys[0]).toMatch(/^event\.clone:/);
     expect(keys[1]).toBe(keys[0]);
@@ -203,7 +219,9 @@ describe("EventCloneScreen", () => {
     h.rpc!.setError("admin_event_clone", "slug_taken: another event already uses this address");
     await ready();
     fireEvent.click(screen.getByRole("button", { name: "zapisz" }));
-    await waitFor(() => expect(h.toastErr).toEqual(["Inne wydarzenie w organizacji używa już tego adresu."]));
+    await waitFor(() =>
+      expect(h.toastErr).toEqual(["Inne wydarzenie w organizacji używa już tego adresu."]),
+    );
     expect(h.navigate).toEqual([]);
   });
 
@@ -212,7 +230,9 @@ describe("EventCloneScreen", () => {
     await ready();
     expect(screen.getByTestId("formularz")).toHaveAttribute("data-saving", "false");
     act(() => fireEvent.click(screen.getByRole("button", { name: "zapisz" })));
-    await waitFor(() => expect(screen.getByTestId("formularz")).toHaveAttribute("data-saving", "true"));
+    await waitFor(() =>
+      expect(screen.getByTestId("formularz")).toHaveAttribute("data-saving", "true"),
+    );
     fireEvent.click(screen.getByRole("button", { name: "anuluj" }));
     expect(h.navigate).toEqual([{ to: "/admin/events/list" }]);
   });

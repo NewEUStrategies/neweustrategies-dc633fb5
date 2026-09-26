@@ -104,7 +104,8 @@ export function EventCloneForm({
   const blocked = (preview?.blockers.length ?? 0) > 0;
   const zones = timeZoneOptions(draft.timezone);
 
-  const update = (patch: Partial<EventCloneDraft>) => setDraft((current) => ({ ...current, ...patch }));
+  const update = (patch: Partial<EventCloneDraft>) =>
+    setDraft((current) => ({ ...current, ...patch }));
   const setInclude = (key: CloneIncludeKey, value: boolean) =>
     setDraft((current) => ({ ...current, include: { ...current.include, [key]: value } }));
   const setFlag = (key: CloneFlagKey, value: boolean) =>
@@ -143,7 +144,9 @@ export function EventCloneForm({
           >
             <Copy className="h-4 w-4" />
           </span>
-          <h1 className="text-base font-semibold leading-tight">{t("adminEventClone.screen.title")}</h1>
+          <h1 className="text-base font-semibold leading-tight">
+            {t("adminEventClone.screen.title")}
+          </h1>
         </div>
         <p className="text-xs leading-snug text-muted-foreground">
           {t("adminEventClone.screen.description")}
@@ -191,7 +194,9 @@ export function EventCloneForm({
           <AdminFormTextRow
             id="event-clone-slug"
             label={t("adminEventClone.fields.slug")}
-            hint={t("adminEventClone.fields.slugHint", { slug: preview?.target.slug ?? source.target.slug })}
+            hint={t("adminEventClone.fields.slugHint", {
+              slug: preview?.target.slug ?? source.target.slug,
+            })}
             value={draft.slug}
             maxLength={120}
             monospace
@@ -240,7 +245,9 @@ export function EventCloneForm({
           <p className="text-xs leading-snug text-muted-foreground">
             {t("adminEventClone.include.description")}
           </p>
-          <p className="text-xs leading-snug text-muted-foreground">{t("adminEventClone.include.always")}</p>
+          <p className="text-xs leading-snug text-muted-foreground">
+            {t("adminEventClone.include.always")}
+          </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {CLONE_INCLUDE_KEYS.map((key) => (
               <AdminFormSwitchRow
@@ -286,7 +293,9 @@ export function EventCloneForm({
         )}
 
         <FieldGroup icon={Users} title={t("adminEventClone.crm.title")}>
-          <p className="text-xs leading-snug text-muted-foreground">{t("adminEventClone.crm.description")}</p>
+          <p className="text-xs leading-snug text-muted-foreground">
+            {t("adminEventClone.crm.description")}
+          </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {draft.include.sponsors ? (
               <AdminFormSwitchRow
