@@ -33,6 +33,27 @@ const MIGRATED = [
   // Przegląd wydarzenia. Był długiem `PENDING` pod nazwą `events.$slug.tsx`;
   // patrz komentarz przy `PENDING` niżej - to jest ta sama treść po podziale trasy.
   "src/routes/events.$slug.index.tsx",
+  // ══ FUNKCJE UCZESTNIKA F1-F5 (spec B.11-3) ═══════════════════════════════
+  // Foundation i tory A/B/C dopisują WYŁĄCZNIE do swojego bloku `migrated`;
+  // bloki dzieli co najmniej dwie linie, których nikt nie zmienia.
+  // >>> PF-FOUNDATION migrated (begin)
+  // Harmonogram panelu „Moje": godzina sesji w strefie wydarzenia (D0-4).
+  "src/components/events/participant/molecules/MyAgendaList.tsx",
+  // Dziennik doręczeń panelu „Komunikacja": „ostatnia wysyłka" w strefie wydarzenia.
+  "src/components/admin/events/molecules/MessageDeliveryStatsTable.tsx",
+  // <<< PF-FOUNDATION migrated (end)
+  //
+  // (separator bloków - tych dwóch linii nie edytuje żaden tor)
+  // >>> PF-A migrated (begin)
+  // <<< PF-A migrated (end)
+  //
+  // (separator bloków - tych dwóch linii nie edytuje żaden tor)
+  // >>> PF-B migrated (begin)
+  // <<< PF-B migrated (end)
+  //
+  // (separator bloków - tych dwóch linii nie edytuje żaden tor)
+  // >>> PF-C migrated (begin)
+  // <<< PF-C migrated (end)
 ] as const;
 
 /**

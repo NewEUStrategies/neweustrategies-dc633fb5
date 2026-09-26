@@ -29,7 +29,21 @@ import {
   type KeyUsage,
 } from "@/lib/ci/i18nKeyUsage";
 
-const SCANNED_DIRS = ["src/components/admin/events", "src/lib/events"] as const;
+/**
+ * Katalogi skanu. Od F1-F5 (spec B.14) także powierzchnia UCZESTNIKA: panel
+ * „Moje", jego gniazda, molekuły i organizmy zapisu, molekuły strony
+ * publicznej i „Moje wydarzenia" w profilu - to tam tory dopisują mapy
+ * `Record<Enum, "pełny.klucz">` pod nowymi korzeniami.
+ */
+const SCANNED_DIRS = [
+  "src/components/admin/events",
+  "src/lib/events",
+  "src/components/events/participant",
+  "src/components/events/registration/molecules",
+  "src/components/events/registration/organisms",
+  "src/components/events/public/molecules",
+  "src/components/profile/events",
+] as const;
 
 /**
  * Trasy modułu leżą wśród setek innych, więc bierzemy je po nazwie.

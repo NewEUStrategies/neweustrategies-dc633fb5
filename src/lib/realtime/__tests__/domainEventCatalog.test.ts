@@ -6,7 +6,7 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { DOMAIN_EVENT_TYPES } from "@/lib/realtime/domainEvents";
+import { DOMAIN_AGGREGATE_TYPES, DOMAIN_EVENT_TYPES } from "@/lib/realtime/domainEvents";
 
 const MIGRATIONS_DIR = join(process.cwd(), "supabase", "migrations");
 // Nazwa zdarzenia ma CO NAJMNIEJ dwa człony przed `.vN`, ale moduł wydarzeń
@@ -46,5 +46,38 @@ describe("domain event catalog vs DB emitters", () => {
 
   it("finds the expected emitters (sanity: the scan actually matched something)", () => {
     expect(emittedEventTypes().length).toBeGreaterThanOrEqual(10);
+  });
+});
+
+// Spec B.9: Foundation deklaruje z góry WSZYSTKIE dwanaście zdarzeń funkcji
+// uczestnika F1-F5 (tory tylko emitują - katalog jest dla nich zamrożony).
+// Emitery torów B i C pojawią się w ich migracjach; ta lista pilnuje, że
+// żaden literał nie zniknie ani nie zmieni nazwy przed ich scaleniem.
+describe("zdarzenia funkcji uczestnika F1-F5 (spec B.9)", () => {
+  const PARTICIPANT_EVENT_TYPES = [
+    "event.participant_settings.updated.v1",
+    "event.registration.offered.v1",
+    "event.registration.offer_closed.v1",
+    "event.registration.transfer_requested.v1",
+    "event.registration.transfer_cancelled.v1",
+    "event.registration.transferred.v1",
+    "event.registration.refund_requested.v1",
+    "event.registration.refund_failed.v1",
+    "event.certificate.issued.v1",
+    "event.certificate.revoked.v1",
+    "event.survey.submitted.v1",
+    "event.survey.questions_changed.v1",
+  ];
+
+  it("wszystkie dwanaście typów jest w katalogu", () => {
+    const catalog = new Set<string>(DOMAIN_EVENT_TYPES);
+    expect(PARTICIPANT_EVENT_TYPES.filter((type) => !catalog.has(type))).toEqual([]);
+    expect(new Set(DOMAIN_EVENT_TYPES).size).toBe(DOMAIN_EVENT_TYPES.length);
+  });
+
+  it("agregaty event_participant_settings, event_certificate i event_survey są w katalogu", () => {
+    for (const aggregate of ["event_participant_settings", "event_certificate", "event_survey"]) {
+      expect(DOMAIN_AGGREGATE_TYPES).toContain(aggregate);
+    }
   });
 });

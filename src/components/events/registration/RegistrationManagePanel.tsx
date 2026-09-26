@@ -16,6 +16,11 @@
 // publicznym `event_page_header`, więc uczestnik widzi, CZEGO dotyczy
 // rezygnacja, a klucz nie musi w tym celu wyjeżdżać do żadnego dodatkowego
 // zapytania.
+//
+// GNIAZDA TORÓW F1-F5 (spec B.11). Pod kartą stanu zgłoszenia (gdy stan jest
+// znany) stoją trzy PUSTE gniazda: B (przekazanie, zwrot), A (przypomnienia
+// i kalendarz), C (ankieta, certyfikat). Tory wypełniają swoje pliki gniazd;
+// linie montażu są dla nich nietykalne.
 import { browserPublicOrigin } from "@/lib/http/host";
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -36,6 +41,9 @@ import {
   fetchRegistrationManageView,
 } from "@/lib/events/publicRegistrationApi";
 import { RegistrationPayAction } from "@/components/events/registration/molecules/RegistrationPayAction";
+import { ManageCalendarRemindersSlot } from "@/components/events/participant/slots/ManageCalendarRemindersSlot";
+import { ManageFollowUpSlot } from "@/components/events/participant/slots/ManageFollowUpSlot";
+import { ManageTicketActionsSlot } from "@/components/events/participant/slots/ManageTicketActionsSlot";
 import { registrationErrorMessage } from "@/lib/events/publicRegistrationErrors";
 import { isManageToken, manageLinkPath } from "@/lib/events/manageToken";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
@@ -218,6 +226,13 @@ export function RegistrationManagePanel({
                 />
               )}
             </div>
+          )}
+          {state !== null && (
+            <>
+              <ManageTicketActionsSlot slug={slug} token={activeToken} view={state} />
+              <ManageCalendarRemindersSlot slug={slug} token={activeToken} view={state} />
+              <ManageFollowUpSlot slug={slug} token={activeToken} view={state} />
+            </>
           )}
 
           {activeToken !== null && (

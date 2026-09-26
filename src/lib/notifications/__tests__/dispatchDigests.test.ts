@@ -231,6 +231,36 @@ describe("processDigests - wiersze bez pozycji", () => {
   });
 });
 
+// D8 / spec B.7: rodzaj `event` NIE trafia do digestu (przypomnienie w mailu
+// następnego dnia jest po czasie z definicji), a digest z samymi
+// przypomnieniami nie wychodzi wcale.
+describe("processDigests - rodzaj event poza digestem", () => {
+  it("usuwa pozycje event z maila i liczy tylko pozostałe", async () => {
+    claimReturns([
+      row({
+        items: [
+          item({ kind: "event", title_pl: "Przypomnienie PL", title_en: "Reminder EN" }),
+          item({ title_pl: "Analiza PL", title_en: "Analysis EN" }),
+        ],
+      }),
+    ]);
+
+    const result = await processDigests("daily");
+
+    expect(result).toEqual({ claimed: 1, sent: 1 });
+    expect(emails()).toHaveLength(1);
+    expect(emails()[0].html).toContain("Analiza PL");
+    expect(emails()[0].html).not.toContain("Przypomnienie PL");
+  });
+
+  it("digest z samymi przypomnieniami nie wychodzi", async () => {
+    claimReturns([row({ items: [item({ kind: "event" }), item({ kind: "event" })] })]);
+
+    expect(await processDigests("weekly")).toEqual({ claimed: 1, sent: 0 });
+    expect(emails()).toEqual([]);
+  });
+});
+
 describe("processDigests - język odbiorcy", () => {
   it("prefs.locale = 'en' daje digest po angielsku", async () => {
     claimReturns([row()]);

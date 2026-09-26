@@ -1,7 +1,7 @@
 // GA4 w przeglądarce: tryb domyślnej odmowy Google, konfiguracja strumienia,
 // aktualizacja zgody, przejęcie tagu ze snippetu SSR, kształt poleceń w
 // `dataLayer` i czytanie identyfikatora klienta z cookie.
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   asGa4MeasurementId,
@@ -263,6 +263,56 @@ describe("GA4 w przeglądarce", () => {
     expect(odslona?.[2]).toMatchObject({ page_title: "Analizy", language: "pl" });
     expect((odslona?.[2] as Record<string, unknown>).page_location).toEqual(expect.any(String));
     expect(odslona?.[2]).not.toHaveProperty("page_path");
+  });
+
+  it("page_location bez poświadczeń: token w ścieżce i parametrach zamaskowany, fragment odcięty", () => {
+    uruchomSnippetSsr();
+    const before = `${location.pathname}${location.search}${location.hash}`;
+    history.pushState(
+      {},
+      "",
+      "/en/tickets/transfer/AbCdEfGhIjKlMnOpQrStUvWxYz012345?token=abc&x=1#t=sekret",
+    );
+    try {
+      ga4PageView("/pominiete", "Przekazanie", "en");
+      const odslona = znajdz("event", "page_view");
+      const oczekiwany = `${location.origin}/en/tickets/transfer/[redacted]?token=[redacted]&x=1`;
+      expect((odslona?.[2] as Record<string, unknown>).page_location).toBe(oczekiwany);
+      // Kolejne zdarzenia (kliknięcia, konwersje) dziedziczą `page_location`
+      // z `set` - bez niego gtag.js dokleiłby surowy `document.location`.
+      const ustawienie = warstwa().find(
+        (wpis) => wpis[0] === "set" && typeof wpis[1] === "object" && wpis[1] !== null,
+      );
+      expect(ustawienie?.[1]).toEqual({ page_location: oczekiwany });
+      const indeks = (wpis: ArrayLike<unknown> | undefined) =>
+        wpis === undefined ? -1 : warstwa().indexOf(wpis);
+      expect(indeks(ustawienie)).toBeLessThan(indeks(odslona));
+    } finally {
+      history.pushState({}, "", before);
+    }
+  });
+
+  it("page_location bez `location` (SSR) = maskowana ścieżka wołającego", () => {
+    uruchomSnippetSsr();
+    vi.stubGlobal("location", undefined);
+    try {
+      ga4PageView("/certificates/ABCD-EFGH-JKMN-PQRS?code=x#frag", "Certyfikat", "pl");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    const odslona = znajdz("event", "page_view");
+    expect((odslona?.[2] as Record<string, unknown>).page_location).toBe(
+      "/certificates/[redacted]?code=[redacted]",
+    );
+    expect(warstwa().find((wpis) => wpis[0] === "set" && typeof wpis[1] === "object")?.[1]).toEqual(
+      { page_location: "/certificates/[redacted]?code=[redacted]" },
+    );
+  });
+
+  it("bez gotowego GA4 odsłona nie ustawia niczego (ani `set`, ani `page_view`)", () => {
+    ga4PageView("/tickets/transfer/abc", "Przekazanie", "pl");
+    expect(znajdz("event", "page_view")).toBeUndefined();
+    expect(warstwa().some((wpis) => wpis[0] === "set")).toBe(false);
   });
 
   it("snippet SSR: zgoda domyślna PRZED konfiguracją, oba miejsca docelowe, brak parametrów UA", () => {

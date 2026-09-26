@@ -14,6 +14,8 @@
 // spans are replaced with a stable `[redacted-*]` marker so aggregated
 // telemetry still groups identical errors.
 
+import { redactCredentialPath } from "@/lib/analytics/redactTrackedUrl";
+
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 // JSON Web Tokens: three base64url segments separated by dots, first "eyJ".
 const JWT_RE = /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
@@ -22,6 +24,9 @@ const BEARER_RE = /\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi;
 const SENSITIVE_PARAM_RE =
   /\b(access_token|refresh_token|id_token|token|api[_-]?key|apikey|key|password|passwd|pwd|secret|client_secret|code|email|auth|session|otp|state)=([^&\s#"']+)/gi;
 // Long opaque hex / base64url blobs (>=24 chars) that survive the rules above.
+// Tokeny w ŚCIEŻCE (przekazanie biletu, certyfikat, kalendarz) mają 32 znaki,
+// więc `LONG_B64` (>= 40) ich nie łapie - dlatego `redactUrl` najpierw maskuje
+// znane segmenty sekretu (`redactCredentialPath`, wspólne z analityką).
 const LONG_HEX_RE = /\b[0-9a-fA-F]{24,}\b/g;
 const LONG_B64_RE = /\b[A-Za-z0-9_-]{40,}\b/g;
 // IPv4 dotted-quad: a client/server address echoed into an error message or
@@ -61,12 +66,12 @@ export function redactUrl(input: string | null | undefined): string | null {
     const u = new URL(raw, "http://x");
     const hadQuery = u.search.length > 0 || u.hash.length > 0;
     const origin = u.origin === "http://x" ? "" : u.origin;
-    const path = `${origin}${u.pathname}${hadQuery ? "?[redacted]" : ""}`;
+    const path = `${origin}${redactCredentialPath(u.pathname)}${hadQuery ? "?[redacted]" : ""}`;
     return redactPii(path);
   } catch {
     // Not a URL - strip anything after the first ? or # and redact the rest.
     const cut = raw.split(/[?#]/, 1)[0];
-    const redacted = redactPii(cut);
+    const redacted = redactPii(redactCredentialPath(cut));
     return raw.length > cut.length ? `${redacted}?[redacted]` : redacted;
   }
 }

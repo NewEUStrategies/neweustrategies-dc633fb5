@@ -304,11 +304,19 @@ async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
   const { revokeOrderEntitlement } = await import("@/lib/billing/grant.server");
   await revokeOrderEntitlement(order, nowIso);
 
-  // Bilet na wydarzenie: zwrot cofa potwierdzony udział.
-  if (eventId && order.user_id) {
+  // Bilet na wydarzenie: zwrot cofa potwierdzony udział. Wartość `cancelled`
+  // (D0-1): CHECK `event_rsvps.status` zna wyłącznie tę pisownię - dawne
+  // `canceled` łamało ograniczenie i zwrot wywracał się na tej linii.
+  // Tylko zamówienie BEZ `registration_id` (starsza ścieżka RSVP) anulujemy
+  // tutaj. Zamówienie związane ze zgłoszeniem zwalnia RSVP w bazie, i to
+  // dopiero gdy zwrot faktycznie odwoła zgłoszenie: zwrot nadliczbowej wpłaty
+  // (`refund_for_other_order`) zostawia ważny bilet, a więc i jego RSVP.
+  const boundToRegistration =
+    typeof metadata.registration_id === "string" && metadata.registration_id.length > 0;
+  if (eventId && order.user_id && !boundToRegistration) {
     const { error: rsvpErr } = await supabase
       .from("event_rsvps")
-      .update({ status: "canceled", updated_at: nowIso })
+      .update({ status: "cancelled", updated_at: nowIso })
       .eq("event_id", eventId)
       .eq("user_id", order.user_id);
     if (rsvpErr) throw new Error(`refund: rsvp cancel failed: ${rsvpErr.message}`);
@@ -378,7 +386,9 @@ async function pushRefundNotification(
       body_pl: "Dostęp powiązany ze zwróconą płatnością został zakończony.",
       body_en: "Access linked to the refunded payment has ended.",
       href: PROFILE_PLAN_PATH,
-      icon: "receipt",
+      // Ikona z listy kuratorskiej (`CURATED_ICON_NAMES`): `receipt` jej nie ma
+      // i ładował w przeglądarce leniwy rejestr ikon (109 KB) - spec B.7.
+      icon: "credit-card",
     });
   } catch (err) {
     console.error("[payments] refund notification failed", err);

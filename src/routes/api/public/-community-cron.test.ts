@@ -87,9 +87,11 @@ const req = vi.hoisted(() => ({ current: null as Request | null }));
 vi.mock("@tanstack/react-start/server", () => ({ getRequest: () => req.current }));
 
 const db = vi.hoisted(() => ({ current: null as SupabaseFromStub | null }));
-vi.mock("@/integrations/supabase/client.server", () => ({
-  supabaseAdmin: { from: (table: string) => db.current!.from(table) },
+/** Stała tożsamość klienta service role - dowód, że zadania uczestnika dostają TEN obiekt. */
+const adminClient = vi.hoisted(() => ({
+  from: (table: string) => db.current!.from(table),
 }));
+vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: adminClient }));
 
 /**
  * Rejestr kanałów. Jedna funkcja `run` obsługuje wszystkie sześć granic, więc
@@ -145,6 +147,25 @@ vi.mock("@/lib/notifications/dispatch.server", () => ({
 vi.mock("@/lib/events/ticketCodeNotify.server", () => ({
   runPendingTicketCodes: (limit: number) =>
     jobs.run("eventTicketCodes", [limit], { registrations: 1, sent: 2 }),
+}));
+
+// Zadania funkcji uczestnika F1-F5 (spec B.10) - granice z własnymi testami torów.
+vi.mock("@/lib/events/jobs/reminderJob.server", () => ({
+  runEventParticipantReminders: (admin: unknown, opts: unknown) =>
+    jobs.run("eventParticipantReminders", [admin, opts], {
+      claimed: 1,
+      sent: 1,
+      skipped: 0,
+      failed: 0,
+    }),
+}));
+vi.mock("@/lib/events/jobs/ticketLifecycleJob.server", () => ({
+  runEventTicketLifecycle: (admin: unknown, opts: unknown) =>
+    jobs.run("eventTicketLifecycle", [admin, opts], { claimed: 2, sent: 1, skipped: 1, failed: 0 }),
+}));
+vi.mock("@/lib/events/jobs/followUpJob.server", () => ({
+  runEventFollowUp: (admin: unknown, opts: unknown) =>
+    jobs.run("eventFollowUp", [admin, opts], { claimed: 0, sent: 0, skipped: 0, failed: 0 }),
 }));
 
 vi.mock("@/lib/server/careerCvRetention.server", () => ({
@@ -862,6 +883,9 @@ describe("wybór kanałów: `?job=`, ciało żądania i pierwszeństwo query", (
     ["event-reminders", "eventReminders", "eventReminders"],
     ["crm-task-reminders", "crmTaskReminders", "crmTaskReminders"],
     ["event-ticket-codes", "eventTicketCodes", "eventTicketCodes"],
+    ["event-participant-reminders", "eventParticipantReminders", "eventParticipantReminders"],
+    ["event-ticket-lifecycle", "eventTicketLifecycle", "eventTicketLifecycle"],
+    ["event-follow-up", "eventFollowUp", "eventFollowUp"],
     ["career-cv-retention", "careerCvRetention", "careerCvRetention"],
   ])("`?job=%s` uruchamia dokładnie jeden kanał", async (job, step, key) => {
     const res = await tick({ query: `?job=${job}` });
@@ -872,6 +896,17 @@ describe("wybór kanałów: `?job=`, ciało żądania i pierwszeństwo query", (
     expect(payload).toHaveProperty(key);
     // Odznaki reputacji jadą WYŁĄCZNIE w "all" - pojedynczy job ich nie budzi.
     expect(payload).not.toHaveProperty("reputationBadges");
+  });
+
+  it("zadania uczestnika dostają klienta service role i deadline 10 s od startu", async () => {
+    const startedAt = Date.now();
+    await tick({ query: "?job=all" });
+
+    for (const step of ["eventParticipantReminders", "eventTicketLifecycle", "eventFollowUp"]) {
+      const call = jobs.calls.find((c) => c.step === step);
+      expect(call?.args[0]).toBe(adminClient);
+      expect(call?.args[1]).toEqual({ deadlineAt: startedAt + 10_000 });
+    }
   });
 
   it("digesty dostają rozróżnialny okres i limit partii 50", async () => {
@@ -891,6 +926,9 @@ describe("wybór kanałów: `?job=`, ciało żądania i pierwszeństwo query", (
       "digest:daily",
       "digest:weekly",
       "eventReminders",
+      "eventParticipantReminders",
+      "eventTicketLifecycle",
+      "eventFollowUp",
       "crmTaskReminders",
       "eventTicketCodes",
       "careerCvRetention",
@@ -904,6 +942,9 @@ describe("wybór kanałów: `?job=`, ciało żądania i pierwszeństwo query", (
         "digestDaily",
         "digestWeekly",
         "eventReminders",
+        "eventParticipantReminders",
+        "eventTicketLifecycle",
+        "eventFollowUp",
         "crmTaskReminders",
         "eventTicketCodes",
         "careerCvRetention",
@@ -1069,7 +1110,8 @@ describe("uzbrojenie ścieżki podstawowej (`arm_job_runner`)", () => {
 
     expect(res.status).toBe(200);
     await expect(body(res)).resolves.toMatchObject({ ok: true, runnerArmed: "unavailable" });
-    expect(jobs.steps()).toHaveLength(8);
+    // 8 -> 11: trzy zadania funkcji uczestnika F1-F5 (spec B.10) jadą w "all".
+    expect(jobs.steps()).toHaveLength(11);
   });
 });
 
@@ -1089,6 +1131,9 @@ describe("izolacja kanałów: awaria jednego nie zabiera pozostałych", () => {
       "digest:daily",
       "digest:weekly",
       "eventReminders",
+      "eventParticipantReminders",
+      "eventTicketLifecycle",
+      "eventFollowUp",
       "crmTaskReminders",
       "eventTicketCodes",
       "careerCvRetention",
@@ -1193,6 +1238,9 @@ describe("budżet czasu (COMMUNITY_CRON_DEADLINE_MS = 25 s)", () => {
       "digestDaily",
       "digestWeekly",
       "eventReminders",
+      "eventParticipantReminders",
+      "eventTicketLifecycle",
+      "eventFollowUp",
       "crmTaskReminders",
       "eventTicketCodes",
       "careerCvRetention",
@@ -1229,6 +1277,9 @@ describe("budżet czasu (COMMUNITY_CRON_DEADLINE_MS = 25 s)", () => {
       "digest:daily",
       "digest:weekly",
       "eventReminders",
+      "eventParticipantReminders",
+      "eventTicketLifecycle",
+      "eventFollowUp",
       "crmTaskReminders",
       "eventTicketCodes",
       "careerCvRetention",
