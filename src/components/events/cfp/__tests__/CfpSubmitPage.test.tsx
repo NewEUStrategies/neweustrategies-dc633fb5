@@ -228,6 +228,8 @@ describe("CfpSubmitPage - nowe zgłoszenie", () => {
     expect(stub().callsFor("event_cfp_submission_save")).toHaveLength(0);
 
     fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.lastName *"), { target: { value: "Nowak" } });
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.firstName *"), { target: { value: "Anna Maria" } });
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.jobTitle"), { target: { value: "Prezes" } });
     fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.company"), { target: { value: "NES SA" } });
     fireEvent.click(screen.getByRole("checkbox", { name: "eventCfp.submit.fields.marketingConsent" }));
     stub().setData("event_cfp_submission_save", { id: ID, status: "draft" });
@@ -236,7 +238,7 @@ describe("CfpSubmitPage - nowe zgłoszenie", () => {
     expect(payload("event_cfp_submission_save")).toMatchObject({
       slug: "kongres",
       notify_lang: "pl",
-      speaker: { first_name: "Anna", last_name: "Nowak", job_title: "CEO", company_text: "NES SA", consent_marketing: true },
+      speaker: { first_name: "Anna Maria", last_name: "Nowak", job_title: "Prezes", company_text: "NES SA", consent_marketing: true },
       talk_language: "pl",
       format_key: null,
       track_id: null,
@@ -342,6 +344,19 @@ describe("CfpSubmitPage - nowe zgłoszenie", () => {
     h.confirmEmail.mockRejectedValueOnce(new Error("smtp"));
     fireEvent.click(screen.getByRole("button", { name: "eventCfp.submit.send" }));
     await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("eventCfp.submit.submitted"));
+  });
+
+  it("wysłanie w toku blokuje oba przyciski i mówi „wysyłam”", async () => {
+    stub().setData("event_cfp_public", cfp({ formats: [], tracks: [], fields: [] }));
+    renderPage();
+    await screen.findByText("eventCfp.submit.title");
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.titlePl"), { target: { value: "Tytuł" } });
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.abstractPl"), { target: { value: "x".repeat(30) } });
+    stub().setData("event_cfp_submission_save", { id: ID, status: "draft" });
+    stub().setResponse("event_cfp_submission_submit", () => new Promise(() => undefined) as never);
+    fireEvent.click(screen.getByRole("button", { name: "eventCfp.submit.send" }));
+    expect(await screen.findByRole("button", { name: "eventCfp.submit.sending" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "eventCfp.submit.saveDraft" })).toBeDisabled();
   });
 
   it("konto bez adresu w sesji bierze adres z karty uczestnika", async () => {

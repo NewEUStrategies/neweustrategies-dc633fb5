@@ -196,12 +196,14 @@ function ReviewDetail({
     </Button>
   );
 
-  if (reviewQ.isLoading) return <ReviewSkeleton />;
-  if (reviewQ.error || reviewQ.data === undefined) {
+  const detail = reviewQ.data;
+  if (detail === undefined) {
+    // Bez danych i bez błędu = zapytanie w locie (identyfikator jest zawsze podany).
+    if (!reviewQ.error) return <ReviewSkeleton />;
     return (
       <section className="space-y-3">
         <p className="text-sm text-muted-foreground" role="alert">
-          {reviewQ.error ? publicCfpErrorMessage(reviewQ.error) : t("eventCfp.common.loadFailed")}
+          {publicCfpErrorMessage(reviewQ.error)}
         </p>
         {back}
       </section>
@@ -220,8 +222,8 @@ function ReviewDetail({
   return (
     <section className="space-y-6">
       {back}
-      <ReviewSubmission detail={reviewQ.data} timezone={queue.timezone} />
-      <CfpReviewForm key={reviewQ.data.submission.id} detail={reviewQ.data} isSaving={save.isPending} onSubmit={submit} />
+      <ReviewSubmission detail={detail} timezone={queue.timezone} />
+      <CfpReviewForm key={detail.submission.id} detail={detail} isSaving={save.isPending} onSubmit={submit} />
     </section>
   );
 }

@@ -158,6 +158,9 @@ describe("CfpTextField / CfpSelectField", () => {
     expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual(["A", "B"]);
     fireEvent.change(select, { target: { value: "b" } });
     expect(onChange).toHaveBeenCalledWith("b");
+    // Wartość spoza listy (droplista nie ma takiej opcji) nie dojeżdża do stanu.
+    fireEvent.change(select, { target: { value: "zzz" } });
+    expect(onChange).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("alert")).toHaveTextContent("Wybierz");
   });
 });
@@ -181,6 +184,14 @@ describe("CfpCoSpeakersEditor", () => {
     expect(onChange).toHaveBeenLastCalledWith([]);
     fireEvent.click(screen.getByRole("button", { name: "eventCfp.submit.coSpeaker.add" }));
     expect(onChange.mock.lastCall?.[0]).toHaveLength(2);
+
+    // Edycja drugiej osoby nie rusza pierwszej.
+    const other = { ...speaker, firstName: "Ola" };
+    rerender(<CfpCoSpeakersEditor speakers={[speaker, other]} onChange={onChange} error={null} />);
+    fireEvent.change(screen.getAllByLabelText("eventCfp.submit.coSpeaker.lastName *")[1] as HTMLElement, {
+      target: { value: "Z" },
+    });
+    expect(onChange).toHaveBeenLastCalledWith([speaker, { ...other, lastName: "Z" }]);
 
     rerender(<CfpCoSpeakersEditor speakers={Array.from({ length: 5 }, () => speaker)} onChange={onChange} error={null} />);
     expect(screen.getByRole("button", { name: "eventCfp.submit.coSpeaker.add" })).toBeDisabled();
@@ -240,10 +251,17 @@ describe("EventMeCfpLinks", () => {
     expect(await screen.findByRole("link", { name: "eventCfp.me.reviewerPanel" })).toBeInTheDocument();
   });
 
+  it("sam recenzent (bez zgłoszeń i wpisu) dostaje tylko panel recenzenta", async () => {
+    stub().setData("event_my_speaker_panel", panel({ is_reviewer: true }));
+    renderWithQueryClient(<EventMeCfpLinks slug="kongres" signedIn />);
+    expect(await screen.findByRole("link", { name: "eventCfp.me.reviewerPanel" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "eventCfp.me.speakerPanel" })).not.toBeInTheDocument();
+  });
+
   it("uczestnik bez ról, gość i brak wydarzenia - nic", async () => {
     stub().setData("event_my_speaker_panel", panel({}));
     const first = renderWithQueryClient(<EventMeCfpLinks slug="kongres" signedIn />);
-    await waitFor(() => expect(stub().callsFor("event_my_speaker_panel")).toHaveLength(1));
+    await waitFor(() => expect(first.queryClient.getQueryState(["event-cfp-me", "kongres", "panel"])?.status).toBe("success"));
     expect(first.container.querySelector("a")).toBeNull();
     cleanup();
     const guest = renderWithQueryClient(<EventMeCfpLinks slug="kongres" signedIn={false} />);

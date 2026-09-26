@@ -90,9 +90,9 @@ export function CfpSubmitPage({ slug, submissionId }: { slug: string; submission
       </p>
     );
   }
-  const cfp = cfpQ.data ?? null;
-  const mine = mineQ.data ?? null;
-  if (cfp === null || mine === null || cfp.phase === "none") {
+  const cfp = cfpQ.data;
+  const mine = mineQ.data;
+  if (!cfp || !mine || cfp.phase === "none") {
     return <Notice slug={slug} text={t("eventCfp.submit.notFound")} />;
   }
 
@@ -240,6 +240,16 @@ function CfpSubmitEditor({
 
   const formatOptions = cfp.formats.map((format) => format.key);
   const trackOptions = cfp.tracks.map((track) => track.id);
+  // Etykiety z tych samych list, z których powstały opcje - każda opcja ma wpis.
+  const formatLabels: Record<string, string> = Object.fromEntries(
+    cfp.formats.map((format) => [
+      format.key,
+      `${localizedPair(lang, format.labelPl, format.labelEn)} (${t("eventCfp.page.formatDuration", { count: format.durationMin })})`,
+    ]),
+  );
+  const trackLabels: Record<string, string> = Object.fromEntries(
+    cfp.tracks.map((track) => [track.id, localizedPair(lang, track.namePl, track.nameEn)]),
+  );
 
   return (
     <form
@@ -365,12 +375,7 @@ function CfpSubmitEditor({
               placeholder={t("eventCfp.submit.fields.formatPlaceholder")}
               required
               error={errorFor("format")}
-              labelFor={(key) => {
-                const format = cfp.formats.find((entry) => entry.key === key);
-                return format === undefined
-                  ? key
-                  : `${localizedPair(lang, format.labelPl, format.labelEn)} (${t("eventCfp.page.formatDuration", { count: format.durationMin })})`;
-              }}
+              labelFor={(key) => formatLabels[key]}
               onChange={(value) => set("formatKey", value)}
             />
           )}
@@ -382,10 +387,7 @@ function CfpSubmitEditor({
               placeholder={t("eventCfp.submit.fields.trackPlaceholder")}
               required
               error={errorFor("track")}
-              labelFor={(id) => {
-                const track = cfp.tracks.find((entry) => entry.id === id);
-                return track === undefined ? id : localizedPair(lang, track.namePl, track.nameEn);
-              }}
+              labelFor={(id) => trackLabels[id]}
               onChange={(value) => set("trackId", value)}
             />
           )}
