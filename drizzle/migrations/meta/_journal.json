@@ -449,6 +449,13 @@
       "when": 1790445299491,
       "tag": "0063_event_package_order_cancel_returns_coupon",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1790445338422,
+      "tag": "0064_event_group_lead_plan_seat",
+      "breakpoints": true
     }
   ]
 }
