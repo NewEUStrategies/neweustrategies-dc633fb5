@@ -44,6 +44,7 @@ const h = vi.hoisted(() => ({
   exportRows: [] as unknown[],
   exportError: null as Error | null,
   canvasLabels: new Map<string, string>(),
+  tickets: undefined as { id: string; name_pl: string; name_en: string }[] | undefined,
 }));
 
 const DEFAULTS: Record<string, unknown> = {
@@ -105,7 +106,7 @@ vi.mock("@/lib/events/seatingApi", async (importOriginal) => ({
     h.exportError === null ? Promise.resolve(h.exportRows) : Promise.reject(h.exportError),
 }));
 vi.mock("@/lib/events/useEventRegistrations", () => ({
-  useEventTickets: () => ({ data: [{ id: "t-vip", name_pl: "Karnet VIP", name_en: "VIP" }] }),
+  useEventTickets: () => ({ data: h.tickets }),
 }));
 vi.mock("@/lib/events/useEventSeating", () => {
   const mutation = (name: string) => ({
@@ -312,6 +313,9 @@ function oknoAtrapa(nazwa: string, ladunek: unknown) {
         <button type="button" onClick={() => onOpenChange(false)}>
           {`${nazwa}:zamknij`}
         </button>
+        <button type="button" onClick={() => onOpenChange(true)}>
+          {`${nazwa}:zostaw`}
+        </button>
       </div>
     ) : null;
 }
@@ -381,6 +385,7 @@ beforeEach(() => {
   h.exportRows = [seatExportRow()];
   h.exportError = null;
   h.canvasLabels = new Map();
+  h.tickets = [{ id: "t-vip", name_pl: "Karnet VIP", name_en: "VIP" }];
 });
 
 function przestrzen(onBack = vi.fn()) {
@@ -478,6 +483,22 @@ describe("SeatMapWorkspace - stany", () => {
     };
     przestrzen();
     expect(h.canvasLabels.get("seat-t1")).not.toContain("heldFor");
+  });
+
+  it("bilety w locie dają panelowi uczestników pustą listę filtrów", () => {
+    h.tickets = undefined;
+    przestrzen();
+    expect(screen.getByText("bilety:")).toBeTruthy();
+  });
+
+  it("okno sekcji i kategorii zamyka się tylko przy `open=false`", () => {
+    przestrzen();
+    klik(`${W}.addRows`);
+    klik("okno-sekcji:zostaw");
+    expect(screen.getByRole("dialog", { name: "okno-sekcji" })).toBeTruthy();
+    klik(`${W}.addCategory`);
+    klik("okno-kategorii:zostaw");
+    expect(screen.getByRole("dialog", { name: "okno-kategorii" })).toBeTruthy();
   });
 
   it("eksport dostaje firmy z rezerwacji i przydziałów, bez powtórzeń, alfabetycznie", () => {

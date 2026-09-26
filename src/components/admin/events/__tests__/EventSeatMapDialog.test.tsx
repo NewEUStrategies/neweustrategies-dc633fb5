@@ -142,6 +142,17 @@ describe("EventSeatMapDialog", () => {
     expect(props.onSubmit).not.toHaveBeenCalled();
   });
 
+  it("szerokość i wysokość idą do ładunku jako liczby", () => {
+    const { props } = okno();
+    fireEvent.change(pole("adminEventSeating.mapDialog.name"), { target: { value: "Hala" } });
+    fireEvent.change(pole("adminEventSeating.mapDialog.width"), { target: { value: "2000" } });
+    fireEvent.change(pole("adminEventSeating.mapDialog.height"), { target: { value: "900" } });
+    zapisz();
+    expect(props.onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Hala", width: 2000, height: 900 }),
+    );
+  });
+
   it("edycja startuje z danych planu, a „bez sali” i wyłączona scena to null", () => {
     const { props } = okno({ map: PLAN });
 

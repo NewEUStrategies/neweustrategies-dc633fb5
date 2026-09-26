@@ -137,6 +137,40 @@ describe("EventSeatSectionDialog - rzędy", () => {
   });
 });
 
+describe("EventSeatSectionDialog - numeracja i podziałki", () => {
+  it("początek rzędów i numeracji oraz podziałki idą do ładunku i do podglądu", () => {
+    const { props } = okno();
+    wpisz("label", "Balkon");
+    wpisz("rowsCount", "1");
+    wpisz("seatsPerRow", "2");
+    wpisz("rowLabelStart", "3");
+    wpisz("seatNumberStart", "11");
+    wpisz("seatPitch", "40");
+    wpisz("rowPitch", "70");
+    const numery = [...(podglad()?.querySelectorAll("text") ?? [])].map((node) => node.textContent);
+    expect(numery).toEqual(["11", "12"]);
+    zapisz();
+
+    expect(props.onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rowLabelStart: 3,
+        seatNumberStart: 11,
+        seatPitch: 40,
+        rowPitch: 70,
+      }),
+    );
+  });
+
+  it("podziałka poza zakresem to błąd pola po próbie zapisu", () => {
+    const { props } = okno();
+    wpisz("label", "Balkon");
+    wpisz("seatPitch", "5");
+    zapisz();
+    expect(screen.getAllByText(`${S}.validation.pitchRange`)).toHaveLength(1);
+    expect(props.onSubmit).not.toHaveBeenCalled();
+  });
+});
+
 describe("EventSeatSectionDialog - stół i edycja", () => {
   it("nowy stół: własny tytuł, kształt i krzesła, podgląd 8 miejsc", () => {
     okno({ kind: "table" });

@@ -102,6 +102,9 @@ vi.mock("@/components/admin/events/molecules/EventSeatMapDialog", () => ({
         <button type="button" onClick={() => onOpenChange(false)}>
           okno:zamknij
         </button>
+        <button type="button" onClick={() => onOpenChange(true)}>
+          okno:zostaw
+        </button>
       </div>
     ) : null;
   },
@@ -222,6 +225,8 @@ describe("SeatingPanel - lista planów", () => {
   it("zamknięcie okna bez zapisu niczego nie wysyła", () => {
     panel();
     klik(`${L}.add`);
+    klik("okno:zostaw");
+    expect(screen.getByRole("dialog")).toBeTruthy();
     klik("okno:zamknij");
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(h.saves).toEqual([]);

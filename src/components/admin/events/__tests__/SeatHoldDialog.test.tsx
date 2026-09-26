@@ -16,16 +16,18 @@ import { fireEvent, render, screen } from "@testing-library/react";
 
 const h = vi.hoisted(() => ({
   companyQueries: [] as string[],
-  companies: [] as { id: string; name: string }[],
+  companies: [] as { id: string; name: string }[] | undefined,
   sponsorMounts: 0,
-  sponsors: [] as { id: string; snapshot_name: string }[],
+  sponsors: [] as { id: string; snapshot_name: string }[] | undefined,
   packageMounts: 0,
-  orders: [] as {
-    id: string;
-    buyer_name: string;
-    package_name_pl: string;
-    package_name_en: string;
-  }[],
+  orders: [] as
+    | {
+        id: string;
+        buyer_name: string;
+        package_name_pl: string;
+        package_name_en: string;
+      }[]
+    | undefined,
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
@@ -209,6 +211,20 @@ describe("SeatHoldDialog - rezerwacja", () => {
     fireEvent.change(pole("note"), { target: { value: "Dla zarządu" } });
     zapisz();
     expect(props.onSubmit).toHaveBeenCalledWith(ladunek({ holdNote: "Dla zarządu" }));
+  });
+});
+
+describe("SeatHoldDialog - listy w locie", () => {
+  it("firmy, sponsorzy i zamówienia w locie pokazują zdanie „brak”, a nie pustą listę", () => {
+    h.companies = undefined;
+    h.sponsors = undefined;
+    h.orders = undefined;
+    okno();
+    expect(screen.getByText(`${D}.companyNone`)).toBeTruthy();
+    wybierz("target", "sponsor");
+    expect(screen.getByText(`${D}.sponsorNone`)).toBeTruthy();
+    wybierz("target", "package");
+    expect(screen.getByText(`${D}.packageNone`)).toBeTruthy();
   });
 });
 

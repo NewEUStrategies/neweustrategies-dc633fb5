@@ -90,6 +90,9 @@ export function SeatAutoAssignDialog({
     [rows],
   );
 
+  const nameOf = (registrationId: string): string => names.get(registrationId) ?? registrationId;
+  const ticketRows = tickets.data ?? [];
+
   const plan = useMemo(() => {
     const sponsorCompany = new Map((sponsors.data ?? []).map((row) => [row.id, row.company_id]));
     return planSeating(
@@ -153,7 +156,7 @@ export function SeatAutoAssignDialog({
             checked={holdsFirst}
             onCheckedChange={setHoldsFirst}
           />
-          {(tickets.data ?? []).length === 0 ? null : (
+          {ticketRows.length === 0 ? null : (
             <fieldset className="space-y-2">
               <legend className="text-sm font-semibold">
                 {t("adminEventSeating.autoDialog.tickets")}
@@ -162,7 +165,7 @@ export function SeatAutoAssignDialog({
                 {t("adminEventSeating.autoDialog.allTickets")}
               </p>
               <ul className="grid gap-2 sm:grid-cols-2">
-                {(tickets.data ?? []).map((ticket) => {
+                {ticketRows.map((ticket) => {
                   const id = `seat-auto-ticket-${ticket.id}`;
                   return (
                     <li key={ticket.id} className="flex items-center gap-2">
@@ -204,7 +207,7 @@ export function SeatAutoAssignDialog({
                       {plan.unplaced.map((entry) => (
                         <li key={entry.registrationId}>
                           {t("adminEventSeating.autoDialog.unplacedItem", {
-                            name: names.get(entry.registrationId) ?? entry.registrationId,
+                            name: nameOf(entry.registrationId),
                             reason: t(REASON_KEYS[entry.reason]),
                           })}
                         </li>
@@ -230,7 +233,7 @@ export function SeatAutoAssignDialog({
                   return (
                     <li key={`${entry.seatId}-${entry.registrationId}`}>
                       {t("adminEventSeating.autoDialog.rejectedItem", {
-                        name: names.get(entry.registrationId) ?? entry.registrationId,
+                        name: nameOf(entry.registrationId),
                         reason: t(failure.key, failure.params),
                       })}
                     </li>

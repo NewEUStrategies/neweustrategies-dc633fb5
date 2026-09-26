@@ -19,6 +19,7 @@ export function MySeatsPanel({ slug }: { slug: string }) {
   const { t } = useTranslation();
   const titleId = useId();
   const seats = useMySeats(slug, true);
+  const cards = seats.data ?? [];
 
   return (
     <section className="space-y-3" aria-labelledby={titleId}>
@@ -37,13 +38,13 @@ export function MySeatsPanel({ slug }: { slug: string }) {
             {t("eventSeating.card.retry")}
           </Button>
         </div>
-      ) : (seats.data ?? []).length === 0 ? (
+      ) : cards.length === 0 ? (
         <p className="rounded-[6px] border border-dashed border-border p-4 text-sm text-muted-foreground">
           {t("eventSeating.card.none")}
         </p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
-          {(seats.data ?? []).map((card) => (
+          {cards.map((card) => (
             <MySeatCardView key={card.mapId} card={card} />
           ))}
         </div>
