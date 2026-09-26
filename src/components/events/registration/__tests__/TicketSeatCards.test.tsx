@@ -28,7 +28,7 @@ vi.mock("@/lib/events/useMySeats", () => ({
 import { TicketSeatCards } from "@/components/events/registration/TicketSeatCards";
 import { mySeatCard } from "@/test/events/seatingFixtures";
 
-const BILET: TicketFragment = { qrToken: "q".repeat(43), manageToken: null };
+const BILET: TicketFragment = { qrToken: "q".repeat(32), manageToken: null };
 
 beforeEach(() => {
   h.calls = [];

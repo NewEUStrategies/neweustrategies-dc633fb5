@@ -455,6 +455,21 @@ export function mapInfoFromRow(row: SeatMapRow): SeatMapInfo {
   };
 }
 
+/**
+ * Uprawnieni bez miejsca na OPUBLIKOWANYCH planach (suma po planach, kazdy
+ * plan liczony osobno - konferencja i gala to dwa rozsadzenia). `null`, gdy
+ * zaden plan nie jest opublikowany: wtedy pozycja gotowosci nie dotyczy
+ * wydarzenia. Liczby sa z bazy (`admin_event_seat_maps_list`), nie z listy.
+ */
+export function unseatedOnPublishedMaps(rows: readonly SeatMapRow[]): number | null {
+  const published = rows.filter((row) => row.status === "published");
+  if (published.length === 0) return null;
+  return published.reduce(
+    (sum, row) => sum + Math.max(0, row.seatable_registrations - row.seats_assigned),
+    0,
+  );
+}
+
 export async function fetchSeatMaps(eventId: string): Promise<SeatMapRow[]> {
   const { data, error } = await supabase.rpc("admin_event_seat_maps_list", { p_event_id: eventId });
   fail(error);

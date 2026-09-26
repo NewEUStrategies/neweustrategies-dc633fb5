@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { adminEventsEn, adminEventsPl } from "@/lib/i18n-admin-events";
 import {
+  READINESS_CHECK_KEYS,
   buildPublishReadiness,
   type ReadinessCheckKey,
   type ReadinessEvent,
@@ -114,5 +116,54 @@ describe("buildPublishReadiness", () => {
       input({ event: { ...completeEvent, registrationMode: "paid" }, ticketTypeCount: 2 }),
     );
     expect(failedKeys(paidWithTicket)).not.toContain("tickets");
+  });
+});
+
+// PLAN SALI (f4). Pozycja istnieje TYLKO wtedy, gdy wydarzenie ma opublikowany
+// plan przy wlaczonym module - wydarzenie bez numerowanych miejsc nie dostaje
+// ani ostrzezenia, ani darmowego „spelnione" w liczniku postepu.
+describe("buildPublishReadiness - plan sali", () => {
+  it("bez opublikowanego planu pozycji nie ma wcale", () => {
+    for (const report of [
+      buildPublishReadiness(input()),
+      buildPublishReadiness(input({ seatingUnseated: null })),
+    ]) {
+      expect(report.checks.map((item) => item.key)).not.toContain("seating");
+      expect(report.totalCount).toBe(14);
+    }
+  });
+
+  it("wszyscy uprawnieni posadzeni - pozycja spelniona i liczona w postepie", () => {
+    const report = buildPublishReadiness(input({ seatingUnseated: 0 }));
+    expect(report.totalCount).toBe(15);
+    expect(report.passedCount).toBe(15);
+    expect(failedKeys(report)).toEqual([]);
+  });
+
+  it("uprawnieni bez miejsca to OSTRZEZENIE z liczba i skrotem do planu sali", () => {
+    const report = buildPublishReadiness(input({ seatingUnseated: 3 }));
+    expect(report.canPublish).toBe(true);
+    expect(report.warnings).toEqual([
+      {
+        key: "seating",
+        severity: "warning",
+        section: "registrationSeating",
+        passed: false,
+        count: 3,
+      },
+    ]);
+  });
+});
+
+// Panel sklada klucz szablonem `readiness.checks.<klucz>` - brak tekstu dla
+// nowej pozycji nie wywroci kompilacji, tylko pokaze organizatorowi surowy klucz.
+describe("teksty pozycji gotowosci", () => {
+  const checksPl = adminEventsPl.adminEvents.studio.readiness.checks as Record<string, string>;
+  const checksEn = adminEventsEn.adminEvents.studio.readiness.checks as Record<string, string>;
+  const has = (tree: Record<string, string>, key: string) => key in tree || `${key}_one` in tree;
+
+  it.each(READINESS_CHECK_KEYS)("pozycja %s ma tekst PL i EN", (key) => {
+    expect(has(checksPl, key)).toBe(true);
+    expect(has(checksEn, key)).toBe(true);
   });
 });

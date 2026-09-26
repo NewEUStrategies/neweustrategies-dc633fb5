@@ -669,6 +669,28 @@ describe("mapInfoFromRow", () => {
   });
 });
 
+describe("unseatedOnPublishedMaps", () => {
+  it("bez opublikowanego planu nie ma czego liczyć (null)", () => {
+    expect(api.unseatedOnPublishedMaps([])).toBeNull();
+    expect(api.unseatedOnPublishedMaps([seatMapRow({ status: "draft" })])).toBeNull();
+  });
+
+  it("sumuje brakujące miejsca po opublikowanych planach, nigdy poniżej zera", () => {
+    expect(
+      api.unseatedOnPublishedMaps([
+        seatMapRow({ status: "published", seatable_registrations: 10, seats_assigned: 4 }),
+        seatMapRow({ status: "published", seatable_registrations: 2, seats_assigned: 5 }),
+        seatMapRow({ status: "draft", seatable_registrations: 50, seats_assigned: 0 }),
+      ]),
+    ).toBe(6);
+    expect(
+      api.unseatedOnPublishedMaps([
+        seatMapRow({ status: "published", seatable_registrations: 3, seats_assigned: 3 }),
+      ]),
+    ).toBe(0);
+  });
+});
+
 describe("candidateName", () => {
   it("skleja imię i nazwisko bez wiszących spacji", () => {
     expect(api.candidateName(seatingCandidate({ first_name: "Ewa", last_name: "Lis" }))).toBe(
