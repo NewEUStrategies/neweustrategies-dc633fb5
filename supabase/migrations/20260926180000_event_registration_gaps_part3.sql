@@ -37,7 +37,7 @@
 --
 -- KOLEJNOSC TRIGGEROW `event_registrations` (AFTER, po nazwie): platnosc
 -- (`group_follow_lead`) -> bilet z puli (`plan_seat_follow`) -> zwolnienie
--- miejsc na sali (`release_seats`, 20260926130000) -> przelicznik
+-- miejsc na sali (`release_seats`, 20260927000400) -> przelicznik
 -- `sold_count` -> kaskada statusu (`zz_group_follow_lead_status`).
 --
 -- NUMER 20260926180000: ta migracja biegnie PO funkcjach uczestnika

@@ -6,9 +6,14 @@ na każdą gałąź SQL.
 
 ## 1. Zastosowanie migracji na produkcji (PRZED wdrożeniem kodu)
 
-W panelu Lovable, PO migracjach modułu organizatora (PR #404, do
-`20260926170000_event_clone`) i funkcji uczestnika (PR #406,
-`20260926153100`–`20260926153300`):
+W panelu Lovable, PO migracjach funkcji uczestnika (PR #406,
+`20260926153100`–`20260926153300`). Migracje modułu organizatora (PR #404) nie
+są warunkiem: wdrożone są `20260926085900` i `20260926090000`, a niewdrożone
+`20260926150000`, `20260926160000` i `20260927000100`–`20260927000500`,
+`20260927000800`, `20260927000900` (po naprawie scalenia #404 - pięć z nich
+miało wcześniej numery `20260926100000`–`140000`, zajęte przez część 2) nie
+dzielą z częścią 3 żadnej funkcji, tabeli ani nazwy triggera, więc ich
+kolejność względem części 3 jest dowolna:
 
 - `supabase/migrations/20260926180000_event_registration_gaps_part3.sql`
   (bliźniak `drizzle/migrations/0067_event_registration_gaps_part3.sql`;
