@@ -21,6 +21,11 @@ import type {
   EventClonePreview,
 } from "@/lib/events/eventCloneApi";
 
+// Parser adresu `?from=` zyje w osobnym lisciu (`eventCloneSearch`): trasa
+// `/admin/events/new` wola go w `validateSearch`, a ta czesc definicji trasy
+// jedzie w chunku startowym - reszta regul formularza nie musi.
+export { parseCloneSearch } from "@/lib/events/eventCloneSearch";
+
 export interface EventCloneDraft {
   titlePl: string;
   titleEn: string;
@@ -53,7 +58,6 @@ export type EventCloneIssue =
   | "adminEventClone.issues.codeSuffix"
   | "adminEventClone.issues.dueDays";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Ta sama regula co `events.slug` (CHECK) i `admin_event_clone`. */
 const SLUG_RE = /^[a-z0-9-]{3,120}$/;
 /** Ta sama regula co `_event_clone_settings` (po `upper`). */
@@ -61,21 +65,6 @@ const CODE_SUFFIX_RE = /^[A-Z0-9_-]{1,20}$/;
 /** Ta sama regula co `admin_event_clone` (`^https://[^[:space:]]+$`, 2048). */
 const EXTERNAL_URL_RE = /^https:\/\/\S+$/i;
 const TITLE_MAX = 200;
-
-/**
- * Stan adresu `/admin/events/new`: `?from=<uuid>` wlacza tryb kopii. Wszystko
- * inne jest odrzucane - adres przeklejony z literowka nie moze poleciec do RPC
- * jako nie-UUID (odmowa `22P02` nic nie mowi organizatorowi).
- *
- * KLUCZ `from` JEST ZAWSZE W WYNIKU (takze jako `undefined`). Router scala
- * search dziecka z search rodzica, a korzen nie waliduje niczego - pominiety
- * klucz przepuscilby wiec surowe `?from=nie-uuid` do komponentu. Jawny
- * `undefined` nadpisuje surowa wartosc.
- */
-export function parseCloneSearch(search: Record<string, unknown>): { from: string | undefined } {
-  const from = typeof search.from === "string" ? search.from.trim() : "";
-  return { from: UUID_RE.test(from) ? from.toLowerCase() : undefined };
-}
 
 /**
  * Tytul kolejnej edycji: kazdy rok (1900-2099) w tytule o jeden wyzej.
