@@ -253,39 +253,6 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
     ["event-follow-up"],
   ],
 
-  // Ustawienia funkcji uczestnika (spec B.9): panel organizatora tego
-  // wydarzenia i publiczne flagi `event_participant_options` (wszystkie slugi -
-  // payload niesie id wydarzenia, nie slug).
-  "event.participant_settings.updated.v1": (event) => participantSettingsEventKeys(event),
-
-  // Tor B: oferty z listy rezerwowej, przekazanie biletu, zwrot samoobsługowy.
-  // Te same trzy powierzchnie co zwykłe zgłoszenie + znaczniki pieniędzy
-  // w panelu organizatora. Przekazanie zmienia też panel „moje wydarzenie"
-  // (plan, zapisy na sesje, certyfikat) - dotychczasowy posiadacz traci go,
-  // nowy zyskuje, a klucz uczestnika jest po slugu, którego payload nie niesie.
-  "event.registration.offered.v1": (event) => registrationMoneyEventKeys(event),
-  "event.registration.offer_closed.v1": (event) => registrationMoneyEventKeys(event),
-  "event.registration.transfer_requested.v1": (event) => registrationMoneyEventKeys(event),
-  "event.registration.transfer_cancelled.v1": (event) => registrationMoneyEventKeys(event),
-  "event.registration.transferred.v1": (event) => [
-    ...registrationMoneyEventKeys(event),
-    ["event-me"],
-  ],
-  "event.registration.refund_requested.v1": (event) => registrationMoneyEventKeys(event),
-  "event.registration.refund_failed.v1": (event) => registrationMoneyEventKeys(event),
-
-  // Tor C: certyfikaty i ankieta po wydarzeniu.
-  "event.certificate.issued.v1": (event) => certificateEventKeys(event),
-  "event.certificate.revoked.v1": (event) => certificateEventKeys(event),
-  "event.survey.submitted.v1": (event) => [
-    eventScopedKey("admin-event-survey-results", event),
-    eventScopedKey("admin-event-follow-up-stats", event),
-  ],
-  "event.survey.questions_changed.v1": (event) => [
-    eventScopedKey("admin-event-survey-questions", event),
-    ["event-follow-up"],
-  ],
-
   // Nabor prelegentow: lista, liczniki i szczegol w panelu organizatora
   // (galaz `["event-cfp", eventId]`) oraz "moje zgloszenia", panel prelegenta
   // i kolejka recenzenta (`["event-cfp-me"]` - klucz uczestnika jest po slugu,
@@ -528,42 +495,6 @@ function certificateEventKeys(event: DomainEventRow): QueryKey[] {
 }
 
 /**
- * Klucze ustawien uczestnika. Literaly (a nie fabryki z
- * `useParticipantSettings`/`useEventParticipantOptions`) z tego samego powodu
- * co wyzej: mapa nie moze wciagac hookow modulu do wspolnego chunku realtime.
- * Brak `event_id` (uszkodzony wiersz) degraduje do calego prefiksu panelu.
- */
-function participantSettingsEventKeys(event: DomainEventRow): QueryKey[] {
-  const eventId = eventPayloadText(event, "event_id");
-  return [
-    eventId === ""
-      ? ["admin-event-participant-settings"]
-      : ["admin-event-participant-settings", eventId],
-    ["event-participant-options"],
-  ];
-}
-
-/**
- * Klucz panelu jednego wydarzenia (`[prefiks, event_id]`); brak `event_id`
- * w payloadzie (uszkodzony wiersz, starszy backend) degraduje do CAŁEGO
- * prefiksu - szersza inwalidacja jest tańsza niż nieaktualny panel.
- */
-function eventScopedKey(prefix: string, event: DomainEventRow): QueryKey {
-  const eventId = eventPayloadText(event, "event_id");
-  return eventId === "" ? [prefix] : [prefix, eventId];
-}
-
-/** Zgłoszenie + znaczniki pieniędzy (oferta, przekazanie, zwrot) w panelu organizatora. */
-function registrationMoneyEventKeys(event: DomainEventRow): QueryKey[] {
-  return [...registrationEventKeys(event), eventScopedKey("admin-event-registration-money", event)];
-}
-
-/** Certyfikat: lista w panelu organizatora i panel follow-up uczestnika (po slugu - cała gałąź). */
-function certificateEventKeys(event: DomainEventRow): QueryKey[] {
-  return [eventScopedKey("admin-event-certificates", event), ["event-follow-up"]];
-}
-
-/**
  * Klucze naboru prelegentow. `event_id` w payloadzie zaweza panel do galezi
  * jednego wydarzenia; jego brak degraduje do calego korzenia modulu (szersza
  * inwalidacja jest tansza niz nieaktualna lista zgloszen). Literaly zgodne
@@ -574,12 +505,6 @@ function cfpEventKeys(event: DomainEventRow): QueryKey[] {
   return [eventId === "" ? ["event-cfp"] : ["event-cfp", eventId], ["event-cfp-me"]];
 }
 
-/**
- * Klucze ustawien uczestnika. Literaly (a nie fabryki z
- * `useParticipantSettings`/`useEventParticipantOptions`) z tego samego powodu
- * co wyzej: mapa nie moze wciagac hookow modulu do wspolnego chunku realtime.
- * Brak `event_id` (uszkodzony wiersz) degraduje do calego prefiksu panelu.
- */
 /**
  * Klucze klonu edycji. Lista wydarzen modulu i stara lista spolecznosci
  * dostaja nowy wiersz; galaz zrodla (`["event-clone", source_event_id]`,

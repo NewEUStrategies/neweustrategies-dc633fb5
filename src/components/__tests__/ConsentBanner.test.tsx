@@ -8,7 +8,7 @@
 //  4. teksty idą z konfiguracji w wersji PL/EN (bez hardkodów w komponencie),
 //  5. w kaflu ikony ląduje logo marki, a bez logo - zapasowa ikona.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent, act, within } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 
 import type { ConsentState } from "@/lib/ads/consent";
 import { requestOverlaySlot, __resetOverlayCoordinator } from "@/lib/overlayCoordinator";

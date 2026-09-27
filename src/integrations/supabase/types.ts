@@ -11181,102 +11181,6 @@ export type Database = {
           },
         ]
       }
-      event_speaker_materials: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          event_id: string
-          id: string
-          is_published: boolean
-          kind: string
-          published_at: string | null
-          published_by: string | null
-          session_id: string | null
-          speaker_profile_id: string
-          submission_id: string | null
-          tenant_id: string
-          title_en: string
-          title_pl: string
-          updated_at: string
-          url: string
-          visibility: string
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          event_id: string
-          id?: string
-          is_published?: boolean
-          kind?: string
-          published_at?: string | null
-          published_by?: string | null
-          session_id?: string | null
-          speaker_profile_id: string
-          submission_id?: string | null
-          tenant_id: string
-          title_en?: string
-          title_pl?: string
-          updated_at?: string
-          url: string
-          visibility?: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          event_id?: string
-          id?: string
-          is_published?: boolean
-          kind?: string
-          published_at?: string | null
-          published_by?: string | null
-          session_id?: string | null
-          speaker_profile_id?: string
-          submission_id?: string | null
-          tenant_id?: string
-          title_en?: string
-          title_pl?: string
-          updated_at?: string
-          url?: string
-          visibility?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "event_speaker_materials_event_fk"
-            columns: ["tenant_id", "event_id"]
-            isOneToOne: false
-            referencedRelation: "events"
-            referencedColumns: ["tenant_id", "id"]
-          },
-          {
-            foreignKeyName: "event_speaker_materials_profile_fk"
-            columns: ["tenant_id", "speaker_profile_id"]
-            isOneToOne: false
-            referencedRelation: "speaker_profiles"
-            referencedColumns: ["tenant_id", "id"]
-          },
-          {
-            foreignKeyName: "event_speaker_materials_session_fk"
-            columns: ["tenant_id", "event_id", "session_id"]
-            isOneToOne: false
-            referencedRelation: "event_sessions"
-            referencedColumns: ["tenant_id", "event_id", "id"]
-          },
-          {
-            foreignKeyName: "event_speaker_materials_submission_fk"
-            columns: ["tenant_id", "event_id", "submission_id"]
-            isOneToOne: false
-            referencedRelation: "event_cfp_submissions"
-            referencedColumns: ["tenant_id", "event_id", "id"]
-          },
-          {
-            foreignKeyName: "event_speaker_materials_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       event_speakers: {
         Row: {
           event_id: string
@@ -11525,85 +11429,6 @@ export type Database = {
           },
           {
             foreignKeyName: "event_sponsor_materials_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      event_sponsor_report_links: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          event_id: string
-          expires_at: string
-          id: string
-          include_leads: boolean
-          label: string
-          last_seen_at: string | null
-          revoked_at: string | null
-          revoked_by: string | null
-          sponsor_id: string
-          tenant_id: string
-          token_hash: string
-          token_prefix: string
-          updated_at: string
-          view_count: number
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          event_id: string
-          expires_at: string
-          id?: string
-          include_leads?: boolean
-          label: string
-          last_seen_at?: string | null
-          revoked_at?: string | null
-          revoked_by?: string | null
-          sponsor_id: string
-          tenant_id: string
-          token_hash: string
-          token_prefix: string
-          updated_at?: string
-          view_count?: number
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          event_id?: string
-          expires_at?: string
-          id?: string
-          include_leads?: boolean
-          label?: string
-          last_seen_at?: string | null
-          revoked_at?: string | null
-          revoked_by?: string | null
-          sponsor_id?: string
-          tenant_id?: string
-          token_hash?: string
-          token_prefix?: string
-          updated_at?: string
-          view_count?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "event_sponsor_report_links_event_fk"
-            columns: ["tenant_id", "event_id"]
-            isOneToOne: false
-            referencedRelation: "events"
-            referencedColumns: ["tenant_id", "id"]
-          },
-          {
-            foreignKeyName: "event_sponsor_report_links_sponsor_fk"
-            columns: ["tenant_id", "event_id", "sponsor_id"]
-            isOneToOne: false
-            referencedRelation: "event_sponsors"
-            referencedColumns: ["tenant_id", "event_id", "id"]
-          },
-          {
-            foreignKeyName: "event_sponsor_report_links_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -22094,6 +21919,11 @@ export type Database = {
       }
     }
     Functions: {
+      event_speaker_materials_public: { Args: { p_event_id: string }; Returns: { id: string; speaker_profile_id: string; session_id: string; kind: string; title_pl: string; title_en: string; url: string; visibility: string }[] }
+      event_invoice_public_options: { Args: never; Returns: Json }
+      admin_event_clone: { Args: { p_payload: Json }; Returns: Json }
+      admin_event_clone_preview: { Args: { p_payload: Json }; Returns: Json }
+admin_event_editions: { Args: { p_event_id: string }; Returns: { id: string; slug: string; title_pl: string; title_en: string; starts_at: string; timezone: string; status: string; relation: string; depth: number }[] }
       _are_connected: { Args: { _a: string; _b: string }; Returns: boolean }
       _b2b_coupon_evaluate: {
         Args: {
@@ -23893,56 +23723,7 @@ export type Database = {
           ticket_name_pl: string
         }[]
       }
-      admin_event_checkins_list: {
-        Args: {
-          p_checkpoint_id?: string
-          p_conflicts_only?: boolean
-          p_direction?: string
-          p_event_id: string
-          p_from?: string
-          p_limit?: number
-          p_offset?: number
-          p_q?: string
-          p_result?: string
-          p_source?: string
-          p_to?: string
-        }
-        Returns: {
-          checkpoint_id: string
-          checkpoint_kind: string
-          checkpoint_name_en: string
-          checkpoint_name_pl: string
-          company: string
-          conflict: boolean
-          device_id: string
-          device_label: string
-          device_scanned_at: string
-          direction: string
-          first_name: string
-          group_name_en: string
-          group_name_pl: string
-          id: string
-          job_title: string
-          last_name: string
-          note: string
-          occurred_at: string
-          offline_admitted: boolean
-          offline_outcome: string
-          operator_name: string
-          operator_user_id: string
-          person_id: string
-          registration_id: string
-          registration_status: string
-          repeat_count: number
-          result: string
-          roster_generated_at: string
-          scanned_at: string
-          source: string
-          ticket_name_en: string
-          ticket_name_pl: string
-          total_count: number
-        }[]
-      }
+      admin_event_checkins_list: { Args: { p_event_id: string; p_checkpoint_id?: string; p_direction?: string; p_result?: string; p_source?: string; p_q?: string; p_from?: string; p_to?: string; p_limit?: number; p_offset?: number; p_conflicts_only?: boolean }; Returns: { id: string; occurred_at: string; scanned_at: string; device_scanned_at: string; direction: string; result: string; source: string; repeat_count: number; note: string; checkpoint_id: string; checkpoint_name_pl: string; checkpoint_name_en: string; checkpoint_kind: string; person_id: string; first_name: string; last_name: string; company: string; job_title: string; registration_id: string; registration_status: string; ticket_name_pl: string; ticket_name_en: string; group_name_pl: string; group_name_en: string; device_id: string; device_label: string; operator_user_id: string; operator_name: string; offline_admitted: boolean; offline_outcome: string; roster_generated_at: string; offline_server_result: string; conflict: boolean; conflict_kind: string; total_count: number }[] }
       admin_event_checkpoint_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_checkpoint_save: {
         Args: { p_payload: Json }
@@ -23977,30 +23758,6 @@ export type Database = {
           sponsor_id: string
           sponsor_name: string
           updated_at: string
-        }[]
-      }
-      admin_event_company_sponsorships: {
-        Args: { p_company_id: string }
-        Returns: {
-          active_links: number
-          clicks_unique: number
-          event_id: string
-          event_slug: string
-          event_starts_at: string
-          event_status: string
-          event_timezone: string
-          event_title_en: string
-          event_title_pl: string
-          is_published: boolean
-          leads_consented: number
-          leads_total: number
-          material_opens: number
-          meetings_held: number
-          role: string
-          sponsor_id: string
-          tier_name_en: string
-          tier_name_pl: string
-          views_unique: number
         }[]
       }
       admin_event_company_sponsorships: {
@@ -24150,39 +23907,7 @@ export type Database = {
         }[]
       }
       admin_event_invoice_cancel: { Args: { p_payload: Json }; Returns: string }
-      admin_event_invoice_candidates: {
-        Args: { p_event_id: string }
-        Returns: {
-          amount_source: string
-          buyer_email: string
-          buyer_is_company: boolean
-          buyer_name: string
-          buyer_tax_id: string
-          company_text: string
-          created_at: string
-          currency: string
-          gross_cents: number
-          invoice_id: string
-          invoice_number: string
-          invoice_status: string
-          label_en: string
-          label_pl: string
-          paid_at: string
-          paid_via: string
-          payment_state: string
-          person_email: string
-          person_name: string
-          proforma_id: string
-          proforma_number: string
-          request_id: string
-          request_status: string
-          seats: number
-          source_id: string
-          source_kind: string
-          tax_key: string
-          ticket_type_id: string
-        }[]
-      }
+      admin_event_invoice_candidates: { Args: { p_event_id: string }; Returns: { source_kind: string; source_id: string; person_name: string; person_email: string; company_text: string; label_pl: string; label_en: string; ticket_type_id: string; seats: number; gross_cents: number; currency: string; payment_state: string; paid_via: string; amount_source: string; paid_at: string; created_at: string; request_id: string; request_status: string; buyer_is_company: boolean; buyer_name: string; buyer_tax_id: string; buyer_email: string; invoice_id: string; invoice_number: string; invoice_status: string; proforma_id: string; proforma_number: string; tax_key: string; admission: string }[] }
       admin_event_invoice_correction_create: {
         Args: { p_payload: Json }
         Returns: string
@@ -24222,145 +23947,7 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: Json
       }
-      admin_event_invoices_list: {
-        Args: { p_event_id: string }
-        Returns: {
-          buyer_email: string
-          buyer_is_company: boolean
-          buyer_name: string
-          buyer_tax_id: string
-          cancelled_at: string
-          converted_invoice_id: string
-          correction_mode: string
-          corrects_invoice_id: string
-          corrects_number: string
-          created_at: string
-          currency: string
-          due_date: string
-          gross_cents: number
-          id: string
-          issue_date: string
-          issued_at: string
-          kind: string
-          ksef_number: string
-          ksef_status: string
-          locale: string
-          net_cents: number
-          number: string
-          paid_at: string
-          sale_date: string
-          source_count: number
-          source_proforma_id: string
-          status: string
-          vat_cents: number
-        }[]
-      }
-      admin_event_invoice_cancel: { Args: { p_payload: Json }; Returns: string }
-      admin_event_invoice_candidates: {
-        Args: { p_event_id: string }
-        Returns: {
-          amount_source: string
-          buyer_email: string
-          buyer_is_company: boolean
-          buyer_name: string
-          buyer_tax_id: string
-          company_text: string
-          created_at: string
-          currency: string
-          gross_cents: number
-          invoice_id: string
-          invoice_number: string
-          invoice_status: string
-          label_en: string
-          label_pl: string
-          paid_at: string
-          paid_via: string
-          payment_state: string
-          person_email: string
-          person_name: string
-          proforma_id: string
-          proforma_number: string
-          request_id: string
-          request_status: string
-          seats: number
-          source_id: string
-          source_kind: string
-          tax_key: string
-          ticket_type_id: string
-        }[]
-      }
-      admin_event_invoice_correction_create: {
-        Args: { p_payload: Json }
-        Returns: string
-      }
-      admin_event_invoice_draft_create: {
-        Args: { p_payload: Json }
-        Returns: string
-      }
-      admin_event_invoice_draft_update: {
-        Args: { p_payload: Json }
-        Returns: string
-      }
-      admin_event_invoice_from_proforma: {
-        Args: { p_id: string }
-        Returns: string
-      }
-      admin_event_invoice_get: { Args: { p_id: string }; Returns: Json }
-      admin_event_invoice_issue: { Args: { p_id: string }; Returns: Json }
-      admin_event_invoice_issue_pending: {
-        Args: { p_payload: Json }
-        Returns: Json
-      }
-      admin_event_invoice_ksef_update: {
-        Args: { p_payload: Json }
-        Returns: string
-      }
-      admin_event_invoice_notify_payload: {
-        Args: { p_id: string }
-        Returns: Json
-      }
-      admin_event_invoice_set_paid: {
-        Args: { p_payload: Json }
-        Returns: string
-      }
-      admin_event_invoice_settings_get: { Args: never; Returns: Json }
-      admin_event_invoice_settings_save: {
-        Args: { p_payload: Json }
-        Returns: Json
-      }
-      admin_event_invoices_list: {
-        Args: { p_event_id: string }
-        Returns: {
-          buyer_email: string
-          buyer_is_company: boolean
-          buyer_name: string
-          buyer_tax_id: string
-          cancelled_at: string
-          converted_invoice_id: string
-          correction_mode: string
-          corrects_invoice_id: string
-          corrects_number: string
-          created_at: string
-          currency: string
-          due_date: string
-          gross_cents: number
-          id: string
-          issue_date: string
-          issued_at: string
-          kind: string
-          ksef_number: string
-          ksef_status: string
-          locale: string
-          net_cents: number
-          number: string
-          paid_at: string
-          sale_date: string
-          source_count: number
-          source_proforma_id: string
-          status: string
-          vat_cents: number
-        }[]
-      }
+      admin_event_invoices_list: { Args: { p_event_id: string }; Returns: { id: string; kind: string; status: string; number: string; issue_date: string; sale_date: string; due_date: string; currency: string; net_cents: number; vat_cents: number; gross_cents: number; buyer_is_company: boolean; buyer_name: string; buyer_tax_id: string; buyer_email: string; ksef_status: string; ksef_number: string; paid_at: string; corrects_invoice_id: string; corrects_number: string; correction_mode: string; source_proforma_id: string; converted_invoice_id: string; source_count: number; locale: string; created_at: string; issued_at: string; cancelled_at: string; correction_hint: string }[] }
       admin_event_lead_scans_export: {
         Args: { p_event_id: string; p_sponsor_id?: string }
         Returns: {
@@ -28590,40 +28177,7 @@ export type Database = {
         Returns: Json
       }
       event_my_invoice: { Args: { p_id: string }; Returns: Json }
-      event_my_invoice_sources: {
-        Args: never
-        Returns: {
-          buyer_address: string
-          buyer_city: string
-          buyer_country: string
-          buyer_email: string
-          buyer_is_company: boolean
-          buyer_name: string
-          buyer_postal_code: string
-          buyer_tax_id: string
-          can_request: boolean
-          created_at: string
-          currency: string
-          event_id: string
-          event_slug: string
-          event_title_en: string
-          event_title_pl: string
-          gross_cents: number
-          invoice_id: string
-          invoice_number: string
-          label_en: string
-          label_pl: string
-          paid_at: string
-          payment_state: string
-          po_number: string
-          request_deadline: string
-          request_id: string
-          request_status: string
-          seats: number
-          source_id: string
-          source_kind: string
-        }[]
-      }
+      event_my_invoice_sources: { Args: never; Returns: { source_kind: string; source_id: string; event_id: string; event_slug: string; event_title_pl: string; event_title_en: string; label_pl: string; label_en: string; seats: number; gross_cents: number; currency: string; payment_state: string; paid_at: string; request_deadline: string; can_request: boolean; request_block: string; request_id: string; request_status: string; buyer_is_company: boolean; buyer_name: string; buyer_tax_id: string; buyer_country: string; buyer_address: string; buyer_postal_code: string; buyer_city: string; buyer_email: string; po_number: string; invoice_id: string; invoice_number: string; created_at: string }[] }
       event_my_invoices: {
         Args: never
         Returns: {
