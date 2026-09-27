@@ -10,6 +10,10 @@
 //
 // FILTR "DO WYSLANIA W KSEF" pokazuje wystawione dokumenty w stanie
 // `pending` - to jest lista pracy dla ksiegowosci, dopoki nie ma klienta API.
+//
+// "WYMAGA KOREKTY" (`correction_hint`): sprzedaz za wystawiona faktura
+// skurczyla sie po wystawieniu (zwrot z karty, odwolanie zapisu albo pakietu,
+// mniej miejsc). Plakietka tylko podpowiada - korekte wystawia organizator.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -21,11 +25,13 @@ import { Button } from "@/components/ui/button";
 import { confirmDialog, promptDialog } from "@/lib/appDialogs";
 import { adminEventInvoiceErrorMessage } from "@/lib/events/adminEventInvoiceErrors";
 import {
+  CORRECTION_HINT_LABEL_KEYS,
   KIND_LABEL_KEYS,
   KSEF_STATUS_LABEL_KEYS,
   STATUS_LABEL_KEYS,
 } from "@/lib/events/adminEventInvoiceLabels";
 import {
+  EVENT_INVOICE_CORRECTION_HINTS,
   EVENT_INVOICE_KINDS,
   EVENT_INVOICE_KSEF_STATUSES,
   EVENT_INVOICE_STATUSES,
@@ -209,6 +215,15 @@ export function EventInvoiceDocumentsList({
                     )}
                   </Badge>
                 ) : null}
+                {row.correction_hint === null ? null : (
+                  <Badge variant="destructive">
+                    {t(
+                      CORRECTION_HINT_LABEL_KEYS[
+                        pickEnum(EVENT_INVOICE_CORRECTION_HINTS, row.correction_hint)
+                      ],
+                    )}
+                  </Badge>
+                )}
                 {status === "issued" ? (
                   <span className="text-xs text-muted-foreground">
                     {row.paid_at === null

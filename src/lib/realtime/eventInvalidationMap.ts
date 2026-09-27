@@ -208,12 +208,17 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   // uczestnika oraz skrot w menu konta. Brak reguly oznaczal ciche milczenie
   // - ekran wygladal poprawnie, tylko nie odswiezal sie po decyzji, zapisie
   // ani awansie z listy rezerwowej.
-  "event.registration.created.v1": (event) => registrationEventKeys(event),
-  "event.registration.updated.v1": (event) => registrationEventKeys(event),
-  "event.registration.decided.v1": (event) => registrationEventKeys(event),
-  "event.registration.cancelled.v1": (event) => registrationEventKeys(event),
-  "event.registration.promoted.v1": (event) => registrationEventKeys(event),
-  "event.registration.payment.v1": (event) => registrationEventKeys(event),
+  // Kazde z nich zmienia TAKZE ekran faktur: nowy albo zmieniony zapis (rodzaj
+  // biletu) to inny kandydat do zafakturowania, decyzja i awans z kolejki -
+  // plakietka wplaty bez miejsca, odwolanie i wplata (zaplata albo zwrot
+  // z karty) - kwota i podpowiedz korekty wystawionej faktury, a w profilu
+  // kupujacego to, o co moze poprosic.
+  "event.registration.created.v1": (event) => registrationInvoiceEventKeys(event),
+  "event.registration.updated.v1": (event) => registrationInvoiceEventKeys(event),
+  "event.registration.decided.v1": (event) => registrationInvoiceEventKeys(event),
+  "event.registration.cancelled.v1": (event) => registrationInvoiceEventKeys(event),
+  "event.registration.promoted.v1": (event) => registrationInvoiceEventKeys(event),
+  "event.registration.payment.v1": (event) => registrationInvoiceEventKeys(event),
 
   // Nabor prelegentow: lista, liczniki i szczegol w panelu organizatora
   // (galaz `["event-cfp", eventId]`) oraz "moje zgloszenia", panel prelegenta
@@ -445,6 +450,11 @@ function registrationEventKeys(event: DomainEventRow): QueryKey[] {
     ["event-rsvp-counts"],
     ["public-event"],
   ];
+}
+
+/** Zgloszenie + ekran faktur wydarzenia i karta faktur kupujacego. */
+function registrationInvoiceEventKeys(event: DomainEventRow): QueryKey[] {
+  return [...registrationEventKeys(event), ...invoiceEventKeys(event)];
 }
 
 /**

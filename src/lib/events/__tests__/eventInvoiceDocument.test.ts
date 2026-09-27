@@ -171,6 +171,19 @@ describe("parseInvoiceDocument", () => {
     expect(buyerDoc?.currentLines).toEqual([]);
   });
 
+  it("podpowiedz korekty: powod z bazy, nieznany powod = pierwszy ze zbioru, brak = null", () => {
+    expect(
+      parseInvoiceDocument(invoiceDocumentJson({ correction_hint: "refunded" }))?.correctionHint,
+    ).toBe("refunded");
+    expect(
+      parseInvoiceDocument(invoiceDocumentJson({ correction_hint: "cos" }))?.correctionHint,
+    ).toBe("source_closed");
+    expect(
+      parseInvoiceDocument(invoiceDocumentJson({ correction_hint: null }))?.correctionHint,
+    ).toBeNull();
+    expect(parseInvoiceDocument({ invoice: { id: "x" } })?.correctionHint).toBeNull();
+  });
+
   it("korekta: tryb, faktura korygowana, lista korekt", () => {
     const doc = parseInvoiceDocument(
       invoiceDocumentJson({

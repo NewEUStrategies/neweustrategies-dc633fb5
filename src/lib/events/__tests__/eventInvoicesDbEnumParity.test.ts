@@ -11,6 +11,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  EVENT_INVOICE_ADMISSIONS,
+  EVENT_INVOICE_CORRECTION_HINTS,
   EVENT_INVOICE_CORRECTION_MODES,
   EVENT_INVOICE_KINDS,
   EVENT_INVOICE_KSEF_STATUSES,
@@ -84,6 +86,39 @@ describe("parytet powodow braku prosby o fakture (request_block)", () => {
 
   it("wycinek umie odmowic (brak galezi to blad, nie pusta lista)", () => {
     expect(() => requestBlockValues("SELECT 1")).toThrow(/Brak powodu/);
+  });
+});
+
+/** Wynik `_event_invoice_correction_hint` (ostatni `RETURN CASE v_rank ... END;`). */
+function correctionHintValues(sql: string): string[] {
+  const at = sql.indexOf("RETURN CASE v_rank");
+  if (at === -1) throw new Error("Brak podpowiedzi korekty w migracji faktur");
+  const slice = sql.slice(at, sql.indexOf("END;", at));
+  return [...slice.matchAll(/'([a-z_]+)'/g)].map((match) => match[1]);
+}
+
+/** Galezie `'admission', CASE ... END` w `_event_invoice_registration_source`. */
+function admissionValues(sql: string): string[] {
+  const at = sql.indexOf("'admission', CASE");
+  if (at === -1) throw new Error("Brak miejsca oplaconego zapisu w migracji faktur");
+  const slice = sql.slice(at, sql.indexOf("END", at));
+  return [...slice.matchAll(/(?:THEN|ELSE) '([A-Za-z]+)'/g)].map((match) => match[1]);
+}
+
+describe("parytet podpowiedzi korekty i miejsca oplaconego zapisu", () => {
+  it("podpowiedz korekty: TS zna dokladnie powody bazy (w kolejnosci wagi)", () => {
+    expect(correctionHintValues(SUPABASE)).toEqual([...EVENT_INVOICE_CORRECTION_HINTS]);
+    expect(correctionHintValues(DRIZZLE)).toEqual([...EVENT_INVOICE_CORRECTION_HINTS]);
+  });
+
+  it("miejsce oplaconego zapisu: ten sam zbior co baza", () => {
+    expect(admissionValues(SUPABASE).sort()).toEqual([...EVENT_INVOICE_ADMISSIONS].sort());
+    expect(admissionValues(DRIZZLE).sort()).toEqual([...EVENT_INVOICE_ADMISSIONS].sort());
+  });
+
+  it("wycinki umieja odmowic (brak fragmentu to blad, nie pusta lista)", () => {
+    expect(() => correctionHintValues("SELECT 1")).toThrow(/Brak podpowiedzi/);
+    expect(() => admissionValues("SELECT 1")).toThrow(/Brak miejsca/);
   });
 });
 

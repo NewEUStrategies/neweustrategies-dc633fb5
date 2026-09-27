@@ -6,7 +6,9 @@
 // faktury", blokada przy wylaczonym fakturowaniu i masowe wystawienie z prosb
 // z potwierdzeniem i raportem. Zaznaczenie z prosbami ROZNYCH nabywcow nie
 // proponuje dokumentu (jeden nabywca zostalby bez faktury), a cena netto
-// z cennika ma wlasna adnotacje (VAT doliczany).
+// z cennika ma wlasna adnotacje (VAT doliczany). Oplacony zapis BEZ miejsca
+// (lista rezerwowa, czeka na decyzje) niesie plakietke listy zgloszen - masowe
+// wystawienie go pomija, a faktura ze szkicu moze potem wymagac korekty.
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -173,6 +175,29 @@ describe("EventInvoiceCandidatesList", () => {
     expect(
       screen.getByRole("button", { name: "adminEventInvoices.candidates.proforma" }),
     ).toHaveProperty("disabled", true);
+  });
+
+  it("wplata bez miejsca: plakietka z listy zgloszen, zapis z miejscem bez plakietki", async () => {
+    api.fetchInvoiceCandidates.mockResolvedValue([
+      invoiceCandidateRow({ source_id: "k", person_name: "Kolejka", admission: "waitlisted" }),
+      invoiceCandidateRow({
+        source_id: "d",
+        person_name: "Decyzja",
+        admission: "awaitingDecision",
+      }),
+      invoiceCandidateRow({ source_id: "m", person_name: "Miejsce", admission: "seated" }),
+    ]);
+    renderList();
+    const waitlisted = (await screen.findByText("Kolejka")).closest("li");
+    expect(waitlisted?.textContent).toContain(
+      "adminEventRegistration.registrations.badges.ticketPaidWaitlisted",
+    );
+    expect(screen.getByText("Decyzja").closest("li")?.textContent).toContain(
+      "adminEventRegistration.registrations.badges.ticketPaidAwaitingDecision",
+    );
+    expect(screen.getByText("Miejsce").closest("li")?.textContent).not.toContain(
+      "adminEventRegistration.registrations.badges",
+    );
   });
 
   it("cena netto z cennika: adnotacja o doliczanym VAT", async () => {
