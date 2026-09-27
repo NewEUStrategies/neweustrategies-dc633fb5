@@ -409,8 +409,10 @@ async function notifyPromoted(payload: TicketOutcomePayload): Promise<number> {
  * Dzwonek do organizatorów najemcy (admin i super_admin z `user_roles` - ta
  * sama bramka co `assert_event_admin_tenant`) o wpłacie bez miejsca. Poczty
  * organizatora nie ma w systemie, więc dzwonek jest jedynym kanałem; prowadzi
- * wprost na listę zgłoszeń, gdzie plakietka pokazuje wiersz. Jeden `insert`
- * na wszystkich odbiorców. Nigdy nie rzuca - zwraca liczbę WSTAWIONYCH wpisów.
+ * wprost na listę zgłoszeń, gdzie plakietka pokazuje wiersz. Każdy odbiorca
+ * przez `enqueue_notification` (D0-3, jak dzwonek kupującego): najemca
+ * z profilu, deduplikacja i push; rodzaj `billing` jest zawsze doręczany.
+ * Nigdy nie rzuca - zwraca liczbę ZAKOLEJKOWANYCH wpisów.
  */
 async function alertOrganizers(
   payload: TicketOutcomePayload,
@@ -437,21 +439,25 @@ async function alertOrganizers(
       const title = eventTitle(payload, lang);
       return title ? `${title}: ` : "";
     };
-    const { error: insertError } = await supabaseAdmin.from("notifications").insert(
-      ids.map((userId) => ({
-        user_id: userId,
-        tenant_id: tenantId,
-        kind: "billing",
-        title_pl: copy.title.pl,
-        title_en: copy.title.en,
-        body_pl: copy.body.pl({ lead: lead("pl"), position }),
-        body_en: copy.body.en({ lead: lead("en"), position }),
-        href: `/admin/events/${eventId}/registration/list`,
-        icon: "receipt",
-      })),
+    const results = await Promise.all(
+      ids.map((userId) =>
+        supabaseAdmin.rpc("enqueue_notification", {
+          p_user_id: userId,
+          p_kind: "billing",
+          p_title_pl: copy.title.pl,
+          p_title_en: copy.title.en,
+          p_body_pl: copy.body.pl({ lead: lead("pl"), position }),
+          p_body_en: copy.body.en({ lead: lead("en"), position }),
+          p_href: `/admin/events/${eventId}/registration/list`,
+          p_icon: "credit-card",
+        }),
+      ),
     );
-    if (insertError) throw insertError;
-    return ids.length;
+    const errors = results.flatMap((result) => (result.error ? [result.error] : []));
+    if (errors.length > 0) {
+      console.error("[events] organizer alert failed", { error: errors[0] });
+    }
+    return results.length - errors.length;
   } catch (err) {
     console.error("[events] organizer alert failed", err);
     return 0;

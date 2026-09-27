@@ -640,6 +640,8 @@ const PL: Dict = {
       "Zgłoszenie grupowe, w którym zapisano Cię na to wydarzenie, zostało odwołane albo nie zostało przyjęte przez organizatora. Kod QR z wcześniejszej wiadomości nie wpuści Cię już na wydarzenie.",
     cta: "Szczegóły wydarzenia",
     note: "Jeśli to pomyłka, skontaktuj się z osobą, która Cię zapisała, albo z organizatorem. Gdy zgłoszenie zostanie przywrócone albo zwolni się miejsce, wyślemy nowy bilet w osobnej wiadomości.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
   },
   event_invoice_issued: {
     subject: (v) =>
@@ -1340,6 +1342,8 @@ const EN: Dict = {
       "The group registration that signed you up for this event was cancelled or not accepted by the organiser. The QR code from our earlier message will no longer get you in.",
     cta: "Event details",
     note: "If this looks like a mistake, contact the person who registered you or the organiser. If the registration is restored or a seat frees up, we will send you a new ticket in a separate email.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
   },
   event_invoice_issued: {
     subject: (v) =>

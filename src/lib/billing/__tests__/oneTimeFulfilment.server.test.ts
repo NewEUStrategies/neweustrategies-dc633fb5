@@ -322,7 +322,7 @@ describe("fulfilOneTimeTransaction - rozdział na skutek biznesowy", () => {
     expect(h.donations[0]).toMatchObject({ donationId: null, sessionId: "txn_test_1" });
   });
 
-  it("klucz `order_id` (Paddle) prowadzi do tego samego zamówienia co `orderId`", async () => {
+  it("klucz `order_id` (zapis z podkreślnikiem) prowadzi do tego samego zamówienia co `orderId`", async () => {
     const outcome = await fulfilOneTimeTransaction(
       txn({ customData: { kind: "order", order_id: ORDER_ID } }),
       "sandbox",

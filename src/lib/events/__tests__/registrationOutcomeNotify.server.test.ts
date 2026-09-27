@@ -1308,28 +1308,30 @@ function givenAdmins(rows: Array<{ user_id: string }> | null): void {
   stub.setResponse("user_roles", ok(rows));
 }
 
-/** Wszystkie wiersze dzwonków organizatora - jedyny `insert` z TABLICĄ. */
+/**
+ * Dzwonki przez `enqueue_notification` (D0-3) bez prefiksu `p_` - matchery
+ * czytają `user_id`/`title_pl` jak wiersz `notifications`. Organizator to
+ * dzwonek prowadzący do panelu (`/admin/...`), kupujący - każdy inny.
+ */
+function bells(organizer: boolean): Array<Record<string, unknown>> {
+  return db
+    .rpcCalls("enqueue_notification")
+    .filter((args) => String(args["p_href"]).startsWith("/admin/") === organizer)
+    .map((args) =>
+      Object.fromEntries(Object.entries(args).map(([key, value]) => [key.slice(2), value])),
+    );
+}
+
 function organizerRows(): Array<Record<string, unknown>> {
-  return stub.chainsFor("notifications").flatMap((chain) => {
-    const arg = chain.argsOf("insert")?.[0];
-    return Array.isArray(arg) ? (arg as Array<Record<string, unknown>>) : [];
-  });
+  return bells(true);
 }
 
 function organizerInserts(): number {
-  return stub
-    .chainsFor("notifications")
-    .filter((chain) => Array.isArray(chain.argsOf("insert")?.[0])).length;
+  return bells(true).length;
 }
 
-/** Dzwonki uczestnika - `insert` pojedynczego wiersza. */
 function buyerBells(): Array<Record<string, unknown>> {
-  return stub.chainsFor("notifications").flatMap((chain) => {
-    const arg = chain.argsOf("insert")?.[0];
-    return typeof arg === "object" && arg !== null && !Array.isArray(arg)
-      ? [arg as Record<string, unknown>]
-      : [];
-  });
+  return bells(false);
 }
 
 describe("wpłata w kolejce: kupujący wie, że czeka opłacony", () => {
@@ -1400,7 +1402,7 @@ describe("wpłata w kolejce: kupujący wie, że czeka opłacony", () => {
     await notifyTicketOutcome(queuedPayment());
 
     expect(buyerBells()).toHaveLength(1);
-    expect(bellRow()).toMatchObject({
+    expect(buyerBells()[0]).toMatchObject({
       user_id: USER,
       title_pl: "Opłacone - jesteś na liście rezerwowej",
       title_en: "Paid - you are on the waiting list",
@@ -1425,7 +1427,7 @@ describe("wpłata czekająca na decyzję: wpłata nie jest akceptacją", () => {
       expect(sms.sent[0]?.body).toBe(
         `Platnosc za ${TITLE_PL} przyjeta - zgloszenie czeka na decyzje organizatora. Szczegoly w mailu.`,
       );
-      expect(bellRow()).toMatchObject({
+      expect(buyerBells()[0]).toMatchObject({
         title_pl: "Opłacone - zgłoszenie czeka na decyzję",
         title_en: "Paid - awaiting the organiser's decision",
       });
@@ -1492,20 +1494,20 @@ describe("wpłata na zgłoszeniu zamkniętym i zgodność ze starą bazą", () =
 });
 
 describe("dzwonek organizatora o wpłacie bez miejsca", () => {
-  it("jeden insert do każdego admina najemcy, bez duplikatów, z adresem listy zgłoszeń", async () => {
+  it("jeden dzwonek na każdego admina najemcy, bez duplikatów, z adresem listy zgłoszeń", async () => {
     // ADMIN_A ma obie role (admin i super_admin) - dostaje JEDEN wpis.
     givenAdmins([{ user_id: ADMIN_A }, { user_id: ADMIN_B }, { user_id: ADMIN_A }]);
     const result = await notifyTicketOutcome(queuedPayment());
 
     expect(result.organizerAlerted).toBe(2);
-    expect(organizerInserts()).toBe(1);
     const rows = organizerRows();
     expect(rows.map((row) => row["user_id"])).toEqual([ADMIN_A, ADMIN_B]);
     for (const row of rows) {
+      // Najemcę bierze producent z profilu odbiorcy; ikona z listy kuratorskiej.
+      expect(row).not.toHaveProperty("tenant_id");
       expect(row).toMatchObject({
-        tenant_id: TENANT,
         kind: "billing",
-        icon: "receipt",
+        icon: "credit-card",
         href: `/admin/events/${EVENT}/registration/list`,
         title_pl: "Opłacone zgłoszenie na liście rezerwowej",
         title_en: "Paid registration on the waiting list",
@@ -1573,7 +1575,7 @@ describe("dzwonek organizatora o wpłacie bez miejsca", () => {
   it.each([
     ["pusta lista", []],
     ["brak danych", null],
-  ] as const)("najemca bez adminów (%s): zero wpisów i żadnego insertu", async (_label, rows) => {
+  ] as const)("najemca bez adminów (%s): zero wpisów i żadnego dzwonka", async (_label, rows) => {
     givenAdmins(rows === null ? null : [...rows]);
     const result = await notifyTicketOutcome(queuedPayment());
 
@@ -1605,12 +1607,17 @@ describe("dzwonek organizatora o wpłacie bez miejsca", () => {
     );
   });
 
-  it("odrzucony insert: liczba mówi, ile wpisów NAPRAWDĘ powstało - zero", async () => {
-    givenAdmins([{ user_id: ADMIN_A }]);
-    stub.setResponse("notifications", fail("wpis odrzucony"));
+  it.each([
+    ["odmowa producenta bez rzutu", "error"],
+    ["rzut klienta na RPC", "throw"],
+  ] as const)("%s: liczba mówi, ile wpisów NAPRAWDĘ powstało - zero", async (_label, mode) => {
+    givenAdmins([{ user_id: ADMIN_A }, { user_id: ADMIN_B }]);
+    db.breakRpc(mode);
     const result = await notifyTicketOutcome(queuedPayment());
 
     expect(result.organizerAlerted).toBe(0);
+    // Kupujący swoje dostaje niezależnie od organizatora.
+    expect(result.emailed).toBe(true);
     expect(errorSpy.mock.calls.map((call) => String(call[0]))).toContain(
       "[events] organizer alert failed",
     );
@@ -1633,7 +1640,7 @@ describe("dzwonek kupującego przy ponowionym webhooku", () => {
       payload({ outcome: "refunded", refunded_cents: 24_900, newly_settled: false }),
     );
 
-    expect(bellRow()).toMatchObject({ title_pl: "Bilet anulowany - zwrot płatności" });
+    expect(buyerBells()[0]).toMatchObject({ title_pl: "Bilet anulowany - zwrot płatności" });
   });
 
   it("sześć rodzajów wiadomości daje sześć RÓŻNYCH SMS-ów", async () => {

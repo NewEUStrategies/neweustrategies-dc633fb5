@@ -16,6 +16,8 @@ import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 
 const h = vi.hoisted(() => ({
   checkout: vi.fn(),
+  // Podgląd kasy (rozbicie kwoty) - osobna server fn, pytana raz na montaż.
+  quote: vi.fn(),
   navigate: vi.fn(),
   session: { user: { id: "u-1" } } as { user: { id: string } } | null,
   dialog: null as { clientSecret: string | null; onOpenChange: (open: boolean) => void } | null,
@@ -24,7 +26,10 @@ const h = vi.hoisted(() => ({
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
-  useServerFn: () => h.checkout,
+  // Każda server fn po tożsamości: podgląd kasy i odbiór biletu z planu to
+  // inne wywołania niż kasa - wspólna atrapa liczyłaby podgląd jako kasę.
+  useServerFn: (fn: { name?: string }) =>
+    fn.name === "quoteEventTicketCheckout" ? h.quote : h.checkout,
 }));
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-router")>()),
@@ -32,7 +37,15 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
   useNavigate: () => h.navigate,
 }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ session: h.session }) }));
-vi.mock("@/lib/billing/checkout.functions", () => ({ createCheckoutOrder: {} }));
+vi.mock("@/lib/billing/checkout.functions", () => ({
+  createCheckoutOrder: { name: "createCheckoutOrder" },
+}));
+vi.mock("@/lib/billing/eventTicketQuote.functions", () => ({
+  quoteEventTicketCheckout: { name: "quoteEventTicketCheckout" },
+}));
+vi.mock("@/lib/billing/eventTicketPlanRedeem.functions", () => ({
+  redeemEventTicketFromPlan: { name: "redeemEventTicketFromPlan" },
+}));
 vi.mock("@/lib/stripe", () => ({ getStripeEnvironment: () => "sandbox" }));
 vi.mock("@/components/checkout/LazyEmbeddedCheckoutDialog", () => ({
   LazyEmbeddedCheckoutDialog: (props: {
@@ -45,7 +58,11 @@ vi.mock("@/components/checkout/LazyEmbeddedCheckoutDialog", () => ({
     );
   },
 }));
-vi.mock("@/lib/events/eventCodeMemory", () => ({ recallEventCode: () => "" }));
+vi.mock("@/lib/events/eventCodeMemory", () => ({
+  recallEventCode: () => "",
+  // Kod dostępu ukrytej wejściówki z pamięci karty - tu żadnego nie ma.
+  recallAccessCodeHint: () => "",
+}));
 const funnel = vi.hoisted(() => ({ send: vi.fn() }));
 vi.mock("@/lib/events/eventFunnelBeacon", () => ({
   sendEventFunnelStep: (step: string, target: unknown) => funnel.send(step, target),
@@ -107,6 +124,17 @@ beforeEach(() => {
   billing.fetchMyBillingProfile.mockResolvedValue(null);
   invoices.fetchMyInvoiceSources.mockResolvedValue([]);
   h.checkout.mockResolvedValue({ ok: true, mode: "mock", orderId: "ord-1" });
+  h.quote.mockResolvedValue({
+    seats: 1,
+    unitCents: 12300,
+    subtotalCents: 12300,
+    currency: "PLN",
+    coupon: null,
+    discountCents: 0,
+    totalCents: 12300,
+    couponError: null,
+    taxMode: null,
+  });
 });
 
 describe("RegistrationPayAction + faktura na firme", () => {
