@@ -1718,6 +1718,37 @@ const CLIENT_DIR =
 // Pierwszy zielony build runnera powinien przepisać baseline
 // (`--update-baseline`), co tę pozycję wyzeruje.
 
+// 2026-09-27 XXI  PR #414 (poprawki z przegladu funkcji organizatora, czesc 3).
+//             Floor OVERALL 4768 -> 4772. PUBLIC, CHUNK, CSS i BOOT NIE RUSZONE
+//             - mieszcza sie (runner 538c82a: public 2875,6 / 2877, chunk 284,8
+//             / 286).
+//
+// POMIAR. Runner 538c82a (scalenie skanera offline i Wallet): overall 4768,4
+// przy progu 4768 - przekroczenie o 0,4 KB. Host na pelnym drzewie PR-a
+// (ca8fbac, po scaleniu lejka Ads, planu sali, klonu i mostu CRM):
+// overall 4752,0, public 2858,2, chunk 285,0 - rozbieznosc host <-> runner to
+// ta sama pozycja `spreadsheet.worker` (+18,5, `xlsx` 0.18.5 z npm na hoscie,
+// wpis XX), wiec runner tego drzewa wyjdzie ok. 4770.
+//
+// SKAD, per chunk, host ca8fbac wzgledem baseline'u 46452fe88 (pozycje >= 0,3):
+//   + 0,6  scanner                                  (kolejka, termin, pokolenia parowania)
+//   + 0,6  admin.events_._eventId.ads-funnel        (parser kwot, ROAS, grupa `other`)
+//   + 0,5  admin.events_._eventId.registration.invoices (wspolny kod lejka i eksportu)
+//   + 0,3  events._slug_.register                   (atrybucja zamowienia pakietu)
+//   + 0,3  index                                    (klucz listy prelegentow, przycinanie zgody)
+//   +10,6 / -9,8  i18n-admin-event-agenda / -registration - przeniesienie slownika
+//                 z `main` (nie ten PR), netto +0,8.
+// Suma ruchow chunkow +3,0 KB - rozproszona po poprawkach, bez jednej pozycji,
+// ktora dalo sie leniwie wyciac: przycinanie atrybucji przy cofnieciu zgody juz
+// idzie dynamicznym importem, a reszta to logika na wlasnych trasach.
+//
+// FORMULA (wpis XX: runner + przyrost host-do-hosta, sufit, +1 KB na granice
+// zaokraglenia):
+//   overall  4765,45 (runner XX) + (4752,0 - 4747,374) = 4770,08 -> 4771 -> 4772
+// Kontrola z drugiej strony: runner 538c82a 4768,45 + ruchy chunkow lejka,
+// planu sali i klonu na hoscie (~+1,7) = 4770,2 - ta sama wartosc.
+// Pierwszy zielony log runnera rozstrzyga (wpis V) - w dol, jesli pokaze mniej.
+
 const FROZEN_BUDGET_KB = {
   // Największy pojedynczy chunk gzip. Zmierzone 2026-08-18: 266,8 (EChartClient,
   // admin-only) - entry po cięciu ścieżki bootowania ma 253,2. Ratchet
@@ -1834,7 +1865,10 @@ const FROZEN_BUDGET_KB = {
   // Ratchet 4729 -> 4768 (wpis 2026-09-27 XX): f5 kopiowanie edycji ~17 KB
   // panelu, #406 ~12 KB panelu, artefakt `xlsx` hosta z XIX (+18,5). Runner
   // cfb11b263 4765,4 + delta hosta +1,19 = 4766,64 -> 4767 -> +1.
-  overall: 4768,
+  // Ratchet 4768 -> 4772 (wpis 2026-09-27 XXI): poprawki z przegladu PR #414
+  // (skaner +0,6, lejek Ads +1,1, rejestracja +0,3, entry +0,3). Runner XX
+  // 4765,45 + delta hosta +4,63 = 4770,08 -> 4771 -> +1.
+  overall: 4772,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
