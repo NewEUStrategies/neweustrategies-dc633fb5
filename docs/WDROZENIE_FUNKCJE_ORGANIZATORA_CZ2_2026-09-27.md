@@ -61,8 +61,9 @@ kolejność WERSJI supabase (tak odtwarzają ją CI, `check:sql-migration-replay
 `events-harness`), a nie numerów drizzle: nasze bliźniaki `0057`-`0064` wchodzą po `0067`-`0070`
 z #407. Pliki `_partN` to części jednej migracji pociętej narzędziem
 (`scripts/split-migration.ts`); ich SQL wykonywalny sklejony po kolei jest równy SQL-owi
-migracji sprzed podziału. Migracje #406 nie mają bliźniaka drizzle - dla nich stosuje się plik
-supabase.
+migracji sprzed podziału. Migracje #406 i #411 nie mają bliźniaka drizzle - dla nich stosuje się
+plik supabase. `20260926183100_event_participant_part3_followups.sql` (#411, 26 638 B) dopina
+kontrakty Fundamentu do kodu z `20260926180000`, więc idzie po jej trzech częściach.
 
 | #   | Pas drizzle (plik do zastosowania)             | Bliźniak supabase                                        | Rozmiar drizzle |
 | --- | ---------------------------------------------- | -------------------------------------------------------- | --------------- |
@@ -76,28 +77,29 @@ supabase.
 | 8   | `0067_event_registration_gaps_part3.sql`       | `20260926180000_event_registration_gaps_part3.sql`       | 45 372 B        |
 | 9   | `0069_event_registration_gaps_part3_part2.sql` | `20260926180001_event_registration_gaps_part3_part2.sql` | 27 169 B        |
 | 10  | `0070_event_registration_gaps_part3_part3.sql` | `20260926180002_event_registration_gaps_part3_part3.sql` | 39 172 B        |
-| 11  | `0057_event_cfp.sql`                           | `20260927000100_event_cfp.sql`                           | 35 658 B        |
-| 12  | `0057_event_cfp_part2.sql`                     | `20260927000101_event_cfp_part2.sql`                     | 45 386 B        |
-| 13  | `0057_event_cfp_part3.sql`                     | `20260927000102_event_cfp_part3.sql`                     | 38 135 B        |
-| 14  | `0057_event_cfp_part4.sql`                     | `20260927000103_event_cfp_part4.sql`                     | 45 558 B        |
-| 15  | `0057_event_cfp_part5.sql`                     | `20260927000104_event_cfp_part5.sql`                     | 41 883 B        |
-| 16  | `0057_event_cfp_part6.sql`                     | `20260927000105_event_cfp_part6.sql`                     | 18 899 B        |
-| 17  | `0058_event_invoices.sql`                      | `20260927000200_event_invoices.sql`                      | 35 491 B        |
-| 18  | `0058_event_invoices_part2.sql`                | `20260927000201_event_invoices_part2.sql`                | 32 033 B        |
-| 19  | `0058_event_invoices_part3.sql`                | `20260927000202_event_invoices_part3.sql`                | 38 823 B        |
-| 20  | `0058_event_invoices_part4.sql`                | `20260927000203_event_invoices_part4.sql`                | 43 447 B        |
-| 21  | `0058_event_invoices_part5.sql`                | `20260927000204_event_invoices_part5.sql`                | 26 481 B        |
-| 22  | `0059_event_ads_funnel.sql`                    | `20260927000300_event_ads_funnel.sql`                    | 39 199 B        |
-| 23  | `0059_event_ads_funnel_part2.sql`              | `20260927000301_event_ads_funnel_part2.sql`              | 26 535 B        |
-| 24  | `0060_event_seating.sql`                       | `20260927000400_event_seating.sql`                       | 39 511 B        |
-| 25  | `0060_event_seating_part2.sql`                 | `20260927000401_event_seating_part2.sql`                 | 42 343 B        |
-| 26  | `0060_event_seating_part3.sql`                 | `20260927000402_event_seating_part3.sql`                 | 30 632 B        |
-| 27  | `0061_event_sponsor_report.sql`                | `20260927000500_event_sponsor_report.sql`                | 37 908 B        |
-| 28  | `0061_event_sponsor_report_part2.sql`          | `20260927000501_event_sponsor_report_part2.sql`          | 29 018 B        |
-| 29  | `0064_event_clone.sql`                         | `20260927000800_event_clone.sql`                         | 34 677 B        |
-| 30  | `0064_event_clone_part2.sql`                   | `20260927000801_event_clone_part2.sql`                   | 45 670 B        |
-| 31  | `0064_event_clone_part3.sql`                   | `20260927000802_event_clone_part3.sql`                   | 34 301 B        |
-| 32  | `0068_event_person_crm_sync_lead_names.sql`    | `20260927000900_event_person_crm_sync_lead_names.sql`    | 16 396 B        |
+| 11  | - (tylko supabase, #411)                       | `20260926183100_event_participant_part3_followups.sql`   | 26 638 B\*      |
+| 12  | `0057_event_cfp.sql`                           | `20260927000100_event_cfp.sql`                           | 35 658 B        |
+| 13  | `0057_event_cfp_part2.sql`                     | `20260927000101_event_cfp_part2.sql`                     | 45 386 B        |
+| 14  | `0057_event_cfp_part3.sql`                     | `20260927000102_event_cfp_part3.sql`                     | 38 135 B        |
+| 15  | `0057_event_cfp_part4.sql`                     | `20260927000103_event_cfp_part4.sql`                     | 45 558 B        |
+| 16  | `0057_event_cfp_part5.sql`                     | `20260927000104_event_cfp_part5.sql`                     | 41 883 B        |
+| 17  | `0057_event_cfp_part6.sql`                     | `20260927000105_event_cfp_part6.sql`                     | 18 899 B        |
+| 18  | `0058_event_invoices.sql`                      | `20260927000200_event_invoices.sql`                      | 35 491 B        |
+| 19  | `0058_event_invoices_part2.sql`                | `20260927000201_event_invoices_part2.sql`                | 32 033 B        |
+| 20  | `0058_event_invoices_part3.sql`                | `20260927000202_event_invoices_part3.sql`                | 38 823 B        |
+| 21  | `0058_event_invoices_part4.sql`                | `20260927000203_event_invoices_part4.sql`                | 43 447 B        |
+| 22  | `0058_event_invoices_part5.sql`                | `20260927000204_event_invoices_part5.sql`                | 26 481 B        |
+| 23  | `0059_event_ads_funnel.sql`                    | `20260927000300_event_ads_funnel.sql`                    | 39 199 B        |
+| 24  | `0059_event_ads_funnel_part2.sql`              | `20260927000301_event_ads_funnel_part2.sql`              | 26 535 B        |
+| 25  | `0060_event_seating.sql`                       | `20260927000400_event_seating.sql`                       | 39 511 B        |
+| 26  | `0060_event_seating_part2.sql`                 | `20260927000401_event_seating_part2.sql`                 | 42 343 B        |
+| 27  | `0060_event_seating_part3.sql`                 | `20260927000402_event_seating_part3.sql`                 | 30 632 B        |
+| 28  | `0061_event_sponsor_report.sql`                | `20260927000500_event_sponsor_report.sql`                | 37 908 B        |
+| 29  | `0061_event_sponsor_report_part2.sql`          | `20260927000501_event_sponsor_report_part2.sql`          | 29 018 B        |
+| 30  | `0064_event_clone.sql`                         | `20260927000800_event_clone.sql`                         | 34 677 B        |
+| 31  | `0064_event_clone_part2.sql`                   | `20260927000801_event_clone_part2.sql`                   | 45 670 B        |
+| 32  | `0064_event_clone_part3.sql`                   | `20260927000802_event_clone_part3.sql`                   | 34 301 B        |
+| 33  | `0068_event_person_crm_sync_lead_names.sql`    | `20260927000900_event_person_crm_sync_lead_names.sql`    | 16 396 B        |
 
 \* rozmiar pliku supabase (pas drizzle nie ma bliźniaka). Każdy plik obu pasów ma najwyżej
 46 080 B (45 KiB) - poniżej 52 653 B, które Lovable już wdrożył.
