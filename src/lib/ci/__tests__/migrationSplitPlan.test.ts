@@ -246,11 +246,11 @@ describe("planMigrationSplit - odmowy", () => {
     expect(listed).toThrow(
       /20260101000000_event_x\.sql to wdrozona migracja \(lista DEPLOYED_OVERSIZE, .*forward-only, nie tniemy/,
     );
-    // Prawdziwy rejestr: wersja 2026-01 lezy pod linia 20260926100000.
+    // Prawdziwy rejestr: wersja 2026-01 lezy pod linia 20260926100001.
     expect(() => planMigrationSplit(base({ deployed: DEPLOYED_MIGRATIONS }))).toThrow(
-      /wersja <= linii bazowej 20260926100000/,
+      /wersja <= linii bazowej 20260926100001/,
     );
-    // Wersja ROWNA linii tez jest wdrozona (plik grup 20260926100000 jest na produkcji).
+    // Wersja ROWNA linii tez jest wdrozona (plik grup 20260926100001 jest na produkcji).
     const line = { baseline: "20260101000000", oversize: {} };
     expect(() => planMigrationSplit(base({ deployed: line }))).toThrow(/wdrozona migracja/);
     expect(

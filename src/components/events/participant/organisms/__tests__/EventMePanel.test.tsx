@@ -43,18 +43,6 @@
 //     zakładce rejestracji. Zgubiony slug albo zła kolejność to prelegent
 //     wysłany do cudzego naboru i uczestnik szukający miejsca pod biletem.
 //
-//  7. ZAKŁADKA JEST STEROWANA Z ADRESU (`?tab=`). Panel otwiera zakładkę
-//     z właściwości `tab`, a klik zgłasza zmianę przez `onTabChange` - trasa
-//     zapisuje ją w adresie. Dopóki sesja się rozstrzyga, panel rysuje
-//     WYŁĄCZNIE szkielet (tak samo na serwerze), więc HTML nie zależy od `tab`.
-//
-//  8. GNIAZDA TORÓW (spec B.11, BLK-5). Harmonogram i „Po wydarzeniu" to
-//     gniazda torów A i C. Ten plik zastępuje KAŻDY moduł gniazda atrapą z
-//     `data-testid`, która zapisuje właściwości - i sprawdza wyłącznie MIEJSCE
-//     montażu i właściwości. Zachowanie gniazda mieszka w jego własnym teście
-//     (`slots/__tests__/EventMeScheduleSlot.test.tsx` przejął stąd asercje
-//     harmonogramu, w tym dawny `it.fails` o odmowie agendy).
-//
 // CZEGO ŚWIADOMIE NIE DUBLUJE. Formularza kartoteki (`MyEventProfileForm`),
 // karty katalogowej (`MyEventPublicPreview`), giełdy spotkań
 // (`MeetingExchangeBoard`), panelu biletów (`ParticipantTicketsPanel`),
@@ -113,11 +101,6 @@ const h = vi.hoisted(() => ({
   podglad: [] as { self: boolean }[],
   gielda: [] as string[],
   bilety: [] as { slugFilter: string | undefined; hideHeader: boolean }[],
-  /** Właściwości gniazd - kontrakt BLK-5: host sprawdza tylko montaż i właściwości. */
-  gniazdoHarmonogramu: [] as EventMeSlotProps[],
-  gniazdoPoWydarzeniu: [] as EventMeSlotProps[],
-  /** Zakładki zgłoszone przez `onTabChange`. */
-  zmianyZakladki: [] as EventMeTab[],
   naborLinki: [] as { slug: string; signedIn: boolean }[],
   miejsca: [] as string[],
   /** Właściwości gniazd - kontrakt BLK-5: host sprawdza tylko montaż i właściwości. */
@@ -393,9 +376,6 @@ beforeEach(() => {
   h.podglad.length = 0;
   h.gielda.length = 0;
   h.bilety.length = 0;
-  h.gniazdoHarmonogramu.length = 0;
-  h.gniazdoPoWydarzeniu.length = 0;
-  h.zmianyZakladki.length = 0;
   h.naborLinki.length = 0;
   h.miejsca.length = 0;
   h.gniazdoHarmonogramu.length = 0;

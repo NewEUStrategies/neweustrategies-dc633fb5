@@ -1,6 +1,6 @@
 -- Plan sali z przydzialem miejsc (f4): event_seat_maps/_categories/_category_tickets/
 -- _sections, event_seats, event_seat_assignments + RPC panelu i uczestnika.
--- Blizniak: supabase/migrations/20260926130001_event_seating.sql.
+-- Blizniak: supabase/migrations/20260927000400_event_seating.sql.
 
 -- ----------------------------------------------------------------------------
 -- 1. PLAN SALI

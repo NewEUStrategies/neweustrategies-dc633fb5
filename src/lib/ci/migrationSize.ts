@@ -15,7 +15,7 @@
 // z zapasem na naglowek i na to, ze prawdziwy prog Lovable nie jest znany
 // dokladniej niz "miedzy 52 a 62 KB".
 //
-// BAZOWA LINIA = 20260926100000 i zamknieta lista wdrozonych plikow ponad
+// BAZOWA LINIA = 20260926100001 i zamknieta lista wdrozonych plikow ponad
 // limit (`DEPLOYED_OVERSIZE`) - uzasadnienie z historii w migrationDeployed.ts
 // (wspolne z planem podzialu, ktory wdrozonej migracji nie tnie). Linia NIE
 // zwalnia hurtem wszystkiego, co pod nia: zwolniony jest wylacznie plik

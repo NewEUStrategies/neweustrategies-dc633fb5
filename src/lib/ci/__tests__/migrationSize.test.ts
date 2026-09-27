@@ -190,7 +190,7 @@ describe("konfiguracja bramki", () => {
     }
     expect(versions.sort().at(-1)).toBe(MIGRATION_SIZE_BASELINE);
     // Najwiekszy plik, ktory Lovable wdrozyl - kotwica limitu.
-    expect(DEPLOYED_OVERSIZE["20260926100000_event_group_guests_follow_lead.sql"]).toBe(52653);
+    expect(DEPLOYED_OVERSIZE["20260926100001_event_group_guests_follow_lead.sql"]).toBe(52653);
     expect(analyzeMigrationSizes({ supabase: [], drizzle: [], lanes: [] }).violations).toHaveLength(
       Object.keys(DEPLOYED_OVERSIZE).length,
     );
