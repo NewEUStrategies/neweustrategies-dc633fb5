@@ -70,10 +70,11 @@ vi.mock("@/lib/billing/queries", () => billing);
 const { RegistrationPayAction } =
   await import("@/components/events/registration/molecules/RegistrationPayAction");
 
-function renderPay(ownedByCaller?: boolean) {
+function renderPay(ownedByCaller?: boolean, intent?: "pay" | "resume") {
   return renderWithQueryClient(
     <RegistrationPayAction
       ownedByCaller={ownedByCaller}
+      intent={intent}
       registrationId="reg-1"
       eventId="ev-1"
       ticketTypeId="tt-1"
@@ -224,6 +225,18 @@ describe("RegistrationPayAction - zapis prosby w toku i galezie kasy", () => {
     fireEvent.click(screen.getByRole("button", { name: PAY }));
     expect(await screen.findByText("eventRegistration.payment.promoError")).toBeTruthy();
     expect(h.checkout.mock.calls[0]?.[0]).toMatchObject({ data: { coupon_code: "ZLY" } });
+  });
+
+  it("kasa w toku: przycisk 'placimy' zablokowany; powrot z kasy: 'dokoncz platnosc'", async () => {
+    h.checkout.mockReturnValue(new Promise(() => {}));
+    const first = renderPay();
+    fireEvent.click(screen.getByRole("button", { name: PAY }));
+    expect(
+      await screen.findByRole("button", { name: "eventRegistration.payment.paying" }),
+    ).toHaveProperty("disabled", true);
+    first.unmount();
+    renderPay(undefined, "resume");
+    expect(screen.getByRole("button", { name: "eventRegistration.payment.resume" })).toBeTruthy();
   });
 
   it("kasa operatora: okno platnosci z sekretem, zamkniecie je czysci", async () => {
