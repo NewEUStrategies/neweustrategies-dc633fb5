@@ -23,6 +23,8 @@ import { myEventInvoiceKeys } from "@/lib/events/useMyEventInvoices";
 import { seatingKeys } from "@/lib/events/useEventSeating";
 import { mySeatsKey, ticketSeatsKey } from "@/lib/events/useMySeats";
 import { sponsorReportKeys } from "@/lib/events/useSponsorReport";
+import { eventCloneKeys } from "@/lib/events/useEventClone";
+import { adminEventKeys } from "@/lib/events/useAdminEvents";
 
 const EVENT_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const CTX = { userId: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" };
@@ -261,5 +263,34 @@ describe("mapa inwalidacji modułu wydarzeń", () => {
       expect(coversKey(keys, mySeatsKey("kongres")), type).toBe(true);
       expect(coversKey(keys, ticketSeatsKey("kongres")), type).toBe(true);
     }
+  });
+});
+
+/** TanStack uniewaznia zapytanie, gdy klucz z mapy jest PRZEDROSTKIEM jego klucza. */
+function invalidates(keys: readonly unknown[][], queryKey: readonly unknown[]): boolean {
+  return keys.some((key) => key.every((part, index) => Object.is(queryKey[index], part)));
+}
+
+describe("klon edycji (event.cloned.v1)", () => {
+  it("odswieza liste wydarzen i liste edycji ZRODLA, nie cudzego wydarzenia", () => {
+    const keys = invalidationKeysFor(
+      domainEvent("event.cloned.v1", {
+        event_id: "ffffffff-ffff-ffff-ffff-ffffffffffff",
+        source_event_id: EVENT_ID,
+      }),
+      CTX,
+    ) as unknown[][];
+    expect(includesPrefix(keys, adminEventKeys.all)).toBe(true);
+    expect(includesPrefix(keys, eventCloneKeys.event(EVENT_ID))).toBe(true);
+    expect(invalidates(keys, eventCloneKeys.editions(EVENT_ID))).toBe(true);
+    expect(invalidates(keys, eventCloneKeys.editions("99999999-9999-9999-9999-999999999999"))).toBe(
+      false,
+    );
+  });
+
+  it("bez zrodla w payloadzie degraduje do calego korzenia klonu", () => {
+    const keys = invalidationKeysFor(domainEvent("event.cloned.v1", {}), CTX) as unknown[][];
+    expect(keys).toContainEqual([...eventCloneKeys.all]);
+    expect(invalidates(keys, eventCloneKeys.editions(EVENT_ID))).toBe(true);
   });
 });

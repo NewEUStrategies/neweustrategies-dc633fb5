@@ -26,7 +26,10 @@
 // (`EventReadinessPanel.test.tsx`); tutaj stoi atrapa, ktora zapisuje otrzymany
 // wiersz, bo przedmiotem dowodu jest to, ze pulpit stawia ja NAD metrykami.
 // (2) Parsera licznikow zapisow (`registrationCounts.test.ts`) - idzie tu
-// prawdziwy, bo dowodzimy drogi „RPC -> parser -> kafel".
+// prawdziwy, bo dowodzimy drogi „RPC -> parser -> kafel". (3) Bloku „Edycje"
+// i podsumowania kopii (`EventEditionsCard.test.tsx`,
+// `EventCloneMolecules.test.tsx`) - tutaj sa atrapami, ktore zapisuja
+// otrzymany identyfikator, bo pulpit ma je tylko postawic dla TEGO wydarzenia.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -47,6 +50,9 @@ const h = vi.hoisted(() => ({
   wiecznePending: false,
   /** Wiersze, ktore pulpit podal panelowi gotowosci. */
   gotowosc: [] as string[],
+  /** Identyfikatory podane blokowi edycji i podsumowaniu kopii. */
+  edycje: [] as string[],
+  podsumowanie: [] as string[],
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -65,6 +71,7 @@ vi.mock("@/lib/i18n-admin-event-agenda", () => ({ ensureAgendaI18n: () => undefi
 vi.mock("@/lib/i18n-admin-event-registration", () => ({ ensureI18n: () => undefined }));
 vi.mock("@/lib/i18n-admin-event-sponsors", () => ({ ensureSponsorsI18n: () => undefined }));
 vi.mock("@/lib/i18n-admin-event-terms", () => ({ ensureTermsI18n: () => undefined }));
+vi.mock("@/lib/i18n-admin-event-clone", () => ({ ensureCloneI18n: () => undefined }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-router")>()),
@@ -77,6 +84,21 @@ vi.mock("@/components/admin/events/organisms/EventReadinessPanel", () => ({
   EventReadinessPanel: ({ row }: { row: AdminEventDetailRow }) => {
     h.gotowosc.push(row.id);
     return <div data-testid="gotowosc" />;
+  },
+}));
+
+// Blok edycji i podsumowanie kopii maja wlasne pliki i wlasne zapytania - nie
+// wchodza do kompletu zrodel pulpitu ponizej.
+vi.mock("@/components/admin/events/molecules/EventEditionsCard", () => ({
+  EventEditionsCard: ({ eventId }: { eventId: string }) => {
+    h.edycje.push(eventId);
+    return <div data-testid="edycje" />;
+  },
+}));
+vi.mock("@/components/admin/events/molecules/EventCloneResultCard", () => ({
+  EventCloneResultCard: ({ eventId }: { eventId: string }) => {
+    h.podsumowanie.push(eventId);
+    return <div data-testid="podsumowanie-kopii" />;
   },
 }));
 
@@ -169,6 +191,8 @@ beforeEach(() => {
   h.rpc = supabaseRpcStub();
   h.wiecznePending = false;
   h.gotowosc = [];
+  h.edycje = [];
+  h.podsumowanie = [];
 });
 
 afterEach(cleanup);
@@ -192,6 +216,23 @@ describe("EventOverviewPanel - komplet zrodel", () => {
     await poczekaj();
     expect(screen.getByTestId("gotowosc")).toBeInTheDocument();
     expect(h.gotowosc.at(-1)).toBe(STUDIO_EVENT_ID);
+  });
+
+  it("podsumowanie kopii stoi NA GORZE, a blok edycji dostaje TO wydarzenie", async () => {
+    // Podsumowanie czeka w cache pod identyfikatorem NOWEJ edycji - podany
+    // inny identyfikator zgubilby je po nawigacji z ekranu kopii.
+    planuj();
+    const { container } = panel();
+
+    await poczekaj();
+    expect(h.podsumowanie.at(-1)).toBe(STUDIO_EVENT_ID);
+    expect(h.edycje.at(-1)).toBe(STUDIO_EVENT_ID);
+    expect(screen.getByText("adminEventClone.editions.title")).toBeInTheDocument();
+    const kolejnosc = [...container.querySelectorAll("[data-testid]")].map((el) =>
+      el.getAttribute("data-testid"),
+    );
+    expect(kolejnosc[0]).toBe("podsumowanie-kopii");
+    expect(kolejnosc).toContain("edycje");
   });
 });
 

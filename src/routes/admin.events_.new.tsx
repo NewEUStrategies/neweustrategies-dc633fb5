@@ -16,6 +16,13 @@
 // kilkudziesięciu wierszy ten świeżo dodany i dopiero stamtąd wejść do środka,
 // czyli wykonać dwa kliknięcia po to, żeby wrócić do pracy, której nie skończył.
 // Tworzenie kończy się tam, gdzie zaczyna się ciąg dalszy.
+//
+// DRUGA DROGA: KOPIA POPRZEDNIEJ EDYCJI (`?from=<id>`). Ten sam adres, ta sama
+// rama studia, inny formularz - `EventCloneScreen` kopiuje konfigurację
+// wskazanego wydarzenia z przesunięciem dat. Parametr przechodzi przez
+// `parseCloneSearch` (tylko UUID), a wybór źródła („Kopiuj z poprzedniej
+// edycji") stoi nad kreatorem wyłącznie dla administratora, bo klon jest
+// operacją administratora (`assert_event_admin_tenant()`).
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -27,7 +34,10 @@ import {
   EventCreateForm,
   type EventCreateDraft,
 } from "@/components/admin/events/organisms/EventCreateForm";
+import { EventCloneSourcePicker } from "@/components/admin/events/molecules/EventCloneSourcePicker";
+import { EventCloneScreen } from "@/components/admin/events/organisms/EventCloneScreen";
 import { EventStudioCreateShell } from "@/components/admin/events/studio/EventStudioCreateShell";
+import { parseCloneSearch } from "@/lib/events/eventCloneDraft";
 import { formatEventDateTime } from "@/lib/events/timezone";
 import { uiLang } from "@/lib/i18n/format";
 import { useCreateEventFromType } from "@/lib/events/useAdminEvents";
@@ -35,6 +45,7 @@ import { useEventTypes } from "@/lib/events/useEventTypes";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
 export const Route = createFileRoute("/admin/events_/new")({
+  validateSearch: (search: Record<string, unknown>): { from?: string } => parseCloneSearch(search),
   head: () => ({
     meta: [
       { title: "New event · Admin" },
@@ -46,6 +57,13 @@ export const Route = createFileRoute("/admin/events_/new")({
 });
 
 function AdminEventCreatePage() {
+  const { from } = Route.useSearch();
+  const { isAdmin } = useAuth();
+  if (from !== undefined) return <EventCloneScreen sourceId={from} canClone={isAdmin} />;
+  return <CreateFromTypePage />;
+}
+
+function CreateFromTypePage() {
   ensureAdminEventsI18n();
   const { t, i18n } = useTranslation();
   const { isAdmin, roles } = useAuth();
@@ -127,6 +145,13 @@ function AdminEventCreatePage() {
   return (
     <EventStudioCreateShell eventTitle={railTitle} startsAtLabel={railDate}>
       <div className="w-full p-4 sm:p-6">
+        {isAdmin ? (
+          <EventCloneSourcePicker
+            onPick={(eventId) =>
+              void navigate({ to: "/admin/events/new", search: { from: eventId } })
+            }
+          />
+        ) : null}
         <EventCreateForm
           types={typesQ.data ?? []}
           isSaving={create.isPending}

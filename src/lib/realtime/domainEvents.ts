@@ -164,6 +164,9 @@ export const DOMAIN_EVENT_TYPES = [
   "event.certificate.revoked.v1",
   "event.survey.submitted.v1",
   "event.survey.questions_changed.v1",
+  // Klon edycji (migracja 20260927000800): nowe wydarzenie z konfiguracji
+  // poprzedniej edycji. Payload: event_id (kopia) i source_event_id (zrodlo).
+  "event.cloned.v1",
 ] as const;
 
 export type DomainEventType = (typeof DOMAIN_EVENT_TYPES)[number];

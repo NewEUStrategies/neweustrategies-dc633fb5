@@ -1,0 +1,665 @@
+// Słownik KOPIOWANIA WYDARZENIA Z POPRZEDNIEJ EDYCJI (Event Builder), PL/EN.
+//
+// DLACZEGO OSOBNY PLIK. Nakładki są niepodzielne: ekran klonu (formularz,
+// podgląd przesunięcia, ostrzeżenia, podsumowanie wyniku, blok edycji na
+// pulpicie, wybór źródła na stronie tworzenia) niesie około dwustu zdań,
+// których nie potrzebuje żadna inna trasa panelu. Etykiety nawigacji studia
+// nie trafiają tutaj - klon nie jest sekcją studia, tylko drugą drogą tworzenia
+// (`/admin/events/new?from=<id>`).
+//
+// KLUCZE SĄ WSPÓLNE Z BAZĄ (migracja 20260927000800): przełączniki `include`
+// i opcje w camelCase odpowiadają kluczom ładunku `admin_event_clone`, kody
+// ostrzeżeń i blokad - kodom z `_event_clone_forecast` i
+// `admin_event_clone_preview`, a błędy - głowom `RAISE EXCEPTION` w camelCase.
+//
+// LICZBY BEZ ODMIANY. Liczniki sekcji, skopiowane wiersze i ostrzeżenia mają
+// kształt „Rzecz: N", bo polska odmiana rzeczownika po liczebniku dla
+// kilkudziesięciu rodzajów wierszy dałaby cztery warianty każdego zdania,
+// a nic nie dodaje do informacji. Jedyna odmiana (przesunięcie w dniach) stoi
+// w formach `_one/_few/_many/_other`.
+import i18n from "@/lib/i18n";
+
+export const adminEventClonePl = {
+  adminEventClone: {
+    screen: {
+      title: "Nowa edycja z poprzedniej",
+      description:
+        "Kopiujemy konfigurację poprzedniej edycji do nowego szkicu i przesuwamy wszystkie daty o ten sam odstęp. Dane osób zostają w poprzedniej edycji.",
+      loading: "Wczytuję wydarzenie źródłowe…",
+      adminOnly: "Kopiowanie wydarzeń jest dostępne wyłącznie dla administratora organizacji.",
+      startFromScratch: "Utwórz wydarzenie od zera",
+    },
+    status: {
+      draft: "Szkic",
+      published: "Opublikowane",
+      cancelled: "Odwołane",
+    },
+    source: {
+      title: "Źródło",
+      label: "Kopiujesz wydarzenie",
+      startsAt: "Termin poprzedniej edycji",
+      open: "Otwórz poprzednią edycję w studiu",
+    },
+    fields: {
+      group: "Nowa edycja",
+      titlePl: "Tytuł (PL)",
+      titleEn: "Tytuł (EN)",
+      titleHint: "Rok w tytule podnieśliśmy o jeden - sprawdź, czy to właściwa nazwa.",
+      slug: "Adres (slug)",
+      slugHint: "Puste pole oznacza adres z polskiego tytułu. Proponowany: {{slug}}",
+      startsAt: "Początek",
+      startsAtHint:
+        "Wszystkie daty konfiguracji przesuną się o ten sam odstęp, a godziny zostaną w czasie lokalnym wydarzenia - także przez zmianę czasu letniego.",
+      endsAt: "Koniec",
+      endsAtHint: "Puste pole oznacza koniec przesunięty jak cała reszta.",
+      timezone: "Strefa czasowa",
+      timezoneHint:
+        "Zmiana strefy zachowuje godziny lokalne: sesja o 9:00 w Warszawie zacznie się o 9:00 w nowej strefie.",
+      externalUrl: "Adres zapisów zewnętrznych",
+      externalUrlHint:
+        "Poprzednia edycja przyjmowała zapisy w innym systemie. Podaj adres zapisów na nową edycję.",
+    },
+    include: {
+      title: "Co skopiować",
+      description:
+        "Kopiujemy konfigurację, nie dane osób: zapisy, zamówienia, odprawy, skany, spotkania, urządzenia skanera, zgłoszenia i faktury zawsze zostają w poprzedniej edycji.",
+      always:
+        "Grupy uczestników i poziomy sponsorów przechodzą zawsze - wskazują je bilety, strony, nabór i giełda spotkań.",
+      labels: {
+        agenda: "Agenda: sale, ścieżki i sesje",
+        speakers: "Prelegenci i obsada sesji",
+        registration: "Formularz zapisów i regulaminy",
+        tickets: "Bilety i pakiety",
+        sponsors: "Sponsorzy i ich kontakty",
+        sponsorMaterials: "Materiały sponsorów",
+        homeAds: "Reklamy na stronie głównej",
+        pages: "Treść stron i menu",
+        onsite: "Punkty odprawy i szablony identyfikatorów",
+        meetings: "Giełda spotkań: ustawienia i stoliki",
+        cfp: "Nabór prelegentów: ustawienia i formularz",
+        seating: "Plan sali",
+        adCampaigns: "Kampanie Google Ads",
+        codes: "Kody rejestracyjne",
+      },
+      hints: {
+        agenda:
+          "Sesje odwołane domyślnie nie przechodzą. Transmisje i nagrania zawsze zostają puste.",
+        speakers: "Profile prelegentów są wspólne dla edycji - kopiujemy listę i obsadę sesji.",
+        registration: "Regulaminy zachowują wersję; nowa edycja startuje bez akceptacji.",
+        tickets:
+          "Sprzedaż liczy się od zera, okna sprzedaży i progi cen przesuwają się razem z wydarzeniem.",
+        sponsors: "Ta sama firma i ten sam kontakt w CRM - bez kopiowania danych osób.",
+        sponsorMaterials:
+          "Materiały dotyczą poprzedniej edycji, więc wracają jako nieopublikowane.",
+        homeAds: "Okno emisji przesuwa się; reklamy nieopublikowanych sponsorów są wyłączone.",
+        pages:
+          "Strony modułów zawsze powstają. Pozostałe strony wracają jako szkice pod nowym adresem.",
+        onsite:
+          "Punkt bez skopiowanej sesji albo sponsora jest pomijany. Urządzeń skanera nie kopiujemy.",
+        meetings: "Dni giełdy przesuwają się o całe dni. Spotkań i dostępności nie kopiujemy.",
+        cfp: "Nabór wraca jako szkic z przesuniętym oknem. Zgłoszeń i ocen nie kopiujemy.",
+        seating:
+          "Plan wraca jako szkic. Blokady i rezerwacje dla firm z CRM zostają, przydziały miejsc nie.",
+        adCampaigns:
+          "Ta sama kampania przypięta do dwóch edycji rozmywa atrybucję lejka - włącz tylko dla kampanii tej edycji.",
+        codes: "Kopie kodów dostają przyrostek i licznik użyć od zera. Wymaga kopiowania biletów.",
+      },
+    },
+    options: {
+      title: "Opcje kopiowania",
+      labels: {
+        includeCancelledSessions: "Kopiuj także sesje odwołane",
+        sessionsAsDraft: "Wszystkie sesje jako szkice",
+        sponsorsUnpublished: "Sponsorzy nieopublikowani",
+        keepAccessCodes: "Zachowaj kody dostępu biletów",
+        cfpReviewers: "Kopiuj recenzentów naboru",
+      },
+      hints: {
+        includeCancelledSessions:
+          "Wracają jako szkice bez sali - odwołany termin nie ma przydzielonej sali.",
+        sessionsAsDraft: "Agenda nowej edycji nie pokaże się, dopóki nie opublikujesz sesji.",
+        sponsorsUnpublished:
+          "Sponsoring nowej edycji nie jest jeszcze sprzedany - sponsorzy pojawią się po publikacji.",
+        keepAccessCodes:
+          "Kod poprzedniej edycji znają jej zaproszeni. Bez tej opcji bilety z kodem wracają jako nieaktywne.",
+        cfpReviewers: "Recenzenci dostaną dostęp do zgłoszeń nowej edycji.",
+      },
+      codeSuffix: "Przyrostek kodów",
+      codeSuffixHint:
+        "Kody są unikalne w organizacji, więc kopia dostaje przyrostek, np. VIP → VIP{{suffix}}.",
+    },
+    crm: {
+      title: "CRM",
+      description:
+        "Sponsorzy zostają przypięci do tych samych firm i kontaktów w CRM, a każda przeniesiona firma dostaje wpis na osi czasu.",
+      refreshSnapshots: "Odśwież dane sponsorów z CRM",
+      refreshSnapshotsHint:
+        "Nazwa, logo, strona i kraj z kartoteki firm. Dane poprawione ręcznie w wydarzeniu zostają.",
+      renewalTasks: "Zadania odnowienia partnerstwa w CRM",
+      renewalTasksHint:
+        "Zadanie „Odnowienie partnerstwa” dla każdego głównego kontaktu sponsorów poprzedniej edycji. Główne kontakty: {{count}}.",
+      dueDays: "Termin zadania (dni od dziś)",
+      dueDaysHint: "Od 1 do 365 dni. Zadanie trafi do opiekuna kontaktu.",
+    },
+    preview: {
+      title: "Podgląd przesunięcia",
+      description: "Daty liczy baza - dokładnie tak samo, jak przy tworzeniu kopii.",
+      loading: "Liczę daty po przesunięciu…",
+      shiftDays_one: "Przesunięcie o {{count}} dzień",
+      shiftDays_few: "Przesunięcie o {{count}} dni",
+      shiftDays_many: "Przesunięcie o {{count}} dni",
+      shiftDays_other: "Przesunięcie o {{count}} dnia",
+      zone: "Strefa: {{zone}}",
+      rows: {
+        startsAt: "Początek",
+        endsAt: "Koniec",
+        firstSession: "Pierwsza sesja",
+        lastSession: "Ostatnia sesja",
+        rsvpOpensAt: "Otwarcie zapisów",
+        salesFrom: "Start sprzedaży",
+        salesTo: "Koniec sprzedaży",
+        cfpOpensAt: "Otwarcie naboru",
+        cfpClosesAt: "Zamknięcie naboru",
+        meetingDays: "Dni giełdy spotkań",
+      },
+      meetingDaysRange: "{{from}} – {{to}}",
+      empty: "brak",
+      warningsTitle: "Na co zwrócić uwagę",
+      blockersTitle: "Co trzeba poprawić przed kopiowaniem",
+      notCopiedTitle: "Tego kopia nie przeniesie",
+      notCopiedEmpty: "Poprzednia edycja nie ma zapisów ani innych danych osób.",
+    },
+    warnings: {
+      startsInPast: "Nowa edycja zaczyna się w przeszłości.",
+      externalUrlCopied: "Adres zapisów zewnętrznych prowadzi do poprzedniej edycji.",
+      typeInactive: "Rodzaj wydarzenia jest wyłączony w katalogu - kopia i tak powstanie.",
+      rsvpOpensInPast: "Otwarcie zapisów po przesunięciu wypada w przeszłości.",
+      cancelledSessionsSkipped: "Sesje odwołane (z podsesjami), które nie przejdą: {{count}}.",
+      castNeedsAgenda: "Obsada sesji bez kopiowania agendy nie przejdzie. Przypisań: {{count}}.",
+      salesClosed:
+        "Bilety i pakiety, których sprzedaż po przesunięciu jest już zamknięta: {{count}}.",
+      accessCodesDropped: "Bilety z kodem dostępu wrócą jako nieaktywne: {{count}}.",
+      codesNotCopied: "Kody rejestracyjne, których nie kopiujesz: {{count}}.",
+      codesNeedTickets: "Kody rejestracyjne wymagają kopiowania biletów i nie przejdą: {{count}}.",
+      checkpointsWithoutTarget:
+        "Punkty odprawy bez skopiowanej sesji albo sponsora, które zostaną pominięte: {{count}}.",
+      pagesCopiedAsDraft: "Strony, które wrócą jako szkice: {{count}}.",
+      sponsorsUnpublished: "Opublikowani sponsorzy, którzy wrócą jako nieopublikowani: {{count}}.",
+      seatHoldsCleared:
+        "Rezerwacje miejsc dla sponsorów i pakietów, które zostaną zwolnione: {{count}}.",
+      cfpWindowInPast: "Nabór prelegentów po przesunięciu zamyka się w przeszłości.",
+      cfpReviewersNotCopied: "Recenzenci naboru, których nie kopiujesz: {{count}}.",
+      unknown: "Inna uwaga do kopii: {{count}}.",
+    },
+    blockers: {
+      sessionsOutsideWindow:
+        "Sesje, które wypadną poza nowe daty wydarzenia: {{count}}. Wydłuż wydarzenie albo zmień jego początek.",
+      invalidSlug: "Adres może mieć od 3 do 120 znaków: małe litery, cyfry i myślniki.",
+      slugTaken: "Inne wydarzenie w organizacji używa już tego adresu.",
+      unknown: "Kopia wymaga poprawek: {{count}}.",
+    },
+    items: {
+      groups: "Grupy",
+      rooms: "Sale",
+      tracks: "Ścieżki",
+      sessions: "Sesje",
+      cancelledSessions: "Sesje odwołane",
+      sessionSpeakers: "Obsada sesji",
+      speakers: "Prelegenci",
+      legacySpeakers: "Prelegenci (starszy rejestr)",
+      ticketTypes: "Rodzaje biletów",
+      packages: "Pakiety",
+      fields: "Pola formularza",
+      terms: "Regulaminy",
+      sponsorTiers: "Poziomy sponsorów",
+      sponsorBenefits: "Korzyści poziomów",
+      sponsors: "Sponsorzy",
+      sponsorSnapshotsRefreshed: "Dane sponsorów odświeżone z CRM",
+      sponsorContacts: "Kontakty sponsorów",
+      sponsorMaterials: "Materiały sponsorów",
+      homeAds: "Reklamy",
+      pages: "Strony",
+      modulePages: "Strony modułów",
+      pageLinks: "Pozycje menu",
+      pageSections: "Sekcje strony głównej",
+      checkpoints: "Punkty odprawy",
+      badgeTemplates: "Szablony identyfikatorów",
+      meetingSettings: "Ustawienia giełdy",
+      meetingTables: "Stoliki",
+      meetingRules: "Reguły grup giełdy",
+      codes: "Kody rejestracyjne",
+      cfpSettings: "Ustawienia naboru",
+      cfpFields: "Pola formularza naboru",
+      cfpReviewers: "Recenzenci naboru",
+      seatCategories: "Kategorie miejsc",
+      seatCategoryTickets: "Powiązania kategorii z biletami",
+      seatMaps: "Plany sali",
+      seatSections: "Sektory planu",
+      seats: "Miejsca",
+      adCampaigns: "Kampanie Google Ads",
+      crmTasks: "Zadania w CRM",
+      crmTimelineEntries: "Wpisy na osi czasu firm",
+      registrations: "Zapisy",
+      packageOrders: "Zamówienia pakietów",
+      checkins: "Odprawy",
+      leadScans: "Skany kontaktów",
+      meetings: "Spotkania",
+      scannerDevices: "Urządzenia skanera",
+      cfpSubmissions: "Zgłoszenia do naboru",
+      seatAssignments: "Przydziały miejsc",
+      invoices: "Faktury",
+    },
+    count: "{{label}}: {{count}}",
+    issues: {
+      titles: "Podaj tytuł nowej edycji po polsku i po angielsku.",
+      titleLength: "Tytuł może mieć najwyżej 200 znaków.",
+      startsAt: "Podaj początek nowej edycji.",
+      endsAt: "Koniec musi wypadać po początku.",
+      timezone: "Wybierz strefę czasową.",
+      slug: "Adres może mieć od 3 do 120 znaków: małe litery, cyfry i myślniki.",
+      externalUrl: "Podaj adres zapisów na nową edycję.",
+      externalUrlInvalid:
+        "Adres zapisów musi zaczynać się od https:// i mieć najwyżej 2048 znaków.",
+      codeSuffix: "Przyrostek kodów: od 1 do 20 liter, cyfr, myślników albo podkreśleń.",
+      dueDays: "Termin zadania: pełna liczba dni od 1 do 365.",
+      blocked: "Popraw pozycje z listy „Co trzeba poprawić przed kopiowaniem”.",
+    },
+    actions: {
+      submit: "Utwórz nową edycję",
+      submitting: "Kopiuję…",
+      cancel: "Anuluj",
+    },
+    toasts: {
+      created: "Utworzono nową edycję: {{title}}.",
+      replayed: "Ta kopia już powstała - otwieram nową edycję.",
+    },
+    result: {
+      title: "Nowa edycja powstała z kopii",
+      description:
+        "Skopiowaliśmy konfigurację poprzedniej edycji. Nowa edycja jest szkicem - opublikuj ją, gdy będzie gotowa.",
+      copiedTitle: "Skopiowane",
+      skippedTitle: "Pominięte i nieprzenoszone",
+      warningsTitle: "Do sprawdzenia",
+      nothing: "brak",
+      dismiss: "Zamknij podsumowanie",
+    },
+    editions: {
+      title: "Edycje wydarzenia",
+      description:
+        "Poprzednie i kolejne edycje utworzone kopią. Z tego miejsca zaczniesz też kolejną edycję.",
+      loading: "Wczytuję edycje…",
+      empty: "To wydarzenie nie ma jeszcze poprzednich ani kolejnych edycji.",
+      relation: {
+        previous: "Poprzednia edycja",
+        next: "Kolejna edycja",
+      },
+      open: "Otwórz edycję {{title}}",
+      createNext: "Utwórz kolejną edycję",
+      createNextHint: "Kopia konfiguracji tego wydarzenia z przesuniętymi datami.",
+    },
+    entry: {
+      listAction: "Nowa edycja (kopia)",
+      createFromPrevious: "Kopiuj z poprzedniej edycji",
+      pickerTitle: "Wybierz poprzednią edycję",
+      pickerDescription:
+        "Nowe wydarzenie powstanie z konfiguracji wybranej edycji: agendy, biletów, sponsorów, stron i reszty ustawień.",
+      pickerSearch: "Szukaj wydarzenia",
+      pickerSearchHint: "Tytuł, adres albo miejsce - co najmniej dwa znaki.",
+      pickerLoading: "Szukam wydarzeń…",
+      pickerEmpty: "Nic nie pasuje do tej frazy.",
+      pickerChoose: "Kopiuj: {{title}}",
+      pickerClose: "Zamknij wybór",
+    },
+    errors: {
+      unknown: "Nie udało się skopiować wydarzenia. Spróbuj ponownie.",
+      forbidden: "Kopiowanie wydarzeń jest dostępne wyłącznie dla administratora.",
+      notFound: "Nie ma takiego wydarzenia w tej organizacji.",
+      invalidSource: "Wybierz wydarzenie, z którego chcesz skopiować konfigurację.",
+      invalidTimezone: "Serwer nie zna tej strefy czasowej.",
+      invalidStartsAt: "Podaj poprawny początek nowej edycji.",
+      invalidEndsAt: "Koniec nowej edycji musi być poprawną datą po początku.",
+      invalidTitles: "Podaj oba tytuły nowej edycji (najwyżej 200 znaków).",
+      invalidSlug: "Adres może mieć od 3 do 120 znaków: małe litery, cyfry i myślniki.",
+      slugTaken: "Inne wydarzenie w organizacji używa już tego adresu.",
+      externalUrlRequired: "Wydarzenie przyjmuje zapisy w innym systemie - podaj adres zapisów.",
+      externalUrlInvalid:
+        "Adres zapisów musi zaczynać się od https:// i mieć najwyżej 2048 znaków.",
+      invalidCodeSuffix:
+        "Kopie kodów potrzebują przyrostka z liter, cyfr, myślników albo podkreśleń.",
+      invalidTaskDueDays: "Termin zadania w CRM musi wynosić od 1 do 365 dni.",
+      invalidIdempotencyKey: "Formularz wygasł. Odśwież stronę i spróbuj ponownie.",
+      idempotencyConflict: "Ten formularz został już użyty w innej operacji. Odśwież stronę.",
+      cloneInProgress:
+        "Ta sama kopia właśnie się tworzy. Odczekaj chwilę i odśwież listę wydarzeń.",
+      cloneSessionsOutsideWindow:
+        "Liczba sesji poza nowymi datami wydarzenia: {{count}}. Wydłuż wydarzenie albo zmień jego początek.",
+    },
+  },
+} as const;
+
+export const adminEventCloneEn = {
+  adminEventClone: {
+    screen: {
+      title: "New edition from a previous one",
+      description:
+        "We copy the configuration of the previous edition into a new draft and move every date by the same offset. People's data stays with the previous edition.",
+      loading: "Loading the source event…",
+      adminOnly: "Copying events is available to organisation administrators only.",
+      startFromScratch: "Create an event from scratch",
+    },
+    status: {
+      draft: "Draft",
+      published: "Published",
+      cancelled: "Cancelled",
+    },
+    source: {
+      title: "Source",
+      label: "You are copying",
+      startsAt: "Previous edition dates",
+      open: "Open the previous edition in the studio",
+    },
+    fields: {
+      group: "New edition",
+      titlePl: "Title (PL)",
+      titleEn: "Title (EN)",
+      titleHint: "We bumped the year in the title by one - check that the name is right.",
+      slug: "Address (slug)",
+      slugHint: "Leave empty to build the address from the Polish title. Suggested: {{slug}}",
+      startsAt: "Start",
+      startsAtHint:
+        "Every configured date moves by the same offset and keeps its local time in the event's time zone - across daylight saving changes too.",
+      endsAt: "End",
+      endsAtHint: "Leave empty to move the end like everything else.",
+      timezone: "Time zone",
+      timezoneHint:
+        "Changing the zone keeps local times: a 9:00 session in Warsaw starts at 9:00 in the new zone.",
+      externalUrl: "External registration address",
+      externalUrlHint:
+        "The previous edition took registrations in another system. Enter the registration address for the new edition.",
+    },
+    include: {
+      title: "What to copy",
+      description:
+        "We copy configuration, not people's data: registrations, orders, check-ins, scans, meetings, scanner devices, submissions and invoices always stay with the previous edition.",
+      always:
+        "Attendee groups and sponsor tiers are always copied - tickets, pages, the call for speakers and the meeting exchange point to them.",
+      labels: {
+        agenda: "Agenda: rooms, tracks and sessions",
+        speakers: "Speakers and session cast",
+        registration: "Registration form and terms",
+        tickets: "Tickets and packages",
+        sponsors: "Sponsors and their contacts",
+        sponsorMaterials: "Sponsor materials",
+        homeAds: "Home page ads",
+        pages: "Page content and menu",
+        onsite: "Check-in points and badge templates",
+        meetings: "Meeting exchange: settings and tables",
+        cfp: "Call for speakers: settings and form",
+        seating: "Seating plan",
+        adCampaigns: "Google Ads campaigns",
+        codes: "Registration codes",
+      },
+      hints: {
+        agenda:
+          "Cancelled sessions are skipped by default. Streams and recordings are always left empty.",
+        speakers:
+          "Speaker profiles are shared across editions - we copy the list and the session cast.",
+        registration: "Terms keep their version; the new edition starts without acceptances.",
+        tickets: "Sales start from zero; sales windows and price phases move with the event.",
+        sponsors: "The same company and the same CRM contact - no personal data is copied.",
+        sponsorMaterials:
+          "Materials belong to the previous edition, so they come back unpublished.",
+        homeAds: "The run window moves; ads of unpublished sponsors are switched off.",
+        pages:
+          "Module pages are always created. Other pages come back as drafts under a new address.",
+        onsite:
+          "A point whose session or sponsor was not copied is skipped. Scanner devices are never copied.",
+        meetings: "Meeting days move by whole days. Meetings and availability are not copied.",
+        cfp: "The call comes back as a draft with a moved window. Submissions and reviews are not copied.",
+        seating:
+          "The plan comes back as a draft. Blocks and CRM company holds stay; seat assignments do not.",
+        adCampaigns:
+          "The same campaign linked to two editions blurs funnel attribution - enable it only for this edition's campaigns.",
+        codes: "Copied codes get a suffix and a usage counter from zero. Requires copying tickets.",
+      },
+    },
+    options: {
+      title: "Copy options",
+      labels: {
+        includeCancelledSessions: "Also copy cancelled sessions",
+        sessionsAsDraft: "All sessions as drafts",
+        sponsorsUnpublished: "Sponsors unpublished",
+        keepAccessCodes: "Keep ticket access codes",
+        cfpReviewers: "Copy call-for-speakers reviewers",
+      },
+      hints: {
+        includeCancelledSessions:
+          "They come back as drafts without a room - a cancelled slot has no room booked.",
+        sessionsAsDraft: "The new edition's agenda stays hidden until you publish the sessions.",
+        sponsorsUnpublished:
+          "Sponsorship of the new edition is not sold yet - sponsors appear once you publish them.",
+        keepAccessCodes:
+          "The previous edition's invitees know its code. Without this option tickets with a code come back inactive.",
+        cfpReviewers: "Reviewers will get access to the new edition's submissions.",
+      },
+      codeSuffix: "Code suffix",
+      codeSuffixHint:
+        "Codes are unique in the organisation, so a copy gets a suffix, e.g. VIP → VIP{{suffix}}.",
+    },
+    crm: {
+      title: "CRM",
+      description:
+        "Sponsors stay linked to the same CRM companies and contacts, and every carried-over company gets a timeline entry.",
+      refreshSnapshots: "Refresh sponsor details from CRM",
+      refreshSnapshotsHint:
+        "Name, logo, website and country from the company record. Details edited by hand in the event are kept.",
+      renewalTasks: "Partnership renewal tasks in CRM",
+      renewalTasksHint:
+        "A “Partnership renewal” task for every primary contact of the previous edition's sponsors. Primary contacts: {{count}}.",
+      dueDays: "Task due in (days from today)",
+      dueDaysHint: "From 1 to 365 days. The task goes to the contact's owner.",
+    },
+    preview: {
+      title: "Date shift preview",
+      description: "The database computes the dates - exactly as it will when creating the copy.",
+      loading: "Computing the shifted dates…",
+      shiftDays_one: "Shift by {{count}} day",
+      shiftDays_other: "Shift by {{count}} days",
+      zone: "Zone: {{zone}}",
+      rows: {
+        startsAt: "Start",
+        endsAt: "End",
+        firstSession: "First session",
+        lastSession: "Last session",
+        rsvpOpensAt: "Registration opens",
+        salesFrom: "Sales start",
+        salesTo: "Sales end",
+        cfpOpensAt: "Call opens",
+        cfpClosesAt: "Call closes",
+        meetingDays: "Meeting exchange days",
+      },
+      meetingDaysRange: "{{from}} – {{to}}",
+      empty: "none",
+      warningsTitle: "Worth checking",
+      blockersTitle: "Fix before copying",
+      notCopiedTitle: "The copy will not carry over",
+      notCopiedEmpty: "The previous edition has no registrations or other personal data.",
+    },
+    warnings: {
+      startsInPast: "The new edition starts in the past.",
+      externalUrlCopied: "The external registration address points to the previous edition.",
+      typeInactive: "The event type is disabled in the catalogue - the copy is created anyway.",
+      rsvpOpensInPast: "After the shift, registration opens in the past.",
+      cancelledSessionsSkipped:
+        "Cancelled sessions (with sub-sessions) that will be skipped: {{count}}.",
+      castNeedsAgenda: "Session cast is not copied without the agenda. Assignments: {{count}}.",
+      salesClosed:
+        "Tickets and packages whose sales are already closed after the shift: {{count}}.",
+      accessCodesDropped: "Tickets with an access code that come back inactive: {{count}}.",
+      codesNotCopied: "Registration codes you are not copying: {{count}}.",
+      codesNeedTickets: "Registration codes need copied tickets and will be skipped: {{count}}.",
+      checkpointsWithoutTarget:
+        "Check-in points without a copied session or sponsor that will be skipped: {{count}}.",
+      pagesCopiedAsDraft: "Pages that come back as drafts: {{count}}.",
+      sponsorsUnpublished: "Published sponsors that come back unpublished: {{count}}.",
+      seatHoldsCleared: "Seat holds for sponsors and packages that will be released: {{count}}.",
+      cfpWindowInPast: "After the shift, the call for speakers closes in the past.",
+      cfpReviewersNotCopied: "Call-for-speakers reviewers you are not copying: {{count}}.",
+      unknown: "Another remark about the copy: {{count}}.",
+    },
+    blockers: {
+      sessionsOutsideWindow:
+        "Sessions that would fall outside the new event dates: {{count}}. Extend the event or move its start.",
+      invalidSlug: "The address needs 3 to 120 characters: lowercase letters, digits and dashes.",
+      slugTaken: "Another event in the organisation already uses this address.",
+      unknown: "The copy needs fixes: {{count}}.",
+    },
+    items: {
+      groups: "Groups",
+      rooms: "Rooms",
+      tracks: "Tracks",
+      sessions: "Sessions",
+      cancelledSessions: "Cancelled sessions",
+      sessionSpeakers: "Session cast",
+      speakers: "Speakers",
+      legacySpeakers: "Speakers (older register)",
+      ticketTypes: "Ticket types",
+      packages: "Packages",
+      fields: "Form fields",
+      terms: "Terms",
+      sponsorTiers: "Sponsor tiers",
+      sponsorBenefits: "Tier benefits",
+      sponsors: "Sponsors",
+      sponsorSnapshotsRefreshed: "Sponsor details refreshed from CRM",
+      sponsorContacts: "Sponsor contacts",
+      sponsorMaterials: "Sponsor materials",
+      homeAds: "Ads",
+      pages: "Pages",
+      modulePages: "Module pages",
+      pageLinks: "Menu entries",
+      pageSections: "Home page sections",
+      checkpoints: "Check-in points",
+      badgeTemplates: "Badge templates",
+      meetingSettings: "Exchange settings",
+      meetingTables: "Tables",
+      meetingRules: "Exchange group rules",
+      codes: "Registration codes",
+      cfpSettings: "Call settings",
+      cfpFields: "Call form fields",
+      cfpReviewers: "Call reviewers",
+      seatCategories: "Seat categories",
+      seatCategoryTickets: "Category to ticket links",
+      seatMaps: "Seating plans",
+      seatSections: "Plan sections",
+      seats: "Seats",
+      adCampaigns: "Google Ads campaigns",
+      crmTasks: "CRM tasks",
+      crmTimelineEntries: "Company timeline entries",
+      registrations: "Registrations",
+      packageOrders: "Package orders",
+      checkins: "Check-ins",
+      leadScans: "Lead scans",
+      meetings: "Meetings",
+      scannerDevices: "Scanner devices",
+      cfpSubmissions: "Call submissions",
+      seatAssignments: "Seat assignments",
+      invoices: "Invoices",
+    },
+    count: "{{label}}: {{count}}",
+    issues: {
+      titles: "Enter the new edition's title in Polish and in English.",
+      titleLength: "A title can have at most 200 characters.",
+      startsAt: "Enter the new edition's start.",
+      endsAt: "The end must come after the start.",
+      timezone: "Pick a time zone.",
+      slug: "The address needs 3 to 120 characters: lowercase letters, digits and dashes.",
+      externalUrl: "Enter the registration address for the new edition.",
+      externalUrlInvalid:
+        "The registration address must start with https:// and have at most 2048 characters.",
+      codeSuffix: "Code suffix: 1 to 20 letters, digits, dashes or underscores.",
+      dueDays: "Task due date: a whole number of days from 1 to 365.",
+      blocked: "Fix the items listed under “Fix before copying”.",
+    },
+    actions: {
+      submit: "Create the new edition",
+      submitting: "Copying…",
+      cancel: "Cancel",
+    },
+    toasts: {
+      created: "New edition created: {{title}}.",
+      replayed: "This copy already exists - opening the new edition.",
+    },
+    result: {
+      title: "The new edition was created from a copy",
+      description:
+        "We copied the previous edition's configuration. The new edition is a draft - publish it when it is ready.",
+      copiedTitle: "Copied",
+      skippedTitle: "Skipped and not carried over",
+      warningsTitle: "To check",
+      nothing: "none",
+      dismiss: "Close the summary",
+    },
+    editions: {
+      title: "Event editions",
+      description:
+        "Previous and next editions created by copying. You can also start the next edition from here.",
+      loading: "Loading editions…",
+      empty: "This event has no previous or next editions yet.",
+      relation: {
+        previous: "Previous edition",
+        next: "Next edition",
+      },
+      open: "Open the edition {{title}}",
+      createNext: "Create the next edition",
+      createNextHint: "A copy of this event's configuration with shifted dates.",
+    },
+    entry: {
+      listAction: "New edition (copy)",
+      createFromPrevious: "Copy from a previous edition",
+      pickerTitle: "Pick the previous edition",
+      pickerDescription:
+        "The new event is built from the chosen edition's configuration: agenda, tickets, sponsors, pages and the other settings.",
+      pickerSearch: "Search events",
+      pickerSearchHint: "Title, address or venue - at least two characters.",
+      pickerLoading: "Searching events…",
+      pickerEmpty: "Nothing matches this phrase.",
+      pickerChoose: "Copy: {{title}}",
+      pickerClose: "Close the picker",
+    },
+    errors: {
+      unknown: "The event could not be copied. Try again.",
+      forbidden: "Copying events is available to administrators only.",
+      notFound: "There is no such event in this organisation.",
+      invalidSource: "Pick the event whose configuration you want to copy.",
+      invalidTimezone: "The server does not know this time zone.",
+      invalidStartsAt: "Enter a valid start for the new edition.",
+      invalidEndsAt: "The new edition's end must be a valid date after its start.",
+      invalidTitles: "Enter both titles of the new edition (at most 200 characters).",
+      invalidSlug: "The address needs 3 to 120 characters: lowercase letters, digits and dashes.",
+      slugTaken: "Another event in the organisation already uses this address.",
+      externalUrlRequired:
+        "The event takes registrations in another system - enter the registration address.",
+      externalUrlInvalid:
+        "The registration address must start with https:// and have at most 2048 characters.",
+      invalidCodeSuffix:
+        "Copied codes need a suffix made of letters, digits, dashes or underscores.",
+      invalidTaskDueDays: "The CRM task due date must be 1 to 365 days away.",
+      invalidIdempotencyKey: "The form has expired. Refresh the page and try again.",
+      idempotencyConflict: "This form was already used for another operation. Refresh the page.",
+      cloneInProgress:
+        "The same copy is being created right now. Wait a moment and refresh the event list.",
+      cloneSessionsOutsideWindow:
+        "Sessions outside the new event dates: {{count}}. Extend the event or move its start.",
+    },
+  },
+} as const;
+
+i18n.addResourceBundle("pl", "translation", adminEventClonePl, true, true);
+i18n.addResourceBundle("en", "translation", adminEventCloneEn, true, true);
+
+/**
+ * Jawne zaznaczenie zależności przed pierwszym renderem. Rejestracja dzieje się
+ * przy imporcie modułu (wyżej), więc funkcja jest pusta - istnieje po to, żeby
+ * każdy plik wołający `t("adminEventClone.…")` importował tę nakładkę wprost.
+ */
+export function ensureCloneI18n(): void {}

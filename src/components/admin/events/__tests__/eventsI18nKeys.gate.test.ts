@@ -68,6 +68,8 @@ const SCANNED_ROUTE_PREFIXES = ["admin.events.", "admin.events_."] as const;
  * wpisu bramka nie widziałaby literału spoza `t("...")`.
  * `eventWallet` (f7b): mapa kodów błędów tras portfela na pełne klucze
  * (`lib/events/ticketWallet.ts`) - literały poza `t()` też muszą istnieć.
+ * `adminEventClone` (f5): mapy przełączników, liczników, ostrzeżeń i stanów
+ * klonu edycji (`lib/events/eventCloneLabels.ts`, `eventCloneDraft.ts`).
  */
 const REFERENCE_PREFIXES = [
   "adminEvents",
@@ -88,6 +90,7 @@ const REFERENCE_PREFIXES = [
   "adminEventOffers",
   "eventFollowUp",
   "adminEventFollowUp",
+  "adminEventClone",
 ] as const;
 
 function isTree(value: unknown): value is ResourceTree {

@@ -267,6 +267,9 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
     eventScopedKey("admin-event-survey-questions", event),
     ["event-follow-up"],
   ],
+  // Klon edycji: nowy wiersz na liscie wydarzen i nowa pozycja na liscie
+  // edycji zrodla.
+  "event.cloned.v1": (event) => cloneEventKeys(event),
 };
 
 // KLUCZE JAKO LITERALY, NIE IMPORT FABRYK. Fabryki (`meetingKeys`,
@@ -489,6 +492,21 @@ function registrationMoneyEventKeys(event: DomainEventRow): QueryKey[] {
 /** Certyfikat: lista w panelu organizatora i panel follow-up uczestnika (po slugu - cała gałąź). */
 function certificateEventKeys(event: DomainEventRow): QueryKey[] {
   return [eventScopedKey("admin-event-certificates", event), ["event-follow-up"]];
+}
+
+/**
+ * Klucze klonu edycji. Lista wydarzen modulu i stara lista spolecznosci
+ * dostaja nowy wiersz; galaz zrodla (`["event-clone", source_event_id]`,
+ * literal zgodny z `eventCloneKeys.event`) - nowa pozycje na liscie edycji.
+ * Brak zrodla w payloadzie degraduje do calego korzenia klonu.
+ */
+function cloneEventKeys(event: DomainEventRow): QueryKey[] {
+  const sourceId = eventPayloadText(event, "source_event_id");
+  return [
+    ["admin-module-events"],
+    ["admin-community-events"],
+    sourceId === "" ? ["event-clone"] : ["event-clone", sourceId],
+  ];
 }
 
 const eventKeysList: QueryKey[] = [

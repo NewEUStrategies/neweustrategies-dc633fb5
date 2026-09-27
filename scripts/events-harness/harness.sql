@@ -1719,3 +1719,126 @@ ALTER TABLE public.payment_orders
   ADD COLUMN IF NOT EXISTS paid_at timestamptz,
   ADD COLUMN IF NOT EXISTS refunded_amount_cents integer NOT NULL DEFAULT 0;
 -- === /f3 ===
+
+-- === f5: klon edycji (20260927000800) - powierzchnie platformy czytane i pisane przez admin_event_clone ===
+-- PO CO. Klon przepisuje wiersz `events` i konfiguracje modulu, a przy okazji
+-- dotyka powierzchni spoza modulu, ktorych atrapy wyzej nie znaja. Ciala
+-- plpgsql nie sa sprawdzane przy CREATE FUNCTION, wiec bez tych atrap replay
+-- przechodzi, a KAZDE wywolanie klonu pada na 42703/42P01. Ksztalt PRZEPISANY
+-- Z ORYGINALOW, tylko kolumny, ktore klon czyta albo pisze:
+--   * `events`: `ticket_price_cents`, `ticket_currency` (20260729174905),
+--     `program_id`, `region_id` (20260713175104), `conversation_id`
+--     (20260717170000) - kolumny sprzed modulu, ktore atrapa `events` pomija;
+--   * `pages`: tresc, skrot i wnioski (20260601071326), SEO (20260702130000),
+--     publikacja planowana (20260720123000) - klon przepisuje tresc stron
+--     wydarzenia (typy kolumn jak w src/integrations/supabase/types.ts);
+--   * `b2b_coupons`: `assigned_company_id`, `assigned_lead_id`, `prefix`
+--     (20260721082414), `lead_score_bonus` (20260725090300),
+--     `organization_id` (20260721070203) - kopia kodow zachowuje przypisanie CRM;
+--   * `command_idempotency` + `request_correlation_id()` (20260711203000,
+--     20260711200000) ZNAK W ZNAK - idempotencja komendy klonu;
+--   * `crm_tasks` (20260721120000) - zadania odnowienia partnerstwa;
+--   * legacy `event_speakers` (20260714130000:287-292) - PK (event_id,
+--     user_id), bez tenant_id; RLS wlaczone jak na produkcji (00_smoke).
+ALTER TABLE public.events
+  ADD COLUMN IF NOT EXISTS ticket_price_cents integer,
+  ADD COLUMN IF NOT EXISTS ticket_currency    text NOT NULL DEFAULT 'PLN',
+  ADD COLUMN IF NOT EXISTS program_id         uuid,
+  ADD COLUMN IF NOT EXISTS region_id          uuid,
+  ADD COLUMN IF NOT EXISTS conversation_id    uuid;
+
+ALTER TABLE public.pages
+  ADD COLUMN IF NOT EXISTS author_id              uuid,
+  ADD COLUMN IF NOT EXISTS content_pl             text,
+  ADD COLUMN IF NOT EXISTS content_en             text,
+  ADD COLUMN IF NOT EXISTS excerpt_pl             text,
+  ADD COLUMN IF NOT EXISTS excerpt_en             text,
+  ADD COLUMN IF NOT EXISTS cover_image_url        text,
+  ADD COLUMN IF NOT EXISTS header_override        text,
+  ADD COLUMN IF NOT EXISTS layout_overrides       jsonb,
+  ADD COLUMN IF NOT EXISTS toc_override           jsonb,
+  ADD COLUMN IF NOT EXISTS takeaways_pl           text[] NOT NULL DEFAULT '{}'::text[],
+  ADD COLUMN IF NOT EXISTS takeaways_en           text[] NOT NULL DEFAULT '{}'::text[],
+  ADD COLUMN IF NOT EXISTS takeaways_variant      text,
+  ADD COLUMN IF NOT EXISTS template_id            uuid,
+  ADD COLUMN IF NOT EXISTS seo_title_pl           text,
+  ADD COLUMN IF NOT EXISTS seo_title_en           text,
+  ADD COLUMN IF NOT EXISTS seo_description_pl     text,
+  ADD COLUMN IF NOT EXISTS seo_description_en     text,
+  ADD COLUMN IF NOT EXISTS seo_noindex            boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS seo_og_image_url       text,
+  ADD COLUMN IF NOT EXISTS seo_canonical_url      text,
+  ADD COLUMN IF NOT EXISTS og_image_generated_url text,
+  ADD COLUMN IF NOT EXISTS publish_at             timestamptz,
+  ADD COLUMN IF NOT EXISTS published_at           timestamptz;
+
+ALTER TABLE public.b2b_coupons
+  ADD COLUMN IF NOT EXISTS assigned_company_id uuid,
+  ADD COLUMN IF NOT EXISTS assigned_lead_id    uuid,
+  ADD COLUMN IF NOT EXISTS lead_score_bonus    integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS organization_id     uuid,
+  ADD COLUMN IF NOT EXISTS prefix              text;
+
+CREATE TABLE IF NOT EXISTS public.command_idempotency (
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  idempotency_key text NOT NULL,
+  command text NOT NULL,
+  actor_id uuid,
+  correlation_id uuid,
+  status text NOT NULL DEFAULT 'in_progress'
+    CHECK (status IN ('in_progress', 'succeeded', 'failed')),
+  result jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  completed_at timestamptz,
+  PRIMARY KEY (tenant_id, idempotency_key),
+  CHECK (btrim(idempotency_key) <> '' AND btrim(command) <> '')
+);
+GRANT ALL ON public.command_idempotency TO service_role;
+ALTER TABLE public.command_idempotency ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.request_correlation_id()
+RETURNS uuid
+LANGUAGE plpgsql STABLE
+SET search_path = public
+AS $$
+DECLARE
+  v_raw text;
+BEGIN
+  v_raw := current_setting('request.headers', true)::jsonb ->> 'x-correlation-id';
+  IF v_raw IS NULL OR v_raw !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+    RETURN NULL;
+  END IF;
+  RETURN v_raw::uuid;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NULL;
+END;
+$$;
+
+CREATE TABLE IF NOT EXISTS public.crm_tasks (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  lead_id uuid NOT NULL REFERENCES public.crm_leads(id) ON DELETE CASCADE,
+  title text NOT NULL CHECK (btrim(title) <> ''),
+  note text,
+  due_at timestamptz NOT NULL,
+  status text NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done', 'cancelled')),
+  assignee_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_by uuid DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE SET NULL,
+  reminded_at timestamptz,
+  completed_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.crm_tasks ENABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.crm_tasks TO service_role;
+
+CREATE TABLE IF NOT EXISTS public.event_speakers (
+  event_id uuid NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  sort_order integer NOT NULL DEFAULT 0,
+  PRIMARY KEY (event_id, user_id)
+);
+ALTER TABLE public.event_speakers ENABLE ROW LEVEL SECURITY;
+GRANT SELECT ON public.event_speakers TO anon, authenticated;
+GRANT ALL ON public.event_speakers TO service_role;
+-- === /f5 ===

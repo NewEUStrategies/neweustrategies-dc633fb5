@@ -85,6 +85,7 @@ vi.mock("react-i18next", async () =>
 );
 vi.mock("@/lib/i18n-admin-events", () => ({ ensureI18n: () => undefined }));
 vi.mock("@/lib/i18n-admin-community-events", () => ({ ensureI18n: () => undefined }));
+vi.mock("@/lib/i18n-admin-event-clone", () => ({ ensureCloneI18n: () => undefined }));
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => h.navigate }));
 
@@ -347,8 +348,15 @@ function typeOption(over: Partial<EventTypeOption> = {}): EventTypeOption {
   };
 }
 
-function panel(params: EventListParams = {}) {
-  const wynik = renderWithQueryClient(<EventsListManager params={params} now={TERAZ} />);
+/**
+ * `canClone` - rola administratora podana przez trasę (kopia edycji). Brak
+ * klucza zostawia DOMYŚLNĄ wartość organizmu - tak montuje go każdy
+ * dotychczasowy przypadek w tym pliku.
+ */
+type OpcjePanelu = { canClone?: boolean };
+
+function panel(params: EventListParams = {}, opcje: OpcjePanelu = {}) {
+  const wynik = renderWithQueryClient(<EventsListManager params={params} now={TERAZ} {...opcje} />);
   const klient: QueryClient = wynik.queryClient;
   return {
     ...wynik,
@@ -356,15 +364,15 @@ function panel(params: EventListParams = {}) {
     przerysuj: (next: EventListParams) =>
       wynik.rerender(
         <QueryClientProvider client={klient}>
-          <EventsListManager params={next} now={TERAZ} />
+          <EventsListManager params={next} now={TERAZ} {...opcje} />
         </QueryClientProvider>,
       ),
   };
 }
 
 /** Renderuje panel i czeka, aż lista wierszy naprawdę stanie na ekranie. */
-async function panelZWierszami(params: EventListParams = {}) {
-  const wynik = panel(params);
+async function panelZWierszami(params: EventListParams = {}, opcje: OpcjePanelu = {}) {
+  const wynik = panel(params, opcje);
   await screen.findByRole("table");
   return wynik;
 }
@@ -1143,6 +1151,47 @@ describe("zaznaczenie i operacje masowe", () => {
     fireEvent.click(potwierdz);
 
     expect(h.deleted).toEqual(["ev-1"]);
+  });
+});
+
+// NOWA EDYCJA (KOPIA). Kopia ma JEDNO źródło: przy dwóch zaznaczonych wierszach
+// przycisk zgadywałby, którą edycję skopiować, a dla redaktora byłby kontrolką
+// bez skutku (klon jest operacją administratora). Źródło jedzie do ADRESU
+// (`?from=`), żeby ekran kopii był odświeżalny i przesyłalny.
+describe("nowa edycja z zaznaczonego wiersza", () => {
+  const dwaWiersze = () => [
+    eventRow({ id: "ev-1", title_pl: "Kongres", total_count: 2 }),
+    eventRow({ id: "ev-2", title_pl: "Warsztat", total_count: 2 }),
+  ];
+  const KOPIA = "adminEventClone.entry.listAction";
+
+  it("administrator z JEDNYM zaznaczonym wierszem nawiguje pod ?from=<ten wiersz>", async () => {
+    h.rows = dwaWiersze();
+    await panelZWierszami({}, { canClone: true });
+    expect(screen.queryByRole("button", { name: KOPIA })).toBeNull();
+
+    fireEvent.click(pole("adminEvents.list.select.row(title=Warsztat)"));
+    fireEvent.click(przycisk(KOPIA));
+
+    expect(h.navigate).toHaveBeenCalledWith({ to: "/admin/events/new", search: { from: "ev-2" } });
+  });
+
+  it("dwa zaznaczone wiersze: przycisku kopii NIE ma", async () => {
+    h.rows = dwaWiersze();
+    await panelZWierszami({}, { canClone: true });
+    fireEvent.click(pole("adminEvents.list.select.all"));
+
+    expect(screen.getByText("adminEvents.list.select.count(count=2)")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: KOPIA })).toBeNull();
+  });
+
+  it("bez roli administratora: przycisku kopii NIE ma nawet przy jednym wierszu", async () => {
+    h.rows = dwaWiersze();
+    await panelZWierszami();
+    fireEvent.click(pole("adminEvents.list.select.row(title=Kongres)"));
+
+    expect(screen.getByText("adminEvents.list.select.count(count=1)")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: KOPIA })).toBeNull();
   });
 });
 

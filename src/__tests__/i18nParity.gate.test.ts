@@ -128,6 +128,10 @@ const GATED_PREFIXES = [
   // klucz na karcie miejsca to uczestnik bez informacji, gdzie usiąść.
   "adminEventSeating",
   "eventSeating",
+  // Klon edycji (f5): formularz nowej edycji z poprzedniej, podgląd
+  // przesunięcia i podsumowanie. Surowy klucz w ostrzeżeniu o sesjach poza
+  // nowym terminem to organizator, który nie wie, co poprawić.
+  "adminEventClone",
   // Siatka zespołu: napisy okna osoby (rola w NES, afiliacja, przynależność
   // projektowa, kontakt) są PUBLICZNE i jadą za językiem treści, nie panelu.
   // Brak klucza po jednej stronie dałby surowe `teamGrid.dialog.affiliation`
