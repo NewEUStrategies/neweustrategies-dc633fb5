@@ -1977,10 +1977,13 @@ SELECT pg_temp.assert(
 -- service_role: `event_sponsor_exposure_ingest`, `event_sponsor_exposures_prune`,
 -- `event_sponsor_report_for_token`; pomocnik `_event_sponsor_report_assert_filters`.
 -- Asercje tych funkcji sa w 32_sponsor_report.sql.
+-- 34 -> 35: 20260926170000 (klon edycji) dolozyla pomocnika
+-- `_event_clone_sponsors` (niewolalny z klienta, wolany z `admin_event_clone`).
+-- Asercje klonu sa w 92_event_clone.sql.
 SELECT pg_temp.assert(
   (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-    WHERE n.nspname = 'public' AND p.proname LIKE '%sponsor%') = 34,
-  '30/struktura: migracje zostawily 34 funkcje (27 panelu, 5 publicznych/serwisowych, 2 pomocnikow)');
+    WHERE n.nspname = 'public' AND p.proname LIKE '%sponsor%') = 35,
+  '30/struktura: migracje zostawily 35 funkcji (27 panelu, 5 publicznych/serwisowych, 3 pomocnikow)');
 
 SELECT pg_temp.assert(
   (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
