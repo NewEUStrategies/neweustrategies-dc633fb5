@@ -11,6 +11,11 @@
 // PRZYJĘCIE DOTYKA TRZECH INNYCH MODUŁÓW - rejestru prelegentów, agendy (szkic
 // sesji) i zapisów (zapis prelegenta) - więc unieważnia też ich gałęzie tego
 // wydarzenia. Inne wydarzenia zostają nietknięte.
+//
+// PUBLIKACJA MATERIAŁU ZMIENIA STRONĘ WYDARZENIA: dialog profilu prelegenta
+// czyta opublikowane materiały własnym kluczem (`speakerMaterialsKeys`, świeży
+// przez minutę), a RPC publikacji nie emituje zdarzenia domeny - bez jawnego
+// unieważnienia gałęzi tego wydarzenia dialog pokazywałby starą listę.
 import {
   useMutation,
   useQuery,
@@ -54,6 +59,7 @@ import type {
   CfpSettings,
   CfpSubmissionDetail,
 } from "@/lib/events/cfpSurface";
+import { speakerMaterialsKeys } from "@/lib/events/speakerMaterialsPublic";
 import { agendaKeys } from "@/lib/events/useEventSessions";
 import { registrationKeys } from "@/lib/events/useEventRegistrations";
 
@@ -222,8 +228,11 @@ export function useRemoveCfpReviewer(eventId: string) {
   return useCfpMutation<string, "deleted" | "deactivated">(eventId, removeCfpReviewer);
 }
 
+/** Publikacja i jej cofnięcie zmieniają też materiały na stronie wydarzenia. */
 export function usePublishCfpMaterial(eventId: string) {
-  return useCfpMutation<{ id: string; isPublished: boolean }, void>(eventId, (input) =>
-    publishCfpMaterial(input.id, input.isPublished),
+  return useCfpMutation<{ id: string; isPublished: boolean }, void>(
+    eventId,
+    (input) => publishCfpMaterial(input.id, input.isPublished),
+    [speakerMaterialsKeys.event(eventId)],
   );
 }

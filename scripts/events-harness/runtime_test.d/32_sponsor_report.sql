@@ -266,15 +266,32 @@ SELECT pg_temp.assert(
                WHERE v.id = (SELECT u FROM spr_q WHERE k = 'ad1')
                  AND v.sponsor_id = '32500000-0000-0000-0000-000000000001'),
   '32/naprawa: GOSC widzi aktywne reklamy (z id sponsora) przy produkcyjnym current_tenant_id()');
+-- Stary licznik jest PUSTY: naprawiony pod `public_tenant_id()` bylby
+-- otwartym dla anonima zapisem bez zgody, limitu i filtra botow (kazdy
+-- nabilby nim wyswietlenia w panelu). Reklame liczy teraz wylacznie ingest
+-- ekspozycji. Na starym ciele (licznik skalowany po naglowku hosta) ta
+-- asercja jest CZERWONA.
 SELECT pg_temp.assert(
-  public.event_home_ad_track((SELECT u FROM spr_q WHERE k = 'ad1'), 'view', 'sesja-prod-0001'),
-  '32/naprawa: licznik reklamy dziala dla goscia przy produkcyjnym current_tenant_id()');
+  NOT public.event_home_ad_track((SELECT u FROM spr_q WHERE k = 'ad1'), 'view', 'sesja-prod-0001')
+  AND NOT public.event_home_ad_track((SELECT u FROM spr_q WHERE k = 'ad1'), 'click', 'sesja-prod-0001')
+  AND NOT EXISTS (SELECT 1 FROM public.event_home_ad_events e
+                   WHERE e.ad_id = (SELECT u FROM spr_q WHERE k = 'ad1')),
+  '32/naprawa: stary licznik reklamy nie zapisuje niczego dla goscia (tylko ingest ekspozycji liczy reklame)');
+SELECT pg_temp.assert(
+  (SELECT p.provolatile = 'i' AND NOT p.prosecdef
+     FROM pg_proc p
+    WHERE p.oid = 'public.event_home_ad_track(uuid, text, text)'::regprocedure),
+  '32/naprawa: stary licznik to niezmienna zaslepka bez SECURITY DEFINER');
+-- Wiersz starego licznika sprzed zmiany (dane zostaja i licza sie w panelu -
+-- asercja "z OBU tabel" w sekcji ekspozycji).
+INSERT INTO public.event_home_ad_events (tenant_id, ad_id, kind, session_hash)
+VALUES ('11111111-1111-1111-1111-111111111111', (SELECT u FROM spr_q WHERE k = 'ad1'), 'view',
+        md5('sesja-archiwum-0001'));
 
 SELECT set_config('nes.public_tenant', '32000000-0000-0000-0000-0000000000b0', false);
 SELECT pg_temp.assert(
-  (SELECT count(*) FROM public.event_home_ads_for_viewer('spr-forum')) = 0
-  AND NOT public.event_home_ad_track((SELECT u FROM spr_q WHERE k = 'ad1'), 'view', 'sesja-prod-0002'),
-  '32/naprawa/izolacja: na hoscie najemcy B reklamy A nie istnieja i nie licza sie');
+  (SELECT count(*) FROM public.event_home_ads_for_viewer('spr-forum')) = 0,
+  '32/naprawa/izolacja: na hoscie najemcy B reklamy A nie istnieja');
 SELECT set_config('nes.public_tenant', '', false);
 
 -- Link logotypu na stronie publicznej (plaszczyzna tresci, gosc).

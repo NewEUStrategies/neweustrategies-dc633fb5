@@ -10,12 +10,19 @@
 // zapis do bazy w ogóle się odbył i z czym):
 //   1. limiter po IP (`clientIpFromHeaders` - jedyne dopuszczone źródło IP);
 //   2. limit długości ciała;
-//   3. filtr ruchu nieludzkiego (`botFilter.ts`: agent, prefetch, cudzy Origin);
-//   4. kształt: slug, identyfikator sesji, biała lista miejsc i rodzajów,
+//   3. zaufany host strony (`currentTenantHost()` - host zwalidowany względem
+//      `tenants.domain`, także zza pośrednika z `X-Forwarded-Host`); bez niego
+//      nic nie zapisujemy - host spoza katalogu najemców nie jest stroną
+//      żadnego wydarzenia, a sponsor płaci za wyświetlenia (wcześniej brak
+//      hosta degradował w `resolveTenantIdForHost` do najemcy DOMYŚLNEGO);
+//   4. filtr ruchu nieludzkiego (`botFilter.ts`: agent, prefetch, `Origin`
+//      inny niż ZAUFANY host - nie host z `req.url`, który za pośrednikiem
+//      jest wewnętrzny i odrzucał każdy prawdziwy beacon);
+//   5. kształt: slug, identyfikator sesji, biała lista miejsc i rodzajów,
 //      uuid, maks. 40 pozycji, macierz miejsce x rodzaj (`isAcceptableExposure`);
-//   5. najemca z ZAUFANEGO hosta - bez rozpoznanego najemcy nic nie zapisujemy
-//      (zamiast wpadać do najemcy domyślnego);
-//   6. przynależność sponsora, materiału i reklamy do TEGO opublikowanego
+//   6. najemca z TEGO SAMEGO zaufanego hosta - bez rozpoznanego najemcy nic
+//      nie zapisujemy;
+//   7. przynależność sponsora, materiału i reklamy do TEGO opublikowanego
 //      wydarzenia sprawdza baza (`event_sponsor_exposure_ingest`) w jednej
 //      podróży - klient nie przypisze wyświetlenia cudzemu sponsorowi.
 // Do bazy nie trafia IP, agent ani surowy identyfikator sesji.
@@ -73,7 +80,12 @@ export const Route = createFileRoute("/api/public/sponsor-event")({
         try {
           const req = getRequest();
           if (!limiter.check(clientIpFromHeaders(req.headers), Date.now())) return noContent();
-          if (isLikelyBotRequest(req.headers, new URL(req.url).host)) return noContent();
+          // Klient service role nie niesie `x-tenant-host` - host strony bierzemy
+          // raz, z zaufanego rozwiązania, i z nim porównujemy `Origin` oraz
+          // z niego wyprowadzamy najemcę.
+          const trustedHost = await currentTenantHost();
+          if (trustedHost === null) return noContent();
+          if (isLikelyBotRequest(req.headers, trustedHost)) return noContent();
 
           const raw = await req.text();
           if (!raw || raw.length > MAX_BODY) return noContent();
@@ -91,11 +103,10 @@ export const Route = createFileRoute("/api/public/sponsor-event")({
             .filter((item): item is SponsorExposureItem => item !== null);
           if (items.length === 0) return noContent();
 
-          // Najemca z ZAUFANEGO hosta (klient service role nie niesie
-          // `x-tenant-host`). Bez niego nie wiadomo, czyje to wydarzenie.
+          // Najemca z ZAUFANEGO hosta. Bez niego nie wiadomo, czyje to wydarzenie.
           let tenantId: string | null = null;
           try {
-            tenantId = await resolveTenantIdForHost(await currentTenantHost());
+            tenantId = await resolveTenantIdForHost(trustedHost);
           } catch {
             tenantId = null;
           }

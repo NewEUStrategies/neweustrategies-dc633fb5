@@ -15,13 +15,22 @@
 --
 -- CO ROBI
 --   1) NAPRAWY (raport f6, par. 9):
---      * `event_home_ads_for_viewer` i `event_home_ad_track` skalowaly najemce
---        przez `current_tenant_id()`, czyli na produkcji przez
---        `profiles.tenant_id` zalogowanego - dla GOSCIA to NULL, wiec reklamy
---        strony glownej nie emitowaly sie anonimom ani nie liczyly. Obie
---        funkcje skaluja teraz po `public_tenant_id()` (naglowek hosta), tak
---        jak kazda inna funkcja plaszczyzny tresci. Lista dla goscia oddaje tez
---        `sponsor_id` reklamy (RETURNS TABLE sie zmienia -> DROP + CREATE).
+--      * `event_home_ads_for_viewer` skalowal najemce przez
+--        `current_tenant_id()`, czyli na produkcji przez `profiles.tenant_id`
+--        zalogowanego - dla GOSCIA to NULL, wiec reklamy strony glownej nie
+--        emitowaly sie anonimom. Funkcja skaluje teraz po `public_tenant_id()`
+--        (naglowek hosta), tak jak kazda inna funkcja plaszczyzny tresci.
+--        Lista dla goscia oddaje tez `sponsor_id` reklamy (RETURNS TABLE sie
+--        zmienia -> DROP + CREATE).
+--      * stary licznik `event_home_ad_track` staje sie PUSTY (zawsze `false`,
+--        zadnego zapisu). Front go juz nie wola (reklama liczy sie przez
+--        `/api/public/sponsor-event` po zgodzie marketingowej, z limitem po IP
+--        i filtrem botow), a naprawiony pod `public_tenant_id()` bylby
+--        otwartym dla anonima zapisem BEZ zgody, limitu i filtra - kazdy
+--        mogl nim nabic wyswietlenia w `admin_event_home_ads_list`. Funkcja
+--        zostaje (z grantami) tylko po to, zeby starszy klient z cache nie
+--        dostal bledu; stare wiersze `event_home_ad_events` dalej licza sie
+--        w liscie panelu.
 --      * `event_sponsors_public` oddaje `link_mode` i `link_url` przypiecia:
 --        ustawienie "dokad prowadzi logotyp" bylo zapisywane, ale strona
 --        publiczna go nie czytala (tryb `none` nadal linkowal). Zmienia sie
@@ -94,7 +103,7 @@
 -- CZEGO NIE ZMIENIA
 --   * `event_home_ad_events` i jej dane - stare liczniki dalej wchodza do
 --     listy reklam w panelu; front przestaje wolac `event_home_ad_track`
---     (funkcja zostaje naprawiona dla starszych klientow w cache);
+--     (funkcja zostaje jako pusta zaslepka dla starszych klientow w cache);
 --   * reguly zgody w `admin_event_lead_scans_export` (eksport "leady"
 --     raportu korzysta wprost z tej funkcji).
 --
@@ -298,39 +307,23 @@ GRANT EXECUTE ON FUNCTION public.event_home_ads_for_viewer(text) TO anon, authen
 COMMENT ON FUNCTION public.event_home_ads_for_viewer(text) IS
   'Reklamy strony glownej wydarzenia dla ogladajacego (maks. 5, losowo). Najemca z naglowka hosta (public_tenant_id) - gosc bez konta tez je widzi. Reklama grupowa tylko dla czlonkow grupy. Plaszczyzna tresci - zero has_role().';
 
+-- Pusta zaslepka (patrz naglowek, pkt 1): zadnego odczytu tabel ani zapisu,
+-- wiec SECURITY INVOKER - funkcja nie potrzebuje zadnych uprawnien.
 CREATE OR REPLACE FUNCTION public.event_home_ad_track(p_ad_id uuid, p_kind text, p_session text)
 RETURNS boolean
-LANGUAGE plpgsql
-SECURITY DEFINER
+LANGUAGE sql
+IMMUTABLE
+SECURITY INVOKER
 SET search_path = public, pg_temp
 AS $$
-DECLARE
-  v_tenant uuid;
-BEGIN
-  IF p_kind NOT IN ('view', 'click') OR p_session IS NULL OR length(p_session) NOT BETWEEN 8 AND 128 THEN
-    RETURN false;
-  END IF;
-  SELECT a.tenant_id INTO v_tenant
-    FROM public.event_home_ads a
-    JOIN public.events ev ON ev.id = a.event_id AND ev.tenant_id = a.tenant_id
-   WHERE a.id = p_ad_id AND a.is_active
-     AND ev.status <> 'draft'
-     AND a.tenant_id = public.public_tenant_id();
-  IF v_tenant IS NULL THEN
-    RETURN false;
-  END IF;
-  INSERT INTO public.event_home_ad_events (tenant_id, ad_id, kind, session_hash)
-  VALUES (v_tenant, p_ad_id, p_kind, md5(p_session))
-  ON CONFLICT DO NOTHING;
-  RETURN FOUND;
-END;
+  SELECT false;
 $$;
 
 REVOKE ALL ON FUNCTION public.event_home_ad_track(uuid, text, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.event_home_ad_track(uuid, text, text) TO anon, authenticated, service_role;
 
 COMMENT ON FUNCTION public.event_home_ad_track(uuid, text, text) IS
-  'PRZESTARZALE (starsze klienty w cache): licznik reklamy strony glownej per sesja i dobe UTC. Najemca z naglowka hosta (public_tenant_id). Nowy front mierzy reklame przez /api/public/sponsor-event (event_sponsor_exposures) po zgodzie marketingowej.';
+  'PRZESTARZALE, PUSTE: zawsze false, zadnego zapisu. Zostaje tylko dla starszych klientow w cache. Reklame strony glownej mierzy /api/public/sponsor-event (event_sponsor_exposures) po zgodzie marketingowej, z limitem po IP i filtrem botow; stare wiersze event_home_ad_events dalej licza sie w admin_event_home_ads_list.';
 
 -- ----------------------------------------------------------------------------
 -- 5) NAPRAWA: LINK LOGOTYPU NA STRONIE PUBLICZNEJ
