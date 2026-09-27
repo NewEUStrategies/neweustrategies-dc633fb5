@@ -581,6 +581,37 @@ const KODY_PLANU_SALI = [
   STRAZNIK_TENANTA,
 ] as const;
 
+/**
+ * Kod dopisany przez tor do ISTNIEJĄCEJ mapy: `[nazwa mapy, kod]`.
+ * `PF_<X>_BEZ_INTERPOLACJI` - nazwy NOWYCH map toru, które wołają `t()`
+ * bez parametrów (sprawdzenie „zdania bez interpolacji" niżej).
+ */
+type PfExtraCode = readonly [mapName: string, code: string];
+
+// >>> PF-A codes (begin)
+const PF_A_EXTRA_CODES: readonly PfExtraCode[] = [];
+const PF_A_BEZ_INTERPOLACJI: readonly string[] = [];
+// <<< PF-A codes (end)
+//
+// (separator bloków - tych dwóch linii nie edytuje żaden tor)
+// >>> PF-B codes (begin)
+const PF_B_EXTRA_CODES: readonly PfExtraCode[] = [];
+const PF_B_BEZ_INTERPOLACJI: readonly string[] = [];
+// <<< PF-B codes (end)
+//
+// (separator bloków - tych dwóch linii nie edytuje żaden tor)
+// >>> PF-C codes (begin)
+const PF_C_EXTRA_CODES: readonly PfExtraCode[] = [];
+const PF_C_BEZ_INTERPOLACJI: readonly string[] = [];
+// <<< PF-C codes (end)
+
+/** Kody dopisane przez tory A/B/C do mapy o danej nazwie. */
+function pfExtraCodes(nazwa: string): string[] {
+  return [...PF_A_EXTRA_CODES, ...PF_B_EXTRA_CODES, ...PF_C_EXTRA_CODES]
+    .filter(([mapName]) => mapName === nazwa)
+    .map(([, code]) => code);
+}
+
 interface BramkowanaMapa {
   nazwa: string;
   prefix: string;
@@ -736,6 +767,16 @@ const MAPY: readonly BramkowanaMapa[] = [
     moduly: ["seatingApi"],
     interpoluje: true,
   },
+  // >>> PF-A maps (begin)
+  // <<< PF-A maps (end)
+  //
+  // (separator bloków - tych dwóch linii nie edytuje żaden tor)
+  // >>> PF-B maps (begin)
+  // <<< PF-B maps (end)
+  //
+  // (separator bloków - tych dwóch linii nie edytuje żaden tor)
+  // >>> PF-C maps (begin)
+  // <<< PF-C maps (end)
 ];
 
 describe.each(MAPY)("bramka kluczy i18n: $nazwa", (mapa) => {
@@ -824,6 +865,9 @@ describe("zdania bez interpolacji", () => {
       "adminEventStudioErrors",
       "adminEventInvoiceErrors",
       "eventInvoiceErrors",
+      ...PF_A_BEZ_INTERPOLACJI,
+      ...PF_B_BEZ_INTERPOLACJI,
+      ...PF_C_BEZ_INTERPOLACJI,
     ]);
   });
 });

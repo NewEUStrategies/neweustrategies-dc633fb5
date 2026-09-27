@@ -8099,6 +8099,7 @@ export type Database = {
           group_id: string | null
           group_lead_registration_id: string | null
           id: string
+          lang: string | null
           manage_token_hash: string | null
           notify_email: boolean
           notify_sms: boolean
@@ -8110,6 +8111,12 @@ export type Database = {
           qr_issued_at: string | null
           qr_token_hash: string | null
           registration_mode: string
+          remind_email: boolean
+          remind_push: boolean
+          remind_sessions: boolean
+          remind_sms: boolean
+          remind_sms_consent_at: string | null
+          remind_sms_consent_via: string | null
           source: string
           status: string
           tenant_id: string
@@ -8137,6 +8144,7 @@ export type Database = {
           group_id?: string | null
           group_lead_registration_id?: string | null
           id?: string
+          lang?: string | null
           manage_token_hash?: string | null
           notify_email?: boolean
           notify_sms?: boolean
@@ -8148,6 +8156,12 @@ export type Database = {
           qr_issued_at?: string | null
           qr_token_hash?: string | null
           registration_mode: string
+          remind_email?: boolean
+          remind_push?: boolean
+          remind_sessions?: boolean
+          remind_sms?: boolean
+          remind_sms_consent_at?: string | null
+          remind_sms_consent_via?: string | null
           source?: string
           status?: string
           tenant_id: string
@@ -8175,6 +8189,7 @@ export type Database = {
           group_id?: string | null
           group_lead_registration_id?: string | null
           id?: string
+          lang?: string | null
           manage_token_hash?: string | null
           notify_email?: boolean
           notify_sms?: boolean
@@ -8186,6 +8201,12 @@ export type Database = {
           qr_issued_at?: string | null
           qr_token_hash?: string | null
           registration_mode?: string
+          remind_email?: boolean
+          remind_push?: boolean
+          remind_sessions?: boolean
+          remind_sms?: boolean
+          remind_sms_consent_at?: string | null
+          remind_sms_consent_via?: string | null
           source?: string
           status?: string
           tenant_id?: string
@@ -21251,6 +21272,8 @@ export type Database = {
         Args: { p_event_id: string; p_ids: string[] }
         Returns: number
       }
+      admin_event_participant_settings_get: { Args: { p_event_id: string }; Returns: Json }
+      admin_event_participant_settings_save: { Args: { p_payload: Json }; Returns: Json }
       admin_event_person_crm_retry: {
         Args: { p_person_id: string }
         Returns: string

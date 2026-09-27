@@ -69,7 +69,8 @@ describe("TX_EMAIL_CATEGORY", () => {
     // kategorię i że obie listy nie rozjadą się przy dodaniu nowego maila.
     // 31 -> 35: cztery maile naboru prelegentów (`event_cfp_submission_*`).
     // 35 -> 36: powiadomienie o fakturze organizatora wydarzenia (`event_invoice_issued`).
-    expect(TX_EMAIL_TYPES.length).toBe(36);
+    // 36 -> 47: jedenaście maili funkcji uczestnika F1-F5 (spec B.8).
+    expect(TX_EMAIL_TYPES.length).toBe(47);
     expect(Object.keys(TX_EMAIL_CATEGORY).sort()).toEqual([...TX_EMAIL_TYPES].sort());
     for (const type of TX_EMAIL_TYPES) {
       expect(TX_EMAIL_CATEGORY[type]).toMatch(/^(transactional|bulk)$/);

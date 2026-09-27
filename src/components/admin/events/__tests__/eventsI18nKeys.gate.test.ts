@@ -78,6 +78,16 @@ const REFERENCE_PREFIXES = [
   "adminEventSponsorReport",
   "eventSponsorReport",
   "eventWallet",
+  // Korzenie ośmiu nakładek F1-F5 (spec B.14): literał `eventPlan.x` w mapie
+  // etykiet jest referencją do klucza, nawet jeśli nie stoi w `t()`.
+  "eventParticipant",
+  "adminEventParticipant",
+  "eventCalendar",
+  "eventPlan",
+  "eventTicketActions",
+  "adminEventOffers",
+  "eventFollowUp",
+  "adminEventFollowUp",
 ] as const;
 
 function isTree(value: unknown): value is ResourceTree {
