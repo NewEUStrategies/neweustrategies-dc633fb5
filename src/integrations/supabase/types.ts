@@ -7412,6 +7412,624 @@ export type Database = {
           },
         ]
       }
+      event_invoice_counters: {
+        Row: {
+          last_seq: number
+          period: string
+          series: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          last_seq?: number
+          period: string
+          series: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          last_seq?: number
+          period?: string
+          series?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_invoice_counters_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_invoice_lines: {
+        Row: {
+          corrects_line_id: string | null
+          created_at: string
+          description: string
+          gross_cents: number
+          id: string
+          invoice_id: string
+          net_cents: number
+          position: number
+          quantity: number
+          tenant_id: string
+          ticket_type_id: string | null
+          unit: string
+          unit_gross_cents: number
+          unit_net_cents: number
+          vat_cents: number
+          vat_rate: string
+        }
+        Insert: {
+          corrects_line_id?: string | null
+          created_at?: string
+          description: string
+          gross_cents: number
+          id?: string
+          invoice_id: string
+          net_cents: number
+          position: number
+          quantity: number
+          tenant_id: string
+          ticket_type_id?: string | null
+          unit?: string
+          unit_gross_cents: number
+          unit_net_cents: number
+          vat_cents: number
+          vat_rate: string
+        }
+        Update: {
+          corrects_line_id?: string | null
+          created_at?: string
+          description?: string
+          gross_cents?: number
+          id?: string
+          invoice_id?: string
+          net_cents?: number
+          position?: number
+          quantity?: number
+          tenant_id?: string
+          ticket_type_id?: string | null
+          unit?: string
+          unit_gross_cents?: number
+          unit_net_cents?: number
+          vat_cents?: number
+          vat_rate?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_invoice_lines_invoice_fk"
+            columns: ["tenant_id", "invoice_id"]
+            isOneToOne: false
+            referencedRelation: "event_invoices"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_invoice_lines_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_invoice_requests: {
+        Row: {
+          buyer_address: string
+          buyer_city: string
+          buyer_country: string
+          buyer_email: string
+          buyer_is_company: boolean
+          buyer_name: string
+          buyer_postal_code: string
+          buyer_tax_id: string
+          created_at: string
+          crm_company_id: string | null
+          event_id: string
+          id: string
+          invoice_id: string | null
+          package_order_id: string | null
+          po_number: string
+          recipient_address: string
+          recipient_name: string
+          registration_id: string | null
+          requested_by: string | null
+          source_kind: string
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          buyer_address?: string
+          buyer_city?: string
+          buyer_country?: string
+          buyer_email?: string
+          buyer_is_company?: boolean
+          buyer_name: string
+          buyer_postal_code?: string
+          buyer_tax_id?: string
+          created_at?: string
+          crm_company_id?: string | null
+          event_id: string
+          id?: string
+          invoice_id?: string | null
+          package_order_id?: string | null
+          po_number?: string
+          recipient_address?: string
+          recipient_name?: string
+          registration_id?: string | null
+          requested_by?: string | null
+          source_kind: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          buyer_address?: string
+          buyer_city?: string
+          buyer_country?: string
+          buyer_email?: string
+          buyer_is_company?: boolean
+          buyer_name?: string
+          buyer_postal_code?: string
+          buyer_tax_id?: string
+          created_at?: string
+          crm_company_id?: string | null
+          event_id?: string
+          id?: string
+          invoice_id?: string | null
+          package_order_id?: string | null
+          po_number?: string
+          recipient_address?: string
+          recipient_name?: string
+          registration_id?: string | null
+          requested_by?: string | null
+          source_kind?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_invoice_requests_crm_company_fk"
+            columns: ["tenant_id", "crm_company_id"]
+            isOneToOne: false
+            referencedRelation: "crm_companies"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_invoice_requests_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_invoice_requests_invoice_fk"
+            columns: ["tenant_id", "invoice_id"]
+            isOneToOne: false
+            referencedRelation: "event_invoices"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_invoice_requests_package_order_fk"
+            columns: ["tenant_id", "package_order_id"]
+            isOneToOne: false
+            referencedRelation: "event_package_orders"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_invoice_requests_registration_fk"
+            columns: ["tenant_id", "registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_invoice_requests_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_invoice_settings: {
+        Row: {
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          default_locale: string
+          default_vat_rate: string
+          enabled: boolean
+          footer_note: string
+          payment_days: number
+          seller_address: string
+          seller_bank_account: string
+          seller_bank_swift: string
+          seller_city: string
+          seller_country: string
+          seller_email: string
+          seller_name: string
+          seller_phone: string
+          seller_postal_code: string
+          seller_tax_id: string
+          series_correction: string
+          series_invoice: string
+          series_proforma: string
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+          vat_exempt_basis: string
+        }
+        Insert: {
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          default_locale?: string
+          default_vat_rate?: string
+          enabled?: boolean
+          footer_note?: string
+          payment_days?: number
+          seller_address?: string
+          seller_bank_account?: string
+          seller_bank_swift?: string
+          seller_city?: string
+          seller_country?: string
+          seller_email?: string
+          seller_name?: string
+          seller_phone?: string
+          seller_postal_code?: string
+          seller_tax_id?: string
+          series_correction?: string
+          series_invoice?: string
+          series_proforma?: string
+          tenant_id: string
+          updated_at?: string
+          updated_by?: string | null
+          vat_exempt_basis?: string
+        }
+        Update: {
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          default_locale?: string
+          default_vat_rate?: string
+          enabled?: boolean
+          footer_note?: string
+          payment_days?: number
+          seller_address?: string
+          seller_bank_account?: string
+          seller_bank_swift?: string
+          seller_city?: string
+          seller_country?: string
+          seller_email?: string
+          seller_name?: string
+          seller_phone?: string
+          seller_postal_code?: string
+          seller_tax_id?: string
+          series_correction?: string
+          series_invoice?: string
+          series_proforma?: string
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          vat_exempt_basis?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_invoice_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_invoice_sources: {
+        Row: {
+          covers: boolean
+          created_at: string
+          gross_cents: number
+          id: string
+          invoice_id: string
+          package_order_id: string | null
+          paid_at: string | null
+          payment_order_id: string | null
+          person_id: string | null
+          registration_id: string | null
+          released_at: string | null
+          seats: number
+          source_kind: string
+          tenant_id: string
+        }
+        Insert: {
+          covers?: boolean
+          created_at?: string
+          gross_cents?: number
+          id?: string
+          invoice_id: string
+          package_order_id?: string | null
+          paid_at?: string | null
+          payment_order_id?: string | null
+          person_id?: string | null
+          registration_id?: string | null
+          released_at?: string | null
+          seats?: number
+          source_kind: string
+          tenant_id: string
+        }
+        Update: {
+          covers?: boolean
+          created_at?: string
+          gross_cents?: number
+          id?: string
+          invoice_id?: string
+          package_order_id?: string | null
+          paid_at?: string | null
+          payment_order_id?: string | null
+          person_id?: string | null
+          registration_id?: string | null
+          released_at?: string | null
+          seats?: number
+          source_kind?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_invoice_sources_invoice_fk"
+            columns: ["tenant_id", "invoice_id"]
+            isOneToOne: false
+            referencedRelation: "event_invoices"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_invoice_sources_package_order_fk"
+            columns: ["tenant_id", "package_order_id"]
+            isOneToOne: false
+            referencedRelation: "event_package_orders"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_invoice_sources_payment_order_id_fkey"
+            columns: ["payment_order_id"]
+            isOneToOne: false
+            referencedRelation: "payment_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_invoice_sources_registration_fk"
+            columns: ["tenant_id", "registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_invoice_sources_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_invoices: {
+        Row: {
+          buyer_address: string
+          buyer_city: string
+          buyer_country: string
+          buyer_email: string
+          buyer_is_company: boolean
+          buyer_name: string
+          buyer_person_id: string | null
+          buyer_postal_code: string
+          buyer_tax_id: string
+          buyer_user_id: string | null
+          cancel_reason: string
+          cancelled_at: string | null
+          cancelled_by: string | null
+          correction_mode: string | null
+          correction_reason: string
+          corrects_invoice_id: string | null
+          created_at: string
+          created_by: string | null
+          crm_company_id: string | null
+          currency: string
+          due_date: string | null
+          event_id: string | null
+          event_slug: string
+          event_title_en: string
+          event_title_pl: string
+          gross_cents: number
+          id: string
+          issue_date: string | null
+          issued_at: string | null
+          issued_by: string | null
+          kind: string
+          ksef_number: string | null
+          ksef_status: string
+          ksef_updated_at: string | null
+          locale: string
+          net_cents: number
+          note: string
+          number: string | null
+          paid_at: string | null
+          payment_method: string
+          period: string | null
+          po_number: string
+          recipient_address: string
+          recipient_name: string
+          sale_date: string | null
+          seller: Json | null
+          seq: number | null
+          series: string | null
+          source_proforma_id: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          vat_cents: number
+          vat_exempt_basis: string
+        }
+        Insert: {
+          buyer_address?: string
+          buyer_city?: string
+          buyer_country?: string
+          buyer_email?: string
+          buyer_is_company?: boolean
+          buyer_name?: string
+          buyer_person_id?: string | null
+          buyer_postal_code?: string
+          buyer_tax_id?: string
+          buyer_user_id?: string | null
+          cancel_reason?: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          correction_mode?: string | null
+          correction_reason?: string
+          corrects_invoice_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          crm_company_id?: string | null
+          currency?: string
+          due_date?: string | null
+          event_id?: string | null
+          event_slug?: string
+          event_title_en?: string
+          event_title_pl?: string
+          gross_cents?: number
+          id?: string
+          issue_date?: string | null
+          issued_at?: string | null
+          issued_by?: string | null
+          kind?: string
+          ksef_number?: string | null
+          ksef_status?: string
+          ksef_updated_at?: string | null
+          locale?: string
+          net_cents?: number
+          note?: string
+          number?: string | null
+          paid_at?: string | null
+          payment_method?: string
+          period?: string | null
+          po_number?: string
+          recipient_address?: string
+          recipient_name?: string
+          sale_date?: string | null
+          seller?: Json | null
+          seq?: number | null
+          series?: string | null
+          source_proforma_id?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          vat_cents?: number
+          vat_exempt_basis?: string
+        }
+        Update: {
+          buyer_address?: string
+          buyer_city?: string
+          buyer_country?: string
+          buyer_email?: string
+          buyer_is_company?: boolean
+          buyer_name?: string
+          buyer_person_id?: string | null
+          buyer_postal_code?: string
+          buyer_tax_id?: string
+          buyer_user_id?: string | null
+          cancel_reason?: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          correction_mode?: string | null
+          correction_reason?: string
+          corrects_invoice_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          crm_company_id?: string | null
+          currency?: string
+          due_date?: string | null
+          event_id?: string | null
+          event_slug?: string
+          event_title_en?: string
+          event_title_pl?: string
+          gross_cents?: number
+          id?: string
+          issue_date?: string | null
+          issued_at?: string | null
+          issued_by?: string | null
+          kind?: string
+          ksef_number?: string | null
+          ksef_status?: string
+          ksef_updated_at?: string | null
+          locale?: string
+          net_cents?: number
+          note?: string
+          number?: string | null
+          paid_at?: string | null
+          payment_method?: string
+          period?: string | null
+          po_number?: string
+          recipient_address?: string
+          recipient_name?: string
+          sale_date?: string | null
+          seller?: Json | null
+          seq?: number | null
+          series?: string | null
+          source_proforma_id?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          vat_cents?: number
+          vat_exempt_basis?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_invoices_buyer_person_fk"
+            columns: ["tenant_id", "buyer_person_id"]
+            isOneToOne: false
+            referencedRelation: "event_people"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_invoices_corrects_fk"
+            columns: ["tenant_id", "corrects_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "event_invoices"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_invoices_crm_company_fk"
+            columns: ["tenant_id", "crm_company_id"]
+            isOneToOne: false
+            referencedRelation: "crm_companies"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_invoices_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_invoices_source_proforma_fk"
+            columns: ["tenant_id", "source_proforma_id"]
+            isOneToOne: false
+            referencedRelation: "event_invoices"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_invoices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_lead_scans: {
         Row: {
           checkpoint_id: string | null
@@ -20581,6 +21199,25 @@ export type Database = {
         }
         Returns: boolean
       }
+      _event_invoice_buyer_clean: { Args: { p_buyer: Json }; Returns: Json }
+      _event_invoice_gross_from_net: {
+        Args: { p_net: number; p_rate: string }
+        Returns: number
+      }
+      _event_invoice_net_from_gross: {
+        Args: { p_gross: number; p_rate: string }
+        Returns: number
+      }
+      _event_invoice_pl_nip_valid: {
+        Args: { p_digits: string }
+        Returns: boolean
+      }
+      _event_invoice_tax_id_normalize: {
+        Args: { p_country: string; p_raw: string }
+        Returns: string
+      }
+      _event_invoice_tax_key: { Args: { p_raw: string }; Returns: string }
+      _event_invoice_vat_percent: { Args: { p_rate: string }; Returns: number }
       _event_issue_ticket_codes: {
         Args: { p_registration_id: string }
         Returns: Json
