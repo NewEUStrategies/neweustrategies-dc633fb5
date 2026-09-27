@@ -46,6 +46,9 @@ const NOT_COPIED_KEYS = [
   "cfp_submissions",
   "seat_assignments",
   "invoices",
+  "session_saves",
+  "session_signups",
+  "wallet_passes",
 ] as const;
 
 export function EventClonePreviewPanel({

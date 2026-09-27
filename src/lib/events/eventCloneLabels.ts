@@ -110,6 +110,7 @@ export const CLONE_OPTION_HINT_KEYS: Record<CloneOptionFlag, string> = {
  */
 export const CLONE_ITEM_LABEL_KEYS: Record<string, string> = {
   groups: "adminEventClone.items.groups",
+  participant_settings: "adminEventClone.items.participantSettings",
   rooms: "adminEventClone.items.rooms",
   tracks: "adminEventClone.items.tracks",
   sessions: "adminEventClone.items.sessions",
@@ -158,6 +159,9 @@ export const CLONE_ITEM_LABEL_KEYS: Record<string, string> = {
   cfp_submissions: "adminEventClone.items.cfpSubmissions",
   seat_assignments: "adminEventClone.items.seatAssignments",
   invoices: "adminEventClone.items.invoices",
+  session_saves: "adminEventClone.items.sessionSaves",
+  session_signups: "adminEventClone.items.sessionSignups",
+  wallet_passes: "adminEventClone.items.walletPasses",
 };
 
 export interface CloneItemEntry {

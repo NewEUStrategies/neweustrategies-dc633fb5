@@ -43,3 +43,5 @@ LINIA 20260926140000
 20260927000800_event_clone.sql
 20260927000801_event_clone_part2.sql
 20260927000802_event_clone_part3.sql
+20260927001300_event_clone_participant_settings.sql     # klon: ustawienia uczestnika, strefa zrodla
+20260927001400_event_person_crm_intents.sql             # most CRM: stan per intencja, os czasu
