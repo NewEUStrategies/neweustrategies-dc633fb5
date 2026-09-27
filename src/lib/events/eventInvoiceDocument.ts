@@ -33,31 +33,16 @@ import {
 import { EVENT_INVOICE_VAT_RATES, type EventInvoiceVatRate } from "@/lib/events/eventInvoiceMath";
 import { buyerDraftFromColumns, type InvoiceBuyerDraft } from "@/lib/events/eventInvoiceBuyerDraft";
 
-type JsonObject = { [key: string]: Json | undefined };
+import {
+  jsonBool,
+  jsonList,
+  jsonNumber,
+  jsonRecord,
+  jsonText,
+  jsonTextOrNull,
+} from "@/lib/events/eventInvoiceJson";
 
-export function jsonRecord(value: Json | undefined): JsonObject {
-  return value !== null && typeof value === "object" && !Array.isArray(value) ? value : {};
-}
-
-export function jsonList(value: Json | undefined): Json[] {
-  return Array.isArray(value) ? value : [];
-}
-
-export function jsonText(value: Json | undefined): string {
-  return typeof value === "string" ? value : "";
-}
-
-export function jsonTextOrNull(value: Json | undefined): string | null {
-  return typeof value === "string" && value !== "" ? value : null;
-}
-
-export function jsonNumber(value: Json | undefined): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-export function jsonBool(value: Json | undefined): boolean {
-  return value === true;
-}
+export { jsonBool, jsonList, jsonNumber, jsonRecord, jsonText, jsonTextOrNull };
 
 export interface EventInvoiceSeller {
   name: string;

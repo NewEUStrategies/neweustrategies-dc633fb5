@@ -173,6 +173,22 @@ export const eventFrontPl = {
     },
 
     // ---------------------------------------------------------------------
+    // NABÓR PRELEGENTÓW W CHROME'IE WYDARZENIA: pozycja w pasku zakładek
+    // (tylko przy otwartym naborze) i odnośniki paneli w zakładce „Moje".
+    //
+    // TUTAJ, NIE W `i18n-event-cfp`. Pasek jedzie w chunku powłoki, czyli na
+    // KAŻDEJ stronie wydarzenia; słownik naboru to ~250 zdań (~10 KB gzip),
+    // a chrome potrzebuje z niego pięciu. Słownik frontu powłoka ładuje i tak.
+    // ---------------------------------------------------------------------
+    cfp: {
+      tab: "Nabór prelegentów",
+      speakerPanel: "Panel prelegenta",
+      speakerPanelHint: "Twoje zgłoszenia, profil prelegenta, wystąpienia i materiały.",
+      reviewerPanel: "Panel recenzenta",
+      reviewerPanelHint: "Zgłoszenia do oceny w naborze prelegentów.",
+    },
+
+    // ---------------------------------------------------------------------
     // Miejsca i stan zapisów
     // ---------------------------------------------------------------------
     seats: {
@@ -834,6 +850,16 @@ export const eventFrontEn = {
         agenda: "Programme",
         discussions: "Discussions",
       },
+    },
+
+    // Call for speakers in the event chrome (tab bar + "My" tab links); kept in
+    // the front overlay so the shell does not load the whole CFP dictionary.
+    cfp: {
+      tab: "Call for speakers",
+      speakerPanel: "Speaker panel",
+      speakerPanelHint: "Your submissions, speaker profile, sessions and materials.",
+      reviewerPanel: "Reviewer panel",
+      reviewerPanelHint: "Submissions to review in the call for speakers.",
     },
 
     seats: {

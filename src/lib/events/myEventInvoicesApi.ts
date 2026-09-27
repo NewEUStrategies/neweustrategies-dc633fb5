@@ -6,15 +6,17 @@
 // sprawdza, ze zapis albo zamowienie pakietu nalezy do wolajacego, i ona
 // pilnuje terminu prosby (do konca trzeciego miesiaca po miesiacu zaplaty).
 // Modul nie importuje niczego z panelu - trafia do publicznego pakietu
-// (krok platnosci, zakup pakietu, profil).
+// (krok platnosci, zakup pakietu, bilet, profil).
+//
+// PARSER DOKUMENTU PRZYCHODZI `import()`-EM, W CHWILI POBRANIA. Ten plik jedzie
+// statycznie na krokach platnosci i zakupu pakietu (prosba o fakture), gdzie
+// migawka dokumentu nie jest potrzebna nigdy. Statyczny import
+// `eventInvoiceDocument` dokladal jego parser do tych chunkow; teraz laduje go
+// wylacznie `fetchMyInvoice` (klik „Pobierz PDF" w profilu).
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
-import {
-  jsonBool,
-  jsonRecord,
-  parseInvoiceDocument,
-  type EventInvoiceDocument,
-} from "@/lib/events/eventInvoiceDocument";
+import type { EventInvoiceDocument } from "@/lib/events/eventInvoiceDocument";
+import { jsonBool, jsonRecord } from "@/lib/events/eventInvoiceJson";
 import { buyerDraftToPayload, type InvoiceBuyerDraft } from "@/lib/events/eventInvoiceBuyerDraft";
 
 type Fns = Database["public"]["Functions"];
@@ -68,6 +70,7 @@ export async function fetchMyInvoices(): Promise<MyInvoiceRow[]> {
 export async function fetchMyInvoice(id: string): Promise<EventInvoiceDocument> {
   const { data, error } = await supabase.rpc("event_my_invoice", { p_id: id });
   if (error) throw new Error(error.message);
+  const { parseInvoiceDocument } = await import("@/lib/events/eventInvoiceDocument");
   const doc = parseInvoiceDocument(data);
   if (doc === null) throw new Error("unknown: document response is not readable");
   return doc;

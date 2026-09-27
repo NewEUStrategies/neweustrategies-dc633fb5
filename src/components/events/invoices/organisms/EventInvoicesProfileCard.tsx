@@ -13,6 +13,11 @@
 // DANE SA PRYWATNE I PO STRONIE KLIENTA: zapytania startuja dopiero z sesja
 // (`enabled`), wiec SSR i pierwszy render klienta rysuja to samo (stan
 // wczytywania) - bez rozjazdu hydratacji.
+//
+// SKLADANIE PDF (etykiety w jezyku faktury + generator) PRZYCHODZI `import()`-EM
+// W CHWILI KLIKNIECIA „Pobierz". Wiekszosc wejsc na te strone konczy sie na
+// liscie albo prosbie o fakture; generator dokumentu w chunku trasy placil
+// kazdy z nich.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -31,7 +36,6 @@ import {
   type EventInvoiceKind,
   type EventInvoiceRequestBlock,
 } from "@/lib/events/eventInvoiceEnums";
-import { downloadEventInvoicePdf } from "@/lib/events/eventInvoicePdfLabels";
 import { eventInvoiceErrorMessage } from "@/lib/events/eventInvoiceErrors";
 import {
   fetchMyInvoice,
@@ -87,7 +91,11 @@ export function EventInvoicesProfileCard() {
   async function download(row: MyInvoiceRow): Promise<void> {
     setBusyId(row.id);
     try {
-      downloadEventInvoicePdf(await fetchMyInvoice(row.id));
+      const [doc, pdf] = await Promise.all([
+        fetchMyInvoice(row.id),
+        import("@/lib/events/eventInvoicePdfLabels"),
+      ]);
+      pdf.downloadEventInvoicePdf(doc);
     } catch {
       toast.error(t("eventInvoices.profile.downloadFailed"));
     } finally {
