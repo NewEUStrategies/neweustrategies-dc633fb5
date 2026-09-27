@@ -189,6 +189,9 @@ export function SpeakerProfileCard({
   // w panelu zmienia adres, gdy redaktor pisze - blad posredniego napisu
   // („https://exa") nie moze zgasic kadru, ktory przyjdzie po nim.
   const [failedLargeUrl, setFailedLargeUrl] = useState<string | null>(null);
+  // Miniatura tak samo: nieaktualny adres zdjecia osoby daje inicjaly, a nie
+  // puste szare kolo.
+  const [failedThumbUrl, setFailedThumbUrl] = useState<string | null>(null);
 
   const cardRef = useRef<HTMLElement | null>(null);
   const mediaRef = useRef<HTMLButtonElement | null>(null);
@@ -549,13 +552,14 @@ export function SpeakerProfileCard({
             element przy zwijaniu montowala zdjecie od nowa z efektem
             pojawiania sie - pierwsza klatka zwijania byla pustym kwadratem
             z bialym podpisem na jasnym tle. Tu miniatura po prostu maleje. */}
-        {thumbUrl !== null ? (
+        {thumbUrl !== null && failedThumbUrl !== thumbUrl ? (
           <img
             src={thumbUrl}
             alt=""
             aria-hidden="true"
             loading="lazy"
             decoding="async"
+            onError={() => setFailedThumbUrl(thumbUrl)}
             className="absolute inset-0 size-full object-cover"
           />
         ) : (

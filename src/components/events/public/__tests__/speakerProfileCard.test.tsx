@@ -523,13 +523,22 @@ describe("SpeakerProfileCard - rozwijanie i zwijanie", () => {
   it("blad miniatury nie chowa duzego kadru", () => {
     // Zdjecie karty bez zdjecia osoby: miniatura = zdjecie karty, wiec obie
     // warstwy istnieja. Ten przypadek pilnuje, ze duzy kadr nie znika po
-    // bledzie miniatury (miniatura nie ma obslugi bledu - to tylko tlo).
+    // bledzie miniatury.
     renderCard(speaker({ avatar_url: null }));
     const toggle = screen.getByRole("button", { name: EXPAND });
     fireEvent.click(toggle);
     const [thumb] = images(toggle);
     fireEvent.error(thumb as HTMLImageElement);
-    expect(srcs(toggle)).toContain(largeOf(CARD_PHOTO));
+    expect(srcs(toggle)).toEqual([largeOf(CARD_PHOTO)]);
+  });
+
+  it("blad miniatury na zwinietej karcie daje inicjaly zamiast pustego kola", () => {
+    renderCard();
+    const toggle = screen.getByRole("button", { name: EXPAND });
+    const [thumb] = images(toggle);
+    fireEvent.error(thumb as HTMLImageElement);
+    expect(images(toggle)).toEqual([]);
+    expect(toggle.textContent).toContain("AK");
   });
 });
 
