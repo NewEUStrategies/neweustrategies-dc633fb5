@@ -71,7 +71,8 @@ export interface PublicSponsorReport {
     materialOpens: number;
     leadsTotal: number;
     leadsConsented: number;
-    meetingsTotal: number;
+    /** Umówione (`meetings_accepted`), jak w raporcie w studiu. */
+    meetingsScheduled: number;
     meetingsHeld: number;
   };
   placements: PublicSponsorPlacement[];
@@ -206,7 +207,7 @@ export function parseSponsorReportPayload(raw: unknown): PublicSponsorReportResu
       materialOpens: num(totals.material_opens),
       leadsTotal: num(totals.leads_total),
       leadsConsented: num(totals.leads_consented),
-      meetingsTotal: num(totals.meetings_total),
+      meetingsScheduled: num(totals.meetings_accepted),
       meetingsHeld: num(totals.meetings_held),
     },
     placements: parsePlacements(root.placements),

@@ -779,9 +779,14 @@ BEGIN
        AND (p_to IS NULL OR (l.first_scanned_at AT TIME ZONE v_tz)::date <= p_to)
      GROUP BY l.sponsor_id
   ), mt AS (
+    -- Spotkania: `total` = zaproszenia poza odwolanymi i przelozonymi;
+    -- `accepted` = UMOWIONE (przyjete + rozstrzygniete po przyjeciu: held,
+    -- no_show). `rescheduled` to STARY wiersz przelozonego spotkania - nowy
+    -- wiersz niesie je dalej, wiec liczenie obu zawyzaloby liczbe;
+    -- zaproszenie bez odpowiedzi, odmowa i odwolanie umowione nie sa.
     SELECT m.sponsor_id AS sid,
-           count(*) FILTER (WHERE m.status <> 'cancelled')::integer AS total,
-           count(*) FILTER (WHERE m.status IN ('accepted', 'rescheduled', 'held', 'no_show'))::integer AS accepted,
+           count(*) FILTER (WHERE m.status NOT IN ('cancelled', 'rescheduled'))::integer AS total,
+           count(*) FILTER (WHERE m.status IN ('accepted', 'held', 'no_show'))::integer AS accepted,
            count(*) FILTER (WHERE m.status = 'held')::integer AS held
       FROM public.event_meetings m
      WHERE m.tenant_id = v_tenant AND m.event_id = p_event_id AND m.sponsor_id IS NOT NULL
@@ -817,7 +822,7 @@ REVOKE ALL ON FUNCTION public.admin_event_sponsor_report_summary(uuid, date, dat
 GRANT EXECUTE ON FUNCTION public.admin_event_sponsor_report_summary(uuid, date, date, text) TO authenticated, service_role;
 
 COMMENT ON FUNCTION public.admin_event_sponsor_report_summary(uuid, date, date, text) IS
-  'Raport sponsorow wydarzenia: wiersz per przypiecie z wyswietleniami i kliknieciami (unikalne = sesja x dzien, lacznie = trafienia), otwarciami materialow, kontaktami ze stoiska (zywa zgoda na przekazanie partnerowi), spotkaniami i aktywnymi linkami. Filtr miejsca dotyczy tylko ekspozycji. Bramka: assert_event_admin_tenant().';
+  'Raport sponsorow wydarzenia: wiersz per przypiecie z wyswietleniami i kliknieciami (unikalne = sesja x dzien, lacznie = trafienia), otwarciami materialow, kontaktami ze stoiska (zywa zgoda na przekazanie partnerowi), spotkaniami (meetings_total = zaproszenia bez odwolanych i przelozonych, meetings_accepted = umowione: accepted/held/no_show, meetings_held = odbyte) i aktywnymi linkami. Filtr miejsca dotyczy tylko ekspozycji. Bramka: assert_event_admin_tenant().';
 
 CREATE OR REPLACE FUNCTION public.admin_event_sponsor_report_series(
   p_event_id uuid,
@@ -1256,9 +1261,11 @@ BEGIN
     JOIN public.event_people p ON p.tenant_id = l.tenant_id AND p.id = l.person_id
    WHERE l.tenant_id = p_tenant AND l.event_id = v_link.event_id AND l.sponsor_id = v_link.sponsor_id;
 
+  -- Te same definicje, co w `admin_event_sponsor_report_summary`
+  -- (umowione = accepted/held/no_show; stary wiersz przelozenia sie nie liczy).
   SELECT jsonb_build_object(
-           'meetings_total', count(*) FILTER (WHERE m.status <> 'cancelled'),
-           'meetings_accepted', count(*) FILTER (WHERE m.status IN ('accepted', 'rescheduled', 'held', 'no_show')),
+           'meetings_total', count(*) FILTER (WHERE m.status NOT IN ('cancelled', 'rescheduled')),
+           'meetings_accepted', count(*) FILTER (WHERE m.status IN ('accepted', 'held', 'no_show')),
            'meetings_held', count(*) FILTER (WHERE m.status = 'held')
          )
     INTO v_meetings

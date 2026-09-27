@@ -518,19 +518,32 @@ INSERT INTO public.event_registrations (id, tenant_id, event_id, person_id, stat
   ('32900000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111',
    '32e00000-0000-0000-0000-0000000000e1', '32b00000-0000-0000-0000-000000000002', 'approved', 'rsvp');
 ALTER TABLE public.event_meetings DISABLE TRIGGER USER;
+-- Kazdy stan gieldy raz: umowione to accepted + held + no_show (3), a NIE
+-- zaproszenie bez odpowiedzi, odmowa, odwolanie ani STARY wiersz przelozenia
+-- (`rescheduled` - nowy wiersz niesie spotkanie dalej, liczony podwojnie
+-- zawyzalby raport sponsora).
 INSERT INTO public.event_meetings
   (tenant_id, event_id, requester_registration_id, invitee_registration_id, starts_at, ends_at,
-   status, expires_at, responded_at, attendance_marked_at, sponsor_id)
+   status, expires_at, responded_at, attendance_marked_at, decline_reason, cancelled_at,
+   cancelled_side, sponsor_id)
 SELECT '11111111-1111-1111-1111-111111111111', '32e00000-0000-0000-0000-0000000000e1',
        '32900000-0000-0000-0000-000000000001', '32900000-0000-0000-0000-000000000002',
        m.starts_at, m.starts_at + interval '30 minutes', m.status, m.starts_at,
-       CASE WHEN m.status IN ('accepted', 'held') THEN m.starts_at - interval '1 hour' END,
-       CASE WHEN m.status = 'held' THEN m.starts_at + interval '30 minutes' END,
+       CASE WHEN m.status IN ('accepted', 'held', 'no_show', 'declined', 'rescheduled')
+            THEN m.starts_at - interval '1 hour' END,
+       CASE WHEN m.status IN ('held', 'no_show') THEN m.starts_at + interval '30 minutes' END,
+       CASE WHEN m.status = 'declined' THEN 'inny termin' END,
+       CASE WHEN m.status = 'cancelled' THEN m.starts_at - interval '2 hours' END,
+       CASE WHEN m.status = 'cancelled' THEN 'requester' END,
        '32500000-0000-0000-0000-000000000001'
   FROM (VALUES
     ('held', (((now() AT TIME ZONE 'Europe/Warsaw')::date + time '10:00') AT TIME ZONE 'Europe/Warsaw')),
     ('accepted', (((now() AT TIME ZONE 'Europe/Warsaw')::date + time '11:00') AT TIME ZONE 'Europe/Warsaw')),
-    ('invited', (((now() AT TIME ZONE 'Europe/Warsaw')::date + time '12:00') AT TIME ZONE 'Europe/Warsaw'))
+    ('invited', (((now() AT TIME ZONE 'Europe/Warsaw')::date + time '12:00') AT TIME ZONE 'Europe/Warsaw')),
+    ('declined', (((now() AT TIME ZONE 'Europe/Warsaw')::date + time '13:00') AT TIME ZONE 'Europe/Warsaw')),
+    ('cancelled', (((now() AT TIME ZONE 'Europe/Warsaw')::date + time '14:00') AT TIME ZONE 'Europe/Warsaw')),
+    ('rescheduled', (((now() AT TIME ZONE 'Europe/Warsaw')::date + time '15:00') AT TIME ZONE 'Europe/Warsaw')),
+    ('no_show', (((now() AT TIME ZONE 'Europe/Warsaw')::date + time '16:00') AT TIME ZONE 'Europe/Warsaw'))
   ) AS m(status, starts_at);
 ALTER TABLE public.event_meetings ENABLE TRIGGER USER;
 
@@ -553,8 +566,9 @@ BEGIN
     AND v_row.leads_avg_rating = 4.00,
     '32/raport: kontakty 4, z zywa zgoda 2 (wycofana zgoda NIE liczy sie), skany 5, srednia ocena 4');
   PERFORM pg_temp.assert(
-    v_row.meetings_total = 3 AND v_row.meetings_accepted = 2 AND v_row.meetings_held = 1,
-    '32/raport: spotkania 3, przyjete 2, odbyte 1');
+    v_row.meetings_total = 5 AND v_row.meetings_accepted = 3 AND v_row.meetings_held = 1,
+    format('32/raport: zaproszenia 5 (bez odwolanego i starego wiersza przelozenia), umowione 3 (accepted/held/no_show), odbyte 1; jest %s/%s/%s',
+      v_row.meetings_total, v_row.meetings_accepted, v_row.meetings_held));
   PERFORM pg_temp.assert(
     v_row.tier_name_pl = 'Zloty' AND v_row.company_id = '32c00000-0000-0000-0000-0000000000c1'
     AND v_row.is_published AND v_row.active_links = 0,
@@ -782,6 +796,8 @@ BEGIN
     AND (v_res#>>'{totals,leads_total}')::int = 4
     AND (v_res#>>'{totals,leads_consented}')::int = 2
     AND (v_res#>>'{totals,meetings_held}')::int = 1
+    AND (v_res#>>'{totals,meetings_accepted}')::int = 3
+    AND (v_res#>>'{totals,meetings_total}')::int = 5
     AND jsonb_typeof(v_res->'leads') = 'null'
     AND jsonb_array_length(v_res->'placements') >= 4
     AND jsonb_array_length(v_res->'series') >= 1,
