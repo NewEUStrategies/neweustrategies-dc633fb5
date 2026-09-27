@@ -727,6 +727,11 @@ END $$;
 DO $$
 DECLARE v jsonb;
 BEGIN
+  -- Olga zgadza sie na przekazanie danych partnerom - bez tego lead i tak
+  -- nie oddaje tozsamosci, wiec asercje "bez danych w oknie" bylyby puste.
+  UPDATE public.event_people SET consent_partner_sharing_at = now() - interval '1 day'
+   WHERE id = '51700000-0000-0000-0000-000000000001';
+
   v := public.event_checkin_record(jsonb_build_object(
     'device_token', 'tok51-wygasle-00001', 'code', 'qr51-olga-00000000001',
     'checkpoint_id', '51c00000-0000-0000-0000-0000000000a2',
@@ -734,12 +739,59 @@ BEGIN
     'device_scanned_at', now() - interval '2 hours', 'queued', true));
   PERFORM pg_temp.assert(v->>'outcome' = 'granted',
     '51/okno: skan sprzed terminu z urzadzenia wygaslego godzine temu jest przyjety');
+  PERFORM pg_temp.assert(v->'person' = 'null'::jsonb,
+    '51/okno: odprawa przyjeta WYLACZNIE dzieki oknu nie oddaje karty osoby wygaslemu urzadzeniu');
 
   v := public.event_lead_scan_record(jsonb_build_object(
     'device_token', 'tok51-stoiskowyg-01', 'code', 'qr51-olga-00000000001',
     'device_scanned_at', now() - interval '2 hours', 'queued', true));
   PERFORM pg_temp.assert(v->>'outcome' = 'saved',
     '51/okno: lead sprzed terminu z wygaslego stoiska jest przyjety');
+  PERFORM pg_temp.assert((v->>'consent')::boolean AND v->'person' = 'null'::jsonb
+      AND position('olga.obecna@example.org' IN v::text) = 0
+      AND position('+48501000001' IN v::text) = 0,
+    '51/PRYWATNOSC: lead w oknie 72 h zapisany ze zgoda, ale BEZ e-maila i telefonu na wygaslym stoisku');
+
+  -- Kontrapunkt: to samo na WAZNYM stoisku oddaje dane (zgoda jest), wiec
+  -- to okno, a nie brak zgody, chowa je powyzej.
+  v := public.event_lead_scan_record(jsonb_build_object(
+    'device_token', 'tok51-stoisko-00001', 'code', 'qr51-olga-00000000001'));
+  PERFORM pg_temp.assert(v->'person'->>'email' = 'olga.obecna@example.org'
+      AND v->'person'->>'phone' = '+48501000001',
+    '51/okno: wazne poswiadczenie stoiska z ta sama zgoda dostaje e-mail i telefon (kontrapunkt)');
+END $$;
+
+-- Skan NA ZYWO (bez `queued`) z czasem wstecznym nie korzysta z okna -
+-- wczesniej wystarczylo podac stara date, zeby wygasle stoisko dalej
+-- pobieralo dane kontaktowe uczestnikow.
+SELECT pg_temp.assert_raises_like($q$
+  SELECT public.event_lead_scan_record(jsonb_build_object(
+    'device_token', 'tok51-stoiskowyg-01', 'code', 'qr51-olga-00000000001',
+    'device_scanned_at', now() - interval '2 hours'))
+$q$, 'device_expired',
+  '51/okno: lead na zywo z czasem wstecznym z wygaslego stoiska jest odrzucony (okno tylko dla kolejki)');
+
+SELECT pg_temp.assert_raises_like($q$
+  SELECT public.event_checkin_record(jsonb_build_object(
+    'device_token', 'tok51-wygasle-00001', 'code', 'qr51-olga-00000000001',
+    'checkpoint_id', '51c00000-0000-0000-0000-0000000000a2',
+    'client_scan_uid', 'scan51-grace-live',
+    'device_scanned_at', now() - interval '2 hours'))
+$q$, 'device_expired',
+  '51/okno: odprawa na zywo z czasem wstecznym z wygaslego urzadzenia jest odrzucona');
+
+-- Decyzja offline oznacza kolejke nawet bez flagi `queued` - okno dziala.
+DO $$
+DECLARE v jsonb;
+BEGIN
+  v := public.event_checkin_record(jsonb_build_object(
+    'device_token', 'tok51-wygasle-00001', 'code', 'qr51-olga-00000000001',
+    'checkpoint_id', '51c00000-0000-0000-0000-0000000000a2', 'direction', 'in',
+    'client_scan_uid', 'scan51-grace-02',
+    'device_scanned_at', now() - interval '90 minutes',
+    'offline_admitted', true, 'offline_outcome', 'granted'));
+  PERFORM pg_temp.assert(v->>'outcome' IN ('granted', 'repeat') AND v->'person' = 'null'::jsonb,
+    '51/okno: skan z decyzja offline to skan z kolejki - okno 72 h, bez karty osoby');
 END $$;
 
 SELECT pg_temp.assert_raises_like($q$
@@ -998,12 +1050,323 @@ RESET ROLE;
 SELECT pg_temp.act_as(NULL, NULL);
 
 -- ---------------------------------------------------------------------------
+-- SEKCJA 10b: ODMOWA OFFLINE NIE STAJE SIE OBECNOSCIA (review #33)
+--
+-- Urzadzenie bez sieci ODESLALO czlowieka (kod spoza listy: bilet wydany po
+-- pobraniu listy; status "oczekujace" na liscie, a zapis przyjety pozniej),
+-- a serwer po synchronizacji by go wpuscil. Wczesniej zapis dostawal zgode:
+-- attended_at, tag CRM i oblozenie punktu dla kogos, kto nie wszedl - a na
+-- tym stoja certyfikaty obecnosci (#406). Teraz wiersz trzyma odmowe bramki,
+-- wynik serwera jest w offline_server_result, a panel pokazuje konflikt
+-- "odeslany offline".
+-- ---------------------------------------------------------------------------
+INSERT INTO public.event_sessions
+  (id, tenant_id, event_id, title_pl, title_en, starts_at, ends_at, status, sort_order)
+VALUES
+  ('51500000-0000-0000-0000-00000000005a', '11111111-1111-1111-1111-111111111111',
+   '51e00000-0000-0000-0000-0000000000a1', 'Sesja plenarna', 'Plenary session',
+   now() + interval '1 day', now() + interval '1 day 1 hour', 'published', 10)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.event_checkpoints
+  (id, tenant_id, event_id, session_id, name_pl, name_en, kind, direction_mode,
+   access_mode, dedupe_window_seconds)
+VALUES
+  ('51c00000-0000-0000-0000-0000000000a3', '11111111-1111-1111-1111-111111111111',
+   '51e00000-0000-0000-0000-0000000000a1', '51500000-0000-0000-0000-00000000005a',
+   'Sesja plenarna', 'Plenary session', 'session', 'in_only', 'control', 60)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.event_people
+  (id, tenant_id, first_name, last_name, email, company_text, source)
+VALUES
+  ('51700000-0000-0000-0000-000000000009', '11111111-1111-1111-1111-111111111111',
+   'Wiktor', 'Walkin', 'wiktor.walkin@example.org', 'Gamma', 'organizer'),
+  ('51700000-0000-0000-0000-000000000010', '11111111-1111-1111-1111-111111111111',
+   'Dorota', 'Doszla', 'dorota.doszla@example.org', NULL, 'organizer')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.event_registrations
+  (id, tenant_id, event_id, person_id, status, registration_mode, qr_token_hash, qr_issued_at)
+VALUES
+  ('51300000-0000-0000-0000-000000000009', '11111111-1111-1111-1111-111111111111',
+   '51e00000-0000-0000-0000-0000000000a1', '51700000-0000-0000-0000-000000000009',
+   'approved', 'rsvp', encode(extensions.digest('qr51-wiktor-000000001', 'sha256'), 'hex'), now()),
+  ('51300000-0000-0000-0000-000000000010', '11111111-1111-1111-1111-111111111111',
+   '51e00000-0000-0000-0000-0000000000a1', '51700000-0000-0000-0000-000000000010',
+   'approved', 'rsvp', encode(extensions.digest('qr51-dorota-000000001', 'sha256'), 'hex'), now())
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.crm_leads (id, tenant_id, email, first_name, last_name, source_type, tags)
+VALUES
+  ('51d00000-0000-0000-0000-000000000009', '11111111-1111-1111-1111-111111111111',
+   'wiktor.walkin@example.org', 'Wiktor', 'Walkin', 'newsletter', ARRAY['lista:energia'])
+ON CONFLICT (id) DO NOTHING;
+
+CREATE TEMP TABLE t51_occ (k text PRIMARY KEY, v integer) ON COMMIT DROP;
+INSERT INTO t51_occ VALUES
+  ('gate', public._event_checkpoint_occupancy('11111111-1111-1111-1111-111111111111',
+     '51c00000-0000-0000-0000-0000000000a1')),
+  ('session', public._event_checkpoint_occupancy('11111111-1111-1111-1111-111111111111',
+     '51c00000-0000-0000-0000-0000000000a3'));
+
+DO $$
+DECLARE v jsonb; v_row public.event_checkins; v_reg public.event_registrations;
+BEGIN
+  -- Kod spoza listy offline (bilet wydany po pobraniu), serwer go zna.
+  v := public.event_checkin_record(jsonb_build_object(
+    'device_token', 'tok51-offline-000001', 'code', 'qr51-wiktor-000000001',
+    'checkpoint_id', '51c00000-0000-0000-0000-0000000000a1',
+    'client_scan_uid', 'scan51-wiktor-01',
+    'device_scanned_at', now() - interval '15 minutes', 'queued', true,
+    'offline_admitted', false, 'offline_outcome', 'unknown_code',
+    'roster_generated_at', now() - interval '40 minutes'));
+  SELECT * INTO v_row FROM public.event_checkins WHERE id = (v->>'checkin_id')::uuid;
+  SELECT * INTO v_reg FROM public.event_registrations
+   WHERE id = '51300000-0000-0000-0000-000000000009';
+
+  PERFORM pg_temp.assert(NOT (v->>'admit')::boolean AND (v->>'server_admit')::boolean
+      AND v->>'outcome' = 'denied_not_registered',
+    '51/odmowa offline: odpowiedz mowi "bramka odeslala" (admit false) i "serwer by wpuscil" (server_admit)');
+  PERFORM pg_temp.assert(v_row.result = 'denied_not_registered'
+      AND v_row.offline_server_result = 'granted'
+      AND v_row.offline_admitted = false AND v_row.offline_outcome = 'unknown_code'
+      AND v_row.registration_id = '51300000-0000-0000-0000-000000000009',
+    '51/odmowa offline: wiersz trzyma odmowe bramki, a wynik serwera w offline_server_result');
+  PERFORM pg_temp.assert(v_reg.attended_at IS NULL AND v_reg.status = 'approved',
+    '51/odmowa offline: czlowiek odeslany od bramki NIE staje sie obecny (attended_at pusty, status bez zmian)');
+  PERFORM pg_temp.assert(
+    NOT (SELECT 'attended:offline-51' = ANY (tags) FROM public.crm_leads
+          WHERE id = '51d00000-0000-0000-0000-000000000009')
+    AND NOT EXISTS (SELECT 1 FROM public.audit_log
+                     WHERE action = 'event.checkin.attended'
+                       AND entity_id = '51d00000-0000-0000-0000-000000000009'),
+    '51/odmowa offline: brak tagu obecnosci i wpisu osi czasu w CRM');
+  PERFORM pg_temp.assert(
+    public._event_checkpoint_occupancy('11111111-1111-1111-1111-111111111111',
+      '51c00000-0000-0000-0000-0000000000a1') = (SELECT o.v FROM t51_occ o WHERE o.k = 'gate'),
+    '51/odmowa offline: oblozenie punktu bez zmian (liczy tylko zgody)');
+
+  -- Ponowna wysylka: ten sam wiersz, ta sama odpowiedz.
+  v := public.event_checkin_record(jsonb_build_object(
+    'device_token', 'tok51-offline-000001', 'code', 'qr51-wiktor-000000001',
+    'checkpoint_id', '51c00000-0000-0000-0000-0000000000a1',
+    'client_scan_uid', 'scan51-wiktor-01', 'queued', true,
+    'offline_admitted', false, 'offline_outcome', 'unknown_code'));
+  PERFORM pg_temp.assert(v->>'outcome' = 'replay' AND (v->>'checkin_id')::uuid = v_row.id
+      AND NOT (v->>'admit')::boolean AND (v->>'server_admit')::boolean,
+    '51/odmowa offline: replay oddaje ten sam wiersz i nadal mowi "serwer by wpuscil"');
+
+  -- Sesja: lista mowila "oczekujace", zapis przyjeto pozniej. Obecnosc na
+  -- sesji (podstawa certyfikatu "sessions_min") NIE moze powstac.
+  v := public.event_checkin_record(jsonb_build_object(
+    'device_token', 'tok51-offline-000001', 'code', 'qr51-dorota-000000001',
+    'checkpoint_id', '51c00000-0000-0000-0000-0000000000a3',
+    'client_scan_uid', 'scan51-dorota-01',
+    'device_scanned_at', now() - interval '10 minutes', 'queued', true,
+    'offline_admitted', false, 'offline_outcome', 'denied_registration_status'));
+  PERFORM pg_temp.assert(v->>'result' = 'denied_registration_status' AND (v->>'server_admit')::boolean,
+    '51/odmowa offline: sesja - wiersz z odmowa statusu z listy, serwer by wpuscil');
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.event_checkins
+                 WHERE person_id = '51700000-0000-0000-0000-000000000010' AND result = 'granted')
+    AND (SELECT attended_at IS NULL FROM public.event_registrations
+          WHERE id = '51300000-0000-0000-0000-000000000010')
+    AND public._event_checkpoint_occupancy('11111111-1111-1111-1111-111111111111',
+      '51c00000-0000-0000-0000-0000000000a3') = (SELECT o.v FROM t51_occ o WHERE o.k = 'session'),
+    '51/odmowa offline: brak zgody na sesji, brak obecnosci i oblozenie sesji bez zmian');
+
+  -- Odmowa offline, ktora serwer POTWIERDZA (zapis anulowany) - bez konfliktu.
+  v := public.event_checkin_record(jsonb_build_object(
+    'device_token', 'tok51-offline-000001', 'code', 'qr51-anna-00000000001',
+    'checkpoint_id', '51c00000-0000-0000-0000-0000000000a1',
+    'client_scan_uid', 'scan51-anna-off-01', 'queued', true,
+    'device_scanned_at', now() - interval '12 minutes',
+    'offline_admitted', false, 'offline_outcome', 'unknown_code'));
+  SELECT * INTO v_row FROM public.event_checkins WHERE id = (v->>'checkin_id')::uuid;
+  PERFORM pg_temp.assert(v_row.result = 'denied_not_registered'
+      AND v_row.offline_server_result = 'denied_not_registered'
+      AND NOT (v->>'server_admit')::boolean,
+    '51/odmowa offline: serwer tez odmawia - wynik serwera zapisany, bez zgody');
+
+  -- Kontrapunkt: ta sama osoba wraca do bramki i skan NA ZYWO ja wpuszcza -
+  -- dopiero teraz obecnosc, tagi event:/attended: i wpis osi czasu.
+  v := public.event_checkin_record(jsonb_build_object(
+    'device_token', 'tok51-offline-000001', 'code', 'qr51-wiktor-000000001',
+    'checkpoint_id', '51c00000-0000-0000-0000-0000000000a1',
+    'client_scan_uid', 'scan51-wiktor-02'));
+  PERFORM pg_temp.assert(v->>'outcome' = 'granted' AND (v->>'admit')::boolean
+      AND (v->>'server_admit')::boolean
+      AND (SELECT attended_at IS NOT NULL FROM public.event_registrations
+            WHERE id = '51300000-0000-0000-0000-000000000009'),
+    '51/odmowa offline: wejscie na zywo po odeslaniu to zwykla zgoda ze stemplem obecnosci');
+  PERFORM pg_temp.assert(
+    (SELECT 'event:offline-51' = ANY (tags) AND 'attended:offline-51' = ANY (tags)
+       FROM public.crm_leads WHERE id = '51d00000-0000-0000-0000-000000000009'),
+    '51/CRM: obecnosc dopisuje tagi event:<slug> i attended:<slug>');
+END $$;
+
+SELECT pg_temp.assert_raises_like($q$
+  SELECT public.event_checkin_record(jsonb_build_object(
+    'device_token', 'tok51-offline-000001', 'code', 'qr51-dorota-000000001',
+    'checkpoint_id', '51c00000-0000-0000-0000-0000000000a1',
+    'client_scan_uid', 'scan51-dorota-02', 'queued', true,
+    'offline_admitted', false, 'offline_outcome', 'granted'))
+$q$, 'invalid_payload',
+  '51/ODMOWA: "zgoda offline, ale nie wpuscilem" to ladunek sprzeczny (invalid_payload)');
+
+SELECT pg_temp.assert_raises_like($q$
+  SELECT public._event_checkin_write(
+    '11111111-1111-1111-1111-111111111111', '51e00000-0000-0000-0000-0000000000a1',
+    '51c00000-0000-0000-0000-0000000000a1', '51700000-0000-0000-0000-000000000010',
+    'in', 'qr_code', '51d10000-0000-0000-0000-000000000001', NULL, 'scan51-dorota-03',
+    NULL, NULL, 'granted')
+$q$, 'invalid_payload',
+  '51/ODMOWA: zapis przyjmuje jako odmowe offline wylacznie wynik odmowy');
+
+DO $$
+BEGIN
+  PERFORM pg_temp.act_as('51a00000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111');
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.admin_event_checkins_list(
+      '51e00000-0000-0000-0000-0000000000a1', p_conflicts_only => true) c
+      WHERE c.conflict_kind = 'denied_offline' AND c.conflict
+        AND c.offline_server_result = 'granted'
+        AND c.person_id IN ('51700000-0000-0000-0000-000000000009',
+                            '51700000-0000-0000-0000-000000000010')) = 2
+    AND (SELECT count(*) FROM public.admin_event_checkins_list(
+      '51e00000-0000-0000-0000-0000000000a1', p_conflicts_only => true) c
+      WHERE c.conflict_kind = 'admitted_offline') = 2
+    AND (SELECT count(*) FROM public.admin_event_checkins_list(
+      '51e00000-0000-0000-0000-0000000000a1', p_conflicts_only => true) c
+      WHERE c.conflict_kind IS NULL OR NOT c.conflict) = 0,
+    '51/panel: filtr konfliktow oddaje OBA rodzaje - dwa "odeslany offline" i dwa "wpuszczony offline"');
+  PERFORM pg_temp.assert(
+    (SELECT c.conflict_kind IS NULL AND NOT c.conflict
+       FROM public.admin_event_checkins_list('51e00000-0000-0000-0000-0000000000a1') c
+      WHERE c.person_id = '51700000-0000-0000-0000-000000000003'
+        AND c.offline_outcome = 'unknown_code'),
+    '51/panel: odmowa offline potwierdzona przez serwer to NIE konflikt');
+  PERFORM pg_temp.act_as(NULL, NULL);
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- SEKCJA 10c: LISTA OFFLINE A GOSCIE GRUPY I PONOWNA WYSYLKA BILETU
+--
+-- Kaskada prowadzacego (20260926100000/120000/180000) i ponowna wysylka
+-- (admin_event_ticket_resend + _event_issue_ticket_codes) zmieniaja zapisy
+-- ZA PLECAMI listy offline. Delta musi to widziec: gosc zamkniety razem
+-- z anulowanym prowadzacym wypada (`removed`), nowy kod po ponownej wysylce
+-- wraca jako nowy skrot `h`, a gosc oczekujacy z kodem jest na liscie jako
+-- `pending` (urzadzenie go odprawi odmowa statusu).
+-- ---------------------------------------------------------------------------
+INSERT INTO public.event_scanner_devices
+  (id, tenant_id, event_id, checkpoint_id, sponsor_id, label, token_hash, token_prefix,
+   scopes, is_active, expires_at, revoked_at, offline_roster)
+VALUES
+  ('51d10000-0000-0000-0000-000000000010', '11111111-1111-1111-1111-111111111111',
+   '51e00000-0000-0000-0000-0000000000a1', NULL, NULL, 'Grupa offline',
+   encode(extensions.digest('tok51-grupa-0000001', 'sha256'), 'hex'), 'tok51-gr',
+   ARRAY['checkin']::text[], true, now() + interval '2 days', NULL, true)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.event_people
+  (id, tenant_id, first_name, last_name, email, source)
+VALUES
+  ('51700000-0000-0000-0000-000000000011', '11111111-1111-1111-1111-111111111111',
+   'Lena', 'Lider', 'lena.lider@example.org', 'organizer'),
+  ('51700000-0000-0000-0000-000000000012', '11111111-1111-1111-1111-111111111111',
+   'Gustaw', 'Gosc', 'gustaw.gosc@example.org', 'organizer'),
+  ('51700000-0000-0000-0000-000000000013', '11111111-1111-1111-1111-111111111111',
+   'Pola', 'Pending', 'pola.pending@example.org', 'organizer'),
+  ('51700000-0000-0000-0000-000000000014', '11111111-1111-1111-1111-111111111111',
+   'Roman', 'Ponowny', 'roman.ponowny@example.org', 'organizer')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.event_registrations
+  (id, tenant_id, event_id, person_id, status, registration_mode, payment_status,
+   group_lead_registration_id, qr_token_hash, qr_issued_at, ticket_code_sent_at)
+VALUES
+  ('51300000-0000-0000-0000-000000000011', '11111111-1111-1111-1111-111111111111',
+   '51e00000-0000-0000-0000-0000000000a1', '51700000-0000-0000-0000-000000000011',
+   'approved', 'rsvp', 'not_required', NULL,
+   encode(extensions.digest('qr51-lena-00000000001', 'sha256'), 'hex'), now(), now() - interval '1 hour'),
+  ('51300000-0000-0000-0000-000000000012', '11111111-1111-1111-1111-111111111111',
+   '51e00000-0000-0000-0000-0000000000a1', '51700000-0000-0000-0000-000000000012',
+   'approved', 'rsvp', 'not_required', '51300000-0000-0000-0000-000000000011',
+   encode(extensions.digest('qr51-gustaw-000000001', 'sha256'), 'hex'), now(), now() - interval '1 hour'),
+  ('51300000-0000-0000-0000-000000000013', '11111111-1111-1111-1111-111111111111',
+   '51e00000-0000-0000-0000-0000000000a1', '51700000-0000-0000-0000-000000000013',
+   'pending', 'rsvp', 'not_required', '51300000-0000-0000-0000-000000000011',
+   encode(extensions.digest('qr51-pola-00000000001', 'sha256'), 'hex'), now(), NULL),
+  ('51300000-0000-0000-0000-000000000014', '11111111-1111-1111-1111-111111111111',
+   '51e00000-0000-0000-0000-0000000000a1', '51700000-0000-0000-0000-000000000014',
+   'approved', 'rsvp', 'not_required', NULL,
+   encode(extensions.digest('qr51-roman-0000000001', 'sha256'), 'hex'), now(), now() - interval '1 hour')
+ON CONFLICT (id) DO NOTHING;
+
+DO $$
+DECLARE
+  v_full jsonb;
+  v_delta jsonb;
+  v_row jsonb;
+  v_old_hash text;
+  v_new_hash text;
+BEGIN
+  v_full := public.event_scanner_roster(jsonb_build_object('device_token', 'tok51-grupa-0000001'));
+  SELECT x INTO v_row FROM jsonb_array_elements(v_full->'rows') x
+   WHERE x->>'r' = '51300000-0000-0000-0000-000000000013';
+  PERFORM pg_temp.assert(v_row->>'s' = 'pending'
+      AND v_row->>'h' = encode(extensions.digest('qr51-pola-00000000001', 'sha256'), 'hex'),
+    '51/grupa: gosc oczekujacy z kodem jest na liscie jako pending (offline dostanie odmowe statusu)');
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM jsonb_array_elements(v_full->'rows') x
+      WHERE x->>'r' IN ('51300000-0000-0000-0000-000000000011',
+                        '51300000-0000-0000-0000-000000000012',
+                        '51300000-0000-0000-0000-000000000014')) = 3,
+    '51/grupa: prowadzacy, przyjety gosc i uczestnik solo sa na pelnej liscie');
+
+  -- Prowadzacy anuluje: kaskada zamyka czekajacego i przyjetego goscia.
+  UPDATE public.event_registrations
+     SET status = 'cancelled', cancelled_at = now()
+   WHERE id = '51300000-0000-0000-0000-000000000011';
+
+  -- Ponowna wysylka biletu uczestnika solo: nowy kod przy nastepnym wydaniu.
+  SELECT qr_token_hash INTO v_old_hash FROM public.event_registrations
+   WHERE id = '51300000-0000-0000-0000-000000000014';
+  PERFORM pg_temp.act_as('51a00000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111');
+  PERFORM public.admin_event_ticket_resend('51300000-0000-0000-0000-000000000014', false);
+  PERFORM pg_temp.act_as(NULL, NULL);
+  PERFORM public._event_issue_ticket_codes('51300000-0000-0000-0000-000000000014');
+  SELECT qr_token_hash INTO v_new_hash FROM public.event_registrations
+   WHERE id = '51300000-0000-0000-0000-000000000014';
+  PERFORM pg_temp.assert(v_new_hash IS NOT NULL AND v_new_hash <> v_old_hash,
+    '51/grupa: punkt wyjscia - ponowna wysylka wydala nowy kod');
+
+  v_delta := public.event_scanner_roster(jsonb_build_object(
+    'device_token', 'tok51-grupa-0000001', 'since', v_full->>'generated_at'));
+  PERFORM pg_temp.assert(
+    v_delta->'removed' @> '["51300000-0000-0000-0000-000000000011", "51300000-0000-0000-0000-000000000012", "51300000-0000-0000-0000-000000000013"]'::jsonb
+    AND NOT EXISTS (
+      SELECT 1 FROM jsonb_array_elements(v_delta->'rows') x
+       WHERE x->>'r' IN ('51300000-0000-0000-0000-000000000011',
+                         '51300000-0000-0000-0000-000000000012',
+                         '51300000-0000-0000-0000-000000000013')),
+    '51/grupa: anulowany prowadzacy i jego goscie (przyjety i oczekujacy) wypadaja w delcie jako removed');
+  SELECT x INTO v_row FROM jsonb_array_elements(v_delta->'rows') x
+   WHERE x->>'r' = '51300000-0000-0000-0000-000000000014';
+  PERFORM pg_temp.assert(v_row->>'h' = v_new_hash AND v_row->>'s' = 'approved',
+    '51/grupa: po ponownej wysylce delta niesie NOWY skrot kodu (stary bilet przestaje pasowac offline)');
+END $$;
+
+-- ---------------------------------------------------------------------------
 -- SEKCJA 11: CRM - SYGNAL OBECNOSCI (TYLKO AKTUALIZACJA ISTNIEJACEGO)
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.assert(
-  (SELECT 'attended:offline-51' = ANY (tags) AND 'lista:energia' = ANY (tags)
+  (SELECT 'attended:offline-51' = ANY (tags) AND 'event:offline-51' = ANY (tags)
+          AND 'lista:energia' = ANY (tags)
      FROM public.crm_leads WHERE id = '51d00000-0000-0000-0000-000000000001'),
-  '51/CRM: obecnosc dopisuje tag attended:<slug> do ISTNIEJACEGO kontaktu (stare tagi zostaja)');
+  '51/CRM: obecnosc dopisuje tagi event:<slug> i attended:<slug> do ISTNIEJACEGO kontaktu (stare tagi zostaja)');
 
 SELECT pg_temp.assert(
   (SELECT count(*) FROM public.audit_log
