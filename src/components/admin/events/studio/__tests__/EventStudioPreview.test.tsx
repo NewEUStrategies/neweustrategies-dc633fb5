@@ -198,6 +198,7 @@ beforeEach(() => {
   h.wroc = null;
   stub().setData("admin_event_sponsors_list", []);
   stub().setData("admin_event_sponsor_tiers_list", []);
+  stub().setData("admin_event_sponsor_links", []);
   stub().setData("admin_event_sessions_list", []);
   stub().setData("admin_event_tracks_list", []);
   stub().setData("admin_event_registrations_list", []);
@@ -227,11 +228,13 @@ describe("EventStudioPreview - zamkniety podglad nie kosztuje nic", () => {
     // pusty, czyli dokladnie tym, co ten modul mial naprawic.
     nakladka({ open: true });
 
-    await waitFor(() => expect(new Set(stub().names()).size).toBeGreaterThanOrEqual(5));
+    await waitFor(() => expect(new Set(stub().names()).size).toBeGreaterThanOrEqual(6));
     const nazwy = [...new Set(stub().names())].sort();
     expect(nazwy).toEqual([
       "admin_event_registrations_list",
       "admin_event_sessions_list",
+      // Ustawienie „dokad prowadzi logotyp" - lista przypiec go nie niesie.
+      "admin_event_sponsor_links",
       "admin_event_sponsor_tiers_list",
       "admin_event_sponsors_list",
       "admin_event_tracks_list",
