@@ -9,7 +9,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   SPEAKER_CARD_MOTION_MS,
   SPEAKER_CARD_RADIUS_PX,
-  SPEAKER_CARD_ROUND,
   SPEAKER_CARD_SQUARE,
   SPEAKER_CARD_SPRING,
   SPEAKER_CARD_SPRING_FALLBACK,
@@ -235,34 +234,40 @@ describe("flipMediaKeyframes", () => {
   });
 });
 
-describe("flipMediaKeyframes - kolo miniatury i kwadrat pelnego kadru", () => {
+describe("flipMediaKeyframes - miniatura 6 px i kwadrat pelnego kadru", () => {
   const small = box({ top: 20, left: 120, width: 80, height: 80 });
   const full = box({ top: 0, left: 0, width: 320, height: 320 });
+  const photo = `${SPEAKER_CARD_RADIUS_PX}px`;
 
-  it("stale ksztaltu: kolo to 50%, pelny kadr nie ma rogow", () => {
-    expect(SPEAKER_CARD_ROUND).toBe("50%");
+  it("stale ksztaltu: zdjecie ma 6 px, pelny kadr nie ma rogow", () => {
+    expect(SPEAKER_CARD_RADIUS_PX).toBe(6);
     expect(SPEAKER_CARD_SQUARE).toBe("0px");
   });
 
-  it("rozwiniecie: z kola w starym pudelku do kwadratu - procent nie jest kontr-skalowany", () => {
-    const frames = flipMediaKeyframes(small, full, SPEAKER_CARD_ROUND, SPEAKER_CARD_SQUARE);
+  it("rozwiniecie: z 6 px w starym pudelku do kwadratu - 6 px kontr-skalowane, rog nie puchnie", () => {
+    const frames = flipMediaKeyframes(small, full, photo, SPEAKER_CARD_SQUARE);
     expect(frames).toEqual([
       {
         transformOrigin: "0 0",
         transform: `translate(120px, 20px) scale(${80 / 320})`,
-        borderRadius: "50%",
+        borderRadius: `${6 / (80 / 320)}px`,
       },
       { transformOrigin: "0 0", transform: "translate(0px, 0px) scale(1)", borderRadius: "0px" },
     ]);
   });
 
-  it("zwiniecie: z kwadratu (0 px zostaje 0 przy kazdej skali) z powrotem do kola", () => {
-    const frames = flipMediaKeyframes(full, small, SPEAKER_CARD_SQUARE, SPEAKER_CARD_ROUND);
+  it("zwiniecie: z kwadratu (0 px zostaje 0 przy kazdej skali) z powrotem do 6 px", () => {
+    const frames = flipMediaKeyframes(full, small, SPEAKER_CARD_SQUARE, photo);
     expect(frames?.[0]).toMatchObject({
       transform: `translate(-120px, -20px) scale(${320 / 80})`,
       borderRadius: "0px",
     });
-    expect(frames?.[1]?.borderRadius).toBe("50%");
+    expect(frames?.[1]?.borderRadius).toBe("6px");
+  });
+
+  it("promien w procentach nie jest kontr-skalowany", () => {
+    const frames = flipMediaKeyframes(small, full, "33.75%", SPEAKER_CARD_SQUARE);
+    expect(frames?.[0]?.borderRadius).toBe("33.75%");
   });
 
   it("promien w pikselach nadal jest kontr-skalowany (ta sama arytmetyka, co 6 px)", () => {

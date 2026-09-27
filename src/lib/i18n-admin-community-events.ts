@@ -203,7 +203,7 @@ export const adminCommunityEventsPl = {
         openActionFor: "Karta prelegenta: {{name}}",
         title: "Karta prelegenta: {{name}}",
         subtitle:
-          "Domyślnie widać okrągłe zdjęcie, imię i nazwisko oraz podpis (rola • organizacja). Kliknięcie w zdjęcie rozwija kartę do pełnego kadru z podpisem i przyciskiem akcji, a pod zdjęciem pokazuje ścieżki prelegenta.",
+          "Domyślnie widać zdjęcie, imię i nazwisko oraz podpis (rola • organizacja). Kliknięcie w zdjęcie rozwija kartę do pełnego kadru z podpisem i przyciskiem akcji, a pod zdjęciem pokazuje ścieżki prelegenta.",
         sectionTitle: "Karta po kliknięciu",
         photo: "Zdjęcie rozwiniętej karty",
         photoHint: "Puste = karta rozwija się na zdjęciu prelegenta.",
@@ -444,7 +444,7 @@ export const adminCommunityEventsEn = {
         openActionFor: "Speaker card: {{name}}",
         title: "Speaker card: {{name}}",
         subtitle:
-          "By default the card shows a round photo, the name and a caption (role • organization). Clicking the photo expands the card to a full frame with the caption and an action button, and shows the speaker's tracks below the photo.",
+          "By default the card shows the photo, the name and a caption (role • organization). Clicking the photo expands the card to a full frame with the caption and an action button, and shows the speaker's tracks below the photo.",
         sectionTitle: "Card on click",
         photo: "Expanded card photo",
         photoHint: "Empty = the card expands on the speaker's photo.",

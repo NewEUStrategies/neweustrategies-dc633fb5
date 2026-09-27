@@ -149,6 +149,16 @@ export interface TxCopy {
      * dwoma różnymi adresami byłby wprowadzaniem w błąd.
      */
     manageCta: string;
+    /** Termin decyzji odbiorcy: płatność oferty, akceptacja przekazania, zamknięcie ankiety. */
+    deadline: string;
+    /** Tytuł sesji z planu uczestnika - tylko przypomnienie o sesji. */
+    session: string;
+    /** Sala sesji (wiersz pomijany, gdy sesja nie ma sali). */
+    room: string;
+    /** Imię nowego posiadacza biletu - mail „bilet przekazany". */
+    recipient: string;
+    /** Imię osoby przekazującej bilet - mail z zaproszeniem do przyjęcia. */
+    sender: string;
     /** Tytuł zgłoszonego wystąpienia - maile naboru prelegentów. */
     talk: string;
     /** Informacja zwrotna organizatora dla prelegenta - maile decyzji naboru. */
@@ -194,6 +204,14 @@ const LABELS_PL: TxCopy["labels"] = {
   entryCode: "Kod wejścia",
   registeredBy: "Zgłoszenie od",
   manageCta: "Zarządzaj zgłoszeniem",
+  // „Ostateczny termin", nie samo „Termin": etykieta `date` jest już „Termin",
+  // a mail o przekazaniu biletu niesie OBA wiersze naraz (termin wydarzenia
+  // i termin akceptacji) - dwa jednakowe napisy byłyby nieczytelne.
+  deadline: "Ostateczny termin",
+  session: "Sesja",
+  room: "Sala",
+  recipient: "Odbiorca",
+  sender: "Nadawca",
   talk: "Wystąpienie",
   organizerMessage: "Wiadomość od organizatora",
   documentNumber: "Numer dokumentu",
@@ -230,6 +248,11 @@ const LABELS_EN: TxCopy["labels"] = {
   entryCode: "Entry code",
   registeredBy: "Registered by",
   manageCta: "Manage your registration",
+  deadline: "Deadline",
+  session: "Session",
+  room: "Room",
+  recipient: "Recipient",
+  sender: "From",
   talk: "Talk",
   organizerMessage: "Message from the organiser",
   documentNumber: "Document number",
