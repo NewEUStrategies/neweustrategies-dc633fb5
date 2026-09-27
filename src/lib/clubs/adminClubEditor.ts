@@ -47,32 +47,9 @@ import {
   type ClubVisibility,
 } from "./types";
 
-/** Zakładki edytora. Kolejność listy = kolejność na pasku. */
-export const CLUB_EDITOR_TABS = [
-  "general",
-  "access",
-  "groups",
-  "threads",
-  "members",
-  "invitations",
-  "permissions",
-  "moderation",
-  "analytics",
-] as const;
-
-export type ClubEditorTab = (typeof CLUB_EDITOR_TABS)[number];
-
-/**
- * Zakładka z adresu. `?tab=` jest KONTRAKTEM LINKU: administrator, który wysyła
- * komuś odnośnik do zakładki „Uprawnienia", wysyła odnośnik do zakładki
- * „Uprawnienia", a nie do pierwszej zakładki edytora. Wartość nieznana
- * degraduje się do pierwszej zakładki, a nie wywala trasy - stary link
- * z usuniętą zakładką ma otworzyć edytor, nie ekran błędu.
- */
-export function clubEditorTab(raw: unknown): ClubEditorTab {
-  if (typeof raw !== "string") return "general";
-  return (CLUB_EDITOR_TABS as readonly string[]).includes(raw) ? (raw as ClubEditorTab) : "general";
-}
+// Zakładki edytora i odczyt `?tab=` są w liściu `clubEditorTabs` - trasa czyta
+// je w `validateSearch`, czyli w chunku wejściowym (patrz nagłówek tamtego pliku).
+export { CLUB_EDITOR_TABS, clubEditorTab, type ClubEditorTab } from "./clubEditorTabs";
 
 /** Wersja robocza zakładki „Ogólne". Kształt 1:1 z `ClubGeneralTab`. */
 export interface ClubGeneralDraftValues {

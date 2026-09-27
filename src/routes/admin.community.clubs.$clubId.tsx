@@ -43,15 +43,15 @@ import { CLUB_STATUSES, narrowClubEnum, toClubSaveError, type ClubStatus } from 
 // handlera `onClick`, więc jedynym sposobem ich sprawdzenia było zamontowanie
 // edytora z dziewięcioma zakładkami.
 import {
-  CLUB_EDITOR_TABS,
   clubEditorBlock,
   clubEditorPayload,
-  clubEditorTab,
   isClubEditorDirty,
   toClubAccessDraft,
   toClubGeneralDraft,
-  type ClubEditorTab,
 } from "@/lib/clubs/adminClubEditor";
+// `validateSearch` jedzie w chunku wejściowym - odczyt `?tab=` z liścia, nie
+// z reguł edytora (kronika `scripts/check-bundle-size.ts`, wpis XX).
+import { CLUB_EDITOR_TABS, clubEditorTab, type ClubEditorTab } from "@/lib/clubs/clubEditorTabs";
 import { ensureClubI18n } from "@/lib/i18n-club";
 import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
