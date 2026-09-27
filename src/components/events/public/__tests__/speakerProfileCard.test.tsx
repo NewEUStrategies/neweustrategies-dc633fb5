@@ -822,6 +822,28 @@ describe("SpeakerProfileCard - ruch FLIP", () => {
     expect(back?.keyframes[1]?.borderRadius).toBe("6px");
   });
 
+  it("zwrot w trakcie ruchu przelicza promien ze stylu (uklad sprzed skali) na piksele na ekranie", () => {
+    renderCard();
+    const toggle = screen.getByRole("button", { name: EXPAND });
+    fireEvent.click(toggle);
+    // Uklad rozwiniety ma 280 px, a na ekranie zdjecie ma jeszcze 140 px
+    // (polowa drogi): 4 px w stylu to 2 px na ekranie.
+    Object.defineProperty(toggle, "offsetWidth", { configurable: true, value: 280 });
+    vi.mocked(Element.prototype.getBoundingClientRect).mockImplementation(function (this: Element) {
+      if (this !== toggle) return layout.call(this);
+      const open = this.closest("article")?.getAttribute("data-state") === "expanded";
+      return open ? box(0, 0, 140, 140) : box(0, 0, 80, 80);
+    });
+    toggle.style.borderTopLeftRadius = "4px";
+    fireEvent.click(toggle);
+
+    const back = calls.filter((call) => call.element === toggle).at(-1);
+    // Nowy ruch startuje od 2 px na ekranie, kontr-skalowanych do jego skali.
+    const scale = 140 / 80;
+    expect(back?.keyframes[0]?.borderRadius).toBe(`${2 / scale}px`);
+    expect(back?.keyframes[1]?.borderRadius).toBe("6px");
+  });
+
   it("po zakonczonym ruchu zwrot startuje od promienia stanu, nie od odczytu stylu", () => {
     renderCard();
     const toggle = screen.getByRole("button", { name: EXPAND });
