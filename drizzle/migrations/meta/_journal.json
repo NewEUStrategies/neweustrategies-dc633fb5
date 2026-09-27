@@ -512,6 +512,13 @@
       "when": 1790524814610,
       "tag": "0072_event_scanner_offline_part2",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1790541758838,
+      "tag": "0073_event_participant_foundation",
+      "breakpoints": true
     }
   ]
 }
