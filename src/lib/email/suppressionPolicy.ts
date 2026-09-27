@@ -137,10 +137,16 @@ export const TX_EMAIL_CATEGORY: Readonly<Record<TxEmailType, EmailCategory>> = {
   event_cfp_submission_changes_requested: "transactional",
   // Skutek platnosci za bilet - dowod rozliczenia, nie wysylka marketingowa.
   event_ticket_paid: "transactional",
+  // Wpłata bez miejsca (kolejka opłacona, czeka na decyzję) - ta sama klasa:
+  // informacja o pieniądzach i o miejscu, którego jeszcze nie ma.
+  event_ticket_paid_waitlisted: "transactional",
+  event_ticket_paid_pending: "transactional",
   event_ticket_refunded: "transactional",
   event_ticket_partially_refunded: "transactional",
   // Bilet z kodem QR - jedyna kopia kodu wejścia, dowód uczestnictwa.
   event_ticket_issued: "transactional",
+  // Bilet odwolany razem z grupa - informacja o utracie dostepu.
+  event_ticket_revoked: "transactional",
   // Powiadomienie o wystawionej fakturze organizatora - dokument rozliczenia
   // zamowienia kupujacego, nie wysylka marketingowa.
   event_invoice_issued: "transactional",

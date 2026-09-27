@@ -38,7 +38,7 @@ const limiter = createRateLimiter({ capacity: 30, refillPerSec: 0.5 });
 
 const SECRET_HEADER = "x-community-cron-secret";
 
-function json(body: unknown, status = 200): Response {
+function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
@@ -205,6 +205,20 @@ async function runJobs(job: SchedulerJob): Promise<{ result: JobOutcome; errors:
     await step("eventTicketCodes", async () => {
       const { runPendingTicketCodes } = await import("@/lib/events/ticketCodeNotify.server");
       return runPendingTicketCodes(50);
+    });
+    // Zawiadomienia o biletach odwołanych razem z grupą - ta sama rodzina
+    // poczty biletowej, więc ten sam job (bez nowej nazwy w harmonogramie).
+    await step("eventTicketRevocations", async () => {
+      const { runPendingTicketRevocations } =
+        await import("@/lib/events/ticketRevokedNotify.server");
+      return runPendingTicketRevocations(50);
+    });
+    // Bilety z puli planu porzuconych kas wracają do puli - także bez pg_cron
+    // (migracja planuje przegląd w pg_cron, ale bez rozszerzenia kończy się
+    // komunikatem). Funkcja bazy jest idempotentna, więc dwa źródła nie dublują.
+    await step("eventPlanSeatRelease", async () => {
+      const { runPlanSeatRelease } = await import("@/lib/events/planSeatRelease.server");
+      return runPlanSeatRelease(500);
     });
   }
   if (job === "all" || job === "career-cv-retention") {

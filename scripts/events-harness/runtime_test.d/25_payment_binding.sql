@@ -25,8 +25,8 @@
 --   4. Dopasowanie po osobie DZIALA NADAL dla zamowien bez tego klucza
 --      (kasa spolecznosci ich nie ustawia).
 --   5. `refunded` zwalnia miejsce i promuje pierwszego z listy rezerwowej.
---   6. NADSPRZEDAZ: wplata promuje `pending -> approved` BEZ sprawdzenia puli.
---      To jest DEFEKT ZAREJESTROWANY, nie naprawiony - patrz sekcja 6.
+--   6. Pula wyczerpana miedzy kasa a webhookiem: wplata zaksiegowana,
+--      zgloszenie w kolejce OPLACONE (20260926180000) - patrz sekcja 6.
 --
 -- SPRZATANIE: caly plik siedzi w BEGIN ... ROLLBACK. Zadna asercja nie
 -- potrzebuje drugiej sesji, wiec nic nie musi byc zacommitowane.
@@ -477,56 +477,30 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
--- 6) PULA WYCZERPANA MIEDZY KASA A WEBHOOKIEM - DEFEKT ZAREJESTROWANY
+-- 6) PULA WYCZERPANA MIEDZY KASA A WEBHOOKIEM - KOLEJKA OPLACONA
 --
--- CO ZMIERZYLEM, A CZEGO SIE SPODZIEWALEM. Spodziewalem sie NADSPRZEDAZY:
--- `payments_apply_event_ticket_outcome` promuje `pending -> approved`
--- bezwarunkowo, `_event_seats_left` ani `sold_count` nie padaja w jej ciele
--- ANI RAZU. Pomiar pokazal cos INNEGO i gorszego dla kupujacego.
---
--- Ostatnia linia obrony ISTNIEJE: trigger przeliczajacy `sold_count` plus
--- `CONSTRAINT event_ticket_types_sold_within_quota CHECK (quota IS NULL OR
--- sold_count <= quota)` (20260823150000). Pula NIE zostaje wiec przekroczona.
--- Zamiast tego CALA FUNKCJA RZUCA - i to jest defekt:
---
---   * `applyTicketOutcome` (oneTimeFulfilment.server.ts) loguje blad i wraca
---     bez rzucania, wiec webhook konczy sie 200 i operator NIE ponawia:
---     pieniadze pobrane, zgloszenie NIETKNIETE (`pending`, `unpaid`),
---     bez kodu QR, bez zwrotu, bez powiadomienia. Uczestnik ma paragon
---     i nie ma biletu, a organizator nie widzi w panelu niczego niezwyklego;
---   * przy recznym ksiegowaniu organizatora ten sam stan konczy sie gola
---     odmowa bazy na ekranie.
---
--- `refundIfOversold` z `oneTimeFulfilment.server.ts` obsluguje juz ten
--- scenariusz - ale WYLACZNIE dla sciezki `rsvp_event`: wola
--- `assertSeatAvailable`, ktore liczy miejsca WYDARZENIA, a nie pule
--- WEJSCIOWKI z cennika. Sciezka etapu 4 przez nia nie przechodzi.
---
--- DLACZEGO NIE NAPRAWIAM TEGO TUTAJ. Kazde wyjscie jest decyzja o PIENIADZACH
--- KLIENTA, nie refaktorem:
---   (a) rezerwacja miejsca na czas sesji operatora, z wygasnieciem - wraca
---       ryzyko wyczerpania puli przez zgloszenia, ktorych nikt nie oplaci,
---       tylko ograniczone w czasie;
---   (b) swiadoma nadsprzedaz z alertem dla organizatora - sala czasem to
---       zniesie, a odmowa wplaty kosztuje wiecej niz dostawienie krzesla;
---   (c) automatyczny zwrot ostatniej wplaty - rozszerzenie `refundIfOversold`
---       o pule wejsciowki, czyli o `_event_seats_left(tenant, event, ticket)`.
--- Wybor nalezy do wlasciciela produktu. Asercja pilnuje, zeby nie zniknal
--- po cichu ANI zeby nie zostal "naprawiony" zdjeciem ograniczenia z puli.
+-- Do migracji 20260926180000 byl to DEFEKT ZAREJESTROWANY: CHECK
+-- `event_ticket_types_sold_within_quota` wywracal cale ksiegowanie, a
+-- `applyTicketOutcome` logowal blad i oddawal 200 - pieniadze pobrane,
+-- zgloszenie `pending/unpaid`, bez kodu, bez informacji. Rozstrzygniecie
+-- wlasciciela: oplacone zgloszenie bez miejsca staje w kolejce OPLACONE
+-- (`decision_source = 'capacity'`) i awansuje, gdy miejsce sie zwolni - ta
+-- sama regula, co goscie grupy od 20260926120000.
 -- ---------------------------------------------------------------------------
 DO $$
 DECLARE
-  v_raised boolean := false;
-  v_err text := '';
-  v_approved integer;
+  v jsonb;
+  v_raised text;
   v_second record;
+  v_approved integer;
+  v_pos integer;
 BEGIN
-  -- Pierwsza wplata przechodzi i zajmuje jedyne miejsce.
-  PERFORM public.payments_apply_event_ticket_outcome(
+  v := public.payments_apply_event_ticket_outcome(
     'd6000000-0000-0000-0000-000000000007', 'paid');
   PERFORM pg_temp.assert(
     (SELECT status FROM public.event_registrations
-      WHERE id = 'd4000000-0000-0000-0000-000000000007') = 'approved',
+      WHERE id = 'd4000000-0000-0000-0000-000000000007') = 'approved'
+    AND v->>'registration_status' = 'approved',
     'pula: pierwsza wplata zajmuje jedyne miejsce z puli');
   PERFORM pg_temp.assert(
     public._event_seats_left('dddddddd-dddd-dddd-dddd-dddddddddddd',
@@ -534,39 +508,59 @@ BEGIN
                              'd2000000-0000-0000-0000-000000000004') = 0,
     'pula: po pierwszej wplacie nie ma juz wolnych miejsc');
 
-  -- Druga wplata za bilet, ktorego pula w miedzyczasie sie wyczerpala.
   BEGIN
-    PERFORM public.payments_apply_event_ticket_outcome(
+    v := public.payments_apply_event_ticket_outcome(
       'd6000000-0000-0000-0000-000000000008', 'paid');
   EXCEPTION WHEN OTHERS THEN
-    v_raised := true;
-    v_err := SQLERRM;
+    v_raised := SQLERRM;
   END;
+  PERFORM pg_temp.assert(v_raised IS NULL AND (v->>'applied')::boolean,
+    'PULA/WPLATA: wplata na wyczerpanej puli jest ZAKSIEGOWANA, a nie wywraca funkcji'
+      || COALESCE(' - blad: ' || v_raised, ''));
 
-  PERFORM pg_temp.assert_known_defect(
-    v_raised,
-    'PULA/WPLATA: ksiegowanie wplaty na wyczerpanej puli RZUCA zamiast obsluzyc brak miejsca ('
-      || left(v_err, 60) || ')',
-    'do rozstrzygniecia: rezerwacja na czas sesji / swiadoma nadsprzedaz z alertem / rozszerzenie refundIfOversold o pule wejsciowki');
-
-  SELECT status, payment_status, qr_token_hash IS NOT NULL AS has_qr
+  SELECT status, payment_status, decision_source, decided_by, waitlist_position,
+         qr_token_hash IS NOT NULL AS has_qr, payment_order_id
     INTO v_second
   FROM public.event_registrations WHERE id = 'd4000000-0000-0000-0000-000000000008';
+  PERFORM pg_temp.assert(
+    v_second.status = 'waitlist' AND v_second.payment_status = 'paid'
+    AND v_second.decision_source = 'capacity' AND v_second.decided_by IS NULL
+    AND v_second.waitlist_position > 0 AND NOT v_second.has_qr
+    AND v_second.payment_order_id = 'd6000000-0000-0000-0000-000000000008',
+    'PULA/WPLATA: zgloszenie bez miejsca czeka w kolejce OPLACONE (capacity), bez kodu QR');
+  PERFORM pg_temp.assert(
+    v->>'registration_status' = 'waitlist'
+    AND (v->>'waitlist_position')::integer = v_second.waitlist_position
+    AND (v->>'newly_settled')::boolean,
+    'PULA/WPLATA: wynik mowi, ze wplata trafila do kolejki - serwer pisze do kupujacego i do organizatora');
 
-  PERFORM pg_temp.assert_known_defect(
-    v_second.payment_status = 'unpaid' AND v_second.status = 'pending' AND NOT v_second.has_qr,
-    'PULA/WPLATA: po nieudanym ksiegowaniu zgloszenie zostaje "pending/unpaid" - pieniadze sa, biletu nie ma i nikt o tym nie wie',
-    'ten sam wybor produktowy, co wyzej');
+  -- Ponowne doreczenie: ta sama pozycja, bez drugiego „swiezego" rozliczenia.
+  v_pos := v_second.waitlist_position;
+  v := public.payments_apply_event_ticket_outcome(
+    'd6000000-0000-0000-0000-000000000008', 'paid');
+  PERFORM pg_temp.assert(
+    (v->>'applied')::boolean AND NOT (v->>'newly_settled')::boolean
+    AND (SELECT status = 'waitlist' AND waitlist_position = v_pos
+           FROM public.event_registrations WHERE id = 'd4000000-0000-0000-0000-000000000008'),
+    'PULA/WPLATA: ponowione doreczenie zostawia zgloszenie na SWOJEJ pozycji');
 
   -- KONTRAPUNKT, ktory MUSI byc zielony na zawsze: ograniczenie puli dziala.
-  -- Gdyby ktos "naprawil" defekt zdejmujac CHECK z `sold_count`, ta asercja
-  -- zapali sie na czerwono - i o to chodzi.
   SELECT count(*)::integer INTO v_approved
   FROM public.event_registrations
   WHERE ticket_type_id = 'd2000000-0000-0000-0000-000000000004'
     AND status IN ('approved','attended','no_show');
   PERFORM pg_temp.assert(v_approved = 1,
     'pula: mimo dwoch wplat pula NIE zostala przekroczona (ostatnia linia obrony trzyma)');
+
+  -- Zwrot pierwszej wplaty zwalnia miejsce - awansuje OPLACONY z kolejki.
+  v := public.payments_apply_event_ticket_outcome(
+    'd6000000-0000-0000-0000-000000000007', 'refunded');
+  PERFORM pg_temp.assert(
+    (v->'waitlist'->>'promoted')::integer = 1
+    AND (SELECT status = 'approved' AND payment_status = 'paid' AND qr_token_hash IS NOT NULL
+                AND waitlist_position IS NULL
+           FROM public.event_registrations WHERE id = 'd4000000-0000-0000-0000-000000000008'),
+    'PULA/WPLATA: zwolnione miejsce przyjmuje oplaconego z kolejki, z kodem QR');
 END $$;
 
 ROLLBACK;

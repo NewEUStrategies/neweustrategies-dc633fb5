@@ -110,6 +110,7 @@ const fixtures = vi.hoisted(() => ({
   eventReminders: 7,
   crmTaskReminders: 5,
   eventTicketCodes: { registrations: 4, sent: 3, deferred: 0 },
+  eventTicketRevocations: { notices: 3, sent: 2, failed: 1, deferred: 0 },
   linkCheck: { postsScanned: 6, linksChecked: 41, broken: 2, archived: 1, alerted: 1 },
   integrations: { claimed: 7, delivered: 6, failed: 1 },
   semanticIndex: { scanned: 24, embedded: 20 },
@@ -228,6 +229,10 @@ vi.mock("@/lib/events/ticketCodeNotify.server", () => ({
   runPendingTicketCodes: (limit: number, deadlineAt: number) =>
     jobs.run("eventTicketCodes", [limit, deadlineAt], fixtures.eventTicketCodes),
 }));
+vi.mock("@/lib/events/ticketRevokedNotify.server", () => ({
+  runPendingTicketRevocations: (limit: number, deadlineAt: number) =>
+    jobs.run("eventTicketRevocations", [limit, deadlineAt], fixtures.eventTicketRevocations),
+}));
 
 // Zadania funkcji uczestnika F1-F5 (spec B.10) - też `await import(...)`.
 // Każde ma własny test w swoim torze (A/B/C); tu dowodzimy wyłącznie tego,
@@ -306,6 +311,7 @@ const FULL_ORDER = [
   "eventReminders",
   "crmTaskReminders",
   "eventTicketCodes",
+  "eventTicketRevocations",
   "linkCheck",
   "integrations",
   "semanticIndex",
@@ -327,6 +333,7 @@ const CRITICAL_SENDS = [
   "eventReminders",
   "crmTaskReminders",
   "eventTicketCodes",
+  "eventTicketRevocations",
 ] as const;
 
 /** Joby kosztowne sieciowo - kandydaci do pominięcia jako PIERWSI. */
@@ -353,6 +360,7 @@ const EVERY_MINUTE_JOBS = [
   "eventReminders",
   "crmTaskReminders",
   "eventTicketCodes",
+  "eventTicketRevocations",
   "integrations",
 ] as const;
 
@@ -519,6 +527,7 @@ describe("kolejność jobów jest kontraktem, nie kosmetyką", () => {
       eventReminders: fixtures.eventReminders,
       crmTaskReminders: fixtures.crmTaskReminders,
       eventTicketCodes: fixtures.eventTicketCodes,
+      eventTicketRevocations: fixtures.eventTicketRevocations,
       linkCheck: fixtures.linkCheck,
       integrations: fixtures.integrations,
       semanticIndex: fixtures.semanticIndex,
@@ -740,6 +749,27 @@ describe("bilety z kodem QR mają własny termin (TICKET_CODES_DEADLINE_MS = 18 
     const deadlineAt = jobs.argsOf("eventTicketCodes")?.[1];
     expect(Number(deadlineAt) - at(0).getTime()).toBe(18_000);
     expect(25_000 - (Number(deadlineAt) - at(0).getTime())).toBe(7_000);
+  });
+});
+
+// ===========================================================================
+// ZAWIADOMIENIA O BILETACH ODWOŁANYCH RAZEM Z GRUPĄ
+// ===========================================================================
+describe("zawiadomienia o odwołanych biletach (TICKET_REVOCATIONS_DEADLINE_MS = 20 s)", () => {
+  it("biegną zaraz po biletach, partia 20, termin ABSOLUTNY 20 s od startu ticku", async () => {
+    await tickAt(0);
+
+    expect(orderOf("eventTicketRevocations")).toBe(orderOf("eventTicketCodes") + 1);
+    expect(jobs.argsOf("eventTicketRevocations")?.[0]).toBe(20);
+    const deadlineAt = jobs.argsOf("eventTicketRevocations")?.[1];
+    expect(Number(deadlineAt) - at(0).getTime()).toBe(20_000);
+  });
+
+  it("po wyczerpaniu budżetu są pomijane - cron społeczności odbierze partię", async () => {
+    slowJob("eventTicketCodes", 25_001);
+    const result = await tickAt(3);
+    expect(jobs.steps()).not.toContain("eventTicketRevocations");
+    expect(result.eventTicketRevocations).toEqual({ error: "skipped_time_budget" });
   });
 });
 

@@ -9,6 +9,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   SPEAKER_CARD_MOTION_MS,
   SPEAKER_CARD_RADIUS_PX,
+  SPEAKER_CARD_ROUND,
+  SPEAKER_CARD_SQUARE,
   SPEAKER_CARD_SPRING,
   SPEAKER_CARD_SPRING_FALLBACK,
   boxOf,
@@ -18,6 +20,7 @@ import {
   playKeyframes,
   prefersReducedMotion,
   preloadImage,
+  revealKeyframes,
   speakerCardEasing,
   type FlipBox,
 } from "@/lib/events/speakerCardMotion";
@@ -229,6 +232,60 @@ describe("flipMediaKeyframes", () => {
     expect(flipMediaKeyframes(box({ width: 0 }), box({ width: 80 }))).toBeNull();
     expect(flipMediaKeyframes(box({ width: -1 }), box({ width: 80 }))).toBeNull();
     expect(flipMediaKeyframes(box({ width: 80 }), box({ width: -1 }))).toBeNull();
+  });
+});
+
+describe("flipMediaKeyframes - kolo miniatury i kwadrat pelnego kadru", () => {
+  const small = box({ top: 20, left: 120, width: 80, height: 80 });
+  const full = box({ top: 0, left: 0, width: 320, height: 320 });
+
+  it("stale ksztaltu: kolo to 50%, pelny kadr nie ma rogow", () => {
+    expect(SPEAKER_CARD_ROUND).toBe("50%");
+    expect(SPEAKER_CARD_SQUARE).toBe("0px");
+  });
+
+  it("rozwiniecie: z kola w starym pudelku do kwadratu - procent nie jest kontr-skalowany", () => {
+    const frames = flipMediaKeyframes(small, full, SPEAKER_CARD_ROUND, SPEAKER_CARD_SQUARE);
+    expect(frames).toEqual([
+      {
+        transformOrigin: "0 0",
+        transform: `translate(120px, 20px) scale(${80 / 320})`,
+        borderRadius: "50%",
+      },
+      { transformOrigin: "0 0", transform: "translate(0px, 0px) scale(1)", borderRadius: "0px" },
+    ]);
+  });
+
+  it("zwiniecie: z kwadratu (0 px zostaje 0 przy kazdej skali) z powrotem do kola", () => {
+    const frames = flipMediaKeyframes(full, small, SPEAKER_CARD_SQUARE, SPEAKER_CARD_ROUND);
+    expect(frames?.[0]).toMatchObject({
+      transform: `translate(-120px, -20px) scale(${320 / 80})`,
+      borderRadius: "0px",
+    });
+    expect(frames?.[1]?.borderRadius).toBe("50%");
+  });
+
+  it("promien w pikselach nadal jest kontr-skalowany (ta sama arytmetyka, co 6 px)", () => {
+    const frames = flipMediaKeyframes(small, full, "12px", SPEAKER_CARD_SQUARE);
+    expect(frames?.[0]?.borderRadius).toBe(`${12 / (80 / 320)}px`);
+  });
+
+  it("bez podanego promienia zostaje promien platformy (6 px -> 6 px)", () => {
+    const frames = flipMediaKeyframes(small, full);
+    expect(frames?.[1]?.borderRadius).toBe(`${SPEAKER_CARD_RADIUS_PX}px`);
+  });
+});
+
+describe("revealKeyframes", () => {
+  it("szczegoly wylaniaja sie: tylko opacity i transform, od przesuniecia do zera", () => {
+    expect(revealKeyframes()).toEqual([
+      { opacity: 0, transform: "translate(0px, -8px)" },
+      { opacity: 1, transform: "translate(0px, 0px)" },
+    ]);
+  });
+
+  it("kazde wywolanie daje nowa tablice - odegrana animacja nie zmienia nastepnej", () => {
+    expect(revealKeyframes()).not.toBe(revealKeyframes());
   });
 });
 

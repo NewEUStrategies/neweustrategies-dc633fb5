@@ -16,6 +16,7 @@ import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 
 const h = vi.hoisted(() => ({
   checkout: vi.fn(),
+  // Podgląd kasy (rozbicie kwoty) - osobna server fn, pytana raz na montaż.
   quote: vi.fn(),
   navigate: vi.fn(),
   session: { user: { id: "u-1" } } as { user: { id: string } } | null,
@@ -25,6 +26,8 @@ const h = vi.hoisted(() => ({
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
+  // Każda server fn po tożsamości: podgląd kasy i odbiór biletu z planu to
+  // inne wywołania niż kasa - wspólna atrapa liczyłaby podgląd jako kasę.
   useServerFn: (fn: { name?: string }) =>
     fn.name === "quoteEventTicketCheckout" ? h.quote : h.checkout,
 }));
@@ -40,6 +43,9 @@ vi.mock("@/lib/billing/checkout.functions", () => ({
 vi.mock("@/lib/billing/eventTicketQuote.functions", () => ({
   quoteEventTicketCheckout: { name: "quoteEventTicketCheckout" },
 }));
+vi.mock("@/lib/billing/eventTicketPlanRedeem.functions", () => ({
+  redeemEventTicketFromPlan: { name: "redeemEventTicketFromPlan" },
+}));
 vi.mock("@/lib/stripe", () => ({ getStripeEnvironment: () => "sandbox" }));
 vi.mock("@/components/checkout/LazyEmbeddedCheckoutDialog", () => ({
   LazyEmbeddedCheckoutDialog: (props: {
@@ -54,8 +60,8 @@ vi.mock("@/components/checkout/LazyEmbeddedCheckoutDialog", () => ({
 }));
 vi.mock("@/lib/events/eventCodeMemory", () => ({
   recallEventCode: () => "",
+  // Kod dostępu ukrytej wejściówki z pamięci karty - tu żadnego nie ma.
   recallAccessCodeHint: () => "",
-  rememberTicketAccessCode: () => undefined,
 }));
 const funnel = vi.hoisted(() => ({ send: vi.fn() }));
 vi.mock("@/lib/events/eventFunnelBeacon", () => ({

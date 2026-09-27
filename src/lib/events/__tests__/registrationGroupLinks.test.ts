@@ -92,17 +92,17 @@ describe("holdsTicket - kiedy plakietka biletu coś znaczy", () => {
 });
 
 describe("canResendTicket - lustro `ticket_not_issuable`", () => {
-  it.each(["paid", "not_required"])("przyjęty i rozliczony (%s) - przycisk jest", (payment) => {
-    expect(canResendTicket("approved", link({ payment_status: payment }))).toBe(true);
-    expect(canResendTicket("attended", link({ payment_status: payment }))).toBe(true);
-  });
-
-  it.each(["unpaid", "refunded", "partially_refunded"])(
-    "przyjęty, ale %s - przycisku nie ma",
+  it.each(["paid", "partially_refunded", "not_required"])(
+    "przyjęty i rozliczony (%s) - przycisk jest",
     (payment) => {
-      expect(canResendTicket("approved", link({ payment_status: payment }))).toBe(false);
+      expect(canResendTicket("approved", link({ payment_status: payment }))).toBe(true);
+      expect(canResendTicket("attended", link({ payment_status: payment }))).toBe(true);
     },
   );
+
+  it.each(["unpaid", "refunded"])("przyjęty, ale %s - przycisku nie ma", (payment) => {
+    expect(canResendTicket("approved", link({ payment_status: payment }))).toBe(false);
+  });
 
   it("nieprzyjęty - przycisku nie ma, choć rozliczenia nie trzeba", () => {
     expect(canResendTicket("pending", link())).toBe(false);
@@ -144,22 +144,59 @@ describe("ticketBadge - plakietka biletu", () => {
     expect(ticketBadge("approved", link({ payment_status: "unpaid" }))).toBe("awaitingPayment");
   });
 
-  it.each(["refunded", "partially_refunded"])(
-    "przyjęty, ale %s: bez plakietki - biletu nie ma i nie będzie",
-    (payment) => {
-      expect(ticketBadge("approved", link({ payment_status: payment }))).toBeNull();
-    },
-  );
+  it("przyjęty, ale zwrócony: bez plakietki - biletu nie ma i nie będzie", () => {
+    expect(ticketBadge("approved", link({ payment_status: "refunded" }))).toBeNull();
+  });
+
+  it("zwrot częściowy to korekta ceny - bilet zostaje, plakietka jak przy opłaconym", () => {
+    expect(ticketBadge("approved", link({ payment_status: "partially_refunded" }))).toBe("notSent");
+    expect(
+      ticketBadge(
+        "attended",
+        link({ payment_status: "partially_refunded", ticket_code_sent_at: "2026-09-26T10:00:00Z" }),
+      ),
+    ).toBe("sent");
+  });
 
   it("nieprzyjęty albo bez wiersza powiązań: bez plakietki", () => {
     expect(ticketBadge("pending", link())).toBeNull();
     expect(ticketBadge("pending", link({ payment_status: "unpaid" }))).toBeNull();
     expect(ticketBadge("approved", null)).toBeNull();
+    expect(ticketBadge("waitlist", null)).toBeNull();
+  });
+
+  it("opłacony wiersz w kolejce: „opłacone - czeka na miejsce”, także po korekcie ceny", () => {
+    // Wpłata przyszła po wyczerpaniu puli (20260926180000). Bez plakietki
+    // wiersz wyglądał jak zwykły rezerwowy, a pieniądze leżały bez ruchu.
+    expect(ticketBadge("waitlist", link({ payment_status: "paid" }))).toBe("paidWaitlisted");
+    expect(ticketBadge("waitlist", link({ payment_status: "partially_refunded" }))).toBe(
+      "paidWaitlisted",
+    );
+  });
+
+  it("opłacony wiersz bez decyzji: „opłacone - czeka na decyzję” (wpłata nie jest akceptacją)", () => {
+    expect(ticketBadge("pending", link({ payment_status: "paid" }))).toBe("paidAwaitingDecision");
+    expect(ticketBadge("draft", link({ payment_status: "paid" }))).toBe("paidAwaitingDecision");
+  });
+
+  it("wpłata na zgłoszeniu zamkniętym: „opłacone - zgłoszenie zamknięte” - do zwrotu", () => {
+    expect(ticketBadge("cancelled", link({ payment_status: "paid" }))).toBe("paidClosed");
+    expect(ticketBadge("rejected", link({ payment_status: "paid" }))).toBe("paidClosed");
+  });
+
+  it("bez pieniędzy u organizatora wiersz bez miejsca nie ma plakietki „opłacone”", () => {
+    // Bezpłatny (`not_required`) albo nieopłacony wiersz w kolejce po prostu
+    // czeka - „opłacone" byłoby nieprawdą. `no_show` miał miejsce i jest
+    // rozliczony, więc nic na organizatora nie czeka.
+    expect(ticketBadge("waitlist", link({ payment_status: "unpaid" }))).toBeNull();
+    expect(ticketBadge("waitlist", link({ payment_status: "not_required" }))).toBeNull();
+    expect(ticketBadge("cancelled", link({ payment_status: "refunded" }))).toBeNull();
+    expect(ticketBadge("no_show", link({ payment_status: "paid" }))).toBeNull();
   });
 
   it("plakietka „niewysłany” stoi dokładnie tam, gdzie przycisk ponownej wysyłki", () => {
     for (const status of ["approved", "attended", "pending", "cancelled"]) {
-      for (const payment of ["paid", "not_required", "unpaid", "refunded"]) {
+      for (const payment of ["paid", "partially_refunded", "not_required", "unpaid", "refunded"]) {
         for (const sent of [null, "2026-09-26T10:00:00Z"]) {
           for (const undeliverable of [null, "2026-09-26T10:00:00Z"]) {
             const row = link({

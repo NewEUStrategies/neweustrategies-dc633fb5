@@ -69,8 +69,9 @@ describe("TX_EMAIL_CATEGORY", () => {
     // kategorię i że obie listy nie rozjadą się przy dodaniu nowego maila.
     // 31 -> 35: cztery maile naboru prelegentów (`event_cfp_submission_*`).
     // 35 -> 36: powiadomienie o fakturze organizatora wydarzenia (`event_invoice_issued`).
-    // 36 -> 47: jedenaście maili funkcji uczestnika F1-F5 (spec B.8).
-    expect(TX_EMAIL_TYPES.length).toBe(47);
+    // 36 -> 47: jedenaście maili funkcji uczestnika (`PARTICIPANT_TX_EMAIL_TYPES`).
+    // 47 -> 50: `event_ticket_revoked`, `event_ticket_paid_waitlisted`, `event_ticket_paid_pending`.
+    expect(TX_EMAIL_TYPES.length).toBe(50);
     expect(Object.keys(TX_EMAIL_CATEGORY).sort()).toEqual([...TX_EMAIL_TYPES].sort());
     for (const type of TX_EMAIL_TYPES) {
       expect(TX_EMAIL_CATEGORY[type]).toMatch(/^(transactional|bulk)$/);
@@ -114,6 +115,9 @@ describe("emailCategoryForLabel", () => {
   it("rozpoznaje etykiety kanałów masowych", () => {
     expect(emailCategoryForLabel("digest_daily")).toBe("bulk");
     expect(emailCategoryForLabel("digest_weekly")).toBe("bulk");
+    // Etykieta z myślnikiem trafia w słownik etykiet surowych dopiero po
+    // normalizacji - to druga, osobna gałąź rozpoznania.
+    expect(emailCategoryForLabel("digest-daily")).toBe("bulk");
   });
 
   it("rozpoznaje kolejkę i etykiety autoryzacyjne", () => {

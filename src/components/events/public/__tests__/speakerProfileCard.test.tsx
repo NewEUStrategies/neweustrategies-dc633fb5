@@ -1,10 +1,16 @@
 // Karta prelegenta rozwijana kliknieciem w zdjecie (`SpeakerProfileCard`).
 //
-// SPRAWDZAMY KONTRAKT, KTORY WIDZI UCZESTNIK, NIE KLASY CSS:
-// 1. domyslnie karta jest ZWINIETA - miniatura 80 px (kwadrat 2x w magazynie),
-//    trzy linie podpisu z pelna wartoscia w `title`, bez pustych linii i BEZ
-//    pobierania duzego kadru (800 px) - to jest koszt transferu i LCP;
-// 2. karta bez zdjecia nie ma przelacznika - nie ma czego powiekszac;
+// SPRAWDZAMY KONTRAKT, KTORY WIDZI UCZESTNIK (uklad wzorca `TelegramHeader`
+// z nagrania wlasciciela pilnujemy tylko tam, gdzie klasa JEST ukladem):
+// 1. domyslnie karta jest ZWINIETA - wysrodkowane kolo 80 px (kwadrat 2x
+//    w magazynie), pod nim nazwisko i podpis „rola • organizacja" z pelna
+//    wartoscia w `title`, bez pustych linii i BEZ pobierania duzego kadru
+//    (800 px) - to jest koszt transferu i LCP;
+// 2. rozwinieta karta ma zdjecie NA CALA SZEROKOSC (kwadrat bez rogow), podpis
+//    w lewym dolnym rogu, a pod zdjeciem szczegoly - sciezki i ekspert; zwinieta
+//    trzyma szczegoly w drzewie, ale ukryte (`hidden`);
+// 3. karta bez zdjecia rozwija same szczegoly, a bez zdjecia i bez szczegolow
+//    nie ma przelacznika wcale;
 // 3. klik / Escape przelaczaja stan, a fokus zostaje na tym samym przycisku;
 // 4. duzy kadr jest rozgrzewany na ZAMIAR (najazd, fokus, dotyk) i tylko raz;
 // 5. FLIP odgrywa ruch przez Web Animations API, a `prefers-reduced-motion`
@@ -41,8 +47,12 @@ const { SpeakerProfileCard, SPEAKER_CARD_LARGE_PX } =
   await import("@/components/events/public/molecules/SpeakerProfileCard");
 const { buildTransformedImageUrl } = await import("@/lib/cropSizes");
 const { PX_BY_SIZE } = await import("@/components/events/speakerAvatarSizes");
-const { SPEAKER_CARD_MOTION_MS, SPEAKER_CARD_SPRING, SPEAKER_CARD_SPRING_FALLBACK } =
-  await import("@/lib/events/speakerCardMotion");
+const {
+  SPEAKER_CARD_MOTION_MS,
+  SPEAKER_CARD_SETTLE,
+  SPEAKER_CARD_SPRING,
+  SPEAKER_CARD_SPRING_FALLBACK,
+} = await import("@/lib/events/speakerCardMotion");
 
 const AVATAR = "https://proj.supabase.co/storage/v1/object/public/avatars/anna.jpg";
 const CARD_PHOTO = "https://proj.supabase.co/storage/v1/object/public/cards/anna-scena.jpg";
@@ -134,6 +144,87 @@ describe("SpeakerProfileCard - karta zwinieta (domyslny wyglad)", () => {
     expect(srcs(toggle)).toEqual([thumbOf(AVATAR)]);
     // Duzy kadr nie istnieje w DOM, dopoki nikt nie kliknie.
     expect(article.innerHTML).not.toContain(`width=${SPEAKER_CARD_LARGE_PX}`);
+  });
+
+  it("uklad wzorca: wysrodkowane KOLO, pod nim nazwisko i podpis „rola • organizacja”", () => {
+    renderCard();
+    const toggle = screen.getByRole("button", { name: EXPAND });
+    const header = toggle.parentElement as HTMLElement;
+
+    // Kolo 80 px na srodku karty - nie kwadrat w lewym gornym rogu.
+    expect(toggle.className).toContain("rounded-full");
+    expect(toggle.className).toContain("h-20");
+    expect(toggle.className).toContain("cursor-zoom-in");
+    expect(header.className).toContain("items-center");
+    expect(header.className).toContain("text-center");
+    expect(header.className).not.toContain("aspect-square");
+
+    // Nazwisko zaraz pod kolem, podpis pod nazwiskiem - w tym porzadku.
+    const name = screen.getByText("Anna Kowalska");
+    const subtitle = screen.getByText("Prezes").parentElement as HTMLElement;
+    expect(Array.from(header.children)).toEqual([toggle, name, subtitle]);
+    expect(name.className).toContain("text-xl");
+    expect(subtitle.className).toContain("text-muted-foreground");
+    // Separator jest ozdoba: czytnik ekranu czyta role i organizacje.
+    const separator = Array.from(subtitle.children).find((node) => node.textContent === " • ");
+    expect(separator?.getAttribute("aria-hidden")).toBe("true");
+    expect(subtitle.textContent).toBe("Prezes • NASK");
+  });
+
+  it("rozwinieta: zdjecie na CALA szerokosc karty, podpis bialy w lewym dolnym rogu", () => {
+    const { article } = renderCard(speaker({ tracks: [track()] }));
+    const toggle = screen.getByRole("button", { name: EXPAND });
+    const header = toggle.parentElement as HTMLElement;
+    fireEvent.click(toggle);
+
+    // Naglowek staje sie kwadratem i dosuwa podpis do dolu; zdjecie wypelnia
+    // go od krawedzi do krawedzi (karta nie ma wlasnego marginesu), bez rogow.
+    expect(header.className).toContain("aspect-square");
+    expect(header.className).toContain("justify-end");
+    expect(header.className).toContain("items-start");
+    expect(toggle.className).toContain("absolute");
+    expect(toggle.className).toContain("inset-0");
+    expect(toggle.className).toContain("rounded-none");
+    expect(article.className).not.toMatch(/(^|\s)p-\d/);
+    // Podpis bieleje i nie przechwytuje klikniecia - klik w zdjecie je zwija.
+    const name = screen.getByText("Anna Kowalska");
+    expect(name.className).toContain("text-white");
+    expect(name.className).toContain("pointer-events-none");
+    expect((screen.getByText("Prezes").parentElement as HTMLElement).className).toContain(
+      "text-white/85",
+    );
+    // Szczegoly (sciezki) stoja POD zdjeciem, poza kwadratem.
+    const details = document.getElementById(toggle.getAttribute("aria-controls") ?? "");
+    expect(details?.previousElementSibling).toBe(header);
+    expect(details?.hidden).toBe(false);
+  });
+
+  it("organizacja, ktora tylko powtarza role, nie stoi w podpisie drugi raz", () => {
+    const { unmount } = renderCard(
+      speaker({
+        headline_pl: "Prezes Centralnego Portu Komunikacyjnego",
+        company: "PREZES CENTRALNEGO PORTU KOMUNIKACYJNEGO",
+      }),
+    );
+    const role = screen.getByText("Prezes Centralnego Portu Komunikacyjnego");
+    const subtitle = role.parentElement as HTMLElement;
+    expect(subtitle.textContent).toBe("Prezes Centralnego Portu Komunikacyjnego");
+    expect(subtitle.children).toHaveLength(1);
+    unmount();
+
+    // Nazwa organizacji juz zawarta w roli - tez bez powtorzenia.
+    renderCard(speaker({ headline_pl: "Prezes WiseEuropa", company: "WiseEuropa" }));
+    expect(screen.getByText("Prezes WiseEuropa").parentElement?.textContent).toBe(
+      "Prezes WiseEuropa",
+    );
+  });
+
+  it("sama organizacja (bez roli) stoi w podpisie bez separatora", () => {
+    const { article } = renderCard(
+      speaker({ headline_pl: null, headline_en: null, job_title: null }),
+    );
+    expect(screen.getByText("NASK").getAttribute("title")).toBe("NASK");
+    expect(article.textContent).toBe("Anna KowalskaNASK");
   });
 
   it("nazwisko, rola i organizacja zostawiaja pelna wartosc w title", () => {
@@ -263,7 +354,7 @@ describe("SpeakerProfileCard - rozwijanie i zwijanie", () => {
     expect(screen.getByRole("button", { name: EXPAND })).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("zwiniety przycisk akcji ma lewa granice za miniatura - dlugi napis nie wchodzi na zdjecie", () => {
+  it("zwiniety napis akcji konczy sie przed kolem - dlugi napis ucina sie, a nie wchodzi na zdjecie", () => {
     renderCard(
       speaker({
         card_cta_url: "https://example.com/x",
@@ -271,12 +362,65 @@ describe("SpeakerProfileCard - rozwijanie i zwijanie", () => {
       }),
     );
     const link = screen.getByRole("link", { name: /Pobierz prezentację/ });
-    expect(link.style.left).toBe("5.75rem");
-    expect(link.className).toContain("justify-end");
+    // Kolo stoi na srodku karty: napis ma pol karty minus pol kola i odstep.
+    expect(link.style.maxWidth).toBe("calc(50% - 3.25rem)");
+    expect(link.className).toContain("truncate");
+    // Pelny napis zostaje do odczytu, choc na ekranie jest wielokropek.
+    expect(link.getAttribute("title")).toBe("Pobierz prezentację prelegenta z konferencji");
+    expect(link.className).not.toContain("bg-brand");
 
-    // Rozwinieta karta: przycisk wraca na zdjecie, bez tej granicy.
+    // Rozwinieta karta: pigulka na zdjeciu ma WLASNA granice - cala karta
+    // minus odstepy - wiec dlugi napis dostaje wielokropek, a nie wychodzi za
+    // lewa krawedz karty (gdzie `overflow-hidden` ucinal jego poczatek).
     fireEvent.click(screen.getByRole("button", { name: EXPAND }));
-    expect(screen.getByRole("link", { name: /Pobierz prezentację/ }).style.left).toBe("");
+    const expandedLink = screen.getByRole("link", { name: /Pobierz prezentację/ });
+    expect(expandedLink.style.maxWidth).toBe("calc(100% - 1.5rem)");
+    expect(expandedLink.className).toContain("truncate");
+    expect(expandedLink.className).toContain("bg-brand");
+    // Tlo, cien i kolor zmieniaja sie w jednej klatce - bez przejscia samych
+    // kolorow, ktore zostawialo na starcie pusty cien wokol napisu.
+    expect(expandedLink.className).not.toContain("transition-colors");
+  });
+
+  it("jedna miniatura w obu stanach: zwijanie nie montuje zdjecia od nowa (bez pustej klatki)", () => {
+    renderCard();
+    const toggle = screen.getByRole("button", { name: EXPAND });
+    const thumb = images(toggle)[0];
+    expect(thumb?.getAttribute("src")).toBe(thumbOf(AVATAR));
+    // Miniatura nie ma efektu pojawiania sie - jest widoczna od pierwszej klatki.
+    expect(thumb?.className).not.toContain("oi-fade-in");
+
+    fireEvent.click(toggle);
+    expect(images(toggle)[0]).toBe(thumb);
+    fireEvent.click(toggle);
+    // Ten sam wezel po zwinieciu - nie nowy obrazek, ktory dopiero sie wylania.
+    expect(images(toggle)).toEqual([thumb]);
+  });
+
+  it("fokus klawiatury na pelnym kadrze rysuje obwodka NAD zdjeciem (ostatnie dziecko przycisku)", () => {
+    renderCard();
+    const toggle = screen.getByRole("button", { name: EXPAND });
+    // Zwinieta: obwodka samego przycisku (poza kolem) wystarcza.
+    expect(toggle.className).toContain("focus-visible:ring-2");
+    expect(toggle.querySelector('[class*="group-focus-visible"]')).toBeNull();
+
+    fireEvent.click(toggle);
+    // Rozwinieta: przycisk jest grupa, a obwodke rysuje ostatnie dziecko -
+    // pozycjonowane zdjecia pod nim nie moga jej zaslonic.
+    expect(toggle.className).toContain("group");
+    // Wlasna obwodka przycisku znika - na pelnym kadrze wystawalaby pasem pod zdjeciem.
+    expect(toggle.className).not.toContain("focus-visible:ring-2");
+    const ring = toggle.lastElementChild as HTMLElement;
+    expect(ring.getAttribute("aria-hidden")).toBe("true");
+    expect(ring.className).toContain("group-focus-visible:opacity-100");
+    // Dwubarwna obwodka (marka + biel) jest widoczna i na jasnym, i na ciemnym zdjeciu.
+    expect(ring.style.boxShadow).toContain("var(--brand)");
+    expect(ring.style.boxShadow).toContain("inset");
+    expect(ring.className).toContain("pointer-events-none");
+    expect(ring.className).toContain("opacity-0");
+
+    fireEvent.click(toggle);
+    expect(toggle.querySelector('[class*="group-focus-visible"]')).toBeNull();
   });
 
   it("drugi klik zwija karte i zdejmuje duzy kadr", () => {
@@ -379,13 +523,22 @@ describe("SpeakerProfileCard - rozwijanie i zwijanie", () => {
   it("blad miniatury nie chowa duzego kadru", () => {
     // Zdjecie karty bez zdjecia osoby: miniatura = zdjecie karty, wiec obie
     // warstwy istnieja. Ten przypadek pilnuje, ze duzy kadr nie znika po
-    // bledzie miniatury (miniatura nie ma obslugi bledu - to tylko tlo).
+    // bledzie miniatury.
     renderCard(speaker({ avatar_url: null }));
     const toggle = screen.getByRole("button", { name: EXPAND });
     fireEvent.click(toggle);
     const [thumb] = images(toggle);
     fireEvent.error(thumb as HTMLImageElement);
-    expect(srcs(toggle)).toContain(largeOf(CARD_PHOTO));
+    expect(srcs(toggle)).toEqual([largeOf(CARD_PHOTO)]);
+  });
+
+  it("blad miniatury na zwinietej karcie daje inicjaly zamiast pustego kola", () => {
+    renderCard();
+    const toggle = screen.getByRole("button", { name: EXPAND });
+    const [thumb] = images(toggle);
+    fireEvent.error(thumb as HTMLImageElement);
+    expect(images(toggle)).toEqual([]);
+    expect(toggle.textContent).toContain("AK");
   });
 });
 
@@ -460,6 +613,7 @@ describe("SpeakerProfileCard - ruch FLIP", () => {
     keyframes: Keyframe[];
     options: KeyframeAnimationOptions;
     cancelled: boolean;
+    animation: { playState: string };
   }
   let calls: AnimateCall[] = [];
   let reduceMotion = false;
@@ -510,13 +664,25 @@ describe("SpeakerProfileCard - ruch FLIP", () => {
         keyframes: Keyframe[],
         options: KeyframeAnimationOptions,
       ): Animation {
-        const call: AnimateCall = { element: this, keyframes, options, cancelled: false };
-        calls.push(call);
-        return {
+        // Jak w przegladarce: animacja trwa, dopoki jej nie skasowac albo nie
+        // dobiegnie konca, i wie, na jakim elemencie gra (`effect.target`).
+        const animation = {
+          playState: "running",
+          effect: { target: this },
           cancel: () => {
             call.cancelled = true;
+            animation.playState = "idle";
           },
-        } as Animation;
+        };
+        const call: AnimateCall = {
+          element: this,
+          keyframes,
+          options,
+          cancelled: false,
+          animation,
+        };
+        calls.push(call);
+        return animation as unknown as Animation;
       },
     });
     vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(layout);
@@ -555,32 +721,121 @@ describe("SpeakerProfileCard - ruch FLIP", () => {
     fireEvent.click(toggle);
 
     // Karta: sama wysokosc, z poprzedniej do nowej (wiersz siatki nie skacze).
+    // Geometria jedzie krzywa BEZ przestrzalu - sprezyna stawialaby dol karty
+    // nad dolem sasiadow i wypychala zdjecie za kwadrat.
     expect(callFor(article)?.keyframes).toEqual([{ height: "220px" }, { height: "560px" }]);
     expect(callFor(article)?.options).toEqual({
       duration: SPEAKER_CARD_MOTION_MS,
-      easing: SPEAKER_CARD_SPRING,
+      easing: SPEAKER_CARD_SETTLE,
     });
+    expect(callFor(toggle)?.options.easing).toBe(SPEAKER_CARD_SETTLE);
 
-    // Zdjecie: jednorodna skala z kwadratu 80 do 280 i kontr-skalowany promien.
+    // Zdjecie: jednorodna skala z kwadratu 80 do 280, a promien z KOLA do
+    // kwadratu bez rogow - jak `layoutId` wzorca (50% jest kolem przy kazdej
+    // skali, wiec nie wymaga kontr-skalowania).
     const media = callFor(toggle);
     const scale = 80 / 280;
     expect(media?.keyframes[0]?.transform).toBe(`translate(0px, 0px) scale(${scale})`);
-    expect(media?.keyframes[0]?.borderRadius).toBe(`${6 / scale}px`);
+    expect(media?.keyframes[0]?.borderRadius).toBe("50%");
     expect(media?.keyframes[1]).toMatchObject({
       transform: "translate(0px, 0px) scale(1)",
-      borderRadius: "6px",
+      borderRadius: "0px",
     });
 
-    // Napisy (nazwisko, rola, instytucja, sciezki z plakietka) i przycisk
+    // Nazwisko i podpis (rola • organizacja jednym blokiem) oraz przycisk
     // akcji: samo przesuniecie.
     const shift = [{ transform: "translate(-16px, -120px)" }, { transform: "translate(0px, 0px)" }];
-    for (const text of ["Anna Kowalska", "Prezes", "NASK"]) {
-      expect(callFor(screen.getByText(text))?.keyframes).toEqual(shift);
-    }
-    const extras = screen.getByTitle("eventFront.speakers.expertBadge").parentElement;
-    expect(callFor(extras)?.keyframes).toEqual(shift);
+    expect(callFor(screen.getByText("Anna Kowalska"))?.keyframes).toEqual(shift);
+    const subtitle = screen.getByText("Prezes").parentElement;
+    expect(subtitle).toBe(screen.getByText("NASK").parentElement);
+    expect(callFor(subtitle)?.keyframes).toEqual(shift);
     expect(callFor(screen.getByRole("button", { name: PROFILE_ACTION }))?.keyframes).toEqual(shift);
-    expect(calls).toHaveLength(7);
+    // Przesuniecia (napisy, akcja) zostaja na sprezynie wzorca.
+    expect(callFor(screen.getByText("Anna Kowalska"))?.options.easing).toBe(SPEAKER_CARD_SPRING);
+
+    // Szczegoly wylaniaja sie spod podpisu: tylko opacity i transform.
+    const details = document.getElementById(toggle.getAttribute("aria-controls") ?? "");
+    expect(callFor(details)?.keyframes).toEqual([
+      { opacity: 0, transform: "translate(0px, -8px)" },
+      { opacity: 1, transform: "translate(0px, 0px)" },
+    ]);
+    expect(calls).toHaveLength(6);
+  });
+
+  it("akcja kotwiczona z prawej: FLIP wyrownuje PRAWE krawedzie, wiec szersza pigulka nie przelatuje przez karte", () => {
+    renderCard(speaker(), { onSelect: vi.fn() });
+    const action = screen.getByRole("button", { name: PROFILE_ACTION });
+    vi.mocked(Element.prototype.getBoundingClientRect).mockImplementation(function (this: Element) {
+      if (this !== action) return layout.call(this);
+      const open = this.closest("article")?.getAttribute("data-state") === "expanded";
+      // Ta sama prawa krawedz (300), inna szerokosc: napis z wielokropkiem vs
+      // pelna pigulka.
+      return open ? box(12, 100, 200, 30) : box(12, 250, 50, 30);
+    });
+    fireEvent.click(screen.getByRole("button", { name: EXPAND }));
+    // Prawa krawedz stoi w miejscu - nie ma czego przesuwac.
+    expect(callFor(action)).toBeUndefined();
+  });
+
+  it("napis w kilku liniach wylania sie w nowym miejscu zamiast skakac z wysrodkowania do lewej", () => {
+    renderCard(speaker({ display_name: "Aleksandra Katarzyna Przybylska-Wroblewska" }));
+    const name = screen.getByText("Aleksandra Katarzyna Przybylska-Wroblewska");
+    name.style.lineHeight = "20px";
+    vi.mocked(Element.prototype.getBoundingClientRect).mockImplementation(function (this: Element) {
+      if (this !== name) return layout.call(this);
+      const open = this.closest("article")?.getAttribute("data-state") === "expanded";
+      // Dwie linie (40 px przy interlinii 20 px) w obu stanach.
+      return open ? box(240, 16, 280, 40) : box(120, 20, 280, 40);
+    });
+    fireEvent.click(screen.getByRole("button", { name: /eventFront\.speakers\.card\.expand/ }));
+    expect(callFor(name)?.keyframes).toEqual([{ opacity: 0 }, { opacity: 1 }]);
+  });
+
+  it("zwiniecie: podpis wylania sie w kolorze karty, zamiast zjezdzac bialym napisem ze zdjecia", () => {
+    renderCard();
+    const toggle = screen.getByRole("button", { name: EXPAND });
+    fireEvent.click(toggle);
+    const name = screen.getByText("Anna Kowalska");
+    expect(name.className).toContain("transition-colors");
+    calls = [];
+
+    fireEvent.click(toggle);
+
+    // Kolor przelacza sie w jednej klatce (bez przejscia z bieli)...
+    expect(name.className).not.toContain("transition-colors");
+    expect(name.className).toContain("text-foreground");
+    // ...a sam napis wylania sie w nowym miejscu.
+    expect(callFor(name)?.keyframes).toEqual([{ opacity: 0 }, { opacity: 1 }]);
+  });
+
+  it("zwrot W TRAKCIE ruchu zaczyna od promienia na ekranie, nie od stalego kola/kwadratu", () => {
+    renderCard();
+    const toggle = screen.getByRole("button", { name: EXPAND });
+    fireEvent.click(toggle);
+    // Kolo jest w polowie drogi do kwadratu - tak widzi je przegladarka.
+    toggle.style.borderTopLeftRadius = "33.75%";
+    fireEvent.click(toggle);
+
+    const back = calls.filter((call) => call.element === toggle).at(-1);
+    expect(back?.cancelled).toBe(false);
+    expect(back?.keyframes[0]?.borderRadius).toBe("33.75%");
+    expect(back?.keyframes[1]?.borderRadius).toBe("50%");
+  });
+
+  it("po zakonczonym ruchu zwrot startuje od promienia stanu, nie od odczytu stylu", () => {
+    renderCard();
+    const toggle = screen.getByRole("button", { name: EXPAND });
+    fireEvent.click(toggle);
+    calls.forEach((call) => {
+      call.cancelled = true;
+      call.animation.playState = "finished";
+    });
+    // W spoczynku `rounded-full` liczy sie do ogromnej wartosci w px - tej
+    // wartosci nie wolno brac za poczatek ruchu.
+    toggle.style.borderTopLeftRadius = "3.35544e+07px";
+    fireEvent.click(toggle);
+    const back = calls.filter((call) => call.element === toggle).at(-1);
+    expect(back?.keyframes[0]?.borderRadius).toBe("0px");
   });
 
   it("zwiniecie po zakonczonym ruchu odgrywa go w druga strone", () => {
@@ -590,6 +845,7 @@ describe("SpeakerProfileCard - ruch FLIP", () => {
     // Ruch rozwiniecia dobiegl konca (animacja nie wplywa juz na uklad).
     calls.forEach((call) => {
       call.cancelled = true;
+      call.animation.playState = "finished";
     });
     calls = [];
 
@@ -597,6 +853,9 @@ describe("SpeakerProfileCard - ruch FLIP", () => {
 
     expect(callFor(article)?.keyframes).toEqual([{ height: "560px" }, { height: "220px" }]);
     expect(callFor(toggle)?.keyframes[0]?.transform).toBe(`translate(0px, 0px) scale(${280 / 80})`);
+    // Z kwadratu pelnego kadru z powrotem do kola.
+    expect(callFor(toggle)?.keyframes[0]?.borderRadius).toBe("0px");
+    expect(callFor(toggle)?.keyframes[1]?.borderRadius).toBe("50%");
   });
 
   it("klik w trakcie ruchu kasuje trwajace animacje PRZED pomiarem nowego ukladu", () => {
@@ -839,6 +1098,32 @@ describe("SpeakerProfileCard - sciezki i ekspert", () => {
     }),
   ];
 
+  const detailsOf = (): HTMLElement => {
+    const toggle = screen.getByRole("button", { name: /eventFront\.speakers\.card\./ });
+    const details = document.getElementById(toggle.getAttribute("aria-controls") ?? "");
+    expect(details).not.toBeNull();
+    return details as HTMLElement;
+  };
+
+  it("sciezki sa SZCZEGOLEM: ukryte na zwinietej karcie, widoczne po kliknieciu", () => {
+    renderCard(speaker({ tracks }));
+    const details = detailsOf();
+    // Zwinieta: szczegoly sa w drzewie (serwer oddaje pelny zestaw faktow),
+    // ale ukryte przed okiem i czytnikiem.
+    expect(details.hidden).toBe(true);
+    expect(details.className).toContain("hidden");
+    expect(details.textContent).toContain("Energetyka");
+
+    fireEvent.click(screen.getByRole("button", { name: EXPAND }));
+    expect(details.hidden).toBe(false);
+    expect(details.className).toContain("flex");
+    // Widoczny naglowek dla oka - czytnik dostaje go z chipow, wiec nie dubluje.
+    const heading = Array.from(details.querySelectorAll('span[aria-hidden="true"]')).find(
+      (node) => node.textContent === "eventFront.speakers.card.tracksLabel(lng=pl)",
+    );
+    expect(heading).toBeTruthy();
+  });
+
   it("sciezki z obsady sesji rysuja chipy z nazwami w jezyku karty", () => {
     const { article } = renderCard(speaker({ tracks }));
 
@@ -863,17 +1148,47 @@ describe("SpeakerProfileCard - sciezki i ekspert", () => {
     expect(article.textContent).toContain("Cyberbezpieczenstwo");
   });
 
-  it("plakietka eksperta stoi pod podpisem", () => {
-    const { article } = renderCard(speaker({ is_expert: true }));
-    const badge = screen.getByTitle("eventFront.speakers.expertBadge");
-    expect(badge.textContent).toBe("eventFront.speakers.expertBadge");
-    expect(article.contains(badge)).toBe(true);
+  it("plakietka eksperta jest w szczegolach - z widocznym napisem, bez naglowka sciezek", () => {
+    renderCard(speaker({ is_expert: true }));
+    const details = detailsOf();
+    expect(details.hidden).toBe(true);
+    // Pigulka z napisem (w szczegolach nie ma nazwiska obok ikony).
+    expect(details.textContent).toBe("eventFront.speakers.expertBadge(lng=pl)");
+    fireEvent.click(screen.getByRole("button", { name: EXPAND }));
+    expect(details.hidden).toBe(false);
   });
 
-  it("bez sciezek i bez eksperta nie ma pustego wiersza dodatkow", () => {
+  it("bez sciezek i bez eksperta nie ma pustego wiersza szczegolow", () => {
     const { article } = renderCard(speaker({ tracks: [] }));
     expect(article.textContent).not.toContain("eventFront.speakers.card.tracksLabel");
-    expect(screen.queryByTitle("eventFront.speakers.expertBadge")).toBeNull();
-    expect(article.textContent).toBe("Anna KowalskaPrezesNASK");
+    expect(screen.queryByText(/eventFront\.speakers\.expertBadge/)).toBeNull();
+    // Przelacznik niczego nie steruje - nie ma szczegolow, ktore by pokazal.
+    expect(screen.getByRole("button", { name: EXPAND }).hasAttribute("aria-controls")).toBe(false);
+    expect(article.textContent).toBe("Anna KowalskaPrezes • NASK");
+  });
+
+  it("karta BEZ zdjecia, ale ze szczegolami: kolo z inicjalami rozwija same szczegoly", () => {
+    const { article } = renderCard(
+      speaker({ avatar_url: null, card_photo_url: null, tracks, card_cta_url: "/events/forum" }),
+    );
+    const toggle = screen.getByRole("button", { name: EXPAND });
+    expect(toggle.className).toContain("rounded-full");
+    expect(toggle.className).toContain("cursor-pointer");
+    expect(toggle.className).not.toContain("cursor-zoom-in");
+    expect(screen.getByText("AK")).toBeTruthy();
+
+    fireEvent.click(toggle);
+    expect(article.getAttribute("data-state")).toBe("expanded");
+    expect(detailsOf().hidden).toBe(false);
+    // Nie ma czego powiekszac: brak zdjec, brak gradientu, kolo zostaje kolem,
+    // a napis akcji zostaje napisem (pigulka jest tylko na zdjeciu).
+    expect(images(article)).toHaveLength(0);
+    expect(article.querySelector('[class*="bg-gradient-to-t"]')).toBeNull();
+    expect(toggle.className).toContain("rounded-full");
+    expect(screen.getByText("Anna Kowalska").className).toContain("text-foreground");
+    expect(screen.getByRole("link").className).not.toContain("bg-brand");
+
+    fireEvent.click(toggle);
+    expect(detailsOf().hidden).toBe(true);
   });
 });

@@ -302,6 +302,50 @@ describe("SpeakerProfileDialog - tożsamość i odznaki", () => {
     expect(within(panel()).getByText("Analityczka · NES")).toBeInTheDocument();
   });
 
+  it("firma powtarzająca nagłówek i stanowisko NIE dopisuje się drugi raz", async () => {
+    // Import prelegentów wpisywał to samo w stanowisko i w firmę - dialog
+    // pokazywał „Prezes CPK · Prezes CPK” pod nagłówkiem „Prezes CPK”.
+    await dialog({
+      profile: profileRow({
+        headline_pl: null,
+        job_title: "Prezes Centralnego Portu Komunikacyjnego",
+        company: "PREZES CENTRALNEGO PORTU KOMUNIKACYJNEGO",
+      }),
+    });
+    expect(
+      within(panel()).getByText("Prezes Centralnego Portu Komunikacyjnego"),
+    ).toBeInTheDocument();
+    expect(within(panel()).queryByText(/·/)).toBeNull();
+    expect(within(panel()).queryByText("PREZES CENTRALNEGO PORTU KOMUNIKACYJNEGO")).toBeNull();
+  });
+
+  it("firma zawarta w nagłówku zostaje, gdy stanowisko niesie coś nowego - bez firmy", async () => {
+    await dialog({
+      profile: profileRow({
+        headline_pl: "Prezes WiseEuropa",
+        job_title: "Ekonomista",
+        company: "WiseEuropa",
+      }),
+    });
+    expect(within(panel()).getByText("Ekonomista")).toBeInTheDocument();
+    expect(within(panel()).queryByText(/Ekonomista ·/)).toBeNull();
+  });
+
+  it("firma jest sprawdzana wobec KAŻDEGO pola osobno - nie znika przez sklejenie roli ze stanowiskiem", async () => {
+    // „Forum Energii" nie stoi ani w nagłówku, ani w stanowisku - tylko na
+    // ich styku, gdyby je skleić w jeden napis.
+    await dialog({
+      profile: profileRow({
+        headline_pl: "Członek zarządu Forum",
+        job_title: "Energii i Klimatu, analityk",
+        company: "Forum Energii",
+      }),
+    });
+    expect(
+      within(panel()).getByText("Energii i Klimatu, analityk · Forum Energii"),
+    ).toBeInTheDocument();
+  });
+
   it("języki prelegenta pokazują się WIELKIMI literami", async () => {
     await dialog({ profile: profileRow({ languages: ["pl", "en"] }) });
     expect(within(panel()).getByText("Języki: PL, EN")).toBeInTheDocument();

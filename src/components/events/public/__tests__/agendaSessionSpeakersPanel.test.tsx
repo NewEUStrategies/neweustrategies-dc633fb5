@@ -201,6 +201,20 @@ describe("AgendaSessionCard - uklad obsady", () => {
     ).toBeTruthy();
   });
 
+  it("obok kolumny stanu (od lg) lista ma JEDNA kolumne - waski obszar nie ucina nazwisk", () => {
+    renderCard(
+      session({
+        speakers: [
+          speaker({ userId: "u1", displayName: "Anna Zablocka" }),
+          speaker({ userId: "u2", displayName: "Jan Nowak" }),
+        ],
+      }),
+    );
+    const list = screen.getByRole("list", { name: SPEAKERS_LABEL });
+    // Pod przyciskami (sm..lg) sa dwie kolumny, obok nich (lg+) - jedna.
+    expect(list).toHaveClass("grid-cols-1", "sm:grid-cols-2", "lg:grid-cols-1");
+  });
+
   it("sesja bez obsady nie ma listy prelegentow ani siatki dwoch kolumn", () => {
     renderCard(session({ descriptionPl: "Opis panelu", speakers: [] }));
 

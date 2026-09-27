@@ -44,12 +44,22 @@ export type TxEmailType =
   // zwrot calkowity (miejsce wraca do puli) i zwrot czesciowy (korekta ceny,
   // miejsce zostaje). Osobne typy, bo kazdy z nich mowi co innego o miejscu.
   | "event_ticket_paid"
+  // Wpłata bez miejsca (20260926180000): pula wyczerpała się między kasą
+  // a webhookiem (kolejka OPŁACONA) albo bilet wymaga akceptacji organizatora
+  // (wpłata nie jest akceptacją). „Bilet opłacony - miejsce jest Twoje"
+  // obiecywałby w obu przypadkach miejsce, którego jeszcze nie ma.
+  | "event_ticket_paid_waitlisted"
+  | "event_ticket_paid_pending"
   | "event_ticket_refunded"
   | "event_ticket_partially_refunded"
   // Bilet z kodem QR - osobny mail do KAZDEJ osoby z miejscem (takze gosci
   // zapisanych przez prowadzacego grupy). Jawny kod istnieje tylko w chwili
   // wydania, wiec ten mail jest jedyna jego kopia u uczestnika.
   | "event_ticket_issued"
+  // Bilet odwolany razem z grupa (odrzucenie lub anulowanie prowadzacego,
+  // zwrot) - tylko do goscia, do ktorego bilet dotarl. Bez niego gosc
+  // dowiadywal sie o odwolaniu dopiero przy bramce.
+  | "event_ticket_revoked"
   // Faktura organizatora wydarzenia (faktura, proforma, korekta) wystawiona
   // w studiu - powiadomienie z odnosnikiem do profilu, BEZ zalacznika (plik
   // PDF skladany jest z migawki dokumentu w profilu kupujacego).
@@ -601,6 +611,34 @@ const PL: Dict = {
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
+  event_ticket_paid_waitlisted: {
+    subject: (v) =>
+      `⏳ Płatność przyjęta - lista rezerwowa${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "clock",
+    preview: "Płatność za bilet dotarła po wyczerpaniu miejsc - czekasz na liście rezerwowej.",
+    eyebrow: "Wydarzenie",
+    heading: "Płatność przyjęta - jesteś na liście rezerwowej",
+    intro:
+      "Zaksięgowaliśmy płatność za wejściówkę, ale ostatnie miejsce zajęto, zanim płatność do nas dotarła. Twoje zgłoszenie czeka opłacone na liście rezerwowej - gdy zwolni się miejsce, przyjmiemy Cię automatycznie i wyślemy bilet z kodem QR w osobnej wiadomości.",
+    cta: "Szczegóły wydarzenia",
+    note: "Nie musisz nic robić. Jeśli miejsce się nie zwolni, organizator zwróci płatność. Możesz też wycofać zgłoszenie odnośnikiem z potwierdzenia zapisu - wtedy płatność zostanie zwrócona.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_ticket_paid_pending: {
+    subject: (v) =>
+      `📝 Płatność przyjęta - czeka na decyzję${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "clock",
+    preview: "Płatność za bilet zaksięgowana - zgłoszenie czeka na decyzję organizatora.",
+    eyebrow: "Wydarzenie",
+    heading: "Płatność przyjęta - czekamy na decyzję organizatora",
+    intro:
+      "Zaksięgowaliśmy płatność za wejściówkę. Ten bilet wymaga akceptacji organizatora, więc miejsce nie jest jeszcze zarezerwowane - napiszemy do Ciebie z decyzją, a po akceptacji wyślemy bilet z kodem QR.",
+    cta: "Szczegóły wydarzenia",
+    note: "W razie odmowy organizator zwróci płatność.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
   event_ticket_issued: {
     subject: (v) => `🎟️ Twój bilet${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "hero-check",
@@ -611,6 +649,20 @@ const PL: Dict = {
       "Masz potwierdzone miejsce na wydarzeniu. Przycisk poniżej otwiera bilet z kodem QR - pokaż go przy wejściu. Kod jest przypisany do Ciebie, nie przekazuj go dalej.",
     cta: "Pokaż bilet z kodem QR",
     note: "Zachowaj tę wiadomość - to jedyna kopia kodu. Gdy skaner nie odczyta QR, obsługa wpisze kod wejścia ręcznie.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_ticket_revoked: {
+    subject: (v) =>
+      `Bilet unieważniony${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Kod QR z wcześniejszej wiadomości nie wpuści Cię już na wydarzenie.",
+    eyebrow: "Wydarzenie",
+    heading: "Twój bilet stracił ważność",
+    intro:
+      "Zgłoszenie grupowe, w którym zapisano Cię na to wydarzenie, zostało odwołane albo nie zostało przyjęte przez organizatora. Kod QR z wcześniejszej wiadomości nie wpuści Cię już na wydarzenie.",
+    cta: "Szczegóły wydarzenia",
+    note: "Jeśli to pomyłka, skontaktuj się z osobą, która Cię zapisała, albo z organizatorem. Gdy zgłoszenie zostanie przywrócone albo zwolni się miejsce, wyślemy nowy bilet w osobnej wiadomości.",
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
@@ -1259,6 +1311,36 @@ const EN: Dict = {
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },
+  event_ticket_paid_waitlisted: {
+    subject: (v) =>
+      `⏳ Payment received - waiting list${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "clock",
+    preview: "Your ticket payment arrived after seats ran out - you are on the waiting list.",
+    eyebrow: "Event",
+    heading: "Payment received - you are on the waiting list",
+    intro:
+      "We have recorded your ticket payment, but the last seat was taken before it reached us. Your registration waits, paid, on the waiting list - when a seat frees up we admit you automatically and send your ticket with the QR code in a separate email.",
+    cta: "Event details",
+    note: "Nothing to do on your side. If no seat frees up, the organiser will refund your payment. You can also withdraw with the link from your registration confirmation - the payment will then be refunded.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_ticket_paid_pending: {
+    subject: (v) =>
+      `📝 Payment received - awaiting decision${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "clock",
+    preview: "Ticket payment recorded - your registration awaits the organiser's decision.",
+    eyebrow: "Event",
+    // Nagłówek BEZ apostrofu: React Email zamienia go na `&#x27;`, a nagłówek
+    // jest jedynym zdaniem, które podgląd porównuje z treścią słownika 1:1.
+    heading: "Payment received - awaiting a decision from the organiser",
+    intro:
+      "We have recorded your ticket payment. This ticket needs the organiser's approval, so your seat is not reserved yet - we will write to you with the decision and send your ticket with the QR code once you are accepted.",
+    cta: "Event details",
+    note: "If the registration is declined, the organiser will refund your payment.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
   event_ticket_issued: {
     subject: (v) => `🎟️ Your ticket${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
     icon: "hero-check",
@@ -1269,6 +1351,20 @@ const EN: Dict = {
       "Your seat at the event is confirmed. The button below opens your ticket with the QR code - show it at the entrance. The code belongs to you, please do not pass it on.",
     cta: "Show my ticket with the QR code",
     note: "Keep this email - it is the only copy of your code. If the scanner cannot read the QR, staff can type in the entry code by hand.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_ticket_revoked: {
+    subject: (v) =>
+      `Ticket no longer valid${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "The QR code from our earlier message will no longer get you in.",
+    eyebrow: "Event",
+    heading: "Your ticket is no longer valid",
+    intro:
+      "The group registration that signed you up for this event was cancelled or not accepted by the organiser. The QR code from our earlier message will no longer get you in.",
+    cta: "Event details",
+    note: "If this looks like a mistake, contact the person who registered you or the organiser. If the registration is restored or a seat frees up, we will send you a new ticket in a separate email.",
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },

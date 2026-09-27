@@ -487,6 +487,25 @@ describe("SpeakersWidget - data sources", () => {
     expect(screen.getByText("Kancelaria Brukselska")).toBeInTheDocument();
   });
 
+  it("event source: a company that only repeats the role is not shown twice (same rule as the event page)", async () => {
+    // Dane z importu: firma = stanowisko wersalikami. Siatka i zapowiedz na
+    // stronie wydarzenia pokazuja je raz - widget tego samego wiersza tez.
+    db.rpc.event_speakers_public = [
+      speakerRpcRow({
+        headline_pl: "Prezes CPK",
+        company: "PREZES CPK",
+        talks_count: 0,
+        person_id: "p-1",
+      }),
+    ];
+    const { container } = renderWithClient(
+      <SpeakersWidget node={speakersNode({ source: "event", eventId: "e-1" })} lang="pl" />,
+    );
+    expect(await screen.findByText("Jan Kowalski")).toBeInTheDocument();
+    const card = container.querySelector("article") as HTMLElement;
+    expect(card.textContent?.match(/prezes cpk/gi) ?? []).toHaveLength(1);
+  });
+
   it("row without a company renders no empty affiliation line", async () => {
     db.rpc.get_public_speakers = [speakerRpcRow({ company: null })];
     const { container } = renderWithClient(

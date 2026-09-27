@@ -175,6 +175,73 @@ export function speakerCardPhoto(row: {
   return textOrNull(row.card_photo_url) ?? textOrNull(row.avatar_url);
 }
 
+/**
+ * Slowa napisu do porownania. Najpierw NFKC (tekst wklejony z PDF-u albo
+ * z macOS bywa rozlozony - „a" + ogonek to jedna litera, nie dwie) i bez znakow
+ * formatujacych (miekki dywiz, spacja zerowej szerokosci rozcinaly slowo).
+ * Znaki laczace (`\p{M}`) naleza do slowa; reszta - interpunkcja, cudzyslowy,
+ * myslniki, twarde spacje - to granica slow.
+ */
+const wordsOf = (value: string): string[] =>
+  value
+    .normalize("NFKC")
+    .replace(/\p{Cf}/gu, "")
+    .split(/[^\p{L}\p{M}\p{N}]+/u)
+    .filter((word) => word !== "");
+
+const folded = (word: string): string => word.toLocaleLowerCase("pl");
+
+/** Nazwa wlasna albo skrot: wielka litera lub cyfra („Polityka", „CPK", „3M"). */
+const looksLikeName = (word: string): boolean => /[\p{Lu}\p{N}]/u.test(word);
+
+/**
+ * Organizacja do pokazania OBOK roli - albo `null`, gdy tylko ja powtarza.
+ *
+ * DANE POWTARZAJA ROLE W POLU FIRMY. Projekcja bierze `company` z konta albo
+ * z `event_people.company_text`, a import prelegentow wpisywal tam czesto to
+ * samo, co w stanowisku - karta pokazywala wtedy „Prezes CPK" dwa razy, raz
+ * wersalikami. Powtorzenie nie jest drugim faktem, wiec znika z podpisu:
+ *   * ten sam napis (wielkosc liter, interpunkcja i spacje sie nie licza),
+ *   * nazwa organizacji zawarta w roli jako cale slowa („Prezes WiseEuropa"
+ *     i „WiseEuropa") - ale TYLKO jako nazwa: slowo organizacji pisane wielka
+ *     litera (albo z cyfra) musi tez w roli stac wielka litera. Rzeczownik
+ *     „polityka zagraniczna" w roli nie jest tygodnikiem „Polityka", wiec
+ *     tygodnik zostaje. Kopia wersalikami („PREZES CPK") nadal znika.
+ * Odwrotnie NIE: rola zawarta w organizacji to zwykle dwa rozne fakty
+ * („Ekspert" i „Ekspert sektora energetycznego" to nadal rola i nazwa).
+ *
+ * `contained: false` wylacza drugi przypadek. Powierzchnia, ktora ucina role do
+ * jednej linii (chip zapowiedzi na przegladzie), nie moze chowac organizacji
+ * „zawartej w roli" - koniec roli, w ktorym ta nazwa stoi, jest wlasnie ucinany.
+ *
+ * JEDNA REGULA DLA KAZDEJ POWIERZCHNI. Siatka, zapowiedz na przegladzie,
+ * dialog profilu i widget prelegentow w builderze pytaja tutaj - gdyby dedupe
+ * mialo tylko jedno miejsce, ta sama osoba mialaby na dwoch powierzchniach
+ * rozne podpisy.
+ */
+export function speakerOrganizationLine(
+  role: string | null | undefined,
+  organization: string | null | undefined,
+  { contained = true }: { contained?: boolean } = {},
+): string | null {
+  const org = textOrNull(organization);
+  if (org === null) return null;
+  const orgWords = wordsOf(org);
+  if (orgWords.length === 0) return org;
+  const roleWords = wordsOf(role ?? "");
+  if (roleWords.length === 0) return org;
+  if (roleWords.map(folded).join(" ") === orgWords.map(folded).join(" ")) return null;
+  if (!contained) return org;
+  for (let start = 0; start + orgWords.length <= roleWords.length; start += 1) {
+    const repeated = orgWords.every((word, offset) => {
+      const inRole = roleWords[start + offset] ?? "";
+      return folded(inRole) === folded(word) && (!looksLikeName(word) || looksLikeName(inRole));
+    });
+    if (repeated) return null;
+  }
+  return org;
+}
+
 function channel(value: number): number {
   const c = value / 255;
   return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;

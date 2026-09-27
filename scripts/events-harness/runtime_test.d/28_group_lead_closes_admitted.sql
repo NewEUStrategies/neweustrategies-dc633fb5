@@ -29,6 +29,11 @@
 --   5. `_event_group_promote_freed` wprost: NULL i pusta tablica, grupowanie
 --      po bilecie, limit puli, zapis bez cennika (awans po wydarzeniu).
 --   6. Uprawnienia: funkcja awansu bez EXECUTE dla anon/authenticated.
+--   7. Zwrot czesciowy (20260926180000): grupa oplacona przez Stripe
+--      i zwrocona czesciowo, odrzucona przez pomylke i przyjeta ponownie -
+--      goscie zwroceni czesciowo wracaja z NOWYM kodem, trafiaja do crona,
+--      do wydania biletow i do ponownej wysylki z panelu (bez
+--      `ticket_not_issuable`); gosc zwrocony w calosci nie wraca.
 --
 -- JEDNA TRANSAKCJA = JEDNO `now()` (patrz 27_group_follow_lead).
 -- SPRZATANIE: caly plik w BEGIN ... ROLLBACK.
@@ -556,6 +561,173 @@ SELECT pg_temp.assert(
   AND NOT has_function_privilege('authenticated', 'public._tg_event_group_follow_lead_status()', 'EXECUTE')
   AND NOT has_function_privilege('authenticated', 'public._event_apply_outcome_to_group(uuid, uuid, text)', 'EXECUTE'),
   '28/uprawnienia: awans za gosci, kaskada i wynik platnosci bez EXECUTE dla klienta');
+
+-- ---------------------------------------------------------------------------
+-- 7) ZWROT CZESCIOWY: GOSCIE WRACAJA Z PROWADZACYM I DOSTAJA BILET
+--    (20260926180000)
+-- ---------------------------------------------------------------------------
+-- Zwrot czesciowy prowadzacego to korekta ceny: oplaceni goscie przechodza na
+-- `partially_refunded` i zachowuja miejsce oraz kod. Do 20260926180000
+-- predykat stempla (`_event_guest_closed_with_lead`) dopuszczal tylko
+-- not_required/paid/unpaid, wiec pomylkowe odrzucenie prowadzacego i ponowne
+-- przyjecie przywracalo SAMEGO prowadzacego - goscie zostawali odrzuceni
+-- z martwym biletem. A gdyby nawet wrocili, bilet by do nich nie wyszedl:
+-- cron, wydanie i ponowna wysylka z panelu przyjmowaly tylko paid/not_required.
+--
+-- Grupa Z: prowadzacy i trzech gosci na bilecie platnym bez puli (TA7, EA -
+-- formularz, zapisy wlasne, wiec cron je widzi), oplaceni przez Stripe. Gosc
+-- Z3 dostal od organizatora PELNY zwrot, a potem zostal wpuszczony mimo to
+-- (przyjety z `refunded`): pelny zwrot to nie korekta ceny, wiec on z grupa
+-- nie wraca, choc zostal zamkniety tym samym stemplem.
+INSERT INTO auth.users (id, email) VALUES
+  ('c9000000-0000-0000-0000-000000000005', 'lead.z.gla@example.org')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.profiles (id, tenant_id) VALUES
+  ('c9000000-0000-0000-0000-000000000005', 'c9c9c9c9-c9c9-c9c9-c9c9-c9c9c9c9c9c9')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.event_ticket_types
+  (id, tenant_id, event_id, key, name_pl, name_en, price_cents, currency,
+   quota, min_tier_rank, requires_approval, is_active, sort_order,
+   group_registration_enabled, group_max_size)
+VALUES
+  ('c9200000-0000-0000-0000-000000000007', 'c9c9c9c9-c9c9-c9c9-c9c9-c9c9c9c9c9c9',
+   'c9100000-0000-0000-0000-000000000001', 'gla_paid_open', 'Platny bez puli', 'Paid, no quota',
+   10000, 'PLN', NULL, 0, false, true, 60, true, 5);
+
+SELECT pg_temp.gla_group('z', 'c9000000-0000-0000-0000-000000000005',
+  'c9200000-0000-0000-0000-000000000007', 'gla-main', 3);
+
+INSERT INTO public.payment_orders (id, tenant_id, user_id, status, amount_cents, currency, metadata)
+SELECT 'c9600000-0000-0000-0000-000000000003', 'c9c9c9c9-c9c9-c9c9-c9c9-c9c9c9c9c9c9',
+  'c9000000-0000-0000-0000-000000000005', 'paid', 40000, 'PLN',
+  jsonb_build_object('event_id', 'c9100000-0000-0000-0000-000000000001',
+                     'ticket_type_id', 'c9200000-0000-0000-0000-000000000007',
+                     'registration_id', pg_temp.gla('z'));
+
+DO $$
+DECLARE
+  v jsonb;
+  v_lead uuid := pg_temp.gla('z');
+BEGIN
+  v := public.payments_apply_event_ticket_outcome('c9600000-0000-0000-0000-000000000003', 'paid');
+  PERFORM pg_temp.assert((v->>'applied')::boolean
+    AND (SELECT count(*) FROM public.event_registrations r
+          WHERE (r.id = v_lead OR r.group_lead_registration_id = v_lead)
+            AND r.status = 'approved' AND r.payment_status = 'paid'
+            AND r.qr_token_hash IS NOT NULL) = 4,
+    '28/zwrot_czesciowy: punkt wyjscia - grupa czworga oplacona przez Stripe i przyjeta z kodami');
+  PERFORM pg_temp.assert(pg_temp.gla_issue_all(v_lead) = 4,
+    '28/zwrot_czesciowy: punkt wyjscia - cztery bilety wyslane');
+
+  v := pg_temp.gla_decide(pg_temp.gla('z_g3'), 'refund');
+  v := pg_temp.gla_decide(pg_temp.gla('z_g3'), 'approve');
+  PERFORM pg_temp.assert(
+    (SELECT status = 'approved' AND payment_status = 'refunded' AND qr_token_hash IS NOT NULL
+       FROM public.event_registrations WHERE id = pg_temp.gla('z_g3')),
+    '28/zwrot_czesciowy: punkt wyjscia - gosc Z3 po pelnym zwrocie wpuszczony przez organizatora');
+
+  v := public.payments_apply_event_ticket_outcome('c9600000-0000-0000-0000-000000000003', 'partial_refund', 10000);
+  PERFORM pg_temp.assert((v->>'applied')::boolean AND v->>'outcome' = 'partial_refund',
+    '28/zwrot_czesciowy: zwrot ponizej kwoty zamowienia zaksiegowany jako czesciowy');
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.event_registrations r
+      WHERE r.id IN (v_lead, pg_temp.gla('z_g1'), pg_temp.gla('z_g2'))
+        AND r.status = 'approved' AND r.payment_status = 'partially_refunded'
+        AND r.qr_token_hash IS NOT NULL AND r.ticket_code_sent_at IS NOT NULL) = 3,
+    '28/zwrot_czesciowy: prowadzacy i dwaj goscie przyjeci, zwroceni czesciowo, z kodem i biletem');
+  PERFORM pg_temp.assert(
+    (SELECT payment_status FROM public.event_registrations WHERE id = pg_temp.gla('z_g3')) = 'refunded',
+    '28/zwrot_czesciowy: zwrot czesciowy prowadzacego nie rusza goscia zwroconego w calosci');
+END $$;
+
+DO $$
+DECLARE
+  v jsonb;
+  e jsonb;
+  v_lead uuid := pg_temp.gla('z');
+  g1 uuid := pg_temp.gla('z_g1');
+  g2 uuid := pg_temp.gla('z_g2');
+  g3 uuid := pg_temp.gla('z_g3');
+  v_h1 text;
+  v_h2 text;
+  v_issued uuid[];
+  v_scope uuid[];
+  v_root uuid;
+  v_raised text := NULL;
+BEGIN
+  SELECT qr_token_hash INTO v_h1 FROM public.event_registrations WHERE id = g1;
+  SELECT qr_token_hash INTO v_h2 FROM public.event_registrations WHERE id = g2;
+
+  v := pg_temp.gla_decide(v_lead, 'reject', 'Grupa odrzucona przez pomylke');
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.event_registrations r
+      WHERE r.id IN (g1, g2, g3) AND r.status = 'rejected'
+        AND r.qr_token_hash IS NULL AND r.ticket_code_sent_at IS NULL) = 3,
+    '28/zwrot_czesciowy: odrzucenie prowadzacego zamyka gosci - bez kodu i bez znacznika biletu');
+  PERFORM pg_temp.assert(
+    public._event_guest_closed_with_lead(
+      (SELECT r FROM public.event_registrations r WHERE r.id = g1),
+      (SELECT l FROM public.event_registrations l WHERE l.id = v_lead))
+    AND NOT public._event_guest_closed_with_lead(
+      (SELECT r FROM public.event_registrations r WHERE r.id = g3),
+      (SELECT l FROM public.event_registrations l WHERE l.id = v_lead)),
+    '28/zwrot_czesciowy: predykat stempla rozpoznaje goscia zwroconego czesciowo, zwroconego w calosci - nie');
+
+  v := pg_temp.gla_decide(v_lead, 'approve');
+  PERFORM pg_temp.assert(v->>'status' = 'approved'
+    AND (SELECT payment_status FROM public.event_registrations WHERE id = v_lead) = 'partially_refunded',
+    '28/zwrot_czesciowy: prowadzacy przyjety ponownie, rozliczenie bez zmian');
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.event_registrations r
+      WHERE r.id IN (g1, g2) AND r.status = 'approved' AND r.payment_status = 'partially_refunded'
+        AND r.qr_token_hash IS NOT NULL AND r.qr_token_hash NOT IN (v_h1, v_h2)
+        AND r.ticket_code_sent_at IS NULL AND r.ticket_code_claimed_at IS NULL) = 2,
+    '28/zwrot_czesciowy: OBAJ goscie zwroceni czesciowo wracaja z prowadzacym - z NOWYM kodem, bez znacznika wysylki');
+  PERFORM pg_temp.assert(
+    (SELECT status = 'rejected' AND payment_status = 'refunded' AND qr_token_hash IS NULL
+       FROM public.event_registrations WHERE id = g3),
+    '28/zwrot_czesciowy: gosc zwrocony w calosci NIE wraca - pelny zwrot to nie korekta ceny');
+  PERFORM pg_temp.assert(
+    g1 = ANY(public._event_ticket_codes_pending(500))
+    AND g2 = ANY(public._event_ticket_codes_pending(500))
+    AND NOT (g3 = ANY(public._event_ticket_codes_pending(500))),
+    '28/zwrot_czesciowy: przywroceni goscie czekaja w cronie na nowy bilet, zwrocony w calosci - nie');
+
+  v := public._event_issue_ticket_codes(v_lead);
+  SELECT array_agg((x->>'registration_id')::uuid) INTO v_issued FROM jsonb_array_elements(v) x;
+  PERFORM pg_temp.assert(cardinality(v_issued) = 3
+    AND v_lead = ANY(v_issued) AND g1 = ANY(v_issued) AND g2 = ANY(v_issued),
+    '28/zwrot_czesciowy: wydanie biletow grupy obejmuje prowadzacego i obu gosci zwroconych czesciowo');
+  FOR e IN SELECT * FROM jsonb_array_elements(v) LOOP
+    PERFORM public._event_ticket_code_confirm(
+      (e->>'registration_id')::uuid, (e->>'claimed_at')::timestamptz, true);
+  END LOOP;
+
+  -- Ponowna wysylka z panelu - najpierw zakres (serwer sprawdza nim liste
+  -- wykluczen), potem skasowanie znacznikow.
+  PERFORM pg_temp.act_as('c9000000-0000-0000-0000-0000000000a1',
+                         'c9c9c9c9-c9c9-c9c9-c9c9-c9c9c9c9c9c9');
+  SELECT array_agg(s.registration_id) INTO v_scope
+  FROM public.admin_event_ticket_resend_scope(g1) s;
+  BEGIN
+    v_root := public.admin_event_ticket_resend(g1);
+  EXCEPTION WHEN OTHERS THEN
+    v_raised := SQLERRM;
+  END;
+  PERFORM pg_temp.act_as();
+  PERFORM pg_temp.assert(cardinality(v_scope) = 3
+    AND v_lead = ANY(v_scope) AND g1 = ANY(v_scope) AND g2 = ANY(v_scope),
+    '28/zwrot_czesciowy: zakres ponownej wysylki obejmuje gosci zwroconych czesciowo (bez zwroconego w calosci)');
+  PERFORM pg_temp.assert(v_raised IS NULL AND v_root = v_lead,
+    '28/zwrot_czesciowy: ponowna wysylka dla goscia zwroconego czesciowo przechodzi (bez ticket_not_issuable)' ||
+    COALESCE(' - blad: ' || v_raised, ''));
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.event_registrations r
+      WHERE r.id IN (v_lead, g1, g2)
+        AND r.ticket_code_sent_at IS NULL AND r.ticket_code_claimed_at IS NULL) = 3,
+    '28/zwrot_czesciowy: ponowna wysylka kasuje znacznik calej grupy - bilety wracaja do wydania');
+END $$;
 
 ROLLBACK;
 

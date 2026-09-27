@@ -189,6 +189,8 @@ describe("ticketCheckoutRefusal", () => {
     ["ticket_sold_out: no seats left", "sold_out"],
     ["auth_required: sign in to buy a ticket", "account_required"],
     ["ticket_included_in_plan", "ticket_included_in_plan"],
+    ["plan_ticket_unavailable", "plan_ticket_unavailable"],
+    ["plan_ticket_awaiting_approval", "plan_ticket_awaiting_approval"],
     ["registration_not_payable:event_mismatch", "registration_not_payable"],
     // Awaria liczby miejsc to NIE „zgłoszenie odwołane albo rozliczone".
     ["registration_not_payable:seats_unavailable", "group_seats_unavailable"],

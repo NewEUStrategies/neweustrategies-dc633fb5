@@ -322,6 +322,30 @@ describe("applyRefundEffects - korekty, które NIE odbierają dostępu", () => {
     expect(outcome).toBe("skipped");
     expect(db.chainsFor("payment_orders")).toHaveLength(0);
   });
+
+  it("transakcja wyzerowana W TRAKCIE przetwarzania kończy się `skipped`, nie zapytaniem", async () => {
+    // Kierowanie korekty czyta `transactionId` synchronicznie, a `revokeOrder`
+    // czyta go PONOWNIE dopiero po pierwszym `await`. Obiekt zdarzenia
+    // zmieniony w tym oknie (wołający, który używa go dalej) nie może
+    // skończyć się filtrem z `null` - bramka zamyka ścieżkę bez dotykania bazy.
+    const event = refundEvent();
+    const pending = applyRefundEffects(event);
+    event.transactionId = null;
+
+    expect(await pending).toBe("skipped");
+    expect(db.chains).toHaveLength(0);
+  });
+
+  it("subskrypcja wyzerowana W TRAKCIE przetwarzania kończy się `skipped`, nie zapytaniem", async () => {
+    // To samo okno w `revokeSubscription`: bez bramki `eq(..., null)`
+    // i odebranie uprawnienia po pustym `external_ref`.
+    const event = refundEvent({ transactionId: null, subscriptionId: SUB });
+    const pending = applyRefundEffects(event);
+    event.subscriptionId = null;
+
+    expect(await pending).toBe("skipped");
+    expect(db.chains).toHaveLength(0);
+  });
 });
 
 describe("zwrot PEŁNY zamówienia - dostęp znika natychmiast", () => {
@@ -531,6 +555,43 @@ describe("IDEMPOTENCJA licznika zwrotów", () => {
   });
 });
 
+describe("wiersze z PUSTYMI kwotami - bezpieczniki `??` w liczeniu zwrotu", () => {
+  // Kolumny kwot są dziś NOT NULL, ale PostgREST oddaje to, co leży w bazie,
+  // a wiersze sprzed ograniczeń i ręczne poprawki potrafią nieść NULL. Zwrot
+  // nie może się na nich wywrócić ani policzyć czegoś, czego nie ma.
+  const EMPTY = null as unknown as number;
+
+  it("brak kwoty obciążenia i licznika: zwrot liczy się od zera, bez „już rozliczone”", async () => {
+    scene.order = orderRow({ amount_cents: EMPTY, refunded_amount_cents: EMPTY });
+
+    const outcome = await applyRefundEffects(
+      refundEvent({ amountCents: 2000, capturedAmountCents: undefined }),
+    );
+
+    expect(outcome).toBe("order_refunded");
+    expect(patches("payment_orders")[0]).toMatchObject({ refunded_amount_cents: 2000 });
+  });
+
+  it("pusty licznik przy znanym obciążeniu: powtórka BEZ nowych pieniędzy to `skipped`", async () => {
+    // Licznik NULL czytamy jak zero - wiec zdarzenie bez kwoty nie przynosi
+    // pieniedzy, a zamowienie juz „refunded" nie jest zapisywane drugi raz.
+    scene.order = orderRow({ status: "refunded", refunded_amount_cents: EMPTY });
+
+    const outcome = await applyRefundEffects(refundEvent({ amountCents: 0 }));
+
+    expect(outcome).toBe("skipped");
+  });
+
+  it("pusty licznik przy znanym obciążeniu i nowej kwocie: zwrot przechodzi", async () => {
+    scene.order = orderRow({ refunded_amount_cents: EMPTY });
+
+    const outcome = await applyRefundEffects(refundEvent({ amountCents: 4900 }));
+
+    expect(outcome).toBe("order_refunded");
+    expect(patches("payment_orders")[0]).toMatchObject({ refunded_amount_cents: 4900 });
+  });
+});
+
 describe("BILET na wydarzenie - zwrot cofa udział", () => {
   it("pełny zwrot anuluje zgłoszenie i zwalnia miejsce", async () => {
     scene.order = orderRow({ metadata: { event_id: EVENT_ID } });
@@ -549,6 +610,30 @@ describe("BILET na wydarzenie - zwrot cofa udział", () => {
       fn: "payments_apply_event_ticket_outcome",
       args: { p_outcome: "refunded" },
     });
+  });
+
+  it("status anulowanego udziału to wartość dozwolona przez CHECK tabeli", async () => {
+    // Była tu literówka „canceled": CHECK `event_rsvps_status_check` jej nie
+    // dopuszcza, więc KAŻDY pełny zwrot biletu rzucał przed
+    // `payments_apply_event_ticket_outcome` - webhook ponawiał w nieskończoność,
+    // a zgłoszenie zostawało opłacone, goście przyjęci i kolejka nieruszona.
+    // Test czyta NAJNOWSZĄ definicję CHECK-a z migracji, a nie jej kopię.
+    const { readdirSync, readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const dir = join(process.cwd(), "supabase", "migrations");
+    const pattern = /ADD CONSTRAINT event_rsvps_status_check\s+CHECK \(status IN \(([^)]*)\)\)/g;
+    const checks = readdirSync(dir)
+      .filter((name) => name.endsWith(".sql"))
+      .sort()
+      .flatMap((name) => [...readFileSync(join(dir, name), "utf8").matchAll(pattern)])
+      .map((match) => match[1]);
+    expect(checks.length).toBeGreaterThan(0);
+    const allowed = [...(checks.at(-1) as string).matchAll(/'([^']+)'/g)].map((m) => m[1]);
+    scene.order = orderRow({ metadata: { event_id: EVENT_ID } });
+
+    await applyRefundEffects(refundEvent());
+
+    expect(allowed).toContain(patches("event_rsvps")[0].status);
   });
 
   it("zamówienie związane ze zgłoszeniem nie anuluje RSVP samo - robi to baza po zastosowaniu zwrotu", async () => {
@@ -586,6 +671,20 @@ describe("BILET na wydarzenie - zwrot cofa udział", () => {
 
     expect(db.chainsFor("event_rsvps")).toHaveLength(0);
     expect(h.rpc.calls).toHaveLength(1);
+  });
+
+  it("metadane `null` (jsonb 'null') to zwykły zakup: dostęp znika, zgłoszeń nie ruszamy", async () => {
+    // Kolumna jest `NOT NULL DEFAULT '{}'`, ale jsonb dopuszcza literał
+    // `'null'` - i typ `Json` go przewiduje. Odczyt `event_id` wprost z `null`
+    // wywróciłby zwrot wyjątkiem, czyli pętlą ponowień z otwartym dostępem.
+    scene.order = orderRow({ metadata: null });
+
+    const outcome = await applyRefundEffects(refundEvent());
+
+    expect(outcome).toBe("order_refunded");
+    expect(patches("user_subscriptions")[0]).toMatchObject({ status: "refunded" });
+    expect(db.chainsFor("event_rsvps")).toHaveLength(0);
+    expect(h.rpc.calls).toHaveLength(0);
   });
 
   it("awaria funkcji bazowej nie wywraca zwrotu (miękki skutek)", async () => {
@@ -844,6 +943,23 @@ describe("SPÓR OTWARTY - alert dla zespołu", () => {
     expect(inserted("notifications").some((row) => row.href === "/admin/billing")).toBe(false);
   });
 
+  it("administratorzy WYŁĄCZNIE bez najemcy: żadnego alertu i żadnego pustego zapisu", async () => {
+    // Filtr najemcy może wyzerować całą listę. Wsadowy `insert([])` byłby
+    // zbędnym żądaniem do bazy i fałszywym śladem „alert wysłany".
+    scene.admins = [{ user_id: "admin-1" }];
+    scene.adminProfiles = [{ id: "admin-1", tenant_id: null }];
+
+    await applyRefundEffects(refundEvent({ action: "chargeback" }));
+
+    // Profile administratorów przeczytano - filtr najemcy naprawdę biegł...
+    expect(db.chainsFor("profiles").some((chain) => chain.has("in"))).toBe(true);
+    // ...a zapisu wsadowego nie ma (dzwonek klienta idzie pojedynczym wierszem).
+    const batchInserts = db
+      .chainsFor("notifications")
+      .filter((chain) => Array.isArray(chain.argsOf("insert")?.[0]));
+    expect(batchInserts).toHaveLength(0);
+  });
+
   it("alert wskazuje SUBSKRYPCJĘ, gdy korekta nie niesie transakcji", async () => {
     // Odniesienie w treści alertu jest tym, po czym zespół odnajduje sprawę
     // u operatora. Spór subskrypcyjny nie ma identyfikatora transakcji.
@@ -938,6 +1054,16 @@ describe("SPÓR WYGRANY - dostęp wraca", () => {
     });
   });
 
+  it("subskrypcja bez statusu wraca jako aktywna", async () => {
+    // Spór wygrany przywraca dostęp - brak statusu nie może go zostawić pustym.
+    scene.subscription = subscriptionRow({ status: null as unknown as string });
+
+    const outcome = await applyRefundEffects(wonEvent({ subscriptionId: SUB }));
+
+    expect(outcome).toBe("subscription_restored");
+    expect(inserted("user_subscriptions")[0]).toMatchObject({ status: "active" });
+  });
+
   it("brak lokalnej subskrypcji nic nie przywraca", async () => {
     scene.subscription = null;
 
@@ -990,6 +1116,31 @@ describe("SPÓR WYGRANY - dostęp wraca", () => {
     expect(outcome).toBe("order_restored");
     expect(patches("payment_orders")[0]).toMatchObject({ status: "paid" });
     expect(db.chainsFor("event_rsvps")).toHaveLength(0);
+  });
+
+  it("zamówienie z metadanymi `null` (jsonb 'null') wraca bez dotykania zgłoszeń", async () => {
+    // Lustro przypadku przy zwrocie: literał `'null'` w metadanych nie może
+    // wywrócić przywrócenia dostępu po wygranym sporze.
+    scene.order = orderRow({ metadata: null });
+
+    const outcome = await applyRefundEffects(wonEvent());
+
+    expect(outcome).toBe("order_restored");
+    expect(patches("payment_orders")[0]).toMatchObject({ status: "paid" });
+    expect(inserted("user_subscriptions")[0]).toMatchObject({ status: "active" });
+    expect(db.chainsFor("event_rsvps")).toHaveLength(0);
+  });
+
+  it("identyfikator o obcym kształcie NIE trafia do filtra `or(...)` także przy sporze", async () => {
+    // Przywrócenie nie ma własnej bramki kształtu - korzysta z tej
+    // w `findOrderForAdjustment`. Bez niej tekst z payloadu operatora wszedłby
+    // do `or(...)` i mógł przywrócić dostęp na CUDZYM zamówieniu.
+    const outcome = await applyRefundEffects(
+      wonEvent({ transactionId: "pi_1,provider_intent_id.eq.cudze" }),
+    );
+
+    expect(outcome).toBe("skipped");
+    expect(db.chains).toHaveLength(0);
   });
 
   it("spór wygrany bez transakcji i bez subskrypcji to `skipped`", async () => {

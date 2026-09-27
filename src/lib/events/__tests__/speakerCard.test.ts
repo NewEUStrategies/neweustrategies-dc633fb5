@@ -24,6 +24,7 @@ import {
   speakerCardDraftErrors,
   speakerCardDraftFrom,
   speakerCardPhoto,
+  speakerOrganizationLine,
   speakerTrackName,
   type SpeakerCardDraft,
   type SpeakerTrack,
@@ -704,5 +705,108 @@ describe("hasNamedSpeakerTrack", () => {
     expect(hasNamedSpeakerTrack([unnamed], "pl")).toBe(false);
     expect(hasNamedSpeakerTrack([unnamed, named], "en")).toBe(true);
     expect(hasNamedSpeakerTrack([], "pl")).toBe(false);
+  });
+});
+
+describe("speakerOrganizationLine", () => {
+  it("rozna rola i organizacja - organizacja zostaje (przycieta)", () => {
+    expect(speakerOrganizationLine("Prezes zarzadu", "  Szkola Glowna Handlowa ")).toBe(
+      "Szkola Glowna Handlowa",
+    );
+  });
+
+  it("organizacja powtarzajaca role (inna wielkosc liter, spacje) znika", () => {
+    expect(
+      speakerOrganizationLine(
+        "Prezes Centralnego Portu Komunikacyjnego",
+        "PREZES  CENTRALNEGO PORTU KOMUNIKACYJNEGO ",
+      ),
+    ).toBeNull();
+    expect(speakerOrganizationLine("Członek Zarządu", "członek zarządu")).toBeNull();
+  });
+
+  it("interpunkcja i cudzysłowy nie odrozniaja powtorzenia", () => {
+    expect(
+      speakerOrganizationLine(
+        "Zastępca redaktora naczelnego magazynu „Układ Sił”",
+        "Zastępca redaktora naczelnego magazynu Układ Sił",
+      ),
+    ).toBeNull();
+  });
+
+  it("nazwa organizacji zawarta w roli jako cale slowa - bez powtorzenia", () => {
+    expect(speakerOrganizationLine("Prezes WiseEuropa", "WiseEuropa")).toBeNull();
+    expect(
+      speakerOrganizationLine(
+        "Członek Zarządu, Polish Offshore Wind Energy Society",
+        "Polish Offshore Wind Energy Society",
+      ),
+    ).toBeNull();
+  });
+
+  it("fragment slowa to NIE powtorzenie (NASK w „NASKO” nie gasi organizacji)", () => {
+    expect(speakerOrganizationLine("Dyrektor NASKO", "NASK")).toBe("NASK");
+  });
+
+  it("rola zawarta w organizacji to dwa rozne fakty - organizacja zostaje", () => {
+    expect(speakerOrganizationLine("Ekspert", "Ekspert sektora energetycznego")).toBe(
+      "Ekspert sektora energetycznego",
+    );
+  });
+
+  it("brak organizacji (null, pusty, same spacje) to null", () => {
+    expect(speakerOrganizationLine("Prezes", null)).toBeNull();
+    expect(speakerOrganizationLine("Prezes", undefined)).toBeNull();
+    expect(speakerOrganizationLine("Prezes", "   ")).toBeNull();
+  });
+
+  it("brak roli zostawia organizacje bez porownania", () => {
+    expect(speakerOrganizationLine(null, "NASK")).toBe("NASK");
+    expect(speakerOrganizationLine("   ", "NASK")).toBe("NASK");
+    expect(speakerOrganizationLine("—", "NASK")).toBe("NASK");
+  });
+
+  it("nazwa organizacji musi stac w roli JAKO NAZWA - rzeczownik pisany mala litera jej nie gasi", () => {
+    // Tygodnik „Polityka" i rzeczownik „polityka zagraniczna" to dwa rozne fakty.
+    expect(speakerOrganizationLine("Publicysta, polityka zagraniczna", "Polityka")).toBe(
+      "Polityka",
+    );
+    // Kopia wersalikami nadal znika - w roli nazwa stoi wielka litera.
+    expect(
+      speakerOrganizationLine("Prezes CPK, ekspert ds. infrastruktury", "PREZES CPK"),
+    ).toBeNull();
+    // Nazwa z malymi slowami laczacymi („i") nadal jest zawarta w roli.
+    expect(
+      speakerOrganizationLine(
+        "Dyrektor departamentu, Ministerstwo Klimatu i Środowiska",
+        "Ministerstwo Klimatu i Środowiska",
+      ),
+    ).toBeNull();
+    // Cyfra tez czyni slowo nazwa.
+    expect(speakerOrganizationLine("Dyrektor, 3M Polska", "3M")).toBeNull();
+  });
+
+  it("tekst rozlozony (NFD) i znaki formatujace nie psuja porownania", () => {
+    const nfdUpper = "Członek Zarządu".normalize("NFD").toUpperCase();
+    expect(nfdUpper).not.toBe("CZŁONEK ZARZĄDU");
+    expect(speakerOrganizationLine("Członek Zarządu", nfdUpper)).toBeNull();
+    // Miekki dywiz i spacja zerowej szerokosci nie rozcinaja slowa.
+    expect(speakerOrganizationLine("Prezes WiseEuropa", "Wise\u00adEuropa")).toBeNull();
+    expect(speakerOrganizationLine("Prezes Wise\u200bEuropa", "WiseEuropa")).toBeNull();
+  });
+
+  it("`contained: false` gasi tylko organizacje ROWNA roli (dla powierzchni, ktore ucinaja role)", () => {
+    expect(
+      speakerOrganizationLine(
+        "Członek Zarządu, Polish Offshore Wind Energy Society",
+        "Polish Offshore Wind Energy Society",
+        { contained: false },
+      ),
+    ).toBe("Polish Offshore Wind Energy Society");
+    expect(speakerOrganizationLine("Prezes CPK", "PREZES  CPK", { contained: false })).toBeNull();
+  });
+
+  it("organizacja z samych znakow nieliterowych nie jest porownywana, tylko zostaje", () => {
+    expect(speakerOrganizationLine("Prezes", "—")).toBe("—");
   });
 });

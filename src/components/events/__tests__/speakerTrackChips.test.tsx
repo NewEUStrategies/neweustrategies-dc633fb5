@@ -349,7 +349,11 @@ describe("EventSpeakersSection - sciezki w chipie zapowiedzi", () => {
     render(<EventSpeakersSection eventId="e1" lang="pl" />, { wrapper });
     const chip = await screen.findByRole("button", { name: /Anna Kowalska/ });
     expect(chip.textContent).not.toContain(LABEL);
-    expect(chip.querySelector("[title]")?.getAttribute("title")).toBe("NASK");
+    // Jedyne `title` w chipie to rola i organizacja (obie ucinane do linii) -
+    // zadnego kwadratu sciezki ani plakietki z wlasnym `title`.
+    expect(
+      Array.from(chip.querySelectorAll("[title]")).map((node) => node.getAttribute("title")),
+    ).toEqual(["Analityczka", "NASK"]);
     expect(chip.querySelector("svg")).toBeNull();
   });
 
