@@ -3,10 +3,11 @@
 //
 // CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW. `/api/public/*` omija broker
 // uwierzytelnienia, więc CAŁA ochrona siedzi w tych handlerach: kształt kodu,
-// limit tempa po IP, najemca z hosta, nagłówki `no-store`/`nosniff`/
+// limit tempa po IP i po kodzie, najemca z hosta, nagłówki `no-store`/`nosniff`/
 // `no-referrer` na odpowiedzi niosącej kod biletu. Każda ścieżka statusu
 // (400, 429, 404, 502, 503, 500, 204, 200) ma tu swój test, a kod biletu nie
 // może trafić do żadnego logu.
+import { createHash } from "node:crypto";
 import JSZip from "jszip";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -23,18 +24,12 @@ const h = vi.hoisted(() => ({
   adminRpc: vi.fn(),
   rateLimit: vi.fn(),
   host: "wydarzenia.example.org" as string | null,
-  createClient: vi.fn(),
+  caller: vi.fn(),
 }));
 
-vi.mock("@supabase/supabase-js", () => ({
-  createClient: (...args: unknown[]) => {
-    h.createClient(...args);
-    return { rpc: h.rpc };
-  },
-}));
-vi.mock("@/integrations/supabase/tenant-host-fetch", () => ({
-  fetchWithTenantHost: "fetch-with-tenant-host",
-}));
+// Klient WOŁAJĄCEGO (klucz publiczny + nagłówek hosta) - jego własne stawki
+// pilnuje `callerClient.server.test.ts`; tu liczy się, że trasa idzie przez niego.
+vi.mock("@/lib/events/callerClient.server", () => ({ callerSupabase: h.caller }));
 vi.mock("@/lib/server/rate-limit.server", () => ({ rateLimit: h.rateLimit }));
 vi.mock("@/lib/http/requestHost", () => ({ trustedPublicHost: async () => h.host }));
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { rpc: h.adminRpc } }));
@@ -99,10 +94,8 @@ beforeEach(() => {
   h.rpc.mockReset().mockResolvedValue({ data: walletPayloadRow(), error: null });
   h.adminRpc.mockReset().mockResolvedValue({ data: 1, error: null });
   h.rateLimit.mockReset().mockResolvedValue(true);
-  h.createClient.mockReset();
+  h.caller.mockReset().mockResolvedValue({ client: { rpc: h.rpc }, userId: null });
   h.host = "wydarzenia.example.org";
-  vi.stubEnv("SUPABASE_URL", "https://db.example.org");
-  vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "anon-key");
   warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
   error = vi.spyOn(console, "error").mockImplementation(() => undefined);
 });
@@ -155,13 +148,33 @@ describe("appleWalletPost", () => {
     expect(response.status).toBe(429);
     expect(response.headers.get("retry-after")).toBe("600");
     expect(await response.json()).toEqual({ error: "rate_limited" });
+    // Luźny kubełek po IP: cała sala za jednym NAT-em nie może się zatkać.
+    expect(h.rateLimit).toHaveBeenCalledTimes(1);
     expect(h.rateLimit).toHaveBeenCalledWith({
       scope: "event_wallet.apple",
       subjectId: "203.0.113.7",
-      max: 20,
+      max: 200,
       windowMinutes: 10,
       failClosed: true,
     });
+    expect(h.rpc).not.toHaveBeenCalled();
+  });
+
+  it("limit tempa po KODZIE -> 429; kubełek nosi skrót kodu, nigdy sam kod", async () => {
+    stubApple();
+    h.rateLimit.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    const response = await appleWalletPost(form({ token: WALLET_QR }));
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({ error: "rate_limited" });
+    const subject = createHash("sha256").update(WALLET_QR, "utf8").digest("hex").slice(0, 32);
+    expect(h.rateLimit).toHaveBeenLastCalledWith({
+      scope: "event_wallet.apple.token",
+      subjectId: subject,
+      max: 10,
+      windowMinutes: 10,
+      failClosed: true,
+    });
+    expect(JSON.stringify(h.rateLimit.mock.calls)).not.toContain(WALLET_QR);
     expect(h.rpc).not.toHaveBeenCalled();
   });
 
@@ -175,6 +188,25 @@ describe("appleWalletPost", () => {
       expect(await response.json()).toEqual({ error: "not_found" });
     },
   );
+
+  it("brak zmiennych Supabase -> 503 not_configured w JSON-ie, a nie surowy błąd serwera", async () => {
+    stubApple();
+    h.caller.mockRejectedValue(new Error("server_misconfigured: missing Supabase environment"));
+    const response = await appleWalletPost(form({ token: WALLET_QR }));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: "not_configured" });
+    expectPrivateHeaders(response);
+    expect(h.rpc).not.toHaveBeenCalled();
+
+    // Każda inna awaria klienta to 502 upstream.
+    h.caller.mockRejectedValue(new Error("unauthorized"));
+    const failed = await appleWalletPost(form({ token: WALLET_QR }));
+    expect(failed.status).toBe(502);
+    expect(await failed.json()).toEqual({ error: "upstream" });
+    expect(warn).toHaveBeenCalledWith("[wallet] caller client failed:", "unauthorized");
+    h.caller.mockRejectedValue("boom");
+    expect((await appleWalletPost(form({ token: WALLET_QR }))).status).toBe(502);
+  });
 
   it("inny błąd bazy -> 502 upstream z ostrzeżeniem bez kodu; niepełny wiersz -> 502", async () => {
     stubApple();
@@ -198,7 +230,7 @@ describe("appleWalletPost", () => {
     expect(h.adminRpc).not.toHaveBeenCalled();
   });
 
-  it("sukces: .pkpass jako załącznik, prywatne nagłówki, klient anonimowy z hostem, dziennik", async () => {
+  it("sukces: .pkpass jako załącznik, prywatne nagłówki, klient wołającego, dziennik", async () => {
     stubApple();
     const response = await appleWalletPost(form({ token: ` ${WALLET_QR} `, lang: "en" }));
     expect(response.status).toBe(200);
@@ -210,10 +242,8 @@ describe("appleWalletPost", () => {
     const body = new Uint8Array(await response.arrayBuffer());
     expect(response.headers.get("content-length")).toBe(String(body.byteLength));
 
-    expect(h.createClient).toHaveBeenCalledWith("https://db.example.org", "anon-key", {
-      auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
-      global: { fetch: "fetch-with-tenant-host" },
-    });
+    // Dane biletu idą przez klienta WOŁAJĄCEGO (klucz publiczny, najemca z hosta).
+    expect(h.caller).toHaveBeenCalledTimes(1);
     expect(h.rpc).toHaveBeenCalledWith("event_ticket_wallet_payload", {
       p_payload: { qr_token: WALLET_QR },
     });

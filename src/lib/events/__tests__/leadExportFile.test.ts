@@ -25,6 +25,7 @@ import {
 } from "@/lib/events/leadExport";
 import type { LeadExportRow } from "@/lib/events/onsiteApi";
 import type { WritableCell } from "@/lib/files/spreadsheetProtocol";
+import { OBJECT_URL_REVOKE_DELAY_MS } from "@/lib/files/downloadBlob";
 
 // Proces arkuszy (Web Worker) nie istnieje w środowisku testów. Jego transport
 // ma własny test (`src/lib/files/__tests__/spreadsheetWorker.test.ts`); tutaj
@@ -202,7 +203,7 @@ describe("nazwa pliku nie miesza eksportow z roznych dni", () => {
 });
 
 describe("zapis pliku na dysk operatora", () => {
-  it("oddaje plik pod wlasna nazwa, zwalnia URL i nie idzie do sieci", async () => {
+  it("oddaje plik pod wlasna nazwa, zwalnia URL PO CHWILI i nie idzie do sieci", async () => {
     const createUrl = vi.fn(() => "blob:mock/leady");
     const revokeUrl = vi.fn();
     const fetchSpy = vi.fn();
@@ -221,6 +222,9 @@ describe("zapis pliku na dysk operatora", () => {
         prefix: "Leady sponsorow",
         nowIso: "2026-05-01T10:00:00Z",
       });
+      // Zwolnienie adresu jest odroczone - sterujemy `setTimeout` dopiero tu,
+      // po zbudowaniu pliku.
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
       downloadLeadExport(file);
 
       // Nazwa z `buildLeadExport` musi dojechac az do dysku - operator
@@ -228,6 +232,11 @@ describe("zapis pliku na dysk operatora", () => {
       expect(pobrane).toEqual([
         { nazwa: "leady-sponsorow-2026-05-01.csv", href: "blob:mock/leady" },
       ]);
+      // Zwolnienie od razu po `click()` bywa szybsze niz start pobierania
+      // (Safari, Chrome na Androidzie) - plik ginie. Czekamy na wspolna zwloke.
+      vi.advanceTimersByTime(OBJECT_URL_REVOKE_DELAY_MS - 1);
+      expect(revokeUrl).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
       // Bez zwolnienia URL-a kazdy eksport zostawia caly plik w pamieci karty;
       // operator eksportuje sponsorow w petli, wiec to rosnie liniowo.
       expect(revokeUrl).toHaveBeenCalledWith("blob:mock/leady");
@@ -236,6 +245,7 @@ describe("zapis pliku na dysk operatora", () => {
       // Kotwica nie zostaje w dokumencie - inaczej rosnie z kazdym pobraniem.
       expect(document.querySelectorAll("a[download]")).toHaveLength(0);
     } finally {
+      vi.useRealTimers();
       HTMLAnchorElement.prototype.click = originalClick;
       vi.unstubAllGlobals();
     }

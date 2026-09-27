@@ -48,18 +48,16 @@ export function scannerErrorMessage(error: unknown): string {
  * Token po terminie albo unieważniony nie zadziała po odświeżeniu ekranu, więc
  * zamiast pokazywać komunikat nad działającym skanerem, wyrzucamy operatora do
  * ekranu parowania. Blokada czasowa (`device_locked`) NIE należy do tej listy:
- * mija sama i poświadczenie nadal jest ważne.
+ * mija sama i poświadczenie nadal jest ważne. Wstrzymanie w panelu
+ * (`device_inactive`) też nie: administrator wznawia urządzenie jednym
+ * kliknięciem, a skasowany jednorazowy token i zrzucona kolejka nie wróciłyby
+ * już z tym wznowieniem.
  */
 export function invalidatesSession(error: unknown): boolean {
   const message = scannerErrorText(error);
   const separator = message.indexOf(":");
   const head = (separator === -1 ? message : message.slice(0, separator)).trim();
-  return (
-    head === "invalid_device_token" ||
-    head === "device_revoked" ||
-    head === "device_inactive" ||
-    head === "device_expired"
-  );
+  return head === "invalid_device_token" || head === "device_revoked" || head === "device_expired";
 }
 
 /**

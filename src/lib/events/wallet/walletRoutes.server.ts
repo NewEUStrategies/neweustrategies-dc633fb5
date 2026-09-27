@@ -12,17 +12,21 @@
 // na formularz zablokowałoby CSP `form-action 'self'`).
 //
 // KOLEJNOŚĆ ZAPÓR: konfiguracja (503, bez dotykania bazy) -> kształt kodu (400)
-// -> limit tempa w bazie po adresie IP (429) -> dane przepustki po kodzie,
-// z najemcą z hosta (404 dla kodu, który nie daje ważnego biletu) -> budowa.
-// Apple ma też tryb `intent=check`: te same zapory bez budowy paczki, żeby
-// przycisk mógł pokazać błąd na stronie, zanim formularz nawiguje.
+// -> limit tempa w bazie po adresie IP i po kodzie (429) -> dane przepustki
+// po kodzie, klientem wołającego z najemcą z hosta (`callerSupabase`; 404 dla
+// kodu, który nie daje ważnego biletu) -> budowa. Apple ma też tryb
+// `intent=check`: te same zapory bez budowy paczki, żeby przycisk mógł pokazać
+// błąd na stronie, zanim formularz nawiguje.
+//
+// DWA KUBEŁKI LIMITU. Po IP - luźny, bo sala kongresowa wychodzi do sieci przez
+// jeden NAT i ciasny limit odcinałby wszystkich po kilku uczestnikach. Po KODZIE
+// - ciasny, bo to on chroni przed kodem wyniesionym do sieci i wołanym z wielu
+// adresów (każde wywołanie Google to zapis w Google Wallet API). Kubełek kodu
+// nosi skrót SHA-256, nigdy sam kod.
 //
 // DZIENNIK WYDAŃ (`_event_wallet_pass_note`, service_role) jest best-effort:
 // jego awaria nie odbiera uczestnikowi przepustki, tylko zostawia ostrzeżenie.
-import { createClient } from "@supabase/supabase-js";
-
-import type { Database } from "@/integrations/supabase/types";
-import { fetchWithTenantHost } from "@/integrations/supabase/tenant-host-fetch";
+import { callerSupabase, type CallerSupabase } from "@/lib/events/callerClient.server";
 import { MANAGE_TOKEN_PATTERN } from "@/lib/events/manageToken";
 import { rateLimitIpSubject } from "@/lib/http/rateLimit";
 import { trustedPublicHost } from "@/lib/http/requestHost";
@@ -30,6 +34,7 @@ import { rateLimit } from "@/lib/server/rate-limit.server";
 
 import { buildApplePass } from "./applePass.server";
 import { createGoogleWalletSave } from "./googleWallet.server";
+import { sha256, toHex } from "./rsa";
 import { appleWalletConfig, googleWalletConfig, walletAvailability } from "./walletConfig.server";
 import { walletTicketFromPayload, type WalletTicket } from "./walletTicket";
 
@@ -48,8 +53,10 @@ const PRIVATE_HEADERS = {
 } as const;
 
 const RATE_WINDOW_MINUTES = 10;
-/** 10 dodań na 10 minut; Apple liczy sprawdzenie i pobranie osobno. */
-const RATE_MAX = 20;
+/** Wspólny NAT sali: sto dodań na 10 minut z jednego adresu (Apple liczy dwa wywołania). */
+const RATE_MAX_PER_IP = 200;
+/** Pięć dodań jednego biletu na 10 minut; Apple liczy sprawdzenie i pobranie osobno. */
+const RATE_MAX_PER_TOKEN = 10;
 
 function json(status: number, body: unknown, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -98,29 +105,54 @@ async function readJson(request: Request): Promise<WalletRequest | null> {
   return readRequest({ get: (name) => record[name] });
 }
 
-async function allowRate(platform: WalletPlatform, request: Request): Promise<boolean> {
-  return rateLimit({
-    scope: `event_wallet.${platform}`,
-    subjectId: rateLimitIpSubject(request.headers),
-    max: RATE_MAX,
-    windowMinutes: RATE_WINDOW_MINUTES,
-    // Ta sama baza odpowiada za dane biletu - przy jej awarii i tak nie ma
-    // czego wydać, a zamknięty limit nie wzmacnia ruchu na leżącą bazę.
-    failClosed: true,
-  });
+/** Podmiot kubełka kodu: 32 znaki szesnastkowe SHA-256 - kod biletu nie trafia do bazy limitów. */
+async function tokenSubject(token: string): Promise<string> {
+  return toHex(await sha256(new TextEncoder().encode(token))).slice(0, 32);
 }
 
-function anonClient() {
-  return createClient<Database>(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
-    auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
-    global: { fetch: fetchWithTenantHost },
+async function allowRate(
+  platform: WalletPlatform,
+  request: Request,
+  token: string,
+): Promise<boolean> {
+  // Ta sama baza odpowiada za dane biletu - przy jej awarii i tak nie ma
+  // czego wydać, a zamknięty limit nie wzmacnia ruchu na leżącą bazę.
+  const byIp = await rateLimit({
+    scope: `event_wallet.${platform}`,
+    subjectId: rateLimitIpSubject(request.headers),
+    max: RATE_MAX_PER_IP,
+    windowMinutes: RATE_WINDOW_MINUTES,
+    failClosed: true,
+  });
+  if (!byIp) return false;
+  return rateLimit({
+    scope: `event_wallet.${platform}.token`,
+    subjectId: await tokenSubject(token),
+    max: RATE_MAX_PER_TOKEN,
+    windowMinutes: RATE_WINDOW_MINUTES,
+    failClosed: true,
   });
 }
 
 type Loaded = { ok: true; ticket: WalletTicket } | { ok: false; response: Response };
 
 async function loadTicket(parsed: WalletRequest): Promise<Loaded> {
-  const { data, error } = await anonClient().rpc("event_ticket_wallet_payload", {
+  // Klient wołającego: klucz publiczny i nagłówek hosta (najemca z domeny).
+  // Brak zmiennych środowiska to konfiguracja (503 w JSON-ie, jak brak
+  // portfela), a nie surowy błąd serwera.
+  let client: CallerSupabase["client"];
+  try {
+    ({ client } = await callerSupabase());
+  } catch (err) {
+    const head = (err instanceof Error ? err.message : String(err)).split(":")[0];
+    if (head === "server_misconfigured") {
+      console.error("[wallet] supabase client not configured");
+      return { ok: false, response: fail(503, "not_configured") };
+    }
+    console.warn("[wallet] caller client failed:", head);
+    return { ok: false, response: fail(502, "upstream") };
+  }
+  const { data, error } = await client.rpc("event_ticket_wallet_payload", {
     p_payload: { qr_token: parsed.token },
   });
   if (error) {
@@ -163,7 +195,7 @@ async function guard(
   request: Request,
   parsed: WalletRequest,
 ): Promise<Loaded> {
-  if (!(await allowRate(platform, request))) {
+  if (!(await allowRate(platform, request, parsed.token))) {
     return {
       ok: false,
       response: fail(429, "rate_limited", { "Retry-After": String(RATE_WINDOW_MINUTES * 60) }),

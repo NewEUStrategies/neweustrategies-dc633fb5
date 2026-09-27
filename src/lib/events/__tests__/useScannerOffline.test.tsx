@@ -16,12 +16,28 @@
 //   5. COFNIĘTA ZGODA na listę offline nie usuwa listy osób z telefonu.
 //   6. ZEGAR telefonu przesunięty o minuty - czas skanu w dzienniku jest
 //      nieskorygowany, a operator nie dostaje ostrzeżenia.
+//   7. PEŁNA KOLEJKA wypycha najstarszy skan w próżnię.
+//   8. TERMIN mija bez sieci, a telefon dalej wpuszcza i trzyma listę osób;
+//      termin w wysyłce przekreśla całą kolejkę, choć baza liczy go per skan.
+//   9. LISTA INNEGO URZĄDZENIA zostaje w pamięci po zmianie kodu.
+//  10. SPÓŹNIONE POTWIERDZENIE po „Odłącz" wskrzesza sesję i token.
+//  11. SKAN SPOD INNEGO POŚWIADCZENIA wyjeżdża pod bieżącym tokenem; kolejka
+//      unieważnionego urządzenia znika z widoku.
+//  12. WSTRZYMANIE W PANELU kasuje token i kolejkę, więc „Wznów" nie wraca.
 import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, waitFor } from "@testing-library/react";
 
 import { renderHookWithQueryClient } from "@/test/renderWithQueryClient";
-import { FIXED_NOW, freezeClock, relativeIso } from "@/test/time";
+import {
+  FIXED_NOW,
+  GODZINA,
+  MINUTA,
+  advanceClock,
+  freezeClock,
+  relativeDate,
+  relativeIso,
+} from "@/test/time";
 import type {
   CheckinScanInput,
   CheckinScanResult,
@@ -29,7 +45,7 @@ import type {
   LeadScanResult,
   RosterPageInput,
 } from "@/lib/events/scannerApi";
-import type { OutboxItem, RejectedScan } from "@/lib/events/scannerOutbox";
+import { OUTBOX_CAPACITY, type OutboxItem, type RejectedScan } from "@/lib/events/scannerOutbox";
 import type { CachedSession } from "@/lib/events/scannerOfflineStorage";
 import type {
   LocalDecisionLogEntry,
@@ -608,6 +624,67 @@ describe("lista offline", () => {
     await waitFor(() => expect(result.current.roster.count).toBe(0));
     expect(store.rosterWipes).toBeGreaterThan(0);
   });
+
+  it("świeże otwarcie z INNYM kodem (bez zgody) kasuje listę poprzedniego urządzenia z pamięci", async () => {
+    // Ta karta nigdy nie wczytała listy „dev-1" - leży ona tylko w pamięci.
+    store.roster = { deviceId: "dev-1", generatedAt: "v1", rows: [entry()] };
+    api.bootstrapScanner.mockResolvedValue(session({ deviceId: "dev-2", offlineRoster: false }));
+    const { result } = render(OTHER_TOKEN);
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    await waitFor(() => expect(store.roster).toBeNull());
+  });
+
+  it("lista innego urządzenia znika też przy zgodzie, gdy pierwsza synchronizacja się nie uda", async () => {
+    store.roster = { deviceId: "dev-1", generatedAt: "v1", rows: [entry()] };
+    api.bootstrapScanner.mockResolvedValue(session({ deviceId: "dev-2" }));
+    api.fetchScannerRoster.mockRejectedValue(new TypeError("Failed to fetch"));
+    const { result } = render(OTHER_TOKEN);
+    await waitFor(() => expect(api.fetchScannerRoster).toHaveBeenCalled());
+    await waitFor(() => expect(result.current.roster.syncing).toBe(false));
+    expect(store.roster).toBeNull();
+    expect(result.current.roster.count).toBe(0);
+  });
+});
+
+/* ------------------------------------------------ pokolenie parowania --- */
+
+describe("pokolenie parowania", () => {
+  it("spóźnione potwierdzenie po ODŁĄCZENIU nie wskrzesza sesji ani tokenu", async () => {
+    store.session = cached(TOKEN, { session: session({ offlineRoster: false }) });
+    offline = true;
+    const { result } = render();
+    await waitFor(() => expect(result.current.sessionStale).toBe(true));
+
+    let finish: (value: ScannerSession) => void = () => undefined;
+    api.bootstrapScanner.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    goOnline();
+    await waitFor(() => expect(api.bootstrapScanner).toHaveBeenCalled());
+    act(() => result.current.disconnect());
+    await act(async () => finish(session({ offlineRoster: false })));
+
+    expect(result.current.status).toBe("idle");
+    expect(result.current.session).toBeNull();
+    expect(device.token).toBeNull();
+    // Sesja nie wraca też do pamięci urządzenia.
+    expect(store.session).toBeNull();
+  });
+
+  it("spóźniona ODMOWA po odłączeniu niczego nie kasuje ani nie odrzuca", async () => {
+    let fail: (error: Error) => void = () => undefined;
+    api.bootstrapScanner.mockReturnValue(new Promise((_resolve, reject) => (fail = reject)));
+    device.queue = [queued({ id: "a" })];
+    const { result } = render();
+    await waitFor(() => expect(api.bootstrapScanner).toHaveBeenCalled());
+    await waitFor(() => expect(result.current.outbox).toHaveLength(1));
+    act(() => result.current.disconnect());
+    const wipes = store.wipes;
+    await act(async () => fail(new Error("device_revoked: gone")));
+
+    expect(result.current.connectError).toBeNull();
+    expect(store.wipes).toBe(wipes);
+    expect(result.current.rejected).toEqual([]);
+    expect(device.queue).toHaveLength(1);
+  });
 });
 
 /* -------------------------------------------------------- decyzja offline --- */
@@ -855,6 +932,54 @@ describe("odmowa poświadczenia przy skanie na żywo", () => {
   });
 });
 
+/* ---------------------------------------------- termin na zegarze urządzenia --- */
+
+describe("termin poświadczenia bez sieci", () => {
+  it("skan PO terminie (bez sieci) jest odmową: nic nie trafia do kolejki, lista znika", async () => {
+    const { result } = await withRoster();
+    goOffline();
+    vi.setSystemTime(relativeDate(25 * GODZINA));
+    let caught: unknown;
+    await act(async () => {
+      await result.current
+        .submitCheckin({ code: CODE, checkpointId: CP, direction: "in" })
+        .catch((error: unknown) => {
+          caught = error;
+        });
+    });
+    expect(String(caught)).toContain("device_expired");
+    expect(result.current.status).toBe("expired");
+    expect(result.current.outbox).toEqual([]);
+    await waitFor(() => expect(store.roster).toBeNull());
+    expect(result.current.roster.count).toBe(0);
+    // Lead też.
+    await act(async () => {
+      await expect(
+        result.current.submitLead({ code: CODE, note: null, interestRating: null }),
+      ).rejects.toThrow("device_expired");
+    });
+    expect(result.current.outbox).toEqual([]);
+  });
+
+  it("termin mija BEZ skanu - sprawdzenie co pół minuty przełącza ekran w „wygasło”", async () => {
+    const every = vi.spyOn(window, "setInterval");
+    api.bootstrapScanner.mockResolvedValue(
+      session({ offlineRoster: false, expiresAt: relativeIso(10 * MINUTA) }),
+    );
+    const { result } = render();
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    const tick = every.mock.calls.find(([, ms]) => ms === 30_000)?.[0];
+    every.mockRestore();
+    if (typeof tick !== "function") throw new Error("test: brak odstępu sprawdzania terminu");
+
+    act(() => tick());
+    expect(result.current.status).toBe("ready");
+    advanceClock(11 * MINUTA);
+    act(() => tick());
+    expect(result.current.status).toBe("expired");
+  });
+});
+
 /* ------------------------------------------------------- synchronizacja --- */
 
 describe("wysyłka kolejki: konflikty i odrzucone", () => {
@@ -972,5 +1097,189 @@ describe("wysyłka kolejki: konflikty i odrzucone", () => {
     await waitFor(() => expect(result.current.status).toBe("expired"));
     await waitFor(() => expect(result.current.outbox).toEqual([]));
     expect(api.recordCheckinScan).toHaveBeenCalledTimes(1);
+  });
+
+  it("termin w wysyłce odrzuca TYLKO skan po terminie - reszta jedzie i czeka dalej", async () => {
+    // Baza liczy termin per pozycja: „a" sprzed terminu przechodzi, „b" po
+    // terminie odpada, „c" (jeszcze nie jego kolej) zostaje w kolejce.
+    device.queue = [
+      queued({ id: "a", deviceScannedAt: relativeIso(-600_000) }),
+      queued({ id: "b", deviceScannedAt: relativeIso(-60_000) }),
+      queued({
+        id: "c",
+        deviceScannedAt: relativeIso(-500_000),
+        nextAttemptAt: relativeIso(600_000),
+      }),
+    ];
+    api.bootstrapScanner.mockResolvedValue(session({ offlineRoster: false }));
+    api.recordCheckinScan.mockImplementation((input) =>
+      input.clientScanUid === "b"
+        ? Promise.reject(new Error("device_expired: past expiry"))
+        : Promise.resolve(scanResult()),
+    );
+    const { result } = render();
+    await waitFor(() => expect(result.current.lastFlush).not.toBeNull());
+    expect(result.current.rejected.map((row) => row.item.id)).toEqual(["b"]);
+    expect(result.current.outbox.map((row) => row.id)).toEqual(["c"]);
+    expect(result.current.lastFlush).toMatchObject({ sent: 1, rejected: 1 });
+    expect(result.current.status).toBe("expired");
+    expect(device.token).toBe(TOKEN);
+  });
+
+  it("PEŁNA kolejka: skan bez sieci wypycha najstarszy - ten ląduje na odrzuconych", async () => {
+    device.queue = Array.from({ length: OUTBOX_CAPACITY }, (_, index) =>
+      queued({ id: `q${index}`, nextAttemptAt: relativeIso(GODZINA) }),
+    );
+    api.bootstrapScanner.mockResolvedValue(session({ offlineRoster: false }));
+    const { result } = render();
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    await waitFor(() => expect(result.current.outbox).toHaveLength(OUTBOX_CAPACITY));
+    goOffline();
+    await act(async () => {
+      await result.current.submitCheckin({ code: CODE, checkpointId: CP, direction: "in" });
+    });
+    expect(result.current.outbox).toHaveLength(OUTBOX_CAPACITY);
+    expect(result.current.rejected.map((row) => row.item.id)).toEqual(["q0"]);
+    expect(result.current.rejected[0].error.startsWith("outbox_overflow:")).toBe(true);
+    expect(store.rejected).toHaveLength(1);
+  });
+});
+
+/* ------------------------------------------------ zakres urządzenia --- */
+
+describe("pozycja kolejki należy do urządzenia", () => {
+  it("skan w kolejce niesie urządzenie, pod którym zapadł, i wyjeżdża pod nim", async () => {
+    api.bootstrapScanner.mockResolvedValue(session({ offlineRoster: false }));
+    api.recordLeadScan.mockResolvedValue(leadResult());
+    const { result } = render();
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    goOffline();
+    await act(async () => {
+      await result.current.submitLead({ code: CODE, note: null, interestRating: null });
+    });
+    expect(result.current.outbox[0].deviceId).toBe("dev-1");
+    goOnline();
+    await waitFor(() => expect(result.current.outbox).toEqual([]));
+    expect(api.recordLeadScan).toHaveBeenCalledTimes(1);
+  });
+
+  it("pozycja spod INNEGO urządzenia nie wyjeżdża pod bieżącym tokenem - idzie na odrzucone", async () => {
+    device.queue = [
+      queued({
+        id: "lead-a",
+        kind: "lead",
+        checkpointId: null,
+        direction: null,
+        deviceId: "dev-1",
+      }),
+    ];
+    api.bootstrapScanner.mockResolvedValue(session({ deviceId: "dev-2", offlineRoster: false }));
+    const { result } = render();
+    await waitFor(() => expect(result.current.rejected).toHaveLength(1));
+    expect(api.recordLeadScan).not.toHaveBeenCalled();
+    expect(result.current.rejected[0].error.startsWith("device_mismatch:")).toBe(true);
+    expect(result.current.outbox).toEqual([]);
+  });
+
+  it("unieważnione przy starcie: kolejka urządzenia trafia na odrzucone, a nie w niewidoczne", async () => {
+    device.queue = [queued({ id: "a" }), queued({ id: "b" })];
+    api.bootstrapScanner.mockRejectedValue(new Error("device_revoked: gone"));
+    const { result } = render();
+    await waitFor(() => expect(result.current.rejected).toHaveLength(2));
+    expect(result.current.rejected.map((row) => row.item.id)).toEqual(["a", "b"]);
+    expect(result.current.rejected[0].error).toBe("device_revoked: gone");
+    expect(result.current.outbox).toEqual([]);
+    expect(device.queue).toEqual([]);
+    expect(result.current.status).toBe("idle");
+  });
+
+  it("nieudane parowanie NOWEGO kodu nie przekreśla kolejki bieżącego urządzenia", async () => {
+    device.queue = [queued({ id: "a", nextAttemptAt: relativeIso(GODZINA) })];
+    api.bootstrapScanner.mockResolvedValue(session({ offlineRoster: false }));
+    const { result } = render();
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    await waitFor(() => expect(result.current.outbox).toHaveLength(1));
+
+    api.bootstrapScanner.mockRejectedValue(new Error("invalid_device_token: unknown"));
+    act(() => result.current.connect(OTHER_TOKEN));
+    await waitFor(() => expect(result.current.connectError).toContain("invalid_device_token"));
+    await act(async () => {});
+    expect(result.current.rejected).toEqual([]);
+    expect(device.queue).toHaveLength(1);
+  });
+});
+
+/* ------------------------------------------- wstrzymanie w panelu --- */
+
+describe("wstrzymanie urządzenia w panelu (`device_inactive`)", () => {
+  it("wysyłka: pozycje czekają nietknięte, sesja i token zostają - po wznowieniu wychodzą", async () => {
+    device.queue = [
+      queued({ id: "a" }),
+      queued({ id: "b", deviceScannedAt: relativeIso(-500_000) }),
+    ];
+    api.bootstrapScanner.mockResolvedValue(session({ offlineRoster: false }));
+    api.recordCheckinScan.mockRejectedValue(new Error("device_inactive: paused"));
+    const { result } = render();
+    await waitFor(() => expect(api.recordCheckinScan).toHaveBeenCalled());
+    await waitFor(() => expect(result.current.flushing).toBe(false));
+    // Jedno wywołanie wystarcza - wstrzymanie dotyczy całego poświadczenia.
+    expect(api.recordCheckinScan).toHaveBeenCalledTimes(1);
+    expect(result.current.outbox.map((row) => [row.id, row.attempts])).toEqual([
+      ["a", 0],
+      ["b", 0],
+    ]);
+    expect(result.current.rejected).toEqual([]);
+    expect(result.current.status).toBe("ready");
+    expect(device.token).toBe(TOKEN);
+
+    api.recordCheckinScan.mockResolvedValue(scanResult());
+    act(() => result.current.flush());
+    await waitFor(() => expect(result.current.outbox).toEqual([]));
+  });
+
+  it("skan na żywo: odmowa do operatora, lista osób znika, sesja czeka na „Wznów”", async () => {
+    const { result } = await withRoster();
+    api.recordCheckinScan.mockRejectedValue(new Error("device_inactive: paused"));
+    await act(async () => {
+      await expect(
+        result.current.submitCheckin({ code: CODE, checkpointId: CP, direction: "in" }),
+      ).rejects.toThrow("device_inactive");
+    });
+    await waitFor(() => expect(result.current.roster.count).toBe(0));
+    expect(store.roster).toBeNull();
+    expect(result.current.status).toBe("ready");
+    expect(result.current.outbox).toEqual([]);
+    expect(device.token).toBe(TOKEN);
+
+    api.recordLeadScan.mockRejectedValue(new Error("device_inactive: paused"));
+    await act(async () => {
+      await expect(
+        result.current.submitLead({ code: CODE, note: null, interestRating: null }),
+      ).rejects.toThrow("device_inactive");
+    });
+    expect(result.current.outbox).toEqual([]);
+  });
+
+  it("pobieranie listy: lista znika, sesja zostaje", async () => {
+    const { result } = await withRoster();
+    api.fetchScannerRoster.mockRejectedValue(new Error("device_inactive: paused"));
+    act(() => result.current.syncRoster());
+    await waitFor(() => expect(result.current.roster.count).toBe(0));
+    expect(result.current.status).toBe("ready");
+    expect(store.wipes).toBe(0);
+  });
+
+  it("parowanie: zdanie o wstrzymaniu, token i kolejka zostają na urządzeniu", async () => {
+    device.token = TOKEN;
+    device.queue = [queued({ id: "a" })];
+    api.bootstrapScanner.mockRejectedValue(new Error("device_inactive: paused"));
+    const { result } = render(null);
+    await waitFor(() => expect(result.current.connectError).toContain("device_inactive"));
+    await act(async () => {});
+    expect(result.current.status).toBe("idle");
+    expect(device.token).toBe(TOKEN);
+    expect(device.queue).toHaveLength(1);
+    expect(result.current.rejected).toEqual([]);
+    expect(store.wipes).toBe(0);
   });
 });

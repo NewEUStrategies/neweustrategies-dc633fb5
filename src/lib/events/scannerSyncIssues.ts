@@ -22,6 +22,7 @@ import type { CheckinDirection, OfflineOutcome } from "@/lib/events/onsiteEnums"
 import { isCheckinDirection, isOfflineOutcome } from "@/lib/events/onsiteEnums";
 import type { CheckinScanResult } from "@/lib/events/scannerApi";
 import { parseOutboxItem, type OutboxItem, type RejectedScan } from "@/lib/events/scannerOutbox";
+import { downloadBlob } from "@/lib/files/downloadBlob";
 
 export type ConflictKind = "admitted_offline" | "denied_offline";
 
@@ -227,15 +228,11 @@ export function syncIssuesFileName(
   return `skaner-${slug === "" ? "wydarzenie" : slug}-${nowIso.slice(0, 10)}.${extension}`;
 }
 
-/** Zrzuca plik na dysk urządzenia - jedyny fragment zależny od przeglądarki. */
+/**
+ * Zrzuca plik na dysk urządzenia - jedyny fragment zależny od przeglądarki.
+ * Wspólny `downloadBlob` zwalnia adres dopiero po chwili (iOS Safari i Chrome
+ * na Androidzie gubią plik, gdy adres znika w tym samym albo następnym takcie).
+ */
 export function downloadTextFile(fileName: string, mimeType: string, data: string): void {
-  const blob = new Blob([data], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  link.click();
-  // Zwolnienie w następnym takcie - Safari przerywa pobieranie, gdy URL
-  // znika synchronicznie po kliknięciu.
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  downloadBlob(new Blob([data], { type: mimeType }), fileName);
 }
