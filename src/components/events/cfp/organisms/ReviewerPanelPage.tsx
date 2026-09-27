@@ -31,6 +31,7 @@ import {
 import type { CfpReviewInput } from "@/lib/events/cfpPublicApi";
 import type { CfpReviewDetail, CfpReviewQueue, CfpReviewerSpeaker } from "@/lib/events/cfpSurface";
 import { publicCfpErrorMessage, publicCfpFailure } from "@/lib/events/publicCfpErrors";
+import { speakerOrganizationLine } from "@/lib/events/speakerCard";
 import { formatEventDateTime } from "@/lib/events/timezone";
 import { useCfpReview, useCfpReviewQueue, useSaveCfpReview } from "@/lib/events/useCfpMe";
 import { uiLang } from "@/lib/i18n/format";
@@ -167,23 +168,33 @@ function ReviewQueue({ slug, queue }: { slug: string; queue: CfpReviewQueue }) {
   );
 }
 
+// Afiliacja wystepujacego: stanowisko i organizacja, bez powtorzenia firmy,
+// ktora juz jest w stanowisku („Prezes CPK”, „CPK” -> „Prezes CPK”) - ta sama
+// regula, co karta prelegenta (`speakerOrganizationLine`). Recenzent dostaje
+// zwiezly opis osoby; organizator w swoim panelu widzi dane doslownie.
+function speakerAffiliation(speaker: CfpReviewerSpeaker): string {
+  const organization = speakerOrganizationLine(speaker.jobTitle, speaker.companyText);
+  return [speaker.jobTitle, organization].filter(Boolean).join(", ");
+}
+
 function SpeakersBlock({ speakers }: { speakers: CfpReviewerSpeaker[] }) {
   const { t } = useTranslation();
   return (
     <ul className="space-y-1 text-sm">
-      {speakers.map((speaker, index) => (
-        <li key={`${speaker.lastName}-${index}`}>
-          <span className="font-medium">
-            {speaker.firstName} {speaker.lastName}
-          </span>{" "}
-          <span className="text-xs text-muted-foreground">
-            {t(CFP_SPEAKER_ROLE_LABEL_KEYS[speaker.role])}
-            {[speaker.jobTitle, speaker.companyText].filter(Boolean).length > 0
-              ? ` · ${[speaker.jobTitle, speaker.companyText].filter(Boolean).join(", ")}`
-              : ""}
-          </span>
-        </li>
-      ))}
+      {speakers.map((speaker, index) => {
+        const affiliation = speakerAffiliation(speaker);
+        return (
+          <li key={`${speaker.lastName}-${index}`}>
+            <span className="font-medium">
+              {speaker.firstName} {speaker.lastName}
+            </span>{" "}
+            <span className="text-xs text-muted-foreground">
+              {t(CFP_SPEAKER_ROLE_LABEL_KEYS[speaker.role])}
+              {affiliation !== "" ? ` · ${affiliation}` : ""}
+            </span>
+          </li>
+        );
+      })}
     </ul>
   );
 }
