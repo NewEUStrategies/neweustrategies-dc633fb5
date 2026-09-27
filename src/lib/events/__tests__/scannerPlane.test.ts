@@ -27,6 +27,7 @@ import {
   backoffDelayMs,
   dueItems,
   enqueueScan,
+  enqueueScanWithOverflow,
   errorHead,
   isPermanentFailure,
   outboxCounts,
@@ -202,6 +203,34 @@ describe("scannerOutbox - kolejka bez sieci", () => {
     expect(queue[0].id).toBe("i5");
   });
 
+  it("przepełnienie ODDAJE wypchniętą pozycję zamiast gubić ją po cichu", () => {
+    const full = Array.from({ length: OUTBOX_CAPACITY }, (_, index) =>
+      item({ id: `i${index}`, code: `C${index}` }),
+    );
+    const fresh = item({ id: "nowa", code: "NOWY" });
+    const result = enqueueScanWithOverflow(full, fresh);
+    expect(result.queue).toHaveLength(OUTBOX_CAPACITY);
+    expect(result.queue.at(-1)).toBe(fresh);
+    expect(result.overflow).toEqual([full[0]]);
+    // Bez przepełnienia i przy sklejeniu leadu nic nie wypada.
+    expect(enqueueScanWithOverflow([], fresh).overflow).toEqual([]);
+    const lead = item({ id: "l1", kind: "lead", code: "X" });
+    expect(enqueueScanWithOverflow([lead], { ...lead, id: "l2" }).overflow).toEqual([]);
+  });
+
+  it("leady sklejają się tylko w obrębie JEDNEGO urządzenia", () => {
+    const first = item({ id: "l1", kind: "lead", code: "X", deviceId: "dev-a" });
+    const other = enqueueScan([first], { ...first, id: "l2", deviceId: "dev-b" });
+    expect(other.map((row) => row.id)).toEqual(["l1", "l2"]);
+    const same = enqueueScan([first], { ...first, id: "l3", note: "druga" });
+    expect(same).toHaveLength(1);
+    expect(same[0].note).toBe("druga");
+  });
+
+  it("lista odrzuconych mieści całą kolejkę naraz - z zapasem", () => {
+    expect(REJECTED_CAPACITY).toBeGreaterThan(OUTBOX_CAPACITY * 2);
+  });
+
   it("wycofanie rosnie wykladniczo i ma sufit", () => {
     expect(backoffDelayMs(0)).toBe(2_000);
     expect(backoffDelayMs(3)).toBe(16_000);
@@ -257,6 +286,12 @@ describe("scannerErrors - co uniewaznia sesje urzadzenia", () => {
     expect(invalidatesSession(new Error("device_expired: gone"))).toBe(true);
     expect(invalidatesSession(new Error("device_locked: wait"))).toBe(false);
     expect(invalidatesSession(new Error("TypeError: Failed to fetch"))).toBe(false);
+  });
+
+  it("wstrzymanie w panelu jest odwracalne: ani koniec sesji, ani trwała odmowa pozycji", () => {
+    expect(invalidatesSession(new Error("device_inactive: paused"))).toBe(false);
+    expect(isPermanentFailure("device_inactive: paused")).toBe(false);
+    expect(isPermanentFailure("device_mismatch: queued under another credential")).toBe(true);
   });
 
   it("wyciaga tekst z kazdej postaci bledu", () => {
@@ -559,7 +594,13 @@ describe("scannerOutbox - odrzucone i pozycje z pamięci", () => {
       offlineAdmitted: null,
       offlineOutcome: null,
       rosterGeneratedAt: null,
+      deviceId: null,
     });
+  });
+
+  it("pozycja z urządzeniem zachowuje je; urządzenie nie-napis wypada", () => {
+    expect(parseOutboxItem({ ...item({}), deviceId: "dev-1" })?.deviceId).toBe("dev-1");
+    expect(parseOutboxItem({ ...item({}), deviceId: 7 })?.deviceId).toBeNull();
   });
 
   it("pozycja z decyzją offline zachowuje ją; nieznany wynik offline wypada", () => {
@@ -632,6 +673,8 @@ describe("scannerErrors - ponowienie i głowa odmowy", () => {
       "roster_throttled",
       "roster_resync_required",
       "device_time_out_of_range",
+      "outbox_overflow",
+      "device_mismatch",
     ]) {
       expect(scannerErrorKey(new Error(`${head}: x`))).not.toBe("eventScanner.errors.unknown");
     }

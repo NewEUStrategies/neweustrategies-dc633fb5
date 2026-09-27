@@ -36,6 +36,16 @@
 //     na listę konfliktów, trwała odmowa na listę odrzuconych (obie trwałe).
 //   * ZEGAR. `server_now` z konfiguracji daje przesunięcie zegara urządzenia;
 //     czas skanu jest nim korygowany, a ekran ostrzega przy dużej odchyłce.
+//
+// POŚWIADCZENIE WYGASA TAKŻE BEZ SIECI. Termin sprawdzamy na zegarze
+// skorygowanym - przy każdym skanie i co pół minuty - zamiast czekać na
+// odmowę bazy: telefon bez zasięgu inaczej wpuszczałby dalej po terminie
+// i trzymał listę osób.
+//
+// PAROWANIE MA POKOLENIE. Każde połączenie, odłączenie i utrata sesji podbija
+// `pairingRef`; odpowiedź `bootstrap`, która wróciła dla starszego pokolenia,
+// nie dotyka już stanu (spóźnione potwierdzenie po „Odłącz" wskrzeszałoby
+// sesję i zapisywało token z powrotem).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -50,7 +60,7 @@ import {
 import {
   appendRejected,
   dueItems,
-  enqueueScan,
+  enqueueScanWithOverflow,
   outboxCounts,
   rejectAll,
   withFailure,
@@ -120,6 +130,13 @@ const SCAN_TIMEOUT_MS = 3_500;
 const BOOTSTRAP_TIMEOUT_MS = 8_000;
 const FLUSH_TIMEOUT_MS = 10_000;
 const ROSTER_TIMEOUT_MS = 20_000;
+/** Co ile sprawdzać termin poświadczenia na zegarze urządzenia. */
+const EXPIRY_CHECK_INTERVAL_MS = 30_000;
+
+/** Odmowy lokalne - te same głowy `kod:` co odmowy bazy, więc ten sam słownik. */
+const OUTBOX_OVERFLOW = "outbox_overflow: device queue full";
+const DEVICE_MISMATCH = "device_mismatch: queued under another credential";
+const EXPIRED_ON_DEVICE = "device_expired: expired on device clock";
 
 export type ScannerStatus = "idle" | "connecting" | "ready" | "expired";
 
@@ -213,6 +230,11 @@ function isOffline(): boolean {
   return typeof navigator !== "undefined" && navigator.onLine === false;
 }
 
+/** „Teraz" na zegarze serwera - zegar urządzenia plus zmierzone przesunięcie. */
+function correctedNowIso(offsetMs: number): string {
+  return new Date(Date.now() + offsetMs).toISOString();
+}
+
 /** `btrim(code)` z bazy tnie WYŁĄCZNIE spacje - skrót musi liczyć się z tego samego. */
 function btrimSpaces(value: string): string {
   return value.replace(/^ +| +$/g, "");
@@ -258,6 +280,10 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
   const rejectedRef = useRef<RejectedScan[]>([]);
   const conflictsRef = useRef<ScanConflict[]>([]);
   const flushSeqRef = useRef(0);
+  /** Pokolenie parowania - patrz nagłówek („PAROWANIE MA POKOLENIE"). */
+  const pairingRef = useRef(0);
+  /** Odczyt kolejki z pamięci urządzenia - odmowa przy starcie bywa od niego szybsza. */
+  const outboxLoadRef = useRef<Promise<void> | null>(null);
 
   const rosterIndex = useMemo(() => buildRosterIndex(roster?.rows ?? []), [roster]);
   const rosterIndexRef = useRef(rosterIndex);
@@ -318,20 +344,55 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
     void wipeRoster();
   }, []);
 
-  /** Poświadczenie odrzucone przez bazę: token, sesja i lista znikają. */
-  const dropSession = useCallback((message: string) => {
-    clearStoredToken();
-    setToken(null);
-    setSession(null);
-    setSessionStale(false);
-    setStatus("idle");
-    setConnectError(message);
-    rosterRef.current = null;
-    setRoster(null);
-    setRosterLoadedFor(null);
-    logRef.current = [];
-    void wipeOfflineSession();
-  }, []);
+  /**
+   * Poświadczenie odrzucone przez bazę: token, sesja i lista znikają.
+   *
+   * KOLEJKA ODRZUCONEGO POŚWIADCZENIA idzie na listę odrzuconych (z eksportem),
+   * zamiast zostać w pamięci niewidzialna i wyjechać później pod innym tokenem.
+   * Tylko przy odmowie dla poświadczenia, które tę kolejkę NIESIE (bieżącego
+   * albo - przy starcie - jedynego): nieudane parowanie NOWEGO kodu nie
+   * przekreśla skanów poprzedniego urządzenia.
+   */
+  const dropSession = useCallback(
+    (message: string, refusedToken: string | null) => {
+      pairingRef.current += 1;
+      const generation = pairingRef.current;
+      const ownsQueue = tokenRef.current === null || tokenRef.current === refusedToken;
+      clearStoredToken();
+      setToken(null);
+      setSession(null);
+      setSessionStale(false);
+      setStatus("idle");
+      setConnectError(message);
+      rosterRef.current = null;
+      setRoster(null);
+      setRosterLoadedFor(null);
+      logRef.current = [];
+      void wipeOfflineSession();
+      if (!ownsQueue) return;
+      void (outboxLoadRef.current ?? Promise.resolve()).then(() => {
+        // Nowe parowanie w międzyczasie - kolejka należy już do niego.
+        if (pairingRef.current !== generation || outboxRef.current.length === 0) return;
+        commitRejected(rejectAll(outboxRef.current, message, new Date().toISOString()));
+        persist([]);
+      });
+    },
+    [commitRejected, persist],
+  );
+
+  /**
+   * Wstrzymanie w panelu (`device_inactive`) jest odwracalne jak blokada
+   * czasowa: token, sesja i kolejka czekają na „Wznów", a lista osób znika
+   * z telefonu od razu (wraca z pierwszą synchronizacją po wznowieniu).
+   */
+  const credentialPaused = useCallback(
+    (error: unknown): boolean => {
+      if (scannerErrorHead(error) !== "device_inactive") return false;
+      forgetRoster();
+      return true;
+    },
+    [forgetRoster],
+  );
 
   /**
    * Odmowa poświadczenia W TRAKCIE pracy. Wygasłe poświadczenie zostaje na
@@ -344,7 +405,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         setStatus("expired");
         return;
       }
-      dropSession(scannerErrorText(error));
+      dropSession(scannerErrorText(error), tokenRef.current);
     },
     [dropSession],
   );
@@ -371,10 +432,15 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
 
   const runBootstrap = useCallback(
     async (clean: string, mode: "connect" | "refresh"): Promise<void> => {
+      // Każdy powrót z `await` sprawdza pokolenie: wynik dla parowania, które
+      // w międzyczasie odłączono albo zastąpiono, nie dotyka już stanu.
+      const generation = pairingRef.current;
+      const superseded = () => pairingRef.current !== generation;
       if (mode === "connect" && isOffline()) {
         // Bez sieci nie ma na co czekać: sesja z pamięci od razu, potwierdzenie
         // przy powrocie zasięgu.
         const cached = await cachedFor(clean);
+        if (superseded()) return;
         if (cached !== null) {
           adoptSession(clean, cached.session, cached.serverOffsetMs, true);
           return;
@@ -383,9 +449,11 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
       const sentAt = Date.now();
       try {
         const next = await withDeadline(bootstrapScanner(clean), BOOTSTRAP_TIMEOUT_MS);
+        if (superseded()) return;
         const offset = computeClockOffset(next.serverNow, sentAt, Date.now());
         adoptSession(clean, next, offset, false);
         const tokenHash = await sha256Hex(clean);
+        if (superseded()) return;
         await saveCachedSession({
           tokenHash,
           session: next,
@@ -394,9 +462,13 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         });
         markOfflinePersistence();
       } catch (error: unknown) {
+        if (superseded()) return;
+        // Wstrzymane urządzenie: jak blokada czasowa (token zostaje), lista znika.
+        credentialPaused(error);
         if (invalidatesSession(error)) {
           if (scannerErrorHead(error) === "device_expired") {
             const cached = await cachedFor(clean);
+            if (superseded()) return;
             if (cached !== null) {
               adoptSession(clean, cached.session, cached.serverOffsetMs, false);
               setStatus("expired");
@@ -405,12 +477,13 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
           }
           // Poświadczenie odrzucone przez bazę nie ma po co zostawać na
           // urządzeniu - następne otwarcie ekranu próbowałoby go znowu.
-          dropSession(scannerErrorText(error));
+          dropSession(scannerErrorText(error), clean);
           return;
         }
         if (mode === "refresh") return;
         if (isRetryableScanError(error)) {
           const cached = await cachedFor(clean);
+          if (superseded()) return;
           if (cached !== null) {
             adoptSession(clean, cached.session, cached.serverOffsetMs, true);
             return;
@@ -420,7 +493,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         setConnectError(scannerErrorText(error));
       }
     },
-    [adoptSession, cachedFor, dropSession, markOfflinePersistence],
+    [adoptSession, cachedFor, credentialPaused, dropSession, markOfflinePersistence],
   );
 
   const connect = useCallback(
@@ -432,12 +505,14 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
       }
       setStatus("connecting");
       setConnectError(null);
+      pairingRef.current += 1;
       void runBootstrap(clean, "connect");
     },
     [runBootstrap],
   );
 
   const disconnect = useCallback(() => {
+    pairingRef.current += 1;
     clearStoredToken();
     setToken(null);
     setSession(null);
@@ -464,7 +539,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
 
   // Kolejka z poprzedniej zmiany - wczytujemy raz, zanim ktokolwiek zeskanuje.
   useEffect(() => {
-    void loadOutbox().then((queue) => {
+    outboxLoadRef.current = loadOutbox().then((queue) => {
       outboxRef.current = queue;
       setOutbox(queue);
       setOutboxPersistent(isOutboxPersistent());
@@ -523,6 +598,23 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
     if (status === "expired") forgetRoster();
   }, [status, forgetRoster]);
 
+  // Termin mija W TRAKCIE pracy, także bez sieci - wtedy nikt nie odpowie
+  // odmową. Sprawdzamy go od razu i co pół minuty na zegarze skorygowanym;
+  // przejście w „wygasło" zdejmuje listę osób efektem wyżej.
+  const sessionExpiresAt = session?.expiresAt ?? null;
+  useEffect(() => {
+    if (status !== "ready" || sessionExpiresAt === null) return;
+    const check = () => {
+      const current = sessionRef.current;
+      if (current !== null && isSessionExpired(current, correctedNowIso(clockOffsetRef.current))) {
+        setStatus("expired");
+      }
+    };
+    check();
+    const timer = window.setInterval(check, EXPIRY_CHECK_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [status, sessionExpiresAt]);
+
   const sessionDeviceId = session?.deviceId ?? null;
   const sessionOffline = session?.offlineRoster ?? false;
 
@@ -531,12 +623,19 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
   useEffect(() => {
     if (status !== "ready" || sessionDeviceId === null) return;
     if (!sessionOffline) {
-      if (rosterRef.current !== null || logRef.current.length > 0) forgetRoster();
+      // Bezwarunkowo: lista POPRZEDNIEGO poświadczenia leży w pamięci
+      // urządzenia także wtedy, gdy ta karta nigdy jej nie wczytała (świeże
+      // otwarcie z nowym kodem). Kasowanie jest idempotentne.
+      forgetRoster();
       return;
     }
     let cancelled = false;
     void Promise.all([loadRoster(sessionDeviceId), loadDecisionLog()]).then(([snapshot, log]) => {
       if (cancelled) return;
+      // `null` = w pamięci nie ma listy TEGO urządzenia. Lista innego (dane
+      // osobowe cudzego poświadczenia) znika teraz, a nie dopiero po pierwszej
+      // udanej synchronizacji - ta może się nie udać.
+      if (snapshot === null) void saveRoster(null);
       logRef.current = log;
       rosterRef.current = snapshot;
       setRoster(snapshot);
@@ -575,6 +674,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
           setSession({ ...latest, offlineRoster: false });
           return;
         }
+        if (credentialPaused(error)) return;
         if (invalidatesSession(error)) credentialFailed(error);
         // Dławik, nowa synchronizacja, sieć: zostaje poprzednia lista.
       })
@@ -582,7 +682,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         rosterSyncingRef.current = false;
         setRosterSyncing(false);
       });
-  }, [commitRoster, credentialFailed, forgetRoster]);
+  }, [commitRoster, credentialFailed, credentialPaused, forgetRoster]);
 
   useEffect(() => {
     if (status !== "ready" || !online || !sessionOffline) return;
@@ -611,6 +711,13 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
       if (index >= due.length) return;
       const item = due[index];
       try {
+        // Pozycja spod INNEGO poświadczenia (telefon przepięty na inne
+        // urządzenie) wysłana bieżącym tokenem trafiłaby do cudzego partnera
+        // albo punktu - odrzucamy ją lokalnie, bez wołania bazy.
+        const queuedFor = item.deviceId ?? null;
+        if (queuedFor !== null && queuedFor !== sessionRef.current?.deviceId) {
+          throw new Error(DEVICE_MISMATCH);
+        }
         if (item.kind === "checkin") {
           const result = await withDeadline(
             recordCheckinScan({
@@ -649,7 +756,12 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         persist(withoutItem(outboxRef.current, item.id));
       } catch (error: unknown) {
         const message = scannerErrorText(error);
-        if (invalidatesSession(error)) {
+        // Wstrzymanie dotyczy całego poświadczenia i jest odwracalne: pozycje
+        // zostają nietknięte (bez licznika prób - nie utkną w „wymaga uwagi"),
+        // przebieg się kończy, a tykający odstęp spróbuje znowu po „Wznów".
+        if (credentialPaused(error)) return;
+        const expired = scannerErrorHead(error) === "device_expired";
+        if (invalidatesSession(error) && !expired) {
           // Odmowa poświadczenia dotyczy WSZYSTKICH pozycji, nie tylko tej -
           // cała kolejka idzie na listę odrzuconych (z eksportem), zamiast
           // dobijać się nią dwadzieścia razy albo zniknąć po cichu.
@@ -660,12 +772,16 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
           credentialFailed(error);
           return;
         }
+        // Termin baza liczy PER POZYCJA (`_event_scanner_device_auth_sync`
+        // porównuje chwilę skanu z terminem): skan sprzed terminu przechodzi
+        // jeszcze 72 h, więc odrzucamy tylko tę pozycję i jedziemy dalej.
         const failure = withFailure(outboxRef.current, item.id, message, new Date().toISOString());
         persist(failure.queue);
         if (failure.rejected !== null) {
           rejectedCount += 1;
           commitRejected([failure.rejected]);
         }
+        if (expired) credentialFailed(error);
       }
       await runNext(index + 1);
     };
@@ -683,7 +799,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         });
       }
     });
-  }, [persist, commitConflict, commitRejected, credentialFailed]);
+  }, [persist, commitConflict, commitRejected, credentialFailed, credentialPaused]);
 
   // Powrót sieci i tykający odstęp - patrz nagłówek. Wygasłe poświadczenie
   // też wysyła: baza przyjmuje skany sprzed terminu jeszcze przez 72 h.
@@ -716,10 +832,28 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
 
   const queue = useCallback(
     (item: OutboxItem) => {
-      persist(enqueueScan(outboxRef.current, item));
+      const { queue: next, overflow } = enqueueScanWithOverflow(outboxRef.current, item);
+      persist(next);
+      // Wypchnięte przepełnieniem nie znikają - idą na listę odrzuconych.
+      if (overflow.length > 0) {
+        commitRejected(rejectAll(overflow, OUTBOX_OVERFLOW, new Date().toISOString()));
+      }
     },
-    [persist],
+    [persist, commitRejected],
   );
+
+  /**
+   * Termin poświadczenia na zegarze skorygowanym - sprawdzany PRZED skanem,
+   * bo bez sieci nikt inny nie powie, że urządzenie już nie ma prawa wpuszczać.
+   */
+  const assertNotExpired = useCallback(() => {
+    const current = sessionRef.current;
+    if (current === null || !isSessionExpired(current, correctedNowIso(clockOffsetRef.current))) {
+      return;
+    }
+    setStatus("expired");
+    throw new Error(EXPIRED_ON_DEVICE);
+  }, []);
 
   /** Decyzja z listy offline - `null`, gdy lista (albo punkt) jest nieznana. */
   const decideLocally = useCallback(
@@ -764,6 +898,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
     }): Promise<QueuedScanOutcome | SentCheckinOutcome> => {
       const activeToken = tokenRef.current;
       if (activeToken === null) throw new Error("invalid_device_token: no session");
+      assertNotExpired();
       const id = newScanId();
       const atMs = Date.now() + clockOffsetRef.current;
       const scannedAt = new Date(atMs).toISOString();
@@ -780,6 +915,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         attempts: 0,
         nextAttemptAt: new Date().toISOString(),
         lastError: null,
+        deviceId: sessionRef.current?.deviceId ?? null,
       };
 
       const queueWithDecision = async (): Promise<QueuedScanOutcome> => {
@@ -833,6 +969,8 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         // odczekaniu - podajemy ją operatorowi zamiast chować w kolejce.
         // Odmowa POŚWIADCZENIA dodatkowo kończy sesję: lista osób znika
         // z telefonu od razu, a nie dopiero przy następnej wysyłce kolejki.
+        // Wstrzymanie zdejmuje samą listę - sesja czeka na „Wznów".
+        if (credentialPaused(error)) throw error;
         if (invalidatesSession(error)) {
           credentialFailed(error);
           throw error;
@@ -841,7 +979,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         return queueWithDecision();
       }
     },
-    [queue, decideLocally, logGrant, credentialFailed],
+    [queue, decideLocally, logGrant, credentialFailed, credentialPaused, assertNotExpired],
   );
 
   const submitLead = useCallback(
@@ -852,7 +990,8 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
     }): Promise<QueuedScanOutcome | SentLeadOutcome> => {
       const activeToken = tokenRef.current;
       if (activeToken === null) throw new Error("invalid_device_token: no session");
-      const scannedAt = new Date(Date.now() + clockOffsetRef.current).toISOString();
+      assertNotExpired();
+      const scannedAt = correctedNowIso(clockOffsetRef.current);
       const item: OutboxItem = {
         id: newScanId(),
         kind: "lead",
@@ -865,6 +1004,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         attempts: 0,
         nextAttemptAt: new Date().toISOString(),
         lastError: null,
+        deviceId: sessionRef.current?.deviceId ?? null,
       };
 
       if (isOffline()) {
@@ -885,6 +1025,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         );
         return { queued: false, result };
       } catch (error: unknown) {
+        if (credentialPaused(error)) throw error;
         if (invalidatesSession(error)) {
           credentialFailed(error);
           throw error;
@@ -894,7 +1035,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         return { queued: true, local: null };
       }
     },
-    [queue, credentialFailed],
+    [queue, credentialFailed, credentialPaused, assertNotExpired],
   );
 
   return {

@@ -14,6 +14,7 @@
 // polskie znaki w nazwiskach - a to jest plik czytany poza systemem.
 import { toCsv } from "@/lib/csv/formatCsv";
 import type { LeadExportRow } from "@/lib/events/onsiteApi";
+import { downloadBlob } from "@/lib/files/downloadBlob";
 import { writeSpreadsheetInWorker } from "@/lib/files/spreadsheetWorker";
 
 /**
@@ -144,13 +145,11 @@ export async function buildLeadExport(
   };
 }
 
-/** Zrzuca plik na dysk operatora - jedyny fragment zależny od przeglądarki. */
+/**
+ * Zrzuca plik na dysk operatora - jedyny fragment zależny od przeglądarki.
+ * Wspólny `downloadBlob` zwalnia adres dopiero po chwili: zwolnienie zaraz po
+ * `click()` bywa szybsze niż start pobierania (Safari, Chrome na Androidzie).
+ */
 export function downloadLeadExport(file: LeadExportFile): void {
-  const blob = new Blob([file.data], { type: file.mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = file.fileName;
-  link.click();
-  URL.revokeObjectURL(url);
+  downloadBlob(new Blob([file.data], { type: file.mimeType }), file.fileName);
 }

@@ -753,7 +753,9 @@ describe("useScannerRuntime - utrata polaczenia i powrot sieci", () => {
   });
 
   it("odmowa poswiadczenia PRZERYWA przebieg kolejki zamiast dobijac sie nia dwadziescia razy", async () => {
-    api.recordCheckinScan.mockRejectedValue(new Error("device_expired: token po terminie"));
+    // Unieważnienie, nie termin: termin baza liczy per pozycja (skan sprzed
+    // terminu przechodzi jeszcze 72 h) - patrz `useScannerOffline.test.tsx`.
+    api.recordCheckinScan.mockRejectedValue(new Error("device_revoked: uniewaznione w panelu"));
     device.queue = [
       queuedItem({ id: "a", code: "QR-A", deviceScannedAt: "2026-08-01T07:00:00.000Z" }),
       queuedItem({ id: "b", code: "QR-B", deviceScannedAt: "2026-08-01T07:01:00.000Z" }),
@@ -768,12 +770,12 @@ describe("useScannerRuntime - utrata polaczenia i powrot sieci", () => {
     await waitFor(() => expect(result.current.rejected).toHaveLength(3));
     expect(result.current.outbox).toEqual([]);
     expect(result.current.rejected.map((row) => row.item.code)).toEqual(["QR-A", "QR-B", "QR-C"]);
-    expect(result.current.rejected.every((row) => row.error.startsWith("device_expired"))).toBe(
+    expect(result.current.rejected.every((row) => row.error.startsWith("device_revoked"))).toBe(
       true,
     );
     expect(api.recordCheckinScan).toHaveBeenCalledTimes(1);
-    // Wygasle poswiadczenie zostaje na ekranie „wygaslo”, zamiast wyrzucac do parowania.
-    expect(result.current.status).toBe("expired");
+    // Unieważnione poświadczenie wyrzuca do parowania.
+    expect(result.current.status).toBe("idle");
     expect(store.rejected).toHaveLength(3);
   });
 
