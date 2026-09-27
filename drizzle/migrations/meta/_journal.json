@@ -589,6 +589,13 @@
       "when": 1790545509554,
       "tag": "0083_event_cfp_part5",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1790545813767,
+      "tag": "0084_event_cfp_part6",
+      "breakpoints": true
     }
   ]
 }
