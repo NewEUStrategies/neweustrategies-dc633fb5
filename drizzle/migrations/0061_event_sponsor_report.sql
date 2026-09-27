@@ -1365,6 +1365,15 @@ DECLARE
   v_tenant uuid := public.assert_event_admin_tenant();
   v_event_id uuid := NULLIF(COALESCE(p_payload->>'event_id', ''), '')::uuid;
   v_sponsor_id uuid := NULLIF(COALESCE(p_payload->>'sponsor_id', ''), '')::uuid;
+  -- Strona: kursor (ostatnia osoba poprzedniej strony) i rozmiar 1..500.
+  v_after uuid := NULLIF(COALESCE(p_payload->>'after_person_id', ''), '')::uuid;
+  v_limit integer := CASE
+    WHEN jsonb_typeof(p_payload->'limit') = 'number'
+      THEN LEAST(500, GREATEST(1, floor((p_payload->>'limit')::numeric)))::integer
+    ELSE 500
+  END;
+  v_last uuid;
+  v_has_more boolean := false;
   v_event public.events%ROWTYPE;
   v_label text;
   r record;
@@ -1411,11 +1420,13 @@ BEGIN
       JOIN public.event_sponsors s ON s.tenant_id = l.tenant_id AND s.id = l.sponsor_id
      WHERE l.tenant_id = v_tenant AND l.event_id = v_event_id
        AND (v_sponsor_id IS NULL OR l.sponsor_id = v_sponsor_id)
+       AND (v_after IS NULL OR l.person_id > v_after)
      GROUP BY l.person_id
      ORDER BY l.person_id
-     LIMIT 5000
+     LIMIT v_limit
   LOOP
     v_persons := v_persons + 1;
+    v_last := r.person_id;
 
     SELECT lower(NULLIF(btrim(COALESCE(p.email, '')), '')),
            (p.consent_marketing_at IS NOT NULL AND p.consent_withdrawn_at IS NULL)
@@ -1484,13 +1495,25 @@ BEGIN
     END IF;
   END LOOP;
 
+  -- Czy za ta strona zostal ktos jeszcze (ten sam zbior co petla).
+  v_has_more := v_last IS NOT NULL AND EXISTS (
+    SELECT 1
+      FROM public.event_lead_scans l
+      JOIN public.event_sponsors s ON s.tenant_id = l.tenant_id AND s.id = l.sponsor_id
+     WHERE l.tenant_id = v_tenant AND l.event_id = v_event_id
+       AND (v_sponsor_id IS NULL OR l.sponsor_id = v_sponsor_id)
+       AND l.person_id > v_last
+  );
+
   RETURN jsonb_build_object(
     'persons', v_persons,
     'created', v_created,
     'updated', v_updated,
     'skipped_no_email', v_no_email,
     'skipped_no_consent', v_no_consent,
-    'failed', v_failed
+    'failed', v_failed,
+    'has_more', v_has_more,
+    'next_after', CASE WHEN v_has_more THEN v_last END
   );
 END;
 $$;
@@ -1499,4 +1522,4 @@ REVOKE ALL ON FUNCTION public.admin_event_lead_scans_push_to_crm(jsonb) FROM PUB
 GRANT EXECUTE ON FUNCTION public.admin_event_lead_scans_push_to_crm(jsonb) TO authenticated, service_role;
 
 COMMENT ON FUNCTION public.admin_event_lead_scans_push_to_crm(jsonb) IS
-  'Jawne przeniesienie kontaktow zebranych na stoiskach do CRM: {event_id, sponsor_id?}. Przez most _event_person_crm_sync: nowy kontakt WYLACZNIE ze zgoda marketingowa organizatora (p_create = dowod), inaczej tylko wzbogacenie istniejacego; segment event_participant, tagi event:<slug> i sponsor_lead:<id firmy>; notatki i oceny sponsora nie ida do CRM. Zwraca {persons, created, updated, skipped_no_email, skipped_no_consent, failed}. Bramka: assert_event_admin_tenant().';
+  'Jawne przeniesienie kontaktow zebranych na stoiskach do CRM: {event_id, sponsor_id?, after_person_id?, limit? (1..500, domyslnie 500)} - strona osob po person_id rosnaco. Przez most _event_person_crm_sync: nowy kontakt WYLACZNIE ze zgoda marketingowa organizatora (p_create = dowod), inaczej tylko wzbogacenie istniejacego; segment event_participant, tagi event:<slug> i sponsor_lead:<id firmy>; notatki i oceny sponsora nie ida do CRM. Zwraca {persons, created, updated, skipped_no_email, skipped_no_consent, failed, has_more, next_after} - klient wola dalej z after_person_id = next_after, dopoki has_more. Bramka: assert_event_admin_tenant().';

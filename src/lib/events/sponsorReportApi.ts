@@ -183,20 +183,44 @@ function count(value: Json | undefined): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
+/**
+ * Przeniesienie kontaktów do CRM - STRONA PO STRONIE aż do końca.
+ *
+ * Baza przenosi najwyżej 500 osób w jednym wywołaniu i oddaje kursor
+ * (`has_more` + `next_after`). Każda strona to osobna, krótka transakcja, więc
+ * duże wydarzenie nie wpada w `statement_timeout`, a żadna osoba nie zostaje
+ * pominięta po cichu (dawniej sztywny limit 5000 przenosił w kółko te same
+ * pierwsze osoby). Liczniki stron sumujemy w jeden wynik dla komunikatu.
+ * Kursor, który się nie przesuwa, kończy pętlę - zamiast wołać bazę bez końca.
+ */
 export async function pushLeadScansToCrm(input: PushLeadsInput): Promise<PushLeadsResult> {
-  const payload: Record<string, Json> = { event_id: input.eventId };
-  if (input.sponsorId !== null) payload.sponsor_id = input.sponsorId;
-  const { data, error } = await supabase.rpc("admin_event_lead_scans_push_to_crm", {
-    p_payload: payload,
-  });
-  if (error) fail(error);
-  const row = record(data);
-  return {
-    persons: count(row.persons),
-    created: count(row.created),
-    updated: count(row.updated),
-    skippedNoEmail: count(row.skipped_no_email),
-    skippedNoConsent: count(row.skipped_no_consent),
-    failed: count(row.failed),
+  const total: PushLeadsResult = {
+    persons: 0,
+    created: 0,
+    updated: 0,
+    skippedNoEmail: 0,
+    skippedNoConsent: 0,
+    failed: 0,
   };
+  let after: string | null = null;
+  for (;;) {
+    const payload: Record<string, Json> = { event_id: input.eventId };
+    if (input.sponsorId !== null) payload.sponsor_id = input.sponsorId;
+    if (after !== null) payload.after_person_id = after;
+    const { data, error } = await supabase.rpc("admin_event_lead_scans_push_to_crm", {
+      p_payload: payload,
+    });
+    if (error) fail(error);
+    const row = record(data);
+    total.persons += count(row.persons);
+    total.created += count(row.created);
+    total.updated += count(row.updated);
+    total.skippedNoEmail += count(row.skipped_no_email);
+    total.skippedNoConsent += count(row.skipped_no_consent);
+    total.failed += count(row.failed);
+    const next =
+      row.has_more === true && typeof row.next_after === "string" ? row.next_after : null;
+    if (next === null || next === after) return total;
+    after = next;
+  }
 }

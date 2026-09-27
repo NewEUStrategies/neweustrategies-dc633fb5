@@ -875,12 +875,16 @@ DO $do$
 DECLARE
   v_res jsonb;
   v_lead public.crm_leads%ROWTYPE;
+  v_after uuid;
+  v_pages integer := 0;
+  v_seen integer := 0;
 BEGIN
   v_res := public.admin_event_lead_scans_push_to_crm(jsonb_build_object(
     'event_id', '32e00000-0000-0000-0000-0000000000e1'));
   PERFORM pg_temp.assert(
     v_res = jsonb_build_object('persons', 4, 'created', 1, 'updated', 1, 'skipped_no_email', 1,
-                               'skipped_no_consent', 1, 'failed', 0),
+                               'skipped_no_consent', 1, 'failed', 0,
+                               'has_more', false, 'next_after', NULL),
     format('32/CRM: przeniesienie: 1 nowy (zgoda), 1 wzbogacony, bez e-maila 1, bez zgody 1; jest %s', v_res));
 
   SELECT l.* INTO v_lead FROM public.crm_leads l
@@ -931,8 +935,108 @@ BEGIN
     'event_id', '32e00000-0000-0000-0000-0000000000e1', 'sponsor_id', '32500000-0000-0000-0000-000000000002'));
   PERFORM pg_temp.assert((v_res->>'persons')::int = 1,
     '32/CRM: filtr sponsora zaweza przeniesienie do jego kontaktow');
+
+  -- STRONY. Dawny sztywny LIMIT 5000 przenosil w kolko te same pierwsze
+  -- osoby, a reszte pomijal po cichu. Strona 1 osoby musi przejsc kursorem
+  -- po WSZYSTKICH czterech osobach, kazdej raz, i powiedziec, ze to koniec.
+  v_res := public.admin_event_lead_scans_push_to_crm(jsonb_build_object(
+    'event_id', '32e00000-0000-0000-0000-0000000000e1', 'limit', 1));
+  PERFORM pg_temp.assert(
+    (v_res->>'persons')::int = 1 AND (v_res->>'has_more')::boolean
+    AND (v_res->>'next_after')::uuid = (SELECT l.person_id FROM public.event_lead_scans l
+                                         WHERE l.event_id = '32e00000-0000-0000-0000-0000000000e1'
+                                         ORDER BY l.person_id LIMIT 1),
+    format('32/CRM/strony: pierwsza strona (limit 1) to najmniejsza osoba i has_more; jest %s', v_res));
+  LOOP
+    v_res := public.admin_event_lead_scans_push_to_crm(
+      jsonb_build_object('event_id', '32e00000-0000-0000-0000-0000000000e1', 'limit', 1)
+      || CASE WHEN v_after IS NULL THEN '{}'::jsonb
+              ELSE jsonb_build_object('after_person_id', v_after) END);
+    v_pages := v_pages + 1;
+    v_seen := v_seen + (v_res->>'persons')::int;
+    EXIT WHEN NOT (v_res->>'has_more')::boolean OR v_pages > 10;
+    PERFORM pg_temp.assert(
+      v_after IS NULL OR (v_res->>'next_after')::uuid > v_after,
+      '32/CRM/strony: kursor rosnie z kazda strona');
+    v_after := (v_res->>'next_after')::uuid;
+  END LOOP;
+  PERFORM pg_temp.assert(
+    v_pages = 4 AND v_seen = 4 AND v_res->'next_after' = 'null'::jsonb,
+    format('32/CRM/strony: 4 strony po 1 osobie, razem 4, ostatnia bez kursora; jest %s stron, %s osob',
+      v_pages, v_seen));
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.audit_log a
+      JOIN public.crm_leads l ON l.id = a.entity_id
+     WHERE l.email_norm = 'p1.spr@example.org' AND a.action = 'event.sponsor_lead.pushed') = 1,
+    '32/CRM/strony: przejscie stron nie dubluje wpisu osi czasu');
+
+  -- Rozmiar strony zaciskany do 1..500; nie-liczba = domyslne 500.
+  v_res := public.admin_event_lead_scans_push_to_crm(jsonb_build_object(
+    'event_id', '32e00000-0000-0000-0000-0000000000e1', 'limit', 0));
+  PERFORM pg_temp.assert((v_res->>'persons')::int = 1 AND (v_res->>'has_more')::boolean,
+    '32/CRM/strony: limit 0 zaciskany do 1');
+  v_res := public.admin_event_lead_scans_push_to_crm(jsonb_build_object(
+    'event_id', '32e00000-0000-0000-0000-0000000000e1', 'limit', 1000000));
+  PERFORM pg_temp.assert((v_res->>'persons')::int = 4 AND NOT (v_res->>'has_more')::boolean,
+    '32/CRM/strony: ogromny limit nie wywraca funkcji (bez przepelnienia liczby calkowitej)');
+  v_res := public.admin_event_lead_scans_push_to_crm(jsonb_build_object(
+    'event_id', '32e00000-0000-0000-0000-0000000000e1', 'limit', '1'));
+  PERFORM pg_temp.assert((v_res->>'persons')::int = 4,
+    '32/CRM/strony: limit nie-liczba to rozmiar domyslny');
+  -- Kursor za ostatnia osoba: pusta strona, bez kursora.
+  v_res := public.admin_event_lead_scans_push_to_crm(jsonb_build_object(
+    'event_id', '32e00000-0000-0000-0000-0000000000e1',
+    'after_person_id', 'ffffffff-ffff-ffff-ffff-ffffffffffff'));
+  PERFORM pg_temp.assert(
+    (v_res->>'persons')::int = 0 AND NOT (v_res->>'has_more')::boolean
+    AND v_res->'next_after' = 'null'::jsonb,
+    '32/CRM/strony: kursor za ostatnia osoba daje pusta strone bez kursora');
 END
 $do$;
+
+-- GRANICA 500. 501 osob bez e-maila (most pomija je od razu jako
+-- `email_missing`) zebranych przez nieopublikowanego sponsora S3 - filtr
+-- sponsora izoluje je od reszty scenografii. Strona to najwyzej 500 osob,
+-- a druga strona z kursora zabiera ostatnia.
+INSERT INTO public.event_people (id, tenant_id, first_name, last_name, source)
+SELECT ('32f00000-0000-0000-0000-' || lpad(g::text, 12, '0'))::uuid,
+       '11111111-1111-1111-1111-111111111111', 'Masowy', 'Kontakt ' || g, 'organizer'
+  FROM generate_series(1, 501) AS g;
+INSERT INTO public.event_lead_scans (tenant_id, event_id, sponsor_id, person_id, scanned_by_user_id)
+SELECT '11111111-1111-1111-1111-111111111111', '32e00000-0000-0000-0000-0000000000e1',
+       '32500000-0000-0000-0000-000000000003',
+       ('32f00000-0000-0000-0000-' || lpad(g::text, 12, '0'))::uuid,
+       '32a00000-0000-0000-0000-0000000000a1'
+  FROM generate_series(1, 501) AS g;
+
+DO $do$
+DECLARE
+  v_res jsonb;
+BEGIN
+  v_res := public.admin_event_lead_scans_push_to_crm(jsonb_build_object(
+    'event_id', '32e00000-0000-0000-0000-0000000000e1',
+    'sponsor_id', '32500000-0000-0000-0000-000000000003', 'limit', 100000));
+  PERFORM pg_temp.assert(
+    (v_res->>'persons')::int = 500 AND (v_res->>'skipped_no_email')::int = 500
+    AND (v_res->>'has_more')::boolean
+    AND (v_res->>'next_after')::uuid = '32f00000-0000-0000-0000-000000000500',
+    format('32/CRM/strony: strona to najwyzej 500 osob (limit zaciskany), kursor na 500.; jest %s', v_res));
+  v_res := public.admin_event_lead_scans_push_to_crm(jsonb_build_object(
+    'event_id', '32e00000-0000-0000-0000-0000000000e1',
+    'sponsor_id', '32500000-0000-0000-0000-000000000003',
+    'after_person_id', v_res->>'next_after'));
+  PERFORM pg_temp.assert(
+    (v_res->>'persons')::int = 1 AND NOT (v_res->>'has_more')::boolean
+    AND v_res->'next_after' = 'null'::jsonb,
+    format('32/CRM/strony: druga strona zabiera 501. osobe i konczy; jest %s', v_res));
+END
+$do$;
+
+DELETE FROM public.event_lead_scans l
+ WHERE l.sponsor_id = '32500000-0000-0000-0000-000000000003'
+   AND l.person_id::text LIKE '32f00000-%';
+DELETE FROM public.event_person_crm_links k WHERE k.person_id::text LIKE '32f00000-%';
+DELETE FROM public.event_people p WHERE p.id::text LIKE '32f00000-%';
 
 SELECT pg_temp.assert_raises_like(
   $q$SELECT public.admin_event_lead_scans_push_to_crm('{}'::jsonb)$q$,
