@@ -22279,6 +22279,10 @@ export type Database = {
         Args: { p_ctx: Json; p_new: string; p_src: string; p_tenant: string }
         Returns: Json
       }
+      _event_clone_participant_settings: {
+        Args: { p_ctx: Json; p_new: string; p_src: string; p_tenant: string }
+        Returns: Json
+      }
       _event_clone_registration: {
         Args: { p_ctx: Json; p_new: string; p_src: string; p_tenant: string }
         Returns: Json
