@@ -344,6 +344,20 @@ describe("SpeakerProfileDialog - tożsamość i odznaki", () => {
     expect(within(panel()).queryByText(/Ekonomista ·/)).toBeNull();
   });
 
+  it("firma zawarta w stanowisku (a nie w nagłówku) nie dopisuje się drugi raz", async () => {
+    // Nagłówek jej nie zawiera, więc pierwsza reguła ją przepuszcza - dopiero
+    // porównanie ze stanowiskiem („Prezes CPK”) ją zatrzymuje.
+    await dialog({
+      profile: profileRow({
+        headline_pl: "Ekspertka energetyki",
+        job_title: "Prezes CPK",
+        company: "CPK",
+      }),
+    });
+    expect(within(panel()).getByText("Prezes CPK")).toBeInTheDocument();
+    expect(within(panel()).queryByText(/Prezes CPK ·/)).toBeNull();
+  });
+
   it("firma jest sprawdzana wobec KAŻDEGO pola osobno - nie znika przez sklejenie roli ze stanowiskiem", async () => {
     // „Forum Energii" nie stoi ani w nagłówku, ani w stanowisku - tylko na
     // ich styku, gdyby je skleić w jeden napis.
