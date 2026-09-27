@@ -456,6 +456,10 @@ describe("EventMePanel - sesja w trakcie rozstrzygania (i render serwerowy)", ()
     expect(screen.queryByRole("tablist")).toBeNull();
     expect(screen.queryByText("eventMe.signedOut")).toBeNull();
     expect(screen.queryByTestId("gniazdo-harmonogram")).toBeNull();
+    // Odnośniki naboru i karta miejsca też czekają na rozstrzygnięcie sesji.
+    expect(screen.queryByTestId("odnosniki-naboru")).toBeNull();
+    expect(h.naborLinki).toEqual([]);
+    expect(h.miejsca).toEqual([]);
   });
 
   it("NIE pyta bazy, dopóki nie wiadomo, czyja to sesja", () => {

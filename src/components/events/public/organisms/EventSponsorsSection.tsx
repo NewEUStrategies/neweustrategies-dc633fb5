@@ -149,6 +149,7 @@ export function EventSponsorsSectionView({
           key={tier.tierId ?? "no-tier"}
           tier={tier}
           lang={lang}
+          placement={placement}
           draftLabel={draftLabel}
           placement={placement}
         />
@@ -160,11 +161,13 @@ export function EventSponsorsSectionView({
 function SponsorTierGroup({
   tier,
   lang,
+  placement,
   draftLabel,
   placement,
 }: {
   tier: PublicSponsorTier;
   lang: "pl" | "en";
+  placement: SponsorsSectionPlacement;
   draftLabel: string | undefined;
   placement: SponsorsSectionPlacement;
 }) {
@@ -236,12 +239,14 @@ function SponsorTile({
   lang,
   draftLabel,
   placement,
+  draftLabel,
 }: {
   sponsor: PublicSponsor;
   logoSize: SponsorLogoSize;
   lang: "pl" | "en";
   draftLabel: string | undefined;
   placement: SponsorsSectionPlacement;
+  draftLabel: string | undefined;
 }) {
   const { t } = useTranslation();
   const ref = useRef<HTMLLIElement | null>(null);

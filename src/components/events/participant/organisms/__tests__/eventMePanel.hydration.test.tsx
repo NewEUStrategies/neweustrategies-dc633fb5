@@ -90,6 +90,12 @@ vi.mock("@/components/events/meetings/MeetingExchangeBoard", () => ({
 vi.mock("@/components/profile/ParticipantTicketsPanel", () => ({
   ParticipantTicketsPanel: () => null,
 }));
+vi.mock("@/components/events/cfp/molecules/EventMeCfpLinks", () => ({
+  EventMeCfpLinks: () => <div data-testid="odnosniki-naboru" />,
+}));
+vi.mock("@/components/events/participant/molecules/MySeatsPanel", () => ({
+  MySeatsPanel: () => null,
+}));
 vi.mock("@/components/events/participant/slots/EventMeScheduleSlot", () => ({
   EventMeScheduleSlot: () => <div data-testid="gniazdo-harmonogram" />,
 }));
@@ -157,6 +163,7 @@ describe("EventMePanel - HTML serwera", () => {
     expect(html).toContain('aria-busy="true"');
     expect(html).not.toContain('role="tablist"');
     expect(html).not.toContain("gniazdo-harmonogram");
+    expect(html).not.toContain("odnosniki-naboru");
     expect(html).not.toContain(PROFIL.registration?.registrationId ?? "brak");
   });
 
@@ -208,6 +215,8 @@ describe("EventMePanel - hydratacja z sesją zapisaną w magazynie", () => {
       await waitFor(() => expect(screen.getByTestId("gniazdo-po-wydarzeniu")).toBeTruthy());
       expect(host.textContent).not.toContain(LOADING);
       expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Mój panel wydarzenia");
+      // Odnośniki naboru prelegentów (nagłówek) też czekają na rozstrzygnięcie sesji.
+      expect(screen.getByTestId("odnosniki-naboru")).toBeTruthy();
       expect(errors).toEqual([]);
     } finally {
       await act(async () => root.unmount());

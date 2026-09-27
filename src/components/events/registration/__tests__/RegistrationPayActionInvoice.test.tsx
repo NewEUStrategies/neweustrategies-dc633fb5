@@ -57,6 +57,8 @@ vi.mock("@/lib/events/eventCodeMemory", () => ({
   recallEventCode: () => "",
   // Kod dostępu ukrytej wejściówki z pamięci karty - tu żadnego nie ma.
   recallAccessCodeHint: () => "",
+  // Komponent zapamiętuje kod wpisany po odmowie; te testy go nie wpisują.
+  rememberTicketAccessCode: () => undefined,
 }));
 const funnel = vi.hoisted(() => ({ send: vi.fn() }));
 vi.mock("@/lib/events/eventFunnelBeacon", () => ({

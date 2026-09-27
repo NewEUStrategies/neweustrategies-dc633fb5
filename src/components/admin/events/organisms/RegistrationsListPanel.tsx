@@ -654,6 +654,11 @@ export function RegistrationsListPanel({
                         {t(`${base}.badges.${TICKET_BADGE_KEYS[ticketState]}`)}
                       </Badge>
                     )}
+                    {(seatsByRegistration.get(row.id) ?? []).map((label) => (
+                      <Badge key={label} variant="outline">
+                        {t("adminEventSeating.registrations.seat", { label })}
+                      </Badge>
+                    ))}
                     {row.status === "waitlist" && row.waitlist_position !== null ? (
                       <Badge variant="outline">
                         {t("adminEventRegistration.waitlist.position", {

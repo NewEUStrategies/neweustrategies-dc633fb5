@@ -2263,6 +2263,13 @@ export default defineConfig({
         // 2026-08-22 (MODUŁ 15, etap 8): RATCHET W GÓRĘ. Zmierzone na tym HEAD
         // 86,06% instrukcji / 80,40% gałęzi / 85,57% funkcji / 86,26% linii.
         // Próg = zmierzone minus ~3 pp marginesu na dryf CI.
+        //
+        // 2026-09-27: nabór prelegentów dołożył gałęzie do `export.functions.ts`
+        // (wtedy wciąż na zerze) i zepchnął katalog pod próg gałęzi (CI: 76,71%).
+        // Naprawa to test handlera eksportu (wpis niżej), nie obniżka. Zmierzone
+        // na testach profilu i ich bezpośrednich konsumentów: 83,49/76,36/83,33/
+        // 83,76 -> 98,30/94,86/100/99,14. Próg katalogu świadomie bez zmian w tym
+        // kroku - ratchet to osobna decyzja po pełnym przebiegu CI.
         "src/lib/profile/**": {
           statements: 83,
           functions: 82,
@@ -2302,10 +2309,10 @@ export default defineConfig({
         // zostaje samo wywołanie. Pierwszy taki moduł: `cfpExportSection`
         // niżej. Próg tego wpisu się nie zmienia.
         "src/lib/profile/export.functions.ts": {
-          statements: 0,
-          functions: 0,
-          lines: 0,
-          branches: 0,
+          statements: 96,
+          functions: 96,
+          lines: 96,
+          branches: 96,
         },
         // Rozbiór zwrotki `event_cfp_export_my_data` na cztery sekcje paczki
         // RODO - wyjęty z ciała `export.functions.ts` (patrz wpis wyżej).
