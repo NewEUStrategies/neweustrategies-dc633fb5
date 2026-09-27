@@ -505,6 +505,13 @@
       "when": 1790524440178,
       "tag": "0071_event_scanner_offline",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1790524814610,
+      "tag": "0072_event_scanner_offline_part2",
+      "breakpoints": true
     }
   ]
 }
