@@ -175,6 +175,44 @@ export function speakerCardPhoto(row: {
   return textOrNull(row.card_photo_url) ?? textOrNull(row.avatar_url);
 }
 
+/** Napis do porownania: male litery, sama tresc slow, pojedyncze spacje. */
+const comparable = (value: string): string =>
+  value
+    .toLocaleLowerCase("pl")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+
+/**
+ * Organizacja do pokazania OBOK roli - albo `null`, gdy tylko ja powtarza.
+ *
+ * DANE POWTARZAJA ROLE W POLU FIRMY. Projekcja bierze `company` z konta albo
+ * z `event_people.company_text`, a import prelegentow wpisywal tam czesto to
+ * samo, co w stanowisku - karta pokazywala wtedy „Prezes CPK" dwa razy, raz
+ * wersalikami. Powtorzenie nie jest drugim faktem, wiec znika z podpisu:
+ *   * ten sam napis (wielkosc liter, interpunkcja i spacje sie nie licza),
+ *   * nazwa organizacji zawarta w roli jako cale slowa („Prezes WiseEuropa"
+ *     i „WiseEuropa").
+ * Odwrotnie NIE: rola zawarta w organizacji to zwykle dwa rozne fakty
+ * („Ekspert" i „Ekspert sektora energetycznego" to nadal rola i nazwa).
+ *
+ * JEDNA REGULA DLA KAZDEJ POWIERZCHNI. Siatka, zapowiedz na przegladzie
+ * i dialog profilu pytaja tutaj - gdyby dedupe mialo tylko jedno miejsce,
+ * ta sama osoba mialaby na dwoch powierzchniach rozne podpisy.
+ */
+export function speakerOrganizationLine(
+  role: string | null | undefined,
+  organization: string | null | undefined,
+): string | null {
+  const org = textOrNull(organization);
+  if (org === null) return null;
+  const orgKey = comparable(org);
+  if (orgKey === "") return org;
+  const roleKey = comparable(role ?? "");
+  if (roleKey === "") return org;
+  if (roleKey === orgKey || ` ${roleKey} `.includes(` ${orgKey} `)) return null;
+  return org;
+}
+
 function channel(value: number): number {
   const c = value / 255;
   return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;

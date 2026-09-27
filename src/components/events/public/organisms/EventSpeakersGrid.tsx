@@ -1,13 +1,13 @@
-// Organizm: siatka prelegentów wydarzenia w układzie ekranu wzorcowego -
-// kwadratowe zdjęcie u góry karty, pod nim imię i nazwisko, rola i organizacja,
-// do trzech kart w wierszu na szerokim ekranie.
+// Organizm: siatka prelegentów wydarzenia - do trzech kart w wierszu na
+// szerokim ekranie, każda w układzie nagłówka profilu z nagrania właściciela
+// (`TelegramHeader`): wyśrodkowane okrągłe zdjęcie, pod nim imię i nazwisko
+// oraz podpis „rola • organizacja”.
 //
 // KARTA ROZWIJA SIĘ KLIKNIĘCIEM W ZDJĘCIE. Rysunek i ruch karty mieszkają
-// w `SpeakerProfileCard` (wzorzec: nagłówek profilu - małe zdjęcie rośnie do
-// pełnego kadru z podpisem na gradiencie). Domyślny wygląd siatki się nie
-// zmienia: zwinięta karta to ten sam kwadrat 80 px i te same trzy linie.
-// Profil (dialog) otwiera PRZYCISK karty, a nie cała karta - klik w zdjęcie
-// jest zarezerwowany dla powiększenia.
+// w `SpeakerProfileCard`: koło rośnie do pełnego kadru na całą szerokość
+// karty, podpis ląduje na gradiencie, a pod zdjęciem otwierają się ścieżki
+// prelegenta. Profil (dialog) otwiera PRZYCISK karty, a nie cała karta - klik
+// w zdjęcie jest zarezerwowany dla rozwinięcia.
 //
 // SIATKA NIE RYSUJE NAGŁÓWKA - I NIE RYSUJE GO `EventPageSections`. Ta lista
 // NIE JEST jego sekcją: `OWNED` w `EventPageSections.tsx` wymienia program,
@@ -73,10 +73,11 @@ ensureEventFrontI18n();
 // tekstu - przy dwóch kolumnach na telefonie każda z nich ma jeszcze szerokość
 // na cokolwiek poza wielokropkiem.
 const GRID_CLASS = "grid grid-cols-1 border-l border-t border-border sm:grid-cols-2 lg:grid-cols-3";
-// Karta zastepcza ma TEN SAM obrys, co karta prelegenta (`SpeakerProfileCard`),
+// Karta zastepcza ma TEN SAM obrys, co ZWINIETA karta prelegenta
+// (`SpeakerProfileCard`: wysrodkowane kolo 80 px, imie i nazwisko, podpis),
 // wiec wysokosc sekcji nie skacze w chwili, gdy przyjda dane.
 const CARD_CLASS =
-  "flex h-full w-full flex-col items-start border-b border-r border-border bg-background p-5 text-left";
+  "flex h-full w-full flex-col items-center border-b border-r border-border bg-background px-5 pb-5 pt-8 text-center";
 
 // Osiem kart zastępczych: tyle, ile wchodzi w dwa wiersze docelowego układu,
 // więc wysokość sekcji nie skacze w chwili, gdy przyjdą dane.
@@ -108,8 +109,8 @@ export function EventSpeakersGrid({
       <div className={GRID_CLASS} aria-busy="true" aria-label={t("eventFront.speakers.loading")}>
         {SKELETON_SLOTS.map((slot) => (
           <div key={slot} className={CARD_CLASS}>
-            <Skeleton className="h-20 w-20 rounded-[6px]" />
-            <Skeleton className="mt-5 h-5 w-32" />
+            <Skeleton className="h-20 w-20 rounded-full" />
+            <Skeleton className="mt-3 h-5 w-32" />
             <Skeleton className="mt-2 h-3 w-24" />
           </div>
         ))}

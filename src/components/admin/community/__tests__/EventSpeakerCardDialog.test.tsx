@@ -338,14 +338,14 @@ describe("EventSpeakerCardDialog - sciezki i podglad", () => {
   it("klik w zdjecie podgladu rozwija karte i zwija ja drugim kliknieciem", () => {
     renderDialog(entry({ card_photo_url: "https://cdn.example.com/karta.jpg" }));
     const photo = within(previewCard()).getByRole("button", {
-      name: "Powiększ zdjęcie: Halszka Borowik",
+      name: "Rozwiń kartę: Halszka Borowik",
     });
     expect(photo).toHaveAttribute("aria-expanded", "false");
 
     fireEvent.click(photo);
     expect(previewCard()).toHaveAttribute("data-state", "expanded");
     const expanded = within(previewCard()).getByRole("button", {
-      name: "Zmniejsz zdjęcie: Halszka Borowik",
+      name: "Zwiń kartę: Halszka Borowik",
     });
     expect(expanded).toHaveAttribute("aria-expanded", "true");
     // Rozwinieta karta laduje zdjecie KARTY od redakcji, nie zdjecie osoby.
@@ -552,10 +552,10 @@ describe("EventSpeakerCardDialog - klawiatura i jezyk podgladu", () => {
     // Zamkniecie dialogu tym klawiszem przepadloby niezapisane pola karty.
     renderDialog(entry({ card_cta_label_pl: "Niezapisane" }));
     fireEvent.click(
-      within(previewCard()).getByRole("button", { name: "Powiększ zdjęcie: Halszka Borowik" }),
+      within(previewCard()).getByRole("button", { name: "Rozwiń kartę: Halszka Borowik" }),
     );
     const expanded = within(previewCard()).getByRole("button", {
-      name: "Zmniejsz zdjęcie: Halszka Borowik",
+      name: "Zwiń kartę: Halszka Borowik",
     });
     expect(previewCard()).toHaveAttribute("data-state", "expanded");
 
@@ -566,7 +566,7 @@ describe("EventSpeakerCardDialog - klawiatura i jezyk podgladu", () => {
     expect(input("Napis na przycisku PL").value).toBe("Niezapisane");
     // Fokus zostaje na zdjeciu - klawiatura nie gubi miejsca.
     expect(document.activeElement).toBe(
-      within(previewCard()).getByRole("button", { name: "Powiększ zdjęcie: Halszka Borowik" }),
+      within(previewCard()).getByRole("button", { name: "Rozwiń kartę: Halszka Borowik" }),
     );
 
     // Na ZWINIETEJ karcie Escape znow zamyka dialog.
@@ -579,7 +579,7 @@ describe("EventSpeakerCardDialog - klawiatura i jezyk podgladu", () => {
     // klawisza to wtedy dialog, nie karta. Dialog i tak nie moze sie zamknac.
     renderDialog(entry({ card_cta_label_pl: "Niezapisane" }));
     fireEvent.click(
-      within(previewCard()).getByRole("button", { name: "Powiększ zdjęcie: Halszka Borowik" }),
+      within(previewCard()).getByRole("button", { name: "Rozwiń kartę: Halszka Borowik" }),
     );
     expect(previewCard()).toHaveAttribute("data-state", "expanded");
 
@@ -690,7 +690,7 @@ describe("EventSpeakerCardDialog - klawiatura i jezyk podgladu", () => {
     expect(within(card).getByText("Economy")).toBeInTheDocument();
     // Napisy samej karty tez po angielsku - nie tylko tresc redakcji.
     expect(
-      within(card).getByRole("button", { name: "Enlarge photo: Halszka Borowik" }),
+      within(card).getByRole("button", { name: "Expand card: Halszka Borowik" }),
     ).toBeInTheDocument();
     // Sekcja sciezek w formularzu i pola mowia dalej jezykiem panelu.
     expect(within(tracksSection()).getByText("Ekonomia")).toBeInTheDocument();

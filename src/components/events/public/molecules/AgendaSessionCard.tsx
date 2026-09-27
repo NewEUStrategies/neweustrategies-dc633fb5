@@ -422,10 +422,15 @@ export function AgendaSessionCard({
             </div>
 
             {speakers.length > 0 && (
+              // DWIE KOLUMNY TYLKO WTEDY, GDY LISTA STOI POD PRZYCISKAMI. Od
+              // `lg` lista siedzi obok kolumny stanu (15 rem) w tresci ograniczonej
+              // do `max-w-5xl`, wiec ma ~290 px - dwie kolumny po ~140 px ucinaly
+              // nazwisko i role po kilku literach. Jedna kolumna daje kazdemu
+              // prelegentowi cala szerokosc obszaru obok „Pokaz szczegoly".
               <ul
                 id={speakersId}
                 aria-label={t("eventFront.agenda.speakersLabel")}
-                className="grid min-w-0 grid-cols-1 content-start gap-x-6 gap-y-3 sm:grid-cols-2"
+                className="grid min-w-0 grid-cols-1 content-start gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-1"
               >
                 {speakers.map((speaker) => (
                   <AgendaSpeakerRow

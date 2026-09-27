@@ -41,6 +41,7 @@ import {
   type PublicSpeakerRow,
   type SpeakerEngagement,
 } from "@/lib/builder/speakersQuery";
+import { speakerOrganizationLine } from "@/lib/events/speakerCard";
 import { SpeakerAvatar } from "./SpeakerAvatar";
 import { SpeakerStars } from "./SpeakerStars";
 import { uiLocale } from "@/lib/i18n/format";
@@ -161,7 +162,15 @@ function ProfileBody({
   const topicsOther = profile ? (lang === "pl" ? profile.topics_en : profile.topics_pl) : [];
   const topicsShown = topics.length ? topics : topicsOther;
   const photo = profile?.avatar_url || fallback?.photo || null;
-  const companyLine = [profile?.job_title, profile?.company].filter(Boolean).join(" · ");
+  // Linia „stanowisko · organizacja" POD rola sceniczna - bez powtorzen. Dane
+  // czesto maja to samo w stanowisku, w roli i w firmie; bez tej reguly dialog
+  // pokazywal „Prezes CPK · Prezes CPK" pod naglowkiem „Prezes CPK". Ta sama
+  // regula (`speakerOrganizationLine`), co karta w siatce i zapowiedz.
+  const jobTitle = profile?.job_title?.trim() ?? "";
+  const jobPart =
+    jobTitle !== "" && speakerOrganizationLine(headline, jobTitle) !== null ? jobTitle : "";
+  const orgPart = speakerOrganizationLine(`${headline} ${jobTitle}`, profile?.company) ?? "";
+  const companyLine = [jobPart, orgPart].filter(Boolean).join(" · ");
   const now = Date.now();
   const upcoming = engagements.filter((e) => new Date(e.starts_at).getTime() >= now);
   const past = engagements.filter((e) => new Date(e.starts_at).getTime() < now);

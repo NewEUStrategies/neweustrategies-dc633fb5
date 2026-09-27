@@ -173,6 +173,21 @@ describe("EventSpeakersSection", () => {
     expect(screen.getByText("Ekspertka")).toBeInTheDocument();
   });
 
+  it("firma, która tylko powtarza rolę, nie stoi pod nazwiskiem drugi raz (ta sama reguła, co siatka)", async () => {
+    h.speakers = [
+      speaker({
+        headline_pl: "Prezes Centralnego Portu Komunikacyjnego",
+        company: "PREZES CENTRALNEGO PORTU KOMUNIKACYJNEGO",
+      }),
+      speaker({ user_id: "u2", display_name: "Bogdan", headline_pl: "Prezes", company: "NASK" }),
+    ];
+    render(<EventSpeakersSection eventId="e1" lang="pl" />, { wrapper });
+    expect(await screen.findByText("Prezes Centralnego Portu Komunikacyjnego")).toBeInTheDocument();
+    expect(screen.queryByText("PREZES CENTRALNEGO PORTU KOMUNIKACYJNEGO")).toBeNull();
+    // Firma, która niesie nowy fakt, zostaje.
+    expect(screen.getByText("NASK")).toBeInTheDocument();
+  });
+
   it("wersja angielska bierze nagłówek angielski", async () => {
     h.speakers = [speaker()];
     render(<EventSpeakersSection eventId="e1" lang="en" />, { wrapper });
