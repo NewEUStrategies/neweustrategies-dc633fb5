@@ -2,7 +2,7 @@
 
 **Data:** 2026-09-26
 **Zgłoszenie:** „goście rejestracji grupowej nie dostają biletów z kodem QR po zatwierdzeniu prowadzącego".
-**Migracja:** `supabase/migrations/20260926100000_event_group_guests_follow_lead.sql`
+**Migracja:** `supabase/migrations/20260926100001_event_group_guests_follow_lead.sql`
 (bliźniak: `drizzle/migrations/0055_event_group_guests_follow_lead.sql`, bajt w bajt)
 **Harness:** `scripts/events-harness/runtime_test.d/27_group_follow_lead.sql`
 
@@ -146,7 +146,7 @@ Cron wyśle tym osobom bilety w ciągu minuty. Alternatywa bez SQL: przycisk
 ## 5. Poza zakresem tej zmiany
 
 Oba punkty, które tu stały, domknęła migracja
-`20260926120000_event_group_lead_closes_admitted_guests.sql` (drizzle 0059) - patrz
+`20260926120001_event_group_lead_closes_admitted_guests.sql` (drizzle 0059) - patrz
 `docs/WDROZENIE_BRAKI_WYDARZEN_CZ2_2026-09-26.md`:
 
 - ~~Goście JUŻ przyjęci zostają przyjęci, gdy prowadzący zostaje odrzucony albo

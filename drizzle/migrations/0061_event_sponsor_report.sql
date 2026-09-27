@@ -1,5 +1,5 @@
 -- Raport dla sponsorow: wyswietlenia, klikniecia, zebrane kontakty (funkcja f6).
--- Blizniak: supabase/migrations/20260926140000_event_sponsor_report.sql (tam pelny naglowek).
+-- Blizniak: supabase/migrations/20260926140001_event_sponsor_report.sql (tam pelny naglowek).
 
 -- ----------------------------------------------------------------------------
 -- 1) REKLAMA STRONY GLOWNEJ PRZYPIETA DO SPONSORA

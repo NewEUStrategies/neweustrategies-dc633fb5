@@ -1,7 +1,7 @@
 -- ============================================================================
 -- 32 RAPORT DLA SPONSOROW - pomiar, raport w studiu, link dla sponsora, CRM
 --
--- Migracja `20260926140000_event_sponsor_report` (funkcja f6). Plik sprawdza:
+-- Migracja `20260926140001_event_sponsor_report` (funkcja f6). Plik sprawdza:
 --   * NAPRAWE reklam strony glownej na PRODUKCYJNEJ definicji
 --     `current_tenant_id()` (profil zalogowanego - NULL dla goscia): atrapa
 --     harnessu robi `COALESCE(_caller_tenant(), public_tenant_id())`, wiec

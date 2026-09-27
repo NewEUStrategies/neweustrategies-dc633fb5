@@ -40,7 +40,15 @@ vi.mock("@/lib/events/adminCfpErrors", () => ({
     `odmowa:${error instanceof Error ? error.message : String(error)}`,
 }));
 vi.mock("@/lib/events/cfpNotify.functions", () => ({ notifyCfpDecision: h.notify }));
-vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
+// `useEventCfp` unieważnia klucze zgłoszeń z `useEventRegistrations`, a ten
+// moduł ciągnie funkcję serwera ponownej wysyłki biletu - łańcuch
+// `createServerFn`/`createMiddleware` musi więc istnieć także w tym mocku.
+vi.mock("@tanstack/react-start", async () => ({
+  ...(await import("@/test/serverFnChain")).reactStartMock(),
+  createMiddleware: () => ({ server: () => ({}) }),
+  useServerFn: (fn: unknown) => fn,
+}));
+vi.mock("@/integrations/supabase/auth-middleware", () => ({ requireSupabaseAuth: {} }));
 vi.mock("@tanstack/react-router", async () => ({
   Link: (await import("@/test/events/cfpStubs")).routerLinkWithSearchStub(await import("react")),
 }));

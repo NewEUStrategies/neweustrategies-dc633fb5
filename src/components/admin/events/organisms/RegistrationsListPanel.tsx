@@ -14,6 +14,10 @@
 // nad zapytaniem, wiec licznik stron nie wymaga drugiego zapytania, a lista w
 // dniu wydarzenia nie ciagnie tysiaca wierszy do przegladarki.
 //
+// MIEJSCE NA SALI z jednego wspolnego odczytu (`admin_event_seat_lookup`) dla
+// WIDOCZNYCH wierszy - lista zgloszen nie przepisuje swojej duzej RPC, a CSV
+// dostaje te sama kolumne "seat" tym samym zdaniem, co plan sali.
+//
 // GRUPA I BILET Z OSOBNEGO ZAPYTANIA. Lista nie wie, kto jest gosciem czyjej
 // rejestracji grupowej ani czy bilet z kodem QR wyszedl mailem - wie o tym
 // `admin_event_registration_group_links`. Bez tego organizator widzial gosci
@@ -85,6 +89,8 @@ import {
   useResendEventTicket,
 } from "@/lib/events/useEventRegistrations";
 
+ensureSeatingI18n();
+ensureEventSeatingI18n();
 // Plakietki grupy i biletu oraz ich komunikaty mieszkaja w tej nakladce.
 ensureAdminEventRegistrationI18n();
 
@@ -622,6 +628,11 @@ export function RegistrationsListPanel({
                     </Badge>
                     {ticket === null ? null : <Badge variant="outline">{ticket}</Badge>}
                     {group === null ? null : <Badge variant="outline">{group}</Badge>}
+                    {(seatsByRegistration.get(row.id) ?? []).map((label) => (
+                      <Badge key={label} variant="outline">
+                        {t("adminEventSeating.registrations.seat", { label })}
+                      </Badge>
+                    ))}
                     {leadName === null ? null : (
                       <Badge variant="outline">
                         {leadName === ""

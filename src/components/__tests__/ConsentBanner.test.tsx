@@ -199,7 +199,15 @@ describe("ConsentBanner - panel preferencji", () => {
 
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveAttribute("aria-modal", "true");
-    expect(screen.getByRole("button", { name: `${PL.showVendors} 4` })).toBeInTheDocument();
+    // Przycisk podmiotów stoi w KAŻDEJ z czterech kategorii, a liczba w nazwie
+    // to wielkość deklaracji danej kategorii - kilka kategorii może mieć ich
+    // tyle samo (np. niezbędne i marketingowe po 4), więc sprawdzamy wiersz
+    // niezbędnych, który stoi pierwszy, a nie jedyny przycisk z daną liczbą.
+    const vendorButtons = screen.getAllByRole("button", {
+      name: new RegExp(`^${PL.showVendors} \\d+$`),
+    });
+    expect(vendorButtons).toHaveLength(4);
+    expect(vendorButtons[0]).toHaveAccessibleName(`${PL.showVendors} 4`);
   });
 });
 

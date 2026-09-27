@@ -82,6 +82,10 @@ describe("rozpoznanie sekcji studia po adresie", () => {
     expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/meetings/list`)).toBe(
       "meetingsList",
     );
+    // Zasady biletów (F1-F5): przekazanie, zwrot, oferty z listy rezerwowej.
+    expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/registration/policies`)).toBe(
+      "registrationPolicies",
+    );
     expect(eventStudioSectionFromPath(`/admin/events/${EVENT_ID}/cfp/submissions`)).toBe(
       "cfpSubmissions",
     );

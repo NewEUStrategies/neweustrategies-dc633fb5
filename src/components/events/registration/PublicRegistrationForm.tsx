@@ -151,6 +151,14 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
     });
   }, [user, hasDraft]);
 
+  // LEJEK: "rozpoczecie zapisu" liczy sie, gdy OTWARTY formularz naprawde
+  // stanal przed uczestnikiem (jest szkic, zapis jeszcze nie przeszedl) - raz
+  // na sesje; bramka zgody analytics i deduplikacja siedza w beaconie.
+  const formOpenForVisitor = form.isOpen && hasDraft && result === null;
+  useEffect(() => {
+    if (formOpenForVisitor) sendEventFunnelStep("registration_start", { slug });
+  }, [formOpenForVisitor, slug]);
+
   // KOD DOSTĘPU Z PAMIĘCI KARTY. Wejściówka za kodem (`requiresAccessCode`)
   // odmawia zapisu bez niego, a uczestnik z linku zaproszenia (`?code=`) ma go
   // już w pamięci - pole wypełniamy, ale nie blokujemy: czy kod pasuje, wie
