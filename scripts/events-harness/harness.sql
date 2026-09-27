@@ -347,30 +347,6 @@ EXCEPTION WHEN OTHERS THEN
 END $$;
 
 -- ----------------------------------------------------------------------------
--- `enqueue_notification` - ATRAPA PRODUCENTA DZWONKOW (sygnatura z 20260812091000
--- i 20260926153300)
--- ----------------------------------------------------------------------------
--- Migracja platformy (bramka preferencji, rodzaje `event`/`billing`, push) NIE
--- jest replayowana - jej zachowanie dowodzi pgTAP na prawdziwej funkcji. Tutaj
--- stoi wylacznie sygnatura, zeby kod modulu, ktory wola producenta, kompilowal
--- sie i biegl. Atrapa nic nie zapisuje i zwraca NULL - dokladnie to, co
--- produkcja zwraca dla dzwonka wyciszonego preferencja. Plik 13 sprawdza jej
--- TOZSAMOSC po komentarzu (`events-harness stub`), zeby atrapa nie udawala
--- prawdziwej funkcji.
-CREATE OR REPLACE FUNCTION public.enqueue_notification(
-  p_user_id uuid, p_kind text, p_title_pl text, p_title_en text,
-  p_body_pl text DEFAULT NULL, p_body_en text DEFAULT NULL,
-  p_href text DEFAULT NULL, p_icon text DEFAULT NULL
-) RETURNS uuid
-LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
-  SELECT NULL::uuid
-$$;
-COMMENT ON FUNCTION public.enqueue_notification(uuid, text, text, text, text, text, text, text) IS
-  'events-harness stub: producent dzwonkow z 20260926153300 nie jest replayowany (zachowanie dowodzi pgTAP); atrapa zwraca NULL jak dzwonek wyciszony.';
-REVOKE ALL ON FUNCTION public.enqueue_notification(uuid, text, text, text, text, text, text, text) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.enqueue_notification(uuid, text, text, text, text, text, text, text) TO service_role;
-
--- ----------------------------------------------------------------------------
 -- Wspolny trigger stempla `updated_at` (ksztalt z platformy; modul wiesza go
 -- na kazdej swojej tabeli)
 -- ----------------------------------------------------------------------------
@@ -1538,22 +1514,6 @@ REVOKE ALL ON FUNCTION public.enqueue_notification(uuid, text, text, text, text,
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.enqueue_notification(uuid, text, text, text, text, text, text, text)
   TO service_role;
-
--- ----------------------------------------------------------------------------
--- event_rsvps - KSZTALT KONCOWY domeny statusow (20260721150000:38-48):
--- `waitlist` w katalogu i znacznik kolejki `waitlisted_at`. Zwolnienie
--- starszej rezerwacji (`_event_legacy_rsvp_release`) pisze 'cancelled' -
--- literowka 'canceled' (D0-1) musi sie tu wywracac na CHECK-u.
--- ----------------------------------------------------------------------------
-ALTER TABLE public.event_rsvps ADD COLUMN IF NOT EXISTS waitlisted_at timestamptz;
-ALTER TABLE public.event_rsvps DROP CONSTRAINT IF EXISTS event_rsvps_status_check;
-ALTER TABLE public.event_rsvps
-  ADD CONSTRAINT event_rsvps_status_check
-  CHECK (status IN ('going', 'interested', 'cancelled', 'waitlist'));
-ALTER TABLE public.event_rsvps DROP CONSTRAINT IF EXISTS event_rsvps_waitlist_marker_check;
-ALTER TABLE public.event_rsvps
-  ADD CONSTRAINT event_rsvps_waitlist_marker_check
-  CHECK (status <> 'waitlist' OR waitlisted_at IS NOT NULL);
 
 -- ----------------------------------------------------------------------------
 -- payment_orders - pola operatora i cyklu zycia czytane przez tor B
