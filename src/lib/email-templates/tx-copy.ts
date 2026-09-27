@@ -511,7 +511,7 @@ const PL: Dict = {
     intro:
       "Gratulacje! Organizator przyjął Twoje zgłoszenie do programu wydarzenia. Potwierdź udział w panelu prelegenta, żeby wystąpienie mogło zostać ogłoszone.",
     cta: "Potwierdź udział",
-    note: "W panelu prelegenta uzupełnisz biogram i zdjęcie oraz dodasz materiały. Szczegóły sesji ogłosimy w programie.",
+    note: "Po potwierdzeniu udziału uzupełnisz w panelu prelegenta biogram i zdjęcie oraz dodasz materiały. Szczegóły sesji ogłosimy w programie.",
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
@@ -1016,7 +1016,7 @@ const EN: Dict = {
     intro:
       "Congratulations! The organiser accepted your submission into the event programme. Confirm your participation in the speaker panel so the talk can be announced.",
     cta: "Confirm participation",
-    note: "In the speaker panel you can complete your bio and photo and add materials. Session details will be announced in the programme.",
+    note: "Once you confirm, you can complete your bio and photo and add materials in the speaker panel. Session details will be announced in the programme.",
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },

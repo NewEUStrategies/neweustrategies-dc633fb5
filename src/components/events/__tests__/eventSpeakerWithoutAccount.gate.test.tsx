@@ -169,6 +169,9 @@ function planRows(rows: Record<string, unknown>[]): void {
 beforeEach(() => {
   h.rpc = supabaseRpcStub();
   planRows([personRow(), accountRow()]);
+  // Dialog profilu na wydarzeniu pyta o opublikowane materiały osoby (po
+  // nakładce z wiersza) - osoba bez konta ma nakładkę, więc ma o co zapytać.
+  h.rpc.setData("event_speaker_materials_public", []);
   // Trucizna: stare RPC oddaje kartę, której na stronie być nie może.
   h.rpc.setData("get_public_speakers", [
     { ...rpcRow(), user_id: "dddddddd-0000-4000-8000-000000000009", display_name: POISON_NAME },
@@ -277,8 +280,12 @@ describe("klik w osobę bez konta ma co pokazać", () => {
     expect(within(dialog).getByText(PERSON.topic)).toBeInTheDocument();
     // Osoba bez konta nie ma po czym dociągać profilu - dialog NIE MOŻE
     // odpalić `get_public_speakers` z listą `p_user_ids`, bo nie ma czego tam
-    // wpisać, a puste zapytanie oddałoby KATALOG.
-    expect(h.rpc?.names()).toEqual(["event_speakers_public"]);
+    // wpisać, a puste zapytanie oddałoby KATALOG. Jedyne dodatkowe pytanie to
+    // materiały z TEGO wydarzenia - po nakładce, która dla tej osoby istnieje.
+    await waitFor(() =>
+      expect(h.rpc?.names()).toEqual(["event_speakers_public", "event_speaker_materials_public"]),
+    );
+    expect(h.rpc?.lastCall("event_speaker_materials_public")?.arg("p_event_id")).toBe(EVENT_ID);
   });
 
   it("osoba, o której wiersz nie wie nic ponad kartę, NIE udaje przycisku", async () => {

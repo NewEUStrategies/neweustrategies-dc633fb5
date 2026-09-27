@@ -8,6 +8,12 @@
 //
 // ADRES OTWIERA SIĘ W NOWEJ KARCIE Z `noopener noreferrer`. To adres wpisany
 // przez osobę spoza zespołu - nie może dostać dostępu do okna panelu.
+//
+// MATERIAŁ „TYLKO DLA ORGANIZATORÓW" NIE MA PRZYCISKU PUBLIKACJI. Strona
+// wydarzenia (`event_speaker_materials_public`) takiego materiału nigdy nie
+// pokaże, więc „Opublikuj" udawałoby skutek - baza i tak odmówi
+// (`invalid_visibility`). Wcześniej opublikowany materiał, którego prelegent
+// nie zmienił, da się nadal wycofać (stan bezpieczny).
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -125,19 +131,25 @@ export function CfpMaterialsTable({ eventId, timezone }: { eventId: string; time
                         {t("adminEventCfp.materials.open")}
                       </a>
                     </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={publish.isPending}
-                      onClick={() => toggle(row.id, !row.is_published)}
-                    >
-                      {t(
-                        row.is_published
-                          ? "adminEventCfp.materials.unpublish"
-                          : "adminEventCfp.materials.publish",
-                      )}
-                    </Button>
+                    {row.visibility === "organizers" && !row.is_published ? (
+                      <span className="self-center text-xs text-muted-foreground">
+                        {t("adminEventCfp.materials.organizersOnly")}
+                      </span>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={publish.isPending}
+                        onClick={() => toggle(row.id, !row.is_published)}
+                      >
+                        {t(
+                          row.is_published
+                            ? "adminEventCfp.materials.unpublish"
+                            : "adminEventCfp.materials.publish",
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>

@@ -2,9 +2,12 @@
 //
 // CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - pilnowane niżej:
 // Najważniejsze zobowiązania: (1) każda mutacja panelu unieważnia CAŁĄ gałąź
-// `["event-cfp", eventId]` (a przyjęcie także agendę, zapisy i rejestr
-// prelegentów tego wydarzenia); (2) mutacje uczestnika unieważniają jego gałąź
-// `["event-cfp-me", slug]`; (3) zapytanie bez identyfikatora nie startuje.
+// `["event-cfp", eventId]` (a przyjęcie i decyzja - która może COFNĄĆ przyjęcie -
+// także agendę, zapisy i rejestr prelegentów tego wydarzenia); (2) mutacje
+// uczestnika unieważniają jego gałąź `["event-cfp-me", slug]`, a potwierdzenie,
+// rezygnacja i wycofanie także panel „Moje", listę prelegentów i ich materiały
+// (zapis z biletem i wpis na liście zmieniają się razem z nimi); (3) zapytanie
+// bez identyfikatora nie startuje.
 import { waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -180,6 +183,20 @@ describe("mutacje panelu", () => {
     expect(keys).toContainEqual(["admin", "event", "e1", "speakers"]);
     expect(keys.length).toBe(5);
   });
+
+  it("decyzja (także cofnięcie przyjęcia) unieważnia te same klucze, co przyjęcie", async () => {
+    const accept = renderHookWithQueryClient(() => admin.useAcceptCfpSubmission("e1"));
+    const acceptSpy = vi.spyOn(accept.queryClient, "invalidateQueries");
+    await accept.result.current.mutateAsync({ id: "s1", register: true, schedule: null });
+    const decide = renderHookWithQueryClient(() => admin.useDecideCfpSubmission("e1"));
+    const decideSpy = vi.spyOn(decide.queryClient, "invalidateQueries");
+    await decide.result.current.mutateAsync({ id: "s1", status: "rejected" });
+    const keysOf = (spy: typeof decideSpy) => spy.mock.calls.map((call) => call[0]?.queryKey);
+    expect(keysOf(decideSpy)).toEqual(keysOf(acceptSpy));
+    expect(keysOf(decideSpy)).toContainEqual(["admin-event-speakers", "e1"]);
+    // Inne wydarzenie nietknięte.
+    expect(keysOf(decideSpy)).not.toContainEqual(admin.cfpKeys.event("e2"));
+  });
 });
 
 describe("zapytania i mutacje uczestnika", () => {
@@ -229,6 +246,39 @@ describe("zapytania i mutacje uczestnika", () => {
     await result.current.mutateAsync(input);
     expect(pub[fn].mock.calls[0]?.[0 as number]).toEqual(input);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: me.cfpMeKeys.slug("kongres") });
+  });
+
+  it.each([
+    ["useWithdrawCfpSubmission", "s1"],
+    ["useRespondCfpSubmission", { id: "s1", confirm: true }],
+  ] as const)(
+    "%s odświeża też panel „Moje”, listę prelegentów i ich materiały",
+    async (hook, input) => {
+      const useHook = me[hook] as (slug: string) => {
+        mutateAsync: (input: unknown) => Promise<unknown>;
+      };
+      const { result, queryClient } = renderHookWithQueryClient(() => useHook("kongres"));
+      const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+      await result.current.mutateAsync(input);
+      const keys = invalidate.mock.calls.map((call) => call[0]?.queryKey);
+      expect(keys).toEqual([
+        me.cfpMeKeys.slug("kongres"),
+        ["event-me", "kongres"],
+        ["builder-speakers"],
+        ["event-speaker-materials"],
+      ]);
+    },
+  );
+
+  it("zwykły zapis szkicu nie rusza panelu „Moje” ani listy prelegentów", async () => {
+    const { result, queryClient } = renderHookWithQueryClient(() =>
+      me.useSaveCfpSubmission("kongres"),
+    );
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    await result.current.mutateAsync({ slug: "kongres" });
+    expect(invalidate.mock.calls.map((call) => call[0]?.queryKey)).toEqual([
+      me.cfpMeKeys.slug("kongres"),
+    ]);
   });
 
   it("odpowiedź na przyjęcie rozkłada argumenty", async () => {

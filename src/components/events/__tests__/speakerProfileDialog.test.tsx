@@ -13,11 +13,15 @@
 //      KAŻDEGO prelegenta; bez `enabled` wejście na stronę wydarzenia z 30
 //      prelegentami odpaliłoby 60 zapytań naraz.
 //
+// Czwarta rzecz: MATERIAŁY PRELEGENTA z wydarzenia. Powierzchnia wydarzenia
+// podaje `eventId`, a dialog dokleja opublikowane materiały osoby (po nakładce
+// z wiersza listy). Bez `eventId` albo bez nakładki - nic, bo nie ma o co pytać.
+//
 // Trzecia rzecz: dwujęzyczność z fallbackiem SYMETRYCZNYM. Prelegent, który
 // wypełnił tylko wersję angielską, ma być czytelny na polskiej stronie - i
 // odwrotnie. Dotyczy to również tematów, gdzie fallback łatwo pominąć, bo to
 // tablica, a nie napis.
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -31,6 +35,14 @@ const h = vi.hoisted(() => ({
   /** Zapytania, które NAPRAWDĘ poszły do sieci (queryFn wywołany). */
   fetched: [] as string[],
   loading: false,
+  materials: [] as Array<{ eventId: string; speakerProfileId: string; lang: string }>,
+}));
+
+vi.mock("@/components/events/SpeakerMaterialsList", () => ({
+  SpeakerMaterialsList: (props: { eventId: string; speakerProfileId: string; lang: string }) => {
+    h.materials.push(props);
+    return <p>materiały:{props.speakerProfileId}</p>;
+  },
 }));
 
 vi.mock("@/lib/builder/speakersQuery", () => ({
@@ -152,6 +164,7 @@ beforeEach(() => {
   h.engagementOptions = [];
   h.fetched = [];
   h.loading = false;
+  h.materials = [];
   vi.useRealTimers();
 });
 
@@ -307,6 +320,19 @@ describe("SpeakerProfileDialog - tożsamość i odznaki", () => {
     expect(within(panel()).getByText("Języki: PL, EN")).toBeInTheDocument();
   });
 
+  it("języki prelegenta po angielsku mają angielską etykietę", async () => {
+    await dialog({ lang: "en", profile: profileRow({ languages: ["pl"] }) });
+    expect(within(panel()).getByText("Languages: PL")).toBeInTheDocument();
+  });
+
+  it("odnośnik do pełnego profilu po angielsku", async () => {
+    await dialog({ lang: "en", profile: profileRow({ slug: "anna-kowalska" }) });
+    expect(within(panel()).getByRole("link", { name: /View full profile/ })).toHaveAttribute(
+      "href",
+      "/author/anna-kowalska",
+    );
+  });
+
   it("brak języków nie zostawia pustej linijki", async () => {
     const { container } = await dialog({ profile: profileRow() });
     expect(container.textContent).not.toContain("Języki");
@@ -412,6 +438,15 @@ describe("SpeakerProfileDialog - wystąpienia", () => {
     expect(within(panel()).getByText("Tylko po polsku")).toBeInTheDocument();
   });
 
+  it("tytuł wystąpienia po polsku bez wersji PL bierze wersję EN", async () => {
+    await dialog({
+      lang: "pl",
+      profile: profileRow(),
+      engagements: [future("f1", { title_pl: "", title_en: "Only in English" })],
+    });
+    expect(within(panel()).getByText("Only in English")).toBeInTheDocument();
+  });
+
   it("miejsce pokazuje się tylko, gdy jest podane", async () => {
     const { unmount } = await dialog({
       profile: profileRow(),
@@ -446,5 +481,39 @@ describe("SpeakerProfileDialog - wystąpienia", () => {
   it("nagłówek sekcji jest przetłumaczony", async () => {
     await dialog({ lang: "en", profile: profileRow(), engagements: [future("f1")] });
     expect(within(panel()).getByText("Engagements")).toBeInTheDocument();
+  });
+});
+
+describe("SpeakerProfileDialog - materiały prelegenta z wydarzenia", () => {
+  function renderWith(props: { eventId?: string; row?: PublicSpeakerRow | null }) {
+    h.profile = null;
+    return render(
+      <Wrapper>
+        <SpeakerProfileDialog
+          userId=""
+          lang="en"
+          open
+          onOpenChange={() => {}}
+          eventId={props.eventId}
+          row={props.row}
+        />
+      </Wrapper>,
+    );
+  }
+
+  it("z wydarzeniem i nakładką z wiersza listy dokleja materiały tej osoby", async () => {
+    renderWith({ eventId: "e1", row: profileRow({ speaker_profile_id: "sp1" }) });
+    expect(await within(panel()).findByText("materiały:sp1")).toBeInTheDocument();
+    expect(h.materials.at(-1)).toEqual({ eventId: "e1", speakerProfileId: "sp1", lang: "en" });
+  });
+
+  it("bez wydarzenia (katalog, widget) albo bez nakładki - nie pyta o materiały", async () => {
+    renderWith({ row: profileRow({ speaker_profile_id: "sp1" }) });
+    await screen.findByRole("dialog");
+    expect(h.materials).toEqual([]);
+    cleanup();
+    renderWith({ eventId: "e1", row: profileRow({ speaker_profile_id: null }) });
+    await screen.findByRole("dialog");
+    expect(h.materials).toEqual([]);
   });
 });

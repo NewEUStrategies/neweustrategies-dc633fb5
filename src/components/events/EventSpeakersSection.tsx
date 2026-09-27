@@ -144,6 +144,7 @@ export function EventSpeakersSection({
         <SpeakerProfileDialog
           userId={dialogSpeaker.userId}
           row={dialogSpeaker.row}
+          eventId={eventId}
           lang={lang}
           open
           onOpenChange={(open) => {

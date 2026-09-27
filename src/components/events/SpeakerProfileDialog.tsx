@@ -23,6 +23,11 @@
 // SZKIELET TYLKO WTEDY, GDY NIE MA CZEGO POKAZAC. Skoro wiersz przyszedl razem
 // z kliknieciem, to okno moze byc pelne od PIERWSZEJ KLATKI - migotanie
 // szkieletu nad danymi, ktore juz sa w pamieci, to strata, nie informacja.
+//
+// MATERIALY PRELEGENTA (prezentacje, nagrania) sa czescia profilu NA TYM
+// wydarzeniu: powierzchnia wydarzenia podaje `eventId`, a dialog dokleja liste
+// opublikowanych przez organizatora materialow tej osoby (`SpeakerMaterialsList`,
+// odczyt dopiero po otwarciu). Bez `eventId` (katalog, widget) nie ma o co pytac.
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -34,6 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { AppLink } from "@/components/atoms/AppLink";
 import { SpeakerExpertBadge } from "@/components/events/SpeakerExpertBadge";
+import { SpeakerMaterialsList } from "@/components/events/SpeakerMaterialsList";
 import { ArrowRight, CalendarClock, MapPin } from "@/lib/lucide-shim";
 import {
   speakerEngagementsQueryOptions,
@@ -71,6 +77,11 @@ interface SpeakerProfileDialogProps {
    */
   row?: PublicSpeakerRow | null;
   fallback?: SpeakerDialogFallback;
+  /**
+   * Wydarzenie, na ktorym otwarto profil. Podane = dialog pokazuje opublikowane
+   * materialy tej osoby z tego wydarzenia (po `row.speaker_profile_id`).
+   */
+  eventId?: string;
 }
 
 function loc(pl: string | null, en: string | null, lang: Lang): string {
@@ -78,10 +89,10 @@ function loc(pl: string | null, en: string | null, lang: Lang): string {
   return primary || pl || en || "";
 }
 
+// Data jest zawsze poprawna: wiersz z nieczytelna data odpada wczesniej
+// z obu list (porownania z NaN sa falszywe w obie strony - patrz ProfileBody).
 function formatEngagementDate(iso: string, lang: Lang): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString(uiLocale(lang), {
+  return new Date(iso).toLocaleString(uiLocale(lang), {
     dateStyle: "long",
     timeStyle: "short",
   });
@@ -271,6 +282,7 @@ export function SpeakerProfileDialog({
   onOpenChange,
   row,
   fallback,
+  eventId,
 }: SpeakerProfileDialogProps) {
   const profileQ = useQuery({ ...speakerProfileQueryOptions(userId), enabled: open && !!userId });
   const engagementsQ = useQuery({
@@ -302,6 +314,13 @@ export function SpeakerProfileDialog({
         ) : (
           <ProfileBody profile={shown} fallback={fallback} lang={lang} engagements={engagements} />
         )}
+        {eventId && row?.speaker_profile_id ? (
+          <SpeakerMaterialsList
+            eventId={eventId}
+            speakerProfileId={row.speaker_profile_id}
+            lang={lang}
+          />
+        ) : null}
       </DialogContent>
     </Dialog>
   );

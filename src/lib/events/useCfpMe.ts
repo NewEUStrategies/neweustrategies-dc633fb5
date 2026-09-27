@@ -11,6 +11,11 @@
 //
 // ZAPYTANIA PERSONALNE MAJĄ `enabled` - bez sesji nie ma o co pytać (baza
 // odpowiedziałaby `auth_required`).
+//
+// ODPOWIEDŹ NA PRZYJĘCIE I WYCOFANIE SIĘGAJĄ POZA NABÓR: potwierdzenie dopisuje
+// prelegenta do publicznej listy, a rezygnacja/wycofanie anuluje zapis z biletem
+// i zdejmuje z listy (razem z materiałami). Dlatego te dwie mutacje odświeżają
+// też panel „Moje" (`["event-me", slug]`), listę prelegentów i ich materiały.
 import {
   useMutation,
   useQuery,
@@ -38,6 +43,8 @@ import {
   type SpeakerMaterialInput,
   type SpeakerProfileInput,
 } from "@/lib/events/cfpPublicApi";
+import { speakerMaterialsKeys } from "@/lib/events/speakerMaterialsPublic";
+import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import type {
   CfpMySubmissions,
   CfpPublic,
@@ -135,14 +142,21 @@ export function useCfpReview(
 function useMeMutation<TInput, TResult>(
   slug: string,
   run: (input: TInput) => Promise<TResult>,
+  extraKeys: ReadonlyArray<readonly unknown[]> = [],
 ): UseMutationResult<TResult, Error, TInput> {
   const queryClient = useQueryClient();
   return useMutation<TResult, Error, TInput>({
     mutationFn: run,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: cfpMeKeys.slug(slug) });
+      for (const key of extraKeys) void queryClient.invalidateQueries({ queryKey: key });
     },
   });
+}
+
+/** Klucze poza naborem, które zmienia potwierdzenie, rezygnacja i wycofanie. */
+function acceptanceSideEffectKeys(slug: string): ReadonlyArray<readonly unknown[]> {
+  return [["event-me", slug], [WIDGET_QUERY_ROOTS.speakers], speakerMaterialsKeys.all];
 }
 
 export function useSaveCfpSubmission(slug: string) {
@@ -154,12 +168,18 @@ export function useSubmitCfpSubmission(slug: string) {
 }
 
 export function useWithdrawCfpSubmission(slug: string) {
-  return useMeMutation<string, CfpWriteResult>(slug, withdrawCfpSubmission);
+  return useMeMutation<string, CfpWriteResult>(
+    slug,
+    withdrawCfpSubmission,
+    acceptanceSideEffectKeys(slug),
+  );
 }
 
 export function useRespondCfpSubmission(slug: string) {
-  return useMeMutation<{ id: string; confirm: boolean }, CfpWriteResult>(slug, (input) =>
-    respondCfpSubmission(input.id, input.confirm),
+  return useMeMutation<{ id: string; confirm: boolean }, CfpWriteResult>(
+    slug,
+    (input) => respondCfpSubmission(input.id, input.confirm),
+    acceptanceSideEffectKeys(slug),
   );
 }
 

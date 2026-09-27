@@ -178,17 +178,36 @@ export function useReorderCfpFields(eventId: string) {
   return useCfpMutation<string[], void>(eventId, (ids) => reorderCfpFields(eventId, ids));
 }
 
+/**
+ * Decyzja może COFNĄĆ przyjęcie (z przyjętego albo potwierdzonego na rezerwę
+ * albo odrzucenie) - baza anuluje wtedy zapis z biletem, zdejmuje z listy
+ * prelegentów i z obsady sesji. Stąd te same klucze poza naborem, co przy
+ * przyjęciu.
+ */
 export function useDecideCfpSubmission(eventId: string) {
-  return useCfpMutation<CfpDecisionInput, void>(eventId, decideCfpSubmission);
+  return useCfpMutation<CfpDecisionInput, void>(
+    eventId,
+    decideCfpSubmission,
+    acceptanceSideEffectKeys(eventId),
+  );
 }
 
-export function useAcceptCfpSubmission(eventId: string) {
-  return useCfpMutation<CfpAcceptInput, CfpAcceptResult>(eventId, acceptCfpSubmission, [
+/** Klucze poza naborem, które zmienia przyjęcie i jego cofnięcie. */
+function acceptanceSideEffectKeys(eventId: string): Array<readonly unknown[]> {
+  return [
     agendaKeys.event(eventId),
     registrationKeys.event(eventId),
     ["admin-event-speakers", eventId],
     ["admin", "event", eventId, "speakers"],
-  ]);
+  ];
+}
+
+export function useAcceptCfpSubmission(eventId: string) {
+  return useCfpMutation<CfpAcceptInput, CfpAcceptResult>(
+    eventId,
+    acceptCfpSubmission,
+    acceptanceSideEffectKeys(eventId),
+  );
 }
 
 export function useRetryCfpCrm(eventId: string) {

@@ -32,12 +32,14 @@ vi.mock("@/components/events/SpeakerProfileDialog", () => ({
   // że dialog się pojawił.
   SpeakerProfileDialog: ({
     userId,
+    eventId,
     onOpenChange,
   }: {
     userId: string;
+    eventId?: string;
     onOpenChange: (open: boolean) => void;
   }) => (
-    <div data-testid="dialog-prelegenta">
+    <div data-testid="dialog-prelegenta" data-event-id={eventId}>
       {userId}
       <button type="button" onClick={() => onOpenChange(false)}>
         Zamknij profil
@@ -191,6 +193,9 @@ describe("EventSpeakersSection", () => {
     render(<EventSpeakersSection eventId="e1" lang="pl" />, { wrapper });
     fireEvent.click(await screen.findByRole("button", { name: /Anna Kowalska/ }));
     expect(screen.getByTestId("dialog-prelegenta")).toHaveTextContent("u1");
+    // Wydarzenie idzie do dialogu - bez niego profil nie pokaże opublikowanych
+    // materiałów prelegenta z tego wydarzenia.
+    expect(screen.getByTestId("dialog-prelegenta")).toHaveAttribute("data-event-id", "e1");
   });
 
   it("zamknięcie profilu USUWA dialog i pozwala otworzyć go ponownie", async () => {
