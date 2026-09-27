@@ -24435,6 +24435,20 @@ export type Database = {
           token_prefix: string
         }[]
       }
+      admin_event_seat_category_delete: {
+        Args: { p_category_id: string }
+        Returns: boolean
+      }
+      admin_event_seat_category_save: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_seat_map_delete: {
+        Args: { p_map_id: string }
+        Returns: boolean
+      }
+      admin_event_seat_map_detail: { Args: { p_map_id: string }; Returns: Json }
+      admin_event_seat_map_save: { Args: { p_payload: Json }; Returns: string }
       admin_event_seat_maps_list: {
         Args: { p_event_id: string }
         Returns: {
@@ -24465,6 +24479,15 @@ export type Database = {
           width: number
         }[]
       }
+      admin_event_seat_section_delete: {
+        Args: { p_section_id: string }
+        Returns: boolean
+      }
+      admin_event_seat_section_save: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_seats_update: { Args: { p_payload: Json }; Returns: number }
       admin_event_session_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_session_detail: {
         Args: { _id: string }
