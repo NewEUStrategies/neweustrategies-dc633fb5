@@ -416,25 +416,93 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0057_event_cfp",
     twin: "20260927000100_event_cfp.sql",
   },
+  // Czesci 2..6 migracji 0057_event_cfp (scripts/split-migration.ts,
+  // limit wdrozenia Lovable) - kazda para czesci to pelne blizniaki.
+  {
+    tag: "0057_event_cfp_part2",
+    twin: "20260927000101_event_cfp_part2.sql",
+  },
+  {
+    tag: "0057_event_cfp_part3",
+    twin: "20260927000102_event_cfp_part3.sql",
+  },
+  {
+    tag: "0057_event_cfp_part4",
+    twin: "20260927000103_event_cfp_part4.sql",
+  },
+  {
+    tag: "0057_event_cfp_part5",
+    twin: "20260927000104_event_cfp_part5.sql",
+  },
+  {
+    tag: "0057_event_cfp_part6",
+    twin: "20260927000105_event_cfp_part6.sql",
+  },
   {
     tag: "0058_event_invoices",
     twin: "20260927000200_event_invoices.sql",
+  },
+  // Czesci 2..5 migracji 0058_event_invoices (scripts/split-migration.ts,
+  // limit wdrozenia Lovable) - kazda para czesci to pelne blizniaki.
+  {
+    tag: "0058_event_invoices_part2",
+    twin: "20260927000201_event_invoices_part2.sql",
+  },
+  {
+    tag: "0058_event_invoices_part3",
+    twin: "20260927000202_event_invoices_part3.sql",
+  },
+  {
+    tag: "0058_event_invoices_part4",
+    twin: "20260927000203_event_invoices_part4.sql",
+  },
+  {
+    tag: "0058_event_invoices_part5",
+    twin: "20260927000204_event_invoices_part5.sql",
   },
   {
     tag: "0059_event_ads_funnel",
     twin: "20260927000300_event_ads_funnel.sql",
   },
+  // Czesc 2 migracji 0059_event_ads_funnel (scripts/split-migration.ts,
+  // limit wdrozenia Lovable) - para czesci to pelne blizniaki.
+  {
+    tag: "0059_event_ads_funnel_part2",
+    twin: "20260927000301_event_ads_funnel_part2.sql",
+  },
   {
     tag: "0060_event_seating",
     twin: "20260927000400_event_seating.sql",
+  },
+  // Czesci 2..3 migracji 0060_event_seating (scripts/split-migration.ts,
+  // limit wdrozenia Lovable) - kazda para czesci to pelne blizniaki.
+  {
+    tag: "0060_event_seating_part2",
+    twin: "20260927000401_event_seating_part2.sql",
+  },
+  {
+    tag: "0060_event_seating_part3",
+    twin: "20260927000402_event_seating_part3.sql",
   },
   {
     tag: "0061_event_sponsor_report",
     twin: "20260927000500_event_sponsor_report.sql",
   },
+  // Czesc 2 migracji 0061_event_sponsor_report (scripts/split-migration.ts,
+  // limit wdrozenia Lovable) - para czesci to pelne blizniaki.
+  {
+    tag: "0061_event_sponsor_report_part2",
+    twin: "20260927000501_event_sponsor_report_part2.sql",
+  },
   {
     tag: "0062_event_scanner_offline",
     twin: "20260926150000_event_scanner_offline.sql",
+  },
+  // Czesc 2 migracji 0062_event_scanner_offline (scripts/split-migration.ts,
+  // limit wdrozenia Lovable) - para czesci to pelne blizniaki.
+  {
+    tag: "0062_event_scanner_offline_part2",
+    twin: "20260926150001_event_scanner_offline_part2.sql",
   },
   {
     tag: "0063_event_ticket_wallet",
@@ -443,6 +511,16 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
   {
     tag: "0064_event_clone",
     twin: "20260927000800_event_clone.sql",
+  },
+  // Czesci 2..3 migracji 0064_event_clone (scripts/split-migration.ts,
+  // limit wdrozenia Lovable) - kazda para czesci to pelne blizniaki.
+  {
+    tag: "0064_event_clone_part2",
+    twin: "20260927000801_event_clone_part2.sql",
+  },
+  {
+    tag: "0064_event_clone_part3",
+    twin: "20260927000802_event_clone_part3.sql",
   },
   {
     tag: "0065_crm_consent_source_event",
@@ -467,6 +545,16 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
   {
     tag: "0068_event_person_crm_sync_lead_names",
     twin: "20260927000900_event_person_crm_sync_lead_names.sql",
+  },
+  // Czesci 2..3 migracji 0067_event_registration_gaps_part3 (scripts/split-migration.ts,
+  // limit wdrozenia Lovable) - kazda para czesci to pelne blizniaki.
+  {
+    tag: "0069_event_registration_gaps_part3_part2",
+    twin: "20260926180001_event_registration_gaps_part3_part2.sql",
+  },
+  {
+    tag: "0070_event_registration_gaps_part3_part3",
+    twin: "20260926180002_event_registration_gaps_part3_part3.sql",
   },
 ];
 

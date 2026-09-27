@@ -6,10 +6,13 @@
 // ankietę otwartą dla wydarzenia, które lista pokazuje jako trwające.
 // Przypadki są TE SAME, co w harnessie `13_participant_foundation.sql`
 // (asercje `13/czas: _event_effective_end …`), a ciało funkcji czytamy
-// z migracji po sufiksie nazwy.
+// z migracji po sufiksie nazwy - z CAŁEJ logicznej migracji, bo plik jest
+// pocięty na części (limit wdrożenia Lovable, scripts/split-migration.ts).
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+
+import { readLogicalMigration } from "@/lib/ci/migrationSize";
 
 import {
   EVENT_DEFAULT_DURATION_MS,
@@ -23,10 +26,13 @@ function readBySuffix(dir: string, suffix: string): string {
   return readFileSync(join(dir, files[0]), "utf8");
 }
 
-const MIGRATION = readBySuffix(
-  join(process.cwd(), "supabase", "migrations"),
-  "_event_participant_foundation.sql",
-);
+function migrationBySuffix(dir: string, suffix: string): string {
+  const files = readdirSync(dir).filter((name) => name.endsWith(suffix));
+  expect(files, `${dir}/*${suffix}`).toHaveLength(1);
+  return readLogicalMigration(dir, files[0]);
+}
+
+const MIGRATION = migrationBySuffix("supabase/migrations", "_event_participant_foundation.sql");
 const HARNESS = readBySuffix(
   join(process.cwd(), "scripts", "events-harness", "runtime_test.d"),
   "_participant_foundation.sql",

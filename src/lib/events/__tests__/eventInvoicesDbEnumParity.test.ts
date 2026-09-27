@@ -6,8 +6,6 @@
 // stan KSeF albo stawke, ktorej baza nie przyjmie, ani ze pomija wartosc,
 // ktora baza juz zwraca (surowa sciezka i18n w odznace). Obie strony czytamy
 // z plikow: migracja jest jedynym zrodlem prawdy o CHECK-ach.
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -25,15 +23,13 @@ import {
   pickEnum,
 } from "@/lib/events/eventInvoiceEnums";
 import { EVENT_INVOICE_VAT_RATES } from "@/lib/events/eventInvoiceMath";
+import { readLogicalMigration } from "@/lib/ci/migrationSize";
 
-const SUPABASE = readFileSync(
-  join(process.cwd(), "supabase", "migrations", "20260927000200_event_invoices.sql"),
-  "utf8",
-);
-const DRIZZLE = readFileSync(
-  join(process.cwd(), "drizzle", "migrations", "0058_event_invoices.sql"),
-  "utf8",
-);
+// Cala LOGICZNA migracja obu pasow: plik jest pociety na czesci (limit
+// wdrozenia Lovable, scripts/split-migration.ts), a CHECK-i i CASE-y leza
+// w roznych czesciach - sama czesc 1 zgubilaby polowe zbiorow.
+const SUPABASE = readLogicalMigration("supabase/migrations", "20260927000200_event_invoices.sql");
+const DRIZZLE = readLogicalMigration("drizzle/migrations", "0058_event_invoices.sql");
 
 /** Wartosci z `CONSTRAINT <nazwa> CHECK (... IN ('a', 'b'))` - wycinek po indeksie. */
 function checkValues(sql: string, constraint: string): string[] {
