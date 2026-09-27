@@ -7,7 +7,12 @@
 // uczestnika unieważniają jego gałąź `["event-cfp-me", slug]`, a potwierdzenie,
 // rezygnacja i wycofanie także panel „Moje", listę prelegentów i ich materiały
 // (zapis z biletem i wpis na liście zmieniają się razem z nimi); (3) zapytanie
-// bez identyfikatora nie startuje.
+// bez identyfikatora nie startuje; (4) KAŻDA mutacja materiału (publikacja w
+// studiu, zapis i usunięcie w panelu prelegenta) unieważnia publiczne
+// materiały prelegentów (`speakerMaterialsKeys`) - ich RPC nie emitują
+// zdarzenia domeny, więc bez tego dialog profilu prelegenta na stronie
+// wydarzenia przez minutę pokazywałby listę sprzed publikacji/zmiany/usunięcia.
+import type { QueryClient } from "@tanstack/react-query";
 import { waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -54,6 +59,26 @@ vi.mock("@/lib/events/cfpPublicApi", () => pub);
 
 const admin = await import("@/lib/events/useEventCfp");
 const me = await import("@/lib/events/useCfpMe");
+const { publicSpeakerMaterialsQueryOptions } = await import("@/lib/events/speakerMaterialsPublic");
+
+/**
+ * Dwa wpisy publicznych materiałów w cache - wydarzenie `e1` (gość i
+ * zalogowany widz) oraz obce `e2` - pod DOKŁADNIE tymi kluczami, pod którymi
+ * czyta je dialog profilu prelegenta. Zwraca, które z nich unieważniono.
+ */
+function seedPublicMaterials(queryClient: QueryClient) {
+  const keys = {
+    e1Anon: publicSpeakerMaterialsQueryOptions("e1", null).queryKey,
+    e1Viewer: publicSpeakerMaterialsQueryOptions("e1", "u1").queryKey,
+    e2Anon: publicSpeakerMaterialsQueryOptions("e2", null).queryKey,
+  };
+  for (const key of Object.values(keys)) queryClient.setQueryData(key, []);
+  return () => ({
+    e1Anon: queryClient.getQueryState(keys.e1Anon)?.isInvalidated,
+    e1Viewer: queryClient.getQueryState(keys.e1Viewer)?.isInvalidated,
+    e2Anon: queryClient.getQueryState(keys.e2Anon)?.isInvalidated,
+  });
+}
 
 const QUERY = {
   eventId: "e1",
@@ -171,6 +196,38 @@ describe("mutacje panelu", () => {
     expect(api.publishCfpMaterial).toHaveBeenCalledWith("m1", true);
   });
 
+  it.each([true, false])(
+    "publikacja materiału (isPublished=%s) odświeża publiczne materiały TEGO wydarzenia",
+    async (isPublished) => {
+      const { result, queryClient } = renderHookWithQueryClient(() =>
+        admin.usePublishCfpMaterial("e1"),
+      );
+      const stale = seedPublicMaterials(queryClient);
+      const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+      expect(stale()).toEqual({ e1Anon: false, e1Viewer: false, e2Anon: false });
+      await result.current.mutateAsync({ id: "m1", isPublished });
+      expect(invalidate.mock.calls.map((call) => call[0]?.queryKey)).toEqual([
+        admin.cfpKeys.event("e1"),
+        ["event-speaker-materials", "e1"],
+      ]);
+      // Dialog gościa i zalogowanego widza tego wydarzenia pyta od nowa; obce
+      // wydarzenie zostaje nietknięte.
+      expect(stale()).toEqual({ e1Anon: true, e1Viewer: true, e2Anon: false });
+    },
+  );
+
+  it("nieudana publikacja nie unieważnia publicznych materiałów", async () => {
+    api.publishCfpMaterial.mockRejectedValueOnce(new Error("forbidden"));
+    const { result, queryClient } = renderHookWithQueryClient(() =>
+      admin.usePublishCfpMaterial("e1"),
+    );
+    const stale = seedPublicMaterials(queryClient);
+    await expect(result.current.mutateAsync({ id: "m1", isPublished: true })).rejects.toThrow(
+      "forbidden",
+    );
+    expect(stale()).toEqual({ e1Anon: false, e1Viewer: false, e2Anon: false });
+  });
+
   it("przyjęcie unieważnia także agendę, zapisy i rejestr prelegentów wydarzenia", async () => {
     const { result, queryClient } = renderHookWithQueryClient(() =>
       admin.useAcceptCfpSubmission("e1"),
@@ -269,6 +326,41 @@ describe("zapytania i mutacje uczestnika", () => {
       ]);
     },
   );
+
+  it.each([
+    ["useSaveSpeakerMaterial", { slug: "kongres", titlePl: "Slajdy" }],
+    ["useDeleteSpeakerMaterial", "m1"],
+  ] as const)("%s odświeża gałąź sluga i publiczne materiały prelegentów", async (hook, input) => {
+    const useHook = me[hook] as (slug: string) => {
+      mutateAsync: (input: unknown) => Promise<unknown>;
+    };
+    const { result, queryClient } = renderHookWithQueryClient(() => useHook("kongres"));
+    const stale = seedPublicMaterials(queryClient);
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    expect(stale()).toEqual({ e1Anon: false, e1Viewer: false, e2Anon: false });
+    await result.current.mutateAsync(input);
+    expect(invalidate.mock.calls.map((call) => call[0]?.queryKey)).toEqual([
+      me.cfpMeKeys.slug("kongres"),
+      ["event-speaker-materials"],
+    ]);
+    // Panel zna tylko slug - odświeża się każdy wpis publicznych materiałów
+    // (każdy widz, każde wydarzenie), a nie tylko jeden.
+    expect(stale()).toEqual({ e1Anon: true, e1Viewer: true, e2Anon: true });
+  });
+
+  it.each([
+    ["useSaveSpeakerMaterial", "saveSpeakerMaterial", { slug: "kongres" }],
+    ["useDeleteSpeakerMaterial", "deleteSpeakerMaterial", "m1"],
+  ] as const)("nieudane %s nie unieważnia publicznych materiałów", async (hook, fn, input) => {
+    pub[fn].mockRejectedValueOnce(new Error("forbidden"));
+    const useHook = me[hook] as (slug: string) => {
+      mutateAsync: (input: unknown) => Promise<unknown>;
+    };
+    const { result, queryClient } = renderHookWithQueryClient(() => useHook("kongres"));
+    const stale = seedPublicMaterials(queryClient);
+    await expect(result.current.mutateAsync(input)).rejects.toThrow("forbidden");
+    expect(stale()).toEqual({ e1Anon: false, e1Viewer: false, e2Anon: false });
+  });
 
   it("zwykły zapis szkicu nie rusza panelu „Moje” ani listy prelegentów", async () => {
     const { result, queryClient } = renderHookWithQueryClient(() =>
