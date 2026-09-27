@@ -2247,6 +2247,19 @@ COMMENT ON FUNCTION public._event_cfp_roster_publish(uuid, uuid) IS
 -- potwierdzonym, wpis na liscie - tylko przy potwierdzonym), zamiast znikac.
 -- Wpis na liscie zostaje tez wtedy, gdy organizator obsadzil osobe w INNEJ,
 -- nieodwolanej sesji - to juz jego reczna decyzja.
+--
+-- Zapis z biletem prelegenta cofamy TYLKO, dopoki nalezy do tej osoby
+-- (`person_id` wystepujacego). Przekazany dalej bilet (przekazanie biletu
+-- uczestnika) jest juz cudzy: jego anulowanie odebraloby miejsce osobie,
+-- ktora nic nie zglaszala. Taki zapis zostaje, a slad `added_registration_id`
+-- znika razem z reszta sladu przyjecia.
+--
+-- Po anulowaniu zapisu konto prelegenta traci tez zapisy na sesje (z awansem
+-- z kolejki sesji), zakladki planu i starsza rezerwacje RSVP
+-- (`_event_participant_release`, ta sama sciezka co pelny zwrot) - chyba ze
+-- trzyma inne aktywne zgloszenie na to wydarzenie. Wolane PO petli, zeby
+-- `event_sessions` bylo ostatnim szczeblem blokad (wydarzenie -> zapis ->
+-- sesje), takze przy kilku wystepujacych.
 CREATE OR REPLACE FUNCTION public._event_cfp_acceptance_undo(
   p_tenant uuid, p_submission_id uuid, p_actor uuid
 )
@@ -2268,6 +2281,10 @@ DECLARE
   v_entries integer := 0;
   v_groups integer := 0;
   v_cast integer := 0;
+  v_user uuid;
+  v_users uuid[] := '{}'::uuid[];
+  v_release jsonb;
+  v_signups integer := 0;
 BEGIN
   SELECT s.event_id, s.session_id INTO v_event, v_session
     FROM public.event_cfp_submissions s
@@ -2304,18 +2321,24 @@ BEGIN
      ORDER BY os.decided_at, o.id
      LIMIT 1;
 
-    -- Zapis z biletem prelegenta.
+    -- Zapis z biletem prelegenta (tylko wciaz nalezacy do tej osoby).
     IF v_sp.added_registration_id IS NOT NULL AND v_active IS NOT NULL THEN
       UPDATE public.event_cfp_submission_speakers o
          SET added_registration_id = COALESCE(o.added_registration_id, v_sp.added_registration_id)
-       WHERE o.tenant_id = p_tenant AND o.id = v_active;
+       WHERE o.tenant_id = p_tenant AND o.id = v_active
+         AND EXISTS (
+           SELECT 1 FROM public.event_registrations r
+            WHERE r.tenant_id = p_tenant AND r.id = v_sp.added_registration_id
+              AND r.person_id = v_sp.person_id
+         );
     ELSIF v_sp.added_registration_id IS NOT NULL THEN
       -- Kolejnosc blokad jak w decyzji organizatora o zapisie: wydarzenie,
-      -- potem wiersz zapisu.
+      -- potem wiersz zapisu. Warunek osoby sprawdzany POD blokada wiersza.
       PERFORM 1 FROM public.events e WHERE e.tenant_id = p_tenant AND e.id = v_event FOR UPDATE;
       SELECT r.* INTO v_reg
         FROM public.event_registrations r
        WHERE r.tenant_id = p_tenant AND r.id = v_sp.added_registration_id
+         AND r.person_id = v_sp.person_id
        FOR UPDATE;
       IF FOUND AND v_reg.status IN ('draft', 'pending', 'waitlist', 'approved') THEN
         UPDATE public.event_registrations r SET
@@ -2341,6 +2364,13 @@ BEGIN
           PERFORM public._event_waitlist_promote(p_tenant, v_event, v_reg.ticket_type_id, 1);
         END IF;
         v_regs := v_regs + 1;
+        v_user := NULL;
+        SELECT p.user_id INTO v_user
+          FROM public.event_people p
+         WHERE p.tenant_id = p_tenant AND p.id = v_reg.person_id;
+        IF v_user IS NOT NULL AND NOT (v_user = ANY (v_users)) THEN
+          v_users := v_users || v_user;
+        END IF;
       END IF;
     END IF;
 
@@ -2384,11 +2414,17 @@ BEGIN
     WHERE sp.tenant_id = p_tenant AND sp.id = v_sp.id;
   END LOOP;
 
+  FOREACH v_user IN ARRAY v_users LOOP
+    v_release := public._event_participant_release(p_tenant, v_event, v_user, 'cfp_revoked');
+    v_signups := v_signups + (v_release->>'signups_cancelled')::integer;
+  END LOOP;
+
   RETURN jsonb_build_object(
     'registrations_cancelled', v_regs,
     'roster_entries_removed', v_entries,
     'group_memberships_removed', v_groups,
-    'session_cast_removed', v_cast
+    'session_cast_removed', v_cast,
+    'session_signups_cancelled', v_signups
   );
 END;
 $$;
@@ -2397,7 +2433,7 @@ REVOKE ALL ON FUNCTION public._event_cfp_acceptance_undo(uuid, uuid, uuid) FROM 
 GRANT EXECUTE ON FUNCTION public._event_cfp_acceptance_undo(uuid, uuid, uuid) TO service_role;
 
 COMMENT ON FUNCTION public._event_cfp_acceptance_undo(uuid, uuid, uuid) IS
-  'Cofniecie skutkow przyjecia zgloszenia: obsada sesji zgloszenia, zapis utworzony przy przyjeciu (anulowany, awans z rezerwy), czlonkostwo dopisane do grupy, wpis dodany na liste prelegentow. Inne aktywne przyjecie tej samej osoby przejmuje zasoby. Liczniki cofnietych elementow.';
+  'Cofniecie skutkow przyjecia zgloszenia: obsada sesji zgloszenia, zapis utworzony przy przyjeciu (anulowany tylko, dopoki nalezy do tej osoby; awans z rezerwy; potem _event_participant_release konta: zapisy na sesje, zakladki, RSVP), czlonkostwo dopisane do grupy, wpis dodany na liste prelegentow. Inne aktywne przyjecie tej samej osoby przejmuje zasoby. Liczniki cofnietych elementow.';
 
 -- ----------------------------------------------------------------------------
 -- 13) PANEL: DECYZJA
