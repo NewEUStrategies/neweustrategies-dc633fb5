@@ -659,6 +659,13 @@
       "when": 1790549204336,
       "tag": "0093_event_seating_part2",
       "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1790549552150,
+      "tag": "0094_event_seating_part3",
+      "breakpoints": true
     }
   ]
 }
