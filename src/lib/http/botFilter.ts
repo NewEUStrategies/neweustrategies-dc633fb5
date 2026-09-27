@@ -13,7 +13,18 @@
 // domeny to cudza strona nabijająca nam liczniki - odrzucamy. Brak nagłówka
 // NIE jest powodem odrzucenia (starsze przeglądarki, prywatność).
 //
+// Z CZYM PORÓWNUJEMY ORIGIN. Z ZAUFANYM hostem strony (`currentTenantHost()`,
+// czyli host zwalidowany względem `tenants.domain`), a NIE z hostem z adresu
+// żądania: za pośrednikiem (CDN, platforma hostingowa) `req.url` niesie host
+// wewnętrzny, a publiczny przychodzi w `X-Forwarded-Host` - porównanie z
+// adresem żądania odrzucało wtedy KAŻDY prawdziwy beacon jako „cudzy". Oba
+// hosty porównujemy znormalizowane (`normalizeHost`: małe litery, bez portu -
+// zaufany host portu nie niesie, a serwer deweloperski stoi na
+// `localhost:<port>`) i z aliasem www/apex, tak jak katalog najemców
+// (`wwwToggledHost`): strona otwarta pod `www.` to ta sama strona.
+//
 // CZYSTA FUNKCJA: żadnego I/O, więc testy podają nagłówki wprost.
+import { normalizeHost, wwwToggledHost } from "./host";
 
 // JEDNA LISTA dla wszystkich beaconów (raport sponsora, lejek sprzedaży).
 // Bez "telegram": wbudowana przeglądarka Telegrama na Androidzie dopisuje
@@ -28,19 +39,20 @@ export function isBotUserAgent(userAgent: string | null | undefined): boolean {
   return value === "" || BOT_USER_AGENT.test(value);
 }
 
-function hostOf(value: string): string | null {
+function originHost(value: string): string | null {
   try {
-    return new URL(value).host.toLowerCase();
+    return normalizeHost(new URL(value).host);
   } catch {
     return null;
   }
 }
 
 /**
- * Czy żądanie wygląda na nieludzkie. `requestHost` = host, pod który przyszło
- * żądanie (z adresu żądania) - `Origin` z innym hostem to cudza strona.
+ * Czy żądanie wygląda na nieludzkie. `trustedHost` = zaufany host strony
+ * (`currentTenantHost()`), nie host z adresu żądania - `Origin` z innym
+ * hostem (poza aliasem www/apex) to cudza strona.
  */
-export function isLikelyBotRequest(headers: Headers, requestHost: string | null): boolean {
+export function isLikelyBotRequest(headers: Headers, trustedHost: string): boolean {
   if (isBotUserAgent(headers.get("user-agent"))) return true;
 
   const purpose =
@@ -48,6 +60,9 @@ export function isLikelyBotRequest(headers: Headers, requestHost: string | null)
   if (purpose.includes("prefetch") || purpose.includes("prerender")) return true;
 
   const origin = headers.get("origin");
-  if (origin === null || origin === "" || requestHost === null) return false;
-  return hostOf(origin) !== requestHost.toLowerCase();
+  if (origin === null || origin === "") return false;
+  const fromOrigin = originHost(origin);
+  const site = normalizeHost(trustedHost);
+  if (fromOrigin === null || site === null) return true;
+  return fromOrigin !== site && fromOrigin !== wwwToggledHost(site);
 }

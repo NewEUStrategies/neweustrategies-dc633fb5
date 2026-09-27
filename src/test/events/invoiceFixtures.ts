@@ -3,7 +3,7 @@
 // KSZTALT Z SYGNATURY RPC. `EventInvoiceCandidateRow` i `EventInvoiceListRow`
 // to aliasy na `Returns[number]` wygenerowanych typow, a dokument jest JSON-em
 // w ksztalcie `_event_invoice_document` + dodatki `admin_event_invoice_get`
-// (migracja 20260926110000) - dokladnie to, co oddaje PostgREST.
+// (migracja 20260927000200) - dokladnie to, co oddaje PostgREST.
 //
 // KOLUMNY NULL-OWALNE IDA ZA BAZA, NIE ZA GENERATOREM (jak `adminSalesRows.ts`):
 // generator obiecuje `string` takze tam, gdzie `RETURNS TABLE` oddaje `null`
@@ -37,6 +37,7 @@ export function invoiceCandidateRow(
   overrides: Partial<EventInvoiceCandidateRow> = {},
 ): EventInvoiceCandidateRow {
   return {
+    admission: "seated",
     amount_source: "order",
     buyer_email: "ksiegowosc@acme.example.com",
     buyer_is_company: true,
@@ -77,6 +78,7 @@ export function invoiceListRow(overrides: Partial<EventInvoiceListRow> = {}): Ev
     buyer_tax_id: "5260250274",
     cancelled_at: NULLOWALNY_NAPIS,
     converted_invoice_id: NULLOWALNY_NAPIS,
+    correction_hint: NULLOWALNY_NAPIS,
     correction_mode: NULLOWALNY_NAPIS,
     corrects_invoice_id: NULLOWALNY_NAPIS,
     corrects_number: NULLOWALNY_NAPIS,
@@ -130,6 +132,7 @@ export function myInvoiceSourceRow(
     paid_at: "2026-09-20T10:05:00.000Z",
     payment_state: "paid",
     po_number: NULLOWALNY_NAPIS,
+    request_block: NULLOWALNY_NAPIS,
     request_deadline: "2026-12-31",
     request_id: NULLOWALNY_NAPIS,
     request_status: NULLOWALNY_NAPIS,
@@ -282,6 +285,26 @@ export function invoiceDocumentJson(
       },
     ],
     corrections: [],
+    current_lines: [
+      {
+        line_id: INVOICE_IDS.line1,
+        description: "Bilet: Standard - Kongres 27",
+        unit: "szt.",
+        quantity: 1,
+        unit_gross_cents: 12300,
+        vat_rate: "23",
+        ticket_type_id: INVOICE_IDS.ticketType,
+      },
+      {
+        line_id: INVOICE_IDS.line2,
+        description: "Bilet: Standard - Kongres 27",
+        unit: "szt.",
+        quantity: 1,
+        unit_gross_cents: 12301,
+        vat_rate: "23",
+        ticket_type_id: INVOICE_IDS.ticketType,
+      },
+    ],
     ...rest,
   };
 }

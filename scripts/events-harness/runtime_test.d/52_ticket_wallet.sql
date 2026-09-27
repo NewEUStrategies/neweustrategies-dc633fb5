@@ -15,8 +15,9 @@
 --   2. Poprawny kod przyjetego i bezplatnego / oplaconego / obecnego
 --      zgloszenia oddaje komplet danych przepustki (najemca, posiadacz,
 --      jezyk, wydarzenie, branding, bilet, grupa) i NIE oddaje e-maila.
+--      Zwrot czesciowy (korekta ceny) tez daje przepustke - kod QR zostaje.
 --   3. Kazdy stan nieuprawniony -> `not_found`: oczekujace, anulowane,
---      nieoplacone, wydarzenie odwolane, kod nieznany.
+--      nieoplacone, zwrocone w calosci, wydarzenie odwolane, kod nieznany.
 --   4. Izolacja najemcy: kod najemcy B na hoscie A -> `not_found`; ten sam
 --      kod na hoscie B -> dane B (kontrapunkt pozytywny).
 --   5. Granty: anonim i zalogowany moga wolac payload (SET ROLE), cialo nie
@@ -114,6 +115,10 @@ INSERT INTO public.event_people (id, tenant_id, user_id, email, first_name, last
    NULL, 'cancelled.a52@example.org', 'Adam', 'Anulowany'),
   ('52d00000-0000-0000-0000-0000000000a6', '52000000-0000-0000-0000-0000000000a0',
    NULL, 'unpaid.a52@example.org', 'Nina', 'Nieoplacona'),
+  ('52d00000-0000-0000-0000-0000000000a8', '52000000-0000-0000-0000-0000000000a0',
+   NULL, 'partial.a52@example.org', 'Paulina', 'Zwrot'),
+  ('52d00000-0000-0000-0000-0000000000a9', '52000000-0000-0000-0000-0000000000a0',
+   NULL, 'refunded.a52@example.org', 'Robert', 'Zwrocony'),
   ('52d00000-0000-0000-0000-0000000000b1', '52000000-0000-0000-0000-0000000000b0',
    NULL, 'holder.b52@example.org', 'Bruno', 'Obcy');
 
@@ -128,6 +133,8 @@ INSERT INTO w52_codes (k, token) VALUES
   ('unpaid',    'WalletUnpaidTok_0123456789abcdef'),
   ('evcancel',  'WalletEvCancTok_0123456789abcdef'),
   ('foreign',   'WalletForeignTk_0123456789abcdef'),
+  ('partial',   'WalletPartialTk_0123456789abcdef'),
+  ('refunded',  'WalletRefundTok_0123456789abcdef'),
   ('unknown',   'WalletUnknownTk_0123456789abcdef');
 
 SELECT pg_temp.assert(
@@ -168,6 +175,12 @@ FROM (VALUES
   ('52b00000-0000-0000-0000-0000000000a7', '52000000-0000-0000-0000-0000000000a0',
    '52e00000-0000-0000-0000-0000000000a2', '52d00000-0000-0000-0000-0000000000a3',
    NULL, NULL, 'approved', 'not_required', 'evcancel'),
+  ('52b00000-0000-0000-0000-0000000000a8', '52000000-0000-0000-0000-0000000000a0',
+   '52e00000-0000-0000-0000-0000000000a1', '52d00000-0000-0000-0000-0000000000a8',
+   '52f00000-0000-0000-0000-0000000000a2', NULL, 'approved', 'partially_refunded', 'partial'),
+  ('52b00000-0000-0000-0000-0000000000a9', '52000000-0000-0000-0000-0000000000a0',
+   '52e00000-0000-0000-0000-0000000000a1', '52d00000-0000-0000-0000-0000000000a9',
+   '52f00000-0000-0000-0000-0000000000a2', NULL, 'approved', 'refunded', 'refunded'),
   ('52b00000-0000-0000-0000-0000000000b1', '52000000-0000-0000-0000-0000000000b0',
    '52e00000-0000-0000-0000-0000000000b1', '52d00000-0000-0000-0000-0000000000b1',
    NULL, NULL, 'approved', 'not_required', 'foreign')
@@ -253,6 +266,14 @@ BEGIN
     AND v->>'status' = 'attended' AND v->>'lang' = 'pl'
     AND v->'ticket_name_pl' = 'null'::jsonb,
     '52/payload: obecny (po wejsciu) tez dostaje przepustke; jezyk domyslny pl; bez biletu');
+
+  -- Zwrot CZESCIOWY to korekta ceny: kod QR zostaje wazny (skaner wpuszcza,
+  -- bilet idzie mailem), wiec przepustka tez musi sie dac dodac.
+  v := public.event_ticket_wallet_payload(jsonb_build_object(
+    'qr_token', (SELECT token FROM w52_codes WHERE k = 'partial')));
+  PERFORM pg_temp.assert(v->>'registration_id' = '52b00000-0000-0000-0000-0000000000a8'
+    AND v->>'first_name' = 'Paulina' AND v->>'ticket_name_en' = 'VIP',
+    '52/payload: przyjete po zwrocie czesciowym -> przepustka (kod QR nadal wazny)');
 END
 $do$;
 
@@ -271,6 +292,10 @@ SELECT pg_temp.assert_raises_like(
   format('SELECT public.event_ticket_wallet_payload(%L::jsonb)',
     jsonb_build_object('qr_token', (SELECT token FROM w52_codes WHERE k = 'unpaid'))),
   'not_found', '52/stan: przyjete, ale nieoplacone -> not_found');
+SELECT pg_temp.assert_raises_like(
+  format('SELECT public.event_ticket_wallet_payload(%L::jsonb)',
+    jsonb_build_object('qr_token', (SELECT token FROM w52_codes WHERE k = 'refunded'))),
+  'not_found', '52/stan: zwrot PELNY -> not_found (nawet gdyby skrot kodu zostal)');
 SELECT pg_temp.assert_raises_like(
   format('SELECT public.event_ticket_wallet_payload(%L::jsonb)',
     jsonb_build_object('qr_token', (SELECT token FROM w52_codes WHERE k = 'evcancel'))),

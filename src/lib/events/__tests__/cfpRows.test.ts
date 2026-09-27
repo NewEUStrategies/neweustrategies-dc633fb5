@@ -18,6 +18,7 @@ import {
   SPEAKER_MATERIAL_VISIBILITY_LABEL_KEYS,
 } from "@/lib/events/cfpEnums";
 import {
+  cfpAcceptanceNote,
   cfpAnswerDisplay,
   cfpNoticeFor,
   cfpNotifyFeedback,
@@ -29,6 +30,7 @@ import {
   isCfpDecidable,
   isCfpEditable,
   isCfpRespondable,
+  isCfpRevocable,
   isCfpWithdrawable,
 } from "@/lib/events/cfpRows";
 
@@ -81,6 +83,28 @@ describe("przyciski ze stanu", () => {
     for (const status of CFP_DECIDABLE_STATUSES) expect(isCfpDecidable(status)).toBe(true);
     expect(isCfpDecidable("accepted")).toBe(false);
     expect(isCfpDecidable("draft")).toBe(false);
+  });
+
+  it("cofnięcie przyjęcia: tylko z przyjętego albo potwierdzonego (lustro decyzji w bazie)", () => {
+    expect(isCfpRevocable("accepted")).toBe(true);
+    expect(isCfpRevocable("confirmed")).toBe(true);
+    expect(isCfpRevocable("declined")).toBe(false);
+    expect(isCfpRevocable("under_review")).toBe(false);
+  });
+
+  it("skutki przyjęcia: czeka na potwierdzenie, ogłoszone, cofnięte albo brak", () => {
+    const noted = (
+      status: Parameters<typeof cfpAcceptanceNote>[0]["status"],
+      profile: string | null,
+    ) => cfpAcceptanceNote({ status, speakerProfileId: profile });
+    expect(noted("accepted", "sp1")).toBe("awaitingConfirmation");
+    expect(noted("confirmed", "sp1")).toBe("announced");
+    for (const status of ["declined", "withdrawn", "waitlisted", "rejected"] as const) {
+      expect(noted(status, "sp1")).toBe("undone");
+      // Bez nakładki zgłoszenie nigdy nie było przyjęte - nie ma czego cofać.
+      expect(noted(status, null)).toBeNull();
+    }
+    expect(noted("under_review", "sp1")).toBeNull();
   });
 
   it("mail tylko o przyjęciu, odmowie i prośbie o zmiany", () => {

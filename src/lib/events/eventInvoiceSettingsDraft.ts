@@ -3,7 +3,7 @@
 // USTAWIENIA SA WSPOLNE DLA NAJEMCY, nie dla wydarzenia: dane sprzedawcy,
 // rachunek, prefiksy serii i domyslna stawka obowiazuja kazde wydarzenie
 // organizatora. Reguly sa lustrem `admin_event_invoice_settings_save`
-// (migracja 20260926110000): wlaczenie wymaga kompletu danych sprzedawcy
+// (migracja 20260927000200): wlaczenie wymaga kompletu danych sprzedawcy
 // i - przy PIERWSZYM wlaczeniu - jawnego potwierdzenia, ze organizator jest
 // sprzedawca biletow. Baza odrzuci niepelne dane i tak; formularz ma
 // powiedziec to przy polu.

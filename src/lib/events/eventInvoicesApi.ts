@@ -61,7 +61,11 @@ export type EventInvoiceCandidateRow = WithNullable<
   | "paid_at"
 >;
 
-/** Szkic nie ma numeru ani dat wystawienia; faktura nie ma korekty ani proformy. */
+/**
+ * Szkic nie ma numeru ani dat wystawienia; faktura nie ma korekty ani proformy.
+ * `correction_hint` (`_event_invoice_correction_hint`): NULL albo powod, dla
+ * ktorego wystawiona faktura wymaga korekty (zwrot, odwolanie, mniej miejsc).
+ */
 export type EventInvoiceListRow = WithNullable<
   Fns["admin_event_invoices_list"]["Returns"][number],
   | "number"
@@ -77,6 +81,7 @@ export type EventInvoiceListRow = WithNullable<
   | "converted_invoice_id"
   | "issued_at"
   | "cancelled_at"
+  | "correction_hint"
 >;
 
 function payload(input: Record<string, Json | undefined>): Json {

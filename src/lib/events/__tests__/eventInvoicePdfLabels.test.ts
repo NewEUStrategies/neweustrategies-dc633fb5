@@ -41,6 +41,12 @@ describe("eventInvoicePdfLabels", () => {
     });
     expect(labels.page(2, 3)).toBe("Strona 2 z 3");
     expect(labels.fileStem).toBe("faktura");
+    expect([labels.toPay, labels.paid, labels.toRefund, labels.refunded]).toEqual([
+      "Do zapłaty",
+      "Zapłacono",
+      "Do zwrotu",
+      "Zwrócono",
+    ]);
     await i18n.changeLanguage("pl");
   });
 
@@ -58,6 +64,7 @@ describe("eventInvoicePdfLabels", () => {
     );
     expect(labels.title).toBe("Credit note");
     expect(labels.correctsLine).toBe("Credit note to invoice FV/2026/09/0001 of 2026-09-10");
+    expect([labels.toRefund, labels.refunded]).toEqual(["Amount to refund", "Refunded"]);
     expect(labels.paymentMethodValue).toBe("payment card");
     expect(labels.rates.zw).toBe("exempt");
     expect(labels.fileStem).toBe("credit-note");

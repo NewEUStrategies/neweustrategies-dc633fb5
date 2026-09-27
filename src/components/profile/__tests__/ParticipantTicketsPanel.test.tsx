@@ -419,7 +419,7 @@ describe("ParticipantTicketsPanel - gniazda torów F1-F5 (kontrakt BLK-5)", () =
     const order = Array.from(card.querySelectorAll("[data-testid], h3")).map(
       (node) => node.getAttribute("data-testid") ?? node.textContent,
     );
-    // Atom statusu faktury stoi w nagłówku karty - przed płatnością i gniazdami.
+    // Stan faktury (f2) stoi w nagłówku karty, przed blokiem płatności.
     expect(order).toEqual([
       "invoice-status",
       "participantTickets.payment.unpaid",

@@ -4,6 +4,8 @@
 // szkic - edycja, wystawienie, porzucenie; wystawiona faktura - PDF, korekta,
 // KSeF, zaplata, anulowanie z powodem; proforma - faktura koncowa; korekta -
 // bez zaplaty. Filtr "do wyslania w KSeF" = wystawione w stanie `pending`.
+// Faktura, za ktora sprzedaz skurczyla sie po wystawieniu (zwrot, odwolanie,
+// mniej miejsc), niesie plakietke "wymaga korekty" z powodem z bazy.
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -172,6 +174,29 @@ describe("EventInvoiceDocumentsList", () => {
     fireEvent.click(screen.getByLabelText("adminEventInvoices.documents.ksefOnly"));
     expect(screen.queryByText("FV/2026/09/0002", { exact: false })).toBeNull();
     expect(screen.getByText("FV/2026/09/0001", { exact: false })).toBeTruthy();
+  });
+
+  it("podpowiedz korekty z bazy: plakietka z powodem tylko na wskazanej fakturze", async () => {
+    api.fetchEventInvoices.mockResolvedValue([
+      { ...ISSUED, correction_hint: "refunded" },
+      { ...PAID, correction_hint: "source_closed" },
+      invoiceListRow({
+        id: "trzecia",
+        number: "FV/2026/09/0003",
+        correction_hint: "seats_reduced",
+      }),
+      invoiceListRow({ id: "czwarta", number: "FV/2026/09/0004" }),
+    ]);
+    renderTab("issued");
+    const issued = await waitFor(() => rowFor("FV/2026/09/0001"));
+    expect(issued.textContent).toContain("adminEventInvoices.documents.correctionHint.refunded");
+    expect(rowFor("FV/2026/09/0002").textContent).toContain(
+      "adminEventInvoices.documents.correctionHint.source_closed",
+    );
+    expect(rowFor("FV/2026/09/0003").textContent).toContain(
+      "adminEventInvoices.documents.correctionHint.seats_reduced",
+    );
+    expect(rowFor("FV/2026/09/0004").textContent).not.toContain("correctionHint");
   });
 
   it("zaplata: oznaczenie z zegarem i zdjecie oznaczenia; odmowa = toast", async () => {

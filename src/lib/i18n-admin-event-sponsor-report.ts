@@ -7,7 +7,7 @@
 // tekst panelu do chunka publicznego.
 //
 // KLUCZE MIEJSC SĄ LUSTREM BAZY. `placements.*` to camelCase wartości
-// `event_sponsor_exposures.placement` (CHECK z migracji 20260926140000);
+// `event_sponsor_exposures.placement` (CHECK z migracji 20260927000500);
 // mapę wartość -> klucz trzyma `sponsorReportLabels.ts` jako literały.
 // Klucze błędów to camelCase głów `RAISE EXCEPTION` (mapper
 // `adminSponsorReportErrors.ts`, bramka `eventErrorMapsI18n.gate.test.ts`).
@@ -79,7 +79,7 @@ export const adminEventSponsorReportPl = {
       ctr: "CTR",
       materialOpens: "Materiały",
       leads: "Kontakty (zgoda)",
-      meetings: "Spotkania (odbyte)",
+      meetings: "Umówione spotkania (odbyte)",
       links: "Linki",
       actions: "Działania",
       unpublished: "Nieopublikowany",
@@ -296,7 +296,7 @@ export const adminEventSponsorReportEn = {
       ctr: "CTR",
       materialOpens: "Materials",
       leads: "Contacts (consent)",
-      meetings: "Meetings (held)",
+      meetings: "Scheduled meetings (held)",
       links: "Links",
       actions: "Actions",
       unpublished: "Unpublished",

@@ -10,15 +10,22 @@ import {
   deleteHomeAd,
   fetchHomeAds,
   fetchPublicHomeAds,
+  fetchSponsorLinks,
+  fetchTierLayouts,
   isHttpsUrl,
   saveHomeAd,
+  setSponsorLink,
+  setTierLayout,
   toLayout,
   toLinkMode,
   useDeleteHomeAd,
   useHomeAds,
   usePublicHomeAds,
   useSaveHomeAd,
+  useSetSponsorLink,
   useSetTierLayout,
+  useSponsorLinks,
+  useTierLayouts,
   validateHomeAd,
   type HomeAdInput,
 } from "./sponsorBoardApi";
@@ -54,6 +61,10 @@ describe("sponsorBoardApi", () => {
     expect(validateHomeAd(base)).toEqual([]);
     expect(validateHomeAd({ ...base, imageUrl: "" })).toContain("imageUrl");
     expect(validateHomeAd({ ...base, linkUrl: "http://x.pl" })).toContain("linkUrl");
+    expect(validateHomeAd({ ...base, imageMobileUrl: "http://x.pl/m.png" })).toEqual([
+      "imageMobileUrl",
+    ]);
+    expect(validateHomeAd({ ...base, imageMobileUrl: "https://x.pl/m.png" })).toEqual([]);
     expect(
       validateHomeAd({ ...base, startsAt: "2026-10-02T10:00:00Z", endsAt: "2026-10-01T10:00:00Z" }),
     ).toContain("endsAt");
@@ -83,6 +94,92 @@ describe("useSetTierLayout", () => {
     expect(queryClient.getQueryState(sponsorKeys.tiers("ev1"))?.isInvalidated).toBe(true);
     expect(queryClient.getQueryState(uklady)?.isInvalidated).toBe(true);
     expect(queryClient.getQueryState(sponsorKeys.tiers("ev2"))?.isInvalidated).toBe(false);
+  });
+
+  it("odmowa zapisu układu dochodzi jako błąd, a brak potwierdzenia to false", async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: null });
+    await expect(setTierLayout({ id: "t1", layout: "grid" })).resolves.toBe(false);
+    rpc.mockResolvedValueOnce({ data: null, error: { message: "forbidden: not an event admin" } });
+    await expect(setTierLayout({ id: "t1", layout: "grid" })).rejects.toThrow(
+      "forbidden: not an event admin",
+    );
+  });
+});
+
+// UKŁADY I LINKI LOGOTYPÓW. Odczyt normalizuje wartości spoza listy do
+// domyślnych (siatka, strona firmy), a zapis linku wysyła adres WYŁĄCZNIE dla
+// trybu zewnętrznego - „bez linku" i „strona firmy" nie mogą zostawić w bazie
+// starego adresu kampanii. Odmowa bazy dochodzi jako `Error` z tą samą głową.
+describe("układy i linki logotypów", () => {
+  it("odczyt układów: mapa id -> układ, nieznany układ to siatka, odmowa to błąd", async () => {
+    rpc.mockReset();
+    rpc.mockResolvedValueOnce({
+      data: [
+        { id: "t1", layout: "banner" },
+        { id: "t2", layout: "karuzela" },
+      ],
+      error: null,
+    });
+    const { result } = renderHookWithQueryClient(() => useTierLayouts("ev1"));
+    await waitFor(() =>
+      expect(result.current.data).toEqual(
+        new Map([
+          ["t1", "banner"],
+          ["t2", "grid"],
+        ]),
+      ),
+    );
+    expect(rpc).toHaveBeenCalledWith("admin_event_sponsor_tier_layouts", { p_event_id: "ev1" });
+
+    rpc.mockResolvedValueOnce({ data: null, error: null });
+    await expect(fetchTierLayouts("ev1")).resolves.toEqual(new Map());
+    rpc.mockResolvedValueOnce({ data: null, error: { message: "forbidden: not an event admin" } });
+    await expect(fetchTierLayouts("ev1")).rejects.toThrow("forbidden: not an event admin");
+  });
+
+  it("odczyt linków: pusty adres to napis, brak danych to pusta mapa, odmowa to błąd", async () => {
+    rpc.mockReset();
+    rpc.mockResolvedValueOnce({ data: null, error: null });
+    await expect(fetchSponsorLinks("ev1")).resolves.toEqual(new Map());
+    rpc.mockResolvedValueOnce({ data: null, error: { message: "forbidden: not an event admin" } });
+    await expect(fetchSponsorLinks("ev1")).rejects.toThrow("forbidden: not an event admin");
+  });
+
+  it("zapis linku: adres tylko dla trybu zewnętrznego i odświeżenie linków TEGO wydarzenia", async () => {
+    rpc.mockReset();
+    rpc.mockResolvedValue({ data: true, error: null });
+    const { result, queryClient } = renderHookWithQueryClient(() => useSetSponsorLink("ev1"));
+    const linki = [...sponsorKeys.event("ev1"), "links"];
+    const cudze = [...sponsorKeys.event("ev2"), "links"];
+    queryClient.setQueryData(linki, new Map());
+    queryClient.setQueryData(cudze, new Map());
+
+    await act(() =>
+      result.current.mutateAsync({ id: "s1", mode: "external", url: "  https://go.example/k  " }),
+    );
+    expect(rpc).toHaveBeenLastCalledWith("admin_event_sponsor_set_link", {
+      _id: "s1",
+      _mode: "external",
+      _url: "https://go.example/k",
+    });
+    expect(queryClient.getQueryState(linki)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(cudze)?.isInvalidated).toBe(false);
+
+    await act(() =>
+      result.current.mutateAsync({ id: "s1", mode: "none", url: "https://go.example/stary" }),
+    );
+    expect(rpc).toHaveBeenLastCalledWith("admin_event_sponsor_set_link", {
+      _id: "s1",
+      _mode: "none",
+      _url: "",
+    });
+
+    rpc.mockResolvedValueOnce({ data: null, error: null });
+    await expect(setSponsorLink({ id: "s1", mode: "exhibitor", url: "" })).resolves.toBe(false);
+    rpc.mockResolvedValueOnce({ data: null, error: { message: "not_found: sponsor" } });
+    await expect(setSponsorLink({ id: "s1", mode: "exhibitor", url: "" })).rejects.toThrow(
+      "not_found: sponsor",
+    );
   });
 });
 
@@ -145,6 +242,25 @@ describe("reklama strony głównej", () => {
     remove.queryClient.setQueryData(["event-home-ads", "ev1"], []);
     await act(() => remove.result.current.mutateAsync("ad-1"));
     expect(remove.queryClient.getQueryState(["event-home-ads", "ev1"])?.isInvalidated).toBe(true);
+  });
+
+  it("ustawienia linkow: zamkniety podglad i brak wydarzenia nie pytaja bazy", async () => {
+    rpc.mockReset();
+    const closed = renderHookWithQueryClient(() => useSponsorLinks("ev1", false));
+    const noEvent = renderHookWithQueryClient(() => useSponsorLinks(""));
+    expect(closed.result.current.fetchStatus).toBe("idle");
+    expect(noEvent.result.current.fetchStatus).toBe("idle");
+    expect(rpc).not.toHaveBeenCalled();
+
+    rpc.mockResolvedValue({
+      data: [{ id: "s1", link_mode: "none", link_url: null }],
+      error: null,
+    });
+    const open = renderHookWithQueryClient(() => useSponsorLinks("ev1", true));
+    await waitFor(() =>
+      expect(open.result.current.data).toEqual(new Map([["s1", { mode: "none", url: "" }]])),
+    );
+    expect(rpc).toHaveBeenCalledWith("admin_event_sponsor_links", { p_event_id: "ev1" });
   });
 
   it("lista publiczna nie pyta bazy bez slugu", async () => {

@@ -4,7 +4,10 @@
 // robota to fałszywe wyświetlenie w raporcie, za które sponsor płaci; każde
 // odrzucone trafienie człowieka to wyświetlenie, którego raport nie pokaże.
 // Stąd dwie strony tabeli: agenci i nagłówki, które MUSZĄ odpaść, i zwykła
-// przeglądarka (także bez `Origin`), która MUSI przejść.
+// przeglądarka (także bez `Origin`, pod aliasem www i na porcie serwera
+// deweloperskiego), która MUSI przejść. `Origin` porównujemy z ZAUFANYM hostem
+// strony (bez portu, jak oddaje go `currentTenantHost()`) - nie z hostem
+// adresu żądania, który za pośrednikiem jest wewnętrzny.
 import { describe, expect, it } from "vitest";
 
 import { isBotUserAgent, isLikelyBotRequest } from "@/lib/http/botFilter";
@@ -24,9 +27,19 @@ describe("isLikelyBotRequest", () => {
       isLikelyBotRequest(headers({ "user-agent": CHROME, origin: "https://NES.example" }), HOST),
     ).toBe(false);
     expect(isLikelyBotRequest(headers({ "user-agent": CHROME, origin: "" }), HOST)).toBe(false);
-    expect(
-      isLikelyBotRequest(headers({ "user-agent": CHROME, origin: "https://obca.example" }), null),
-    ).toBe(false);
+  });
+
+  it("alias www/apex, port i wielkość liter po obu stronach to ta sama strona", () => {
+    const pass = (origin: string, host: string) =>
+      expect(isLikelyBotRequest(headers({ "user-agent": CHROME, origin }), host), origin).toBe(
+        false,
+      );
+    pass("https://www.nes.example", HOST);
+    pass("https://nes.example", "www.nes.example");
+    pass("https://WWW.Nes.Example", "NES.example");
+    // Serwer deweloperski: zaufany host nie niesie portu, `Origin` niesie.
+    pass("http://localhost:8080", "localhost");
+    pass("https://nes.example:8443", HOST);
   });
 
   it("pusty albo brakujący agent to robot", () => {
@@ -71,16 +84,19 @@ describe("isLikelyBotRequest", () => {
   });
 
   it("Origin cudzej strony albo niepoprawny Origin to odrzucenie", () => {
-    expect(
-      isLikelyBotRequest(headers({ "user-agent": CHROME, origin: "https://obca.example" }), HOST),
-    ).toBe(true);
-    expect(
-      isLikelyBotRequest(
-        headers({ "user-agent": CHROME, origin: "https://nes.example:8443" }),
-        HOST,
-      ),
-    ).toBe(true);
-    expect(isLikelyBotRequest(headers({ "user-agent": CHROME, origin: "null" }), HOST)).toBe(true);
+    const reject = (origin: string, host = HOST) =>
+      expect(isLikelyBotRequest(headers({ "user-agent": CHROME, origin }), host), origin).toBe(
+        true,
+      );
+    reject("https://obca.example");
+    // Poddomena inna niż www to inna strona (inny najemca może ją zająć).
+    reject("https://kongres.nes.example");
+    reject("https://www.obca.example");
+    // Nieprzezroczysty origin (piaskownica, `data:`) i origin bez hosta.
+    reject("null");
+    reject("file:///tmp/strona.html");
+    // Pusty zaufany host nie jest zgodą na każdy Origin.
+    reject("https://nes.example", "");
   });
 });
 

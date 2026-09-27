@@ -23,7 +23,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { FriendlyErrorPage } from "@/components/error/FriendlyErrorPage";
 import { ScannerApp } from "@/components/events/scanner/organisms/ScannerApp";
-import { isScannerToken } from "@/lib/events/scannerSession";
+import { isScannerToken } from "@/lib/events/scannerToken";
 import { registerScannerServiceWorker } from "@/lib/events/scannerPwa";
 import { ensureI18n as ensureScannerI18n } from "@/lib/i18n-event-scanner";
 

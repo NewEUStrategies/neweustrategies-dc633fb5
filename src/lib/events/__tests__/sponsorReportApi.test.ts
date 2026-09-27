@@ -10,6 +10,9 @@
 //      ma dać pusty napis, a nie wyjątek.
 //   4. LICZNIKI PRZENIESIENIA DO CRM - nieznany kształt odpowiedzi daje zera,
 //      a nie NaN w komunikacie.
+//   5. STRONY PRZENIESIENIA - baza oddaje najwyżej 500 osób i kursor; bez
+//      pętli po kursorze przeniesienie dużego wydarzenia kończyło się po
+//      pierwszej stronie, a kursor stojący w miejscu nie może zapętlić klienta.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const rpc = vi.hoisted(() => vi.fn());
@@ -213,5 +216,78 @@ describe("zapisy", () => {
     ).resolves.toMatchObject({
       persons: 0,
     });
+  });
+
+  it("przeniesienie do CRM idzie strona po stronie po kursorze i sumuje liczniki", async () => {
+    const page = (over: Record<string, unknown>) => ({
+      data: {
+        persons: 500,
+        created: 10,
+        updated: 20,
+        skipped_no_email: 30,
+        skipped_no_consent: 40,
+        failed: 1,
+        ...over,
+      },
+      error: null,
+    });
+    rpc
+      .mockResolvedValueOnce(page({ has_more: true, next_after: "p-500" }))
+      .mockResolvedValueOnce(page({ has_more: true, next_after: "p-1000" }))
+      .mockResolvedValueOnce(page({ persons: 7, has_more: false, next_after: null }));
+    await expect(api.pushLeadScansToCrm({ eventId: EVENT, sponsorId: "s" })).resolves.toEqual({
+      persons: 1007,
+      created: 30,
+      updated: 60,
+      skippedNoEmail: 90,
+      skippedNoConsent: 120,
+      failed: 3,
+    });
+    expect(rpc.mock.calls).toEqual([
+      ["admin_event_lead_scans_push_to_crm", { p_payload: { event_id: EVENT, sponsor_id: "s" } }],
+      [
+        "admin_event_lead_scans_push_to_crm",
+        { p_payload: { event_id: EVENT, sponsor_id: "s", after_person_id: "p-500" } },
+      ],
+      [
+        "admin_event_lead_scans_push_to_crm",
+        { p_payload: { event_id: EVENT, sponsor_id: "s", after_person_id: "p-1000" } },
+      ],
+    ]);
+  });
+
+  it("kursor stojący w miejscu albo bez adresu kończy przeniesienie zamiast pętli", async () => {
+    rpc
+      .mockResolvedValueOnce({
+        data: { persons: 1, has_more: true, next_after: "p-1" },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { persons: 1, has_more: true, next_after: "p-1" },
+        error: null,
+      });
+    await expect(
+      api.pushLeadScansToCrm({ eventId: EVENT, sponsorId: null }),
+    ).resolves.toMatchObject({ persons: 2 });
+    expect(rpc).toHaveBeenCalledTimes(2);
+
+    rpc.mockReset();
+    rpc.mockResolvedValueOnce({ data: { persons: 3, has_more: true, next_after: 7 }, error: null });
+    await expect(
+      api.pushLeadScansToCrm({ eventId: EVENT, sponsorId: null }),
+    ).resolves.toMatchObject({ persons: 3 });
+    expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("odmowa bazy na kolejnej stronie dochodzi do wołającego jako błąd", async () => {
+    rpc
+      .mockResolvedValueOnce({
+        data: { persons: 500, has_more: true, next_after: "p-500" },
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: null, error: { message: "forbidden: not an event admin" } });
+    await expect(api.pushLeadScansToCrm({ eventId: EVENT, sponsorId: null })).rejects.toThrow(
+      "forbidden: not an event admin",
+    );
   });
 });

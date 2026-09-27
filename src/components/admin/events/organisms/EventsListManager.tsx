@@ -73,6 +73,7 @@ import { fetchAdminEvents, type AdminEventListRow } from "@/lib/events/eventsLis
 import { deleteEvent, runEventReminders } from "@/lib/admin/community";
 import { ensureI18n as ensureCommunityEventsI18n } from "@/lib/i18n-admin-community-events";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
+import { ensureCloneI18n } from "@/lib/i18n-admin-event-clone";
 
 /** Wartość droplisty znaczy „wszystkie” - Radix nie przyjmuje pustego stringa. */
 const ALL = "all";
@@ -137,12 +138,21 @@ function byIso(a: string, b: string, factor: number): number {
 export function EventsListManager({
   params,
   now,
+  canClone = false,
 }: {
   params: EventListParams;
   /** Zegar podany z zewnątrz - granica „przyszłe/przeszłe” musi być testowalna. */
   now: Date;
+  /**
+   * Czy pokazać „Nowa edycja (kopia)" przy zaznaczeniu JEDNEGO wiersza. Klon
+   * jest operacją administratora (`assert_event_admin_tenant()`), a lista
+   * wpuszcza też redaktora - przycisk, który zawsze kończy się odmową, jest
+   * kontrolką kłamiącą o skutku.
+   */
+  canClone?: boolean;
 }) {
   ensureAdminEventsI18n();
+  ensureCloneI18n();
   // Slownik sekcji spolecznosci: akcja przypomnien PRZENIOSLA sie tutaj razem
   // ze swoimi tekstami. Drugi klucz na ten sam napis (z formami mnogimi!)
   // rozjechalby sie przy pierwszej korekcie.
@@ -500,6 +510,19 @@ export function EventsListManager({
             <Button variant="ghost" size="sm" onClick={() => setSelectedIds([])}>
               {t("adminEvents.list.select.clear")}
             </Button>
+            {/* Kopia ma JEDNO źródło - przy kilku zaznaczonych wierszach
+                przycisk znika, zamiast zgadywać, którą edycję skopiować. */}
+            {canClone && selected.length === 1 ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  void navigate({ to: "/admin/events/new", search: { from: selected[0] } })
+                }
+              >
+                {t("adminEventClone.entry.listAction")}
+              </Button>
+            ) : null}
             <Button
               variant="outline"
               size="sm"

@@ -4,7 +4,11 @@
 // faktura zbiorcza (pozycje wg rodzaju biletu), pojedyncze zamowienie =
 // pozycja na zamowienie, proforma dla dowolnego zaznaczenia, filtr "tylko bez
 // faktury", blokada przy wylaczonym fakturowaniu i masowe wystawienie z prosb
-// z potwierdzeniem i raportem.
+// z potwierdzeniem i raportem. Zaznaczenie z prosbami ROZNYCH nabywcow nie
+// proponuje dokumentu (jeden nabywca zostalby bez faktury), a cena netto
+// z cennika ma wlasna adnotacje (VAT doliczany). Oplacony zapis BEZ miejsca
+// (lista rezerwowa, czeka na decyzje) niesie plakietke listy zgloszen - masowe
+// wystawienie go pomija, a faktura ze szkicu moze potem wymagac korekty.
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -41,7 +45,16 @@ vi.mock("@/lib/events/eventInvoicesApi", async (importOriginal) => ({
 const { toast } = await import("sonner");
 const { EventInvoiceCandidatesList } =
   await import("@/components/admin/events/molecules/EventInvoiceCandidatesList");
-const { groupCandidates } = await import("@/lib/events/eventInvoiceViews");
+const { groupCandidates, hasBuyerMismatch } = await import("@/lib/events/eventInvoiceViews");
+
+const GLOBEX = invoiceCandidateRow({
+  source_id: "globex",
+  person_name: "Gerard Globex",
+  buyer_name: "Globex",
+  buyer_tax_id: "1234563218",
+  tax_key: "1234563218",
+  request_id: "27f30000-0000-4000-8000-000000000009",
+});
 
 const ROWS = [
   invoiceCandidateRow(),
@@ -121,7 +134,84 @@ describe("groupCandidates", () => {
   });
 });
 
+describe("hasBuyerMismatch", () => {
+  it("prosby dwoch NIP-ow albo dwoch osob bez NIP-u = rozni nabywcy", () => {
+    expect(hasBuyerMismatch([ROWS[0], GLOBEX])).toBe(true);
+    expect(
+      hasBuyerMismatch([
+        invoiceCandidateRow({ tax_key: null, request_id: "a" }),
+        invoiceCandidateRow({ tax_key: null, request_id: "b" }),
+      ]),
+    ).toBe(true);
+  });
+
+  it("jeden nabywca, zamowienia bez prosby i prosby juz zafakturowane nie przeszkadzaja", () => {
+    expect(hasBuyerMismatch([ROWS[0], ROWS[1], ROWS[2]])).toBe(false);
+    expect(hasBuyerMismatch([ROWS[0], { ...GLOBEX, request_status: "invoiced" }])).toBe(false);
+    expect(hasBuyerMismatch([])).toBe(false);
+  });
+});
+
 describe("EventInvoiceCandidatesList", () => {
+  it("prosby roznych nabywcow: ostrzezenie i brak faktury/proformy", async () => {
+    api.fetchInvoiceCandidates.mockResolvedValue([ROWS[0], GLOBEX]);
+    renderList();
+    fireEvent.click(
+      await screen.findByLabelText("adminEventInvoices.candidates.selectRow(name=Anna Kupujaca)"),
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "adminEventInvoices.candidates.invoice" }),
+    ).toHaveProperty("disabled", false);
+    fireEvent.click(
+      screen.getByLabelText("adminEventInvoices.candidates.selectRow(name=Gerard Globex)"),
+    );
+    expect(screen.getByRole("alert").textContent).toBe(
+      "adminEventInvoices.candidates.buyerMismatch",
+    );
+    expect(
+      screen.getByRole("button", { name: "adminEventInvoices.candidates.collective" }),
+    ).toHaveProperty("disabled", true);
+    expect(
+      screen.getByRole("button", { name: "adminEventInvoices.candidates.proforma" }),
+    ).toHaveProperty("disabled", true);
+  });
+
+  it("wplata bez miejsca: plakietka z listy zgloszen, zapis z miejscem bez plakietki", async () => {
+    api.fetchInvoiceCandidates.mockResolvedValue([
+      invoiceCandidateRow({ source_id: "k", person_name: "Kolejka", admission: "waitlisted" }),
+      invoiceCandidateRow({
+        source_id: "d",
+        person_name: "Decyzja",
+        admission: "awaitingDecision",
+      }),
+      invoiceCandidateRow({ source_id: "m", person_name: "Miejsce", admission: "seated" }),
+    ]);
+    renderList();
+    const waitlisted = (await screen.findByText("Kolejka")).closest("li");
+    expect(waitlisted?.textContent).toContain(
+      "adminEventRegistration.registrations.badges.ticketPaidWaitlisted",
+    );
+    expect(screen.getByText("Decyzja").closest("li")?.textContent).toContain(
+      "adminEventRegistration.registrations.badges.ticketPaidAwaitingDecision",
+    );
+    expect(screen.getByText("Miejsce").closest("li")?.textContent).not.toContain(
+      "adminEventRegistration.registrations.badges",
+    );
+  });
+
+  it("cena netto z cennika: adnotacja o doliczanym VAT", async () => {
+    api.fetchInvoiceCandidates.mockResolvedValue([
+      invoiceCandidateRow({ amount_source: "price_list_net", person_name: "Netto" }),
+    ]);
+    renderList();
+    const row = (await screen.findByText("Netto")).closest("li");
+    const notes = [...(row?.querySelectorAll("p.text-amber-700") ?? [])].map(
+      (note) => note.textContent,
+    );
+    expect(notes).toEqual(["adminEventInvoices.candidates.priceListNet"]);
+  });
+
   it("ladowanie, odmowa odczytu, pusta lista", async () => {
     api.fetchInvoiceCandidates.mockReturnValueOnce(new Promise(() => {}));
     const first = renderList();

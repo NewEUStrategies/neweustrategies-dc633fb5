@@ -17,10 +17,13 @@
 // Ściany (wzorzec `-ad-event.test.ts`):
 //   1. limiter po IP (60 w zapasie, 1/s),
 //   2. limit długości ciała (8 000 znaków),
-//   3. filtr ruchu nieludzkiego (agent, prefetch, cudzy Origin),
-//   4. kształt: slug, sesja, biała lista miejsc i rodzajów, uuid, 40 pozycji,
+//   3. zaufany host strony - bez niego nic nie jedzie do bazy,
+//   4. filtr ruchu nieludzkiego (agent, prefetch, `Origin` inny niż ZAUFANY
+//      host - także gdy żądanie przyszło zza pośrednika pod hostem
+//      wewnętrznym, a publiczny niesie `X-Forwarded-Host`),
+//   5. kształt: slug, sesja, biała lista miejsc i rodzajów, uuid, 40 pozycji,
 //      macierz miejsce x rodzaj,
-//   5. najemca z zaufanego hosta - bez niego nic nie jedzie do bazy.
+//   6. najemca z zaufanego hosta - bez niego nic nie jedzie do bazy.
 // Przynależność sponsora/materiału/reklamy do wydarzenia sprawdza baza
 // (asercje harnessu `32_sponsor_report.sql`), więc tu jej nie udajemy.
 //
@@ -33,6 +36,8 @@ const h = vi.hoisted(() => ({
   rpcThrows: false,
   calls: [] as { fn: string; args: Record<string, unknown> }[],
   req: null as Request | null,
+  host: "nes.example" as string | null,
+  hostsResolved: [] as (string | null)[],
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -45,12 +50,15 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   },
 }));
 vi.mock("@/lib/server/tenant.server", () => ({
-  resolveTenantIdForHost: async () => {
+  resolveTenantIdForHost: async (host: string | null) => {
+    h.hostsResolved.push(host);
     if (h.tenantThrows) throw new Error("brak katalogu najemców");
     return h.tenantId;
   },
 }));
-vi.mock("@/lib/http/requestHost", () => ({ currentTenantHost: async () => "nes.example" }));
+// Zaufany host (`currentTenantHost`) to granica: w produkcji waliduje
+// `Host`/`X-Forwarded-Host` względem katalogu najemców - tu podajemy wynik.
+vi.mock("@/lib/http/requestHost", () => ({ currentTenantHost: async () => h.host }));
 vi.mock("@tanstack/react-start/server", () => ({ getRequest: () => h.req }));
 
 import { routeServerHandlers } from "@/test/routeHarness";
@@ -67,12 +75,17 @@ const CHROME =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36";
 
 let ipCounter = 0;
-function request(
-  body: unknown,
-  opts: { raw?: string; headers?: Record<string, string>; ip?: string } = {},
-): Request {
+interface PostOptions {
+  raw?: string;
+  headers?: Record<string, string>;
+  ip?: string;
+  /** Adres, pod który żądanie dotarło do serwera (za pośrednikiem - wewnętrzny). */
+  url?: string;
+}
+
+function request(body: unknown, opts: PostOptions = {}): Request {
   ipCounter += 1;
-  return new Request("https://nes.example/api/public/sponsor-event", {
+  return new Request(opts.url ?? "https://nes.example/api/public/sponsor-event", {
     method: "POST",
     headers: {
       "user-agent": CHROME,
@@ -83,10 +96,7 @@ function request(
   });
 }
 
-async function post(
-  body: unknown,
-  opts: { raw?: string; headers?: Record<string, string>; ip?: string } = {},
-): Promise<Response> {
+async function post(body: unknown, opts: PostOptions = {}): Promise<Response> {
   h.req = request(body, opts);
   return handler({ request: h.req });
 }
@@ -102,6 +112,8 @@ beforeEach(() => {
   h.tenantThrows = false;
   h.rpcThrows = false;
   h.calls = [];
+  h.host = "nes.example";
+  h.hostsResolved = [];
 });
 
 describe("ścieżka szczęśliwa", () => {
@@ -147,8 +159,29 @@ describe("ścieżka szczęśliwa", () => {
     ]);
   });
 
-  it("Origin własnej strony przechodzi", async () => {
+  it("Origin własnej strony przechodzi, a najemcę wyprowadza ten sam zaufany host", async () => {
     await post(batch([VIEW]), { headers: { origin: "https://nes.example" } });
+    expect(h.calls).toHaveLength(1);
+    expect(h.hostsResolved).toEqual(["nes.example"]);
+  });
+
+  it("za pośrednikiem: host wewnętrzny w adresie żądania, publiczny w X-Forwarded-Host - beacon się liczy", async () => {
+    // Pośrednik przepisuje Host na wewnętrzny; zaufany host (z walidacji
+    // `X-Forwarded-Host` względem katalogu) to strona, którą ogląda gość.
+    await post(batch([VIEW]), {
+      url: "http://origin-internal.svc:8080/api/public/sponsor-event",
+      headers: {
+        host: "origin-internal.svc:8080",
+        "x-forwarded-host": "nes.example",
+        origin: "https://nes.example",
+      },
+    });
+    expect(h.calls).toHaveLength(1);
+    expect(h.hostsResolved).toEqual(["nes.example"]);
+  });
+
+  it("strona pod aliasem www to ta sama strona", async () => {
+    await post(batch([VIEW]), { headers: { origin: "https://www.nes.example" } });
     expect(h.calls).toHaveLength(1);
   });
 
@@ -209,16 +242,35 @@ describe("ściana 2: długość ciała", () => {
   });
 });
 
-describe("ściana 3: ruch nieludzki", () => {
+describe("ściana 3: zaufany host strony", () => {
+  it("host spoza katalogu najemców (brak zaufanego hosta) - nic nie jedzie do bazy", async () => {
+    h.host = null;
+    await post(batch([VIEW]), { headers: { origin: "https://nes.example" } });
+    await post(batch([VIEW]));
+    expect(h.calls).toEqual([]);
+    // Nie wpadamy do najemcy domyślnego: rozwiązania najemcy nie było wcale.
+    expect(h.hostsResolved).toEqual([]);
+  });
+});
+
+describe("ściana 4: ruch nieludzki", () => {
   it("robot, prefetch i cudzy Origin nie nabijają wyświetleń", async () => {
     await post(batch([VIEW]), { headers: { "user-agent": "Googlebot/2.1" } });
     await post(batch([VIEW]), { headers: { "sec-purpose": "prefetch" } });
     await post(batch([VIEW]), { headers: { origin: "https://obca.example" } });
     expect(h.calls).toEqual([]);
   });
+
+  it("Origin porównujemy z ZAUFANYM hostem, nie z hostem adresu żądania", async () => {
+    // Adres żądania mówi „nes.example", ale zaufany host strony to inny
+    // najemca - `Origin` nes.example jest dla niego cudzą stroną.
+    h.host = "inny-najemca.example";
+    await post(batch([VIEW]), { headers: { origin: "https://nes.example" } });
+    expect(h.calls).toEqual([]);
+  });
 });
 
-describe("ściana 4: kształt paczki", () => {
+describe("ściana 5: kształt paczki", () => {
   it.each([
     ["zły slug", batch([VIEW], { event_slug: "Kongres 2099" })],
     ["za krótki slug", batch([VIEW], { event_slug: "ab" })],
@@ -241,7 +293,7 @@ describe("ściana 4: kształt paczki", () => {
   });
 });
 
-describe("ściana 5: najemca z zaufanego hosta", () => {
+describe("ściana 6: najemca z zaufanego hosta", () => {
   it("nierozpoznany najemca albo awaria katalogu - nic nie jedzie do bazy", async () => {
     h.tenantId = null;
     await post(batch([VIEW]));

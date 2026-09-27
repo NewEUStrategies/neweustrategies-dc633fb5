@@ -1,7 +1,8 @@
 // CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
 //
-// Ekran faktur studia: piec zakladek, dwa ostrzezenia nad nimi (fakturowanie
-// wylaczone, kasa operatora = MoR) i powiadomienie kupujacych po wystawieniu
+// Ekran faktur studia: piec zakladek, ostrzezenia nad nimi (fakturowanie
+// wylaczone, kasa operatora = MoR, faktury Stripe za karte, notka o zmianie
+// ustawien kasy po zamowieniu) i powiadomienie kupujacych po wystawieniu
 // (ile maili poszlo). Molekuly maja wlasne testy - tu sa zastapione atrapami,
 // ktore oddaja wolaniami zwrotnymi to, co zrobilby uzytkownik.
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
@@ -12,7 +13,7 @@ import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { INVOICE_IDS, invoiceListRow } from "@/test/events/invoiceFixtures";
 
 const h = vi.hoisted(() => ({
-  checkout: undefined as { automatic_tax: boolean } | undefined,
+  checkout: undefined as { automatic_tax: boolean; invoice_creation: boolean } | undefined,
   notify: vi.fn(),
   props: {} as Record<string, Record<string, unknown>>,
 }));
@@ -77,7 +78,7 @@ function call<T>(name: string, prop: string, value: T): void {
 }
 
 beforeEach(() => {
-  h.checkout = { automatic_tax: true };
+  h.checkout = { automatic_tax: true, invoice_creation: false };
   h.notify.mockReset();
   h.props = {};
   api.fetchInvoiceSettings.mockReset();
@@ -112,18 +113,25 @@ describe("EventInvoicesPanel", () => {
     expect(screen.getByTestId("settings")).toBeTruthy();
   });
 
-  it("kasa operatora (MoR): ostrzezenie; kasa wlasna i brak danych kasy: bez ostrzezenia", async () => {
-    h.checkout = { automatic_tax: false };
+  it("kasa operatora (MoR), faktury Stripe, kasa wlasna i brak danych kasy", async () => {
+    h.checkout = { automatic_tax: false, invoice_creation: true };
     const first = renderWithQueryClient(<EventInvoicesPanel eventId={INVOICE_IDS.event} />);
     expect(screen.getByRole("note").textContent).toContain("adminEventInvoices.mor.title");
     first.unmount();
+    h.checkout = { automatic_tax: true, invoice_creation: true };
+    const stripe = renderWithQueryClient(<EventInvoicesPanel eventId={INVOICE_IDS.event} />);
+    expect(screen.getByRole("note").textContent).toContain(
+      "adminEventInvoices.operatorInvoice.title",
+    );
+    expect(screen.getByRole("note").textContent).not.toContain("adminEventInvoices.mor.title");
+    stripe.unmount();
     h.checkout = undefined;
     const second = renderWithQueryClient(<EventInvoicesPanel eventId={INVOICE_IDS.event} />);
     expect(screen.queryByRole("note")).toBeNull();
     second.unmount();
-    h.checkout = { automatic_tax: true };
+    h.checkout = { automatic_tax: true, invoice_creation: false };
     renderWithQueryClient(<EventInvoicesPanel eventId={INVOICE_IDS.event} />);
-    expect(screen.queryByRole("note")).toBeNull();
+    expect(screen.getByRole("note").textContent).toBe("adminEventInvoices.planeNote");
   });
 
   it("wystawienie z listy: toast z numerem i powiadomienie kupujacego", async () => {

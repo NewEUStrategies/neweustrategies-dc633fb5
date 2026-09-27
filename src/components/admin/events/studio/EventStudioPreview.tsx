@@ -43,6 +43,7 @@ import {
 import { useEventPageDocument } from "@/lib/events/useAdminEventPages";
 import { useAllSponsors, useSponsorTiers } from "@/lib/events/useEventSponsors";
 import { previewSponsorsStatus, sponsorTiersFromAdminRows } from "@/lib/events/sponsorsPreview";
+import { useSponsorLinks } from "@/lib/events/sponsorBoardApi";
 import { adminSponsorLoadErrorMessage } from "@/lib/events/adminSponsorErrors";
 import { useViewerCardFacts } from "@/lib/profile/useViewerCard";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
@@ -161,13 +162,19 @@ export function EventStudioPreview({
   // Opis, korzysci i `sort_order` poziomu - lista przypiec ich nie niesie,
   // a sekcja „Partnerzy" je rysuje. Ten sam klucz cache, co ekran poziomow.
   const sponsorTiersQ = useSponsorTiers(eventId, open);
+  // „Dokąd prowadzi logotyp" (bez linku / adres kampanii / strona firmy) -
+  // lista przypięć tego nie niesie. To samo zapytanie i klucz cache, co
+  // tablica „Sponsorzy i reklama", więc zmiana tam od razu zmienia cel tutaj.
+  // Do czasu odpowiedzi (albo po awarii) kafle prowadzą na stronę firmy.
+  const sponsorLinksQ = useSponsorLinks(eventId, open);
   const sponsorTiers = useMemo(
     () =>
       sponsorTiersFromAdminRows(sponsorsQ.data, {
         tiers: sponsorTiersQ.data,
         includeDrafts: true,
+        links: sponsorLinksQ.data,
       }),
-    [sponsorsQ.data, sponsorTiersQ.data],
+    [sponsorsQ.data, sponsorTiersQ.data, sponsorLinksQ.data],
   );
   // PUSTA LISTA TO JESZCZE NIE „BRAK PARTNEROW". Zakladka „Partnerzy" otwiera
   // sie zanim lista dojedzie, a RPC potrafi pasc - bez statusu podglad mowil

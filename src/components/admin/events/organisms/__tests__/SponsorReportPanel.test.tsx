@@ -221,7 +221,10 @@ const SUMMARY = [
     material_opens: 1,
     leads_total: 4,
     leads_consented: 2,
-    meetings_total: 3,
+    // Zaproszeń 5 (z odmowami i bez odpowiedzi), umówionych 3 - ekran
+    // pokazuje umówione, nie zaproszenia.
+    meetings_total: 5,
+    meetings_accepted: 3,
     meetings_held: 1,
     active_links: 1,
   }),

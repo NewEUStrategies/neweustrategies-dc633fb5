@@ -2,8 +2,11 @@
 //
 // SKAD KSZTALT. `admin_event_invoice_get` (panel) i `event_my_invoice`
 // (kupujacy) zwracaja ten sam obiekt z `_event_invoice_document` (migracja
-// 20260926110000): `invoice` (wiersz bez migawki sprzedawcy), `seller`,
-// `lines`, `corrects`, a panel dodatkowo `sources` i `corrections`. Typ
+// 20260927000200): `invoice` (wiersz bez migawki sprzedawcy), `seller`,
+// `lines`, `corrects`, a panel dodatkowo `sources`, `corrections`,
+// `current_lines` (pozycje wystawionej faktury PO jej korektach - podstawa
+// kolejnej korekty) i `correction_hint` (sprzedaz skurczyla sie po
+// wystawieniu - powod albo NULL). Typ
 // generowany widzi w tym wylacznie `Json`, wiec odczyt jest JAWNY, pole po
 // polu, z bezpiecznym zastepstwem - zadnego rzutowania wiersza na
 // recznie napisany interfejs (`check:db-row-casts`).
@@ -12,6 +15,7 @@
 // fakture bez numeru i pozycji, bylby gorszy niz komunikat o bledzie.
 import type { Json } from "@/integrations/supabase/types";
 import {
+  EVENT_INVOICE_CORRECTION_HINTS,
   EVENT_INVOICE_CORRECTION_MODES,
   EVENT_INVOICE_KINDS,
   EVENT_INVOICE_KSEF_STATUSES,
@@ -20,6 +24,7 @@ import {
   EVENT_INVOICE_SOURCE_KINDS,
   EVENT_INVOICE_STATUSES,
   pickEnum,
+  type EventInvoiceCorrectionHint,
   type EventInvoiceCorrectionMode,
   type EventInvoiceKind,
   type EventInvoiceKsefStatus,
@@ -31,31 +36,16 @@ import {
 import { EVENT_INVOICE_VAT_RATES, type EventInvoiceVatRate } from "@/lib/events/eventInvoiceMath";
 import { buyerDraftFromColumns, type InvoiceBuyerDraft } from "@/lib/events/eventInvoiceBuyerDraft";
 
-type JsonObject = { [key: string]: Json | undefined };
+import {
+  jsonBool,
+  jsonList,
+  jsonNumber,
+  jsonRecord,
+  jsonText,
+  jsonTextOrNull,
+} from "@/lib/events/eventInvoiceJson";
 
-export function jsonRecord(value: Json | undefined): JsonObject {
-  return value !== null && typeof value === "object" && !Array.isArray(value) ? value : {};
-}
-
-export function jsonList(value: Json | undefined): Json[] {
-  return Array.isArray(value) ? value : [];
-}
-
-export function jsonText(value: Json | undefined): string {
-  return typeof value === "string" ? value : "";
-}
-
-export function jsonTextOrNull(value: Json | undefined): string | null {
-  return typeof value === "string" && value !== "" ? value : null;
-}
-
-export function jsonNumber(value: Json | undefined): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-export function jsonBool(value: Json | undefined): boolean {
-  return value === true;
-}
+export { jsonBool, jsonList, jsonNumber, jsonRecord, jsonText, jsonTextOrNull };
 
 export interface EventInvoiceSeller {
   name: string;
@@ -95,6 +85,17 @@ export interface EventInvoiceDocumentSource {
   grossCents: number;
   covers: boolean;
   releasedAt: string | null;
+}
+
+/** Pozycja faktury PO wystawionych korektach (ilosc 0 = usunieta korekta). */
+export interface EventInvoiceCurrentLine {
+  /** Kotwica: pozycja faktury (albo dopisana korekta), na ktora wskazuje korekta. */
+  lineId: string;
+  description: string;
+  unit: string;
+  quantity: number;
+  unitGrossCents: number;
+  vatRate: EventInvoiceVatRate;
 }
 
 export interface EventInvoiceCorrectionRef {
@@ -139,6 +140,9 @@ export interface EventInvoiceDocument {
   corrects: { id: string; number: string | null; issueDate: string | null } | null;
   sources: EventInvoiceDocumentSource[];
   corrections: EventInvoiceCorrectionRef[];
+  currentLines: EventInvoiceCurrentLine[];
+  /** Tylko panel: dlaczego wystawiona faktura wymaga korekty (NULL = nic). */
+  correctionHint: EventInvoiceCorrectionHint | null;
 }
 
 function parseSeller(value: Json | undefined): EventInvoiceSeller {
@@ -187,6 +191,18 @@ function parseSource(value: Json): EventInvoiceDocumentSource {
     grossCents: jsonNumber(row.gross_cents),
     covers: jsonBool(row.covers),
     releasedAt: jsonTextOrNull(row.released_at),
+  };
+}
+
+function parseCurrentLine(value: Json): EventInvoiceCurrentLine {
+  const row = jsonRecord(value);
+  return {
+    lineId: jsonText(row.line_id),
+    description: jsonText(row.description),
+    unit: jsonText(row.unit),
+    quantity: jsonNumber(row.quantity),
+    unitGrossCents: jsonNumber(row.unit_gross_cents),
+    vatRate: pickEnum(EVENT_INVOICE_VAT_RATES, row.vat_rate),
   };
 }
 
@@ -263,5 +279,10 @@ export function parseInvoiceDocument(value: Json | null): EventInvoiceDocument |
           },
     sources: jsonList(root.sources).map(parseSource),
     corrections: jsonList(root.corrections).map(parseCorrection),
+    currentLines: jsonList(root.current_lines).map(parseCurrentLine),
+    correctionHint:
+      typeof root.correction_hint === "string"
+        ? pickEnum(EVENT_INVOICE_CORRECTION_HINTS, root.correction_hint)
+        : null,
   };
 }

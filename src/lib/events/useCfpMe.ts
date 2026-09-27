@@ -6,11 +6,24 @@
 //   * `["event-cfp-me", slug, ...]` - dane WOŁAJĄCEGO (zgłoszenia, panel,
 //     kolejka). Ten korzeń unieważnia globalna synchronizacja zdarzeń domeny
 //     (`eventInvalidationMap`) po każdej zmianie zgłoszenia i oceny.
+// Fabryki kluczy i hook panelu prelegenta mieszkają w `useCfpShell` (chrome
+// strony wydarzenia nie może importować tego pliku - patrz tamten nagłówek);
+// tutaj są re-eksportowane, żeby strony naboru miały jedno źródło importu.
 // Wylogowanie czyści cały cache (`useAuth`), więc klucz własnych danych nie
 // musi nieść identyfikatora konta - tak samo jak `["event-me", slug, ...]`.
 //
 // ZAPYTANIA PERSONALNE MAJĄ `enabled` - bez sesji nie ma o co pytać (baza
 // odpowiedziałaby `auth_required`).
+//
+// ODPOWIEDŹ NA PRZYJĘCIE I WYCOFANIE SIĘGAJĄ POZA NABÓR: potwierdzenie dopisuje
+// prelegenta do publicznej listy, a rezygnacja/wycofanie anuluje zapis z biletem
+// i zdejmuje z listy (razem z materiałami). Dlatego te dwie mutacje odświeżają
+// też panel „Moje" (`["event-me", slug]`), listę prelegentów i ich materiały.
+//
+// ZAPIS I USUNIĘCIE MATERIAŁU ODŚWIEŻAJĄ MATERIAŁY NA STRONIE WYDARZENIA:
+// dialog profilu prelegenta trzyma je minutę pod `speakerMaterialsKeys`, a RPC
+// materiałów nie emitują zdarzenia domeny. Panel zna tylko slug, nie
+// identyfikator wydarzenia - stąd unieważnienie całego korzenia.
 import {
   useMutation,
   useQuery,
@@ -25,7 +38,6 @@ import {
   fetchCfpReview,
   fetchCfpReviewQueue,
   fetchMyCfpSubmissions,
-  fetchSpeakerPanel,
   respondCfpSubmission,
   saveCfpReview,
   saveCfpSubmission,
@@ -38,39 +50,23 @@ import {
   type SpeakerMaterialInput,
   type SpeakerProfileInput,
 } from "@/lib/events/cfpPublicApi";
+import { speakerMaterialsKeys } from "@/lib/events/speakerMaterialsPublic";
+import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import type {
   CfpMySubmissions,
   CfpPublic,
   CfpReviewDetail,
   CfpReviewQueue,
   CfpWriteResult,
-  SpeakerPanel,
 } from "@/lib/events/cfpSurface";
+import { CFP_PUBLIC_STALE_MS, cfpMeKeys, cfpPublicKeys } from "@/lib/events/useCfpShell";
 
-export const cfpPublicKeys = {
-  all: ["event-cfp-public"] as const,
-  slug: (slug: string) => [...cfpPublicKeys.all, slug] as const,
-};
-
-export const cfpMeKeys = {
-  all: ["event-cfp-me"] as const,
-  slug: (slug: string) => [...cfpMeKeys.all, slug] as const,
-  submissions: (slug: string) => [...cfpMeKeys.slug(slug), "submissions"] as const,
-  panel: (slug: string) => [...cfpMeKeys.slug(slug), "panel"] as const,
-  queue: (slug: string) => [...cfpMeKeys.slug(slug), "queue"] as const,
-  review: (slug: string, submissionId: string) =>
-    [...cfpMeKeys.slug(slug), "review", submissionId] as const,
-};
+export { cfpMeKeys, cfpPublicKeys, useSpeakerPanel } from "@/lib/events/useCfpShell";
 
 /**
- * Faza naboru może przejść z `scheduled` w `open` w trakcie wizyty, a strona
- * i tak odczytuje stan z bazy - minuta to kompromis między świeżością a ruchem.
- */
-const PUBLIC_STALE_MS = 60_000;
-
-/**
- * `enabled` = `false` do montażu: strona i zakładka naboru czytają fazę
- * WYŁĄCZNIE po stronie klienta (SSR i pierwszy render są identyczne).
+ * `enabled` = `false` do montażu: strona naboru czyta fazę WYŁĄCZNIE po
+ * stronie klienta (SSR i pierwszy render są identyczne). Zakładka w pasku
+ * pyta o samą fazę własnym kluczem (`useCfpShell.useCfpTabOpen`).
  */
 export function useCfpPublic(
   slug: string,
@@ -80,7 +76,7 @@ export function useCfpPublic(
     queryKey: cfpPublicKeys.slug(slug),
     queryFn: () => fetchCfpPublic(slug),
     enabled: enabled && slug !== "",
-    staleTime: PUBLIC_STALE_MS,
+    staleTime: CFP_PUBLIC_STALE_MS,
   });
 }
 
@@ -91,18 +87,6 @@ export function useMyCfpSubmissions(
   return useQuery({
     queryKey: cfpMeKeys.submissions(slug),
     queryFn: () => fetchMyCfpSubmissions(slug),
-    enabled: enabled && slug !== "",
-    staleTime: 30_000,
-  });
-}
-
-export function useSpeakerPanel(
-  slug: string,
-  enabled: boolean,
-): UseQueryResult<SpeakerPanel | null, Error> {
-  return useQuery({
-    queryKey: cfpMeKeys.panel(slug),
-    queryFn: () => fetchSpeakerPanel(slug),
     enabled: enabled && slug !== "",
     staleTime: 30_000,
   });
@@ -135,14 +119,21 @@ export function useCfpReview(
 function useMeMutation<TInput, TResult>(
   slug: string,
   run: (input: TInput) => Promise<TResult>,
+  extraKeys: ReadonlyArray<readonly unknown[]> = [],
 ): UseMutationResult<TResult, Error, TInput> {
   const queryClient = useQueryClient();
   return useMutation<TResult, Error, TInput>({
     mutationFn: run,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: cfpMeKeys.slug(slug) });
+      for (const key of extraKeys) void queryClient.invalidateQueries({ queryKey: key });
     },
   });
+}
+
+/** Klucze poza naborem, które zmienia potwierdzenie, rezygnacja i wycofanie. */
+function acceptanceSideEffectKeys(slug: string): ReadonlyArray<readonly unknown[]> {
+  return [["event-me", slug], [WIDGET_QUERY_ROOTS.speakers], speakerMaterialsKeys.all];
 }
 
 export function useSaveCfpSubmission(slug: string) {
@@ -154,12 +145,18 @@ export function useSubmitCfpSubmission(slug: string) {
 }
 
 export function useWithdrawCfpSubmission(slug: string) {
-  return useMeMutation<string, CfpWriteResult>(slug, withdrawCfpSubmission);
+  return useMeMutation<string, CfpWriteResult>(
+    slug,
+    withdrawCfpSubmission,
+    acceptanceSideEffectKeys(slug),
+  );
 }
 
 export function useRespondCfpSubmission(slug: string) {
-  return useMeMutation<{ id: string; confirm: boolean }, CfpWriteResult>(slug, (input) =>
-    respondCfpSubmission(input.id, input.confirm),
+  return useMeMutation<{ id: string; confirm: boolean }, CfpWriteResult>(
+    slug,
+    (input) => respondCfpSubmission(input.id, input.confirm),
+    acceptanceSideEffectKeys(slug),
   );
 }
 
@@ -167,12 +164,19 @@ export function useSaveSpeakerProfile(slug: string) {
   return useMeMutation<SpeakerProfileInput, void>(slug, saveSpeakerProfile);
 }
 
+/** Materiały widzi też publiczny dialog prelegenta (poza gałęzią naboru). */
+const PUBLIC_MATERIAL_KEYS: ReadonlyArray<readonly unknown[]> = [speakerMaterialsKeys.all];
+
 export function useSaveSpeakerMaterial(slug: string) {
-  return useMeMutation<SpeakerMaterialInput, string>(slug, saveSpeakerMaterial);
+  return useMeMutation<SpeakerMaterialInput, string>(
+    slug,
+    saveSpeakerMaterial,
+    PUBLIC_MATERIAL_KEYS,
+  );
 }
 
 export function useDeleteSpeakerMaterial(slug: string) {
-  return useMeMutation<string, void>(slug, deleteSpeakerMaterial);
+  return useMeMutation<string, void>(slug, deleteSpeakerMaterial, PUBLIC_MATERIAL_KEYS);
 }
 
 export function useSaveCfpReview(slug: string) {

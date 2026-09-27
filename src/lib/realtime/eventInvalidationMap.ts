@@ -208,12 +208,17 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   // uczestnika oraz skrot w menu konta. Brak reguly oznaczal ciche milczenie
   // - ekran wygladal poprawnie, tylko nie odswiezal sie po decyzji, zapisie
   // ani awansie z listy rezerwowej.
-  "event.registration.created.v1": (event) => registrationEventKeys(event),
-  "event.registration.updated.v1": (event) => registrationEventKeys(event),
-  "event.registration.decided.v1": (event) => registrationEventKeys(event),
-  "event.registration.cancelled.v1": (event) => registrationEventKeys(event),
-  "event.registration.promoted.v1": (event) => registrationEventKeys(event),
-  "event.registration.payment.v1": (event) => registrationEventKeys(event),
+  // Kazde z nich zmienia TAKZE ekran faktur: nowy albo zmieniony zapis (rodzaj
+  // biletu) to inny kandydat do zafakturowania, decyzja i awans z kolejki -
+  // plakietka wplaty bez miejsca, odwolanie i wplata (zaplata albo zwrot
+  // z karty) - kwota i podpowiedz korekty wystawionej faktury, a w profilu
+  // kupujacego to, o co moze poprosic.
+  "event.registration.created.v1": (event) => registrationInvoiceEventKeys(event),
+  "event.registration.updated.v1": (event) => registrationInvoiceEventKeys(event),
+  "event.registration.decided.v1": (event) => registrationInvoiceEventKeys(event),
+  "event.registration.cancelled.v1": (event) => registrationInvoiceEventKeys(event),
+  "event.registration.promoted.v1": (event) => registrationInvoiceEventKeys(event),
+  "event.registration.payment.v1": (event) => registrationInvoiceEventKeys(event),
 
   // Ustawienia funkcji uczestnika (spec B.9): panel organizatora tego
   // wydarzenia i publiczne flagi `event_participant_options` (wszystkie slugi -
@@ -268,6 +273,41 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   "event_seat.assigned.v1": (event) => seatingEventKeys(event, true),
   "event_seat.released.v1": (event) => seatingEventKeys(event, true),
   "event_seat_map.changed.v1": (event) => seatingEventKeys(event, false),
+  // Ustawienia funkcji uczestnika (spec B.9): panel organizatora tego
+  // wydarzenia i publiczne flagi `event_participant_options` (wszystkie slugi -
+  // payload niesie id wydarzenia, nie slug).
+  "event.participant_settings.updated.v1": (event) => participantSettingsEventKeys(event),
+
+  // Tor B: oferty z listy rezerwowej, przekazanie biletu, zwrot samoobsługowy.
+  // Te same trzy powierzchnie co zwykłe zgłoszenie + znaczniki pieniędzy
+  // w panelu organizatora. Przekazanie zmienia też panel „moje wydarzenie"
+  // (plan, zapisy na sesje, certyfikat) - dotychczasowy posiadacz traci go,
+  // nowy zyskuje, a klucz uczestnika jest po slugu, którego payload nie niesie.
+  "event.registration.offered.v1": (event) => registrationMoneyEventKeys(event),
+  "event.registration.offer_closed.v1": (event) => registrationMoneyEventKeys(event),
+  "event.registration.transfer_requested.v1": (event) => registrationMoneyEventKeys(event),
+  "event.registration.transfer_cancelled.v1": (event) => registrationMoneyEventKeys(event),
+  "event.registration.transferred.v1": (event) => [
+    ...registrationMoneyEventKeys(event),
+    ["event-me"],
+  ],
+  "event.registration.refund_requested.v1": (event) => registrationMoneyEventKeys(event),
+  "event.registration.refund_failed.v1": (event) => registrationMoneyEventKeys(event),
+
+  // Tor C: certyfikaty i ankieta po wydarzeniu.
+  "event.certificate.issued.v1": (event) => certificateEventKeys(event),
+  "event.certificate.revoked.v1": (event) => certificateEventKeys(event),
+  "event.survey.submitted.v1": (event) => [
+    eventScopedKey("admin-event-survey-results", event),
+    eventScopedKey("admin-event-follow-up-stats", event),
+  ],
+  "event.survey.questions_changed.v1": (event) => [
+    eventScopedKey("admin-event-survey-questions", event),
+    ["event-follow-up"],
+  ],
+  // Klon edycji: nowy wiersz na liscie wydarzen i nowa pozycja na liscie
+  // edycji zrodla.
+  "event.cloned.v1": (event) => cloneEventKeys(event),
 };
 
 // KLUCZE JAKO LITERALY, NIE IMPORT FABRYK. Fabryki (`meetingKeys`,
@@ -445,6 +485,11 @@ function registrationEventKeys(event: DomainEventRow): QueryKey[] {
   ];
 }
 
+/** Zgloszenie + ekran faktur wydarzenia i karta faktur kupujacego. */
+function registrationInvoiceEventKeys(event: DomainEventRow): QueryKey[] {
+  return [...registrationEventKeys(event), ...invoiceEventKeys(event)];
+}
+
 /**
  * Klucze ustawien uczestnika. Literaly (a nie fabryki z
  * `useParticipantSettings`/`useEventParticipantOptions`) z tego samego powodu
@@ -490,6 +535,57 @@ function certificateEventKeys(event: DomainEventRow): QueryKey[] {
 function cfpEventKeys(event: DomainEventRow): QueryKey[] {
   const eventId = eventPayloadText(event, "event_id");
   return [eventId === "" ? ["event-cfp"] : ["event-cfp", eventId], ["event-cfp-me"]];
+}
+
+/**
+ * Klucze ustawien uczestnika. Literaly (a nie fabryki z
+ * `useParticipantSettings`/`useEventParticipantOptions`) z tego samego powodu
+ * co wyzej: mapa nie moze wciagac hookow modulu do wspolnego chunku realtime.
+ * Brak `event_id` (uszkodzony wiersz) degraduje do calego prefiksu panelu.
+ */
+function participantSettingsEventKeys(event: DomainEventRow): QueryKey[] {
+  const eventId = eventPayloadText(event, "event_id");
+  return [
+    eventId === ""
+      ? ["admin-event-participant-settings"]
+      : ["admin-event-participant-settings", eventId],
+    ["event-participant-options"],
+  ];
+}
+
+/**
+ * Klucz panelu jednego wydarzenia (`[prefiks, event_id]`); brak `event_id`
+ * w payloadzie (uszkodzony wiersz, starszy backend) degraduje do CAŁEGO
+ * prefiksu - szersza inwalidacja jest tańsza niż nieaktualny panel.
+ */
+function eventScopedKey(prefix: string, event: DomainEventRow): QueryKey {
+  const eventId = eventPayloadText(event, "event_id");
+  return eventId === "" ? [prefix] : [prefix, eventId];
+}
+
+/** Zgłoszenie + znaczniki pieniędzy (oferta, przekazanie, zwrot) w panelu organizatora. */
+function registrationMoneyEventKeys(event: DomainEventRow): QueryKey[] {
+  return [...registrationEventKeys(event), eventScopedKey("admin-event-registration-money", event)];
+}
+
+/** Certyfikat: lista w panelu organizatora i panel follow-up uczestnika (po slugu - cała gałąź). */
+function certificateEventKeys(event: DomainEventRow): QueryKey[] {
+  return [eventScopedKey("admin-event-certificates", event), ["event-follow-up"]];
+}
+
+/**
+ * Klucze klonu edycji. Lista wydarzen modulu i stara lista spolecznosci
+ * dostaja nowy wiersz; galaz zrodla (`["event-clone", source_event_id]`,
+ * literal zgodny z `eventCloneKeys.event`) - nowa pozycje na liscie edycji.
+ * Brak zrodla w payloadzie degraduje do calego korzenia klonu.
+ */
+function cloneEventKeys(event: DomainEventRow): QueryKey[] {
+  const sourceId = eventPayloadText(event, "source_event_id");
+  return [
+    ["admin-module-events"],
+    ["admin-community-events"],
+    sourceId === "" ? ["event-clone"] : ["event-clone", sourceId],
+  ];
 }
 
 const eventKeysList: QueryKey[] = [

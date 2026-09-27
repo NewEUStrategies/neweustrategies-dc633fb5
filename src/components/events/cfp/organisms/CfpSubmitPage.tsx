@@ -13,7 +13,16 @@
 // „Wyślij" najpierw zapisuje bieżący stan, potem go wysyła, a na końcu
 // zamawia mail z potwierdzeniem (bez blokowania - brak maila nie cofa
 // zgłoszenia).
-import { useState } from "react";
+//
+// ZGODY I KLAUZULA INFORMACYJNA (RODO). Zgoda na przetwarzanie danych jest
+// wymagana przy każdym zapisie i nigdy nie jest zaznaczona z góry; obok stoi
+// klauzula (kto, po co, odnośnik do polityki prywatności). Pole zgody
+// marketingowej jest wyłącznie NADANIEM zgody: gdy zgoda już obowiązuje albo
+// osoba wycofała zgody, pola nie ma - jest zdanie o stanie, bo odznaczenie nie
+// wycofałoby zgody, a zaznaczenie nie przywróci wycofanych (baza tego nie robi).
+// Przy współprelegentach formularz przypomina, że zgłaszający ma ich
+// poinformować o przekazaniu danych.
+import { useId, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
@@ -186,6 +195,7 @@ function CfpSubmitEditor({
   );
   const [issues, setIssues] = useState<CfpSubmissionIssue[]>([]);
   const busy = save.isPending || submit.isPending;
+  const consentErrorId = useId();
 
   const set = <K extends keyof CfpSubmissionDraft>(key: K, value: CfpSubmissionDraft[K]) =>
     setDraft((previous) => ({ ...previous, [key]: value }));
@@ -329,13 +339,47 @@ function CfpSubmitEditor({
             onChange={(value) => set("companyText", value)}
           />
         </div>
-        <label className="flex items-start gap-2 text-sm">
-          <Checkbox
-            checked={draft.consentMarketing}
-            onCheckedChange={(checked) => set("consentMarketing", checked === true)}
-          />
-          <span>{t("eventCfp.submit.fields.marketingConsent")}</span>
-        </label>
+        <div className="space-y-2">
+          <label className="flex items-start gap-2 text-sm">
+            <Checkbox
+              checked={draft.consentDataProcessing}
+              aria-invalid={errorFor("consentDataProcessing") === null ? undefined : true}
+              aria-describedby={
+                errorFor("consentDataProcessing") === null ? undefined : consentErrorId
+              }
+              onCheckedChange={(checked) => set("consentDataProcessing", checked === true)}
+            />
+            <span>{t("eventCfp.submit.fields.dataProcessingConsent")} *</span>
+          </label>
+          {errorFor("consentDataProcessing") === null ? null : (
+            <p id={consentErrorId} className="text-xs text-destructive" role="alert">
+              {errorFor("consentDataProcessing")}
+            </p>
+          )}
+          {mine.person?.consentsWithdrawn ? (
+            <p className="text-xs text-muted-foreground">
+              {t("eventCfp.submit.fields.marketingConsentWithdrawn")}
+            </p>
+          ) : mine.person?.consentMarketing ? (
+            <p className="text-xs text-muted-foreground">
+              {t("eventCfp.submit.fields.marketingConsentActive")}
+            </p>
+          ) : (
+            <label className="flex items-start gap-2 text-sm">
+              <Checkbox
+                checked={draft.consentMarketing}
+                onCheckedChange={(checked) => set("consentMarketing", checked === true)}
+              />
+              <span>{t("eventCfp.submit.fields.marketingConsent")}</span>
+            </label>
+          )}
+          <p className="text-xs text-muted-foreground">
+            {t("eventCfp.submit.privacy.notice")}{" "}
+            <Link to="/polityka-prywatnosci" className="underline underline-offset-2">
+              {t("eventCfp.submit.privacy.link")}
+            </Link>
+          </p>
+        </div>
       </section>
 
       <section className="space-y-3">
@@ -415,6 +459,7 @@ function CfpSubmitEditor({
       {cfp.allowCoSpeakers ? (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">{t("eventCfp.submit.sections.coSpeakers")}</h2>
+          <p className="text-xs text-muted-foreground">{t("eventCfp.submit.coSpeaker.notice")}</p>
           <CfpCoSpeakersEditor
             speakers={draft.coSpeakers}
             onChange={(coSpeakers) => set("coSpeakers", coSpeakers)}

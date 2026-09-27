@@ -32,7 +32,7 @@
 // linii bez sieci i bez DOM, więc atrapa zamieniłaby test w sprawdzanie samej
 // siebie. Atrapowany jest wyłącznie `react-i18next`, i to PRAWDZIWYM
 // tłumaczem (`realT`), żeby asercje mierzyły słownik.
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 
 const h = vi.hoisted(() => ({
@@ -103,6 +103,16 @@ function clickButton(name: string): void {
 const CONFIRM = () => realT(h.lang)("common.confirm");
 const CANCEL = () => realT(h.lang)("common.cancel");
 const SAVE = () => realT(h.lang)("common.save");
+
+// MODUŁ OKNA WCZYTANY Z GÓRY. `React.lazy` w hoście czeka na `import()`, a
+// pierwsze wczytanie w obciążonym przebiegu CI (transformacja pliku) potrafi
+// trwać dłużej niż limit `flushLazyDialog` - test widział wtedy pusty DOM.
+// Ten sam moduł zaimportowany tu raz trafia do pamięci modułów, więc import
+// hosta rozwiązuje się w następnym mikrozadaniu i czekanie przestaje zależeć
+// od obciążenia maszyny. Zachowanie hosta (lazy + Suspense) pozostaje bez zmian.
+beforeAll(async () => {
+  await import("@/components/AppDialogView");
+});
 
 beforeEach(() => {
   h.lang = "pl";
