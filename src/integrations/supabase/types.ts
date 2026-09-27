@@ -22451,6 +22451,10 @@ export type Database = {
         }
         Returns: string
       }
+      _event_seat_cards: {
+        Args: { p_registration_ids: string[]; p_tenant: string }
+        Returns: Json
+      }
       _event_seat_label: {
         Args: {
           p_kind: string
@@ -24435,6 +24439,11 @@ export type Database = {
           token_prefix: string
         }[]
       }
+      admin_event_seat_assign: { Args: { p_payload: Json }; Returns: Json }
+      admin_event_seat_assign_batch: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       admin_event_seat_category_delete: {
         Args: { p_category_id: string }
         Returns: boolean
@@ -24442,6 +24451,23 @@ export type Database = {
       admin_event_seat_category_save: {
         Args: { p_payload: Json }
         Returns: string
+      }
+      admin_event_seat_lookup: {
+        Args: { p_payload: Json }
+        Returns: {
+          category_color: string
+          category_key: string
+          category_name_en: string
+          category_name_pl: string
+          map_id: string
+          map_name: string
+          map_status: string
+          registration_id: string
+          row_label: string
+          seat_number: number
+          section_kind: string
+          section_label: string
+        }[]
       }
       admin_event_seat_map_delete: {
         Args: { p_map_id: string }
@@ -24479,6 +24505,7 @@ export type Database = {
           width: number
         }[]
       }
+      admin_event_seat_release: { Args: { p_payload: Json }; Returns: number }
       admin_event_seat_section_delete: {
         Args: { p_section_id: string }
         Returns: boolean
@@ -24486,6 +24513,60 @@ export type Database = {
       admin_event_seat_section_save: {
         Args: { p_payload: Json }
         Returns: Json
+      }
+      admin_event_seating_candidates: {
+        Args: { p_payload: Json }
+        Returns: {
+          company: string
+          company_id: string
+          first_name: string
+          group_color: string
+          group_id: string
+          group_name_en: string
+          group_name_pl: string
+          last_name: string
+          package_company_id: string
+          package_order_id: string
+          party_key: string
+          person_id: string
+          registration_id: string
+          registration_status: string
+          seat_id: string
+          seat_label: string
+          ticket_name_en: string
+          ticket_name_pl: string
+          ticket_type_id: string
+          total_count: number
+        }[]
+      }
+      admin_event_seating_export: {
+        Args: { p_payload: Json }
+        Returns: {
+          category_key: string
+          category_name_en: string
+          category_name_pl: string
+          company: string
+          company_id: string
+          email: string
+          first_name: string
+          hold_company_id: string
+          hold_company_name: string
+          hold_note: string
+          is_accessible: boolean
+          last_name: string
+          registration_id: string
+          registration_status: string
+          row_label: string
+          seat_id: string
+          seat_number: number
+          seat_status: string
+          section_kind: string
+          section_label: string
+          section_sort: number
+          sort_key: number
+          ticket_name_en: string
+          ticket_name_pl: string
+        }[]
       }
       admin_event_seats_update: { Args: { p_payload: Json }; Returns: number }
       admin_event_session_delete: { Args: { _id: string }; Returns: boolean }
@@ -28088,6 +28169,7 @@ export type Database = {
         }[]
       }
       event_my_registrations: { Args: { p_payload?: Json }; Returns: Json }
+      event_my_seats: { Args: { p_payload?: Json }; Returns: Json }
       event_my_speaker_material_delete: {
         Args: { p_material_id: string }
         Returns: boolean
@@ -28324,6 +28406,7 @@ export type Database = {
         Args: { p_ticket_type_id: string }
         Returns: Json
       }
+      event_ticket_seats: { Args: { p_payload?: Json }; Returns: Json }
       event_ticket_wallet_payload: { Args: { p_payload: Json }; Returns: Json }
       event_types_active: {
         Args: never
