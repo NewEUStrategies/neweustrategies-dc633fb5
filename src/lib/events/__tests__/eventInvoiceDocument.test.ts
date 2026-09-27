@@ -122,6 +122,66 @@ describe("parseInvoiceDocument", () => {
       },
     ]);
     expect(doc?.corrections).toEqual([]);
+    expect(doc?.currentLines).toEqual([
+      {
+        lineId: INVOICE_IDS.line1,
+        description: "Bilet: Standard - Kongres 27",
+        unit: "szt.",
+        quantity: 1,
+        unitGrossCents: 12300,
+        vatRate: "23",
+      },
+      {
+        lineId: INVOICE_IDS.line2,
+        description: "Bilet: Standard - Kongres 27",
+        unit: "szt.",
+        quantity: 1,
+        unitGrossCents: 12301,
+        vatRate: "23",
+      },
+    ]);
+  });
+
+  it("stan po korektach: pozycja usunieta korekta ma ilosc 0; brak pola = pusta lista", () => {
+    const doc = parseInvoiceDocument(
+      invoiceDocumentJson({
+        current_lines: [
+          {
+            line_id: INVOICE_IDS.line1,
+            description: "Bilet",
+            unit: "szt.",
+            quantity: 0,
+            unit_gross_cents: 10000,
+            vat_rate: "8",
+          },
+        ],
+      }),
+    );
+    expect(doc?.currentLines).toEqual([
+      {
+        lineId: INVOICE_IDS.line1,
+        description: "Bilet",
+        unit: "szt.",
+        quantity: 0,
+        unitGrossCents: 10000,
+        vatRate: "8",
+      },
+    ]);
+    const buyerDoc = parseInvoiceDocument({ invoice: { id: "x" } });
+    expect(buyerDoc?.currentLines).toEqual([]);
+  });
+
+  it("podpowiedz korekty: powod z bazy, nieznany powod = pierwszy ze zbioru, brak = null", () => {
+    expect(
+      parseInvoiceDocument(invoiceDocumentJson({ correction_hint: "refunded" }))?.correctionHint,
+    ).toBe("refunded");
+    expect(
+      parseInvoiceDocument(invoiceDocumentJson({ correction_hint: "cos" }))?.correctionHint,
+    ).toBe("source_closed");
+    expect(
+      parseInvoiceDocument(invoiceDocumentJson({ correction_hint: null }))?.correctionHint,
+    ).toBeNull();
+    expect(parseInvoiceDocument({ invoice: { id: "x" } })?.correctionHint).toBeNull();
   });
 
   it("korekta: tryb, faktura korygowana, lista korekt", () => {
@@ -173,6 +233,7 @@ describe("parseInvoiceDocument", () => {
       lines: [{ vat_rate: "7" }, "zly"],
       sources: [{ source_kind: "ticket" }],
       corrections: [{ status: "void", correction_mode: "x" }],
+      current_lines: [{ vat_rate: "7" }],
     });
     expect(doc).toMatchObject({
       kind: "invoice",
@@ -194,6 +255,14 @@ describe("parseInvoiceDocument", () => {
       number: null,
       status: "draft",
       correctionMode: "full",
+    });
+    expect(doc?.currentLines[0]).toEqual({
+      lineId: "",
+      description: "",
+      unit: "",
+      quantity: 0,
+      unitGrossCents: 0,
+      vatRate: "23",
     });
   });
 });

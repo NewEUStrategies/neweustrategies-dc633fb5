@@ -245,6 +245,21 @@ describe("useUserBadges", () => {
     await Promise.resolve();
     expect(db().chains).toHaveLength(0);
   });
+
+  it("RĘCZNE odświeżenie bez id też nie odpytuje bazy - pusta lista, nie `in(undefined)`", async () => {
+    // `enabled: false` nie blokuje `refetch()` (React Query v5 wykonuje wtedy
+    // queryFn mimo wyłączenia). Bez strażnika w samej funkcji zapytania ręczne
+    // odświeżenie bez id wysłałoby do bazy `in("user_id", [undefined])`.
+    const { result } = renderHook(() => useUserBadges(undefined), {
+      wrapper: wrapperFor(makeClient()),
+    });
+
+    const refetched = await result.current.refetch();
+
+    expect(refetched.data).toEqual([]);
+    expect(refetched.error).toBeNull();
+    expect(db().chains).toHaveLength(0);
+  });
 });
 
 // ── profil nagłówka ────────────────────────────────────────────────────────
@@ -381,6 +396,51 @@ describe("usePublicExposure", () => {
     renderHook(() => usePublicExposure(), { wrapper: wrapperFor(makeClient()) });
     await Promise.resolve();
     expect(h.rpc).not.toHaveBeenCalled();
+  });
+
+  it("zwrotka BEZ danych (`data: null`) to stan zachowawczy, nie wyjątek i nie `null`", async () => {
+    // Baza odpowiedziała bez błędu, tylko bez zbioru - to jest „nic nie ma”,
+    // a nie „nie wiemy”. Degradacja do `null` pokazałaby notę neutralną tam,
+    // gdzie odpowiedź jest znana.
+    h.rpc.mockResolvedValue(ok(null));
+    const { result } = renderHook(() => usePublicExposure(), {
+      wrapper: wrapperFor(makeClient()),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).not.toBeNull();
+    expect(result.current.data?.isPublic).toBe(false);
+    expect(result.current.data?.discoverable).toBe(false);
+  });
+
+  it("błąd RPC w środowisku BEZ `console` nadal daje `null`, a nie wyjątek zapytania", async () => {
+    // Strażnik `typeof console` jest po to, żeby sam LOG nie zamienił
+    // zachowawczego „nie wiemy” w błąd zapytania. Pierwszy przebieg idzie przy
+    // konsoli (i ją woła), drugi - ręczne odświeżenie - bez niej.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    h.rpc.mockResolvedValue({ data: null, error: { message: "function does not exist" } });
+    const client = makeClient();
+    const { result } = renderHook(() => usePublicExposure(), { wrapper: wrapperFor(client) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+
+    const key = ["profile", "public-exposure", PROFILE_IDS.me];
+    // Konsola znika WYŁĄCZNIE na czas samego przebiegu zapytania (same
+    // mikrozadania) - powiadomienia Reacta idą później, już przy konsoli.
+    vi.stubGlobal("console", undefined);
+    try {
+      await client.refetchQueries({ queryKey: key });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    expect(h.rpc).toHaveBeenCalledTimes(2);
+    const state = client.getQueryState(key);
+    expect(state?.status).toBe("success");
+    expect(state?.error).toBeNull();
+    expect(state?.dataUpdateCount).toBe(2);
+    expect(client.getQueryData(key)).toBeNull();
   });
 });
 
@@ -527,6 +587,22 @@ describe("useProfileIntent", () => {
     h.auth.uid = null;
     renderHook(() => useProfileIntent(), { wrapper: wrapperFor(makeClient()) });
     await Promise.resolve();
+    expect(db().chains).toHaveLength(0);
+  });
+
+  it("RĘCZNE odświeżenie po wylogowaniu to jawny błąd, nie zapytanie bez `id`", async () => {
+    // `refetch()` omija `enabled: false`. Bez strażnika w funkcji zapytania
+    // cztery zapytania poleciałyby z `undefined` w filtrze właściciela, zamiast
+    // zatrzymać się na braku sesji z czytelnym powodem.
+    h.auth.uid = null;
+    const { result } = renderHook(() => useProfileIntent(), {
+      wrapper: wrapperFor(makeClient()),
+    });
+
+    const refetched = await result.current.refetch();
+
+    expect(refetched.isError).toBe(true);
+    expect(refetched.error?.message).toBe("Not authenticated");
     expect(db().chains).toHaveLength(0);
   });
 });

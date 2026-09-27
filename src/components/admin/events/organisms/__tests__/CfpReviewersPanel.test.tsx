@@ -307,6 +307,32 @@ describe("CfpMaterialsTable", () => {
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("odmowa:not_found: x"));
   });
 
+  it("materiał tylko dla organizatorów nie ma przycisku publikacji (strona i tak by go nie pokazała)", async () => {
+    stub().setData("admin_event_cfp_materials_list", [
+      { ...MATERIALS[0], id: "m3", title_pl: "Wewnętrzny", visibility: "organizers" },
+      {
+        ...MATERIALS[0],
+        id: "m4",
+        title_pl: "Dawniej publiczny",
+        visibility: "organizers",
+        is_published: true,
+      },
+    ]);
+    renderWithQueryClient(<CfpMaterialsTable eventId="e1" timezone="Europe/Warsaw" />);
+    const row = (await screen.findByText("Wewnętrzny")).closest("tr");
+    if (row === null) throw new Error("test");
+    expect(
+      within(row).queryByRole("button", { name: "adminEventCfp.materials.publish" }),
+    ).toBeNull();
+    expect(within(row).getByText("adminEventCfp.materials.organizersOnly")).toBeInTheDocument();
+    // Opublikowany wcześniej da się wycofać - to stan bezpieczny.
+    const published = screen.getByText("Dawniej publiczny").closest("tr");
+    if (published === null) throw new Error("test");
+    expect(
+      within(published).getByRole("button", { name: "adminEventCfp.materials.unpublish" }),
+    ).toBeInTheDocument();
+  });
+
   it("odmowa odczytu materiałów", async () => {
     stub().setError("admin_event_cfp_materials_list", "forbidden: m");
     renderWithQueryClient(<CfpMaterialsTable eventId="e1" timezone="Europe/Warsaw" />);

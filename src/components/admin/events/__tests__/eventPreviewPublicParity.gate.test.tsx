@@ -811,6 +811,8 @@ describe("partnerzy stoja w podgladzie tam, gdzie na stronie publicznej", () => 
         name: "Nordwind Analytics",
         logoUrl: null,
         websiteUrl: null,
+        linkMode: "exhibitor",
+        href: null,
         descriptionPl: null,
         descriptionEn: null,
         country: null,

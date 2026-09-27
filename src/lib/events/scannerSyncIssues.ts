@@ -61,7 +61,9 @@ export function detectConflict(
   const offlineOutcome = item.offlineOutcome ?? null;
   if (offlineOutcome === null) return null;
   const admittedOffline = item.offlineAdmitted === true;
-  if (admittedOffline === result.admit) return null;
+  // `serverAdmit`, nie `admit`: przy odmowie offline baza zapisuje odmowę
+  // bramki (`admit` = false), a o ważnym bilecie mówi właśnie `serverAdmit`.
+  if (admittedOffline === result.serverAdmit) return null;
   const name = [result.person?.firstName, result.person?.lastName]
     .filter((part): part is string => typeof part === "string" && part.trim() !== "")
     .join(" ");

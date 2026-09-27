@@ -6,6 +6,15 @@
 // (nowa ilosc, cena brutto albo stawka). Okno tworzy SZKIC korekty, ktory
 // organizator oglada w edytorze przed wystawieniem - baza nadaje mu numer
 // z serii korekt dopiero przy wystawieniu.
+//
+// PUNKT WYJSCIA = STAN PO WCZESNIEJSZYCH KOREKTACH (`doc.currentLines`), nie
+// pierwotne pozycje faktury. Po korekcie ceny ze 123,00 na 100,00 kolejna
+// korekta zaczyna od 100,00 - inaczej organizator poprawialby liczby, ktore
+// juz nie obowiazuja, a pelne odwrocenie zwracaloby wiecej, niz zafakturowano.
+//
+// POWOD KOREKTY Z BAZY (`doc.correctionHint`): gdy sprzedaz skurczyla sie po
+// wystawieniu (zwrot, odwolanie, mniej miejsc), okno mowi to na gorze tym samym
+// zdaniem co plakietka na liscie dokumentow - zakres i kwote wybiera organizator.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -22,7 +31,10 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { adminEventInvoiceErrorMessage } from "@/lib/events/adminEventInvoiceErrors";
-import { VAT_RATE_LABEL_KEYS } from "@/lib/events/adminEventInvoiceLabels";
+import {
+  CORRECTION_HINT_LABEL_KEYS,
+  VAT_RATE_LABEL_KEYS,
+} from "@/lib/events/adminEventInvoiceLabels";
 import type { EventInvoiceDocument } from "@/lib/events/eventInvoiceDocument";
 import { pickEnum, type EventInvoiceCorrectionMode } from "@/lib/events/eventInvoiceEnums";
 import { EVENT_INVOICE_VAT_RATES, type EventInvoiceVatRate } from "@/lib/events/eventInvoiceMath";
@@ -95,10 +107,12 @@ function CorrectionForm({
   const create = useCreateInvoiceCorrection(eventId);
   const [mode, setMode] = useState<EventInvoiceCorrectionMode>("full");
   const [reason, setReason] = useState("");
+  const base = doc.currentLines;
+  const corrected = doc.corrections.some((correction) => correction.status === "issued");
   const [changes, setChanges] = useState<Record<string, LineChangeDraft>>(() =>
     Object.fromEntries(
-      doc.lines.map((line) => [
-        line.id,
+      base.map((line) => [
+        line.lineId,
         {
           quantity: String(line.quantity),
           unitGross: registrationPriceInput(line.unitGrossCents),
@@ -110,8 +124,8 @@ function CorrectionForm({
 
   function lineChanges(): CorrectionLineChange[] | null {
     const out: CorrectionLineChange[] = [];
-    for (const line of doc.lines) {
-      const change = changes[line.id];
+    for (const line of base) {
+      const change = changes[line.lineId];
       const quantity = Number(change.quantity.trim());
       const unitGross = registrationPriceCents(change.unitGross);
       if (
@@ -126,7 +140,12 @@ function CorrectionForm({
         unitGross !== line.unitGrossCents ||
         change.vatRate !== line.vatRate
       ) {
-        out.push({ lineId: line.id, quantity, unitGrossCents: unitGross, vatRate: change.vatRate });
+        out.push({
+          lineId: line.lineId,
+          quantity,
+          unitGrossCents: unitGross,
+          vatRate: change.vatRate,
+        });
       }
     }
     return out;
@@ -152,6 +171,11 @@ function CorrectionForm({
 
   return (
     <div className="space-y-4">
+      {doc.correctionHint === null ? null : (
+        <p role="note" className="text-sm font-medium text-destructive">
+          {t(CORRECTION_HINT_LABEL_KEYS[doc.correctionHint])}
+        </p>
+      )}
       <fieldset className="space-y-2">
         <legend className="text-sm font-semibold">{t("adminEventInvoices.correction.mode")}</legend>
         <label className="flex items-start gap-2 text-sm">
@@ -180,18 +204,23 @@ function CorrectionForm({
         maxLength={500}
         onValueChange={setReason}
       />
+      {mode === "partial" && corrected ? (
+        <p role="note" className="text-xs text-muted-foreground">
+          {t("adminEventInvoices.correction.currentStateHint")}
+        </p>
+      ) : null}
       {mode === "partial" ? (
         <ul className="space-y-3">
-          {doc.lines.map((line) => {
-            const change = changes[line.id];
+          {base.map((line) => {
+            const change = changes[line.lineId];
             const update = (patch: Partial<LineChangeDraft>) =>
               setChanges((current) => ({
                 ...current,
-                [line.id]: { ...current[line.id], ...patch },
+                [line.lineId]: { ...current[line.lineId], ...patch },
               }));
             return (
               <li
-                key={line.id}
+                key={line.lineId}
                 className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-3"
               >
                 <AdminFormTextRow
@@ -211,13 +240,13 @@ function CorrectionForm({
                   onValueChange={(unitGross) => update({ unitGross })}
                 />
                 <div className="space-y-1.5">
-                  <Label htmlFor={`correction-rate-${line.id}`}>
+                  <Label htmlFor={`correction-rate-${line.lineId}`}>
                     {t("adminEventInvoices.correction.lineVatRate", {
                       description: line.description,
                     })}
                   </Label>
                   <FormSelect
-                    id={`correction-rate-${line.id}`}
+                    id={`correction-rate-${line.lineId}`}
                     value={change.vatRate}
                     onValueChange={(value) =>
                       update({ vatRate: pickEnum(EVENT_INVOICE_VAT_RATES, value) })

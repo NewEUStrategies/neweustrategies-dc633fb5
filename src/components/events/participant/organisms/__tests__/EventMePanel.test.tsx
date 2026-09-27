@@ -25,7 +25,19 @@
 //  5. KONTAKTY BEZ KONTAKTÓW MAJĄ NASTĘPNY KROK. Puste „nie masz jeszcze
 //     kontaktów” z odnośnikiem do sieci to co innego niż pusty prostokąt.
 //
-//  6. NABÓR PRELEGENTÓW I PLAN SALI DOKŁADAJĄ SIĘ DO PANELU, NIE GO ZASTĘPUJĄ.
+//  6. ZAKŁADKA JEST STEROWANA Z ADRESU (`?tab=`). Panel otwiera zakładkę
+//     z właściwości `tab`, a klik zgłasza zmianę przez `onTabChange` - trasa
+//     zapisuje ją w adresie. Dopóki sesja się rozstrzyga, panel rysuje
+//     WYŁĄCZNIE szkielet (tak samo na serwerze), więc HTML nie zależy od `tab`.
+//
+//  7. GNIAZDA TORÓW (spec B.11, BLK-5). Harmonogram i „Po wydarzeniu" to
+//     gniazda torów A i C. Ten plik zastępuje KAŻDY moduł gniazda atrapą z
+//     `data-testid`, która zapisuje właściwości - i sprawdza wyłącznie MIEJSCE
+//     montażu i właściwości. Zachowanie gniazda mieszka w jego własnym teście
+//     (`slots/__tests__/EventMeScheduleSlot.test.tsx` przejął stąd asercje
+//     harmonogramu, w tym dawny `it.fails` o odmowie agendy).
+//
+//  8. NABÓR PRELEGENTÓW I PLAN SALI DOKŁADAJĄ SIĘ DO PANELU, NIE GO ZASTĘPUJĄ.
 //     Odnośniki „Panel prelegenta / recenzenta” (f1) stoją w nagłówku i dostają
 //     slug TEGO wydarzenia; karta „Twoje miejsce” (f4) stoi NAD biletami na
 //     zakładce rejestracji. Zgubiony slug albo zła kolejność to prelegent
@@ -34,11 +46,11 @@
 // CZEGO ŚWIADOMIE NIE DUBLUJE. Formularza kartoteki (`MyEventProfileForm`),
 // karty katalogowej (`MyEventPublicPreview`), giełdy spotkań
 // (`MeetingExchangeBoard`), panelu biletów (`ParticipantTicketsPanel`),
-// odnośników naboru (`EventMeCfpLinks`) i karty miejsca (`MySeatsPanel`) - każdy
-// ma WŁASNY plik testowy, więc tutaj stoją atrapy zapisujące otrzymane
-// właściwości. Przedmiotem dowodu jest KOMPOZYCJA, nie ich wnętrze.
-// `MyAgendaList` jedzie prawdziwy, bo to on rozstrzyga o różnicy między
-// „wczytujemy” a „pusto” na zakładce harmonogramu.
+// odnośników naboru (`EventMeCfpLinks`), karty miejsca (`MySeatsPanel`)
+// i gniazd - każdy ma WŁASNY plik testowy, więc tutaj stoją atrapy
+// zapisujące otrzymane właściwości. Przedmiotem dowodu jest KOMPOZYCJA, nie
+// ich wnętrze. Plakietka stanu (`RegistrationStatusBadge`) jedzie prawdziwa -
+// to atom, a jej zdanie jest częścią dowodu nr 3.
 //
 // Asercje idą po KLUCZACH i18n oraz po właściwościach przekazanych dzieciom.
 import { createContext, useContext, useState, type ReactNode } from "react";
@@ -91,6 +103,11 @@ const h = vi.hoisted(() => ({
   bilety: [] as { slugFilter: string | undefined; hideHeader: boolean }[],
   naborLinki: [] as { slug: string; signedIn: boolean }[],
   miejsca: [] as string[],
+  /** Właściwości gniazd - kontrakt BLK-5: host sprawdza tylko montaż i właściwości. */
+  gniazdoHarmonogramu: [] as EventMeSlotProps[],
+  gniazdoPoWydarzeniu: [] as EventMeSlotProps[],
+  /** Zakładki zgłoszone przez `onTabChange`. */
+  zmianyZakladki: [] as EventMeTab[],
 }));
 
 vi.mock("react-i18next", async () =>
@@ -249,9 +266,9 @@ vi.mock("@/components/events/participant/molecules/MySeatsPanel", () => ({
   },
 }));
 
-// Warstwa odczytu jest atrapą; hooki `useMyEventProfile` / `useMyAgenda` jadą
-// PRAWDZIWE, bo to one decydują o `enabled` (gość nie pyta bazy) i o stanach
-// „wczytywanie” / „błąd” widocznych na ekranie.
+// Warstwa odczytu jest atrapą; hooki `useMyEventProfile` /
+// `useEventParticipantOptions` jadą PRAWDZIWE, bo to one decydują o `enabled`
+// (gość nie pyta bazy) i o stanach „wczytywanie” / „błąd” widocznych na ekranie.
 vi.mock("@/lib/events/myEventProfileApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/events/myEventProfileApi")>()),
   fetchMyEventProfile: (slug: string) => h.pobierzProfil(slug),
@@ -361,6 +378,9 @@ beforeEach(() => {
   h.bilety.length = 0;
   h.naborLinki.length = 0;
   h.miejsca.length = 0;
+  h.gniazdoHarmonogramu.length = 0;
+  h.gniazdoPoWydarzeniu.length = 0;
+  h.zmianyZakladki.length = 0;
   h.pobierzProfil.mockResolvedValue(stan());
   h.pobierzOpcje.mockResolvedValue(makeEventParticipantOptions());
 });
@@ -769,7 +789,7 @@ describe("EventMePanel - networking i bilety", () => {
 
 describe("EventMePanel - nabór prelegentów i plan sali", () => {
   it("odnośniki naboru stoją w NAGŁÓWKU i dostają slug TEGO wydarzenia oraz sesję", async () => {
-    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+    pokaz();
 
     const odnosniki = await screen.findByTestId("odnosniki-naboru");
     expect(odnosniki.closest("header")).not.toBeNull();
@@ -779,7 +799,7 @@ describe("EventMePanel - nabór prelegentów i plan sali", () => {
   it("gość NIE dostaje odnośników naboru ani karty miejsca", () => {
     h.sesja.current = null;
     h.wizytowka.current = null;
-    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+    pokaz();
 
     expect(screen.queryByTestId("odnosniki-naboru")).toBeNull();
     expect(screen.queryByTestId("karta-miejsca")).toBeNull();
@@ -788,7 +808,7 @@ describe("EventMePanel - nabór prelegentów i plan sali", () => {
   });
 
   it("karta miejsca NIE montuje się poza zakładką rejestracji", async () => {
-    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+    pokaz();
 
     await screen.findByTestId("formularz-kartoteki");
     expect(screen.queryByTestId("karta-miejsca")).toBeNull();
@@ -796,7 +816,7 @@ describe("EventMePanel - nabór prelegentów i plan sali", () => {
   });
 
   it("karta miejsca stoi NAD panelem biletów i obie są dla TEGO wydarzenia", async () => {
-    renderWithQueryClient(<EventMePanel slug={SLUG} />);
+    pokaz();
 
     await screen.findByTestId("zakladki");
     zakladka("registration");

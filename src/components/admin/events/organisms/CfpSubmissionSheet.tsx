@@ -11,6 +11,13 @@
 // zapisuje decyzję, sprawdza ją i dopiero wtedy wysyła - panel pokazuje, czy
 // prelegent zna AKTUALNĄ decyzję (`cfpNotifyState`).
 //
+// PRZYJĘCIE NIE OGŁASZA, COFNIĘCIE COFA. Prelegent trafia na publiczną listę
+// dopiero po potwierdzeniu udziału (panel mówi to przy przyjętym zgłoszeniu).
+// Przyjęte albo potwierdzone zgłoszenie organizator może przenieść na rezerwę
+// albo odrzucić - baza cofa wtedy zapis z biletem, grupę, wpis na liście
+// i obsadę sesji; to samo dzieje się przy rezygnacji i wycofaniu przez
+// prelegenta. Panel mówi, co cofnięto i co zostaje do zrobienia (sesja).
+//
 // KARTA CRM PER OSOBA. Zgłaszający ma kartę od wysłania zgłoszenia;
 // współprelegenci dopiero od przyjęcia (wcześniej nie ma ich w `event_people`).
 // Nieudana synchronizacja ma przycisk ponowienia - most CRM nigdy nie blokuje
@@ -37,18 +44,21 @@ import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow"
 import { CfpAcceptDialog } from "@/components/admin/events/molecules/CfpAcceptDialog";
 import { CfpAnswerValue } from "@/components/events/cfp/atoms/CfpAnswerValue";
 import { CfpStatusBadge } from "@/components/events/cfp/atoms/CfpStatusBadge";
+import { confirmDialog } from "@/lib/appDialogs";
 import { adminCfpErrorMessage } from "@/lib/events/adminCfpErrors";
 import type { CfpAcceptInput } from "@/lib/events/cfpApi";
 import {
   asOneOf,
   CFP_DECISION_STATUSES,
   CFP_RECOMMENDATION_LABEL_KEYS,
+  CFP_REVOKE_STATUSES,
   CFP_SPEAKER_ROLE_LABEL_KEYS,
   CFP_SUBMISSION_STATUS_LABEL_KEYS,
   CFP_SUBMISSION_STATUSES,
   CFP_TALK_LANGUAGE_LABEL_KEYS,
   localizedPair,
   type CfpDecisionStatus,
+  type CfpRevokeStatus,
 } from "@/lib/events/cfpEnums";
 import {
   cfpDecisionIssue,
@@ -56,10 +66,13 @@ import {
   type CfpDecisionDraft,
 } from "@/lib/events/cfpReviewDraft";
 import {
+  cfpAcceptanceNote,
   cfpNotifyFeedback,
   cfpNotifyState,
   formatCfpScore,
   isCfpDecidable,
+  isCfpRevocable,
+  type CfpAcceptanceNote,
   type CfpNotifyState,
 } from "@/lib/events/cfpRows";
 import type {
@@ -84,6 +97,12 @@ const CRM_STATUS_KEYS: Record<CfpCrmLink["syncStatus"], string> = {
   ok: "adminEventCfp.crm.status.ok",
   error: "adminEventCfp.crm.status.error",
   skipped: "adminEventCfp.crm.status.skipped",
+};
+
+const ACCEPTANCE_NOTE_KEYS: Record<CfpAcceptanceNote, string> = {
+  awaitingConfirmation: "adminEventCfp.detail.acceptance.awaitingConfirmation",
+  announced: "adminEventCfp.detail.acceptance.announced",
+  undone: "adminEventCfp.detail.acceptance.undone",
 };
 
 const NOTIFY_STATE_KEYS: Record<CfpNotifyState, string> = {
@@ -181,6 +200,7 @@ function CfpSubmissionBody({
     feedbackToSpeaker: detail.feedbackToSpeaker,
   });
   const [touched, setTouched] = useState(false);
+  const [revokeStatus, setRevokeStatus] = useState<CfpRevokeStatus>("waitlisted");
   // Świeży szczegół (po decyzji, po odświeżeniu) staje się nowym punktem wyjścia.
   useEffect(() => {
     setDecision({
@@ -192,7 +212,10 @@ function CfpSubmissionBody({
   }, [detail.id, detail.status, detail.decisionNote, detail.feedbackToSpeaker, initialStatus]);
 
   const decisionIssue = cfpDecisionIssue(decision);
+  const revokeIssue = cfpDecisionIssue({ ...decision, status: revokeStatus });
   const decidable = isCfpDecidable(detail.status);
+  const revocable = isCfpRevocable(detail.status);
+  const acceptanceNote = cfpAcceptanceNote(detail);
   const notifyState = cfpNotifyState(detail);
   const format = detail.formats.find((entry) => entry.key === detail.formatKey) ?? null;
 
@@ -201,6 +224,25 @@ function CfpSubmissionBody({
     if (decisionIssue !== null) return;
     decide.mutate(cfpDecisionPayload(detail.id, decision), {
       onSuccess: () => toast.success(t("adminEventCfp.toasts.decisionSaved")),
+      onError: (error) => toast.error(adminCfpErrorMessage(error)),
+    });
+  };
+
+  // Cofnięcie przyjęcia ma skutki poza naborem (zapis, bilet, lista, sesja) -
+  // dlatego pyta o potwierdzenie, jak każde niszczące działanie panelu.
+  const applyRevoke = async () => {
+    setTouched(true);
+    if (revokeIssue !== null) return;
+    const confirmed = await confirmDialog({
+      title: t("adminEventCfp.detail.revoke.confirmTitle"),
+      description: t("adminEventCfp.detail.revoke.confirmDescription"),
+      confirmLabel: t("adminEventCfp.detail.revoke.apply"),
+      cancelLabel: t("adminEventCfp.common.cancel"),
+      destructive: true,
+    });
+    if (!confirmed) return;
+    decide.mutate(cfpDecisionPayload(detail.id, { ...decision, status: revokeStatus }), {
+      onSuccess: () => toast.success(t("adminEventCfp.toasts.acceptanceRevoked")),
       onError: (error) => toast.error(adminCfpErrorMessage(error)),
     });
   };
@@ -237,6 +279,36 @@ function CfpSubmissionBody({
     });
 
   const title = localizedPair(lang, detail.titlePl, detail.titleEn);
+
+  /** Notatka i informacja zwrotna - te same pola w decyzji i w cofnięciu przyjęcia. */
+  const noteFields = (issue: string | null) => (
+    <>
+      <AdminFormTextRow
+        id="cfp-decision-note"
+        label={t("adminEventCfp.detail.decisionNote")}
+        hint={t("adminEventCfp.detail.decisionNoteHint")}
+        value={decision.decisionNote}
+        rows={3}
+        maxLength={2000}
+        error={
+          touched && issue === "adminEventCfp.detail.validation.noteRequired" ? t(issue) : null
+        }
+        onValueChange={(decisionNote) => setDecision((previous) => ({ ...previous, decisionNote }))}
+      />
+      <AdminFormTextRow
+        id="cfp-decision-feedback"
+        label={t("adminEventCfp.detail.feedback")}
+        hint={t("adminEventCfp.detail.feedbackHint")}
+        value={decision.feedbackToSpeaker}
+        rows={4}
+        maxLength={4000}
+        error={touched && issue === "adminEventCfp.detail.validation.tooLong" ? t(issue) : null}
+        onValueChange={(feedbackToSpeaker) =>
+          setDecision((previous) => ({ ...previous, feedbackToSpeaker }))
+        }
+      />
+    </>
+  );
 
   return (
     <div className="space-y-4 pt-4">
@@ -451,6 +523,16 @@ function CfpSubmissionBody({
       )}
 
       <Section title={t("adminEventCfp.detail.sections.decision")}>
+        {acceptanceNote === null ? null : (
+          <div className="space-y-1 rounded-[6px] border border-border bg-muted/30 p-3 text-xs">
+            <p>{t(ACCEPTANCE_NOTE_KEYS[acceptanceNote])}</p>
+            {acceptanceNote === "undone" && detail.session !== null ? (
+              <p className="text-muted-foreground">
+                {t("adminEventCfp.detail.acceptance.sessionLeft")}
+              </p>
+            ) : null}
+          </div>
+        )}
         {decidable ? (
           <div className="space-y-3">
             <AdminFormEnumRow<CfpDecisionStatus>
@@ -461,38 +543,7 @@ function CfpSubmissionBody({
               labelFor={(option) => t(CFP_SUBMISSION_STATUS_LABEL_KEYS[option])}
               onValueChange={(status) => setDecision((previous) => ({ ...previous, status }))}
             />
-            <AdminFormTextRow
-              id="cfp-decision-note"
-              label={t("adminEventCfp.detail.decisionNote")}
-              hint={t("adminEventCfp.detail.decisionNoteHint")}
-              value={decision.decisionNote}
-              rows={3}
-              maxLength={2000}
-              error={
-                touched && decisionIssue === "adminEventCfp.detail.validation.noteRequired"
-                  ? t(decisionIssue)
-                  : null
-              }
-              onValueChange={(decisionNote) =>
-                setDecision((previous) => ({ ...previous, decisionNote }))
-              }
-            />
-            <AdminFormTextRow
-              id="cfp-decision-feedback"
-              label={t("adminEventCfp.detail.feedback")}
-              hint={t("adminEventCfp.detail.feedbackHint")}
-              value={decision.feedbackToSpeaker}
-              rows={4}
-              maxLength={4000}
-              error={
-                touched && decisionIssue === "adminEventCfp.detail.validation.tooLong"
-                  ? t(decisionIssue)
-                  : null
-              }
-              onValueChange={(feedbackToSpeaker) =>
-                setDecision((previous) => ({ ...previous, feedbackToSpeaker }))
-              }
-            />
+            {noteFields(decisionIssue)}
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
@@ -510,6 +561,31 @@ function CfpSubmissionBody({
                 {t("adminEventCfp.detail.accept")}
               </Button>
             </div>
+          </div>
+        ) : revocable ? (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">{t("adminEventCfp.detail.revoke.lead")}</p>
+            <AdminFormEnumRow<CfpRevokeStatus>
+              id="cfp-revoke-status"
+              label={t("adminEventCfp.detail.revoke.status")}
+              value={revokeStatus}
+              options={CFP_REVOKE_STATUSES}
+              labelFor={(option) => t(CFP_SUBMISSION_STATUS_LABEL_KEYS[option])}
+              onValueChange={setRevokeStatus}
+            />
+            {noteFields(revokeIssue)}
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={decide.isPending}
+              onClick={() => void applyRevoke()}
+            >
+              {t(
+                decide.isPending
+                  ? "adminEventCfp.common.saving"
+                  : "adminEventCfp.detail.revoke.apply",
+              )}
+            </Button>
           </div>
         ) : (
           <p className="text-xs text-muted-foreground">{t("adminEventCfp.detail.notDecidable")}</p>

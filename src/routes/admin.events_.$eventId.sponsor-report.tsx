@@ -11,11 +11,20 @@
 // `?sponsor=<uuid>` otwiera raport z filtrem jednego sponsora - tak prowadzi
 // odnośnik z karty firmy w CRM („Sponsoring wydarzeń"). Wartość spoza kształtu
 // uuid jest odrzucana w `validateSearch`, zanim dotknie zapytania.
+//
+// WZORZEC UUID JEST TU WPISANY, NIE IMPORTOWANY z `sponsorExposure`. Splitter
+// TanStacka wynosi do osobnego chunku wyłącznie `component`; `validateSearch`
+// zostaje w drzewie tras, czyli w chunku WEJŚCIOWYM każdej strony. Import
+// stamtąd wciągał do entry cały słownik pomiaru ekspozycji sponsorów - dla
+// czytelnika, który nigdy nie otworzy panelu (kronika `check-bundle-size.ts`,
+// wpis XIX). Parytet z tamtym wzorcem pilnuje test trasy.
 import { createFileRoute } from "@tanstack/react-router";
 
 import { SponsorReportPanel } from "@/components/admin/events/organisms/SponsorReportPanel";
-import { UUID_PATTERN } from "@/lib/events/sponsorExposure";
 import { useAdminEventDetail } from "@/lib/events/useAdminEventDetail";
+
+/** Kształt uuid - ten sam, co `UUID_PATTERN` w `lib/events/sponsorExposure.ts`. */
+const SPONSOR_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface SponsorReportSearch {
   sponsor?: string;
@@ -27,7 +36,7 @@ export const Route = createFileRoute("/admin/events_/$eventId/sponsor-report")({
   // klucz przepuściłby surową wartość `?sponsor=` do komponentu.
   validateSearch: (search: Record<string, unknown>): SponsorReportSearch => ({
     sponsor:
-      typeof search.sponsor === "string" && UUID_PATTERN.test(search.sponsor)
+      typeof search.sponsor === "string" && SPONSOR_ID_PATTERN.test(search.sponsor)
         ? search.sponsor
         : undefined,
   }),

@@ -25,6 +25,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("@/lib/i18n-event-cfp", () => ({ ensureEventCfpI18n: () => undefined }));
+vi.mock("@/lib/i18n-event-front", () => ({ ensureI18n: () => undefined }));
 vi.mock("@/components/ui/select", async () =>
   (await import("@/test/reactStubs")).radixSelectStub(await import("react")),
 );
@@ -261,7 +262,7 @@ describe("EventCfpTabItem", () => {
         <EventCfpTabItem {...props} />
       </ul>,
     );
-    const link = await screen.findByRole("link", { name: "eventCfp.tab" });
+    const link = await screen.findByRole("link", { name: "eventFront.cfp.tab" });
     expect(link).toHaveAttribute("href", "/events/kongres/cfp");
     expect(stub().lastCall("event_cfp_public")?.arg("p_slug")).toBe("kongres");
   });
@@ -300,11 +301,10 @@ describe("EventMeCfpLinks", () => {
   it("prelegent i recenzent dostają oba odnośniki", async () => {
     stub().setData("event_my_speaker_panel", panel({ is_reviewer: true, submissions_count: 1 }));
     renderWithQueryClient(<EventMeCfpLinks slug="kongres" signedIn />);
-    expect(await screen.findByRole("link", { name: "eventCfp.me.speakerPanel" })).toHaveAttribute(
-      "href",
-      "/events/kongres/speaker",
-    );
-    expect(screen.getByRole("link", { name: "eventCfp.me.reviewerPanel" })).toHaveAttribute(
+    expect(
+      await screen.findByRole("link", { name: "eventFront.cfp.speakerPanel" }),
+    ).toHaveAttribute("href", "/events/kongres/speaker");
+    expect(screen.getByRole("link", { name: "eventFront.cfp.reviewerPanel" })).toHaveAttribute(
       "href",
       "/events/kongres/review",
     );
@@ -314,10 +314,10 @@ describe("EventMeCfpLinks", () => {
     stub().setData("event_my_speaker_panel", panel({ sessions: [{ session_id: "s" }] }));
     renderWithQueryClient(<EventMeCfpLinks slug="kongres" signedIn />);
     expect(
-      await screen.findByRole("link", { name: "eventCfp.me.speakerPanel" }),
+      await screen.findByRole("link", { name: "eventFront.cfp.speakerPanel" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("link", { name: "eventCfp.me.reviewerPanel" }),
+      screen.queryByRole("link", { name: "eventFront.cfp.reviewerPanel" }),
     ).not.toBeInTheDocument();
     cleanup();
     stub().setData(
@@ -326,7 +326,7 @@ describe("EventMeCfpLinks", () => {
     );
     renderWithQueryClient(<EventMeCfpLinks slug="kongres" signedIn />);
     expect(
-      await screen.findByRole("link", { name: "eventCfp.me.reviewerPanel" }),
+      await screen.findByRole("link", { name: "eventFront.cfp.reviewerPanel" }),
     ).toBeInTheDocument();
   });
 
@@ -334,10 +334,10 @@ describe("EventMeCfpLinks", () => {
     stub().setData("event_my_speaker_panel", panel({ is_reviewer: true }));
     renderWithQueryClient(<EventMeCfpLinks slug="kongres" signedIn />);
     expect(
-      await screen.findByRole("link", { name: "eventCfp.me.reviewerPanel" }),
+      await screen.findByRole("link", { name: "eventFront.cfp.reviewerPanel" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("link", { name: "eventCfp.me.speakerPanel" }),
+      screen.queryByRole("link", { name: "eventFront.cfp.speakerPanel" }),
     ).not.toBeInTheDocument();
   });
 

@@ -88,6 +88,8 @@ export function eventInvoicePdfLabels(doc: EventInvoiceDocument): EventInvoicePd
     total: t("eventInvoices.pdf.total"),
     toPay: t("eventInvoices.pdf.toPay"),
     paid: t("eventInvoices.pdf.paid"),
+    toRefund: t("eventInvoices.pdf.toRefund"),
+    refunded: t("eventInvoices.pdf.refunded"),
     correctsLine: t("eventInvoices.pdf.correctsLine", {
       number: doc.corrects?.number ?? "",
       date: doc.corrects?.issueDate ?? "",

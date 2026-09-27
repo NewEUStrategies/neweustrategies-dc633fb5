@@ -15,13 +15,22 @@
 --
 -- CO ROBI
 --   1) NAPRAWY (raport f6, par. 9):
---      * `event_home_ads_for_viewer` i `event_home_ad_track` skalowaly najemce
---        przez `current_tenant_id()`, czyli na produkcji przez
---        `profiles.tenant_id` zalogowanego - dla GOSCIA to NULL, wiec reklamy
---        strony glownej nie emitowaly sie anonimom ani nie liczyly. Obie
---        funkcje skaluja teraz po `public_tenant_id()` (naglowek hosta), tak
---        jak kazda inna funkcja plaszczyzny tresci. Lista dla goscia oddaje tez
---        `sponsor_id` reklamy (RETURNS TABLE sie zmienia -> DROP + CREATE).
+--      * `event_home_ads_for_viewer` skalowal najemce przez
+--        `current_tenant_id()`, czyli na produkcji przez `profiles.tenant_id`
+--        zalogowanego - dla GOSCIA to NULL, wiec reklamy strony glownej nie
+--        emitowaly sie anonimom. Funkcja skaluje teraz po `public_tenant_id()`
+--        (naglowek hosta), tak jak kazda inna funkcja plaszczyzny tresci.
+--        Lista dla goscia oddaje tez `sponsor_id` reklamy (RETURNS TABLE sie
+--        zmienia -> DROP + CREATE).
+--      * stary licznik `event_home_ad_track` staje sie PUSTY (zawsze `false`,
+--        zadnego zapisu). Front go juz nie wola (reklama liczy sie przez
+--        `/api/public/sponsor-event` po zgodzie marketingowej, z limitem po IP
+--        i filtrem botow), a naprawiony pod `public_tenant_id()` bylby
+--        otwartym dla anonima zapisem BEZ zgody, limitu i filtra - kazdy
+--        mogl nim nabic wyswietlenia w `admin_event_home_ads_list`. Funkcja
+--        zostaje (z grantami) tylko po to, zeby starszy klient z cache nie
+--        dostal bledu; stare wiersze `event_home_ad_events` dalej licza sie
+--        w liscie panelu.
 --      * `event_sponsors_public` oddaje `link_mode` i `link_url` przypiecia:
 --        ustawienie "dokad prowadzi logotyp" bylo zapisywane, ale strona
 --        publiczna go nie czytala (tryb `none` nadal linkowal). Zmienia sie
@@ -74,6 +83,12 @@
 --        organizatora (`p_create` = dowod zgody), inaczej tylko wzbogacenie
 --        istniejacego; segment `event_participant`, tagi `event:<slug>`
 --        i `sponsor_lead:<id firmy>`. Notatki i oceny sponsora NIE ida do CRM.
+--        STRONICOWANE: najwyzej 500 osob na wywolanie (kursor
+--        `after_person_id`, odpowiedz `has_more`/`next_after`), a front wola
+--        strone po stronie az do konca - kazda strona to osobna, krotka
+--        transakcja (bez ryzyka statement_timeout na duzym wydarzeniu),
+--        a zadna osoba nie zostaje po cichu pominieta (dawny sztywny limit
+--        5000 przenosil w kolko te same pierwsze 5000 osob).
 --   6) ZDARZENIA DOMENOWE: `event_sponsor_report_link.issued.v1`,
 --      `event_sponsor_report_link.revoked.v1` (same identyfikatory).
 --
@@ -94,7 +109,7 @@
 -- CZEGO NIE ZMIENIA
 --   * `event_home_ad_events` i jej dane - stare liczniki dalej wchodza do
 --     listy reklam w panelu; front przestaje wolac `event_home_ad_track`
---     (funkcja zostaje naprawiona dla starszych klientow w cache);
+--     (funkcja zostaje jako pusta zaslepka dla starszych klientow w cache);
 --   * reguly zgody w `admin_event_lead_scans_export` (eksport "leady"
 --     raportu korzysta wprost z tej funkcji).
 --
@@ -298,39 +313,23 @@ GRANT EXECUTE ON FUNCTION public.event_home_ads_for_viewer(text) TO anon, authen
 COMMENT ON FUNCTION public.event_home_ads_for_viewer(text) IS
   'Reklamy strony glownej wydarzenia dla ogladajacego (maks. 5, losowo). Najemca z naglowka hosta (public_tenant_id) - gosc bez konta tez je widzi. Reklama grupowa tylko dla czlonkow grupy. Plaszczyzna tresci - zero has_role().';
 
+-- Pusta zaslepka (patrz naglowek, pkt 1): zadnego odczytu tabel ani zapisu,
+-- wiec SECURITY INVOKER - funkcja nie potrzebuje zadnych uprawnien.
 CREATE OR REPLACE FUNCTION public.event_home_ad_track(p_ad_id uuid, p_kind text, p_session text)
 RETURNS boolean
-LANGUAGE plpgsql
-SECURITY DEFINER
+LANGUAGE sql
+IMMUTABLE
+SECURITY INVOKER
 SET search_path = public, pg_temp
 AS $$
-DECLARE
-  v_tenant uuid;
-BEGIN
-  IF p_kind NOT IN ('view', 'click') OR p_session IS NULL OR length(p_session) NOT BETWEEN 8 AND 128 THEN
-    RETURN false;
-  END IF;
-  SELECT a.tenant_id INTO v_tenant
-    FROM public.event_home_ads a
-    JOIN public.events ev ON ev.id = a.event_id AND ev.tenant_id = a.tenant_id
-   WHERE a.id = p_ad_id AND a.is_active
-     AND ev.status <> 'draft'
-     AND a.tenant_id = public.public_tenant_id();
-  IF v_tenant IS NULL THEN
-    RETURN false;
-  END IF;
-  INSERT INTO public.event_home_ad_events (tenant_id, ad_id, kind, session_hash)
-  VALUES (v_tenant, p_ad_id, p_kind, md5(p_session))
-  ON CONFLICT DO NOTHING;
-  RETURN FOUND;
-END;
+  SELECT false;
 $$;
 
 REVOKE ALL ON FUNCTION public.event_home_ad_track(uuid, text, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.event_home_ad_track(uuid, text, text) TO anon, authenticated, service_role;
 
 COMMENT ON FUNCTION public.event_home_ad_track(uuid, text, text) IS
-  'PRZESTARZALE (starsze klienty w cache): licznik reklamy strony glownej per sesja i dobe UTC. Najemca z naglowka hosta (public_tenant_id). Nowy front mierzy reklame przez /api/public/sponsor-event (event_sponsor_exposures) po zgodzie marketingowej.';
+  'PRZESTARZALE, PUSTE: zawsze false, zadnego zapisu. Zostaje tylko dla starszych klientow w cache. Reklame strony glownej mierzy /api/public/sponsor-event (event_sponsor_exposures) po zgodzie marketingowej, z limitem po IP i filtrem botow; stare wiersze event_home_ad_events dalej licza sie w admin_event_home_ads_list.';
 
 -- ----------------------------------------------------------------------------
 -- 5) NAPRAWA: LINK LOGOTYPU NA STRONIE PUBLICZNEJ
@@ -786,9 +785,14 @@ BEGIN
        AND (p_to IS NULL OR (l.first_scanned_at AT TIME ZONE v_tz)::date <= p_to)
      GROUP BY l.sponsor_id
   ), mt AS (
+    -- Spotkania: `total` = zaproszenia poza odwolanymi i przelozonymi;
+    -- `accepted` = UMOWIONE (przyjete + rozstrzygniete po przyjeciu: held,
+    -- no_show). `rescheduled` to STARY wiersz przelozonego spotkania - nowy
+    -- wiersz niesie je dalej, wiec liczenie obu zawyzaloby liczbe;
+    -- zaproszenie bez odpowiedzi, odmowa i odwolanie umowione nie sa.
     SELECT m.sponsor_id AS sid,
-           count(*) FILTER (WHERE m.status <> 'cancelled')::integer AS total,
-           count(*) FILTER (WHERE m.status IN ('accepted', 'rescheduled', 'held', 'no_show'))::integer AS accepted,
+           count(*) FILTER (WHERE m.status NOT IN ('cancelled', 'rescheduled'))::integer AS total,
+           count(*) FILTER (WHERE m.status IN ('accepted', 'held', 'no_show'))::integer AS accepted,
            count(*) FILTER (WHERE m.status = 'held')::integer AS held
       FROM public.event_meetings m
      WHERE m.tenant_id = v_tenant AND m.event_id = p_event_id AND m.sponsor_id IS NOT NULL
@@ -824,7 +828,7 @@ REVOKE ALL ON FUNCTION public.admin_event_sponsor_report_summary(uuid, date, dat
 GRANT EXECUTE ON FUNCTION public.admin_event_sponsor_report_summary(uuid, date, date, text) TO authenticated, service_role;
 
 COMMENT ON FUNCTION public.admin_event_sponsor_report_summary(uuid, date, date, text) IS
-  'Raport sponsorow wydarzenia: wiersz per przypiecie z wyswietleniami i kliknieciami (unikalne = sesja x dzien, lacznie = trafienia), otwarciami materialow, kontaktami ze stoiska (zywa zgoda na przekazanie partnerowi), spotkaniami i aktywnymi linkami. Filtr miejsca dotyczy tylko ekspozycji. Bramka: assert_event_admin_tenant().';
+  'Raport sponsorow wydarzenia: wiersz per przypiecie z wyswietleniami i kliknieciami (unikalne = sesja x dzien, lacznie = trafienia), otwarciami materialow, kontaktami ze stoiska (zywa zgoda na przekazanie partnerowi), spotkaniami (meetings_total = zaproszenia bez odwolanych i przelozonych, meetings_accepted = umowione: accepted/held/no_show, meetings_held = odbyte) i aktywnymi linkami. Filtr miejsca dotyczy tylko ekspozycji. Bramka: assert_event_admin_tenant().';
 
 CREATE OR REPLACE FUNCTION public.admin_event_sponsor_report_series(
   p_event_id uuid,
@@ -1263,9 +1267,11 @@ BEGIN
     JOIN public.event_people p ON p.tenant_id = l.tenant_id AND p.id = l.person_id
    WHERE l.tenant_id = p_tenant AND l.event_id = v_link.event_id AND l.sponsor_id = v_link.sponsor_id;
 
+  -- Te same definicje, co w `admin_event_sponsor_report_summary`
+  -- (umowione = accepted/held/no_show; stary wiersz przelozenia sie nie liczy).
   SELECT jsonb_build_object(
-           'meetings_total', count(*) FILTER (WHERE m.status <> 'cancelled'),
-           'meetings_accepted', count(*) FILTER (WHERE m.status IN ('accepted', 'rescheduled', 'held', 'no_show')),
+           'meetings_total', count(*) FILTER (WHERE m.status NOT IN ('cancelled', 'rescheduled')),
+           'meetings_accepted', count(*) FILTER (WHERE m.status IN ('accepted', 'held', 'no_show')),
            'meetings_held', count(*) FILTER (WHERE m.status = 'held')
          )
     INTO v_meetings
@@ -1482,6 +1488,15 @@ DECLARE
   v_tenant uuid := public.assert_event_admin_tenant();
   v_event_id uuid := NULLIF(COALESCE(p_payload->>'event_id', ''), '')::uuid;
   v_sponsor_id uuid := NULLIF(COALESCE(p_payload->>'sponsor_id', ''), '')::uuid;
+  -- Strona: kursor (ostatnia osoba poprzedniej strony) i rozmiar 1..500.
+  v_after uuid := NULLIF(COALESCE(p_payload->>'after_person_id', ''), '')::uuid;
+  v_limit integer := CASE
+    WHEN jsonb_typeof(p_payload->'limit') = 'number'
+      THEN LEAST(500, GREATEST(1, floor((p_payload->>'limit')::numeric)))::integer
+    ELSE 500
+  END;
+  v_last uuid;
+  v_has_more boolean := false;
   v_event public.events%ROWTYPE;
   v_label text;
   r record;
@@ -1528,11 +1543,13 @@ BEGIN
       JOIN public.event_sponsors s ON s.tenant_id = l.tenant_id AND s.id = l.sponsor_id
      WHERE l.tenant_id = v_tenant AND l.event_id = v_event_id
        AND (v_sponsor_id IS NULL OR l.sponsor_id = v_sponsor_id)
+       AND (v_after IS NULL OR l.person_id > v_after)
      GROUP BY l.person_id
      ORDER BY l.person_id
-     LIMIT 5000
+     LIMIT v_limit
   LOOP
     v_persons := v_persons + 1;
+    v_last := r.person_id;
 
     SELECT lower(NULLIF(btrim(COALESCE(p.email, '')), '')),
            (p.consent_marketing_at IS NOT NULL AND p.consent_withdrawn_at IS NULL)
@@ -1601,13 +1618,25 @@ BEGIN
     END IF;
   END LOOP;
 
+  -- Czy za ta strona zostal ktos jeszcze (ten sam zbior co petla).
+  v_has_more := v_last IS NOT NULL AND EXISTS (
+    SELECT 1
+      FROM public.event_lead_scans l
+      JOIN public.event_sponsors s ON s.tenant_id = l.tenant_id AND s.id = l.sponsor_id
+     WHERE l.tenant_id = v_tenant AND l.event_id = v_event_id
+       AND (v_sponsor_id IS NULL OR l.sponsor_id = v_sponsor_id)
+       AND l.person_id > v_last
+  );
+
   RETURN jsonb_build_object(
     'persons', v_persons,
     'created', v_created,
     'updated', v_updated,
     'skipped_no_email', v_no_email,
     'skipped_no_consent', v_no_consent,
-    'failed', v_failed
+    'failed', v_failed,
+    'has_more', v_has_more,
+    'next_after', CASE WHEN v_has_more THEN v_last END
   );
 END;
 $$;
@@ -1616,4 +1645,4 @@ REVOKE ALL ON FUNCTION public.admin_event_lead_scans_push_to_crm(jsonb) FROM PUB
 GRANT EXECUTE ON FUNCTION public.admin_event_lead_scans_push_to_crm(jsonb) TO authenticated, service_role;
 
 COMMENT ON FUNCTION public.admin_event_lead_scans_push_to_crm(jsonb) IS
-  'Jawne przeniesienie kontaktow zebranych na stoiskach do CRM: {event_id, sponsor_id?}. Przez most _event_person_crm_sync: nowy kontakt WYLACZNIE ze zgoda marketingowa organizatora (p_create = dowod), inaczej tylko wzbogacenie istniejacego; segment event_participant, tagi event:<slug> i sponsor_lead:<id firmy>; notatki i oceny sponsora nie ida do CRM. Zwraca {persons, created, updated, skipped_no_email, skipped_no_consent, failed}. Bramka: assert_event_admin_tenant().';
+  'Jawne przeniesienie kontaktow zebranych na stoiskach do CRM: {event_id, sponsor_id?, after_person_id?, limit? (1..500, domyslnie 500)} - strona osob po person_id rosnaco. Przez most _event_person_crm_sync: nowy kontakt WYLACZNIE ze zgoda marketingowa organizatora (p_create = dowod), inaczej tylko wzbogacenie istniejacego; segment event_participant, tagi event:<slug> i sponsor_lead:<id firmy>; notatki i oceny sponsora nie ida do CRM. Zwraca {persons, created, updated, skipped_no_email, skipped_no_consent, failed, has_more, next_after} - klient wola dalej z after_person_id = next_after, dopoki has_more. Bramka: assert_event_admin_tenant().';

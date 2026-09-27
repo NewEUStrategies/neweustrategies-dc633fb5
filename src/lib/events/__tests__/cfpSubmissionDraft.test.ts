@@ -3,7 +3,10 @@
 //
 // CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - pilnowane niżej:
 // Każda reguła jest lustrem odmowy bazy (`missing_title`, `score_required`,
-// `note_required`, `invalid_schedule`, `invalid_profile`, `invalid_url`).
+// `note_required`, `invalid_schedule`, `invalid_profile`, `invalid_url`,
+// `consent_required`). Zgody NIGDY nie są zaznaczone z góry: formularz, który
+// „pamięta" zgodę z bazy, udaje, że odznaczenie ją wycofuje, i wysyła zgodę
+// na przetwarzanie danych, której ta osoba w tym formularzu nie wyraziła.
 import { describe, expect, it } from "vitest";
 
 import {
@@ -77,11 +80,13 @@ const PERSON = {
   jobTitle: "CEO",
   companyText: "NES",
   consentMarketing: true,
+  consentsWithdrawn: false,
 };
 
 function validDraft(): CfpSubmissionDraft {
   return {
     ...emptyCfpSubmissionDraft(PERSON, "pl"),
+    consentDataProcessing: true,
     titlePl: "Tytuł wystąpienia",
     abstractPl: "Streszczenie wystąpienia dłuższe niż dwadzieścia znaków.",
   };
@@ -91,14 +96,16 @@ const issues = (draft: CfpSubmissionDraft, publicCfp: CfpPublic = cfp()) =>
   validateCfpDraftSubmit(draft, publicCfp).map((issue) => issue.field);
 
 describe("szkic zgłoszenia", () => {
-  it("pusty szkic bierze dane osoby (albo puste pola bez osoby)", () => {
+  it("pusty szkic bierze dane osoby, ale ŻADNEJ zgody z bazy (albo puste pola bez osoby)", () => {
     expect(emptyCfpSubmissionDraft(PERSON, "en")).toMatchObject({
       id: null,
       firstName: "Anna",
       lastName: "Nowak",
       jobTitle: "CEO",
       companyText: "NES",
-      consentMarketing: true,
+      // Osoba MA zgodę marketingową w bazie - pole i tak startuje odznaczone.
+      consentMarketing: false,
+      consentDataProcessing: false,
       talkLanguage: "en",
       role: "speaker",
       coSpeakers: [],
@@ -173,6 +180,9 @@ describe("szkic zgłoszenia", () => {
       role: "speaker",
       formatKey: "",
       trackId: "",
+      // Edycja istniejącego zgłoszenia też pyta o zgody od nowa.
+      consentDataProcessing: false,
+      consentMarketing: false,
       coSpeakers: [{ firstName: "B", email: "b@c.pl", jobTitle: "J", companyText: "" }],
     });
   });
@@ -205,13 +215,22 @@ describe("szkic zgłoszenia", () => {
     expect(parseTopics(" a, b ,, a,c ")).toEqual(["a", "b", "c"]);
   });
 
-  it("zapis szkicu wymaga tylko imienia i nazwiska", () => {
+  it("zapis szkicu wymaga imienia, nazwiska i jawnej zgody na przetwarzanie danych", () => {
     expect(validateCfpDraftSave(validDraft())).toEqual([]);
     expect(
       validateCfpDraftSave({ ...validDraft(), firstName: " ", lastName: "" }).map(
         (issue) => issue.messageKey,
       ),
     ).toEqual(["eventCfp.submit.validation.firstName", "eventCfp.submit.validation.lastName"]);
+    expect(validateCfpDraftSave({ ...validDraft(), consentDataProcessing: false })).toEqual([
+      {
+        field: "consentDataProcessing",
+        messageKey: "eventCfp.submit.validation.consentDataProcessing",
+      },
+    ]);
+    expect(issues({ ...validDraft(), consentDataProcessing: false })).toEqual([
+      "consentDataProcessing",
+    ]);
   });
 
   it("wysłanie: tytuł i streszczenie w którymkolwiek języku", () => {
@@ -288,6 +307,7 @@ describe("szkic zgłoszenia", () => {
     const input = cfpSubmissionSaveInput(
       {
         ...validDraft(),
+        consentMarketing: true,
         firstName: " Anna ",
         topics: "a, b",
         answers: { t: " x " },
@@ -313,6 +333,7 @@ describe("szkic zgłoszenia", () => {
         last_name: "Nowak",
         job_title: "CEO",
         company_text: "NES",
+        consent_data_processing: true,
         consent_marketing: true,
       },
       notifyLang: "en",
@@ -345,6 +366,12 @@ describe("szkic zgłoszenia", () => {
       { slug: "kongres", cfp: publicCfp, notifyLang: "pl" },
     );
     expect(saved).toMatchObject({ id: "s1", slug: undefined, formatKey: "talk", trackId: "t1" });
+    // Odznaczone pole marketingowe wysyła `false`, które baza czyta jako „bez
+    // nowej zgody" - nie jako wycofanie.
+    expect(saved.speaker).toMatchObject({
+      consent_data_processing: true,
+      consent_marketing: false,
+    });
   });
 
   it("pytanie naboru jako pole zapisu: `url` rysuje się jak adres (typ `file`)", () => {

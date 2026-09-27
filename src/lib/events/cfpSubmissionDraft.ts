@@ -11,6 +11,13 @@
 // błędny ładunek, ale zdanie przy polu jest lepsze niż toast po odbiciu.
 // Szkic (`event_cfp_submission_save`) przyjmuje stan NIEKOMPLETNY - wymaga
 // tylko imienia i nazwiska przy pierwszym zapisie.
+//
+// ZGODY NIGDY NIE SĄ ZAZNACZONE Z GÓRY. Zgoda na przetwarzanie danych jest
+// wymagana przy KAŻDYM zapisie (baza: `consent_required`, jak `event_register`)
+// i startuje odznaczona - nawet gdy osoba zgodziła się wcześniej, bo formularz
+// nie może jej „domniemać". Zgoda marketingowa też startuje odznaczona: pole
+// jest wyłącznie NADANIEM zgody (odznaczenie jej nie wycofuje), więc
+// podpowiedziane zaznaczenie udawałoby, że odznaczenie coś zmienia.
 import type { Json } from "@/integrations/supabase/types";
 import type { RegistrationFormField } from "@/lib/events/registrationFormSurface";
 import type { CfpSpeakerRole, CfpTalkLanguage } from "@/lib/events/cfpEnums";
@@ -38,6 +45,9 @@ export interface CfpSubmissionDraft {
   lastName: string;
   jobTitle: string;
   companyText: string;
+  /** Jawne zaznaczenie zgody na przetwarzanie danych w tym formularzu. */
+  consentDataProcessing: boolean;
+  /** Nadanie zgody marketingowej (nie odbija stanu z bazy - patrz nagłówek). */
   consentMarketing: boolean;
   role: CfpSpeakerRole;
   titlePl: string;
@@ -55,6 +65,7 @@ export interface CfpSubmissionDraft {
 export type CfpSubmissionDraftField =
   | "firstName"
   | "lastName"
+  | "consentDataProcessing"
   | "title"
   | "abstract"
   | "format"
@@ -73,7 +84,8 @@ function personPart(person: CfpMyPerson | null) {
     lastName: person?.lastName ?? "",
     jobTitle: person?.jobTitle ?? "",
     companyText: person?.companyText ?? "",
-    consentMarketing: person?.consentMarketing ?? false,
+    consentDataProcessing: false,
+    consentMarketing: false,
   };
 }
 
@@ -207,6 +219,12 @@ export function validateCfpDraftSave(draft: CfpSubmissionDraft): CfpSubmissionIs
   if (draft.lastName.trim() === "") {
     issues.push({ field: "lastName", messageKey: "eventCfp.submit.validation.lastName" });
   }
+  if (!draft.consentDataProcessing) {
+    issues.push({
+      field: "consentDataProcessing",
+      messageKey: "eventCfp.submit.validation.consentDataProcessing",
+    });
+  }
   return issues;
 }
 
@@ -257,6 +275,7 @@ export function cfpSubmissionSaveInput(
       last_name: draft.lastName.trim(),
       job_title: draft.jobTitle.trim(),
       company_text: draft.companyText.trim(),
+      consent_data_processing: draft.consentDataProcessing,
       consent_marketing: draft.consentMarketing,
     },
     titlePl: draft.titlePl.trim(),

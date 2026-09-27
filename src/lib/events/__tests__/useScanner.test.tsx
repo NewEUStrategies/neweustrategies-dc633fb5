@@ -217,6 +217,8 @@ function scanResult(over: Partial<CheckinScanResult> = {}): CheckinScanResult {
     otherEventTitlePl: null,
     otherEventTitleEn: null,
     ...over,
+    // Baza bez decyzji urządzenia ma to samo zdanie, chyba że test mówi inaczej.
+    serverAdmit: over.serverAdmit ?? over.admit ?? true,
   };
 }
 

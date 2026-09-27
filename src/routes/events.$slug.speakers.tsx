@@ -102,6 +102,7 @@ function EventSpeakersTab() {
         <SpeakerProfileDialog
           userId={selected.userId}
           row={selected.row}
+          eventId={eventId}
           lang={lang}
           open
           onOpenChange={(open) => {

@@ -1,5 +1,5 @@
 // Zamkniete zbiory modulu faktur wydarzen - lustro CHECK-ow migracji
-// 20260926110000 (bramka `eventInvoicesDbEnumParity.test.ts`).
+// 20260927000200 (bramka `eventInvoicesDbEnumParity.test.ts`).
 //
 // OSOBNY PLIK, BO CZYTAJA GO DWIE POWIERZCHNIE. Studio organizatora i profil
 // kupujacego pokazuja te same rodzaje, stany i stany KSeF, ale kazda swoim
@@ -36,6 +36,43 @@ export type EventInvoiceSourceKind = (typeof EVENT_INVOICE_SOURCE_KINDS)[number]
 
 export const EVENT_INVOICE_CORRECTION_MODES = ["full", "partial"] as const;
 export type EventInvoiceCorrectionMode = (typeof EVENT_INVOICE_CORRECTION_MODES)[number];
+
+/**
+ * Dlaczego kupujacy NIE moze poprosic o fakture za zamowienie
+ * (`event_my_invoice_sources.request_block`, kolejnosc galezi CASE w SQL):
+ * faktura w toku albo wystawiona, organizator nie fakturuje, prosba innego
+ * konta, po terminie, platnosc karta fakturuje operator.
+ */
+export const EVENT_INVOICE_REQUEST_BLOCKS = [
+  "invoiced",
+  "disabled",
+  "other_requester",
+  "window_closed",
+  "operator_invoice",
+] as const;
+export type EventInvoiceRequestBlock = (typeof EVENT_INVOICE_REQUEST_BLOCKS)[number];
+
+/**
+ * Czy OPLACONY zapis-kandydat ma miejsce (`admin_event_invoice_candidates.admission`,
+ * ta sama klasyfikacja co `paidAdmission.ts`): wplata w kolejce albo czekajaca
+ * na decyzje organizatora moze jeszcze skonczyc sie zwrotem, wiec masowe
+ * wystawienie z prosb ja pomija. Nieoplacony zapis i pakiet = `seated`.
+ */
+export const EVENT_INVOICE_ADMISSIONS = ["seated", "waitlisted", "awaitingDecision"] as const;
+export type EventInvoiceAdmission = (typeof EVENT_INVOICE_ADMISSIONS)[number];
+
+/**
+ * Dlaczego wystawiona faktura wymaga korekty (`correction_hint` z
+ * `_event_invoice_correction_hint`, kolejnosc wagi w SQL): zamowienie odwolane
+ * albo zwrocone, zwrot z karty po wystawieniu, mniej miejsc niz na fakturze.
+ * NULL = nic sie nie zmienilo. Podpowiedz - korekty nic nie wystawia samo.
+ */
+export const EVENT_INVOICE_CORRECTION_HINTS = [
+  "source_closed",
+  "refunded",
+  "seats_reduced",
+] as const;
+export type EventInvoiceCorrectionHint = (typeof EVENT_INVOICE_CORRECTION_HINTS)[number];
 
 /** Czy wartosc nalezy do zamknietego zbioru (straznik typu, bez rzutowania). */
 export function isEnumMember<T extends string>(values: readonly T[], value: unknown): value is T {

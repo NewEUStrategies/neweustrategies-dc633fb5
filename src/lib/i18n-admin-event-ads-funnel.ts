@@ -6,7 +6,7 @@
 // (fundament nawigacji), a tu jest wszystko, co widać NA ekranie, plus wiersz
 // odsyłacza w „Analityce” (`analyticsLink.*`).
 //
-// KODY BŁĘDÓW = GŁOWY `RAISE EXCEPTION` migracji 20260926120000 w camelCase
+// KODY BŁĘDÓW = GŁOWY `RAISE EXCEPTION` migracji 20260927000300 w camelCase
 // (`invalid_cost_row` -> `errors.invalidCostRow`); `{{count}}` to numer wiersza
 // wsadu kosztów. Pilnuje tego `eventErrorMapsI18n.gate.test.ts`.
 //

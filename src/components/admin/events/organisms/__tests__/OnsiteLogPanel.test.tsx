@@ -151,6 +151,7 @@ function wpis(overrides: Partial<EventCheckinRow> = {}): EventCheckinRow {
     checkpoint_name_pl: "Wejście główne",
     company: "Instytut Analiz",
     conflict: false,
+    conflict_kind: BRAK,
     device_id: "33333333-3333-4333-8333-333333333333",
     device_label: "Skaner bramka A",
     device_scanned_at: "2026-09-01T08:30:00.000Z",
@@ -165,6 +166,7 @@ function wpis(overrides: Partial<EventCheckinRow> = {}): EventCheckinRow {
     occurred_at: "2026-09-01T08:30:05.000Z",
     offline_admitted: BRAK_BOOL,
     offline_outcome: BRAK,
+    offline_server_result: BRAK,
     operator_name: "Obsługa bramki",
     operator_user_id: "55555555-5555-4555-8555-555555555555",
     person_id: "66666666-6666-4666-8666-666666666666",
@@ -587,6 +589,28 @@ describe("decyzje skanera bez sieci", () => {
 
     const konflikt = within(wiersz()).getByText(`${T}.log.conflictBadge`);
     expect(konflikt.getAttribute("title")).toBe(`${T}.log.conflictHint`);
+    expect(within(wiersz()).queryByText(`${T}.log.conflictDeniedBadge`)).toBeNull();
+  });
+
+  it("ODESŁANY OFFLINE (urządzenie odmówiło, bilet ważny) ma własną odznakę i wskazówkę „odszukaj”", () => {
+    // Wiersz trzyma odmowę bramki, więc bez rodzaju konfliktu organizator
+    // widziałby zwykłą odmowę - i nie szukałby człowieka odesłanego z ważnym
+    // biletem.
+    h.rows = [
+      wpis({
+        offline_admitted: false,
+        offline_outcome: "unknown_code",
+        result: "denied_not_registered",
+        offline_server_result: "granted",
+        conflict: true,
+        conflict_kind: "denied_offline",
+      }),
+    ];
+    panel();
+
+    const odznaka = within(wiersz()).getByText(`${T}.log.conflictDeniedBadge`);
+    expect(odznaka.getAttribute("title")).toBe(`${T}.log.conflictDeniedHint`);
+    expect(within(wiersz()).queryByText(`${T}.log.conflictBadge`)).toBeNull();
   });
 
   it("filtr „tylko konflikty” jedzie do bazy i wraca na pierwszą stronę", () => {

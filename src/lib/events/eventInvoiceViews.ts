@@ -28,6 +28,22 @@ export function groupCandidates(rows: readonly EventInvoiceCandidateRow[]): Cand
   return [...groups.values()];
 }
 
+/**
+ * Czy zaznaczone zamowienia niosa OCZEKUJACE prosby o fakture ROZNYCH
+ * nabywcow (inny NIP albo prosba bez NIP-u) - baza odmowi wtedy dokumentu
+ * (`buyer_mismatch`), bo jeden nabywca zostalby bez faktury. Ekran mowi to
+ * od razu i nie proponuje faktury zbiorczej. Zamowienia bez prosby mozna
+ * dolaczac do dowolnego nabywcy.
+ */
+export function hasBuyerMismatch(rows: readonly EventInvoiceCandidateRow[]): boolean {
+  const buyers = new Set<string>();
+  for (const row of rows) {
+    if (row.request_status !== "pending") continue;
+    buyers.add(row.tax_key === null ? `request:${row.request_id}` : `tax:${row.tax_key}`);
+  }
+  return buyers.size > 1;
+}
+
 export type EventInvoiceDocumentsTab = "issued" | "drafts" | "corrections";
 
 /** Ktore dokumenty naleza do zakladki. */

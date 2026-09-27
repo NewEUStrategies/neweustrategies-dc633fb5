@@ -1,5 +1,5 @@
 -- ============================================================================
--- 65_seating - PLAN SALI Z PRZYDZIALEM MIEJSC (migracja 20260926130000)
+-- 65_seating - PLAN SALI Z PRZYDZIALEM MIEJSC (migracja 20260927000400)
 --
 -- PO CO TEN PLIK ISTNIEJE
 -- Plan sali stoi na gwarancjach, ktorych nie da sie potwierdzic czytaniem SQL-a

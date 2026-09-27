@@ -1,8 +1,12 @@
 // CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW:
 //
 // Stan prosby o fakture przy zakupie. Najwazniejsze kontrakty:
-//   * NIC nie jest pobierane, dopoki kupujacy nie zaznaczy "potrzebuje faktury"
-//     (krok platnosci bez faktury nie robi dodatkowych zapytan);
+//   * blok prosby TYLKO, gdy faktura organizatora moze powstac
+//     (`event_invoice_public_options`): organizator nie fakturuje = nic,
+//     platnosc karta fakturowana przez operatora = zdanie zamiast pol; bez
+//     tego kupujacy wpisywal dane firmy i czekal na dokument, ktory nie powstanie;
+//   * poza opcjami NIC nie jest pobierane, dopoki kupujacy nie zaznaczy
+//     "potrzebuje faktury" (krok platnosci bez faktury nie pyta o profil);
 //   * podpowiedz: zapisana prosba > profil rozliczeniowy, nigdy po edycji;
 //   * `commit()` = walidacja + zapis prosby (+ profil przy "zapamietaj");
 //     `false` zatrzymuje przejscie do kasy.
@@ -19,6 +23,7 @@ const billing = vi.hoisted(() => ({
   upsertMyBillingProfile: vi.fn(),
 }));
 const api = vi.hoisted(() => ({
+  fetchInvoicePublicOptions: vi.fn(),
   fetchMyInvoiceSources: vi.fn(),
   fetchMyInvoices: vi.fn(),
   saveInvoiceRequest: vi.fn(),
@@ -28,7 +33,10 @@ const api = vi.hoisted(() => ({
 vi.mock("@/lib/billing/queries", () => billing);
 vi.mock("@/lib/events/myEventInvoicesApi", () => api);
 
-const { useInvoiceRequestController } = await import("@/lib/events/useInvoiceRequestController");
+const { invoiceRequestAvailability, useInvoiceRequestController } =
+  await import("@/lib/events/useInvoiceRequestController");
+
+const ORGANIZER_INVOICES = { enabled: true, cardInvoiceable: true, cardOperatorInvoice: false };
 
 const PROFILE: BillingProfile = {
   id: "bp",
@@ -65,14 +73,52 @@ beforeEach(() => {
   for (const fn of [...Object.values(billing), ...Object.values(api)]) fn.mockReset();
   billing.fetchMyBillingProfile.mockResolvedValue(null);
   api.fetchMyInvoiceSources.mockResolvedValue([]);
+  api.fetchInvoicePublicOptions.mockResolvedValue(ORGANIZER_INVOICES);
+});
+
+describe("invoiceRequestAvailability", () => {
+  it("przed odpowiedzia: czekamy; blad opcji: bloku nie ma (nie obiecujemy faktury)", () => {
+    expect(invoiceRequestAvailability(undefined, false, "card")).toBe("loading");
+    expect(invoiceRequestAvailability(undefined, true, "transfer")).toBe("unavailable");
+  });
+
+  it("przelew: blok wtedy i tylko wtedy, gdy organizator fakturuje", () => {
+    expect(invoiceRequestAvailability(ORGANIZER_INVOICES, false, "transfer")).toBe("available");
+    expect(
+      invoiceRequestAvailability(
+        { enabled: false, cardInvoiceable: false, cardOperatorInvoice: true },
+        false,
+        "transfer",
+      ),
+    ).toBe("unavailable");
+  });
+
+  it("karta: faktura organizatora, zdanie o operatorze albo nic", () => {
+    expect(invoiceRequestAvailability(ORGANIZER_INVOICES, false, "card")).toBe("available");
+    expect(
+      invoiceRequestAvailability(
+        { enabled: true, cardInvoiceable: false, cardOperatorInvoice: true },
+        false,
+        "card",
+      ),
+    ).toBe("operator");
+    expect(
+      invoiceRequestAvailability(
+        { enabled: false, cardInvoiceable: false, cardOperatorInvoice: false },
+        false,
+        "card",
+      ),
+    ).toBe("unavailable");
+  });
 });
 
 describe("useInvoiceRequestController", () => {
-  it("bez zaznaczenia nic nie pobiera, a commit przepuszcza do kasy bez zapisu", async () => {
+  it("bez zaznaczenia pyta tylko o opcje, a commit przepuszcza do kasy bez zapisu", async () => {
     const view = renderHookWithQueryClient(() =>
-      useInvoiceRequestController({ target: TARGET, enabled: true }),
+      useInvoiceRequestController({ target: TARGET, enabled: true, payment: "card" }),
     );
-    await act(async () => {});
+    await waitFor(() => expect(view.result.current.availability).toBe("available"));
+    expect(api.fetchInvoicePublicOptions).toHaveBeenCalledTimes(1);
     expect(billing.fetchMyBillingProfile).not.toHaveBeenCalled();
     expect(api.fetchMyInvoiceSources).not.toHaveBeenCalled();
     let result = false;
@@ -87,18 +133,53 @@ describe("useInvoiceRequestController", () => {
 
   it("wylaczony (gosc) nie pobiera nawet po zaznaczeniu", async () => {
     const view = renderHookWithQueryClient(() =>
-      useInvoiceRequestController({ target: TARGET, enabled: false }),
+      useInvoiceRequestController({ target: TARGET, enabled: false, payment: "card" }),
     );
     act(() => view.result.current.setWanted(true));
     await act(async () => {});
+    expect(api.fetchInvoicePublicOptions).not.toHaveBeenCalled();
+    expect(view.result.current.availability).toBe("loading");
     expect(billing.fetchMyBillingProfile).not.toHaveBeenCalled();
     expect(api.fetchMyInvoiceSources).not.toHaveBeenCalled();
+  });
+
+  it("platnosc karta fakturowana przez operatora: nic nie pobiera i niczego nie zapisuje", async () => {
+    api.fetchInvoicePublicOptions.mockResolvedValue({
+      enabled: true,
+      cardInvoiceable: false,
+      cardOperatorInvoice: true,
+    });
+    api.saveInvoiceRequest.mockResolvedValue(INVOICE_IDS.request);
+    const view = renderHookWithQueryClient(() =>
+      useInvoiceRequestController({ target: TARGET, enabled: true, payment: "card" }),
+    );
+    await waitFor(() => expect(view.result.current.availability).toBe("operator"));
+    act(() => {
+      view.result.current.setWanted(true);
+      view.result.current.setBuyer(VALID);
+    });
+    let result = false;
+    await act(async () => {
+      result = await view.result.current.commit();
+    });
+    expect(result).toBe(true);
+    expect(api.saveInvoiceRequest).not.toHaveBeenCalled();
+    expect(billing.fetchMyBillingProfile).not.toHaveBeenCalled();
+    expect(api.fetchMyInvoiceSources).not.toHaveBeenCalled();
+  });
+
+  it("blad zapytania o opcje: bloku nie ma", async () => {
+    api.fetchInvoicePublicOptions.mockRejectedValue(new Error("offline"));
+    const view = renderHookWithQueryClient(() =>
+      useInvoiceRequestController({ target: TARGET, enabled: true, payment: "card" }),
+    );
+    await waitFor(() => expect(view.result.current.availability).toBe("unavailable"));
   });
 
   it("po zaznaczeniu podpowiada dane z profilu rozliczeniowego", async () => {
     billing.fetchMyBillingProfile.mockResolvedValue(PROFILE);
     const view = renderHookWithQueryClient(() =>
-      useInvoiceRequestController({ target: TARGET, enabled: true }),
+      useInvoiceRequestController({ target: TARGET, enabled: true, payment: "card" }),
     );
     act(() => view.result.current.setWanted(true));
     await waitFor(() => expect(view.result.current.buyer.name).toBe("Profil Sp. z o.o."));
@@ -124,7 +205,7 @@ describe("useInvoiceRequestController", () => {
       }),
     ]);
     const view = renderHookWithQueryClient(() =>
-      useInvoiceRequestController({ target: TARGET, enabled: true }),
+      useInvoiceRequestController({ target: TARGET, enabled: true, payment: "card" }),
     );
     act(() => view.result.current.setWanted(true));
     await waitFor(() => expect(view.result.current.buyer.name).toBe("Z prosby SA"));
@@ -156,6 +237,7 @@ describe("useInvoiceRequestController", () => {
       useInvoiceRequestController({
         target: { packageOrderId: INVOICE_IDS.packageOrder },
         enabled: true,
+        payment: "transfer",
       }),
     );
     act(() => view.result.current.setWanted(true));
@@ -165,7 +247,7 @@ describe("useInvoiceRequestController", () => {
   it("podpowiedz milczy po edycji; recznie wstawiony profil tez liczy sie jako edycja", async () => {
     billing.fetchMyBillingProfile.mockResolvedValue(PROFILE);
     const view = renderHookWithQueryClient(() =>
-      useInvoiceRequestController({ target: TARGET, enabled: true }),
+      useInvoiceRequestController({ target: TARGET, enabled: true, payment: "card" }),
     );
     act(() => view.result.current.setBuyer({ ...VALID, name: "Wpisane recznie" }));
     act(() => view.result.current.setWanted(true));
@@ -178,8 +260,9 @@ describe("useInvoiceRequestController", () => {
 
   it("commit z bledami: pokazuje bledy i zatrzymuje kase", async () => {
     const view = renderHookWithQueryClient(() =>
-      useInvoiceRequestController({ target: TARGET, enabled: true }),
+      useInvoiceRequestController({ target: TARGET, enabled: true, payment: "card" }),
     );
+    await waitFor(() => expect(view.result.current.availability).toBe("available"));
     act(() => view.result.current.setWanted(true));
     await act(async () => {});
     expect(view.result.current.showErrors).toBe(false);
@@ -201,8 +284,9 @@ describe("useInvoiceRequestController", () => {
   it("commit poprawny: zapis prosby, bez profilu gdy nie zapamietuje", async () => {
     api.saveInvoiceRequest.mockResolvedValue(INVOICE_IDS.request);
     const view = renderHookWithQueryClient(() =>
-      useInvoiceRequestController({ target: TARGET, enabled: true }),
+      useInvoiceRequestController({ target: TARGET, enabled: true, payment: "card" }),
     );
+    await waitFor(() => expect(view.result.current.availability).toBe("available"));
     act(() => {
       view.result.current.setWanted(true);
       view.result.current.setBuyer(VALID);
@@ -221,8 +305,9 @@ describe("useInvoiceRequestController", () => {
     api.saveInvoiceRequest.mockResolvedValue(INVOICE_IDS.request);
     billing.upsertMyBillingProfile.mockRejectedValue(new Error("profil"));
     const view = renderHookWithQueryClient(() =>
-      useInvoiceRequestController({ target: null, enabled: true }),
+      useInvoiceRequestController({ target: null, enabled: true, payment: "transfer" }),
     );
+    await waitFor(() => expect(view.result.current.availability).toBe("available"));
     act(() => {
       view.result.current.setWanted(true);
       view.result.current.setBuyer(VALID);
@@ -249,7 +334,7 @@ describe("useInvoiceRequestController", () => {
 
   it("bez celu (pakiet przed utworzeniem zamowienia) commit nic nie zapisuje", async () => {
     const view = renderHookWithQueryClient(() =>
-      useInvoiceRequestController({ target: null, enabled: true }),
+      useInvoiceRequestController({ target: null, enabled: true, payment: "transfer" }),
     );
     act(() => {
       view.result.current.setWanted(true);
@@ -267,8 +352,9 @@ describe("useInvoiceRequestController", () => {
   it("odmowa bazy: klucz bledu kupujacego i zatrzymana kasa", async () => {
     api.saveInvoiceRequest.mockRejectedValue(new Error("request_window_closed: too late"));
     const view = renderHookWithQueryClient(() =>
-      useInvoiceRequestController({ target: TARGET, enabled: true }),
+      useInvoiceRequestController({ target: TARGET, enabled: true, payment: "card" }),
     );
+    await waitFor(() => expect(view.result.current.availability).toBe("available"));
     act(() => {
       view.result.current.setWanted(true);
       view.result.current.setBuyer(VALID);
