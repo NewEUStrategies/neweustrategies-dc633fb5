@@ -455,6 +455,19 @@ export const eventFrontPl = {
         opensInNewTab: "(otwiera się w nowej karcie)",
         tracksLabel: "Ścieżki",
       },
+      // Materiały prelegenta w dialogu profilu - tylko opublikowane przez
+      // organizatora (`event_speaker_materials_public`).
+      materials: {
+        heading: "Materiały",
+        registeredOnly: "dla zapisanych",
+        loadFailed: "Nie udało się wczytać materiałów prelegenta.",
+        kinds: {
+          slides: "Prezentacja",
+          document: "Dokument",
+          video: "Nagranie",
+          link: "Odnośnik",
+        },
+      },
     },
 
     // ---------------------------------------------------------------------
@@ -1041,6 +1054,19 @@ export const eventFrontEn = {
         actionFor: "{{label}}: {{name}}",
         opensInNewTab: "(opens in a new tab)",
         tracksLabel: "Tracks",
+      },
+      // Speaker materials in the profile dialog - only those the organiser
+      // published (`event_speaker_materials_public`).
+      materials: {
+        heading: "Materials",
+        registeredOnly: "for registered attendees",
+        loadFailed: "The speaker's materials could not be loaded.",
+        kinds: {
+          slides: "Slides",
+          document: "Document",
+          video: "Video",
+          link: "Link",
+        },
       },
     },
 

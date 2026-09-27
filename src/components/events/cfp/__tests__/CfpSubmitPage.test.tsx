@@ -5,7 +5,11 @@
 // (2) `?id=` otwiera wyłącznie własne i edytowalne zgłoszenie, (3) nowy szkic
 // i szkic wymagają otwartego naboru, prośba o zmiany - nie, (4) „Wyślij"
 // najpierw zapisuje, potem wysyła, a potwierdzenie mailem jest „przy okazji",
-// (5) walidacja mówi przy polu, czego brakuje, zanim cokolwiek pójdzie do bazy.
+// (5) walidacja mówi przy polu, czego brakuje, zanim cokolwiek pójdzie do bazy,
+// (6) zgoda na przetwarzanie danych jest wymagana, odznaczona z góry i stoi przy
+// klauzuli z odnośnikiem do polityki prywatności - bez niej nic nie idzie do
+// bazy; pole zgody marketingowej nie udaje wycofania (znika, gdy zgoda już
+// obowiązuje albo zgody wycofano).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 
@@ -135,6 +139,13 @@ function renderPage(submissionId: string | null = null) {
   return renderWithQueryClient(<CfpSubmitPage slug="kongres" submissionId={submissionId} />);
 }
 
+const DATA_CONSENT = "eventCfp.submit.fields.dataProcessingConsent *";
+
+/** Jawne zaznaczenie zgody na przetwarzanie danych - bez niego zapis nie wychodzi. */
+function acceptDataProcessing() {
+  fireEvent.click(screen.getByRole("checkbox", { name: DATA_CONSENT }));
+}
+
 beforeEach(() => {
   h.rpc = supabaseRpcStub();
   h.auth = { session: { user: { id: "u1", email: "anna@example.org" } }, loading: false };
@@ -244,7 +255,11 @@ describe("CfpSubmitPage - nowe zgłoszenie", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "eventCfp.submit.saveDraft" }));
     expect(await screen.findByText("eventCfp.submit.validation.lastName")).toBeInTheDocument();
+    expect(
+      screen.getByText("eventCfp.submit.validation.consentDataProcessing"),
+    ).toBeInTheDocument();
     expect(stub().callsFor("event_cfp_submission_save")).toHaveLength(0);
+    acceptDataProcessing();
 
     fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.lastName *"), {
       target: { value: "Nowak" },
@@ -272,6 +287,7 @@ describe("CfpSubmitPage - nowe zgłoszenie", () => {
         last_name: "Nowak",
         job_title: "Prezes",
         company_text: "NES SA",
+        consent_data_processing: true,
         consent_marketing: true,
       },
       talk_language: "pl",
@@ -304,10 +320,12 @@ describe("CfpSubmitPage - nowe zgłoszenie", () => {
       "eventCfp.submit.validation.format",
       "eventCfp.submit.validation.track",
       "eventCfp.submit.validation.answer",
+      "eventCfp.submit.validation.consentDataProcessing",
     ]) {
       expect(await screen.findByText(key)).toBeInTheDocument();
     }
     expect(stub().callsFor("event_cfp_submission_save")).toHaveLength(0);
+    acceptDataProcessing();
 
     fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.titlePl"), {
       target: { value: "Energia jutra" },
@@ -393,6 +411,7 @@ describe("CfpSubmitPage - nowe zgłoszenie", () => {
     fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.abstractPl"), {
       target: { value: "x".repeat(30) },
     });
+    acceptDataProcessing();
 
     stub().setError("event_cfp_submission_save", "limit_reached: 2");
     fireEvent.click(screen.getByRole("button", { name: "eventCfp.submit.saveDraft" }));
@@ -425,6 +444,7 @@ describe("CfpSubmitPage - nowe zgłoszenie", () => {
     fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.abstractPl"), {
       target: { value: "x".repeat(30) },
     });
+    acceptDataProcessing();
     stub().setData("event_cfp_submission_save", { id: ID, status: "draft" });
     stub().setResponse("event_cfp_submission_submit", () => new Promise(() => undefined) as never);
     fireEvent.click(screen.getByRole("button", { name: "eventCfp.submit.send" }));
@@ -445,6 +465,80 @@ describe("CfpSubmitPage - nowe zgłoszenie", () => {
   });
 });
 
+describe("CfpSubmitPage - zgody i klauzula informacyjna (RODO)", () => {
+  beforeEach(() => {
+    stub().setData("event_cfp_public", cfp({ formats: [], tracks: [], fields: [] }));
+  });
+
+  it("zgoda na przetwarzanie danych: odznaczona z góry, wymagana, z błędem powiązanym z polem", async () => {
+    stub().setData("event_my_cfp_submissions", mine([], PERSON));
+    renderPage();
+    const consent = await screen.findByRole("checkbox", { name: DATA_CONSENT });
+    expect(consent).not.toBeChecked();
+    expect(consent).not.toHaveAttribute("aria-invalid");
+    fireEvent.click(screen.getByRole("button", { name: "eventCfp.submit.saveDraft" }));
+    const error = await screen.findByText("eventCfp.submit.validation.consentDataProcessing");
+    expect(error).toHaveAttribute("role", "alert");
+    expect(consent).toHaveAttribute("aria-invalid", "true");
+    expect(consent.getAttribute("aria-describedby")).toBe(error.id);
+    expect(stub().callsFor("event_cfp_submission_save")).toHaveLength(0);
+  });
+
+  it("klauzula informacyjna z odnośnikiem do polityki prywatności i uwaga przy współprelegentach", async () => {
+    stub().setData("event_my_cfp_submissions", mine([], PERSON));
+    renderPage();
+    expect(await screen.findByText(/eventCfp\.submit\.privacy\.notice/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "eventCfp.submit.privacy.link" })).toHaveAttribute(
+      "href",
+      "/polityka-prywatnosci",
+    );
+    expect(screen.getByText("eventCfp.submit.coSpeaker.notice")).toBeInTheDocument();
+  });
+
+  it("aktywna zgoda marketingowa: zamiast pola zdanie, że obowiązuje (odznaczenie jej nie wycofa)", async () => {
+    stub().setData("event_my_cfp_submissions", mine([], { ...PERSON, consent_marketing: true }));
+    renderPage();
+    expect(
+      await screen.findByText("eventCfp.submit.fields.marketingConsentActive"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", { name: "eventCfp.submit.fields.marketingConsent" }),
+    ).toBeNull();
+    fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.titlePl"), {
+      target: { value: "Tytuł" },
+    });
+    acceptDataProcessing();
+    stub().setData("event_cfp_submission_save", { id: ID, status: "draft" });
+    fireEvent.click(screen.getByRole("button", { name: "eventCfp.submit.saveDraft" }));
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("eventCfp.submit.saved"));
+    expect(payload("event_cfp_submission_save")).toMatchObject({
+      speaker: { consent_data_processing: true, consent_marketing: false },
+    });
+  });
+
+  it("wycofane zgody: zdanie zamiast pola - formularz ich nie przywraca", async () => {
+    stub().setData(
+      "event_my_cfp_submissions",
+      mine([], { ...PERSON, consent_marketing: false, consents_withdrawn: true }),
+    );
+    renderPage();
+    expect(
+      await screen.findByText("eventCfp.submit.fields.marketingConsentWithdrawn"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", { name: "eventCfp.submit.fields.marketingConsent" }),
+    ).toBeNull();
+  });
+
+  it("bez zgody marketingowej pole jest odznaczone i nadaje zgodę dopiero po zaznaczeniu", async () => {
+    stub().setData("event_my_cfp_submissions", mine([], null));
+    renderPage();
+    expect(
+      await screen.findByRole("checkbox", { name: "eventCfp.submit.fields.marketingConsent" }),
+    ).not.toBeChecked();
+  });
+});
+
 describe("CfpSubmitPage - edycja", () => {
   it("prośba o zmiany: edycja także po zamknięciu naboru, z informacją od organizatora", async () => {
     stub().setData("event_cfp_public", cfp({ phase: "closed", is_open: false }));
@@ -461,6 +555,9 @@ describe("CfpSubmitPage - edycja", () => {
     if (notice === null) throw new Error("test");
     expect(within(notice).getByText("Prosimy skrócić.")).toBeInTheDocument();
     expect(screen.getByLabelText("eventCfp.submit.fields.titlePl")).toHaveValue("Energia jutra");
+    // Edycja pyta o zgodę od nowa - formularz jej nie „pamięta".
+    expect(screen.getByRole("checkbox", { name: DATA_CONSENT })).not.toBeChecked();
+    acceptDataProcessing();
     stub().setData("event_cfp_submission_save", { id: ID, status: "changes_requested" });
     fireEvent.click(screen.getByRole("button", { name: "eventCfp.submit.saveDraft" }));
     await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("eventCfp.submit.saved"));

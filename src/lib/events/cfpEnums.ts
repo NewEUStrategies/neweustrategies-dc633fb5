@@ -52,6 +52,15 @@ export const CFP_DECIDABLE_STATUSES: readonly CfpSubmissionStatus[] = [
   "rejected",
 ];
 
+/**
+ * COFNIĘCIE PRZYJĘCIA: z przyjętego albo potwierdzonego organizator może
+ * zgłoszenie wyłącznie przenieść na rezerwę albo odrzucić
+ * (`admin_event_cfp_submission_decide`, skutki cofa `_event_cfp_acceptance_undo`).
+ */
+export const CFP_REVOCABLE_STATUSES: readonly CfpSubmissionStatus[] = ["accepted", "confirmed"];
+export const CFP_REVOKE_STATUSES = ["waitlisted", "rejected"] as const;
+export type CfpRevokeStatus = (typeof CFP_REVOKE_STATUSES)[number];
+
 /** Stany, o których idzie mail do prelegenta (`admin_event_cfp_notify_payload`). */
 export const CFP_NOTICES = ["accepted", "rejected", "changes_requested"] as const;
 export type CfpNotice = (typeof CFP_NOTICES)[number];

@@ -149,7 +149,18 @@ export const eventCfpPl = {
         trackPlaceholder: "Wybierz ścieżkę",
         topics: "Tematy",
         topicsHint: "Oddziel przecinkami, najwyżej 10.",
+        dataProcessingConsent:
+          "Zgadzam się na przetwarzanie moich danych w celu rozpatrzenia zgłoszenia i kontaktu w jego sprawie.",
         marketingConsent: "Chcę dostawać informacje o kolejnych wydarzeniach organizatora.",
+        marketingConsentActive:
+          "Masz już zgodę na informacje o kolejnych wydarzeniach organizatora - obowiązuje nadal. Ten formularz jej nie zmienia; jak ją wycofać, opisuje polityka prywatności.",
+        marketingConsentWithdrawn:
+          "Twoje zgody na kontakt zostały wcześniej wycofane - ten formularz ich nie przywraca.",
+      },
+      privacy: {
+        notice:
+          "Administratorem danych podanych w zgłoszeniu jest organizator wydarzenia. Przetwarzamy je, aby rozpatrzyć zgłoszenie, przekazać Ci decyzję i - jeśli wystąpienie zostanie przyjęte - przygotować Twój udział. Szczegóły i Twoje prawa opisuje",
+        link: "polityka prywatności",
       },
       coSpeaker: {
         legend: "Współprelegent {{index}}",
@@ -163,6 +174,8 @@ export const eventCfpPl = {
         jobTitle: "Stanowisko",
         company: "Organizacja",
         max: "Najwyżej pięć osób.",
+        notice:
+          "Wpisując dane współprelegentów, potwierdzasz, że wiedzą o zgłoszeniu i o przekazaniu ich danych organizatorowi.",
       },
       saveDraft: "Zapisz szkic",
       send: "Wyślij zgłoszenie",
@@ -181,6 +194,7 @@ export const eventCfpPl = {
         answer: "To pytanie jest wymagane.",
         coSpeakers:
           "Każdy współprelegent potrzebuje imienia i nazwiska; e-maile muszą być poprawne i niepowtarzalne.",
+        consentDataProcessing: "Bez zgody na przetwarzanie danych nie możemy przyjąć zgłoszenia.",
       },
     },
 
@@ -210,7 +224,8 @@ export const eventCfpPl = {
         confirm: "Potwierdzam udział",
         decline: "Rezygnuję",
         declineTitle: "Zrezygnować z wystąpienia?",
-        declineDescription: "Organizator dostanie informację, że nie wystąpisz.",
+        declineDescription:
+          "Organizator dostanie informację, że nie wystąpisz, a zapis na wydarzenie utworzony przy przyjęciu zostanie anulowany.",
         feedback: "Informacja od organizatora",
         reviewsInfo: "Ocen: {{count}}, średnia {{avg}} na {{max}}",
         submittedAt: "Wysłane {{date}}",
@@ -225,7 +240,8 @@ export const eventCfpPl = {
         declined: "Przekazaliśmy organizatorowi Twoją rezygnację.",
       },
       profile: {
-        noProfile: "Profil prelegenta powstaje po przyjęciu pierwszego wystąpienia.",
+        noProfile:
+          "Profil prelegenta pojawi się, gdy potwierdzisz udział w przyjętym wystąpieniu - dopiero wtedy ogłaszamy Cię na stronie wydarzenia.",
         lead: "Tak przedstawimy Cię na stronie prelegentów tego wydarzenia.",
         headlinePl: "Tytuł zawodowy (PL)",
         headlineEn: "Tytuł zawodowy (EN)",
@@ -255,7 +271,7 @@ export const eventCfpPl = {
         noTime: "Termin zostanie ogłoszony.",
       },
       materials: {
-        lead: "Prezentacje, dokumenty i nagrania jako adresy https. Na stronie wydarzenia pojawią się po publikacji przez organizatora.",
+        lead: "Prezentacje, dokumenty i nagrania jako adresy https. Materiały publiczne i dla zapisanych pokażemy w Twoim profilu na stronie wydarzenia po publikacji przez organizatora; materiały dla organizatorów zostają tylko u nich.",
         empty: "Nie masz jeszcze materiałów.",
         add: "Dodaj materiał",
         dialogTitle: "Materiał prelegenta",
@@ -324,6 +340,8 @@ export const eventCfpPl = {
       authRequired: "Zaloguj się, aby kontynuować.",
       cfpClosed: "Nabór nie przyjmuje teraz zgłoszeń.",
       coSpeakersDisabled: "Ten nabór przyjmuje wyłącznie wystąpienia jednej osoby.",
+      consentRequired:
+        "Zaznacz zgodę na przetwarzanie danych - bez niej nie możemy przyjąć zgłoszenia.",
       emailInUse: "Ten adres e-mail należy do innego konta.",
       emailRequired: "Twoje konto nie ma adresu e-mail - uzupełnij go w ustawieniach konta.",
       invalidAbstract: "Streszczenie może mieć do 4000 znaków.",
@@ -506,7 +524,18 @@ export const eventCfpEn = {
         trackPlaceholder: "Choose a track",
         topics: "Topics",
         topicsHint: "Separate with commas, at most 10.",
+        dataProcessingConsent:
+          "I agree to the processing of my data to review this submission and contact me about it.",
         marketingConsent: "I want to hear about the organiser's future events.",
+        marketingConsentActive:
+          "You already agreed to hear about the organiser's future events - that consent still applies. This form does not change it; the privacy policy explains how to withdraw it.",
+        marketingConsentWithdrawn:
+          "You withdrew your contact consents earlier - this form does not restore them.",
+      },
+      privacy: {
+        notice:
+          "The event organiser is the controller of the data in this submission. We process it to review the submission, tell you the decision and - if the talk is accepted - prepare your participation. Details and your rights are in the",
+        link: "privacy policy",
       },
       coSpeaker: {
         legend: "Co-speaker {{index}}",
@@ -520,6 +549,8 @@ export const eventCfpEn = {
         jobTitle: "Job title",
         company: "Organisation",
         max: "At most five people.",
+        notice:
+          "By entering co-speakers' details you confirm that they know about the submission and that their data is passed to the organiser.",
       },
       saveDraft: "Save draft",
       send: "Send submission",
@@ -538,6 +569,8 @@ export const eventCfpEn = {
         answer: "This question is required.",
         coSpeakers:
           "Each co-speaker needs a first and last name; e-mails must be valid and unique.",
+        consentDataProcessing:
+          "Without consent to data processing we cannot accept the submission.",
       },
     },
 
@@ -567,7 +600,8 @@ export const eventCfpEn = {
         confirm: "Confirm my participation",
         decline: "Decline",
         declineTitle: "Decline the talk?",
-        declineDescription: "The organiser will be told that you will not speak.",
+        declineDescription:
+          "The organiser will be told that you will not speak, and the event registration created on acceptance will be cancelled.",
         feedback: "Message from the organiser",
         reviewsInfo: "Reviews: {{count}}, average {{avg}} out of {{max}}",
         submittedAt: "Sent {{date}}",
@@ -582,7 +616,8 @@ export const eventCfpEn = {
         declined: "We have passed your decision on to the organiser.",
       },
       profile: {
-        noProfile: "Your speaker profile is created when your first talk is accepted.",
+        noProfile:
+          "Your speaker profile appears once you confirm an accepted talk - only then do we announce you on the event site.",
         lead: "This is how we present you on the event's speakers page.",
         headlinePl: "Headline (PL)",
         headlineEn: "Headline (EN)",
@@ -612,7 +647,7 @@ export const eventCfpEn = {
         noTime: "The time will be announced.",
       },
       materials: {
-        lead: "Slides, documents and videos as https addresses. They appear on the event site once the organiser publishes them.",
+        lead: "Slides, documents and videos as https addresses. Public and registered-only materials appear in your profile on the event site once the organiser publishes them; organiser-only materials stay with the organiser.",
         empty: "You have no materials yet.",
         add: "Add material",
         dialogTitle: "Speaker material",
@@ -682,6 +717,8 @@ export const eventCfpEn = {
       authRequired: "Sign in to continue.",
       cfpClosed: "The call is not accepting submissions right now.",
       coSpeakersDisabled: "This call accepts single-speaker talks only.",
+      consentRequired:
+        "Tick the consent to data processing - without it we cannot accept the submission.",
       emailInUse: "This e-mail address belongs to another account.",
       emailRequired: "Your account has no e-mail address - add one in your account settings.",
       invalidAbstract: "The abstract may have up to 4000 characters.",

@@ -6,7 +6,9 @@
 // DOWODZIMY ładunków RPC po nazwie (filtr „wszystkie" nie wychodzi, strona
 // -> offset, decyzja i przyjęcie w kształcie SQL-a), tego, że mail wychodzi
 // tylko na żądanie i tylko dla stanów, o których się pisze, oraz że ponowienie
-// CRM dotyczy osoby, a nie zgłoszenia.
+// CRM dotyczy osoby, a nie zgłoszenia. Przyjęte zgłoszenie da się COFNĄĆ (tylko
+// na rezerwę albo do odrzucenia, po potwierdzeniu), a panel mówi, czy
+// prelegenci są już ogłoszeni i co cofnięto.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 
@@ -19,6 +21,7 @@ const h = vi.hoisted(() => ({
   toastError: vi.fn(),
   toastInfo: vi.fn(),
   notify: vi.fn(),
+  confirm: vi.fn(async () => true),
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -40,6 +43,7 @@ vi.mock("@/lib/events/adminCfpErrors", () => ({
     `odmowa:${error instanceof Error ? error.message : String(error)}`,
 }));
 vi.mock("@/lib/events/cfpNotify.functions", () => ({ notifyCfpDecision: h.notify }));
+vi.mock("@/lib/appDialogs", () => ({ confirmDialog: h.confirm }));
 // Reszta modułu prawdziwa: `useEventCfp` sięga (przez klucze zgłoszeń) do
 // `ticketResend.functions`, a ten przy imporcie buduje `createMiddleware`.
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
@@ -272,6 +276,8 @@ async function openSheet() {
 beforeEach(() => {
   h.rpc = supabaseRpcStub();
   for (const fn of [h.toastSuccess, h.toastError, h.toastInfo, h.notify]) fn.mockReset();
+  h.confirm.mockReset();
+  h.confirm.mockResolvedValue(true);
 });
 afterEach(cleanup);
 
@@ -648,7 +654,7 @@ describe("CfpSubmissionSheet - szczegół i decyzja", () => {
     });
   });
 
-  it("przyjęte zgłoszenie: bez decyzji, z sesją i z mailem do wysłania", async () => {
+  it("przyjęte zgłoszenie: zamiast decyzji cofnięcie przyjęcia, z sesją i z mailem do wysłania", async () => {
     stub().setData("admin_event_cfp_submission_detail", null);
     await renderPanel();
     stub().setData(
@@ -682,7 +688,11 @@ describe("CfpSubmissionSheet - szczegół i decyzja", () => {
     );
     const sheet = await openSheet();
     await within(sheet).findByText("Sesja PL · 1 października 2026 11:00");
-    expect(within(sheet).getByText("adminEventCfp.detail.notDecidable")).toBeInTheDocument();
+    expect(within(sheet).queryByText("adminEventCfp.detail.notDecidable")).not.toBeInTheDocument();
+    expect(within(sheet).getByText("adminEventCfp.detail.revoke.lead")).toBeInTheDocument();
+    expect(
+      within(sheet).getByText("adminEventCfp.detail.acceptance.awaitingConfirmation"),
+    ).toBeInTheDocument();
     expect(
       within(sheet).getByRole("link", { name: "adminEventCfp.detail.openAgenda" }),
     ).toHaveAttribute("href", "/admin/events/e1/content/sessions");
@@ -718,6 +728,138 @@ describe("CfpSubmissionSheet - szczegół i decyzja", () => {
     h.notify.mockRejectedValueOnce(new Error("network"));
     fireEvent.click(within(sheet).getByRole("button", { name: "adminEventCfp.notify.send" }));
     await waitFor(() => expect(h.toastError).toHaveBeenCalledTimes(2));
+  });
+
+  it("cofnięcie przyjęcia: rezerwa albo odrzucenie z notatką, po potwierdzeniu, z odmową bazy", async () => {
+    await renderPanel();
+    stub().setData(
+      "admin_event_cfp_submission_detail",
+      detail({}, { status: "confirmed", speaker_profile_id: "prof1", decision_note: "" }),
+    );
+    const sheet = await openSheet();
+    await within(sheet).findByText("adminEventCfp.detail.acceptance.announced");
+    const status = within(sheet).getByLabelText("adminEventCfp.detail.revoke.status");
+    expect(status).toHaveValue("waitlisted");
+    expect(
+      within(status)
+        .getAllByRole("option")
+        .map((option) => option.getAttribute("value")),
+    ).toEqual(["waitlisted", "rejected"]);
+
+    // Odrzucenie bez notatki nie wychodzi - ani pytanie, ani RPC.
+    fireEvent.change(status, { target: { value: "rejected" } });
+    fireEvent.click(
+      within(sheet).getByRole("button", { name: "adminEventCfp.detail.revoke.apply" }),
+    );
+    expect(
+      await within(sheet).findByText("adminEventCfp.detail.validation.noteRequired"),
+    ).toBeInTheDocument();
+    expect(h.confirm).not.toHaveBeenCalled();
+
+    fireEvent.change(within(sheet).getByLabelText("adminEventCfp.detail.decisionNote"), {
+      target: { value: " Program się zmienił " },
+    });
+    // Rezygnacja w oknie potwierdzenia = nic nie wychodzi.
+    h.confirm.mockResolvedValueOnce(false);
+    fireEvent.click(
+      within(sheet).getByRole("button", { name: "adminEventCfp.detail.revoke.apply" }),
+    );
+    await waitFor(() => expect(h.confirm).toHaveBeenCalledTimes(1));
+    expect(h.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "adminEventCfp.detail.revoke.confirmTitle",
+        description: "adminEventCfp.detail.revoke.confirmDescription",
+        destructive: true,
+      }),
+    );
+    expect(stub().callsFor("admin_event_cfp_submission_decide")).toHaveLength(0);
+
+    stub().setData("admin_event_cfp_submission_decide", { id: "s1", status: "rejected" });
+    fireEvent.click(
+      within(sheet).getByRole("button", { name: "adminEventCfp.detail.revoke.apply" }),
+    );
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith("adminEventCfp.toasts.acceptanceRevoked"),
+    );
+    expect(payload("admin_event_cfp_submission_decide")).toEqual({
+      id: "s1",
+      status: "rejected",
+      decision_note: "Program się zmienił",
+      feedback_to_speaker: "",
+    });
+
+    stub().setError("admin_event_cfp_submission_decide", "invalid_transition: x");
+    fireEvent.click(
+      within(sheet).getByRole("button", { name: "adminEventCfp.detail.revoke.apply" }),
+    );
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("odmowa:invalid_transition: x"));
+  });
+
+  it("cofnięcie w toku mówi „zapisuję” i blokuje przycisk", async () => {
+    await renderPanel();
+    stub().setData("admin_event_cfp_submission_detail", detail({}, { status: "accepted" }));
+    const sheet = await openSheet();
+    await within(sheet).findByText("adminEventCfp.detail.revoke.lead");
+    stub().setResponse(
+      "admin_event_cfp_submission_decide",
+      () => new Promise(() => undefined) as never,
+    );
+    fireEvent.click(
+      within(sheet).getByRole("button", { name: "adminEventCfp.detail.revoke.apply" }),
+    );
+    expect(
+      await within(sheet).findByRole("button", { name: "adminEventCfp.common.saving" }),
+    ).toBeDisabled();
+    expect(payload("admin_event_cfp_submission_decide")).toMatchObject({ status: "waitlisted" });
+  });
+
+  it("po rezygnacji: panel mówi, co cofnięto, i o sesji, która została w programie", async () => {
+    await renderPanel();
+    stub().setData(
+      "admin_event_cfp_submission_detail",
+      detail(
+        {
+          session: {
+            id: "ses1",
+            title_pl: "Sesja PL",
+            title_en: "Session",
+            starts_at: null,
+            status: "published",
+          },
+        },
+        { status: "declined", speaker_profile_id: "prof1" },
+      ),
+    );
+    const sheet = await openSheet();
+    await within(sheet).findByText("adminEventCfp.detail.acceptance.undone");
+    expect(
+      within(sheet).getByText("adminEventCfp.detail.acceptance.sessionLeft"),
+    ).toBeInTheDocument();
+    expect(within(sheet).getByText("adminEventCfp.detail.notDecidable")).toBeInTheDocument();
+    expect(
+      within(sheet).queryByRole("button", { name: "adminEventCfp.detail.revoke.apply" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("cofnięte przyjęcie bez sesji: bez zdania o sesji, z decyzją; wycofane przed przyjęciem - bez notki", async () => {
+    await renderPanel();
+    stub().setData(
+      "admin_event_cfp_submission_detail",
+      detail({}, { status: "waitlisted", speaker_profile_id: "prof1" }),
+    );
+    const sheet = await openSheet();
+    await within(sheet).findByText("adminEventCfp.detail.acceptance.undone");
+    expect(within(sheet).queryByText("adminEventCfp.detail.acceptance.sessionLeft")).toBeNull();
+    expect(within(sheet).getByLabelText("adminEventCfp.detail.decisionStatus")).toHaveValue(
+      "waitlisted",
+    );
+    fireEvent.keyDown(sheet, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    stub().setData("admin_event_cfp_submission_detail", detail({}, { status: "withdrawn" }));
+    const again = await openSheet();
+    await within(again).findByText("adminEventCfp.detail.notDecidable");
+    expect(within(again).queryByText(/adminEventCfp\.detail\.acceptance\./)).toBeNull();
   });
 
   it("mail o aktualnej decyzji już wyszedł - bez przycisku; zamknięcie szuflady", async () => {

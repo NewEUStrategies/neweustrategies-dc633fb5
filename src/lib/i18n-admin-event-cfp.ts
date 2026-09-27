@@ -297,6 +297,23 @@ export const adminEventCfpPl = {
       applyDecision: "Zapisz decyzję",
       accept: "Przyjmij i zaplanuj",
       notDecidable: "W tym stanie zgłoszenie nie przyjmuje już decyzji organizatora.",
+      acceptance: {
+        awaitingConfirmation:
+          "Przyjęte. Prelegenci trafią na publiczną listę prelegentów dopiero, gdy zgłaszający potwierdzi udział.",
+        announced: "Udział potwierdzony - prelegenci są na publicznej liście prelegentów.",
+        undone:
+          "Przyjęcie już nie obowiązuje: prelegentów zdjęto z listy prelegentów i z obsady sesji tego zgłoszenia, a zapisy i członkostwo w grupie utworzone przy przyjęciu anulowano. Wpisy i zapisy sprzed przyjęcia zostały bez zmian.",
+        sessionLeft:
+          "Sesja tego wystąpienia została w programie bez tych prelegentów - przypisz innych albo ją odwołaj.",
+      },
+      revoke: {
+        lead: "Zgłoszenie jest przyjęte. Możesz cofnąć przyjęcie: przenieść je na listę rezerwową albo odrzucić.",
+        status: "Nowa decyzja",
+        apply: "Cofnij przyjęcie",
+        confirmTitle: "Cofnąć przyjęcie?",
+        confirmDescription:
+          "Prelegenci znikną z listy prelegentów i z obsady sesji, a zapisy z biletem utworzone przy przyjęciu zostaną anulowane.",
+      },
       noSession: "Przyjęcie nie utworzyło sesji - dodasz ją w agendzie.",
       openAgenda: "Otwórz agendę",
       validation: {
@@ -329,7 +346,7 @@ export const adminEventCfpPl = {
     accept: {
       title: "Przyjęcie wystąpienia",
       description:
-        "Przyjęcie dopisuje prelegentów do listy wydarzenia i zakłada ich karty w CRM. Możesz od razu utworzyć szkic sesji w programie i bezpłatną rejestrację.",
+        "Przyjęcie zakłada karty prelegentów w CRM; możesz od razu utworzyć szkic sesji w programie i bezpłatną rejestrację. Na publiczną listę prelegentów trafią dopiero po potwierdzeniu udziału.",
       register: "Zarejestruj prelegentów na wydarzenie",
       registerHint: "Zatwierdzona rejestracja bez opłaty - bilet z kodem QR wyjdzie automatycznie.",
       schedule: "Wstaw szkic sesji do programu",
@@ -385,7 +402,7 @@ export const adminEventCfpPl = {
     },
 
     materials: {
-      lead: "Materiały dodane przez prelegentów. Na stronie wydarzenia pojawiają się dopiero po publikacji; zmiana przez prelegenta wycofuje publikację.",
+      lead: "Materiały dodane przez prelegentów. Publiczne i dla zapisanych pojawiają się w profilu prelegenta na stronie wydarzenia dopiero po publikacji; zmiana przez prelegenta wycofuje publikację. Materiałów tylko dla organizatorów się nie publikuje.",
       empty: "Prelegenci nie dodali jeszcze materiałów.",
       columns: {
         title: "Materiał",
@@ -400,6 +417,7 @@ export const adminEventCfpPl = {
       publish: "Opublikuj",
       unpublish: "Wycofaj",
       open: "Otwórz",
+      organizersOnly: "Tylko dla organizatorów",
     },
 
     toasts: {
@@ -407,10 +425,15 @@ export const adminEventCfpPl = {
       fieldSaved: "Zapisano pytanie.",
       fieldDeleted: "Usunięto pytanie.",
       decisionSaved: "Zapisano decyzję.",
-      accepted_one: "Przyjęto wystąpienie. Na liście prelegentów: {{count}} osoba.",
-      accepted_few: "Przyjęto wystąpienie. Na liście prelegentów: {{count}} osoby.",
-      accepted_many: "Przyjęto wystąpienie. Na liście prelegentów: {{count}} osób.",
-      accepted_other: "Przyjęto wystąpienie. Na liście prelegentów: {{count}} osoby.",
+      accepted_one:
+        "Przyjęto wystąpienie ({{count}} prelegent). Na publiczną listę trafi po potwierdzeniu udziału.",
+      accepted_few:
+        "Przyjęto wystąpienie ({{count}} prelegentów). Na publiczną listę trafią po potwierdzeniu udziału.",
+      accepted_many:
+        "Przyjęto wystąpienie ({{count}} prelegentów). Na publiczną listę trafią po potwierdzeniu udziału.",
+      accepted_other:
+        "Przyjęto wystąpienie ({{count}} prelegenta). Na publiczną listę trafią po potwierdzeniu udziału.",
+      acceptanceRevoked: "Cofnięto przyjęcie zgłoszenia.",
       crmRetried: "Ponowiono synchronizację z CRM.",
       notified: "Wysłano mail do prelegenta.",
       notifySkipped:
@@ -465,6 +488,7 @@ export const adminEventCfpPl = {
       speakerOverlap: "Prelegent ma już sesję w tym czasie.",
       reviewerNotFound: "To konto nie należy do tej organizacji.",
       invalidAuditAction: "Nie udało się zapisać wpisu w historii CRM.",
+      invalidVisibility: "Materiału przeznaczonego tylko dla organizatorów nie da się opublikować.",
       unknown: "Operacja się nie powiodła. Spróbuj ponownie.",
     },
   },
@@ -745,6 +769,23 @@ export const adminEventCfpEn = {
       applyDecision: "Save decision",
       accept: "Accept and schedule",
       notDecidable: "In this status the submission no longer takes organiser decisions.",
+      acceptance: {
+        awaitingConfirmation:
+          "Accepted. The speakers appear on the public speaker list only once the submitter confirms participation.",
+        announced: "Participation confirmed - the speakers are on the public speaker list.",
+        undone:
+          "The acceptance no longer applies: the speakers were removed from the speaker list and from this submission's session line-up, and the registrations and group memberships created on acceptance were cancelled. Entries and registrations that existed before the acceptance are unchanged.",
+        sessionLeft:
+          "This talk's session stays in the programme without these speakers - assign others or cancel it.",
+      },
+      revoke: {
+        lead: "The submission is accepted. You can revoke the acceptance: move it to the waiting list or reject it.",
+        status: "New decision",
+        apply: "Revoke acceptance",
+        confirmTitle: "Revoke the acceptance?",
+        confirmDescription:
+          "The speakers will be removed from the speaker list and the session line-up, and the ticketed registrations created on acceptance will be cancelled.",
+      },
       noSession: "Acceptance did not create a session - add one in the agenda.",
       openAgenda: "Open the agenda",
       validation: {
@@ -777,7 +818,7 @@ export const adminEventCfpEn = {
     accept: {
       title: "Accept the talk",
       description:
-        "Acceptance adds the speakers to the event's speaker list and creates their CRM records. You can also create a draft programme session and a free registration right away.",
+        "Acceptance creates the speakers' CRM records; you can also create a draft programme session and a free registration right away. The speakers appear on the public speaker list only once participation is confirmed.",
       register: "Register the speakers for the event",
       registerHint: "An approved free registration - the QR ticket goes out automatically.",
       schedule: "Add a draft session to the programme",
@@ -834,7 +875,7 @@ export const adminEventCfpEn = {
     },
 
     materials: {
-      lead: "Materials added by speakers. They appear on the event site only once published; a change by the speaker withdraws the publication.",
+      lead: "Materials added by speakers. Public and registered-only materials appear in the speaker's profile on the event site only once published; a change by the speaker withdraws the publication. Organiser-only materials are never published.",
       empty: "Speakers have not added any materials yet.",
       columns: {
         title: "Material",
@@ -849,6 +890,7 @@ export const adminEventCfpEn = {
       publish: "Publish",
       unpublish: "Withdraw",
       open: "Open",
+      organizersOnly: "Organisers only",
     },
 
     toasts: {
@@ -856,8 +898,11 @@ export const adminEventCfpEn = {
       fieldSaved: "Question saved.",
       fieldDeleted: "Question deleted.",
       decisionSaved: "Decision saved.",
-      accepted_one: "Talk accepted. Speakers on the list: {{count}}.",
-      accepted_other: "Talk accepted. Speakers on the list: {{count}}.",
+      accepted_one:
+        "Talk accepted ({{count}} speaker). They appear on the public list once participation is confirmed.",
+      accepted_other:
+        "Talk accepted ({{count}} speakers). They appear on the public list once participation is confirmed.",
+      acceptanceRevoked: "Acceptance revoked.",
       crmRetried: "CRM sync retried.",
       notified: "E-mail sent to the speaker.",
       notifySkipped:
@@ -914,6 +959,7 @@ export const adminEventCfpEn = {
       speakerOverlap: "The speaker already has a session at this time.",
       reviewerNotFound: "This account does not belong to this organisation.",
       invalidAuditAction: "The CRM history entry could not be saved.",
+      invalidVisibility: "A material for organisers only cannot be published.",
       unknown: "The operation failed. Try again.",
     },
   },

@@ -377,8 +377,10 @@ const KODY_NABORU_PANEL = [
   "session_before_event",
   "session_after_event",
   "speaker_overlap",
-  // recenzenci i materiały
+  // recenzenci i materiały (`admin_event_cfp_material_publish` odmawia
+  // publikacji materiału tylko dla organizatorów)
   "reviewer_not_found",
+  "invalid_visibility",
   // wspólne
   "invalid_payload",
   "not_found",
@@ -401,6 +403,8 @@ const KODY_NABORU_UCZESTNIK = [
   "not_editable",
   "email_required",
   "email_in_use",
+  // zgoda na przetwarzanie danych tylko z jawnego zaznaczenia (`_event_cfp_resolve_person`)
+  "consent_required",
   "invalid_name",
   "invalid_speaker",
   "invalid_title",

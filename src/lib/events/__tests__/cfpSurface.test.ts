@@ -221,6 +221,7 @@ describe("parseCfpSubmissionDetail", () => {
       notified_at: "2026-09-04T10:00:00+00:00",
       notify_error: null,
       session_id: "ses1",
+      speaker_profile_id: "prof1",
     },
     event: { slug: "kongres", timezone: "Europe/Warsaw", starts_at: "2026-10-01T08:00:00+00:00" },
     person: {
@@ -306,6 +307,7 @@ describe("parseCfpSubmissionDetail", () => {
       decidedAt: null,
       notifiedStatus: "accepted",
       sessionId: "ses1",
+      speakerProfileId: "prof1",
       eventSlug: "kongres",
       eventEndsAt: null,
       person: { id: "p1", email: "a@b.pl", phone: null, consentMarketing: true },
@@ -354,6 +356,8 @@ describe("parseCfpSubmissionDetail", () => {
     expect(parsed.speakers[0]?.crm?.syncStatus).toBe("skipped");
     expect(parseCfpSubmissionDetail(null).status).toBe("draft");
     expect(parseCfpSubmissionDetail(null).person.consentMarketing).toBe(false);
+    // Zgłoszenie nigdy nieprzyjęte nie ma nakładki - panel nie mówi o cofaniu.
+    expect(parseCfpSubmissionDetail(null).speakerProfileId).toBeNull();
   });
 });
 
@@ -410,6 +414,7 @@ describe("parseMyCfpSubmissions", () => {
         job_title: null,
         company_text: "NES",
         consent_marketing: true,
+        consents_withdrawn: true,
       },
       items: [
         {
@@ -435,8 +440,13 @@ describe("parseMyCfpSubmissions", () => {
       jobTitle: null,
       companyText: "NES",
       consentMarketing: true,
+      consentsWithdrawn: true,
     });
     expect(mine?.maxPerSubmitter).toBe(2);
+    // Brak pola z bazy = zgody NIE są wycofane (formularz pokazuje pole zgody).
+    expect(
+      parseMyCfpSubmissions({ person: { id: "p" }, items: [] })?.person?.consentsWithdrawn,
+    ).toBe(false);
     expect(mine?.items[0]).toMatchObject({
       status: "accepted",
       sessionId: "ses",

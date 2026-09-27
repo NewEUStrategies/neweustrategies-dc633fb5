@@ -6834,6 +6834,9 @@ export type Database = {
       }
       event_cfp_submission_speakers: {
         Row: {
+          added_group_id: string | null
+          added_registration_id: string | null
+          added_roster_entry_id: string | null
           company_text: string | null
           created_at: string
           email: string | null
@@ -6846,11 +6849,15 @@ export type Database = {
           person_id: string | null
           role: string
           sort_order: number
+          speaker_profile_id: string | null
           submission_id: string
           tenant_id: string
           updated_at: string
         }
         Insert: {
+          added_group_id?: string | null
+          added_registration_id?: string | null
+          added_roster_entry_id?: string | null
           company_text?: string | null
           created_at?: string
           email?: string | null
@@ -6863,11 +6870,15 @@ export type Database = {
           person_id?: string | null
           role?: string
           sort_order?: number
+          speaker_profile_id?: string | null
           submission_id: string
           tenant_id: string
           updated_at?: string
         }
         Update: {
+          added_group_id?: string | null
+          added_registration_id?: string | null
+          added_roster_entry_id?: string | null
           company_text?: string | null
           created_at?: string
           email?: string | null
@@ -6880,16 +6891,45 @@ export type Database = {
           person_id?: string | null
           role?: string
           sort_order?: number
+          speaker_profile_id?: string | null
           submission_id?: string
           tenant_id?: string
           updated_at?: string
         }
         Relationships: [
           {
+            foreignKeyName: "event_cfp_submission_speakers_entry_fk"
+            columns: ["tenant_id", "added_roster_entry_id"]
+            isOneToOne: false
+            referencedRelation: "event_speaker_entries"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_cfp_submission_speakers_group_fk"
+            columns: ["tenant_id", "event_id", "added_group_id"]
+            isOneToOne: false
+            referencedRelation: "event_groups"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
             foreignKeyName: "event_cfp_submission_speakers_person_fk"
             columns: ["tenant_id", "person_id"]
             isOneToOne: false
             referencedRelation: "event_people"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_cfp_submission_speakers_profile_fk"
+            columns: ["tenant_id", "speaker_profile_id"]
+            isOneToOne: false
+            referencedRelation: "speaker_profiles"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_cfp_submission_speakers_registration_fk"
+            columns: ["tenant_id", "added_registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
             referencedColumns: ["tenant_id", "id"]
           },
           {
@@ -28007,6 +28047,19 @@ export type Database = {
       event_session_access: { Args: { _session_id: string }; Returns: Json }
       event_session_save_toggle: { Args: { p_payload: Json }; Returns: Json }
       event_session_signup: { Args: { p_payload: Json }; Returns: Json }
+      event_speaker_materials_public: {
+        Args: { p_event_id: string }
+        Returns: {
+          id: string
+          kind: string
+          session_id: string
+          speaker_profile_id: string
+          title_en: string
+          title_pl: string
+          url: string
+          visibility: string
+        }[]
+      }
       event_speakers_public: {
         Args: { p_payload: Json }
         Returns: {
