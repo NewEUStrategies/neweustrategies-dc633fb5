@@ -11,9 +11,15 @@
 //     zakupie wlaczenie "potrzebuje faktury" od razu je wstawia. Dane
 //     zostaja na koncie kupujacego (jego wlasne dane), bez nowego klucza
 //     w magazynie przegladarki i bez pytania o zgode.
-//   * NIC NIE JEST POBIERANE, DOPOKI KUPUJACY NIE ZAZNACZY "potrzebuje
-//     faktury": krok platnosci bez faktury (wiekszosc zakupow) nie robi
-//     ani jednego dodatkowego zapytania.
+//   * BLOK POKAZUJEMY TYLKO, GDY FAKTURA MOZE POWSTAC. Jedno lekkie zapytanie
+//     (`event_invoice_public_options`) mowi, czy organizator fakturuje i czy
+//     platnosc KARTA moze dostac jego fakture. Organizator bez potwierdzonego
+//     wystawcy = bloku nie ma; platnosc karta w trybie operatora albo
+//     z fakturami Stripe = zamiast bloku zdanie, ze fakture wystawia operator
+//     (kupujacy nie wpisuje danych firmy na prozno i nie czeka na dokument,
+//     ktory nie powstanie). Blad zapytania = bloku nie ma (nie obiecujemy).
+//   * Profil rozliczeniowy i zapisane prosby pobieramy dopiero, gdy kupujacy
+//     zaznaczy "potrzebuje faktury".
 //   * `commit()` przed przejsciem do kasy: waliduje, zapisuje prosbe
 //     (`event_invoice_request_save`), opcjonalnie profil. Zwraca `false`, gdy
 //     kupujacy musi cos poprawic - wolajacy wtedy NIE otwiera kasy.
@@ -35,11 +41,41 @@ import {
   type InvoiceBuyerDraft,
   type InvoiceBuyerErrors,
 } from "@/lib/events/eventInvoiceBuyerDraft";
-import type { InvoiceRequestTarget, MyInvoiceSourceRow } from "@/lib/events/myEventInvoicesApi";
-import { useMyInvoiceSources, useSaveInvoiceRequest } from "@/lib/events/useMyEventInvoices";
+import type {
+  InvoicePublicOptions,
+  InvoiceRequestTarget,
+  MyInvoiceSourceRow,
+} from "@/lib/events/myEventInvoicesApi";
+import {
+  useInvoicePublicOptions,
+  useMyInvoiceSources,
+  useSaveInvoiceRequest,
+} from "@/lib/events/useMyEventInvoices";
 import { eventInvoiceErrorKey } from "@/lib/events/eventInvoiceErrors";
 
+/**
+ * Czy kupujacy moze tu poprosic o fakture organizatora:
+ * `available` - blok prosby; `operator` - fakture wystawia operator platnosci
+ * (tylko zdanie); `unavailable` - nic; `loading` - jeszcze nie wiadomo (nic).
+ */
+export type InvoiceRequestAvailability = "loading" | "available" | "operator" | "unavailable";
+
+/** Jak zaplaci kupujacy: krok platnosci zapisu = karta, pakiet = przelew. */
+export type InvoiceRequestPayment = "card" | "transfer";
+
+export function invoiceRequestAvailability(
+  options: InvoicePublicOptions | undefined,
+  failed: boolean,
+  payment: InvoiceRequestPayment,
+): InvoiceRequestAvailability {
+  if (options === undefined) return failed ? "unavailable" : "loading";
+  if (payment === "transfer") return options.enabled ? "available" : "unavailable";
+  if (options.cardInvoiceable) return "available";
+  return options.cardOperatorInvoice ? "operator" : "unavailable";
+}
+
 export interface InvoiceRequestController {
+  availability: InvoiceRequestAvailability;
   wanted: boolean;
   setWanted: (value: boolean) => void;
   buyer: InvoiceBuyerDraft;
@@ -70,9 +106,11 @@ function matches(row: MyInvoiceSourceRow, target: InvoiceRequestTarget): boolean
 export function useInvoiceRequestController({
   target,
   enabled,
+  payment,
 }: {
   target: InvoiceRequestTarget | null;
   enabled: boolean;
+  payment: InvoiceRequestPayment;
 }): InvoiceRequestController {
   const [wanted, setWantedState] = useState(false);
   const [buyer, setBuyerState] = useState<InvoiceBuyerDraft>(emptyBuyerDraft);
@@ -82,7 +120,9 @@ export function useInvoiceRequestController({
   const [showErrors, setShowErrors] = useState(false);
   const [failureKey, setFailureKey] = useState<string | null>(null);
 
-  const active = enabled && wanted;
+  const optionsQ = useInvoicePublicOptions(enabled);
+  const availability = invoiceRequestAvailability(optionsQ.data, optionsQ.isError, payment);
+  const active = enabled && wanted && availability === "available";
   const profileQ = useQuery({
     queryKey: ["my-billing"],
     queryFn: fetchMyBillingProfile,
@@ -115,7 +155,9 @@ export function useInvoiceRequestController({
 
   async function commit(override?: InvoiceRequestTarget): Promise<boolean> {
     const destination = override ?? target;
-    if (!wanted || destination === null || existing?.invoice_number) return true;
+    // Bez bloku (organizator nie fakturuje, fakture wystawia operator) nie ma
+    // czego zapisac - zakup idzie dalej bez prosby.
+    if (!active || destination === null || existing?.invoice_number) return true;
     if (!validate()) return false;
     setFailureKey(null);
     try {
@@ -135,6 +177,7 @@ export function useInvoiceRequestController({
   }
 
   return {
+    availability,
     wanted,
     setWanted: setWantedState,
     buyer,

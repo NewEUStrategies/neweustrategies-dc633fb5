@@ -37,6 +37,21 @@ export type EventInvoiceSourceKind = (typeof EVENT_INVOICE_SOURCE_KINDS)[number]
 export const EVENT_INVOICE_CORRECTION_MODES = ["full", "partial"] as const;
 export type EventInvoiceCorrectionMode = (typeof EVENT_INVOICE_CORRECTION_MODES)[number];
 
+/**
+ * Dlaczego kupujacy NIE moze poprosic o fakture za zamowienie
+ * (`event_my_invoice_sources.request_block`, kolejnosc galezi CASE w SQL):
+ * faktura w toku albo wystawiona, organizator nie fakturuje, prosba innego
+ * konta, po terminie, platnosc karta fakturuje operator.
+ */
+export const EVENT_INVOICE_REQUEST_BLOCKS = [
+  "invoiced",
+  "disabled",
+  "other_requester",
+  "window_closed",
+  "operator_invoice",
+] as const;
+export type EventInvoiceRequestBlock = (typeof EVENT_INVOICE_REQUEST_BLOCKS)[number];
+
 /** Czy wartosc nalezy do zamknietego zbioru (straznik typu, bez rzutowania). */
 export function isEnumMember<T extends string>(values: readonly T[], value: unknown): value is T {
   return values.some((item) => item === value);

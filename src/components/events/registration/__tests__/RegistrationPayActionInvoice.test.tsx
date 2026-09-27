@@ -5,6 +5,9 @@
 // albo odmowa bazy zatrzymuja przejscie do kasy (kupujacy poprawia, zamiast
 // wracac z platnosci z dokumentem na zle dane). Bez zaznaczenia faktury kasa
 // otwiera sie jak dotad - reszte kroku platnosci testuja pliki potwierdzenia.
+// Blok faktury stoi TYLKO tam, gdzie organizator moze zafakturowac platnosc
+// karta; w trybie operatora platnosci kupujacy dostaje zdanie, ze fakture
+// wystawia operator (zamiast pol, ktore obiecywaly dokument bez pokrycia).
 //
 // KROK LEJKA "checkout_start" (Google Ads, f3) liczy sie DOPIERO po bramce
 // faktury: odrzucone dane nabywcy albo odmowa zapisu prosby zatrzymuja kase,
@@ -51,6 +54,7 @@ vi.mock("@/lib/events/eventFunnelBeacon", () => ({
   sendEventFunnelStep: (step: string, target: unknown) => funnel.send(step, target),
 }));
 const invoices = vi.hoisted(() => ({
+  fetchInvoicePublicOptions: vi.fn(),
   fetchMyInvoiceSources: vi.fn(),
   fetchMyInvoices: vi.fn(),
   saveInvoiceRequest: vi.fn(),
@@ -106,10 +110,30 @@ beforeEach(() => {
   h.dialog = null;
   billing.fetchMyBillingProfile.mockResolvedValue(null);
   invoices.fetchMyInvoiceSources.mockResolvedValue([]);
+  invoices.fetchInvoicePublicOptions.mockResolvedValue({
+    enabled: true,
+    cardInvoiceable: true,
+    cardOperatorInvoice: false,
+  });
   h.checkout.mockResolvedValue({ ok: true, mode: "mock", orderId: "ord-1" });
 });
 
 describe("RegistrationPayAction + faktura na firme", () => {
+  it("platnosc karta fakturowana przez operatora: zdanie zamiast bloku, kasa bez prosby", async () => {
+    invoices.fetchInvoicePublicOptions.mockResolvedValue({
+      enabled: true,
+      cardInvoiceable: false,
+      cardOperatorInvoice: true,
+    });
+    renderPay();
+    expect(await screen.findByText("eventInvoices.request.operatorIssues")).toBeTruthy();
+    expect(screen.queryByLabelText("eventInvoices.request.toggle")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: PAY }));
+    await waitFor(() => expect(h.checkout).toHaveBeenCalledTimes(1));
+    expect(invoices.saveInvoiceRequest).not.toHaveBeenCalled();
+    expect(invoices.fetchInvoicePublicOptions).toHaveBeenCalledTimes(1);
+  });
+
   it("bez faktury kasa otwiera sie od razu, bez zapisu prosby", async () => {
     renderPay();
     fireEvent.click(screen.getByRole("button", { name: PAY }));
@@ -121,7 +145,7 @@ describe("RegistrationPayAction + faktura na firme", () => {
 
   it("niepoprawne dane nabywcy zatrzymuja kase", async () => {
     renderPay();
-    fireEvent.click(screen.getByLabelText("eventInvoices.request.toggle"));
+    fireEvent.click(await screen.findByLabelText("eventInvoices.request.toggle"));
     fireEvent.click(screen.getByRole("button", { name: PAY }));
     expect(await screen.findByText("eventInvoices.request.fixErrors")).toBeTruthy();
     expect(h.checkout).not.toHaveBeenCalled();
@@ -131,7 +155,7 @@ describe("RegistrationPayAction + faktura na firme", () => {
   it("poprawne dane: najpierw prosba do tego zgloszenia, potem kasa", async () => {
     invoices.saveInvoiceRequest.mockResolvedValue("req-1");
     renderPay();
-    fireEvent.click(screen.getByLabelText("eventInvoices.request.toggle"));
+    fireEvent.click(await screen.findByLabelText("eventInvoices.request.toggle"));
     fillBuyer();
     fireEvent.click(screen.getByRole("button", { name: PAY }));
     await waitFor(() => expect(h.checkout).toHaveBeenCalledTimes(1));
@@ -155,7 +179,7 @@ describe("RegistrationPayAction + faktura na firme", () => {
   it("odmowa zapisu prosby: zdanie kupujacego, kasa zamknieta", async () => {
     invoices.saveInvoiceRequest.mockRejectedValue(new Error("request_window_closed: x"));
     renderPay();
-    fireEvent.click(screen.getByLabelText("eventInvoices.request.toggle"));
+    fireEvent.click(await screen.findByLabelText("eventInvoices.request.toggle"));
     fillBuyer();
     fireEvent.click(screen.getByRole("button", { name: PAY }));
     expect(await screen.findByText("eventInvoices.errors.requestWindowClosed")).toBeTruthy();
@@ -168,7 +192,7 @@ describe("RegistrationPayAction - zapis prosby w toku i galezie kasy", () => {
   it("zapis danych do faktury w toku blokuje przycisk platnosci", async () => {
     invoices.saveInvoiceRequest.mockReturnValue(new Promise(() => {}));
     renderPay();
-    fireEvent.click(screen.getByLabelText("eventInvoices.request.toggle"));
+    fireEvent.click(await screen.findByLabelText("eventInvoices.request.toggle"));
     fillBuyer();
     fireEvent.click(screen.getByRole("button", { name: PAY }));
     await waitFor(() =>

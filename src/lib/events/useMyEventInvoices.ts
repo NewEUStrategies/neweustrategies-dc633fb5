@@ -15,9 +15,11 @@ import {
 
 import {
   cancelInvoiceRequest,
+  fetchInvoicePublicOptions,
   fetchMyInvoiceSources,
   fetchMyInvoices,
   saveInvoiceRequest,
+  type InvoicePublicOptions,
   type InvoiceRequestTarget,
   type MyInvoiceRow,
   type MyInvoiceSourceRow,
@@ -28,12 +30,22 @@ export const myEventInvoiceKeys = {
   all: ["event-invoices-me"] as const,
   sources: () => [...myEventInvoiceKeys.all, "sources"] as const,
   documents: () => [...myEventInvoiceKeys.all, "documents"] as const,
+  options: () => [...myEventInvoiceKeys.all, "options"] as const,
 };
 
 export function useMyInvoiceSources(enabled: boolean): UseQueryResult<MyInvoiceSourceRow[]> {
   return useQuery({
     queryKey: myEventInvoiceKeys.sources(),
     queryFn: fetchMyInvoiceSources,
+    enabled,
+  });
+}
+
+/** Czy organizator przyjmuje prosby o fakture (i kto fakturuje platnosc karta). */
+export function useInvoicePublicOptions(enabled: boolean): UseQueryResult<InvoicePublicOptions> {
+  return useQuery({
+    queryKey: myEventInvoiceKeys.options(),
+    queryFn: fetchInvoicePublicOptions,
     enabled,
   });
 }

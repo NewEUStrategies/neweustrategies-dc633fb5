@@ -3,7 +3,9 @@
 // SKAD KSZTALT. `admin_event_invoice_get` (panel) i `event_my_invoice`
 // (kupujacy) zwracaja ten sam obiekt z `_event_invoice_document` (migracja
 // 20260926110000): `invoice` (wiersz bez migawki sprzedawcy), `seller`,
-// `lines`, `corrects`, a panel dodatkowo `sources` i `corrections`. Typ
+// `lines`, `corrects`, a panel dodatkowo `sources`, `corrections`
+// i `current_lines` (pozycje wystawionej faktury PO jej korektach - podstawa
+// kolejnej korekty). Typ
 // generowany widzi w tym wylacznie `Json`, wiec odczyt jest JAWNY, pole po
 // polu, z bezpiecznym zastepstwem - zadnego rzutowania wiersza na
 // recznie napisany interfejs (`check:db-row-casts`).
@@ -97,6 +99,17 @@ export interface EventInvoiceDocumentSource {
   releasedAt: string | null;
 }
 
+/** Pozycja faktury PO wystawionych korektach (ilosc 0 = usunieta korekta). */
+export interface EventInvoiceCurrentLine {
+  /** Kotwica: pozycja faktury (albo dopisana korekta), na ktora wskazuje korekta. */
+  lineId: string;
+  description: string;
+  unit: string;
+  quantity: number;
+  unitGrossCents: number;
+  vatRate: EventInvoiceVatRate;
+}
+
 export interface EventInvoiceCorrectionRef {
   id: string;
   number: string | null;
@@ -139,6 +152,7 @@ export interface EventInvoiceDocument {
   corrects: { id: string; number: string | null; issueDate: string | null } | null;
   sources: EventInvoiceDocumentSource[];
   corrections: EventInvoiceCorrectionRef[];
+  currentLines: EventInvoiceCurrentLine[];
 }
 
 function parseSeller(value: Json | undefined): EventInvoiceSeller {
@@ -187,6 +201,18 @@ function parseSource(value: Json): EventInvoiceDocumentSource {
     grossCents: jsonNumber(row.gross_cents),
     covers: jsonBool(row.covers),
     releasedAt: jsonTextOrNull(row.released_at),
+  };
+}
+
+function parseCurrentLine(value: Json): EventInvoiceCurrentLine {
+  const row = jsonRecord(value);
+  return {
+    lineId: jsonText(row.line_id),
+    description: jsonText(row.description),
+    unit: jsonText(row.unit),
+    quantity: jsonNumber(row.quantity),
+    unitGrossCents: jsonNumber(row.unit_gross_cents),
+    vatRate: pickEnum(EVENT_INVOICE_VAT_RATES, row.vat_rate),
   };
 }
 
@@ -263,5 +289,6 @@ export function parseInvoiceDocument(value: Json | null): EventInvoiceDocument |
           },
     sources: jsonList(root.sources).map(parseSource),
     corrections: jsonList(root.corrections).map(parseCorrection),
+    currentLines: jsonList(root.current_lines).map(parseCurrentLine),
   };
 }
