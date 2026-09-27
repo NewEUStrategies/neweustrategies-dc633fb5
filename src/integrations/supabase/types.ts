@@ -6091,6 +6091,120 @@ export type Database = {
           },
         ]
       }
+      event_ad_campaign_costs: {
+        Row: {
+          campaign_id: string
+          clicks: number | null
+          cost_micros: number
+          created_at: string
+          currency: string
+          day: string
+          event_id: string
+          impressions: number | null
+          source: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          campaign_id: string
+          clicks?: number | null
+          cost_micros: number
+          created_at?: string
+          currency: string
+          day: string
+          event_id: string
+          impressions?: number | null
+          source?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          clicks?: number | null
+          cost_micros?: number
+          created_at?: string
+          currency?: string
+          day?: string
+          event_id?: string
+          impressions?: number | null
+          source?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_ad_campaign_costs_campaign_fk"
+            columns: ["tenant_id", "event_id", "campaign_id"]
+            isOneToOne: false
+            referencedRelation: "event_ad_campaigns"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_ad_campaign_costs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_ad_campaigns: {
+        Row: {
+          conversion_action_name: string | null
+          created_at: string
+          created_by: string | null
+          event_id: string
+          id: string
+          label: string
+          match_kind: string
+          match_value: string
+          platform: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          conversion_action_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          event_id: string
+          id?: string
+          label: string
+          match_kind: string
+          match_value: string
+          platform?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          conversion_action_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          event_id?: string
+          id?: string
+          label?: string
+          match_kind?: string
+          match_value?: string
+          platform?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_ad_campaigns_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_ad_campaigns_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_audience_grants: {
         Row: {
           audience: string
@@ -7159,6 +7273,102 @@ export type Database = {
           },
           {
             foreignKeyName: "event_checkpoints_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_funnel_events: {
+        Row: {
+          ad_user_data: boolean
+          click_id: string | null
+          click_id_type: string | null
+          country: string | null
+          event_id: string
+          gad_campaign_id: string | null
+          gad_source: string | null
+          id: number
+          landing_path: string | null
+          lang: string | null
+          medium: string
+          occurred_at: string
+          referrer_host: string | null
+          session_key: string
+          source: string
+          step: string
+          tenant_id: string
+          touch_at: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+          visitor_key: string
+        }
+        Insert: {
+          ad_user_data?: boolean
+          click_id?: string | null
+          click_id_type?: string | null
+          country?: string | null
+          event_id: string
+          gad_campaign_id?: string | null
+          gad_source?: string | null
+          id?: never
+          landing_path?: string | null
+          lang?: string | null
+          medium?: string
+          occurred_at?: string
+          referrer_host?: string | null
+          session_key: string
+          source?: string
+          step: string
+          tenant_id: string
+          touch_at?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          visitor_key: string
+        }
+        Update: {
+          ad_user_data?: boolean
+          click_id?: string | null
+          click_id_type?: string | null
+          country?: string | null
+          event_id?: string
+          gad_campaign_id?: string | null
+          gad_source?: string | null
+          id?: never
+          landing_path?: string | null
+          lang?: string | null
+          medium?: string
+          occurred_at?: string
+          referrer_host?: string | null
+          session_key?: string
+          source?: string
+          step?: string
+          tenant_id?: string
+          touch_at?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          visitor_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_funnel_events_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_funnel_events_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -9399,6 +9609,103 @@ export type Database = {
           },
           {
             foreignKeyName: "event_person_crm_links_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_registration_attributions: {
+        Row: {
+          ad_personalization: boolean
+          ad_user_data: boolean
+          click_at: string | null
+          click_id: string | null
+          click_id_type: string | null
+          click_pruned_at: string | null
+          created_at: string
+          event_id: string
+          first_touch: Json | null
+          gad_campaign_id: string | null
+          gad_source: string | null
+          last_touch: Json | null
+          medium: string
+          referrer_host: string | null
+          registration_id: string
+          source: string
+          tenant_id: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Insert: {
+          ad_personalization?: boolean
+          ad_user_data?: boolean
+          click_at?: string | null
+          click_id?: string | null
+          click_id_type?: string | null
+          click_pruned_at?: string | null
+          created_at?: string
+          event_id: string
+          first_touch?: Json | null
+          gad_campaign_id?: string | null
+          gad_source?: string | null
+          last_touch?: Json | null
+          medium?: string
+          referrer_host?: string | null
+          registration_id: string
+          source?: string
+          tenant_id: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Update: {
+          ad_personalization?: boolean
+          ad_user_data?: boolean
+          click_at?: string | null
+          click_id?: string | null
+          click_id_type?: string | null
+          click_pruned_at?: string | null
+          created_at?: string
+          event_id?: string
+          first_touch?: Json | null
+          gad_campaign_id?: string | null
+          gad_source?: string | null
+          last_touch?: Json | null
+          medium?: string
+          referrer_host?: string | null
+          registration_id?: string
+          source?: string
+          tenant_id?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_registration_attributions_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_registration_attributions_registration_fk"
+            columns: ["tenant_id", "registration_id"]
+            isOneToOne: true
+            referencedRelation: "event_registrations"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_registration_attributions_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -20984,6 +21291,14 @@ export type Database = {
         Args: { p_source_type: string }
         Returns: number
       }
+      _event_ads_clean: {
+        Args: { p_max: number; p_value: string }
+        Returns: string
+      }
+      _event_ads_touch: {
+        Args: { p_ad_consent: boolean; p_now: string; p_touch: Json }
+        Returns: Json
+      }
       _event_answer_matches: {
         Args: { _answer: Json; _expected: Json; _operator: string }
         Returns: boolean
@@ -22424,6 +22739,39 @@ export type Database = {
       admin_delete_verification_domain: {
         Args: { p_id: string }
         Returns: undefined
+      }
+      admin_event_ad_campaign_delete: {
+        Args: { p_id: string }
+        Returns: boolean
+      }
+      admin_event_ad_campaign_save: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_ad_campaigns_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          conversion_action_name: string
+          costs: Json
+          created_at: string
+          id: string
+          label: string
+          match_kind: string
+          match_value: string
+          updated_at: string
+        }[]
+      }
+      admin_event_ad_costs_list: {
+        Args: { p_campaign_id: string }
+        Returns: {
+          clicks: number
+          cost_micros: number
+          currency: string
+          day: string
+          impressions: number
+          source: string
+          updated_at: string
+        }[]
       }
       admin_event_agenda_conflicts: {
         Args: { p_event_id: string }
@@ -26929,6 +27277,10 @@ export type Database = {
         Returns: string[]
       }
       event_discussions: { Args: { p_slug: string }; Returns: Json }
+      event_funnel_track: {
+        Args: { p_payload: Json; p_tenant: string }
+        Returns: boolean
+      }
       event_home_ad_track: {
         Args: { p_ad_id: string; p_kind: string; p_session: string }
         Returns: boolean
@@ -27221,6 +27573,10 @@ export type Database = {
       event_register: { Args: { p_payload: Json }; Returns: Json }
       event_register_group_guests: {
         Args: { p_guests: Json; p_lead_registration_id: string }
+        Returns: Json
+      }
+      event_registration_attribution_attach: {
+        Args: { p_payload: Json }
         Returns: Json
       }
       event_registration_cancel: { Args: { p_payload: Json }; Returns: Json }
