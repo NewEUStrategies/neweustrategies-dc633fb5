@@ -143,6 +143,8 @@ export const eventInvoicesPl = {
         "Za tę płatność kartą fakturę wystawia operator płatności, a nie organizator.",
       requestForeign:
         "O fakturę za to zamówienie poprosiła już inna osoba - tylko ona może zmienić dane do faktury.",
+      sourcePlanTicket:
+        "To miejsce pokrywa bilet z Twojego planu członkowskiego - nie było płatności, więc nie ma faktury.",
     },
     pdf: {
       titles: {
@@ -323,6 +325,8 @@ export const eventInvoicesEn = {
         "For this card payment the invoice is issued by the payment operator, not the organizer.",
       requestForeign:
         "Another person has already requested the invoice for this order - only they can change its details.",
+      sourcePlanTicket:
+        "A ticket from your membership plan covers this seat - there was no payment, so there is no invoice.",
     },
     pdf: {
       titles: { invoice: "VAT invoice", proforma: "Pro forma invoice", correction: "Credit note" },

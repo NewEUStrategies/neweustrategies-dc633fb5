@@ -304,6 +304,8 @@ export const adminEventInvoicesPl = {
       sourceNotFound: "Zamówienie nie należy do tego wydarzenia.",
       sourceNotLead: "Fakturę wystawia się na zapis osoby prowadzącej grupę.",
       sourceNotInvoiceable: "Zamówienie jest anulowane, bezpłatne albo zwrócone.",
+      sourcePlanTicket:
+        "Miejsce pokrywa bilet z puli planu członkowskiego - nikt za nie nie zapłacił, więc nie ma czego fakturować.",
       alreadyInvoiced: "To zamówienie ma już aktywną fakturę.",
       currencyMismatch: "Zamówienia jednego dokumentu muszą mieć tę samą walutę (PLN albo EUR).",
       requestNotFound: "Nie ma oczekującej prośby nabywcy dla tych zamówień.",
@@ -652,6 +654,8 @@ export const adminEventInvoicesEn = {
       sourceNotFound: "The order does not belong to this event.",
       sourceNotLead: "The invoice is issued for the group lead's registration.",
       sourceNotInvoiceable: "The order is cancelled, free or refunded.",
+      sourcePlanTicket:
+        "A membership plan ticket covers this seat - nobody paid for it, so there is nothing to invoice.",
       alreadyInvoiced: "This order already has an active invoice.",
       currencyMismatch: "Orders of one document must share one currency (PLN or EUR).",
       requestNotFound: "There is no pending buyer request for these orders.",

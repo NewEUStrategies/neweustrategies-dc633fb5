@@ -39,6 +39,12 @@
 --      (zapis wpisany przez pracownika, cudza prosba), jeden nabywca faktury
 --      zbiorczej, firma CRM po NIP-ie, stopka z migawki, blok faktury
 --      u kupujacego (organizator nie fakturuje, fakture wystawia operator).
+--  15. Zapis jako zrodlo po funkcjach #403/#405/#406/#407: bilet z puli planu
+--      (nie jest sprzedaza), zamowienie z karty z benefitem planu i kodem na
+--      miejsce (pozycje wg metadanych kasy), gosc z wlasnym zamowieniem, cena
+--      fazy sprzedazy (early bird), wplata bez miejsca poza masowym
+--      wystawieniem, kupujacy zamowienia z karty = platnik (przekazany
+--      bilet), podpowiedz korekty po zwrocie, odwolaniu i mniejszej grupie.
 --
 -- SPRZATANIE: caly plik siedzi w BEGIN ... ROLLBACK.
 -- ============================================================================
@@ -1851,6 +1857,512 @@ SELECT pg_temp.assert(
   AND NOT has_function_privilege('authenticated', 'public._event_invoice_state(uuid, uuid, uuid)', 'EXECUTE')
   AND NOT has_function_privilege('authenticated', 'public._event_invoice_resolve_source(uuid, uuid, text, uuid, text, text)', 'EXECUTE'),
   '27/granty: opcje dla zalogowanych, nowe funkcje wewnetrzne tylko service_role');
+
+
+-- ---------------------------------------------------------------------------
+-- 15) ZAPIS JAKO ZRODLO PO FUNKCJACH #403/#405/#406/#407: bilet z puli planu,
+--     zamowienie z karty z benefitem planu, gosc z wlasnym zamowieniem, cena
+--     fazy sprzedazy, wplata bez miejsca, kupujacy = platnik, podpowiedz
+--     korekty.
+-- ---------------------------------------------------------------------------
+SELECT pg_temp.act_as(NULL, NULL);
+
+INSERT INTO auth.users (id, email) VALUES
+  ('27a00000-0000-0000-0000-0000000000a9', 'czlonek9@example.org'),
+  ('27a00000-0000-0000-0000-0000000000aa', 'czlonek10@example.org'),
+  ('27a00000-0000-0000-0000-0000000000ab', 'platnik11@example.org'),
+  ('27a00000-0000-0000-0000-0000000000ac', 'odbiorca12@example.org')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.profiles (id, tenant_id) VALUES
+  ('27a00000-0000-0000-0000-0000000000a9', '27000000-0000-0000-0000-0000000000a0'),
+  ('27a00000-0000-0000-0000-0000000000aa', '27000000-0000-0000-0000-0000000000a0'),
+  ('27a00000-0000-0000-0000-0000000000ab', '27000000-0000-0000-0000-0000000000a0'),
+  ('27a00000-0000-0000-0000-0000000000ac', '27000000-0000-0000-0000-0000000000a0')
+ON CONFLICT (id) DO NOTHING;
+
+-- T5: early bird 80,00 do jutra (regularnie 100,00). T6: early bird 80,00
+-- skonczyl sie piec dni temu.
+INSERT INTO public.event_ticket_types
+  (id, tenant_id, event_id, key, name_pl, name_en, price_cents, currency,
+   quota, min_tier_rank, requires_approval, is_active, sort_order,
+   group_registration_enabled, group_max_size, tax_mode, early_bird_price_cents, early_bird_until)
+VALUES
+  ('27100000-0000-0000-0000-000000000005', '27000000-0000-0000-0000-0000000000a0',
+   '27e00000-0000-0000-0000-0000000000e1', 'ebteraz', 'Early teraz', 'Early now', 10000, 'PLN',
+   NULL, 0, false, true, 40, true, 10, 'inclusive', 8000, now() + interval '1 day'),
+  ('27100000-0000-0000-0000-000000000006', '27000000-0000-0000-0000-0000000000a0',
+   '27e00000-0000-0000-0000-0000000000e1', 'ebminal', 'Early minal', 'Early past', 10000, 'PLN',
+   NULL, 0, false, true, 50, true, 10, 'inclusive', 8000, now() - interval '5 days');
+
+INSERT INTO public.event_people (id, tenant_id, user_id, email, first_name, last_name) VALUES
+  ('27300000-0000-0000-0000-000000000040', '27000000-0000-0000-0000-0000000000a0',
+   '27a00000-0000-0000-0000-0000000000a9', 'czlonek9@example.org', 'Czeslaw', 'Czlonek'),
+  ('27300000-0000-0000-0000-000000000041', '27000000-0000-0000-0000-0000000000a0',
+   '27a00000-0000-0000-0000-0000000000aa', 'czlonek10@example.org', 'Cecylia', 'Czlonkini'),
+  ('27300000-0000-0000-0000-000000000042', '27000000-0000-0000-0000-0000000000a0', NULL, 'p42@example.org', 'Lena', 'Plan'),
+  ('27300000-0000-0000-0000-000000000043', '27000000-0000-0000-0000-0000000000a0', NULL, 'p43@example.org', 'Leon', 'Rabat'),
+  ('27300000-0000-0000-0000-000000000044', '27000000-0000-0000-0000-0000000000a0', NULL, 'p44@example.org', 'Lucja', 'Przelew'),
+  ('27300000-0000-0000-0000-000000000441', '27000000-0000-0000-0000-0000000000a0', NULL, 'g441@example.org', 'Gustaw', 'Wlasny'),
+  ('27300000-0000-0000-0000-000000000442', '27000000-0000-0000-0000-0000000000a0', NULL, 'g442@example.org', 'Gaja', 'Nieoplacona'),
+  ('27300000-0000-0000-0000-000000000045', '27000000-0000-0000-0000-0000000000a0', NULL, 'p45@example.org', 'Ewa', 'Wczesna'),
+  ('27300000-0000-0000-0000-000000000046', '27000000-0000-0000-0000-0000000000a0', NULL, 'p46@example.org', 'Emil', 'Wczesny'),
+  ('27300000-0000-0000-0000-000000000047', '27000000-0000-0000-0000-0000000000a0', NULL, 'p47@example.org', 'Eliza', 'Pozna'),
+  ('27300000-0000-0000-0000-000000000048', '27000000-0000-0000-0000-0000000000a0', NULL, 'p48@example.org', 'Kamil', 'Kolejka'),
+  ('27300000-0000-0000-0000-000000000049', '27000000-0000-0000-0000-0000000000a0', NULL, 'p49@example.org', 'Daria', 'Decyzja'),
+  ('27300000-0000-0000-0000-000000000050', '27000000-0000-0000-0000-0000000000a0', NULL, 'p50@example.org', 'Marek', 'Miejsce'),
+  ('27300000-0000-0000-0000-000000000051', '27000000-0000-0000-0000-0000000000a0',
+   '27a00000-0000-0000-0000-0000000000ac', 'odbiorca12@example.org', 'Olaf', 'Odbiorca'),
+  ('27300000-0000-0000-0000-000000000054', '27000000-0000-0000-0000-0000000000a0', NULL, 'p54@example.org', 'Sabina', 'Trzy'),
+  ('27300000-0000-0000-0000-000000000541', '27000000-0000-0000-0000-0000000000a0', NULL, 'g541@example.org', 'Szymon', 'Gosc'),
+  ('27300000-0000-0000-0000-000000000542', '27000000-0000-0000-0000-0000000000a0', NULL, 'g542@example.org', 'Sara', 'Gosc'),
+  ('27300000-0000-0000-0000-000000000411', '27000000-0000-0000-0000-0000000000a0', NULL, 'g411@example.org', 'Gosc', 'Nr411'),
+  ('27300000-0000-0000-0000-000000000412', '27000000-0000-0000-0000-0000000000a0', NULL, 'g412@example.org', 'Gosc', 'Nr412'),
+  ('27300000-0000-0000-0000-000000000421', '27000000-0000-0000-0000-0000000000a0', NULL, 'g421@example.org', 'Gosc', 'Nr421'),
+  ('27300000-0000-0000-0000-000000000422', '27000000-0000-0000-0000-0000000000a0', NULL, 'g422@example.org', 'Gosc', 'Nr422'),
+  ('27300000-0000-0000-0000-000000000431', '27000000-0000-0000-0000-0000000000a0', NULL, 'g431@example.org', 'Gosc', 'Nr431'),
+  ('27300000-0000-0000-0000-000000000432', '27000000-0000-0000-0000-0000000000a0', NULL, 'g432@example.org', 'Gosc', 'Nr432'),
+  ('27300000-0000-0000-0000-000000000451', '27000000-0000-0000-0000-0000000000a0', NULL, 'g451@example.org', 'Gosc', 'Nr451'),
+  ('27300000-0000-0000-0000-000000000452', '27000000-0000-0000-0000-0000000000a0', NULL, 'g452@example.org', 'Gosc', 'Nr452');
+
+-- Zamowienia z karty (kasa: metadane jak w checkout.functions.ts).
+-- O42: bilet z puli na miejscu prowadzacego + 2 goscie po 100,00 = 200,00.
+-- O43: znizka czlonka (50,00) + 2 goscie po 100,00, kod -20,00 na miejsce = 190,00.
+-- O441: gosc R441 placi SAM za swoje miejsce (123,00).
+-- O51: platnik ab kupil bilet, ktory potem przekazal ac (osoba zapisu).
+INSERT INTO public.payment_orders (id, tenant_id, user_id, status, amount_cents, currency, paid_at, metadata) VALUES
+  ('27600000-0000-0000-0000-000000000042', '27000000-0000-0000-0000-0000000000a0',
+   '27a00000-0000-0000-0000-0000000000aa', 'paid', 20000, 'PLN', now(),
+   '{"quantity":3,"plan_benefit":"included","lead_unit_cents":0,"guest_unit_cents":10000}'),
+  ('27600000-0000-0000-0000-000000000043', '27000000-0000-0000-0000-0000000000a0',
+   '27a00000-0000-0000-0000-0000000000aa', 'paid', 19000, 'PLN', now(),
+   '{"quantity":3,"plan_benefit":"discount","lead_unit_cents":5000,"guest_unit_cents":10000,"coupon_code":"MINUS20","coupon_discount_cents":6000,"coupon_discount_per_seat_cents":2000}'),
+  ('27600000-0000-0000-0000-000000000441', '27000000-0000-0000-0000-0000000000a0',
+   '27a00000-0000-0000-0000-0000000000ab', 'paid', 12300, 'PLN', now(), '{"quantity":1}'),
+  ('27600000-0000-0000-0000-000000000051', '27000000-0000-0000-0000-0000000000a0',
+   '27a00000-0000-0000-0000-0000000000ab', 'paid', 12300, 'PLN', now(), '{"quantity":1}');
+
+INSERT INTO public.event_registrations
+  (id, tenant_id, event_id, person_id, ticket_type_id, status, registration_mode,
+   payment_status, payment_order_id, paid_at, created_by, source, group_lead_registration_id)
+VALUES
+  -- R40: pojedynczy zapis czlonka ROZLICZONY biletem z puli (bez zamowienia).
+  ('27400000-0000-0000-0000-000000000040', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000040', '27100000-0000-0000-0000-000000000001', 'approved', 'form', 'paid',
+   NULL, now(), '27a00000-0000-0000-0000-0000000000a9', 'self_registration', NULL),
+  -- R41: nieoplacona grupa czlonka (+2 gosci), miejsce prowadzacego zajete z puli.
+  ('27400000-0000-0000-0000-000000000041', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000041', '27100000-0000-0000-0000-000000000001', 'pending', 'form', 'unpaid',
+   NULL, NULL, '27a00000-0000-0000-0000-0000000000aa', 'self_registration', NULL),
+  ('27400000-0000-0000-0000-000000000042', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000042', '27100000-0000-0000-0000-000000000001', 'approved', 'form', 'paid',
+   '27600000-0000-0000-0000-000000000042', now(), '27a00000-0000-0000-0000-0000000000aa', 'self_registration', NULL),
+  ('27400000-0000-0000-0000-000000000043', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000043', '27100000-0000-0000-0000-000000000001', 'approved', 'form', 'paid',
+   '27600000-0000-0000-0000-000000000043', now(), '27a00000-0000-0000-0000-0000000000aa', 'self_registration', NULL),
+  -- R44: prowadzacy oplacony przelewem; gosc R441 z wlasnym zamowieniem, R442 nieoplacony.
+  ('27400000-0000-0000-0000-000000000044', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000044', '27100000-0000-0000-0000-000000000001', 'approved', 'form', 'paid',
+   NULL, now(), '27a00000-0000-0000-0000-0000000000ab', 'self_registration', NULL),
+  -- R45: nieoplacona grupa (+2) na bilecie w early bird. R46: oplacony recznie
+  -- w early bird (10 dni temu), R47: nieoplacony po early bird.
+  ('27400000-0000-0000-0000-000000000045', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000045', '27100000-0000-0000-0000-000000000005', 'pending', 'form', 'unpaid',
+   NULL, NULL, '27a00000-0000-0000-0000-0000000000ab', 'self_registration', NULL),
+  ('27400000-0000-0000-0000-000000000046', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000046', '27100000-0000-0000-0000-000000000006', 'approved', 'form', 'paid',
+   NULL, now() - interval '10 days', '27a00000-0000-0000-0000-0000000000ab', 'self_registration', NULL),
+  ('27400000-0000-0000-0000-000000000047', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000047', '27100000-0000-0000-0000-000000000006', 'pending', 'form', 'unpaid',
+   NULL, NULL, '27a00000-0000-0000-0000-0000000000ab', 'self_registration', NULL),
+  -- R48: oplacony w KOLEJCE, R49: oplacony, czeka na DECYZJE, R50: oplacony z miejscem.
+  ('27400000-0000-0000-0000-000000000048', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000048', '27100000-0000-0000-0000-000000000001', 'waitlist', 'form', 'paid',
+   NULL, now(), '27a00000-0000-0000-0000-0000000000ab', 'self_registration', NULL),
+  ('27400000-0000-0000-0000-000000000049', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000049', '27100000-0000-0000-0000-000000000001', 'pending', 'form', 'paid',
+   NULL, now(), '27a00000-0000-0000-0000-0000000000ab', 'self_registration', NULL),
+  ('27400000-0000-0000-0000-000000000050', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000050', '27100000-0000-0000-0000-000000000001', 'approved', 'form', 'paid',
+   NULL, now(), '27a00000-0000-0000-0000-0000000000ab', 'self_registration', NULL),
+  -- R51: kupiony karta przez ab, osoba zapisu po przekazaniu to ac.
+  ('27400000-0000-0000-0000-000000000051', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000051', '27100000-0000-0000-0000-000000000001', 'approved', 'form', 'paid',
+   '27600000-0000-0000-0000-000000000051', now(), '27a00000-0000-0000-0000-0000000000ab', 'self_registration', NULL),
+  -- R54: oplacony recznie prowadzacy + 2 oplaceni goscie (3 x 123,00).
+  ('27400000-0000-0000-0000-000000000054', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000054', '27100000-0000-0000-0000-000000000001', 'approved', 'form', 'paid',
+   NULL, now(), '27a00000-0000-0000-0000-0000000000ab', 'self_registration', NULL);
+
+INSERT INTO public.event_registrations
+  (id, tenant_id, event_id, person_id, ticket_type_id, status, registration_mode,
+   payment_status, payment_order_id, paid_at, created_by, source, group_lead_registration_id)
+VALUES
+  ('27400000-0000-0000-0000-000000000411', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000411', '27100000-0000-0000-0000-000000000001', 'pending', 'form', 'unpaid',
+   NULL, NULL, '27a00000-0000-0000-0000-0000000000aa', 'self_registration', '27400000-0000-0000-0000-000000000041'),
+  ('27400000-0000-0000-0000-000000000412', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000412', '27100000-0000-0000-0000-000000000001', 'pending', 'form', 'unpaid',
+   NULL, NULL, '27a00000-0000-0000-0000-0000000000aa', 'self_registration', '27400000-0000-0000-0000-000000000041'),
+  ('27400000-0000-0000-0000-000000000421', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000421', '27100000-0000-0000-0000-000000000001', 'approved', 'form', 'paid',
+   '27600000-0000-0000-0000-000000000042', now(), '27a00000-0000-0000-0000-0000000000aa', 'self_registration', '27400000-0000-0000-0000-000000000042'),
+  ('27400000-0000-0000-0000-000000000422', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000422', '27100000-0000-0000-0000-000000000001', 'approved', 'form', 'paid',
+   '27600000-0000-0000-0000-000000000042', now(), '27a00000-0000-0000-0000-0000000000aa', 'self_registration', '27400000-0000-0000-0000-000000000042'),
+  ('27400000-0000-0000-0000-000000000431', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000431', '27100000-0000-0000-0000-000000000001', 'approved', 'form', 'paid',
+   '27600000-0000-0000-0000-000000000043', now(), '27a00000-0000-0000-0000-0000000000aa', 'self_registration', '27400000-0000-0000-0000-000000000043'),
+  ('27400000-0000-0000-0000-000000000432', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000432', '27100000-0000-0000-0000-000000000001', 'approved', 'form', 'paid',
+   '27600000-0000-0000-0000-000000000043', now(), '27a00000-0000-0000-0000-0000000000aa', 'self_registration', '27400000-0000-0000-0000-000000000043'),
+  ('27400000-0000-0000-0000-000000000441', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000441', '27100000-0000-0000-0000-000000000001', 'approved', 'form', 'paid',
+   '27600000-0000-0000-0000-000000000441', now(), '27a00000-0000-0000-0000-0000000000ab', 'self_registration', '27400000-0000-0000-0000-000000000044'),
+  ('27400000-0000-0000-0000-000000000442', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000442', '27100000-0000-0000-0000-000000000001', 'approved', 'form', 'unpaid',
+   NULL, NULL, '27a00000-0000-0000-0000-0000000000ab', 'self_registration', '27400000-0000-0000-0000-000000000044'),
+  ('27400000-0000-0000-0000-000000000451', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000451', '27100000-0000-0000-0000-000000000005', 'pending', 'form', 'unpaid',
+   NULL, NULL, '27a00000-0000-0000-0000-0000000000ab', 'self_registration', '27400000-0000-0000-0000-000000000045'),
+  ('27400000-0000-0000-0000-000000000452', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000452', '27100000-0000-0000-0000-000000000005', 'pending', 'form', 'unpaid',
+   NULL, NULL, '27a00000-0000-0000-0000-0000000000ab', 'self_registration', '27400000-0000-0000-0000-000000000045'),
+  ('27400000-0000-0000-0000-000000000541', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000541', '27100000-0000-0000-0000-000000000001', 'approved', 'form', 'paid',
+   NULL, now(), '27a00000-0000-0000-0000-0000000000ab', 'self_registration', '27400000-0000-0000-0000-000000000054'),
+  ('27400000-0000-0000-0000-000000000542', '27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1',
+   '27300000-0000-0000-0000-000000000542', '27100000-0000-0000-0000-000000000001', 'approved', 'form', 'paid',
+   NULL, now(), '27a00000-0000-0000-0000-0000000000ab', 'self_registration', '27400000-0000-0000-0000-000000000054');
+
+-- Bilety z puli planu (20260926180000): R40 rozliczony odbiorem z planu
+-- (redeemed_at), R41 - miejsce prowadzacego zajete przez kase grupy.
+INSERT INTO public.plan_ticket_claims
+  (tenant_id, user_id, event_id, tier_key, period_start, period_end, face_value_cents, registration_id, redeemed_at)
+VALUES
+  ('27000000-0000-0000-0000-0000000000a0', '27a00000-0000-0000-0000-0000000000a9', '27e00000-0000-0000-0000-0000000000e1',
+   'pro', current_date - 30, current_date + 335, 12300, '27400000-0000-0000-0000-000000000040', now()),
+  ('27000000-0000-0000-0000-0000000000a0', '27a00000-0000-0000-0000-0000000000aa', '27e00000-0000-0000-0000-0000000000e1',
+   'pro', current_date - 30, current_date + 335, 12300, '27400000-0000-0000-0000-000000000041', NULL);
+-- Prosba o fakture za R40 zlozona PRZED odbiorem z planu (tu: wprost).
+INSERT INTO public.event_invoice_requests
+  (tenant_id, event_id, source_kind, registration_id, buyer_is_company, buyer_name, buyer_tax_id,
+   buyer_country, buyer_address, buyer_postal_code, buyer_city, buyer_email, requested_by)
+VALUES
+  ('27000000-0000-0000-0000-0000000000a0', '27e00000-0000-0000-0000-0000000000e1', 'registration',
+   '27400000-0000-0000-0000-000000000040', true, 'Plan SA', '5260250274', 'PL', 'ul. Planowa 1', '00-040',
+   'Warszawa', '', '27a00000-0000-0000-0000-0000000000a9');
+
+-- 15a) BILET Z PULI PLANU NIE JEST SPRZEDAZA ----------------------------------
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a1', '27000000-0000-0000-0000-0000000000a0');
+DO $$
+DECLARE r record;
+BEGIN
+  PERFORM pg_temp.assert(NOT EXISTS (
+      SELECT 1 FROM public.admin_event_invoice_candidates('27e00000-0000-0000-0000-0000000000e1')
+       WHERE source_id = '27400000-0000-0000-0000-000000000040'),
+    '27/plan: zapis rozliczony biletem z puli nie jest kandydatem do faktury');
+  SELECT * INTO r FROM public.admin_event_invoice_candidates('27e00000-0000-0000-0000-0000000000e1')
+   WHERE source_id = '27400000-0000-0000-0000-000000000041';
+  PERFORM pg_temp.assert(r.seats = 2 AND r.gross_cents = 24600 AND r.amount_source = 'price_list',
+    '27/plan: nieoplacona grupa czlonka - proforma tylko za 2 gosci (miejsce prowadzacego z puli)');
+  PERFORM pg_temp.assert(NOT EXISTS (
+      SELECT 1 FROM public.admin_event_invoice_candidates('27e00000-0000-0000-0000-0000000000e1')
+       WHERE source_id IN ('27400000-0000-0000-0000-000000000411', '27400000-0000-0000-0000-000000000421')),
+    '27/plan: goscie rozliczani przez prowadzacego nie sa osobnymi kandydatami');
+END $$;
+SELECT pg_temp.assert_raises_like(
+  $q$SELECT public.admin_event_invoice_draft_create('{"event_id":"27e00000-0000-0000-0000-0000000000e1","sources":[{"kind":"registration","id":"27400000-0000-0000-0000-000000000040"}]}')$q$,
+  'source_plan_ticket', '27/plan: faktury za bilet z puli nie da sie zalozyc (nikt nie zaplacil)');
+SELECT pg_temp.assert_raises_like(
+  $q$SELECT public.admin_event_invoice_draft_create('{"event_id":"27e00000-0000-0000-0000-0000000000e1","kind":"proforma","sources":[{"kind":"registration","id":"27400000-0000-0000-0000-000000000040"}]}')$q$,
+  'source_plan_ticket', '27/plan: proformy tez nie');
+DO $$
+DECLARE v uuid;
+BEGIN
+  v := public.admin_event_invoice_draft_create(jsonb_build_object(
+    'event_id', '27e00000-0000-0000-0000-0000000000e1', 'kind', 'proforma',
+    'sources', jsonb_build_array(jsonb_build_object('kind', 'registration', 'id', '27400000-0000-0000-0000-000000000041'))));
+  PERFORM pg_temp.assert(pg_temp.t27_lines(v) = '2x12300@23'
+    AND (SELECT seats FROM public.event_invoice_sources WHERE invoice_id = v) = 2,
+    '27/plan: proforma grupy czlonka - 2 x 123,00 (nie 3 x)');
+  PERFORM public.admin_event_invoice_cancel(jsonb_build_object('id', v));
+END $$;
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a9', '27000000-0000-0000-0000-0000000000a0');
+SELECT pg_temp.assert(NOT EXISTS (SELECT 1 FROM public.event_my_invoice_sources()
+    WHERE source_id = '27400000-0000-0000-0000-000000000040'),
+  '27/plan: profil czlonka nie proponuje faktury za bilet z puli');
+SELECT pg_temp.assert_raises_like(
+  $q$SELECT public.event_invoice_request_save('{"registration_id":"27400000-0000-0000-0000-000000000040","buyer":{"is_company":true,"name":"Plan SA","tax_id":"5260250274","address":"ul. Planowa 1","postal_code":"00-040","city":"Warszawa"}}')$q$,
+  'source_plan_ticket', '27/plan: prosba o fakture za bilet z puli odrzucona');
+
+-- 15b) ZAMOWIENIE Z KARTY Z BENEFITEM PLANU: miejsca z metadanych kasy ------
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a1', '27000000-0000-0000-0000-0000000000a0');
+DO $$
+DECLARE r record; v42 uuid; v43 uuid; v_both uuid;
+BEGIN
+  SELECT * INTO r FROM public.admin_event_invoice_candidates('27e00000-0000-0000-0000-0000000000e1')
+   WHERE source_id = '27400000-0000-0000-0000-000000000042';
+  PERFORM pg_temp.assert(r.seats = 3 AND r.gross_cents = 20000 AND r.paid_via = 'card' AND r.amount_source = 'order',
+    '27/kasa+plan: kandydat - 3 miejsca, 200,00 z zamowienia');
+  v42 := pg_temp.t27_draft_reg('27400000-0000-0000-0000-000000000042', 'invoice');
+  PERFORM pg_temp.assert(pg_temp.t27_lines(v42) = '2x10000@23'
+    AND (SELECT gross_cents FROM public.event_invoices WHERE id = v42) = 20000,
+    '27/kasa+plan: 2 x 100,00 za gosci, bez pozycji 0 zl za bilet z puli (nie 3 x 66,67)');
+  v43 := pg_temp.t27_draft_reg('27400000-0000-0000-0000-000000000043', 'invoice');
+  PERFORM pg_temp.assert(pg_temp.t27_lines(v43) = '1x3000@23;2x8000@23',
+    '27/kasa+plan: znizka czlonka i kod na miejsce - 1 x 30,00 + 2 x 80,00 (nie 3 x 63,33)');
+  PERFORM public.admin_event_invoice_cancel(jsonb_build_object('id', v43));
+  v_both := public.admin_event_invoice_draft_create(jsonb_build_object(
+    'event_id', '27e00000-0000-0000-0000-0000000000e1', 'kind', 'proforma', 'aggregate', 'per_ticket_type',
+    'sources', jsonb_build_array(
+      jsonb_build_object('kind', 'registration', 'id', '27400000-0000-0000-0000-000000000043'),
+      jsonb_build_object('kind', 'registration', 'id', '27400000-0000-0000-0000-000000000051'))));
+  PERFORM pg_temp.assert(pg_temp.t27_lines(v_both) = '1x3000@23;2x8000@23;1x12300@23',
+    '27/kasa+plan: zbiorczo po rodzaju biletu - ceny miejsc nie zlewaja sie w jedna srednia');
+  PERFORM public.admin_event_invoice_cancel(jsonb_build_object('id', v_both));
+  PERFORM public.admin_event_invoice_issue(v42);
+  PERFORM pg_temp.t27_set('plan42', v42);
+END $$;
+
+-- 15c) GOSC Z WLASNYM ZAMOWIENIEM Z KARTY JEST OSOBNYM ZRODLEM ----------------
+DO $$
+DECLARE r record; v uuid;
+BEGIN
+  SELECT * INTO r FROM public.admin_event_invoice_candidates('27e00000-0000-0000-0000-0000000000e1')
+   WHERE source_id = '27400000-0000-0000-0000-000000000441';
+  PERFORM pg_temp.assert(r.seats = 1 AND r.gross_cents = 12300 AND r.paid_via = 'card',
+    '27/gosc: gosc oplacony wlasnym zamowieniem z karty jest kandydatem (1 miejsce, 123,00)');
+  SELECT * INTO r FROM public.admin_event_invoice_candidates('27e00000-0000-0000-0000-0000000000e1')
+   WHERE source_id = '27400000-0000-0000-0000-000000000044';
+  PERFORM pg_temp.assert(r.seats = 2 AND r.gross_cents = 24600 AND r.paid_via = 'transfer',
+    '27/gosc: prowadzacy (przelew) - siebie i nieoplaconego goscia, bez goscia placacego sam');
+  PERFORM pg_temp.assert(NOT EXISTS (
+      SELECT 1 FROM public.admin_event_invoice_candidates('27e00000-0000-0000-0000-0000000000e1')
+       WHERE source_id = '27400000-0000-0000-0000-000000000442'),
+    '27/gosc: gosc bez wlasnego zamowienia nie jest osobnym kandydatem');
+  v := public.admin_event_invoice_draft_create(jsonb_build_object(
+    'event_id', '27e00000-0000-0000-0000-0000000000e1',
+    'sources', jsonb_build_array(jsonb_build_object('kind', 'registration', 'id', '27400000-0000-0000-0000-000000000441'))));
+  PERFORM pg_temp.assert(pg_temp.t27_lines(v) = '1x12300@23'
+    AND (SELECT payment_order_id FROM public.event_invoice_sources WHERE invoice_id = v)
+        = '27600000-0000-0000-0000-000000000441'
+    AND (SELECT buyer_user_id FROM public.event_invoices WHERE id = v) = '27a00000-0000-0000-0000-0000000000ab',
+    '27/gosc: szkic za wplate goscia - pozycja, zamowienie z karty, kupujacy = platnik');
+  PERFORM public.admin_event_invoice_cancel(jsonb_build_object('id', v));
+END $$;
+SELECT pg_temp.assert_raises_like(
+  $q$SELECT public.admin_event_invoice_draft_create('{"event_id":"27e00000-0000-0000-0000-0000000000e1","sources":[{"kind":"registration","id":"27400000-0000-0000-0000-000000000442"}]}')$q$,
+  'source_not_lead', '27/gosc: gosc rozliczany przez prowadzacego - nadal odmowa');
+SELECT pg_temp.assert_raises_like(
+  $q$SELECT public.admin_event_invoice_draft_create('{"event_id":"27e00000-0000-0000-0000-0000000000e1","sources":[{"kind":"registration","id":"27400000-0000-0000-0000-000000000421"}]}')$q$,
+  'source_not_lead', '27/gosc: gosc oplacony zamowieniem PROWADZACEGO - odmowa (fakturuje sie prowadzacego)');
+
+-- 15d) CENA Z FAZY SPRZEDAZY (early bird), nie cena regularna ---------------
+DO $$
+DECLARE r45 record; r46 record; r47 record;
+BEGIN
+  SELECT * INTO r45 FROM public.admin_event_invoice_candidates('27e00000-0000-0000-0000-0000000000e1')
+   WHERE source_id = '27400000-0000-0000-0000-000000000045';
+  SELECT * INTO r46 FROM public.admin_event_invoice_candidates('27e00000-0000-0000-0000-0000000000e1')
+   WHERE source_id = '27400000-0000-0000-0000-000000000046';
+  SELECT * INTO r47 FROM public.admin_event_invoice_candidates('27e00000-0000-0000-0000-0000000000e1')
+   WHERE source_id = '27400000-0000-0000-0000-000000000047';
+  PERFORM pg_temp.assert(r45.seats = 3 AND r45.gross_cents = 24000,
+    '27/faza: nieoplacona grupa w early bird - 3 x 80,00 (nie 3 x 100,00)');
+  PERFORM pg_temp.assert(r46.gross_cents = 8000,
+    '27/faza: oplacony recznie w early bird - cena z chwili zaplaty (80,00), choc early bird juz minal');
+  PERFORM pg_temp.assert(r47.gross_cents = 10000,
+    '27/faza: nieoplacony po early bird - cena regularna');
+END $$;
+
+-- 15e) WPLATA BEZ MIEJSCA: plakietka, bez masowego wystawienia ---------------
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000ab', '27000000-0000-0000-0000-0000000000a0');
+DO $$
+BEGIN
+  PERFORM pg_temp.t27_set('req48', public.event_invoice_request_save(
+    '{"registration_id":"27400000-0000-0000-0000-000000000048","buyer":{"is_company":true,"name":"Kolejka SA","tax_id":"1132853869","address":"ul. Kolejowa 8","postal_code":"00-048","city":"Warszawa"}}'));
+  PERFORM pg_temp.t27_set('req49', public.event_invoice_request_save(
+    '{"registration_id":"27400000-0000-0000-0000-000000000049","buyer":{"is_company":true,"name":"Decyzja SA","tax_id":"1132853869","address":"ul. Decyzji 9","postal_code":"00-049","city":"Warszawa"}}'));
+  PERFORM pg_temp.t27_set('req50', public.event_invoice_request_save(
+    '{"registration_id":"27400000-0000-0000-0000-000000000050","buyer":{"is_company":true,"name":"Miejsce SA","tax_id":"1132853869","address":"ul. Miejska 5","postal_code":"00-050","city":"Warszawa"}}'));
+END $$;
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a1', '27000000-0000-0000-0000-0000000000a0');
+DO $$
+DECLARE v jsonb; v_issued jsonb; v_failed jsonb;
+BEGIN
+  PERFORM pg_temp.assert(
+    (SELECT admission FROM public.admin_event_invoice_candidates('27e00000-0000-0000-0000-0000000000e1')
+      WHERE source_id = '27400000-0000-0000-0000-000000000048') = 'waitlisted'
+    AND (SELECT admission FROM public.admin_event_invoice_candidates('27e00000-0000-0000-0000-0000000000e1')
+          WHERE source_id = '27400000-0000-0000-0000-000000000049') = 'awaitingDecision'
+    AND (SELECT admission FROM public.admin_event_invoice_candidates('27e00000-0000-0000-0000-0000000000e1')
+          WHERE source_id = '27400000-0000-0000-0000-000000000050') = 'seated'
+    AND (SELECT admission FROM public.admin_event_invoice_candidates('27e00000-0000-0000-0000-0000000000e1')
+          WHERE source_id = '27400000-0000-0000-0000-000000000047') = 'seated',
+    '27/miejsce: kandydat mowi, czy oplacony zapis ma miejsce (kolejka, decyzja; nieoplacony bez plakietki)');
+  v := public.admin_event_invoice_issue_pending('{"event_id":"27e00000-0000-0000-0000-0000000000e1"}');
+  SELECT jsonb_agg(x) INTO v_issued FROM jsonb_array_elements(v->'issued') AS e, jsonb_array_elements_text(e->'request_ids') AS x;
+  SELECT jsonb_agg(x) INTO v_failed FROM jsonb_array_elements(v->'failed') AS e, jsonb_array_elements_text(e->'request_ids') AS x;
+  PERFORM pg_temp.assert(COALESCE(v_issued, '[]') ? pg_temp.t27('req50')::text
+    AND NOT COALESCE(v_issued, '[]') ? pg_temp.t27('req48')::text
+    AND NOT COALESCE(v_issued, '[]') ? pg_temp.t27('req49')::text
+    AND NOT COALESCE(v_failed, '[]') ? pg_temp.t27('req48')::text
+    AND NOT COALESCE(v_failed, '[]') ? pg_temp.t27('req49')::text,
+    '27/miejsce: masowe wystawienie bierze oplacony zapis z miejscem, pomija kolejke i decyzje (bez bledu)');
+  PERFORM pg_temp.assert(
+    NOT COALESCE(v_issued, '[]') ? (SELECT id::text FROM public.event_invoice_requests
+                                    WHERE registration_id = '27400000-0000-0000-0000-000000000040')
+    AND NOT COALESCE(v_failed, '[]') ? (SELECT id::text FROM public.event_invoice_requests
+                                        WHERE registration_id = '27400000-0000-0000-0000-000000000040'),
+    '27/plan: stara prosba za bilet z puli pomijana przez masowe wystawienie');
+  PERFORM pg_temp.assert(
+    (SELECT status FROM public.event_invoice_requests WHERE id = pg_temp.t27('req48')) = 'pending'
+    AND (SELECT invoice_id FROM public.event_invoice_requests WHERE id = pg_temp.t27('req50')) IS NOT NULL,
+    '27/miejsce: prosba z kolejki czeka, prosba z miejscem zafakturowana');
+  PERFORM pg_temp.t27_set('inv50', (SELECT invoice_id FROM public.event_invoice_requests WHERE id = pg_temp.t27('req50')));
+  -- Swiadomie ze szkicu (np. zaliczkowo) - nadal mozna.
+  PERFORM public.admin_event_invoice_cancel(jsonb_build_object('id',
+    public.admin_event_invoice_draft_create(
+      '{"event_id":"27e00000-0000-0000-0000-0000000000e1","sources":[{"kind":"registration","id":"27400000-0000-0000-0000-000000000048"}]}')));
+END $$;
+
+-- 15f) KUPUJACY ZAMOWIENIA Z KARTY = PLATNIK (przekazany bilet) ----------------
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000ac', '27000000-0000-0000-0000-0000000000a0');
+SELECT pg_temp.assert(NOT EXISTS (SELECT 1 FROM public.event_my_invoice_sources()
+    WHERE source_id = '27400000-0000-0000-0000-000000000051'),
+  '27/platnik: nowy posiadacz przekazanego biletu nie widzi go jako swojego zamowienia');
+SELECT pg_temp.assert_raises_like(
+  $q$SELECT public.event_invoice_request_save('{"registration_id":"27400000-0000-0000-0000-000000000051","buyer":{"is_company":true,"name":"Obca SA","tax_id":"1234563218","address":"ul. Obca 1","postal_code":"00-001","city":"Warszawa"}}')$q$,
+  'not_found', '27/platnik: nowy posiadacz nie prosi o fakture za cudza wplate z karty');
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000ab', '27000000-0000-0000-0000-0000000000a0');
+DO $$
+DECLARE r record;
+BEGIN
+  SELECT * INTO r FROM public.event_my_invoice_sources() WHERE source_id = '27400000-0000-0000-0000-000000000051';
+  PERFORM pg_temp.assert(r.can_request AND r.gross_cents = 12300 AND r.seats = 1,
+    '27/platnik: platnik widzi swoje zamowienie z karty i moze prosic o fakture');
+  SELECT * INTO r FROM public.event_my_invoice_sources() WHERE source_id = '27400000-0000-0000-0000-000000000441';
+  PERFORM pg_temp.assert(r.can_request AND r.gross_cents = 12300,
+    '27/platnik: wplata za miejsce goscia to zamowienie platnika w profilu');
+  PERFORM pg_temp.assert(NOT EXISTS (SELECT 1 FROM public.event_my_invoice_sources()
+      WHERE source_id = '27400000-0000-0000-0000-000000000442'),
+    '27/platnik: nieoplacony gosc nie jest osobnym zamowieniem w profilu');
+END $$;
+DO $$
+DECLARE v_req uuid;
+BEGIN
+  -- Krok platnosci NIEOPLACONEGO goscia (wlasna kasa za jedno miejsce):
+  -- prosba trafia do zapisu goscia, nie do prowadzacego.
+  v_req := public.event_invoice_request_save(
+    '{"registration_id":"27400000-0000-0000-0000-000000000442","buyer":{"is_company":true,"name":"Gosc SA","tax_id":"1234563218","address":"ul. Goscinna 2","postal_code":"00-442","city":"Warszawa"}}');
+  PERFORM pg_temp.assert(
+    (SELECT registration_id FROM public.event_invoice_requests WHERE id = v_req) = '27400000-0000-0000-0000-000000000442',
+    '27/gosc: prosba z kroku platnosci goscia przypieta do zapisu goscia (jego kasa)');
+  -- Gosc rozliczony przez prowadzacego -> prosba prowadzacego.
+  v_req := public.event_invoice_request_save(
+    '{"registration_id":"27400000-0000-0000-0000-000000000541","buyer":{"is_company":true,"name":"Trzy SA","tax_id":"1132853869","address":"ul. Trzecia 3","postal_code":"00-054","city":"Warszawa"}}');
+  PERFORM pg_temp.assert(
+    (SELECT registration_id FROM public.event_invoice_requests WHERE id = v_req) = '27400000-0000-0000-0000-000000000054',
+    '27/gosc: gosc rozliczony przez prowadzacego - prosba trafia do prowadzacego');
+END $$;
+SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a1', '27000000-0000-0000-0000-0000000000a0');
+DO $$
+DECLARE v uuid;
+BEGIN
+  v := public.admin_event_invoice_draft_create(jsonb_build_object(
+    'event_id', '27e00000-0000-0000-0000-0000000000e1', 'kind', 'proforma',
+    'sources', jsonb_build_array(jsonb_build_object('kind', 'registration', 'id', '27400000-0000-0000-0000-000000000042'))));
+  PERFORM pg_temp.assert(
+    (SELECT buyer_user_id FROM public.event_invoices WHERE id = v) = '27a00000-0000-0000-0000-0000000000aa',
+    '27/platnik: dokument za zamowienie z karty trafia do profilu platnika');
+  PERFORM public.admin_event_invoice_cancel(jsonb_build_object('id', v));
+END $$;
+
+-- 15g) PODPOWIEDZ KOREKTY: zwrot, odwolanie, mniej miejsc po wystawieniu ----
+DO $$
+DECLARE v54 uuid; v_c uuid; d jsonb;
+BEGIN
+  v54 := pg_temp.t27_draft_reg('27400000-0000-0000-0000-000000000054', 'invoice');
+  PERFORM public.admin_event_invoice_issue(v54);
+  PERFORM pg_temp.t27_set('inv54', v54);
+  PERFORM pg_temp.assert(pg_temp.t27_lines(v54) = '3x12300@23'
+    AND public._event_invoice_correction_hint('27000000-0000-0000-0000-0000000000a0', v54) IS NULL
+    AND public._event_invoice_correction_hint('27000000-0000-0000-0000-0000000000a0', pg_temp.t27('plan42')) IS NULL
+    AND public._event_invoice_correction_hint('27000000-0000-0000-0000-0000000000a0', pg_temp.t27('inv50')) IS NULL,
+    '27/korekta?: swiezo wystawione faktury bez podpowiedzi');
+  -- Zwrot czesciowy z karty PO wystawieniu (50,00 z 200,00).
+  UPDATE public.payment_orders SET refunded_amount_cents = 5000 WHERE id = '27600000-0000-0000-0000-000000000042';
+  -- Gosc zapisu z cennika odwolany, zapis R50 odwolany.
+  UPDATE public.event_registrations SET status = 'cancelled', cancelled_at = now()
+   WHERE id IN ('27400000-0000-0000-0000-000000000542', '27400000-0000-0000-0000-000000000050');
+  PERFORM pg_temp.assert(
+    (SELECT correction_hint FROM public.admin_event_invoices_list('27e00000-0000-0000-0000-0000000000e1')
+      WHERE id = pg_temp.t27('plan42')) = 'refunded'
+    AND (SELECT correction_hint FROM public.admin_event_invoices_list('27e00000-0000-0000-0000-0000000000e1')
+          WHERE id = v54) = 'seats_reduced'
+    AND (SELECT correction_hint FROM public.admin_event_invoices_list('27e00000-0000-0000-0000-0000000000e1')
+          WHERE id = pg_temp.t27('inv50')) = 'source_closed',
+    '27/korekta?: lista mowi, ktora faktura wymaga korekty i dlaczego (zwrot, mniej miejsc, odwolanie)');
+  d := public.admin_event_invoice_get(pg_temp.t27('inv50'));
+  PERFORM pg_temp.assert(d->>'correction_hint' = 'source_closed'
+    AND (public.admin_event_invoice_get(pg_temp.t27('collective')))->>'correction_hint' IS NULL,
+    '27/korekta?: szczegol dokumentu niesie te sama podpowiedz');
+  PERFORM pg_temp.assert(NOT EXISTS (
+      SELECT 1 FROM public.admin_event_invoices_list('27e00000-0000-0000-0000-0000000000e1')
+       WHERE correction_hint IS NOT NULL AND (kind <> 'invoice' OR status <> 'issued')),
+    '27/korekta?: szkice, proformy, korekty i anulowane bez podpowiedzi');
+  -- Korekta zdejmujaca cale miejsce (3 -> 2) gasi podpowiedz "mniej miejsc".
+  v_c := pg_temp.t27_correct(v54, 12300, 2);
+  PERFORM public.admin_event_invoice_issue(v_c);
+  PERFORM pg_temp.assert(public._event_invoice_correction_hint('27000000-0000-0000-0000-0000000000a0', v54) IS NULL,
+    '27/korekta?: korekta o odwolane miejsce gasi podpowiedz');
+  -- Korekta mniejsza niz zwrot (-20,00 przy zwrocie 50,00) - podpowiedz zostaje.
+  v_c := public.admin_event_invoice_correction_create(jsonb_build_object(
+    'invoice_id', pg_temp.t27('plan42'), 'mode', 'partial', 'reason', 'Zwrot',
+    'lines', jsonb_build_array(jsonb_build_object(
+      'line_id', pg_temp.t27_line1(pg_temp.t27('plan42')), 'unit_gross_cents', 9000, 'quantity', 2))));
+  PERFORM public.admin_event_invoice_issue(v_c);
+  PERFORM pg_temp.assert(
+    public._event_invoice_correction_hint('27000000-0000-0000-0000-0000000000a0', pg_temp.t27('plan42')) = 'refunded',
+    '27/korekta?: korekta ponizej zwrotu - podpowiedz zostaje');
+  v_c := public.admin_event_invoice_correction_create(jsonb_build_object(
+    'invoice_id', pg_temp.t27('plan42'), 'mode', 'partial', 'reason', 'Zwrot',
+    'lines', jsonb_build_array(jsonb_build_object(
+      'line_id', pg_temp.t27_line1(pg_temp.t27('plan42')), 'unit_gross_cents', 7500, 'quantity', 2))));
+  PERFORM public.admin_event_invoice_issue(v_c);
+  PERFORM pg_temp.assert(
+    public._event_invoice_correction_hint('27000000-0000-0000-0000-0000000000a0', pg_temp.t27('plan42')) IS NULL,
+    '27/korekta?: korekty o kwote zwrotu gasza podpowiedz');
+  -- Pelna korekta odwolanego zapisu zwalnia zrodla - podpowiedz znika.
+  v_c := public.admin_event_invoice_correction_create(jsonb_build_object(
+    'invoice_id', pg_temp.t27('inv50'), 'mode', 'full', 'reason', 'Odwolany zapis'));
+  PERFORM public.admin_event_invoice_issue(v_c);
+  PERFORM pg_temp.assert(
+    public._event_invoice_correction_hint('27000000-0000-0000-0000-0000000000a0', pg_temp.t27('inv50')) IS NULL,
+    '27/korekta?: pelna korekta odwolanego zapisu - bez podpowiedzi');
+END $$;
+-- Pakiet anulowany po wystawieniu faktury (PO1 z sekcji 5 ma aktywna fakture).
+DO $$
+DECLARE v_pkg uuid;
+BEGIN
+  SELECT s.invoice_id INTO v_pkg FROM public.event_invoice_sources s
+    JOIN public.event_invoices i ON i.id = s.invoice_id
+   WHERE s.package_order_id = '27900000-0000-0000-0000-000000000001' AND s.covers AND s.released_at IS NULL
+     AND i.status = 'issued' AND i.kind = 'invoice';
+  UPDATE public.event_package_orders SET status = 'cancelled', cancelled_at = now(), paid_at = NULL
+   WHERE id = '27900000-0000-0000-0000-000000000001';
+  PERFORM pg_temp.assert(v_pkg IS NOT NULL
+    AND public._event_invoice_correction_hint('27000000-0000-0000-0000-0000000000a0', v_pkg) = 'source_closed',
+    '27/korekta?: pakiet anulowany po wystawieniu faktury - podpowiedz korekty');
+END $$;
+
+SELECT pg_temp.assert(
+  NOT has_function_privilege('authenticated', 'public._event_invoice_registration_source(uuid, uuid, text)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public._event_invoice_registration_owner(uuid, uuid, uuid)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public._event_invoice_correction_hint(uuid, uuid)', 'EXECUTE')
+  AND NOT has_function_privilege('anon', 'public._event_invoice_registration_source(uuid, uuid, text)', 'EXECUTE')
+  AND has_function_privilege('service_role', 'public._event_invoice_correction_hint(uuid, uuid)', 'EXECUTE'),
+  '27/granty: zrodlo zapisu, kupujacy i podpowiedz korekty - wylacznie service_role');
 
 SELECT pg_temp.act_as(NULL, NULL);
 ROLLBACK;
