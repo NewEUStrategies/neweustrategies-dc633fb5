@@ -3,7 +3,9 @@
 // TO SA DANE OSOBOWE, KTORE OPUSZCZAJA SYSTEM. Lista przy drzwiach trafia do
 // hostess i firmy cateringowej, lista gosci firmy - do opiekuna klienta w CRM.
 // Wynosimy to, czego potrzebuje obsluga sali (kto, gdzie, z jakim biletem, dla
-// kogo zarezerwowane), bez identyfikatorow technicznych.
+// kogo zarezerwowane), bez identyfikatorow technicznych i BEZ ADRESOW E-MAIL -
+// hostessa szuka nazwiska, a nie adresu (baza od 20260927001200 i tak oddaje
+// w kolumnie `email` NULL; plik nie ma nawet takiej kolumny).
 //
 // CYTOWANIE Z `lib/crm/csv` - neutralizuje wiodace `=`, `+`, `-`, `@`, bo nazwa
 // firmy i notatka rezerwacji sa wpisywane recznie, a w arkuszu organizatora
@@ -25,7 +27,6 @@ export const SEATING_CSV_COLUMNS = [
   "accessible",
   "last_name",
   "first_name",
-  "email",
   "company",
   "ticket",
   "registration_status",
@@ -90,7 +91,6 @@ export function seatingExportToCsv(
       row.is_accessible ? "yes" : "no",
       filled(row.last_name),
       filled(row.first_name),
-      filled(row.email),
       filled(row.company),
       localized(row.ticket_name_pl, row.ticket_name_en, options.lang),
       filled(row.registration_status),

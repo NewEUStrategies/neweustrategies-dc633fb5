@@ -863,13 +863,37 @@ export async function fetchSeatLookup(
   return out;
 }
 
+/** Strona eksportu - `max_rows` PostgREST (1000); plan ma do 5000 miejsc. */
+export const SEAT_EXPORT_PAGE = 1000;
+
+/**
+ * Eksport planu po stronach. PostgREST tnie odpowiedz funkcji TABLE do
+ * `max_rows` (1000) BEZ bledu, wiec jedno wywolanie dawalo liscie przy drzwiach
+ * tylko pierwsze 1000 z 5000 miejsc. Chodzimy `.range()` do krotkiej strony, z JAWNYM
+ * porzadkiem (sekcja, etykieta, `sort_key`, miejsce) - bez niego kolejnosc
+ * miedzy stronami nie jest gwarantowana i wiersz moglby wypasc albo sie
+ * powtorzyc. Granica 10 stron (10 tysiecy wierszy) chroni przed petla.
+ */
 export async function fetchSeatingExport(
   mapId: string,
   companyId: string | null = null,
 ): Promise<SeatExportRow[]> {
-  const { data, error } = await supabase.rpc("admin_event_seating_export", {
-    p_payload: payload({ map_id: mapId, company_id: companyId ?? undefined }),
-  });
-  fail(error);
-  return data ?? [];
+  const out: SeatExportRow[] = [];
+  for (let page = 0; page < 10; page += 1) {
+    const from = page * SEAT_EXPORT_PAGE;
+    const { data, error } = await supabase
+      .rpc("admin_event_seating_export", {
+        p_payload: payload({ map_id: mapId, company_id: companyId ?? undefined }),
+      })
+      .order("section_sort", { ascending: true })
+      .order("section_label", { ascending: true })
+      .order("sort_key", { ascending: true })
+      .order("seat_id", { ascending: true })
+      .range(from, from + SEAT_EXPORT_PAGE - 1);
+    fail(error);
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < SEAT_EXPORT_PAGE) break;
+  }
+  return out;
 }

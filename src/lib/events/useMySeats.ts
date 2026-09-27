@@ -13,7 +13,12 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 
 import type { TicketFragment } from "@/lib/events/manageToken";
-import { fetchMySeats, fetchTicketSeats, type MySeatCard } from "@/lib/events/mySeatsApi";
+import {
+  fetchMySeats,
+  fetchTicketSeats,
+  type MySeatCard,
+  type MySeatsResult,
+} from "@/lib/events/mySeatsApi";
 
 export function mySeatsKey(slug: string): readonly unknown[] {
   return ["event-me", slug, "seats"] as const;
@@ -23,7 +28,7 @@ export function ticketSeatsKey(slug: string): readonly unknown[] {
   return ["event-ticket-seats", slug] as const;
 }
 
-export function useMySeats(slug: string, enabled: boolean): UseQueryResult<MySeatCard[], Error> {
+export function useMySeats(slug: string, enabled: boolean): UseQueryResult<MySeatsResult, Error> {
   return useQuery({
     queryKey: mySeatsKey(slug),
     queryFn: () => fetchMySeats(slug),

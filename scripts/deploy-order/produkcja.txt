@@ -43,3 +43,4 @@ LINIA 20260926140000
 20260927000800_event_clone.sql
 20260927000801_event_clone_part2.sql
 20260927000802_event_clone_part3.sql
+20260927001200_event_seating_review_fixes.sql              # plan sali: poprawki z przegladu (po 000400-000402)

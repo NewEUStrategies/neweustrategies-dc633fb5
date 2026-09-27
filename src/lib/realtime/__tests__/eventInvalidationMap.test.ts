@@ -71,6 +71,7 @@ describe("eventInvalidationMap", () => {
     ["account-menu", "my-events"],
     ["event-rsvp-counts"],
     ["public-event"],
+    eventId === null ? ["event-seating"] : ["event-seating", eventId],
     eventId === null
       ? ["admin-event-registration-money"]
       : ["admin-event-registration-money", eventId],

@@ -6,13 +6,18 @@
 //   2. Obrót sekcji przesuwa miejsca w złą stronę - organizator widzi lustro.
 //   3. Strzałki na płótnie gubią fokus na granicy rzędu albo przeskakują do
 //      innej sekcji przy „w górę/w dół”.
+//   4. Połówka .xx5 z sinusa zaokrąglona z surowego double'a (22.77), gdy baza
+//      po 15 cyfrach znaczących zapisuje 22.78 - podgląd kłamie o setną.
+//   5. Nowa sekcja ląduje NA poprzedniej (stały początek 100/160).
 import { describe, expect, it } from "vitest";
 
 import {
+  FIRST_SECTION_ORIGIN,
   boundsOf,
   generateSectionSeats,
   isSeatNavKey,
   nextSeatId,
+  nextSectionOrigin,
   orderSeats,
   planViewBox,
   roundCoord,
@@ -23,6 +28,7 @@ import {
   type NavigableSeat,
   type SectionLayoutParams,
 } from "@/lib/events/seatingGeometry";
+import { seat as seatFixture, seatMapDetail, seatSection } from "@/test/events/seatingFixtures";
 
 const ROWS: SectionLayoutParams = {
   kind: "rows",
@@ -44,6 +50,38 @@ describe("zaokrąglenie i etykiety", () => {
     expect(roundCoord(0.125)).toBe(0.13);
     expect(roundCoord(-0.125)).toBe(-0.13);
     expect(Object.is(roundCoord(-0.001), 0)).toBe(true);
+  });
+
+  it("roundCoord: najpierw 15 cyfr znaczących (float8::numeric), potem setne", () => {
+    // 45.55 * sin(30°) = 22.774999999999991 w double; PostgreSQL widzi 22.775.
+    const y = 45.55 * Math.sin(-Math.PI / 2 + (2 * Math.PI * 2) / 6);
+    expect(y).toBeLessThan(22.775);
+    expect(roundCoord(y)).toBe(22.78);
+    expect(roundCoord(-y)).toBe(-22.78);
+    // Błąd reprezentacji przy mnożeniu przez 100 też nie przesuwa połówki.
+    expect(roundCoord(1.005)).toBe(1.01);
+    expect(roundCoord(2.675)).toBe(2.68);
+    expect(roundCoord(45.555)).toBe(45.56);
+    expect(roundCoord(-45.555)).toBe(-45.56);
+    // Wartości bez połówki bez zmian.
+    expect(roundCoord(39.447457142381175)).toBe(39.45);
+    expect(roundCoord(91.12)).toBe(91.12);
+    expect(Object.is(roundCoord(-2.7891330850580967e-15), 0)).toBe(true);
+  });
+
+  it("stół okrągły 6 miejsc, rozstaw 45.55 - te same setne co baza", () => {
+    const seats = generateSectionSeats({
+      ...ROWS,
+      kind: "table",
+      rowsCount: null,
+      seatsPerRow: null,
+      rowLabelScheme: null,
+      seatNumbering: null,
+      seatPitch: 45.55,
+      tableShape: "round",
+      tableSeats: 6,
+    });
+    expect(seats.map((seat) => seat.y)).toEqual([-45.55, -22.78, 22.78, 45.55, 22.78, -22.78]);
   });
 
   it("rowLabel: litery w podstawie bijektywnej, numery wprost", () => {
@@ -116,6 +154,34 @@ describe("przeniesienie na plan i obrys", () => {
     ).toEqual({ minX: -4, minY: 1, maxX: 2, maxY: 6 });
     expect(boundsOf([])).toEqual({ minX: -0, minY: -0, maxX: 0, maxY: 0 });
     expect(boundsOf([], 5)).toEqual({ minX: -5, minY: -5, maxX: 5, maxY: 5 });
+  });
+
+  it("nextSectionOrigin: pusty plan - początek pierwszej sekcji", () => {
+    expect(nextSectionOrigin({ sections: [], seats: [] })).toEqual(FIRST_SECTION_ORIGIN);
+    expect(FIRST_SECTION_ORIGIN).toEqual({ x: 100, y: 160 });
+  });
+
+  it("nextSectionOrigin: pod obrysem sekcji (po obrocie), od ich lewej krawędzi", () => {
+    // Rzędy A od (100, 200): miejsca na y = 200; stół w (600, 400) z krzesłami
+    // na y = -50 i 50 lokalnie -> najniżej 450. Odstęp: 2 x rozstaw rzędów.
+    const detail = seatMapDetail();
+    expect(nextSectionOrigin(detail)).toEqual({ x: 100, y: 450 + 2 * 60 });
+    expect(nextSectionOrigin(detail, 80)).toEqual({ x: 100, y: 450 + 2 * 80 });
+
+    // Sekcja obrócona o 90° rośnie W DÓŁ - liczy się obrys na planie.
+    const rotated = seatMapDetail({
+      sections: [seatSection({ originX: 300, originY: 100, rotationDeg: 90 })],
+      seats: [seatFixture(), seatFixture({ id: "seat-a2", x: 50, sortKey: 1 })],
+    });
+    expect(nextSectionOrigin(rotated)).toEqual({ x: 300, y: 150 + 120 });
+  });
+
+  it("nextSectionOrigin: sekcja bez miejsc w odczycie liczy się swoim początkiem", () => {
+    const detail = seatMapDetail({
+      sections: [seatSection({ originX: 40, originY: 70 })],
+      seats: [],
+    });
+    expect(nextSectionOrigin(detail)).toEqual({ x: 40, y: 190 });
   });
 
   it("planViewBox obejmuje plan i to, co z niego wystaje", () => {

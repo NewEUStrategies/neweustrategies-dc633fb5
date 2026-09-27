@@ -64,6 +64,7 @@ import {
 import { seatingCsvRows, seatingPersonName } from "@/lib/events/seatingCsv";
 import { SEAT_STATUS_LABEL_KEYS } from "@/lib/events/seatingDraft";
 import { seatDropTarget } from "@/lib/events/seatingDnd";
+import { nextSectionOrigin } from "@/lib/events/seatingGeometry";
 import { seatLabelMessage, seatLabelMessageFromRow } from "@/lib/events/seatLabel";
 import { seatPlanPrintHtml } from "@/lib/events/seatPlanPrintDocument";
 import { useEventTickets } from "@/lib/events/useEventRegistrations";
@@ -775,6 +776,7 @@ export function SeatMapWorkspace({
         mapId={map.id}
         section={sectionDialog?.section ?? null}
         kind={sectionDialog?.kind ?? "rows"}
+        initialOrigin={nextSectionOrigin(detail)}
         categories={detail.categories}
         isSaving={saveSection.isPending}
         onSubmit={(input) =>

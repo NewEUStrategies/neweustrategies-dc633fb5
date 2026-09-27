@@ -285,6 +285,35 @@ describe("szkic sekcji", () => {
   it("podgląd nieważnego szkicu rzędów = null; poprawny z pustym startem - domyślne", () => {
     expect(sectionDraftLayout(rows({ rowsCount: "" }))).toBeNull();
   });
+
+  it("rozstawy, początek i obrót jadą zaokrąglone do setnych - jak kolumny sekcji", () => {
+    // Baza zapisuje numeric(6,2) i od 20260927001200 liczy układ z tej samej
+    // liczby; 45.555 w podglądzie dawało miejsce 3 na x = 91.11, baza - 91.12.
+    const draft = rows({
+      seatPitch: "45,555",
+      rowPitch: "60.004",
+      originX: "10.005",
+      originY: "-0.001",
+      rotationDeg: "-15.555",
+    });
+    expect(sectionDraftToInput(draft, "map-1")).toMatchObject({
+      seatPitch: 45.56,
+      rowPitch: 60,
+      originX: 10.01,
+      originY: 0,
+      rotationDeg: -15.56,
+    });
+    expect(sectionDraftLayout(draft)).toMatchObject({ seatPitch: 45.56, rowPitch: 60 });
+  });
+
+  it("nowa sekcja startuje w podanym początku (domyślnie pod sceną pustego planu)", () => {
+    expect(emptySectionDraft("rows")).toMatchObject({ originX: "100", originY: "160" });
+    expect(emptySectionDraft("table", { x: 100, y: 570 })).toMatchObject({
+      kind: "table",
+      originX: "100",
+      originY: "570",
+    });
+  });
 });
 
 describe("szkic kategorii", () => {

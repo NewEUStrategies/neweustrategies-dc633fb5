@@ -571,6 +571,14 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     drizzleOnly:
       "Zapis zastosowania 20260926150001 z panelu Lovable (SQL identyczny bajt w bajt z 0062_event_scanner_offline_part2, bez znaku konca pliku); blizniak supabase pilnuje wpis 0062_event_scanner_offline_part2.",
   },
+  // Plan sali - poprawki z przegladu 0060_event_seating*: kolejnosc blokad
+  // przydzialu, zaokraglenie parametrow sekcji, eksport bez e-maili, etykieta
+  // kandydata na zywo, `event_my_seats` z flagami zapowiedzi. BEZ wpisu
+  // w dzienniku drizzle - kolejnosc: scripts/deploy-order/produkcja.txt.
+  {
+    tag: "0074_event_seating_review_fixes",
+    twin: "20260927001200_event_seating_review_fixes.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";

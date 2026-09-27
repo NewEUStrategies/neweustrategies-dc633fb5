@@ -231,6 +231,28 @@ describe("EventSeatSectionDialog - stół i edycja", () => {
     expect(pole("label").value).toBe("C");
   });
 
+  it("nowa sekcja startuje pod sekcjami planu; odświeżenie planu w tle jej nie przesuwa", () => {
+    const { rerender, props } = okno({ initialOrigin: { x: 100, y: 570 } });
+    expect(pole("originX").value).toBe("100");
+    expect(pole("originY").value).toBe("570");
+
+    rerender(<EventSeatSectionDialog {...props} initialOrigin={{ x: 100, y: 700 }} />);
+    expect(pole("originY").value).toBe("570");
+
+    // Ponowne otwarcie czyta nowy początek; edycja bierze położenie z sekcji.
+    rerender(<EventSeatSectionDialog {...props} open={false} initialOrigin={{ x: 100, y: 700 }} />);
+    rerender(<EventSeatSectionDialog {...props} initialOrigin={{ x: 100, y: 700 }} />);
+    expect(pole("originY").value).toBe("700");
+    rerender(<EventSeatSectionDialog {...props} section={seatSection()} />);
+    expect(pole("originY").value).toBe("200");
+  });
+
+  it("bez podanego początku - początek pierwszej sekcji pustego planu", () => {
+    okno();
+    expect(pole("originX").value).toBe("100");
+    expect(pole("originY").value).toBe("160");
+  });
+
   it("anuluj zamyka okno, a w trakcie zapisu przyciski są zgaszone", () => {
     const { props, rerender } = okno();
     fireEvent.click(screen.getByRole("button", { name: `${S}.cancel` }));
