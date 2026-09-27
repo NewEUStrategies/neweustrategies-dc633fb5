@@ -82,6 +82,7 @@ import {
   recallEventCode,
   rememberTicketAccessCode,
 } from "@/lib/events/eventCodeMemory";
+import { sendEventFunnelStep } from "@/lib/events/eventFunnelBeacon";
 import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
 import { InvoiceRequestBlock } from "@/components/events/invoices/organisms/InvoiceRequestBlock";
 import { useInvoiceRequestController } from "@/lib/events/useInvoiceRequestController";
@@ -165,6 +166,10 @@ export function RegistrationPayAction({
   // bazy przy każdym znaku - dopiero „Zastosuj" albo „Zapłać".
   const [appliedCode, setAppliedCode] = useState("");
   const [promoRejected, setPromoRejected] = useState(false);
+  const invoice = useInvoiceRequestController({
+    target: { registrationId },
+    enabled: session !== null && ownedByCaller !== false,
+  });
   /**
    * Kod wpisany do pola Z PAMIĘCI (`recallEventCode`), dopóki nie zostanie
    * zdjęty. Kod o tej samej treści wpisany ręcznie PO zdjęciu jest już kodem
@@ -311,6 +316,16 @@ export function RegistrationPayAction({
    * (`!ready`) - to jedyne miejsce, z którego ta funkcja rusza.
    */
   async function pay(override?: string): Promise<void> {
+    // Ponowienie bez kodu (`override`) to ten sam klik - prośba o fakturę jest
+    // już zapisana, a krok lejka policzony.
+    if (override === undefined) {
+      if (!(await invoice.commit())) return;
+      // Lejek: "rozpoczecie platnosci" to klik w kase (raz na sesje, bramka
+      // zgody w beaconie). Autorytetem platnosci jest zamowienie w bazie. Krok
+      // liczymy DOPIERO po zapisie prosby o fakture - odmowa zapisu zatrzymuje
+      // kase, wiec platnosc sie nie rozpoczela.
+      sendEventFunnelStep("checkout_start", { eventId: eventId as string });
+    }
     setBusy(true);
     setRefusal(null);
     setPromoRejected(false);

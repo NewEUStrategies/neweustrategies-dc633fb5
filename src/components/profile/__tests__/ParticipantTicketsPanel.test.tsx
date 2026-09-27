@@ -420,6 +420,8 @@ describe("ParticipantTicketsPanel - gniazda torów F1-F5 (kontrakt BLK-5)", () =
       (node) => node.getAttribute("data-testid") ?? node.textContent,
     );
     expect(order).toEqual([
+      // stan faktury zgłoszenia (f2) stoi w nagłówku karty, nad płatnością
+      "invoice-status",
       "participantTickets.payment.unpaid",
       "gniazdo-akcje-biletu",
       "participantTickets.reason.title",
