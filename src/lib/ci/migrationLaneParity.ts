@@ -571,6 +571,18 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     drizzleOnly:
       "Zapis zastosowania 20260926150001 z panelu Lovable (SQL identyczny bajt w bajt z 0062_event_scanner_offline_part2, bez znaku konca pliku); blizniak supabase pilnuje wpis 0062_event_scanner_offline_part2.",
   },
+  // Poprawki z przegladu (funkcje organizatora, czesc 3): klon edycji kopiuje
+  // ustawienia uczestnika i szanuje strefe zrodla, most CRM trzyma stan per
+  // intencja. BEZ wpisu w dzienniku - kolejnosc wdrozenia w
+  // scripts/deploy-order/produkcja.txt.
+  {
+    tag: "0075_event_clone_participant_settings",
+    twin: "20260927001300_event_clone_participant_settings.sql",
+  },
+  {
+    tag: "0076_event_person_crm_intents",
+    twin: "20260927001400_event_person_crm_intents.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";

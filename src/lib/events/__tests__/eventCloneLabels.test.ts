@@ -75,6 +75,28 @@ describe("cloneItemEntries", () => {
     ]);
   });
 
+  it("ustawienia uczestnika, zakładki, zapisy na sesje i przepustki mają etykiety w kolejności mapy", () => {
+    expect(
+      cloneItemEntries({
+        wallet_passes: 2,
+        participant_settings: 1,
+        session_signups: 4,
+        session_saves: 3,
+        groups: 5,
+      }),
+    ).toEqual([
+      { id: "groups", labelKey: "adminEventClone.items.groups", count: 5 },
+      {
+        id: "participant_settings",
+        labelKey: "adminEventClone.items.participantSettings",
+        count: 1,
+      },
+      { id: "session_saves", labelKey: "adminEventClone.items.sessionSaves", count: 3 },
+      { id: "session_signups", labelKey: "adminEventClone.items.sessionSignups", count: 4 },
+      { id: "wallet_passes", labelKey: "adminEventClone.items.walletPasses", count: 2 },
+    ]);
+  });
+
   it("zawężenie do podanej listy (także z kluczem spoza mapy i brakującym licznikiem)", () => {
     expect(
       cloneItemEntries({ registrations: 2, sessions: 4 }, ["registrations", "invoices", "obce"]),

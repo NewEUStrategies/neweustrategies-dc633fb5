@@ -132,6 +132,13 @@ describe("EventClonePreviewPanel", () => {
     expect(
       screen.getByText("adminEventClone.count(count=12,label=adminEventClone.items.registrations)"),
     ).toBeInTheDocument();
+    // Zakładki sesji i bilety w portfelu też zostają w poprzedniej edycji.
+    expect(
+      screen.getByText("adminEventClone.count(count=3,label=adminEventClone.items.sessionSaves)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("adminEventClone.count(count=2,label=adminEventClone.items.walletPasses)"),
+    ).toBeInTheDocument();
     expect(summarize(await axeViolations(container))).toBe("");
   });
 
@@ -204,6 +211,15 @@ describe("EventCloneResultCard", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText("adminEventClone.count(count=12,label=adminEventClone.items.registrations)"),
+    ).toBeInTheDocument();
+    // Ustawienia uczestnika przechodzą zawsze - wynik mówi o nich wprost.
+    expect(
+      screen.getByText(
+        "adminEventClone.count(count=1,label=adminEventClone.items.participantSettings)",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("adminEventClone.count(count=4,label=adminEventClone.items.sessionSignups)"),
     ).toBeInTheDocument();
     expect(screen.queryByText(/adminEventClone\.items\.crmTasks/)).toBeNull();
     expect(summarize(await axeViolations(container))).toBe("");

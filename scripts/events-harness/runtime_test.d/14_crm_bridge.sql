@@ -578,9 +578,15 @@ BEGIN
     (SELECT source_type FROM public.crm_leads WHERE id = v_lead) = 'event_cfp'
     AND (SELECT tags FROM public.crm_leads WHERE id = v_lead) = ARRAY['event:most-14'],
     '14/ponowienie: zapisana intencja (segment, tagi) powtorzona');
+  -- Od 20260927001400 ponowienie powtarza wpis osi czasu nieudanej intencji
+  -- (dotad zdarzenie, ktorego zapis sie nie udal, nie mialo wpisu wcale);
+  -- duplikatow pilnuje most (ta sama akcja i odnosnik).
   PERFORM pg_temp.assert(
-    NOT EXISTS (SELECT 1 FROM public.audit_log WHERE entity_id = v_lead),
-    '14/ponowienie: wpis osi czasu NIE jest powtarzany przez ponowienie');
+    (SELECT count(*) FROM public.audit_log
+      WHERE entity_id = v_lead AND action = 'event.cfp.submitted') = 1
+    AND (SELECT count(*) FROM public.audit_log WHERE entity_id = v_lead) = 1
+    AND v_k.pending_errors = '{}'::jsonb,
+    '14/ponowienie: wpis osi czasu nieudanej intencji powtorzony raz, nic nie czeka');
 END
 $do$;
 
