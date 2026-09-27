@@ -482,10 +482,20 @@ function isCommentOperand(stmt: string): boolean {
   return /\bCOMMENT\s+ON\b[\s\S]*\bIS\s+$/i.test(stmt);
 }
 
-/** Koniec (wyłącznie) literału zaczynającego się na `at`; `''` w środku to escape. */
-function literalEnd(src: string, at: number): number {
+/**
+ * Koniec (wyłącznie) literału zaczynającego się na `at`; `''` w środku to escape.
+ * `backslash` - literał E'...': tam `\'` też jest escape'em i NIE zamyka
+ * literału (`E'a\';b'` to jeden napis `a';b`). Bez tego skaner kończył literał
+ * przy `\'`, a resztę pliku czytał z odwróconym cytowaniem - i spacja W ŚRODKU
+ * następnych literałów przestawała być widoczna dla odcisku.
+ */
+function literalEnd(src: string, at: number, backslash = false): number {
   let j = at + 1;
   while (j < src.length) {
+    if (backslash && src[j] === "\\") {
+      j += 2;
+      continue;
+    }
     if (src[j] === "'") {
       if (src[j + 1] === "'") {
         j += 2;
@@ -496,6 +506,53 @@ function literalEnd(src: string, at: number): number {
     j += 1;
   }
   return Math.min(j + 1, src.length);
+}
+
+/**
+ * Nazwa (słowo kluczowe albo identyfikator) jak w lekserze PostgreSQL: zaczyna
+ * się literą, `_` albo znakiem spoza ASCII, a dalej może mieć też cyfry i `$`.
+ * `$` W ŚRODKU nazwy (`a$b$c`) należy do niej - nie otwiera cytowania dolarami.
+ * Wspólne ze splitterem migracji, jak granice komentarzy niżej.
+ */
+export const SQL_IDENT_START = /[A-Za-z_\u0080-\uFFFF]/;
+export const SQL_IDENT_CONT = /[A-Za-z0-9_$\u0080-\uFFFF]/;
+/** Tag cytowania dolarami jak w PostgreSQL (także z literami spoza ASCII); `sticky`. */
+export const SQL_DOLLAR_TAG = /\$(?:[A-Za-z_\u0080-\uFFFF][A-Za-z0-9_\u0080-\uFFFF]*)?\$/y;
+
+/**
+ * Koniec komentarza `/* ... *\/` od `at` - ZAGNIEŻDŻONEGO, jak w PostgreSQL
+ * (`/* a /* b *\/ c *\/` to jeden komentarz); `-1`, gdy niedomknięty. Wspólny
+ * ze splitterem migracji (migrationSplit.ts): granice komentarzy w odcisku
+ * i w lekserze instrukcji muszą być TE SAME, inaczej dowód podziału porównuje
+ * dwa różne odczytania jednego pliku.
+ */
+export function sqlBlockCommentEnd(src: string, at: number): number {
+  let depth = 0;
+  let j = at;
+  while (j < src.length) {
+    if (src[j] === "/" && src[j + 1] === "*") {
+      depth += 1;
+      j += 2;
+    } else if (src[j] === "*" && src[j + 1] === "/") {
+      depth -= 1;
+      j += 2;
+      if (depth === 0) return j;
+    } else {
+      j += 1;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Koniec komentarza `--` od `at`: pierwszy `\n` ALBO `\r` (tak kończy go
+ * lekser PostgreSQL i psql - samotny CR też zamyka komentarz), bez niego.
+ * Wspólny ze splitterem migracji, jak `sqlBlockCommentEnd`.
+ */
+export function sqlLineCommentEnd(src: string, at: number): number {
+  let j = at;
+  while (j < src.length && src[j] !== "\n" && src[j] !== "\r") j += 1;
+  return j;
 }
 
 /**
@@ -546,6 +603,8 @@ function scan(src: string, opts: { maskCommentProse: boolean; dollarIsCode: bool
   let buf = "";
   let stmt = "";
   let i = 0;
+  /** Poprzedni token to samo `E`/`e` stojące tuż przed `'` - literał E'...'. */
+  let escapeLiteral = false;
 
   /** Oddaje zebrany tekst spoza literałów - złożony i ze zwartą spacją. */
   const flush = (): void => {
@@ -562,24 +621,27 @@ function scan(src: string, opts: { maskCommentProse: boolean; dollarIsCode: bool
 
     // Komentarze wycinamy TUTAJ, a nie przed wejściem do skanera: dopiero tu
     // wiadomo, czy `--` stoi w kodzie, czy w środku wartości. Zostaje spacja,
-    // żeby `a--c\nb` nie skleiło się w `ab`.
+    // żeby `a--c\nb` nie skleiło się w `ab`. Granice komentarzy są te same, co
+    // w PostgreSQL (`--` do `\n` albo `\r`, `/* */` zagnieżdżony) - inaczej
+    // koniec komentarza wypadałby w innym miejscu niż na bazie i skaner czytałby
+    // dalszy ciąg pliku z przesuniętym cytowaniem.
     if (ch === "-" && src[i + 1] === "-") {
-      const nl = src.indexOf("\n", i);
       buf += " ";
-      i = nl === -1 ? src.length : nl;
+      i = sqlLineCommentEnd(src, i);
       continue;
     }
     if (ch === "/" && src[i + 1] === "*") {
-      const close = src.indexOf("*/", i + 2);
+      const end = sqlBlockCommentEnd(src, i);
       buf += " ";
-      i = close === -1 ? src.length : close + 2;
+      i = end === -1 ? src.length : end;
       continue;
     }
 
     // $tag$ ... $tag$ - na wierzchu ciało funkcji/widoku (KOD), a w środku
     // takiego ciała już WARTOŚĆ, którą zostawiamy nietkniętą.
     if (ch === "$") {
-      const opener = /^\$[A-Za-z_][A-Za-z0-9_]*\$|^\$\$/.exec(src.slice(i));
+      SQL_DOLLAR_TAG.lastIndex = i;
+      const opener = SQL_DOLLAR_TAG.exec(src);
       if (opener) {
         const tag = opener[0];
         const bodyFrom = i + tag.length;
@@ -599,9 +661,10 @@ function scan(src: string, opts: { maskCommentProse: boolean; dollarIsCode: bool
       }
     }
 
-    // Literał pojedynczy; '' w środku to escape, nie koniec.
+    // Literał pojedynczy; '' w środku to escape, nie koniec (w E'...' także \').
     if (ch === "'") {
-      const end = literalEnd(src, i);
+      const end = literalEnd(src, i, escapeLiteral);
+      escapeLiteral = false;
       // `flush()` PRZED pytaniem o operand: dopiero on dokłada do `stmt` tekst
       // spoza literałów, a to w nim stoi `COMMENT ON ... IS `.
       flush();
@@ -631,6 +694,18 @@ function scan(src: string, opts: { maskCommentProse: boolean; dollarIsCode: bool
       out += src.slice(i, end);
       stmt += "x";
       i = end;
+      continue;
+    }
+
+    // Nazwa w całości, razem z `$` w środku - jak w lekserze PostgreSQL, żeby
+    // `a$b$c` nie otworzyło ciała `$b$`. Samo `E`/`e` tuż przed `'` to
+    // prefiks literału E'...' (a `somE'x'` to nazwa i zwykły literał).
+    if (SQL_IDENT_START.test(ch)) {
+      let j = i + 1;
+      while (j < src.length && SQL_IDENT_CONT.test(src[j]!)) j += 1;
+      escapeLiteral = j === i + 1 && (ch === "E" || ch === "e") && src[j] === "'";
+      buf += src.slice(i, j);
+      i = j;
       continue;
     }
 

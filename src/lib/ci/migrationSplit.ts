@@ -13,12 +13,20 @@
 // JAK TNIE. Lekser zna skladnie PostgreSQL w zakresie, ktory decyduje o granicy
 // instrukcji: literal '...' z escape `''`, literal E'...' z escape `\`, cytowany
 // identyfikator "..." z escape `""`, ciala $tag$...$tag$ z dowolnym tagiem
-// (zagniezdzony INNY tag jest trescia), komentarz `--` i ZAGNIEZDZONY `/* */`,
-// a do tego dwie reguly psql: `;` w nawiasie nie konczy instrukcji, a w
-// `CREATE [OR REPLACE] FUNCTION|PROCEDURE ... BEGIN ATOMIC ... END` - tez nie.
-// Granica czesci wypada WYLACZNIE miedzy instrukcjami najwyzszego poziomu.
-// Komentarz przed instrukcja jedzie razem z nia (to jej opis), komentarz za `;`
-// w tej samej linii zostaje przy poprzedniej.
+// (zagniezdzony INNY tag jest trescia), komentarz `--` (do `\n` ALBO `\r`, jak
+// w psql) i ZAGNIEZDZONY `/* */`, a do tego dwie reguly psql: `;` w nawiasie
+// nie konczy instrukcji, a w `CREATE [OR REPLACE] FUNCTION|PROCEDURE ... BEGIN
+// ATOMIC ... END` - tez nie. Granice komentarzy, nazw i tagow dolarowych sa
+// WSPOLNE z `executableSql` (migrationLaneParity.ts), wiec dowod ponizej czyta
+// plik tak samo jak lekser. Granica czesci wypada WYLACZNIE miedzy
+// instrukcjami najwyzszego poziomu. Komentarz przed instrukcja jedzie razem
+// z nia (to jej opis), komentarz za `;` w tej samej linii zostaje przy
+// poprzedniej.
+//
+// CZEGO NIE PRZYJMUJE. Wejscia, ktorego granic lekser nie wyznaczy, a Lovable
+// i Supabase i tak nie wykonaja (to nie SQL, tylko skladnia psql): meta-polecen
+// `\...` (`\set`, `\copy`, `\i`) i `COPY ... FROM STDIN` z danymi w pliku.
+// To blad `MigrationLexError`, a nie ciecie przez srodek danych.
 //
 // CZEGO NIE ROZDZIELA (grupy nierozlaczne). Czesci wdrazaja sie OSOBNO, wiec
 // miedzy nimi jest okno - sekundy albo godziny, a przy bledzie nastepnej czesci
@@ -54,14 +62,28 @@
 // czesc (z naglowkiem) miesci sie w limicie bajtow UTF-8; (4) przy dwoch
 // pasach czesc k pasa drizzle ma ten sam SQL wykonywalny, co czesc k pasa
 // supabase - czyli kazda para czesci jest od razu blizniakiem dla
-// `check:migration-lanes`.
+// `check:migration-lanes`; (5) STRUKTURA: kazda czesc Z NAGLOWKIEM I STOPKA
+// leksuje sie samodzielnie na dokladnie te instrukcje oryginalu, ktore niesie
+// (tekst, szkielet, `;`), w kolejnosci i bez reszty. (1) i (2) nie widza
+// ciecia w srodku ciala $$: czesc z niedomknietym cialem ma w odcisku cialo
+// "do konca pliku", nastepna otwiera je na zamykajacym `$$`, a bialy znak
+// sie zwiera - odcisk wychodzi ten sam. Dopiero (5) mowi wprost, ze kazda
+// granica lezy miedzy instrukcjami najwyzszego poziomu i ze naglowek ani
+// stopka nie wkleily sie w instrukcje.
 //
 // DLACZEGO `a;b` JEST NIEROZLACZNE. `executableSql` zwiera bialy znak do
 // jednej spacji, ale go nie dopisuje. Czesci skleja sie spacja, wiec granica
 // bez zadnego odstepu w oryginale dalaby `a; b` wobec `a;b` - dowod (1)
 // pekalby na pliku, ktory jest poprawny. Taki styl nie wystepuje w repo;
 // zamiast oslabiac dowod, nie tniemy w tym miejscu.
-import { executableSql } from "./migrationLaneParity";
+import {
+  SQL_DOLLAR_TAG,
+  SQL_IDENT_CONT,
+  SQL_IDENT_START,
+  executableSql,
+  sqlBlockCommentEnd,
+  sqlLineCommentEnd,
+} from "./migrationLaneParity";
 
 /** Domyslny limit czesci: 45 KiB. Lovable wdrozyl 52 653 B, odrzucil 62 KB+. */
 export const DEFAULT_MAX_BYTES = 45 * 1024;
@@ -88,10 +110,16 @@ export interface SqlSegment {
 
 /** Blad skladni, przez ktory nie da sie wyznaczyc granic instrukcji. */
 export class MigrationLexError extends Error {
-  constructor(what: string, line: number) {
-    super(`Niezamkniety ${what} od linii ${line} - nie da sie wyznaczyc granic instrukcji.`);
+  constructor(message: string) {
+    super(message);
     this.name = "MigrationLexError";
   }
+}
+
+function unclosed(what: string, line: number): MigrationLexError {
+  return new MigrationLexError(
+    `Niezamkniety ${what} od linii ${line} - nie da sie wyznaczyc granic instrukcji.`,
+  );
 }
 
 /** Podzialu nie da sie wykonac albo nie przeszedl wlasnego dowodu. */
@@ -102,12 +130,15 @@ export class MigrationSplitError extends Error {
   }
 }
 
-const IDENT_START = /[A-Za-z_\u0080-\uFFFF]/;
-const IDENT_CONT = /[A-Za-z0-9_$\u0080-\uFFFF]/;
-const DOLLAR_TAG = /\$(?:[A-Za-z_\u0080-\uFFFF][A-Za-z0-9_\u0080-\uFFFF]*)?\$/y;
 const SPACE = /\s/;
-/** Po `;`: spacje, opcjonalny komentarz `--` i koniec linii zostaja przy instrukcji. */
-const SAME_LINE_TAIL = /[ \t]*(?:--[^\n]*)?(?:\r?\n|$)/y;
+/**
+ * Po `;`: spacje, opcjonalny komentarz `--` i koniec linii zostaja przy
+ * instrukcji. Komentarz konczy `\n` albo `\r` (jak w psql), a koniec linii to
+ * CRLF, samotny CR albo LF.
+ */
+const SAME_LINE_TAIL = /[ \t]*(?:--[^\r\n]*)?(?:\r\n|\r|\n|$)/y;
+/** `COPY ... FROM STDIN`: dane ida w pliku za instrukcja - to wejscie psql, nie SQL. */
+const COPY_FROM_STDIN = /^COPY\b[\s\S]*\bFROM\s+STDIN\b/i;
 /** Slowa, ktore psql zapamietuje, zeby rozpoznac `CREATE [OR REPLACE] FUNCTION|PROCEDURE`. */
 const ROUTINE_WORDS = new Set(["create", "function", "procedure", "or", "replace"]);
 
@@ -151,25 +182,6 @@ function quotedEnd(src: string, at: number, quote: string, backslash: boolean): 
   return -1;
 }
 
-/** Koniec zagniezdzonego komentarza blokowego zaczynajacego sie na `at`. */
-function blockCommentEnd(src: string, at: number): number {
-  let depth = 0;
-  let j = at;
-  while (j < src.length) {
-    if (src[j] === "/" && src[j + 1] === "*") {
-      depth += 1;
-      j += 2;
-    } else if (src[j] === "*" && src[j + 1] === "/") {
-      depth -= 1;
-      j += 2;
-      if (depth === 0) return j;
-    } else {
-      j += 1;
-    }
-  }
-  return -1;
-}
-
 /**
  * Dzieli migracje na instrukcje najwyzszego poziomu. Sklejenie `text`
  * wszystkich segmentow daje zrodlo bajt w bajt. Komentarze za ostatnia
@@ -196,11 +208,17 @@ export function lexStatements(src: string): SqlSegment[] {
   };
 
   const emit = (end: number, terminated: boolean): void => {
+    const line = lineAt(codeStart === -1 ? segStart : codeStart);
+    if (COPY_FROM_STDIN.test(skeleton)) {
+      throw new MigrationLexError(
+        `COPY ... FROM STDIN w linii ${line}: dane w pliku migracji to wejscie psql, ktorego Lovable/Supabase nie wykona, a lekser nie wyznaczy ich konca. Zapisz dane jako INSERT.`,
+      );
+    }
     segments.push({
       text: src.slice(segStart, end),
       start: segStart,
       codeStart,
-      line: lineAt(codeStart === -1 ? segStart : codeStart),
+      line,
       terminated,
       skeleton,
     });
@@ -233,14 +251,13 @@ export function lexStatements(src: string): SqlSegment[] {
     const ch = src[i]!;
 
     if (ch === "-" && src[i + 1] === "-") {
-      const nl = src.indexOf("\n", i);
-      i = nl === -1 ? src.length : nl;
+      i = sqlLineCommentEnd(src, i);
       spaced = true;
       continue;
     }
     if (ch === "/" && src[i + 1] === "*") {
-      const end = blockCommentEnd(src, i);
-      if (end === -1) throw new MigrationLexError("komentarz /* */", lineAt(i));
+      const end = sqlBlockCommentEnd(src, i);
+      if (end === -1) throw unclosed("komentarz /* */", lineAt(i));
       i = end;
       spaced = true;
       continue;
@@ -257,14 +274,14 @@ export function lexStatements(src: string): SqlSegment[] {
     if (ch === "'" || ((ch === "E" || ch === "e") && src[i + 1] === "'")) {
       const open = ch === "'" ? i : i + 1;
       const end = quotedEnd(src, open, "'", open !== i);
-      if (end === -1) throw new MigrationLexError("literal '...'", lineAt(i));
+      if (end === -1) throw unclosed("literal '...'", lineAt(i));
       code("''");
       i = end;
       continue;
     }
     if (ch === '"') {
       const end = quotedEnd(src, i, '"', false);
-      if (end === -1) throw new MigrationLexError('identyfikator "..."', lineAt(i));
+      if (end === -1) throw unclosed('identyfikator "..."', lineAt(i));
       code(src.slice(i, end));
       i = end;
       continue;
@@ -272,23 +289,31 @@ export function lexStatements(src: string): SqlSegment[] {
     // `$` po nazwie (`a$b$`) nalezy do nazwy i zjada go galaz identyfikatora,
     // wiec tu `$` zawsze stoi na poczatku tokenu: cialo dolarowe albo `$1`.
     if (ch === "$") {
-      const tag = matchAt(DOLLAR_TAG, src, i);
+      const tag = matchAt(SQL_DOLLAR_TAG, src, i);
       if (tag) {
         const close = src.indexOf(tag, i + tag.length);
-        if (close === -1) throw new MigrationLexError(`cialo ${tag}`, lineAt(i));
+        if (close === -1) throw unclosed(`cialo ${tag}`, lineAt(i));
         code("$$");
         i = close + tag.length;
         continue;
       }
     }
-    if (IDENT_START.test(ch)) {
+    if (SQL_IDENT_START.test(ch)) {
       let j = i + 1;
-      while (j < src.length && IDENT_CONT.test(src[j]!)) j += 1;
+      while (j < src.length && SQL_IDENT_CONT.test(src[j]!)) j += 1;
       const w = src.slice(i, j);
       code(w);
       word(w);
       i = j;
       continue;
+    }
+    // Ukosnik poza literalem, komentarzem i cialem nie jest SQL-em (serwer nie
+    // ma takiego tokenu) - to meta-polecenie psql, ktorego koniec wyznacza psql,
+    // nie `;`. Ciecie wokol niego byloby zgadywaniem.
+    if (ch === "\\") {
+      throw new MigrationLexError(
+        `Meta-polecenie psql (\\...) w linii ${lineAt(i)}: Lovable/Supabase wykonuje czysty SQL, a granic meta-polecenia lekser nie wyznaczy.`,
+      );
     }
     code(ch);
     i += 1;
@@ -738,12 +763,61 @@ export function splitAligned(
   return result;
 }
 
+/** Segmenty tekstu albo komunikat bledu leksera (dowod zbiera naruszenia, nie rzuca). */
+function lexOrReason(text: string): SqlSegment[] | string {
+  try {
+    return lexStatements(text);
+  } catch (error) {
+    return String(error);
+  }
+}
+
+/**
+ * Dowod (5): kazda czesc - Z NAGLOWKIEM i STOPKA, tak jak trafi do pliku -
+ * leksuje sie na kolejne instrukcje oryginalu. Pierwszy segment czesci to
+ * naglowek + instrukcja, ostatni to instrukcja + stopka, a szkielet i `;`
+ * kazdego segmentu sa te same, co w oryginale. Zwraca pierwsze naruszenie
+ * pasa albo `null` (po pierwszym rozjezdzie dalsze porownania nie maja punktu
+ * odniesienia).
+ */
+function structureProblem(l: number, source: string, parts: readonly SplitPart[]): string | null {
+  const expected = lexOrReason(source);
+  if (typeof expected === "string") return `pas ${l}: oryginal - ${expected}`;
+  let at = 0;
+  for (const [k, part] of parts.entries()) {
+    const segs = lexOrReason(part.text);
+    if (typeof segs === "string") return `pas ${l}, czesc ${k + 1}: ${segs}`;
+    const head = part.text.slice(0, part.head);
+    const tail = part.text.slice(part.text.length - part.tail);
+    for (const [j, seg] of segs.entries()) {
+      const want = expected[at + j];
+      const text =
+        want === undefined
+          ? undefined
+          : (j === 0 ? head : "") + want.text + (j === segs.length - 1 ? tail : "");
+      if (
+        want === undefined ||
+        seg.text !== text ||
+        seg.skeleton !== want.skeleton ||
+        seg.terminated !== want.terminated
+      ) {
+        return `pas ${l}, czesc ${k + 1}: instrukcja ${j + 1} czesci (linia ${seg.line}) nie jest instrukcja #${at + j + 1} oryginalu - granica czesci nie lezy miedzy instrukcjami najwyzszego poziomu albo naglowek/stopka wkleily sie w instrukcje`;
+      }
+    }
+    at += segs.length;
+  }
+  return at === expected.length
+    ? null
+    : `pas ${l}: czesci niosa ${at} instrukcji z ${expected.length} instrukcji oryginalu`;
+}
+
 /**
  * Dowod podzialu - lista naruszen (pusta = dowod przeszedl):
  *   (1) SQL wykonywalny czesci sklejony spacja == SQL wykonywalny oryginalu;
  *   (2) czesci bez naglowka/stopki sklejone == oryginal bajt w bajt;
  *   (3) kazda czesc (poza jawnie odlozonymi w `oversize`) <= `maxBytes`;
- *   (4) czesc k kazdego pasa ma ten sam SQL wykonywalny, co czesc k pasa 0.
+ *   (4) czesc k kazdego pasa ma ten sam SQL wykonywalny, co czesc k pasa 0;
+ *   (5) kazda czesc leksuje sie samodzielnie na kolejne instrukcje oryginalu.
  */
 export function verifySplit(
   sources: readonly string[],
@@ -765,6 +839,8 @@ export function verifySplit(
     if (parts.length !== reference.length) {
       problems.push(`pas ${l}: ${parts.length} czesci wobec ${reference.length} w pasie 0`);
     }
+    const structure = structureProblem(l, source, parts);
+    if (structure !== null) problems.push(structure);
     parts.forEach((p, k) => {
       if (!result.oversize.includes(k) && utf8Length(p.text) > maxBytes) {
         problems.push(`pas ${l}, czesc ${k + 1}: ${utf8Length(p.text)} B > limit ${maxBytes} B`);
