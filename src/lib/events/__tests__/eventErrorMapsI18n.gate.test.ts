@@ -486,6 +486,12 @@ const KODY_FAKTUR = [
   "mor_seller_conflict",
   "correction_target_invalid",
   "invalid_due_date",
+  "source_changed",
+  "buyer_mismatch",
+  "operator_invoice_enabled",
+  "billing_plane_unknown",
+  "correction_inconsistent",
+  "correction_use_full",
   // admin_event_invoice_settings_save
   "invalid_settings",
   "invalid_series",
@@ -508,6 +514,7 @@ const KODY_FAKTUR = [
   "invalid_ksef_status",
   "ksef_number_required",
   "invalid_ksef_number",
+  "correction_not_latest",
   // Osiagalne przez most CRM (`crm_ensure_member_company`, `_event_person_crm_sync`);
   // oba sa wolane w bloku, ktory ich blad polyka, ale skan ich nie odroznia.
   "crm",
@@ -525,6 +532,9 @@ const KODY_PROSBY_O_FAKTURE = [
   "not_found",
   "request_window_closed",
   "already_invoiced",
+  "invoicing_disabled",
+  "operator_invoice",
+  "request_foreign",
 ] as const;
 
 /**

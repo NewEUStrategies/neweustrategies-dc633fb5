@@ -3,7 +3,10 @@
 // Tworzenie szkicu KOREKTY: pelna (odwrocenie wszystkich pozycji) albo
 // czesciowa (tylko zmienione pozycje jako para przed/po liczona w bazie).
 // Okno wysyla wylacznie ZMIENIONE pozycje, nieczytelne pole zatrzymuje
-// wysylke, a odmowa bazy (np. brak przyczyny) wraca jako toast.
+// wysylke, a odmowa bazy (np. brak przyczyny) wraca jako toast. Punktem
+// wyjscia jest STAN PO WCZESNIEJSZYCH KOREKTACH (`current_lines`), nie
+// pierwotne pozycje - inaczej kolejna korekta poprawiala liczby, ktore juz
+// nie obowiazuja (a baza liczy od stanu, wiec "bez zmian" bylo zmiana).
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -26,8 +29,8 @@ const { toast } = await import("sonner");
 const { EventInvoiceCorrectionDialog } =
   await import("@/components/admin/events/molecules/EventInvoiceCorrectionDialog");
 
-function issued(): EventInvoiceDocument {
-  const parsed = parseInvoiceDocument(invoiceDocumentJson());
+function issued(overrides: Parameters<typeof invoiceDocumentJson>[0] = {}): EventInvoiceDocument {
+  const parsed = parseInvoiceDocument(invoiceDocumentJson(overrides));
   if (parsed === null) throw new Error("fixture");
   return parsed;
 }
@@ -119,6 +122,71 @@ describe("EventInvoiceCorrectionDialog", () => {
       reason: "Zwrot",
       lines: [{ lineId: INVOICE_IDS.line1, quantity: 0, unitGrossCents: 10000, vatRate: "8" }],
     });
+  });
+
+  it("po wczesniejszej korekcie: pola startuja od stanu PO korekcie, ze wskazowka", async () => {
+    api.fetchEventInvoice.mockResolvedValue(
+      issued({
+        corrections: [
+          {
+            id: INVOICE_IDS.correction,
+            number: "KOR/1",
+            status: "issued",
+            correction_mode: "partial",
+          },
+        ],
+        current_lines: [
+          {
+            line_id: INVOICE_IDS.line1,
+            description: "Bilet: Standard - Kongres 27",
+            unit: "szt.",
+            quantity: 1,
+            unit_gross_cents: 10000,
+            vat_rate: "23",
+          },
+        ],
+      }),
+    );
+    api.createInvoiceCorrection.mockResolvedValue(INVOICE_IDS.correction);
+    open();
+    fireEvent.click(await screen.findByLabelText("adminEventInvoices.correction.modePartial"));
+    expect(screen.getByRole("note").textContent).toBe(
+      "adminEventInvoices.correction.currentStateHint",
+    );
+    const prices = screen.getAllByLabelText(PRICE);
+    expect(prices).toHaveLength(1);
+    expect(prices[0]).toHaveProperty("value", "100.00");
+    fireEvent.change(prices[0], { target: { value: "80,00" } });
+    fireEvent.change(screen.getByLabelText("adminEventInvoices.correction.reason"), {
+      target: { value: "Rabat" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.correction.create" }));
+    await waitFor(() => expect(api.createInvoiceCorrection).toHaveBeenCalled());
+    expect(api.createInvoiceCorrection.mock.calls[0]?.[0]).toEqual({
+      invoiceId: INVOICE_IDS.invoice,
+      mode: "partial",
+      reason: "Rabat",
+      lines: [{ lineId: INVOICE_IDS.line1, quantity: 1, unitGrossCents: 8000, vatRate: "23" }],
+    });
+  });
+
+  it("bez wystawionych korekt: bez wskazowki o stanie po korektach", async () => {
+    api.fetchEventInvoice.mockResolvedValue(
+      issued({
+        corrections: [
+          {
+            id: INVOICE_IDS.correction,
+            number: null,
+            status: "cancelled",
+            correction_mode: "full",
+          },
+        ],
+      }),
+    );
+    open();
+    fireEvent.click(await screen.findByLabelText("adminEventInvoices.correction.modePartial"));
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(screen.getAllByLabelText(QTY)).toHaveLength(2);
   });
 
   it("nieczytelna ilosc albo cena zatrzymuje wysylke", async () => {

@@ -16,6 +16,7 @@ import {
   EVENT_INVOICE_KSEF_STATUSES,
   EVENT_INVOICE_LOCALES,
   EVENT_INVOICE_PAYMENT_METHODS,
+  EVENT_INVOICE_REQUEST_BLOCKS,
   EVENT_INVOICE_REQUEST_STATUSES,
   EVENT_INVOICE_SOURCE_KINDS,
   EVENT_INVOICE_STATUSES,
@@ -64,6 +65,25 @@ describe("parytet zbiorow faktur z CHECK-ami migracji 20260927000200", () => {
 
   it("wycinek umie odmowic (nieznane ograniczenie to blad, nie pusta lista)", () => {
     expect(() => checkValues(SUPABASE, "event_invoices_nope_values")).toThrow(/Brak ograniczenia/);
+  });
+});
+
+/** Galezie `CASE ... END AS block` w `event_my_invoice_sources` (powod braku prosby). */
+function requestBlockValues(sql: string): string[] {
+  const end = sql.indexOf("END AS block");
+  if (end === -1) throw new Error("Brak powodu braku prosby w migracji faktur");
+  const slice = sql.slice(sql.lastIndexOf("CASE", end), end);
+  return [...slice.matchAll(/THEN '([a-z_]+)'/g)].map((match) => match[1]);
+}
+
+describe("parytet powodow braku prosby o fakture (request_block)", () => {
+  it("TS zna dokladnie te powody, ktore zwraca baza (w kolejnosci galezi)", () => {
+    expect(requestBlockValues(SUPABASE)).toEqual([...EVENT_INVOICE_REQUEST_BLOCKS]);
+    expect(requestBlockValues(DRIZZLE)).toEqual([...EVENT_INVOICE_REQUEST_BLOCKS]);
+  });
+
+  it("wycinek umie odmowic (brak galezi to blad, nie pusta lista)", () => {
+    expect(() => requestBlockValues("SELECT 1")).toThrow(/Brak powodu/);
   });
 });
 

@@ -27658,6 +27658,7 @@ export type Database = {
           sponsor_id: string
         }[]
       }
+      event_invoice_public_options: { Args: never; Returns: Json }
       event_invoice_request_cancel: {
         Args: { p_request_id: string }
         Returns: string
@@ -27776,6 +27777,7 @@ export type Database = {
           paid_at: string
           payment_state: string
           po_number: string
+          request_block: string
           request_deadline: string
           request_id: string
           request_status: string

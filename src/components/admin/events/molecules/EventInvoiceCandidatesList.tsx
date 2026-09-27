@@ -6,7 +6,9 @@
 // a ekran rysuje grupe na NIP. Zaznaczenie wielu zamowien daje JEDNA fakture
 // z pozycjami wedlug rodzaju biletu; jedno zamowienie - fakture z pozycja na
 // zamowienie. Proforma dziala dla dowolnego zaznaczenia (typowo pakiety
-// i zapisy oplacane przelewem).
+// i zapisy oplacane przelewem). Zaznaczenie z prosbami ROZNYCH nabywcow
+// (inne NIP-y) nie daje ani faktury, ani proformy - ekran mowi, ze trzeba
+// wystawic osobne dokumenty (baza i tak odmowi: `buyer_mismatch`).
 //
 // "WYSTAW Z PROSB" to masowa sciezka: baza wystawia faktury ze wszystkich
 // oczekujacych prosb o OPLACONE zamowienia (jedna na prosbe albo zbiorczo per
@@ -27,7 +29,7 @@ import type {
   InvoiceSourceRef,
 } from "@/lib/events/eventInvoicesApi";
 import { pickEnum, EVENT_INVOICE_SOURCE_KINDS } from "@/lib/events/eventInvoiceEnums";
-import { groupCandidates } from "@/lib/events/eventInvoiceViews";
+import { groupCandidates, hasBuyerMismatch } from "@/lib/events/eventInvoiceViews";
 import {
   useCreateInvoiceDraft,
   useInvoiceCandidates,
@@ -79,6 +81,7 @@ export function EventInvoiceCandidatesList({
   );
   const groups = groupCandidates(rows);
   const selectedRows = rows.filter((row) => selected.has(row.source_id));
+  const mismatch = hasBuyerMismatch(selectedRows);
   const busy = createDraft.isPending || issuePending.isPending;
 
   function toggle(ids: readonly string[], on: boolean): void {
@@ -227,15 +230,24 @@ export function EventInvoiceCandidatesList({
           <span className="mr-auto text-sm">
             {t("adminEventInvoices.candidates.selected", { count: selectedRows.length })}
           </span>
+          {mismatch ? (
+            <p role="alert" className="w-full text-sm text-destructive">
+              {t("adminEventInvoices.candidates.buyerMismatch")}
+            </p>
+          ) : null}
           <Button
             type="button"
             variant="outline"
-            disabled={!enabled || busy}
+            disabled={!enabled || busy || mismatch}
             onClick={() => draft("proforma")}
           >
             {t("adminEventInvoices.candidates.proforma")}
           </Button>
-          <Button type="button" disabled={!enabled || busy} onClick={() => draft("invoice")}>
+          <Button
+            type="button"
+            disabled={!enabled || busy || mismatch}
+            onClick={() => draft("invoice")}
+          >
             {selectedRows.length > 1
               ? t("adminEventInvoices.candidates.collective")
               : t("adminEventInvoices.candidates.invoice")}
@@ -298,6 +310,10 @@ function CandidateRow({
         </p>
         {row.amount_source === "price_list" ? (
           <p className="text-xs text-amber-700">{t("adminEventInvoices.candidates.priceList")}</p>
+        ) : row.amount_source === "price_list_net" ? (
+          <p className="text-xs text-amber-700">
+            {t("adminEventInvoices.candidates.priceListNet")}
+          </p>
         ) : null}
       </div>
       <div className="text-xs">

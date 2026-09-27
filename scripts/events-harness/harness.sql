@@ -1647,9 +1647,11 @@ GRANT ALL ON public.crm_consent_log TO service_role;
 --     ZNAK W ZNAK - zakladanie firmy po nazwie z blokada doradcza;
 --   * `payment_orders.paid_at`, `refunded_amount_cents` (20260624172041,
 --     20260814221337) - kwota brutto zamowienia z karty po zwrotach;
---   * `checkout_settings` (20260721063638) - wylacznie `tenant_id`
---     i `automatic_tax`, bo tylko z niego plaszczyzna rozliczen wynika
---     (`checkoutBillingPlane()`: brak wiersza = operator jest sprzedawca).
+--   * `checkout_settings` (20260721063638) - `tenant_id`, `automatic_tax`
+--     (plaszczyzna rozliczen, `checkoutBillingPlane()`: brak wiersza =
+--     operator jest sprzedawca), `invoice_creation` (Stripe wystawia fakture
+--     za platnosc jednorazowa) i `updated_at` (zmiana ustawien po zamowieniu
+--     = niepewna plaszczyzna); te same typy i DEFAULT-y co oryginal.
 ALTER TABLE public.crm_companies
   ADD COLUMN IF NOT EXISTS tax_id      text,
   ADD COLUMN IF NOT EXISTS address     text,
@@ -1695,8 +1697,10 @@ ALTER TABLE public.payment_orders
   ADD COLUMN IF NOT EXISTS refunded_amount_cents integer NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS public.checkout_settings (
-  tenant_id     uuid PRIMARY KEY REFERENCES public.tenants(id) ON DELETE CASCADE,
-  automatic_tax boolean NOT NULL DEFAULT false
+  tenant_id        uuid PRIMARY KEY REFERENCES public.tenants(id) ON DELETE CASCADE,
+  automatic_tax    boolean NOT NULL DEFAULT false,
+  invoice_creation boolean NOT NULL DEFAULT true,
+  updated_at       timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE public.checkout_settings ENABLE ROW LEVEL SECURITY;
 GRANT SELECT ON public.checkout_settings TO anon, authenticated;

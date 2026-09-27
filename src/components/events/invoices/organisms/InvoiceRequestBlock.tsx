@@ -6,6 +6,11 @@
 // nabywcy i to, co kupujacy musi wiedziec: ze dane juz sa zapisane, ze
 // faktura juz jest wystawiona, albo ze trzeba cos poprawic.
 //
+// BLOK TYLKO TAM, GDZIE FAKTURA MOZE POWSTAC (`controller.availability`):
+// organizator bez potwierdzonego wystawcy = nic; platnosc karta, za ktora
+// fakture wystawia operator platnosci = jedno zdanie zamiast pol nabywcy.
+// Dopoki nie wiadomo (pierwsze zapytanie) - nic, zeby nie mignac obietnica.
+//
 // BEZ `ssr`: oba ekrany sa `ssr: false` (sesja i swieza dostepnosc), wiec
 // organizm nie ma ryzyka hydratacji.
 import { useId } from "react";
@@ -22,6 +27,14 @@ export function InvoiceRequestBlock({ controller }: { controller: InvoiceRequest
   const { t } = useTranslation();
   const toggleId = useId();
 
+  if (controller.availability === "operator") {
+    return (
+      <p role="note" className="text-sm text-muted-foreground">
+        {t("eventInvoices.request.operatorIssues")}
+      </p>
+    );
+  }
+  if (controller.availability !== "available") return null;
   if (controller.invoicedNumber !== null) {
     return (
       <p role="status" className="text-sm text-muted-foreground">

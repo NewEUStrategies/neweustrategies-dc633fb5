@@ -130,6 +130,7 @@ export function myInvoiceSourceRow(
     paid_at: "2026-09-20T10:05:00.000Z",
     payment_state: "paid",
     po_number: NULLOWALNY_NAPIS,
+    request_block: NULLOWALNY_NAPIS,
     request_deadline: "2026-12-31",
     request_id: NULLOWALNY_NAPIS,
     request_status: NULLOWALNY_NAPIS,
@@ -282,6 +283,26 @@ export function invoiceDocumentJson(
       },
     ],
     corrections: [],
+    current_lines: [
+      {
+        line_id: INVOICE_IDS.line1,
+        description: "Bilet: Standard - Kongres 27",
+        unit: "szt.",
+        quantity: 1,
+        unit_gross_cents: 12300,
+        vat_rate: "23",
+        ticket_type_id: INVOICE_IDS.ticketType,
+      },
+      {
+        line_id: INVOICE_IDS.line2,
+        description: "Bilet: Standard - Kongres 27",
+        unit: "szt.",
+        quantity: 1,
+        unit_gross_cents: 12301,
+        vat_rate: "23",
+        ticket_type_id: INVOICE_IDS.ticketType,
+      },
+    ],
     ...rest,
   };
 }

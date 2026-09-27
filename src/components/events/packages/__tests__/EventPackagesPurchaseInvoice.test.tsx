@@ -5,11 +5,13 @@
 // zamowienia (`packageOrderId` z odpowiedzi bazy). Sekcja zakupu znika po
 // zamowieniu, wiec wynik zapisu mowi toast - odmowa nie przepada po cichu.
 // Bez zaznaczenia faktury zakup dziala jak dotad (osobny plik testow zakupu).
+// Pakiet oplaca sie przelewem: blok stoi, gdy organizator fakturuje, i znika,
+// gdy nie (kupujacy nie wpisuje danych firmy na prozno).
 //
 // KROK LEJKA "checkout_start" (Google Ads, f3) pada DOPIERO po bramce danych
 // nabywcy: odrzucony formularz nie sklada zamowienia, wiec nie rozpoczyna
 // platnosci - policzony krok zawyzalby lejek kampanii.
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
@@ -31,6 +33,7 @@ vi.mock("@/lib/events/admissionApi", async (importOriginal) => ({
   ...admission,
 }));
 const invoices = vi.hoisted(() => ({
+  fetchInvoicePublicOptions: vi.fn(),
   fetchMyInvoiceSources: vi.fn(),
   fetchMyInvoices: vi.fn(),
   saveInvoiceRequest: vi.fn(),
@@ -101,6 +104,11 @@ beforeEach(() => {
   });
   billing.fetchMyBillingProfile.mockResolvedValue(null);
   invoices.fetchMyInvoiceSources.mockResolvedValue([]);
+  invoices.fetchInvoicePublicOptions.mockResolvedValue({
+    enabled: true,
+    cardInvoiceable: false,
+    cardOperatorInvoice: true,
+  });
 });
 
 async function openPurchaseWithInvoice(): Promise<HTMLElement> {
@@ -110,7 +118,7 @@ async function openPurchaseWithInvoice(): Promise<HTMLElement> {
   fireEvent.change(screen.getByLabelText("eventPackages.buyerEmail"), {
     target: { value: "anna@example.com" },
   });
-  fireEvent.click(screen.getByLabelText("eventInvoices.request.toggle"));
+  fireEvent.click(await screen.findByLabelText("eventInvoices.request.toggle"));
   const buy = screen.getByRole("button", { name: /eventPackages\.buy(Action|Pending)/ });
   await waitFor(() => expect(buy).toHaveProperty("disabled", false));
   return buy;
@@ -135,6 +143,20 @@ function fillBuyer(): void {
 }
 
 describe("EventPackagesPurchase + faktura na firme", () => {
+  it("organizator nie fakturuje: bloku faktury nie ma, zakup bez prosby", async () => {
+    invoices.fetchInvoicePublicOptions.mockResolvedValue({
+      enabled: false,
+      cardInvoiceable: false,
+      cardOperatorInvoice: true,
+    });
+    renderWithQueryClient(<EventPackagesPurchase slug="kongres-27" />);
+    fireEvent.click(await screen.findByRole("button", { name: /Pakiet firmowy/ }));
+    await waitFor(() => expect(invoices.fetchInvoicePublicOptions).toHaveBeenCalled());
+    await act(async () => {});
+    expect(screen.queryByLabelText("eventInvoices.request.toggle")).toBeNull();
+    expect(screen.queryByText("eventInvoices.request.operatorIssues")).toBeNull();
+  });
+
   it("niepoprawne dane nabywcy zatrzymuja zamowienie", async () => {
     const buy = await openPurchaseWithInvoice();
     fireEvent.click(buy);
