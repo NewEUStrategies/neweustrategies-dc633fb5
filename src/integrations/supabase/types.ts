@@ -20389,13 +20389,47 @@ export type Database = {
         }
         Returns: Json
       }
+      _event_cfp_audit_meta: {
+        Args: { p_status: string; p_submission_id: string; p_tenant: string }
+        Returns: Json
+      }
+      _event_cfp_clean_answers: {
+        Args: { p_answers: Json; p_event_id: string; p_tenant: string }
+        Returns: Json
+      }
+      _event_cfp_crm_status: {
+        Args: { p_status: string; p_submission_id: string; p_tenant: string }
+        Returns: string
+      }
       _event_cfp_is_open: {
         Args: { p_closes_at: string; p_opens_at: string; p_status: string }
         Returns: boolean
       }
+      _event_cfp_jsonb_int: { Args: { p_value: Json }; Returns: number }
       _event_cfp_phase: {
         Args: { p_closes_at: string; p_opens_at: string; p_status: string }
         Returns: string
+      }
+      _event_cfp_resolve_person: {
+        Args: { p_speaker: Json; p_tenant: string; p_uid: string }
+        Returns: string
+      }
+      _event_cfp_review_summary: {
+        Args: { p_submission_id: string; p_tenant: string }
+        Returns: Json
+      }
+      _event_cfp_settings_payload: {
+        Args: { p_event_id: string; p_tenant: string }
+        Returns: Json
+      }
+      _event_cfp_speaker_review_summary: {
+        Args: {
+          p_min_reviews: number
+          p_status: string
+          p_submission_id: string
+          p_tenant: string
+        }
+        Returns: Json
       }
       _event_cfp_status_label: {
         Args: { p_lang: string; p_status: string }
@@ -20831,6 +20865,14 @@ export type Database = {
         Returns: number
       }
       _event_slugify: { Args: { _text: string }; Returns: string }
+      _event_speaker_overlay_for_person: {
+        Args: { p_person_id: string; p_tenant: string }
+        Returns: string
+      }
+      _event_speaker_roster_add: {
+        Args: { p_event_id: string; p_profile_id: string; p_tenant: string }
+        Returns: string
+      }
       _event_speaker_text_array: { Args: { p_value: Json }; Returns: string[] }
       _event_speaker_tracks: {
         Args: {
@@ -21743,6 +21785,31 @@ export type Database = {
       }
       admin_event_branding_save: {
         Args: { p_branding: Json; p_event_id: string }
+        Returns: Json
+      }
+      admin_event_cfp_fields_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          answers_count: number
+          field_type: string
+          help_en: string
+          help_pl: string
+          id: string
+          is_active: boolean
+          is_required: boolean
+          key: string
+          label_en: string
+          label_pl: string
+          options: Json
+          sort_order: number
+        }[]
+      }
+      admin_event_cfp_settings_get: {
+        Args: { p_event_id: string }
+        Returns: Json
+      }
+      admin_event_cfp_settings_save: {
+        Args: { p_payload: Json }
         Returns: Json
       }
       admin_event_checkin_manual: { Args: { p_payload: Json }; Returns: Json }
