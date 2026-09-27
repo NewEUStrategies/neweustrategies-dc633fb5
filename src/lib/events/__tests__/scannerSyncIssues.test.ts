@@ -96,6 +96,8 @@ function result(over: Partial<CheckinScanResult> = {}): CheckinScanResult {
     otherEventTitlePl: null,
     otherEventTitleEn: null,
     ...over,
+    // Baza bez decyzji urządzenia ma to samo zdanie, chyba że test mówi inaczej.
+    serverAdmit: over.serverAdmit ?? over.admit ?? false,
   };
 }
 
@@ -148,6 +150,18 @@ describe("wykrycie konfliktu po synchronizacji", () => {
       NOW,
     );
     expect(found).toMatchObject({ kind: "denied_offline", offlineOutcome: "unknown_code" });
+  });
+
+  it("odmowa offline zapisana przez bazę jako odmowa bramki (admit false), ale bilet ważny (serverAdmit) - konflikt ODWROTNY", () => {
+    // Od 20260926150000 (review #33) baza nie zamienia odesłania w obecność:
+    // wiersz ma odmowę, `admit` jest false, a o ważnym bilecie mówi
+    // `serverAdmit`. Porównanie z `admit` zgubiłoby ten konflikt.
+    const found = detectConflict(
+      item({ offlineAdmitted: false, offlineOutcome: "unknown_code" }),
+      result({ admit: false, serverAdmit: true }),
+      NOW,
+    );
+    expect(found).toMatchObject({ kind: "denied_offline", serverOutcome: "denied_not_registered" });
   });
 
   it("zgodne decyzje i skan bez decyzji offline NIE są konfliktem", () => {

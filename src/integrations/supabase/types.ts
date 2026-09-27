@@ -7111,6 +7111,7 @@ export type Database = {
           occurred_at: string | null
           offline_admitted: boolean | null
           offline_outcome: string | null
+          offline_server_result: string | null
           operator_user_id: string | null
           person_id: string
           registration_id: string | null
@@ -7135,6 +7136,7 @@ export type Database = {
           occurred_at?: string | null
           offline_admitted?: boolean | null
           offline_outcome?: string | null
+          offline_server_result?: string | null
           operator_user_id?: string | null
           person_id: string
           registration_id?: string | null
@@ -7159,6 +7161,7 @@ export type Database = {
           occurred_at?: string | null
           offline_admitted?: boolean | null
           offline_outcome?: string | null
+          offline_server_result?: string | null
           operator_user_id?: string | null
           person_id?: string
           registration_id?: string | null
@@ -21711,6 +21714,7 @@ export type Database = {
           _direction: string
           _event_id: string
           _note: string
+          _offline_denied?: string
           _operator: string
           _person_id: string
           _source: string
@@ -23254,6 +23258,7 @@ export type Database = {
           checkpoint_name_pl: string
           company: string
           conflict: boolean
+          conflict_kind: string
           device_id: string
           device_label: string
           device_scanned_at: string
@@ -23268,6 +23273,7 @@ export type Database = {
           occurred_at: string
           offline_admitted: boolean
           offline_outcome: string
+          offline_server_result: string
           operator_name: string
           operator_user_id: string
           person_id: string
