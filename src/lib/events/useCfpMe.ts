@@ -6,6 +6,9 @@
 //   * `["event-cfp-me", slug, ...]` - dane WOŁAJĄCEGO (zgłoszenia, panel,
 //     kolejka). Ten korzeń unieważnia globalna synchronizacja zdarzeń domeny
 //     (`eventInvalidationMap`) po każdej zmianie zgłoszenia i oceny.
+// Fabryki kluczy i hook panelu prelegenta mieszkają w `useCfpShell` (chrome
+// strony wydarzenia nie może importować tego pliku - patrz tamten nagłówek);
+// tutaj są re-eksportowane, żeby strony naboru miały jedno źródło importu.
 // Wylogowanie czyści cały cache (`useAuth`), więc klucz własnych danych nie
 // musi nieść identyfikatora konta - tak samo jak `["event-me", slug, ...]`.
 //
@@ -25,7 +28,6 @@ import {
   fetchCfpReview,
   fetchCfpReviewQueue,
   fetchMyCfpSubmissions,
-  fetchSpeakerPanel,
   respondCfpSubmission,
   saveCfpReview,
   saveCfpSubmission,
@@ -44,33 +46,15 @@ import type {
   CfpReviewDetail,
   CfpReviewQueue,
   CfpWriteResult,
-  SpeakerPanel,
 } from "@/lib/events/cfpSurface";
+import { CFP_PUBLIC_STALE_MS, cfpMeKeys, cfpPublicKeys } from "@/lib/events/useCfpShell";
 
-export const cfpPublicKeys = {
-  all: ["event-cfp-public"] as const,
-  slug: (slug: string) => [...cfpPublicKeys.all, slug] as const,
-};
-
-export const cfpMeKeys = {
-  all: ["event-cfp-me"] as const,
-  slug: (slug: string) => [...cfpMeKeys.all, slug] as const,
-  submissions: (slug: string) => [...cfpMeKeys.slug(slug), "submissions"] as const,
-  panel: (slug: string) => [...cfpMeKeys.slug(slug), "panel"] as const,
-  queue: (slug: string) => [...cfpMeKeys.slug(slug), "queue"] as const,
-  review: (slug: string, submissionId: string) =>
-    [...cfpMeKeys.slug(slug), "review", submissionId] as const,
-};
+export { cfpMeKeys, cfpPublicKeys, useSpeakerPanel } from "@/lib/events/useCfpShell";
 
 /**
- * Faza naboru może przejść z `scheduled` w `open` w trakcie wizyty, a strona
- * i tak odczytuje stan z bazy - minuta to kompromis między świeżością a ruchem.
- */
-const PUBLIC_STALE_MS = 60_000;
-
-/**
- * `enabled` = `false` do montażu: strona i zakładka naboru czytają fazę
- * WYŁĄCZNIE po stronie klienta (SSR i pierwszy render są identyczne).
+ * `enabled` = `false` do montażu: strona naboru czyta fazę WYŁĄCZNIE po
+ * stronie klienta (SSR i pierwszy render są identyczne). Zakładka w pasku
+ * pyta o samą fazę własnym kluczem (`useCfpShell.useCfpTabOpen`).
  */
 export function useCfpPublic(
   slug: string,
@@ -80,7 +64,7 @@ export function useCfpPublic(
     queryKey: cfpPublicKeys.slug(slug),
     queryFn: () => fetchCfpPublic(slug),
     enabled: enabled && slug !== "",
-    staleTime: PUBLIC_STALE_MS,
+    staleTime: CFP_PUBLIC_STALE_MS,
   });
 }
 
@@ -91,18 +75,6 @@ export function useMyCfpSubmissions(
   return useQuery({
     queryKey: cfpMeKeys.submissions(slug),
     queryFn: () => fetchMyCfpSubmissions(slug),
-    enabled: enabled && slug !== "",
-    staleTime: 30_000,
-  });
-}
-
-export function useSpeakerPanel(
-  slug: string,
-  enabled: boolean,
-): UseQueryResult<SpeakerPanel | null, Error> {
-  return useQuery({
-    queryKey: cfpMeKeys.panel(slug),
-    queryFn: () => fetchSpeakerPanel(slug),
     enabled: enabled && slug !== "",
     staleTime: 30_000,
   });

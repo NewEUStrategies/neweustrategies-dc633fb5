@@ -19,12 +19,9 @@
 import type { CheckinDirection, ScannerScope } from "@/lib/events/onsiteEnums";
 import { isScannerScope } from "@/lib/events/onsiteEnums";
 
-/** Kształt tokenu wymuszany przez `_event_scanner_device_auth`. */
-export const SCANNER_TOKEN_PATTERN = /^[A-Za-z0-9_-]{16,128}$/;
-
-export function isScannerToken(value: string): boolean {
-  return SCANNER_TOKEN_PATTERN.test(value.trim());
-}
+// Kształt tokenu mieszka w `scannerToken` (trasa `/scanner` sprawdza go
+// w `validateSearch`, czyli w chunku wejściowym - patrz nagłówek tamtego pliku).
+export { SCANNER_TOKEN_PATTERN, isScannerToken } from "@/lib/events/scannerToken";
 
 export interface ScannerCheckpoint {
   id: string;

@@ -60,14 +60,9 @@ export const eventCfpPl = {
       empty: "Bez odpowiedzi",
     },
 
-    // Zakładka nawigacji wydarzenia i odnośniki z panelu „Mój udział".
-    tab: "Nabór prelegentów",
-    me: {
-      speakerPanel: "Panel prelegenta",
-      speakerPanelHint: "Twoje zgłoszenia, profil prelegenta, wystąpienia i materiały.",
-      reviewerPanel: "Panel recenzenta",
-      reviewerPanelHint: "Zgłoszenia do oceny w naborze prelegentów.",
-    },
+    // Zakładka nawigacji wydarzenia i odnośniki z panelu „Mój udział" są
+    // w `i18n-event-front` (`eventFront.cfp.*`): jadą w chunku powłoki, na
+    // każdej stronie wydarzenia, więc nie mogą ciągnąć tego słownika.
 
     common: {
       loading: "Wczytuję…",
@@ -418,14 +413,6 @@ export const eventCfpEn = {
       yes: "Yes",
       no: "No",
       empty: "No answer",
-    },
-
-    tab: "Call for speakers",
-    me: {
-      speakerPanel: "Speaker panel",
-      speakerPanelHint: "Your submissions, speaker profile, sessions and materials.",
-      reviewerPanel: "Reviewer panel",
-      reviewerPanelHint: "Submissions to review in the call for speakers.",
     },
 
     common: {
