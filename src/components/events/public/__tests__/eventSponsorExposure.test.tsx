@@ -598,6 +598,41 @@ describe("reklama na stronie głównej", () => {
     expect(screen.queryByRole("complementary")).toBeNull();
   });
 
+  it("obrót ekranu: pomiar przechodzi na planszę, która JEST na ekranie, i ją liczy", async () => {
+    // Baner i plansza to dwa różne elementy. Hak, który obserwował baner, nie
+    // może zostać przy odłączonym elemencie - wtedy plansza po obrocie nigdy
+    // nie zaliczyłaby wyświetlenia.
+    const screenSize = viewport(true);
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const t = trackerDeps();
+    withClient(tracked(<EventHomeAd slug="kongres" />, t.deps));
+    const banner = await screen.findByRole("complementary");
+    const live = () => FakeObserver.instances.filter((observer) => !observer.disconnected);
+    expect(live().flatMap((observer) => observer.observed)).toEqual([banner]);
+
+    screenSize.change(false);
+    const dialog = screen.getByRole("dialog");
+    const watched = live().flatMap((observer) => observer.observed);
+    expect(watched).toHaveLength(1);
+    expect(watched[0]).toBe(dialog);
+    expect(dialog.isConnected).toBe(true);
+
+    // Widoczność zgłasza obserwator elementu, który jest na ekranie.
+    vi.useFakeTimers();
+    for (const observer of live()) act(() => observer.fire(1));
+    act(() => vi.advanceTimersByTime(1000));
+    act(() => {
+      window.dispatchEvent(new Event("pagehide"));
+    });
+    expect(t.items()).toEqual([{ placement: "home_ad", kind: "view", home_ad_id: AD_1 }]);
+
+    // I z powrotem: baner po obrocie znów jest mierzony (nowy montaż).
+    screenSize.change(true);
+    const again = live().flatMap((observer) => observer.observed);
+    expect(again).toHaveLength(1);
+    expect(again[0]).toBe(screen.getByRole("complementary"));
+  });
+
   it("brak reklam i przeglądarka bez matchMedia: nic, a bez reklam - bez obserwatora", async () => {
     h.rpc?.setData("event_home_ads_for_viewer", []);
     vi.stubGlobal("matchMedia", undefined);
