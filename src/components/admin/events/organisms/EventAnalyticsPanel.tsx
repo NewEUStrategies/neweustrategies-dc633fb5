@@ -19,7 +19,10 @@
 //
 // RAPORT DLA SPONSORÓW MA WŁASNY EKRAN (`sponsor-report`) - tutaj stoi tylko
 // odnośnik, bo wyświetlenia i kliknięcia sponsorów to inny odbiorca (sponsor),
-// inne filtry i własny eksport.
+// inne filtry i własny eksport. Odnośnik znika razem z pozycją w sidebarze:
+// chowa go TEN SAM przełącznik (`sponsors` -> `sponsors` + `sponsorReport`,
+// reguła z `eventFeatures.ts`), bo przy wyłączonym sponsoringu prowadziłby na
+// ekran „moduł wyłączony".
 //
 // TO NIE JEST ZAMIENNIK `/admin/analytics`. Tam mieszka ruch serwisu (odslony,
 // zrodla, konwersje); tutaj wylacznie to, co da sie policzyc DLA TEGO
@@ -40,6 +43,7 @@ import { useRegistrationCounts } from "@/lib/events/useEventRegistrations";
 import { useMeetingStats } from "@/lib/events/useMeetings";
 import { useOnsiteStats } from "@/lib/events/useEventOnsite";
 import type { AdminEventDetailRow } from "@/lib/events/eventDetailApi";
+import { eventFeatureHidingSection, eventFeaturesFromJson } from "@/lib/events/eventFeatures";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import { ensureAgendaI18n } from "@/lib/i18n-admin-event-agenda";
 import { ensureI18n as ensureMeetingsI18n } from "@/lib/i18n-admin-event-meetings";
@@ -64,6 +68,8 @@ export function EventAnalyticsPanel({ row }: { row: AdminEventDetailRow }) {
   ensureAdsFunnelI18n();
   const { t } = useTranslation();
   const eventId = row.id;
+  const sponsorReportShown =
+    eventFeatureHidingSection(eventFeaturesFromJson(row.features), "sponsorReport") === null;
 
   const countsQ = useRegistrationCounts({
     eventId,
@@ -192,16 +198,18 @@ export function EventAnalyticsPanel({ row }: { row: AdminEventDetailRow }) {
         </Button>
       </EventStudioRow>
 
-      <EventStudioRow
-        label={t("adminEventSponsorReport.navLink.analyticsLabel")}
-        description={t("adminEventSponsorReport.navLink.analyticsDescription")}
-      >
-        <Button asChild variant="outline" size="sm" className="w-fit">
-          <Link to="/admin/events/$eventId/sponsor-report" params={{ eventId }}>
-            {t("adminEventSponsorReport.navLink.open")}
-          </Link>
-        </Button>
-      </EventStudioRow>
+      {sponsorReportShown ? (
+        <EventStudioRow
+          label={t("adminEventSponsorReport.navLink.analyticsLabel")}
+          description={t("adminEventSponsorReport.navLink.analyticsDescription")}
+        >
+          <Button asChild variant="outline" size="sm" className="w-fit">
+            <Link to="/admin/events/$eventId/sponsor-report" params={{ eventId }}>
+              {t("adminEventSponsorReport.navLink.open")}
+            </Link>
+          </Button>
+        </EventStudioRow>
+      ) : null}
 
       <EventStudioRow
         label={t("adminEvents.studio.analytics.siteTraffic")}
