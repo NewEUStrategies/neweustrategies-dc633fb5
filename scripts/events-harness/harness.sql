@@ -347,6 +347,30 @@ EXCEPTION WHEN OTHERS THEN
 END $$;
 
 -- ----------------------------------------------------------------------------
+-- `enqueue_notification` - ATRAPA PRODUCENTA DZWONKOW (sygnatura z 20260812091000
+-- i 20260926153300)
+-- ----------------------------------------------------------------------------
+-- Migracja platformy (bramka preferencji, rodzaje `event`/`billing`, push) NIE
+-- jest replayowana - jej zachowanie dowodzi pgTAP na prawdziwej funkcji. Tutaj
+-- stoi wylacznie sygnatura, zeby kod modulu, ktory wola producenta, kompilowal
+-- sie i biegl. Atrapa nic nie zapisuje i zwraca NULL - dokladnie to, co
+-- produkcja zwraca dla dzwonka wyciszonego preferencja. Plik 13 sprawdza jej
+-- TOZSAMOSC po komentarzu (`events-harness stub`), zeby atrapa nie udawala
+-- prawdziwej funkcji.
+CREATE OR REPLACE FUNCTION public.enqueue_notification(
+  p_user_id uuid, p_kind text, p_title_pl text, p_title_en text,
+  p_body_pl text DEFAULT NULL, p_body_en text DEFAULT NULL,
+  p_href text DEFAULT NULL, p_icon text DEFAULT NULL
+) RETURNS uuid
+LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT NULL::uuid
+$$;
+COMMENT ON FUNCTION public.enqueue_notification(uuid, text, text, text, text, text, text, text) IS
+  'events-harness stub: producent dzwonkow z 20260926153300 nie jest replayowany (zachowanie dowodzi pgTAP); atrapa zwraca NULL jak dzwonek wyciszony.';
+REVOKE ALL ON FUNCTION public.enqueue_notification(uuid, text, text, text, text, text, text, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.enqueue_notification(uuid, text, text, text, text, text, text, text) TO service_role;
+
+-- ----------------------------------------------------------------------------
 -- Wspolny trigger stempla `updated_at` (ksztalt z platformy; modul wiesza go
 -- na kazdej swojej tabeli)
 -- ----------------------------------------------------------------------------
@@ -790,17 +814,26 @@ CREATE POLICY "events staff write" ON public.events
   );
 
 -- ----------------------------------------------------------------------------
--- `event_rsvps` - ATRAPA (ksztalt z 20260713093000)
+-- `event_rsvps` - ATRAPA (ksztalt z 20260713093000 i 20260721150000)
 -- Modul Wydarzen migruje z niej dane do `event_registrations` i utrzymuje
--- zgodnosc wsteczna, wiec potrzebuje jej dokladnego ksztaltu.
+-- zgodnosc wsteczna, wiec potrzebuje jej dokladnego ksztaltu. Lista rezerwowa
+-- RSVP (20260721150000: status `waitlist` + `waitlisted_at` i spojnosc obu)
+-- jest czescia ksztaltu: sprzatanie po utracie biletu
+-- (`_event_legacy_rsvp_release`, 20260926153100) zwalnia tez wiersze
+-- `waitlist`, a plik 13 sprawdza to na takim wierszu.
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.event_rsvps (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   event_id uuid NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  status text NOT NULL DEFAULT 'going' CHECK (status IN ('going', 'interested', 'cancelled')),
+  status text NOT NULL DEFAULT 'going',
   reminded_at timestamptz,
+  waitlisted_at timestamptz,
+  CONSTRAINT event_rsvps_status_check
+    CHECK (status IN ('going', 'interested', 'cancelled', 'waitlist')),
+  CONSTRAINT event_rsvps_waitlist_marker_check
+    CHECK (status <> 'waitlist' OR waitlisted_at IS NOT NULL),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (event_id, user_id)
