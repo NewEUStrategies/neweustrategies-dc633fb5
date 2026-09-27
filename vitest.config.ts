@@ -2300,23 +2300,31 @@ export default defineConfig({
         // w miejscu, w którym go widać, a nie cicha dziura w średniej. Gdy
         // pokrycie runtime'owe kiedyś powstanie, ten wpis się podnosi.
         //
-        // 2026-09-27: POWSTAŁO, WPIS PODNIESIONY. `__tests__/export.functions.test.ts`
-        // woła handler przez `serverFnHarness` na atrapie, której RPC jest
-        // LENIWYM thenable'em jak builder PostgREST (inaczej „jedno RPC na moduł"
-        // niczego by nie dowodziło). Dowodzi zakresu właściciela W WYWOŁANIU,
-        // rozbicia modułów RPC-only (nabór prelegentów, kluby) z odsianiem kluczy
-        // spoza rejestru, stronicowania sieci kontaktów do sufitu, jawnej awarii
-        // sekcji, `truncated` i `drift`. Sprawdzone mutacjami źródła (usunięte
-        // `Promise.resolve`, zła kolumna właściciela, zamieniony kierunek zaproszeń,
-        // `undefined` zamiast pustej listy) - każda zapala test. Zmierzone
-        // 100/100/100/100; próg = zmierzone minus ~4 pp, jak w reszcie profilu.
-        // Bramki statyczne zostają: czytają kod, więc łapią to, czego test na
-        // atrapach nie zobaczy (nowe zapytanie bez filtra w gałęzi nieobjętej testem).
+        // KONSEKWENCJA DLA NOWYCH SEKCJI (2026-09-27, nabór prelegentów F1):
+        // skoro ciało server fn jest poza pomiarem, każda gałąź dopisana
+        // w nim to gałąź, której nikt nie wykonał - i ona ciągnie agregat
+        // `src/lib/profile/**` w dół (sekcja naboru zepchnęła go z 77 na
+        // 76,71% gałęzi w CI). Czysta logika sekcji (rozbiór zwrotki RPC,
+        // zawężenie kształtu) idzie więc do OSOBNEGO modułu z testem, a tutaj
+        // zostaje samo wywołanie. Pierwszy taki moduł: `cfpExportSection`
+        // niżej. Próg tego wpisu się nie zmienia.
         "src/lib/profile/export.functions.ts": {
           statements: 96,
           functions: 96,
           lines: 96,
           branches: 96,
+        },
+        // Rozbiór zwrotki `event_cfp_export_my_data` na cztery sekcje paczki
+        // RODO - wyjęty z ciała `export.functions.ts` (patrz wpis wyżej).
+        // Czysty moduł, więc 100% na wszystkich czterech metrykach, jak
+        // pozostałe czyste moduły profilu. ZMIERZONE 2026-09-27
+        // (`src/lib/events/__tests__/cfpExportSection.test.ts`):
+        // 100 / 100 / 100 / 100.
+        "src/lib/events/cfpExportSection.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
         },
         // CZYSTE MODUŁY profilu trzymamy pod 100% na wszystkich czterech
         // metrykach - tak jak czyste moduły czatu i płatności wyżej. Niosą

@@ -67,6 +67,7 @@ vi.mock("@/components/ThemeProvider", () => ({ useTheme: () => ({ theme: "light"
 import i18n from "@/lib/i18n";
 import { ConsentBanner } from "@/components/ConsentBanner";
 import { COOKIE_BANNER_DEFAULTS } from "@/lib/cookieBanner/config";
+import { REGISTRY_BY_CATEGORY } from "@/lib/cookieBanner/registry";
 
 const PL = COOKIE_BANNER_DEFAULTS.copy.pl;
 const EN = COOKIE_BANNER_DEFAULTS.copy.en;
@@ -199,13 +200,19 @@ describe("ConsentBanner - panel preferencji", () => {
 
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveAttribute("aria-modal", "true");
-    // Jeden przełącznik podmiotów na kategorię, każdy z liczbą podmiotów. Liczby
-    // rosną z każdą integracją w rejestrze (lejek Ads, raport sponsora), więc test
-    // nie przypina ich do jednej wartości - dwie kategorie po 4 dawały dwa
-    // identyczne przyciski i `getByRole` padał na „multiple elements".
-    expect(
-      within(dialog).getAllByRole("button", { name: new RegExp(`^${PL.showVendors} \\d+$`) }),
-    ).toHaveLength(4);
+    // Jeden przycisk podmiotów na kategorię, w kolejności kart: niezbędne,
+    // funkcjonalne, analityczne, marketingowe. Liczba w nazwie to liczba pozycji
+    // rejestru kategorii - zapytanie po samej liczbie było dwuznaczne, odkąd
+    // marketing (lejek reklam, pomiar sponsorów) ma tyle pozycji co niezbędne.
+    const vendorButtons = screen.getAllByRole("button", {
+      name: (name) => name.startsWith(PL.showVendors),
+    });
+    expect(vendorButtons).toHaveLength(4);
+    (["necessary", "functional", "analytics", "marketing"] as const).forEach((cat, i) => {
+      expect(vendorButtons[i]).toHaveAccessibleName(
+        `${PL.showVendors} ${REGISTRY_BY_CATEGORY[cat].length}`,
+      );
+    });
   });
 });
 

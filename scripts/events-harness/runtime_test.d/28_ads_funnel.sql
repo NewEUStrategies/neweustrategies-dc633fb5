@@ -2,7 +2,7 @@
 -- 28_ads_funnel - LEJEK SPRZEDAZY WYDARZENIA I KAMPANIE GOOGLE ADS
 --
 -- PO CO TEN PLIK ISTNIEJE
--- Migracja 20260926120000 stawia trzy powierzchnie o roznym zaufaniu:
+-- Migracja 20260927000300 stawia trzy powierzchnie o roznym zaufaniu:
 -- anonimowy zapis krokow lejka (service_role za endpointem publicznym),
 -- przypiecie atrybucji pod kluczem `manage_token` (anon) i panel organizatora
 -- (admin). Bramki tekstowe widza tylko ksztalt; to, czy identyfikator

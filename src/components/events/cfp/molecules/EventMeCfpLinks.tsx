@@ -8,15 +8,19 @@
 //
 // ŹRÓDŁO TO TEN SAM ODCZYT, CO PANEL PRELEGENTA (`event_my_speaker_panel`),
 // więc wejście w panel po kliknięciu nie pyta bazy drugi raz.
+//
+// LEKKA Z ZAMIARU: napisy są w słowniku frontu (`eventFront.cfp.*`, ładuje go
+// powłoka), a hook z `useCfpShell` dociąga fetcher panelu `import()`-em -
+// zakładka „Moje" nie niesie słownika naboru ani parserów jego stron.
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
-import { useSpeakerPanel } from "@/lib/events/useCfpMe";
-import { ensureEventCfpI18n } from "@/lib/i18n-event-cfp";
+import { useSpeakerPanel } from "@/lib/events/useCfpShell";
+import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
 export function EventMeCfpLinks({ slug, signedIn }: { slug: string; signedIn: boolean }) {
-  ensureEventCfpI18n();
+  ensureEventFrontI18n();
   const { t } = useTranslation();
   const panelQ = useSpeakerPanel(slug, signedIn);
   const panel = panelQ.data ?? null;
@@ -27,16 +31,16 @@ export function EventMeCfpLinks({ slug, signedIn }: { slug: string; signedIn: bo
   return (
     <div className="flex flex-wrap gap-2">
       {isSpeaker ? (
-        <Button asChild size="sm" variant="outline" title={t("eventCfp.me.speakerPanelHint")}>
+        <Button asChild size="sm" variant="outline" title={t("eventFront.cfp.speakerPanelHint")}>
           <Link to="/events/$slug/speaker" params={{ slug }}>
-            {t("eventCfp.me.speakerPanel")}
+            {t("eventFront.cfp.speakerPanel")}
           </Link>
         </Button>
       ) : null}
       {panel.isReviewer ? (
-        <Button asChild size="sm" variant="outline" title={t("eventCfp.me.reviewerPanelHint")}>
+        <Button asChild size="sm" variant="outline" title={t("eventFront.cfp.reviewerPanelHint")}>
           <Link to="/events/$slug/review" params={{ slug }}>
-            {t("eventCfp.me.reviewerPanel")}
+            {t("eventFront.cfp.reviewerPanel")}
           </Link>
         </Button>
       ) : null}

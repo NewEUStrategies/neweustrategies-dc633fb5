@@ -2,8 +2,10 @@
 //
 // "Potrzebuje faktury na firme" przy zakupie. Organizm tylko rysuje stan
 // kontrolera (logike zapisu testuje useInvoiceRequestController.test.tsx):
-// wystawiona faktura zamiast formularza, przelacznik, podpowiedz z profilu,
-// "zapamietaj", stany zapisu i odmowy.
+// brak bloku, gdy faktura organizatora nie moze powstac (i zdanie o
+// operatorze platnosci zamiast pol nabywcy), wystawiona faktura zamiast
+// formularza, przelacznik, podpowiedz z profilu, "zapamietaj", stany zapisu
+// i odmowy.
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -40,6 +42,7 @@ const PROFILE: BillingProfile = {
 function controller(overrides: Partial<InvoiceRequestController> = {}): InvoiceRequestController {
   const buyer = emptyBuyerDraft();
   return {
+    availability: "available",
     wanted: false,
     setWanted: vi.fn(),
     buyer,
@@ -61,6 +64,24 @@ function controller(overrides: Partial<InvoiceRequestController> = {}): InvoiceR
 }
 
 describe("InvoiceRequestBlock", () => {
+  it("organizator nie fakturuje albo jeszcze nie wiadomo: nic (zadnej obietnicy faktury)", () => {
+    const unavailable = render(
+      <InvoiceRequestBlock controller={controller({ availability: "unavailable" })} />,
+    );
+    expect(unavailable.container.innerHTML).toBe("");
+    unavailable.unmount();
+    const loading = render(
+      <InvoiceRequestBlock controller={controller({ availability: "loading" })} />,
+    );
+    expect(loading.container.innerHTML).toBe("");
+  });
+
+  it("platnosc karta fakturowana przez operatora: jedno zdanie zamiast pol nabywcy", () => {
+    render(<InvoiceRequestBlock controller={controller({ availability: "operator" })} />);
+    expect(screen.getByRole("note").textContent).toBe("eventInvoices.request.operatorIssues");
+    expect(screen.queryByRole("checkbox")).toBeNull();
+  });
+
   it("faktura juz wystawiona: sam komunikat z numerem, bez formularza", () => {
     render(<InvoiceRequestBlock controller={controller({ invoicedNumber: "FV/2026/09/0001" })} />);
     expect(screen.getByRole("status").textContent).toBe(

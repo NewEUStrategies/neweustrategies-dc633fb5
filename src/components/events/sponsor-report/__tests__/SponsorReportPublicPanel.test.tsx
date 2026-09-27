@@ -90,7 +90,9 @@ function report(patch: Record<string, unknown> = {}) {
       material_opens: 1,
       leads_total: 2,
       leads_consented: 1,
-      meetings_total: 3,
+      // Zaproszeń 5, umówionych 3 - sponsor widzi umówione.
+      meetings_total: 5,
+      meetings_accepted: 3,
       meetings_held: 1,
     },
     placements: [

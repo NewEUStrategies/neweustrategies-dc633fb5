@@ -21,7 +21,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { Card, CardContent } from "@/components/ui/card";
 import { EventsListManager } from "@/components/admin/events/organisms/EventsListManager";
-import { parseEventListParams, type EventListParams } from "@/lib/events/eventListParams";
+import { parseEventListParams, type EventListParams } from "@/lib/events/eventListSearch";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
 export const Route = createFileRoute("/admin/events/list")({
@@ -73,7 +73,7 @@ function AdminEventsListPage() {
   // sekcji wydarzenia nie przeskakuje ukladem.
   return (
     <div className="w-full p-4 sm:p-6">
-      <EventsListManager params={params} now={now} />
+      <EventsListManager params={params} now={now} canClone={isAdmin} />
     </div>
   );
 }

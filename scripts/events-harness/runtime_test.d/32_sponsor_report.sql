@@ -1,7 +1,7 @@
 -- ============================================================================
 -- 32 RAPORT DLA SPONSOROW - pomiar, raport w studiu, link dla sponsora, CRM
 --
--- Migracja `20260926140000_event_sponsor_report` (funkcja f6). Plik sprawdza:
+-- Migracja `20260927000500_event_sponsor_report` (funkcja f6). Plik sprawdza:
 --   * NAPRAWE reklam strony glownej na PRODUKCYJNEJ definicji
 --     `current_tenant_id()` (profil zalogowanego - NULL dla goscia): atrapa
 --     harnessu robi `COALESCE(_caller_tenant(), public_tenant_id())`, wiec
@@ -266,15 +266,32 @@ SELECT pg_temp.assert(
                WHERE v.id = (SELECT u FROM spr_q WHERE k = 'ad1')
                  AND v.sponsor_id = '32500000-0000-0000-0000-000000000001'),
   '32/naprawa: GOSC widzi aktywne reklamy (z id sponsora) przy produkcyjnym current_tenant_id()');
+-- Stary licznik jest PUSTY: naprawiony pod `public_tenant_id()` bylby
+-- otwartym dla anonima zapisem bez zgody, limitu i filtra botow (kazdy
+-- nabilby nim wyswietlenia w panelu). Reklame liczy teraz wylacznie ingest
+-- ekspozycji. Na starym ciele (licznik skalowany po naglowku hosta) ta
+-- asercja jest CZERWONA.
 SELECT pg_temp.assert(
-  public.event_home_ad_track((SELECT u FROM spr_q WHERE k = 'ad1'), 'view', 'sesja-prod-0001'),
-  '32/naprawa: licznik reklamy dziala dla goscia przy produkcyjnym current_tenant_id()');
+  NOT public.event_home_ad_track((SELECT u FROM spr_q WHERE k = 'ad1'), 'view', 'sesja-prod-0001')
+  AND NOT public.event_home_ad_track((SELECT u FROM spr_q WHERE k = 'ad1'), 'click', 'sesja-prod-0001')
+  AND NOT EXISTS (SELECT 1 FROM public.event_home_ad_events e
+                   WHERE e.ad_id = (SELECT u FROM spr_q WHERE k = 'ad1')),
+  '32/naprawa: stary licznik reklamy nie zapisuje niczego dla goscia (tylko ingest ekspozycji liczy reklame)');
+SELECT pg_temp.assert(
+  (SELECT p.provolatile = 'i' AND NOT p.prosecdef
+     FROM pg_proc p
+    WHERE p.oid = 'public.event_home_ad_track(uuid, text, text)'::regprocedure),
+  '32/naprawa: stary licznik to niezmienna zaslepka bez SECURITY DEFINER');
+-- Wiersz starego licznika sprzed zmiany (dane zostaja i licza sie w panelu -
+-- asercja "z OBU tabel" w sekcji ekspozycji).
+INSERT INTO public.event_home_ad_events (tenant_id, ad_id, kind, session_hash)
+VALUES ('11111111-1111-1111-1111-111111111111', (SELECT u FROM spr_q WHERE k = 'ad1'), 'view',
+        md5('sesja-archiwum-0001'));
 
 SELECT set_config('nes.public_tenant', '32000000-0000-0000-0000-0000000000b0', false);
 SELECT pg_temp.assert(
-  (SELECT count(*) FROM public.event_home_ads_for_viewer('spr-forum')) = 0
-  AND NOT public.event_home_ad_track((SELECT u FROM spr_q WHERE k = 'ad1'), 'view', 'sesja-prod-0002'),
-  '32/naprawa/izolacja: na hoscie najemcy B reklamy A nie istnieja i nie licza sie');
+  (SELECT count(*) FROM public.event_home_ads_for_viewer('spr-forum')) = 0,
+  '32/naprawa/izolacja: na hoscie najemcy B reklamy A nie istnieja');
 SELECT set_config('nes.public_tenant', '', false);
 
 -- Link logotypu na stronie publicznej (plaszczyzna tresci, gosc).
@@ -501,19 +518,32 @@ INSERT INTO public.event_registrations (id, tenant_id, event_id, person_id, stat
   ('32900000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111',
    '32e00000-0000-0000-0000-0000000000e1', '32b00000-0000-0000-0000-000000000002', 'approved', 'rsvp');
 ALTER TABLE public.event_meetings DISABLE TRIGGER USER;
+-- Kazdy stan gieldy raz: umowione to accepted + held + no_show (3), a NIE
+-- zaproszenie bez odpowiedzi, odmowa, odwolanie ani STARY wiersz przelozenia
+-- (`rescheduled` - nowy wiersz niesie spotkanie dalej, liczony podwojnie
+-- zawyzalby raport sponsora).
 INSERT INTO public.event_meetings
   (tenant_id, event_id, requester_registration_id, invitee_registration_id, starts_at, ends_at,
-   status, expires_at, responded_at, attendance_marked_at, sponsor_id)
+   status, expires_at, responded_at, attendance_marked_at, decline_reason, cancelled_at,
+   cancelled_side, sponsor_id)
 SELECT '11111111-1111-1111-1111-111111111111', '32e00000-0000-0000-0000-0000000000e1',
        '32900000-0000-0000-0000-000000000001', '32900000-0000-0000-0000-000000000002',
        m.starts_at, m.starts_at + interval '30 minutes', m.status, m.starts_at,
-       CASE WHEN m.status IN ('accepted', 'held') THEN m.starts_at - interval '1 hour' END,
-       CASE WHEN m.status = 'held' THEN m.starts_at + interval '30 minutes' END,
+       CASE WHEN m.status IN ('accepted', 'held', 'no_show', 'declined', 'rescheduled')
+            THEN m.starts_at - interval '1 hour' END,
+       CASE WHEN m.status IN ('held', 'no_show') THEN m.starts_at + interval '30 minutes' END,
+       CASE WHEN m.status = 'declined' THEN 'inny termin' END,
+       CASE WHEN m.status = 'cancelled' THEN m.starts_at - interval '2 hours' END,
+       CASE WHEN m.status = 'cancelled' THEN 'requester' END,
        '32500000-0000-0000-0000-000000000001'
   FROM (VALUES
     ('held', (((now() AT TIME ZONE 'Europe/Warsaw')::date + time '10:00') AT TIME ZONE 'Europe/Warsaw')),
     ('accepted', (((now() AT TIME ZONE 'Europe/Warsaw')::date + time '11:00') AT TIME ZONE 'Europe/Warsaw')),
-    ('invited', (((now() AT TIME ZONE 'Europe/Warsaw')::date + time '12:00') AT TIME ZONE 'Europe/Warsaw'))
+    ('invited', (((now() AT TIME ZONE 'Europe/Warsaw')::date + time '12:00') AT TIME ZONE 'Europe/Warsaw')),
+    ('declined', (((now() AT TIME ZONE 'Europe/Warsaw')::date + time '13:00') AT TIME ZONE 'Europe/Warsaw')),
+    ('cancelled', (((now() AT TIME ZONE 'Europe/Warsaw')::date + time '14:00') AT TIME ZONE 'Europe/Warsaw')),
+    ('rescheduled', (((now() AT TIME ZONE 'Europe/Warsaw')::date + time '15:00') AT TIME ZONE 'Europe/Warsaw')),
+    ('no_show', (((now() AT TIME ZONE 'Europe/Warsaw')::date + time '16:00') AT TIME ZONE 'Europe/Warsaw'))
   ) AS m(status, starts_at);
 ALTER TABLE public.event_meetings ENABLE TRIGGER USER;
 
@@ -536,8 +566,9 @@ BEGIN
     AND v_row.leads_avg_rating = 4.00,
     '32/raport: kontakty 4, z zywa zgoda 2 (wycofana zgoda NIE liczy sie), skany 5, srednia ocena 4');
   PERFORM pg_temp.assert(
-    v_row.meetings_total = 3 AND v_row.meetings_accepted = 2 AND v_row.meetings_held = 1,
-    '32/raport: spotkania 3, przyjete 2, odbyte 1');
+    v_row.meetings_total = 5 AND v_row.meetings_accepted = 3 AND v_row.meetings_held = 1,
+    format('32/raport: zaproszenia 5 (bez odwolanego i starego wiersza przelozenia), umowione 3 (accepted/held/no_show), odbyte 1; jest %s/%s/%s',
+      v_row.meetings_total, v_row.meetings_accepted, v_row.meetings_held));
   PERFORM pg_temp.assert(
     v_row.tier_name_pl = 'Zloty' AND v_row.company_id = '32c00000-0000-0000-0000-0000000000c1'
     AND v_row.is_published AND v_row.active_links = 0,
@@ -765,6 +796,8 @@ BEGIN
     AND (v_res#>>'{totals,leads_total}')::int = 4
     AND (v_res#>>'{totals,leads_consented}')::int = 2
     AND (v_res#>>'{totals,meetings_held}')::int = 1
+    AND (v_res#>>'{totals,meetings_accepted}')::int = 3
+    AND (v_res#>>'{totals,meetings_total}')::int = 5
     AND jsonb_typeof(v_res->'leads') = 'null'
     AND jsonb_array_length(v_res->'placements') >= 4
     AND jsonb_array_length(v_res->'series') >= 1,
@@ -842,12 +875,16 @@ DO $do$
 DECLARE
   v_res jsonb;
   v_lead public.crm_leads%ROWTYPE;
+  v_after uuid;
+  v_pages integer := 0;
+  v_seen integer := 0;
 BEGIN
   v_res := public.admin_event_lead_scans_push_to_crm(jsonb_build_object(
     'event_id', '32e00000-0000-0000-0000-0000000000e1'));
   PERFORM pg_temp.assert(
     v_res = jsonb_build_object('persons', 4, 'created', 1, 'updated', 1, 'skipped_no_email', 1,
-                               'skipped_no_consent', 1, 'failed', 0),
+                               'skipped_no_consent', 1, 'failed', 0,
+                               'has_more', false, 'next_after', NULL),
     format('32/CRM: przeniesienie: 1 nowy (zgoda), 1 wzbogacony, bez e-maila 1, bez zgody 1; jest %s', v_res));
 
   SELECT l.* INTO v_lead FROM public.crm_leads l
@@ -898,8 +935,108 @@ BEGIN
     'event_id', '32e00000-0000-0000-0000-0000000000e1', 'sponsor_id', '32500000-0000-0000-0000-000000000002'));
   PERFORM pg_temp.assert((v_res->>'persons')::int = 1,
     '32/CRM: filtr sponsora zaweza przeniesienie do jego kontaktow');
+
+  -- STRONY. Dawny sztywny LIMIT 5000 przenosil w kolko te same pierwsze
+  -- osoby, a reszte pomijal po cichu. Strona 1 osoby musi przejsc kursorem
+  -- po WSZYSTKICH czterech osobach, kazdej raz, i powiedziec, ze to koniec.
+  v_res := public.admin_event_lead_scans_push_to_crm(jsonb_build_object(
+    'event_id', '32e00000-0000-0000-0000-0000000000e1', 'limit', 1));
+  PERFORM pg_temp.assert(
+    (v_res->>'persons')::int = 1 AND (v_res->>'has_more')::boolean
+    AND (v_res->>'next_after')::uuid = (SELECT l.person_id FROM public.event_lead_scans l
+                                         WHERE l.event_id = '32e00000-0000-0000-0000-0000000000e1'
+                                         ORDER BY l.person_id LIMIT 1),
+    format('32/CRM/strony: pierwsza strona (limit 1) to najmniejsza osoba i has_more; jest %s', v_res));
+  LOOP
+    v_res := public.admin_event_lead_scans_push_to_crm(
+      jsonb_build_object('event_id', '32e00000-0000-0000-0000-0000000000e1', 'limit', 1)
+      || CASE WHEN v_after IS NULL THEN '{}'::jsonb
+              ELSE jsonb_build_object('after_person_id', v_after) END);
+    v_pages := v_pages + 1;
+    v_seen := v_seen + (v_res->>'persons')::int;
+    EXIT WHEN NOT (v_res->>'has_more')::boolean OR v_pages > 10;
+    PERFORM pg_temp.assert(
+      v_after IS NULL OR (v_res->>'next_after')::uuid > v_after,
+      '32/CRM/strony: kursor rosnie z kazda strona');
+    v_after := (v_res->>'next_after')::uuid;
+  END LOOP;
+  PERFORM pg_temp.assert(
+    v_pages = 4 AND v_seen = 4 AND v_res->'next_after' = 'null'::jsonb,
+    format('32/CRM/strony: 4 strony po 1 osobie, razem 4, ostatnia bez kursora; jest %s stron, %s osob',
+      v_pages, v_seen));
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.audit_log a
+      JOIN public.crm_leads l ON l.id = a.entity_id
+     WHERE l.email_norm = 'p1.spr@example.org' AND a.action = 'event.sponsor_lead.pushed') = 1,
+    '32/CRM/strony: przejscie stron nie dubluje wpisu osi czasu');
+
+  -- Rozmiar strony zaciskany do 1..500; nie-liczba = domyslne 500.
+  v_res := public.admin_event_lead_scans_push_to_crm(jsonb_build_object(
+    'event_id', '32e00000-0000-0000-0000-0000000000e1', 'limit', 0));
+  PERFORM pg_temp.assert((v_res->>'persons')::int = 1 AND (v_res->>'has_more')::boolean,
+    '32/CRM/strony: limit 0 zaciskany do 1');
+  v_res := public.admin_event_lead_scans_push_to_crm(jsonb_build_object(
+    'event_id', '32e00000-0000-0000-0000-0000000000e1', 'limit', 1000000));
+  PERFORM pg_temp.assert((v_res->>'persons')::int = 4 AND NOT (v_res->>'has_more')::boolean,
+    '32/CRM/strony: ogromny limit nie wywraca funkcji (bez przepelnienia liczby calkowitej)');
+  v_res := public.admin_event_lead_scans_push_to_crm(jsonb_build_object(
+    'event_id', '32e00000-0000-0000-0000-0000000000e1', 'limit', '1'));
+  PERFORM pg_temp.assert((v_res->>'persons')::int = 4,
+    '32/CRM/strony: limit nie-liczba to rozmiar domyslny');
+  -- Kursor za ostatnia osoba: pusta strona, bez kursora.
+  v_res := public.admin_event_lead_scans_push_to_crm(jsonb_build_object(
+    'event_id', '32e00000-0000-0000-0000-0000000000e1',
+    'after_person_id', 'ffffffff-ffff-ffff-ffff-ffffffffffff'));
+  PERFORM pg_temp.assert(
+    (v_res->>'persons')::int = 0 AND NOT (v_res->>'has_more')::boolean
+    AND v_res->'next_after' = 'null'::jsonb,
+    '32/CRM/strony: kursor za ostatnia osoba daje pusta strone bez kursora');
 END
 $do$;
+
+-- GRANICA 500. 501 osob bez e-maila (most pomija je od razu jako
+-- `email_missing`) zebranych przez nieopublikowanego sponsora S3 - filtr
+-- sponsora izoluje je od reszty scenografii. Strona to najwyzej 500 osob,
+-- a druga strona z kursora zabiera ostatnia.
+INSERT INTO public.event_people (id, tenant_id, first_name, last_name, source)
+SELECT ('32f00000-0000-0000-0000-' || lpad(g::text, 12, '0'))::uuid,
+       '11111111-1111-1111-1111-111111111111', 'Masowy', 'Kontakt ' || g, 'organizer'
+  FROM generate_series(1, 501) AS g;
+INSERT INTO public.event_lead_scans (tenant_id, event_id, sponsor_id, person_id, scanned_by_user_id)
+SELECT '11111111-1111-1111-1111-111111111111', '32e00000-0000-0000-0000-0000000000e1',
+       '32500000-0000-0000-0000-000000000003',
+       ('32f00000-0000-0000-0000-' || lpad(g::text, 12, '0'))::uuid,
+       '32a00000-0000-0000-0000-0000000000a1'
+  FROM generate_series(1, 501) AS g;
+
+DO $do$
+DECLARE
+  v_res jsonb;
+BEGIN
+  v_res := public.admin_event_lead_scans_push_to_crm(jsonb_build_object(
+    'event_id', '32e00000-0000-0000-0000-0000000000e1',
+    'sponsor_id', '32500000-0000-0000-0000-000000000003', 'limit', 100000));
+  PERFORM pg_temp.assert(
+    (v_res->>'persons')::int = 500 AND (v_res->>'skipped_no_email')::int = 500
+    AND (v_res->>'has_more')::boolean
+    AND (v_res->>'next_after')::uuid = '32f00000-0000-0000-0000-000000000500',
+    format('32/CRM/strony: strona to najwyzej 500 osob (limit zaciskany), kursor na 500.; jest %s', v_res));
+  v_res := public.admin_event_lead_scans_push_to_crm(jsonb_build_object(
+    'event_id', '32e00000-0000-0000-0000-0000000000e1',
+    'sponsor_id', '32500000-0000-0000-0000-000000000003',
+    'after_person_id', v_res->>'next_after'));
+  PERFORM pg_temp.assert(
+    (v_res->>'persons')::int = 1 AND NOT (v_res->>'has_more')::boolean
+    AND v_res->'next_after' = 'null'::jsonb,
+    format('32/CRM/strony: druga strona zabiera 501. osobe i konczy; jest %s', v_res));
+END
+$do$;
+
+DELETE FROM public.event_lead_scans l
+ WHERE l.sponsor_id = '32500000-0000-0000-0000-000000000003'
+   AND l.person_id::text LIKE '32f00000-%';
+DELETE FROM public.event_person_crm_links k WHERE k.person_id::text LIKE '32f00000-%';
+DELETE FROM public.event_people p WHERE p.id::text LIKE '32f00000-%';
 
 SELECT pg_temp.assert_raises_like(
   $q$SELECT public.admin_event_lead_scans_push_to_crm('{}'::jsonb)$q$,

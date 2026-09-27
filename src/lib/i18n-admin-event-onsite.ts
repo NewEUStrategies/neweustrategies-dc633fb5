@@ -257,6 +257,9 @@ export const adminEventOnsitePl = {
       conflictBadge: "konflikt",
       conflictHint:
         "Urządzenie wpuściło tę osobę bez sieci, a baza odmawia. Obecność nie została zapisana - zdecyduj ręcznie (odprawa w recepcji).",
+      conflictDeniedBadge: "odesłany offline",
+      conflictDeniedHint:
+        "Urządzenie bez sieci odesłało tę osobę, a bilet jest ważny. Obecność nie została zapisana - odszukaj ją (np. w recepcji) i odpraw ponownie.",
       offlineOutcome: "Decyzja urządzenia bez sieci: {{outcome}}",
     },
     offlineOutcomes: {
@@ -677,6 +680,9 @@ export const adminEventOnsiteEn = {
       conflictBadge: "conflict",
       conflictHint:
         "The device admitted this person without a network and the server refuses. Attendance was not recorded - decide manually (check-in at the desk).",
+      conflictDeniedBadge: "turned away offline",
+      conflictDeniedHint:
+        "The device turned this person away without a network, but the ticket is valid. Attendance was not recorded - find them (e.g. at the desk) and check them in again.",
       offlineOutcome: "Device decision without network: {{outcome}}",
     },
     offlineOutcomes: {

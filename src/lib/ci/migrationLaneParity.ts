@@ -331,29 +331,29 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
   // anulowanie) i dostaja wlasny bilet z kodem QR; ponowna wysylka z panelu.
   {
     tag: "0055_event_group_guests_follow_lead",
-    twin: "20260926100000_event_group_guests_follow_lead.sql",
+    twin: "20260926100001_event_group_guests_follow_lead.sql",
   },
   // Kod kwotowy schodzi z kazdego miejsca pakietu grupowego, a uzycie kodu
   // jest zuzywane razem z zamowieniem pakietu.
   {
     tag: "0056_event_package_coupon_per_seat",
-    twin: "20260926110000_event_package_coupon_per_seat.sql",
+    twin: "20260926110001_event_package_coupon_per_seat.sql",
   },
   {
     tag: "0057_event_group_guests_follow_lead",
     drizzleOnly:
-      "Zastosowanie SQL-u 0055 z panelu Lovable (0055 bylo w repozytorium, ale nie na bazie). SQL identyczny bajt w bajt i idempotentny; blizniak supabase to juz 20260926100000.",
+      "Zastosowanie SQL-u 0055 z panelu Lovable (0055 bylo w repozytorium, ale nie na bazie). SQL identyczny bajt w bajt i idempotentny; blizniak supabase to juz 20260926100001.",
   },
   {
     tag: "0058_event_package_coupon_per_seat",
     drizzleOnly:
-      "Zastosowanie SQL-u 0056 z panelu Lovable (0056 bylo w repozytorium, ale nie na bazie). SQL identyczny bajt w bajt i idempotentny; blizniak supabase to juz 20260926110000.",
+      "Zastosowanie SQL-u 0056 z panelu Lovable (0056 bylo w repozytorium, ale nie na bazie). SQL identyczny bajt w bajt i idempotentny; blizniak supabase to juz 20260926110001.",
   },
   // Odrzucenie i anulowanie prowadzacego zamyka takze przyjetych gosci (kod QR
   // przestaje wpuszczac), a platnosc Stripe przyjmuje gosci z kontrola miejsc.
   {
     tag: "0059_event_group_lead_closes_admitted_guests",
-    twin: "20260926120000_event_group_lead_closes_admitted_guests.sql",
+    twin: "20260926120001_event_group_lead_closes_admitted_guests.sql",
   },
   // Anulowanie zamowienia pakietu zwraca uzycie kodu, powrot z anulowania
   // zuzywa je ponownie.
@@ -370,7 +370,7 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
   {
     tag: "0062_event_group_lead_closes_admitted_guests",
     drizzleOnly:
-      "Zastosowanie SQL-u 0059 z panelu Lovable (bez komentarzy, instrukcje identyczne i idempotentne); blizniak supabase to juz 20260926120000.",
+      "Zastosowanie SQL-u 0059 z panelu Lovable (bez komentarzy, instrukcje identyczne i idempotentne); blizniak supabase to juz 20260926120001.",
   },
   {
     tag: "0063_event_package_order_cancel_returns_coupon",
@@ -382,11 +382,28 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     drizzleOnly:
       "Zastosowanie SQL-u 0061 z panelu Lovable (bez komentarzy, instrukcje identyczne i idempotentne); blizniak supabase to juz 20260926140000.",
   },
-  // Funkcje organizatora (PR #404): zapisy zastosowania z panelu Lovable bez
-  // komentarzy - SQL wykonywalny identyczny z pasem supabase, wiec to pelne
+  // Funkcje organizatora (PR #404): pas drizzle 0055-0064 z PR-a, z krotkimi
+  // naglowkami - SQL wykonywalny identyczny z pasem supabase, wiec to pelne
   // pary blizniacze (bramka porownuje je przy kazdym przebiegu). Numery
-  // 0059-0064 dziela prefiks z czescia 2 modulu Wydarzen - tag jest pelna
-  // nazwa pliku, wiec wpisy sie nie myla.
+  // 0055-0064 dziela prefiks z czescia 2 modulu Wydarzen - tag jest pelna
+  // nazwa pliku, wiec wpisy sie nie myla. Plikow drizzle nie przenumerowujemy
+  // ani nie usuwamy - repozytorium jest forward-only (tak jak w #388).
+  //
+  // PAS SUPABASE SZESCIU Z NICH ZMIENIL NAZWE (czysty `git mv`, tresc bajt
+  // w bajt). Piec plikow mialo wersje 20260926100000-140000 - TE SAME, pod
+  // ktorymi produkcja ma juz zapisane migracje czesci 2 (goscie grupy, kody
+  // na miejsce, zamkniecie gosci, zwrot kodu, benefit planu). Wersja jest
+  // kluczem `schema_migrations`, wiec nasze pliki zostalyby po cichu pominiete,
+  // a `supabase db start` (pgTAP) padal na kluczu. Nie byly wdrozone (brak
+  // zapisu drizzle, brak ich tabel w types.ts z zywej bazy), wiec przejscie na
+  // 20260927000100-000500 niczego nie gubi. Klon edycji (20260926170000,
+  // zaslepka) idzie na 20260927000800, bo klonuje tabele naboru, planu sali,
+  // kampanii i reklam ze sponsorem w funkcjach `LANGUAGE sql` (cialo
+  // sprawdzane przy CREATE) - musi przyjsc po nich. 20260926085900
+  // i 20260926090000 sa WDROZONE (zapisy Lovable 0065/0066), a 20260926150000
+  // i 20260926160000 nie koliduja i zaleza tylko od fundamentu - zostaja.
+  // Naglowki plikow drizzle nadal wskazuja nazwy supabase sprzed zmiany (pliki
+  // drizzle zostaja bajt w bajt); prawda jest ten rejestr.
   {
     tag: "0055_crm_consent_source_event",
     twin: "20260926085900_crm_consent_source_event.sql",
@@ -397,23 +414,23 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
   },
   {
     tag: "0057_event_cfp",
-    twin: "20260926100000_event_cfp.sql",
+    twin: "20260927000100_event_cfp.sql",
   },
   {
     tag: "0058_event_invoices",
-    twin: "20260926110000_event_invoices.sql",
+    twin: "20260927000200_event_invoices.sql",
   },
   {
     tag: "0059_event_ads_funnel",
-    twin: "20260926120000_event_ads_funnel.sql",
+    twin: "20260927000300_event_ads_funnel.sql",
   },
   {
     tag: "0060_event_seating",
-    twin: "20260926130000_event_seating.sql",
+    twin: "20260927000400_event_seating.sql",
   },
   {
     tag: "0061_event_sponsor_report",
-    twin: "20260926140000_event_sponsor_report.sql",
+    twin: "20260927000500_event_sponsor_report.sql",
   },
   {
     tag: "0062_event_scanner_offline",
@@ -425,7 +442,7 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
   },
   {
     tag: "0064_event_clone",
-    twin: "20260926170000_event_clone.sql",
+    twin: "20260927000800_event_clone.sql",
   },
   {
     tag: "0065_crm_consent_source_event",
@@ -443,6 +460,13 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
   {
     tag: "0067_event_registration_gaps_part3",
     twin: "20260926180000_event_registration_gaps_part3.sql",
+  },
+  // Most CRM zaklada nowy kontakt z imieniem i nazwiskiem (crm_lead.created.v1
+  // niesie je do HubSpot) i naklada komentarze, ktorych brak w zapisie 0066.
+  // Osobna para, bo fundament 20260926090000 jest juz wdrozony.
+  {
+    tag: "0068_event_person_crm_sync_lead_names",
+    twin: "20260927000900_event_person_crm_sync_lead_names.sql",
   },
 ];
 
@@ -482,10 +506,20 @@ function isCommentOperand(stmt: string): boolean {
   return /\bCOMMENT\s+ON\b[\s\S]*\bIS\s+$/i.test(stmt);
 }
 
-/** Koniec (wyłącznie) literału zaczynającego się na `at`; `''` w środku to escape. */
-function literalEnd(src: string, at: number): number {
+/**
+ * Koniec (wyłącznie) literału zaczynającego się na `at`; `''` w środku to escape.
+ * `backslash` - literał E'...': tam `\'` też jest escape'em i NIE zamyka
+ * literału (`E'a\';b'` to jeden napis `a';b`). Bez tego skaner kończył literał
+ * przy `\'`, a resztę pliku czytał z odwróconym cytowaniem - i spacja W ŚRODKU
+ * następnych literałów przestawała być widoczna dla odcisku.
+ */
+function literalEnd(src: string, at: number, backslash = false): number {
   let j = at + 1;
   while (j < src.length) {
+    if (backslash && src[j] === "\\") {
+      j += 2;
+      continue;
+    }
     if (src[j] === "'") {
       if (src[j + 1] === "'") {
         j += 2;
@@ -496,6 +530,53 @@ function literalEnd(src: string, at: number): number {
     j += 1;
   }
   return Math.min(j + 1, src.length);
+}
+
+/**
+ * Nazwa (słowo kluczowe albo identyfikator) jak w lekserze PostgreSQL: zaczyna
+ * się literą, `_` albo znakiem spoza ASCII, a dalej może mieć też cyfry i `$`.
+ * `$` W ŚRODKU nazwy (`a$b$c`) należy do niej - nie otwiera cytowania dolarami.
+ * Wspólne ze splitterem migracji, jak granice komentarzy niżej.
+ */
+export const SQL_IDENT_START = /[A-Za-z_\u0080-\uFFFF]/;
+export const SQL_IDENT_CONT = /[A-Za-z0-9_$\u0080-\uFFFF]/;
+/** Tag cytowania dolarami jak w PostgreSQL (także z literami spoza ASCII); `sticky`. */
+export const SQL_DOLLAR_TAG = /\$(?:[A-Za-z_\u0080-\uFFFF][A-Za-z0-9_\u0080-\uFFFF]*)?\$/y;
+
+/**
+ * Koniec komentarza `/* ... *\/` od `at` - ZAGNIEŻDŻONEGO, jak w PostgreSQL
+ * (`/* a /* b *\/ c *\/` to jeden komentarz); `-1`, gdy niedomknięty. Wspólny
+ * ze splitterem migracji (migrationSplit.ts): granice komentarzy w odcisku
+ * i w lekserze instrukcji muszą być TE SAME, inaczej dowód podziału porównuje
+ * dwa różne odczytania jednego pliku.
+ */
+export function sqlBlockCommentEnd(src: string, at: number): number {
+  let depth = 0;
+  let j = at;
+  while (j < src.length) {
+    if (src[j] === "/" && src[j + 1] === "*") {
+      depth += 1;
+      j += 2;
+    } else if (src[j] === "*" && src[j + 1] === "/") {
+      depth -= 1;
+      j += 2;
+      if (depth === 0) return j;
+    } else {
+      j += 1;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Koniec komentarza `--` od `at`: pierwszy `\n` ALBO `\r` (tak kończy go
+ * lekser PostgreSQL i psql - samotny CR też zamyka komentarz), bez niego.
+ * Wspólny ze splitterem migracji, jak `sqlBlockCommentEnd`.
+ */
+export function sqlLineCommentEnd(src: string, at: number): number {
+  let j = at;
+  while (j < src.length && src[j] !== "\n" && src[j] !== "\r") j += 1;
+  return j;
 }
 
 /**
@@ -546,6 +627,8 @@ function scan(src: string, opts: { maskCommentProse: boolean; dollarIsCode: bool
   let buf = "";
   let stmt = "";
   let i = 0;
+  /** Poprzedni token to samo `E`/`e` stojące tuż przed `'` - literał E'...'. */
+  let escapeLiteral = false;
 
   /** Oddaje zebrany tekst spoza literałów - złożony i ze zwartą spacją. */
   const flush = (): void => {
@@ -562,24 +645,27 @@ function scan(src: string, opts: { maskCommentProse: boolean; dollarIsCode: bool
 
     // Komentarze wycinamy TUTAJ, a nie przed wejściem do skanera: dopiero tu
     // wiadomo, czy `--` stoi w kodzie, czy w środku wartości. Zostaje spacja,
-    // żeby `a--c\nb` nie skleiło się w `ab`.
+    // żeby `a--c\nb` nie skleiło się w `ab`. Granice komentarzy są te same, co
+    // w PostgreSQL (`--` do `\n` albo `\r`, `/* */` zagnieżdżony) - inaczej
+    // koniec komentarza wypadałby w innym miejscu niż na bazie i skaner czytałby
+    // dalszy ciąg pliku z przesuniętym cytowaniem.
     if (ch === "-" && src[i + 1] === "-") {
-      const nl = src.indexOf("\n", i);
       buf += " ";
-      i = nl === -1 ? src.length : nl;
+      i = sqlLineCommentEnd(src, i);
       continue;
     }
     if (ch === "/" && src[i + 1] === "*") {
-      const close = src.indexOf("*/", i + 2);
+      const end = sqlBlockCommentEnd(src, i);
       buf += " ";
-      i = close === -1 ? src.length : close + 2;
+      i = end === -1 ? src.length : end;
       continue;
     }
 
     // $tag$ ... $tag$ - na wierzchu ciało funkcji/widoku (KOD), a w środku
     // takiego ciała już WARTOŚĆ, którą zostawiamy nietkniętą.
     if (ch === "$") {
-      const opener = /^\$[A-Za-z_][A-Za-z0-9_]*\$|^\$\$/.exec(src.slice(i));
+      SQL_DOLLAR_TAG.lastIndex = i;
+      const opener = SQL_DOLLAR_TAG.exec(src);
       if (opener) {
         const tag = opener[0];
         const bodyFrom = i + tag.length;
@@ -599,9 +685,10 @@ function scan(src: string, opts: { maskCommentProse: boolean; dollarIsCode: bool
       }
     }
 
-    // Literał pojedynczy; '' w środku to escape, nie koniec.
+    // Literał pojedynczy; '' w środku to escape, nie koniec (w E'...' także \').
     if (ch === "'") {
-      const end = literalEnd(src, i);
+      const end = literalEnd(src, i, escapeLiteral);
+      escapeLiteral = false;
       // `flush()` PRZED pytaniem o operand: dopiero on dokłada do `stmt` tekst
       // spoza literałów, a to w nim stoi `COMMENT ON ... IS `.
       flush();
@@ -631,6 +718,18 @@ function scan(src: string, opts: { maskCommentProse: boolean; dollarIsCode: bool
       out += src.slice(i, end);
       stmt += "x";
       i = end;
+      continue;
+    }
+
+    // Nazwa w całości, razem z `$` w środku - jak w lekserze PostgreSQL, żeby
+    // `a$b$c` nie otworzyło ciała `$b$`. Samo `E`/`e` tuż przed `'` to
+    // prefiks literału E'...' (a `somE'x'` to nazwa i zwykły literał).
+    if (SQL_IDENT_START.test(ch)) {
+      let j = i + 1;
+      while (j < src.length && SQL_IDENT_CONT.test(src[j]!)) j += 1;
+      escapeLiteral = j === i + 1 && (ch === "E" || ch === "e") && src[j] === "'";
+      buf += src.slice(i, j);
+      i = j;
       continue;
     }
 

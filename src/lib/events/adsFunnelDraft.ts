@@ -2,7 +2,7 @@
 // i wklejony raport kosztow (CSV z Google Ads albo z arkusza).
 //
 // WALIDACJA TU I W BAZIE. Reguly sa lustrem CHECK-ow i RAISE-ow migracji
-// 20260926120000 - formularz podpowiada przed zapisem, baza i tak odrzuci to
+// 20260927000300 - formularz podpowiada przed zapisem, baza i tak odrzuci to
 // samo (`adminAdsFunnelErrors.ts` tlumaczy jej odmowy).
 //
 // KWOTY W MIKRO. Google Ads raportuje koszt w jednostkach waluty (albo

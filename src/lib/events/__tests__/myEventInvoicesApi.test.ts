@@ -44,6 +44,33 @@ const BUYER = {
   city: "Gdansk",
 };
 
+describe("opcje faktur organizatora (event_invoice_public_options)", () => {
+  it("bez argumentow; flagi z bazy", async () => {
+    stub.setData("event_invoice_public_options", {
+      enabled: true,
+      card_invoiceable: false,
+      card_operator_invoice: true,
+    });
+    await expect(api.fetchInvoicePublicOptions()).resolves.toEqual({
+      enabled: true,
+      cardInvoiceable: false,
+      cardOperatorInvoice: true,
+    });
+    expect(stub.lastCall("event_invoice_public_options")?.keys()).toEqual([]);
+  });
+
+  it("nieczytelna odpowiedz = nic nie obiecujemy; blad = wyjatek", async () => {
+    stub.setData("event_invoice_public_options", null);
+    await expect(api.fetchInvoicePublicOptions()).resolves.toEqual({
+      enabled: false,
+      cardInvoiceable: false,
+      cardOperatorInvoice: false,
+    });
+    stub.setError("event_invoice_public_options", "boom");
+    await expect(api.fetchInvoicePublicOptions()).rejects.toThrow("boom");
+  });
+});
+
 describe("odczyty kupujacego", () => {
   it("zamowienia i dokumenty bez argumentow (tozsamosc z sesji)", async () => {
     stub.setData("event_my_invoice_sources", [myInvoiceSourceRow()]);

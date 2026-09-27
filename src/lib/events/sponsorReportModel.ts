@@ -62,7 +62,12 @@ export interface SponsorReportTotals {
   materialOpens: number;
   leadsTotal: number;
   leadsConsented: number;
-  meetingsTotal: number;
+  /**
+   * Spotkania UMÓWIONE (`meetings_accepted`: przyjęte, odbyte i nieobecność
+   * po przyjęciu) - nie zaproszenia bez odpowiedzi, odmowy, odwołania ani
+   * stary wiersz przełożonego spotkania.
+   */
+  meetingsScheduled: number;
   meetingsHeld: number;
 }
 
@@ -79,7 +84,7 @@ export function sponsorReportTotals(
     materialOpens: 0,
     leadsTotal: 0,
     leadsConsented: 0,
-    meetingsTotal: 0,
+    meetingsScheduled: 0,
     meetingsHeld: 0,
   };
   for (const row of rows) {
@@ -91,7 +96,7 @@ export function sponsorReportTotals(
     totals.materialOpens += reportNumber(row.material_opens);
     totals.leadsTotal += reportNumber(row.leads_total);
     totals.leadsConsented += reportNumber(row.leads_consented);
-    totals.meetingsTotal += reportNumber(row.meetings_total);
+    totals.meetingsScheduled += reportNumber(row.meetings_accepted);
     totals.meetingsHeld += reportNumber(row.meetings_held);
   }
   return totals;

@@ -9,7 +9,7 @@ W panelu Lovable, **w tej kolejności**, po 0055 i 0056 z części 1 (na bazie
 od `a7f9e6b` - Lovable zapisał ich zastosowanie jako drizzle 0057 i 0058,
 wpisy `drizzleOnly` w `MIGRATION_LANES`):
 
-1. `supabase/migrations/20260926120000_event_group_lead_closes_admitted_guests.sql`
+1. `supabase/migrations/20260926120001_event_group_lead_closes_admitted_guests.sql`
    (bliźniak `drizzle/migrations/0059_event_group_lead_closes_admitted_guests.sql`)
 2. `supabase/migrations/20260926130000_event_package_order_cancel_returns_coupon.sql`
    (bliźniak `drizzle/migrations/0060_event_package_order_cancel_returns_coupon.sql`)

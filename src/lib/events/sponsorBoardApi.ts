@@ -179,10 +179,18 @@ export function useTierLayouts(eventId: string): UseQueryResult<Map<string, Spon
   });
 }
 
-export function useSponsorLinks(eventId: string): UseQueryResult<Map<string, SponsorLink>> {
+/**
+ * Ustawienia linków logotypów wydarzenia. `enabled` = czy pytać (podgląd
+ * studia pyta tylko otwarty); bez wydarzenia nie pyta nigdy.
+ */
+export function useSponsorLinks(
+  eventId: string,
+  enabled = true,
+): UseQueryResult<Map<string, SponsorLink>> {
   return useQuery({
     queryKey: boardKeys.links(eventId),
     queryFn: () => fetchSponsorLinks(eventId),
+    enabled: enabled && eventId !== "",
   });
 }
 

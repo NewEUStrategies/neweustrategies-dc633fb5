@@ -229,7 +229,7 @@ export function SponsorReportPublicView({ report }: { report: PublicSponsorRepor
           <Kpi
             label={t("eventSponsorReport.kpi.meetings")}
             value={count(totals.meetingsHeld)}
-            hint={t("eventSponsorReport.kpi.meetingsHint", { count: totals.meetingsTotal })}
+            hint={t("eventSponsorReport.kpi.meetingsHint", { count: totals.meetingsScheduled })}
           />
         </div>
       </section>

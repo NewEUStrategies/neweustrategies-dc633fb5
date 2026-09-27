@@ -9,6 +9,8 @@
 //      oba komentarze, konflikt) - baza zastępuje ocenę w całości.
 //   4. Osoba spoza recenzentów dostaje „awarię" zamiast zdania, że nie
 //      jest recenzentem tego naboru.
+//   5. Afiliacja współprelegenta powtarza firmę zawartą już w stanowisku
+//      („Prezes CPK, CPK”) - reguła karty prelegenta nie działa w panelu.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 
@@ -272,6 +274,20 @@ describe("ReviewerPanelPage - ocena", () => {
             job_title: null,
             company_text: null,
           },
+          {
+            first_name: "Piotr",
+            last_name: "Prezes",
+            role: "moderator",
+            job_title: "Prezes CPK",
+            company_text: "CPK",
+          },
+          {
+            first_name: "Ola",
+            last_name: "Bez",
+            role: "host",
+            job_title: null,
+            company_text: "Fundacja",
+          },
         ],
         fields: [],
         track: null,
@@ -283,6 +299,11 @@ describe("ReviewerPanelPage - ocena", () => {
     expect(await screen.findByText("eventCfp.review.speakers")).toBeInTheDocument();
     expect(screen.getByText(/eventCfp\.roles\.speaker · CEO, NES/)).toBeInTheDocument();
     expect(screen.getByText("eventCfp.roles.panelist")).toBeInTheDocument();
+    // Firma powtórzona w stanowisku nie jest dopisywana drugi raz.
+    expect(screen.getByText("eventCfp.roles.moderator · Prezes CPK")).toBeInTheDocument();
+    expect(screen.queryByText(/Prezes CPK, CPK/)).not.toBeInTheDocument();
+    // Sama organizacja (bez stanowiska) zostaje pokazana.
+    expect(screen.getByText("eventCfp.roles.host · Fundacja")).toBeInTheDocument();
     expect(screen.getByText("eventCfp.review.noAnswers")).toBeInTheDocument();
     expect(screen.getByText("eventCfp.languages.pl")).toBeInTheDocument();
     expect(screen.queryByText("eventCfp.review.blind")).not.toBeInTheDocument();

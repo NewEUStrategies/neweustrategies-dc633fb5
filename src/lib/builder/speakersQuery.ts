@@ -34,7 +34,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { WidgetContent } from "@/lib/builder/types";
 import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import { edgeTtlCache } from "@/lib/ssrCache";
-import { parseSpeakerTracks, type SpeakerTrack } from "@/lib/events/speakerCard";
+import { parseSpeakerTracks, type SpeakerTrack } from "@/lib/events/speakerTracks";
 
 export type Lang = "pl" | "en";
 

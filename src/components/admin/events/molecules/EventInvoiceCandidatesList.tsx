@@ -6,11 +6,19 @@
 // a ekran rysuje grupe na NIP. Zaznaczenie wielu zamowien daje JEDNA fakture
 // z pozycjami wedlug rodzaju biletu; jedno zamowienie - fakture z pozycja na
 // zamowienie. Proforma dziala dla dowolnego zaznaczenia (typowo pakiety
-// i zapisy oplacane przelewem).
+// i zapisy oplacane przelewem). Zaznaczenie z prosbami ROZNYCH nabywcow
+// (inne NIP-y) nie daje ani faktury, ani proformy - ekran mowi, ze trzeba
+// wystawic osobne dokumenty (baza i tak odmowi: `buyer_mismatch`).
 //
 // "WYSTAW Z PROSB" to masowa sciezka: baza wystawia faktury ze wszystkich
 // oczekujacych prosb o OPLACONE zamowienia (jedna na prosbe albo zbiorczo per
 // NIP); blad jednej grupy nie wycofuje reszty, a ekran mowi, ile sie udalo.
+//
+// WPLATA BEZ MIEJSCA (20260926180000): oplacony zapis moze stac na liscie
+// rezerwowej albo czekac na decyzje organizatora - i skonczyc sie zwrotem.
+// Masowe wystawienie go pomija, a wiersz niesie te sama plakietke co lista
+// zgloszen (slownik zgloszen, bez nowych zdan), zeby organizator fakturujacy
+// ze szkicu (np. zaliczke) wiedzial, ze moze potrzebowac korekty.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -26,14 +34,20 @@ import type {
   IssuePendingResult,
   InvoiceSourceRef,
 } from "@/lib/events/eventInvoicesApi";
-import { pickEnum, EVENT_INVOICE_SOURCE_KINDS } from "@/lib/events/eventInvoiceEnums";
-import { groupCandidates } from "@/lib/events/eventInvoiceViews";
+import {
+  pickEnum,
+  EVENT_INVOICE_ADMISSIONS,
+  EVENT_INVOICE_SOURCE_KINDS,
+  type EventInvoiceAdmission,
+} from "@/lib/events/eventInvoiceEnums";
+import { groupCandidates, hasBuyerMismatch } from "@/lib/events/eventInvoiceViews";
 import {
   useCreateInvoiceDraft,
   useInvoiceCandidates,
   useIssuePendingInvoices,
 } from "@/lib/events/useEventInvoices";
 import { ensureAdminEventInvoicesI18n } from "@/lib/i18n-admin-event-invoices";
+import { ensureI18n as ensureRegistrationI18n } from "@/lib/i18n-admin-event-registration";
 
 type PaymentState = "paid" | "unpaid" | "partially_refunded";
 
@@ -46,6 +60,12 @@ const PAYMENT_LABEL_KEYS: Record<PaymentState, string> = {
 const PAID_VIA_LABEL_KEYS: Record<"card" | "transfer", string> = {
   card: "adminEventInvoices.candidates.paidVia.card",
   transfer: "adminEventInvoices.candidates.paidVia.transfer",
+};
+
+/** Oplacony zapis bez miejsca -> plakietka listy zgloszen (te same zdania). */
+const ADMISSION_BADGE_KEYS: Record<Exclude<EventInvoiceAdmission, "seated">, string> = {
+  waitlisted: "adminEventRegistration.registrations.badges.ticketPaidWaitlisted",
+  awaitingDecision: "adminEventRegistration.registrations.badges.ticketPaidAwaitingDecision",
 };
 
 function paymentState(value: string): PaymentState {
@@ -66,6 +86,7 @@ export function EventInvoiceCandidatesList({
   onBulkIssued,
 }: EventInvoiceCandidatesListProps) {
   ensureAdminEventInvoicesI18n();
+  ensureRegistrationI18n();
   const { t } = useTranslation();
   const candidatesQ = useInvoiceCandidates(eventId);
   const createDraft = useCreateInvoiceDraft(eventId);
@@ -79,6 +100,7 @@ export function EventInvoiceCandidatesList({
   );
   const groups = groupCandidates(rows);
   const selectedRows = rows.filter((row) => selected.has(row.source_id));
+  const mismatch = hasBuyerMismatch(selectedRows);
   const busy = createDraft.isPending || issuePending.isPending;
 
   function toggle(ids: readonly string[], on: boolean): void {
@@ -227,15 +249,24 @@ export function EventInvoiceCandidatesList({
           <span className="mr-auto text-sm">
             {t("adminEventInvoices.candidates.selected", { count: selectedRows.length })}
           </span>
+          {mismatch ? (
+            <p role="alert" className="w-full text-sm text-destructive">
+              {t("adminEventInvoices.candidates.buyerMismatch")}
+            </p>
+          ) : null}
           <Button
             type="button"
             variant="outline"
-            disabled={!enabled || busy}
+            disabled={!enabled || busy || mismatch}
             onClick={() => draft("proforma")}
           >
             {t("adminEventInvoices.candidates.proforma")}
           </Button>
-          <Button type="button" disabled={!enabled || busy} onClick={() => draft("invoice")}>
+          <Button
+            type="button"
+            disabled={!enabled || busy || mismatch}
+            onClick={() => draft("invoice")}
+          >
             {selectedRows.length > 1
               ? t("adminEventInvoices.candidates.collective")
               : t("adminEventInvoices.candidates.invoice")}
@@ -263,6 +294,7 @@ function CandidateRow({
       ? t("adminEventInvoices.candidates.package", { name: itemName })
       : t("adminEventInvoices.candidates.ticket", { name: itemName });
   const state = paymentState(row.payment_state);
+  const admission = pickEnum(EVENT_INVOICE_ADMISSIONS, row.admission);
   return (
     <li className="grid gap-2 px-3 py-2 text-sm sm:grid-cols-[auto_minmax(0,2fr)_minmax(0,2fr)_auto_minmax(0,1.5fr)] sm:items-center">
       <input
@@ -277,6 +309,11 @@ function CandidateRow({
         <p className="truncate text-xs text-muted-foreground">
           {label} · {t("adminEventInvoices.candidates.seats", { count: row.seats })}
         </p>
+        {admission === "seated" ? null : (
+          <Badge variant="secondary" className="mt-1">
+            {t(ADMISSION_BADGE_KEYS[admission])}
+          </Badge>
+        )}
       </div>
       <div className="min-w-0 text-xs">
         {row.request_id === null ? (
@@ -298,6 +335,10 @@ function CandidateRow({
         </p>
         {row.amount_source === "price_list" ? (
           <p className="text-xs text-amber-700">{t("adminEventInvoices.candidates.priceList")}</p>
+        ) : row.amount_source === "price_list_net" ? (
+          <p className="text-xs text-amber-700">
+            {t("adminEventInvoices.candidates.priceListNet")}
+          </p>
         ) : null}
       </div>
       <div className="text-xs">

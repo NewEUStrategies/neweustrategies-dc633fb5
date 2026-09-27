@@ -2,7 +2,7 @@
 
 **Data:** 2026-09-26
 **Zgłoszenie:** „kod na stałą kwotę odejmuje się raz od całego zamówienia, a nie od każdego biletu".
-**Migracja:** `supabase/migrations/20260926110000_event_package_coupon_per_seat.sql`
+**Migracja:** `supabase/migrations/20260926110001_event_package_coupon_per_seat.sql`
 **Harness:** `scripts/events-harness/runtime_test.d/71_package_coupons.sql`
 
 Kod w repozytorium zamyka trzy drogi, które dawały ten objaw (pakiet grupowy

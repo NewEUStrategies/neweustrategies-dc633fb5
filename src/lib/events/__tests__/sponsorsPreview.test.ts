@@ -214,6 +214,53 @@ describe("sponsorTiersFromAdminRows", () => {
     ]);
   });
 
+  it("cel logotypu wg ustawienia linku - ta sama regula, co publiczny parser", () => {
+    // Bez ustawienia podglad prowadzil ZAWSZE na strone firmy, takze partnera
+    // „bez linku" i partnera z adresem kampanii - inaczej niz strona publiczna.
+    const www = { snapshot_website: "https://firma.example" };
+    const [tier] = sponsorTiersFromAdminRows(
+      [
+        row({ id: "none", snapshot_name: "A", ...www }),
+        row({ id: "ext", snapshot_name: "B", ...www }),
+        row({ id: "ext-pusty", snapshot_name: "C", ...www }),
+        row({ id: "exh", snapshot_name: "D", ...www }),
+        row({ id: "bez-wpisu", snapshot_name: "E", ...www }),
+      ],
+      {
+        links: new Map([
+          ["none", { mode: "none", url: "https://go.example/x" }],
+          ["ext", { mode: "external", url: "https://go.example/kampania" }],
+          ["ext-pusty", { mode: "external", url: "" }],
+          ["exh", { mode: "exhibitor", url: "https://go.example/y" }],
+        ]),
+      },
+    );
+    const cel = Object.fromEntries(
+      tier.sponsors.map((sponsor) => [sponsor.id, [sponsor.linkMode, sponsor.href]]),
+    );
+    expect(cel).toEqual({
+      none: ["none", null],
+      ext: ["external", "https://go.example/kampania"],
+      // Tryb zewnetrzny bez adresu: logo bez linku, nie link w nieznane.
+      "ext-pusty": ["external", null],
+      exh: ["exhibitor", "https://firma.example"],
+      "bez-wpisu": ["exhibitor", "https://firma.example"],
+    });
+  });
+
+  it("bez ustawien linkow (zapytanie w locie albo padlo) cel to strona firmy", () => {
+    for (const links of [undefined, null]) {
+      const [tier] = sponsorTiersFromAdminRows(
+        [row({ id: "a", snapshot_website: "https://firma.example" })],
+        { links },
+      );
+      expect([tier.sponsors[0].linkMode, tier.sponsors[0].href]).toEqual([
+        "exhibitor",
+        "https://firma.example",
+      ]);
+    }
+  });
+
   it("pusta lista i brak danych nie wywracaja pasa", () => {
     expect(sponsorTiersFromAdminRows([])).toEqual([]);
     expect(sponsorTiersFromAdminRows(null)).toEqual([]);

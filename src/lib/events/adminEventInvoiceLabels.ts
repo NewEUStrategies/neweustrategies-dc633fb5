@@ -6,6 +6,7 @@
 // z szablonu), a zbiory kluczy sa zamkniete typami enumow - brakujaca
 // etykieta to blad kompilacji, nie surowa sciezka i18n na ekranie.
 import type {
+  EventInvoiceCorrectionHint,
   EventInvoiceKind,
   EventInvoiceKsefStatus,
   EventInvoiceLocale,
@@ -52,4 +53,11 @@ export const STATUS_LABEL_KEYS: Record<EventInvoiceStatus, string> = {
   draft: "adminEventInvoices.statuses.draft",
   issued: "adminEventInvoices.statuses.issued",
   cancelled: "adminEventInvoices.statuses.cancelled",
+};
+
+/** Plakietka "wymaga korekty" na wystawionej fakturze (`correction_hint`). */
+export const CORRECTION_HINT_LABEL_KEYS: Record<EventInvoiceCorrectionHint, string> = {
+  source_closed: "adminEventInvoices.documents.correctionHint.source_closed",
+  refunded: "adminEventInvoices.documents.correctionHint.refunded",
+  seats_reduced: "adminEventInvoices.documents.correctionHint.seats_reduced",
 };

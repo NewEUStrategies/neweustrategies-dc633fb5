@@ -198,10 +198,10 @@ export function RegistrationsListPanel({
   const [notifying, setNotifying] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  const rows = useMemo(() => listQ.data?.rows ?? [], [listQ.data]);
+  const rows = listQ.data?.rows ?? [];
   const total = listQ.data?.total ?? 0;
-  const rowIds = useMemo(() => rows.map((row) => row.id), [rows]);
-  const seatsQ = useSeatLookup(eventId, rowIds);
+  // Miejsca na sali - te same identyfikatory widocznej strony, co powiazania.
+  const seatsQ = useSeatLookup(eventId, pageIds);
 
   /**
    * Zgloszenie -> napisy miejsc. Przy kilku planach (konferencja + gala) napis
@@ -628,6 +628,11 @@ export function RegistrationsListPanel({
                     </Badge>
                     {ticket === null ? null : <Badge variant="outline">{ticket}</Badge>}
                     {group === null ? null : <Badge variant="outline">{group}</Badge>}
+                    {(seatsByRegistration.get(row.id) ?? []).map((label) => (
+                      <Badge key={label} variant="outline">
+                        {t("adminEventSeating.registrations.seat", { label })}
+                      </Badge>
+                    ))}
                     {leadName === null ? null : (
                       <Badge variant="outline">
                         {leadName === ""
