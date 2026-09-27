@@ -1,5 +1,5 @@
 // Zamknięte zbiory NABORU PRELEGENTÓW - lustro CHECK-ów z migracji
-// `20260926100000_event_cfp.sql`, jeden do jednego.
+// `20260927000100_event_cfp.sql`, jeden do jednego.
 //
 // OSOBNY, LEKKI MODUŁ. Te listy czyta i panel organizatora, i strona publiczna
 // naboru, i panel prelegenta. Gdyby stały w `cfpApi.ts` (panel), trasa

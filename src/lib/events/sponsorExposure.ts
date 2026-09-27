@@ -3,7 +3,7 @@
 // w studiu i raportu dla sponsora.
 //
 // LISTY SĄ LUSTREM CHECK-ÓW Z BAZY. `event_sponsor_exposures_placement_values`
-// i `..._kind_values` (migracja 20260926140000) są jedynym źródłem prawdy;
+// i `..._kind_values` (migracja 20260927000500) są jedynym źródłem prawdy;
 // test parytetu (`sponsorExposureDbEnumParity.test.ts`) czyta tekst migracji
 // i czerwieni się, gdy jedna strona dostanie wartość, której druga nie zna.
 // Wartość spoza listy i tak odrzuci baza - tutaj chodzi o to, żeby przeglądarka

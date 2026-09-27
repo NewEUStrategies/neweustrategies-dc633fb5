@@ -7,7 +7,7 @@
 // tekst panelu do chunka publicznego.
 //
 // KLUCZE MIEJSC SĄ LUSTREM BAZY. `placements.*` to camelCase wartości
-// `event_sponsor_exposures.placement` (CHECK z migracji 20260926140000);
+// `event_sponsor_exposures.placement` (CHECK z migracji 20260927000500);
 // mapę wartość -> klucz trzyma `sponsorReportLabels.ts` jako literały.
 // Klucze błędów to camelCase głów `RAISE EXCEPTION` (mapper
 // `adminSponsorReportErrors.ts`, bramka `eventErrorMapsI18n.gate.test.ts`).

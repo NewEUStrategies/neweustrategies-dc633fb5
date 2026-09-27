@@ -144,6 +144,23 @@ const GATED_PREFIXES = [
   // biletu i podpowiedź w profilu. Surowy klucz zamiast „nie da się dodać -
   // bilet anulowany” zostawia uczestnika bez wyjaśnienia tuż przed wejściem.
   "eventWallet",
+  // FUNKCJE UCZESTNIKA F1-F5 (spec B.14). Osiem nowych nakładek modułu wydarzeń
+  // - po dwie na Foundation i każdy z torów A/B/C - wchodzi pod bramkę OD
+  // PIERWSZEGO DNIA, razem z zasiewem, zanim tory dopiszą do nich pierwsze
+  // klucze: brak zdania w jednym języku to u uczestnika surowy klucz przy
+  // ofercie z listy rezerwowej, przekazaniu biletu albo certyfikacie, a u
+  // organizatora - przy terminie zwrotu. `eventHead` (tytuły dokumentów zakładek
+  // wydarzenia, w tym nowych tras F1-F5) ma parytet pełny już dziś, więc bramka
+  // nic nie kosztuje, a zamyka drogę tytułowi karty w jednym języku.
+  "eventParticipant",
+  "adminEventParticipant",
+  "eventCalendar",
+  "eventPlan",
+  "eventTicketActions",
+  "adminEventOffers",
+  "eventFollowUp",
+  "adminEventFollowUp",
+  "eventHead",
 ] as const;
 
 // Klucze, dla których identyczny tekst PL i EN jest poprawny (nazwy własne,

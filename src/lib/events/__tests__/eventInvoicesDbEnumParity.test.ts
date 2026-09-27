@@ -24,7 +24,7 @@ import {
 import { EVENT_INVOICE_VAT_RATES } from "@/lib/events/eventInvoiceMath";
 
 const SUPABASE = readFileSync(
-  join(process.cwd(), "supabase", "migrations", "20260926110000_event_invoices.sql"),
+  join(process.cwd(), "supabase", "migrations", "20260927000200_event_invoices.sql"),
   "utf8",
 );
 const DRIZZLE = readFileSync(
@@ -56,7 +56,7 @@ const PAIRS: ReadonlyArray<readonly [string, readonly string[]]> = [
   ["event_invoice_settings_default_locale_values", EVENT_INVOICE_LOCALES],
 ];
 
-describe("parytet zbiorow faktur z CHECK-ami migracji 20260926110000", () => {
+describe("parytet zbiorow faktur z CHECK-ami migracji 20260927000200", () => {
   it.each(PAIRS)("%s", (constraint, values) => {
     expect(checkValues(SUPABASE, constraint)).toEqual([...values]);
     expect(checkValues(DRIZZLE, constraint)).toEqual([...values]);

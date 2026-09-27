@@ -8,7 +8,7 @@
 // zapisywal, a jedyny strumien analityczny tnie query string (redactUrl).
 //
 // DLACZEGO CZYSTY MODUL. Ta sama walidacja stoi w SQL (`_event_ads_touch`
-// w migracji 20260926120000) i tu - klient nie wysyla niczego, czego baza
+// w migracji 20260927000300) i tu - klient nie wysyla niczego, czego baza
 // i tak by nie przyjela, a testy jednostkowe mierza kazda regule bez
 // przegladarki. Magazyn i zgody mieszkaja w `adAttributionStore.ts`.
 //

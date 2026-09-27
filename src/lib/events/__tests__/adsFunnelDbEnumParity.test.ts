@@ -1,5 +1,5 @@
 // BRAMKA: slowniki lejka Google Ads w TS zgadzaja sie z CHECK-ami migracji
-// 20260926120000_event_ads_funnel.sql.
+// 20260927000300_event_ads_funnel.sql.
 //
 // CO KONKRETNIE PSUJE SIE BEZ TYCH TESTOW. Kolumny sa `text` z `CHECK`-iem, wiec
 // kompilator widzi `string` - nowa wartosc dopisana po jednej stronie wychodzi

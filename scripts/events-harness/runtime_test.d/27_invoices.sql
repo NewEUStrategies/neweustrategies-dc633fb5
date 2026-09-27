@@ -2,7 +2,7 @@
 -- 27_invoices - FAKTURY NA FIRME ZA BILETY I PAKIETY (TAKZE ZBIORCZE)
 --
 -- PO CO TEN PLIK ISTNIEJE
--- Migracja 20260926110000 stawia silnik dokumentow organizatora: dane
+-- Migracja 20260927000200 stawia silnik dokumentow organizatora: dane
 -- wystawcy, prosby kupujacych, szkic z jednego albo WIELU zamowien, numeracje
 -- bez luk, wystawienie, proforme, korekte, stan KSeF i powiazanie z CRM.
 -- Wszystko to jest logika W BAZIE (SECURITY DEFINER + triggery), wiec jedynym

@@ -1636,7 +1636,7 @@ ALTER TABLE public.crm_consent_log ENABLE ROW LEVEL SECURITY;
 GRANT ALL ON public.crm_consent_log TO service_role;
 -- === /f0 ===
 
--- === f2: faktury wydarzen (20260926110000) - kartoteka firm, kasa, plaszczyzna rozliczen ===
+-- === f2: faktury wydarzen (20260927000200) - kartoteka firm, kasa, plaszczyzna rozliczen ===
 -- PO CO. Migracja faktur wydarzen czyta i uzupelnia trzy powierzchnie spoza
 -- modulu, ktorych atrapy wyzej nie znaja. Wchodzi dokladnie to, czego dotyka
 -- replay i asercje runtime_test.d/27_invoices.sql, PRZEPISANE Z ORYGINALOW:
@@ -1704,7 +1704,7 @@ GRANT ALL ON public.checkout_settings TO service_role;
 -- === /f2 ===
 
 -- === f3: lejek Google Ads - kolumny rozliczenia zamowienia ===
--- PO CO. Raport lejka i eksport konwersji offline (migracja 20260926120000)
+-- PO CO. Raport lejka i eksport konwersji offline (migracja 20260927000300)
 -- licza przychod NETTO zamowienia i czas konwersji: `payment_orders.paid_at`
 -- (20260624172041) i `payment_orders.refunded_amount_cents`
 -- (20260828055725). Ksztalt przepisany z oryginalow. Blok f2 wyzej dodaje

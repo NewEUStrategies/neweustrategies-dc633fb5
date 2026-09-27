@@ -6,7 +6,7 @@
 // pierwszej poprawce, a tu każda gałąź ma test bez renderu.
 //
 // PRZYCISKI WYNIKAJĄ ZE STANU WIERSZA - lustro przejść z migracji
-// `20260926100000_event_cfp.sql`. Lepiej nie pokazać przycisku, niż pokazać
+// `20260927000100_event_cfp.sql`. Lepiej nie pokazać przycisku, niż pokazać
 // go i przegrać z odmową bazy, której treść nic prelegentowi nie mówi.
 import {
   CFP_DECIDABLE_STATUSES,

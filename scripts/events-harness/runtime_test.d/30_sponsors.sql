@@ -2102,7 +2102,7 @@ SELECT pg_temp.assert(
 -- 19 -> 23: 20260922200000 (sekcje sponsorow) dolozyla cztery funkcje panelu -
 -- `admin_event_sponsor_links`, `admin_event_sponsor_set_link`,
 -- `admin_event_sponsor_tier_layouts` i `admin_event_sponsor_tier_set_layout`.
--- 23 -> 34: 20260926140000 (raport dla sponsorow) dolozyla jedenascie -
+-- 23 -> 34: 20260927000500 (raport dla sponsorow) dolozyla jedenascie -
 -- panel: `admin_event_sponsor_report_summary`, `_series`, `_leads_series`,
 -- `_link_issue`, `_links_list`, `_link_revoke`, `admin_event_company_sponsorships`;
 -- service_role: `event_sponsor_exposure_ingest`, `event_sponsor_exposures_prune`,

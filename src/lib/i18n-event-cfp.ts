@@ -7,7 +7,7 @@
 //
 // ETYKIETY STANÓW, RÓL I REKOMENDACJI SĄ WSPÓLNE Z PANELEM ORGANIZATORA
 // (`i18n-admin-event-cfp` importuje ten plik). Klucze stanów = wartości CHECK
-// z migracji `20260926100000_event_cfp.sql`, jeden do jednego.
+// z migracji `20260927000100_event_cfp.sql`, jeden do jednego.
 //
 // ODMOWA MÓWI, CO ZROBIĆ. `limit_reached` bez liczby z ogona komunikatu nie
 // powie prelegentowi, ile zgłoszeń wolno mu wysłać - stąd `{{count}}`.
