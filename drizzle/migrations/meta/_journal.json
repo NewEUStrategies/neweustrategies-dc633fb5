@@ -498,6 +498,13 @@
       "when": 1790467380000,
       "tag": "0070_event_registration_gaps_part3_part3",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1790524440178,
+      "tag": "0071_event_scanner_offline",
+      "breakpoints": true
     }
   ]
 }

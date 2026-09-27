@@ -6395,11 +6395,15 @@ export type Database = {
           last_repeat_at: string | null
           note: string | null
           occurred_at: string | null
+          offline_admitted: boolean | null
+          offline_outcome: string | null
+          offline_server_result: string | null
           operator_user_id: string | null
           person_id: string
           registration_id: string | null
           repeat_count: number
           result: string
+          roster_generated_at: string | null
           scanned_at: string
           source: string
           tenant_id: string
@@ -6416,11 +6420,15 @@ export type Database = {
           last_repeat_at?: string | null
           note?: string | null
           occurred_at?: string | null
+          offline_admitted?: boolean | null
+          offline_outcome?: string | null
+          offline_server_result?: string | null
           operator_user_id?: string | null
           person_id: string
           registration_id?: string | null
           repeat_count?: number
           result?: string
+          roster_generated_at?: string | null
           scanned_at?: string
           source?: string
           tenant_id: string
@@ -6437,11 +6445,15 @@ export type Database = {
           last_repeat_at?: string | null
           note?: string | null
           occurred_at?: string | null
+          offline_admitted?: boolean | null
+          offline_outcome?: string | null
+          offline_server_result?: string | null
           operator_user_id?: string | null
           person_id?: string
           registration_id?: string | null
           repeat_count?: number
           result?: string
+          roster_generated_at?: string | null
           scanned_at?: string
           source?: string
           tenant_id?: string
@@ -8116,6 +8128,8 @@ export type Database = {
           ticket_code_claimed_at: string | null
           ticket_code_sent_at: string | null
           ticket_code_undeliverable_at: string | null
+          ticket_revoked_at: string | null
+          ticket_revoked_notice_claimed_at: string | null
           ticket_type_id: string | null
           updated_at: string
           waitlist_notified_at: string | null
@@ -8154,6 +8168,8 @@ export type Database = {
           ticket_code_claimed_at?: string | null
           ticket_code_sent_at?: string | null
           ticket_code_undeliverable_at?: string | null
+          ticket_revoked_at?: string | null
+          ticket_revoked_notice_claimed_at?: string | null
           ticket_type_id?: string | null
           updated_at?: string
           waitlist_notified_at?: string | null
@@ -8192,6 +8208,8 @@ export type Database = {
           ticket_code_claimed_at?: string | null
           ticket_code_sent_at?: string | null
           ticket_code_undeliverable_at?: string | null
+          ticket_revoked_at?: string | null
+          ticket_revoked_notice_claimed_at?: string | null
           ticket_type_id?: string | null
           updated_at?: string
           waitlist_notified_at?: string | null
@@ -8373,8 +8391,11 @@ export type Database = {
           last_failed_scan_at: string | null
           last_seen_at: string | null
           locked_until: string | null
+          offline_roster: boolean
           revoked_at: string | null
           revoked_by: string | null
+          roster_download_count: number
+          roster_downloaded_at: string | null
           scan_count: number
           scopes: string[]
           sponsor_id: string | null
@@ -8398,8 +8419,11 @@ export type Database = {
           last_failed_scan_at?: string | null
           last_seen_at?: string | null
           locked_until?: string | null
+          offline_roster?: boolean
           revoked_at?: string | null
           revoked_by?: string | null
+          roster_download_count?: number
+          roster_downloaded_at?: string | null
           scan_count?: number
           scopes?: string[]
           sponsor_id?: string | null
@@ -8423,8 +8447,11 @@ export type Database = {
           last_failed_scan_at?: string | null
           last_seen_at?: string | null
           locked_until?: string | null
+          offline_roster?: boolean
           revoked_at?: string | null
           revoked_by?: string | null
+          roster_download_count?: number
+          roster_downloaded_at?: string | null
           scan_count?: number
           scopes?: string[]
           sponsor_id?: string | null
@@ -13476,6 +13503,8 @@ export type Database = {
           org_id: string | null
           period_end: string
           period_start: string
+          redeemed_at: string | null
+          registration_id: string | null
           released_at: string | null
           tenant_id: string
           tier_key: string
@@ -13490,6 +13519,8 @@ export type Database = {
           org_id?: string | null
           period_end: string
           period_start: string
+          redeemed_at?: string | null
+          registration_id?: string | null
           released_at?: string | null
           tenant_id: string
           tier_key: string
@@ -13504,6 +13535,8 @@ export type Database = {
           org_id?: string | null
           period_end?: string
           period_start?: string
+          redeemed_at?: string | null
+          registration_id?: string | null
           released_at?: string | null
           tenant_id?: string
           tier_key?: string
@@ -13522,6 +13555,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "member_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plan_ticket_claims_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
             referencedColumns: ["id"]
           },
           {
@@ -19361,6 +19401,7 @@ export type Database = {
           _direction: string
           _event_id: string
           _note: string
+          _offline_denied?: string
           _operator: string
           _person_id: string
           _source: string
@@ -19411,10 +19452,24 @@ export type Database = {
         }
         Returns: undefined
       }
-      _event_group_promote_freed: {
-        Args: { p_event_id: string; p_tenant: string; p_ticket_types: string[] }
-        Returns: number
-      }
+      _event_group_promote_freed:
+        | {
+            Args: {
+              p_event_id: string
+              p_tenant: string
+              p_ticket_types: string[]
+            }
+            Returns: number
+          }
+        | {
+            Args: {
+              p_event_id: string
+              p_skip_group: string
+              p_tenant: string
+              p_ticket_types: string[]
+            }
+            Returns: number
+          }
       _event_group_repair_stranded_guests: {
         Args: { p_limit?: number }
         Returns: number
@@ -19423,6 +19478,12 @@ export type Database = {
         Args: {
           p_guest: Database["public"]["Tables"]["event_registrations"]["Row"]
           p_lead: Database["public"]["Tables"]["event_registrations"]["Row"]
+        }
+        Returns: boolean
+      }
+      _event_guest_ticket_reached: {
+        Args: {
+          p_reg: Database["public"]["Tables"]["event_registrations"]["Row"]
         }
         Returns: boolean
       }
@@ -19546,6 +19607,30 @@ export type Database = {
         }
         Returns: string
       }
+      _event_plan_seat_link_backfill: { Args: never; Returns: Json }
+      _event_plan_seat_needed: {
+        Args: {
+          p_except_order?: string
+          p_reg: Database["public"]["Tables"]["event_registrations"]["Row"]
+          p_user: string
+        }
+        Returns: boolean
+      }
+      _event_plan_seat_release_lapsed: {
+        Args: { p_limit?: number }
+        Returns: number
+      }
+      _event_plan_seat_settle: {
+        Args: { p_lapsed_order?: string; p_registration_id: string }
+        Returns: string
+      }
+      _event_registration_paid_admission: {
+        Args: {
+          p_reg: Database["public"]["Tables"]["event_registrations"]["Row"]
+          p_ticket_type_id: string
+        }
+        Returns: string
+      }
       _event_registration_verdict: {
         Args: { _answers: Json; _event_id: string; _tenant: string }
         Returns: string
@@ -19567,8 +19652,48 @@ export type Database = {
           last_failed_scan_at: string | null
           last_seen_at: string | null
           locked_until: string | null
+          offline_roster: boolean
           revoked_at: string | null
           revoked_by: string | null
+          roster_download_count: number
+          roster_downloaded_at: string | null
+          scan_count: number
+          scopes: string[]
+          sponsor_id: string | null
+          tenant_id: string
+          token_hash: string
+          token_prefix: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "event_scanner_devices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      _event_scanner_device_auth_sync: {
+        Args: { _device_at: string; _scope: string; _token: string }
+        Returns: {
+          checkpoint_id: string | null
+          created_at: string
+          created_by: string | null
+          event_id: string
+          expires_at: string
+          fail_window_count: number
+          fail_window_started_at: string | null
+          failed_scan_count: number
+          id: string
+          is_active: boolean
+          label: string
+          last_failed_scan_at: string | null
+          last_seen_at: string | null
+          locked_until: string | null
+          offline_roster: boolean
+          revoked_at: string | null
+          revoked_by: string | null
+          roster_download_count: number
+          roster_downloaded_at: string | null
           scan_count: number
           scopes: string[]
           sponsor_id: string | null
@@ -19661,19 +19786,38 @@ export type Database = {
         }
         Returns: number
       }
+      _event_ticket_revoked_notices_claim: {
+        Args: { p_limit?: number }
+        Returns: Json
+      }
+      _event_ticket_revoked_notices_settle: {
+        Args: { p_claimed_at: string; p_done: string[]; p_retry: string[] }
+        Returns: number
+      }
       _event_unique_page_slug: {
         Args: { _base: string; _tenant: string }
         Returns: string
       }
-      _event_waitlist_promote: {
-        Args: {
-          _event_id: string
-          _limit?: number
-          _tenant: string
-          _ticket_type_id?: string
-        }
-        Returns: Json
-      }
+      _event_waitlist_promote:
+        | {
+            Args: {
+              _event_id: string
+              _limit?: number
+              _tenant: string
+              _ticket_type_id?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              _event_id: string
+              _limit: number
+              _skip_group: string
+              _tenant: string
+              _ticket_type_id: string
+            }
+            Returns: Json
+          }
       _suggest_score: {
         Args: { _a: string; _b: string; _q: string }
         Returns: number
@@ -24807,6 +24951,10 @@ export type Database = {
         Returns: Json
       }
       event_registration_payment_context: {
+        Args: { p_registration_id: string }
+        Returns: Json
+      }
+      event_registration_redeem_plan_ticket: {
         Args: { p_registration_id: string }
         Returns: Json
       }
