@@ -382,11 +382,28 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     drizzleOnly:
       "Zastosowanie SQL-u 0061 z panelu Lovable (bez komentarzy, instrukcje identyczne i idempotentne); blizniak supabase to juz 20260926140000.",
   },
-  // Funkcje organizatora (PR #404): zapisy zastosowania z panelu Lovable bez
-  // komentarzy - SQL wykonywalny identyczny z pasem supabase, wiec to pelne
+  // Funkcje organizatora (PR #404): pas drizzle 0055-0064 z PR-a, z krotkimi
+  // naglowkami - SQL wykonywalny identyczny z pasem supabase, wiec to pelne
   // pary blizniacze (bramka porownuje je przy kazdym przebiegu). Numery
-  // 0059-0064 dziela prefiks z czescia 2 modulu Wydarzen - tag jest pelna
-  // nazwa pliku, wiec wpisy sie nie myla.
+  // 0055-0064 dziela prefiks z czescia 2 modulu Wydarzen - tag jest pelna
+  // nazwa pliku, wiec wpisy sie nie myla. Plikow drizzle nie przenumerowujemy
+  // ani nie usuwamy - repozytorium jest forward-only (tak jak w #388).
+  //
+  // PAS SUPABASE SZESCIU Z NICH ZMIENIL NAZWE (czysty `git mv`, tresc bajt
+  // w bajt). Piec plikow mialo wersje 20260926100000-140000 - TE SAME, pod
+  // ktorymi produkcja ma juz zapisane migracje czesci 2 (goscie grupy, kody
+  // na miejsce, zamkniecie gosci, zwrot kodu, benefit planu). Wersja jest
+  // kluczem `schema_migrations`, wiec nasze pliki zostalyby po cichu pominiete,
+  // a `supabase db start` (pgTAP) padal na kluczu. Nie byly wdrozone (brak
+  // zapisu drizzle, brak ich tabel w types.ts z zywej bazy), wiec przejscie na
+  // 20260927000100-000500 niczego nie gubi. Klon edycji (20260926170000,
+  // zaslepka) idzie na 20260927000800, bo klonuje tabele naboru, planu sali,
+  // kampanii i reklam ze sponsorem w funkcjach `LANGUAGE sql` (cialo
+  // sprawdzane przy CREATE) - musi przyjsc po nich. 20260926085900
+  // i 20260926090000 sa WDROZONE (zapisy Lovable 0065/0066), a 20260926150000
+  // i 20260926160000 nie koliduja i zaleza tylko od fundamentu - zostaja.
+  // Naglowki plikow drizzle nadal wskazuja nazwy supabase sprzed zmiany (pliki
+  // drizzle zostaja bajt w bajt); prawda jest ten rejestr.
   {
     tag: "0055_crm_consent_source_event",
     twin: "20260926085900_crm_consent_source_event.sql",
@@ -397,23 +414,23 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
   },
   {
     tag: "0057_event_cfp",
-    twin: "20260926100000_event_cfp.sql",
+    twin: "20260927000100_event_cfp.sql",
   },
   {
     tag: "0058_event_invoices",
-    twin: "20260926110000_event_invoices.sql",
+    twin: "20260927000200_event_invoices.sql",
   },
   {
     tag: "0059_event_ads_funnel",
-    twin: "20260926120000_event_ads_funnel.sql",
+    twin: "20260927000300_event_ads_funnel.sql",
   },
   {
     tag: "0060_event_seating",
-    twin: "20260926130000_event_seating.sql",
+    twin: "20260927000400_event_seating.sql",
   },
   {
     tag: "0061_event_sponsor_report",
-    twin: "20260926140000_event_sponsor_report.sql",
+    twin: "20260927000500_event_sponsor_report.sql",
   },
   {
     tag: "0062_event_scanner_offline",
@@ -425,7 +442,7 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
   },
   {
     tag: "0064_event_clone",
-    twin: "20260926170000_event_clone.sql",
+    twin: "20260927000800_event_clone.sql",
   },
   {
     tag: "0065_crm_consent_source_event",
@@ -443,6 +460,13 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
   {
     tag: "0067_event_registration_gaps_part3",
     twin: "20260926180000_event_registration_gaps_part3.sql",
+  },
+  // Most CRM zaklada nowy kontakt z imieniem i nazwiskiem (crm_lead.created.v1
+  // niesie je do HubSpot) i naklada komentarze, ktorych brak w zapisie 0066.
+  // Osobna para, bo fundament 20260926090000 jest juz wdrozony.
+  {
+    tag: "0068_event_person_crm_sync_lead_names",
+    twin: "20260927000900_event_person_crm_sync_lead_names.sql",
   },
 ];
 

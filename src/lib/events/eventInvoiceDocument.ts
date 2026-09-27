@@ -2,7 +2,7 @@
 //
 // SKAD KSZTALT. `admin_event_invoice_get` (panel) i `event_my_invoice`
 // (kupujacy) zwracaja ten sam obiekt z `_event_invoice_document` (migracja
-// 20260926110000): `invoice` (wiersz bez migawki sprzedawcy), `seller`,
+// 20260927000200): `invoice` (wiersz bez migawki sprzedawcy), `seller`,
 // `lines`, `corrects`, a panel dodatkowo `sources` i `corrections`. Typ
 // generowany widzi w tym wylacznie `Json`, wiec odczyt jest JAWNY, pole po
 // polu, z bezpiecznym zastepstwem - zadnego rzutowania wiersza na

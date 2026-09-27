@@ -229,7 +229,7 @@ SELECT pg_temp.assert(
   '31/gosc/kontrapunkt: zalogowany spoza grupy NIE widzi reklamy grupowej');
 
 -- Kontekst najemcy B: ten sam slug A nie zwraca niczego. Od migracji
--- 20260926140000 funkcja skaluje po NAGLOWKU HOSTA (`public_tenant_id()`,
+-- 20260927000500 funkcja skaluje po NAGLOWKU HOSTA (`public_tenant_id()`,
 -- w harnessie GUC `nes.public_tenant`), a nie po profilu zalogowanego - wiec
 -- "wejscie na strone najemcy B" to wlasnie ten GUC.
 SELECT pg_temp.act_as(NULL, NULL);

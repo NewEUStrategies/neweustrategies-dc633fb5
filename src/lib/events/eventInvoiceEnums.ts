@@ -1,5 +1,5 @@
 // Zamkniete zbiory modulu faktur wydarzen - lustro CHECK-ow migracji
-// 20260926110000 (bramka `eventInvoicesDbEnumParity.test.ts`).
+// 20260927000200 (bramka `eventInvoicesDbEnumParity.test.ts`).
 //
 // OSOBNY PLIK, BO CZYTAJA GO DWIE POWIERZCHNIE. Studio organizatora i profil
 // kupujacego pokazuja te same rodzaje, stany i stany KSeF, ale kazda swoim

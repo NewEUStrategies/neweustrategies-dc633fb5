@@ -2,7 +2,7 @@
 -- 42_cfp - NABOR PRELEGENTOW: ZGLOSZENIE, OCENA, DECYZJA, PRZYJECIE, PANEL
 --
 -- PO CO TEN PLIK ISTNIEJE
--- Migracja 20260926100000_event_cfp.sql stawia siedem tabel i kilkadziesiat
+-- Migracja 20260927000100_event_cfp.sql stawia siedem tabel i kilkadziesiat
 -- funkcji na czterech plaszczyznach (panel, tresc, wlasna, recenzent).
 -- Bramki tekstowe widza tylko KSZTALT tych funkcji. To, czy recenzent nie
 -- ocenia wlasnego zgloszenia, czy ocena w ciemno naprawde ukrywa tozsamosc,

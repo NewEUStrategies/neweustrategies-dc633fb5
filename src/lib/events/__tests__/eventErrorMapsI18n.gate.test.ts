@@ -452,7 +452,7 @@ const KODY_NABYWCY = [
   "invalid_recipient",
 ] as const;
 
-/** Faktury wydarzenia w studiu - `eventInvoicesApi` (migracja 20260926110000). */
+/** Faktury wydarzenia w studiu - `eventInvoicesApi` (migracja 20260927000200). */
 const KODY_FAKTUR = [
   ...KODY_NABYWCY,
   // _event_invoice_draft_build / admin_event_invoice_draft_create / _update
@@ -528,7 +528,7 @@ const KODY_PROSBY_O_FAKTURE = [
 ] as const;
 
 /**
- * Plan sali - `seatingApi` (migracja 20260926130000). Te same glowy wracaja
+ * Plan sali - `seatingApi` (migracja 20260927000400). Te same glowy wracaja
  * tez jako kody odrzutow przydzialu zbiorczego (`rejected[].code`).
  */
 const KODY_PLANU_SALI = [
@@ -580,6 +580,36 @@ const KODY_PLANU_SALI = [
   "too_many_ids",
   STRAZNIK_TENANTA,
 ] as const;
+/**
+ * Kod dopisany przez tor do ISTNIEJĄCEJ mapy: `[nazwa mapy, kod]`.
+ * `PF_<X>_BEZ_INTERPOLACJI` - nazwy NOWYCH map toru, które wołają `t()`
+ * bez parametrów (sprawdzenie „zdania bez interpolacji" niżej).
+ */
+type PfExtraCode = readonly [mapName: string, code: string];
+
+// >>> PF-A codes (begin)
+const PF_A_EXTRA_CODES: readonly PfExtraCode[] = [];
+const PF_A_BEZ_INTERPOLACJI: readonly string[] = [];
+// <<< PF-A codes (end)
+//
+// (separator bloków - tych dwóch linii nie edytuje żaden tor)
+// >>> PF-B codes (begin)
+const PF_B_EXTRA_CODES: readonly PfExtraCode[] = [];
+const PF_B_BEZ_INTERPOLACJI: readonly string[] = [];
+// <<< PF-B codes (end)
+//
+// (separator bloków - tych dwóch linii nie edytuje żaden tor)
+// >>> PF-C codes (begin)
+const PF_C_EXTRA_CODES: readonly PfExtraCode[] = [];
+const PF_C_BEZ_INTERPOLACJI: readonly string[] = [];
+// <<< PF-C codes (end)
+
+/** Kody dopisane przez tory A/B/C do mapy o danej nazwie. */
+function pfExtraCodes(nazwa: string): string[] {
+  return [...PF_A_EXTRA_CODES, ...PF_B_EXTRA_CODES, ...PF_C_EXTRA_CODES]
+    .filter(([mapName]) => mapName === nazwa)
+    .map(([, code]) => code);
+}
 
 interface BramkowanaMapa {
   nazwa: string;
@@ -736,6 +766,16 @@ const MAPY: readonly BramkowanaMapa[] = [
     moduly: ["seatingApi"],
     interpoluje: true,
   },
+  // >>> PF-A maps (begin)
+  // <<< PF-A maps (end)
+  //
+  // (separator bloków - tych dwóch linii nie edytuje żaden tor)
+  // >>> PF-B maps (begin)
+  // <<< PF-B maps (end)
+  //
+  // (separator bloków - tych dwóch linii nie edytuje żaden tor)
+  // >>> PF-C maps (begin)
+  // <<< PF-C maps (end)
 ];
 
 describe.each(MAPY)("bramka kluczy i18n: $nazwa", (mapa) => {
@@ -824,6 +864,9 @@ describe("zdania bez interpolacji", () => {
       "adminEventStudioErrors",
       "adminEventInvoiceErrors",
       "eventInvoiceErrors",
+      ...PF_A_BEZ_INTERPOLACJI,
+      ...PF_B_BEZ_INTERPOLACJI,
+      ...PF_C_BEZ_INTERPOLACJI,
     ]);
   });
 });

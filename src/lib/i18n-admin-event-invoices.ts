@@ -7,7 +7,7 @@
 // PDF mieszkają w publicznej nakładce `i18n-event-invoices` (panel ją
 // importuje, strona publiczna nigdy nie importuje tej).
 //
-// KODY ODMÓW = głowy `RAISE EXCEPTION` migracji 20260926110000 w camelCase
+// KODY ODMÓW = głowy `RAISE EXCEPTION` migracji 20260927000200 w camelCase
 // (bramka `eventErrorMapsI18n.gate.test.ts` pilnuje, że każda ma zdanie).
 import i18n from "@/lib/i18n";
 

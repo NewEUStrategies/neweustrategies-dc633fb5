@@ -3,7 +3,7 @@
 // KSZTALT Z SYGNATURY RPC. `EventInvoiceCandidateRow` i `EventInvoiceListRow`
 // to aliasy na `Returns[number]` wygenerowanych typow, a dokument jest JSON-em
 // w ksztalcie `_event_invoice_document` + dodatki `admin_event_invoice_get`
-// (migracja 20260926110000) - dokladnie to, co oddaje PostgREST.
+// (migracja 20260927000200) - dokladnie to, co oddaje PostgREST.
 //
 // KOLUMNY NULL-OWALNE IDA ZA BAZA, NIE ZA GENERATOREM (jak `adminSalesRows.ts`):
 // generator obiecuje `string` takze tam, gdzie `RETURNS TABLE` oddaje `null`

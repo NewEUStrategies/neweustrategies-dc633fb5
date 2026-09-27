@@ -30,10 +30,13 @@
 --       RLS stanu mostu (admin tak, redaktor/obcy/anon nie);
 --   (i) ponowienie z zapisana intencja + odmowy;
 --   (j) przelaczniki `cfp`/`seating` w `admin_event_features_save`;
---   (k) CHECK segmentu zna `event_cfp`, a KAZDA jego wartosc ma range > 0.
+--   (k) CHECK segmentu zna `event_cfp`, a KAZDA jego wartosc ma range > 0;
+--   (l) nowy kontakt: `crm_lead.created.v1` niesie imie i nazwisko (HubSpot
+--       czyta je wylacznie z tego ladunku), istniejacy nie dostaje drugiego.
 --
--- CZEGO NIE SPRAWDZA: przekazania do partnerskiego CRM (triggerow zdarzen
--- `crm_leads` harness nie stawia - patrz blok f0 w harness.sql).
+-- CZEGO NIE SPRAWDZA: samej dostawy do partnerskiego CRM/HubSpot (to kod TS,
+-- `src/lib/integrations`). Triggerow zdarzen `crm_leads` harness nie stawia
+-- (blok f0 w harness.sql) - sekcja (l) zaklada je tylko na czas transakcji.
 --
 -- SPRZATANIE. Caly plik pracuje w transakcji zakonczonej ROLLBACK-iem.
 -- ============================================================================
@@ -787,5 +790,137 @@ SELECT pg_temp.assert_raises_like(
   'forbidden',
   '14/przelaczniki: redaktor odrzucony');
 SELECT pg_temp.act_as(NULL, NULL);
+
+-- ---------------------------------------------------------------------------
+-- (l) PRZEKAZANIE DO HUBSPOT: `crm_lead.created.v1` NIESIE IMIE I NAZWISKO
+--
+-- `hubspotContactBody` (src/lib/integrations/formats.ts) czyta imiona
+-- WYLACZNIE z ladunku zdarzenia, a `crm_lead.updated.v1` niesie sam e-mail
+-- i etap - jedyna szansa, zeby kontakt w HubSpot mial nazwisko, to migawka
+-- `crm_lead.created.v1` z WSTAWIANEGO wiersza. Most zakladajacy kontakt przez
+-- `crm_upsert_from_form` z NULL-owymi imionami wysylal wiec do HubSpot kontakt
+-- bez nazwiska (zgloszenie z przegladu PR #404). Harness nie stawia triggerow
+-- zdarzen `crm_leads` (blok f0 w harness.sql), wiec ta sekcja zaklada je NA
+-- CZAS TRANSAKCJI - funkcja przepisana ZNAK W ZNAK z 20260711220607 (ostatnia
+-- definicja `tg_crm_leads_emit_events`), ROLLBACK na koncu pliku ja zabiera.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.tg_crm_leads_emit_events()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    PERFORM public.emit_domain_event(
+      NEW.tenant_id, 'crm_lead', NEW.id::text, 'crm_lead.created.v1',
+      jsonb_build_object(
+        'email', NEW.email, 'stage', NEW.stage::text,
+        'first_name', NEW.first_name, 'last_name', NEW.last_name,
+        'owner_id', NEW.owner_id
+      )
+    );
+  ELSIF TG_OP = 'UPDATE' THEN
+    IF NEW.stage IS DISTINCT FROM OLD.stage THEN
+      PERFORM public.emit_domain_event(
+        NEW.tenant_id, 'crm_lead', NEW.id::text, 'crm_lead.stage_changed.v1',
+        jsonb_build_object(
+          'email', NEW.email, 'old_stage', OLD.stage::text,
+          'new_stage', NEW.stage::text, 'owner_id', NEW.owner_id
+        )
+      );
+    ELSE
+      PERFORM public.emit_domain_event(
+        NEW.tenant_id, 'crm_lead', NEW.id::text, 'crm_lead.updated.v1',
+        jsonb_build_object('email', NEW.email, 'stage', NEW.stage::text)
+      );
+    END IF;
+  END IF;
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_crm_leads_emit_events ON public.crm_leads;
+CREATE TRIGGER trg_crm_leads_emit_events
+  AFTER INSERT OR UPDATE ON public.crm_leads
+  FOR EACH ROW EXECUTE FUNCTION public.tg_crm_leads_emit_events();
+
+-- p10: osoba spoza kartoteki - most zaklada dla niej NOWY kontakt.
+INSERT INTO public.event_people
+  (id, tenant_id, email, first_name, last_name, phone, job_title, company_text, company_id,
+   social_profile_url, consent_data_processing_at, consent_marketing_at, consent_withdrawn_at,
+   source)
+VALUES
+  ('14f00000-0000-0000-0000-000000000010', '11111111-1111-1111-1111-111111111111',
+   'Hanna.Hubspot@Example.org', ' Hanna ', 'Hubspot', '+48 511 222 333', 'Dyrektorka',
+   NULL, NULL, 'https://www.linkedin.com/in/hanna-hubspot', now(), NULL, NULL,
+   'self_registration')
+ON CONFLICT (id) DO NOTHING;
+
+DO $do$
+DECLARE
+  v_tenant constant uuid := '11111111-1111-1111-1111-111111111111';
+  v_p10    constant uuid := '14f00000-0000-0000-0000-000000000010';
+  v_p2     constant uuid := '14f00000-0000-0000-0000-000000000002';
+  v_d1     constant uuid := '14d00000-0000-0000-0000-0000000000d1';
+  v_lead uuid;
+  v_payload jsonb;
+  v_l record;
+BEGIN
+  PERFORM pg_temp.act_as('14a00000-0000-0000-0000-0000000000a1', v_tenant);
+
+  v_lead := public._event_person_crm_sync(
+    v_tenant, v_p10, 'event_participant', 'event:most-14:registration',
+    ARRAY['event:most-14']);
+  PERFORM pg_temp.assert(v_lead IS NOT NULL
+    AND (SELECT email_norm FROM public.crm_leads WHERE id = v_lead) = 'hanna.hubspot@example.org',
+    '14/hubspot: nowy kontakt zalozony po e-mailu osoby');
+
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.domain_events
+      WHERE tenant_id = v_tenant AND aggregate_type = 'crm_lead'
+        AND aggregate_id = v_lead::text AND event_type = 'crm_lead.created.v1') = 1,
+    '14/hubspot: nowy kontakt = DOKLADNIE jedno crm_lead.created.v1');
+  SELECT d.payload INTO v_payload
+    FROM public.domain_events d
+   WHERE d.tenant_id = v_tenant AND d.aggregate_type = 'crm_lead'
+     AND d.aggregate_id = v_lead::text AND d.event_type = 'crm_lead.created.v1';
+  PERFORM pg_temp.assert(
+    v_payload->>'first_name' = 'Hanna' AND v_payload->>'last_name' = 'Hubspot'
+    AND lower(v_payload->>'email') = 'hanna.hubspot@example.org',
+    '14/hubspot: crm_lead.created.v1 niesie imie i nazwisko (przyciete) oraz e-mail');
+
+  -- Stan koncowy jak przy zalozeniu przez `crm_upsert_from_form`: jedno
+  -- zrodlo, bez aliasow telefonu/stanowiska/LinkedIn, pola przepisane.
+  SELECT * INTO v_l FROM public.crm_leads WHERE id = v_lead;
+  PERFORM pg_temp.assert(v_l.source_count = 1
+    AND v_l.aliases = jsonb_build_object('sources', jsonb_build_array('event:most-14:registration')),
+    '14/hubspot: licznik zrodel 1, aliasy tylko ze zrodlem (bez phones/positions/linkedins)');
+  PERFORM pg_temp.assert(v_l.first_name = 'Hanna' AND v_l.last_name = 'Hubspot'
+    AND v_l.phone = '+48 511 222 333' AND v_l.phone_norm = '+48511222333'
+    AND v_l.position = 'Dyrektorka'
+    AND v_l.linkedin_url = 'https://www.linkedin.com/in/hanna-hubspot'
+    AND v_l.newsletter_status IS NULL AND v_l.stage = 'new'
+    AND v_l.source_type = 'event_participant' AND v_l.tags = ARRAY['event:most-14']
+    AND NOT v_l.marketing_consent,
+    '14/hubspot: dane osoby, etap, segment i tagi jak dotad; zgoda bez dowodu nie powstaje');
+
+  -- KONTRAPUNKT: istniejacy kontakt (d1, dopasowany po e-mailu w sekcji b)
+  -- nie dostaje DRUGIEGO zdarzenia zalozenia - tylko aktualizacje, ktore
+  -- trigger emituje (to dowod, ze trigger zyje i ze cisza nie jest przypadkiem).
+  PERFORM public._event_person_crm_sync(
+    v_tenant, v_p2, 'event_participant', 'event:most-14:registration',
+    ARRAY['event:most-14']);
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.domain_events
+                 WHERE aggregate_type = 'crm_lead' AND aggregate_id = v_d1::text
+                   AND event_type = 'crm_lead.created.v1')
+    AND EXISTS (SELECT 1 FROM public.domain_events
+                 WHERE aggregate_type = 'crm_lead' AND aggregate_id = v_d1::text
+                   AND event_type = 'crm_lead.updated.v1'),
+    '14/hubspot: istniejacy kontakt - bez crm_lead.created.v1, same aktualizacje');
+END
+$do$;
 
 ROLLBACK;

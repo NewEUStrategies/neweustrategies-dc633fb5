@@ -155,6 +155,16 @@ export interface TxCopy {
     organizerMessage: string;
     /** Numer dokumentu organizatora (faktura, proforma, korekta). */
     documentNumber: string;
+    /** Termin decyzji odbiorcy: płatność oferty, akceptacja przekazania, zamknięcie ankiety. */
+    deadline: string;
+    /** Tytuł sesji z planu uczestnika - tylko przypomnienie o sesji. */
+    session: string;
+    /** Sala sesji (wiersz pomijany, gdy sesja nie ma sali). */
+    room: string;
+    /** Imię nowego posiadacza biletu - mail „bilet przekazany". */
+    recipient: string;
+    /** Imię osoby przekazującej bilet - mail z zaproszeniem do przyjęcia. */
+    sender: string;
   };
   footerHelp: string;
 }
@@ -187,6 +197,14 @@ const LABELS_PL: TxCopy["labels"] = {
   talk: "Wystąpienie",
   organizerMessage: "Wiadomość od organizatora",
   documentNumber: "Numer dokumentu",
+  // „Ostateczny termin", nie samo „Termin": etykieta `date` jest już „Termin",
+  // a mail o przekazaniu biletu niesie OBA wiersze naraz (termin wydarzenia
+  // i termin akceptacji) - dwa jednakowe napisy byłyby nieczytelne.
+  deadline: "Ostateczny termin",
+  session: "Sesja",
+  room: "Sala",
+  recipient: "Odbiorca",
+  sender: "Nadawca",
 };
 
 const LABELS_EN: TxCopy["labels"] = {
@@ -215,6 +233,11 @@ const LABELS_EN: TxCopy["labels"] = {
   talk: "Talk",
   organizerMessage: "Message from the organiser",
   documentNumber: "Document number",
+  deadline: "Deadline",
+  session: "Session",
+  room: "Room",
+  recipient: "Recipient",
+  sender: "From",
 };
 
 const HELP_PL =
