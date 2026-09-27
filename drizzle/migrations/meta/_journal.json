@@ -673,6 +673,13 @@
       "when": 1790549923149,
       "tag": "0095_event_sponsor_report",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1790550197296,
+      "tag": "0096_event_sponsor_report_part2",
+      "breakpoints": true
     }
   ]
 }
