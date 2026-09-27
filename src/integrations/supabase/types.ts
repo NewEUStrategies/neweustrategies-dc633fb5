@@ -12938,6 +12938,7 @@ export type Database = {
           enabled_content: boolean
           enabled_crm_task: boolean
           enabled_endorsement: boolean
+          enabled_event: boolean
           enabled_expert_request: boolean
           enabled_follow: boolean
           enabled_introduction: boolean
@@ -12973,6 +12974,7 @@ export type Database = {
           enabled_content?: boolean
           enabled_crm_task?: boolean
           enabled_endorsement?: boolean
+          enabled_event?: boolean
           enabled_expert_request?: boolean
           enabled_follow?: boolean
           enabled_introduction?: boolean
@@ -13008,6 +13010,7 @@ export type Database = {
           enabled_content?: boolean
           enabled_crm_task?: boolean
           enabled_endorsement?: boolean
+          enabled_event?: boolean
           enabled_expert_request?: boolean
           enabled_follow?: boolean
           enabled_introduction?: boolean

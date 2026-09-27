@@ -533,6 +533,13 @@
       "when": 1790542680717,
       "tag": "0075_event_participant_defect_fixes_agenda",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1790542924308,
+      "tag": "0076_notification_kind_event_billing",
+      "breakpoints": true
     }
   ]
 }
