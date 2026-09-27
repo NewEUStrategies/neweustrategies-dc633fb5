@@ -540,6 +540,13 @@
       "when": 1790542924308,
       "tag": "0076_notification_kind_event_billing",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1790543222080,
+      "tag": "0077_event_ticket_wallet",
+      "breakpoints": true
     }
   ]
 }

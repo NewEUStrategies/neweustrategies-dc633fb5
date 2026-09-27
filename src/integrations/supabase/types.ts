@@ -10083,6 +10083,70 @@ export type Database = {
           },
         ]
       }
+      event_wallet_passes: {
+        Row: {
+          created_at: string
+          event_id: string
+          first_issued_at: string
+          id: string
+          issue_count: number
+          last_issued_at: string
+          object_id: string
+          platform: string
+          registration_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          first_issued_at?: string
+          id?: string
+          issue_count?: number
+          last_issued_at?: string
+          object_id: string
+          platform: string
+          registration_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          first_issued_at?: string
+          id?: string
+          issue_count?: number
+          last_issued_at?: string
+          object_id?: string
+          platform?: string
+          registration_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_wallet_passes_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_wallet_passes_registration_fk"
+            columns: ["tenant_id", "registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_wallet_passes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           branding: Json
@@ -20187,6 +20251,15 @@ export type Database = {
             }
             Returns: Json
           }
+      _event_wallet_pass_note: {
+        Args: {
+          p_object_id: string
+          p_platform: string
+          p_registration_id: string
+          p_tenant: string
+        }
+        Returns: number
+      }
       _suggest_score: {
         Args: { _a: string; _b: string; _q: string }
         Returns: number
@@ -25450,6 +25523,7 @@ export type Database = {
         Args: { p_ticket_type_id: string }
         Returns: Json
       }
+      event_ticket_wallet_payload: { Args: { p_payload: Json }; Returns: Json }
       event_types_active: {
         Args: never
         Returns: {
