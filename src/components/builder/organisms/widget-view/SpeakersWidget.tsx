@@ -35,7 +35,6 @@ import {
   type PublicSpeakerRow,
 } from "@/lib/builder/speakersQuery";
 import { SpeakerStars } from "@/components/events/SpeakerStars";
-import { speakerOrganizationLine } from "@/lib/events/speakerCard";
 import type { SpeakerDialogFallback } from "@/components/events/SpeakerProfileDialog";
 import { getStr, type Lang } from "./frame";
 
@@ -587,10 +586,7 @@ function SpeakerCard({
   // AFILIACJA JEST FAKTEM O OSOBIE, nie ozdobą karty. Przy źródle „baza" idzie
   // z kolumny `company` wiersza RPC, przy wpisie ręcznym - z pola edytora; oba
   // wchodzą tym samym `loc()`, więc karta nie wie, skąd pochodzi.
-  // Organizacja, która tylko powtarza rolę, znika - ta sama reguła
-  // (`speakerOrganizationLine`), co siatka i zapowiedź na stronie wydarzenia,
-  // więc ta sama osoba nie ma w widgecie „Prezes CPK" i „PREZES CPK".
-  const organization = speakerOrganizationLine(role, loc(item, "organization", lang)) ?? "";
+  const organization = loc(item, "organization", lang).trim();
   const category = loc(item, "category", lang).trim();
   const description = loc(item, "description", lang);
   const gigs = numOf(item.gigs);

@@ -2,12 +2,13 @@
 // odwzorowanie naglowka profilu z 21st.dev (`TelegramHeader`) z nagrania
 // wlasciciela.
 //
-// ZWINIETA (tak wyglada siatka domyslnie): wysrodkowane OKRAGLE zdjecie,
+// ZWINIETA (tak wyglada siatka domyslnie): wysrodkowane zdjecie 80 px z rogami
+// 6 px (promien zdjec platformy - wzorzec ma kolo, platforma go nie uzywa),
 // pod nim wysrodkowane imie i nazwisko, pod nim szary podpis „rola •
 // organizacja", a w prawym gornym rogu napis akcji w kolorze marki (we wzorcu
 // niebieskie „Edit"). Zdjecie jest widoczne od razu.
 //
-// ROZWINIETA (po kliknieciu w zdjecie): kolo rosnie do KWADRATU NA CALA
+// ROZWINIETA (po kliknieciu w zdjecie): zdjecie rosnie do KWADRATU NA CALA
 // SZEROKOSC KARTY, od krawedzi do krawedzi i bez zaokraglen, podpis zjezdza do
 // lewego dolnego rogu i bieleje na gradiencie, a napis akcji staje sie
 // wypelnionym przyciskiem w prawym gornym rogu. Pod zdjeciem otwieraja sie
@@ -33,7 +34,7 @@
 //   * tresc pod naglowkiem (we wzorcu atrapa wierszy) -> szczegoly karty:
 //     sciezki i plakietka eksperta, widoczne dopiero po kliknieciu.
 //
-// KARTA BEZ ZDJECIA. Nie ma czego powiekszac, wiec zostaje kolo z inicjalami
+// KARTA BEZ ZDJECIA. Nie ma czego powiekszac, wiec zostaja inicjaly
 // - ale szczegoly nadal otwiera klikniecie w nie, zeby siatka zachowywala sie
 // jednakowo. Bez zdjecia i bez szczegolow karta nie ma przycisku wcale.
 //
@@ -53,7 +54,7 @@
 //     tylko od klikniecia, a `matchMedia` i pomiary czyta obsluga zdarzenia
 //     oraz `useLayoutEffect`, nigdy render; `useId` daje ten sam identyfikator
 //     szczegolow na serwerze i w kliencie;
-//   * zwinieta karta ma stala geometrie (kolo 80 px i dwie linie podpisu),
+//   * zwinieta karta ma stala geometrie (zdjecie 80 px i dwie linie podpisu),
 //     wiec nic nie skacze po zaladowaniu (CLS);
 //   * duzy kadr (800 px) nie jest pobierany, dopoki ktos nie wyrazi zamiaru
 //     (najazd, fokus, dotyk) - siatka nie placi transferem za zdjecia, ktorych
@@ -91,7 +92,7 @@ import {
   speakerOrganizationLine,
 } from "@/lib/events/speakerCard";
 import {
-  SPEAKER_CARD_ROUND,
+  SPEAKER_CARD_RADIUS_PX,
   SPEAKER_CARD_SETTLE,
   SPEAKER_CARD_SQUARE,
   boxOf,
@@ -117,8 +118,8 @@ export const SPEAKER_CARD_LARGE_PX = 800;
 const PREVIEW_MARKER = '[data-builder-renderer="widget-props-preview"]';
 
 /**
- * ZWINIETA: napis akcji nie wchodzi na zdjecie. Kolo stoi na srodku karty,
- * wiec napis ma do dyspozycji pol karty minus pol kola (2,5 rem) i odstep.
+ * ZWINIETA: napis akcji nie wchodzi na zdjecie. Zdjecie stoi na srodku karty,
+ * wiec napis ma do dyspozycji pol karty minus pol zdjecia (2,5 rem) i odstep.
  * Dluzszy napis (do 40 znakow) konczy sie wielokropkiem, a pelna nazwe niesie
  * `aria-label` i `title`. Granica w stylu, nie w klasie - arkusz publiczny nie
  * dostaje nowej klasy.
@@ -143,6 +144,7 @@ const FULL_BLEED_FOCUS_RING: CSSProperties = {
   boxShadow: "inset 0 0 0 3px var(--brand), inset 0 0 0 5px rgb(255 255 255 / 0.9)",
 };
 
+const CARD_PHOTO_RADIUS = `${SPEAKER_CARD_RADIUS_PX}px`;
 const CARD_CLASS =
   "relative flex h-full w-full flex-col overflow-hidden border-b border-r border-border bg-background text-left";
 
@@ -168,7 +170,7 @@ interface FlipSnapshot {
   media: FlipBox | null;
   parts: (FlipBox | null)[];
   action: FlipBox | null;
-  /** Promien zdjecia na starcie i na koncu ruchu (kolo <-> kwadrat). */
+  /** Promien zdjecia na starcie i na koncu ruchu (6 px <-> kwadrat). */
   radius: readonly [string, string];
 }
 
@@ -190,7 +192,7 @@ export function SpeakerProfileCard({
   // („https://exa") nie moze zgasic kadru, ktory przyjdzie po nim.
   const [failedLargeUrl, setFailedLargeUrl] = useState<string | null>(null);
   // Miniatura tak samo: nieaktualny adres zdjecia osoby daje inicjaly, a nie
-  // puste szare kolo.
+  // pusty szary kwadrat.
   const [failedThumbUrl, setFailedThumbUrl] = useState<string | null>(null);
 
   const cardRef = useRef<HTMLElement | null>(null);
@@ -255,15 +257,16 @@ export function SpeakerProfileCard({
   );
   const accent = hexColorOrNull(speaker.card_cta_color);
 
-  // Kolo -> kwadrat pelnego kadru i z powrotem; karta bez zdjecia zostaje
-  // kolem (pudelko sie nie zmienia, wiec klatek i tak nie bedzie). Kierunek
-  // liczy `toggle` ze stanu PRZED zmiana i zapisuje go w pomiarze.
+  // Zdjecie z rogami 6 px (promien zdjec platformy) -> kwadrat pelnego kadru
+  // i z powrotem; karta bez zdjecia zostaje przy 6 px (pudelko sie nie
+  // zmienia, wiec klatek i tak nie bedzie). Kierunek liczy `toggle` ze stanu
+  // PRZED zmiana i zapisuje go w pomiarze.
   const radiusFor = (fromExpanded: boolean): readonly [string, string] =>
     !hasPhoto
-      ? [SPEAKER_CARD_ROUND, SPEAKER_CARD_ROUND]
+      ? [CARD_PHOTO_RADIUS, CARD_PHOTO_RADIUS]
       : fromExpanded
-        ? [SPEAKER_CARD_SQUARE, SPEAKER_CARD_ROUND]
-        : [SPEAKER_CARD_ROUND, SPEAKER_CARD_SQUARE];
+        ? [SPEAKER_CARD_SQUARE, CARD_PHOTO_RADIUS]
+        : [CARD_PHOTO_RADIUS, SPEAKER_CARD_SQUARE];
 
   const snapshot = (radius: readonly [string, string]): FlipSnapshot => ({
     card: boxOf(cardRef.current),
@@ -280,10 +283,9 @@ export function SpeakerProfileCard({
   };
 
   // ZWROT W TRAKCIE RUCHU zaczyna od promienia, ktory JEST na ekranie. Staly
-  // poczatek (kwadrat albo kolo) dalby skok rogow przy szybkim podwojnym
-  // kliknieciu. Promien trwajacej animacji jest w procentach, wiec nie zalezy
-  // od skali. Czytamy go tylko wtedy, gdy NASZA animacja zdjecia jeszcze
-  // trwa - w spoczynku `rounded-full` liczy sie do ogromnej wartosci w px.
+  // poczatek (kwadrat albo 6 px) dalby skok rogow przy szybkim podwojnym
+  // kliknieciu. Czytamy go tylko wtedy, gdy NASZA animacja zdjecia jeszcze
+  // trwa - w spoczynku liczy sie promien stanu, a nie odczyt stylu.
   const liveMediaRadius = (): string | null => {
     const media = mediaRef.current;
     if (media === null || typeof getComputedStyle !== "function") return null;
@@ -295,7 +297,15 @@ export function SpeakerProfileCard({
     );
     if (!live) return null;
     const radius = getComputedStyle(media).borderTopLeftRadius;
-    return radius === "" ? null : radius;
+    if (radius === "") return null;
+    // Styl trzyma promien w ukladzie SPRZED skali trwajacej animacji; nowy
+    // ruch dostaje promien NA EKRANIE (tak jak 6 px z projektu) i sam go
+    // kontr-skaluje do swojej skali.
+    const px = /^(\d+(?:\.\d+)?)px$/.exec(radius);
+    const layoutWidth = media.offsetWidth;
+    const screenWidth = boxOf(media)?.width ?? 0;
+    if (px === null || layoutWidth <= 0 || screenWidth <= 0) return radius;
+    return `${(Number(px[1]) * screenWidth) / layoutWidth}px`;
   };
 
   const toggle = (): void => {
@@ -390,7 +400,7 @@ export function SpeakerProfileCard({
   };
 
   // Podpis stoi W PRZEPLYWIE naglowka, jak we wzorcu: zwiniety - wysrodkowany
-  // pod kolem, rozwiniety - w lewym dolnym rogu kwadratu (naglowek ma wtedy
+  // pod zdjeciem, rozwiniety - w lewym dolnym rogu kwadratu (naglowek ma wtedy
   // proporcje 1:1 i dosuwa tresc do dolu). `w-fit` trzyma pudelko przy
   // napisie, wiec FLIP przesuwa litery, a nie pusta szerokosc karty.
   // Na pelnym kadrze klik w napis nie jest celem - trafia w zdjecie pod nim.
@@ -522,7 +532,7 @@ export function SpeakerProfileCard({
   let media: ReactNode;
   if (!expandable) {
     media = (
-      <span className="block h-20 w-20 shrink-0 overflow-hidden rounded-full">
+      <span className="block h-20 w-20 shrink-0 overflow-hidden rounded-[6px]">
         <SpeakerAvatar name={name} photoUrl={thumbSource} size="xl" />
       </span>
     );
@@ -543,7 +553,7 @@ export function SpeakerProfileCard({
           fullBleed
             ? "group absolute inset-0 -z-10 cursor-pointer rounded-none"
             : cn(
-                "relative h-20 w-20 rounded-full focus-visible:ring-2 focus-visible:ring-[color:var(--brand)]/60 focus-visible:ring-offset-2",
+                "relative h-20 w-20 rounded-[6px] focus-visible:ring-2 focus-visible:ring-[color:var(--brand)]/60 focus-visible:ring-offset-2",
                 hasPhoto ? "cursor-zoom-in" : "cursor-pointer",
               ),
         )}

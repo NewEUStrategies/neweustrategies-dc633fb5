@@ -323,8 +323,8 @@ describe("EventSpeakersGrid - karta rozwijana kliknięciem w zdjęcie", () => {
     const { container } = render(<EventSpeakersGrid eventId="e1" enabled={false} />, { wrapper });
     const slot = container.querySelector('[aria-busy="true"] > div') as HTMLElement;
     const [circle, nameBar, subtitleBar] = Array.from(slot.children) as HTMLElement[];
-    // Koło jak miniatura zwiniętej karty.
-    expect(circle?.className).toContain("rounded-full");
+    // Zdjęcie z rogami 6 px jak miniatura zwiniętej karty.
+    expect(circle?.className).toContain("rounded-[6px]");
     expect(circle?.className).toContain("h-20");
     // Nazwisko: ten sam odstęp, krój i interlinia, co `SpeakerProfileCard`.
     expect(nameBar?.className).toEqual(expect.stringContaining("mt-3"));

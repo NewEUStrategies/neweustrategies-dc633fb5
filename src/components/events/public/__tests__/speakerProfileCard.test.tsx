@@ -146,13 +146,14 @@ describe("SpeakerProfileCard - karta zwinieta (domyslny wyglad)", () => {
     expect(article.innerHTML).not.toContain(`width=${SPEAKER_CARD_LARGE_PX}`);
   });
 
-  it("uklad wzorca: wysrodkowane KOLO, pod nim nazwisko i podpis „rola • organizacja”", () => {
+  it("uklad wzorca: wysrodkowane zdjecie 6 px, pod nim nazwisko i podpis „rola • organizacja”", () => {
     renderCard();
     const toggle = screen.getByRole("button", { name: EXPAND });
     const header = toggle.parentElement as HTMLElement;
 
-    // Kolo 80 px na srodku karty - nie kwadrat w lewym gornym rogu.
-    expect(toggle.className).toContain("rounded-full");
+    // Zdjecie 80 px na srodku karty, z rogami platformy (6 px), nie kolo.
+    expect(toggle.className).toContain("rounded-[6px]");
+    expect(toggle.className).not.toContain("rounded-full");
     expect(toggle.className).toContain("h-20");
     expect(toggle.className).toContain("cursor-zoom-in");
     expect(header.className).toContain("items-center");
@@ -730,13 +731,12 @@ describe("SpeakerProfileCard - ruch FLIP", () => {
     });
     expect(callFor(toggle)?.options.easing).toBe(SPEAKER_CARD_SETTLE);
 
-    // Zdjecie: jednorodna skala z kwadratu 80 do 280, a promien z KOLA do
-    // kwadratu bez rogow - jak `layoutId` wzorca (50% jest kolem przy kazdej
-    // skali, wiec nie wymaga kontr-skalowania).
+    // Zdjecie: jednorodna skala z kwadratu 80 do 280, a promien z 6 px do
+    // kwadratu bez rogow - 6 px kontr-skalowane, wiec rog nie puchnie.
     const media = callFor(toggle);
     const scale = 80 / 280;
     expect(media?.keyframes[0]?.transform).toBe(`translate(0px, 0px) scale(${scale})`);
-    expect(media?.keyframes[0]?.borderRadius).toBe("50%");
+    expect(media?.keyframes[0]?.borderRadius).toBe(`${6 / scale}px`);
     expect(media?.keyframes[1]).toMatchObject({
       transform: "translate(0px, 0px) scale(1)",
       borderRadius: "0px",
@@ -812,14 +812,14 @@ describe("SpeakerProfileCard - ruch FLIP", () => {
     renderCard();
     const toggle = screen.getByRole("button", { name: EXPAND });
     fireEvent.click(toggle);
-    // Kolo jest w polowie drogi do kwadratu - tak widzi je przegladarka.
-    toggle.style.borderTopLeftRadius = "33.75%";
+    // Rog jest w polowie drogi do kwadratu - tak widzi go przegladarka.
+    toggle.style.borderTopLeftRadius = "3.5px";
     fireEvent.click(toggle);
 
     const back = calls.filter((call) => call.element === toggle).at(-1);
     expect(back?.cancelled).toBe(false);
-    expect(back?.keyframes[0]?.borderRadius).toBe("33.75%");
-    expect(back?.keyframes[1]?.borderRadius).toBe("50%");
+    expect(back?.keyframes[0]?.borderRadius).toBe(`${3.5 / (280 / 80)}px`);
+    expect(back?.keyframes[1]?.borderRadius).toBe("6px");
   });
 
   it("po zakonczonym ruchu zwrot startuje od promienia stanu, nie od odczytu stylu", () => {
@@ -830,9 +830,9 @@ describe("SpeakerProfileCard - ruch FLIP", () => {
       call.cancelled = true;
       call.animation.playState = "finished";
     });
-    // W spoczynku `rounded-full` liczy sie do ogromnej wartosci w px - tej
-    // wartosci nie wolno brac za poczatek ruchu.
-    toggle.style.borderTopLeftRadius = "3.35544e+07px";
+    // Styl w spoczynku (tu obcy odczyt) nie jest poczatkiem ruchu - liczy sie
+    // promien stanu.
+    toggle.style.borderTopLeftRadius = "17px";
     fireEvent.click(toggle);
     const back = calls.filter((call) => call.element === toggle).at(-1);
     expect(back?.keyframes[0]?.borderRadius).toBe("0px");
@@ -853,9 +853,9 @@ describe("SpeakerProfileCard - ruch FLIP", () => {
 
     expect(callFor(article)?.keyframes).toEqual([{ height: "560px" }, { height: "220px" }]);
     expect(callFor(toggle)?.keyframes[0]?.transform).toBe(`translate(0px, 0px) scale(${280 / 80})`);
-    // Z kwadratu pelnego kadru z powrotem do kola.
+    // Z kwadratu pelnego kadru z powrotem do 6 px.
     expect(callFor(toggle)?.keyframes[0]?.borderRadius).toBe("0px");
-    expect(callFor(toggle)?.keyframes[1]?.borderRadius).toBe("50%");
+    expect(callFor(toggle)?.keyframes[1]?.borderRadius).toBe("6px");
   });
 
   it("klik w trakcie ruchu kasuje trwajace animacje PRZED pomiarem nowego ukladu", () => {
@@ -1167,12 +1167,12 @@ describe("SpeakerProfileCard - sciezki i ekspert", () => {
     expect(article.textContent).toBe("Anna KowalskaPrezes • NASK");
   });
 
-  it("karta BEZ zdjecia, ale ze szczegolami: kolo z inicjalami rozwija same szczegoly", () => {
+  it("karta BEZ zdjecia, ale ze szczegolami: inicjaly rozwijaja same szczegoly", () => {
     const { article } = renderCard(
       speaker({ avatar_url: null, card_photo_url: null, tracks, card_cta_url: "/events/forum" }),
     );
     const toggle = screen.getByRole("button", { name: EXPAND });
-    expect(toggle.className).toContain("rounded-full");
+    expect(toggle.className).toContain("rounded-[6px]");
     expect(toggle.className).toContain("cursor-pointer");
     expect(toggle.className).not.toContain("cursor-zoom-in");
     expect(screen.getByText("AK")).toBeTruthy();
@@ -1180,11 +1180,11 @@ describe("SpeakerProfileCard - sciezki i ekspert", () => {
     fireEvent.click(toggle);
     expect(article.getAttribute("data-state")).toBe("expanded");
     expect(detailsOf().hidden).toBe(false);
-    // Nie ma czego powiekszac: brak zdjec, brak gradientu, kolo zostaje kolem,
+    // Nie ma czego powiekszac: brak zdjec, brak gradientu, rogi zostaja 6 px,
     // a napis akcji zostaje napisem (pigulka jest tylko na zdjeciu).
     expect(images(article)).toHaveLength(0);
     expect(article.querySelector('[class*="bg-gradient-to-t"]')).toBeNull();
-    expect(toggle.className).toContain("rounded-full");
+    expect(toggle.className).toContain("rounded-[6px]");
     expect(screen.getByText("Anna Kowalska").className).toContain("text-foreground");
     expect(screen.getByRole("link").className).not.toContain("bg-brand");
 
