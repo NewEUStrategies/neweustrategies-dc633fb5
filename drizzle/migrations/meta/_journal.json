@@ -547,6 +547,13 @@
       "when": 1790543222080,
       "tag": "0077_event_ticket_wallet",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1790543670038,
+      "tag": "0078_event_participant_part3_followups",
+      "breakpoints": true
     }
   ]
 }
