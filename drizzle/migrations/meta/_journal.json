@@ -715,6 +715,13 @@
       "when": 1790551737122,
       "tag": "0101_event_ads_funnel_review_fixes",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1790552077471,
+      "tag": "0102_event_seating_review_fixes",
+      "breakpoints": true
     }
   ]
 }
