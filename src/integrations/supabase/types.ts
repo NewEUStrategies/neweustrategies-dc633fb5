@@ -19718,6 +19718,11 @@ export type Database = {
           visibility: string
         }[]
       }
+      _event_delivery_claim: { Args: { p_payload: Json }; Returns: string }
+      _event_delivery_confirm: {
+        Args: { p_detail?: string; p_id: string; p_status: string }
+        Returns: boolean
+      }
       _event_effective_end: {
         Args: { _ends: string; _starts: string }
         Returns: string
@@ -21369,6 +21374,10 @@ export type Database = {
           total_count: number
         }[]
       }
+      admin_event_message_delivery_stats: {
+        Args: { p_event_id: string }
+        Returns: Json
+      }
       admin_event_onsite_live_stats: {
         Args: { p_event_id: string; p_window_minutes?: number }
         Returns: Json
@@ -21501,6 +21510,10 @@ export type Database = {
       }
       admin_event_participant_settings_get: {
         Args: { p_event_id: string }
+        Returns: Json
+      }
+      admin_event_participant_settings_save: {
+        Args: { p_payload: Json }
         Returns: Json
       }
       admin_event_person_crm_retry: {
@@ -25306,6 +25319,7 @@ export type Database = {
           visibility: string
         }[]
       }
+      event_participant_options: { Args: { p_slug: string }; Returns: Json }
       event_register: { Args: { p_payload: Json }; Returns: Json }
       event_register_group_guests: {
         Args: { p_guests: Json; p_lead_registration_id: string }
