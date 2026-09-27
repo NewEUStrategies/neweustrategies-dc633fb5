@@ -40,7 +40,13 @@ vi.mock("@/lib/events/adminCfpErrors", () => ({
     `odmowa:${error instanceof Error ? error.message : String(error)}`,
 }));
 vi.mock("@/lib/events/cfpNotify.functions", () => ({ notifyCfpDecision: h.notify }));
-vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
+// Prawdziwy moduł (`createServerFn`, `createMiddleware`): łańcuch
+// useEventCfp -> registrationKeys -> ticketResend.functions -> auth-middleware
+// woła `createMiddleware` już przy imporcie.
+vi.mock("@tanstack/react-start", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-start")>()),
+  useServerFn: (fn: unknown) => fn,
+}));
 vi.mock("@tanstack/react-router", async () => ({
   Link: (await import("@/test/events/cfpStubs")).routerLinkWithSearchStub(await import("react")),
 }));

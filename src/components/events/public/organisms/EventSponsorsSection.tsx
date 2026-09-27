@@ -30,6 +30,7 @@
 // wywołującego (`draftLabel`): słownik panelu nie trafia do paczki strony
 // publicznej, a strona, która napisu nie podaje, rysuje się bajt w bajt tak
 // samo jak przed rozdzieleniem.
+import { useRef } from "react";
 import { ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -79,7 +80,7 @@ export function EventSponsorsSection({
   }
 
   // Po odsianiu wczytywania i błędu zostaje sukces - `data` jest już listą.
-  return <EventSponsorsSectionView tiers={sponsorsQuery.data} />;
+  return <EventSponsorsSectionView tiers={sponsorsQuery.data} placement={placement} />;
 }
 
 /**
@@ -120,13 +121,19 @@ export function EventSponsorsSectionError({ message }: { message: string }) {
  * `draftLabel` = napis plakietki przy przypięciu nieogłoszonym (`isDraft`).
  * Podaje go tylko podgląd studia; bez napisu plakietki nie ma, nawet gdyby
  * wiersz niósł znacznik.
+ *
+ * `placement` = miejsce pomiaru dla raportu sponsora. Liczy się wyłącznie pod
+ * dostawcą z publicznej powłoki wydarzenia - podgląd studia rysuje ten sam
+ * widok bez dostawcy, więc nie nabija wyświetleń.
  */
 export function EventSponsorsSectionView({
   tiers,
   draftLabel,
+  placement = "partners_section",
 }: {
   tiers: readonly PublicSponsorTier[];
   draftLabel?: string;
+  placement?: SponsorsSectionPlacement;
 }) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
@@ -144,6 +151,7 @@ export function EventSponsorsSectionView({
           key={tier.tierId ?? "no-tier"}
           tier={tier}
           lang={lang}
+          placement={placement}
           draftLabel={draftLabel}
         />
       ))}
@@ -154,10 +162,12 @@ export function EventSponsorsSectionView({
 function SponsorTierGroup({
   tier,
   lang,
+  placement,
   draftLabel,
 }: {
   tier: PublicSponsorTier;
   lang: "pl" | "en";
+  placement: SponsorsSectionPlacement;
   draftLabel: string | undefined;
 }) {
   const { t } = useTranslation();
@@ -207,71 +217,16 @@ function SponsorTierGroup({
         className="grid gap-4"
         style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${MIN_TILE[tier.logoSize]}, 1fr))` }}
       >
-        {tier.sponsors.map((sponsor) => {
-          const description = pickLocalized(
-            { description_pl: sponsor.descriptionPl, description_en: sponsor.descriptionEn },
-            "description",
-            lang,
-          );
-          // Plakietka tylko przy OBU warunkach: wiersz jest nieogłoszony i ktoś
-          // podał napis. Strona publiczna napisu nie podaje - jej kafel się nie
-          // zmienia, nawet gdyby znacznik kiedyś przyjechał z sieci.
-          const draft = sponsor.isDraft === true && draftLabel !== undefined;
-          const body = (
-            <>
-              {/* LOGOTYP JEST OZDOBĄ, PODPIS JEST TREŚCIĄ. `SponsorLogo` bez adresu
-                  degraduje do NAZWY firmy, a nazwa stoi już w podpisie kafla - bez
-                  `aria-hidden` partner bez logotypu byłby czytany dwa razy pod rząd.
-                  Ta sama reguła co w pasie na stronie głównej (`SponsorTierLogo`). */}
-              <span aria-hidden="true" className="contents">
-                <SponsorLogo
-                  name={sponsor.name}
-                  logoUrl={sponsor.logoUrl}
-                  size={tier.logoSize}
-                  className={draft ? "opacity-60" : undefined}
-                />
-              </span>
-              <span className="mt-3 block text-sm font-medium text-foreground">{sponsor.name}</span>
-              <span className="mt-1 flex flex-wrap items-center justify-center gap-1.5">
-                <Badge variant="secondary">{t(sponsorRoleKey(sponsor.role))}</Badge>
-                {sponsor.boothLabel !== null && (
-                  <Badge variant="outline">
-                    {t("eventFront.sponsors.boothLabel", { label: sponsor.boothLabel })}
-                  </Badge>
-                )}
-                {/* Napis plakietki jest TEKSTEM kafla, nie `aria-label` - czytnik
-                    ekranu słyszy „nieogłoszony" tak samo, jak widzący go widzi. */}
-                {draft && <Badge variant="outline">{draftLabel}</Badge>}
-              </span>
-              {description !== "" && (
-                <span className="mt-2 block text-xs text-muted-foreground">{description}</span>
-              )}
-            </>
-          );
-
-          return (
-            <li key={sponsor.id}>
-              {sponsor.websiteUrl === null ? (
-                <div className="flex h-full flex-col items-center rounded-[6px] border border-border bg-card p-4 text-center">
-                  {body}
-                </div>
-              ) : (
-                <a
-                  href={sponsor.websiteUrl}
-                  target="_blank"
-                  rel="noopener noreferrer nofollow"
-                  className="flex h-full flex-col items-center rounded-[6px] border border-border bg-card p-4 text-center transition-colors hover:border-primary/50"
-                >
-                  {body}
-                  <span className="mt-2 inline-flex items-center gap-1 text-xs text-primary">
-                    <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                    {t("eventFront.sponsors.visitSite")}
-                  </span>
-                </a>
-              )}
-            </li>
-          );
-        })}
+        {tier.sponsors.map((sponsor) => (
+          <SponsorTile
+            key={sponsor.id}
+            sponsor={sponsor}
+            logoSize={tier.logoSize}
+            lang={lang}
+            placement={placement}
+            draftLabel={draftLabel}
+          />
+        ))}
       </ul>
     </section>
   );
@@ -282,11 +237,13 @@ function SponsorTile({
   logoSize,
   lang,
   placement,
+  draftLabel,
 }: {
   sponsor: PublicSponsor;
   logoSize: SponsorLogoSize;
   lang: "pl" | "en";
   placement: SponsorsSectionPlacement;
+  draftLabel: string | undefined;
 }) {
   const { t } = useTranslation();
   const ref = useRef<HTMLLIElement | null>(null);
@@ -298,6 +255,10 @@ function SponsorTile({
     "description",
     lang,
   );
+  // Plakietka tylko przy OBU warunkach: wiersz jest nieogłoszony i ktoś
+  // podał napis. Strona publiczna napisu nie podaje - jej kafel się nie
+  // zmienia, nawet gdyby znacznik kiedyś przyjechał z sieci.
+  const draft = sponsor.isDraft === true && draftLabel !== undefined;
   const body = (
     <>
       {/* LOGOTYP JEST OZDOBĄ, PODPIS JEST TREŚCIĄ. `SponsorLogo` bez adresu
@@ -305,7 +266,12 @@ function SponsorTile({
           `aria-hidden` partner bez logotypu byłby czytany dwa razy pod rząd.
           Ta sama reguła co w pasie na stronie głównej (`SponsorTierLogo`). */}
       <span aria-hidden="true" className="contents">
-        <SponsorLogo name={sponsor.name} logoUrl={sponsor.logoUrl} size={logoSize} />
+        <SponsorLogo
+          name={sponsor.name}
+          logoUrl={sponsor.logoUrl}
+          size={logoSize}
+          className={draft ? "opacity-60" : undefined}
+        />
       </span>
       <span className="mt-3 block text-sm font-medium text-foreground">{sponsor.name}</span>
       <span className="mt-1 flex flex-wrap items-center justify-center gap-1.5">
@@ -315,6 +281,9 @@ function SponsorTile({
             {t("eventFront.sponsors.boothLabel", { label: sponsor.boothLabel })}
           </Badge>
         )}
+        {/* Napis plakietki jest TEKSTEM kafla, nie `aria-label` - czytnik
+            ekranu słyszy „nieogłoszony" tak samo, jak widzący go widzi. */}
+        {draft && <Badge variant="outline">{draftLabel}</Badge>}
       </span>
       {description !== "" && (
         <span className="mt-2 block text-xs text-muted-foreground">{description}</span>

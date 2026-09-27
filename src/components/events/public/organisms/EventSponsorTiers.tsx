@@ -138,6 +138,13 @@ function SponsorTierLogo({
   draftLabel: string | undefined;
 }) {
   const { t } = useTranslation();
+  const ref = useRef<HTMLElement | null>(null);
+  const target = { sponsorId: sponsor.id, placement: "home_strip" as const };
+  useSponsorImpression(ref, target);
+  const clickHandlers = useSponsorClickHandlers(target);
+  const setRef = (node: HTMLElement | null) => {
+    ref.current = node;
+  };
   // NIEOGŁOSZONY PARTNER W PODGLĄDZIE: logotyp przygaszony, pod nim plakietka.
   // Plakietka NIE jest pod `aria-hidden`, więc wchodzi do nazwy pozycji
   // (i odnośnika) - czytnik ekranu dowiaduje się o stanie tak samo jak oko.
@@ -171,7 +178,7 @@ function SponsorTierLogo({
 
   if (sponsor.href === null) {
     return (
-      <span className={`flex items-center justify-center px-2${column}`}>
+      <span ref={setRef} className={`flex items-center justify-center px-2${column}`}>
         {logo}
         <span className="sr-only">{sponsor.name}</span>
         {badge}
@@ -186,6 +193,7 @@ function SponsorTierLogo({
       target="_blank"
       rel="noopener noreferrer nofollow"
       className={`flex items-center justify-center rounded-[6px] px-2 py-1 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring${column}`}
+      {...clickHandlers}
     >
       {logo}
       {/* Nazwa odnośnika mówi, GDZIE prowadzi - „New European Strategies” bez

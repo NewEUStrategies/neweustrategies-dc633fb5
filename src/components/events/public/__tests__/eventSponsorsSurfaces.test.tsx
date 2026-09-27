@@ -924,7 +924,14 @@ describe("EventSponsorTiers - pas logotypów na stronie głównej", () => {
   it("pas w podglądzie: nieogłoszony partner BEZ strony też dostaje plakietkę", () => {
     const tiers = tiersWithDraft().map((tier) => ({
       ...tier,
-      sponsors: tier.sponsors.map((sponsor) => ({ ...sponsor, websiteUrl: null, isDraft: true })),
+      // Odnośnik wynika z `href` (ustawienie `link_mode`), nie z samego adresu
+      // WWW - „bez strony" to więc oba pola puste.
+      sponsors: tier.sponsors.map((sponsor) => ({
+        ...sponsor,
+        websiteUrl: null,
+        href: null,
+        isDraft: true,
+      })),
     }));
     render(<EventSponsorTiersView tiers={tiers} draftLabel="Nieogłoszony" />);
     const pozycje = screen.getAllByRole("listitem");
