@@ -722,6 +722,13 @@
       "when": 1790552077471,
       "tag": "0102_event_seating_review_fixes",
       "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1790552324463,
+      "tag": "0103_event_clone_participant_settings",
+      "breakpoints": true
     }
   ]
 }
