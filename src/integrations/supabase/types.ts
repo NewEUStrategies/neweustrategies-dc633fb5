@@ -8485,48 +8485,6 @@ export type Database = {
           },
         ]
       }
-      event_session_saves: {
-        Row: {
-          created_at: string
-          event_id: string
-          id: string
-          session_id: string
-          tenant_id: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          event_id: string
-          id?: string
-          session_id: string
-          tenant_id: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          event_id?: string
-          id?: string
-          session_id?: string
-          tenant_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "event_session_saves_event_fkey"
-            columns: ["tenant_id", "event_id"]
-            isOneToOne: false
-            referencedRelation: "events"
-            referencedColumns: ["tenant_id", "id"]
-          },
-          {
-            foreignKeyName: "event_session_saves_session_fkey"
-            columns: ["tenant_id", "event_id", "session_id"]
-            isOneToOne: false
-            referencedRelation: "event_sessions"
-            referencedColumns: ["tenant_id", "event_id", "id"]
-          },
-        ]
-      }
       event_session_signups: {
         Row: {
           cancelled_at: string | null
@@ -9270,139 +9228,6 @@ export type Database = {
           },
         ]
       }
-      event_survey_questions: {
-        Row: {
-          created_at: string
-          event_id: string
-          help_en: string | null
-          help_pl: string | null
-          id: string
-          is_active: boolean
-          is_required: boolean
-          key: string
-          label_en: string
-          label_pl: string
-          options: Json
-          question_type: string
-          sort_order: number
-          tenant_id: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          event_id: string
-          help_en?: string | null
-          help_pl?: string | null
-          id?: string
-          is_active?: boolean
-          is_required?: boolean
-          key: string
-          label_en: string
-          label_pl: string
-          options?: Json
-          question_type: string
-          sort_order?: number
-          tenant_id: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          event_id?: string
-          help_en?: string | null
-          help_pl?: string | null
-          id?: string
-          is_active?: boolean
-          is_required?: boolean
-          key?: string
-          label_en?: string
-          label_pl?: string
-          options?: Json
-          question_type?: string
-          sort_order?: number
-          tenant_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "event_survey_questions_event_fkey"
-            columns: ["tenant_id", "event_id"]
-            isOneToOne: false
-            referencedRelation: "events"
-            referencedColumns: ["tenant_id", "id"]
-          },
-        ]
-      }
-      event_survey_respondents: {
-        Row: {
-          event_id: string
-          registration_id: string
-          tenant_id: string
-        }
-        Insert: {
-          event_id: string
-          registration_id: string
-          tenant_id: string
-        }
-        Update: {
-          event_id?: string
-          registration_id?: string
-          tenant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "event_survey_respondents_registration_fkey"
-            columns: ["tenant_id", "event_id", "registration_id"]
-            isOneToOne: false
-            referencedRelation: "event_registrations"
-            referencedColumns: ["tenant_id", "event_id", "id"]
-          },
-        ]
-      }
-      event_survey_responses: {
-        Row: {
-          answers: Json
-          event_id: string
-          id: string
-          lang: string | null
-          registration_id: string | null
-          submitted_on: string | null
-          tenant_id: string
-        }
-        Insert: {
-          answers: Json
-          event_id: string
-          id?: string
-          lang?: string | null
-          registration_id?: string | null
-          submitted_on?: string | null
-          tenant_id: string
-        }
-        Update: {
-          answers?: Json
-          event_id?: string
-          id?: string
-          lang?: string | null
-          registration_id?: string | null
-          submitted_on?: string | null
-          tenant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "event_survey_responses_event_fkey"
-            columns: ["tenant_id", "event_id"]
-            isOneToOne: false
-            referencedRelation: "events"
-            referencedColumns: ["tenant_id", "id"]
-          },
-          {
-            foreignKeyName: "event_survey_responses_registration_id_fkey"
-            columns: ["registration_id"]
-            isOneToOne: false
-            referencedRelation: "event_registrations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       event_term_acceptances: {
         Row: {
           accepted_at: string
@@ -9969,75 +9794,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
-          },
-        ]
-      }
-      event_waitlist_offers: {
-        Row: {
-          closed_at: string | null
-          created_at: string
-          created_by: string | null
-          event_id: string
-          expires_at: string
-          extended_count: number
-          id: string
-          offered_at: string
-          payment_order_id: string | null
-          registration_id: string
-          source: string
-          status: string
-          tenant_id: string
-          ticket_type_id: string | null
-          updated_at: string
-        }
-        Insert: {
-          closed_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          event_id: string
-          expires_at: string
-          extended_count?: number
-          id?: string
-          offered_at?: string
-          payment_order_id?: string | null
-          registration_id: string
-          source?: string
-          status?: string
-          tenant_id: string
-          ticket_type_id?: string | null
-          updated_at?: string
-        }
-        Update: {
-          closed_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          event_id?: string
-          expires_at?: string
-          extended_count?: number
-          id?: string
-          offered_at?: string
-          payment_order_id?: string | null
-          registration_id?: string
-          source?: string
-          status?: string
-          tenant_id?: string
-          ticket_type_id?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "event_waitlist_offers_payment_order_id_fkey"
-            columns: ["payment_order_id"]
-            isOneToOne: false
-            referencedRelation: "payment_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "event_waitlist_offers_registration_fkey"
-            columns: ["tenant_id", "event_id", "registration_id"]
-            isOneToOne: false
-            referencedRelation: "event_registrations"
-            referencedColumns: ["tenant_id", "event_id", "id"]
           },
         ]
       }
@@ -12896,7 +12652,6 @@ export type Database = {
           enabled_content: boolean
           enabled_crm_task: boolean
           enabled_endorsement: boolean
-          enabled_event: boolean
           enabled_expert_request: boolean
           enabled_follow: boolean
           enabled_introduction: boolean
@@ -12932,7 +12687,6 @@ export type Database = {
           enabled_content?: boolean
           enabled_crm_task?: boolean
           enabled_endorsement?: boolean
-          enabled_event?: boolean
           enabled_expert_request?: boolean
           enabled_follow?: boolean
           enabled_introduction?: boolean
@@ -12968,7 +12722,6 @@ export type Database = {
           enabled_content?: boolean
           enabled_crm_task?: boolean
           enabled_endorsement?: boolean
-          enabled_event?: boolean
           enabled_expert_request?: boolean
           enabled_follow?: boolean
           enabled_introduction?: boolean
@@ -19665,13 +19418,6 @@ export type Database = {
           visibility: string
         }[]
       }
-      _event_delivery_claim: { Args: { p_payload: Json }; Returns: string }
-      _event_delivery_confirm: {
-        Args: { p_detail?: string; p_id: string; p_status: string }
-        Returns: boolean
-      }
-      _event_follow_up_claim: { Args: { p_limit?: number }; Returns: Json }
-      _event_follow_up_token_issue: { Args: { p_registration_id: string }; Returns: Json }
       _event_group_admit_guest: {
         Args: {
           p_guest: Database["public"]["Tables"]["event_registrations"]["Row"]
@@ -19705,7 +19451,6 @@ export type Database = {
         Args: { p_registration_id: string }
         Returns: Json
       }
-      _event_lifecycle_due: { Args: { p_limit?: number }; Returns: Json }
       _event_meeting_available: {
         Args: {
           _ends: string
@@ -19794,8 +19539,6 @@ export type Database = {
         Args: { _event_id: string; _tenant: string }
         Returns: number
       }
-      _event_offer_expire: { Args: { p_offer_id: string }; Returns: Json }
-      _event_offer_void: { Args: { p_offer_id: string }; Returns: Json }
       _event_onsite_person_card: {
         Args: { _event_id: string; _person_id: string; _tenant: string }
         Returns: Json
@@ -19828,7 +19571,6 @@ export type Database = {
         Args: { _answers: Json; _event_id: string; _tenant: string }
         Returns: string
       }
-      _event_reminders_claim: { Args: { p_email_limit?: number; p_limit?: number }; Returns: Json }
       _event_scanner_device_auth: {
         Args: { _scope: string; _token: string }
         Returns: {
@@ -19940,14 +19682,10 @@ export type Database = {
         }
         Returns: number
       }
-      _event_transfer_expire: { Args: { p_transfer_id: string }; Returns: Json }
-      _event_transfer_notice_payload: { Args: { p_transfer_id: string }; Returns: Json }
-      _event_transfer_scrub: { Args: { p_limit?: number }; Returns: number }
       _event_unique_page_slug: {
         Args: { _base: string; _tenant: string }
         Returns: string
       }
-      _event_waitlist_offer_notices_claim: { Args: { p_limit?: number }; Returns: Json }
       _event_waitlist_promote: {
         Args: {
           _event_id: string
@@ -20936,7 +20674,6 @@ export type Database = {
         Args: { p_event_id: string; p_features: Json }
         Returns: Json
       }
-      admin_event_follow_up_stats: { Args: { p_event_id: string }; Returns: Json }
       admin_event_general_save: { Args: { p_payload: Json }; Returns: string }
       admin_event_group_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_group_member_set: {
@@ -21141,7 +20878,6 @@ export type Database = {
           total_count: number
         }[]
       }
-      admin_event_message_delivery_stats: { Args: { p_event_id: string }; Returns: Json }
       admin_event_onsite_live_stats: {
         Args: { p_event_id: string; p_window_minutes?: number }
         Returns: Json
@@ -21333,15 +21069,10 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: number
       }
-      admin_event_registration_money_state: {
-        Args: { p_event_id: string; p_registration_ids?: string[] }
-        Returns: Json
-      }
       admin_event_registration_notify_payload: {
         Args: { p_payload: Json }
         Returns: Json
       }
-      admin_event_registration_transfer: { Args: { p_payload: Json }; Returns: Json }
       admin_event_registration_upsert: {
         Args: { p_payload: Json }
         Returns: string
@@ -21845,12 +21576,6 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: number
       }
-      admin_event_survey_question_delete: { Args: { p_payload: Json }; Returns: Json }
-      admin_event_survey_question_upsert: { Args: { p_payload: Json }; Returns: Json }
-      admin_event_survey_questions_list: { Args: { p_event_id: string }; Returns: Json }
-      admin_event_survey_questions_reorder: { Args: { p_payload: Json }; Returns: Json }
-      admin_event_survey_responses_export: { Args: { p_event_id: string }; Returns: Json }
-      admin_event_survey_results: { Args: { p_event_id: string }; Returns: Json }
       admin_event_term_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_term_upsert: { Args: { p_payload: Json }; Returns: string }
       admin_event_terms_list: {
@@ -22057,7 +21782,6 @@ export type Database = {
           sort_order: number
         }[]
       }
-      admin_event_waitlist_offer_action: { Args: { p_payload: Json }; Returns: Json }
       admin_event_waitlist_promote: { Args: { p_payload: Json }; Returns: Json }
       admin_events_counts: {
         Args: {
@@ -25000,7 +24724,6 @@ export type Database = {
           state: string
         }[]
       }
-      event_my_plan: { Args: { p_payload: Json }; Returns: Json }
       event_my_registrations: { Args: { p_payload?: Json }; Returns: Json }
       event_package_invite_accept: { Args: { p_payload: Json }; Returns: Json }
       event_package_purchase: { Args: { p_payload: Json }; Returns: Json }
@@ -25083,7 +24806,6 @@ export type Database = {
           visibility: string
         }[]
       }
-      event_participant_options: { Args: { p_slug: string }; Returns: Json }
       event_register: { Args: { p_payload: Json }; Returns: Json }
       event_register_group_guests: {
         Args: { p_guests: Json; p_lead_registration_id: string }
@@ -25099,7 +24821,6 @@ export type Database = {
         Args: { p_registration_id: string }
         Returns: number
       }
-      event_registration_join_waitlist: { Args: { p_payload: Json }; Returns: Json }
       event_registration_manage_view: {
         Args: { p_payload?: Json }
         Returns: Json
@@ -25112,16 +24833,10 @@ export type Database = {
         Args: { p_registration_id: string }
         Returns: Json
       }
-      event_registration_refund_begin: { Args: { p_payload: Json }; Returns: Json }
       event_registration_set_channels: {
         Args: { p_payload: Json }
         Returns: Json
       }
-      event_registration_set_reminders: { Args: { p_payload: Json }; Returns: Json }
-      event_registration_transfer_accept: { Args: { p_payload: Json }; Returns: Json }
-      event_registration_transfer_cancel: { Args: { p_payload: Json }; Returns: Json }
-      event_registration_transfer_preview: { Args: { p_payload: Json }; Returns: Json }
-      event_registration_transfer_start: { Args: { p_payload: Json }; Returns: Json }
       event_scanner_bootstrap: { Args: { p_payload: Json }; Returns: Json }
       event_sections: {
         Args: { p_slug: string }
@@ -25138,7 +24853,6 @@ export type Database = {
         }[]
       }
       event_session_access: { Args: { _session_id: string }; Returns: Json }
-      event_session_save_toggle: { Args: { p_payload: Json }; Returns: Json }
       event_session_signup: { Args: { p_payload: Json }; Returns: Json }
       event_speakers_public: {
         Args: { p_payload: Json }
