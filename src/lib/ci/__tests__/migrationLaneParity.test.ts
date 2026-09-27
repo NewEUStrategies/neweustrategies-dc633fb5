@@ -12,6 +12,7 @@ import {
   analyzeMigrationLanes,
   executableSql,
   laneParityFailed,
+  listSqlOrEmpty,
   readFileOrNull,
   renderLaneReport,
   sqlBlockCommentEnd,
@@ -81,6 +82,27 @@ describe("analyzeMigrationLanes", () => {
     expect(laneParityFailed(report)).toBe(false);
     expect(report.deployRecords).toEqual([{ tag: "0071_kopia", twin: "20260101000000_x.sql" }]);
     expect(renderLaneReport(report)).toContain("[zapis-wdrozenia] 0071_kopia");
+  });
+
+  it("pomija plik pasa supabase, którego nie da się przeczytać, zamiast wywrócić bramkę", () => {
+    const report = analyzeMigrationLanes(
+      ["0071_kopia"],
+      [],
+      fromMap({
+        "drizzle/migrations/0071_kopia.sql": "ALTER TABLE a;",
+        "supabase/migrations/20260101000001_y.sql": "ALTER TABLE a;",
+      }),
+      () => ["20260101000000_zniknal.sql", "20260101000001_y.sql"],
+    );
+    expect(report.deployRecords).toEqual([{ tag: "0071_kopia", twin: "20260101000001_y.sql" }]);
+  });
+
+  it("listuje wyłącznie pliki .sql, posortowane, a brak katalogu to pusta lista", () => {
+    const names = listSqlOrEmpty(DRIZZLE_DIR);
+    expect(names.length).toBeGreaterThan(0);
+    expect(names.every((n) => n.endsWith(".sql"))).toBe(true);
+    expect([...names].sort()).toEqual(names);
+    expect(listSqlOrEmpty("nie/ma/takiego/katalogu")).toEqual([]);
   });
 
   it("ŁAPIE kopię różną choćby o jedną instrukcję - to już decyzja człowieka", () => {
