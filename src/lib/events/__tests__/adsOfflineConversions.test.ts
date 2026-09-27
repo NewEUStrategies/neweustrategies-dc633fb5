@@ -41,7 +41,14 @@ function exportOf(rows: AdsConversionRow[], timezone = "Europe/Warsaw"): AdsConv
   return {
     timezone,
     rows,
-    skipped: { unattributed: 0, noClick: 0, expired: 0, beforeClick: 0 },
+    skipped: {
+      unattributed: 0,
+      noClick: 0,
+      expired: 0,
+      beforeClick: 0,
+      consentWithdrawn: 0,
+      awaitingAdmission: 0,
+    },
   };
 }
 

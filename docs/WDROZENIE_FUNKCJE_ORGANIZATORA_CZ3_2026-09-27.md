@@ -139,7 +139,8 @@ pominięta) i asercje runtime harnessu na bazie `nes`.
 
 | Kolejność                    | `--schema-only`                        | `--data-only`          | Asercje runtime                  |
 | ---------------------------- | -------------------------------------- | ---------------------- | -------------------------------- |
-| sekcja 2.4                   | identyczne (sha256 `b77ab12f830165a0`) | identyczne (106 tabel) | 3711 OK                          |
+| sekcja 2.4 (stan z `main`)   | identyczne (sha256 `b77ab12f830165a0`) | identyczne (106 tabel) | 3711 OK                          |
+| 2.4 + sekcja 4 (z tym PR)    | identyczne (sha256 `ff4681303bbc440c`) | identyczne (108 tabel) | 3813 OK                          |
 | notatka części 2 (bez kr. 4) | różne (`payments_apply_...`)           | różne                  | pada `pula: pierwsza wplata ...` |
 
 `20260926153300` jest poza zestawem harnessu (rodzaje powiadomień na atrapie) i jest pomijany
@@ -158,7 +159,8 @@ i triggery zakładane przez pliki nowsze od `20260926140000`. **Pusty wynik = st
 'notifications_kind_check'` ma zawierać `'event'` i `'billing'`, a kolumna
   `notification_preferences.enabled_event` ma istnieć.
 
-Przy nowych migracjach tego PR plik trzeba wygenerować ponownie:
+Plik jest wygenerowany ponownie z nowymi parami tego PR (sekcja 4), więc pusty wynik oznacza
+stan po WSZYSTKICH krokach: z 2.4 i z sekcji 4. Przy kolejnych zmianach migracji generujesz go tak:
 `DEPLOY_PROOF_WRITE_VERIFY=scripts/deploy-order/weryfikacja-po-wdrozeniu.sql bash scripts/deploy-order-proof.sh scripts/deploy-order/produkcja.txt`.
 
 ## 3. Zakres tego PR (lista kontrolna)
@@ -168,22 +170,41 @@ Przy nowych migracjach tego PR plik trzeba wygenerować ponownie:
       `20260926183100_event_participant_part3_followups` z #411 (sekcja 2).
 - [x] Bramka pasów: zapisy wdrożenia `0071`/`0072` w rejestrze; kopie z panelu rozpoznawane po
       treści, żeby kolejne kroki wdrożenia nie czerwieniły `main`.
-- [ ] Skaner offline i Wallet, część 2: przepełnienie kolejki, wygasanie poświadczenia,
-      czyszczenie listy przy zmianie poświadczenia, odświeżanie parowania, zakres urządzenia,
-      limit per token, `callerSupabase`, `downloadBlob`.
-- [ ] Lejek Google Ads: uwagi przeglądu (atrybucja między kartami, zgoda, pakiety jako konwersje,
-      ROAS, parser kosztów, liczba grup raportu) i dostosowania do #403-#407.
-- [ ] Plan sali: uwagi przeglądu (kolejność blokad, geometria, eksport CSV bez e-maili, metryki,
-      komunikat o miejscu).
-- [ ] Kopiowanie edycji: ustawienia uczestnika z #406, `_event_safe_timezone`.
-- [ ] Most CRM: stan per intencja (check-in nie nadpisuje błędu naboru), deduplikacja osi czasu.
-- [ ] Odświeżanie publicznej listy prelegentów po potwierdzeniu udziału i po zmianach mówców
-      w agendzie; komentarz a działanie `useViewerCard`.
+- [x] Skaner offline i Wallet, część 2 (bez migracji): przepełnienie kolejki idzie na listę
+      odrzuconych, termin poświadczenia sprawdzany na zegarze urządzenia (także bez sieci),
+      lista osób kasowana przy zmianie poświadczenia, pokolenia parowania, pozycje kolejki
+      z identyfikatorem urządzenia (`device_mismatch`), wstrzymanie urządzenia odwracalne,
+      limit per token w trasach portfela, `callerSupabase`, `downloadBlob`.
+- [x] Lejek Google Ads (`20260927001100`): atrybucja między kartami, cofnięta zgoda (klient
+      i eksport), pakiety jako konwersje (tabela `event_package_order_attributions`), ROAS tylko
+      z kampanii z kosztem, parser kwot, limit 50 grup + `other`, przychód wyłącznie z opłaconych
+      zamówień (#403-#407: pula planu, zwrot ręczny, własne zamówienia gości, kolejka opłacona).
+- [x] Plan sali (`20260927001200`): blokady zgłoszeń przed mapą (zakleszczenie odtworzone
+      i naprawione), parytet zaokrągleń, zaokrąglone parametry sekcji, nowa sekcja pod
+      istniejącymi, planer nie dzieli grup przez przejście, eksport bez e-maili, stronicowany
+      eksport, etykieta kandydata na żywo, komunikat o miejscu tylko dla uprawnionych.
+- [x] Kopiowanie edycji (`20260927001300`): ustawienia uczestnika z #406, strefa źródła przez
+      `_event_safe_timezone`, lista „nie kopiujemy" zgodna z nagłówkiem.
+- [x] Most CRM (`20260927001400`): `pending_errors` per intencja (check-in nie kasuje błędu naboru,
+      ponowienie odtwarza każdą intencję), deduplikacja wpisu osi czasu po własnym wierszu audytu.
+- [x] Odświeżanie publicznej listy prelegentów po potwierdzeniu udziału i po zmianach mówców
+      w agendzie; komentarz `useViewerCard` zgodny z kodem.
 - [ ] Niezależny przegląd całego PR i poprawki.
 - [ ] Zielone CI i pełny `events-harness`.
 
 ## 4. Wdrożenie produkcji (po scaleniu)
 
-Najpierw kroki z sekcji 2.4 (te, których jeszcze nie ma), potem nowe pary migracji z tego PR
-w kolejności wersji. Lista zostanie wpisana tutaj, gdy migracje będą gotowe, a zapytanie
-z 2.7 wygenerowane ponownie. Starych, niepociętych plików nie uruchamiaj ręcznie w edytorze SQL.
+Najpierw kroki 1-28 z sekcji 2.4 (te, których jeszcze nie ma), potem nowe pary migracji z tego
+PR, w tej kolejności, każda po poprzedniej. Wszystkie są do 45 KiB, bez wpisu w dzienniku drizzle
+(panel dopisze własną kopię) i są już w `scripts/deploy-order/produkcja.txt`, więc dowód z 2.6
+obejmuje je razem z krokami 1-28.
+
+| Krok | Plik (supabase)                                       | Bliźniak drizzle                            | Zmiana                                    |
+| ---- | ----------------------------------------------------- | ------------------------------------------- | ----------------------------------------- |
+| 29   | `20260927001100_event_ads_funnel_review_fixes.sql`    | `0073_event_ads_funnel_review_fixes.sql`    | lejek Google Ads (wymaga kroków 19-20)    |
+| 30   | `20260927001200_event_seating_review_fixes.sql`       | `0074_event_seating_review_fixes.sql`       | plan sali (wymaga kroków 21-23)           |
+| 31   | `20260927001300_event_clone_participant_settings.sql` | `0075_event_clone_participant_settings.sql` | kopiowanie edycji (wymaga kroków 1-2, 28) |
+| 32   | `20260927001400_event_person_crm_intents.sql`         | `0076_event_person_crm_intents.sql`         | most CRM (wymaga kroku 25)                |
+
+Po kroku 32 zapytanie z 2.7 ma zwrócić pusty wynik. Starych, niepociętych plików nie uruchamiaj
+ręcznie w edytorze SQL.

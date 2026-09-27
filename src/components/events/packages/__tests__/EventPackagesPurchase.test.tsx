@@ -73,7 +73,7 @@ vi.mock("@/lib/events/eventFunnelBeacon", () => ({
 }));
 // Zamowienie pakietu jest konwersja kampanii - atrybucja przypinana po sukcesie
 // (bramka zgody mieszka w `registrationAttribution.ts`).
-const attribution = vi.hoisted(() => ({ attach: vi.fn(async () => true) }));
+const attribution = vi.hoisted(() => ({ attach: vi.fn(async (_orderId: string) => true) }));
 vi.mock("@/lib/events/registrationAttribution", () => ({
   attachPackageOrderAttribution: (orderId: string) => attribution.attach(orderId),
 }));

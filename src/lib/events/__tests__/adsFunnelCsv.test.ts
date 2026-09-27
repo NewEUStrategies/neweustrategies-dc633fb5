@@ -69,6 +69,7 @@ function report(groups: AdsFunnelGroup[]): AdsFunnelReport {
   return {
     timezone: "Europe/Warsaw",
     groups,
+    groupsFolded: 0,
     unattributed: { registrations: 2, paid: 1, revenue: [{ currency: "EUR", cents: 1000 }] },
     totals: {
       visits: 10,
