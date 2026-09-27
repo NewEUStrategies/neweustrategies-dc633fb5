@@ -258,7 +258,10 @@ export interface CheckinsQuery {
   q?: string;
   limit?: number;
   offset?: number;
-  /** Tylko wpuszczeni bez sieci, którym baza odmawia (tryb offline skanera). */
+  /**
+   * Tylko konflikty decyzji offline: wpuszczeni bez sieci, którym baza odmawia,
+   * i odesłani bez sieci z ważnym biletem (`conflict_kind`).
+   */
   conflictsOnly?: boolean;
 }
 

@@ -168,6 +168,13 @@ export interface CheckinScanResult {
   outcome: string;
   /** JEDYNA odpowiedź na pytanie „wpuścić?" - liczy ją baza, nie ekran. */
   admit: boolean;
+  /**
+   * Co zrobiłaby baza bez decyzji urządzenia. Różni się od `admit` tylko przy
+   * skanie, któremu urządzenie BEZ SIECI odmówiło, a baza by wpuściła: wiersz
+   * trzyma odmowę bramki (człowieka odesłano, nie jest obecny), a to pole
+   * mówi, że bilet był ważny - to jest konflikt „odesłany offline".
+   */
+  serverAdmit: boolean;
   result: string | null;
   checkinId: string | null;
   direction: CheckinDirection | null;
@@ -190,6 +197,9 @@ function parseCheckinScan(value: unknown): CheckinScanResult {
   return {
     outcome: text(row.outcome) ?? "unknown",
     admit: row.admit === true,
+    // Odpowiedzi bez zapisu (`unknown_code`, `wrong_event`) nie niosą pola -
+    // wtedy baza nie ma innego zdania niż `admit`.
+    serverAdmit: typeof row.server_admit === "boolean" ? row.server_admit : row.admit === true,
     result: text(row.result),
     checkinId: text(row.checkin_id),
     direction: direction === "in" || direction === "out" ? direction : null,
