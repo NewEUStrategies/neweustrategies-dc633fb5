@@ -135,7 +135,7 @@ BEGIN
     AND r.qr_token_hash IS NOT NULL
     AND r.qr_token_hash = encode(digest(v_token, 'sha256'), 'hex')
     AND r.status IN ('approved', 'attended')
-    AND r.payment_status IN ('paid', 'not_required')
+    AND r.payment_status IN ('paid', 'partially_refunded', 'not_required')
     AND e.status <> 'cancelled';
 
   IF v_out IS NULL THEN
@@ -149,7 +149,7 @@ REVOKE ALL ON FUNCTION public.event_ticket_wallet_payload(jsonb) FROM PUBLIC, an
 GRANT EXECUTE ON FUNCTION public.event_ticket_wallet_payload(jsonb)
   TO anon, authenticated, service_role;
 COMMENT ON FUNCTION public.event_ticket_wallet_payload(jsonb) IS
-  'Dane przepustki Apple/Google Wallet dla JAWNEGO kodu biletu (p_payload.qr_token). Najemca z hosta (public_tenant_id), bez has_role. Tylko zgloszenie approved/attended oplacone albo bezplatne na nieodwolanym wydarzeniu; inaczej not_found.';
+  'Dane przepustki Apple/Google Wallet dla JAWNEGO kodu biletu (p_payload.qr_token). Najemca z hosta (public_tenant_id), bez has_role. Tylko zgloszenie approved/attended oplacone (takze po zwrocie czesciowym) albo bezplatne na nieodwolanym wydarzeniu; inaczej not_found.';
 
 -- Dziennik wydania: wylacznie service_role, po autoryzacji kodem.
 CREATE OR REPLACE FUNCTION public._event_wallet_pass_note(
