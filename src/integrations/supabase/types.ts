@@ -9656,6 +9656,7 @@ export type Database = {
           last_source_label: string | null
           last_source_type: string | null
           last_tags: string[]
+          pending_errors: Json
           person_id: string
           sync_status: string
           synced_at: string | null
@@ -9671,6 +9672,7 @@ export type Database = {
           last_source_label?: string | null
           last_source_type?: string | null
           last_tags?: string[]
+          pending_errors?: Json
           person_id: string
           sync_status?: string
           synced_at?: string | null
@@ -9686,6 +9688,7 @@ export type Database = {
           last_source_label?: string | null
           last_source_type?: string | null
           last_tags?: string[]
+          pending_errors?: Json
           person_id?: string
           sync_status?: string
           synced_at?: string | null
