@@ -40,19 +40,22 @@ audyt nakładania się, status przeglądu do chwili scalenia #410).
 
 - `20260926085900_crm_consent_source_event.sql` i `20260926090000_event_organizer_foundation.sql`
   (zapisy wdrożenia Lovable `0065` i `0066`).
-- Część 2 braków z `main`: `20260926100000_event_group_guests_follow_lead`,
-  `20260926110000_event_package_coupon_per_seat`,
-  `20260926120000_event_group_lead_closes_admitted_guests`,
+- Część 2 braków z `main`: `20260926100001_event_group_guests_follow_lead`,
+  `20260926110001_event_package_coupon_per_seat`,
+  `20260926120001_event_group_lead_closes_admitted_guests`,
   `20260926130000_event_package_order_cancel_returns_coupon`,
   `20260926140000_event_group_lead_plan_seat` (zapisy Lovable `0057`, `0058`, `0062`-`0064`).
-- Starsze migracje (wersje do linii bazowej `20260926100000`) - lista wdrożonych plików ponad
+  Trzy pierwsze wdrożono pod wersjami `20260926100000`/`110000`/`120000`; #412 na `main`
+  przenumerował je na `...0001` (treść bajt w bajt). Produkcji to nie rusza: baza zapisuje
+  wykonanie pasa drizzle (hasze), a `supabase_migrations` kończy się na `20260923130000`.
+- Starsze migracje (wersje do linii bazowej `20260926100001`) - lista wdrożonych plików ponad
   limit jest w `src/lib/ci/migrationDeployed.ts`; tych plików narzędzie nie tnie (forward-only).
-- **Uwaga na `main` po #409** (`75e051424`, stan z 27.09 ok. 14:30): wdrożone pliki
-  `20260926100000`/`110000`/`120000` dostały tam nowe wersje `...0001`, a obok naszych
-  `20260927000400_event_seating` i `20260927000500_event_sponsor_report` leżą ich kopie
-  `20260926130001_event_seating.sql` i `20260926140001_event_sponsor_report.sql` (pozostałość
-  konfliktu zmian nazw). Tych plików nie wdrażaj - do rozstrzygnięcia przy scaleniu `main` z tym
-  PR (wdrożone wracają do swoich wersji, kopie znikają).
+  Linia i wpis pliku gości grupy idą za jego nazwą po przenumerowaniu - inaczej bramka rozmiaru
+  liczyłaby wdrożony plik jako niewdrożony nadmiar, a plan podziału pozwoliłby go pociąć.
+- Kopie `20260926130001_event_seating.sql` i `20260926140001_event_sponsor_report.sql`, które
+  `main` po #409 zostawił obok `20260927000400`/`000500` (pozostałość konfliktu zmian nazw),
+  zostały usunięte przy scaleniu `main` z tym PR: pierwsza była bajt w bajt `000400`, druga -
+  starszą wersją `000500` sprzed poprawek f6. Nie były wdrożone.
 
 ### 3.2. Do zastosowania z panelu Lovable - w tej kolejności
 
