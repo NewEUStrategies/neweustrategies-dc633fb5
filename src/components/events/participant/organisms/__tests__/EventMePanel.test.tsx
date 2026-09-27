@@ -120,11 +120,6 @@ const h = vi.hoisted(() => ({
   zmianyZakladki: [] as EventMeTab[],
   naborLinki: [] as { slug: string; signedIn: boolean }[],
   miejsca: [] as string[],
-  /** Właściwości gniazd - kontrakt BLK-5: host sprawdza tylko montaż i właściwości. */
-  gniazdoHarmonogramu: [] as EventMeSlotProps[],
-  gniazdoPoWydarzeniu: [] as EventMeSlotProps[],
-  /** Zakładki zgłoszone przez `onTabChange`. */
-  zmianyZakladki: [] as EventMeTab[],
 }));
 
 vi.mock("react-i18next", async () =>
