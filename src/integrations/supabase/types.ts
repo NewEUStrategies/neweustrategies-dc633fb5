@@ -21224,13 +21224,33 @@ export type Database = {
         Args: { p_order: string; p_tenant: string }
         Returns: string
       }
+      _event_invoice_correction_hint: {
+        Args: { p_invoice: string; p_tenant: string }
+        Returns: string
+      }
+      _event_invoice_crm_link: {
+        Args: { p_actor: string; p_invoice: string; p_tenant: string }
+        Returns: string
+      }
       _event_invoice_current_lines: {
         Args: { p_invoice: string; p_tenant: string }
         Returns: Json
       }
+      _event_invoice_document: {
+        Args: { p_invoice: string; p_tenant: string }
+        Returns: Json
+      }
+      _event_invoice_draft_build: {
+        Args: { p_actor: string; p_payload: Json; p_tenant: string }
+        Returns: string
+      }
       _event_invoice_gross_from_net: {
         Args: { p_net: number; p_rate: string }
         Returns: number
+      }
+      _event_invoice_issue_core: {
+        Args: { p_actor: string; p_invoice: string; p_tenant: string }
+        Returns: Json
       }
       _event_invoice_net_from_gross: {
         Args: { p_gross: number; p_rate: string }
@@ -22906,6 +22926,7 @@ export type Database = {
           views: number
         }[]
       }
+      admin_event_invoice_settings_get: { Args: never; Returns: Json }
       admin_event_lead_scans_export: {
         Args: { p_event_id: string; p_sponsor_id?: string }
         Returns: {
