@@ -57,7 +57,7 @@ export const adminEventInvoicesPl = {
       issuePendingCollective: "Wystaw z próśb - zbiorczo per NIP",
       issuePendingTitle: "Wystawić faktury ze wszystkich próśb?",
       issuePendingBody:
-        "Faktury powstaną dla opłaconych zamówień z prośbą nabywcy i bez faktury. Numery nadaje baza w kolejności wystawienia.",
+        "Faktury powstaną dla opłaconych zamówień z prośbą nabywcy i bez faktury. Wpłaty bez miejsca (lista rezerwowa, czekające na decyzję) są pomijane - te zafakturujesz świadomie ze szkicu. Numery nadaje baza w kolejności wystawienia.",
       issuePendingCollectiveBody:
         "Prośby z tym samym NIP-em trafią na jedną fakturę zbiorczą (pozycje według rodzaju biletu). Numery nadaje baza w kolejności wystawienia.",
       issuePendingConfirm: "Wystaw",
@@ -127,6 +127,13 @@ export const adminEventInvoicesPl = {
       cancelConfirm: "Anuluj dokument",
       keep: "Zostaw",
       actionsFor: "Akcje dokumentu {{number}}",
+      // Sprzedaz skurczyla sie PO wystawieniu (`correction_hint`) - organizator
+      // decyduje o korekcie sam, baza niczego nie wystawia automatycznie.
+      correctionHint: {
+        source_closed: "Wymaga korekty: zamówienie odwołane albo zwrócone",
+        refunded: "Wymaga korekty: zwrot płatności po wystawieniu",
+        seats_reduced: "Wymaga korekty: mniej miejsc niż na fakturze",
+      },
     },
     kinds: { invoice: "Faktura", proforma: "Proforma", correction: "Korekta" },
     statuses: { draft: "Szkic", issued: "Wystawiona", cancelled: "Anulowana" },
@@ -411,7 +418,7 @@ export const adminEventInvoicesEn = {
       issuePendingCollective: "Issue from requests - collective per tax ID",
       issuePendingTitle: "Issue invoices from all requests?",
       issuePendingBody:
-        "Invoices are created for paid orders with a buyer request and no invoice. The database assigns numbers in issue order.",
+        "Invoices are created for paid orders with a buyer request and no invoice. Payments without a seat (waiting list, awaiting decision) are skipped - invoice those deliberately from a draft. The database assigns numbers in issue order.",
       issuePendingCollectiveBody:
         "Requests with the same tax ID go onto one collective invoice (lines per ticket type). The database assigns numbers in issue order.",
       issuePendingConfirm: "Issue",
@@ -479,6 +486,11 @@ export const adminEventInvoicesEn = {
       cancelConfirm: "Cancel document",
       keep: "Keep",
       actionsFor: "Actions for document {{number}}",
+      correctionHint: {
+        source_closed: "Needs a credit note: order cancelled or refunded",
+        refunded: "Needs a credit note: payment refunded after issue",
+        seats_reduced: "Needs a credit note: fewer seats than invoiced",
+      },
     },
     kinds: { invoice: "Invoice", proforma: "Pro forma", correction: "Credit note" },
     statuses: { draft: "Draft", issued: "Issued", cancelled: "Cancelled" },

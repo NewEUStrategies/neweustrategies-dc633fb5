@@ -189,6 +189,14 @@ describe("EventInvoiceCorrectionDialog", () => {
     expect(screen.getAllByLabelText(QTY)).toHaveLength(2);
   });
 
+  it("podpowiedz korekty z bazy stoi na gorze okna tym samym zdaniem co plakietka listy", async () => {
+    api.fetchEventInvoice.mockResolvedValue(issued({ correction_hint: "refunded" }));
+    open();
+    expect((await screen.findByRole("note")).textContent).toBe(
+      "adminEventInvoices.documents.correctionHint.refunded",
+    );
+  });
+
   it("nieczytelna ilosc albo cena zatrzymuje wysylke", async () => {
     api.fetchEventInvoice.mockResolvedValue(issued());
     open();

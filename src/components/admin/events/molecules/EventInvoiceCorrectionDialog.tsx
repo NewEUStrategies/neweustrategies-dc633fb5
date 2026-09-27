@@ -11,6 +11,10 @@
 // pierwotne pozycje faktury. Po korekcie ceny ze 123,00 na 100,00 kolejna
 // korekta zaczyna od 100,00 - inaczej organizator poprawialby liczby, ktore
 // juz nie obowiazuja, a pelne odwrocenie zwracaloby wiecej, niz zafakturowano.
+//
+// POWOD KOREKTY Z BAZY (`doc.correctionHint`): gdy sprzedaz skurczyla sie po
+// wystawieniu (zwrot, odwolanie, mniej miejsc), okno mowi to na gorze tym samym
+// zdaniem co plakietka na liscie dokumentow - zakres i kwote wybiera organizator.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -27,7 +31,10 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { adminEventInvoiceErrorMessage } from "@/lib/events/adminEventInvoiceErrors";
-import { VAT_RATE_LABEL_KEYS } from "@/lib/events/adminEventInvoiceLabels";
+import {
+  CORRECTION_HINT_LABEL_KEYS,
+  VAT_RATE_LABEL_KEYS,
+} from "@/lib/events/adminEventInvoiceLabels";
 import type { EventInvoiceDocument } from "@/lib/events/eventInvoiceDocument";
 import { pickEnum, type EventInvoiceCorrectionMode } from "@/lib/events/eventInvoiceEnums";
 import { EVENT_INVOICE_VAT_RATES, type EventInvoiceVatRate } from "@/lib/events/eventInvoiceMath";
@@ -164,6 +171,11 @@ function CorrectionForm({
 
   return (
     <div className="space-y-4">
+      {doc.correctionHint === null ? null : (
+        <p role="note" className="text-sm font-medium text-destructive">
+          {t(CORRECTION_HINT_LABEL_KEYS[doc.correctionHint])}
+        </p>
+      )}
       <fieldset className="space-y-2">
         <legend className="text-sm font-semibold">{t("adminEventInvoices.correction.mode")}</legend>
         <label className="flex items-start gap-2 text-sm">

@@ -3,9 +3,10 @@
 // SKAD KSZTALT. `admin_event_invoice_get` (panel) i `event_my_invoice`
 // (kupujacy) zwracaja ten sam obiekt z `_event_invoice_document` (migracja
 // 20260927000200): `invoice` (wiersz bez migawki sprzedawcy), `seller`,
-// `lines`, `corrects`, a panel dodatkowo `sources`, `corrections`
-// i `current_lines` (pozycje wystawionej faktury PO jej korektach - podstawa
-// kolejnej korekty). Typ
+// `lines`, `corrects`, a panel dodatkowo `sources`, `corrections`,
+// `current_lines` (pozycje wystawionej faktury PO jej korektach - podstawa
+// kolejnej korekty) i `correction_hint` (sprzedaz skurczyla sie po
+// wystawieniu - powod albo NULL). Typ
 // generowany widzi w tym wylacznie `Json`, wiec odczyt jest JAWNY, pole po
 // polu, z bezpiecznym zastepstwem - zadnego rzutowania wiersza na
 // recznie napisany interfejs (`check:db-row-casts`).
@@ -14,6 +15,7 @@
 // fakture bez numeru i pozycji, bylby gorszy niz komunikat o bledzie.
 import type { Json } from "@/integrations/supabase/types";
 import {
+  EVENT_INVOICE_CORRECTION_HINTS,
   EVENT_INVOICE_CORRECTION_MODES,
   EVENT_INVOICE_KINDS,
   EVENT_INVOICE_KSEF_STATUSES,
@@ -22,6 +24,7 @@ import {
   EVENT_INVOICE_SOURCE_KINDS,
   EVENT_INVOICE_STATUSES,
   pickEnum,
+  type EventInvoiceCorrectionHint,
   type EventInvoiceCorrectionMode,
   type EventInvoiceKind,
   type EventInvoiceKsefStatus,
@@ -138,6 +141,8 @@ export interface EventInvoiceDocument {
   sources: EventInvoiceDocumentSource[];
   corrections: EventInvoiceCorrectionRef[];
   currentLines: EventInvoiceCurrentLine[];
+  /** Tylko panel: dlaczego wystawiona faktura wymaga korekty (NULL = nic). */
+  correctionHint: EventInvoiceCorrectionHint | null;
 }
 
 function parseSeller(value: Json | undefined): EventInvoiceSeller {
@@ -275,5 +280,9 @@ export function parseInvoiceDocument(value: Json | null): EventInvoiceDocument |
     sources: jsonList(root.sources).map(parseSource),
     corrections: jsonList(root.corrections).map(parseCorrection),
     currentLines: jsonList(root.current_lines).map(parseCurrentLine),
+    correctionHint:
+      typeof root.correction_hint === "string"
+        ? pickEnum(EVENT_INVOICE_CORRECTION_HINTS, root.correction_hint)
+        : null,
   };
 }

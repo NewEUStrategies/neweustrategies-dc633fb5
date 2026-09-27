@@ -151,6 +151,34 @@ describe("mapa inwalidacji modułu wydarzeń", () => {
     expect(hitsQuery(bezWydarzenia, sponsorReportKeys.links("dowolne"))).toBe(true);
   });
 
+  it("zmiany zgłoszeń (w tym wpłata i zwrot) odświeżają ekran faktur TEGO wydarzenia i profil kupującego", () => {
+    // Zwrot z karty albo odwołanie po wystawieniu faktury zapala podpowiedź
+    // korekty, a wpłata zmienia listę zamówień do zafakturowania - bez tych
+    // kluczy studio pokazywało stan sprzed zmiany do ręcznego odświeżenia.
+    for (const type of [
+      "event.registration.created.v1",
+      "event.registration.updated.v1",
+      "event.registration.decided.v1",
+      "event.registration.cancelled.v1",
+      "event.registration.promoted.v1",
+      "event.registration.payment.v1",
+    ]) {
+      const keys = invalidationKeysFor(
+        domainEvent(type, { event_id: EVENT_ID }),
+        CTX,
+      ) as unknown[][];
+      expect(includesPrefix(keys, eventInvoiceKeys.event(EVENT_ID)), type).toBe(true);
+      expect(includesPrefix(keys, myEventInvoiceKeys.all), type).toBe(true);
+      expect(includesPrefix(keys, eventInvoiceKeys.event("inne-wydarzenie")), type).toBe(false);
+      expect(includesPrefix(keys, registrationKeys.event(EVENT_ID)), type).toBe(true);
+    }
+    const bezWydarzenia = invalidationKeysFor(
+      domainEvent("event.registration.payment.v1", {}),
+      CTX,
+    ) as unknown[][];
+    expect(includesPrefix(bezWydarzenia, eventInvoiceKeys.all)).toBe(true);
+  });
+
   it("zgłoszenie bez `event_id` degraduje do całej gałęzi zgłoszeń", () => {
     const keys = invalidationKeysFor(
       domainEvent("event.registration.decided.v1", {}),
