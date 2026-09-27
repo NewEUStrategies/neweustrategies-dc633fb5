@@ -15,6 +15,7 @@
 // DETERMINIZM (SSR/hydratacja): zero `Math.random`, zegara i stref czasowych -
 // ten sam wynik na serwerze i w przegladarce, takze w mini-mapie uczestnika.
 import type {
+  SeatMapDetail,
   SeatNumbering,
   SeatRowLabelScheme,
   SeatSectionKind,
@@ -50,13 +51,21 @@ export interface Point {
 }
 
 /**
- * Zaokraglenie do setnych jak `round(numeric, 2)` w PostgreSQL: polowka OD
- * ZERA (JS-owe `Math.round` zaokragla polowke w strone +nieskonczonosci).
- * `+ 0` zamienia `-0` na `0`, zeby `-0.00` z cosinusa nie rozjechal porownan.
+ * Zaokraglenie do setnych jak `round((float8)::numeric, 2)` w PostgreSQL.
+ *
+ * DWA KROKI, JAK W BAZIE. Rzutowanie `float8 -> numeric` bierze najpierw 15
+ * cyfr znaczacych (`22.774999999999991` -> `22.775`), a dopiero potem `round`
+ * zaokragla polowke OD ZERA. Surowy double zaokraglony od razu dawal 22.77
+ * tam, gdzie baza zapisala 22.78 (stol okragly 6 miejsc, rozstaw 45.55).
+ * Mnozenie przez 100 tez niesie blad reprezentacji, wiec i ono przechodzi przez
+ * 15 cyfr. JS-owe `Math.round` zaokragla polowke w strone +nieskonczonosci,
+ * dlatego liczymy na wartosci bezwzglednej. `+ 0` zamienia `-0` na `0`, zeby
+ * `-0.00` z cosinusa nie rozjechal porownan.
  */
 export function roundCoord(value: number): number {
-  const rounded = Math.round(Math.abs(value) * 100) / 100;
-  return (value < 0 ? -rounded : rounded) + 0;
+  const pg = Number(Math.abs(value).toPrecision(15));
+  const cents = Math.round(Number((pg * 100).toPrecision(15)));
+  return (value < 0 ? -cents : cents) / 100 + 0;
 }
 
 /** Etykieta rzedu: `alpha` = A..Z, AA..AZ (bijektywna podstawa 26), `numeric` = numer. */
@@ -183,6 +192,35 @@ export function boundsOf(points: readonly Point[], margin = 0): Box {
     maxY = Math.max(maxY, point.y);
   }
   return { minX: minX - margin, minY: minY - margin, maxX: maxX + margin, maxY: maxY + margin };
+}
+
+/** Poczatek pierwszej sekcji pustego planu (pod scena domyslnego planu). */
+export const FIRST_SECTION_ORIGIN: Point = { x: 100, y: 160 };
+
+/**
+ * Poczatek NOWEJ sekcji: pod obrysem sekcji, ktore juz stoja na planie
+ * (miejsca i poczatki sekcji po obrocie), wyrownany do ich lewej krawedzi,
+ * z odstepem dwoch rozstawow rzedow nowej sekcji. Staly poczatek (100, 160)
+ * kladl kazda kolejna sekcje NA poprzedniej - organizator widzial jedna plame
+ * kolek i musial zgadywac, ktora sekcje odsunac. Pusty plan =
+ * `FIRST_SECTION_ORIGIN`.
+ */
+export function nextSectionOrigin(
+  detail: Pick<SeatMapDetail, "sections" | "seats">,
+  rowPitch = 60,
+): Point {
+  if (detail.sections.length === 0) return FIRST_SECTION_ORIGIN;
+  const sections = new Map(detail.sections.map((section) => [section.id, section]));
+  const points: Point[] = detail.sections.map((section) => ({
+    x: section.originX,
+    y: section.originY,
+  }));
+  for (const seat of detail.seats) {
+    const section = sections.get(seat.sectionId);
+    if (section !== undefined) points.push(toMapPoint(seat, section));
+  }
+  const box = boundsOf(points);
+  return { x: roundCoord(box.minX), y: roundCoord(box.maxY + 2 * rowPitch) };
 }
 
 /** Promien kolka miejsca - mniejszy z rozstawow, zeby sasiedzi sie nie zlewali. */

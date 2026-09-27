@@ -48,10 +48,12 @@ import {
   type SectionField,
 } from "@/lib/events/seatingDraft";
 import {
+  FIRST_SECTION_ORIGIN,
   boundsOf,
   generateSectionSeats,
   seatRadius,
   toMapPoint,
+  type Point,
   type SectionLayoutParams,
 } from "@/lib/events/seatingGeometry";
 import { uiLang } from "@/lib/i18n/format";
@@ -139,6 +141,11 @@ export interface EventSeatSectionDialogProps {
   /** `null` = nowa sekcja rodzaju `kind`. */
   section: SeatSection | null;
   kind: SeatSectionKind;
+  /**
+   * Poczatek NOWEJ sekcji (`nextSectionOrigin` - pod sekcjami, ktore juz stoja
+   * na planie). Edycja bierze polozenie z sekcji.
+   */
+  initialOrigin?: Point;
   categories: readonly SeatCategory[];
   isSaving: boolean;
   onSubmit: (input: SeatSectionInput) => void;
@@ -150,26 +157,33 @@ export function EventSeatSectionDialog({
   mapId,
   section,
   kind,
+  initialOrigin = FIRST_SECTION_ORIGIN,
   categories,
   isSaving,
   onSubmit,
 }: EventSeatSectionDialogProps) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
-  const [draft, setDraft] = useState<SectionDraft>(() => emptySectionDraft(kind));
+  const [draft, setDraft] = useState<SectionDraft>(() => emptySectionDraft(kind, initialOrigin));
   const [touched, setTouched] = useState(false);
 
   const sectionRef = useRef(section);
   sectionRef.current = section;
   const kindRef = useRef(kind);
   kindRef.current = kind;
+  // Poczatek czytany przy OTWARCIU (jak rodzaj): odswiezenie planu w tle nie
+  // przesuwa sekcji, ktora organizator wlasnie ustawia.
+  const originRef = useRef(initialOrigin);
+  originRef.current = initialOrigin;
   const sectionId = section === null ? null : section.id;
 
   useEffect(() => {
     if (!open) return;
     const current = sectionRef.current;
     setDraft(
-      current === null ? emptySectionDraft(kindRef.current) : sectionDraftFromSection(current),
+      current === null
+        ? emptySectionDraft(kindRef.current, originRef.current)
+        : sectionDraftFromSection(current),
     );
     setTouched(false);
   }, [open, sectionId]);

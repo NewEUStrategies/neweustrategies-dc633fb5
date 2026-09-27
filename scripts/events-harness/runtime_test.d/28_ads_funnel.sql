@@ -865,7 +865,7 @@ BEGIN
     AND r->>'conversion_time_local' = to_char((now() - interval '1 hour') AT TIME ZONE 'Europe/Warsaw', 'YYYY-MM-DD HH24:MI:SS')
     AND (r->>'ad_user_data')::boolean AND r->>'order_id' = '28b00000-0000-0000-0000-000000000001',
     '28/eksport: identyfikator, nazwa konwersji z kampanii, wartosc netto, czas w strefie wydarzenia');
-  PERFORM pg_temp.assert(v->'skipped' = '{"unattributed":1,"no_click":1,"expired":0,"before_click":1}'::jsonb,
+  PERFORM pg_temp.assert(v->'skipped' = '{"unattributed":1,"no_click":1,"expired":0,"before_click":1,"consent_withdrawn":0,"awaiting_admission":0}'::jsonb,
     '28/eksport: liczniki pominietych (bez atrybucji, bez klikniecia, platnosc przed kliknieciem)');
   v := public.admin_event_ads_conversions_export('28e00000-0000-0000-0000-0000000000e1',
     now() - interval '30 minutes', now());
@@ -962,7 +962,7 @@ DECLARE
   v_a public.event_registration_attributions%ROWTYPE;
 BEGIN
   v := public.event_ads_retention_prune();
-  PERFORM pg_temp.assert(v = '{"attribution_clicks_cleared":1,"funnel_clicks_cleared":1,"funnel_steps_deleted":1}'::jsonb,
+  PERFORM pg_temp.assert(v = '{"attribution_clicks_cleared":1,"package_attribution_clicks_cleared":0,"funnel_clicks_cleared":1,"funnel_steps_deleted":1}'::jsonb,
     '28/retencja: jedno klikniecie atrybucji, jedno kroku, jeden stary krok');
   SELECT a.* INTO v_a FROM public.event_registration_attributions a
    WHERE a.registration_id = '28c00000-0000-0000-0000-000000000001';
@@ -980,7 +980,7 @@ BEGIN
   PERFORM pg_temp.assert(jsonb_array_length(v->'rows') = 0 AND (v->'skipped'->>'expired')::int = 1,
     '28/retencja: przyciete klikniecie nie wraca do eksportu - liczy sie jako wygasle');
   v := public.event_ads_retention_prune();
-  PERFORM pg_temp.assert(v = '{"attribution_clicks_cleared":0,"funnel_clicks_cleared":0,"funnel_steps_deleted":0}'::jsonb,
+  PERFORM pg_temp.assert(v = '{"attribution_clicks_cleared":0,"package_attribution_clicks_cleared":0,"funnel_clicks_cleared":0,"funnel_steps_deleted":0}'::jsonb,
     '28/retencja: drugie przejscie niczego nie zmienia (idempotencja)');
 END $$;
 

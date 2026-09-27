@@ -62,9 +62,9 @@ export const adminEventClonePl = {
     include: {
       title: "Co skopiować",
       description:
-        "Kopiujemy konfigurację, nie dane osób: zapisy, zamówienia, odprawy, skany, spotkania, urządzenia skanera, zgłoszenia i faktury zawsze zostają w poprzedniej edycji.",
+        "Kopiujemy konfigurację, nie dane osób: zapisy, zamówienia, odprawy, skany, spotkania, urządzenia skanera, zgłoszenia, faktury, zakładki i zapisy na sesje oraz bilety w portfelu zawsze zostają w poprzedniej edycji.",
       always:
-        "Grupy uczestników i poziomy sponsorów przechodzą zawsze - wskazują je bilety, strony, nabór i giełda spotkań.",
+        "Grupy uczestników i poziomy sponsorów przechodzą zawsze - wskazują je bilety, strony, nabór i giełda spotkań. Zawsze przechodzą też ustawienia uczestnika: przypomnienia, zasady przekazania i zwrotu biletu, oferty z listy rezerwowej, certyfikat i ankieta.",
       labels: {
         agenda: "Agenda: sale, ścieżki i sesje",
         speakers: "Prelegenci i obsada sesji",
@@ -200,6 +200,7 @@ export const adminEventClonePl = {
     },
     items: {
       groups: "Grupy",
+      participantSettings: "Ustawienia uczestnika",
       rooms: "Sale",
       tracks: "Ścieżki",
       sessions: "Sesje",
@@ -248,6 +249,9 @@ export const adminEventClonePl = {
       cfpSubmissions: "Zgłoszenia do naboru",
       seatAssignments: "Przydziały miejsc",
       invoices: "Faktury",
+      sessionSaves: "Zakładki sesji",
+      sessionSignups: "Zapisy na sesje",
+      walletPasses: "Bilety w portfelu (Apple i Google Wallet)",
     },
     count: "{{label}}: {{count}}",
     issues: {
@@ -380,9 +384,9 @@ export const adminEventCloneEn = {
     include: {
       title: "What to copy",
       description:
-        "We copy configuration, not people's data: registrations, orders, check-ins, scans, meetings, scanner devices, submissions and invoices always stay with the previous edition.",
+        "We copy configuration, not people's data: registrations, orders, check-ins, scans, meetings, scanner devices, submissions, invoices, session bookmarks and sign-ups, and wallet passes always stay with the previous edition.",
       always:
-        "Attendee groups and sponsor tiers are always copied - tickets, pages, the call for speakers and the meeting exchange point to them.",
+        "Attendee groups and sponsor tiers are always copied - tickets, pages, the call for speakers and the meeting exchange point to them. Participant settings are always copied too: reminders, ticket transfer and refund rules, waitlist offers, the certificate and the survey.",
       labels: {
         agenda: "Agenda: rooms, tracks and sessions",
         speakers: "Speakers and session cast",
@@ -516,6 +520,7 @@ export const adminEventCloneEn = {
     },
     items: {
       groups: "Groups",
+      participantSettings: "Participant settings",
       rooms: "Rooms",
       tracks: "Tracks",
       sessions: "Sessions",
@@ -564,6 +569,9 @@ export const adminEventCloneEn = {
       cfpSubmissions: "Call submissions",
       seatAssignments: "Seat assignments",
       invoices: "Invoices",
+      sessionSaves: "Session bookmarks",
+      sessionSignups: "Session sign-ups",
+      walletPasses: "Wallet passes (Apple and Google Wallet)",
     },
     count: "{{label}}: {{count}}",
     issues: {

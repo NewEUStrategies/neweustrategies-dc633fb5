@@ -33,7 +33,7 @@ export const adminEventAdsFunnelPl = {
     summary: {
       label: "Podsumowanie",
       description:
-        "Wizyty i kroki lejka liczymy dla przeglądarek ze zgodą na pomiar; zgłoszenia i przychód - dla wszystkich (także bez atrybucji).",
+        "Wizyty i kroki lejka liczymy dla przeglądarek ze zgodą na pomiar; zgłoszenia (także zakupy pakietów grupowych) i przychód - dla wszystkich (także bez atrybucji).",
       visits: "Wizyty",
       registrations: "Zgłoszenia",
       paid: "Opłacone",
@@ -77,15 +77,18 @@ export const adminEventAdsFunnelPl = {
       roas: "ROAS",
       conversion: "Zgłoszenie z wizyty",
       noCampaign: "Bez kampanii",
+      otherCampaigns: "Pozostałe kampanie",
+      otherHint: "Kampanie spoza 50 najliczniejszych w tym okresie: {{folded}}.",
       unattributed: "Bez atrybucji",
       unattributedHint:
-        "Zgłoszenia, których przeglądarka nie dała zgody na pomiar, weszła bezpośrednio z innego urządzenia albo które dodano poza formularzem (import, zaproszenie, organizator).",
+        "Zgłoszenia i zakupy pakietów, których przeglądarka nie dała zgody na pomiar, weszła bezpośrednio z innego urządzenia albo które dodano poza formularzem (import, zaproszenie, organizator).",
       total: "Razem",
       empty: "Brak danych o kampaniach w tym okresie.",
       kinds: {
         campaign: "zmapowana",
         utm_campaign: "utm_campaign",
         gad_campaign: "id kampanii Google Ads",
+        other: "zwinięte",
         none: "bez kampanii",
       },
     },
@@ -205,7 +208,7 @@ export const adminEventAdsFunnelPl = {
       rejected_many: "{{count}} wierszy z niedozwolonym znakiem - pominiętych.",
       rejected_other: "{{count}} wiersza z niedozwolonym znakiem - pominięte.",
       skipped:
-        "Poza plikiem: bez atrybucji {{unattributed}}, bez kliknięcia {{noClick}}, wygasłe {{expired}}, płatność przed kliknięciem {{beforeClick}}.",
+        "Poza plikiem: bez atrybucji {{unattributed}}, bez kliknięcia {{noClick}}, wygasłe {{expired}}, płatność przed kliknięciem {{beforeClick}}, cofnięta zgoda na cookies marketingowe {{consentWithdrawn}}, czekające na przyjęcie {{awaitingAdmission}}.",
     },
     privacy: {
       label: "Prywatność",
@@ -267,7 +270,7 @@ export const adminEventAdsFunnelEn = {
     summary: {
       label: "Summary",
       description:
-        "Visits and funnel steps are counted for browsers that consented to measurement; registrations and revenue for everyone (including unattributed).",
+        "Visits and funnel steps are counted for browsers that consented to measurement; registrations (including group package purchases) and revenue for everyone (including unattributed).",
       visits: "Visits",
       registrations: "Registrations",
       paid: "Paid",
@@ -311,15 +314,18 @@ export const adminEventAdsFunnelEn = {
       roas: "ROAS",
       conversion: "Visit to registration",
       noCampaign: "No campaign",
+      otherCampaigns: "Other campaigns",
+      otherHint: "Campaigns outside the top 50 in this period: {{folded}}.",
       unattributed: "Unattributed",
       unattributedHint:
-        "Registrations whose browser did not consent to measurement, came directly from another device, or that were added outside the form (import, invitation, organizer).",
+        "Registrations and package purchases whose browser did not consent to measurement, came directly from another device, or that were added outside the form (import, invitation, organizer).",
       total: "Total",
       empty: "No campaign data in this period.",
       kinds: {
         campaign: "mapped",
         utm_campaign: "utm_campaign",
         gad_campaign: "Google Ads campaign ID",
+        other: "folded",
         none: "no campaign",
       },
     },
@@ -431,7 +437,7 @@ export const adminEventAdsFunnelEn = {
       rejected_one: "{{count}} row with a disallowed character - skipped.",
       rejected_other: "{{count}} rows with a disallowed character - skipped.",
       skipped:
-        "Left out: unattributed {{unattributed}}, no click {{noClick}}, expired {{expired}}, paid before the click {{beforeClick}}.",
+        "Left out: unattributed {{unattributed}}, no click {{noClick}}, expired {{expired}}, paid before the click {{beforeClick}}, marketing cookies consent withdrawn {{consentWithdrawn}}, awaiting admission {{awaitingAdmission}}.",
     },
     privacy: {
       label: "Privacy",

@@ -12,6 +12,7 @@ import {
   analyzeMigrationLanes,
   executableSql,
   laneParityFailed,
+  listSqlOrEmpty,
   readFileOrNull,
   renderLaneReport,
   sqlBlockCommentEnd,
@@ -59,9 +60,66 @@ describe("analyzeMigrationLanes", () => {
   it("ŁAPIE plik dołożony do drizzle/ bez wpisu w rejestrze", () => {
     // Dokładnie tą drogą przeszło 0001_profiles_discoverable_default_true:
     // plik w jednym pasie, zero śladu w drugim, zero bramek po drodze.
-    const report = analyzeMigrationLanes(["0001_nowy"], [], fromMap({}));
+    const report = analyzeMigrationLanes(["0001_nowy"], [], fromMap({}), () => []);
     expect(report.violations).toHaveLength(1);
     expect(report.violations[0]).toMatchObject({ kind: "brak-wpisu", tag: "0001_nowy" });
+  });
+
+  it("przepuszcza zapis wdrożenia z panelu: plik bez wpisu, SQL == plik pasa supabase", () => {
+    // Tak Lovable wdraża migrację: kopia pliku jako kolejny numer pasa drizzle
+    // (0071_event_scanner_offline = 20260926150000). Treść stoi w pasie
+    // kanonicznym, więc bramki `check:sql-*` ją widzą - wpis nie jest potrzebny.
+    const report = analyzeMigrationLanes(
+      ["0071_kopia"],
+      [],
+      fromMap({
+        "drizzle/migrations/0071_kopia.sql": "ALTER TABLE a ADD COLUMN b int;",
+        "supabase/migrations/20260101000000_x.sql":
+          "-- Naglowek pasa supabase.\nALTER TABLE a ADD COLUMN b int;\n",
+      }),
+      () => ["20260101000000_x.sql"],
+    );
+    expect(laneParityFailed(report)).toBe(false);
+    expect(report.deployRecords).toEqual([{ tag: "0071_kopia", twin: "20260101000000_x.sql" }]);
+    expect(renderLaneReport(report)).toContain("[zapis-wdrozenia] 0071_kopia");
+  });
+
+  it("pomija plik pasa supabase, którego nie da się przeczytać, zamiast wywrócić bramkę", () => {
+    const report = analyzeMigrationLanes(
+      ["0071_kopia"],
+      [],
+      fromMap({
+        "drizzle/migrations/0071_kopia.sql": "ALTER TABLE a;",
+        "supabase/migrations/20260101000001_y.sql": "ALTER TABLE a;",
+      }),
+      () => ["20260101000000_zniknal.sql", "20260101000001_y.sql"],
+    );
+    expect(report.deployRecords).toEqual([{ tag: "0071_kopia", twin: "20260101000001_y.sql" }]);
+  });
+
+  it("listuje wyłącznie pliki .sql, posortowane, a brak katalogu to pusta lista", () => {
+    const names = listSqlOrEmpty(DRIZZLE_DIR);
+    expect(names.length).toBeGreaterThan(0);
+    expect(names.every((n) => n.endsWith(".sql"))).toBe(true);
+    expect([...names].sort()).toEqual(names);
+    expect(listSqlOrEmpty("nie/ma/takiego/katalogu")).toEqual([]);
+  });
+
+  it("ŁAPIE kopię różną choćby o jedną instrukcję - to już decyzja człowieka", () => {
+    // Zapis 0066 zgubił instrukcje COMMENT ON: to nadal ten sam schemat, ale
+    // nie ten sam SQL, więc bramka nie zgaduje - wymaga wpisu z powodem.
+    const report = analyzeMigrationLanes(
+      ["0072_prawie"],
+      [],
+      fromMap({
+        "drizzle/migrations/0072_prawie.sql": "ALTER TABLE a ADD COLUMN b int;",
+        "supabase/migrations/20260101000000_x.sql":
+          "ALTER TABLE a ADD COLUMN b int;\nCOMMENT ON COLUMN a.b IS 'b';\n",
+      }),
+      () => ["20260101000000_x.sql"],
+    );
+    expect(report.violations.map((v) => v.kind)).toEqual(["brak-wpisu"]);
+    expect(report.deployRecords).toEqual([]);
   });
 
   it("ŁAPIE wpis wskazujący na nieistniejącego bliźniaka", () => {
@@ -410,7 +468,9 @@ describe("rejestr kontra stan faktyczny", () => {
 
   it("bramka faktycznie coś widzi - pusty skan nie może być zielony", () => {
     expect(tags.length).toBeGreaterThan(0);
-    expect(MIGRATION_LANES.length).toBe(tags.length);
+    const report = analyzeMigrationLanes(tags);
+    // Każdy plik ma wpis albo jest zapisem wdrożenia rozpoznanym po treści.
+    expect(MIGRATION_LANES.length + report.deployRecords.length).toBe(tags.length);
   });
 
   it("profiles.discoverable wraca do DEFAULT false w OBU pasach", () => {

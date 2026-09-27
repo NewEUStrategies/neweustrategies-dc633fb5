@@ -7,18 +7,49 @@
 //      zamiast pominąć wiersz.
 //   4. Lookup miejsc dla eksportu > 200 zgłoszeń odbija się od limitu RPC.
 //   5. Kandydaci do auto-przydziału ucięci do pierwszej strony (500).
+//   6. Eksport planu ucięty po cichu do `max_rows` PostgREST (1000 z 5000 miejsc).
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { supabaseRpcStub, type SupabaseRpcStub } from "@/test/supabase/rpc";
 import { seatMapRow, seatingCandidate } from "@/test/events/seatingFixtures";
 
-const h = vi.hoisted(() => ({ rpc: null as SupabaseRpcStub | null }));
+interface RpcModifiers {
+  name: string;
+  order: string[];
+  range: [number, number] | null;
+}
+
+const h = vi.hoisted(() => ({
+  rpc: null as SupabaseRpcStub | null,
+  modifiers: [] as RpcModifiers[],
+}));
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
+    // Budowniczy jak w supabase-js: `.order()` i `.range()` przed `await`
+    // (eksport chodzi po stronach), a zapisane modyfikatory widzi odpowiedz.
     rpc: (name: string, args?: Record<string, unknown>) => {
       if (h.rpc === null) throw new Error("test: atrapa RPC nie została ustawiona");
-      return h.rpc.rpc(name, args);
+      const rpcStub = h.rpc;
+      const mods: RpcModifiers = { name, order: [], range: null };
+      const builder = {
+        order(column: string) {
+          mods.order.push(column);
+          return builder;
+        },
+        range(from: number, to: number) {
+          mods.range = [from, to];
+          return builder;
+        },
+        then<A, B>(
+          onFulfilled: (value: unknown) => A | PromiseLike<A>,
+          onRejected?: (reason: unknown) => B | PromiseLike<B>,
+        ) {
+          h.modifiers.push(mods);
+          return rpcStub.rpc(name, args).then(onFulfilled, onRejected);
+        },
+      };
+      return builder;
     },
   },
 }));
@@ -35,6 +66,7 @@ function payloadOf(name: string): Record<string, unknown> {
 
 beforeEach(() => {
   h.rpc = supabaseRpcStub();
+  h.modifiers = [];
 });
 
 const RAW_DETAIL = {
@@ -275,6 +307,48 @@ describe("odczyty listowe", () => {
     expect(payloadOf("admin_event_seating_export")).toEqual({ map_id: "m1" });
     await api.fetchSeatingExport("m1", "co-1");
     expect(payloadOf("admin_event_seating_export")).toEqual({ map_id: "m1", company_id: "co-1" });
+  });
+
+  it("eksport: strony po 1000 z jawnym porządkiem, aż do krótkiej strony", async () => {
+    const all = Array.from({ length: 2345 }, (_, index) => ({ seat_id: `s${index}` }));
+    const pages = (rows: readonly { seat_id: string }[]) => () => {
+      const [from, to] = h.modifiers.at(-1)?.range ?? [0, rows.length - 1];
+      return { data: rows.slice(from, to + 1), error: null };
+    };
+    const exportCalls = () =>
+      h.modifiers.filter((call) => call.name === "admin_event_seating_export");
+
+    stub().setResponse("admin_event_seating_export", pages(all));
+    const rows = await api.fetchSeatingExport("m1", "co-1");
+    expect(rows.map((row) => row.seat_id)).toEqual(all.map((row) => row.seat_id));
+    expect(exportCalls().map((call) => call.range)).toEqual([
+      [0, 999],
+      [1000, 1999],
+      [2000, 2999],
+    ]);
+    for (const call of exportCalls()) {
+      expect(call.order).toEqual(["section_sort", "section_label", "sort_key", "seat_id"]);
+    }
+    // Każda strona niesie ten sam ładunek (filtr firmy nie gubi się po 1. stronie).
+    expect(
+      stub()
+        .callsFor("admin_event_seating_export")
+        .map((call) => call.arg("p_payload")),
+    ).toEqual(Array.from({ length: 3 }, () => ({ map_id: "m1", company_id: "co-1" })));
+
+    // Pełna ostatnia strona: jeszcze jedno pytanie, pusta odpowiedź kończy.
+    h.modifiers = [];
+    stub().setResponse("admin_event_seating_export", pages(all.slice(0, 2000)));
+    await expect(api.fetchSeatingExport("m1")).resolves.toHaveLength(2000);
+    expect(exportCalls()).toHaveLength(3);
+
+    // Błąd na dowolnej stronie przerywa eksport zamiast oddać połowę listy.
+    stub().setResponse("admin_event_seating_export", (call) =>
+      stub().callsFor("admin_event_seating_export").indexOf(call) > 6
+        ? { data: null, error: Object.assign(new Error("boom"), { name: "PostgrestError" }) }
+        : pages(all)(),
+    );
+    await expect(api.fetchSeatingExport("m1")).rejects.toThrow("boom");
   });
 
   it("kandydaci: filtry tylko gdy ustawione, licznik całości z pierwszego wiersza", async () => {

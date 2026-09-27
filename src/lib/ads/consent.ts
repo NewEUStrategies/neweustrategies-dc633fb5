@@ -172,6 +172,28 @@ function readLocal(): ConsentState | null {
   return null;
 }
 
+/**
+ * Atrybucja kampanii (`nes.attribution.v1`, identyfikator kliknięcia Google Ads)
+ * musi zniknąć z urządzenia przy KAŻDEJ decyzji bez zgody - także na stronie,
+ * na której nie stoi `AdAttributionCapture` (ten montuje się tylko na trzech
+ * trasach wydarzenia). Zgoda po klamrze GPC, tak jak czyta ją runtime.
+ * Dynamiczny import jak przy moście rejestru: magazyn atrybucji nie trafia do
+ * chunka wejściowego, a przy zgodzie marketingowej nie ma czego sprzątać.
+ */
+function pruneAdAttribution(state: ConsentState | null): void {
+  const categories = clampCategoriesForGpc(
+    state?.categories ?? { necessary: true, functional: false, analytics: false, marketing: false },
+    isGpcHonored(readGpcSignal(), state),
+  );
+  if (categories.marketing) return;
+  const consent = { analytics: categories.analytics, marketing: false };
+  void import("@/lib/analytics/adAttributionStore")
+    .then((m) => m.pruneAdAttributionForConsent(consent))
+    .catch(() => {
+      /* chunk load error - klucz sprzątnie AdAttributionCapture przy wejściu */
+    });
+}
+
 function writeLocal(state: ConsentState) {
   if (typeof window === "undefined") return;
   try {
@@ -181,6 +203,7 @@ function writeLocal(state: ConsentState) {
   }
   // Mirror do cookie - długoterminowy nośnik decyzji.
   writeCookie(COOKIE_NAME, JSON.stringify(state), COOKIE_MAX_AGE);
+  pruneAdAttribution(state);
   window.dispatchEvent(new Event(EVENT));
 }
 
@@ -246,6 +269,7 @@ function clearConsent() {
     /* ignore */
   }
   deleteCookie(COOKIE_NAME);
+  pruneAdAttribution(null);
   window.dispatchEvent(new Event(EVENT));
 }
 
@@ -537,6 +561,16 @@ export function hasCategoryConsent(cat: ConsentCategory): boolean {
 
 export function hasAnalyticsConsent(): boolean {
   return hasCategoryConsent("analytics");
+}
+
+/**
+ * Czy decyzja zgody jest ZAPISANA (baner rozstrzygnięty, także w innej karcie).
+ * Przed decyzją "brak zgody" znaczy "jeszcze nie wiadomo" - przechwycenie
+ * atrybucji trzyma wtedy identyfikator kliknięcia w pamięci karty.
+ */
+export function hasConsentDecision(): boolean {
+  if (typeof window === "undefined") return false;
+  return readLocal() !== null;
 }
 
 /**

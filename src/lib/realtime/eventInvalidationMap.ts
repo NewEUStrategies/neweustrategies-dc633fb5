@@ -224,10 +224,15 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   // (galaz `["event-cfp", eventId]`) oraz "moje zgloszenia", panel prelegenta
   // i kolejka recenzenta (`["event-cfp-me"]` - klucz uczestnika jest po slugu,
   // ktorego payload nie niesie, wiec uniewazniamy cala galez).
+  // Decyzja (cofniecie przyjecia), rezygnacja i potwierdzenie prelegenta
+  // zmieniaja TEZ liste prelegentow wydarzenia: potwierdzenie wpisuje osobe
+  // do rejestru, rezygnacja i cofniecie ja zdejmuja (razem z obsada sesji).
+  // Bez tego organizator w studiu i kazdy zalogowany na otwartej stronie
+  // wydarzenia widzieli stara liste do konca `staleTime`.
   "event_cfp_submission.submitted.v1": (event) => cfpEventKeys(event),
-  "event_cfp_submission.decided.v1": (event) => cfpEventKeys(event),
-  "event_cfp_submission.withdrawn.v1": (event) => cfpEventKeys(event),
-  "event_cfp_submission.confirmed.v1": (event) => cfpEventKeys(event),
+  "event_cfp_submission.decided.v1": (event) => cfpRosterEventKeys(event),
+  "event_cfp_submission.withdrawn.v1": (event) => cfpRosterEventKeys(event),
+  "event_cfp_submission.confirmed.v1": (event) => cfpRosterEventKeys(event),
   "event_cfp_review.saved.v1": (event) => cfpEventKeys(event),
   // Faktury organizatora: ekran faktur studia (galaz wydarzenia) i karta
   // "Faktury za wydarzenia" w profilu kupujacego.
@@ -438,6 +443,12 @@ function clubWorkspaceEventKeys(event: DomainEventRow): QueryKey[] {
  * bo szersza inwalidacja jest tansza niz nieaktualna lista miejsc. Do tego
  * zawsze: profil uczestnika ("moje zgloszenia" i bilety), skrot w menu konta
  * oraz publiczne liczniki miejsc.
+ *
+ * PLAN SALI TEGO WYDARZENIA (`["event-seating", eventId]`, literal zgodny
+ * z `seatingKeys.event`). Zatwierdzenie, awans z kolejki i anulowanie zmieniaja
+ * zbior osob do rozsadzenia: licznik "Bez miejsca", liste uczestnikow planu
+ * i gotowosc planu. Zdarzenie `event_seat.released.v1` przychodzi tylko wtedy,
+ * gdy ktos TRACI miejsce - przyjecie nowej osoby nie emituje nic z planu.
  */
 function registrationEventKeys(event: DomainEventRow): QueryKey[] {
   const eventId = eventPayloadText(event, "event_id");
@@ -449,6 +460,7 @@ function registrationEventKeys(event: DomainEventRow): QueryKey[] {
     ["account-menu", "my-events"],
     ["event-rsvp-counts"],
     ["public-event"],
+    eventId === "" ? ["event-seating"] : ["event-seating", eventId],
   ];
 }
 
@@ -466,6 +478,27 @@ function registrationInvoiceEventKeys(event: DomainEventRow): QueryKey[] {
 function cfpEventKeys(event: DomainEventRow): QueryKey[] {
   const eventId = eventPayloadText(event, "event_id");
   return [eventId === "" ? ["event-cfp"] : ["event-cfp", eventId], ["event-cfp-me"]];
+}
+
+/**
+ * Naboru + lista prelegentow wydarzenia: publiczna (`eventSpeakersPublicKey`
+ * z `@/lib/builder/queryKeys` - obiekt wejscia dopasowywany czesciowo, wiec
+ * kazdy limit tego wydarzenia, bez innych wydarzen i katalogu), rejestr
+ * w studiu i jego podglad. Wystapienia prelegenta w dialogu profilu
+ * (`public-speaker-engagements`) sa kluczowane po koncie, ktorego payload nie
+ * niesie - stad caly korzen. Brak `event_id` degraduje do korzeni.
+ */
+function cfpRosterEventKeys(event: DomainEventRow): QueryKey[] {
+  const eventId = eventPayloadText(event, "event_id");
+  const roster: QueryKey[] =
+    eventId === ""
+      ? [["builder-speakers"], ["admin-event-speakers"]]
+      : [
+          ["builder-speakers", { source: "event", eventId }],
+          ["admin-event-speakers", eventId],
+          ["admin", "event", eventId, "speakers"],
+        ];
+  return [...cfpEventKeys(event), ...roster, ["public-speaker-engagements"]];
 }
 
 /**

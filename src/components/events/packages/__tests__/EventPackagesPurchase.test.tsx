@@ -71,6 +71,12 @@ const funnel = vi.hoisted(() => ({ send: vi.fn() }));
 vi.mock("@/lib/events/eventFunnelBeacon", () => ({
   sendEventFunnelStep: (step: string, target: unknown) => funnel.send(step, target),
 }));
+// Zamowienie pakietu jest konwersja kampanii - atrybucja przypinana po sukcesie
+// (bramka zgody mieszka w `registrationAttribution.ts`).
+const attribution = vi.hoisted(() => ({ attach: vi.fn(async (_orderId: string) => true) }));
+vi.mock("@/lib/events/registrationAttribution", () => ({
+  attachPackageOrderAttribution: (orderId: string) => attribution.attach(orderId),
+}));
 
 // Podmieniamy SAME wywołania sieciowe; mappery odmów (`admissionQuoteMessageKey`)
 // zostają prawdziwe, bo to one wiążą powód z bazy ze zdaniem na ekranie.
@@ -534,6 +540,8 @@ describe("EventPackagesPurchase - wycena i zamówienie", () => {
     await waitFor(() => expect(api.fetchMyPackageSeats).toHaveBeenCalledWith("ord-1"));
     expect(screen.queryByLabelText("eventPackages.buyerName")).toBeNull();
     expect(screen.getByText("eventPackages.seatsTitle")).toBeInTheDocument();
+    // Atrybucja kampanii trafia do TEGO zamowienia (identyfikator z odpowiedzi bazy).
+    expect(attribution.attach).toHaveBeenCalledWith("ord-1");
   });
 
   it("kod kwotowy na pakiet: wiersz „Rabat (5 × 50 zł)” i do zapłaty 2950 zł", async () => {

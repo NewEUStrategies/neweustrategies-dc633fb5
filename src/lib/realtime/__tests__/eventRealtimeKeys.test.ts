@@ -8,7 +8,10 @@
 // a inwalidacja po prostu przestaje trafiać. Panel organizatora nadal
 // wygląda poprawnie - tylko nie odświeża się po zdarzeniu, co widać dopiero
 // w dniu wydarzenia. Ten test zamienia to milczenie w czerwoną bramkę.
+import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
+import { eventSpeakersPublicKey } from "@/lib/builder/queryKeys";
+import { speakersQueryOptions } from "@/lib/builder/speakersQuery";
 import { invalidationKeysFor } from "@/lib/realtime/eventInvalidationMap";
 import type { DomainEventRow } from "@/lib/realtime/domainEvents";
 import { meetingKeys } from "@/lib/events/useMeetings";
@@ -207,6 +210,84 @@ describe("mapa inwalidacji modułu wydarzeń", () => {
     }
   });
 
+  describe("lista prelegentów po decyzji, rezygnacji i potwierdzeniu", () => {
+    // Klucze z PRAWDZIWYCH opcji zapytań - obiekt wejścia w kluczu dopasowuje
+    // się częściowo, czego `includesPrefix` (Object.is) nie odwzoruje.
+    const OTHER_EVENT = "ffffffff-ffff-ffff-ffff-ffffffffffff";
+    const publicKey = (eventId: string, limit?: number) =>
+      speakersQueryOptions({ source: "event", eventId, ...(limit ? { limit } : {}) }, "pl")
+        .queryKey;
+
+    function seeded(): QueryClient {
+      const client = new QueryClient();
+      for (const key of [
+        publicKey(EVENT_ID, 50),
+        publicKey(EVENT_ID, 100),
+        publicKey(EVENT_ID),
+        publicKey(OTHER_EVENT, 50),
+        speakersQueryOptions({ source: "directory" }, "pl").queryKey,
+        ["admin-event-speakers", EVENT_ID],
+        ["admin", "event", EVENT_ID, "speakers"],
+        ["admin-event-speakers", OTHER_EVENT],
+        ["public-speaker-engagements", "u-1", 6],
+      ]) {
+        client.setQueryData(key, []);
+      }
+      return client;
+    }
+
+    async function staleAfter(type: string, payload: Record<string, unknown>) {
+      const client = seeded();
+      for (const key of invalidationKeysFor(domainEvent(type, payload), CTX)) {
+        await client.invalidateQueries({ queryKey: key, refetchType: "none" });
+      }
+      const isStale = (key: readonly unknown[]) =>
+        client.getQueryState(key)?.isInvalidated === true;
+      return { isStale };
+    }
+
+    it.each([
+      "event_cfp_submission.decided.v1",
+      "event_cfp_submission.withdrawn.v1",
+      "event_cfp_submission.confirmed.v1",
+    ])("%s odświeża listę TEGO wydarzenia, a nie innych ani katalogu", async (type) => {
+      const { isStale } = await staleAfter(type, { event_id: EVENT_ID, submission_id: "s-1" });
+      expect(isStale(publicKey(EVENT_ID, 50))).toBe(true);
+      expect(isStale(publicKey(EVENT_ID, 100))).toBe(true);
+      expect(isStale(publicKey(EVENT_ID))).toBe(true);
+      expect(isStale(["admin-event-speakers", EVENT_ID])).toBe(true);
+      expect(isStale(["admin", "event", EVENT_ID, "speakers"])).toBe(true);
+      expect(isStale(["public-speaker-engagements", "u-1", 6])).toBe(true);
+      expect(isStale(publicKey(OTHER_EVENT, 50))).toBe(false);
+      expect(isStale(["admin-event-speakers", OTHER_EVENT])).toBe(false);
+      expect(isStale(speakersQueryOptions({ source: "directory" }, "pl").queryKey)).toBe(false);
+    });
+
+    it.each(["event_cfp_submission.submitted.v1", "event_cfp_review.saved.v1"])(
+      "%s nie rusza listy prelegentów - nikt na nią nie wchodzi ani z niej nie schodzi",
+      async (type) => {
+        const { isStale } = await staleAfter(type, { event_id: EVENT_ID, submission_id: "s-1" });
+        expect(isStale(publicKey(EVENT_ID, 50))).toBe(false);
+        expect(isStale(["admin-event-speakers", EVENT_ID])).toBe(false);
+      },
+    );
+
+    it("bez `event_id` degraduje do korzeni list prelegentów", async () => {
+      const { isStale } = await staleAfter("event_cfp_submission.confirmed.v1", {});
+      expect(isStale(publicKey(EVENT_ID, 50))).toBe(true);
+      expect(isStale(publicKey(OTHER_EVENT, 50))).toBe(true);
+      expect(isStale(["admin-event-speakers", OTHER_EVENT])).toBe(true);
+    });
+
+    it("literał w mapie jest tym samym kluczem, co fabryka `eventSpeakersPublicKey`", () => {
+      const keys = invalidationKeysFor(
+        domainEvent("event_cfp_submission.confirmed.v1", { event_id: EVENT_ID }),
+        CTX,
+      );
+      expect(keys).toContainEqual([...eventSpeakersPublicKey(EVENT_ID)]);
+    });
+  });
+
   it("zdarzenie naboru bez `event_id` degraduje do całego korzenia panelu", () => {
     const keys = invalidationKeysFor(
       domainEvent("event_cfp_submission.submitted.v1", {}),
@@ -252,6 +333,40 @@ describe("mapa inwalidacji modułu wydarzeń", () => {
         type,
       ).toBe(false);
     }
+  });
+
+  it("zgłoszenia odświeżają plan sali TEGO wydarzenia (Bez miejsca, uczestnicy, gotowość)", () => {
+    // Zatwierdzenie, awans i anulowanie zmieniają zbiór osób do rozsadzenia,
+    // a `event_seat.*` przychodzi tylko wtedy, gdy ktoś TRACI miejsce - bez tej
+    // gałęzi licznik „Bez miejsca”, lista uczestników planu i gotowość planu
+    // stały do ręcznego odświeżenia.
+    const OTHER = "ffffffff-ffff-ffff-ffff-ffffffffffff";
+    for (const type of [
+      "event.registration.created.v1",
+      "event.registration.updated.v1",
+      "event.registration.decided.v1",
+      "event.registration.cancelled.v1",
+      "event.registration.promoted.v1",
+      "event.registration.payment.v1",
+      "event.registration.offer_closed.v1",
+      "event.registration.transferred.v1",
+    ]) {
+      const keys = invalidationKeysFor(
+        domainEvent(type, { event_id: EVENT_ID }),
+        CTX,
+      ) as unknown[][];
+      expect(includesPrefix(keys, seatingKeys.event(EVENT_ID)), type).toBe(true);
+      expect(coversKey(keys, seatingKeys.maps(EVENT_ID)), type).toBe(true);
+      expect(coversKey(keys, seatingKeys.map(EVENT_ID, "m1")), type).toBe(true);
+      expect(coversKey(keys, seatingKeys.candidates(EVENT_ID, { mapId: "m1" })), type).toBe(true);
+      expect(coversKey(keys, seatingKeys.maps(OTHER)), type).toBe(false);
+    }
+    const bezWydarzenia = invalidationKeysFor(
+      domainEvent("event.registration.decided.v1", {}),
+      CTX,
+    ) as unknown[][];
+    expect(includesPrefix(bezWydarzenia, seatingKeys.all)).toBe(true);
+    expect(coversKey(bezWydarzenia, seatingKeys.maps(OTHER))).toBe(true);
   });
 
   it("plan sali: zmiana układu odświeża wyłącznie plan, bez listy zgłoszeń", () => {

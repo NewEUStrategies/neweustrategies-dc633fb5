@@ -36,7 +36,7 @@
 // spełnia, zostaje wyłączona pierwszego dnia. Rejestr wymusza coś słabszego, ale
 // wykonalnego: KAŻDY nowy plik w drizzle/ wymaga świadomego wpisu - wskazania
 // bliźniaka albo napisania, czemu go nie ma. Nie da się już dołożyć pliku po cichu.
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 export const DRIZZLE_DIR = "drizzle/migrations";
 export const SUPABASE_DIR = "supabase/migrations";
@@ -556,6 +556,47 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0070_event_registration_gaps_part3_part3",
     twin: "20260926180002_event_registration_gaps_part3_part3.sql",
   },
+  // Skaner offline zastosowany z panelu Lovable 2026-09-27 (zapisy
+  // drizzle.__drizzle_migrations 72-73). Ten sam uruchomiony migrator wykonal
+  // przy okazji wpisy dziennika 0067-0070, czyli 20260926180000-180002
+  // i 20260927000900 PRZED fundamentem #406 - kolejnosc reszty wdrozenia jest
+  // w docs/WDROZENIE_FUNKCJE_ORGANIZATORA_CZ3_2026-09-27.md, sekcja 2.
+  {
+    tag: "0071_event_scanner_offline",
+    drizzleOnly:
+      "Zapis zastosowania 20260926150000 z panelu Lovable (SQL identyczny bajt w bajt z 0062_event_scanner_offline, bez znaku konca pliku); blizniak supabase pilnuje wpis 0062.",
+  },
+  {
+    tag: "0072_event_scanner_offline_part2",
+    drizzleOnly:
+      "Zapis zastosowania 20260926150001 z panelu Lovable (SQL identyczny bajt w bajt z 0062_event_scanner_offline_part2, bez znaku konca pliku); blizniak supabase pilnuje wpis 0062_event_scanner_offline_part2.",
+  },
+  // Lejek Google Ads - poprawki po przegladzie (pakiety, zgoda, przychod, limit
+  // grup). Bez wpisu w dzienniku drizzle - wdrazana z panelu po kolei.
+  {
+    tag: "0073_event_ads_funnel_review_fixes",
+    twin: "20260927001100_event_ads_funnel_review_fixes.sql",
+  },
+  // Plan sali - poprawki z przegladu 0060_event_seating*: kolejnosc blokad
+  // przydzialu, zaokraglenie parametrow sekcji, eksport bez e-maili, etykieta
+  // kandydata na zywo, `event_my_seats` z flagami zapowiedzi. BEZ wpisu
+  // w dzienniku drizzle - kolejnosc: scripts/deploy-order/produkcja.txt.
+  {
+    tag: "0074_event_seating_review_fixes",
+    twin: "20260927001200_event_seating_review_fixes.sql",
+  },
+  // Poprawki z przegladu (funkcje organizatora, czesc 3): klon edycji kopiuje
+  // ustawienia uczestnika i szanuje strefe zrodla, most CRM trzyma stan per
+  // intencja. BEZ wpisu w dzienniku - kolejnosc wdrozenia w
+  // scripts/deploy-order/produkcja.txt.
+  {
+    tag: "0075_event_clone_participant_settings",
+    twin: "20260927001300_event_clone_participant_settings.sql",
+  },
+  {
+    tag: "0076_event_person_crm_intents",
+    twin: "20260927001400_event_person_crm_intents.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";
@@ -566,10 +607,21 @@ export interface LaneViolation {
   readonly detail: string;
 }
 
+/**
+ * Zapis wdrozenia z panelu Lovable rozpoznany PO TRESCI, bez wpisu w rejestrze:
+ * SQL wykonywalny pliku drizzle jest identyczny z plikiem `twin` pasa supabase.
+ */
+export interface DeployRecord {
+  readonly tag: string;
+  readonly twin: string;
+}
+
 export interface LaneReport {
   readonly checked: number;
   readonly twins: number;
   readonly drizzleOnly: number;
+  /** Pliki bez wpisu, ktore sa kopia migracji z pasa supabase (patrz `analyzeMigrationLanes`). */
+  readonly deployRecords: readonly DeployRecord[];
   readonly violations: readonly LaneViolation[];
 }
 
@@ -581,6 +633,19 @@ export const readFileOrNull: ReadFile = (path) => {
     return readFileSync(path, "utf8");
   } catch {
     return null;
+  }
+};
+
+/** Nazwy plikow `.sql` katalogu migracji; wstrzykiwalne jak `ReadFile`. */
+export type ListSql = (dir: string) => readonly string[];
+
+export const listSqlOrEmpty: ListSql = (dir) => {
+  try {
+    return readdirSync(dir)
+      .filter((f) => f.endsWith(".sql"))
+      .sort();
+  } catch {
+    return [];
   }
 };
 
@@ -923,20 +988,55 @@ export function executableSql(sql: string): string {
  *
  * `tags` to nazwy plików `.sql` z `drizzle/migrations/` BEZ rozszerzenia, czyli
  * dokładnie `tag` z dziennika drizzle.
+ *
+ * ZAPIS WDROŻENIA BEZ WPISU. Panel Lovable wdraża migrację, dopisując do pasa
+ * drizzle KOPIĘ pliku (`0071_event_scanner_offline` = 20260926150000) - przy
+ * wdrożeniu plik po pliku to kilkadziesiąt kopii, a każda bez wpisu zapalała
+ * bramkę na `main`, choć niczego nie ukrywa. Przed tym, co ta bramka łapie
+ * (SQL widoczny tylko w pasie drizzle, niewidoczny dla bramek `check:sql-*`),
+ * chroni sama treść: plik, którego SQL WYKONYWALNY jest identyczny z plikiem
+ * `supabase/migrations/`, stoi w pasie kanonicznym. Taki plik przechodzi jako
+ * `deployRecords` - raport wymienia go z nazwy i bliźniakiem, żeby wpis dało
+ * się dopisać przy okazji. Różnica choćby o jedną instrukcję (np. kopia bez
+ * `COMMENT ON`, jak 0066) nadal wymaga wpisu: to już jest decyzja człowieka.
  */
 export function analyzeMigrationLanes(
   tags: readonly string[],
   entries: readonly LaneEntry[] = MIGRATION_LANES,
   read: ReadFile = readFileOrNull,
+  listSupabase: ListSql = listSqlOrEmpty,
 ): LaneReport {
   const byTag = new Map(entries.map((e) => [e.tag, e]));
   const violations: LaneViolation[] = [];
+  const deployRecords: DeployRecord[] = [];
   let twins = 0;
   let drizzleOnly = 0;
+
+  // Odcisk SQL-u wykonywalnego -> pierwszy plik pasa supabase (w kolejności
+  // wersji). Liczony leniwie: tylko gdy jest plik bez wpisu.
+  let supabaseBySql: Map<string, string> | null = null;
+  const supabaseTwinOf = (sql: string): string | undefined => {
+    if (supabaseBySql === null) {
+      supabaseBySql = new Map();
+      for (const name of listSupabase(SUPABASE_DIR)) {
+        const text = read(`${SUPABASE_DIR}/${name}`);
+        if (text === null) continue;
+        const key = executableSql(text);
+        if (key !== "" && !supabaseBySql.has(key)) supabaseBySql.set(key, name);
+      }
+    }
+    return supabaseBySql.get(executableSql(sql));
+  };
 
   for (const tag of tags) {
     const entry = byTag.get(tag);
     if (!entry) {
+      const drizzleSql = read(`${DRIZZLE_DIR}/${tag}.sql`);
+      const twin = drizzleSql === null ? undefined : supabaseTwinOf(drizzleSql);
+      if (twin !== undefined) {
+        deployRecords.push({ tag, twin });
+        continue;
+      }
       violations.push({
         kind: "brak-wpisu",
         tag,
@@ -981,7 +1081,7 @@ export function analyzeMigrationLanes(
     }
   }
 
-  return { checked: tags.length, twins, drizzleOnly, violations };
+  return { checked: tags.length, twins, drizzleOnly, deployRecords, violations };
 }
 
 export function laneParityFailed(report: LaneReport): boolean {
@@ -989,8 +1089,13 @@ export function laneParityFailed(report: LaneReport): boolean {
 }
 
 export function renderLaneReport(report: LaneReport): string {
-  const head = `Pasy migracji: ${report.checked} plików drizzle (${report.twins} z bliźniakiem, ${report.drizzleOnly} świadomie bez).`;
-  if (report.violations.length === 0) return `${head} Zgodne.`;
+  const records = report.deployRecords.length;
+  const head = `Pasy migracji: ${report.checked} plików drizzle (${report.twins} z bliźniakiem, ${report.drizzleOnly} świadomie bez${records > 0 ? `, ${records} zapisów wdrożenia rozpoznanych po treści` : ""}).`;
+  const recordLines = report.deployRecords.map(
+    (r) =>
+      `  [zapis-wdrozenia] ${r.tag}: SQL wykonywalny == ${SUPABASE_DIR}/${r.twin} (wpis drizzleOnly można dopisać przy okazji).`,
+  );
+  if (report.violations.length === 0) return [`${head} Zgodne.`, ...recordLines].join("\n");
   const lines = report.violations.map((v) => `  [${v.kind}] ${v.tag}: ${v.detail}`);
-  return [head, `NARUSZENIA (${report.violations.length}):`, ...lines].join("\n");
+  return [head, `NARUSZENIA (${report.violations.length}):`, ...lines, ...recordLines].join("\n");
 }

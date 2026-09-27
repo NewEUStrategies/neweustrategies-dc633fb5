@@ -7,7 +7,8 @@
 // odrzucony w beaconie lejka (endpoint zawsze odpowiada 204).
 //   * kroki lejka (`event_funnel_events_step_values`) - endpoint odrzuca krok
 //     spoza listy PRZED baza;
-//   * rodzaje klikniec (`..._click_id_type_values`) w OBU tabelach;
+//   * rodzaje klikniec (`..._click_id_type_values`) we WSZYSTKICH trzech tabelach
+//     (kroki lejka, atrybucja zgloszen i zamowien pakietow - 20260927001100);
 //   * rodzaje dopasowania kampanii i zrodla kosztu (formularze panelu).
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -54,6 +55,7 @@ describe("parytet slownikow lejka Google Ads z baza", () => {
     ["event_funnel_events_step_values", EVENT_FUNNEL_STEPS],
     ["event_funnel_events_click_id_type_values", CLICK_ID_TYPES],
     ["event_registration_attributions_click_id_type_values", CLICK_ID_TYPES],
+    ["event_package_order_attributions_click_id_type_values", CLICK_ID_TYPES],
     ["event_ad_campaigns_match_kind_values", AD_CAMPAIGN_MATCH_KINDS],
     ["event_ad_campaign_costs_source_values", AD_COST_SOURCES],
   ] as const)("%s", (constraint, list) => {

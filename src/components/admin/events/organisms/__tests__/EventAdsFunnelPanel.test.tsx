@@ -10,6 +10,9 @@
 //   4. EKSPORT KONWERSJI BEZ NAZWY KONWERSJI / Z NAZWA Z PRZECINKIEM - plik
 //      odrzucony przez Google Ads albo wiersze znikaja bez slowa.
 //   5. EKSPORT LEJKA BEZ BOM (Excel psuje polskie znaki) albo import Ads Z BOM.
+//   6. KAFEL ROAS LICZY PRZYCHOD KAMPANII BEZ KOSZTU (600/100 + 200/brak = 8,00x
+//      zamiast 6,00x) albo przy braku kosztu pokazuje lacznik zamiast kreski
+//      uzywanej w tabeli.
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -259,7 +262,37 @@ describe("okres i podsumowanie", () => {
     // Kafel ROAS (suma zmapowanych) - kreska; w tabeli kazda kampania ma wlasny ROAS.
     const tile = screen.getByText(`${F}summary.roas`).closest("div.space-y-1") as HTMLElement;
     expect(tile.textContent).not.toContain("×");
-    expect(tile.textContent).toContain("-");
+    expect(tile.textContent).toContain("—");
+  });
+
+  it("ROAS kafla pomija kampanie bez kosztu: 600/100 i 200/brak = 6.00×, nie 8.00×", async () => {
+    const [withCost, withoutCost, none] = report().groups;
+    h.rpc!.setData(
+      "admin_event_ads_funnel",
+      report({ groups: [withCost, { ...withoutCost, cost: [] }, none] }),
+    );
+    renderPanel();
+    await reportLoaded();
+    const tile = screen.getByText(`${F}summary.roas`).closest("div.space-y-1") as HTMLElement;
+    expect(tile.textContent).toContain("6.00×");
+  });
+
+  it("bez zadnego kosztu kafle kosztu i ROAS maja kreske z tabeli (—)", async () => {
+    const [withCost, withoutCost, none] = report().groups;
+    h.rpc!.setData(
+      "admin_event_ads_funnel",
+      report({
+        groups: [{ ...withCost, cost: [] }, { ...withoutCost, cost: [] }, none],
+        totals: { ...report().totals, cost: [] },
+      }),
+    );
+    renderPanel();
+    await reportLoaded();
+    const roas = screen.getByText(`${F}summary.roas`).closest("div.space-y-1") as HTMLElement;
+    const cost = screen.getByText(`${F}summary.cost`).closest("div.space-y-1") as HTMLElement;
+    expect(roas.textContent).toContain("—");
+    expect(roas.textContent).not.toContain("×");
+    expect(cost.textContent).toContain("—");
   });
 });
 
@@ -370,7 +403,9 @@ describe("eksporty", () => {
     await screen.findByText(`${F}export.noRows`);
     expect(screen.getByText(`${F}export.missingName(count=1)`)).toBeInTheDocument();
     expect(
-      screen.getByText(`${F}export.skipped(beforeClick=0,expired=0,noClick=2,unattributed=1)`),
+      screen.getByText(
+        `${F}export.skipped(awaitingAdmission=0,beforeClick=0,consentWithdrawn=0,expired=0,noClick=2,unattributed=1)`,
+      ),
     ).toBeInTheDocument();
     expect(h.downloads).toHaveLength(0);
     expect(h.rpc!.lastCall("admin_event_ads_conversions_export")?.args).toEqual({

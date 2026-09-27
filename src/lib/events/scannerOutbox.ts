@@ -37,6 +37,16 @@
 // i `rosterGeneratedAt` są opcjonalne, bo kolejki zapisane przed tą zmianą
 // (i skany bez listy offline) ich nie mają - baza przyjmuje wtedy skan jak
 // dotąd.
+//
+// POZYCJA NALEŻY DO URZĄDZENIA. `deviceId` to urządzenie, pod którego
+// poświadczeniem skan zapadł. Wysyłka pod innym tokenem (telefon przepięty na
+// poświadczenie innego partnera albo innej bramki) zapisałaby lead pod cudzym
+// sponsorem - taka pozycja idzie na listę odrzuconych (`device_mismatch`).
+// Pozycje sprzed tej zmiany nie mają urządzenia i jadą jak dotąd.
+//
+// PRZEPEŁNIENIE TEŻ NIE ZNIKA. Pełna kolejka nadal wypycha najstarszą pozycję
+// (świeży skan jest cenniejszy), ale `enqueueScanWithOverflow` ją ODDAJE,
+// a środowisko dopisuje ją do odrzuconych (`outbox_overflow`).
 import type { CheckinDirection, OfflineOutcome } from "@/lib/events/onsiteEnums";
 import { isOfflineOutcome } from "@/lib/events/onsiteEnums";
 
@@ -63,6 +73,8 @@ export interface OutboxItem {
   offlineOutcome?: OfflineOutcome | null;
   /** Wersja listy offline, z której zapadła decyzja. */
   rosterGeneratedAt?: string | null;
+  /** Urządzenie, pod którego poświadczeniem zapadł skan; brak = kolejka sprzed tej zmiany. */
+  deviceId?: string | null;
 }
 
 /** Pozycja zdjęta z kolejki trwałą odmową - czeka na organizatora. */
@@ -73,8 +85,13 @@ export interface RejectedScan {
   rejectedAt: string;
 }
 
-/** Więcej odrzuconych nie zmieści się na ekranie ani w głowie organizatora. */
-export const REJECTED_CAPACITY = 500;
+/**
+ * Sufit listy odrzuconych. MUSI być wyraźnie większy niż `OUTBOX_CAPACITY`:
+ * unieważnione poświadczenie zrzuca na tę listę CAŁĄ kolejkę naraz, a sufit
+ * równy pojemności kolejki wypchnąłby wtedy po cichu wszystko, co już na niej
+ * leżało - dokładnie tę utratę, którą lista ma zamykać.
+ */
+export const REJECTED_CAPACITY = 2_000;
 
 function stringOrNull(value: unknown): string | null {
   return typeof value === "string" ? value : null;
@@ -111,6 +128,7 @@ export function parseOutboxItem(value: unknown): OutboxItem | null {
     offlineAdmitted: typeof row.offlineAdmitted === "boolean" ? row.offlineAdmitted : null,
     offlineOutcome: outcome !== null && isOfflineOutcome(outcome) ? outcome : null,
     rosterGeneratedAt: stringOrNull(row.rosterGeneratedAt),
+    deviceId: stringOrNull(row.deviceId),
   };
 }
 
@@ -120,11 +138,15 @@ export const OUTBOX_MAX_ATTEMPTS = 8;
 /** Więcej i tak nie zmieści się w jednej zmianie wolontariusza przy bramce. */
 export const OUTBOX_CAPACITY = 500;
 
-/** Odmowy, których ponawianie nie ma sensu - poświadczenie, nie sieć. */
+/**
+ * Odmowy, których ponawianie nie ma sensu - poświadczenie, nie sieć.
+ *
+ * `device_inactive` (wstrzymanie w panelu) celowo tu NIE stoi: jest odwracalne
+ * jak blokada czasowa - po „Wznów" te same pozycje mają się wysłać.
+ */
 const PERMANENT_HEADS: readonly string[] = [
   "invalid_device_token",
   "device_revoked",
-  "device_inactive",
   "device_expired",
   "device_scope_missing",
   "device_checkpoint_mismatch",
@@ -133,6 +155,8 @@ const PERMANENT_HEADS: readonly string[] = [
   "invalid_direction",
   // Skan sprzed ponad 7 dni - baza odrzuca go trwale (20260926150000).
   "device_time_out_of_range",
+  // Pozycja zapisana pod INNYM poświadczeniem - odrzucana lokalnie, bez bazy.
+  "device_mismatch",
 ];
 
 export function errorHead(message: string): string {
@@ -160,17 +184,30 @@ function withDelay(nowIso: string, delayMs: number): string {
   return new Date((Number.isNaN(now) ? Date.now() : now) + delayMs).toISOString();
 }
 
+export interface EnqueueResult {
+  queue: OutboxItem[];
+  /** Pozycje wypchnięte przepełnieniem - środowisko oddaje je jako odrzucone. */
+  overflow: OutboxItem[];
+}
+
 /**
  * Dokłada skan do kolejki.
  *
- * LEADY SKLEJAMY PO KODZIE. Ten sam gość podchodzi do stoiska trzy razy w ciągu
- * minuty; trzy pozycje w kolejce dałyby trzy wywołania i `scan_count` = 3 za
- * jedno spotkanie. Odprawy NIE sklejamy - dwa piknięcia na bramce to dwa
- * zdarzenia, a o tym, czy drugie jest powtórzeniem, decyduje okno w bazie.
+ * LEADY SKLEJAMY PO KODZIE (i urządzeniu). Ten sam gość podchodzi do stoiska
+ * trzy razy w ciągu minuty; trzy pozycje w kolejce dałyby trzy wywołania
+ * i `scan_count` = 3 za jedno spotkanie. Odprawy NIE sklejamy - dwa piknięcia
+ * na bramce to dwa zdarzenia, a o tym, czy drugie jest powtórzeniem, decyduje
+ * okno w bazie. Lead spod innego poświadczenia to inny partner - nie sklejamy.
  */
-export function enqueueScan(queue: readonly OutboxItem[], item: OutboxItem): OutboxItem[] {
+export function enqueueScanWithOverflow(
+  queue: readonly OutboxItem[],
+  item: OutboxItem,
+): EnqueueResult {
   if (item.kind === "lead") {
-    const index = queue.findIndex((row) => row.kind === "lead" && row.code === item.code);
+    const device = item.deviceId ?? null;
+    const index = queue.findIndex(
+      (row) => row.kind === "lead" && row.code === item.code && (row.deviceId ?? null) === device,
+    );
     if (index !== -1) {
       const next = [...queue];
       next[index] = {
@@ -181,13 +218,21 @@ export function enqueueScan(queue: readonly OutboxItem[], item: OutboxItem): Out
         interestRating: item.interestRating ?? next[index].interestRating,
         deviceScannedAt: item.deviceScannedAt,
       };
-      return next;
+      return { queue: next, overflow: [] };
     }
   }
   const next = [...queue, item];
-  // Przepełnienie zjada NAJSTARSZE pozycje: świeży skan jest wart więcej niż
-  // ten sprzed godziny, którego i tak nie udało się wysłać.
-  return next.length > OUTBOX_CAPACITY ? next.slice(next.length - OUTBOX_CAPACITY) : next;
+  // Przepełnienie wypycha NAJSTARSZE pozycje: świeży skan jest wart więcej niż
+  // ten sprzed godziny, którego i tak nie udało się wysłać. Wypchnięte wracają
+  // do wołającego - nie w próżnię.
+  if (next.length <= OUTBOX_CAPACITY) return { queue: next, overflow: [] };
+  const cut = next.length - OUTBOX_CAPACITY;
+  return { queue: next.slice(cut), overflow: next.slice(0, cut) };
+}
+
+/** `enqueueScanWithOverflow` bez wypchniętych - dla wołających, którym wystarcza kolejka. */
+export function enqueueScan(queue: readonly OutboxItem[], item: OutboxItem): OutboxItem[] {
+  return enqueueScanWithOverflow(queue, item).queue;
 }
 
 /** Pozycje, których termin ponowienia już minął, w kolejności skanowania. */

@@ -46,6 +46,8 @@ import type { Mock } from "vitest";
 import type { QueryClient, UseMutationResult } from "@tanstack/react-query";
 
 import { renderHookWithQueryClient } from "@/test/renderWithQueryClient";
+import { eventSpeakersPublicKey } from "@/lib/builder/queryKeys";
+import { speakersQueryOptions } from "@/lib/builder/speakersQuery";
 
 const api = vi.hoisted(() => ({
   deleteEventRoom: vi.fn(),
@@ -502,6 +504,7 @@ const GALAZ_I_SZCZEGOLY = [
   [...agendaKeys.all, "track-speakers"],
   ["admin-event-speakers", WYDARZENIE],
   ["admin", "event", WYDARZENIE, "speakers"],
+  eventSpeakersPublicKey(WYDARZENIE),
 ] as const;
 
 const MUTACJE: ReadonlyArray<readonly [string, PrzypadekMutacji]> = [
@@ -841,6 +844,34 @@ describe("mutacje - zasieg uniewaznienia", () => {
 
       const klucze = spy.mock.calls.map((call) => call[0]?.queryKey);
       expect(klucze).toEqual(przypadek.uniewaznia.map((klucz) => [...klucz]));
+    },
+  );
+
+  // PUBLICZNA LISTA PRELEGENTOW: tylko TEGO wydarzenia. Sciezki na karcie
+  // prelegenta liczy baza z opublikowanych sesji, wiec kazda mutacja agendy
+  // moze je zmienic - ale obce wydarzenie i katalog prelegentow zostaja.
+  it.each(["zapis obsady sesji", "zapis sciezki"])(
+    "%s: odswieza publiczna liste prelegentow TYLKO tego wydarzenia",
+    async (nazwa) => {
+      const przypadek = MUTACJE.find(([n]) => n === nazwa)?.[1];
+      if (przypadek === undefined) throw new Error(`brak przypadku ${nazwa}`);
+      const { result, queryClient } = przypadek.wyslij();
+      const klucze = {
+        sekcja: speakersQueryOptions({ source: "event", eventId: WYDARZENIE, limit: 50 }, "pl")
+          .queryKey,
+        siatka: speakersQueryOptions({ source: "event", eventId: WYDARZENIE, limit: 100 }, "en")
+          .queryKey,
+        obce: speakersQueryOptions({ source: "event", eventId: INNE_WYDARZENIE, limit: 50 }, "pl")
+          .queryKey,
+        katalog: speakersQueryOptions({ source: "directory" }, "pl").queryKey,
+      };
+      for (const klucz of Object.values(klucze)) queryClient.setQueryData(klucz, []);
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(zwietrzal(queryClient, klucze.sekcja)).toBe(true);
+      expect(zwietrzal(queryClient, klucze.siatka)).toBe(true);
+      expect(zwietrzal(queryClient, klucze.obce)).toBe(false);
+      expect(zwietrzal(queryClient, klucze.katalog)).toBe(false);
     },
   );
 

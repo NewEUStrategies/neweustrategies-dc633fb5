@@ -2024,3 +2024,27 @@ ALTER TABLE public.event_speakers ENABLE ROW LEVEL SECURITY;
 GRANT SELECT ON public.event_speakers TO anon, authenticated;
 GRANT ALL ON public.event_speakers TO service_role;
 -- === /f5 ===
+
+-- === f6: lejek Google Ads - poprawki po przegladzie (20260927001100) ===
+-- PO CO. Eksport konwersji offline pomija platnika albo posiadacza biletu,
+-- ktory cofnal zgode na cookies marketingowe - czyta rejestr zgod RODO
+-- `user_consents` (20260717095322, klucz (user_id, consent_key); stempel
+-- tenanta z 20260803140001). Z atrapy wchodzi to, co czyta eksport i co
+-- seeduje runtime_test.d/28_ads_funnel_review.sql.
+CREATE TABLE IF NOT EXISTS public.user_consents (
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  consent_key text NOT NULL CHECK (length(consent_key) BETWEEN 1 AND 64),
+  given boolean NOT NULL,
+  version text NOT NULL CHECK (length(version) BETWEEN 1 AND 32),
+  given_at timestamptz,
+  withdrawn_at timestamptz,
+  gpc boolean NOT NULL DEFAULT false,
+  tenant_id uuid REFERENCES public.tenants(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, consent_key)
+);
+ALTER TABLE public.user_consents ENABLE ROW LEVEL SECURITY;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_consents TO authenticated;
+GRANT ALL ON public.user_consents TO service_role;
+-- === /f6 ===

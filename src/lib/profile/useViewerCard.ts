@@ -37,8 +37,11 @@ export interface ViewerCardFacts {
  * `null` OZNACZA TRZY RÓŻNE STANY I TAK MA BYĆ - żaden z nich nie ma karty:
  * gość (brak sesji), wiersz profilu w drodze (karta pojawiłaby się na moment
  * z samym e-mailem, a potem urosła o dwie linie - skok układu obok banera)
- * i konto bez wiersza `profiles` (nie ma nawet nazwy, a karta z inicjałami „?"
- * nie mówi, czyj to profil).
+ * i konto, któremu ŻADEN szczebel reguły nazwy (`profileDisplayName`:
+ * `display_name`, potem imię i nazwisko, potem e-mail) nie daje nazwy - np.
+ * bez wiersza `profiles` i bez e-maila (karta z inicjałami „?" nie mówi, czyj
+ * to profil). Konto BEZ wiersza `profiles`, ale z e-mailem, kartę MA: nazwą
+ * jest adres, a pozostałe fakty są puste.
  */
 export function useViewerCardFacts(): ViewerCardFacts | null {
   const { user } = useAuth();

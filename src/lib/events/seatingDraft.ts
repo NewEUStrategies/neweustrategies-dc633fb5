@@ -24,7 +24,12 @@ import type {
   SeatTableShape,
   SeatsUpdateInput,
 } from "@/lib/events/seatingApi";
-import type { SectionLayoutParams } from "@/lib/events/seatingGeometry";
+import {
+  FIRST_SECTION_ORIGIN,
+  roundCoord,
+  type Point,
+  type SectionLayoutParams,
+} from "@/lib/events/seatingGeometry";
 import { CHART_PLATE, contrastRatio } from "@/lib/charts/palette";
 
 export const SEAT_MAP_NAME_MAX = 120;
@@ -216,14 +221,21 @@ export interface SectionDraft {
   tableSeats: string;
 }
 
-export function emptySectionDraft(kind: SeatSectionKind): SectionDraft {
+/**
+ * Nowa sekcja. `origin` podaje wolajacy (`nextSectionOrigin` - pod sekcjami,
+ * ktore juz stoja na planie); bez niego - poczatek pierwszej sekcji planu.
+ */
+export function emptySectionDraft(
+  kind: SeatSectionKind,
+  origin: Point = FIRST_SECTION_ORIGIN,
+): SectionDraft {
   return {
     id: null,
     label: "",
     kind,
     categoryId: null,
-    originX: "100",
-    originY: "160",
+    originX: String(origin.x),
+    originY: String(origin.y),
     rotationDeg: "0",
     rowsCount: "5",
     seatsPerRow: "10",
@@ -382,6 +394,15 @@ export function sectionDraftLayout(draft: SectionDraft): SectionLayoutParams | n
   };
 }
 
+/**
+ * Kolumny sekcji sa numeric(8,2)/(5,2)/(6,2), a baza (od 20260927001200)
+ * zaokragla wejscie do setnych PRZED ukladem. Tu to samo - podglad i zapis ida
+ * z liczby, ktora zapisze wiersz, a nie z 45.555, ktorego baza juz nie zobaczy.
+ */
+function cents(value: number | null, fallback: number): number {
+  return value === null ? fallback : roundCoord(value);
+}
+
 export function sectionDraftToInput(draft: SectionDraft, mapId: string): SectionDraftInput {
   const rows = draft.kind === "rows";
   return {
@@ -389,17 +410,17 @@ export function sectionDraftToInput(draft: SectionDraft, mapId: string): Section
     label: draft.label.trim(),
     kind: draft.kind,
     categoryId: draft.categoryId,
-    originX: numberOrNull(draft.originX) ?? 0,
-    originY: numberOrNull(draft.originY) ?? 0,
-    rotationDeg: numberOrNull(draft.rotationDeg) ?? 0,
+    originX: cents(numberOrNull(draft.originX), 0),
+    originY: cents(numberOrNull(draft.originY), 0),
+    rotationDeg: cents(numberOrNull(draft.rotationDeg), 0),
     rowsCount: rows ? intOrNull(draft.rowsCount) : null,
     seatsPerRow: rows ? intOrNull(draft.seatsPerRow) : null,
     rowLabelScheme: rows ? draft.rowLabelScheme : null,
     rowLabelStart: intOrNull(draft.rowLabelStart) ?? 1,
     seatNumbering: rows ? draft.seatNumbering : null,
     seatNumberStart: intOrNull(draft.seatNumberStart) ?? 1,
-    seatPitch: numberOrNull(draft.seatPitch) ?? 50,
-    rowPitch: numberOrNull(draft.rowPitch) ?? 60,
+    seatPitch: cents(numberOrNull(draft.seatPitch), 50),
+    rowPitch: cents(numberOrNull(draft.rowPitch), 60),
     aisleAfter: rows ? (parseAisles(draft.aisles) ?? []) : [],
     tableShape: rows ? null : draft.tableShape,
     tableSeats: rows ? null : intOrNull(draft.tableSeats),

@@ -14,6 +14,7 @@
 //      się od `=` wykonałoby się w arkuszu organizatora.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { freezeClock } from "@/test/time";
+import { OBJECT_URL_REVOKE_DELAY_MS } from "@/lib/files/downloadBlob";
 
 import type { CheckinScanResult } from "@/lib/events/scannerApi";
 import type { OutboxItem, RejectedScan } from "@/lib/events/scannerOutbox";
@@ -51,6 +52,7 @@ function item(over: Partial<OutboxItem> = {}): OutboxItem {
     offlineAdmitted: true,
     offlineOutcome: "granted",
     rosterGeneratedAt: "2026-09-26T08:00:00.000Z",
+    deviceId: "dev-1",
     ...over,
   };
 }
@@ -287,7 +289,9 @@ describe("eksport dla organizatora", () => {
     expect(syncIssuesFileName("!!!", NOW, "json")).toBe("skaner-wydarzenie-2026-09-26.json");
   });
 
-  it("pobranie tworzy odnośnik do Bloba, klika go i zwalnia adres", async () => {
+  it("pobranie tworzy odnośnik do Bloba, klika go i zwalnia adres dopiero PO CHWILI", () => {
+    // Tu sterujemy także `setTimeout` - zwolnienie adresu jest odroczone.
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
     const create = vi.fn(() => "blob:x");
     const revoke = vi.fn();
     vi.stubGlobal("URL", Object.assign(URL, { createObjectURL: create, revokeObjectURL: revoke }));
@@ -296,14 +300,16 @@ describe("eksport dla organizatora", () => {
       .mockImplementation(() => undefined);
 
     downloadTextFile("a.csv", "text/csv", "x");
-    // Safari: adres zwalniany dopiero w następnym takcie, nie synchronicznie
-    // (freezeClock zamraża tu tylko Date, więc setTimeout jest prawdziwy).
-    expect(revoke).not.toHaveBeenCalled();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
     expect(create).toHaveBeenCalledTimes(1);
     expect(click).toHaveBeenCalledTimes(1);
+    // iOS Safari i Chrome na Androidzie gubią plik, gdy adres znika w tym samym
+    // albo w następnym takcie - wspólny `downloadBlob` czeka dłużej.
+    vi.advanceTimersByTime(OBJECT_URL_REVOKE_DELAY_MS - 1);
+    expect(revoke).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
     expect(revoke).toHaveBeenCalledWith("blob:x");
+    // Kotwica nie zostaje w dokumencie.
+    expect(document.querySelectorAll("a[download]")).toHaveLength(0);
     vi.unstubAllGlobals();
   });
 });

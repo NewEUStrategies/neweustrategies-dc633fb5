@@ -5,6 +5,8 @@
 //      samoobsługi (`manage_token: null` w ciele) - albo nie wyjeżdża wcale.
 //   2. Karta z brakującą geometrią wywraca mini-mapę zamiast narysować scenę.
 //   3. Wiersz bez numeru miejsca udaje miejsce „0”.
+//   4. Panel „Moje” zapowiada miejsce każdemu, bo parser gubi `seatable`
+//      i `has_published_plan` - albo zapowiada je przy starszej odpowiedzi bez flag.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { waitFor } from "@testing-library/react";
 
@@ -142,10 +144,40 @@ describe("parser kart miejsca", () => {
   });
 });
 
+describe("odpowiedź event_my_seats", () => {
+  it("karty i obie flagi", () => {
+    const parsed = api.parseMySeats({ seats: [CARD], seatable: true, has_published_plan: true });
+    expect(parsed.cards).toEqual(api.parseMySeatCards({ seats: [CARD] }));
+    expect(parsed).toMatchObject({ seatable: true, hasPublishedPlan: true });
+    expect(api.parseMySeats({ seats: [], seatable: true, has_published_plan: false })).toEqual({
+      cards: [],
+      seatable: true,
+      hasPublishedPlan: false,
+    });
+  });
+
+  it("brak flag (starsza funkcja) albo śmieci = false - bez pewności nie ma zapowiedzi", () => {
+    expect(api.parseMySeats({ seats: [] })).toEqual({
+      cards: [],
+      seatable: false,
+      hasPublishedPlan: false,
+    });
+    expect(api.parseMySeats({ seats: [], seatable: "tak", has_published_plan: 1 })).toMatchObject({
+      seatable: false,
+      hasPublishedPlan: false,
+    });
+    expect(api.parseMySeats(null)).toEqual({ cards: [], seatable: false, hasPublishedPlan: false });
+  });
+});
+
 describe("odczyty", () => {
   it("event_my_seats: slug w ciele, błąd przechodzi dalej", async () => {
-    h.rpc?.setData("event_my_seats", { seats: [CARD] });
-    await expect(api.fetchMySeats("gala")).resolves.toHaveLength(1);
+    h.rpc?.setData("event_my_seats", { seats: [CARD], seatable: true, has_published_plan: true });
+    await expect(api.fetchMySeats("gala")).resolves.toMatchObject({
+      cards: [{ mapId: "m1" }],
+      seatable: true,
+      hasPublishedPlan: true,
+    });
     expect(h.rpc?.lastCall("event_my_seats")?.arg("p_payload")).toEqual({ slug: "gala" });
     h.rpc?.setError("event_my_seats", "auth_required: x");
     await expect(api.fetchMySeats("gala")).rejects.toThrow("auth_required");
@@ -178,14 +210,14 @@ describe("hooki uczestnika", () => {
   });
 
   it("useMySeats i useTicketSeats czytają, gdy wolno", async () => {
-    h.rpc?.setData("event_my_seats", { seats: [CARD] });
+    h.rpc?.setData("event_my_seats", { seats: [CARD], seatable: true, has_published_plan: true });
     h.rpc?.setData("event_ticket_seats", { seats: [CARD] });
     const { result } = renderHookWithQueryClient(() => ({
       mine: hooks.useMySeats("gala", true),
       ticket: hooks.useTicketSeats("gala", { qrToken: "q", manageToken: null }),
     }));
     await waitFor(() => expect(result.current.ticket.isSuccess).toBe(true));
-    await waitFor(() => expect(result.current.mine.data).toHaveLength(1));
+    await waitFor(() => expect(result.current.mine.data?.cards).toHaveLength(1));
   });
 
   it("wyłączone, bez sluga albo bez kodu - bez zapytań", async () => {

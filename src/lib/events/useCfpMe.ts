@@ -131,10 +131,30 @@ function useMeMutation<TInput, TResult>(
   });
 }
 
-/** Klucze poza naborem, które zmienia potwierdzenie, rezygnacja i wycofanie. */
+/**
+ * Klucze poza naborem, które zmienia potwierdzenie, rezygnacja i wycofanie.
+ * Wystąpienia prelegenta w dialogu profilu (`publicSpeakerEngagements`) też:
+ * potwierdzenie dopisuje to wydarzenie, rezygnacja je zdejmuje.
+ */
 function acceptanceSideEffectKeys(slug: string): ReadonlyArray<readonly unknown[]> {
-  return [["event-me", slug], [WIDGET_QUERY_ROOTS.speakers], speakerMaterialsKeys.all];
+  return [
+    ["event-me", slug],
+    [WIDGET_QUERY_ROOTS.speakers],
+    [WIDGET_QUERY_ROOTS.publicSpeakerEngagements],
+    speakerMaterialsKeys.all,
+  ];
 }
+
+/**
+ * Profil prelegenta (nagłówek, bio, tematy, języki, zdjęcie karty) to JEDEN
+ * wiersz `speaker_profiles` na konto, który `event_speakers_public` i dialog
+ * profilu pokazują na KAŻDYM wydarzeniu - stąd całe korzenie, nie jedno
+ * wydarzenie.
+ */
+const SPEAKER_PROFILE_PUBLIC_KEYS: ReadonlyArray<readonly unknown[]> = [
+  [WIDGET_QUERY_ROOTS.speakers],
+  [WIDGET_QUERY_ROOTS.publicSpeakerProfile],
+];
 
 export function useSaveCfpSubmission(slug: string) {
   return useMeMutation<CfpSubmissionSaveInput, CfpWriteResult>(slug, saveCfpSubmission);
@@ -161,7 +181,11 @@ export function useRespondCfpSubmission(slug: string) {
 }
 
 export function useSaveSpeakerProfile(slug: string) {
-  return useMeMutation<SpeakerProfileInput, void>(slug, saveSpeakerProfile);
+  return useMeMutation<SpeakerProfileInput, void>(
+    slug,
+    saveSpeakerProfile,
+    SPEAKER_PROFILE_PUBLIC_KEYS,
+  );
 }
 
 /** Materiały widzi też publiczny dialog prelegenta (poza gałęzią naboru). */

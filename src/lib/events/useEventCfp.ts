@@ -12,14 +12,13 @@
 // sesji) i zapisów (zapis prelegenta) - więc unieważnia też ich gałęzie tego
 // wydarzenia. Inne wydarzenia zostają nietknięte.
 //
-// PRZYJĘCIE I DECYZJA ZMIENIAJĄ TEŻ STRONĘ WYDARZENIA, a zdarzenia domeny,
-// które emitują ich RPC (`event_cfp_submission.decided.v1`,
-// `event.registration.*`), mapa realtime tłumaczy wyłącznie na klucze panelu,
-// zapisów i liczników - nie na publiczną listę prelegentów
-// (`WIDGET_QUERY_ROOTS.speakers`) ani na materiały (`speakerMaterialsKeys`).
-// Organizator, który po decyzji przechodzi na stronę wydarzenia w tej samej
-// karcie, dostałby z cache listę sprzed decyzji. Stąd jawne unieważnienie -
-// zawsze zawężone do TEGO wydarzenia.
+// PRZYJĘCIE I DECYZJA ZMIENIAJĄ TEŻ STRONĘ WYDARZENIA. Mapa realtime
+// tłumaczy `event_cfp_submission.decided.v1` także na publiczną listę
+// prelegentów tego wydarzenia (`eventSpeakersPublicKey`), ale nie na
+// materiały (`speakerMaterialsKeys`), a zdarzenie dociera przez szynę
+// z opóźnieniem. Organizator, który po decyzji przechodzi na stronę wydarzenia
+// w tej samej karcie, dostałby z cache listę sprzed decyzji. Stąd jawne
+// unieważnienie po sukcesie - zawsze zawężone do TEGO wydarzenia.
 //
 // PUBLIKACJA MATERIAŁU ZMIENIA STRONĘ WYDARZENIA: dialog profilu prelegenta
 // czyta opublikowane materiały własnym kluczem (`speakerMaterialsKeys`, świeży
@@ -68,8 +67,7 @@ import type {
   CfpSettings,
   CfpSubmissionDetail,
 } from "@/lib/events/cfpSurface";
-import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
-import type { SpeakersInput } from "@/lib/builder/speakersQuery";
+import { eventSpeakersPublicKey } from "@/lib/builder/queryKeys";
 import { speakerMaterialsKeys } from "@/lib/events/speakerMaterialsPublic";
 import { agendaKeys } from "@/lib/events/useEventSessions";
 import { registrationKeys } from "@/lib/events/useEventRegistrations";
@@ -206,7 +204,7 @@ export function useReorderCfpFields(eventId: string) {
 export function useDecideCfpSubmission(eventId: string) {
   return useCfpMutation<CfpDecisionInput, void>(eventId, decideCfpSubmission, [
     ...acceptanceSideEffectKeys(eventId),
-    publicEventSpeakersKey(eventId),
+    eventSpeakersPublicKey(eventId),
   ]);
 }
 
@@ -229,23 +227,10 @@ function acceptanceSideEffectKeys(eventId: string): Array<readonly unknown[]> {
   ];
 }
 
-/**
- * Publiczna lista prelegentów TEGO wydarzenia - sekcja przeglądu, siatka
- * zakładki i widget buildera w trybie „event". Ich klucz to
- * `[WIDGET_QUERY_ROOTS.speakers, wejście]`, a wydarzenie siedzi W OBIEKCIE
- * wejścia; React Query dopasowuje obiekt częściowo, więc
- * `{ source: "event", eventId }` trafia w każdy limit tego wydarzenia, a omija
- * inne wydarzenia i katalog (`source: "directory"` czyta nakładki kont, nie
- * rejestr wydarzenia).
- *
- * PRZYJĘCIE TEGO NIE RUSZA: nikogo nie wpisuje na publiczną listę (robi to
- * dopiero potwierdzenie prelegenta, `useRespondCfpSubmission`), a szkic sesji
- * z obsadą nie jest opublikowany, więc nie zmienia ścieżek na karcie.
- */
-function publicEventSpeakersKey(eventId: string): readonly unknown[] {
-  const input = { source: "event", eventId } satisfies Partial<SpeakersInput>;
-  return [WIDGET_QUERY_ROOTS.speakers, input];
-}
+// PRZYJĘCIE NIE RUSZA publicznej listy prelegentów (`eventSpeakersPublicKey`):
+// nikogo na nią nie wpisuje (robi to dopiero potwierdzenie prelegenta,
+// `useRespondCfpSubmission`), a szkic sesji z obsadą nie jest opublikowany,
+// więc nie zmienia ścieżek na karcie.
 
 export function useAcceptCfpSubmission(eventId: string) {
   return useCfpMutation<CfpAcceptInput, CfpAcceptResult>(

@@ -1,0 +1,49 @@
+# Kolejnosc migracji modulu Wydarzen na produkcji (Lovable, migrator drizzle).
+# Czytane przez scripts/deploy-order-proof.sh. Stan zywej bazy sprawdzony
+# 2026-09-27 ok. 16:10 UTC zapytaniami tylko do odczytu
+# (docs/WDROZENIE_FUNKCJE_ORGANIZATORA_CZ3_2026-09-27.md, sekcja 2).
+LINIA 20260926140000
+
+# --- JUZ ZASTOSOWANE, w kolejnosci zapisow drizzle.__drizzle_migrations ------
+# id 68-71: migrator wykonal wpisy dziennika 0067-0070 przy wdrozeniu skanera.
+20260926180000_event_registration_gaps_part3.sql        # zapis 0067
+20260927000900_event_person_crm_sync_lead_names.sql     # zapis 0068
+20260926180001_event_registration_gaps_part3_part2.sql  # zapis 0069
+20260926180002_event_registration_gaps_part3_part3.sql  # zapis 0070
+# id 72-73: skaner offline z panelu Lovable.
+20260926150000_event_scanner_offline.sql                # zapis 0071
+20260926150001_event_scanner_offline_part2.sql          # zapis 0072
+
+# --- DO ZASTOSOWANIA, w tej kolejnosci -----------------------------------------
+20260926153100_event_participant_foundation.sql         # przywraca _event_participant_release (pelny zwrot)
+20260926153101_event_participant_foundation_part2.sql
+20260926153200_event_participant_defect_fixes.sql       # nadpisuje payments_apply_event_ticket_outcome starszym cialem...
+20260926180002_event_registration_gaps_part3_part3.sql  # ...wiec 180002 PONOWNIE, zaraz potem (backfill idempotentny)
+20260926153300_notification_kind_event_billing.sql
+20260926160000_event_ticket_wallet.sql
+20260926183100_event_participant_part3_followups.sql
+20260927000100_event_cfp.sql
+20260927000101_event_cfp_part2.sql
+20260927000102_event_cfp_part3.sql
+20260927000103_event_cfp_part4.sql
+20260927000104_event_cfp_part5.sql
+20260927000105_event_cfp_part6.sql
+20260927000200_event_invoices.sql
+20260927000201_event_invoices_part2.sql
+20260927000202_event_invoices_part3.sql
+20260927000203_event_invoices_part4.sql
+20260927000204_event_invoices_part5.sql
+20260927000300_event_ads_funnel.sql
+20260927000301_event_ads_funnel_part2.sql
+20260927000400_event_seating.sql
+20260927000401_event_seating_part2.sql
+20260927000402_event_seating_part3.sql
+20260927000500_event_sponsor_report.sql
+20260927000501_event_sponsor_report_part2.sql
+20260927000800_event_clone.sql
+20260927000801_event_clone_part2.sql
+20260927000802_event_clone_part3.sql
+20260927001100_event_ads_funnel_review_fixes.sql              # lejek Google Ads: poprawki po przegladzie
+20260927001200_event_seating_review_fixes.sql              # plan sali: poprawki z przegladu (po 000400-000402)
+20260927001300_event_clone_participant_settings.sql     # klon: ustawienia uczestnika, strefa zrodla
+20260927001400_event_person_crm_intents.sql             # most CRM: stan per intencja, os czasu

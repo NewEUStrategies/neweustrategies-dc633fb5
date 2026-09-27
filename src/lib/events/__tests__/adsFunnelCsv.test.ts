@@ -30,6 +30,7 @@ const LABELS: AdsFunnelCsvLabels = {
   cpa: "CPA",
   roas: "ROAS",
   noCampaign: "Bez kampanii",
+  otherCampaigns: "Pozostale kampanie",
   unattributed: "Bez atrybucji",
 };
 
@@ -68,6 +69,7 @@ function report(groups: AdsFunnelGroup[]): AdsFunnelReport {
   return {
     timezone: "Europe/Warsaw",
     groups,
+    groupsFolded: 0,
     unattributed: { registrations: 2, paid: 1, revenue: [{ currency: "EUR", cents: 1000 }] },
     totals: {
       visits: 10,
@@ -117,20 +119,28 @@ describe("buildAdsFunnelCsv", () => {
 
 describe("adsFunnelGroupName", () => {
   it("etykieta > utm_campaign > id kampanii > bez kampanii", () => {
-    expect(adsFunnelGroupName(group(), "-")).toBe("Wiosna Search");
-    expect(adsFunnelGroupName(group({ kind: "utm_campaign", label: null }), "-")).toBe("wiosna");
+    expect(adsFunnelGroupName(group(), "-", "+")).toBe("Wiosna Search");
+    expect(adsFunnelGroupName(group({ kind: "utm_campaign", label: null }), "-", "+")).toBe(
+      "wiosna",
+    );
     expect(
       adsFunnelGroupName(
         group({ kind: "gad_campaign", label: null, utmCampaign: null, gadCampaignId: "987" }),
         "-",
+        "+",
       ),
     ).toBe("987");
-    expect(adsFunnelGroupName(group({ kind: "none" }), "Bez kampanii")).toBe("Bez kampanii");
+    expect(adsFunnelGroupName(group({ kind: "none" }), "Bez kampanii", "+")).toBe("Bez kampanii");
+    // Grupa zwinieta przez baze ma wlasna nazwe, nie etykiete ktorejkolwiek kampanii.
+    expect(adsFunnelGroupName(group({ kind: "other", key: "other" }), "-", "Pozostale")).toBe(
+      "Pozostale",
+    );
     // Grupa bez zadnej nazwy (zly ksztalt z bazy) - tez nazwa zastepcza, nie pusta komorka.
     expect(
       adsFunnelGroupName(
         group({ kind: "utm_campaign", label: null, utmCampaign: null }),
         "Bez kampanii",
+        "+",
       ),
     ).toBe("Bez kampanii");
   });

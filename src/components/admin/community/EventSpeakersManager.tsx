@@ -61,6 +61,7 @@ import { EventSpeakerCardDialog } from "./EventSpeakerCardDialog";
 import { SpeakerTrackChips } from "@/components/events/SpeakerTrackChips";
 import { useAdminEventDetail } from "@/lib/events/useAdminEventDetail";
 import { uiLang } from "@/lib/i18n/format";
+import { WIDGET_QUERY_ROOTS, eventSpeakersPublicKey } from "@/lib/builder/queryKeys";
 import { ensureI18n as ensureCommunityEventsI18n } from "@/lib/i18n-admin-community-events";
 import {
   addEventSpeaker,
@@ -103,7 +104,14 @@ export function EventSpeakersManager({ eventId }: { eventId: string }) {
   });
   const speakers = speakersQ.data ?? [];
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["admin-event-speakers", eventId] });
+  // Rejestr zmienia tez PUBLICZNA liste tego wydarzenia (nazwiska, kolejnosc,
+  // pola karty) - bez niej organizator po dodaniu, usunieciu albo przesunieciu
+  // prelegenta widzial na stronie wydarzenia stara liste przez `staleTime`.
+  const invalidate = () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: ["admin-event-speakers", eventId] }),
+      qc.invalidateQueries({ queryKey: eventSpeakersPublicKey(eventId) }),
+    ]);
 
   const addM = useMutation({
     mutationFn: (userId: string) => addEventSpeaker(eventId, userId),
@@ -406,6 +414,14 @@ function SpeakerProfileAdminDialog({
     setSeeded(true);
   }, [seeded, profileQ.isLoading, profileQ.data]);
 
+  // Profil to jeden wiersz na konto, widoczny na liscie KAZDEGO wydarzenia,
+  // w ktorym ta osoba wystepuje, i w dialogu profilu - stad korzen listy
+  // i profil tego konta.
+  const invalidatePublicProfile = () => {
+    void qc.invalidateQueries({ queryKey: [WIDGET_QUERY_ROOTS.speakers] });
+    void qc.invalidateQueries({ queryKey: [WIDGET_QUERY_ROOTS.publicSpeakerProfile, userId] });
+  };
+
   const saveM = useMutation({
     mutationFn: () =>
       upsertAdminSpeakerProfile({
@@ -426,6 +442,7 @@ function SpeakerProfileAdminDialog({
     onSuccess: (result) => {
       setCrmLeadId(result.crm_lead_id);
       qc.invalidateQueries({ queryKey: ["admin-speaker-profile", userId] });
+      invalidatePublicProfile();
       toast.success(
         t(
           result.crm_lead_id
@@ -441,6 +458,7 @@ function SpeakerProfileAdminDialog({
     mutationFn: () => deleteAdminSpeakerProfile(userId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-speaker-profile", userId] });
+      invalidatePublicProfile();
       toast.success(t("adminCommunityEvents.speakers.profile.deleted"));
       onClose();
     },

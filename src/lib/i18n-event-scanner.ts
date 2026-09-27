@@ -394,6 +394,10 @@ export const eventScannerPl = {
       rosterResyncRequired: "Lista offline wymaga pełnego pobrania od nowa.",
       deviceTimeOutOfRange:
         "Skan jest starszy niż tydzień - baza go nie przyjmie. Pokaż go organizatorowi.",
+      outboxOverflow:
+        "Kolejka na urządzeniu była pełna - ten skan nie zmieścił się w niej. Przekaż go organizatorowi.",
+      deviceMismatch:
+        "Skan zapisano pod innym kodem urządzenia - nie został wysłany pod bieżącym. Przekaż go organizatorowi.",
       offline: "Brak sieci. Skan czeka w kolejce i pojedzie, gdy zasięg wróci.",
       unknown: "Coś nie zadziałało. Spróbuj jeszcze raz.",
     },
@@ -701,6 +705,10 @@ export const eventScannerEn = {
       rosterResyncRequired: "The offline list needs a full download from scratch.",
       deviceTimeOutOfRange:
         "The scan is older than a week - the server will not accept it. Show it to the organiser.",
+      outboxOverflow:
+        "The queue on this device was full - this scan did not fit. Pass it on to the organiser.",
+      deviceMismatch:
+        "The scan was saved under another device code - it was not sent under the current one. Pass it on to the organiser.",
       offline: "No network. The scan is queued and goes out when the signal returns.",
       unknown: "Something went wrong. Please try again.",
     },

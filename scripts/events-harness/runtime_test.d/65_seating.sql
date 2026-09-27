@@ -235,6 +235,15 @@ SELECT pg_temp.assert(
   = ARRAY['-|1|0.00|-64.00|0', '-|2|45.25|-45.25|1', '-|3|64.00|0.00|2', '-|4|45.25|45.25|3',
           '-|5|0.00|64.00|4', '-|6|-45.25|45.25|5', '-|7|-64.00|0.00|6', '-|8|-45.25|-45.25|7'],
   '65/geometria: stol okragly 8 miejsc, promien 64, start u gory');
+-- Polowka .xx5 z cosinusa/sinusa: `float8::numeric` bierze 15 cyfr znaczacych
+-- (22.774999999999991 -> 22.775) i dopiero wtedy zaokragla od zera - 22.78.
+-- Surowy double zaokraglony w TS dawal 22.77 (20260927001200).
+SELECT pg_temp.assert(
+  (SELECT array_agg(format('%s|%s|%s|%s|%s', COALESCE(g.row_label, '-'), g.seat_number, g.x, g.y, g.sort_key) ORDER BY g.sort_key)
+     FROM public._event_seat_section_layout('table', NULL, NULL, NULL, 1, NULL, 1, 45.55, 60, ARRAY[]::integer[], 'round', 6) AS g)
+  = ARRAY['-|1|0.00|-45.55|0', '-|2|39.45|-22.78|1', '-|3|39.45|22.78|2', '-|4|0.00|45.55|3',
+          '-|5|-39.45|22.78|4', '-|6|-39.45|-22.78|5'],
+  '65/geometria: stol okragly 6 miejsc, rozstaw 45.55 - polowka .xx5 po 15 cyfrach znaczacych');
 SELECT pg_temp.assert(
   (SELECT array_agg(format('%s|%s|%s|%s|%s', COALESCE(g.row_label, '-'), g.seat_number, g.x, g.y, g.sort_key) ORDER BY g.sort_key)
      FROM public._event_seat_section_layout('table', NULL, NULL, NULL, 1, NULL, 1, 50, 60, ARRAY[]::integer[], 'round', 1) AS g)
@@ -476,6 +485,35 @@ BEGIN
   PERFORM pg_temp.assert(public.admin_event_seat_map_delete(v_map), '65/plan: pusty plan usuniety');
   PERFORM pg_temp.assert(NOT EXISTS (SELECT 1 FROM public.event_seats s WHERE s.map_id = v_map),
     '65/plan: usuniecie planu zabiera jego miejsca');
+END
+$do$;
+
+-- Parametry sekcji zaokraglone do setnych PRZED ukladem (20260927001200).
+-- Rozstaw 45.555 zapisuje sie jako 45.56 (numeric(6,2)); miejsca liczone
+-- z 45.555 (x = 91.11) po samej zmianie etykiety przeskakiwaly na 91.12.
+DO $do$
+DECLARE
+  v_map uuid;
+  v_section uuid;
+  v_res jsonb;
+BEGIN
+  v_map := public.admin_event_seat_map_save(jsonb_build_object(
+    'event_id', '65e00000-0000-0000-0000-0000000000e1', 'name', 'Rozstaw 65'));
+  v_section := (public.admin_event_seat_section_save(jsonb_build_object(
+    'map_id', v_map, 'label', 'R', 'kind', 'rows', 'rows_count', 1, 'seats_per_row', 3,
+    'row_label_scheme', 'alpha', 'seat_numbering', 'ltr', 'seat_pitch', 45.555, 'row_pitch', 60.004,
+    'origin_x', 10.005, 'rotation_deg', -15.555))->>'section_id')::uuid;
+  PERFORM pg_temp.assert(
+    (SELECT s.seat_pitch = 45.56 AND s.row_pitch = 60 AND s.origin_x = 10.01 AND s.rotation_deg = -15.56
+       FROM public.event_seat_sections s WHERE s.id = v_section)
+    AND (SELECT s.x FROM public.event_seats s WHERE s.id = pg_temp.seat65(v_section, 'A', 3)) = 2 * 45.56,
+    '65/sekcja: rozstaw, poczatek i obrot zaokraglone do setnych przed ukladem (x = 2 * 45.56)');
+  v_res := public.admin_event_seat_section_save(jsonb_build_object('id', v_section, 'label', 'R2'));
+  PERFORM pg_temp.assert(
+    (v_res->>'seats_kept')::int = 3
+    AND (SELECT s.x FROM public.event_seats s WHERE s.id = pg_temp.seat65(v_section, 'A', 3)) = 2 * 45.56,
+    '65/sekcja: zmiana samej etykiety nie przelicza miejsc z innego rozstawu');
+  PERFORM pg_temp.assert(public.admin_event_seat_map_delete(v_map), '65/plan: plan rozstawu usuniety');
 END
 $do$;
 
@@ -925,11 +963,13 @@ SELECT pg_temp.assert(
   (SELECT count(*) FROM public.admin_event_seating_export(jsonb_build_object('map_id', pg_temp.v65('m1')))) = 22
   AND (SELECT count(*) FROM public.admin_event_seating_export(jsonb_build_object('map_id', pg_temp.v65('m1'),
          'company_id', '65c00000-0000-0000-0000-0000000000c1'))) = 3
-  AND (SELECT e.email = 'bartosz@example.org' AND e.hold_company_name = 'Firma C1 65' AND e.ticket_name_pl = 'Standard'
+  AND (SELECT e.email IS NULL AND e.last_name = 'Kowalski' AND e.hold_company_name = 'Firma C1 65' AND e.ticket_name_pl = 'Standard'
          FROM public.admin_event_seating_export(jsonb_build_object('map_id', pg_temp.v65('m1'))) e WHERE e.seat_id = pg_temp.v65('A5'))
+  AND NOT EXISTS (SELECT 1 FROM public.admin_event_seating_export(jsonb_build_object('map_id', pg_temp.v65('m1'))) e
+                   WHERE e.email IS NOT NULL)
   AND (SELECT e.hold_company_id = '65c00000-0000-0000-0000-0000000000c2'
          FROM public.admin_event_seating_export(jsonb_build_object('map_id', pg_temp.v65('m1'))) e WHERE e.seat_id = pg_temp.v65('A1')),
-  '65/eksport: wiersz na miejsce, lista gosci firmy (osoby firmy + jej rezerwacje), rezerwujacy przez sponsora');
+  '65/eksport: wiersz na miejsce, lista gosci firmy (osoby firmy + jej rezerwacje), rezerwujacy przez sponsora, bez e-maili');
 SELECT pg_temp.assert_raises_like(pg_temp.q65('admin_event_seating_export', jsonb_build_object(
   'map_id', '65000000-0000-0000-0000-00000000dead')), 'not_found', '65/eksport: nieistniejacy plan');
 
@@ -946,6 +986,17 @@ BEGIN
     AND pg_temp.active65('65900000-0000-0000-0000-000000000002', pg_temp.v65('m1')) = pg_temp.v65('A5')
     AND (SELECT s.status FROM public.event_seats s WHERE s.id = pg_temp.v65('A4')) = 'blocked',
     '65/sekcja: przesuniecie zachowuje miejsca, przydzialy i blokady');
+
+  -- Etykieta miejsca kandydata idzie za nazwa sekcji (20260927001200);
+  -- migawka przydzialu (historia) zostaje przy nazwie z chwili przydzialu.
+  PERFORM public.admin_event_seat_section_save(jsonb_build_object('id', pg_temp.v65('sa'), 'label', 'Parter'));
+  PERFORM pg_temp.assert(
+    (SELECT c.seat_label FROM public.admin_event_seating_candidates(jsonb_build_object('map_id', pg_temp.v65('m1'))) c
+      WHERE c.registration_id = '65900000-0000-0000-0000-000000000002') = 'Parter / A / 5'
+    AND (SELECT a.seat_label_snapshot FROM public.event_seat_assignments a
+          WHERE a.registration_id = '65900000-0000-0000-0000-000000000002' AND a.released_at IS NULL) = 'A / A / 5',
+    '65/kandydaci: etykieta miejsca po zmianie nazwy sekcji jest nowa, migawka przydzialu zostaje');
+  PERFORM public.admin_event_seat_section_save(jsonb_build_object('id', pg_temp.v65('sa'), 'label', 'A'));
 
   PERFORM pg_temp.assert_raises_like(pg_temp.q65('admin_event_seat_section_save', jsonb_build_object(
     'id', pg_temp.v65('sa'), 'seats_per_row', 3)), 'seats_in_use', '65/sekcja: zmniejszenie usuwaloby zajete miejsce');
@@ -1021,8 +1072,8 @@ SELECT public.admin_event_seat_assign(jsonb_build_object('map_id', pg_temp.v65('
 
 SELECT pg_temp.act_as('65a00000-0000-0000-0000-0000000000a4', '11111111-1111-1111-1111-111111111111');
 SELECT pg_temp.assert(
-  public.event_my_seats('{"slug":"plan-65"}') = '{"seats":[]}'::jsonb,
-  '65/uczestnik: plany w szkicu sa niewidoczne');
+  public.event_my_seats('{"slug":"plan-65"}') = '{"seats":[],"seatable":true,"has_published_plan":false}'::jsonb,
+  '65/uczestnik: plany w szkicu sa niewidoczne (zgloszenie zajmuje miejsce, planu opublikowanego brak)');
 
 SELECT pg_temp.act_as('65a00000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111');
 SELECT public.admin_event_seat_map_save(jsonb_build_object('id', pg_temp.v65('m1'), 'status', 'published'));
@@ -1046,7 +1097,8 @@ BEGIN
     AND (v_card->'geometry'->'stage'->>'w')::numeric = 600
     AND (v_card->'geometry'->'section'->>'origin_x')::numeric = 300
     AND jsonb_array_length(v_card->'geometry'->'seats') = 5
-    AND (SELECT count(*) FROM jsonb_array_elements(v_card->'geometry'->'seats') s WHERE (s->>'mine')::boolean) = 1,
+    AND (SELECT count(*) FROM jsonb_array_elements(v_card->'geometry'->'seats') s WHERE (s->>'mine')::boolean) = 1
+    AND v_r->'seatable' = 'true'::jsonb AND v_r->'has_published_plan' = 'true'::jsonb,
     '65/uczestnik: jedna karta z opublikowanego planu (szkic M2 pominiety), geometria wlasnej sekcji, jedno "moje"');
   PERFORM pg_temp.assert(
     NOT (v_r::text ILIKE '%Kowalsk%') AND NOT (v_r::text ILIKE '%registration%')
@@ -1058,13 +1110,20 @@ END
 $do$;
 
 SELECT pg_temp.assert(
-  public.event_my_seats('{"slug":"nie-ma-takiego"}') = '{"seats":[]}'::jsonb,
+  public.event_my_seats('{"slug":"nie-ma-takiego"}') = '{"seats":[],"seatable":false,"has_published_plan":false}'::jsonb,
   '65/uczestnik: nieznany slug = pusta lista');
 SELECT pg_temp.assert_raises_like($q$SELECT public.event_my_seats('{}')$q$, 'invalid_slug', '65/uczestnik: brak sluga');
 SELECT pg_temp.act_as('65a00000-0000-0000-0000-0000000000a3', '11111111-1111-1111-1111-111111111111');
 SELECT pg_temp.assert(
-  public.event_my_seats('{"slug":"plan-65"}') = '{"seats":[]}'::jsonb,
-  '65/uczestnik: osoba bez zgloszenia nie widzi cudzych miejsc');
+  public.event_my_seats('{"slug":"plan-65"}') = '{"seats":[],"seatable":false,"has_published_plan":true}'::jsonb,
+  '65/uczestnik: osoba bez zgloszenia nie widzi cudzych miejsc (i nie dostaje zapowiedzi miejsca)');
+-- Zgloszenie oczekujace nie zajmuje miejsca - panel "Moje" nie zapowiada miejsca.
+UPDATE public.event_people SET user_id = '65a00000-0000-0000-0000-0000000000a3'
+ WHERE id = '65f00000-0000-0000-0000-000000000004';
+SELECT pg_temp.assert(
+  public.event_my_seats('{"slug":"plan-65"}') = '{"seats":[],"seatable":false,"has_published_plan":true}'::jsonb,
+  '65/uczestnik: zgloszenie oczekujace = seatable false');
+UPDATE public.event_people SET user_id = NULL WHERE id = '65f00000-0000-0000-0000-000000000004';
 SELECT pg_temp.act_as(NULL, NULL);
 SELECT pg_temp.assert_raises_like($q$SELECT public.event_my_seats('{"slug":"plan-65"}')$q$, 'auth_required', '65/uczestnik: anonim');
 
