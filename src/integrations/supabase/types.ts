@@ -22761,6 +22761,10 @@ export type Database = {
           updated_at: string
         }[]
       }
+      admin_event_ad_cost_delete: {
+        Args: { p_campaign_id: string; p_day: string }
+        Returns: boolean
+      }
       admin_event_ad_costs_list: {
         Args: { p_campaign_id: string }
         Returns: {
@@ -22772,6 +22776,15 @@ export type Database = {
           source: string
           updated_at: string
         }[]
+      }
+      admin_event_ad_costs_save: { Args: { p_payload: Json }; Returns: number }
+      admin_event_ads_conversions_export: {
+        Args: { p_event_id: string; p_from?: string; p_to?: string }
+        Returns: Json
+      }
+      admin_event_ads_funnel: {
+        Args: { p_event_id: string; p_from?: string; p_to?: string }
+        Returns: Json
       }
       admin_event_agenda_conflicts: {
         Args: { p_event_id: string }
@@ -27175,6 +27188,7 @@ export type Database = {
         Returns: string
       }
       event_admission_quote: { Args: { p_payload: Json }; Returns: Json }
+      event_ads_retention_prune: { Args: never; Returns: Json }
       event_agenda: {
         Args: { p_slug: string }
         Returns: {
