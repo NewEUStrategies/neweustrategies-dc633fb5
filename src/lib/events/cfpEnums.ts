@@ -1,5 +1,5 @@
 // Zamknięte zbiory NABORU PRELEGENTÓW - lustro CHECK-ów z migracji
-// `20260926100000_event_cfp.sql`, jeden do jednego.
+// `20260927000100_event_cfp.sql`, jeden do jednego.
 //
 // OSOBNY, LEKKI MODUŁ. Te listy czyta i panel organizatora, i strona publiczna
 // naboru, i panel prelegenta. Gdyby stały w `cfpApi.ts` (panel), trasa
@@ -51,6 +51,15 @@ export const CFP_DECIDABLE_STATUSES: readonly CfpSubmissionStatus[] = [
   "waitlisted",
   "rejected",
 ];
+
+/**
+ * COFNIĘCIE PRZYJĘCIA: z przyjętego albo potwierdzonego organizator może
+ * zgłoszenie wyłącznie przenieść na rezerwę albo odrzucić
+ * (`admin_event_cfp_submission_decide`, skutki cofa `_event_cfp_acceptance_undo`).
+ */
+export const CFP_REVOCABLE_STATUSES: readonly CfpSubmissionStatus[] = ["accepted", "confirmed"];
+export const CFP_REVOKE_STATUSES = ["waitlisted", "rejected"] as const;
+export type CfpRevokeStatus = (typeof CFP_REVOKE_STATUSES)[number];
 
 /** Stany, o których idzie mail do prelegenta (`admin_event_cfp_notify_payload`). */
 export const CFP_NOTICES = ["accepted", "rejected", "changes_requested"] as const;

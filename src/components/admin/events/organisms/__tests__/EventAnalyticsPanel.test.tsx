@@ -265,10 +265,10 @@ function Provider({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
-function panel() {
+function panel(overrides: Partial<AdminEventDetailRow> = {}) {
   return render(
     <Provider>
-      <EventAnalyticsPanel row={detailRow()} />
+      <EventAnalyticsPanel row={detailRow(overrides)} />
     </Provider>,
   );
 }
@@ -491,6 +491,29 @@ describe("EventAnalyticsPanel - drogowskaz do ruchu na stronie", () => {
     const link = screen.getByRole("link", { name: "adminEventSponsorReport.navLink.open" });
     expect(link.getAttribute("href")).toBe(`/admin/events/${EVENT_ID}/sponsor-report`);
     expect(screen.getByText("adminEventSponsorReport.navLink.analyticsDescription")).toBeTruthy();
+  });
+
+  it("wylaczony sponsoring chowa odnosnik do raportu sponsorow (jak pozycje w sidebarze)", async () => {
+    // Przelacznik `sponsors` chowa w studiu `sponsors` ORAZ `sponsorReport` -
+    // odnosnik z pulpitu prowadzilby na ekran „modul wylaczony".
+    planujKomplet(stub());
+    panel({ features: { sponsors: false } });
+
+    await poczekajNaKomplet();
+    expect(screen.queryByRole("link", { name: "adminEventSponsorReport.navLink.open" })).toBeNull();
+    expect(screen.queryByText("adminEventSponsorReport.navLink.analyticsDescription")).toBeNull();
+    // Kontrapunkt: pozostale drogowskazy zostaja.
+    expect(
+      screen.getByRole("link", { name: "adminEventAdsFunnel.analyticsLink.open" }),
+    ).toBeTruthy();
+  });
+
+  it("wylaczenie INNEGO modulu nie chowa raportu sponsorow", async () => {
+    planujKomplet(stub());
+    panel({ features: { cfp: false, meetings: false } });
+
+    await poczekajNaKomplet();
+    expect(screen.getByRole("link", { name: "adminEventSponsorReport.navLink.open" })).toBeTruthy();
   });
 
   it("odsyla do lejka Google Ads TEGO wydarzenia (wlasny ekran studia), a nie do cudzego", async () => {

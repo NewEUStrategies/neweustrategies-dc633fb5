@@ -2,9 +2,22 @@
 //
 // CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW - pilnowane niżej:
 // Najważniejsze zobowiązania: (1) każda mutacja panelu unieważnia CAŁĄ gałąź
-// `["event-cfp", eventId]` (a przyjęcie także agendę, zapisy i rejestr
-// prelegentów tego wydarzenia); (2) mutacje uczestnika unieważniają jego gałąź
-// `["event-cfp-me", slug]`; (3) zapytanie bez identyfikatora nie startuje.
+// `["event-cfp", eventId]` (a przyjęcie i decyzja - która może COFNĄĆ przyjęcie -
+// także agendę, zapisy, rejestr prelegentów i publiczne materiały tego
+// wydarzenia, decyzja dodatkowo publiczną listę prelegentów tego wydarzenia;
+// mapa realtime tłumaczy zdarzenia tych RPC wyłącznie na klucze panelu, więc
+// bez tego strona wydarzenia w tej samej karcie pokazywałaby prelegenta
+// zdjętego decyzją; obce wydarzenie i katalog zostają nietknięte, a nieudana
+// mutacja nie unieważnia niczego); (2) mutacje
+// uczestnika unieważniają jego gałąź `["event-cfp-me", slug]`, a potwierdzenie,
+// rezygnacja i wycofanie także panel „Moje", listę prelegentów i ich materiały
+// (zapis z biletem i wpis na liście zmieniają się razem z nimi); (3) zapytanie
+// bez identyfikatora nie startuje; (4) KAŻDA mutacja materiału (publikacja w
+// studiu, zapis i usunięcie w panelu prelegenta) unieważnia publiczne
+// materiały prelegentów (`speakerMaterialsKeys`) - ich RPC nie emitują
+// zdarzenia domeny, więc bez tego dialog profilu prelegenta na stronie
+// wydarzenia przez minutę pokazywałby listę sprzed publikacji/zmiany/usunięcia.
+import type { QueryClient } from "@tanstack/react-query";
 import { waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -51,6 +64,62 @@ vi.mock("@/lib/events/cfpPublicApi", () => pub);
 
 const admin = await import("@/lib/events/useEventCfp");
 const me = await import("@/lib/events/useCfpMe");
+const { publicSpeakerMaterialsQueryOptions } = await import("@/lib/events/speakerMaterialsPublic");
+const { speakersQueryOptions } = await import("@/lib/builder/speakersQuery");
+
+/**
+ * Dwa wpisy publicznych materiałów w cache - wydarzenie `e1` (gość i
+ * zalogowany widz) oraz obce `e2` - pod DOKŁADNIE tymi kluczami, pod którymi
+ * czyta je dialog profilu prelegenta. Zwraca, które z nich unieważniono.
+ */
+function seedPublicMaterials(queryClient: QueryClient) {
+  const keys = {
+    e1Anon: publicSpeakerMaterialsQueryOptions("e1", null).queryKey,
+    e1Viewer: publicSpeakerMaterialsQueryOptions("e1", "u1").queryKey,
+    e2Anon: publicSpeakerMaterialsQueryOptions("e2", null).queryKey,
+  };
+  for (const key of Object.values(keys)) queryClient.setQueryData(key, []);
+  return () => ({
+    e1Anon: queryClient.getQueryState(keys.e1Anon)?.isInvalidated,
+    e1Viewer: queryClient.getQueryState(keys.e1Viewer)?.isInvalidated,
+    e2Anon: queryClient.getQueryState(keys.e2Anon)?.isInvalidated,
+  });
+}
+
+/**
+ * Publiczne listy prelegentów w cache pod DOKŁADNIE tymi kluczami, pod którymi
+ * czytają je strony: sekcja przeglądu (`limit: 50`) i siatka zakładki
+ * (domyślny limit) wydarzenia `e1`, sekcja obcego `e2` oraz katalog. Zwraca,
+ * które z nich unieważniono.
+ */
+function seedPublicSpeakers(queryClient: QueryClient) {
+  const keys = {
+    e1Section: speakersQueryOptions({ source: "event", eventId: "e1", limit: 50 }, "pl").queryKey,
+    e1Grid: speakersQueryOptions({ source: "event", eventId: "e1" }, "en").queryKey,
+    e2Section: speakersQueryOptions({ source: "event", eventId: "e2", limit: 50 }, "pl").queryKey,
+    directory: speakersQueryOptions({ source: "directory" }, "pl").queryKey,
+  };
+  for (const key of Object.values(keys)) queryClient.setQueryData(key, []);
+  return () => ({
+    e1Section: queryClient.getQueryState(keys.e1Section)?.isInvalidated,
+    e1Grid: queryClient.getQueryState(keys.e1Grid)?.isInvalidated,
+    e2Section: queryClient.getQueryState(keys.e2Section)?.isInvalidated,
+    directory: queryClient.getQueryState(keys.directory)?.isInvalidated,
+  });
+}
+
+const SPEAKERS_UNTOUCHED = { e1Section: false, e1Grid: false, e2Section: false, directory: false };
+const MATERIALS_UNTOUCHED = { e1Anon: false, e1Viewer: false, e2Anon: false };
+
+/** Klucze poza naborem, które przyjęcie (i cofnięcie przyjęcia) unieważnia w `e1`. */
+const ACCEPTANCE_KEYS_E1 = [
+  admin.cfpKeys.event("e1"),
+  ["event-agenda", "e1"],
+  ["event-registrations", "e1"],
+  ["admin-event-speakers", "e1"],
+  ["admin", "event", "e1", "speakers"],
+  ["event-speaker-materials", "e1"],
+];
 
 const QUERY = {
   eventId: "e1",
@@ -168,17 +237,108 @@ describe("mutacje panelu", () => {
     expect(api.publishCfpMaterial).toHaveBeenCalledWith("m1", true);
   });
 
-  it("przyjęcie unieważnia także agendę, zapisy i rejestr prelegentów wydarzenia", async () => {
+  it.each([true, false])(
+    "publikacja materiału (isPublished=%s) odświeża publiczne materiały TEGO wydarzenia",
+    async (isPublished) => {
+      const { result, queryClient } = renderHookWithQueryClient(() =>
+        admin.usePublishCfpMaterial("e1"),
+      );
+      const stale = seedPublicMaterials(queryClient);
+      const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+      expect(stale()).toEqual({ e1Anon: false, e1Viewer: false, e2Anon: false });
+      await result.current.mutateAsync({ id: "m1", isPublished });
+      expect(invalidate.mock.calls.map((call) => call[0]?.queryKey)).toEqual([
+        admin.cfpKeys.event("e1"),
+        ["event-speaker-materials", "e1"],
+      ]);
+      // Dialog gościa i zalogowanego widza tego wydarzenia pyta od nowa; obce
+      // wydarzenie zostaje nietknięte.
+      expect(stale()).toEqual({ e1Anon: true, e1Viewer: true, e2Anon: false });
+    },
+  );
+
+  it("nieudana publikacja nie unieważnia publicznych materiałów", async () => {
+    api.publishCfpMaterial.mockRejectedValueOnce(new Error("forbidden"));
+    const { result, queryClient } = renderHookWithQueryClient(() =>
+      admin.usePublishCfpMaterial("e1"),
+    );
+    const stale = seedPublicMaterials(queryClient);
+    await expect(result.current.mutateAsync({ id: "m1", isPublished: true })).rejects.toThrow(
+      "forbidden",
+    );
+    expect(stale()).toEqual({ e1Anon: false, e1Viewer: false, e2Anon: false });
+  });
+
+  it("przyjęcie unieważnia także agendę, zapisy, rejestr prelegentów i materiały wydarzenia", async () => {
     const { result, queryClient } = renderHookWithQueryClient(() =>
       admin.useAcceptCfpSubmission("e1"),
     );
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
     await result.current.mutateAsync({ id: "s1", register: true, schedule: null });
     const keys = invalidate.mock.calls.map((call) => call[0]?.queryKey);
-    expect(keys).toContainEqual(admin.cfpKeys.event("e1"));
-    expect(keys).toContainEqual(["admin-event-speakers", "e1"]);
-    expect(keys).toContainEqual(["admin", "event", "e1", "speakers"]);
-    expect(keys.length).toBe(5);
+    expect(keys).toEqual(ACCEPTANCE_KEYS_E1);
+  });
+
+  it("przyjęcie odświeża publiczne materiały TEGO wydarzenia, ale nie listę prelegentów", async () => {
+    const { result, queryClient } = renderHookWithQueryClient(() =>
+      admin.useAcceptCfpSubmission("e1"),
+    );
+    const speakers = seedPublicSpeakers(queryClient);
+    const materials = seedPublicMaterials(queryClient);
+    await result.current.mutateAsync({ id: "s1", register: true, schedule: null });
+    // Zapis `approved` z biletem prelegenta otwiera jego kontu materiały „dla
+    // zapisanych” - dialog gościa i widza tego wydarzenia pyta od nowa.
+    expect(materials()).toEqual({ e1Anon: true, e1Viewer: true, e2Anon: false });
+    // Na publiczną listę wpisuje dopiero potwierdzenie prelegenta, a szkic
+    // sesji nie zmienia ścieżek - przyjęcie nie ma czego tu odświeżać.
+    expect(speakers()).toEqual(SPEAKERS_UNTOUCHED);
+  });
+
+  it.each(["waitlisted", "rejected", "under_review"] as const)(
+    "decyzja (%s) unieważnia klucze przyjęcia i publiczną listę prelegentów TEGO wydarzenia",
+    async (status) => {
+      const { result, queryClient } = renderHookWithQueryClient(() =>
+        admin.useDecideCfpSubmission("e1"),
+      );
+      const speakers = seedPublicSpeakers(queryClient);
+      const materials = seedPublicMaterials(queryClient);
+      const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+      expect(speakers()).toEqual(SPEAKERS_UNTOUCHED);
+      expect(materials()).toEqual(MATERIALS_UNTOUCHED);
+      await result.current.mutateAsync({ id: "s1", status });
+      expect(invalidate.mock.calls.map((call) => call[0]?.queryKey)).toEqual([
+        ...ACCEPTANCE_KEYS_E1,
+        ["builder-speakers", { source: "event", eventId: "e1" }],
+      ]);
+      // Cofnięcie potwierdzonego przyjęcia zdejmuje prelegenta z listy i jego
+      // materiały ze strony: sekcja przeglądu i siatka zakładki (każdy limit)
+      // pytają od nowa; obce wydarzenie i katalog zostają nietknięte.
+      expect(speakers()).toEqual({
+        e1Section: true,
+        e1Grid: true,
+        e2Section: false,
+        directory: false,
+      });
+      expect(materials()).toEqual({ e1Anon: true, e1Viewer: true, e2Anon: false });
+    },
+  );
+
+  it.each([
+    ["useAcceptCfpSubmission", "acceptCfpSubmission", { id: "s1", register: true, schedule: null }],
+    ["useDecideCfpSubmission", "decideCfpSubmission", { id: "s1", status: "rejected" }],
+  ] as const)("nieudane %s nie unieważnia niczego", async (hook, fn, input) => {
+    api[fn].mockRejectedValueOnce(new Error("forbidden"));
+    const useHook = admin[hook] as (eventId: string) => {
+      mutateAsync: (input: unknown) => Promise<unknown>;
+    };
+    const { result, queryClient } = renderHookWithQueryClient(() => useHook("e1"));
+    const speakers = seedPublicSpeakers(queryClient);
+    const materials = seedPublicMaterials(queryClient);
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    await expect(result.current.mutateAsync(input)).rejects.toThrow("forbidden");
+    expect(invalidate).not.toHaveBeenCalled();
+    expect(speakers()).toEqual(SPEAKERS_UNTOUCHED);
+    expect(materials()).toEqual(MATERIALS_UNTOUCHED);
   });
 });
 
@@ -229,6 +389,74 @@ describe("zapytania i mutacje uczestnika", () => {
     await result.current.mutateAsync(input);
     expect(pub[fn].mock.calls[0]?.[0 as number]).toEqual(input);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: me.cfpMeKeys.slug("kongres") });
+  });
+
+  it.each([
+    ["useWithdrawCfpSubmission", "s1"],
+    ["useRespondCfpSubmission", { id: "s1", confirm: true }],
+  ] as const)(
+    "%s odświeża też panel „Moje”, listę prelegentów i ich materiały",
+    async (hook, input) => {
+      const useHook = me[hook] as (slug: string) => {
+        mutateAsync: (input: unknown) => Promise<unknown>;
+      };
+      const { result, queryClient } = renderHookWithQueryClient(() => useHook("kongres"));
+      const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+      await result.current.mutateAsync(input);
+      const keys = invalidate.mock.calls.map((call) => call[0]?.queryKey);
+      expect(keys).toEqual([
+        me.cfpMeKeys.slug("kongres"),
+        ["event-me", "kongres"],
+        ["builder-speakers"],
+        ["event-speaker-materials"],
+      ]);
+    },
+  );
+
+  it.each([
+    ["useSaveSpeakerMaterial", { slug: "kongres", titlePl: "Slajdy" }],
+    ["useDeleteSpeakerMaterial", "m1"],
+  ] as const)("%s odświeża gałąź sluga i publiczne materiały prelegentów", async (hook, input) => {
+    const useHook = me[hook] as (slug: string) => {
+      mutateAsync: (input: unknown) => Promise<unknown>;
+    };
+    const { result, queryClient } = renderHookWithQueryClient(() => useHook("kongres"));
+    const stale = seedPublicMaterials(queryClient);
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    expect(stale()).toEqual({ e1Anon: false, e1Viewer: false, e2Anon: false });
+    await result.current.mutateAsync(input);
+    expect(invalidate.mock.calls.map((call) => call[0]?.queryKey)).toEqual([
+      me.cfpMeKeys.slug("kongres"),
+      ["event-speaker-materials"],
+    ]);
+    // Panel zna tylko slug - odświeża się każdy wpis publicznych materiałów
+    // (każdy widz, każde wydarzenie), a nie tylko jeden.
+    expect(stale()).toEqual({ e1Anon: true, e1Viewer: true, e2Anon: true });
+  });
+
+  it.each([
+    ["useSaveSpeakerMaterial", "saveSpeakerMaterial", { slug: "kongres" }],
+    ["useDeleteSpeakerMaterial", "deleteSpeakerMaterial", "m1"],
+  ] as const)("nieudane %s nie unieważnia publicznych materiałów", async (hook, fn, input) => {
+    pub[fn].mockRejectedValueOnce(new Error("forbidden"));
+    const useHook = me[hook] as (slug: string) => {
+      mutateAsync: (input: unknown) => Promise<unknown>;
+    };
+    const { result, queryClient } = renderHookWithQueryClient(() => useHook("kongres"));
+    const stale = seedPublicMaterials(queryClient);
+    await expect(result.current.mutateAsync(input)).rejects.toThrow("forbidden");
+    expect(stale()).toEqual({ e1Anon: false, e1Viewer: false, e2Anon: false });
+  });
+
+  it("zwykły zapis szkicu nie rusza panelu „Moje” ani listy prelegentów", async () => {
+    const { result, queryClient } = renderHookWithQueryClient(() =>
+      me.useSaveCfpSubmission("kongres"),
+    );
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    await result.current.mutateAsync({ slug: "kongres" });
+    expect(invalidate.mock.calls.map((call) => call[0]?.queryKey)).toEqual([
+      me.cfpMeKeys.slug("kongres"),
+    ]);
   });
 
   it("odpowiedź na przyjęcie rozkłada argumenty", async () => {

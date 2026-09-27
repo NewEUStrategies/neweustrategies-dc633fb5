@@ -56,6 +56,9 @@ export interface CfpSubmissionSaveInput {
     last_name: string;
     job_title: string;
     company_text: string;
+    /** Jawne zaznaczenie zgody na przetwarzanie danych - bez niego `consent_required`. */
+    consent_data_processing: boolean;
+    /** `true` nadaje zgodę; `false` jej NIE wycofuje (to nie jest pole wycofania). */
     consent_marketing: boolean;
   };
   titlePl?: string;

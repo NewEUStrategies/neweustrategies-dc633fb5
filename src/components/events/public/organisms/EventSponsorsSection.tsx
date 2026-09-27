@@ -16,7 +16,9 @@
 // POMIAR DLA RAPORTU SPONSORA: wyświetlenie kafla i kliknięcie odnośnika
 // liczą haki z `sponsorTrackingReact` pod miejscem `placement` - sekcja
 // „Partnerzy" na przeglądzie (`partners_section`, domyślnie) albo zakładka
-// (`partners_tab`). Wyłącznie w efektach i po zgodzie marketingowej.
+// (`partners_tab`). Wyłącznie w efektach i po zgodzie marketingowej. Podgląd
+// studia rysuje `EventSponsorsSectionView` bez dostawcy pomiaru z publicznej
+// powłoki, więc nie nabija wyświetleń.
 //
 // KARTOTEKA NIE WCHODZI NA STRONĘ. Wszystko poniżej to migawka z chwili
 // przypięcia (`snapshot_*`) - dlatego nie ma tu ani jednego pola z `crm_companies`.
@@ -120,10 +122,7 @@ export function EventSponsorsSectionError({ message }: { message: string }) {
  *
  * `draftLabel` = napis plakietki przy przypięciu nieogłoszonym (`isDraft`).
  * Podaje go tylko podgląd studia; bez napisu plakietki nie ma, nawet gdyby
- * wiersz niósł znacznik.
- *
- * `placement` = miejsce pomiaru w raporcie sponsora. Podgląd studia rysuje
- * widok bez `SponsorTrackingProvider`, więc haki niczego tam nie liczą.
+ * wiersz niósł znacznik. `placement` = miejsce pomiaru raportu sponsora.
  */
 export function EventSponsorsSectionView({
   tiers,
@@ -150,6 +149,7 @@ export function EventSponsorsSectionView({
           key={tier.tierId ?? "no-tier"}
           tier={tier}
           lang={lang}
+          placement={placement}
           draftLabel={draftLabel}
           placement={placement}
         />
@@ -161,11 +161,13 @@ export function EventSponsorsSectionView({
 function SponsorTierGroup({
   tier,
   lang,
+  placement,
   draftLabel,
   placement,
 }: {
   tier: PublicSponsorTier;
   lang: "pl" | "en";
+  placement: SponsorsSectionPlacement;
   draftLabel: string | undefined;
   placement: SponsorsSectionPlacement;
 }) {
@@ -237,12 +239,14 @@ function SponsorTile({
   lang,
   draftLabel,
   placement,
+  draftLabel,
 }: {
   sponsor: PublicSponsor;
   logoSize: SponsorLogoSize;
   lang: "pl" | "en";
   draftLabel: string | undefined;
   placement: SponsorsSectionPlacement;
+  draftLabel: string | undefined;
 }) {
   const { t } = useTranslation();
   const ref = useRef<HTMLLIElement | null>(null);

@@ -66,6 +66,8 @@ import {
   adminEventSponsorReportPl,
 } from "@/lib/i18n-admin-event-sponsor-report";
 import { adminEventAdsFunnelEn, adminEventAdsFunnelPl } from "@/lib/i18n-admin-event-ads-funnel";
+import { adminCloneFailure } from "@/lib/events/adminCloneErrors";
+import { adminEventCloneEn, adminEventClonePl } from "@/lib/i18n-admin-event-clone";
 
 // ══ FUNKCJE UCZESTNIKA F1-F5: BLOKI TORÓW (spec B.11-2) ══════════════════════
 // Tory A/B/C dopisują importy swoich map i nakładek WYŁĄCZNIE do własnego bloku
@@ -408,8 +410,10 @@ const KODY_NABORU_PANEL = [
   "session_before_event",
   "session_after_event",
   "speaker_overlap",
-  // recenzenci i materiały
+  // recenzenci i materiały (`admin_event_cfp_material_publish` odmawia
+  // publikacji materiału tylko dla organizatorów)
   "reviewer_not_found",
+  "invalid_visibility",
   // wspólne
   "invalid_payload",
   "not_found",
@@ -432,6 +436,8 @@ const KODY_NABORU_UCZESTNIK = [
   "not_editable",
   "email_required",
   "email_in_use",
+  // zgoda na przetwarzanie danych tylko z jawnego zaznaczenia (`_event_cfp_resolve_person`)
+  "consent_required",
   "invalid_name",
   "invalid_speaker",
   "invalid_title",
@@ -483,7 +489,7 @@ const KODY_NABYWCY = [
   "invalid_recipient",
 ] as const;
 
-/** Faktury wydarzenia w studiu - `eventInvoicesApi` (migracja 20260926110000). */
+/** Faktury wydarzenia w studiu - `eventInvoicesApi` (migracja 20260927000200). */
 const KODY_FAKTUR = [
   ...KODY_NABYWCY,
   // _event_invoice_draft_build / admin_event_invoice_draft_create / _update
@@ -501,6 +507,7 @@ const KODY_FAKTUR = [
   "source_not_found",
   "source_not_lead",
   "source_not_invoiceable",
+  "source_plan_ticket",
   "already_invoiced",
   "currency_mismatch",
   "request_not_found",
@@ -517,6 +524,12 @@ const KODY_FAKTUR = [
   "mor_seller_conflict",
   "correction_target_invalid",
   "invalid_due_date",
+  "source_changed",
+  "buyer_mismatch",
+  "operator_invoice_enabled",
+  "billing_plane_unknown",
+  "correction_inconsistent",
+  "correction_use_full",
   // admin_event_invoice_settings_save
   "invalid_settings",
   "invalid_series",
@@ -539,6 +552,7 @@ const KODY_FAKTUR = [
   "invalid_ksef_status",
   "ksef_number_required",
   "invalid_ksef_number",
+  "correction_not_latest",
   // Osiagalne przez most CRM (`crm_ensure_member_company`, `_event_person_crm_sync`);
   // oba sa wolane w bloku, ktory ich blad polyka, ale skan ich nie odroznia.
   "crm",
@@ -556,10 +570,14 @@ const KODY_PROSBY_O_FAKTURE = [
   "not_found",
   "request_window_closed",
   "already_invoiced",
+  "invoicing_disabled",
+  "operator_invoice",
+  "request_foreign",
+  "source_plan_ticket",
 ] as const;
 
 /**
- * Plan sali - `seatingApi` (migracja 20260926130000). Te same glowy wracaja
+ * Plan sali - `seatingApi` (migracja 20260927000400). Te same glowy wracaja
  * tez jako kody odrzutow przydzialu zbiorczego (`rejected[].code`).
  */
 const KODY_PLANU_SALI = [
@@ -611,6 +629,64 @@ const KODY_PLANU_SALI = [
   "too_many_ids",
   STRAZNIK_TENANTA,
 ] as const;
+/**
+ * Klon edycji - `eventCloneApi` (migracja 20260927000800): klon, podglad,
+ * lista edycji i wyszukiwarka zrodla (`admin_events_list`).
+ */
+const KODY_KLONU = [
+  // admin_event_clone - idempotencja komendy
+  "invalid_idempotency_key",
+  "idempotency_conflict",
+  "clone_in_progress",
+  // _event_clone_settings
+  "invalid_code_suffix",
+  "invalid_task_due_days",
+  // _event_clone_resolve
+  "invalid_source",
+  "not_found",
+  "invalid_timezone",
+  "invalid_starts_at",
+  "invalid_ends_at",
+  // admin_event_clone - pola nowej edycji i okno sesji
+  "invalid_titles",
+  "invalid_slug",
+  "slug_taken",
+  "external_url_required",
+  "external_url_invalid",
+  "clone_sessions_outside_window",
+  STRAZNIK_TENANTA,
+] as const;
+
+/**
+ * Kod dopisany przez tor do ISTNIEJĄCEJ mapy: `[nazwa mapy, kod]`.
+ * `PF_<X>_BEZ_INTERPOLACJI` - nazwy NOWYCH map toru, które wołają `t()`
+ * bez parametrów (sprawdzenie „zdania bez interpolacji" niżej).
+ */
+type PfExtraCode = readonly [mapName: string, code: string];
+
+// >>> PF-A codes (begin)
+const PF_A_EXTRA_CODES: readonly PfExtraCode[] = [];
+const PF_A_BEZ_INTERPOLACJI: readonly string[] = [];
+// <<< PF-A codes (end)
+//
+// (separator bloków - tych dwóch linii nie edytuje żaden tor)
+// >>> PF-B codes (begin)
+const PF_B_EXTRA_CODES: readonly PfExtraCode[] = [];
+const PF_B_BEZ_INTERPOLACJI: readonly string[] = [];
+// <<< PF-B codes (end)
+//
+// (separator bloków - tych dwóch linii nie edytuje żaden tor)
+// >>> PF-C codes (begin)
+const PF_C_EXTRA_CODES: readonly PfExtraCode[] = [];
+const PF_C_BEZ_INTERPOLACJI: readonly string[] = [];
+// <<< PF-C codes (end)
+
+/** Kody dopisane przez tory A/B/C do mapy o danej nazwie. */
+function pfExtraCodes(nazwa: string): string[] {
+  return [...PF_A_EXTRA_CODES, ...PF_B_EXTRA_CODES, ...PF_C_EXTRA_CODES]
+    .filter(([mapName]) => mapName === nazwa)
+    .map(([, code]) => code);
+}
 
 interface BramkowanaMapa {
   nazwa: string;
@@ -755,6 +831,17 @@ const MAPY: readonly BramkowanaMapa[] = [
     en: eventInvoicesEn,
     moduly: ["myEventInvoicesApi"],
     interpoluje: false,
+  },
+  {
+    nazwa: "adminCloneErrors",
+    prefix: "adminEventClone.errors.",
+    klucz: (error) => adminCloneFailure(error).key,
+    kody: KODY_KLONU,
+    nakladka: "src/lib/i18n-admin-event-clone.ts",
+    pl: adminEventClonePl,
+    en: adminEventCloneEn,
+    moduly: ["eventCloneApi"],
+    interpoluje: true,
   },
   {
     nazwa: "adminSeatingErrors",

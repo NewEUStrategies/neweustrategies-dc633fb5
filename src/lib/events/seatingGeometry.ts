@@ -1,7 +1,7 @@
 // Geometria planu sali - czyste funkcje, bez Reacta i bez przegladarki.
 //
 // LUSTRO SQL. `generateSectionSeats()` liczy uklad LOKALNY miejsc sekcji ta
-// sama formula co `_event_seat_section_layout()` w migracji 20260926130000.
+// sama formula co `_event_seat_section_layout()` w migracji 20260927000400.
 // Baza materializuje miejsca przy zapisie sekcji; ten modul liczy to samo
 // w przegladarce, zeby dialog sekcji pokazal podglad NA ZYWO, zanim cokolwiek
 // zostanie zapisane. Zgodnosc obu stron pilnuje `seatingGeometryParity.test.ts`,

@@ -9,6 +9,7 @@ import { emptyBuyerDraft } from "@/lib/events/eventInvoiceBuyerDraft";
 import { renderHookWithQueryClient } from "@/test/renderWithQueryClient";
 
 const api = vi.hoisted(() => ({
+  fetchInvoicePublicOptions: vi.fn(),
   fetchMyInvoiceSources: vi.fn(),
   fetchMyInvoices: vi.fn(),
   saveInvoiceRequest: vi.fn(),
@@ -29,6 +30,7 @@ describe("myEventInvoiceKeys", () => {
     expect(myEventInvoiceKeys.all).toEqual(["event-invoices-me"]);
     expect(myEventInvoiceKeys.sources()).toEqual(["event-invoices-me", "sources"]);
     expect(myEventInvoiceKeys.documents()).toEqual(["event-invoices-me", "documents"]);
+    expect(myEventInvoiceKeys.options()).toEqual(["event-invoices-me", "options"]);
   });
 });
 
@@ -40,6 +42,17 @@ describe("zapytania", () => {
     const documents = renderHookWithQueryClient(() => hooks.useMyInvoices(true));
     await waitFor(() => expect(sources.result.current.data).toEqual([{ source_id: "s" }]));
     await waitFor(() => expect(documents.result.current.data).toEqual([{ id: "i" }]));
+  });
+
+  it("opcje faktur organizatora: z sesja pyta, bez sesji nie", async () => {
+    const options = { enabled: true, cardInvoiceable: false, cardOperatorInvoice: true };
+    api.fetchInvoicePublicOptions.mockResolvedValue(options);
+    const withSession = renderHookWithQueryClient(() => hooks.useInvoicePublicOptions(true));
+    await waitFor(() => expect(withSession.result.current.data).toEqual(options));
+    const guest = renderHookWithQueryClient(() => hooks.useInvoicePublicOptions(false));
+    await act(async () => {});
+    expect(guest.result.current.fetchStatus).toBe("idle");
+    expect(api.fetchInvoicePublicOptions).toHaveBeenCalledTimes(1);
   });
 
   it("gosc nie pyta bazy", async () => {

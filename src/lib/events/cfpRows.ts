@@ -6,11 +6,12 @@
 // pierwszej poprawce, a tu każda gałąź ma test bez renderu.
 //
 // PRZYCISKI WYNIKAJĄ ZE STANU WIERSZA - lustro przejść z migracji
-// `20260926100000_event_cfp.sql`. Lepiej nie pokazać przycisku, niż pokazać
+// `20260927000100_event_cfp.sql`. Lepiej nie pokazać przycisku, niż pokazać
 // go i przegrać z odmową bazy, której treść nic prelegentowi nie mówi.
 import {
   CFP_DECIDABLE_STATUSES,
   CFP_NOTICES,
+  CFP_REVOCABLE_STATUSES,
   type CfpFieldType,
   type CfpNotice,
   type CfpSubmissionStatus,
@@ -47,6 +48,35 @@ export function formatCfpScore(value: number | null, lang: "pl" | "en"): string 
 /** Czy organizator może jeszcze zmienić decyzję albo przyjąć zgłoszenie. */
 export function isCfpDecidable(status: CfpSubmissionStatus): boolean {
   return CFP_DECIDABLE_STATUSES.includes(status);
+}
+
+/** Czy organizator może cofnąć przyjęcie (przyjęte albo potwierdzone). */
+export function isCfpRevocable(status: CfpSubmissionStatus): boolean {
+  return CFP_REVOCABLE_STATUSES.includes(status);
+}
+
+export type CfpAcceptanceNote = "awaitingConfirmation" | "announced" | "undone";
+
+/**
+ * Co panel mówi o skutkach przyjęcia (lustro migracji):
+ *   * przyjęte - prelegenci NIE są jeszcze na publicznej liście (czekają na
+ *     potwierdzenie udziału);
+ *   * potwierdzone - są na liście;
+ *   * zgłoszenie, które BYŁO przyjęte (ma nakładkę sceniczną), a teraz jest
+ *     rezygnacją, wycofaniem, rezerwą albo odrzuceniem - skutki przyjęcia
+ *     cofnięto.
+ * `null` = zgłoszenie nigdy nie było przyjęte.
+ */
+export function cfpAcceptanceNote(input: {
+  status: CfpSubmissionStatus;
+  speakerProfileId: string | null;
+}): CfpAcceptanceNote | null {
+  if (input.status === "accepted") return "awaitingConfirmation";
+  if (input.status === "confirmed") return "announced";
+  if (input.speakerProfileId === null) return null;
+  return ["declined", "withdrawn", "waitlisted", "rejected"].includes(input.status)
+    ? "undone"
+    : null;
 }
 
 /** Stan zgłoszenia, o którym idzie mail do prelegenta; inaczej `null`. */

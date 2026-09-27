@@ -1,7 +1,7 @@
 // Arytmetyka faktur wydarzen - LUSTRO obliczen bazy do podgladu na zywo.
 //
 // AUTORYTETEM JEST BAZA. Sumy dokumentu liczy `_event_invoice_recalc`
-// (migracja 20260926110000), a pozycje `_event_invoice_add_line`. Ten modul
+// (migracja 20260927000200), a pozycje `_event_invoice_add_line`. Ten modul
 // istnieje po to, zeby edytor szkicu pokazywal netto/VAT/brutto i
 // podsumowanie stawek ZANIM organizator zapisze zmiane - i zeby pokazywal
 // DOKLADNIE te same grosze, ktore potem wydrukuje dokument. Dlatego nie ma

@@ -39,7 +39,9 @@
 --      powiadomienia, materialy.
 --   3) Plaszczyzna tresci (`public_tenant_id()`, anon + zalogowani):
 --      `event_cfp_public(slug)` - czy nabor jest otwarty, okno, teksty,
---      formaty, sciezki i pytania (TYLKO wydarzenia opublikowane).
+--      formaty, sciezki i pytania (TYLKO wydarzenia opublikowane);
+--      `event_speaker_materials_public(event_id)` - opublikowane materialy
+--      prelegentow z listy wydarzenia.
 --   4) Plaszczyzna wlasna (`public_tenant_id()` + `auth.uid()`): szkic,
 --      wyslanie, wycofanie, odpowiedz na przyjecie, moje zgloszenia, panel
 --      prelegenta, profil sceniczny, materialy. Wyjatek: ladunek maila
@@ -57,7 +59,9 @@
 --   7) Eksport RODO wolajacego (`event_cfp_export_my_data`): zgloszenia,
 --      materialy, role i wlasne oceny recenzenta dla paczki danych osobowych
 --      (`src/lib/profile/export.functions.ts`). Najemca z profilu wolajacego,
---      jak `club_export_my_data`.
+--      jak `club_export_my_data`. Wspolprelegent jest rozpoznawany takze po
+--      adresie KONTA wpisanym przez zglaszajacego (przed przyjeciem nie ma
+--      jeszcze kartoteki).
 --
 -- DECYZJE, KTORE WARTO ZNAC
 --   * OTWARCIE NABORU ROZSTRZYGA BAZA. `status = 'open'` ORAZ okno
@@ -66,7 +70,32 @@
 --   * ZGLASZAJACY MA KONTO. Osoba jest wiazana z `auth.uid()` jak w
 --     `event_register`: po `event_people.user_id`, potem po adresie KONTA
 --     (`auth.users.email`, nie adresie z formularza), inaczej nowa kartoteka
---     `source = 'self_registration'` ze stemplem przetwarzania danych.
+--     `source = 'self_registration'`.
+--   * ZGODA NA PRZETWARZANIE DANYCH TYLKO Z JAWNEGO ZAZNACZENIA. Kazdy zapis
+--     danych zglaszajacego wymaga `speaker.consent_data_processing = true`
+--     (inaczej `consent_required`, jak w `event_register`) - stempel
+--     `consent_data_processing_at` nigdy nie powstaje "z urzedu". Kartoteka
+--     wspolprelegenta zakladana przy przyjeciu NIE dostaje stempla zgody: ta
+--     osoba zadnej zgody nie wyrazila, dane wpisal zglaszajacy.
+--   * ZGODA MARKETINGOWA: zaznaczenie ja nadaje, brak zaznaczenia jej nie
+--     wycofuje (formularz mowi to wprost i nie udaje wycofania), a wczesniej
+--     WYCOFANE zgody (`consent_withdrawn_at`) nie wracaja - ten stempel dotyczy
+--     wszystkich zgod naraz, wiec jego skasowanie ozywiloby tez zgode na
+--     przekazanie danych partnerom.
+--   * PRZYJECIE NIE OGLASZA PRELEGENTA. Przyjecie zaklada kartoteki, nakladki,
+--     czlonkostwo w grupie, zapis z biletem i szkic sesji z obsada, ale wpis na
+--     PUBLICZNA liste prelegentow (`event_speaker_entries`) powstaje dopiero,
+--     gdy prelegent POTWIERDZI udzial - tak, jak obiecuje mail o przyjeciu.
+--     Wiersz wystepujacego pamieta, co przyjecie/potwierdzenie DODALO
+--     (`added_*`), i dokladnie to jest cofane, gdy prelegent zrezygnuje, wycofa
+--     przyjete zgloszenie albo organizator cofnie przyjecie (decyzja z
+--     `accepted`/`confirmed` na `waitlisted`/`rejected`): zapis zostaje
+--     anulowany, czlonkostwo i wpis na liscie znikaja, obsada sesji zgloszenia
+--     jest zdejmowana. Rzeczy, ktore istnialy wczesniej (reczny wpis na liscie,
+--     wlasny zapis uczestnika), zostaja nietkniete. Anulowany zapis zwalnia
+--     tez zapisy konta na sesje, zakladki planu i RSVP
+--     (`_event_participant_release`, jak pelny zwrot), a zapis przekazany juz
+--     innej osobie (inny `person_id`) nie jest ruszany.
 --   * WSPOLPRELEGENCI NIE DOSTAJA KARTOTEKI PRZED DECYZJA. Zglaszajacy podaje
 --     ich dane, ale `event_people` (kartoteka CALEGO najemcy) powstaje dopiero
 --     przy PRZYJECIU, z reki organizatora (`source = 'organizer'`, jak
@@ -82,11 +111,19 @@
 --     decyzji czlowieka - `decided_*` zostaje nietkniete).
 --   * ODRZUCENIE WYMAGA NOTATKI (CHECK, jak przy zapisach).
 --   * PRELEGENT WIDZI tylko `feedback_to_speaker` i liczbe ocen; srednia
---     pojawia sie po decyzji. Pojedyncze oceny i komentarze recenzentow
+--     pojawia sie po decyzji i TYLKO wtedy, gdy zlozyly sie na nia co najmniej
+--     dwie oceny (i nie mniej niz `min_reviews`) - srednia z jednej oceny to
+--     ocena jednego recenzenta. Pojedyncze oceny i komentarze recenzentow
 --     zostaja u organizatora.
 --   * MATERIALY TO ADRESY https (bez wrzutu plikow w tej wersji). Zmiana
 --     adresu lub tytulu przez prelegenta zdejmuje publikacje - organizator
---     zatwierdza material jeszcze raz.
+--     zatwierdza material jeszcze raz. Opublikowane materialy czyta strona
+--     wydarzenia (`event_speaker_materials_public`, dialog profilu prelegenta):
+--     `public` kazdy, `registered` tylko osoba z zatwierdzonym zapisem;
+--     materialu "tylko dla organizatorow" nie da sie opublikowac.
+--   * NOWA DECYZJA KASUJE BLAD WYSYLKI. `notify_error` dotyczy maila
+--     o POPRZEDNIEJ decyzji - po nowej decyzji panel ma pokazac "czeka na
+--     wyslanie", a nie stary blad.
 --   * ZDANIA OSI CZASU CRM po polsku sa zapisane sekwencjami `U&'...\XXXX'`,
 --     bo plik migracji jest czystym ASCII (wymog blizniaka drizzle).
 --
@@ -114,7 +151,8 @@
 --   IF EXISTS + CREATE, CREATE OR REPLACE FUNCTION.
 --
 -- KOLEJNOSC WDROZENIA
---   Po 20260926090000 (most CRM, segment `event_cfp`).
+--   Po 20260926090000 (most CRM, segment `event_cfp`) i po 20260926153100
+--   (`_event_participant_release` modulu uczestnika).
 --
 -- Testy: scripts/events-harness/runtime_test.d/42_cfp.sql.
 -- ============================================================================
@@ -362,6 +400,10 @@ CREATE TABLE IF NOT EXISTS public.event_cfp_submission_speakers (
   email text,
   job_title text,
   company_text text,
+  speaker_profile_id uuid,
+  added_roster_entry_id uuid,
+  added_group_id uuid,
+  added_registration_id uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT event_cfp_submission_speakers_role_values
@@ -382,11 +424,27 @@ CREATE TABLE IF NOT EXISTS public.event_cfp_submission_speakers (
   CONSTRAINT event_cfp_submission_speakers_submission_fk FOREIGN KEY (tenant_id, event_id, submission_id)
     REFERENCES public.event_cfp_submissions (tenant_id, event_id, id) ON DELETE CASCADE,
   CONSTRAINT event_cfp_submission_speakers_person_fk FOREIGN KEY (tenant_id, person_id)
-    REFERENCES public.event_people (tenant_id, id) ON DELETE CASCADE
+    REFERENCES public.event_people (tenant_id, id) ON DELETE CASCADE,
+  CONSTRAINT event_cfp_submission_speakers_profile_fk FOREIGN KEY (tenant_id, speaker_profile_id)
+    REFERENCES public.speaker_profiles (tenant_id, id) ON DELETE SET NULL (speaker_profile_id),
+  CONSTRAINT event_cfp_submission_speakers_entry_fk FOREIGN KEY (tenant_id, added_roster_entry_id)
+    REFERENCES public.event_speaker_entries (tenant_id, id) ON DELETE SET NULL (added_roster_entry_id),
+  CONSTRAINT event_cfp_submission_speakers_group_fk FOREIGN KEY (tenant_id, event_id, added_group_id)
+    REFERENCES public.event_groups (tenant_id, event_id, id) ON DELETE SET NULL (added_group_id),
+  CONSTRAINT event_cfp_submission_speakers_registration_fk FOREIGN KEY (tenant_id, added_registration_id)
+    REFERENCES public.event_registrations (tenant_id, id) ON DELETE SET NULL (added_registration_id)
 );
 
 COMMENT ON TABLE public.event_cfp_submission_speakers IS
   'Wystepujacy w zgloszeniu: zglaszajacy (is_primary, person_id od razu) i wspolprelegenci (dane wpisane przez zglaszajacego, person_id nadawany przy przyjeciu). Zapis wylacznie przez RPC naboru.';
+COMMENT ON COLUMN public.event_cfp_submission_speakers.speaker_profile_id IS
+  'Nakladka sceniczna tej osoby uzyta przy przyjeciu (obsada sesji, wpis na liste po potwierdzeniu).';
+COMMENT ON COLUMN public.event_cfp_submission_speakers.added_roster_entry_id IS
+  'Wpis na publicznej liscie prelegentow DODANY przez potwierdzenie tego zgloszenia (NULL = wpis istnial wczesniej albo jeszcze go nie ma). Cofany przy rezygnacji, wycofaniu i cofnieciu przyjecia.';
+COMMENT ON COLUMN public.event_cfp_submission_speakers.added_group_id IS
+  'Grupa, do ktorej przyjecie DOPISALO osobe (NULL = byla w niej wczesniej). Cofane razem z przyjeciem.';
+COMMENT ON COLUMN public.event_cfp_submission_speakers.added_registration_id IS
+  'Zapis z biletem prelegenta UTWORZONY przez przyjecie (NULL = osoba miala juz aktywny zapis). Anulowany razem z przyjeciem.';
 
 CREATE UNIQUE INDEX IF NOT EXISTS event_cfp_submission_speakers_primary_uniq
   ON public.event_cfp_submission_speakers (tenant_id, submission_id) WHERE is_primary;
@@ -395,6 +453,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS event_cfp_submission_speakers_email_uniq
   WHERE email IS NOT NULL;
 CREATE INDEX IF NOT EXISTS event_cfp_submission_speakers_person_idx
   ON public.event_cfp_submission_speakers (tenant_id, person_id) WHERE person_id IS NOT NULL;
+-- Indeksy pod klucze obce z SET NULL: usuniecie wpisu, zapisu albo nakladki
+-- szuka wierszy wystepujacych po tych kolumnach.
+CREATE INDEX IF NOT EXISTS event_cfp_submission_speakers_profile_idx
+  ON public.event_cfp_submission_speakers (tenant_id, speaker_profile_id)
+  WHERE speaker_profile_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS event_cfp_submission_speakers_entry_idx
+  ON public.event_cfp_submission_speakers (tenant_id, added_roster_entry_id)
+  WHERE added_roster_entry_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS event_cfp_submission_speakers_registration_idx
+  ON public.event_cfp_submission_speakers (tenant_id, added_registration_id)
+  WHERE added_registration_id IS NOT NULL;
 
 DROP TRIGGER IF EXISTS event_cfp_submission_speakers_touch_updated_at ON public.event_cfp_submission_speakers;
 CREATE TRIGGER event_cfp_submission_speakers_touch_updated_at
@@ -881,6 +950,37 @@ GRANT EXECUTE ON FUNCTION public._event_cfp_review_summary(uuid, uuid) TO servic
 COMMENT ON FUNCTION public._event_cfp_review_summary(uuid, uuid) IS
   'Agregaty ocen zgloszenia: liczba ocen, srednia ogolna, srednia wazona kryteriow, rekomendacje. Oceny z konfliktem interesow poza srednimi.';
 
+-- Ocena ZBIORCZA pokazywana prelegentowi (panel, eksport RODO): liczba ocen
+-- zawsze, srednia dopiero po decyzji i tylko wtedy, gdy zlozyly sie na nia co
+-- najmniej DWIE oceny (i nie mniej niz `min_reviews`). Srednia z jednej oceny
+-- to dokladna ocena jednego recenzenta - a ta zostaje u organizatora.
+CREATE OR REPLACE FUNCTION public._event_cfp_speaker_review_summary(
+  p_tenant uuid, p_submission_id uuid, p_status text, p_min_reviews integer
+)
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+  SELECT jsonb_build_object(
+    'reviews_count', (sm.summary->>'reviews_count')::integer,
+    'overall_avg', CASE
+      WHEN p_status IN ('accepted', 'waitlisted', 'rejected', 'confirmed', 'declined')
+       AND (sm.summary->>'reviews_count')::integer >= GREATEST(2, COALESCE(p_min_reviews, 2))
+        THEN sm.summary->'overall_avg'
+      ELSE 'null'::jsonb
+    END
+  )
+  FROM (SELECT public._event_cfp_review_summary(p_tenant, p_submission_id) AS summary) sm
+$$;
+
+REVOKE ALL ON FUNCTION public._event_cfp_speaker_review_summary(uuid, uuid, text, integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public._event_cfp_speaker_review_summary(uuid, uuid, text, integer) TO service_role;
+
+COMMENT ON FUNCTION public._event_cfp_speaker_review_summary(uuid, uuid, text, integer) IS
+  'Ocena zbiorcza dla prelegenta: liczba ocen oraz srednia po decyzji, gdy ocen jest co najmniej GREATEST(2, min_reviews); inaczej srednia NULL.';
+
 -- Odpowiedzi na pytania: zostaja tylko klucze AKTYWNYCH pytan, wartosc
 -- w ksztalcie typu pytania (tekst, liczba, adres https, wybor z opcji, tak/nie).
 -- Pusta odpowiedz = brak klucza. Zly ksztalt = `invalid_answers: <klucz>`.
@@ -986,6 +1086,16 @@ COMMENT ON FUNCTION public._event_cfp_clean_answers(uuid, uuid, jsonb) IS
 
 -- Osoba zglaszajacego (wzorzec `event_register`): po koncie, potem po adresie
 -- KONTA, inaczej nowa kartoteka. Adres z formularza nie decyduje o tozsamosci.
+--
+-- ZGODY WYLACZNIE Z JAWNEGO ZAZNACZENIA:
+--   * przetwarzanie danych - wymagane przy kazdym zapisie danych osoby
+--     (`consent_required`, jak `event_register`); stempel stawiany tylko wtedy;
+--   * marketing - zaznaczenie nadaje zgode; brak zaznaczenia NIE jest
+--     wycofaniem (formularz nie udaje wycofania); `consent_withdrawn_at`
+--     nie jest tu nigdy kasowany - to stempel wycofania WSZYSTKICH zgod,
+--     wiec jego skasowanie wskrzesiloby tez zgode na przekazanie danych
+--     partnerom. Osoba z wycofanymi zgodami nie odzyskuje tu marketingu
+--     (formularz w tym stanie w ogole nie pokazuje pola).
 CREATE OR REPLACE FUNCTION public._event_cfp_resolve_person(
   p_tenant uuid, p_uid uuid, p_speaker jsonb
 )
@@ -1005,12 +1115,16 @@ DECLARE
   v_job text := NULLIF(btrim(COALESCE(v_speaker->>'job_title', '')), '');
   v_company text := NULLIF(btrim(COALESCE(v_speaker->>'company_text', '')), '');
   v_marketing boolean := COALESCE(v_speaker->'consent_marketing' = 'true'::jsonb, false);
+  v_data_ok boolean := COALESCE(v_speaker->'consent_data_processing' = 'true'::jsonb, false);
 BEGIN
   IF (v_first IS NOT NULL AND char_length(v_first) > 80)
      OR (v_last IS NOT NULL AND char_length(v_last) > 80)
      OR (v_job IS NOT NULL AND char_length(v_job) > 160)
      OR (v_company IS NOT NULL AND char_length(v_company) > 200) THEN
     RAISE EXCEPTION 'invalid_speaker: speaker details are too long';
+  END IF;
+  IF NOT v_data_ok THEN
+    RAISE EXCEPTION 'consent_required: consent to data processing is required';
   END IF;
 
   SELECT p.id INTO v_person
@@ -1051,10 +1165,9 @@ BEGIN
       company_text = CASE WHEN v_speaker ? 'company_text' THEN v_company ELSE p.company_text END,
       consent_data_processing_at = COALESCE(p.consent_data_processing_at, now()),
       consent_marketing_at = CASE
-        WHEN v_marketing THEN COALESCE(p.consent_marketing_at, now())
+        WHEN v_marketing AND p.consent_withdrawn_at IS NULL THEN COALESCE(p.consent_marketing_at, now())
         ELSE p.consent_marketing_at
-      END,
-      consent_withdrawn_at = CASE WHEN v_marketing THEN NULL ELSE p.consent_withdrawn_at END
+      END
     WHERE p.tenant_id = p_tenant AND p.id = v_person;
   END IF;
 
@@ -1066,7 +1179,7 @@ REVOKE ALL ON FUNCTION public._event_cfp_resolve_person(uuid, uuid, jsonb) FROM 
 GRANT EXECUTE ON FUNCTION public._event_cfp_resolve_person(uuid, uuid, jsonb) TO service_role;
 
 COMMENT ON FUNCTION public._event_cfp_resolve_person(uuid, uuid, jsonb) IS
-  'Kartoteka zglaszajacego: po event_people.user_id, potem po adresie konta (auth.users.email), inaczej nowa osoba self_registration. Zgoda marketingowa tylko z jawnego zaznaczenia.';
+  'Kartoteka zglaszajacego: po event_people.user_id, potem po adresie konta (auth.users.email), inaczej nowa osoba self_registration. Wymaga jawnej zgody na przetwarzanie danych (consent_required). Zgoda marketingowa tylko z jawnego zaznaczenia; brak zaznaczenia jej nie wycofuje, wycofanych zgod nie wskrzesza.';
 
 -- Nakladka sceniczna osoby: nakladka KONTA, jesli osoba ma konto i taka
 -- nakladka juz istnieje (ta sama osoba nie dostaje drugiej karty), inaczej
@@ -2229,11 +2342,269 @@ COMMENT ON FUNCTION public.admin_event_cfp_submission_detail(uuid) IS
   'Szczegol zgloszenia dla organizatora: tresc, odpowiedzi, wystepujacy ze stanem CRM, oceny z komentarzami prywatnymi, agregaty, powiazana sesja. Bramka: assert_event_admin_tenant().';
 
 -- ----------------------------------------------------------------------------
+-- 12b) SKUTKI PRZYJECIA: WPIS NA LISTE PO POTWIERDZENIU I COFNIECIE
+--
+-- Przyjecie zapisuje w wierszu wystepujacego, co DODALO (nakladka, grupa,
+-- zapis); potwierdzenie dopisuje osobe do publicznej listy prelegentow
+-- i zapamietuje wpis. Cofniecie (rezygnacja, wycofanie przyjetego, cofniecie
+-- przyjecia przez organizatora) zdejmuje DOKLADNIE to - nigdy rzeczy, ktore
+-- istnialy wczesniej.
+-- ----------------------------------------------------------------------------
+
+-- Potwierdzenie udzialu: kazdy wystepujacy z nakladka trafia na liste
+-- prelegentow wydarzenia. Wpis istniejacy wczesniej (reczny, z innego
+-- zgloszenia) NIE jest zapamietywany - cofniecie tego zgloszenia go nie ruszy.
+CREATE OR REPLACE FUNCTION public._event_cfp_roster_publish(p_tenant uuid, p_submission_id uuid)
+RETURNS integer
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_event uuid;
+  v_sp record;
+  v_entry uuid;
+  v_added integer := 0;
+BEGIN
+  SELECT s.event_id INTO v_event
+    FROM public.event_cfp_submissions s
+   WHERE s.tenant_id = p_tenant AND s.id = p_submission_id;
+
+  FOR v_sp IN
+    SELECT sp.id, sp.speaker_profile_id
+      FROM public.event_cfp_submission_speakers sp
+     WHERE sp.tenant_id = p_tenant AND sp.submission_id = p_submission_id
+       AND sp.speaker_profile_id IS NOT NULL
+     ORDER BY sp.is_primary DESC, sp.sort_order, sp.created_at, sp.id
+  LOOP
+    SELECT en.id INTO v_entry
+      FROM public.event_speaker_entries en
+     WHERE en.tenant_id = p_tenant AND en.event_id = v_event
+       AND en.speaker_profile_id = v_sp.speaker_profile_id;
+    CONTINUE WHEN v_entry IS NOT NULL;
+    v_entry := public._event_speaker_roster_add(p_tenant, v_event, v_sp.speaker_profile_id);
+    UPDATE public.event_cfp_submission_speakers sp SET added_roster_entry_id = v_entry
+     WHERE sp.tenant_id = p_tenant AND sp.id = v_sp.id;
+    v_added := v_added + 1;
+  END LOOP;
+  RETURN v_added;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public._event_cfp_roster_publish(uuid, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public._event_cfp_roster_publish(uuid, uuid) TO service_role;
+
+COMMENT ON FUNCTION public._event_cfp_roster_publish(uuid, uuid) IS
+  'Po potwierdzeniu udzialu: wystepujacy zgloszenia na publiczna liste prelegentow (event_speaker_entries); zapamietuje wylacznie wpisy, ktore sam dodal (added_roster_entry_id). Liczba dodanych wpisow.';
+
+-- Cofniecie skutkow przyjecia. Gdy ta sama osoba ma w wydarzeniu INNE aktywne
+-- przyjecie, zasoby przechodza na nie (zapis i grupa - przy przyjetym albo
+-- potwierdzonym, wpis na liscie - tylko przy potwierdzonym), zamiast znikac.
+-- Wpis na liscie zostaje tez wtedy, gdy organizator obsadzil osobe w INNEJ,
+-- nieodwolanej sesji - to juz jego reczna decyzja.
+--
+-- Zapis z biletem prelegenta cofamy TYLKO, dopoki nalezy do tej osoby
+-- (`person_id` wystepujacego). Przekazany dalej bilet (przekazanie biletu
+-- uczestnika) jest juz cudzy: jego anulowanie odebraloby miejsce osobie,
+-- ktora nic nie zglaszala. Taki zapis zostaje, a slad `added_registration_id`
+-- znika razem z reszta sladu przyjecia.
+--
+-- Po anulowaniu zapisu konto prelegenta traci tez zapisy na sesje (z awansem
+-- z kolejki sesji), zakladki planu i starsza rezerwacje RSVP
+-- (`_event_participant_release`, ta sama sciezka co pelny zwrot) - chyba ze
+-- trzyma inne aktywne zgloszenie na to wydarzenie. Wolane PO petli, zeby
+-- `event_sessions` bylo ostatnim szczeblem blokad (wydarzenie -> zapis ->
+-- sesje), takze przy kilku wystepujacych.
+CREATE OR REPLACE FUNCTION public._event_cfp_acceptance_undo(
+  p_tenant uuid, p_submission_id uuid, p_actor uuid
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_event uuid;
+  v_session uuid;
+  v_sp record;
+  v_active uuid;
+  v_confirmed uuid;
+  v_reg public.event_registrations%ROWTYPE;
+  v_n integer;
+  v_regs integer := 0;
+  v_entries integer := 0;
+  v_groups integer := 0;
+  v_cast integer := 0;
+  v_user uuid;
+  v_users uuid[] := '{}'::uuid[];
+  v_release jsonb;
+  v_signups integer := 0;
+BEGIN
+  SELECT s.event_id, s.session_id INTO v_event, v_session
+    FROM public.event_cfp_submissions s
+   WHERE s.tenant_id = p_tenant AND s.id = p_submission_id;
+
+  FOR v_sp IN
+    SELECT sp.*
+      FROM public.event_cfp_submission_speakers sp
+     WHERE sp.tenant_id = p_tenant AND sp.submission_id = p_submission_id
+       AND sp.person_id IS NOT NULL
+     ORDER BY sp.is_primary DESC, sp.sort_order, sp.created_at, sp.id
+  LOOP
+    -- Obsada sesji TEGO zgloszenia znika zawsze - osoba w niej nie wystapi.
+    IF v_session IS NOT NULL AND v_sp.speaker_profile_id IS NOT NULL THEN
+      DELETE FROM public.event_session_speakers ss
+       WHERE ss.tenant_id = p_tenant AND ss.event_id = v_event AND ss.session_id = v_session
+         AND ss.speaker_profile_id = v_sp.speaker_profile_id;
+      GET DIAGNOSTICS v_n = ROW_COUNT;
+      v_cast := v_cast + v_n;
+    END IF;
+
+    SELECT o.id INTO v_active
+      FROM public.event_cfp_submission_speakers o
+      JOIN public.event_cfp_submissions os ON os.tenant_id = o.tenant_id AND os.id = o.submission_id
+     WHERE o.tenant_id = p_tenant AND os.event_id = v_event AND o.person_id = v_sp.person_id
+       AND o.submission_id <> p_submission_id AND os.status IN ('accepted', 'confirmed')
+     ORDER BY (os.status = 'confirmed') DESC, os.decided_at, o.id
+     LIMIT 1;
+    SELECT o.id INTO v_confirmed
+      FROM public.event_cfp_submission_speakers o
+      JOIN public.event_cfp_submissions os ON os.tenant_id = o.tenant_id AND os.id = o.submission_id
+     WHERE o.tenant_id = p_tenant AND os.event_id = v_event AND o.person_id = v_sp.person_id
+       AND o.submission_id <> p_submission_id AND os.status = 'confirmed'
+     ORDER BY os.decided_at, o.id
+     LIMIT 1;
+
+    -- Zapis z biletem prelegenta (tylko wciaz nalezacy do tej osoby).
+    IF v_sp.added_registration_id IS NOT NULL AND v_active IS NOT NULL THEN
+      UPDATE public.event_cfp_submission_speakers o
+         SET added_registration_id = COALESCE(o.added_registration_id, v_sp.added_registration_id)
+       WHERE o.tenant_id = p_tenant AND o.id = v_active
+         AND EXISTS (
+           SELECT 1 FROM public.event_registrations r
+            WHERE r.tenant_id = p_tenant AND r.id = v_sp.added_registration_id
+              AND r.person_id = v_sp.person_id
+         );
+    ELSIF v_sp.added_registration_id IS NOT NULL THEN
+      -- Kolejnosc blokad jak w decyzji organizatora o zapisie: wydarzenie,
+      -- potem wiersz zapisu. Warunek osoby sprawdzany POD blokada wiersza.
+      PERFORM 1 FROM public.events e WHERE e.tenant_id = p_tenant AND e.id = v_event FOR UPDATE;
+      SELECT r.* INTO v_reg
+        FROM public.event_registrations r
+       WHERE r.tenant_id = p_tenant AND r.id = v_sp.added_registration_id
+         AND r.person_id = v_sp.person_id
+       FOR UPDATE;
+      IF FOUND AND v_reg.status IN ('draft', 'pending', 'waitlist', 'approved') THEN
+        UPDATE public.event_registrations r SET
+          status = 'cancelled',
+          cancelled_at = now(),
+          waitlist_position = NULL,
+          decided_by = p_actor,
+          decided_at = now(),
+          decision_source = 'system',
+          qr_token_hash = NULL,
+          qr_issued_at = NULL
+        WHERE r.tenant_id = p_tenant AND r.id = v_reg.id;
+        PERFORM public.emit_domain_event(
+          p_tenant,
+          'event_registration',
+          v_reg.id::text,
+          'event.registration.decided.v1',
+          jsonb_build_object('event_id', v_event, 'person_id', v_reg.person_id,
+                             'from', v_reg.status, 'action', 'cancel'),
+          p_actor
+        );
+        IF v_reg.status = 'approved' THEN
+          PERFORM public._event_waitlist_promote(p_tenant, v_event, v_reg.ticket_type_id, 1);
+        END IF;
+        v_regs := v_regs + 1;
+        v_user := NULL;
+        SELECT p.user_id INTO v_user
+          FROM public.event_people p
+         WHERE p.tenant_id = p_tenant AND p.id = v_reg.person_id;
+        IF v_user IS NOT NULL AND NOT (v_user = ANY (v_users)) THEN
+          v_users := v_users || v_user;
+        END IF;
+      END IF;
+    END IF;
+
+    -- Czlonkostwo w grupie prelegentow.
+    IF v_sp.added_group_id IS NOT NULL AND v_active IS NOT NULL THEN
+      UPDATE public.event_cfp_submission_speakers o
+         SET added_group_id = COALESCE(o.added_group_id, v_sp.added_group_id)
+       WHERE o.tenant_id = p_tenant AND o.id = v_active;
+    ELSIF v_sp.added_group_id IS NOT NULL THEN
+      DELETE FROM public.event_group_members m
+       WHERE m.tenant_id = p_tenant AND m.group_id = v_sp.added_group_id
+         AND m.person_id = v_sp.person_id;
+      GET DIAGNOSTICS v_n = ROW_COUNT;
+      v_groups := v_groups + v_n;
+    END IF;
+
+    -- Wpis na publicznej liscie prelegentow.
+    IF v_sp.added_roster_entry_id IS NOT NULL AND v_confirmed IS NOT NULL THEN
+      UPDATE public.event_cfp_submission_speakers o
+         SET added_roster_entry_id = COALESCE(o.added_roster_entry_id, v_sp.added_roster_entry_id)
+       WHERE o.tenant_id = p_tenant AND o.id = v_confirmed;
+    ELSIF v_sp.added_roster_entry_id IS NOT NULL AND NOT EXISTS (
+      SELECT 1
+        FROM public.event_session_speakers ss
+        JOIN public.event_sessions ses
+          ON ses.tenant_id = ss.tenant_id AND ses.event_id = ss.event_id AND ses.id = ss.session_id
+       WHERE ss.tenant_id = p_tenant AND ss.event_id = v_event
+         AND ss.speaker_profile_id = v_sp.speaker_profile_id
+         AND ses.status <> 'cancelled'
+    ) THEN
+      DELETE FROM public.event_speaker_entries en
+       WHERE en.tenant_id = p_tenant AND en.id = v_sp.added_roster_entry_id;
+      GET DIAGNOSTICS v_n = ROW_COUNT;
+      v_entries := v_entries + v_n;
+    END IF;
+
+    UPDATE public.event_cfp_submission_speakers sp SET
+      added_roster_entry_id = NULL,
+      added_group_id = NULL,
+      added_registration_id = NULL
+    WHERE sp.tenant_id = p_tenant AND sp.id = v_sp.id;
+  END LOOP;
+
+  FOREACH v_user IN ARRAY v_users LOOP
+    v_release := public._event_participant_release(p_tenant, v_event, v_user, 'cfp_revoked');
+    v_signups := v_signups + (v_release->>'signups_cancelled')::integer;
+  END LOOP;
+
+  RETURN jsonb_build_object(
+    'registrations_cancelled', v_regs,
+    'roster_entries_removed', v_entries,
+    'group_memberships_removed', v_groups,
+    'session_cast_removed', v_cast,
+    'session_signups_cancelled', v_signups
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public._event_cfp_acceptance_undo(uuid, uuid, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public._event_cfp_acceptance_undo(uuid, uuid, uuid) TO service_role;
+
+COMMENT ON FUNCTION public._event_cfp_acceptance_undo(uuid, uuid, uuid) IS
+  'Cofniecie skutkow przyjecia zgloszenia: obsada sesji zgloszenia, zapis utworzony przy przyjeciu (anulowany tylko, dopoki nalezy do tej osoby; awans z rezerwy; potem _event_participant_release konta: zapisy na sesje, zakladki, RSVP), czlonkostwo dopisane do grupy, wpis dodany na liste prelegentow. Inne aktywne przyjecie tej samej osoby przejmuje zasoby. Liczniki cofnietych elementow.';
+
+-- ----------------------------------------------------------------------------
 -- 13) PANEL: DECYZJA
 --
 -- Przyjecie ma osobna funkcje (wpis do rejestru prelegentow), tu zapadaja
 -- pozostale decyzje. Ta sama decyzja powtorzona zmienia notatke i informacje
 -- zwrotna oraz stempel decyzji - czyli pozwala wyslac poprawiony mail.
+--
+-- COFNIECIE PRZYJECIA. Zgloszenie przyjete albo potwierdzone mozna przeniesc
+-- WYLACZNIE na liste rezerwowa albo odrzucic - i wtedy cofaja sie skutki
+-- przyjecia (`_event_cfp_acceptance_undo`). Powrot do oceny czy prosby
+-- o poprawki po przyjeciu nie ma sensu (prelegent dostal juz zaproszenie).
+--
+-- Nowa decyzja kasuje `notify_error`: blad dotyczyl maila o POPRZEDNIEJ
+-- decyzji, a panel ma pokazac, ze mail o tej czeka na wyslanie.
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.admin_event_cfp_submission_decide(p_payload jsonb)
 RETURNS jsonb
@@ -2250,6 +2621,7 @@ DECLARE
   v_note text;
   v_feedback text;
   v_at timestamptz := now();
+  v_undone jsonb;
 BEGIN
   SELECT s.* INTO v_sub
     FROM public.event_cfp_submissions s
@@ -2261,7 +2633,11 @@ BEGIN
   IF v_status IS NULL OR v_status NOT IN ('under_review', 'changes_requested', 'waitlisted', 'rejected') THEN
     RAISE EXCEPTION 'invalid_status: decision must be under_review, changes_requested, waitlisted or rejected';
   END IF;
-  IF v_sub.status NOT IN ('submitted', 'under_review', 'changes_requested', 'waitlisted', 'rejected') THEN
+  IF v_sub.status IN ('accepted', 'confirmed') THEN
+    IF v_status NOT IN ('waitlisted', 'rejected') THEN
+      RAISE EXCEPTION 'invalid_transition: an accepted submission can only be moved to waitlisted or rejected';
+    END IF;
+  ELSIF v_sub.status NOT IN ('submitted', 'under_review', 'changes_requested', 'waitlisted', 'rejected') THEN
     RAISE EXCEPTION 'invalid_transition: a % submission cannot be decided', v_sub.status;
   END IF;
 
@@ -2281,8 +2657,13 @@ BEGIN
     decision_note = v_note,
     feedback_to_speaker = v_feedback,
     decided_by = auth.uid(),
-    decided_at = v_at
+    decided_at = v_at,
+    notify_error = NULL
   WHERE s.tenant_id = v_tenant AND s.id = v_id;
+
+  IF v_sub.status IN ('accepted', 'confirmed') THEN
+    v_undone := public._event_cfp_acceptance_undo(v_tenant, v_id, auth.uid());
+  END IF;
 
   PERFORM public.emit_domain_event(
     v_tenant,
@@ -2294,7 +2675,7 @@ BEGIN
   );
   PERFORM public._event_cfp_crm_status(v_tenant, v_id, v_status);
 
-  RETURN jsonb_build_object('id', v_id, 'status', v_status, 'decided_at', v_at);
+  RETURN jsonb_build_object('id', v_id, 'status', v_status, 'decided_at', v_at, 'undone', v_undone);
 END;
 $$;
 
@@ -2302,16 +2683,22 @@ REVOKE ALL ON FUNCTION public.admin_event_cfp_submission_decide(jsonb) FROM PUBL
 GRANT EXECUTE ON FUNCTION public.admin_event_cfp_submission_decide(jsonb) TO authenticated, service_role;
 
 COMMENT ON FUNCTION public.admin_event_cfp_submission_decide(jsonb) IS
-  'Decyzja o zgloszeniu (w ocenie / prosba o poprawki / lista rezerwowa / odrzucenie z notatka). Tag cfp:<status> w istniejacym kontakcie CRM. Bramka: assert_event_admin_tenant().';
+  'Decyzja o zgloszeniu (w ocenie / prosba o poprawki / lista rezerwowa / odrzucenie z notatka); z przyjetego albo potwierdzonego tylko na liste rezerwowa albo odrzucenie, z cofnieciem skutkow przyjecia. Kasuje blad poprzedniej wysylki. Tag cfp:<status> w istniejacym kontakcie CRM. Bramka: assert_event_admin_tenant().';
 
 -- ----------------------------------------------------------------------------
 -- 14) PANEL: PRZYJECIE ZGLOSZENIA
 --
 -- Kazdy wystepujacy: kartoteka (wspolprelegent dopiero teraz), nakladka
--- sceniczna, wpis do rejestru prelegentow wydarzenia, grupa prelegentow,
--- opcjonalnie zapis `approved` z biletem prelegenta, kontakt CRM `speaker`.
--- Opcjonalnie szkic sesji z obsada. Wszystko w JEDNEJ transakcji: kolizja
--- sali albo sesja poza oknem wydarzenia cofa cale przyjecie.
+-- sceniczna, grupa prelegentow, opcjonalnie zapis `approved` z biletem
+-- prelegenta, kontakt CRM `speaker`. Opcjonalnie szkic sesji z obsada.
+-- Wszystko w JEDNEJ transakcji: kolizja sali albo sesja poza oknem wydarzenia
+-- cofa cale przyjecie.
+--
+-- PUBLICZNA LISTA PRELEGENTOW DOPIERO PO POTWIERDZENIU. Przyjecie niczego nie
+-- oglasza: wpis w `event_speaker_entries` (a z nim nazwisko na stronie
+-- wydarzenia) dodaje `event_cfp_submission_respond(confirm = true)`. Wiersz
+-- wystepujacego zapamietuje nakladke i to, co przyjecie DODALO (grupa, zapis)
+-- - cofniecie przyjecia zdejmuje dokladnie to.
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.admin_event_cfp_submission_accept(p_payload jsonb)
 RETURNS jsonb
@@ -2337,6 +2724,8 @@ DECLARE
   v_lead uuid;
   v_reg uuid;
   v_group uuid;
+  v_added_group uuid;
+  v_n integer;
   v_cast jsonb := '[]'::jsonb;
   v_regs integer := 0;
   v_enrolled integer := 0;
@@ -2423,12 +2812,15 @@ BEGIN
          WHERE p.tenant_id = v_tenant AND p.email_norm = lower(btrim(v_sp.email));
       END IF;
       IF v_person IS NULL THEN
+        -- BEZ stempla zgody na przetwarzanie danych: wspolprelegent zadnej
+        -- zgody nie wyrazil - dane wpisal zglaszajacy, kartoteke zaklada
+        -- organizator (`source = 'organizer'`). Stempel pozorowalby zgode.
         INSERT INTO public.event_people (
           tenant_id, email, first_name, last_name, job_title, company_text,
-          source, consent_data_processing_at, created_by
+          source, created_by
         ) VALUES (
           v_tenant, v_sp.email, v_sp.first_name, v_sp.last_name, v_sp.job_title, v_sp.company_text,
-          'organizer', now(), v_uid
+          'organizer', v_uid
         )
         RETURNING id INTO v_person;
       END IF;
@@ -2443,7 +2835,6 @@ BEGIN
     END IF;
 
     v_profile := public._event_speaker_overlay_for_person(v_tenant, v_person);
-    PERFORM public._event_speaker_roster_add(v_tenant, v_sub.event_id, v_profile);
     v_enrolled := v_enrolled + 1;
     IF v_sp.is_primary THEN
       v_primary_profile := v_profile;
@@ -2453,12 +2844,18 @@ BEGIN
         'profile', v_profile, 'role', v_sp.role, 'order', jsonb_array_length(v_cast)));
     END IF;
 
+    v_added_group := NULL;
     IF v_group IS NOT NULL THEN
       INSERT INTO public.event_group_members (tenant_id, event_id, group_id, person_id, added_by)
       VALUES (v_tenant, v_sub.event_id, v_group, v_person, v_uid)
       ON CONFLICT (tenant_id, group_id, person_id) DO NOTHING;
+      GET DIAGNOSTICS v_n = ROW_COUNT;
+      IF v_n > 0 THEN
+        v_added_group := v_group;
+      END IF;
     END IF;
 
+    v_reg := NULL;
     IF v_register AND NOT EXISTS (
       SELECT 1 FROM public.event_registrations r
        WHERE r.tenant_id = v_tenant AND r.event_id = v_sub.event_id AND r.person_id = v_person
@@ -2504,6 +2901,14 @@ BEGIN
       UPDATE public.speaker_profiles sp SET crm_lead_id = COALESCE(sp.crm_lead_id, v_lead)
        WHERE sp.tenant_id = v_tenant AND sp.id = v_profile;
     END IF;
+
+    -- Co przyjecie DODALO - dokladnie to cofnie rezygnacja albo cofniecie
+    -- przyjecia. COALESCE: nigdy nie gubimy sladu, ktory juz jest.
+    UPDATE public.event_cfp_submission_speakers sp SET
+      speaker_profile_id = v_profile,
+      added_group_id = COALESCE(v_added_group, sp.added_group_id),
+      added_registration_id = COALESCE(v_reg, sp.added_registration_id)
+    WHERE sp.tenant_id = v_tenant AND sp.id = v_sp.id;
   END LOOP;
 
   IF v_schedule IS NOT NULL THEN
@@ -2537,6 +2942,7 @@ BEGIN
     feedback_to_speaker = v_feedback,
     decided_by = v_uid,
     decided_at = v_at,
+    notify_error = NULL,
     speaker_profile_id = v_primary_profile,
     session_id = COALESCE(v_session, s.session_id)
   WHERE s.tenant_id = v_tenant AND s.id = v_id;
@@ -2567,7 +2973,7 @@ REVOKE ALL ON FUNCTION public.admin_event_cfp_submission_accept(jsonb) FROM PUBL
 GRANT EXECUTE ON FUNCTION public.admin_event_cfp_submission_accept(jsonb) TO authenticated, service_role;
 
 COMMENT ON FUNCTION public.admin_event_cfp_submission_accept(jsonb) IS
-  'Przyjecie zgloszenia: wystepujacy do rejestru prelegentow (event_people -> speaker_profiles -> event_speaker_entries), grupa prelegentow, opcjonalny zapis approved z biletem prelegenta, kontakt CRM speaker, opcjonalny szkic sesji z obsada. Bramka: assert_event_admin_tenant().';
+  'Przyjecie zgloszenia: kartoteki i nakladki wystepujacych (event_people -> speaker_profiles), grupa prelegentow, opcjonalny zapis approved z biletem prelegenta, kontakt CRM speaker, opcjonalny szkic sesji z obsada. Publiczna lista prelegentow (event_speaker_entries) dopiero po potwierdzeniu udzialu. Slad dodanych elementow w wierszach wystepujacych (added_*). Kasuje blad poprzedniej wysylki. Bramka: assert_event_admin_tenant().';
 
 -- ----------------------------------------------------------------------------
 -- 15) PANEL: POWIADOMIENIE O DECYZJI (ladunek dla funkcji serwerowej)
@@ -2887,19 +3293,29 @@ DECLARE
   v_tenant uuid := public.assert_event_admin_tenant();
   v_id uuid := NULLIF(p_payload->>'id', '')::uuid;
   v_publish boolean;
+  v_visibility text;
 BEGIN
   IF jsonb_typeof(p_payload->'is_published') IS DISTINCT FROM 'boolean' THEN
     RAISE EXCEPTION 'invalid_payload: is_published must be true or false';
   END IF;
   v_publish := (p_payload->>'is_published')::boolean;
+  SELECT m.visibility INTO v_visibility
+    FROM public.event_speaker_materials m
+   WHERE m.tenant_id = v_tenant AND m.id = v_id
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'not_found: material does not exist in this tenant';
+  END IF;
+  -- Material "tylko dla organizatorow" z definicji nie trafia na strone -
+  -- publikacja niczego by nie zmienila, a panel udawalby, ze zmienila.
+  IF v_publish AND v_visibility = 'organizers' THEN
+    RAISE EXCEPTION 'invalid_visibility: a material for organizers only cannot be published';
+  END IF;
   UPDATE public.event_speaker_materials m SET
     is_published = v_publish,
     published_at = CASE WHEN v_publish THEN now() END,
     published_by = CASE WHEN v_publish THEN auth.uid() END
   WHERE m.tenant_id = v_tenant AND m.id = v_id;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'not_found: material does not exist in this tenant';
-  END IF;
   RETURN v_publish;
 END;
 $$;
@@ -2908,7 +3324,7 @@ REVOKE ALL ON FUNCTION public.admin_event_cfp_material_publish(jsonb) FROM PUBLI
 GRANT EXECUTE ON FUNCTION public.admin_event_cfp_material_publish(jsonb) TO authenticated, service_role;
 
 COMMENT ON FUNCTION public.admin_event_cfp_material_publish(jsonb) IS
-  'Publikacja albo wycofanie publikacji materialu prelegenta. Bramka: assert_event_admin_tenant().';
+  'Publikacja albo wycofanie publikacji materialu prelegenta; material z widocznoscia organizers nie jest publikowany (invalid_visibility). Opublikowane czyta event_speaker_materials_public. Bramka: assert_event_admin_tenant().';
 
 -- ----------------------------------------------------------------------------
 -- 18) PLASZCZYZNA TRESCI: STRONA NABORU (anon + zalogowani)
@@ -2988,6 +3404,90 @@ GRANT EXECUTE ON FUNCTION public.event_cfp_public(text) TO anon, authenticated, 
 
 COMMENT ON FUNCTION public.event_cfp_public(text) IS
   'Publiczna strona naboru prelegentow: faza (none/scheduled/open/closed), okno, teksty, formy, sciezki i pytania. Tylko wydarzenia opublikowane; szkic naboru nie zdradza tresci. Najemca z public_tenant_id().';
+
+-- ----------------------------------------------------------------------------
+-- 18b) PLASZCZYZNA TRESCI: OPUBLIKOWANE MATERIALY PRELEGENTOW
+--
+-- To jest czytelnik, bez ktorego "Opublikuj" w panelu niczego nie zmienialo.
+-- Oddaje WYLACZNIE materialy opublikowane przez organizatora, prelegentow
+-- obecnych na liscie wydarzenia (rezygnacja zdejmuje wpis - a z nim
+-- materialy), opublikowanego wydarzenia:
+--   * `public` - kazdemu;
+--   * `registered` - tylko zalogowanemu z zatwierdzonym zapisem (approved /
+--     attended) albo potwierdzonym RSVP - ten sam predykat, co zamek sekcji
+--     w `event_sections`;
+--   * `organizers` - nigdy (i nie da sie go opublikowac).
+-- Najemca z `public_tenant_id()`, zero `has_role()` (plaszczyzna tresci).
+-- Strona pyta o nie dopiero w dialogu profilu prelegenta (po kliknieciu), wiec
+-- odpowiedz zalezna od zalogowania nie trafia do SSR ani do pamieci krawedzi.
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.event_speaker_materials_public(p_event_id uuid)
+RETURNS TABLE (
+  id uuid,
+  speaker_profile_id uuid,
+  session_id uuid,
+  kind text,
+  title_pl text,
+  title_en text,
+  url text,
+  visibility text
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+#variable_conflict use_column
+DECLARE
+  v_tenant uuid := public.public_tenant_id();
+  v_uid uuid := auth.uid();
+  v_event uuid;
+  v_registered boolean := false;
+BEGIN
+  SELECT e.id INTO v_event
+    FROM public.events e
+   WHERE e.tenant_id = v_tenant AND e.id = p_event_id AND e.status = 'published';
+  IF v_event IS NULL THEN
+    RETURN;
+  END IF;
+
+  IF v_uid IS NOT NULL THEN
+    v_registered :=
+      EXISTS (
+        SELECT 1
+          FROM public.event_registrations r
+          JOIN public.event_people pe ON pe.tenant_id = r.tenant_id AND pe.id = r.person_id
+         WHERE r.tenant_id = v_tenant AND r.event_id = v_event
+           AND pe.user_id = v_uid AND r.status IN ('approved', 'attended')
+      )
+      OR EXISTS (
+        SELECT 1 FROM public.event_rsvps rs
+         WHERE rs.tenant_id = v_tenant AND rs.event_id = v_event
+           AND rs.user_id = v_uid AND rs.status = 'going'
+      );
+  END IF;
+
+  RETURN QUERY
+  SELECT m.id, m.speaker_profile_id, m.session_id, m.kind, m.title_pl, m.title_en, m.url, m.visibility
+    FROM public.event_speaker_materials m
+   WHERE m.tenant_id = v_tenant
+     AND m.event_id = v_event
+     AND m.is_published
+     AND (m.visibility = 'public' OR (m.visibility = 'registered' AND v_registered))
+     AND EXISTS (
+       SELECT 1 FROM public.event_speaker_entries en
+        WHERE en.tenant_id = m.tenant_id AND en.event_id = m.event_id
+          AND en.speaker_profile_id = m.speaker_profile_id
+     )
+   ORDER BY m.speaker_profile_id, m.created_at, m.id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.event_speaker_materials_public(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.event_speaker_materials_public(uuid) TO anon, authenticated, service_role;
+
+COMMENT ON FUNCTION public.event_speaker_materials_public(uuid) IS
+  'Opublikowane materialy prelegentow z listy prelegentow OPUBLIKOWANEGO wydarzenia: public dla kazdego, registered dla zalogowanego z zatwierdzonym zapisem albo RSVP going, organizers nigdy. Najemca z public_tenant_id(), zero has_role().';
 
 -- ----------------------------------------------------------------------------
 -- 19) PLASZCZYZNA WLASNA: SZKIC I WYSLANIE ZGLOSZENIA
@@ -3407,6 +3907,13 @@ BEGIN
     withdrawn_at = now()
   WHERE s.tenant_id = v_tenant AND s.id = v_id;
 
+  -- Wycofanie PRZYJETEGO zgloszenia cofa skutki przyjecia (lista prelegentow,
+  -- obsada sesji, zapis z biletem, grupa) - prelegent, ktory sie wycofal, nie
+  -- moze dalej wisiec na stronie wydarzenia ani dostac biletu.
+  IF v_sub.status IN ('accepted', 'confirmed') THEN
+    PERFORM public._event_cfp_acceptance_undo(v_tenant, v_id, v_uid);
+  END IF;
+
   PERFORM public.emit_domain_event(
     v_tenant,
     'event_cfp_submission',
@@ -3425,7 +3932,7 @@ REVOKE ALL ON FUNCTION public.event_cfp_submission_withdraw(jsonb) FROM PUBLIC, 
 GRANT EXECUTE ON FUNCTION public.event_cfp_submission_withdraw(jsonb) TO authenticated, service_role;
 
 COMMENT ON FUNCTION public.event_cfp_submission_withdraw(jsonb) IS
-  'Wycofanie wlasnego zgloszenia (szkic znika calkiem). Najemca z public_tenant_id(), tozsamosc z auth.uid().';
+  'Wycofanie wlasnego zgloszenia (szkic znika calkiem; przyjete albo potwierdzone cofa skutki przyjecia). Najemca z public_tenant_id(), tozsamosc z auth.uid().';
 
 CREATE OR REPLACE FUNCTION public.event_cfp_submission_respond(p_payload jsonb)
 RETURNS jsonb
@@ -3465,6 +3972,14 @@ BEGIN
     declined_at = CASE WHEN v_status = 'declined' THEN now() ELSE s.declined_at END
   WHERE s.tenant_id = v_tenant AND s.id = v_id;
 
+  -- Potwierdzenie OGLASZA prelegenta (wpis na publicznej liscie), rezygnacja
+  -- cofa wszystko, co dodalo przyjecie.
+  IF v_status = 'confirmed' THEN
+    PERFORM public._event_cfp_roster_publish(v_tenant, v_id);
+  ELSE
+    PERFORM public._event_cfp_acceptance_undo(v_tenant, v_id, v_uid);
+  END IF;
+
   PERFORM public.emit_domain_event(
     v_tenant,
     'event_cfp_submission',
@@ -3483,7 +3998,7 @@ REVOKE ALL ON FUNCTION public.event_cfp_submission_respond(jsonb) FROM PUBLIC, a
 GRANT EXECUTE ON FUNCTION public.event_cfp_submission_respond(jsonb) TO authenticated, service_role;
 
 COMMENT ON FUNCTION public.event_cfp_submission_respond(jsonb) IS
-  'Odpowiedz prelegenta na przyjecie: potwierdzenie albo odwolanie udzialu. Najemca z public_tenant_id(), tozsamosc z auth.uid().';
+  'Odpowiedz prelegenta na przyjecie: potwierdzenie (wpis wystepujacych na publiczna liste prelegentow) albo odwolanie udzialu (cofniecie skutkow przyjecia). Najemca z public_tenant_id(), tozsamosc z auth.uid().';
 
 -- Ladunek maila "zgloszenie otrzymane" dla funkcji serwerowej. Klient
 -- serwerowy nie niesie naglowka hosta, wiec najemca pochodzi z wiersza,
@@ -3578,7 +4093,8 @@ BEGIN
     'person', CASE WHEN v_person.id IS NULL THEN NULL ELSE jsonb_build_object(
       'id', v_person.id, 'first_name', v_person.first_name, 'last_name', v_person.last_name,
       'email', v_person.email, 'job_title', v_person.job_title, 'company_text', v_person.company_text,
-      'consent_marketing', v_person.consent_marketing_at IS NOT NULL AND v_person.consent_withdrawn_at IS NULL)
+      'consent_marketing', v_person.consent_marketing_at IS NOT NULL AND v_person.consent_withdrawn_at IS NULL,
+      'consents_withdrawn', v_person.consent_withdrawn_at IS NOT NULL)
     END,
     'items', (
       SELECT COALESCE(jsonb_agg(jsonb_build_object(
@@ -3603,13 +4119,8 @@ BEGIN
             FROM public.event_cfp_submission_speakers sp
            WHERE sp.tenant_id = s.tenant_id AND sp.submission_id = s.id
         ),
-        'review_summary', jsonb_build_object(
-          'reviews_count', (public._event_cfp_review_summary(s.tenant_id, s.id)->>'reviews_count')::integer,
-          'overall_avg', CASE
-            WHEN s.status IN ('accepted', 'waitlisted', 'rejected', 'confirmed', 'declined')
-              THEN public._event_cfp_review_summary(s.tenant_id, s.id)->'overall_avg'
-            ELSE 'null'::jsonb END
-        )
+        'review_summary', public._event_cfp_speaker_review_summary(
+          s.tenant_id, s.id, s.status, v_s.min_reviews)
       ) ORDER BY s.created_at DESC), '[]'::jsonb)
         FROM public.event_cfp_submissions s
        WHERE s.tenant_id = v_tenant AND s.event_id = v_event.id AND s.person_id = v_person.id
@@ -4320,11 +4831,15 @@ COMMENT ON FUNCTION public.event_cfp_review_save(jsonb) IS
 -- (wzorzec `club_export_my_data`) oddaje dane wolajacego, rozbite w TS na
 -- sekcje manifestu:
 --   * `event_cfp_submissions` - zgloszenia, ktore wolajacy wyslal albo w ktorych
---     jest wpisany jako prelegent (karta uczestnika z `event_people.user_id`):
---     tresc, odpowiedzi, stany i daty, informacja zwrotna po decyzji,
---     zagregowana ocena po decyzji. Wspolprelegenci: imie, nazwisko i rola -
---     BEZ adresu e-mail, stanowiska i firmy (dane kontaktowe innych osob,
---     art. 15 ust. 4 RODO);
+--     jest wpisany jako prelegent (karta uczestnika z `event_people.user_id`
+--     ALBO - zanim przyjecie zalozy kartoteke - adres KONTA wpisany przez
+--     zglaszajacego): tresc wystapienia, stany i daty oraz wlasne wiersze
+--     wystepujacego (`my_speaker_entries` - to, co ktos wpisal o wolajacym).
+--     Tylko ZGLASZAJACY dostaje dodatkowo odpowiedzi, jezyk poczty,
+--     informacje zwrotna i ocene zbiorcza (srednia po decyzji i z co najmniej
+--     dwoch ocen) - to jego dane, nie wspolprelegenta. Pozostali wystepujacy:
+--     imie, nazwisko i rola - BEZ adresu e-mail, stanowiska i firmy (dane
+--     kontaktowe innych osob, art. 15 ust. 4 RODO);
 --   * `event_speaker_materials` - materialy nakladek scenicznych wolajacego;
 --   * `event_cfp_reviewer_roles` - role recenzenta w naborach;
 --   * `event_cfp_reviews_written` - WLASNE oceny recenzenta (tresc autorska
@@ -4336,6 +4851,39 @@ COMMENT ON FUNCTION public.event_cfp_review_save(jsonb) IS
 -- Najemca z profilu wolajacego (jak `club_export_my_data`): eksport biegnie po
 -- stronie serwera i nie niesie naglowka hosta.
 -- ----------------------------------------------------------------------------
+
+-- Czy wiersz wystepujacego opisuje WOLAJACEGO: po kartotece z kontem albo -
+-- zanim przyjecie zalozy kartoteke - po adresie KONTA wpisanym przez
+-- zglaszajacego (ten sam dowod, co w `_event_cfp_reviewable`). Adres nie
+-- wygrywa z wierszem przypietym do kartoteki INNEGO konta.
+CREATE OR REPLACE FUNCTION public._event_cfp_speaker_row_is_mine(
+  p_tenant uuid, p_person_id uuid, p_email text, p_uid uuid, p_people uuid[], p_account_email text
+)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+  SELECT COALESCE(
+    (p_person_id IS NOT NULL AND p_person_id = ANY (COALESCE(p_people, '{}'::uuid[])))
+    OR (
+      p_account_email IS NOT NULL
+      AND lower(btrim(p_email)) = p_account_email
+      AND NOT EXISTS (
+        SELECT 1 FROM public.event_people p
+         WHERE p.tenant_id = p_tenant AND p.id = p_person_id
+           AND p.user_id IS NOT NULL AND p.user_id <> p_uid
+      )
+    ),
+    false)
+$$;
+
+REVOKE ALL ON FUNCTION public._event_cfp_speaker_row_is_mine(uuid, uuid, text, uuid, uuid[], text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public._event_cfp_speaker_row_is_mine(uuid, uuid, text, uuid, uuid[], text) TO service_role;
+
+COMMENT ON FUNCTION public._event_cfp_speaker_row_is_mine(uuid, uuid, text, uuid, uuid[], text) IS
+  'Czy wiersz wystepujacego nalezy do wolajacego: kartoteka z jego kontem albo adres jego konta wpisany przez zglaszajacego (o ile wiersz nie jest przypiety do kartoteki innego konta).';
 
 CREATE OR REPLACE FUNCTION public.event_cfp_export_my_data(p_limit integer DEFAULT 2000)
 RETURNS jsonb
@@ -4351,6 +4899,7 @@ DECLARE
   -- plikiem, nie zrzutem bazy.
   v_limit integer := greatest(1, least(COALESCE(p_limit, 2000), 5000));
   v_people uuid[];
+  v_email text;
 BEGIN
   IF v_uid IS NULL THEN
     RAISE EXCEPTION 'auth_required: sign in to export your data';
@@ -4362,62 +4911,81 @@ BEGIN
   SELECT COALESCE(array_agg(p.id), '{}'::uuid[]) INTO v_people
     FROM public.event_people p
    WHERE p.tenant_id = v_tenant AND p.user_id = v_uid;
+  SELECT NULLIF(lower(btrim(u.email)), '') INTO v_email FROM auth.users u WHERE u.id = v_uid;
 
   RETURN jsonb_build_object(
     'event_cfp_submissions', (
       SELECT COALESCE(jsonb_agg(t.doc ORDER BY t.created_at DESC), '[]'::jsonb)
         FROM (
-          SELECT s.created_at, jsonb_build_object(
-            'event_slug', e.slug, 'event_title_pl', e.title_pl, 'event_title_en', e.title_en,
-            'status', s.status,
-            'is_submitter', s.person_id = ANY (v_people),
-            'my_roles', (
-              SELECT COALESCE(jsonb_agg(ss.role ORDER BY ss.sort_order), '[]'::jsonb)
-                FROM public.event_cfp_submission_speakers ss
-               WHERE ss.tenant_id = s.tenant_id AND ss.submission_id = s.id
-                 AND ss.person_id = ANY (v_people)
-            ),
-            'title_pl', s.title_pl, 'title_en', s.title_en,
-            'abstract_pl', s.abstract_pl, 'abstract_en', s.abstract_en,
-            'talk_language', s.talk_language, 'notify_lang', s.notify_lang,
-            'format_key', s.format_key, 'duration_min', s.duration_min,
-            'track_name_pl', tr.name_pl, 'track_name_en', tr.name_en,
-            'topics', to_jsonb(s.topics), 'answers', s.answers,
-            'co_speakers', (
-              SELECT COALESCE(jsonb_agg(jsonb_build_object(
-                'first_name', ss.first_name, 'last_name', ss.last_name, 'role', ss.role)
-                ORDER BY ss.sort_order), '[]'::jsonb)
-                FROM public.event_cfp_submission_speakers ss
-               WHERE ss.tenant_id = s.tenant_id AND ss.submission_id = s.id
-                 AND (ss.person_id IS NULL OR NOT ss.person_id = ANY (v_people))
-            ),
-            'feedback_to_speaker', CASE
-              WHEN s.status IN ('changes_requested', 'accepted', 'waitlisted', 'rejected', 'confirmed', 'declined')
-                THEN s.feedback_to_speaker ELSE '' END,
-            -- Ocena zbiorcza jak w panelu prelegenta: liczba ocen zawsze,
-            -- srednia dopiero po decyzji - nigdy pojedyncze oceny.
-            'review_summary', jsonb_build_object(
-              'reviews_count', (public._event_cfp_review_summary(s.tenant_id, s.id)->>'reviews_count')::integer,
-              'overall_avg', CASE
-                WHEN s.status IN ('accepted', 'waitlisted', 'rejected', 'confirmed', 'declined')
-                  THEN public._event_cfp_review_summary(s.tenant_id, s.id)->'overall_avg'
-                ELSE 'null'::jsonb END
-            ),
-            'submitted_at', s.submitted_at, 'decided_at', s.decided_at,
-            'withdrawn_at', s.withdrawn_at, 'confirmed_at', s.confirmed_at,
-            'declined_at', s.declined_at,
-            'created_at', s.created_at, 'updated_at', s.updated_at
-          ) AS doc
+          SELECT s.created_at,
+            jsonb_build_object(
+              'event_slug', e.slug, 'event_title_pl', e.title_pl, 'event_title_en', e.title_en,
+              'status', s.status,
+              'is_submitter', mine.is_submitter,
+              'my_roles', (
+                SELECT COALESCE(jsonb_agg(ss.role ORDER BY ss.sort_order), '[]'::jsonb)
+                  FROM public.event_cfp_submission_speakers ss
+                 WHERE ss.tenant_id = s.tenant_id AND ss.submission_id = s.id
+                   AND public._event_cfp_speaker_row_is_mine(ss.tenant_id, ss.person_id, ss.email, v_uid, v_people, v_email)
+              ),
+              -- Dane, ktore zglaszajacy (albo organizator) wpisal O WOLAJACYM.
+              'my_speaker_entries', (
+                SELECT COALESCE(jsonb_agg(jsonb_build_object(
+                  'first_name', ss.first_name, 'last_name', ss.last_name, 'email', ss.email,
+                  'job_title', ss.job_title, 'company_text', ss.company_text, 'role', ss.role,
+                  'is_primary', ss.is_primary)
+                  ORDER BY ss.sort_order), '[]'::jsonb)
+                  FROM public.event_cfp_submission_speakers ss
+                 WHERE ss.tenant_id = s.tenant_id AND ss.submission_id = s.id
+                   AND public._event_cfp_speaker_row_is_mine(ss.tenant_id, ss.person_id, ss.email, v_uid, v_people, v_email)
+              ),
+              'title_pl', s.title_pl, 'title_en', s.title_en,
+              'abstract_pl', s.abstract_pl, 'abstract_en', s.abstract_en,
+              'talk_language', s.talk_language,
+              'format_key', s.format_key, 'duration_min', s.duration_min,
+              'track_name_pl', tr.name_pl, 'track_name_en', tr.name_en,
+              'topics', to_jsonb(s.topics),
+              'co_speakers', (
+                SELECT COALESCE(jsonb_agg(jsonb_build_object(
+                  'first_name', ss.first_name, 'last_name', ss.last_name, 'role', ss.role)
+                  ORDER BY ss.sort_order), '[]'::jsonb)
+                  FROM public.event_cfp_submission_speakers ss
+                 WHERE ss.tenant_id = s.tenant_id AND ss.submission_id = s.id
+                   AND NOT public._event_cfp_speaker_row_is_mine(ss.tenant_id, ss.person_id, ss.email, v_uid, v_people, v_email)
+              ),
+              'submitted_at', s.submitted_at, 'decided_at', s.decided_at,
+              'withdrawn_at', s.withdrawn_at, 'confirmed_at', s.confirmed_at,
+              'declined_at', s.declined_at,
+              'created_at', s.created_at, 'updated_at', s.updated_at
+            )
+            -- Tylko ZGLASZAJACY: odpowiedzi na pytania organizatora, jezyk
+            -- jego poczty, informacja zwrotna do niego i ocena zbiorcza. To dane
+            -- zglaszajacego, nie wspolprelegenta - ten dostaje metadane
+            -- wystapienia i wlasny wiersz wystepujacego.
+            || CASE WHEN mine.is_submitter THEN jsonb_build_object(
+              'answers', s.answers,
+              'notify_lang', s.notify_lang,
+              'feedback_to_speaker', CASE
+                WHEN s.status IN ('changes_requested', 'accepted', 'waitlisted', 'rejected', 'confirmed', 'declined')
+                  THEN s.feedback_to_speaker ELSE '' END,
+              -- Ocena zbiorcza jak w panelu prelegenta: liczba ocen zawsze,
+              -- srednia po decyzji i z co najmniej dwoch ocen - nigdy
+              -- pojedyncze oceny.
+              'review_summary', public._event_cfp_speaker_review_summary(
+                s.tenant_id, s.id, s.status, cs.min_reviews)
+            ) ELSE '{}'::jsonb END AS doc
             FROM public.event_cfp_submissions s
             JOIN public.events e ON e.tenant_id = s.tenant_id AND e.id = s.event_id
             LEFT JOIN public.event_tracks tr ON tr.tenant_id = s.tenant_id AND tr.id = s.track_id
+            LEFT JOIN public.event_cfp_settings cs ON cs.tenant_id = s.tenant_id AND cs.event_id = s.event_id
+            CROSS JOIN LATERAL (SELECT s.person_id = ANY (v_people) AS is_submitter) mine
            WHERE s.tenant_id = v_tenant
              AND (
-               s.person_id = ANY (v_people)
+               mine.is_submitter
                OR EXISTS (
                  SELECT 1 FROM public.event_cfp_submission_speakers ss
                   WHERE ss.tenant_id = s.tenant_id AND ss.submission_id = s.id
-                    AND ss.person_id = ANY (v_people)
+                    AND public._event_cfp_speaker_row_is_mine(ss.tenant_id, ss.person_id, ss.email, v_uid, v_people, v_email)
                )
              )
            ORDER BY s.created_at DESC
@@ -4492,4 +5060,4 @@ REVOKE ALL ON FUNCTION public.event_cfp_export_my_data(integer) FROM PUBLIC, ano
 GRANT EXECUTE ON FUNCTION public.event_cfp_export_my_data(integer) TO authenticated, service_role;
 
 COMMENT ON FUNCTION public.event_cfp_export_my_data(integer) IS
-  'Eksport RODO naboru prelegentow WOLAJACEGO: zgloszenia (wlasne i z jego udzialem), materialy prelegenta, role i wlasne oceny recenzenta. Bez notatki decyzji, cudzych ocen i danych kontaktowych wspolprelegentow (art. 15 ust. 4 RODO). Najemca z profilu wolajacego, tozsamosc z auth.uid().';
+  'Eksport RODO naboru prelegentow WOLAJACEGO: zgloszenia (wlasne i z jego udzialem - takze po adresie konta, zanim powstanie kartoteka), materialy prelegenta, role i wlasne oceny recenzenta. Wspolprelegent bez odpowiedzi i informacji zwrotnej zglaszajacego. Bez notatki decyzji, cudzych ocen i danych kontaktowych innych wystepujacych (art. 15 ust. 4 RODO). Najemca z profilu wolajacego, tozsamosc z auth.uid().';

@@ -46,11 +46,11 @@ import { MeetingExchangeBoard } from "@/components/events/meetings/MeetingExchan
 import { ParticipantTicketsPanel } from "@/components/profile/ParticipantTicketsPanel";
 import { MyEventProfileForm } from "@/components/events/participant/molecules/MyEventProfileForm";
 import { MyEventPublicPreview } from "@/components/events/participant/molecules/MyEventPublicPreview";
+import { EventMeCfpLinks } from "@/components/events/cfp/molecules/EventMeCfpLinks";
+import { MySeatsPanel } from "@/components/events/participant/molecules/MySeatsPanel";
 import { RegistrationStatusBadge } from "@/components/events/participant/atoms/RegistrationStatusBadge";
 import { EventMeFollowUpSlot } from "@/components/events/participant/slots/EventMeFollowUpSlot";
 import { EventMeScheduleSlot } from "@/components/events/participant/slots/EventMeScheduleSlot";
-import { EventMeCfpLinks } from "@/components/events/cfp/molecules/EventMeCfpLinks";
-import { MySeatsPanel } from "@/components/events/participant/molecules/MySeatsPanel";
 import { parseEventMeTab, type EventMeTab } from "@/lib/events/eventMeTabs";
 import { useEventParticipantOptions } from "@/lib/events/useEventParticipantOptions";
 import { useMyEventProfile } from "@/lib/events/useMyEventPanel";

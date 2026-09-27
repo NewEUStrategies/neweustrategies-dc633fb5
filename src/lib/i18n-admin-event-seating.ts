@@ -9,7 +9,7 @@
 // SŁOWO „MIEJSCE” ZNACZY TU MIEJSCE NA SALI. W module pakietów „miejsca” to
 // wejściówki - dlatego nagłówki mówią „plan sali” i „miejsce na sali”.
 //
-// KLUCZE STANÓW SĄ WSPÓLNE Z BAZĄ (migracja 20260926130000): dwa stany planu,
+// KLUCZE STANÓW SĄ WSPÓLNE Z BAZĄ (migracja 20260927000400): dwa stany planu,
 // trzy stany miejsca, dwa rodzaje sekcji, dwa schematy rzędów, trzy numeracje,
 // dwa kształty stołu. Błędy to głowy `RAISE EXCEPTION` w camelCase.
 import i18n from "@/lib/i18n";

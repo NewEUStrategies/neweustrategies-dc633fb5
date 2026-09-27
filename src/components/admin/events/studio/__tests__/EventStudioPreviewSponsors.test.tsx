@@ -238,6 +238,7 @@ beforeEach(() => {
     }),
   ]);
   h.rpc.setData("admin_event_sponsor_tiers_list", [tierRow()]);
+  h.rpc.setData("admin_event_sponsor_links", []);
   h.rpc.setData("admin_event_sessions_list", [
     adminEventSessionRow({
       id: "5a1c0000-0000-4000-8000-0000000000b1",
@@ -282,6 +283,40 @@ describe("podglad studia - partnerzy na stronie glownej", () => {
       .getAllByText(NORDWIND)
       .find((node) => !sekcja.contains(node) && node.closest("[aria-hidden='true']") === null);
     expect(ogloszony?.closest("li")?.textContent).not.toContain(DRAFT);
+  });
+
+  it("logotyp prowadzi tam, gdzie ustawil organizator - jak na stronie publicznej", async () => {
+    // Lista przypiec nie niesie ustawienia linku; bez `admin_event_sponsor_links`
+    // podglad prowadzil zawsze na strone firmy, takze partnera „bez linku".
+    h.rpc?.setData("admin_event_sponsor_links", [
+      { id: "sp-baltic", link_mode: "none", link_url: null },
+      { id: "sp-nordwind", link_mode: "external", link_url: "https://nordwind.example/kampania" },
+    ]);
+    nakladka();
+
+    const sekcja = await sekcjaPartnerow();
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByRole("link")
+          .some((link) => link.getAttribute("href") === "https://nordwind.example/kampania"),
+      ).toBe(true),
+    );
+    const linki = screen.getAllByRole("link");
+    // Partner „bez linku" nie jest odnosnikiem ani w pasie, ani w sekcji -
+    // mimo strony WWW w migawce.
+    expect(linki.some((link) => link.textContent?.includes(BALTIC))).toBe(false);
+    expect(linki.some((link) => link.getAttribute("href") === "https://baltic.example.com")).toBe(
+      false,
+    );
+    expect(within(sekcja).getAllByText(BALTIC).length).toBeGreaterThan(0);
+    // Adres kampanii prowadzi z pasa I z sekcji.
+    const kampania = linki.filter(
+      (link) => link.getAttribute("href") === "https://nordwind.example/kampania",
+    );
+    expect(kampania.some((link) => sekcja.contains(link))).toBe(true);
+    expect(kampania.some((link) => !sekcja.contains(link))).toBe(true);
+    expect(h.rpc?.lastCall("admin_event_sponsor_links")?.arg("p_event_id")).toBe(STUDIO_EVENT_ID);
   });
 
   it("sekcja „Partnerzy” staje na stronie glownej z opisem i korzysciami poziomu", async () => {

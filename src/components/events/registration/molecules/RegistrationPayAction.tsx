@@ -56,7 +56,9 @@
 // FAKTURA NA FIRMĘ PRZED KASĄ. Dane nabywcy (`InvoiceRequestBlock`) zapisujemy
 // jako prośbę do TEGO zgłoszenia, zanim otworzy się kasa operatora - po
 // powrocie z płatności kupujący nie musi już nic uzupełniać, a organizator
-// widzi prośbę w studiu. Niepoprawne dane zatrzymują przejście do kasy.
+// widzi prośbę w studiu. Niepoprawne dane zatrzymują przejście do kasy. Blok
+// pojawia się tylko wtedy, gdy organizator może tę płatność kartą zafakturować
+// (inaczej zdanie, że fakturę wystawia operator płatności).
 //
 // BILET Z PLANU ZAMIAST KASY. Pojedyncze zgłoszenie członka, którego miejsce
 // pokrywa bilet z puli planu, nie ma czego płacić - kasa odmawia
@@ -226,6 +228,9 @@ export function RegistrationPayAction({
   const invoice = useInvoiceRequestController({
     target: { registrationId },
     enabled: session !== null && ownedByCaller !== false,
+    // Ten krok prowadzi do kasy KARTOWEJ - blok faktury tylko wtedy, gdy
+    // płatność kartą może dostać fakturę organizatora.
+    payment: "card",
   });
   const quoteQ = useQuery({
     queryKey: [...QUOTE_KEY, registrationId, eventId, ticketTypeId, appliedCode, accessCode],

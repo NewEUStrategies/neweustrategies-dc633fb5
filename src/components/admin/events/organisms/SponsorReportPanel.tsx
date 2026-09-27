@@ -299,7 +299,7 @@ export function SponsorReportPanel({
             hint={
               totals === null
                 ? undefined
-                : t("adminEventSponsorReport.kpi.meetingsHint", { count: totals.meetingsTotal })
+                : t("adminEventSponsorReport.kpi.meetingsHint", { count: totals.meetingsScheduled })
             }
           />
         </div>
@@ -410,7 +410,7 @@ export function SponsorReportPanel({
                         {count(reportNumber(item.leads_consented))})
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {count(reportNumber(item.meetings_total))} (
+                        {count(reportNumber(item.meetings_accepted))} (
                         {count(reportNumber(item.meetings_held))})
                       </TableCell>
                       <TableCell className="text-right tabular-nums">

@@ -349,6 +349,14 @@ export const adminEventsPl = {
         // z ktorym moglyby sie rozjechac, wiec stoja tam, gdzie etykiety
         // pozostalych ekranow studia.
         registrationSettings: "Ustawienia rejestracji",
+        // PODSTRONY F1-F5. „Zasady biletów" (przekazanie, zwrot, oferty z listy
+        // rezerwowej) to ekran Foundation; trzy pozycje grupy „Po wydarzeniu"
+        // są dopisane z wyprzedzeniem dla toru C (spec B.12), żeby tor nie
+        // edytował tego pliku.
+        registrationPolicies: "Zasady biletów",
+        followUpCertificate: "Certyfikat",
+        followUpSurvey: "Ankieta",
+        followUpResults: "Wyniki ankiety",
         // EKRANY FUNKCJI ORGANIZATORA. Etykiety stoją TUTAJ, a nie w nakładkach
         // funkcji: sidebar ładuje wyłącznie ten słownik, więc etykieta
         // z nakładki funkcji rysowałaby się jako surowy klucz, dopóki trasa nie
@@ -359,14 +367,6 @@ export const adminEventsPl = {
         cfpForm: "Formularz zgłoszenia",
         cfpSubmissions: "Zgłoszenia",
         cfpReviewers: "Recenzenci",
-        // PODSTRONY F1-F5. „Zasady biletów" (przekazanie, zwrot, oferty z listy
-        // rezerwowej) to ekran Foundation; trzy pozycje grupy „Po wydarzeniu"
-        // są dopisane z wyprzedzeniem dla toru C (spec B.12), żeby tor nie
-        // edytował tego pliku.
-        registrationPolicies: "Zasady biletów",
-        followUpCertificate: "Certyfikat",
-        followUpSurvey: "Ankieta",
-        followUpResults: "Wyniki ankiety",
         communications: "Komunikacja",
         integrations: "Integracje",
         analytics: "Analityka",
@@ -1537,16 +1537,16 @@ export const adminEventsEn = {
         sponsors: "Sponsors and advertising",
         terms: "Terms",
         registrationSettings: "Registration settings",
+        registrationPolicies: "Ticket policies",
+        followUpCertificate: "Certificate",
+        followUpSurvey: "Survey",
+        followUpResults: "Survey results",
         registrationInvoices: "Invoices",
         registrationSeating: "Seating plan",
         cfpSettings: "Call settings",
         cfpForm: "Submission form",
         cfpSubmissions: "Submissions",
         cfpReviewers: "Reviewers",
-        registrationPolicies: "Ticket policies",
-        followUpCertificate: "Certificate",
-        followUpSurvey: "Survey",
-        followUpResults: "Survey results",
         communications: "Communications",
         integrations: "Integrations",
         analytics: "Analytics",

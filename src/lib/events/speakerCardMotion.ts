@@ -98,16 +98,14 @@ function canAnimate(element: Element | null | undefined): element is HTMLElement
 
 const moved = (a: number, b: number): boolean => Math.abs(a - b) >= 0.5;
 
-/** Kolo: miniatura zwinietej karty (wzorzec: okragle zdjecie profilu). */
-export const SPEAKER_CARD_ROUND = "50%";
 /** Pelny kadr: rozwinieta karta ma zdjecie od krawedzi do krawedzi, bez rogow. */
 export const SPEAKER_CARD_SQUARE = "0px";
 
 /**
  * Promien w klatce startowej. Promien w pikselach jest kontr-skalowany: przy
  * skali `s` promien CSS `r/s` daje na ekranie `r` px, wiec rog nie „puchnie"
- * w trakcie powiekszania. Procent liczy sie od WLASNEGO pudelka elementu,
- * wiec `50%` jest kolem przy kazdej skali i nie wymaga korekty.
+ * w trakcie powiekszania. Promien w procentach liczy sie od WLASNEGO pudelka
+ * elementu, wiec nie wymaga korekty.
  */
 function radiusAtScale(radius: string, scale: number): string {
   const px = /^(\d+(?:\.\d+)?)px$/.exec(radius);
@@ -117,8 +115,8 @@ function radiusAtScale(radius: string, scale: number): string {
 /**
  * Zdjecie: przesuniecie + JEDNORODNA skala z poprzedniego pudelka do nowego
  * (oba sa kwadratami, wiec obraz sie nie znieksztalca) oraz przejscie promienia
- * - kolo miniatury rosnie do kwadratu pelnego kadru i z powrotem, jak
- * `layoutId` wzorca (`borderRadius: 34` -> `0`).
+ * - miniatura z rogami 6 px rosnie do kwadratu pelnego kadru bez rogow i
+ * z powrotem, jak `layoutId` wzorca (`borderRadius: 34` -> `0`).
  */
 export function flipMediaKeyframes(
   first: FlipBox,

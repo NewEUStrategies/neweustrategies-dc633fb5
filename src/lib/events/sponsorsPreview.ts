@@ -24,6 +24,13 @@
 // ZNACZONE (`isDraft`) - tablica „Sponsorzy i reklama" zapisuje nowe logo jako
 // nieogłoszone, więc bez tego organizator widział logotypy na tablicy
 // i pustkę w podglądzie, bez słowa wyjaśnienia.
+//
+// DOKĄD PROWADZI LOGOTYP - TA SAMA REGUŁA, CO NA STRONIE. Lista przypięć nie
+// niesie ustawienia linku (`link_mode`/`link_url`), więc podgląd rysował
+// zawsze stronę firmy - także partnera ustawionego na „bez linku" albo na
+// adres kampanii. Ustawienie dokłada opcja `links` (zapytanie
+// `admin_event_sponsor_links`, które tablica „Sponsorzy i reklama" i tak
+// trzyma w cache), a cel liczy TEN SAM `sponsorHref`, co publiczny parser.
 import type { EventSponsorRow, EventSponsorTierRow } from "@/lib/events/sponsorsApi";
 import type {
   PublicSponsor,
@@ -35,6 +42,8 @@ import {
   SPONSOR_LOGO_SIZES,
   SPONSOR_ROLES,
   parseSponsorTierBenefits,
+  sponsorHref,
+  type SponsorLinkMode,
 } from "@/lib/events/sponsorsSurface";
 
 function text(value: unknown): string | null {
@@ -64,6 +73,12 @@ export interface SponsorTiersFromAdminRowsOptions {
   tiers?: readonly EventSponsorTierRow[] | null;
   /** `true` = także przypięcia nieogłoszone, oznaczone `isDraft: true`. */
   includeDrafts?: boolean;
+  /**
+   * Ustawienie linku logotypu per przypięcie (`admin_event_sponsor_links`).
+   * Brak wpisu (zapytanie w locie, awaria, przypięcie bez ustawienia) = cel
+   * domyślny, strona firmy - tak jak publiczny parser dla wiersza bez trybu.
+   */
+  links?: ReadonlyMap<string, { mode: SponsorLinkMode; url: string }> | null;
 }
 
 export function sponsorTiersFromAdminRows(
@@ -104,15 +119,15 @@ export function sponsorTiersFromAdminRows(
     };
 
     const websiteUrl = text(row.snapshot_website) ?? text(row.crm_website);
+    const link = opts.links?.get(id);
+    const linkMode: SponsorLinkMode = link?.mode ?? "exhibitor";
     const sponsor: PublicSponsor = {
       id,
       name,
       logoUrl: text(row.snapshot_logo_url) ?? text(row.crm_logo_url),
       websiteUrl,
-      // Lista panelu nie niesie ustawienia linku logotypu, a podgląd i tak
-      // nie wychodzi ze studia - rysuje cel domyślny (strona firmy).
-      linkMode: "exhibitor",
-      href: websiteUrl,
+      linkMode,
+      href: sponsorHref(linkMode, text(link?.url), websiteUrl),
       descriptionPl: text(row.snapshot_description_pl),
       descriptionEn: text(row.snapshot_description_en),
       country: text(row.snapshot_country) ?? text(row.crm_country),

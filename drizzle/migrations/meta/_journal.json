@@ -477,6 +477,13 @@
       "when": 1790465431359,
       "tag": "0067_event_registration_gaps_part3",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1790467260000,
+      "tag": "0068_event_person_crm_sync_lead_names",
+      "breakpoints": true
     }
   ]
 }

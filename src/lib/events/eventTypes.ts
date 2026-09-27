@@ -16,14 +16,15 @@
 // importowane WYLACZNIE jako typy). Modul jest liscien - wolno go zaimportowac
 // z dowolnego miejsca, takze z testu jednostkowego bez DOM-u.
 import type { Database } from "@/integrations/supabase/types";
+import { isEventFormat, type EventFormat } from "@/lib/events/eventFormats";
 
 // ---------------------------------------------------------------------------
 // Przeplyw wydarzenia: cztery niezalezne osie
 // ---------------------------------------------------------------------------
 
-/** GDZIE sie dzieje. Rozdzielone od `kind`, ktore mowi CZYM jest wydarzenie. */
-export const EVENT_FORMATS = ["onsite", "online", "hybrid"] as const;
-export type EventFormat = (typeof EVENT_FORMATS)[number];
+// Format (`EVENT_FORMATS`, `isEventFormat`) jest w lisciu `eventFormats` - czyta
+// go walidator adresu listy w chunku wejsciowym (patrz naglowek tamtego pliku).
+export { EVENT_FORMATS, isEventFormat, type EventFormat } from "@/lib/events/eventFormats";
 
 /** JAK sie zapisac. `none` = wydarzenie informacyjne, bez zapisow. */
 export const EVENT_REGISTRATION_MODES = ["rsvp", "form", "external", "none"] as const;
@@ -64,10 +65,6 @@ export const EVENT_GUEST_MODE_LABEL_KEYS: Record<EventGuestMode, string> = {
   teaser: "adminEvents.guestModes.teaser",
   full: "adminEvents.guestModes.full",
 };
-
-export function isEventFormat(value: string): value is EventFormat {
-  return (EVENT_FORMATS as readonly string[]).includes(value);
-}
 
 export function isEventRegistrationMode(value: string): value is EventRegistrationMode {
   return (EVENT_REGISTRATION_MODES as readonly string[]).includes(value);

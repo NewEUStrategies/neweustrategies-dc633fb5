@@ -129,6 +129,14 @@ describe("scannerApi - poświadczenie urządzenia", () => {
 
     await expect(api.bootstrapScanner(TOKEN_BRAMKI)).rejects.toThrow(komunikat.split(":")[0]);
   });
+
+  it("NIECZYTELNA konfiguracja nie udaje sesji - ekran dostaje odmowę poświadczenia", async () => {
+    // Sesja bez identyfikatora urządzenia albo wydarzenia nie ma czego
+    // skanować; ekran parowania musi zobaczyć odmowę, a nie pusty skaner.
+    rpc().setData("event_scanner_bootstrap", { label: "bez urządzenia" });
+
+    await expect(api.bootstrapScanner(TOKEN_BRAMKI)).rejects.toThrow(/invalid_device_token/);
+  });
 });
 
 /* ------------------------------------------------------------- odprawa --- */
@@ -150,6 +158,34 @@ describe("scannerApi - odprawa przy bramce", () => {
     expect(wynik.person).toBeNull();
   });
 
+  it("ODMOWA OFFLINE przy ważnym bilecie: `admit` false (bramka odesłała), `serverAdmit` true (bilet był ważny)", async () => {
+    // Baza zapisuje odmowę bramki, żeby odesłany człowiek nie stał się
+    // „obecny" - a urządzenie musi się dowiedzieć, że bilet był ważny, bo to
+    // konflikt „odesłany offline" do odnalezienia tej osoby.
+    rpc().setData("event_checkin_record", {
+      outcome: "denied_not_registered",
+      admit: false,
+      server_admit: true,
+      result: "denied_not_registered",
+    });
+
+    const wynik = await api.recordCheckinScan({ deviceToken: TOKEN_BRAMKI, code: KOD });
+
+    expect(wynik.admit).toBe(false);
+    expect(wynik.serverAdmit).toBe(true);
+  });
+
+  it("odpowiedź BEZ `server_admit` (kod nieznany, inne wydarzenie) ma zdanie bazy równe `admit`", async () => {
+    rpc().setData("event_checkin_record", { outcome: "granted", admit: true });
+    expect(
+      (await api.recordCheckinScan({ deviceToken: TOKEN_BRAMKI, code: KOD })).serverAdmit,
+    ).toBe(true);
+    rpc().setData("event_checkin_record", { outcome: "unknown_code", admit: false });
+    expect(
+      (await api.recordCheckinScan({ deviceToken: TOKEN_BRAMKI, code: KOD })).serverAdmit,
+    ).toBe(false);
+  });
+
   it("odpowiedź, która NIE JEST obiektem, też nie wpuszcza nikogo", async () => {
     rpc().setData("event_checkin_record", ["granted", true]);
 
@@ -158,6 +194,14 @@ describe("scannerApi - odprawa przy bramce", () => {
     expect(wynik.admit).toBe(false);
     expect(wynik.outcome).toBe("unknown");
     expect(wynik.checkpoint.id).toBeNull();
+  });
+
+  it("wyjście (`out`) dochodzi do ekranu jako wyjście", async () => {
+    rpc().setData("event_checkin_record", { outcome: "granted", admit: true, direction: "out" });
+
+    const wynik = await api.recordCheckinScan({ deviceToken: TOKEN_BRAMKI, code: KOD });
+
+    expect(wynik.direction).toBe("out");
   });
 
   it("kierunek spoza słownika bazy jest ODRZUCANY, a nie przepuszczany na ekran", async () => {
@@ -493,6 +537,17 @@ describe("scannerApi - lista leadów urządzenia stoiskowego", () => {
     expect(strona.rows[0].interestRating).toBeNull();
   });
 
+  it("wiersz listy BEZ identyfikatora leadu wypada - nie ma czego pokazać ani poprawić", async () => {
+    rpc().setData("event_lead_scans_list", {
+      rows: [{ first_name: "Bez", last_name: "Identyfikatora" }],
+      total: 1,
+    });
+
+    const strona = await api.fetchDeviceLeads({ deviceToken: TOKEN_BRAMKI, limit: 50, offset: 0 });
+
+    expect(strona.rows).toEqual([]);
+  });
+
   it("odmowa listy leadów wychodzi wyjątkiem - poświadczenie bez zakresu nie czyta cudzych danych", async () => {
     rpc().setError("event_lead_scans_list", "invalid_device_token: no lead scope");
 
@@ -560,6 +615,14 @@ describe("scannerApi - wydruk identyfikatora z płaszczyzny urządzenia", () => 
 
     expect(wynik.outcome).toBe("unknown");
     expect(wynik.printId).toBeNull();
+  });
+
+  it("odmowa wydruku wychodzi wyjątkiem z zachowanym kluczem bazy", async () => {
+    rpc().setError("event_badge_print_record", "device_scope_missing: no badge_print scope");
+
+    await expect(
+      api.recordBadgePrintScan({ deviceToken: TOKEN_BRAMKI, code: KOD }),
+    ).rejects.toThrow(/device_scope_missing/);
   });
 
   it("BLOKADA urządzenia dochodzi także ze ścieżki wydruku", async () => {

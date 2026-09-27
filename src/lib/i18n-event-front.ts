@@ -173,6 +173,31 @@ export const eventFrontPl = {
     },
 
     // ---------------------------------------------------------------------
+    // NABÓR PRELEGENTÓW W CHROME'IE WYDARZENIA: pozycja w pasku zakładek
+    // (tylko przy otwartym naborze) i odnośniki paneli w zakładce „Moje".
+    //
+    // TUTAJ, NIE W `i18n-event-cfp`. Pasek jedzie w chunku powłoki, czyli na
+    // KAŻDEJ stronie wydarzenia; słownik naboru to ~250 zdań (~10 KB gzip),
+    // a chrome potrzebuje z niego pięciu. Słownik frontu powłoka ładuje i tak.
+    // ---------------------------------------------------------------------
+    // Reklama strony głównej wydarzenia (`EventHomeAd`). Stała w słowniku
+    // PANELU sponsorów (`sponsorBoard.public.*`), więc publiczny przegląd
+    // każdego wydarzenia ładował cały słownik tablicy sponsorów (3,9 KB gzip)
+    // dla dwóch napisów - kronika `scripts/check-bundle-size.ts`, wpis XX.
+    homeAd: {
+      label: "Reklama",
+      close: "Zamknij reklamę",
+    },
+
+    cfp: {
+      tab: "Nabór prelegentów",
+      speakerPanel: "Panel prelegenta",
+      speakerPanelHint: "Twoje zgłoszenia, profil prelegenta, wystąpienia i materiały.",
+      reviewerPanel: "Panel recenzenta",
+      reviewerPanelHint: "Zgłoszenia do oceny w naborze prelegentów.",
+    },
+
+    // ---------------------------------------------------------------------
     // Miejsca i stan zapisów
     // ---------------------------------------------------------------------
     seats: {
@@ -454,6 +479,19 @@ export const eventFrontPl = {
         actionFor: "{{label}}: {{name}}",
         opensInNewTab: "(otwiera się w nowej karcie)",
         tracksLabel: "Ścieżki",
+      },
+      // Materiały prelegenta w dialogu profilu - tylko opublikowane przez
+      // organizatora (`event_speaker_materials_public`).
+      materials: {
+        heading: "Materiały",
+        registeredOnly: "dla zapisanych",
+        loadFailed: "Nie udało się wczytać materiałów prelegenta.",
+        kinds: {
+          slides: "Prezentacja",
+          document: "Dokument",
+          video: "Nagranie",
+          link: "Odnośnik",
+        },
       },
     },
 
@@ -823,6 +861,21 @@ export const eventFrontEn = {
       },
     },
 
+    // Call for speakers in the event chrome (tab bar + "My" tab links); kept in
+    // the front overlay so the shell does not load the whole CFP dictionary.
+    homeAd: {
+      label: "Advertisement",
+      close: "Close ad",
+    },
+
+    cfp: {
+      tab: "Call for speakers",
+      speakerPanel: "Speaker panel",
+      speakerPanelHint: "Your submissions, speaker profile, sessions and materials.",
+      reviewerPanel: "Reviewer panel",
+      reviewerPanelHint: "Submissions to review in the call for speakers.",
+    },
+
     seats: {
       left: "Seats left: {{count}}",
       lastOne: "One seat left",
@@ -1041,6 +1094,19 @@ export const eventFrontEn = {
         actionFor: "{{label}}: {{name}}",
         opensInNewTab: "(opens in a new tab)",
         tracksLabel: "Tracks",
+      },
+      // Speaker materials in the profile dialog - only those the organiser
+      // published (`event_speaker_materials_public`).
+      materials: {
+        heading: "Materials",
+        registeredOnly: "for registered attendees",
+        loadFailed: "The speaker's materials could not be loaded.",
+        kinds: {
+          slides: "Slides",
+          document: "Document",
+          video: "Video",
+          link: "Link",
+        },
       },
     },
 

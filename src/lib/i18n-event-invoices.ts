@@ -64,6 +64,8 @@ export const eventInvoicesPl = {
       fixErrors: "Popraw dane do faktury, zanim przejdziesz dalej.",
       existing: "Masz już zapisane dane do faktury dla tego zamówienia - możesz je zmienić.",
       invoiced: "Faktura do tego zamówienia jest już wystawiona ({{number}}).",
+      operatorIssues:
+        "Za płatność kartą fakturę wystawia operator płatności - dane firmy (NIP) podasz w formularzu płatności, jeśli o nie zapyta.",
     },
     profile: {
       title: "Faktury za wydarzenia",
@@ -85,6 +87,15 @@ export const eventInvoicesPl = {
       requestPending: "Prośba przyjęta - czeka na wystawienie przez organizatora.",
       deadline: "Prośbę możesz złożyć do {{date}}.",
       windowClosed: "Termin na prośbę o fakturę minął {{date}} - skontaktuj się z organizatorem.",
+      blocked: {
+        invoiced: "Organizator przygotowuje fakturę za to zamówienie albo już ją wystawił.",
+        disabled:
+          "Organizator tego wydarzenia nie wystawia faktur w serwisie - skontaktuj się z nim.",
+        otherRequester:
+          "O fakturę za to zamówienie poprosiła już inna osoba związana z tym zamówieniem.",
+        operatorInvoice:
+          "Za tę płatność kartą fakturę wystawia operator płatności, a nie organizator.",
+      },
       unpaid: "Czeka na płatność",
       packageLabel: "Pakiet: {{name}}",
       seats_one: "{{count}} miejsce",
@@ -127,6 +138,13 @@ export const eventInvoicesPl = {
       invalidEmail: "Adres e-mail do faktury jest niepoprawny.",
       invalidPoNumber: "Numer zamówienia może mieć najwyżej 100 znaków.",
       invalidRecipient: "Nazwa albo adres odbiorcy są za długie.",
+      invoicingDisabled: "Organizator tego wydarzenia nie wystawia faktur w serwisie.",
+      operatorInvoice:
+        "Za tę płatność kartą fakturę wystawia operator płatności, a nie organizator.",
+      requestForeign:
+        "O fakturę za to zamówienie poprosiła już inna osoba - tylko ona może zmienić dane do faktury.",
+      sourcePlanTicket:
+        "To miejsce pokrywa bilet z Twojego planu członkowskiego - nie było płatności, więc nie ma faktury.",
     },
     pdf: {
       titles: {
@@ -165,6 +183,8 @@ export const eventInvoicesPl = {
       total: "Razem",
       toPay: "Do zapłaty",
       paid: "Zapłacono",
+      toRefund: "Do zwrotu",
+      refunded: "Zwrócono",
       correctsLine: "Korekta do faktury {{number}} z dnia {{date}}",
       correctionReason: "Przyczyna korekty",
       exemptBasis: "Podstawa zwolnienia z VAT",
@@ -229,6 +249,8 @@ export const eventInvoicesEn = {
       fixErrors: "Fix the invoice details before you continue.",
       existing: "Invoice details for this order are already saved - you can change them.",
       invoiced: "The invoice for this order has already been issued ({{number}}).",
+      operatorIssues:
+        "For card payments the invoice is issued by the payment operator - enter your company details (tax ID) in the payment form if it asks for them.",
     },
     profile: {
       title: "Event invoices",
@@ -251,6 +273,13 @@ export const eventInvoicesEn = {
       deadline: "You can request it until {{date}}.",
       windowClosed:
         "The deadline for an invoice request passed on {{date}} - contact the organizer.",
+      blocked: {
+        invoiced: "The organizer is preparing the invoice for this order or has already issued it.",
+        disabled: "The organizer of this event does not issue invoices here - please contact them.",
+        otherRequester: "Another person linked to this order has already requested the invoice.",
+        operatorInvoice:
+          "For this card payment the invoice is issued by the payment operator, not the organizer.",
+      },
       unpaid: "Awaiting payment",
       packageLabel: "Package: {{name}}",
       seats_one: "{{count}} seat",
@@ -291,6 +320,13 @@ export const eventInvoicesEn = {
       invalidEmail: "The invoice e-mail address is invalid.",
       invalidPoNumber: "The purchase order number can have at most 100 characters.",
       invalidRecipient: "The recipient name or address is too long.",
+      invoicingDisabled: "The organizer of this event does not issue invoices here.",
+      operatorInvoice:
+        "For this card payment the invoice is issued by the payment operator, not the organizer.",
+      requestForeign:
+        "Another person has already requested the invoice for this order - only they can change its details.",
+      sourcePlanTicket:
+        "A ticket from your membership plan covers this seat - there was no payment, so there is no invoice.",
     },
     pdf: {
       titles: { invoice: "VAT invoice", proforma: "Pro forma invoice", correction: "Credit note" },
@@ -325,6 +361,8 @@ export const eventInvoicesEn = {
       total: "Total",
       toPay: "Amount due",
       paid: "Paid",
+      toRefund: "Amount to refund",
+      refunded: "Refunded",
       correctsLine: "Credit note to invoice {{number}} of {{date}}",
       correctionReason: "Reason for correction",
       exemptBasis: "Legal basis of the VAT exemption",

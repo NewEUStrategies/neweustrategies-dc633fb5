@@ -5,11 +5,19 @@
 //     skladanym w przegladarce z migawki dokumentu - to ten sam dokument,
 //     ktory widzi organizator, w jezyku faktury, nie strony;
 //   * zamowienia bez faktury (wlasne zapisy i pakiety) z prosba o fakture
-//     do konca terminu pilnowanego przez baze.
+//     do konca terminu pilnowanego przez baze. Gdy prosic nie mozna, baza
+//     mowi DLACZEGO (`request_block`): faktura w toku, organizator nie
+//     fakturuje, prosba innego konta, po terminie, platnosc karta fakturuje
+//     operator - i to zdanie widzi kupujacy (a nie ogolne "termin minal").
 //
 // DANE SA PRYWATNE I PO STRONIE KLIENTA: zapytania startuja dopiero z sesja
 // (`enabled`), wiec SSR i pierwszy render klienta rysuja to samo (stan
 // wczytywania) - bez rozjazdu hydratacji.
+//
+// SKLADANIE PDF (etykiety w jezyku faktury + generator) PRZYCHODZI `import()`-EM
+// W CHWILI KLIKNIECIA „Pobierz". Wiekszosc wejsc na te strone konczy sie na
+// liscie albo prosbie o fakture; generator dokumentu w chunku trasy placil
+// kazdy z nich.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -22,8 +30,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InvoiceRequestDialog } from "@/components/events/invoices/molecules/InvoiceRequestDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { buyerDraftFromColumns, emptyBuyerDraft } from "@/lib/events/eventInvoiceBuyerDraft";
-import type { EventInvoiceKind } from "@/lib/events/eventInvoiceEnums";
-import { downloadEventInvoicePdf } from "@/lib/events/eventInvoicePdfLabels";
+import {
+  EVENT_INVOICE_REQUEST_BLOCKS,
+  pickEnum,
+  type EventInvoiceKind,
+  type EventInvoiceRequestBlock,
+} from "@/lib/events/eventInvoiceEnums";
 import { eventInvoiceErrorMessage } from "@/lib/events/eventInvoiceErrors";
 import {
   fetchMyInvoice,
@@ -41,6 +53,14 @@ const KIND_LABEL_KEYS: Record<EventInvoiceKind, string> = {
   invoice: "eventInvoices.kinds.invoice",
   proforma: "eventInvoices.kinds.proforma",
   correction: "eventInvoices.kinds.correction",
+};
+
+const BLOCK_LABEL_KEYS: Record<EventInvoiceRequestBlock, string> = {
+  invoiced: "eventInvoices.profile.blocked.invoiced",
+  disabled: "eventInvoices.profile.blocked.disabled",
+  other_requester: "eventInvoices.profile.blocked.otherRequester",
+  window_closed: "eventInvoices.profile.windowClosed",
+  operator_invoice: "eventInvoices.profile.blocked.operatorInvoice",
 };
 
 function kindKey(kind: string): string {
@@ -71,7 +91,11 @@ export function EventInvoicesProfileCard() {
   async function download(row: MyInvoiceRow): Promise<void> {
     setBusyId(row.id);
     try {
-      downloadEventInvoicePdf(await fetchMyInvoice(row.id));
+      const [doc, pdf] = await Promise.all([
+        fetchMyInvoice(row.id),
+        import("@/lib/events/eventInvoicePdfLabels"),
+      ]);
+      pdf.downloadEventInvoicePdf(doc);
     } catch {
       toast.error(t("eventInvoices.profile.downloadFailed"));
     } finally {
@@ -243,6 +267,7 @@ function OrderRow({
   const pending = row.request_status === "pending";
   // Wycofac mozna wylacznie OCZEKUJACA prosbe - i tylko wtedy znamy jej id.
   const pendingRequestId = pending ? row.request_id : null;
+  const block = pickEnum(EVENT_INVOICE_REQUEST_BLOCKS, row.request_block);
   return (
     <li className="flex flex-wrap items-center justify-between gap-2 p-3">
       <div className="min-w-0 space-y-0.5">
@@ -263,13 +288,21 @@ function OrderRow({
             {t("eventInvoices.profile.requestPending")}
           </p>
         ) : null}
-        {row.request_deadline === null ? null : row.can_request ? (
-          <p className="text-xs text-muted-foreground">
-            {t("eventInvoices.profile.deadline", { date: row.request_deadline })}
-          </p>
+        {row.can_request ? (
+          row.request_deadline === null ? null : (
+            <p className="text-xs text-muted-foreground">
+              {t("eventInvoices.profile.deadline", { date: row.request_deadline })}
+            </p>
+          )
         ) : (
-          <p className="text-xs text-destructive">
-            {t("eventInvoices.profile.windowClosed", { date: row.request_deadline })}
+          <p
+            className={
+              block === "window_closed"
+                ? "text-xs text-destructive"
+                : "text-xs text-muted-foreground"
+            }
+          >
+            {t(BLOCK_LABEL_KEYS[block], { date: row.request_deadline ?? "" })}
           </p>
         )}
       </div>

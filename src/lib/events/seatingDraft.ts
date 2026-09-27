@@ -4,7 +4,7 @@
 // albo niepoprawne ("12,", "-") - formularz nie moze go wtedy nadpisac zerem.
 // Konwersja dzieje sie w walidacji i w `...ToInput`, w jednym miejscu.
 //
-// LIMITY SA LUSTREM CHECK-OW z migracji 20260926130000 (parytet pilnuje
+// LIMITY SA LUSTREM CHECK-OW z migracji 20260927000400 (parytet pilnuje
 // `seatingDbEnumParity.test.ts`). Formularz waliduje PRZED wyslaniem tylko po
 // to, zeby organizator dowiedzial sie o bledzie od razu; ostatnie slowo ma baza.
 //

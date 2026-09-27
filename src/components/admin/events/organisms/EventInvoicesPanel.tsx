@@ -12,7 +12,13 @@
 //   * kasa w trybie operatora platnosci (Merchant of Record, ta sama regula
 //     co `checkoutBillingPlane()`): sprzedawca zamowien z karty jest wtedy
 //     operator i wlasnej faktury VAT za nie wystawic nie wolno (baza
-//     odmawia); proformy i zamowienia z przelewu sa dostepne.
+//     odmawia); proformy i zamowienia z przelewu sa dostepne;
+//   * kasa na wlasnym koncie z fakturami Stripe (`invoice_creation`): za
+//     platnosc karta fakture wystawia juz Stripe - druga faktura VAT za te
+//     sama sprzedaz nie powstanie (baza odmawia: `operator_invoice_enabled`).
+//     Bez faktur Stripe - notka, ze zamowienie z karty sprzed ostatniej
+//     zmiany ustawien kasy faktury organizatora nie dostanie (kasa nie
+//     zapisuje plaszczyzny na zamowieniu, wiec nie wiadomo, kto je sprzedal).
 //
 // PO WYSTAWIENIU wysylamy kupujacym powiadomienie (funkcja serwerowa
 // z bramka w bazie, klucz idempotencji per dokument) - organizator widzi,
@@ -62,8 +68,9 @@ export function EventInvoicesPanel({ eventId }: { eventId: string }) {
   const [ksefRow, setKsefRow] = useState<EventInvoiceListRow | null>(null);
 
   const enabled = settingsQ.data?.enabled === true;
-  const managed =
-    checkoutQ.data !== undefined && checkoutBillingPlane(checkoutQ.data) === "managed";
+  const plane = checkoutQ.data === undefined ? null : checkoutBillingPlane(checkoutQ.data);
+  const managed = plane === "managed";
+  const stripeInvoices = plane === "merchant" && checkoutQ.data?.invoice_creation === true;
 
   async function sendNotices(invoiceIds: readonly string[]): Promise<void> {
     if (invoiceIds.length === 0) return;
@@ -105,6 +112,18 @@ export function EventInvoicesPanel({ eventId }: { eventId: string }) {
           <p className="text-sm font-semibold">{t("adminEventInvoices.mor.title")}</p>
           <p className="text-sm">{t("adminEventInvoices.mor.body")}</p>
         </div>
+      ) : stripeInvoices ? (
+        <div
+          role="note"
+          className="space-y-1 rounded-md border border-destructive/40 bg-destructive/5 p-3"
+        >
+          <p className="text-sm font-semibold">{t("adminEventInvoices.operatorInvoice.title")}</p>
+          <p className="text-sm">{t("adminEventInvoices.operatorInvoice.body")}</p>
+        </div>
+      ) : plane === "merchant" ? (
+        <p role="note" className="text-sm text-muted-foreground">
+          {t("adminEventInvoices.planeNote")}
+        </p>
       ) : null}
       <Tabs value={tab} onValueChange={(value) => setTab(pickEnum(TABS, value))}>
         <TabsList className="flex-wrap">

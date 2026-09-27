@@ -25,7 +25,19 @@
 //  5. KONTAKTY BEZ KONTAKTÓW MAJĄ NASTĘPNY KROK. Puste „nie masz jeszcze
 //     kontaktów” z odnośnikiem do sieci to co innego niż pusty prostokąt.
 //
-//  6. NABÓR PRELEGENTÓW I PLAN SALI DOKŁADAJĄ SIĘ DO PANELU, NIE GO ZASTĘPUJĄ.
+//  6. ZAKŁADKA JEST STEROWANA Z ADRESU (`?tab=`). Panel otwiera zakładkę
+//     z właściwości `tab`, a klik zgłasza zmianę przez `onTabChange` - trasa
+//     zapisuje ją w adresie. Dopóki sesja się rozstrzyga, panel rysuje
+//     WYŁĄCZNIE szkielet (tak samo na serwerze), więc HTML nie zależy od `tab`.
+//
+//  7. GNIAZDA TORÓW (spec B.11, BLK-5). Harmonogram i „Po wydarzeniu" to
+//     gniazda torów A i C. Ten plik zastępuje KAŻDY moduł gniazda atrapą z
+//     `data-testid`, która zapisuje właściwości - i sprawdza wyłącznie MIEJSCE
+//     montażu i właściwości. Zachowanie gniazda mieszka w jego własnym teście
+//     (`slots/__tests__/EventMeScheduleSlot.test.tsx` przejął stąd asercje
+//     harmonogramu, w tym dawny `it.fails` o odmowie agendy).
+//
+//  8. NABÓR PRELEGENTÓW I PLAN SALI DOKŁADAJĄ SIĘ DO PANELU, NIE GO ZASTĘPUJĄ.
 //     Odnośniki „Panel prelegenta / recenzenta” (f1) stoją w nagłówku i dostają
 //     slug TEGO wydarzenia; karta „Twoje miejsce” (f4) stoi NAD biletami na
 //     zakładce rejestracji. Zgubiony slug albo zła kolejność to prelegent
@@ -381,6 +393,9 @@ beforeEach(() => {
   h.zmianyZakladki.length = 0;
   h.naborLinki.length = 0;
   h.miejsca.length = 0;
+  h.gniazdoHarmonogramu.length = 0;
+  h.gniazdoPoWydarzeniu.length = 0;
+  h.zmianyZakladki.length = 0;
   h.pobierzProfil.mockResolvedValue(stan());
   h.pobierzOpcje.mockResolvedValue(makeEventParticipantOptions());
 });
@@ -441,6 +456,10 @@ describe("EventMePanel - sesja w trakcie rozstrzygania (i render serwerowy)", ()
     expect(screen.queryByRole("tablist")).toBeNull();
     expect(screen.queryByText("eventMe.signedOut")).toBeNull();
     expect(screen.queryByTestId("gniazdo-harmonogram")).toBeNull();
+    // Odnośniki naboru i karta miejsca też czekają na rozstrzygnięcie sesji.
+    expect(screen.queryByTestId("odnosniki-naboru")).toBeNull();
+    expect(h.naborLinki).toEqual([]);
+    expect(h.miejsca).toEqual([]);
   });
 
   it("NIE pyta bazy, dopóki nie wiadomo, czyja to sesja", () => {

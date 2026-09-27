@@ -103,8 +103,8 @@ vi.mock("@/lib/events/usePublicEvent", () => ({
 // Pozycja „Nabór prelegentów" pyta o fazę naboru po montażu. Ten dowód dotyczy
 // klas paska, więc faza wchodzi z atrapy: nabór zamknięty = brak pozycji
 // (pozycję przy otwartym naborze dowodzi `EventCfpTabItem.test.tsx`).
-vi.mock("@/lib/events/useCfpMe", () => ({
-  useCfpPublic: () => ({ data: null }),
+vi.mock("@/lib/events/useCfpShell", () => ({
+  useCfpTabOpen: () => false,
 }));
 
 /** Wartości motywu serwisu - odpowiednik bloku `:root, .light` z `styles.css`. */

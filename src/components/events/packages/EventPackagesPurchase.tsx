@@ -79,7 +79,8 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
   const [buyerEmail, setBuyerEmail] = useState("");
   const [invoiceNote, setInvoiceNote] = useState("");
   const [openOrderId, setOpenOrderId] = useState<string | null>(null);
-  const invoice = useInvoiceRequestController({ target: null, enabled: true });
+  // Pakiet oplaca sie przelewem - blok faktury, gdy organizator fakturuje.
+  const invoice = useInvoiceRequestController({ target: null, enabled: true, payment: "transfer" });
 
   const offers = offerQ.data ?? [];
   // Do pierwszej odpowiedzi `data` jest undefined. JEDNA zamiana na pustą

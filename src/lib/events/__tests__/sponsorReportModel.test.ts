@@ -128,7 +128,9 @@ describe("sponsorReportTotals", () => {
       material_opens: 1,
       leads_total: 4,
       leads_consented: 2,
-      meetings_total: 3,
+      // Zaproszeń 5, umówionych 3 - kafel „Umówione” czyta umówione.
+      meetings_total: 5,
+      meetings_accepted: 3,
       meetings_held: 1,
     }),
     summary({
@@ -150,7 +152,7 @@ describe("sponsorReportTotals", () => {
       materialOpens: 1,
       leadsTotal: 5,
       leadsConsented: 2,
-      meetingsTotal: 3,
+      meetingsScheduled: 3,
       meetingsHeld: 1,
     });
   });

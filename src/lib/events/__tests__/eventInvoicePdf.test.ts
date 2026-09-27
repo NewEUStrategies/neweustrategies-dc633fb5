@@ -4,6 +4,9 @@
 // wiec test czyta WYGENEROWANE BAJTY: struktura PDF, tresc strumieni w
 // kodowaniu glifow modulu rozliczen, wiele stron z powtorzonym naglowkiem
 // tabeli, sekcje warunkowe (anulowanie, korekta, rachunek, zw, KSeF, proforma).
+// Dluga nazwa i adres stron sa ZAWIJANE w swojej kolumnie (inaczej nazwa
+// sprzedawcy wchodzila na kolumne nabywcy, a adres nabywcy wychodzil poza
+// strone), a korekta z ujemna suma drukuje "Do zwrotu", nie "Do zaplaty: -".
 import { describe, expect, it } from "vitest";
 
 import { encodePdfText } from "@/lib/billing/invoicePdf";
@@ -49,6 +52,8 @@ const LABELS: EventInvoicePdfLabels = {
   total: "Razem",
   toPay: "Do zapłaty",
   paid: "Zapłacono",
+  toRefund: "Do zwrotu",
+  refunded: "Zwrócono",
   correctsLine: "Korekta do FV/2026/09/0001",
   correctionReason: "Przyczyna",
   exemptBasis: "Podstawa zwolnienia",
@@ -223,6 +228,90 @@ describe("renderEventInvoicePdf", () => {
     expect(contains(text, `Strona ${pages}/${pages}`)).toBe(true);
     expect(contains(text, "8%")).toBe(true);
     expect(text.match(/\/Type \/Page /g)).toHaveLength(pages);
+  });
+});
+
+/** Pozycje x tekstow wiersza (operator `Tm`) w kolejnosci strumienia. */
+function textX(text: string, value: string): number[] {
+  const encoded = encodePdfText(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return [...text.matchAll(new RegExp(`1 0 0 1 ([0-9.]+) [0-9.-]+ Tm \\(${encoded}\\)`, "g"))].map(
+    (match) => Number(match[1]),
+  );
+}
+
+describe("strony transakcji: dlugie nazwy i adresy", () => {
+  it("nazwa sprzedawcy i adres nabywcy zawiniete w kolumnach (nic nie wychodzi za kolumne)", () => {
+    const sellerName =
+      "Stowarzyszenie Organizatorow Kongresow Naukowych i Branzowych Europy Srodkowej";
+    const buyerAddress =
+      "ul. Bardzo Dluga Nazwa Ulicy Imienia Wielu Zasluzonych Patronow 127 lok. 45";
+    const text = pdfText(
+      renderEventInvoicePdf(
+        doc({ seller: { seller_name: sellerName }, invoice: { buyer_address: buyerAddress } }),
+        LABELS,
+      ),
+    );
+    expect(contains(text, sellerName)).toBe(false);
+    expect(contains(text, buyerAddress)).toBe(false);
+    const sellerRows = wrapText(sellerName, 44);
+    expect(sellerRows.length).toBeGreaterThan(1);
+    for (const row of sellerRows) {
+      expect(row.length).toBeLessThanOrEqual(44);
+      expect(textX(text, row)).toEqual([40]);
+    }
+    const addressRows = wrapText(buyerAddress, 52);
+    expect(addressRows.length).toBeGreaterThan(1);
+    for (const row of addressRows) expect(textX(text, row)).toEqual([310]);
+  });
+
+  it("dluga nazwa odbiorcy tez jest zawijana", () => {
+    const recipient = "Wydzial Nauk Spolecznych i Humanistycznych Uniwersytetu Nazwa Dluga";
+    const text = pdfText(
+      renderEventInvoicePdf(doc({ invoice: { recipient_name: recipient } }), LABELS),
+    );
+    expect(contains(text, recipient)).toBe(false);
+    for (const row of wrapText(recipient, 52)) expect(textX(text, row)).toEqual([310]);
+  });
+});
+
+describe("kwota dokumentu", () => {
+  it("korekta z ujemna suma: 'Do zwrotu' bez minusa, po zwrocie 'Zwrocono'", () => {
+    const negative = {
+      kind: "correction",
+      correction_mode: "full",
+      correction_reason: "Zwrot",
+      gross_cents: -230000,
+      net_cents: -186992,
+      vat_cents: -43008,
+    };
+    const toRefund = pdfText(renderEventInvoicePdf(doc({ invoice: negative }), LABELS));
+    expect(contains(toRefund, "Do zwrotu: 2 300,00 PLN")).toBe(true);
+    expect(toRefund.includes(encodePdfText("Do zapłaty"))).toBe(false);
+    const refunded = pdfText(
+      renderEventInvoicePdf(
+        doc({ invoice: { ...negative, paid_at: "2026-09-21T10:00:00Z" } }),
+        LABELS,
+      ),
+    );
+    expect(contains(refunded, "Zwrócono: 2 300,00 PLN")).toBe(true);
+  });
+
+  it("korekta o wartosci zero (zmiana stawki): zwykle 'Do zaplaty: 0,00'", () => {
+    const text = pdfText(
+      renderEventInvoicePdf(
+        doc({
+          invoice: {
+            kind: "correction",
+            correction_mode: "partial",
+            gross_cents: 0,
+            net_cents: 0,
+            vat_cents: 0,
+          },
+        }),
+        LABELS,
+      ),
+    );
+    expect(contains(text, "Do zapłaty: 0,00 PLN")).toBe(true);
   });
 });
 

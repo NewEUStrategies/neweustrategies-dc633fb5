@@ -57,6 +57,10 @@ export interface EventInvoicePdfLabels {
   total: string;
   toPay: string;
   paid: string;
+  /** Korekta z ujemna suma: kwota do zwrotu nabywcy (drukowana bez minusa). */
+  toRefund: string;
+  /** Korekta z ujemna suma, zwrot juz wykonany. */
+  refunded: string;
   /** Wiersz naglowka korekty, np. "Korekta do faktury FV/2026/09/0001 z 2026-09-26". */
   correctsLine: string;
   correctionReason: string;
@@ -76,6 +80,13 @@ const RIGHT = 555;
 const TOP = 800;
 const BOTTOM = 70;
 const DESCRIPTION_CHARS = 46;
+// Kolumny stron transakcji maja ok. 250 pt (sprzedawca od 40 do 300, nabywca
+// od 310 do 555). Helvetica: pogrubiona 10 pt ~5,5 pt na znak, zwykla 9 pt
+// ~4,5 pt - nazwe i adres (do 200 znakow w bazie) ZAWIJAMY, inaczej dluga
+// nazwa sprzedawcy wchodzila na kolumne nabywcy, a adres nabywcy wychodzil
+// poza strone.
+const PARTY_NAME_CHARS = 44;
+const PARTY_ROW_CHARS = 52;
 const FONT_REGULAR = "F1";
 const FONT_BOLD = "F2";
 
@@ -171,7 +182,35 @@ function partyRows(
     [party.postalCode, party.city].filter((part) => part !== "").join(" "),
     party.country,
     party.taxId === "" ? "" : `${taxLabel}: ${party.taxId}`,
-  ].filter((row) => row.trim() !== "");
+  ]
+    .filter((row) => row.trim() !== "")
+    .flatMap((row) => wrapText(row, PARTY_ROW_CHARS));
+}
+
+/** Nazwa i adres strony w jej kolumnie (zawiniete). */
+function drawParty(canvas: Canvas, x: number, name: string, rows: readonly string[]): void {
+  for (const row of wrapText(name, PARTY_NAME_CHARS)) {
+    canvas.text(x, row, 10, true);
+    canvas.y -= 11;
+  }
+  canvas.y += 11;
+  for (const row of rows) {
+    canvas.y -= 11;
+    canvas.text(x, row, 9);
+  }
+}
+
+/**
+ * Wiersz kwoty dokumentu. Korekta z UJEMNA suma to zwrot dla nabywcy - "Do
+ * zaplaty: -2 300,00" myli; drukujemy "Do zwrotu"/"Zwrocono" i kwote bez minusa.
+ */
+function amountDueLine(doc: EventInvoiceDocument, labels: EventInvoicePdfLabels): string {
+  if (doc.grossCents < 0) {
+    const label = doc.paidAt === null ? labels.toRefund : labels.refunded;
+    return `${label}: ${formatInvoiceMoney(-doc.grossCents, doc.currency)}`;
+  }
+  const label = doc.paidAt === null ? labels.toPay : labels.paid;
+  return `${label}: ${formatInvoiceMoney(doc.grossCents, doc.currency)}`;
 }
 
 function tableHeader(canvas: Canvas, labels: EventInvoicePdfLabels): void {
@@ -246,31 +285,25 @@ export function renderEventInvoicePdf(
   const partiesTop = canvas.y;
   canvas.text(LEFT, labels.seller, 9, true);
   canvas.y -= 13;
-  canvas.text(LEFT, doc.seller.name, 10, true);
-  for (const row of partyRows(doc.seller, labels.taxId)) {
-    canvas.y -= 11;
-    canvas.text(LEFT, row, 9);
-  }
+  drawParty(canvas, LEFT, doc.seller.name, partyRows(doc.seller, labels.taxId));
   const sellerBottom = canvas.y;
   canvas.y = partiesTop;
   const buyerX = 310;
   canvas.text(buyerX, labels.buyer, 9, true);
   canvas.y -= 13;
-  for (const row of wrapText(doc.buyer.name, 48)) {
-    canvas.text(buyerX, row, 10, true);
-    canvas.y -= 11;
-  }
-  canvas.y += 11;
-  for (const row of partyRows(doc.buyer, labels.taxId)) {
-    canvas.y -= 11;
-    canvas.text(buyerX, row, 9);
-  }
+  drawParty(canvas, buyerX, doc.buyer.name, partyRows(doc.buyer, labels.taxId));
   if (doc.buyer.recipientName !== "") {
     canvas.y -= 15;
     canvas.text(buyerX, labels.recipient, 9, true);
     canvas.y -= 11;
-    canvas.text(buyerX, doc.buyer.recipientName, 9);
-    for (const row of wrapText(doc.buyer.recipientAddress, 52).filter((part) => part !== "")) {
+    for (const row of wrapText(doc.buyer.recipientName, PARTY_ROW_CHARS)) {
+      canvas.text(buyerX, row, 9);
+      canvas.y -= 11;
+    }
+    canvas.y += 11;
+    for (const row of wrapText(doc.buyer.recipientAddress, PARTY_ROW_CHARS).filter(
+      (part) => part !== "",
+    )) {
       canvas.y -= 11;
       canvas.text(buyerX, row, 9);
     }
@@ -330,12 +363,7 @@ export function renderEventInvoicePdf(
   canvas.textRight(COL.vat, amount(doc.vatCents), 8, true);
   canvas.textRight(COL.gross, amount(doc.grossCents), 8, true);
   canvas.y -= 20;
-  canvas.textRight(
-    RIGHT,
-    `${doc.paidAt === null ? labels.toPay : labels.paid}: ${formatInvoiceMoney(doc.grossCents, doc.currency)}`,
-    11,
-    true,
-  );
+  canvas.textRight(RIGHT, amountDueLine(doc, labels), 11, true);
   canvas.y -= 18;
 
   // PLATNOSC, ZWOLNIENIE, KSeF, UWAGI.

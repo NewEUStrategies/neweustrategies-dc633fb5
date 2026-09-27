@@ -17,6 +17,7 @@
 // `manifest.failed` - eksport nigdy nie udaje kompletności, której nie ma.
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { cfpExportSection, type CfpExportSectionId } from "@/lib/events/cfpExportSection";
 import {
   EXPORT_MESSAGE_LIMIT,
   EXPORT_PROFILE_VIEWERS_LIMIT,
@@ -90,19 +91,16 @@ export const exportMyData = createServerFn({ method: "POST" })
     // SECURITY DEFINER RPC wołającego, rozbite na zadeklarowane sekcje.
     // Notatka decyzji i cudze oceny zostają po stronie bazy
     // (manifest.excluded.event_cfp_assessments).
+    //
+    // Rozbiór zwrotki na sekcje mieszka w czystym `cfpExportSection`
+    // (`@/lib/events/cfpExportSection`, pokryty w 100%): ten plik nie ma
+    // pokrycia runtime'owego, więc gałęzie błędu i brakującego klucza muszą
+    // mieć test poza nim. Tu zostaje samo wywołanie RPC.
     const cfpExport = Promise.resolve(
       supabase.rpc("event_cfp_export_my_data", { p_limit: ROW_LIMIT }),
     );
-    const cfpSection = (key: string): PromiseLike<SectionResult> =>
-      cfpExport.then((result) => {
-        if (result.error) return { data: null, error: result.error };
-        const payload = result.data;
-        const rows =
-          payload !== null && typeof payload === "object" && !Array.isArray(payload)
-            ? (payload[key] ?? [])
-            : [];
-        return { data: rows, error: null };
-      });
+    const cfpSection = (key: CfpExportSectionId): PromiseLike<SectionResult> =>
+      cfpExport.then((result) => cfpExportSection(result, key));
 
     // Kolumny jawnie, bez "*": eksport ma być stabilnym kontraktem, nie
     // przypadkowym zrzutem schematu (i nie może się wywrócić na kolumnie

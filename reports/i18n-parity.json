@@ -36,6 +36,7 @@
     "eventCfp",
     "adminEventSeating",
     "eventSeating",
+    "adminEventClone",
     "teamGrid",
     "eventParticipant",
     "adminEventParticipant",
@@ -48,7 +49,16 @@
     "eventHead",
     "adminEventInvoices",
     "eventInvoices",
-    "eventWallet"
+    "eventWallet",
+    "eventParticipant",
+    "adminEventParticipant",
+    "eventCalendar",
+    "eventPlan",
+    "eventTicketActions",
+    "adminEventOffers",
+    "eventFollowUp",
+    "adminEventFollowUp",
+    "eventHead"
   ],
   "missing": [],
   "missingEn": [],
@@ -62,6 +72,8 @@
     "adminDashboard.marketing.title",
     "adminEventAdsFunnel.costSources.csv",
     "adminEventAgenda.tracks.workspace.minutes",
+    "adminEventClone.count",
+    "adminEventClone.preview.meetingDaysRange",
     "adminEventInvoices.documents.columns.ksef",
     "adminEventRegistration.audienceGrantHistory.summary",
     "adminEventRegistration.tickets.studio.columns.status",
@@ -247,6 +259,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 573
+    "untranslated": 575
   }
 }

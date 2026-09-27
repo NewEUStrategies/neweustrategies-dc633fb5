@@ -11,11 +11,14 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  EVENT_INVOICE_ADMISSIONS,
+  EVENT_INVOICE_CORRECTION_HINTS,
   EVENT_INVOICE_CORRECTION_MODES,
   EVENT_INVOICE_KINDS,
   EVENT_INVOICE_KSEF_STATUSES,
   EVENT_INVOICE_LOCALES,
   EVENT_INVOICE_PAYMENT_METHODS,
+  EVENT_INVOICE_REQUEST_BLOCKS,
   EVENT_INVOICE_REQUEST_STATUSES,
   EVENT_INVOICE_SOURCE_KINDS,
   EVENT_INVOICE_STATUSES,
@@ -24,7 +27,7 @@ import {
 import { EVENT_INVOICE_VAT_RATES } from "@/lib/events/eventInvoiceMath";
 
 const SUPABASE = readFileSync(
-  join(process.cwd(), "supabase", "migrations", "20260926110000_event_invoices.sql"),
+  join(process.cwd(), "supabase", "migrations", "20260927000200_event_invoices.sql"),
   "utf8",
 );
 const DRIZZLE = readFileSync(
@@ -56,7 +59,7 @@ const PAIRS: ReadonlyArray<readonly [string, readonly string[]]> = [
   ["event_invoice_settings_default_locale_values", EVENT_INVOICE_LOCALES],
 ];
 
-describe("parytet zbiorow faktur z CHECK-ami migracji 20260926110000", () => {
+describe("parytet zbiorow faktur z CHECK-ami migracji 20260927000200", () => {
   it.each(PAIRS)("%s", (constraint, values) => {
     expect(checkValues(SUPABASE, constraint)).toEqual([...values]);
     expect(checkValues(DRIZZLE, constraint)).toEqual([...values]);
@@ -64,6 +67,58 @@ describe("parytet zbiorow faktur z CHECK-ami migracji 20260926110000", () => {
 
   it("wycinek umie odmowic (nieznane ograniczenie to blad, nie pusta lista)", () => {
     expect(() => checkValues(SUPABASE, "event_invoices_nope_values")).toThrow(/Brak ograniczenia/);
+  });
+});
+
+/** Galezie `CASE ... END AS block` w `event_my_invoice_sources` (powod braku prosby). */
+function requestBlockValues(sql: string): string[] {
+  const end = sql.indexOf("END AS block");
+  if (end === -1) throw new Error("Brak powodu braku prosby w migracji faktur");
+  const slice = sql.slice(sql.lastIndexOf("CASE", end), end);
+  return [...slice.matchAll(/THEN '([a-z_]+)'/g)].map((match) => match[1]);
+}
+
+describe("parytet powodow braku prosby o fakture (request_block)", () => {
+  it("TS zna dokladnie te powody, ktore zwraca baza (w kolejnosci galezi)", () => {
+    expect(requestBlockValues(SUPABASE)).toEqual([...EVENT_INVOICE_REQUEST_BLOCKS]);
+    expect(requestBlockValues(DRIZZLE)).toEqual([...EVENT_INVOICE_REQUEST_BLOCKS]);
+  });
+
+  it("wycinek umie odmowic (brak galezi to blad, nie pusta lista)", () => {
+    expect(() => requestBlockValues("SELECT 1")).toThrow(/Brak powodu/);
+  });
+});
+
+/** Wynik `_event_invoice_correction_hint` (ostatni `RETURN CASE v_rank ... END;`). */
+function correctionHintValues(sql: string): string[] {
+  const at = sql.indexOf("RETURN CASE v_rank");
+  if (at === -1) throw new Error("Brak podpowiedzi korekty w migracji faktur");
+  const slice = sql.slice(at, sql.indexOf("END;", at));
+  return [...slice.matchAll(/'([a-z_]+)'/g)].map((match) => match[1]);
+}
+
+/** Galezie `'admission', CASE ... END` w `_event_invoice_registration_source`. */
+function admissionValues(sql: string): string[] {
+  const at = sql.indexOf("'admission', CASE");
+  if (at === -1) throw new Error("Brak miejsca oplaconego zapisu w migracji faktur");
+  const slice = sql.slice(at, sql.indexOf("END", at));
+  return [...slice.matchAll(/(?:THEN|ELSE) '([A-Za-z]+)'/g)].map((match) => match[1]);
+}
+
+describe("parytet podpowiedzi korekty i miejsca oplaconego zapisu", () => {
+  it("podpowiedz korekty: TS zna dokladnie powody bazy (w kolejnosci wagi)", () => {
+    expect(correctionHintValues(SUPABASE)).toEqual([...EVENT_INVOICE_CORRECTION_HINTS]);
+    expect(correctionHintValues(DRIZZLE)).toEqual([...EVENT_INVOICE_CORRECTION_HINTS]);
+  });
+
+  it("miejsce oplaconego zapisu: ten sam zbior co baza", () => {
+    expect(admissionValues(SUPABASE).sort()).toEqual([...EVENT_INVOICE_ADMISSIONS].sort());
+    expect(admissionValues(DRIZZLE).sort()).toEqual([...EVENT_INVOICE_ADMISSIONS].sort());
+  });
+
+  it("wycinki umieja odmowic (brak fragmentu to blad, nie pusta lista)", () => {
+    expect(() => correctionHintValues("SELECT 1")).toThrow(/Brak podpowiedzi/);
+    expect(() => admissionValues("SELECT 1")).toThrow(/Brak miejsca/);
   });
 });
 
