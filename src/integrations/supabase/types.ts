@@ -20452,6 +20452,17 @@ export type Database = {
         }
         Returns: Json
       }
+      _event_cfp_speaker_row_is_mine: {
+        Args: {
+          p_account_email: string
+          p_email: string
+          p_people: string[]
+          p_person_id: string
+          p_tenant: string
+          p_uid: string
+        }
+        Returns: boolean
+      }
       _event_cfp_status_label: {
         Args: { p_lang: string; p_status: string }
         Returns: string
@@ -26046,9 +26057,11 @@ export type Database = {
           type_name_pl: string
         }[]
       }
+      event_cfp_export_my_data: { Args: { p_limit?: number }; Returns: Json }
       event_cfp_public: { Args: { p_slug: string }; Returns: Json }
       event_cfp_review_get: { Args: { p_submission_id: string }; Returns: Json }
       event_cfp_review_queue: { Args: { p_slug: string }; Returns: Json }
+      event_cfp_review_save: { Args: { p_payload: Json }; Returns: Json }
       event_cfp_submission_notice: {
         Args: { p_submission_id: string }
         Returns: Json
