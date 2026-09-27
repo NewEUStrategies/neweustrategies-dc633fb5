@@ -1,7 +1,10 @@
 // Katalog dziennika doręczeń: PARYTET z nazwanymi CHECK-ami i pełne klucze etykiet.
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+// Migracja jest pocięta na części (limit wdrożenia Lovable), więc czytamy ją
+// w całości przez `readLogicalMigration`.
+import { readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+
+import { readLogicalMigration } from "@/lib/ci/migrationSize";
 
 import {
   DELIVERY_CHANNELS,
@@ -15,9 +18,9 @@ import {
   isDeliveryStatus,
 } from "@/lib/events/participantDeliveryKinds";
 
-const DIR = join(process.cwd(), "supabase", "migrations");
+const DIR = "supabase/migrations";
 const files = readdirSync(DIR).filter((name) => name.endsWith("_event_participant_foundation.sql"));
-const SQL = readFileSync(join(DIR, files[0]), "utf8");
+const SQL = readLogicalMigration(DIR, files[0]);
 
 function checkValues(constraint: string): string[] {
   const re = new RegExp(`CONSTRAINT ${constraint}\\s+CHECK \\([a-z_]+ IN \\(([^)]*)\\)\\)`);

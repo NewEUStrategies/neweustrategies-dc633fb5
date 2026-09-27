@@ -73,16 +73,6 @@ const SCANNED_ROUTE_PREFIXES = ["admin.events.", "admin.events_."] as const;
  */
 const REFERENCE_PREFIXES = [
   "adminEvents",
-  // Korzenie ośmiu nakładek F1-F5 (spec B.14): literał `eventPlan.x` w mapie
-  // etykiet jest referencją do klucza, nawet jeśli nie stoi w `t()`.
-  "eventParticipant",
-  "adminEventParticipant",
-  "eventCalendar",
-  "eventPlan",
-  "eventTicketActions",
-  "adminEventOffers",
-  "eventFollowUp",
-  "adminEventFollowUp",
   "adminEventCfp",
   "eventCfp",
   "adminEventInvoices",

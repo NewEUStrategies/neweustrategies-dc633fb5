@@ -220,6 +220,26 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   "event.registration.promoted.v1": (event) => registrationInvoiceEventKeys(event),
   "event.registration.payment.v1": (event) => registrationInvoiceEventKeys(event),
 
+  // Nabor prelegentow: lista, liczniki i szczegol w panelu organizatora
+  // (galaz `["event-cfp", eventId]`) oraz "moje zgloszenia", panel prelegenta
+  // i kolejka recenzenta (`["event-cfp-me"]` - klucz uczestnika jest po slugu,
+  // ktorego payload nie niesie, wiec uniewazniamy cala galez).
+  "event_cfp_submission.submitted.v1": (event) => cfpEventKeys(event),
+  "event_cfp_submission.decided.v1": (event) => cfpEventKeys(event),
+  "event_cfp_submission.withdrawn.v1": (event) => cfpEventKeys(event),
+  "event_cfp_submission.confirmed.v1": (event) => cfpEventKeys(event),
+  "event_cfp_review.saved.v1": (event) => cfpEventKeys(event),
+  // Faktury organizatora: ekran faktur studia (galaz wydarzenia) i karta
+  // "Faktury za wydarzenia" w profilu kupujacego.
+  "event_invoice.issued.v1": (event) => invoiceEventKeys(event),
+  "event_invoice.cancelled.v1": (event) => invoiceEventKeys(event),
+  // Plan sali: przydzial i zwolnienie zmieniaja obsade planu ORAZ plakietke
+  // miejsca na liscie zgloszen; zmiana ukladu planu - tylko sam plan (lookup
+  // miejsc listy zgloszen siedzi w tej samej galezi `event-seating`). Kazda z
+  // trzech zmian moze tez zmienic karte miejsca uczestnika (numer, sektor).
+  "event_seat.assigned.v1": (event) => seatingEventKeys(event, true),
+  "event_seat.released.v1": (event) => seatingEventKeys(event, true),
+  "event_seat_map.changed.v1": (event) => seatingEventKeys(event, false),
   // Ustawienia funkcji uczestnika (spec B.9): panel organizatora tego
   // wydarzenia i publiczne flagi `event_participant_options` (wszystkie slugi -
   // payload niesie id wydarzenia, nie slug).
@@ -252,27 +272,6 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
     eventScopedKey("admin-event-survey-questions", event),
     ["event-follow-up"],
   ],
-
-  // Nabor prelegentow: lista, liczniki i szczegol w panelu organizatora
-  // (galaz `["event-cfp", eventId]`) oraz "moje zgloszenia", panel prelegenta
-  // i kolejka recenzenta (`["event-cfp-me"]` - klucz uczestnika jest po slugu,
-  // ktorego payload nie niesie, wiec uniewazniamy cala galez).
-  "event_cfp_submission.submitted.v1": (event) => cfpEventKeys(event),
-  "event_cfp_submission.decided.v1": (event) => cfpEventKeys(event),
-  "event_cfp_submission.withdrawn.v1": (event) => cfpEventKeys(event),
-  "event_cfp_submission.confirmed.v1": (event) => cfpEventKeys(event),
-  "event_cfp_review.saved.v1": (event) => cfpEventKeys(event),
-  // Faktury organizatora: ekran faktur studia (galaz wydarzenia) i karta
-  // "Faktury za wydarzenia" w profilu kupujacego.
-  "event_invoice.issued.v1": (event) => invoiceEventKeys(event),
-  "event_invoice.cancelled.v1": (event) => invoiceEventKeys(event),
-  // Plan sali: przydzial i zwolnienie zmieniaja obsade planu ORAZ plakietke
-  // miejsca na liscie zgloszen; zmiana ukladu planu - tylko sam plan (lookup
-  // miejsc listy zgloszen siedzi w tej samej galezi `event-seating`). Kazda z
-  // trzech zmian moze tez zmienic karte miejsca uczestnika (numer, sektor).
-  "event_seat.assigned.v1": (event) => seatingEventKeys(event, true),
-  "event_seat.released.v1": (event) => seatingEventKeys(event, true),
-  "event_seat_map.changed.v1": (event) => seatingEventKeys(event, false),
   // Klon edycji: nowy wiersz na liscie wydarzen i nowa pozycja na liscie
   // edycji zrodla.
   "event.cloned.v1": (event) => cloneEventKeys(event),
@@ -459,6 +458,17 @@ function registrationInvoiceEventKeys(event: DomainEventRow): QueryKey[] {
 }
 
 /**
+ * Klucze naboru prelegentow. `event_id` w payloadzie zaweza panel do galezi
+ * jednego wydarzenia; jego brak degraduje do calego korzenia modulu (szersza
+ * inwalidacja jest tansza niz nieaktualna lista zgloszen). Literaly zgodne
+ * z `cfpKeys` i `cfpMeKeys` - pilnuje tego `eventRealtimeKeys.test.ts`.
+ */
+function cfpEventKeys(event: DomainEventRow): QueryKey[] {
+  const eventId = eventPayloadText(event, "event_id");
+  return [eventId === "" ? ["event-cfp"] : ["event-cfp", eventId], ["event-cfp-me"]];
+}
+
+/**
  * Klucze ustawien uczestnika. Literaly (a nie fabryki z
  * `useParticipantSettings`/`useEventParticipantOptions`) z tego samego powodu
  * co wyzej: mapa nie moze wciagac hookow modulu do wspolnego chunku realtime.
@@ -492,17 +502,6 @@ function registrationMoneyEventKeys(event: DomainEventRow): QueryKey[] {
 /** Certyfikat: lista w panelu organizatora i panel follow-up uczestnika (po slugu - cała gałąź). */
 function certificateEventKeys(event: DomainEventRow): QueryKey[] {
   return [eventScopedKey("admin-event-certificates", event), ["event-follow-up"]];
-}
-
-/**
- * Klucze naboru prelegentow. `event_id` w payloadzie zaweza panel do galezi
- * jednego wydarzenia; jego brak degraduje do calego korzenia modulu (szersza
- * inwalidacja jest tansza niz nieaktualna lista zgloszen). Literaly zgodne
- * z `cfpKeys` i `cfpMeKeys` - pilnuje tego `eventRealtimeKeys.test.ts`.
- */
-function cfpEventKeys(event: DomainEventRow): QueryKey[] {
-  const eventId = eventPayloadText(event, "event_id");
-  return [eventId === "" ? ["event-cfp"] : ["event-cfp", eventId], ["event-cfp-me"]];
 }
 
 /**

@@ -33,10 +33,10 @@ import {
   type ParticipantRegistration,
 } from "@/lib/events/participantTicketsApi";
 import { RegistrationPayAction } from "@/components/events/registration/molecules/RegistrationPayAction";
+import { EventInvoiceTicketStatus } from "@/components/events/invoices/atoms/EventInvoiceTicketStatus";
 import { RegistrationCardActionsSlot } from "@/components/events/participant/slots/RegistrationCardActionsSlot";
 import { RegistrationCardFollowUpSlot } from "@/components/events/participant/slots/RegistrationCardFollowUpSlot";
 import { RegistrationCardRemindersSlot } from "@/components/events/participant/slots/RegistrationCardRemindersSlot";
-import { EventInvoiceTicketStatus } from "@/components/events/invoices/atoms/EventInvoiceTicketStatus";
 import { ensureI18n } from "@/lib/i18n-participant-tickets";
 import { ensureEventWalletI18n } from "@/lib/i18n-event-wallet";
 

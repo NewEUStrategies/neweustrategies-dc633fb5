@@ -14,6 +14,9 @@ import {
   laneParityFailed,
   readFileOrNull,
   renderLaneReport,
+  sqlBlockCommentEnd,
+  sqlLineCommentEnd,
+  sqlQuoteContinuation,
   type LaneEntry,
 } from "../migrationLaneParity";
 
@@ -316,6 +319,48 @@ describe("analyzeMigrationLanes", () => {
     expect(sql).toContain("$1");
     // Dowód, że skaner nie połknął reszty: dalsza instrukcja jest widoczna.
     expect(sql).toContain("ALTER TABLE z;");
+  });
+
+  it("E'...': `\\'` nie zamyka literału - spacja w NASTĘPNYCH literałach zostaje widoczna", () => {
+    // Bez trybu E skaner kończył literał na `\'`, dalszy plik czytał z odwróconym
+    // cytowaniem i zwierał spację W ŚRODKU 'x  y'.
+    expect(executableSql("SELECT E'a\\';b';\nSELECT 'x  y';")).toBe(
+      "SELECT E'a\\';b'; SELECT 'x  y';",
+    );
+    expect(executableSql("SELECT e'\\\\';  SELECT 'x  y';")).toBe("SELECT e'\\\\'; SELECT 'x  y';");
+    // `somE'...'` to nazwa i zwykły literał: `\'` go zamyka.
+    expect(executableSql("SELECT somE'a\\';  SELECT 'x  y';")).toBe(
+      "SELECT somE'a\\'; SELECT 'x  y';",
+    );
+    // Kawałek sklejony z E'...' przez nową linię jest nadal w trybie E.
+    expect(executableSql("SELECT E'a'\n'\\'  b';  SELECT 1;")).toBe(
+      "SELECT E'a'\n'\\'  b'; SELECT 1;",
+    );
+    // Operand COMMENT ON w E'...' (także sklejony) to nadal jedna proza.
+    expect(executableSql("COMMENT ON TABLE t IS E'a\\'b'\n'c\\'d';\nSELECT 'x  y';")).toBe(
+      "COMMENT ON TABLE t IS E'<proza>'; SELECT 'x  y';",
+    );
+  });
+
+  it("zagnieżdżony /* */ i `--` do samotnego CR - granice komentarzy jak w PostgreSQL", () => {
+    expect(executableSql("SELECT /* a /* b; */ c' */ 1;\nSELECT 'x  y';")).toBe(
+      "SELECT 1; SELECT 'x  y';",
+    );
+    expect(executableSql("SELECT 'a' -- c\r|| 'x  y';")).toBe("SELECT 'a' || 'x  y';");
+    expect(sqlBlockCommentEnd("/* a /* b */ c */ d", 0)).toBe(17);
+    expect(sqlBlockCommentEnd("/* a /* b */", 0)).toBe(-1);
+    expect(sqlLineCommentEnd("-- a\rb", 0)).toBe(4);
+    expect(sqlLineCommentEnd("-- a", 0)).toBe(4);
+  });
+
+  it("sqlQuoteContinuation: nowa linia (przez komentarze) i `'` - jak `quotecontinue` PostgreSQL", () => {
+    expect(sqlQuoteContinuation("'a'\n  'b'", 3)).toBe(6);
+    expect(sqlQuoteContinuation("'a' \t-- c\r\n -- d\n\f'b'", 3)).toBe(18);
+    expect(sqlQuoteContinuation("'a' 'b'", 3)).toBe(-1);
+    expect(sqlQuoteContinuation("'a'\n  x", 3)).toBe(-1);
+    // Komentarz za nową linią musi się skończyć końcem linii - na końcu pliku nie ma kontynuacji.
+    expect(sqlQuoteContinuation("'a'\n-- koniec", 3)).toBe(-1);
+    expect(sqlQuoteContinuation("'a'", 3)).toBe(-1);
   });
 
   it("pusty plik i sam biały znak dają pusty odcisk", () => {

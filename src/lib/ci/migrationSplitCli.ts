@@ -2,6 +2,7 @@
 // Dysk, zegar identyfikatorow i wyjscie sa WSTRZYKIWANE, wiec cala sciezka CLI
 // ma test jednostkowy na pamieciowym systemie plikow - skrypt w scripts/ tylko
 // podpina `node:fs` i `crypto.randomUUID`.
+import type { DeployedMigrations } from "./migrationDeployed";
 import type { LaneEntry } from "./migrationLaneParity";
 import { MigrationLexError, MigrationSplitError } from "./migrationSplit";
 import {
@@ -72,11 +73,33 @@ export interface CliDeps {
   readonly log: (line: string) => void;
   readonly newId: () => string;
   readonly lanes: readonly LaneEntry[];
+  /** Co jest juz na produkcji (`DEPLOYED_MIGRATIONS`) - wdrozonej migracji plan nie tnie. */
+  readonly deployed: DeployedMigrations;
 }
 
 /** Katalogi i rozszerzenia plikow, ktore moga czytac migracje po nazwie. */
 const REFERENCE_ROOTS = ["src", "scripts", "supabase/tests"];
 const REFERENCE_EXT = /\.(?:ts|tsx|mjs|sh|sql)$/;
+/**
+ * Pliki samego narzedzia (rejestr pasow, bramka rozmiaru, lista wdrozonych,
+ * splitter i ich testy): wymieniaja migracje w opisach i przykladach, a nie
+ * czytaja ich po nazwie - ostrzezenie o nich tylko zagluszalo prawdziwe.
+ */
+const TOOL_FILES =
+  /^src\/lib\/ci\/(?:__tests__\/)?migration(?:LaneParity|Size|Split|Deployed)[\w.]*\.ts$/;
+
+/**
+ * Bramki, ktore po zapisie podzialu zapalaja sie, dopoki ich nie uruchomisz
+ * (albo nie przegenerujesz ich wyniku) - zmierzone na pocieciu migracji
+ * funkcji organizatora. Kolejnosc = kolejnosc wykonania.
+ */
+export const SPLIT_NEXT_STEPS: readonly string[] = [
+  "bun run generate:authz-snapshot  (snapshot liczy pliki migracji; inaczej check:authz-snapshot i authzSnapshotParity.test sa czerwone)",
+  "bunx vitest run src/lib/ci/__tests__/migrationLaneParity.test.ts src/lib/ci/__tests__/migrationSize.gate.test.ts",
+  "bun run check:sql-migration-replay && bun run check:rpc-contract && bun run check:sql-tenant-scope && bun run check:ownership",
+  "testy z ostrzezen UWAGA wyzej (czytaja migracje po nazwie): przejdz na readLogicalMigration() z src/lib/ci/migrationSize.ts dla OBU pasow",
+  "harnessy, ktore wybieraja te migracje (np. bash scripts/events-harness/run.sh) - pelny przebieg, nie --only",
+];
 
 function readJson<T>(fs: CliFs, path: string): T {
   const raw = fs.read(path);
@@ -137,11 +160,12 @@ export function runSplitCli(argv: readonly string[], deps: CliDeps): number {
   let plan: SplitPlan;
   try {
     const references = REFERENCE_ROOTS.flatMap((root) => deps.fs.walk(root))
-      .filter((p) => REFERENCE_EXT.test(p) && p !== LANE_REGISTRY)
+      .filter((p) => REFERENCE_EXT.test(p) && p !== LANE_REGISTRY && !TOOL_FILES.test(p))
       .map((p) => ({ path: p, content: deps.fs.read(p) ?? "" }));
     plan = planMigrationSplit({
       supabaseFile: args.file,
       supabaseSql: sql,
+      deployed: deps.deployed,
       supabaseFiles: deps.fs.list(SUPABASE_MIGRATIONS_DIR).filter((f) => f.endsWith(".sql")),
       drizzle: drizzleTwin(args, deps),
       maxBytes: args.maxBytes,
@@ -176,9 +200,8 @@ export function runSplitCli(argv: readonly string[], deps: CliDeps): number {
     return 0;
   }
   for (const write of plan.writes) deps.fs.write(write.path, write.content);
-  deps.log(`Zapisano ${plan.writes.length} plikow. Dalej: bramki migration-lanes i migration-size`);
-  deps.log("(bunx vitest run src/lib/ci/__tests__/migrationLaneParity.test.ts");
-  deps.log("src/lib/ci/__tests__/migrationSize.gate.test.ts), harnessy i check:ownership.");
+  deps.log(`Zapisano ${plan.writes.length} plikow. Dalej, po kolei:`);
+  SPLIT_NEXT_STEPS.forEach((step, k) => deps.log(`  ${k + 1}. ${step}`));
   deps.log(
     `Dowod na PostgreSQL (oryginal z HEAD vs czesci): bash scripts/split-migration-proof.sh ${path}`,
   );

@@ -81,12 +81,6 @@ const POLA_ETYKIET = [
   "transaction",
   "ticketCode",
   "donorMessage",
-  // Funkcje uczestnika F1-F5 (spec B.8).
-  "deadline",
-  "session",
-  "room",
-  "recipient",
-  "sender",
   "talk",
   "organizerMessage",
   // Funkcje uczestnika F1-F5 (spec B.8).

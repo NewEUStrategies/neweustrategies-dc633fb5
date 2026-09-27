@@ -149,8 +149,8 @@ export function EventSponsorsSectionView({
           key={tier.tierId ?? "no-tier"}
           tier={tier}
           lang={lang}
-          placement={placement}
           draftLabel={draftLabel}
+          placement={placement}
         />
       ))}
     </div>
@@ -160,13 +160,13 @@ export function EventSponsorsSectionView({
 function SponsorTierGroup({
   tier,
   lang,
-  placement,
   draftLabel,
+  placement,
 }: {
   tier: PublicSponsorTier;
   lang: "pl" | "en";
-  placement: SponsorsSectionPlacement;
   draftLabel: string | undefined;
+  placement: SponsorsSectionPlacement;
 }) {
   const { t } = useTranslation();
   const tierName = pickLocalized(

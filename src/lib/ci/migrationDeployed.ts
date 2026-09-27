@@ -9,12 +9,17 @@
 // drugi raz te same instrukcje. Bramka zlapalaby to dopiero po zapisie
 // (`zwolnienie-nieaktualne`); plan odmawia, zanim cokolwiek zapisze.
 //
-// BAZOWA LINIA = 20260926100000. Uzasadnienie z historii:
-//   * 20260926100000_event_group_guests_follow_lead.sql (52 653 B) to
+// BAZOWA LINIA = 20260926100001. Uzasadnienie z historii:
+//   * 20260926100001_event_group_guests_follow_lead.sql (52 653 B) to
 //     NAJWIEKSZY i NAJPOZNIEJSZY duzy plik, ktory Lovable wdrozyl (zapis 0057,
-//     commit eaf5f5e88). Po nim Lovable zapisal juz tylko male pliki:
-//     0058 (455d88c20, zrodlo 19 737 B), 0062-0064 (15bc840a7, 61d07f5ad,
-//     f43c99209, zrodla 13-26 KB), 0065 (c6412fd0a, zrodlo 2 201 B) i 0066
+//     commit eaf5f5e88). Wdrozony byl pod wersja 20260926100000; #412 na main
+//     przenumerowal go na 20260926100001 (kolizja wersji z plikiem naboru na
+//     starszym stanie main, tresc bajt w bajt). Linia i wpis listy ida za
+//     NAZWA PLIKU w repozytorium - inaczej bramka widzialaby wdrozony plik jako
+//     niewdrozony nadmiar, a plan podzialu pozwolilby go pociac. Po nim
+//     Lovable zapisal juz tylko male pliki: 0058 (455d88c20, zrodlo 19 737 B),
+//     0062-0064 (15bc840a7, 61d07f5ad, f43c99209, zrodla 13-26 KB), 0065
+//     (c6412fd0a, zrodlo 2 201 B) i 0066
 //     (4ac6622c7, zrodlo 30 152 B). Najwiekszy zapis wdrozenia w calym pasie
 //     drizzle to wlasnie 0057 - kazdy inny ma ponizej 34 KB.
 //   * Kazdy plik ponad limit z wersja WYZSZA od linii (faktury, lejek, plan
@@ -35,7 +40,7 @@
 // plik ze stara wersja trzeba najpierw przenumerowac ponad linie.
 
 /** Migracje o wersji <= linii moga byc zwolnione (tylko z listy nizej). */
-export const MIGRATION_SIZE_BASELINE = "20260926100000";
+export const MIGRATION_SIZE_BASELINE = "20260926100001";
 
 /**
  * Wdrozone pliki ponad limit, z rozmiarem w bajtach w chwili wdrozenia.
@@ -63,7 +68,7 @@ export const DEPLOYED_OVERSIZE: Readonly<Record<string, number>> = {
   "20260824080000_event_admissions_packages_coupons.sql": 76879,
   "20260825191948_ab7f57aa-961d-436a-ba0f-2fd114f42844.sql": 53740,
   "20260830090000_event_registration_checkout_binding.sql": 47447,
-  "20260926100000_event_group_guests_follow_lead.sql": 52653,
+  "20260926100001_event_group_guests_follow_lead.sql": 52653,
 };
 
 /** Linia i lista razem - tak, jak czyta je plan podzialu (wstrzykiwalne w testach). */

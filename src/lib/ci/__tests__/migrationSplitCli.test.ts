@@ -6,8 +6,15 @@
 // bylby dobierany zle, gdy rejestr wskazuje kilka plikow (para 0003/0004).
 // System plikow jest w pamieci - test nie rusza repozytorium.
 import { describe, expect, it } from "vitest";
+import { DEPLOYED_MIGRATIONS, type DeployedMigrations } from "../migrationDeployed";
 import type { LaneEntry } from "../migrationLaneParity";
-import { SPLIT_USAGE, parseSplitArgs, runSplitCli, type CliFs } from "../migrationSplitCli";
+import {
+  SPLIT_NEXT_STEPS,
+  SPLIT_USAGE,
+  parseSplitArgs,
+  runSplitCli,
+  type CliFs,
+} from "../migrationSplitCli";
 
 const FILE = "20260101000000_event_x.sql";
 const stmt = (name: string, bytes: number): string => {
@@ -15,7 +22,7 @@ const stmt = (name: string, bytes: number): string => {
   return `${head}${"x".repeat(Math.max(0, bytes - head.length - 3))}';\n`;
 };
 const SQL = `CREATE FUNCTION public.event_x() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;\n${stmt("a", 1500)}${stmt("b", 1500)}${stmt("c", 1500)}`;
-const REGISTRY = `export const MIGRATION_LANES = [\n  {\n    tag: "0000_event_x",\n    twin: "${FILE}",\n  },\n];\n`;
+const REGISTRY = `export const MIGRATION_LANES: readonly LaneEntry[] = [\n  {\n    tag: "0000_event_x",\n    twin: "${FILE}",\n  },\n];\n`;
 
 function repo(extra: Record<string, string | undefined> = {}) {
   const files: Record<string, string | undefined> = {
@@ -31,6 +38,10 @@ function repo(extra: Record<string, string | undefined> = {}) {
     "src/lib/ci/migrationLaneParity.ts": REGISTRY,
     "src/lib/events/__tests__/x.test.ts": `readFileSync("supabase/migrations/${FILE}")`,
     "src/lib/events/__tests__/notes.md": `supabase/migrations/${FILE}`,
+    // Pliki narzedzia wymieniaja migracje w przykladach - to nie odczyt po nazwie.
+    "src/lib/ci/migrationSize.ts": `const x = "supabase/migrations/${FILE}";`,
+    "src/lib/ci/__tests__/migrationSplitPlan.test.ts": `const x = "${FILE}";`,
+    "src/lib/events/komentarz.ts": `// dawniej ${FILE}\nexport const a = 1;`,
     "supabase/tests/x_test.sql": "SELECT 1;",
     "src/znikniety.test.ts": undefined,
     ...extra,
@@ -56,8 +67,18 @@ function repo(extra: Record<string, string | undefined> = {}) {
     walk: (dir) => Object.keys(files).filter((p) => p.startsWith(`${dir}/`)),
   };
   let n = 0;
-  const run = (argv: string[], lanes: LaneEntry[] = [{ tag: "0000_event_x", twin: FILE }]) =>
-    runSplitCli(argv, { fs, log: (line) => log.push(line), newId: () => `id-${(n += 1)}`, lanes });
+  const run = (
+    argv: string[],
+    lanes: LaneEntry[] = [{ tag: "0000_event_x", twin: FILE }],
+    deployed: DeployedMigrations = { baseline: "00000000000000", oversize: {} },
+  ) =>
+    runSplitCli(argv, {
+      fs,
+      log: (line) => log.push(line),
+      newId: () => `id-${(n += 1)}`,
+      lanes,
+      deployed,
+    });
   return { files, writes, log, run };
 }
 
@@ -116,6 +137,10 @@ describe("runSplitCli", () => {
       "UWAGA: src/lib/events/__tests__/x.test.ts wskazuje te migracje po nazwie",
     );
     expect(out).not.toContain("notes.md");
+    expect(out).not.toContain("UWAGA: src/lib/ci/migrationSize.ts");
+    expect(out).not.toContain("UWAGA: src/lib/ci/__tests__/migrationSplitPlan.test.ts");
+    expect(out).not.toContain("UWAGA: src/lib/events/komentarz.ts");
+    expect(out.match(/wskazuje te migracje po nazwie/g)).toHaveLength(1);
     expect(out).toMatch(/--dry-run: nic nie zapisano \(10 plikow w planie\)\./);
   });
 
@@ -125,7 +150,10 @@ describe("runSplitCli", () => {
     expect(r.writes).toContain("supabase/migrations/20260101000002_event_x_part3.sql");
     expect(r.writes).toContain("drizzle/migrations/meta/0002_snapshot.json");
     expect(r.files["src/lib/ci/migrationLaneParity.ts"]).toContain('tag: "0002_event_x_part3"');
-    expect(r.log.join("\n")).toMatch(/Zapisano 10 plikow\./);
+    expect(r.log.join("\n")).toMatch(/Zapisano 10 plikow\. Dalej, po kolei:/);
+    // Kroki po zapisie - kazdy z numerem, snapshot authz jako pierwszy.
+    SPLIT_NEXT_STEPS.forEach((step, k) => expect(r.log).toContain(`  ${k + 1}. ${step}`));
+    expect(SPLIT_NEXT_STEPS[0]).toMatch(/^bun run generate:authz-snapshot/);
     expect(r.log.at(-1)).toBe(
       `Dowod na PostgreSQL (oryginal z HEAD vs czesci): bash scripts/split-migration-proof.sh supabase/migrations/${FILE}`,
     );
@@ -214,6 +242,13 @@ describe("runSplitCli", () => {
     expect(broken.log.at(-1)).toMatch(/ODMOWA: Niezamkniety literal/);
     expect(collision.writes).toEqual([]);
     expect(broken.writes).toEqual([]);
+  });
+
+  it("wdrozona migracja: odmowa z kodem 1 wedlug rejestru wdrozonych, nic nie zapisane", () => {
+    const r = repo();
+    expect(r.run([FILE, "--max-kb", "2.9"], undefined, DEPLOYED_MIGRATIONS)).toBe(1);
+    expect(r.log.at(-1)).toMatch(/^ODMOWA: .*to wdrozona migracja .*forward-only, nie tniemy/);
+    expect(r.writes).toEqual([]);
   });
 
   it("nieoczekiwany blad (np. uszkodzony dziennik) nie jest polykany", () => {

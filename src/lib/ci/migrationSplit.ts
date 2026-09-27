@@ -11,8 +11,9 @@
 // zgubil.
 //
 // JAK TNIE. Lekser zna skladnie PostgreSQL w zakresie, ktory decyduje o granicy
-// instrukcji: literal '...' z escape `''`, literal E'...' z escape `\`, cytowany
-// identyfikator "..." z escape `""`, ciala $tag$...$tag$ z dowolnym tagiem
+// instrukcji: literal '...' z escape `''`, literal E'...' z escape `\` (takze
+// w kawalku sklejonym z nim przez nowa linie), cytowany identyfikator "..."
+// z escape `""`, ciala $tag$...$tag$ z dowolnym tagiem
 // (zagniezdzony INNY tag jest trescia), komentarz `--` (do `\n` ALBO `\r`, jak
 // w psql) i ZAGNIEZDZONY `/* */`, a do tego dwie reguly psql: `;` w nawiasie
 // nie konczy instrukcji, a w `CREATE [OR REPLACE] FUNCTION|PROCEDURE ... BEGIN
@@ -64,7 +65,7 @@
 // supabase - czyli kazda para czesci jest od razu blizniakiem dla
 // `check:migration-lanes`; (5) STRUKTURA: kazda czesc Z NAGLOWKIEM I STOPKA
 // leksuje sie samodzielnie na dokladnie te instrukcje oryginalu, ktore niesie
-// (tekst, szkielet, `;`), w kolejnosci i bez reszty. (1) i (2) nie widza
+// (tekst i szkielet), w kolejnosci i bez reszty. (1) i (2) nie widza
 // ciecia w srodku ciala $$: czesc z niedomknietym cialem ma w odcisku cialo
 // "do konca pliku", nastepna otwiera je na zamykajacym `$$`, a bialy znak
 // sie zwiera - odcisk wychodzi ten sam. Dopiero (5) mowi wprost, ze kazda
@@ -83,6 +84,7 @@ import {
   executableSql,
   sqlBlockCommentEnd,
   sqlLineCommentEnd,
+  sqlQuoteContinuation,
 } from "./migrationLaneParity";
 
 /** Domyslny limit czesci: 45 KiB. Lovable wdrozyl 52 653 B, odrzucil 62 KB+. */
@@ -273,7 +275,15 @@ export function lexStatements(src: string): SqlSegment[] {
     // to nazwa `somE` i zwykly literal - dokladnie jak w lekserze PostgreSQL.
     if (ch === "'" || ((ch === "E" || ch === "e") && src[i + 1] === "'")) {
       const open = ch === "'" ? i : i + 1;
-      const end = quotedEnd(src, open, "'", open !== i);
+      const backslash = open !== i;
+      let end = quotedEnd(src, open, "'", backslash);
+      // E'...' sklejony przez nowa linie z kolejnym '...' to JEDEN literal
+      // w trybie E (`\'` w dalszym kawalku nie zamyka) - jak w PostgreSQL.
+      let next = backslash && end !== -1 ? sqlQuoteContinuation(src, end) : -1;
+      while (next !== -1) {
+        end = quotedEnd(src, next, "'", true);
+        next = end === -1 ? -1 : sqlQuoteContinuation(src, end);
+      }
       if (end === -1) throw unclosed("literal '...'", lineAt(i));
       code("''");
       i = end;
@@ -775,8 +785,8 @@ function lexOrReason(text: string): SqlSegment[] | string {
 /**
  * Dowod (5): kazda czesc - Z NAGLOWKIEM i STOPKA, tak jak trafi do pliku -
  * leksuje sie na kolejne instrukcje oryginalu. Pierwszy segment czesci to
- * naglowek + instrukcja, ostatni to instrukcja + stopka, a szkielet i `;`
- * kazdego segmentu sa te same, co w oryginale. Zwraca pierwsze naruszenie
+ * naglowek + instrukcja, ostatni to instrukcja + stopka, a szkielet kazdego
+ * segmentu jest ten sam, co w oryginale. Zwraca pierwsze naruszenie
  * pasa albo `null` (po pierwszym rozjezdzie dalsze porownania nie maja punktu
  * odniesienia).
  */
@@ -795,12 +805,10 @@ function structureProblem(l: number, source: string, parts: readonly SplitPart[]
         want === undefined
           ? undefined
           : (j === 0 ? head : "") + want.text + (j === segs.length - 1 ? tail : "");
-      if (
-        want === undefined ||
-        seg.text !== text ||
-        seg.skeleton !== want.skeleton ||
-        seg.terminated !== want.terminated
-      ) {
+      // Tekst nie wystarcza: naglowek z SQL-em bez `;` wkleja sie w pierwsza
+      // instrukcje czesci i tekst (naglowek + instrukcja) sie zgadza - dopiero
+      // szkielet pokazuje dodany kod. `terminated` wynika ze szkieletu.
+      if (want === undefined || seg.text !== text || seg.skeleton !== want.skeleton) {
         return `pas ${l}, czesc ${k + 1}: instrukcja ${j + 1} czesci (linia ${seg.line}) nie jest instrukcja #${at + j + 1} oryginalu - granica czesci nie lezy miedzy instrukcjami najwyzszego poziomu albo naglowek/stopka wkleily sie w instrukcje`;
       }
     }

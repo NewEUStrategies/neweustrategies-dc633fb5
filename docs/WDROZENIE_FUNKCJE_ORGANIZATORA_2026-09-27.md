@@ -63,9 +63,9 @@ Wdrożone już na produkcji (przez Lovable, bez zmian nazw):
   `20260926100000_event_cfp.sql` ... `20260926170000_event_clone.sql`. Ten PR
   zmienia ich wersje i dzieli je na części; ręczne wykonanie rozjechałoby się
   z rejestrem migracji.
-- Po scaleniu zastosuj z panelu Lovable migracje z pasa drizzle w kolejności
-  numerów. Dokładna lista części i kolejność zostaną wpisane tutaj, gdy podział
-  będzie gotowy.
+- Po scaleniu zastosuj z panelu Lovable migracje z pasa drizzle. Dokładna lista
+  części i kolejność (wersji supabase, nie numerów drizzle) jest w części 2:
+  `docs/WDROZENIE_FUNKCJE_ORGANIZATORA_CZ2_2026-09-27.md`, sekcja 3.
 - Po wdrożeniu Lovable przegeneruje `types.ts` z bazy - od tej chwili typy
   zawierają obiekty funkcji organizatora i błędy kompilacji z pkt 1.4 znikają.
 
