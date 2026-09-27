@@ -180,6 +180,15 @@ export const eventFrontPl = {
     // KAŻDEJ stronie wydarzenia; słownik naboru to ~250 zdań (~10 KB gzip),
     // a chrome potrzebuje z niego pięciu. Słownik frontu powłoka ładuje i tak.
     // ---------------------------------------------------------------------
+    // Reklama strony głównej wydarzenia (`EventHomeAd`). Stała w słowniku
+    // PANELU sponsorów (`sponsorBoard.public.*`), więc publiczny przegląd
+    // każdego wydarzenia ładował cały słownik tablicy sponsorów (3,9 KB gzip)
+    // dla dwóch napisów - kronika `scripts/check-bundle-size.ts`, wpis XX.
+    homeAd: {
+      label: "Reklama",
+      close: "Zamknij reklamę",
+    },
+
     cfp: {
       tab: "Nabór prelegentów",
       speakerPanel: "Panel prelegenta",
@@ -854,6 +863,11 @@ export const eventFrontEn = {
 
     // Call for speakers in the event chrome (tab bar + "My" tab links); kept in
     // the front overlay so the shell does not load the whole CFP dictionary.
+    homeAd: {
+      label: "Advertisement",
+      close: "Close ad",
+    },
+
     cfp: {
       tab: "Call for speakers",
       speakerPanel: "Speaker panel",

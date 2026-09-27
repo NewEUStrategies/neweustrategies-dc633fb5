@@ -19,6 +19,8 @@
 //     To samo w `/admin/events/list` (walidator adresu ciągnął argumenty RPC
 //     listy i przez `isEventFormat` cały `eventTypes`) i w edytorze klubu
 //     (`clubEditorTab` ciągnął wersję roboczą i payload zapisu);
+//   * reklama przeglądu wydarzenia (`EventHomeAd`) ładowała słownik PANELU
+//     tablicy sponsorów (3,9 KB gzip) dla dwóch napisów;
 //   * kroki płatności i zakupu pakietu (prośba o fakturę) ciągnęły parser
 //     migawki dokumentu, a profil - generator PDF, choć oba są potrzebne
 //     dopiero po kliknięciu „Pobierz".
@@ -92,6 +94,11 @@ const CASES: ReadonlyArray<{ file: string; forbidden: readonly string[]; why: st
     file: "src/lib/events/eventListSearch.ts",
     forbidden: ["@/lib/events/eventTypes", "@/lib/events/eventListParams"],
     why: "walidator adresu z chunku wejściowego sprawdza format liściem `eventFormats`",
+  },
+  {
+    file: "src/components/events/public/molecules/EventHomeAd.tsx",
+    forbidden: ["@/lib/i18n-admin-event-sponsor-board"],
+    why: "reklama na przeglądzie wydarzenia bierze napisy ze słownika frontu, nie panelu",
   },
   {
     file: "src/lib/events/myEventInvoicesApi.ts",

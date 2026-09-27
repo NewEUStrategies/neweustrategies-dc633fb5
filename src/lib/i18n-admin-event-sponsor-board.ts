@@ -120,10 +120,6 @@ export const sponsorBoardPl = {
       withdrawn: "Partner wycofany ze strony wydarzenia.",
       error: "Nie udało się zapisać zmian.",
     },
-    public: {
-      label: "Reklama",
-      close: "Zamknij reklamę",
-    },
   },
 } as const;
 
@@ -237,10 +233,6 @@ export const sponsorBoardEn = {
       announced: "Partner announced - attendees will see it on the event page.",
       withdrawn: "Partner withdrawn from the event page.",
       error: "Could not save changes.",
-    },
-    public: {
-      label: "Advertisement",
-      close: "Close ad",
     },
   },
 } as const;

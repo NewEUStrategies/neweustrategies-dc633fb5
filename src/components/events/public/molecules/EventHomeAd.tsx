@@ -26,7 +26,7 @@ import {
   useSponsorImpression,
   type SponsorTarget,
 } from "@/lib/events/sponsorTrackingReact";
-import "@/lib/i18n-admin-event-sponsor-board";
+import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
 /** Próg układu dwukolumnowego (Tailwind `lg`). */
 export const HOME_AD_DESKTOP_QUERY = "(min-width: 1024px)";
@@ -74,6 +74,9 @@ function AdImage({
 }
 
 export function EventHomeAd({ slug }: { slug: string }) {
+  // Napisy reklamy są w słowniku frontu (`eventFront.homeAd.*`), który przegląd
+  // wydarzenia ładuje i tak - nie w słowniku panelu sponsorów.
+  ensureEventFrontI18n();
   const { t } = useTranslation();
   const adsQ = usePublicHomeAds(slug);
   const variant = useHomeAdVariant();
@@ -113,11 +116,11 @@ export function EventHomeAd({ slug }: { slug: string }) {
     return (
       <aside
         ref={setMeasured}
-        aria-label={t("sponsorBoard.public.label")}
+        aria-label={t("eventFront.homeAd.label")}
         className="hidden lg:block"
       >
         <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {t("sponsorBoard.public.label")}
+          {t("eventFront.homeAd.label")}
         </p>
         <AdImage
           ad={ad}
@@ -135,7 +138,7 @@ export function EventHomeAd({ slug }: { slug: string }) {
       ref={setMeasured}
       role="dialog"
       aria-modal="true"
-      aria-label={t("sponsorBoard.public.label")}
+      aria-label={t("eventFront.homeAd.label")}
       className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/95 p-4 lg:hidden"
     >
       <button
@@ -148,13 +151,13 @@ export function EventHomeAd({ slug }: { slug: string }) {
             /* brak zapisu - zamknięcie działa w tej karcie */
           }
         }}
-        aria-label={t("sponsorBoard.public.close")}
+        aria-label={t("eventFront.homeAd.close")}
         className="absolute right-4 top-4 rounded-full bg-muted p-2 text-foreground"
       >
         <X className="h-5 w-5" aria-hidden />
       </button>
       <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-        {t("sponsorBoard.public.label")}
+        {t("eventFront.homeAd.label")}
       </p>
       <AdImage
         ad={ad}

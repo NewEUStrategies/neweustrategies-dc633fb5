@@ -526,7 +526,7 @@ describe("reklama na stronie głównej", () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
     const t = trackerDeps();
     withClient(tracked(<EventHomeAd slug="kongres" />, t.deps));
-    const banner = await screen.findByRole("complementary", { name: "sponsorBoard.public.label" });
+    const banner = await screen.findByRole("complementary", { name: "eventFront.homeAd.label" });
     expect(within(banner).getAllByRole("img")).toHaveLength(1);
     expect(screen.queryByRole("dialog")).toBeNull();
     fireEvent.click(within(banner).getByRole("link"));
@@ -544,7 +544,7 @@ describe("reklama na stronie głównej", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.99);
     const t = trackerDeps();
     withClient(tracked(<EventHomeAd slug="kongres" />, t.deps));
-    const dialog = await screen.findByRole("dialog", { name: "sponsorBoard.public.label" });
+    const dialog = await screen.findByRole("dialog", { name: "eventFront.homeAd.label" });
     expect(screen.queryByRole("complementary")).toBeNull();
     expect(within(dialog).queryByRole("link")).toBeNull();
     expect(within(dialog).getByRole("img").getAttribute("src")).toContain(AD_2);
@@ -558,7 +558,7 @@ describe("reklama na stronie głównej", () => {
     const t = trackerDeps();
     const first = withClient(tracked(<EventHomeAd slug="kongres" />, t.deps));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "sponsorBoard.public.close" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "eventFront.homeAd.close" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     seeEverything();
     expect(t.sent).toEqual([]);
@@ -584,7 +584,7 @@ describe("reklama na stronie głównej", () => {
     });
     withClient(<EventHomeAd slug="kongres" />);
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "sponsorBoard.public.close" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "eventFront.homeAd.close" }));
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
