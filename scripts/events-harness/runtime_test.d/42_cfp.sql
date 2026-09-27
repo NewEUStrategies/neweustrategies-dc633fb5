@@ -39,7 +39,11 @@
 --       adresie konta;
 --   (o) cofniecie skutkow przyjecia (wycofanie, rezygnacja, cofniecie przez
 --       organizatora, dwa przyjecia jednej osoby), srednia z co najmniej
---       dwoch ocen, nowa decyzja kasuje blad wysylki.
+--       dwoch ocen, nowa decyzja kasuje blad wysylki;
+--   (p) cofniecie przyjecia a uczestnictwo: zwolnione miejsce awansuje
+--       rezerwe (z nowym powiadomieniem), konto prelegenta traci zapisy na
+--       sesje (awans kolejki sesji), zakladki i RSVP; bilet przekazany innej
+--       osobie nie jest anulowany ani przekazywany drugiemu przyjeciu.
 --
 -- CZEGO NIE SPRAWDZA: wysylki poczty (funkcje serwerowe - testy vitest).
 --
@@ -2119,6 +2123,195 @@ BEGIN
     AND NOT has_function_privilege('authenticated', 'public._event_cfp_speaker_row_is_mine(uuid, uuid, text, uuid, uuid[], text)', 'EXECUTE')
     AND has_function_privilege('anon', 'public.event_speaker_materials_public(uuid)', 'EXECUTE'),
     '42/(o): pomocnicy cofniecia i oceny zbiorczej tylko dla definerow; materialy publiczne dla anonima');
+  PERFORM pg_temp.act_as();
+END
+$do$;
+
+-- ---------------------------------------------------------------------------
+-- (p) COFNIECIE PRZYJECIA A UCZESTNICTWO
+--
+-- Wydarzenie z limitem 3 miejsc: bilety prelegentow Filipa, Henryka i Jana
+-- zapelniaja sale, Gosia czeka na liscie rezerwowej (juz raz powiadomiona).
+-- Filip ma zapis na sesje (z Marta w kolejce tej sesji), zakladke i RSVP.
+-- Bilety Henryka i Jana zostaja PRZEKAZANE innym osobom (symulacja
+-- przekazania biletu uczestnika: inny `person_id` tego samego zapisu).
+-- ---------------------------------------------------------------------------
+INSERT INTO auth.users (id, email) VALUES
+  ('42a00000-0000-0000-0000-000000000081', 'filip@example.org'),
+  ('42a00000-0000-0000-0000-000000000082', 'marta@example.org'),
+  ('42a00000-0000-0000-0000-000000000083', 'henryk@example.org'),
+  ('42a00000-0000-0000-0000-000000000084', 'jan@example.org')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.profiles (id, tenant_id, display_name, slug) VALUES
+  ('42a00000-0000-0000-0000-000000000081', '11111111-1111-1111-1111-111111111111', 'Filip 42', 'cfp-filip'),
+  ('42a00000-0000-0000-0000-000000000082', '11111111-1111-1111-1111-111111111111', 'Marta 42', 'cfp-marta'),
+  ('42a00000-0000-0000-0000-000000000083', '11111111-1111-1111-1111-111111111111', 'Henryk 42', 'cfp-henryk'),
+  ('42a00000-0000-0000-0000-000000000084', '11111111-1111-1111-1111-111111111111', 'Jan 42', 'cfp-jan')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.events (id, tenant_id, slug, title_pl, title_en, starts_at, ends_at, status, capacity) VALUES
+  ('42e00000-0000-0000-0000-0000000000e4', '11111111-1111-1111-1111-111111111111',
+   'cfp-42-p', 'Forum 42 P', 'Forum 42 P', now() + interval '50 days', now() + interval '51 days', 'published', 3)
+ON CONFLICT (id) DO NOTHING;
+
+DO $do$
+DECLARE
+  c_tenant constant uuid := '11111111-1111-1111-1111-111111111111';
+  c_event constant uuid := '42e00000-0000-0000-0000-0000000000e4';
+  c_filip constant uuid := '42a00000-0000-0000-0000-000000000081';
+  c_marta constant uuid := '42a00000-0000-0000-0000-000000000082';
+  v jsonb;
+  v_f uuid;
+  v_h uuid;
+  v_j1 uuid;
+  v_j2 uuid;
+  v_filip_reg uuid;
+  v_henryk_reg uuid;
+  v_jan_reg uuid;
+  v_gosia uuid;
+  v_gosia_reg uuid;
+  v_irena uuid;
+  v_kamil uuid;
+  v_session uuid;
+  v_other_session uuid;
+BEGIN
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-0000000000a1', c_tenant);
+  PERFORM public.admin_event_cfp_settings_save(jsonb_build_object('event_id', c_event, 'status', 'open'));
+
+  -- Zgloszenia: Filip (F), Henryk (H), Jan (J1, J2).
+  PERFORM pg_temp.act_as(c_filip);
+  v := public.event_cfp_submission_save(jsonb_build_object('slug', 'cfp-42-p',
+    'speaker', jsonb_build_object('first_name', 'Filip', 'last_name', 'Fil', 'consent_data_processing', true),
+    'title_pl', 'Wystapienie F', 'abstract_pl', 'Streszczenie wystapienia F, dluzsze niz dwadziescia znakow.'));
+  v_f := (v->>'id')::uuid;
+  PERFORM public.event_cfp_submission_submit(jsonb_build_object('id', v_f));
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000083');
+  v := public.event_cfp_submission_save(jsonb_build_object('slug', 'cfp-42-p',
+    'speaker', jsonb_build_object('first_name', 'Henryk', 'last_name', 'Hen', 'consent_data_processing', true),
+    'title_pl', 'Wystapienie H', 'abstract_pl', 'Streszczenie wystapienia H, dluzsze niz dwadziescia znakow.'));
+  v_h := (v->>'id')::uuid;
+  PERFORM public.event_cfp_submission_submit(jsonb_build_object('id', v_h));
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000084');
+  v := public.event_cfp_submission_save(jsonb_build_object('slug', 'cfp-42-p',
+    'speaker', jsonb_build_object('first_name', 'Jan', 'last_name', 'Janowy', 'consent_data_processing', true),
+    'title_pl', 'Wystapienie J1', 'abstract_pl', 'Streszczenie wystapienia J1, dluzsze niz dwadziescia znakow.'));
+  v_j1 := (v->>'id')::uuid;
+  PERFORM public.event_cfp_submission_submit(jsonb_build_object('id', v_j1));
+  v := public.event_cfp_submission_save(jsonb_build_object('slug', 'cfp-42-p',
+    'speaker', jsonb_build_object('consent_data_processing', true),
+    'title_pl', 'Wystapienie J2', 'abstract_pl', 'Streszczenie wystapienia J2, dluzsze niz dwadziescia znakow.'));
+  v_j2 := (v->>'id')::uuid;
+  PERFORM public.event_cfp_submission_submit(jsonb_build_object('id', v_j2));
+
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-0000000000a1', c_tenant);
+  PERFORM public.admin_event_cfp_submission_accept(jsonb_build_object('id', v_f));
+  PERFORM public.admin_event_cfp_submission_accept(jsonb_build_object('id', v_h));
+  PERFORM public.admin_event_cfp_submission_accept(jsonb_build_object('id', v_j1));
+  PERFORM public.admin_event_cfp_submission_accept(jsonb_build_object('id', v_j2));
+  SELECT sp.added_registration_id INTO v_filip_reg
+    FROM public.event_cfp_submission_speakers sp WHERE sp.submission_id = v_f;
+  SELECT sp.added_registration_id INTO v_henryk_reg
+    FROM public.event_cfp_submission_speakers sp WHERE sp.submission_id = v_h;
+  SELECT sp.added_registration_id INTO v_jan_reg
+    FROM public.event_cfp_submission_speakers sp WHERE sp.submission_id = v_j1;
+  PERFORM pg_temp.assert(
+    v_filip_reg IS NOT NULL AND v_henryk_reg IS NOT NULL AND v_jan_reg IS NOT NULL
+    AND (SELECT sp.added_registration_id IS NULL FROM public.event_cfp_submission_speakers sp
+          WHERE sp.submission_id = v_j2)
+    AND public._event_seats_left(c_tenant, c_event, NULL) = 0,
+    '42/(p): trzy bilety prelegentow zapelniaja wydarzenie; drugie przyjecie Jana nie dubluje zapisu');
+
+  -- Gosia na liscie rezerwowej, juz raz powiadomiona o miejscu w kolejce.
+  INSERT INTO public.event_people (tenant_id, email, first_name, last_name, source)
+  VALUES (c_tenant, 'gosia@example.org', 'Gosia', 'Rezerwowa', 'organizer')
+  RETURNING id INTO v_gosia;
+  INSERT INTO public.event_registrations (tenant_id, event_id, person_id, status, registration_mode, source,
+                                          waitlist_position, waitlist_notified_at)
+  VALUES (c_tenant, c_event, v_gosia, 'waitlist', 'form', 'self_registration', 1, now() - interval '1 day')
+  RETURNING id INTO v_gosia_reg;
+
+  -- Uczestnictwo Filipa: zapis na sesje (Marta w kolejce), zakladka, RSVP.
+  INSERT INTO public.event_sessions (tenant_id, event_id, title_pl, title_en, starts_at, ends_at, status)
+  VALUES (c_tenant, c_event, 'Warsztat P', 'Workshop P',
+          now() + interval '50 days 1 hour', now() + interval '50 days 2 hours', 'published')
+  RETURNING id INTO v_session;
+  INSERT INTO public.event_sessions (tenant_id, event_id, title_pl, title_en, starts_at, ends_at, status)
+  VALUES (c_tenant, c_event, 'Warsztat P2', 'Workshop P2',
+          now() + interval '50 days 3 hours', now() + interval '50 days 4 hours', 'published')
+  RETURNING id INTO v_other_session;
+  INSERT INTO public.event_session_signups (tenant_id, event_id, session_id, user_id, status, registered_at) VALUES
+    (c_tenant, c_event, v_session, c_filip, 'registered', now() - interval '2 hours'),
+    (c_tenant, c_event, v_session, c_marta, 'waitlist', now() - interval '1 hour'),
+    (c_tenant, c_event, v_other_session, '42a00000-0000-0000-0000-000000000083', 'registered', now());
+  INSERT INTO public.event_session_saves (tenant_id, event_id, session_id, user_id)
+  VALUES (c_tenant, c_event, v_other_session, c_filip);
+  INSERT INTO public.event_rsvps (tenant_id, event_id, user_id, status)
+  VALUES (c_tenant, c_event, c_filip, 'going');
+
+  -- PRZEKAZANIE: bilety Henryka i Jana (J1) naleza teraz do Ireny i Kamila.
+  INSERT INTO public.event_people (tenant_id, email, first_name, last_name, source)
+  VALUES (c_tenant, 'irena@example.org', 'Irena', 'Odbiorczyni', 'organizer')
+  RETURNING id INTO v_irena;
+  INSERT INTO public.event_people (tenant_id, email, first_name, last_name, source)
+  VALUES (c_tenant, 'kamil@example.org', 'Kamil', 'Odbiorca', 'organizer')
+  RETURNING id INTO v_kamil;
+  UPDATE public.event_registrations r SET person_id = v_irena WHERE r.id = v_henryk_reg;
+  UPDATE public.event_registrations r SET person_id = v_kamil WHERE r.id = v_jan_reg;
+
+  -- Cofniecie przyjecia Henryka: przekazany bilet Ireny zostaje, rezerwa czeka.
+  v := public.admin_event_cfp_submission_decide(jsonb_build_object('id', v_h, 'status', 'waitlisted'));
+  PERFORM pg_temp.assert(
+    (v->'undone'->>'registrations_cancelled')::int = 0
+    AND (v->'undone'->>'session_signups_cancelled')::int = 0
+    AND (SELECT r.status = 'approved' AND r.person_id = v_irena AND r.cancelled_at IS NULL
+           FROM public.event_registrations r WHERE r.id = v_henryk_reg)
+    AND (SELECT r.status = 'waitlist' FROM public.event_registrations r WHERE r.id = v_gosia_reg)
+    AND (SELECT sp.added_registration_id IS NULL FROM public.event_cfp_submission_speakers sp
+          WHERE sp.submission_id = v_h),
+    '42/(p): cofniecie przyjecia nie anuluje biletu przekazanego innej osobie; slad wyczyszczony');
+  PERFORM pg_temp.assert(
+    (SELECT s.status = 'registered' FROM public.event_session_signups s
+      WHERE s.session_id = v_other_session AND s.user_id = '42a00000-0000-0000-0000-000000000083'),
+    '42/(p): bez anulowanego zapisu zadne zapisy na sesje nie sa zwalniane');
+
+  -- Rezygnacja Jana z J1 przy aktywnym J2: przekazany bilet NIE przechodzi na J2.
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000084');
+  PERFORM public.event_cfp_submission_respond(jsonb_build_object('id', v_j1, 'confirm', false));
+  PERFORM pg_temp.assert(
+    (SELECT sp.added_registration_id IS NULL FROM public.event_cfp_submission_speakers sp
+      WHERE sp.submission_id = v_j2)
+    AND (SELECT r.status = 'approved' AND r.person_id = v_kamil
+           FROM public.event_registrations r WHERE r.id = v_jan_reg),
+    '42/(p): drugie przyjecie nie przejmuje biletu, ktory nalezy juz do kogo innego');
+  PERFORM public.event_cfp_submission_respond(jsonb_build_object('id', v_j2, 'confirm', false));
+  PERFORM pg_temp.assert(
+    (SELECT r.status = 'approved' FROM public.event_registrations r WHERE r.id = v_jan_reg),
+    '42/(p): rezygnacja z drugiego przyjecia tez nie rusza biletu Kamila');
+
+  -- Cofniecie przyjecia Filipa: bilet anulowany, rezerwa awansuje, konto traci
+  -- zapis na sesje (Marta awansuje), zakladke i RSVP.
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-0000000000a1', c_tenant);
+  v := public.admin_event_cfp_submission_decide(jsonb_build_object('id', v_f, 'status', 'rejected',
+    'decision_note', 'Zmiana programu.'));
+  PERFORM pg_temp.assert(
+    (v->'undone'->>'registrations_cancelled')::int = 1
+    AND (v->'undone'->>'session_signups_cancelled')::int = 1
+    AND (SELECT r.status = 'cancelled' FROM public.event_registrations r WHERE r.id = v_filip_reg),
+    '42/(p): cofniecie przyjecia anuluje bilet prelegenta i raportuje zwolnione zapisy na sesje');
+  PERFORM pg_temp.assert(
+    (SELECT r.status = 'approved' AND r.waitlist_notified_at IS NULL AND r.waitlist_position IS NULL
+           AND r.promoted_at IS NOT NULL
+       FROM public.event_registrations r WHERE r.id = v_gosia_reg),
+    '42/(p): zwolnione miejsce awansuje rezerwe, awans czeka na nowe powiadomienie');
+  PERFORM pg_temp.assert(
+    (SELECT s.status = 'cancelled' AND s.cancelled_at IS NOT NULL FROM public.event_session_signups s
+      WHERE s.session_id = v_session AND s.user_id = c_filip)
+    AND (SELECT s.status = 'registered' FROM public.event_session_signups s
+          WHERE s.session_id = v_session AND s.user_id = c_marta),
+    '42/(p): zapis prelegenta na sesje zwolniony, kolejka sesji awansuje');
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.event_session_saves ss WHERE ss.event_id = c_event AND ss.user_id = c_filip)
+    AND (SELECT r.status = 'cancelled' FROM public.event_rsvps r WHERE r.event_id = c_event AND r.user_id = c_filip),
+    '42/(p): zakladki planu i RSVP prelegenta zwolnione');
   PERFORM pg_temp.act_as();
 END
 $do$;
