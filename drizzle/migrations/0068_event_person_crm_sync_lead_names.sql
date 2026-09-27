@@ -1,5 +1,7 @@
 -- Most CRM: nowy kontakt zakladany z imieniem i nazwiskiem (crm_lead.created.v1
 -- niesie je do HubSpot) + komentarze obiektow fundamentu, ktorych brak w zapisie 0066.
+-- Adres zalozony rownolegle (ON CONFLICT) = kontakt istniejacy: newsletter i zgoda
+-- nietkniete (v_created z RETURNING, ponowny odczyt FOR UPDATE).
 -- Blizniak: supabase/migrations/20260927000900_event_person_crm_sync_lead_names.sql
 -- (tam pelne uzasadnienie).
 
@@ -36,6 +38,8 @@ DECLARE
   v_linkedin text;
   v_company_name text;
   v_existing uuid;
+  v_inserted uuid;
+  v_created boolean := false;
   v_lead uuid;
   v_prev_consent boolean;
   v_evidence boolean;
@@ -83,9 +87,12 @@ BEGIN
       v_status := 'skipped';
       v_reason := 'email_missing';
     ELSE
+      -- Istniejacy kontakt blokowany od razu: nie zniknie miedzy tym odczytem
+      -- a `crm_upsert_from_form` (ktora zalozylaby wtedy kontakt bez imion).
       SELECT l.id INTO v_existing
         FROM public.crm_leads l
-       WHERE l.tenant_id = p_tenant AND l.email_norm = v_email_norm;
+       WHERE l.tenant_id = p_tenant AND l.email_norm = v_email_norm
+       FOR UPDATE;
 
       IF v_existing IS NULL AND NOT v_create THEN
         v_status := 'skipped';
@@ -123,9 +130,18 @@ BEGIN
         -- w HubSpot bez nazwiska na zawsze. Telefon, stanowisko i LinkedIn
         -- wchodza od razu, zeby `crm_upsert_from_form` (dopasowanie PO E-MAILU,
         -- ten sam wiersz) nie dopisal ich jako aliasow; `source_count = 0`, bo
-        -- jego sciezka aktualizacji dolicza pierwsze zrodlo. ON CONFLICT: ten
-        -- sam adres zalozony rownolegle - wiersz jest wtedy cudzy i tylko go
-        -- dopasowujemy.
+        -- jego sciezka aktualizacji dolicza pierwsze zrodlo.
+        --
+        -- RYWALIZACJA O TEN SAM ADRES. Miedzy odczytem wyzej a tym wstawieniem
+        -- inna transakcja (np. zapis do newslettera przez `newsletter_to_lead`)
+        -- moze zalozyc ten sam `(tenant_id, email_norm)`. ON CONFLICT DO NOTHING
+        -- nic wtedy nie wstawia, a `RETURNING` nic nie oddaje - `v_created`
+        -- mowi, czy wiersz zalozylo TO wywolanie. Jesli nie, wiersz jest cudzy:
+        -- czytamy go ponownie z blokada i dalej traktujemy jak istniejacy
+        -- kontakt (newsletter i zgoda nietkniete, pola tylko uzupelniane,
+        -- segment tylko w gore). Wiersz, ktory zniknal zaraz po konflikcie,
+        -- konczy wywolanie bledem w stanie mostu (ponowienie go zalozy) -
+        -- zamiast kontaktu bez imion od `crm_upsert_from_form`.
         IF v_existing IS NULL THEN
           INSERT INTO public.crm_leads (
             tenant_id, email, email_norm, first_name, last_name,
@@ -138,92 +154,109 @@ BEGIN
             NULLIF(btrim(COALESCE(v_person.job_title, '')), ''),
             v_linkedin, NULL, 0
           )
-          ON CONFLICT (tenant_id, email_norm) DO NOTHING;
+          ON CONFLICT (tenant_id, email_norm) DO NOTHING
+          RETURNING id INTO v_inserted;
+          v_created := v_inserted IS NOT NULL;
+
+          IF NOT v_created THEN
+            SELECT l.id INTO v_existing
+              FROM public.crm_leads l
+             WHERE l.tenant_id = p_tenant AND l.email_norm = v_email_norm
+             FOR UPDATE;
+          END IF;
         END IF;
 
-        -- Imie, nazwisko i firma jako NULL: bez nich `crm_upsert_from_form`
-        -- nie scala po nazwisku i nie zaklada firmy z wolnego tekstu. Kontakt
-        -- juz stoi (znaleziony albo zalozony wyzej), wiec funkcja dopasowuje go
-        -- PO E-MAILU i dopisuje zrodlo, pola niestandardowe oraz licznik zrodel.
-        v_lead := public.crm_upsert_from_form(
-          _tenant => p_tenant,
-          _email => v_email,
-          _first_name => NULL,
-          _last_name => NULL,
-          _phone => v_phone,
-          _company => NULL,
-          _position => NULLIF(btrim(COALESCE(v_person.job_title, '')), ''),
-          _linkedin => v_linkedin,
-          _country => NULL,
-          _source => v_label,
-          _custom => CASE WHEN jsonb_typeof(p_custom) = 'object' THEN p_custom ELSE '{}'::jsonb END
-        );
+        IF v_existing IS NULL AND NOT v_created THEN
+          -- Rywal zniknal zaraz po konflikcie: bez wiersza `crm_upsert_from_form`
+          -- zalozylaby kontakt bez imion. Stan `error` z kodem - ponowienie
+          -- (`admin_event_person_crm_retry`) zalozy kontakt jak nowy.
+          v_status := 'error';
+          v_reason := 'lead_conflict_lost';
+        ELSE
+          -- Imie, nazwisko i firma jako NULL: bez nich `crm_upsert_from_form`
+          -- nie scala po nazwisku i nie zaklada firmy z wolnego tekstu. Kontakt
+          -- juz stoi (znaleziony albo zalozony wyzej), wiec funkcja dopasowuje go
+          -- PO E-MAILU i dopisuje zrodlo, pola niestandardowe oraz licznik zrodel.
+          v_lead := public.crm_upsert_from_form(
+            _tenant => p_tenant,
+            _email => v_email,
+            _first_name => NULL,
+            _last_name => NULL,
+            _phone => v_phone,
+            _company => NULL,
+            _position => NULLIF(btrim(COALESCE(v_person.job_title, '')), ''),
+            _linkedin => v_linkedin,
+            _country => NULL,
+            _source => v_label,
+            _custom => CASE WHEN jsonb_typeof(p_custom) = 'object' THEN p_custom ELSE '{}'::jsonb END
+          );
 
-        SELECT l.marketing_consent INTO v_prev_consent
-          FROM public.crm_leads l
-         WHERE l.id = v_lead AND l.tenant_id = p_tenant
-         FOR UPDATE;
+          SELECT l.marketing_consent INTO v_prev_consent
+            FROM public.crm_leads l
+           WHERE l.id = v_lead AND l.tenant_id = p_tenant
+           FOR UPDATE;
 
-        v_evidence := v_person.consent_marketing_at IS NOT NULL
-                      AND v_person.consent_withdrawn_at IS NULL;
+          v_evidence := v_person.consent_marketing_at IS NOT NULL
+                        AND v_person.consent_withdrawn_at IS NULL;
 
-        UPDATE public.crm_leads l SET
-          first_name = COALESCE(NULLIF(l.first_name, ''), NULLIF(btrim(v_person.first_name), '')),
-          last_name = COALESCE(NULLIF(l.last_name, ''), NULLIF(btrim(v_person.last_name), '')),
-          company = CASE
-            WHEN NULLIF(l.company, '') IS NULL
-                 AND (l.company_id IS NULL OR l.company_id = v_person.company_id)
-              THEN v_company_name
-            ELSE l.company
-          END,
-          company_id = COALESCE(l.company_id, v_person.company_id),
-          source_type = CASE
-            WHEN public._crm_source_type_rank(v_type) > public._crm_source_type_rank(l.source_type)
-              THEN v_type
-            ELSE l.source_type
-          END,
-          tags = l.tags || ARRAY(
-            SELECT t.tag
-              FROM unnest(v_tags) WITH ORDINALITY AS t(tag, ord)
-             WHERE NOT (t.tag = ANY (l.tags))
-             ORDER BY t.ord
-             LIMIT GREATEST(0, 60 - cardinality(l.tags))
-          ),
-          marketing_consent = l.marketing_consent OR v_evidence,
-          newsletter_status = CASE WHEN v_existing IS NULL THEN NULL ELSE l.newsletter_status END,
-          updated_at = now()
-        WHERE l.id = v_lead AND l.tenant_id = p_tenant;
-
-        IF v_evidence AND NOT v_prev_consent THEN
-          INSERT INTO public.crm_consent_log (
-            tenant_id, email, source_type, source_id, form_id, form_name,
-            consent_key, consent_text, consent_version, given, ip, user_agent, lang
-          ) VALUES (
-            p_tenant, v_email, 'event'::public.crm_source_type, p_person_id, v_label, NULL,
-            'marketing',
-            format(
-              'Organizer marketing consent given by the event participant (event_people.consent_marketing_at = %s); copied to CRM by the event bridge from source %s.',
-              to_char(v_person.consent_marketing_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-              COALESCE(v_label, 'event')
+          UPDATE public.crm_leads l SET
+            first_name = COALESCE(NULLIF(l.first_name, ''), NULLIF(btrim(v_person.first_name), '')),
+            last_name = COALESCE(NULLIF(l.last_name, ''), NULLIF(btrim(v_person.last_name), '')),
+            company = CASE
+              WHEN NULLIF(l.company, '') IS NULL
+                   AND (l.company_id IS NULL OR l.company_id = v_person.company_id)
+                THEN v_company_name
+              ELSE l.company
+            END,
+            company_id = COALESCE(l.company_id, v_person.company_id),
+            source_type = CASE
+              WHEN public._crm_source_type_rank(v_type) > public._crm_source_type_rank(l.source_type)
+                THEN v_type
+              ELSE l.source_type
+            END,
+            tags = l.tags || ARRAY(
+              SELECT t.tag
+                FROM unnest(v_tags) WITH ORDINALITY AS t(tag, ord)
+               WHERE NOT (t.tag = ANY (l.tags))
+               ORDER BY t.ord
+               LIMIT GREATEST(0, 60 - cardinality(l.tags))
             ),
-            NULL, true, NULL, NULL, NULL
-          );
-        END IF;
+            marketing_consent = l.marketing_consent OR v_evidence,
+            newsletter_status = CASE WHEN v_created THEN NULL ELSE l.newsletter_status END,
+            updated_at = now()
+          WHERE l.id = v_lead AND l.tenant_id = p_tenant;
 
-        IF p_audit_action IS NOT NULL THEN
-          INSERT INTO public.audit_log (tenant_id, actor_id, action, entity_type, entity_id, metadata)
-          VALUES (
-            p_tenant,
-            auth.uid(),
-            p_audit_action,
-            'crm_lead',
-            v_lead,
-            CASE WHEN jsonb_typeof(p_audit_meta) = 'object' THEN p_audit_meta ELSE '{}'::jsonb END
-              || jsonb_build_object('source_label', v_label, 'person_id', p_person_id)
-          );
-        END IF;
+          IF v_evidence AND NOT v_prev_consent THEN
+            INSERT INTO public.crm_consent_log (
+              tenant_id, email, source_type, source_id, form_id, form_name,
+              consent_key, consent_text, consent_version, given, ip, user_agent, lang
+            ) VALUES (
+              p_tenant, v_email, 'event'::public.crm_source_type, p_person_id, v_label, NULL,
+              'marketing',
+              format(
+                'Organizer marketing consent given by the event participant (event_people.consent_marketing_at = %s); copied to CRM by the event bridge from source %s.',
+                to_char(v_person.consent_marketing_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+                COALESCE(v_label, 'event')
+              ),
+              NULL, true, NULL, NULL, NULL
+            );
+          END IF;
 
-        v_status := 'ok';
+          IF p_audit_action IS NOT NULL THEN
+            INSERT INTO public.audit_log (tenant_id, actor_id, action, entity_type, entity_id, metadata)
+            VALUES (
+              p_tenant,
+              auth.uid(),
+              p_audit_action,
+              'crm_lead',
+              v_lead,
+              CASE WHEN jsonb_typeof(p_audit_meta) = 'object' THEN p_audit_meta ELSE '{}'::jsonb END
+                || jsonb_build_object('source_label', v_label, 'person_id', p_person_id)
+            );
+          END IF;
+
+          v_status := 'ok';
+        END IF;
       END IF;
     END IF;
 
@@ -282,7 +315,7 @@ GRANT EXECUTE ON FUNCTION public._event_person_crm_sync(uuid, uuid, text, text, 
 
 
 COMMENT ON FUNCTION public._event_person_crm_sync(uuid, uuid, text, text, text[], jsonb, boolean, text, jsonb) IS
-  'Jedyne wejscie modulu Wydarzen do crm_leads: kontakt po e-mailu (nowy zaklada most z imieniem i nazwiskiem, zeby crm_lead.created.v1 je niosl; dalej crm_upsert_from_form bez scalania po nazwisku), segment tylko w gore (_crm_source_type_rank), tagi bez duplikatow, zgoda marketingowa wylacznie z dowodu (event_people.consent_marketing_at bez wycofania) + wiersz crm_consent_log, newsletter_status NULL dla nowego kontaktu, wpis osi czasu event.*. Nigdy nie rzuca - blad zostaje w event_person_crm_links. Wolane z innych funkcji SECURITY DEFINER.';
+  'Jedyne wejscie modulu Wydarzen do crm_leads: kontakt po e-mailu (nowy zaklada most z imieniem i nazwiskiem, zeby crm_lead.created.v1 je niosl; dalej crm_upsert_from_form bez scalania po nazwisku), segment tylko w gore (_crm_source_type_rank), tagi bez duplikatow, zgoda marketingowa wylacznie z dowodu (event_people.consent_marketing_at bez wycofania) + wiersz crm_consent_log, newsletter_status NULL wylacznie dla kontaktu zalozonego przez to wywolanie (adres zalozony rownolegle = kontakt istniejacy, newsletter nietkniety), wpis osi czasu event.*. Nigdy nie rzuca - blad zostaje w event_person_crm_links. Wolane z innych funkcji SECURITY DEFINER.';
 
 -- ----------------------------------------------------------------------------
 -- 2) KOMENTARZE, KTORYCH BRAK W ZAPISIE 0066 (panel Lovable pominal COMMENT ON)
@@ -297,7 +330,7 @@ COMMENT ON COLUMN public.event_person_crm_links.sync_status IS
   'ok = kontakt zsynchronizowany; error = proba sie nie udala (last_error); skipped = pominieto (last_error: email_missing albo lead_not_found przy p_create = false).';
 
 COMMENT ON COLUMN public.event_person_crm_links.last_error IS
-  'Przyczyna ostatniego stanu innego niz ok: kod pominiecia albo SQLERRM (maks. 500 znakow).';
+  'Przyczyna ostatniego stanu innego niz ok: kod pominiecia (email_missing, lead_not_found), kod lead_conflict_lost (kontakt zalozony rownolegle zniknal zaraz po konflikcie) albo SQLERRM (maks. 500 znakow).';
 
 COMMENT ON COLUMN public.event_person_crm_links.last_tags IS
   'Tagi ostatniego wywolania - ponowienie dokleja je jeszcze raz (scalanie tagow jest idempotentne).';

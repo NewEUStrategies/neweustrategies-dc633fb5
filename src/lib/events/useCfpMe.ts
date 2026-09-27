@@ -19,6 +19,11 @@
 // prelegenta do publicznej listy, a rezygnacja/wycofanie anuluje zapis z biletem
 // i zdejmuje z listy (razem z materiałami). Dlatego te dwie mutacje odświeżają
 // też panel „Moje" (`["event-me", slug]`), listę prelegentów i ich materiały.
+//
+// ZAPIS I USUNIĘCIE MATERIAŁU ODŚWIEŻAJĄ MATERIAŁY NA STRONIE WYDARZENIA:
+// dialog profilu prelegenta trzyma je minutę pod `speakerMaterialsKeys`, a RPC
+// materiałów nie emitują zdarzenia domeny. Panel zna tylko slug, nie
+// identyfikator wydarzenia - stąd unieważnienie całego korzenia.
 import {
   useMutation,
   useQuery,
@@ -159,12 +164,19 @@ export function useSaveSpeakerProfile(slug: string) {
   return useMeMutation<SpeakerProfileInput, void>(slug, saveSpeakerProfile);
 }
 
+/** Materiały widzi też publiczny dialog prelegenta (poza gałęzią naboru). */
+const PUBLIC_MATERIAL_KEYS: ReadonlyArray<readonly unknown[]> = [speakerMaterialsKeys.all];
+
 export function useSaveSpeakerMaterial(slug: string) {
-  return useMeMutation<SpeakerMaterialInput, string>(slug, saveSpeakerMaterial);
+  return useMeMutation<SpeakerMaterialInput, string>(
+    slug,
+    saveSpeakerMaterial,
+    PUBLIC_MATERIAL_KEYS,
+  );
 }
 
 export function useDeleteSpeakerMaterial(slug: string) {
-  return useMeMutation<string, void>(slug, deleteSpeakerMaterial);
+  return useMeMutation<string, void>(slug, deleteSpeakerMaterial, PUBLIC_MATERIAL_KEYS);
 }
 
 export function useSaveCfpReview(slug: string) {
