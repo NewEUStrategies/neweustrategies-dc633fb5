@@ -65,7 +65,8 @@ vi.mock("@/lib/events/cfpPublicApi", () => pub);
 const admin = await import("@/lib/events/useEventCfp");
 const me = await import("@/lib/events/useCfpMe");
 const { publicSpeakerMaterialsQueryOptions } = await import("@/lib/events/speakerMaterialsPublic");
-const { speakersQueryOptions } = await import("@/lib/builder/speakersQuery");
+const { speakersQueryOptions, speakerProfileQueryOptions } =
+  await import("@/lib/builder/speakersQuery");
 
 /**
  * Dwa wpisy publicznych materiałów w cache - wydarzenie `e1` (gość i
@@ -408,10 +409,36 @@ describe("zapytania i mutacje uczestnika", () => {
         me.cfpMeKeys.slug("kongres"),
         ["event-me", "kongres"],
         ["builder-speakers"],
+        ["public-speaker-engagements"],
         ["event-speaker-materials"],
       ]);
     },
   );
+
+  it("zapis profilu prelegenta odświeża publiczne listy i dialog profilu na KAŻDYM wydarzeniu", async () => {
+    // Profil to jeden wiersz `speaker_profiles` na konto - nagłówek, bio,
+    // tematy i zdjęcie karty widać na liście każdego wydarzenia, w którym
+    // ta osoba występuje, i w dialogu profilu.
+    const { result, queryClient } = renderHookWithQueryClient(() =>
+      me.useSaveSpeakerProfile("kongres"),
+    );
+    const speakers = seedPublicSpeakers(queryClient);
+    const profileKey = speakerProfileQueryOptions("u1").queryKey;
+    queryClient.setQueryData(profileKey, null);
+    await result.current.mutateAsync({ slug: "kongres" } as never);
+    expect(Object.values(speakers()).every(Boolean)).toBe(true);
+    expect(queryClient.getQueryState(profileKey)?.isInvalidated).toBe(true);
+  });
+
+  it("nieudany zapis profilu prelegenta nie unieważnia niczego", async () => {
+    pub.saveSpeakerProfile.mockRejectedValueOnce(new Error("boom"));
+    const { result, queryClient } = renderHookWithQueryClient(() =>
+      me.useSaveSpeakerProfile("kongres"),
+    );
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    await expect(result.current.mutateAsync({ slug: "kongres" } as never)).rejects.toThrow("boom");
+    expect(invalidate).not.toHaveBeenCalled();
+  });
 
   it.each([
     ["useSaveSpeakerMaterial", { slug: "kongres", titlePl: "Slajdy" }],

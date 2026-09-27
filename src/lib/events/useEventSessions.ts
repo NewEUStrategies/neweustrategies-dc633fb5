@@ -52,6 +52,7 @@ import {
   type SessionsTrackInput,
 } from "@/lib/events/sessionsApi";
 import type { Json } from "@/integrations/supabase/types";
+import { eventSpeakersPublicKey } from "@/lib/builder/queryKeys";
 
 export const agendaKeys = {
   all: ["event-agenda"] as const,
@@ -172,6 +173,12 @@ function useInvalidateEvent(): (eventId: string) => Promise<void> {
     await queryClient.invalidateQueries({ queryKey: [...agendaKeys.all, "track-speakers"] });
     await queryClient.invalidateQueries({ queryKey: ["admin-event-speakers", eventId] });
     await queryClient.invalidateQueries({ queryKey: ["admin", "event", eventId, "speakers"] });
+    // CZWARTE: TE SAME SCIEZKI NA STRONIE WYDARZENIA. Publiczna lista liczy
+    // `tracks` z opublikowanych sesji (`_event_speaker_tracks(..., true)`),
+    // a obsada sesji nie emituje zdarzenia domeny - bez tego organizator po
+    // zmianie obsady widzial na stronie wydarzenia stare sciezki przez
+    // `staleTime` listy (2 min). Zawezone do TEGO wydarzenia.
+    await queryClient.invalidateQueries({ queryKey: eventSpeakersPublicKey(eventId) });
   };
 }
 

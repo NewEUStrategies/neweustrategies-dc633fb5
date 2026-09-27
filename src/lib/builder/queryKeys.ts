@@ -115,3 +115,16 @@ export const LIVE_INVALIDATED_ROOTS: ReadonlyArray<WidgetQueryRoot> = [
 
 /** Zbiór do szybkiego `has()` w predykacie `invalidateQueries`. */
 export const WIDGET_LIVE_QUERY_PREFIXES: ReadonlySet<string> = new Set(LIVE_INVALIDATED_ROOTS);
+
+/**
+ * Publiczna lista prelegentów JEDNEGO wydarzenia: sekcja przeglądu, siatka
+ * zakładki i widget buildera w trybie „event". Pełny klucz zapytania to
+ * `[WIDGET_QUERY_ROOTS.speakers, SpeakersInput]`, a wydarzenie siedzi W OBIEKCIE
+ * wejścia; React Query dopasowuje obiekt częściowo, więc `{ source: "event",
+ * eventId }` trafia w każdy limit tego wydarzenia, a omija inne wydarzenia
+ * i katalog (`source: "directory"`). Jedna fabryka dla mutacji panelu,
+ * samoobsługi prelegenta i mapy realtime - literał w trzech miejscach
+ * rozjechałby się po cichu.
+ */
+export const eventSpeakersPublicKey = (eventId: string) =>
+  [WIDGET_QUERY_ROOTS.speakers, { source: "event", eventId }] as const;

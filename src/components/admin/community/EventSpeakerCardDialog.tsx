@@ -34,6 +34,7 @@ import { EventSpeakerCardFields } from "./EventSpeakerCardFields";
 import { uiLang } from "@/lib/i18n/format";
 import { saveEventSpeakerCard, type EventSpeakerEntry } from "@/lib/admin/community";
 import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
+import { eventSpeakersPublicKey } from "@/lib/builder/queryKeys";
 import {
   EMPTY_SPEAKER_CARD_DRAFT,
   speakerCardDraftErrors,
@@ -133,6 +134,8 @@ export function EventSpeakerCardDialog({
       // Lista panelu i podglad studia czytaja karte z rejestru - oba klucze.
       await qc.invalidateQueries({ queryKey: ["admin-event-speakers", eventId] });
       await qc.invalidateQueries({ queryKey: ["admin", "event", eventId, "speakers"] });
+      // Pola karty (nakladka sceniczna) widzi publiczna lista tego wydarzenia.
+      await qc.invalidateQueries({ queryKey: eventSpeakersPublicKey(eventId) });
       toast.success(t("adminCommunityEvents.speakers.card.saved"));
       onOpenChange(false);
     },

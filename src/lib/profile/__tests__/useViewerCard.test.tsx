@@ -219,3 +219,34 @@ describe("useViewerCardFacts - fakty karty", () => {
     });
   });
 });
+
+describe("useViewerCardFacts - tabela prawdy: wiersz profilu × e-mail", () => {
+  // Komentarz hooka obiecuje: `null` wtedy i tylko wtedy, gdy ŻADEN szczebel
+  // reguły nazwy (display_name → imię i nazwisko → e-mail) nie daje nazwy.
+  // Tabela przechodzi wszystkie kombinacje, łącznie z pustym `display_name`
+  // z samych spacji (nie jest nazwą - reguła schodzi dalej).
+  const rows: Array<[string, HeaderProfile | null]> = [
+    ["brak wiersza", null],
+    ["puste pola nazwy", headerRow({ display_name: "  ", first_name: null, last_name: null })],
+    ["wiersz z nazwą", headerRow()],
+  ];
+  const cases = rows.flatMap(([rowLabel, row]) =>
+    [true, false].map((withEmail) => ({ rowLabel, row, withEmail })),
+  );
+
+  it.each(cases)("$rowLabel, e-mail: $withEmail", async ({ row, withEmail }) => {
+    h.auth.user = withEmail ? { id: PROFILE_IDS.me, email: EMAIL } : { id: PROFILE_IDS.me };
+    db().setResponse("profiles", ok(row));
+    const { result } = renderFacts();
+
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+    const named = row?.display_name?.trim() ? row.display_name : null;
+    if (named !== null) {
+      expect(result.current.facts?.name).toBe(named);
+    } else if (withEmail) {
+      expect(result.current.facts?.name).toBe(EMAIL);
+    } else {
+      expect(result.current.facts).toBeNull();
+    }
+  });
+});

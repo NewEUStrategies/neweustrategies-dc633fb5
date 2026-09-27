@@ -59,6 +59,7 @@ import type {
   EventSpeakerUpsertResult,
 } from "@/lib/admin/community";
 import type { SpeakerTrack } from "@/lib/events/speakerCard";
+import { WIDGET_QUERY_ROOTS, eventSpeakersPublicKey } from "@/lib/builder/queryKeys";
 
 const fetchEventSpeakers = vi.fn();
 const addEventSpeaker = vi.fn();
@@ -349,6 +350,39 @@ describe("EventSpeakersManager", () => {
     });
   });
 
+  it("usuniecie i zmiana kolejnosci wietrza TEZ publiczna liste tego wydarzenia", async () => {
+    // Nazwiska i kolejnosc widzi strona wydarzenia - bez tego organizator
+    // po zmianie rejestru ogladal tam stara liste do konca `staleTime`.
+    const first = speaker({ speaker_profile_id: "sp-1", display_name: "Pierwszy", sort_order: 0 });
+    const second = speaker({
+      speaker_profile_id: "sp-2",
+      entry_id: "en-2",
+      person_id: "pe-2",
+      display_name: "Drugi",
+      sort_order: 1,
+    });
+    fetchEventSpeakers.mockResolvedValue([first, second]);
+    removeEventSpeaker.mockResolvedValue(true);
+    setEventSpeakerOrder.mockResolvedValue(2);
+    const { client } = renderManager();
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    await waitFor(() => expect(screen.getByText("Drugi")).toBeInTheDocument());
+
+    fireEvent.click(screen.getAllByTitle("Wyżej")[1]);
+    await waitFor(() => expect(setEventSpeakerOrder).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: eventSpeakersPublicKey("ev-1") }),
+    );
+
+    invalidate.mockClear();
+    fireEvent.click(screen.getAllByTitle("Usuń z wydarzenia")[0]);
+    await waitFor(() => expect(removeEventSpeaker).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: eventSpeakersPublicKey("ev-1") }),
+    );
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: eventSpeakersPublicKey("ev-2") });
+  });
+
   it("usuniecie osoby BEZ konta idzie po speaker_profile_id, bez user_id", async () => {
     fetchEventSpeakers.mockResolvedValue([speaker()]);
     removeEventSpeaker.mockResolvedValue(true);
@@ -468,6 +502,7 @@ describe("EventSpeakersManager - droplista kont", () => {
     fireEvent.click(screen.getByTestId("create-dialog-emit"));
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["admin-event-speakers", "ev-1"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: eventSpeakersPublicKey("ev-1") });
     expect(toasts.success).toHaveBeenCalledWith("Dodano prelegenta: Halszka Borowik");
   });
 });
@@ -759,6 +794,29 @@ describe("EventSpeakersManager - profil sceniczny", () => {
     // Wylaczona synchronizacja to swiadoma decyzja redaktora - domyslnie CRM
     // dostaje lead, ale prelegent-jednorazowy nie musi trafiac do sprzedazy.
     expect(payload.syncCrm).toBe(false);
+  });
+
+  it("zapis i usuniecie profilu wietrza publiczne listy i dialog profilu tego konta", async () => {
+    // Profil to jeden wiersz na konto - widac go na liscie KAZDEGO wydarzenia
+    // i w dialogu profilu, stad korzen listy, a nie jedno wydarzenie.
+    const { client } = await openProfile();
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    fireEvent.click(screen.getByRole("button", { name: "Zapisz profil" }));
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: [WIDGET_QUERY_ROOTS.speakers] }),
+    );
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: [WIDGET_QUERY_ROOTS.publicSpeakerProfile, "u-1"],
+    });
+
+    invalidate.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Usuń profil" }));
+    await waitFor(() => expect(deleteAdminSpeakerProfile).toHaveBeenCalledWith("u-1"));
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: [WIDGET_QUERY_ROOTS.publicSpeakerProfile, "u-1"],
+      }),
+    );
   });
 
   it("powstanie leadu CRM zmienia komunikat i dokłada odnosnik do kartoteki", async () => {
@@ -1101,6 +1159,7 @@ describe("EventSpeakersManager - karta prelegenta i sciezki", () => {
     });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["admin-event-speakers", "ev-1"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: eventSpeakersPublicKey("ev-1") });
     expect(toasts.success).toHaveBeenCalledWith("Zapisano kartę prelegenta");
   });
 
