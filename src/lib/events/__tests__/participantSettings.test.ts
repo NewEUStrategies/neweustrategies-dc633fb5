@@ -7,10 +7,12 @@
 // „najwyżej 4 przypomnienia" na 5 albo domyślny tryb zwrotu - formularz
 // zacząłby odrzucać wartości, które baza przyjmuje (albo odwrotnie). Ten plik
 // czyta migrację (po SUFIKSIE nazwy, nie po znaczniku czasu - Integracja może
-// przenumerować) i przypina każdą liczbę.
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+// przenumerować) i przypina każdą liczbę. Czyta CAŁĄ logiczną migrację: plik
+// jest pocięty na części (limit wdrożenia Lovable, scripts/split-migration.ts).
+import { readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+
+import { readLogicalMigration } from "@/lib/ci/migrationSize";
 
 import {
   CERTIFICATE_ELIGIBILITY_MODES,
@@ -23,12 +25,12 @@ import {
   type ParticipantSettingsValues,
 } from "@/lib/events/participantSettings";
 
-const MIGRATIONS_DIR = join(process.cwd(), "supabase", "migrations");
+const MIGRATIONS_DIR = "supabase/migrations";
 
 function migrationBySuffix(suffix: string): string {
   const files = readdirSync(MIGRATIONS_DIR).filter((name) => name.endsWith(suffix));
   expect(files, `migracja *${suffix}`).toHaveLength(1);
-  return readFileSync(join(MIGRATIONS_DIR, files[0]), "utf8");
+  return readLogicalMigration(MIGRATIONS_DIR, files[0]);
 }
 
 const SQL = migrationBySuffix("_event_participant_foundation.sql");
