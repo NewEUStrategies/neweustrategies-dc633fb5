@@ -18,6 +18,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { DEPLOYED_MIGRATIONS } from "../src/lib/ci/migrationDeployed";
 import { MIGRATION_LANES } from "../src/lib/ci/migrationLaneParity";
 import { runSplitCli, type CliFs } from "../src/lib/ci/migrationSplitCli";
 
@@ -60,5 +61,6 @@ process.exit(
     log: (line) => console.log(line),
     newId: randomUUID,
     lanes: MIGRATION_LANES,
+    deployed: DEPLOYED_MIGRATIONS,
   }),
 );

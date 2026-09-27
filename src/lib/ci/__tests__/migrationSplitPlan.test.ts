@@ -9,6 +9,7 @@
 // rozjechaly, bo inaczej plan "gwarantowalby" cos, czego harness juz nie robi.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { DEPLOYED_MIGRATIONS, type DeployedMigrations } from "../migrationDeployed";
 import { executableSql } from "../migrationLaneParity";
 import { MigrationSplitError } from "../migrationSplit";
 import {
@@ -20,6 +21,7 @@ import {
   drizzlePartTag,
   harnessSelects,
   insertLaneEntries,
+  mentionedInCode,
   partHeader,
   partTrailer,
   partVersion,
@@ -68,9 +70,13 @@ const REGISTRY = [
   "",
 ].join("\n");
 
+/** Fikstury maja wersje z 2026-01 - pod prawdziwa linia bazowa, wiec "nic nie wdrozono". */
+const NOTHING_DEPLOYED: DeployedMigrations = { baseline: "00000000000000", oversize: {} };
+
 let ids = 0;
 const base = (over: Partial<SplitPlanInput> = {}): SplitPlanInput => ({
   supabaseFile: FILE,
+  deployed: NOTHING_DEPLOYED,
   supabaseSql: EVENTS_SQL,
   supabaseFiles: [
     "20251231000000_prev.sql",
@@ -177,7 +183,7 @@ describe("naglowek, stopka i rozpoznawanie czesci", () => {
       { tag: "0001_event_x_part2", twin: "20260101000001_event_x_part2.sql" },
     ]);
     expect(edited).toContain(
-      `    twin: "${FILE}",\n  },\n  // Czesci 2..2 migracji 0000_event_x (scripts/split-migration.ts,\n`,
+      `    twin: "${FILE}",\n  },\n  // Czesc 2 migracji 0000_event_x (scripts/split-migration.ts,\n  // limit wdrozenia Lovable) - para czesci to pelne blizniaki.\n`,
     );
     expect(edited).toContain(
       '  {\n    tag: "0001_event_x_part2",\n    twin: "20260101000001_event_x_part2.sql",\n  },\n];',
@@ -194,10 +200,64 @@ describe("naglowek, stopka i rozpoznawanie czesci", () => {
         [],
       ),
     ).toBeNull();
+    // Bez rozpoznawalnych granic tablicy albo z wpisem poza nia - tez do reki.
+    const block = REGISTRY.slice(REGISTRY.indexOf("  {") - 1, REGISTRY.indexOf("];"));
+    const open = "export const MIGRATION_LANES: readonly LaneEntry[] = [\n";
+    for (const registry of [
+      `export const X = [${block}];\n`,
+      `${open}];\nconst Y = [${block}];\n`,
+      `const Y = [${block}];\n${open}];\n`,
+      REGISTRY.replace("\n];\n", "\n]"),
+    ]) {
+      expect(insertLaneEntries(registry, "0000_event_x", FILE, []), registry).toBeNull();
+    }
+  });
+
+  it("insertLaneEntries: czesci Z DZIENNIKA na koncu rejestru (kolejnosc dziennika), nie za oryginalem", () => {
+    const registry = REGISTRY.replace(
+      "];",
+      '  {\n    tag: "0001_pozniejsza",\n    twin: "20260102000000_next.sql",\n  },\n];',
+    );
+    const parts = [
+      { tag: "0002_event_x_part2", twin: "20260101000001_event_x_part2.sql" },
+      { tag: "0003_event_x_part3", twin: "20260101000002_event_x_part3.sql" },
+    ];
+    const edited = insertLaneEntries(registry, "0000_event_x", FILE, parts, true)!;
+    const order = ["0000_event_x", "0001_pozniejsza", "0002_event_x_part2", "0003_event_x_part3"];
+    expect(order.map((t) => edited.indexOf(`tag: "${t}"`))).toEqual(
+      order.map((t) => edited.indexOf(`tag: "${t}"`)).sort((a, b) => a - b),
+    );
+    expect(edited).toContain("  // Czesci 2..3 migracji 0000_event_x");
+    expect(edited).toContain("kazda para czesci to pelne blizniaki.");
+    expect(edited.endsWith('    twin: "20260101000002_event_x_part3.sql",\n  },\n];\n')).toBe(true);
+    // Poza dziennikiem - zaraz za oryginalem, przed pozniejszym wpisem.
+    const after = insertLaneEntries(registry, "0000_event_x", FILE, parts)!;
+    expect(after.indexOf('"0002_event_x_part2"')).toBeLessThan(after.indexOf('"0001_pozniejsza"'));
   });
 });
 
 describe("planMigrationSplit - odmowy", () => {
+  it("wdrozonej migracji nie tnie (forward-only): lista DEPLOYED_OVERSIZE albo wersja pod linia", () => {
+    const listed = () =>
+      planMigrationSplit(
+        base({ deployed: { baseline: "00000000000000", oversize: { [FILE]: 1 } } }),
+      );
+    expect(listed).toThrow(MigrationSplitError);
+    expect(listed).toThrow(
+      /20260101000000_event_x\.sql to wdrozona migracja \(lista DEPLOYED_OVERSIZE, .*forward-only, nie tniemy/,
+    );
+    // Prawdziwy rejestr: wersja 2026-01 lezy pod linia 20260926100000.
+    expect(() => planMigrationSplit(base({ deployed: DEPLOYED_MIGRATIONS }))).toThrow(
+      /wersja <= linii bazowej 20260926100000/,
+    );
+    // Wersja ROWNA linii tez jest wdrozona (plik grup 20260926100000 jest na produkcji).
+    const line = { baseline: "20260101000000", oversize: {} };
+    expect(() => planMigrationSplit(base({ deployed: line }))).toThrow(/wdrozona migracja/);
+    expect(
+      planMigrationSplit(base({ deployed: { ...line, baseline: "20251231235959" } })).parts,
+    ).toBe(3);
+  });
+
   it("nazwa spoza konwencji, plik juz podzielony i zdublowana wersja", () => {
     expect(() => planMigrationSplit(base({ supabaseFile: "zla_nazwa.sql" }))).toThrow(
       /spoza konwencji/,
@@ -420,12 +480,19 @@ describe("planMigrationSplit - plan", () => {
     for (const plan of [noSource, noBlock]) {
       expect(plan.registryEdited).toBe(false);
       expect(plan.writes.some((w) => w.path === "src/lib/ci/migrationLaneParity.ts")).toBe(false);
-      expect(plan.warnings.join("\n")).toMatch(/NIE zostal zmieniony/);
+      expect(plan.warnings.join("\n")).toMatch(/NIE zostal zmieniony.*na koncu rejestru/);
       expect(plan.laneEntries).toHaveLength(2);
     }
+    // Blizniak poza dziennikiem: wpisy do reki zaraz za jego wpisem.
+    const input = withDrizzle({ registrySource: undefined });
+    const outside = planMigrationSplit({
+      ...input,
+      drizzle: { ...input.drizzle!, journal: journal(["0000_inny"]), lastSnapshot: undefined },
+    });
+    expect(outside.warnings.join("\n")).toMatch(/NIE zostal zmieniony.*zaraz za nim/);
   });
 
-  it("ostrzega o plikach, ktore czytaja migracje po nazwie", () => {
+  it("ostrzega o plikach, ktore czytaja migracje po nazwie - nie o samych wzmiankach w komentarzu", () => {
     const plan = planMigrationSplit(
       withDrizzle({
         references: [
@@ -433,6 +500,9 @@ describe("planMigrationSplit - plan", () => {
           { path: "src/b.test.ts", content: 'files.filter((f) => f.endsWith("_event_x.sql"))' },
           { path: "src/c.test.ts", content: 'read("drizzle/migrations/0000_event_x.sql")' },
           { path: "src/d.test.ts", content: "nic tu nie ma" },
+          { path: "src/e.ts", content: `// opis: ${FILE}\n * i w bloku ${FILE}\nconst a = 1;` },
+          { path: "scripts/f.sh", content: `# ${FILE}\necho ok` },
+          { path: "scripts/g.sql", content: `-- ${FILE}\nSELECT 1;` },
         ],
       }),
     );
@@ -442,6 +512,23 @@ describe("planMigrationSplit - plan", () => {
       "src/b.test.ts",
       "src/c.test.ts",
     ]);
+  });
+
+  it("mentionedInCode: kod tak, komentarz nie - wedlug jezyka pliku", () => {
+    const n = "20260101000000_event_x.sql";
+    expect(mentionedInCode("a.ts", `read("${n}") // i komentarz`, n)).toBe(true);
+    expect(mentionedInCode("a.ts", `const x = 1; // ${n}`, n)).toBe(false);
+    expect(mentionedInCode("a.tsx", `/* ${n} */`, n)).toBe(false);
+    expect(mentionedInCode("a.mjs", `   * ${n}`, n)).toBe(false);
+    expect(mentionedInCode("run.sh", `grep -l x ${n} # opis`, n)).toBe(true);
+    expect(mentionedInCode("run.sh", `echo a#b ${n}`, n)).toBe(true);
+    expect(mentionedInCode("run.sh", `  # ${n}`, n)).toBe(false);
+    expect(mentionedInCode("t.sql", `\\i ${n}`, n)).toBe(true);
+    expect(mentionedInCode("t.sql", `SELECT 1; -- ${n}`, n)).toBe(false);
+    // `*` na poczatku linii SQL to nie komentarz blokowy JS.
+    expect(mentionedInCode("t.sql", ` * ${n}`, n)).toBe(true);
+    expect(mentionedInCode("bez-rozszerzenia", `// ${n}\nx("${n}")`, n)).toBe(true);
+    expect(mentionedInCode("a.ts", "nic", n)).toBe(false);
   });
 
   it("bez maxBytes stosuje domyslny limit 45 KiB", () => {

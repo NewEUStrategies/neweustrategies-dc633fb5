@@ -46,6 +46,7 @@ import {
   utf8Length,
   type LaneSource,
 } from "./migrationSplit";
+import type { DeployedMigrations } from "./migrationDeployed";
 import { DRIZZLE_DIR, SUPABASE_DIR } from "./migrationLaneParity";
 import { parseMigrationFile, type MigrationFile } from "./migrationLedger";
 
@@ -209,26 +210,38 @@ export function partTrailer(ctx: HeaderContext, n: number): string {
   ].join("\n");
 }
 
+/** Poczatek tablicy rejestru w `migrationLaneParity.ts`. */
+const LANES_OPEN = "export const MIGRATION_LANES: readonly LaneEntry[] = [\n";
+
 /**
- * Dopisuje do rejestru `MIGRATION_LANES` wpisy czesci ZARAZ za wpisem
- * oryginalu. Mechanicznie, wiec tylko wtedy, gdy wpis oryginalu ma dokladnie
- * ksztalt `{ tag, twin }` i wystepuje raz; inaczej `null` (wpisy do reki).
+ * Dopisuje do rejestru `MIGRATION_LANES` wpisy czesci 2..n. Rejestr idzie
+ * w kolejnosci dziennika drizzle, wiec wpisy czesci Z DZIENNIKA (kolejne
+ * wolne indeksy, `inJournal`) laduja na KONCU tablicy - za wpisami, ktore juz
+ * stoja w dzienniku za blizniakiem - a czesci blizniaka spoza dziennika (numer
+ * blizniaka) zaraz za jego wpisem. Mechanicznie, wiec tylko wtedy, gdy wpis
+ * oryginalu ma dokladnie ksztalt `{ tag, twin }` i wystepuje raz, a tablica
+ * ma rozpoznawalny poczatek i koniec; inaczej `null` (wpisy do reki).
  */
 export function insertLaneEntries(
   source: string,
   tag: string,
   twin: string,
   entries: readonly { readonly tag: string; readonly twin: string }[],
+  inJournal = false,
 ): string | null {
   const block = `\n  {\n    tag: "${tag}",\n    twin: "${twin}",\n  },\n`;
   const at = source.indexOf(block);
   if (at === -1 || source.indexOf(block, at + 1) !== -1) return null;
+  const open = source.indexOf(LANES_OPEN);
+  const close = open === -1 ? -1 : source.indexOf("\n];\n", open);
+  if (close === -1 || at < open || at > close) return null;
+  const n = entries.length + 1;
   const added = [
-    `  // Czesci 2..${entries.length + 1} migracji ${tag} (scripts/split-migration.ts,`,
-    "  // limit wdrozenia Lovable) - kazda para czesci to pelne blizniaki.",
+    `  // ${n === 2 ? "Czesc 2" : `Czesci 2..${n}`} migracji ${tag} (scripts/split-migration.ts,`,
+    `  // limit wdrozenia Lovable) - ${n === 2 ? "para czesci to pelne blizniaki" : "kazda para czesci to pelne blizniaki"}.`,
     ...entries.map((e) => `  {\n    tag: "${e.tag}",\n    twin: "${e.twin}",\n  },`),
   ].join("\n");
-  const end = at + block.length;
+  const end = inJournal ? close + 1 : at + block.length;
   return `${source.slice(0, end)}${added}\n${source.slice(end)}`;
 }
 
@@ -247,6 +260,12 @@ export interface DrizzleTwinInput {
 export interface SplitPlanInput {
   /** Nazwa pliku w `supabase/migrations/`, np. `20260926180000_x.sql`. */
   readonly supabaseFile: string;
+  /**
+   * Linia bazowa i lista wdrozonych plikow ponad limit (w CLI
+   * `DEPLOYED_MIGRATIONS` z migrationDeployed.ts). Wymagane, nie domyslne:
+   * kazde wywolanie planu musi jawnie powiedziec, co jest juz na produkcji.
+   */
+  readonly deployed: DeployedMigrations;
   readonly supabaseSql: string;
   /** Wszystkie nazwy plikow `supabase/migrations/*.sql` (z dzielonym wlacznie). */
   readonly supabaseFiles: readonly string[];
@@ -287,11 +306,30 @@ function fail(message: string): never {
   throw new MigrationSplitError(message);
 }
 
+/**
+ * Czy `needle` stoi w KODZIE pliku, a nie tylko w komentarzu. Wzmianka
+ * w komentarzu (naglowek testu, opis w runtime_test.d) nie czyta migracji, a
+ * ostrzezenie o niej zagluszalo jedyne prawdziwe (test czytajacy plik po
+ * nazwie). Heurystyka po liniach: komentarz `//` i linia bloku `/* ... *\/`
+ * zaczynajaca sie od `*` w TS, `#` w skryptach powloki, `--` w SQL.
+ */
+export function mentionedInCode(path: string, content: string, needle: string): boolean {
+  const ext = /\.(\w+)$/.exec(path)?.[1];
+  const lineComment = ext === "sh" ? /(?:^|\s)#/ : ext === "sql" ? /--/ : /\/\//;
+  const blockLine = ext === "sh" || ext === "sql" ? null : /^\s*(?:\*|\/\*)/;
+  return content.split("\n").some((line) => {
+    const at = line.indexOf(needle);
+    if (at === -1 || blockLine?.test(line)) return false;
+    const comment = lineComment.exec(line);
+    return comment === null || comment.index > at;
+  });
+}
+
 function referenceWarnings(input: SplitPlanInput, label: string): string[] {
   const needles = [input.supabaseFile, `_${label}.sql`];
   if (input.drizzle) needles.push(`${input.drizzle.tag}.sql`);
   return (input.references ?? [])
-    .filter((ref) => needles.some((needle) => ref.content.includes(needle)))
+    .filter((ref) => needles.some((needle) => mentionedInCode(ref.path, ref.content, needle)))
     .map(
       (ref) =>
         `${ref.path} wskazuje te migracje po nazwie - po podziale plik ma tylko czesc 1; czytaj calosc przez readLogicalMigration() z src/lib/ci/migrationSize.ts albo wskaz wlasciwa czesc.`,
@@ -306,6 +344,14 @@ export function planMigrationSplit(input: SplitPlanInput): SplitPlan {
   // Czesc 1 po podziale niesie stopke `part 1/n`, czesc k - naglowek `part k/n`.
   if (SPLIT_MARKER_RE.test(input.supabaseSql)) {
     fail(`${input.supabaseFile} jest juz czescia podzielonej migracji - nie tniemy drugi raz.`);
+  }
+  // Forward-only: wdrozony plik zostaje, jaki jest. Podzial przepisalby go
+  // (czesc 1), a czesci 2..n dostalyby NOWE wersje, ktore produkcja wykonalaby
+  // drugi raz jako nowe migracje.
+  if (input.supabaseFile in input.deployed.oversize || version <= input.deployed.baseline) {
+    fail(
+      `${input.supabaseFile} to wdrozona migracja (${input.supabaseFile in input.deployed.oversize ? "lista DEPLOYED_OVERSIZE" : `wersja <= linii bazowej ${input.deployed.baseline}`}, src/lib/ci/migrationDeployed.ts) - forward-only, nie tniemy. Niewdrozony plik ze stara wersja najpierw przenumeruj ponad linie.`,
+    );
   }
 
   const others = input.supabaseFiles
@@ -474,10 +520,16 @@ export function planMigrationSplit(input: SplitPlanInput): SplitPlan {
     const edited =
       input.registrySource === undefined
         ? null
-        : insertLaneEntries(input.registrySource, drizzle.tag, input.supabaseFile, laneEntries);
+        : insertLaneEntries(
+            input.registrySource,
+            drizzle.tag,
+            input.supabaseFile,
+            laneEntries,
+            twinEntry !== undefined,
+          );
     if (edited === null) {
       warnings.push(
-        `Rejestr ${LANE_REGISTRY} NIE zostal zmieniony (wpis ${drizzle.tag} nie ma prostego ksztaltu { tag, twin }) - dopisz wpisy czesci recznie, zaraz za nim.`,
+        `Rejestr ${LANE_REGISTRY} NIE zostal zmieniony (wpis ${drizzle.tag} nie ma prostego ksztaltu { tag, twin } albo tablica MIGRATION_LANES nie ma rozpoznawalnych granic) - dopisz wpisy czesci recznie, ${twinEntry === undefined ? "zaraz za nim" : "na koncu rejestru (kolejnosc dziennika)"}.`,
       );
     } else {
       writes.push({ path: LANE_REGISTRY, content: edited });

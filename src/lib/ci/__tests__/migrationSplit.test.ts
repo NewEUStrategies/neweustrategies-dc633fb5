@@ -174,6 +174,43 @@ describe("lexStatements - granice instrukcji", () => {
     expect(texts("CREATE OR REPLACE VIEW v AS SELECT 1 AS begin;\nSELECT 2;")).toHaveLength(2);
   });
 
+  it("komentarz `--` konczy takze samotny CR (jak w psql) - tekst za nim to znow kod", () => {
+    // Repro z przegladu: `-- c\r` zamyka komentarz, wiec `|| 'x\n); SELECT 42 ...; -- \r'`
+    // to LITERAL - oryginal jest JEDNA instrukcja, a nie trzy.
+    const cr =
+      "CREATE TABLE public.cr1 (a text DEFAULT 'a' -- c\r|| 'x\n); SELECT 42 AS leaked; -- \r'\n);\n";
+    expect(texts(cr)).toEqual([cr]);
+    expect(lexStatements(cr)[0]!.skeleton).not.toContain("SELECT");
+    expect(texts("SELECT 1; -- a\rSELECT 2;")).toEqual(["SELECT 1; -- a\r", "SELECT 2;"]);
+    expect(texts("SELECT 1;\rSELECT 2;")).toEqual(["SELECT 1;\r", "SELECT 2;"]);
+  });
+
+  it("E'...' sklejony przez nowa linie ciagnie tryb E: \\' w dalszym kawalku nie zamyka", () => {
+    expect(texts("SELECT E'a'\n'\\';b';\nSELECT 2;")).toEqual([
+      "SELECT E'a'\n'\\';b';\n",
+      "SELECT 2;",
+    ]);
+    // Kontynuacja przechodzi przez komentarze `--` (zakonczone koncem linii).
+    expect(texts("SELECT E'a' -- c\n  -- d\n'\\';b';\nSELECT 2;")).toHaveLength(2);
+    // Zwykly literal: '\' konczy sie na `'` - kontynuacja nie zmienia granic.
+    expect(texts("SELECT 'a'\n'\\';\nSELECT 2;")).toEqual(["SELECT 'a'\n'\\';\n", "SELECT 2;"]);
+    expect(() => lexStatements("SELECT E'a'\n'\\';")).toThrow(/Niezamkniety literal/);
+  });
+
+  it("meta-polecenie psql i COPY ... FROM STDIN to blad leksera, a nie ciecie przez dane", () => {
+    expect(() => lexStatements("SELECT 1;\n\\set x 1\nSELECT 2;")).toThrow(
+      /Meta-polecenie psql \(\\\.\.\.\) w linii 2/,
+    );
+    expect(() => lexStatements("COPY t FROM stdin;\n1\t;x\n\\.\nSELECT 2;")).toThrow(
+      /COPY \.\.\. FROM STDIN w linii 1/,
+    );
+    expect(() => lexStatements("SELECT 1;\n  copy public.t (a) from STDIN")).toThrow(
+      MigrationLexError,
+    );
+    // Ukosnik w literale, COPY z pliku serwera i COPY do STDOUT to zwykly SQL.
+    expect(texts("SELECT '\\';\nCOPY t FROM '/tmp/x.csv';\nCOPY t TO STDOUT;")).toHaveLength(3);
+  });
+
   it("niezamkniete konstrukcje to blad z numerem linii, a nie ciche ciecie", () => {
     expect(() => lexStatements("SELECT 1;\nSELECT 'abc;")).toThrow(MigrationLexError);
     expect(() => lexStatements("SELECT 1;\nSELECT 'abc;")).toThrow(/linii 2/);
@@ -542,6 +579,23 @@ describe("splitAligned - pakowanie", () => {
     expect(result.oversize).toEqual([0]);
   });
 
+  it("E'a\\';b', zagniezdzony komentarz i komentarz do CR przechodza wlasny dowod", () => {
+    // Granice byly dobre juz wczesniej, ale odcisk (1) czytal te konstrukcje
+    // inaczej niz lekser i dowod odrzucal poprawny podzial.
+    for (const first of [
+      "SELECT E'a\\';b';\n",
+      "SELECT /* a /* b; */ c' */ 1;\n",
+      "SELECT 'a' -- c\r|| 'x  y';\n",
+    ]) {
+      const result = splitAligned([lane(`${first}SELECT 'x  y';\n`)], {
+        maxBytes: 20,
+        onOversize: "isolate",
+      });
+      expect(result.lanes[0], first).toHaveLength(2);
+      expect(result.lanes[0]![1]!.text).toContain("SELECT 'x  y';\n");
+    }
+  });
+
   it("naglowek, ktory nie jest komentarzem, oblewa dowod - czesc dodalaby SQL", () => {
     const sql = `${stmt("a", 300)}${stmt("b", 300)}`;
     expect(() =>
@@ -596,6 +650,64 @@ describe("verifySplit - kazda galaz dowodu umie zapalic sie na czerwono", () => 
     expect(verifySplit(sources, tamper(good.lanes as SplitResult["lanes"], [0, 1]), 100)).toEqual(
       [],
     );
+  });
+
+  const part = (text: string, head = 0, tail = 0) => ({
+    text,
+    head,
+    tail,
+    bytes: utf8Length(text),
+  });
+  const single = (parts: ReturnType<typeof part>[]): SplitResult => ({
+    lanes: [parts],
+    oversize: [],
+    statements: 2,
+    firstLines: parts.map(() => 1),
+  });
+
+  it("lapie ciecie W SRODKU ciala $$ - odcisk (1) i bajty (2) tego nie widza, struktura (5) tak", () => {
+    const src =
+      "CREATE FUNCTION f() RETURNS void LANGUAGE plpgsql AS $$\nBEGIN\n  PERFORM 1;\n  PERFORM 2;\nEND\n$$;\n";
+    const cut = src.indexOf("  PERFORM 2");
+    const head = "-- part 2/2\n";
+    const result = single([part(src.slice(0, cut)), part(head + src.slice(cut), head.length)]);
+    expect(verifySplit([src], result, 1e6)).toEqual([
+      expect.stringMatching(
+        /^pas 0, czesc 1: MigrationLexError: Niezamkniety cialo \$\$ od linii 1/,
+      ),
+    ]);
+  });
+
+  it("struktura: oryginal, ktory sie nie leksuje, i czesci z brakujaca instrukcja", () => {
+    expect(verifySplit(["SELECT 'x"], single([part("SELECT 'x")]), 1e6)).toContain(
+      "pas 0: oryginal - MigrationLexError: Niezamkniety literal '...' od linii 1 - nie da sie wyznaczyc granic instrukcji.",
+    );
+    const src = "SELECT 'a';\nSELECT 'b';\n";
+    expect(verifySplit([src], single([part("SELECT 'a';\n")]), 1e6)).toContain(
+      "pas 0: czesci niosa 1 instrukcji z 2 instrukcji oryginalu",
+    );
+  });
+
+  it("struktura: SQL w naglowku, zmieniony literal i instrukcja spoza oryginalu", () => {
+    const src = "SELECT 'a';\nSELECT 'b';\n";
+    const structure = (problems: string[]) =>
+      problems.filter((p) => p.includes("nie jest instrukcja"));
+    // Naglowek bez `;` wkleja sie w pierwsza instrukcje czesci - tekst sie zgadza, szkielet nie.
+    const head = "-- h\nSELECT 0 AS\n";
+    const glued = single([part("SELECT 'a';\n"), part(`${head}SELECT 'b';\n`, head.length)]);
+    expect(structure(verifySplit([src], glued, 1e6))).toEqual([
+      "pas 0, czesc 2: instrukcja 1 czesci (linia 2) nie jest instrukcja #2 oryginalu - granica czesci nie lezy miedzy instrukcjami najwyzszego poziomu albo naglowek/stopka wkleily sie w instrukcje",
+    ]);
+    // Inna tresc literalu: szkielet ten sam, tekst nie.
+    const changed = single([part("SELECT 'a';\n"), part("SELECT 'B';\n")]);
+    expect(structure(verifySplit([src], changed, 1e6))).toHaveLength(1);
+    // Instrukcja, ktorej w oryginale nie ma.
+    const extra = single([part("SELECT 'a';\n"), part("SELECT 'b';\nSELECT 'c';\n")]);
+    expect(structure(verifySplit([src], extra, 1e6))).toEqual([
+      expect.stringContaining(
+        "czesc 2: instrukcja 2 czesci (linia 2) nie jest instrukcja #3 oryginalu",
+      ),
+    ]);
   });
 
   it("lapie czesc k pasa drizzle o innym SQL-u niz czesc k pasa supabase", () => {

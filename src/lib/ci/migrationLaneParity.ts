@@ -501,9 +501,12 @@ function foldDiacritics(sql: string): string {
   return sql.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ł/g, "l").replace(/Ł/g, "L");
 }
 
-/** Czy tekst POZA literałami, od ostatniego `;`, kończy się na `COMMENT ON ... IS `. */
+/**
+ * Czy tekst POZA literałami, od ostatniego `;`, kończy się na `COMMENT ON ... IS `
+ * (albo `IS E` - prefiks literału E'...' stoi tuż przed apostrofem).
+ */
 function isCommentOperand(stmt: string): boolean {
-  return /\bCOMMENT\s+ON\b[\s\S]*\bIS\s+$/i.test(stmt);
+  return /\bCOMMENT\s+ON\b[\s\S]*\bIS\s+E?$/i.test(stmt);
 }
 
 /**
@@ -513,7 +516,7 @@ function isCommentOperand(stmt: string): boolean {
  * przy `\'`, a resztę pliku czytał z odwróconym cytowaniem - i spacja W ŚRODKU
  * następnych literałów przestawała być widoczna dla odcisku.
  */
-function literalEnd(src: string, at: number, backslash = false): number {
+function literalEnd(src: string, at: number, backslash: boolean): number {
   let j = at + 1;
   while (j < src.length) {
     if (backslash && src[j] === "\\") {
@@ -580,6 +583,35 @@ export function sqlLineCommentEnd(src: string, at: number): number {
 }
 
 /**
+ * Kontynuacja literalu jak w lekserze PostgreSQL (`quotecontinue`): za
+ * zamykajacym `'` stoja poziome biale znaki albo komentarze `--`, KONIEC
+ * LINII, dalej biale znaki albo komentarze zakonczone koncem linii - i `'`.
+ * Zwraca indeks tego `'` albo `-1`, gdy literal sie tu konczy. Dla zwyklego
+ * literalu granice instrukcji wychodza te same z kontynuacja i bez niej, ale
+ * E'...' kontynuuje sie W TRYBIE E: `\'` w dalszym kawalku tez jest escape'em
+ * i nie zamyka literalu. Wspolne ze splitterem migracji.
+ */
+export function sqlQuoteContinuation(src: string, at: number): number {
+  let j = at;
+  for (;;) {
+    if (j < src.length && /[ \t\f]/.test(src[j]!)) j += 1;
+    else if (src[j] === "-" && src[j + 1] === "-") j = sqlLineCommentEnd(src, j);
+    else break;
+  }
+  if (src[j] !== "\n" && src[j] !== "\r") return -1;
+  j += 1;
+  for (;;) {
+    if (j < src.length && /[ \t\n\r\f\v]/.test(src[j]!)) j += 1;
+    else if (src[j] === "-" && src[j + 1] === "-") {
+      const end = sqlLineCommentEnd(src, j);
+      if (end === src.length) return -1;
+      j = end + 1;
+    } else break;
+  }
+  return src[j] === "'" ? j : -1;
+}
+
+/**
  * Koniec CAŁEGO ciągu sklejanych literałów zaczynającego się na `at`.
  *
  * KONIEC WIERSZA JEST WARUNKIEM, NIE OZDOBĄ. PostgreSQL skleja dwie sąsiadujące
@@ -592,8 +624,10 @@ export function sqlLineCommentEnd(src: string, at: number): number {
  *
  * Cokolwiek innego niż biały znak - również komentarz `--` - kończy ciąg.
  */
-function concatenatedLiteralsEnd(src: string, at: number): number {
-  let end = literalEnd(src, at);
+function concatenatedLiteralsEnd(src: string, at: number, backslash: boolean): number {
+  // Kawalek sklejony z E'...' jest nadal w trybie E (tak czyta go lekser
+  // PostgreSQL), wiec `backslash` obowiazuje caly ciag.
+  let end = literalEnd(src, at, backslash);
   for (;;) {
     let k = end;
     let sawNewline = false;
@@ -602,7 +636,7 @@ function concatenatedLiteralsEnd(src: string, at: number): number {
       k += 1;
     }
     if (!sawNewline || src[k] !== "'") return end;
-    end = literalEnd(src, k);
+    end = literalEnd(src, k, backslash);
   }
 }
 
@@ -687,7 +721,13 @@ function scan(src: string, opts: { maskCommentProse: boolean; dollarIsCode: bool
 
     // Literał pojedynczy; '' w środku to escape, nie koniec (w E'...' także \').
     if (ch === "'") {
-      const end = literalEnd(src, i, escapeLiteral);
+      const backslash = escapeLiteral;
+      let end = literalEnd(src, i, backslash);
+      let next = backslash ? sqlQuoteContinuation(src, end) : -1;
+      while (next !== -1) {
+        end = literalEnd(src, next, true);
+        next = sqlQuoteContinuation(src, end);
+      }
       escapeLiteral = false;
       // `flush()` PRZED pytaniem o operand: dopiero on dokłada do `stmt` tekst
       // spoza literałów, a to w nim stoi `COMMENT ON ... IS `.
@@ -701,7 +741,7 @@ function scan(src: string, opts: { maskCommentProse: boolean; dollarIsCode: bool
         // `rozjazd-sql` na SAMEJ PROZIE, której ta bramka świadomie nie pilnuje.
         out += "'<proza>'";
         stmt += "x";
-        i = concatenatedLiteralsEnd(src, i);
+        i = concatenatedLiteralsEnd(src, i, backslash);
         continue;
       }
       out += src.slice(i, end);
