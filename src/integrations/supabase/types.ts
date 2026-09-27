@@ -22111,6 +22111,10 @@ export type Database = {
         Args: { _checkpoint_id: string; _tenant: string }
         Returns: number
       }
+      _event_clone_ad_campaigns: {
+        Args: { p_ctx: Json; p_new: string; p_src: string; p_tenant: string }
+        Returns: Json
+      }
       _event_clone_agenda: {
         Args: { p_ctx: Json; p_new: string; p_src: string; p_tenant: string }
         Returns: Json
@@ -22119,8 +22123,16 @@ export type Database = {
         Args: { p_ctx: Json; p_new: string; p_src: string; p_tenant: string }
         Returns: Json
       }
+      _event_clone_codes: {
+        Args: { p_ctx: Json; p_new: string; p_src: string; p_tenant: string }
+        Returns: Json
+      }
       _event_clone_counts: {
         Args: { p_src: string; p_tenant: string }
+        Returns: Json
+      }
+      _event_clone_crm: {
+        Args: { p_ctx: Json; p_new: string; p_src: string; p_tenant: string }
         Returns: Json
       }
       _event_clone_dates: {
@@ -22143,6 +22155,10 @@ export type Database = {
         Returns: Json
       }
       _event_clone_groups: {
+        Args: { p_ctx: Json; p_new: string; p_src: string; p_tenant: string }
+        Returns: Json
+      }
+      _event_clone_home_ads: {
         Args: { p_ctx: Json; p_new: string; p_src: string; p_tenant: string }
         Returns: Json
       }
@@ -22175,6 +22191,10 @@ export type Database = {
         Returns: Json
       }
       _event_clone_rooms: {
+        Args: { p_ctx: Json; p_new: string; p_src: string; p_tenant: string }
+        Returns: Json
+      }
+      _event_clone_seating: {
         Args: { p_ctx: Json; p_new: string; p_src: string; p_tenant: string }
         Returns: Json
       }
@@ -24016,6 +24036,8 @@ export type Database = {
           updated_at: string
         }[]
       }
+      admin_event_clone: { Args: { p_payload: Json }; Returns: Json }
+      admin_event_clone_preview: { Args: { p_payload: Json }; Returns: Json }
       admin_event_company_sponsorships: {
         Args: { p_company_id: string }
         Returns: {
@@ -24099,6 +24121,20 @@ export type Database = {
           video_header_id: string
           video_header_platform: string
           visibility: string
+        }[]
+      }
+      admin_event_editions: {
+        Args: { p_event_id: string }
+        Returns: {
+          depth: number
+          id: string
+          relation: string
+          slug: string
+          starts_at: string
+          status: string
+          timezone: string
+          title_en: string
+          title_pl: string
         }[]
       }
       admin_event_features_save: {
