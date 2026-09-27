@@ -9,6 +9,10 @@
 // zgody na pomiar, z innego urzadzenia albo spoza formularza nie maja wizyt -
 // w tabeli stoja z kreska w kolumnach lejka, a nie z zerem.
 //
+// "POZOSTALE KAMPANIE" TO WIERSZ ZBIORCZY. Baza zwija kampanie UTM i Google Ads
+// spoza 50 najliczniejszych w jedna grupe `other` (nazwy przychodza z adresow
+// obcych, wiec lista bez limitu rosla dowolnie) - wiersz mowi, ile zwinieto.
+//
 // Molekula nie pyta serwera: dostaje gotowy raport.
 import { Fragment } from "react";
 import { useTranslation } from "react-i18next";
@@ -37,6 +41,7 @@ const KIND_LABEL_KEYS: Record<AdsFunnelGroupKind, string> = {
   campaign: "adminEventAdsFunnel.table.kinds.campaign",
   utm_campaign: "adminEventAdsFunnel.table.kinds.utm_campaign",
   gad_campaign: "adminEventAdsFunnel.table.kinds.gad_campaign",
+  other: "adminEventAdsFunnel.table.kinds.other",
   none: "adminEventAdsFunnel.table.kinds.none",
 };
 
@@ -56,6 +61,7 @@ export function AdsFunnelCampaignTable({
   ensureAdsFunnelI18n();
   const { t } = useTranslation();
   const noCampaign = t("adminEventAdsFunnel.table.noCampaign");
+  const otherCampaigns = t("adminEventAdsFunnel.table.otherCampaigns");
 
   if (report.groups.length === 0 && report.unattributed.registrations === 0) {
     return <p className="text-sm text-muted-foreground">{t("adminEventAdsFunnel.table.empty")}</p>;
@@ -106,8 +112,15 @@ export function AdsFunnelCampaignTable({
               <Fragment key={group.key}>
                 <TableRow>
                   <TableHead scope="row" className="font-medium">
-                    <span className="mr-2">{adsFunnelGroupName(group, noCampaign)}</span>
+                    <span className="mr-2">
+                      {adsFunnelGroupName(group, noCampaign, otherCampaigns)}
+                    </span>
                     <Badge variant="outline">{t(KIND_LABEL_KEYS[group.kind])}</Badge>
+                    {group.kind === "other" ? (
+                      <span className="block text-[11px] font-normal text-muted-foreground">
+                        {t("adminEventAdsFunnel.table.otherHint", { folded: report.groupsFolded })}
+                      </span>
+                    ) : null}
                   </TableHead>
                   <TableCell className="text-right tabular-nums">{group.visits}</TableCell>
                   <TableCell className="text-right tabular-nums">

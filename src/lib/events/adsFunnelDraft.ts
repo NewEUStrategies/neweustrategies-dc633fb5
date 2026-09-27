@@ -105,19 +105,95 @@ export function adCampaignDraftToInput(draft: AdCampaignDraft, eventId: string):
 
 export const AD_COST_MAX_ROWS = 500;
 
+export interface ParsedAmount {
+  micros: number;
+  /** Waluta z kwoty ("PLN 12.50", "12,50 zl", "€5") albo `null` (brak, "$"). */
+  currency: string | null;
+}
+
+// Jeden znacznik waluty na poczatku ALBO na koncu kwoty (jak kopiuje go arkusz):
+// kod ISO, "zl" (PLN), "€" (EUR), "$" (bez waluty - dolarow jest kilka). Kod
+// niezgodny z waluta wiersza to blad waluty, a nie cicha zamiana.
+const CURRENCY_TOKEN = "[a-z]{3}|zł|€|\\$";
+const LEADING_CURRENCY = new RegExp(`^(${CURRENCY_TOKEN})`, "i");
+const TRAILING_CURRENCY = new RegExp(`(${CURRENCY_TOKEN})$`, "i");
+
+function tokenCurrency(token: string): string | null {
+  if (token === "$") return null;
+  if (token === "€") return "EUR";
+  if (token.toLowerCase() === "zł") return "PLN";
+  return token.toUpperCase();
+}
+
+/** Grupy tysiecy: "1,234,567" / "1.234" - pierwsza grupa 1-3 cyfry, reszta po 3. */
+function isGrouped(value: string, separator: string): boolean {
+  return (separator === "," ? /^\d{1,3}(,\d{3})+$/ : /^\d{1,3}(\.\d{3})+$/).test(value);
+}
+
+/** Czesc calkowita i ulamek bez znacznika waluty albo `null` (zapis niejednoznaczny/zly). */
+function splitAmount(body: string): { whole: string; fraction: string } | null {
+  if (!/^[\d.,]+$/.test(body)) return null;
+  const lastComma = body.lastIndexOf(",");
+  const lastDot = body.lastIndexOf(".");
+  if (lastComma !== -1 && lastDot !== -1) {
+    // Oba separatory: pozniejszy jest dziesietny (jeden), wczesniejszy grupuje tysiace.
+    const decimal = lastComma > lastDot ? "," : ".";
+    const at = Math.max(lastComma, lastDot);
+    if (body.indexOf(decimal) !== at) return null;
+    const head = body.slice(0, at);
+    const fraction = body.slice(at + 1);
+    if (fraction === "" || !isGrouped(head, decimal === "," ? "." : ",")) return null;
+    return { whole: head.replace(/[.,]/g, ""), fraction };
+  }
+  const separator = lastComma !== -1 ? "," : lastDot !== -1 ? "." : null;
+  if (separator === null) return { whole: body, fraction: "" };
+  const at = body.indexOf(separator);
+  if (at !== body.lastIndexOf(separator)) {
+    // Ten sam separator kilka razy = wylacznie tysiace, bez ulamka.
+    return isGrouped(body, separator)
+      ? { whole: body.split(separator).join(""), fraction: "" }
+      : null;
+  }
+  const head = body.slice(0, at);
+  const tail = body.slice(at + 1);
+  // "1,234" / "1.234": tysiac dwiescie trzydziesci cztery czy 1,234? Nie zgadujemy.
+  if (tail === "" || (/^\d{3}$/.test(tail) && /^[1-9]\d{0,2}$/.test(head))) return null;
+  return { whole: head, fraction: tail };
+}
+
 /**
- * Kwota tekstowa -> mikro-jednostki albo `null`. Przyjmuje "1234", "1234.5",
- * "1 234,56", "1,234.56", "1.234,56": ostatni z separatorow (kropka/przecinek)
- * jest dziesietny, pozostale sa separatorami tysiecy.
+ * Kwota tekstowa -> mikro-jednostki i waluta z kwoty albo `null`. Przyjmuje
+ * "1234", "1234.5", "1 234,56", "1,234.56", "1.234,56", "1,234,567", "12,50 zl",
+ * "PLN 12.50": przy obu separatorach pozniejszy jest dziesietny (raz), a grupy
+ * tysiecy musza byc po trzy cyfry. Pojedynczy separator z DOKLADNIE trzema
+ * cyframi po nim ("1,234") jest niejednoznaczny i odrzucany.
  */
+export function parseAmount(input: string): ParsedAmount | null {
+  let body = input.replace(/\s/g, "");
+  let currency: string | null = null;
+  const token = LEADING_CURRENCY.exec(body) ?? TRAILING_CURRENCY.exec(body);
+  if (token !== null) {
+    const found = token[1] as string;
+    currency = tokenCurrency(found);
+    body = token.index === 0 ? body.slice(found.length) : body.slice(0, token.index);
+  }
+  const parts = splitAmount(body);
+  if (parts === null) return null;
+  if (!/^\d{1,12}$/.test(parts.whole) || !/^\d{0,6}$/.test(parts.fraction)) return null;
+  return {
+    micros: Number(parts.whole) * 1_000_000 + Number(parts.fraction.padEnd(6, "0")),
+    currency,
+  };
+}
+
+/** Sama kwota w mikro (bez waluty) - patrz `parseAmount`. */
 export function parseAmountToMicros(input: string): number | null {
-  const compact = input.replace(/[\s\u00a0]/g, "");
-  const lastSep = Math.max(compact.lastIndexOf(","), compact.lastIndexOf("."));
-  const whole = lastSep === -1 ? compact : compact.slice(0, lastSep).replace(/[.,]/g, "");
-  const fraction = lastSep === -1 ? "" : compact.slice(lastSep + 1);
-  if (!/^\d{1,12}$/.test(whole) || !/^\d{0,6}$/.test(fraction)) return null;
-  if (lastSep !== -1 && fraction === "") return null;
-  return Number(whole) * 1_000_000 + Number(fraction.padEnd(6, "0"));
+  return parseAmount(input)?.micros ?? null;
+}
+
+/** Waluta wiersza zgodna z waluta zapisana przy kwocie (brak przy kwocie = zgodna). */
+function currencyMatches(amount: ParsedAmount, currency: string): boolean {
+  return amount.currency === null || amount.currency === currency;
 }
 
 /** Mikro -> kwota do pola formularza ("123.45"). */
@@ -175,11 +251,13 @@ export function adCostRowFromDraft(
 ): { row: AdCostRowInput } | { errorKey: AdCostErrorKey } {
   const day = parseCostDay(draft.day);
   if (day === null) return { errorKey: "dayInvalid" };
-  const micros = parseAmountToMicros(draft.amount);
-  if (micros === null) return { errorKey: "amountInvalid" };
+  const amount = parseAmount(draft.amount);
+  if (amount === null) return { errorKey: "amountInvalid" };
   const currency = draft.currency.trim().toUpperCase();
-  if (!/^[A-Z]{3}$/.test(currency)) return { errorKey: "currencyInvalid" };
-  return { row: { day, costMicros: micros, currency } };
+  if (!/^[A-Z]{3}$/.test(currency) || !currencyMatches(amount, currency)) {
+    return { errorKey: "currencyInvalid" };
+  }
+  return { row: { day, costMicros: amount.micros, currency } };
 }
 
 export interface AdCostPasteResult {
@@ -222,13 +300,13 @@ export function parseCostsPaste(text: string, defaultCurrency: string): AdCostPa
       errors.push({ line, errorKey: "dayInvalid" });
       return;
     }
-    const micros = parseAmountToMicros(amountCell);
-    if (micros === null) {
+    const amount = parseAmount(amountCell);
+    if (amount === null) {
       errors.push({ line, errorKey: "amountInvalid" });
       return;
     }
     const currency = (currencyCell === "" ? defaultCurrency : currencyCell).trim().toUpperCase();
-    if (!/^[A-Z]{3}$/.test(currency)) {
+    if (!/^[A-Z]{3}$/.test(currency) || !currencyMatches(amount, currency)) {
       errors.push({ line, errorKey: "currencyInvalid" });
       return;
     }
@@ -243,7 +321,7 @@ export function parseCostsPaste(text: string, defaultCurrency: string): AdCostPa
       return;
     }
     days.add(day);
-    rows.push({ day, costMicros: micros, currency, clicks, impressions });
+    rows.push({ day, costMicros: amount.micros, currency, clicks, impressions });
   });
   if (rows.length > AD_COST_MAX_ROWS) {
     errors.push({ line: lines.length, errorKey: "tooManyRows" });

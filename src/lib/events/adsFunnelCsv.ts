@@ -36,6 +36,8 @@ export interface AdsFunnelCsvLabels {
   roas: string;
   /** Nazwa grupy "bez kampanii". */
   noCampaign: string;
+  /** Nazwa grupy kampanii zwinietych przez baze (`other`). */
+  otherCampaigns: string;
   /** Nazwa wiersza zgloszen bez atrybucji. */
   unattributed: string;
 }
@@ -50,8 +52,13 @@ function costText(items: readonly CostAmount[]): string {
   );
 }
 
-export function adsFunnelGroupName(group: AdsFunnelGroup, noCampaign: string): string {
+export function adsFunnelGroupName(
+  group: AdsFunnelGroup,
+  noCampaign: string,
+  otherCampaigns: string,
+): string {
   if (group.kind === "none") return noCampaign;
+  if (group.kind === "other") return otherCampaigns;
   return group.label ?? group.utmCampaign ?? group.gadCampaignId ?? noCampaign;
 }
 
@@ -72,7 +79,7 @@ export function buildAdsFunnelCsv(report: AdsFunnelReport, labels: AdsFunnelCsvL
   ];
   const rows: CsvCellValue[][] = [];
   for (const group of report.groups) {
-    const name = adsFunnelGroupName(group, labels.noCampaign);
+    const name = adsFunnelGroupName(group, labels.noCampaign, labels.otherCampaigns);
     const cpa = costPerAcquisition(group.cost, group.paid);
     const roas = returnOnAdSpend(group.revenue, group.cost);
     rows.push([

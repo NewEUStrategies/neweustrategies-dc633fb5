@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   consent: { analytics: false, marketing: false },
+  decided: false,
   listeners: new Set<() => void>(),
   order: [] as string[],
   capture: vi.fn(),
@@ -25,6 +26,7 @@ const h = vi.hoisted(() => ({
 
 vi.mock("@/lib/ads/consent", () => ({
   hasCategoryConsent: (cat: "analytics" | "marketing") => h.consent[cat],
+  hasConsentDecision: () => h.decided,
   subscribeConsentChange: (listener: () => void) => {
     h.listeners.add(listener);
     return () => h.listeners.delete(listener);
@@ -53,6 +55,7 @@ const { AdAttributionCapture } =
 /** Zmiana zgody w banerze / innej karcie / GPC - to, co rozglasza consent.ts. */
 function consentChanged(analytics: boolean, marketing: boolean): void {
   h.consent = { analytics, marketing };
+  h.decided = true;
   act(() => {
     for (const listener of [...h.listeners]) listener();
   });
@@ -60,6 +63,7 @@ function consentChanged(analytics: boolean, marketing: boolean): void {
 
 beforeEach(() => {
   h.consent = { analytics: false, marketing: false };
+  h.decided = false;
   h.listeners.clear();
   h.order = [];
   h.capture.mockReset();
@@ -87,8 +91,9 @@ describe("AdAttributionCapture", () => {
       nowMs: expect.any(Number),
     });
     expect(h.order).toEqual(["capture", "persist", "visit"]);
+    // Przed decyzja: brak zgody to "jeszcze nie wiadomo", nie odmowa.
     expect(h.persist).toHaveBeenCalledWith(
-      { analytics: false, marketing: false },
+      { analytics: false, marketing: false, decided: false },
       expect.any(Number),
     );
     expect(h.send).toHaveBeenCalledWith("visit", { slug: "kongres" });
@@ -101,12 +106,12 @@ describe("AdAttributionCapture", () => {
     render(<AdAttributionCapture eventSlug="kongres" />);
     consentChanged(true, true);
     expect(h.persist).toHaveBeenLastCalledWith(
-      { analytics: true, marketing: true },
+      { analytics: true, marketing: true, decided: true },
       expect.any(Number),
     );
     consentChanged(false, false);
     expect(h.persist).toHaveBeenLastCalledWith(
-      { analytics: false, marketing: false },
+      { analytics: false, marketing: false, decided: true },
       expect.any(Number),
     );
     expect(h.persist).toHaveBeenCalledTimes(3);

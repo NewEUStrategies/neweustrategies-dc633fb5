@@ -9142,6 +9142,103 @@ export type Database = {
           },
         ]
       }
+      event_package_order_attributions: {
+        Row: {
+          ad_personalization: boolean
+          ad_user_data: boolean
+          click_at: string | null
+          click_id: string | null
+          click_id_type: string | null
+          click_pruned_at: string | null
+          created_at: string
+          event_id: string
+          first_touch: Json | null
+          gad_campaign_id: string | null
+          gad_source: string | null
+          last_touch: Json | null
+          medium: string
+          package_order_id: string
+          referrer_host: string | null
+          source: string
+          tenant_id: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Insert: {
+          ad_personalization?: boolean
+          ad_user_data?: boolean
+          click_at?: string | null
+          click_id?: string | null
+          click_id_type?: string | null
+          click_pruned_at?: string | null
+          created_at?: string
+          event_id: string
+          first_touch?: Json | null
+          gad_campaign_id?: string | null
+          gad_source?: string | null
+          last_touch?: Json | null
+          medium?: string
+          package_order_id: string
+          referrer_host?: string | null
+          source?: string
+          tenant_id: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Update: {
+          ad_personalization?: boolean
+          ad_user_data?: boolean
+          click_at?: string | null
+          click_id?: string | null
+          click_id_type?: string | null
+          click_pruned_at?: string | null
+          created_at?: string
+          event_id?: string
+          first_touch?: Json | null
+          gad_campaign_id?: string | null
+          gad_source?: string | null
+          last_touch?: Json | null
+          medium?: string
+          package_order_id?: string
+          referrer_host?: string | null
+          source?: string
+          tenant_id?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_package_order_attributions_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_package_order_attributions_order_fk"
+            columns: ["tenant_id", "package_order_id"]
+            isOneToOne: true
+            referencedRelation: "event_package_orders"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_package_order_attributions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_package_orders: {
         Row: {
           amount_cents: number
@@ -29031,6 +29128,10 @@ export type Database = {
       event_my_survey: { Args: { p_payload: Json }; Returns: Json }
       event_my_survey_submit: { Args: { p_payload: Json }; Returns: Json }
       event_package_invite_accept: { Args: { p_payload: Json }; Returns: Json }
+      event_package_order_attribution_attach: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       event_package_purchase: { Args: { p_payload: Json }; Returns: Json }
       event_package_seat_invite: { Args: { p_payload: Json }; Returns: Json }
       event_packages_offer: {

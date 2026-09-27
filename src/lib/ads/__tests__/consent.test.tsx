@@ -49,6 +49,7 @@ vi.mock("@/lib/consents.functions", () => ({
 import {
   clearConsentPreview,
   hasCategoryConsent,
+  hasConsentDecision,
   isGpcCurrentlyHonored,
   setConsentPreview,
   subscribeConsentChange,
@@ -56,6 +57,8 @@ import {
   useEffectiveConsent,
   useMarketingConsent,
 } from "@/lib/ads/consent";
+
+import { captureAdLanding, readAdAttribution } from "@/lib/analytics/adAttributionStore";
 
 const STORAGE_KEY = "consent:v2";
 const LEGACY_KEY = "consent:marketing";
@@ -501,5 +504,104 @@ describe("subscribeConsentChange - sygnal zmiany bez hooka useConsent", () => {
     act(() => result.current.rejectAll());
     window.dispatchEvent(new Event("storage"));
     expect(listener).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Atrybucja kampanii (`nes.attribution.v1`) sprzata SAMA decyzja - na kazdej
+// stronie, nie tylko na trzech trasach wydarzenia z `AdAttributionCapture`.
+// Magazyn atrybucji biegnie PRAWDZIWY (ten sam modul, ktory import dynamiczny
+// w consent.ts dostaje), wiec widac i klucz, i pamiec karty.
+describe("decyzja bez zgody sprzata atrybucje kampanii (gclid)", () => {
+  const ATTRIBUTION_KEY = "nes.attribution.v1";
+  const GCLID = "Cj0KCQjw-zgoda_cofnieta1";
+  const FULL = { analytics: true, marketing: true };
+
+  function landWithClick(): void {
+    const nowMs = Date.now();
+    captureAdLanding({
+      search: `?utm_campaign=Wiosna&gclid=${GCLID}`,
+      pathname: "/events/kongres",
+      referrer: null,
+      host: "nes.example",
+      nowMs,
+    });
+    const touch = {
+      ts: nowMs,
+      utmCampaign: "Wiosna",
+      clickType: "gclid",
+      clickId: GCLID,
+    };
+    window.localStorage.setItem(
+      ATTRIBUTION_KEY,
+      JSON.stringify({ v: 1, first: touch, last: touch }),
+    );
+  }
+
+  function storedLast(): Record<string, unknown> | null {
+    const raw = window.localStorage.getItem(ATTRIBUTION_KEY);
+    return raw === null ? null : (JSON.parse(raw).last as Record<string, unknown>);
+  }
+
+  it("odmowa wszystkiego kasuje klucz i zabiera identyfikator z pamieci karty", async () => {
+    landWithClick();
+    const { result } = renderHook(() => useConsent());
+    act(() => result.current.rejectAll());
+    await vi.dynamicImportSettled();
+    expect(window.localStorage.getItem(ATTRIBUTION_KEY)).toBeNull();
+    // Ponowna zgoda w tej karcie nie przywroci gclid zebranego przed odmowa.
+    expect(readAdAttribution(FULL, Date.now())?.last.clickId ?? null).toBeNull();
+    expect(hasConsentDecision()).toBe(true);
+  });
+
+  it("sama analityka zostawia kanal i UTM, bez identyfikatora klikniecia", async () => {
+    landWithClick();
+    const { result } = renderHook(() => useConsent());
+    act(() => result.current.save({ analytics: true, marketing: false }));
+    await vi.dynamicImportSettled();
+    expect(storedLast()).toMatchObject({
+      utmCampaign: "Wiosna",
+      clickType: "gclid",
+      clickId: null,
+    });
+    expect(readAdAttribution(FULL, Date.now())?.last.clickId).toBeNull();
+  });
+
+  it("zgoda marketingowa niczego nie rusza", async () => {
+    landWithClick();
+    const { result } = renderHook(() => useConsent());
+    act(() => result.current.acceptAll());
+    await vi.dynamicImportSettled();
+    expect(storedLast()?.clickId).toBe(GCLID);
+  });
+
+  it("zgoda marketingowa pod aktywnym GPC bez override'u liczy sie jako brak zgody", async () => {
+    enableGpc();
+    landWithClick();
+    // Migracja starego klucza zapisuje zgode przez `writeLocal` BEZ swiadomego
+    // override'u - klamra GPC wygrywa i sprzatanie widzi "brak zgody".
+    window.localStorage.setItem(LEGACY_KEY, "granted");
+    renderHook(() => useEffectiveConsent());
+    await vi.dynamicImportSettled();
+    expect(window.localStorage.getItem(ATTRIBUTION_KEY)).toBeNull();
+  });
+
+  it("swiadomy override GPC (decyzja przy widocznej nocie) zostawia identyfikator", async () => {
+    enableGpc();
+    landWithClick();
+    const { result } = renderHook(() => useConsent());
+    act(() => result.current.acceptAll());
+    await vi.dynamicImportSettled();
+    expect(storedLast()?.clickId).toBe(GCLID);
+  });
+
+  it("`clear()` (skasowanie decyzji) kasuje klucz atrybucji", async () => {
+    landWithClick();
+    const { result } = renderHook(() => useConsent());
+    act(() => result.current.acceptAll());
+    act(() => result.current.clear());
+    await vi.dynamicImportSettled();
+    expect(window.localStorage.getItem(ATTRIBUTION_KEY)).toBeNull();
+    expect(hasConsentDecision()).toBe(false);
   });
 });
