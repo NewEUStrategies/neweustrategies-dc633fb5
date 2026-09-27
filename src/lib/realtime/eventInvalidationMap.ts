@@ -273,7 +273,6 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   "event_seat.assigned.v1": (event) => seatingEventKeys(event, true),
   "event_seat.released.v1": (event) => seatingEventKeys(event, true),
   "event_seat_map.changed.v1": (event) => seatingEventKeys(event, false),
-  ],
   // Klon edycji: nowy wiersz na liscie wydarzen i nowa pozycja na liscie
   // edycji zrodla.
   "event.cloned.v1": (event) => cloneEventKeys(event),
