@@ -6,6 +6,8 @@
 //   2. "BEZ ATRYBUCJI" Z ZERAMI W KOLUMNACH LEJKA - udaje "zero wizyt", choc
 //      tych wizyt po prostu nie mierzylismy (brak zgody).
 //   3. WSKAZNIK BEZ MIANOWNIKA to "0%" albo "NaN" zamiast kreski.
+//   4. GRUPA ZWINIETA (`other`) BEZ NAZWY I LICZBY - wiersz zbiorczy wygladalby
+//      jak kampania bez etykiety.
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -54,10 +56,15 @@ function group(overrides: Partial<AdsFunnelGroup> = {}): AdsFunnelGroup {
   };
 }
 
-function report(groups: AdsFunnelGroup[], unattributedRegistrations = 2): AdsFunnelReport {
+function report(
+  groups: AdsFunnelGroup[],
+  unattributedRegistrations = 2,
+  groupsFolded = 0,
+): AdsFunnelReport {
   return {
     timezone: "Europe/Warsaw",
     groups,
+    groupsFolded,
     unattributed: {
       registrations: unattributedRegistrations,
       paid: 1,
@@ -167,6 +174,23 @@ describe("AdsFunnelCampaignTable", () => {
     expect(values[4]).toBe("—");
     expect(values.slice(7)).toEqual(["—", "—", "—", "—"]);
     expect(within(row).getByText(`${T}kinds.none`)).toBeInTheDocument();
+  });
+
+  it("grupa zwinieta: wlasna nazwa, znacznik i liczba zwinietych kampanii", () => {
+    render(
+      <AdsFunnelCampaignTable
+        report={report(
+          [group({ key: "other", kind: "other", label: null, utmCampaign: null, cost: [] })],
+          2,
+          12,
+        )}
+        lang="pl"
+      />,
+    );
+    const row = screen.getAllByRole("row")[1] as HTMLElement;
+    expect(within(row).getByText(`${T}otherCampaigns`)).toBeInTheDocument();
+    expect(within(row).getByText(`${T}kinds.other`)).toBeInTheDocument();
+    expect(within(row).getByText(`${T}otherHint(folded=12)`)).toBeInTheDocument();
   });
 
   it("zadnych grup i zgloszen - zdanie zamiast pustej tabeli", () => {

@@ -6,12 +6,15 @@
 //   2. ROAS SUMUJE ZLOTE Z EURO - wskaznik przy wielu walutach ma byc `null`.
 //   3. ZEROWY MIANOWNIK DAJE 0% albo Infinity zamiast kreski.
 //   4. EKSPORT Z WIERSZEM BEZ IDENTYFIKATORA KLIKNIECIA - taki wiersz wypada.
+//   5. ROAS KAFLA LICZY PRZYCHOD KAMPANII BEZ KOSZTU - 600/100 + 200/brak dawalo
+//      8,00x zamiast 6,00x.
 import { describe, expect, it } from "vitest";
 
 import { freezeClock, FIXED_NOW_MS } from "@/test/time";
 import {
   adsFunnelWindow,
   costPerAcquisition,
+  mappedCampaignsRoas,
   microsToCents,
   parseAdsConversionsExport,
   parseAdsFunnelReport,
@@ -110,6 +113,7 @@ describe("parseAdsFunnelReport", () => {
         },
       ],
     });
+    expect(got.groupsFolded).toBe(0);
     // Nieznany rodzaj i brak klucza - grupa "bez kampanii", nie wyjatek.
     expect(got.groups[1]).toMatchObject({ key: "none", kind: "none", channels: [], cost: [] });
     expect(got.unattributed).toEqual({
@@ -168,7 +172,14 @@ describe("parseAdsConversionsExport", () => {
           conversion_action_name: null,
         },
       ],
-      skipped: { unattributed: 1, no_click: 2, expired: 3, before_click: 4 },
+      skipped: {
+        unattributed: 1,
+        no_click: 2,
+        expired: 3,
+        before_click: 4,
+        consent_withdrawn: 5,
+        awaiting_admission: 6,
+      },
     });
     expect(got.rows[0]).toEqual({
       orderId: "o1",
@@ -189,7 +200,14 @@ describe("parseAdsConversionsExport", () => {
       conversionTime: "",
       conversionActionName: null,
     });
-    expect(got.skipped).toEqual({ unattributed: 1, noClick: 2, expired: 3, beforeClick: 4 });
+    expect(got.skipped).toEqual({
+      unattributed: 1,
+      noClick: 2,
+      expired: 3,
+      beforeClick: 4,
+      consentWithdrawn: 5,
+      awaitingAdmission: 6,
+    });
   });
 
   it("wiersz bez rodzaju/identyfikatora klikniecia, waluty albo czasu wypada", () => {
@@ -205,7 +223,14 @@ describe("parseAdsConversionsExport", () => {
     });
     expect(got.rows.map((row) => row.clickType)).toEqual(["gclid", "wbraid"]);
     expect(got.timezone).toBe("Europe/Warsaw");
-    expect(got.skipped).toEqual({ unattributed: 0, noClick: 0, expired: 0, beforeClick: 0 });
+    expect(got.skipped).toEqual({
+      unattributed: 0,
+      noClick: 0,
+      expired: 0,
+      beforeClick: 0,
+      consentWithdrawn: 0,
+      awaitingAdmission: 0,
+    });
   });
 });
 
@@ -231,6 +256,46 @@ describe("wskazniki", () => {
         3,
       ),
     ).toBeNull();
+  });
+
+  it("mappedCampaignsRoas: tylko zmapowane kampanie Z KOSZTEM w obu sumach", () => {
+    const report = parseAdsFunnelReport({
+      groups: [
+        {
+          key: "campaign:c1",
+          kind: "campaign",
+          revenue: [{ currency: "PLN", cents: 60_000 }],
+          cost: [{ currency: "PLN", micros: 100_000_000 }],
+        },
+        // Kampania bez wpisanego kosztu - jej przychod nie trafia do licznika.
+        { key: "campaign:c2", kind: "campaign", revenue: [{ currency: "PLN", cents: 20_000 }] },
+        {
+          key: "campaign:c3",
+          kind: "campaign",
+          revenue: [{ currency: "PLN", cents: 5_000 }],
+          cost: [{ currency: "PLN", micros: 0 }],
+        },
+        // Grupa niezmapowana z kosztem nie istnieje, ale i tak jest poza kaflem.
+        {
+          key: "utm:lato",
+          kind: "utm_campaign",
+          revenue: [{ currency: "PLN", cents: 90_000 }],
+          cost: [{ currency: "PLN", micros: 1 }],
+        },
+      ],
+      groups_folded: 3,
+    });
+    expect(report.groupsFolded).toBe(3);
+    expect(mappedCampaignsRoas(report.groups)).toBe(6);
+    expect(mappedCampaignsRoas(report.groups.filter((group) => group.key !== "campaign:c1"))).toBe(
+      null,
+    );
+    expect(mappedCampaignsRoas([])).toBeNull();
+  });
+
+  it("parseAdsFunnelReport: grupa zwinieta `other` zachowuje rodzaj", () => {
+    const got = parseAdsFunnelReport({ groups: [{ key: "other", kind: "other", visits: 7 }] });
+    expect(got.groups[0]).toMatchObject({ key: "other", kind: "other", visits: 7 });
   });
 
   it("returnOnAdSpend: przychod / koszt w TEJ SAMEJ walucie", () => {

@@ -15,7 +15,9 @@
 // sesji Supabase i przy zalogowaniu czyta profil - atom dokladalby drugi odczyt
 // profilu na kazda strone wydarzenia. Zamiast tego czytamy aktywna zgode
 // (`hasCategoryConsent`: zapis, podglad i klamra GPC) i sluchamy jej zmian
-// (`subscribeConsentChange`).
+// (`subscribeConsentChange`). `hasConsentDecision` odroznia "jeszcze bez
+// decyzji" (identyfikator klikniecia czeka w pamieci) od odmowy - takze
+// podjetej w innej karcie (pamiec tej karty go wtedy traci).
 //
 // KOLEJNOSC PRACY JEST CZESCIA KONTRAKTU:
 //   1. przechwycenie adresu do PAMIECI (bez magazynu - zgody moze jeszcze nie
@@ -29,7 +31,7 @@
 // Adresu NIE zmieniamy - gtag.js czyta z niego `gclid`.
 import { useEffect } from "react";
 
-import { hasCategoryConsent, subscribeConsentChange } from "@/lib/ads/consent";
+import { hasCategoryConsent, hasConsentDecision, subscribeConsentChange } from "@/lib/ads/consent";
 import { captureAdLanding, persistAdAttribution } from "@/lib/analytics/adAttributionStore";
 import { sendEventFunnelStep } from "@/lib/events/eventFunnelBeacon";
 import { afterPrerendering } from "@/lib/prerender";
@@ -45,7 +47,11 @@ export function AdAttributionCapture({ eventSlug }: { eventSlug?: string }): nul
     });
     const persist = (): void =>
       persistAdAttribution(
-        { analytics: hasCategoryConsent("analytics"), marketing: hasCategoryConsent("marketing") },
+        {
+          analytics: hasCategoryConsent("analytics"),
+          marketing: hasCategoryConsent("marketing"),
+          decided: hasConsentDecision(),
+        },
         Date.now(),
       );
     persist();

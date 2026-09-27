@@ -38,10 +38,9 @@ import type { AdCampaign, AdCampaignInput } from "@/lib/events/adsFunnelApi";
 import {
   ADS_FUNNEL_WINDOW_PRESETS,
   adsFunnelWindow,
-  returnOnAdSpend,
+  mappedCampaignsRoas,
   type AdsFunnelReport,
   type AdsFunnelWindowPreset,
-  type CostAmount,
 } from "@/lib/events/adsFunnel";
 import { buildAdsFunnelCsv } from "@/lib/events/adsFunnelCsv";
 import { formatAmounts, formatCosts, formatRoas } from "@/lib/events/adsFunnelFormat";
@@ -81,20 +80,9 @@ const WINDOW_LABEL_KEYS: Record<AdsFunnelWindowPreset, string> = {
 
 const MINUTE_MS = 60_000;
 
-/** Koszt raportu jako jedna liczba ROAS - przychod kampanii zmapowanych na ich koszt. */
-function mappedRoas(report: AdsFunnelReport): number | null {
-  const mapped = report.groups.filter((group) => group.kind === "campaign");
-  const cost = new Map<string, number>();
-  for (const group of mapped) {
-    for (const item of group.cost)
-      cost.set(item.currency, (cost.get(item.currency) ?? 0) + item.micros);
-  }
-  const costs: CostAmount[] = [...cost].map(([currency, micros]) => ({ currency, micros }));
-  return returnOnAdSpend(
-    mapped.flatMap((group) => group.revenue),
-    costs,
-  );
-}
+// Kafel bez danych (brak kosztu, kilka walut) - ta sama kreska co w tabeli
+// kampanii (`AdsFunnelCampaignTable`), a nie lacznik z `AdminMetricTile`.
+const DASH = "—";
 
 export function EventAdsFunnelPanel({ row }: { row: AdminEventDetailRow }) {
   ensureAdsFunnelI18n();
@@ -181,6 +169,7 @@ export function EventAdsFunnelPanel({ row }: { row: AdminEventDetailRow }) {
       cpa: t("adminEventAdsFunnel.table.cpa"),
       roas: t("adminEventAdsFunnel.table.roas"),
       noCampaign: t("adminEventAdsFunnel.table.noCampaign"),
+      otherCampaigns: t("adminEventAdsFunnel.table.otherCampaigns"),
       unattributed: t("adminEventAdsFunnel.table.unattributed"),
     });
     downloadLeadExport({
@@ -202,6 +191,8 @@ export function EventAdsFunnelPanel({ row }: { row: AdminEventDetailRow }) {
               noClick: data.skipped.noClick,
               expired: data.skipped.expired,
               beforeClick: data.skipped.beforeClick,
+              consentWithdrawn: data.skipped.consentWithdrawn,
+              awaitingAdmission: data.skipped.awaitingAdmission,
             }),
           ];
           if (file.missingName > 0) {
@@ -274,17 +265,17 @@ export function EventAdsFunnelPanel({ row }: { row: AdminEventDetailRow }) {
               <AdminMetricTile
                 icon={TrendingUp}
                 label={t("adminEventAdsFunnel.summary.revenue")}
-                value={formatAmounts(report.totals.revenue, lang)}
+                value={formatAmounts(report.totals.revenue, lang) ?? DASH}
               />
               <AdminMetricTile
                 icon={Megaphone}
                 label={t("adminEventAdsFunnel.summary.cost")}
-                value={formatCosts(report.totals.cost, lang)}
+                value={formatCosts(report.totals.cost, lang) ?? DASH}
               />
               <AdminMetricTile
                 icon={TrendingUp}
                 label={t("adminEventAdsFunnel.summary.roas")}
-                value={formatRoas(mappedRoas(report))}
+                value={formatRoas(mappedCampaignsRoas(report.groups)) ?? DASH}
                 hint={t("adminEventAdsFunnel.summary.roasHint")}
               />
             </div>

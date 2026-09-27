@@ -5,6 +5,8 @@
 //      odmowy pomiaru.
 //   2. IDENTYFIKATOR KLIKNIECIA BEZ ZGODY MARKETINGOWEJ w ladunku RPC.
 //   3. AWARIA RPC WYWRACA EKRAN POTWIERDZENIA - funkcja ma nigdy nie rzucac.
+//   4. ZAKUP PAKIETU BEZ ATRYBUCJI - zamowienie pakietu (bez `manage_token`)
+//      nie mialo jak trafic do lejka kampanii.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { supabaseRpcStub, type SupabaseRpcStub } from "@/test/supabase/rpc";
@@ -32,7 +34,8 @@ vi.mock("@/lib/analytics/adAttributionStore", () => ({
   readAdAttribution: (consent: unknown, nowMs: number) => h.read(consent, nowMs),
 }));
 
-const { attachRegistrationAttribution } = await import("@/lib/events/registrationAttribution");
+const { attachPackageOrderAttribution, attachRegistrationAttribution } =
+  await import("@/lib/events/registrationAttribution");
 
 const FIRST = {
   ts: 1,
@@ -117,5 +120,51 @@ describe("attachRegistrationAttribution", () => {
     expect(await attachRegistrationAttribution("token-1")).toBe(false);
     h.throws = true;
     await expect(attachRegistrationAttribution("token-1")).resolves.toBe(false);
+  });
+});
+
+describe("attachPackageOrderAttribution - zakup pakietu grupowego", () => {
+  beforeEach(() => {
+    h.rpc!.setData("event_package_order_attribution_attach", { ok: true, attached: true });
+  });
+
+  it("zamowienie pakietu dostaje te same dotkniecia, klucz to identyfikator zamowienia", async () => {
+    expect(await attachPackageOrderAttribution("ord-1")).toBe(true);
+    expect(h.rpc!.lastCall("event_package_order_attribution_attach")?.arg("p_payload")).toEqual({
+      order_id: "ord-1",
+      first: expect.objectContaining({ ts: 1, referrer_host: "google.com" }),
+      last: expect.objectContaining({ ts: 2, utm_campaign: "Wiosna", click_id: "Cj0KCQjw-abc" }),
+      ad_consent: true,
+    });
+    expect(h.rpc!.names()).toEqual(["event_package_order_attribution_attach"]);
+  });
+
+  it("bez zgody nic nie wychodzi; sama analityka - flaga zgody reklamowej false", async () => {
+    h.analytics = false;
+    h.marketing = false;
+    expect(await attachPackageOrderAttribution("ord-1")).toBe(false);
+    expect(h.rpc!.names()).toEqual([]);
+
+    h.analytics = true;
+    await attachPackageOrderAttribution("ord-1");
+    expect(h.read).toHaveBeenLastCalledWith(
+      { analytics: true, marketing: false },
+      expect.any(Number),
+    );
+    expect(
+      (
+        h.rpc!.lastCall("event_package_order_attribution_attach")?.arg("p_payload") as Record<
+          string,
+          unknown
+        >
+      ).ad_consent,
+    ).toBe(false);
+  });
+
+  it("odmowa bazy i wyjatek sieci to false, nigdy wyjatek", async () => {
+    h.rpc!.setError("event_package_order_attribution_attach", "invalid_payload: x");
+    expect(await attachPackageOrderAttribution("ord-1")).toBe(false);
+    h.throws = true;
+    await expect(attachPackageOrderAttribution("ord-1")).resolves.toBe(false);
   });
 });

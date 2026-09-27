@@ -49,6 +49,7 @@ import { InvoiceRequestBlock } from "@/components/events/invoices/organisms/Invo
 import { useInvoiceRequestController } from "@/lib/events/useInvoiceRequestController";
 import { ensureEventInvoicesI18n } from "@/lib/i18n-event-invoices";
 import { sendEventFunnelStep } from "@/lib/events/eventFunnelBeacon";
+import { attachPackageOrderAttribution } from "@/lib/events/registrationAttribution";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -125,6 +126,10 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
           setSelectedId(null);
           setOpenOrderId(result.orderId);
           toast.success(t("eventPackages.toasts.purchased"));
+          // Zamowienie pakietu jest konwersja kampanii - przypiecie atrybucji
+          // (bramka zgody w srodku) bez czekania i bez komunikatu: jego brak
+          // znaczy tylko "bez atrybucji" w raporcie lejka.
+          void attachPackageOrderAttribution(result.orderId);
           // Sekcja zakupu znika po zamowieniu, wiec wynik zapisu danych do
           // faktury mowimy toastem - inaczej odmowa bazy przepadlaby po cichu.
           if (invoice.wanted) {

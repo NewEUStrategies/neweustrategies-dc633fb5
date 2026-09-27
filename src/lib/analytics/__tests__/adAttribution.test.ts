@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 import {
   AD_ATTRIBUTION_TTL_MS,
   cleanUtm,
+  combineAttribution,
   freshAttribution,
   mergeAttribution,
   normalizeHost,
@@ -180,6 +181,31 @@ describe("mergeAttribution / freshAttribution - pierwsze + ostatnie nie-bezposre
     });
     const fresh: StoredAttribution = { v: 1, first: recent, last: recent };
     expect(freshAttribution(fresh, NOW)).toBe(fresh);
+  });
+});
+
+describe("combineAttribution - pamiec karty + magazyn wspolny dla kart", () => {
+  const early = touch({ ts: NOW - 5000, utmCampaign: "Pierwsza" });
+  const mid = touch({ ts: NOW - 1000, utmCampaign: "Srodek" });
+  const late = touch({ ts: NOW, utmCampaign: "Ostatnia", clickType: "gclid", clickId: GCLID });
+
+  it("wczesniejsze pierwsze i pozniejsze ostatnie - niezaleznie od kolejnosci argumentow", () => {
+    const a: StoredAttribution = { v: 1, first: mid, last: mid };
+    const b: StoredAttribution = { v: 1, first: early, last: late };
+    expect(combineAttribution(a, b)).toBe(b);
+    expect(combineAttribution(b, a)).toBe(b);
+    const c: StoredAttribution = { v: 1, first: early, last: early };
+    expect(combineAttribution(c, a)).toEqual({ v: 1, first: early, last: mid });
+    expect(combineAttribution(a, c)).toEqual({ v: 1, first: early, last: mid });
+  });
+
+  it("remis wygrywa pierwszy argument; brak jednej strony oddaje druga", () => {
+    const a: StoredAttribution = { v: 1, first: mid, last: mid };
+    const same: StoredAttribution = { v: 1, first: { ...mid }, last: { ...mid, clickId: GCLID } };
+    expect(combineAttribution(a, same)).toBe(a);
+    expect(combineAttribution(null, a)).toBe(a);
+    expect(combineAttribution(a, null)).toBe(a);
+    expect(combineAttribution(null, null)).toBeNull();
   });
 });
 

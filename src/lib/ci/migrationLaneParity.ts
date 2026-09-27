@@ -571,6 +571,12 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     drizzleOnly:
       "Zapis zastosowania 20260926150001 z panelu Lovable (SQL identyczny bajt w bajt z 0062_event_scanner_offline_part2, bez znaku konca pliku); blizniak supabase pilnuje wpis 0062_event_scanner_offline_part2.",
   },
+  // Lejek Google Ads - poprawki po przegladzie (pakiety, zgoda, przychod, limit
+  // grup). Bez wpisu w dzienniku drizzle - wdrazana z panelu po kolei.
+  {
+    tag: "0073_event_ads_funnel_review_fixes",
+    twin: "20260927001100_event_ads_funnel_review_fixes.sql",
+  },
   // Plan sali - poprawki z przegladu 0060_event_seating*: kolejnosc blokad
   // przydzialu, zaokraglenie parametrow sekcji, eksport bez e-maili, etykieta
   // kandydata na zywo, `event_my_seats` z flagami zapowiedzi. BEZ wpisu

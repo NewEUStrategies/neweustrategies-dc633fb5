@@ -46,7 +46,17 @@ export interface AdsFunnelChannel extends FunnelCounts {
   revenue: MoneyAmount[];
 }
 
-export const ADS_FUNNEL_GROUP_KINDS = ["campaign", "utm_campaign", "gad_campaign", "none"] as const;
+// `other` - kampanie UTM i identyfikatory Google Ads spoza 50 najliczniejszych
+// w oknie, zwiniete przez baze w jeden wiersz (`groups_folded` mowi, ile).
+// Kazda wartosc utm_campaign z publicznego beaconu byla wlasna grupa, wiec
+// obcy mogl rozdmuchac raport dowolnie.
+export const ADS_FUNNEL_GROUP_KINDS = [
+  "campaign",
+  "utm_campaign",
+  "gad_campaign",
+  "other",
+  "none",
+] as const;
 export type AdsFunnelGroupKind = (typeof ADS_FUNNEL_GROUP_KINDS)[number];
 
 export interface AdsFunnelGroup extends FunnelCounts {
@@ -64,6 +74,8 @@ export interface AdsFunnelGroup extends FunnelCounts {
 export interface AdsFunnelReport {
   timezone: string;
   groups: AdsFunnelGroup[];
+  /** Ile grup UTM / Google Ads zwinieto w grupe `other`. */
+  groupsFolded: number;
   unattributed: { registrations: number; paid: number; revenue: MoneyAmount[] };
   totals: FunnelCounts & {
     attributedRegistrations: number;
@@ -73,7 +85,9 @@ export interface AdsFunnelReport {
 }
 
 export interface AdsConversionRow {
+  /** Zamowienie platnosci albo - dla pakietu grupowego - zamowienie pakietu. */
   orderId: string;
+  /** Pusty napis dla zakupu pakietu (konwersja bez zgloszenia). */
   registrationId: string;
   clickType: ClickIdType;
   clickId: string;
@@ -91,7 +105,16 @@ export interface AdsConversionRow {
 export interface AdsConversionsExport {
   timezone: string;
   rows: AdsConversionRow[];
-  skipped: { unattributed: number; noClick: number; expired: number; beforeClick: number };
+  skipped: {
+    unattributed: number;
+    noClick: number;
+    expired: number;
+    beforeClick: number;
+    /** Platnik albo posiadacz biletu cofnal zgode na cookies marketingowe. */
+    consentWithdrawn: number;
+    /** Oplacone, ale jeszcze nieprzyjete (akceptacja organizatora, lista rezerwowa). */
+    awaitingAdmission: number;
+  };
 }
 
 type JsonRecord = Record<string, unknown>;
@@ -147,6 +170,7 @@ export function parseAdsFunnelReport(raw: Json | null): AdsFunnelReport {
   const totals = record(root.totals);
   return {
     timezone: text(record(root.window).timezone) ?? "Europe/Warsaw",
+    groupsFolded: count(root.groups_folded),
     groups: list(root.groups).map((item) => ({
       ...counts(item),
       key: text(item.key) ?? "none",
@@ -214,6 +238,8 @@ export function parseAdsConversionsExport(raw: Json | null): AdsConversionsExpor
       noClick: count(skipped.no_click),
       expired: count(skipped.expired),
       beforeClick: count(skipped.before_click),
+      consentWithdrawn: count(skipped.consent_withdrawn),
+      awaitingAdmission: count(skipped.awaiting_admission),
     },
   };
 }
@@ -248,6 +274,28 @@ export function returnOnAdSpend(
   const cents = revenue.reduce((sum, item) => sum + item.cents, 0);
   // 1 jednostka waluty = 100 groszy = 1 000 000 mikro.
   return (cents * 10_000) / only.micros;
+}
+
+/**
+ * ROAS kafla podsumowania: przychod / koszt kampanii zmapowanych - ale TYLKO
+ * tych, ktore maja koszt. Kampania bez wpisanego kosztu doliczala przychod do
+ * licznika bez niczego w mianowniku (600 zl / 100 zl i 200 zl bez kosztu dawaly
+ * 8,00x zamiast 6,00x). Brak kosztu w ogole = `null` (kreska).
+ */
+export function mappedCampaignsRoas(groups: readonly AdsFunnelGroup[]): number | null {
+  const withCost = groups.filter(
+    (group) => group.kind === "campaign" && group.cost.some((item) => item.micros > 0),
+  );
+  const cost = new Map<string, number>();
+  for (const group of withCost) {
+    for (const item of group.cost) {
+      cost.set(item.currency, (cost.get(item.currency) ?? 0) + item.micros);
+    }
+  }
+  return returnOnAdSpend(
+    withCost.flatMap((group) => group.revenue),
+    [...cost].map(([currency, micros]) => ({ currency, micros })),
+  );
 }
 
 /** Mikro-jednostki -> jednostki drobne (grosze), zaokraglone. */

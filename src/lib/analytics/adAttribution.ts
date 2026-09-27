@@ -230,6 +230,27 @@ export function freshAttribution(
 }
 
 /**
+ * Dwie atrybucje TEJ SAMEJ przegladarki (pamiec karty i magazyn wspolny dla
+ * kart): pierwsze = wczesniejsze `first`, ostatnie = pozniejsze `last`, remis
+ * -> `a`. Pamiec karty zyje tyle, co karta, wiec bez tego karta otwarta
+ * wczesniej zaslanialaby nowsze klikniecie zapisane przez inna karte.
+ * Wynik nie zalezy od tego, ktora karta liczy (poza remisem), wiec karty
+ * dochodza do tego samego zapisu i przestaja sie nadpisywac.
+ */
+export function combineAttribution(
+  a: StoredAttribution | null,
+  b: StoredAttribution | null,
+): StoredAttribution | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  const first = b.first.ts < a.first.ts ? b.first : a.first;
+  const last = b.last.ts > a.last.ts ? b.last : a.last;
+  if (first === a.first && last === a.last) return a;
+  if (first === b.first && last === b.last) return b;
+  return { v: 1, first, last };
+}
+
+/**
  * Kopia bez identyfikatorow klikniec - dla zgody wylacznie analitycznej.
  * Rodzaj klikniecia zostaje: to informacja o kanale (google/cpc), nie o osobie.
  */

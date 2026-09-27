@@ -18,6 +18,7 @@ import {
   adCostRowFromDraft,
   emptyAdCampaignDraft,
   microsToAmountText,
+  parseAmount,
   parseAmountToMicros,
   parseCostDay,
   parseCostsPaste,
@@ -144,6 +145,36 @@ describe("kwoty i dni", () => {
     }
   });
 
+  it("parseAmountToMicros: ten sam separator kilka razy to tysiace, nie ulamek", () => {
+    // Dotad ostatni separator byl dziesietny: "1,234,567" dawalo 1234,567.
+    expect(parseAmountToMicros("1,234,567")).toBe(1_234_567_000_000);
+    expect(parseAmountToMicros("1.234.567")).toBe(1_234_567_000_000);
+    expect(parseAmountToMicros("12.345.678,9")).toBe(12_345_678_900_000);
+    expect(parseAmountToMicros("1\u202f234\u202f567,5")).toBe(1_234_567_500_000);
+  });
+
+  it("parseAmountToMicros: zle grupy, dwa ulamki i zapis niejednoznaczny - null", () => {
+    // "1,234" to 1234 albo 1,234 - bez zgadywania (dotad cicho 1,234).
+    for (const bad of ["1.2.3", "1,234", "1.234", "12,34,567", "1,2.5", "1.234,5,6", "1,234."]) {
+      expect(parseAmountToMicros(bad)).toBeNull();
+    }
+    // Trzy cyfry po separatorze nie sa niejednoznaczne, gdy czesc calkowita to 0
+    // albo ma wiecej niz trzy cyfry.
+    expect(parseAmountToMicros("0,123")).toBe(123_000);
+    expect(parseAmountToMicros("1234.567")).toBe(1_234_567_000);
+    expect(parseAmountToMicros("1,2345")).toBe(1_234_500);
+  });
+
+  it("parseAmount: jeden znacznik waluty na poczatku albo na koncu", () => {
+    expect(parseAmount("12,50 zł")).toEqual({ micros: 12_500_000, currency: "PLN" });
+    expect(parseAmount("PLN 12.50")).toEqual({ micros: 12_500_000, currency: "PLN" });
+    expect(parseAmount("€1.234,56")).toEqual({ micros: 1_234_560_000, currency: "EUR" });
+    expect(parseAmount("$1,234.56")).toEqual({ micros: 1_234_560_000, currency: null });
+    expect(parseAmount("12.50eur")).toEqual({ micros: 12_500_000, currency: "EUR" });
+    expect(parseAmount("12")).toEqual({ micros: 12_000_000, currency: null });
+    for (const bad of ["PLN 12 zł", "PLN", "zł", "12 PL"]) expect(parseAmount(bad)).toBeNull();
+  });
+
   it("microsToAmountText: z powrotem do pola formularza", () => {
     expect(microsToAmountText(123_000_000)).toBe("123");
     expect(microsToAmountText(123_450_000)).toBe("123.45");
@@ -176,6 +207,13 @@ describe("kwoty i dni", () => {
       errorKey: "amountInvalid",
     });
     expect(adCostRowFromDraft({ day: "2099-06-14", amount: "1", currency: "zl" })).toEqual({
+      errorKey: "currencyInvalid",
+    });
+    // Waluta przy kwocie zgodna z waluta wiersza - przechodzi; niezgodna - blad waluty.
+    expect(adCostRowFromDraft({ day: "2099-06-14", amount: "12,50 zł", currency: "PLN" })).toEqual({
+      row: { day: "2099-06-14", costMicros: 12_500_000, currency: "PLN" },
+    });
+    expect(adCostRowFromDraft({ day: "2099-06-14", amount: "EUR 5", currency: "PLN" })).toEqual({
       errorKey: "currencyInvalid",
     });
   });
@@ -238,6 +276,26 @@ describe("parseCostsPaste - wklejony raport", () => {
       { line: 7, errorKey: "dayDuplicate" },
     ]);
     expect(got.rows).toHaveLength(1);
+  });
+
+  it("kwota z waluta: zgodna przechodzi, niezgodna z kolumna/domyslna to blad waluty", () => {
+    const got = parseCostsPaste(
+      ["2099-06-13;12,50 zł", "2099-06-14;EUR 5;PLN", "2099-06-15;1,234"].join("\n"),
+      "PLN",
+    );
+    expect(got.rows).toEqual([
+      {
+        day: "2099-06-13",
+        costMicros: 12_500_000,
+        currency: "PLN",
+        clicks: null,
+        impressions: null,
+      },
+    ]);
+    expect(got.errors).toEqual([
+      { line: 2, errorKey: "currencyInvalid" },
+      { line: 3, errorKey: "amountInvalid" },
+    ]);
   });
 
   it("wiersz z sama data (bez kwoty) to zla kwota, nie wyjatek", () => {

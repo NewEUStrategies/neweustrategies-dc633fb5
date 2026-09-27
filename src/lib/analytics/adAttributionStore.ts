@@ -12,6 +12,17 @@
 // Sygnal GPC klamruje obie kategorie juz w `useEffectiveConsent`
 // i `hasCategoryConsent`, wiec tu dociera jako "brak zgody".
 //
+// DECYZJA BEZ MARKETINGU CZYSCI TEZ PAMIEC. Przed decyzja identyfikator
+// klikniecia czeka w pamieci karty; po decyzji bez zgody marketingowej (takze
+// cofnieciu w innej karcie albo w innym miejscu serwisu - `consent.ts` wola
+// `pruneAdAttributionForConsent`) pamiec traci go na dobre, inaczej ponowna
+// zgoda przywrocilaby identyfikator zebrany przed cofnieciem.
+//
+// KARTY DZIELA MAGAZYN, NIE PAMIEC. Kazdy odczyt laczy pamiec karty z magazynem
+// (`combineAttribution`: wczesniejsze pierwsze, pozniejsze ostatnie), a zapis
+// z tym samym napisem, ktory juz lezy w magazynie, jest pomijany - zapis
+// rozglasza `storage` do innych kart, a one tez wolaja zapis.
+//
 // ODCZYT TEZ JEST BRAMKOWANY. Beacon lejka i przypiecie do zgloszenia dostaja
 // identyfikator klikniecia tylko przy zgodzie marketingowej - nawet jesli
 // pamiec karty go ma (wejscie przed decyzja).
@@ -20,6 +31,7 @@
 // /`removeStoredValue` nigdy nie rzucaja (tryb prywatny, zablokowany magazyn) -
 // brak trwalosci to stan, nie awaria.
 import {
+  combineAttribution,
   freshAttribution,
   mergeAttribution,
   parseAdTouch,
@@ -39,6 +51,13 @@ import {
 export interface AttributionConsent {
   analytics: boolean;
   marketing: boolean;
+  /**
+   * Czy decyzja o zgodzie JEST podjeta. Brak zgody marketingowej przed decyzja
+   * znaczy "jeszcze nie wiadomo" (identyfikator czeka w pamieci), po decyzji -
+   * odmowe (pamiec go traci). Bez pola: decyzja jest, gdy ktoras kategoria
+   * jest udzielona.
+   */
+  decided?: boolean;
 }
 
 let memory: StoredAttribution | null = null;
@@ -53,6 +72,15 @@ function stored(): StoredAttribution | null {
   );
 }
 
+/** Pamiec karty z magazynem wspolnym dla kart (nowszy magazyn nie ginie). */
+function current(): StoredAttribution | null {
+  return combineAttribution(memory, stored());
+}
+
+function forgetMemoryClickIds(): void {
+  if (memory !== null) memory = withoutClickIds(memory);
+}
+
 /**
  * Przechwycenie adresu wejscia (tylko pamiec - bez zapisu do magazynu).
  * Wejscie bez sygnalu kampanii niczego nie zmienia.
@@ -61,20 +89,42 @@ export function captureAdLanding(input: LandingInput): void {
   const touch = parseAdTouch({ ...input, referrer: referrerConsumed ? null : input.referrer });
   referrerConsumed = true;
   if (touch === null) return;
-  memory = mergeAttribution(memory ?? stored(), touch, input.nowMs);
+  memory = mergeAttribution(current(), touch, input.nowMs);
 }
 
 /** Zapis (albo skasowanie) klucza wedlug AKTUALNEJ zgody. */
 export function persistAdAttribution(consent: AttributionConsent, nowMs: number): void {
   const storage = browserStorage("local");
+  if (!consent.marketing && (consent.decided ?? consent.analytics)) forgetMemoryClickIds();
   const attribution =
-    consent.analytics || consent.marketing ? freshAttribution(memory ?? stored(), nowMs) : null;
+    consent.analytics || consent.marketing ? freshAttribution(current(), nowMs) : null;
   if (attribution === null) {
     removeStoredValue(storage, AD_ATTRIBUTION_STORAGE_KEY);
     return;
   }
-  const value = consent.marketing ? attribution : withoutClickIds(attribution);
-  writeStoredValue(storage, AD_ATTRIBUTION_STORAGE_KEY, JSON.stringify(value));
+  const value = JSON.stringify(consent.marketing ? attribution : withoutClickIds(attribution));
+  if (readStoredValue(storage, AD_ATTRIBUTION_STORAGE_KEY) === value) return;
+  writeStoredValue(storage, AD_ATTRIBUTION_STORAGE_KEY, value);
+}
+
+/**
+ * Sprzatanie po DECYZJI o zgodzie (wola `consent.ts` przy kazdym zapisie
+ * i skasowaniu decyzji - na kazdej stronie, nie tylko tam, gdzie stoi
+ * `AdAttributionCapture`): bez obu kategorii klucz znika, bez marketingu
+ * identyfikatory klikniec znikaja z magazynu i z pamieci karty.
+ */
+export function pruneAdAttributionForConsent(consent: AttributionConsent): void {
+  if (consent.marketing) return;
+  forgetMemoryClickIds();
+  const storage = browserStorage("local");
+  const kept = consent.analytics ? stored() : null;
+  if (kept === null) {
+    removeStoredValue(storage, AD_ATTRIBUTION_STORAGE_KEY);
+    return;
+  }
+  const value = JSON.stringify(withoutClickIds(kept));
+  if (readStoredValue(storage, AD_ATTRIBUTION_STORAGE_KEY) === value) return;
+  writeStoredValue(storage, AD_ATTRIBUTION_STORAGE_KEY, value);
 }
 
 /**
@@ -86,7 +136,7 @@ export function readAdAttribution(
   nowMs: number,
 ): StoredAttribution | null {
   if (!consent.analytics && !consent.marketing) return null;
-  const attribution = freshAttribution(memory ?? stored(), nowMs);
+  const attribution = freshAttribution(current(), nowMs);
   if (attribution === null) return null;
   return consent.marketing ? attribution : withoutClickIds(attribution);
 }
