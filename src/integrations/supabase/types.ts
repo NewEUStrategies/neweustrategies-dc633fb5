@@ -20426,6 +20426,15 @@ export type Database = {
         Args: { p_submission_id: string; p_tenant: string }
         Returns: Json
       }
+      _event_cfp_reviewable: {
+        Args: {
+          p_reviewer_id: string
+          p_submission_id: string
+          p_tenant: string
+          p_uid: string
+        }
+        Returns: boolean
+      }
       _event_cfp_roster_publish: {
         Args: { p_submission_id: string; p_tenant: string }
         Returns: number
@@ -20654,6 +20663,10 @@ export type Database = {
           _title_pl: string
         }
         Returns: Json
+      }
+      _event_my_speaker_profile: {
+        Args: { p_event_id: string; p_tenant: string; p_uid: string }
+        Returns: string
       }
       _event_new_qr_token: { Args: never; Returns: string }
       _event_new_scanner_token: { Args: never; Returns: string }
@@ -26034,7 +26047,19 @@ export type Database = {
         }[]
       }
       event_cfp_public: { Args: { p_slug: string }; Returns: Json }
+      event_cfp_review_get: { Args: { p_submission_id: string }; Returns: Json }
+      event_cfp_review_queue: { Args: { p_slug: string }; Returns: Json }
+      event_cfp_submission_notice: {
+        Args: { p_submission_id: string }
+        Returns: Json
+      }
+      event_cfp_submission_respond: { Args: { p_payload: Json }; Returns: Json }
       event_cfp_submission_save: { Args: { p_payload: Json }; Returns: Json }
+      event_cfp_submission_submit: { Args: { p_payload: Json }; Returns: Json }
+      event_cfp_submission_withdraw: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       event_checkin_record: { Args: { p_payload: Json }; Returns: Json }
       event_checkin_resolve: { Args: { p_payload: Json }; Returns: Json }
       event_coupon_revealed_tickets: {
@@ -26132,6 +26157,7 @@ export type Database = {
         }[]
       }
       event_my_agenda: { Args: { p_payload?: Json }; Returns: Json }
+      event_my_cfp_submissions: { Args: { p_slug: string }; Returns: Json }
       event_my_event_profile: { Args: { p_payload?: Json }; Returns: Json }
       event_my_event_profile_set: { Args: { p_payload?: Json }; Returns: Json }
       event_my_event_profile_sync_account: {
@@ -26176,6 +26202,16 @@ export type Database = {
         }[]
       }
       event_my_registrations: { Args: { p_payload?: Json }; Returns: Json }
+      event_my_speaker_material_delete: {
+        Args: { p_material_id: string }
+        Returns: boolean
+      }
+      event_my_speaker_material_upsert: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      event_my_speaker_panel: { Args: { p_slug: string }; Returns: Json }
+      event_my_speaker_profile_set: { Args: { p_payload: Json }; Returns: Json }
       event_package_invite_accept: { Args: { p_payload: Json }; Returns: Json }
       event_package_purchase: { Args: { p_payload: Json }; Returns: Json }
       event_package_seat_invite: { Args: { p_payload: Json }; Returns: Json }
