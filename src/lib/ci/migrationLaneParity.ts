@@ -382,6 +382,68 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     drizzleOnly:
       "Zastosowanie SQL-u 0061 z panelu Lovable (bez komentarzy, instrukcje identyczne i idempotentne); blizniak supabase to juz 20260926140000.",
   },
+  // Funkcje organizatora (PR #404): zapisy zastosowania z panelu Lovable bez
+  // komentarzy - SQL wykonywalny identyczny z pasem supabase, wiec to pelne
+  // pary blizniacze (bramka porownuje je przy kazdym przebiegu). Numery
+  // 0059-0064 dziela prefiks z czescia 2 modulu Wydarzen - tag jest pelna
+  // nazwa pliku, wiec wpisy sie nie myla.
+  {
+    tag: "0055_crm_consent_source_event",
+    twin: "20260926085900_crm_consent_source_event.sql",
+  },
+  {
+    tag: "0056_event_organizer_foundation",
+    twin: "20260926090000_event_organizer_foundation.sql",
+  },
+  {
+    tag: "0057_event_cfp",
+    twin: "20260926100000_event_cfp.sql",
+  },
+  {
+    tag: "0058_event_invoices",
+    twin: "20260926110000_event_invoices.sql",
+  },
+  {
+    tag: "0059_event_ads_funnel",
+    twin: "20260926120000_event_ads_funnel.sql",
+  },
+  {
+    tag: "0060_event_seating",
+    twin: "20260926130000_event_seating.sql",
+  },
+  {
+    tag: "0061_event_sponsor_report",
+    twin: "20260926140000_event_sponsor_report.sql",
+  },
+  {
+    tag: "0062_event_scanner_offline",
+    twin: "20260926150000_event_scanner_offline.sql",
+  },
+  {
+    tag: "0063_event_ticket_wallet",
+    twin: "20260926160000_event_ticket_wallet.sql",
+  },
+  {
+    tag: "0064_event_clone",
+    twin: "20260926170000_event_clone.sql",
+  },
+  {
+    tag: "0065_crm_consent_source_event",
+    drizzleOnly:
+      "Ponowny zapis zastosowania 20260926085900 z panelu Lovable (SQL wykonywalny identyczny z 0055); blizniak supabase to juz 0055.",
+  },
+  {
+    tag: "0066_event_organizer_foundation",
+    drizzleOnly:
+      "Ponowny zapis zastosowania 20260926090000 z panelu Lovable bez instrukcji COMMENT ON (pozostale identyczne i idempotentne); blizniak supabase to juz 0056.",
+  },
+  // Braki modulu Wydarzen, czesc 3: zawiadomienie gosci o odwolanym bilecie,
+  // awans za gosci zwroconych, bilet z puli wraca do puli i pokrywa
+  // pojedyncze zgloszenie, wplata Stripe przy wyczerpanej puli.
+  {
+    tag: "0067_event_registration_gaps_part3",
+    twin: "20260926180000_event_registration_gaps_part3.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";

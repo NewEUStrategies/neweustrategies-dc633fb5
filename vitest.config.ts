@@ -2070,12 +2070,13 @@ export default defineConfig({
         // na koniec opłaconego okresu. Cicha awaria oznacza albo dostęp po
         // oddaniu pieniędzy, albo odebranie dostępu komuś, kto zapłacił -
         // dlatego próg jest wyraźnie wyższy niż średnia katalogu.
-        // ZMIERZONE 2026-08-31: 98,14 / 95,03 / 100 / 100.
+        // ZMIERZONE 2026-09-26: 100 / 100 / 100 / 100 (po naprawie statusu
+        // anulowanego udziału `cancelled` - literówka łamała CHECK tabeli).
         "src/lib/billing/refunds.server.ts": {
-          statements: 94,
-          functions: 96,
-          lines: 96,
-          branches: 91,
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
         },
         // Adres powrotu od operatora płatności. ORIGIN tego adresu pochodzi z
         // nagłówków żądania, czyli z wartości, które klient podaje dowolnie -
@@ -5935,13 +5936,13 @@ export default defineConfig({
         // włączane w tym miejscu - to decyzja na całe repozytorium, a nie na
         // jeden moduł, i podjęta na 29 plikach modułu 22 przesądziłaby ją dla
         // wszystkich pozostałych.
-        // ZMIERZONE 2026-09-04: 99.06 / 99.23 / 100 / 100
-        // (przed: 0 / 0 / 0 / 0) - instrukcje / galezie / funkcje / linie.
+        // ZMIERZONE 2026-09-26: 100 / 100 / 100 / 100 (wczesniej 99.06 / 99.23 /
+        // 100 / 100; odpadla nieosiagalna galaz `readChannels`).
         "src/lib/events/registrationOutcomeNotify.server.ts": {
-          statements: 97,
+          statements: 98,
           functions: 98,
           lines: 98,
-          branches: 97,
+          branches: 98,
         },
         // ZMIERZONE 2026-09-04: 100 / 100 / 100 / 100
         // (przed: 3.4 / 1.12 / 11.11 / 4.41) - instrukcje / galezie / funkcje / linie.
@@ -6542,6 +6543,83 @@ export default defineConfig({
           branches: 98,
         },
         "src/lib/events/registrationSubmitDraft.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // ══ WYDARZENIA: BRAKI CZ. 3 Z 2026-09-26 (zawiadomienie o odwołanym ══
+        // ══ bilecie, bilet z puli planu, wpłata przy wyczerpanej puli) ═══════
+        //
+        // ZMIERZONE 2026-09-26: każdy zmieniony plik 100 / 100 / 100 / 100.
+        // Niżej pliki, które progu per plik jeszcze nie miały; reszta
+        // (checkout.functions, RegistrationPayAction, registrationRows,
+        // refunds.server) stoi już na 98. `jobsTick.server` zostaje przy swoim
+        // (99 / 100 / 99 / 98).
+        "src/lib/billing/eventTicketPlanRedeem.functions.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/billing/eventTicketPlanRedeem.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // Wpłata biletu: RSVP i „miejsce zarezerwowane" dopiero przy
+        // potwierdzonym miejscu, jedno ponowienie po zakleszczeniu (pozycja 5).
+        // Przed tą pracą 81,72 / 68,47 / 100 / 85,88 - bez progu per plik.
+        "src/lib/billing/oneTimeFulfilment.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/paidAdmission.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n-admin-event-registration.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/planSeatRelease.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/ticketRevokedNotify.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/email-templates/tx-copy.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/email/tx-preview.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/email/suppressionPolicy.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/routes/api/public/community-cron.ts": {
           statements: 98,
           functions: 98,
           lines: 98,

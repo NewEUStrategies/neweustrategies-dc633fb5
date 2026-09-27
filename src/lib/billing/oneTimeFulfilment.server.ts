@@ -17,6 +17,8 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { StripeEnv } from "@/lib/stripe.server";
+import type { TicketOutcomePayload } from "@/lib/events/registrationOutcomeNotify.server";
+import { paidSeatConfirmed } from "@/lib/events/paidAdmission";
 
 export interface OneTimeTransaction {
   /** Identyfikator transakcji u dostawcy - klucz idempotencji. */
@@ -39,6 +41,22 @@ function str(source: Record<string, unknown> | null, key: string): string | null
   const v = source?.[key];
   return typeof v === "string" && v.trim() ? v.trim() : null;
 }
+
+/** Odpowiedź RPC jako obiekt - tablica, skalar i `null` to brak ładunku. */
+function asPayload(data: unknown): TicketOutcomePayload | null {
+  return data !== null && typeof data === "object" && !Array.isArray(data)
+    ? (data as TicketOutcomePayload)
+    : null;
+}
+
+/**
+ * Kody SQLSTATE, po których jedno ponowienie RPC ma sens: zakleszczenie
+ * (`40P01`) i konflikt serializacji (`40001`). Funkcja bazowa jest jedną
+ * transakcją, więc powtórka po wycofaniu jest bezpieczna - a bez niej
+ * zakleszczenie z decyzją organizatora albo awansem z rezerwy kończyło się
+ * tak samo jak każdy inny błąd: wpłatą bez zgłoszenia.
+ */
+const TRANSIENT_SQLSTATES: ReadonlySet<string> = new Set(["40P01", "40001"]);
 
 /**
  * Ostatnia bramka limitu miejsc - już po pobraniu pieniędzy.
@@ -123,6 +141,9 @@ async function refundIfOversold(
  * webhook i panel admina dają identyczny skutek. Fail-soft: zamówienie jest
  * już zaksięgowane, a brak zgłoszenia to normalny przypadek (RSVP bez
  * formularza).
+ *
+ * Zwraca ładunek RPC (albo `null` przy błędzie) - wołający czyta z niego, czy
+ * wpłata dała miejsce (`registration_status`), zanim potwierdzi RSVP.
  */
 export async function applyTicketOutcome(
   orderId: string,
@@ -133,25 +154,30 @@ export async function applyTicketOutcome(
    * dzięki temu próg „miejsce wraca do puli" ma JEDNO miejsce w systemie.
    */
   refundedCents?: number | null,
-): Promise<void> {
+): Promise<TicketOutcomePayload | null> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data, error } = await supabaseAdmin.rpc("payments_apply_event_ticket_outcome", {
+  const args = {
     p_order_id: orderId,
     p_outcome: outcome,
     p_refunded_cents:
       typeof refundedCents === "number" && Number.isFinite(refundedCents)
         ? Math.max(0, Math.round(refundedCents))
         : undefined,
-  });
+  };
+  let { data, error } = await supabaseAdmin.rpc("payments_apply_event_ticket_outcome", args);
+  if (error && TRANSIENT_SQLSTATES.has(error.code)) {
+    ({ data, error } = await supabaseAdmin.rpc("payments_apply_event_ticket_outcome", args));
+  }
   if (error) {
     console.error("[payments] ticket outcome failed", orderId, outcome, error.message);
-    return;
+    return null;
   }
+  const payload = asPayload(data);
 
   // Powiadomienie idzie po zapisie i nigdy go nie unieważnia (fail-soft).
   try {
     const { notifyTicketOutcome } = await import("@/lib/events/registrationOutcomeNotify.server");
-    await notifyTicketOutcome((data ?? {}) as Record<string, unknown>);
+    await notifyTicketOutcome(payload ?? {});
   } catch (err) {
     console.error("[payments] ticket outcome notify failed", orderId, err);
   }
@@ -160,15 +186,13 @@ export async function applyTicketOutcome(
   // osobny mail od razu. Bez warunku `applied` - ponowiony webhook musi móc
   // dokończyć wysyłkę, a podwójnemu wydaniu zapobiega baza (zajęcie
   // i `ticket_code_sent_at`). Czego ta ścieżka nie domknie, zbierze cron
-  // (`event-ticket-codes`).
-  const registrationId =
-    data !== null && typeof data === "object" && !Array.isArray(data)
-      ? (data as Record<string, unknown>).registration_id
-      : null;
-  if (outcome === "paid" && typeof registrationId === "string") {
+  // (`event-ticket-codes`). Wiersz w kolejce albo czekający na decyzję kodu
+  // nie dostanie - baza wydaje go wyłącznie zgłoszeniu z miejscem.
+  if (outcome === "paid" && typeof payload?.registration_id === "string") {
     const { issueAndSendTicketCodes } = await import("@/lib/events/ticketCodeNotify.server");
-    await issueAndSendTicketCodes(registrationId);
+    await issueAndSendTicketCodes(payload.registration_id);
   }
+  return payload;
 }
 
 /**
@@ -226,7 +250,15 @@ async function fulfilOrder(
   const ticketEventId = str(preMetadata, "event_id");
 
   // 0. Bilet: autorytatywna kontrola miejsc PRZED nadaniem uprawnienia.
-  if (ticketEventId && order.user_id) {
+  //
+  // TYLKO DLA ZAKUPU BEZ ZGŁOSZENIA (RSVP, `EventTicketPurchase`). Zamówienie
+  // z `registration_id` rozstrzyga baza: `payments_apply_event_ticket_outcome`
+  // sprawdza miejsca pod blokadą (wydarzenie -> pula -> zgłoszenie) i przy
+  // braku miejsca stawia wpłatę w kolejce OPŁACONEJ. `assertSeatAvailable`
+  // liczy RSVP 'going' względem `events.capacity` - inną księgę niż
+  // `event_registrations`, ślepą na pule wejściówek - więc zwrot z tej bramki
+  // anulowałby zgłoszenie, które baza właśnie zakolejkowała jako opłacone.
+  if (ticketEventId && order.user_id && !str(preMetadata, "registration_id")) {
     const refunded = await refundIfOversold(
       txn,
       { id: order.id, user_id: order.user_id, tenant_id: order.tenant_id, plan_id: order.plan_id },
@@ -275,23 +307,34 @@ async function fulfilOrder(
     return "order";
   }
 
-  // 4. Bilet na wydarzenie: opłacenie = potwierdzony zapis.
+  // 4. Bilet na wydarzenie. NAJPIERW zgłoszenie: to samo zdarzenie płatności
+  // potwierdza zgłoszenie z formularza, wydaje kod QR i zdejmuje wpis z listy
+  // rezerwowej - albo, gdy miejsca już nie ma lub bilet wymaga akceptacji,
+  // zostawia wpłatę w kolejce / w oczekiwaniu na decyzję.
+  //
+  // RSVP 'going' DOPIERO PO ODPOWIEDZI BAZY i tylko przy potwierdzonym
+  // miejscu. `get_event_access` daje za nie link wejścia, a `loadMyEventTicket`
+  // kartę biletu - a kupujący w kolejce albo czekający na decyzję nie ma
+  // jeszcze ani jednego, ani drugiego. Ponowienie webhooka po tej zmianie
+  // kolejności jest bezpieczne: RPC jest idempotentne dla tego samego
+  // zamówienia, mail i SMS mają klucze idempotencji, a dzwonki stoją na
+  // `newly_settled`.
+  let ticket: TicketOutcomePayload | null = null;
   if (eventId) {
-    const { error: rsvpErr } = await supabaseAdmin.from("event_rsvps").upsert(
-      {
-        tenant_id: order.tenant_id,
-        event_id: eventId,
-        user_id: order.user_id,
-        status: "going",
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "event_id,user_id" },
-    );
-    if (rsvpErr) throw new Error(`one-time: rsvp confirm failed: ${rsvpErr.message}`);
-
-    // Bilet imienny: to samo zdarzenie płatności potwierdza zgłoszenie z
-    // formularza, wydaje kod QR i zdejmuje wpis z listy rezerwowej.
-    await applyTicketOutcome(order.id, "paid");
+    ticket = await applyTicketOutcome(order.id, "paid");
+    if (paidSeatConfirmed(ticket)) {
+      const { error: rsvpErr } = await supabaseAdmin.from("event_rsvps").upsert(
+        {
+          tenant_id: order.tenant_id,
+          event_id: eventId,
+          user_id: order.user_id,
+          status: "going",
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "event_id,user_id" },
+      );
+      if (rsvpErr) throw new Error(`one-time: rsvp confirm failed: ${rsvpErr.message}`);
+    }
   }
 
   // 5. Powiadomienia (fail-soft, idempotentne po id zamówienia).
@@ -307,7 +350,10 @@ async function fulfilOrder(
       idempotencySeed: order.id,
     });
   }
-  if (eventId) {
+  // „Miejsce zarezerwowane" tylko przy potwierdzonym miejscu. Kupujący
+  // w kolejce albo czekający na decyzję dostał już właściwy mail
+  // (`event_ticket_paid_waitlisted` / `_pending`) z `applyTicketOutcome`.
+  if (eventId && paidSeatConfirmed(ticket)) {
     await notifyEventRegistration({
       userId: order.user_id,
       eventId,

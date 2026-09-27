@@ -326,21 +326,36 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     // (`unit_price_overrides` EUR + lokalizacja) - lokalna konwersja tylko
     // rozjechałaby zamówienie z faktyczną kwotą obciążenia.
     if (data.display_currency && !catalogPriceId) {
-      const [{ couponAuditInDisplayCurrency }, { ensureFxRateLoaded }] = await Promise.all([
-        import("@/lib/billing/displayCurrency"),
-        import("@/lib/billing/fxRate"),
-      ]);
+      const [{ convertToDisplayCurrency, couponAuditInDisplayCurrency }, { ensureFxRateLoaded }] =
+        await Promise.all([
+          import("@/lib/billing/displayCurrency"),
+          import("@/lib/billing/fxRate"),
+        ]);
       await ensureFxRateLoaded();
-      const conv = couponAuditInDisplayCurrency(
-        originalCents,
-        amountCents,
-        currency,
-        data.display_currency,
-      );
+      const pricedCurrency = currency;
+      const target = data.display_currency;
+      const conv = couponAuditInDisplayCurrency(originalCents, amountCents, currency, target);
       originalCents = conv.originalCents;
       amountCents = conv.finalCents;
       couponDiscountCents = conv.discountCents;
       currency = conv.currency;
+      // Metadane miejsc w walucie ZAMÓWIENIA. Ceny miejsc przeliczamy osobno
+      // (bez proporcji - zaokrąglenie z proporcji rozjeżdża „N × cena"),
+      // a rabat na miejsce liczymy od przeliczonego rabatu, jak przed
+      // rozbiciem kodu na miejsca.
+      if (currency !== pricedCurrency) {
+        if (ticketPlan !== null) {
+          ticketPlan = {
+            benefit: ticketPlan.benefit,
+            leadCents: convertToDisplayCurrency(ticketPlan.leadCents, pricedCurrency, target).cents,
+            guestCents: convertToDisplayCurrency(ticketPlan.guestCents, pricedCurrency, target)
+              .cents,
+          };
+        }
+        if (couponPerSeatCents !== null) {
+          couponPerSeatCents = Math.floor(couponDiscountCents / ticketSeats);
+        }
+      }
     }
 
     // Fail-closed ZANIM powstanie zamówienie: produkcja bez działającej
@@ -549,7 +564,9 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           // Różnica cena regularna - kwota końcowa obejmuje fazę sprzedaży
           // ORAZ kod rabatowy, więc nazwa rabatu w Stripe mówi o obu.
           code:
-            [ticketPhaseLabel, ticketPlan ? "Benefit planu" : "", couponCode]
+            // Kod PRZED benefitem planu: nazwa rabatu ma 40 znaków, a kod to
+            // jedyna część, którą kupujący wpisał (i po której go szuka).
+            [ticketPhaseLabel, couponCode, ticketPlan ? "Benefit planu" : ""]
               .filter((part) => Boolean(part))
               .join(" + ") || "Rabat",
           discountCents: phaseDiscountCents,
@@ -571,7 +588,13 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       // reszty (inaczej Stripe policzyłby inną kwotę niż zamówienie), mieści się
       // w limicie ilości sesji i cena miejsca przechodzi minimum operatora -
       // w pozostałych przypadkach zostaje jedna linia za sumę.
+      //
+      // Z benefitem planu miejsce prowadzącego kosztuje mniej niż miejsce
+      // gościa - „N × cena" wolno pokazać tylko wtedy, gdy linia idzie w cenie
+      // regularnej (rabat zdejmuje kupon). Bez kuponu podzielna suma dałaby
+      // „N × średnia", której nie płaci nikt.
       const perSeatLine =
+        (ticketPlan === null || ticketDiscount !== null) &&
         ticketSeats > 1 &&
         ticketSeats <= MAX_LINE_QUANTITY &&
         lineAmountCents % ticketSeats === 0 &&

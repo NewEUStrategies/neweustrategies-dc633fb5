@@ -93,14 +93,17 @@ describe("tx-preview.server - lista typów podglądu", () => {
     // 30 -> 31: bilet z kodem QR dla każdej osoby z grupy (`event_ticket_issued`).
     // 31 -> 35: cztery maile naboru prelegentów (`event_cfp_submission_*`).
     // 35 -> 36: powiadomienie o fakturze organizatora wydarzenia (`event_invoice_issued`).
-    expect(TX_EMAIL_TYPES).toHaveLength(36);
+    // 36 -> 47: jedenaście maili funkcji uczestnika (`PARTICIPANT_TX_EMAIL_TYPES`).
+    // 47 -> 50: bilet odwołany (`event_ticket_revoked`) i wpłata bez miejsca
+    // (`event_ticket_paid_waitlisted` / `_pending`).
+    expect(TX_EMAIL_TYPES).toHaveLength(50);
   });
 
   it("lista podglądu nie ma duplikatów - każdy mail jest w panelu raz", () => {
     const unikalne = new Set(TX_EMAIL_TYPES);
 
     expect(unikalne.size).toBe(TX_EMAIL_TYPES.length);
-    expect(unikalne.size).toBe(36);
+    expect(unikalne.size).toBe(50);
   });
 });
 
@@ -140,8 +143,8 @@ describe("tx-preview.server - komplet podglądów w obu językach", () => {
       .map((p) => `${p.type}/${p.lang}`);
 
     expect(skazone).toEqual([]);
-    // 36 typów razy dwa języki.
-    expect(wszystkie).toHaveLength(72);
+    // 50 typów razy dwa języki.
+    expect(wszystkie).toHaveLength(100);
   });
 
   it("każdy podgląd niesie preheader ze słownika - inaczej lista maili jest ślepa", async () => {
@@ -225,6 +228,38 @@ describe("tx-preview.server - kontekst pusty i dane brzegowe", () => {
 
     expect(p.text).toContain("Europejski Briefing Strategiczny");
     expect(p.text).toContain("Warszawa / online");
+  });
+
+  it("wpłata w kolejce pokazuje pozycję, wpłata czekająca na decyzję - nie", async () => {
+    // Ten sam wiersz „Miejsce w kolejce", który dokłada powiadomienie
+    // z webhooka. Przy oczekiwaniu na decyzję kolejki nie ma, więc wiersz
+    // z pozycją byłby informacją nieprawdziwą. Żaden z dwóch nie ma kwoty
+    // zwrotu - nikt niczego nie zwracał.
+    const kolejkaPl = await renderTxEmailPreview(
+      "event_ticket_paid_waitlisted",
+      "pl",
+      "Marek",
+      "male",
+    );
+    const kolejkaEn = await renderTxEmailPreview(
+      "event_ticket_paid_waitlisted",
+      "en",
+      "Mark",
+      "male",
+    );
+    const decyzjaPl = await renderTxEmailPreview(
+      "event_ticket_paid_pending",
+      "pl",
+      "Marek",
+      "male",
+    );
+
+    expect(kolejkaPl.text).toContain("Miejsce w kolejce");
+    expect(kolejkaPl.text).toContain("450,00 PLN");
+    expect(kolejkaEn.text).toContain("Waiting list position");
+    expect(decyzjaPl.text).toContain("Rodzaj wejściówki");
+    expect(decyzjaPl.text).not.toContain("Miejsce w kolejce");
+    for (const p of [kolejkaPl, decyzjaPl]) expect(p.text).not.toContain("Kwota zwrotu");
   });
 });
 

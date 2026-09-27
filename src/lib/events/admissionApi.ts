@@ -155,6 +155,13 @@ export const TICKET_CHECKOUT_ONLY_REASONS = [
   // „odwolanym albo rozliczonym" byloby tu nieprawda.
   "group_seats_unavailable",
   "payments_unavailable",
+  // Odbior biletu z puli planu (`redeemPlanTicket`): pula nie pokrywa juz
+  // tego zgloszenia (wyczerpana, grupa z goscmi, miejsce goscia) - trzeba
+  // zaplacic. Ekran przelicza wtedy podglad i pokazuje kase.
+  "plan_ticket_unavailable",
+  // Odbior biletu z puli dla zgloszenia, ktore czeka na akceptacje organizatora
+  // (ta sama regula przyjecia, co wplata Stripe) - pula zostaje nietknieta.
+  "plan_ticket_awaiting_approval",
 ] as const;
 export type TicketCheckoutOnlyReason = (typeof TICKET_CHECKOUT_ONLY_REASONS)[number];
 
@@ -173,6 +180,8 @@ export type TicketCheckoutRefusal = AdmissionQuoteReason | TicketCheckoutOnlyRea
  */
 const TICKET_CHECKOUT_REFUSALS: ReadonlyArray<readonly [string, TicketCheckoutRefusal]> = [
   ["ticket_included_in_plan", "ticket_included_in_plan"],
+  ["plan_ticket_unavailable", "plan_ticket_unavailable"],
+  ["plan_ticket_awaiting_approval", "plan_ticket_awaiting_approval"],
   // PRZED ogolnym `registration_not_payable` - to jego wlasciwy prefiks.
   ["registration_not_payable:seats_unavailable", "group_seats_unavailable"],
   ["registration_not_payable", "registration_not_payable"],

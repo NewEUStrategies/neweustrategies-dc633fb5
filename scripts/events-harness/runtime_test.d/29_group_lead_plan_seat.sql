@@ -38,21 +38,6 @@
 BEGIN;
 
 -- --- atrapy puli planu (ksztalt produkcyjny, tylko czytane kolumny) --------
-CREATE TABLE public.plan_ticket_claims (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL,
-  user_id uuid NOT NULL,
-  event_id uuid NOT NULL,
-  org_id uuid,
-  tier_key text NOT NULL,
-  period_start date NOT NULL,
-  period_end date NOT NULL,
-  face_value_cents integer NOT NULL DEFAULT 0,
-  currency text NOT NULL DEFAULT 'PLN',
-  claimed_at timestamptz NOT NULL DEFAULT now(),
-  released_at timestamptz,
-  CONSTRAINT plan_ticket_claims_user_event_uniq UNIQUE (user_id, event_id)
-);
 CREATE TABLE public.membership_grants (
   user_id uuid, tenant_id uuid, tier_key text,
   revoked_at timestamptz, starts_at timestamptz, expires_at timestamptz
@@ -393,7 +378,7 @@ ROLLBACK;
 
 SELECT pg_temp.assert(
   NOT EXISTS (SELECT 1 FROM public.tenants WHERE id = 'd9d9d9d9-d9d9-d9d9-d9d9-d9d9d9d9d9d9')
-  AND to_regclass('public.plan_ticket_claims') IS NULL
+  AND NOT EXISTS (SELECT 1 FROM public.plan_ticket_claims)
   AND to_regprocedure('public.my_ticket_allowance()') IS NULL,
   '29/sprzatanie: plik nie zostawil wierszy ani atrap puli');
 

@@ -164,6 +164,19 @@ function summarize(payload) {
         (tickets.deferred ? ` (odłożone: ${tickets.deferred})` : ""),
     );
   }
+  // Zawiadomienia gosci o bilecie odwolanym razem z grupa - ten sam job.
+  const revoked = payload.eventTicketRevocations;
+  if (revoked && typeof revoked === "object" && !revoked.error && !revoked.skipped) {
+    parts.push(
+      `odwołane bilety (zawiadomienia): ${revoked.sent ?? 0}/${revoked.notices ?? 0}` +
+        (revoked.deferred ? ` (odłożone: ${revoked.deferred})` : ""),
+    );
+  }
+  // Bilety z puli planu porzuconych kas - linia tylko, gdy cos wrocilo.
+  const seats = payload.eventPlanSeatRelease;
+  if (seats && typeof seats === "object" && !seats.error && seats.released > 0) {
+    parts.push(`bilety z puli zwrócone: ${seats.released}`);
+  }
   if (payload.runnerArmed === "armed") parts.push("uzbrojono pg_cron");
   if (Array.isArray(payload.errors) && payload.errors.length > 0) {
     parts.push(`błędy: ${payload.errors.join("; ")}`);

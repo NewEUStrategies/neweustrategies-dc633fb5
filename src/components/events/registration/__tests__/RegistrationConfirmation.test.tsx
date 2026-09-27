@@ -42,6 +42,7 @@ import { axeViolations, summarize } from "@/test/axe";
 
 const checkout = vi.fn();
 const quote = vi.fn();
+const redeem = vi.fn();
 const navigate = vi.fn();
 const auth = vi.hoisted(() => ({ session: null as { user: { id: string } } | null }));
 const stripe = vi.hoisted(() => ({
@@ -63,7 +64,11 @@ vi.mock("@tanstack/react-router", async () => ({
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
   useServerFn: (fn: { name?: string }) =>
-    fn.name === "quoteEventTicketCheckout" ? quote : checkout,
+    fn.name === "quoteEventTicketCheckout"
+      ? quote
+      : fn.name === "redeemEventTicketFromPlan"
+        ? redeem
+        : checkout,
 }));
 
 // Moduł server fn ciągnie middleware Supabase i `@/lib/stripe.server` - w teście
@@ -75,6 +80,10 @@ vi.mock("@/lib/billing/checkout.functions", () => ({
 
 vi.mock("@/lib/billing/eventTicketQuote.functions", () => ({
   quoteEventTicketCheckout: { name: "quoteEventTicketCheckout" },
+}));
+
+vi.mock("@/lib/billing/eventTicketPlanRedeem.functions", () => ({
+  redeemEventTicketFromPlan: { name: "redeemEventTicketFromPlan" },
 }));
 
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ session: auth.session }) }));
@@ -151,6 +160,7 @@ function quoteResult(over: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   checkout.mockReset();
+  redeem.mockReset();
   quote.mockReset();
   quote.mockResolvedValue(quoteResult());
   navigate.mockReset();
@@ -384,5 +394,34 @@ describe("RegistrationConfirmation - gość bez konta", () => {
     const { container } = renderConfirmation();
     const violations = await axeViolations(container);
     expect(violations, summarize(violations)).toEqual([]);
+  });
+});
+
+describe("RegistrationConfirmation - bilet odebrany z planu na tym ekranie", () => {
+  it("po odbiorze znika „czeka na opłatę”, a status mówi o zapisie", async () => {
+    quote.mockResolvedValue(
+      quoteResult({
+        subtotalCents: 0,
+        totalCents: 0,
+        planBenefit: "included",
+        planRedemption: true,
+      }),
+    );
+    redeem.mockResolvedValue({ ok: true, registrationId: REGISTRATION_ID, ticketsSent: 1 });
+    renderConfirmation();
+
+    expect(screen.getByText("eventRegistration.result.pending")).toBeInTheDocument();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "eventRegistration.payment.redeemPlan" }),
+    );
+
+    expect(
+      await screen.findByText("eventRegistration.payment.planRedeemedTitle"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("eventRegistration.result.approved")).toBeInTheDocument();
+    expect(screen.queryByText("eventRegistration.result.paymentTitle")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("eventRegistration.result.paymentNoTicketYet"),
+    ).not.toBeInTheDocument();
   });
 });

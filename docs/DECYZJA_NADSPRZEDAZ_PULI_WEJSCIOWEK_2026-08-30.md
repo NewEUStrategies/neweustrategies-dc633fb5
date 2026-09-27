@@ -1,8 +1,8 @@
 # Nadsprzedaż puli wejściówek - co się dzieje z pieniędzmi i cztery możliwe rozstrzygnięcia
 
 **Data:** 2026-08-30
-**Status:** DO ROZSTRZYGNIĘCIA PRZEZ ZAMAWIAJĄCEGO - to jest decyzja produktowa o pieniądzach klienta, nie refaktor.
-**Defekt zarejestrowany w:** `scripts/events-harness/runtime_test.d/25_payment_binding.sql`, dwie asercje przez `pg_temp.assert_known_defect`.
+**Status:** ROZSTRZYGNIĘTE 2026-09-26 - kolejka opłacona (migracja `20260926180000`, sekcja 8 f2/g). Wpłata, która przyszła po wyczerpaniu miejsc, jest księgowana, a zgłoszenie czeka opłacone na liście rezerwowej (`decision_source = 'capacity'`) i awansuje samo, gdy zwolni się miejsce. Kupujący dostaje mail „Płatność przyjęta - lista rezerwowa", organizator - dzwonek w panelu. Szczegóły: `docs/WDROZENIE_BRAKI_WYDARZEN_CZ3_2026-09-26.md`, sekcja 4.
+**Defekt był zarejestrowany w:** `scripts/events-harness/runtime_test.d/25_payment_binding.sql` (dwie asercje `pg_temp.assert_known_defect`) - od 2026-09-26 zwykłe asercje sekcji 6, a przypadki brzegowe w `75_paid_no_seat_waitlist.sql`.
 
 ---
 

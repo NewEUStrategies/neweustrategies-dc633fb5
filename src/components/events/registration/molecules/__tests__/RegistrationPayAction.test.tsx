@@ -25,6 +25,7 @@ import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 
 const checkout = vi.fn();
 const quote = vi.fn();
+const redeem = vi.fn();
 const navigate = vi.fn();
 const auth = vi.hoisted(() => ({
   session: { user: { id: "u-1" } } as { user: { id: string } } | null,
@@ -45,7 +46,11 @@ vi.mock("@tanstack/react-router", async () => ({
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
   useServerFn: (fn: { name?: string }) =>
-    fn.name === "quoteEventTicketCheckout" ? quote : checkout,
+    fn.name === "quoteEventTicketCheckout"
+      ? quote
+      : fn.name === "redeemEventTicketFromPlan"
+        ? redeem
+        : checkout,
 }));
 
 vi.mock("@/lib/billing/checkout.functions", () => ({
@@ -54,6 +59,10 @@ vi.mock("@/lib/billing/checkout.functions", () => ({
 
 vi.mock("@/lib/billing/eventTicketQuote.functions", () => ({
   quoteEventTicketCheckout: { name: "quoteEventTicketCheckout" },
+}));
+
+vi.mock("@/lib/billing/eventTicketPlanRedeem.functions", () => ({
+  redeemEventTicketFromPlan: { name: "redeemEventTicketFromPlan" },
 }));
 
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ session: auth.session }) }));
@@ -153,6 +162,7 @@ const PAY = "eventRegistration.payment.payNow";
 beforeEach(() => {
   checkout.mockReset();
   quote.mockReset();
+  redeem.mockReset();
   navigate.mockReset();
   quote.mockResolvedValue(quoteResult());
   auth.session = { user: { id: "u-1" } };
@@ -781,17 +791,86 @@ describe("RegistrationPayAction - kod dostępu wejściówki", () => {
       },
     });
     expect(memory.remembered).toEqual([[EVENT_ID, TICKET_ID, "PARTNER"]]);
-    expect(screen.queryByText(ACCESS_LABEL)).not.toBeInTheDocument();
+    // Pole znika dopiero z ODPOWIEDZIĄ podglądu - w trakcie sprawdzania stoi.
+    await waitFor(() => expect(screen.queryByText(ACCESS_LABEL)).not.toBeInTheDocument());
+  });
+
+  it("pole i przycisk zostają na ekranie, póki nowy kod się sprawdza - fokus nie ucieka", async () => {
+    let settle: (value: unknown) => void = () => undefined;
+    quote.mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+      data.access_code === "ZLY2"
+        ? new Promise((_resolve, reject) => {
+            settle = () => reject(new Error("ticket_access_code_invalid"));
+          })
+        : Promise.reject(new Error("ticket_access_code_invalid")),
+    );
+    renderAction();
+
+    expect(await screen.findByText(REFUSED)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(ACCESS_LABEL), { target: { value: "zly2" } });
+    const apply = screen.getByRole("button", { name: ACCESS_APPLY });
+    apply.focus();
+    click(ACCESS_APPLY);
+
+    await waitFor(() =>
+      expect(quote.mock.calls.at(-1)?.[0].data).toMatchObject({ access_code: "ZLY2" }),
+    );
+    // W trakcie: odmowy nie ma (nowy kod), ale pole i przycisk stoją.
+    expect(screen.queryByText(REFUSED)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(ACCESS_LABEL)).toHaveValue("ZLY2");
+    expect(document.activeElement).toBe(apply);
+
+    settle(undefined);
+    expect(await screen.findByText(REFUSED)).toBeInTheDocument();
+    expect(screen.getByLabelText(ACCESS_LABEL)).toHaveValue("ZLY2");
+    expect(document.activeElement).toBe(apply);
+  });
+
+  it("kod wpisany po odmowie i zatwierdzony „Zapłać” (bez „Sprawdź kod”) jedzie do kasy", async () => {
+    quote.mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+      data.access_code === "PARTNER"
+        ? Promise.resolve(quoteResult())
+        : Promise.reject(new Error("ticket_access_code_invalid")),
+    );
+    checkout.mockResolvedValue({ ok: true, mode: "stripe", clientSecret: "cs_1", orderId: "o-1" });
+    renderAction();
+
+    expect(await screen.findByText(REFUSED)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(ACCESS_LABEL), { target: { value: " partner " } });
+    click(PAY);
+
+    await waitFor(() => expect(checkout).toHaveBeenCalledTimes(1));
+    expect(checkout.mock.calls[0]?.[0].data).toMatchObject({ access_code: "PARTNER" });
+    // Kod trafia też do pamięci karty i do podglądu - rozbicie mówi o tym samym.
+    expect(memory.remembered).toEqual([[EVENT_ID, TICKET_ID, "PARTNER"]]);
+    await waitFor(() =>
+      expect(quote.mock.calls.at(-1)?.[0].data).toMatchObject({ access_code: "PARTNER" }),
+    );
+  });
+
+  it("jedno zapytanie podglądu na montaż - od razu z kodami z pamięci", async () => {
+    memory.code = "ODSLON";
+    memory.access = "PARTNER";
+    renderAction();
+
+    await waitFor(() => expect(quote).toHaveBeenCalled());
+    await screen.findByText(/amountDue/);
+    expect(quote).toHaveBeenCalledTimes(1);
+    expect(quote.mock.calls[0]?.[0].data).toMatchObject({
+      coupon_code: "ODSLON",
+      access_code: "PARTNER",
+    });
   });
 
   it("odmowa kasy za zły kod pokazuje pole wypełnione kodem z pamięci; ten sam kod ponawia podgląd", async () => {
     memory.access = "STARY";
     checkout.mockRejectedValue(new Error("ticket_access_code_invalid"));
     renderAction();
-    // Pierwszy podgląd rusza przed odczytem pamięci - liczymy od stanu z kodem.
+    // Podgląd czeka na pamięć - pierwsze zapytanie niesie już kod.
     await waitFor(() =>
       expect(quote.mock.calls.at(-1)?.[0].data).toMatchObject({ access_code: "STARY" }),
     );
+    expect(quote).toHaveBeenCalledTimes(1);
     const settled = quote.mock.calls.length;
 
     click(PAY);
@@ -881,5 +960,118 @@ describe("RegistrationPayAction - benefit planu w rozbiciu", () => {
       await screen.findByText("eventRegistration.payment.quoteSeats(count=3,unit=100,00 zł)"),
     ).toBeInTheDocument();
     expect(screen.queryByText(/quoteLead|quoteGuestSeats/)).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BILET Z PLANU ZAMIAST KASY - pojedyncze zgłoszenie członka pokryte pulą.
+// ---------------------------------------------------------------------------
+describe("RegistrationPayAction - odbiór biletu z planu", () => {
+  const INCLUDED = quoteResult({
+    leadUnitCents: 0,
+    planBenefit: "included",
+    subtotalCents: 0,
+    totalCents: 0,
+    planRedemption: true,
+  });
+  const REDEEM = "eventRegistration.payment.redeemPlan";
+
+  it("zamiast kodu i „Zapłać” - zdanie o planie i „Odbierz bilet z planu”", async () => {
+    quote.mockResolvedValue(INCLUDED);
+    renderAction();
+
+    expect(
+      await screen.findByText("eventRegistration.payment.planIncludedBody"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: REDEEM })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: PAY })).not.toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText("eventRegistration.payment.promoPlaceholder"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/amountDue/)).not.toBeInTheDocument();
+  });
+
+  it("bez kwoty na tej powierzchni zostaje sam przycisk", async () => {
+    quote.mockResolvedValue(INCLUDED);
+    renderAction({ showAmount: false });
+
+    expect(await screen.findByRole("button", { name: REDEEM })).toBeInTheDocument();
+    expect(
+      screen.queryByText("eventRegistration.payment.planIncludedBody"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("odbiór: identyfikatory i kod dostępu do serwera, potem zdanie o bilecie i odświeżenie", async () => {
+    memory.access = "VIP";
+    quote.mockResolvedValue(INCLUDED);
+    let settle: (value: unknown) => void = () => {};
+    redeem.mockReturnValue(new Promise((resolve) => (settle = resolve)));
+    const onSettled = vi.fn();
+    const { queryClient } = renderAction({ onSettled });
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    await screen.findByRole("button", { name: REDEEM });
+    click(REDEEM);
+    expect(
+      await screen.findByRole("button", { name: "eventRegistration.payment.redeeming" }),
+    ).toBeDisabled();
+    await act(async () => settle({ ok: true, registrationId: REGISTRATION_ID, ticketsSent: 1 }));
+
+    expect(redeem.mock.calls[0]?.[0]).toEqual({
+      data: {
+        event_id: EVENT_ID,
+        ticket_type_id: TICKET_ID,
+        registration_id: REGISTRATION_ID,
+        access_code: "VIP",
+      },
+    });
+    expect(
+      await screen.findByText("eventRegistration.payment.planRedeemedTitle"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("eventRegistration.payment.planRedeemedBody")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: REDEEM })).not.toBeInTheDocument();
+    expect(onSettled).toHaveBeenCalledTimes(1);
+    expect(invalidate).toHaveBeenCalledWith();
+    expect(checkout).not.toHaveBeenCalled();
+  });
+
+  it("odbiór bez rodzica, który słucha - to samo zdanie", async () => {
+    quote.mockResolvedValue(INCLUDED);
+    redeem.mockResolvedValue({ ok: true, registrationId: REGISTRATION_ID, ticketsSent: 0 });
+    renderAction();
+
+    await screen.findByRole("button", { name: REDEEM });
+    click(REDEEM);
+
+    expect(
+      await screen.findByText("eventRegistration.payment.planRedeemedTitle"),
+    ).toBeInTheDocument();
+  });
+
+  it("pula już nie pokrywa zgłoszenia - zdanie odmowy i nowy podgląd (kasa)", async () => {
+    quote.mockResolvedValueOnce(INCLUDED).mockResolvedValue(quoteResult());
+    redeem.mockResolvedValue({ ok: false, error: "plan_ticket_unavailable" });
+    renderAction();
+
+    await screen.findByRole("button", { name: REDEEM });
+    click(REDEEM);
+
+    expect(
+      await screen.findByText("eventPackages.quoteReasons.plan_ticket_unavailable"),
+    ).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: PAY })).toBeInTheDocument();
+    expect(quote).toHaveBeenCalledTimes(2);
+  });
+
+  it("wyjątek serwera (brak miejsc) to zdanie odmowy, przycisk zostaje", async () => {
+    quote.mockResolvedValue(INCLUDED);
+    redeem.mockRejectedValue(new Error("ticket_sold_out"));
+    renderAction();
+
+    await screen.findByRole("button", { name: REDEEM });
+    click(REDEEM);
+
+    expect(await screen.findByText("eventPackages.quoteReasons.sold_out")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: REDEEM })).toBeEnabled();
   });
 });

@@ -128,7 +128,10 @@ describe("tx-copy - kompletność słownika obu języków", () => {
     // 31 -> 35: nabór prelegentów (`event_cfp_submission_received/_accepted/
     // _rejected/_changes_requested`).
     // 35 -> 36: powiadomienie o fakturze organizatora wydarzenia (`event_invoice_issued`).
-    expect(zeSlownika).toHaveLength(36);
+    // 36 -> 47: jedenaście maili funkcji uczestnika (`PARTICIPANT_TX_EMAIL_TYPES`).
+    // 47 -> 50: bilet odwołany razem z grupą (`event_ticket_revoked`) i wpłata
+    // bez miejsca (`event_ticket_paid_waitlisted`, `event_ticket_paid_pending`).
+    expect(zeSlownika).toHaveLength(50);
   });
 
   it.each(TX_EMAIL_TYPES)("%s ma komplet treści w PL i w EN", (type) => {
@@ -252,8 +255,8 @@ describe("tx-copy - temat wiadomości", () => {
     );
 
     expect(braki).toEqual([]);
-    // 36 typów razy dwa języki.
-    expect(TX_EMAIL_TYPES.length * LANGS.length).toBe(72);
+    // 50 typów razy dwa języki.
+    expect(TX_EMAIL_TYPES.length * LANGS.length).toBe(100);
   });
 
   it("temat nie przekracza długości, po której klient pocztowy go urywa", () => {

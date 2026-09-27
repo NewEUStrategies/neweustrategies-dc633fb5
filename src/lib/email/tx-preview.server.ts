@@ -60,9 +60,12 @@ export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "event_cfp_submission_rejected",
   "event_cfp_submission_changes_requested",
   "event_ticket_paid",
+  "event_ticket_paid_waitlisted",
+  "event_ticket_paid_pending",
   "event_ticket_refunded",
   "event_ticket_partially_refunded",
   "event_ticket_issued",
+  "event_ticket_revoked",
   "event_invoice_issued",
   "donation_received",
   "newsletter_confirmed",
@@ -420,6 +423,23 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
         ],
         ctaUrl: `${SITE_URL}/events`,
       };
+    // Wpłata bez miejsca: bez kwoty zwrotu (nikt niczego nie zwracał), a przy
+    // kolejce z pozycją - ten sam wiersz, który dokłada powiadomienie z webhooka.
+    case "event_ticket_paid_waitlisted":
+    case "event_ticket_paid_pending":
+      return {
+        subjectName: eventTitle,
+        details: [
+          { label: l.event, value: eventTitle },
+          { label: l.date, value: eventDate },
+          { label: l.ticketType, value: DEMO_TICKET_TYPE[lang] },
+          { label: l.price, value: DEMO_TICKET_PRICE[lang] },
+          ...(type === "event_ticket_paid_waitlisted"
+            ? [{ label: l.waitlistPosition, value: "3" }]
+            : []),
+        ],
+        ctaUrl: `${SITE_URL}/events`,
+      };
     // Bilet z kodem QR: podgląd z przykładowym gościem grupy (wiersz „zgłoszenie
     // od") i kodem w kształcie `_event_new_qr_token()` - przycisk prowadzi na
     // stronę biletu z kodem we fragmencie adresu.
@@ -435,6 +455,19 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
           { label: l.entryCode, value: DEMO_ENTRY_CODE },
         ],
         ctaUrl: `${SITE_URL}${ticketLinkPath("demo", DEMO_ENTRY_CODE)}`,
+      };
+    // Bilet odwolany razem z grupa: bez kodu wejscia (juz nie wpuszcza),
+    // z tym, kto zapisal goscia - to jego zgloszenie odwolano.
+    case "event_ticket_revoked":
+      return {
+        subjectName: eventTitle,
+        details: [
+          { label: l.event, value: eventTitle },
+          { label: l.date, value: eventDate },
+          { label: l.ticketType, value: DEMO_TICKET_TYPE[lang] },
+          { label: l.registeredBy, value: "Anna Nowak" },
+        ],
+        ctaUrl: `${SITE_URL}/events`,
       };
     // Faktura organizatora: numer z serii FV, kwota brutto, odnosnik do
     // profilu (mail nie niesie zalacznika - PDF sklada profil).

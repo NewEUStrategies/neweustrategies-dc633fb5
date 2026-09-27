@@ -469,7 +469,12 @@ describe("wynik bez szablonu i zgłoszenie bez zapisu", () => {
       }),
     );
 
-    expect(result).toEqual({ emailed: false, smsSent: false, promotedNotified: 0 });
+    expect(result).toEqual({
+      emailed: false,
+      smsSent: false,
+      promotedNotified: 0,
+      organizerAlerted: 0,
+    });
     expect(mail.attempts).toHaveLength(0);
     expect(sms.sent).toHaveLength(0);
     expect(bellCount()).toBe(0);
@@ -480,7 +485,12 @@ describe("wynik bez szablonu i zgłoszenie bez zapisu", () => {
     // znaczyłoby tu mail o opłaceniu biletu, którego baza nie zaksięgowała.
     const result = await notifyTicketOutcome({ registration_id: REG, outcome: "paid" });
 
-    expect(result).toEqual({ emailed: false, smsSent: false, promotedNotified: 0 });
+    expect(result).toEqual({
+      emailed: false,
+      smsSent: false,
+      promotedNotified: 0,
+      organizerAlerted: 0,
+    });
     expect(mail.attempts).toHaveLength(0);
     expect(sms.sent).toHaveLength(0);
     expect(bellCount()).toBe(0);
@@ -508,7 +518,12 @@ describe("wynik bez szablonu i zgłoszenie bez zapisu", () => {
       }),
     );
 
-    expect(result).toEqual({ emailed: true, smsSent: true, promotedNotified: 1 });
+    expect(result).toEqual({
+      emailed: true,
+      smsSent: true,
+      promotedNotified: 1,
+      organizerAlerted: 0,
+    });
     expect(attemptsOfType("event_waitlist_promoted")).toHaveLength(1);
     // Płacący dostaje SWÓJ szablon, a nie mail o awansie: sama liczba „2"
     // przepuściłaby dwie wiadomości o zwolnionym miejscu.
@@ -935,7 +950,12 @@ describe("język odbiorcy", () => {
       payload({ contact: { user_id: "   ", email: "   ", phone: "", first_name: "" } }),
     );
 
-    expect(result).toEqual({ emailed: false, smsSent: false, promotedNotified: 0 });
+    expect(result).toEqual({
+      emailed: false,
+      smsSent: false,
+      promotedNotified: 0,
+      organizerAlerted: 0,
+    });
     expect(mail.attempts).toHaveLength(0);
     expect(sms.sent).toHaveLength(0);
     expect(bellCount()).toBe(0);
@@ -1027,7 +1047,12 @@ describe("dzwonek w aplikacji", () => {
       db.breakRpc(mode);
       const result = await notifyTicketOutcome(payload());
 
-      expect(result).toEqual({ emailed: true, smsSent: true, promotedNotified: 0 });
+      expect(result).toEqual({
+        emailed: true,
+        smsSent: true,
+        promotedNotified: 0,
+        organizerAlerted: 0,
+      });
       expect(errorSpy.mock.calls.map((call) => String(call[0]))).toContain(
         "[events] ticket outcome bell failed",
       );
@@ -1255,5 +1280,387 @@ describe("kolejka rezerwowa", () => {
     );
 
     expect(attemptsOfType("event_waitlist_promoted")[0]?.details).toEqual([]);
+  });
+});
+
+// --- 8. wpłata bez miejsca (20260926180000) ---------------------------------
+//
+// Opłacenie nie zawsze daje już miejsce: baza odsyła `registration_status`
+// i wpłata może czekać w kolejce, na decyzję organizatora albo trafić na
+// zgłoszenie zamknięte. Mail „bilet opłacony - miejsce jest Twoje" do kogoś
+// w kolejce to obietnica miejsca, którego nie ma.
+
+const ADMIN_A = "a0a0a0a0-1212-4212-8212-a0a0a0a0a0a0";
+const ADMIN_B = "b0b0b0b0-1313-4313-8313-b0b0b0b0b0b0";
+
+/** Wpłata, która dotarła po wyczerpaniu puli - pierwsze zaksięgowanie. */
+function queuedPayment(over: Partial<TicketOutcomePayload> = {}): TicketOutcomePayload {
+  return payload({
+    registration_status: "waitlist",
+    waitlist_position: 3,
+    newly_settled: true,
+    ...over,
+  });
+}
+
+/** Organizatorzy najemcy w `user_roles` (ta sama osoba może mieć dwie role). */
+function givenAdmins(rows: Array<{ user_id: string }> | null): void {
+  stub.setResponse("user_roles", ok(rows));
+}
+
+/**
+ * Dzwonki przez `enqueue_notification` (D0-3) bez prefiksu `p_` - matchery
+ * czytają `user_id`/`title_pl` jak wiersz `notifications`. Organizator to
+ * dzwonek prowadzący do panelu (`/admin/...`), kupujący - każdy inny.
+ */
+function bells(organizer: boolean): Array<Record<string, unknown>> {
+  return db
+    .rpcCalls("enqueue_notification")
+    .filter((args) => String(args["p_href"]).startsWith("/admin/") === organizer)
+    .map((args) =>
+      Object.fromEntries(Object.entries(args).map(([key, value]) => [key.slice(2), value])),
+    );
+}
+
+function organizerRows(): Array<Record<string, unknown>> {
+  return bells(true);
+}
+
+function organizerInserts(): number {
+  return bells(true).length;
+}
+
+function buyerBells(): Array<Record<string, unknown>> {
+  return bells(false);
+}
+
+describe("wpłata w kolejce: kupujący wie, że czeka opłacony", () => {
+  it("mail `event_ticket_paid_waitlisted` z pozycją w kolejce, a nie „bilet opłacony”", async () => {
+    givenAdmins([]);
+    await notifyTicketOutcome(queuedPayment());
+
+    expect(attemptsOfType("event_ticket_paid")).toHaveLength(0);
+    const [mailed] = attemptsOfType("event_ticket_paid_waitlisted");
+    expect(mailed?.to).toBe("uczestnik@example.com");
+    expect(detailLabels()).toEqual(["Wydarzenie", "Kwota", "Miejsce w kolejce"]);
+    expect(detailValue(mailed, "Miejsce w kolejce")).toBe("3");
+    // Klucz idempotencji zostaje przy samym wyniku: ponowiony webhook po
+    // awansie z kolejki nie dołoży drugiego maila o tej samej wpłacie.
+    expect(mailed?.idempotencyKey).toBe(`event-ticket:${REG}:paid:0`);
+  });
+
+  it("angielski odbiorca dostaje angielską etykietę pozycji", async () => {
+    givenAdmins([]);
+    givenProfileLang(USER, "en");
+    await notifyTicketOutcome(queuedPayment());
+
+    expect(detailLabels()).toEqual(["Event", "Amount", "Waiting list position"]);
+  });
+
+  it("baza bez pozycji (null) nie tworzy wiersza „Miejsce w kolejce: null”", async () => {
+    givenAdmins([]);
+    await notifyTicketOutcome(queuedPayment({ waitlist_position: null }));
+
+    expect(detailLabels()).toEqual(["Wydarzenie", "Kwota"]);
+  });
+
+  it("SMS mówi o kolejce i o pozycji - w obu językach, bez ogonków", async () => {
+    givenAdmins([]);
+    await notifyTicketOutcome(queuedPayment());
+    givenProfileLang(USER, "en");
+    await notifyTicketOutcome(
+      queuedPayment({ registration_id: "12121212-3434-4343-8343-121212121212" }),
+    );
+
+    expect(sms.sent.map((entry) => entry.body)).toEqual([
+      `Platnosc za ${TITLE_PL} przyjeta - brak wolnych miejsc, jestes na liscie rezerwowej (miejsce 3). Bilet wyslemy, gdy zwolni sie miejsce.`,
+      `Payment for ${TITLE_EN} received - no seat is free yet, you are on the waiting list (position 3). We will send your ticket when a seat opens up.`,
+    ]);
+    for (const entry of sms.sent) {
+      expect(entry.body).not.toMatch(/[^ -~]/);
+    }
+  });
+
+  it("SMS bez pozycji nie zostawia pustych nawiasów", async () => {
+    givenAdmins([]);
+    await notifyTicketOutcome(queuedPayment({ waitlist_position: null }));
+    givenProfileLang(USER, "en");
+    await notifyTicketOutcome(
+      queuedPayment({
+        registration_id: "12121212-3434-4343-8343-121212121212",
+        waitlist_position: null,
+      }),
+    );
+
+    const [pl, en] = sms.sent.map((entry) => entry.body);
+    expect(pl).toContain("jestes na liscie rezerwowej. Bilet");
+    expect(en).toContain("on the waiting list. We will");
+  });
+
+  it("dzwonek kupującego mówi „opłacone - lista rezerwowa”, nie „bilet opłacony”", async () => {
+    givenAdmins([]);
+    await notifyTicketOutcome(queuedPayment());
+
+    expect(buyerBells()).toHaveLength(1);
+    expect(buyerBells()[0]).toMatchObject({
+      user_id: USER,
+      title_pl: "Opłacone - jesteś na liście rezerwowej",
+      title_en: "Paid - you are on the waiting list",
+    });
+  });
+});
+
+describe("wpłata czekająca na decyzję: wpłata nie jest akceptacją", () => {
+  it.each(["pending", "draft"])(
+    "%s: mail `event_ticket_paid_pending`, SMS i dzwonek o decyzji organizatora",
+    async (status) => {
+      givenAdmins([]);
+      // Pozycja w ładunku nie ma tu znaczenia: bez kolejki wiersz „Miejsce
+      // w kolejce" byłby informacją nieprawdziwą.
+      await notifyTicketOutcome(
+        payload({ registration_status: status, waitlist_position: 4, newly_settled: true }),
+      );
+
+      expect(attemptsOfType("event_ticket_paid_pending")).toHaveLength(1);
+      expect(attemptsOfType("event_ticket_paid")).toHaveLength(0);
+      expect(detailLabels()).toEqual(["Wydarzenie", "Kwota"]);
+      expect(sms.sent[0]?.body).toBe(
+        `Platnosc za ${TITLE_PL} przyjeta - zgloszenie czeka na decyzje organizatora. Szczegoly w mailu.`,
+      );
+      expect(buyerBells()[0]).toMatchObject({
+        title_pl: "Opłacone - zgłoszenie czeka na decyzję",
+        title_en: "Paid - awaiting the organiser's decision",
+      });
+    },
+  );
+
+  it("angielski SMS o decyzji też jest w GSM-7", async () => {
+    givenAdmins([]);
+    givenProfileLang(USER, "en");
+    await notifyTicketOutcome(payload({ registration_status: "pending", newly_settled: true }));
+
+    const body = sms.sent[0]?.body ?? "";
+    expect(body).toBe(
+      `Payment for ${TITLE_EN} received - your registration awaits the organiser's decision. Details are in your inbox.`,
+    );
+    expect(body).not.toMatch(/[^ -~]/);
+  });
+});
+
+describe("wpłata na zgłoszeniu zamkniętym i zgodność ze starą bazą", () => {
+  it.each(["cancelled", "rejected"])(
+    "%s: kupujący nie dostaje NICZEGO - każda wiadomość mówiłaby nieprawdę",
+    async (status) => {
+      givenAdmins([{ user_id: ADMIN_A }]);
+      const result = await notifyTicketOutcome(
+        payload({ registration_status: status, newly_settled: true }),
+      );
+
+      expect(result).toEqual({
+        emailed: false,
+        smsSent: false,
+        promotedNotified: 0,
+        organizerAlerted: 1,
+      });
+      expect(mail.attempts).toHaveLength(0);
+      expect(sms.sent).toHaveLength(0);
+      expect(buyerBells()).toHaveLength(0);
+      // Sprawę ma organizator: pieniądze trzeba zwrócić.
+      expect(organizerRows()[0]).toMatchObject({
+        user_id: ADMIN_A,
+        title_pl: "Wpłata za zamknięte zgłoszenie - do zwrotu",
+        title_en: "Payment for a closed registration - refund due",
+        body_pl: `${TITLE_PL}: wpłata dotarła do zgłoszenia odwołanego albo odrzuconego. Zwróć płatność w panelu płatności.`,
+        body_en: `${TITLE_EN}: a payment reached a cancelled or rejected registration. Refund it in the payments panel.`,
+      });
+    },
+  );
+
+  it("brak `registration_status` (baza sprzed migracji) = dotychczasowy „bilet opłacony”", async () => {
+    const result = await notifyTicketOutcome(payload({ newly_settled: true }));
+
+    expect(attemptsOfType("event_ticket_paid")).toHaveLength(1);
+    expect(result.organizerAlerted).toBe(0);
+    expect(stub.chainsFor("user_roles")).toHaveLength(0);
+  });
+
+  it("przyjęte zgłoszenie: „bilet opłacony” i żadnego dzwonka organizatora", async () => {
+    await notifyTicketOutcome(payload({ registration_status: "approved", newly_settled: true }));
+
+    expect(attemptsOfType("event_ticket_paid")).toHaveLength(1);
+    expect(stub.chainsFor("user_roles")).toHaveLength(0);
+    expect(buyerBells()).toHaveLength(1);
+  });
+});
+
+describe("dzwonek organizatora o wpłacie bez miejsca", () => {
+  it("jeden dzwonek na każdego admina najemcy, bez duplikatów, z adresem listy zgłoszeń", async () => {
+    // ADMIN_A ma obie role (admin i super_admin) - dostaje JEDEN wpis.
+    givenAdmins([{ user_id: ADMIN_A }, { user_id: ADMIN_B }, { user_id: ADMIN_A }]);
+    const result = await notifyTicketOutcome(queuedPayment());
+
+    expect(result.organizerAlerted).toBe(2);
+    const rows = organizerRows();
+    expect(rows.map((row) => row["user_id"])).toEqual([ADMIN_A, ADMIN_B]);
+    for (const row of rows) {
+      // Najemcę bierze producent z profilu odbiorcy; ikona z listy kuratorskiej.
+      expect(row).not.toHaveProperty("tenant_id");
+      expect(row).toMatchObject({
+        kind: "billing",
+        icon: "credit-card",
+        href: `/admin/events/${EVENT}/registration/list`,
+        title_pl: "Opłacone zgłoszenie na liście rezerwowej",
+        title_en: "Paid registration on the waiting list",
+        body_pl: `${TITLE_PL}: wpłata przyszła po wyczerpaniu miejsc - zgłoszenie czeka opłacone (pozycja 3) i awansuje samo, gdy zwolni się miejsce. Możesz dostawić miejsce albo zwrócić płatność.`,
+        body_en: `${TITLE_EN}: the payment arrived after seats ran out - the registration waits paid (position 3) and moves up automatically when a seat frees up. You can add a seat or refund the payment.`,
+      });
+    }
+    // Odbiorcy tylko z TEGO najemcy i tylko z ról, które widzą panel zapisów.
+    const roles = stub.lastChain("user_roles");
+    expect(roles?.argsOf("select")).toEqual(["user_id"]);
+    expect(roles?.argsOf("eq")).toEqual(["tenant_id", TENANT]);
+    expect(roles?.argsOf("in")).toEqual(["role", ["admin", "super_admin"]]);
+  });
+
+  it("oczekiwanie na decyzję: organizator ma przyjąć albo odrzucić", async () => {
+    givenAdmins([{ user_id: ADMIN_A }]);
+    await notifyTicketOutcome(payload({ registration_status: "pending", newly_settled: true }));
+
+    expect(organizerRows()[0]).toMatchObject({
+      title_pl: "Opłacone zgłoszenie czeka na akceptację",
+      title_en: "Paid registration awaits approval",
+      body_pl: `${TITLE_PL}: uczestnik zapłacił za bilet wymagający akceptacji - przyjmij albo odrzuć zgłoszenie (odmowa wymaga zwrotu płatności).`,
+      body_en: `${TITLE_EN}: the attendee paid for a ticket that needs approval - approve or decline (declining requires a refund).`,
+    });
+  });
+
+  it("bez tytułu i bez pozycji treść nie zaczyna się od „: ” i nie ma pustych nawiasów", async () => {
+    givenAdmins([{ user_id: ADMIN_A }]);
+    await notifyTicketOutcome(
+      queuedPayment({ event_title_pl: null, event_title_en: null, waitlist_position: null }),
+    );
+
+    const [row] = organizerRows();
+    expect(row?.["body_pl"]).toBe(
+      "wpłata przyszła po wyczerpaniu miejsc - zgłoszenie czeka opłacone i awansuje samo, gdy zwolni się miejsce. Możesz dostawić miejsce albo zwrócić płatność.",
+    );
+    expect(row?.["body_en"]).toBe(
+      "the payment arrived after seats ran out - the registration waits paid and moves up automatically when a seat frees up. You can add a seat or refund the payment.",
+    );
+  });
+
+  it.each([
+    ["ponowiony webhook (`newly_settled: false`)", false],
+    ["ładunek bez pola (panel, stara baza)", undefined],
+  ] as const)("%s nie dokłada dzwonka organizatorowi", async (_label, newlySettled) => {
+    givenAdmins([{ user_id: ADMIN_A }]);
+    const result = await notifyTicketOutcome(queuedPayment({ newly_settled: newlySettled }));
+
+    expect(result.organizerAlerted).toBe(0);
+    expect(stub.chainsFor("user_roles")).toHaveLength(0);
+    expect(organizerInserts()).toBe(0);
+  });
+
+  it.each([
+    ["bez najemcy", { tenant_id: null }],
+    ["bez wydarzenia", { event_id: null }],
+  ] as const)("%s nie pyta o organizatorów - nie ma dokąd prowadzić", async (_label, over) => {
+    givenAdmins([{ user_id: ADMIN_A }]);
+    const result = await notifyTicketOutcome(queuedPayment(over));
+
+    expect(result.organizerAlerted).toBe(0);
+    expect(stub.chainsFor("user_roles")).toHaveLength(0);
+  });
+
+  it.each([
+    ["pusta lista", []],
+    ["brak danych", null],
+  ] as const)("najemca bez adminów (%s): zero wpisów i żadnego dzwonka", async (_label, rows) => {
+    givenAdmins(rows === null ? null : [...rows]);
+    const result = await notifyTicketOutcome(queuedPayment());
+
+    expect(result.organizerAlerted).toBe(0);
+    expect(organizerInserts()).toBe(0);
+    // Kupujący swoje dostaje niezależnie od organizatora.
+    expect(result.emailed).toBe(true);
+  });
+
+  it("rzut klienta przy odczycie ról: zero i ślad w logu, kupujący dostaje swoje", async () => {
+    db.breakTable("user_roles");
+    const result = await notifyTicketOutcome(queuedPayment());
+
+    expect(result.organizerAlerted).toBe(0);
+    expect(result.emailed).toBe(true);
+    expect(errorSpy.mock.calls.map((call) => String(call[0]))).toContain(
+      "[events] organizer alert failed",
+    );
+  });
+
+  it("odmowa bazy przy odczycie ról to też zero, a nie cichy sukces", async () => {
+    stub.setResponse("user_roles", fail("bramka ról odmówiła"));
+    const result = await notifyTicketOutcome(queuedPayment());
+
+    expect(result.organizerAlerted).toBe(0);
+    expect(organizerInserts()).toBe(0);
+    expect(errorSpy.mock.calls.map((call) => String(call[0]))).toContain(
+      "[events] organizer alert failed",
+    );
+  });
+
+  it.each([
+    ["odmowa producenta bez rzutu", "error"],
+    ["rzut klienta na RPC", "throw"],
+  ] as const)("%s: liczba mówi, ile wpisów NAPRAWDĘ powstało - zero", async (_label, mode) => {
+    givenAdmins([{ user_id: ADMIN_A }, { user_id: ADMIN_B }]);
+    db.breakRpc(mode);
+    const result = await notifyTicketOutcome(queuedPayment());
+
+    expect(result.organizerAlerted).toBe(0);
+    // Kupujący swoje dostaje niezależnie od organizatora.
+    expect(result.emailed).toBe(true);
+    expect(errorSpy.mock.calls.map((call) => String(call[0]))).toContain(
+      "[events] organizer alert failed",
+    );
+  });
+});
+
+describe("dzwonek kupującego przy ponowionym webhooku", () => {
+  it("ponowiona wpłata (`newly_settled: false`) nie dokłada drugiego dzwonka", async () => {
+    // Poczta i SMS mają klucze idempotencji, dzwonek nie - bez tej bramki
+    // każde ponowienie operatora to kolejny wpis „bilet opłacony".
+    await notifyTicketOutcome(payload({ registration_status: "approved", newly_settled: true }));
+    await notifyTicketOutcome(payload({ registration_status: "approved", newly_settled: false }));
+
+    expect(buyerBells()).toHaveLength(1);
+    expect(deliveredOfType("event_ticket_paid")).toHaveLength(1);
+  });
+
+  it("zwrot dzwoni jak dotąd - `newly_settled` dotyczy wyłącznie wpłaty", async () => {
+    await notifyTicketOutcome(
+      payload({ outcome: "refunded", refunded_cents: 24_900, newly_settled: false }),
+    );
+
+    expect(buyerBells()[0]).toMatchObject({ title_pl: "Bilet anulowany - zwrot płatności" });
+  });
+
+  it("sześć rodzajów wiadomości daje sześć RÓŻNYCH SMS-ów", async () => {
+    givenAdmins([]);
+    const variants: TicketOutcomePayload[] = [
+      payload(),
+      queuedPayment(),
+      payload({ registration_status: "pending" }),
+      payload({ outcome: "unpaid" }),
+      payload({ outcome: "refunded", refunded_cents: 24_900 }),
+      payload({ outcome: "partial_refund", refunded_cents: 5_000 }),
+    ];
+    const bodies: string[] = [];
+    for (const variant of variants) {
+      sms.reset();
+      await notifyTicketOutcome(variant);
+      bodies.push(sms.sent[0]?.body ?? "");
+    }
+
+    expect(new Set(bodies).size).toBe(6);
+    expect(bodies.every((body) => body.includes(TITLE_PL))).toBe(true);
   });
 });

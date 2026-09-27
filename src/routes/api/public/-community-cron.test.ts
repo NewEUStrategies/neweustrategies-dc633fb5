@@ -148,6 +148,13 @@ vi.mock("@/lib/events/ticketCodeNotify.server", () => ({
   runPendingTicketCodes: (limit: number) =>
     jobs.run("eventTicketCodes", [limit], { registrations: 1, sent: 2 }),
 }));
+vi.mock("@/lib/events/ticketRevokedNotify.server", () => ({
+  runPendingTicketRevocations: (limit: number) =>
+    jobs.run("eventTicketRevocations", [limit], { notices: 1, sent: 1, failed: 0, deferred: 0 }),
+}));
+vi.mock("@/lib/events/planSeatRelease.server", () => ({
+  runPlanSeatRelease: (limit: number) => jobs.run("eventPlanSeatRelease", [limit], { released: 2 }),
+}));
 
 // Zadania funkcji uczestnika F1-F5 (spec B.10) - granice z własnymi testami torów.
 vi.mock("@/lib/events/jobs/reminderJob.server", () => ({
@@ -882,7 +889,6 @@ describe("wybór kanałów: `?job=`, ciało żądania i pierwszeństwo query", (
     ["digest-weekly", "digest:weekly", "digestWeekly"],
     ["event-reminders", "eventReminders", "eventReminders"],
     ["crm-task-reminders", "crmTaskReminders", "crmTaskReminders"],
-    ["event-ticket-codes", "eventTicketCodes", "eventTicketCodes"],
     ["event-participant-reminders", "eventParticipantReminders", "eventParticipantReminders"],
     ["event-ticket-lifecycle", "eventTicketLifecycle", "eventTicketLifecycle"],
     ["event-follow-up", "eventFollowUp", "eventFollowUp"],
@@ -895,6 +901,22 @@ describe("wybór kanałów: `?job=`, ciało żądania i pierwszeństwo query", (
     expect(payload).toMatchObject({ ok: true, job });
     expect(payload).toHaveProperty(key);
     // Odznaki reputacji jadą WYŁĄCZNIE w "all" - pojedynczy job ich nie budzi.
+    expect(payload).not.toHaveProperty("reputationBadges");
+  });
+
+  it("`?job=event-ticket-codes` wysyła bilety, zawiadomienia o odwołanych (partie po 50) i zwalnia porzucone bilety z puli", async () => {
+    const res = await tick({ query: "?job=event-ticket-codes" });
+
+    expect(jobs.calls).toEqual([
+      { step: "eventTicketCodes", args: [50] },
+      { step: "eventTicketRevocations", args: [50] },
+      { step: "eventPlanSeatRelease", args: [500] },
+    ]);
+    const payload = await body(res);
+    expect(payload).toMatchObject({ ok: true, job: "event-ticket-codes" });
+    expect(payload).toHaveProperty("eventTicketCodes");
+    expect(payload).toHaveProperty("eventTicketRevocations");
+    expect(payload).toMatchObject({ eventPlanSeatRelease: { released: 2 } });
     expect(payload).not.toHaveProperty("reputationBadges");
   });
 
@@ -931,6 +953,8 @@ describe("wybór kanałów: `?job=`, ciało żądania i pierwszeństwo query", (
       "eventFollowUp",
       "crmTaskReminders",
       "eventTicketCodes",
+      "eventTicketRevocations",
+      "eventPlanSeatRelease",
       "careerCvRetention",
       "reputationBadges",
     ]);
@@ -947,6 +971,8 @@ describe("wybór kanałów: `?job=`, ciało żądania i pierwszeństwo query", (
         "eventFollowUp",
         "crmTaskReminders",
         "eventTicketCodes",
+        "eventTicketRevocations",
+        "eventPlanSeatRelease",
         "careerCvRetention",
         "reputationBadges",
       ]),
@@ -1111,7 +1137,9 @@ describe("uzbrojenie ścieżki podstawowej (`arm_job_runner`)", () => {
     expect(res.status).toBe(200);
     await expect(body(res)).resolves.toMatchObject({ ok: true, runnerArmed: "unavailable" });
     // 8 -> 11: trzy zadania funkcji uczestnika F1-F5 (spec B.10) jadą w "all".
-    expect(jobs.steps()).toHaveLength(11);
+    // 11 -> 13: zawiadomienia o odwołanych biletach i zwrot porzuconych
+    // biletów z puli planu (job `event-ticket-codes`).
+    expect(jobs.steps()).toHaveLength(13);
   });
 });
 
@@ -1119,7 +1147,7 @@ describe("uzbrojenie ścieżki podstawowej (`arm_job_runner`)", () => {
 // IZOLACJA KANAŁÓW - awaria jednego a reszta przebiegu
 // ===========================================================================
 describe("izolacja kanałów: awaria jednego nie zabiera pozostałych", () => {
-  it("padnięty digest tygodniowy nie zatrzymuje pozostałych sześciu kanałów", async () => {
+  it("padnięty digest tygodniowy nie zatrzymuje pozostałych ośmiu kanałów", async () => {
     jobs.failures.set("digest:weekly", "resend api key missing");
 
     const res = await tick({ query: "?job=all" });
@@ -1136,6 +1164,8 @@ describe("izolacja kanałów: awaria jednego nie zabiera pozostałych", () => {
       "eventFollowUp",
       "crmTaskReminders",
       "eventTicketCodes",
+      "eventTicketRevocations",
+      "eventPlanSeatRelease",
       "careerCvRetention",
       "reputationBadges",
     ]);
@@ -1232,7 +1262,7 @@ describe("budżet czasu (COMMUNITY_CRON_DEADLINE_MS = 25 s)", () => {
     const res = await tick({ query: "?job=all" });
     const payload = await body(res);
 
-    // Wykonał się TYLKO push - pozostałe siedem kanałów nawet nie startowało.
+    // Wykonał się TYLKO push - pozostałe dziewięć kanałów nawet nie startowało.
     expect(jobs.steps()).toEqual(["push"]);
     for (const key of [
       "digestDaily",
@@ -1243,6 +1273,8 @@ describe("budżet czasu (COMMUNITY_CRON_DEADLINE_MS = 25 s)", () => {
       "eventFollowUp",
       "crmTaskReminders",
       "eventTicketCodes",
+      "eventTicketRevocations",
+      "eventPlanSeatRelease",
       "careerCvRetention",
       "reputationBadges",
     ]) {
@@ -1282,6 +1314,8 @@ describe("budżet czasu (COMMUNITY_CRON_DEADLINE_MS = 25 s)", () => {
       "eventFollowUp",
       "crmTaskReminders",
       "eventTicketCodes",
+      "eventTicketRevocations",
+      "eventPlanSeatRelease",
       "careerCvRetention",
       "reputationBadges",
     ]);

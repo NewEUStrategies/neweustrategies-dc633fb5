@@ -470,6 +470,13 @@
       "when": 1790465131359,
       "tag": "0066_event_organizer_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1790465431359,
+      "tag": "0067_event_registration_gaps_part3",
+      "breakpoints": true
     }
   ]
 }

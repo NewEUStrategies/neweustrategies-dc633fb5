@@ -26,6 +26,7 @@ import {
 import { countTickFailures, type SchedulerSource } from "@/lib/jobs/scheduler";
 import type { ParticipantJobResult } from "@/lib/events/jobs/types";
 import { recordJobRun } from "@/lib/server/jobScheduler.server";
+import type { PendingTicketRevocationsResult } from "@/lib/events/ticketRevokedNotify.server";
 
 type DbClient = SupabaseClient<Database>;
 
@@ -67,6 +68,12 @@ export interface JobsTickResult {
    * kroki zjadły budżet.
    */
   eventTicketCodes: { registrations: number; sent: number; deferred: number } | { error: string };
+  /**
+   * Zawiadomienia gości grupy o bilecie odwołanym razem z grupą (odrzucenie
+   * albo anulowanie prowadzącego, zwrot). `skipped: "migration_pending"` -
+   * baza nie ma jeszcze funkcji zajęcia (migracje produkcji idą ręcznie).
+   */
+  eventTicketRevocations: PendingTicketRevocationsResult | { error: string };
   /**
    * `archived`/`alerted`: skaner nie tylko raportuje martwe linki, ale też
    * dobiera im migawkę Internet Archive i - po przekroczeniu progu - powiadamia
@@ -165,6 +172,13 @@ const EMAIL_DRAIN_MIN_WINDOW_MS = 4_000;
  */
 const TICKET_CODES_DEADLINE_MS = 18_000;
 
+/**
+ * Termin zawiadomień o biletach odwołanych razem z grupą - 2 s po terminie
+ * biletów, bo krok stoi zaraz za nimi, a zawiadomienie to jeden mail bez
+ * wydania kodu. 5 s zapasu do budżetu ticku zostaje dla jobów sieciowych.
+ */
+const TICKET_REVOCATIONS_DEADLINE_MS = 20_000;
+
 /** Uruchamia krok joba tylko w ramach budżetu czasu; błąd/pominięcie łapie w
  *  wspólnym kształcie `{ error }` (każde pole JobsTickResult go dopuszcza). */
 async function runJobStep<T>(
@@ -257,6 +271,12 @@ export async function runJobsTick(
     const { runPendingTicketCodes } = await import("@/lib/events/ticketCodeNotify.server");
     return runPendingTicketCodes(20, startedAt + TICKET_CODES_DEADLINE_MS);
   });
+  // Zawiadomienia o biletach odwołanych razem z grupą: ta sama rodzina poczty
+  // 1:1, zaraz po biletach. Stempel stawia baza w instrukcji zamykającej gościa.
+  const eventTicketRevocations = await runJobStep(overBudget, async () => {
+    const { runPendingTicketRevocations } = await import("@/lib/events/ticketRevokedNotify.server");
+    return runPendingTicketRevocations(20, startedAt + TICKET_REVOCATIONS_DEADLINE_MS);
+  });
   // Rotacyjny skan linków wychodzących (B7): 6 wpisów co 15 minut zamiast 3 co
   // minutę - ta sama przepustowość dzienna przy ~15x mniejszym ruchu HTTP.
   const linkCheck = everyNthMinute(15, tickTime)
@@ -332,6 +352,7 @@ export async function runJobsTick(
     eventReminders,
     crmTaskReminders,
     eventTicketCodes,
+    eventTicketRevocations,
     linkCheck,
     integrations,
     semanticIndex,
