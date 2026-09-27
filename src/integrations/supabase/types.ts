@@ -12435,6 +12435,7 @@ export type Database = {
           min_tier_rank: number
           pages_display_mode: string
           postal_code: string | null
+          previous_edition_id: string | null
           program_id: string | null
           published_at: string | null
           recording_url: string | null
@@ -12493,6 +12494,7 @@ export type Database = {
           min_tier_rank?: number
           pages_display_mode?: string
           postal_code?: string | null
+          previous_edition_id?: string | null
           program_id?: string | null
           published_at?: string | null
           recording_url?: string | null
@@ -12551,6 +12553,7 @@ export type Database = {
           min_tier_rank?: number
           pages_display_mode?: string
           postal_code?: string | null
+          previous_edition_id?: string | null
           program_id?: string | null
           published_at?: string | null
           recording_url?: string | null
@@ -12605,6 +12608,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "event_types"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_previous_edition_fk"
+            columns: ["tenant_id", "previous_edition_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "events_program_id_fkey"
@@ -22101,6 +22111,77 @@ export type Database = {
         Args: { _checkpoint_id: string; _tenant: string }
         Returns: number
       }
+      _event_clone_counts: {
+        Args: { p_src: string; p_tenant: string }
+        Returns: Json
+      }
+      _event_clone_dates: {
+        Args: { p_res: Json; p_src: string; p_tenant: string }
+        Returns: Json
+      }
+      _event_clone_flag: {
+        Args: { p_default: boolean; p_key: string; p_obj: Json }
+        Returns: boolean
+      }
+      _event_clone_forecast: {
+        Args: {
+          p_inc: Json
+          p_opt: Json
+          p_res: Json
+          p_src: string
+          p_tenant: string
+          p_url_override: boolean
+        }
+        Returns: Json
+      }
+      _event_clone_id: {
+        Args: { p_new: string; p_old: string }
+        Returns: string
+      }
+      _event_clone_not_copied: {
+        Args: { p_src: string; p_tenant: string }
+        Returns: Json
+      }
+      _event_clone_resolve: {
+        Args: { p_payload: Json; p_require_start: boolean; p_tenant: string }
+        Returns: Json
+      }
+      _event_clone_session_window: {
+        Args: {
+          p_inc: Json
+          p_opt: Json
+          p_res: Json
+          p_src: string
+          p_tenant: string
+        }
+        Returns: Json
+      }
+      _event_clone_settings: {
+        Args: { p_payload: Json; p_strict: boolean }
+        Returns: Json
+      }
+      _event_clone_shift: {
+        Args: {
+          p_delta: string
+          p_dst_tz: string
+          p_src_tz: string
+          p_ts: string
+        }
+        Returns: string
+      }
+      _event_clone_shift_schedule: {
+        Args: {
+          p_delta: string
+          p_dst_tz: string
+          p_schedule: Json
+          p_src_tz: string
+        }
+        Returns: Json
+      }
+      _event_clone_slug_candidate: {
+        Args: { p_src_slug: string; p_tenant: string; p_title_pl: string }
+        Returns: string
+      }
       _event_consent_url: { Args: { p_value: string }; Returns: string }
       _event_default_pages: {
         Args: never
@@ -25581,6 +25662,7 @@ export type Database = {
           min_tier_rank: number
           pages_display_mode: string
           postal_code: string | null
+          previous_edition_id: string | null
           program_id: string | null
           published_at: string | null
           recording_url: string | null
@@ -25715,6 +25797,7 @@ export type Database = {
           min_tier_rank: number
           pages_display_mode: string
           postal_code: string | null
+          previous_edition_id: string | null
           program_id: string | null
           published_at: string | null
           recording_url: string | null
