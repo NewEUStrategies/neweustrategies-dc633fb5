@@ -22111,6 +22111,14 @@ export type Database = {
         Args: { _checkpoint_id: string; _tenant: string }
         Returns: number
       }
+      _event_clone_agenda: {
+        Args: { p_ctx: Json; p_new: string; p_src: string; p_tenant: string }
+        Returns: Json
+      }
+      _event_clone_cfp: {
+        Args: { p_ctx: Json; p_new: string; p_src: string; p_tenant: string }
+        Returns: Json
+      }
       _event_clone_counts: {
         Args: { p_src: string; p_tenant: string }
         Returns: Json
@@ -22134,16 +22142,40 @@ export type Database = {
         }
         Returns: Json
       }
+      _event_clone_groups: {
+        Args: { p_ctx: Json; p_new: string; p_src: string; p_tenant: string }
+        Returns: Json
+      }
       _event_clone_id: {
         Args: { p_new: string; p_old: string }
         Returns: string
+      }
+      _event_clone_meetings: {
+        Args: { p_ctx: Json; p_new: string; p_src: string; p_tenant: string }
+        Returns: Json
       }
       _event_clone_not_copied: {
         Args: { p_src: string; p_tenant: string }
         Returns: Json
       }
+      _event_clone_onsite: {
+        Args: { p_ctx: Json; p_new: string; p_src: string; p_tenant: string }
+        Returns: Json
+      }
+      _event_clone_pages: {
+        Args: { p_ctx: Json; p_new: string; p_src: string; p_tenant: string }
+        Returns: Json
+      }
+      _event_clone_registration: {
+        Args: { p_ctx: Json; p_new: string; p_src: string; p_tenant: string }
+        Returns: Json
+      }
       _event_clone_resolve: {
         Args: { p_payload: Json; p_require_start: boolean; p_tenant: string }
+        Returns: Json
+      }
+      _event_clone_rooms: {
+        Args: { p_ctx: Json; p_new: string; p_src: string; p_tenant: string }
         Returns: Json
       }
       _event_clone_session_window: {
@@ -22181,6 +22213,18 @@ export type Database = {
       _event_clone_slug_candidate: {
         Args: { p_src_slug: string; p_tenant: string; p_title_pl: string }
         Returns: string
+      }
+      _event_clone_speakers: {
+        Args: { p_ctx: Json; p_new: string; p_src: string; p_tenant: string }
+        Returns: Json
+      }
+      _event_clone_sponsors: {
+        Args: { p_ctx: Json; p_new: string; p_src: string; p_tenant: string }
+        Returns: Json
+      }
+      _event_clone_tickets: {
+        Args: { p_ctx: Json; p_new: string; p_src: string; p_tenant: string }
+        Returns: Json
       }
       _event_consent_url: { Args: { p_value: string }; Returns: string }
       _event_default_pages: {
