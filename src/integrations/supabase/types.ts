@@ -20410,6 +20410,10 @@ export type Database = {
         Returns: boolean
       }
       _event_cfp_jsonb_int: { Args: { p_value: Json }; Returns: number }
+      _event_cfp_own_submission: {
+        Args: { p_submission_id: string; p_tenant: string; p_uid: string }
+        Returns: string
+      }
       _event_cfp_phase: {
         Args: { p_closes_at: string; p_opens_at: string; p_status: string }
         Returns: string
@@ -21824,11 +21828,68 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: number
       }
+      admin_event_cfp_mark_notified: {
+        Args: { p_payload: Json }
+        Returns: boolean
+      }
+      admin_event_cfp_material_publish: {
+        Args: { p_payload: Json }
+        Returns: boolean
+      }
+      admin_event_cfp_materials_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          created_at: string
+          id: string
+          is_published: boolean
+          kind: string
+          published_at: string
+          session_id: string
+          speaker_name: string
+          speaker_profile_id: string
+          submission_id: string
+          title_en: string
+          title_pl: string
+          updated_at: string
+          url: string
+          visibility: string
+        }[]
+      }
+      admin_event_cfp_notify_payload: {
+        Args: { p_submission_id: string }
+        Returns: Json
+      }
+      admin_event_cfp_reviewer_remove: {
+        Args: { p_reviewer_id: string }
+        Returns: string
+      }
+      admin_event_cfp_reviewer_set: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_cfp_reviewers_list: {
+        Args: { p_event_id: string }
+        Returns: {
+          avatar_url: string
+          can_see_identity: boolean
+          created_at: string
+          display_name: string
+          id: string
+          is_active: boolean
+          reviews_count: number
+          track_ids: string[]
+          user_id: string
+        }[]
+      }
       admin_event_cfp_settings_get: {
         Args: { p_event_id: string }
         Returns: Json
       }
       admin_event_cfp_settings_save: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_cfp_submission_accept: {
         Args: { p_payload: Json }
         Returns: Json
       }
@@ -25972,6 +26033,8 @@ export type Database = {
           type_name_pl: string
         }[]
       }
+      event_cfp_public: { Args: { p_slug: string }; Returns: Json }
+      event_cfp_submission_save: { Args: { p_payload: Json }; Returns: Json }
       event_checkin_record: { Args: { p_payload: Json }; Returns: Json }
       event_checkin_resolve: { Args: { p_payload: Json }; Returns: Json }
       event_coupon_revealed_tickets: {
@@ -26248,6 +26311,19 @@ export type Database = {
       }
       event_session_access: { Args: { _session_id: string }; Returns: Json }
       event_session_signup: { Args: { p_payload: Json }; Returns: Json }
+      event_speaker_materials_public: {
+        Args: { p_event_id: string }
+        Returns: {
+          id: string
+          kind: string
+          session_id: string
+          speaker_profile_id: string
+          title_en: string
+          title_pl: string
+          url: string
+          visibility: string
+        }[]
+      }
       event_speakers_public: {
         Args: { p_payload: Json }
         Returns: {
