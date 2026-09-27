@@ -8,7 +8,7 @@
 //  4. teksty idą z konfiguracji w wersji PL/EN (bez hardkodów w komponencie),
 //  5. w kaflu ikony ląduje logo marki, a bez logo - zapasowa ikona.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, act, within } from "@testing-library/react";
 
 import type { ConsentState } from "@/lib/ads/consent";
 import { requestOverlaySlot, __resetOverlayCoordinator } from "@/lib/overlayCoordinator";
@@ -199,7 +199,13 @@ describe("ConsentBanner - panel preferencji", () => {
 
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveAttribute("aria-modal", "true");
-    expect(screen.getByRole("button", { name: `${PL.showVendors} 4` })).toBeInTheDocument();
+    // Jeden przełącznik podmiotów na kategorię, każdy z liczbą podmiotów. Liczby
+    // rosną z każdą integracją w rejestrze (lejek Ads, raport sponsora), więc test
+    // nie przypina ich do jednej wartości - dwie kategorie po 4 dawały dwa
+    // identyczne przyciski i `getByRole` padał na „multiple elements".
+    expect(
+      within(dialog).getAllByRole("button", { name: new RegExp(`^${PL.showVendors} \\d+$`) }),
+    ).toHaveLength(4);
   });
 });
 
