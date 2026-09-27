@@ -23891,6 +23891,30 @@ export type Database = {
           updated_at: string
         }[]
       }
+      admin_event_company_sponsorships: {
+        Args: { p_company_id: string }
+        Returns: {
+          active_links: number
+          clicks_unique: number
+          event_id: string
+          event_slug: string
+          event_starts_at: string
+          event_status: string
+          event_timezone: string
+          event_title_en: string
+          event_title_pl: string
+          is_published: boolean
+          leads_consented: number
+          leads_total: number
+          material_opens: number
+          meetings_held: number
+          role: string
+          sponsor_id: string
+          tier_name_en: string
+          tier_name_pl: string
+          views_unique: number
+        }[]
+      }
       admin_event_create: { Args: { p_payload: Json }; Returns: string }
       admin_event_detail: {
         Args: { p_event_id: string }
@@ -24167,6 +24191,10 @@ export type Database = {
           sponsor_name: string
           total_count: number
         }[]
+      }
+      admin_event_lead_scans_push_to_crm: {
+        Args: { p_payload: Json }
+        Returns: Json
       }
       admin_event_meeting_arrange: { Args: { p_payload: Json }; Returns: Json }
       admin_event_meeting_availability_delete: {
@@ -25015,6 +25043,31 @@ export type Database = {
           leads_new: number
           leads_new_consented: number
           sponsor_id: string
+        }[]
+      }
+      admin_event_sponsor_report_link_issue: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_sponsor_report_link_revoke: {
+        Args: { p_link_id: string }
+        Returns: boolean
+      }
+      admin_event_sponsor_report_links_list: {
+        Args: { p_event_id: string; p_sponsor_id?: string }
+        Returns: {
+          created_at: string
+          expires_at: string
+          id: string
+          include_leads: boolean
+          is_active: boolean
+          label: string
+          last_seen_at: string
+          revoked_at: string
+          sponsor_id: string
+          sponsor_name: string
+          token_prefix: string
+          view_count: number
         }[]
       }
       admin_event_sponsor_report_series: {
@@ -28635,6 +28688,10 @@ export type Database = {
           title_pl: string
           url: string
         }[]
+      }
+      event_sponsor_report_for_token: {
+        Args: { p_tenant: string; p_token: string }
+        Returns: Json
       }
       event_sponsors_public: {
         Args: { p_slug: string }
