@@ -133,6 +133,16 @@ const COLLAPSED_ACTION_MAX_WIDTH = "calc(50% - 3.25rem)";
  */
 const EXPANDED_ACTION_MAX_WIDTH = "calc(100% - 1.5rem)";
 
+/**
+ * Obwodka fokusu na pelnym kadrze: kolor marki na zewnatrz i jasny pasek pod
+ * nim. Sama biel ginela na jasnym zdjeciu, sama marka - na ciemnym; para jest
+ * widoczna na kazdym. Styl w obiekcie, nie w klasie - arkusz publiczny nie
+ * dostaje nowej klasy (przezroczystosc steruje `group-focus-visible`).
+ */
+const FULL_BLEED_FOCUS_RING: CSSProperties = {
+  boxShadow: "inset 0 0 0 3px var(--brand), inset 0 0 0 5px rgb(255 255 255 / 0.9)",
+};
+
 const CARD_CLASS =
   "relative flex h-full w-full flex-col overflow-hidden border-b border-r border-border bg-background text-left";
 
@@ -337,10 +347,15 @@ export function SpeakerProfileCard({
         SPEAKER_CARD_SETTLE,
       );
     }
-    // NAPIS W KILKU LINIACH SIE NIE PRZESUWA, TYLKO WYLANIA. Zwiniety jest
-    // wysrodkowany, rozwiniety - do lewej; linie w pudelku zmieniaja
-    // wyrownanie w pierwszej klatce, czego przesuniecie pudelka nie zakryje.
-    // Jedna linia (`w-fit`) przesuwa sie razem z literami.
+    // NAPIS SIE PRZESUWA TYLKO PRZY ROZWIJANIU I TYLKO W JEDNEJ LINII.
+    //   * W kilku liniach sie wylania: zwiniety jest wysrodkowany, rozwiniety
+    //     - do lewej, a linie w pudelku zmieniaja wyrownanie w pierwszej
+    //     klatce, czego przesuniecie pudelka nie zakryje.
+    //   * Przy zwijaniu tez sie wylania, juz w ciemnym kolorze, pod malejacym
+    //     zdjeciem. Bialy napis zsuwajacy sie ze zdjecia na biala karte byl
+    //     przez pierwsze ~100 ms nieczytelny (a na jasnym zdjeciu bez
+    //     gradientu - od pierwszej klatki). Kolor zmienia sie wtedy od razu:
+    //     przejscie kolorow ma tylko stan na zdjeciu.
     [nameRef, subtitleRef].forEach((ref, index) => {
       const from = first.parts[index] ?? null;
       const to = last.parts[index] ?? null;
@@ -348,7 +363,7 @@ export function SpeakerProfileCard({
       const element = ref.current;
       play(
         element,
-        wrapsLines(element, from) || wrapsLines(element, to)
+        !expanded || wrapsLines(element, from) || wrapsLines(element, to)
           ? flipFadeKeyframes()
           : flipShiftKeyframes(from, to),
       );
@@ -383,8 +398,10 @@ export function SpeakerProfileCard({
           ref={nameRef}
           title={name}
           className={cn(
-            "block w-fit max-w-full text-xl font-medium leading-tight transition-colors duration-300",
-            fullBleed ? "pointer-events-none text-white" : "mt-3 text-foreground",
+            "block w-fit max-w-full text-xl font-medium leading-tight",
+            fullBleed
+              ? "pointer-events-none text-white transition-colors duration-300"
+              : "mt-3 text-foreground",
           )}
         >
           {name}
@@ -394,8 +411,10 @@ export function SpeakerProfileCard({
         <span
           ref={subtitleRef}
           className={cn(
-            "mt-1 block w-fit max-w-full text-xs leading-snug transition-colors duration-300",
-            fullBleed ? "pointer-events-none text-white/85" : "text-muted-foreground",
+            "mt-1 block w-fit max-w-full text-xs leading-snug",
+            fullBleed
+              ? "pointer-events-none text-white/85 transition-colors duration-300"
+              : "text-muted-foreground",
           )}
         >
           {role !== "" && <span title={role}>{role}</span>}
@@ -517,11 +536,11 @@ export function SpeakerProfileCard({
         onFocus={hasPhoto ? warm : undefined}
         onTouchStart={hasPhoto ? warm : undefined}
         className={cn(
-          "block shrink-0 overflow-hidden bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand)]/60",
+          "block shrink-0 overflow-hidden bg-muted focus-visible:outline-none",
           fullBleed
             ? "group absolute inset-0 -z-10 cursor-pointer rounded-none"
             : cn(
-                "relative h-20 w-20 rounded-full focus-visible:ring-offset-2",
+                "relative h-20 w-20 rounded-full focus-visible:ring-2 focus-visible:ring-[color:var(--brand)]/60 focus-visible:ring-offset-2",
                 hasPhoto ? "cursor-zoom-in" : "cursor-pointer",
               ),
         )}
@@ -565,7 +584,8 @@ export function SpeakerProfileCard({
         {fullBleed && (
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 opacity-0 ring-2 ring-inset ring-white/70 group-focus-visible:opacity-100"
+            className="pointer-events-none absolute inset-0 opacity-0 group-focus-visible:opacity-100"
+            style={FULL_BLEED_FOCUS_RING}
           />
         )}
       </button>

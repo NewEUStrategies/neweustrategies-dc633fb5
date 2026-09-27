@@ -408,10 +408,14 @@ describe("SpeakerProfileCard - rozwijanie i zwijanie", () => {
     // Rozwinieta: przycisk jest grupa, a obwodke rysuje ostatnie dziecko -
     // pozycjonowane zdjecia pod nim nie moga jej zaslonic.
     expect(toggle.className).toContain("group");
+    // Wlasna obwodka przycisku znika - na pelnym kadrze wystawalaby pasem pod zdjeciem.
+    expect(toggle.className).not.toContain("focus-visible:ring-2");
     const ring = toggle.lastElementChild as HTMLElement;
     expect(ring.getAttribute("aria-hidden")).toBe("true");
     expect(ring.className).toContain("group-focus-visible:opacity-100");
-    expect(ring.className).toContain("ring-inset");
+    // Dwubarwna obwodka (marka + biel) jest widoczna i na jasnym, i na ciemnym zdjeciu.
+    expect(ring.style.boxShadow).toContain("var(--brand)");
+    expect(ring.style.boxShadow).toContain("inset");
     expect(ring.className).toContain("pointer-events-none");
     expect(ring.className).toContain("opacity-0");
 
@@ -775,6 +779,23 @@ describe("SpeakerProfileCard - ruch FLIP", () => {
       return open ? box(240, 16, 280, 40) : box(120, 20, 280, 40);
     });
     fireEvent.click(screen.getByRole("button", { name: /eventFront\.speakers\.card\.expand/ }));
+    expect(callFor(name)?.keyframes).toEqual([{ opacity: 0 }, { opacity: 1 }]);
+  });
+
+  it("zwiniecie: podpis wylania sie w kolorze karty, zamiast zjezdzac bialym napisem ze zdjecia", () => {
+    renderCard();
+    const toggle = screen.getByRole("button", { name: EXPAND });
+    fireEvent.click(toggle);
+    const name = screen.getByText("Anna Kowalska");
+    expect(name.className).toContain("transition-colors");
+    calls = [];
+
+    fireEvent.click(toggle);
+
+    // Kolor przelacza sie w jednej klatce (bez przejscia z bieli)...
+    expect(name.className).not.toContain("transition-colors");
+    expect(name.className).toContain("text-foreground");
+    // ...a sam napis wylania sie w nowym miejscu.
     expect(callFor(name)?.keyframes).toEqual([{ opacity: 0 }, { opacity: 1 }]);
   });
 
