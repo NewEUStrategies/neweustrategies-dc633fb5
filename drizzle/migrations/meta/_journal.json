@@ -631,6 +631,13 @@
       "when": 1790547589713,
       "tag": "0089_event_invoices_part5",
       "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1790548019188,
+      "tag": "0090_event_ads_funnel",
+      "breakpoints": true
     }
   ]
 }
