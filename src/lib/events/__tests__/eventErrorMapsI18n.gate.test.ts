@@ -476,6 +476,7 @@ const KODY_FAKTUR = [
   "source_not_found",
   "source_not_lead",
   "source_not_invoiceable",
+  "source_plan_ticket",
   "already_invoiced",
   "currency_mismatch",
   "request_not_found",
@@ -541,6 +542,7 @@ const KODY_PROSBY_O_FAKTURE = [
   "invoicing_disabled",
   "operator_invoice",
   "request_foreign",
+  "source_plan_ticket",
 ] as const;
 
 /**

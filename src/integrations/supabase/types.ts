@@ -23486,6 +23486,7 @@ export type Database = {
       admin_event_invoice_candidates: {
         Args: { p_event_id: string }
         Returns: {
+          admission: string
           amount_source: string
           buyer_email: string
           buyer_is_company: boolean
@@ -23564,6 +23565,7 @@ export type Database = {
           buyer_tax_id: string
           cancelled_at: string
           converted_invoice_id: string
+          correction_hint: string
           correction_mode: string
           corrects_invoice_id: string
           corrects_number: string

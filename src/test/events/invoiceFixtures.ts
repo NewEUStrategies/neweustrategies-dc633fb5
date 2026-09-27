@@ -37,6 +37,7 @@ export function invoiceCandidateRow(
   overrides: Partial<EventInvoiceCandidateRow> = {},
 ): EventInvoiceCandidateRow {
   return {
+    admission: "seated",
     amount_source: "order",
     buyer_email: "ksiegowosc@acme.example.com",
     buyer_is_company: true,
@@ -77,6 +78,7 @@ export function invoiceListRow(overrides: Partial<EventInvoiceListRow> = {}): Ev
     buyer_tax_id: "5260250274",
     cancelled_at: NULLOWALNY_NAPIS,
     converted_invoice_id: NULLOWALNY_NAPIS,
+    correction_hint: NULLOWALNY_NAPIS,
     correction_mode: NULLOWALNY_NAPIS,
     corrects_invoice_id: NULLOWALNY_NAPIS,
     corrects_number: NULLOWALNY_NAPIS,

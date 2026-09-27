@@ -1106,6 +1106,199 @@ $$;
 REVOKE ALL ON FUNCTION public._event_invoice_replace_lines(uuid, uuid, text, jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public._event_invoice_replace_lines(uuid, uuid, text, jsonb) TO service_role;
 
+CREATE OR REPLACE FUNCTION public._event_invoice_registration_source(
+  p_tenant uuid, p_registration_id uuid, p_rate text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v record;
+  v_lead_order uuid;
+  v_block text;
+  v_guests integer := 0;
+  v_seats integer;
+  v_gross bigint;
+  v_unit bigint;
+  v_units jsonb;
+  v_coupon bigint := 0;
+  v_lead_w bigint := 0;
+  v_guest_w bigint := 0;
+  v_total_w bigint := 0;
+  v_lead_part bigint;
+BEGIN
+  SELECT r.id, r.event_id, r.person_id, r.group_lead_registration_id, r.status, r.payment_status,
+         r.payment_order_id, r.ticket_type_id,
+         COALESCE(r.paid_at, o.paid_at) AS paid_at,
+         p.user_id AS holder_user_id, o.user_id AS payer_user_id,
+         COALESCE(t.name_pl, '') AS name_pl, COALESCE(t.name_en, '') AS name_en,
+         COALESCE(o.currency, t.currency, 'PLN') AS currency,
+         (o.id IS NOT NULL AND o.status::text IN ('paid', 'refunded')) AS via_card,
+         (o.amount_cents - COALESCE(o.refunded_amount_cents, 0))::bigint AS order_gross,
+         COALESCE(o.metadata, '{}'::jsonb) AS meta,
+         t.price_cents, t.early_bird_price_cents, t.early_bird_until, t.price_schedule,
+         COALESCE(t.tax_mode, 'inclusive') AS tax_mode
+    INTO v
+    FROM public.event_registrations r
+    JOIN public.event_people p ON p.id = r.person_id AND p.tenant_id = r.tenant_id
+    LEFT JOIN public.event_ticket_types t ON t.id = r.ticket_type_id AND t.tenant_id = r.tenant_id
+    LEFT JOIN public.payment_orders o ON o.id = r.payment_order_id AND o.tenant_id = r.tenant_id
+   WHERE r.id = p_registration_id AND r.tenant_id = p_tenant;
+  IF NOT FOUND THEN
+    RETURN NULL;
+  END IF;
+
+  IF v.group_lead_registration_id IS NOT NULL THEN
+    SELECT l.payment_order_id INTO v_lead_order
+      FROM public.event_registrations l
+     WHERE l.id = v.group_lead_registration_id AND l.tenant_id = p_tenant;
+    IF NOT (v.via_card AND v.payment_order_id IS DISTINCT FROM v_lead_order) THEN
+      v_block := 'not_lead';
+    END IF;
+  ELSE
+    SELECT count(*)::integer INTO v_guests
+      FROM public.event_registrations g
+      LEFT JOIN public.payment_orders go ON go.id = g.payment_order_id AND go.tenant_id = g.tenant_id
+     WHERE g.group_lead_registration_id = v.id AND g.tenant_id = p_tenant
+       AND g.status NOT IN ('cancelled', 'rejected')
+       AND g.payment_status IN ('paid', 'partially_refunded', 'unpaid')
+       AND NOT (go.id IS NOT NULL AND go.status::text IN ('paid', 'refunded')
+                AND g.payment_order_id IS DISTINCT FROM v.payment_order_id);
+  END IF;
+  IF v_block IS NULL
+     AND (v.status IN ('cancelled', 'rejected')
+          OR v.payment_status NOT IN ('paid', 'partially_refunded', 'unpaid')) THEN
+    v_block := 'closed';
+  END IF;
+
+  IF v.via_card AND v.order_gross IS NOT NULL THEN
+    v_gross := v.order_gross;
+    v_seats := CASE
+      WHEN COALESCE(v.meta->>'quantity', '') ~ '^[0-9]{1,5}$' AND (v.meta->>'quantity')::integer >= 1
+        THEN (v.meta->>'quantity')::integer
+      ELSE 1 + v_guests
+    END;
+    IF v.meta->>'plan_benefit' IN ('included', 'discount')
+       AND COALESCE(v.meta->>'lead_unit_cents', '') ~ '^[0-9]{1,9}$'
+       AND COALESCE(v.meta->>'guest_unit_cents', '') ~ '^[0-9]{1,9}$' THEN
+      IF COALESCE(v.meta->>'coupon_discount_per_seat_cents', '') ~ '^[0-9]{1,9}$' THEN
+        v_coupon := (v.meta->>'coupon_discount_per_seat_cents')::bigint;
+      END IF;
+      v_lead_w := greatest((v.meta->>'lead_unit_cents')::bigint - v_coupon, 0);
+      v_guest_w := greatest((v.meta->>'guest_unit_cents')::bigint - v_coupon, 0);
+      v_total_w := v_lead_w + v_guest_w * (v_seats - 1);
+    END IF;
+    IF v_total_w > 0 AND v_gross > 0 THEN
+      v_lead_part := (2 * v_gross * v_lead_w + v_total_w) / (2 * v_total_w);
+      v_units := '[]'::jsonb;
+      IF v_lead_part > 0 THEN
+        v_units := v_units || jsonb_build_array(jsonb_build_object('qty', 1, 'gross', v_lead_part));
+      END IF;
+      IF v_seats > 1 AND v_gross - v_lead_part > 0 THEN
+        v_units := v_units || jsonb_build_array(jsonb_build_object('qty', v_seats - 1, 'gross', v_gross - v_lead_part));
+      END IF;
+    ELSE
+      v_units := jsonb_build_array(jsonb_build_object('qty', v_seats, 'gross', v_gross));
+    END IF;
+  ELSE
+    v_seats := 1 + v_guests - CASE
+      WHEN v.group_lead_registration_id IS NULL AND EXISTS (
+        SELECT 1 FROM public.plan_ticket_claims c
+         WHERE c.tenant_id = p_tenant AND c.registration_id = v.id AND c.released_at IS NULL
+      ) THEN 1 ELSE 0 END;
+    IF v_block IS NULL AND v_seats < 1 THEN
+      v_block := 'plan_ticket';
+    END IF;
+    v_unit := COALESCE(CASE
+      WHEN v.payment_status = 'unpaid'
+        THEN public._event_ticket_price_now(v.price_cents, v.early_bird_price_cents, v.early_bird_until,
+                                            v.price_schedule)
+      ELSE (public._event_ticket_phase(v.price_cents, v.early_bird_price_cents, v.early_bird_until,
+                                       v.price_schedule, COALESCE(v.paid_at, now()))->>'price_cents')::integer
+    END, 0)::bigint;
+    IF v.tax_mode = 'exclusive' THEN
+      v_unit := public._event_invoice_gross_from_net(v_unit, p_rate);
+    END IF;
+    v_gross := v_unit * greatest(v_seats, 0);
+    v_units := jsonb_build_array(jsonb_build_object('qty', greatest(v_seats, 0), 'gross', v_gross));
+  END IF;
+
+  RETURN jsonb_build_object(
+    'id', v.id,
+    'event_id', v.event_id,
+    'person_id', v.person_id,
+    'lead_id', v.group_lead_registration_id,
+    'status', v.status,
+    'payment_status', v.payment_status,
+    'block', v_block,
+    'admission', CASE
+      WHEN v.status = 'waitlist' THEN 'waitlisted'
+      WHEN v.status IN ('draft', 'pending') THEN 'awaitingDecision'
+      ELSE 'seated'
+    END,
+    'user_id', CASE WHEN v.via_card THEN v.payer_user_id ELSE v.holder_user_id END,
+    'via_card', v.via_card,
+    'payment_order_id', CASE WHEN v.via_card THEN v.payment_order_id END,
+    'ticket_type_id', v.ticket_type_id,
+    'name_pl', v.name_pl,
+    'name_en', v.name_en,
+    'currency', v.currency,
+    'paid', v.payment_status IN ('paid', 'partially_refunded'),
+    'paid_at', v.paid_at,
+    'seats', v_seats,
+    'gross', v_gross,
+    'units', v_units,
+    'basis', CASE
+      WHEN v.via_card AND v.order_gross IS NOT NULL THEN 'order'
+      WHEN v.tax_mode = 'exclusive' THEN 'price_list_net'
+      ELSE 'price_list'
+    END
+  );
+END;
+$$;
+REVOKE ALL ON FUNCTION public._event_invoice_registration_source(uuid, uuid, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public._event_invoice_registration_source(uuid, uuid, text) TO service_role;
+COMMENT ON FUNCTION public._event_invoice_registration_source(uuid, uuid, text) IS
+  'Zapis jako zrodlo dokumentu (bez wyjatkow): block (not_lead, closed, plan_ticket albo NULL), miejsca, kwota i grupy pozycji (zamowienie z karty wg metadata.quantity i benefitu planu, inaczej cena fazy sprzedazy), karta, platnik, admission.';
+
+CREATE OR REPLACE FUNCTION public._event_invoice_registration_owner(
+  p_tenant uuid, p_registration_id uuid, p_uid uuid
+)
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_actor jsonb;
+  v_card boolean;
+BEGIN
+  IF p_uid IS NULL THEN
+    RETURN false;
+  END IF;
+  v_actor := public._event_registration_actor(p_tenant, p_registration_id, p_uid, NULL);
+  IF NOT COALESCE((v_actor->>'exists')::boolean, false) THEN
+    RETURN false;
+  END IF;
+  SELECT o.status::text IN ('paid', 'refunded') INTO v_card
+    FROM public.payment_orders o
+   WHERE o.id = NULLIF(v_actor->>'payment_order_id', '')::uuid AND o.tenant_id = p_tenant;
+  IF COALESCE(v_card, false) THEN
+    RETURN (v_actor->>'is_payer')::boolean;
+  END IF;
+  RETURN (v_actor->>'is_holder')::boolean
+      OR ((v_actor->>'is_registrant')::boolean AND v_actor->>'source' = 'self_registration');
+END;
+$$;
+REVOKE ALL ON FUNCTION public._event_invoice_registration_owner(uuid, uuid, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public._event_invoice_registration_owner(uuid, uuid, uuid) TO service_role;
+COMMENT ON FUNCTION public._event_invoice_registration_owner(uuid, uuid, uuid) IS
+  'Czy konto jest kupujacym zapisu (wg _event_registration_actor): zamowienie z karty - platnik; bez niego - osoba zapisu albo zalozyciel samodzielnego zapisu (nigdy pracownik, ktory wpisal zapis).';
+
 -- Zamowienie (zrodlo dokumentu) w stanie z TEJ chwili: kwota, zamowienie
 -- z karty, zaplata, opis pozycji. Jedno zrodlo prawdy dla szkicu, dla
 -- proformy -> faktury i dla ponownego sprawdzenia przy wystawieniu: szkic
@@ -1126,68 +1319,47 @@ AS $$
 DECLARE
   v_event record;
   v_src record;
+  v_reg jsonb;
   v_en boolean := p_locale = 'en';
 BEGIN
   SELECT e.title_pl, e.title_en INTO v_event
     FROM public.events e
    WHERE e.id = p_event_id AND e.tenant_id = p_tenant;
   IF p_kind = 'registration' THEN
-    SELECT r.id, r.person_id, r.group_lead_registration_id, r.status, r.payment_status,
-           r.payment_order_id, r.ticket_type_id,
-           COALESCE(r.paid_at, o.paid_at) AS paid_at,
-           p.user_id, t.name_pl, t.name_en,
-           COALESCE(o.currency, t.currency, 'PLN') AS currency,
-           (o.id IS NOT NULL AND o.status::text IN ('paid', 'refunded')) AS via_card,
-           1 + (SELECT count(*)::integer FROM public.event_registrations g
-                 WHERE g.group_lead_registration_id = r.id AND g.tenant_id = r.tenant_id
-                   AND g.status NOT IN ('cancelled', 'rejected')) AS seats,
-           (o.amount_cents - COALESCE(o.refunded_amount_cents, 0))::bigint AS order_gross,
-           t.price_cents AS list_price,
-           COALESCE(t.tax_mode, 'inclusive') AS tax_mode
-      INTO v_src
-      FROM public.event_registrations r
-      JOIN public.event_people p ON p.id = r.person_id AND p.tenant_id = r.tenant_id
-      LEFT JOIN public.event_ticket_types t ON t.id = r.ticket_type_id AND t.tenant_id = r.tenant_id
-      LEFT JOIN public.payment_orders o ON o.id = r.payment_order_id AND o.tenant_id = r.tenant_id
-     WHERE r.id = p_id AND r.tenant_id = p_tenant AND r.event_id = p_event_id;
-    IF NOT FOUND THEN
+    v_reg := public._event_invoice_registration_source(p_tenant, p_id, p_rate);
+    IF v_reg IS NULL OR v_reg->>'event_id' IS DISTINCT FROM p_event_id::text THEN
       RAISE EXCEPTION 'source_not_found: registration is not part of this event' USING ERRCODE = '42501';
     END IF;
-    IF v_src.group_lead_registration_id IS NOT NULL THEN
+    IF v_reg->>'block' = 'not_lead' THEN
       RAISE EXCEPTION 'source_not_lead: invoice the group lead registration' USING ERRCODE = '22023';
     END IF;
-    IF v_src.status IN ('cancelled', 'rejected')
-       OR v_src.payment_status NOT IN ('paid', 'partially_refunded', 'unpaid') THEN
+    IF v_reg->>'block' = 'closed' THEN
       RAISE EXCEPTION 'source_not_invoiceable: registration is cancelled, free or refunded'
+        USING ERRCODE = '22023';
+    END IF;
+    IF v_reg->>'block' = 'plan_ticket' THEN
+      RAISE EXCEPTION 'source_plan_ticket: a membership plan ticket covers this seat - nothing was paid'
         USING ERRCODE = '22023';
     END IF;
     RETURN jsonb_build_object(
       'kind', 'registration',
-      'id', v_src.id,
-      'person_id', v_src.person_id,
-      'user_id', v_src.user_id,
-      'payment_order_id', CASE WHEN v_src.via_card THEN v_src.payment_order_id END,
-      'item', COALESCE(v_src.ticket_type_id::text, 'none'),
-      'ticket_type_id', v_src.ticket_type_id,
-      'seats', v_src.seats,
-      'source_seats', v_src.seats,
-      'basis', CASE
-        WHEN v_src.via_card AND v_src.order_gross IS NOT NULL THEN 'order'
-        WHEN v_src.tax_mode = 'exclusive' THEN 'price_list_net'
-        ELSE 'price_list'
-      END,
-      'gross', CASE
-        WHEN v_src.via_card AND v_src.order_gross IS NOT NULL THEN v_src.order_gross
-        WHEN v_src.tax_mode = 'exclusive'
-          THEN public._event_invoice_gross_from_net(COALESCE(v_src.list_price, 0)::bigint, p_rate) * v_src.seats
-        ELSE COALESCE(v_src.list_price, 0)::bigint * v_src.seats
-      END,
-      'currency', v_src.currency,
-      'paid', v_src.payment_status IN ('paid', 'partially_refunded'),
-      'paid_at', v_src.paid_at,
-      'via_card', v_src.via_card,
+      'id', v_reg->'id',
+      'person_id', v_reg->'person_id',
+      'user_id', v_reg->'user_id',
+      'payment_order_id', v_reg->'payment_order_id',
+      'item', COALESCE(v_reg->>'ticket_type_id', 'none'),
+      'ticket_type_id', v_reg->'ticket_type_id',
+      'seats', v_reg->'seats',
+      'source_seats', v_reg->'seats',
+      'units', v_reg->'units',
+      'basis', v_reg->'basis',
+      'gross', v_reg->'gross',
+      'currency', v_reg->'currency',
+      'paid', v_reg->'paid',
+      'paid_at', v_reg->'paid_at',
+      'via_card', v_reg->'via_card',
       'label', CASE WHEN v_en THEN 'Ticket: ' ELSE 'Bilet: ' END
-        || COALESCE(NULLIF(btrim(CASE WHEN v_en THEN v_src.name_en ELSE v_src.name_pl END), '') || ' - ', '')
+        || COALESCE(NULLIF(btrim(CASE WHEN v_en THEN v_reg->>'name_en' ELSE v_reg->>'name_pl' END), '') || ' - ', '')
         || CASE WHEN v_en THEN v_event.title_en ELSE v_event.title_pl END,
       'unit', CASE WHEN v_en THEN 'pcs' ELSE 'szt.' END
     );
@@ -1218,6 +1390,11 @@ BEGIN
     'ticket_type_id', NULL,
     'seats', 1,
     'source_seats', v_src.seats_total,
+    'units', jsonb_build_array(jsonb_build_object(
+      'qty', 1,
+      'gross', CASE WHEN v_src.via_card AND v_src.order_gross IS NOT NULL THEN v_src.order_gross
+                    ELSE v_src.amount_cents::bigint END
+    )),
     'basis', 'order',
     'gross', CASE WHEN v_src.via_card AND v_src.order_gross IS NOT NULL THEN v_src.order_gross
                   ELSE v_src.amount_cents::bigint END,
@@ -1238,7 +1415,7 @@ REVOKE ALL ON FUNCTION public._event_invoice_resolve_source(uuid, uuid, text, uu
 GRANT EXECUTE ON FUNCTION public._event_invoice_resolve_source(uuid, uuid, text, uuid, text, text)
   TO service_role;
 COMMENT ON FUNCTION public._event_invoice_resolve_source(uuid, uuid, text, uuid, text, text) IS
-  'Biezacy stan zrodla dokumentu (zapis prowadzacego grupy albo zamowienie pakietu): kwota (zamowienie z karty, cennik brutto albo netto + VAT), karta, zaplata, opis pozycji.';
+  'Biezacy stan zrodla dokumentu (zapis wg _event_invoice_registration_source albo zamowienie pakietu): kwota i grupy miejsc, karta, zaplata, opis pozycji; odmowa = source_not_lead, source_not_invoiceable, source_plan_ticket.';
 
 -- Budowa szkicu z zamowien (pojedynczy albo ZBIORCZY). Wolaja:
 -- admin_event_invoice_draft_create i admin_event_invoice_issue_pending.
@@ -1278,6 +1455,8 @@ DECLARE
   v_units jsonb := '[]'::jsonb;
   v_u bigint;
   v_r integer;
+  v_group jsonb;
+  v_qty integer;
   v_line record;
   v_ord integer := 0;
   v_note text := btrim(COALESCE(p_payload->>'note', ''));
@@ -1470,21 +1649,27 @@ BEGIN
   -- Jednostki: kwota zrodla dzielona na miejsca; reszta z dzielenia na
   -- osobnej pozycji (u + 1 grosz), zeby ilosc x cena = wartosc.
   FOR v_item IN SELECT x.value FROM jsonb_array_elements(v_resolved) AS x LOOP
-    v_ord := v_ord + 1;
-    v_u := (v_item->>'gross')::bigint / (v_item->>'seats')::integer;
-    v_r := ((v_item->>'gross')::bigint - v_u * (v_item->>'seats')::integer)::integer;
-    v_units := v_units || jsonb_build_array(jsonb_build_object(
-      'ord', v_ord * 2, 'item', v_item->>'item', 'label', v_item->>'label', 'unit', v_item->>'unit',
-      'ticket_type_id', v_item->>'ticket_type_id',
-      'qty', (v_item->>'seats')::integer - v_r, 'unit_gross', v_u
-    ));
-    IF v_r > 0 THEN
+    FOR v_group IN
+      SELECT g.value FROM jsonb_array_elements(v_item->'units') AS g
+       WHERE (g.value->>'qty')::integer > 0
+    LOOP
+      v_ord := v_ord + 1;
+      v_qty := (v_group->>'qty')::integer;
+      v_u := (v_group->>'gross')::bigint / v_qty;
+      v_r := ((v_group->>'gross')::bigint - v_u * v_qty)::integer;
       v_units := v_units || jsonb_build_array(jsonb_build_object(
-        'ord', v_ord * 2 + 1, 'item', v_item->>'item', 'label', v_item->>'label',
-        'unit', v_item->>'unit', 'ticket_type_id', v_item->>'ticket_type_id',
-        'qty', v_r, 'unit_gross', v_u + 1
+        'ord', v_ord * 2, 'item', v_item->>'item', 'label', v_item->>'label', 'unit', v_item->>'unit',
+        'ticket_type_id', v_item->>'ticket_type_id',
+        'qty', v_qty - v_r, 'unit_gross', v_u
       ));
-    END IF;
+      IF v_r > 0 THEN
+        v_units := v_units || jsonb_build_array(jsonb_build_object(
+          'ord', v_ord * 2 + 1, 'item', v_item->>'item', 'label', v_item->>'label',
+          'unit', v_item->>'unit', 'ticket_type_id', v_item->>'ticket_type_id',
+          'qty', v_r, 'unit_gross', v_u + 1
+        ));
+      END IF;
+    END LOOP;
   END LOOP;
 
   FOR v_line IN
@@ -1855,6 +2040,91 @@ GRANT EXECUTE ON FUNCTION public._event_invoice_issue_core(uuid, uuid, uuid) TO 
 COMMENT ON FUNCTION public._event_invoice_issue_core(uuid, uuid, uuid) IS
   'Wystawienie szkicu: walidacja (wystawca, nabywca, zw, MoR, korekta), numer bez luk, migawka sprzedawcy, KSeF pending, prosby -> invoiced, pelna korekta zwalnia zrodla, CRM, event_invoice.issued.v1.';
 
+CREATE OR REPLACE FUNCTION public._event_invoice_correction_hint(p_tenant uuid, p_invoice uuid)
+RETURNS text
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_inv public.event_invoices;
+  v_source public.event_invoice_sources;
+  v_now jsonb;
+  v_status text;
+  v_money bigint;
+  v_seats integer;
+  v_valid bigint;
+  v_reason text;
+  v_rank integer := 0;
+  v_shortfall bigint := 0;
+  v_corrected bigint;
+BEGIN
+  SELECT * INTO v_inv FROM public.event_invoices i WHERE i.id = p_invoice AND i.tenant_id = p_tenant;
+  IF NOT FOUND OR v_inv.kind <> 'invoice' OR v_inv.status <> 'issued' THEN
+    RETURN NULL;
+  END IF;
+  FOR v_source IN
+    SELECT * FROM public.event_invoice_sources s
+     WHERE s.invoice_id = v_inv.id AND s.tenant_id = p_tenant AND s.covers AND s.released_at IS NULL
+  LOOP
+    v_valid := v_source.gross_cents;
+    v_reason := NULL;
+    IF v_source.source_kind = 'registration' THEN
+      v_now := public._event_invoice_registration_source(p_tenant, v_source.registration_id, '23');
+      IF v_now IS NULL OR v_now->>'status' IN ('cancelled', 'rejected') OR v_now->>'payment_status' = 'refunded' THEN
+        v_valid := 0;
+        v_reason := 'source_closed';
+      ELSIF v_source.payment_order_id IS NOT NULL THEN
+        SELECT (o.amount_cents - COALESCE(o.refunded_amount_cents, 0))::bigint INTO v_money
+          FROM public.payment_orders o
+         WHERE o.id = v_source.payment_order_id AND o.tenant_id = p_tenant;
+        IF COALESCE(v_money, 0) < v_source.gross_cents THEN
+          v_valid := greatest(COALESCE(v_money, 0), 0);
+          v_reason := 'refunded';
+        END IF;
+      ELSE
+        v_seats := CASE WHEN v_now->>'block' IS NULL THEN (v_now->>'seats')::integer ELSE 0 END;
+        IF v_seats < v_source.seats THEN
+          v_valid := (v_source.gross_cents * greatest(v_seats, 0) + v_source.seats - 1) / v_source.seats;
+          v_reason := 'seats_reduced';
+        END IF;
+      END IF;
+    ELSE
+      SELECT o.status INTO v_status
+        FROM public.event_package_orders o
+       WHERE o.id = v_source.package_order_id AND o.tenant_id = p_tenant;
+      IF v_status IS NULL OR v_status NOT IN ('pending', 'paid') THEN
+        v_valid := 0;
+        v_reason := 'source_closed';
+      ELSIF v_source.payment_order_id IS NOT NULL THEN
+        SELECT (o.amount_cents - COALESCE(o.refunded_amount_cents, 0))::bigint INTO v_money
+          FROM public.payment_orders o
+         WHERE o.id = v_source.payment_order_id AND o.tenant_id = p_tenant;
+        IF COALESCE(v_money, 0) < v_source.gross_cents THEN
+          v_valid := greatest(COALESCE(v_money, 0), 0);
+          v_reason := 'refunded';
+        END IF;
+      END IF;
+    END IF;
+    v_shortfall := v_shortfall + (v_source.gross_cents - v_valid);
+    v_rank := greatest(v_rank, CASE v_reason WHEN 'source_closed' THEN 3 WHEN 'refunded' THEN 2
+                                             WHEN 'seats_reduced' THEN 1 ELSE 0 END);
+  END LOOP;
+  SELECT -COALESCE(sum(c.gross_cents), 0)::bigint INTO v_corrected
+    FROM public.event_invoices c
+   WHERE c.tenant_id = p_tenant AND c.corrects_invoice_id = v_inv.id AND c.status = 'issued';
+  IF v_shortfall <= 0 OR v_shortfall <= v_corrected THEN
+    RETURN NULL;
+  END IF;
+  RETURN CASE v_rank WHEN 3 THEN 'source_closed' WHEN 2 THEN 'refunded' ELSE 'seats_reduced' END;
+END;
+$$;
+REVOKE ALL ON FUNCTION public._event_invoice_correction_hint(uuid, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public._event_invoice_correction_hint(uuid, uuid) TO service_role;
+COMMENT ON FUNCTION public._event_invoice_correction_hint(uuid, uuid) IS
+  'Podpowiedz korekty wystawionej faktury: source_closed (zapis/pakiet odwolany albo zwrocony), refunded (zwrot z karty) albo seats_reduced (mniej miejsc na zapisie z cennika), gdy ubytek sprzedazy przekracza to, co zdjely wystawione korekty; inaczej NULL.';
+
 -- Dokument w ksztalcie do podgladu, PDF i szczegolow (panel i kupujacy).
 CREATE OR REPLACE FUNCTION public._event_invoice_document(p_tenant uuid, p_invoice uuid)
 RETURNS jsonb
@@ -2091,7 +2361,8 @@ RETURNS TABLE(
   invoice_status text,
   proforma_id uuid,
   proforma_number text,
-  tax_key text
+  tax_key text,
+  admission text
 )
 LANGUAGE plpgsql
 STABLE
@@ -2100,8 +2371,6 @@ SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_tenant uuid := public.assert_event_admin_tenant();
-  -- Bilet z cena netto (VAT doliczany) pokazujemy w brutto wg domyslnej
-  -- stawki wystawcy - ta sama stawka trafi na szkic, jesli jej nie zmienic.
   v_rate text := COALESCE(
     (SELECT s.default_vat_rate FROM public.event_invoice_settings s WHERE s.tenant_id = v_tenant), '23');
 BEGIN
@@ -2113,60 +2382,50 @@ BEGIN
     SELECT 'registration'::text AS kind, r.id AS sid,
            btrim(p.first_name || ' ' || p.last_name) AS pname, COALESCE(p.email, '') AS pemail,
            COALESCE(NULLIF(btrim(p.company_text), ''), c.name, '') AS ctext,
-           COALESCE(t.name_pl, '') AS lpl, COALESCE(t.name_en, '') AS len, r.ticket_type_id AS tt,
-           1 + (SELECT count(*)::integer FROM public.event_registrations g
-                 WHERE g.group_lead_registration_id = r.id AND g.tenant_id = r.tenant_id
-                   AND g.status NOT IN ('cancelled', 'rejected')) AS nseats,
-           (o.id IS NOT NULL AND o.status::text IN ('paid', 'refunded')) AS via_card,
-           (o.amount_cents - COALESCE(o.refunded_amount_cents, 0))::bigint AS order_gross,
-           t.price_cents AS list_price,
-           COALESCE(t.tax_mode, 'inclusive') = 'exclusive' AS net_price,
-           COALESCE(o.currency, t.currency, 'PLN') AS cur,
+           x.src->>'name_pl' AS lpl, x.src->>'name_en' AS len, r.ticket_type_id AS tt,
+           (x.src->>'seats')::integer AS nseats,
+           (x.src->>'gross')::bigint AS ngross,
+           x.src->>'currency' AS cur,
            r.payment_status AS pstate,
-           COALESCE(r.paid_at, o.paid_at) AS pat, r.created_at AS cat
+           CASE WHEN (x.src->>'via_card')::boolean THEN 'card' ELSE 'transfer' END AS via,
+           x.src->>'basis' AS basis,
+           NULLIF(x.src->>'paid_at', '')::timestamptz AS pat, r.created_at AS cat,
+           CASE WHEN r.payment_status IN ('paid', 'partially_refunded') THEN x.src->>'admission'
+                ELSE 'seated' END AS adm
       FROM public.event_registrations r
       JOIN public.event_people p ON p.id = r.person_id AND p.tenant_id = r.tenant_id
       LEFT JOIN public.crm_companies c ON c.id = p.company_id AND c.tenant_id = p.tenant_id
-      LEFT JOIN public.event_ticket_types t ON t.id = r.ticket_type_id AND t.tenant_id = r.tenant_id
-      LEFT JOIN public.payment_orders o ON o.id = r.payment_order_id AND o.tenant_id = r.tenant_id
+      CROSS JOIN LATERAL (
+        SELECT public._event_invoice_registration_source(v_tenant, r.id, v_rate) AS src
+      ) AS x
      WHERE r.tenant_id = v_tenant AND r.event_id = p_event_id
-       AND r.group_lead_registration_id IS NULL
+       AND (r.group_lead_registration_id IS NULL OR r.payment_order_id IS NOT NULL)
        AND r.status NOT IN ('cancelled', 'rejected')
        AND r.payment_status IN ('paid', 'partially_refunded', 'unpaid')
+       AND x.src->>'block' IS NULL
     UNION ALL
     SELECT 'package_order'::text, o.id, o.buyer_name, o.buyer_email, COALESCE(c.name, ''),
            k.name_pl, k.name_en, NULL::uuid, o.seats_total,
-           (po.id IS NOT NULL AND po.status::text IN ('paid', 'refunded')),
            CASE WHEN po.id IS NOT NULL AND po.status::text IN ('paid', 'refunded')
                 THEN (po.amount_cents - COALESCE(po.refunded_amount_cents, 0))::bigint
                 ELSE o.amount_cents::bigint END,
-           k.price_cents, false, o.currency,
-           CASE WHEN o.status = 'paid' THEN 'paid' ELSE 'unpaid' END, o.paid_at, o.created_at
+           o.currency,
+           CASE WHEN o.status = 'paid' THEN 'paid' ELSE 'unpaid' END,
+           CASE WHEN po.id IS NOT NULL AND po.status::text IN ('paid', 'refunded') THEN 'card' ELSE 'transfer' END,
+           'order', o.paid_at, o.created_at, 'seated'
       FROM public.event_package_orders o
       JOIN public.event_ticket_packages k ON k.id = o.package_id AND k.tenant_id = o.tenant_id
       LEFT JOIN public.crm_companies c ON c.id = o.company_id AND c.tenant_id = o.tenant_id
       LEFT JOIN public.payment_orders po ON po.id = o.payment_order_id AND po.tenant_id = o.tenant_id
      WHERE o.tenant_id = v_tenant AND o.event_id = p_event_id AND o.status IN ('pending', 'paid')
   )
-  SELECT s.kind, s.sid, s.pname, s.pemail, s.ctext, s.lpl, s.len, s.tt, s.nseats,
-         CASE
-           WHEN s.kind = 'package_order' OR (s.via_card AND s.order_gross IS NOT NULL) THEN s.order_gross
-           WHEN s.net_price
-             THEN public._event_invoice_gross_from_net(COALESCE(s.list_price, 0)::bigint, v_rate) * s.nseats
-           ELSE COALESCE(s.list_price, 0)::bigint * s.nseats
-         END,
-         s.cur, s.pstate,
-         CASE WHEN s.via_card THEN 'card' ELSE 'transfer' END,
-         CASE
-           WHEN s.kind = 'package_order' OR (s.via_card AND s.order_gross IS NOT NULL) THEN 'order'
-           WHEN s.net_price THEN 'price_list_net'
-           ELSE 'price_list'
-         END,
-         s.pat, s.cat,
+  SELECT s.kind, s.sid, s.pname, s.pemail, s.ctext, s.lpl, s.len, s.tt, s.nseats, s.ngross,
+         s.cur, s.pstate, s.via, s.basis, s.pat, s.cat,
          q.id, q.status, q.buyer_is_company, q.buyer_name, q.buyer_tax_id, q.buyer_email,
          inv.id, inv.number, inv.status,
          pro.id, pro.number,
-         NULLIF(public._event_invoice_tax_key(q.buyer_tax_id), '')
+         NULLIF(public._event_invoice_tax_key(q.buyer_tax_id), ''),
+         s.adm
     FROM src s
     LEFT JOIN LATERAL (
       SELECT x.id, x.status, x.buyer_is_company, x.buyer_name, x.buyer_tax_id, x.buyer_email
@@ -2196,7 +2455,7 @@ $$;
 REVOKE ALL ON FUNCTION public.admin_event_invoice_candidates(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_event_invoice_candidates(uuid) TO authenticated, service_role;
 COMMENT ON FUNCTION public.admin_event_invoice_candidates(uuid) IS
-  'Zamowienia wydarzenia do zafakturowania (zapisy prowadzacych grupy, pakiety) z prosba, aktywna faktura i proforma; sortowane po znormalizowanym NIP. Bramka: assert_event_admin_tenant().';
+  'Zamowienia wydarzenia do zafakturowania (zapisy prowadzacych grupy, goscie z wlasnym zamowieniem z karty, pakiety; bez miejsc z puli planu) z kwota wg _event_invoice_registration_source, prosba, aktywna faktura, proforma i miejscem oplaconego zapisu (admission); sortowane po znormalizowanym NIP. Bramka: assert_event_admin_tenant().';
 
 CREATE OR REPLACE FUNCTION public.admin_event_invoices_list(p_event_id uuid)
 RETURNS TABLE(
@@ -2227,7 +2486,8 @@ RETURNS TABLE(
   locale text,
   created_at timestamptz,
   issued_at timestamptz,
-  cancelled_at timestamptz
+  cancelled_at timestamptz,
+  correction_hint text
 )
 LANGUAGE plpgsql
 STABLE
@@ -2247,7 +2507,8 @@ BEGIN
            LIMIT 1),
          (SELECT count(*)::integer FROM public.event_invoice_sources s
            WHERE s.invoice_id = i.id AND s.tenant_id = v_tenant),
-         i.locale, i.created_at, i.issued_at, i.cancelled_at
+         i.locale, i.created_at, i.issued_at, i.cancelled_at,
+         public._event_invoice_correction_hint(v_tenant, i.id)
     FROM public.event_invoices i
     LEFT JOIN public.event_invoices c ON c.id = i.corrects_invoice_id AND c.tenant_id = i.tenant_id
    WHERE i.tenant_id = v_tenant AND i.event_id = p_event_id
@@ -2257,7 +2518,7 @@ $$;
 REVOKE ALL ON FUNCTION public.admin_event_invoices_list(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_event_invoices_list(uuid) TO authenticated, service_role;
 COMMENT ON FUNCTION public.admin_event_invoices_list(uuid) IS
-  'Dokumenty wydarzenia (szkice, faktury, proformy, korekty). Bramka: assert_event_admin_tenant().';
+  'Dokumenty wydarzenia (szkice, faktury, proformy, korekty) z podpowiedzia korekty (correction_hint: zwrot, odwolanie, mniej miejsc po wystawieniu). Bramka: assert_event_admin_tenant().';
 
 CREATE OR REPLACE FUNCTION public.admin_event_invoice_get(p_id uuid)
 RETURNS jsonb
@@ -2296,14 +2557,15 @@ BEGIN
       WHEN v_doc->'invoice'->>'kind' = 'invoice' AND v_doc->'invoice'->>'status' = 'issued'
         THEN public._event_invoice_current_lines(v_tenant, p_id)
       ELSE '[]'::jsonb
-    END
+    END,
+    'correction_hint', public._event_invoice_correction_hint(v_tenant, p_id)
   );
 END;
 $$;
 REVOKE ALL ON FUNCTION public.admin_event_invoice_get(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_event_invoice_get(uuid) TO authenticated, service_role;
 COMMENT ON FUNCTION public.admin_event_invoice_get(uuid) IS
-  'Pelny dokument (pozycje, podsumowanie VAT, sprzedawca, zrodla, korekty, stan po korektach) do edytora i PDF. Bramka: assert_event_admin_tenant().';
+  'Pelny dokument (pozycje, podsumowanie VAT, sprzedawca, zrodla, korekty, stan po korektach, podpowiedz korekty) do edytora i PDF. Bramka: assert_event_admin_tenant().';
 
 CREATE OR REPLACE FUNCTION public.admin_event_invoice_draft_create(p_payload jsonb)
 RETURNS uuid
@@ -2452,10 +2714,13 @@ BEGIN
                                         'id', COALESCE(q.registration_id, q.package_order_id))
                      ORDER BY q.created_at, q.id) AS sources
       FROM public.event_invoice_requests q
-      LEFT JOIN public.event_registrations r ON r.id = q.registration_id AND r.tenant_id = q.tenant_id
       LEFT JOIN public.event_package_orders o ON o.id = q.package_order_id AND o.tenant_id = q.tenant_id
+      LEFT JOIN LATERAL (
+        SELECT public._event_invoice_registration_source(v_tenant, q.registration_id, '23') AS src
+         WHERE q.registration_id IS NOT NULL
+      ) AS x ON true
      WHERE q.tenant_id = v_tenant AND q.event_id = v_event_id AND q.status = 'pending'
-       AND ((r.payment_status IN ('paid', 'partially_refunded') AND r.status NOT IN ('cancelled', 'rejected'))
+       AND ((x.src->>'block' IS NULL AND (x.src->>'paid')::boolean AND x.src->>'admission' = 'seated')
             OR o.status = 'paid')
        AND NOT EXISTS (
          SELECT 1 FROM public.event_invoice_sources s
@@ -2495,7 +2760,7 @@ $$;
 REVOKE ALL ON FUNCTION public.admin_event_invoice_issue_pending(jsonb) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_event_invoice_issue_pending(jsonb) TO authenticated, service_role;
 COMMENT ON FUNCTION public.admin_event_invoice_issue_pending(jsonb) IS
-  'Wystawia faktury ze wszystkich oczekujacych prosb o OPLACONE zamowienia wydarzenia: jedna na prosbe albo zbiorcza per NIP (collective). Blad jednej grupy nie wycofuje pozostalych. Bramka: assert_event_admin_tenant().';
+  'Wystawia faktury ze wszystkich oczekujacych prosb o OPLACONE zamowienia wydarzenia z miejscem (bez wplat w kolejce i czekajacych na decyzje, bez miejsc z puli planu): jedna na prosbe albo zbiorcza per NIP (collective). Blad jednej grupy nie wycofuje pozostalych. Bramka: assert_event_admin_tenant().';
 
 CREATE OR REPLACE FUNCTION public.admin_event_invoice_cancel(p_payload jsonb)
 RETURNS uuid
@@ -2989,6 +3254,7 @@ DECLARE
   v_status text;
   v_requested_by uuid;
   v_allowed boolean;
+  v_src jsonb;
 BEGIN
   IF v_uid IS NULL THEN
     RAISE EXCEPTION 'auth_required: sign in to request an invoice' USING ERRCODE = '42501';
@@ -3014,19 +3280,22 @@ BEGIN
   -- bez tego warunku pracownik - takze po odebraniu roli - czytalby
   -- i nadpisywal dane firmy uczestnika, a faktura trafialaby do jego profilu.
   IF v_registration IS NOT NULL THEN
-    SELECT COALESCE(r.group_lead_registration_id, r.id) INTO v_lead
+    SELECT CASE
+             WHEN r.group_lead_registration_id IS NULL OR r.payment_status = 'unpaid' THEN r.id
+             WHEN public._event_invoice_registration_source(v_tenant, r.id, '23')->>'block' IS NULL THEN r.id
+             ELSE r.group_lead_registration_id
+           END
+      INTO v_lead
       FROM public.event_registrations r
      WHERE r.id = v_registration AND r.tenant_id = v_tenant;
-    SELECT r.event_id, COALESCE(r.paid_at, o.paid_at),
-           CASE WHEN o.id IS NOT NULL AND o.status::text IN ('paid', 'refunded') THEN o.id END
-      INTO v_event_id, v_paid_at, v_card
-      FROM public.event_registrations r
-      JOIN public.event_people p ON p.id = r.person_id AND p.tenant_id = r.tenant_id
-      LEFT JOIN public.payment_orders o ON o.id = r.payment_order_id AND o.tenant_id = r.tenant_id
-     WHERE r.id = v_lead AND r.tenant_id = v_tenant
-       AND (p.user_id = v_uid OR (r.created_by = v_uid AND r.source = 'self_registration'))
-       AND r.status NOT IN ('cancelled', 'rejected')
-       AND r.payment_status IN ('paid', 'partially_refunded', 'unpaid');
+    v_src := public._event_invoice_registration_source(v_tenant, v_lead, '23');
+    IF v_src IS NOT NULL AND v_src->>'status' NOT IN ('cancelled', 'rejected')
+       AND v_src->>'payment_status' IN ('paid', 'partially_refunded', 'unpaid')
+       AND public._event_invoice_registration_owner(v_tenant, v_lead, v_uid) THEN
+      v_event_id := (v_src->>'event_id')::uuid;
+      v_paid_at := NULLIF(v_src->>'paid_at', '')::timestamptz;
+      v_card := NULLIF(v_src->>'payment_order_id', '')::uuid;
+    END IF;
     v_registration := v_lead;
   ELSE
     SELECT o.event_id, o.paid_at,
@@ -3039,6 +3308,10 @@ BEGIN
   END IF;
   IF v_event_id IS NULL THEN
     RAISE EXCEPTION 'not_found: order does not exist or is not yours' USING ERRCODE = '42501';
+  END IF;
+  IF v_src->>'block' = 'plan_ticket' THEN
+    RAISE EXCEPTION 'source_plan_ticket: a membership plan ticket covers this seat - nothing was paid'
+      USING ERRCODE = '22023';
   END IF;
   IF v_paid_at IS NOT NULL
      AND (now() AT TIME ZONE 'Europe/Warsaw')::date
@@ -3112,7 +3385,7 @@ $$;
 REVOKE ALL ON FUNCTION public.event_invoice_request_save(jsonb) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.event_invoice_request_save(jsonb) TO authenticated, service_role;
 COMMENT ON FUNCTION public.event_invoice_request_save(jsonb) IS
-  'Prosba kupujacego o fakture do WLASNEGO zapisu (osoba konta albo samodzielny zapis zalozony z konta; prowadzacy grupy) albo zamowienia pakietu; tylko gdy organizator fakturuje i zamowienie z karty nie nalezy do operatora; okno do konca trzeciego miesiaca po zaplacie; cudzej prosby nie przejmuje. Plaszczyzna: public_tenant_id() + auth.uid().';
+  'Prosba kupujacego o fakture do WLASNEGO zapisu (wg _event_invoice_registration_owner: zamowienie z karty - platnik, bez niego - osoba konta albo samodzielny zapis zalozony z konta; prowadzacy grupy albo gosc placacy sam) albo zamowienia pakietu; tylko gdy organizator fakturuje, zamowienie z karty nie nalezy do operatora i miejsca nie pokrywa bilet z puli planu; okno do konca trzeciego miesiaca po zaplacie; cudzej prosby nie przejmuje. Plaszczyzna: public_tenant_id() + auth.uid().';
 
 CREATE OR REPLACE FUNCTION public.event_invoice_request_cancel(p_request_id uuid)
 RETURNS uuid
@@ -3195,34 +3468,31 @@ BEGIN
     FROM public.event_invoice_settings s WHERE s.tenant_id = v_tenant;
   RETURN QUERY
   WITH src AS (
-    -- Wlasnosc jak w event_invoice_request_save: osoba konta albo samodzielny
-    -- zapis zalozony z konta (nigdy zapis wpisany przez pracownika).
     SELECT 'registration'::text AS kind, r.id AS sid, r.event_id AS eid,
-           COALESCE(t.name_pl, '') AS lpl, COALESCE(t.name_en, '') AS len,
-           1 + (SELECT count(*)::integer FROM public.event_registrations g
-                 WHERE g.group_lead_registration_id = r.id AND g.tenant_id = r.tenant_id
-                   AND g.status NOT IN ('cancelled', 'rejected')) AS nseats,
-           (o.amount_cents - COALESCE(o.refunded_amount_cents, 0))::bigint AS order_gross,
-           t.price_cents AS list_price,
-           COALESCE(t.tax_mode, 'inclusive') = 'exclusive' AS net_price,
-           CASE WHEN o.id IS NOT NULL AND o.status::text IN ('paid', 'refunded') THEN o.id END AS card,
-           COALESCE(o.currency, t.currency, 'PLN') AS cur,
+           x.src->>'name_pl' AS lpl, x.src->>'name_en' AS len,
+           (x.src->>'seats')::integer AS nseats,
+           (x.src->>'gross')::bigint AS ngross,
+           NULLIF(x.src->>'payment_order_id', '')::uuid AS card,
+           x.src->>'currency' AS cur,
            CASE WHEN r.payment_status = 'unpaid' THEN 'unpaid' ELSE 'paid' END AS pstate,
-           COALESCE(r.paid_at, o.paid_at) AS pat, r.created_at AS cat
+           NULLIF(x.src->>'paid_at', '')::timestamptz AS pat, r.created_at AS cat
       FROM public.event_registrations r
-      JOIN public.event_people p ON p.id = r.person_id AND p.tenant_id = r.tenant_id
-      LEFT JOIN public.event_ticket_types t ON t.id = r.ticket_type_id AND t.tenant_id = r.tenant_id
+      LEFT JOIN public.event_people p ON p.id = r.person_id AND p.tenant_id = r.tenant_id
       LEFT JOIN public.payment_orders o ON o.id = r.payment_order_id AND o.tenant_id = r.tenant_id
-     WHERE r.tenant_id = v_tenant AND r.group_lead_registration_id IS NULL
-       AND (p.user_id = v_uid OR (r.created_by = v_uid AND r.source = 'self_registration'))
+      CROSS JOIN LATERAL (
+        SELECT public._event_invoice_registration_source(v_tenant, r.id, COALESCE(v_rate, '23')) AS src
+      ) AS x
+     WHERE r.tenant_id = v_tenant
+       AND (p.user_id = v_uid OR r.created_by = v_uid OR o.user_id = v_uid)
        AND r.status NOT IN ('cancelled', 'rejected')
        AND r.payment_status IN ('paid', 'partially_refunded', 'unpaid')
+       AND x.src->>'block' IS NULL
+       AND public._event_invoice_registration_owner(v_tenant, r.id, v_uid)
     UNION ALL
     SELECT 'package_order'::text, o.id, o.event_id, k.name_pl, k.name_en, o.seats_total,
            CASE WHEN po.id IS NOT NULL AND po.status::text IN ('paid', 'refunded')
                 THEN (po.amount_cents - COALESCE(po.refunded_amount_cents, 0))::bigint
                 ELSE o.amount_cents::bigint END,
-           k.price_cents, false,
            CASE WHEN po.id IS NOT NULL AND po.status::text IN ('paid', 'refunded') THEN po.id END,
            o.currency,
            CASE WHEN o.status = 'paid' THEN 'paid' ELSE 'unpaid' END, o.paid_at, o.created_at
@@ -3238,7 +3508,6 @@ BEGIN
                 ELSE (date_trunc('month', s.pat AT TIME ZONE 'Europe/Warsaw') + interval '4 months'
                       - interval '1 day')::date
            END AS deadline,
-           -- Prosba INNEGO konta (drugi wlasciciel zamowienia): bez jej danych.
            (q.q_id IS NOT NULL AND q.q_by IS NOT NULL AND q.q_by <> v_uid) AS foreign_request
       FROM src s
       JOIN public.events e ON e.id = s.eid AND e.tenant_id = v_tenant
@@ -3263,9 +3532,6 @@ BEGIN
   ),
   decided AS (
     SELECT w.*,
-           -- Dlaczego prosby nie ma (NULL = mozna prosic): faktura w toku albo
-           -- wystawiona, organizator nie fakturuje, prosba innego konta, po
-           -- terminie, zamowienie z karty fakturuje operator.
            CASE
              WHEN w.inv_id IS NOT NULL THEN 'invoiced'
              WHEN NOT COALESCE(v_enabled, false) THEN 'disabled'
@@ -3276,14 +3542,7 @@ BEGIN
            END AS block
       FROM own w
   )
-  SELECT d.kind, d.sid, d.eid, d.slug, d.title_pl, d.title_en, d.lpl, d.len, d.nseats,
-         CASE
-           WHEN d.order_gross IS NOT NULL THEN d.order_gross
-           WHEN d.net_price
-             THEN public._event_invoice_gross_from_net(COALESCE(d.list_price, 0)::bigint, COALESCE(v_rate, '23'))
-                  * d.nseats
-           ELSE COALESCE(d.list_price, 0)::bigint * d.nseats
-         END,
+  SELECT d.kind, d.sid, d.eid, d.slug, d.title_pl, d.title_en, d.lpl, d.len, d.nseats, d.ngross,
          d.cur, d.pstate, d.pat, d.deadline,
          d.block IS NULL, d.block,
          CASE WHEN d.foreign_request THEN NULL ELSE d.q_id END,
@@ -3307,7 +3566,7 @@ $$;
 REVOKE ALL ON FUNCTION public.event_my_invoice_sources() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.event_my_invoice_sources() TO authenticated, service_role;
 COMMENT ON FUNCTION public.event_my_invoice_sources() IS
-  'Wlasne zamowienia wydarzen (zapisy prowadzacego, pakiety) z prosba o fakture, terminem prosby, powodem braku prosby (request_block) i wystawiona faktura. Plaszczyzna: public_tenant_id() + auth.uid().';
+  'Wlasne zamowienia wydarzen (zapisy prowadzacego i gosci z wlasnym zamowieniem z karty - kupujacy wg _event_invoice_registration_owner, pakiety; bez miejsc z puli planu) z kwota wg _event_invoice_registration_source, prosba o fakture, terminem prosby, powodem braku prosby (request_block) i wystawiona faktura. Plaszczyzna: public_tenant_id() + auth.uid().';
 
 CREATE OR REPLACE FUNCTION public.event_my_invoices()
 RETURNS TABLE(
