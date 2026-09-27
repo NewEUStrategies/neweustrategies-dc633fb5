@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import i18n from "@/lib/i18n";
 import {
+  CORRECTION_HINT_LABEL_KEYS,
   KIND_LABEL_KEYS,
   KSEF_STATUS_LABEL_KEYS,
   LOCALE_LABEL_KEYS,
@@ -15,6 +16,7 @@ import {
   VAT_RATE_LABEL_KEYS,
 } from "@/lib/events/adminEventInvoiceLabels";
 import {
+  EVENT_INVOICE_CORRECTION_HINTS,
   EVENT_INVOICE_KINDS,
   EVENT_INVOICE_KSEF_STATUSES,
   EVENT_INVOICE_LOCALES,
@@ -33,6 +35,7 @@ const MAPS: ReadonlyArray<readonly [string, Record<string, string>, readonly str
   ["sposoby platnosci", PAYMENT_METHOD_LABEL_KEYS, EVENT_INVOICE_PAYMENT_METHODS],
   ["jezyki", LOCALE_LABEL_KEYS, EVENT_INVOICE_LOCALES],
   ["stawki VAT", VAT_RATE_LABEL_KEYS, EVENT_INVOICE_VAT_RATES],
+  ["podpowiedzi korekty", CORRECTION_HINT_LABEL_KEYS, EVENT_INVOICE_CORRECTION_HINTS],
 ];
 
 describe("slowniki etykiet faktur", () => {

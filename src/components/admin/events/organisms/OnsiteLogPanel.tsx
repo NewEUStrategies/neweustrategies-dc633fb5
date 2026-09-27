@@ -13,9 +13,11 @@
 // jest dowodem wpuszczenia i zmiana go po fakcie unieważniłaby audyt.
 //
 // DECYZJA BEZ SIECI JEST WIDOCZNA. Wiersz zapisany ze skanu offline ma
-// plakietkę „offline" (z decyzją urządzenia w podpowiedzi), a gdy urządzenie
-// wpuściło, a baza odmawia - czerwoną plakietkę „konflikt". Konflikt liczy
-// baza (`admin_event_checkins_list.conflict`, według trybu punktu), a filtr
+// plakietkę „offline" (z decyzją urządzenia w podpowiedzi), a konflikt -
+// czerwoną plakietkę swojego rodzaju: „konflikt", gdy urządzenie wpuściło,
+// a baza odmawia, i „odesłany offline", gdy urządzenie odesłało człowieka
+// z ważnym biletem (trzeba go odnaleźć). Konflikt i jego rodzaj liczy baza
+// (`admin_event_checkins_list.conflict_kind`, według trybu punktu), a filtr
 // „tylko konflikty" idzie do bazy jak pozostałe.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -229,7 +231,14 @@ export function OnsiteLogPanel({ eventId }: { eventId: string }) {
                       {t("adminEventOnsite.log.offlineBadge")}
                     </Badge>
                   )}
-                  {row.conflict ? (
+                  {row.conflict_kind === "denied_offline" ? (
+                    <Badge
+                      variant="destructive"
+                      title={t("adminEventOnsite.log.conflictDeniedHint")}
+                    >
+                      {t("adminEventOnsite.log.conflictDeniedBadge")}
+                    </Badge>
+                  ) : row.conflict ? (
                     <Badge variant="destructive" title={t("adminEventOnsite.log.conflictHint")}>
                       {t("adminEventOnsite.log.conflictBadge")}
                     </Badge>

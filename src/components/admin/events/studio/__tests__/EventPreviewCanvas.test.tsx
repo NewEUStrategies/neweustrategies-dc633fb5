@@ -253,6 +253,8 @@ describe("kanwa - stan listy partnerow na stronie glownej", () => {
         name: "Nordwind Analytics",
         logoUrl: null,
         websiteUrl: null,
+        linkMode: "exhibitor",
+        href: null,
         descriptionPl: null,
         descriptionEn: null,
         country: null,

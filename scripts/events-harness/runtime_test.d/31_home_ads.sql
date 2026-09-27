@@ -20,7 +20,8 @@
 --   * granice najemcy w panelu: zapis, zmiana, odczyt i usuniecie,
 --   * widocznosc dla goscia: tylko opublikowane wydarzenie, aktywna reklama
 --     w oknie czasowym, grupa odbiorcow tylko dla jej czlonkow,
---   * liczniki: jedno wyswietlenie na sesje i dobe, odmowa zlego wejscia,
+--   * liczniki: stary licznik jest pusty (nic nie zapisuje), a panel liczy
+--     dalej stare wiersze,
 --   * bramki rol i granty.
 --
 -- SPRZATANIE. Jedna transakcja zakonczona ROLLBACK-iem, jak kazdy plik
@@ -229,7 +230,7 @@ SELECT pg_temp.assert(
   '31/gosc/kontrapunkt: zalogowany spoza grupy NIE widzi reklamy grupowej');
 
 -- Kontekst najemcy B: ten sam slug A nie zwraca niczego. Od migracji
--- 20260926140000 funkcja skaluje po NAGLOWKU HOSTA (`public_tenant_id()`,
+-- 20260927000500 funkcja skaluje po NAGLOWKU HOSTA (`public_tenant_id()`,
 -- w harnessie GUC `nes.public_tenant`), a nie po profilu zalogowanego - wiec
 -- "wejscie na strone najemcy B" to wlasnie ten GUC.
 SELECT pg_temp.act_as(NULL, NULL);
@@ -241,36 +242,32 @@ SELECT set_config('nes.public_tenant', '', false);
 
 -- ---------------------------------------------------------------------------
 -- SEKCJA 5: LICZNIKI WYSWIETLEN I KLIKNIEC
+--
+-- Od 20260927000500 stary licznik `event_home_ad_track` jest PUSTY: front
+-- mierzy reklame przez `/api/public/sponsor-event` (zgoda marketingowa, limit
+-- po IP, filtr botow), a funkcja wolana wprost przez anonima nie moze juz
+-- nabic wyswietlen w panelu. Zostaje (z grantami) dla starszych klientow
+-- w cache - i zawsze oddaje `false`, niczego nie zapisujac.
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.act_as(NULL, NULL);
 SELECT pg_temp.assert(
-  public.event_home_ad_track((SELECT u FROM ads_q WHERE k = 'open'), 'view', 'sesja-000001'),
-  '31/licznik: pierwsze wyswietlenie w sesji zapisane');
+  NOT public.event_home_ad_track((SELECT u FROM ads_q WHERE k = 'open'), 'view', 'sesja-000001')
+  AND NOT public.event_home_ad_track((SELECT u FROM ads_q WHERE k = 'open'), 'click', 'sesja-000001'),
+  '31/licznik: stary licznik wolany przez goscia NIE zapisuje wyswietlenia ani klikniecia');
+SELECT pg_temp.act_as('31a00000-0000-0000-0000-0000000000a3',
+                      '11111111-1111-1111-1111-111111111111');
 SELECT pg_temp.assert(
-  NOT public.event_home_ad_track((SELECT u FROM ads_q WHERE k = 'open'), 'view', 'sesja-000001'),
-  '31/licznik: drugie wyswietlenie tej samej sesji tego samego dnia NIE liczy sie drugi raz');
+  NOT public.event_home_ad_track((SELECT u FROM ads_q WHERE k = 'open'), 'view', 'sesja-000002'),
+  '31/licznik: stary licznik wolany przez zalogowanego tez NIE zapisuje');
 SELECT pg_temp.assert(
-  public.event_home_ad_track((SELECT u FROM ads_q WHERE k = 'open'), 'click', 'sesja-000001'),
-  '31/licznik: klikniecie liczy sie osobno od wyswietlenia');
-SELECT pg_temp.assert(
-  NOT public.event_home_ad_track((SELECT u FROM ads_q WHERE k = 'open'), 'share', 'sesja-000001'),
-  '31/licznik: nieznany rodzaj zdarzenia odrzucony');
-SELECT pg_temp.assert(
-  NOT public.event_home_ad_track((SELECT u FROM ads_q WHERE k = 'open'), 'view', 'krotka'),
-  '31/licznik: za krotki identyfikator sesji odrzucony');
-SELECT pg_temp.assert(
-  NOT public.event_home_ad_track((SELECT u FROM ads_q WHERE k = 'off'), 'view', 'sesja-000002'),
-  '31/licznik: wylaczona reklama nie zbiera wyswietlen');
-SELECT pg_temp.assert(
-  (SELECT e.session_hash <> 'sesja-000001' FROM public.event_home_ad_events e
-    WHERE e.ad_id = (SELECT u FROM ads_q WHERE k = 'open') AND e.kind = 'view'),
-  '31/licznik: identyfikator sesji zapisany wylacznie jako skrot');
+  NOT EXISTS (SELECT 1 FROM public.event_home_ad_events e
+               WHERE e.ad_id IN (SELECT u FROM ads_q)),
+  '31/licznik: tabela starego licznika pozostaje pusta');
 
-SELECT set_config('nes.public_tenant', '31000000-0000-0000-0000-0000000000b0', false);
-SELECT pg_temp.assert(
-  NOT public.event_home_ad_track((SELECT u FROM ads_q WHERE k = 'open'), 'view', 'sesja-000003'),
-  '31/licznik/izolacja: na hoscie najemcy B reklama A nie zbiera wyswietlen');
-SELECT set_config('nes.public_tenant', '', false);
+-- Stare wiersze (sprzed zmiany) dalej licza sie w panelu.
+INSERT INTO public.event_home_ad_events (tenant_id, ad_id, kind, session_hash)
+VALUES ('11111111-1111-1111-1111-111111111111', (SELECT u FROM ads_q WHERE k = 'open'), 'view', md5('sesja-archiwum')),
+       ('11111111-1111-1111-1111-111111111111', (SELECT u FROM ads_q WHERE k = 'open'), 'click', md5('sesja-archiwum'));
 
 SELECT pg_temp.act_as('31a00000-0000-0000-0000-0000000000a1',
                       '11111111-1111-1111-1111-111111111111');
@@ -278,7 +275,7 @@ SELECT pg_temp.assert(
   (SELECT l.views = 1 AND l.clicks = 1
      FROM public.admin_event_home_ads_list('31e00000-0000-0000-0000-0000000000a1') l
     WHERE l.id = (SELECT u FROM ads_q WHERE k = 'open')),
-  '31/licznik: panel pokazuje jedno wyswietlenie i jedno klikniecie');
+  '31/licznik: panel pokazuje stare wyswietlenie i stare klikniecie');
 
 -- ---------------------------------------------------------------------------
 -- SEKCJA 6: ZMIANA I USUNIECIE PRZEZ WLASCICIELA
@@ -335,7 +332,7 @@ SELECT pg_temp.assert(
 SELECT pg_temp.assert(
   has_function_privilege('anon', 'public.event_home_ads_for_viewer(text)', 'EXECUTE')
   AND has_function_privilege('anon', 'public.event_home_ad_track(uuid, text, text)', 'EXECUTE'),
-  '31/granty/kontrapunkt: anon wykonuje odczyt dla goscia i licznik');
+  '31/granty/kontrapunkt: anon wykonuje odczyt dla goscia i (pusty) stary licznik - starszy klient nie dostaje bledu');
 SELECT pg_temp.assert(
   NOT has_function_privilege('anon', 'public.admin_event_sponsor_set_link(uuid, text, text)', 'EXECUTE'),
   '31/granty: CREATE OR REPLACE w migracji korygujacej zachowal odebranie grantu anonimowi');

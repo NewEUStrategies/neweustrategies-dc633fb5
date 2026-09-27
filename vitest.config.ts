@@ -2292,11 +2292,32 @@ export default defineConfig({
         // Próg zero jest CELOWO wpisany zamiast pominięcia: to jawny wyjątek
         // w miejscu, w którym go widać, a nie cicha dziura w średniej. Gdy
         // pokrycie runtime'owe kiedyś powstanie, ten wpis się podnosi.
+        //
+        // KONSEKWENCJA DLA NOWYCH SEKCJI (2026-09-27, nabór prelegentów F1):
+        // skoro ciało server fn jest poza pomiarem, każda gałąź dopisana
+        // w nim to gałąź, której nikt nie wykonał - i ona ciągnie agregat
+        // `src/lib/profile/**` w dół (sekcja naboru zepchnęła go z 77 na
+        // 76,71% gałęzi w CI). Czysta logika sekcji (rozbiór zwrotki RPC,
+        // zawężenie kształtu) idzie więc do OSOBNEGO modułu z testem, a tutaj
+        // zostaje samo wywołanie. Pierwszy taki moduł: `cfpExportSection`
+        // niżej. Próg tego wpisu się nie zmienia.
         "src/lib/profile/export.functions.ts": {
           statements: 0,
           functions: 0,
           lines: 0,
           branches: 0,
+        },
+        // Rozbiór zwrotki `event_cfp_export_my_data` na cztery sekcje paczki
+        // RODO - wyjęty z ciała `export.functions.ts` (patrz wpis wyżej).
+        // Czysty moduł, więc 100% na wszystkich czterech metrykach, jak
+        // pozostałe czyste moduły profilu. ZMIERZONE 2026-09-27
+        // (`src/lib/events/__tests__/cfpExportSection.test.ts`):
+        // 100 / 100 / 100 / 100.
+        "src/lib/events/cfpExportSection.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
         },
         // CZYSTE MODUŁY profilu trzymamy pod 100% na wszystkich czterech
         // metrykach - tak jak czyste moduły czatu i płatności wyżej. Niosą

@@ -7,7 +7,7 @@
 // PDF mieszkają w publicznej nakładce `i18n-event-invoices` (panel ją
 // importuje, strona publiczna nigdy nie importuje tej).
 //
-// KODY ODMÓW = głowy `RAISE EXCEPTION` migracji 20260926110000 w camelCase
+// KODY ODMÓW = głowy `RAISE EXCEPTION` migracji 20260927000200 w camelCase
 // (bramka `eventErrorMapsI18n.gate.test.ts` pilnuje, że każda ma zdanie).
 import i18n from "@/lib/i18n";
 
@@ -26,6 +26,12 @@ export const adminEventInvoicesPl = {
       title: "Kasa działa w trybie operatora płatności (Merchant of Record)",
       body: "Sprzedawcą biletów opłaconych kartą jest wtedy operator płatności i to on wystawia dokumenty. Własnej faktury VAT za takie zamówienia wystawić nie wolno - baza odmówi. Szkice, proformy i faktury za zamówienia opłacone przelewem są dostępne.",
     },
+    operatorInvoice: {
+      title: "Stripe wystawia faktury za płatności kartą",
+      body: "W ustawieniach kasy włączone jest tworzenie faktur Stripe dla płatności jednorazowych, więc zamówienia opłacone kartą mają już fakturę. Drugiej faktury VAT za nie nie wystawisz - dostępne są zamówienia z przelewu i proformy.",
+    },
+    planeNote:
+      "Fakturę za zamówienie opłacone kartą wystawisz tylko wtedy, gdy ustawienia kasy nie zmieniły się od chwili jego złożenia - inaczej nie da się potwierdzić, kto był sprzedawcą (organizator czy operator płatności).",
     disabled: {
       title: "Fakturowanie jest wyłączone",
       body: "Uzupełnij dane wystawcy i potwierdź, że organizator jest sprzedawcą biletów.",
@@ -51,7 +57,7 @@ export const adminEventInvoicesPl = {
       issuePendingCollective: "Wystaw z próśb - zbiorczo per NIP",
       issuePendingTitle: "Wystawić faktury ze wszystkich próśb?",
       issuePendingBody:
-        "Faktury powstaną dla opłaconych zamówień z prośbą nabywcy i bez faktury. Numery nadaje baza w kolejności wystawienia.",
+        "Faktury powstaną dla opłaconych zamówień z prośbą nabywcy i bez faktury. Wpłaty bez miejsca (lista rezerwowa, czekające na decyzję) są pomijane - te zafakturujesz świadomie ze szkicu. Numery nadaje baza w kolejności wystawienia.",
       issuePendingCollectiveBody:
         "Prośby z tym samym NIP-em trafią na jedną fakturę zbiorczą (pozycje według rodzaju biletu). Numery nadaje baza w kolejności wystawienia.",
       issuePendingConfirm: "Wystaw",
@@ -77,6 +83,9 @@ export const adminEventInvoicesPl = {
       },
       paidVia: { card: "karta", transfer: "przelew / poza systemem" },
       priceList: "kwota z cennika - sprawdź w szkicu",
+      priceListNet: "cena netto z cennika + VAT wg domyślnej stawki - sprawdź stawkę w szkicu",
+      buyerMismatch:
+        "Zaznaczone zamówienia mają prośby o fakturę od różnych nabywców - wystaw osobne faktury.",
       requested: "Prośba nabywcy",
       hasInvoice: "Faktura {{number}}",
       hasDraft: "Szkic faktury",
@@ -118,6 +127,13 @@ export const adminEventInvoicesPl = {
       cancelConfirm: "Anuluj dokument",
       keep: "Zostaw",
       actionsFor: "Akcje dokumentu {{number}}",
+      // Sprzedaz skurczyla sie PO wystawieniu (`correction_hint`) - organizator
+      // decyduje o korekcie sam, baza niczego nie wystawia automatycznie.
+      correctionHint: {
+        source_closed: "Wymaga korekty: zamówienie odwołane albo zwrócone",
+        refunded: "Wymaga korekty: zwrot płatności po wystawieniu",
+        seats_reduced: "Wymaga korekty: mniej miejsc niż na fakturze",
+      },
     },
     kinds: { invoice: "Faktura", proforma: "Proforma", correction: "Korekta" },
     statuses: { draft: "Szkic", issued: "Wystawiona", cancelled: "Anulowana" },
@@ -195,6 +211,7 @@ export const adminEventInvoicesPl = {
       lineQuantity: "Nowa ilość ({{description}})",
       lineUnitGross: "Nowa cena brutto ({{description}})",
       lineVatRate: "Nowa stawka VAT ({{description}})",
+      currentStateHint: "Ilości i ceny uwzględniają korekty tej faktury wystawione wcześniej.",
       create: "Utwórz szkic korekty",
       creating: "Tworzenie…",
       cancel: "Anuluj",
@@ -294,6 +311,8 @@ export const adminEventInvoicesPl = {
       sourceNotFound: "Zamówienie nie należy do tego wydarzenia.",
       sourceNotLead: "Fakturę wystawia się na zapis osoby prowadzącej grupę.",
       sourceNotInvoiceable: "Zamówienie jest anulowane, bezpłatne albo zwrócone.",
+      sourcePlanTicket:
+        "Miejsce pokrywa bilet z puli planu członkowskiego - nikt za nie nie zapłacił, więc nie ma czego fakturować.",
       alreadyInvoiced: "To zamówienie ma już aktywną fakturę.",
       currencyMismatch: "Zamówienia jednego dokumentu muszą mieć tę samą walutę (PLN albo EUR).",
       requestNotFound: "Nie ma oczekującej prośby nabywcy dla tych zamówień.",
@@ -339,6 +358,18 @@ export const adminEventInvoicesPl = {
       invalidKsefStatus: "Nieznany stan KSeF.",
       ksefNumberRequired: "Przyjęty dokument wymaga numeru KSeF.",
       invalidKsefNumber: "Numer KSeF może mieć najwyżej 64 znaki.",
+      sourceChanged:
+        "Zamówienie zmieniło się od utworzenia szkicu (np. zapłacono kartą albo zwrócono część kwoty) - anuluj szkic i utwórz go ponownie.",
+      buyerMismatch:
+        "Zamówienia mają prośby o fakturę od różnych nabywców - wystaw osobne faktury.",
+      operatorInvoiceEnabled:
+        "Za zamówienia opłacone kartą fakturę wystawia już Stripe (tworzenie faktur w ustawieniach kasy) - drugiej faktury VAT nie wystawisz.",
+      billingPlaneUnknown:
+        "Ustawienia kasy zmieniły się po tym zamówieniu kartą - nie da się potwierdzić, kto był sprzedawcą, więc faktury organizatora nie wystawisz.",
+      correctionInconsistent:
+        "Korekta nie zgadza się z aktualnym stanem faktury (po wcześniejszych korektach) - anuluj szkic i utwórz korektę ponownie.",
+      correctionUseFull: "Ta korekta zeruje całą fakturę - wybierz korektę pełną.",
+      correctionNotLatest: "Anulować można tylko ostatnio wystawioną korektę tej faktury.",
     },
   },
 } as const;
@@ -358,6 +389,12 @@ export const adminEventInvoicesEn = {
       title: "Checkout runs in payment operator mode (Merchant of Record)",
       body: "The seller of card-paid tickets is then the payment operator, which issues the documents. You must not issue your own VAT invoice for such orders - the database refuses. Drafts, pro formas and invoices for orders paid by transfer remain available.",
     },
+    operatorInvoice: {
+      title: "Stripe issues invoices for card payments",
+      body: "Stripe invoice creation for one-time payments is on in the checkout settings, so card-paid orders already have an invoice. You cannot issue a second VAT invoice for them - orders paid by transfer and pro formas remain available.",
+    },
+    planeNote:
+      "You can invoice a card-paid order only if the checkout settings have not changed since it was placed - otherwise it cannot be confirmed who the seller was (the organizer or the payment operator).",
     disabled: {
       title: "Invoicing is turned off",
       body: "Complete the issuer details and confirm that the organizer is the seller of the tickets.",
@@ -381,7 +418,7 @@ export const adminEventInvoicesEn = {
       issuePendingCollective: "Issue from requests - collective per tax ID",
       issuePendingTitle: "Issue invoices from all requests?",
       issuePendingBody:
-        "Invoices are created for paid orders with a buyer request and no invoice. The database assigns numbers in issue order.",
+        "Invoices are created for paid orders with a buyer request and no invoice. Payments without a seat (waiting list, awaiting decision) are skipped - invoice those deliberately from a draft. The database assigns numbers in issue order.",
       issuePendingCollectiveBody:
         "Requests with the same tax ID go onto one collective invoice (lines per ticket type). The database assigns numbers in issue order.",
       issuePendingConfirm: "Issue",
@@ -405,6 +442,9 @@ export const adminEventInvoicesEn = {
       },
       paidVia: { card: "card", transfer: "transfer / offline" },
       priceList: "price-list amount - check the draft",
+      priceListNet: "net list price + VAT at the default rate - check the rate in the draft",
+      buyerMismatch:
+        "The selected orders carry invoice requests from different buyers - issue separate invoices.",
       requested: "Buyer request",
       hasInvoice: "Invoice {{number}}",
       hasDraft: "Invoice draft",
@@ -446,6 +486,11 @@ export const adminEventInvoicesEn = {
       cancelConfirm: "Cancel document",
       keep: "Keep",
       actionsFor: "Actions for document {{number}}",
+      correctionHint: {
+        source_closed: "Needs a credit note: order cancelled or refunded",
+        refunded: "Needs a credit note: payment refunded after issue",
+        seats_reduced: "Needs a credit note: fewer seats than invoiced",
+      },
     },
     kinds: { invoice: "Invoice", proforma: "Pro forma", correction: "Credit note" },
     statuses: { draft: "Draft", issued: "Issued", cancelled: "Cancelled" },
@@ -522,6 +567,8 @@ export const adminEventInvoicesEn = {
       lineQuantity: "New quantity ({{description}})",
       lineUnitGross: "New unit gross ({{description}})",
       lineVatRate: "New VAT rate ({{description}})",
+      currentStateHint:
+        "Quantities and prices include the credit notes issued earlier for this invoice.",
       create: "Create credit note draft",
       creating: "Creating…",
       cancel: "Cancel",
@@ -619,6 +666,8 @@ export const adminEventInvoicesEn = {
       sourceNotFound: "The order does not belong to this event.",
       sourceNotLead: "The invoice is issued for the group lead's registration.",
       sourceNotInvoiceable: "The order is cancelled, free or refunded.",
+      sourcePlanTicket:
+        "A membership plan ticket covers this seat - nobody paid for it, so there is nothing to invoice.",
       alreadyInvoiced: "This order already has an active invoice.",
       currencyMismatch: "Orders of one document must share one currency (PLN or EUR).",
       requestNotFound: "There is no pending buyer request for these orders.",
@@ -664,6 +713,19 @@ export const adminEventInvoicesEn = {
       invalidKsefStatus: "Unknown KSeF status.",
       ksefNumberRequired: "An accepted document needs the KSeF number.",
       invalidKsefNumber: "The KSeF number can have at most 64 characters.",
+      sourceChanged:
+        "An order changed after the draft was made (e.g. it was paid by card or partly refunded) - cancel the draft and create it again.",
+      buyerMismatch:
+        "The orders carry invoice requests from different buyers - issue separate invoices.",
+      operatorInvoiceEnabled:
+        "Stripe already issues the invoice for card-paid orders (invoice creation in the checkout settings) - you cannot issue a second VAT invoice.",
+      billingPlaneUnknown:
+        "The checkout settings changed after this card order - it cannot be confirmed who the seller was, so the organizer cannot invoice it.",
+      correctionInconsistent:
+        "The credit note does not match the current state of the invoice (after earlier credit notes) - cancel the draft and create the credit note again.",
+      correctionUseFull: "This credit note reverses the whole invoice - choose a full credit note.",
+      correctionNotLatest:
+        "Only the most recently issued credit note of this invoice can be cancelled.",
     },
   },
 } as const;

@@ -6,10 +6,17 @@
 // sprawdza, ze zapis albo zamowienie pakietu nalezy do wolajacego, i ona
 // pilnuje terminu prosby (do konca trzeciego miesiaca po miesiacu zaplaty).
 // Modul nie importuje niczego z panelu - trafia do publicznego pakietu
-// (krok platnosci, zakup pakietu, profil).
+// (krok platnosci, zakup pakietu, bilet, profil).
+//
+// PARSER DOKUMENTU PRZYCHODZI `import()`-EM, W CHWILI POBRANIA. Ten plik jedzie
+// statycznie na krokach platnosci i zakupu pakietu (prosba o fakture), gdzie
+// migawka dokumentu nie jest potrzebna nigdy. Statyczny import
+// `eventInvoiceDocument` dokladal jego parser do tych chunkow; teraz laduje go
+// wylacznie `fetchMyInvoice` (klik „Pobierz PDF" w profilu).
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
-import { parseInvoiceDocument, type EventInvoiceDocument } from "@/lib/events/eventInvoiceDocument";
+import type { EventInvoiceDocument } from "@/lib/events/eventInvoiceDocument";
+import { jsonBool, jsonRecord } from "@/lib/events/eventInvoiceJson";
 import { buyerDraftToPayload, type InvoiceBuyerDraft } from "@/lib/events/eventInvoiceBuyerDraft";
 
 type Fns = Database["public"]["Functions"];
@@ -17,10 +24,15 @@ type Fns = Database["public"]["Functions"];
 /** Kolumny oddawane jako NULL, ktore generator typuje jako wartosc (jak w `eventInvoicesApi.ts`). */
 type WithNullable<T, K extends keyof T> = Omit<T, K> & { [P in K]: T[P] | null };
 
-/** Prosba i faktura to LEFT JOIN-y; nieoplacone zamowienie nie ma daty zaplaty ani terminu prosby. */
+/**
+ * Prosba i faktura to LEFT JOIN-y; nieoplacone zamowienie nie ma daty zaplaty
+ * ani terminu prosby; `request_block` jest NULL, gdy prosic mozna, a prosba
+ * INNEGO konta przychodzi bez swoich danych (same NULL-e).
+ */
 export type MyInvoiceSourceRow = WithNullable<
   Fns["event_my_invoice_sources"]["Returns"][number],
   | "paid_at"
+  | "request_block"
   | "request_deadline"
   | "request_id"
   | "request_status"
@@ -58,9 +70,34 @@ export async function fetchMyInvoices(): Promise<MyInvoiceRow[]> {
 export async function fetchMyInvoice(id: string): Promise<EventInvoiceDocument> {
   const { data, error } = await supabase.rpc("event_my_invoice", { p_id: id });
   if (error) throw new Error(error.message);
+  const { parseInvoiceDocument } = await import("@/lib/events/eventInvoiceDocument");
   const doc = parseInvoiceDocument(data);
   if (doc === null) throw new Error("unknown: document response is not readable");
   return doc;
+}
+
+/**
+ * Czy organizator w ogole przyjmuje prosby i kto fakturuje platnosc karta
+ * (`event_invoice_public_options`) - zanim kupujacy wpisze dane firmy.
+ */
+export interface InvoicePublicOptions {
+  /** Organizator potwierdzil dane wystawcy. */
+  enabled: boolean;
+  /** Platnosc karta moze dostac fakture organizatora. */
+  cardInvoiceable: boolean;
+  /** Za platnosc karta dokument wystawia operator platnosci (albo Stripe). */
+  cardOperatorInvoice: boolean;
+}
+
+export async function fetchInvoicePublicOptions(): Promise<InvoicePublicOptions> {
+  const { data, error } = await supabase.rpc("event_invoice_public_options");
+  if (error) throw new Error(error.message);
+  const row = jsonRecord(data);
+  return {
+    enabled: jsonBool(row.enabled),
+    cardInvoiceable: jsonBool(row.card_invoiceable),
+    cardOperatorInvoice: jsonBool(row.card_operator_invoice),
+  };
 }
 
 export type InvoiceRequestTarget = { registrationId: string } | { packageOrderId: string };

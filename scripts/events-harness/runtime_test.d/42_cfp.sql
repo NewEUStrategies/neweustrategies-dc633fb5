@@ -2,7 +2,7 @@
 -- 42_cfp - NABOR PRELEGENTOW: ZGLOSZENIE, OCENA, DECYZJA, PRZYJECIE, PANEL
 --
 -- PO CO TEN PLIK ISTNIEJE
--- Migracja 20260926100000_event_cfp.sql stawia siedem tabel i kilkadziesiat
+-- Migracja 20260927000100_event_cfp.sql stawia siedem tabel i kilkadziesiat
 -- funkcji na czterech plaszczyznach (panel, tresc, wlasna, recenzent).
 -- Bramki tekstowe widza tylko KSZTALT tych funkcji. To, czy recenzent nie
 -- ocenia wlasnego zgloszenia, czy ocena w ciemno naprawde ukrywa tozsamosc,
@@ -19,19 +19,31 @@
 --       PATCH po obecnosci klucza, fazy liczone zegarem bazy;
 --   (d) pytania formularza: klucz, typ, etykiety, opcje, kolejnosc;
 --   (e) strona publiczna: szkic naboru nic nie zdradza, obcy host nic nie widzi;
---   (f) zgloszenie: kartoteka po koncie, odpowiedzi, wspolprelegenci, limit,
---       zamkniety nabor, walidacja wyslania, zdarzenie domenowe, CRM;
+--   (f) zgloszenie: kartoteka po koncie, zgody wylacznie z jawnego zaznaczenia
+--       (przetwarzanie wymagane, marketing bez udawanego wycofania, wycofane
+--       zgody nie wracaja), odpowiedzi, wspolprelegenci, limit, zamkniety
+--       nabor, walidacja wyslania, zdarzenie domenowe, CRM;
 --   (g) recenzent: czlonkostwo, zakres sciezek, ocena w ciemno, wlasne
 --       zgloszenie wykluczone, walidacja oceny, pierwsza ocena -> under_review;
 --   (h) panel: lista bez szkicow, agregaty, szczegol, liczniki;
 --   (i) decyzja: notatka przy odrzuceniu, poprawki -> ponowne wyslanie, CRM
 --       tylko wzbogaca i nie dostaje notatki;
---   (j) przyjecie: rejestr prelegentow, kartoteka wspolprelegenta, grupa,
---       zapis, szkic sesji z obsada, CRM speaker, kolizja sali cofa wszystko;
---   (k) odpowiedz prelegenta, panel prelegenta, profil, materialy;
+--   (j) przyjecie: nakladki BEZ wpisu na publiczna liste, kartoteka
+--       wspolprelegenta bez stempla zgody, grupa, zapis, szkic sesji z obsada,
+--       CRM speaker, kolizja sali cofa wszystko;
+--   (k) odpowiedz prelegenta (potwierdzenie = wpis na liste), panel
+--       prelegenta, profil, materialy i ich publiczny odczyt;
 --   (l) powiadomienia, wycofanie, recenzent z ocenami tylko dezaktywowany;
 --   (m) RLS przez SET ROLE i izolacja najemcow;
---   (n) eksport RODO wolajacego: zakres i wylaczenia.
+--   (n) eksport RODO wolajacego: zakres i wylaczenia, wspolprelegent po
+--       adresie konta;
+--   (o) cofniecie skutkow przyjecia (wycofanie, rezygnacja, cofniecie przez
+--       organizatora, dwa przyjecia jednej osoby), srednia z co najmniej
+--       dwoch ocen, nowa decyzja kasuje blad wysylki;
+--   (p) cofniecie przyjecia a uczestnictwo: zwolnione miejsce awansuje
+--       rezerwe (z nowym powiadomieniem), konto prelegenta traci zapisy na
+--       sesje (awans kolejki sesji), zakladki i RSVP; bilet przekazany innej
+--       osobie nie jest anulowany ani przekazywany drugiemu przyjeciu.
 --
 -- CZEGO NIE SPRAWDZA: wysylki poczty (funkcje serwerowe - testy vitest).
 --
@@ -90,7 +102,40 @@ ALTER TABLE public.speaker_profiles
   ADD COLUMN IF NOT EXISTS topics_pl text[] NOT NULL DEFAULT '{}',
   ADD COLUMN IF NOT EXISTS topics_en text[] NOT NULL DEFAULT '{}',
   ADD COLUMN IF NOT EXISTS languages text[] NOT NULL DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS talks_count integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS rating numeric(2,1) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS reviews_count integer NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS crm_lead_id uuid;
+
+-- `event_speakers_public` (publiczna lista prelegentow - dowod, ze przyjecie
+-- NIE oglasza prelegenta, a rezygnacja go zdejmuje) czyta trzy obiekty huba
+-- ekspertow. Ksztalt przepisany 1:1 z 40_speakers.sql (tam opis zrodel);
+-- `IF NOT EXISTS`, bo transakcja i tak konczy sie ROLLBACK-iem.
+CREATE TABLE IF NOT EXISTS public.author_profiles (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  avatar_url text,
+  job_title text,
+  company text,
+  is_public boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS public.event_speakers (
+  event_id uuid NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  sort_order integer NOT NULL DEFAULT 0,
+  PRIMARY KEY (event_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS public.profile_badges (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  badge text NOT NULL CHECK (badge IN ('verified', 'expert', 'contributor', 'staff')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, user_id, badge)
+);
 
 -- ---------------------------------------------------------------------------
 -- SCENOGRAFIA
@@ -539,20 +584,35 @@ BEGIN
     'auth_required', '42/(f): anonim nie ma listy zgloszen');
 
   PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000051');
+  -- Zgoda na przetwarzanie danych TYLKO z jawnego zaznaczenia (jak event_register):
+  -- brak pola, napis "true" i falsz sa odmowa - i nic nie zostaje w kartotece.
   PERFORM pg_temp.assert_raises_like(
-    $$SELECT public.event_cfp_submission_save('{"slug":"cfp-42"}')$$,
+    $$SELECT public.event_cfp_submission_save('{"slug":"cfp-42","speaker":{"first_name":"Piotr","last_name":"Prelegent"}}')$$,
+    'consent_required', '42/(f): zapis bez zgody na przetwarzanie danych odrzucony');
+  PERFORM pg_temp.assert_raises_like(
+    $$SELECT public.event_cfp_submission_save('{"slug":"cfp-42","speaker":{"first_name":"Piotr","last_name":"Prelegent","consent_data_processing":"true"}}')$$,
+    'consent_required', '42/(f): zgoda jako napis (nie jawne zaznaczenie) odrzucona');
+  PERFORM pg_temp.assert_raises_like(
+    $$SELECT public.event_cfp_submission_save('{"slug":"cfp-42","speaker":{"first_name":"Piotr","last_name":"Prelegent","consent_data_processing":false}}')$$,
+    'consent_required', '42/(f): odmowa zgody odrzucona');
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.event_people p WHERE p.user_id = '42a00000-0000-0000-0000-000000000051'),
+    '42/(f): odmowa zgody nie zaklada kartoteki (zadnego wymyslonego stempla)');
+  PERFORM pg_temp.assert_raises_like(
+    $$SELECT public.event_cfp_submission_save('{"slug":"cfp-42","speaker":{"consent_data_processing":true}}')$$,
     'invalid_name', '42/(f): pierwsze zgloszenie bez imienia i nazwiska odrzucone');
   PERFORM pg_temp.assert_raises_like(
     $$SELECT public.event_cfp_submission_save('{"slug":"cfp-42-szkic","speaker":{"first_name":"Piotr","last_name":"Prelegent"}}')$$,
     'not_found', '42/(f): wydarzenie nieopublikowane nie przyjmuje zgloszen');
   PERFORM pg_temp.assert_raises_like(
-    format($$SELECT public.event_cfp_submission_save('{"slug":"cfp-42","speaker":{"first_name":"%s","last_name":"P"}}')$$, repeat('x', 81)),
+    format($$SELECT public.event_cfp_submission_save('{"slug":"cfp-42","speaker":{"first_name":"%s","last_name":"P","consent_data_processing":true}}')$$, repeat('x', 81)),
     'invalid_speaker', '42/(f): zbyt dlugie imie odrzucone nazwanym bledem');
 
   v := public.event_cfp_submission_save(jsonb_build_object(
     'slug', 'cfp-42',
     'speaker', jsonb_build_object('first_name', 'Piotr', 'last_name', 'Prelegent',
-      'job_title', 'Analityk', 'company_text', 'Instytut', 'consent_marketing', true),
+      'job_title', 'Analityk', 'company_text', 'Instytut', 'consent_marketing', true,
+      'consent_data_processing', true),
     'title_pl', 'Transformacja energetyczna', 'talk_language', 'pl', 'notify_lang', 'en',
     'format_key', 'talk', 'track_id', '42700000-0000-0000-0000-000000000071',
     'topics', jsonb_build_array(' energia ', 'OZE', ' '),
@@ -571,7 +631,7 @@ BEGIN
         AND p.source = 'self_registration' AND p.consent_data_processing_at IS NOT NULL
         AND p.consent_marketing_at IS NOT NULL AND p.job_title = 'Analityk'
        FROM public.event_people p WHERE p.id = v_person),
-    '42/(f): kartoteka zglaszajacego: konto, adres KONTA, stempel przetwarzania, zgoda z zaznaczenia');
+    '42/(f): kartoteka zglaszajacego: konto, adres KONTA, stempel przetwarzania i marketingu z JAWNEGO zaznaczenia');
   PERFORM pg_temp.assert(
     (SELECT s.duration_min = 30 AND s.topics = ARRAY['energia', 'OZE'] AND s.notify_lang = 'en'
         AND s.answers = '{"poziom":"zaawansowany","nagranie":true}'::jsonb
@@ -644,6 +704,22 @@ BEGIN
   PERFORM public.event_cfp_submission_save(jsonb_build_object('id', v_sub,
     'answers', jsonb_build_object('doswiadczenie', 'Dziesiec lat w branzy.', 'poziom', 'zaawansowany', 'nagranie', true)));
 
+  -- Brak zaznaczenia zgody marketingowej NIE jest jej wycofaniem (formularz
+  -- nigdy nie podpowiada zaznaczenia i mowi to wprost) - stempel zostaje.
+  PERFORM public.event_cfp_submission_save(jsonb_build_object('id', v_sub,
+    'speaker', jsonb_build_object('consent_data_processing', true, 'consent_marketing', false)));
+  PERFORM pg_temp.assert(
+    (SELECT p.consent_marketing_at IS NOT NULL AND p.consent_withdrawn_at IS NULL
+       FROM public.event_people p WHERE p.id = v_person),
+    '42/(f): pole marketingowe bez zaznaczenia nie udaje wycofania zgody');
+
+  PERFORM pg_temp.assert_raises_like(
+    format($$SELECT public.event_cfp_submission_save('{"id":"%s","speaker":{"job_title":"Bez zgody"}}')$$, v_sub),
+    'consent_required', '42/(f): zmiana danych prelegenta bez zgody odrzucona');
+  PERFORM pg_temp.assert(
+    (SELECT p.job_title = 'Analityk' FROM public.event_people p WHERE p.id = v_person),
+    '42/(f): odrzucona zmiana nie dotknela kartoteki');
+
   PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000052');
   PERFORM pg_temp.assert_raises_like(
     format($$SELECT public.event_cfp_submission_submit('{"id":"%s"}')$$, v_sub),
@@ -686,11 +762,12 @@ BEGIN
     'not_editable', '42/(f): powtorne wyslanie odrzucone');
 
   -- Drugie zgloszenie: limit 2 na osobe.
-  v := public.event_cfp_submission_save(jsonb_build_object('slug', 'cfp-42', 'title_en', 'Second talk'));
+  v := public.event_cfp_submission_save(jsonb_build_object('slug', 'cfp-42', 'title_en', 'Second talk',
+    'speaker', jsonb_build_object('consent_data_processing', true)));
   v_sub2 := (v->>'id')::uuid;
   INSERT INTO t42 VALUES ('sub2', v_sub2);
   PERFORM pg_temp.assert_raises_like(
-    $$SELECT public.event_cfp_submission_save('{"slug":"cfp-42","title_en":"Third"}')$$,
+    $$SELECT public.event_cfp_submission_save('{"slug":"cfp-42","title_en":"Third","speaker":{"consent_data_processing":true}}')$$,
     'limit_reached', '42/(f): trzecie zgloszenie ponad limit 2 odrzucone');
   PERFORM public.event_cfp_submission_save(jsonb_build_object('id', v_sub2,
     'abstract_en', 'A second talk about energy markets.',
@@ -721,15 +798,34 @@ BEGIN
   -- Zgloszenie innego uzytkownika (kolejka recenzenta, odrzucenie).
   PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000052');
   v := public.event_cfp_submission_save(jsonb_build_object('slug', 'cfp-42',
-    'speaker', jsonb_build_object('first_name', 'Irena', 'last_name', 'Inna'),
+    'speaker', jsonb_build_object('first_name', 'Irena', 'last_name', 'Inna', 'consent_data_processing', true),
     'title_pl', 'Finanse publiczne', 'abstract_pl', 'Budzet, dlug i inwestycje w regionie.',
     'format_key', 'talk', 'track_id', '42700000-0000-0000-0000-000000000072',
     'answers', jsonb_build_object('doswiadczenie', 'Tak.', 'nagranie', true)));
   INSERT INTO t42 VALUES ('sub3', (v->>'id')::uuid);
   PERFORM public.event_cfp_submission_submit(jsonb_build_object('id', (v->>'id')::uuid));
   -- I jej szkic (niewidoczny w panelu).
-  v := public.event_cfp_submission_save(jsonb_build_object('slug', 'cfp-42', 'title_pl', 'Szkic'));
+  v := public.event_cfp_submission_save(jsonb_build_object('slug', 'cfp-42', 'title_pl', 'Szkic',
+    'speaker', jsonb_build_object('consent_data_processing', true)));
   INSERT INTO t42 VALUES ('draft3', (v->>'id')::uuid);
+
+  -- Osoba, ktora WYCOFALA zgody: zaznaczenie marketingu w formularzu naboru
+  -- jej nie wskrzesza i NIE kasuje stempla wycofania (ten dotyczy wszystkich
+  -- zgod naraz - skasowanie ozywiloby tez zgode na przekazanie partnerom).
+  SELECT s.person_id INTO v_person FROM public.event_cfp_submissions s WHERE s.id = (v->>'id')::uuid;
+  UPDATE public.event_people p
+     SET consent_partner_sharing_at = now() - interval '2 days', consent_withdrawn_at = now() - interval '1 day'
+   WHERE p.id = v_person;
+  PERFORM public.event_cfp_submission_save(jsonb_build_object('id', (v->>'id')::uuid,
+    'speaker', jsonb_build_object('consent_data_processing', true, 'consent_marketing', true)));
+  PERFORM pg_temp.assert(
+    (SELECT p.consent_marketing_at IS NULL AND p.consent_withdrawn_at IS NOT NULL
+       FROM public.event_people p WHERE p.id = v_person),
+    '42/(f): wycofane zgody zostaja wycofane - zaznaczenie marketingu ich nie ozywia');
+  v := public.event_my_cfp_submissions('cfp-42');
+  PERFORM pg_temp.assert(
+    (v->'person'->>'consents_withdrawn')::boolean AND NOT (v->'person'->>'consent_marketing')::boolean,
+    '42/(f): formularz wie o wycofanych zgodach (i nie pokaze pola, ktorego nie da sie uszanowac)');
 END
 $do$;
 
@@ -1020,7 +1116,7 @@ BEGIN
       WHERE (i->>'id')::uuid = v_sub2) = 'Dodaj polski tytul.',
     '42/(i): prelegent widzi prosbe o poprawki');
   PERFORM public.event_cfp_submission_save(jsonb_build_object('id', v_sub2, 'title_pl', 'Drugi wyklad',
-    'speaker', jsonb_build_object('job_title', 'Starszy analityk')));
+    'speaker', jsonb_build_object('job_title', 'Starszy analityk', 'consent_data_processing', true)));
   PERFORM pg_temp.assert(
     (SELECT sp.job_title = 'Starszy analityk' FROM public.event_cfp_submission_speakers sp
       WHERE sp.submission_id = v_sub2 AND sp.is_primary),
@@ -1107,15 +1203,27 @@ BEGIN
     '42/(j): przyjecie: dwoch wystepujacych w rejestrze, dwa zapisy');
   PERFORM pg_temp.assert(
     (SELECT sp.person_id = v_person FROM public.speaker_profiles sp WHERE sp.id = v_profile)
-    AND EXISTS (SELECT 1 FROM public.event_speaker_entries en
-                 WHERE en.event_id = '42e00000-0000-0000-0000-0000000000e1' AND en.speaker_profile_id = v_profile),
-    '42/(j): nakladka osoby zglaszajacego w TYM SAMYM rejestrze prelegentow');
+    AND NOT EXISTS (SELECT 1 FROM public.event_speaker_entries en
+                     WHERE en.event_id = '42e00000-0000-0000-0000-0000000000e1'),
+    '42/(j): przyjecie zaklada nakladke osoby, ale NIE oglasza prelegenta (lista dopiero po potwierdzeniu)');
+  PERFORM pg_temp.act_as();
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.event_speakers_public(jsonb_build_object('slug', 'cfp-42'))) = 0,
+    '42/(j): przed potwierdzeniem publiczna lista prelegentow jest pusta');
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111');
+  PERFORM pg_temp.assert(
+    (SELECT count(*) = 2
+            AND count(*) FILTER (WHERE sp.speaker_profile_id IS NOT NULL AND sp.added_group_id IS NOT NULL
+                                   AND sp.added_registration_id IS NOT NULL AND sp.added_roster_entry_id IS NULL) = 2
+       FROM public.event_cfp_submission_speakers sp WHERE sp.submission_id = v_sub1),
+    '42/(j): wiersze wystepujacych pamietaja nakladke, dopisana grupe i utworzony zapis');
   SELECT sp.person_id INTO v_co FROM public.event_cfp_submission_speakers sp
    WHERE sp.submission_id = v_sub1 AND NOT sp.is_primary;
   PERFORM pg_temp.assert(
     (SELECT p.source = 'organizer' AND p.email_norm = 'wspolprelegent@example.org' AND p.consent_marketing_at IS NULL
+        AND p.consent_data_processing_at IS NULL
        FROM public.event_people p WHERE p.id = v_co),
-    '42/(j): kartoteka wspolprelegenta powstaje DOPIERO przy przyjeciu, bez zgody marketingowej');
+    '42/(j): kartoteka wspolprelegenta powstaje DOPIERO przy przyjeciu, BEZ zadnego stempla zgody');
   PERFORM pg_temp.assert(
     (SELECT count(*) FROM public.event_group_members m
       JOIN public.event_groups g ON g.id = m.group_id
@@ -1161,8 +1269,11 @@ BEGIN
     format($$SELECT public.admin_event_cfp_submission_accept('{"id":"%s"}')$$, v_sub1),
     'invalid_transition', '42/(j): powtorne przyjecie odrzucone');
   PERFORM pg_temp.assert_raises_like(
-    format($$SELECT public.admin_event_cfp_submission_decide('{"id":"%s","status":"rejected","decision_note":"Jednak nie"}')$$, v_sub1),
-    'invalid_transition', '42/(j): przyjetego nie da sie odrzucic decyzja');
+    format($$SELECT public.admin_event_cfp_submission_decide('{"id":"%s","status":"under_review"}')$$, v_sub1),
+    'invalid_transition', '42/(j): przyjete wraca najwyzej na rezerwe albo do odrzucenia, nie do oceny');
+  PERFORM pg_temp.assert_raises_like(
+    format($$SELECT public.admin_event_cfp_submission_decide('{"id":"%s","status":"changes_requested"}')$$, v_sub1),
+    'invalid_transition', '42/(j): po przyjeciu nie ma prosby o poprawki');
 
   -- Drugie przyjecie tej samej osoby: ta sama nakladka, bez sesji i bez zapisu.
   v := public.admin_event_cfp_submission_accept(jsonb_build_object('id', v_sub2, 'register', false));
@@ -1171,9 +1282,9 @@ BEGIN
     AND (v->>'speaker_profile_id')::uuid = v_profile,
     '42/(j): drugie przyjecie tej samej osoby: ta sama nakladka, bez sesji i bez zapisu');
   PERFORM pg_temp.assert(
-    (SELECT count(*) FROM public.event_speaker_entries en
-      WHERE en.event_id = '42e00000-0000-0000-0000-0000000000e1' AND en.speaker_profile_id = v_profile) = 1,
-    '42/(j): wpis rejestru nie dubluje sie przy drugim przyjeciu');
+    (SELECT sp.speaker_profile_id = v_profile AND sp.added_group_id IS NULL AND sp.added_registration_id IS NULL
+       FROM public.event_cfp_submission_speakers sp WHERE sp.submission_id = v_sub2 AND sp.is_primary),
+    '42/(j): drugie przyjecie nie przypisuje sobie grupy ani zapisu, ktore juz istnialy');
 END
 $do$;
 
@@ -1188,6 +1299,7 @@ DECLARE
   v_profile uuid := (SELECT id FROM t42 WHERE name = 'profile1');
   v_session uuid := (SELECT id FROM t42 WHERE name = 'session1');
   v_mat uuid;
+  v_org_mat uuid;
 BEGIN
   PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000052');
   PERFORM pg_temp.assert_raises_like(
@@ -1220,6 +1332,19 @@ BEGIN
     AND EXISTS (SELECT 1 FROM public.domain_events d WHERE d.event_type = 'event_cfp_submission.confirmed.v1'
                  AND d.aggregate_id = v_sub1::text AND d.payload->>'status' = 'confirmed'),
     '42/(k): potwierdzenie udzialu ze stemplem i zdarzeniem domenowym');
+  PERFORM pg_temp.assert(
+    (SELECT count(*) = 2
+            AND count(*) FILTER (WHERE sp.added_roster_entry_id = en.id) = 2
+       FROM public.event_cfp_submission_speakers sp
+       JOIN public.event_speaker_entries en
+         ON en.speaker_profile_id = sp.speaker_profile_id AND en.event_id = '42e00000-0000-0000-0000-0000000000e1'
+      WHERE sp.submission_id = v_sub1),
+    '42/(k): potwierdzenie wpisuje OBU wystepujacych na liste prelegentow i zapamietuje wpisy');
+  PERFORM pg_temp.act_as();
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.event_speakers_public(jsonb_build_object('slug', 'cfp-42'))) = 2,
+    '42/(k): po potwierdzeniu prelegenci sa na publicznej liscie');
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000051');
 
   v := public.event_my_speaker_panel('cfp-42');
   PERFORM pg_temp.assert(
@@ -1235,10 +1360,10 @@ BEGIN
     jsonb_array_length(v->'items') = 2 AND v->'person'->>'first_name' = 'Piotr'
     AND (v->'person'->>'consent_marketing')::boolean
     AND (SELECT i->>'feedback_to_speaker' = 'Gratulacje!' AND (i->'review_summary'->>'reviews_count')::int = 1
-                AND (i->'review_summary'->>'overall_avg')::numeric = 5
+                AND i->'review_summary'->'overall_avg' = 'null'::jsonb
            FROM jsonb_array_elements(v->'items') i WHERE (i->>'id')::uuid = v_sub1)
     AND v::text NOT LIKE '%Mocny temat%' AND v::text NOT LIKE '%Skroc wstep%' AND v::text NOT LIKE '%Swietny temat%',
-    '42/(k): moje zgloszenia: informacja zwrotna i ZAGREGOWANA ocena - bez komentarzy recenzentow i notatki');
+    '42/(k): moje zgloszenia: informacja zwrotna i liczba ocen; srednia z JEDNEJ oceny ukryta (to ocena jednego recenzenta); bez komentarzy i notatki');
   PERFORM pg_temp.assert(public.event_my_cfp_submissions('cfp-42-szkic') IS NULL,
     '42/(k): lista zgloszen nieopublikowanego wydarzenia = NULL');
 
@@ -1292,6 +1417,50 @@ BEGIN
     '42/(k): publikacja zwraca nowy stan');
   PERFORM pg_temp.assert((SELECT m.is_published AND m.published_at IS NOT NULL FROM public.event_speaker_materials m WHERE m.id = v_mat),
     '42/(k): organizator publikuje material');
+
+  -- Publikacja ma skutek: strona wydarzenia czyta opublikowane materialy.
+  INSERT INTO public.event_speaker_materials (tenant_id, event_id, speaker_profile_id, kind, title_pl, url,
+    visibility, is_published, published_at)
+  VALUES ('11111111-1111-1111-1111-111111111111', '42e00000-0000-0000-0000-0000000000e1', v_profile,
+          'document', 'Dla zapisanych', 'https://example.org/zapisani.pdf', 'registered', true, now()),
+         ('11111111-1111-1111-1111-111111111111', '42e00000-0000-0000-0000-0000000000e1', v_profile,
+          'link', 'Szkic', 'https://example.org/szkic', 'public', false, NULL);
+  INSERT INTO public.event_speaker_materials (tenant_id, event_id, speaker_profile_id, kind, title_pl, url, visibility)
+  VALUES ('11111111-1111-1111-1111-111111111111', '42e00000-0000-0000-0000-0000000000e1', v_profile,
+          'link', 'Wewnetrzny', 'https://example.org/wewnetrzny', 'organizers')
+  RETURNING id INTO v_org_mat;
+  PERFORM pg_temp.assert_raises_like(
+    format($$SELECT public.admin_event_cfp_material_publish('{"id":"%s","is_published":true}')$$, v_org_mat),
+    'invalid_visibility', '42/(k): materialu tylko dla organizatorow nie da sie opublikowac');
+  PERFORM pg_temp.assert(NOT public.admin_event_cfp_material_publish(jsonb_build_object('id', v_org_mat, 'is_published', false)),
+    '42/(k): zdjecie publikacji z materialu dla organizatorow dziala (stan bezpieczny)');
+
+  PERFORM pg_temp.act_as();
+  PERFORM pg_temp.assert(
+    (SELECT count(*) = 1 AND bool_and(pm.id = v_mat AND pm.visibility = 'public' AND pm.speaker_profile_id = v_profile
+                                       AND pm.session_id = v_session AND pm.url = 'https://example.org/slajdy.pdf')
+       FROM public.event_speaker_materials_public('42e00000-0000-0000-0000-0000000000e1') pm),
+    '42/(k): anonim widzi TYLKO opublikowany material publiczny (bez rejestrowanego, szkicu i wewnetrznego)');
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000052');
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.event_speaker_materials_public('42e00000-0000-0000-0000-0000000000e1')) = 1,
+    '42/(k): zalogowany bez zatwierdzonego zapisu nie widzi materialu dla zapisanych');
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000051');
+  PERFORM pg_temp.assert(
+    (SELECT count(*) = 2 AND count(*) FILTER (WHERE pm.visibility = 'registered') = 1
+       FROM public.event_speaker_materials_public('42e00000-0000-0000-0000-0000000000e1') pm),
+    '42/(k): osoba z zatwierdzonym zapisem widzi takze material dla zapisanych');
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.event_speaker_materials_public('42e00000-0000-0000-0000-0000000000e2'))
+    AND NOT EXISTS (SELECT 1 FROM public.event_speaker_materials_public('42000000-0000-0000-0000-00000000dead')),
+    '42/(k): wydarzenie nieopublikowane albo nieznane nie oddaje materialow');
+  PERFORM set_config('nes.public_tenant', '42000000-0000-0000-0000-0000000000b0', false);
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.event_speaker_materials_public('42e00000-0000-0000-0000-0000000000e1')),
+    '42/(k): host najemcy B nie czyta materialow wydarzenia najemcy A');
+  PERFORM set_config('nes.public_tenant', '', false);
+  DELETE FROM public.event_speaker_materials m WHERE m.id <> v_mat AND m.speaker_profile_id = v_profile;
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111');
   PERFORM pg_temp.assert_raises_like(
     format($$SELECT public.admin_event_cfp_material_publish('{"id":"%s"}')$$, v_mat),
     'invalid_payload', '42/(k): publikacja bez decyzji tak/nie odrzucona');
@@ -1309,6 +1478,9 @@ BEGIN
     (SELECT NOT m.is_published AND m.published_at IS NULL AND m.url = 'https://example.org/v2.pdf'
        FROM public.event_speaker_materials m WHERE m.id = v_mat),
     '42/(k): zmiana adresu zdejmuje publikacje - wraca do zatwierdzenia');
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.event_speaker_materials_public('42e00000-0000-0000-0000-0000000000e1')),
+    '42/(k): zdjeta publikacja znika ze strony wydarzenia');
 
   PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000052');
   PERFORM pg_temp.assert_raises_like(
@@ -1401,7 +1573,7 @@ BEGIN
   -- Wycofanie przyjetego zwalnia miejsce w limicie (limit 2, dwa zgloszenia).
   PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000051');
   PERFORM pg_temp.assert_raises_like(
-    $$SELECT public.event_cfp_submission_save('{"slug":"cfp-42","title_pl":"Trzecie"}')$$,
+    $$SELECT public.event_cfp_submission_save('{"slug":"cfp-42","title_pl":"Trzecie","speaker":{"consent_data_processing":true}}')$$,
     'limit_reached', '42/(l): przyjete i potwierdzone zgloszenia licza sie do limitu');
   v := public.event_cfp_submission_withdraw(jsonb_build_object('id', v_sub2));
   PERFORM pg_temp.assert(v->>'status' = 'withdrawn'
@@ -1409,10 +1581,19 @@ BEGIN
     AND EXISTS (SELECT 1 FROM public.domain_events d WHERE d.event_type = 'event_cfp_submission.withdrawn.v1'
                  AND d.aggregate_id = v_sub2::text),
     '42/(l): wycofanie przyjetego zgloszenia ze stemplem i zdarzeniem domenowym');
+  PERFORM pg_temp.assert(
+    EXISTS (SELECT 1 FROM public.event_speaker_entries en
+             WHERE en.event_id = '42e00000-0000-0000-0000-0000000000e1'
+               AND en.speaker_profile_id = (SELECT id FROM t42 WHERE name = 'profile1'))
+    AND (SELECT count(*) FROM public.event_registrations r
+          WHERE r.event_id = '42e00000-0000-0000-0000-0000000000e1'
+            AND r.person_id = (SELECT id FROM t42 WHERE name = 'person1') AND r.status = 'approved') = 1,
+    '42/(l): wycofanie drugiego wystapienia nie zdejmuje z listy ani nie anuluje zapisu z POTWIERDZONEGO pierwszego');
   PERFORM pg_temp.assert_raises_like(
     format($$SELECT public.event_cfp_submission_withdraw('{"id":"%s"}')$$, v_sub2),
     'invalid_transition', '42/(l): drugie wycofanie odrzucone');
-  v := public.event_cfp_submission_save(jsonb_build_object('slug', 'cfp-42', 'title_pl', 'Trzecie'));
+  v := public.event_cfp_submission_save(jsonb_build_object('slug', 'cfp-42', 'title_pl', 'Trzecie',
+    'speaker', jsonb_build_object('consent_data_processing', true)));
   PERFORM pg_temp.assert(v->>'status' = 'draft',
     '42/(l): wycofane zgloszenie nie liczy sie do limitu');
 
@@ -1527,9 +1708,13 @@ BEGIN
     AND v_item->>'event_slug' = 'cfp-42' AND v_item->>'track_name_pl' = 'Energia'
     AND v_item->>'feedback_to_speaker' = 'Gratulacje!' AND v_item->>'notify_lang' = 'en'
     AND v_item->'my_roles' = '["speaker"]'::jsonb
-    AND (v_item->'review_summary'->>'reviews_count')::int >= 1
-    AND v_item->'review_summary'->'overall_avg' <> 'null'::jsonb,
-    '42/(n): zgloszenie z trescia, stanem, informacja zwrotna i ocena ZBIORCZA po decyzji');
+    AND (v_item->'review_summary'->>'reviews_count')::int = 1
+    AND v_item->'review_summary'->'overall_avg' = 'null'::jsonb
+    AND v_item->'answers'->>'poziom' = 'zaawansowany'
+    AND jsonb_array_length(v_item->'my_speaker_entries') = 1
+    AND v_item->'my_speaker_entries'->0->>'email' = 'prelegent.jeden@example.org'
+    AND (v_item->'my_speaker_entries'->0->>'is_primary')::boolean,
+    '42/(n): zgloszenie z trescia, odpowiedziami, stanem, informacja zwrotna, wlasnym wierszem i ocena ZBIORCZA (srednia z jednej oceny ukryta)');
   PERFORM pg_temp.assert(
     v_item->'co_speakers' = '[{"first_name":"Wanda","last_name":"Wspol","role":"panelist"}]'::jsonb,
     '42/(n): wspolprelegent tylko imieniem, nazwiskiem i rola - bez adresu e-mail');
@@ -1567,17 +1752,64 @@ BEGIN
   PERFORM pg_temp.assert(position('Piotr' IN v::text) = 0 AND v->'event_cfp_submissions' = '[]'::jsonb,
     '42/(n): eksport recenzenta nie niesie danych prelegenta');
 
+  -- Wspolprelegent z kontem, ZANIM ktokolwiek powiazal kartoteke z kontem:
+  -- rozpoznany po adresie konta wpisanym przez zglaszajacego. Dostaje metadane
+  -- wystapienia i wlasny wiersz - bez odpowiedzi, jezyka poczty, informacji
+  -- zwrotnej i oceny zglaszajacego.
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000063');
+  v := public.event_cfp_export_my_data(100);
+  v_item := v->'event_cfp_submissions'->0;
+  PERFORM pg_temp.assert(
+    jsonb_array_length(v->'event_cfp_submissions') = 1
+    AND v_item->>'title_pl' = 'Transformacja energetyczna'
+    AND NOT (v_item->>'is_submitter')::boolean
+    AND v_item->'my_roles' = '["panelist"]'::jsonb
+    AND v_item->'my_speaker_entries'->0->>'email' = 'wspolprelegent@example.org'
+    AND NOT (v_item ? 'answers') AND NOT (v_item ? 'feedback_to_speaker')
+    AND NOT (v_item ? 'notify_lang') AND NOT (v_item ? 'review_summary')
+    AND position('prelegent.jeden' IN lower(v::text)) = 0,
+    '42/(n): wspolprelegent rozpoznany po adresie konta dostaje swoje dane bez danych zglaszajacego');
+
+  -- Szkic innej osoby z tym samym adresem wspolprelegenta (kartoteki jeszcze
+  -- nie ma w ogole) tez nalezy do paczki - dane o nim juz sa w bazie.
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000052');
+  v := public.event_cfp_submission_save(jsonb_build_object('slug', 'cfp-42', 'title_pl', 'Wspolny szkic',
+    'speaker', jsonb_build_object('consent_data_processing', true),
+    'co_speakers', jsonb_build_array(jsonb_build_object(
+      'first_name', 'Wanda', 'last_name', 'Wspol', 'email', 'WSPOLPRELEGENT@example.org', 'role', 'moderator'))));
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000063');
+  PERFORM pg_temp.assert(
+    EXISTS (SELECT 1 FROM jsonb_array_elements(public.event_cfp_export_my_data(100)->'event_cfp_submissions') e
+             WHERE e->>'title_pl' = 'Wspolny szkic' AND e->'my_roles' = '["moderator"]'::jsonb
+               AND e->>'status' = 'draft'),
+    '42/(n): wspolprelegent bez kartoteki dostaje tez szkic, w ktorym go wpisano');
+
+  -- Adres nie wygrywa z kartoteka INNEGO konta: konto z tym samym adresem,
+  -- ale bez prawa do kartoteki przypietej do 063, nie dostaje zgloszenia sub1.
+  INSERT INTO auth.users (id, email) VALUES ('42a00000-0000-0000-0000-000000000064', 'wspolprelegent@example.org')
+  ON CONFLICT (id) DO NOTHING;
+  INSERT INTO public.profiles (id, tenant_id, display_name, slug) VALUES
+    ('42a00000-0000-0000-0000-000000000064', '11111111-1111-1111-1111-111111111111', 'Sobowtor 42', 'cfp-sobowtor')
+  ON CONFLICT (id) DO NOTHING;
+
   -- Wspolprelegent z kontem, ktorego kartoteka przyjecia jest powiazana z kontem.
   SELECT sp.person_id INTO v_co FROM public.event_cfp_submission_speakers sp
    WHERE sp.submission_id = v_sub1 AND NOT sp.is_primary;
   UPDATE public.event_people p SET user_id = '42a00000-0000-0000-0000-000000000063' WHERE p.id = v_co;
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000064');
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM jsonb_array_elements(public.event_cfp_export_my_data(100)->'event_cfp_submissions') e
+                 WHERE e->>'title_pl' = 'Transformacja energetyczna'),
+    '42/(n): wiersz przypiety do kartoteki innego konta nie trafia do cudzej paczki mimo tego samego adresu');
   PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000063');
   v := public.event_cfp_export_my_data(100);
+  SELECT e INTO v_item FROM jsonb_array_elements(v->'event_cfp_submissions') e
+   WHERE e->>'title_pl' = 'Transformacja energetyczna';
   PERFORM pg_temp.assert(
-    jsonb_array_length(v->'event_cfp_submissions') = 1
-    AND NOT (v->'event_cfp_submissions'->0->>'is_submitter')::boolean
-    AND v->'event_cfp_submissions'->0->'my_roles' = '["panelist"]'::jsonb
-    AND v->'event_cfp_submissions'->0->'co_speakers' = '[{"first_name":"Piotr","last_name":"Prelegent","role":"speaker"}]'::jsonb
+    jsonb_array_length(v->'event_cfp_submissions') = 2
+    AND NOT (v_item->>'is_submitter')::boolean
+    AND v_item->'my_roles' = '["panelist"]'::jsonb
+    AND v_item->'co_speakers' = '[{"first_name":"Piotr","last_name":"Prelegent","role":"speaker"}]'::jsonb
     AND position('prelegent.jeden' IN lower(v::text)) = 0,
     '42/(n): wspolprelegent dostaje zgloszenie ze swoja rola, zglaszajacy bez adresu');
 
@@ -1588,6 +1820,498 @@ BEGIN
     v->'event_cfp_submissions' = '[]'::jsonb AND v->'event_speaker_materials' = '[]'::jsonb
     AND v->'event_cfp_reviewer_roles' = '[]'::jsonb AND v->'event_cfp_reviews_written' = '[]'::jsonb,
     '42/(n): najemca B: pusta paczka, nic z najemcy A');
+  PERFORM pg_temp.act_as();
+END
+$do$;
+
+-- ---------------------------------------------------------------------------
+-- (o) SKUTKI PRZYJECIA: POTWIERDZENIE OGLASZA, REZYGNACJA / WYCOFANIE /
+--     COFNIECIE PRZYJECIA ZDEJMUJA DOKLADNIE TO, CO DODALO PRZYJECIE;
+--     SREDNIA DLA PRELEGENTA Z CO NAJMNIEJ DWOCH OCEN; NOWA DECYZJA KASUJE
+--     BLAD WYSYLKI
+--
+-- Osobne wydarzenie i osobne konta: bramka czestotliwosci z (m) i stan
+-- zgloszen z (f)-(n) nie wplywaja na te dowody.
+-- ---------------------------------------------------------------------------
+INSERT INTO auth.users (id, email) VALUES
+  ('42a00000-0000-0000-0000-000000000071', 'olga@example.org'),
+  ('42a00000-0000-0000-0000-000000000072', 'cezary@example.org'),
+  ('42a00000-0000-0000-0000-000000000073', 'stefan@example.org'),
+  ('42a00000-0000-0000-0000-000000000074', 'rec.trzy@example.org'),
+  ('42a00000-0000-0000-0000-000000000075', 'rec.cztery@example.org'),
+  ('42a00000-0000-0000-0000-000000000076', 'dorota@example.org'),
+  ('42a00000-0000-0000-0000-000000000077', 'ewa@example.org')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.profiles (id, tenant_id, display_name, slug) VALUES
+  ('42a00000-0000-0000-0000-000000000071', '11111111-1111-1111-1111-111111111111', 'Olga 42', 'cfp-olga'),
+  ('42a00000-0000-0000-0000-000000000072', '11111111-1111-1111-1111-111111111111', 'Cezary 42', 'cfp-cezary'),
+  ('42a00000-0000-0000-0000-000000000073', '11111111-1111-1111-1111-111111111111', 'Stefan 42', 'cfp-stefan'),
+  ('42a00000-0000-0000-0000-000000000074', '11111111-1111-1111-1111-111111111111', 'Rec Trzy', 'cfp-rec-3'),
+  ('42a00000-0000-0000-0000-000000000075', '11111111-1111-1111-1111-111111111111', 'Rec Cztery', 'cfp-rec-4'),
+  ('42a00000-0000-0000-0000-000000000076', '11111111-1111-1111-1111-111111111111', 'Dorota 42', 'cfp-dorota'),
+  ('42a00000-0000-0000-0000-000000000077', '11111111-1111-1111-1111-111111111111', 'Ewa 42', 'cfp-ewa')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.events (id, tenant_id, slug, title_pl, title_en, starts_at, ends_at, status) VALUES
+  ('42e00000-0000-0000-0000-0000000000e3', '11111111-1111-1111-1111-111111111111',
+   'cfp-42-o', 'Forum 42', 'Forum 42', now() + interval '40 days', now() + interval '42 days', 'published')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.event_rooms (id, tenant_id, event_id, name) VALUES
+  ('42800000-0000-0000-0000-000000000082', '11111111-1111-1111-1111-111111111111',
+   '42e00000-0000-0000-0000-0000000000e3', 'Sala O')
+ON CONFLICT (id) DO NOTHING;
+
+DO $do$
+DECLARE
+  c_event constant uuid := '42e00000-0000-0000-0000-0000000000e3';
+  v jsonb;
+  v_a uuid;
+  v_b uuid;
+  v_c uuid;
+  v_d1 uuid;
+  v_d2 uuid;
+  v_olga uuid;
+  v_cezary uuid;
+  v_stefan uuid;
+  v_dorota uuid;
+  v_ewa uuid;
+  v_stefan_reg uuid;
+  v_stefan_profile uuid;
+  v_session uuid;
+  v_other_session uuid;
+  v_cezary_profile uuid;
+  v_speakers uuid;
+  v_r3 uuid;
+  v_r4 uuid;
+BEGIN
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111');
+  PERFORM public.admin_event_cfp_settings_save(jsonb_build_object('event_id', c_event, 'status', 'open'));
+  SELECT g.id INTO v_speakers FROM public.event_groups g WHERE g.event_id = c_event AND g.key = 'speakers';
+  v_r3 := public.admin_event_cfp_reviewer_set(jsonb_build_object(
+    'event_id', c_event, 'user_id', '42a00000-0000-0000-0000-000000000074'));
+  v_r4 := public.admin_event_cfp_reviewer_set(jsonb_build_object(
+    'event_id', c_event, 'user_id', '42a00000-0000-0000-0000-000000000075'));
+
+  -- Stefan: JUZ zapisany i JUZ na liscie prelegentow (reczny wpis organizatora).
+  v := public.admin_event_speaker_upsert(jsonb_build_object('event_id', c_event,
+    'first_name', 'Stefan', 'last_name', 'Staly', 'email', 'stefan@example.org'));
+  v_stefan := (v->>'person_id')::uuid;
+  v_stefan_profile := (v->>'speaker_profile_id')::uuid;
+  UPDATE public.event_people p SET user_id = '42a00000-0000-0000-0000-000000000073' WHERE p.id = v_stefan;
+  INSERT INTO public.event_registrations (tenant_id, event_id, person_id, status, registration_mode, source)
+  VALUES ('11111111-1111-1111-1111-111111111111', c_event, v_stefan, 'approved', 'form', 'self_registration')
+  RETURNING id INTO v_stefan_reg;
+
+  -- Olga zglasza wystapienie z Cezarym (konto z adresem wpisanym przez Olge).
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000071');
+  v := public.event_cfp_submission_save(jsonb_build_object('slug', 'cfp-42-o',
+    'speaker', jsonb_build_object('first_name', 'Olga', 'last_name', 'Otwarta', 'consent_data_processing', true),
+    'title_pl', 'Wystapienie A', 'abstract_pl', 'Streszczenie wystapienia A, dluzsze niz dwadziescia znakow.',
+    'co_speakers', jsonb_build_array(jsonb_build_object(
+      'first_name', 'Cezary', 'last_name', 'Cichy', 'email', 'cezary@example.org', 'role', 'moderator'))));
+  v_a := (v->>'id')::uuid;
+  PERFORM public.event_cfp_submission_submit(jsonb_build_object('id', v_a));
+  SELECT s.person_id INTO v_olga FROM public.event_cfp_submissions s WHERE s.id = v_a;
+
+  -- Dwie oceny: po decyzji prelegent widzi srednia (2 >= GREATEST(2, min_reviews)).
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000074');
+  PERFORM public.event_cfp_review_save(jsonb_build_object('submission_id', v_a, 'overall', 4));
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000075');
+  PERFORM public.event_cfp_review_save(jsonb_build_object('submission_id', v_a, 'overall', 5));
+
+  -- Stefan zglasza wystapienie B (jego kartoteka juz istnieje).
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000073');
+  v := public.event_cfp_submission_save(jsonb_build_object('slug', 'cfp-42-o',
+    'speaker', jsonb_build_object('consent_data_processing', true),
+    'title_pl', 'Wystapienie B', 'abstract_pl', 'Streszczenie wystapienia B, dluzsze niz dwadziescia znakow.'));
+  v_b := (v->>'id')::uuid;
+  PERFORM public.event_cfp_submission_submit(jsonb_build_object('id', v_b));
+  PERFORM pg_temp.assert(
+    (SELECT s.person_id = v_stefan FROM public.event_cfp_submissions s WHERE s.id = v_b),
+    '42/(o): zgloszenie Stefana wisi na jego istniejacej kartotece');
+
+  -- NOWA DECYZJA KASUJE BLAD WYSYLKI (decyzja i przyjecie).
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111');
+  PERFORM public.admin_event_cfp_submission_decide(jsonb_build_object('id', v_b, 'status', 'changes_requested'));
+  PERFORM public.admin_event_cfp_mark_notified(jsonb_build_object(
+    'submission_id', v_b, 'status', 'changes_requested', 'error', 'smtp down'));
+  PERFORM public.admin_event_cfp_submission_decide(jsonb_build_object('id', v_b, 'status', 'waitlisted'));
+  PERFORM pg_temp.assert(
+    (SELECT s.notify_error IS NULL AND s.status = 'waitlisted' FROM public.event_cfp_submissions s WHERE s.id = v_b),
+    '42/(o): nowa decyzja kasuje blad wysylki maila o poprzedniej');
+  PERFORM public.admin_event_cfp_mark_notified(jsonb_build_object(
+    'submission_id', v_b, 'status', 'rejected', 'error', 'smtp down again'));
+
+  -- Przyjecie A z sesja i zapisami.
+  v := public.admin_event_cfp_submission_accept(jsonb_build_object('id', v_a,
+    'schedule', jsonb_build_object(
+      'starts_at', now() + interval '40 days 2 hours', 'ends_at', now() + interval '40 days 3 hours',
+      'room_id', '42800000-0000-0000-0000-000000000082')));
+  v_session := (v->>'session_id')::uuid;
+  SELECT sp.person_id, sp.speaker_profile_id INTO v_cezary, v_cezary_profile
+    FROM public.event_cfp_submission_speakers sp WHERE sp.submission_id = v_a AND NOT sp.is_primary;
+  PERFORM pg_temp.assert(
+    (v->>'registrations_created')::int = 2
+    AND NOT EXISTS (SELECT 1 FROM public.event_speaker_entries en
+                     WHERE en.event_id = c_event AND en.speaker_profile_id <> v_stefan_profile),
+    '42/(o): przyjecie tworzy zapisy, ale nikogo nie dopisuje do listy prelegentow');
+
+  -- Stefan: przyjecie B nie dubluje zapisu i nie przypisuje sobie wpisu na liscie.
+  v := public.admin_event_cfp_submission_accept(jsonb_build_object('id', v_b));
+  PERFORM pg_temp.assert(
+    (v->>'registrations_created')::int = 0
+    AND (SELECT s.notify_error IS NULL FROM public.event_cfp_submissions s WHERE s.id = v_b)
+    AND (SELECT sp.added_registration_id IS NULL AND sp.added_group_id = v_speakers
+           FROM public.event_cfp_submission_speakers sp WHERE sp.submission_id = v_b),
+    '42/(o): przyjecie kasuje blad wysylki; istniejacy zapis NIE jest przypisany zgloszeniu, grupa tak');
+
+  -- Potwierdzenia: Olga (A) i Stefan (B).
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000071');
+  PERFORM public.event_cfp_submission_respond(jsonb_build_object('id', v_a, 'confirm', true));
+  PERFORM pg_temp.assert(
+    (SELECT (i->'review_summary'->>'overall_avg')::numeric = 4.5 AND (i->'review_summary'->>'reviews_count')::int = 2
+       FROM jsonb_array_elements(public.event_my_cfp_submissions('cfp-42-o')->'items') i
+      WHERE (i->>'id')::uuid = v_a),
+    '42/(o): srednia z DWOCH ocen po decyzji jest widoczna dla prelegenta');
+  PERFORM pg_temp.assert(
+    (SELECT (e->'review_summary'->>'overall_avg')::numeric = 4.5
+       FROM jsonb_array_elements(public.event_cfp_export_my_data(100)->'event_cfp_submissions') e
+      WHERE e->>'title_pl' = 'Wystapienie A'),
+    '42/(o): ta sama srednia w eksporcie RODO');
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000073');
+  PERFORM public.event_cfp_submission_respond(jsonb_build_object('id', v_b, 'confirm', true));
+  PERFORM pg_temp.assert(
+    (SELECT sp.added_roster_entry_id IS NULL FROM public.event_cfp_submission_speakers sp WHERE sp.submission_id = v_b)
+    AND (SELECT count(*) FROM public.event_speaker_entries en WHERE en.event_id = c_event) = 3,
+    '42/(o): potwierdzenie nie przypisuje sobie wpisu, ktory istnial; na liscie Olga, Cezary i Stefan');
+  PERFORM pg_temp.act_as();
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.event_speakers_public(jsonb_build_object('slug', 'cfp-42-o'))) = 3,
+    '42/(o): publiczna lista po potwierdzeniach');
+
+  -- Organizator recznie obsadza Cezarego w INNEJ sesji: to jego decyzja,
+  -- wycofanie A nie zdejmie Cezarego z listy.
+  INSERT INTO public.event_sessions (tenant_id, event_id, title_pl, title_en, starts_at, ends_at, status)
+  VALUES ('11111111-1111-1111-1111-111111111111', c_event, 'Panel dodatkowy', 'Extra panel',
+          now() + interval '40 days 5 hours', now() + interval '40 days 6 hours', 'published')
+  RETURNING id INTO v_other_session;
+  INSERT INTO public.event_session_speakers (tenant_id, event_id, session_id, speaker_profile_id, role, sort_order)
+  VALUES ('11111111-1111-1111-1111-111111111111', c_event, v_other_session, v_cezary_profile, 'panelist', 10);
+
+  -- WYCOFANIE POTWIERDZONEGO A: zapisy anulowane, grupa, lista i obsada sesji A cofniete.
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000071');
+  v := public.event_cfp_submission_withdraw(jsonb_build_object('id', v_a));
+  PERFORM pg_temp.assert(v->>'status' = 'withdrawn', '42/(o): wycofanie potwierdzonego zgloszenia');
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.event_registrations r
+      WHERE r.event_id = c_event AND r.person_id IN (v_olga, v_cezary)
+        AND r.status = 'cancelled' AND r.cancelled_at IS NOT NULL AND r.qr_token_hash IS NULL
+        AND r.decision_source = 'system') = 2
+    AND (SELECT count(*) FROM public.domain_events d
+          WHERE d.event_type = 'event.registration.decided.v1' AND d.payload->>'action' = 'cancel'
+            AND d.payload->>'person_id' IN (v_olga::text, v_cezary::text)) = 2,
+    '42/(o): zapisy utworzone przy przyjeciu anulowane (bez kodu wejscia) ze zdarzeniem domenowym');
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.event_group_members m
+                 WHERE m.group_id = v_speakers AND m.person_id IN (v_olga, v_cezary)),
+    '42/(o): czlonkostwo w grupie prelegentow cofniete');
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.event_session_speakers ss WHERE ss.session_id = v_session),
+    '42/(o): obsada sesji zgloszenia zdjeta');
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.event_speaker_entries en
+                 JOIN public.speaker_profiles sp ON sp.id = en.speaker_profile_id
+                WHERE en.event_id = c_event AND sp.person_id = v_olga)
+    AND EXISTS (SELECT 1 FROM public.event_speaker_entries en
+                 WHERE en.event_id = c_event AND en.speaker_profile_id = v_cezary_profile),
+    '42/(o): Olga zdjeta z listy; Cezary zostaje, bo organizator obsadzil go w innej sesji');
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.event_cfp_submission_speakers sp
+                 WHERE sp.submission_id = v_a
+                   AND (sp.added_roster_entry_id IS NOT NULL OR sp.added_group_id IS NOT NULL
+                        OR sp.added_registration_id IS NOT NULL)),
+    '42/(o): slad dodanych elementow wyczyszczony po cofnieciu');
+  PERFORM pg_temp.assert(public.event_my_speaker_panel('cfp-42-o')->'profile' = 'null'::jsonb,
+    '42/(o): panel prelegenta po wycofaniu nie oferuje edycji publicznego profilu');
+  PERFORM pg_temp.act_as();
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.event_speakers_public(jsonb_build_object('slug', 'cfp-42-o'))) = 2,
+    '42/(o): publiczna lista bez Olgi');
+
+  -- COFNIECIE PRZYJECIA B przez organizatora: rzeczy sprzed przyjecia zostaja.
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111');
+  PERFORM public.admin_event_cfp_mark_notified(jsonb_build_object(
+    'submission_id', v_b, 'status', 'accepted', 'error', 'smtp down'));
+  v := public.admin_event_cfp_submission_decide(jsonb_build_object('id', v_b, 'status', 'rejected',
+    'decision_note', 'Program sie zmienil.'));
+  PERFORM pg_temp.assert(
+    v->>'status' = 'rejected' AND (v->'undone'->>'group_memberships_removed')::int = 1
+    AND (v->'undone'->>'registrations_cancelled')::int = 0 AND (v->'undone'->>'roster_entries_removed')::int = 0,
+    '42/(o): cofniecie przyjecia raportuje, co cofnelo');
+  PERFORM pg_temp.assert(
+    (SELECT r.status = 'approved' FROM public.event_registrations r WHERE r.id = v_stefan_reg)
+    AND EXISTS (SELECT 1 FROM public.event_speaker_entries en
+                 WHERE en.event_id = c_event AND en.speaker_profile_id = v_stefan_profile)
+    AND NOT EXISTS (SELECT 1 FROM public.event_group_members m WHERE m.group_id = v_speakers AND m.person_id = v_stefan)
+    AND (SELECT s.notify_error IS NULL FROM public.event_cfp_submissions s WHERE s.id = v_b),
+    '42/(o): wlasny zapis i reczny wpis zostaja, dopisana grupa znika, blad wysylki skasowany');
+  PERFORM pg_temp.assert_raises_like(
+    format($$SELECT public.admin_event_cfp_submission_decide('{"id":"%s","status":"under_review"}')$$, v_a),
+    'invalid_transition', '42/(o): wycofanego zgloszenia organizator nie osadza');
+
+  -- REZYGNACJA: Dorota odwoluje udzial po przyjeciu.
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000076');
+  v := public.event_cfp_submission_save(jsonb_build_object('slug', 'cfp-42-o',
+    'speaker', jsonb_build_object('first_name', 'Dorota', 'last_name', 'Dobra', 'consent_data_processing', true),
+    'title_pl', 'Wystapienie C', 'abstract_pl', 'Streszczenie wystapienia C, dluzsze niz dwadziescia znakow.'));
+  v_c := (v->>'id')::uuid;
+  PERFORM public.event_cfp_submission_submit(jsonb_build_object('id', v_c));
+  SELECT s.person_id INTO v_dorota FROM public.event_cfp_submissions s WHERE s.id = v_c;
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111');
+  PERFORM public.admin_event_cfp_submission_accept(jsonb_build_object('id', v_c));
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000076');
+  v := public.event_cfp_submission_respond(jsonb_build_object('id', v_c, 'confirm', false));
+  PERFORM pg_temp.assert(
+    v->>'status' = 'declined'
+    AND (SELECT r.status = 'cancelled' FROM public.event_registrations r
+          WHERE r.event_id = c_event AND r.person_id = v_dorota)
+    AND NOT EXISTS (SELECT 1 FROM public.event_group_members m WHERE m.group_id = v_speakers AND m.person_id = v_dorota)
+    AND NOT EXISTS (SELECT 1 FROM public.event_speaker_entries en
+                     JOIN public.speaker_profiles sp ON sp.id = en.speaker_profile_id
+                    WHERE en.event_id = c_event AND sp.person_id = v_dorota),
+    '42/(o): rezygnacja anuluje zapis z biletem i cofa grupe; na liscie Doroty nie bylo i nie ma');
+
+  -- DWA PRZYJECIA TEJ SAMEJ OSOBY: zapis i grupa przechodza na drugie,
+  -- wpis na liscie znika, bo drugie nie jest potwierdzone.
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000077');
+  v := public.event_cfp_submission_save(jsonb_build_object('slug', 'cfp-42-o',
+    'speaker', jsonb_build_object('first_name', 'Ewa', 'last_name', 'Ewna', 'consent_data_processing', true),
+    'title_pl', 'Wystapienie D1', 'abstract_pl', 'Streszczenie wystapienia D1, dluzsze niz dwadziescia znakow.'));
+  v_d1 := (v->>'id')::uuid;
+  PERFORM public.event_cfp_submission_submit(jsonb_build_object('id', v_d1));
+  v := public.event_cfp_submission_save(jsonb_build_object('slug', 'cfp-42-o',
+    'speaker', jsonb_build_object('consent_data_processing', true),
+    'title_pl', 'Wystapienie D2', 'abstract_pl', 'Streszczenie wystapienia D2, dluzsze niz dwadziescia znakow.'));
+  v_d2 := (v->>'id')::uuid;
+  PERFORM public.event_cfp_submission_submit(jsonb_build_object('id', v_d2));
+  SELECT s.person_id INTO v_ewa FROM public.event_cfp_submissions s WHERE s.id = v_d1;
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111');
+  PERFORM public.admin_event_cfp_submission_accept(jsonb_build_object('id', v_d1));
+  PERFORM public.admin_event_cfp_submission_accept(jsonb_build_object('id', v_d2));
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000077');
+  PERFORM public.event_cfp_submission_respond(jsonb_build_object('id', v_d1, 'confirm', true));
+  PERFORM public.event_cfp_submission_withdraw(jsonb_build_object('id', v_d1));
+  PERFORM pg_temp.assert(
+    (SELECT r.status = 'approved' FROM public.event_registrations r WHERE r.event_id = c_event AND r.person_id = v_ewa)
+    AND EXISTS (SELECT 1 FROM public.event_group_members m WHERE m.group_id = v_speakers AND m.person_id = v_ewa)
+    AND (SELECT sp.added_registration_id IS NOT NULL AND sp.added_group_id = v_speakers
+           FROM public.event_cfp_submission_speakers sp WHERE sp.submission_id = v_d2)
+    AND NOT EXISTS (SELECT 1 FROM public.event_speaker_entries en
+                     JOIN public.speaker_profiles sp ON sp.id = en.speaker_profile_id
+                    WHERE en.event_id = c_event AND sp.person_id = v_ewa),
+    '42/(o): drugie przyjecie przejmuje zapis i grupe; lista czeka na jego potwierdzenie');
+  PERFORM public.event_cfp_submission_respond(jsonb_build_object('id', v_d2, 'confirm', false));
+  PERFORM pg_temp.assert(
+    (SELECT r.status = 'cancelled' FROM public.event_registrations r WHERE r.event_id = c_event AND r.person_id = v_ewa)
+    AND NOT EXISTS (SELECT 1 FROM public.event_group_members m WHERE m.group_id = v_speakers AND m.person_id = v_ewa),
+    '42/(o): rezygnacja z drugiego cofa przejety zapis i grupe');
+
+  -- Funkcje wewnetrzne niewykonywalne dla klienta.
+  PERFORM pg_temp.assert(
+    NOT has_function_privilege('authenticated', 'public._event_cfp_acceptance_undo(uuid, uuid, uuid)', 'EXECUTE')
+    AND NOT has_function_privilege('authenticated', 'public._event_cfp_roster_publish(uuid, uuid)', 'EXECUTE')
+    AND NOT has_function_privilege('authenticated', 'public._event_cfp_speaker_review_summary(uuid, uuid, text, integer)', 'EXECUTE')
+    AND NOT has_function_privilege('authenticated', 'public._event_cfp_speaker_row_is_mine(uuid, uuid, text, uuid, uuid[], text)', 'EXECUTE')
+    AND has_function_privilege('anon', 'public.event_speaker_materials_public(uuid)', 'EXECUTE'),
+    '42/(o): pomocnicy cofniecia i oceny zbiorczej tylko dla definerow; materialy publiczne dla anonima');
+  PERFORM pg_temp.act_as();
+END
+$do$;
+
+-- ---------------------------------------------------------------------------
+-- (p) COFNIECIE PRZYJECIA A UCZESTNICTWO
+--
+-- Wydarzenie z limitem 3 miejsc: bilety prelegentow Filipa, Henryka i Jana
+-- zapelniaja sale, Gosia czeka na liscie rezerwowej (juz raz powiadomiona).
+-- Filip ma zapis na sesje (z Marta w kolejce tej sesji), zakladke i RSVP.
+-- Bilety Henryka i Jana zostaja PRZEKAZANE innym osobom (symulacja
+-- przekazania biletu uczestnika: inny `person_id` tego samego zapisu).
+-- ---------------------------------------------------------------------------
+INSERT INTO auth.users (id, email) VALUES
+  ('42a00000-0000-0000-0000-000000000081', 'filip@example.org'),
+  ('42a00000-0000-0000-0000-000000000082', 'marta@example.org'),
+  ('42a00000-0000-0000-0000-000000000083', 'henryk@example.org'),
+  ('42a00000-0000-0000-0000-000000000084', 'jan@example.org')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.profiles (id, tenant_id, display_name, slug) VALUES
+  ('42a00000-0000-0000-0000-000000000081', '11111111-1111-1111-1111-111111111111', 'Filip 42', 'cfp-filip'),
+  ('42a00000-0000-0000-0000-000000000082', '11111111-1111-1111-1111-111111111111', 'Marta 42', 'cfp-marta'),
+  ('42a00000-0000-0000-0000-000000000083', '11111111-1111-1111-1111-111111111111', 'Henryk 42', 'cfp-henryk'),
+  ('42a00000-0000-0000-0000-000000000084', '11111111-1111-1111-1111-111111111111', 'Jan 42', 'cfp-jan')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.events (id, tenant_id, slug, title_pl, title_en, starts_at, ends_at, status, capacity) VALUES
+  ('42e00000-0000-0000-0000-0000000000e4', '11111111-1111-1111-1111-111111111111',
+   'cfp-42-p', 'Forum 42 P', 'Forum 42 P', now() + interval '50 days', now() + interval '51 days', 'published', 3)
+ON CONFLICT (id) DO NOTHING;
+
+DO $do$
+DECLARE
+  c_tenant constant uuid := '11111111-1111-1111-1111-111111111111';
+  c_event constant uuid := '42e00000-0000-0000-0000-0000000000e4';
+  c_filip constant uuid := '42a00000-0000-0000-0000-000000000081';
+  c_marta constant uuid := '42a00000-0000-0000-0000-000000000082';
+  v jsonb;
+  v_f uuid;
+  v_h uuid;
+  v_j1 uuid;
+  v_j2 uuid;
+  v_filip_reg uuid;
+  v_henryk_reg uuid;
+  v_jan_reg uuid;
+  v_gosia uuid;
+  v_gosia_reg uuid;
+  v_irena uuid;
+  v_kamil uuid;
+  v_session uuid;
+  v_other_session uuid;
+BEGIN
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-0000000000a1', c_tenant);
+  PERFORM public.admin_event_cfp_settings_save(jsonb_build_object('event_id', c_event, 'status', 'open'));
+
+  -- Zgloszenia: Filip (F), Henryk (H), Jan (J1, J2).
+  PERFORM pg_temp.act_as(c_filip);
+  v := public.event_cfp_submission_save(jsonb_build_object('slug', 'cfp-42-p',
+    'speaker', jsonb_build_object('first_name', 'Filip', 'last_name', 'Fil', 'consent_data_processing', true),
+    'title_pl', 'Wystapienie F', 'abstract_pl', 'Streszczenie wystapienia F, dluzsze niz dwadziescia znakow.'));
+  v_f := (v->>'id')::uuid;
+  PERFORM public.event_cfp_submission_submit(jsonb_build_object('id', v_f));
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000083');
+  v := public.event_cfp_submission_save(jsonb_build_object('slug', 'cfp-42-p',
+    'speaker', jsonb_build_object('first_name', 'Henryk', 'last_name', 'Hen', 'consent_data_processing', true),
+    'title_pl', 'Wystapienie H', 'abstract_pl', 'Streszczenie wystapienia H, dluzsze niz dwadziescia znakow.'));
+  v_h := (v->>'id')::uuid;
+  PERFORM public.event_cfp_submission_submit(jsonb_build_object('id', v_h));
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000084');
+  v := public.event_cfp_submission_save(jsonb_build_object('slug', 'cfp-42-p',
+    'speaker', jsonb_build_object('first_name', 'Jan', 'last_name', 'Janowy', 'consent_data_processing', true),
+    'title_pl', 'Wystapienie J1', 'abstract_pl', 'Streszczenie wystapienia J1, dluzsze niz dwadziescia znakow.'));
+  v_j1 := (v->>'id')::uuid;
+  PERFORM public.event_cfp_submission_submit(jsonb_build_object('id', v_j1));
+  v := public.event_cfp_submission_save(jsonb_build_object('slug', 'cfp-42-p',
+    'speaker', jsonb_build_object('consent_data_processing', true),
+    'title_pl', 'Wystapienie J2', 'abstract_pl', 'Streszczenie wystapienia J2, dluzsze niz dwadziescia znakow.'));
+  v_j2 := (v->>'id')::uuid;
+  PERFORM public.event_cfp_submission_submit(jsonb_build_object('id', v_j2));
+
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-0000000000a1', c_tenant);
+  PERFORM public.admin_event_cfp_submission_accept(jsonb_build_object('id', v_f));
+  PERFORM public.admin_event_cfp_submission_accept(jsonb_build_object('id', v_h));
+  PERFORM public.admin_event_cfp_submission_accept(jsonb_build_object('id', v_j1));
+  PERFORM public.admin_event_cfp_submission_accept(jsonb_build_object('id', v_j2));
+  SELECT sp.added_registration_id INTO v_filip_reg
+    FROM public.event_cfp_submission_speakers sp WHERE sp.submission_id = v_f;
+  SELECT sp.added_registration_id INTO v_henryk_reg
+    FROM public.event_cfp_submission_speakers sp WHERE sp.submission_id = v_h;
+  SELECT sp.added_registration_id INTO v_jan_reg
+    FROM public.event_cfp_submission_speakers sp WHERE sp.submission_id = v_j1;
+  PERFORM pg_temp.assert(
+    v_filip_reg IS NOT NULL AND v_henryk_reg IS NOT NULL AND v_jan_reg IS NOT NULL
+    AND (SELECT sp.added_registration_id IS NULL FROM public.event_cfp_submission_speakers sp
+          WHERE sp.submission_id = v_j2)
+    AND public._event_seats_left(c_tenant, c_event, NULL) = 0,
+    '42/(p): trzy bilety prelegentow zapelniaja wydarzenie; drugie przyjecie Jana nie dubluje zapisu');
+
+  -- Gosia na liscie rezerwowej, juz raz powiadomiona o miejscu w kolejce.
+  INSERT INTO public.event_people (tenant_id, email, first_name, last_name, source)
+  VALUES (c_tenant, 'gosia@example.org', 'Gosia', 'Rezerwowa', 'organizer')
+  RETURNING id INTO v_gosia;
+  INSERT INTO public.event_registrations (tenant_id, event_id, person_id, status, registration_mode, source,
+                                          waitlist_position, waitlist_notified_at)
+  VALUES (c_tenant, c_event, v_gosia, 'waitlist', 'form', 'self_registration', 1, now() - interval '1 day')
+  RETURNING id INTO v_gosia_reg;
+
+  -- Uczestnictwo Filipa: zapis na sesje (Marta w kolejce), zakladka, RSVP.
+  INSERT INTO public.event_sessions (tenant_id, event_id, title_pl, title_en, starts_at, ends_at, status)
+  VALUES (c_tenant, c_event, 'Warsztat P', 'Workshop P',
+          now() + interval '50 days 1 hour', now() + interval '50 days 2 hours', 'published')
+  RETURNING id INTO v_session;
+  INSERT INTO public.event_sessions (tenant_id, event_id, title_pl, title_en, starts_at, ends_at, status)
+  VALUES (c_tenant, c_event, 'Warsztat P2', 'Workshop P2',
+          now() + interval '50 days 3 hours', now() + interval '50 days 4 hours', 'published')
+  RETURNING id INTO v_other_session;
+  INSERT INTO public.event_session_signups (tenant_id, event_id, session_id, user_id, status, registered_at) VALUES
+    (c_tenant, c_event, v_session, c_filip, 'registered', now() - interval '2 hours'),
+    (c_tenant, c_event, v_session, c_marta, 'waitlist', now() - interval '1 hour'),
+    (c_tenant, c_event, v_other_session, '42a00000-0000-0000-0000-000000000083', 'registered', now());
+  INSERT INTO public.event_session_saves (tenant_id, event_id, session_id, user_id)
+  VALUES (c_tenant, c_event, v_other_session, c_filip);
+  INSERT INTO public.event_rsvps (tenant_id, event_id, user_id, status)
+  VALUES (c_tenant, c_event, c_filip, 'going');
+
+  -- PRZEKAZANIE: bilety Henryka i Jana (J1) naleza teraz do Ireny i Kamila.
+  INSERT INTO public.event_people (tenant_id, email, first_name, last_name, source)
+  VALUES (c_tenant, 'irena@example.org', 'Irena', 'Odbiorczyni', 'organizer')
+  RETURNING id INTO v_irena;
+  INSERT INTO public.event_people (tenant_id, email, first_name, last_name, source)
+  VALUES (c_tenant, 'kamil@example.org', 'Kamil', 'Odbiorca', 'organizer')
+  RETURNING id INTO v_kamil;
+  UPDATE public.event_registrations r SET person_id = v_irena WHERE r.id = v_henryk_reg;
+  UPDATE public.event_registrations r SET person_id = v_kamil WHERE r.id = v_jan_reg;
+
+  -- Cofniecie przyjecia Henryka: przekazany bilet Ireny zostaje, rezerwa czeka.
+  v := public.admin_event_cfp_submission_decide(jsonb_build_object('id', v_h, 'status', 'waitlisted'));
+  PERFORM pg_temp.assert(
+    (v->'undone'->>'registrations_cancelled')::int = 0
+    AND (v->'undone'->>'session_signups_cancelled')::int = 0
+    AND (SELECT r.status = 'approved' AND r.person_id = v_irena AND r.cancelled_at IS NULL
+           FROM public.event_registrations r WHERE r.id = v_henryk_reg)
+    AND (SELECT r.status = 'waitlist' FROM public.event_registrations r WHERE r.id = v_gosia_reg)
+    AND (SELECT sp.added_registration_id IS NULL FROM public.event_cfp_submission_speakers sp
+          WHERE sp.submission_id = v_h),
+    '42/(p): cofniecie przyjecia nie anuluje biletu przekazanego innej osobie; slad wyczyszczony');
+  PERFORM pg_temp.assert(
+    (SELECT s.status = 'registered' FROM public.event_session_signups s
+      WHERE s.session_id = v_other_session AND s.user_id = '42a00000-0000-0000-0000-000000000083'),
+    '42/(p): bez anulowanego zapisu zadne zapisy na sesje nie sa zwalniane');
+
+  -- Rezygnacja Jana z J1 przy aktywnym J2: przekazany bilet NIE przechodzi na J2.
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-000000000084');
+  PERFORM public.event_cfp_submission_respond(jsonb_build_object('id', v_j1, 'confirm', false));
+  PERFORM pg_temp.assert(
+    (SELECT sp.added_registration_id IS NULL FROM public.event_cfp_submission_speakers sp
+      WHERE sp.submission_id = v_j2)
+    AND (SELECT r.status = 'approved' AND r.person_id = v_kamil
+           FROM public.event_registrations r WHERE r.id = v_jan_reg),
+    '42/(p): drugie przyjecie nie przejmuje biletu, ktory nalezy juz do kogo innego');
+  PERFORM public.event_cfp_submission_respond(jsonb_build_object('id', v_j2, 'confirm', false));
+  PERFORM pg_temp.assert(
+    (SELECT r.status = 'approved' FROM public.event_registrations r WHERE r.id = v_jan_reg),
+    '42/(p): rezygnacja z drugiego przyjecia tez nie rusza biletu Kamila');
+
+  -- Cofniecie przyjecia Filipa: bilet anulowany, rezerwa awansuje, konto traci
+  -- zapis na sesje (Marta awansuje), zakladke i RSVP.
+  PERFORM pg_temp.act_as('42a00000-0000-0000-0000-0000000000a1', c_tenant);
+  v := public.admin_event_cfp_submission_decide(jsonb_build_object('id', v_f, 'status', 'rejected',
+    'decision_note', 'Zmiana programu.'));
+  PERFORM pg_temp.assert(
+    (v->'undone'->>'registrations_cancelled')::int = 1
+    AND (v->'undone'->>'session_signups_cancelled')::int = 1
+    AND (SELECT r.status = 'cancelled' FROM public.event_registrations r WHERE r.id = v_filip_reg),
+    '42/(p): cofniecie przyjecia anuluje bilet prelegenta i raportuje zwolnione zapisy na sesje');
+  PERFORM pg_temp.assert(
+    (SELECT r.status = 'approved' AND r.waitlist_notified_at IS NULL AND r.waitlist_position IS NULL
+           AND r.promoted_at IS NOT NULL
+       FROM public.event_registrations r WHERE r.id = v_gosia_reg),
+    '42/(p): zwolnione miejsce awansuje rezerwe, awans czeka na nowe powiadomienie');
+  PERFORM pg_temp.assert(
+    (SELECT s.status = 'cancelled' AND s.cancelled_at IS NOT NULL FROM public.event_session_signups s
+      WHERE s.session_id = v_session AND s.user_id = c_filip)
+    AND (SELECT s.status = 'registered' FROM public.event_session_signups s
+          WHERE s.session_id = v_session AND s.user_id = c_marta),
+    '42/(p): zapis prelegenta na sesje zwolniony, kolejka sesji awansuje');
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.event_session_saves ss WHERE ss.event_id = c_event AND ss.user_id = c_filip)
+    AND (SELECT r.status = 'cancelled' FROM public.event_rsvps r WHERE r.event_id = c_event AND r.user_id = c_filip),
+    '42/(p): zakladki planu i RSVP prelegenta zwolnione');
   PERFORM pg_temp.act_as();
 END
 $do$;

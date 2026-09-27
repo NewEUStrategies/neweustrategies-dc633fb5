@@ -57,6 +57,7 @@ import {
 } from "@/lib/i18n-event-sponsor-report-head";
 import { Route as PublicRoute } from "@/routes/events.$slug_.sponsor-report";
 import { Route as AdminRoute } from "@/routes/admin.events_.$eventId.sponsor-report";
+import { UUID_PATTERN } from "@/lib/events/sponsorExposure";
 
 const SPONSOR = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
@@ -129,6 +130,25 @@ describe("ekran studia", () => {
     expect(validate({ sponsor: "nie-uuid" })).toEqual({});
     expect(validate({ sponsor: 7 })).toEqual({});
     expect(validate({})).toEqual({});
+  });
+
+  // Wzorzec jest wpisany w trasę (nie importowany), żeby `validateSearch`
+  // nie ciągnął `sponsorExposure` do chunku wejściowego. Ta asercja pilnuje,
+  // że obie kopie odrzucają i przepuszczają DOKŁADNIE to samo.
+  it("wzorzec trasy = `UUID_PATTERN` pomiaru ekspozycji", () => {
+    const samples = [
+      SPONSOR,
+      SPONSOR.toUpperCase(),
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa",
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaaa",
+      "gaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      ` ${SPONSOR}`,
+      "",
+    ];
+    for (const value of samples) {
+      const accepted = validate({ sponsor: value }).sponsor === value;
+      expect(accepted, value).toBe(UUID_PATTERN.test(value));
+    }
   });
 
   it("nagłówek panelu jest poza indeksem", () => {

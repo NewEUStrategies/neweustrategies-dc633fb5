@@ -3,7 +3,7 @@
 // JEDEN FORMULARZ, TRZY MIEJSCA. Te same pola wypelnia kupujacy przy
 // platnosci za zapis, przy zakupie pakietu i pozniej z profilu, a organizator
 // poprawia je na szkicu w studiu. Reguly sa lustrem `_event_invoice_buyer_clean`
-// (migracja 20260926110000) - baza i tak odrzuci niepoprawne dane, ale
+// (migracja 20260927000200) - baza i tak odrzuci niepoprawne dane, ale
 // kupujacy ma zobaczyc blad przy polu, zanim przejdzie do kasy, a nie po
 // powrocie z niej.
 //

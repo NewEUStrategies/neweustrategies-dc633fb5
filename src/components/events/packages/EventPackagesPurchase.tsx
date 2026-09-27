@@ -79,7 +79,8 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
   const [buyerEmail, setBuyerEmail] = useState("");
   const [invoiceNote, setInvoiceNote] = useState("");
   const [openOrderId, setOpenOrderId] = useState<string | null>(null);
-  const invoice = useInvoiceRequestController({ target: null, enabled: true });
+  // Pakiet oplaca sie przelewem - blok faktury, gdy organizator fakturuje.
+  const invoice = useInvoiceRequestController({ target: null, enabled: true, payment: "transfer" });
 
   const offers = offerQ.data ?? [];
   // Do pierwszej odpowiedzi `data` jest undefined. JEDNA zamiana na pustą
@@ -104,6 +105,12 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
   // Pakiet przychodzi PARAMETREM z sekcji, która renderuje się tylko przy
   // wybranym pakiecie - bez nieosiągalnego strażnika na brak wyboru.
   function buy(pkg: EventPackageOfferRow) {
+    if (invoice.wanted && !invoice.validate()) return;
+    // Lejek: zakup pakietu to "rozpoczecie platnosci" (raz na sesje, bramka
+    // zgody w beaconie). Autorytetem jest zamowienie pakietu w bazie. Krok
+    // liczymy DOPIERO po bramce danych do faktury - odrzucony formularz
+    // nabywcy nie rozpoczyna zadnej platnosci.
+    sendEventFunnelStep("checkout_start", { slug });
     purchase.mutate(
       {
         packageId: pkg.id,

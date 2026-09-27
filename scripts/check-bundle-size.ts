@@ -1498,6 +1498,226 @@ const CLIENT_DIR =
 // każdą nową powierzchnię panelu jako alarm. Następny wpis, który będzie
 // podnosił OVERALL, zaczyna od pomiaru, nie od tego zapasu.
 
+// 2026-09-27 XIX  SIEDEM FUNKCJI ORGANIZATORA WYDARZEŃ. Floory PUBLIC
+//             2826 -> 2866 i OVERALL 4572 -> 4729. CHUNK NIE RUSZONY - zszedł
+//             pod próg redukcją, a nie podniesieniem.
+//
+// POMIAR CZTERECH DRZEW (ten sam host Linux, ten sam `node_modules`, `xlsx`
+// 0.18.5 z rejestru npm, pełny build `BUNDLE_INVENTORY=1` za każdym razem):
+//                                         chunk    public   overall   boot
+//   * 4d7ce68 (przed funkcjami):          283,8    2757,7   4496,9    556,0
+//   * 3f811fe (funkcje, przed mainem):    287,4    2844,0   4694,0    559,8
+//   * 7d15c84 (po scaleniu maina):        287,4    2848,6   4701,7    559,9
+//   * ta gałąź (redukcje niżej):          286,0    2851,1   4705,3    558,4
+// Siedem funkcji (nabór prelegentów z oceną i panelem prelegenta, faktury
+// firmowe i zbiorcze, lejek sprzedaży z kampaniami Google Ads, plan sali
+// z przydziałem miejsc, kopiowanie edycji, raport dla sponsorów, skaner
+// offline + bilet w Apple/Google Wallet) to +3,6 / +86,3 / +197,1 KB.
+// Scalenie maina (#403, #405) dołożyło do tego +4,6 PUBLIC i +7,7 OVERALL.
+//
+// GDZIE SIEDZI WZROST PUBLIC (+86,3, rozkład per chunk 4d7ce68 -> 3f811fe).
+// To są NOWE POWIERZCHNIE PUBLICZNE, nie przeciek panelu:
+//   * strony naboru (cfp, cfp-submit, speaker, review) ze słownikiem
+//     `i18n-event-cfp` (10,7) i parserami - ok. 25 KB,
+//   * aplikacja skanera w trybie offline (`scanner` 15,1 -> 25,2, `sha2` 2,5),
+//   * faktury kupującego: dokument, PDF, prośba o fakturę, profil - ok. 16 KB,
+//   * strona raportu dla sponsora bez konta (5,3 + model i eksport 1,6),
+//   * bilet z portfelem (+2,5, `i18n-event-wallet` 0,9), karta miejsca
+//     (`useMySeats` 2,1, `i18n-event-seating` 1,9),
+//   * pomiar ekspozycji i atrybucja kampanii w powłoce wydarzenia (~3,5),
+//   * chunk wejściowy +3,6.
+// Sprawdzone skanem inwentarza, nie z nazw: w chunkach publicznych nie ma ani
+// jednego modułu `components/admin/**` ani `i18n-admin-*` DODANEGO przez te
+// funkcje. OVERALL rośnie o 197,1, z czego 110,8 to panel (studio naboru,
+// faktur, planu sali, lejka i raportu - admin-only z grafu).
+//
+// CO ZROBIŁA TA GAŁĄŹ, ZANIM RUSZYŁA PRÓG. Cztery redukcje PRZYCZYN, każda
+// z bramką przyczyny (`src/lib/events/__tests__/eventChromeLazyImports.gate.test.ts`):
+//   1. Pasek zakładek powłoki `/events/<slug>` importował statycznie
+//      `i18n-event-cfp` (10,7 KB) i `useCfpMe` z parserami całej powierzchni
+//      naboru - dla JEDNEGO napisu i JEDNEJ fazy, na KAŻDEJ stronie wydarzenia
+//      (zakładka „Moje" tak samo, dla czterech napisów). Napisy chrome'u są teraz
+//      w `i18n-event-front` (`eventFront.cfp.*`), który powłoka ładuje i tak;
+//      fazę czyta `useCfpShell` przez `cfpShellApi` (jedno pole z RPC, własny
+//      klucz pod gałęzią sluga, tylko po montażu - SSR i hydratacja bez zmian),
+//      a panel prelegenta dociąga fetcher `import()`-em. Fazy NIE niosę
+//      w ładunku powłoki: `event_page_header` idzie do cache krawędzi (faza
+//      przeżyłaby zamknięcie naboru), a zmiana `event_menu` to nowa migracja.
+//      Statyczne domknięcie chunku powłoki poza bootem: 50,3 -> 39,7 KB.
+//   2. `validateSearch` trasy `/admin/events/<id>/sponsor-report` brał
+//      `UUID_PATTERN` z `sponsorExposure`. `validateSearch` (jak `head`
+//      i `loader`) należy do niedzielonej części pliku trasy, więc cały słownik
+//      pomiaru ekspozycji jechał w entry. Wzorzec wpisany w trasę, parytet
+//      pilnuje test trasy.
+//   3. Ta sama mechanika na `/scanner`: `isScannerToken` ze `scannerSession`
+//      ciągnął do entry parser sesji urządzenia i `onsiteEnums` (tryb offline
+//      dopisał tam 79 linii). Kształt tokenu jest w `scannerToken.ts`,
+//      `scannerSession` go re-eksportuje.
+//   4. Faktury: `myEventInvoicesApi` ładuje parser migawki dokumentu
+//      `import()`-em w `fetchMyInvoice`, a profil - generator PDF w chwili
+//      kliknięcia „Pobierz". Domknięcie `/profile/invoices` 35,3 -> 30,0 KB,
+//      zakupu pakietu 40,8 -> 39,0 KB.
+//
+// DLACZEGO PUBLIC I OVERALL NIE SPADŁY, A WZROSŁY O 2,5 / 3,6 KB. Tak mierzy
+// ta bramka (wpis 2026-08-06): PUBLIC liczy każdy chunk OSIĄGALNY z publicznego
+// URL-a, także krawędzią `import()`. Zdjęcie kodu ze ścieżki eager nie zdejmuje
+// z sumy ani bajta, a każdy nowy plik płaci własny nagłówek i słownik gzip
+// (`cfpSurface`, `cfpPublicApi`, `useCfpShell`, `sponsorExposure` są teraz
+// osobnymi plikami). Wymiana: ~2,5 KB sumy za -10,6 KB na każdej stronie
+// wydarzenia i -1,4 KB w entry KAŻDEJ strony serwisu.
+//
+// ROZKŁAD CHUNKU WEJŚCIOWEGO - gzip tego samego pliku po wycięciu tablicy
+// nazw `__vite__mapDeps`, list indeksów zależności i `import()`:
+//                   cały plik   manifest preloadu     kod
+//   4d7ce68          283,84          29,76           254,08
+//   7d15c84          287,43          31,63           255,80
+//   ta gałąź         285,98          31,72           254,26
+// KOD entry jest z powrotem na poziomie sprzed funkcji (+0,18 KB). Całe
+// +1,96 KB to MANIFEST PRELOADU: pięć nowych tras publicznych, dziewięć zaślepek
+// studia z 4d7ce68 z prawdziwymi ekranami (dłuższe listy zależności) i 64 nowe
+// pliki - każdy dokłada nazwę z hashem do `m.f` (880 -> 943 pozycji) i indeksy
+// do list swoich tras. Ta sama cena strukturalna, co dziesięć tras prawnych
+// we wpisie XIV. CHUNK stoi na 285,976 przy progu 286: zapas 0,02 KB, więc
+// ostrzeżenie o zapasie zapala się od razu. Progu NIE podnoszę, bo nie jest
+// przekroczony - ale następna trasa albo nowy plik współdzielony przez trasy
+// zapali tę bramkę, i pierwszą pracą jest wtedy manifest, nie próg.
+//
+// FORMUŁA PROGU JAK W KRONICE (wpisy V, VII i XIV): pomiar hosta razy
+// udokumentowana rozbieżność host <-> runner (+0,466%), sufit do pełnego KB,
+// plus 1 KB na granicę zaokrąglenia (wpis IV):
+//   public    2851,131 x 1,00466 = 2864,42 -> 2865 -> 2866
+//   overall   4705,304 x 1,00466 = 4727,23 -> 4728 -> 4729
+// Pierwszy zielony log runnera rozstrzyga (wpis V) - w dół, jeśli pokaże mniej.
+//
+// BASELINE ODŚWIEŻONY W TYM COMMICIE (`reports/bundle-baseline.json`, pomiar
+// hosta; pole `commit` wskazuje commit redukcji, a ten commit zmienia wyłącznie
+// progi i kronikę, więc artefakt jest ten sam). Bez tego raport ruchów
+// przypisywałby każdemu następnemu autorowi wszystko od 2765e53 (08.09):
+// `spreadsheet.worker`, `Chart`, `content.conflicts`. Zastrzeżenie z wpisu XIV
+// zostaje: to liczby HOSTA - pierwszy zielony build runnera powinien przepisać
+// baseline.
+//
+// CO ZOSTAJE DO ZROBIENIA I DLA KOGO. Zmierzone na tym drzewie, NIE są z tych
+// funkcji i ich nie ruszam, bo to cudze warstwy (zasada z wpisów XV i XVII):
+//   * `routes/admin.index.tsx` rozgrzewa pulpit `import()`-em w `loader`, czyli
+//     krawędzią z ENTRY - dlatego `AdminDashboard` (4,5), `useDashboardData`
+//     (5,6), `i18n-admin-dashboard` (4,3) i `ChartCard` (4,3) liczą się do
+//     PUBLIC: ~19 KB kodu panelu w sumie czytelnika;
+//   * `i18n-admin-analytics` (20,6) i `i18n-admin-extras` (18,7, importowany
+//     przez publiczne `profile.index`) są publiczne z grafu;
+//   * `EventHomeAd` (publiczny przegląd wydarzenia) importuje
+//     `i18n-admin-event-sponsor-board` (3,9) dla kluczy `sponsorBoard.public.*`;
+//   * `EventTicketPurchase` (scalenie maina, 78a5802) importuje
+//     `i18n-event-registration` (9,8) do przeglądu KAŻDEGO wydarzenia dla pola
+//     kodu rabatowego (domknięcie przeglądu poza bootem 103,4 -> 118,7 KB,
+//     z czego 9,8 to ten słownik, a reszta to pomiar i atrybucja powłoki).
+// Razem ~72 KB, prawie dwa razy tyle, ile ten wpis dokłada do progu PUBLIC.
+
+// 2026-09-27 XX  PR #410 NA PEŁNYM DRZEWIE. Floory PUBLIC 2866 -> 2877
+//             i OVERALL 4729 -> 4768. CHUNK NIE RUSZONY - zszedł pod próg
+//             redukcją (projekcja runnera 284,7 przy progu 286).
+//
+// KOREKTA WPISU XIX - I TO JEST GŁÓWNA TREŚĆ TEGO WPISU. XIX postawił floory
+// z pomiaru HOSTA formułą z wpisu VII (host x 1,00466). Ta formuła jest dziś
+// ZA SŁABA i zmierzyłem dlaczego: host instaluje `xlsx` 0.18.5 z rejestru npm
+// (cdn.sheetjs.com jest z piaskownicy nieosiągalny, wpis XVIII), runner -
+// 0.20.3 z lockfile'a. Od wpisu XVIII proces arkuszy jest PUBLICZNY i niesie
+// kod zapisu, więc cała różnica wersji ląduje w PUBLIC:
+//   `spreadsheet.worker`  host 138,6  runner 157,1  (+18,5 KB, 0,65% PUBLIC).
+// Współczynnik 0,466% z wpisu VII (liczony, zanim proces arkuszy stał się
+// publiczny) pokrywał 13,3 KB z tych 18,5. Pierwszy przebieg CI na PR #410
+// (21732a519, job 108580532397) pokazał `spreadsheet.worker +18.5` w raporcie
+// ruchów wobec baseline'u XIX - to NIE jest wzrost, to artefakt hosta.
+// Wniosek, obowiązujący od tego wpisu: PUBLIC i OVERALL stawiamy z RUNNERA
+// (zasada z wpisu V), a host służy wyłącznie do mierzenia DELTY host-do-hosta
+// (metoda z wpisu XII). Mnożnik 1,00466 na liczbie hosta nie jest już
+// dopuszczalną drogą do tych dwóch progów. CHUNK i BOOT tego problemu nie mają:
+// `index` host 286,074 / runner 286,1 na tym samym drzewie.
+//
+// POMIAR. Runner: przebieg CI na cfb11b263 (głowa PR #410 po naprawie #404,
+// #406/#407/#408, f1/f2/f5 i fix/bundle) - 286,1 / 2878,5 / 4765,4 KB
+// (chunk / public / overall). Host na tym samym drzewie (po 00ae0ad19):
+// 286,074 / 2859,604 / 4746,180. Host po redukcjach z tego wpisu (46452fe88):
+// 284,670 / 2856,562 / 4747,374, boot 557,1.
+//
+// SKĄD WZROST WOBEC BASELINE'U XIX (host-do-hosta, 7931a82ea -> cfb11b263,
+// public +8,5, admin-only +32,4, per chunk, po PR-ze, który go wniósł):
+//   f5 kopiowanie edycji (e16f0c48f):  i18n-admin-event-clone +8,4 (NOWY),
+//        EventCloneNotices +4,1 (NOWY), admin.events_.new +4,0, overview +0,7
+//        - razem ~17 KB panelu; w entry `eventCloneDraft` (4,3 kB źródeł);
+//   #406 fundament uczestnika (2f986b5ea): useParticipantSettings +7,0
+//        (NOWY), communications +2,0, registration.policies +1,6 (NOWY),
+//        i18n-admin-events +1,1 - ~12 KB panelu; PUBLIC events._slug.me +1,6;
+//        w entry `redactTrackedUrl` i `eventMeTabs` (1,1 kB źródeł);
+//   #408 karta prelegenta (e34dc9eb3): PUBLIC speakerCard +1,1 (NOWY),
+//        SpeakerProfileCard +0,7, SpeakerProfileDialog +0,6; w entry reguły
+//        karty przez `speakersQuery` (5,3 kB źródeł);
+//   f2 poprawki faktur (590a3ee20): PUBLIC ~+1,2 netto; `eventInvoiceJson`
+//        (6,9, NOWY) to PRZEMIANOWANY chunk `eventInvoiceBuyerDraft` (6,4 ->
+//        znikł): Rollup nazywa chunk współdzielony od jednego z modułów,
+//        a f2 dołożył tam 0,5 kB czytnika JSON. W środku jest słownik
+//        `i18n-event-invoices`, szkic nabywcy i pola formularza - te same
+//        moduły co przed zmianą. Panel: registration.invoices +1,2;
+//   f1 poprawki naboru (74f91f9d6 i dalej): PUBLIC ~+1,0 (i18n-event-cfp
+//        +0,8, cfpEnums +0,7, cfpSurface -0,5), panel useEventCfp +0,8;
+//   naprawa #404 (6e3d468eb): i18n-admin-event-seating +10,6 (NOWY) przy
+//        registration.seating -10,1 - wydzielenie słownika, netto +0,5;
+//        PUBLIC i18n-event-seating -1,9 / seatingGeometry +1,2.
+// Chunk `index` rósł o 1,8 KB (287,8 na runnerze) z trzech liści wciągniętych
+// przez `validateSearch` i prefetch buildera - naprawione niżej i w 6a796d92d.
+//
+// CO ZROBIONO, ZANIM RUSZYŁ PRÓG (host, kolejno):
+//   * 6a796d92d (integracja PR #410) + 00ae0ad19: `parseCloneSearch` do
+//     liścia `eventCloneSearch`, parser ścieżek prelegenta do liścia
+//     `speakerTracks` (nazwy ścieżek zostają w `speakerCard`) - index
+//     287,8 -> 286,07;
+//   * 61211f091: `validateSearch` `/admin/events/list` czytał
+//     `parseEventListParams` z `eventListParams` (argumenty RPC, liczniki,
+//     etykiety) i przez `isEventFormat` cały `eventTypes`; liście
+//     `eventListSearch` i `eventFormats`. Edytor klubu czytał `clubEditorTab`
+//     z `adminClubEditor` (wersja robocza, payload); liść `clubEditorTabs`.
+//     Index 286,07 -> 284,67;
+//   * 5ae60b337: `EventHomeAd` (publiczny przegląd KAŻDEGO wydarzenia)
+//     ładował słownik PANELU `i18n-admin-event-sponsor-board` dla dwóch
+//     napisów; napisy do `eventFront.homeAd.*`. PUBLIC -3,9 (słownik) i ten
+//     sam koszt mniej na każdym przeglądzie wydarzenia.
+// Każda krawędź ma bramkę przyczyny w
+// `src/lib/events/__tests__/eventChromeLazyImports.gate.test.ts`.
+//
+// SKAN „CZY PANEL JEST OSIĄGALNY Z TRAS PUBLICZNYCH" (inwentarz, punkt stały
+// `adminOnlyByGraph` z przesunięciem krawędzi, nie z nazw). Z funkcji
+// organizatora i PR-ów tego wpisu - nic poza słownikiem tablicy sponsorów
+// (naprawione). Trzy pozycje starsze, CUDZE, zasymulowane i zostawione:
+//   * `routes/admin.index.tsx` rozgrzewa pulpit `import()`-em w `loader`, czyli
+//     krawędzią z ENTRY. Przeniesienie tej krawędzi do chunku trasy panelu
+//     przesunęłoby do admin-only 7 chunków: i18n-admin-analytics 20,6,
+//     useDashboardData 5,6, AdminDashboard 4,5, ChartCard 4,3,
+//     i18n-admin-dashboard 4,3, leadListSpec 0,4, biChart 0,4 - PUBLIC -40,0.
+//     NIE ROBIĘ TEGO TU: `loader` jest tam celowo (zmierzone LCP /admin
+//     7,54 s, uzasadnienie i test przypięty w pliku trasy), a przeniesienie
+//     zmienia czas startu pulpitu - to decyzja właściciela panelu;
+//   * `profile/CompanyPickerDialog` importuje `i18n-admin-extras` (18,7) -
+//     świadomie, komentarz w pliku; symulacja: PUBLIC -18,7;
+//   * `ImpersonationBanner` + `lib/admin/impersonation` w entry (3,9 kB źródeł).
+// Pierwsza pozycja SAMA zamyka całą lukę PUBLIC tego wpisu z nawiązką.
+//
+// FORMUŁA (wpis XII: runner + przyrost host-do-hosta, sufit, +1 KB na granicę
+// zaokrąglenia z wpisu IV; wydruk runnera „X,Y" czytam jako górną granicę
+// X,Y5):
+//   public   2878,55 + (2856,562 - 2859,604) = 2875,51 -> 2876 -> 2877
+//   overall  4765,45 + (4747,374 - 4746,180) = 4766,64 -> 4767 -> 4768
+//   chunk     286,15 + (284,670  - 286,074)  =  284,75  (próg 286 zostaje)
+// Zapas po ratchecie ~1,5 KB na obu progach, czyli ostrzeżenie o zapasie
+// świeci od razu - świadomie: gałąź PR #410 wciąż przyjmuje poprawki, i każda
+// z nich ma się zmierzyć, a nie zmieścić w luzie. Pierwszy zielony log runnera
+// rozstrzyga (wpis V) - w dół, jeśli pokaże mniej.
+//
+// BASELINE ODŚWIEŻONY W TYM COMMICIE z pomiaru hosta 46452fe88. Jedna znana
+// rozbieżność host <-> runner: `spreadsheet.worker` 138,6 zamiast 157,1 -
+// raport ruchów na runnerze pokaże ją jako +18,5 i to NIE jest wzrost (wyżej).
+// Pierwszy zielony build runnera powinien przepisać baseline
+// (`--update-baseline`), co tę pozycję wyzeruje.
+
 const FROZEN_BUDGET_KB = {
   // Największy pojedynczy chunk gzip. Zmierzone 2026-08-18: 266,8 (EChartClient,
   // admin-only) - entry po cięciu ścieżki bootowania ma 253,2. Ratchet
@@ -1573,7 +1793,14 @@ const FROZEN_BUDGET_KB = {
   // `invalidate` (17,5 KB): warto sprawdzić, czy musi być statycznie osiągalna
   // z chunku publicznego. Tego NIE ruszam w tej gałęzi - to nie jej zakres,
   // a wpis ma dać następnej osobie punkt startu, nie zostawić ślepy próg.
-  public: 2826,
+  // Ratchet 2826 -> 2866 (wpis 2026-09-27 XIX): siedem funkcji organizatora
+  // wydarzeń (+86,3 KB nowych powierzchni publicznych) plus scalenie maina
+  // (+4,6). Host na tym drzewie 2851,131 po czterech redukcjach przyczyn;
+  // 2851,131 x 1,00466 = 2864,42 -> 2865 -> +1 na granicę zaokrąglenia.
+  // Ratchet 2866 -> 2877 (wpis 2026-09-27 XX): XIX liczył z hosta i nie pokrył
+  // `xlsx` 0.20.3 runnera (+18,5 KB w publicznym procesie arkuszy). Runner
+  // cfb11b263 2878,5 + delta hosta po redukcjach -3,04 = 2875,51 -> 2876 -> +1.
+  public: 2877,
   // gzip JS łącznie z kodem tylko adminowym. Zmierzone NA RUNNERZE 2026-08-19
   // (run 2397 i 2408, identycznie): 3892,0 przy 790 plikach.
   // Floor 3893, NIE 3892 - i to nie zapas, tylko granica zaokrąglenia.
@@ -1601,7 +1828,13 @@ const FROZEN_BUDGET_KB = {
   // Z PIERWSZEGO ZIELONEGO LOGU RUNNERA (zasada z wpisu V) - jak `css` i `boot`.
   // Patrz wpis 2026-09-08 przy `public` - ten próg idzie tą samą formułą
   // i z tego samego pomiaru.
-  overall: 4572,
+  // Ratchet 4572 -> 4729 (wpis 2026-09-27 XIX): funkcje organizatora +197,1 KB
+  // (w tym 110,8 panelu studia), scalenie maina +7,7. Host na tym drzewie
+  // 4705,304; 4705,304 x 1,00466 = 4727,23 -> 4728 -> +1 na granicę zaokrąglenia.
+  // Ratchet 4729 -> 4768 (wpis 2026-09-27 XX): f5 kopiowanie edycji ~17 KB
+  // panelu, #406 ~12 KB panelu, artefakt `xlsx` hosta z XIX (+18,5). Runner
+  // cfb11b263 4765,4 + delta hosta +1,19 = 4766,64 -> 4767 -> +1.
+  overall: 4768,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).

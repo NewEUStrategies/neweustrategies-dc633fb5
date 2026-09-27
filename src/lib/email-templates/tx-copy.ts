@@ -155,6 +155,16 @@ export interface TxCopy {
     organizerMessage: string;
     /** Numer dokumentu organizatora (faktura, proforma, korekta). */
     documentNumber: string;
+    /** Termin decyzji odbiorcy: płatność oferty, akceptacja przekazania, zamknięcie ankiety. */
+    deadline: string;
+    /** Tytuł sesji z planu uczestnika - tylko przypomnienie o sesji. */
+    session: string;
+    /** Sala sesji (wiersz pomijany, gdy sesja nie ma sali). */
+    room: string;
+    /** Imię nowego posiadacza biletu - mail „bilet przekazany". */
+    recipient: string;
+    /** Imię osoby przekazującej bilet - mail z zaproszeniem do przyjęcia. */
+    sender: string;
   };
   footerHelp: string;
 }
@@ -187,6 +197,14 @@ const LABELS_PL: TxCopy["labels"] = {
   talk: "Wystąpienie",
   organizerMessage: "Wiadomość od organizatora",
   documentNumber: "Numer dokumentu",
+  // „Ostateczny termin", nie samo „Termin": etykieta `date` jest już „Termin",
+  // a mail o przekazaniu biletu niesie OBA wiersze naraz (termin wydarzenia
+  // i termin akceptacji) - dwa jednakowe napisy byłyby nieczytelne.
+  deadline: "Ostateczny termin",
+  session: "Sesja",
+  room: "Sala",
+  recipient: "Odbiorca",
+  sender: "Nadawca",
 };
 
 const LABELS_EN: TxCopy["labels"] = {
@@ -215,6 +233,11 @@ const LABELS_EN: TxCopy["labels"] = {
   talk: "Talk",
   organizerMessage: "Message from the organiser",
   documentNumber: "Document number",
+  deadline: "Deadline",
+  session: "Session",
+  room: "Room",
+  recipient: "Recipient",
+  sender: "From",
 };
 
 const HELP_PL =
@@ -542,7 +565,7 @@ const PL: Dict = {
     intro:
       "Gratulacje! Organizator przyjął Twoje zgłoszenie do programu wydarzenia. Potwierdź udział w panelu prelegenta, żeby wystąpienie mogło zostać ogłoszone.",
     cta: "Potwierdź udział",
-    note: "W panelu prelegenta uzupełnisz biogram i zdjęcie oraz dodasz materiały. Szczegóły sesji ogłosimy w programie.",
+    note: "Po potwierdzeniu udziału uzupełnisz w panelu prelegenta biogram i zdjęcie oraz dodasz materiały. Szczegóły sesji ogłosimy w programie.",
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
@@ -1242,7 +1265,7 @@ const EN: Dict = {
     intro:
       "Congratulations! The organiser accepted your submission into the event programme. Confirm your participation in the speaker panel so the talk can be announced.",
     cta: "Confirm participation",
-    note: "In the speaker panel you can complete your bio and photo and add materials. Session details will be announced in the programme.",
+    note: "Once you confirm, you can complete your bio and photo and add materials in the speaker panel. Session details will be announced in the programme.",
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },

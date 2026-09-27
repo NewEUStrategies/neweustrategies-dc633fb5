@@ -387,6 +387,8 @@ export interface CfpSubmissionDetail extends CfpSubmissionCore {
   notifiedAt: string | null;
   notifyError: string | null;
   sessionId: string | null;
+  /** Nakładka zgłaszającego z przyjęcia; `null` = zgłoszenie nigdy nie było przyjęte. */
+  speakerProfileId: string | null;
   eventSlug: string;
   eventTimezone: string;
   eventStartsAt: string | null;
@@ -497,6 +499,7 @@ export function parseCfpSubmissionDetail(value: Json | null): CfpSubmissionDetai
     notifiedAt: strOrNull(sub.notified_at),
     notifyError: strOrNull(sub.notify_error),
     sessionId: strOrNull(sub.session_id),
+    speakerProfileId: strOrNull(sub.speaker_profile_id),
     eventSlug: str(event.slug),
     eventTimezone: str(event.timezone),
     eventStartsAt: strOrNull(event.starts_at),
@@ -624,7 +627,13 @@ export interface CfpMyPerson {
   email: string | null;
   jobTitle: string | null;
   companyText: string | null;
+  /** Aktywna zgoda marketingowa (nadana i niewycofana). */
   consentMarketing: boolean;
+  /**
+   * Osoba WYCOFAŁA zgody (`consent_withdrawn_at`). Formularz naboru nie
+   * pokazuje wtedy pola zgody marketingowej - baza by jej nie przywróciła.
+   */
+  consentsWithdrawn: boolean;
 }
 
 export interface CfpMySubmissions {
@@ -658,6 +667,7 @@ export function parseMyCfpSubmissions(value: Json | null): CfpMySubmissions | nu
             jobTitle: strOrNull(person.job_title),
             companyText: strOrNull(person.company_text),
             consentMarketing: bool(person.consent_marketing),
+            consentsWithdrawn: bool(person.consents_withdrawn),
           },
     items: list(row.items).map((raw) => {
       const item = bag(raw);

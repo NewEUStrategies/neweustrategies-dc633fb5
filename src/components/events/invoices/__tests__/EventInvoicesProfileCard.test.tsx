@@ -159,6 +159,7 @@ describe("EventInvoicesProfileCard", () => {
       myInvoiceSourceRow({
         source_id: "stary",
         can_request: false,
+        request_block: "window_closed",
         request_deadline: "2026-05-31",
       }),
       myInvoiceSourceRow({
@@ -177,6 +178,37 @@ describe("EventInvoicesProfileCard", () => {
     expect(orders[1].textContent).toContain("eventInvoices.profile.unpaid");
     expect(orders[2].textContent).toContain("eventInvoices.profile.windowClosed(date=2026-05-31)");
     expect(within(orders[2]).queryByRole("button")).toBeNull();
+  });
+
+  it("brak prosby z innego powodu niz termin: zdanie z bazy, bez przycisku prosby", async () => {
+    api.fetchMyInvoiceSources.mockResolvedValue([
+      myInvoiceSourceRow({ source_id: "w-toku", can_request: false, request_block: "invoiced" }),
+      myInvoiceSourceRow({ source_id: "wylaczone", can_request: false, request_block: "disabled" }),
+      myInvoiceSourceRow({
+        source_id: "cudza",
+        can_request: false,
+        request_block: "other_requester",
+      }),
+      myInvoiceSourceRow({
+        source_id: "karta",
+        can_request: false,
+        request_block: "operator_invoice",
+        request_deadline: null,
+      }),
+    ]);
+    renderWithQueryClient(<EventInvoicesProfileCard />);
+    const lists = await screen.findAllByRole("list");
+    const orders = within(lists[0]).getAllByRole("listitem");
+    expect(orders.map((order) => order.textContent)).toEqual([
+      expect.stringContaining("eventInvoices.profile.blocked.invoiced"),
+      expect.stringContaining("eventInvoices.profile.blocked.disabled"),
+      expect.stringContaining("eventInvoices.profile.blocked.otherRequester"),
+      expect.stringContaining("eventInvoices.profile.blocked.operatorInvoice"),
+    ]);
+    for (const order of orders) {
+      expect(order.textContent).not.toContain("eventInvoices.profile.windowClosed");
+      expect(within(order).queryByRole("button")).toBeNull();
+    }
   });
 
   it("prosba: okno z danymi pustymi albo z zapisanej prosby; zapis zamyka okno", async () => {

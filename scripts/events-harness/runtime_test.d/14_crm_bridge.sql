@@ -30,10 +30,18 @@
 --       RLS stanu mostu (admin tak, redaktor/obcy/anon nie);
 --   (i) ponowienie z zapisana intencja + odmowy;
 --   (j) przelaczniki `cfp`/`seating` w `admin_event_features_save`;
---   (k) CHECK segmentu zna `event_cfp`, a KAZDA jego wartosc ma range > 0.
+--   (k) CHECK segmentu zna `event_cfp`, a KAZDA jego wartosc ma range > 0;
+--   (l) nowy kontakt: `crm_lead.created.v1` niesie imie i nazwisko (HubSpot
+--       czyta je wylacznie z tego ladunku), istniejacy nie dostaje drugiego;
+--   (m) adres zalozony ROWNOLEGLE po odczycie mostu (ON CONFLICT DO NOTHING):
+--       wiersz rywala = kontakt istniejacy - newsletter_status i zgoda
+--       nietkniete (zgoda tylko w gore z dowodu), imiona tylko uzupelniane;
+--       rywal znikniety zaraz po konflikcie = `error` / `lead_conflict_lost`
+--       do ponowienia, nie kontakt bez imion.
 --
--- CZEGO NIE SPRAWDZA: przekazania do partnerskiego CRM (triggerow zdarzen
--- `crm_leads` harness nie stawia - patrz blok f0 w harness.sql).
+-- CZEGO NIE SPRAWDZA: samej dostawy do partnerskiego CRM/HubSpot (to kod TS,
+-- `src/lib/integrations`). Triggerow zdarzen `crm_leads` harness nie stawia
+-- (blok f0 w harness.sql) - sekcja (l) zaklada je tylko na czas transakcji.
 --
 -- SPRZATANIE. Caly plik pracuje w transakcji zakonczonej ROLLBACK-iem.
 -- ============================================================================
@@ -787,5 +795,379 @@ SELECT pg_temp.assert_raises_like(
   'forbidden',
   '14/przelaczniki: redaktor odrzucony');
 SELECT pg_temp.act_as(NULL, NULL);
+
+-- ---------------------------------------------------------------------------
+-- (l) PRZEKAZANIE DO HUBSPOT: `crm_lead.created.v1` NIESIE IMIE I NAZWISKO
+--
+-- `hubspotContactBody` (src/lib/integrations/formats.ts) czyta imiona
+-- WYLACZNIE z ladunku zdarzenia, a `crm_lead.updated.v1` niesie sam e-mail
+-- i etap - jedyna szansa, zeby kontakt w HubSpot mial nazwisko, to migawka
+-- `crm_lead.created.v1` z WSTAWIANEGO wiersza. Most zakladajacy kontakt przez
+-- `crm_upsert_from_form` z NULL-owymi imionami wysylal wiec do HubSpot kontakt
+-- bez nazwiska (zgloszenie z przegladu PR #404). Harness nie stawia triggerow
+-- zdarzen `crm_leads` (blok f0 w harness.sql), wiec ta sekcja zaklada je NA
+-- CZAS TRANSAKCJI - funkcja przepisana ZNAK W ZNAK z 20260711220607 (ostatnia
+-- definicja `tg_crm_leads_emit_events`), ROLLBACK na koncu pliku ja zabiera.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.tg_crm_leads_emit_events()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    PERFORM public.emit_domain_event(
+      NEW.tenant_id, 'crm_lead', NEW.id::text, 'crm_lead.created.v1',
+      jsonb_build_object(
+        'email', NEW.email, 'stage', NEW.stage::text,
+        'first_name', NEW.first_name, 'last_name', NEW.last_name,
+        'owner_id', NEW.owner_id
+      )
+    );
+  ELSIF TG_OP = 'UPDATE' THEN
+    IF NEW.stage IS DISTINCT FROM OLD.stage THEN
+      PERFORM public.emit_domain_event(
+        NEW.tenant_id, 'crm_lead', NEW.id::text, 'crm_lead.stage_changed.v1',
+        jsonb_build_object(
+          'email', NEW.email, 'old_stage', OLD.stage::text,
+          'new_stage', NEW.stage::text, 'owner_id', NEW.owner_id
+        )
+      );
+    ELSE
+      PERFORM public.emit_domain_event(
+        NEW.tenant_id, 'crm_lead', NEW.id::text, 'crm_lead.updated.v1',
+        jsonb_build_object('email', NEW.email, 'stage', NEW.stage::text)
+      );
+    END IF;
+  END IF;
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_crm_leads_emit_events ON public.crm_leads;
+CREATE TRIGGER trg_crm_leads_emit_events
+  AFTER INSERT OR UPDATE ON public.crm_leads
+  FOR EACH ROW EXECUTE FUNCTION public.tg_crm_leads_emit_events();
+
+-- p10: osoba spoza kartoteki - most zaklada dla niej NOWY kontakt.
+INSERT INTO public.event_people
+  (id, tenant_id, email, first_name, last_name, phone, job_title, company_text, company_id,
+   social_profile_url, consent_data_processing_at, consent_marketing_at, consent_withdrawn_at,
+   source)
+VALUES
+  ('14f00000-0000-0000-0000-000000000010', '11111111-1111-1111-1111-111111111111',
+   'Hanna.Hubspot@Example.org', ' Hanna ', 'Hubspot', '+48 511 222 333', 'Dyrektorka',
+   NULL, NULL, 'https://www.linkedin.com/in/hanna-hubspot', now(), NULL, NULL,
+   'self_registration')
+ON CONFLICT (id) DO NOTHING;
+
+DO $do$
+DECLARE
+  v_tenant constant uuid := '11111111-1111-1111-1111-111111111111';
+  v_p10    constant uuid := '14f00000-0000-0000-0000-000000000010';
+  v_p2     constant uuid := '14f00000-0000-0000-0000-000000000002';
+  v_d1     constant uuid := '14d00000-0000-0000-0000-0000000000d1';
+  v_lead uuid;
+  v_payload jsonb;
+  v_l record;
+BEGIN
+  PERFORM pg_temp.act_as('14a00000-0000-0000-0000-0000000000a1', v_tenant);
+
+  v_lead := public._event_person_crm_sync(
+    v_tenant, v_p10, 'event_participant', 'event:most-14:registration',
+    ARRAY['event:most-14']);
+  PERFORM pg_temp.assert(v_lead IS NOT NULL
+    AND (SELECT email_norm FROM public.crm_leads WHERE id = v_lead) = 'hanna.hubspot@example.org',
+    '14/hubspot: nowy kontakt zalozony po e-mailu osoby');
+
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.domain_events
+      WHERE tenant_id = v_tenant AND aggregate_type = 'crm_lead'
+        AND aggregate_id = v_lead::text AND event_type = 'crm_lead.created.v1') = 1,
+    '14/hubspot: nowy kontakt = DOKLADNIE jedno crm_lead.created.v1');
+  SELECT d.payload INTO v_payload
+    FROM public.domain_events d
+   WHERE d.tenant_id = v_tenant AND d.aggregate_type = 'crm_lead'
+     AND d.aggregate_id = v_lead::text AND d.event_type = 'crm_lead.created.v1';
+  PERFORM pg_temp.assert(
+    v_payload->>'first_name' = 'Hanna' AND v_payload->>'last_name' = 'Hubspot'
+    AND lower(v_payload->>'email') = 'hanna.hubspot@example.org',
+    '14/hubspot: crm_lead.created.v1 niesie imie i nazwisko (przyciete) oraz e-mail');
+
+  -- Stan koncowy jak przy zalozeniu przez `crm_upsert_from_form`: jedno
+  -- zrodlo, bez aliasow telefonu/stanowiska/LinkedIn, pola przepisane.
+  SELECT * INTO v_l FROM public.crm_leads WHERE id = v_lead;
+  PERFORM pg_temp.assert(v_l.source_count = 1
+    AND v_l.aliases = jsonb_build_object('sources', jsonb_build_array('event:most-14:registration')),
+    '14/hubspot: licznik zrodel 1, aliasy tylko ze zrodlem (bez phones/positions/linkedins)');
+  PERFORM pg_temp.assert(v_l.first_name = 'Hanna' AND v_l.last_name = 'Hubspot'
+    AND v_l.phone = '+48 511 222 333' AND v_l.phone_norm = '+48511222333'
+    AND v_l.position = 'Dyrektorka'
+    AND v_l.linkedin_url = 'https://www.linkedin.com/in/hanna-hubspot'
+    AND v_l.newsletter_status IS NULL AND v_l.stage = 'new'
+    AND v_l.source_type = 'event_participant' AND v_l.tags = ARRAY['event:most-14']
+    AND NOT v_l.marketing_consent,
+    '14/hubspot: dane osoby, etap, segment i tagi jak dotad; zgoda bez dowodu nie powstaje');
+
+  -- KONTRAPUNKT: istniejacy kontakt (d1, dopasowany po e-mailu w sekcji b)
+  -- nie dostaje DRUGIEGO zdarzenia zalozenia - tylko aktualizacje, ktore
+  -- trigger emituje (to dowod, ze trigger zyje i ze cisza nie jest przypadkiem).
+  PERFORM public._event_person_crm_sync(
+    v_tenant, v_p2, 'event_participant', 'event:most-14:registration',
+    ARRAY['event:most-14']);
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.domain_events
+                 WHERE aggregate_type = 'crm_lead' AND aggregate_id = v_d1::text
+                   AND event_type = 'crm_lead.created.v1')
+    AND EXISTS (SELECT 1 FROM public.domain_events
+                 WHERE aggregate_type = 'crm_lead' AND aggregate_id = v_d1::text
+                   AND event_type = 'crm_lead.updated.v1'),
+    '14/hubspot: istniejacy kontakt - bez crm_lead.created.v1, same aktualizacje');
+END
+$do$;
+
+-- ---------------------------------------------------------------------------
+-- (m) ADRES ZALOZONY ROWNOLEGLE: WIERSZ RYWALA TO KONTAKT ISTNIEJACY
+--
+-- Most czyta kontakt po e-mailu, a gdy go nie ma - wstawia wlasny wiersz
+-- z ON CONFLICT (tenant_id, email_norm) DO NOTHING. Jesli miedzy odczytem
+-- a wstawieniem inna transakcja zalozy ten sam adres (np. potwierdzenie
+-- newslettera przez `newsletter_to_lead`), wstawienie nic nie robi, a wiersz
+-- nalezy do rywala. Pierwsza wersja migracji 20260927000900 decydowala wtedy
+-- po nieaktualnym `v_existing IS NULL` i ustawiala rywalowi
+-- `newsletter_status = NULL` (przeglad PR #410, Codex).
+--
+-- JAK TO SYMULUJEMY. Dwoch transakcji w jednej sesji psql nie da sie
+-- przeplesc, wiec "wiersz pojawil sie po odczycie" robi trigger BEFORE INSERT
+-- na `crm_leads`: gdy most (poziom 1, `source_count = 0`) wstawia adres
+-- z tabeli `_test14_race`, trigger NAJPIERW zaklada ten sam adres jako
+-- kontakt newslettera. Unikalny indeks widzi wiersz rywala, wiec wstawienie
+-- mostu konczy sie DO NOTHING - dokladnie ta sama sciezka, co po zatwierdzeniu
+-- rownoleglej transakcji w READ COMMITTED. Wariant "rywal zniknal" doklada
+-- trigger AFTER INSERT FOR EACH STATEMENT (odpala sie tez po DO NOTHING),
+-- ktory usuwa wiersz rywala, zanim most zdazy go ponownie przeczytac.
+-- ---------------------------------------------------------------------------
+CREATE TABLE public._test14_race (
+  email_norm        text PRIMARY KEY,
+  newsletter_status text,
+  marketing_consent boolean NOT NULL,
+  vanish            boolean NOT NULL DEFAULT false,
+  rival             uuid,
+  fired             integer NOT NULL DEFAULT 0
+);
+
+CREATE FUNCTION public._test14_race_rival() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+  v_r public._test14_race%ROWTYPE;
+  v_rival uuid;
+BEGIN
+  -- Tylko wlasne wstawienie mostu (`source_count = 0`), nie zagniezdzone
+  -- wstawienie rywala i nie sciezka `crm_upsert_from_form` (`source_count 1`).
+  IF pg_trigger_depth() > 1 OR NEW.source_count <> 0 THEN
+    RETURN NEW;
+  END IF;
+  SELECT * INTO v_r FROM public._test14_race r
+   WHERE r.email_norm = NEW.email_norm AND r.fired = 0;
+  IF NOT FOUND THEN
+    RETURN NEW;
+  END IF;
+  INSERT INTO public.crm_leads
+    (tenant_id, email, first_name, last_name, source_type, newsletter_status,
+     marketing_consent, tags)
+  VALUES
+    (NEW.tenant_id, NEW.email, 'Rywal', '', 'newsletter', v_r.newsletter_status,
+     v_r.marketing_consent, ARRAY['newsletter:doi'])
+  RETURNING id INTO v_rival;
+  UPDATE public._test14_race SET fired = fired + 1, rival = v_rival
+   WHERE email_norm = v_r.email_norm;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER test14_race_rival BEFORE INSERT ON public.crm_leads
+  FOR EACH ROW EXECUTE FUNCTION public._test14_race_rival();
+
+INSERT INTO public._test14_race (email_norm, newsletter_status, marketing_consent, vanish) VALUES
+  -- m1: rywal = potwierdzony subskrybent ze zgoda; osoba BEZ dowodu zgody.
+  ('wyscig.newsletter@example.org', 'confirmed', true, false),
+  -- m2: rywal = subskrypcja w toku, bez zgody; osoba Z dowodem zgody.
+  ('wyscig.zgoda@example.org', 'pending', false, false),
+  -- m3: rywal znika zaraz po konflikcie.
+  ('wyscig.znika@example.org', 'confirmed', true, true);
+
+INSERT INTO public.event_people
+  (id, tenant_id, email, first_name, last_name, phone, job_title, company_text, company_id,
+   social_profile_url, consent_data_processing_at, consent_marketing_at, consent_withdrawn_at,
+   source)
+VALUES
+  ('14f00000-0000-0000-0000-000000000011', '11111111-1111-1111-1111-111111111111',
+   'Wyscig.Newsletter@Example.org', 'Wiktor', 'Wyscigowy', NULL, 'Ekspertka', NULL, NULL,
+   NULL, now(), NULL, NULL, 'self_registration'),
+  ('14f00000-0000-0000-0000-000000000012', '11111111-1111-1111-1111-111111111111',
+   'wyscig.zgoda@example.org', 'Zofia', 'Zgodna', NULL, NULL, NULL, NULL,
+   NULL, now(), '2026-09-02 08:00:00+00', NULL, 'self_registration'),
+  ('14f00000-0000-0000-0000-000000000013', '11111111-1111-1111-1111-111111111111',
+   'wyscig.znika@example.org', 'Zenon', 'Znikniety', NULL, NULL, NULL, NULL,
+   NULL, now(), NULL, NULL, 'self_registration')
+ON CONFLICT (id) DO NOTHING;
+
+-- m1 + m2: rywal zostaje - most go dopasowuje i traktuje jak istniejacy kontakt.
+DO $do$
+DECLARE
+  v_tenant constant uuid := '11111111-1111-1111-1111-111111111111';
+  v_p11    constant uuid := '14f00000-0000-0000-0000-000000000011';
+  v_p12    constant uuid := '14f00000-0000-0000-0000-000000000012';
+  v_lead uuid;
+  v_race record;
+  v_l record;
+  v_k record;
+BEGIN
+  PERFORM pg_temp.act_as('14a00000-0000-0000-0000-0000000000a1', v_tenant);
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.crm_leads
+                 WHERE tenant_id = v_tenant AND email_norm LIKE 'wyscig.%'),
+    '14/wyscig: przed wywolaniem adresow nie ma w kartotece (most je wstawia)');
+
+  v_lead := public._event_person_crm_sync(
+    v_tenant, v_p11, 'event_participant', 'event:most-14:registration',
+    ARRAY['event:most-14'], '{}', true, 'event.registration.approved',
+    jsonb_build_object('event_id', '14e00000-0000-0000-0000-0000000000e1'));
+
+  SELECT * INTO v_race FROM public._test14_race WHERE email_norm = 'wyscig.newsletter@example.org';
+  PERFORM pg_temp.assert(v_race.fired = 1 AND v_race.rival IS NOT NULL,
+    '14/wyscig: rywal zalozyl adres PO odczycie mostu (symulacja zadzialala)');
+  PERFORM pg_temp.assert(v_lead = v_race.rival,
+    '14/wyscig: most zwraca wiersz rywala (dopasowanie po e-mailu)');
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.crm_leads
+      WHERE tenant_id = v_tenant AND email_norm = 'wyscig.newsletter@example.org') = 1,
+    '14/wyscig: jeden kontakt na adres - bez duplikatu');
+
+  SELECT * INTO v_l FROM public.crm_leads WHERE id = v_lead;
+  PERFORM pg_temp.assert(v_l.newsletter_status = 'confirmed',
+    '14/wyscig: newsletter_status rywala ZACHOWANY (nie NULL)');
+  PERFORM pg_temp.assert(v_l.marketing_consent,
+    '14/wyscig: zgoda rywala zachowana mimo braku dowodu u osoby');
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.crm_consent_log
+                 WHERE tenant_id = v_tenant AND lower(email) = 'wyscig.newsletter@example.org'),
+    '14/wyscig: bez dowodu most nie pisze rejestru zgod');
+  PERFORM pg_temp.assert(v_l.first_name = 'Rywal' AND v_l.last_name = 'Wyscigowy',
+    '14/wyscig: niepuste imie rywala nienadpisane, puste nazwisko uzupelnione');
+  PERFORM pg_temp.assert(v_l.source_type = 'event_participant'
+    AND v_l.tags = ARRAY['newsletter:doi', 'event:most-14'],
+    '14/wyscig: segment w gore (newsletter -> event_participant), tagi doklejone');
+  PERFORM pg_temp.assert(v_l.source_count = 2
+    AND v_l.aliases->'sources' = '["event:most-14:registration"]'::jsonb,
+    '14/wyscig: zrodlo dopisane jak do istniejacego kontaktu (licznik 1 -> 2)');
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.domain_events
+      WHERE aggregate_type = 'crm_lead' AND aggregate_id = v_lead::text
+        AND event_type = 'crm_lead.created.v1') = 1,
+    '14/wyscig: jedno crm_lead.created.v1 (rywala) - most nie zalozyl drugiego kontaktu');
+  PERFORM pg_temp.assert(
+    EXISTS (SELECT 1 FROM public.audit_log
+             WHERE tenant_id = v_tenant AND entity_type = 'crm_lead' AND entity_id = v_lead
+               AND action = 'event.registration.approved'),
+    '14/wyscig: wpis osi czasu przypiety do kontaktu rywala');
+  SELECT * INTO v_k FROM public.event_person_crm_links
+   WHERE tenant_id = v_tenant AND person_id = v_p11;
+  PERFORM pg_temp.assert(v_k.sync_status = 'ok' AND v_k.crm_lead_id = v_lead
+    AND v_k.last_error IS NULL,
+    '14/wyscig: stan mostu ok ze wskazaniem kontaktu rywala');
+
+  -- m2: dowod zgody u osoby PODNOSI zgode rywala, subskrypcja w toku zostaje.
+  v_lead := public._event_person_crm_sync(
+    v_tenant, v_p12, 'event_cfp', 'event:most-14:cfp', ARRAY['cfp:submitted']);
+  SELECT * INTO v_race FROM public._test14_race WHERE email_norm = 'wyscig.zgoda@example.org';
+  PERFORM pg_temp.assert(v_race.fired = 1 AND v_lead = v_race.rival,
+    '14/wyscig+zgoda: most dopasowal wiersz rywala zalozony po odczycie');
+  SELECT * INTO v_l FROM public.crm_leads WHERE id = v_lead;
+  PERFORM pg_temp.assert(v_l.newsletter_status = 'pending',
+    '14/wyscig+zgoda: subskrypcja w toku rywala zachowana (nie NULL)');
+  PERFORM pg_temp.assert(v_l.marketing_consent AND v_l.source_type = 'event_cfp',
+    '14/wyscig+zgoda: zgoda false -> true Z DOWODU osoby, segment w gore');
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.crm_consent_log
+      WHERE tenant_id = v_tenant AND lower(email) = 'wyscig.zgoda@example.org'
+        AND source_type = 'event' AND consent_key = 'marketing' AND given
+        AND source_id = v_p12) = 1,
+    '14/wyscig+zgoda: dokladnie jeden wiersz rejestru zgod ze zrodlem event');
+END
+$do$;
+
+-- m3: rywal znika zaraz po konflikcie - most nie zaklada kontaktu bez imion
+-- przez `crm_upsert_from_form`, tylko zostawia stan `error` z kodem
+-- `lead_conflict_lost` do ponowienia (bez wyjatku).
+CREATE FUNCTION public._test14_race_vanish() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF pg_trigger_depth() = 1 THEN
+    DELETE FROM public.crm_leads l
+     USING public._test14_race r
+     WHERE r.vanish AND r.fired = 1 AND l.id = r.rival;
+  END IF;
+  RETURN NULL;
+END $$;
+CREATE TRIGGER test14_race_vanish AFTER INSERT ON public.crm_leads
+  FOR EACH STATEMENT EXECUTE FUNCTION public._test14_race_vanish();
+
+DO $do$
+DECLARE
+  v_tenant constant uuid := '11111111-1111-1111-1111-111111111111';
+  v_p13    constant uuid := '14f00000-0000-0000-0000-000000000013';
+  v_k record;
+BEGIN
+  PERFORM pg_temp.act_as('14a00000-0000-0000-0000-0000000000a1', v_tenant);
+  UPDATE public.event_people SET notes = 'zapis wolajacego m3' WHERE id = v_p13;
+  PERFORM pg_temp.assert(
+    public._event_person_crm_sync(
+      v_tenant, v_p13, 'event_participant', 'event:most-14:registration',
+      ARRAY['event:most-14'], '{}', true, 'event.registration.approved', '{}') IS NULL,
+    '14/wyscig+znika: most zwraca NULL zamiast rzucac');
+  PERFORM pg_temp.assert(
+    (SELECT notes FROM public.event_people WHERE id = v_p13) = 'zapis wolajacego m3',
+    '14/wyscig+znika: zapis wolajacego przetrwal');
+  PERFORM pg_temp.assert(
+    (SELECT fired = 1 AND rival IS NOT NULL FROM public._test14_race
+      WHERE email_norm = 'wyscig.znika@example.org'),
+    '14/wyscig+znika: rywal zalozyl adres po odczycie mostu i zniknal (symulacja zadzialala)');
+  SELECT * INTO v_k FROM public.event_person_crm_links
+   WHERE tenant_id = v_tenant AND person_id = v_p13;
+  PERFORM pg_temp.assert(v_k.sync_status = 'error'
+    AND v_k.last_error = 'lead_conflict_lost' AND v_k.crm_lead_id IS NULL
+    AND v_k.synced_at IS NULL AND v_k.last_create,
+    '14/wyscig+znika: stan error z kodem lead_conflict_lost i intencja do ponowienia');
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.crm_leads
+                 WHERE tenant_id = v_tenant AND email_norm = 'wyscig.znika@example.org')
+    AND NOT EXISTS (SELECT 1 FROM public.audit_log WHERE metadata->>'person_id' = v_p13::text),
+    '14/wyscig+znika: brak kontaktu bez imion i brak wpisu osi czasu');
+END
+$do$;
+
+DROP TRIGGER test14_race_vanish ON public.crm_leads;
+DROP TRIGGER test14_race_rival ON public.crm_leads;
+
+-- Ponowienie po ustaniu wyscigu zaklada kontakt z imionami i bez newslettera.
+DO $do$
+DECLARE
+  v_tenant constant uuid := '11111111-1111-1111-1111-111111111111';
+  v_p13    constant uuid := '14f00000-0000-0000-0000-000000000013';
+  v_lead uuid;
+  v_l record;
+BEGIN
+  PERFORM pg_temp.act_as('14a00000-0000-0000-0000-0000000000a1', v_tenant);
+  v_lead := public.admin_event_person_crm_retry(v_p13);
+  SELECT * INTO v_l FROM public.crm_leads WHERE id = v_lead;
+  PERFORM pg_temp.assert(v_l.email_norm = 'wyscig.znika@example.org'
+    AND v_l.first_name = 'Zenon' AND v_l.last_name = 'Znikniety'
+    AND v_l.newsletter_status IS NULL AND v_l.source_count = 1,
+    '14/wyscig+znika: ponowienie zaklada kontakt z imionami, newsletter NULL');
+  PERFORM pg_temp.assert(
+    (SELECT sync_status FROM public.event_person_crm_links
+      WHERE tenant_id = v_tenant AND person_id = v_p13) = 'ok',
+    '14/wyscig+znika: po ponowieniu stan ok');
+END
+$do$;
 
 ROLLBACK;

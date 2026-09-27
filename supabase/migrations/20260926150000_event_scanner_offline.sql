@@ -22,10 +22,12 @@
 --      `roster_download_count` (+ grant kolumnowy do odczytu w panelu).
 --   2) `event_checkins`: `offline_admitted` (NULL = decyzja online),
 --      `offline_outcome` (lokalny wynik: granted | denied_direction |
---      denied_registration_status | unknown_code | repeat) i
---      `roster_generated_at` (wersja listy, z ktorej zapadla decyzja).
---      Konfliktu NIE przechowujemy - liczy go lista panelu z wyniku serwera
---      i trybu punktu (`admit` zalezy od `access_mode`).
+--      denied_registration_status | unknown_code | repeat),
+--      `roster_generated_at` (wersja listy, z ktorej zapadla decyzja) i
+--      `offline_server_result` (wynik serwera dla skanu, ktoremu urzadzenie
+--      ODMOWILO - patrz REGULY KONFLIKTOW). Konfliktu NIE przechowujemy -
+--      liczy go lista panelu z wyniku serwera i trybu punktu (`admit`
+--      zalezy od `access_mode`).
 --   3) `event_scanner_roster(jsonb)` - lista offline (plaszczyzna urzadzenia):
 --      pelna albo przyrostowa (`since`, z usunietymi zapisami w `removed`),
 --      stronicowana po identyfikatorze zapisu (`after`, maks. 2000).
@@ -33,21 +35,28 @@
 --      zegara urzadzenia), `offline_roster` i `roster_downloaded_at`.
 --   5) `event_checkin_record(jsonb)` przyjmuje `offline_admitted`,
 --      `offline_outcome`, `roster_generated_at` i `queued`; utrwala je
---      DOPISANIEM do zwroconego wiersza (sygnatura `_event_checkin_write` bez
---      zmian). Skan z kolejki z nieznanym kodem podnosi tylko licznik
---      monotoniczny - nie okno blokady (patrz ZAGROZENIA).
+--      DOPISANIEM do zwroconego wiersza. Odmowe offline przekazuje do
+--      `_event_checkin_write` (`_offline_denied`), zeby czlowiek odeslany od
+--      bramki nie zostal po synchronizacji "obecny". Skan z kolejki
+--      z nieznanym kodem podnosi tylko licznik monotoniczny - nie okno
+--      blokady (patrz ZAGROZENIA).
 --   6) `_event_checkin_write(...)` - ZEGAR: do dziennika idzie
 --      `LEAST(czas urzadzenia, now())`, a skan starszy niz 7 dni jest
 --      odrzucany TRWALYM kodem `device_time_out_of_range:`. Wczesniej zegar
 --      spieszacy sie o >2 min lamal CHECK `event_checkins_device_time_sane`,
 --      a komunikat bez prefiksu klient uznawal za blad sieci i ponawial
 --      osiem razy - skan zostawal w "wymaga uwagi" na zawsze. Dotyczylo to
---      takze pracy ONLINE.
+--      takze pracy ONLINE. ODMOWA OFFLINE: 12. argument `_offline_denied`
+--      (DEFAULT NULL - panel i stare wywolania bez zmian) - gdy serwer by
+--      wpuscil, wiersz zapisuje odmowe bramki, bez stempla obecnosci i bez
+--      wplywu na oblozenie punktu; odpowiedz niesie `server_admit`.
 --   7) `_event_scanner_device_auth_sync(text, text, timestamptz)` - bramka
 --      synchronizacji: wygasle poswiadczenie przyjmuje skan, ktory ZAPADL
 --      PRZED terminem, jeszcze przez 72 godziny. Uniewaznienie, pauza,
 --      blokada i brak zakresu zostaja twarda odmowa. Uzywaja jej zapis
---      odprawy i zapis leadu. Pierwotna `_event_scanner_device_auth` bez zmian.
+--      odprawy i zapis leadu - WYLACZNIE dla skanu z kolejki (`queued` albo
+--      z decyzja offline); skan na zywo dostaje czas NULL, czyli bez okna.
+--      Pierwotna `_event_scanner_device_auth` bez zmian.
 --   8) Panel: `admin_event_scanner_device_issue` przyjmuje `offline_roster`;
 --      nowa `admin_event_scanner_device_set_offline(jsonb)`; lista urzadzen
 --      z kolumnami listy offline; dziennik odpraw z kolumnami offline,
@@ -57,8 +66,8 @@
 --      `assert_admin_tenant()` / `assert_editor_tenant()`.
 --   9) CRM: trigger `event_registrations_attended_crm` (AFTER UPDATE OF
 --      attended_at, tylko NULL -> NOT NULL) wola most f0 w trybie
---      WYLACZNIE AKTUALIZACJI (`p_create => false`): tag `attended:<slug>`,
---      wpis osi czasu `event.checkin.attended`. Obejmuje odprawe online,
+--      WYLACZNIE AKTUALIZACJI (`p_create => false`): tagi `event:<slug>`
+--      i `attended:<slug>`, wpis osi czasu `event.checkin.attended`. Obejmuje odprawe online,
 --      zsynchronizowana offline i reczna z panelu, bo wszystkie ida przez
 --      ten sam zapis. Most nigdy nie rzuca, a cialo triggera ma wlasny blok
 --      EXCEPTION - awaria CRM nie cofnie odprawy.
@@ -99,8 +108,12 @@
 --   poswiadczenie moze przez 72 h dopisywac skany z czasem wstecznym sprzed
 --   terminu. Swiadomy koszt synchronizacji kolejki; mitygacje: uniewaznienie
 --   (i pauza) dzialaja natychmiast i bez okna, lista offline i konfiguracja
---   skanera sa po terminie niedostepne, a wpisy maja `scanned_at` serwera
---   (widoczny w dzienniku obok czasu urzadzenia).
+--   skanera sa po terminie niedostepne, okno dostaje tylko skan z kolejki,
+--   a wpisy maja `scanned_at` serwera (widoczny w dzienniku obok czasu
+--   urzadzenia). Skan przyjety WYLACZNIE dzieki oknu (poswiadczenie juz po
+--   terminie) NIE oddaje danych osoby: odprawa i lead zwracaja `person`
+--   NULL (lead - sama flaga zgody), wiec wygasle poswiadczenie stoiska nie
+--   wyciaga e-maili i telefonow uczestnikow przez 72 h.
 --
 -- REGULY KONFLIKTOW (skan offline vs wynik serwera po synchronizacji)
 --   | przypadek                                  | offline | serwer           | zapis / pokaz                   |
@@ -110,11 +123,22 @@
 --   |                                            |         |                  | = KONFLIKT; attended_at NIE     |
 --   |                                            |         |                  | stemplowane - decyduje czlowiek |
 --   | limit osiagniety przez inne urzadzenia     | wpusc   | denied_capacity  | jw. (limit offline przyblizony) |
---   | kod nieznany offline                       | odmowa  | unknown_code     | brak wiersza (jak dotad)        |
+--   | kod nieznany offline i na serwerze         | odmowa  | unknown_code     | brak wiersza (jak dotad)        |
+--   | odmowa offline (kod spoza listy: bilet     | odmowa  | granted          | wiersz z ODMOWA BRAMKI w result |
+--   | wydany albo zapis przyjety po pobraniu     |         |                  | (unknown_code -> denied_not_    |
+--   | listy), serwer by wpuscil                  |         |                  | registered), offline_server_    |
+--   |                                            |         |                  | result = granted = KONFLIKT     |
+--   |                                            |         |                  | "odeslany"; attended_at NIE     |
+--   |                                            |         |                  | stemplowane, oblozenie bez zmian|
 --   | poswiadczenie wygaslo przed synchronizacja | -       | przyjete (72 h)  | normalnie                       |
 --   | poswiadczenie uniewaznione przed synchr.   | -       | device_revoked   | brak wiersza; lista odrzuconych |
 --   |                                            |         |                  | na urzadzeniu z eksportem       |
 --   | ponowna wysylka tego samego skanu          | -       | replay           | ten sam wiersz                  |
+--   Odmowa offline ma pierwszenstwo przed zgoda serwera, bo o tym, czy
+--   czlowiek WSZEDL, wie tylko bramka: zgoda policzona po godzinie nie
+--   wpuszcza nikogo wstecz, a stempel obecnosci trafia dalej (tag CRM,
+--   certyfikat obecnosci, obecnosc na sesjach). Organizator widzi konflikt
+--   i odnajduje osobe; wejscie po powrocie do bramki to nowy skan (zgoda).
 --   Pola offline dopisujemy do zwroconego wiersza TYLKO ESKALUJAC:
 --   `offline_admitted` false -> true, wynik i wersja listy tylko gdy puste.
 --   Powtorzenie (`repeat`) wskazuje wiersz INNEGO skanu - nadpisanie go
@@ -123,9 +147,10 @@
 --
 -- CZEGO NIE ZMIENIA
 --   * sygnatur i ACL istniejacych funkcji plaszczyzny urzadzenia (poza
---     `admin_event_checkins_list`, ktora dostaje 11. argument z DEFAULT -
---     stara 10-argumentowa jest usuwana, bo dwie przeciazone wersje
---     z DEFAULT-ami bylyby niejednoznaczne);
+--     `admin_event_checkins_list`, ktora dostaje 11. argument z DEFAULT,
+--     i `_event_checkin_write`, ktora dostaje 12. `_offline_denied`
+--     z DEFAULT NULL - stare wersje sa usuwane, bo dwie przeciazone wersje
+--     z DEFAULT-ami bylyby niejednoznaczne; ACL nowej = ACL starej);
 --   * `_event_scanner_device_auth`, `_event_checkin_evaluate`,
 --     `_event_onsite_person_card`, `event_checkin_resolve`;
 --   * limitu obecnosci miedzy urzadzeniami offline - jest przyblizony i tak
@@ -180,7 +205,8 @@ COMMENT ON COLUMN public.event_scanner_devices.roster_download_count IS
 ALTER TABLE public.event_checkins
   ADD COLUMN IF NOT EXISTS offline_admitted boolean,
   ADD COLUMN IF NOT EXISTS offline_outcome text,
-  ADD COLUMN IF NOT EXISTS roster_generated_at timestamptz;
+  ADD COLUMN IF NOT EXISTS roster_generated_at timestamptz,
+  ADD COLUMN IF NOT EXISTS offline_server_result text;
 
 DO $$
 BEGIN
@@ -202,6 +228,18 @@ BEGIN
       ADD CONSTRAINT event_checkins_offline_pair
       CHECK ((offline_admitted IS NULL) = (offline_outcome IS NULL));
   END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conrelid = 'public.event_checkins'::regclass
+       AND conname = 'event_checkins_offline_server_result_values'
+  ) THEN
+    ALTER TABLE public.event_checkins
+      ADD CONSTRAINT event_checkins_offline_server_result_values
+      CHECK (offline_server_result IN (
+        'granted', 'denied_not_registered', 'denied_registration_status',
+        'denied_direction', 'denied_capacity', 'denied_checkpoint_inactive'
+      ));
+  END IF;
 END
 $$;
 
@@ -215,6 +253,8 @@ COMMENT ON COLUMN public.event_checkins.offline_outcome IS
   'Lokalny wynik urzadzenia offline: granted | denied_direction | denied_registration_status | unknown_code | repeat.';
 COMMENT ON COLUMN public.event_checkins.roster_generated_at IS
   'Chwila wygenerowania listy offline, z ktorej urzadzenie podjelo decyzje (wersja listy).';
+COMMENT ON COLUMN public.event_checkins.offline_server_result IS
+  'Wynik serwera dla skanu, ktoremu urzadzenie BEZ SIECI odmowilo wejscia. Gdy serwer by wpuscil (granted), result trzyma odmowe bramki, obecnosc nie jest stemplowana, a admin_event_checkins_list pokazuje konflikt denied_offline. NULL = decyzja online albo wpuszczenie offline (wtedy result jest wynikiem serwera).';
 
 -- ----------------------------------------------------------------------------
 -- 3) BRAMKA SYNCHRONIZACJI: WYGASLE POSWIADCZENIE Z OKNEM 72 H
@@ -295,13 +335,26 @@ COMMENT ON FUNCTION public._event_scanner_device_auth_sync(text, text, timestamp
   'Bramka SYNCHRONIZACJI plaszczyzny urzadzenia: jak _event_scanner_device_auth, ale wygasle poswiadczenie przyjmuje skan sprzed terminu jeszcze przez 72 godziny. Uniewaznienie, pauza, blokada i brak zakresu zostaja twarda odmowa.';
 
 -- ----------------------------------------------------------------------------
--- 4) ZAPIS ODPRAWY: ZEGAR URZADZENIA
+-- 4) ZAPIS ODPRAWY: ZEGAR URZADZENIA I ODMOWA OFFLINE
 --
--- Cialo z 20260824102000 znak w znak, z DWIEMA zmianami w miejscu, gdzie
--- liczony jest `v_at`: skan starszy niz 7 dni odbija sie TRWALYM kodem,
--- a do dziennika idzie `LEAST(czas urzadzenia, now())` zamiast surowej
--- wartosci. Sygnatura bez zmian, wiec CREATE OR REPLACE (ACL zostaje).
+-- Cialo z 20260824102000 z TRZEMA zmianami. (a) Tam, gdzie liczony jest
+-- `v_at`: skan starszy niz 7 dni odbija sie TRWALYM kodem, a do dziennika
+-- idzie `LEAST(czas urzadzenia, now())` zamiast surowej wartosci.
+-- (b) 12. argument `_offline_denied` (DEFAULT NULL): odmowa, ktora urzadzenie
+-- BEZ SIECI dalo czlowiekowi przy bramce (denied_not_registered dla kodu
+-- spoza listy, denied_registration_status, denied_direction). Gdy serwer
+-- ocenia `granted`, wiersz dostaje te odmowe zamiast zgody - bez stempla
+-- `attended_at` (a wiec bez tagu CRM i certyfikatu obecnosci) i bez wplywu
+-- na oblozenie punktu, ktore liczy wylacznie zgody. Wynik serwera zostaje
+-- w `offline_server_result`. (c) Odpowiedz niesie `server_admit` - co
+-- zrobilby serwer - zeby urzadzenie wykrylo konflikt "odeslany offline".
+-- Lista argumentow sie zmienia, wiec stara 11-argumentowa wersja jest
+-- usuwana (dwie przeciazone z DEFAULT-em bylyby niejednoznaczne); panel
+-- (`admin_event_checkin_manual`) wola 11 argumentow i trafia w DEFAULT.
 -- ----------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS public._event_checkin_write(
+  uuid, uuid, uuid, uuid, text, text, uuid, uuid, text, timestamptz, text
+);
 CREATE OR REPLACE FUNCTION public._event_checkin_write(
   _tenant uuid,
   _event_id uuid,
@@ -313,7 +366,8 @@ CREATE OR REPLACE FUNCTION public._event_checkin_write(
   _operator uuid,
   _client_uid text,
   _device_at timestamptz,
-  _note text
+  _note text,
+  _offline_denied text DEFAULT NULL
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -329,10 +383,12 @@ DECLARE
   v_prev public.event_checkins;
   v_row public.event_checkins;
   v_result text;
+  v_server text;
   v_outcome text;
   v_at timestamptz;
   v_occupancy integer;
   v_admit boolean;
+  v_server_admit boolean;
   v_prev_at timestamptz;
   v_done boolean := false;
 BEGIN
@@ -342,6 +398,12 @@ BEGIN
 
   IF _source NOT IN ('qr_code', 'manual_entry', 'name_search', 'self_service') THEN
     RAISE EXCEPTION 'invalid_payload: unknown check-in source %', _source;
+  END IF;
+
+  IF _offline_denied IS NOT NULL AND _offline_denied NOT IN (
+    'denied_not_registered', 'denied_registration_status', 'denied_direction'
+  ) THEN
+    RAISE EXCEPTION 'invalid_payload: unknown offline denial %', _offline_denied;
   END IF;
 
   IF _client_uid IS NOT NULL THEN
@@ -378,7 +440,13 @@ BEGIN
     v_eval := public._event_checkin_evaluate(
       _tenant, _event_id, _checkpoint_id, _person_id, v_dir
     );
-    v_result := v_eval->>'result';
+    v_server := v_eval->>'result';
+    -- Odmowa bramki offline wygrywa ze zgoda serwera (naglowek, REGULY
+    -- KONFLIKTOW): czlowieka odeslano, wiec nie stal sie obecny.
+    v_result := CASE
+      WHEN _offline_denied IS NOT NULL AND v_server = 'granted' THEN _offline_denied
+      ELSE v_server
+    END;
     v_reg_id := NULLIF(v_eval->>'registration_id', '')::uuid;
 
     SELECT c.* INTO v_prev
@@ -407,12 +475,14 @@ BEGIN
         INSERT INTO public.event_checkins (
           tenant_id, event_id, checkpoint_id, person_id, registration_id,
           direction, result, source, scanned_at, device_scanned_at,
-          operator_user_id, device_id, client_scan_uid, note
+          operator_user_id, device_id, client_scan_uid, note,
+          offline_server_result
         ) VALUES (
           _tenant, _event_id, _checkpoint_id, _person_id, v_reg_id,
           v_dir, v_result, _source, now(),
           CASE WHEN _device_at IS NULL THEN NULL ELSE v_at END,
-          _operator, _device_id, _client_uid, NULLIF(btrim(COALESCE(_note, '')), '')
+          _operator, _device_id, _client_uid, NULLIF(btrim(COALESCE(_note, '')), ''),
+          CASE WHEN _offline_denied IS NULL THEN NULL ELSE v_server END
         )
         RETURNING * INTO v_row;
 
@@ -485,10 +555,17 @@ BEGIN
       v_cp.access_mode = 'track'
       AND v_row.result IN ('denied_not_registered', 'denied_registration_status')
     );
+  v_server_admit := COALESCE(v_row.offline_server_result, v_row.result) = 'granted'
+    OR (
+      v_cp.access_mode = 'track'
+      AND COALESCE(v_row.offline_server_result, v_row.result)
+        IN ('denied_not_registered', 'denied_registration_status')
+    );
 
   RETURN jsonb_build_object(
     'outcome', v_outcome,
     'admit', v_admit,
+    'server_admit', v_server_admit,
     'result', v_row.result,
     'checkin_id', v_row.id,
     'direction', v_row.direction,
@@ -511,16 +588,16 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public._event_checkin_write(
-  uuid, uuid, uuid, uuid, text, text, uuid, uuid, text, timestamptz, text
+  uuid, uuid, uuid, uuid, text, text, uuid, uuid, text, timestamptz, text, text
 ) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public._event_checkin_write(
-  uuid, uuid, uuid, uuid, text, text, uuid, uuid, text, timestamptz, text
+  uuid, uuid, uuid, uuid, text, text, uuid, uuid, text, timestamptz, text, text
 ) TO service_role;
 
 COMMENT ON FUNCTION public._event_checkin_write(
-  uuid, uuid, uuid, uuid, text, text, uuid, uuid, text, timestamptz, text
+  uuid, uuid, uuid, uuid, text, text, uuid, uuid, text, timestamptz, text, text
 ) IS
-  'Jedyna droga do dziennika odpraw, wspolna dla plaszczyzny urzadzenia i panelu. Blokada wiersza punktu, wynik, limit obecnosci, okno idempotencji, wstawienie z ograniczeniem EXCLUDE jako bramka wyscigu. Czas urzadzenia przyciety do now(), skan starszy niz 7 dni odrzucony kodem device_time_out_of_range. Zgoda na wejscie stempluje event_registrations.attended_at.';
+  'Jedyna droga do dziennika odpraw, wspolna dla plaszczyzny urzadzenia i panelu. Blokada wiersza punktu, wynik, limit obecnosci, okno idempotencji, wstawienie z ograniczeniem EXCLUDE jako bramka wyscigu. Czas urzadzenia przyciety do now(), skan starszy niz 7 dni odrzucony kodem device_time_out_of_range. Zgoda na wejscie stempluje event_registrations.attended_at. _offline_denied: odmowa bramki offline wygrywa ze zgoda serwera (bez stempla obecnosci; wynik serwera w offline_server_result).';
 
 -- ----------------------------------------------------------------------------
 -- 5) KONFIGURACJA SKANERA: ZEGAR SERWERA I STAN LISTY OFFLINE
@@ -599,9 +676,12 @@ COMMENT ON FUNCTION public.event_scanner_bootstrap(jsonb) IS
 -- ----------------------------------------------------------------------------
 -- 6) ZAPIS ODPRAWY Z URZADZENIA: POLA OFFLINE, OKNO 72 H, KOLEJKA
 --
--- Cialo z 20260824102151; zmiany: bramka synchronizacji z czasem skanu,
--- walidacja i utrwalenie pol offline (dopisanie eskalujace, patrz naglowek),
--- nieznany kod ze skanu z kolejki podnosi tylko licznik monotoniczny.
+-- Cialo z 20260824102151; zmiany: bramka synchronizacji z czasem skanu
+-- (tylko skan z kolejki), walidacja i utrwalenie pol offline (dopisanie
+-- eskalujace, patrz naglowek), odmowa offline przekazana do zapisu
+-- (`_offline_denied`), nieznany kod ze skanu z kolejki podnosi tylko licznik
+-- monotoniczny, a skan przyjety wylacznie dzieki oknu 72 h nie oddaje karty
+-- osoby.
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.event_checkin_record(p_payload jsonb)
 RETURNS jsonb
@@ -623,12 +703,17 @@ DECLARE
   v_device_at timestamptz := NULLIF(p_payload->>'device_scanned_at', '')::timestamptz;
   v_offline_outcome text := NULLIF(lower(btrim(COALESCE(p_payload->>'offline_outcome', ''))), '');
   v_offline_admitted boolean;
+  v_offline_denied text;
   v_roster_at timestamptz := NULLIF(p_payload->>'roster_generated_at', '')::timestamptz;
-  v_queued boolean := lower(COALESCE(p_payload->>'queued', '')) IN ('true', 't', '1');
+  -- Skan z decyzja offline zawsze pochodzi z kolejki.
+  v_queued boolean := lower(COALESCE(p_payload->>'queued', '')) IN ('true', 't', '1')
+    OR NULLIF(btrim(COALESCE(p_payload->>'offline_outcome', '')), '') IS NOT NULL;
   v_result jsonb;
 BEGIN
+  -- Okno 72 h tylko dla skanu z kolejki: skan na zywo nie ma czego
+  -- synchronizowac, wiec wygasle poswiadczenie odbija sie od razu.
   v_device := public._event_scanner_device_auth_sync(
-    p_payload->>'device_token', 'checkin', v_device_at
+    p_payload->>'device_token', 'checkin', CASE WHEN v_queued THEN v_device_at END
   );
 
   IF v_code = '' THEN
@@ -642,7 +727,17 @@ BEGIN
   END IF;
   IF v_offline_outcome IS NOT NULL THEN
     v_offline_admitted := lower(COALESCE(p_payload->>'offline_admitted', '')) IN ('true', 't', '1');
-    v_queued := true;
+    -- Zgoda i powtorzenie to z definicji wpuszczenie (`decideOffline`);
+    -- "zgoda, ale nie wpuscilem" to ladunek sprzeczny, nie decyzja.
+    IF NOT v_offline_admitted AND v_offline_outcome IN ('granted', 'repeat') THEN
+      RAISE EXCEPTION 'invalid_payload: offline_outcome % requires offline_admitted', v_offline_outcome;
+    END IF;
+    IF NOT v_offline_admitted THEN
+      v_offline_denied := CASE v_offline_outcome
+        WHEN 'unknown_code' THEN 'denied_not_registered'
+        ELSE v_offline_outcome
+      END;
+    END IF;
   END IF;
 
   v_checkpoint_id := COALESCE(
@@ -731,8 +826,15 @@ BEGIN
     NULL,
     v_client_uid,
     v_device_at,
-    NULL
+    NULL,
+    v_offline_denied
   );
+
+  -- Poswiadczenie po terminie przeszlo WYLACZNIE dzieki oknu synchronizacji:
+  -- zapis zostaje, ale karta osoby nie wraca na wygasle urzadzenie.
+  IF v_device.expires_at <= now() THEN
+    v_result := jsonb_set(v_result, '{person}', 'null'::jsonb);
+  END IF;
 
   IF v_offline_outcome IS NOT NULL THEN
     UPDATE public.event_checkins c
@@ -755,14 +857,17 @@ REVOKE ALL ON FUNCTION public.event_checkin_record(jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.event_checkin_record(jsonb) TO anon, authenticated, service_role;
 
 COMMENT ON FUNCTION public.event_checkin_record(jsonb) IS
-  'Zapis odprawy z urzadzenia. Payload: {device_token, code, checkpoint_id?, direction?, client_scan_uid?, device_scanned_at?, self_service?, queued?, offline_admitted?, offline_outcome?, roster_generated_at?}. Wejsciem jest TOKEN, nigdy person_id. Idempotencja: client_scan_uid plus okno punktu. Wygasle poswiadczenie przyjmuje skan sprzed terminu przez 72 h. Pola offline dopisywane eskalujaco do zwroconego wiersza.';
+  'Zapis odprawy z urzadzenia. Payload: {device_token, code, checkpoint_id?, direction?, client_scan_uid?, device_scanned_at?, self_service?, queued?, offline_admitted?, offline_outcome?, roster_generated_at?}. Wejsciem jest TOKEN, nigdy person_id. Idempotencja: client_scan_uid plus okno punktu. Wygasle poswiadczenie przyjmuje skan z kolejki sprzed terminu przez 72 h (bez karty osoby w odpowiedzi). Pola offline dopisywane eskalujaco do zwroconego wiersza; odmowa offline nie staje sie obecnoscia.';
 
 -- ----------------------------------------------------------------------------
 -- 7) ZAPIS LEADU: OKNO 72 H I KOLEJKA
 --
 -- Cialo z 20260824102346; zmiany: bramka synchronizacji z czasem skanu
--- (`device_scanned_at`) i licznik monotoniczny dla nieznanego kodu z kolejki.
--- Czas w tabeli leadow zostaje czasem serwera - jak dotad.
+-- (`device_scanned_at`, tylko skan z kolejki), licznik monotoniczny dla
+-- nieznanego kodu z kolejki i BRAK danych osoby, gdy poswiadczenie przeszlo
+-- wylacznie dzieki oknu 72 h (lead zapisany, flaga zgody zostaje, e-mail
+-- i telefon nie wracaja na wygasle urzadzenie stoiska). Czas w tabeli
+-- leadow zostaje czasem serwera - jak dotad.
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.event_lead_scan_record(p_payload jsonb)
 RETURNS jsonb
@@ -784,10 +889,12 @@ DECLARE
   v_lead_id uuid;
   v_count integer;
   v_locked boolean;
+  v_grace boolean;
 BEGIN
   v_device := public._event_scanner_device_auth_sync(
-    p_payload->>'device_token', 'lead', v_device_at
+    p_payload->>'device_token', 'lead', CASE WHEN v_queued THEN v_device_at END
   );
+  v_grace := v_device.expires_at <= now();
 
   IF v_code = '' THEN
     RAISE EXCEPTION 'invalid_payload: code is required';
@@ -860,7 +967,7 @@ BEGIN
     'scan_count', v_count,
     'consent', (v_consent_at IS NOT NULL),
     'person', CASE
-      WHEN v_consent_at IS NULL THEN NULL
+      WHEN v_consent_at IS NULL OR v_grace THEN NULL
       ELSE jsonb_build_object(
         'first_name', v_person.first_name,
         'last_name', v_person.last_name,
@@ -882,7 +989,7 @@ REVOKE ALL ON FUNCTION public.event_lead_scan_record(jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.event_lead_scan_record(jsonb) TO anon, authenticated, service_role;
 
 COMMENT ON FUNCTION public.event_lead_scan_record(jsonb) IS
-  'Skan leada na stoisku. Payload: {device_token, code, note?, interest_rating?, device_scanned_at?, queued?}. Wlasciciel leada pochodzi z POSWIADCZENIA (event_scanner_devices.sponsor_id). Bez zgody uczestnika potwierdza zapis, ale NIE oddaje tozsamosci. Wygasle poswiadczenie przyjmuje skan sprzed terminu przez 72 h.';
+  'Skan leada na stoisku. Payload: {device_token, code, note?, interest_rating?, device_scanned_at?, queued?}. Wlasciciel leada pochodzi z POSWIADCZENIA (event_scanner_devices.sponsor_id). Bez zgody uczestnika potwierdza zapis, ale NIE oddaje tozsamosci. Wygasle poswiadczenie przyjmuje skan z kolejki sprzed terminu przez 72 h - bez danych osoby w odpowiedzi.';
 
 -- ----------------------------------------------------------------------------
 -- 8) LISTA OFFLINE (plaszczyzna urzadzenia)
@@ -1383,12 +1490,18 @@ COMMENT ON FUNCTION public.admin_event_scanner_devices_list(uuid) IS
 -- 12) PANEL: DZIENNIK ODPRAW Z KOLUMNAMI OFFLINE I KONFLIKTEM
 --
 -- Cialo z 20260825055347 plus kolumny offline, wyliczony `conflict`
--- (urzadzenie wpuscilo bez sieci, serwer odmawia wedlug trybu punktu)
--- i filtr `p_conflicts_only`. Zmienia sie lista argumentow, wiec stara
--- 10-argumentowa wersja jest usuwana.
+-- z rodzajem `conflict_kind` (admitted_offline: urzadzenie wpuscilo bez
+-- sieci, serwer odmawia wedlug trybu punktu; denied_offline: urzadzenie
+-- odeslalo czlowieka, a serwer by go wpuscil - trzeba go odnalezc) i filtr
+-- `p_conflicts_only` (oba rodzaje). Zmienia sie lista argumentow, wiec stara
+-- 10-argumentowa wersja jest usuwana; 11-argumentowa tez, bo zmienia sie
+-- RETURNS TABLE (CREATE OR REPLACE nie zmienia typu wyniku).
 -- ----------------------------------------------------------------------------
 DROP FUNCTION IF EXISTS public.admin_event_checkins_list(
   uuid, uuid, text, text, text, text, timestamptz, timestamptz, integer, integer
+);
+DROP FUNCTION IF EXISTS public.admin_event_checkins_list(
+  uuid, uuid, text, text, text, text, timestamptz, timestamptz, integer, integer, boolean
 );
 CREATE OR REPLACE FUNCTION public.admin_event_checkins_list(
   p_event_id uuid,
@@ -1435,7 +1548,9 @@ RETURNS TABLE (
   offline_admitted boolean,
   offline_outcome text,
   roster_generated_at timestamptz,
+  offline_server_result text,
   conflict boolean,
+  conflict_kind text,
   total_count integer
 )
 LANGUAGE plpgsql
@@ -1466,18 +1581,32 @@ BEGIN
       NULLIF(btrim(COALESCE(pr.first_name, '') || ' ' || COALESCE(pr.last_name, '')), '')
     ),
     c.offline_admitted, c.offline_outcome, c.roster_generated_at,
-    (
-      COALESCE(c.offline_admitted, false)
-      AND NOT (
-        c.result = 'granted'
-        OR (cp.access_mode = 'track'
-            AND c.result IN ('denied_not_registered', 'denied_registration_status'))
-      )
-    ),
+    c.offline_server_result,
+    cf.kind IS NOT NULL,
+    cf.kind,
     count(*) OVER ()::integer
   FROM public.event_checkins c
   JOIN public.event_checkpoints cp
     ON cp.tenant_id = c.tenant_id AND cp.id = c.checkpoint_id
+  -- `row_admit`: czy wynik WIERSZA wpuszcza wedlug trybu punktu (przy
+  -- wpuszczeniu offline to wynik serwera); `server_admit`: czy wpuscilby
+  -- serwer (przy odmowie offline jego wynik jest w offline_server_result).
+  CROSS JOIN LATERAL (
+    SELECT
+      (c.result = 'granted'
+        OR (cp.access_mode = 'track'
+            AND c.result IN ('denied_not_registered', 'denied_registration_status'))) AS row_admit,
+      (COALESCE(c.offline_server_result, c.result) = 'granted'
+        OR (cp.access_mode = 'track'
+            AND COALESCE(c.offline_server_result, c.result)
+              IN ('denied_not_registered', 'denied_registration_status'))) AS server_admit
+  ) adm
+  CROSS JOIN LATERAL (
+    SELECT CASE
+      WHEN c.offline_admitted IS TRUE AND NOT adm.row_admit THEN 'admitted_offline'
+      WHEN c.offline_admitted IS FALSE AND adm.server_admit THEN 'denied_offline'
+    END AS kind
+  ) cf
   JOIN public.event_people p
     ON p.tenant_id = c.tenant_id AND p.id = c.person_id
   LEFT JOIN public.crm_companies co
@@ -1505,17 +1634,7 @@ BEGIN
       OR p.full_name_norm LIKE '%' || lower(v_q) || '%'
       OR lower(COALESCE(p.company_text, '')) LIKE '%' || lower(v_q) || '%'
     )
-    AND (
-      NOT v_conflicts
-      OR (
-        COALESCE(c.offline_admitted, false)
-        AND NOT (
-          c.result = 'granted'
-          OR (cp.access_mode = 'track'
-              AND c.result IN ('denied_not_registered', 'denied_registration_status'))
-        )
-      )
-    )
+    AND (NOT v_conflicts OR cf.kind IS NOT NULL)
   ORDER BY c.occurred_at DESC, c.id
   LIMIT v_limit OFFSET v_offset;
 END;
@@ -1531,13 +1650,15 @@ GRANT EXECUTE ON FUNCTION public.admin_event_checkins_list(
 COMMENT ON FUNCTION public.admin_event_checkins_list(
   uuid, uuid, text, text, text, text, timestamptz, timestamptz, integer, integer, boolean
 ) IS
-  'Dziennik odpraw dla panelu: filtry (punkt, kierunek, wynik, zrodlo, fraza, zakres czasu, tylko konflikty), paginacja i licznik calosci w funkcji okna. Kolumny offline i wyliczony conflict (wpuszczony bez sieci, odmowa serwera wedlug trybu punktu). Bramka: assert_event_admin_tenant().';
+  'Dziennik odpraw dla panelu: filtry (punkt, kierunek, wynik, zrodlo, fraza, zakres czasu, tylko konflikty), paginacja i licznik calosci w funkcji okna. Kolumny offline i wyliczony conflict z rodzajem conflict_kind: admitted_offline (wpuszczony bez sieci, odmowa serwera wedlug trybu punktu) albo denied_offline (odeslany bez sieci, serwer by wpuscil). Bramka: assert_event_admin_tenant().';
 
 -- ----------------------------------------------------------------------------
 -- 13) CRM: SYGNAL OBECNOSCI
 --
 -- Pierwsze ostemplowanie `attended_at` (NULL -> NOT NULL) wzbogaca ISTNIEJACY
--- kontakt CRM osoby: tag `attended:<slug>` i wpis osi czasu. Most f0 w trybie
+-- kontakt CRM osoby: tagi `event:<slug>` (jak nabor, faktury i kampanie - po
+-- nim CRM filtruje uczestnikow wydarzenia) i `attended:<slug>` oraz wpis osi
+-- czasu. Most f0 w trybie
 -- `p_create => false` - obecnosc nie jest podstawa do zalozenia kontaktu.
 -- Wewnetrzny blok EXCEPTION: nic, co dzieje sie tutaj, nie cofnie odprawy.
 -- ----------------------------------------------------------------------------
@@ -1560,7 +1681,10 @@ BEGIN
       NEW.person_id,
       'event_participant',
       'event:' || COALESCE(v_event.slug, NEW.event_id::text) || ':checkin',
-      ARRAY['attended:' || COALESCE(v_event.slug, NEW.event_id::text)],
+      ARRAY[
+        'event:' || COALESCE(v_event.slug, NEW.event_id::text),
+        'attended:' || COALESCE(v_event.slug, NEW.event_id::text)
+      ],
       '{}'::jsonb,
       false,
       'event.checkin.attended',
@@ -1585,7 +1709,7 @@ $$;
 REVOKE ALL ON FUNCTION public.tg_event_registrations_attended_crm() FROM PUBLIC, anon, authenticated;
 
 COMMENT ON FUNCTION public.tg_event_registrations_attended_crm() IS
-  'Obecnosc na wydarzeniu -> kontakt CRM (tylko aktualizacja istniejacego): tag attended:<slug> i wpis osi czasu event.checkin.attended przez _event_person_crm_sync(p_create => false). Nigdy nie cofa odprawy.';
+  'Obecnosc na wydarzeniu -> kontakt CRM (tylko aktualizacja istniejacego): tagi event:<slug> i attended:<slug> oraz wpis osi czasu event.checkin.attended przez _event_person_crm_sync(p_create => false). Nigdy nie cofa odprawy.';
 
 DROP TRIGGER IF EXISTS event_registrations_attended_crm ON public.event_registrations;
 CREATE TRIGGER event_registrations_attended_crm
