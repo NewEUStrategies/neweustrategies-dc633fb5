@@ -458,8 +458,8 @@ GRANT EXECUTE ON FUNCTION public.payments_apply_event_ticket_outcome(uuid, text,
 -- 3) _event_apply_outcome_to_group (D0-2) - cialo z 20260926120000
 --
 -- BAZA CIALA. Pierwotnie (spec B.3.2) cialo z 20260922230000. Po scaleniu
--- origin/main ta migracja biegnie PO 20260926100000_event_group_guests_follow_lead
--- i 20260926120000_event_group_lead_closes_admitted_guests, ktore redefiniuja
+-- origin/main ta migracja biegnie PO 20260926100001_event_group_guests_follow_lead
+-- i 20260926120001_event_group_lead_closes_admitted_guests, ktore redefiniuja
 -- te funkcje (zwrot i zwrot czesciowy tylko dla gosci, ktorzy zaplacili;
 -- `COALESCE(p_order_id, r.payment_order_id)`; zawezenie do najemcy
 -- prowadzacego; stala kolejnosc gosci; galaz `paid` rozlicza czekajacych,

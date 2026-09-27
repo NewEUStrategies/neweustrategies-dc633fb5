@@ -1,6 +1,98 @@
--- Plan sali z przydzialem miejsc (f4): event_seat_maps/_categories/_category_tickets/
--- _sections, event_seats, event_seat_assignments + RPC panelu i uczestnika.
--- Blizniak: supabase/migrations/20260926130001_event_seating.sql.
+-- ============================================================================
+-- PLAN SALI Z PRZYDZIALEM MIEJSC (seating plan) - modul Wydarzen, funkcja f4.
+--
+-- BLIZNIAK drizzle/migrations/0060_event_seating.sql - ten sam SQL wykonywalny
+-- (pilnuje tego `src/lib/ci/migrationLaneParity.ts`).
+-- events-harness: include
+--
+-- STAN PRZED. W module nie ma zadnego planu sali. Slowo "miejsce" jest zajete
+-- trzy razy (wolna pojemnosc biletu `_event_seats_left`, wejsciowki pakietu
+-- `event_package_seats`, numer krzesla przy stoliku gieldy spotkan
+-- `event_meetings.table_seat`) - dlatego wszystko tutaj nosi prefiks
+-- `event_seat_*` / `admin_event_seat*` i w komentarzach mowi o "miejscu na
+-- sali", nigdy o golym "miejscu".
+--
+-- STAN PO. Szesc tabel i komplet funkcji:
+--   event_seat_maps             plan (mapa) wydarzenia; opcjonalnie sala agendy
+--                               i sesja ("Gala 19:00"); szkic albo opublikowany;
+--   event_seat_categories       kategorie miejsc wydarzenia (VIP, Prasa) - PL/EN,
+--                               bo widzi je uczestnik;
+--   event_seat_category_tickets ktore typy biletow wolno sadzac w kategorii;
+--   event_seat_sections         sekcje PARAMETRYCZNE: rzedy x miejsca albo stol
+--                               x krzesla (doktryna "lista blokow, nie plotno XY"
+--                               z 20260823180000 - swobodnie przesuwa sie tylko
+--                               CALA sekcje: x, y, obrot);
+--   event_seats                 miejsca ZMATERIALIZOWANE z parametrow sekcji
+--                               (przydzial musi wskazywac konkretny wiersz),
+--                               statusy available|blocked|held, rezerwacje dla
+--                               firmy z CRM / sponsora / zamowienia pakietowego;
+--   event_seat_assignments      przydzialy z MIEKKIM zwolnieniem (historia "kto
+--                               siedzial gdzie"); dwa indeksy czesciowe sa
+--                               gwarancja przy wyscigu.
+--
+-- DLACZEGO TAK
+--   * Wspolrzedne miejsc sa LOKALNE w ukladzie sekcji. Przesuniecie albo obrot
+--     sekcji nie przepisuje tysiaca wierszy - robi to rysunek po stronie
+--     klienta (`src/lib/events/seatingGeometry.ts`). Uklad lokalny liczy SQL
+--     (`_event_seat_section_layout`) ta sama formula co klient; zgodnosc
+--     pilnuje test parytetu, ktory czyta zloty wzorzec z
+--     `scripts/events-harness/runtime_test.d/65_seating.sql`.
+--   * Regeneracja miejsc przy zapisie sekcji idzie po KLUCZU NATURALNYM
+--     (rzad, numer): miejsce, ktore zostaje, zachowuje swoj status, rezerwacje
+--     i przydzial; znika tylko to, czego nowe parametry juz nie maja - i to
+--     tylko wtedy, gdy nikt na nim nie siedzi (`seats_in_use`).
+--   * Kazdy zapis przydzialu zaczyna od `FOR UPDATE` na wierszu PLANU - jedna
+--     kolejka na plan (wzorzec `_event_meeting_take_seat`). Mechanizmem
+--     poprawnosci sa jednak indeksy czesciowe: jedno aktywne miejsce na
+--     zgloszenie w planie i jeden aktywny posiadacz miejsca.
+--   * Regul "miejsce nie jest zablokowane" i "zgloszenie ma status zajmujacy
+--     miejsce" pilnuje TRIGGER na przydzialach, nie tylko RPC - kazda przyszla
+--     sciezka zapisu (import, zadanie w tle) dziedziczy je bez pamietania.
+--     Zbior statusow `approved|attended|no_show` jest dokladnie zbiorem z
+--     `tg_event_registrations_sync_ticket_sold` (statusy zajmujace pojemnosc).
+--   * Zmiana statusu zgloszenia na inny niz zajmujacy miejsce ZWALNIA miejsce
+--     triggerem na `event_registrations` (doktryna gieldy spotkan: bez triggera
+--     kazda nowa sciezka rezygnacji - samoobsluga, zwrot, decyzja panelu -
+--     musialaby o tym pamietac).
+--   * Usuniecie miejsca z AKTYWNYM przydzialem jest odrzucane triggerem, dopoki
+--     istnieje plan. Przy kaskadzie z usuniecia planu albo wydarzenia plan juz
+--     nie istnieje i wszystko znika razem - dlatego NIE MA ograniczenia CHECK
+--     "aktywny przydzial ma miejsce": kolejnosc kaskad (SET NULL z miejsca przed
+--     DELETE z planu) wywracalaby usuniecie wydarzenia.
+--   * Plan NIE ogranicza sprzedazy (brak rezerwacji miejsc w kasie) -
+--     `_event_seats_left` zostaje bez zmian.
+--
+-- CRM. Rezerwacje (`held`) wskazuja `crm_companies`, `event_sponsors`
+-- (sponsor = firma z CRM) albo `event_package_orders` kluczami ZLOZONYMI.
+-- Przydzial przepuszcza bez `force` tylko osoby firmy rezerwujacej, firmy
+-- sponsora albo zamowienia pakietowego. Rezerwacja dla firmy dopisuje wpis
+-- osi czasu CRM firmy (`audit_log`, akcja `event.seating.hold_set`, kontrakt
+-- metadanych mostu z 20260926090000). Publikacja planu niczego do CRM nie
+-- pisze.
+--
+-- PLASZCZYZNY
+--   * panel: `admin_event_seat*` / `admin_event_seating_*` - bramka
+--     `assert_event_admin_tenant()` (admin albo super_admin, nigdy redaktor);
+--   * uczestnik: `event_my_seats` (zalogowany, `public_tenant_id()` +
+--     `auth.uid()`) i `event_ticket_seats` (strona biletu - skrot kodu QR albo
+--     klucza samoobslugi z fragmentu adresu). Obie oddaja WYLACZNIE plany
+--     opublikowane, WYLACZNIE miejsca wolajacego i geometrie JEGO sekcji bez
+--     cudzych danych. Zadna z nich nie wola `has_role`.
+--
+-- RLS: wszystkie tabele tylko do odczytu dla admina/super_admina najemcy,
+-- bez anon (uklad i obsada to dane operacyjne i osobowe); zapis wylacznie
+-- przez funkcje SECURITY DEFINER.
+--
+-- IZOLACJA NAJEMCOW: kazda instrukcja filtruje `tenant_id = v_tenant`, a klucze
+-- obce sa zlozone z `tenant_id` - wiersz najemcy B nie wskaze planu, sekcji,
+-- miejsca, zgloszenia ani firmy najemcy A.
+--
+-- IDEMPOTENCJA: CREATE ... IF NOT EXISTS, DROP ... IF EXISTS + CREATE,
+-- CREATE OR REPLACE FUNCTION.
+--
+-- Testy: scripts/events-harness/runtime_test.d/65_seating.sql,
+-- src/lib/events/__tests__/seating*.test.ts.
+-- ============================================================================
 
 -- ----------------------------------------------------------------------------
 -- 1. PLAN SALI

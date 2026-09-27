@@ -367,6 +367,14 @@ export const adminEventsPl = {
         cfpForm: "Formularz zgłoszenia",
         cfpSubmissions: "Zgłoszenia",
         cfpReviewers: "Recenzenci",
+        // PODSTRONY F1-F5. „Zasady biletów" (przekazanie, zwrot, oferty z listy
+        // rezerwowej) to ekran Foundation; trzy pozycje grupy „Po wydarzeniu"
+        // są dopisane z wyprzedzeniem dla toru C (spec B.12), żeby tor nie
+        // edytował tego pliku.
+        registrationPolicies: "Zasady biletów",
+        followUpCertificate: "Certyfikat",
+        followUpSurvey: "Ankieta",
+        followUpResults: "Wyniki ankiety",
         communications: "Komunikacja",
         integrations: "Integracje",
         analytics: "Analityka",
@@ -1547,6 +1555,10 @@ export const adminEventsEn = {
         cfpForm: "Submission form",
         cfpSubmissions: "Submissions",
         cfpReviewers: "Reviewers",
+        registrationPolicies: "Ticket policies",
+        followUpCertificate: "Certificate",
+        followUpSurvey: "Survey",
+        followUpResults: "Survey results",
         communications: "Communications",
         integrations: "Integrations",
         analytics: "Analytics",
