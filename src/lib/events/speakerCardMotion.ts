@@ -36,6 +36,14 @@ export const SPEAKER_CARD_SPRING =
 /** Silnik bez `linear()` dostaje krzywa o tym samym charakterze (jak `--avg-spring`). */
 export const SPEAKER_CARD_SPRING_FALLBACK = "cubic-bezier(0.22, 1, 0.36, 1)";
 
+/**
+ * Krzywa GEOMETRII (wysokosc karty, skala zdjecia): ten sam charakter, ale bez
+ * przestrzalu ponad 1. Sprezyna przy skali wypycha zdjecie kilka px za kwadrat
+ * naglowka (na linie szczegolow), a przy wysokosci stawia dol karty nad dolem
+ * sasiadow w wierszu siatki. Przesuniecia napisow zostaja na sprezynie.
+ */
+export const SPEAKER_CARD_SETTLE = SPEAKER_CARD_SPRING_FALLBACK;
+
 /** Promien zdjec platformy - 6 px (spec zdjec profilowych). */
 export const SPEAKER_CARD_RADIUS_PX = 6;
 
@@ -155,6 +163,15 @@ export function revealKeyframes(): Keyframe[] {
     { opacity: 0, transform: "translate(0px, -8px)" },
     { opacity: 1, transform: "translate(0px, 0px)" },
   ];
+}
+
+/**
+ * Napis, ktory zmienia wyrownanie linii (wysrodkowany -> do lewej), nie da sie
+ * przesunac jak jedno pudelko - linie przeskoczylyby w pierwszej klatce. Taki
+ * napis wylania sie w nowym miejscu (sama `opacity`).
+ */
+export function flipFadeKeyframes(): Keyframe[] {
+  return [{ opacity: 0 }, { opacity: 1 }];
 }
 
 /** Wysokosc karty: z poprzedniej do nowej, zeby wiersz siatki nie skakal. */

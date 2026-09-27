@@ -766,6 +766,46 @@ describe("speakerOrganizationLine", () => {
     expect(speakerOrganizationLine("—", "NASK")).toBe("NASK");
   });
 
+  it("nazwa organizacji musi stac w roli JAKO NAZWA - rzeczownik pisany mala litera jej nie gasi", () => {
+    // Tygodnik „Polityka" i rzeczownik „polityka zagraniczna" to dwa rozne fakty.
+    expect(speakerOrganizationLine("Publicysta, polityka zagraniczna", "Polityka")).toBe(
+      "Polityka",
+    );
+    // Kopia wersalikami nadal znika - w roli nazwa stoi wielka litera.
+    expect(
+      speakerOrganizationLine("Prezes CPK, ekspert ds. infrastruktury", "PREZES CPK"),
+    ).toBeNull();
+    // Nazwa z malymi slowami laczacymi („i") nadal jest zawarta w roli.
+    expect(
+      speakerOrganizationLine(
+        "Dyrektor departamentu, Ministerstwo Klimatu i Środowiska",
+        "Ministerstwo Klimatu i Środowiska",
+      ),
+    ).toBeNull();
+    // Cyfra tez czyni slowo nazwa.
+    expect(speakerOrganizationLine("Dyrektor, 3M Polska", "3M")).toBeNull();
+  });
+
+  it("tekst rozlozony (NFD) i znaki formatujace nie psuja porownania", () => {
+    const nfdUpper = "Członek Zarządu".normalize("NFD").toUpperCase();
+    expect(nfdUpper).not.toBe("CZŁONEK ZARZĄDU");
+    expect(speakerOrganizationLine("Członek Zarządu", nfdUpper)).toBeNull();
+    // Miekki dywiz i spacja zerowej szerokosci nie rozcinaja slowa.
+    expect(speakerOrganizationLine("Prezes WiseEuropa", "Wise\u00adEuropa")).toBeNull();
+    expect(speakerOrganizationLine("Prezes Wise\u200bEuropa", "WiseEuropa")).toBeNull();
+  });
+
+  it("`contained: false` gasi tylko organizacje ROWNA roli (dla powierzchni, ktore ucinaja role)", () => {
+    expect(
+      speakerOrganizationLine(
+        "Członek Zarządu, Polish Offshore Wind Energy Society",
+        "Polish Offshore Wind Energy Society",
+        { contained: false },
+      ),
+    ).toBe("Polish Offshore Wind Energy Society");
+    expect(speakerOrganizationLine("Prezes CPK", "PREZES  CPK", { contained: false })).toBeNull();
+  });
+
   it("organizacja z samych znakow nieliterowych nie jest porownywana, tylko zostaje", () => {
     expect(speakerOrganizationLine("Prezes", "—")).toBe("—");
   });

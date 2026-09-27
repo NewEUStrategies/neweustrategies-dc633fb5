@@ -331,6 +331,21 @@ describe("SpeakerProfileDialog - tożsamość i odznaki", () => {
     expect(within(panel()).queryByText(/Ekonomista ·/)).toBeNull();
   });
 
+  it("firma jest sprawdzana wobec KAŻDEGO pola osobno - nie znika przez sklejenie roli ze stanowiskiem", async () => {
+    // „Forum Energii" nie stoi ani w nagłówku, ani w stanowisku - tylko na
+    // ich styku, gdyby je skleić w jeden napis.
+    await dialog({
+      profile: profileRow({
+        headline_pl: "Członek zarządu Forum",
+        job_title: "Energii i Klimatu, analityk",
+        company: "Forum Energii",
+      }),
+    });
+    expect(
+      within(panel()).getByText("Energii i Klimatu, analityk · Forum Energii"),
+    ).toBeInTheDocument();
+  });
+
   it("języki prelegenta pokazują się WIELKIMI literami", async () => {
     await dialog({ profile: profileRow({ languages: ["pl", "en"] }) });
     expect(within(panel()).getByText("Języki: PL, EN")).toBeInTheDocument();

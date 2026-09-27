@@ -317,6 +317,28 @@ describe("EventSpeakersGrid - karta rozwijana kliknięciem w zdjęcie", () => {
     expect(screen.queryByRole("listitem")).toBeNull();
   });
 
+  it("pasek zastępczy ma TO SAMO pudełko linii, co napis karty (bez skoku przy przyjściu danych)", () => {
+    // Sekcja zamknięta = zapytanie nie rusza, więc siatka zostaje w stanie
+    // wczytywania (ten sam chwyt, co w teście zajętej siatki powyżej).
+    const { container } = render(<EventSpeakersGrid eventId="e1" enabled={false} />, { wrapper });
+    const slot = container.querySelector('[aria-busy="true"] > div') as HTMLElement;
+    const [circle, nameBar, subtitleBar] = Array.from(slot.children) as HTMLElement[];
+    // Koło jak miniatura zwiniętej karty.
+    expect(circle?.className).toContain("rounded-full");
+    expect(circle?.className).toContain("h-20");
+    // Nazwisko: ten sam odstęp, krój i interlinia, co `SpeakerProfileCard`.
+    expect(nameBar?.className).toEqual(expect.stringContaining("mt-3"));
+    expect(nameBar?.className).toEqual(expect.stringContaining("text-xl"));
+    expect(nameBar?.className).toEqual(expect.stringContaining("leading-tight"));
+    // Podpis: `mt-1 text-xs leading-snug`, jak linia „rola • organizacja”.
+    expect(subtitleBar?.className).toEqual(expect.stringContaining("mt-1"));
+    expect(subtitleBar?.className).toEqual(expect.stringContaining("text-xs"));
+    expect(subtitleBar?.className).toEqual(expect.stringContaining("leading-snug"));
+    // Twarda spacja w środku daje pasku wysokość linii tekstu.
+    expect(nameBar?.textContent).toBe("\u00a0");
+    expect(subtitleBar?.getAttribute("aria-hidden")).toBe("true");
+  });
+
   it("puste eventId nie pyta bazy i zostaje w stanie wczytywania", () => {
     render(<EventSpeakersGrid eventId="" />, { wrapper });
     expect(screen.getByLabelText("eventFront.speakers.loading")).toBeTruthy();

@@ -169,7 +169,13 @@ function ProfileBody({
   const jobTitle = profile?.job_title?.trim() ?? "";
   const jobPart =
     jobTitle !== "" && speakerOrganizationLine(headline, jobTitle) !== null ? jobTitle : "";
-  const orgPart = speakerOrganizationLine(`${headline} ${jobTitle}`, profile?.company) ?? "";
+  // Firma sprawdzana osobno wobec KAZDEGO pola - sklejenie roli ze stanowiskiem
+  // w jeden napis dawaloby trafienia na styku pol, ktorych nie ma w zadnym z nich.
+  const company = profile?.company;
+  const orgPart =
+    speakerOrganizationLine(headline, company) === null
+      ? ""
+      : (speakerOrganizationLine(jobTitle, company) ?? "");
   const companyLine = [jobPart, orgPart].filter(Boolean).join(" · ");
   const now = Date.now();
   const upcoming = engagements.filter((e) => new Date(e.starts_at).getTime() >= now);

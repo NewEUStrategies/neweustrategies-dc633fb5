@@ -188,6 +188,21 @@ describe("EventSpeakersSection", () => {
     expect(screen.getByText("NASK")).toBeInTheDocument();
   });
 
+  it("chip ucina rolę, więc NIE chowa firmy „zawartej w roli” - i trzyma pełną rolę w title", async () => {
+    // Firma stoi w końcu długiej roli, a ten koniec chip ucina wielokropkiem -
+    // bez własnej linii firmy czytelnik nie zobaczyłby jej nigdzie.
+    h.speakers = [
+      speaker({
+        headline_pl: "Członek Zarządu, Polish Offshore Wind Energy Society",
+        company: "Polish Offshore Wind Energy Society",
+      }),
+    ];
+    render(<EventSpeakersSection eventId="e1" lang="pl" />, { wrapper });
+    const role = await screen.findByText("Członek Zarządu, Polish Offshore Wind Energy Society");
+    expect(role.getAttribute("title")).toBe("Członek Zarządu, Polish Offshore Wind Energy Society");
+    expect(screen.getByText("Polish Offshore Wind Energy Society")).toBeInTheDocument();
+  });
+
   it("wersja angielska bierze nagłówek angielski", async () => {
     h.speakers = [speaker()];
     render(<EventSpeakersSection eventId="e1" lang="en" />, { wrapper });

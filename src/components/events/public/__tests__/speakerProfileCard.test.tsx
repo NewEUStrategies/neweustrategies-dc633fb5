@@ -47,8 +47,12 @@ const { SpeakerProfileCard, SPEAKER_CARD_LARGE_PX } =
   await import("@/components/events/public/molecules/SpeakerProfileCard");
 const { buildTransformedImageUrl } = await import("@/lib/cropSizes");
 const { PX_BY_SIZE } = await import("@/components/events/speakerAvatarSizes");
-const { SPEAKER_CARD_MOTION_MS, SPEAKER_CARD_SPRING, SPEAKER_CARD_SPRING_FALLBACK } =
-  await import("@/lib/events/speakerCardMotion");
+const {
+  SPEAKER_CARD_MOTION_MS,
+  SPEAKER_CARD_SETTLE,
+  SPEAKER_CARD_SPRING,
+  SPEAKER_CARD_SPRING_FALLBACK,
+} = await import("@/lib/events/speakerCardMotion");
 
 const AVATAR = "https://proj.supabase.co/storage/v1/object/public/avatars/anna.jpg";
 const CARD_PHOTO = "https://proj.supabase.co/storage/v1/object/public/cards/anna-scena.jpg";
@@ -365,11 +369,54 @@ describe("SpeakerProfileCard - rozwijanie i zwijanie", () => {
     expect(link.getAttribute("title")).toBe("Pobierz prezentację prelegenta z konferencji");
     expect(link.className).not.toContain("bg-brand");
 
-    // Rozwinieta karta: pigulka na zdjeciu, bez tej granicy.
+    // Rozwinieta karta: pigulka na zdjeciu ma WLASNA granice - cala karta
+    // minus odstepy - wiec dlugi napis dostaje wielokropek, a nie wychodzi za
+    // lewa krawedz karty (gdzie `overflow-hidden` ucinal jego poczatek).
     fireEvent.click(screen.getByRole("button", { name: EXPAND }));
     const expandedLink = screen.getByRole("link", { name: /Pobierz prezentację/ });
-    expect(expandedLink.style.maxWidth).toBe("");
+    expect(expandedLink.style.maxWidth).toBe("calc(100% - 1.5rem)");
+    expect(expandedLink.className).toContain("truncate");
     expect(expandedLink.className).toContain("bg-brand");
+    // Tlo, cien i kolor zmieniaja sie w jednej klatce - bez przejscia samych
+    // kolorow, ktore zostawialo na starcie pusty cien wokol napisu.
+    expect(expandedLink.className).not.toContain("transition-colors");
+  });
+
+  it("jedna miniatura w obu stanach: zwijanie nie montuje zdjecia od nowa (bez pustej klatki)", () => {
+    renderCard();
+    const toggle = screen.getByRole("button", { name: EXPAND });
+    const thumb = images(toggle)[0];
+    expect(thumb?.getAttribute("src")).toBe(thumbOf(AVATAR));
+    // Miniatura nie ma efektu pojawiania sie - jest widoczna od pierwszej klatki.
+    expect(thumb?.className).not.toContain("oi-fade-in");
+
+    fireEvent.click(toggle);
+    expect(images(toggle)[0]).toBe(thumb);
+    fireEvent.click(toggle);
+    // Ten sam wezel po zwinieciu - nie nowy obrazek, ktory dopiero sie wylania.
+    expect(images(toggle)).toEqual([thumb]);
+  });
+
+  it("fokus klawiatury na pelnym kadrze rysuje obwodka NAD zdjeciem (ostatnie dziecko przycisku)", () => {
+    renderCard();
+    const toggle = screen.getByRole("button", { name: EXPAND });
+    // Zwinieta: obwodka samego przycisku (poza kolem) wystarcza.
+    expect(toggle.className).toContain("focus-visible:ring-2");
+    expect(toggle.querySelector('[class*="group-focus-visible"]')).toBeNull();
+
+    fireEvent.click(toggle);
+    // Rozwinieta: przycisk jest grupa, a obwodke rysuje ostatnie dziecko -
+    // pozycjonowane zdjecia pod nim nie moga jej zaslonic.
+    expect(toggle.className).toContain("group");
+    const ring = toggle.lastElementChild as HTMLElement;
+    expect(ring.getAttribute("aria-hidden")).toBe("true");
+    expect(ring.className).toContain("group-focus-visible:opacity-100");
+    expect(ring.className).toContain("ring-inset");
+    expect(ring.className).toContain("pointer-events-none");
+    expect(ring.className).toContain("opacity-0");
+
+    fireEvent.click(toggle);
+    expect(toggle.querySelector('[class*="group-focus-visible"]')).toBeNull();
   });
 
   it("drugi klik zwija karte i zdejmuje duzy kadr", () => {
@@ -553,6 +600,7 @@ describe("SpeakerProfileCard - ruch FLIP", () => {
     keyframes: Keyframe[];
     options: KeyframeAnimationOptions;
     cancelled: boolean;
+    animation: { playState: string };
   }
   let calls: AnimateCall[] = [];
   let reduceMotion = false;
@@ -603,13 +651,25 @@ describe("SpeakerProfileCard - ruch FLIP", () => {
         keyframes: Keyframe[],
         options: KeyframeAnimationOptions,
       ): Animation {
-        const call: AnimateCall = { element: this, keyframes, options, cancelled: false };
-        calls.push(call);
-        return {
+        // Jak w przegladarce: animacja trwa, dopoki jej nie skasowac albo nie
+        // dobiegnie konca, i wie, na jakim elemencie gra (`effect.target`).
+        const animation = {
+          playState: "running",
+          effect: { target: this },
           cancel: () => {
             call.cancelled = true;
+            animation.playState = "idle";
           },
-        } as Animation;
+        };
+        const call: AnimateCall = {
+          element: this,
+          keyframes,
+          options,
+          cancelled: false,
+          animation,
+        };
+        calls.push(call);
+        return animation as unknown as Animation;
       },
     });
     vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(layout);
@@ -648,11 +708,14 @@ describe("SpeakerProfileCard - ruch FLIP", () => {
     fireEvent.click(toggle);
 
     // Karta: sama wysokosc, z poprzedniej do nowej (wiersz siatki nie skacze).
+    // Geometria jedzie krzywa BEZ przestrzalu - sprezyna stawialaby dol karty
+    // nad dolem sasiadow i wypychala zdjecie za kwadrat.
     expect(callFor(article)?.keyframes).toEqual([{ height: "220px" }, { height: "560px" }]);
     expect(callFor(article)?.options).toEqual({
       duration: SPEAKER_CARD_MOTION_MS,
-      easing: SPEAKER_CARD_SPRING,
+      easing: SPEAKER_CARD_SETTLE,
     });
+    expect(callFor(toggle)?.options.easing).toBe(SPEAKER_CARD_SETTLE);
 
     // Zdjecie: jednorodna skala z kwadratu 80 do 280, a promien z KOLA do
     // kwadratu bez rogow - jak `layoutId` wzorca (50% jest kolem przy kazdej
@@ -674,6 +737,8 @@ describe("SpeakerProfileCard - ruch FLIP", () => {
     expect(subtitle).toBe(screen.getByText("NASK").parentElement);
     expect(callFor(subtitle)?.keyframes).toEqual(shift);
     expect(callFor(screen.getByRole("button", { name: PROFILE_ACTION }))?.keyframes).toEqual(shift);
+    // Przesuniecia (napisy, akcja) zostaja na sprezynie wzorca.
+    expect(callFor(screen.getByText("Anna Kowalska"))?.options.easing).toBe(SPEAKER_CARD_SPRING);
 
     // Szczegoly wylaniaja sie spod podpisu: tylko opacity i transform.
     const details = document.getElementById(toggle.getAttribute("aria-controls") ?? "");
@@ -684,6 +749,65 @@ describe("SpeakerProfileCard - ruch FLIP", () => {
     expect(calls).toHaveLength(6);
   });
 
+  it("akcja kotwiczona z prawej: FLIP wyrownuje PRAWE krawedzie, wiec szersza pigulka nie przelatuje przez karte", () => {
+    renderCard(speaker(), { onSelect: vi.fn() });
+    const action = screen.getByRole("button", { name: PROFILE_ACTION });
+    vi.mocked(Element.prototype.getBoundingClientRect).mockImplementation(function (this: Element) {
+      if (this !== action) return layout.call(this);
+      const open = this.closest("article")?.getAttribute("data-state") === "expanded";
+      // Ta sama prawa krawedz (300), inna szerokosc: napis z wielokropkiem vs
+      // pelna pigulka.
+      return open ? box(12, 100, 200, 30) : box(12, 250, 50, 30);
+    });
+    fireEvent.click(screen.getByRole("button", { name: EXPAND }));
+    // Prawa krawedz stoi w miejscu - nie ma czego przesuwac.
+    expect(callFor(action)).toBeUndefined();
+  });
+
+  it("napis w kilku liniach wylania sie w nowym miejscu zamiast skakac z wysrodkowania do lewej", () => {
+    renderCard(speaker({ display_name: "Aleksandra Katarzyna Przybylska-Wroblewska" }));
+    const name = screen.getByText("Aleksandra Katarzyna Przybylska-Wroblewska");
+    name.style.lineHeight = "20px";
+    vi.mocked(Element.prototype.getBoundingClientRect).mockImplementation(function (this: Element) {
+      if (this !== name) return layout.call(this);
+      const open = this.closest("article")?.getAttribute("data-state") === "expanded";
+      // Dwie linie (40 px przy interlinii 20 px) w obu stanach.
+      return open ? box(240, 16, 280, 40) : box(120, 20, 280, 40);
+    });
+    fireEvent.click(screen.getByRole("button", { name: /eventFront\.speakers\.card\.expand/ }));
+    expect(callFor(name)?.keyframes).toEqual([{ opacity: 0 }, { opacity: 1 }]);
+  });
+
+  it("zwrot W TRAKCIE ruchu zaczyna od promienia na ekranie, nie od stalego kola/kwadratu", () => {
+    renderCard();
+    const toggle = screen.getByRole("button", { name: EXPAND });
+    fireEvent.click(toggle);
+    // Kolo jest w polowie drogi do kwadratu - tak widzi je przegladarka.
+    toggle.style.borderTopLeftRadius = "33.75%";
+    fireEvent.click(toggle);
+
+    const back = calls.filter((call) => call.element === toggle).at(-1);
+    expect(back?.cancelled).toBe(false);
+    expect(back?.keyframes[0]?.borderRadius).toBe("33.75%");
+    expect(back?.keyframes[1]?.borderRadius).toBe("50%");
+  });
+
+  it("po zakonczonym ruchu zwrot startuje od promienia stanu, nie od odczytu stylu", () => {
+    renderCard();
+    const toggle = screen.getByRole("button", { name: EXPAND });
+    fireEvent.click(toggle);
+    calls.forEach((call) => {
+      call.cancelled = true;
+      call.animation.playState = "finished";
+    });
+    // W spoczynku `rounded-full` liczy sie do ogromnej wartosci w px - tej
+    // wartosci nie wolno brac za poczatek ruchu.
+    toggle.style.borderTopLeftRadius = "3.35544e+07px";
+    fireEvent.click(toggle);
+    const back = calls.filter((call) => call.element === toggle).at(-1);
+    expect(back?.keyframes[0]?.borderRadius).toBe("0px");
+  });
+
   it("zwiniecie po zakonczonym ruchu odgrywa go w druga strone", () => {
     const { article } = renderCard();
     const toggle = screen.getByRole("button", { name: EXPAND });
@@ -691,6 +815,7 @@ describe("SpeakerProfileCard - ruch FLIP", () => {
     // Ruch rozwiniecia dobiegl konca (animacja nie wplywa juz na uklad).
     calls.forEach((call) => {
       call.cancelled = true;
+      call.animation.playState = "finished";
     });
     calls = [];
 

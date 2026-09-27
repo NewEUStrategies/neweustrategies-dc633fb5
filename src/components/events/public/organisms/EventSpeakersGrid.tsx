@@ -110,8 +110,15 @@ export function EventSpeakersGrid({
         {SKELETON_SLOTS.map((slot) => (
           <div key={slot} className={CARD_CLASS}>
             <Skeleton className="h-20 w-20 rounded-full" />
-            <Skeleton className="mt-3 h-5 w-32" />
-            <Skeleton className="mt-2 h-3 w-24" />
+            {/* Paski maja TE SAME pudelka linii, co napisy karty (ten sam
+                krój i interlinia, twarda spacja w srodku), wiec wysokosc
+                szkieletu zgadza sie z karta z definicji, a nie z rachunku. */}
+            <Skeleton aria-hidden="true" className="mt-3 w-32 text-xl leading-tight">
+              {"\u00a0"}
+            </Skeleton>
+            <Skeleton aria-hidden="true" className="mt-1 w-24 text-xs leading-snug">
+              {"\u00a0"}
+            </Skeleton>
           </div>
         ))}
       </div>

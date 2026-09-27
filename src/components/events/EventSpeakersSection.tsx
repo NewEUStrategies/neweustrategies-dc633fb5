@@ -107,8 +107,12 @@ export function EventSpeakersSection({
                 name={speaker.display_name ?? ""}
                 role={role}
                 // Ta sama regula, co karta w siatce: firma, ktora tylko
-                // powtarza role, nie jest drugim faktem o osobie.
-                organization={speakerOrganizationLine(role, speaker.company) ?? ""}
+                // powtarza role, nie jest drugim faktem o osobie. Chip UCINA
+                // role do jednej linii, wiec znika tylko firma ROWNA roli -
+                // nazwa „zawarta w roli" stoi zwykle w jej ucinanym koncu.
+                organization={
+                  speakerOrganizationLine(role, speaker.company, { contained: false }) ?? ""
+                }
                 photoUrl={speaker.avatar_url}
                 size="lg"
                 onClick={

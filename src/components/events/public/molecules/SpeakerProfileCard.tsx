@@ -92,8 +92,10 @@ import {
 } from "@/lib/events/speakerCard";
 import {
   SPEAKER_CARD_ROUND,
+  SPEAKER_CARD_SETTLE,
   SPEAKER_CARD_SQUARE,
   boxOf,
+  flipFadeKeyframes,
   flipHeightKeyframes,
   flipMediaKeyframes,
   flipShiftKeyframes,
@@ -123,11 +125,33 @@ const PREVIEW_MARKER = '[data-builder-renderer="widget-props-preview"]';
  */
 const COLLAPSED_ACTION_MAX_WIDTH = "calc(50% - 3.25rem)";
 
+/**
+ * ROZWINIETA: pigulka na zdjeciu nie wychodzi poza karte - od prawej stoi
+ * `right-3`, wiec z lewej zostaje ten sam odstep. Bez granicy dlugi napis
+ * (`truncate` = jedna linia) rozpychalby pigulke za lewa krawedz karty, gdzie
+ * `overflow-hidden` ucinalby jego poczatek zamiast postawic wielokropek.
+ */
+const EXPANDED_ACTION_MAX_WIDTH = "calc(100% - 1.5rem)";
+
 const CARD_CLASS =
   "relative flex h-full w-full flex-col overflow-hidden border-b border-r border-border bg-background text-left";
 
 const textOrNull = (value: string | null | undefined): string | null =>
   typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+
+/** Pudelko liczone od PRAWEJ krawedzi - dla elementu kotwiczonego z prawej. */
+const rightEdge = (box: FlipBox): FlipBox => ({ ...box, left: box.left + box.width });
+
+/**
+ * Czy napis zajmuje wiecej niz jedna linie. Wolane tylko z efektu ukladu
+ * (pomiar), nigdy z renderu. Silnik bez stylu wyliczonego (np. test bez
+ * ukladu) daje `NaN`, czyli „jedna linia".
+ */
+function wrapsLines(element: Element | null, box: FlipBox): boolean {
+  if (element === null || typeof getComputedStyle !== "function") return false;
+  const line = Number.parseFloat(getComputedStyle(element).lineHeight);
+  return Number.isFinite(line) && line > 0 && box.height > line * 1.5;
+}
 
 interface FlipSnapshot {
   card: FlipBox | null;
@@ -242,10 +266,34 @@ export function SpeakerProfileCard({
     preloadImage(largeUrl);
   };
 
+  // ZWROT W TRAKCIE RUCHU zaczyna od promienia, ktory JEST na ekranie. Staly
+  // poczatek (kwadrat albo kolo) dalby skok rogow przy szybkim podwojnym
+  // kliknieciu. Promien trwajacej animacji jest w procentach, wiec nie zalezy
+  // od skali. Czytamy go tylko wtedy, gdy NASZA animacja zdjecia jeszcze
+  // trwa - w spoczynku `rounded-full` liczy sie do ogromnej wartosci w px.
+  const liveMediaRadius = (): string | null => {
+    const media = mediaRef.current;
+    if (media === null || typeof getComputedStyle !== "function") return null;
+    const live = running.current.some(
+      (animation) =>
+        animation != null &&
+        animation.playState === "running" &&
+        (animation.effect as KeyframeEffect | null)?.target === media,
+    );
+    if (!live) return null;
+    const radius = getComputedStyle(media).borderTopLeftRadius;
+    return radius === "" ? null : radius;
+  };
+
   const toggle = (): void => {
     if (!expandable) return;
     warm();
-    pending.current = prefersReducedMotion() ? null : snapshot(radiusFor(expanded));
+    if (prefersReducedMotion()) {
+      pending.current = null;
+    } else {
+      const [from, to] = radiusFor(expanded);
+      pending.current = snapshot([liveMediaRadius() ?? from, to]);
+    }
     setExpanded((current) => !current);
   };
 
@@ -267,23 +315,49 @@ export function SpeakerProfileCard({
     if (first === null) return;
     const last = snapshot(first.radius);
     const easing = speakerCardEasing();
-    const play = (element: Element | null, keyframes: Keyframe[] | null): void => {
-      running.current.push(playKeyframes(element, keyframes, easing));
+    const play = (
+      element: Element | null,
+      keyframes: Keyframe[] | null,
+      curve: string = easing,
+    ): void => {
+      running.current.push(playKeyframes(element, keyframes, curve));
     };
+    // GEOMETRIA BEZ PRZESTRZALU. Wysokosc karty i skala zdjecia jada krzywa,
+    // ktora nie wychodzi poza 1: sprezyna wypychalaby zdjecie o kilka px za
+    // kwadrat (na linie szczegolow), a przy zwijaniu dol karty stawal nad
+    // dolem sasiadow w wierszu siatki. Sprezyna zostaje dla przesuniec.
     if (first.card !== null && last.card !== null) {
-      play(cardRef.current, flipHeightKeyframes(first.card, last.card));
+      play(cardRef.current, flipHeightKeyframes(first.card, last.card), SPEAKER_CARD_SETTLE);
     }
     if (first.media !== null && last.media !== null) {
       const [from, to] = first.radius;
-      play(mediaRef.current, flipMediaKeyframes(first.media, last.media, from, to));
+      play(
+        mediaRef.current,
+        flipMediaKeyframes(first.media, last.media, from, to),
+        SPEAKER_CARD_SETTLE,
+      );
     }
+    // NAPIS W KILKU LINIACH SIE NIE PRZESUWA, TYLKO WYLANIA. Zwiniety jest
+    // wysrodkowany, rozwiniety - do lewej; linie w pudelku zmieniaja
+    // wyrownanie w pierwszej klatce, czego przesuniecie pudelka nie zakryje.
+    // Jedna linia (`w-fit`) przesuwa sie razem z literami.
     [nameRef, subtitleRef].forEach((ref, index) => {
       const from = first.parts[index] ?? null;
       const to = last.parts[index] ?? null;
-      if (from !== null && to !== null) play(ref.current, flipShiftKeyframes(from, to));
+      if (from === null || to === null) return;
+      const element = ref.current;
+      play(
+        element,
+        wrapsLines(element, from) || wrapsLines(element, to)
+          ? flipFadeKeyframes()
+          : flipShiftKeyframes(from, to),
+      );
     });
+    // Akcja stoi przy PRAWEJ krawedzi (`right-3`) i zmienia szerokosc
+    // (wielokropek -> pelny napis), wiec FLIP wyrownuje prawe krawedzie -
+    // inaczej pigulka przelatywalaby przez karte o roznice szerokosci.
     if (first.action !== null && last.action !== null) {
-      play(actionRef.current, flipShiftKeyframes(first.action, last.action));
+      play(actionRef.current, flipShiftKeyframes(rightEdge(first.action), rightEdge(last.action)));
     }
     if (expanded && detailsRef.current !== null) play(detailsRef.current, revealKeyframes());
     // `snapshot` czyta wylacznie refy - efekt reaguje tylko na zmiane stanu.
@@ -346,16 +420,22 @@ export function SpeakerProfileCard({
   });
   // Wypelniony przycisk tylko NA ZDJECIU (jak we wzorcu). Karta bez zdjecia
   // zostaje przy napisie - pigulka na bialym tle bylaby innym elementem.
+  // Tlo, kolor, cien i odstepy zmieniaja sie RAZEM, w jednej klatce (jak we
+  // wzorcu): przejscie samych kolorow zostawialo na starcie pusty cien.
   const actionClass = cn(
-    "absolute right-3 top-3 z-20 block truncate rounded-[6px] text-sm font-semibold transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand)]/60",
+    "absolute right-3 top-3 z-20 block truncate rounded-[6px] text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand)]/60",
     fullBleed
       ? cn("px-3 py-1.5 shadow-sm", accent === null && "bg-brand text-brand-foreground")
       : "px-2 py-1 text-brand-ink hover:underline",
   );
-  const actionStyle: CSSProperties | undefined = fullBleed
+  const actionStyle: CSSProperties = fullBleed
     ? accent === null
-      ? undefined
-      : { backgroundColor: accent, color: readableInkOn(accent) }
+      ? { maxWidth: EXPANDED_ACTION_MAX_WIDTH }
+      : {
+          maxWidth: EXPANDED_ACTION_MAX_WIDTH,
+          backgroundColor: accent,
+          color: readableInkOn(accent),
+        }
     : { maxWidth: COLLAPSED_ACTION_MAX_WIDTH };
 
   let actionNode: ReactNode = null;
@@ -439,41 +519,54 @@ export function SpeakerProfileCard({
         className={cn(
           "block shrink-0 overflow-hidden bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand)]/60",
           fullBleed
-            ? "absolute inset-0 -z-10 cursor-pointer rounded-none focus-visible:ring-inset"
+            ? "group absolute inset-0 -z-10 cursor-pointer rounded-none"
             : cn(
                 "relative h-20 w-20 rounded-full focus-visible:ring-offset-2",
                 hasPhoto ? "cursor-zoom-in" : "cursor-pointer",
               ),
         )}
       >
-        {fullBleed ? (
-          <>
-            {thumbUrl !== null && (
-              <img
-                src={thumbUrl}
-                alt=""
-                aria-hidden="true"
-                decoding="async"
-                className="absolute inset-0 size-full object-cover"
-              />
-            )}
-            {largeUrl !== null && failedLargeUrl !== largeUrl && (
-              <img
-                key={largeUrl}
-                src={largeUrl}
-                alt=""
-                decoding="async"
-                onError={() => setFailedLargeUrl(largeUrl)}
-                className="oi-fade-in absolute inset-0 size-full object-cover"
-              />
-            )}
-            <span
-              aria-hidden="true"
-              className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/80 via-black/40 to-transparent"
-            />
-          </>
+        {/* JEDNA MINIATURA W OBU STANACH, ten sam wezel. Wymiana na inny
+            element przy zwijaniu montowala zdjecie od nowa z efektem
+            pojawiania sie - pierwsza klatka zwijania byla pustym kwadratem
+            z bialym podpisem na jasnym tle. Tu miniatura po prostu maleje. */}
+        {thumbUrl !== null ? (
+          <img
+            src={thumbUrl}
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            decoding="async"
+            className="absolute inset-0 size-full object-cover"
+          />
         ) : (
-          <SpeakerAvatar name={name} photoUrl={thumbSource} size="xl" />
+          <SpeakerAvatar name={name} photoUrl={null} size="xl" />
+        )}
+        {fullBleed && largeUrl !== null && failedLargeUrl !== largeUrl && (
+          <img
+            key={largeUrl}
+            src={largeUrl}
+            alt=""
+            decoding="async"
+            onError={() => setFailedLargeUrl(largeUrl)}
+            className="oi-fade-in absolute inset-0 size-full object-cover"
+          />
+        )}
+        {fullBleed && (
+          <span
+            aria-hidden="true"
+            className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/80 via-black/40 to-transparent"
+          />
+        )}
+        {/* FOKUS NA PELNYM KADRZE rysuje ostatnie dziecko, NAD zdjeciem.
+            Obwodka samego przycisku (cien albo obrys) maluje sie pod jego
+            pozycjonowanymi dziecmi, wiec zdjecie ja zaslanialo - klawiatura
+            nie widziala, gdzie jest fokus (WCAG 2.4.7). */}
+        {fullBleed && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 opacity-0 ring-2 ring-inset ring-white/70 group-focus-visible:opacity-100"
+          />
         )}
       </button>
     );
