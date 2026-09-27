@@ -7,18 +7,28 @@
 // Dzieki temu powierzchnia, ktora rysuje tylko karte, nie wciaga warstwy
 // sieciowej, a reguly sprawdza test jednostkowy bez montowania czegokolwiek.
 //
-// SCIEZKI (typ, parser, nazwa) zyja w lisciu `speakerTracks.ts` - ten plik je
+// SCIEZKI (typ i parser) zyja w lisciu `speakerTracks.ts` - ten plik je
 // re-eksportuje; tam tez uzasadnienie podzialu (chunk startowy).
 
-import { hexColorOrNull, textOrNull } from "@/lib/events/speakerTracks";
+import { hexColorOrNull, textOrNull, type SpeakerTrack } from "@/lib/events/speakerTracks";
 
-export {
-  hasNamedSpeakerTrack,
-  hexColorOrNull,
-  parseSpeakerTracks,
-  speakerTrackName,
-  type SpeakerTrack,
-} from "@/lib/events/speakerTracks";
+export { hexColorOrNull, parseSpeakerTracks, type SpeakerTrack } from "@/lib/events/speakerTracks";
+
+/** Nazwa sciezki w jezyku interfejsu, z awaryjnym drugim jezykiem. */
+export function speakerTrackName(track: SpeakerTrack, lang: "pl" | "en"): string {
+  const primary = lang === "en" ? track.nameEn : track.namePl;
+  const secondary = lang === "en" ? track.namePl : track.nameEn;
+  return primary ?? secondary ?? "";
+}
+
+/**
+ * Czy lista ma choc jedna sciezke, ktora `SpeakerTrackChips` narysuje (z nazwa
+ * w ktoryms jezyku). Program pyta o to, zanim pokaze „Pokaz szczegoly" - ta
+ * sama regula, co w rendererze, wiec przycisk nie obiecuje pustego rzedu.
+ */
+export function hasNamedSpeakerTrack(tracks: readonly SpeakerTrack[], lang: "pl" | "en"): boolean {
+  return tracks.some((track) => speakerTrackName(track, lang) !== "");
+}
 
 /** Limit adresu (przycisk i zdjecie) - `char_length(...) <= 2048` w CHECK-ach. */
 export const SPEAKER_CARD_URL_MAX = 2048;

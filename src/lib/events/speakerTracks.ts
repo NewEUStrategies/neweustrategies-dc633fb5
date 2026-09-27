@@ -63,19 +63,3 @@ export function parseSpeakerTracks(raw: unknown): SpeakerTrack[] {
   }
   return out;
 }
-
-/** Nazwa sciezki w jezyku interfejsu, z awaryjnym drugim jezykiem. */
-export function speakerTrackName(track: SpeakerTrack, lang: "pl" | "en"): string {
-  const primary = lang === "en" ? track.nameEn : track.namePl;
-  const secondary = lang === "en" ? track.namePl : track.nameEn;
-  return primary ?? secondary ?? "";
-}
-
-/**
- * Czy lista ma choc jedna sciezke, ktora `SpeakerTrackChips` narysuje (z nazwa
- * w ktoryms jezyku). Program pyta o to, zanim pokaze „Pokaz szczegoly" - ta
- * sama regula, co w rendererze, wiec przycisk nie obiecuje pustego rzedu.
- */
-export function hasNamedSpeakerTrack(tracks: readonly SpeakerTrack[], lang: "pl" | "en"): boolean {
-  return tracks.some((track) => speakerTrackName(track, lang) !== "");
-}
