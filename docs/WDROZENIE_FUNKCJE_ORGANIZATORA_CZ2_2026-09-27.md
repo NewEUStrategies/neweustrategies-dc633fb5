@@ -59,6 +59,11 @@ audyt nakładania się, status przeglądu do chwili scalenia #410).
 
 ### 3.2. Do zastosowania z panelu Lovable - w tej kolejności
 
+> **NIEAKTUALNE od 2026-09-27 ok. 15:54 UTC.** Migrator drizzle przy wdrożeniu skanera (pozycje 1-2)
+> wykonał też wpisy dziennika `0067`-`0070`, czyli pozycje 8-10 i 33, przed fundamentem #406.
+> Dalsze wdrażanie według tej tabeli cofnęłoby kod z #407. Aktualna kolejność (27 plików i jedno
+> ponowne zastosowanie) jest w `docs/WDROZENIE_FUNKCJE_ORGANIZATORA_CZ3_2026-09-27.md`, sekcja 2.4.
+
 Każdy plik to osobna migracja, stosowana w całości i dopiero po poprzedniej. Kolejność to
 kolejność WERSJI supabase (tak odtwarzają ją CI, `check:sql-migration-replay` i
 `events-harness`), a nie numerów drizzle: nasze bliźniaki `0057`-`0064` wchodzą po `0067`-`0070`
