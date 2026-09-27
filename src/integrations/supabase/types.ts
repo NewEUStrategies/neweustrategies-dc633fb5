@@ -20389,6 +20389,10 @@ export type Database = {
         }
         Returns: Json
       }
+      _event_cfp_acceptance_undo: {
+        Args: { p_actor: string; p_submission_id: string; p_tenant: string }
+        Returns: Json
+      }
       _event_cfp_audit_meta: {
         Args: { p_status: string; p_submission_id: string; p_tenant: string }
         Returns: Json
@@ -20417,6 +20421,10 @@ export type Database = {
       _event_cfp_review_summary: {
         Args: { p_submission_id: string; p_tenant: string }
         Returns: Json
+      }
+      _event_cfp_roster_publish: {
+        Args: { p_submission_id: string; p_tenant: string }
+        Returns: number
       }
       _event_cfp_settings_payload: {
         Args: { p_event_id: string; p_tenant: string }
@@ -21787,6 +21795,14 @@ export type Database = {
         Args: { p_branding: Json; p_event_id: string }
         Returns: Json
       }
+      admin_event_cfp_field_delete: {
+        Args: { p_field_id: string }
+        Returns: boolean
+      }
+      admin_event_cfp_field_upsert: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
       admin_event_cfp_fields_list: {
         Args: { p_event_id: string }
         Returns: {
@@ -21804,6 +21820,10 @@ export type Database = {
           sort_order: number
         }[]
       }
+      admin_event_cfp_fields_reorder: {
+        Args: { p_payload: Json }
+        Returns: number
+      }
       admin_event_cfp_settings_get: {
         Args: { p_event_id: string }
         Returns: Json
@@ -21811,6 +21831,46 @@ export type Database = {
       admin_event_cfp_settings_save: {
         Args: { p_payload: Json }
         Returns: Json
+      }
+      admin_event_cfp_submission_decide: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_cfp_submission_detail: {
+        Args: { p_submission_id: string }
+        Returns: Json
+      }
+      admin_event_cfp_submissions_counts: {
+        Args: { p_event_id: string }
+        Returns: Json
+      }
+      admin_event_cfp_submissions_list: {
+        Args: { p_payload: Json }
+        Returns: {
+          decided_at: string
+          duration_min: number
+          format_key: string
+          id: string
+          notified_status: string
+          overall_avg: number
+          recommendations: Json
+          reviews_count: number
+          session_id: string
+          speaker_email: string
+          speaker_name: string
+          speakers_count: number
+          status: string
+          submitted_at: string
+          talk_language: string
+          title_en: string
+          title_pl: string
+          total_count: number
+          track_id: string
+          track_name_en: string
+          track_name_pl: string
+          updated_at: string
+          weighted_avg: number
+        }[]
       }
       admin_event_checkin_manual: { Args: { p_payload: Json }; Returns: Json }
       admin_event_checkin_search: {
