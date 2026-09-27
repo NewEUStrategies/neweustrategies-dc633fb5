@@ -36,6 +36,7 @@
     "eventCfp",
     "adminEventSeating",
     "eventSeating",
+    "adminEventClone",
     "teamGrid",
     "adminEventInvoices",
     "eventInvoices",
@@ -53,6 +54,8 @@
     "adminDashboard.marketing.title",
     "adminEventAdsFunnel.costSources.csv",
     "adminEventAgenda.tracks.workspace.minutes",
+    "adminEventClone.count",
+    "adminEventClone.preview.meetingDaysRange",
     "adminEventInvoices.documents.columns.ksef",
     "adminEventInvoices.settings.sellerEmail",
     "adminEventRegistration.audienceGrantHistory.summary",
@@ -239,6 +242,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 574
+    "untranslated": 576
   }
 }
