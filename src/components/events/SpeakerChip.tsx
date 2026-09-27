@@ -42,7 +42,11 @@ function ChipBody({
           {name}
         </span>
         {role ? (
-          <span className="block truncate text-xs leading-tight text-muted-foreground">{role}</span>
+          // Rola jest ucinana do jednej linii - pelna wartosc zostaje w `title`,
+          // tak jak przy organizacji.
+          <span title={role} className="block truncate text-xs leading-tight text-muted-foreground">
+            {role}
+          </span>
         ) : null}
         {organization ? (
           // Pelna wartosc zostaje w `title` - ucieta nazwa organizacji bez

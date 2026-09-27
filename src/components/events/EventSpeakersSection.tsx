@@ -48,6 +48,7 @@ import { useTranslation } from "react-i18next";
 import { speakersQueryOptions, type PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 import { speakerHasProfileToShow, speakerRowKey } from "@/lib/builder/speakerRow";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
+import { speakerOrganizationLine } from "@/lib/events/speakerCard";
 import { eventSectionHeading, type EventSection } from "@/lib/events/eventSections";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 import { SpeakerChip } from "./SpeakerChip";
@@ -105,7 +106,13 @@ export function EventSpeakersSection({
               <SpeakerChip
                 name={speaker.display_name ?? ""}
                 role={role}
-                organization={speaker.company ?? ""}
+                // Ta sama regula, co karta w siatce: firma, ktora tylko
+                // powtarza role, nie jest drugim faktem o osobie. Chip UCINA
+                // role do jednej linii, wiec znika tylko firma ROWNA roli -
+                // nazwa „zawarta w roli" stoi zwykle w jej ucinanym koncu.
+                organization={
+                  speakerOrganizationLine(role, speaker.company, { contained: false }) ?? ""
+                }
                 photoUrl={speaker.avatar_url}
                 size="lg"
                 onClick={

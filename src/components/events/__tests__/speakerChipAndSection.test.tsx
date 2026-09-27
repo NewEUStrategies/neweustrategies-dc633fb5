@@ -173,6 +173,36 @@ describe("EventSpeakersSection", () => {
     expect(screen.getByText("Ekspertka")).toBeInTheDocument();
   });
 
+  it("firma, która tylko powtarza rolę, nie stoi pod nazwiskiem drugi raz (ta sama reguła, co siatka)", async () => {
+    h.speakers = [
+      speaker({
+        headline_pl: "Prezes Centralnego Portu Komunikacyjnego",
+        company: "PREZES CENTRALNEGO PORTU KOMUNIKACYJNEGO",
+      }),
+      speaker({ user_id: "u2", display_name: "Bogdan", headline_pl: "Prezes", company: "NASK" }),
+    ];
+    render(<EventSpeakersSection eventId="e1" lang="pl" />, { wrapper });
+    expect(await screen.findByText("Prezes Centralnego Portu Komunikacyjnego")).toBeInTheDocument();
+    expect(screen.queryByText("PREZES CENTRALNEGO PORTU KOMUNIKACYJNEGO")).toBeNull();
+    // Firma, która niesie nowy fakt, zostaje.
+    expect(screen.getByText("NASK")).toBeInTheDocument();
+  });
+
+  it("chip ucina rolę, więc NIE chowa firmy „zawartej w roli” - i trzyma pełną rolę w title", async () => {
+    // Firma stoi w końcu długiej roli, a ten koniec chip ucina wielokropkiem -
+    // bez własnej linii firmy czytelnik nie zobaczyłby jej nigdzie.
+    h.speakers = [
+      speaker({
+        headline_pl: "Członek Zarządu, Polish Offshore Wind Energy Society",
+        company: "Polish Offshore Wind Energy Society",
+      }),
+    ];
+    render(<EventSpeakersSection eventId="e1" lang="pl" />, { wrapper });
+    const role = await screen.findByText("Członek Zarządu, Polish Offshore Wind Energy Society");
+    expect(role.getAttribute("title")).toBe("Członek Zarządu, Polish Offshore Wind Energy Society");
+    expect(screen.getByText("Polish Offshore Wind Energy Society")).toBeInTheDocument();
+  });
+
   it("wersja angielska bierze nagłówek angielski", async () => {
     h.speakers = [speaker()];
     render(<EventSpeakersSection eventId="e1" lang="en" />, { wrapper });

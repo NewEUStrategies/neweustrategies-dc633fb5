@@ -11,8 +11,8 @@
 // budzetu (`publicCss`), a FLIP i tak musi policzyc przesuniecie w JS. Krzywa
 // i czas siedza wiec tutaj, a nie w `styles.css`.
 //
-// CO SIE RUSZA. Wylacznie `transform` (skompozytowany), `border-radius`
-// zdjecia i `height` karty. Wysokosc karty jest jedyna wlasnoscia ukladu: bez
+// CO SIE RUSZA. Wylacznie `transform` i `opacity` (skompozytowane),
+// `border-radius` zdjecia i `height` karty. Wysokosc karty jest jedyna wlasnoscia ukladu: bez
 // niej wiersz siatki skakalby o wysokosc zdjecia w pierwszej klatce. To jedna
 // karta przez ~0,4 s PO kliknieciu - przesuniecia ukladu tuz po interakcji
 // uzytkownika nie licza sie do CLS (`hadRecentInput`), a INP mierzy czas do
@@ -35,6 +35,14 @@ export const SPEAKER_CARD_SPRING =
 
 /** Silnik bez `linear()` dostaje krzywa o tym samym charakterze (jak `--avg-spring`). */
 export const SPEAKER_CARD_SPRING_FALLBACK = "cubic-bezier(0.22, 1, 0.36, 1)";
+
+/**
+ * Krzywa GEOMETRII (wysokosc karty, skala zdjecia): ten sam charakter, ale bez
+ * przestrzalu ponad 1. Sprezyna przy skali wypycha zdjecie kilka px za kwadrat
+ * naglowka (na linie szczegolow), a przy wysokosci stawia dol karty nad dolem
+ * sasiadow w wierszu siatki. Przesuniecia napisow zostaja na sprezynie.
+ */
+export const SPEAKER_CARD_SETTLE = SPEAKER_CARD_SPRING_FALLBACK;
 
 /** Promien zdjec platformy - 6 px (spec zdjec profilowych). */
 export const SPEAKER_CARD_RADIUS_PX = 6;
@@ -90,29 +98,49 @@ function canAnimate(element: Element | null | undefined): element is HTMLElement
 
 const moved = (a: number, b: number): boolean => Math.abs(a - b) >= 0.5;
 
+/** Kolo: miniatura zwinietej karty (wzorzec: okragle zdjecie profilu). */
+export const SPEAKER_CARD_ROUND = "50%";
+/** Pelny kadr: rozwinieta karta ma zdjecie od krawedzi do krawedzi, bez rogow. */
+export const SPEAKER_CARD_SQUARE = "0px";
+
+/**
+ * Promien w klatce startowej. Promien w pikselach jest kontr-skalowany: przy
+ * skali `s` promien CSS `r/s` daje na ekranie `r` px, wiec rog nie „puchnie"
+ * w trakcie powiekszania. Procent liczy sie od WLASNEGO pudelka elementu,
+ * wiec `50%` jest kolem przy kazdej skali i nie wymaga korekty.
+ */
+function radiusAtScale(radius: string, scale: number): string {
+  const px = /^(\d+(?:\.\d+)?)px$/.exec(radius);
+  return px === null ? radius : `${Number(px[1]) / scale}px`;
+}
+
 /**
  * Zdjecie: przesuniecie + JEDNORODNA skala z poprzedniego pudelka do nowego
- * (oba sa kwadratami, wiec obraz sie nie zniekszalca). Promien jest
- * kontr-skalowany: przy skali `s` promien CSS `6/s` daje na ekranie 6 px, wiec
- * rog nie „puchnie" w trakcie powiekszania.
+ * (oba sa kwadratami, wiec obraz sie nie znieksztalca) oraz przejscie promienia
+ * - kolo miniatury rosnie do kwadratu pelnego kadru i z powrotem, jak
+ * `layoutId` wzorca (`borderRadius: 34` -> `0`).
  */
-export function flipMediaKeyframes(first: FlipBox, last: FlipBox): Keyframe[] | null {
+export function flipMediaKeyframes(
+  first: FlipBox,
+  last: FlipBox,
+  fromRadius: string = `${SPEAKER_CARD_RADIUS_PX}px`,
+  toRadius: string = fromRadius,
+): Keyframe[] | null {
   if (last.width <= 0 || first.width <= 0) return null;
   const scale = first.width / last.width;
   const dx = first.left - last.left;
   const dy = first.top - last.top;
   if (!moved(dx, 0) && !moved(dy, 0) && Math.abs(scale - 1) < 0.001) return null;
-  const radius = SPEAKER_CARD_RADIUS_PX / scale;
   return [
     {
       transformOrigin: "0 0",
       transform: `translate(${dx}px, ${dy}px) scale(${scale})`,
-      borderRadius: `${radius}px`,
+      borderRadius: radiusAtScale(fromRadius, scale),
     },
     {
       transformOrigin: "0 0",
       transform: "translate(0px, 0px) scale(1)",
-      borderRadius: `${SPEAKER_CARD_RADIUS_PX}px`,
+      borderRadius: toRadius,
     },
   ];
 }
@@ -123,6 +151,27 @@ export function flipShiftKeyframes(first: FlipBox, last: FlipBox): Keyframe[] | 
   const dy = first.top - last.top;
   if (!moved(dx, 0) && !moved(dy, 0)) return null;
   return [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "translate(0px, 0px)" }];
+}
+
+/**
+ * Szczegoly karty (sciezki, plakietka eksperta) wchodza PO rozwinieciu:
+ * wylaniaja sie spod podpisu, zamiast pojawic sie w jednej klatce. Tylko
+ * `opacity` i `transform` - nic, co przelicza uklad.
+ */
+export function revealKeyframes(): Keyframe[] {
+  return [
+    { opacity: 0, transform: "translate(0px, -8px)" },
+    { opacity: 1, transform: "translate(0px, 0px)" },
+  ];
+}
+
+/**
+ * Napis, ktory zmienia wyrownanie linii (wysrodkowany -> do lewej), nie da sie
+ * przesunac jak jedno pudelko - linie przeskoczylyby w pierwszej klatce. Taki
+ * napis wylania sie w nowym miejscu (sama `opacity`).
+ */
+export function flipFadeKeyframes(): Keyframe[] {
+  return [{ opacity: 0 }, { opacity: 1 }];
 }
 
 /** Wysokosc karty: z poprzedniej do nowej, zeby wiersz siatki nie skakal. */

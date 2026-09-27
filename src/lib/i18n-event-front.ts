@@ -442,12 +442,13 @@ export const eventFrontPl = {
     speakers: {
       loading: "Wczytywanie prelegentów…",
       expertBadge: "Ekspert",
-      // Karta rozwijana kliknięciem w zdjęcie. Nazwa przycisku niesie
-      // nazwisko: kilkanaście przycisków „Powiększ zdjęcie" na jednej stronie
-      // byłoby dla czytnika ekranu listą nierozróżnialnych pozycji.
+      // Karta rozwijana kliknięciem w zdjęcie: pełny kadr i szczegóły
+      // (ścieżki, plakietka eksperta). Nazwa przycisku niesie nazwisko:
+      // kilkanaście przycisków „Rozwiń kartę" na jednej stronie byłoby dla
+      // czytnika ekranu listą nierozróżnialnych pozycji.
       card: {
-        expand: "Powiększ zdjęcie: {{name}}",
-        collapse: "Zmniejsz zdjęcie: {{name}}",
+        expand: "Rozwiń kartę: {{name}}",
+        collapse: "Zwiń kartę: {{name}}",
         profileAction: "Profil",
         linkAction: "Więcej",
         actionFor: "{{label}}: {{name}}",
@@ -1029,11 +1030,12 @@ export const eventFrontEn = {
     speakers: {
       loading: "Loading speakers…",
       expertBadge: "Expert",
-      // Card expanded by clicking the photo. The button name carries the
-      // person's name so a screen reader can tell a dozen of them apart.
+      // Card expanded by clicking the photo: full photo plus details (tracks,
+      // expert badge). The button name carries the person's name so a screen
+      // reader can tell a dozen of them apart.
       card: {
-        expand: "Enlarge photo: {{name}}",
-        collapse: "Shrink photo: {{name}}",
+        expand: "Expand card: {{name}}",
+        collapse: "Collapse card: {{name}}",
         profileAction: "Profile",
         linkAction: "More",
         actionFor: "{{label}}: {{name}}",

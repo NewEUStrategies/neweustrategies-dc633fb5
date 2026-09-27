@@ -203,7 +203,7 @@ export const adminCommunityEventsPl = {
         openActionFor: "Karta prelegenta: {{name}}",
         title: "Karta prelegenta: {{name}}",
         subtitle:
-          "Domyślnie widać zdjęcie. Kliknięcie w zdjęcie rozwija kartę do pełnego kadru z podpisem i przyciskiem akcji.",
+          "Domyślnie widać okrągłe zdjęcie, imię i nazwisko oraz podpis (rola • organizacja). Kliknięcie w zdjęcie rozwija kartę do pełnego kadru z podpisem i przyciskiem akcji, a pod zdjęciem pokazuje ścieżki prelegenta.",
         sectionTitle: "Karta po kliknięciu",
         photo: "Zdjęcie rozwiniętej karty",
         photoHint: "Puste = karta rozwija się na zdjęciu prelegenta.",
@@ -224,7 +224,8 @@ export const adminCommunityEventsPl = {
           "Ścieżki wynikają z sesji, w których prelegent występuje. Przypisz go do sesji w programie, a ścieżka dopisze się sama.",
         tracksEmpty: "Prelegent nie występuje jeszcze w żadnej sesji ze ścieżką.",
         preview: "Podgląd karty",
-        previewHint: "Kliknij zdjęcie w podglądzie, żeby zobaczyć kartę rozwiniętą.",
+        previewHint:
+          "Kliknij zdjęcie w podglądzie, żeby zobaczyć kartę rozwiniętą razem ze ścieżkami.",
         previewLang: "Język podglądu",
         previewLangPl: "PL",
         previewLangEn: "EN",
@@ -443,7 +444,7 @@ export const adminCommunityEventsEn = {
         openActionFor: "Speaker card: {{name}}",
         title: "Speaker card: {{name}}",
         subtitle:
-          "The photo is visible by default. Clicking the photo expands the card to a full frame with a caption and an action button.",
+          "By default the card shows a round photo, the name and a caption (role • organization). Clicking the photo expands the card to a full frame with the caption and an action button, and shows the speaker's tracks below the photo.",
         sectionTitle: "Card on click",
         photo: "Expanded card photo",
         photoHint: "Empty = the card expands on the speaker's photo.",
@@ -464,7 +465,7 @@ export const adminCommunityEventsEn = {
           "Tracks come from the sessions the speaker appears in. Assign them to a session in the programme and the track is added automatically.",
         tracksEmpty: "The speaker does not appear in any session with a track yet.",
         preview: "Card preview",
-        previewHint: "Click the photo in the preview to see the expanded card.",
+        previewHint: "Click the photo in the preview to see the expanded card with its tracks.",
         previewLang: "Preview language",
         previewLangPl: "PL",
         previewLangEn: "EN",
