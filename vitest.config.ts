@@ -2263,6 +2263,13 @@ export default defineConfig({
         // 2026-08-22 (MODUŁ 15, etap 8): RATCHET W GÓRĘ. Zmierzone na tym HEAD
         // 86,06% instrukcji / 80,40% gałęzi / 85,57% funkcji / 86,26% linii.
         // Próg = zmierzone minus ~3 pp marginesu na dryf CI.
+        //
+        // 2026-09-27: nabór prelegentów dołożył gałęzie do `export.functions.ts`
+        // (wtedy wciąż na zerze) i zepchnął katalog pod próg gałęzi (CI: 76,71%).
+        // Naprawa to test handlera eksportu (wpis niżej), nie obniżka. Zmierzone
+        // na testach profilu i ich bezpośrednich konsumentów: 83,49/76,36/83,33/
+        // 83,76 -> 98,30/94,86/100/99,14. Próg katalogu świadomie bez zmian w tym
+        // kroku - ratchet to osobna decyzja po pełnym przebiegu CI.
         "src/lib/profile/**": {
           statements: 83,
           functions: 82,
@@ -2292,11 +2299,24 @@ export default defineConfig({
         // Próg zero jest CELOWO wpisany zamiast pominięcia: to jawny wyjątek
         // w miejscu, w którym go widać, a nie cicha dziura w średniej. Gdy
         // pokrycie runtime'owe kiedyś powstanie, ten wpis się podnosi.
+        //
+        // 2026-09-27: POWSTAŁO, WPIS PODNIESIONY. `__tests__/export.functions.test.ts`
+        // woła handler przez `serverFnHarness` na atrapie, której RPC jest
+        // LENIWYM thenable'em jak builder PostgREST (inaczej „jedno RPC na moduł"
+        // niczego by nie dowodziło). Dowodzi zakresu właściciela W WYWOŁANIU,
+        // rozbicia modułów RPC-only (nabór prelegentów, kluby) z odsianiem kluczy
+        // spoza rejestru, stronicowania sieci kontaktów do sufitu, jawnej awarii
+        // sekcji, `truncated` i `drift`. Sprawdzone mutacjami źródła (usunięte
+        // `Promise.resolve`, zła kolumna właściciela, zamieniony kierunek zaproszeń,
+        // `undefined` zamiast pustej listy) - każda zapala test. Zmierzone
+        // 100/100/100/100; próg = zmierzone minus ~4 pp, jak w reszcie profilu.
+        // Bramki statyczne zostają: czytają kod, więc łapią to, czego test na
+        // atrapach nie zobaczy (nowe zapytanie bez filtra w gałęzi nieobjętej testem).
         "src/lib/profile/export.functions.ts": {
-          statements: 0,
-          functions: 0,
-          lines: 0,
-          branches: 0,
+          statements: 96,
+          functions: 96,
+          lines: 96,
+          branches: 96,
         },
         // CZYSTE MODUŁY profilu trzymamy pod 100% na wszystkich czterech
         // metrykach - tak jak czyste moduły czatu i płatności wyżej. Niosą
