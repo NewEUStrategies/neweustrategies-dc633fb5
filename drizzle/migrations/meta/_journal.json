@@ -645,6 +645,13 @@
       "when": 1790548286371,
       "tag": "0091_event_ads_funnel_part2",
       "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1790548682502,
+      "tag": "0092_event_seating",
+      "breakpoints": true
     }
   ]
 }
