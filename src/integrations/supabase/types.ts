@@ -21199,7 +21199,35 @@ export type Database = {
         }
         Returns: boolean
       }
+      _event_invoice_add_line: {
+        Args: {
+          p_corrects_line?: string
+          p_description: string
+          p_invoice: string
+          p_quantity: number
+          p_rate: string
+          p_tenant: string
+          p_ticket_type?: string
+          p_unit: string
+          p_unit_gross: number
+        }
+        Returns: string
+      }
       _event_invoice_buyer_clean: { Args: { p_buyer: Json }; Returns: Json }
+      _event_invoice_buyer_json: {
+        Args: {
+          p_invoice: Database["public"]["Tables"]["event_invoices"]["Row"]
+        }
+        Returns: Json
+      }
+      _event_invoice_card_block: {
+        Args: { p_order: string; p_tenant: string }
+        Returns: string
+      }
+      _event_invoice_current_lines: {
+        Args: { p_invoice: string; p_tenant: string }
+        Returns: Json
+      }
       _event_invoice_gross_from_net: {
         Args: { p_net: number; p_rate: string }
         Returns: number
@@ -21208,9 +21236,65 @@ export type Database = {
         Args: { p_gross: number; p_rate: string }
         Returns: number
       }
+      _event_invoice_next_number: {
+        Args: { p_date: string; p_series: string; p_tenant: string }
+        Returns: {
+          out_number: string
+          out_period: string
+          out_seq: number
+        }[]
+      }
       _event_invoice_pl_nip_valid: {
         Args: { p_digits: string }
         Returns: boolean
+      }
+      _event_invoice_recalc: {
+        Args: { p_invoice: string; p_tenant: string }
+        Returns: undefined
+      }
+      _event_invoice_registration_owner: {
+        Args: { p_registration_id: string; p_tenant: string; p_uid: string }
+        Returns: boolean
+      }
+      _event_invoice_registration_source: {
+        Args: { p_rate: string; p_registration_id: string; p_tenant: string }
+        Returns: Json
+      }
+      _event_invoice_replace_lines: {
+        Args: {
+          p_invoice: string
+          p_kind: string
+          p_lines: Json
+          p_tenant: string
+        }
+        Returns: undefined
+      }
+      _event_invoice_resolve_source: {
+        Args: {
+          p_event_id: string
+          p_id: string
+          p_kind: string
+          p_locale: string
+          p_rate: string
+          p_tenant: string
+        }
+        Returns: Json
+      }
+      _event_invoice_seller_json: { Args: { p_tenant: string }; Returns: Json }
+      _event_invoice_settings_json: {
+        Args: { p_tenant: string }
+        Returns: Json
+      }
+      _event_invoice_state: {
+        Args: { p_draft: string; p_invoice: string; p_tenant: string }
+        Returns: {
+          anchor_id: string
+          gross_cents: number
+          net_cents: number
+          quantity: number
+          unit_gross_cents: number
+          vat_rate: string
+        }[]
       }
       _event_invoice_tax_id_normalize: {
         Args: { p_country: string; p_raw: string }
