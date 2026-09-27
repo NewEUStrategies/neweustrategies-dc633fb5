@@ -140,10 +140,36 @@ export function parseMySeatCards(value: unknown): MySeatCard[] {
   return out;
 }
 
-export async function fetchMySeats(slug: string): Promise<MySeatCard[]> {
+/**
+ * Odpowiedz `event_my_seats`: karty i dwie flagi, od ktorych zalezy, czy panel
+ * "Moje" w ogole cos mowi (20260927001200). Zapowiedz "organizator nie
+ * przydzielil Ci jeszcze miejsca" ma sens tylko wtedy, gdy wolajacy MOZE
+ * dostac miejsce (zgloszenie approved|attended|no_show) i wydarzenie ma
+ * OPUBLIKOWANY plan - inaczej widzial ja kazdy, takze na wydarzeniu bez planu.
+ */
+export interface MySeatsResult {
+  cards: MySeatCard[];
+  seatable: boolean;
+  hasPublishedPlan: boolean;
+}
+
+/**
+ * Brak flagi (starsza wersja funkcji) = `false`: bez pewnosci nie zapowiadamy
+ * miejsca - pusty panel jest uczciwszy niz obietnica bez pokrycia.
+ */
+export function parseMySeats(value: unknown): MySeatsResult {
+  const raw = bag(value) ?? {};
+  return {
+    cards: parseMySeatCards(value),
+    seatable: flag(raw, "seatable", false),
+    hasPublishedPlan: flag(raw, "has_published_plan", false),
+  };
+}
+
+export async function fetchMySeats(slug: string): Promise<MySeatsResult> {
   const { data, error } = await supabase.rpc("event_my_seats", { p_payload: { slug } });
   if (error) throw new Error(error.message);
-  return parseMySeatCards(data);
+  return parseMySeats(data);
 }
 
 export async function fetchTicketSeats(

@@ -2,8 +2,12 @@
 //
 // TYLKO DLA ZALOGOWANYCH - panel "Moje" renderuje ja wylacznie w galezi
 // z sesja, wiec pod SSR (zawsze anonimowym) nie powstaje ani jedno zapytanie.
-// Pusty wynik to nie blad: organizator moze jeszcze nie opublikowac planu,
-// a uczestnik ma wiedziec, ze miejsce "pojawi sie tutaj".
+//
+// PUSTO = NIC NIE RYSUJEMY, jak na stronie biletu (`TicketSeatCards`) - z jednym
+// wyjatkiem: zgloszenie zajmuje miejsce (approved|attended|no_show), plan jest
+// opublikowany, a miejsca jeszcze nie ma. Tylko wtedy zdanie "organizator nie
+// przydzielil Ci jeszcze miejsca" jest prawda. Zgloszenie oczekujace, wydarzenie
+// bez planu sali albo plan w szkicu - sekcji nie ma wcale (20260927001200).
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -19,7 +23,9 @@ export function MySeatsPanel({ slug }: { slug: string }) {
   const { t } = useTranslation();
   const titleId = useId();
   const seats = useMySeats(slug, true);
-  const cards = seats.data ?? [];
+  const cards = seats.data?.cards ?? [];
+  const awaitingSeat = seats.data?.seatable === true && seats.data.hasPublishedPlan;
+  if (!seats.isLoading && !seats.isError && cards.length === 0 && !awaitingSeat) return null;
 
   return (
     <section className="space-y-3" aria-labelledby={titleId}>

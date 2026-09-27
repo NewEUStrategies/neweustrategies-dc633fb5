@@ -8,6 +8,8 @@
 //   3. Planer sadza bilet standard w kategorii VIP (baza i tak odrzuci, ale
 //      organizator zobaczy w podglądzie propozycję, której nie da się zapisać).
 //   4. Ta sama lista daje inny wynik po odświeżeniu (brak determinizmu).
+//   5. Para „obok siebie” dostaje miejsca po dwóch stronach przejścia - sąsiednie
+//      `sort_key`, ale między nimi korytarz.
 import { describe, expect, it } from "vitest";
 
 import {
@@ -21,8 +23,10 @@ import {
   type PlannerSeat,
 } from "@/lib/events/seatingPlanner";
 import {
+  seatAssignment,
   seatingCandidate,
   seatMapDetail,
+  seatSection,
   seat as seatFixture,
 } from "@/test/events/seatingFixtures";
 
@@ -32,6 +36,7 @@ function seat(id: string, sortKey: number, overrides: Partial<PlannerSeat> = {})
     sectionId: "A",
     sectionOrder: 0,
     sortKey,
+    segment: 0,
     status: "available",
     categoryId: null,
     holdCompanyId: null,
@@ -215,6 +220,25 @@ describe("planer: rezerwacje i zespoły", () => {
     ]);
   });
 
+  it("odcinek nie przechodzi przez przejście: rząd 4, przejście po 2., pierwsze zajęte", () => {
+    // Pozycje 1 i 2 mają sąsiednie `sort_key`, ale dzieli je przejście.
+    const detail = seatMapDetail({
+      sections: [seatSection({ seatsPerRow: 4, aisleAfter: [2], categoryId: null })],
+      seats: [0, 1, 2, 3].map((position) =>
+        seatFixture({ id: `p${position}`, seatNumber: position + 1, sortKey: position }),
+      ),
+      assignments: [seatAssignment({ seatId: "p0" })],
+    });
+    const seats = plannerSeatsFromDetail(detail, new Map());
+    expect(seats.map((entry) => entry.segment)).toEqual([0, 0, 1, 1]);
+    const party = [person("lead"), person("g", { partyKey: "lead" })];
+    const result = planSeating(seats, party, OPTIONS);
+    expect(result.proposals).toEqual([
+      { seatId: "p2", registrationId: "lead" },
+      { seatId: "p3", registrationId: "g" },
+    ]);
+  });
+
   it("bez „grupy razem” każda osoba jest osobnym zespołem; firmy przed osobami bez firmy", () => {
     const people = [
       person("zz-bez-firmy"),
@@ -269,6 +293,8 @@ describe("wejście planera z danych panelu", () => {
       holdCompanyId: "co-1",
       sectionOrder: 1,
       categoryId: null,
+      // Stół to jeden odcinek - przejść nie ma.
+      segment: 0,
     });
     expect(byId.get("seat-sp")?.holdCompanyId).toBe("co-sponsor");
     expect(byId.get("seat-sp2")?.holdCompanyId).toBeNull();

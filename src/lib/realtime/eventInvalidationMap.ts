@@ -443,6 +443,12 @@ function clubWorkspaceEventKeys(event: DomainEventRow): QueryKey[] {
  * bo szersza inwalidacja jest tansza niz nieaktualna lista miejsc. Do tego
  * zawsze: profil uczestnika ("moje zgloszenia" i bilety), skrot w menu konta
  * oraz publiczne liczniki miejsc.
+ *
+ * PLAN SALI TEGO WYDARZENIA (`["event-seating", eventId]`, literal zgodny
+ * z `seatingKeys.event`). Zatwierdzenie, awans z kolejki i anulowanie zmieniaja
+ * zbior osob do rozsadzenia: licznik "Bez miejsca", liste uczestnikow planu
+ * i gotowosc planu. Zdarzenie `event_seat.released.v1` przychodzi tylko wtedy,
+ * gdy ktos TRACI miejsce - przyjecie nowej osoby nie emituje nic z planu.
  */
 function registrationEventKeys(event: DomainEventRow): QueryKey[] {
   const eventId = eventPayloadText(event, "event_id");
@@ -454,6 +460,7 @@ function registrationEventKeys(event: DomainEventRow): QueryKey[] {
     ["account-menu", "my-events"],
     ["event-rsvp-counts"],
     ["public-event"],
+    eventId === "" ? ["event-seating"] : ["event-seating", eventId],
   ];
 }
 

@@ -5,6 +5,7 @@
 //   2. Lista przy drzwiach zawiera wolne miejsca albo nie jest alfabetyczna -
 //      hostessa szuka nazwiska po całym pliku.
 //   3. Nazwa pliku z polskimi znakami i spacjami psuje się w katalogu Pobrane.
+//   4. Adres e-mail uczestnika wyjeżdża do hostess i cateringu razem z listą.
 import { describe, expect, it } from "vitest";
 
 import {
@@ -80,6 +81,17 @@ describe("eksport CSV planu sali", () => {
     // Pusta wartość w języku eksportu -> druga wersja językowa.
     expect(pl).toContain("VIP pass");
     expect(pl).toContain("VIP zone");
+  });
+
+  it("bez adresów e-mail: ani kolumny, ani adresu z wiersza, który go miał", () => {
+    const withEmail = seatExportRow({ email: "anna@example.org" });
+    expect(SEATING_CSV_COLUMNS as readonly string[]).not.toContain("email");
+    for (const mode of ["door", "seats"] as const) {
+      const csv = seatingExportToCsv([withEmail, FREE], { mode, lang: "pl", seatText: () => "x" });
+      expect(csv.split("\n")[0]).not.toContain("email");
+      expect(csv).not.toContain("@");
+      expect(csv).toContain("Kowalska");
+    }
   });
 
   it("nazwa osoby i pliku", () => {

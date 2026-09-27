@@ -335,6 +335,40 @@ describe("mapa inwalidacji modułu wydarzeń", () => {
     }
   });
 
+  it("zgłoszenia odświeżają plan sali TEGO wydarzenia (Bez miejsca, uczestnicy, gotowość)", () => {
+    // Zatwierdzenie, awans i anulowanie zmieniają zbiór osób do rozsadzenia,
+    // a `event_seat.*` przychodzi tylko wtedy, gdy ktoś TRACI miejsce - bez tej
+    // gałęzi licznik „Bez miejsca”, lista uczestników planu i gotowość planu
+    // stały do ręcznego odświeżenia.
+    const OTHER = "ffffffff-ffff-ffff-ffff-ffffffffffff";
+    for (const type of [
+      "event.registration.created.v1",
+      "event.registration.updated.v1",
+      "event.registration.decided.v1",
+      "event.registration.cancelled.v1",
+      "event.registration.promoted.v1",
+      "event.registration.payment.v1",
+      "event.registration.offer_closed.v1",
+      "event.registration.transferred.v1",
+    ]) {
+      const keys = invalidationKeysFor(
+        domainEvent(type, { event_id: EVENT_ID }),
+        CTX,
+      ) as unknown[][];
+      expect(includesPrefix(keys, seatingKeys.event(EVENT_ID)), type).toBe(true);
+      expect(coversKey(keys, seatingKeys.maps(EVENT_ID)), type).toBe(true);
+      expect(coversKey(keys, seatingKeys.map(EVENT_ID, "m1")), type).toBe(true);
+      expect(coversKey(keys, seatingKeys.candidates(EVENT_ID, { mapId: "m1" })), type).toBe(true);
+      expect(coversKey(keys, seatingKeys.maps(OTHER)), type).toBe(false);
+    }
+    const bezWydarzenia = invalidationKeysFor(
+      domainEvent("event.registration.decided.v1", {}),
+      CTX,
+    ) as unknown[][];
+    expect(includesPrefix(bezWydarzenia, seatingKeys.all)).toBe(true);
+    expect(coversKey(bezWydarzenia, seatingKeys.maps(OTHER))).toBe(true);
+  });
+
   it("plan sali: zmiana układu odświeża wyłącznie plan, bez listy zgłoszeń", () => {
     const keys = invalidationKeysFor(
       domainEvent("event_seat_map.changed.v1", { event_id: EVENT_ID }),

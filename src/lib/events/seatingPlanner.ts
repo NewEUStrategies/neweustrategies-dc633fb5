@@ -29,6 +29,13 @@ export interface PlannerSeat {
   sectionId: string;
   sectionOrder: number;
   sortKey: number;
+  /**
+   * Odcinek rzedu miedzy przejsciami: liczba przejsc stojacych przed pozycja
+   * miejsca (`aisle_after <= pozycja`, ta sama regula co uklad w
+   * `generateSectionSeats`); stol ma jeden odcinek (0). Sasiednie `sort_key`
+   * z roznych odcinkow dzieli przejscie - to nie jest "obok siebie".
+   */
+  segment: number;
   status: SeatStatus;
   /** Kategoria EFEKTYWNA (nadpisanie miejsca albo kategoria sekcji). */
   categoryId: string | null;
@@ -196,7 +203,10 @@ export function planSeating(
   return { proposals, unplaced };
 }
 
-/** Pierwszy ciagly odcinek wolnych miejsc w jednym rzedzie/stole dla calego zespolu. */
+/**
+ * Pierwszy ciagly odcinek wolnych miejsc w jednym rzedzie/stole dla calego
+ * zespolu - bez przejscia w srodku (ten sam `segment`).
+ */
 function findRun(
   free: readonly PlannerSeat[],
   taken: ReadonlySet<string>,
@@ -209,7 +219,9 @@ function findRun(
     const contiguous = run.every(
       (seat, index) =>
         index === 0 ||
-        (rowOf(seat) === rowOf(run[index - 1]) && seat.sortKey === run[index - 1].sortKey + 1),
+        (rowOf(seat) === rowOf(run[index - 1]) &&
+          seat.segment === run[index - 1].segment &&
+          seat.sortKey === run[index - 1].sortKey + 1),
     );
     if (!contiguous) continue;
     if (run.every((seat, index) => categoryAllows(options, seat, members[index].ticketTypeId))) {
@@ -241,6 +253,10 @@ export function plannerSeatsFromDetail(
         sectionId: seat.sectionId,
         sectionOrder,
         sortKey: seat.sortKey,
+        segment:
+          section.kind === "rows"
+            ? section.aisleAfter.filter((after) => after <= seat.sortKey % 1000).length
+            : 0,
         status: seat.status,
         categoryId: seat.categoryId ?? section.categoryId,
         holdCompanyId:
