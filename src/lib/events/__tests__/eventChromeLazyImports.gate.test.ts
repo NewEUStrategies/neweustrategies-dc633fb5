@@ -12,6 +12,15 @@
 //     należy do NIEDZIELONEJ części pliku trasy, więc import stamtąd wciąga
 //     moduł do chunku WEJŚCIOWEGO: parser sesji skanera i słownik pomiaru
 //     ekspozycji sponsorów jechały w bootcie każdej strony serwisu;
+//   * wpis XX: `validateSearch` trasy `/admin/events/new` (klon edycji) brał
+//     `parseCloneSearch` z reguł formularza klonu, a prefetch widgetu
+//     prelegentów buildera brał parser ścieżek z reguł karty prelegenta - oba
+//     moduły jechały całe w chunku wejściowym;
+//     To samo w `/admin/events/list` (walidator adresu ciągnął argumenty RPC
+//     listy i przez `isEventFormat` cały `eventTypes`) i w edytorze klubu
+//     (`clubEditorTab` ciągnął wersję roboczą i payload zapisu);
+//   * reklama przeglądu wydarzenia (`EventHomeAd`) ładowała słownik PANELU
+//     tablicy sponsorów (3,9 KB gzip) dla dwóch napisów;
 //   * kroki płatności i zakupu pakietu (prośba o fakturę) ciągnęły parser
 //     migawki dokumentu, a profil - generator PDF, choć oba są potrzebne
 //     dopiero po kliknięciu „Pobierz".
@@ -67,6 +76,31 @@ const CASES: ReadonlyArray<{ file: string; forbidden: readonly string[]; why: st
     why: "`validateSearch` jedzie w chunku wejściowym - wzorzec uuid jest wpisany w trasę",
   },
   {
+    file: "src/routes/admin.events_.new.tsx",
+    forbidden: ["@/lib/events/eventCloneDraft"],
+    why: "`validateSearch` jedzie w chunku wejściowym - `?from=` czyta `eventCloneSearch`",
+  },
+  {
+    file: "src/lib/builder/speakersQuery.ts",
+    forbidden: ["@/lib/events/speakerCard"],
+    why: "prefetch buildera jest w chunku wejściowym - parser ścieżek jest w `speakerTracks`",
+  },
+  {
+    file: "src/routes/admin.events.list.tsx",
+    forbidden: ["@/lib/events/eventListParams", "@/lib/events/eventTypes"],
+    why: "`validateSearch` jedzie w chunku wejściowym - adres listy czyta `eventListSearch`",
+  },
+  {
+    file: "src/lib/events/eventListSearch.ts",
+    forbidden: ["@/lib/events/eventTypes", "@/lib/events/eventListParams"],
+    why: "walidator adresu z chunku wejściowego sprawdza format liściem `eventFormats`",
+  },
+  {
+    file: "src/components/events/public/molecules/EventHomeAd.tsx",
+    forbidden: ["@/lib/i18n-admin-event-sponsor-board"],
+    why: "reklama na przeglądzie wydarzenia bierze napisy ze słownika frontu, nie panelu",
+  },
+  {
     file: "src/lib/events/myEventInvoicesApi.ts",
     forbidden: ["@/lib/events/eventInvoiceDocument"],
     why: "parser dokumentu jest potrzebny dopiero przy pobraniu PDF",
@@ -86,6 +120,16 @@ describe("lekka ścieżka stron wydarzenia i chunku wejściowego", () => {
     expect(imports.length, `${file}: parser nie znalazł żadnego importu`).toBeGreaterThan(0);
     for (const target of forbidden)
       expect(imports, `${file} -> ${target}: ${why}`).not.toContain(target);
+  });
+
+  it("trasa edytora klubu czyta `?tab=` z liścia, a nie z reguł edytora", () => {
+    const source = readFileSync("src/routes/admin.community.clubs.$clubId.tsx", "utf8");
+    expect(source).toMatch(
+      /import \{[^}]*\bclubEditorTab\b[^}]*\} from "@\/lib\/clubs\/clubEditorTabs";/,
+    );
+    expect(source).not.toMatch(
+      /import \{[^}]*\bclubEditorTab\b[^}]*\} from "@\/lib\/clubs\/adminClubEditor";/,
+    );
   });
 
   it("parser rozróżnia import wartości, typu i dynamiczny", () => {
