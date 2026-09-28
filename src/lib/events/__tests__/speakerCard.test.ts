@@ -26,6 +26,7 @@ import {
   speakerCardPhoto,
   speakerOrganizationLine,
   speakerTrackName,
+  splitSpeakerRoleInstitution,
   type SpeakerCardDraft,
   type SpeakerTrack,
 } from "@/lib/events/speakerCard";
@@ -808,5 +809,80 @@ describe("speakerOrganizationLine", () => {
 
   it("organizacja z samych znakow nieliterowych nie jest porownywana, tylko zostaje", () => {
     expect(speakerOrganizationLine("Prezes", "—")).toBe("—");
+  });
+});
+
+describe("splitSpeakerRoleInstitution", () => {
+  it("wycina instytucje powtorzona w stanowisku i oddaje oba fakty", () => {
+    expect(
+      splitSpeakerRoleInstitution("Prezes Centralnego Portu Komunikacyjnego", "Centralny Port Komunikacyjny"),
+    ).toEqual({ position: "Prezes", institution: "Centralny Port Komunikacyjny", combined: "" });
+  });
+
+  it("rozdziela stanowisko z przecinkiem przed instytucja", () => {
+    expect(
+      splitSpeakerRoleInstitution("Członek Zarządu, Polish Offshore Wind Energy Society", "Polish Offshore Wind Energy Society"),
+    ).toEqual({ position: "Członek Zarządu", institution: "Polish Offshore Wind Energy Society", combined: "" });
+  });
+
+  it("firma to KOPIA stanowiska - jeden laczny napis, zamiast zmyslac podzial", () => {
+    // Realny przypadek danych: import przepisal stanowisko do pola firmy,
+    // wiec zrodlo trzyma jeden napis. Karta pokazuje go pod laczna etykieta.
+    expect(splitSpeakerRoleInstitution("Prezes WiseEuropa", "Prezes WiseEuropa")).toEqual({
+      position: "",
+      institution: "",
+      combined: "Prezes WiseEuropa",
+    });
+    expect(
+      splitSpeakerRoleInstitution(
+        "Zastępca redaktora naczelnego magazynu „Układ Sił”",
+        "Zastępca redaktora naczelnego magazynu „Układ Sił”",
+      ),
+    ).toEqual({
+      position: "",
+      institution: "",
+      combined: "Zastępca redaktora naczelnego magazynu „Układ Sił”",
+    });
+  });
+
+  it("instytucja rowna sie stanowisku - zostaje sama instytucja", () => {
+    expect(splitSpeakerRoleInstitution("WiseEuropa", "WiseEuropa")).toEqual({
+      position: "",
+      institution: "",
+      combined: "WiseEuropa",
+    });
+  });
+
+  it("instytucja nieobecna w stanowisku - oba napisy bez zmian", () => {
+    expect(splitSpeakerRoleInstitution("Główny doradca ekonomiczny", "PwC")).toEqual({
+      position: "Główny doradca ekonomiczny",
+      institution: "PwC",
+      combined: "",
+    });
+  });
+
+  it("bez instytucji albo bez stanowiska oddaje to, co przyszlo", () => {
+    expect(splitSpeakerRoleInstitution("Prezes", null)).toEqual({ position: "Prezes", institution: "", combined: "" });
+    expect(splitSpeakerRoleInstitution("", "NASK")).toEqual({ position: "", institution: "NASK", combined: "" });
+    expect(splitSpeakerRoleInstitution(null, null)).toEqual({ position: "", institution: "", combined: "" });
+  });
+
+  it("nazwa wlasna pisana mala litera w stanowisku zostaje nietknieta", () => {
+    // Strażnik nazw własnych: „wiseeuropa" małą literą nie jest „WiseEuropa".
+    expect(splitSpeakerRoleInstitution("Prezes wiseeuropa", "WiseEuropa")).toEqual({
+      position: "Prezes wiseeuropa",
+      institution: "WiseEuropa",
+      combined: "",
+    });
+  });
+
+  it("slowo pospolite w roli nie gasi instytucji bedacej nazwa wlasna", () => {
+    // „polityka zagraniczna" to nie tygodnik „Polityka" - instytucja zostaje
+    // nietknieta i pokazuje sie w calosci.
+    expect(splitSpeakerRoleInstitution("Ekspert od polityki zagranicznej", "Polityka")).toEqual({
+      position: "Ekspert od polityki zagranicznej",
+      institution: "Polityka",
+      combined: "",
+    });
   });
 });

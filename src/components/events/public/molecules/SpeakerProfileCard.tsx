@@ -12,7 +12,7 @@ import { buildTransformedImageUrl } from "@/lib/cropSizes";
 import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 import { speakerHasProfileToShow } from "@/lib/builder/speakerRow";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
-import { speakerCardAction, speakerCardPhoto, speakerOrganizationLine } from "@/lib/events/speakerCard";
+import { speakerCardAction, speakerCardPhoto, splitSpeakerRoleInstitution } from "@/lib/events/speakerCard";
 
 const PREVIEW_MARKER = '[data-builder-renderer="widget-props-preview"]';
 /** Zdjęcie jest KWADRATOWE - jedna miara na szerokość i wysokość kadru. */
@@ -68,34 +68,55 @@ function CardBody({ speaker, lang }: { speaker: PublicSpeakerRow; lang: "pl" | "
   const { t } = useTranslation();
   const name = speaker.display_name?.trim() ?? "";
   const role = pickLocalized(speaker, "headline", lang, speaker.job_title ?? "");
-  const organization = speakerOrganizationLine(role, speaker.company) ?? "";
+  // Stanowisko i instytucja OSOBNO - nawet gdy dane trzymają obie nazwy
+  // w jednym polu; wycięcie robi ta sama reguła słów, co deduplikację.
+  // Gdy firma to KOPIA stanowiska (jeden łączny napis), karta używa jednej
+  // łączej etykiety zamiast klamać, że pokazuje osobne fakty.
+  const { position, institution, combined } = splitSpeakerRoleInstitution(role, speaker.company);
   const tracks = speaker.tracks ?? [];
+
+  const FactLine = ({ label, value, emphasized }: { label: string; value: string; emphasized: boolean }) => (
+    <span className="block">
+      <span className="block text-[10px] font-extrabold uppercase text-muted-foreground">{label}</span>
+      <span
+        title={value}
+        className={
+          emphasized
+            ? "mt-1 block text-sm font-semibold leading-snug text-foreground"
+            : "mt-1 block text-sm font-normal leading-snug text-muted-foreground"
+        }
+      >
+        {value}
+      </span>
+    </span>
+  );
 
   return (
     <>
       <Portrait name={name} source={speakerCardPhoto(speaker)} />
-    <span className="flex min-w-0 flex-1 flex-col pt-1 text-left">
+      <span className="flex min-w-0 flex-1 flex-col pt-1 text-left">
         <span className="text-xl font-bold leading-tight text-foreground sm:text-2xl">{name}</span>
         <span className="mt-2 space-y-3">
-          {role !== "" ? (
-            <span className="block">
-              <span className="block text-[10px] font-extrabold uppercase text-muted-foreground">
-                {t("eventFront.speakers.card.positionLabel", { lng: lang })}
-              </span>
-              <span title={role} className="mt-1 block text-sm font-semibold leading-snug text-foreground">
-                {role}
-              </span>
-            </span>
+          {combined !== "" ? (
+            <FactLine
+              emphasized
+              label={t("eventFront.speakers.card.combinedLabel", { lng: lang })}
+              value={combined}
+            />
           ) : null}
-          {organization !== "" ? (
-            <span className="block">
-              <span className="block text-[10px] font-extrabold uppercase text-muted-foreground">
-                {t("eventFront.speakers.card.organizationLabel", { lng: lang })}
-              </span>
-              <span title={organization} className="mt-1 block text-sm font-normal leading-snug text-muted-foreground">
-                {organization}
-              </span>
-            </span>
+          {combined === "" && position !== "" ? (
+            <FactLine
+              emphasized
+              label={t("eventFront.speakers.card.positionLabel", { lng: lang })}
+              value={position}
+            />
+          ) : null}
+          {combined === "" && institution !== "" ? (
+            <FactLine
+              emphasized={false}
+              label={t("eventFront.speakers.card.organizationLabel", { lng: lang })}
+              value={institution}
+            />
           ) : null}
         </span>
         {(speaker.is_expert || tracks.length > 0) && (
