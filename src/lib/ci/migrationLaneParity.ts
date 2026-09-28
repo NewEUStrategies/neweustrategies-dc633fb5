@@ -597,6 +597,67 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0076_event_person_crm_intents",
     twin: "20260927001400_event_person_crm_intents.sql",
   },
+  // Zapisy wdrozen z panelu Lovable (czesci pod limit rozmiaru) i poprawka po probnym zakupie.
+  {
+    tag: "0075_event_participant_defect_fixes_agenda",
+    drizzleOnly:
+      "Zapis wdrozenia z panelu: tylko sekcja 1 (event_my_agenda) z 20260926153200_event_participant_defect_fixes.sql; sekcje 2-3 sa w bazie w nowszej wersji z 20260926180000/180002, wiec blizniak celowo nie jest identyczny.",
+  },
+  {
+    tag: "0094_event_seating_part3",
+    drizzleOnly:
+      "Zapis wdrozenia z panelu: czesc 20260927000402_event_seating_part3.sql przycieta pod limit rozmiaru migracji; jedyna wersja planu sali w bazie (stary duplikat 20260926130001 NIE byl wdrazany), poprawki pilnuje wpis 0074_event_seating_review_fixes.",
+  },
+  {
+    tag: "0095_event_sponsor_report",
+    drizzleOnly:
+      "Zapis wdrozenia z panelu: 20260927000500_event_sponsor_report.sql przyciety pod limit rozmiaru (reszta w 0096); stary duplikat 20260926140001 NIE byl wdrazany.",
+  },
+  {
+    tag: "0096_event_sponsor_report_part2",
+    drizzleOnly:
+      "Zapis wdrozenia z panelu: druga czesc 20260927000500/000501 raportu sponsorow, pocieta pod limit rozmiaru migracji.",
+  },
+  {
+    tag: "0097_event_clone",
+    drizzleOnly:
+      "Zapis wdrozenia z panelu: 20260927000800_event_clone.sql pociety pod limit rozmiaru migracji (reszta w kolejnych czesciach).",
+  },
+  {
+    tag: "0099_event_clone_part3",
+    drizzleOnly:
+      "Zapis wdrozenia z panelu: 20260927000802_event_clone_part3.sql pociety pod limit rozmiaru migracji.",
+  },
+  {
+    tag: "0100_event_person_crm_sync_lead_names",
+    drizzleOnly:
+      "Zapis wdrozenia z panelu: funkcja _event_person_crm_sync z 20260927000900_event_person_crm_sync_lead_names.sql bez czesci juz obecnych w bazie.",
+  },
+  {
+    tag: "0101_event_ads_funnel_review_fixes",
+    drizzleOnly:
+      "Zapis wdrozenia z panelu poprawek lejka Google Ads; blizniaka 20260927001100 pilnuje wpis 0073_event_ads_funnel_review_fixes, ta kopia jest pocieta pod limit rozmiaru.",
+  },
+  {
+    tag: "0102_event_seating_review_fixes",
+    drizzleOnly:
+      "Zapis wdrozenia z panelu poprawek planu sali; blizniaka 20260927001200 pilnuje wpis 0074_event_seating_review_fixes, ta kopia jest pocieta pod limit rozmiaru.",
+  },
+  {
+    tag: "0103_event_clone_participant_settings",
+    drizzleOnly:
+      "Zapis wdrozenia z panelu; blizniaka 20260927001300 pilnuje wpis 0075_event_clone_participant_settings, ta kopia jest pocieta pod limit rozmiaru.",
+  },
+  {
+    tag: "0104_event_person_crm_intents",
+    drizzleOnly:
+      "Zapis wdrozenia z panelu; blizniaka 20260927001400 pilnuje wpis 0076_event_person_crm_intents, ta kopia jest pocieta pod limit rozmiaru.",
+  },
+  {
+    tag: "0105_payment_orders_guard_service_role_detection",
+    drizzleOnly:
+      "Poprawka produkcyjna po probnym zakupie 2026-09-28: straznik payment_orders rozpoznaje service_role po request.jwt.claims i GUC role (webhook Stripe nie mogl oznaczyc zamowienia jako oplacone) oraz event_my_registrations podaje cene biletu dla nieoplaconych zgloszen. Tylko pas drizzle.",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";
