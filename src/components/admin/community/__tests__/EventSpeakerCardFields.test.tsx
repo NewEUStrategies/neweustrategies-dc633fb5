@@ -105,6 +105,7 @@ describe("EventSpeakerCardFields - szkic", () => {
   beforeEach(() => {
     onChange.mockReset();
     dropzone.last = null;
+    dropzone.first = null;
   });
 
   afterEach(() => {
@@ -169,12 +170,12 @@ describe("EventSpeakerCardFields - szkic", () => {
     expect(dropzone.first?.subfolder).toBe("event-speakers");
     expect(dropzone.first?.label).toBe("Zdjęcie rozwiniętej karty");
     expect(dropzone.last?.subfolder).toBe("event-speaker-logos");
-    expect(dropzone.last?.recommendation).toBe("800 x 800 px");
+    expect(dropzone.first?.recommendation).toBe("800 x 800 px");
     expect(
       screen.getByText("Puste = karta rozwija się na zdjęciu prelegenta."),
     ).toBeInTheDocument();
     // Kwadratowy kadr - rozwinieta karta jest kwadratem.
-    expect(dropzone.last?.aspectClassName).toContain("aspect-square");
+    expect(dropzone.first?.aspectClassName).toContain("aspect-square");
   });
 
   it("napisy przycisku NIE maja maxLength (UTF-16), limit pilnuje komunikat; pole koloru 7", () => {
