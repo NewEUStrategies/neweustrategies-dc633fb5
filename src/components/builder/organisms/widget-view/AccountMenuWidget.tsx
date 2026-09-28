@@ -406,10 +406,11 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
           {(firstName || displayName || user?.email || "?").slice(0, 1).toUpperCase()}
         </AvatarFallback>
       </Avatar>
-      {/* STAŁA szerokość, nie `max-w`: podpis dojeżdża etapami (sesja ->
-          profil -> powitanie), a każda zmiana szerokości przesuwałaby
-          sąsiadów w pasku narzędzi. Nadmiar ucinamy wielokropkiem. */}
-      <span className="hidden sm:inline-block w-[9rem] shrink-0 truncate text-right align-middle">
+      {/* Minimalna szerokość stabilizuje pasek, gdy podpis dojeżdża etapami
+          (sesja -> profil -> powitanie). Powitania i imienia NIE ucinamy -
+          pełny tekst zawsze widoczny. */}
+      <span className="hidden sm:inline-block min-w-[9rem] shrink-0 whitespace-nowrap text-right align-middle">
+
         {triggerLabel}
       </span>
     </button>
