@@ -764,6 +764,13 @@
       "when": 1790588207073,
       "tag": "0108_speaker_institution_logo",
       "breakpoints": true
+    },
+    {
+      "idx": 109,
+      "version": "7",
+      "when": 1790589969172,
+      "tag": "0109_speaker_logo_crm_fallback",
+      "breakpoints": true
     }
   ]
 }
