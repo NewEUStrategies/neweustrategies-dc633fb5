@@ -62,8 +62,8 @@ export function AccountMenuEventsSection({ onNavigate }: { onNavigate: () => voi
                 aria-hidden="true"
               />
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium leading-tight">{title}</span>
-                <span className="block text-xs text-muted-foreground">{t("myEvents.myPanel")}</span>
+                <span className="account-menu-title block truncate">{title}</span>
+                <span className="account-menu-subtitle block">{t("myEvents.myPanel")}</span>
               </span>
             </Link>
           );

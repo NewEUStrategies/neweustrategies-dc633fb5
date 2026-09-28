@@ -475,9 +475,9 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
           className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-[color:var(--account-accent)]"
         />
         <span className="flex-1 min-w-0">
-          <span className="block font-medium leading-tight truncate">{entry.label}</span>
+          <span className="account-menu-title block truncate">{entry.label}</span>
           {entry.desc ? (
-            <span className="block text-xs text-muted-foreground mt-0.5 line-clamp-2">
+            <span className="account-menu-subtitle block line-clamp-2">
               {entry.desc}
             </span>
           ) : null}
