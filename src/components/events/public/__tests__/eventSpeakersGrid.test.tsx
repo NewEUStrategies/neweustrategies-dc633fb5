@@ -141,7 +141,7 @@ describe("EventSpeakersGrid", () => {
     const busy = screen.getByLabelText("eventFront.speakers.loading");
     expect(busy.getAttribute("aria-busy")).toBe("true");
     expect(container.querySelectorAll('[aria-busy="true"] > div')).toHaveLength(8);
-    expect(container.querySelector(".aspect-\[8\/11\]")).not.toBeNull();
+    expect(container.querySelector('[class*="aspect-[8/11]"]')).not.toBeNull();
   });
 
   it("błąd danych pokazuje bezpieczny komunikat", async () => {

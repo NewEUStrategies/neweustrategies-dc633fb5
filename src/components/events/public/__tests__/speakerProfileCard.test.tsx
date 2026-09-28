@@ -60,7 +60,7 @@ describe("SpeakerProfileCard - redakcyjny katalog", () => {
     expect(screen.getByText("eventFront.speakers.card.organizationLabel(lng=pl)")).toBeTruthy();
     expect(screen.getByText("NASK").getAttribute("title")).toBe("NASK");
 
-    const image = screen.getByRole("img", { hidden: true });
+    const image = document.querySelector("img") as HTMLImageElement;
     expect(image.getAttribute("src")).toContain("width=320");
     expect(image.getAttribute("src")).toContain("height=440");
     expect(image.className).toContain("grayscale");
@@ -113,7 +113,9 @@ describe("SpeakerProfileCard - redakcyjny katalog", () => {
 
   it("błąd zdjęcia przełącza portret na inicjały", () => {
     render(<SpeakerProfileCard speaker={speaker()} lang="pl" />);
-    fireEvent.error(screen.getByRole("img", { hidden: true }));
+    const image = document.querySelector("img");
+    expect(image).not.toBeNull();
+    if (image !== null) fireEvent.error(image);
     expect(screen.getByText("AK")).toBeTruthy();
   });
 
