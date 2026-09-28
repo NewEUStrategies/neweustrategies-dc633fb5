@@ -99,6 +99,8 @@ import {
   EVENT_PORTAL_CONTENT_WIDE_CLASS,
   EventPortalContent,
 } from "@/components/events/public/atoms/EventPortalContent";
+import { EventModuleHero } from "@/components/events/public/molecules/EventModuleHero";
+import { eventModuleOf } from "@/lib/events/eventModules";
 import { EventMetaCard, EventMetaRow } from "@/components/events/public/molecules/EventMetaCard";
 import {
   EventMenuTileBody,
@@ -299,6 +301,9 @@ export function EventPreviewCanvas({
   // pyta o tresc TEJ strony - dopisanie jej pod metadanymi wydarzenia dawaloby
   // rysunek, ktory nie odpowiada zadnemu adresowi publicznemu.
   const page = model.selectedPage;
+  // Wartosc modulu z bazy -> modul, ktory front umie obsluzyc; nieznana czyta
+  // sie jak jej brak (zwykla strona CMS), dokladnie jak na stronie publicznej.
+  const previewModule = page === null ? null : eventModuleOf(page.module);
 
   return (
     <EventPortalShell
@@ -569,32 +574,50 @@ export function EventPreviewCanvas({
         >
           <div data-testid="event-preview-page">
             {/* SCIEZKA PODSTRONY JEST CHROME'M PODGLADU, nie trescia strony:
-                mowi redaktorowi, ktory adres publiczny wlasnie oglada. Naglowka
-                `h1` tu NIE MA i miec nie moze - na stronie publicznej niesie go
-                DOKUMENT strony modulowej (migracja 20260826181500 zasiewa `h1`
-                i zdanie wstepu), wiec wlasny naglowek podgladu dawalby dwa
-                tytuly jeden pod drugim. */}
+                mowi redaktorowi, ktory adres publiczny wlasnie oglada. */}
             <p className="font-sans text-xs text-muted-foreground">/{page.path}</p>
-            <div className="mt-8">
-              {page.document === null ? (
-                <p className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
-                  {t("adminEvents.studio.preview.pageEmpty")}
-                </p>
-              ) : (
-                // TRESC RYSUJE PUBLICZNY RENDERER, nie kopia ukladu sekcji -
-                // inaczej podglad podstrony rozjechalby sie z publikacja przy
-                // pierwszej zmianie w builderze.
-                <BuilderRenderer doc={page.document} lang={lang} device={device} editorPreview />
-              )}
-            </div>
-            {/* PODSTRONA MODULOWA MA TRESC POZA DOKUMENTEM: program, prelegentow
-                i uczestnikow sklada baza, a dokument CMS niesie tylko naglowek
-                i zdanie wstepu. Bez tego bloku redaktor widzial w podgladzie sam
-                naglowek zakladki „Program" mimo wpisanych sesji. */}
-            {page.module !== null && (
-              <div className="mt-8">
-                <EventPreviewLiveModule module={page.module} data={live} />
-              </div>
+            {/* NAGLOWEK MODULOWY JEST WSPOLNY ZE STRONA PUBLICZNA
+                (`EventModuleHero`): okruszki + karta z ikona, pigulka i
+                gradientem. Okruszki BEZ linkow (`breadcrumbLinks=false`) - klik
+                wyprowadzilby redaktora ze studia i zgubil niezapisany szkic,
+                ta sama zasada co `PreviewNavItem` wyzej. Dane modulu rysuje
+                `EventPreviewLiveModule` - dokument CMS-a jedzie przez hero, zeby
+                podglad i publikacja mialy ten sam naglowek. */}
+            {previewModule !== null ? (
+              <>
+                <EventModuleHero
+                  module={previewModule}
+                  eventTitle={title}
+                  moduleLabel={page.label}
+                  crumbs={[
+                    { label: t("eventFront.header.breadcrumbEvents"), href: "/events" },
+                    { label: title, href: `/events/${model.slug}` },
+                    { label: page.label },
+                  ]}
+                  breadcrumbLinks={false}
+                  hasDocument={page.document !== null}
+                >
+                  {page.document === null ? null : (
+                    <BuilderRenderer doc={page.document} lang={lang} device={device} editorPreview />
+                  )}
+                </EventModuleHero>
+                <div className="mt-8">
+                  <EventPreviewLiveModule module={previewModule} data={live} />
+                </div>
+              </>
+            ) : (
+              <>
+                {page.document === null ? (
+                  <p className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
+                    {t("adminEvents.studio.preview.pageEmpty")}
+                  </p>
+                ) : (
+                  // TRESC RYSUJE PUBLICZNY RENDERER, nie kopia ukladu sekcji -
+                  // inaczej podglad podstrony rozjechalby sie z publikacja przy
+                  // pierwszej zmianie w builderze.
+                  <BuilderRenderer doc={page.document} lang={lang} device={device} editorPreview />
+                )}
+              </>
             )}
           </div>
         </EventPortalContent>
