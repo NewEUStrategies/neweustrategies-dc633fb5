@@ -76,7 +76,8 @@ const GRID_CLASS = "grid grid-cols-1 gap-x-10 gap-y-4 sm:grid-cols-2 lg:grid-col
 // Karta zastepcza ma TEN SAM obrys, co ZWINIETA karta prelegenta
 // (`SpeakerProfileCard`: zdjecie, imie i nazwisko, podpis), wiec wysokosc
 // sekcji nie skacze w chwili, gdy przyjda dane.
-const CARD_CLASS = "flex min-h-52 w-full items-start gap-7 px-2 py-8 sm:gap-9";
+const CARD_CLASS =
+  "flex min-h-52 w-full items-start gap-7 border-b border-border px-2 py-8 sm:gap-9";
 
 // Osiem kart zastępczych: tyle, ile wchodzi w dwa wiersze docelowego układu,
 // więc wysokość sekcji nie skacze w chwili, gdy przyjdą dane.
