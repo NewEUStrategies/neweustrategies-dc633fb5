@@ -29,9 +29,17 @@ export function bucketOf(item: ParticipantRegistration, now: Date): MyEventsBuck
 
 /** Czy pozycja czeka na pieniądze - „opłać bilet" ma sens tylko wtedy. */
 export function awaitsPayment(item: ParticipantRegistration): boolean {
-  if (item.amountCents === null || item.amountCents <= 0) return false;
   if (item.cancelledAt !== null) return false;
-  return item.paymentStatus !== "paid" && item.orderStatus !== "paid";
+  if (item.paymentStatus === "paid" || item.orderStatus === "paid") return false;
+  // Status „unpaid" wygrywa z brakiem kwoty - nieopłacony bilet nigdy nie jest „bezpłatny".
+  if (item.paymentStatus === "unpaid") return true;
+  return item.amountCents !== null && item.amountCents > 0;
+}
+
+/** Bezpłatny tylko wtedy, gdy nic nie czeka na zapłatę i kwota jest zerowa. */
+export function isFreeRegistration(item: ParticipantRegistration): boolean {
+  if (awaitsPayment(item)) return false;
+  return item.amountCents === null || item.amountCents === 0;
 }
 
 export interface MyEventsGroups {

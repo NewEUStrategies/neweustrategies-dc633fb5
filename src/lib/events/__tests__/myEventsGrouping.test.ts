@@ -96,3 +96,12 @@ describe("myEventsGrouping", () => {
     ).toBe(false);
   });
 });
+
+describe("isFreeRegistration", () => {
+  it("never treats an unpaid registration without an order amount as free", async () => {
+    const { isFreeRegistration, awaitsPayment } = await import("../myEventsGrouping");
+    const item = registration({ paymentStatus: "unpaid", orderStatus: null, amountCents: null });
+    expect(awaitsPayment(item)).toBe(true);
+    expect(isFreeRegistration(item)).toBe(false);
+  });
+});
