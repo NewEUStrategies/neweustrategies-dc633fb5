@@ -570,7 +570,7 @@ export function EventPreviewCanvas({
         />
       ) : (
         <EventPortalContent
-          className={page.module === "speakers" ? EVENT_PORTAL_CONTENT_WIDE_CLASS : undefined}
+          className={eventModuleOf(page.module) !== null ? EVENT_PORTAL_CONTENT_WIDE_CLASS : undefined}
         >
           <div data-testid="event-preview-page">
             {/* SCIEZKA PODSTRONY JEST CHROME'M PODGLADU, nie trescia strony:
