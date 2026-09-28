@@ -32,10 +32,14 @@ interface DropzoneProps {
   aspectClassName?: string;
 }
 
-const dropzone = vi.hoisted(() => ({ last: null as DropzoneProps | null }));
+const dropzone = vi.hoisted(() => ({
+  last: null as DropzoneProps | null,
+  first: null as DropzoneProps | null,
+}));
 
 vi.mock("@/components/admin/events/atoms/EventImageDropzone", () => ({
   EventImageDropzone: (props: DropzoneProps) => {
+    if (dropzone.first === null || dropzone.first.label === props.label) dropzone.first = props;
     dropzone.last = props;
     return (
       <div data-testid="image-dropzone">
@@ -133,6 +137,7 @@ describe("EventSpeakerCardFields - szkic", () => {
       labelEn: "Sign up",
       url: "https://example.com/z",
       color: "#0a7d3b",
+      institutionLogoUrl: "",
     });
     // Kontrolki pokazuja szkic rodzica, a nie wlasny stan.
     expect(input("Napis na przycisku PL").value).toBe("Zapisz się");
@@ -161,8 +166,9 @@ describe("EventSpeakerCardFields - szkic", () => {
   it("zdjecie idzie przez wspolny obszar wgrywania do katalogu prelegentow", () => {
     renderFields();
     expect(dropzone.last).not.toBeNull();
-    expect(dropzone.all?.[0]?.subfolder ?? dropzone.last?.subfolder).toBe("event-speakers");
-    expect(dropzone.last?.label).toBe("Zdjęcie rozwiniętej karty");
+    expect(dropzone.first?.subfolder).toBe("event-speakers");
+    expect(dropzone.first?.label).toBe("Zdjęcie rozwiniętej karty");
+    expect(dropzone.last?.subfolder).toBe("event-speaker-logos");
     expect(dropzone.last?.recommendation).toBe("800 x 800 px");
     expect(
       screen.getByText("Puste = karta rozwija się na zdjęciu prelegenta."),
