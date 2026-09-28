@@ -38,7 +38,9 @@ function Portrait({ name, source }: { name: string; source: string | null }) {
         });
 
   return (
-    <span className="relative block aspect-square w-28 shrink-0 sm:w-32">
+    {/* `self-start` - bez tego rozciaganie flexa karty (items-stretch) nadpisuje
+        aspect-ratio i zdjecie znow staje sie prostokatem, a nie kwadratem. */}
+    <span className="relative block aspect-square w-28 shrink-0 self-start sm:w-32">
       {/* Rogi 6 px są na PUDLE kadru, a nie na obrazie - inicjały zastępcze
           dostają ten sam obrys, co zdjęcie, więc podmiana jest niezauważalna. */}
       <span className="relative grid size-full place-items-center overflow-hidden rounded-[6px] bg-muted text-xl font-semibold text-muted-foreground">
