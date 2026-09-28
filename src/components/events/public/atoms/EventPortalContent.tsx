@@ -18,10 +18,10 @@ export const EVENT_PORTAL_CONTENT_CLASS = "mx-auto w-full max-w-5xl px-4 pt-8";
 
 /**
  * SZERSZA MIARA na desktop - dla zakładek z gęstą siatką (prelegenci): ta sama
- * rama (`mx-auto w-full px-4 pt-8`), tylko odważnik `max-w-7xl`. Na tabletach
- * i telefonach nie zmienia nic - szerokość i tak ogranicza ekran.
+ * rama (`mx-auto w-full px-4 pt-8`), tylko odważnik `max-w-[1600px]`. Na
+ * tabletach i telefonach nie zmienia nic - szerokość i tak ogranicza ekran.
  */
-export const EVENT_PORTAL_CONTENT_WIDE_CLASS = "mx-auto w-full max-w-7xl px-4 pt-8";
+export const EVENT_PORTAL_CONTENT_WIDE_CLASS = "mx-auto w-full max-w-[1600px] px-4 pt-8";
 
 export function EventPortalContent({
   children,
