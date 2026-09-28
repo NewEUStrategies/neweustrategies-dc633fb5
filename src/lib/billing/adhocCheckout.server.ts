@@ -322,6 +322,40 @@ function adhocSessionSettings(input: AdhocCheckoutSessionInput): CheckoutSetting
 }
 
 /**
+ * Kod podatkowy pozycji `price_data` dla płaszczyzny operatora (MoR).
+ *
+ * Operator odrzuca sesję `managed_payments`, której produkt nie ma kodu
+ * podatkowego ("the product tax code is missing") - próbny zakup 2026-09-28
+ * pokazał, że KAŻDA sesja ad-hoc padała na tym przed wyświetleniem kasy.
+ * Tylko treść cyfrowa jest towarem, który operator obsługuje jako MoR.
+ */
+export const ADHOC_DIGITAL_TAX_CODE = "txcd_10000000";
+
+/**
+ * Czy sesja ad-hoc może jechać płaszczyzną operatora. Wstęp na wydarzenie
+ * stacjonarne i darowizna nie są produktem cyfrowym - operator nie obsługuje
+ * ich jako MoR, więc sesja idzie bez `managed_payments` (podatek biletu niesie
+ * `tax_behavior`, a fakturę wystawia organizator modułem faktur).
+ */
+export function adhocAllowsManagedPayments(purpose: AdhocCheckoutSessionInput["purpose"]): boolean {
+  return purpose === "content_unlock";
+}
+
+function adhocFlags(input: AdhocCheckoutSessionInput, hasCustomer: boolean): SessionCreateParams {
+  const flags = sessionFlags(adhocSessionSettings(input), {
+    mode: "payment",
+    hasCustomer,
+    hasDiscount: !!input.discount,
+  });
+  if (!adhocAllowsManagedPayments(input.purpose)) {
+    const { managed_payments: _managed, ...rest } = flags;
+    void _managed;
+    return rest;
+  }
+  return flags;
+}
+
+/**
  * Tworzy Embedded Checkout Session z ceną osadzoną w pozycji (`price_data`) -
  * jedyny sposób na kwotę wyliczoną dynamicznie serwerowo (kupon, waluta
  * prezentacji, cena wydarzenia). Odrzuca kwoty poniżej minimum operatora.
