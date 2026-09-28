@@ -705,7 +705,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
                       {displayName || user.email}
                     </span>
                     {displayName && (
-                      <span className="block truncate text-xs text-muted-foreground">
+                      <span className="account-menu-subtitle block truncate">
                         {user.email}
                       </span>
                     )}
