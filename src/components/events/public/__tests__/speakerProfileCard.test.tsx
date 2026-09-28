@@ -61,8 +61,8 @@ describe("SpeakerProfileCard - redakcyjny katalog", () => {
     expect(screen.getByText("NASK").getAttribute("title")).toBe("NASK");
 
     const image = document.querySelector("img") as HTMLImageElement;
-    expect(image.getAttribute("src")).toContain("width=320");
-    expect(image.getAttribute("src")).toContain("height=440");
+    expect(image.getAttribute("src")).toContain("width=480");
+    expect(image.getAttribute("src")).toContain("height=480");
     expect(image.className).not.toContain("grayscale");
     expect(image.className).toContain("brightness-95");
   });

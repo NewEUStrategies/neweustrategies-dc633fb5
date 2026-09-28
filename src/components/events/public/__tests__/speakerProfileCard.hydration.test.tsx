@@ -92,8 +92,8 @@ describe("SpeakerProfileCard - SSR i hydratacja", () => {
     );
     try {
       expect(result.serverHtml).toContain("Anna Kowalska");
-      expect(result.serverHtml).toContain("width=320");
-      expect(result.serverHtml).toContain("height=440");
+      expect(result.serverHtml).toContain("width=480");
+      expect(result.serverHtml).toContain("height=480");
       expect(measure).not.toHaveBeenCalled();
     } finally {
       await act(async () => result.root.unmount());
