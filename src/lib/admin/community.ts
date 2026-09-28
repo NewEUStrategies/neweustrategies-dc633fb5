@@ -582,10 +582,15 @@ export async function saveEventSpeakerCard(input: EventSpeakerCardInput): Promis
     },
   });
   if (error) throw new Error(error.message);
-  const logo = await supabase.rpc("admin_event_speaker_logo_save", {
-    p_payload: { speaker_profile_id: input.speakerProfileId, logo_url: input.cardInstitutionLogoUrl.trim() },
+  await saveEventSpeakerLogo(input.speakerProfileId, input.cardInstitutionLogoUrl);
+}
+
+/** Logo instytucji na karcie prelegenta; pusty napis czysci logo. */
+export async function saveEventSpeakerLogo(speakerProfileId: string, logoUrl: string): Promise<void> {
+  const { error } = await supabase.rpc("admin_event_speaker_logo_save", {
+    p_payload: { speaker_profile_id: speakerProfileId, logo_url: logoUrl.trim() },
   });
-  if (logo.error) throw new Error(logo.error.message);
+  if (error) throw new Error(error.message);
 }
 
 /** Podpina ISTNIEJACE konto platformy (droplista wyszukiwarki kont). */
