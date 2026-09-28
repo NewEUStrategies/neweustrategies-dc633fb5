@@ -70,9 +70,7 @@ function CardBody({ speaker, lang }: { speaker: PublicSpeakerRow; lang: "pl" | "
   const role = pickLocalized(speaker, "headline", lang, speaker.job_title ?? "");
   // Stanowisko i instytucja OSOBNO - nawet gdy dane trzymają obie nazwy
   // w jednym polu; wycięcie robi ta sama reguła słów, co deduplikację.
-  // Gdy firma to KOPIA stanowiska (jeden łączny napis), karta używa jednej
-  // łączej etykiety zamiast klamać, że pokazuje osobne fakty.
-  const { position, institution, combined } = splitSpeakerRoleInstitution(role, speaker.company);
+  const { position, institution } = splitSpeakerRoleInstitution(role, speaker.company);
   const tracks = speaker.tracks ?? [];
 
   const FactLine = ({ label, value, emphasized }: { label: string; value: string; emphasized: boolean }) => (
@@ -97,21 +95,14 @@ function CardBody({ speaker, lang }: { speaker: PublicSpeakerRow; lang: "pl" | "
       <span className="flex min-w-0 flex-1 flex-col pt-1 text-left">
         <span className="text-xl font-bold leading-tight text-foreground sm:text-2xl">{name}</span>
         <span className="mt-2 space-y-3">
-          {combined !== "" ? (
-            <FactLine
-              emphasized
-              label={t("eventFront.speakers.card.combinedLabel", { lng: lang })}
-              value={combined}
-            />
-          ) : null}
-          {combined === "" && position !== "" ? (
+          {position !== "" ? (
             <FactLine
               emphasized
               label={t("eventFront.speakers.card.positionLabel", { lng: lang })}
               value={position}
             />
           ) : null}
-          {combined === "" && institution !== "" ? (
+          {institution !== "" ? (
             <FactLine
               emphasized={false}
               label={t("eventFront.speakers.card.organizationLabel", { lng: lang })}
