@@ -53,6 +53,7 @@ const uploadAndRegisterMedia = vi.fn();
 
 vi.mock("@/lib/admin/community", () => ({
   createEventSpeakerPerson: (...args: unknown[]) => createEventSpeakerPerson(...args),
+  saveEventSpeakerLogo: () => Promise.resolve(),
 }));
 
 // TOZSAMOSC WGRYWAJACEGO. `handlePhoto` wychodzi przedwczesnie bez najemcy
@@ -712,7 +713,8 @@ function cardSection(): HTMLElement {
 }
 
 function cardInput(label: string): HTMLInputElement {
-  const element = within(cardSection()).getByLabelText(label);
+  // Zdjecie i logo instytucji maja wspolny obszar wgrywania - pierwszy to zdjecie.
+  const element = within(cardSection()).getAllByLabelText(label)[0];
   if (!(element instanceof HTMLInputElement)) throw new Error(`test: "${label}" to nie input`);
   return element;
 }
