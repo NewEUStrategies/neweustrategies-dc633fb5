@@ -148,7 +148,7 @@ export function SpeakerProfileCard({
             onClick={(event) => {
               if (event.currentTarget.closest(PREVIEW_MARKER)) event.preventDefault();
             }}
-            className="ml-40 mt-1 w-fit text-xs font-semibold text-brand-ink underline-offset-4 hover:underline sm:ml-44"
+            className="ml-37 mt-1 w-fit text-xs font-semibold text-brand-ink underline-offset-4 hover:underline sm:ml-43"
           >
             {action.label ?? t("eventFront.speakers.card.linkAction", { lng: lang })}
             <span className="sr-only"> {t("eventFront.speakers.card.opensInNewTab", { lng: lang })}</span>
@@ -156,7 +156,7 @@ export function SpeakerProfileCard({
         ) : (
           <AppLink
             href={action.href}
-            className="ml-40 mt-1 w-fit text-xs font-semibold text-brand-ink underline-offset-4 hover:underline sm:ml-44"
+            className="ml-37 mt-1 w-fit text-xs font-semibold text-brand-ink underline-offset-4 hover:underline sm:ml-43"
           >
             {action.label ?? t("eventFront.speakers.card.linkAction", { lng: lang })}
           </AppLink>
