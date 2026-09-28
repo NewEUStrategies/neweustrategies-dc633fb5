@@ -162,6 +162,8 @@ export const eventFrontPl = {
       // Klucz zakładki bez zakładki obiecywałby szóstą pozycję w pasku.
       // -------------------------------------------------------------------
       tabsLabel: "Zakładki wydarzenia",
+      breadcrumbEvents: "Wydarzenia",
+      moduleEyebrow: "Sekcja wydarzenia",
       tabs: {
         overview: "Strona główna",
         participants: "Uczestnicy",
@@ -855,6 +857,8 @@ export const eventFrontEn = {
       // the route segment), hence `partners` and not `sponsors` - see the
       // Polish side for the full reasoning.
       tabsLabel: "Event tabs",
+      breadcrumbEvents: "Events",
+      moduleEyebrow: "Event section",
       tabs: {
         overview: "Event home",
         participants: "Attendees",

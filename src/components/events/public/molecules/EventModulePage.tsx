@@ -37,6 +37,10 @@ import { useTranslation } from "react-i18next";
 import { uiLang } from "@/lib/i18n/format";
 import { eventModuleOf, type EventModule } from "@/lib/events/eventModules";
 import { useEventMenu } from "@/lib/events/usePublicEvent";
+import { publicEventBySlugQueryOptions } from "@/lib/community/publicQueries";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { CalendarDays, Handshake, MessagesSquare, Mic, Users, LayoutGrid } from "@/lib/lucide-shim";
+import type { ComponentType } from "react";
 import { resolvedContentQueryOptions, type PageData } from "@/lib/queries/public";
 import { EventPortalContent } from "@/components/events/public/atoms/EventPortalContent";
 import { ContentRenderer } from "@/components/content/ContentRenderer";
@@ -61,7 +65,7 @@ export function EventModulePage({
   /** Nadpisuje miarę kolumny treści (np. szersza dla siatki prelegentów). */
   contentClassName?: string;
 }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
 
   // Menu jest już w cache po pasku zakładek w powłoce (ten sam hook, ten sam
@@ -90,16 +94,72 @@ export function EventModulePage({
       blocks_data: page.blocks_data ?? null,
     });
 
+  const eventQuery = useQuery({ ...publicEventBySlugQueryOptions(slug), retry: false });
+  const ev = eventQuery.data ?? null;
+  const eventTitle =
+    ev === null ? "" : lang === "en" ? ev.title_en || ev.title_pl : ev.title_pl || ev.title_en;
+  const moduleLabel = entry
+    ? lang === "en"
+      ? entry.labelEn || entry.labelPl
+      : entry.labelPl || entry.labelEn
+    : t(`eventFront.header.tabs.${module}`);
+  const crumbs = [
+    { label: t("eventFront.header.breadcrumbEvents"), href: "/events" },
+    ...(eventTitle ? [{ label: eventTitle, href: `/events/${slug}` }] : []),
+    { label: moduleLabel },
+  ];
+  const Icon = MODULE_ICONS[module] ?? LayoutGrid;
+
   return (
     // Miara kolumny treści jest WSPÓLNA z przeglądem i z podglądem studia
     // (`EVENT_PORTAL_CONTENT_CLASS`): trzy kopie `max-w-5xl px-4 pt-8` już raz
     // się rozjechały - podgląd rysował `max-w-3xl`.
     <EventPortalContent className={contentClassName}>
-      {hasDocument && page !== null && <ModuleDocument page={page} lang={lang} />}
-      <div className={hasDocument ? "mt-8" : undefined}>{children}</div>
+      <Breadcrumbs items={crumbs} className="mb-5" />
+      <header
+        data-event-module-hero={module}
+        className="relative mb-8 overflow-hidden rounded-[6px] border border-border bg-card p-6 sm:p-8"
+      >
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-primary/10 blur-3xl"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-primary/60 to-transparent"
+        />
+        <div className="relative flex items-start gap-4 sm:gap-5">
+          <span className="grid size-12 shrink-0 place-items-center rounded-[6px] bg-primary/10 text-primary sm:size-14">
+            <Icon className="size-6 sm:size-7" aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              {eventTitle || t("eventFront.header.moduleEyebrow")}
+            </p>
+            {hasDocument && page !== null ? (
+              <div className="event-module-hero-doc [&_h1]:mb-2 [&_h1]:mt-0 [&_p:last-child]:mb-0 [&_p]:text-muted-foreground">
+                <ModuleDocument page={page} lang={lang} />
+              </div>
+            ) : (
+              <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+                {moduleLabel}
+              </h1>
+            )}
+          </div>
+        </div>
+      </header>
+      <div>{children}</div>
     </EventPortalContent>
   );
 }
+
+const MODULE_ICONS: Partial<Record<EventModule, ComponentType<{ className?: string }>>> = {
+  participants: Users,
+  speakers: Mic,
+  partners: Handshake,
+  agenda: CalendarDays,
+  discussions: MessagesSquare,
+};
 
 /** Dokument strony modułowej - ta sama ścieżka renderowania, co `/$` i `/support`. */
 function ModuleDocument({ page, lang }: { page: PageData; lang: "pl" | "en" }) {
