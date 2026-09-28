@@ -94,7 +94,7 @@ export function EventModulePage({
     // Miara kolumny treści jest WSPÓLNA z przeglądem i z podglądem studia
     // (`EVENT_PORTAL_CONTENT_CLASS`): trzy kopie `max-w-5xl px-4 pt-8` już raz
     // się rozjechały - podgląd rysował `max-w-3xl`.
-    <EventPortalContent>
+    <EventPortalContent className={contentClassName}>
       {hasDocument && page !== null && <ModuleDocument page={page} lang={lang} />}
       <div className={hasDocument ? "mt-8" : undefined}>{children}</div>
     </EventPortalContent>
