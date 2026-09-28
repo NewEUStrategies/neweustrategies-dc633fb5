@@ -108,6 +108,28 @@ describe("SpeakerProfileCard - redakcyjny katalog", () => {
     expect(logo.className).toContain("w-auto");
   });
 
+  it("poziome logo WiseEuropa prowadzi do kwadratowego kadru", () => {
+    render(
+      <SpeakerProfileCard
+        speaker={speaker({
+          company: "WiseEuropa",
+          card_institution_logo_url: "https://example.org/wiseeuropa.png",
+        })}
+        lang="pl"
+      />,
+    );
+
+    const logo = screen.getByRole("img", { name: "WiseEuropa" });
+    Object.defineProperties(logo, {
+      naturalWidth: { configurable: true, value: 210 },
+      naturalHeight: { configurable: true, value: 100 },
+    });
+    fireEvent.load(logo);
+    expect(logo.getAttribute("data-logo-shape")).toBe("compact");
+    expect(logo.className).toContain("size-6");
+    expect(logo.className).toContain("object-cover");
+  });
+
   it("otwiera profil kliknięciem całej karty i przekazuje pełny wiersz", () => {
     const row = speaker({ bio_pl: "Pełny biogram" });
     const onSelect = vi.fn();
