@@ -508,6 +508,7 @@ describe("speakerCardDraftErrors", () => {
     expect(
       speakerCardDraftErrors({
         photoUrl: "https://cdn.example/kadr.jpg",
+        institutionLogoUrl: "",
         labelPl: "Zapisz sie",
         labelEn: "Sign up",
         url: "/program",
@@ -559,6 +560,7 @@ describe("speakerCardDraftErrors", () => {
     expect(
       speakerCardDraftErrors({
         photoUrl: "ftp://cdn.example/a.jpg",
+        institutionLogoUrl: "",
         labelPl: tooLong,
         labelEn: tooLong,
         url: "javascript:void(0)",

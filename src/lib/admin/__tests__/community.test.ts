@@ -1118,6 +1118,7 @@ describe("mutacje prelegentow", () => {
 
   it("saveEventSpeakerCard wysyla WSZYSTKIE piec pol - pusty napis znaczy wyczysc", async () => {
     setRpc("admin_event_speaker_card_save", ok({ speaker_profile_id: "sp-1" }));
+    setRpc("admin_event_speaker_logo_save", ok(null));
 
     await saveEventSpeakerCard({
       speakerProfileId: "sp-1",
@@ -1126,6 +1127,10 @@ describe("mutacje prelegentow", () => {
       cardCtaLabelEn: "",
       cardCtaUrl: "",
       cardCtaColor: "#FF7000",
+      cardInstitutionLogoUrl: "https://cdn.example.com/logo.png",
+    });
+    expect(rpcArgs("admin_event_speaker_logo_save")).toEqual({
+      p_payload: { speaker_profile_id: "sp-1", logo_url: "https://cdn.example.com/logo.png" },
     });
 
     // Tu NIE ma odsiewu pustych kluczy (w odroznieniu od zakladania): redaktor,
@@ -1155,6 +1160,7 @@ describe("mutacje prelegentow", () => {
         cardCtaLabelEn: "",
         cardCtaUrl: "//evil.example.org",
         cardCtaColor: "",
+        cardInstitutionLogoUrl: "",
       }),
     ).rejects.toThrow("speaker_profiles_card_cta_url_shape");
   });
