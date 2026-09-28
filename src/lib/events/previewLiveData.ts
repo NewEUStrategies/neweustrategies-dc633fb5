@@ -329,6 +329,7 @@ export function speakerRowsFromAdminEntries(
       card_cta_label_en: entry.card_cta_label_en ?? null,
       card_cta_url: entry.card_cta_url ?? null,
       card_cta_color: entry.card_cta_color ?? null,
+      card_institution_logo_url: entry.card_institution_logo_url ?? null,
       tracks: sessions === undefined ? (entry.tracks ?? []) : previewSpeakerTracks(entry, sessions),
     }));
 }
