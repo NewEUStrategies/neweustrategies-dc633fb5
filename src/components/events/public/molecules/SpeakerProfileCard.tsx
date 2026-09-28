@@ -72,9 +72,9 @@ function CardBody({ speaker, lang }: { speaker: PublicSpeakerRow; lang: "pl" | "
   return (
     <>
       <Portrait name={name} source={speakerCardPhoto(speaker)} />
-      <span className="flex min-w-0 flex-1 flex-col pt-1 text-left">
+    <span className="flex min-w-0 flex-1 flex-col pt-1 text-left">
         <span className="text-xl font-bold leading-tight text-foreground sm:text-2xl">{name}</span>
-        <span className="mt-4 space-y-3">
+        <span className="mt-2 space-y-3">
           {role !== "" ? (
             <span className="block">
               <span className="block text-[10px] font-extrabold uppercase text-muted-foreground">
