@@ -85,6 +85,17 @@ export function EventSpeakerCardFields({
       />
       <FieldError id={id("photo-error")} message={message("photoUrl")} />
 
+      <EventImageDropzone
+        label={t("adminCommunityEvents.speakers.card.institutionLogo")}
+        hint={t("adminCommunityEvents.speakers.card.institutionLogoHint")}
+        recommendation={t("adminCommunityEvents.speakers.card.institutionLogoRecommendation")}
+        value={value.institutionLogoUrl}
+        onValueChange={(next) => set("institutionLogoUrl", next)}
+        subfolder="event-speaker-logos"
+        aspectClassName="aspect-[3/1] max-w-48"
+      />
+      <FieldError id={id("institution-logo-error")} message={message("institutionLogoUrl")} />
+
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-1.5">
           <Label htmlFor={id("label-pl")} className="text-[11px] text-muted-foreground">

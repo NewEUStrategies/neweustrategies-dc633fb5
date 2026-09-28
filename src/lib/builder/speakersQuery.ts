@@ -89,6 +89,8 @@ export interface PublicSpeakerRow {
   card_cta_label_en?: string | null;
   card_cta_url?: string | null;
   card_cta_color?: string | null;
+  /** Logo instytucji (osobny odczyt `event_speaker_logos_public`). */
+  card_institution_logo_url?: string | null;
   /**
    * Sciezki, w ktorych prelegent wystepuje - WYPROWADZONE przez baze z obsady
    * opublikowanych sesji, nie wpisywane. Pusta lista = brak sesji w sciezce.
@@ -224,9 +226,16 @@ async function fetchEventSpeakers(input: {
   });
   if (error) throw new Error(error.message);
   const rows = Array.isArray(data) ? data : [];
+  const logos = await supabase.rpc("event_speaker_logos_public", { p_event_id: input.eventId });
+  if (logos.error) throw new Error(logos.error.message);
+  const logoById = new Map((logos.data ?? []).map((l) => [l.speaker_profile_id, l.logo_url]));
   return rows
     .map((raw) => mapSpeakerRow(raw as Record<string, unknown>))
-    .filter((row) => row.user_id !== "" || (row.person_id ?? "") !== "");
+    .filter((row) => row.user_id !== "" || (row.person_id ?? "") !== "")
+    .map((row) => ({
+      ...row,
+      card_institution_logo_url: logoById.get(row.speaker_profile_id ?? "") ?? null,
+    }));
 }
 
 /**
@@ -261,7 +270,7 @@ export const speakersQueryOptions = (c: WidgetContent, _lang: Lang) => {
             // rozgrzany przed zmiana projekcji nie ma czym odpowiedziec po niej.
             // `v2`: od 20260924140000 projekcja oddaje pola karty i sciezki -
             // wpis sprzed tej zmiany dawalby karte bez nich przez minute TTL.
-            edgeTtlCache(`builder:event-speakers:v2:${input.eventId}:${input.limit}`, 60_000, () =>
+            edgeTtlCache(`builder:event-speakers:v3:${input.eventId}:${input.limit}`, 60_000, () =>
               fetchEventSpeakers({ eventId: input.eventId, limit: input.limit }),
             )
         : edgeTtlCache(`builder:speakers:${JSON.stringify(input)}`, 60_000, () =>

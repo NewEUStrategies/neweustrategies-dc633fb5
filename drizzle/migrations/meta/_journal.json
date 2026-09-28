@@ -757,6 +757,13 @@
       "when": 1790580019797,
       "tag": "0107_event_participant_features_require_payment",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1790588207073,
+      "tag": "0108_speaker_institution_logo",
+      "breakpoints": true
     }
   ]
 }

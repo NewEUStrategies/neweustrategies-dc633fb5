@@ -64,6 +64,22 @@ function Portrait({ name, source }: { name: string; source: string | null }) {
   );
 }
 
+/** Logo instytucji pod jej nazwa - ukrywa sie, gdy plik nie wczyta sie. */
+function InstitutionLogo({ url, name }: { url: string; name: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return null;
+  return (
+    <img
+      src={url}
+      alt={name}
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
+      className="mt-2 block h-8 w-auto max-w-40 object-contain object-left"
+    />
+  );
+}
+
 function CardBody({ speaker, lang }: { speaker: PublicSpeakerRow; lang: "pl" | "en" }) {
   const { t } = useTranslation();
   const name = speaker.display_name?.trim() ?? "";
@@ -72,6 +88,7 @@ function CardBody({ speaker, lang }: { speaker: PublicSpeakerRow; lang: "pl" | "
   // w jednym polu; wycięcie robi ta sama reguła słów, co deduplikację.
   const { position, institution } = splitSpeakerRoleInstitution(role, speaker.company);
   const tracks = speaker.tracks ?? [];
+  const logoUrl = speaker.card_institution_logo_url?.trim() || null;
 
   const FactLine = ({ label, value, emphasized }: { label: string; value: string; emphasized: boolean }) => (
     <span className="block">
@@ -102,12 +119,17 @@ function CardBody({ speaker, lang }: { speaker: PublicSpeakerRow; lang: "pl" | "
               value={position}
             />
           ) : null}
-          {institution !== "" ? (
-            <FactLine
-              emphasized={false}
-              label={t("eventFront.speakers.card.organizationLabel", { lng: lang })}
-              value={institution}
-            />
+          {institution !== "" || logoUrl !== null ? (
+            <span className="block">
+              {institution !== "" ? (
+                <FactLine
+                  emphasized={false}
+                  label={t("eventFront.speakers.card.organizationLabel", { lng: lang })}
+                  value={institution}
+                />
+              ) : null}
+              {logoUrl !== null ? <InstitutionLogo url={logoUrl} name={institution} /> : null}
+            </span>
           ) : null}
         </span>
         {(speaker.is_expert || tracks.length > 0) && (

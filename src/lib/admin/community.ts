@@ -369,6 +369,8 @@ export interface EventSpeakerEntry {
   card_cta_label_en?: string | null;
   card_cta_url?: string | null;
   card_cta_color?: string | null;
+  /** Logo instytucji przy polu „Instytucja" na karcie (https). */
+  card_institution_logo_url?: string | null;
   /**
    * Sciezki prelegenta WYPROWADZONE z obsady sesji (lacznie ze szkicami sesji -
    * redaktor widzi skutek przypisania przed publikacja). Nikt ich nie wpisuje.
@@ -436,9 +438,14 @@ export async function fetchEventSpeakers(eventId: string): Promise<EventSpeakerE
   });
   if (error) throw new Error(error.message);
   if (!Array.isArray(data)) return [];
+  // Logo instytucji ma osobny odczyt - nie zmienia kontraktu listy.
+  const logos = await supabase.rpc("admin_event_speaker_logos", { p_event_id: eventId });
+  if (logos.error) throw new Error(logos.error.message);
+  const logoById = new Map((logos.data ?? []).map((l) => [l.speaker_profile_id, l.logo_url]));
   return data
     .filter((row): row is Record<string, unknown> => row !== null && typeof row === "object")
-    .map(mapSpeakerRow);
+    .map(mapSpeakerRow)
+    .map((row) => ({ ...row, card_institution_logo_url: logoById.get(row.speaker_profile_id) ?? null }));
 }
 
 /** Dane osoby BEZ konta, zbierane w popupie „Nowy prelegent". */
@@ -561,6 +568,7 @@ export interface EventSpeakerCardInput {
   cardCtaLabelEn: string;
   cardCtaUrl: string;
   cardCtaColor: string;
+  cardInstitutionLogoUrl: string;
 }
 
 export async function saveEventSpeakerCard(input: EventSpeakerCardInput): Promise<void> {
@@ -575,6 +583,10 @@ export async function saveEventSpeakerCard(input: EventSpeakerCardInput): Promis
     },
   });
   if (error) throw new Error(error.message);
+  const logo = await supabase.rpc("admin_event_speaker_logo_save", {
+    p_payload: { speaker_profile_id: input.speakerProfileId, logo_url: input.cardInstitutionLogoUrl.trim() },
+  });
+  if (logo.error) throw new Error(logo.error.message);
 }
 
 /** Podpina ISTNIEJACE konto platformy (droplista wyszukiwarki kont). */
