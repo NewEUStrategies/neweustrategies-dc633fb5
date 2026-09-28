@@ -126,7 +126,7 @@ function CardBody({ speaker, lang }: { speaker: PublicSpeakerRow; lang: "pl" | "
               <span className="block text-[10px] font-extrabold uppercase text-muted-foreground">
                 {t("eventFront.speakers.card.organizationLabel", { lng: lang })}
               </span>
-              {/* Nazwa PO PRAWEJ logo, wycentrowana wzgledeM jego wysokosci
+              {/* Nazwa PO PRAWEJ logo, wycentrowana wzgledem jego wysokosci
                   (items-center); samotne logo tez ma wiersz. */}
               <span className="mt-1 flex min-w-0 items-center gap-3">
                 {logoUrl !== null ? <InstitutionLogo url={logoUrl} name={institution} /> : null}
