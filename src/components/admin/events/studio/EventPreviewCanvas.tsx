@@ -95,7 +95,10 @@ import {
 import { isEventPracticalSection, type EventPracticalInfo } from "@/lib/events/eventPractical";
 import { formatEventDateTime, eventTimeZoneLabel } from "@/lib/events/timezone";
 import { uiLang } from "@/lib/i18n/format";
-import { EventPortalContent } from "@/components/events/public/atoms/EventPortalContent";
+import {
+  EVENT_PORTAL_CONTENT_WIDE_CLASS,
+  EventPortalContent,
+} from "@/components/events/public/atoms/EventPortalContent";
 import { EventMetaCard, EventMetaRow } from "@/components/events/public/molecules/EventMetaCard";
 import {
   EventMenuTileBody,
@@ -561,7 +564,9 @@ export function EventPreviewCanvas({
           }
         />
       ) : (
-        <EventPortalContent>
+        <EventPortalContent
+          className={page.module === "speakers" ? EVENT_PORTAL_CONTENT_WIDE_CLASS : undefined}
+        >
           <div data-testid="event-preview-page">
             {/* SCIEZKA PODSTRONY JEST CHROME'M PODGLADU, nie trescia strony:
                 mowi redaktorowi, ktory adres publiczny wlasnie oglada. Naglowka
