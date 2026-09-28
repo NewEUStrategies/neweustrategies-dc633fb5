@@ -156,7 +156,7 @@ describe("SpeakerProfileCard - redakcyjny katalog", () => {
     expect(screen.getByText("WiseEuropa").getAttribute("title")).toBe("WiseEuropa");
   });
 
-  it("pokazuje ścieżki i oznaczenie eksperta od razu w katalogu", () => {
+  it("nie pokazuje ścieżek tematycznych na karcie - ekspert ma tylko oznaczenie", () => {
     render(
       <SpeakerProfileCard
         speaker={speaker({
@@ -175,7 +175,7 @@ describe("SpeakerProfileCard - redakcyjny katalog", () => {
         lang="pl"
       />,
     );
-    expect(screen.getByText("Energetyka")).toBeTruthy();
+    expect(screen.queryByText("Energetyka")).toBeNull();
     expect(screen.getByText("eventFront.speakers.expertBadge(lng=pl)")).toBeTruthy();
   });
 
