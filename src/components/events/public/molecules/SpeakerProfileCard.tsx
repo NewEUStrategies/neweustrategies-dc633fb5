@@ -7,7 +7,6 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { AppLink } from "@/components/atoms/AppLink";
 import { SpeakerExpertBadge } from "@/components/events/SpeakerExpertBadge";
-import { SpeakerTrackChips } from "@/components/events/SpeakerTrackChips";
 import { buildTransformedImageUrl } from "@/lib/cropSizes";
 import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 import { speakerHasProfileToShow } from "@/lib/builder/speakerRow";
@@ -87,7 +86,6 @@ function CardBody({ speaker, lang }: { speaker: PublicSpeakerRow; lang: "pl" | "
   // Stanowisko i instytucja OSOBNO - nawet gdy dane trzymają obie nazwy
   // w jednym polu; wycięcie robi ta sama reguła słów, co deduplikację.
   const { position, institution } = splitSpeakerRoleInstitution(role, speaker.company);
-  const tracks = speaker.tracks ?? [];
   const logoUrl = speaker.card_institution_logo_url?.trim() || null;
 
   const FactLine = ({ label, value, emphasized }: { label: string; value: string; emphasized: boolean }) => (
@@ -132,12 +130,11 @@ function CardBody({ speaker, lang }: { speaker: PublicSpeakerRow; lang: "pl" | "
             </span>
           ) : null}
         </span>
-        {(speaker.is_expert || tracks.length > 0) && (
+        {speaker.is_expert ? (
           <span className="mt-auto flex flex-wrap items-center gap-2 pt-5">
-            {speaker.is_expert ? <SpeakerExpertBadge lang={lang} /> : null}
-            <SpeakerTrackChips tracks={tracks} lang={lang} />
+            <SpeakerExpertBadge lang={lang} />
           </span>
-        )}
+        ) : null}
       </span>
     </>
   );
