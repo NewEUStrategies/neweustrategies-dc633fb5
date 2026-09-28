@@ -17,6 +17,8 @@ import { speakerCardAction, speakerCardPhoto, speakerOrganizationLine } from "@/
 const PREVIEW_MARKER = '[data-builder-renderer="widget-props-preview"]';
 const PORTRAIT_WIDTH = 320;
 const PORTRAIT_HEIGHT = 440;
+/** Zachowany eksport kontraktu dla konsumentów mierzących koszt obrazu karty. */
+export const SPEAKER_CARD_LARGE_PX = PORTRAIT_HEIGHT;
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);

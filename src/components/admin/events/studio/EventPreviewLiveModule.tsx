@@ -12,10 +12,12 @@
 // wnosi wylacznie ZRODLO DANYCH (RPC panelu zamiast projekcji publicznej)
 // i martwe przyciski zapisu: organizator ma zobaczyc program, a nie zapisac
 // sie na sesje z ekranu panelu.
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { EventAgendaBoardView } from "@/components/events/public/organisms/EventAgendaBoardView";
 import { EventSpeakersGridView } from "@/components/events/public/organisms/EventSpeakersGrid";
+import { SpeakerProfileDialog } from "@/components/events/SpeakerProfileDialog";
 import { EventAttendeesGridView } from "@/components/events/public/organisms/EventAttendeesList";
 import {
   EventSponsorsSectionError,
@@ -29,6 +31,7 @@ import type { PublicSponsorTier } from "@/lib/events/sponsorsSurface";
 import { PREVIEW_SPONSORS_READY, type PreviewSponsorsStatus } from "@/lib/events/sponsorsPreview";
 import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 import { uiLang } from "@/lib/i18n/format";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { mediaRenderUrl } from "@/lib/media/publicUrl";
 // Slownik panelu wprost, a nie „przy okazji" kanwy: ten plik sam czyta klucze
 // `adminEvents.studio.preview.*` (puste zdania, plakietka partnera).
@@ -200,7 +203,6 @@ export function EventPreviewLiveModule({
           <SpeakerProfileDialog
             userId={selectedSpeaker.user_id}
             row={selectedSpeaker}
-            eventId={data.event.id}
             lang={lang}
             open
             onOpenChange={(open) => {
