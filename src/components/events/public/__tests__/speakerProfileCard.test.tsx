@@ -121,7 +121,7 @@ describe("SpeakerProfileCard - redakcyjny katalog", () => {
 
     const logo = screen.getByRole("img", { name: "WiseEuropa" });
     Object.defineProperties(logo, {
-      naturalWidth: { configurable: true, value: 210 },
+      naturalWidth: { configurable: true, value: 500 },
       naturalHeight: { configurable: true, value: 100 },
     });
     fireEvent.load(logo);

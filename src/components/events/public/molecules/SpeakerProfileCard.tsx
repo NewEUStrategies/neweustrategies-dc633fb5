@@ -82,6 +82,11 @@ function InstitutionLogo({ url, name }: { url: string; name: string }) {
   const handleLoad = (event: SyntheticEvent<HTMLImageElement>) => {
     const image = event.currentTarget;
     if (image.naturalHeight <= 0) return;
+    const normalizedName = name.trim().toLocaleLowerCase("pl-PL");
+    if (normalizedName === "wiseeuropa") {
+      setIsElongated(false);
+      return;
+    }
     // Poziome znaki, takie jak WiseEuropa, nadal dostają zwarty kwadratowy
     // kadr. Dopiero wyraźnie podłużny logotyp zachowuje płynną szerokość.
     setIsElongated(image.naturalWidth / image.naturalHeight > 4);
