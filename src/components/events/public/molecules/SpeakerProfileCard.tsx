@@ -80,7 +80,7 @@ function CardBody({ speaker, lang }: { speaker: PublicSpeakerRow; lang: "pl" | "
         title={value}
         className={
           emphasized
-            ? "mt-1 block text-sm font-semibold leading-snug text-foreground"
+            ? "mt-1 block text-sm font-normal leading-snug text-foreground"
             : "mt-1 block text-sm font-normal leading-snug text-muted-foreground"
         }
       >
