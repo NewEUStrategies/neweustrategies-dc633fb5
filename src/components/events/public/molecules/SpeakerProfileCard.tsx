@@ -63,7 +63,11 @@ function Portrait({ name, source }: { name: string; source: string | null }) {
   );
 }
 
-/** Logo instytucji pod jej nazwa - ukrywa sie, gdy plik nie wczyta sie. */
+/** Logo instytucji PO LEWEJ jej nazwy - ukrywa sie, gdy plik nie wczyta sie.
+ *  Wysokosc stala (h-9), szerokosc plywa z proporcji pliku, ale jest zacieta
+ *  (max-w-16), wiec logo kwadratowe daje kwadrat 36 px, a prostokatne -
+ *  szerszy prostokat; plik skaluje sie object-contain do tych wymiarow.
+ *  Rogi 6 px sa na obrazie, zgodnie z kadrem portretu. */
 function InstitutionLogo({ url, name }: { url: string; name: string }) {
   const [failed, setFailed] = useState(false);
   if (failed) return null;
@@ -74,7 +78,7 @@ function InstitutionLogo({ url, name }: { url: string; name: string }) {
       loading="lazy"
       decoding="async"
       onError={() => setFailed(true)}
-      className="mt-2 block h-8 w-auto max-w-40 object-contain object-left"
+      className="block h-9 w-auto max-w-16 shrink-0 rounded-[6px] object-contain"
     />
   );
 }
@@ -119,14 +123,19 @@ function CardBody({ speaker, lang }: { speaker: PublicSpeakerRow; lang: "pl" | "
           ) : null}
           {institution !== "" || logoUrl !== null ? (
             <span className="block">
-              {institution !== "" ? (
-                <FactLine
-                  emphasized={false}
-                  label={t("eventFront.speakers.card.organizationLabel", { lng: lang })}
-                  value={institution}
-                />
-              ) : null}
-              {logoUrl !== null ? <InstitutionLogo url={logoUrl} name={institution} /> : null}
+              <span className="block text-[10px] font-extrabold uppercase text-muted-foreground">
+                {t("eventFront.speakers.card.organizationLabel", { lng: lang })}
+              </span>
+              {/* Nazwa PO PRAWEJ logo, wycentrowana wzgledem jego wysokosci
+                  (items-center); samotne logo tez ma wiersz. */}
+              <span className="mt-1 flex min-w-0 items-center gap-3">
+                {logoUrl !== null ? <InstitutionLogo url={logoUrl} name={institution} /> : null}
+                {institution !== "" ? (
+                  <span title={institution} className="block min-w-0 text-sm font-normal leading-snug text-muted-foreground">
+                    {institution}
+                  </span>
+                ) : null}
+              </span>
             </span>
           ) : null}
         </span>

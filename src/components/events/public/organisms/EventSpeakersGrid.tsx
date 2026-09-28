@@ -72,7 +72,7 @@ ensureEventFrontI18n();
 // Trzy kolumny to docelowy układ wzorca, ale karta ma pod zdjęciem trzy linie
 // tekstu - przy dwóch kolumnach na telefonie każda z nich ma jeszcze szerokość
 // na cokolwiek poza wielokropkiem.
-const GRID_CLASS = "grid grid-cols-1 gap-x-10 gap-y-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-x-12";
+const GRID_CLASS = "grid grid-cols-1 gap-x-10 gap-y-4 sm:grid-cols-2 sm:gap-x-12 lg:grid-cols-3 lg:gap-x-16";
 // Karta zastepcza ma TEN SAM obrys, co ZWINIETA karta prelegenta
 // (`SpeakerProfileCard`: zdjecie, imie i nazwisko, podpis), wiec wysokosc
 // sekcji nie skacze w chwili, gdy przyjda dane.
