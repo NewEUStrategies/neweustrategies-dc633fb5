@@ -402,6 +402,9 @@ export async function createAdhocCheckoutSession(
             product_data: {
               name: input.name.slice(0, 200),
               ...(input.description ? { description: input.description.slice(0, 200) } : {}),
+              ...(adhocAllowsManagedPayments(input.purpose)
+                ? { tax_code: ADHOC_DIGITAL_TAX_CODE }
+                : {}),
             },
           },
         },
@@ -415,11 +418,7 @@ export async function createAdhocCheckoutSession(
       // darowizna), więc `customer_creation=always` dojedzie wtedy, gdy sesja
       // musi zapisać NIP, policzyć podatek albo wystawić fakturę.
       ...(input.discount ? { discounts: [{ coupon: input.discount.coupon }] } : {}),
-      ...sessionFlags(adhocSessionSettings(input), {
-        mode: "payment",
-        hasCustomer: !!customerId,
-        hasDiscount: !!input.discount,
-      }),
+      ...adhocFlags(input, !!customerId),
     } as SessionCreateParams;
 
     const session = await stripe.checkout.sessions.create(params);
