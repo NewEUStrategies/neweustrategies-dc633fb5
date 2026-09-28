@@ -114,7 +114,7 @@ describe("prelegenci: dwa zrodla, dwa RPC", () => {
 
     await run(speakersQueryOptions({ source: "event", eventId: "e-1" }, "pl"));
 
-    expect(rpc().names()).toEqual(["event_speakers_public"]);
+    expect(rpc().names()).toEqual(["event_speakers_public", "event_speaker_logos_public"]);
     expect(rpc().lastCall("event_speakers_public")?.arg("p_payload")).toEqual({
       event_id: "e-1",
       limit: 24,

@@ -605,6 +605,7 @@ describe("speakerCardDraftFrom", () => {
       labelEn: "Sign up",
       url: "/program",
       color: "#ffcc00",
+      institutionLogoUrl: "",
     });
   });
 

@@ -148,6 +148,7 @@ describe("EventSpeakerCardFields - szkic", () => {
       labelEn: "More",
       url: "/experts/halszka",
       color: "#123456",
+      institutionLogoUrl: "",
     });
     expect(input("Zdjęcie rozwiniętej karty").value).toBe("https://cdn.example.com/a.jpg");
     expect(input("Napis na przycisku PL").value).toBe("Więcej");
@@ -160,7 +161,7 @@ describe("EventSpeakerCardFields - szkic", () => {
   it("zdjecie idzie przez wspolny obszar wgrywania do katalogu prelegentow", () => {
     renderFields();
     expect(dropzone.last).not.toBeNull();
-    expect(dropzone.last?.subfolder).toBe("event-speakers");
+    expect(dropzone.all?.[0]?.subfolder ?? dropzone.last?.subfolder).toBe("event-speakers");
     expect(dropzone.last?.label).toBe("Zdjęcie rozwiniętej karty");
     expect(dropzone.last?.recommendation).toBe("800 x 800 px");
     expect(

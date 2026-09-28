@@ -940,6 +940,7 @@ describe("fetchEventSpeakers", () => {
         card_cta_label_en: null,
         card_cta_url: null,
         card_cta_color: null,
+        card_institution_logo_url: null,
         tracks: [],
         sessions: [],
       },
