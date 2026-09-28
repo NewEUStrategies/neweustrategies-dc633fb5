@@ -40,7 +40,10 @@ import { useEventMenu } from "@/lib/events/usePublicEvent";
 import { publicEventBySlugQueryOptions } from "@/lib/community/publicQueries";
 import { EventModuleHero } from "@/components/events/public/molecules/EventModuleHero";
 import { resolvedContentQueryOptions, type PageData } from "@/lib/queries/public";
-import { EventPortalContent } from "@/components/events/public/atoms/EventPortalContent";
+import {
+  EventPortalContent,
+  EVENT_PORTAL_CONTENT_WIDE_CLASS,
+} from "@/components/events/public/atoms/EventPortalContent";
 import { ContentRenderer } from "@/components/content/ContentRenderer";
 import { prepareContentForRender } from "@/lib/content/prepareContent";
 import { parseBuilderDoc } from "@/lib/builder/parse";
@@ -111,7 +114,7 @@ export function EventModulePage({
     // Miara kolumny treści jest WSPÓLNA z przeglądem i z podglądem studia
     // (`EVENT_PORTAL_CONTENT_CLASS`): trzy kopie `max-w-5xl px-4 pt-8` już raz
     // się rozjechały - podgląd rysował `max-w-3xl`.
-    <EventPortalContent className={contentClassName}>
+    <EventPortalContent className={contentClassName ?? EVENT_PORTAL_CONTENT_WIDE_CLASS}>
       {/* Nagłówek jest WSPÓLNY z podglądem studia (`EventModuleHero`) - druga
           kopia JSX-a rozjechałaby się z publikacją przy pierwszej zmianie. */}
       <EventModuleHero
