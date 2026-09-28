@@ -22,7 +22,7 @@ import {
   fetchMyRegistrations,
   type ParticipantRegistration,
 } from "@/lib/events/participantTicketsApi";
-import { awaitsPayment, groupMyEvents } from "@/lib/events/myEventsGrouping";
+import { awaitsPayment, isFreeRegistration, groupMyEvents } from "@/lib/events/myEventsGrouping";
 import { uiLang } from "@/lib/i18n/format";
 import { ensureI18n } from "@/lib/i18n-cart";
 
@@ -42,7 +42,7 @@ function EventRow({ item }: { item: ParticipantRegistration }) {
           new Date(item.eventStartsAt),
         );
   const unpaid = awaitsPayment(item);
-  const free = item.amountCents === null || item.amountCents === 0;
+  const free = isFreeRegistration(item);
 
   return (
     <li className="flex flex-col gap-3 rounded-[6px] border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
