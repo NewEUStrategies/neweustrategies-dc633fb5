@@ -77,7 +77,7 @@ const GRID_CLASS = "grid grid-cols-1 gap-x-10 gap-y-4 sm:grid-cols-2 lg:grid-col
 // (`SpeakerProfileCard`: zdjecie, imie i nazwisko, podpis), wiec wysokosc
 // sekcji nie skacze w chwili, gdy przyjda dane.
 const CARD_CLASS =
-  "flex min-h-52 w-full items-start gap-7 border-b border-border px-2 py-8 sm:gap-9";
+  "flex min-h-52 w-full items-start gap-5 border-b border-border px-2 py-8 sm:gap-6";
 
 // Osiem kart zastępczych: tyle, ile wchodzi w dwa wiersze docelowego układu,
 // więc wysokość sekcji nie skacze w chwili, gdy przyjdą dane.
@@ -109,7 +109,7 @@ export function EventSpeakersGrid({
       <div className={GRID_CLASS} aria-busy="true" aria-label={t("eventFront.speakers.loading")}>
         {SKELETON_SLOTS.map((slot) => (
           <div key={slot} className={CARD_CLASS}>
-            <Skeleton className="aspect-[8/11] w-28 shrink-0 rounded-none sm:w-32" />
+            <Skeleton className="aspect-square w-28 shrink-0 rounded-[6px] sm:w-32" />
             {/* Paski maja TE SAME pudelka linii, co napisy karty (ten sam
                 krój i interlinia, twarda spacja w srodku), wiec wysokosc
                 szkieletu zgadza sie z karta z definicji, a nie z rachunku. */}
