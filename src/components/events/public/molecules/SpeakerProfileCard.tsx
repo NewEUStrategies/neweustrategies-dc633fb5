@@ -64,10 +64,10 @@ function Portrait({ name, source }: { name: string; source: string | null }) {
 }
 
 /** Logo instytucji PO LEWEJ jej nazwy - ukrywa sie, gdy plik nie wczyta sie.
- *  Wysokosc stala (h-9), szerokosc plywa z proporcji pliku, ale jest zacieta
- *  (max-w-16), wiec logo kwadratowe daje kwadrat 24 px, a prostokatne -
- *  szerszy prostokat; plik skaluje sie object-contain do tych wymiarow.
- *  Rogi 6 px sa na obrazie, zgodnie z kadrem portretu. */
+ *  Wysokosc STALA (h-6) dla kazdego logo - kwadrat i prostokat maja identyczna
+ *  wysokosc; szerokosc plywy z proporcji pliku (w-auto, bez sciskania
+ *  max-w, bo object-contain przy scisnietych szerokosciach pomniejsza
+ *  wysokosc szerokich logo). Rogi 6 px sa na obrazie, zgodnie z kadrem. */
 function InstitutionLogo({ url, name }: { url: string; name: string }) {
   const [failed, setFailed] = useState(false);
   if (failed) return null;
@@ -78,7 +78,7 @@ function InstitutionLogo({ url, name }: { url: string; name: string }) {
       loading="lazy"
       decoding="async"
       onError={() => setFailed(true)}
-      className="block h-6 w-auto max-w-12 shrink-0 rounded-[6px] object-contain"
+      className="block h-6 w-auto shrink-0 rounded-[6px] object-contain"
     />
   );
 }
