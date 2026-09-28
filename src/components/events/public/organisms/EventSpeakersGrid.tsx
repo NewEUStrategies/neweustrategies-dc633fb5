@@ -69,15 +69,14 @@ import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
 ensureEventFrontI18n();
 
-// Cztery kolumny to docelowy układ wzorca, ale karta ma pod zdjęciem trzy linie
+// Trzy kolumny to docelowy układ wzorca, ale karta ma pod zdjęciem trzy linie
 // tekstu - przy dwóch kolumnach na telefonie każda z nich ma jeszcze szerokość
 // na cokolwiek poza wielokropkiem.
-const GRID_CLASS =
-  "grid grid-cols-[repeat(auto-fit,minmax(min(100%,19rem),1fr))] gap-x-10 lg:gap-x-14";
+const GRID_CLASS = "grid grid-cols-1 gap-x-10 gap-y-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-x-12";
 // Karta zastepcza ma TEN SAM obrys, co ZWINIETA karta prelegenta
-// (`SpeakerProfileCard`: wysrodkowane zdjecie 80 px, imie i nazwisko, podpis),
-// wiec wysokosc sekcji nie skacze w chwili, gdy przyjda dane.
-const CARD_CLASS = "flex min-h-52 w-full items-start gap-6 border-b border-border px-2 py-8";
+// (`SpeakerProfileCard`: zdjecie, imie i nazwisko, podpis), wiec wysokosc
+// sekcji nie skacze w chwili, gdy przyjda dane.
+const CARD_CLASS = "flex min-h-52 w-full items-start gap-7 px-2 py-8 sm:gap-9";
 
 // Osiem kart zastępczych: tyle, ile wchodzi w dwa wiersze docelowego układu,
 // więc wysokość sekcji nie skacze w chwili, gdy przyjdą dane.

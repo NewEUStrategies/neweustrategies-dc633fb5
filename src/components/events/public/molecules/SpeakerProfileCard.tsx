@@ -119,7 +119,7 @@ export function SpeakerProfileCard({
   const action = speakerCardAction(speaker, lang, false);
   const content = <CardBody speaker={speaker} lang={lang} />;
   let main: ReactNode = (
-    <div className="group/speaker flex h-full w-full gap-6 px-2 py-3 sm:gap-8">{content}</div>
+    <div className="group/speaker flex h-full w-full gap-7 px-2 py-3 sm:gap-9">{content}</div>
   );
 
   if (canOpenProfile) {
@@ -129,7 +129,7 @@ export function SpeakerProfileCard({
         variant="ghost"
         onClick={() => onSelect(speaker)}
         aria-label={t("eventFront.speakers.card.openProfile", { name, lng: lang })}
-        className="group/speaker h-full min-h-52 w-full items-stretch justify-start gap-6 whitespace-normal rounded-none px-2 py-3 text-left hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 sm:gap-8"
+        className="group/speaker h-full min-h-52 w-full items-stretch justify-start gap-7 whitespace-normal rounded-none px-2 py-3 text-left hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 sm:gap-9"
       >
         {content}
       </Button>
