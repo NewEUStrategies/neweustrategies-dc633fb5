@@ -743,6 +743,13 @@
       "when": 1790574184785,
       "tag": "0105_payment_orders_guard_service_role_detection",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1790579970320,
+      "tag": "0106_event_seed_pages_on_publish",
+      "breakpoints": true
     }
   ]
 }
