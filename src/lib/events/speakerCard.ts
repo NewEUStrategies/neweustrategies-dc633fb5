@@ -326,6 +326,7 @@ export interface SpeakerCardDraft {
   labelEn: string;
   url: string;
   color: string;
+  institutionLogoUrl: string;
 }
 
 export const EMPTY_SPEAKER_CARD_DRAFT: SpeakerCardDraft = {
@@ -334,6 +335,7 @@ export const EMPTY_SPEAKER_CARD_DRAFT: SpeakerCardDraft = {
   labelEn: "",
   url: "",
   color: "",
+  institutionLogoUrl: "",
 };
 
 export type SpeakerCardDraftError =
@@ -358,6 +360,9 @@ export function speakerCardDraftErrors(
   const photoUrl = draft.photoUrl.trim();
   if (codePoints(photoUrl) > SPEAKER_CARD_URL_MAX) errors.photoUrl = "urlTooLong";
   else if (photoUrl !== "" && !/^https:\/\/\S+$/.test(photoUrl)) errors.photoUrl = "photoShape";
+  const logoUrl = draft.institutionLogoUrl.trim();
+  if (codePoints(logoUrl) > SPEAKER_CARD_URL_MAX) errors.institutionLogoUrl = "urlTooLong";
+  else if (logoUrl !== "" && !/^https:\/\/\S+$/.test(logoUrl)) errors.institutionLogoUrl = "photoShape";
   if (draft.color.trim() !== "" && hexColorOrNull(draft.color) === null)
     errors.color = "colorShape";
   return errors;
@@ -370,6 +375,7 @@ export function speakerCardDraftFrom(row: {
   card_cta_label_en?: string | null;
   card_cta_url?: string | null;
   card_cta_color?: string | null;
+  card_institution_logo_url?: string | null;
 }): SpeakerCardDraft {
   return {
     photoUrl: row.card_photo_url ?? "",
@@ -377,5 +383,6 @@ export function speakerCardDraftFrom(row: {
     labelEn: row.card_cta_label_en ?? "",
     url: row.card_cta_url ?? "",
     color: row.card_cta_color ?? "",
+    institutionLogoUrl: row.card_institution_logo_url ?? "",
   };
 }

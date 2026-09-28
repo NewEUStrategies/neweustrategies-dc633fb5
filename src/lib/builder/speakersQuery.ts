@@ -89,6 +89,8 @@ export interface PublicSpeakerRow {
   card_cta_label_en?: string | null;
   card_cta_url?: string | null;
   card_cta_color?: string | null;
+  /** Logo instytucji (osobny odczyt `event_speaker_logos_public`). */
+  card_institution_logo_url?: string | null;
   /**
    * Sciezki, w ktorych prelegent wystepuje - WYPROWADZONE przez baze z obsady
    * opublikowanych sesji, nie wpisywane. Pusta lista = brak sesji w sciezce.
@@ -215,6 +217,22 @@ async function fetchPublicSpeakers(input: {
  * pe.id IS NOT NULL`). Warunek stoi po obu stronach swiadomie: bez niego
  * pojedynczy taki wiersz dawalby karte bez nazwiska i klucz pustego napisu.
  */
+/**
+ * Logo instytucji jest dekoracja karty: brak odczytu nie moze wyciac listy
+ * prelegentow, wiec blad daje po prostu karty bez logo.
+ */
+export async function fetchLogos(
+  call: () => PromiseLike<{ data: { speaker_profile_id: string; logo_url: string }[] | null; error: unknown }>,
+): Promise<Map<string, string>> {
+  try {
+    const { data, error } = await call();
+    if (error || !Array.isArray(data)) return new Map();
+    return new Map(data.map((l) => [l.speaker_profile_id, l.logo_url]));
+  } catch {
+    return new Map();
+  }
+}
+
 async function fetchEventSpeakers(input: {
   eventId: string;
   limit: number;
@@ -224,9 +242,16 @@ async function fetchEventSpeakers(input: {
   });
   if (error) throw new Error(error.message);
   const rows = Array.isArray(data) ? data : [];
+  const logoById = await fetchLogos(() =>
+    supabase.rpc("event_speaker_logos_public", { p_event_id: input.eventId }),
+  );
   return rows
     .map((raw) => mapSpeakerRow(raw as Record<string, unknown>))
-    .filter((row) => row.user_id !== "" || (row.person_id ?? "") !== "");
+    .filter((row) => row.user_id !== "" || (row.person_id ?? "") !== "")
+    .map((row) => ({
+      ...row,
+      card_institution_logo_url: logoById.get(row.speaker_profile_id ?? "") ?? null,
+    }));
 }
 
 /**
@@ -261,7 +286,7 @@ export const speakersQueryOptions = (c: WidgetContent, _lang: Lang) => {
             // rozgrzany przed zmiana projekcji nie ma czym odpowiedziec po niej.
             // `v2`: od 20260924140000 projekcja oddaje pola karty i sciezki -
             // wpis sprzed tej zmiany dawalby karte bez nich przez minute TTL.
-            edgeTtlCache(`builder:event-speakers:v2:${input.eventId}:${input.limit}`, 60_000, () =>
+            edgeTtlCache(`builder:event-speakers:v3:${input.eventId}:${input.limit}`, 60_000, () =>
               fetchEventSpeakers({ eventId: input.eventId, limit: input.limit }),
             )
         : edgeTtlCache(`builder:speakers:${JSON.stringify(input)}`, 60_000, () =>

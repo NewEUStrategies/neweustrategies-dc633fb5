@@ -75,6 +75,7 @@ function previewRowFromEntry(entry: EventSpeakerEntry, draft: SpeakerCardDraft):
     card_cta_label_en: text(draft.labelEn),
     card_cta_url: text(draft.url),
     card_cta_color: text(draft.color),
+    card_institution_logo_url: text(draft.institutionLogoUrl),
     tracks: entry.tracks ?? [],
   };
 }
@@ -128,6 +129,7 @@ export function EventSpeakerCardDialog({
         cardCtaLabelEn: draft.labelEn,
         cardCtaUrl: draft.url,
         cardCtaColor: draft.color,
+        cardInstitutionLogoUrl: draft.institutionLogoUrl,
       });
     },
     onSuccess: async () => {

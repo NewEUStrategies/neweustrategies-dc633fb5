@@ -434,6 +434,7 @@ describe("EventSpeakerCardDialog - zapis", () => {
       cardCtaLabelEn: "",
       cardCtaUrl: "",
       cardCtaColor: "",
+      cardInstitutionLogoUrl: "",
     });
   });
 
@@ -459,6 +460,7 @@ describe("EventSpeakerCardDialog - zapis", () => {
       cardCtaLabelEn: "Sign up",
       cardCtaUrl: "",
       cardCtaColor: "",
+      cardInstitutionLogoUrl: "",
     });
   });
 

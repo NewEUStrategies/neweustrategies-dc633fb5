@@ -74,7 +74,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { registerMediaUpload } from "@/lib/media.functions";
 import { IMAGE_ACCEPT_ATTR, IMAGE_MIME, uploadAndRegisterMedia } from "@/lib/media/upload";
 import { useEventGroups } from "@/lib/events/useEventTermsGroups";
-import { createEventSpeakerPerson, type EventSpeakerUpsertResult } from "@/lib/admin/community";
+import { createEventSpeakerPerson, saveEventSpeakerLogo, type EventSpeakerUpsertResult } from "@/lib/admin/community";
 import {
   EMPTY_SPEAKER_CARD_DRAFT,
   speakerCardDraftErrors,
@@ -271,8 +271,8 @@ export function EventSpeakerCreateDialog({
   );
 
   const createM = useMutation({
-    mutationFn: () =>
-      createEventSpeakerPerson({
+    mutationFn: async () => {
+      const result = await createEventSpeakerPerson({
         eventId,
         groupId: draft.groupId === NO_GROUP ? undefined : draft.groupId,
         email: trimmedOrUndefined(draft.email),
@@ -299,7 +299,13 @@ export function EventSpeakerCreateDialog({
         cardCtaLabelEn: trimmedOrUndefined(draft.card.labelEn),
         cardCtaUrl: trimmedOrUndefined(draft.card.url),
         cardCtaColor: trimmedOrUndefined(draft.card.color),
-      }),
+      });
+      const logoUrl = draft.card.institutionLogoUrl.trim();
+      if (logoUrl !== "" && result.speaker_profile_id !== null) {
+        await saveEventSpeakerLogo(result.speaker_profile_id, logoUrl);
+      }
+      return result;
+    },
     onSuccess: (result) => {
       const name = `${draft.firstName.trim()} ${draft.lastName.trim()}`.trim();
       setDraft(EMPTY_DRAFT);

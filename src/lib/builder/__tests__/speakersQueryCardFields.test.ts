@@ -208,12 +208,12 @@ describe("mapSpeakerRow - sciezki prelegenta", () => {
 /* --------------------------------------------- projekcja wydarzenia + cache -- */
 
 describe("zrodlo `event` - klucz cache i pola karty z RPC", () => {
-  it("projekcja wydarzenia siedzi pod kluczem `builder:event-speakers:v2:` z TTL minuty", async () => {
+  it("projekcja wydarzenia siedzi pod kluczem `builder:event-speakers:v3:` z TTL minuty", async () => {
     rpc().setData("event_speakers_public", []);
 
     await run(speakersQueryOptions({ source: "event", eventId: "e-1", limit: 12 }, "pl"));
 
-    expect(sb.cacheCalls).toEqual([{ key: "builder:event-speakers:v2:e-1:12", ttlMs: 60_000 }]);
+    expect(sb.cacheCalls).toEqual([{ key: "builder:event-speakers:v3:e-1:12", ttlMs: 60_000 }]);
   });
 
   it("klucz wydarzenia NIE jest kluczem sprzed zmiany ani kluczem katalogu", async () => {
@@ -225,7 +225,7 @@ describe("zrodlo `event` - klucz cache i pola karty z RPC", () => {
 
     const [eventKey, directoryKey] = sb.cacheCalls.map((c) => c.key);
     expect(eventKey).not.toBe("builder:event-speakers:e-1:24");
-    expect(eventKey?.startsWith("builder:event-speakers:v2:")).toBe(true);
+    expect(eventKey?.startsWith("builder:event-speakers:v3:")).toBe(true);
     expect(directoryKey?.startsWith("builder:speakers:")).toBe(true);
     expect(directoryKey).not.toContain("event-speakers");
   });

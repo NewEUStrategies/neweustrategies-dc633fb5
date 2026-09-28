@@ -32,10 +32,14 @@ interface DropzoneProps {
   aspectClassName?: string;
 }
 
-const dropzone = vi.hoisted(() => ({ last: null as DropzoneProps | null }));
+const dropzone = vi.hoisted(() => ({
+  last: null as DropzoneProps | null,
+  first: null as DropzoneProps | null,
+}));
 
 vi.mock("@/components/admin/events/atoms/EventImageDropzone", () => ({
   EventImageDropzone: (props: DropzoneProps) => {
+    if (dropzone.first === null || dropzone.first.label === props.label) dropzone.first = props;
     dropzone.last = props;
     return (
       <div data-testid="image-dropzone">
@@ -58,7 +62,7 @@ const { EventSpeakerCardFields } =
 
 ensureCommunityEventsI18n();
 
-const EMPTY: SpeakerCardDraft = { photoUrl: "", labelPl: "", labelEn: "", url: "", color: "" };
+const EMPTY: SpeakerCardDraft = { photoUrl: "", labelPl: "", labelEn: "", url: "", color: "", institutionLogoUrl: "" };
 
 const onChange = vi.fn<(next: SpeakerCardDraft) => void>();
 
@@ -101,6 +105,7 @@ describe("EventSpeakerCardFields - szkic", () => {
   beforeEach(() => {
     onChange.mockReset();
     dropzone.last = null;
+    dropzone.first = null;
   });
 
   afterEach(() => {
@@ -133,6 +138,7 @@ describe("EventSpeakerCardFields - szkic", () => {
       labelEn: "Sign up",
       url: "https://example.com/z",
       color: "#0a7d3b",
+      institutionLogoUrl: "",
     });
     // Kontrolki pokazuja szkic rodzica, a nie wlasny stan.
     expect(input("Napis na przycisku PL").value).toBe("Zapisz się");
@@ -148,6 +154,7 @@ describe("EventSpeakerCardFields - szkic", () => {
       labelEn: "More",
       url: "/experts/halszka",
       color: "#123456",
+      institutionLogoUrl: "",
     });
     expect(input("Zdjęcie rozwiniętej karty").value).toBe("https://cdn.example.com/a.jpg");
     expect(input("Napis na przycisku PL").value).toBe("Więcej");
@@ -160,14 +167,15 @@ describe("EventSpeakerCardFields - szkic", () => {
   it("zdjecie idzie przez wspolny obszar wgrywania do katalogu prelegentow", () => {
     renderFields();
     expect(dropzone.last).not.toBeNull();
-    expect(dropzone.last?.subfolder).toBe("event-speakers");
-    expect(dropzone.last?.label).toBe("Zdjęcie rozwiniętej karty");
-    expect(dropzone.last?.recommendation).toBe("800 x 800 px");
+    expect(dropzone.first?.subfolder).toBe("event-speakers");
+    expect(dropzone.first?.label).toBe("Zdjęcie rozwiniętej karty");
+    expect(dropzone.last?.subfolder).toBe("event-speaker-logos");
+    expect(dropzone.first?.recommendation).toBe("800 x 800 px");
     expect(
       screen.getByText("Puste = karta rozwija się na zdjęciu prelegenta."),
     ).toBeInTheDocument();
     // Kwadratowy kadr - rozwinieta karta jest kwadratem.
-    expect(dropzone.last?.aspectClassName).toContain("aspect-square");
+    expect(dropzone.first?.aspectClassName).toContain("aspect-square");
   });
 
   it("napisy przycisku NIE maja maxLength (UTF-16), limit pilnuje komunikat; pole koloru 7", () => {

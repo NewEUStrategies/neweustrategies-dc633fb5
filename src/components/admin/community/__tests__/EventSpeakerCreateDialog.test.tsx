@@ -53,6 +53,7 @@ const uploadAndRegisterMedia = vi.fn();
 
 vi.mock("@/lib/admin/community", () => ({
   createEventSpeakerPerson: (...args: unknown[]) => createEventSpeakerPerson(...args),
+  saveEventSpeakerLogo: () => Promise.resolve(),
 }));
 
 // TOZSAMOSC WGRYWAJACEGO. `handlePhoto` wychodzi przedwczesnie bez najemcy
@@ -712,7 +713,8 @@ function cardSection(): HTMLElement {
 }
 
 function cardInput(label: string): HTMLInputElement {
-  const element = within(cardSection()).getByLabelText(label);
+  // Zdjecie i logo instytucji maja wspolny obszar wgrywania - pierwszy to zdjecie.
+  const element = within(cardSection()).getAllByLabelText(label)[0];
   if (!(element instanceof HTMLInputElement)) throw new Error(`test: "${label}" to nie input`);
   return element;
 }
@@ -756,7 +758,7 @@ describe("EventSpeakerCreateDialog - karta po kliknieciu", () => {
     expect(cardInput("Wybierz kolor przycisku").value).toBe("#fa9346");
     // Obszar zdjecia osoby zostaje PIERWSZYM obszarem wgrywania w popupie.
     const areas = document.querySelectorAll('[data-slot="upload-area"]');
-    expect(areas).toHaveLength(2);
+    expect(areas).toHaveLength(3);
     expect(section.contains(areas[0])).toBe(false);
     expect(section.contains(areas[1])).toBe(true);
   });

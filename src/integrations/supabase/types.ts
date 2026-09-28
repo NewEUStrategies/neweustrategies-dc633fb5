@@ -19966,6 +19966,7 @@ export type Database = {
           card_cta_label_en: string | null
           card_cta_label_pl: string | null
           card_cta_url: string | null
+          card_institution_logo_url: string | null
           card_photo_url: string | null
           created_at: string
           crm_lead_id: string | null
@@ -19991,6 +19992,7 @@ export type Database = {
           card_cta_label_en?: string | null
           card_cta_label_pl?: string | null
           card_cta_url?: string | null
+          card_institution_logo_url?: string | null
           card_photo_url?: string | null
           created_at?: string
           crm_lead_id?: string | null
@@ -20016,6 +20018,7 @@ export type Database = {
           card_cta_label_en?: string | null
           card_cta_label_pl?: string | null
           card_cta_url?: string | null
+          card_institution_logo_url?: string | null
           card_photo_url?: string | null
           created_at?: string
           crm_lead_id?: string | null
@@ -22926,6 +22929,13 @@ export type Database = {
         Returns: number
       }
       _event_slugify: { Args: { _text: string }; Returns: string }
+      _event_speaker_logos: {
+        Args: { p_event_id: string; p_public_only: boolean; p_tenant: string }
+        Returns: {
+          logo_url: string
+          speaker_profile_id: string
+        }[]
+      }
       _event_speaker_overlay_for_person: {
         Args: { p_person_id: string; p_tenant: string }
         Returns: string
@@ -25183,6 +25193,17 @@ export type Database = {
       admin_event_speaker_card_save: {
         Args: { p_payload: Json }
         Returns: Json
+      }
+      admin_event_speaker_logo_save: {
+        Args: { p_payload: Json }
+        Returns: undefined
+      }
+      admin_event_speaker_logos: {
+        Args: { p_event_id: string }
+        Returns: {
+          logo_url: string
+          speaker_profile_id: string
+        }[]
       }
       admin_event_speaker_remove: {
         Args: { p_payload: Json }
@@ -28889,6 +28910,13 @@ export type Database = {
       }
       event_session_access: { Args: { _session_id: string }; Returns: Json }
       event_session_signup: { Args: { p_payload: Json }; Returns: Json }
+      event_speaker_logos_public: {
+        Args: { p_event_id: string }
+        Returns: {
+          logo_url: string
+          speaker_profile_id: string
+        }[]
+      }
       event_speaker_materials_public: {
         Args: { p_event_id: string }
         Returns: {
