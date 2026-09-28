@@ -38,11 +38,7 @@ function Portrait({ name, source }: { name: string; source: string | null }) {
 
   return (
     <span className="relative block aspect-[8/11] w-28 shrink-0 sm:w-32">
-      <span
-        aria-hidden="true"
-        className="absolute -inset-2 translate-x-1 translate-y-1 border border-border transition-transform duration-500 group-hover/speaker:translate-x-0 group-hover/speaker:translate-y-0 group-focus-visible/speaker:translate-x-0 group-focus-visible/speaker:translate-y-0"
-      />
-      <span className="relative grid size-full place-items-center overflow-hidden border border-border bg-muted text-xl font-semibold text-muted-foreground">
+      <span className="relative grid size-full place-items-center overflow-hidden bg-muted text-xl font-semibold text-muted-foreground">
         {url !== null && failedUrl !== url ? (
           <img
             src={url}
@@ -53,7 +49,7 @@ function Portrait({ name, source }: { name: string; source: string | null }) {
             loading="lazy"
             decoding="async"
             onError={() => setFailedUrl(url)}
-            className="size-full object-cover grayscale transition duration-700 group-hover/speaker:scale-[1.025] group-hover/speaker:grayscale-0 group-focus-visible/speaker:grayscale-0 motion-reduce:transform-none motion-reduce:transition-none"
+            className="size-full object-cover transition duration-500 group-hover/speaker:brightness-95 group-focus-visible/speaker:brightness-95 motion-reduce:transition-none"
           />
         ) : (
           <span aria-hidden="true">{initials(name)}</span>
@@ -123,7 +119,7 @@ export function SpeakerProfileCard({
   const action = speakerCardAction(speaker, lang, false);
   const content = <CardBody speaker={speaker} lang={lang} />;
   let main: ReactNode = (
-    <div className="group/speaker flex h-full w-full gap-6 px-2 py-3 sm:gap-8">{content}</div>
+    <div className="group/speaker flex h-full w-full gap-7 px-2 py-3 sm:gap-9">{content}</div>
   );
 
   if (canOpenProfile) {
@@ -133,7 +129,7 @@ export function SpeakerProfileCard({
         variant="ghost"
         onClick={() => onSelect(speaker)}
         aria-label={t("eventFront.speakers.card.openProfile", { name, lng: lang })}
-        className="group/speaker h-full min-h-52 w-full items-stretch justify-start gap-6 whitespace-normal rounded-none px-2 py-3 text-left hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 sm:gap-8"
+        className="group/speaker h-full min-h-52 w-full items-stretch justify-start gap-7 whitespace-normal rounded-none px-2 py-3 text-left hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 sm:gap-9"
       >
         {content}
       </Button>
@@ -152,7 +148,7 @@ export function SpeakerProfileCard({
             onClick={(event) => {
               if (event.currentTarget.closest(PREVIEW_MARKER)) event.preventDefault();
             }}
-            className="ml-40 mt-1 w-fit text-xs font-semibold text-brand-ink underline-offset-4 hover:underline sm:ml-44"
+            className="ml-37 mt-1 w-fit text-xs font-semibold text-brand-ink underline-offset-4 hover:underline sm:ml-43"
           >
             {action.label ?? t("eventFront.speakers.card.linkAction", { lng: lang })}
             <span className="sr-only"> {t("eventFront.speakers.card.opensInNewTab", { lng: lang })}</span>
@@ -160,7 +156,7 @@ export function SpeakerProfileCard({
         ) : (
           <AppLink
             href={action.href}
-            className="ml-40 mt-1 w-fit text-xs font-semibold text-brand-ink underline-offset-4 hover:underline sm:ml-44"
+            className="ml-37 mt-1 w-fit text-xs font-semibold text-brand-ink underline-offset-4 hover:underline sm:ml-43"
           >
             {action.label ?? t("eventFront.speakers.card.linkAction", { lng: lang })}
           </AppLink>

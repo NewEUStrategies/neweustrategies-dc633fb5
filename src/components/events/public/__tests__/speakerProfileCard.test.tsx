@@ -63,7 +63,8 @@ describe("SpeakerProfileCard - redakcyjny katalog", () => {
     const image = document.querySelector("img") as HTMLImageElement;
     expect(image.getAttribute("src")).toContain("width=320");
     expect(image.getAttribute("src")).toContain("height=440");
-    expect(image.className).toContain("grayscale");
+    expect(image.className).not.toContain("grayscale");
+    expect(image.className).toContain("brightness-95");
   });
 
   it("otwiera profil kliknięciem całej karty i przekazuje pełny wiersz", () => {
