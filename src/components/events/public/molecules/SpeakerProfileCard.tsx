@@ -15,8 +15,9 @@ import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { speakerCardAction, speakerCardPhoto, speakerOrganizationLine } from "@/lib/events/speakerCard";
 
 const PREVIEW_MARKER = '[data-builder-renderer="widget-props-preview"]';
-const PORTRAIT_WIDTH = 320;
-const PORTRAIT_HEIGHT = 440;
+/** Zdjęcie jest KWADRATOWE - jedna miara na szerokość i wysokość kadru. */
+const PORTRAIT_WIDTH = 480;
+const PORTRAIT_HEIGHT = 480;
 /** Zachowany eksport kontraktu dla konsumentów mierzących koszt obrazu karty. */
 export const SPEAKER_CARD_LARGE_PX = PORTRAIT_HEIGHT;
 
@@ -37,8 +38,10 @@ function Portrait({ name, source }: { name: string; source: string | null }) {
         });
 
   return (
-    <span className="relative block aspect-[8/11] w-28 shrink-0 sm:w-32">
-      <span className="relative grid size-full place-items-center overflow-hidden bg-muted text-xl font-semibold text-muted-foreground">
+    <span className="relative block aspect-square w-28 shrink-0 sm:w-32">
+      {/* Rogi 6 px są na PUDLE kadru, a nie na obrazie - inicjały zastępcze
+          dostają ten sam obrys, co zdjęcie, więc podmiana jest niezauważalna. */}
+      <span className="relative grid size-full place-items-center overflow-hidden rounded-[6px] bg-muted text-xl font-semibold text-muted-foreground">
         {url !== null && failedUrl !== url ? (
           <img
             src={url}
