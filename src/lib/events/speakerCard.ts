@@ -196,13 +196,32 @@ export function speakerOrganizationLine(
 export interface SpeakerRoleInstitution {
   position: string;
   institution: string;
-  /**
-   * Jeden laczny napis zamiast dwoch faktow: dane trzymaja te sama tresc
-   * w stanowisku i instytucji (import skopiuje role do firmy), wiec rozbicie
-   * byloby zmysleniem. Karta pokazuje napis pod laczna etykieta
-   * „Stanowisko i instytucja" zamiast klamac jedna z dwoch etykiet.
-   */
-  combined: string;
+}
+
+/**
+ * Starszy import zapisal czasem laczny podpis w obu polach. Rozpoznajemy
+ * typowe stanowisko na poczatku, aby karta nadal pokazala dwa fakty, np.
+ * „Prezes Zarzadu IPN" -> „Prezes Zarzadu" + „IPN".
+ */
+function splitCopiedAffiliation(value: string): Pick<SpeakerRoleInstitution, "position" | "institution"> {
+  const commaParts = value.split(/\s*[,;|]\s*/, 2);
+  const commaPosition = textOrNull(commaParts[0]);
+  const commaInstitution = textOrNull(commaParts[1]);
+  if (commaPosition !== null && commaInstitution !== null) {
+    return { position: commaPosition, institution: commaInstitution };
+  }
+
+  const rolePrefix = value.match(
+    /^(prezes(?:ka)?(?:\s+zarz[aą]du)?|wiceprezes(?:ka)?(?:\s+zarz[aą]du)?|cz[lł]onek(?:ini)?\s+zarz[aą]du|przewodnicz[aą]c(?:y|a)|dyrektor(?:ka)?|profesor(?:ka)?|adiunkt(?:ka)?|analityk|analityczka|ekspert|ekspertka|redaktor(?:ka)?(?:\s+naczelny|\s+naczelna)?|zast[eę]pca\s+redaktora\s+naczelnego)\s+(.+)$/iu,
+  );
+  const position = textOrNull(rolePrefix?.[1]);
+  const institution = textOrNull(rolePrefix?.[2]);
+  if (position !== null && institution !== null) return { position, institution };
+
+  if (/^(instytut|fundacja|centrum|uniwersytet|akademia|szko[lł]a|ministerstwo)\b/iu.test(value)) {
+    return { position: "", institution: value };
+  }
+  return { position: value, institution: "" };
 }
 
 /**
@@ -233,16 +252,15 @@ export function splitSpeakerRoleInstitution(
   const institution = textOrNull(organization) ?? "";
   const roleText = textOrNull(role) ?? "";
   if (institution === "" || roleText === "") {
-    return { position: roleText, institution, combined: "" };
+    return { position: roleText, institution };
   }
   const orgWords = wordsOf(institution);
   const roleWords = wordsOf(roleText);
   if (orgWords.length === 0 || roleWords.length === 0) {
-    return { position: roleText, institution, combined: "" };
+    return { position: roleText, institution };
   }
   if (roleWords.map(folded).join(" ") === orgWords.map(folded).join(" ")) {
-    // Firma to kopia stanowiska: jeden laczny napis, etykieta laczna.
-    return { position: "", institution: "", combined: roleText };
+    return splitCopiedAffiliation(roleText);
   }
 
   /** To samo słowo: identyczne albo wspólny rdzeń (odmiana końcówki). */
@@ -267,9 +285,9 @@ export function splitSpeakerRoleInstitution(
       .filter((_, index) => index < start || index >= start + orgWords.length)
       .join(" ")
       .trim();
-    return { position, institution, combined: "" };
+    return { position, institution };
   }
-  return { position: roleText, institution, combined: "" };
+  return { position: roleText, institution };
 }
 
 function channel(value: number): number {

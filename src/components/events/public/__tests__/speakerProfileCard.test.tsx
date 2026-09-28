@@ -51,29 +51,24 @@ function speaker(overrides: Partial<PublicSpeakerRow> = {}): PublicSpeakerRow {
 afterEach(() => vi.clearAllMocks());
 
 describe("SpeakerProfileCard - redakcyjny katalog", () => {
-  it("firma to kopia stanowiska - lacza etykieta zamiast klamliwych dwoch", () => {
+  it("firma to kopia lacznego podpisu - rozdziela stanowisko i instytucje", () => {
     // Realny przypadek danych GGM 2021: pole firmy powtorzylo stanowisko.
     render(
       <SpeakerProfileCard
         speaker={speaker({
-          headline_pl: "Prezes Centralnego Portu Komunikacyjnego",
-          headline_en: "CEO of the Central Communication Port",
-          company: "Prezes Centralnego Portu Komunikacyjnego",
-          job_title: "Prezes Centralnego Portu Komunikacyjnego",
+          headline_pl: "Prezes Zarządu IPN",
+          headline_en: "President of IPN",
+          company: "Prezes Zarządu IPN",
+          job_title: "Prezes Zarządu IPN",
         })}
         lang="pl"
       />,
     );
 
-    expect(
-      screen.getByText("eventFront.speakers.card.combinedLabel(lng=pl)"),
-    ).toBeTruthy();
-    expect(screen.getByText("Prezes Centralnego Portu Komunikacyjnego").getAttribute("title")).toBe(
-      "Prezes Centralnego Portu Komunikacyjnego",
-    );
-    // Etykiety osobnych faktow NIE moga klamac, ze pokazuja dwa fakty.
-    expect(screen.queryByText("eventFront.speakers.card.positionLabel(lng=pl)")).toBeNull();
-    expect(screen.queryByText("eventFront.speakers.card.organizationLabel(lng=pl)")).toBeNull();
+    expect(screen.getByText("eventFront.speakers.card.positionLabel(lng=pl)")).toBeTruthy();
+    expect(screen.getByText("Prezes Zarządu").getAttribute("title")).toBe("Prezes Zarządu");
+    expect(screen.getByText("eventFront.speakers.card.organizationLabel(lng=pl)")).toBeTruthy();
+    expect(screen.getByText("IPN").getAttribute("title")).toBe("IPN");
   });
 
   it("pokazuje portret, nazwisko i osobno opisane stanowisko oraz instytucję", () => {

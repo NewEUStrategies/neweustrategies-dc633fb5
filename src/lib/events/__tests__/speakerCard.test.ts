@@ -816,40 +816,30 @@ describe("splitSpeakerRoleInstitution", () => {
   it("wycina instytucje powtorzona w stanowisku i oddaje oba fakty", () => {
     expect(
       splitSpeakerRoleInstitution("Prezes Centralnego Portu Komunikacyjnego", "Centralny Port Komunikacyjny"),
-    ).toEqual({ position: "Prezes", institution: "Centralny Port Komunikacyjny", combined: "" });
+    ).toEqual({ position: "Prezes", institution: "Centralny Port Komunikacyjny" });
   });
 
   it("rozdziela stanowisko z przecinkiem przed instytucja", () => {
     expect(
       splitSpeakerRoleInstitution("Członek Zarządu, Polish Offshore Wind Energy Society", "Polish Offshore Wind Energy Society"),
-    ).toEqual({ position: "Członek Zarządu", institution: "Polish Offshore Wind Energy Society", combined: "" });
+    ).toEqual({ position: "Członek Zarządu", institution: "Polish Offshore Wind Energy Society" });
   });
 
-  it("firma to KOPIA stanowiska - jeden laczny napis, zamiast zmyslac podzial", () => {
-    // Realny przypadek danych: import przepisal stanowisko do pola firmy,
-    // wiec zrodlo trzyma jeden napis. Karta pokazuje go pod laczna etykieta.
+  it("rozdziela skopiowany laczny podpis na stanowisko i instytucje", () => {
     expect(splitSpeakerRoleInstitution("Prezes WiseEuropa", "Prezes WiseEuropa")).toEqual({
-      position: "",
-      institution: "",
-      combined: "Prezes WiseEuropa",
+      position: "Prezes",
+      institution: "WiseEuropa",
     });
-    expect(
-      splitSpeakerRoleInstitution(
-        "Zastępca redaktora naczelnego magazynu „Układ Sił”",
-        "Zastępca redaktora naczelnego magazynu „Układ Sił”",
-      ),
-    ).toEqual({
-      position: "",
-      institution: "",
-      combined: "Zastępca redaktora naczelnego magazynu „Układ Sił”",
+    expect(splitSpeakerRoleInstitution("Prezes Zarządu IPN", "Prezes Zarządu IPN")).toEqual({
+      position: "Prezes Zarządu",
+      institution: "IPN",
     });
   });
 
   it("instytucja rowna sie stanowisku - zostaje sama instytucja", () => {
     expect(splitSpeakerRoleInstitution("WiseEuropa", "WiseEuropa")).toEqual({
-      position: "",
+      position: "WiseEuropa",
       institution: "",
-      combined: "WiseEuropa",
     });
   });
 
@@ -857,14 +847,13 @@ describe("splitSpeakerRoleInstitution", () => {
     expect(splitSpeakerRoleInstitution("Główny doradca ekonomiczny", "PwC")).toEqual({
       position: "Główny doradca ekonomiczny",
       institution: "PwC",
-      combined: "",
     });
   });
 
   it("bez instytucji albo bez stanowiska oddaje to, co przyszlo", () => {
-    expect(splitSpeakerRoleInstitution("Prezes", null)).toEqual({ position: "Prezes", institution: "", combined: "" });
-    expect(splitSpeakerRoleInstitution("", "NASK")).toEqual({ position: "", institution: "NASK", combined: "" });
-    expect(splitSpeakerRoleInstitution(null, null)).toEqual({ position: "", institution: "", combined: "" });
+    expect(splitSpeakerRoleInstitution("Prezes", null)).toEqual({ position: "Prezes", institution: "" });
+    expect(splitSpeakerRoleInstitution("", "NASK")).toEqual({ position: "", institution: "NASK" });
+    expect(splitSpeakerRoleInstitution(null, null)).toEqual({ position: "", institution: "" });
   });
 
   it("nazwa wlasna pisana mala litera w stanowisku zostaje nietknieta", () => {
@@ -872,7 +861,6 @@ describe("splitSpeakerRoleInstitution", () => {
     expect(splitSpeakerRoleInstitution("Prezes wiseeuropa", "WiseEuropa")).toEqual({
       position: "Prezes wiseeuropa",
       institution: "WiseEuropa",
-      combined: "",
     });
   });
 
@@ -882,7 +870,6 @@ describe("splitSpeakerRoleInstitution", () => {
     expect(splitSpeakerRoleInstitution("Ekspert od polityki zagranicznej", "Polityka")).toEqual({
       position: "Ekspert od polityki zagranicznej",
       institution: "Polityka",
-      combined: "",
     });
   });
 });
