@@ -39,7 +39,6 @@ export function awaitsPayment(item: ParticipantRegistration): boolean {
 /** Bezpłatny tylko wtedy, gdy nic nie czeka na zapłatę i kwota jest zerowa. */
 export function isFreeRegistration(item: ParticipantRegistration): boolean {
   if (awaitsPayment(item)) return false;
-  if (item.paymentStatus === "paid" || item.orderStatus === "paid") return false;
   return item.amountCents === null || item.amountCents === 0;
 }
 
