@@ -86,6 +86,15 @@ vi.mock("@/components/Footnotes", () => ({
   FootnotesList: () => <div data-testid="przypisy" />,
 }));
 
+// Okruszki korzystają z `<Link>` routera, a ten test montuje zakładkę bez
+// drzewa tras (badamy warstwę danych, nie nawigację) - podmieniamy więc
+// okruszki na martwy znacznik z liczbą pozycji.
+vi.mock("@/components/Breadcrumbs", () => ({
+  Breadcrumbs: ({ items }: { items: Array<{ label: string }> }) => (
+    <nav data-testid="breadcrumb" data-items={items.length} />
+  ),
+}));
+
 const { EventModulePage } = await import("@/components/events/public/molecules/EventModulePage");
 
 function menuItem(over: Partial<EventMenuItem> & { id: string; path: string }): EventMenuItem {
