@@ -12,10 +12,12 @@
 // wnosi wylacznie ZRODLO DANYCH (RPC panelu zamiast projekcji publicznej)
 // i martwe przyciski zapisu: organizator ma zobaczyc program, a nie zapisac
 // sie na sesje z ekranu panelu.
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { EventAgendaBoardView } from "@/components/events/public/organisms/EventAgendaBoardView";
 import { EventSpeakersGridView } from "@/components/events/public/organisms/EventSpeakersGrid";
+import { SpeakerProfileDialog } from "@/components/events/SpeakerProfileDialog";
 import { EventAttendeesGridView } from "@/components/events/public/organisms/EventAttendeesList";
 import {
   EventSponsorsSectionError,
@@ -29,6 +31,7 @@ import type { PublicSponsorTier } from "@/lib/events/sponsorsSurface";
 import { PREVIEW_SPONSORS_READY, type PreviewSponsorsStatus } from "@/lib/events/sponsorsPreview";
 import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 import { uiLang } from "@/lib/i18n/format";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { mediaRenderUrl } from "@/lib/media/publicUrl";
 // Slownik panelu wprost, a nie „przy okazji" kanwy: ten plik sam czyta klucze
 // `adminEvents.studio.preview.*` (puste zdania, plakietka partnera).
@@ -176,6 +179,7 @@ export function EventPreviewLiveModule({
   ensureAdminEventsI18n();
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
+  const [selectedSpeaker, setSelectedSpeaker] = useState<PublicSpeakerRow | null>(null);
 
   if (module === "agenda")
     return (
@@ -188,7 +192,36 @@ export function EventPreviewLiveModule({
   if (module === "speakers") {
     if (data.speakers.length === 0)
       return <EmptyNote text={t("adminEvents.studio.preview.moduleEmptySpeakers")} />;
-    return <EventSpeakersGridView speakers={data.speakers} lang={lang} />;
+    return (
+      <>
+        <EventSpeakersGridView
+          speakers={data.speakers}
+          lang={lang}
+          onSelect={setSelectedSpeaker}
+        />
+        {selectedSpeaker !== null ? (
+          <SpeakerProfileDialog
+            userId={selectedSpeaker.user_id}
+            row={selectedSpeaker}
+            lang={lang}
+            open
+            onOpenChange={(open) => {
+              if (!open) setSelectedSpeaker(null);
+            }}
+            fallback={{
+              name: selectedSpeaker.display_name ?? "",
+              role: pickLocalized(
+                selectedSpeaker,
+                "headline",
+                lang,
+                selectedSpeaker.job_title ?? "",
+              ),
+              photo: selectedSpeaker.avatar_url ?? undefined,
+            }}
+          />
+        ) : null}
+      </>
+    );
   }
 
   if (module === "participants") {

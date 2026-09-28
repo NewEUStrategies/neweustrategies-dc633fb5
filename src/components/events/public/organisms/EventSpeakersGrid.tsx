@@ -72,12 +72,12 @@ ensureEventFrontI18n();
 // Cztery kolumny to docelowy układ wzorca, ale karta ma pod zdjęciem trzy linie
 // tekstu - przy dwóch kolumnach na telefonie każda z nich ma jeszcze szerokość
 // na cokolwiek poza wielokropkiem.
-const GRID_CLASS = "grid grid-cols-1 border-l border-t border-border sm:grid-cols-2 lg:grid-cols-3";
+const GRID_CLASS =
+  "grid grid-cols-[repeat(auto-fit,minmax(min(100%,19rem),1fr))] gap-x-10 lg:gap-x-14";
 // Karta zastepcza ma TEN SAM obrys, co ZWINIETA karta prelegenta
 // (`SpeakerProfileCard`: wysrodkowane zdjecie 80 px, imie i nazwisko, podpis),
 // wiec wysokosc sekcji nie skacze w chwili, gdy przyjda dane.
-const CARD_CLASS =
-  "flex h-full w-full flex-col items-center border-b border-r border-border bg-background px-5 pb-5 pt-8 text-center";
+const CARD_CLASS = "flex min-h-52 w-full items-start gap-6 border-b border-border px-2 py-8";
 
 // Osiem kart zastępczych: tyle, ile wchodzi w dwa wiersze docelowego układu,
 // więc wysokość sekcji nie skacze w chwili, gdy przyjdą dane.
@@ -109,16 +109,15 @@ export function EventSpeakersGrid({
       <div className={GRID_CLASS} aria-busy="true" aria-label={t("eventFront.speakers.loading")}>
         {SKELETON_SLOTS.map((slot) => (
           <div key={slot} className={CARD_CLASS}>
-            <Skeleton className="h-20 w-20 rounded-[6px]" />
+            <Skeleton className="aspect-[8/11] w-28 shrink-0 rounded-none sm:w-32" />
             {/* Paski maja TE SAME pudelka linii, co napisy karty (ten sam
                 krój i interlinia, twarda spacja w srodku), wiec wysokosc
                 szkieletu zgadza sie z karta z definicji, a nie z rachunku. */}
-            <Skeleton aria-hidden="true" className="mt-3 w-32 text-xl leading-tight">
-              {"\u00a0"}
-            </Skeleton>
-            <Skeleton aria-hidden="true" className="mt-1 w-24 text-xs leading-snug">
-              {"\u00a0"}
-            </Skeleton>
+            <span className="min-w-0 flex-1 space-y-4 pt-1">
+              <Skeleton aria-hidden="true" className="h-7 w-4/5" />
+              <Skeleton aria-hidden="true" className="h-4 w-2/3" />
+              <Skeleton aria-hidden="true" className="h-4 w-full" />
+            </span>
           </div>
         ))}
       </div>
