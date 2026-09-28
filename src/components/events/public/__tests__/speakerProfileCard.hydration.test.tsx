@@ -43,10 +43,12 @@ async function hydrate(view: ReactElement) {
   document.body.append(host);
   const serverHtml = host.innerHTML;
   const errors: unknown[] = [];
-  let root: ReturnType<typeof hydrateRoot> | null = null;
+  const roots: Array<ReturnType<typeof hydrateRoot>> = [];
   await act(async () => {
-    root = hydrateRoot(host, view, { onRecoverableError: (error) => errors.push(error) });
+    roots.push(hydrateRoot(host, view, { onRecoverableError: (error) => errors.push(error) }));
   });
+  const root = roots[0];
+  if (root === undefined) throw new Error("Hydration root was not created");
   return { host, root, errors, serverHtml };
 }
 
@@ -78,7 +80,7 @@ describe("SpeakerProfileCard - SSR i hydratacja", () => {
         expect(consoleError).not.toHaveBeenCalled();
         expect(result.host.innerHTML).toBe(result.serverHtml);
       } finally {
-        await act(async () => result.root?.unmount());
+        await act(async () => result.root.unmount());
       }
     });
   }
@@ -94,7 +96,7 @@ describe("SpeakerProfileCard - SSR i hydratacja", () => {
       expect(result.serverHtml).toContain("height=440");
       expect(measure).not.toHaveBeenCalled();
     } finally {
-      await act(async () => result.root?.unmount());
+      await act(async () => result.root.unmount());
     }
   });
 });
