@@ -192,6 +192,86 @@ export function speakerOrganizationLine(
   return org;
 }
 
+/** Fakty karty po rozdzieleniu: stanowisko BEZ instytucji oraz sama instytucja. */
+export interface SpeakerRoleInstitution {
+  position: string;
+  institution: string;
+  /**
+   * Jeden laczny napis zamiast dwoch faktow: dane trzymaja te sama tresc
+   * w stanowisku i instytucji (import skopiuje role do firmy), wiec rozbicie
+   * byloby zmysleniem. Karta pokazuje napis pod laczna etykieta
+   * „Stanowisko i instytucja" zamiast klamac jedna z dwoch etykiet.
+   */
+  combined: string;
+}
+
+/**
+ * Rozdziela stanowisko od instytucji - zamiast gubic jedną z nich.
+ *
+ * `speakerOrganizationLine` chowa organizację powtórzoną w stanowisku, więc
+ * karta pokazywała wtedy cały napis („Prezes Centralnego Portu
+ * Komunikacyjnego") pod etykietą „Stanowisko" i ŻADNEJ instytucji. Tutaj te
+ * same dopasowania słów wycinają instytucję ze stanowiska:
+ *   * instytucja to całe stanowisko -> stanowisko puste, sama instytucja;
+ *   * instytucja zawarta w stanowisku -> stanowisko bez jej słów („Prezes"),
+ *     instytucja osobno („Centralny Port Komunikacyjny");
+ *   * inaczej -> oba napisy jak przyszły z danych.
+ *
+ * POLSKA ODMIANA. Stanowisko odmienia nazwę instytucji („Centralnego Portu
+ * Komunikacyjnego" wobec mianownika „Centralny Port Komunikacyjny"), więc
+ * proste porównanie słów nigdy by nie trafiło. Dwa słowa uznajemy za to samo,
+ * gdy mają wspólny początek od 4 znaków i różnią się co najwyżej końcówką
+ * (do 3 znaków) - dokładnie tak zachowują się polskie fleksyjne odmiany.
+ * Strażnik nazw własnych jest TEN SAM co w deduplikacji: nazwa instytucji
+ * pisana wielką literą musi w stanowisku też stać wielką literą, więc
+ * „Ekspert od polityki zagranicznej" nigdy nie straci tygodnika „Polityka".
+ */
+export function splitSpeakerRoleInstitution(
+  role: string | null | undefined,
+  organization: string | null | undefined,
+): SpeakerRoleInstitution {
+  const institution = textOrNull(organization) ?? "";
+  const roleText = textOrNull(role) ?? "";
+  if (institution === "" || roleText === "") {
+    return { position: roleText, institution, combined: "" };
+  }
+  const orgWords = wordsOf(institution);
+  const roleWords = wordsOf(roleText);
+  if (orgWords.length === 0 || roleWords.length === 0) {
+    return { position: roleText, institution, combined: "" };
+  }
+  if (roleWords.map(folded).join(" ") === orgWords.map(folded).join(" ")) {
+    // Firma to kopia stanowiska: jeden laczny napis, etykieta laczna.
+    return { position: "", institution: "", combined: roleText };
+  }
+
+  /** To samo słowo: identyczne albo wspólny rdzeń (odmiana końcówki). */
+  const sameWord = (roleWord: string, orgWord: string): boolean => {
+    const a = folded(roleWord);
+    const b = folded(orgWord);
+    if (a === b) return true;
+    const shorter = Math.min(a.length, b.length);
+    if (shorter < 4 || Math.abs(a.length - b.length) > 3) return false;
+    let shared = 0;
+    while (shared < shorter && a[shared] === b[shared]) shared += 1;
+    return shared >= 4;
+  };
+
+  for (let start = 0; start + orgWords.length <= roleWords.length; start += 1) {
+    const repeated = orgWords.every((word, offset) => {
+      const inRole = roleWords[start + offset] ?? "";
+      return sameWord(inRole, word) && (!looksLikeName(word) || looksLikeName(inRole));
+    });
+    if (!repeated) continue;
+    const position = roleWords
+      .filter((_, index) => index < start || index >= start + orgWords.length)
+      .join(" ")
+      .trim();
+    return { position, institution, combined: "" };
+  }
+  return { position: roleText, institution, combined: "" };
+}
+
 function channel(value: number): number {
   const c = value / 255;
   return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;

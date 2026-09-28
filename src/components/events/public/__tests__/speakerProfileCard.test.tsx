@@ -51,6 +51,31 @@ function speaker(overrides: Partial<PublicSpeakerRow> = {}): PublicSpeakerRow {
 afterEach(() => vi.clearAllMocks());
 
 describe("SpeakerProfileCard - redakcyjny katalog", () => {
+  it("firma to kopia stanowiska - lacza etykieta zamiast klamliwych dwoch", () => {
+    // Realny przypadek danych GGM 2021: pole firmy powtorzylo stanowisko.
+    render(
+      <SpeakerProfileCard
+        speaker={speaker({
+          headline_pl: "Prezes Centralnego Portu Komunikacyjnego",
+          headline_en: "CEO of the Central Communication Port",
+          company: "Prezes Centralnego Portu Komunikacyjnego",
+          job_title: "Prezes Centralnego Portu Komunikacyjnego",
+        })}
+        lang="pl"
+      />,
+    );
+
+    expect(
+      screen.getByText("eventFront.speakers.card.combinedLabel(lng=pl)"),
+    ).toBeTruthy();
+    expect(screen.getByText("Prezes Centralnego Portu Komunikacyjnego").getAttribute("title")).toBe(
+      "Prezes Centralnego Portu Komunikacyjnego",
+    );
+    // Etykiety osobnych faktow NIE moga klamac, ze pokazuja dwa fakty.
+    expect(screen.queryByText("eventFront.speakers.card.positionLabel(lng=pl)")).toBeNull();
+    expect(screen.queryByText("eventFront.speakers.card.organizationLabel(lng=pl)")).toBeNull();
+  });
+
   it("pokazuje portret, nazwisko i osobno opisane stanowisko oraz instytucję", () => {
     render(<SpeakerProfileCard speaker={speaker()} lang="pl" />);
 
@@ -120,7 +145,7 @@ describe("SpeakerProfileCard - redakcyjny katalog", () => {
     expect(screen.getByText("AK")).toBeTruthy();
   });
 
-  it("deduplikuje organizację powtórzoną w stanowisku", () => {
+  it("rozdziela instytucję powtórzoną w stanowisku", () => {
     render(
       <SpeakerProfileCard
         speaker={speaker({
@@ -130,8 +155,10 @@ describe("SpeakerProfileCard - redakcyjny katalog", () => {
         lang="pl"
       />,
     );
-    expect(screen.getByText("Prezes WiseEuropa")).toBeTruthy();
-    expect(screen.queryByText("eventFront.speakers.card.organizationLabel(lng=pl)")).toBeNull();
+    expect(screen.getByText("eventFront.speakers.card.positionLabel(lng=pl)")).toBeTruthy();
+    expect(screen.getByText("Prezes")).toBeTruthy();
+    expect(screen.getByText("eventFront.speakers.card.organizationLabel(lng=pl)")).toBeTruthy();
+    expect(screen.getByText("WiseEuropa").getAttribute("title")).toBe("WiseEuropa");
   });
 
   it("pokazuje ścieżki i oznaczenie eksperta od razu w katalogu", () => {
