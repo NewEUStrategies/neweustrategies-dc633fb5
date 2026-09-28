@@ -1,7 +1,7 @@
 // Redakcyjna karta prelegenta wspólna dla strony publicznej i podglądu studia.
 // Karta pokazuje pełny portret oraz rozdziela stanowisko od instytucji. Jeżeli
 // profil ma treść, cały główny obszar otwiera wspólny dialog profilu.
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode, type SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -70,15 +70,35 @@ function Portrait({ name, source }: { name: string; source: string | null }) {
  *  wysokosc szerokich logo). Rogi 6 px sa na obrazie, zgodnie z kadrem. */
 function InstitutionLogo({ url, name }: { url: string; name: string }) {
   const [failed, setFailed] = useState(false);
+  const [isElongated, setIsElongated] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+    setIsElongated(false);
+  }, [url]);
+
   if (failed) return null;
+
+  const handleLoad = (event: SyntheticEvent<HTMLImageElement>) => {
+    const image = event.currentTarget;
+    if (image.naturalHeight <= 0) return;
+    setIsElongated(image.naturalWidth / image.naturalHeight > 2);
+  };
+
   return (
     <img
       src={url}
       alt={name}
       loading="lazy"
       decoding="async"
+      onLoad={handleLoad}
       onError={() => setFailed(true)}
-      className="block h-6 w-auto shrink-0 rounded-[6px] object-contain"
+      data-logo-shape={isElongated ? "elongated" : "compact"}
+      className={
+        isElongated
+          ? "block h-6 w-auto shrink-0 rounded-[6px] object-contain"
+          : "block size-6 shrink-0 rounded-[6px] object-cover"
+      }
     />
   );
 }

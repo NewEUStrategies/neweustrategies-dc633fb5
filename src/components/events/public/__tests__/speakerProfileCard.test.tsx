@@ -87,6 +87,27 @@ describe("SpeakerProfileCard - redakcyjny katalog", () => {
     expect(image.className).toContain("brightness-95");
   });
 
+  it("utrzymuje proporcje logo i zostawia szerokie znaki w wydłużonym kadrze", () => {
+    render(
+      <SpeakerProfileCard
+        speaker={speaker({ card_institution_logo_url: "https://example.org/logo.png" })}
+        lang="pl"
+      />,
+    );
+
+    const logo = screen.getByRole("img", { name: "NASK" });
+    expect(logo.getAttribute("data-logo-shape")).toBe("compact");
+    expect(logo.className).toContain("size-6");
+    Object.defineProperties(logo, {
+      naturalWidth: { configurable: true, value: 300 },
+      naturalHeight: { configurable: true, value: 100 },
+    });
+    fireEvent.load(logo);
+    expect(logo.getAttribute("data-logo-shape")).toBe("elongated");
+    expect(logo.className).toContain("h-6");
+    expect(logo.className).toContain("w-auto");
+  });
+
   it("otwiera profil kliknięciem całej karty i przekazuje pełny wiersz", () => {
     const row = speaker({ bio_pl: "Pełny biogram" });
     const onSelect = vi.fn();
