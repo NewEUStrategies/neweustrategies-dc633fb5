@@ -16,6 +16,20 @@ import type { ReactNode } from "react";
 /** Miara kolumny treści portalu wydarzenia - patrz nagłówek pliku. */
 export const EVENT_PORTAL_CONTENT_CLASS = "mx-auto w-full max-w-5xl px-4 pt-8";
 
-export function EventPortalContent({ children }: { children: ReactNode }) {
-  return <div className={EVENT_PORTAL_CONTENT_CLASS}>{children}</div>;
+/**
+ * SZERSZA MIARA na desktop - dla zakładek z gęstą siatką (prelegenci): ta sama
+ * rama (`mx-auto w-full px-4 pt-8`), tylko odważnik `max-w-6xl`. Na tabletach
+ * i telefonach nie zmienia nic - szerokość i tak ogranicza ekran.
+ */
+export const EVENT_PORTAL_CONTENT_WIDE_CLASS = "mx-auto w-full max-w-6xl px-4 pt-8";
+
+export function EventPortalContent({
+  children,
+  className = EVENT_PORTAL_CONTENT_CLASS,
+}: {
+  children: ReactNode;
+  /** Nadpisuje miarę kolumny - patrz `EVENT_PORTAL_CONTENT_WIDE_CLASS`. */
+  className?: string;
+}) {
+  return <div className={className}>{children}</div>;
 }

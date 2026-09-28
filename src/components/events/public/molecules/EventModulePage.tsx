@@ -50,6 +50,7 @@ export function EventModulePage({
   slug,
   module,
   children,
+  contentClassName,
 }: {
   /** Slug wydarzenia (parametr trasy). */
   slug: string;
@@ -57,6 +58,8 @@ export function EventModulePage({
   module: EventModule;
   /** Organizm z danymi - staje POD wstępem z CMS-a. */
   children: ReactNode;
+  /** Nadpisuje miarę kolumny treści (np. szersza dla siatki prelegentów). */
+  contentClassName?: string;
 }) {
   const { i18n } = useTranslation();
   const lang = uiLang(i18n.language);
@@ -91,7 +94,7 @@ export function EventModulePage({
     // Miara kolumny treści jest WSPÓLNA z przeglądem i z podglądem studia
     // (`EVENT_PORTAL_CONTENT_CLASS`): trzy kopie `max-w-5xl px-4 pt-8` już raz
     // się rozjechały - podgląd rysował `max-w-3xl`.
-    <EventPortalContent>
+    <EventPortalContent className={contentClassName}>
       {hasDocument && page !== null && <ModuleDocument page={page} lang={lang} />}
       <div className={hasDocument ? "mt-8" : undefined}>{children}</div>
     </EventPortalContent>

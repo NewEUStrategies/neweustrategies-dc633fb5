@@ -15,8 +15,9 @@ import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { speakerCardAction, speakerCardPhoto, speakerOrganizationLine } from "@/lib/events/speakerCard";
 
 const PREVIEW_MARKER = '[data-builder-renderer="widget-props-preview"]';
-const PORTRAIT_WIDTH = 320;
-const PORTRAIT_HEIGHT = 440;
+/** Zdjęcie jest KWADRATOWE - jedna miara na szerokość i wysokość kadru. */
+const PORTRAIT_WIDTH = 480;
+const PORTRAIT_HEIGHT = 480;
 /** Zachowany eksport kontraktu dla konsumentów mierzących koszt obrazu karty. */
 export const SPEAKER_CARD_LARGE_PX = PORTRAIT_HEIGHT;
 
@@ -36,9 +37,13 @@ function Portrait({ name, source }: { name: string; source: string | null }) {
           resize: "cover",
         });
 
+  // `self-start` - bez tego rozciaganie flexa karty (items-stretch) nadpisuje
+  // aspect-ratio i zdjecie znow staje sie prostokatem, a nie kwadratem.
   return (
-    <span className="relative block aspect-[8/11] w-28 shrink-0 sm:w-32">
-      <span className="relative grid size-full place-items-center overflow-hidden bg-muted text-xl font-semibold text-muted-foreground">
+    <span className="relative block aspect-square w-28 shrink-0 self-start sm:w-32">
+      {/* Rogi 6 px są na PUDLE kadru, a nie na obrazie - inicjały zastępcze
+          dostają ten sam obrys, co zdjęcie, więc podmiana jest niezauważalna. */}
+      <span className="relative grid size-full place-items-center overflow-hidden rounded-[6px] bg-muted text-xl font-semibold text-muted-foreground">
         {url !== null && failedUrl !== url ? (
           <img
             src={url}
@@ -69,9 +74,9 @@ function CardBody({ speaker, lang }: { speaker: PublicSpeakerRow; lang: "pl" | "
   return (
     <>
       <Portrait name={name} source={speakerCardPhoto(speaker)} />
-      <span className="flex min-w-0 flex-1 flex-col pt-1 text-left">
+    <span className="flex min-w-0 flex-1 flex-col pt-1 text-left">
         <span className="text-xl font-bold leading-tight text-foreground sm:text-2xl">{name}</span>
-        <span className="mt-4 space-y-3">
+        <span className="mt-2 space-y-3">
           {role !== "" ? (
             <span className="block">
               <span className="block text-[10px] font-extrabold uppercase text-muted-foreground">
@@ -119,7 +124,7 @@ export function SpeakerProfileCard({
   const action = speakerCardAction(speaker, lang, false);
   const content = <CardBody speaker={speaker} lang={lang} />;
   let main: ReactNode = (
-    <div className="group/speaker flex h-full w-full gap-7 px-2 py-3 sm:gap-9">{content}</div>
+    <div className="group/speaker flex h-full w-full gap-5 px-2 py-3 sm:gap-6">{content}</div>
   );
 
   if (canOpenProfile) {
@@ -129,7 +134,7 @@ export function SpeakerProfileCard({
         variant="ghost"
         onClick={() => onSelect(speaker)}
         aria-label={t("eventFront.speakers.card.openProfile", { name, lng: lang })}
-        className="group/speaker h-full min-h-52 w-full items-stretch justify-start gap-7 whitespace-normal rounded-none px-2 py-3 text-left hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 sm:gap-9"
+        className="group/speaker h-full min-h-52 w-full items-stretch justify-start gap-5 whitespace-normal rounded-none px-2 py-3 text-left hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 sm:gap-6"
       >
         {content}
       </Button>
@@ -148,7 +153,7 @@ export function SpeakerProfileCard({
             onClick={(event) => {
               if (event.currentTarget.closest(PREVIEW_MARKER)) event.preventDefault();
             }}
-            className="ml-37 mt-1 w-fit text-xs font-semibold text-brand-ink underline-offset-4 hover:underline sm:ml-43"
+            className="ml-37 mt-1 w-fit text-xs font-semibold text-brand-ink underline-offset-4 hover:underline sm:ml-42"
           >
             {action.label ?? t("eventFront.speakers.card.linkAction", { lng: lang })}
             <span className="sr-only"> {t("eventFront.speakers.card.opensInNewTab", { lng: lang })}</span>
@@ -156,7 +161,7 @@ export function SpeakerProfileCard({
         ) : (
           <AppLink
             href={action.href}
-            className="ml-37 mt-1 w-fit text-xs font-semibold text-brand-ink underline-offset-4 hover:underline sm:ml-43"
+            className="ml-37 mt-1 w-fit text-xs font-semibold text-brand-ink underline-offset-4 hover:underline sm:ml-42"
           >
             {action.label ?? t("eventFront.speakers.card.linkAction", { lng: lang })}
           </AppLink>
