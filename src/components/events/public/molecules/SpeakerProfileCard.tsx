@@ -84,7 +84,7 @@ function InstitutionLogo({ url, name }: { url: string; name: string }) {
     if (image.naturalHeight <= 0) return;
     // Poziome znaki, takie jak WiseEuropa, nadal dostają zwarty kwadratowy
     // kadr. Dopiero wyraźnie podłużny logotyp zachowuje płynną szerokość.
-    setIsElongated(image.naturalWidth / image.naturalHeight > 2.75);
+    setIsElongated(image.naturalWidth / image.naturalHeight > 4);
   };
 
   return (

@@ -99,7 +99,7 @@ describe("SpeakerProfileCard - redakcyjny katalog", () => {
     expect(logo.getAttribute("data-logo-shape")).toBe("compact");
     expect(logo.className).toContain("size-6");
     Object.defineProperties(logo, {
-      naturalWidth: { configurable: true, value: 300 },
+      naturalWidth: { configurable: true, value: 500 },
       naturalHeight: { configurable: true, value: 100 },
     });
     fireEvent.load(logo);
