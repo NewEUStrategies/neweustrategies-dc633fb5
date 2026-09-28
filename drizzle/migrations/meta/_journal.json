@@ -750,6 +750,13 @@
       "when": 1790579970320,
       "tag": "0106_event_seed_pages_on_publish",
       "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1790580019797,
+      "tag": "0107_event_participant_features_require_payment",
+      "breakpoints": true
     }
   ]
 }
