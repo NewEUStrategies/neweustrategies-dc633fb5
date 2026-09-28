@@ -38,11 +38,7 @@ function Portrait({ name, source }: { name: string; source: string | null }) {
 
   return (
     <span className="relative block aspect-[8/11] w-28 shrink-0 sm:w-32">
-      <span
-        aria-hidden="true"
-        className="absolute -inset-2 translate-x-1 translate-y-1 border border-border transition-transform duration-500 group-hover/speaker:translate-x-0 group-hover/speaker:translate-y-0 group-focus-visible/speaker:translate-x-0 group-focus-visible/speaker:translate-y-0"
-      />
-      <span className="relative grid size-full place-items-center overflow-hidden border border-border bg-muted text-xl font-semibold text-muted-foreground">
+      <span className="relative grid size-full place-items-center overflow-hidden bg-muted text-xl font-semibold text-muted-foreground">
         {url !== null && failedUrl !== url ? (
           <img
             src={url}
@@ -53,7 +49,7 @@ function Portrait({ name, source }: { name: string; source: string | null }) {
             loading="lazy"
             decoding="async"
             onError={() => setFailedUrl(url)}
-            className="size-full object-cover grayscale transition duration-700 group-hover/speaker:scale-[1.025] group-hover/speaker:grayscale-0 group-focus-visible/speaker:grayscale-0 motion-reduce:transform-none motion-reduce:transition-none"
+            className="size-full object-cover transition duration-500 group-hover/speaker:brightness-95 group-focus-visible/speaker:brightness-95 motion-reduce:transition-none"
           />
         ) : (
           <span aria-hidden="true">{initials(name)}</span>
