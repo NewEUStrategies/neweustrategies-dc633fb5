@@ -50,6 +50,7 @@ export function EventModulePage({
   slug,
   module,
   children,
+  contentClassName,
 }: {
   /** Slug wydarzenia (parametr trasy). */
   slug: string;
@@ -57,6 +58,8 @@ export function EventModulePage({
   module: EventModule;
   /** Organizm z danymi - staje POD wstępem z CMS-a. */
   children: ReactNode;
+  /** Nadpisuje miarę kolumny treści (np. szersza dla siatki prelegentów). */
+  contentClassName?: string;
 }) {
   const { i18n } = useTranslation();
   const lang = uiLang(i18n.language);
