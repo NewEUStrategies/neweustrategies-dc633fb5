@@ -474,6 +474,9 @@ export const eventFrontPl = {
       card: {
         expand: "Rozwiń kartę: {{name}}",
         collapse: "Zwiń kartę: {{name}}",
+        openProfile: "Otwórz profil: {{name}}",
+        positionLabel: "Stanowisko",
+        organizationLabel: "Instytucja",
         profileAction: "Profil",
         linkAction: "Więcej",
         actionFor: "{{label}}: {{name}}",
@@ -1089,6 +1092,9 @@ export const eventFrontEn = {
       card: {
         expand: "Expand card: {{name}}",
         collapse: "Collapse card: {{name}}",
+        openProfile: "Open profile: {{name}}",
+        positionLabel: "Position",
+        organizationLabel: "Organisation",
         profileAction: "Profile",
         linkAction: "More",
         actionFor: "{{label}}: {{name}}",

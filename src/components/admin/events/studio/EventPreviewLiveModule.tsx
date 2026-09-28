@@ -176,6 +176,7 @@ export function EventPreviewLiveModule({
   ensureAdminEventsI18n();
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
+  const [selectedSpeaker, setSelectedSpeaker] = useState<PublicSpeakerRow | null>(null);
 
   if (module === "agenda")
     return (
@@ -188,7 +189,37 @@ export function EventPreviewLiveModule({
   if (module === "speakers") {
     if (data.speakers.length === 0)
       return <EmptyNote text={t("adminEvents.studio.preview.moduleEmptySpeakers")} />;
-    return <EventSpeakersGridView speakers={data.speakers} lang={lang} />;
+    return (
+      <>
+        <EventSpeakersGridView
+          speakers={data.speakers}
+          lang={lang}
+          onSelect={setSelectedSpeaker}
+        />
+        {selectedSpeaker !== null ? (
+          <SpeakerProfileDialog
+            userId={selectedSpeaker.user_id}
+            row={selectedSpeaker}
+            eventId={data.event.id}
+            lang={lang}
+            open
+            onOpenChange={(open) => {
+              if (!open) setSelectedSpeaker(null);
+            }}
+            fallback={{
+              name: selectedSpeaker.display_name ?? "",
+              role: pickLocalized(
+                selectedSpeaker,
+                "headline",
+                lang,
+                selectedSpeaker.job_title ?? "",
+              ),
+              photo: selectedSpeaker.avatar_url ?? undefined,
+            }}
+          />
+        ) : null}
+      </>
+    );
   }
 
   if (module === "participants") {
