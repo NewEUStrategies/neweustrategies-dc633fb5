@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { toJson } from "@/lib/builder/types";
 import { escapeLike } from "@/lib/admin/listFilters";
+import { fetchLogos } from "@/lib/builder/speakersQuery";
 import { parseSpeakerTracks, type SpeakerTrack } from "@/lib/events/speakerCard";
 
 // Typ + domyślne przeniesione do lib/community/modulesSettings (małego modułu
@@ -439,9 +440,7 @@ export async function fetchEventSpeakers(eventId: string): Promise<EventSpeakerE
   if (error) throw new Error(error.message);
   if (!Array.isArray(data)) return [];
   // Logo instytucji ma osobny odczyt - nie zmienia kontraktu listy.
-  const logos = await supabase.rpc("admin_event_speaker_logos", { p_event_id: eventId });
-  if (logos.error) throw new Error(logos.error.message);
-  const logoById = new Map((logos.data ?? []).map((l) => [l.speaker_profile_id, l.logo_url]));
+  const logoById = await fetchLogos(() => supabase.rpc("admin_event_speaker_logos", { p_event_id: eventId }));
   return data
     .filter((row): row is Record<string, unknown> => row !== null && typeof row === "object")
     .map(mapSpeakerRow)

@@ -217,6 +217,22 @@ async function fetchPublicSpeakers(input: {
  * pe.id IS NOT NULL`). Warunek stoi po obu stronach swiadomie: bez niego
  * pojedynczy taki wiersz dawalby karte bez nazwiska i klucz pustego napisu.
  */
+/**
+ * Logo instytucji jest dekoracja karty: brak odczytu nie moze wyciac listy
+ * prelegentow, wiec blad daje po prostu karty bez logo.
+ */
+export async function fetchLogos(
+  call: () => PromiseLike<{ data: { speaker_profile_id: string; logo_url: string }[] | null; error: unknown }>,
+): Promise<Map<string, string>> {
+  try {
+    const { data, error } = await call();
+    if (error || !Array.isArray(data)) return new Map();
+    return new Map(data.map((l) => [l.speaker_profile_id, l.logo_url]));
+  } catch {
+    return new Map();
+  }
+}
+
 async function fetchEventSpeakers(input: {
   eventId: string;
   limit: number;
@@ -226,9 +242,9 @@ async function fetchEventSpeakers(input: {
   });
   if (error) throw new Error(error.message);
   const rows = Array.isArray(data) ? data : [];
-  const logos = await supabase.rpc("event_speaker_logos_public", { p_event_id: input.eventId });
-  if (logos.error) throw new Error(logos.error.message);
-  const logoById = new Map((logos.data ?? []).map((l) => [l.speaker_profile_id, l.logo_url]));
+  const logoById = await fetchLogos(() =>
+    supabase.rpc("event_speaker_logos_public", { p_event_id: input.eventId }),
+  );
   return rows
     .map((raw) => mapSpeakerRow(raw as Record<string, unknown>))
     .filter((row) => row.user_id !== "" || (row.person_id ?? "") !== "")
