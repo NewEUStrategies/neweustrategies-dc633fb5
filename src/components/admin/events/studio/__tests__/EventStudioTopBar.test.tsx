@@ -59,6 +59,7 @@ const ODWOLANE = "adminEvents.list.status.cancelled";
 
 interface Nadpisania {
   canPublish?: boolean;
+  onRefreshReadiness?: () => void;
   publishReason?: string;
   status?: EventStatus;
   isBusy?: boolean;
@@ -80,6 +81,7 @@ function pasek(nadpisania: Nadpisania = {}) {
       createMode={nadpisania.createMode}
       section={nadpisania.section}
       canPublish={nadpisania.canPublish}
+      onRefreshReadiness={nadpisania.onRefreshReadiness}
       publishReason={nadpisania.publishReason}
     />,
   );
@@ -110,6 +112,26 @@ describe("EventStudioTopBar - publikacja", () => {
     fireEvent.click(published);
     expect(onStatusChange).not.toHaveBeenCalled();
   });
+  it.each([undefined, "readiness-unavailable"])(
+    "ponawia odczyt gotowości bez wysłania publikacji (powód: %s)",
+    (publishReason) => {
+      const onRefreshReadiness = vi.fn();
+      const { onStatusChange } = pasek({ canPublish: false, publishReason, onRefreshReadiness });
+      const retry = screen.getByRole("button", { name: "adminEvents.studio.readiness.retry" });
+      expect(retry).toHaveAccessibleDescription(publishReason ?? "");
+      fireEvent.click(retry);
+      expect(onRefreshReadiness).toHaveBeenCalledOnce();
+      expect(onStatusChange).not.toHaveBeenCalled();
+    },
+  );
+
+  it("kreator bez zapisanego wydarzenia nie odpytuje gotowości", () => {
+    const onRefreshReadiness = vi.fn();
+    pasek({ canPublish: false, createMode: true, onRefreshReadiness });
+    expect(screen.queryByRole("button", { name: "adminEvents.studio.readiness.retry" })).toBeNull();
+    expect(onRefreshReadiness).not.toHaveBeenCalled();
+  });
+
   it("publikuje szkic jednym kliknieciem i nie zgaduje stanu docelowego", () => {
     const { onStatusChange } = pasek({ status: "draft" });
 

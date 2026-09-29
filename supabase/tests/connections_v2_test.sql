@@ -194,6 +194,8 @@ SELECT is(
 -- ---------------------------------------------------------------------------
 -- 14-16. connection_suggestions v2: wspolne dossier + wspolne wydarzenia
 -- ---------------------------------------------------------------------------
+-- Fixture publication seeds CMS pages; do not inherit the last attendee JWT.
+SELECT set_config('request.jwt.claims', '{}', true);
 INSERT INTO public.eu_policy_items (id, tenant_id, slug, title_pl, title_en, status) VALUES
   ('cb333333-3333-3333-3333-333333333331',
    'cb111111-1111-1111-1111-111111111111', 'dossier-cb1', 'Dossier CB1', 'Dossier CB1',

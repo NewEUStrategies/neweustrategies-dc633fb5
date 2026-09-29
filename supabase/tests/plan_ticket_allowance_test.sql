@@ -228,8 +228,8 @@ SELECT is(
 -- (`payment_orders_guard_status`) - w produkcji robi to webhook operatora.
 RESET ROLE;
 SELECT set_config('request.jwt.claim.role', 'service_role', true);
-INSERT INTO public.payment_orders (user_id, status, kind, amount_cents, currency, metadata)
-VALUES ('b1000000-0000-0000-0000-0000000000a1', 'paid', 'one_time', 30000, 'PLN',
+INSERT INTO public.payment_orders (tenant_id, user_id, status, kind, amount_cents, currency, metadata)
+VALUES ((SELECT public.public_tenant_id()), 'b1000000-0000-0000-0000-0000000000a1', 'paid', 'one_time', 30000, 'PLN',
         jsonb_build_object('event_id', 'b1444444-0000-0000-0000-000000000003'));
 SELECT set_config('request.jwt.claim.role', '', true);
 
@@ -299,6 +299,8 @@ SELECT throws_ok(
 -- platne wydarzenie z nietknieta pula. Miejsce w kolejce to REZERWACJA
 -- oplacona biletem.
 RESET ROLE;
+-- Fixture publication is a system operation, not an attendee publication.
+SELECT set_config('request.jwt.claims', '{}', true);
 INSERT INTO public.events (id, tenant_id, slug, title_pl, title_en, kind, starts_at,
                            visibility, min_tier_rank, status, ticket_price_cents, capacity)
 VALUES ('b1444444-0000-0000-0000-0000000000d1', (SELECT public.public_tenant_id()),
@@ -308,8 +310,8 @@ VALUES ('b1444444-0000-0000-0000-0000000000d1', (SELECT public.public_tenant_id(
 -- Jedyne miejsce zajmuje konto z oplaconym zamowieniem (stawka studencka nie ma
 -- puli, wiec nie miesza w licznikach).
 SELECT set_config('request.jwt.claim.role', 'service_role', true);
-INSERT INTO public.payment_orders (user_id, status, kind, amount_cents, currency, metadata)
-VALUES ('b1000000-0000-0000-0000-0000000000a3', 'paid', 'one_time', 30000, 'PLN',
+INSERT INTO public.payment_orders (tenant_id, user_id, status, kind, amount_cents, currency, metadata)
+VALUES ((SELECT public.public_tenant_id()), 'b1000000-0000-0000-0000-0000000000a3', 'paid', 'one_time', 30000, 'PLN',
         jsonb_build_object('event_id', 'b1444444-0000-0000-0000-0000000000d1'));
 SELECT set_config('request.jwt.claim.role', '', true);
 

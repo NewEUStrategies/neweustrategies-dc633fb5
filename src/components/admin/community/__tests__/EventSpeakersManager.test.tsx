@@ -1152,6 +1152,7 @@ describe("EventSpeakersManager - karta prelegenta i sciezki", () => {
     expect(saveEventSpeakerCard).toHaveBeenCalledWith({
       speakerProfileId: "sp-1",
       cardPhotoUrl: "",
+      cardInstitutionLogoUrl: "",
       cardCtaLabelPl: "Zapisz się",
       cardCtaLabelEn: "",
       cardCtaUrl: "",

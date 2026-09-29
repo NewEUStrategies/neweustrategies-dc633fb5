@@ -306,7 +306,7 @@ export default defineConfig({
               // Coalesce tiny automatic chunks when Rollup can preserve their
               // loading/side-effect semantics. Keep both presets identical;
               // startup size, graph and browser boot remain blocking gates.
-              experimentalMinChunkSize: 512,
+              experimentalMinChunkSize: 2048,
               manualChunks(id: string, meta: Rollup.ManualChunkMeta) {
                 if (!id.includes("/node_modules/")) return undefined;
                 // PUŁAPKA (2026-08-06): Rollup NIE POTRAFI przenieść modułu

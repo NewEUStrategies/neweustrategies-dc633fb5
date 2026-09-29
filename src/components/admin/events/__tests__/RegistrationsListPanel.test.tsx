@@ -116,6 +116,14 @@ const h = vi.hoisted(() => ({
   csvParts: [] as string[],
 }));
 
+// Dziennik ma osobne testy odczytu, błędu i ponowienia. Ten test izoluje
+// listę od jego React Query, tak jak pozostałe hooki danych organizmu.
+vi.mock("@/components/admin/events/molecules/RegistrationRefundJournal", () => ({
+  RegistrationRefundJournal: ({ eventId }: { eventId: string }) => (
+    <div data-testid="refund-journal" data-event-id={eventId} />
+  ),
+}));
+
 vi.mock("react-i18next", async () =>
   (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang),
 );
@@ -614,6 +622,7 @@ describe("cztery stany listy zgłoszeń", () => {
     expect(wiersze()).toHaveLength(1);
     expect(screen.getByText("Anna Nowak")).toBeTruthy();
     expect(screen.getByText("anna@example.test")).toBeTruthy();
+    expect(screen.getByTestId("refund-journal")).toHaveAttribute("data-event-id", WYDARZENIE);
   });
 });
 

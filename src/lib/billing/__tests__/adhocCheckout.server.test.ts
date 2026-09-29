@@ -185,7 +185,7 @@ describe("createAdhocCheckoutSession - kształt sesji", () => {
     expect(params.line_items[0].price_data).toEqual({
       currency: "eur",
       unit_amount: 9900,
-      product_data: { name: "Dostęp do artykułu" },
+      product_data: { name: "Dostęp do artykułu", tax_code: "txcd_10000000" },
     });
   });
 

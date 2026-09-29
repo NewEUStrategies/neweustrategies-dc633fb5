@@ -8,12 +8,12 @@
 //
 // PODGLAD TO PRAWDZIWA KARTA. Obok pol stoi `SpeakerProfileCard` - ten sam
 // komponent, ktory rysuje strona prelegentow - karmiony wierszem z listy
-// i szkicem pol. Klik w zdjecie w podgladzie rozwija karte tak, jak zrobi to
-// uczestnik; zadna druga kopia ukladu nie moze sie tu rozjechac ze strona.
+// i szkicem pol. Pelny portret jest widoczny od razu, jak na stronie
+// uczestnika; podglad nie nawiguje poza niezapisany formularz.
 //
 // SCIEZKI SA TYLKO DO ODCZYTU. Wynikaja z obsady sesji (`tracks` wpisu), wiec
 // zamiast pola wyboru stoi wyjasnienie, skad sie biora.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
@@ -117,8 +117,6 @@ export function EventSpeakerCardDialog({
     [speaker, draft],
   );
 
-  const contentRef = useRef<HTMLDivElement | null>(null);
-
   const saveM = useMutation({
     mutationFn: () => {
       if (speaker === null) return Promise.resolve();
@@ -163,27 +161,7 @@ export function EventSpeakerCardDialog({
         onOpenChange(next);
       }}
     >
-      <DialogContent
-        ref={contentRef}
-        className="max-h-[92vh] max-w-4xl overflow-y-auto rounded-[6px] p-5"
-        // ESCAPE PRZY ROZWINIETEJ KARCIE PODGLADU zwija karte, a NIE zamyka
-        // dialogu. Radix nasluchuje klawiatury w fazie przechwytywania, wiec
-        // `stopPropagation` karty go nie zatrzyma - a zamkniecie dialogu
-        // przepadloby niezapisane zmiany karty. Karta jest szukana w CALYM
-        // dialogu, nie po celu zdarzenia: Safari i Firefox na macOS nie daja
-        // fokusu przyciskowi po kliknieciu, wiec cel to wtedy sam dialog.
-        onEscapeKeyDown={(event) => {
-          const card = contentRef.current?.querySelector('article[data-state="expanded"]');
-          if (!card) return;
-          event.preventDefault();
-          // Fokus w karcie: zwija ja jej wlasna obsluga klawisza. Poza karta -
-          // ten sam przycisk zdjecia, co klikniecie.
-          const target = event.target;
-          if (!(target instanceof Node && card.contains(target))) {
-            card.querySelector<HTMLButtonElement>('button[aria-expanded="true"]')?.click();
-          }
-        }}
-      >
+      <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto rounded-[6px] p-5">
         <DialogHeader>
           <DialogTitle>{t("adminCommunityEvents.speakers.card.title", { name })}</DialogTitle>
           <DialogDescription>{t("adminCommunityEvents.speakers.card.subtitle")}</DialogDescription>

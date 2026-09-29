@@ -1470,8 +1470,8 @@ describe("wpłata na zgłoszeniu zamkniętym i zgodność ze starą bazą", () =
         user_id: ADMIN_A,
         title_pl: "Wpłata za zamknięte zgłoszenie - do zwrotu",
         title_en: "Payment for a closed registration - refund due",
-        body_pl: `${TITLE_PL}: wpłata dotarła do zgłoszenia odwołanego albo odrzuconego. Zwróć płatność w panelu płatności.`,
-        body_en: `${TITLE_EN}: a payment reached a cancelled or rejected registration. Refund it in the payments panel.`,
+        body_pl: `${TITLE_PL}: wpłata dotarła do zgłoszenia odwołanego albo odrzuconego. Sprawdź dziennik zwrotów po odrzuceniu; anulowanie i zwrot części grupy rozlicz w panelu płatności.`,
+        body_en: `${TITLE_EN}: a payment reached a cancelled or rejected registration. Check the rejection refund journal; handle cancellation and partial group refunds in the payments panel.`,
       });
     },
   );
@@ -1529,8 +1529,8 @@ describe("dzwonek organizatora o wpłacie bez miejsca", () => {
     expect(organizerRows()[0]).toMatchObject({
       title_pl: "Opłacone zgłoszenie czeka na akceptację",
       title_en: "Paid registration awaits approval",
-      body_pl: `${TITLE_PL}: uczestnik zapłacił za bilet wymagający akceptacji - przyjmij albo odrzuć zgłoszenie (odmowa wymaga zwrotu płatności).`,
-      body_en: `${TITLE_EN}: the attendee paid for a ticket that needs approval - approve or decline (declining requires a refund).`,
+      body_pl: `${TITLE_PL}: uczestnik zapłacił za bilet wymagający akceptacji - przyjmij albo odrzuć zgłoszenie (odmowa zleca zwrot; sprawdź dziennik zwrotów przy płatności grupowej).`,
+      body_en: `${TITLE_EN}: the attendee paid for a ticket that needs approval - approve or decline (declining queues a refund; check the refund journal for group payments).`,
     });
   });
 

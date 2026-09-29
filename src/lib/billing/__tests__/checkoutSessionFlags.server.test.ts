@@ -131,8 +131,8 @@ describe("createAdhocCheckoutSession - flagi tenantu w sesji", () => {
     });
     const payload = lastSessionPayload();
     expect(payload.allow_promotion_codes).toBeUndefined();
-    // Reszta flag tenantu jedzie bez zmian - wyłączamy JEDNO pole, nie ustawienia.
-    expect(payload.managed_payments).toEqual({ enabled: true });
+    // Bilety rozlicza organizator; nie są cyfrowym produktem operatora MoR.
+    expect(payload.managed_payments).toBeUndefined();
     expect(payload.billing_address_collection).toBe("auto");
   });
 
@@ -142,8 +142,8 @@ describe("createAdhocCheckoutSession - flagi tenantu w sesji", () => {
 
     const payload = lastSessionPayload();
     expect(payload.allow_promotion_codes).toBeUndefined();
-    // Bezpieczne domyślne zostają domyślnymi - poza polem kodu.
-    expect(payload.managed_payments).toEqual({ enabled: true });
+    // Również przy domyślnych ustawieniach bilety nie korzystają z MoR.
+    expect(payload.managed_payments).toBeUndefined();
     expect(payload.tax_id_collection).toBeUndefined();
   });
 
