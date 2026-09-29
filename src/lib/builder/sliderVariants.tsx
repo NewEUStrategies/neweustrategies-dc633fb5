@@ -886,7 +886,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   }, [items.length]);
   const configuredColumns = Math.round(asNumInRange(config.columns, 3, 1, 4)) as 1 | 2 | 3 | 4;
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const containerWidth = useContainerWidth(rootRef);
+  const containerWidth = useContainerWidth(rootRef, items.length);
   const columns = effectiveSliderColumns(configuredColumns, containerWidth);
   const visibleCount = variant === "multi-card" ? columns : 1;
   const stepCount = Math.max(1, items.length - (variant === "multi-card" ? visibleCount - 1 : 0));
@@ -1294,7 +1294,10 @@ export function effectiveSliderColumns(
   return configured;
 }
 
-function useContainerWidth(ref: React.RefObject<HTMLDivElement | null>): number | null {
+function useContainerWidth(
+  ref: React.RefObject<HTMLDivElement | null>,
+  remeasureKey: number,
+): number | null {
   const [width, setWidth] = useState<number | null>(null);
   useEffect(() => {
     const el = ref.current;
@@ -1305,7 +1308,7 @@ function useContainerWidth(ref: React.RefObject<HTMLDivElement | null>): number 
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [ref]);
+  }, [ref, remeasureKey]);
   return width;
 }
 
