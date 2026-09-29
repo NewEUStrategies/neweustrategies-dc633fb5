@@ -40,12 +40,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import { axeViolations, summarize } from "@/test/axe";
+import { DZIEN, GODZINA, freezeClock, relativeIso } from "@/test/time";
 import type { AgendaSession } from "@/lib/events/agendaSurface";
 import type { PreviewTrackChip } from "@/lib/events/previewLiveData";
 import type { ComponentProps } from "react";
 import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 import type { AttendeeEntry } from "@/lib/events/publicEventApi";
 import type { PublicSponsorTier } from "@/lib/events/sponsorsSurface";
+
+freezeClock();
 
 const h = vi.hoisted(() => ({
   /** Karty sesji: identyfikator i to, czy przycisk zapisu jest zywy. */
@@ -143,8 +146,8 @@ function sesja(overrides: Partial<AgendaSession> = {}): AgendaSession {
     titleEn: "Congress opening",
     descriptionPl: null,
     descriptionEn: null,
-    startsAt: "2026-09-01T09:00:00.000Z",
-    endsAt: "2026-09-01T10:00:00.000Z",
+    startsAt: relativeIso(DZIEN),
+    endsAt: relativeIso(DZIEN + GODZINA),
     timezone: "Europe/Warsaw",
     format: "onsite",
     status: "published",
@@ -293,8 +296,12 @@ describe("EventPreviewLiveModule - program", () => {
     // plaska lista dni i redaktor widzial w studiu inny uklad niz uczestnik.
     modul("agenda", {
       sessions: [
-        sesja({ id: "dzien-2", startsAt: "2026-09-02T09:00:00.000Z" }),
-        sesja({ id: "dzien-1", startsAt: "2026-09-01T09:00:00.000Z" }),
+        sesja({
+          id: "dzien-2",
+          startsAt: relativeIso(2 * DZIEN),
+          endsAt: relativeIso(2 * DZIEN + GODZINA),
+        }),
+        sesja({ id: "dzien-1", startsAt: relativeIso(DZIEN) }),
       ],
     });
 
