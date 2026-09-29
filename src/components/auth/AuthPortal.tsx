@@ -227,7 +227,7 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
   const layout =
     position === "left"
       ? {
-          container: "max-w-[1280px] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.7fr)_100px]",
+          container: "max-w-[1280px] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.7fr)_112px]",
           rail: "lg:order-3",
           hero: "lg:order-2",
           form: "lg:order-1",
@@ -235,14 +235,14 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
         }
       : position === "center"
         ? {
-            container: "max-w-xl lg:grid-cols-[100px_minmax(0,1fr)]",
+            container: "max-w-xl lg:grid-cols-[112px_minmax(0,1fr)]",
             rail: "",
             hero: "",
             form: "",
             showHero: false,
           }
         : {
-            container: "max-w-[1280px] lg:grid-cols-[100px_minmax(0,1.7fr)_minmax(0,1fr)]",
+            container: "max-w-[1280px] lg:grid-cols-[112px_minmax(0,1.7fr)_minmax(0,1fr)]",
             rail: "",
             hero: "",
             form: "",
@@ -651,7 +651,7 @@ function RailButton({
   return (
     <button
       onClick={onClick}
-      className={`relative w-full flex flex-col items-center gap-1.5 py-4 text-[11px] font-medium transition-colors ${
+      className={`relative w-full flex flex-col items-center gap-1.5 py-4 pl-3 pr-1.5 text-[11px] font-medium transition-colors ${
         active ? "text-primary" : "text-muted-foreground hover:text-foreground"
       }`}
     >
